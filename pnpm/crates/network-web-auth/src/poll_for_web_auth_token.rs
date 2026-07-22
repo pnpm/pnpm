@@ -36,10 +36,12 @@ pub struct WebAuthFetchResponse {
     pub status: u16,
     /// Value of the `Retry-After` response header, if present.
     pub retry_after: Option<String>,
-    /// Raw response body, materialized only for responses whose body the
-    /// poll reads (see [`body_may_carry_token`]) and capped at the size the
-    /// provider enforces.
-    pub body: String,
+    /// Raw response body bytes, materialized only for responses whose body
+    /// the poll reads (see [`body_may_carry_token`]) and capped at the size
+    /// the provider enforces. [`token`](Self::token) decodes and parses them,
+    /// so the provider stays a thin transport that copies bytes without
+    /// interpreting them.
+    pub body: Vec<u8>,
     /// Whether the registry's body exceeded the provider's read cap and was
     /// therefore not fully materialized. A capped body cannot be parsed as
     /// the intended small token object, so [`token`](Self::token) reports it
@@ -64,8 +66,23 @@ impl WebAuthFetchResponse {
             #[serde(default)]
             token: Option<String>,
         }
-        serde_json::from_str::<TokenBody>(&self.body).map(|body| body.token)
+        serde_json::from_str::<TokenBody>(&decode_token_body(&self.body)).map(|body| body.token)
     }
+}
+
+/// Decode a token response body the way the TypeScript side's
+/// `new TextDecoder().decode(...)` does: losslessly (invalid UTF-8 becomes
+/// U+FFFD rather than a hard failure) and stripping a single leading BOM,
+/// which `serde_json` would otherwise reject. Living here in the pure,
+/// directly-tested [`token`](WebAuthFetchResponse::token) path — rather than
+/// in the un-fakeable provider `fetch` — keeps the decode reachable through
+/// the [`WebAuthFetch`] dependency-injection seam.
+fn decode_token_body(bytes: &[u8]) -> String {
+    let mut decoded = String::from_utf8_lossy(bytes).into_owned();
+    if decoded.starts_with('\u{FEFF}') {
+        decoded.remove(0);
+    }
+    decoded
 }
 
 /// Whether a response with this `ok` / `status` carries the token in its

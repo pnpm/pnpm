@@ -167,32 +167,20 @@ impl WebAuthFetch for Host {
             .and_then(|value| value.to_str().ok())
             .map(str::to_owned);
         let (body, truncated) = if body_may_carry_token(ok, status) {
-            // A read failure materializes as an empty, untruncated body,
-            // which `token()` treats the same as an unparsable one (the poll
-            // retries); an over-cap body reports `truncated` so `token()`
-            // reports no token. `status` / `retry_after` stay usable either
-            // way.
+            // Copy the capped bytes through verbatim; `WebAuthFetchResponse::token`
+            // decodes and parses them, so this provider interprets nothing. A read
+            // failure materializes as an empty, untruncated body, which `token`
+            // treats the same as an unparsable one (the poll retries); an over-cap
+            // body reports `truncated` so `token` reports no token. `status` /
+            // `retry_after` stay usable either way.
             match read_limited_body(response, TOKEN_BODY_LIMIT).await {
-                Ok(LimitedBody { bytes, truncated }) => {
-                    // Decode the way the TypeScript side's
-                    // `new TextDecoder().decode(...)` does: losslessly (invalid
-                    // UTF-8 becomes U+FFFD, never a hard failure) and stripping a
-                    // single leading BOM. A strict decode would drop an
-                    // otherwise-parsable body on one bad byte, and a retained BOM
-                    // would make `serde_json` reject an otherwise-valid token
-                    // body — either way the two stacks would diverge.
-                    let mut decoded = String::from_utf8_lossy(&bytes).into_owned();
-                    if decoded.starts_with('\u{FEFF}') {
-                        decoded.remove(0);
-                    }
-                    (decoded, truncated)
-                }
-                Err(_) => (String::new(), false),
+                Ok(LimitedBody { bytes, truncated }) => (bytes, truncated),
+                Err(_) => (Vec::new(), false),
             }
         } else {
             // The poll loop never reads the body of a non-ok or 202
             // response; dropping `response` unread stops the transfer.
-            (String::new(), false)
+            (Vec::new(), false)
         };
         Ok(WebAuthFetchResponse { ok, status, retry_after, body, truncated })
     }

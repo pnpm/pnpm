@@ -33,6 +33,34 @@ fn token_ignores_a_truncated_body_even_when_it_carries_a_token() {
     assert_eq!(response.token().expect("truncation short-circuits before parsing"), None);
 }
 
+/// An invalid UTF-8 byte decodes losslessly (it becomes U+FFFD) so an
+/// otherwise-parsable token still comes through, matching the TypeScript
+/// side's non-fatal `TextDecoder`. A strict decode would drop the body.
+#[test]
+fn token_decodes_an_invalid_utf8_body_lossily() {
+    let mut body = br#"{"token":"a"#.to_vec();
+    body.push(0xFF);
+    body.extend_from_slice(br#"b"}"#);
+    let response =
+        WebAuthFetchResponse { ok: true, status: 200, retry_after: None, body, truncated: false };
+    assert_eq!(
+        response.token().expect("parse the lossily-decoded body"),
+        Some("a\u{FFFD}b".to_owned()),
+    );
+}
+
+/// A leading UTF-8 BOM is stripped before parsing, matching the TypeScript
+/// side's `TextDecoder`; `serde_json` rejects a BOM, so without stripping an
+/// otherwise-valid token body would be dropped.
+#[test]
+fn token_strips_a_leading_bom() {
+    let mut body = vec![0xEF, 0xBB, 0xBF];
+    body.extend_from_slice(br#"{"token":"tok"}"#);
+    let response =
+        WebAuthFetchResponse { ok: true, status: 200, retry_after: None, body, truncated: false };
+    assert_eq!(response.token().expect("parse the BOM-prefixed body"), Some("tok".to_owned()));
+}
+
 /// A scripted stand-in for one `fetch` call, given the request URL and
 /// options so a test can both decide the response and capture the inputs.
 type FetchScript =
@@ -122,7 +150,7 @@ fn ok_202(retry_after: Option<&str>) -> WebAuthFetchResponse {
         ok: true,
         status: 202,
         retry_after: retry_after.map(str::to_owned),
-        body: "{}".to_owned(),
+        body: b"{}".to_vec(),
         truncated: false,
     }
 }
@@ -132,7 +160,7 @@ fn ok_token(token: &str) -> WebAuthFetchResponse {
         ok: true,
         status: 200,
         retry_after: None,
-        body: serde_json::json!({ "token": token }).to_string(),
+        body: serde_json::json!({ "token": token }).to_string().into_bytes(),
         truncated: false,
     }
 }
@@ -142,7 +170,7 @@ fn ok_json(body: &serde_json::Value) -> WebAuthFetchResponse {
         ok: true,
         status: 200,
         retry_after: None,
-        body: body.to_string(),
+        body: body.to_string().into_bytes(),
         truncated: false,
     }
 }
@@ -155,7 +183,7 @@ fn ok_truncated() -> WebAuthFetchResponse {
         ok: true,
         status: 200,
         retry_after: None,
-        body: serde_json::json!({ "token": "tok" }).to_string(),
+        body: serde_json::json!({ "token": "tok" }).to_string().into_bytes(),
         truncated: true,
     }
 }
@@ -165,7 +193,7 @@ fn not_ok() -> WebAuthFetchResponse {
         ok: false,
         status: 404,
         retry_after: None,
-        body: String::new(),
+        body: Vec::new(),
         truncated: false,
     }
 }
@@ -354,7 +382,7 @@ async fn continues_polling_when_response_body_is_not_json() {
                 ok: true,
                 status: 200,
                 retry_after: None,
-                body: "not json".to_owned(),
+                body: b"not json".to_vec(),
                 truncated: false,
             }
         } else {
