@@ -411,13 +411,47 @@ pub(super) fn rebuild<'a>(
     ctx: &RunCtx<'a>,
     args: RebuildArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    Ok(match ctx.reporter {
-        ReporterType::Default | ReporterType::AppendOnly => {
-            Box::pin(args.run::<DefaultReporter>((ctx.state)(true)?))
+    let dir = ctx.dir;
+    let manifest_path = ctx.manifest_path;
+    let reporter = ctx.reporter;
+    let recursive_sort = ctx.recursive_sort;
+    let recursive_no_bail = ctx.recursive_no_bail;
+    let config = ctx.config;
+    Ok(Box::pin(async move {
+        match reporter {
+            ReporterType::Default | ReporterType::AppendOnly => {
+                Box::pin(args.run_from_cli::<DefaultReporter>(
+                    config()?,
+                    dir.to_path_buf(),
+                    manifest_path.to_path_buf(),
+                    recursive_sort,
+                    recursive_no_bail,
+                ))
+                .await?;
+            }
+            ReporterType::Ndjson => {
+                Box::pin(args.run_from_cli::<NdjsonReporter>(
+                    config()?,
+                    dir.to_path_buf(),
+                    manifest_path.to_path_buf(),
+                    recursive_sort,
+                    recursive_no_bail,
+                ))
+                .await?;
+            }
+            ReporterType::Silent => {
+                Box::pin(args.run_from_cli::<SilentReporter>(
+                    config()?,
+                    dir.to_path_buf(),
+                    manifest_path.to_path_buf(),
+                    recursive_sort,
+                    recursive_no_bail,
+                ))
+                .await?;
+            }
         }
-        ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>((ctx.state)(true)?)),
-        ReporterType::Silent => Box::pin(args.run::<SilentReporter>((ctx.state)(true)?)),
-    })
+        Ok(())
+    }))
 }
 
 pub(super) fn runtime<'a>(
@@ -568,13 +602,13 @@ pub(super) fn approve_builds<'a>(
         super::rebuild::RebuildSelection { names: Some(build_packages), projects: Vec::new() };
     Ok(match ctx.reporter {
         ReporterType::Default | ReporterType::AppendOnly => Box::pin(async move {
-            super::rebuild::run_rebuild::<DefaultReporter>(&rebuild_state, selected).await
+            super::rebuild::run_rebuild::<DefaultReporter>(&rebuild_state, selected, None).await
         }),
         ReporterType::Ndjson => Box::pin(async move {
-            super::rebuild::run_rebuild::<NdjsonReporter>(&rebuild_state, selected).await
+            super::rebuild::run_rebuild::<NdjsonReporter>(&rebuild_state, selected, None).await
         }),
         ReporterType::Silent => Box::pin(async move {
-            super::rebuild::run_rebuild::<SilentReporter>(&rebuild_state, selected).await
+            super::rebuild::run_rebuild::<SilentReporter>(&rebuild_state, selected, None).await
         }),
     })
 }

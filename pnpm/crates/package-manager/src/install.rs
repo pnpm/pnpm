@@ -696,6 +696,21 @@ where
         .await
     }
 
+    /// Execute a forced rebuild limited to the selected workspace importers.
+    pub async fn run_selected_rebuild<Reporter: self::Reporter + 'static>(
+        self,
+        selection: WorkspaceInstallSelection<'_>,
+        rebuild: RebuildOptions,
+    ) -> Result<(), InstallError> {
+        assert!(self.frozen_lockfile, "run_selected_rebuild requires frozen_lockfile = true");
+        Box::pin(self.run_inner::<Reporter>(InstallRunOptions {
+            rebuild: Some(rebuild),
+            selection: Some(selection),
+            ..Default::default()
+        }))
+        .await
+    }
+
     async fn run_inner<Reporter: self::Reporter + 'static>(
         self,
         options: InstallRunOptions<'a, '_>,

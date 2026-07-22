@@ -140,6 +140,7 @@ fn script_scoped_global_flags_parse_before_script_commands() {
         ["pacquet", "--report-summary", "test"].as_slice(),
         ["pacquet", "--resume-from", "pkg", "start"].as_slice(),
         ["pacquet", "--no-bail", "stop"].as_slice(),
+        ["pacquet", "-r", "--no-bail", "rebuild"].as_slice(),
         ["pacquet", "-r", "--report-summary", ".test"].as_slice(),
     ] {
         let parsed = CliArgs::try_parse_from(argv).expect("parses script-scoped global flag");
@@ -221,6 +222,7 @@ fn script_scoped_global_flags_reject_unrelated_commands() {
         ["pacquet", "install", "--no-bail"].as_slice(),
         ["pacquet", "restart", "--report-summary"].as_slice(),
         ["pacquet", "restart", "--no-bail"].as_slice(),
+        ["pacquet", "rebuild", "--resume-from", "pkg"].as_slice(),
         ["pacquet", "publish", "--resume-from", "pkg"].as_slice(),
         ["pacquet", "publish", "--no-bail"].as_slice(),
     ] {
