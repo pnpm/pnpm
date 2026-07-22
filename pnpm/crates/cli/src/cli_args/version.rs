@@ -658,8 +658,6 @@ fn invalid_version_from_git(
     }
 }
 
-/// Read the nearest matching Git tag and parse the part after the configured
-/// tag prefix as an exact semantic version.
 fn version_from_git(cwd: &Path, tag_version_prefix: &str) -> Result<Version, VersionError> {
     let pattern = format!("{tag_version_prefix}*.*.*");
     let args = ["describe", "--tags", "--abbrev=0", "--always", "--match", pattern.as_str()];
@@ -675,7 +673,7 @@ fn version_from_git(cwd: &Path, tag_version_prefix: &str) -> Result<Version, Ver
     }
 
     let tag = output.stdout.trim();
-    let tag_args = ["tag", "--list", tag];
+    let tag_args = ["tag", "--list", "--", tag];
     let matching_tag = <Host as RunCommand>::run("git", &tag_args, Some(cwd)).map_err(|err| {
         VersionError::GitCommandFailed { args: tag_args.join(" "), stderr: err.to_string() }
     })?;

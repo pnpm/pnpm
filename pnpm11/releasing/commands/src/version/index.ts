@@ -307,7 +307,7 @@ function invalidVersionFromGitError (cwd: string, tagVersionPrefix: string, reas
 async function versionFromGit (cwd: string, tagVersionPrefix = 'v'): Promise<string> {
   const { stdout } = await execa('git', ['describe', '--tags', '--abbrev=0', '--always', '--match=' + tagVersionPrefix + '*.*.*'], { cwd })
   const tag = typeof stdout === 'string' ? stdout.trim() : ''
-  const { stdout: matchingTag } = await execa('git', ['tag', '--list', tag], { cwd })
+  const { stdout: matchingTag } = await execa('git', ['tag', '--list', '--', tag], { cwd })
 
   if (typeof matchingTag !== 'string' || matchingTag.trim() !== tag) {
     throw invalidVersionFromGitError(cwd, tagVersionPrefix, 'no matching Git tag found')

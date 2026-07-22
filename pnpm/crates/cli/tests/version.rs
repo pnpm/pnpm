@@ -371,7 +371,7 @@ fn from_git_fails_when_no_matching_tag_exists() {
         .chars()
         .filter(|character| !character.is_whitespace() && *character != '│')
         .collect();
-    assert!(compact_stderr.contains("usingtagprefix\"v\":nomatchingGittagfound"), "{stderr}");
+    assert!(compact_stderr.contains(r#"usingtagprefix"v":nomatchingGittagfound"#), "{stderr}");
     drop(root);
 }
 
@@ -398,8 +398,8 @@ fn from_git_rejects_a_malformed_version_tag() {
         .filter(|character| !character.is_whitespace() && *character != '│')
         .collect();
     assert!(
-        compact_stderr.contains("usingtagprefix\"v\":tagisnotavalidversion:\"v-release-2.3.4\""),
-        "{stderr}"
+        compact_stderr.contains(r#"usingtagprefix"v":tagisnotavalidversion:"v-release-2.3.4""#),
+        "{stderr}",
     );
     drop(root);
 }
@@ -424,6 +424,29 @@ fn from_git_respects_tag_version_prefix() {
 
     assert!(output.status.success(), "{}", stderr_of(&output));
     assert_eq!(manifest_version(&workspace), "4.5.6");
+    drop(root);
+}
+
+#[test]
+fn from_git_handles_tag_starting_with_dash() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    init_git(&workspace);
+    write_manifest(&workspace, r#"{"name":"test-pkg","version":"1.0.0"}"#);
+    git_commit_all(&workspace, "init");
+    let status = Command::new("git")
+        .args(["update-ref", "refs/tags/-1.2.3", "HEAD"])
+        .current_dir(&workspace)
+        .status()
+        .expect("create tag starting with dash");
+    assert!(status.success());
+
+    let output = pacquet_version(
+        &workspace,
+        &["from-git", "--tag-version-prefix", "-", "--no-git-tag-version"],
+    );
+
+    assert!(output.status.success(), "{}", stderr_of(&output));
+    assert_eq!(manifest_version(&workspace), "1.2.3");
     drop(root);
 }
 
