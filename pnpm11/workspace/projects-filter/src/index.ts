@@ -234,8 +234,10 @@ async function _filterGraph<Pkg extends BaseProject> (
         selector.diff,
         {
           changedFilesIgnorePattern: opts.changedFilesIgnorePattern,
+          projects: Object.values(projectsGraph).map(({ package: project }) => project),
           testPattern: opts.testPattern,
           workspaceDir: selector.parentDir ?? opts.workspaceDir,
+          workspaceRoot: opts.workspaceDir,
         }
       )
       selectEntries({

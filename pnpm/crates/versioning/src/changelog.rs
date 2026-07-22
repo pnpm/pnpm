@@ -45,7 +45,7 @@ pub fn compose_changelog_section(release: &PlannedRelease) -> String {
             .iter()
             .map(|dep| format!("  - {}@{}", dep.name, dep.new_version))
             .collect();
-        entries_by_bump[2].1.push(format!("- Updated dependencies:\n{}", dep_lines.join("\n")));
+        entries_by_bump[2].1.push(format!("- Updated dependencies\n{}", dep_lines.join("\n")));
     }
 
     let mut parts = vec![format!("## {}", release.new_version)];
@@ -54,7 +54,7 @@ pub fn compose_changelog_section(release: &PlannedRelease) -> String {
             continue;
         }
         parts.push(format!("### {}", section_title(*bump_type)));
-        parts.push(entries.join("\n\n"));
+        parts.push(entries.join("\n"));
     }
     format!("{}\n", parts.join("\n\n"))
 }

@@ -102,7 +102,7 @@ test('applyReleasePlan bumps manifests, writes changelogs, records the ledger, a
 
   const cliChangelog = await fs.readFile(path.join(cliDir, 'CHANGELOG.md'), 'utf8')
   expect(cliChangelog).toContain('## 2.0.1')
-  expect(cliChangelog).toContain('- Updated dependencies:')
+  expect(cliChangelog).toContain('- Updated dependencies')
   expect(cliChangelog).toContain('  - lib@1.1.0')
 
   const ledger = await readLedger(workspaceDir)

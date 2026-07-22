@@ -42,6 +42,7 @@ pub struct FilterWorkspaceProjectsOptions {
     /// Directory a `[<since>]` selector's git diff runs in when the
     /// selector has no `{dir}` part — normally the workspace root.
     pub workspace_dir: PathBuf,
+    pub catalog_users: crate::get_changed_projects::CatalogUsers,
     /// `testPattern`: glob patterns naming test files. A `[<since>]`
     /// selector selects a project whose changed files all match these
     /// patterns without the project's dependents.
@@ -171,6 +172,8 @@ where
                 diff,
                 &GetChangedProjectsOptions {
                     workspace_dir: selector.parent_dir.as_deref().unwrap_or(&opts.workspace_dir),
+                    workspace_root: &opts.workspace_dir,
+                    catalog_users: &opts.catalog_users,
                     test_pattern: &opts.test_pattern,
                     changed_files_ignore_pattern: &opts.changed_files_ignore_pattern,
                 },
@@ -414,11 +417,17 @@ pub fn filter_projects_by_selector_objects<Pkg>(
 where
     Pkg: GraphProject + Clone,
 {
+    let catalog_users = crate::get_changed_projects::collect_catalog_users(
+        projects
+            .iter()
+            .map(|project| (project.root_dir().to_path_buf(), project.merged_dependencies(false))),
+    );
     let (prod_selectors, all_selectors): (Vec<ProjectSelector>, Vec<ProjectSelector>) =
         selectors.iter().cloned().partition(|selector| selector.follow_prod_deps_only);
     let walk_opts = FilterWorkspaceProjectsOptions {
         use_glob_dir_filtering: opts.use_glob_dir_filtering,
         workspace_dir: opts.workspace_dir.clone(),
+        catalog_users,
         test_pattern: opts.test_pattern.clone(),
         changed_files_ignore_pattern: opts.changed_files_ignore_pattern.clone(),
     };

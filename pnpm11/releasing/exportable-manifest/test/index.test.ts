@@ -296,6 +296,35 @@ test('workspace deps are replaced', async () => {
   })
 })
 
+test('workspace deps use in-memory sibling snapshot versions', async () => {
+  expect(await createExportableManifest(process.cwd(), {
+    name: 'app',
+    version: '1.0.0',
+    dependencies: {
+      core: 'workspace:^',
+      coreAlias: 'workspace:core@*',
+    },
+    peerDependencies: {
+      core: 'workspace:^1.0.0',
+    },
+  }, {
+    catalogs: {},
+    workspaceVersions: {
+      core: '0.0.0-preview-20260718000000',
+    },
+  })).toStrictEqual({
+    name: 'app',
+    version: '1.0.0',
+    dependencies: {
+      core: '0.0.0-preview-20260718000000',
+      coreAlias: 'npm:core@0.0.0-preview-20260718000000',
+    },
+    peerDependencies: {
+      core: '0.0.0-preview-20260718000000',
+    },
+  })
+})
+
 test('catalog deps are replaced', async () => {
   const manifest: ProjectManifest = {
     name: 'catalog-protocol-package',

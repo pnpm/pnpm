@@ -676,6 +676,7 @@ async fn publish_packed_pkg_dry_run_returns_the_summary_without_publishing() {
         provenance: None,
         dry_run: true,
         stage: false,
+        lane: None,
         http: OidcHttpOptions::default(),
     };
     let client = ThrottledClient::default();
@@ -769,12 +770,13 @@ async fn publish_packed_pkg_attaches_signed_provenance_to_the_document() {
         provenance: Some(true),
         dry_run: false,
         stage: false,
+        lane: Some("next".to_owned()),
         http: OidcHttpOptions::default(),
     };
     let mock = server
         .mock("PUT", "/pkg")
         .match_body(mockito::Matcher::PartialJsonString(
-            r#"{"_attachments":{"pkg-1.0.0.sigstore":{"content_type":"application/vnd.dev.sigstore.bundle.v0.3+json","data":"signed-bundle-json"}}}"#
+            r#"{"versions":{"1.0.0":{"_pnpmLane":"next"}},"_attachments":{"pkg-1.0.0.sigstore":{"content_type":"application/vnd.dev.sigstore.bundle.v0.3+json","data":"signed-bundle-json"}}}"#
                 .to_owned(),
         ))
         .with_status(200)

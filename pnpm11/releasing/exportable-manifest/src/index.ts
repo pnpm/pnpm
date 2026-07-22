@@ -30,6 +30,7 @@ export interface MakePublishManifestOptions {
   catalogs: Catalogs
   hooks?: Hooks
   modulesDir?: string
+  workspaceVersions?: Readonly<Record<string, string>>
   skipManifestObfuscation?: boolean
   embedReadme?: boolean
 }
@@ -52,7 +53,8 @@ export async function createExportableManifest (
   const catalogResolver = resolveFromCatalog.bind(null, opts.catalogs)
   const replaceCatalogProtocol = resolveCatalogProtocol.bind(null, catalogResolver)
 
-  const convertDependencyForPublish = combineConverters(replaceWorkspaceProtocol, replaceCatalogProtocol, replaceJsrProtocol)
+  const replaceSnapshotWorkspaceProtocol = replaceWorkspaceProtocolWithSnapshotVersion.bind(null, opts.workspaceVersions)
+  const convertDependencyForPublish = combineConverters(replaceSnapshotWorkspaceProtocol, replaceWorkspaceProtocol, replaceCatalogProtocol, replaceJsrProtocol)
   await Promise.all((['dependencies', 'devDependencies', 'optionalDependencies'] as const).map(async (depsField) => {
     const deps = await makePublishDependencies(dir, originalManifest[depsField], {
       modulesDir: opts?.modulesDir,
@@ -65,7 +67,7 @@ export async function createExportableManifest (
 
   const peerDependencies = originalManifest.peerDependencies
   if (peerDependencies) {
-    const convertPeersForPublish = combineConverters(replaceWorkspaceProtocolPeerDependency, replaceCatalogProtocol, replaceJsrProtocol)
+    const convertPeersForPublish = combineConverters(replaceSnapshotWorkspaceProtocol, replaceWorkspaceProtocolPeerDependency, replaceCatalogProtocol, replaceJsrProtocol)
     publishManifest.peerDependencies = await makePublishDependencies(dir, peerDependencies, {
       modulesDir: opts?.modulesDir,
       convertDependencyForPublish: convertPeersForPublish,
@@ -160,6 +162,29 @@ async function readAndCheckManifest (depName: string, dependencyDir: string): Pr
     )
   }
   return manifest
+}
+
+async function replaceWorkspaceProtocolWithSnapshotVersion (
+  workspaceVersions: Readonly<Record<string, string>> | undefined,
+  depName: string,
+  depSpec: string,
+  dir: string,
+  _modulesDir?: string
+): Promise<string> {
+  if (workspaceVersions == null || !depSpec.startsWith('workspace:')) return depSpec
+
+  let targetName = depName
+  if (depSpec.startsWith('workspace:./') || depSpec.startsWith('workspace:../')) {
+    const manifest = await readAndCheckManifest(depName, path.join(dir, depSpec.slice(10)))
+    targetName = manifest.name!
+  } else {
+    const workspaceSpec = depSpec.slice('workspace:'.length)
+    const aliasSeparator = workspaceSpec.lastIndexOf('@')
+    if (aliasSeparator > 0) targetName = workspaceSpec.slice(0, aliasSeparator)
+  }
+  const version = workspaceVersions[targetName]
+  if (version == null) return depSpec
+  return targetName === depName ? version : `npm:${targetName}@${version}`
 }
 
 function resolveCatalogProtocol (catalogResolver: CatalogResolver, alias: string, bareSpecifier: string): string {

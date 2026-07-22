@@ -48,6 +48,7 @@ export function cliOptionsTypes (): Record<string, unknown> {
     otp: String,
     recursive: Boolean,
     'report-summary': Boolean,
+    snapshot: [String, Boolean],
   }
 }
 
@@ -114,6 +115,10 @@ export function help (): string {
             description: 'Send all packages to the registry in a single request instead of one request per package. Requires --recursive and a registry that implements the "/-/pnpm/v1/publish" endpoint (for example, pnpr)',
             name: '--batch',
           },
+          {
+            description: 'Publish the pending release plan under in-memory 0.0.0 snapshot versions. An optional tag controls the prerelease identifier and defaults to the current branch',
+            name: '--snapshot [tag]',
+          },
         ],
       },
       FILTERING,
@@ -179,6 +184,9 @@ export async function publish (
     throw new PnpmError('BATCH_PUBLISH_REQUIRES_RECURSIVE', '--batch can only be used together with --recursive', {
       hint: 'Run "pnpm publish -r --batch" to publish all workspace packages in a single request.',
     })
+  }
+  if (opts.snapshot && !opts.recursive) {
+    throw new PnpmError('SNAPSHOT_PUBLISH_REQUIRES_RECURSIVE', '--snapshot can only be used together with --recursive')
   }
   if (opts.gitChecks !== false && await isGitRepo()) {
     if (!(await isWorkingTreeClean())) {

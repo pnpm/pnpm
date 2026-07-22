@@ -5149,10 +5149,13 @@ dependencies = [
  "derive_more",
  "indexmap 2.14.0",
  "miette 7.6.0",
+ "pacquet-catalogs-protocol-parser",
  "pacquet-config",
  "pacquet-testing-utils",
  "pacquet-workspace-projects-graph",
  "pathdiff",
+ "serde",
+ "serde-saphyr",
  "tempfile",
  "wax",
 ]

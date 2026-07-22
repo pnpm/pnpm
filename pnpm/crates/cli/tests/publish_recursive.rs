@@ -275,6 +275,68 @@ fn recursive_publish_empty_workspace_writes_no_summary() {
     drop(root);
 }
 
+#[test]
+fn recursive_snapshot_publish_uses_the_pending_plan_without_mutating_release_state() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[
+            ("snapshot-core", public_pkg("snapshot-core")),
+            (
+                "snapshot-app",
+                json!({
+                    "name": "snapshot-app",
+                    "version": "1.0.0",
+                    "dependencies": { "snapshot-core": "workspace:^" },
+                }),
+            ),
+        ],
+    );
+    fs::create_dir(workspace.join(".changeset")).expect("create .changeset");
+    let intent = "---\n\"snapshot-core\": patch\n\"snapshot-app\": patch\n---\nSnapshot release.\n";
+    fs::write(workspace.join(".changeset/snapshot.md"), intent).expect("write intent");
+
+    clear_ci(pacquet)
+        .with_arg("publish")
+        .with_arg("-r")
+        .with_arg("--snapshot=pr-42")
+        .with_arg("--dry-run")
+        .with_arg("--report-summary")
+        .with_arg("--no-git-checks")
+        .assert()
+        .success();
+
+    let summary: Value = serde_json::from_str(
+        &fs::read_to_string(workspace.join("pnpm-publish-summary.json"))
+            .expect("read publish summary"),
+    )
+    .expect("parse publish summary");
+    let published = summary["publishedPackages"].as_array().expect("publishedPackages array");
+    assert_eq!(published.len(), 2);
+    for package in published {
+        let version = package["version"].as_str().expect("published version");
+        assert!(
+            version.starts_with("0.0.0-pr-42-") && version.len() == "0.0.0-pr-42-".len() + 14,
+            "unexpected snapshot version: {version}",
+        );
+    }
+    assert_eq!(
+        serde_json::from_str::<Value>(
+            &fs::read_to_string(workspace.join("snapshot-core/package.json"))
+                .expect("read core manifest"),
+        )
+        .expect("parse core manifest")["version"],
+        json!("1.0.0"),
+    );
+    assert_eq!(
+        fs::read_to_string(workspace.join(".changeset/snapshot.md")).expect("read intent"),
+        intent,
+    );
+    assert!(!workspace.join(".changeset/ledger.yaml").exists());
+
+    drop(root);
+}
+
 /// Each eligible workspace package is probed (a 404 means "not yet published")
 /// and then pushed with its own `PUT`.
 #[test]

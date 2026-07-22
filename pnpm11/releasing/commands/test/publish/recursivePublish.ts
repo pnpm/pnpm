@@ -79,6 +79,7 @@ test('recursive publish', async () => {
     configByUri: CONFIG_BY_URI,
     dir: process.cwd(),
     dryRun: true,
+    gitChecks: false,
     recursive: true,
   }, [])
 
@@ -117,6 +118,55 @@ test('recursive publish', async () => {
     const { stdout } = await execa('pnpm', ['dist-tag', 'ls', pkg1.name, '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`])
     expect(stdout?.toString()).toContain('next: 2.0.0')
   }
+})
+
+test('recursive snapshot publish uses the pending plan without mutating release state', async () => {
+  preparePackages([
+    {
+      name: 'snapshot-core',
+      version: '1.0.0',
+    },
+    {
+      name: 'snapshot-app',
+      version: '1.0.0',
+      dependencies: {
+        'snapshot-core': 'workspace:^',
+      },
+    },
+  ])
+  fs.mkdirSync('.changeset')
+  const intent = `---
+"snapshot-core": patch
+"snapshot-app": patch
+---
+Snapshot release.
+`
+  fs.writeFileSync('.changeset/snapshot.md', intent)
+  const context = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+
+  await publish.handler({
+    ...DEFAULT_OPTS,
+    ...context,
+    allProjects: Object.values(context.allProjectsGraph).map((node) => node.package),
+    configByUri: CONFIG_BY_URI,
+    dir: process.cwd(),
+    dryRun: true,
+    gitChecks: false,
+    recursive: true,
+    reportSummary: true,
+    snapshot: 'pr-42',
+  }, [])
+
+  const summary = loadJsonFileSync<{ publishedPackages: Array<{ name: string, version: string }> }>('pnpm-publish-summary.json')
+  expect(summary.publishedPackages).toHaveLength(2)
+  expect(summary.publishedPackages.map(({ version }) => version)).toEqual([
+    expect.stringMatching(/^0\.0\.0-pr-42-\d{14}$/),
+    expect.stringMatching(/^0\.0\.0-pr-42-\d{14}$/),
+  ])
+  expect(loadJsonFileSync<ProjectManifest>('snapshot-core/package.json').version).toBe('1.0.0')
+  expect(loadJsonFileSync<ProjectManifest>('snapshot-app/package.json').version).toBe('1.0.0')
+  expect(fs.readFileSync('.changeset/snapshot.md', 'utf8')).toBe(intent)
+  expect(fs.existsSync('.changeset/ledger.yaml')).toBe(false)
 })
 
 test('print info when no packages are published', async () => {

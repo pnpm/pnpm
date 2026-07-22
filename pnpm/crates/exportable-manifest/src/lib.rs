@@ -25,6 +25,6 @@ pub use create::{
 };
 pub use replace::{
     CannotResolveWorkspaceProtocolError, ReplaceWorkspaceProtocolError, replace_workspace_protocol,
-    replace_workspace_protocol_peer_dependency,
+    replace_workspace_protocol_peer_dependency, replace_workspace_protocol_with_snapshot_version,
 };
 pub use transform::TransformError;

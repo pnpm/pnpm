@@ -18,8 +18,8 @@ use pacquet_workspace::{
     workspace_package_patterns,
 };
 use pacquet_workspace_projects_filter::{
-    FilterWorkspaceProjectsOptions, ProjectSelector, filter_workspace_projects,
-    parse_project_selector,
+    FilterWorkspaceProjectsOptions, ProjectSelector, collect_catalog_users,
+    filter_workspace_projects, parse_project_selector,
 };
 use pacquet_workspace_projects_graph::{
     BaseProject, CreateProjectsGraphOptions, GraphProject, ProjectGraph, create_projects_graph,
@@ -330,6 +330,10 @@ pub fn select_recursive_projects<'a>(
     };
 
     let root_in_prod = !config.filter_prod.is_empty();
+    let catalog_users = collect_catalog_users(projects.iter().map(|project| {
+        let graph_project = GraphPkg { project };
+        (project.root_dir.clone(), graph_project.merged_dependencies(false))
+    }));
     let walk_opts = FilterWorkspaceProjectsOptions {
         // Glob dir filtering (the default, the inverse of
         // `legacyDirFiltering`) is load-bearing for the
@@ -340,6 +344,7 @@ pub fn select_recursive_projects<'a>(
         // stays at the default.
         use_glob_dir_filtering: true,
         workspace_dir: config.workspace_dir.as_deref().unwrap_or(prefix).to_path_buf(),
+        catalog_users,
         test_pattern: config.test_pattern.clone(),
         changed_files_ignore_pattern: config.changed_files_ignore_pattern.clone(),
     };

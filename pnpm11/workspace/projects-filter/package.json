@@ -31,6 +31,7 @@
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
+    "@pnpm/catalogs.protocol-parser": "workspace:*",
     "@pnpm/config.matcher": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/workspace.projects-graph": "workspace:*",
@@ -40,7 +41,8 @@
     "execa": "catalog:",
     "is-subdir": "catalog:",
     "micromatch": "catalog:",
-    "ramda": "catalog:"
+    "ramda": "catalog:",
+    "yaml": "catalog:"
   },
   "devDependencies": {
     "@jest/globals": "catalog:",

@@ -49,6 +49,7 @@ export type PublishPackedPkgOptions = Pick<Config,
   provenance?: boolean
   provenanceFile?: string // NOTE: This field is currently not supported
   stage?: boolean
+  lane?: string
 }
 
 export async function publishPackedPkg (
@@ -69,9 +70,12 @@ export async function publishPackedPkg (
     return summary
   }
   const context = createPublishContext(opts)
+  const registryManifest = opts.lane == null
+    ? publishedManifest
+    : { ...publishedManifest, _pnpmLane: opts.lane } as ExportedManifest
   const response = await publishWithOtpHandling({
     context,
-    manifest: publishedManifest,
+    manifest: registryManifest,
     publishOptions,
     tarballData,
   })

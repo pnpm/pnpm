@@ -64,6 +64,8 @@ pub struct PackOptions {
     pub dir: PathBuf,
     /// Parsed workspace catalogs, for `catalog:` specifier rewriting.
     pub catalogs: Catalogs,
+    /// Planned versions used only while packing a snapshot release.
+    pub workspace_versions: HashMap<String, String>,
     /// Skip the `prepack` / `prepare` / `postpack` lifecycle scripts.
     pub ignore_scripts: bool,
     /// `--unsafe-perm`: run lifecycle scripts without dropping privileges.
@@ -284,6 +286,7 @@ where
         &CreateExportableManifestOptions {
             catalogs: &opts.catalogs,
             modules_dir: Some(&modules_dir),
+            workspace_versions: Some(&opts.workspace_versions),
             skip_manifest_obfuscation: opts.skip_manifest_obfuscation,
             embed_readme: opts.embed_readme,
         },
@@ -302,6 +305,12 @@ where
         &opts.before_packing_hooks,
     )
     .await?;
+
+    if let Some(snapshot_version) = opts.workspace_versions.get(name)
+        && let Some(object) = publish_manifest.as_object_mut()
+    {
+        object.insert("version".to_string(), Value::String(snapshot_version.clone()));
+    }
 
     // Strip semver build metadata (the `+<build>` segment) so the
     // tarball name, the packed manifest, and any registry metadata all

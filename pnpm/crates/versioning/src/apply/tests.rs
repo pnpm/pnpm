@@ -130,7 +130,7 @@ fn apply_bumps_manifests_writes_changelogs_records_the_ledger_and_deletes_consum
 
     let cli_changelog = fs::read_to_string(cli_dir.join("CHANGELOG.md")).expect("read changelog");
     assert!(cli_changelog.contains("## 2.0.1"));
-    assert!(cli_changelog.contains("- Updated dependencies:"));
+    assert!(cli_changelog.contains("- Updated dependencies"));
     assert!(cli_changelog.contains("  - lib@1.1.0"));
 
     let ledger = read_ledger(workspace.dir.path()).expect("ledger reads");

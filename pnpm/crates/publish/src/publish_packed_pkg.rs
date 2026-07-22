@@ -52,6 +52,9 @@ pub struct PublishPackedPkgOptions {
     pub provenance: Option<bool>,
     pub dry_run: bool,
     pub stage: bool,
+    /// Registry lane for snapshot versions. Stored as metadata on the
+    /// registry document, never in the packed package manifest.
+    pub lane: Option<String>,
     pub http: OidcHttpOptions,
 }
 
@@ -112,8 +115,14 @@ where
 
     // `summary` already hashed the tarball; reuse those digests for the
     // document's `dist` rather than hashing the bytes a second time.
+    let mut registry_manifest = pkg.published_manifest.clone();
+    if let Some(lane) = &opts.lane
+        && let Some(object) = registry_manifest.as_object_mut()
+    {
+        object.insert("_pnpmLane".to_string(), Value::String(lane.clone()));
+    }
     let mut document = build_publish_document(
-        pkg.published_manifest,
+        &registry_manifest,
         pkg.tarball_data,
         &registry,
         resolved.access,

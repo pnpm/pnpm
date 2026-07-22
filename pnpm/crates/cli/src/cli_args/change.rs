@@ -7,14 +7,18 @@ use node_semver::Version;
 use pacquet_config::Config;
 use pacquet_package_manifest::DependencyGroup;
 use pacquet_versioning::{
-    AssembleReleasePlanOptions, IntentBumpType, ManifestDependency, ReleasePlan,
-    VersioningSettings, WorkspaceProject, assemble_release_plan, index_project_refs,
-    read_change_intents, read_ledger, to_project_dir, write_change_intent,
+    AssembleReleasePlanOptions, ChangelogSettings, ChangelogStorage, IntentBumpType,
+    ManifestDependency, ReleasePlan, VersioningSettings, WorkspaceProject, assemble_release_plan,
+    build_consumption_index, index_project_refs, read_change_intents, read_ledger, to_project_dir,
+    write_change_intent,
 };
 use pacquet_workspace::Project;
-use pacquet_workspace_projects_filter::{GetChangedProjectsOptions, get_changed_projects};
+use pacquet_workspace_projects_filter::{
+    GetChangedProjectsOptions, collect_catalog_users, get_changed_projects,
+};
 use std::{
     collections::HashSet,
+    fs,
     path::{Path, PathBuf},
     process::Command,
 };
@@ -28,8 +32,9 @@ use crate::cli_args::{
 /// The intent file is written to `.changeset/` in the changesets format.
 #[derive(Debug, Args)]
 pub struct ChangeArgs {
-    /// `status` to print the pending intents and the release plan they
-    /// produce; otherwise the packages the change affects.
+    /// `status` prints the pending release plan; `check [since]` verifies
+    /// changed-package coverage; `migrate` imports Changesets configuration;
+    /// otherwise these are the packages the change affects.
     pub params: Vec<String>,
 
     /// Bump type for the named packages: none, patch, minor, major. "none"
@@ -68,6 +73,45 @@ enum ChangeError {
     #[display("Invalid bump type: {bump}. Expected one of none, patch, minor, major")]
     #[diagnostic(code(ERR_PNPM_VERSIONING_INVALID_BUMP))]
     InvalidBump { bump: String },
+
+    #[display("pnpm change check accepts at most one base revision")]
+    #[diagnostic(code(ERR_PNPM_VERSIONING_INVALID_CHECK_ARGS))]
+    InvalidCheckArgs,
+
+    #[display(
+        "Could not find a base revision for pnpm change check. Pass one explicitly, for example: pnpm change check origin/main"
+    )]
+    #[diagnostic(code(ERR_PNPM_VERSIONING_BASE_NOT_FOUND))]
+    BaseNotFound,
+
+    #[display(
+        "Changed packages are missing a pending change intent: {}. Record a bump or an explicit none decline with pnpm change.",
+        packages.join(", ")
+    )]
+    #[diagnostic(code(ERR_PNPM_VERSIONING_CHANGE_CHECK_FAILED))]
+    CheckFailed { packages: Vec<String> },
+
+    #[display("No Changesets config found at {}", path.display())]
+    #[diagnostic(code(ERR_PNPM_VERSIONING_CHANGESETS_CONFIG_NOT_FOUND))]
+    ChangesetsConfigNotFound { path: PathBuf },
+
+    #[display("Cannot parse {}: {message}", path.display())]
+    #[diagnostic(code(ERR_PNPM_VERSIONING_INVALID_CHANGESETS_CONFIG))]
+    InvalidChangesetsConfig { path: PathBuf, message: String },
+
+    #[display(
+        "Cannot migrate .changeset/config.json because linked groups are not supported. Convert them to fixed groups or remove them first."
+    )]
+    #[diagnostic(code(ERR_PNPM_VERSIONING_LINKED_UNSUPPORTED))]
+    LinkedUnsupported,
+}
+
+#[derive(Default, serde::Deserialize)]
+#[serde(default)]
+struct ChangesetsConfig {
+    fixed: Option<Vec<Vec<String>>>,
+    ignore: Option<Vec<String>>,
+    linked: Option<Vec<Vec<String>>>,
 }
 
 impl ChangeArgs {
@@ -77,6 +121,35 @@ impl ChangeArgs {
         };
         let (projects, _) = discover_workspace_projects(&workspace_dir)?;
         let engine_projects = to_engine_projects(&projects);
+
+        if self.params.len() == 1
+            && self.params[0] == "migrate"
+            && self.bump.is_none()
+            && self.summary.is_none()
+        {
+            let repository_changelog =
+                migrate_changesets_config(&workspace_dir, &projects, &config.versioning)?;
+            println!(
+                "Migrated .changeset/config.json to pnpm-workspace.yaml{}.",
+                if repository_changelog { " with repository changelog storage" } else { "" },
+            );
+            return Ok(());
+        }
+
+        if self.params.first().is_some_and(|param| param == "check")
+            && self.bump.is_none()
+            && self.summary.is_none()
+        {
+            check_change_coverage(
+                &workspace_dir,
+                &projects,
+                &engine_projects,
+                config,
+                &self.params[1..],
+            )?;
+            println!("All changed packages are covered by change intents.");
+            return Ok(());
+        }
 
         // Only the exact no-option invocation is the status form, so a
         // package that happens to be named "status" stays recordable.
@@ -122,8 +195,13 @@ impl ChangeArgs {
         // each project under its directory reference, so the written intent
         // stays unambiguous without the contributor knowing the rule exists.
         let pkg_refs = if self.params.is_empty() {
-            let changed_dirs =
-                detect_changed_dirs(&releasable, &engine_projects, &workspace_dir, config);
+            let changed_dirs = detect_changed_dirs(
+                &releasable,
+                &projects,
+                &engine_projects,
+                &workspace_dir,
+                config,
+            );
             prompt_for_packages(&releasable, &changed_dirs)?
         } else {
             self.params.clone()
@@ -146,6 +224,50 @@ impl ChangeArgs {
         println!("Recorded change intent .changeset/{id}.md");
         Ok(())
     }
+}
+
+fn migrate_changesets_config(
+    workspace_dir: &Path,
+    projects: &[Project],
+    current: &VersioningSettings,
+) -> miette::Result<bool> {
+    let config_path = workspace_dir.join(".changeset/config.json");
+    let text = match fs::read_to_string(&config_path) {
+        Ok(text) => text,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+            return Err(ChangeError::ChangesetsConfigNotFound { path: config_path }.into());
+        }
+        Err(err) => return Err(err).into_diagnostic(),
+    };
+    let legacy: ChangesetsConfig = serde_json::from_str(&text).map_err(|err| {
+        ChangeError::InvalidChangesetsConfig { path: config_path.clone(), message: err.to_string() }
+    })?;
+    if legacy.linked.as_ref().is_some_and(|groups| !groups.is_empty()) {
+        return Err(ChangeError::LinkedUnsupported.into());
+    }
+    let repository_changelog =
+        projects.iter().any(|project| project.root_dir.join("CHANGELOG.md").is_file());
+    let mut versioning = current.clone();
+    if let Some(fixed) = legacy.fixed {
+        versioning.fixed = fixed;
+    }
+    if let Some(ignore) = legacy.ignore {
+        versioning.ignore = ignore;
+    }
+    if repository_changelog {
+        versioning.changelog = Some(ChangelogSettings {
+            storage: Some(ChangelogStorage::Repository),
+            ..versioning.changelog.unwrap_or_default()
+        });
+    }
+    let value = serde_json::to_value(&versioning).into_diagnostic()?;
+    pacquet_workspace_manifest_writer::update_manifest_field(
+        &workspace_dir.join("pnpm-workspace.yaml"),
+        "versioning",
+        &value,
+    )?;
+    fs::remove_file(&config_path).into_diagnostic()?;
+    Ok(repository_changelog)
 }
 
 fn parse_bump(bump: &str) -> Option<IntentBumpType> {
@@ -205,6 +327,7 @@ fn prompt_for_packages(
 /// Returns an empty set on any failure so the picker degrades to a flat list.
 fn detect_changed_dirs(
     releasable: &[ReleasableProject],
+    projects: &[Project],
     engine_projects: &[WorkspaceProject],
     workspace_dir: &Path,
     config: &Config,
@@ -214,8 +337,11 @@ fn detect_changed_dirs(
     };
     let project_dirs: Vec<PathBuf> =
         engine_projects.iter().map(|project| project.root_dir.clone()).collect();
+    let catalog_users = collect_project_catalog_users(projects);
     let opts = GetChangedProjectsOptions {
         workspace_dir,
+        workspace_root: workspace_dir,
+        catalog_users: &catalog_users,
         test_pattern: &config.test_pattern,
         changed_files_ignore_pattern: &config.changed_files_ignore_pattern,
     };
@@ -232,9 +358,94 @@ fn detect_changed_dirs(
         .collect()
 }
 
+fn check_change_coverage(
+    workspace_dir: &Path,
+    projects: &[Project],
+    engine_projects: &[WorkspaceProject],
+    config: &Config,
+    params: &[String],
+) -> miette::Result<()> {
+    if params.len() > 1 {
+        return Err(ChangeError::InvalidCheckArgs.into());
+    }
+    let base_commit = match params.first() {
+        Some(commit) => commit.clone(),
+        None => detect_base_commit(workspace_dir).ok_or(ChangeError::BaseNotFound)?,
+    };
+    let releasable = releasable_projects(engine_projects, workspace_dir, &config.versioning);
+    let releasable_by_dir: std::collections::HashMap<&str, &ReleasableProject> =
+        releasable.iter().map(|project| (project.dir.as_str(), project)).collect();
+    let catalog_users = collect_project_catalog_users(projects.iter());
+    let changed = get_changed_projects(
+        projects.iter().map(|project| project.root_dir.clone()).collect(),
+        &base_commit,
+        &GetChangedProjectsOptions {
+            workspace_dir,
+            workspace_root: workspace_dir,
+            catalog_users: &catalog_users,
+            test_pattern: &config.test_pattern,
+            changed_files_ignore_pattern: &config.changed_files_ignore_pattern,
+        },
+    )?;
+    let touched: Vec<String> = changed
+        .changed_projects
+        .iter()
+        .map(|root_dir| to_project_dir(workspace_dir, root_dir))
+        .filter(|dir| releasable_by_dir.contains_key(dir.as_str()))
+        .collect();
+    if touched.is_empty() {
+        return Ok(());
+    }
+
+    let refs = index_project_refs(engine_projects, workspace_dir);
+    let intents = read_change_intents(workspace_dir)?;
+    let ledger = read_ledger(workspace_dir)?;
+    let consumption = build_consumption_index(&ledger, |name| refs.name_to_dirs(name))?;
+    let mut covered = HashSet::new();
+    for intent in &intents {
+        for reference in intent.releases.keys() {
+            for dir in refs.ref_to_dirs(reference) {
+                let already_consumed =
+                    consumption.get(&dir).is_some_and(|entry| entry.all_ids.contains(&intent.id));
+                if !already_consumed {
+                    covered.insert(dir);
+                }
+            }
+        }
+    }
+    let mut uncovered: Vec<String> = touched
+        .iter()
+        .filter(|dir| !covered.contains(*dir))
+        .map(|dir| releasable_by_dir[dir.as_str()].reference.clone())
+        .collect();
+    uncovered.sort();
+    if !uncovered.is_empty() {
+        return Err(ChangeError::CheckFailed { packages: uncovered }.into());
+    }
+    Ok(())
+}
+
+fn collect_project_catalog_users<'a>(
+    projects: impl IntoIterator<Item = &'a Project>,
+) -> pacquet_workspace_projects_filter::CatalogUsers {
+    collect_catalog_users(projects.into_iter().map(|project| {
+        let dependencies = project
+            .manifest
+            .dependencies([
+                DependencyGroup::Prod,
+                DependencyGroup::Dev,
+                DependencyGroup::Optional,
+                DependencyGroup::Peer,
+            ])
+            .map(|(name, specifier)| (name.to_string(), specifier.to_string()))
+            .collect();
+        (project.root_dir.clone(), dependencies)
+    }))
+}
+
 /// The merge-base of HEAD with the default branch, or `None`.
 fn detect_base_commit(cwd: &Path) -> Option<String> {
-    for branch in ["main", "master"] {
+    for branch in ["origin/main", "main", "origin/master", "master"] {
         let Ok(output) =
             Command::new("git").args(["merge-base", "HEAD", branch]).current_dir(cwd).output()
         else {
