@@ -17,7 +17,6 @@ describe('formatAuthUrlMessage', () => {
     const warnings: string[] = []
     const message = formatAuthUrlMessage(longAuthUrl, msg => warnings.push(msg))
     expect(message).toBe(`Authenticate your account at:\n${longAuthUrl}`)
-    expect(warnings).toHaveLength(1)
-    expect(warnings[0]).toContain('Could not generate a QR code:')
+    expect(warnings).toStrictEqual([expect.stringContaining('Could not generate a QR code:')])
   })
 })
