@@ -272,12 +272,10 @@ redundant_feature_names = "warn"
 wildcard_dependencies   = "warn"
 
 [profile.release]
-opt-level     = 3
-lto           = "fat"
-codegen-units = 1
-strip         = "symbols"
-debug         = false
-panic         = "abort"   # Let it crash and force ourselves to write safe Rust.
+opt-level = 3
+strip     = "symbols"
+debug     = false
+panic     = "abort"   # Let it crash and force ourselves to write safe Rust.
 
 # Use the `--profile release-debug` flag to show symbols in release mode.
 # e.g. `cargo build --profile release-debug`
