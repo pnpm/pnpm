@@ -927,18 +927,21 @@ fn pick_respecting_min_release_age(
         // can return *something* even if every version is past the
         // cutoff. The install layer reads the resulting pick's
         // publish timestamp and surfaces the violation through the
-        // verifier.
+        // verifier. Preserve the policy-aware `latest` from the
+        // filtered pick above: the fallback's raw tag would lead the
+        // reporter to advertise an immature version as available.
         let fallback_opts = PickPackageFromMetaOptions {
             preferred_version_selectors: picker_opts.preferred_version_selectors,
             published_by: None,
             published_by_exclude: None,
         };
-        pick_package_from_meta(
+        let fallback = pick_package_from_meta(
             pick_lowest_version_by_version_range,
             &fallback_opts,
             meta,
             target_spec,
-        )
+        )?;
+        Ok(PickFromMetaOutcome { package: fallback.package, latest: highest.latest })
     })
 }
 

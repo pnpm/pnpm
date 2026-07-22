@@ -261,10 +261,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
                 opts,
             )
         {
-            result.latest = picked
-                .latest
-                .clone()
-                .or_else(|| picked.meta.dist_tag("latest").map(str::to_string));
+            result.latest.clone_from(&picked.latest);
             return Ok(Some(result));
         }
 
@@ -747,7 +744,7 @@ pub(crate) fn build_resolve_result(
     Ok(ResolveResult {
         id,
         name_ver: Some(name_ver),
-        latest: latest.map(str::to_string).or_else(|| meta.dist_tag("latest").map(str::to_string)),
+        latest: latest.map(str::to_string),
         published_at,
         manifest,
         resolution,

@@ -391,12 +391,12 @@ async fn update_requested_keeps_non_version_selectors() {
     assert_eq!(result.id.as_str(), "@acme/private@2.0.0");
 }
 
-/// Pins the contract that the named-registry path (which shares
-/// `pick_from_registry_with_guard` and `build_resolve_result` with the
-/// main npm resolver) carries the policy-aware latest through to the
-/// resolve result. [`ACME_PRIVATE_BODY`] has 1.0.0 (2024-01-10),
-/// 2.0.0 (2024-06-01), 2.1.0 (2024-12-10); `dist-tags.latest` = 2.1.0.
-/// `published_by` 2024-07-01 filters 2.1.0 out → policy-aware latest = 2.0.0.
+// Pins the contract that the named-registry path (which shares
+// `pick_from_registry_with_guard` and `build_resolve_result` with the
+// main npm resolver) carries the policy-aware latest through to the
+// resolve result. [`ACME_PRIVATE_BODY`] has 1.0.0 (2024-01-10),
+// 2.0.0 (2024-06-01), 2.1.0 (2024-12-10); `dist-tags.latest` = 2.1.0.
+// `published_by` 2024-07-01 filters 2.1.0 out → policy-aware latest = 2.0.0.
 #[tokio::test]
 async fn latest_is_policy_aware_under_published_by() {
     let mut server = mockito::Server::new_async().await;

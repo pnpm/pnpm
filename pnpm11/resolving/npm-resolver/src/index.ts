@@ -679,7 +679,7 @@ async function resolveNpm (
           calcSpecifier: opts.calcSpecifier,
           pinnedVersion: opts.pinnedVersion,
         }),
-        latest: pickResult.latest ?? meta['dist-tags'].latest,
+        latest: pickResult.latest,
       }
     }
     const localVersion = pickMatchingLocalVersionOrNull(workspacePkgsMatchingName, spec)
@@ -694,7 +694,7 @@ async function resolveNpm (
           calcSpecifier: opts.calcSpecifier,
           pinnedVersion: opts.pinnedVersion,
         }),
-        latest: pickResult.latest ?? meta['dist-tags'].latest,
+        latest: pickResult.latest,
       }
     }
   }
@@ -717,7 +717,7 @@ async function resolveNpm (
   const publishedAt = meta.time?.[pickedPackage.version]
   return {
     id,
-    latest: pickResult.latest ?? meta['dist-tags'].latest,
+    latest: pickResult.latest,
     manifest: pickedPackage,
     resolution,
     resolvedVia: 'npm-registry',
@@ -870,7 +870,7 @@ async function pickFromSimpleRegistry (
   const publishedAt = meta.time?.[pickedPackage.version]
   return {
     id: `${pickedPackage.name}@${pickedPackage.version}` as PkgResolutionId,
-    latest: pickResult.latest ?? meta['dist-tags'].latest,
+    latest: pickResult.latest,
     manifest: pickedPackage,
     resolution,
     publishedAt,
