@@ -879,3 +879,16 @@ fn a_first_release_on_a_lane_debuts_at_a_prerelease_of_the_current_version() {
     let plan = assemble_with_unpublished(&projects, &intents, Some(&versioning), &["cli"]);
     assert_eq!(release(&plan, "cli").new_version, "12.0.0-alpha.0");
 }
+
+#[test]
+fn an_unpublished_epic_member_re_bases_to_the_new_band_floor_when_the_lead_crosses_a_major() {
+    let projects = [make_project("pnpm", "11.0.0", &[]), make_project("lib", "1100.0.0", &[])];
+    let intents = [make_intent("one", &[("pnpm", "major"), ("lib", "minor")])];
+    let versioning =
+        VersioningSettings { epics: vec![epic("pnpm", &["lib"])], ..VersioningSettings::default() };
+    let plan = assemble_with_unpublished(&projects, &intents, Some(&versioning), &["lib"]);
+    // Debuting verbatim at 1100.0.0 would land the member outside the new
+    // 1200-1299 band, so the epic re-base to the floor supersedes it.
+    assert_eq!(release(&plan, "pnpm").new_version, "12.0.0");
+    assert_eq!(release(&plan, "lib").new_version, "1200.0.0");
+}

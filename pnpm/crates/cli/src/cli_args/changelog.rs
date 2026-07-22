@@ -10,7 +10,7 @@ use flate2::read::GzDecoder;
 use futures_util::StreamExt;
 use miette::IntoDiagnostic;
 use pacquet_config::Config;
-use pacquet_network::encode_package_name;
+use pacquet_network::{ThrottledClient, encode_package_name, redact_url_credentials};
 use pacquet_registry::Package;
 use pacquet_versioning::{
     ChangelogStorage, ReleasePlan, changelog_storage, list_pending_changelogs,
@@ -97,10 +97,18 @@ pub async fn unpublished_release_dirs(
     if std::env::var_os("PACQUET_ASSUME_VERSIONS_PUBLISHED").is_some() {
         return Ok(HashSet::new());
     }
-    let checks = plan.releases.iter().map(|release| async move {
-        is_version_published(config, &release.name, &release.current_version)
-            .await
-            .map(|published| (release.dir.clone(), published))
+    // One client, shared across the concurrent probes, so the global
+    // network-concurrency bound and connection pool are respected rather than
+    // reconstructed per release.
+    let client = build_registry_client(config)?;
+    let checks = plan.releases.iter().map(|release| {
+        let client = &client;
+        async move {
+            let published =
+                is_version_published(client, config, &release.name, &release.current_version)
+                    .await?;
+            Ok::<_, miette::Report>((release.dir.clone(), published))
+        }
     });
     let probed = futures_util::future::try_join_all(checks).await?;
     Ok(probed.into_iter().filter_map(|(dir, published)| (!published).then_some(dir)).collect())
@@ -111,8 +119,12 @@ pub async fn unpublished_release_dirs(
 /// both read as `false` — a never-published version, i.e. a first release. Any
 /// other outcome (offline, 5xx, malformed body) errors, so the caller fails
 /// rather than guess a version's fate.
-async fn is_version_published(config: &Config, name: &str, version: &str) -> miette::Result<bool> {
-    let client = build_registry_client(config)?;
+async fn is_version_published(
+    client: &ThrottledClient,
+    config: &Config,
+    name: &str,
+    version: &str,
+) -> miette::Result<bool> {
     let registry = registry_for(config, name);
     let url = format!("{registry}{}", encode_package_name(name));
     let guard = client.acquire_for_url(&url).await;
@@ -129,8 +141,9 @@ async fn is_version_published(config: &Config, name: &str, version: &str) -> mie
         return Ok(false);
     }
     if !status.is_success() {
+        let display_url = redact_url_credentials(&url);
         return Err(miette::miette!(
-            "registry returned status {status} for {url} while checking whether {name}@{version} is published",
+            "registry returned status {status} for {display_url} while checking whether {name}@{version} is published",
         ));
     }
     let package: Package = response.json().await.into_diagnostic()?;

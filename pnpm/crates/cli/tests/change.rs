@@ -85,6 +85,43 @@ fn first_release_probe_debuts_an_unpublished_version_verbatim() {
     drop(root);
 }
 
+/// A registry that cannot answer the probe (here an unroutable port, so the
+/// check fails with a connection error rather than a 404) must fail
+/// `pnpm change status` and `pnpm version -r` rather than guess a version.
+/// Mirrors the TypeScript `a registry probe failure fails the command` test.
+#[test]
+fn first_release_probe_failure_fails_the_command() {
+    let CommandTempCwd { workspace, root, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write yaml");
+    fs::write(workspace.join(".npmrc"), "registry=http://127.0.0.1:1/\n").expect("write npmrc");
+    fs::write(workspace.join("package.json"), "{\"name\": \"e2e-root\", \"private\": true}\n")
+        .expect("write root package.json");
+    add_scoped_pkg(&workspace, "foo", "@pnpm.e2e/foo", "1.2.0");
+
+    // Recording an intent does not probe, so it succeeds despite the dead registry.
+    stdout_of(pnpm_probing(&workspace).with_args([
+        "change",
+        "--bump",
+        "minor",
+        "--summary",
+        "A feature.",
+        "@pnpm.e2e/foo",
+    ]));
+
+    let status =
+        pnpm_probing(&workspace).with_args(["change", "status"]).output().expect("run pnpm");
+    assert!(!status.status.success(), "change status must fail when the probe errors");
+
+    let release = pnpm_probing(&workspace).with_args(["version", "-r"]).output().expect("run pnpm");
+    assert!(!release.status.success(), "version -r must fail when the probe errors");
+
+    // No version was guessed: the manifest is untouched.
+    assert_eq!(manifest_version(&workspace, "foo"), "1.2.0");
+
+    drop(root);
+}
+
 fn write_workspace(workspace: &Path) {
     // These tests assert committed CHANGELOG.md files, which predate the
     // `registry`-storage default (where a release's section is parked under
@@ -116,7 +153,7 @@ fn pnpm(workspace: &Path) -> Command {
     // release's current version against the registry; assume every version is
     // already published so the engine bumps normally without a network round
     // trip. The probe's own behavior is covered against the mock registry by
-    // `first_release_of_an_unpublished_version_is_published_verbatim`.
+    // the `first_release_probe_*` tests below.
     Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
         .with_current_dir(workspace)

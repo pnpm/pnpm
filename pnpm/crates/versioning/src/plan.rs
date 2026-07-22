@@ -110,6 +110,14 @@ pub struct AssembleReleasePlanOptions {
     /// package seeded at the epic band floor `1100.0.0` with a `minor` intent
     /// would debut at `1100.1.0`, never publishing `1100.0.0`. Resolved by the
     /// CLI (a registry probe); the pure assembler just consumes the set.
+    ///
+    /// Fixed-group sharing and epic band re-basing still apply on top of the
+    /// verbatim debut, because they are workspace-wide version-assignment
+    /// invariants a single package cannot opt out of: a fixed-group member
+    /// takes the group's shared version (its peers move in lockstep), and an
+    /// epic member re-bases to the new band floor when its lead crosses a major
+    /// — debuting verbatim there would break lockstep or land the member out of
+    /// its band (which `enforce_epic_bands` rejects).
     pub unpublished_dirs: HashSet<String>,
 }
 

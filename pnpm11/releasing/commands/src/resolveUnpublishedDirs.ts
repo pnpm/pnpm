@@ -1,6 +1,6 @@
 import type { ReleasePlan } from '@pnpm/releasing.versioning'
 
-import { isVersionPublished, type PreviousChangelogOptions } from './publish/previousChangelog.js'
+import { createVersionPublishedChecker, type PreviousChangelogOptions } from './publish/previousChangelog.js'
 
 /**
  * Resolves whether `pkgName@version` is already published — the seam that
@@ -29,8 +29,7 @@ export type UnpublishedProbeOptions = PreviousChangelogOptions & {
  * here.
  */
 export async function resolveUnpublishedDirs (plan: ReleasePlan, opts: UnpublishedProbeOptions): Promise<Set<string>> {
-  const checkVersionPublished = opts.checkVersionPublished ??
-    ((pkgName, version) => isVersionPublished(opts, pkgName, version))
+  const checkVersionPublished = opts.checkVersionPublished ?? createVersionPublishedChecker(opts)
   const probed = await Promise.all(
     plan.releases.map(async (release) => ({
       dir: release.dir,

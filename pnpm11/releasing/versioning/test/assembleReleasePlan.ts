@@ -638,3 +638,18 @@ test('a first release on a lane debuts at a prerelease of the current version', 
   })
   expect(plan.releases.find((release) => release.name === 'cli')!.newVersion).toBe('12.0.0-alpha.0')
 })
+
+test('an unpublished epic member re-bases to the new band floor, not its manifest version, when the lead crosses a major', () => {
+  const plan = assembleReleasePlan({
+    workspaceDir: '/ws',
+    projects: [makeProject('pnpm', '11.0.0'), makeProject('lib', '1100.0.0')],
+    intents: [makeIntent('one', { pnpm: 'major', lib: 'minor' })],
+    ledger: NO_LEDGER,
+    versioning: { epics: [{ lead: 'pnpm', packages: ['lib'] }] },
+    unpublishedDirs: new Set(['lib']),
+  })
+  // Debuting verbatim at 1100.0.0 would land the member outside the new
+  // 1200-1299 band, so the epic re-base to the floor supersedes it.
+  expect(plan.releases.find((release) => release.name === 'pnpm')!.newVersion).toBe('12.0.0')
+  expect(plan.releases.find((release) => release.name === 'lib')!.newVersion).toBe('1200.0.0')
+})
