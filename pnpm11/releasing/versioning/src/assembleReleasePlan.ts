@@ -157,6 +157,65 @@ export function assembleReleasePlan (opts: AssembleReleasePlanOptions): ReleaseP
   }
 }
 
+export interface VersioningInvariantViolation {
+  code: 'VERSIONING_EPIC_OUT_OF_BAND' | 'VERSIONING_FIXED_GROUP_MISMATCH'
+  message: string
+}
+
+export interface CheckVersioningInvariantsOptions {
+  workspaceDir: string
+  projects: WorkspaceProject[]
+  versioning?: VersioningSettings
+}
+
+/**
+ * Validates that the committed versions already satisfy the invariants the
+ * configuration declares: every epic member's major sits inside its lead's
+ * band, and every fixed group shares one version. This is the static
+ * counterpart to the release-time enforcement in `assembleReleasePlan`, which
+ * only checks packages a plan actually releases — so a committed manifest that
+ * drifted out of band, or a fixed group that fell out of lockstep, would
+ * otherwise go unnoticed until a release that happens to touch it. Returns
+ * every violation so a caller can report them all at once; malformed
+ * configuration (unknown lead, epic overlap, a group straddling an epic) still
+ * throws, exactly as plan assembly would.
+ */
+export function checkVersioningInvariants (opts: CheckVersioningInvariantsOptions): VersioningInvariantViolation[] {
+  const refs = indexProjectRefs(opts.projects, opts.workspaceDir)
+  const participants = collectParticipants(opts.projects, refs, opts)
+  const fixedGroups = resolveFixedGroups(refs, participants, opts.versioning)
+  const epics = resolveEpics(refs, participants, opts.versioning)
+  validateEpics(epics, fixedGroups)
+
+  const violations: VersioningInvariantViolation[] = []
+  for (const epic of epics) {
+    const bandMajor = Number(participants.get(epic.leadDir)!.currentVersion.split('.')[0])
+    const low = bandMajor * 100
+    const high = low + 99
+    for (const memberDir of epic.memberDirs) {
+      const member = participants.get(memberDir)!
+      const memberMajor = Number(member.currentVersion.split('.')[0])
+      if (memberMajor < low || memberMajor > high) {
+        violations.push({
+          code: 'VERSIONING_EPIC_OUT_OF_BAND',
+          message: `${member.name} is at ${member.currentVersion}, whose major ${memberMajor} is outside the band ${low}-${high} of the epic led by "${epic.leadRef}" (major ${bandMajor}).`,
+        })
+      }
+    }
+  }
+  for (const [index, group] of fixedGroups.entries()) {
+    const members = group.map((dir) => participants.get(dir)!)
+    if (new Set(members.map((member) => member.currentVersion)).size > 1) {
+      const detail = members.map((member) => `${member.name}@${member.currentVersion}`).join(', ')
+      violations.push({
+        code: 'VERSIONING_FIXED_GROUP_MISMATCH',
+        message: `The fixed group [${(opts.versioning?.fixed ?? [])[index].join(', ')}] is not in lockstep: ${detail}.`,
+      })
+    }
+  }
+  return violations
+}
+
 interface Participant {
   name: string
   dir: string
@@ -363,7 +422,7 @@ function assertNoDuplicateReleaseIdentity (releases: PlannedRelease[]): void {
 function collectParticipants (
   projects: WorkspaceProject[],
   refs: ProjectRefIndex,
-  opts: AssembleReleasePlanOptions
+  opts: Pick<AssembleReleasePlanOptions, 'workspaceDir' | 'versioning'>
 ): Map<string, Participant> {
   const ignoredDirs = new Set<string>()
   for (const ref of opts.versioning?.ignore ?? []) {

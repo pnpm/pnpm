@@ -207,6 +207,92 @@ pub fn assemble_release_plan(
     }
 }
 
+/// The kind of committed-version invariant [`check_versioning_invariants`]
+/// found broken.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VersioningInvariantCode {
+    EpicOutOfBand,
+    FixedGroupMismatch,
+}
+
+/// A committed-version invariant the `versioning` configuration declares that
+/// the workspace currently violates.
+#[derive(Debug, Clone)]
+pub struct VersioningInvariantViolation {
+    pub code: VersioningInvariantCode,
+    pub message: String,
+}
+
+/// Validates that the committed versions already satisfy the invariants the
+/// configuration declares: every epic member's major sits inside its lead's
+/// band, and every fixed group shares one version. This is the static
+/// counterpart to the release-time enforcement in [`assemble_release_plan`],
+/// which only checks packages a plan actually releases — so a committed
+/// manifest that drifted out of band, or a fixed group that fell out of
+/// lockstep, would otherwise go unnoticed until a release that happens to touch
+/// it. Returns every violation so a caller can report them all at once;
+/// malformed configuration (unknown lead, epic overlap, a group straddling an
+/// epic) still returns `Err`, exactly as plan assembly would.
+pub fn check_versioning_invariants(
+    projects: &[WorkspaceProject],
+    workspace_dir: &Path,
+    versioning: Option<&VersioningSettings>,
+) -> Result<Vec<VersioningInvariantViolation>, VersioningError> {
+    let refs = index_project_refs(projects, workspace_dir);
+    let participants = collect_participants(projects, workspace_dir, &refs, versioning)?;
+    let fixed_groups = resolve_fixed_groups(&refs, &participants, versioning)?;
+    let epics = resolve_epics(&refs, &participants, versioning)?;
+    validate_epics(&epics, &fixed_groups)?;
+
+    // With no plan (no new versions), the band derives from the lead's current
+    // major, and members are checked against their current versions.
+    let empty_new_versions = BTreeMap::new();
+    let mut violations = Vec::new();
+    for epic in &epics {
+        let band_major = epic_band_major(epic, &participants, &empty_new_versions);
+        let low = band_major * 100;
+        let high = low + 99;
+        let mut member_dirs: Vec<&String> = epic.member_dirs.iter().collect();
+        member_dirs.sort();
+        for member_dir in member_dirs {
+            let member = &participants[member_dir.as_str()];
+            let member_major = Version::parse(member.current_version)
+                .expect("participants have valid versions")
+                .major;
+            if member_major < low || member_major > high {
+                violations.push(VersioningInvariantViolation {
+                    code: VersioningInvariantCode::EpicOutOfBand,
+                    message: format!(
+                        r#"{} is at {}, whose major {member_major} is outside the band {low}-{high} of the epic led by "{}" (major {band_major})."#,
+                        member.name, member.current_version, epic.lead_ref,
+                    ),
+                });
+            }
+        }
+    }
+    for (index, group) in fixed_groups.iter().enumerate() {
+        let distinct: BTreeSet<&str> =
+            group.iter().map(|dir| participants[dir.as_str()].current_version).collect();
+        if distinct.len() > 1 {
+            let detail = group
+                .iter()
+                .map(|dir| {
+                    let member = &participants[dir.as_str()];
+                    format!("{}@{}", member.name, member.current_version)
+                })
+                .collect::<Vec<_>>()
+                .join(", ");
+            let declared =
+                versioning.map(|settings| settings.fixed[index].join(", ")).unwrap_or_default();
+            violations.push(VersioningInvariantViolation {
+                code: VersioningInvariantCode::FixedGroupMismatch,
+                message: format!("The fixed group [{declared}] is not in lockstep: {detail}."),
+            });
+        }
+    }
+    Ok(violations)
+}
+
 struct Participant<'a> {
     name: &'a str,
     dir: String,

@@ -1,12 +1,15 @@
-use std::{collections::HashSet, path::PathBuf};
+use std::{
+    collections::HashSet,
+    path::{Path, PathBuf},
+};
 
 use indexmap::IndexMap;
 use pretty_assertions::assert_eq;
 
 use super::{
     AssembleReleasePlanOptions, DependencyField, DependencyUpdate, ManifestDependency,
-    PlannedRelease, ReleaseCause, ReleasePlan, WorkspaceProject, assemble_release_plan,
-    materialize_workspace_range,
+    PlannedRelease, ReleaseCause, ReleasePlan, VersioningInvariantCode, WorkspaceProject,
+    assemble_release_plan, check_versioning_invariants, materialize_workspace_range,
 };
 use crate::{
     intents::{ChangeIntent, IntentBumpType},
@@ -817,4 +820,84 @@ fn an_epic_whose_lead_is_not_a_releasable_project_fails_the_plan() {
         err.to_string().contains("is not a releasable workspace project"),
         "unexpected error: {err}",
     );
+}
+
+#[test]
+fn check_versioning_invariants_passes_when_bands_and_lockstep_hold() {
+    let projects = [
+        make_project("pnpm", "11.15.1", &[]),
+        make_project("@pnpm/lib", "1102.0.7", &[]),
+        make_project("@pnpm/exe", "11.15.1", &[]),
+    ];
+    let versioning = VersioningSettings {
+        epics: vec![epic("pnpm", &["@pnpm/lib"])],
+        fixed: vec![vec!["pnpm".to_string(), "@pnpm/exe".to_string()]],
+        ..VersioningSettings::default()
+    };
+    let violations =
+        check_versioning_invariants(&projects, Path::new("/ws"), Some(&versioning)).unwrap();
+    assert!(violations.is_empty(), "unexpected violations: {violations:?}");
+}
+
+#[test]
+fn check_versioning_invariants_reports_an_out_of_band_member() {
+    let projects = [make_project("pnpm", "11.15.1", &[]), make_project("@pnpm/lib", "5.0.0", &[])];
+    let versioning = VersioningSettings {
+        epics: vec![epic("pnpm", &["@pnpm/lib"])],
+        ..VersioningSettings::default()
+    };
+    let violations =
+        check_versioning_invariants(&projects, Path::new("/ws"), Some(&versioning)).unwrap();
+    assert_eq!(violations.len(), 1);
+    assert_eq!(violations[0].code, VersioningInvariantCode::EpicOutOfBand);
+    assert!(violations[0].message.contains("outside the band 1100-1199"));
+}
+
+#[test]
+fn check_versioning_invariants_reports_a_fixed_group_out_of_lockstep() {
+    let projects =
+        [make_project("pnpm", "11.15.1", &[]), make_project("@pnpm/exe", "11.15.0", &[])];
+    let versioning = VersioningSettings {
+        fixed: vec![vec!["pnpm".to_string(), "@pnpm/exe".to_string()]],
+        ..VersioningSettings::default()
+    };
+    let violations =
+        check_versioning_invariants(&projects, Path::new("/ws"), Some(&versioning)).unwrap();
+    assert_eq!(violations.len(), 1);
+    assert_eq!(violations[0].code, VersioningInvariantCode::FixedGroupMismatch);
+    assert!(violations[0].message.contains("not in lockstep"));
+}
+
+#[test]
+fn check_versioning_invariants_reports_every_violation_at_once() {
+    let projects = [
+        make_project("pnpm", "11.15.1", &[]),
+        make_project("@pnpm/lib", "5.0.0", &[]),
+        make_project("@pnpm/exe", "11.15.0", &[]),
+    ];
+    let versioning = VersioningSettings {
+        epics: vec![epic("pnpm", &["@pnpm/lib"])],
+        fixed: vec![vec!["pnpm".to_string(), "@pnpm/exe".to_string()]],
+        ..VersioningSettings::default()
+    };
+    let violations =
+        check_versioning_invariants(&projects, Path::new("/ws"), Some(&versioning)).unwrap();
+    let mut codes: Vec<_> = violations.iter().map(|violation| violation.code).collect();
+    codes.sort_by_key(|code| format!("{code:?}"));
+    assert_eq!(
+        codes,
+        [VersioningInvariantCode::EpicOutOfBand, VersioningInvariantCode::FixedGroupMismatch],
+    );
+}
+
+#[test]
+fn check_versioning_invariants_surfaces_malformed_configuration() {
+    let projects = [make_project("pnpm", "11.15.1", &[])];
+    let versioning = VersioningSettings {
+        epics: vec![epic("ghost", &["@pnpm/lib"])],
+        ..VersioningSettings::default()
+    };
+    let error = check_versioning_invariants(&projects, Path::new("/ws"), Some(&versioning))
+        .expect_err("unknown lead must error");
+    assert!(error.to_string().contains("is not a releasable workspace project"));
 }

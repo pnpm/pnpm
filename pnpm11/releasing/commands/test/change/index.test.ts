@@ -66,6 +66,23 @@ describe('change command and intent-consuming version -r', () => {
     ).rejects.toMatchObject({ code: 'ERR_PNPM_VERSIONING_UNKNOWN_PACKAGE' })
   })
 
+  it('change check passes when the committed versions satisfy the configured invariants', async () => {
+    const pnpmPkg = addPkg({ name: 'pnpm', version: '11.15.1' })
+    const lib = addPkg({ name: '@pnpm/lib', version: '1102.0.0' })
+    const opts = { ...baseOpts([pnpmPkg, lib]), versioning: { epics: [{ lead: 'pnpm', packages: ['@pnpm/lib'] }] } }
+    const output = await change.handler(opts as any, ['check']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(output).toContain('satisfy the configured versioning invariants')
+  })
+
+  it('change check fails and lists violations when a version drifts out of band', async () => {
+    const pnpmPkg = addPkg({ name: 'pnpm', version: '11.15.1' })
+    const lib = addPkg({ name: '@pnpm/lib', version: '5.0.0' })
+    const opts = { ...baseOpts([pnpmPkg, lib]), versioning: { epics: [{ lead: 'pnpm', packages: ['@pnpm/lib'] }] } }
+    await expect(
+      change.handler(opts as any, ['check']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    ).rejects.toMatchObject({ code: 'ERR_PNPM_VERSIONING_INVARIANTS_VIOLATED' })
+  })
+
   it('bare version -r applies the release plan and cleans up the intent', async () => {
     const lib = addPkg({ name: 'lib', version: '1.0.0' })
     const cli = addPkg({ name: 'cli', version: '2.0.0', dependencies: { lib: 'workspace:*' } })

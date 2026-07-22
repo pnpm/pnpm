@@ -69,10 +69,29 @@ versioning:
   # freeze @pnpm/logger from the automated release: it is bumped out of band.
   ignore:
     - '@pnpm/logger'
-  # The Rust CLI wrapper and its NAPI addon always release in lockstep at one
-  # shared version.
+  # Groups that always release together at one shared version:
+  #   - the Rust CLI wrapper and its NAPI addon;
+  #   - the pnpm CLI with its prebuilt executable (@pnpm/exe) and the
+  #     per-platform binary packages under pnpm11/pnpm/artifacts/. Those ship the
+  #     same build and must carry the CLI's exact version; this lockstep
+  #     previously lived as a version-forcing hack in .meta-updater.
   fixed:
     - ['pacquet', '@pnpm/napi']
+    - ['pnpm', '@pnpm/exe', '@pnpm/macos-arm64', '@pnpm/linux-arm64', '@pnpm/linuxstatic-arm64', '@pnpm/linux-x64', '@pnpm/linuxstatic-x64', '@pnpm/win-arm64', '@pnpm/win-x64']
+  # The TypeScript CLI (`pnpm`) leads an epic that bands every library package
+  # under pnpm11/ to the CLI's major: while `pnpm` is on major 11 the libraries
+  # live in majors 1100-1199. Members move independently inside the band (patch,
+  # minor, and an in-band major); the release engine rejects a bump that would
+  # carry one past the band ceiling, and re-bases every member to the next band
+  # floor when the CLI crosses to a new stable major. The built release
+  # artifacts under pnpm11/pnpm/artifacts/ are excluded from the band — they ride
+  # the CLI's exact version through the fixed group above. The banding here
+  # previously lived as a version-forcing hack in .meta-updater.
+  epics:
+    - lead: pnpm
+      packages:
+        - './pnpm11/**'
+        - '!./pnpm11/pnpm/artifacts/**'
   # The Rust products release as `X.Y.Z-alpha.N` prereleases (published under the
   # `next` dist-tag) while the TypeScript CLI keeps releasing stable versions on
   # the main lane. `pnpm lane main --filter …` graduates a product to stable.

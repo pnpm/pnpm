@@ -2,6 +2,7 @@ import { expect, test } from '@jest/globals'
 import {
   assembleReleasePlan,
   type ChangeIntent,
+  checkVersioningInvariants,
   type Ledger,
   materializeWorkspaceRange,
   type WorkspaceProject,
@@ -584,5 +585,70 @@ test('an epic whose lead is not a releasable project fails the plan', () => {
     intents: [],
     ledger: NO_LEDGER,
     versioning: { epics: [{ lead: 'ghost', packages: ['lib'] }] },
+  })).toThrow(/is not a releasable workspace project/)
+})
+
+test('checkVersioningInvariants: a workspace within its bands and in lockstep has no violations', () => {
+  const violations = checkVersioningInvariants({
+    workspaceDir: '/ws',
+    projects: [
+      makeProject('pnpm', '11.15.1'),
+      makeProject('@pnpm/lib', '1102.0.7'),
+      makeProject('@pnpm/exe', '11.15.1'),
+    ],
+    versioning: {
+      epics: [{ lead: 'pnpm', packages: ['@pnpm/lib'] }],
+      fixed: [['pnpm', '@pnpm/exe']],
+    },
+  })
+  expect(violations).toEqual([])
+})
+
+test('checkVersioningInvariants: reports an epic member whose committed major is outside the band', () => {
+  const violations = checkVersioningInvariants({
+    workspaceDir: '/ws',
+    projects: [makeProject('pnpm', '11.15.1'), makeProject('@pnpm/lib', '5.0.0')],
+    versioning: { epics: [{ lead: 'pnpm', packages: ['@pnpm/lib'] }] },
+  })
+  expect(violations).toHaveLength(1)
+  expect(violations[0].code).toBe('VERSIONING_EPIC_OUT_OF_BAND')
+  expect(violations[0].message).toContain('outside the band 1100-1199')
+})
+
+test('checkVersioningInvariants: reports a fixed group that fell out of lockstep', () => {
+  const violations = checkVersioningInvariants({
+    workspaceDir: '/ws',
+    projects: [makeProject('pnpm', '11.15.1'), makeProject('@pnpm/exe', '11.15.0')],
+    versioning: { fixed: [['pnpm', '@pnpm/exe']] },
+  })
+  expect(violations).toHaveLength(1)
+  expect(violations[0].code).toBe('VERSIONING_FIXED_GROUP_MISMATCH')
+  expect(violations[0].message).toContain('not in lockstep')
+})
+
+test('checkVersioningInvariants: reports every violation at once', () => {
+  const violations = checkVersioningInvariants({
+    workspaceDir: '/ws',
+    projects: [
+      makeProject('pnpm', '11.15.1'),
+      makeProject('@pnpm/lib', '5.0.0'),
+      makeProject('@pnpm/exe', '11.15.0'),
+    ],
+    versioning: {
+      epics: [{ lead: 'pnpm', packages: ['@pnpm/lib'] }],
+      fixed: [['pnpm', '@pnpm/exe']],
+    },
+  })
+  expect(violations.map((violation) => violation.code).sort()).toEqual([
+    'VERSIONING_EPIC_OUT_OF_BAND',
+    'VERSIONING_FIXED_GROUP_MISMATCH',
+  ])
+})
+
+test('checkVersioningInvariants: malformed configuration still throws', () => {
+  expect(() => checkVersioningInvariants({
+    workspaceDir: '/ws',
+    projects: [makeProject('pnpm', '11.15.1')],
+    versioning: { epics: [{ lead: 'ghost', packages: ['@pnpm/lib'] }] },
   })).toThrow(/is not a releasable workspace project/)
 })
