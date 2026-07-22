@@ -141,12 +141,9 @@ function pickRespectingMinReleaseAge (
   return runPicker(pickerOpts, spec, (targetSpec) => {
     const highest = pickHighest(pickerOpts, meta, targetSpec)
     if (highest.package) return highest
-    // Fall-back lowest pick drops `publishedBy` so the picker can return
-    // *something* even if every version is past the cutoff. The install
-    // layer reads the resulting pick's publish timestamp and surfaces the
-    // violation through the verifier. Preserve the policy-aware `latest`
-    // from the filtered pick above: the fallback's raw tag would lead the
-    // reporter to advertise an immature version as available.
+    // Fall back to lowest regardless of maturity so the install layer can flag
+    // the violation; preserve highest.latest so the reporter doesn't advertise
+    // an immature version.
     const fallback = pickLowest({
       preferredVersionSelectors: pickerOpts.preferredVersionSelectors,
     }, meta, targetSpec)

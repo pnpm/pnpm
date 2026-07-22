@@ -1303,13 +1303,10 @@ fn entries_label(entries: u64) -> String {
     if entries == 1 { "1 entry".to_string() } else { format!("{entries} entries") }
 }
 
-// `true` when `latest` is a strictly newer semver than `version`. Non-semver
-// inputs fall back to string inequality so a malformed tag still surfaces
-// (matches the TS reporter's defensive behavior when `semver.lt` cannot parse).
 fn is_strictly_newer(latest: &str, version: &str) -> bool {
     match (node_semver::Version::parse(latest), node_semver::Version::parse(version)) {
         (Ok(l), Ok(v)) => l > v,
-        _ => latest != version,
+        _ => false,
     }
 }
 

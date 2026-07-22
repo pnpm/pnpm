@@ -661,13 +661,9 @@ test('latest is the raw registry tag when publishedByExclude fully excludes the 
 })
 
 test('latest is undefined when all versions are filtered out as immature (fallback case)', async () => {
-  // is-positive-full has 1.0.0 (2015-06-02), 2.0.0 (2015-06-17), 3.0.0 (2015-07-10),
-  // 3.1.0 (2016-01-11). publishedBy 2015-06-01 (before all versions) filters
-  // everything out as immature. The picker falls back to the lowest version
-  // (1.0.0) and flags the violation; the policy-aware latest is undefined
-  // (no mature versions exist). The resolver must preserve that undefined
-  // value — not fall back to the raw registry tag — so the install summary
-  // reporter doesn't advertise an immature version as available.
+  // publishedBy 2015-06-01 is before every is-positive version → all filtered
+  // out → fallback picks 1.0.0; latest must stay undefined so the reporter
+  // doesn't advertise an immature version.
   getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMeta)

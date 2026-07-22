@@ -487,11 +487,6 @@ fn summary_prints_is_available_when_latest_is_newer_than_version() {
     assert_eq!(frame, "\ndependencies:\n+ foo 1.0.0 (2.0.0 is available)\n");
 }
 
-// When the policy-aware latest equals the installed version (e.g.
-// minimumReleaseAge held back the raw latest and the resolver returned
-// the highest mature version as `latest`), the summary must not
-// advertise an upgrade. Mirrors the TS reporter test for the same
-// scenario.
 #[test]
 fn summary_omits_is_available_when_latest_equals_version() {
     let mut reporter = state(false);

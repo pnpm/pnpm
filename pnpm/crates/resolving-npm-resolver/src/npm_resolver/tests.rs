@@ -416,10 +416,6 @@ async fn surfaces_min_release_age_violation_inline() {
     assert_eq!(violation.code, MINIMUM_RELEASE_AGE_VIOLATION_CODE);
 }
 
-// When `published_by` filters out the raw `latest`, the resolver's
-// `latest` field carries the policy-aware tag (highest mature version)
-// so the install summary reporter doesn't advertise a version the
-// policy itself held back. Mirrors `publishedBy.test.ts` upstream.
 #[tokio::test]
 async fn latest_is_policy_aware_when_published_by_filters_raw_latest() {
     let mut server = mockito::Server::new_async().await;
@@ -444,11 +440,8 @@ async fn latest_is_policy_aware_when_published_by_filters_raw_latest() {
     assert!(result.policy_violation.is_none(), "1.0.0 is mature, no violation");
 }
 
-// When all versions are filtered out as immature, the picker falls back to
-// the lowest version (regardless of maturity) and flags a violation. The
-// policy-aware latest is None (no mature versions exist); the resolver must
-// preserve that None — not fall back to the raw registry tag — so the
-// install summary reporter doesn't advertise an immature version as available.
+// When all versions are filtered out as immature, the resolver must preserve
+// latest=None so the reporter doesn't advertise an immature version.
 #[tokio::test]
 async fn latest_is_none_when_all_versions_are_immature_fallback_case() {
     let mut server = mockito::Server::new_async().await;
@@ -471,9 +464,6 @@ async fn latest_is_none_when_all_versions_are_immature_fallback_case() {
     assert!(result.latest.is_none(), "no policy-aware latest when all versions are immature");
 }
 
-// Baseline: without `published_by`, the resolver returns the raw
-// `dist-tags.latest` (`1.1.0` in [`PACKAGE_BODY`]), so the reporter's
-// `(X is available)` hint can still fire for an actual upgrade.
 #[tokio::test]
 async fn latest_is_raw_registry_tag_when_published_by_is_none() {
     let mut server = mockito::Server::new_async().await;
@@ -493,12 +483,6 @@ async fn latest_is_raw_registry_tag_when_published_by_is_none() {
     assert_eq!(result.latest.as_deref(), Some("1.1.0"));
 }
 
-// When `published_by_exclude` matches the package as `AnyVersion`,
-// the maturity filter is skipped entirely: the picker returns the
-// raw latest (1.1.0) even though `published_by` would otherwise
-// filter it out. Important for the reporter — an excluded package
-// must not have its `(X is available)` hint suppressed by a policy
-// that doesn't apply to it.
 #[tokio::test]
 async fn latest_is_raw_registry_tag_when_published_by_exclude_matches_package() {
     let mut server = mockito::Server::new_async().await;
@@ -652,11 +636,6 @@ async fn jsr_specifier_routes_through_jsr_registry() {
     assert!(matches!(result.resolution, LockfileResolution::Tarball(_)));
 }
 
-// Pins the contract that the JSR path (which shares `pickFromSimpleRegistry`
-// with the named-registry path) carries the policy-aware latest through to
-// the resolve result. [`JSR_PACKAGE_BODY`] has 1.0.0 (2024-01-10) and
-// 1.1.0 (2024-12-10), `dist-tags.latest` = 1.1.0. `published_by` 2024-06-01
-// filters 1.1.0 out → policy-aware latest = 1.0.0.
 #[tokio::test]
 async fn jsr_specifier_surfaces_policy_aware_latest_under_published_by() {
     let mut server = mockito::Server::new_async().await;
