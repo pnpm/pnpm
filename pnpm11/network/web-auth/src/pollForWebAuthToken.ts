@@ -27,8 +27,6 @@ export interface WebAuthFetchResponseBody {
 }
 
 export interface WebAuthFetchResponse {
-  // Optional: an injected `fetch` fake may omit it, in which case
-  // `readTokenBody` falls back to the uncapped `json()`.
   readonly body?: WebAuthFetchResponseBody | null
   readonly headers: WebAuthFetchResponseHeaders
   readonly json: () => Promise<unknown>
