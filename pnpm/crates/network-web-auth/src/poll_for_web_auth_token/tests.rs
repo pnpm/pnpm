@@ -6,7 +6,6 @@ use std::{
 
 use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
-use serde_json::{Value, json, to_vec};
 
 use super::{
     WebAuthFetchOptions, WebAuthFetchResponse, WebAuthRetryOptions, WebAuthTokenPollParams,
@@ -162,17 +161,17 @@ fn ok_token(token: &str) -> WebAuthFetchResponse {
         ok: true,
         status: 200,
         retry_after: None,
-        body: to_vec(&json!({ "token": token })).unwrap(),
+        body: serde_json::json!({ "token": token }).to_string().into_bytes(),
         truncated: false,
     }
 }
 
-fn ok_json(body: &Value) -> WebAuthFetchResponse {
+fn ok_json(body: &serde_json::Value) -> WebAuthFetchResponse {
     WebAuthFetchResponse {
         ok: true,
         status: 200,
         retry_after: None,
-        body: to_vec(body).unwrap(),
+        body: body.to_string().into_bytes(),
         truncated: false,
     }
 }
@@ -185,7 +184,7 @@ fn ok_truncated() -> WebAuthFetchResponse {
         ok: true,
         status: 200,
         retry_after: None,
-        body: to_vec(&json!({ "token": "tok" })).unwrap(),
+        body: serde_json::json!({ "token": "tok" }).to_string().into_bytes(),
         truncated: true,
     }
 }
@@ -427,7 +426,7 @@ async fn continues_polling_when_response_body_has_no_token() {
     set_fetch(Box::new(move |_url, _options| {
         counter.set(counter.get() + 1);
         Ok(if counter.get() == 1 {
-            ok_json(&json!({ "something": "else" }))
+            ok_json(&serde_json::json!({ "something": "else" }))
         } else {
             ok_token("tok")
         })
