@@ -115,7 +115,7 @@ fn parse_identifier(source: &str) -> Option<(Token, &str)> {
     }
     let mut end = first.len_utf8();
     for (i, c) in chars {
-        // `\w` in JS = [A-Za-z0-9_]; also allow '-' for package-like keys (#13163).
+        // `\w` in JS = [A-Za-z0-9_]; also allow '-' for package-like keys (GH-13163).
         if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
             end = i + c.len_utf8();
         } else {

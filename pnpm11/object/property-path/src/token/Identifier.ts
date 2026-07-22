@@ -15,7 +15,7 @@ export const parseIdentifier: Tokenize<Identifier> = source => {
   source = source.slice(1)
   while (source !== '') {
     const char = source[0]
-    // Allow hyphens so keys like dependencies.replicad-evaluator parse (#13163).
+    // Allow hyphens so keys like dependencies.some-package-name parse (GH-13163).
     if (!/[\w-]/.test(char)) break
     source = source.slice(1)
     content += char

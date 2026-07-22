@@ -1,5 +1,5 @@
 use super::{
-    ParsePropertyPathError, Segment, get_object_value_by_property_path, parse_property_path,
+    get_object_value_by_property_path, parse_property_path, ParsePropertyPathError, Segment,
 };
 use serde_json::json;
 
@@ -41,20 +41,14 @@ fn parses_scoped_package_keys() {
 
 #[test]
 fn parses_hyphenated_package_keys() {
-    // npm pkg get/set style paths with hyphenated dependency names (#13163)
+    // npm pkg get/set style paths with hyphenated dependency names (GH-13163)
     assert_eq!(
-        keys("dependencies.replicad-evaluator"),
-        vec![
-            Segment::Key("dependencies".into()),
-            Segment::Key("replicad-evaluator".into()),
-        ],
+        keys("dependencies.some-package-name"),
+        vec![Segment::Key("dependencies".into()), Segment::Key("some-package-name".into()),],
     );
     assert_eq!(
         keys("devDependencies.some-package-name"),
-        vec![
-            Segment::Key("devDependencies".into()),
-            Segment::Key("some-package-name".into()),
-        ],
+        vec![Segment::Key("devDependencies".into()), Segment::Key("some-package-name".into()),],
     );
 }
 
