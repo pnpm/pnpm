@@ -182,12 +182,17 @@ impl WebAuthFetch for Host {
         // failure yields an empty, untruncated body, which `token` treats the
         // same as an unparsable one (the poll retries); an over-cap body reports
         // `truncated` so `token` reports no token.
-        if let Ok(LimitedBody { bytes: body, truncated }) =
-            read_limited_body(response, TOKEN_BODY_LIMIT).await
-        {
-            Ok(WebAuthFetchResponse { ok, status, retry_after, body, truncated })
-        } else {
-            Ok(WebAuthFetchResponse { ok, status, retry_after, body: Vec::new(), truncated: false })
+        match read_limited_body(response, TOKEN_BODY_LIMIT).await {
+            Ok(LimitedBody { bytes: body, truncated }) => {
+                Ok(WebAuthFetchResponse { ok, status, retry_after, body, truncated })
+            }
+            Err(_) => Ok(WebAuthFetchResponse {
+                ok,
+                status,
+                retry_after,
+                body: Vec::new(),
+                truncated: false,
+            }),
         }
     }
 }
