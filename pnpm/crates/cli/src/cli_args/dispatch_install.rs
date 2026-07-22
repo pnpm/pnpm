@@ -393,31 +393,93 @@ pub(super) fn link<'a>(ctx: &RunCtx<'a>, args: LinkArgs) -> miette::Result<Comma
 }
 
 pub(super) fn unlink<'a>(ctx: &RunCtx<'a>, args: UnlinkArgs) -> miette::Result<CommandFuture<'a>> {
-    let manifest_path = ctx.manifest_path.to_path_buf();
-    Ok(match ctx.reporter {
-        ReporterType::Default | ReporterType::AppendOnly => {
-            Box::pin(args.run::<DefaultReporter>((ctx.config)()?, manifest_path))
+    let dir = ctx.dir;
+    let manifest_path = ctx.manifest_path;
+    let reporter = ctx.reporter;
+    let recursive_sort = ctx.recursive_sort;
+    let config = ctx.config;
+    Ok(Box::pin(async move {
+        let cfg = config()?;
+        // Strip the matching `link:` overrides; stop early when there is
+        // nothing to unlink.
+        if !args.strip_link_overrides(cfg, manifest_path)? {
+            return Ok(());
         }
-        ReporterType::Ndjson => {
-            Box::pin(args.run::<NdjsonReporter>((ctx.config)()?, manifest_path))
+        // Reinstall through the install-family pipeline, exactly as pnpm's
+        // `unlink` delegates to its install handler, so `-r` / `--filter`
+        // selection and per-project lockfiles apply. The reinstall forces a
+        // fresh resolution so the removed `link:` overrides re-resolve from
+        // the registry.
+        let (config_root, package_manager_to_sync) =
+            derive_config_root_and_package_manager_to_sync(cfg, dir)
+                .wrap_err("derive workspace root and package manager policy")?;
+        let pipeline = InstallPipeline {
+            args: InstallArgs::for_reresolving_install(),
+            cfg,
+            config_root,
+            package_manager_to_sync,
+            prefix: dir.to_path_buf(),
+            manifest_path: manifest_path.to_path_buf(),
+            recursive_sort,
+            require_lockfile: false,
+            frozen_lockfile: false,
+        };
+        match reporter {
+            ReporterType::Default | ReporterType::AppendOnly => {
+                Box::pin(pipeline.run::<DefaultReporter>()).await?;
+            }
+            ReporterType::Ndjson => Box::pin(pipeline.run::<NdjsonReporter>()).await?,
+            ReporterType::Silent => Box::pin(pipeline.run::<SilentReporter>()).await?,
         }
-        ReporterType::Silent => {
-            Box::pin(args.run::<SilentReporter>((ctx.config)()?, manifest_path))
-        }
-    })
+        Ok(())
+    }))
 }
 
 pub(super) fn rebuild<'a>(
     ctx: &RunCtx<'a>,
     args: RebuildArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    Ok(match ctx.reporter {
-        ReporterType::Default | ReporterType::AppendOnly => {
-            Box::pin(args.run::<DefaultReporter>((ctx.state)(true)?))
+    let dir = ctx.dir;
+    let manifest_path = ctx.manifest_path;
+    let reporter = ctx.reporter;
+    let recursive_sort = ctx.recursive_sort;
+    let recursive_no_bail = ctx.recursive_no_bail;
+    let config = ctx.config;
+    Ok(Box::pin(async move {
+        match reporter {
+            ReporterType::Default | ReporterType::AppendOnly => {
+                Box::pin(args.run_from_cli::<DefaultReporter>(
+                    config()?,
+                    dir.to_path_buf(),
+                    manifest_path.to_path_buf(),
+                    recursive_sort,
+                    recursive_no_bail,
+                ))
+                .await?;
+            }
+            ReporterType::Ndjson => {
+                Box::pin(args.run_from_cli::<NdjsonReporter>(
+                    config()?,
+                    dir.to_path_buf(),
+                    manifest_path.to_path_buf(),
+                    recursive_sort,
+                    recursive_no_bail,
+                ))
+                .await?;
+            }
+            ReporterType::Silent => {
+                Box::pin(args.run_from_cli::<SilentReporter>(
+                    config()?,
+                    dir.to_path_buf(),
+                    manifest_path.to_path_buf(),
+                    recursive_sort,
+                    recursive_no_bail,
+                ))
+                .await?;
+            }
         }
-        ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>((ctx.state)(true)?)),
-        ReporterType::Silent => Box::pin(args.run::<SilentReporter>((ctx.state)(true)?)),
-    })
+        Ok(())
+    }))
 }
 
 pub(super) fn runtime<'a>(
@@ -474,7 +536,7 @@ pub(super) fn patch_commit<'a>(
         ReporterType::Default | ReporterType::AppendOnly => Box::pin(async move {
             if Box::pin(args.run::<DefaultReporter>(dir, state(false)?)).await? {
                 Box::pin(
-                    InstallArgs::for_patch_manifest_change().run::<DefaultReporter>(state(false)?),
+                    InstallArgs::for_reresolving_install().run::<DefaultReporter>(state(false)?),
                 )
                 .await?;
             }
@@ -483,7 +545,7 @@ pub(super) fn patch_commit<'a>(
         ReporterType::Ndjson => Box::pin(async move {
             if Box::pin(args.run::<NdjsonReporter>(dir, state(false)?)).await? {
                 Box::pin(
-                    InstallArgs::for_patch_manifest_change().run::<NdjsonReporter>(state(false)?),
+                    InstallArgs::for_reresolving_install().run::<NdjsonReporter>(state(false)?),
                 )
                 .await?;
             }
@@ -492,7 +554,7 @@ pub(super) fn patch_commit<'a>(
         ReporterType::Silent => Box::pin(async move {
             if Box::pin(args.run::<SilentReporter>(dir, state(false)?)).await? {
                 Box::pin(
-                    InstallArgs::for_patch_manifest_change().run::<SilentReporter>(state(false)?),
+                    InstallArgs::for_reresolving_install().run::<SilentReporter>(state(false)?),
                 )
                 .await?;
             }
@@ -510,21 +572,19 @@ pub(super) fn patch_remove<'a>(
     Ok(match ctx.reporter {
         ReporterType::Default | ReporterType::AppendOnly => Box::pin(async move {
             Box::pin(args.run(dir, state(false)?)).await?;
-            Box::pin(
-                InstallArgs::for_patch_manifest_change().run::<DefaultReporter>(state(false)?),
-            )
-            .await?;
+            Box::pin(InstallArgs::for_reresolving_install().run::<DefaultReporter>(state(false)?))
+                .await?;
             Ok(())
         }),
         ReporterType::Ndjson => Box::pin(async move {
             Box::pin(args.run(dir, state(false)?)).await?;
-            Box::pin(InstallArgs::for_patch_manifest_change().run::<NdjsonReporter>(state(false)?))
+            Box::pin(InstallArgs::for_reresolving_install().run::<NdjsonReporter>(state(false)?))
                 .await?;
             Ok(())
         }),
         ReporterType::Silent => Box::pin(async move {
             Box::pin(args.run(dir, state(false)?)).await?;
-            Box::pin(InstallArgs::for_patch_manifest_change().run::<SilentReporter>(state(false)?))
+            Box::pin(InstallArgs::for_reresolving_install().run::<SilentReporter>(state(false)?))
                 .await?;
             Ok(())
         }),
@@ -568,13 +628,13 @@ pub(super) fn approve_builds<'a>(
         super::rebuild::RebuildSelection { names: Some(build_packages), projects: Vec::new() };
     Ok(match ctx.reporter {
         ReporterType::Default | ReporterType::AppendOnly => Box::pin(async move {
-            super::rebuild::run_rebuild::<DefaultReporter>(&rebuild_state, selected).await
+            super::rebuild::run_rebuild::<DefaultReporter>(&rebuild_state, selected, None).await
         }),
         ReporterType::Ndjson => Box::pin(async move {
-            super::rebuild::run_rebuild::<NdjsonReporter>(&rebuild_state, selected).await
+            super::rebuild::run_rebuild::<NdjsonReporter>(&rebuild_state, selected, None).await
         }),
         ReporterType::Silent => Box::pin(async move {
-            super::rebuild::run_rebuild::<SilentReporter>(&rebuild_state, selected).await
+            super::rebuild::run_rebuild::<SilentReporter>(&rebuild_state, selected, None).await
         }),
     })
 }

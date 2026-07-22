@@ -1,15 +1,8 @@
-use crate::State;
 use clap::Args;
 use miette::Context;
 use pacquet_config::Config;
-use pacquet_package_manager::{Install, UpdateSeedPolicy};
-use pacquet_package_manifest::DependencyGroup;
-use pacquet_reporter::Reporter;
 use pacquet_workspace_manifest_writer::remove_overrides;
-use std::{
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::path::Path;
 
 /// Remove the link created by `pnpm link` and reinstall the package as
 /// declared in `package.json`.
@@ -22,17 +15,22 @@ pub struct UnlinkArgs {
 }
 
 impl UnlinkArgs {
-    pub async fn run<Reporter: self::Reporter + 'static>(
-        self,
-        config: &'static mut Config,
-        manifest_path: PathBuf,
-    ) -> miette::Result<()> {
-        // pnpm prints "Nothing to unlink" and stops when no overrides are
-        // configured; otherwise it strips the matching link: overrides and
-        // reinstalls — running the install even when nothing matched.
+    /// Strip the matching `link:` overrides from `config` (in memory) and
+    /// from `pnpm-workspace.yaml`, returning whether the caller should
+    /// reinstall.
+    ///
+    /// Mirrors pnpm: when no overrides are configured it prints "Nothing to
+    /// unlink" and returns `false` so the caller stops; otherwise it removes
+    /// the `link:` overrides — the ones named, or all of them — and returns
+    /// `true` so the caller reinstalls, even when nothing matched.
+    pub(crate) fn strip_link_overrides(
+        &self,
+        config: &mut Config,
+        manifest_path: &Path,
+    ) -> miette::Result<bool> {
         let Some(overrides) = config.overrides.as_mut() else {
             println!("Nothing to unlink");
-            return Ok(());
+            return Ok(false);
         };
 
         let removed: Vec<String> = overrides
@@ -60,50 +58,6 @@ impl UnlinkArgs {
                 .wrap_err("removing link: overrides from pnpm-workspace.yaml")?;
         }
 
-        let state = State::init(manifest_path, config, false).wrap_err("initialize the state")?;
-        let lockfile_path = state.lockfile_path();
-        let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
-            &state;
-
-        Install {
-            tarball_mem_cache: Arc::clone(tarball_mem_cache),
-            http_client,
-            http_client_arc: Arc::clone(http_client),
-            config,
-            manifest,
-            emit_initial_manifest: true,
-            lockfile: pacquet_lockfile::MaybeLazyLockfile::Lazy(lockfile),
-            lockfile_path: Some(&lockfile_path),
-            dependency_groups: [
-                DependencyGroup::Prod,
-                DependencyGroup::Dev,
-                DependencyGroup::Optional,
-            ]
-            .into_iter(),
-            frozen_lockfile: false,
-            prefer_frozen_lockfile: Some(false),
-            ignore_manifest_check: false,
-            skip_runtimes: config.skip_runtimes,
-            trust_lockfile: config.trust_lockfile,
-            update_checksums: false,
-            is_full_install: false,
-            installs_only: false,
-            resolved_packages,
-            supported_architectures: config.supported_architectures.clone(),
-            node_linker: config.node_linker,
-            lockfile_only: false,
-            dry_run: false,
-            disable_optimistic_repeat_install: false,
-            pnpmfile_hook_override: None,
-            workspace_projects_override: None,
-            update_seed_policy: UpdateSeedPolicy::KeepAll,
-            auth_override: None,
-            resolution_observer: None,
-            peer_issues_sink: None,
-            catalogs_override: None,
-        }
-        .run::<Reporter>()
-        .await
-        .wrap_err("unlinking dependencies")
+        Ok(true)
     }
 }

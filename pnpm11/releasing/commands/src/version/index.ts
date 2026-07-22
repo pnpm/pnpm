@@ -22,6 +22,7 @@ import { inc, valid } from 'semver'
 
 import { renderReleasePlan, toWorkspaceProjects } from '../change/index.js'
 import { changelogHasSection, fetchPublishedChangelog } from '../publish/previousChangelog.js'
+import { type CheckVersionPublished, resolveUnpublishedDirs } from '../resolveUnpublishedDirs.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
@@ -131,6 +132,7 @@ interface VersionChange {
 interface VersionHandlerOptions extends Config {
   allProjects?: Project[]
   allowSameVersion?: boolean
+  checkVersionPublished?: CheckVersionPublished
   commitHooks?: boolean
   dryRun?: boolean
   gitChecks?: boolean
@@ -233,7 +235,7 @@ async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string>
     ? new Set(Object.keys(opts.selectedProjectsGraph ?? {}).map((rootDir) => toProjectDir(workspaceDir, rootDir)))
     : undefined
 
-  const plan = assembleReleasePlan({
+  const baseArgs = {
     workspaceDir,
     projects,
     intents,
@@ -241,7 +243,9 @@ async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string>
     versioning: opts.versioning,
     filter,
     enforceWorkspaceProtocol: true,
-  })
+  }
+  const unpublishedDirs = await resolveUnpublishedDirs(assembleReleasePlan(baseArgs), opts)
+  const plan = assembleReleasePlan({ ...baseArgs, unpublishedDirs })
 
   const applyOpts: ApplyReleasePlanOptions = {
     workspaceDir,

@@ -941,20 +941,172 @@ fn workspace_non_project_subdirectory_does_not_create_active_importer() {
 }
 
 #[test]
-fn filtered_install_rejects_per_project_workspace_lockfiles() {
+fn filtered_install_with_dedicated_lockfiles_installs_only_selected_project() {
     let fixture = WorkspaceFixture::new();
     fixture.append_workspace_yaml("sharedWorkspaceLockfile: false\n");
-    fixture.project("app", "app", ManifestDeps::default());
+    let selected = fixture.project(
+        "selected",
+        "selected",
+        ManifestDeps { prod: &[(HELLO, "1.0.0")], ..Default::default() },
+    );
+    let unselected = fixture.project(
+        "unselected",
+        "unselected",
+        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
+    );
 
-    let output =
-        fixture.command_at(&fixture.workspace, ["--filter", "app", "install", "--lockfile-only"]);
+    fixture.run(["--filter", "selected", "install"]);
 
-    assert!(!output.status.success());
-    let stderr = String::from_utf8_lossy(&output.stderr);
+    let selected_lockfile = read_lockfile(&selected.join("pnpm-lock.yaml"));
+    assert_full_wanted(&selected_lockfile, &["."]);
+    assert!(has_snapshot(&selected_lockfile, HELLO, "1.0.0"));
+    assert!(has_link(&selected, HELLO));
+    assert!(!unselected.join("pnpm-lock.yaml").exists(), "unselected must not be installed");
+    assert!(!unselected.join("node_modules").exists(), "unselected node_modules must be absent");
     assert!(
-        stderr.contains("ERR_PNPM_RECURSIVE_SHARED_LOCKFILE_UNSUPPORTED")
-            && stderr.contains("sharedWorkspaceLockfile=false"),
-        "stderr: {stderr}",
+        !fixture.workspace.join("pnpm-lock.yaml").exists(),
+        "dedicated lockfiles must not write a shared workspace lockfile",
+    );
+}
+
+#[test]
+fn recursive_install_with_dedicated_lockfiles_installs_every_project() {
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml("sharedWorkspaceLockfile: false\n");
+    let first = fixture.project(
+        "first",
+        "first",
+        ManifestDeps { prod: &[(HELLO, "1.0.0")], ..Default::default() },
+    );
+    let second = fixture.project(
+        "second",
+        "second",
+        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
+    );
+
+    fixture.run(["--recursive", "install"]);
+
+    for (project, dependency) in [(&first, HELLO), (&second, PARENT)] {
+        let lockfile = read_lockfile(&project.join("pnpm-lock.yaml"));
+        assert_full_wanted(&lockfile, &["."]);
+        assert!(has_link(project, dependency));
+    }
+    assert!(!fixture.workspace.join("pnpm-lock.yaml").exists());
+}
+
+#[test]
+fn filtered_add_with_dedicated_lockfiles_mutates_only_selected_project() {
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml("sharedWorkspaceLockfile: false\n");
+    let selected = fixture.project("selected", "selected", ManifestDeps::default());
+    let unselected = fixture.project("unselected", "unselected", ManifestDeps::default());
+
+    fixture.run(["--filter", "selected", "add", HELLO, "--lockfile-only"]);
+
+    assert_eq!(dependency_spec(&selected, "dependencies", HELLO).as_deref(), Some("^1.0.0"));
+    assert_eq!(dependency_spec(&unselected, "dependencies", HELLO), None);
+    let selected_lockfile = read_lockfile(&selected.join("pnpm-lock.yaml"));
+    assert_eq!(importer_version(&selected_lockfile, ".", HELLO), "1.0.0");
+    assert!(!unselected.join("pnpm-lock.yaml").exists(), "unselected must not be mutated");
+    assert!(!fixture.workspace.join("pnpm-lock.yaml").exists());
+}
+
+#[test]
+fn recursive_add_with_dedicated_lockfiles_excludes_workspace_root() {
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml("sharedWorkspaceLockfile: false\n");
+    fixture.write_root_manifest("workspace-root", ManifestDeps::default());
+    let member_a = fixture.project("member-a", "member-a", ManifestDeps::default());
+    let member_b = fixture.project("member-b", "member-b", ManifestDeps::default());
+
+    fixture.run(["-r", "add", HELLO, "--lockfile-only"]);
+
+    assert_eq!(dependency_spec(&fixture.workspace, "dependencies", HELLO), None);
+    assert_eq!(dependency_spec(&member_a, "dependencies", HELLO).as_deref(), Some("^1.0.0"));
+    assert_eq!(dependency_spec(&member_b, "dependencies", HELLO).as_deref(), Some("^1.0.0"));
+    for member in [&member_a, &member_b] {
+        assert_eq!(
+            importer_version(&read_lockfile(&member.join("pnpm-lock.yaml")), ".", HELLO),
+            "1.0.0",
+        );
+    }
+    assert!(
+        !fixture.workspace.join("pnpm-lock.yaml").exists(),
+        "the auto-excluded root must not get its own lockfile",
+    );
+}
+
+#[test]
+fn filtered_update_with_dedicated_lockfiles_mutates_only_selected_project() {
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml("sharedWorkspaceLockfile: false\n");
+    let selected = fixture.project(
+        "selected",
+        "selected",
+        ManifestDeps { prod: &[(DEP, "100.0.0")], ..Default::default() },
+    );
+    let unselected = fixture.project(
+        "unselected",
+        "unselected",
+        ManifestDeps { prod: &[(DEP, "100.0.0")], ..Default::default() },
+    );
+    fixture.run(["install", "--lockfile-only"]);
+    for project in [&selected, &unselected] {
+        set_dependency(project, "dependencies", DEP, "^100.0.0");
+    }
+    let unselected_manifest = fs::read(unselected.join("package.json")).expect("read manifest");
+    let unselected_lockfile_before =
+        fs::read(unselected.join("pnpm-lock.yaml")).expect("read lockfile");
+
+    fixture.run(["--filter", "selected", "update", DEP, "--latest", "--lockfile-only"]);
+
+    assert_eq!(dependency_spec(&selected, "dependencies", DEP).as_deref(), Some("^101.0.0"));
+    assert_eq!(
+        importer_version(&read_lockfile(&selected.join("pnpm-lock.yaml")), ".", DEP),
+        "101.0.0",
+    );
+    assert_eq!(
+        fs::read(unselected.join("package.json")).expect("read manifest"),
+        unselected_manifest,
+    );
+    assert_eq!(
+        fs::read(unselected.join("pnpm-lock.yaml")).expect("read lockfile"),
+        unselected_lockfile_before,
+    );
+    assert!(!fixture.workspace.join("pnpm-lock.yaml").exists());
+}
+
+#[test]
+fn filtered_remove_with_dedicated_lockfiles_mutates_only_selected_project() {
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml("sharedWorkspaceLockfile: false\n");
+    let selected = fixture.project(
+        "selected",
+        "selected",
+        ManifestDeps { prod: &[(HELLO, "1.0.0")], ..Default::default() },
+    );
+    let unselected = fixture.project(
+        "unselected",
+        "unselected",
+        ManifestDeps { prod: &[(HELLO, "1.0.0")], ..Default::default() },
+    );
+    fixture.run(["install", "--lockfile-only"]);
+    let unselected_manifest = fs::read(unselected.join("package.json")).expect("read manifest");
+    let unselected_lockfile_before =
+        fs::read(unselected.join("pnpm-lock.yaml")).expect("read lockfile");
+
+    fixture.run(["--filter", "selected", "remove", HELLO, "--lockfile-only"]);
+
+    assert_eq!(dependency_spec(&selected, "dependencies", HELLO), None);
+    let selected_lockfile = read_lockfile(&selected.join("pnpm-lock.yaml"));
+    assert!(!has_snapshot(&selected_lockfile, HELLO, "1.0.0"));
+    assert_eq!(
+        fs::read(unselected.join("package.json")).expect("read manifest"),
+        unselected_manifest,
+    );
+    assert_eq!(
+        fs::read(unselected.join("pnpm-lock.yaml")).expect("read lockfile"),
+        unselected_lockfile_before,
     );
     assert!(!fixture.workspace.join("pnpm-lock.yaml").exists());
 }

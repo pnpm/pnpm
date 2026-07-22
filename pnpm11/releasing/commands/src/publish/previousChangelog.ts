@@ -81,6 +81,19 @@ export function changelogHasSection (changelog: string, section: string): boolea
   return changelog.includes(section.trim())
 }
 
+/**
+ * Whether `pkgName@version` is published, reusing one client across the batch.
+ * `fetchPackument` returning `undefined` always means the 404 (unpublished): the
+ * probe sends no cache validator, so it never yields a 304 not-modified.
+ */
+export function createVersionPublishedChecker (opts: PreviousChangelogOptions): (pkgName: string, version: string) => Promise<boolean> {
+  const client = createRegistryClient(opts)
+  return async (pkgName, version) => {
+    const meta = await fetchPackument(client, opts, pkgName)
+    return meta?.versions[version] != null
+  }
+}
+
 async function fetchPackument (client: RegistryClient, opts: PreviousChangelogOptions, pkgName: string): Promise<PackageMeta | undefined> {
   const registry = pickRegistryForPackage(opts.registries, pkgName)
   let fetchResult

@@ -1,10 +1,55 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 fn write_manifest(workspace: &Path, manifest: &serde_json::Value) {
     fs::write(workspace.join("package.json"), manifest.to_string()).expect("write package.json");
+}
+
+/// Scaffold a `sharedWorkspaceLockfile: false` workspace with two projects
+/// (`packages/first`, `packages/second`) that both depend on `pkg`, plus a
+/// `link:` override redirecting `pkg` to a local directory. Returns the two
+/// project dirs. Callers run `unlink` *before* any install, so the link is
+/// stripped and never materialized — the reinstall re-resolves `pkg` from the
+/// registry.
+fn scaffold_dedicated_link_workspace(workspace: &Path, pkg: &str) -> (PathBuf, PathBuf) {
+    let local_target = workspace.join("local-dep");
+    fs::create_dir_all(&local_target).expect("create local target dir");
+    fs::write(
+        local_target.join("package.json"),
+        serde_json::json!({ "name": pkg, "version": "1.0.0" }).to_string(),
+    )
+    .expect("write local target package.json");
+
+    let mut project_dirs = Vec::new();
+    for name in ["first", "second"] {
+        let dir = workspace.join("packages").join(name);
+        fs::create_dir_all(&dir).expect("create project dir");
+        fs::write(
+            dir.join("package.json"),
+            serde_json::json!({
+                "name": name,
+                "version": "1.0.0",
+                "dependencies": { pkg: "100.0.0" },
+            })
+            .to_string(),
+        )
+        .expect("write project manifest");
+        project_dirs.push(dir);
+    }
+    add_overrides(
+        workspace,
+        &format!(
+            "packages:\n  - 'packages/*'\nsharedWorkspaceLockfile: false\noverrides:\n  '{pkg}': link:./local-dep\n",
+        ),
+    );
+    let second = project_dirs.pop().expect("second project dir");
+    let first = project_dirs.pop().expect("first project dir");
+    (first, second)
 }
 
 /// Append an `overrides` block to the `pnpm-workspace.yaml` the mocked
@@ -225,6 +270,84 @@ fn unlink_restores_registry_package_in_lockfile() {
     assert!(
         !lockfile.contains("link:"),
         "lockfile must not keep the link: resolution after unlink: {lockfile}",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// `pnpm -r unlink` strips the workspace `link:` override once and reinstalls
+/// every selected project, so in a `sharedWorkspaceLockfile: false` workspace
+/// each project gets its own lockfile that re-resolves the dependency from the
+/// registry.
+#[test]
+fn recursive_unlink_with_dedicated_lockfiles_reinstalls_each_project() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    const PKG: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";
+    let (first, second) = scaffold_dedicated_link_workspace(&workspace, PKG);
+
+    let mut unlink = std::process::Command::cargo_bin("pnpm").expect("locate pacquet binary");
+    unlink.current_dir(&workspace);
+    unlink.with_args(["-r", "unlink", PKG]).assert().success();
+
+    let workspace_yaml = read_workspace_yaml(&workspace);
+    assert!(
+        !workspace_yaml.contains("link:"),
+        "the link override must be removed once: {workspace_yaml}",
+    );
+    for project in [&first, &second] {
+        let lockfile = fs::read_to_string(project.join("pnpm-lock.yaml")).unwrap_or_else(|error| {
+            panic!("each selected project must get its own lockfile ({error}): {project:?}")
+        });
+        assert!(
+            lockfile.contains("dep-of-pkg-with-1-dep@100.0.0"),
+            "{project:?} must re-resolve the dependency from the registry: {lockfile}",
+        );
+        assert!(
+            !lockfile.contains("link:"),
+            "{project:?} must not keep a link: resolution: {lockfile}",
+        );
+    }
+    assert!(
+        !workspace.join("pnpm-lock.yaml").exists(),
+        "dedicated lockfiles must not write a shared workspace lockfile",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// `pnpm --filter <project> unlink` strips the override and reinstalls only the
+/// selected project — the unselected project's dedicated lockfile is never
+/// created.
+#[test]
+fn filtered_unlink_with_dedicated_lockfiles_reinstalls_only_selected_project() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    const PKG: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";
+    let (first, second) = scaffold_dedicated_link_workspace(&workspace, PKG);
+
+    let mut unlink = std::process::Command::cargo_bin("pnpm").expect("locate pacquet binary");
+    unlink.current_dir(&workspace);
+    unlink.with_args(["--filter", "first", "unlink", PKG]).assert().success();
+
+    let workspace_yaml = read_workspace_yaml(&workspace);
+    assert!(
+        !workspace_yaml.contains("link:"),
+        "the link override must be removed: {workspace_yaml}",
+    );
+    let first_lockfile =
+        fs::read_to_string(first.join("pnpm-lock.yaml")).expect("selected project lockfile");
+    assert!(
+        first_lockfile.contains("dep-of-pkg-with-1-dep@100.0.0"),
+        "the selected project must re-resolve from the registry: {first_lockfile}",
+    );
+    assert!(
+        !second.join("pnpm-lock.yaml").exists(),
+        "the unselected project must not be installed",
     );
 
     drop((root, mock_instance));

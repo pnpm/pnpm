@@ -16,7 +16,7 @@ use pacquet_reporter::Reporter;
 
 /// The `--prod`, `--dev`, and `--no-optional` flags that select which
 /// dependency groups to update.
-#[derive(Debug, Args)]
+#[derive(Debug, Clone, Args)]
 pub struct UpdateDependencyOptions {
     /// Update packages only in "dependencies" and "optionalDependencies".
     #[clap(short = 'P', long)]
@@ -56,7 +56,7 @@ impl UpdateDependencyOptions {
 }
 
 /// Update package and GitHub Actions dependencies to newer compatible versions.
-#[derive(Debug, Args)]
+#[derive(Debug, Clone, Args)]
 pub struct UpdateArgs {
     /// Dependencies to update. Package names (`foo`, `@scope/bar`), GitHub
     /// Actions (`actions/checkout`, with `--include-github-actions`), glob

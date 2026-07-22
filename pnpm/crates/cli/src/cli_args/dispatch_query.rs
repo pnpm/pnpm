@@ -234,12 +234,9 @@ pub(super) fn dist_tag<'a>(
     }))
 }
 
-/// `change` and `version` are synchronous file-and-prompt commands; the
-/// returned future only carries their already-computed result.
 pub(super) fn change<'a>(ctx: &RunCtx<'a>, args: ChangeArgs) -> miette::Result<CommandFuture<'a>> {
     let cfg: &Config = (ctx.config)()?;
-    let result = args.run(cfg);
-    Ok(Box::pin(std::future::ready(result)))
+    Ok(Box::pin(async move { args.run(cfg).await }))
 }
 
 pub(super) fn lane<'a>(ctx: &RunCtx<'a>, args: LaneArgs) -> miette::Result<CommandFuture<'a>> {
