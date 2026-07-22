@@ -330,12 +330,9 @@ async fn web_auth_flow_polls_done_url_and_uses_returned_token() {
     );
 }
 
-/// A `done_url` response whose body the provider capped at the size limit
-/// is ignored — the web-auth flow keeps polling until an untruncated token
-/// arrives. This exercises the token-body-limit branch through the same
-/// `WebAuthFetch` seam the `login` and `publish` OTP flows are tested with,
-/// which the cap could not be reached from while it lived only in the
-/// `Host` provider.
+/// Drives the token-body cap through the same `WebAuthFetch` seam the
+/// `login` and `publish` OTP flows use, so the truncated-body branch is
+/// covered by their DI-based tests rather than only by a real transport.
 #[tokio::test]
 async fn web_auth_flow_keeps_polling_when_the_done_url_body_is_truncated() {
     web_auth_fake!();
@@ -371,9 +368,6 @@ async fn web_auth_flow_keeps_polling_when_the_done_url_body_is_truncated() {
     assert_eq!(fetch_calls.get(), 2, "the truncated response must not end the poll");
 }
 
-/// A challenge `authUrl` longer than the maximum QR data capacity cannot be
-/// rendered as a QR code; the flow warns and falls back to a URL-only
-/// display instead of failing.
 #[tokio::test]
 async fn web_auth_flow_falls_back_to_url_only_display_when_qr_generation_fails() {
     web_auth_fake!();

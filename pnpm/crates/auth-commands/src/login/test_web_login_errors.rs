@@ -1,6 +1,4 @@
-//! `login` tests for the web-login error paths — the `From<WebLoginFlowError>`
-//! arms (invalid response, HTTP failure, transport, timeout), the `auth.ini`
-//! read error, the control-character rejection, and the QR-generation
+//! `login` tests for the web-login error paths and the QR-generation
 //! fallback.
 
 use std::{
@@ -146,9 +144,6 @@ async fn should_surface_a_web_login_transport_failure_as_a_request_error() {
     assert!(err.to_string().starts_with("The login request failed:"), "unexpected message: {err}");
 }
 
-/// A `loginUrl` longer than the maximum QR data capacity cannot be rendered
-/// as a QR code; the login warns and falls back to a URL-only display
-/// instead of failing.
 #[tokio::test]
 async fn should_fall_back_to_url_only_display_when_the_login_url_exceeds_qr_capacity() {
     web_auth_fake!();
