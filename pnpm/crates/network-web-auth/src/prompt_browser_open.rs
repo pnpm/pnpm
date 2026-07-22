@@ -45,12 +45,12 @@ where
     let mut listener = match Sys::listen() {
         Ok(listener) => listener,
         Err(error) => {
-            global_warn::<Reporter, _>(format!("Could not set up keyboard listener: {error}"));
+            global_warn::<Reporter>(format!("Could not set up keyboard listener: {error}"));
             return poll.await;
         }
     };
 
-    global_info::<Reporter, _>("Press ENTER to open the URL in your browser.");
+    global_info::<Reporter>("Press ENTER to open the URL in your browser.".to_owned());
 
     tokio::pin!(poll);
     tokio::select! {
@@ -71,8 +71,8 @@ where
     Reporter: self::Reporter,
 {
     if let Err(error) = Sys::open_url(url) {
-        global_warn::<Reporter, _>(format!("Could not open browser automatically: {error}"));
-        global_info::<Reporter, _>("Please open the URL shown above manually.");
+        global_warn::<Reporter>(format!("Could not open browser automatically: {error}"));
+        global_info::<Reporter>("Please open the URL shown above manually.".to_owned());
     }
 }
 

@@ -29,7 +29,7 @@ pub fn format_auth_url_message<Reporter: self::Reporter>(auth_url: &str) -> Auth
     match generate_qr_code(auth_url) {
         Ok(qr_code) => AuthUrlMessage::WithQrCode { auth_url, qr_code },
         Err(error) => {
-            global_warn::<Reporter, _>(format!("Could not generate a QR code: {error}"));
+            global_warn::<Reporter>(format!("Could not generate a QR code: {error}"));
             AuthUrlMessage::UrlOnly { auth_url }
         }
     }
