@@ -106,36 +106,7 @@ pub enum RunError {
 }
 
 impl RunArgs {
-    /// Build the positional from a script name and its arguments, for the
-    /// paths that synthesize a `run` rather than parsing one.
-    pub(super) fn script<Args>(name: &str, args: Args) -> Vec<String>
-    where
-        Args: IntoIterator<Item = String>,
-    {
-        std::iter::once(name.to_string()).chain(args).collect()
-    }
-
-    /// The script to run, or `None` when `run` was given no positional and
-    /// should list the available scripts instead.
-    pub(super) fn script_name(&self) -> Option<&str> {
-        self.script.first().map(String::as_str)
-    }
-
-    /// The arguments to forward to the script, verbatim.
-    pub(super) fn script_args(&self) -> &[String] {
-        self.script.get(1..).unwrap_or_default()
-    }
-
-    /// Execute the subcommand in `dir`. `silent` suppresses the
-    /// `$ <script>` echo (set when the reporter is `silent`).
-    ///
-    /// On a non-zero script exit code this terminates the process with
-    /// the same code, matching pnpm where a failing script sets the
-    /// process exit code.
-    ///
-    /// The `resume_from` / `report_summary` / `no_bail` fields are only
-    /// meaningful for the recursive path (see [`Self::run_recursive`])
-    /// and are ignored here.
+    /// Execute the subcommand in `dir`; `silent` suppresses the `$ <script>` echo.
     pub fn run(self, dir: &Path, config: &Config, silent: bool) -> miette::Result<()> {
         self.run_inner(dir, config, silent, false)
     }
@@ -216,21 +187,46 @@ impl RunArgs {
             silent,
             sequential,
         };
-        for name in &specified {
-            // Resolve the main body (with `start` → `node server.js`
-            // fallback) and apply the args-aware `npx only-allow pnpm`
-            // no-op skip. After both pass, [`run_stages`] is
-            // guaranteed to actually run the main stage, so its return
-            // is a plain `ExitStatus`.
-            let Some(main) = resolve_main_script(&ctx, name)? else { continue };
-            if args.is_empty() && main == "npx only-allow pnpm" {
-                continue;
+
+        if sequential {
+            for name in &specified {
+                let Some(main) = resolve_main_script(&ctx, name)? else { continue };
+                if args.is_empty() && main == "npx only-allow pnpm" {
+                    continue;
+                }
+                let status = run_stages(&ctx, name, &main, &args)?;
+                if !status.success() {
+                    std::process::exit(status.code().unwrap_or(1));
+                }
             }
-            let status = run_stages(&ctx, name, &main, args)?;
-            if !status.success() {
-                // A failing script sets the process exit code.
-                // `run_stage` already emitted the `[ELIFECYCLE]` line.
-                std::process::exit(status.code().unwrap_or(1));
+        } else {
+            let results: Vec<_> = std::thread::scope(|s| {
+                specified
+                    .iter()
+                    .filter_map(|name| {
+                        let main = match resolve_main_script(&ctx, name) {
+                            Ok(Some(m)) => m,
+                            Ok(None) => return None,
+                            Err(e) => return Some(Err(e.into())),
+                        };
+                        if args.is_empty() && main == "npx only-allow pnpm" {
+                            return None;
+                        }
+                        Some(Ok(s.spawn(move || run_stages(&ctx, name, &main, &args))))
+                    })
+                    .map(|h| match h {
+                        Ok(handle) => handle
+                            .join()
+                            .unwrap_or_else(|_| Err(miette::miette!("script thread panicked"))),
+                        Err(e) => Err(e),
+                    })
+                    .collect()
+            });
+            for result in results {
+                let status = result?;
+                if !status.success() {
+                    std::process::exit(status.code().unwrap_or(1));
+                }
             }
         }
         Ok(())
@@ -390,13 +386,7 @@ pub(super) fn run_stages(
     Ok(main_status)
 }
 
-/// Run one lifecycle stage. Returns `Ok(None)` when pnpm's per-stage
-/// no-op guards apply (empty body, or `npx only-allow pnpm` with no
-/// args), so the caller can record "didn't actually run" without
-/// inventing a synthetic `ExitStatus`. A non-success `ExitStatus` is
-/// returned to the caller — single-project `RunArgs::run` exits with
-/// the code; recursive `run_recursive` records `Failure` and decides
-/// whether to bail.
+/// Run one lifecycle stage. Returns `Ok(None)` for no-op guards (empty body or `npx only-allow pnpm` with no args).
 pub(super) fn run_stage(
     ctx: &RunContext<'_>,
     stage: &str,
