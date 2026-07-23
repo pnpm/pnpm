@@ -503,3 +503,34 @@ test('should not update tag version when --latest not set', async () => {
   expect(manifest.dependencies?.['@pnpm.e2e/peer-c']).toBe('canary')
   expect(manifest.dependencies?.['@pnpm.e2e/foo']).toBe('1.0.0')
 })
+
+test('update --latest resolves an npm: alias to the latest version of the aliased package', async () => {
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+
+  // The alias name does not exist on the registry, so resolving it instead of
+  // the aliased package would fail.
+  const project = prepare({
+    dependencies: {
+      'foo-alias': 'npm:@pnpm.e2e/foo@~1.0.0',
+    },
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    latest: true,
+  })
+
+  const manifest = loadJsonFileSync<ProjectManifest>('package.json')
+  expect(manifest.dependencies).toStrictEqual({
+    'foo-alias': 'npm:@pnpm.e2e/foo@~100.1.0',
+  })
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.packages['@pnpm.e2e/foo@100.1.0']).toBeTruthy()
+})

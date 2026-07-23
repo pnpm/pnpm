@@ -1954,6 +1954,62 @@ describe('update', () => {
     expect(Object.keys(lockfile.snapshots)).toEqual(['@pnpm.e2e/foo@100.1.0'])
   })
 
+  test('update --latest resolves an npm: alias catalog entry to the aliased package', async () => {
+    await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+
+    // The alias name does not exist on the registry, so resolving it instead
+    // of the aliased package would fail.
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {
+        'foo-alias': 'catalog:',
+      },
+    }])
+
+    const catalogs = {
+      default: { 'foo-alias': 'npm:@pnpm.e2e/foo@1.0.0' },
+    }
+
+    const mutateOpts = {
+      ...options,
+      lockfileOnly: true,
+      catalogs,
+    }
+
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    expect(readLockfile().catalogs.default).toEqual({
+      'foo-alias': { specifier: 'npm:@pnpm.e2e/foo@1.0.0', version: '1.0.0' },
+    })
+
+    const { updatedCatalogs, updatedManifest } = await addDependenciesToPackage(
+      projects['project1' as ProjectId],
+      ['foo-alias'],
+      {
+        ...mutateOpts,
+        dir: path.join(process.cwd(), 'project1'),
+        allowNew: false,
+        update: true,
+        updateToLatest: true,
+      })
+
+    // The manifest keeps the catalog reference; the bumped catalog entry
+    // keeps the npm: alias prefix.
+    expect(updatedManifest).toEqual({
+      name: 'project1',
+      dependencies: {
+        'foo-alias': 'catalog:',
+      },
+    })
+    expect(updatedCatalogs).toEqual({
+      default: {
+        'foo-alias': 'npm:@pnpm.e2e/foo@100.1.0',
+      },
+    })
+
+    expect(Object.keys(readLockfile().snapshots)).toEqual(['@pnpm.e2e/foo@100.1.0'])
+  })
+
   test('update --latest works on named catalog dependency with catalogMode=prefer', async () => {
     await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
 
