@@ -952,7 +952,7 @@ test('pack: json output contains the publish-transformed manifest', async () => 
         'is-positive': '1.0.0',
       },
     },
-  })
+  } as Parameters<typeof prepare>[0] & { pnpm?: Record<string, unknown> })
 
   const output = await pack.handler({
     ...DEFAULT_OPTS,
