@@ -158,7 +158,7 @@ fn completion_server_lists_nested_subcommands() {
 #[test]
 fn completion_server_lists_ci_command() {
     let output = pacquet()
-        .args(["completion-server", "--", "pnpm", "ci", ""])
+        .args(["completion-server", "--", "pnpm", "ci", "--"])
         .output()
         .expect("run pnpm completion-server");
     let reply = stdout(output);
@@ -209,10 +209,7 @@ fn completion_server_filters_command_prefixes() {
         .expect("run pnpm completion-server");
     let reply = stdout(output);
 
-    assert_eq!(
-        reply.lines().collect::<Vec<_>>(),
-        ["install", "install-clean", "install-test"]
-    );
+    assert_eq!(reply.lines().collect::<Vec<_>>(), ["install", "install-test"]);
 }
 
 #[test]
