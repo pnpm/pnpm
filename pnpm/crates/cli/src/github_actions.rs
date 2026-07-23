@@ -1,6 +1,7 @@
 use futures_util::{StreamExt, stream};
 use node_semver::{Range as SemverRange, Version};
 use pacquet_config::matcher::{Matcher, create_matcher};
+use pacquet_network::redact_and_sanitize;
 use pacquet_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
 use pacquet_resolving_git_resolver::{GitCommandRunner, RealGitRunner, get_repo_refs};
 use std::{
@@ -82,7 +83,7 @@ pub async fn find_outdated<Reporter: self::Reporter>(
         root,
         compatible,
         matcher,
-        &resolve_server_url(server_url),
+        &resolve_server_url(server_url)?,
         &RealGitRunner::new(),
     )
     .await
@@ -109,7 +110,7 @@ pub async fn update<Reporter: self::Reporter>(
         root,
         latest,
         matcher,
-        &resolve_server_url(server_url),
+        &resolve_server_url(server_url)?,
         &RealGitRunner::new(),
     )
     .await
@@ -182,9 +183,12 @@ async fn create_plan<Reporter: self::Reporter, Runner: GitCommandRunner + Sync>(
                     Some((repo, versions))
                 }
                 Err(error) => {
-                    global_warn::<Reporter>(format!(
+                    // The git error may echo a credentialed URL or raw stderr
+                    // back, so it is redacted and stripped of control
+                    // characters before logging.
+                    global_warn::<Reporter>(redact_and_sanitize(&format!(
                         r#"Skipping the GitHub Actions from "{repo}": {error}"#,
-                    ));
+                    )));
                     None
                 }
             }
@@ -559,14 +563,21 @@ fn to_outdated(
 /// Resolves the effective GitHub server base URL: the
 /// `update.githubActionsServer` setting, the `GITHUB_SERVER_URL`
 /// environment variable, or <https://github.com> — first non-empty wins.
-fn resolve_server_url(server_url: Option<&str>) -> String {
-    server_url
+fn resolve_server_url(server_url: Option<&str>) -> miette::Result<String> {
+    let url = server_url
         .filter(|url| !url.is_empty())
         .map(str::to_string)
         .or_else(|| std::env::var("GITHUB_SERVER_URL").ok().filter(|url| !url.is_empty()))
-        .unwrap_or_else(|| "https://github.com".to_string())
-        .trim_end_matches('/')
-        .to_string()
+        .unwrap_or_else(|| "https://github.com".to_string());
+    // Only allow http(s) so the value cannot select another git transport
+    // (e.g. `ext::`, which executes an arbitrary command).
+    if !url.starts_with("https://") && !url.starts_with("http://") {
+        return Err(miette::miette!(
+            code = "ERR_PNPM_GITHUB_ACTIONS_SERVER_PROTOCOL",
+            r#"The GitHub Actions server URL must use the "https://" or "http://" protocol, but got {url:?}"#,
+        ));
+    }
+    Ok(url.trim_end_matches('/').to_string())
 }
 
 fn global_warn<Reporter: self::Reporter>(message: String) {

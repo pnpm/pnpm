@@ -2,7 +2,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-import { afterEach, describe, expect, jest, test } from '@jest/globals'
+import { afterAll, afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals'
 
 jest.unstable_mockModule('@pnpm/logger', () => ({
   globalWarn: jest.fn(),
@@ -20,10 +20,21 @@ const dirs: string[] = []
 
 // The homepage and git URL fall back to GITHUB_SERVER_URL, which is set on
 // GitHub Actions runners — the tests assume the https://github.com default.
-delete process.env.GITHUB_SERVER_URL
+const originalGithubServerUrl = process.env.GITHUB_SERVER_URL
+
+beforeEach(() => {
+  delete process.env.GITHUB_SERVER_URL
+})
+
+afterAll(() => {
+  if (originalGithubServerUrl == null) {
+    delete process.env.GITHUB_SERVER_URL
+  } else {
+    process.env.GITHUB_SERVER_URL = originalGithubServerUrl
+  }
+})
 
 afterEach(async () => {
-  delete process.env.GITHUB_SERVER_URL
   jest.mocked(globalWarn).mockClear()
   await Promise.all(dirs.splice(0).map(async (dir) => fs.rm(dir, { force: true, recursive: true })))
 })
@@ -169,6 +180,39 @@ describe('GitHub Actions dependencies', () => {
     ])
     expect(globalWarn).toHaveBeenCalledTimes(1)
     expect(globalWarn).toHaveBeenCalledWith('Skipping the GitHub Actions from "owner/private-action": Repository not found.')
+  })
+
+  test('redacts credentials and control characters from the skip warning', async () => {
+    const dir = await fixture({
+      '.github/workflows/ci.yml': `jobs:
+  test:
+    steps:
+      - uses: owner/private-action@v1.0.0
+`,
+    })
+
+    await findOutdatedGitHubActions({
+      dir,
+      readRepoRefs: async () => {
+        throw new Error('fatal: unable to access \u001b[31mhttps://user:token@ghes.example.com/owner/private-action.git\u001b[0m\nnot found')
+      },
+    })
+    expect(globalWarn).toHaveBeenCalledWith('Skipping the GitHub Actions from "owner/private-action": fatal: unable to access [31mhttps://ghes.example.com/owner/private-action.git[0mnot found')
+  })
+
+  test('rejects a server URL that is not http(s)', async () => {
+    const dir = await fixture({
+      '.github/workflows/ci.yml': `jobs:
+  test:
+    steps:
+      - uses: actions/checkout@v4.1.0
+`,
+    })
+
+    await expect(findOutdatedGitHubActions({
+      dir,
+      serverUrl: 'ext::sh -c date',
+    })).rejects.toMatchObject({ code: 'ERR_PNPM_GITHUB_ACTIONS_SERVER_PROTOCOL' })
   })
 
   test('updates within the current major and preserves SHA comments and unrelated formatting', async () => {

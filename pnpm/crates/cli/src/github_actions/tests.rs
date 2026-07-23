@@ -419,7 +419,12 @@ async fn skips_repositories_whose_refs_cannot_be_read_and_warns() {
         ) -> Pin<Box<dyn Future<Output = Result<String, GitRunError>> + Send + 'a>> {
             Box::pin(async move {
                 if repo.contains("private-action") {
-                    return Err(GitRunError { message: "Repository not found.".to_string() });
+                    // A credentialed URL and control characters, which the
+                    // warning must redact and strip.
+                    return Err(GitRunError {
+                        message: "\u{1b}[31mhttps://user:token@ghes.example.com/x.git\u{1b}[0m\nnot found"
+                            .to_string(),
+                    });
                 }
                 Ok(format!("{SHA_V4_1_0}\trefs/tags/v4.1.0\n{SHA_V4_2_0}\trefs/tags/v4.2.0\n"))
             })
@@ -459,6 +464,20 @@ async fn skips_repositories_whose_refs_cannot_be_read_and_warns() {
     assert_eq!(warnings.len(), 1);
     assert_eq!(
         warnings[0].message,
-        r#"Skipping the GitHub Actions from "owner/private-action": git ls-remote failed: Repository not found."#,
+        r#"Skipping the GitHub Actions from "owner/private-action": git ls-remote failed: [31mhttps://ghes.example.com/x.git[0mnot found"#,
     );
+}
+
+#[tokio::test]
+async fn rejects_a_server_url_that_is_not_http() {
+    let root = tempfile::tempdir().expect("temp directory");
+
+    let Err(error) =
+        super::find_outdated::<SilentReporter>(root.path(), false, None, Some("ext::sh -c date"))
+            .await
+    else {
+        panic!("non-http server URL must be rejected");
+    };
+
+    assert!(error.to_string().contains(r#"must use the "https://" or "http://" protocol"#));
 }

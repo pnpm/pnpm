@@ -2,7 +2,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import util from 'node:util'
 
-import { PnpmError } from '@pnpm/error'
+import { PnpmError, redactAndSanitize } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
 import { getRepoRefs } from '@pnpm/resolving.git-resolver'
 import { isSubdir } from 'is-subdir'
@@ -157,7 +157,9 @@ async function createUpdatePlan (opts: GitHubActionsOptions): Promise<PlannedUpd
         try {
           return parseRepoVersions(await readRepoRefs(action.repo))
         } catch (err: unknown) {
-          globalWarn(`Skipping the GitHub Actions from "${action.repo}": ${util.types.isNativeError(err) ? err.message : String(err)}`)
+          // The git error may echo a credentialed URL or raw stderr back, so
+          // it is redacted and stripped of control characters before logging.
+          globalWarn(redactAndSanitize(`Skipping the GitHub Actions from "${action.repo}": ${util.types.isNativeError(err) ? err.message : String(err)}`))
           return []
         }
       })
@@ -403,6 +405,11 @@ function dedupeOutdated (actions: OutdatedGitHubAction[]): OutdatedGitHubAction[
 
 function resolveServerUrl (serverUrl: string | undefined): string {
   let url = serverUrl || process.env.GITHUB_SERVER_URL || 'https://github.com'
+  // Only allow http(s) so the value cannot select another git transport
+  // (e.g. `ext::`, which executes an arbitrary command).
+  if (!url.startsWith('https://') && !url.startsWith('http://')) {
+    throw new PnpmError('GITHUB_ACTIONS_SERVER_PROTOCOL', `The GitHub Actions server URL must use the "https://" or "http://" protocol, but got ${JSON.stringify(url)}`)
+  }
   while (url.endsWith('/')) url = url.slice(0, -1)
   return url
 }
