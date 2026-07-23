@@ -6,10 +6,15 @@ use super::{
 };
 use node_semver::Version;
 use pacquet_config::Config;
+use pacquet_default_reporter::format::visible_width;
 use pacquet_lockfile::Lockfile;
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::DependencyGroup;
-use std::{collections::HashMap, path::PathBuf};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    sync::{Mutex, PoisonError},
+};
 use text_block_macros::text_block;
 
 #[cfg(unix)]
@@ -151,24 +156,6 @@ fn render_latest_outdated_and_not_deprecated() {
     assert!(!output.contains("(deprecated)"), "no deprecation marker: {output}");
 }
 
-/// Display width of `line`, ignoring ANSI SGR escape sequences.
-fn visible_width(line: &str) -> usize {
-    let mut chars = line.chars();
-    let mut width = 0;
-    while let Some(ch) = chars.next() {
-        if ch == '\u{1b}' {
-            for escape_ch in chars.by_ref() {
-                if escape_ch == 'm' {
-                    break;
-                }
-            }
-        } else {
-            width += 1;
-        }
-    }
-    width
-}
-
 fn assert_borders_aligned(table: &str) {
     let widths: Vec<usize> = table.lines().map(visible_width).collect();
     assert!(
@@ -177,13 +164,33 @@ fn assert_borders_aligned(table: &str) {
     );
 }
 
+/// Forces `owo_colors` global color on for the scope of a test and clears it
+/// on drop, so the process-global override can't leak into other tests even
+/// if an assertion panics. Paired with [`COLOR_OVERRIDE_LOCK`] to serialize
+/// the tests that toggle it.
+struct ForcedColor;
+
+impl Drop for ForcedColor {
+    fn drop(&mut self) {
+        owo_colors::unset_override();
+    }
+}
+
+fn force_color() -> ForcedColor {
+    owo_colors::set_override(true);
+    ForcedColor
+}
+
+static COLOR_OVERRIDE_LOCK: Mutex<()> = Mutex::new(());
+
 // A colored cell carries ANSI escape sequences whose bytes must not count
 // toward the column width, or the borders drift out of alignment. Force
 // color on and check that the box-drawing borders stay vertically aligned
 // across rows whose cells differ in how many escapes they hold.
 #[test]
 fn colored_table_borders_stay_aligned() {
-    owo_colors::set_override(true);
+    let _lock = COLOR_OVERRIDE_LOCK.lock().unwrap_or_else(PoisonError::into_inner);
+    let _color = force_color();
 
     let packages = [
         pkg("actions/checkout", "7.0.0", "7.0.1", DependencyGroup::Dev),
@@ -200,8 +207,6 @@ fn colored_table_borders_stay_aligned() {
         }],
     }];
     assert_borders_aligned(&render_recursive_table(&workspace, false));
-
-    owo_colors::unset_override();
 }
 
 #[test]
