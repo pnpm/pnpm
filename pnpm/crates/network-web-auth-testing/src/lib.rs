@@ -227,20 +227,14 @@ macro_rules! web_auth_fake {
             }
         }
 
-        /// Panics on any global message — the strict reporter for a test that
-        /// expects no warning.
+        /// Panics on any log event — the strict reporter for a test that
+        /// expects no emission at all.
         #[allow(dead_code)]
         struct UnexpectedReporter;
 
         impl ::pacquet_reporter::Reporter for UnexpectedReporter {
             fn emit(event: &::pacquet_reporter::LogEvent) {
-                if let ::pacquet_reporter::LogEvent::Global(::pacquet_reporter::GlobalLog {
-                    message,
-                    ..
-                }) = event
-                {
-                    panic!("unexpected global message: {message}");
-                }
+                panic!("unexpected log: {event:?}");
             }
         }
 
