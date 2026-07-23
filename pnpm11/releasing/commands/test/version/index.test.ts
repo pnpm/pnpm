@@ -536,7 +536,7 @@ fs.appendFileSync(process.argv[2], process.argv[3] + ':' + manifest.version + '\
 
       const parsed = JSON.parse(result as string)
       expect(Array.isArray(parsed)).toBe(true)
-      expect(parsed.length).toBeGreaterThan(0)
+      expect(parsed).toHaveLength(1)
       const entry = parsed[0]
       expect(entry.name).toBe('pkg-a')
       expect(entry.currentVersion).toBe('1.0.0')
