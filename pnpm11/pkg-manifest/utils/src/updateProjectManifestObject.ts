@@ -39,6 +39,8 @@ export function createVersionSpecFromResolvedVersion (resolvedVersion: string, p
       return `~${resolvedVersion}`
     case 'patch':
       return resolvedVersion
+    case 'exact':
+      return `=${resolvedVersion}`
     default:
       return `^${resolvedVersion}`
   }
