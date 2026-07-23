@@ -980,12 +980,14 @@ fn update_latest_reports_invalid_minimum_release_age_exclude() {
     drop((root, anchor));
 }
 
-/// `pnpm update --latest` must not resolve a `workspace:` dependency against
-/// the registry: it links a local workspace package that may be unpublished, so
-/// there is no registry "latest" to fetch. Regression for the pnpm/pnpm
-/// update-lockfile job, whose `@pnpm-private/*` deps are `workspace:*`.
+/// `pnpm update --latest` must not resolve a local dependency against the
+/// registry. `workspace:`, `file:`, and `link:` all point at a local package
+/// that may be unpublished, so there is no registry "latest" to fetch; each is
+/// preserved verbatim. Mirrors the TS `isLocalRef` guard (link:/file:/workspace:)
+/// in `@pnpm/outdated`. Regression for the pnpm/pnpm update-lockfile job, whose
+/// `@pnpm-private/*` deps are `workspace:*`.
 #[test]
-fn update_latest_preserves_workspace_protocol_dependencies() {
+fn update_latest_preserves_local_protocol_dependencies() {
     let (root, workspace, anchor) = setup();
 
     fs::write(
@@ -1000,16 +1002,30 @@ fn update_latest_preserves_workspace_protocol_dependencies() {
     workspace_yaml.push_str("packages:\n  - 'packages/*'\n");
     fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
 
-    // Package `a` links the local, unpublished package `b` via `workspace:*`,
-    // alongside a real registry dependency so `--latest` has work to do.
-    fs::create_dir_all(workspace.join("packages/a")).expect("mkdir packages/a");
+    // Package `a` links three local, unpublished packages — `b` via `workspace:*`,
+    // `c` via `file:`, and `d` via `link:` — alongside a real registry dependency
+    // so `--latest` has work to do. `c` and `d` live under `packages/a/fixtures`,
+    // which the `packages/*` glob does not match, so they are plain local deps
+    // rather than workspace members.
+    fs::create_dir_all(workspace.join("packages/a/fixtures/c")).expect("mkdir fixtures/c");
+    fs::create_dir_all(workspace.join("packages/a/fixtures/d")).expect("mkdir fixtures/d");
     fs::write(
         workspace.join("packages/a/package.json"),
         format!(
-            r#"{{ "name": "@test/a", "version": "1.0.0", "dependencies": {{ "@test/b": "workspace:*", "{DEP}": "^100.0.0" }} }}"#,
+            r#"{{ "name": "@test/a", "version": "1.0.0", "dependencies": {{ "@test/b": "workspace:*", "@test/c": "file:./fixtures/c", "@test/d": "link:./fixtures/d", "{DEP}": "^100.0.0" }} }}"#,
         ),
     )
     .expect("write packages/a/package.json");
+    fs::write(
+        workspace.join("packages/a/fixtures/c/package.json"),
+        r#"{ "name": "@test/c", "version": "1.0.0" }"#,
+    )
+    .expect("write fixtures/c package.json");
+    fs::write(
+        workspace.join("packages/a/fixtures/d/package.json"),
+        r#"{ "name": "@test/d", "version": "1.0.0" }"#,
+    )
+    .expect("write fixtures/d package.json");
     fs::create_dir_all(workspace.join("packages/b")).expect("mkdir packages/b");
     fs::write(
         workspace.join("packages/b/package.json"),
@@ -1019,15 +1035,17 @@ fn update_latest_preserves_workspace_protocol_dependencies() {
 
     pacquet(&workspace, ["-r", "install"]).assert().success();
     // Before the fix this failed with ERR_PNPM_PACKAGE_MANAGER_UPDATE_RESOLVE_LATEST
-    // trying to fetch the unpublished @test/b from the registry.
+    // trying to fetch the unpublished @test/b, @test/c, and @test/d from the registry.
     pacquet(&workspace, ["-r", "update", "--latest"]).assert().success();
 
     let a_manifest = fs::read_to_string(workspace.join("packages/a/package.json"))
         .expect("read packages/a/package.json");
-    assert!(
-        a_manifest.contains(r#""@test/b":"workspace:*""#),
-        "the workspace: spec should be preserved verbatim: {a_manifest}",
-    );
+    for (dep, protocol) in [("@test/b", "workspace:"), ("@test/c", "file:"), ("@test/d", "link:")] {
+        assert!(
+            a_manifest.contains(&format!(r#""{dep}":"{protocol}"#)),
+            "the {protocol} spec for {dep} should be preserved verbatim: {a_manifest}",
+        );
+    }
 
     drop((root, anchor));
 }
