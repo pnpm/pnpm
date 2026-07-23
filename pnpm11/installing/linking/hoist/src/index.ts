@@ -9,11 +9,8 @@ import { logger } from '@pnpm/logger'
 import type { DependenciesField, DepPath, HoistedDependencies, ProjectId } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import { isSubdir } from 'is-subdir'
-import pLimit from 'p-limit'
 import { resolveLinkTarget } from 'resolve-link-target'
 import { symlinkDir } from 'symlink-dir'
-
-const limitLinking = pLimit(16)
 
 export interface DependenciesGraphNode<T extends string> {
   dir: string
@@ -318,13 +315,13 @@ async function symlinkHoistedDependencies<T extends string> (
         await symlink(depLocation, dest)
         if (opts.enableGlobalVirtualStore && opts.graph) {
           const graphNodes = Object.values(opts.graph) as Array<DependenciesGraphNode<T>>
-          await Promise.all(graphNodes.map(async (graphNode) => limitLinking(async () => {
+          await Promise.all(graphNodes.map(async (graphNode) => {
             if (!graphNode.dir || !graphNode.children || graphNode.name === pkgAlias) return
             if (graphNode.children[pkgAlias]) return
             const modulesDir = getModulesDir(graphNode.dir, graphNode.name)
             const gvsDest = path.join(modulesDir, pkgAlias)
             await symlink(depLocation, gvsDest)
-          })))
+          }))
         }
       }))
     })())
