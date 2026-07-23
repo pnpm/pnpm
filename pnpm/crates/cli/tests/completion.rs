@@ -209,7 +209,7 @@ fn completion_server_filters_command_prefixes() {
         .expect("run pnpm completion-server");
     let reply = stdout(output);
 
-    assert_eq!(reply.lines().collect::<Vec<_>>(), ["install", "install-test"]);
+    assert_eq!(reply.lines().collect::<Vec<_>>(), ["install", "install-clean", "install-test"]);
 }
 
 #[test]
