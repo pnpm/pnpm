@@ -537,10 +537,10 @@ pub struct UpdateSettings {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub changeset: Option<bool>,
 
-    /// Whether `pnpm update` should also update GitHub Actions
-    /// dependencies. When explicitly set to `false`, `pnpm outdated`
-    /// and the interactive `pnpm update` skip GitHub Actions
-    /// dependencies as well.
+    /// Whether `pnpm outdated` and `pnpm update` should also look at
+    /// the GitHub Actions referenced by the workflow files. Opt-in:
+    /// neither command reads them unless this is set to `true` or
+    /// `--include-github-actions` is passed.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub github_actions: Option<bool>,
 
@@ -569,10 +569,10 @@ pub struct UpdateConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ignore_dependencies: Option<Vec<String>>,
 
-    /// Whether `pnpm update` should also update GitHub Actions
-    /// dependencies. When explicitly set to `false`, `pnpm outdated`
-    /// and the interactive `pnpm update` skip GitHub Actions
-    /// dependencies as well.
+    /// Whether `pnpm outdated` and `pnpm update` should also look at
+    /// the GitHub Actions referenced by the workflow files. Opt-in:
+    /// neither command reads them unless this is set to `true` or
+    /// `--include-github-actions` is passed.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub github_actions: Option<bool>,
 

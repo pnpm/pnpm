@@ -208,9 +208,9 @@ export interface UpdateSettings {
    */
   changeset?: boolean
   /**
-   * Whether `pnpm update` should also update GitHub Actions dependencies.
-   * When explicitly set to `false`, `pnpm outdated` and the interactive
-   * `pnpm update` skip GitHub Actions dependencies as well.
+   * Whether `pnpm outdated` and `pnpm update` should also look at the GitHub
+   * Actions referenced by the workflow files. Opt-in: neither command reads
+   * them unless this is set to `true` or `--include-github-actions` is passed.
    */
   githubActions?: boolean
   /**
