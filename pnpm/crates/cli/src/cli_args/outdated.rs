@@ -419,7 +419,10 @@ struct DependentProject {
 impl OutdatedArgs {
     /// Run the check and print the report to stdout. Returns whether any
     /// dependency was outdated; the caller decides the process exit code.
-    pub async fn run<R: Reporter>(self, state: State) -> miette::Result<OutdatedOutcome> {
+    pub async fn run<Reporter: self::Reporter>(
+        self,
+        state: State,
+    ) -> miette::Result<OutdatedOutcome> {
         if state.config.recursive {
             return self.run_recursive(state).await;
         }
@@ -484,7 +487,7 @@ impl OutdatedArgs {
         if include.contains(&DependencyGroup::Dev)
             && config.update_config.github_actions != Some(false)
         {
-            let actions = github_actions::find_outdated::<R>(
+            let actions = github_actions::find_outdated::<Reporter>(
                 root,
                 self.compatible,
                 action_matcher.as_ref(),

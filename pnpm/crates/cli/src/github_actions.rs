@@ -72,13 +72,13 @@ struct PlannedUpdate {
 
 const GIT_CONCURRENCY: usize = 8;
 
-pub async fn find_outdated<R: Reporter>(
+pub async fn find_outdated<Reporter: self::Reporter>(
     root: &Path,
     compatible: bool,
     matcher: Option<&Matcher>,
     server_url: Option<&str>,
 ) -> miette::Result<Vec<OutdatedGitHubAction>> {
-    find_outdated_with_runner::<R, _>(
+    find_outdated_with_runner::<Reporter, _>(
         root,
         compatible,
         matcher,
@@ -88,24 +88,24 @@ pub async fn find_outdated<R: Reporter>(
     .await
 }
 
-async fn find_outdated_with_runner<R: Reporter, Runner: GitCommandRunner + Sync>(
+async fn find_outdated_with_runner<Reporter: self::Reporter, Runner: GitCommandRunner + Sync>(
     root: &Path,
     compatible: bool,
     matcher: Option<&Matcher>,
     server_url: &str,
     runner: &Runner,
 ) -> miette::Result<Vec<OutdatedGitHubAction>> {
-    let plans = create_plan::<R, _>(root, matcher, server_url, runner).await?;
+    let plans = create_plan::<Reporter, _>(root, matcher, server_url, runner).await?;
     Ok(to_outdated(plans, !compatible, server_url))
 }
 
-pub async fn update<R: Reporter>(
+pub async fn update<Reporter: self::Reporter>(
     root: &Path,
     latest: bool,
     matcher: Option<&Matcher>,
     server_url: Option<&str>,
 ) -> miette::Result<Vec<OutdatedGitHubAction>> {
-    update_with_runner::<R, _>(
+    update_with_runner::<Reporter, _>(
         root,
         latest,
         matcher,
@@ -115,14 +115,14 @@ pub async fn update<R: Reporter>(
     .await
 }
 
-async fn update_with_runner<R: Reporter, Runner: GitCommandRunner + Sync>(
+async fn update_with_runner<Reporter: self::Reporter, Runner: GitCommandRunner + Sync>(
     root: &Path,
     latest: bool,
     matcher: Option<&Matcher>,
     server_url: &str,
     runner: &Runner,
 ) -> miette::Result<Vec<OutdatedGitHubAction>> {
-    let plans = create_plan::<R, _>(root, matcher, server_url, runner).await?;
+    let plans = create_plan::<Reporter, _>(root, matcher, server_url, runner).await?;
     let updates = plans
         .into_iter()
         .filter(|plan| {
@@ -157,7 +157,7 @@ async fn update_with_runner<R: Reporter, Runner: GitCommandRunner + Sync>(
     Ok(to_outdated(updates, latest, server_url))
 }
 
-async fn create_plan<R: Reporter, Runner: GitCommandRunner + Sync>(
+async fn create_plan<Reporter: self::Reporter, Runner: GitCommandRunner + Sync>(
     root: &Path,
     matcher: Option<&Matcher>,
     server_url: &str,
@@ -182,8 +182,8 @@ async fn create_plan<R: Reporter, Runner: GitCommandRunner + Sync>(
                     Some((repo, versions))
                 }
                 Err(error) => {
-                    global_warn::<R>(format!(
-                        r#"Skipping the GitHub Actions from "{repo}": {error}"#
+                    global_warn::<Reporter>(format!(
+                        r#"Skipping the GitHub Actions from "{repo}": {error}"#,
                     ));
                     None
                 }
@@ -569,8 +569,8 @@ fn resolve_server_url(server_url: Option<&str>) -> String {
         .to_string()
 }
 
-fn global_warn<R: Reporter>(message: String) {
-    R::emit(&LogEvent::Global(GlobalLog { level: LogLevel::Warn, message }));
+fn global_warn<Reporter: self::Reporter>(message: String) {
+    Reporter::emit(&LogEvent::Global(GlobalLog { level: LogLevel::Warn, message }));
 }
 
 #[cfg(test)]
