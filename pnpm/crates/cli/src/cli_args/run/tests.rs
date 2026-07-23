@@ -4,20 +4,92 @@ use serde_json::json;
 #[test]
 fn specified_scripts_exact_match() {
     let manifest = json!({ "scripts": { "build": "tsc", "test": "jest" } });
-    assert_eq!(specified_scripts(&manifest, "build"), vec!["build".to_string()]);
-    assert_eq!(specified_scripts(&manifest, "test"), vec!["test".to_string()]);
+    assert_eq!(specified_scripts(&manifest, "build", true).unwrap(), vec!["build".to_string()]);
+    assert_eq!(specified_scripts(&manifest, "test", true).unwrap(), vec!["test".to_string()]);
 }
 
 #[test]
 fn specified_scripts_start_fallback() {
     let manifest = json!({ "scripts": { "build": "tsc" } });
-    assert_eq!(specified_scripts(&manifest, "start"), vec!["start".to_string()]);
+    assert_eq!(specified_scripts(&manifest, "start", true).unwrap(), vec!["start".to_string()]);
 }
 
 #[test]
 fn specified_scripts_missing_is_empty() {
     let manifest = json!({ "scripts": { "build": "tsc" } });
-    assert!(specified_scripts(&manifest, "nonexistent").is_empty());
+    assert!(specified_scripts(&manifest, "nonexistent", true).unwrap().is_empty());
+}
+
+#[test]
+fn specified_scripts_regexp_unsorted_insertion_order() {
+    let manifest = json!({ "scripts": {
+        "build:z": "echo z",
+        "build:a": "echo a",
+        "build:m": "echo m",
+    }});
+    assert_eq!(
+        specified_scripts(&manifest, "/^build:.*/", false).unwrap(),
+        vec!["build:z".to_string(), "build:a".to_string(), "build:m".to_string()],
+    );
+}
+
+#[test]
+fn specified_scripts_regexp_sorted_alphabetical() {
+    let manifest = json!({ "scripts": {
+        "build:z": "echo z",
+        "build:a": "echo a",
+        "build:m": "echo m",
+    }});
+    assert_eq!(
+        specified_scripts(&manifest, "/^build:.*/", true).unwrap(),
+        vec!["build:a".to_string(), "build:m".to_string(), "build:z".to_string()],
+    );
+}
+
+#[test]
+fn specified_scripts_regexp_flags_rejected() {
+    let manifest = json!({ "scripts": { "build:a": "echo a" } });
+    let err = specified_scripts(&manifest, "/build:.*/i", true).unwrap_err();
+    assert!(
+        matches!(err, RunError::UnsupportedRegExpFlags { .. }),
+        "expected UnsupportedRegExpFlags, got {err:?}",
+    );
+}
+
+#[test]
+fn specified_scripts_regexp_invalid_pattern_is_empty() {
+    let manifest = json!({ "scripts": { "build:a": "echo a" } });
+    assert!(specified_scripts(&manifest, "/[/", true).unwrap().is_empty());
+}
+
+#[test]
+fn specified_scripts_regexp_no_match_is_empty() {
+    let manifest = json!({ "scripts": { "build:a": "echo a" } });
+    assert!(specified_scripts(&manifest, "/^test:.*/", true).unwrap().is_empty());
+}
+
+#[test]
+fn specified_scripts_regexp_slash_only_is_empty() {
+    let manifest = json!({ "scripts": { "build:a": "echo a" } });
+    assert!(specified_scripts(&manifest, "/", true).unwrap().is_empty());
+}
+
+#[test]
+fn specified_scripts_regexp_unterminated_is_empty() {
+    let manifest = json!({ "scripts": { "build:a": "echo a" } });
+    assert!(specified_scripts(&manifest, "/^build:.*", true).unwrap().is_empty());
+}
+
+#[test]
+fn specified_scripts_regexp_escaped_slashes() {
+    let manifest = json!({ "scripts": {
+        "build:z": "echo z",
+        "build:a": "echo a",
+    }});
+    assert_eq!(
+        specified_scripts(&manifest, r"/^build:.*/", true).unwrap(),
+        vec!["build:a".to_string(), "build:z".to_string()],
+    );
 }
 
 #[test]

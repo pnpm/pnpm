@@ -1,14 +1,7 @@
-//! Recursive `pacquet run` — run a package script across the
-//! `--filter`-selected workspace projects, in topological order.
+//! Recursive `pacquet run` — run a package script across `--filter`-selected workspace projects.
 //!
-//! `config.filter` / `config.filter_prod` (`--filter` / `--filter-prod`,
-//! include and exclude selectors) narrow the selected set via
-//! [`select_recursive_projects`]; the selection is then sorted
-//! topologically by default, or kept in workspace order under `--no-sort`,
-//! and run sequentially. `--reverse`, `--workspace-concurrency` parallelism,
-//! and the `RegExp` script selector are not supported yet. The main-dispatch
-//! auto-exclusion of the workspace root is applied via
-//! [`AutoExcludeRoot::Enabled`].
+//! Without `--sort`, scripts execute in graph insertion order (the default). With `--sort`,
+//! topological ordering is used. An empty filtered workspace is intentionally a no-op.
 
 use super::{RunArgs, RunContext, run_stages};
 use crate::cli_args::recursive::{
@@ -28,9 +21,8 @@ use std::{
     time::Instant,
 };
 
-/// Errors surfaced by a recursive run. The codes are the shared pnpm
-/// error codes, so log consumers and `pnpm.io/errors` references stay
-/// valid.
+/// Errors surfaced by a recursive run. Each variant carries a canonical pnpm error code
+/// (via `#[diagnostic(code(...))]`) matching the TypeScript CLI's error-code contract.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum RecursiveRunError {
@@ -67,15 +59,8 @@ pub enum RecursiveRunError {
     ScriptNameRequired,
 }
 
-/// Run `args.command` across the `--filter`-selected workspace projects,
-/// sorted topologically. `dir` is the canonicalized working directory; the
-/// workspace root (and the directory the summary is written to) is
-/// `config.workspace_dir`, falling back to `dir` when no
-/// `pnpm-workspace.yaml` exists.
+/// Run `args.command` across the `--filter`-selected workspace projects.
 pub fn run_recursive(args: &RunArgs, config: &Config, dir: &Path) -> miette::Result<()> {
-    // `RunArgs::command` is optional so single-project `run` can list
-    // scripts; recursive mode has no such "list" behavior, so a missing
-    // script name is a usage error (`ERR_PNPM_SCRIPT_NAME_IS_REQUIRED`).
     let Some(script_name) = args.command.as_deref() else {
         return Err(RecursiveRunError::ScriptNameRequired.into());
     };
@@ -89,8 +74,6 @@ pub fn run_recursive(args: &RunArgs, config: &Config, dir: &Path) -> miette::Res
         AutoExcludeRoot::Enabled { workspace_patterns: patterns.as_deref() },
     )?;
     let graph = &selection.selected;
-    // An empty `--filter` selection is a no-op (exit 0); an empty
-    // workspace instead falls through to the no-script error below.
     if !projects.is_empty() && graph.is_empty() {
         return Ok(());
     }
@@ -114,10 +97,7 @@ pub fn run_recursive(args: &RunArgs, config: &Config, dir: &Path) -> miette::Res
         chunks.iter().flatten().map(|root| (root.clone(), ExecutionStatus::queued())).collect();
     let mut has_command = 0_usize;
 
-    // Lifecycle env reused per project: each recursive script sets up
-    // `node_modules/.bin` on `PATH`, the `npm_*` env, the configured
-    // `script_shell`, and the user-agent. Compute the bits that don't
-    // vary per project once; the per-project `RunContext` reuses them.
+    // Lifecycle env computed once and reused per project.
     let init_cwd = env::current_dir().unwrap_or_else(|_| dir.to_path_buf());
     let mut extra_env: HashMap<String, String> = config.extra_env.clone();
     if let Some(node_options) = &config.node_options {
@@ -138,34 +118,19 @@ pub fn run_recursive(args: &RunArgs, config: &Config, dir: &Path) -> miette::Res
                 result[root].status = Status::Skipped;
                 continue;
             };
-            // Per-stage no-ops: an empty body (`!scripts[name]`) is
-            // treated as absent → skip, and a stage whose post-args
-            // command is exactly `npx only-allow pnpm` is skipped.
-            // Without these guards the recursive loop would fork a
-            // useless shell per project and (for the npm guard) might
-            // run the wrong-package-manager warning.
+            // Skip no-op stages: empty body or the `npx only-allow pnpm` guard without args.
             if script.is_empty() || (args.args.is_empty() && script == "npx only-allow pnpm") {
                 result[root].status = Status::Skipped;
                 continue;
             }
-            // Recursion guard: skip a project when `npm_lifecycle_event`
-            // matches the requested script AND `PNPM_SCRIPT_SRC_DIR`
-            // matches the project root — i.e. this very project is
-            // already executing this very script and we're now inside its
-            // child invocation. Without this, a `build` script that itself
-            // calls `pacquet -r run build` from within a workspace project
-            // recurses without bound (every child sees the same env and
-            // walks the workspace again). Status stays Queued.
+            // Recursion guard: skip when this project is already running this script.
             if env::var_os("npm_lifecycle_event").is_some_and(|event| event == *script_name)
                 && env::var_os("PNPM_SCRIPT_SRC_DIR")
                     .is_some_and(|src_dir| Path::new(&src_dir) == root)
             {
                 continue;
             }
-            // Hidden-script gate, checked *after* the truthy-body skip
-            // above so a hidden name that no project defines surfaces as
-            // `ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT` rather than
-            // `ERR_PNPM_HIDDEN_SCRIPT` — preserving the error precedence.
+            // Hidden-script gate: dot-prefixed names can only be invoked from within another script.
             if script_name.starts_with('.') && env::var_os("npm_lifecycle_event").is_none() {
                 return Err(
                     super::RunError::HiddenScript { script: script_name.to_string() }.into()
@@ -175,16 +140,6 @@ pub fn run_recursive(args: &RunArgs, config: &Config, dir: &Path) -> miette::Res
             result[root].status = Status::Running;
             has_command += 1;
             let start = Instant::now();
-            // Per-project pre/main/post via the same machinery
-            // single-project `run` uses. The outer manifest /
-            // empty-body / `npx only-allow pnpm` guards above
-            // discharge `run_stages`' precondition (non-empty body
-            // that isn't the args-less npx no-op), so the main stage
-            // is guaranteed to run and `run_stages` returns a plain
-            // `ExitStatus`. Pre/post scripts run with
-            // `enablePrePostScripts`. The per-package failure surface
-            // comes from the `ExecutionStatus` summary, not the
-            // `$ <script>` echo.
             let ctx = RunContext {
                 manifest,
                 dir: root,
@@ -220,10 +175,7 @@ pub fn run_recursive(args: &RunArgs, config: &Config, dir: &Path) -> miette::Res
         }
     }
 
-    // `test` is exempt because `pnpm test` falls back to a default and
-    // should not error on a workspace with no `test` script; otherwise a
-    // recursive run that matched nothing is a user error, unless
-    // `--if-present` opted out of it.
+    // `test` is exempt because `pnpm test` falls back to a default.
     if script_name != "test" && has_command == 0 && !args.if_present {
         let script_name = script_name.to_string();
         return Err(if graph.len() == projects.len() {

@@ -3974,6 +3974,7 @@ dependencies = [
  "pretty_assertions",
  "rayon",
  "reflink-copy",
+ "regex",
  "reqwest 0.13.4",
  "rmp-serde",
  "serde",

@@ -88,19 +88,14 @@ pub enum RunError {
     #[display("Missing script start or file server.js")]
     #[diagnostic(code(ERR_PNPM_NO_SCRIPT_OR_SERVER))]
     NoScriptOrServer,
+
+    #[display("RegExp flags are not supported in script command selector")]
+    #[diagnostic(code(ERR_PNPM_UNSUPPORTED_SCRIPT_COMMAND_FORMAT))]
+    UnsupportedRegExpFlags { selector: String },
 }
 
 impl RunArgs {
-    /// Execute the subcommand in `dir`. `silent` suppresses the
-    /// `$ <script>` echo (set when the reporter is `silent`).
-    ///
-    /// On a non-zero script exit code this terminates the process with
-    /// the same code, matching pnpm where a failing script sets the
-    /// process exit code.
-    ///
-    /// The `resume_from` / `report_summary` / `no_bail` fields are only
-    /// meaningful for the recursive path (see [`Self::run_recursive`])
-    /// and are ignored here.
+    /// Execute the subcommand in `dir`; `silent` suppresses the `$ <script>` echo.
     pub fn run(self, dir: &Path, config: &Config, silent: bool) -> miette::Result<()> {
         self.run_inner(dir, config, silent, false)
     }
@@ -116,9 +111,7 @@ impl RunArgs {
         silent: bool,
         fallback_to_exec: bool,
     ) -> miette::Result<()> {
-        // Before the manifest is read, so a mistyped command in a
-        // directory without a project skips the check instead of
-        // spawning a doomed install (see check_deps_status_before_run_at).
+        // Verify deps before reading manifest so a mistyped command in a project-less directory skips the install check.
         super::verify_deps::verify_deps_before_run(dir, config, silent)?;
         let RunArgs { command, args, if_present, sequential, .. } = self;
         let Some(script_name) = command else {
@@ -136,11 +129,9 @@ impl RunArgs {
             Err(err) => return Err(RunError::Manifest(err).into()),
         };
 
-        let mut specified = specified_scripts(manifest.value(), &script_name);
+        let mut specified = specified_scripts(manifest.value(), &script_name, !sequential)?;
 
-        // Hidden scripts (names starting with `.`) can only be invoked
-        // from within another script, detected by an inherited
-        // `npm_lifecycle_event`.
+        // Hidden scripts (names starting with `.`) can only be invoked from within another script, detected by an inherited `npm_lifecycle_event`.
         if env::var_os("npm_lifecycle_event").is_none() {
             specified = throw_or_filter_hidden_scripts(specified, &script_name)?;
         }
@@ -181,29 +172,59 @@ impl RunArgs {
             silent,
             sequential,
         };
-        for name in &specified {
-            // Resolve the main body (with `start` → `node server.js`
-            // fallback) and apply the args-aware `npx only-allow pnpm`
-            // no-op skip. After both pass, [`run_stages`] is
-            // guaranteed to actually run the main stage, so its return
-            // is a plain `ExitStatus`.
-            let Some(main) = resolve_main_script(&ctx, name)? else { continue };
-            if args.is_empty() && main == "npx only-allow pnpm" {
-                continue;
+
+        if sequential {
+            for name in &specified {
+                let Some(main) = resolve_main_script(&ctx, name)? else { continue };
+                if args.is_empty() && main == "npx only-allow pnpm" {
+                    continue;
+                }
+                let status = run_stages(&ctx, name, &main, &args)?;
+                if !status.success() {
+                    std::process::exit(status.code().unwrap_or(1));
+                }
             }
-            let status = run_stages(&ctx, name, &main, &args)?;
-            if !status.success() {
-                // A failing script sets the process exit code.
-                // `run_stage` already emitted the `[ELIFECYCLE]` line.
-                std::process::exit(status.code().unwrap_or(1));
+        } else {
+            let results: Vec<_> = std::thread::scope(|scope| {
+                let mut handles = Vec::with_capacity(specified.len());
+                for name in &specified {
+                    let main = match resolve_main_script(&ctx, name) {
+                        Ok(Some(m)) => m,
+                        Ok(None) => continue,
+                        Err(e) => {
+                            handles.push(Err(e.into()));
+                            continue;
+                        }
+                    };
+                    if args.is_empty() && main == "npx only-allow pnpm" {
+                        continue;
+                    }
+                    let name = name.clone();
+                    let ctx = &ctx;
+                    let args = &args;
+                    handles.push(Ok(scope.spawn(move || run_stages(ctx, &name, &main, args))));
+                }
+                handles
+                    .into_iter()
+                    .map(|handle_result| match handle_result {
+                        Ok(handle) => handle
+                            .join()
+                            .unwrap_or_else(|_| Err(miette::miette!("script thread panicked"))),
+                        Err(e) => Err(e),
+                    })
+                    .collect()
+            });
+            for result in results {
+                let status = result?;
+                if !status.success() {
+                    std::process::exit(status.code().unwrap_or(1));
+                }
             }
         }
         Ok(())
     }
 
-    /// Execute the subcommand across the `--filter`-selected workspace
-    /// projects, in topological order. The recursive counterpart of
-    /// [`Self::run`], selected when the global `-r` / `--recursive` flag is set.
+    /// Execute the subcommand across `--filter`-selected workspace projects.
     pub fn run_recursive(&self, config: &Config, dir: &Path) -> miette::Result<()> {
         super::verify_deps::verify_deps_before_run(dir, config, false)?;
         recursive::run_recursive(self, config, dir)
@@ -227,11 +248,7 @@ fn exec_fallback(
     .run(dir, config)
 }
 
-/// Shared inputs for running a script, threaded through
-/// [`run_stages`] and [`run_stage`] so neither grows an unwieldy
-/// argument list. The submodule `recursive` builds a per-project
-/// [`RunContext`] and reuses [`run_stages`], so the type and its
-/// fields are visible up to the parent module.
+/// Shared inputs for running a script, threaded through [`run_stages`] and [`run_stage`].
 pub(super) struct RunContext<'a> {
     pub(super) manifest: &'a PackageManifest,
     pub(super) dir: &'a Path,
@@ -239,14 +256,11 @@ pub(super) struct RunContext<'a> {
     pub(super) config: &'a Config,
     pub(super) extra_env: &'a HashMap<String, String>,
     pub(super) silent: bool,
+    #[expect(dead_code, reason = "consumed by recursive runner; reserved for sequential dispatch")]
     pub(super) sequential: bool,
 }
 
-/// Resolve `name` to a runnable main script body, or `Ok(None)` when
-/// there's nothing to run (the manifest has no truthy `scripts[name]`
-/// and `name` isn't `start`). An absent (or empty) `start` falls back
-/// to `node server.js` provided `server.js` exists in the script
-/// execution directory; otherwise [`RunError::NoScriptOrServer`].
+/// Resolve `name` to a runnable main script body, or `Ok(None)` when there's nothing to run.
 fn resolve_main_script(ctx: &RunContext<'_>, name: &str) -> Result<Option<String>, RunError> {
     let get_script = |key: &str| -> Option<String> {
         ctx.manifest
@@ -269,39 +283,13 @@ fn resolve_main_script(ctx: &RunContext<'_>, name: &str) -> Result<Option<String
     }
 }
 
-/// Run pre / main / post for `name` around an already-resolved
-/// `main_body`. The contract:
-///
-/// - `main_body` is non-empty.
-/// - `main_body` is not `"npx only-allow pnpm"` when `args` is empty
-///   (otherwise the main stage's [`run_stage`] would no-op).
-///
-/// Both callers — single-project [`RunArgs::run`] and the recursive
-/// runner — validate these conditions before calling: single-project
-/// via [`resolve_main_script`] plus an inline npx-only-allow skip,
-/// recursive via its outer per-project filter. Given that, the main
-/// stage is guaranteed to actually run, so this function returns a
-/// plain [`std::process::ExitStatus`] instead of `Option<ExitStatus>`
-/// and the callers don't need to defensively handle a "nothing ran"
-/// case.
-///
-/// On the first non-success stage (pre / main / post) the function
-/// short-circuits and returns that stage's status; the caller decides
-/// what to do with the failure (single-project: `process::exit`;
-/// recursive: record `Failure` and bail or continue). A failing stage
-/// skips the remaining stages.
-///
-/// For `run start` with no `start` script but a `prestart`/`poststart`
-/// and `enablePrePostScripts`, the hooks run around the `node server.js`
-/// fallback, so the `pre`/`post` substring guard runs against the
-/// resolved `main_body` here.
+/// Run pre / main / post for `name`. On the first non-success stage, short-circuit and skip the rest.
 pub(super) fn run_stages(
     ctx: &RunContext<'_>,
     name: &str,
     main_body: &str,
     args: &[String],
 ) -> miette::Result<std::process::ExitStatus> {
-    let _ = ctx.sequential;
     let get_script = |key: &str| -> Option<String> {
         ctx.manifest
             .value()
@@ -323,10 +311,9 @@ pub(super) fn run_stages(
         }
     }
 
-    // The caller's contract rules out both no-op paths in `run_stage`
-    // for the main stage (empty body, args-less `npx only-allow pnpm`),
-    // so `run_stage` here is guaranteed to surface a real `ExitStatus`.
-    // The `expect` documents the invariant.
+    // The caller validates main_body is non-empty and not the args-less
+    // npx-only-allow no-op, so `run_stage` here is guaranteed to
+    // surface a real `ExitStatus`.
     let main_status = run_stage(ctx, name, main_body, args)?.expect(
         "caller validated main_body is neither empty nor the args-less `npx only-allow pnpm` no-op",
     );
@@ -349,30 +336,16 @@ pub(super) fn run_stages(
     Ok(main_status)
 }
 
-/// Run one lifecycle stage. Returns `Ok(None)` when pnpm's per-stage
-/// no-op guards apply (empty body, or `npx only-allow pnpm` with no
-/// args), so the caller can record "didn't actually run" without
-/// inventing a synthetic `ExitStatus`. A non-success `ExitStatus` is
-/// returned to the caller — single-project `RunArgs::run` exits with
-/// the code; recursive `run_recursive` records `Failure` and decides
-/// whether to bail.
+/// Run one lifecycle stage. Returns `Ok(None)` for no-op guards (empty body or `npx only-allow pnpm` with no args).
 pub(super) fn run_stage(
     ctx: &RunContext<'_>,
     stage: &str,
     script: &str,
     args: &[String],
 ) -> miette::Result<Option<std::process::ExitStatus>> {
-    // The `npx only-allow pnpm` guard script is a no-op, so a lifecycle
-    // stage whose final command is exactly that string is skipped. Args
-    // are appended *before* this check, so a stage invoked with args
-    // (which lengthen the command past the literal) is never skipped;
-    // pre/post stages always pass `args = &[]`.
     if args.is_empty() && script == "npx only-allow pnpm" {
         return Ok(None);
     }
-    // An empty script body is a no-op: any stage whose (post-arg) command
-    // is falsy is skipped, and pre/post are gated on the body being
-    // truthy, so an empty `pre<name>`/`post<name>` never runs.
     if script.is_empty() {
         return Ok(None);
     }
@@ -398,9 +371,6 @@ pub(super) fn run_stage(
     .map_err(miette::Report::new)?;
 
     if !status.success() {
-        // The `test` stage gets a fixed message; a numeric exit code is
-        // reported verbatim; a signal-terminated child (no code) is
-        // "Command failed." with no number.
         if stage == "test" {
             eprintln!("[ELIFECYCLE] Test failed. See above for more details.");
         } else if let Some(code) = status.code() {
@@ -422,28 +392,67 @@ pub(crate) fn exec_scripts_prepend_node_path(
     }
 }
 
-/// Resolve which script names to run for `name`: the exact-match arm plus
-/// the `start` fallback. The `/regexp/` selector is not supported because
-/// pacquet has no regex dependency.
-fn specified_scripts(manifest: &Value, name: &str) -> Vec<String> {
-    let has_script = manifest
-        .get("scripts")
-        .and_then(Value::as_object)
-        .and_then(|scripts| scripts.get(name))
-        .and_then(Value::as_str)
-        .is_some_and(|script| !script.is_empty());
+/// Resolve script names for `name`: exact match, `/regexp/` selector, or `start` fallback.
+fn specified_scripts(manifest: &Value, name: &str, sort: bool) -> Result<Vec<String>, RunError> {
+    if let Some(scripts) = manifest.get("scripts").and_then(Value::as_object) {
+        if let Some(entry) = scripts.get(name).and_then(Value::as_str)
+            && !entry.is_empty()
+        {
+            return Ok(vec![name.to_string()]);
+        }
 
-    if has_script {
-        return vec![name.to_string()];
+        if let Some(pattern) = parse_regexp_selector(name)? {
+            match regex::Regex::new(&pattern) {
+                Ok(re) => {
+                    let mut keys: Vec<String> = scripts
+                        .keys()
+                        .filter(|script_key| re.is_match(script_key.as_str()))
+                        .cloned()
+                        .collect();
+                    if sort {
+                        keys.sort();
+                    }
+                    return Ok(keys);
+                }
+                Err(_) => return Ok(Vec::new()),
+            }
+        }
     }
+
     if name == "start" {
-        return vec![name.to_string()];
+        return Ok(vec![name.to_string()]);
     }
-    Vec::new()
+    Ok(Vec::new())
 }
 
-/// Drop hidden scripts (names starting with `.`) or reject an explicit
-/// request for one.
+/// Parse a `/pattern/` selector. Returns `Err` when the selector carries flags
+/// (matching TypeScript's `ERR_PNPM_UNSUPPORTED_SCRIPT_COMMAND_FORMAT`), `Ok(None)`
+/// when it's not in regexp format or has an invalid pattern, and `Ok(Some(pattern))`
+/// on success. Escaped slashes (`\/`) inside the pattern are preserved.
+fn parse_regexp_selector(name: &str) -> Result<Option<String>, RunError> {
+    let Some(rest) = name.strip_prefix('/') else {
+        return Ok(None);
+    };
+    // Walk the pattern byte-by-byte to skip escaped slashes.
+    let mut chars = rest.char_indices();
+    while let Some((i, ch)) = chars.next() {
+        if ch == '\\' {
+            chars.next(); // skip escaped char
+            continue;
+        }
+        if ch == '/' {
+            let pattern = &rest[..i];
+            let flags = &rest[i + 1..];
+            if !flags.is_empty() {
+                return Err(RunError::UnsupportedRegExpFlags { selector: name.to_string() });
+            }
+            return Ok(Some(pattern.to_string()));
+        }
+    }
+    Ok(None)
+}
+
+/// Drop hidden scripts (names starting with `.`) or reject an explicit request for one.
 fn throw_or_filter_hidden_scripts(
     specified: Vec<String>,
     name: &str,
@@ -464,9 +473,7 @@ fn throw_or_filter_hidden_scripts(
     Err(RunError::AllHidden { scripts: hidden_names.join(", ") })
 }
 
-/// Render the script listing printed when `pnpm run` is called without a
-/// script name. The workspace-root section is omitted because pacquet's
-/// run has no workspace context yet.
+/// Render the script listing printed when `pnpm run` is called without a script name.
 fn render_project_commands(manifest: &Value) -> String {
     let scripts = manifest.get("scripts").and_then(Value::as_object);
     let mut lifecycle = Vec::new();
@@ -512,7 +519,7 @@ fn render_commands(commands: &[(&str, &str)]) -> String {
         .join("\n")
 }
 
-/// The lifecycle script names grouped separately in the run listing.
+/// Lifecycle script names grouped separately in the run listing.
 const ALL_LIFECYCLE_SCRIPTS: &[&str] = &[
     "prepublish",
     "prepare",
