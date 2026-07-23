@@ -326,6 +326,131 @@ fn tag_version_prefix_replaces_the_default_v() {
 }
 
 #[test]
+fn from_git_sets_the_version_from_the_latest_matching_tag() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    init_git(&workspace);
+    write_manifest(&workspace, r#"{"name":"test-pkg","version":"1.0.0"}"#);
+    git_commit_all(&workspace, "init");
+
+    let status = Command::new("git")
+        .args(["tag", "v1.5.0"])
+        .current_dir(&workspace)
+        .status()
+        .expect("tag first version");
+    assert!(status.success());
+
+    fs::write(workspace.join("new-file.txt"), "new commit").expect("write new file");
+    git_commit_all(&workspace, "new commit");
+    let status = Command::new("git")
+        .args(["tag", "v2.3.4"])
+        .current_dir(&workspace)
+        .status()
+        .expect("tag latest version");
+    assert!(status.success());
+
+    let output = pacquet_version(&workspace, &["from-git", "--no-git-tag-version"]);
+
+    assert!(output.status.success(), "{}", stderr_of(&output));
+    assert_eq!(manifest_version(&workspace), "2.3.4");
+    drop(root);
+}
+
+#[test]
+fn from_git_fails_when_no_matching_tag_exists() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    init_git(&workspace);
+    write_manifest(&workspace, r#"{"name":"test-pkg","version":"1.0.0"}"#);
+    git_commit_all(&workspace, "init");
+
+    let output = pacquet_version(&workspace, &["from-git", "--no-git-tag-version"]);
+
+    assert!(!output.status.success(), "from-git without a matching tag must fail");
+    let stderr = stderr_of(&output);
+    assert!(stderr.contains("ERR_PNPM_INVALID_VERSION_FROM_GIT"), "{stderr}");
+    let compact_stderr: String = stderr
+        .chars()
+        .filter(|character| !character.is_whitespace() && *character != '│')
+        .collect();
+    assert!(compact_stderr.contains(r#"usingtagprefix"v":nomatchingGittagfound"#), "{stderr}");
+    drop(root);
+}
+
+#[test]
+fn from_git_rejects_a_malformed_version_tag() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    init_git(&workspace);
+    write_manifest(&workspace, r#"{"name":"test-pkg","version":"1.0.0"}"#);
+    git_commit_all(&workspace, "init");
+    let status = Command::new("git")
+        .args(["tag", "v-release-2.3.4"])
+        .current_dir(&workspace)
+        .status()
+        .expect("tag malformed version");
+    assert!(status.success());
+
+    let output = pacquet_version(&workspace, &["from-git", "--no-git-tag-version"]);
+
+    assert!(!output.status.success(), "a malformed version tag must fail");
+    let stderr = stderr_of(&output);
+    assert!(stderr.contains("ERR_PNPM_INVALID_VERSION_FROM_GIT"), "{stderr}");
+    let compact_stderr: String = stderr
+        .chars()
+        .filter(|character| !character.is_whitespace() && *character != '│')
+        .collect();
+    assert!(
+        compact_stderr.contains(r#"usingtagprefix"v":tagisnotavalidversion:"v-release-2.3.4""#),
+        "{stderr}",
+    );
+    drop(root);
+}
+
+#[test]
+fn from_git_respects_tag_version_prefix() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    init_git(&workspace);
+    write_manifest(&workspace, r#"{"name":"test-pkg","version":"1.0.0"}"#);
+    git_commit_all(&workspace, "init");
+    let status = Command::new("git")
+        .args(["tag", "release-4.5.6"])
+        .current_dir(&workspace)
+        .status()
+        .expect("tag custom prefix version");
+    assert!(status.success());
+
+    let output = pacquet_version(
+        &workspace,
+        &["from-git", "--tag-version-prefix", "release-", "--no-git-tag-version"],
+    );
+
+    assert!(output.status.success(), "{}", stderr_of(&output));
+    assert_eq!(manifest_version(&workspace), "4.5.6");
+    drop(root);
+}
+
+#[test]
+fn from_git_handles_tag_starting_with_dash() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    init_git(&workspace);
+    write_manifest(&workspace, r#"{"name":"test-pkg","version":"1.0.0"}"#);
+    git_commit_all(&workspace, "init");
+    let status = Command::new("git")
+        .args(["update-ref", "refs/tags/-1.2.3", "HEAD"])
+        .current_dir(&workspace)
+        .status()
+        .expect("create tag starting with dash");
+    assert!(status.success());
+
+    let output = pacquet_version(
+        &workspace,
+        &["from-git", "--tag-version-prefix", "-", "--no-git-tag-version"],
+    );
+
+    assert!(output.status.success(), "{}", stderr_of(&output));
+    assert_eq!(manifest_version(&workspace), "1.2.3");
+    drop(root);
+}
+
+#[test]
 fn message_substitutes_the_new_version() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     init_git(&workspace);
@@ -521,6 +646,7 @@ fn help_describes_the_bump_forms_and_flags() {
         "minor",
         "patch",
         "prerelease",
+        "from-git",
         "--preid",
         "--allow-same-version",
         "--message",

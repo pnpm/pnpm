@@ -29,7 +29,7 @@ use crate::cli_args::{
 #[derive(Debug, Args)]
 pub struct VersionArgs {
     /// A valid semver version (e.g. 1.2.3) or one of: major, minor, patch,
-    /// premajor, preminor, prepatch, prerelease. Omit it and pass `-r` to
+    /// premajor, preminor, prepatch, prerelease, from-git. Omit it and pass `-r` to
     /// apply the pending change intents instead.
     pub params: Vec<String>,
 
@@ -81,16 +81,22 @@ pub struct VersionArgs {
 #[derive(Debug, Display, Error, Diagnostic)]
 enum VersionError {
     #[display(
-        "A version argument is required. Must be a valid semver version (e.g. 1.2.3) or one of: major, minor, patch, premajor, preminor, prepatch, prerelease"
+        "A version argument is required. Must be a valid semver version (e.g. 1.2.3) or one of: major, minor, patch, premajor, preminor, prepatch, prerelease, from-git"
     )]
     #[diagnostic(code(ERR_PNPM_INVALID_VERSION_BUMP))]
     MissingBump,
 
     #[display(
-        "Invalid version argument: {raw}. Must be a valid semver version (e.g. 1.2.3) or one of: major, minor, patch, premajor, preminor, prepatch, prerelease"
+        "Invalid version argument: {raw}. Must be a valid semver version (e.g. 1.2.3) or one of: major, minor, patch, premajor, preminor, prepatch, prerelease, from-git"
     )]
     #[diagnostic(code(ERR_PNPM_INVALID_VERSION_BUMP))]
     InvalidBump { raw: String },
+
+    #[display(
+        "Could not determine a valid version from Git in {dir:?} using tag prefix {tag_version_prefix:?}: {reason}"
+    )]
+    #[diagnostic(code(ERR_PNPM_INVALID_VERSION_FROM_GIT))]
+    InvalidVersionFromGit { dir: String, tag_version_prefix: String, reason: String },
 
     #[display("Invalid version in {dir}: {version}")]
     #[diagnostic(code(ERR_PNPM_INVALID_VERSION))]
@@ -149,9 +155,12 @@ impl VersionArgs {
         recursive: bool,
     ) -> miette::Result<()> {
         let raw = self.params[0].as_str();
-        let bump = parse_bump(raw)?;
-
         let git_cwd = config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf());
+        let bump = if raw == "from-git" {
+            Bump::Explicit(version_from_git(&git_cwd, &self.tag_version_prefix)?)
+        } else {
+            parse_bump(raw)?
+        };
         if config.git_checks
             && !self.no_git_checks
             && is_git_repo::<Host>(&git_cwd)
@@ -639,6 +648,67 @@ fn identifier_text(identifier: &Identifier) -> String {
         Identifier::Numeric(number) => number.to_string(),
         Identifier::AlphaNumeric(text) => text.clone(),
     }
+}
+
+/// Build the canonical cross-stack error for an invalid version from Git.
+fn invalid_version_from_git(
+    cwd: &Path,
+    tag_version_prefix: &str,
+    reason: impl Into<String>,
+) -> VersionError {
+    VersionError::InvalidVersionFromGit {
+        dir: cwd.display().to_string(),
+        tag_version_prefix: tag_version_prefix.to_string(),
+        reason: reason.into(),
+    }
+}
+
+fn version_from_git(cwd: &Path, tag_version_prefix: &str) -> Result<Version, VersionError> {
+    let pattern = format!("{tag_version_prefix}*.*.*");
+    let args = ["describe", "--tags", "--abbrev=0", "--always", "--match", pattern.as_str()];
+    let output = <Host as RunCommand>::run("git", &args, Some(cwd)).map_err(|err| {
+        VersionError::GitCommandFailed { args: args.join(" "), stderr: err.to_string() }
+    })?;
+
+    if !output.success {
+        return Err(VersionError::GitCommandFailed {
+            args: args.join(" "),
+            stderr: output.stderr.trim().to_string(),
+        });
+    }
+
+    let tag = output.stdout.trim();
+    let tag_args = ["tag", "--list", "--", tag];
+    let matching_tag = <Host as RunCommand>::run("git", &tag_args, Some(cwd)).map_err(|err| {
+        VersionError::GitCommandFailed { args: tag_args.join(" "), stderr: err.to_string() }
+    })?;
+
+    if !matching_tag.success {
+        return Err(VersionError::GitCommandFailed {
+            args: tag_args.join(" "),
+            stderr: matching_tag.stderr.trim().to_string(),
+        });
+    }
+
+    if matching_tag.stdout.trim() != tag {
+        return Err(invalid_version_from_git(cwd, tag_version_prefix, "no matching Git tag found"));
+    }
+
+    let Some(raw_version) = tag.strip_prefix(tag_version_prefix) else {
+        return Err(invalid_version_from_git(
+            cwd,
+            tag_version_prefix,
+            format!("tag is not a valid version: {tag:?}"),
+        ));
+    };
+
+    Version::parse(raw_version).map_err(|_| {
+        invalid_version_from_git(
+            cwd,
+            tag_version_prefix,
+            format!("tag is not a valid version: {tag:?}"),
+        )
+    })
 }
 
 /// Run a git command in `cwd`, failing with the command line and git's stderr
