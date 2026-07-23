@@ -9,6 +9,7 @@ pub mod cat_file;
 pub mod cat_index;
 pub mod change;
 pub mod changelog;
+pub mod ci;
 pub mod clean;
 pub mod completion;
 pub mod config;
