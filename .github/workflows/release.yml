@@ -393,6 +393,48 @@ jobs:
       - name: Build TypeScript executable artifacts
         run: pn --filter=@pnpm/exe run build-artifacts
 
+      - name: Verify internal workspace package payloads
+        # A dry-run recursive pack runs the exact packing code the publish
+        # steps below will use and reports every tarball's file list, so a
+        # packing regression fails here, before the first immutable npm
+        # publish. `pnpm pack` does not run `prepublishOnly`, so the
+        # compiled payloads are built first with the same script CI uses
+        # (mostly warm after the build-artifacts step above). The
+        # publishable projects are selected by explicit name filters:
+        # unlike recursive publish, recursive pack does not skip private
+        # packages, and packing the private workspace root would walk the
+        # whole repository.
+        run: |
+          set -euo pipefail
+          pn compile-only
+          verify_dir=$(mktemp -d)
+          pn list --filter=!pnpm --filter=!@pnpm/exe --depth=-1 --json > "$verify_dir/projects.json"
+          filters=()
+          while IFS= read -r filter; do
+            filters+=("$filter")
+          done < <(node -e '
+            const projects = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"))
+            for (const project of projects) {
+              if (!project.private && project.name && project.version && project.path) {
+                console.log(`--filter=${project.name}`)
+              }
+            }
+          ' "$verify_dir/projects.json")
+          # Recursive pack runs one project at a time, so pack in four
+          # concurrent chunks; dry-run packing only reads the tree.
+          chunk_size=$(( (${#filters[@]} + 3) / 4 ))
+          pack_pids=()
+          verify_args=(--projects "$verify_dir/projects.json")
+          for start in $(seq 0 "$chunk_size" $(( ${#filters[@]} - 1 ))); do
+            pn pack --dry-run --json "${filters[@]:start:chunk_size}" > "$verify_dir/pack-$start.json" &
+            pack_pids+=($!)
+            verify_args+=(--pack-json "$verify_dir/pack-$start.json")
+          done
+          for pid in "${pack_pids[@]}"; do
+            wait "$pid"
+          done
+          node .github/scripts/verify-packed-package-payload.mjs "${verify_args[@]}"
+
       - name: Publish @pnpm/exe (trusted publishing)
         # No NPM_TOKEN: pnpm has no static token to short-circuit on, so it will perform
         # the OIDC token exchange against npm's trusted-publishing config for `@pnpm/exe`.
