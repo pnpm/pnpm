@@ -5,7 +5,7 @@ use super::{
 };
 use crate::{
     State,
-    config_overrides::{ConfigOverrides, apply_store_dir_override},
+    config_overrides::{ConfigOverrides, apply_registry_override, apply_store_dir_override},
 };
 use miette::{Context, IntoDiagnostic};
 use pacquet_config::{Config, Host, default_pnpm_home_dir};
@@ -96,6 +96,9 @@ impl CliArgs {
             self.http_proxy.as_deref(),
             self.no_proxy.as_deref(),
         );
+        if let Some(registry) = self.registry.as_deref() {
+            apply_registry_override(&mut config, registry);
+        }
         if let Some(store_dir) = self.store_dir.as_deref()
             && apply_store_dir_override::<Host>(&mut config, store_dir, &dir).is_err()
         {
@@ -133,6 +136,7 @@ impl CliArgs {
             dir,
             store_dir,
             npmrc_auth_file,
+            registry,
             https_proxy,
             http_proxy,
             no_proxy,
@@ -217,6 +221,9 @@ impl CliArgs {
                         http_proxy.as_deref(),
                         no_proxy.as_deref(),
                     );
+                    if let Some(registry) = registry.as_deref() {
+                        apply_registry_override(&mut cfg, registry);
+                    }
                     if let Some(store_dir) = store_dir.as_deref() {
                         apply_store_dir_override::<Host>(&mut cfg, store_dir, anchor)?;
                     }

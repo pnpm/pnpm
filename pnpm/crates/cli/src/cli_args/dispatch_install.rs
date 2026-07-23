@@ -1,5 +1,5 @@
 use super::{
-    add::AddArgs,
+    add::{AddArgs, apply_allow_build},
     approve_builds::ApproveBuildsArgs,
     create::CreateArgs,
     dedupe::DedupeArgs,
@@ -59,6 +59,7 @@ pub(super) fn add<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<Command
         let (config_root, package_manager_to_sync) =
             derive_config_root_and_package_manager_to_sync(cfg, dir)
                 .wrap_err("derive workspace root and package manager policy")?;
+        apply_allow_build(cfg, &args.allow_build, &config_root)?;
         let pipeline = AddPipeline {
             args,
             cfg,

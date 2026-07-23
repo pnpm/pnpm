@@ -30,6 +30,45 @@ where
     (root, workspace, npmrc_info)
 }
 
+/// Regression test for the Tag release operator's invocation (pnpm/pnpm#13242).
+#[test]
+fn add_accepts_dir_allow_build_and_registry_after_the_subcommand() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let registry = mock_instance.url();
+
+    pacquet
+        .with_args([
+            "add",
+            "@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0",
+            "--dir",
+            ".",
+            "--allow-build=@pnpm.e2e/pre-and-postinstall-scripts-example",
+        ])
+        .with_arg(format!("--registry={registry}"))
+        .assert()
+        .success();
+
+    let pkg_dir = workspace.join(
+        "node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0\
+         /node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example",
+    );
+    assert!(
+        pkg_dir.join("generated-by-postinstall.js").exists(),
+        "the --allow-build package should have run its postinstall",
+    );
+
+    let yaml = std::fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
+        .expect("pnpm-workspace.yaml present");
+    assert!(
+        yaml.contains("@pnpm.e2e/pre-and-postinstall-scripts-example"),
+        "allowBuilds entry should be persisted, got:\n{yaml}",
+    );
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn should_install_all_dependencies() {
     let (root, workspace, anchor) =

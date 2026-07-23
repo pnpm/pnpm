@@ -900,6 +900,20 @@ fn set_overrides_refuses_inline_flow_block() {
 }
 
 #[test]
+fn set_allow_builds_rejects_control_characters() {
+    let dir = TempDir::new().expect("temp dir");
+    let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
+
+    // A newline in a package name (e.g. a crafted `--allow-build`) would
+    // splice into a multi-line scalar and corrupt the block.
+    let err = crate::set_allow_builds(dir.path(), [("esbuild\ninjected: true", true)])
+        .expect_err("must reject a control character");
+
+    assert!(matches!(err, crate::UpdateWorkspaceManifestError::InvalidControlCharacter { .. }));
+    assert!(!path.exists(), "nothing should be written");
+}
+
+#[test]
 fn ignore_ghsas_rejects_control_characters() {
     let dir = TempDir::new().expect("temp dir");
     let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);

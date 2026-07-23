@@ -252,6 +252,15 @@ where
 
     let mut changed = false;
     for (name, value) in entries {
+        // The block-style splice writes `- name: true` on one line, so a
+        // control character in `name` (e.g. a newline from a crafted
+        // `--allow-build`) would corrupt the document — refuse instead.
+        if has_control_char(name) {
+            return Err(UpdateWorkspaceManifestError::InvalidControlCharacter {
+                path,
+                value: name.to_string(),
+            });
+        }
         changed |= edit::add_allow_build(&mut manifest, name, value);
     }
     if !changed {
