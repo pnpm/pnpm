@@ -57,6 +57,24 @@ test("pnpr forwards a single project's name and version", async () => {
   }))
 })
 
+test('pnpr forwards catalogs and overrides so the server can resolve catalog references', async () => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  const manifest: ProjectManifest = { name: 'app', version: '1.2.3' }
+  const options = createOptions(workspaceRoot, rootDir, {
+    catalogs: { default: { '@tanstack/store': '0.11.0' } },
+    overrides: { '@tanstack/store': 'catalog:', foo: '1.0.0' },
+  })
+
+  await install(manifest, options)
+
+  expect(resolveViaPnprServer).toHaveBeenCalledTimes(1)
+  expect(resolveViaPnprServer).toHaveBeenCalledWith(expect.objectContaining({
+    catalogs: { default: { '@tanstack/store': '0.11.0' } },
+    overrides: { '@tanstack/store': 'catalog:', foo: '1.0.0' },
+  }))
+})
+
 test("pnpr forwards every workspace project's name and version", async () => {
   const workspaceRoot = prepareEmpty().dir()
   const appManifest: ProjectManifest = {

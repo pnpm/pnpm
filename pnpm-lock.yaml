@@ -10127,6 +10127,9 @@ importers:
 
   pnpr/client:
     dependencies:
+      '@pnpm/catalogs.types':
+        specifier: workspace:*
+        version: link:../../pnpm11/catalogs/types
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../../pnpm11/lockfile/fs

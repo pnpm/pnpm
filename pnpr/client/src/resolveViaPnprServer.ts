@@ -3,6 +3,7 @@ import https from 'node:https'
 import { URL } from 'node:url'
 import { gunzip } from 'node:zlib'
 
+import type { Catalogs } from '@pnpm/catalogs.types'
 import { convertToLockfileObject } from '@pnpm/lockfile.fs'
 import type { LockfileFile, LockfileObject } from '@pnpm/lockfile.types'
 
@@ -49,6 +50,13 @@ export interface ResolveViaPnprServerOptions {
   authorization?: string
   /** Overrides */
   overrides?: Record<string, string>
+  /**
+   * Workspace catalogs (`catalog:` / `catalogs:` from `pnpm-workspace.yaml`),
+   * keyed by catalog name with the default catalog under `default`. The
+   * server resolves `catalog:` specifiers in dependencies and overrides
+   * against these — it never reads the workspace manifest itself.
+   */
+  catalogs?: Catalogs
   /** Node.js version for resolution */
   nodeVersion?: string
   /** Minimum release age in minutes */
@@ -107,6 +115,7 @@ export async function resolveViaPnprServer (
     registry: opts.registry,
     namedRegistries: opts.namedRegistries,
     overrides: opts.overrides,
+    catalogs: opts.catalogs,
     nodeVersion: opts.nodeVersion ?? process.version.slice(1),
     os: process.platform,
     arch: process.arch,
