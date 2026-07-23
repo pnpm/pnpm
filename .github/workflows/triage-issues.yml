@@ -27,6 +27,7 @@ jobs:
     # Skip automated issues (Renovate, Dependabot, bots) — they are not user
     # reports and each triage run consumes Warp credits.
     if: github.event.issue.user.type != 'Bot'
+    timeout-minutes: 30
     permissions:
       contents: read   # let the agent inspect the checked-out codebase
       issues: write     # let the agent apply labels and comment
@@ -39,6 +40,7 @@ jobs:
       - name: Triage with Oz agent
         uses: warpdotdev/oz-agent-action@fcbed2c2043c310881424f41757da05d5c9d4047 # v1.0.24
         id: triage
+        timeout-minutes: 20
         env:
           # Authenticates the `gh` CLI the agent uses to read/label/comment.
           GH_TOKEN: ${{ github.token }}
