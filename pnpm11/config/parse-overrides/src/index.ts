@@ -4,6 +4,8 @@ import { PnpmError } from '@pnpm/error'
 import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
 import semver from 'semver'
 
+export { isIntersectingRange } from './isIntersectingRange.js'
+
 const DELIMITER_REGEX = /[^ |@]>/
 
 export interface VersionOverride {

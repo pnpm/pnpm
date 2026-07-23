@@ -458,7 +458,7 @@ pub(crate) fn parse_declared_range(spec: &str) -> Option<Range> {
 
 /// A target matches when its name equals `dep_name` and its range
 /// intersects `dep_spec`.
-fn matches_target(target: &PackageSelector, dep_name: &str, dep_spec: &str) -> bool {
+pub(crate) fn matches_target(target: &PackageSelector, dep_name: &str, dep_spec: &str) -> bool {
     target.name == dep_name && is_intersecting_range(target.bare_specifier.as_deref(), dep_spec)
 }
 
