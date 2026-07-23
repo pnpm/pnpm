@@ -253,7 +253,14 @@ async function getDeclaredDepsOfGvsPackage (
         ...Object.keys(content.optionalDependencies || {}),
       ])
     }
-  } catch {}
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException)?.code === 'ENOENT') {
+      return null
+    }
+    throw new Error(
+      `Failed to read declared dependencies for ${pkgNodeModules}: ${(err as Error).message}`
+    )
+  }
   return null
 }
 
