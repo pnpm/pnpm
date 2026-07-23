@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolving.tarball-url",
-  "version": "1100.0.0",
+  "version": "1100.0.1",
   "description": "Build and recognize the canonical tarball URL of an npm package",
   "keywords": [
     "pnpm",

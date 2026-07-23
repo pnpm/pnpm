@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.inspection.list",
-  "version": "1100.0.28",
+  "version": "1100.0.29",
   "description": "List installed packages in a symlinked `node_modules`",
   "keywords": [
     "pnpm",
