@@ -228,12 +228,13 @@ export async function handler (
         timeout: opts.fetchTimeout,
       })
       : [],
-    opts.global || !include.devDependencies
+    opts.global || !include.devDependencies || opts.updateConfig?.githubActions === false
       ? []
       : findOutdatedGitHubActions({
         compatible: opts.compatible,
         dir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
         match: params.length > 0 ? createMatcher(params.map(normalizeGitHubActionSelector)) : undefined,
+        serverUrl: opts.updateConfig?.githubActionsServer,
       }),
   ])
   const outdatedPackages: OutdatedItem[] = [

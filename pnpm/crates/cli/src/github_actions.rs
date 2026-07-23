@@ -1,6 +1,7 @@
-use futures_util::{StreamExt, TryStreamExt, stream};
+use futures_util::{StreamExt, stream};
 use node_semver::{Range as SemverRange, Version};
 use pacquet_config::matcher::{Matcher, create_matcher};
+use pacquet_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
 use pacquet_resolving_git_resolver::{GitCommandRunner, RealGitRunner, get_repo_refs};
 use std::{
     cmp::Reverse,
@@ -71,39 +72,57 @@ struct PlannedUpdate {
 
 const GIT_CONCURRENCY: usize = 8;
 
-pub async fn find_outdated(
+pub async fn find_outdated<R: Reporter>(
     root: &Path,
     compatible: bool,
     matcher: Option<&Matcher>,
+    server_url: Option<&str>,
 ) -> miette::Result<Vec<OutdatedGitHubAction>> {
-    find_outdated_with_runner(root, compatible, matcher, &RealGitRunner::new()).await
+    find_outdated_with_runner::<R, _>(
+        root,
+        compatible,
+        matcher,
+        &resolve_server_url(server_url),
+        &RealGitRunner::new(),
+    )
+    .await
 }
 
-async fn find_outdated_with_runner<Runner: GitCommandRunner + Sync>(
+async fn find_outdated_with_runner<R: Reporter, Runner: GitCommandRunner + Sync>(
     root: &Path,
     compatible: bool,
     matcher: Option<&Matcher>,
+    server_url: &str,
     runner: &Runner,
 ) -> miette::Result<Vec<OutdatedGitHubAction>> {
-    let plans = create_plan(root, matcher, runner).await?;
-    Ok(to_outdated(plans, !compatible))
+    let plans = create_plan::<R, _>(root, matcher, server_url, runner).await?;
+    Ok(to_outdated(plans, !compatible, server_url))
 }
 
-pub async fn update(
+pub async fn update<R: Reporter>(
     root: &Path,
     latest: bool,
     matcher: Option<&Matcher>,
+    server_url: Option<&str>,
 ) -> miette::Result<Vec<OutdatedGitHubAction>> {
-    update_with_runner(root, latest, matcher, &RealGitRunner::new()).await
+    update_with_runner::<R, _>(
+        root,
+        latest,
+        matcher,
+        &resolve_server_url(server_url),
+        &RealGitRunner::new(),
+    )
+    .await
 }
 
-async fn update_with_runner<Runner: GitCommandRunner + Sync>(
+async fn update_with_runner<R: Reporter, Runner: GitCommandRunner + Sync>(
     root: &Path,
     latest: bool,
     matcher: Option<&Matcher>,
+    server_url: &str,
     runner: &Runner,
 ) -> miette::Result<Vec<OutdatedGitHubAction>> {
-    let plans = create_plan(root, matcher, runner).await?;
+    let plans = create_plan::<R, _>(root, matcher, server_url, runner).await?;
     let updates = plans
         .into_iter()
         .filter(|plan| {
@@ -135,12 +154,13 @@ async fn update_with_runner<Runner: GitCommandRunner + Sync>(
             .map_err(|error| miette::miette!("Failed to write {file_display}: {error}"))?
             .map_err(|error| miette::miette!("Failed to write {file_display}: {error}"))?;
     }
-    Ok(to_outdated(updates, latest))
+    Ok(to_outdated(updates, latest, server_url))
 }
 
-async fn create_plan<Runner: GitCommandRunner + Sync>(
+async fn create_plan<R: Reporter, Runner: GitCommandRunner + Sync>(
     root: &Path,
     matcher: Option<&Matcher>,
+    server_url: &str,
     runner: &Runner,
 ) -> miette::Result<Vec<PlannedUpdate>> {
     let actions = discover(root)
@@ -155,18 +175,27 @@ async fn create_plan<Runner: GitCommandRunner + Sync>(
     let repos = actions.iter().map(|action| action.repo.clone()).collect::<BTreeSet<_>>();
     let refs_by_repo = stream::iter(repos)
         .map(|repo| async move {
-            let url = format!("https://github.com/{repo}.git");
-            let refs = get_repo_refs(runner, &url, None).await.map_err(|error| {
-                miette::miette!("Failed to read GitHub Action refs for {repo}: {error}")
-            })?;
-            Ok::<_, miette::Report>((repo, repo_versions(&refs)))
+            let url = format!("{server_url}/{repo}.git");
+            match get_repo_refs(runner, &url, None).await {
+                Ok(refs) => {
+                    let versions = repo_versions(&refs);
+                    Some((repo, versions))
+                }
+                Err(error) => {
+                    global_warn::<R>(format!(
+                        r#"Skipping the GitHub Actions from "{repo}": {error}"#
+                    ));
+                    None
+                }
+            }
         })
         .buffer_unordered(GIT_CONCURRENCY)
-        .try_collect::<HashMap<_, _>>()
-        .await?;
+        .filter_map(|entry| async move { entry })
+        .collect::<HashMap<_, _>>()
+        .await;
     let mut plans = Vec::new();
     for action in actions {
-        let versions = &refs_by_repo[&action.repo];
+        let Some(versions) = refs_by_repo.get(&action.repo) else { continue };
         let Some(current) = find_current(&action, versions) else { continue };
         let wanted_range =
             SemverRange::parse(format!("^{}", current.version)).map_err(|error| {
@@ -502,7 +531,11 @@ fn parse_version(input: &str) -> Option<Version> {
     Version::parse(input).or_else(|_| Version::parse(input.trim_start_matches('v'))).ok()
 }
 
-fn to_outdated(plans: Vec<PlannedUpdate>, latest: bool) -> Vec<OutdatedGitHubAction> {
+fn to_outdated(
+    plans: Vec<PlannedUpdate>,
+    latest: bool,
+    server_url: &str,
+) -> Vec<OutdatedGitHubAction> {
     let mut actions = BTreeMap::new();
     for plan in plans {
         let target = if latest { plan.latest } else { plan.wanted.clone() };
@@ -513,7 +546,7 @@ fn to_outdated(plans: Vec<PlannedUpdate>, latest: bool) -> Vec<OutdatedGitHubAct
             plan.action.name.clone(),
             OutdatedGitHubAction {
                 current: plan.current.version,
-                homepage: format!("https://github.com/{}", plan.action.repo),
+                homepage: format!("{server_url}/{}", plan.action.repo),
                 latest: target.version,
                 name: plan.action.name,
                 wanted: plan.wanted.version,
@@ -521,6 +554,23 @@ fn to_outdated(plans: Vec<PlannedUpdate>, latest: bool) -> Vec<OutdatedGitHubAct
         );
     }
     actions.into_values().collect()
+}
+
+/// Resolves the effective GitHub server base URL: the
+/// `update.githubActionsServer` setting, the `GITHUB_SERVER_URL`
+/// environment variable, or <https://github.com> — first non-empty wins.
+fn resolve_server_url(server_url: Option<&str>) -> String {
+    server_url
+        .filter(|url| !url.is_empty())
+        .map(str::to_string)
+        .or_else(|| std::env::var("GITHUB_SERVER_URL").ok().filter(|url| !url.is_empty()))
+        .unwrap_or_else(|| "https://github.com".to_string())
+        .trim_end_matches('/')
+        .to_string()
+}
+
+fn global_warn<R: Reporter>(message: String) {
+    R::emit(&LogEvent::Global(GlobalLog { level: LogLevel::Warn, message }));
 }
 
 #[cfg(test)]

@@ -71,6 +71,25 @@ test('getOptionsFromPnpmSettings() validates update.githubActions', () => {
   } as any)).toThrow('The "update.githubActions" setting should be a boolean, but got string') // eslint-disable-line
 })
 
+test('getOptionsFromPnpmSettings() maps "update.githubActionsServer" to updateConfig.githubActionsServer', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    update: {
+      githubActionsServer: 'https://github.example.com',
+    },
+  })
+  expect(options.updateConfig).toStrictEqual({
+    githubActionsServer: 'https://github.example.com',
+  })
+})
+
+test('getOptionsFromPnpmSettings() validates update.githubActionsServer', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    update: {
+      githubActionsServer: true,
+    },
+  } as any)).toThrow('The "update.githubActionsServer" setting should be a string, but got boolean') // eslint-disable-line
+})
+
 test('getOptionsFromPnpmSettings() lets "update" win over "updateConfig" and warns', () => {
   const options = getOptionsFromPnpmSettings(process.cwd(), {
     update: {

@@ -35,6 +35,7 @@ use pacquet_lockfile::Lockfile;
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_registry::{Package, PackageVersion, RegistryError};
+use pacquet_reporter::Reporter;
 use pacquet_resolving_npm_resolver::pick_registry_for_package;
 use std::{
     collections::HashMap,
@@ -418,7 +419,7 @@ struct DependentProject {
 impl OutdatedArgs {
     /// Run the check and print the report to stdout. Returns whether any
     /// dependency was outdated; the caller decides the process exit code.
-    pub async fn run(self, state: State) -> miette::Result<OutdatedOutcome> {
+    pub async fn run<R: Reporter>(self, state: State) -> miette::Result<OutdatedOutcome> {
         if state.config.recursive {
             return self.run_recursive(state).await;
         }
@@ -480,10 +481,16 @@ impl OutdatedArgs {
         } else {
             Vec::new()
         };
-        if include.contains(&DependencyGroup::Dev) {
-            let actions =
-                github_actions::find_outdated(root, self.compatible, action_matcher.as_ref())
-                    .await?;
+        if include.contains(&DependencyGroup::Dev)
+            && config.update_config.github_actions != Some(false)
+        {
+            let actions = github_actions::find_outdated::<R>(
+                root,
+                self.compatible,
+                action_matcher.as_ref(),
+                config.update_config.github_actions_server.as_deref(),
+            )
+            .await?;
             outdated.extend(actions.into_iter().map(OutdatedPackage::from));
         }
 

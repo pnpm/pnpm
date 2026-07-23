@@ -243,11 +243,12 @@ async function interactiveUpdate (
         timeout: opts.fetchTimeout,
       })
       : projects.map(() => []),
-    include.devDependencies && opts.save !== false && !opts.lockfileOnly
+    include.devDependencies && opts.save !== false && !opts.lockfileOnly && opts.updateConfig?.githubActions !== false
       ? findOutdatedGitHubActions({
         compatible: opts.latest !== true,
         dir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
         match: input.length > 0 ? createMatcher(input.map(normalizeGitHubActionSelector)) : undefined,
+        serverUrl: opts.updateConfig?.githubActionsServer,
       })
       : [],
   ])
@@ -392,6 +393,7 @@ async function update (
       dir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
       latest: opts.latest,
       match: dependencies.length > 0 ? createMatcher(dependencies.map(normalizeGitHubActionSelector)) : undefined,
+      serverUrl: opts.updateConfig?.githubActionsServer,
     })
   }
   if (changesetContext != null) {

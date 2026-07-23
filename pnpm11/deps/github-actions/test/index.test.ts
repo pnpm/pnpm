@@ -2,12 +2,29 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-import { afterEach, describe, expect, test } from '@jest/globals'
-import { findOutdatedGitHubActions, isGitHubActionSelector, normalizeGitHubActionSelector, updateGitHubActions } from '@pnpm/deps.github-actions'
+import { afterEach, describe, expect, jest, test } from '@jest/globals'
+
+jest.unstable_mockModule('@pnpm/logger', () => ({
+  globalWarn: jest.fn(),
+}))
+
+const { globalWarn } = await import('@pnpm/logger')
+const {
+  findOutdatedGitHubActions,
+  isGitHubActionSelector,
+  normalizeGitHubActionSelector,
+  updateGitHubActions,
+} = await import('@pnpm/deps.github-actions')
 
 const dirs: string[] = []
 
+// The homepage and git URL fall back to GITHUB_SERVER_URL, which is set on
+// GitHub Actions runners — the tests assume the https://github.com default.
+delete process.env.GITHUB_SERVER_URL
+
 afterEach(async () => {
+  delete process.env.GITHUB_SERVER_URL
+  jest.mocked(globalWarn).mockClear()
   await Promise.all(dirs.splice(0).map(async (dir) => fs.rm(dir, { force: true, recursive: true })))
 })
 
@@ -73,6 +90,85 @@ describe('GitHub Actions dependencies', () => {
         wanted: '2.1.0',
       },
     ])
+  })
+
+  test('builds homepages from the configured server URL', async () => {
+    const dir = await fixture({
+      '.github/workflows/ci.yml': `jobs:
+  test:
+    steps:
+      - uses: actions/checkout@v4.1.0
+`,
+    })
+
+    await expect(findOutdatedGitHubActions({
+      dir,
+      readRepoRefs: async () => repoRefs([
+        ['v4.1.0', 'a'.repeat(40)],
+        ['v4.2.0', 'b'.repeat(40)],
+      ]),
+      serverUrl: 'https://github.example.com/',
+    })).resolves.toEqual([
+      {
+        current: '4.1.0',
+        homepage: 'https://github.example.com/actions/checkout',
+        latest: '4.2.0',
+        name: 'actions/checkout',
+        wanted: '4.2.0',
+      },
+    ])
+  })
+
+  test('falls back to the GITHUB_SERVER_URL environment variable for the server URL', async () => {
+    process.env.GITHUB_SERVER_URL = 'https://ghes.example.com'
+    const dir = await fixture({
+      '.github/workflows/ci.yml': `jobs:
+  test:
+    steps:
+      - uses: actions/checkout@v4.1.0
+`,
+    })
+
+    const outdated = await findOutdatedGitHubActions({
+      dir,
+      readRepoRefs: async () => repoRefs([
+        ['v4.1.0', 'a'.repeat(40)],
+        ['v4.2.0', 'b'.repeat(40)],
+      ]),
+    })
+    expect(outdated[0].homepage).toBe('https://ghes.example.com/actions/checkout')
+  })
+
+  test('skips actions whose repository refs cannot be read and warns', async () => {
+    const dir = await fixture({
+      '.github/workflows/ci.yml': `jobs:
+  test:
+    steps:
+      - uses: actions/checkout@v4.1.0
+      - uses: owner/private-action@v1.0.0
+`,
+    })
+
+    await expect(findOutdatedGitHubActions({
+      dir,
+      readRepoRefs: async (repo) => {
+        if (repo === 'owner/private-action') throw new Error('Repository not found.')
+        return repoRefs([
+          ['v4.1.0', 'a'.repeat(40)],
+          ['v4.2.0', 'b'.repeat(40)],
+        ])
+      },
+    })).resolves.toEqual([
+      {
+        current: '4.1.0',
+        homepage: 'https://github.com/actions/checkout',
+        latest: '4.2.0',
+        name: 'actions/checkout',
+        wanted: '4.2.0',
+      },
+    ])
+    expect(globalWarn).toHaveBeenCalledTimes(1)
+    expect(globalWarn).toHaveBeenCalledWith('Skipping the GitHub Actions from "owner/private-action": Repository not found.')
   })
 
   test('updates within the current major and preserves SHA comments and unrelated formatting', async () => {

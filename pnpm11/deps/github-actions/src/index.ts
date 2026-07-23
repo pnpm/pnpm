@@ -3,6 +3,7 @@ import path from 'node:path'
 import util from 'node:util'
 
 import { PnpmError } from '@pnpm/error'
+import { globalWarn } from '@pnpm/logger'
 import { getRepoRefs } from '@pnpm/resolving.git-resolver'
 import { isSubdir } from 'is-subdir'
 import pLimit from 'p-limit'
@@ -22,6 +23,12 @@ export interface GitHubActionsOptions {
   dir: string
   match?: (name: string) => boolean
   readRepoRefs?: (repo: string) => Promise<Record<string, string>>
+  /**
+   * The base URL of the GitHub server hosting the action repositories.
+   * Defaults to the `GITHUB_SERVER_URL` environment variable, or
+   * https://github.com.
+   */
+  serverUrl?: string
 }
 
 export interface FindOutdatedGitHubActionsOptions extends GitHubActionsOptions {
@@ -80,6 +87,7 @@ export async function findOutdatedGitHubActions (
   opts: FindOutdatedGitHubActionsOptions
 ): Promise<OutdatedGitHubAction[]> {
   const plans = await createUpdatePlan(opts)
+  const serverUrl = resolveServerUrl(opts.serverUrl)
   const target = (plan: PlannedUpdate) => opts.compatible ? plan.wanted : plan.latest
   return dedupeOutdated(plans
     .filter((plan) => semver.lt(plan.current.version, target(plan).version))
@@ -88,7 +96,7 @@ export async function findOutdatedGitHubActions (
       latest: target(plan).version.version,
       name: plan.action.name,
       wanted: plan.wanted.version.version,
-      homepage: `https://github.com/${plan.action.repo}`,
+      homepage: `${serverUrl}/${plan.action.repo}`,
     })))
 }
 
@@ -123,6 +131,7 @@ export async function updateGitHubActions (
       throw workflowError('WRITE', file.path, err)
     }
   }))
+  const serverUrl = resolveServerUrl(opts.serverUrl)
   return dedupeOutdated(updates.map((plan) => {
     const target = opts.latest ? plan.latest : plan.wanted
     return {
@@ -130,7 +139,7 @@ export async function updateGitHubActions (
       latest: target.version.version,
       name: plan.action.name,
       wanted: plan.wanted.version.version,
-      homepage: `https://github.com/${plan.action.repo}`,
+      homepage: `${serverUrl}/${plan.action.repo}`,
     }
   }))
 }
@@ -138,12 +147,20 @@ export async function updateGitHubActions (
 async function createUpdatePlan (opts: GitHubActionsOptions): Promise<PlannedUpdate[]> {
   const actions = await discoverActions(opts.dir)
   const selected = opts.match == null ? actions : actions.filter((action) => opts.match!(action.name) || opts.match!(action.repo))
-  const readRepoRefs = opts.readRepoRefs ?? readRefsWithGit
+  const serverUrl = resolveServerUrl(opts.serverUrl)
+  const readRepoRefs = opts.readRepoRefs ?? (async (repo: string) => getRepoRefs(`${serverUrl}/${repo}.git`, null))
   const refsByRepo = new Map<string, Promise<RepoVersion[]>>()
   return (await Promise.all(selected.map(async (action): Promise<PlannedUpdate | null> => {
     let versionsPromise = refsByRepo.get(action.repo)
     if (versionsPromise == null) {
-      versionsPromise = limitRepoReads(() => readRepoRefs(action.repo).then(parseRepoVersions))
+      versionsPromise = limitRepoReads(async () => {
+        try {
+          return parseRepoVersions(await readRepoRefs(action.repo))
+        } catch (err: unknown) {
+          globalWarn(`Skipping the GitHub Actions from "${action.repo}": ${util.types.isNativeError(err) ? err.message : String(err)}`)
+          return []
+        }
+      })
       refsByRepo.set(action.repo, versionsPromise)
     }
     const versions = await versionsPromise
@@ -384,8 +401,10 @@ function dedupeOutdated (actions: OutdatedGitHubAction[]): OutdatedGitHubAction[
     .sort((left, right) => left.name.localeCompare(right.name))
 }
 
-async function readRefsWithGit (repo: string): Promise<Record<string, string>> {
-  return getRepoRefs(`https://github.com/${repo}.git`, null)
+function resolveServerUrl (serverUrl: string | undefined): string {
+  let url = serverUrl || process.env.GITHUB_SERVER_URL || 'https://github.com'
+  while (url.endsWith('/')) url = url.slice(0, -1)
+  return url
 }
 
 function workflowError (operation: 'PARSE' | 'READ' | 'WRITE', filePath: string, cause: unknown): PnpmError {

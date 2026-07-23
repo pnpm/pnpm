@@ -40,6 +40,9 @@
     "write-file-atomic": "catalog:",
     "yaml": "catalog:"
   },
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:"
+  },
   "devDependencies": {
     "@jest/globals": "catalog:",
     "@pnpm/deps.github-actions": "workspace:*",

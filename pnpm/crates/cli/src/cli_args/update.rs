@@ -154,7 +154,13 @@ impl UpdateArgs {
         let package_selectors = filter_package_selectors(&self.packages, update_actions);
         if !self.interactive && !self.packages.is_empty() && package_selectors.is_empty() {
             if update_actions {
-                github_actions::update(&actions_root, self.latest, action_matcher.as_ref()).await?;
+                github_actions::update::<Reporter>(
+                    &actions_root,
+                    self.latest,
+                    action_matcher.as_ref(),
+                    state.config.update_config.github_actions_server.as_deref(),
+                )
+                .await?;
             }
             return Ok(());
         }
@@ -170,7 +176,7 @@ impl UpdateArgs {
             self.supported_architectures.apply_to(config.supported_architectures.clone());
 
         let packages = if self.interactive {
-            match crate::cli_args::update_interactive::select_packages(
+            match crate::cli_args::update_interactive::select_packages::<Reporter>(
                 &actions_root,
                 manifest,
                 lockfile,
@@ -228,8 +234,13 @@ impl UpdateArgs {
             .wrap_err("updating dependencies")?;
         }
         if update_actions {
-            github_actions::update(&actions_root, self.latest, selected_action_matcher.as_ref())
-                .await?;
+            github_actions::update::<Reporter>(
+                &actions_root,
+                self.latest,
+                selected_action_matcher.as_ref(),
+                config.update_config.github_actions_server.as_deref(),
+            )
+            .await?;
         }
         Ok(())
     }
@@ -251,7 +262,13 @@ impl UpdateArgs {
         let package_selectors = filter_package_selectors(&self.packages, update_actions);
         if !self.interactive && !self.packages.is_empty() && package_selectors.is_empty() {
             if update_actions {
-                github_actions::update(&actions_root, self.latest, action_matcher.as_ref()).await?;
+                github_actions::update::<Reporter>(
+                    &actions_root,
+                    self.latest,
+                    action_matcher.as_ref(),
+                    state.config.update_config.github_actions_server.as_deref(),
+                )
+                .await?;
             }
             return Ok(());
         }
@@ -264,7 +281,7 @@ impl UpdateArgs {
         let supported_architectures =
             self.supported_architectures.apply_to(config.supported_architectures.clone());
         let packages = if self.interactive {
-            match crate::cli_args::update_interactive::select_packages_for_projects(
+            match crate::cli_args::update_interactive::select_packages_for_projects::<Reporter>(
                 &actions_root,
                 &selection,
                 lockfile,
@@ -331,8 +348,13 @@ impl UpdateArgs {
             .wrap_err("updating dependencies")?;
         }
         if update_actions {
-            github_actions::update(&actions_root, self.latest, selected_action_matcher.as_ref())
-                .await?;
+            github_actions::update::<Reporter>(
+                &actions_root,
+                self.latest,
+                selected_action_matcher.as_ref(),
+                config.update_config.github_actions_server.as_deref(),
+            )
+            .await?;
         }
         Ok(())
     }
@@ -373,7 +395,7 @@ impl UpdateArgs {
         include_direct.contains(&DependencyGroup::Dev)
             && !self.no_save
             && !self.lockfile_only
-            && (self.interactive
+            && ((self.interactive && config.update_config.github_actions != Some(false))
                 || self.include_github_actions
                 || config.update_config.github_actions == Some(true))
     }
