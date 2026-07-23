@@ -1,7 +1,8 @@
 use super::{
     Change, DependentProject, OutdatedDependencyOptions, OutdatedInWorkspace, OutdatedPackage,
     PackumentCache, classify, current_versions_from_importer, fetch_package_cached,
-    render_dependents, render_json, render_latest, render_recursive_json, sort_outdated,
+    render_dependents, render_json, render_latest, render_recursive_json, render_recursive_table,
+    render_table, sort_outdated,
 };
 use node_semver::Version;
 use pacquet_config::Config;
@@ -148,6 +149,59 @@ fn render_latest_outdated_and_not_deprecated() {
     let output = render_latest(&item);
     assert!(output.contains("1.0.0"), "shows the latest version: {output}");
     assert!(!output.contains("(deprecated)"), "no deprecation marker: {output}");
+}
+
+/// Display width of `line`, ignoring ANSI SGR escape sequences.
+fn visible_width(line: &str) -> usize {
+    let mut chars = line.chars();
+    let mut width = 0;
+    while let Some(ch) = chars.next() {
+        if ch == '\u{1b}' {
+            for escape_ch in chars.by_ref() {
+                if escape_ch == 'm' {
+                    break;
+                }
+            }
+        } else {
+            width += 1;
+        }
+    }
+    width
+}
+
+fn assert_borders_aligned(table: &str) {
+    let widths: Vec<usize> = table.lines().map(visible_width).collect();
+    assert!(
+        widths.windows(2).all(|pair| pair[0] == pair[1]),
+        "every row must have the same display width so the borders line up, got {widths:?} for:\n{table}"
+    );
+}
+
+// A colored cell carries ANSI escape sequences whose bytes must not count
+// toward the column width, or the borders drift out of alignment. Force
+// color on and check that the box-drawing borders stay vertically aligned
+// across rows whose cells differ in how many escapes they hold.
+#[test]
+fn colored_table_borders_stay_aligned() {
+    owo_colors::set_override(true);
+
+    let packages = [
+        pkg("actions/checkout", "7.0.0", "7.0.1", DependencyGroup::Dev),
+        pkg("typescript", "6.0.3", "7.0.2", DependencyGroup::Dev),
+        pkg("@typescript/native-preview", "1.0.0", "26.1.1", DependencyGroup::Dev),
+    ];
+    assert_borders_aligned(&render_table(&packages, false));
+
+    let workspace = [OutdatedInWorkspace {
+        package: pkg("typescript", "6.0.3", "7.0.2", DependencyGroup::Dev),
+        dependents: vec![DependentProject {
+            name: "app".to_string(),
+            location: PathBuf::from("packages/app"),
+        }],
+    }];
+    assert_borders_aligned(&render_recursive_table(&workspace, false));
+
+    owo_colors::unset_override();
 }
 
 #[test]
