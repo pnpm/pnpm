@@ -767,10 +767,8 @@ fn update_latest_no_save_catalog_bumps_lockfile_only() {
     drop((root, anchor));
 }
 
-/// `pacquet update --latest` on an `npm:` alias resolves the latest version
-/// of the *aliased* package — the alias name itself does not exist on the
-/// registry — and rewrites the manifest keeping the `npm:<real name>@`
-/// prefix and the entry's own range operator.
+/// `update --latest` must resolve the *aliased* package: the alias name
+/// itself does not exist on the registry, so resolving it would 404.
 #[test]
 fn update_latest_npm_alias_resolves_aliased_package() {
     let (root, workspace, anchor) = setup();
@@ -789,9 +787,8 @@ fn update_latest_npm_alias_resolves_aliased_package() {
     drop((root, anchor));
 }
 
-/// The same alias unwrapping applies when the `npm:` alias lives in the
-/// catalog entry a `catalog:` reference points to: the manifest keeps the
-/// `catalog:` reference and the bumped catalog entry keeps the alias prefix.
+/// The same alias unwrapping applies to the `npm:` alias stored in the
+/// catalog entry a `catalog:` reference points to.
 #[test]
 fn update_latest_catalog_npm_alias_resolves_aliased_package() {
     let (root, workspace, anchor) = setup();
