@@ -48,9 +48,25 @@ export function createProjectsGraph<Pkg extends BaseProject> (projects: Pkg[], o
         const isWorkspaceSpec = rawSpec.startsWith('workspace:')
         try {
           if (isWorkspaceSpec) {
-            const { fetchSpec, name } = parseBareSpecifier(workspacePrefToNpm(rawSpec), depName, 'latest', '')!
-            rawSpec = fetchSpec
-            depName = name
+            const npmSpec = workspacePrefToNpm(rawSpec)
+            if (isRelativePathSpec(npmSpec)) {
+              // workspace:../foo / workspace:./foo aren't bare specifiers;
+              // resolve them as directory dependencies below.
+              rawSpec = npmSpec
+            } else {
+              let parsed: ReturnType<typeof parseBareSpecifier> = null
+              try {
+                parsed = parseBareSpecifier(npmSpec, depName, 'latest', '')
+              } catch {
+                // Defensive backstop for other malformed specs.
+              }
+              if (parsed) {
+                rawSpec = parsed.fetchSpec
+                depName = parsed.name
+              } else {
+                rawSpec = npmSpec
+              }
+            }
           }
           spec = npa.resolve(depName, rawSpec, project.rootDir)
         } catch {
@@ -106,6 +122,10 @@ export function createProjectsGraph<Pkg extends BaseProject> (projects: Pkg[], o
       })
       .filter(Boolean)
   }
+}
+
+function isRelativePathSpec (spec: string): boolean {
+  return spec === '.' || spec === '..' || spec.startsWith('./') || spec.startsWith('../')
 }
 
 function createProjectMap (projects: BaseProject[]): Record<ProjectRootDir, BaseProject> {
