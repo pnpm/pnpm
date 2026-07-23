@@ -829,9 +829,12 @@ jobs:
 
       - name: Assert the version tag points at this commit
         # Same tag↔commit invariant as the TypeScript release job's guard: the
-        # binaries below were built from this run's commit, and `target_commitish`
-        # cannot pin the release to it — GitHub ignores it whenever the tag
-        # already exists.
+        # binaries below were built from this run's commit, and this assert is
+        # the only thing pinning the release to it. A `target_commitish` input
+        # cannot: GitHub ignores it whenever the tag already exists, and with
+        # immutable releases enabled its mere presence makes release creation
+        # fail with 403 "Resource not accessible by integration" for the
+        # workflow token (the v12.0.0-alpha.19 draft-release failure).
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.plan.outputs.rust_version }}
@@ -879,7 +882,6 @@ jobs:
           prerelease: ${{ contains(needs.plan.outputs.rust_version, '-') }}
           make_latest: false
           tag_name: v${{ needs.plan.outputs.rust_version }}
-          target_commitish: ${{ github.sha }}
           name: pnpm ${{ needs.plan.outputs.rust_version }}
           body_path: RELEASE.md
           files: |
