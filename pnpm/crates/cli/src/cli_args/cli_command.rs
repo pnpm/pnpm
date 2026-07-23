@@ -67,6 +67,7 @@ use super::{
     team::TeamArgs,
     undeprecate::UndeprecateArgs,
     unlink::UnlinkArgs,
+    unpublish::UnpublishArgs,
     unstar::UnstarArgs,
     update::UpdateArgs,
     version::VersionArgs,
@@ -358,6 +359,8 @@ pub enum CliCommand {
     Deprecate(DeprecateArgs),
     /// Removes deprecation from a version of a package in the registry. Only works on already deprecated versions.
     Undeprecate(UndeprecateArgs),
+    /// Removes a package from the registry.
+    Unpublish(UnpublishArgs),
     /// Marks a package as a favorite.
     Star(StarArgs),
     /// Unmarks a package as a favorite.

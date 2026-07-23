@@ -477,6 +477,7 @@ fn command_name(command: &CliCommand) -> &'static str {
         CliCommand::Whoami => "whoami",
         CliCommand::Deprecate(_) => "deprecate",
         CliCommand::Undeprecate(_) => "undeprecate",
+        CliCommand::Unpublish(_) => "unpublish",
         CliCommand::Star(_) => "star",
         CliCommand::Unstar(_) => "unstar",
         CliCommand::Stars(_) => "stars",

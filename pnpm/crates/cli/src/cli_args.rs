@@ -74,6 +74,7 @@ pub mod supported_architectures;
 pub mod team;
 pub mod undeprecate;
 pub mod unlink;
+pub mod unpublish;
 pub mod unstar;
 pub mod update;
 mod update_changeset;
