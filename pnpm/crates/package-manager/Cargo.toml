@@ -52,7 +52,6 @@ pacquet-store-dir                         = { workspace = true }
 pacquet-tarball                           = { workspace = true }
 pacquet-workspace                         = { workspace = true }
 pacquet-workspace-manifest-writer         = { workspace = true }
-pacquet-workspace-range-resolver          = { workspace = true }
 pacquet-workspace-state                   = { workspace = true }
 
 async-recursion = { workspace = true }

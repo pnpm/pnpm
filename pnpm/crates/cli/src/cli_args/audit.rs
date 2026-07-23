@@ -1907,9 +1907,7 @@ async fn fix_with_update<Reporter: self::Reporter + 'static>(
             lockfile_only: false,
             resolution_observer: Some(observer),
         }
-        // `audit --fix` never runs `--latest`, so no workspace-link versions
-        // are needed.
-        .run::<Reporter>(None)
+        .run::<Reporter>()
         .await
         .map_err(|err| {
             miette::Report::new(err).wrap_err("update dependencies to fix vulnerabilities")
