@@ -81,3 +81,40 @@ test('global update emits a single summary after updating all isolated groups', 
   expect(summaryDebug).toHaveBeenCalledTimes(1)
   expect(summaryDebug).toHaveBeenCalledWith({ prefix: '/global/v11' })
 })
+
+test('global update --latest keeps the spec of local packages instead of querying the registry', async () => {
+  installGlobalPackages.mockClear()
+  createInstallDir.mockReturnValueOnce('/global/v11/install-3')
+  getHashLink.mockReturnValueOnce('/global/v11/hash-local')
+  scanGlobalPackages.mockReturnValue([
+    {
+      dependencies: {
+        'private-linked-pkg': 'link:/home/user/projects/private-linked-pkg',
+        'local-tarball-pkg': 'file:/home/user/tarballs/local-tarball-pkg.tgz',
+        foo: '^1.0.0',
+      },
+      hash: 'hash-local',
+      installDir: '/global/v11/old-local',
+    },
+  ])
+
+  await handleGlobalUpdate({
+    bin: '/global/bin',
+    globalPkgDir: '/global/v11',
+    latest: true,
+  } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+  expect(installGlobalPackages).toHaveBeenCalledTimes(1)
+  expect(installGlobalPackages).toHaveBeenCalledWith(
+    expect.objectContaining({
+      dir: '/global/v11/install-3',
+      global: false,
+      omitSummaryLog: true,
+    }),
+    [
+      'private-linked-pkg@link:/home/user/projects/private-linked-pkg',
+      'local-tarball-pkg@file:/home/user/tarballs/local-tarball-pkg.tgz',
+      'foo',
+    ]
+  )
+})
