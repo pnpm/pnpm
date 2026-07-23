@@ -3,6 +3,7 @@
 
 use std::collections::BTreeMap;
 
+use pacquet_catalogs_types::Catalogs;
 use pacquet_network::AuthHeadersByScope;
 use serde::Deserialize;
 
@@ -68,6 +69,14 @@ pub struct ResolveRequest {
     /// server-side.
     #[serde(default)]
     pub overrides: Option<serde_json::Value>,
+    /// The client's workspace catalogs (`catalog:` / `catalogs:` from
+    /// `pnpm-workspace.yaml`), keyed by catalog name with the default
+    /// catalog at `"default"`. The reconstructed workspace has no catalog
+    /// sections, so these are forwarded and used as the resolution's
+    /// catalog set to resolve `catalog:` specifiers in both dependencies
+    /// and overrides.
+    #[serde(default)]
+    pub catalogs: Option<Catalogs>,
     /// The client's existing on-disk lockfile, when present. Sent both
     /// as the verification target (the server verifies it under the
     /// client's policy before resolving) and as the resolution-reuse

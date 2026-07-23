@@ -2695,6 +2695,10 @@ async function installViaPnprServer (
       namedRegistries: opts.namedRegistries,
       authorization: pnprAuthorization,
       overrides: opts.overrides,
+      // The reconstructed workspace the server builds from this request has no
+      // catalog sections, so forward the catalogs for the server to resolve
+      // `catalog:` specifiers in both dependencies and overrides.
+      catalogs: opts.catalogs,
       minimumReleaseAge: opts.minimumReleaseAge,
       lockfile: existingLockfile ?? undefined,
     })

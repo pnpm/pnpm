@@ -223,7 +223,10 @@ pub async fn resolve(
         // single terminal `done` frame carrying the whole lockfile.
         resolution_observer: observer,
         peer_issues_sink: None,
-        catalogs_override: None,
+        // The reconstructed workspace carries no catalog sections, so the
+        // client's catalogs are forwarded here and used to resolve
+        // `catalog:` specifiers in dependencies and overrides.
+        catalogs_override: request.catalogs.clone(),
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
         workspace_projects_override: None,

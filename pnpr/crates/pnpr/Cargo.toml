@@ -25,6 +25,7 @@ backend-mysql    = ["dep:sqlx", "sqlx/mysql"]
 backend-postgres = ["dep:sqlx", "sqlx/postgres"]
 
 [dependencies]
+pacquet-catalogs-types          = { workspace = true }
 pacquet-config                  = { workspace = true }
 pacquet-config-dir              = { workspace = true }
 pacquet-env-replace             = { workspace = true }

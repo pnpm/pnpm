@@ -32,6 +32,7 @@
     "compile": "tsgo --build && pn lint --fix"
   },
   "dependencies": {
+    "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*"
   },

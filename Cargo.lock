@@ -5544,6 +5544,7 @@ dependencies = [
  "mockito",
  "node-semver",
  "object_store",
+ "pacquet-catalogs-types",
  "pacquet-config",
  "pacquet-config-dir",
  "pacquet-env-replace",
