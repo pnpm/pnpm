@@ -168,6 +168,9 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     /// stays untouched (no tarball is fetched) — a dry-run resolve pass.
     /// See [`crate::Install::lockfile_only`].
     pub lockfile_only: bool,
+    /// `config.skip_runtimes || --no-runtime`; see
+    /// [`crate::add_direct_runtime_skips`].
+    pub skip_runtimes: bool,
     /// `--dry-run`: build the would-be lockfile but do not write it to
     /// disk. Implies [`Self::lockfile_only`] (nothing is materialized);
     /// the caller diffs the returned [`InstallWithFreshLockfileResult::wanted_lockfile`]
@@ -623,6 +626,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             node_linker,
             supported_architectures,
             lockfile_only,
+            skip_runtimes,
             dry_run,
             can_prompt,
             is_full_install,
@@ -1941,6 +1945,15 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                     skipped.add_optional_excluded(key.clone());
                 }
             }
+        }
+
+        if skip_runtimes && let Some(packages) = initial_materialization_lockfile.packages.as_ref()
+        {
+            crate::add_direct_runtime_skips(
+                &mut skipped,
+                &initial_materialization_lockfile.importers,
+                packages,
+            );
         }
 
         // The recorded skip set must be the reachability closure of the

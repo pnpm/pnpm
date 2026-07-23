@@ -20,6 +20,8 @@ import { safeExeca as execa } from 'execa'
 import { renderHelp } from 'render-help'
 import { valid } from 'semver'
 
+import { resolveUnpublishedDirs, type UnpublishedProbeOptions } from '../resolveUnpublishedDirs.js'
+
 export function rcOptionsTypes (): Record<string, unknown> {
   return {}
 }
@@ -65,7 +67,7 @@ export type ChangeCommandOptions = Pick<Config,
 | 'testPattern'
 | 'versioning'
 | 'workspaceDir'
-> & {
+> & UnpublishedProbeOptions & {
   allProjects?: Project[]
   bump?: string
   summary?: string
@@ -235,13 +237,15 @@ async function promptBumpTypes (pkgRefs: string[]): Promise<Record<string, Inten
 async function renderStatus (workspaceDir: string, opts: ChangeCommandOptions): Promise<string> {
   const intents = await readChangeIntents(workspaceDir)
   const ledger = await readLedger(workspaceDir)
-  const plan = assembleReleasePlan({
+  const baseArgs = {
     workspaceDir,
     projects: toWorkspaceProjects(opts.allProjects ?? []),
     intents,
     ledger,
     versioning: opts.versioning,
-  })
+  }
+  const unpublishedDirs = await resolveUnpublishedDirs(assembleReleasePlan(baseArgs), opts)
+  const plan = assembleReleasePlan({ ...baseArgs, unpublishedDirs })
   if (plan.releases.length === 0) {
     return 'No pending changes.'
   }

@@ -67,6 +67,7 @@ use super::{
     team::TeamArgs,
     undeprecate::UndeprecateArgs,
     unlink::UnlinkArgs,
+    unpublish::UnpublishArgs,
     unstar::UnstarArgs,
     update::UpdateArgs,
     version::VersionArgs,
@@ -220,7 +221,7 @@ impl CliArgs {
             self.validate_report_summary_global_option()?;
         }
         if self.no_bail {
-            self.validate_run_scoped_global_option("--no-bail")?;
+            self.validate_no_bail_global_option()?;
         }
         if self.if_present {
             self.validate_if_present_top_level_option()?;
@@ -293,6 +294,13 @@ impl CliArgs {
         }
         self.validate_run_scoped_global_option("--report-summary")
     }
+
+    fn validate_no_bail_global_option(&self) -> Result<(), clap::Error> {
+        if matches!(self.command, CliCommand::Rebuild(_)) {
+            return Ok(());
+        }
+        self.validate_run_scoped_global_option("--no-bail")
+    }
 }
 
 #[derive(Debug, Subcommand)]
@@ -351,6 +359,8 @@ pub enum CliCommand {
     Deprecate(DeprecateArgs),
     /// Removes deprecation from a version of a package in the registry. Only works on already deprecated versions.
     Undeprecate(UndeprecateArgs),
+    /// Removes a package from the registry.
+    Unpublish(UnpublishArgs),
     /// Marks a package as a favorite.
     Star(StarArgs),
     /// Unmarks a package as a favorite.

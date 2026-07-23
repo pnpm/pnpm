@@ -216,7 +216,7 @@ pub(crate) async fn update_deprecation(
 
     let package_url = package_url(package_name, &registry_url)?;
 
-    let mut package_meta =
+    let mut package_meta: PackageMeta =
         fetch_package_meta(context, &package_url, auth_header.as_deref(), package_name).await?;
 
     if package_meta.versions.is_empty() {
@@ -304,12 +304,12 @@ struct VersionInfo {
     other: serde_json::Value,
 }
 
-async fn fetch_package_meta(
+pub(crate) async fn fetch_package_meta<Meta: serde::de::DeserializeOwned>(
     context: &DeprecateContext<'_>,
     url: &str,
     auth_header: Option<&str>,
     package_name: &str,
-) -> miette::Result<PackageMeta> {
+) -> miette::Result<Meta> {
     retry_async(url, context.retry_opts, FetchError::is_retryable, || async {
         fetch_package_meta_once(context, url, auth_header).await
     })
@@ -333,11 +333,11 @@ impl FetchError {
     }
 }
 
-async fn fetch_package_meta_once(
+async fn fetch_package_meta_once<Meta: serde::de::DeserializeOwned>(
     context: &DeprecateContext<'_>,
     url: &str,
     auth_header: Option<&str>,
-) -> Result<PackageMeta, FetchError> {
+) -> Result<Meta, FetchError> {
     let (_guard, response) =
         send_with_retry(&context.http_client, url, context.retry_opts, |client| {
             let mut builder = client.get(url);
@@ -423,7 +423,10 @@ async fn put_package_meta(
     write_error_from_response(response, action).await
 }
 
-async fn write_error_from_response(response: Response, action: String) -> miette::Result<()> {
+pub(crate) async fn write_error_from_response(
+    response: Response,
+    action: String,
+) -> miette::Result<()> {
     let status = response.status();
     let status_text = status.canonical_reason().unwrap_or_default().to_string();
     let body =
@@ -441,7 +444,10 @@ async fn write_error_from_response(response: Response, action: String) -> miette
         .into())
 }
 
-fn registry_operation_error<ErrorType>(operation: &'static str, error: ErrorType) -> miette::Report
+pub(crate) fn registry_operation_error<ErrorType>(
+    operation: &'static str,
+    error: ErrorType,
+) -> miette::Report
 where
     ErrorType: std::fmt::Display,
 {

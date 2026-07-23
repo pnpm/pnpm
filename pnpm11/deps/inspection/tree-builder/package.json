@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.inspection.tree-builder",
-  "version": "1100.0.22",
+  "version": "1100.0.23",
   "description": "Creates a dependencies hierarchy for a symlinked `node_modules`",
   "keywords": [
     "pnpm",

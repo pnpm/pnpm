@@ -133,6 +133,45 @@ fn installs_node_runtime_from_the_rc_channel() {
 }
 
 #[test]
+fn fresh_install_with_no_runtime_resolves_but_does_not_fetch_the_runtime() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new();
+    let version = "24.0.0-rc.4";
+    let [_index, _shasums, archive] = mock_node_release(&mut server, version);
+    let workspace = prepare_workspace(
+        &root,
+        format!("nodeDownloadMirrors:\n  rc: '{}/'\n", server.url()).as_str(),
+    );
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "dependencies": { "node": format!("runtime:{version}") } }).to_string(),
+    )
+    .unwrap();
+
+    // No pnpm-lock.yaml, so the install takes the fresh-resolve path.
+    command(&workspace).with_args(["install", "--no-runtime"]).assert().success();
+
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap();
+    assert!(
+        lockfile.contains(format!("node@runtime:{version}").as_str()),
+        "the resolved runtime stays in the lockfile:\n{lockfile}",
+    );
+    assert!(
+        !workspace.join("node_modules/node").exists(),
+        "the runtime must not be materialized under --no-runtime",
+    );
+    let bin_dir = workspace.join("node_modules/.bin");
+    for bin in ["node", "node.exe", "node.cmd"] {
+        assert!(!bin_dir.join(bin).exists(), "runtime bin {bin} must not be linked");
+    }
+    // A follow-up plain install treats the modules state as up to date
+    // and does not restore the runtime — same as the TypeScript CLI.
+    command(&workspace).with_arg("install").assert().success();
+    assert!(!workspace.join("node_modules/node").exists());
+    assert!(!archive.matched(), "the runtime archive must never be downloaded");
+}
+
+#[test]
 fn installs_node_runtime_declared_by_a_dependency_engine() {
     let root = tempfile::tempdir().unwrap();
     let mut server = mockito::Server::new();

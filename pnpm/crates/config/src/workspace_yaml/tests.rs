@@ -1520,6 +1520,7 @@ fn parses_update_section_from_yaml_and_applies() {
 update:
   changeset: true
   githubActions: true
+  githubActionsServer: https://github.example.com
   ignoreDeps:
     - "@pnpm.e2e/foo"
     - "@pnpm.e2e/bar"
@@ -1536,6 +1537,10 @@ update:
         Some(&["@pnpm.e2e/foo".to_string(), "@pnpm.e2e/bar".to_string()][..]),
     );
     assert_eq!(config.update_config.github_actions, Some(true));
+    assert_eq!(
+        config.update_config.github_actions_server.as_deref(),
+        Some("https://github.example.com"),
+    );
 }
 
 #[test]

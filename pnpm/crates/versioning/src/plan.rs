@@ -102,6 +102,13 @@ pub struct AssembleReleasePlanOptions {
     /// (`pnpm change status`) leave it off so a diagnostic never fails on an
     /// unmigrated dependency.
     pub enforce_workspace_protocol: bool,
+    /// Directories whose current manifest version the registry does not have.
+    /// Their first release publishes that version verbatim, so the pending
+    /// change intents bump it only from the next release. Resolved by the CLI's
+    /// registry probe. Fixed-group sharing and epic band re-basing still
+    /// override it, since a package cannot opt out of those workspace-wide
+    /// version rules.
+    pub unpublished_dirs: HashSet<String>,
 }
 
 /// Whether a package reference is a workspace-relative directory path rather
@@ -319,6 +326,7 @@ fn assemble(
                         pkg_state.bump_type,
                         ctx.lanes_by_dir.get(dir).map(String::as_str),
                         cumulative_bump(dir, pkg_state.bump_type),
+                        ctx.opts.unpublished_dirs.contains(dir),
                     ),
                 );
             }
@@ -978,9 +986,13 @@ fn compute_new_version(
     bump_type: ReleaseBumpType,
     lane_tag: Option<&str>,
     cumulative_bump: ReleaseBumpType,
+    first_release: bool,
 ) -> String {
     let current_version = Version::parse(current).expect("participants have valid versions");
     let Some(lane_tag) = lane_tag else {
+        if first_release {
+            return current.to_string();
+        }
         if current_version.pre_release.is_empty() {
             return inc_stable(&current_version, bump_type);
         }
@@ -988,6 +1000,15 @@ fn compute_new_version(
         // toward.
         return escalate_stable_target(&stable_part(&current_version), cumulative_bump);
     };
+    if first_release {
+        // A manifest prerelease already on this lane is published verbatim; a
+        // stable (or off-lane) seed debuts at the lane's first prerelease.
+        return if is_prerelease_on_lane(&current_version, lane_tag) {
+            current.to_string()
+        } else {
+            format!("{}-{lane_tag}.0", stable_part(&current_version))
+        };
+    }
     let target = if current_version.pre_release.is_empty() {
         inc_stable(&current_version, cumulative_bump)
     } else {
@@ -995,6 +1016,16 @@ fn compute_new_version(
     };
     let next_n = next_prerelease_number(&current_version, &target, lane_tag);
     format!("{target}-{lane_tag}.{next_n}")
+}
+
+fn is_prerelease_on_lane(version: &Version, lane_tag: &str) -> bool {
+    // semver parses an all-digit prerelease identifier as a number, so match the
+    // tag comparison in `next_prerelease_number`.
+    match version.pre_release.first() {
+        Some(Identifier::AlphaNumeric(tag)) => tag == lane_tag,
+        Some(Identifier::Numeric(tag)) => tag.to_string() == lane_tag,
+        None => false,
+    }
 }
 
 fn inc_stable(version: &Version, bump_type: ReleaseBumpType) -> String {

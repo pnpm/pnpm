@@ -42,6 +42,7 @@ use super::{
     store::StoreCommand,
     team::TeamArgs,
     undeprecate::UndeprecateArgs,
+    unpublish::UnpublishArgs,
     unstar::UnstarArgs,
     version::VersionArgs,
     view::ViewArgs,
@@ -63,9 +64,10 @@ pub(super) fn recursive<'a>(_ctx: &RunCtx<'a>) -> miette::Result<CommandFuture<'
 }
 
 // `outdated` is a read-only query: it prints a report to stdout and never
-// installs, so it has no reporter-typed install pipeline to dispatch on. It
-// reports back whether any dependency was outdated; process termination stays
-// here, at the top-level harness, rather than inside the command.
+// installs. The reporter type only routes the `globalWarn` channel (skipped
+// GitHub Actions repositories). It reports back whether any dependency was
+// outdated; process termination stays here, at the top-level harness, rather
+// than inside the command.
 pub(super) fn outdated<'a>(
     ctx: &RunCtx<'a>,
     args: OutdatedArgs,
@@ -84,16 +86,25 @@ pub(super) fn outdated<'a>(
         }));
     }
     let command_state = (ctx.state)(false)?;
-    Ok(Box::pin(async move {
-        if args.run(command_state).await? == OutdatedOutcome::Outdated {
-            #[expect(
-                clippy::exit,
-                reason = "`outdated` exits non-zero when a dependency is outdated, mirroring pnpm"
-            )]
-            std::process::exit(1);
-        }
-        Ok(())
-    }))
+    macro_rules! run_outdated {
+        ($reporter:ty) => {
+            Box::pin(async move {
+                if args.run::<$reporter>(command_state).await? == OutdatedOutcome::Outdated {
+                    #[expect(
+                        clippy::exit,
+                        reason = "`outdated` exits non-zero when a dependency is outdated, mirroring pnpm"
+                    )]
+                    std::process::exit(1);
+                }
+                Ok(())
+            })
+        };
+    }
+    Ok(match ctx.reporter {
+        ReporterType::Default | ReporterType::AppendOnly => run_outdated!(DefaultReporter),
+        ReporterType::Ndjson => run_outdated!(NdjsonReporter),
+        ReporterType::Silent => run_outdated!(SilentReporter),
+    })
 }
 
 pub(super) fn audit<'a>(ctx: &RunCtx<'a>, args: AuditArgs) -> miette::Result<CommandFuture<'a>> {
@@ -234,12 +245,9 @@ pub(super) fn dist_tag<'a>(
     }))
 }
 
-/// `change` and `version` are synchronous file-and-prompt commands; the
-/// returned future only carries their already-computed result.
 pub(super) fn change<'a>(ctx: &RunCtx<'a>, args: ChangeArgs) -> miette::Result<CommandFuture<'a>> {
     let cfg: &Config = (ctx.config)()?;
-    let result = args.run(cfg);
-    Ok(Box::pin(std::future::ready(result)))
+    Ok(Box::pin(async move { args.run(cfg).await }))
 }
 
 pub(super) fn lane<'a>(ctx: &RunCtx<'a>, args: LaneArgs) -> miette::Result<CommandFuture<'a>> {
@@ -287,6 +295,23 @@ pub(super) fn deprecate<'a>(
 pub(super) fn undeprecate<'a>(
     ctx: &RunCtx<'a>,
     args: UndeprecateArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    let cfg: &Config = (ctx.config)()?;
+    Ok(Box::pin(async move {
+        if let Some(output) = args.run(cfg).await? {
+            let output = super::sanitize::sanitize(&output);
+            if output.is_empty() {
+                return Ok(());
+            }
+            println!("{output}");
+        }
+        Ok(())
+    }))
+}
+
+pub(super) fn unpublish<'a>(
+    ctx: &RunCtx<'a>,
+    args: UnpublishArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     let cfg: &Config = (ctx.config)()?;
     Ok(Box::pin(async move {

@@ -67,6 +67,14 @@ export interface AssembleReleasePlanOptions {
    * leave it off so a diagnostic never fails on an unmigrated dependency.
    */
   enforceWorkspaceProtocol?: boolean
+  /**
+   * Directories whose current manifest version the registry does not have.
+   * Their first release publishes that version verbatim, so the pending change
+   * intents bump it only from the next release. Resolved by the command layer's
+   * registry probe. Fixed-group sharing and epic band re-basing still override
+   * it, since a package cannot opt out of those workspace-wide version rules.
+   */
+  unpublishedDirs?: Set<string>
 }
 
 const BUMP_ORDER: Record<ReleaseBumpType, number> = { patch: 1, minor: 2, major: 3 }
@@ -257,6 +265,7 @@ function assemble (ctx: AssembleContext, selection: Set<string> | undefined): Re
       newVersions.set(dir, computeNewVersion(participant, pkgState.bumpType, {
         laneTag: lanesByDir.get(dir),
         cumulativeBump: cumulativeBump(dir, pkgState.bumpType),
+        firstRelease: opts.unpublishedDirs?.has(dir) ?? false,
       }))
     }
     applyFixedGroupVersions({ participants, state, newVersions, cumulativeBump, fixedGroups, lanesByDir })
@@ -725,11 +734,14 @@ interface NewVersionOptions {
    * prereleases — which keeps the stable target stable across `-tag.N` runs.
    */
   cumulativeBump: ReleaseBumpType
+  /** First release: publish `current` verbatim — a stable seed on a lane debuts at its first prerelease. See `unpublishedDirs`. */
+  firstRelease: boolean
 }
 
 function computeNewVersion (participant: Participant, bumpType: ReleaseBumpType, opts: NewVersionOptions): string {
   const current = participant.currentVersion
   if (opts.laneTag == null) {
+    if (opts.firstRelease) return current
     if (parsePrerelease(current) == null) {
       return inc(current, bumpType)!
     }
@@ -737,10 +749,23 @@ function computeNewVersion (participant: Participant, bumpType: ReleaseBumpType,
     // building toward.
     return escalateStableTarget(stablePart(current), opts.cumulativeBump)
   }
+  if (opts.firstRelease) {
+    // A manifest prerelease already on this lane is published verbatim; a
+    // stable (or off-lane) seed debuts at the lane's first prerelease.
+    return isPrereleaseOnLane(current, opts.laneTag)
+      ? current
+      : `${stablePart(current)}-${opts.laneTag}.0`
+  }
   const target = parsePrerelease(current) == null
     ? inc(current, opts.cumulativeBump)!
     : escalateStableTarget(stablePart(current), opts.cumulativeBump)
   return `${target}-${opts.laneTag}.${nextPrereleaseNumber(current, target, opts.laneTag)}`
+}
+
+function isPrereleaseOnLane (version: string, laneTag: string): boolean {
+  const prerelease = parsePrerelease(version)
+  // semver parses an all-digit identifier as a number, so compare stringified.
+  return prerelease != null && String(prerelease[0]) === laneTag
 }
 
 /**

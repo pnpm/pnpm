@@ -4,8 +4,9 @@ use super::{
     repo_versions as versions_from_refs, selector_matcher, split_uses_value, update_with_runner,
 };
 use node_semver::Version;
+use pacquet_reporter::{GlobalLog, LogEvent, LogLevel, Reporter, SilentReporter};
 use pacquet_resolving_git_resolver::{GitCommandRunner, GitRunError};
-use std::{collections::HashMap, fs, future::Future, path::PathBuf, pin::Pin};
+use std::{collections::HashMap, fs, future::Future, path::PathBuf, pin::Pin, sync::Mutex};
 
 const SHA_V4_1_0: &str = "1111111111111111111111111111111111111111";
 const SHA_V4_2_0: &str = "2222222222222222222222222222222222222222";
@@ -156,7 +157,15 @@ async fn updates_workflow_files_without_reformatting_them() {
     );
     fs::write(&workflow, &source).expect("workflow");
 
-    update_with_runner(root.path(), false, None, &FakeGitRunner).await.expect("update actions");
+    update_with_runner::<SilentReporter, _>(
+        root.path(),
+        false,
+        None,
+        "https://github.com",
+        &FakeGitRunner,
+    )
+    .await
+    .expect("update actions");
 
     assert_eq!(
         fs::read_to_string(workflow).expect("updated workflow"),
@@ -179,12 +188,24 @@ async fn compatible_outdated_stays_on_the_current_compatibility_line() {
     )
     .expect("workflow");
 
-    let default = find_outdated_with_runner(root.path(), false, None, &FakeGitRunner)
-        .await
-        .expect("default outdated");
-    let compatible = find_outdated_with_runner(root.path(), true, None, &FakeGitRunner)
-        .await
-        .expect("compatible outdated");
+    let default = find_outdated_with_runner::<SilentReporter, _>(
+        root.path(),
+        false,
+        None,
+        "https://github.com",
+        &FakeGitRunner,
+    )
+    .await
+    .expect("default outdated");
+    let compatible = find_outdated_with_runner::<SilentReporter, _>(
+        root.path(),
+        true,
+        None,
+        "https://github.com",
+        &FakeGitRunner,
+    )
+    .await
+    .expect("compatible outdated");
 
     assert_eq!(default[0].latest, Version::parse("5.0.0").unwrap());
     assert_eq!(compatible[0].latest, Version::parse("4.2.0").unwrap());
@@ -199,21 +220,41 @@ async fn keeps_pre_one_updates_caret_compatible_unless_latest_is_requested() {
     fs::write(&workflow, "jobs:\n  test:\n    steps:\n      - uses: owner/tool@v0.5.7\n")
         .expect("workflow");
 
-    let compatible = find_outdated_with_runner(root.path(), true, None, &PreOneGitRunner)
-        .await
-        .expect("compatible outdated");
+    let compatible = find_outdated_with_runner::<SilentReporter, _>(
+        root.path(),
+        true,
+        None,
+        "https://github.com",
+        &PreOneGitRunner,
+    )
+    .await
+    .expect("compatible outdated");
     assert_eq!(compatible[0].latest, Version::parse("0.5.9").unwrap());
 
-    update_with_runner(root.path(), false, None, &PreOneGitRunner)
-        .await
-        .expect("compatible update");
+    update_with_runner::<SilentReporter, _>(
+        root.path(),
+        false,
+        None,
+        "https://github.com",
+        &PreOneGitRunner,
+    )
+    .await
+    .expect("compatible update");
     assert!(
         fs::read_to_string(&workflow)
             .expect("updated workflow")
             .contains("uses: owner/tool@bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb # v0.5.9"),
     );
 
-    update_with_runner(root.path(), true, None, &PreOneGitRunner).await.expect("latest update");
+    update_with_runner::<SilentReporter, _>(
+        root.path(),
+        true,
+        None,
+        "https://github.com",
+        &PreOneGitRunner,
+    )
+    .await
+    .expect("latest update");
     assert!(
         fs::read_to_string(&workflow)
             .expect("updated workflow")
@@ -233,7 +274,15 @@ async fn rejects_workflow_symlinks_outside_the_project() {
     fs::create_dir_all(root.path().join(".github")).expect("GitHub directory");
     symlink(outside.path(), root.path().join(".github/workflows")).expect("workflow symlink");
 
-    let Err(error) = update_with_runner(root.path(), false, None, &FakeGitRunner).await else {
+    let Err(error) = update_with_runner::<SilentReporter, _>(
+        root.path(),
+        false,
+        None,
+        "https://github.com",
+        &FakeGitRunner,
+    )
+    .await
+    else {
         panic!("outside workflow must be rejected");
     };
 
@@ -255,7 +304,14 @@ async fn reports_local_action_lookup_errors() {
         .expect("workflow");
     symlink("action.yml", action_dir.join("action.yml")).expect("symlink loop");
 
-    let Err(error) = find_outdated_with_runner(root.path(), false, None, &FakeGitRunner).await
+    let Err(error) = find_outdated_with_runner::<SilentReporter, _>(
+        root.path(),
+        false,
+        None,
+        "https://github.com",
+        &FakeGitRunner,
+    )
+    .await
     else {
         panic!("local action lookup must fail");
     };
@@ -275,7 +331,15 @@ async fn does_not_mutate_an_external_hardlink_target() {
     fs::create_dir_all(workflow.parent().unwrap()).expect("workflow directory");
     fs::hard_link(&outside_workflow, &workflow).expect("workflow hardlink");
 
-    update_with_runner(root.path(), false, None, &FakeGitRunner).await.expect("update actions");
+    update_with_runner::<SilentReporter, _>(
+        root.path(),
+        false,
+        None,
+        "https://github.com",
+        &FakeGitRunner,
+    )
+    .await
+    .expect("update actions");
 
     assert!(
         fs::read_to_string(&workflow)
@@ -283,4 +347,137 @@ async fn does_not_mutate_an_external_hardlink_target() {
             .contains(&format!("uses: actions/checkout@{SHA_V4_2_0} # v4.2.0")),
     );
     assert_eq!(fs::read_to_string(outside_workflow).unwrap(), original);
+}
+
+/// Serves refs only for URLs on the given server base, so a test fails
+/// (via the skip-with-warning path) when the wrong server is queried.
+struct ServerBoundGitRunner {
+    server_url: &'static str,
+}
+
+impl GitCommandRunner for ServerBoundGitRunner {
+    fn ls_remote<'a>(
+        &'a self,
+        repo: &'a str,
+        _ref_: Option<&'a str>,
+    ) -> Pin<Box<dyn Future<Output = Result<String, GitRunError>> + Send + 'a>> {
+        Box::pin(async move {
+            if !repo.starts_with(self.server_url) {
+                return Err(GitRunError { message: format!("unexpected repository URL {repo}") });
+            }
+            Ok(format!(
+                "{SHA_V4_1_0}\trefs/tags/v4.1.0\n{SHA_V4_2_0}\trefs/tags/v4.2.0\n{SHA_V5_0_0}\trefs/tags/v5.0.0\n",
+            ))
+        })
+    }
+}
+
+#[tokio::test]
+async fn reads_refs_from_the_configured_server_and_uses_it_in_homepages() {
+    let root = tempfile::tempdir().expect("temp directory");
+    let workflows = root.path().join(".github/workflows");
+    fs::create_dir_all(&workflows).expect("workflow directory");
+    fs::write(
+        workflows.join("ci.yml"),
+        "jobs:\n  test:\n    steps:\n      - uses: actions/checkout@v4.1.0\n",
+    )
+    .expect("workflow");
+    let runner = ServerBoundGitRunner { server_url: "https://github.example.com/" };
+
+    let outdated = find_outdated_with_runner::<SilentReporter, _>(
+        root.path(),
+        false,
+        None,
+        "https://github.example.com",
+        &runner,
+    )
+    .await
+    .expect("outdated actions");
+
+    assert_eq!(outdated.len(), 1);
+    assert_eq!(outdated[0].homepage, "https://github.example.com/actions/checkout");
+}
+
+#[tokio::test]
+async fn skips_repositories_whose_refs_cannot_be_read_and_warns() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    EVENTS.lock().expect("lock").clear();
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().expect("lock").push(event.clone());
+        }
+    }
+
+    struct PartiallyBrokenGitRunner;
+    impl GitCommandRunner for PartiallyBrokenGitRunner {
+        fn ls_remote<'a>(
+            &'a self,
+            repo: &'a str,
+            _ref_: Option<&'a str>,
+        ) -> Pin<Box<dyn Future<Output = Result<String, GitRunError>> + Send + 'a>> {
+            Box::pin(async move {
+                if repo.contains("private-action") {
+                    // A credentialed URL and control characters, which the
+                    // warning must redact and strip.
+                    return Err(GitRunError {
+                        message: "\u{1b}[31mhttps://user:token@ghes.example.com/x.git\u{1b}[0m\nnot found"
+                            .to_string(),
+                    });
+                }
+                Ok(format!("{SHA_V4_1_0}\trefs/tags/v4.1.0\n{SHA_V4_2_0}\trefs/tags/v4.2.0\n"))
+            })
+        }
+    }
+
+    let root = tempfile::tempdir().expect("temp directory");
+    let workflows = root.path().join(".github/workflows");
+    fs::create_dir_all(&workflows).expect("workflow directory");
+    fs::write(
+        workflows.join("ci.yml"),
+        "jobs:\n  test:\n    steps:\n      - uses: actions/checkout@v4.1.0\n      - uses: owner/private-action@v1.0.0\n",
+    )
+    .expect("workflow");
+
+    let outdated = find_outdated_with_runner::<RecordingReporter, _>(
+        root.path(),
+        false,
+        None,
+        "https://github.com",
+        &PartiallyBrokenGitRunner,
+    )
+    .await
+    .expect("outdated actions");
+
+    assert_eq!(outdated.len(), 1);
+    assert_eq!(outdated[0].name, "actions/checkout");
+    let events = EVENTS.lock().expect("lock");
+    let warnings: Vec<&GlobalLog> = events
+        .iter()
+        .filter_map(|event| match event {
+            LogEvent::Global(log) if log.level == LogLevel::Warn => Some(log),
+            _ => None,
+        })
+        .collect();
+    dbg!(&warnings);
+    assert_eq!(warnings.len(), 1);
+    assert_eq!(
+        warnings[0].message,
+        r#"Skipping the GitHub Actions from "owner/private-action": git ls-remote failed: [31mhttps://ghes.example.com/x.git[0mnot found"#,
+    );
+}
+
+#[tokio::test]
+async fn rejects_a_server_url_that_is_not_http() {
+    let root = tempfile::tempdir().expect("temp directory");
+
+    let Err(error) =
+        super::find_outdated::<SilentReporter>(root.path(), false, None, Some("ext::sh -c date"))
+            .await
+    else {
+        panic!("non-http server URL must be rejected");
+    };
+
+    assert!(error.to_string().contains(r#"must use the "https://" or "http://" protocol"#));
 }

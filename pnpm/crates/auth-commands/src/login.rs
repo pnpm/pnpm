@@ -202,11 +202,8 @@ fn registry_join(registry: &str, path: &str) -> Result<String, url::ParseError> 
     url::Url::parse(registry)?.join(path).map(String::from)
 }
 
-fn global_info<Reporter: self::Reporter>(message: &str) {
-    Reporter::emit(&LogEvent::Global(GlobalLog {
-        level: LogLevel::Info,
-        message: message.to_owned(),
-    }));
+fn global_info<Reporter: self::Reporter>(message: String) {
+    Reporter::emit(&LogEvent::Global(GlobalLog { level: LogLevel::Info, message }));
 }
 
 #[cfg(test)]

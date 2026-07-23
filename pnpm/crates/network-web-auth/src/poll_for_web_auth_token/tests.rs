@@ -4,13 +4,63 @@ use std::{
     rc::Rc,
 };
 
+use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
 
 use super::{
     WebAuthFetchOptions, WebAuthFetchResponse, WebAuthRetryOptions, WebAuthTokenPollParams,
-    poll_for_web_auth_token,
+    body_may_carry_token, poll_for_web_auth_token,
 };
 use crate::capabilities::{Clock, Sleep, WebAuthFetch, WebAuthFetchError};
+
+#[test]
+fn body_may_carry_token_only_for_a_successful_non_202() {
+    assert!(body_may_carry_token(true, 200));
+    assert!(!body_may_carry_token(true, 202), "202 is still-waiting, its body is skipped");
+    assert!(!body_may_carry_token(false, 404), "a failed response's body is skipped");
+    assert!(!body_may_carry_token(false, 200), "a non-ok status wins even at 200");
+}
+
+#[test]
+fn token_reads_the_body_when_not_truncated() {
+    let response = ok_token("tok");
+    assert_eq!(response.token().expect("valid JSON body"), Some("tok".to_owned()));
+}
+
+#[test]
+fn token_ignores_a_truncated_body_even_when_it_carries_a_token() {
+    let response = ok_truncated();
+    assert!(!response.body.is_empty(), "the fixture's body does carry a token");
+    assert_eq!(response.token().expect("truncation short-circuits before parsing"), None);
+}
+
+/// An invalid UTF-8 byte decodes losslessly (it becomes U+FFFD) so an
+/// otherwise-parsable token still comes through, matching the TypeScript
+/// side's non-fatal `TextDecoder`. A strict decode would drop the body.
+#[test]
+fn token_decodes_an_invalid_utf8_body_lossily() {
+    let mut body = br#"{"token":"a"#.to_vec();
+    body.push(0xFF);
+    body.extend_from_slice(br#"b"}"#);
+    let response =
+        WebAuthFetchResponse { ok: true, status: 200, retry_after: None, body, truncated: false };
+    assert_eq!(
+        response.token().expect("parse the lossily-decoded body"),
+        Some("a\u{FFFD}b".to_owned()),
+    );
+}
+
+/// A leading UTF-8 BOM is stripped before parsing, matching the TypeScript
+/// side's `TextDecoder`; `serde_json` rejects a BOM, so without stripping an
+/// otherwise-valid token body would be dropped.
+#[test]
+fn token_strips_a_leading_bom() {
+    let mut body = vec![0xEF, 0xBB, 0xBF];
+    body.extend_from_slice(br#"{"token":"tok"}"#);
+    let response =
+        WebAuthFetchResponse { ok: true, status: 200, retry_after: None, body, truncated: false };
+    assert_eq!(response.token().expect("parse the BOM-prefixed body"), Some("tok".to_owned()));
+}
 
 /// A scripted stand-in for one `fetch` call, given the request URL and
 /// options so a test can both decide the response and capture the inputs.
@@ -101,7 +151,8 @@ fn ok_202(retry_after: Option<&str>) -> WebAuthFetchResponse {
         ok: true,
         status: 202,
         retry_after: retry_after.map(str::to_owned),
-        body: "{}".to_owned(),
+        body: b"{}".to_vec(),
+        truncated: false,
     }
 }
 
@@ -110,16 +161,42 @@ fn ok_token(token: &str) -> WebAuthFetchResponse {
         ok: true,
         status: 200,
         retry_after: None,
-        body: serde_json::json!({ "token": token }).to_string(),
+        body: serde_json::json!({ "token": token }).to_string().into_bytes(),
+        truncated: false,
     }
 }
 
 fn ok_json(body: &serde_json::Value) -> WebAuthFetchResponse {
-    WebAuthFetchResponse { ok: true, status: 200, retry_after: None, body: body.to_string() }
+    WebAuthFetchResponse {
+        ok: true,
+        status: 200,
+        retry_after: None,
+        body: body.to_string().into_bytes(),
+        truncated: false,
+    }
+}
+
+/// A `200` response whose body the provider capped at the size limit. Its
+/// body carries a real token, so a poll that still ignores it proves the
+/// truncation — not a missing token — is what makes it keep waiting.
+fn ok_truncated() -> WebAuthFetchResponse {
+    WebAuthFetchResponse {
+        ok: true,
+        status: 200,
+        retry_after: None,
+        body: serde_json::json!({ "token": "tok" }).to_string().into_bytes(),
+        truncated: true,
+    }
 }
 
 fn not_ok() -> WebAuthFetchResponse {
-    WebAuthFetchResponse { ok: false, status: 404, retry_after: None, body: String::new() }
+    WebAuthFetchResponse {
+        ok: false,
+        status: 404,
+        retry_after: None,
+        body: Vec::new(),
+        truncated: false,
+    }
 }
 
 fn params(timeout_ms: Option<u64>) -> WebAuthTokenPollParams {
@@ -306,7 +383,8 @@ async fn continues_polling_when_response_body_is_not_json() {
                 ok: true,
                 status: 200,
                 retry_after: None,
-                body: "not json".to_owned(),
+                body: b"not json".to_vec(),
+                truncated: false,
             }
         } else {
             ok_token("tok")
@@ -314,6 +392,27 @@ async fn continues_polling_when_response_body_is_not_json() {
     }));
 
     let token = poll_for_web_auth_token::<Fake>(params(None)).await.expect("a token");
+
+    assert_eq!(token, "tok");
+    assert_eq!(calls.get(), 2);
+}
+
+/// A `200` whose body was capped at the read limit (`truncated`) is ignored
+/// even though its body carries a token, so the poll keeps waiting and only
+/// returns once an untruncated token arrives. Driving this through the
+/// [`WebAuthFetch`] fake is what makes the size-limit feature testable
+/// without the real HTTP transport.
+#[tokio::test]
+async fn continues_polling_when_response_body_was_truncated() {
+    reset();
+    let calls = Rc::new(Cell::new(0));
+    let counter = Rc::clone(&calls);
+    set_fetch(Box::new(move |_url, _options| {
+        counter.set(counter.get() + 1);
+        Ok(if counter.get() == 1 { ok_truncated() } else { ok_token("tok") })
+    }));
+
+    let token = None.pipe(params).pipe(poll_for_web_auth_token::<Fake>).await.expect("a token");
 
     assert_eq!(token, "tok");
     assert_eq!(calls.get(), 2);

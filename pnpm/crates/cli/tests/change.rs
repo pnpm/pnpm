@@ -10,6 +10,115 @@ use command_extra::CommandExtra;
 use pacquet_testing_utils::bin::CommandTempCwd;
 use std::{fs, path::Path, process::Command};
 
+/// A `pnpm` command that actually probes the registry (no assume-published
+/// seam), for the first-release tests that run against the mock registry.
+fn pnpm_probing(workspace: &Path) -> Command {
+    Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
+}
+
+/// Point a mocked-registry workspace at `packages/*` and give it a private
+/// root; `add_mocked_registry` writes store/cache config but no package globs.
+fn setup_mock_workspace(workspace: &Path) {
+    let mut yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read yaml");
+    yaml.push_str("packages:\n  - packages/*\n");
+    fs::write(workspace.join("pnpm-workspace.yaml"), yaml).expect("write yaml");
+    fs::write(workspace.join("package.json"), "{\"name\": \"e2e-root\", \"private\": true}\n")
+        .expect("write root package.json");
+}
+
+fn add_scoped_pkg(workspace: &Path, dir: &str, name: &str, version: &str) {
+    let pkg_dir = workspace.join("packages").join(dir);
+    fs::create_dir_all(&pkg_dir).expect("create package dir");
+    fs::write(
+        pkg_dir.join("package.json"),
+        format!("{{\"name\": \"{name}\", \"version\": \"{version}\"}}\n"),
+    )
+    .expect("write package.json");
+}
+
+/// The real registry probe (no seam): `@pnpm.e2e/foo@1.2.0` is in the fixture
+/// packument, so it bumps as a follow-up release.
+#[test]
+fn first_release_probe_bumps_a_version_the_registry_reports_published() {
+    let CommandTempCwd { workspace, root, .. } = CommandTempCwd::init().add_mocked_registry();
+    setup_mock_workspace(&workspace);
+    add_scoped_pkg(&workspace, "foo", "@pnpm.e2e/foo", "1.2.0");
+
+    stdout_of(pnpm_probing(&workspace).with_args([
+        "change",
+        "--bump",
+        "minor",
+        "--summary",
+        "A feature.",
+        "@pnpm.e2e/foo",
+    ]));
+    let applied = stdout_of(pnpm_probing(&workspace).with_args(["version", "-r"]));
+    assert!(applied.contains("@pnpm.e2e/foo: 1.2.0 → 1.3.0"), "unexpected: {applied}");
+    assert_eq!(manifest_version(&workspace, "foo"), "1.3.0");
+
+    drop(root);
+}
+
+/// The mirror: `@pnpm.e2e/foo@999.0.0` is not in the fixture, so the probe
+/// reports it unpublished and it debuts verbatim.
+#[test]
+fn first_release_probe_debuts_an_unpublished_version_verbatim() {
+    let CommandTempCwd { workspace, root, .. } = CommandTempCwd::init().add_mocked_registry();
+    setup_mock_workspace(&workspace);
+    add_scoped_pkg(&workspace, "foo", "@pnpm.e2e/foo", "999.0.0");
+
+    stdout_of(pnpm_probing(&workspace).with_args([
+        "change",
+        "--bump",
+        "minor",
+        "--summary",
+        "Initial release.",
+        "@pnpm.e2e/foo",
+    ]));
+    let applied = stdout_of(pnpm_probing(&workspace).with_args(["version", "-r"]));
+    assert!(applied.contains("@pnpm.e2e/foo: 999.0.0 → 999.0.0"), "unexpected: {applied}");
+    assert_eq!(manifest_version(&workspace, "foo"), "999.0.0");
+
+    drop(root);
+}
+
+/// A registry that cannot answer the probe (here an unroutable port, so the
+/// check fails with a connection error rather than a 404) must fail
+/// `pnpm change status` and `pnpm version -r` rather than guess a version.
+/// Mirrors the TypeScript `a registry probe failure fails the command` test.
+#[test]
+fn first_release_probe_failure_fails_the_command() {
+    let CommandTempCwd { workspace, root, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write yaml");
+    fs::write(workspace.join(".npmrc"), "registry=http://127.0.0.1:1/\n").expect("write npmrc");
+    fs::write(workspace.join("package.json"), "{\"name\": \"e2e-root\", \"private\": true}\n")
+        .expect("write root package.json");
+    add_scoped_pkg(&workspace, "foo", "@pnpm.e2e/foo", "1.2.0");
+
+    // Recording an intent does not probe, so it succeeds despite the dead registry.
+    stdout_of(pnpm_probing(&workspace).with_args([
+        "change",
+        "--bump",
+        "minor",
+        "--summary",
+        "A feature.",
+        "@pnpm.e2e/foo",
+    ]));
+
+    let status =
+        pnpm_probing(&workspace).with_args(["change", "status"]).output().expect("run pnpm");
+    assert!(!status.status.success(), "change status must fail when the probe errors");
+
+    let release = pnpm_probing(&workspace).with_args(["version", "-r"]).output().expect("run pnpm");
+    assert!(!release.status.success(), "version -r must fail when the probe errors");
+
+    // No version was guessed: the manifest is untouched.
+    assert_eq!(manifest_version(&workspace, "foo"), "1.2.0");
+
+    drop(root);
+}
+
 fn write_workspace(workspace: &Path) {
     // These tests assert committed CHANGELOG.md files, which predate the
     // `registry`-storage default (where a release's section is parked under
@@ -36,7 +145,16 @@ fn add_pkg(workspace: &Path, name: &str, version: &str, deps: &str) {
 }
 
 fn pnpm(workspace: &Path) -> Command {
-    Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
+    // These tests exercise the change/version/lane engine, advancing manifests
+    // without a real publish cycle. The first-release probe compares each
+    // release's current version against the registry; assume every version is
+    // already published so the engine bumps normally without a network round
+    // trip. The probe's own behavior is covered against the mock registry by
+    // the `first_release_probe_*` tests below.
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(workspace)
+        .with_env("PACQUET_ASSUME_VERSIONS_PUBLISHED", "1")
 }
 
 fn stdout_of(mut command: Command) -> String {

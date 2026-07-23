@@ -355,6 +355,7 @@ fn route<'a>(command: CliCommand, ctx: &RunCtx<'a>) -> miette::Result<CommandFut
         CliCommand::Owner(args) => dispatch_query::owner(ctx, args),
         CliCommand::Deprecate(args) => dispatch_query::deprecate(ctx, args),
         CliCommand::Undeprecate(args) => dispatch_query::undeprecate(ctx, args),
+        CliCommand::Unpublish(args) => dispatch_query::unpublish(ctx, args),
         CliCommand::Ping(args) => dispatch_query::ping(ctx, args),
         CliCommand::Doctor(args) => dispatch_query::doctor(ctx, args),
         CliCommand::Search(args) => dispatch_query::search(ctx, args),

@@ -150,6 +150,85 @@ fn render_latest_outdated_and_not_deprecated() {
     assert!(!output.contains("(deprecated)"), "no deprecation marker: {output}");
 }
 
+/// Visible column indices of the box-drawing characters that carry a
+/// vertical stroke, ignoring ANSI SGR escapes so a colored cell only counts
+/// its glyphs. These are the column boundaries a well-aligned table keeps
+/// identical on every row.
+fn border_columns(line: &str) -> Vec<usize> {
+    const VERTICAL_BORDERS: &[char] = &['│', '┌', '┐', '├', '┤', '┼', '└', '┘', '┬', '┴'];
+    let mut columns = Vec::new();
+    let mut chars = line.chars();
+    let mut column = 0;
+    while let Some(ch) = chars.next() {
+        if ch == '\u{1b}' {
+            for esc in chars.by_ref() {
+                if esc.is_ascii_alphabetic() {
+                    break;
+                }
+            }
+        } else {
+            if VERTICAL_BORDERS.contains(&ch) {
+                columns.push(column);
+            }
+            column += 1;
+        }
+    }
+    columns
+}
+
+fn assert_borders_aligned(table: &str) {
+    let mut rows = table.lines();
+    let expected = rows.next().map(border_columns).unwrap_or_default();
+    assert!(!expected.is_empty(), "expected box-drawing borders in:\n{table}");
+    for row in table.lines() {
+        assert_eq!(
+            border_columns(row),
+            expected,
+            "every row must place its vertical borders at the same columns:\n{table}",
+        );
+    }
+}
+
+// Enabling `tabled`'s `ansi` feature makes it size a colored cell by its
+// visible glyphs, not its escape bytes; without it the columns and borders
+// drift apart. Feed a modern-style table the kind of ANSI-colored cells the
+// `outdated` renderers emit — a highlighted version segment, a dim group
+// label, bright-blue headers — and confirm every vertical border lands on the
+// same column. Coloring the cells directly (`owo_colors` unconditional
+// styling) rather than forcing the global color override keeps the test free
+// of process-global state, so it can't leak into or be perturbed by other
+// tests running in the same binary.
+#[test]
+fn colored_table_borders_stay_aligned() {
+    use owo_colors::OwoColorize;
+    use tabled::builder::Builder;
+    use tabled::settings::Style;
+
+    let header = ["Package", "Current", "Latest"].map(|name| name.bright_blue().to_string());
+    let rows = [
+        [
+            format!("actions/checkout {}", "(github action)".dimmed()),
+            "7.0.0".to_owned(),
+            format!("7.0.{}", "1".green()),
+        ],
+        [
+            format!("@typescript/native-preview {}", "(dev)".dimmed()),
+            "1.0.0".to_owned(),
+            "26.1.1".red().to_string(),
+        ],
+    ];
+
+    let mut builder = Builder::default();
+    builder.push_record(header);
+    for row in rows {
+        builder.push_record(row);
+    }
+    let mut table = builder.build();
+    table.with(Style::modern());
+
+    assert_borders_aligned(&table.to_string());
+}
+
 #[test]
 fn json_report_long_includes_latest_manifest() {
     let mut item = pkg("foo", "1.0.0", "2.0.0", DependencyGroup::Prod);

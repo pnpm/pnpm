@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.github-actions",
-  "version": "1100.0.0",
+  "version": "1100.0.1",
   "description": "Discover and update GitHub Actions dependencies",
   "keywords": [
     "pnpm",
@@ -39,6 +39,9 @@
     "semver": "catalog:",
     "write-file-atomic": "catalog:",
     "yaml": "catalog:"
+  },
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
     "@jest/globals": "catalog:",

@@ -810,51 +810,8 @@ where
             }
         }
 
-        // `--no-runtime` (or `config.skip_runtimes`): exclude
-        // every project-direct runtime dependency — iterate each
-        // importer's direct deps and add the runtime ones to the
-        // skip set; transitive runtime entries (which would be
-        // unusual but possible) stay in the install. The
-        // discriminator is a `@runtime:` substring check on the
-        // resolved depPath; pacquet's lockfile preserves the
-        // `@runtime:` substring in the snapshot key, so the
-        // string-test works here.
-        //
-        // Re-using `add_optional_excluded` keeps the bucket count
-        // (and `.modules.yaml.skipped` semantics) unchanged: like
-        // `--no-optional`, this is a transient user-driven
-        // exclusion that should *not* be persisted into
-        // `.modules.yaml.skipped` — a future install without the
-        // flag must bring the runtime back.
         if skip_runtimes && let Some(pkgs) = packages {
-            for importer in importers.values() {
-                for dep_map in [
-                    importer.dependencies.as_ref(),
-                    importer.dev_dependencies.as_ref(),
-                    importer.optional_dependencies.as_ref(),
-                ] {
-                    let Some(dep_map) = dep_map else { continue };
-                    for (alias, spec) in dep_map {
-                        // Build the candidate snapshot key. For
-                        // non-aliased deps this is `(alias, version)`;
-                        // for aliased deps it's the alias's own
-                        // (name, suffix). `link:` deps are skipped.
-                        let Some(key) = spec.version.resolved_key(alias) else { continue };
-                        if !key.to_string().contains("@runtime:") {
-                            continue;
-                        }
-                        if let Some(meta) = pkgs.get(&key)
-                            && matches!(
-                                &meta.resolution,
-                                pacquet_lockfile::LockfileResolution::Binary(_)
-                                    | pacquet_lockfile::LockfileResolution::Variations(_),
-                            )
-                        {
-                            skipped.add_optional_excluded(key);
-                        }
-                    }
-                }
-            }
+            crate::add_direct_runtime_skips(&mut skipped, importers, pkgs);
         }
 
         // The recorded skip set must be the reachability closure of the

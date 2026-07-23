@@ -38,6 +38,9 @@ describe('change command and intent-consuming version -r', () => {
       allProjects: projects,
       gitChecks: false,
       recursive: true,
+      // The fixture packages stand in for already-published ones, so their
+      // releases bump normally. Overridden per test for the first-release path.
+      checkVersionPublished: async () => true,
     }
   }
 
@@ -207,5 +210,37 @@ describe('change command and intent-consuming version -r', () => {
     const cli = addPkg({ name: 'cli', version: '2.0.0' })
     const output = await lane.handler(baseOpts([cli]) as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any
     expect(output).toBe('All packages are on the main lane.')
+  })
+
+  it('a package not yet on the registry debuts at its manifest version, not a bump above it', async () => {
+    const lib = addPkg({ name: 'lib', version: '1100.0.0' })
+    // The new package is unpublished; every other release is already published.
+    const opts = { ...baseOpts([lib]), checkVersionPublished: async (name: string) => name !== 'lib' }
+
+    await change.handler({ ...opts, bump: 'minor', summary: 'Initial release.' } as any, ['lib']) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+    const status = await change.handler(opts as any, ['status']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(status).toContain('lib: 1100.0.0 → 1100.0.0')
+
+    const applied = await version.handler(opts as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(applied).toContain('lib: 1100.0.0 → 1100.0.0')
+    expect(JSON.parse(fs.readFileSync(path.join(lib.rootDir, 'package.json'), 'utf8')).version).toBe('1100.0.0')
+    // The intent is still consumed and ledgered against the debut version.
+    expect(fs.readFileSync(path.join(tempDir, '.changeset', 'ledger.yaml'), 'utf8')).toContain('lib@1100.0.0:')
+  })
+
+  it('a registry probe failure fails the command rather than guessing the version', async () => {
+    const lib = addPkg({ name: 'lib', version: '1.0.0' })
+    const opts = {
+      ...baseOpts([lib]),
+      checkVersionPublished: async () => {
+        throw new Error('registry unreachable')
+      },
+    }
+
+    await change.handler({ ...baseOpts([lib]), bump: 'patch', summary: 'A fix.' } as any, ['lib']) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+    await expect(change.handler(opts as any, ['status'])).rejects.toThrow('registry unreachable') // eslint-disable-line @typescript-eslint/no-explicit-any
+    await expect(version.handler(opts as any, [])).rejects.toThrow('registry unreachable') // eslint-disable-line @typescript-eslint/no-explicit-any
   })
 })
