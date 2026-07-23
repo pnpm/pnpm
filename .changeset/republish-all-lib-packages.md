@@ -118,7 +118,6 @@
 "@pnpm/lockfile.utils": patch
 "@pnpm/lockfile.verification": patch
 "@pnpm/lockfile.walker": patch
-"@pnpm/logger": patch
 "@pnpm/modules-mounter.daemon": patch
 "@pnpm/network.auth-header": patch
 "@pnpm/network.fetch": patch

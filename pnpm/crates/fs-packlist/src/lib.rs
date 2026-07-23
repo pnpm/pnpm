@@ -8,12 +8,14 @@
 //! The algorithm has four passes:
 //!
 //! 1. **Walk with ignore-file filtering**, honoring npm-packlist's
-//!    three-tier priority at the package root: (a) `files` present
-//!    disables `.gitignore` and `.npmignore` — the package's own and
-//!    any workspace-inherited ones alike — leaving the allowlist in
-//!    pass 2 as the sole gate; (b) no `files` but a root `.npmignore`
-//!    exists disables `.gitignore`; (c) neither present falls back to
-//!    `.gitignore`.
+//!    three-tier priority at the package root: (a) a usable `files`
+//!    allowlist disables `.gitignore` and `.npmignore` — the
+//!    package's own and any workspace-inherited ones alike — leaving
+//!    the allowlist in pass 2 as the sole gate (a `files` field with
+//!    no usable entry is treated as absent, see
+//!    [`build_files_matcher`]); (b) no `files` but a root
+//!    `.npmignore` exists disables `.gitignore`; (c) neither present
+//!    falls back to `.gitignore`.
 //! 2. **Apply the `files` field allowlist** on top of the walk's
 //!    output: when the manifest sets `files: ["dist/**"]`, drop
 //!    anything outside that set (except the always-included files
@@ -324,7 +326,22 @@ fn collect_own_files(
         .git_global(false)
         .require_git(false)
         .parents(false);
-    if files_field.is_some() {
+    // Prune subtrees whose every entry the post-walk filters would drop
+    // anyway: the package's own `node_modules` (bundled separately) and
+    // VCS dirs. Purely a traversal cost cut — with a `files` allowlist
+    // no ignore file applies, so an installed dependency tree would
+    // otherwise be enumerated entry by entry only to be discarded.
+    builder.filter_entry(|entry| {
+        if entry.depth() == 0 {
+            return true;
+        }
+        let name = entry.file_name().to_string_lossy();
+        if entry.depth() == 1 && name == "node_modules" {
+            return false;
+        }
+        !ALWAYS_EXCLUDED_DIR_SEGMENTS.contains(&name.as_ref())
+    });
+    if files_matcher.is_some() {
         builder.git_ignore(false);
     } else {
         if has_root_npmignore {
