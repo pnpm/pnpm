@@ -578,6 +578,8 @@ pub fn symlink_hoisted_dependencies(
         work.push((Arc::new(project_dir.clone()), *kind, alias));
     }
 
+    // Under enableGlobalVirtualStore, fallback-hoisted dependencies are linked into GVS package directories
+    // so that Node.js/TypeScript symlink target real-path resolution can locate implicit/phantom dependencies.
     let mut gvs_work: Vec<(Arc<PathBuf>, PathBuf)> = Vec::new();
     if layout.enable_global_virtual_store() {
         for (node_id, node) in graph {
