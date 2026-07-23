@@ -1,20 +1,22 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { confirm } from '@inquirer/prompts'
 import { linkBins } from '@pnpm/bins.linker'
 import { isExecutedByCorepack, packageManager } from '@pnpm/cli.meta'
 import { docsUrl } from '@pnpm/cli.utils'
-import { type Config, type ConfigContext, parsePackageManager, shouldPersistLockfile, types as allTypes } from '@pnpm/config.reader'
+import { type Config, type ConfigContext, getPackageManagerBootstrapConfig, parsePackageManager, shouldPersistLockfile, types as allTypes } from '@pnpm/config.reader'
 import { createPackageVersionPolicyOrThrow, getPublishedByPolicy } from '@pnpm/config.version-policy'
 import { PnpmError } from '@pnpm/error'
-import { createResolver, makeResolutionStrict } from '@pnpm/installing.client'
+import { createResolver, policyViolationToError, type ResolutionPolicyViolation } from '@pnpm/installing.client'
 import { resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
 import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import { globalInfo, globalWarn } from '@pnpm/logger'
-import { whichVersionIsPinned } from '@pnpm/resolving.npm-resolver'
+import { MINIMUM_RELEASE_AGE_VIOLATION_CODE, whichVersionIsPinned } from '@pnpm/resolving.npm-resolver'
 import { createStoreController, type CreateStoreControllerOptions, shouldFetchFullMetadata } from '@pnpm/store.connection-manager'
 import type { PinnedVersion } from '@pnpm/types'
 import { readProjectManifest } from '@pnpm/workspace.project-manifest-reader'
+import { isCI } from 'ci-info'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 import semver from 'semver'
@@ -59,6 +61,7 @@ export function help (): string {
 }
 
 export type SelfUpdateCommandOptions = CreateStoreControllerOptions & Pick<Config,
+| 'ci'
 | 'globalPkgDir'
 | 'lockfileDir'
 | 'minimumReleaseAge'
@@ -66,8 +69,11 @@ export type SelfUpdateCommandOptions = CreateStoreControllerOptions & Pick<Confi
 | 'minimumReleaseAgeIgnoreMissingTime'
 | 'minimumReleaseAgeStrict'
 | 'modulesDir'
+| 'packageManagerNetworkConfig'
+| 'packageManagerRegistries'
 | 'pnpmHomeDir'
 > & Pick<ConfigContext,
+| 'minimumReleaseAgeSource'
 | 'rootProjectManifestDir'
 | 'wantedPackageManager'
 >
@@ -85,23 +91,18 @@ export async function handler (
   // resolver upgrades abbreviated metadata to full on demand for the
   // maturity check, so it isn't requested up front here.
   const fullMetadata = shouldFetchFullMetadata(opts)
-  const { resolve: baseResolve } = createResolver({
+  // Every request self-update makes goes through the trusted package-manager
+  // bootstrap config — the same channel version switching uses — so a
+  // repo-controlled `.npmrc` or workspace manifest cannot redirect the pnpm
+  // download or attach its own credentials to it.
+  const bootstrapConfig = getPackageManagerBootstrapConfig(opts)
+  const { resolve } = createResolver({
     ...opts,
-    configByUri: opts.configByUri,
+    ...bootstrapConfig,
     fullMetadata,
     filterMetadata: fullMetadata,
     ignoreMissingTimeField: opts.minimumReleaseAgeIgnoreMissingTime,
   })
-  // self-update has nowhere to "defer to" either — wrap the resolver
-  // under any policy that wants to reject violations up-front. Strict
-  // minimumReleaseAge keeps self-update from switching to an immature
-  // pnpm; `trustPolicy: 'no-downgrade'` keeps it from switching to a
-  // pnpm whose trust evidence weakened relative to the installed
-  // version.
-  const strictResolution =
-    (Boolean(opts.minimumReleaseAge) && opts.minimumReleaseAgeStrict === true) ||
-    opts.trustPolicy === 'no-downgrade'
-  const resolve = strictResolution ? makeResolutionStrict(baseResolve) : baseResolve
   const pkgName = 'pnpm'
   const { publishedBy, publishedByExclude } = getPublishedByPolicy(opts)
   // `pnpm self-update` (no args) defaults to the `latest` dist-tag, but we
@@ -130,6 +131,7 @@ export async function handler (
   if (!resolution?.manifest) {
     throw new PnpmError('CANNOT_RESOLVE_PNPM', `Cannot find "${bareSpecifier}" version of pnpm`)
   }
+  await enforceResolutionPolicy(resolution.policyViolation, opts)
 
   // Determine the "previous" pnpm version being upgraded FROM. If the
   // project pins pnpm via `packageManager`/`devEngines.packageManager`,
@@ -204,9 +206,9 @@ export async function handler (
         }
         if (manifestChanged) await writeProjectManifest(manifest)
         if (shouldPersistLockfile({ ...opts.wantedPackageManager, fromDevEngines: true })) {
-          const store = await createStoreController(opts)
+          const store = await createStoreController({ ...opts, ...bootstrapConfig })
           await resolvePackageManagerIntegrities(resolution.manifest.version, {
-            registries: opts.registries,
+            registries: bootstrapConfig.registries,
             rootDir: opts.rootProjectManifestDir,
             storeController: store.ctrl,
             storeDir: store.dir,
@@ -236,11 +238,11 @@ export async function handler (
   }
 
   globalInfo(`Switching pnpm from v${packageManager.version} to v${resolution.manifest.version}...`)
-  const store = await createStoreController(opts)
+  const store = await createStoreController({ ...opts, ...bootstrapConfig })
 
   // Resolve integrities and write env lockfile to pnpm-lock.yaml
   const envLockfile = await resolvePackageManagerIntegrities(resolution.manifest.version, {
-    registries: opts.registries,
+    registries: bootstrapConfig.registries,
     rootDir: opts.pnpmHomeDir,
     storeController: store.ctrl,
     storeDir: store.dir,
@@ -248,6 +250,7 @@ export async function handler (
 
   const { baseDir, alreadyExisted } = await installPnpm(resolution.manifest.version, {
     ...opts,
+    ...bootstrapConfig,
     envLockfile,
     storeController: store.ctrl,
     storeDir: store.dir,
@@ -277,6 +280,60 @@ export async function handler (
     return `The ${bareSpecifier} version, v${resolution.manifest.version}, is already present on the system. It was activated by linking it from ${baseDir}.`
   }
   return `Successfully updated pnpm to v${resolution.manifest.version}`
+}
+
+/**
+ * Act on a policy violation the resolver attached to self-update's pick.
+ *
+ * A `minimumReleaseAge` cutoff exists so a freshly published pnpm cannot reach
+ * the machine before anyone has had a chance to notice it is malicious, and
+ * pnpm itself is the most valuable thing on the machine to compromise — so
+ * under strict mode an immature pick is refused. An interactive run may still
+ * confirm it: naming a version on the command line is a deliberate act by the
+ * person at the keyboard, unlike a dependency drifting onto a new release. CI
+ * and other non-interactive runs always fail closed.
+ *
+ * A `trustPolicy` violation is not negotiable — it means the release's trust
+ * evidence weakened relative to the installed version — so it keeps failing
+ * with the same error {@link makeResolutionStrict} would have raised.
+ */
+async function enforceResolutionPolicy (
+  violation: ResolutionPolicyViolation | undefined,
+  opts: Pick<SelfUpdateCommandOptions,
+  | 'ci'
+  | 'minimumReleaseAge'
+  | 'minimumReleaseAgeSource'
+  | 'minimumReleaseAgeStrict'
+  >
+): Promise<void> {
+  if (violation == null) return
+  if (violation.code !== MINIMUM_RELEASE_AGE_VIOLATION_CODE) {
+    throw policyViolationToError(violation)
+  }
+  if (!opts.minimumReleaseAge || opts.minimumReleaseAgeStrict !== true) return
+  const cutoffSource = opts.minimumReleaseAgeSource != null
+    ? ` The ${opts.minimumReleaseAge}-minute minimumReleaseAge cutoff comes from ${opts.minimumReleaseAgeSource}.`
+    : ''
+  const message = `${violation.name}@${violation.version} ${violation.reason}.${cutoffSource}`
+  const canPrompt = !(opts.ci ?? isCI) && Boolean(process.stdin.isTTY)
+  if (!canPrompt) {
+    throw new PnpmError('NO_MATURE_MATCHING_VERSION', message, {
+      hint: 'Wait for the release to mature past the cutoff, or set PNPM_CONFIG_MINIMUM_RELEASE_AGE=0 to update anyway.',
+    })
+  }
+  let confirmed: boolean
+  try {
+    confirmed = await confirm({ message: `${message}\nUpdate anyway?`, default: false })
+  } catch (err) {
+    if (err instanceof Error && err.name === 'ExitPromptError') {
+      confirmed = false
+    } else {
+      throw err
+    }
+  }
+  if (!confirmed) {
+    throw new PnpmError('MINIMUM_RELEASE_AGE_DENIED', 'Aborted: the immature pnpm version was not approved.')
+  }
 }
 
 // A leftover shim whose install target was garbage-collected is dead weight,

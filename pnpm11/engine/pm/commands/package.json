@@ -31,6 +31,7 @@
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
+    "@inquirer/prompts": "catalog:",
     "@pnpm/bins.linker": "workspace:*",
     "@pnpm/building.policy": "workspace:*",
     "@pnpm/cli.meta": "workspace:*",
@@ -56,6 +57,7 @@
     "@pnpm/store.controller": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
+    "ci-info": "catalog:",
     "cross-spawn": "catalog:",
     "detect-libc": "catalog:",
     "path-name": "catalog:",
