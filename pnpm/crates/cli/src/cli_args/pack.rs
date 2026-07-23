@@ -10,9 +10,12 @@
 //! `embedReadme` / `extraEnv` config keys are not surfaced by `Config`
 //! yet, so they take their `false` / empty defaults.
 
-use crate::cli_args::install::resolve_bool_override;
-use crate::cli_args::recursive::{
-    AutoExcludeRoot, discover_workspace_projects, select_recursive_projects, sort_filtered_projects,
+use crate::cli_args::{
+    install::resolve_bool_override,
+    recursive::{
+        AutoExcludeRoot, discover_workspace_projects, select_recursive_projects,
+        sort_filtered_projects,
+    },
 };
 use clap::Args;
 use miette::{Context, IntoDiagnostic};

@@ -221,7 +221,7 @@ fn ignore_scripts_skips_the_pack_lifecycle_scripts() {
         json!({
             "name": "pkg",
             "version": "1.0.0",
-            "scripts": { "prepack": "node -e \"require('fs').writeFileSync('prepack-ran', '')\"" },
+            "scripts": { "prepack": r#"node -e "require('fs').writeFileSync('prepack-ran', '')""# },
         })
         .to_string(),
     )
