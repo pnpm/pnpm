@@ -43,23 +43,25 @@ jobs:
       with:
         install: false
 
-    - name: Update lockfile, Node.js, and pnpm versions
+    - name: Update dependencies, Node.js, pnpm, and GitHub Actions
       uses: pnpm/update@76f98d727df25f56f9bbd38e60ad663fd785d3d4 # v0
       with:
-        update-deps: false
+        update-deps: latest
         refresh-lockfile: true
         changesets: false
+        github-actions: true
         update-pnpm: next-12
         post-update: pnpm update-manifests
         branch: chore/update-lockfile
         token: ${{ secrets.UPDATE_LOCKFILE_TOKEN }}
-        commit-message: 'chore: update lockfile, Node.js, and pnpm versions'
-        pr-title: 'chore: update lockfile, Node.js, and pnpm versions'
+        commit-message: 'chore: update dependencies, Node.js, pnpm, and GitHub Actions'
+        pr-title: 'chore: update dependencies, Node.js, pnpm, and GitHub Actions'
         pr-body: |
-          This automated PR refreshes the project's pinned versions:
+          This automated PR bumps the project's dependencies and pinned versions:
 
-          - Updates the lockfile to the latest compatible versions of dependencies.
+          - Updates all dependencies to their latest versions and refreshes the lockfile.
           - Bumps Node.js to the latest 26.x release, propagated into the CI, release, and benchmark workflows via the meta-updater.
           - Bumps pnpm to the latest `next-12` release (`packageManager` and `devEngines.packageManager`).
+          - Updates the GitHub Actions pinned in the workflow files.
 
           Created by the [pnpm/update](https://github.com/pnpm/update) action.
