@@ -87,4 +87,7 @@ test('redactAndSanitize', () => {
   expect(redactAndSanitize('fatal: \u001b[31mhttps://user:pass@host/repo.git\u001b[0m\r\nnot found\u0000'))
     .toBe('fatal: [31mhttps://host/repo.git[0mnot found')
   expect(redactAndSanitize('plain text')).toBe('plain text')
+  // A control character inside the userinfo must not break the redaction:
+  // controls are stripped first, then credentials are redacted.
+  expect(redactAndSanitize('https://user:pass\r@host/x')).toBe('https://host/x')
 })
