@@ -788,6 +788,7 @@ export async function getConfig (opts: {
     rootProjectManifest, rootProjectManifestDir,
     cliOptions: ctxCliOptions,
     explicitlySetKeys: ctxExplicitlySetKeys,
+    minimumReleaseAgeSource,
     packageManager: ctxPackageManager, wantedPackageManager,
     ...config
   } = pnpmConfig as Config & ConfigContext
@@ -797,6 +798,7 @@ export async function getConfig (opts: {
     rootProjectManifest, rootProjectManifestDir,
     cliOptions: ctxCliOptions,
     explicitlySetKeys: ctxExplicitlySetKeys,
+    minimumReleaseAgeSource,
     packageManager: ctxPackageManager, wantedPackageManager,
   }
   return { config, context, warnings }
