@@ -86,6 +86,40 @@ fn resolves_configured_registry_scope_and_fetch_settings() {
     assert_eq!(options.fetch_timeout, config.fetch_timeout);
 }
 
+/// Without `--scope`, the resolved `config.scope` (from `.npmrc` /
+/// `pnpm-workspace.yaml`) is used, so a configured default scope keys the token.
+#[test]
+fn falls_back_to_the_configured_scope_when_the_flag_is_absent() {
+    let config = Config { scope: Some("@my-org".to_owned()), ..Default::default() };
+    let args = LoginArgs { registry: None, scope: None };
+
+    let options = args.login_options(&config, Path::new("/cfg"));
+
+    assert_eq!(options.scope, Some("@my-org"));
+}
+
+/// `--scope` wins over the configured `config.scope`.
+#[test]
+fn scope_flag_overrides_the_configured_scope() {
+    let config = Config { scope: Some("@from-config".to_owned()), ..Default::default() };
+    let args = LoginArgs { registry: None, scope: Some("@from-flag".to_owned()) };
+
+    let options = args.login_options(&config, Path::new("/cfg"));
+
+    assert_eq!(options.scope, Some("@from-flag"));
+}
+
+/// With neither the flag nor a configured scope, no scope is passed through.
+#[test]
+fn no_scope_when_neither_flag_nor_config_is_set() {
+    let config = Config::default();
+    let args = LoginArgs { registry: None, scope: None };
+
+    let options = args.login_options(&config, Path::new("/cfg"));
+
+    assert_eq!(options.scope, None);
+}
+
 /// `execute` performs the web-login flow end-to-end against a mock registry and
 /// returns the success message `run` would print, driven through a fake host so
 /// no real terminal or network is touched. The web-login `POST` goes over the
