@@ -395,4 +395,38 @@ test('satisfiesPackageManifest()', () => {
     satisfies: false,
     detailedReason: 'The importer resolution is broken at dependency "@apollo/client": version "3.13.8" doesn\'t satisfy range "3.3.7"',
   })
+
+  // Equivalent Git specifiers (the lockfile records the canonical
+  // `git+https://….git#<sha>` form pnpm writes, the manifest keeps `git://…`)
+  // must satisfy. https://github.com/pnpm/pnpm/issues/13039
+  expect(satisfiesPackageManifest(
+    {},
+    {
+      dependencies: { 'is-positive': 'git+https://github.com/kevva/is-positive.git#97edff6' },
+      specifiers: { 'is-positive': 'git+https://github.com/kevva/is-positive.git#97edff6' },
+    },
+    {
+      ...DEFAULT_PKG_FIELDS,
+      dependencies: { 'is-positive': 'git://github.com/kevva/is-positive.git#97edff6' },
+    }
+  )).toStrictEqual({ satisfies: true })
+
+  // A different Git repository/ref stays stale.
+  expect(satisfiesPackageManifest(
+    {},
+    {
+      dependencies: { 'is-positive': 'git+https://github.com/kevva/is-positive.git#97edff6' },
+      specifiers: { 'is-positive': 'git+https://github.com/kevva/is-positive.git#97edff6' },
+    },
+    {
+      ...DEFAULT_PKG_FIELDS,
+      dependencies: { 'is-positive': 'git+https://github.com/kevva/different.git#97edff6' },
+    }
+  )).toStrictEqual({
+    satisfies: false,
+    detailedReason: `specifiers in the lockfile don't match specifiers in package.json:
+* 1 dependencies are mismatched:
+  - is-positive (lockfile: git+https://github.com/kevva/is-positive.git#97edff6, manifest: git+https://github.com/kevva/different.git#97edff6)
+`,
+  })
 })

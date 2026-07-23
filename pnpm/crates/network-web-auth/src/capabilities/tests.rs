@@ -1,0 +1,191 @@
+use std::{
+    pin::Pin,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    task::{Context, Poll, Waker},
+};
+
+use pretty_assertions::assert_eq;
+
+use super::{
+    Clock, EnterListenerState, Host, HostEnterHandle, StdinIsTty, StdoutIsTty, TOKEN_BODY_LIMIT,
+    WebAuthFetch,
+};
+use crate::poll_for_web_auth_token::WebAuthFetchOptions;
+
+/// `0` is `Host::now_ms`'s pre-epoch fallback, so a non-zero read confirms
+/// the real wall clock was queried rather than the fallback.
+#[test]
+fn host_clock_reads_a_non_zero_time() {
+    let now = Host::now_ms();
+    eprintln!("Host::now_ms() = {now}");
+    assert!(now > 0);
+}
+
+/// The TTY probes are dispatchable and return a bool. The value depends on
+/// how the test harness wired stdio, so only its type is asserted — the
+/// behavioral branches are covered by fakes in the `prompt_browser_open` /
+/// `with_otp_handling` tests.
+#[test]
+fn host_tty_probes_are_callable() {
+    let _: bool = Host::stdin_is_tty();
+    let _: bool = Host::stdout_is_tty();
+}
+
+#[tokio::test]
+async fn host_fetch_reads_a_token_body_within_the_cap() {
+    let mut server = mockito::Server::new_async().await;
+    server
+        .mock("GET", "/done")
+        .with_status(200)
+        .with_body(r#"{"token":"tok"}"#)
+        .create_async()
+        .await;
+
+    let response = Host::fetch(&format!("{}/done", server.url()), &WebAuthFetchOptions::default())
+        .await
+        .expect("a response");
+
+    assert!(response.ok, "got {response:?}");
+    assert_eq!(response.status, 200);
+    assert!(!response.truncated, "a within-cap body is not truncated");
+    assert_eq!(response.token().expect("parse the body"), Some("tok".to_owned()));
+}
+
+#[tokio::test]
+async fn host_fetch_marks_a_token_body_larger_than_the_cap_truncated() {
+    let mut server = mockito::Server::new_async().await;
+    server
+        .mock("GET", "/done")
+        .with_status(200)
+        .with_body(format!(r#"{{"token":"{}"}}"#, "a".repeat(TOKEN_BODY_LIMIT)))
+        .create_async()
+        .await;
+
+    let response = Host::fetch(&format!("{}/done", server.url()), &WebAuthFetchOptions::default())
+        .await
+        .expect("a response");
+
+    assert!(response.ok, "got {response:?}");
+    assert!(response.truncated, "an over-cap body must be reported truncated");
+    assert_eq!(response.token().expect("truncation short-circuits parsing"), None);
+}
+
+#[tokio::test]
+async fn host_fetch_skips_the_body_of_a_202_response() {
+    let mut server = mockito::Server::new_async().await;
+    server
+        .mock("GET", "/done")
+        .with_status(202)
+        .with_header("retry-after", "5")
+        .with_body("x".repeat(1024))
+        .create_async()
+        .await;
+
+    let response = Host::fetch(&format!("{}/done", server.url()), &WebAuthFetchOptions::default())
+        .await
+        .expect("a response");
+
+    assert!(response.ok, "got {response:?}");
+    assert_eq!(response.status, 202);
+    assert_eq!(response.retry_after.as_deref(), Some("5"));
+    assert!(response.body.is_empty());
+    assert!(!response.truncated);
+}
+
+#[tokio::test]
+async fn host_fetch_skips_the_body_of_a_non_ok_response() {
+    let mut server = mockito::Server::new_async().await;
+    server
+        .mock("GET", "/done")
+        .with_status(404)
+        .with_body("not found, at length")
+        .create_async()
+        .await;
+
+    let response = Host::fetch(&format!("{}/done", server.url()), &WebAuthFetchOptions::default())
+        .await
+        .expect("a response");
+
+    assert!(!response.ok, "got {response:?}");
+    assert_eq!(response.status, 404);
+    assert!(response.body.is_empty());
+    assert!(!response.truncated);
+}
+
+/// A body-read failure *after* the headers arrive — forced here with a
+/// `gzip` content-encoding whose body is not valid gzip, so the client's
+/// decode errors mid-stream — materializes as an empty, untruncated body,
+/// which the poll treats as no token and retries. This covers `Host::fetch`'s
+/// read-failure arm, which the `WebAuthFetch` dependency-injection seam cannot
+/// reach: a fake replaces `Host::fetch` wholesale, so only a real transport
+/// exercises it.
+#[tokio::test]
+async fn host_fetch_maps_a_body_read_failure_to_an_empty_body() {
+    let mut server = mockito::Server::new_async().await;
+    server
+        .mock("GET", "/done")
+        .with_status(200)
+        .with_header("content-encoding", "gzip")
+        .with_body([0u8, 1, 2, 3, 4, 5])
+        .create_async()
+        .await;
+
+    let response = Host::fetch(&format!("{}/done", server.url()), &WebAuthFetchOptions::default())
+        .await
+        .expect("the headers arrived, so the fetch itself succeeds");
+
+    assert!(response.ok, "got {response:?}");
+    assert!(response.body.is_empty(), "a mid-body read failure yields an empty body");
+    assert!(!response.truncated);
+}
+
+fn poll_handle(handle: &mut HostEnterHandle) -> Poll<()> {
+    let mut cx = Context::from_waker(Waker::noop());
+    Pin::new(handle).poll(&mut cx)
+}
+
+#[test]
+fn enter_handle_stays_ready_once_completed() {
+    let (tx, enter) = tokio::sync::oneshot::channel();
+    let mut handle = HostEnterHandle {
+        enter,
+        state: EnterListenerState::Waiting,
+        cancel: Arc::new(AtomicBool::new(false)),
+    };
+
+    assert_eq!(poll_handle(&mut handle), Poll::Pending);
+    tx.send(()).expect("the receiver is alive");
+    assert_eq!(poll_handle(&mut handle), Poll::Ready(()));
+    // Re-polls resolve from the terminal state without touching the spent
+    // oneshot receiver.
+    assert_eq!(poll_handle(&mut handle), Poll::Ready(()));
+}
+
+#[test]
+fn enter_handle_never_resolves_after_a_reader_error() {
+    let (tx, enter) = tokio::sync::oneshot::channel::<()>();
+    let mut handle = HostEnterHandle {
+        enter,
+        state: EnterListenerState::Waiting,
+        cancel: Arc::new(AtomicBool::new(false)),
+    };
+
+    // The reader thread exiting without signalling drops the sender.
+    drop(tx);
+    assert_eq!(poll_handle(&mut handle), Poll::Pending);
+    assert_eq!(poll_handle(&mut handle), Poll::Pending);
+}
+
+#[test]
+fn enter_handle_drop_sets_the_cancel_flag() {
+    let (_tx, enter) = tokio::sync::oneshot::channel::<()>();
+    let cancel = Arc::new(AtomicBool::new(false));
+    let handle =
+        HostEnterHandle { enter, state: EnterListenerState::Waiting, cancel: Arc::clone(&cancel) };
+
+    drop(handle);
+    assert!(cancel.load(Ordering::Relaxed));
+}

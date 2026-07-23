@@ -102,6 +102,9 @@
       "path": "../exec/commands"
     },
     {
+      "path": "../exec/lifecycle"
+    },
+    {
       "path": "../hooks/pnpmfile"
     },
     {
@@ -124,6 +127,9 @@
     },
     {
       "path": "../network/fetch"
+    },
+    {
+      "path": "../network/web-auth"
     },
     {
       "path": "../patching/commands"

@@ -1,6 +1,7 @@
 use crate::{
     error::RegistryError,
-    policy::{AccessGroups, AccessList, Identity, PackagePolicies, PackagePolicy},
+    policy::{AccessList, AccessToken, PackageRule, PackageRules},
+    registry::{PackagePattern, Registries, Registry, RegistryConfigError},
     s3::{S3Settings, build_s3_store},
 };
 use indexmap::IndexMap;
@@ -9,6 +10,7 @@ use pacquet_env_replace::{EnvVar, SystemEnv, env_replace_lossy};
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderName, HeaderValue};
 use serde::Deserialize;
 use std::{
+    collections::BTreeSet,
     fmt,
     net::SocketAddr,
     path::{Path, PathBuf},
@@ -19,7 +21,7 @@ use std::{
 /// The bundled verdaccio-shaped YAML config, mirrored from
 /// `@pnpm/registry-mock`'s `registry/config.yaml`. Other crates can
 /// pull this in directly when they need pnpr's defaults
-/// (uplinks, package routing) without reading a file from disk —
+/// (upstreams, package routing) without reading a file from disk —
 /// e.g. test mocks that want to run with the standard `**` -> `npmjs`
 /// routing applied.
 pub const DEFAULT_CONFIG_YAML: &str = include_str!("../config.yaml");
@@ -42,7 +44,7 @@ pub enum ConfigSource {
 /// Runtime configuration for the pnpm registry server.
 ///
 /// The persisted (YAML) shape follows verdaccio's `config.yaml` —
-/// `storage`, `uplinks`, `packages` — restricted to the subset
+/// `storage`, `upstreams`, `packages` — restricted to the subset
 /// pnpr implements (no web UI, auth, plugins, or logs
 /// routing).
 ///
@@ -70,29 +72,14 @@ pub struct Config {
     /// [`Self::storage`]; set the YAML `cache:` key (or `--cache`) to
     /// an absolute path to put it on separate, ephemeral disk.
     pub cache_storage: PathBuf,
-    /// Named upstream npm registries. Referenced by name from
-    /// [`PackageAccess::proxy`].
-    pub uplinks: IndexMap<String, UplinkConfig>,
-    /// Package routing rules, evaluated in declared order. The first
-    /// pattern that matches a requested package supplies its
-    /// uplink (via `proxy`). Patterns without a `proxy` make the
-    /// package storage-only (effectively static for that pattern).
-    pub packages: IndexMap<String, PackageAccess>,
-    /// Optional static group memberships used by named access tokens in
-    /// package policies and upstream aliases.
-    pub groups: AccessGroups,
+    /// Upstream-registry backends, keyed by registry id. Built from the `registries:`
+    /// `upstream` entries and consumed by the `/~<name>/` serving and route
+    /// classification.
+    pub upstreams: IndexMap<String, UpstreamConfig>,
     /// How long a cached packument is considered fresh before it is
-    /// re-fetched from the resolved uplink. Ignored when no uplink
+    /// re-fetched from the resolved upstream. Ignored when no upstream
     /// matches.
     pub packument_ttl: Duration,
-    /// Per-package access, publish, and unpublish rules. [`Config::from_yaml`]
-    /// compiles these from the YAML `packages:` block (each entry's
-    /// `access` / `publish` / `unpublish` tokens); the programmatic
-    /// [`Config::proxy`] / [`Config::static_serve`] constructors use
-    /// [`PackagePolicies::registry_mock_defaults`] instead, enforcing
-    /// the `@private/*` and `@pnpm.e2e/needs-auth` rules
-    /// `@pnpm/registry-mock` applied under verdaccio.
-    pub policies: PackagePolicies,
     /// Where to read/write the htpasswd-format user file and the
     /// token database. Both stores are in-memory when their paths
     /// are `None`, matching the original `@pnpm/registry-mock` mode
@@ -117,9 +104,10 @@ pub struct Config {
     /// known vulnerable npm package versions without live API calls.
     pub osv: OsvConfig,
     /// The npm-registry surface: packument and tarball reads, publish,
-    /// unpublish, dist-tag, search, and the user/login endpoints. Enabled
-    /// by default; disable it to run a stateless resolver tier in front
-    /// of an existing registry. See [`RegistryFeature`].
+    /// unpublish, dist-tag, and search. Derived, not configured: the
+    /// surface is served iff at least one registry is declared, minus the
+    /// `--disable-registry` per-tier override (a stateless resolver tier
+    /// in front of an existing registry). See [`RegistryFeature`].
     pub registry: RegistryFeature,
     /// The install-accelerator surface: the `/-/pnpr` handshake and the
     /// `/-/pnpr/v0/resolve` / `/-/pnpr/v0/verify-lockfile` endpoints. Enabled by
@@ -136,6 +124,40 @@ pub struct Config {
     /// 32-byte value from the OS CSPRNG at startup (private entries then
     /// live only for this process's lifetime).
     pub resolution_cache_secret: Arc<[u8]>,
+    /// The validated registry routing graph: every addressable origin
+    /// (`/~<name>/`) plus the optional path-less default target. Concrete
+    /// upstream registries are backed by [`Self::upstreams`]; hosted registries by
+    /// [`Self::hosted`]; each declares the package-name patterns it serves,
+    /// and a router selects the first of its sources whose patterns claim the
+    /// name. Built and validated at config load — a misordered or
+    /// self-referential router fails startup rather than serving the wrong
+    /// origin.
+    pub registries: Registries,
+    /// Hosted registries, keyed by registry id. Each owns an `org` storage/serving
+    /// namespace and an access policy gating its packages. The only registry kind
+    /// that accepts writes.
+    pub hosted: IndexMap<String, HostedConfig>,
+}
+
+/// A resolved hosted registry: the `org` namespace it serves and its
+/// `packages:` rules — the namespace it claims plus the per-package
+/// `access` / `publish` / `unpublish` policies, with the registry-level
+/// `access:` as the default an entry's omitted fields fall back to.
+#[derive(Debug, Clone)]
+pub struct HostedConfig {
+    /// The storage/serving namespace, so two hosted registries holding the same
+    /// `name@version` never collide. Empty (`""`) ⇒ the flat `storage` root.
+    pub org: String,
+    /// The registry's `packages:` map: namespace and per-package rules in one
+    /// declaration, selected by specificity. The effective `access` gates
+    /// reads *and* the write routing (publish, dist-tag, unpublish), with a
+    /// denied caller masked as not-found either way.
+    pub rules: PackageRules,
+    /// The registry's declared `teams:` map, retained so the npm team API
+    /// (`GET /-/org/{scope}/team`, `GET /-/team/{scope}/{team}/user`) can
+    /// list them. Membership is config-declared: the API serves reads only,
+    /// and team mutations are rejected.
+    pub teams: Teams,
 }
 
 /// Which fetch routes the resolution cache treats as public. The official
@@ -158,7 +180,10 @@ pub struct PublicRoute {
     pub package: Option<String>,
 }
 
-/// Toggle for the npm-registry surface. A dedicated type — rather than a
+/// State of the npm-registry surface. There is no YAML toggle for it:
+/// the surface is served iff at least one registry is declared under
+/// `registries:` (no registries ⇒ nothing to serve), minus the per-tier
+/// `--disable-registry` CLI override. A dedicated type — rather than a
 /// bare `bool` on [`Config`] — so finer-grained registry sub-features
 /// (e.g. disabling `publish` for a read-only mirror) can be added here
 /// without changing the config shape.
@@ -194,11 +219,12 @@ impl Default for ResolverFeature {
 
 /// CLI-level overrides for the feature toggles, applied *during* config
 /// parse so the effective surface enablement is known before any
-/// registry-only work runs. This matters because uplink resolution is
-/// strict (a `uplink.auth` block with an unresolvable token is a config
+/// registry-only work runs. This matters because upstream resolution is
+/// strict (a `upstream.auth` block with an unresolvable token is a config
 /// error): applying `--disable-registry` only after parsing would still
 /// force a resolver-only tier to carry upstream secrets. A `true` field
-/// forces the corresponding surface off regardless of the config file.
+/// forces the corresponding surface off regardless of what the config
+/// file declares.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct FeatureOverrides {
     pub disable_registry: bool,
@@ -445,52 +471,58 @@ impl LogLevel {
     }
 }
 
-/// Runtime uplink declaration: the upstream `url`, the request headers
-/// pnpr attaches to every fetch it makes to that uplink, and the
-/// verdaccio per-uplink tuning knobs (`maxage`, `timeout`, `max_fails`,
+/// Runtime upstream declaration: the upstream `url`, the request headers
+/// pnpr attaches to every fetch it makes to that upstream, and the
+/// verdaccio per-upstream tuning knobs (`maxage`, `timeout`, `max_fails`,
 /// `fail_timeout`, `cache`).
 ///
 /// [`Self::headers`] is resolved once, at config load, from the YAML
 /// `auth:` block (an `Authorization` header derived from
 /// `type`/`token`/`token_env`) merged with the `headers:` map. The
-/// parse-time shape lives in `UplinkFile`; `resolve_uplink` turns
+/// parse-time shape lives in `UpstreamConfigFile`; `resolve_upstream_config` turns
 /// one into the other. Verdaccio fields pnpr doesn't model yet
 /// (agent options, `strict_ssl`, ...) are accepted and dropped.
 #[derive(Clone)]
-pub struct UplinkConfig {
+pub struct UpstreamConfig {
     pub url: String,
     /// Auth + custom headers, fully resolved and ready to attach to
-    /// every request pnpr makes to this uplink.
+    /// every request pnpr makes to this upstream.
     pub headers: HeaderMap,
-    /// Per-uplink packument freshness window (verdaccio's `maxage`).
+    /// Per-upstream packument freshness window (verdaccio's `maxage`).
     /// `None` when the YAML omits it — the proxy then falls back to the
     /// global [`Config::packument_ttl`], so the existing
-    /// `--packument-ttl-secs` flag still governs uplinks that don't set
+    /// `--packument-ttl-secs` flag still governs upstreams that don't set
     /// their own.
     pub maxage: Option<Duration>,
-    /// Per-request deadline for every fetch to this uplink (verdaccio's
+    /// Per-request deadline for every fetch to this upstream (verdaccio's
     /// `timeout`). Defaults to [`Self::DEFAULT_TIMEOUT`].
     pub timeout: Duration,
-    /// Consecutive failures before the uplink is treated as down
+    /// Consecutive failures before the upstream is treated as down
     /// (verdaccio's `max_fails`). Defaults to [`Self::DEFAULT_MAX_FAILS`].
     pub max_fails: u32,
-    /// How long a down uplink stays down before pnpr retries it
+    /// How long a down upstream stays down before pnpr retries it
     /// (verdaccio's `fail_timeout`). Defaults to
     /// [`Self::DEFAULT_FAIL_TIMEOUT`].
     pub fail_timeout: Duration,
-    /// Whether tarballs fetched from this uplink are written to the local
+    /// Whether tarballs fetched from this upstream are written to the local
     /// mirror (verdaccio's `cache`). `false` streams them through
     /// uncached. Defaults to `true`.
     pub cache: bool,
-    /// Which pnpr callers may select this uplink as a proxied private-route
+    /// Which pnpr callers may select this upstream as a proxied private-route
     /// credential, and reach it through its `/~<name>/` registry endpoint.
-    /// `None` means the uplink is registry-proxy only and is never offered as
-    /// a resolver private-route credential — only uplinks that declare
+    /// `None` means the upstream is registry-proxy only and is never offered as
+    /// a resolver private-route credential — only upstreams that declare
     /// `access:` participate in route classification.
     pub access: Option<AccessList>,
+    /// The registry's `packages:` map: the namespace it claims plus
+    /// per-package `access` refinements (a `publish`/`unpublish` value is a
+    /// config error — no write can land on an upstream). The registry-level
+    /// gate ([`Self::access`], or `$all` for a public upstream) is the default
+    /// an entry's omitted `access` falls back to.
+    pub rules: PackageRules,
 }
 
-impl UplinkConfig {
+impl UpstreamConfig {
     /// Verdaccio's `timeout` default (`30s`).
     pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
     /// Verdaccio's `max_fails` default (`2`).
@@ -498,7 +530,7 @@ impl UplinkConfig {
     /// Verdaccio's `fail_timeout` default (`5m`).
     pub const DEFAULT_FAIL_TIMEOUT: Duration = Duration::from_mins(5);
 
-    /// Build a bare uplink with just a URL and headers, all tuning knobs
+    /// Build a bare upstream with just a URL and headers, all tuning knobs
     /// at their verdaccio defaults. Used by the programmatic
     /// [`Config::proxy`] constructor and tests.
     pub(crate) fn with_defaults(url: String, headers: HeaderMap) -> Self {
@@ -511,13 +543,14 @@ impl UplinkConfig {
             fail_timeout: Self::DEFAULT_FAIL_TIMEOUT,
             cache: true,
             access: None,
+            rules: PackageRules::default(),
         }
     }
 }
 
-impl fmt::Debug for UplinkConfig {
+impl fmt::Debug for UpstreamConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("UplinkConfig")
+        f.debug_struct("UpstreamConfig")
             .field("url", &self.url)
             .field("headers", &RedactedHeaders(&self.headers))
             .field("maxage", &self.maxage)
@@ -526,12 +559,13 @@ impl fmt::Debug for UplinkConfig {
             .field("fail_timeout", &self.fail_timeout)
             .field("cache", &self.cache)
             .field("access", &self.access)
+            .field("rules", &self.rules)
             .finish()
     }
 }
 
 /// Wraps a [`HeaderMap`] so its `Debug` lists header names with values
-/// redacted. Uplink headers carry credentials (an `Authorization`, or
+/// redacted. Upstream headers carry credentials (an `Authorization`, or
 /// an API key in a custom header), and those must never reach a log
 /// line, span, or diagnostic dump.
 pub(crate) struct RedactedHeaders<'a>(pub(crate) &'a HeaderMap);
@@ -542,20 +576,21 @@ impl fmt::Debug for RedactedHeaders<'_> {
     }
 }
 
-/// Disk shape of one `uplinks:` entry. Mirrors verdaccio's uplink
-/// config for the subset pnpr implements: `url`, an `auth:` block,
-/// and a free-form `headers:` map. Resolved into [`UplinkConfig`] by
-/// [`resolve_uplink`].
+/// The serving knobs of an upstream registry, in verdaccio's upstream shape for
+/// the subset pnpr implements: `url`, an `auth:` block, and a free-form
+/// `headers:` map. Built from an `upstream:` registry entry
+/// ([`resolve_upstream_registry`]) and resolved into [`UpstreamConfig`] by
+/// [`resolve_upstream_config`].
 #[derive(Debug, Deserialize)]
-struct UplinkFile {
+struct UpstreamConfigFile {
     url: String,
     #[serde(default)]
-    auth: Option<UplinkAuthFile>,
+    auth: Option<UpstreamAuthFile>,
     #[serde(default)]
     headers: IndexMap<String, String>,
     /// Verdaccio interval strings (`"2m"`, `"30s"`, `"1h30m"`) or a bare
     /// number of seconds; parsed by [`parse_interval`] in
-    /// [`resolve_uplink`]. Kept as raw strings here so an unparsable
+    /// [`resolve_upstream_config`]. Kept as raw strings here so an unparsable
     /// value surfaces as a config error rather than a serde failure.
     #[serde(default)]
     maxage: Option<Interval>,
@@ -567,8 +602,8 @@ struct UplinkFile {
     fail_timeout: Option<Interval>,
     #[serde(default)]
     cache: Option<bool>,
-    /// Which pnpr callers may select this uplink as a proxied private-route
-    /// credential. Its presence is what promotes a plain proxy uplink into a
+    /// Which pnpr callers may select this upstream as a proxied private-route
+    /// credential. Its presence is what promotes a plain proxy upstream into a
     /// resolver private-route credential exposed at `/~<name>/`.
     #[serde(default)]
     access: Option<AccessSpec>,
@@ -610,12 +645,12 @@ impl<'de> Deserialize<'de> for Interval {
     }
 }
 
-/// The YAML `auth:` block on an uplink. `token` takes priority over
+/// The YAML `auth:` block on an upstream. `token` takes priority over
 /// `token_env`; either resolves to the credential placed in the
-/// `Authorization` header, encoded per [`UplinkAuthType`].
+/// `Authorization` header, encoded per [`UpstreamAuthType`].
 #[derive(Debug, Deserialize)]
-struct UplinkAuthFile {
-    r#type: UplinkAuthType,
+struct UpstreamAuthFile {
+    r#type: UpstreamAuthType,
     #[serde(default)]
     token: Option<String>,
     #[serde(default)]
@@ -628,7 +663,7 @@ struct UplinkAuthFile {
 /// token is already a base64 `user:pass`).
 #[derive(Debug, Clone, Copy, Deserialize)]
 #[serde(rename_all = "lowercase")]
-enum UplinkAuthType {
+enum UpstreamAuthType {
     Bearer,
     Basic,
 }
@@ -657,7 +692,7 @@ impl TokenEnv {
     }
 }
 
-/// Resolve one parsed [`UplinkFile`] into a runtime [`UplinkConfig`],
+/// Resolve one parsed [`UpstreamConfigFile`] into a runtime [`UpstreamConfig`],
 /// baking the `auth:` credential and `headers:` map into a single
 /// [`HeaderMap`]. Reads env vars (for `token_env`) through `Sys` so
 /// the resolution is testable.
@@ -668,37 +703,38 @@ impl TokenEnv {
 /// merge order. A configured `auth:` block that resolves to no token,
 /// an unknown header name, or a non-ASCII header value is a config
 /// error rather than a silent unauthenticated request.
-fn resolve_uplink<Sys: EnvVar>(
+fn resolve_upstream_config<Sys: EnvVar>(
     name: &str,
-    file: UplinkFile,
-) -> Result<UplinkConfig, RegistryError> {
+    file: UpstreamConfigFile,
+    teams: &Teams,
+) -> Result<UpstreamConfig, RegistryError> {
     let mut headers = HeaderMap::new();
     if let Some(auth) = &file.auth {
         let token =
-            resolve_uplink_token::<Sys>(auth).ok_or_else(|| RegistryError::InvalidConfig {
+            resolve_upstream_token::<Sys>(auth).ok_or_else(|| RegistryError::InvalidConfig {
                 reason: format!(
-                    "uplink {name:?} has an auth block but no token could be resolved \
+                    "upstream {name:?} has an auth block but no token could be resolved \
                      (set auth.token or point auth.token_env at a set env var)",
                 ),
             })?;
         let value = match auth.r#type {
-            UplinkAuthType::Bearer => format!("Bearer {token}"),
-            UplinkAuthType::Basic => format!("Basic {token}"),
+            UpstreamAuthType::Bearer => format!("Bearer {token}"),
+            UpstreamAuthType::Basic => format!("Basic {token}"),
         };
         let value = HeaderValue::from_str(&value).map_err(|_| RegistryError::InvalidConfig {
-            reason: format!("uplink {name:?} auth token is not a valid header value"),
+            reason: format!("upstream {name:?} auth token is not a valid header value"),
         })?;
         headers.insert(AUTHORIZATION, value);
     }
     for (raw_name, raw_value) in &file.headers {
         let header_name = HeaderName::from_bytes(raw_name.as_bytes()).map_err(|_| {
             RegistryError::InvalidConfig {
-                reason: format!("uplink {name:?} has an invalid header name {raw_name:?}"),
+                reason: format!("upstream {name:?} has an invalid header name {raw_name:?}"),
             }
         })?;
         let header_value =
             HeaderValue::from_str(raw_value).map_err(|_| RegistryError::InvalidConfig {
-                reason: format!("uplink {name:?} header {raw_name:?} has an invalid value"),
+                reason: format!("upstream {name:?} header {raw_name:?} has an invalid value"),
             })?;
         headers.insert(header_name, header_value);
     }
@@ -712,25 +748,34 @@ fn resolve_uplink<Sys: EnvVar>(
         raw.as_ref()
             .map(|Interval(value)| {
                 parse_interval(value).ok_or_else(|| RegistryError::InvalidConfig {
-                    reason: format!("uplink {name:?} has an invalid {field} interval {value:?}"),
+                    reason: format!("upstream {name:?} has an invalid {field} interval {value:?}"),
                 })
             })
             .transpose()
     };
     let maxage = parse_field("maxage", &file.maxage)?;
-    let timeout = parse_field("timeout", &file.timeout)?.unwrap_or(UplinkConfig::DEFAULT_TIMEOUT);
+    let timeout = parse_field("timeout", &file.timeout)?.unwrap_or(UpstreamConfig::DEFAULT_TIMEOUT);
     let fail_timeout = parse_field("fail_timeout", &file.fail_timeout)?
-        .unwrap_or(UplinkConfig::DEFAULT_FAIL_TIMEOUT);
+        .unwrap_or(UpstreamConfig::DEFAULT_FAIL_TIMEOUT);
+    let access = file.access.as_ref().map(|spec| spec.to_access_list(teams)).transpose().map_err(
+        |reason| RegistryError::InvalidConfig {
+            reason: format!("upstream {name:?} has an invalid `access` list: {reason}"),
+        },
+    )?;
 
-    Ok(UplinkConfig {
+    Ok(UpstreamConfig {
         url: file.url,
         headers,
         maxage,
         timeout,
-        max_fails: file.max_fails.unwrap_or(UplinkConfig::DEFAULT_MAX_FAILS),
+        max_fails: file.max_fails.unwrap_or(UpstreamConfig::DEFAULT_MAX_FAILS),
         fail_timeout,
         cache: file.cache.unwrap_or(true),
-        access: file.access.as_ref().map(AccessSpec::to_access_list),
+        access,
+        // The `packages:` rules are attached by the caller
+        // (`build_registries`) — this resolver only handles the serving
+        // knobs shared with programmatic construction.
+        rules: PackageRules::default(),
     })
 }
 
@@ -790,9 +835,9 @@ fn parse_interval(raw: &str) -> Option<Duration> {
     Duration::try_from_secs_f64(total_seconds).ok()
 }
 
-/// Pick the credential for an uplink's `auth:` block: an explicit
+/// Pick the credential for an upstream's `auth:` block: an explicit
 /// `token` wins; otherwise read the env var named by `token_env`.
-fn resolve_uplink_token<Sys: EnvVar>(auth: &UplinkAuthFile) -> Option<String> {
+fn resolve_upstream_token<Sys: EnvVar>(auth: &UpstreamAuthFile) -> Option<String> {
     if let Some(token) = &auth.token {
         return non_empty_token(token);
     }
@@ -804,24 +849,27 @@ fn non_empty_token(token: &str) -> Option<String> {
     (!token.trim().is_empty()).then(|| token.to_string())
 }
 
-/// Per-package routing and access rules. `access` / `publish` /
-/// `unpublish` are verdaccio permission lists (built-in groups like
-/// `$all` / `$authenticated` / `$anonymous`, plus usernames / group
-/// names), compiled into the [`PackagePolicies`] that gate reads and
-/// writes. `proxy` names the uplinks to fall back through, in order
-/// (`proxy: npmjs private`); see [`Config::resolve_uplinks`].
+/// One `packages:` map value: `access` / `publish` / `unpublish` are
+/// permission lists (the built-in `$all` / `$authenticated` / `$anonymous`
+/// pseudo-groups, bare usernames, and `team:<name>` references to the owning
+/// registry's declared teams), compiled into the owning registry's
+/// [`PackageRules`]. An omitted field falls back to the registry-level
+/// default. The map key set doubles as the registry's declared namespace, so
+/// one declaration routes, filters, and authorizes.
 #[derive(Debug, Default, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PackageAccess {
     pub access: Option<AccessSpec>,
     pub publish: Option<AccessSpec>,
     pub unpublish: Option<AccessSpec>,
-    pub proxy: Option<AccessSpec>,
 }
 
-/// A YAML string-or-list value. Verdaccio accepts either a single
-/// space-separated string (`access: $authenticated admin`,
-/// `proxy: npmjs private`) or a sequence (`access: [$authenticated,
-/// admin]`); both normalize to the same ordered token list.
+/// A YAML permission value: a sequence of tokens, or a scalar naming exactly
+/// one token. Every entry is taken verbatim — there is no whitespace
+/// splitting inside a scalar or a sequence element, so a multi-token list
+/// must be a YAML sequence (`access: [$authenticated, admin]`). Verdaccio's
+/// space-separated form (`access: $authenticated admin`) is rejected with a
+/// pointer at the sequence syntax rather than silently misread as one token.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
 pub enum AccessSpec {
@@ -830,29 +878,189 @@ pub enum AccessSpec {
 }
 
 impl AccessSpec {
-    fn to_access_list(&self) -> AccessList {
+    /// The declared entries: the scalar form is one entry, the sequence
+    /// form one per element.
+    fn entries(&self) -> &[String] {
         match self {
-            AccessSpec::One(spec) => AccessList::parse(spec),
-            // Each element may itself be space-separated; flatten so
-            // `[a b, c]` and `[a, b, c]` agree.
-            AccessSpec::Many(items) => {
-                AccessList::from_tokens(items.iter().flat_map(|item| item.split_whitespace()))
-            }
+            AccessSpec::One(entry) => std::slice::from_ref(entry),
+            AccessSpec::Many(entries) => entries,
         }
     }
 
-    /// The tokens in declared order, each element flattened on whitespace
-    /// (so `[a b, c]` and `[a, b, c]` agree). Unlike [`Self::to_access_list`]
-    /// — which builds an unordered permission *set* — this preserves order,
-    /// which `proxy:` relies on for its fallback chain.
-    fn to_ordered_tokens(&self) -> Vec<&str> {
-        match self {
-            AccessSpec::One(spec) => spec.split_whitespace().collect(),
-            AccessSpec::Many(items) => {
-                items.iter().flat_map(|item| item.split_whitespace()).collect()
-            }
+    /// Compile into an [`AccessList`], rejecting any entry that is not a
+    /// single well-formed token ([`validate_access_token`]) and resolving
+    /// `team:` references against the owning registry's declared `teams` —
+    /// an undeclared team is an error, so a typo cannot silently become a
+    /// grant to nobody. The returned error is the reason only; the caller
+    /// prefixes the registry/field context it alone knows.
+    fn to_access_list(&self, teams: &Teams) -> Result<AccessList, String> {
+        let mut tokens = Vec::with_capacity(self.entries().len());
+        for entry in self.entries() {
+            validate_access_token(entry)?;
+            tokens.push(match entry.strip_prefix("team:") {
+                Some(team) => {
+                    let members = teams.get(team).ok_or_else(|| {
+                        format!(
+                            "access token {entry:?} references a team this registry does not \
+                             declare{}",
+                            declared_teams(teams),
+                        )
+                    })?;
+                    AccessToken::Team { name: team.to_string(), members: members.clone() }
+                }
+                None => AccessToken::from(entry.as_str()),
+            });
         }
+        Ok(AccessList::new(tokens))
     }
+
+    /// The `teams:` membership reading: each entry is one username
+    /// ([`validate_member_name`]), in declared order. Unlike
+    /// [`Self::to_access_list`] the entries are not access tokens — a
+    /// built-in group or `team:` reference among the members is an error.
+    fn member_names(&self) -> Result<&[String], String> {
+        for member in self.entries() {
+            validate_member_name(member)?;
+        }
+        Ok(self.entries())
+    }
+}
+
+/// A registry's declared teams — its `teams:` map compiled to name →
+/// member-set. Access lists capture the member sets they reference at
+/// compile time (see [`AccessToken::Team`]); a hosted registry additionally
+/// retains its map on [`HostedConfig::teams`] so the npm team API can list
+/// teams and their members.
+pub type Teams = IndexMap<String, BTreeSet<String>>;
+
+/// The declared team names for an undeclared-reference error, so a typo'd
+/// `team:` token points at what exists.
+fn declared_teams(teams: &Teams) -> String {
+    if teams.is_empty() {
+        return " (it declares no `teams:`)".to_string();
+    }
+    let names = teams.keys().map(|name| format!("{name:?}")).collect::<Vec<_>>().join(", ");
+    format!("; its declared teams are {names}")
+}
+
+/// Compile one registry's `teams:` map, validating team names (they must be
+/// writable after `team:` in a token) and member lists.
+fn build_teams(
+    registry: &str,
+    file: &IndexMap<String, AccessSpec>,
+) -> Result<Teams, RegistryError> {
+    let mut teams = Teams::default();
+    for (team, members) in file {
+        validate_team_name(team).map_err(|reason| RegistryError::InvalidConfig {
+            reason: format!("registry {registry:?} has an invalid team name: {reason}"),
+        })?;
+        let members = members.member_names().map_err(|reason| RegistryError::InvalidConfig {
+            reason: format!(
+                "registry {registry:?} team {team:?} has an invalid member list: {reason}",
+            ),
+        })?;
+        teams.insert(team.clone(), members.iter().cloned().collect());
+    }
+    Ok(teams)
+}
+
+/// A team name is only useful spliced into a `team:<name>` token, so it must
+/// survive that grammar: one token, no `:` (which would read as another
+/// prefix), no `$` sigil (reserved for the built-in groups).
+fn validate_team_name(team: &str) -> Result<(), String> {
+    validate_single_token(team)?;
+    if team.contains(':') || team.starts_with('$') {
+        return Err(format!(
+            "team name {team:?} cannot contain `:` or start with `$`; it is referenced from \
+             access lists as `team:{team}`",
+        ));
+    }
+    Ok(())
+}
+
+/// A team member is one plain username. The built-in groups — in any
+/// spelling — and typed tokens are rejected: `[$authenticated]` in a member
+/// list would otherwise silently become a user literally named
+/// `$authenticated`, narrowing the team to a name nobody holds, the same
+/// trap [`validate_access_token`] closes for access lists.
+fn validate_member_name(member: &str) -> Result<(), String> {
+    validate_single_token(member)?;
+    let bare = member.strip_prefix('@').unwrap_or(member);
+    if member.starts_with('$') || matches!(bare, "all" | "authenticated" | "anonymous") {
+        return Err(format!(
+            "team member {member:?} is not a username; the built-in groups belong in the \
+             access lists themselves (e.g. `access: [$authenticated]`)",
+        ));
+    }
+    if member.contains(':') {
+        return Err(format!(
+            "team member {member:?} is not a username; a team cannot include another team — \
+             list its users, or share one roster with a YAML anchor",
+        ));
+    }
+    Ok(())
+}
+
+/// Reject an access-list entry that is not exactly one recognized token: an
+/// unknown `$...` built-in, an unknown `<type>:` prefix (only `team:` exists;
+/// htpasswd forbids `:` in usernames, so the character is free to reserve),
+/// or one of verdaccio's alias spellings of the built-ins (`@all`, bare
+/// `all`, ...), which must not silently become a username that admits nobody.
+/// This loud rejection at the YAML boundary is what lets `AccessToken`
+/// parsing stay infallible.
+fn validate_access_token(token: &str) -> Result<(), String> {
+    validate_single_token(token)?;
+    if let Some(builtin) = token.strip_prefix('$') {
+        if !matches!(builtin, "all" | "authenticated" | "anonymous") {
+            return Err(format!(
+                "unknown built-in access token {token:?}; the built-in groups are `$all`, \
+                 `$authenticated`, and `$anonymous`",
+            ));
+        }
+        return Ok(());
+    }
+    if let Some((kind, name)) = token.split_once(':') {
+        return match kind {
+            "team" if name.contains(':') => {
+                Err(format!("access token {token:?} is malformed; a team name cannot contain `:`"))
+            }
+            "team" if !name.is_empty() => Ok(()),
+            "team" => Err(format!("access token {token:?} names no team; write `team:<name>`")),
+            "group" | "groups" => Err(format!(
+                "unknown access token type {kind:?} in {token:?}; teams are declared per \
+                 registry — did you mean \"team:{name}\"?",
+            )),
+            _ => Err(format!(
+                "unknown access token type {kind:?} in {token:?}; the only typed token is \
+                 `team:<name>` (a bare token is a username)",
+            )),
+        };
+    }
+    let bare = token.strip_prefix('@').unwrap_or(token);
+    if matches!(bare, "all" | "authenticated" | "anonymous") {
+        return Err(format!(r#"unknown access token {token:?}; did you mean "${bare}"?"#));
+    }
+    Ok(())
+}
+
+/// Reject a value that is not exactly one token: the empty string, or a
+/// string containing whitespace (a space-separated list must be a YAML
+/// sequence instead).
+fn validate_single_token(token: &str) -> Result<(), String> {
+    if token.is_empty() {
+        return Err(
+            "an empty string is not a token; use `[]` to admit no one, or omit the field for \
+             the default"
+                .to_string(),
+        );
+    }
+    if token.contains(char::is_whitespace) {
+        return Err(format!(
+            "{token:?} contains whitespace; write one token per YAML sequence item \
+             (e.g. `[alice, bob]`)",
+        ));
+    }
+    Ok(())
 }
 
 /// Disk shape of the `routes:` block.
@@ -869,6 +1077,99 @@ struct PublicRouteFile {
     registry: Option<String>,
     #[serde(default)]
     package: Option<String>,
+}
+
+/// Disk shape of one `registries:` entry, discriminated by an internal `type:` tag
+/// (`hosted` / `upstream` / `router`). The tag selects exactly one kind, so
+/// "declared none or more than one" is unrepresentable — no runtime count check.
+#[derive(Debug, Deserialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+enum RegistryFile {
+    Hosted(HostedFile),
+    // Boxed: `UpstreamFile` is far larger than the other kinds, so an unboxed
+    // variant would bloat every `RegistryFile`.
+    Upstream(Box<UpstreamFile>),
+    Router(RouterFile),
+}
+
+/// Disk shape of a `hosted:` registry.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct HostedFile {
+    /// Storage namespace for this registry's packages, so two hosted registries can
+    /// hold the same `name@version` without colliding. Omitted ⇒ the flat
+    /// `storage` root (`""`).
+    #[serde(default)]
+    org: String,
+    /// The registry-level default: who may read this registry's packages when
+    /// no `packages:` entry refines it. Omitted ⇒ `$all`.
+    #[serde(default)]
+    access: Option<AccessSpec>,
+    /// This registry's teams: each key is a team name, each value the list
+    /// of member usernames. Referenced from this registry's access lists as
+    /// `team:<name>` — teams are registry-scoped, never shared across
+    /// registries (YAML anchors cover a shared roster in one file).
+    #[serde(default)]
+    teams: IndexMap<String, AccessSpec>,
+    /// The names this registry serves and accepts publishes for — its
+    /// namespace — with optional per-package `access`/`publish`/`unpublish`
+    /// rules as values (`{}` or null ⇒ the registry defaults). The most
+    /// specific matching key wins; key order carries no meaning. Omitted ⇒
+    /// every name, default rules.
+    #[serde(default)]
+    packages: IndexMap<String, Option<PackageAccess>>,
+}
+
+/// Disk shape of an `upstream:` registry — one external origin. Mirrors an
+/// upstream's tuning knobs plus `public` (an anonymous, no-credential origin)
+/// and `access` (which pnpr callers may reach a private one).
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct UpstreamFile {
+    url: String,
+    /// An anonymous, world-readable origin (e.g. the public npm registry).
+    /// Mutually exclusive with `auth`.
+    #[serde(default)]
+    public: bool,
+    #[serde(default)]
+    auth: Option<UpstreamAuthFile>,
+    #[serde(default)]
+    headers: IndexMap<String, String>,
+    #[serde(default)]
+    maxage: Option<Interval>,
+    #[serde(default)]
+    timeout: Option<Interval>,
+    #[serde(default)]
+    max_fails: Option<u32>,
+    #[serde(default)]
+    fail_timeout: Option<Interval>,
+    #[serde(default)]
+    cache: Option<bool>,
+    /// Which pnpr callers may reach this registry at `/~<name>/`. Required for a
+    /// non-`public` upstream (otherwise no one could be authorized to use it).
+    #[serde(default)]
+    access: Option<AccessSpec>,
+    /// This registry's teams, exactly as on a hosted registry — referenced
+    /// from `access` and the per-package refinements as `team:<name>`.
+    #[serde(default)]
+    teams: IndexMap<String, AccessSpec>,
+    /// The names that may be requested through this registry — its namespace —
+    /// with optional per-package `access` refinements as values (`{}` or null
+    /// ⇒ the registry default; a `publish`/`unpublish` value is a config
+    /// error, since no write can land on an upstream). Omitted ⇒ every name.
+    /// Bounding a private upstream stops an authorized caller from pulling
+    /// arbitrary public names through its server-owned credential.
+    #[serde(default)]
+    packages: IndexMap<String, Option<PackageAccess>>,
+}
+
+/// Disk shape of a `router:` registry: an ordered list of concrete registry names.
+/// The first source whose declared patterns claim a package serves it.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RouterFile {
+    #[serde(default)]
+    sources: Vec<String>,
 }
 
 /// Disk shape of the YAML file. Fields verdaccio supports but
@@ -898,23 +1199,39 @@ struct ConfigFile {
     /// pnpr-only local OSV database settings.
     #[serde(default)]
     osv: OsvFile,
-    /// pnpr-only feature toggles for the two server surfaces. Each is on
-    /// unless explicitly disabled; absent on a stock verdaccio config, so
-    /// both stay enabled there. `Option` so a bare `registry:` (which
-    /// YAML parses as null) is accepted as "default" rather than failing
-    /// to deserialize into the struct.
-    #[serde(default)]
-    registry: Option<FeatureFile>,
+    /// pnpr-only feature toggle for the resolver surface. On unless
+    /// explicitly disabled; absent on a stock verdaccio config, so it
+    /// stays enabled there. `Option` so a bare `resolver:` (which YAML
+    /// parses as null) is accepted as "default" rather than failing to
+    /// deserialize into the struct.
     #[serde(default)]
     resolver: Option<FeatureFile>,
+    /// pnpr registries: hosted, upstream, and router origins, each
+    /// exposed at `/~<name>/`. The only routing surface — there is no legacy
+    /// `upstreams:`/`packages: proxy:` fallback.
     #[serde(default)]
-    uplinks: IndexMap<String, UplinkFile>,
-    #[serde(default)]
-    packages: IndexMap<String, PackageAccess>,
-    /// pnpr-only static groups: each key is a group/team name and each
-    /// value is the list of pnpr usernames in that group.
-    #[serde(default)]
-    groups: IndexMap<String, AccessSpec>,
+    registries: IndexMap<String, RegistryFile>,
+    /// The registry the path-less base URL aliases. Absent ⇒ the bare host has no
+    /// registry and clients must address a `/~<name>/`.
+    #[serde(default, rename = "defaultRegistry")]
+    default_registry: Option<String>,
+    /// The removed top-level ACL block, kept only to *reject* it loudly.
+    /// Per-package rules live on each registry's `packages:` map now; a
+    /// config still carrying the global block previously enforced access
+    /// with it, so silently dropping the key (the fate of unknown verdaccio
+    /// fields) would be a security regression — private packages would
+    /// quietly open up on upgrade. Presence-detected through a custom
+    /// deserializer because a plain `Option` maps a *bare* `packages:`
+    /// (YAML null) to `None`, which would slip past the rejection.
+    #[serde(default, deserialize_with = "detect_removed_block")]
+    packages: Option<RemovedPackagesBlock>,
+    /// The removed top-level `groups:` block, kept only to *reject* it
+    /// loudly. Teams are declared per registry (`registries.<name>.teams`)
+    /// and referenced as `team:<name>`; a config still carrying the global
+    /// block previously granted access through its group names, so it must
+    /// be migrated, not silently dropped.
+    #[serde(default, deserialize_with = "detect_removed_block")]
+    groups: Option<RemovedGroupsBlock>,
     /// pnpr-only: which fetch routes the resolution cache treats as
     /// public. Absent on a stock verdaccio config (built-in defaults
     /// apply).
@@ -932,6 +1249,27 @@ struct ConfigFile {
     /// intentionally not accepted.
     #[serde(default)]
     log: Option<LogEntryFile>,
+}
+
+/// Marker for a present top-level `packages:` key, whatever its value.
+#[derive(Debug, Default)]
+struct RemovedPackagesBlock;
+
+/// Marker for a present top-level `groups:` key, whatever its value.
+#[derive(Debug, Default)]
+struct RemovedGroupsBlock;
+
+/// `Some` whenever the key is present — including a key with no value
+/// (YAML null), which `Option<IgnoredAny>` would map to `None` and let
+/// slip past the loud rejection. The value itself is consumed and
+/// discarded; only presence matters.
+fn detect_removed_block<'de, De, Marker>(deserializer: De) -> Result<Option<Marker>, De::Error>
+where
+    De: serde::Deserializer<'de>,
+    Marker: Default,
+{
+    serde::de::IgnoredAny::deserialize(deserializer)?;
+    Ok(Some(Marker::default()))
 }
 
 /// The YAML `log:` object. Mirrors verdaccio 6's logger config.
@@ -1006,14 +1344,13 @@ struct OsvFile {
     path: Option<String>,
 }
 
-/// Disk shape of a `registry:` / `resolver:` feature block. A bare
-/// `enabled` today; per-surface sub-feature keys can be added later. The
-/// field and the whole-block defaults are both `enabled: true`, so
-/// omitting the block — or writing `registry:` with no body — keeps the
-/// surface on.
-/// `deny_unknown_fields` so a typo like `registry: { enable: false }`
+/// Disk shape of the `resolver:` feature block. A bare `enabled` today;
+/// sub-feature keys can be added later. The field and the whole-block
+/// defaults are both `enabled: true`, so omitting the block — or writing
+/// `resolver:` with no body — keeps the surface on.
+/// `deny_unknown_fields` so a typo like `resolver: { enable: false }`
 /// (note: `enable`, not `enabled`) is a loud config error rather than
-/// silently leaving the surface enabled — these toggles scope which
+/// silently leaving the surface enabled — the toggle scopes which
 /// endpoints are exposed, so a silent default-on is a security footgun.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -1032,6 +1369,71 @@ fn default_true() -> bool {
     true
 }
 
+/// The namespace [`Config::proxy`] declares on its flat-root hosted org, so
+/// those names resolve locally rather than to the npm upstream: the
+/// registry-mock fixture scopes plus the unscoped fixtures. Kept in sync
+/// with the fixtures under `pnpr/.fixtures/packages` and with the
+/// fixture-scope subset of the bundled `config.yaml` `local` registry — the
+/// YAML additionally claims the exact names the TS test suite publishes,
+/// which pacquet's in-process registry never sees. The fixture packages
+/// living in real, active npm scopes (`@pnpm`, `@zkochan`) are claimed by
+/// exact name so the rest of those scopes keeps proxying npm (dependency
+/// trees of proxied packages pull real `@pnpm/*` packages).
+const REGISTRY_MOCK_LOCAL_PATTERNS: &[&str] = &[
+    "@foo/*",
+    "@having/*",
+    "@jsr/*",
+    "@pnpm.e2e/*",
+    "@private/*",
+    "@scoped/*",
+    "@pnpm/plugin-pnpmfile",
+    "@pnpm/postinstall-modifies-source",
+    "@pnpm/x",
+    "@pnpm/xyz",
+    "@pnpm/xyz-parent",
+    "@pnpm/xyz-parent-parent",
+    "@pnpm/xyz-parent-parent-parent",
+    "@pnpm/xyz-parent-parent-parent-parent",
+    "@pnpm/xyz-parent-parent-with-xyz",
+    "@pnpm/y",
+    "@pnpm/z",
+    "@zkochan/test-pnpm-issue219",
+    "ajv",
+    "ajv-keywords",
+    "create-touch-file-one-bin",
+];
+
+/// The `local` hosted registry's `packages:` rules in the registry-mock
+/// shape: the fixture namespace ([`REGISTRY_MOCK_LOCAL_PATTERNS`]) with
+/// default rules, `@private/*` and `@pnpm.e2e/needs-auth` restricted to
+/// authenticated callers (the rules `@pnpm/registry-mock` applied under
+/// verdaccio), and unpublish open to any authenticated user so the
+/// fixture-rewriting test flows keep working. The exact
+/// `@pnpm.e2e/needs-auth` key wins over the `@pnpm.e2e/*` scope key by
+/// specificity.
+fn registry_mock_rules() -> PackageRules {
+    let authenticated = || Some(AccessList::from_tokens(["$authenticated"]));
+    let mut rules: Vec<PackageRule> = REGISTRY_MOCK_LOCAL_PATTERNS
+        .iter()
+        .map(|pattern| PackageRule {
+            pattern: PackagePattern::parse(pattern)
+                .expect("valid built-in fixture registry pattern"),
+            access: (*pattern == "@private/*").then(authenticated).flatten(),
+            publish: (*pattern == "@private/*").then(authenticated).flatten(),
+            unpublish: (*pattern == "@private/*").then(authenticated).flatten(),
+        })
+        .collect();
+    rules.push(PackageRule {
+        pattern: PackagePattern::parse("@pnpm.e2e/needs-auth")
+            .expect("valid built-in fixture registry pattern"),
+        access: authenticated(),
+        publish: authenticated(),
+        unpublish: authenticated(),
+    });
+    PackageRules::new(rules, None)
+        .with_default_unpublish(AccessList::from_tokens(["$authenticated"]))
+}
+
 impl Config {
     /// Default `listen` when one isn't supplied by the caller.
     pub const DEFAULT_LISTEN: &'static str = "127.0.0.1:7677";
@@ -1039,34 +1441,50 @@ impl Config {
     /// proxy-mode default.
     pub const DEFAULT_PACKUMENT_TTL: Duration = Duration::from_mins(5);
 
-    /// Build a proxy-mode config with the default npm upstream: a single
-    /// `npmjs` uplink plus a `**` package rule that routes everything
-    /// through it. Kept for callers that don't use YAML config.
+    /// Build a proxy-mode config in the registry-mock shape: the fixture scopes
+    /// (and the one unscoped fixture) are the declared namespace of a flat-root
+    /// hosted org over `storage`, while every other name proxies to the
+    /// pattern-less `npmjs` upstream. The path-less base aliases the `main`
+    /// router. Kept for callers that don't use YAML config (notably pacquet's
+    /// test registry, whose fixtures are served locally while real npm packages
+    /// fall through to npmjs). The local pattern set mirrors the fixture
+    /// subset of the bundled `config.yaml` `local` registry
+    /// (`REGISTRY_MOCK_LOCAL_PATTERNS`); the YAML additionally claims the
+    /// exact names the TS test suite publishes, which never reach this
+    /// constructor.
     #[must_use]
     pub fn proxy(listen: SocketAddr, storage: PathBuf) -> Self {
-        let mut uplinks = IndexMap::new();
-        uplinks.insert(
+        let mut upstreams = IndexMap::new();
+        upstreams.insert(
             "npmjs".to_string(),
-            UplinkConfig::with_defaults("https://registry.npmjs.org".to_string(), HeaderMap::new()),
+            UpstreamConfig::with_defaults(
+                "https://registry.npmjs.org".to_string(),
+                HeaderMap::new(),
+            ),
         );
-        let mut packages = IndexMap::new();
-        packages.insert(
-            "**".to_string(),
-            PackageAccess {
-                proxy: Some(AccessSpec::One("npmjs".to_string())),
-                ..Default::default()
-            },
+        let rules = registry_mock_rules();
+        let local_patterns = rules.patterns();
+        let mut hosted = IndexMap::new();
+        hosted.insert(
+            "local".to_string(),
+            HostedConfig { org: String::new(), rules, teams: Teams::default() },
         );
+        let graph = [
+            ("local".to_string(), Registry::Hosted { patterns: local_patterns }),
+            ("npmjs".to_string(), Registry::Upstream { patterns: Vec::new() }),
+            (
+                "main".to_string(),
+                Registry::Router { sources: vec!["local".to_string(), "npmjs".to_string()] },
+            ),
+        ];
+        let registries = Registries::new(graph.into_iter().collect(), Some("main".to_string()));
         Self {
             listen,
             public_url: format!("http://{listen}"),
             cache_storage: default_cache_dir(&storage),
             storage,
-            uplinks,
-            packages,
-            groups: AccessGroups::default(),
+            upstreams,
             packument_ttl: Self::DEFAULT_PACKUMENT_TTL,
-            policies: PackagePolicies::registry_mock_defaults(),
             auth: AuthConfig::default(),
             logs: LogConfig::default(),
             hosted_store: HostedStoreConfig::Fs,
@@ -1076,23 +1494,45 @@ impl Config {
             resolver: ResolverFeature::default(),
             route_policy: RoutePolicy::default(),
             resolution_cache_secret: random_secret(),
+            registries,
+            hosted,
         }
     }
 
-    /// Build a static-mode config that serves `storage` verbatim:
-    /// no uplinks declared, so no package rule resolves to one.
+    /// Build a static-mode config that serves `storage` verbatim: one
+    /// pattern-less hosted registry over the storage root (an empty `org`
+    /// namespace == the flat root), the sole source of a router that the
+    /// path-less base aliases. Every package resolves to that one hosted
+    /// origin — no upstream, no fall-through.
     #[must_use]
     pub fn static_serve(listen: SocketAddr, storage: PathBuf) -> Self {
+        let mut hosted = IndexMap::new();
+        // The graph entry below is pattern-less — static mode claims and
+        // serves every name in `storage` — while the rules still carry the
+        // registry-mock protections (`@private/*`, `@pnpm.e2e/needs-auth`,
+        // authenticated unpublish). Programmatic configs may split the
+        // namespace (graph) from the rules like this; YAML derives both from
+        // one `packages:` map.
+        hosted.insert(
+            "local".to_string(),
+            HostedConfig {
+                org: String::new(),
+                rules: registry_mock_rules(),
+                teams: Teams::default(),
+            },
+        );
+        let graph = [
+            ("local".to_string(), Registry::Hosted { patterns: Vec::new() }),
+            ("main".to_string(), Registry::Router { sources: vec!["local".to_string()] }),
+        ];
+        let registries = Registries::new(graph.into_iter().collect(), Some("main".to_string()));
         Self {
             listen,
             public_url: format!("http://{listen}"),
             cache_storage: default_cache_dir(&storage),
             storage,
-            uplinks: IndexMap::new(),
-            packages: IndexMap::new(),
-            groups: AccessGroups::default(),
+            upstreams: IndexMap::new(),
             packument_ttl: Self::DEFAULT_PACKUMENT_TTL,
-            policies: PackagePolicies::registry_mock_defaults(),
             auth: AuthConfig::default(),
             logs: LogConfig::default(),
             hosted_store: HostedStoreConfig::Fs,
@@ -1102,6 +1542,8 @@ impl Config {
             resolver: ResolverFeature::default(),
             route_policy: RoutePolicy::default(),
             resolution_cache_secret: random_secret(),
+            registries,
+            hosted,
         }
     }
 
@@ -1231,7 +1673,7 @@ impl Config {
 
     /// Like [`Self::resolve`] but applies CLI [`FeatureOverrides`] during
     /// parse, so a surface disabled on the command line skips its parse-time
-    /// work (e.g. strict uplink token resolution) — not just its routes. The
+    /// work (e.g. strict upstream token resolution) — not just its routes. The
     /// binary uses this; tests and embedders that don't override features
     /// call [`Self::resolve`].
     pub fn resolve_with_overrides(
@@ -1307,36 +1749,53 @@ impl Config {
         let public_url = public_url.unwrap_or_else(|| format!("http://{listen}"));
         let auth = build_auth_config(&file.auth, base_dir);
         let logs = build_log_config(file.log.as_ref());
-        let groups = build_groups(&file.groups);
-        let policies = build_policies(&file.packages)?;
+        // The global ACL and group blocks are gone, not ignorable: they used
+        // to *enforce* and *grant* access, so dropping either like an unknown
+        // verdaccio key would silently change who may reach what on upgrade.
+        // Fail loudly instead, naming the replacement.
+        if file.packages.is_some() {
+            return Err(RegistryError::InvalidConfig {
+                reason: "the top-level `packages:` block was removed: declare per-package rules \
+                         on the registry that serves them, as `registries.<name>.packages` \
+                         (pattern keys, `access`/`publish`/`unpublish` values)"
+                    .to_string(),
+            });
+        }
+        if file.groups.is_some() {
+            return Err(RegistryError::InvalidConfig {
+                reason: "the top-level `groups:` block was removed: declare teams on the \
+                         registry that uses them, as `registries.<name>.teams` (team-name keys, \
+                         member-list values), and reference them from that registry's access \
+                         lists as `team:<name>`"
+                    .to_string(),
+            });
+        }
         let osv = build_osv_config(&file.osv, base_dir);
-        // Effective enablement folds the CLI overrides in here, so the
-        // registry-only work below (uplink resolution) is skipped whether
-        // the surface was disabled in the config file or on the command
-        // line.
-        let registry = RegistryFeature {
-            enabled: file.registry.unwrap_or_default().enabled && !overrides.disable_registry,
-        };
+        // The npm-registry surface is derived, not configured: served iff
+        // at least one registry is declared (no registries ⇒ nothing to serve),
+        // minus the per-tier `--disable-registry` override. Folding the
+        // override in here lets the registry-only work below (upstream
+        // credential resolution) key off effective enablement.
+        let registry =
+            RegistryFeature { enabled: !file.registries.is_empty() && !overrides.disable_registry };
         let resolver = ResolverFeature {
             enabled: file.resolver.unwrap_or_default().enabled && !overrides.disable_resolver,
         };
-        // Only the registry surface consults uplinks, and `resolve_uplink`
-        // is strict — a `uplink.auth` block with an unresolvable token is a
-        // config error. A resolver-only server mounts no registry routes,
-        // so skip resolution entirely; otherwise a registry-shaped config
-        // would force the resolver tier to carry upstream secrets it never
-        // uses.
-        let uplinks = if registry.enabled {
-            file.uplinks
-                .into_iter()
-                .map(|(name, uplink)| {
-                    let resolved = resolve_uplink::<SystemEnv>(&name, uplink)?;
-                    Ok((name, resolved))
-                })
-                .collect::<Result<IndexMap<_, _>, RegistryError>>()?
-        } else {
-            IndexMap::new()
-        };
+        // Upstream registries (and the credentials some carry) are resolved by
+        // `build_registries` below into this map. Resolving an upstream registry's
+        // `auth` is strict — an unresolvable token is a config error — so a
+        // resolver-only server (which serves no registry routes) skips the
+        // credential resolution rather than carry upstream secrets it never
+        // uses. The registry *graph* is still built and validated either way, so
+        // a misconfigured router or org fails startup on every tier, not only
+        // when the registry surface happens to be enabled.
+        let mut upstreams: IndexMap<String, UpstreamConfig> = IndexMap::new();
+        let (hosted, registries) = build_registries(
+            &mut upstreams,
+            file.registries,
+            file.default_registry,
+            registry.enabled,
+        )?;
         let route_policy = build_route_policy(file.routes);
         let resolution_cache_secret = resolution_secret(file.secret.as_deref())?;
         let config = Self {
@@ -1344,11 +1803,8 @@ impl Config {
             public_url,
             storage,
             cache_storage,
-            uplinks,
-            packages: file.packages,
-            groups,
+            upstreams,
             packument_ttl: Self::DEFAULT_PACKUMENT_TTL,
-            policies,
             auth,
             logs,
             hosted_store,
@@ -1358,68 +1814,129 @@ impl Config {
             resolver,
             route_policy,
             resolution_cache_secret,
+            registries,
+            hosted,
         };
         config.ensure_a_feature_is_enabled()?;
         Ok(config)
     }
 
-    /// At least one top-level surface must be served; a server with both
-    /// `registry` and `resolver` disabled would answer only `/-/ping`.
-    /// Checked at config load and again after CLI overrides.
+    /// At least one top-level surface must be served; a server with no
+    /// registry surface (no registries declared, or `--disable-registry`) and
+    /// the resolver disabled would answer only `/-/ping` and the account
+    /// endpoints. Checked at config load and again in the serve/router
+    /// entry points for programmatically built configs.
     pub fn ensure_a_feature_is_enabled(&self) -> Result<(), RegistryError> {
         if self.registry.enabled || self.resolver.enabled {
             Ok(())
         } else {
             Err(RegistryError::InvalidConfig {
-                reason: "at least one of `registry` or `resolver` must be enabled".to_string(),
+                reason: "nothing to serve: the npm-registry surface is off (no `registries:` \
+                         declared, or `--disable-registry`) and the resolver is disabled"
+                    .to_string(),
             })
         }
     }
 
-    /// Find the uplink fallback chain for `package_name` by walking
-    /// [`Self::packages`] in declared order: the first pattern that matches
-    /// is the rule that applies (verdaccio's first-match-wins). That rule's
-    /// `proxy:` names the uplinks to try, **in order** — the registry walks
-    /// the returned list as a fallback chain (try the first, fall through to
-    /// the next on failure or 404). A proxy name absent from [`Self::uplinks`]
-    /// is silently skipped (as verdaccio does). An empty result means the
-    /// package is storage-only.
-    ///
-    /// Each tuple's first element is the uplink *name* (the key in
-    /// [`Self::uplinks`]), so callers with pre-built per-uplink state can use
-    /// it as an index.
-    #[must_use]
-    pub fn resolve_uplinks(&self, package_name: &str) -> Vec<(&str, &UplinkConfig)> {
-        let Some(access) = self
-            .packages
-            .iter()
-            .find_map(|(pattern, access)| pattern_matches(pattern, package_name).then_some(access))
-        else {
-            return Vec::new();
-        };
-        let Some(proxy) = &access.proxy else {
-            return Vec::new();
-        };
-        proxy
-            .to_ordered_tokens()
-            .into_iter()
-            .filter_map(|name| self.uplinks.get_key_value(name).map(|(k, v)| (k.as_str(), v)))
-            .collect()
-    }
-
-    /// The primary (first) uplink for `package_name`, or `None` when the
-    /// package is storage-only. A convenience over [`Self::resolve_uplinks`]
-    /// for the single-uplink question.
-    #[must_use]
-    pub fn resolve_uplink(&self, package_name: &str) -> Option<(&str, &UplinkConfig)> {
-        self.resolve_uplinks(package_name).into_iter().next()
-    }
-
-    /// Build the caller identity used by access policies after a bearer
-    /// token has authenticated `username`.
-    #[must_use]
-    pub fn identity_for_user(&self, username: impl Into<String>) -> Identity {
-        self.groups.identity_for(username.into())
+    /// Ready the registry graph for serving: fold every upstream into the graph
+    /// as a pattern-less upstream registry, then apply every invariant YAML
+    /// loading enforces — URL-safe registry names, path-safe and collision-free
+    /// hosted `org` namespaces, and the graph validation itself. This covers
+    /// embedders that build [`Self::upstreams`], [`Self::hosted`], or
+    /// [`Self::registries`] programmatically, so [`Registries::resolve`] is the
+    /// only dispatch table for `/~<name>/` traffic and a programmatically-built
+    /// config fails closed like a YAML load. An embedder that wants a
+    /// namespace bound on an upstream declares its registry entry (with
+    /// patterns) before serving.
+    pub fn ensure_valid_registry_graph(&mut self) -> Result<(), RegistryError> {
+        for name in self.upstreams.keys() {
+            self.registries.ensure_upstream(name);
+            // The fold never overwrites, so a graph entry already declared
+            // under this name must actually be the upstream — otherwise two
+            // different origins would share one `/~<name>/` identity, with
+            // the dormant upstream's credential still offered by the
+            // resolver. YAML loading rejects the same collision while
+            // building the graph.
+            if !matches!(self.registries.get(name), Some(Registry::Upstream { .. })) {
+                return Err(RegistryError::InvalidConfig {
+                    reason: format!(
+                        "upstream registry {name:?} collides with a non-upstream registry of \
+                         the same name",
+                    ),
+                });
+            }
+        }
+        for name in self.registries.names() {
+            validate_registry_name(name)?;
+            // A concrete registry needs its serving config — a hosted graph
+            // entry without its `hosted` table row (or an upstream without
+            // its serving entry) would answer every request not-found at
+            // runtime. YAML loading builds both sides together; catch a
+            // programmatically-built mismatch at startup. Upstream backing
+            // is only required when the registry surface is enabled: a
+            // resolver-only tier deliberately skips upstream (credential)
+            // resolution and never serves `/~<name>/` content.
+            match self.registries.get(name) {
+                Some(Registry::Hosted { .. }) if !self.hosted.contains_key(name) => {
+                    return Err(RegistryError::InvalidConfig {
+                        reason: format!(
+                            "hosted registry {name:?} has no entry in the hosted serving table; \
+                             every request to it would be not-found",
+                        ),
+                    });
+                }
+                Some(Registry::Upstream { .. })
+                    if self.registry.enabled && !self.upstreams.contains_key(name) =>
+                {
+                    return Err(RegistryError::InvalidConfig {
+                        reason: format!(
+                            "upstream registry {name:?} has no serving config (URL, credentials); \
+                             every request to it would fail",
+                        ),
+                    });
+                }
+                _ => {}
+            }
+        }
+        for (index, (name, hosted)) in self.hosted.iter().enumerate() {
+            validate_registry_name(name)?;
+            validate_org_namespace(name, &hosted.org)?;
+            // The mirror of the upstream collision above: a hosted serving row
+            // under a name the graph declares as a different kind would leave
+            // `/~<name>/` serving one origin while the row describes another.
+            // (A row with no graph entry at all is merely dormant.)
+            if let Some(kind) = self.registries.get(name)
+                && !matches!(kind, Registry::Hosted { .. })
+            {
+                return Err(RegistryError::InvalidConfig {
+                    reason: format!(
+                        "hosted registry {name:?} collides with a non-hosted registry of the \
+                         same name",
+                    ),
+                });
+            }
+            if let Some((other, _)) =
+                self.hosted.iter().take(index).find(|(_, existing)| existing.org == hosted.org)
+            {
+                return Err(org_collision_error(name, &hosted.org, other));
+            }
+        }
+        for (name, upstream) in &self.upstreams {
+            // Mirror the YAML rule (`resolve_upstream_registry`): an upstream
+            // with no `access:` gate is publicly reachable at `/~<name>/`, and
+            // a public origin sends no request headers — any header can carry
+            // a credential, and an ungated endpoint would let every caller
+            // spend it (a confused deputy).
+            if upstream.access.is_none() && !upstream.headers.is_empty() {
+                return Err(RegistryError::InvalidConfig {
+                    reason: format!(
+                        "upstream registry {name:?} sends custom headers but declares no \
+                         `access:` gate; a publicly reachable upstream must send none",
+                    ),
+                });
+            }
+        }
+        self.registries.validate().map_err(|err| registry_err(&err))
     }
 }
 
@@ -1460,14 +1977,274 @@ fn build_route_policy(file: Option<RoutesFile>) -> RoutePolicy {
     }
 }
 
-fn build_groups(file: &IndexMap<String, AccessSpec>) -> AccessGroups {
-    let mut groups = AccessGroups::default();
-    for (group, members) in file {
-        for username in members.to_ordered_tokens() {
-            groups.add_user_to_group(username, group);
+/// Turn a static [`RegistryConfigError`] into the server-wide config error so a
+/// bad registry set fails startup and config reload like any other.
+fn registry_err(err: &RegistryConfigError) -> RegistryError {
+    RegistryError::InvalidConfig { reason: err.to_string() }
+}
+
+/// Build the validated [`Registries`] graph (and the hosted table) from the
+/// resolved upstreams and the `registries:` block. Every upstream is an upstream
+/// registry; `registries:` adds hosted, further upstream, and router registries.
+/// Upstream registries declared under `registries:` are folded into `upstreams` so they
+/// reuse the same serving and route-classification machinery. Fails closed on
+/// any name collision, malformed registry, or invalid routing graph.
+///
+/// With `resolve_upstreams` false (the registry surface is disabled), an
+/// upstream registry still joins the graph for validation but its credentials
+/// and serving config are not resolved — a resolver-only tier must not fail
+/// on (or carry) upstream secrets it never uses.
+fn build_registries(
+    upstreams: &mut IndexMap<String, UpstreamConfig>,
+    registry_files: IndexMap<String, RegistryFile>,
+    default_registry: Option<String>,
+    resolve_upstreams: bool,
+) -> Result<(IndexMap<String, HostedConfig>, Registries), RegistryError> {
+    let mut hosted: IndexMap<String, HostedConfig> = IndexMap::new();
+    let mut graph: IndexMap<String, Registry> = IndexMap::new();
+    // Every configured upstream is, by definition, an upstream registry addressable
+    // at `/~<name>/`. No declared patterns ⇒ it serves every name.
+    for name in upstreams.keys() {
+        validate_registry_name(name)?;
+        graph.insert(name.clone(), Registry::Upstream { patterns: Vec::new() });
+    }
+    for (name, file) in registry_files {
+        validate_registry_name(&name)?;
+        if graph.contains_key(&name) {
+            return Err(RegistryError::InvalidConfig {
+                reason: format!(
+                    "registry {name:?} collides with another registry or upstream of the same name",
+                ),
+            });
+        }
+        match file {
+            RegistryFile::Hosted(registry) => {
+                validate_org_namespace(&name, &registry.org)?;
+                if let Some((other, _)) = hosted
+                    .iter()
+                    .find(|(_, existing): &(_, &HostedConfig)| existing.org == registry.org)
+                {
+                    return Err(org_collision_error(&name, &registry.org, other));
+                }
+                let teams = build_teams(&name, &registry.teams)?;
+                let access = registry_access_list(&name, registry.access.as_ref(), &teams)?;
+                let rules = build_rules(&name, &registry.packages, access, &teams)?;
+                let patterns = rules.patterns();
+                hosted.insert(name.clone(), HostedConfig { org: registry.org, rules, teams });
+                graph.insert(name, Registry::Hosted { patterns });
+            }
+            RegistryFile::Upstream(upstream) => {
+                // The registry-level default the rules fall back to: the
+                // upstream's `access:` gate, or `$all` for a public origin.
+                // Built before the `resolve_upstreams` fork so the graph
+                // carries the namespace on every tier, and so a
+                // `publish`/`unpublish` value — a write rule on a registry no
+                // write can land on — fails startup on every tier too.
+                let teams = build_teams(&name, &upstream.teams)?;
+                let access = registry_access_list(&name, upstream.access.as_ref(), &teams)?;
+                let rules = build_rules(&name, &upstream.packages, access, &teams)?;
+                if rules.refines_writes() {
+                    return Err(RegistryError::InvalidConfig {
+                        reason: format!(
+                            "upstream registry {name:?} declares `publish`/`unpublish` rules in \
+                             its `packages:` map; writes can never land on an upstream",
+                        ),
+                    });
+                }
+                let patterns = rules.patterns();
+                if resolve_upstreams {
+                    let mut resolved =
+                        resolve_upstream_registry::<SystemEnv>(&name, *upstream, &teams)?;
+                    resolved.rules = rules;
+                    upstreams.insert(name.clone(), resolved);
+                }
+                graph.insert(name, Registry::Upstream { patterns });
+            }
+            RegistryFile::Router(router) => {
+                graph.insert(name, Registry::Router { sources: router.sources });
+            }
         }
     }
-    groups
+    let registries = Registries::new(graph, default_registry);
+    registries.validate().map_err(|err| registry_err(&err))?;
+    Ok((hosted, registries))
+}
+
+/// Two hosted registries sharing an `org` would read and write the same
+/// storage namespace, so a package published to one would surface through the
+/// other — breaking the declared-provenance isolation. Rejected at load,
+/// whether the config came from YAML or an embedder.
+fn org_collision_error(name: &str, org: &str, other: &str) -> RegistryError {
+    RegistryError::InvalidConfig {
+        reason: format!(
+            "hosted registry {name:?} reuses the `org` namespace {org:?} already claimed by \
+             registry {other:?}; two hosted registries cannot share a namespace",
+        ),
+    }
+}
+
+/// Compile a `registries:` entry's registry-level `access:` value, naming the
+/// registry in the error.
+fn registry_access_list(
+    name: &str,
+    spec: Option<&AccessSpec>,
+    teams: &Teams,
+) -> Result<Option<AccessList>, RegistryError> {
+    spec.map(|spec| spec.to_access_list(teams)).transpose().map_err(|reason| {
+        RegistryError::InvalidConfig {
+            reason: format!("registry {name:?} has an invalid `access` list: {reason}"),
+        }
+    })
+}
+
+/// A registry's name is addressed as the single URL path segment `/~<name>/` and
+/// is embedded verbatim into rewritten `dist.tarball` URLs, so it must be one
+/// URL-safe segment. A name that can't survive that round trip is rejected at
+/// load rather than becoming an unreachable registry (`/` splits it across
+/// segments), a URL-parsing ambiguity (`?`, `#`, `%`, whitespace, control
+/// characters), or a path-meaningful component intermediaries may normalize
+/// away (`.`, `..`, a Windows drive prefix).
+fn validate_registry_name(name: &str) -> Result<(), RegistryError> {
+    let safe = crate::package_name::is_safe_path_segment(name)
+        && !name.contains(['%', '?', '#'])
+        && !name.contains(|ch: char| ch.is_whitespace() || ch.is_control());
+    if safe {
+        return Ok(());
+    }
+    Err(RegistryError::InvalidConfig {
+        reason: format!(
+            "registry name {name:?} is not a single URL-safe path segment: it is served at \
+             `/~<name>/`, so it cannot be empty, `.` or `..`, start with `.`, or contain `/`, \
+             `\\`, `:`, `%`, `?`, `#`, whitespace, or control characters",
+        ),
+    })
+}
+
+/// A hosted registry's `org` becomes a storage path/key segment (`Storage::for_hosted`),
+/// so it must be empty (the flat root) or one safe component under the same
+/// rules as every other on-disk segment (no separators, traversal, leading
+/// dot, or Windows drive prefix) — otherwise a crafted config could read or
+/// write outside the storage root. The leading-dot rule also keeps an org
+/// from aliasing the reserved dot-directories inside the storage root (the
+/// default `.pnpr-cache` wipeable cache and the `.pnpr-journal` commit
+/// journal), which would put authoritative packages under a path an operator
+/// is told is safe to delete.
+fn validate_org_namespace(name: &str, org: &str) -> Result<(), RegistryError> {
+    if org.is_empty() || crate::package_name::is_safe_path_segment(org) {
+        return Ok(());
+    }
+    Err(RegistryError::InvalidConfig {
+        reason: format!(
+            "hosted registry {name:?} has an invalid `org` {org:?}: it must be a single path-safe \
+             segment (no `/`, `\\`, `:`, leading `.`, or traversal)",
+        ),
+    })
+}
+
+/// Compile a concrete registry's `packages:` map into its [`PackageRules`]:
+/// keys parsed into the decidable [`PackagePattern`] language, values into
+/// per-package permission rules (`{}`/null ⇒ all fields default). Selection
+/// is by specificity, so key order carries no meaning; a duplicate key is the
+/// only within-registry error, and the YAML parser already rejects literal
+/// duplicates in one mapping — the check here guards the graph invariant for
+/// any other construction path. Routing-graph checks are handled later by
+/// [`Registries::validate`] once the whole graph exists.
+fn build_rules(
+    registry: &str,
+    packages: &IndexMap<String, Option<PackageAccess>>,
+    default_access: Option<AccessList>,
+    teams: &Teams,
+) -> Result<PackageRules, RegistryError> {
+    let rules = packages
+        .iter()
+        .map(|(key, rule)| {
+            let pattern = PackagePattern::parse(key).map_err(|err| {
+                RegistryError::InvalidConfig { reason: format!("registry {registry:?}: {err}") }
+            })?;
+            let fields = rule.as_ref();
+            let list = |field: &str, spec: Option<&AccessSpec>| {
+                spec.map(|spec| spec.to_access_list(teams)).transpose().map_err(|reason| {
+                    RegistryError::InvalidConfig {
+                        reason: format!(
+                            "registry {registry:?}: {key:?} has an invalid `{field}` list: {reason}",
+                        ),
+                    }
+                })
+            };
+            Ok(PackageRule {
+                pattern,
+                access: list("access", fields.and_then(|fields| fields.access.as_ref()))?,
+                publish: list("publish", fields.and_then(|fields| fields.publish.as_ref()))?,
+                unpublish: list("unpublish", fields.and_then(|fields| fields.unpublish.as_ref()))?,
+            })
+        })
+        .collect::<Result<Vec<_>, RegistryError>>()?;
+    Ok(PackageRules::new(rules, default_access))
+}
+
+/// Resolve an `upstream:` registry into the shared [`UpstreamConfig`] runtime shape.
+/// A `public` upstream is anonymous and world-readable (no credential, no
+/// access gate); a non-`public` one must declare `access:` naming who may
+/// reach it at `/~<name>/`. Declaring both `public` and `auth` is rejected —
+/// a public origin sends no credential.
+fn resolve_upstream_registry<Sys: EnvVar>(
+    name: &str,
+    file: UpstreamFile,
+    teams: &Teams,
+) -> Result<UpstreamConfig, RegistryError> {
+    // A public origin is anonymous and shared, so every credential-bearing or
+    // access-gating knob contradicts `public: true` and must fail closed rather
+    // than be silently ignored (which would send a credential to, or expose, a
+    // supposedly-public origin).
+    if file.public && file.auth.is_some() {
+        return Err(RegistryError::InvalidConfig {
+            reason: format!(
+                "upstream registry {name:?} is `public` but also declares `auth`; a public origin \
+                 sends no credential",
+            ),
+        });
+    }
+    if file.public && file.access.is_some() {
+        return Err(RegistryError::InvalidConfig {
+            reason: format!(
+                "upstream registry {name:?} is `public` but also declares `access`; a public origin \
+                 is reachable anonymously",
+            ),
+        });
+    }
+    if file.public && !file.headers.is_empty() {
+        // A public origin is fetched anonymously, so it sends no request headers
+        // at all. Rejecting *any* custom header (not just `Authorization`) closes
+        // the door on a credential smuggled through `X-Api-Key`, a cookie, or any
+        // other header on a registry that is meant to be reachable anonymously.
+        return Err(RegistryError::InvalidConfig {
+            reason: format!(
+                "upstream registry {name:?} is `public` but declares custom `headers`; a public \
+                 origin is fetched anonymously and sends none",
+            ),
+        });
+    }
+    if !file.public && file.access.is_none() {
+        return Err(RegistryError::InvalidConfig {
+            reason: format!(
+                "upstream registry {name:?} must set `public: true` or declare `access:` (who may \
+                 reach it at /~{name}/)",
+            ),
+        });
+    }
+    let access = if file.public { None } else { file.access };
+    let upstream_config_file = UpstreamConfigFile {
+        url: file.url,
+        auth: file.auth,
+        headers: file.headers,
+        maxage: file.maxage,
+        timeout: file.timeout,
+        max_fails: file.max_fails,
+        fail_timeout: file.fail_timeout,
+        cache: file.cache,
+        access,
+    };
+    resolve_upstream_config::<Sys>(name, upstream_config_file, teams)
 }
 
 /// Minimum length for an operator-configured `secret:`. A shorter value makes
@@ -1615,38 +2392,6 @@ fn build_log_config(entry: Option<&LogEntryFile>) -> LogConfig {
     }
 }
 
-/// Compile the YAML `packages:` rules into the runtime
-/// [`PackagePolicies`], in declared order (first match wins). A
-/// missing `access` defaults to `$all`, a missing `publish` to
-/// `$authenticated`, and a missing, empty, or null `unpublish` denies
-/// destructive writes. The same safe fallback [`PackagePolicies`]
-/// applies to packages no rule matches. Errors only on an invalid glob
-/// pattern — any token string is a valid group/username, as in
-/// verdaccio.
-fn build_policies(
-    packages: &IndexMap<String, PackageAccess>,
-) -> Result<PackagePolicies, RegistryError> {
-    let rules = packages
-        .iter()
-        .map(|(pattern, access)| {
-            let access_list = access
-                .access
-                .as_ref()
-                .map_or_else(|| AccessList::parse("$all"), AccessSpec::to_access_list);
-            let publish_list = access
-                .publish
-                .as_ref()
-                .map_or_else(|| AccessList::parse("$authenticated"), AccessSpec::to_access_list);
-            let unpublish_list = access
-                .unpublish
-                .as_ref()
-                .map_or_else(AccessList::default, AccessSpec::to_access_list);
-            PackagePolicy::new(pattern, access_list, publish_list, unpublish_list)
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(PackagePolicies::new(rules))
-}
-
 /// Join `config.yaml` onto a resolved config directory and keep the
 /// path only when it points at an existing file (so a directory or a
 /// missing entry falls back to the bundled config).
@@ -1687,28 +2432,6 @@ fn default_storage_string() -> String {
 #[must_use]
 pub fn default_cache_dir(storage: &Path) -> PathBuf {
     storage.join(".pnpr-cache")
-}
-
-/// Match a verdaccio package pattern against a package name.
-/// Supports:
-///   - `**`        — matches everything
-///   - `@*/*`      — matches all scoped packages
-///   - `@scope/*`  — matches every package in a specific scope
-///   - exact name  — literal match
-fn pattern_matches(pattern: &str, name: &str) -> bool {
-    if pattern == "**" {
-        return true;
-    }
-    if pattern == "@*/*" {
-        return name.starts_with('@');
-    }
-    if let Some(scope) = pattern.strip_suffix("/*").and_then(|p| p.strip_prefix('@')) {
-        let Some(name_scope) = name.strip_prefix('@').and_then(|n| n.split('/').next()) else {
-            return false;
-        };
-        return name_scope == scope;
-    }
-    pattern == name
 }
 
 #[cfg(test)]

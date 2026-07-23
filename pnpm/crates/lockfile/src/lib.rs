@@ -1,0 +1,269 @@
+mod catalog_snapshots;
+mod comver;
+mod env_lockfile;
+mod freshness;
+mod lazy_lockfile;
+mod load_lockfile;
+mod lockfile_version;
+mod package_metadata;
+mod pkg_id_with_patch_hash;
+mod pkg_name;
+mod pkg_name_suffix;
+mod pkg_name_ver;
+mod pkg_name_ver_peer;
+mod pkg_ver_peer;
+mod project_snapshot;
+mod resolution;
+mod resolved_dependency;
+mod save_lockfile;
+mod serialize_yaml;
+mod snapshot_dep_ref;
+mod snapshot_entry;
+mod yaml_documents;
+mod yaml_emit;
+
+pub use catalog_snapshots::*;
+pub use comver::*;
+pub use env_lockfile::*;
+pub use freshness::*;
+pub use lazy_lockfile::*;
+pub use load_lockfile::*;
+pub use lockfile_version::*;
+pub use package_metadata::*;
+pub use pkg_id_with_patch_hash::*;
+pub use pkg_name::*;
+pub use pkg_name_suffix::*;
+pub use pkg_name_ver::*;
+pub use pkg_name_ver_peer::*;
+pub use pkg_ver_peer::*;
+pub use project_snapshot::*;
+pub use resolution::*;
+pub use resolved_dependency::*;
+pub use save_lockfile::*;
+pub use snapshot_dep_ref::*;
+pub use snapshot_entry::*;
+pub use yaml_documents::*;
+
+use indexmap::IndexMap;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+
+/// Package key used by the `packages:` and `snapshots:` maps in a v9 lockfile.
+///
+/// Example: `react-dom@17.0.2(react@17.0.2)`.
+pub type PackageKey = PkgNameVerPeer;
+
+/// Default `peersSuffixMaxLength` an unset `settings.peersSuffixMaxLength`
+/// in the lockfile decays to. This value is also the threshold below which
+/// the field is stripped on serialization: when `peersSuffixMaxLength`
+/// equals this default it is omitted from the serialized file.
+pub const DEFAULT_PEERS_SUFFIX_MAX_LENGTH: u64 = 1000;
+
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LockfileSettings {
+    pub auto_install_peers: bool,
+    /// Recorded as `Some(true)` when the install ran with
+    /// `dedupePeers` on, omitted otherwise. The lockfile only carries
+    /// the key when the setting is active, so a switch from the
+    /// default off to on flags `settings.dedupePeers` as outdated on
+    /// the next install.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dedupe_peers: Option<bool>,
+    pub exclude_links_from_lockfile: bool,
+    /// `injectWorkspacePackages` recorded by the install that wrote
+    /// this lockfile. `false` round-trips as a missing key — the key
+    /// is stripped on save so historic v9 lockfiles (which never
+    /// carried it) stay byte-identical after a re-save. The drift
+    /// gate reads the value as a boolean, so a missing key and `false`
+    /// are equivalent.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub inject_workspace_packages: bool,
+    /// Cap that drove this lockfile's peer-suffix rendering. Omitted
+    /// from the serialized file when it equals the default ([`DEFAULT_PEERS_SUFFIX_MAX_LENGTH`])
+    /// so existing lockfiles round-trip byte-for-byte.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub peers_suffix_max_length: Option<u64>,
+}
+
+/// A pnpm v9 lockfile.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Lockfile {
+    pub lockfile_version: LockfileVersion<9>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub settings: Option<LockfileSettings>,
+
+    /// `catalogs:` snapshot — the resolved specifier + version for every
+    /// catalog-referenced direct dependency. Sits between `settings` and
+    /// `overrides` in the root-key order, so the field is declared here
+    /// to serialize in the same position.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub catalogs: Option<CatalogSnapshots>,
+
+    /// `overrides` recorded by the install that wrote this lockfile.
+    /// Kept in an [`IndexMap`] so the entries serialize in the order
+    /// the user declared them — this map is **not** sorted (it is the
+    /// one lockfile map left out of the root-key sort), so preserving
+    /// insertion order is what keeps the lockfile byte-stable.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub overrides: Option<IndexMap<String, String>>,
+
+    /// `packageExtensionsChecksum` recorded by the install that wrote
+    /// this lockfile. Top-level in the v9 wire shape. On a subsequent
+    /// install, drift between this value and the freshly-computed
+    /// checksum of `Config::package_extensions` is what
+    /// [`crate::check_lockfile_settings`] flags as outdated. `None`
+    /// when no `packageExtensions` were configured at write time — the
+    /// checksum short-circuits to nothing on empty input, so an empty
+    /// `packageExtensions` round-trips identically.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub package_extensions_checksum: Option<String>,
+
+    /// `pnpmfileChecksum` recorded by the install that wrote this
+    /// lockfile — the normalized-content hash of the project's
+    /// `.pnpmfile.{cjs,mjs}` when it exports hooks. Top-level in the v9
+    /// wire shape, serialized right after `packageExtensionsChecksum`
+    /// in the root-key order. `None` when the project has no pnpmfile
+    /// (or one without a `hooks` export) — the key is omitted in that
+    /// case, and the `skip_serializing_if` below does the same so the
+    /// lockfile round-trips byte-for-byte.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pnpmfile_checksum: Option<String>,
+
+    /// `ignoredOptionalDependencies` recorded by the install that
+    /// wrote this lockfile. Top-level in the v9 wire shape —
+    /// **not** inside `settings`. On a subsequent install, drift
+    /// between this set and `Config::ignored_optional_dependencies` is
+    /// what `satisfies_package_manifest` flags as outdated.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ignored_optional_dependencies: Option<Vec<String>>,
+
+    /// `patchedDependencies` recorded by the install that wrote this
+    /// lockfile: each configured `patchedDependencies` key (e.g.
+    /// `graceful-fs@4.2.11`) mapped to the SHA-256 hex digest of its
+    /// patch file. Top-level in the v9 wire shape, sitting between
+    /// `pnpmfileChecksum` and `importers` in the root-key order.
+    /// A [`BTreeMap`] so the entries serialize sorted by key.
+    ///
+    /// [`BTreeMap`]: std::collections::BTreeMap
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub patched_dependencies: Option<std::collections::BTreeMap<String, String>>,
+
+    #[serde(
+        default,
+        skip_serializing_if = "HashMap::is_empty",
+        serialize_with = "crate::serialize_yaml::sorted_map"
+    )]
+    pub importers: HashMap<String, ProjectSnapshot>,
+
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "crate::serialize_yaml::sorted_map_opt"
+    )]
+    pub packages: Option<HashMap<PackageKey, PackageMetadata>>,
+
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "crate::serialize_yaml::sorted_map_opt"
+    )]
+    pub snapshots: Option<HashMap<PackageKey, SnapshotEntry>>,
+}
+
+impl Lockfile {
+    /// Base file name of the lockfile.
+    pub const FILE_NAME: &str = "pnpm-lock.yaml";
+
+    /// Base file name of the *current* lockfile written under the
+    /// virtual store: `lock.yaml` records what was actually
+    /// materialized in `node_modules/.pnpm`, as opposed to what the
+    /// wanted lockfile asks for.
+    pub const CURRENT_FILE_NAME: &str = "lock.yaml";
+
+    /// The key used to refer to the root project inside `importers`.
+    pub const ROOT_IMPORTER_KEY: &str = ".";
+
+    /// Convenience accessor for the root project's snapshot.
+    #[must_use]
+    pub fn root_project(&self) -> Option<&'_ ProjectSnapshot> {
+        self.importers.get(Lockfile::ROOT_IMPORTER_KEY)
+    }
+
+    /// `true` when no importer in this lockfile records any dependency
+    /// in any group. The result suppresses writing
+    /// `node_modules/.pnpm/lock.yaml` for an install that resolved to
+    /// zero packages. Upstream's `isEmptyLockfile` checks `specifiers`
+    /// and `dependencies` only, but its in-memory `specifiers` map
+    /// spans every dependency group; pacquet's v9-inline model leaves
+    /// `specifiers` unpopulated, so the equivalent check here inspects
+    /// all three group maps — otherwise a dev-only install would
+    /// misread as empty and delete its current lockfile.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.importers.values().all(|importer| {
+            importer.specifiers.as_ref().is_none_or(HashMap::is_empty)
+                && importer.dependencies.as_ref().is_none_or(HashMap::is_empty)
+                && importer.dev_dependencies.as_ref().is_none_or(HashMap::is_empty)
+                && importer.optional_dependencies.as_ref().is_none_or(HashMap::is_empty)
+        })
+    }
+
+    /// Defense-in-depth for pruned lockfiles (older `turbo prune --docker`,
+    /// pre vercel/turborepo#12825): a peer-variant injected workspace
+    /// snapshot whose base `packages:` entry was dropped is missing its
+    /// inherited `resolution`. Reconstruct a directory resolution from
+    /// the `file:` depPath so [`crate::PackageMetadata::resolution`]
+    /// stays non-optional for downstream callers.
+    pub fn reconstruct_missing_directory_resolutions(&mut self) {
+        let Some(snapshots) = self.snapshots.as_ref() else { return };
+        let to_insert: Vec<(PackageKey, DirectoryResolution)> = snapshots
+            .keys()
+            .filter_map(|snapshot_key| {
+                let metadata_key = snapshot_key.without_peer();
+                let packages = self.packages.as_ref();
+                if packages.is_some_and(|p| p.contains_key(&metadata_key)) {
+                    return None;
+                }
+                let VersionPart::File(path) = metadata_key.suffix.version() else { return None };
+                if is_local_tarball_path(path) {
+                    return None;
+                }
+                let directory = path.clone();
+                Some((metadata_key, DirectoryResolution { directory }))
+            })
+            .collect();
+        if to_insert.is_empty() {
+            return;
+        }
+        let packages = self.packages.get_or_insert_with(HashMap::new);
+        for (key, directory_resolution) in to_insert {
+            packages.entry(key).or_insert_with(|| PackageMetadata {
+                resolution: LockfileResolution::Directory(directory_resolution),
+                version: None,
+                engines: None,
+                cpu: None,
+                os: None,
+                libc: None,
+                deprecated: None,
+                has_bin: None,
+                prepare: None,
+                bundled_dependencies: None,
+                peer_dependencies: None,
+                peer_dependencies_meta: None,
+            });
+        }
+    }
+}
+
+/// Whether `path` ends in a tarball extension (`.tgz`, `.tar.gz`, or
+/// `.tar`, case-insensitively), so the directory-vs-tarball boundary
+/// applied here matches the resolver's at resolve time.
+fn is_local_tarball_path(path: &str) -> bool {
+    let lower = path.as_bytes();
+    let ends_with_ci = |suffix: &str| {
+        let bytes = suffix.as_bytes();
+        lower.len() >= bytes.len() && lower[lower.len() - bytes.len()..].eq_ignore_ascii_case(bytes)
+    };
+    ends_with_ci(".tgz") || ends_with_ci(".tar.gz") || ends_with_ci(".tar")
+}

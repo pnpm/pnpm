@@ -15,7 +15,7 @@ import { realpathMissing } from 'realpath-missing'
 import { renderHelp } from 'render-help'
 import { temporaryDirectory } from 'tempy'
 
-import { extractManifestFromPacked, isTarballPath } from './extractManifestFromPacked.js'
+import { extractPublishManifestFromPacked, isTarballPath } from './extractManifestFromPacked.js'
 import { optionsWithOtpEnv } from './otpEnv.js'
 import * as pack from './pack.js'
 import { publishPackedPkg, type PublishSummary } from './publishPackedPkg.js'
@@ -134,7 +134,7 @@ export async function handler (
     json?: boolean
     recursive?: boolean
     workspaceDir?: string
-  } & Pick<Config, 'bin' | 'gitChecks' | 'ignoreScripts' | 'pnpmHomeDir' | 'publishBranch' | 'embedReadme' | 'skipManifestObfuscation'>
+  } & Pick<Config, 'bin' | 'gitChecks' | 'ignoreScripts' | 'pnpmHomeDir' | 'publishBranch' | 'embedReadme' | 'skipManifestObfuscation' | 'versioning'>
   & Pick<ConfigContext, 'allProjects'>,
   params: string[]
 ): Promise<{ exitCode?: number, output?: string } | undefined> {
@@ -171,7 +171,7 @@ export async function publish (
     engineStrict?: boolean
     recursive?: boolean
     workspaceDir?: string
-  } & Pick<Config, 'bin' | 'gitChecks' | 'ignoreScripts' | 'pnpmHomeDir' | 'publishBranch' | 'embedReadme' | 'packGzipLevel' | 'skipManifestObfuscation'>
+  } & Pick<Config, 'bin' | 'gitChecks' | 'ignoreScripts' | 'pnpmHomeDir' | 'publishBranch' | 'embedReadme' | 'packGzipLevel' | 'skipManifestObfuscation' | 'versioning'>
   & Pick<ConfigContext, 'allProjects'>,
   params: string[]
 ): Promise<PublishResult> {
@@ -238,7 +238,7 @@ export async function publish (
 
   if (dirInParams != null && isTarballPath(dirInParams)) {
     const tarballPath = dirInParams
-    const publishedManifest = await extractManifestFromPacked(tarballPath)
+    const publishedManifest = await extractPublishManifestFromPacked(tarballPath)
     // Publishing a pre-built tarball bypasses `pack.api()`, so we don't have the file listing
     // or unpacked size — those summary fields are reported as empty/zero.
     const publishSummary = await publishPackedPkg({

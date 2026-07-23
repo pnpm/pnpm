@@ -510,6 +510,169 @@ test("ignore the preferred version if it's not inside the wanted range", async (
   expect(resolveResult!.id).toBe('is-positive@3.1.0')
 })
 
+test('ignore the lockfile-derived preferred version when updateRequested is true (the target re-resolves as if its lockfile entries were deleted)', async () => {
+  // When the user runs `pnpm up <pkg>`, the target's own lockfile pins
+  // (seeded at EXISTING_VERSION_SELECTOR_WEIGHT) must not hold it at the
+  // old version — ignoring them is what makes it an update. Every selector
+  // a fresh install would apply stays in effect (see the tests below).
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, {
+      ...isPositiveMeta,
+      'dist-tags': { latest: '3.1.0' },
+    })
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registries,
+  })
+  const resolveResult = await resolveFromNpm({
+    alias: 'is-positive',
+    bareSpecifier: '^3.0.0',
+  }, {
+    preferredVersions: {
+      'is-positive': { '3.0.0': { selectorType: 'version', weight: 1_000_000 } },
+    },
+    updateRequested: true,
+  })
+  expect(resolveResult!.id).toBe('is-positive@3.1.0')
+})
+
+test('keep honoring manifest and chain-propagated preferred versions when updateRequested is true (update must match a fresh install)', async () => {
+  // A fresh install dedupes a caret consumer onto a manifest exact pin
+  // (weight 1000) and onto versions propagated down the dependency chain
+  // (plain selectors). An update of the same package must produce the same
+  // result instead of installing a duplicate version.
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, {
+      ...isPositiveMeta,
+      'dist-tags': { latest: '3.1.0' },
+    })
+    .persist()
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registries,
+  })
+  const manifestPinResult = await resolveFromNpm({
+    alias: 'is-positive',
+    bareSpecifier: '^3.0.0',
+  }, {
+    preferredVersions: {
+      'is-positive': { '3.0.0': { selectorType: 'version', weight: 1000 } },
+    },
+    updateRequested: true,
+  })
+  expect(manifestPinResult!.id).toBe('is-positive@3.0.0')
+
+  const propagatedPinResult = await resolveFromNpm({
+    alias: 'is-positive',
+    bareSpecifier: '^3.0.0',
+  }, {
+    preferredVersions: {
+      'is-positive': { '3.0.0': 'version' },
+    },
+    updateRequested: true,
+  })
+  expect(propagatedPinResult!.id).toBe('is-positive@3.0.0')
+})
+
+test('a manifest pin that is also locked keeps only its manifest weight when updateRequested is true', async () => {
+  // getPreferredVersionsFromLockfileAndManifests adds the lockfile weight
+  // onto a manifest entry that pins the same version (1000 + 1_000_000).
+  // The strip must subtract the lockfile contribution rather than drop the
+  // selector — a fresh install would still honor the manifest pin.
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, {
+      ...isPositiveMeta,
+      'dist-tags': { latest: '3.1.0' },
+    })
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registries,
+  })
+  const resolveResult = await resolveFromNpm({
+    alias: 'is-positive',
+    bareSpecifier: '^3.0.0',
+  }, {
+    preferredVersions: {
+      'is-positive': { '3.0.0': { selectorType: 'version', weight: 1_001_000 } },
+    },
+    updateRequested: true,
+  })
+  expect(resolveResult!.id).toBe('is-positive@3.0.0')
+})
+
+test('still honor the preferred version when updateRequested is false (dedup during plain install)', async () => {
+  // Companion to the test above: the new flag must not regress normal
+  // install-time dedup. With updateRequested unset/false, a preferred
+  // version inside the wanted range continues to win over latest so
+  // pnpm avoids creating a duplicate.
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, {
+      ...isPositiveMeta,
+      'dist-tags': { latest: '3.1.0' },
+    })
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registries,
+  })
+  const resolveResult = await resolveFromNpm({
+    alias: 'is-positive',
+    bareSpecifier: '^3.0.0',
+  }, {
+    preferredVersions: {
+      'is-positive': { '3.0.0': 'version' },
+    },
+    updateRequested: false,
+  })
+  expect(resolveResult!.id).toBe('is-positive@3.0.0')
+})
+
+test('preserve vulnerability-avoidance range selectors even when updateRequested is true', async () => {
+  // Security regression: `pnpm audit --fix` targets vulnerable packages via
+  // updateMatching (so updateRequested becomes true for them) and steers
+  // resolution away from vulnerable versions with negative-weight `range`
+  // selectors in preferredVersions. Only the lockfile-derived pins may be
+  // dropped for the targeted package — the range penalties must survive, or
+  // the "fix" would re-pick the vulnerable highest-in-range version.
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveMeta) // latest is 3.1.0
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registries,
+  })
+  const resolveResult = await resolveFromNpm({
+    alias: 'is-positive',
+    bareSpecifier: '^3.0.0',
+  }, {
+    preferredVersions: {
+      'is-positive': {
+        // The target's own lockfile pin — dropped so it can't hold the
+        // target at its old version.
+        '3.0.0': { selectorType: 'version', weight: 1_000_000 },
+        // A vulnerability penalty on 3.1.0 — must survive so the targeted
+        // update lands on 3.0.0 instead of the vulnerable latest.
+        '>=3.1.0': { selectorType: 'range', weight: -1000 },
+      },
+    },
+    updateRequested: true,
+  })
+  expect(resolveResult!.id).toBe('is-positive@3.0.0')
+})
+
 test('use the preferred range if it intersects with the wanted range', async () => {
   getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
@@ -2114,7 +2277,7 @@ test('pick lowest version by * when there are only prerelease versions', async (
   expect(resolveResult!.manifest!.version).toBe('1.0.0-alpha.1')
 })
 
-test('throws when workspace package version does not match and package is not found in the registry', async () => {
+test('throws an error with the available workspace versions when workspace package version does not match and package is not found in the registry', async () => {
   getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(404, {})
@@ -2126,9 +2289,11 @@ test('throws when workspace package version does not match and package is not fo
     registries,
   })
 
-  await expect(
-    resolveFromNpm({ alias: 'is-positive', bareSpecifier: '2.0.0' }, {
-      projectDir: '/home/istvan/src',
+  const projectDir = '/home/istvan/src'
+  let err!: Error & { code: string }
+  try {
+    await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '2.0.0' }, {
+      projectDir,
       update: 'compatible',
       workspacePackages: new Map([
         ['is-positive', new Map([
@@ -2142,10 +2307,16 @@ test('throws when workspace package version does not match and package is not fo
         ])],
       ]),
     })
-  ).rejects.toThrow()
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
+
+  expect(err).toBeTruthy()
+  expect(err.code).toBe('ERR_PNPM_NO_MATCHING_VERSION_INSIDE_WORKSPACE')
+  expect(err.message).toBe(`In ${path.relative(process.cwd(), projectDir)}: No matching version found for is-positive@2.0.0 inside the workspace. Available versions: 1.0.0`)
 })
 
-test('throws NoMatchingVersionError when workspace package version does not match and registry has no matching version', async () => {
+test('throws an error with the available workspace versions when workspace package version does not match and registry has no matching version', async () => {
   getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMeta)
@@ -2157,8 +2328,49 @@ test('throws NoMatchingVersionError when workspace package version does not matc
     registries,
   })
 
-  await expect(
-    resolveFromNpm({ alias: 'is-positive', bareSpecifier: '99.0.0' }, {
+  const projectDir = '/home/istvan/src'
+  let err!: Error & { code: string }
+  try {
+    await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '99.0.0' }, {
+      projectDir,
+      update: 'compatible',
+      workspacePackages: new Map([
+        ['is-positive', new Map([
+          ['1.0.0', {
+            rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
+            manifest: {
+              name: 'is-positive',
+              version: '1.0.0',
+            },
+          }],
+        ])],
+      ]),
+    })
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
+
+  expect(err).toBeTruthy()
+  expect(err.code).toBe('ERR_PNPM_NO_MATCHING_VERSION_INSIDE_WORKSPACE')
+  expect(err.message).toBe(`In ${path.relative(process.cwd(), projectDir)}: No matching version found for is-positive@99.0.0 inside the workspace. Available versions: 1.0.0`)
+})
+
+test('non-404 registry errors are not masked when the workspace package version does not match', async () => {
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(500, {})
+
+  const cacheDir = temporaryDirectory()
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registries,
+    retry: { retries: 0 },
+  })
+
+  let err!: Error & { code: string }
+  try {
+    await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '2.0.0' }, {
       projectDir: '/home/istvan/src',
       update: 'compatible',
       workspacePackages: new Map([
@@ -2173,7 +2385,12 @@ test('throws NoMatchingVersionError when workspace package version does not matc
         ])],
       ]),
     })
-  ).rejects.toThrow(NoMatchingVersionError)
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
+
+  expect(err).toBeTruthy()
+  expect(err.code).toBe('ERR_PNPM_FETCH_500')
 })
 
 test('resolve from registry when workspace package version does not match the requested version', async () => {

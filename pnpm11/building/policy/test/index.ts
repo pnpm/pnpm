@@ -105,6 +105,21 @@ it('should preserve patch hash in depPath allowBuild keys', () => {
   expect(allowBuild!(depPath('foo@https://example.com/foo.tgz(patch_hash=bbbb)(react@19.0.0)'))).toBeUndefined()
 })
 
+it('should allow git-hosted depPaths by repository key', () => {
+  const allowBuild = createAllowBuildFunction({
+    allowBuilds: {
+      'foo@git+ssh://git@example.com/org/foo.git': true,
+      'bar@git+ssh://git@example.com/org/bar.git': false,
+    },
+  })
+  expect(allowBuild!(depPath('foo@git+ssh://git@example.com/org/foo.git#abc123'))).toBe(true)
+  expect(allowBuild!(depPath('foo@git+ssh://git@example.com/org/foo.git'))).toBe(true)
+  expect(allowBuild!(depPath('foo@git+ssh://git@example.com/org/foo.git#def456(react@19.0.0)'))).toBe(true)
+  expect(allowBuild!(depPath('foo@git+ssh://git@example.com/other/foo.git#abc123'))).toBeUndefined()
+  expect(allowBuild!(depPath('foo@1.0.0'))).toBeUndefined()
+  expect(allowBuild!(depPath('bar@git+ssh://git@example.com/org/bar.git#abc123'))).toBe(false)
+})
+
 it('should allow untrusted package identity by source-only depPath', () => {
   const allowBuild = createAllowBuildFunction({
     allowBuilds: { 'github.com/org/foo/abc123': true },

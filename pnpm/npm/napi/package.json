@@ -1,0 +1,33 @@
+{
+  "name": "@pnpm/napi",
+  "private": true,
+  "version": "12.0.0-alpha.18",
+  "description": "Node.js addon bindings for the pnpm v12 Rust engine (pacquet)",
+  "keywords": [
+    "pnpm",
+    "package manager",
+    "rust",
+    "napi"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/pnpm",
+  "bugs": "https://github.com/pnpm/pnpm/issues",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pnpm/pnpm",
+    "directory": "pnpm/npm/napi"
+  },
+  "main": "index.js",
+  "types": "index.d.ts",
+  "engines": {
+    "node": ">=18.*"
+  },
+  "scripts": {
+    "generate-packages": "node scripts/generate-packages.mjs"
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "README.md"
+  ]
+}

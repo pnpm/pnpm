@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { afterEach, beforeEach, expect, test } from '@jest/globals'
-import { ABBREVIATED_META_DIR } from '@pnpm/constants'
+import { ABBREVIATED_META_DIR, FULL_META_DIR } from '@pnpm/constants'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import { createNpmResolver } from '@pnpm/resolving.npm-resolver'
 import { fixtures } from '@pnpm/test-fixtures'
@@ -10,6 +10,11 @@ import type { Registries } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 import { temporaryDirectory } from 'tempy'
 
+import {
+  fetchAbbreviatedMetadataCached,
+  fetchFullMetadataCached,
+} from '../src/fetchFullMetadataCached.js'
+import { getPkgMirrorPath, prepareJsonForDisk, saveMeta } from '../src/pickPackage.js'
 import { getMockAgent, retryLoadJsonFile, setupMockAgent, teardownMockAgent } from './utils/index.js'
 
 const f = fixtures(import.meta.dirname)
@@ -25,6 +30,29 @@ const isPositiveMeta = loadJsonFileSync<any>(f.find('is-positive.json'))
 const fetch = createFetchFromRegistry({})
 const getAuthHeader = () => undefined
 const createResolveFromNpm = createNpmResolver.bind(null, fetch, getAuthHeader)
+
+type CachedMetadataFetcher = typeof fetchFullMetadataCached
+type CachedMetadata = Awaited<ReturnType<CachedMetadataFetcher>>
+
+const cachedMetadataCases = [
+  {
+    fetchMetadata: fetchFullMetadataCached,
+    kind: 'full',
+    metaDir: FULL_META_DIR,
+    stripsScripts: false,
+  },
+  {
+    fetchMetadata: fetchAbbreviatedMetadataCached,
+    kind: 'abbreviated',
+    metaDir: ABBREVIATED_META_DIR,
+    stripsScripts: true,
+  },
+] satisfies ReadonlyArray<{
+  fetchMetadata: CachedMetadataFetcher
+  kind: 'full' | 'abbreviated'
+  metaDir: string
+  stripsScripts: boolean
+}>
 
 afterEach(async () => {
   await teardownMockAgent()
@@ -54,6 +82,44 @@ test('use local cache when registry returns 304 Not Modified', async () => {
       method: 'GET',
       headers: {
         'if-none-match': '"abc123"',
+      },
+    })
+    .reply(304, '')
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registries,
+  })
+  const resolveResult = await resolveFromNpm(
+    { alias: 'is-positive', bareSpecifier: '^3.0.0' },
+    {}
+  )
+
+  expect(resolveResult!.resolvedVia).toBe('npm-registry')
+  expect(resolveResult!.id).toBe('is-positive@3.1.0')
+})
+
+test('if-modified-since is sent as an HTTP-date derived from the stored ISO-8601 modified value', async () => {
+  const cacheDir = temporaryDirectory()
+  const metaDir = path.join(cacheDir, `${ABBREVIATED_META_DIR}/registry.npmjs.org`)
+  fs.mkdirSync(metaDir, { recursive: true })
+  // The mirror stores the packument's `time.modified`, which is ISO-8601. The
+  // wire header must be the HTTP-date form (RFC 9110 §8.8.3) — pinned here so
+  // the TypeScript CLI and pacquet stay byte-identical on the wire.
+  const headers = JSON.stringify({ modified: '2025-01-15T12:00:00.000Z' })
+  fs.writeFileSync(
+    path.join(metaDir, 'is-positive.jsonl'),
+    `${headers}\n${JSON.stringify(isPositiveMeta)}`,
+    'utf8'
+  )
+
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
+    .intercept({
+      path: '/is-positive',
+      method: 'GET',
+      headers: {
+        'if-modified-since': 'Wed, 15 Jan 2025 12:00:00 GMT',
       },
     })
     .reply(304, '')
@@ -169,3 +235,246 @@ test('fetch without conditional headers when no local cache exists', async () =>
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.id).toBe('is-positive@3.1.0')
 })
+
+test('retry when an unconditional metadata request receives 304 Not Modified', async () => {
+  const registry = getMockAgent().get(registries.default.replace(/\/$/, ''))
+  registry
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(304, '')
+  registry
+    .intercept({
+      path: '/is-positive',
+      method: 'GET',
+      headers: {
+        'cache-control': 'no-cache',
+      },
+    })
+    .reply(200, isPositiveMeta)
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registries,
+  })
+  const resolveResult = await resolveFromNpm(
+    { alias: 'is-positive', bareSpecifier: '^3.0.0' },
+    {}
+  )
+
+  expect(resolveResult!.resolvedVia).toBe('npm-registry')
+  expect(resolveResult!.id).toBe('is-positive@3.1.0')
+})
+
+test('report an invalid response when an unconditional 304 retry also returns 304', async () => {
+  const registry = getMockAgent().get(registries.default.replace(/\/$/, ''))
+  registry
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(304, '')
+  registry
+    .intercept({
+      path: '/is-positive',
+      method: 'GET',
+      headers: {
+        'cache-control': 'no-cache',
+      },
+    })
+    .reply(304, '')
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registries,
+  })
+
+  await expect(resolveFromNpm(
+    { alias: 'is-positive', bareSpecifier: '^3.0.0' },
+    {}
+  )).rejects.toMatchObject({
+    code: 'ERR_PNPM_META_NOT_MODIFIED_WITHOUT_CACHE',
+    message: 'Registry returned 304 for is-positive without an existing cache to refresh.',
+  })
+})
+
+test.each(cachedMetadataCases)('cached $kind metadata retries once without validators when the body disappears after 304', async ({
+  fetchMetadata,
+  metaDir,
+  stripsScripts,
+}) => {
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, metaDir, registries.default, 'is-positive')
+  await saveMeta(pkgMirror, prepareJsonForDisk(isPositiveMeta, '"stale"'))
+  const responseMeta = structuredClone(isPositiveMeta)
+  responseMeta.versions['3.1.0'].scripts = { postinstall: 'echo cache-race-marker' }
+
+  const registry = getMockAgent().get(registries.default.replace(/\/$/, ''))
+  registry
+    .intercept({
+      path: '/is-positive',
+      method: 'GET',
+      headers: { 'if-none-match': '"stale"' },
+    })
+    .reply(() => {
+      fs.rmSync(pkgMirror)
+      return { statusCode: 304, data: '' }
+    })
+  registry
+    .intercept({
+      path: '/is-positive',
+      method: 'GET',
+      headers: matchCacheBypassHeaders,
+    })
+    .reply(200, responseMeta, {
+      headers: {
+        etag: '"fresh"',
+        'content-type': 'application/json',
+      },
+    })
+
+  const result = await fetchMetadata({
+    fetch,
+    retry: { retries: 0 },
+    timeout: 30_000,
+    fetchWarnTimeoutMs: 30_000,
+  }, 'is-positive', {
+    cacheDir,
+    registry: registries.default,
+  })
+
+  expect(result.name).toBe('is-positive')
+  expect(result.versions['3.1.0'].scripts == null).toBe(stripsScripts)
+  const persisted = await retryLoadJsonFile<CachedMetadata>(pkgMirror)
+  expect(persisted.etag).toBe('"fresh"')
+  expect(persisted.name).toBe('is-positive')
+  expect(persisted.versions['3.1.0'].scripts == null).toBe(stripsScripts)
+  getMockAgent().assertNoPendingInterceptors()
+})
+
+test('cached metadata stops after one cache-loss fallback', async () => {
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, FULL_META_DIR, registries.default, 'is-positive')
+  await saveMeta(pkgMirror, prepareJsonForDisk(isPositiveMeta, '"stale"'))
+
+  const registry = getMockAgent().get(registries.default.replace(/\/$/, ''))
+  registry
+    .intercept({
+      path: '/is-positive',
+      method: 'GET',
+      headers: { 'if-none-match': '"stale"' },
+    })
+    .reply(() => {
+      fs.rmSync(pkgMirror)
+      return { statusCode: 304, data: '' }
+    })
+  registry
+    .intercept({
+      path: '/is-positive',
+      method: 'GET',
+      headers: matchCacheBypassHeaders,
+    })
+    .reply(304, '')
+
+  await expect(fetchFullMetadataCached({
+    fetch,
+    retry: { retries: 0 },
+    timeout: 30_000,
+    fetchWarnTimeoutMs: 30_000,
+  }, 'is-positive', {
+    cacheDir,
+    registry: registries.default,
+  })).rejects.toMatchObject({ code: 'ERR_PNPM_META_NOT_MODIFIED_WITHOUT_CACHE' })
+  getMockAgent().assertNoPendingInterceptors()
+})
+
+test('cached metadata keeps body retries in cache-bypass mode', async () => {
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, FULL_META_DIR, registries.default, 'is-positive')
+  await saveMeta(pkgMirror, prepareJsonForDisk(isPositiveMeta, '"stale"'))
+
+  const registry = getMockAgent().get(registries.default.replace(/\/$/, ''))
+  registry
+    .intercept({
+      path: '/is-positive',
+      method: 'GET',
+      headers: { 'if-none-match': '"stale"' },
+    })
+    .reply(() => {
+      fs.rmSync(pkgMirror)
+      return { statusCode: 304, data: '' }
+    })
+  registry
+    .intercept({
+      path: '/is-positive',
+      method: 'GET',
+      headers: matchCacheBypassHeaders,
+    })
+    .reply(200, '{')
+  registry
+    .intercept({
+      path: '/is-positive',
+      method: 'GET',
+      headers: matchCacheBypassHeaders,
+    })
+    .reply(200, isPositiveMeta, {
+      headers: { etag: '"after-retry"' },
+    })
+
+  const result = await fetchFullMetadataCached({
+    fetch,
+    retry: { retries: 1, factor: 1, minTimeout: 1, maxTimeout: 1 },
+    timeout: 30_000,
+    fetchWarnTimeoutMs: 30_000,
+  }, 'is-positive', {
+    cacheDir,
+    registry: registries.default,
+  })
+
+  expect(result.name).toBe('is-positive')
+  getMockAgent().assertNoPendingInterceptors()
+  const persisted = await retryLoadJsonFile<CachedMetadata>(pkgMirror)
+  expect(persisted.etag).toBe('"after-retry"')
+})
+
+test('cached metadata propagates a cache-loss fallback registry error', async () => {
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, FULL_META_DIR, registries.default, 'is-positive')
+  await saveMeta(pkgMirror, prepareJsonForDisk(isPositiveMeta, '"stale"'))
+
+  const registry = getMockAgent().get(registries.default.replace(/\/$/, ''))
+  registry
+    .intercept({
+      path: '/is-positive',
+      method: 'GET',
+      headers: { 'if-none-match': '"stale"' },
+    })
+    .reply(() => {
+      fs.rmSync(pkgMirror)
+      return { statusCode: 304, data: '' }
+    })
+  registry
+    .intercept({
+      path: '/is-positive',
+      method: 'GET',
+      headers: matchCacheBypassHeaders,
+    })
+    .reply(403, '')
+
+  await expect(fetchFullMetadataCached({
+    fetch,
+    retry: { retries: 0 },
+    timeout: 30_000,
+    fetchWarnTimeoutMs: 30_000,
+  }, 'is-positive', {
+    cacheDir,
+    registry: registries.default,
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_FETCH_403',
+    response: { status: 403 },
+  })
+  getMockAgent().assertNoPendingInterceptors()
+})
+
+function matchCacheBypassHeaders (headers: Record<string, string>): boolean {
+  return headers['if-none-match'] === undefined &&
+    headers['if-modified-since'] === undefined &&
+    headers['cache-control'] === 'no-cache'
+}

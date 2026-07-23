@@ -1,0 +1,573 @@
+use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
+use std::time::Duration;
+
+use super::{
+    ABBREVIATED_META_CONTENT_TYPE, ACCEPT_ABBREVIATED_DOC, FetchFullMetadataOptions,
+    FetchFullMetadataOutcome, fetch_full_metadata,
+};
+
+/// The two constants repeat the media type as separate literals (Rust
+/// cannot build one string const from another without a macro), so
+/// guard against them drifting apart: the `Accept` header must offer
+/// the same media type the response detection recognizes.
+#[test]
+fn accept_header_offers_the_detected_abbreviated_media_type() {
+    assert!(ACCEPT_ABBREVIATED_DOC.starts_with(ABBREVIATED_META_CONTENT_TYPE));
+}
+
+/// Unwrap a [`FetchFullMetadataOutcome::Modified`], panicking on
+/// `NotModified`. Used by the success-path tests below where the
+/// mock always responds 200.
+fn expect_modified(outcome: FetchFullMetadataOutcome) -> pacquet_registry::Package {
+    match outcome {
+        FetchFullMetadataOutcome::Modified(pkg) => *pkg,
+        FetchFullMetadataOutcome::NotModified => {
+            panic!("expected Modified outcome, got NotModified")
+        }
+    }
+}
+
+fn no_retry_opts() -> RetryOpts {
+    RetryOpts { retries: 0, ..Default::default() }
+}
+
+fn fast_retry_opts() -> RetryOpts {
+    RetryOpts {
+        retries: 1,
+        min_timeout: Duration::from_millis(1),
+        max_timeout: Duration::from_millis(1),
+        ..Default::default()
+    }
+}
+
+#[tokio::test]
+async fn fetch_full_metadata_targets_full_endpoint_with_auth() {
+    let mut server = mockito::Server::new_async().await;
+    let body = r#"{
+        "name": "acme",
+        "dist-tags": { "latest": "1.0.0" },
+        "modified": "2025-01-15T12:00:00.000Z",
+        "time": { "1.0.0": "2025-01-10T08:30:00.000Z" },
+        "versions": {
+            "1.0.0": {
+                "name": "acme",
+                "version": "1.0.0",
+                "_npmUser": {
+                    "name": "alice",
+                    "trustedPublisher": { "id": "github", "oidcConfigId": "release" }
+                },
+                "dist": {
+                    "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+                    "shasum": "0000000000000000000000000000000000000000",
+                    "tarball": "https://registry/acme-1.0.0.tgz",
+                    "attestations": {
+                        "provenance": { "predicateType": "https://slsa.dev/provenance/v1" }
+                    }
+                }
+            }
+        }
+    }"#;
+    let mock = server
+        .mock("GET", "/acme")
+        .match_header("accept", "application/json; q=1.0, */*")
+        .match_header("authorization", "Bearer top-secret")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(body)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::from_creds_map(
+        [(pacquet_network::nerf_dart(&registry), "Bearer top-secret".to_owned())],
+        None,
+    );
+    let opts = FetchFullMetadataOptions {
+        registry: &registry,
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        full_metadata: true,
+        etag: None,
+        modified: None,
+        retry_opts: no_retry_opts(),
+    };
+
+    let pkg =
+        expect_modified(fetch_full_metadata("acme", &opts).await.expect("server returns 200"));
+    assert_eq!(pkg.name, "acme");
+    assert_eq!(pkg.published_at("1.0.0"), Some("2025-01-10T08:30:00.000Z"));
+    let version = pkg.versions.get("1.0.0").expect("version present");
+    assert!(version.npm_user.as_ref().and_then(|user| user.trusted_publisher.as_ref()).is_some());
+    assert!(version.dist.attestations.as_ref().and_then(|att| att.provenance.as_ref()).is_some());
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn fetch_full_metadata_uses_package_scope_auth() {
+    let mut server = mockito::Server::new_async().await;
+    let body = r#"{
+        "name": "@scope/pkg",
+        "dist-tags": { "latest": "1.0.0" },
+        "modified": "2025-01-15T12:00:00.000Z",
+        "versions": {
+            "1.0.0": {
+                "name": "@scope/pkg",
+                "version": "1.0.0",
+                "dist": {
+                    "shasum": "0000000000000000000000000000000000000000",
+                    "tarball": "https://registry/@scope/pkg-1.0.0.tgz"
+                }
+            }
+        }
+    }"#;
+    let mock = server
+        .mock("GET", "/@scope%2Fpkg")
+        .match_header("authorization", "Bearer scoped-token")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(body)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::from_creds_map(
+        [(
+            format!("{}@scope", pacquet_network::nerf_dart(&registry)),
+            "Bearer scoped-token".to_owned(),
+        )],
+        None,
+    );
+    let opts = FetchFullMetadataOptions {
+        registry: &registry,
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        full_metadata: false,
+        etag: None,
+        modified: None,
+        retry_opts: no_retry_opts(),
+    };
+
+    let pkg = expect_modified(
+        fetch_full_metadata("@scope/pkg", &opts).await.expect("server returns 200"),
+    );
+    assert_eq!(pkg.name, "@scope/pkg");
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn fetch_full_metadata_surfaces_5xx_as_network_error() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server.mock("GET", "/acme").with_status(503).expect(1).create_async().await;
+
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let opts = FetchFullMetadataOptions {
+        registry: &registry,
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        full_metadata: true,
+        etag: None,
+        modified: None,
+        retry_opts: no_retry_opts(),
+    };
+
+    let err = fetch_full_metadata("acme", &opts).await.expect_err("503 must surface");
+    assert!(
+        matches!(err, super::FetchMetadataError::Network { .. }),
+        "expected Network variant, got: {err:?}",
+    );
+    let text = format!("{err:?}");
+    assert!(text.contains("acme"), "error mentions the failing URL: {text}");
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn fetch_full_metadata_redacts_credentials_in_surfaced_error() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server.mock("GET", "/acme").with_status(503).expect(1).create_async().await;
+
+    // Registry configured with inline basic-auth in the URL: the surfaced
+    // error (Display *and* Debug, which reach the terminal and CI logs) must
+    // not carry the password.
+    let registry = format!("{}/", server.url().replacen("http://", "http://user:secret@", 1));
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let opts = FetchFullMetadataOptions {
+        registry: &registry,
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        full_metadata: true,
+        etag: None,
+        modified: None,
+        retry_opts: no_retry_opts(),
+    };
+
+    let err = fetch_full_metadata("acme", &opts).await.expect_err("503 must surface");
+    for rendered in [err.to_string(), format!("{err:?}")] {
+        assert!(!rendered.contains("secret"), "password must not leak: {rendered}");
+        assert!(!rendered.contains("user:"), "userinfo must not leak: {rendered}");
+    }
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn fetch_full_metadata_retries_transient_status() {
+    let mut server = mockito::Server::new_async().await;
+    let first = server.mock("GET", "/acme").with_status(503).expect(1).create_async().await;
+    let body = r#"{
+        "name": "acme",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "acme",
+                "version": "1.0.0",
+                "dist": {
+                    "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+                    "shasum": "0000000000000000000000000000000000000000",
+                    "tarball": "https://registry/acme-1.0.0.tgz"
+                }
+            }
+        }
+    }"#;
+    let second = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(body)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let opts = FetchFullMetadataOptions {
+        registry: &registry,
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        full_metadata: true,
+        etag: None,
+        modified: None,
+        retry_opts: fast_retry_opts(),
+    };
+
+    let pkg = expect_modified(fetch_full_metadata("acme", &opts).await.expect("503 retries"));
+    assert_eq!(pkg.name, "acme");
+    first.assert_async().await;
+    second.assert_async().await;
+}
+
+/// The mirror's `modified` value is the packument's ISO-8601
+/// `time.modified`, but `If-Modified-Since` must carry an HTTP-date
+/// (RFC 9110 §8.8.3) — the same conversion the TypeScript CLI does with
+/// `toUTCString()`, keeping the two stacks byte-identical on the wire.
+#[tokio::test]
+async fn fetch_full_metadata_sends_if_modified_since_as_http_date() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .match_header("if-modified-since", "Wed, 15 Jan 2025 12:00:00 GMT")
+        .with_status(304)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let opts = FetchFullMetadataOptions {
+        registry: &registry,
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        full_metadata: true,
+        etag: None,
+        modified: Some("2025-01-15T12:00:00.000Z"),
+        retry_opts: no_retry_opts(),
+    };
+
+    let outcome = fetch_full_metadata("acme", &opts).await.expect("server returns 304");
+    assert!(
+        matches!(outcome, FetchFullMetadataOutcome::NotModified),
+        "expected NotModified outcome, got: {outcome:?}",
+    );
+    mock.assert_async().await;
+}
+
+/// A `modified` value that is neither ISO-8601 nor an HTTP-date cannot be
+/// turned into a valid header, so it is dropped rather than sent — and it
+/// must not count as a validator, or an unsolicited 304 would be
+/// misattributed to it instead of triggering the no-cache retry.
+#[tokio::test]
+async fn fetch_full_metadata_drops_unparsable_modified_value() {
+    let mut server = mockito::Server::new_async().await;
+    let body = r#"{
+        "name": "acme",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "acme",
+                "version": "1.0.0",
+                "dist": {
+                    "shasum": "0000000000000000000000000000000000000000",
+                    "tarball": "https://registry/acme-1.0.0.tgz"
+                }
+            }
+        }
+    }"#;
+    let mock = server
+        .mock("GET", "/acme")
+        .match_header("if-modified-since", mockito::Matcher::Missing)
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(body)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let opts = FetchFullMetadataOptions {
+        registry: &registry,
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        full_metadata: true,
+        etag: None,
+        modified: Some("not-a-date"),
+        retry_opts: no_retry_opts(),
+    };
+
+    let pkg =
+        expect_modified(fetch_full_metadata("acme", &opts).await.expect("server returns 200"));
+    assert_eq!(pkg.name, "acme");
+    mock.assert_async().await;
+}
+
+#[test]
+fn to_http_date_converts_iso_8601() {
+    assert_eq!(
+        super::to_http_date("2025-01-15T12:00:00.000Z").as_deref(),
+        Some("Wed, 15 Jan 2025 12:00:00 GMT"),
+    );
+}
+
+#[test]
+fn to_http_date_keeps_http_dates() {
+    assert_eq!(
+        super::to_http_date("Wed, 15 Jan 2025 12:00:00 GMT").as_deref(),
+        Some("Wed, 15 Jan 2025 12:00:00 GMT"),
+    );
+}
+
+#[test]
+fn to_http_date_rejects_unparsable_values() {
+    assert_eq!(super::to_http_date("not-a-date"), None);
+}
+
+/// A `Content-Encoding: gzip` header over a body that isn't gzip makes
+/// reqwest fail while *decoding the response body* — the same class of
+/// failure as a connection reset mid-transfer, surfacing as reqwest's
+/// "error decoding response body". This is the error the CI benchmark
+/// hit against the live registry and that `send_with_retry` can't see,
+/// because it happens after the request returns `200`.
+async fn corrupt_gzip_body_mock(server: &mut mockito::ServerGuard) -> mockito::Mock {
+    server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_header("content-encoding", "gzip")
+        .with_body("this is not valid gzip")
+        .expect(1)
+        .create_async()
+        .await
+}
+
+#[tokio::test]
+async fn fetch_full_metadata_surfaces_body_read_failure_distinctly() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = corrupt_gzip_body_mock(&mut server).await;
+
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let opts = FetchFullMetadataOptions {
+        registry: &registry,
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        full_metadata: true,
+        etag: None,
+        modified: None,
+        retry_opts: no_retry_opts(),
+    };
+
+    let err = fetch_full_metadata("acme", &opts).await.expect_err("undecodable body must surface");
+    assert!(
+        matches!(err, super::FetchMetadataError::BodyRead { .. }),
+        "expected BodyRead variant, got: {err:?}",
+    );
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn fetch_full_metadata_retries_body_read_failure() {
+    let mut server = mockito::Server::new_async().await;
+    let first = corrupt_gzip_body_mock(&mut server).await;
+    let body = r#"{
+        "name": "acme",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "acme",
+                "version": "1.0.0",
+                "dist": {
+                    "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+                    "shasum": "0000000000000000000000000000000000000000",
+                    "tarball": "https://registry/acme-1.0.0.tgz"
+                }
+            }
+        }
+    }"#;
+    let second = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(body)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let opts = FetchFullMetadataOptions {
+        registry: &registry,
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        full_metadata: true,
+        etag: None,
+        modified: None,
+        retry_opts: fast_retry_opts(),
+    };
+
+    let pkg = expect_modified(fetch_full_metadata("acme", &opts).await.expect("body read retries"));
+    assert_eq!(pkg.name, "acme");
+    first.assert_async().await;
+    second.assert_async().await;
+}
+
+#[tokio::test]
+async fn fetch_full_metadata_encodes_scoped_name() {
+    let mut server = mockito::Server::new_async().await;
+    let body = r#"{
+        "name": "@scope/pkg",
+        "dist-tags": { "latest": "1.0.0" },
+        "time": { "1.0.0": "2025-01-10T08:30:00.000Z" },
+        "versions": {
+            "1.0.0": {
+                "name": "@scope/pkg",
+                "version": "1.0.0",
+                "dist": {
+                    "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+                    "shasum": "0000000000000000000000000000000000000000",
+                    "tarball": "https://registry/scope-pkg-1.0.0.tgz"
+                }
+            }
+        }
+    }"#;
+    let mock = server
+        .mock("GET", "/@scope%2Fpkg")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(body)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let opts = FetchFullMetadataOptions {
+        registry: &registry,
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        full_metadata: true,
+        etag: None,
+        modified: None,
+        retry_opts: no_retry_opts(),
+    };
+
+    let pkg = expect_modified(
+        fetch_full_metadata("@scope/pkg", &opts).await.expect("encoded scoped name reaches mock"),
+    );
+    assert_eq!(pkg.name, "@scope/pkg");
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn fetch_full_metadata_surfaces_decode_failure_distinctly() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body("definitely not JSON")
+        .expect(1)
+        .create_async()
+        .await;
+
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let opts = FetchFullMetadataOptions {
+        registry: &registry,
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        full_metadata: true,
+        etag: None,
+        modified: None,
+        retry_opts: no_retry_opts(),
+    };
+
+    let err = fetch_full_metadata("acme", &opts).await.expect_err("malformed JSON must surface");
+    assert!(
+        matches!(err, super::FetchMetadataError::Decode { .. }),
+        "expected Decode variant, got: {err:?}",
+    );
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn fetch_full_metadata_returns_not_modified_on_304() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .match_header("if-none-match", r#"W/"fresh""#)
+        .match_header("if-modified-since", "Wed, 15 Jan 2025 12:00:00 GMT")
+        .with_status(304)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let opts = FetchFullMetadataOptions {
+        registry: &registry,
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        full_metadata: true,
+        etag: Some(r#"W/"fresh""#),
+        modified: Some("Wed, 15 Jan 2025 12:00:00 GMT"),
+        retry_opts: no_retry_opts(),
+    };
+
+    let outcome = fetch_full_metadata("acme", &opts).await.expect("304 must succeed");
+    assert!(
+        matches!(outcome, FetchFullMetadataOutcome::NotModified),
+        "expected NotModified, got: {outcome:?}",
+    );
+    mock.assert_async().await;
+}

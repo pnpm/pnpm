@@ -26,6 +26,7 @@ const DEPENDENCIES_FIELD = ['dependencies', 'devDependencies', 'optionalDependen
 export interface CreateDeployFilesOptions {
   allProjects: Array<Pick<Project, 'manifest' | 'rootDirRealPath'>>
   deployDir: string
+  include: { [dependenciesField in DependenciesField]: boolean }
   lockfile: LockfileObject
   lockfileDir: string
   patchedDependencies?: PnpmSettings['patchedDependencies']
@@ -49,6 +50,7 @@ export interface DeployFiles {
 export function createDeployFiles ({
   allProjects,
   deployDir,
+  include,
   lockfile,
   lockfileDir,
   patchedDependencies,
@@ -119,14 +121,23 @@ export function createDeployFiles ({
         continue
       }
 
+      resolveResult.packageName ??= name
       targetSpecifiers[name] = targetDependencies[name] =
         resolveResult.resolvedPath === deployedProjectRealPath ? 'link:.' : createFileUrlDepPath(resolveResult, allProjects)
     }
   }
 
+  const deployPackageSnapshots = filterDeployPackageSnapshots(
+    targetSnapshot,
+    targetPackageSnapshots,
+    include
+  )
+
   const result: DeployFiles = {
     lockfile: {
       ...lockfile,
+      // The deployed manifest contains concrete versions, and catalogs are not copied to the target.
+      catalogs: undefined,
       patchedDependencies: undefined,
       overrides: undefined, // the effects of the overrides should already be part of the package snapshots
       packageExtensionsChecksum: undefined, // the effects of the package extensions should already be part of the package snapshots
@@ -138,7 +149,7 @@ export function createDeployFiles ({
       importers: {
         ['.' as ProjectId]: targetSnapshot,
       },
-      packages: targetPackageSnapshots,
+      packages: deployPackageSnapshots,
     },
     manifest: {
       ...selectedProjectManifest,
@@ -170,6 +181,41 @@ export function createDeployFiles ({
   }
 
   return result
+}
+
+function filterDeployPackageSnapshots (
+  importer: ProjectSnapshot,
+  packages: PackageSnapshots,
+  include: CreateDeployFilesOptions['include']
+): PackageSnapshots {
+  const queue: DepPath[] = []
+  const enqueue = (dependencies: ResolvedDependencies | undefined) => {
+    for (const [alias, reference] of Object.entries(dependencies ?? {})) {
+      const depPath = dp.refToRelative(reference, alias)
+      if (depPath != null && packages[depPath] != null) queue.push(depPath)
+    }
+  }
+
+  if (include.dependencies) enqueue(importer.dependencies)
+  if (include.devDependencies) enqueue(importer.devDependencies)
+  if (include.optionalDependencies) enqueue(importer.optionalDependencies)
+
+  const reachable = new Set<DepPath>()
+  let head = 0
+  while (head < queue.length) {
+    const depPath = queue[head++]!
+    if (reachable.has(depPath)) continue
+    reachable.add(depPath)
+
+    const snapshot = packages[depPath]
+    if (snapshot == null) continue
+    enqueue(snapshot.dependencies)
+    if (include.optionalDependencies) enqueue(snapshot.optionalDependencies)
+  }
+
+  return Object.fromEntries(
+    Array.from(reachable, (depPath) => [depPath, packages[depPath]])
+  ) as PackageSnapshots
 }
 
 interface ConvertOptions {
@@ -252,6 +298,7 @@ function convertResolvedDependencies (
       continue
     }
 
+    resolveResult.packageName ??= key
     output[key] = createFileUrlDepPath(resolveResult, opts.allProjects)
   }
 
@@ -262,6 +309,7 @@ interface ResolveLinkOrFileResult {
   scheme: 'link:' | 'file:'
   resolvedPath: string
   suffix?: string
+  packageName?: string
 }
 
 function resolveLinkOrFile (pkgVer: string, opts: Pick<ConvertOptions, 'lockfileDir' | 'projectRootDirRealPath'>): ResolveLinkOrFileResult | undefined {
@@ -277,7 +325,7 @@ function resolveLinkOrFile (pkgVer: string, opts: Pick<ConvertOptions, 'lockfile
   const resolveSchemeResult = resolveScheme('file:', lockfileDir) ?? resolveScheme('link:', projectRootDirRealPath)
   if (resolveSchemeResult) return resolveSchemeResult
 
-  const { nonSemverVersion, patchHash, peerDepGraphHash, version } = dp.parse(pkgVer)
+  const { name, nonSemverVersion, patchHash, peerDepGraphHash, version } = dp.parse(pkgVer)
   if (!nonSemverVersion) return undefined
 
   if (version) {
@@ -292,16 +340,17 @@ function resolveLinkOrFile (pkgVer: string, opts: Pick<ConvertOptions, 'lockfile
   }
 
   parseResult.suffix = `${patchHash ?? ''}${peerDepGraphHash ?? ''}`
+  parseResult.packageName = name
 
   return parseResult
 }
 
 function createFileUrlDepPath (
-  { resolvedPath, suffix }: Pick<ResolveLinkOrFileResult, 'resolvedPath' | 'suffix'>,
+  { resolvedPath, suffix, packageName }: Pick<ResolveLinkOrFileResult, 'resolvedPath' | 'suffix' | 'packageName'>,
   allProjects: CreateDeployFilesOptions['allProjects']
 ): DepPath {
   const depFileUrl = url.pathToFileURL(resolvedPath).toString()
   const project = allProjects.find(project => project.rootDirRealPath === resolvedPath)
-  const name = project?.manifest.name ?? path.basename(resolvedPath)
+  const name = project?.manifest.name ?? packageName ?? path.basename(resolvedPath)
   return `${name}@${depFileUrl}${suffix ?? ''}` as DepPath
 }

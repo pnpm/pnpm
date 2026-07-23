@@ -1,0 +1,247 @@
+//! `login` tests for the web-login error paths and the QR-generation
+//! fallback.
+
+use std::{
+    cell::RefCell,
+    io,
+    path::{Path, PathBuf},
+    sync::Mutex,
+};
+
+use pacquet_network_web_auth_testing::{SleepBehavior, ok_202, ok_token, web_auth_fake};
+use pipe_trait::Pipe;
+use pretty_assertions::assert_eq;
+use serde_json::json;
+
+use super::{
+    LoginError, login,
+    support::{PromptScript, ReadScript, client, login_fake, opts},
+};
+
+#[tokio::test]
+async fn should_throw_when_web_login_returns_invalid_response() {
+    web_auth_fake!();
+    login_fake!(FakeHost);
+    reset();
+    reset_login();
+
+    let mut server = mockito::Server::new_async().await;
+    server
+        .mock("POST", "/-/v1/login")
+        .with_status(200)
+        .with_body(json!({"loginUrl": "https://example.org/auth"}).to_string())
+        .create_async()
+        .await;
+    let registry = server.url();
+    let config_dir = Path::new("/mock/config");
+
+    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
+        .unwrap_err();
+
+    assert!(matches!(err, LoginError::InvalidResponse), "got {err:?}");
+    assert_eq!(
+        err.pipe_ref(miette::Diagnostic::code).map(|code| code.to_string()).as_deref(),
+        Some("ERR_PNPM_LOGIN_INVALID_RESPONSE"),
+    );
+    assert_eq!(err.to_string(), "The registry returned an invalid response for web-based login");
+}
+
+#[tokio::test]
+async fn should_propagate_non_enoent_errors_from_reading_auth_ini() {
+    web_auth_fake!();
+    login_fake!(FakeHost, set_ini_read);
+    reset();
+    reset_login();
+    set_fetch(Box::new(|| Ok(ok_token("tok"))));
+    set_ini_read(Box::new(|_| Err(io::Error::new(io::ErrorKind::PermissionDenied, "EACCES"))));
+
+    let mut server = mockito::Server::new_async().await;
+    server
+        .mock("POST", "/-/v1/login")
+        .with_status(200)
+        .with_body(json!({"loginUrl": "https://example.org/auth/login", "doneUrl": "https://example.org/auth/done"}).to_string())
+        .create_async()
+        .await;
+    let registry = server.url();
+    let config_dir = Path::new("/broken/config");
+
+    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
+        .unwrap_err();
+
+    let LoginError::ReadAuthIni { error, .. } = &err else {
+        panic!("expected ReadAuthIni, got {err:?}");
+    };
+    assert_eq!(error.kind(), io::ErrorKind::PermissionDenied);
+    // The web-login messages are surfaced before the read is attempted.
+    let messages = infos();
+    assert_eq!(messages.len(), 2, "expected the auth-URL and Press-ENTER lines: {messages:?}");
+    assert!(messages[0].contains("https://example.org/auth/login"), "got {messages:?}");
+    assert_eq!(messages[1], "Press ENTER to open the URL in your browser.");
+}
+
+/// A web-login probe that fails with a status other than 404 / 405 is fatal:
+/// it does not fall back to classic login but surfaces as `WEB_LOGIN_FAILED`,
+/// exercising the `Http` arm of `From<WebLoginFlowError>`.
+#[tokio::test]
+async fn should_surface_a_non_404_web_login_http_error_as_web_login_failed() {
+    web_auth_fake!();
+    login_fake!(FakeHost);
+    reset();
+    reset_login();
+
+    let mut server = mockito::Server::new_async().await;
+    let login_mock = server
+        .mock("POST", "/-/v1/login")
+        .with_status(500)
+        .with_body("Internal Server Error")
+        .create_async()
+        .await;
+    let registry = server.url();
+    let config_dir = Path::new("/mock/config");
+
+    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
+        .unwrap_err();
+
+    login_mock.assert_async().await;
+    assert!(matches!(err, LoginError::WebLoginFailed { status: 500, .. }), "got {err:?}");
+    assert_eq!(
+        err.pipe_ref(miette::Diagnostic::code).map(|code| code.to_string()).as_deref(),
+        Some("ERR_PNPM_WEB_LOGIN_FAILED"),
+    );
+    assert_eq!(err.to_string(), "Web-based login failed (HTTP 500): Internal Server Error");
+}
+
+/// A web-login probe that never reaches the registry surfaces as a transport
+/// error (`LoginError::Request`), exercising the `Transport` arm of
+/// `From<WebLoginFlowError>`. Binding then dropping an ephemeral loopback
+/// socket yields a port that refuses the connection.
+#[tokio::test]
+async fn should_surface_a_web_login_transport_failure_as_a_request_error() {
+    web_auth_fake!();
+    login_fake!(FakeHost);
+    reset();
+    reset_login();
+
+    let addr = {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind an ephemeral port");
+        listener.local_addr().expect("read the assigned port")
+    };
+    let registry = format!("http://{addr}/");
+    let config_dir = Path::new("/mock/config");
+
+    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
+        .unwrap_err();
+
+    assert!(matches!(err, LoginError::Request { .. }), "got {err:?}");
+    assert_eq!(
+        err.pipe_ref(miette::Diagnostic::code).map(|code| code.to_string()).as_deref(),
+        Some("ERR_PNPM_AUTH_COMMANDS_LOGIN_REQUEST_FAILED"),
+    );
+    assert!(err.to_string().starts_with("The login request failed:"), "unexpected message: {err}");
+}
+
+#[tokio::test]
+async fn should_fall_back_to_url_only_display_when_the_login_url_exceeds_qr_capacity() {
+    web_auth_fake!();
+    login_fake!(FakeHost);
+    reset();
+    reset_login();
+    set_fetch(Box::new(|| Ok(ok_token("tok"))));
+
+    let long_login_url = format!("https://example.org/auth/{}", "a".repeat(4000));
+    let body = json!({
+        "loginUrl": long_login_url,
+        "doneUrl": "https://example.org/auth/done",
+    })
+    .to_string();
+    let mut server = mockito::Server::new_async().await;
+    server.mock("POST", "/-/v1/login").with_status(200).with_body(body).create_async().await;
+    let registry = server.url();
+    let config_dir = Path::new("/mock/config");
+
+    login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
+        .expect("the login should succeed without a QR code");
+
+    assert!(
+        warns().iter().any(|message| message.starts_with("Could not generate a QR code:")),
+        "got {:?}",
+        warns(),
+    );
+    let auth_message = infos()
+        .into_iter()
+        .find(|message| message.contains(&long_login_url))
+        .expect("the auth URL should be surfaced");
+    assert_eq!(auth_message, format!("Authenticate your account at:\n{long_login_url}"));
+}
+
+/// When the web-auth poll never sees a token before its budget elapses, the
+/// login fails with the transparent web-auth timeout, exercising the `Timeout`
+/// arm of `From<WebLoginFlowError>`. Each fake sleep jumps the fake clock past
+/// the five-minute budget, so the next poll iteration times out.
+#[tokio::test]
+async fn should_time_out_when_the_web_auth_poll_never_completes() {
+    web_auth_fake!();
+    login_fake!(FakeHost);
+    reset();
+    reset_login();
+    set_fetch(Box::new(|| Ok(ok_202())));
+    set_sleep_behavior(SleepBehavior::AdvanceByFixed(6 * 60 * 1000));
+
+    let mut server = mockito::Server::new_async().await;
+    server
+        .mock("POST", "/-/v1/login")
+        .with_status(200)
+        .with_body(json!({"loginUrl": "https://example.org/auth/login", "doneUrl": "https://example.org/auth/done"}).to_string())
+        .create_async()
+        .await;
+    let registry = server.url();
+    let config_dir = Path::new("/mock/config");
+
+    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
+        .unwrap_err();
+
+    assert!(matches!(err, LoginError::WebAuthTimeout(_)), "got {err:?}");
+    assert_eq!(
+        err.pipe_ref(miette::Diagnostic::code).map(|code| code.to_string()).as_deref(),
+        Some("ERR_PNPM_WEBAUTH_TIMEOUT"),
+    );
+    assert_eq!(err.to_string(), "Web-based authentication timed out before it could be completed");
+}
+
+/// A registry-controlled `loginUrl` carrying a control character is never a
+/// valid URL; the login is rejected as a possible terminal-spoofing attempt
+/// (rather than sanitized and used), and nothing reaches the terminal raw.
+#[tokio::test]
+async fn rejects_a_login_url_containing_control_characters() {
+    web_auth_fake!();
+    login_fake!(FakeHost);
+    reset();
+    reset_login();
+
+    let body = json!({
+        "loginUrl": "https://example.org/auth/\u{1b}[31mlogin",
+        "doneUrl": "https://example.org/auth/done",
+    })
+    .to_string();
+    let mut server = mockito::Server::new_async().await;
+    server.mock("POST", "/-/v1/login").with_status(200).with_body(body).create_async().await;
+    let registry = server.url();
+    let config_dir = Path::new("/mock/config");
+
+    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
+        .unwrap_err();
+
+    assert!(matches!(err, LoginError::UnsafeLoginUrl), "got {err:?}");
+    assert_eq!(
+        err.pipe_ref(miette::Diagnostic::code).map(|code| code.to_string()).as_deref(),
+        Some("ERR_PNPM_AUTH_COMMANDS_LOGIN_UNSAFE_URL"),
+    );
+    assert!(infos().iter().all(|message| !message.contains('\u{1b}')), "got {:?}", infos());
+}

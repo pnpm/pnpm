@@ -11,8 +11,7 @@ import { logger } from '@pnpm/logger'
 import { prependDirsToPath } from '@pnpm/shell.path'
 import type { Project, ProjectRootDir, ProjectRootDirRealPath, ProjectsGraph } from '@pnpm/types'
 import { tryReadProjectManifest } from '@pnpm/workspace.project-manifest-reader'
-import { sortProjects } from '@pnpm/workspace.projects-sorter'
-import { safeExeca as execa } from 'execa'
+import { sortFilteredProjects } from '@pnpm/workspace.projects-sorter'
 import pLimit from 'p-limit'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
@@ -29,6 +28,7 @@ import {
   shorthands as runShorthands,
 } from './run.js'
 import { runDepsStatusCheck } from './runDepsStatusCheck.js'
+import { trackedExeca } from './trackedExeca.js'
 
 export const shorthands: Record<string, string | string[]> = {
   parallel: runShorthands.parallel,
@@ -164,7 +164,7 @@ export type ExecOpts = Required<Pick<ConfigContext, 'selectedProjectsGraph'>> & 
 | 'userAgent'
 | 'verifyDepsBeforeRun'
 | 'workspaceDir'
-> & Pick<ConfigContext, 'cliOptions'> & CheckDepsStatusOptions
+> & Pick<ConfigContext, 'cliOptions' | 'allProjectsGraph' | 'prodAllProjectsGraph' | 'prodOnlySelectedProjectDirs'> & CheckDepsStatusOptions
 
 export async function handler (
   opts: ExecOpts,
@@ -186,7 +186,7 @@ export async function handler (
   let chunks!: ProjectRootDir[][]
   if (opts.recursive) {
     chunks = opts.sort
-      ? sortProjects(opts.selectedProjectsGraph)
+      ? sortFilteredProjects(opts)
       : [(Object.keys(opts.selectedProjectsGraph) as ProjectRootDir[]).sort()]
     if (opts.reverse) {
       chunks = chunks.reverse()
@@ -262,7 +262,7 @@ export async function handler (
           const [cmd, ...args] = params
           if (reporterShowPrefix) {
             const manifest = await readProjectManifestOnly(prefix)
-            const child = execa(cmd, args, {
+            const child = trackedExeca(cmd, args, {
               cwd: prefix,
               env,
               stdio: 'pipe',
@@ -296,12 +296,13 @@ export async function handler (
             })
             await child
           } else {
-            await execa(cmd, args, {
+            const child = trackedExeca(cmd, args, {
               cwd: prefix,
               env,
               stdio: 'inherit',
               shell: opts.shellMode ?? false,
             })
+            await child
           }
           result[prefix].status = 'passed'
           result[prefix].duration = getExecutionDuration(startTime)

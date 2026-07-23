@@ -1,10 +1,9 @@
 use crate::{
-    config::{RedactedHeaders, UplinkConfig},
+    config::{RedactedHeaders, UpstreamConfig},
     error::{RegistryError, Result},
     package_name::PackageName,
 };
 use chrono::{DateTime, Timelike, Utc};
-use indexmap::IndexMap;
 use pacquet_network::ThrottledClient;
 use reqwest::{
     StatusCode,
@@ -21,7 +20,7 @@ use std::{
 /// Wraps a shared [`ThrottledClient`] (so the registry inherits pnpm's
 /// tuned reqwest defaults: `User-Agent: pnpm`, HTTP/1.1, hickory DNS,
 /// pool/timeout tuning, concurrency semaphore, and per-registry TLS
-/// routing if it's ever wired in later) and adds the per-uplink glue a
+/// routing if it's ever wired in later) and adds the per-upstream glue a
 /// proxy needs: building the upstream URL, applying verdaccio's
 /// `timeout`/`max_fails`/`fail_timeout` knobs, and fishing the packument
 /// or tarball response out of it.
@@ -29,24 +28,24 @@ use std::{
 pub struct Upstream {
     client: Arc<ThrottledClient>,
     base: String,
-    /// The configured uplink name (the YAML `uplinks:` key). Surfaced in
-    /// client-facing errors so an open circuit names the uplink rather
+    /// The configured upstream name (the YAML `upstreams:` key). Surfaced in
+    /// client-facing errors so an open circuit names the upstream rather
     /// than leaking its upstream URL.
     name: String,
-    /// Resolved per-uplink request headers (auth + custom) attached to
-    /// every fetch. Empty for an uplink with no `auth:`/`headers:`.
+    /// Resolved per-upstream request headers (auth + custom) attached to
+    /// every fetch. Empty for an upstream with no `auth:`/`headers:`.
     headers: HeaderMap,
     /// Per-request deadline (verdaccio's `timeout`).
     timeout: Duration,
-    /// Per-uplink packument freshness window (verdaccio's `maxage`), or
+    /// Per-upstream packument freshness window (verdaccio's `maxage`), or
     /// `None` to defer to the global [`crate::config::Config::packument_ttl`].
     maxage: Option<Duration>,
-    /// Whether tarballs from this uplink are written to the local mirror
+    /// Whether tarballs from this upstream are written to the local mirror
     /// (verdaccio's `cache`).
     cache: bool,
     /// Shared failure tracker implementing verdaccio's
     /// `max_fails`/`fail_timeout` circuit breaker. Behind an [`Arc`] so
-    /// every clone of this `Upstream` (the registry holds one per uplink
+    /// every clone of this `Upstream` (the registry holds one per upstream
     /// and clones it per request) updates the same counters.
     breaker: Arc<CircuitBreaker>,
 }
@@ -67,7 +66,7 @@ impl fmt::Debug for Upstream {
 }
 
 /// Verdaccio's `max_fails` / `fail_timeout` circuit breaker. After
-/// `max_fails` consecutive failures the uplink is considered down and
+/// `max_fails` consecutive failures the upstream is considered down and
 /// requests short-circuit, until `fail_timeout` elapses since the last
 /// failure — a single probe is then allowed through, and its success
 /// resets the breaker or its failure restarts the cooldown.
@@ -84,7 +83,7 @@ impl fmt::Debug for Upstream {
 /// check and its timestamp can never be observed half-updated. The lock
 /// is held only for trivial field reads/writes (never across the network
 /// request), so contention is negligible; a poisoned lock is recovered
-/// rather than propagated as a panic, keeping a failing uplink from
+/// rather than propagated as a panic, keeping a failing upstream from
 /// taking the registry down.
 #[derive(Debug)]
 struct CircuitBreaker {
@@ -157,14 +156,12 @@ pub enum FetchOutcome<Payload> {
     NotFound,
 }
 
-/// Conditional-GET validators captured from an upstream packument
-/// response (its `ETag` / `Last-Modified`) and replayed on the next
-/// refresh as `If-None-Match` / `If-Modified-Since`. An upstream that
-/// emits neither leaves both `None`, and the refresh falls back to an
-/// unconditional GET.
-///
-/// Persisted verbatim in a sidecar next to the cached packument (see
-/// [`crate::storage`]); the field names double as the on-disk JSON keys.
+/// Conditional-GET validators sent on a packument refresh (an `ETag` /
+/// `Last-Modified` replayed as `If-None-Match` / `If-Modified-Since`). A
+/// per-registry cache refetches a stale entry rather than revalidating it, so in
+/// practice the default (empty) value is always sent; the type stays so the
+/// fetch path can grow conditional revalidation again without a signature
+/// change.
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct CacheValidators {
     #[serde(skip_serializing_if = "Option::is_none", default)]
@@ -173,70 +170,10 @@ pub struct CacheValidators {
     pub last_modified: Option<String>,
 }
 
-impl CacheValidators {
-    pub fn is_empty(&self) -> bool {
-        self.etag.is_none() && self.last_modified.is_none()
-    }
-
-    fn from_headers(headers: &HeaderMap) -> Self {
-        let get =
-            |name| headers.get(name).and_then(|value| value.to_str().ok()).map(str::to_string);
-        Self { etag: get(header::ETAG), last_modified: get(header::LAST_MODIFIED) }
-    }
-}
-
-/// The conditional-GET validators a package's cached packument carries,
-/// keyed by uplink name. A `proxy:` rule can list several uplinks as a
-/// fallback chain, and each upstream's `ETag`/`Last-Modified` is its own —
-/// replaying one origin's validators against another risks a spurious
-/// `304` (another origin's body served under that confirmation). A refresh
-/// therefore sends each uplink only [`Self::get`]'s entry for it.
-///
-/// In practice the cache holds a single shared packument body, so
-/// [`crate::storage::Storage::write_cached_packument`] keeps validators for
-/// exactly the uplink that fetched that body — the map carries at most one
-/// entry (the body's origin), and every other uplink resolves to empty
-/// validators (an unconditional GET). Modelling it as a map keeps the
-/// `get`/`set` plumbing origin-agnostic and tolerates a stray multi-entry
-/// sidecar from a future change without ever sending the wrong origin's
-/// validators.
-///
-/// Persisted as the packument's validator sidecar (see [`crate::storage`]),
-/// a JSON object `{ "<uplink>": { "etag": ..., "last_modified": ... } }`.
-/// An older single-object sidecar (a bare [`CacheValidators`]) fails to
-/// deserialize into this shape; the storage layer degrades that to an empty
-/// map, costing one unconditional refetch after an upgrade.
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
-pub struct ValidatorsByUplink(IndexMap<String, CacheValidators>);
-
-impl ValidatorsByUplink {
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-
-    /// The validators recorded for `uplink`, or empty defaults when there
-    /// are none — the signal for an unconditional GET to that uplink.
-    pub fn get(&self, uplink: &str) -> CacheValidators {
-        self.0.get(uplink).cloned().unwrap_or_default()
-    }
-
-    /// Record (replacing) one uplink's validators. Empty validators clear
-    /// the entry, so a later read can't replay an `ETag` the upstream no
-    /// longer sends.
-    pub fn set(&mut self, uplink: &str, validators: CacheValidators) {
-        if validators.is_empty() {
-            self.0.shift_remove(uplink);
-        } else {
-            self.0.insert(uplink.to_string(), validators);
-        }
-    }
-}
-
-/// A packument fetched (or revalidated) against an upstream.
+/// A packument fetched against an upstream.
 #[derive(Debug)]
 pub struct FetchedPackument {
     pub bytes: Vec<u8>,
-    pub validators: CacheValidators,
 }
 
 /// Outcome of a (possibly conditional) packument fetch.
@@ -252,11 +189,11 @@ pub enum PackumentFetch {
 }
 
 impl Upstream {
-    /// Build an uplink client from its name (the YAML `uplinks:` key) and
-    /// resolved [`UplinkConfig`], baking in the per-uplink
+    /// Build an upstream client from its name (the YAML `upstreams:` key) and
+    /// resolved [`UpstreamConfig`], baking in the per-upstream
     /// `timeout`/`maxage`/`cache` knobs and arming the
     /// `max_fails`/`fail_timeout` circuit breaker.
-    pub fn new(name: &str, config: &UplinkConfig) -> Self {
+    pub fn new(name: &str, config: &UpstreamConfig) -> Self {
         Self {
             client: Arc::new(ThrottledClient::new_for_installs()),
             base: config.url.clone(),
@@ -269,20 +206,13 @@ impl Upstream {
         }
     }
 
-    /// The configured uplink name (the YAML `uplinks:` key). Used to key
-    /// this uplink's entry in the cache's per-uplink validator map
-    /// ([`ValidatorsByUplink`]).
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    /// Per-uplink packument freshness window (`maxage`), or `None` to
+    /// Per-upstream packument freshness window (`maxage`), or `None` to
     /// defer to the global [`crate::config::Config::packument_ttl`].
     pub fn maxage(&self) -> Option<Duration> {
         self.maxage
     }
 
-    /// Whether tarballs from this uplink should be written to the local
+    /// Whether tarballs from this upstream should be written to the local
     /// mirror (`cache: true`). When `false` the caller streams the body
     /// straight through without caching it.
     pub fn caches(&self) -> bool {
@@ -321,7 +251,7 @@ impl Upstream {
         }
         let response = self.run(request, &url).await?;
         if response.status() == StatusCode::NOT_FOUND {
-            // A 404 is an authoritative answer, not an uplink failure.
+            // A 404 is an authoritative answer, not an upstream failure.
             self.breaker.record_success();
             return Ok(PackumentFetch::NotFound);
         }
@@ -335,13 +265,12 @@ impl Upstream {
             return Ok(PackumentFetch::NotModified);
         }
         let response = self.checked(response, &url).await?;
-        let validators = CacheValidators::from_headers(response.headers());
         let bytes = response.bytes().await.map_err(|source| {
             self.breaker.record_failure();
             RegistryError::Upstream { url: url.clone(), source }
         })?;
         self.breaker.record_success();
-        Ok(PackumentFetch::Modified(FetchedPackument { bytes: bytes.to_vec(), validators }))
+        Ok(PackumentFetch::Modified(FetchedPackument { bytes: bytes.to_vec() }))
     }
 
     /// Send the tarball request and return the streaming
@@ -375,12 +304,12 @@ impl Upstream {
 
     /// Fail fast with [`RegistryError::UpstreamUnavailable`] when the
     /// breaker is open, so callers never pay a request to a known-down
-    /// uplink.
+    /// upstream.
     fn ensure_available(&self) -> Result<()> {
         if self.breaker.try_acquire() {
             return Ok(());
         }
-        Err(RegistryError::UpstreamUnavailable { uplink: self.name.clone() })
+        Err(RegistryError::UpstreamUnavailable { upstream: self.name.clone() })
     }
 
     /// Send a built request, mapping a transport error to
@@ -528,7 +457,7 @@ const TIME_PRECISION_HORIZON_DAYS: i64 = 7;
 
 /// Per-version fields preserved in the abbreviated form — a subset of
 /// the npm spec's abbreviated version object
-/// (<https://github.com/npm/registry/blob/master/docs/responses/package-metadata.md#abbreviated-version-object>).
+/// (<https://github.com/npm/registry/blob/ae49abf1ba/docs/responses/package-metadata.md#abbreviated-version-object>).
 /// Fields neither the pnpm nor the pacquet resolver reads are dropped
 /// to shrink the document: `funding`, `acceptDependencies`,
 /// `_hasShrinkwrap`, and `devDependencies` (a dependency's dev

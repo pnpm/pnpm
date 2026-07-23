@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.commands",
-  "version": "1100.10.1",
+  "version": "1100.11.0",
   "description": "Commands for installation",
   "keywords": [
     "pnpm",
@@ -36,6 +36,7 @@
     "@pnpm/building.after-install": "workspace:*",
     "@pnpm/building.policy": "workspace:*",
     "@pnpm/catalogs.config": "workspace:*",
+    "@pnpm/catalogs.protocol-parser": "workspace:*",
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/cli.command": "workspace:*",
     "@pnpm/cli.common-cli-options-help": "workspace:*",
@@ -47,6 +48,8 @@
     "@pnpm/config.version-policy": "workspace:*",
     "@pnpm/config.writer": "workspace:*",
     "@pnpm/constants": "workspace:*",
+    "@pnpm/core-loggers": "workspace:*",
+    "@pnpm/deps.github-actions": "workspace:*",
     "@pnpm/deps.inspection.outdated": "workspace:*",
     "@pnpm/deps.path": "workspace:*",
     "@pnpm/deps.security.signatures": "workspace:*",
@@ -83,6 +86,7 @@
     "@pnpm/workspace.projects-sorter": "workspace:*",
     "@pnpm/workspace.root-finder": "workspace:*",
     "@pnpm/workspace.state": "workspace:*",
+    "@pnpm/workspace.workspace-manifest-reader": "workspace:*",
     "@pnpm/workspace.workspace-manifest-writer": "workspace:*",
     "@yarnpkg/core": "catalog:",
     "@yarnpkg/lockfile": "catalog:",

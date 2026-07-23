@@ -1,0 +1,142 @@
+# Options
+
+[pnpm documentation](https://pnpm.io/pnpm-cli#options)
+
+| Done | Command                 | Notes |
+| ---- | ----------------------- | ----- |
+| ✅   | -C <path>, --dir <path> |       |
+|      | -w, --workspace-root    |       |
+
+# Manage dependencies
+
+## `pacquet add <pkg>`
+
+[pnpm documentation](https://pnpm.io/cli/add)
+
+- [~] Install from npm registry
+  - Install with tags are not supported. Example: `pacquet add fastify@latest`
+- [ ] Install from the workspace
+- [ ] Install from local file system
+- [ ] Install from remote tarball
+- [ ] Install from Git repository
+
+| Done | Command                       | Notes |
+| ---- | ----------------------------- | ----- |
+| ✅   | --save-prod                   |       |
+| ✅   | --save-dev                    |       |
+| ✅   | --save-optional               |       |
+| ✅   | --save-exact                  |       |
+| ✅   | --save-peer                   |       |
+|      | --ignore-workspace-root-check |       |
+|      | --global                      |       |
+|      | --workspace                   |       |
+|      | --filter <package_selector>   |       |
+
+## `pacquet install`
+
+[pnpm documentation](https://pnpm.io/cli/install)
+
+| Done | Command                     | Notes |
+| ---- | --------------------------- | ----- |
+|      | --force                     |       |
+| ✅   | --offline                   | Frozen-install only: refuses network fetches; errors with `ERR_PNPM_NO_OFFLINE_TARBALL` when a snapshot isn't cached. Stage 2 resolver will additionally gate metadata fetches. |
+| ✅   | --prefer-offline            | No-op on frozen-install (warm prefetch already prefers the local store). Reserved for Stage 2's resolver. |
+|      | --prod                      |       |
+| ✅   | --dev                       |       |
+| ✅   | --no-optional               |       |
+|      | --lockfile-only             |       |
+|      | --fix-lockfile              |       |
+|      | --frozen-lockfile           |       |
+|      | --reporter=<name>           |       |
+|      | --use-store-server          |       |
+|      | --shamefully-hoist          |       |
+|      | --ignore-scripts            |       |
+|      | --filter <package_selector> |       |
+|      | --resolution-only           |       |
+
+# Run scripts
+
+## `pacquet run`
+
+[pnpm documentation](https://pnpm.io/cli/run)
+
+| Done | Command                      | Notes                                                           |
+| ---- | ---------------------------- | --------------------------------------------------------------- |
+| ✅   | script-shell                 |                                                                 |
+|      | shell-emulator               |                                                                 |
+| ~    | --recursive                  | Runs every workspace project sequentially; no `--filter` yet    |
+| ✅   | --if-present                 |                                                                 |
+|      | --parallel                   |                                                                 |
+|      | --stream                     |                                                                 |
+|      | --aggregate-output           |                                                                 |
+| ✅   | enable-pre-post-scripts      |                                                                 |
+| ✅   | --resume-from <package_name> |                                                                 |
+| ✅   | --report-summary             |                                                                 |
+| ✅   | --no-bail                    |                                                                 |
+|      | --filter <package_selector>  | Accepted but not yet consumed                                   |
+
+## `pacquet exec`
+
+[pnpm documentation](https://pnpm.io/cli/exec)
+
+| Done | Command                     | Notes                                                        |
+| ---- | --------------------------- | ------------------------------------------------------------ |
+| ✅   | -c, --shell-mode            |                                                              |
+| ~    | --recursive                 | Runs every workspace project sequentially; no `--filter` yet |
+| ✅   | --resume-from <package>     |                                                              |
+| ✅   | --report-summary            |                                                              |
+| ✅   | --no-bail                   |                                                              |
+|      | --filter <package_selector> | Accepted but not yet consumed                                |
+|      | --workspace-concurrency     |                                                              |
+
+## `pacquet dlx`
+
+[pnpm documentation](https://pnpm.io/cli/dlx)
+
+| Done | Command               | Notes |
+| ---- | --------------------- | ----- |
+| ✅   | --package <pkg>       |       |
+| ✅   | --allow-build         |       |
+| ✅   | -c, --shell-mode      |       |
+| ✅   | --cpu / --os / --libc |       |
+
+## `pacquet test`
+
+[pnpm documentation](https://pnpm.io/cli/test)
+
+## `pacquet start`
+
+[pnpm documentation](https://pnpm.io/cli/start)
+
+# Misc.
+
+## `pacquet store`
+
+[pnpm documentation](https://pnpm.io/cli/store)
+
+| Done | Command | Notes                                                     |
+| ---- | ------- | --------------------------------------------------------- |
+|      | status  |                                                           |
+|      | add     |                                                           |
+| ~    | prune   | Currently prune removes all packages inside the directory |
+| ✅   | path    |                                                           |
+
+## `pacquet init`
+
+[pnpm documentation](https://pnpm.io/cli/init)
+
+## `pacquet pack`
+
+[pnpm documentation](https://pnpm.io/cli/pack)
+
+| Done | Command                      | Notes                                                                          |
+| ---- | ---------------------------- | ------------------------------------------------------------------------------ |
+| ✅   | --dry-run                    |                                                                                |
+| ✅   | --pack-destination <dir>     |                                                                                |
+| ✅   | --json                       |                                                                                |
+| ✅   | --out <path>                 | `%s` expands to the package name, `%v` to the version                          |
+| ✅   | --pack-gzip-level <0-9>      |                                                                                |
+| ✅   | --skip-manifest-obfuscation  |                                                                                |
+| ~    | -r, --recursive              | Packs every workspace project sequentially; `--filter` is accepted but unused  |
+| ~    | --workspace-concurrency      | Accepted for parity; the recursive sweep runs sequentially                     |
+|      | --embed-readme               | Not surfaced by config yet; defaults to off                                    |

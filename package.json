@@ -2,8 +2,7 @@
   "name": "monorepo-root",
   "private": true,
   "scripts": {
-    "bump": "node pnpm11/__utils__/scripts/src/bump.ts && pn update-manifests",
-    "changeset": "changeset",
+    "bump": "node pnpm11/__utils__/scripts/src/bump.ts",
     "prepare": "husky",
     "pretest": "pn compile-only && pn prepare-fixtures",
     "prepare-fixtures": "pn --dir=pnpm11/__fixtures__ prepareFixtures",
@@ -18,9 +17,9 @@
     "test-branch": "pn pretest && pn lint && git remote set-branches --add origin main && git fetch origin main && pn test-pkgs-branch",
     "ci:test-branch": "pn prepare-fixtures && pn test-pkgs-branch",
     "test-pkgs-branch": "pn remove-temp-dir && pn --workspace-concurrency=1 --filter=...[origin/main] --no-sort --if-present .test",
-    "compile-only": "tsgo --build pnpm11/workspace/workspace-manifest-reader pnpm11/workspace/projects-reader && pnx node@runtime:26.4.0 pnpm11/__utils__/scripts/src/typecheck-only.ts && pn -F=pnpm compile",
+    "compile-only": "tsgo --build pnpm11/workspace/workspace-manifest-reader pnpm11/workspace/projects-reader && pnx node@runtime:26.5.0 pnpm11/__utils__/scripts/src/typecheck-only.ts && pn -F=pnpm compile",
     "compile": "pn compile-only && pn update-manifests",
-    "build:pacquet": "cargo build --release --bin pacquet",
+    "build:pnpm": "cargo build --release --bin pnpm",
     "make-lcov": "shx mkdir -p coverage && lcov-result-merger 'pnpm11/**/coverage/lcov.info' 'coverage/lcov.info'",
     "update-manifests": "pn meta-updater && pn install",
     "meta-updater": "pn --filter=@pnpm-private/updater compile && pn exec meta-updater",
@@ -35,7 +34,6 @@
     "dev-setup": "pn -C=./pnpm11/pnpm/dev link -g"
   },
   "devDependencies": {
-    "@changesets/cli": "catalog:",
     "@commitlint/cli": "catalog:",
     "@commitlint/config-conventional": "catalog:",
     "@commitlint/prompt-cli": "catalog:",
@@ -49,7 +47,6 @@
     "@types/picomatch": "catalog:",
     "@typescript/native-preview": "catalog:",
     "c8": "catalog:",
-    "concurrently": "catalog:",
     "cross-env": "catalog:",
     "cspell": "catalog:",
     "eslint": "catalog:",
@@ -62,16 +59,16 @@
     "shx": "catalog:",
     "typescript": "catalog:"
   },
-  "packageManager": "pnpm@11.9.0",
+  "packageManager": "pnpm@12.0.0-alpha.18",
   "devEngines": {
     "packageManager": {
       "name": "pnpm",
-      "version": "11.9.0",
+      "version": "12.0.0-alpha.18",
       "onFail": "download"
     },
     "runtime": {
       "name": "node",
-      "version": "26.4.0",
+      "version": "26.5.0",
       "onFail": "download"
     }
   }

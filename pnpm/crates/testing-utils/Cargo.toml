@@ -1,0 +1,33 @@
+[package]
+name                 = "pacquet-testing-utils"
+version              = "0.0.0"
+description          = "Common utilities to test pacquet code"
+publish              = false
+authors.workspace    = true
+edition.workspace    = true
+homepage.workspace   = true
+keywords.workspace   = true
+license.workspace    = true
+repository.workspace = true
+
+[dependencies]
+assert_cmd        = { workspace = true }
+command-extra     = { workspace = true }
+dunce             = { workspace = true }
+flate2            = { workspace = true }
+pnpr              = { workspace = true }
+serde_json        = { workspace = true }
+ssri              = { workspace = true }
+tar               = { workspace = true }
+tempfile          = { workspace = true }
+tokio             = { workspace = true }
+url               = { workspace = true }
+walkdir           = { workspace = true }
+text-block-macros = { workspace = true }
+pnpr-fixtures     = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+junction = { workspace = true }
+
+[lints]
+workspace = true

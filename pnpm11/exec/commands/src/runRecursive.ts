@@ -12,7 +12,7 @@ import {
 } from '@pnpm/exec.lifecycle'
 import { groupStart } from '@pnpm/log.group'
 import type { PackageScripts, ProjectRootDir } from '@pnpm/types'
-import { sortProjects } from '@pnpm/workspace.projects-sorter'
+import { sortFilteredProjects } from '@pnpm/workspace.projects-sorter'
 import pLimit from 'p-limit'
 import { realpathMissing } from 'realpath-missing'
 
@@ -37,18 +37,22 @@ export type RecursiveRunOpts = Pick<Config,
 | 'workspaceDir'
 | 'nodeExperimentalPackageMap'
 | 'modulesDir'
-> & Pick<ConfigContext, 'rootProjectManifest'> & Required<Pick<ConfigContext, 'allProjects' | 'selectedProjectsGraph'> & Pick<Config, 'workspaceDir' | 'dir'>> &
+> & Pick<ConfigContext, 'rootProjectManifest' | 'allProjectsGraph' | 'prodAllProjectsGraph' | 'prodOnlySelectedProjectDirs'> & Required<Pick<ConfigContext, 'allProjects' | 'selectedProjectsGraph'> & Pick<Config, 'workspaceDir' | 'dir'>> &
 Partial<Pick<Config, 'extraBinPaths' | 'extraEnv' | 'bail' | 'reporter' | 'reverse' | 'sort' | 'workspaceConcurrency'>> &
 {
   ifPresent?: boolean
   resumeFrom?: string
   reportSummary?: boolean
+  sequential?: boolean
 }
 
 export async function runRecursive (
   params: string[],
   opts: RecursiveRunOpts
 ): Promise<void> {
+  if (opts.sequential) {
+    opts.workspaceConcurrency = 1
+  }
   const [scriptName, ...passedThruArgs] = params
   if (!scriptName) {
     throw new PnpmError('SCRIPT_NAME_IS_REQUIRED', 'You must specify the script you want to run')
@@ -56,7 +60,7 @@ export async function runRecursive (
   let hasCommand = 0
 
   const sortedPackageChunks = opts.sort
-    ? sortProjects(opts.selectedProjectsGraph)
+    ? sortFilteredProjects(opts)
     : [(Object.keys(opts.selectedProjectsGraph) as ProjectRootDir[]).sort()]
   let packageChunks: ProjectRootDir[][] = opts.reverse ? sortedPackageChunks.reverse() : sortedPackageChunks
 
@@ -242,7 +246,9 @@ export function getSpecifiedScripts (scripts: PackageScripts, scriptName: string
   // if scriptName which a user passes is RegExp (like /build:.*/), multiple scripts to execute will be selected with RegExp
   if (scriptSelector) {
     const scriptKeys = Object.keys(scripts)
-    return scriptKeys.filter(script => script.match(scriptSelector))
+    return scriptKeys
+      .filter(script => script.match(scriptSelector))
+      .sort()
   }
 
   return []

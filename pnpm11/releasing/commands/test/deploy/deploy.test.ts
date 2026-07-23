@@ -561,6 +561,13 @@ test('deploy with dedupePeerDependents=true ignores the value of dedupePeerDepen
 test('deploy works when workspace packages use catalog protocol', async () => {
   preparePackages([
     {
+      location: '.',
+      package: {
+        name: 'root',
+        private: true,
+      },
+    },
+    {
       name: 'project-1',
       dependencies: {
         'project-2': 'workspace:*',
@@ -584,15 +591,29 @@ test('deploy works when workspace packages use catalog protocol', async () => {
   ])
 
   const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+  const catalogs = {
+    default: {
+      'is-positive': '1.0.0',
+    },
+  }
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    catalogs,
+    dir: process.cwd(),
+    dev: true,
+    production: true,
+    lockfileOnly: true,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  })
 
   await deploy.handler({
     ...DEFAULT_OPTS,
     allProjects,
-    catalogs: {
-      default: {
-        'is-positive': '1.0.0',
-      },
-    },
+    catalogs,
     dir: process.cwd(),
     dev: false,
     production: true,
@@ -604,7 +625,8 @@ test('deploy works when workspace packages use catalog protocol', async () => {
   }, ['deploy'])
 
   // Make sure the is-positive cataloged dependency was actually installed.
-  expect(fs.existsSync('deploy/node_modules/.pnpm/project-3@file+project-3/node_modules/is-positive')).toBeTruthy()
+  expect(fs.existsSync('deploy/node_modules/is-positive')).toBeTruthy()
+  expect(assertProject(path.resolve('deploy')).readLockfile()).not.toHaveProperty('catalogs')
 })
 
 test('deploy does not preserve the inject workspace packages settings in the lockfile', async () => {
@@ -620,6 +642,19 @@ test('deploy does not preserve the inject workspace packages settings in the loc
     {
       name: 'project',
       version: '1.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+      devDependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+    {
+      name: 'unused',
+      version: '1.0.0',
+      dependencies: {
+        'is-odd': '1.0.0',
+      },
     },
   ])
 
@@ -651,6 +686,12 @@ test('deploy does not preserve the inject workspace packages settings in the loc
   }, ['dist'])
 
   const project = assertProject(path.resolve('dist'))
+  project.has('is-positive')
+  project.hasNot('is-negative')
   const lockfile = project.readLockfile()
+  const packageKeys = Object.keys(lockfile.packages)
+  expect(packageKeys.some((key) => key.startsWith('is-positive@'))).toBeTruthy()
+  expect(packageKeys.some((key) => key.startsWith('is-negative@'))).toBeFalsy()
+  expect(packageKeys.some((key) => key.startsWith('is-odd@'))).toBeFalsy()
   expect(lockfile.settings).not.toHaveProperty('injectWorkspacePackages')
 })

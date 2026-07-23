@@ -5,21 +5,21 @@ import { linkBins } from '@pnpm/bins.linker'
 import { isExecutedByCorepack, packageManager } from '@pnpm/cli.meta'
 import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, parsePackageManager, shouldPersistLockfile, types as allTypes } from '@pnpm/config.reader'
-import { getPublishedByPolicy } from '@pnpm/config.version-policy'
+import { createPackageVersionPolicyOrThrow, getPublishedByPolicy } from '@pnpm/config.version-policy'
 import { PnpmError } from '@pnpm/error'
 import { createResolver, makeResolutionStrict } from '@pnpm/installing.client'
 import { resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
 import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { whichVersionIsPinned } from '@pnpm/resolving.npm-resolver'
-import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
+import { createStoreController, type CreateStoreControllerOptions, shouldFetchFullMetadata } from '@pnpm/store.connection-manager'
 import type { PinnedVersion } from '@pnpm/types'
 import { readProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 import semver from 'semver'
 
-import { installPnpm } from './installPnpm.js'
+import { assertReleaseIsInstallable, findGlobalPnpmInstallDir, installPnpm, pnpmPackageNameToInstall } from './installPnpm.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([], allTypes)
@@ -80,9 +80,16 @@ export async function handler (
     throw new PnpmError('CANT_SELF_UPDATE_IN_COREPACK', 'You should update pnpm with corepack')
   }
   globalInfo('Checking for updates...')
+  // Resolve the engine version exactly as a regular install would.
+  // `minimumReleaseAge` is not part of `shouldFetchFullMetadata` because the
+  // resolver upgrades abbreviated metadata to full on demand for the
+  // maturity check, so it isn't requested up front here.
+  const fullMetadata = shouldFetchFullMetadata(opts)
   const { resolve: baseResolve } = createResolver({
     ...opts,
     configByUri: opts.configByUri,
+    fullMetadata,
+    filterMetadata: fullMetadata,
     ignoreMissingTimeField: opts.minimumReleaseAgeIgnoreMissingTime,
   })
   // self-update has nowhere to "defer to" either — wrap the resolver
@@ -110,6 +117,15 @@ export async function handler (
     projectDir: opts.dir,
     publishedBy,
     publishedByExclude,
+    // Unlike `dlx` (whose real install re-resolves through the store
+    // controller), this `resolve` is self-update's only version selection,
+    // so the trust policy has to be passed here for the no-downgrade check
+    // to run.
+    trustPolicy: opts.trustPolicy,
+    trustPolicyExclude: opts.trustPolicyExclude
+      ? createPackageVersionPolicyOrThrow(opts.trustPolicyExclude, 'trustPolicyExclude')
+      : undefined,
+    trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
   })
   if (!resolution?.manifest) {
     throw new PnpmError('CANNOT_RESOLVE_PNPM', `Cannot find "${bareSpecifier}" version of pnpm`)
@@ -122,6 +138,9 @@ export async function handler (
   // project still pinned to v10). Otherwise fall back to the running
   // binary. Skip the hint entirely on a no-op (target === previous).
   const targetVersion = resolution.manifest.version
+  // Before the pin below is written, not just before the install: the pin is
+  // shared, so a release this wrapper survives can still break a teammate's.
+  assertReleaseIsInstallable(targetVersion)
   let previousVersion: string | undefined
   if (opts.wantedPackageManager?.name === packageManager.name) {
     if (opts.wantedPackageManager.version !== targetVersion) {
@@ -202,7 +221,13 @@ export async function handler (
       return `The current project is already set to use pnpm v${resolution.manifest.version}`
     }
   }
-  if (resolution.manifest.version === packageManager.version) {
+  // Version equality with the running binary alone must not skip the
+  // update: a removed global install can be recovered by running a local
+  // pnpm of the same version (see pnpm/pnpm#12877).
+  if (
+    resolution.manifest.version === packageManager.version &&
+    await findGlobalPnpmInstallDir(opts.globalPkgDir, pnpmPackageNameToInstall(resolution.manifest.version), resolution.manifest.version) != null
+  ) {
     return `The currently active ${packageManager.name} v${packageManager.version} is already "${bareSpecifier}" and doesn't need an update`
   }
 
@@ -254,14 +279,29 @@ export async function handler (
   return `Successfully updated pnpm to v${resolution.manifest.version}`
 }
 
-// A fresh v11 setup never writes a `pnpm` shim at pnpmHomeDir itself — only
-// under pnpmHomeDir/bin. The presence of a `pnpm` (or `pnpm.cmd`) file
-// directly at pnpmHomeDir is therefore a reliable v10-layout marker.
+// A leftover shim whose install target was garbage-collected is dead weight,
+// not a real v10 layout — treat it as absent so the warning below stays
+// accurate. The marker only exists on the POSIX sh shim, so introspect that;
+// fall back to .cmd existence only when the sh shim is absent.
+// See pnpm/pnpm#12496.
 function hasLegacyHomeDirShim (pnpmHomeDir: string): boolean {
-  for (const name of ['pnpm', 'pnpm.cmd']) {
-    if (fs.existsSync(path.join(pnpmHomeDir, name))) return true
+  const shShim = path.join(pnpmHomeDir, 'pnpm')
+  if (fs.existsSync(shShim)) {
+    const target = readShimTarget(shShim)
+    // Old-format shim we can't introspect → treat as real.
+    if (target === undefined) return true
+    // Dangling → treat as absent.
+    return fs.existsSync(path.resolve(path.dirname(shShim), target))
   }
-  return false
+  return fs.existsSync(path.join(pnpmHomeDir, 'pnpm.cmd'))
+}
+
+// The marker is absent when the shim is not from cmd-shim or pre-dates it.
+function readShimTarget (shimPath: string): string | undefined {
+  try {
+    return fs.readFileSync(shimPath, 'utf8').match(/^#\s*cmd-shim-target=(.+)$/m)?.[1]
+  } catch {}
+  return undefined
 }
 
 /**
@@ -321,4 +361,3 @@ async function readProjectPinnedPnpmVersion (rootProjectManifestDir: string, spe
   }
   return lockfilePinned ?? specMin
 }
-

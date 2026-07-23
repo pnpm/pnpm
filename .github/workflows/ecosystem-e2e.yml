@@ -27,7 +27,7 @@ jobs:
   build:
     if: github.repository == 'pnpm/pnpm' # Only run on the main repository, not forks
     name: Ecosystem E2E / Build
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     timeout-minutes: 30
     steps:
       - name: Checkout
@@ -41,20 +41,20 @@ jobs:
       - name: Setup Rust toolchain
         uses: ./.github/actions/rustup
 
-      - name: Build pacquet and the harness
-        run: cargo build --release --bin pacquet --bin ecosystem-e2e
+      - name: Build pnpm and the harness
+        run: cargo build --release --bin pnpm --bin ecosystem-e2e
 
       - name: Build the pnpm CLI bundle
         run: |
           pnpm install --frozen-lockfile
-          pnpm --filter pnpm run compile
+          pnpm --filter 'pnpm' run compile
 
       - name: Upload build outputs
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ecosystem-e2e-build
           path: |
-            target/release/pacquet
+            target/release/pnpm
             target/release/ecosystem-e2e
             pnpm11/pnpm/dist
           retention-days: 1
@@ -64,7 +64,7 @@ jobs:
     if: github.repository == 'pnpm/pnpm' # Only run on the main repository, not forks
     name: Ecosystem E2E / ${{ matrix.stack }}
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     # Bound the blast radius: a hung build or serve subprocess can't pin a
     # runner indefinitely.
     timeout-minutes: 60
@@ -90,7 +90,7 @@ jobs:
 
       - name: Restore executable bits
         # Artifacts don't preserve the executable bit.
-        run: chmod +x target/release/pacquet target/release/ecosystem-e2e
+        run: chmod +x target/release/pnpm target/release/ecosystem-e2e
 
       - name: Wrap the built pnpm bundle as an executable
         # The harness takes a single executable for --pnpm; the launcher is a
@@ -104,7 +104,7 @@ jobs:
         run: |
           ./target/release/ecosystem-e2e \
             --pnpm "$PWD/pnpm-built" \
-            --pacquet "$PWD/target/release/pacquet" \
+            --pacquet "$PWD/target/release/pnpm" \
             --binary both \
             --layout both \
             --stack ${{ matrix.stack }} \

@@ -22,7 +22,7 @@ permissions:
 jobs:
   changes:
     name: TS CI / Detect Changes
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: read
       pull-requests: read
@@ -42,7 +42,7 @@ jobs:
         if: github.event_name != 'merge_group'
         with:
           persist-credentials: false
-      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+      - uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
         if: github.event_name != 'merge_group'
         id: filter
         with:
@@ -73,7 +73,7 @@ jobs:
     if: ${{ !cancelled() && needs.changes.outputs.ts == 'true' }}
 
     name: TS CI / Compile & Lint
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
 
     steps:
     - name: Checkout Commit
@@ -110,7 +110,7 @@ jobs:
     name: TS CI / Build pnpr
     uses: ./.github/workflows/build-pnpr.yml
     with:
-      os: ubuntu-latest
+      os: blacksmith-8vcpu-ubuntu-2404
 
   build-pnpr-windows:
     needs: changes
@@ -118,7 +118,7 @@ jobs:
     name: TS CI / Build pnpr
     uses: ./.github/workflows/build-pnpr.yml
     with:
-      os: windows-latest
+      os: blacksmith-8vcpu-windows-2025
 
   test-smoke:
     name: TS CI / Test / ubuntu
@@ -127,7 +127,7 @@ jobs:
     with:
       node: '24.0.0'
       node_major: '24'
-      platform: ubuntu-latest
+      platform: blacksmith-8vcpu-ubuntu-2404
       garnet: true
     secrets:
       GARNET_API_TOKEN: ${{ secrets.GARNET_API_TOKEN }}
@@ -141,13 +141,13 @@ jobs:
         include:
           - node: '22.13.0'
             node_major: '22'
-            platform: ubuntu-latest
+            platform: blacksmith-8vcpu-ubuntu-2404
             platform_label: ubuntu
             test_chunk: '1'
             test_chunk_total: '1'
-          - node: '26.4.0'
+          - node: '26.5.0'
             node_major: '26'
-            platform: ubuntu-latest
+            platform: blacksmith-8vcpu-ubuntu-2404
             platform_label: ubuntu
             test_chunk: '1'
             test_chunk_total: '1'
@@ -171,19 +171,19 @@ jobs:
         include:
           - node: '22.13.0'
             node_major: '22'
-            platform: windows-latest
+            platform: blacksmith-8vcpu-windows-2025
             platform_label: windows 1/3
             test_chunk: '1'
             test_chunk_total: '3'
           - node: '22.13.0'
             node_major: '22'
-            platform: windows-latest
+            platform: blacksmith-8vcpu-windows-2025
             platform_label: windows 2/3
             test_chunk: '2'
             test_chunk_total: '3'
           - node: '22.13.0'
             node_major: '22'
-            platform: windows-latest
+            platform: blacksmith-8vcpu-windows-2025
             platform_label: windows 3/3
             test_chunk: '3'
             test_chunk_total: '3'
@@ -214,7 +214,7 @@ jobs:
       - test-smoke
       - test
       - test-windows
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - name: Fail if any dependency failed or was cancelled
         if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}

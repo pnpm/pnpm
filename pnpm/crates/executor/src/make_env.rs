@@ -1,0 +1,298 @@
+use serde_json::Value;
+use std::{
+    collections::HashMap,
+    env,
+    path::{Path, PathBuf},
+};
+
+/// Env var pnpm stamps as `false` into every spawned script and exec
+/// child so a nested `pnpm run` / `pnpm exec` skips the
+/// verify-deps-before-run check; the config layer reads it back with
+/// priority over every other source of that setting (pnpm/pnpm#10060).
+pub const VERIFY_DEPS_BEFORE_RUN_ENV: &str = "pnpm_config_verify_deps_before_run";
+
+/// Inputs needed to build the env for a single lifecycle hook spawn:
+/// the package context, the per-call stamps the hook runner adds, and
+/// the caller-supplied `extra_env`. `extra_env` carries the user's
+/// `updateConfig` `extraEnv` plus any pnpm-controlled keys the caller
+/// merges in first (e.g. `NODE_OPTIONS` from `nodeOptions`); the
+/// reserved per-call stamps below override all of it regardless of
+/// origin — see [`build_env`].
+pub struct EnvOptions<'a> {
+    pub stage: &'a str,
+    pub script: &'a str,
+    pub pkg_root: &'a Path,
+    pub init_cwd: &'a Path,
+    pub script_src_dir: &'a Path,
+    pub node_execpath: Option<&'a Path>,
+    pub npm_execpath: Option<&'a Path>,
+    pub node_gyp_path: Option<&'a Path>,
+    pub user_agent: Option<&'a str>,
+    pub unsafe_perm: bool,
+    pub extra_env: &'a HashMap<String, String>,
+}
+
+/// The product of [`build_env`]: a ready-to-spawn env map and the
+/// `TMPDIR` the caller must create when `unsafe_perm` is false (so
+/// the side effect stays out of this pure builder).
+pub struct EnvBuild {
+    pub env: HashMap<String, String>,
+    pub tmpdir: Option<PathBuf>,
+}
+
+/// Build the env for a lifecycle script spawn, given the parent
+/// process env to inherit from.
+///
+/// Two layers of work: the base env build (parent-env filter,
+/// `npm_package_*` recursion, multi-line escaping), then the
+/// caller-supplied `extra_env`, then the reserved per-call stamps
+/// (`INIT_CWD`, `PNPM_SCRIPT_SRC_DIR`, `npm_config_user_agent`, the
+/// verify-deps guard, `npm_lifecycle_script`) applied last so they win
+/// over anything `extra_env` set — matching TS `runLifecycleHook`.
+///
+/// `parent_env` is taken by value so the production caller can pass
+/// `env::vars().collect()` and tests can pass a controlled fixture
+/// without racing on the global process env.
+pub fn build_env(
+    opts: &EnvOptions<'_>,
+    manifest: &Value,
+    parent_env: HashMap<String, String>,
+) -> EnvBuild {
+    // 1. Start from the parent env, stripping `npm_package_*` (we
+    //    regenerate them below) and the `(npm|pnpm)_config_*` auth
+    //    keys, plus the per-call stamps we re-derive (`NODE`,
+    //    `TMPDIR`, `INIT_CWD`, `PNPM_SCRIPT_SRC_DIR`). User-defined
+    //    `npm_config_*` such as `npm_config_platform_arch` are
+    //    preserved. `pnpm_*` keys such as `PNPM_HOME` are intentionally
+    //    NOT in the filter.
+    let mut env = filter_parent_env(parent_env);
+
+    // 2. `npm_package_*` recursive stamp. Top-level keeps only
+    //    name/version/config/engines/bin; recursion below those
+    //    keeps everything.
+    stamp_package(&mut env, "npm_package_", manifest);
+
+    // 3. Per-call stamping.
+    env.insert("npm_lifecycle_event".into(), opts.stage.to_string());
+
+    let parent_path = path_value(&env);
+    let node_execpath = opts
+        .node_execpath
+        .map(Path::to_path_buf)
+        .or_else(|| find_node_in_path(parent_path.as_deref()));
+    if let Some(node) = node_execpath {
+        let node_str = node.to_string_lossy().into_owned();
+        env.insert("npm_node_execpath".into(), node_str.clone());
+        env.insert("NODE".into(), node_str);
+    }
+
+    env.insert(
+        "npm_package_json".into(),
+        opts.pkg_root.join("package.json").to_string_lossy().into_owned(),
+    );
+
+    let npm_execpath = opts.npm_execpath.map(Path::to_path_buf).or_else(|| env::current_exe().ok());
+    if let Some(p) = npm_execpath {
+        env.insert("npm_execpath".into(), p.to_string_lossy().into_owned());
+    }
+
+    // `npm_config_node_gyp` is a default pnpm supplies, not a reserved
+    // stamp: TS `npm-lifecycle` sets it before spreading `extraEnv`, so a
+    // user `extraEnv` overrides it. Stamp it before `extra_env` to match.
+    if let Some(p) = opts.node_gyp_path {
+        env.insert("npm_config_node_gyp".into(), p.to_string_lossy().into_owned());
+    }
+
+    // 4. `extra_env` (the user's `updateConfig` `extraEnv` plus any
+    //    pnpm-controlled keys the caller merged in, such as
+    //    `NODE_OPTIONS`) is applied BEFORE the reserved per-call stamps
+    //    below, so pnpm's own stamps win on conflict. This mirrors TS
+    //    `runLifecycleHook`, which spreads `{ ...extraEnv, INIT_CWD,
+    //    PNPM_SCRIPT_SRC_DIR, npm_config_user_agent }` — the reserved
+    //    keys overwrite anything `extra_env` set. A non-reserved key
+    //    still takes effect.
+    for (k, v) in opts.extra_env {
+        env.insert(k.clone(), v.clone());
+    }
+
+    env.insert("INIT_CWD".into(), opts.init_cwd.to_string_lossy().into_owned());
+    env.insert("PNPM_SCRIPT_SRC_DIR".into(), opts.script_src_dir.to_string_lossy().into_owned());
+
+    if let Some(ua) = opts.user_agent {
+        env.insert("npm_config_user_agent".into(), ua.to_string());
+    }
+
+    // Breaks the recursion a spawned install's lifecycle scripts would
+    // otherwise enter. Stamped after `extra_env` so a user `extraEnv`
+    // can't disable the guard (pnpm keeps this key authoritative).
+    env.insert(VERIFY_DEPS_BEFORE_RUN_ENV.into(), "false".into());
+
+    // 5. TMPDIR under <wd>/node_modules/.tmp when !unsafe_perm.
+    //    The caller creates the dir; we only record the path and pass
+    //    it back.
+    let tmpdir = if opts.unsafe_perm {
+        None
+    } else {
+        let dir = opts.pkg_root.join("node_modules").join(".tmp");
+        env.insert("TMPDIR".into(), dir.to_string_lossy().into_owned());
+        Some(dir)
+    };
+
+    // 6. `npm_lifecycle_script` is set after `extra_env`, so the
+    //    caller can never clobber it.
+    env.insert("npm_lifecycle_script".into(), opts.script.to_string());
+
+    EnvBuild { env, tmpdir }
+}
+
+/// Keep PATH (handled by the caller) and every key that is not an
+/// `npm_package_*` stamp, a `(npm|pnpm)_config_*` auth key, or one of
+/// the per-call stamps we re-derive (NODE / TMPDIR / `INIT_CWD` /
+/// `PNPM_SCRIPT_SRC_DIR`).
+///
+/// On Windows the comparison is case-insensitive because Rust's
+/// `Command::env` treats env keys case-insensitively on that
+/// platform (see [`Command::env`] docs). Leaving e.g. `NPM_PACKAGE_FOO`
+/// alongside our stamped inserts would collapse at spawn time with
+/// an unpredictable winner.
+///
+/// [`Command::env`]: https://doc.rust-lang.org/std/process/struct.Command.html#method.env
+fn filter_parent_env(env: HashMap<String, String>) -> HashMap<String, String> {
+    env.into_iter().filter(|(k, _)| !is_stamping_key(k, cfg!(windows))).collect()
+}
+
+/// Whether `key` is one that [`build_env`] re-derives and so must be
+/// dropped from the inherited parent env: an `npm_package_*` stamp, a
+/// `(npm|pnpm)_config_*` auth credential, or a per-call stamp (`NODE`,
+/// `TMPDIR`, `INIT_CWD`, `PNPM_SCRIPT_SRC_DIR`). Stripping the auth
+/// credentials keeps them out of dependency lifecycle scripts.
+///
+/// `is_windows` toggles case-insensitive matching so test code can
+/// drive both branches without `#[cfg(windows)]` gating the test
+/// bodies. Production callers pass `cfg!(windows)`.
+fn is_stamping_key(key: &str, is_windows: bool) -> bool {
+    if strip_env_prefix(key, "npm_package_", is_windows).is_some() {
+        return true;
+    }
+    if let Some(rest) = strip_env_prefix(key, "npm_config_", is_windows)
+        .or_else(|| strip_env_prefix(key, "pnpm_config_", is_windows))
+        && (rest.starts_with(['_', '/', '@']) || rest.contains(":_"))
+    {
+        return true;
+    }
+    if is_windows {
+        return ["NODE", "TMPDIR", "INIT_CWD", "PNPM_SCRIPT_SRC_DIR"]
+            .iter()
+            .any(|name| key.eq_ignore_ascii_case(name));
+    }
+    matches!(key, "NODE" | "TMPDIR" | "INIT_CWD" | "PNPM_SCRIPT_SRC_DIR")
+}
+
+/// Return the slice of `key` after `prefix` when `key` starts with it
+/// — case-sensitively on POSIX, case-insensitively on Windows (where
+/// `Command::env` collapses key case). Returns `None` otherwise.
+///
+/// The Windows branch compares bytes rather than chars so it never
+/// panics on a non-ASCII key whose UTF-8 representation crosses the
+/// prefix boundary; `prefix` is ASCII, so `prefix.len()` is a valid
+/// char boundary whenever the bytes match.
+fn strip_env_prefix<'key>(key: &'key str, prefix: &str, is_windows: bool) -> Option<&'key str> {
+    if is_windows {
+        if key
+            .as_bytes()
+            .get(..prefix.len())
+            .is_some_and(|b| b.eq_ignore_ascii_case(prefix.as_bytes()))
+        {
+            return key.get(prefix.len()..);
+        }
+        return None;
+    }
+    key.strip_prefix(prefix)
+}
+
+/// Look up the `PATH` value from `env` case-insensitively. On
+/// Windows the system variable is typically `Path`, not `PATH`;
+/// returning the value here lets the rest of [`build_env`] stay
+/// independent of casing.
+pub(crate) fn path_value(env: &HashMap<String, String>) -> Option<String> {
+    env.iter().find_map(|(k, v)| k.eq_ignore_ascii_case("PATH").then(|| v.clone()))
+}
+
+/// Look up `node` along the supplied `PATH`. Driven by the filtered
+/// `parent_env`'s PATH (not the process-global env) so [`build_env`]
+/// stays deterministic given its inputs — matching the docstring
+/// contract.
+fn find_node_in_path(path: Option<&str>) -> Option<PathBuf> {
+    let path = path?;
+    let node_name = if cfg!(windows) { "node.exe" } else { "node" };
+    env::split_paths(path).find_map(|dir| {
+        let candidate = dir.join(node_name);
+        candidate.is_file().then_some(candidate)
+    })
+}
+
+/// Recursively stamp `npm_package_*` env vars from the manifest. JSON
+/// arrays iterate as indexed keys; objects iterate as named keys. The
+/// top-level call uses prefix `npm_package_`; recursion appends
+/// `<sanitized-key>_`.
+///
+/// At the top level only name/version/config/engines/bin are kept; once
+/// recursed under one of those, everything is kept.
+fn stamp_package(env: &mut HashMap<String, String>, prefix: &str, value: &Value) {
+    let pairs: Vec<(String, &Value)> = match value {
+        Value::Object(map) => map.iter().map(|(k, v)| (k.clone(), v)).collect(),
+        Value::Array(arr) => arr.iter().enumerate().map(|(i, v)| (i.to_string(), v)).collect(),
+        _ => return,
+    };
+
+    for (key, v) in pairs {
+        if key.starts_with('_') {
+            continue;
+        }
+
+        let is_top_level_keep =
+            matches!(key.as_str(), "name" | "version" | "config" | "engines" | "bin");
+        let in_descent = prefix.starts_with("npm_package_config_")
+            || prefix.starts_with("npm_package_engines_")
+            || prefix.starts_with("npm_package_bin_");
+        if !is_top_level_keep && !in_descent {
+            continue;
+        }
+
+        let env_key = sanitize_env_key(&format!("{prefix}{key}"));
+        match v {
+            Value::Object(_) | Value::Array(_) => {
+                let child_prefix = format!("{env_key}_");
+                stamp_package(env, &child_prefix, v);
+            }
+            Value::String(s) => {
+                env.insert(env_key, escape_newlines(s));
+            }
+            Value::Number(n) => {
+                env.insert(env_key, n.to_string());
+            }
+            Value::Bool(b) => {
+                env.insert(env_key, b.to_string());
+            }
+            Value::Null => {
+                env.insert(env_key, String::new());
+            }
+        }
+    }
+}
+
+/// Replace every character that is not `[a-zA-Z0-9_]` with `_`, the
+/// sanitization an env key derived from a manifest field needs.
+fn sanitize_env_key(raw: &str) -> String {
+    raw.chars().map(|ch| if ch.is_ascii_alphanumeric() || ch == '_' { ch } else { '_' }).collect()
+}
+
+/// JSON-encode multi-line strings (those containing `\n`) so child
+/// shells don't break on embedded newlines; single-line strings pass
+/// through unchanged.
+fn escape_newlines(text: &str) -> String {
+    if text.contains('\n') { Value::String(text.to_string()).to_string() } else { text.to_string() }
+}
+
+#[cfg(test)]
+mod tests;

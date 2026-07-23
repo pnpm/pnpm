@@ -11,6 +11,21 @@ import { rimrafSync } from '@zkochan/rimraf'
 
 import { testDefaults } from '../utils/index.js'
 
+test('a peer dependency declared with a scheme specifier is accepted and auto-installed', async () => {
+  const project = prepareEmpty()
+  await install({
+    name: 'root',
+    version: '0.0.0',
+    private: true,
+    peerDependencies: {
+      'is-positive': 'npm:is-positive@^3.0.0',
+    },
+  }, testDefaults({ autoInstallPeers: true }))
+  const lockfile = project.readLockfile()
+  expect(Object.keys(lockfile.snapshots)).toContain('is-positive@3.1.0')
+  project.has('is-positive')
+})
+
 test('auto install non-optional peer dependencies', async () => {
   await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.0', distTag: 'latest' })
   const project = prepareEmpty()
@@ -21,6 +36,28 @@ test('auto install non-optional peer dependencies', async () => {
     '@pnpm.e2e/peer-a@1.0.0',
   ])
   project.hasNot('@pnpm.e2e/peer-a')
+})
+
+test('resolve an optional peer dependency declared only via peerDependenciesMeta from a version present in the dependency graph', async () => {
+  await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.0', distTag: 'latest' })
+  const project = prepareEmpty()
+  await addDependenciesToPackage({}, [
+    '@pnpm.e2e/abc-optional-peers-meta-only@1.0.0',
+    '@pnpm.e2e/has-peer-c-in-deps@1.0.0',
+  ], testDefaults({ autoInstallPeers: true }))
+  const lockfile = project.readLockfile()
+  // peer-c is an implied optional peer (declared only in peerDependenciesMeta),
+  // so it is resolved from the version that has-peer-c-in-deps brings into the
+  // graph. peer-b is also an implied optional peer, but no version of it is in
+  // the graph, so it stays unresolved. peer-a is a required peer and gets
+  // auto-installed.
+  expect(Object.keys(lockfile.snapshots).sort()).toStrictEqual([
+    '@pnpm.e2e/abc-optional-peers-meta-only@1.0.0(@pnpm.e2e/peer-a@1.0.0)(@pnpm.e2e/peer-c@2.0.0)',
+    '@pnpm.e2e/has-peer-c-in-deps@1.0.0',
+    '@pnpm.e2e/peer-a@1.0.0',
+    '@pnpm.e2e/peer-c@2.0.0',
+  ])
+  project.hasNot('@pnpm.e2e/peer-c')
 })
 
 test('auto install the common peer dependency', async () => {
@@ -623,9 +660,15 @@ test('auto install hoisted peer dependency', async () => {
   const project = prepareEmpty()
   await addDependenciesToPackage({}, ['@pnpm.e2e/has-peer-c-in-deps@1.0.0', '@pnpm.e2e/abc'], testDefaults({ autoInstallPeers: true }))
   const lockfile = project.readLockfile()
+  // @pnpm.e2e/abc declares @pnpm.e2e/peer-c@^1.0.0, so the peer-c@2.0.0
+  // brought in by @pnpm.e2e/has-peer-c-in-deps must not be reused for it.
   expect(Object.keys(lockfile.snapshots).filter((depPath) => depPath.startsWith('@pnpm.e2e/peer-c@'))).toStrictEqual([
+    '@pnpm.e2e/peer-c@1.0.0',
     '@pnpm.e2e/peer-c@2.0.0',
   ])
+  const abcSnapshots = Object.keys(lockfile.snapshots).filter((depPath) => depPath.startsWith('@pnpm.e2e/abc@'))
+  expect(abcSnapshots).toHaveLength(1)
+  expect(abcSnapshots[0]).toContain('@pnpm.e2e/peer-c@1.0.0')
 })
 
 test('auto install peer of optional peer', async () => {
@@ -757,4 +800,33 @@ test('a locked optional peer version is not rewritten when a sibling workspace p
     expect(optionalPeerVersion).toContain('(@pnpm.e2e/peer-c@1.0.1)')
     expect(optionalPeerVersion).not.toContain('(@pnpm.e2e/peer-c@1.0.0)')
   }
+})
+
+test('a root dependency does not override the peers provided inside a self-contained subtree', async () => {
+  // Regression test for the closure-poisoning bug: @pnpm.e2e/closure-plugins
+  // provides every peer of its own subtree (closure-lib-a and closure-lib-b
+  // peer-depend on each other and on closure-peer-x, and all of them are
+  // regular dependencies of closure-plugins). The root project additionally
+  // depends on the incompatible closure-peer-x@2.0.0. With autoInstallPeers
+  // enabled, the peers resolved inside the subtree are also attached to the
+  // root project so other subtrees can reuse them — but they must not be
+  // peer-resolved again in the root context, where closure-peer-x@2.0.0 is
+  // the nearest provider, or the subtree's peer graph gets a mix of both
+  // versions.
+  const project = prepareEmpty()
+  await addDependenciesToPackage({}, [
+    '@pnpm.e2e/closure-plugins@1.0.0',
+    '@pnpm.e2e/closure-peer-x@2.0.0',
+  ], testDefaults({ autoInstallPeers: true }))
+  const lockfile = project.readLockfile()
+  const pluginsSnapshot = lockfile.snapshots['@pnpm.e2e/closure-plugins@1.0.0']
+  expect(pluginsSnapshot.dependencies?.['@pnpm.e2e/closure-peer-x']).toBe('1.0.0')
+  expect(pluginsSnapshot.dependencies?.['@pnpm.e2e/closure-lib-a']).not.toContain('closure-peer-x@2.0.0')
+  expect(pluginsSnapshot.dependencies?.['@pnpm.e2e/closure-lib-b']).not.toContain('closure-peer-x@2.0.0')
+  for (const depPath of Object.keys(lockfile.snapshots)) {
+    if (!depPath.startsWith('@pnpm.e2e/closure-lib')) continue
+    expect(depPath).not.toContain('closure-peer-x@2.0.0')
+  }
+  // The root keeps its own explicitly declared version.
+  expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/closure-peer-x']?.version).toBe('2.0.0')
 })

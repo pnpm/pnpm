@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/bins.resolver",
-  "version": "1100.0.8",
+  "version": "1100.0.10",
   "description": "Returns bins of a package",
   "keywords": [
     "pnpm",

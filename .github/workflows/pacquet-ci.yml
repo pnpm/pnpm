@@ -27,7 +27,7 @@ concurrency:
 jobs:
   changes:
     name: Rust CI / Detect Changes
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     outputs:
       rust: ${{ steps.manual.outputs.rust || steps.filter.outputs.rust }}
     steps:
@@ -45,16 +45,19 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+      - uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
         if: github.event_name != 'workflow_dispatch' && github.event_name != 'merge_group'
         id: filter
         with:
           filters: |
             rust:
-              - 'pacquet/**'
+              - 'pnpm/**'
               - 'pnpr/**'
               - 'Cargo.toml'
               - 'Cargo.lock'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
               - 'rust-toolchain.toml'
               - 'rustfmt.toml'
               - 'deny.toml'
@@ -90,13 +93,19 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: windows-latest
+          - os: blacksmith-8vcpu-windows-2025
             os_label: windows
-          - os: ubuntu-latest
+          - os: blacksmith-8vcpu-ubuntu-2404
             os_label: ubuntu
-          - os: macos-latest
+          - os: blacksmith-12vcpu-macos-latest
             os_label: macos
     runs-on: ${{ matrix.os }}
+    # Backstop for hangs outside nextest's per-test terminate-after
+    # (stuck cargo build, stuck tool download): warm-cache runs finish
+    # in ~5 minutes, cold-cache rebuilds of the full workspace need the
+    # rest of the hour. Without this, a wedged job runs on the default
+    # 360-minute limit.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -127,17 +136,20 @@ jobs:
         run: pnpm runtime set node 22 --global
 
       - name: Cache pnpm
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          key: ci-pnpm-v11-${{ matrix.os }}
+          # Cache only the CAS content. Caching the store root also archives
+          # the global-virtual-store `links/` tree despite a negative path
+          # entry, and tar can't round-trip its Windows junctions.
+          key: ci-pnpm-v11-cas-only-${{ matrix.os }}
           path: |
-            ${{ env.PNPM_HOME }}/store/v11
-            ${{ env.HOME }}/.local/share/pnpm/store/v11
+            ${{ env.PNPM_HOME }}/store/v11/files
+            ${{ env.HOME }}/.local/share/pnpm/store/v11/files
         timeout-minutes: 1
         continue-on-error: true
 
       - name: Install just
-        uses: taiki-e/install-action@b8cecb83565409bcc297b2df6e77f030b2a468d5 # v2.82.0
+        uses: taiki-e/install-action@2ca9b94c269419b7b0c711c09d0b21c4e1d51145 # v2.83.1
         with:
           tool: just
 
@@ -145,7 +157,7 @@ jobs:
         run: just install
 
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@b8cecb83565409bcc297b2df6e77f030b2a468d5 # v2.82.0
+        uses: taiki-e/install-action@2ca9b94c269419b7b0c711c09d0b21c4e1d51145 # v2.83.1
         with:
           tool: cargo-nextest
 
@@ -177,10 +189,10 @@ jobs:
 
       - name: Stage Bencher test durations
         env:
-          TESTBED_OS: ${{ matrix.os }}
+          TESTBED_OS: ${{ matrix.os_label }}
         shell: bash
         run: |
-          os="${TESTBED_OS%-latest}"
+          os="$TESTBED_OS"
           artifact_dir=.bench/artifact/rust
           mkdir -p "$artifact_dir"
           cp .bench/pacquet-tests-all.json "$artifact_dir/pacquet-tests-all.json"
@@ -205,7 +217,7 @@ jobs:
       - name: Upload Bencher test duration artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ci-performance-rust-${{ matrix.os }}
+          name: ci-performance-rust-${{ matrix.os_label }}
           path: .bench/artifact/rust/
           if-no-files-found: error
           retention-days: 14
@@ -219,7 +231,7 @@ jobs:
     # whole test matrix just triples the cost. Mirrors the single-OS doc,
     # format, and dylint jobs. (Platform-gated `#[cfg]` blocks are still
     # type-checked per-OS by the test job's build.)
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -245,7 +257,7 @@ jobs:
     name: Rust CI / Doc
     needs: changes
     if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -265,27 +277,27 @@ jobs:
     name: Rust CI / Spell Check
     needs: changes
     if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
 
-      - uses: crate-ci/typos@37bb98842b0d8c4ffebdb75301a13db0267cef89 # v1.47.2
+      - uses: crate-ci/typos@bee27e3a4fd1ea2111cf90ab89cd076c870fce14 # v1.48.0
         with:
-          files: pacquet pnpr
+          files: pnpm pnpr
 
   deny:
     name: Rust CI / Cargo Deny
     needs: changes
     if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
 
-      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+      - uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
         if: github.event_name != 'merge_group'
         id: filter
         with:
@@ -296,7 +308,7 @@ jobs:
 
       - name: Install cargo-deny
         if: github.event_name == 'merge_group' || steps.filter.outputs.src == 'true'
-        uses: taiki-e/install-action@b8cecb83565409bcc297b2df6e77f030b2a468d5 # v2.82.0
+        uses: taiki-e/install-action@2ca9b94c269419b7b0c711c09d0b21c4e1d51145 # v2.83.1
         with:
           tool: cargo-deny
 
@@ -307,7 +319,7 @@ jobs:
     name: Rust CI / Format
     needs: changes
     if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -332,7 +344,7 @@ jobs:
     name: Rust CI / Dylint
     needs: changes
     if: ${{ always() && !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true' || needs.changes.result != 'success') }}
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - name: Verify change detection
         if: ${{ needs.changes.result != 'success' }}
@@ -368,7 +380,7 @@ jobs:
       # dylint-library cache can never be restored from a mismatched
       # `dylint.toml`.
       - name: Cache workspace artifacts
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         timeout-minutes: 2
         continue-on-error: true
         with:
@@ -383,7 +395,7 @@ jobs:
             ${{ github.job }}-workspace-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml') }}-
 
       - name: Cache dylint lint library
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         timeout-minutes: 2
         continue-on-error: true
         with:
@@ -440,7 +452,7 @@ jobs:
       - deny
       - format
       - dylint
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - name: Fail if any dependency failed or was cancelled
         if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}

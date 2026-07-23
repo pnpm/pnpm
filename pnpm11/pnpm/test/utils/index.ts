@@ -9,6 +9,7 @@ import {
   pnpxBinLocation,
   spawnPnpm,
   spawnPnpx,
+  waitForPnpmExit,
 } from './execPnpm.js'
 import { pathToLocalPkg } from './localPkg.js'
 import testDefaults from './testDefaults.js'
@@ -26,4 +27,5 @@ export {
   spawnPnpm,
   spawnPnpx,
   testDefaults,
+  waitForPnpmExit,
 }

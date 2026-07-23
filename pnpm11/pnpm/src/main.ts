@@ -41,7 +41,7 @@ export const REPORTER_INITIALIZED = Symbol('reporterInitialized')
 // path` is meant to be captured with `STORE=$(pnpm store path)` and `pnpm config
 // list --json` to be piped into `jq`; a warning mixed into stdout would corrupt
 // both.
-const COMMANDS_WITH_STDERR_REPORTER = new Set(['dlx', 'create', 'config', 'set', 'get', 'sbom', 'with', 'store'])
+const COMMANDS_WITH_STDERR_REPORTER = new Set(['dlx', 'create', 'config', 'set', 'get', 'sbom', 'with', 'store', 'prefix'])
 
 loudRejection()
 
@@ -100,7 +100,7 @@ export async function main (inputArgv: string[]): Promise<void> {
   try {
     // When we just want to print the location of the global bin directory,
     // we don't need the write permission to it. Related issue: #2700
-    const globalDirShouldAllowWrite = cmd !== 'root'
+    const globalDirShouldAllowWrite = cmd !== 'root' && cmd !== 'prefix'
     const isDlxOrCreateCommand = cmd === 'dlx' || cmd === 'create'
     const isConfigCommand = cmd === 'config' || cmd === 'set' || cmd === 'get'
     if (cmd === 'link' && cliParams.length === 0) {
@@ -303,6 +303,8 @@ export async function main (inputArgv: string[]): Promise<void> {
     }
     context.allProjectsGraph = filterResults.allProjectsGraph
     context.selectedProjectsGraph = filterResults.selectedProjectsGraph
+    context.prodAllProjectsGraph = filterResults.prodAllProjectsGraph
+    context.prodOnlySelectedProjectDirs = filterResults.prodOnlySelectedProjectDirs
     if (isEmpty(context.selectedProjectsGraph)) {
       if (printLogs) {
         console.log(`No projects matched the filters in "${wsDir}"`)
@@ -311,7 +313,10 @@ export async function main (inputArgv: string[]): Promise<void> {
         process.exitCode = 1
         return
       }
-      if (cmd !== 'list') {
+      // "change" operates on the whole workspace through allProjects, so an
+      // empty selection (e.g. run from a directory without packages beneath
+      // it) must not skip the command.
+      if (cmd !== 'list' && cmd !== 'change') {
         process.exitCode = 0
         return
       }

@@ -31,7 +31,7 @@ permissions:
 jobs:
   comment:
     name: Post benchmark comment
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     # Only post when the upstream benchmark ran on a PR and succeeded.
     # Same gating as the original in-workflow comment, which only ran
     # on the success path of the previous steps.
@@ -135,7 +135,7 @@ jobs:
 
       - name: Install Bencher CLI
         if: hashFiles('benchmark-artifact/bencher-results.json') != ''
-        uses: bencherdev/bencher@ec56bb69a7f34096002ca3384d10e2f6676b063e # v0.6.7
+        uses: bencherdev/bencher@5f9d4cf890255c35e0354af1ed325108a6a0babd # v0.6.8
 
       - name: Upload PR results to Bencher
         # workflow_run runs in the base-repo privilege context, so
@@ -176,7 +176,7 @@ jobs:
               --start-point-reset \
               --start-point-clone-thresholds \
               --err \
-              --adapter shell_hyperfine \
+              --adapter json \
               --file "$file" \
               --ci-number "$PR_NUMBER" \
               --github-actions "$GITHUB_TOKEN"

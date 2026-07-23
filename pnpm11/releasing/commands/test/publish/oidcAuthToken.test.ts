@@ -125,6 +125,27 @@ describe('fetchAuthToken', () => {
     await expect(promise).rejects.toHaveProperty(['code'], 'ERR_PNPM_AUTH_TOKEN_FETCH')
   })
 
+  test('AuthTokenFetchError redacts inline registry credentials', async () => {
+    const mockFetch = jest.fn<AuthTokenContext['fetch']>(async () => {
+      throw new Error('Network error')
+    })
+
+    const context: AuthTokenContext = {
+      fetch: mockFetch,
+    }
+
+    const promise = fetchAuthToken({
+      context,
+      idToken,
+      packageName,
+      registry: 'https://user:secret@registry.example.com/',
+    })
+
+    await expect(promise).rejects.toThrow('registry.example.com')
+    await expect(promise).rejects.not.toThrow('secret')
+    await expect(promise).rejects.toHaveProperty(['registry'], 'https://registry.example.com/')
+  })
+
   test('throws AuthTokenExchangeError when response is not ok and returns a payload of error', async () => {
     const mockFetch = jest.fn<AuthTokenContext['fetch']>(async () => ({
       ok: false,

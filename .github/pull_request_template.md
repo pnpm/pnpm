@@ -26,7 +26,7 @@ Explain what changed and why. Reference issues here too (Closes pnpm/pnpm#123).
 <!-- Mark items with [x] once done. Remove items that don't apply. -->
 
 - [ ] The change is implemented in both the TypeScript CLI and the Rust
-  `pacquet/` port, or the description notes what still needs porting.
+  `pnpm/` port, or the description notes what still needs porting.
 - [ ] Added a changeset (`pnpm changeset`) if this PR changes any published
   package. Keep it short and written for pnpm users — it becomes a release note.
 - [ ] Added or updated tests.

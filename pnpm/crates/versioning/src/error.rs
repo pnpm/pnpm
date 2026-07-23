@@ -1,0 +1,134 @@
+use std::path::PathBuf;
+
+use derive_more::{Display, Error};
+use miette::Diagnostic;
+
+/// Errors of the versioning engine. Codes and messages match the TypeScript
+/// implementation's `PnpmError`s — they are part of the shared CLI contract.
+#[derive(Debug, Display, Error, Diagnostic)]
+pub enum VersioningError {
+    #[display("Change intent file {} has no YAML frontmatter", file_path.display())]
+    #[diagnostic(code(ERR_PNPM_INVALID_CHANGE_INTENT))]
+    NoFrontmatter { file_path: PathBuf },
+
+    #[display("Change intent file {} has invalid YAML frontmatter: {message}", file_path.display())]
+    #[diagnostic(code(ERR_PNPM_INVALID_CHANGE_INTENT))]
+    InvalidFrontmatter { file_path: PathBuf, message: String },
+
+    #[display(
+        "Change intent file {} declares an invalid bump type for {pkg_name}: {bump_type}. Expected one of none, patch, minor, major",
+        file_path.display()
+    )]
+    #[diagnostic(code(ERR_PNPM_INVALID_CHANGE_INTENT))]
+    InvalidBumpType { file_path: PathBuf, pkg_name: String, bump_type: String },
+
+    #[display("Expected {} to be a mapping of package@version keys to intent id lists", ledger_path.display())]
+    #[diagnostic(code(ERR_PNPM_INVALID_VERSIONING_LEDGER))]
+    InvalidLedger { ledger_path: PathBuf },
+
+    #[display(
+        "The ledger entry {key} names {pkg_name}, which matches multiple workspace projects ({}). Rewrite the entry with an explicit \"dir\".",
+        dirs.join(", ")
+    )]
+    #[diagnostic(code(ERR_PNPM_INVALID_VERSIONING_LEDGER))]
+    AmbiguousLedgerEntry { key: String, pkg_name: String, dirs: Vec<String> },
+
+    #[display("{context} names {reference}, which matches multiple workspace projects: {}. Reference the project by directory instead.", dirs.join(", "))]
+    #[diagnostic(code(ERR_PNPM_VERSIONING_AMBIGUOUS_PACKAGE))]
+    AmbiguousPackage { context: String, reference: String, dirs: Vec<String> },
+
+    #[display("Change intent file {} names {pkg_name}, which is not a package in this workspace", file_path.display())]
+    #[diagnostic(code(ERR_PNPM_VERSIONING_UNKNOWN_PACKAGE))]
+    UnknownPackage { file_path: PathBuf, pkg_name: String },
+
+    #[display(
+        "Change intent file {} requests a {bump_type} release of {pkg_name}, which cannot release (it is listed in versioning.ignore, has no version field, or has a non-semver version). Remove the entry or change it to \"none\".",
+        file_path.display()
+    )]
+    #[diagnostic(code(ERR_PNPM_VERSIONING_UNRELEASABLE_PACKAGE))]
+    UnreleasablePackage { file_path: PathBuf, pkg_name: String, bump_type: String },
+
+    #[display(
+        "Package {pkg_name} declares the internal dependency {alias} in {field} as \"{spec}\". Internal dependencies must use the workspace: protocol so that dependency ranges never need rewriting at release time."
+    )]
+    #[diagnostic(code(ERR_PNPM_VERSIONING_INTERNAL_RANGE))]
+    InternalRange { pkg_name: String, alias: String, field: String, spec: String },
+
+    #[display(
+        "versioning.lanes assigns {pkg_name} to the \"{lane}\" lane, but \"main\" is the reserved default lane. Remove the entry instead."
+    )]
+    #[diagnostic(code(ERR_PNPM_VERSIONING_INVALID_LANE_NAME))]
+    InvalidLaneName { pkg_name: String, lane: String },
+
+    #[display(
+        "The fixed group [{}] mixes packages on different lanes. A fixed group must move between lanes together.",
+        group.join(", ")
+    )]
+    #[diagnostic(code(ERR_PNPM_VERSIONING_CONFLICTING_CONFIG))]
+    ConflictingConfig { group: Vec<String> },
+
+    #[display(
+        "Two projects both release {identity}: ./{first_dir} and ./{second_dir}. A package name and version identify one published artifact, so same-named projects must release on different version lines (e.g. different lanes or majors)."
+    )]
+    #[diagnostic(code(ERR_PNPM_VERSIONING_DUPLICATE_RELEASE))]
+    DuplicateRelease { identity: String, first_dir: String, second_dir: String },
+
+    #[display(
+        "versioning.epics lead \"{lead}\" is not a releasable workspace project (it must be a named package with a semver version)."
+    )]
+    #[diagnostic(code(ERR_PNPM_VERSIONING_EPIC_UNKNOWN_LEAD))]
+    EpicUnknownLead { lead: String },
+
+    #[display(
+        "Package ./{member_dir} is matched by two epics (leads \"{first_lead}\" and \"{second_lead}\"). A package can belong to at most one epic."
+    )]
+    #[diagnostic(code(ERR_PNPM_VERSIONING_EPIC_OVERLAP))]
+    EpicOverlap { member_dir: String, first_lead: String, second_lead: String },
+
+    #[display(
+        "A fixed group straddles the epic led by \"{lead}\": it mixes epic members with outside package(s) {outsiders}. A fixed group must sit entirely inside or entirely outside an epic."
+    )]
+    #[diagnostic(code(ERR_PNPM_VERSIONING_EPIC_FIXED_GROUP_CONFLICT))]
+    EpicFixedGroupConflict { lead: String, outsiders: String },
+
+    #[display(
+        "The release plan takes {pkg_name} to {new_version}, whose major {member_major} is outside the band {}-{} of the epic led by \"{lead}\" (major {band_major}). {}",
+        band_major * 100,
+        band_major * 100 + 99,
+        if *member_major > band_major * 100 + 99 {
+            "The band is exhausted - the lead must advance to a new major to open the next band."
+        } else {
+            "Re-base the member into the band, or remove it from the epic."
+        }
+    )]
+    #[diagnostic(code(ERR_PNPM_VERSIONING_EPIC_OUT_OF_BAND))]
+    EpicOutOfBand {
+        pkg_name: String,
+        new_version: String,
+        member_major: u64,
+        lead: String,
+        band_major: u64,
+    },
+
+    #[display(
+        "The release plan bumps {pkg_name} by {bump_type}, but versioning.maxBump caps releases from this branch at {max_bump}. Raised by {raised_by}."
+    )]
+    #[diagnostic(code(ERR_PNPM_VERSIONING_MAX_BUMP_EXCEEDED))]
+    MaxBumpExceeded { pkg_name: String, bump_type: String, max_bump: String, raised_by: String },
+
+    #[display("Failed to read {}: {source}", path.display())]
+    #[diagnostic(code(ERR_PNPM_VERSIONING_READ_ERROR))]
+    Read { path: PathBuf, source: std::io::Error },
+
+    #[display("Failed to write {}: {source}", path.display())]
+    #[diagnostic(code(ERR_PNPM_VERSIONING_WRITE_ERROR))]
+    Write { path: PathBuf, source: std::io::Error },
+
+    #[display("Failed to remove {}: {source}", path.display())]
+    #[diagnostic(code(ERR_PNPM_VERSIONING_REMOVE_ERROR))]
+    Remove { path: PathBuf, source: std::io::Error },
+
+    #[display("{_0}")]
+    #[diagnostic(transparent)]
+    Manifest(pacquet_package_manifest::PackageManifestError),
+}

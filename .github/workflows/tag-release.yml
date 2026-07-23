@@ -1,0 +1,92 @@
+name: Tag Release
+
+# When a release PR (opened by create-release-pr.yml) is merged, derive each
+# product's version tag from the version committed on the merge commit and push
+# it. Deriving the tag from the committed version keeps the tag name in lockstep
+# with what release.yml publishes: a tag naming a version that isn't on the
+# merge commit would draft a GitHub release for a tag that doesn't exist, which
+# the release workflow rejects.
+on:
+  pull_request:
+    types:
+      - closed
+
+# The checkout only needs read; the tags are pushed with a PAT (below) so the
+# push triggers release.yml — a tag pushed with the default GITHUB_TOKEN would
+# not, by GitHub's workflow-recursion guard.
+permissions:
+  contents: read
+
+jobs:
+  tag-release:
+    name: Push version tags for the merged release
+    # Only merged release PRs on the main repository. Match create-release-pr.yml's
+    # exact contract — a same-repo head branch named `release-pr/<base>` — so a
+    # fork PR or an unrelated branch that merely starts with `release-pr/` can't
+    # reach the tag push.
+    if: >-
+      github.repository == 'pnpm/pnpm' &&
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == format('release-pr/{0}', github.event.pull_request.base.ref)
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - name: Checkout the merge commit
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          persist-credentials: false
+
+      - name: Push version tags for released products
+        # The manifests read here are exactly the ones release.yml's plan job
+        # reads to decide what to publish, so each `v<version>` tag matches the
+        # version its product will publish. A tag that already exists (a product
+        # whose version didn't change this release) is skipped, so only the
+        # freshly bumped products get tagged — and release.yml still gates the
+        # actual publish on what npm reports as unpublished.
+        env:
+          GH_TOKEN: ${{ secrets.UPDATE_LOCKFILE_TOKEN }}
+          SHA: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          set -euo pipefail
+          REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+          # Tags already on the remote, so a re-run or an unchanged product can
+          # never clobber or repush an existing version tag. `seen` is a
+          # space-padded set for the ` $tag ` membership test; it also collects
+          # the tags staged this run so a shared version can't be pushed twice.
+          # `--refs` drops the peeled `^{}` entries of annotated tags. pipefail
+          # (above) makes a failed ls-remote abort instead of yielding an empty
+          # set that would make every version look new.
+          seen=" $(git ls-remote --tags --refs "$REMOTE" | awk '{ print $2 }' | sed 's#refs/tags/##' | tr '\n' ' ') "
+
+          to_push=()
+          add_tag() {
+            local manifest="$1" prefix="$2" tag
+            tag="${prefix}$(jq -r .version "$manifest")"
+            case "$seen" in
+              *" $tag "*)
+                echo "$tag already exists; skipping"
+                return
+                ;;
+            esac
+            git tag "$tag" "$SHA"
+            to_push+=("$tag")
+            seen="$seen$tag "
+          }
+
+          # pnpm (TypeScript, v11.x) and pacquet (v12.x) share the `v<version>`
+          # namespace get.pnpm.io fetches by. pnpr uses the Changesets-style
+          # `pnpr@<version>` so its low version numbers don't collide with pnpm's
+          # v0.x/v1.x tag history — release.yml triggers on `pnpr@*.*.*` too.
+          add_tag pnpm11/pnpm/package.json 'v'
+          add_tag pnpm/npm/pnpm/package.json 'v'
+          add_tag pnpr/npm/pnpr/package.json 'pnpr@'
+
+          if [ ${#to_push[@]} -eq 0 ]; then
+            echo "No new version tags to push"
+            exit 0
+          fi
+
+          echo "Pushing: ${to_push[*]}"
+          git push "$REMOTE" "${to_push[@]}"

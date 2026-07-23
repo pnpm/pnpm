@@ -1,0 +1,172 @@
+mod add;
+mod build_modules;
+mod build_resolution_verifiers;
+mod build_sequence;
+mod build_snapshot;
+mod catalog_cleanup;
+mod catalog_mode;
+mod check_custom_resolver_force_resolve;
+mod compat_package_extensions;
+mod create_symlink_layout;
+mod create_virtual_dir_by_snapshot;
+mod create_virtual_store;
+mod current_lockfile;
+mod dependencies_graph_to_lockfile;
+mod deps_graph;
+mod dry_run;
+mod graph_sequencer;
+mod hoist;
+mod hoisted_dep_graph;
+mod hoisting_limits;
+mod import_indexed_dir;
+mod install;
+pub(crate) mod install_frozen_lockfile;
+mod install_package_by_snapshot;
+mod install_package_from_registry;
+mod install_with_fresh_lockfile;
+mod installability;
+mod link_bins;
+mod link_file;
+mod link_hoisted_modules;
+mod link_manifest_link_deps;
+mod link_root_component_members;
+mod minimum_release_age;
+mod optimistic_repeat_install;
+mod overrides;
+mod package_extender;
+mod package_map;
+mod patch;
+mod patch_commit;
+mod pnp;
+mod prefetching_resolver;
+mod prune_direct_deps;
+mod prune_stale_modules;
+mod prune_virtual_store;
+mod remove;
+mod remove_quarantine;
+mod resolution_observer;
+mod resolution_policy;
+mod resolve_latest;
+mod retry_config;
+mod safe_join_modules_dir;
+mod store_init;
+mod symlink_direct_dependencies;
+mod symlink_package;
+mod tarball_prefetch;
+mod update;
+mod update_project_manifest;
+mod update_project_manifest_object;
+mod validate_lockfile_paths;
+mod version_policy;
+mod virtual_store_layout;
+mod warn_on_stale_convergence_overrides;
+
+pub use add::*;
+pub use build_modules::*;
+pub use build_resolution_verifiers::*;
+pub use build_sequence::*;
+pub use build_snapshot::*;
+pub use catalog_mode::*;
+pub use create_symlink_layout::*;
+pub use create_virtual_dir_by_snapshot::*;
+pub use create_virtual_store::*;
+pub use current_lockfile::*;
+pub use dependencies_graph_to_lockfile::*;
+pub use deps_graph::*;
+pub use graph_sequencer::*;
+pub use hoist::*;
+pub use hoisted_dep_graph::*;
+pub use hoisting_limits::*;
+pub use import_indexed_dir::*;
+pub use install::*;
+pub use install_frozen_lockfile::*;
+pub use install_package_by_snapshot::*;
+pub use install_package_from_registry::*;
+pub use install_with_fresh_lockfile::*;
+pub use installability::*;
+pub use link_bins::*;
+pub use link_file::*;
+pub use link_hoisted_modules::*;
+pub use link_manifest_link_deps::*;
+pub use link_root_component_members::*;
+pub use minimum_release_age::MinimumReleaseAgeError;
+pub use optimistic_repeat_install::*;
+pub use overrides::*;
+pub use package_extender::*;
+pub use package_map::{
+    WritePackageMapError, make_node_package_map_option, package_map_path_for_execution,
+};
+pub use patch::*;
+pub use patch_commit::*;
+pub use pnp::*;
+pub use prefetching_resolver::*;
+pub use prune_direct_deps::*;
+pub use prune_stale_modules::*;
+pub use remove::*;
+pub use resolution_observer::*;
+pub use resolve_latest::ResolveLatestError;
+pub use symlink_direct_dependencies::*;
+pub use symlink_package::*;
+pub use tarball_prefetch::*;
+pub use update::*;
+pub use update_project_manifest::*;
+pub use update_project_manifest_object::*;
+pub use validate_lockfile_paths::*;
+pub use version_policy::*;
+pub use virtual_store_layout::*;
+
+/// The dependency groups a project installs directly — `dependencies`,
+/// `devDependencies`, `optionalDependencies` — in the order pnpm's
+/// `updateProjectManifest` walks them. This is also the install `include`
+/// set for runs whose `dependency_groups` carries no user filter intent
+/// (`add`, `remove`, `update`): those mutations pick a manifest group to
+/// save into separately, and the install itself must keep resolving and
+/// materializing every group.
+pub(crate) const DIRECT_GROUPS: [pacquet_package_manifest::DependencyGroup; 3] = [
+    pacquet_package_manifest::DependencyGroup::Prod,
+    pacquet_package_manifest::DependencyGroup::Dev,
+    pacquet_package_manifest::DependencyGroup::Optional,
+];
+
+pub(crate) const NEEDS_BUILD_MARKER: &str = ".pnpm-needs-build";
+
+pub(crate) fn snapshot_has_patch(snapshot_key: &pacquet_lockfile::PackageKey) -> bool {
+    pacquet_deps_path::index_of_dep_path_suffix(&snapshot_key.to_string())
+        .patch_hash_index
+        .is_some()
+}
+
+// Repositories control `childConcurrency`; keep native worker creation
+// bounded while leaving ordinary explicit values unchanged.
+const MAX_SCRIPT_THREADS: usize = 256;
+
+pub(crate) fn script_thread_count(child_concurrency: u32, max_work_items: usize) -> usize {
+    usize::try_from(child_concurrency)
+        .expect("u32 child concurrency fits in usize")
+        .max(1)
+        .min(max_work_items.max(1))
+        .min(MAX_SCRIPT_THREADS)
+}
+
+pub(crate) fn package_manifest_prefix(
+    manifest: &pacquet_package_manifest::PackageManifest,
+) -> String {
+    manifest.path().parent().unwrap_or_else(|| manifest.path()).to_string_lossy().into_owned()
+}
+
+pub(crate) fn emit_initial_package_manifest<Reporter: pacquet_reporter::Reporter>(
+    manifest: &pacquet_package_manifest::PackageManifest,
+) {
+    Reporter::emit(&pacquet_reporter::LogEvent::PackageManifest(
+        pacquet_reporter::PackageManifestLog {
+            level: pacquet_reporter::LogLevel::Debug,
+            message: pacquet_reporter::PackageManifestMessage::Initial {
+                prefix: package_manifest_prefix(manifest),
+                initial: manifest.value().clone(),
+            },
+        },
+    ));
+}
+
+#[cfg(test)]
+mod tests;

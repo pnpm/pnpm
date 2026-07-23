@@ -118,8 +118,16 @@ describe('tryLockfileVerificationCache', () => {
     recordVerification(cacheDir, { lockfilePath, verifiers: [mraVerifier(60)], hashLockfile: hashLockfileFor('content-a') })
 
     // Same byte length, different content — hash check is what rejects.
+    // Write the replacement to a sibling and rename it in so it gets a
+    // fresh inode. Rewriting in place can reuse the freed inode, and on
+    // filesystems with coarse mtime granularity (some CI runners) both
+    // writes land in the same mtime tick — which would let the stat
+    // shortcut spuriously match on (size, mtime, inode) and skip the hash
+    // check this test exercises.
+    const sibling = path.join(tmpDir, 'pnpm-lock-2.yaml')
+    await fs.promises.writeFile(sibling, 'bbbbbbbbbbbb')
     await fs.promises.rm(lockfilePath)
-    await fs.promises.writeFile(lockfilePath, 'bbbbbbbbbbbb')
+    await fs.promises.rename(sibling, lockfilePath)
 
     const result = tryLockfileVerificationCache(cacheDir, {
       lockfilePath,

@@ -1,4 +1,6 @@
+import type { SpawnSyncReturns } from 'node:child_process'
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import util from 'node:util'
 
@@ -10,6 +12,7 @@ import {
   iteratePkgMeta,
   lockfileToDepGraph,
 } from '@pnpm/deps.graph-hasher'
+import { PnpmError } from '@pnpm/error'
 import { type GlobalAddOptions, installGlobalPackages } from '@pnpm/global.commands'
 import {
   cleanOrphanedInstallDirs,
@@ -22,6 +25,7 @@ import { headlessInstall } from '@pnpm/installing.deps-restorer'
 import type { EnvLockfile, LockfileObject, PackageSnapshot } from '@pnpm/lockfile.types'
 import { registerProject, type StoreController } from '@pnpm/store.controller'
 import type { DepPath, ProjectId, ProjectRootDir, Registries } from '@pnpm/types'
+import spawn from 'cross-spawn'
 import { familySync } from 'detect-libc'
 import semver from 'semver'
 import { symlinkDir } from 'symlink-dir'
@@ -32,6 +36,26 @@ import { verifyPnpmEngineIdentity, type VerifyPnpmEngineIdentityOptions } from '
 // binaries; marking them buildable puts ENGINE_NAME in the GVS hash so each
 // platform resolves to its own entry instead of colliding.
 const PNPM_ALLOW_BUILDS: Record<string, boolean> = { '@pnpm/exe': true, 'pnpm': true }
+
+/**
+ * Versions whose `@pnpm/exe` shipped platform packages with no binary, so it
+ * cannot run. Keyed by version, not package: the pin is shared but the wrapper
+ * is not, so a developer on the JS `pnpm` — which does run at these versions —
+ * would otherwise pin one and break every teammate on `@pnpm/exe`.
+ */
+const BROKEN_RELEASES: ReadonlySet<string> = new Set(['11.12.0', '11.13.0'])
+
+/** Throws when `version` is one of the {@link BROKEN_RELEASES}. */
+export function assertReleaseIsInstallable (version: string): void {
+  if (!BROKEN_RELEASES.has(version)) return
+  throw new PnpmError(
+    'BROKEN_PNPM_RELEASE',
+    `pnpm v${version} is a broken release and cannot be installed`,
+    {
+      hint: 'Its "@pnpm/exe" build shipped without a binary and does not run. Even where it does run, pinning it would break everyone on the project who uses "@pnpm/exe", because the pin is shared. Choose another version, or run "pnpm self-update latest".',
+    }
+  )
+}
 
 /**
  * Package name to install for a switch to `pnpmVersion`. From v12 the unscoped
@@ -192,17 +216,9 @@ async function installPnpmToGlobalDir (
   const globalDir = opts.globalPkgDir!
   cleanOrphanedInstallDirs(globalDir)
 
-  // Check if already installed globally
-  const existing = findGlobalPackage(globalDir, pkgName)
-  if (existing) {
-    const pkgJsonPath = path.join(existing.installDir, 'node_modules', pkgName, 'package.json')
-    try {
-      const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
-      if (pkgJson.version === version) {
-        const binDir = path.join(existing.installDir, 'bin')
-        return { alreadyExisted: true, installDir: existing.installDir, binDir }
-      }
-    } catch {}
+  const existingInstallDir = await findGlobalPnpmInstallDir(globalDir, pkgName, version)
+  if (existingInstallDir != null) {
+    return { alreadyExisted: true, installDir: existingInstallDir, binDir: path.join(existingInstallDir, 'bin') }
   }
 
   const installDir = createInstallDir(globalDir)
@@ -236,6 +252,10 @@ async function installPnpmToGlobalDir (
     linkExePlatformBinary(installDir, pkgName)
     await linkBins(path.join(installDir, 'node_modules'), binDir, { warn: noop })
 
+    // Before the caller points PNPM_HOME here, so a broken release is discarded
+    // rather than swapped in.
+    assertPnpmRuns(binDir, version)
+
     // Create hash symlink for the global packages system
     const pkgJson = JSON.parse(fs.readFileSync(path.join(installDir, 'package.json'), 'utf8'))
     const aliases = Object.keys(pkgJson.dependencies ?? {})
@@ -250,6 +270,63 @@ async function installPnpmToGlobalDir (
     } catch {}
     throw err
   }
+}
+
+/**
+ * Throws unless the pnpm CLI in `binDir` can execute — a release can install
+ * cleanly and still not run, when its wrapper kept the placeholder bin of a
+ * platform package that shipped without a native.
+ *
+ * Only that it runs is asserted; reading `--version` output would tie the check
+ * to whatever startup decides to print. Exported as a test seam.
+ */
+export function assertPnpmRuns (binDir: string, version: string): void {
+  const pnpmBinPath = path.join(binDir, 'pnpm')
+  // pnpm prints its version only after loading config and switching versions,
+  // so probing from the caller's directory answers with their pin rather than
+  // the release under test.
+  const probeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-self-update-check-'))
+  let result: SpawnSyncReturns<string>
+  try {
+    result = spawn.sync(pnpmBinPath, ['--version'], {
+      encoding: 'utf8',
+      cwd: probeDir,
+    })
+  } finally {
+    try {
+      fs.rmSync(probeDir, { recursive: true, force: true })
+    } catch {}
+  }
+  const { status, error, stderr } = result
+  if (error == null && status === 0) return
+  // A signal leaves `status` null, which macOS produces for a binary its
+  // signature check rejects — the exact shape of an incorrectly signed release.
+  const exit = status != null ? `code ${status}` : 'a signal'
+  const reason = error != null
+    ? error.message
+    : `it exited with ${exit}${(stderr ?? '').trim() ? `: ${stderr.trim()}` : ''}`
+  throw new PnpmError(
+    'BROKEN_PNPM_INSTALL',
+    `The pnpm v${version} that was just installed cannot run: ${reason}`,
+    {
+      hint: `The installation at "${pnpmBinPath}" was discarded and the currently active pnpm was left in place, so pnpm still works. A release that installs but cannot run is a packaging fault — please report it at https://github.com/pnpm/pnpm/issues. To move to a different version meanwhile, pass one to "pnpm self-update".`,
+    }
+  )
+}
+
+/**
+ * The install dir under `globalDir` that already holds `pkgName` at exactly
+ * `version`, or `undefined` when the global install is missing, at a
+ * different version, or unreadable.
+ */
+export async function findGlobalPnpmInstallDir (globalDir: string, pkgName: string, version: string): Promise<string | undefined> {
+  const existing = findGlobalPackage(globalDir, pkgName)
+  if (!existing) return undefined
+  try {
+    const pkgJson = JSON.parse(await fs.promises.readFile(path.join(existing.installDir, 'node_modules', pkgName, 'package.json'), 'utf8'))
+    if (pkgJson.version === version) return existing.installDir
+  } catch {}
+  return undefined
 }
 
 async function installFromLockfile (
@@ -324,7 +401,6 @@ async function installFromResolution (
     devDependencies: false,
     optionalDependencies: true,
   }
-  const fetchFullMetadata = Boolean(opts.supportedArchitectures?.libc)
   await installGlobalPackages({
     ...opts,
     global: false,
@@ -340,7 +416,6 @@ async function installFromResolution (
     workspaceDir: undefined,
     sharedWorkspaceLockfile: false,
     lockfileOnly: false,
-    fetchFullMetadata,
     include,
     includeDirect: include,
     allowBuilds: {},
@@ -403,25 +478,30 @@ export function linkExePlatformBinary (installDir: string, wrapperPkgName: strin
   const arch = process.arch
   const libcFamily = familySync()
   const executable = platform === 'win32' ? 'pnpm.exe' : 'pnpm'
-  // Resolve the platform binary by its explicit adjacent path in the real
-  // virtual store, not via Node resolution: a `node_modules` walk could be
-  // shadowed by a higher-precedence `@pnpm/<dirName>` in a repo-controlled
-  // `store-dir`. `@pnpm/exe`'s parent is already `@pnpm`; `pnpm` descends into it.
   const wrapperRealDir = fs.realpathSync(wrapperDir)
-  const scopeDir = wrapperPkgName.startsWith('@')
+  const adjacentScopeDir = wrapperPkgName.startsWith('@')
     ? path.dirname(wrapperRealDir)
     : path.join(path.dirname(wrapperRealDir), '@pnpm')
+  // GVS dependencies link to sibling slots through the install root. The real
+  // adjacent scope remains necessary for legacy virtual-store layouts.
+  const scopeDirs = new Set([
+    adjacentScopeDir,
+    path.join(installDir, 'node_modules', '@pnpm'),
+  ])
   const candidateDirNames = [
     exePlatformPkgDirName(platform, arch, libcFamily),
     exePlatformPkgDirNameNext(platform, arch, libcFamily),
   ]
   let src: string | undefined
-  for (const dirName of candidateDirNames) {
-    const candidate = path.join(scopeDir, dirName, executable)
-    if (fs.existsSync(candidate)) {
-      src = candidate
-      break
+  for (const scopeDir of scopeDirs) {
+    for (const dirName of candidateDirNames) {
+      const candidate = path.join(scopeDir, dirName, executable)
+      if (fs.existsSync(candidate)) {
+        src = candidate
+        break
+      }
     }
+    if (src != null) break
   }
   if (src == null) return
   const dest = path.join(wrapperDir, executable)

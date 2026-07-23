@@ -1,0 +1,123 @@
+[package]
+name                  = "pacquet-cli"
+version               = "0.0.1"
+publish               = false
+authors.workspace     = true
+description.workspace = true
+edition.workspace     = true
+homepage.workspace    = true
+keywords.workspace    = true
+license.workspace     = true
+repository.workspace  = true
+
+[[bin]]
+name = "pnpm"
+path = "src/bin/main.rs"
+
+[dependencies]
+pacquet-auth-commands                     = { workspace = true }
+pacquet-catalogs-config                   = { workspace = true }
+pacquet-catalogs-protocol-parser          = { workspace = true }
+pacquet-catalogs-types                    = { workspace = true }
+pacquet-cmd-shim                          = { workspace = true }
+pacquet-crypto-hash                       = { workspace = true }
+pacquet-detect-libc                       = { workspace = true }
+pacquet-engine-runtime-node-resolver      = { workspace = true }
+pacquet-pnpr-client                       = { workspace = true }
+pacquet-env-installer                     = { workspace = true }
+pacquet-executor                          = { workspace = true }
+pacquet-fs                                = { workspace = true }
+pacquet-global                            = { workspace = true }
+pacquet-graph-hasher                      = { workspace = true }
+pacquet-hooks                             = { workspace = true }
+pacquet-lockfile                          = { workspace = true }
+pacquet-modules-yaml                      = { workspace = true }
+pacquet-network                           = { workspace = true }
+pacquet-network-web-auth                  = { workspace = true }
+pacquet-config                            = { workspace = true }
+pacquet-config-parse-overrides            = { workspace = true }
+pacquet-default-reporter                  = { workspace = true }
+pacquet-deps-path                         = { workspace = true }
+pacquet-pack                              = { workspace = true }
+pacquet-publish                           = { workspace = true }
+pacquet-package-manifest                  = { workspace = true }
+pacquet-package-manager                   = { workspace = true }
+pacquet-patching                          = { workspace = true }
+pacquet-package-is-installable            = { workspace = true }
+pacquet-registry                          = { workspace = true }
+pacquet-reporter                          = { workspace = true }
+pacquet-resolving-git-resolver            = { workspace = true }
+pacquet-resolving-npm-resolver            = { workspace = true }
+pacquet-resolving-parse-wanted-dependency = { workspace = true }
+pacquet-resolving-resolver-base           = { workspace = true }
+pacquet-store-dir                         = { workspace = true }
+pacquet-tarball                           = { workspace = true }
+pacquet-diagnostics                       = { workspace = true }
+pacquet-directory-fetcher                 = { workspace = true }
+pacquet-versioning                        = { workspace = true }
+pacquet-workspace                         = { workspace = true }
+pacquet-workspace-manifest-writer         = { workspace = true }
+pacquet-workspace-projects-graph          = { workspace = true }
+pacquet-workspace-projects-filter         = { workspace = true }
+pacquet-workspace-state                   = { workspace = true }
+
+chrono               = { workspace = true }
+clap                 = { workspace = true }
+derive_more          = { workspace = true }
+dialoguer            = { workspace = true }
+dunce                = { workspace = true }
+flate2               = { workspace = true }
+futures-util         = { workspace = true }
+getrandom            = { workspace = true }
+home                 = { workspace = true }
+indexmap             = { workspace = true }
+node-semver          = { workspace = true }
+miette               = { workspace = true }
+owo-colors.workspace = true
+p256                 = { workspace = true }
+pathdiff             = { workspace = true }
+pipe-trait           = { workspace = true }
+rayon                = { workspace = true }
+reflink-copy         = { workspace = true }
+reqwest              = { workspace = true }
+rmp-serde            = { workspace = true }
+serde                = { workspace = true }
+serde_json           = { workspace = true }
+tabled               = { workspace = true }
+tar                  = { workspace = true }
+tempfile             = { workspace = true }
+tokio                = { workspace = true }
+tracing              = { workspace = true }
+url                  = { workspace = true }
+which                = { workspace = true }
+yaml_serde           = { workspace = true }
+yamlpath             = { workspace = true }
+base64               = { workspace = true }
+wax                  = { workspace = true }
+
+# Windows has no process groups, so a Job Object ties the lifetime of spawned
+# children (lifecycle scripts and their descendants) to pacquet's. See
+# `src/job_control.rs`.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true, features = ["Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
+
+[dev-dependencies]
+pacquet-network-web-auth-testing = { workspace = true }
+pacquet-testing-utils            = { workspace = true }
+pnpr                             = { workspace = true }
+
+assert_cmd        = { workspace = true }
+command-extra     = { workspace = true }
+dialoguer         = { workspace = true }
+insta             = { workspace = true }
+mockito           = { workspace = true }
+pretty_assertions = { workspace = true }
+serde-saphyr      = { workspace = true }
+sha2              = { workspace = true }
+ssri              = { workspace = true }
+text-block-macros = { workspace = true }
+walkdir           = { workspace = true }
+zip               = { workspace = true }
+
+[lints]
+workspace = true

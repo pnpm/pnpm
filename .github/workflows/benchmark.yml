@@ -45,7 +45,7 @@ concurrency:
 jobs:
   benchmark:
     name: Run Benchmarks
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     timeout-minutes: 180
 
     steps:
@@ -69,7 +69,7 @@ jobs:
     - name: Install pnpm and Node
       uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
       with:
-        runtime: node@26.4.0
+        runtime: node@26.5.0
 
     - name: Install Rust Toolchain
       uses: ./.github/actions/rustup
@@ -83,7 +83,6 @@ jobs:
 
     - name: Run benchmarks
       id: bench
-      continue-on-error: true
       run: |
         set -o pipefail
         ./pnpm11/benchmarks/bench.sh 2>&1 | tee bench-output.txt
@@ -95,7 +94,7 @@ jobs:
 
     - name: Install Bencher CLI
       if: steps.bench.outputs.bench_dir != ''
-      uses: bencherdev/bencher@ec56bb69a7f34096002ca3384d10e2f6676b063e # v0.6.7
+      uses: bencherdev/bencher@5f9d4cf890255c35e0354af1ed325108a6a0babd # v0.6.8
 
     - name: Upload results to Bencher
       if: steps.bench.outputs.bench_dir != ''

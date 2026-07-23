@@ -6,7 +6,7 @@ import { createResolver } from '@pnpm/installing.client'
 import { logger } from '@pnpm/logger'
 import type { ResolveFunction } from '@pnpm/resolving.resolver-base'
 import type { ProjectRootDir, Registries } from '@pnpm/types'
-import { sortProjects } from '@pnpm/workspace.projects-sorter'
+import { sortFilteredProjects } from '@pnpm/workspace.projects-sorter'
 import pFilter from 'p-filter'
 import { pick } from 'ramda'
 import { writeJsonFile } from 'write-json-file'
@@ -53,9 +53,13 @@ Partial<Pick<Config,
 | 'unsafePerm'
 | 'userAgent'
 | 'verifyStoreIntegrity'
+| 'versioning'
 >> &
 Partial<Pick<ConfigContext,
 | 'selectedProjectsGraph'
+| 'allProjectsGraph'
+| 'prodAllProjectsGraph'
+| 'prodOnlySelectedProjectDirs'
 >> & {
   access?: 'public' | 'restricted'
   argv: {
@@ -113,7 +117,7 @@ export async function recursivePublish (
     if (opts.cliOptions['otp']) {
       appendedArgs.push(`--otp=${opts.cliOptions['otp'] as string}`)
     }
-    const chunks = sortProjects(opts.selectedProjectsGraph)
+    const chunks = sortFilteredProjects(opts)
     const tag = opts.tag ?? 'latest'
     if (opts.batch) {
       const sortedPkgs = chunks

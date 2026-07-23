@@ -1,4 +1,4 @@
-import type { CustomResolver } from '@pnpm/hooks.types'
+import type { CustomFetcher, CustomResolver } from '@pnpm/hooks.types'
 import type { InstallOptions } from '@pnpm/installing.deps-installer'
 import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 import type { StoreController } from '@pnpm/store.controller-types'
@@ -15,6 +15,7 @@ export function testDefaults<T> (
     prefix?: string
     registries?: Registries
     customResolvers?: CustomResolver[]
+    customFetchers?: CustomFetcher[]
     minimumReleaseAge?: number
     minimumReleaseAgeStrict?: boolean
     minimumReleaseAgeExclude?: string[]
@@ -44,11 +45,18 @@ export function testDefaults<T> (
     clientOptions: {
       ...(opts?.registries != null ? { registries: opts.registries } : {}),
       customResolvers: opts?.customResolvers,
+      customFetchers: opts?.customFetchers,
       ...policyClientOptions,
       ...resolveOpts,
       ...fetchOpts,
     },
-    storeOptions: storeOpts,
+    // The real CLI hands customFetchers to both the client and the package
+    // store (see store/connection-manager's createNewStoreController); the
+    // package store is where the package requester picks them up.
+    storeOptions: {
+      customFetchers: opts?.customFetchers,
+      ...storeOpts,
+    },
   })
   const result = {
     cacheDir,

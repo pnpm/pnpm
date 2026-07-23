@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.env-installer",
-  "version": "1102.0.2",
+  "version": "1102.0.11",
   "description": "Installer for configurational dependencies",
   "keywords": [
     "pnpm",
@@ -41,6 +41,7 @@
     "@pnpm/deps.graph-hasher": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fs.read-modules-dir": "workspace:*",
+    "@pnpm/fs.symlink-dependency": "workspace:*",
     "@pnpm/installing.deps-resolver": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.pruner": "workspace:*",

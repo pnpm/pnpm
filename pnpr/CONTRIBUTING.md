@@ -33,4 +33,4 @@ directory.
 
 For setup, code style, tests, and workflow, follow
 [`AGENTS.md`](./AGENTS.md) and the pacquet contributing guide at
-[`../pacquet/CONTRIBUTING.md`](../pacquet/CONTRIBUTING.md).
+[`../pnpm/CONTRIBUTING.md`](../pnpm/CONTRIBUTING.md).

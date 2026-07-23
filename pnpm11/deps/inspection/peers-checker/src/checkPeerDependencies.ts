@@ -3,6 +3,7 @@ import path from 'node:path'
 import { createMatcher } from '@pnpm/config.matcher'
 import { parseOverrides } from '@pnpm/config.parse-overrides'
 import { parse as parseDependencyPath, refToRelative } from '@pnpm/deps.path'
+import { getPeerVersionRange } from '@pnpm/deps.peer-range'
 import { PnpmError } from '@pnpm/error'
 import {
   getLockfileImporterId,
@@ -90,7 +91,8 @@ function walkStep (
     const currentParents: ParentPackages = [...parents, { name: pkgName, version: pkgVersion }]
 
     if (pkgSnapshot.peerDependencies) {
-      for (const [peerName, peerRange] of Object.entries(pkgSnapshot.peerDependencies)) {
+      for (const [peerName, rawPeerRange] of Object.entries(pkgSnapshot.peerDependencies)) {
+        const peerRange = getPeerVersionRange(rawPeerRange)
         const isOptional = pkgSnapshot.peerDependenciesMeta?.[peerName]?.optional === true
         const resolvedPeerRef = pkgSnapshot.dependencies?.[peerName] ?? pkgSnapshot.optionalDependencies?.[peerName]
 
@@ -183,7 +185,7 @@ function filterPeerDependencyIssues (
     result[projectId] = {
       bad: filteredBad,
       missing: filteredMissing,
-      conflicts,
+      conflicts: conflicts.filter((peerName) => filteredMissing[peerName] != null),
       intersections: filteredIntersections,
     }
   }

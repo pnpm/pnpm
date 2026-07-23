@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fs.packlist",
-  "version": "1100.0.1",
+  "version": "1100.0.3",
   "description": "Get a list of the files to add from a directory into an npm package",
   "keywords": [
     "pnpm",
@@ -30,6 +30,7 @@
     "test": "pn compile"
   },
   "dependencies": {
+    "is-subdir": "catalog:",
     "npm-packlist": "catalog:"
   },
   "devDependencies": {

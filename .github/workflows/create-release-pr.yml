@@ -21,7 +21,14 @@ concurrency:
 jobs:
   create-release-pr:
     if: github.repository == 'pnpm/pnpm' # Only run on the main repository, not forks
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    env:
+      # The husky hooks are a developer safety net; CI has its own gates. Without
+      # this, `pnpm install` wires the hooks and the pre-push hook runs the full
+      # TS compile/lint plus the Rust clippy/doc sweep during "Commit and push"
+      # (the shallow clone and URL remote make its change detection always
+      # conclude that Rust sources changed).
+      HUSKY: 0
     steps:
     - name: Checkout
       uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -37,10 +44,9 @@ jobs:
         runtime: node@26.3.0
 
     # Base the release on the tip of the target branch, fetched explicitly so the
-    # run is correct even when dispatched from another ref. The release-pr/<target>
-    # name is the convention `pnpm bump` reads to key the .changeset-released ledger
-    # by the target branch instead of this ephemeral PR branch. A force-push reuses
-    # an already-open release PR for the same target rather than opening a second.
+    # run is correct even when dispatched from another ref. A force-push to
+    # release-pr/<target> reuses an already-open release PR for the same target
+    # rather than opening a second.
     - name: Prepare release branch
       env:
         TARGET: ${{ github.event.inputs.target }}
@@ -50,19 +56,53 @@ jobs:
         git fetch origin "$TARGET"
         git checkout -B "release-pr/$TARGET" FETCH_HEAD
 
-    # Fail the release if the npm registry signing keys embedded in
-    # @pnpm/deps.security.signatures have drifted from what npm advertises. pnpm
-    # verifies package-manager binaries (pacquet, the version-switch pnpm) against
-    # these keys, so a stale set could break verification after a key rotation.
-    - name: Check embedded npm signing keys are up to date
-      run: node pnpm11/deps/security/signatures/scripts/update-npm-signing-keys.mjs
+    # Refresh the npm registry signing keys embedded in
+    # @pnpm/deps.security.signatures from what npm advertises. pnpm verifies
+    # package-manager binaries (pacquet, the version-switch pnpm) against these
+    # keys, so a stale set could break verification after a key rotation. Any
+    # drift is committed below along with the version bumps, so the new trust
+    # roots are reviewed as part of the release PR diff.
+    - name: Update embedded npm signing keys
+      run: node pnpm11/deps/security/signatures/scripts/update-npm-signing-keys.mjs --update
 
-    # Fail the release if the embedded Node.js release keys (used to verify the
-    # signature of a downloaded runtime's SHASUMS256.txt) have drifted from the
-    # canonical nodejs/release-keys list, so a new release signer cannot silently
-    # break Node.js runtime verification.
-    - name: Check embedded Node.js release keys are up to date
-      run: node pnpm11/crypto/shasums-file/scripts/update-node-release-keys.mjs
+    # Refresh the embedded Node.js release keys (used to verify the signature of
+    # a downloaded runtime's SHASUMS256.txt) from the canonical
+    # nodejs/release-keys list, so a new release signer cannot break Node.js
+    # runtime verification. Reviewed in the release PR diff like the npm keys.
+    - name: Update embedded Node.js release keys
+      run: node pnpm11/crypto/shasums-file/scripts/update-node-release-keys.mjs --update
+
+    # A refreshed trust root must show up in the changelogs, so synthesize a
+    # changeset for whichever key sets drifted before `pnpm bump` consumes the
+    # pending changesets. The `drifted` output drives an explicit review signal
+    # on the PR, so a trust-root change cannot hide in a large version-bump diff.
+    - name: Add changesets for refreshed keys
+      id: keys
+      run: |
+        drifted=""
+        if ! git diff --quiet -- pnpm11/deps/security/signatures/src/npmSigningKeys.ts; then
+          drifted="npm registry signing keys"
+          cat > .changeset/release-refresh-npm-signing-keys.md <<'EOF'
+        ---
+        "@pnpm/deps.security.signatures": patch
+        "pnpm": patch
+        ---
+
+        Updated the embedded npm registry signing keys to the set currently advertised by npm.
+        EOF
+        fi
+        if ! git diff --quiet -- pnpm11/crypto/shasums-file/src/nodeReleaseKeys.ts; then
+          drifted="${drifted:+$drifted and }Node.js release keys"
+          cat > .changeset/release-refresh-node-release-keys.md <<'EOF'
+        ---
+        "@pnpm/crypto.shasums-file": patch
+        "pnpm": patch
+        ---
+
+        Updated the embedded Node.js release keys to the current canonical `nodejs/release-keys` list.
+        EOF
+        fi
+        echo "drifted=$drifted" >> "$GITHUB_OUTPUT"
 
     # Consumes the pending changesets: bumps versions, writes changelogs, updates
     # the ledger, and syncs manifests. A no-op (no pending changesets) leaves the
@@ -79,10 +119,34 @@ jobs:
           echo "changed=true" >> "$GITHUB_OUTPUT"
         fi
 
-    - name: Read new pnpm version
+    # One release PR covers every product; the commit subject lists the ones
+    # whose version actually changed against the target branch, e.g.
+    # "chore(release): 11.13.0, pacquet 12.0.0-alpha.9, pnpr 0.2.0". When only
+    # the TypeScript CLI bumped, the subject stays the historical bare version.
+    # `@pnpm/napi` is not listed separately: it is a versioning.fixed group with
+    # pacquet, so it always carries pacquet's version.
+    - name: Compose release summary
       id: version
       if: steps.changes.outputs.changed == 'true'
-      run: echo "version=$(node -p "require('./pnpm11/pnpm/package.json').version")" >> "$GITHUB_OUTPUT"
+      run: |
+        summary=""
+        add() {
+          local label="$1" manifest="$2" new old
+          new=$(jq -r .version "$manifest")
+          old=$(git show "FETCH_HEAD:$manifest" 2>/dev/null | jq -r .version || echo "")
+          if [ "$new" != "$old" ]; then
+            summary="${summary:+$summary, }${label:+$label }$new"
+          fi
+        }
+        add "" pnpm11/pnpm/package.json
+        add "pacquet" pnpm/npm/pnpm/package.json
+        add "pnpr" pnpr/npm/pnpr/package.json
+        # Changes without a version bump (e.g. refreshed trust-root changesets
+        # consumed into changelogs only) still need a commit subject.
+        if [ -z "$summary" ]; then
+          summary=$(jq -r .version pnpm11/pnpm/package.json)
+        fi
+        echo "version=$summary" >> "$GITHUB_OUTPUT"
 
     - name: Commit and push
       if: steps.changes.outputs.changed == 'true'
@@ -113,7 +177,20 @@ jobs:
             --title "chore(release): ${VERSION}" \
             --body "Automated release PR created by the create-release-pr workflow.
 
-        Releasing \`${TARGET}\` as pnpm v${VERSION}. Merging this PR consumes the pending changesets and records them in the \`.changeset-released\` ledger under \`${TARGET}\`." \
+        Releasing \`${TARGET}\`: ${VERSION}. Merging this PR consumes the pending changesets and records them in the committed \`.changeset/ledger.yaml\`, then auto-tags each released product (tag-release.yml) to run the release workflow." \
             --base "$TARGET" \
             --head "$BRANCH"
         fi
+
+    # Embedded trust roots changed in this release, so leave a hard-to-miss
+    # comment: the refreshed keys need deliberate review, not a scroll-past
+    # among the version bumps and changelogs.
+    - name: Flag refreshed trust roots on the PR
+      if: steps.changes.outputs.changed == 'true' && steps.keys.outputs.drifted != ''
+      env:
+        GH_TOKEN: ${{ secrets.UPDATE_LOCKFILE_TOKEN }}
+        TARGET: ${{ github.event.inputs.target }}
+        DRIFTED: ${{ steps.keys.outputs.drifted }}
+      run: |
+        PR=$(gh pr list --head "release-pr/$TARGET" --state open --json number --jq '.[0].number')
+        gh pr comment "$PR" --body "⚠️ This release refreshes embedded trust roots: **${DRIFTED}**. Review those key diffs deliberately before merging — they gate signature verification of Node.js runtimes and package-manager binaries."

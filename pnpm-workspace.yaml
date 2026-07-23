@@ -49,10 +49,37 @@ packages:
   - pnpm11/text/*
   - pnpm11/workspace/*
   - pnpm11/yaml/*
-  - pacquet/tasks/registry-mock
+  - pnpm/npm/napi
+  - pnpm/npm/pnpm
+  - pnpm/tasks/registry-mock
+  - pnpr/npm/pnpr
   - '!**/example/**'
   - '!**/test/**'
   - '!pnpm11/resolving/local-resolver/example-package/**'
+
+# Native workspace release management (consumed by `pnpm change` / `pnpm version -r`).
+# The Rust CLI wrapper is the workspace package `pacquet` (published to npm as
+# `pnpm`); generate-packages.mjs rewrites the name at pack time.
+versioning:
+  # @pnpm/logger is a workspace package, but every consumer depends on the
+  # published one through the `^1100.0.0` catalog entry (a `catalog:` peer, kept
+  # deliberately so Jest loads the published CJS-bole logger — see the `bole`
+  # note in the catalog). The release engine would otherwise reject those
+  # catalog: peers as internal ranges that must use the workspace: protocol, so
+  # freeze @pnpm/logger from the automated release: it is bumped out of band.
+  ignore:
+    - '@pnpm/logger'
+  # The Rust CLI wrapper and its NAPI addon always release in lockstep at one
+  # shared version.
+  fixed:
+    - ['pacquet', '@pnpm/napi']
+  # The Rust products release as `X.Y.Z-alpha.N` prereleases (published under the
+  # `next` dist-tag) while the TypeScript CLI keeps releasing stable versions on
+  # the main lane. `pnpm lane main --filter …` graduates a product to stable.
+  lanes:
+    pacquet: alpha
+    '@pnpm/napi': alpha
+    '@pnpm/pnpr': alpha
 
 allowBuilds:
   core-js: false
@@ -77,7 +104,6 @@ auditConfig:
 catalog:
   '@babel/core': ^7.29.7
   '@babel/plugin-transform-explicit-resource-management': ^7.29.7
-  '@changesets/cli': ^2.31.0
   '@commitlint/cli': ^21.0.2
   '@commitlint/config-conventional': ^21.0.2
   '@commitlint/prompt-cli': ^21.0.2
@@ -156,8 +182,9 @@ catalog:
   '@zkochan/retry': ^0.2.0
   '@zkochan/rimraf': ^4.0.0
   '@zkochan/table': ^2.0.1
-  adm-zip: ^0.5.17
+  adm-zip: ^0.6.0
   amaro: ^1.1.9
+  ansi-diff: ^1.2.0
   archy: ^1.0.0
   better-path-resolve: 2.0.0
   bin-links: ^6.0.2
@@ -178,7 +205,6 @@ catalog:
   cli-truncate: ^6.0.0
   cmd-extension: ^2.0.0
   comver-to-semver: ^2.0.0
-  concurrently: 10.0.3
   cross-env: ^10.1.0
   cross-spawn: ^7.0.6
   # cspell 10.x requires Node.js >=22.18.0, above pnpm's supported floor of
@@ -227,6 +253,7 @@ catalog:
   isexe: 4.0.0
   jest: ^30.4.2
   jest-diff: ^30.4.1
+  human-id: ^4.2.0
   js-yaml: npm:@zkochan/js-yaml@0.0.11
   json5: ^2.2.3
   keyv: 5.6.0
@@ -262,7 +289,6 @@ catalog:
   p-filter: ^4.1.0
   p-limit: ^7.3.0
   p-map-values: ^0.1.0
-  p-memoize: 8.0.0
   p-queue: ^9.3.0
   parse-json: ^8.3.0
   parse-npm-tarball-url: ^5.0.0
@@ -350,9 +376,6 @@ catalogMode: strict
 
 cleanupUnusedCatalogs: true
 
-configDependencies:
-  '@pnpm/pacquet': 0.11.12
-
 enableGlobalVirtualStore: true
 
 enablePrePostScripts: false
@@ -426,6 +449,7 @@ optimisticRepeatInstall: true
 overrides:
   '@cypress/request@3.0.9>qs': ^6.14.1
   '@yarnpkg/fslib@2': '3'
+  adm-zip@<0.6.0: ^0.6.0
   ajv@>=7.0.0-alpha.0 <8.18.0: '>=8.18.0'
   body-parser@<2.2.1: '^2.2.1'
   brace-expansion@<5.0.5: '>=5.0.5'
@@ -493,6 +517,7 @@ packageExtensions:
 
 patchedDependencies:
   graceful-fs@4.2.11: __patches__/graceful-fs@4.2.11.patch
+  normalize-registry-url@2.0.1: __patches__/normalize-registry-url@2.0.1.patch
 
 patchesDir: __patches__
 
@@ -509,6 +534,7 @@ trustPolicy: no-downgrade
 trustPolicyExclude:
   - '@pnpm/*'
   - '@yarnpkg/libzip@3.2.2'
+  - pnpm
   - rxjs@7.8.2
   - tinyexec@1.2.2
   - undici-types@6.21.0

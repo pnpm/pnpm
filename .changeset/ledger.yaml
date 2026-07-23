@@ -1,0 +1,473 @@
+"@pnpm/building.during-install@1102.0.9":
+  dir: pnpm11/building/during-install
+  intents:
+    - gvs-build-failure-cleanup
+"@pnpm/cache.commands@1100.0.29":
+  dir: pnpm11/cache/commands
+  intents:
+    - cache-delete-all-metadata-dirs
+"@pnpm/cli.default-reporter@1100.3.8":
+  dir: pnpm11/cli/default-reporter
+  intents:
+    - quiet-prompts
+"@pnpm/cli.parse-cli-args@1100.1.6":
+  dir: pnpm11/cli/parse-cli-args
+  intents:
+    - escape-args-only-as-command
+"@pnpm/config.parse-overrides@1100.1.0":
+  dir: pnpm11/config/parse-overrides
+  intents:
+    - olive-pandas-converge
+"@pnpm/config.reader@1101.12.0":
+  dir: pnpm11/config/reader
+  intents:
+    - allow-tokenhelper-in-global-auth-ini
+    - native-monorepo-versioning-core
+"@pnpm/config.reader@1101.13.0":
+  dir: pnpm11/config/reader
+  intents:
+    - update-github-actions
+    - update-settings-section
+"@pnpm/core-loggers@1100.2.3":
+  dir: pnpm11/core/core-loggers
+  intents:
+    - quiet-prompts
+"@pnpm/deps.inspection.commands@1100.6.0":
+  dir: pnpm11/deps/inspection/commands
+  intents:
+    - update-github-actions
+"@pnpm/deps.inspection.peers-checker@1100.0.21":
+  dir: pnpm11/deps/inspection/peers-checker
+  intents:
+    - peer-scheme-specifiers
+"@pnpm/deps.inspection.tree-builder@1100.0.21":
+  dir: pnpm11/deps/inspection/tree-builder
+  intents:
+    - limit-unsaved-dep-reads
+"@pnpm/deps.peer-range@1100.1.0":
+  dir: pnpm11/deps/peer-range
+  intents:
+    - peer-scheme-specifiers
+"@pnpm/deps.status@1100.1.7":
+  dir: pnpm11/deps/status
+  intents:
+    - repeat-install-coarse-mtime
+"@pnpm/engine.pm.commands@1101.2.3":
+  dir: pnpm11/engine/pm/commands
+  intents:
+    - global-trust-policy-full-metadata
+"@pnpm/engine.pm.commands@1101.2.4":
+  dir: pnpm11/engine/pm/commands
+  intents:
+    - quiet-slots-link
+"@pnpm/engine.pm.commands@1101.2.5":
+  dir: pnpm11/engine/pm/commands
+  intents:
+    - self-update-verify-installed-pnpm
+"@pnpm/exe@11.13.1":
+  dir: pnpm11/pnpm/artifacts/exe
+  intents:
+    - exe-repository-links
+"@pnpm/exec.commands@1100.3.5":
+  dir: pnpm11/exec/commands
+  intents:
+    - windows-kill-tracked-process-trees
+"@pnpm/exec.commands@1100.4.0":
+  dir: pnpm11/exec/commands
+  intents:
+    - run-regex-and-sequential
+"@pnpm/exec.lifecycle@1100.1.3":
+  dir: pnpm11/exec/lifecycle
+  intents:
+    - windows-kill-tracked-process-trees
+"@pnpm/fetching.binary-fetcher@1102.0.4":
+  dir: pnpm11/fetching/binary-fetcher
+  intents:
+    - clean-zip-memory
+"@pnpm/fs.packlist@1100.0.2":
+  dir: pnpm11/fs/packlist
+  intents:
+    - workspace-pack-gitignore
+"@pnpm/fs.packlist@1100.0.3":
+  dir: pnpm11/fs/packlist
+  intents:
+    - nice-packs-ignore
+"@pnpm/global.commands@1100.0.34":
+  dir: pnpm11/global/commands
+  intents:
+    - global-trust-policy-full-metadata
+"@pnpm/hooks.read-package-hook@1100.1.0":
+  dir: pnpm11/hooks/read-package-hook
+  intents:
+    - olive-pandas-converge
+"@pnpm/installing.commands@1100.10.5":
+  dir: pnpm11/installing/commands
+  intents:
+    - global-trust-policy-full-metadata
+"@pnpm/installing.commands@1100.10.6":
+  dir: pnpm11/installing/commands
+  intents:
+    - quiet-prompts
+"@pnpm/installing.commands@1100.11.0":
+  dir: pnpm11/installing/commands
+  intents:
+    - update-changeset-flag
+    - update-github-actions
+"@pnpm/installing.deps-installer@1102.3.0":
+  dir: pnpm11/installing/deps-installer
+  intents:
+    - olive-pandas-converge
+"@pnpm/installing.deps-installer@1102.3.3":
+  dir: pnpm11/installing/deps-installer
+  intents:
+    - pnpr-workspace-identity
+"@pnpm/installing.deps-resolver@1100.2.11":
+  dir: pnpm11/installing/deps-resolver
+  intents:
+    - peer-scheme-specifiers
+"@pnpm/installing.deps-resolver@1100.2.9":
+  dir: pnpm11/installing/deps-resolver
+  intents:
+    - dedupe-injected-deps-unrelated-peer-suffix
+    - steady-lockfile-children
+"@pnpm/installing.deps-resolver@1100.3.0":
+  dir: pnpm11/installing/deps-resolver
+  intents:
+    - meta-only-optional-peer-hoist
+"@pnpm/lockfile.fs@1100.1.12":
+  dir: pnpm11/lockfile/fs
+  intents:
+    - allow-symlinked-lockfile-reads
+    - safe-broken-lockfile-errors
+"@pnpm/lockfile.verification@1100.0.26":
+  dir: pnpm11/lockfile/verification
+  intents:
+    - fresh-gits-agree
+"@pnpm/napi@12.0.0-alpha.15":
+  dir: pnpm/npm/napi
+  intents:
+    - pacquet-licenses
+"@pnpm/network.auth-header@1101.1.4":
+  dir: pnpm11/network/auth-header
+  intents:
+    - token-helper-timeout
+"@pnpm/pkg-manifest.utils@1100.2.10":
+  dir: pnpm11/pkg-manifest/utils
+  intents:
+    - complete-runtime-installation-port
+"@pnpm/pkg-manifest.utils@1100.2.11":
+  dir: pnpm11/pkg-manifest/utils
+  intents:
+    - peer-prefix-precedence-fix
+"@pnpm/pnpr.client@1.3.5":
+  dir: pnpr/client
+  intents:
+    - pnpr-workspace-identity
+"@pnpm/pnpr@0.1.0-alpha.1":
+  dir: pnpr/npm/pnpr
+  intents:
+    - pnpr-hoist-readme
+"@pnpm/pnpr@0.1.0-alpha.2":
+  dir: pnpr/npm/pnpr
+  intents:
+    - fluffy-snakes-complain
+"@pnpm/pnpr@0.1.0-alpha.3":
+  dir: pnpr/npm/pnpr
+  intents:
+    - pacquet-clap-help-markdown
+"@pnpm/pnpr@0.1.0-alpha.4":
+  dir: pnpr/npm/pnpr
+  intents:
+    - pacquet-install-filters
+    - pnpr-workspace-identity
+"@pnpm/registry-access.commands@1100.5.0":
+  dir: pnpm11/registry-access/commands
+  intents:
+    - implement-team-command
+"@pnpm/registry-access.commands@1100.5.2":
+  dir: pnpm11/registry-access/commands
+  intents:
+    - owner-ls-auth-errors
+"@pnpm/releasing.commands@1100.6.0":
+  dir: pnpm11/releasing/commands
+  intents:
+    - deploy-catalog-snapshots
+    - deploy-local-tarball-names
+    - native-monorepo-versioning-core
+    - preserve-publish-otp
+    - publish-readme-metadata
+    - tidy-deploy-graphs
+    - workspace-pack-gitignore
+"@pnpm/releasing.commands@1100.6.1":
+  dir: pnpm11/releasing/commands
+  intents:
+    - nice-packs-ignore
+"@pnpm/releasing.commands@1100.7.0":
+  dir: pnpm11/releasing/commands
+  intents:
+    - first-release-verbatim
+"@pnpm/releasing.exportable-manifest@1100.1.10":
+  dir: pnpm11/releasing/exportable-manifest
+  intents:
+    - publish-readme-metadata
+"@pnpm/releasing.versioning@1100.1.0":
+  dir: pnpm11/releasing/versioning
+  intents:
+    - epics-monorepo-versioning
+    - native-monorepo-versioning-core
+"@pnpm/releasing.versioning@1100.1.3":
+  dir: pnpm11/releasing/versioning
+  intents:
+    - ledger-empty-intents-roundtrip
+"@pnpm/releasing.versioning@1100.2.0":
+  dir: pnpm11/releasing/versioning
+  intents:
+    - first-release-verbatim
+"@pnpm/resolving.git-resolver@1100.1.11":
+  dir: pnpm11/resolving/git-resolver
+  intents:
+    - update-github-actions
+"@pnpm/resolving.npm-resolver@1102.1.3":
+  dir: pnpm11/resolving/npm-resolver
+  intents:
+    - retry-invalid-304
+"@pnpm/resolving.npm-resolver@1102.1.5":
+  dir: pnpm11/resolving/npm-resolver
+  intents:
+    - recover-metadata-cache-race
+    - share-inflight-packuments
+    - update-preserve-exact-pins
+"@pnpm/resolving.npm-resolver@1102.1.6":
+  dir: pnpm11/resolving/npm-resolver
+  intents:
+    - condense-retained-packuments
+"@pnpm/store.connection-manager@1100.3.6":
+  dir: pnpm11/store/connection-manager
+  intents:
+    - global-trust-policy-full-metadata
+"@pnpm/types@1101.4.0":
+  dir: pnpm11/core/types
+  intents:
+    - epics-monorepo-versioning
+    - native-monorepo-versioning-core
+"@pnpm/types@1101.5.0":
+  dir: pnpm11/core/types
+  intents:
+    - update-github-actions
+    - update-settings-section
+"@pnpm/workspace.state@1100.0.31":
+  dir: pnpm11/workspace/state
+  intents:
+    - arch-change-invalidates-up-to-date
+"@pnpm/workspace.workspace-manifest-reader@1100.1.0":
+  dir: pnpm11/workspace/workspace-manifest-reader
+  intents:
+    - epics-monorepo-versioning
+    - native-monorepo-versioning-core
+pacquet@12.0.0-alpha.10:
+  dir: pnpm/npm/pnpm
+  intents:
+    - fluffy-snakes-complain
+pacquet@12.0.0-alpha.11:
+  dir: pnpm/npm/pnpm
+  intents:
+    - pacquet-scoped-symlink-windows-separators
+    - pacquet-self-update-pin-specifier
+pacquet@12.0.0-alpha.12:
+  dir: pnpm/npm/pnpm
+  intents:
+    - pacquet-clap-help-markdown
+    - pacquet-symlink-dangling-junction-parent
+pacquet@12.0.0-alpha.13:
+  dir: pnpm/npm/pnpm
+  intents: []
+pacquet@12.0.0-alpha.14:
+  dir: pnpm/npm/pnpm
+  intents:
+    - allow-symlinked-lockfile-reads
+    - bound-pacquet-gzip-hints
+    - fresh-gits-agree
+    - git-importer-lockfile
+    - modules-yaml-package-manager-pnpm
+    - pacquet-add-multiple-packages
+    - pacquet-concurrent-add-resolution
+    - pacquet-err-pnpm-error-codes
+    - pacquet-fresh-engine-strict
+    - pacquet-minimum-release-age-add-update
+    - pacquet-owner
+    - pacquet-render-stats-once
+    - pacquet-strict-age-prompt
+    - pacquet-user-facing-pnpm-naming
+    - pacquet-workspace-lockfile-freshness
+    - peer-scheme-specifiers
+    - pnpm-doctor-command
+    - recover-metadata-cache-race
+    - refuse-broken-release-on-version-switch
+    - run-regex-and-sequential
+    - safe-broken-lockfile-errors
+    - self-update-verify-installed-pnpm
+    - update-preserve-exact-pins
+pacquet@12.0.0-alpha.15:
+  dir: pnpm/npm/pnpm
+  intents:
+    - ledger-empty-intents-roundtrip
+    - meta-only-optional-peer-hoist
+    - pacquet-frozen-auto-install-peers
+    - pacquet-install-filters
+    - pacquet-licenses
+    - reuse-denied-edge-empty-snapshot
+pacquet@12.0.0-alpha.16:
+  dir: pnpm/npm/pnpm
+  intents:
+    - add-keeps-all-dependency-groups
+    - add-moves-dependency-between-groups
+    - add-updates-dependency-in-place
+    - arch-change-invalidates-up-to-date
+    - calm-jars-smile
+    - cleanup-legacy-homedir-shims
+    - complete-runtime-installation-port
+    - git-dep-importer-version
+    - git-private-repo-keeps-auth-url
+    - gvs-build-failure-cleanup
+    - hoist-tolerates-skipped-optional-snapshots
+    - hoisted-patch-every-nested-copy
+    - hungry-donkeys-repeat
+    - if-modified-since-http-date
+    - pacquet-deprecation-warnings
+    - pacquet-gvs-slot-state
+    - pacquet-install-test
+    - pacquet-progress-reporting-parity
+    - pacquet-recursive
+    - pacquet-virtual-store-only
+    - reconcile-existing-node-modules-on-repeat-install
+    - record-pending-builds
+    - reevaluate-skipped-optionals-on-arch-change
+    - revoked-build-approval-is-re-evaluated
+    - skipped-optional-dependency-closure
+    - tidy-wolves-proxy
+    - verify-unused-patches-on-install
+pacquet@12.0.0-alpha.17:
+  dir: pnpm/npm/pnpm
+  intents:
+    - calm-spiders-rebuild
+    - git-hosted-dependency-parity
+    - list-why-parity
+    - order-workspace-lifecycle
+    - pacquet-auto-install-peer-intersection
+    - pacquet-cleanup-unused-catalogs
+    - pacquet-edge-aware-engine-strict
+    - pacquet-enable-modules-dir
+    - pacquet-engine-prerelease-bounds
+    - pacquet-extend-node-path
+    - pacquet-install-force-flag
+    - pacquet-shared-workspace-lockfile-false
+    - steady-install-state
+    - tarball-mem-cache-lost-wakeup
+pacquet@12.0.0-alpha.18:
+  dir: pnpm/npm/pnpm
+  intents:
+    - first-release-verbatim
+    - no-unrelated-lockfile-churn
+    - pacquet-npm-style-version
+    - recursive-install-family-dedicated-lockfiles
+    - recursive-outdated-queries
+    - recursive-rebuild
+    - recursive-why-peers
+    - setup-action-cli-parity
+    - unlink-recursive-install-family
+    - update-changeset-flag
+    - update-github-actions
+    - update-settings-section
+pacquet@12.0.0-alpha.9:
+  dir: pnpm/npm/pnpm
+  intents:
+    - calm-cats-resolve
+    - dedupe-injected-deps-unrelated-peer-suffix
+    - deploy-catalog-snapshots
+    - deploy-local-tarball-names
+    - epics-monorepo-versioning
+    - gvs-windows-separators
+    - pacquet-before-packing-hook
+    - pacquet-deprecate-undeprecate
+    - pacquet-injected-workspace-catalogs
+    - pacquet-list-unsaved-deps
+    - pacquet-star-stars-unstar
+    - pacquet-token-helper
+    - pacquet-versionless-workspace-packages
+    - publish-readme-metadata
+    - repeat-install-clock-skew
+    - repeat-install-coarse-mtime
+    - retry-invalid-304
+    - rust-wrapper-dev-checkout-guard
+    - tidy-deploy-graphs
+    - workspace-pack-gitignore
+pnpm@11.13.0:
+  dir: pnpm11/pnpm
+  intents:
+    - allow-tokenhelper-in-global-auth-ini
+    - cache-delete-all-metadata-dirs
+    - dedupe-injected-deps-unrelated-peer-suffix
+    - deploy-catalog-snapshots
+    - deploy-local-tarball-names
+    - epics-monorepo-versioning
+    - escape-args-only-as-command
+    - global-trust-policy-full-metadata
+    - implement-team-command
+    - limit-unsaved-dep-reads
+    - native-monorepo-versioning-core
+    - olive-pandas-converge
+    - pnpm-publish-strip-bundled-deps
+    - preserve-publish-otp
+    - publish-readme-metadata
+    - repeat-install-coarse-mtime
+    - retry-invalid-304
+    - steady-lockfile-children
+    - tidy-deploy-graphs
+    - token-helper-timeout
+    - windows-kill-tracked-process-trees
+    - workspace-pack-gitignore
+pnpm@11.13.1:
+  dir: pnpm11/pnpm
+  intents:
+    - nice-packs-ignore
+    - quiet-prompts
+    - quiet-slots-link
+pnpm@11.14.0:
+  dir: pnpm11/pnpm
+  intents:
+    - allow-symlinked-lockfile-reads
+    - fresh-gits-agree
+    - owner-ls-auth-errors
+    - peer-scheme-specifiers
+    - pnpm-doctor-command
+    - recover-metadata-cache-race
+    - refuse-broken-release-on-version-switch
+    - run-regex-and-sequential
+    - safe-broken-lockfile-errors
+    - self-update-verify-installed-pnpm
+    - share-inflight-packuments
+    - update-preserve-exact-pins
+pnpm@11.15.0:
+  dir: pnpm11/pnpm
+  intents:
+    - clean-zip-memory
+    - ledger-empty-intents-roundtrip
+    - meta-only-optional-peer-hoist
+    - pnpr-workspace-identity
+pnpm@11.15.1:
+  dir: pnpm11/pnpm
+  intents:
+    - arch-change-invalidates-up-to-date
+    - cleanup-legacy-homedir-shims
+    - complete-runtime-installation-port
+    - condense-retained-packuments
+    - gvs-build-failure-cleanup
+    - login-subpath-registry
+pnpm@11.16.0:
+  dir: pnpm11/pnpm
+  intents:
+    - first-release-verbatim
+    - peer-prefix-precedence-fix
+    - update-changeset-flag
+    - update-github-actions
+    - update-settings-section

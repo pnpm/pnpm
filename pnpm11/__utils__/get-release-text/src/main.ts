@@ -1,8 +1,10 @@
 /// <reference path="../../../__typings__/local.d.ts" />
-import fs from 'node:fs'
+import fs from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { PnpmError } from '@pnpm/error'
+import { readPendingChangelog } from '@pnpm/releasing.versioning'
 import { toString as mdastToString } from 'mdast-util-to-string'
 import remarkParse from 'remark-parse'
 import remarkStringify from 'remark-stringify'
@@ -17,18 +19,31 @@ export const BumpLevels = {
 
 const dirname = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(dirname, '../../../..')
-const pnpmDir = path.join(repoRoot, 'pnpm11/pnpm')
-const changelog = fs.readFileSync(path.join(pnpmDir, 'CHANGELOG.md'), 'utf8')
-const pnpm = JSON.parse(fs.readFileSync(path.join(pnpmDir, 'package.json'), 'utf8'))
-const release = getChangelogEntry(changelog, pnpm.version)
-fs.writeFileSync(path.join(repoRoot, 'RELEASE.md'), release.content)
+
+if (process.argv[1] != null && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  await writeReleaseText(repoRoot)
+}
+
+export async function writeReleaseText (workspaceDir: string): Promise<void> {
+  const pnpmDir = path.join(workspaceDir, 'pnpm11/pnpm')
+  const pnpm = JSON.parse(await fs.readFile(path.join(pnpmDir, 'package.json'), 'utf8'))
+  const changelog = await readPendingChangelog(workspaceDir, pnpm.name, pnpm.version)
+  if (changelog == null) {
+    throw new PnpmError('MISSING_CHANGELOG', `No pending changelog found for pnpm ${pnpm.version}`)
+  }
+  const release = getChangelogEntry(changelog, pnpm.version)
+  const releasePath = path.join(workspaceDir, 'RELEASE.md')
+  const temporaryPath = `${releasePath}.${process.pid}.tmp`
+  await fs.writeFile(temporaryPath, release.content)
+  await fs.rename(temporaryPath, releasePath)
+}
 
 interface ChangelogEntry {
   content: string
   highestLevel: number
 }
 
-function getChangelogEntry (changelog: string, version: string): ChangelogEntry {
+export function getChangelogEntry (changelog: string, version: string): ChangelogEntry {
   const ast = unified().use(remarkParse).parse(changelog)
 
   let highestLevel: number = BumpLevels.dep
@@ -68,12 +83,13 @@ function getChangelogEntry (changelog: string, version: string): ChangelogEntry 
       }
     }
   }
-  if (headingStartInfo != null) {
-    ast['children'] = (ast['children'] as any).slice( // eslint-disable-line @typescript-eslint/no-explicit-any
-      headingStartInfo.index + 1,
-      endIndex
-    )
+  if (headingStartInfo == null) {
+    throw new PnpmError('MISSING_CHANGELOG_ENTRY', `No changelog entry found for pnpm ${version}`)
   }
+  ast['children'] = (ast['children'] as any).slice( // eslint-disable-line @typescript-eslint/no-explicit-any
+    headingStartInfo.index + 1,
+    endIndex
+  )
   return {
     content: `${unified().use(remarkStringify).stringify(ast)}
 

@@ -6,7 +6,7 @@ use crate::{
     auth::{AuthState, TokenBackend, TokenRecord, UserStore},
     config::Config,
     error::{RegistryError, Result},
-    policy::{AccessList, PackagePolicies, PackagePolicy},
+    policy::{AccessList, PackageRule, PackageRules},
 };
 use async_trait::async_trait;
 use axum::{
@@ -218,25 +218,39 @@ async fn authenticated_identity_reaches_handlers() {
 }
 
 #[tokio::test]
-async fn configured_groups_reach_package_authorization() {
+async fn team_tokens_reach_package_authorization() {
     let tmp = TempDir::new().unwrap();
     let listen = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
     let mut config = Config::static_serve(listen, tmp.path().to_path_buf());
-    config.groups.add_user_to_group("alice", "platform");
-    config.policies = PackagePolicies::new(vec![
-        PackagePolicy::new(
-            "@team/*",
-            AccessList::parse("platform"),
-            AccessList::default(),
-            AccessList::default(),
-        )
-        .unwrap(),
-    ]);
-    let app = app_with_config_and_token(config, "tok", record(false, &[]));
+    use crate::policy::{AccessToken, Identity};
+    use crate::registry::PackagePattern;
+    config.hosted.get_mut("local").unwrap().rules = PackageRules::new(
+        vec![PackageRule {
+            pattern: PackagePattern::parse("@team/*").unwrap(),
+            access: Some(AccessList::new(vec![AccessToken::Team {
+                name: "platform".to_string(),
+                members: ["alice".to_string()].into(),
+            }])),
+            publish: None,
+            unpublish: None,
+        }],
+        None,
+    );
+    // Team membership reaches the per-package rule evaluation.
+    let alice = Identity::user("alice");
+    let carol = Identity::user("carol");
+    let rules = &config.hosted["local"].rules;
+    assert!(rules.for_package("@team/x").access.allows(&alice));
+    assert!(!rules.for_package("@team/x").access.allows(&carol));
 
+    // Over HTTP: the team member reaches storage (404, the package is
+    // absent); a caller denied by the *explicit* `@team/*` entry is
+    // rejected loudly — 401 for anonymous, so clients can prompt for
+    // credentials — rather than masked (masking is the registry-level
+    // default's behavior, not an explicit entry's).
+    let app = app_with_config_and_token(config, "tok", record(false, &[]));
     let allowed = app.clone().oneshot(signed(Method::GET, "/@team/missing", "tok")).await.unwrap();
     assert_eq!(allowed.status(), StatusCode::NOT_FOUND);
-
     let anonymous = app.oneshot(signed(Method::GET, "/@team/missing", "unknown")).await.unwrap();
     assert_eq!(anonymous.status(), StatusCode::UNAUTHORIZED);
 }
@@ -318,4 +332,130 @@ async fn forwarded_header_cannot_satisfy_a_cidr_restriction() {
         request
     };
     assert_eq!(status(app, request).await, StatusCode::FORBIDDEN);
+}
+
+#[test]
+fn access_log_uri_redacts_the_logout_token_segment() {
+    let redact = |raw: &str| super::loggable_uri(&raw.parse().unwrap());
+    assert_eq!(redact("/-/user/token/npm_secret-token-value"), "/-/user/token/<redacted>");
+    assert_eq!(
+        redact("/~corp/-/user/token/npm_secret-token-value"),
+        "/~corp/-/user/token/<redacted>",
+    );
+    // Everything else is logged verbatim, query string included.
+    assert_eq!(redact("/foo/-/foo-1.0.0.tgz"), "/foo/-/foo-1.0.0.tgz");
+    assert_eq!(redact("/-/v1/search?text=foo"), "/-/v1/search?text=foo");
+}
+
+// --------------------------------------------------------------------
+// npm team API — listings from the config-declared `teams:` map,
+// config-managed rejection for mutations, not-found masking for callers
+// the registry-level `access` denies.
+// --------------------------------------------------------------------
+
+fn config_with_teams(tmp: &TempDir) -> Config {
+    let listen = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
+    let mut config = Config::static_serve(listen, tmp.path().to_path_buf());
+    let teams = [("developers", vec!["bob", "alice"]), ("admins", vec!["alice"])];
+    config.hosted.get_mut("local").unwrap().teams = teams
+        .into_iter()
+        .map(|(team, members)| {
+            (team.to_string(), members.into_iter().map(str::to_string).collect())
+        })
+        .collect();
+    config
+}
+
+async fn body_json(response: axum::response::Response) -> serde_json::Value {
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    serde_json::from_slice(&body).unwrap()
+}
+
+#[tokio::test]
+async fn team_listing_serves_config_declared_teams() {
+    let tmp = TempDir::new().unwrap();
+    let app = app_with_config_and_token(config_with_teams(&tmp), "tok", record(false, &[]));
+    // Declaration order is preserved; the shape is what `pnpm team ls`
+    // consumes.
+    let expected = serde_json::json!([{ "name": "developers" }, { "name": "admins" }]);
+    let response =
+        app.clone().oneshot(signed(Method::GET, "/-/org/myorg/team", "tok")).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(body_json(response).await, expected);
+    // The same listing through the registry-addressed endpoint.
+    let prefixed =
+        app.oneshot(signed(Method::GET, "/~local/-/org/myorg/team", "tok")).await.unwrap();
+    assert_eq!(prefixed.status(), StatusCode::OK);
+    assert_eq!(body_json(prefixed).await, expected);
+}
+
+#[tokio::test]
+async fn team_members_are_listed_sorted() {
+    let tmp = TempDir::new().unwrap();
+    let app = app_with_config_and_token(config_with_teams(&tmp), "tok", record(false, &[]));
+    // Members come from a sorted set, not declaration order.
+    let expected = serde_json::json!([{ "name": "alice" }, { "name": "bob" }]);
+    let response = app
+        .clone()
+        .oneshot(signed(Method::GET, "/-/team/myorg/developers/user", "tok"))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(body_json(response).await, expected);
+    let prefixed = app
+        .clone()
+        .oneshot(signed(Method::GET, "/~local/-/team/myorg/developers/user", "tok"))
+        .await
+        .unwrap();
+    assert_eq!(prefixed.status(), StatusCode::OK);
+    assert_eq!(body_json(prefixed).await, expected);
+    // A team the config does not declare is a definitive not-found.
+    let missing = app.oneshot(signed(Method::GET, "/-/team/myorg/nope/user", "tok")).await.unwrap();
+    assert_eq!(missing.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn team_mutations_are_rejected_as_config_managed() {
+    let tmp = TempDir::new().unwrap();
+    let app = app_with_config_and_token(config_with_teams(&tmp), "tok", record(false, &[]));
+    let mutations = [
+        (Method::PUT, "/-/org/myorg/team"),
+        (Method::DELETE, "/-/team/myorg/developers"),
+        (Method::PUT, "/-/team/myorg/developers/user"),
+        (Method::DELETE, "/-/team/myorg/developers/user"),
+        (Method::PUT, "/~local/-/org/myorg/team"),
+        (Method::DELETE, "/~local/-/team/myorg/developers"),
+        (Method::PUT, "/~local/-/team/myorg/developers/user"),
+        (Method::DELETE, "/~local/-/team/myorg/developers/user"),
+    ];
+    for (method, path) in mutations {
+        let response = app.clone().oneshot(signed(method.clone(), path, "tok")).await.unwrap();
+        assert_eq!(response.status(), StatusCode::FORBIDDEN, "{method} {path}");
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let body = String::from_utf8(body.to_vec()).unwrap();
+        assert!(body.contains("declared in the pnpr configuration"), "{method} {path}: {body}");
+    }
+}
+
+#[tokio::test]
+async fn team_listing_masks_callers_the_registry_denies() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_with_teams(&tmp);
+    // Registry-level default access admits only authenticated callers.
+    config.hosted.get_mut("local").unwrap().rules =
+        PackageRules::new(Vec::new(), Some(AccessList::from_tokens(["$authenticated"])));
+    let app = app_with_config_and_token(config, "tok", record(false, &[]));
+    // An anonymous caller gets the not-found mask on reads and mutations
+    // alike — team names must not become an existence probe.
+    for (method, path) in [
+        (Method::GET, "/-/org/myorg/team"),
+        (Method::GET, "/-/team/myorg/developers/user"),
+        (Method::PUT, "/-/org/myorg/team"),
+    ] {
+        let response = app.clone().oneshot(signed(method.clone(), path, "unknown")).await.unwrap();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND, "{method} {path}");
+    }
+    // The authenticated caller passes the gate.
+    let allowed = app.oneshot(signed(Method::GET, "/-/org/myorg/team", "tok")).await.unwrap();
+    assert_eq!(allowed.status(), StatusCode::OK);
 }

@@ -8,39 +8,39 @@ on:
     # `pacquet` (the direct install) and `pnpr` (the same client through
     # the pnpr install accelerator). The pnpr server is built from the
     # `pacquet-*` resolver/store/tarball crates, so a pacquet change can
-    # move both — hence one shared trigger surface (`pacquet/**` + the
+    # move both — hence one shared trigger surface (`pnpm/**` + the
     # workspace infra) plus `pnpr/**` for the server itself. Paths mirror
     # the pull_request filter below.
     branches: [main]
     paths:
-      - 'pacquet/**/*.rs'
-      - 'pacquet/**/Cargo.toml'
+      - 'pnpm/**/*.rs'
+      - 'pnpm/**/Cargo.toml'
       - 'pnpr/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'rust-toolchain.toml'
       - 'justfile'
-      - 'pacquet/tasks/registry-mock/package.json'
+      - 'pnpm/tasks/registry-mock/package.json'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
-      - 'pacquet/tasks/integrated-benchmark/src/fixtures/**'
+      - 'pnpm/tasks/integrated-benchmark/src/fixtures/**'
       - '.github/actions/rustup/**'
       - '.github/actions/binstall/**'
       - '.github/workflows/pacquet-integrated-benchmark.yml'
   pull_request:
     types: [opened, synchronize]
     paths:
-      - 'pacquet/**/*.rs'
-      - 'pacquet/**/Cargo.toml'
+      - 'pnpm/**/*.rs'
+      - 'pnpm/**/Cargo.toml'
       - 'pnpr/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'rust-toolchain.toml'
       - 'justfile'
-      - 'pacquet/tasks/registry-mock/package.json'
+      - 'pnpm/tasks/registry-mock/package.json'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
-      - 'pacquet/tasks/integrated-benchmark/src/fixtures/**'
+      - 'pnpm/tasks/integrated-benchmark/src/fixtures/**'
       - '.github/actions/rustup/**'
       - '.github/actions/binstall/**'
       - '.github/workflows/pacquet-integrated-benchmark.yml'
@@ -62,7 +62,7 @@ jobs:
     strategy:
       max-parallel: 1
       matrix:
-        os: [ubuntu-latest] # windows is skipped because of complexity, macos is skipped because of inconsistency
+        os: [blacksmith-8vcpu-ubuntu-2404] # windows is skipped because of complexity, macOS is skipped because of inconsistency
     name: Run benchmark on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     env:
@@ -149,13 +149,17 @@ jobs:
         # packages from npmjs on every run. Replaces the older
         # `~/.local/share/verdaccio/storage` cache from when the mock
         # was Node + Verdaccio. Path matches `runtime_storage()` in
-        # `pacquet/tasks/registry-mock/src/dirs.rs` (defaults to
+        # `pnpm/tasks/registry-mock/src/dirs.rs` (defaults to
         # `$HOME/.cache/pnpm-registry/storage`).
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          key: integrated-benchmark-pnpm-registry-${{ hashFiles('pacquet/tasks/integrated-benchmark/src/fixtures/pnpm-lock.yaml') }}
+          # The version segment (v2) discards the persisted storage when it
+          # goes internally inconsistent — e.g. a cached packument declaring
+          # a version whose tarball was never cached, which 404s every
+          # fresh-install run. Bump it to repopulate from a clean slate.
+          key: integrated-benchmark-pnpm-registry-v2-${{ hashFiles('pnpm/tasks/integrated-benchmark/src/fixtures/pnpm-lock.yaml') }}
           restore-keys: |
-            integrated-benchmark-pnpm-registry-
+            integrated-benchmark-pnpm-registry-v2-
           path: |
             ~/.cache/pnpm-registry/storage
         timeout-minutes: 1
@@ -167,7 +171,7 @@ jobs:
       # cache silently missed and every run built cold. The compiled
       # revision *binaries* are cached separately, per commit, below.
       - name: Cache Rust deps
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           key: integrated-benchmark-deps-${{ matrix.os }}-${{ hashFiles('**/Cargo.lock', 'rust-toolchain.toml') }}-${{ github.run_id }}
           restore-keys: |
@@ -181,28 +185,31 @@ jobs:
         continue-on-error: true
 
       # Prebuilt revision binaries, keyed on the resolved commit. A
-      # `pnpr@<rev>` build also produces the `pacquet` client binary, and
-      # the orchestrator's `--reuse-prebuilt-binaries` copies it to the
-      # same-revision `pacquet@<rev>` target — so caching the two pnpr
-      # binaries covers all four targets. `main` is a near-certain hit on
+      # `pnpr@<rev>` build also produces the client binary (named `pnpm`,
+      # or `pacquet` in revisions that predate the bin rename — both paths
+      # are listed), and the orchestrator's `--reuse-prebuilt-binaries`
+      # copies it to the same-revision `pacquet@<rev>` target — so caching
+      # the pnpr binaries covers all four targets. `main` is a near-certain hit on
       # PRs (stable SHA), and a same-HEAD re-run hits HEAD too; a fresh HEAD
       # is the only thing that compiles. Restored into the paths the
       # orchestrator builds into, so it skips the clone + `cargo build`.
       - name: Cache pnpr@main binaries
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           key: integrated-benchmark-bin-${{ matrix.os }}-${{ steps.revs.outputs.main_sha }}-${{ hashFiles('rust-toolchain.toml') }}
           path: |
+            bench-work-env/pnpr@main/pacquet/target/release/pnpm
             bench-work-env/pnpr@main/pacquet/target/release/pacquet
             bench-work-env/pnpr@main/pacquet/target/release/pnpr
         timeout-minutes: 2
         continue-on-error: true
 
       - name: Cache pnpr@HEAD binaries
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           key: integrated-benchmark-bin-${{ matrix.os }}-${{ steps.revs.outputs.head_sha }}-${{ hashFiles('rust-toolchain.toml') }}
           path: |
+            bench-work-env/pnpr@HEAD/pacquet/target/release/pnpm
             bench-work-env/pnpr@HEAD/pacquet/target/release/pacquet
             bench-work-env/pnpr@HEAD/pacquet/target/release/pnpr
         timeout-minutes: 2
@@ -221,7 +228,7 @@ jobs:
           install: false
 
       - name: Cache pnpm
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           key: integrated-benchmark-pnpm-v11-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: |
@@ -237,7 +244,7 @@ jobs:
           packages: hyperfine@1.18.0
 
       - name: Install just
-        uses: taiki-e/install-action@b8cecb83565409bcc297b2df6e77f030b2a468d5 # v2.82.0
+        uses: taiki-e/install-action@2ca9b94c269419b7b0c711c09d0b21c4e1d51145 # v2.83.1
         with:
           tool: just
 
@@ -323,6 +330,22 @@ jobs:
           cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_COLD_CACHE_HOT_STORE.md
           cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_COLD_CACHE_HOT_STORE.json
 
+      - name: 'Benchmark: Isolated linker: fresh resolve, hot cache, offline'
+        shell: bash
+        # Offline re-resolution from the warm on-disk packument mirror:
+        # `install --offline --lockfile-only` with the lockfile removed per
+        # iteration (an online pre-warm pass primes the mirror first). No
+        # network and no linking, so the timed work is almost purely mirror
+        # reads + packument parsing — the series that guards offline /
+        # prefer-offline resolution, e.g. the disk-to-memory metadata
+        # promotion of pnpm/pnpm#12760. Cheapest scenario per iteration, so
+        # 15 min is ample.
+        timeout-minutes: 15
+        run: |
+          just integrated-benchmark --reuse-prebuilt-binaries --scenario=isolated-linker.fresh-resolve.hot-cache.offline --registry=verdaccio --pnpr-latency-ms=${PNPR_LATENCY_MS} --registry-latency-ms=${REGISTRY_LATENCY_MS} --registry-bandwidth-mbps=${REGISTRY_BANDWIDTH_MBPS} $BENCHMARK_TARGETS
+          cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESOLVE_HOT_CACHE_OFFLINE.md
+          cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESOLVE_HOT_CACHE_OFFLINE.json
+
       - name: 'Benchmark: Isolated linker: fresh restore, cold cache + cold store + cold pnpr'
         shell: bash
         # The only scenario with a cold pnpr-side cache: the per-revision mock
@@ -339,6 +362,44 @@ jobs:
           cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE_COLD_PNPR.md
           cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE_COLD_PNPR.json
 
+      # When a scenario fails, hyperfine aborts and the benchmarked install's
+      # own output is invisible: each target's script redirects stdout+stderr to
+      # `bench-work-env/<target>/BENCHMARK_OUTPUT.ndjson` (to keep hyperfine's
+      # timing clean), so `--show-output` shows nothing. Dump those logs and the
+      # per-revision pnpr server logs so the real install error reaches the CI
+      # log for diagnosis.
+      - name: Dump benchmark install output on failure
+        if: failure()
+        shell: bash
+        run: |
+          shopt -s nullglob
+          for log in bench-work-env/*/BENCHMARK_OUTPUT.ndjson; do
+            echo "::group::$log"
+            cat "$log"
+            echo "::endgroup::"
+          done
+          for log in bench-work-env/*/revision-mock.stderr.log bench-work-env/*/pnpr-server.stderr.log; do
+            echo "::group::$log"
+            tail -n 200 "$log"
+            echo "::endgroup::"
+          done
+          # Opt-in: only produces output when a run passed `--serve-timing`
+          # (kept off by default so debug-logging overhead never skews the timed
+          # means). When on, pnpr logs its `pnpr::serve_timing` events to *stdout*
+          # (tracing_subscriber's default writer), so aggregate those logs — not
+          # stderr — into a compact per-phase profile (count, total ms, mean µs)
+          # so a cold-store serve cost is visible without scrolling.
+          for log in bench-work-env/*/revision-mock.stdout.log bench-work-env/*/pnpr-server.stdout.log; do
+            if grep -q "pnpr::serve_timing" "$log"; then
+              echo "::group::$log (serve_timing per-phase summary)"
+              sed -E 's/\x1b\[[0-9;]*m//g' "$log" | grep -oE 'phase="[^"]+".*elapsed_us=[0-9]+' \
+                | sed -E 's/phase="([^"]+)".*elapsed_us=([0-9]+)/\1 \2/' \
+                | awk '{n[$1]++; sum[$1]+=$2} END {for (p in n) printf "%-28s count=%-7d total_ms=%-10.1f mean_us=%.0f\n", p, n[p], sum[p]/1000, sum[p]/n[p]}' \
+                | sort
+              echo "::endgroup::"
+            fi
+          done
+
       - name: Generate summary
         shell: bash
         env:
@@ -354,6 +415,8 @@ jobs:
             echo "**Commit:** [\`${SHA:0:12}\`](${{ github.server_url }}/${{ github.repository }}/commit/$SHA)"
             echo
             echo 'Each scenario reports direct installs and pnpr installs. Bencher consumes pacquet@HEAD and pnpr@HEAD.'
+            echo
+            echo 'The tables below show mean ± σ; Bencher thresholds on the **minimum** latency, which is far less perturbed by shared-runner contention (noise only adds time).'
             echo
             echo '### Scenario: Isolated linker: fresh restore, cold cache + cold store'
             echo
@@ -415,6 +478,18 @@ jobs:
             echo
             echo '</details>'
             echo
+            echo '### Scenario: Isolated linker: fresh resolve, hot cache, offline'
+            echo
+            cat bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESOLVE_HOT_CACHE_OFFLINE.md
+            echo
+            echo '<details><summary>BENCHMARK_REPORT.json</summary>'
+            echo
+            echo '```json'
+            jq 'del(.results[].exit_codes)' bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESOLVE_HOT_CACHE_OFFLINE.json
+            echo '```'
+            echo
+            echo '</details>'
+            echo
             echo '### Scenario: Isolated linker: fresh restore, cold cache + cold store + cold pnpr'
             echo
             cat bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE_COLD_PNPR.md
@@ -429,16 +504,33 @@ jobs:
           ) > bench-work-env/SUMMARY.md
 
       - name: Build Bencher-shaped report
-        # Combine the scenario JSONs into hyperfine-shaped files that
-        # Bencher's shell_hyperfine adapter accepts, one per testbed. For
-        # each, keep only the chosen target's result from each scenario
-        # and rename `.command` to the scenario name, so Bencher names the
-        # benchmark after the scenario. Both tools run all five scenarios,
-        # so the `pacquet` testbed gets `pacquet@HEAD` and the `pnpr`
-        # testbed gets `pnpr@HEAD`, each across the same scenario set.
+        # Convert the scenario JSONs into a Bencher Metric Format (BMF) file
+        # per testbed, keeping only the chosen target's result from each
+        # scenario and naming each benchmark after the scenario. Both tools run
+        # every scenario, so the `pacquet` testbed gets `pacquet@HEAD` and the
+        # `pnpr` testbed gets `pnpr@HEAD`, each across the same scenario set.
+        #
+        # We report each scenario's *minimum* latency as the metric value, so
+        # Bencher's threshold tracks the min rather than the mean. On a shared
+        # CI runner, contention only ever *adds* time, so the minimum is the run
+        # least perturbed by a noisy neighbour and the truest signal of a real
+        # code regression — the mean drifts run-to-run with whatever else the
+        # machine is doing (the latency-free offline scenario is pure CPU/disk
+        # and swung ~30% between runs, tripping a spurious alert on a control
+        # run whose HEAD and main binaries were byte-identical). Because the
+        # minimum only needs one uncontended run, hyperfine's default sampling
+        # suffices — no extra warmup or runs. The human-readable comment still
+        # reports mean ± σ; only the alerting signal moves to the min.
+        #
+        # BMF rather than the `shell_hyperfine` adapter with a doctored `mean`:
+        # this reports the min honestly as the value instead of relabelling it.
+        # `value` is in nanoseconds (`min` seconds × 1e9) to match the unit the
+        # `shell_hyperfine` adapter established for the `latency` measure, so
+        # the existing baseline stays comparable. The uploads that consume
+        # these files therefore use `--adapter json`.
         shell: bash
         run: |
-          # Build one bencher-results file: $1 = output path, $2 = the
+          # Build one BMF bencher-results file: $1 = output path, $2 = the
           # hyperfine command name to keep, $3.. = `FILE_TAG:scenario-name`
           # entries.
           build_bencher_file() {
@@ -452,11 +544,13 @@ jobs:
               src="bench-work-env/BENCHMARK_REPORT_${file_tag}.json"
               dst="bench-work-env/${name}-${command}-bencher.json"
               jq --arg s "$name" --arg c "$command" \
-                '.results |= [.[] | select(.command == $c) | .command = $s]' \
+                '(first(.results[] | select(.command == $c))
+                  // error("missing hyperfine result for \($c) in \($s)"))
+                  | {($s): {latency: {value: (.min * 1e9)}}}' \
                 "$src" > "$dst"
               inputs+=("$dst")
             done
-            jq -s '{results: map(.results) | add}' "${inputs[@]}" > "$out"
+            jq -s 'add' "${inputs[@]}" > "$out"
           }
 
           build_bencher_file bench-work-env/bencher-results.json pacquet@HEAD \
@@ -465,6 +559,7 @@ jobs:
             'ISOLATED_FRESH_INSTALL_COLD_CACHE_COLD_STORE:isolated-linker.fresh-install.cold-cache.cold-store' \
             'ISOLATED_FRESH_INSTALL_HOT_CACHE_HOT_STORE:isolated-linker.fresh-install.hot-cache.hot-store' \
             'ISOLATED_FRESH_INSTALL_COLD_CACHE_HOT_STORE:isolated-linker.fresh-install.cold-cache.hot-store' \
+            'ISOLATED_FRESH_RESOLVE_HOT_CACHE_OFFLINE:isolated-linker.fresh-resolve.hot-cache.offline' \
             'ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE_COLD_PNPR:isolated-linker.fresh-restore.cold-cache.cold-store.cold-pnpr'
 
           build_bencher_file bench-work-env/bencher-results-pnpr.json pnpr@HEAD \
@@ -473,6 +568,7 @@ jobs:
             'ISOLATED_FRESH_INSTALL_COLD_CACHE_COLD_STORE:isolated-linker.fresh-install.cold-cache.cold-store' \
             'ISOLATED_FRESH_INSTALL_HOT_CACHE_HOT_STORE:isolated-linker.fresh-install.hot-cache.hot-store' \
             'ISOLATED_FRESH_INSTALL_COLD_CACHE_HOT_STORE:isolated-linker.fresh-install.cold-cache.hot-store' \
+            'ISOLATED_FRESH_RESOLVE_HOT_CACHE_OFFLINE:isolated-linker.fresh-resolve.hot-cache.offline' \
             'ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE_COLD_PNPR:isolated-linker.fresh-restore.cold-cache.cold-store.cold-pnpr'
 
       - name: Stage artifact contents
@@ -491,14 +587,14 @@ jobs:
       - name: Upload benchmark report
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: integrated-benchmark-report-${{ matrix.os }}
+          name: integrated-benchmark-report-ubuntu-latest
           path: benchmark-artifact/
           if-no-files-found: error
           retention-days: 14
 
       - name: Install Bencher CLI
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
-        uses: bencherdev/bencher@ec56bb69a7f34096002ca3384d10e2f6676b063e # v0.6.7
+        uses: bencherdev/bencher@5f9d4cf890255c35e0354af1ed325108a6a0babd # v0.6.8
 
       - name: Upload results to Bencher
         # Runs on push and workflow_dispatch — both execute in the
@@ -532,7 +628,7 @@ jobs:
             local args=(
               --project pnpm
               --testbed "$testbed"
-              --adapter shell_hyperfine
+              --adapter json
               --file "$file"
               --github-actions "$GITHUB_TOKEN"
             )

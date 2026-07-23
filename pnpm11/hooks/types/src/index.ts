@@ -86,6 +86,23 @@ export interface CustomResolver {
   shouldRefreshResolution?: (depPath: string, pkgSnapshot: PackageSnapshot) => boolean | Promise<boolean>
 }
 
+/**
+ * Portable delegation envelope a custom fetcher may return instead of a
+ * `FetchResult`: pnpm rewrites the package's resolution to `delegate` and
+ * runs the built-in fetch path on it. The delegated resolution must be a
+ * complete fetchable shape (e.g. `{ tarball, integrity }`) — a custom-typed
+ * `delegate` is rejected to keep delegation single-step.
+ *
+ * This is the only fetch strategy that works in both pnpm and pacquet: the
+ * Rust CLI invokes pnpmfile fetchers over IPC where `cafs` and `fetchers`
+ * cannot exist (both arrive as `null` there), so a fetcher that supports
+ * both stacks should return this envelope rather than calling `fetchers.*`
+ * directly.
+ */
+export interface CustomFetcherDelegation {
+  delegate: Resolution
+}
+
 export interface CustomFetcher extends ResolutionFetchContract {
   /**
    * Called to determine if this fetcher should handle fetching a package.
@@ -104,15 +121,17 @@ export interface CustomFetcher extends ResolutionFetchContract {
    *
    * The fetchers parameter provides access to pnpm's standard fetchers, allowing you
    * to delegate to them (e.g., transform a custom resolution to a tarball URL and use
-   * fetchers.remoteTarball).
+   * fetchers.remoteTarball). Alternatively, return a
+   * {@link CustomFetcherDelegation} envelope and pnpm performs the delegation
+   * itself — the portable form that also works in pacquet.
    *
    * @param cafs - The content-addressable file system to add package files to
    * @param resolution - The resolution object containing fetch information
    * @param opts - Fetch options including package manifest
    * @param fetchers - Standard pnpm fetchers available for delegation (remoteTarball, localTarball, git, etc.)
-   * @returns FetchResult with files index and other package information
+   * @returns FetchResult with files index and other package information, or a delegation envelope
    */
-  fetch?: (cafs: Cafs, resolution: Resolution, opts: FetchOptions, fetchers: Fetchers) => FetchResult | Promise<FetchResult>
+  fetch?: (cafs: Cafs, resolution: Resolution, opts: FetchOptions, fetchers: Fetchers) => FetchResult | CustomFetcherDelegation | Promise<FetchResult | CustomFetcherDelegation>
 }
 
 export {

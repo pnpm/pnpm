@@ -385,6 +385,60 @@ describe('checkDepsStatus - pnpmfile modification', () => {
     expect(result.issue).toBe('pnpmfile at "modifiedPnpmfile.js" was modified')
   })
 
+  it('detects a pnpmfile edited in the same second on a whole-second-mtime filesystem', async () => {
+    // The pnpmfile was edited in the same second as the last install, but
+    // on a filesystem that records mtimes at whole-second resolution its
+    // mtime rounds down below `lastValidatedTimestamp` and a strict `>`
+    // would miss it. The whole second must count as possibly-modified.
+    const lastValidatedTimestamp = 1_700_000_000_500 // 500 ms into its second
+    const sameSecondWholeMtime = 1_700_000_000_000 // the whole second, before the timestamp
+    const mockWorkspaceState: WorkspaceState = {
+      lastValidatedTimestamp,
+      pnpmfiles: ['pnpmfile.js'],
+      settings: {
+        excludeLinksFromLockfile: false,
+        linkWorkspacePackages: true,
+        preferWorkspacePackages: true,
+      },
+      projects: {},
+      filteredInstall: false,
+    }
+
+    jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+    jest.mocked(fsUtils.safeStatSync).mockImplementation((filePath: string) => {
+      if (filePath === 'pnpmfile.js') {
+        return {
+          mtime: new Date(sameSecondWholeMtime),
+          mtimeMs: sameSecondWholeMtime,
+        } as Stats
+      }
+      return undefined
+    })
+    jest.mocked(fsUtils.safeStat).mockImplementation(async () => {
+      return {
+        mtime: new Date(sameSecondWholeMtime),
+        mtimeMs: sameSecondWholeMtime,
+      } as Stats
+    })
+    jest.mocked(statManifestFileUtils.statManifestFile).mockImplementation(async () => {
+      return undefined
+    })
+    const returnEmptyLockfile = async () => ({} as LockfileObject)
+    jest.mocked(lockfileFs.readCurrentLockfile).mockImplementation(returnEmptyLockfile)
+    jest.mocked(lockfileFs.readWantedLockfile).mockImplementation(returnEmptyLockfile)
+
+    const opts: CheckDepsStatusOptions = {
+      rootProjectManifest: {},
+      rootProjectManifestDir: '/project',
+      pnpmfile: mockWorkspaceState.pnpmfiles,
+      ...mockWorkspaceState.settings,
+    }
+    const result = await checkDepsStatus(opts)
+
+    expect(result.upToDate).toBe(false)
+    expect(result.issue).toBe('pnpmfile at "pnpmfile.js" was modified')
+  })
+
   it('returns upToDate: false when a patch was modified and manifests were not modified', async () => {
     const lastValidatedTimestamp = Date.now() - 10_000
     const beforeLastValidation = lastValidatedTimestamp - 10_000
@@ -1596,5 +1650,53 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
     const result = await checkDepsStatus(opts)
 
     expect(result.upToDate).toBe(true)
+  })
+})
+
+describe('checkDepsStatus - missing workspace state', () => {
+  beforeEach(() => {
+    jest.resetModules()
+    jest.clearAllMocks()
+    jest.mocked(loadWorkspaceState).mockReturnValue(undefined)
+  })
+
+  const settings = {
+    excludeLinksFromLockfile: false,
+    linkWorkspacePackages: true,
+    preferWorkspacePackages: true,
+  }
+
+  it('returns upToDate: undefined when there is no project manifest and no workspace', async () => {
+    const result = await checkDepsStatus({
+      rootProjectManifestDir: '/no-project-here',
+      pnpmfile: [],
+      ...settings,
+    })
+
+    expect(result.upToDate).toBeUndefined()
+  })
+
+  it('returns upToDate: false when a project manifest exists', async () => {
+    const result = await checkDepsStatus({
+      rootProjectManifest: {},
+      rootProjectManifestDir: '/project',
+      pnpmfile: [],
+      ...settings,
+    })
+
+    expect(result.upToDate).toBe(false)
+    expect(result.issue).toBe('Cannot check whether dependencies are outdated')
+  })
+
+  it('returns upToDate: false when a workspace exists without a root manifest', async () => {
+    const result = await checkDepsStatus({
+      workspaceDir: '/workspace',
+      rootProjectManifestDir: '/workspace',
+      pnpmfile: [],
+      ...settings,
+    })
+
+    expect(result.upToDate).toBe(false)
+    expect(result.issue).toBe('Cannot check whether dependencies are outdated')
   })
 })

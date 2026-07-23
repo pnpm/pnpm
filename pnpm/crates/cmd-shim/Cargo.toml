@@ -1,0 +1,29 @@
+[package]
+name                 = "pacquet-cmd-shim"
+description          = "Bin field parsing and command-shim generation for pacquet, mirroring pnpm's @pnpm/bins.resolver, @pnpm/bins.linker, and @zkochan/cmd-shim"
+version              = "0.0.1"
+publish              = false
+authors.workspace    = true
+edition.workspace    = true
+homepage.workspace   = true
+keywords.workspace   = true
+license.workspace    = true
+repository.workspace = true
+
+[dependencies]
+pacquet-fs = { workspace = true }
+
+derive_more = { workspace = true }
+dunce       = { workspace = true }
+miette      = { workspace = true }
+pipe-trait  = { workspace = true }
+rayon       = { workspace = true }
+same-file   = { workspace = true }
+serde_json  = { workspace = true }
+walkdir     = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+
+[lints]
+workspace = true

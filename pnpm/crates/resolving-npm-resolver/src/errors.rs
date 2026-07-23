@@ -1,0 +1,171 @@
+//! Error types for the npm verifier's network / parsing surface.
+
+use derive_more::{Display, Error};
+use miette::Diagnostic;
+
+/// Failure to fetch a registry metadata document. Used by
+/// [`crate::fetch_full_metadata()`] and
+/// [`crate::fetch_full_metadata_cached()`]; flows up through the
+/// verifier's `verify` and is folded into a violation with
+/// [`crate::MINIMUM_RELEASE_AGE_VIOLATION_CODE`] or
+/// [`crate::TRUST_DOWNGRADE_VIOLATION_CODE`] depending on which
+/// policy triggered the lookup.
+///
+/// Every URL-bearing variant stores a credential-redacted `url` (the
+/// fetchers pass it through [`pacquet_network::redact_url_credentials`]
+/// at construction), so a registry configured with inline
+/// `user:pass@host` basic-auth can't leak into the `Display` /
+/// `Diagnostic` message — which reaches the terminal, CI logs, and
+/// reporters whenever the resolver surfaces the error.
+#[derive(Debug, Display, Error, Diagnostic)]
+#[non_exhaustive]
+pub enum FetchMetadataError {
+    #[display("Failed to fetch metadata from {url}: {error}")]
+    #[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_NETWORK_ERROR))]
+    Network {
+        url: String,
+        #[error(source)]
+        error: reqwest::Error,
+    },
+
+    /// Reading the response body failed *after* the registry returned
+    /// a `2xx` — a connection reset or truncated transfer mid-stream,
+    /// reqwest's "error decoding response body". Kept distinct from
+    /// [`FetchMetadataError::Network`] (the request itself, already
+    /// retried by [`pacquet_network::send_with_retry`]) so the body
+    /// re-fetch loop in the fetchers retries only this and
+    /// [`FetchMetadataError::Decode`] — see
+    /// [`FetchMetadataError::is_body_retryable`].
+    #[display("Failed to read metadata response body from {url}: {error}")]
+    #[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_BODY_READ_ERROR))]
+    BodyRead {
+        url: String,
+        #[error(source)]
+        error: reqwest::Error,
+    },
+
+    #[display("Failed to decode metadata from {url}: {error}")]
+    #[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_DECODE_ERROR))]
+    Decode {
+        url: String,
+        #[error(source)]
+        error: serde_json::Error,
+    },
+
+    /// Filtering a parsed packument down to the fields pnpm keeps
+    /// (`clear_meta`, the `filterMetadata` path) failed. Unlike a body
+    /// read or the top-level parse, this runs on an already-parsed,
+    /// complete `Package`, so it is deterministic — a fresh re-fetch
+    /// would feed `clear_meta` the same structure and fail identically.
+    /// Kept out of [`FetchMetadataError::is_body_retryable`] for that
+    /// reason.
+    #[display("Failed to filter metadata from {url}: {error}")]
+    #[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_FILTER_METADATA_ERROR))]
+    FilterMetadata {
+        url: String,
+        #[error(source)]
+        error: serde_json::Error,
+    },
+
+    /// `ERR_PNPM_META_NOT_MODIFIED_WITHOUT_CACHE`. Surfaces when a registry
+    /// repeats an unsolicited 304 after a cache-bypassing retry, leaving no
+    /// body and no validator that could have justified the response.
+    #[display("Registry returned 304 for {pkg_name} without an existing cache to refresh.")]
+    #[diagnostic(code(ERR_PNPM_META_NOT_MODIFIED_WITHOUT_CACHE))]
+    NotModifiedWithoutCache {
+        #[error(not(source))]
+        pkg_name: String,
+    },
+
+    /// The blocking task that deserializes a packument body panicked
+    /// or was cancelled by runtime shutdown.
+    #[display("Failed to parse metadata from {url}: {error}")]
+    #[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_PARSE_TASK))]
+    ParseTask {
+        url: String,
+        #[error(source)]
+        error: tokio::task::JoinError,
+    },
+}
+
+impl FetchMetadataError {
+    /// Whether a fresh re-fetch of the whole request could plausibly
+    /// succeed where this attempt failed. Only the body-consumption
+    /// failures qualify — a mid-stream transport drop
+    /// ([`FetchMetadataError::BodyRead`]) or a body that parsed as
+    /// broken JSON ([`FetchMetadataError::Decode`]). This is the
+    /// predicate the fetchers hand to
+    /// [`pacquet_network::retry_async`]: retry exactly the body-read
+    /// and JSON-parse failures while letting the network library own
+    /// request retry.
+    ///
+    /// [`FetchMetadataError::Network`] stays non-retryable here: the
+    /// request (transport error or a `4xx`/`5xx` status) was already
+    /// retried inside [`pacquet_network::send_with_retry`], so a fetch
+    /// failure is rejected immediately rather than re-running the outer
+    /// operation.
+    #[must_use]
+    pub fn is_body_retryable(&self) -> bool {
+        matches!(self, FetchMetadataError::BodyRead { .. } | FetchMetadataError::Decode { .. })
+    }
+
+    /// Whether this failure is a hard access/existence denial — HTTP
+    /// `401`, `403`, or `404` — rather than a transport failure
+    /// (`5xx`/timeout/connection reset).
+    ///
+    /// A private-scope metadata fetch must **fail closed** on a denial:
+    /// never fall back to a cached mirror (stale-or-broader namespace),
+    /// because a revoked credential or a hidden private `404` would
+    /// otherwise keep serving the last private packument. A transport
+    /// failure may still fall back, but only within the same namespace.
+    /// Public-scope fetches keep their existing disk fallback regardless.
+    #[must_use]
+    pub fn is_access_denied(&self) -> bool {
+        match self {
+            FetchMetadataError::Network { error, .. } => matches!(
+                error.status(),
+                Some(
+                    reqwest::StatusCode::UNAUTHORIZED
+                        | reqwest::StatusCode::FORBIDDEN
+                        | reqwest::StatusCode::NOT_FOUND
+                ),
+            ),
+            _ => false,
+        }
+    }
+}
+
+/// Raised when an external `PackageVersionGuard` rejects every
+/// version of a package that matched the request, leaving the picker no
+/// acceptable candidate. Distinct from "spec not supported": the spec is
+/// fine, but a policy (e.g. a vulnerability guard) blocked all matches.
+/// `reason` carries the guard's message for the last rejection.
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display(
+    "Every version of {name} matching the request was rejected by the resolver guard ({reason})."
+)]
+#[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_ALL_VERSIONS_BLOCKED))]
+pub struct AllVersionsBlockedError {
+    #[error(not(source))]
+    pub name: String,
+    pub reason: String,
+}
+
+/// Raised when the resolver-time guard rejected so many candidates for a
+/// package that the re-pick safety limit was hit. Distinct from
+/// [`AllVersionsBlockedError`]: the picker stopped at the cap rather than
+/// proving every matching version is blocked.
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display(
+    "Resolving {name} hit the resolver guard's {limit}-version re-pick limit; too many candidates were rejected ({reason})."
+)]
+#[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_GUARD_REPICK_LIMIT))]
+pub struct GuardRepickLimitError {
+    #[error(not(source))]
+    pub name: String,
+    pub limit: usize,
+    pub reason: String,
+}
+
+#[cfg(test)]
+mod tests;

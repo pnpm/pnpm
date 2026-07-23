@@ -4,13 +4,15 @@
 
 [files]
 extend-exclude = [
-  "pacquet/crates/crypto-shasums-file/src/node_release_keys.rs",
+  "pnpm/crates/crypto-shasums-file/src/node_release_keys.rs",
+  "pnpm/tasks/micro-benchmark/fixtures/lodash.json",
 ]
 
 [default.extend-words]
-cafs = "cafs"
-ect  = "ect"
-pn   = "pn"
+cafs   = "cafs"
+ect    = "ect"
+intoto = "intoto"
+pn     = "pn"
 
 [default.extend-identifiers]
 PnP = "PnP"

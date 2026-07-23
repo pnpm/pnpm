@@ -7,6 +7,7 @@ import {
 import { findRuntimeNodeVersion, iterateHashedGraphNodes } from '@pnpm/deps.graph-hasher'
 import { isRuntimeDepPath } from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
+import { safeJoinModulesDir } from '@pnpm/fs.symlink-dependency'
 import type {
   LockfileObject,
   ProjectSnapshot,
@@ -76,6 +77,7 @@ interface ProjectToLink {
   binsDir: string
   declaredDirectDependencies: Set<string>
   directNodeIdsByAlias: Map<string, NodeId>
+  hoistedPeerProviderNodeIds: Set<NodeId>
   explicitlyRequestedDirectDependencies: Set<string>
   id: ProjectId
   linkedDependencies: LinkedDependency[]
@@ -253,6 +255,7 @@ export async function resolveDependencies (
         ...project.wantedDependencies.flatMap(({ alias, isNew }) => isNew && alias != null ? [alias] : []),
       ]),
       directNodeIdsByAlias: resolvedImporter.directNodeIdsByAlias,
+      hoistedPeerProviderNodeIds: resolvedImporter.hoistedPeerProviderNodeIds,
       explicitlyRequestedDirectDependencies: new Set(
         project.wantedDependencies.flatMap(({ alias, bareSpecifier, isNew, prevSpecifier, updateSpec }) =>
           alias != null && (isNew === true || updateSpec === true || (prevSpecifier != null && bareSpecifier !== prevSpecifier))
@@ -611,7 +614,7 @@ function extendGraph (
     const node = graph[depPath]
     Object.assign(node, {
       modules,
-      dir: path.join(modules, node.name),
+      dir: safeJoinModulesDir(modules, node.name),
     })
   }
   return graph

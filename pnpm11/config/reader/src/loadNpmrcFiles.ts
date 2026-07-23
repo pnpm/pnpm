@@ -89,11 +89,18 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
 
   // Read .npmrc from workspace root (or project root if no workspace)
   const workspaceNpmrcDir = opts.workspaceDir ?? localPrefix
+  const workspaceNpmrcPath = path.resolve(workspaceNpmrcDir, '.npmrc')
+  // When npmrcAuthFile explicitly points at the project .npmrc, the user has
+  // opted in to trusting it — allow auth env expansion and suppress the warning.
+  const workspaceIsTrustedAuthFile = userConfigPath === workspaceNpmrcPath
   const workspaceNpmrc = readAndFilterNpmrc(
-    path.resolve(workspaceNpmrcDir, '.npmrc'),
+    workspaceNpmrcPath,
     warnings,
     env,
-    { expandAuthValueEnv: false, expandRequestDestinationEnv: false }
+    {
+      expandAuthValueEnv: workspaceIsTrustedAuthFile,
+      expandRequestDestinationEnv: workspaceIsTrustedAuthFile,
+    }
   )
 
   // Read user .npmrc (from npmrcAuthFile setting or ~/.npmrc)
@@ -220,11 +227,11 @@ function readUrlScopedEnvConfig (env: Record<string, string | undefined>): Recor
     const match = URL_SCOPED_ENV_RE.exec(envKey)
     if (match == null) continue
     const key = match[1]
-    // `tokenHelper` names an executable pnpm runs. It is only allowed from a
-    // user-level config file (enforced by the TOKEN_HELPER_IN_PROJECT_CONFIG
-    // check in index.ts, which validates against the user `.npmrc`). The env
-    // layer isn't that file, so honoring `//host/:tokenHelper` here would
-    // trip that guard — never admit it.
+    // `tokenHelper` names an executable pnpm runs, so it must never be honored
+    // from the environment. The TOKEN_HELPER_IN_PROJECT_CONFIG check in index.ts
+    // validates against the trusted config, and that config already includes
+    // this env-scoped layer — so admitting `//host/:tokenHelper` here would let
+    // an env var pass the guard and silently run an arbitrary command. Drop it.
     if (key.endsWith(':tokenHelper')) continue
     const target = envKey.slice(0, 5).toLowerCase() === 'pnpm_' ? pnpmScoped : npmScoped
     target[key] = value

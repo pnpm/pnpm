@@ -44,6 +44,13 @@ const PLATFORMS = {
 setup()
 
 function setup () {
+  // The committed manifest has no `optionalDependencies`; generate-packages.mjs
+  // adds them at release time. Without them this is the monorepo checkout, where
+  // the wrapper is a workspace package and there is no native binary to link.
+  if (readOwnManifest().optionalDependencies == null) {
+    return
+  }
+
   const candidates = getBinCandidates()
   if (candidates.length === 0) {
     fail(`@pnpm/pnpr does not ship a prebuilt binary for ${platform}-${arch}.`)
@@ -140,6 +147,23 @@ function rewriteBin (binValue) {
 function fail (message) {
   console.error(message)
   process.exit(1)
+}
+
+// A successful read with no optionalDependencies is the dev checkout (setup
+// no-ops there); a read/parse failure is a corrupt published package and must
+// not be silently swallowed into that same no-op path.
+function readOwnManifest () {
+  const manifestPath = path.join(ownDir, 'package.json')
+  let manifest
+  try {
+    manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
+  } catch (err) {
+    throw new Error(`Failed to read ${manifestPath}: ${err.message}`)
+  }
+  if (typeof manifest !== 'object' || manifest == null || Array.isArray(manifest)) {
+    throw new Error(`Expected ${manifestPath} to contain a JSON object`)
+  }
+  return manifest
 }
 
 /**

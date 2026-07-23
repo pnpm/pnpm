@@ -5,11 +5,24 @@ import { type Config, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { runLifecycleHook, type RunLifecycleHookOptions } from '@pnpm/exec.lifecycle'
 import { isGitRepo, isWorkingTreeClean } from '@pnpm/network.git-utils'
-import type { ProjectsGraph } from '@pnpm/types'
+import {
+  applyReleasePlan,
+  type ApplyReleasePlanOptions,
+  assembleReleasePlan,
+  changelogStorage,
+  readChangeIntents,
+  readLedger,
+  toProjectDir,
+} from '@pnpm/releasing.versioning'
+import type { Project, ProjectsGraph } from '@pnpm/types'
 import { safeExeca as execa } from 'execa'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 import { inc, valid } from 'semver'
+
+import { renderReleasePlan, toWorkspaceProjects } from '../change/index.js'
+import { changelogHasSection, fetchPublishedChangelog } from '../publish/previousChangelog.js'
+import { type CheckVersionPublished, resolveUnpublishedDirs } from '../resolveUnpublishedDirs.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
@@ -26,6 +39,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
 export function cliOptionsTypes (): Record<string, unknown> {
   return {
     ...rcOptionsTypes(),
+    'dry-run': Boolean,
     json: Boolean,
     preid: String,
     recursive: Boolean,
@@ -46,7 +60,8 @@ export function help (): string {
     description: 'Bumps the version of a package.',
     usages: [
       'pnpm version <newversion>',
-      'pnpm version <major|minor|patch|premajor|preminor|prepatch|prerelease>',
+      'pnpm version <major|minor|patch|premajor|preminor|prepatch|prerelease|from-git>',
+      'pnpm version -r [--dry-run]',
     ],
     descriptionLists: [
       {
@@ -93,8 +108,12 @@ export function help (): string {
             name: '--json',
           },
           {
-            description: 'Apply command to all packages in workspace',
+            description: 'Apply command to all packages in workspace. Without a version argument, consumes the pending change intents from .changeset/ and applies the resulting release plan',
             name: '--recursive',
+          },
+          {
+            description: 'Print the release plan the pending change intents produce without applying it',
+            name: '--dry-run',
           },
         ],
       },
@@ -111,8 +130,11 @@ interface VersionChange {
 }
 
 interface VersionHandlerOptions extends Config {
+  allProjects?: Project[]
   allowSameVersion?: boolean
+  checkVersionPublished?: CheckVersionPublished
   commitHooks?: boolean
+  dryRun?: boolean
   gitChecks?: boolean
   gitTagVersion?: boolean
   json?: boolean
@@ -131,15 +153,19 @@ export async function handler (
   const rawBump = params[0]
 
   if (!rawBump) {
-    throw new PnpmError('INVALID_VERSION_BUMP', 'A version argument is required. Must be a valid semver version (e.g. 1.2.3) or one of: major, minor, patch, premajor, preminor, prepatch, prerelease')
-  }
-
-  const explicitVersion = valid(rawBump)
-  if (!explicitVersion && !isBumpType(rawBump)) {
-    throw new PnpmError('INVALID_VERSION_BUMP', `Invalid version argument: ${rawBump}. Must be a valid semver version (e.g. 1.2.3) or one of: major, minor, patch, premajor, preminor, prepatch, prerelease`)
+    if (opts.recursive) {
+      return releaseFromIntents(opts)
+    }
+    throw new PnpmError('INVALID_VERSION_BUMP', 'A version argument is required. Must be a valid semver version (e.g. 1.2.3) or one of: major, minor, patch, premajor, preminor, prepatch, prerelease, from-git')
   }
 
   const gitCwd = opts.workspaceDir ?? opts.dir
+  const explicitVersion = rawBump === 'from-git'
+    ? await versionFromGit(gitCwd, opts.tagVersionPrefix)
+    : valid(rawBump)
+  if (!explicitVersion && !isBumpType(rawBump)) {
+    throw new PnpmError('INVALID_VERSION_BUMP', `Invalid version argument: ${rawBump}. Must be a valid semver version (e.g. 1.2.3) or one of: major, minor, patch, premajor, preminor, prepatch, prerelease, from-git`)
+  }
 
   if (opts.gitChecks !== false && await isGitRepo({ cwd: gitCwd })) {
     if (!await isWorkingTreeClean({ cwd: gitCwd })) {
@@ -189,6 +215,115 @@ export async function handler (
   }
 
   return output
+}
+
+async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string> {
+  const workspaceDir = opts.workspaceDir
+  if (!workspaceDir) {
+    throw new PnpmError('WORKSPACE_ONLY', 'The bare "pnpm version -r" form consumes change intents and is only supported in a workspace')
+  }
+
+  if (!opts.dryRun && opts.gitChecks !== false && await isGitRepo({ cwd: workspaceDir })) {
+    if (!await isWorkingTreeClean({ cwd: workspaceDir })) {
+      throw new PnpmError('UNCLEAN_WORKING_TREE', 'Working tree is not clean. Commit or stash your changes.')
+    }
+  }
+
+  const intents = await readChangeIntents(workspaceDir)
+  const ledger = await readLedger(workspaceDir)
+  const projects = toWorkspaceProjects(opts.allProjects ?? [])
+  const filter = (opts.filter ?? []).length > 0
+    ? new Set(Object.keys(opts.selectedProjectsGraph ?? {}).map((rootDir) => toProjectDir(workspaceDir, rootDir)))
+    : undefined
+
+  const baseArgs = {
+    workspaceDir,
+    projects,
+    intents,
+    ledger,
+    versioning: opts.versioning,
+    filter,
+    enforceWorkspaceProtocol: true,
+  }
+  const unpublishedDirs = await resolveUnpublishedDirs(assembleReleasePlan(baseArgs), opts)
+  const plan = assembleReleasePlan({ ...baseArgs, unpublishedDirs })
+
+  const applyOpts: ApplyReleasePlanOptions = {
+    workspaceDir,
+    projects,
+    allIntents: intents,
+    versioning: opts.versioning,
+    verifyPublished: buildVerifyPublished(opts),
+  }
+
+  if (plan.releases.length === 0) {
+    // A full (unfiltered) run garbage-collects the intent files an empty plan
+    // leaves behind: declined ("none"-only) intents and files a merge
+    // resurrected after every named package had already consumed them. A
+    // filtered run must not — "nothing pending in this scope" is no reason to
+    // delete prose belonging to packages outside the filter.
+    if (!opts.dryRun && filter == null) {
+      await applyReleasePlan(plan, applyOpts)
+    }
+    return 'No pending changes. Record one with "pnpm change".'
+  }
+
+  if (opts.dryRun) {
+    return renderReleasePlan(plan)
+  }
+
+  const applied = await applyReleasePlan(plan, applyOpts)
+
+  if (opts.json) {
+    return JSON.stringify(applied, null, 2)
+  }
+  let output = 'Versions applied:\n'
+  for (const release of applied) {
+    output += `${release.name}: ${release.currentVersion} → ${release.newVersion}\n`
+  }
+  return output
+}
+
+/**
+ * In `registry` storage, the gate that lets consumed intents be collected:
+ * the release must be published and its tarball's CHANGELOG.md must already
+ * carry the composed section. Any error resolving that (offline, transient
+ * failure) counts as "not confirmed" so the intent — still the only prose —
+ * is kept. `undefined` in `repository` storage, where the committed changelog
+ * makes the ledger alone sufficient.
+ */
+function buildVerifyPublished (opts: VersionHandlerOptions): ApplyReleasePlanOptions['verifyPublished'] {
+  if (changelogStorage(opts.versioning) !== 'registry') return undefined
+  return async (name, version, section) => {
+    try {
+      const changelog = await fetchPublishedChangelog(opts, name, version)
+      return changelog != null && changelogHasSection(changelog, section)
+    } catch {
+      return false
+    }
+  }
+}
+
+function invalidVersionFromGitError (cwd: string, tagVersionPrefix: string, reason: string): PnpmError {
+  return new PnpmError('INVALID_VERSION_FROM_GIT', `Could not determine a valid version from Git in ${JSON.stringify(cwd)} using tag prefix ${JSON.stringify(tagVersionPrefix)}: ${reason}`)
+}
+
+async function versionFromGit (cwd: string, tagVersionPrefix = 'v'): Promise<string> {
+  const { stdout } = await execa('git', ['describe', '--tags', '--abbrev=0', '--always', '--match=' + tagVersionPrefix + '*.*.*'], { cwd })
+  const tag = typeof stdout === 'string' ? stdout.trim() : ''
+  const { stdout: matchingTag } = await execa('git', ['tag', '--list', '--', tag], { cwd })
+
+  if (typeof matchingTag !== 'string' || matchingTag.trim() !== tag) {
+    throw invalidVersionFromGitError(cwd, tagVersionPrefix, 'no matching Git tag found')
+  }
+
+  const version = tag.startsWith(tagVersionPrefix)
+    ? valid(tag.slice(tagVersionPrefix.length))
+    : null
+  if (!version) {
+    throw invalidVersionFromGitError(cwd, tagVersionPrefix, 'tag is not a valid version: ' + JSON.stringify(tag))
+  }
+  return version
 }
 
 async function bumpPackageVersion (

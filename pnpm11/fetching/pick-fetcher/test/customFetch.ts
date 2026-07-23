@@ -389,6 +389,87 @@ describe('custom fetcher implementation examples', () => {
       expect(result.filesMap.get('package.json')).toBeTruthy()
     })
 
+    test('custom fetcher can delegate by returning a { delegate } envelope', async () => {
+      clearDispatcherCache()
+      const mockAgent = new MockAgent()
+      mockAgent.disableNetConnect()
+      setGlobalDispatcher(mockAgent)
+
+      const tarballContent = fs.readFileSync(tarballPath)
+      const mockPool = mockAgent.get('http://localhost:4873')
+      mockPool.intercept({ path: '/enveloped-pkg.tgz', method: 'GET' }).reply(200, tarballContent, {
+        headers: { 'content-length': String(tarballContent.length) },
+      })
+
+      try {
+        const storeDir = temporaryDirectory()
+        const cafs = createCafsStore(storeDir)
+        const filesIndexFile = path.join(storeDir, 'index.json')
+
+        const fetchFromRegistry = createFetchFromRegistry({})
+        const tarballFetchers = createTarballFetcher(
+          fetchFromRegistry,
+          () => undefined,
+          { storeIndex }
+        )
+
+        // The envelope form works without touching `cafs` or `fetchers`, so
+        // the same pnpmfile fetcher also runs under pacquet's IPC bridge.
+        const customFetcher = createMockCustomFetcher(
+          (_pkgId, resolution) => resolution.type === 'custom:url',
+          (_cafs, resolution) => ({
+            delegate: {
+              tarball: (resolution as any).customUrl, // eslint-disable-line @typescript-eslint/no-explicit-any
+              integrity: tarballIntegrity,
+            },
+          })
+        )
+
+        const customResolution = createMockResolution({
+          type: 'custom:url',
+          customUrl: `${registry}enveloped-pkg.tgz`,
+        })
+
+        const fetcher = await pickFetcher(
+          tarballFetchers as Fetchers,
+          customResolution,
+          { customFetchers: [customFetcher], packageId: 'enveloped-pkg@1.0.0' }
+        )
+
+        const result = await fetcher(
+          cafs,
+          customResolution,
+          createMockFetchOptions({ filesIndexFile, lockfileDir: process.cwd() })
+        )
+
+        expect(result.filesMap.get('package.json')).toBeTruthy()
+      } finally {
+        await mockAgent.close()
+        setGlobalDispatcher(originalDispatcher)
+      }
+    })
+
+    test('a { delegate } envelope with a custom-typed resolution is rejected', async () => {
+      const customFetcher = createMockCustomFetcher(
+        () => true,
+        () => ({
+          delegate: createMockResolution({ type: 'custom:other' }),
+        })
+      )
+
+      const customResolution = createMockResolution({ type: 'custom:url' })
+
+      const fetcher = await pickFetcher(
+        createMockFetchers(),
+        customResolution,
+        { customFetchers: [customFetcher], packageId: 'pkg@1.0.0' }
+      )
+
+      await expect(
+        fetcher(createMockCafs(), customResolution, createMockFetchOptions())
+      ).rejects.toThrow('Cannot fetch dependency with custom resolution type "custom:other"')
+    })
+
     test('custom fetcher can transform resolution before delegating to tarball fetcher', async () => {
       clearDispatcherCache()
       const mockAgent = new MockAgent()

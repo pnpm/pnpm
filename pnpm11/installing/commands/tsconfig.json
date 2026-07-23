@@ -31,6 +31,9 @@
       "path": "../../catalogs/config"
     },
     {
+      "path": "../../catalogs/protocol-parser"
+    },
+    {
       "path": "../../catalogs/types"
     },
     {
@@ -61,6 +64,9 @@
       "path": "../../core/constants"
     },
     {
+      "path": "../../core/core-loggers"
+    },
+    {
       "path": "../../core/error"
     },
     {
@@ -68,6 +74,9 @@
     },
     {
       "path": "../../core/types"
+    },
+    {
+      "path": "../../deps/github-actions"
     },
     {
       "path": "../../deps/inspection/outdated"
@@ -164,6 +173,9 @@
     },
     {
       "path": "../../workspace/state"
+    },
+    {
+      "path": "../../workspace/workspace-manifest-reader"
     },
     {
       "path": "../../workspace/workspace-manifest-writer"

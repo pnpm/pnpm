@@ -19,8 +19,8 @@ import {
 import { add, dedupe, fetch, importCommand, install, link, prune, remove, unlink, update } from '@pnpm/installing.commands'
 import { patch, patchCommit, patchRemove } from '@pnpm/patching.commands'
 import { pkg, setScript } from '@pnpm/pkg-manifest.commands'
-import { deprecate, distTag, owner, ping, search, star, stars, undeprecate, unpublish, unstar, whoami } from '@pnpm/registry-access.commands'
-import { deploy, pack, packApp, publish, stage, version } from '@pnpm/releasing.commands'
+import { access, deprecate, distTag, owner, ping, search, star, stars, team, undeprecate, unpublish, unstar, whoami } from '@pnpm/registry-access.commands'
+import { change, deploy, lane, pack, packApp, publish, stage, version } from '@pnpm/releasing.commands'
 import { catFile, catIndex, findHash, store } from '@pnpm/store.commands'
 import { init } from '@pnpm/workspace.commands'
 import { pick } from 'ramda'
@@ -31,9 +31,11 @@ import type { PnpmOptions } from '../types.js'
 import * as bin from './bin.js'
 import * as clean from './clean.js'
 import * as ci from './cleanInstall.js'
+import * as doctor from './doctor.js'
 import { createHelp } from './help.js'
 import * as installTest from './installTest.js'
 import { NOT_IMPLEMENTED_COMMAND_SET, notImplementedCommandDefinitions } from './notImplemented.js'
+import * as prefix from './prefix.js'
 import * as recursive from './recursive.js'
 import * as root from './root.js'
 
@@ -122,12 +124,14 @@ export interface CommandDefinition {
 const helpByCommandName: Record<string, () => string> = {}
 
 const commands: CommandDefinition[] = [
+  access,
   add,
   approveBuilds,
   audit,
   bin,
   bugs,
   cache,
+  change,
   ci,
   clean,
   config,
@@ -138,6 +142,7 @@ const commands: CommandDefinition[] = [
   deprecate,
   deploy,
   distTag,
+  doctor,
   owner,
   dlx,
   docs,
@@ -153,6 +158,7 @@ const commands: CommandDefinition[] = [
   install,
   pkg,
   installTest,
+  lane,
   link,
   list,
   login,
@@ -167,6 +173,8 @@ const commands: CommandDefinition[] = [
   patchRemove,
   peers,
   ping,
+  prefix,
+  team,
   prune,
   publish,
   stage,

@@ -47,6 +47,7 @@ export interface ResolvedImporters {
   [id: string]: {
     directDependencies: ResolvedDirectDependency[]
     directNodeIdsByAlias: Map<string, NodeId>
+    hoistedPeerProviderNodeIds: Set<NodeId>
     linkedDependencies: LinkedDependency[]
   }
 }
@@ -357,6 +358,7 @@ export async function resolveDependencyTree<T> (
           }
         }),
       directNodeIdsByAlias: new Map(directNonLinkedDeps.map(({ alias, nodeId }) => [alias, nodeId])),
+      hoistedPeerProviderNodeIds: new Set(directNonLinkedDeps.filter((dep) => dep.hoistedPeerProvider).map(({ nodeId }) => nodeId)),
       linkedDependencies,
     }
   }

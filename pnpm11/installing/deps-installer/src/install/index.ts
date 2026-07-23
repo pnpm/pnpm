@@ -62,6 +62,7 @@ import {
   calcPatchHashes,
   createOverridesMapFromParsed,
   getOutdatedLockfileSetting,
+  resolvePatchedDependencies,
 } from '@pnpm/lockfile.settings-checker'
 import { PACKAGE_MAP_FILENAME, writePackageMap, writePnpFile } from '@pnpm/lockfile.to-pnp'
 import { allProjectsAreUpToDate, satisfiesPackageManifest } from '@pnpm/lockfile.verification'
@@ -105,6 +106,7 @@ import { linkPackages } from './link.js'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues.js'
 import { validateModules } from './validateModules.js'
 import { verifyLockfileResolutions } from './verifyLockfileResolutions.js'
+import { warnOnStaleConvergenceOverrides } from './warnOnStaleConvergenceOverrides.js'
 import { writeLockfilesAndRecordVerified } from './writeLockfilesAndRecordVerified.js'
 import { writeWantedLockfileAndRecordVerified } from './writeWantedLockfileAndRecordVerified.js'
 
@@ -638,21 +640,18 @@ export async function mutateModules (
     }
     const packageExtensionsChecksum = hashObjectNullableWithPrefix(opts.packageExtensions)
     const pnpmfileChecksum = await opts.hooks.calculatePnpmfileChecksum?.()
+    const resolvedPatchedDeps = resolvePatchedDependencies(opts.patchedDependencies, opts.lockfileDir)
     const patchedDependencies = opts.ignorePackageManifest
       ? ctx.wantedLockfile.patchedDependencies
-      : (opts.patchedDependencies ? await calcPatchHashes(opts.patchedDependencies) : {})
-    const patchGroupInput = opts.patchedDependencies
+      : (resolvedPatchedDeps ? await calcPatchHashes(resolvedPatchedDeps) : {})
+    const patchGroupInput = resolvedPatchedDeps
       ? Object.fromEntries(
         Object.entries(patchedDependencies ?? {}).map(([key, hash]) => {
-          let patchFilePath = opts.patchedDependencies![key]
-            ? path.resolve(opts.lockfileDir, opts.patchedDependencies![key])
-            : undefined
+          let patchFilePath: string | undefined = resolvedPatchedDeps[key]
           if (!patchFilePath) {
             const lastAt = key.lastIndexOf('@')
             const pkgName = lastAt > 0 ? key.slice(0, lastAt) : key
-            if (opts.patchedDependencies![pkgName]) {
-              patchFilePath = path.resolve(opts.lockfileDir, opts.patchedDependencies![pkgName])
-            }
+            patchFilePath = resolvedPatchedDeps[pkgName]
           }
           return [key, { hash, patchFilePath }]
         })
@@ -1496,12 +1495,26 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     stage: 'resolution_started',
   })
 
-  const update = projects.some((project) => (project as InstallMutationOptions).update)
-  const preferredVersions = opts.preferredVersions ?? (
-    !update
-      ? getPreferredVersionsFromLockfileAndManifests(ctx.wantedLockfile.packages, Object.values(ctx.projects).map(({ manifest }) => manifest))
-      : undefined
+  // Always seed preferred versions from the lockfile, even for update
+  // mutations. Gating this on `update` (the previous behavior) nullified
+  // the seed globally during `pnpm up -r <pkg>`, so unrelated packages
+  // with open ranges lost their pins and re-resolved to newest-in-range
+  // (pnpm/pnpm#10662). The targeted package still bumps: `updateRequested`
+  // at the npm picker subtracts the lockfile-derived weight from its pins,
+  // so the target re-resolves exactly as a fresh install would after its
+  // lockfile entries were deleted.
+  // Caller-supplied preferred versions (audit-fix vulnerability penalties)
+  // layer on top of the seed per package name — replacing the seed with
+  // them would unpin every unrelated package.
+  // Null-prototype merge target so a crafted package name (e.g. `__proto__`)
+  // lands as a plain own key instead of invoking the prototype setter.
+  const preferredVersions: PreferredVersions = Object.assign(
+    Object.create(null),
+    getPreferredVersionsFromLockfileAndManifests(ctx.wantedLockfile.packages, Object.values(ctx.projects).map(({ manifest }) => manifest))
   )
+  for (const [pkgName, selectors] of Object.entries(opts.preferredVersions ?? {})) {
+    preferredVersions[pkgName] = { ...preferredVersions[pkgName], ...selectors }
+  }
   const forceFullResolution = ctx.wantedLockfile.lockfileVersion !== LOCKFILE_VERSION ||
     !opts.currentLockfileIsUpToDate ||
     opts.force ||
@@ -1605,6 +1618,20 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       handleResolutionPolicyViolations: opts.handleResolutionPolicyViolations,
     }
   )
+  // Only a full resolution walks every manifest through the versions
+  // overrider, making the collected declared ranges complete enough for the
+  // staleness verdict; partial resolutions must stay silent to avoid false
+  // positives from unseen ranges.
+  if (opts.convergeDeclaredRanges != null && (forceFullResolution || opts.dedupe)) {
+    await warnOnStaleConvergenceOverrides({
+      convergeDeclaredRanges: opts.convergeDeclaredRanges,
+      parsedOverrides: opts.parsedOverrides,
+      requestPackage: opts.storeController.requestPackage,
+      lockfileDir: opts.lockfileDir,
+      minimumReleaseAge: opts.minimumReleaseAge,
+      minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
+    })
+  }
   if (!opts.include.optionalDependencies || !opts.include.devDependencies || !opts.include.dependencies) {
     linkedDependenciesByProjectId = mapValues(
       (linkedDeps) => linkedDeps.filter((linkedDep) =>
@@ -2648,6 +2675,8 @@ async function installViaPnprServer (
     const projectsList = allInstallProjects && allInstallProjects.length > 1
       ? allInstallProjects.map(p => ({
         dir: (path.relative(lockfileDir, p.rootDir) || '.').split(path.sep).join('/'),
+        name: p.manifest.name,
+        version: p.manifest.version,
         dependencies: p.manifest.dependencies,
         devDependencies: p.manifest.devDependencies,
         optionalDependencies: p.manifest.optionalDependencies,
@@ -2656,6 +2685,8 @@ async function installViaPnprServer (
 
     const { lockfile, stats: pnprStats } = await resolveViaPnprServer({
       registryUrl: opts.pnprServer!,
+      name: projectsList ? undefined : manifest.name,
+      version: projectsList ? undefined : manifest.version,
       dependencies: projectsList ? undefined : manifest.dependencies,
       devDependencies: projectsList ? undefined : manifest.devDependencies,
       optionalDependencies: projectsList ? undefined : manifest.optionalDependencies,

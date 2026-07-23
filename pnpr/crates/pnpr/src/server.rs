@@ -1,20 +1,23 @@
 use crate::{
     auth::{AuthState, TokenRecord, UpsertOutcome, identify},
-    config::Config,
+    config::{Config, HostedConfig},
     error::RegistryError,
     journal::JournaledPublish,
     package_name::PackageName,
-    policy::Identity,
+    policy::{Identity, PackageRules},
     publish::{
         PendingAttachment, extract_attachments, iso_from_unix_millis, merge_manifest, now_iso,
         stream_decode_verify_and_write,
     },
-    storage::{CachedPackument, Storage},
+    registry::{ConcreteKind, Registry, Resolved},
+    storage::{
+        HostedPackumentVersion, PACKUMENT_WRITE_RETRIES, PackumentUpdate, PackumentWrite, Storage,
+        TarballFinalize,
+    },
     streaming,
     upstream::{
-        CacheValidators, FetchOutcome, FetchedPackument, PackumentFetch, Upstream,
-        ValidatorsByUplink, abbreviate_packument, extract_version_manifest, rewrite_tarball_urls,
-        tarball_basename,
+        CacheValidators, FetchOutcome, PackumentFetch, Upstream, abbreviate_packument,
+        extract_version_manifest, rewrite_tarball_urls, tarball_basename,
     },
 };
 use axum::{
@@ -37,7 +40,7 @@ use ssri::Integrity;
 use std::{
     collections::HashSet,
     net::{IpAddr, SocketAddr},
-    sync::Arc,
+    sync::{Arc, LazyLock},
     time::Duration,
 };
 use tower_http::{
@@ -69,6 +72,13 @@ const MAX_TARBALL_BYTES: u64 = 100 * 1024 * 1024;
 /// route, so future write endpoints inherit the same ceiling.
 const MAX_PUBLISH_BODY_BYTES: usize = MAX_TARBALL_BYTES as usize;
 
+/// Cap adduser/login bodies far below the publish ceiling. The body is a
+/// small couchdb-user JSON document, and login is the one body-accepting
+/// endpoint reachable anonymously on every tier — letting it inherit the
+/// 100 MiB publish limit would hand unauthenticated callers a cheap
+/// buffer-and-parse amplifier.
+const MAX_LOGIN_BODY_BYTES: usize = 64 * 1024;
+
 #[derive(Clone)]
 struct AppState {
     inner: Arc<AppInner>,
@@ -76,10 +86,16 @@ struct AppState {
 
 struct AppInner {
     storage: Storage,
-    /// One [`Upstream`] per declared uplink, keyed by the same name
-    /// used in [`Config::uplinks`]. Built once at router construction
+    /// One [`Upstream`] per declared upstream, keyed by the same name
+    /// used in [`Config::upstreams`]. Built once at router construction
     /// time so each request avoids re-allocating a `ThrottledClient`.
     upstreams: IndexMap<String, Upstream>,
+    /// The disposable cache namespace of each upstream, keyed like
+    /// [`Self::upstreams`]. A pure function of the config (see
+    /// [`compute_upstream_cache_namespace`]), precomputed here so the
+    /// per-request path doesn't re-sort and re-hash the upstream's headers on
+    /// every packument and tarball served through an upstream registry.
+    upstream_cache_namespaces: IndexMap<String, String>,
     config: Config,
     auth: AuthState,
     /// Serializes the read-modify-write packument flows per package so
@@ -192,11 +208,12 @@ pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
 }
 
 /// Fallible counterpart to [`router_with_auth`].
-pub fn try_router_with_auth(config: Config, auth: AuthState) -> crate::error::Result<Router> {
+pub fn try_router_with_auth(mut config: Config, auth: AuthState) -> crate::error::Result<Router> {
     // Enforce the "at least one surface enabled" invariant for embedders
     // that build and serve the router themselves rather than going through
     // `serve`/`serve_listener`.
     config.ensure_a_feature_is_enabled()?;
+    config.ensure_valid_registry_graph()?;
     let osv_index = load_active_osv_index(&config)?;
     Ok(router_with_auth_and_osv(config, auth, osv_index))
 }
@@ -215,10 +232,10 @@ fn load_active_osv_index(
     }
 }
 
-/// Run startup side effects and load auth backends for surfaces that
-/// consult caller identity. The registry needs publish-journal recovery;
-/// both the registry and resolver need auth because resolver requests
-/// control outbound dependency-resolution work.
+/// Run startup side effects and load the auth backends. The registry
+/// needs publish-journal recovery; auth loads on every tier because the
+/// account endpoints (which mint and manage tokens) are always served,
+/// and both mounted surfaces consult caller identity.
 async fn load_startup_auth(config: &Config) -> crate::error::Result<AuthState> {
     if config.registry.enabled {
         crate::journal::recover_publish_journal(config).await?;
@@ -235,22 +252,28 @@ fn router_with_auth_and_osv(
         Storage::new(&config.hosted_store, config.storage.clone(), config.cache_storage.clone());
     let registry_enabled = config.registry.enabled;
     let resolver_enabled = config.resolver.enabled;
-    // Only the registry routes consult the uplinks, so a resolver-only
+    // Only the registry routes consult the upstreams, so a resolver-only
     // server builds none — skipping a `ThrottledClient` allocation per
-    // configured uplink.
+    // configured upstream.
     let upstreams: IndexMap<String, Upstream> = if registry_enabled {
         config
-            .uplinks
+            .upstreams
             .iter()
-            .map(|(name, uplink)| (name.clone(), Upstream::new(name, uplink)))
+            .map(|(name, upstream)| (name.clone(), Upstream::new(name, upstream)))
             .collect()
     } else {
         IndexMap::new()
     };
+    let upstream_cache_namespaces = config
+        .upstreams
+        .keys()
+        .map(|name| (name.clone(), compute_upstream_cache_namespace(&config, name)))
+        .collect();
     let state = AppState {
         inner: Arc::new(AppInner {
             storage,
             upstreams,
+            upstream_cache_namespaces,
             config,
             auth,
             package_locks: PackageLocks::new(),
@@ -264,6 +287,39 @@ fn router_with_auth_and_osv(
     // so an operator can run resolver-only, registry-only, or both. The
     // config guarantees at least one is enabled.
     let mut router = Router::new().route("/-/ping", get(serve_ping));
+    // The account endpoints — adduser/login, whoami, profile, token
+    // listing/revocation, logout — are pnpr account management, not
+    // npm-registry functionality: they mint and manage the tokens every
+    // authenticated surface demands, so they ride every tier alongside
+    // `/-/ping`. A resolver-only tier can then issue its own credentials
+    // (`pnpm login --registry https://<resolver-host>/`) instead of
+    // depending on a registry-serving replica that shares the auth backend.
+    //
+    // Each endpoint also answers under any `/~<prefix>/`, so a client whose
+    // registry URL is a registry endpoint can log in against it. The identity
+    // endpoints are global and consult no registry state; a registry-table lookup
+    // would gate nothing while turning the 401-vs-404 split into an
+    // existence oracle for private registry names that the content handlers
+    // carefully mask.
+    router = router
+        .route("/-/whoami", get(get_whoami))
+        .route("/{prefix}/-/whoami", get(get_whoami_prefixed))
+        .route(
+            "/-/user/{user}",
+            put(put_login).route_layer(DefaultBodyLimit::max(MAX_LOGIN_BODY_BYTES)),
+        )
+        .route(
+            "/{prefix}/-/user/{user}",
+            put(put_login_prefixed).route_layer(DefaultBodyLimit::max(MAX_LOGIN_BODY_BYTES)),
+        )
+        .route("/-/user/token/{token}", delete(delete_session_token))
+        .route("/{prefix}/-/user/token/{token}", delete(delete_session_token_prefixed))
+        .route("/-/npm/v1/user", get(get_profile))
+        .route("/{prefix}/-/npm/v1/user", get(get_profile_prefixed))
+        .route("/-/npm/v1/tokens", get(get_token_list))
+        .route("/{prefix}/-/npm/v1/tokens", get(get_token_list_prefixed))
+        .route("/-/npm/v1/tokens/token/{key}", delete(delete_token_by_key))
+        .route("/{prefix}/-/npm/v1/tokens/token/{key}", delete(delete_token_by_key_prefixed));
     // The install-accelerator (resolver) surface, all under the reserved
     // `/-/pnpr` namespace. `/-/pnpr` is the capability handshake (404 on a
     // plain registry); `/-/pnpr/v0/resolve` and `/-/pnpr/v0/verify-lockfile`
@@ -300,15 +356,34 @@ fn router_with_auth_and_osv(
         router = router.route("/-/pnpr", any(resolver_disabled));
     }
     // The npm-registry surface: every packument/tarball read, publish,
-    // unpublish, dist-tag, search, and the user/login endpoint. When the
-    // feature is disabled, none of these routes are mounted — not merely
-    // hidden — so a resolver-only tier exposes no registry surface at all.
+    // unpublish, dist-tag, and search. When the surface is off (no registries
+    // declared, or `--disable-registry`), none of these routes are mounted
+    // — not merely hidden — so a resolver-only tier exposes no registry
+    // surface at all.
     if registry_enabled {
         router = router
             // Batch publish: one request carrying many packages' publish
             // documents. Not part of the standard npm registry API —
             // `pnpm publish --batch` opts into it explicitly.
             .route("/-/pnpm/v1/publish", put(serve_batch_publish))
+            // Staged (two-phase) publishing — the `pnpm stage` surface.
+            // Static `-`/`stage` segments take priority over the generic
+            // segment-count routes below, so these never shadow package
+            // reads. Each route has a `/~<name>/`-prefixed twin so a client
+            // whose registry URL is a registry endpoint can stage through it.
+            .route("/-/stage", get(staged::list_staged))
+            .route("/-/stage/package/{name}", post(staged::post_staged_publish))
+            .route("/-/stage/{id}", get(staged::get_staged).delete(staged::reject_staged))
+            .route("/-/stage/{id}/approve", post(staged::approve_staged))
+            .route("/-/stage/{id}/tarball", get(staged::get_staged_tarball))
+            .route("/{prefix}/-/stage", get(staged::list_staged_prefixed))
+            .route("/{prefix}/-/stage/package/{name}", post(staged::post_staged_publish_prefixed))
+            .route(
+                "/{prefix}/-/stage/{id}",
+                get(staged::get_staged_prefixed).delete(staged::reject_staged_prefixed),
+            )
+            .route("/{prefix}/-/stage/{id}/approve", post(staged::approve_staged_prefixed))
+            .route("/{prefix}/-/stage/{id}/tarball", get(staged::get_staged_tarball_prefixed))
             .route("/{name}", get(get_packument_unscoped).put(put_one_segment))
             .route("/{first}/{second}", get(get_two_segments).put(put_two_segments))
             .route(
@@ -316,13 +391,23 @@ fn router_with_auth_and_osv(
                 get(get_three_segments).put(put_three_segments).delete(delete_three_segments),
             )
             .route("/{scope}/{name}/-/{filename}", get(get_tarball_scoped))
-            .route("/{a}/{b}/{c}/{d}", get(get_four_segments).delete(delete_four_segments))
+            .route(
+                "/{a}/{b}/{c}/{d}",
+                get(get_four_segments).put(put_four_segments).delete(delete_four_segments),
+            )
             .route(
                 "/{a}/{b}/{c}/{d}/{e}",
                 get(get_five_segments).put(put_five_segments).delete(delete_five_segments),
             )
-            // Scoped tarball delete: `DELETE /@scope/name/-/<basename-version>.tgz/-rev/<rev>`
-            .route("/{a}/{b}/{c}/{d}/{e}/{f}", delete(delete_six_segments));
+            // Scoped tarball delete: `DELETE /@scope/name/-/<basename-version>.tgz/-rev/<rev>`,
+            // plus the registry-addressed dist-tag write and unscoped tarball delete.
+            .route(
+                "/{a}/{b}/{c}/{d}/{e}/{f}",
+                get(get_six_segments).put(put_six_segments).delete(delete_six_segments),
+            )
+            // Registry-addressed scoped tarball delete:
+            // `DELETE /~<name>/@scope/name/-/<file>/-rev/<rev>`
+            .route("/{a}/{b}/{c}/{d}/{e}/{f}/{g}", delete(delete_seven_segments));
     }
     router
         .layer(DefaultBodyLimit::max(MAX_PUBLISH_BODY_BYTES))
@@ -366,7 +451,7 @@ fn router_with_auth_and_osv(
                         target: "pnpr::access",
                         "request",
                         method = %request.method(),
-                        uri = %request.uri(),
+                        uri = %loggable_uri(request.uri()),
                         // Filled in by `record_cache_status` for packument
                         // reads (e.g. `cache=hit`); stays absent otherwise.
                         cache = tracing::field::Empty,
@@ -386,16 +471,34 @@ fn router_with_auth_and_osv(
         .with_state(state)
 }
 
+/// The request URI as recorded in the access log. npm's logout protocol
+/// (`DELETE .../-/user/token/{token}`, path-less or under a `/~<prefix>/`)
+/// puts the raw bearer token in the URL path, and a reusable credential
+/// must never reach a log line, so everything after that marker is
+/// redacted. Every other URI is logged verbatim; a false positive (a
+/// registry path that merely embeds the marker) is redacted too, which
+/// only costs log detail on a request no route serves.
+fn loggable_uri(uri: &axum::http::Uri) -> String {
+    const TOKEN_MARKER: &str = "/-/user/token/";
+    match uri.path().find(TOKEN_MARKER) {
+        Some(index) => {
+            format!("{}<redacted>", &uri.path()[..index + TOKEN_MARKER.len()])
+        }
+        None => uri.to_string(),
+    }
+}
+
 /// Bind to `config.listen` and serve forever. Loads auth state before
 /// binding so a startup-time auth error surfaces before we accept any
 /// client connections. Registry startup additionally recovers the publish
 /// journal.
-pub async fn serve(config: Config) -> crate::error::Result<()> {
+pub async fn serve(mut config: Config) -> crate::error::Result<()> {
     // Enforce the "at least one surface" invariant here too, not only at
     // YAML load / CLI: embedders build `Config` programmatically and call
     // straight into `serve`, so a both-disabled config must fail loudly
     // rather than start a server that only answers `/-/ping`.
     config.ensure_a_feature_is_enabled()?;
+    config.ensure_valid_registry_graph()?;
     log_enabled_surfaces(&config);
     let osv_index = load_active_osv_index(&config)?;
     let auth = load_startup_auth(&config).await?;
@@ -409,11 +512,12 @@ pub async fn serve(config: Config) -> crate::error::Result<()> {
     Ok(())
 }
 
-/// Log which surfaces are mounted at startup. A misconfiguration — most
-/// importantly a typo'd `registry:` / `resolver:` block name, which the
-/// intentionally verdaccio-lenient config parser silently ignores and so
-/// leaves the surface at its default-enabled state — is then immediately
-/// visible to the operator rather than only discoverable by probing.
+/// Log which surfaces are mounted at startup. A misconfiguration — a
+/// `registries:` block that didn't parse the way the operator meant, or a
+/// typo'd `resolver:` block name, which the intentionally
+/// verdaccio-lenient config parser silently ignores and so leaves the
+/// surface at its default-enabled state — is then immediately visible to
+/// the operator rather than only discoverable by probing.
 fn log_enabled_surfaces(config: &Config) {
     tracing::info!(
         registry = config.registry.enabled,
@@ -428,11 +532,12 @@ fn log_enabled_surfaces(config: &Config) {
 /// address, and then hand that listener here without a bind/drop/rebind
 /// race.
 pub async fn serve_listener(
-    config: Config,
+    mut config: Config,
     listener: tokio::net::TcpListener,
 ) -> crate::error::Result<()> {
     let listen = listener.local_addr()?;
     config.ensure_a_feature_is_enabled()?;
+    config.ensure_valid_registry_graph()?;
     log_enabled_surfaces(&config);
     let osv_index = load_active_osv_index(&config)?;
     // Load the configured auth backends here too — going through `router`
@@ -533,18 +638,22 @@ async fn get_two_segments(
     headers: HeaderMap,
     Path((first, second)): Path<(String, String)>,
 ) -> Response {
-    if first == "-" && second == "whoami" {
-        return private_no_cache(serve_whoami(&identity));
-    }
-    // `/~<uplink>/<pkg>` — unscoped packument through an uplink endpoint.
-    if let Some(uplink) = first.strip_prefix('~').filter(|uplink| !uplink.is_empty()) {
+    // `/~<name>/<pkg>` — unscoped packument through a registry endpoint. The
+    // tarball base is the client's `/~<name>/` URL so the rewritten URLs stay
+    // canonical for the registry the client actually addressed.
+    if let Some(registry) = first.strip_prefix('~').filter(|registry| !registry.is_empty()) {
+        let base = upstream_tarball_base(&state.inner.config.public_url, registry);
         return private_no_cache(
-            serve_packument_via_uplink(&state, &identity, &headers, uplink, &second).await,
+            serve_registry_packument(&state, &identity, &headers, registry, &second, &base).await,
         );
     }
     if first.starts_with('@') {
-        let full = format!("{first}/{second}");
-        serve_packument(&state, &identity, &headers, &full).await
+        if first.contains('/') {
+            serve_version_manifest(&state, &identity, &first, &second).await
+        } else {
+            let full = format!("{first}/{second}");
+            serve_packument(&state, &identity, &headers, &full).await
+        }
     } else {
         serve_version_manifest(&state, &identity, &first, &second).await
     }
@@ -559,19 +668,42 @@ async fn get_three_segments(
 ) -> Response {
     if first == "-" && second == "v1" && third == "search" {
         let query = uri.query().unwrap_or("");
-        return serve_search(&state, &identity, query).await;
+        // Search results are filtered per caller (registry access + per-package
+        // ACL), so they must never land in a shared HTTP cache.
+        return private_no_cache(serve_search(&state, &identity, None, query).await);
     }
-    // `/~<uplink>/@scope/<pkg>` — scoped packument through an uplink endpoint.
-    // (A `/~<uplink>/<pkg>/<version>` version-manifest fetch is not served;
-    // clients read the full packument from the endpoint instead.)
-    if let Some(uplink) = first.strip_prefix('~').filter(|uplink| !uplink.is_empty()) {
+    if let Some(registry) = first.strip_prefix('~').filter(|registry| !registry.is_empty()) {
+        // The account endpoints (whoami, adduser, logout, profile, tokens)
+        // live on dedicated always-mounted routes; a `/~<name>/-/...` path
+        // that still reaches this handler names no registry content.
+        if second == "-" {
+            return not_found();
+        }
+        let base = upstream_tarball_base(&state.inner.config.public_url, registry);
         if second.starts_with('@') {
+            // `/~<name>/@scope%2Fname/<version>` — version manifest for an
+            // encoded scoped package through a registry endpoint.
+            if second.contains('/') {
+                return private_no_cache(
+                    serve_registry_version_manifest(
+                        &state, &identity, registry, &second, &third, &base,
+                    )
+                    .await,
+                );
+            }
+            // `/~<name>/@scope/<pkg>` — scoped packument through a registry.
             let full = format!("{second}/{third}");
             return private_no_cache(
-                serve_packument_via_uplink(&state, &identity, &headers, uplink, &full).await,
+                serve_registry_packument(&state, &identity, &headers, registry, &full, &base).await,
             );
         }
-        return not_found();
+        // `/~<name>/<pkg>/<version-or-tag>` — unscoped version manifest
+        // through a registry endpoint. (The unscoped tarball shape
+        // `/~<name>/<pkg>/-/<file>` is a distinct literal-`-` route.)
+        return private_no_cache(
+            serve_registry_version_manifest(&state, &identity, registry, &second, &third, &base)
+                .await,
+        );
     }
     if second == "-" {
         serve_tarball(&state, &identity, &first, &third).await
@@ -588,10 +720,10 @@ async fn get_tarball_scoped(
     AuthedCaller(identity): AuthedCaller,
     Path((scope, name, filename)): Path<(String, String, String)>,
 ) -> Response {
-    // `/~<uplink>/<pkg>/-/<file>` — unscoped tarball through an uplink endpoint.
-    if let Some(uplink) = scope.strip_prefix('~').filter(|uplink| !uplink.is_empty()) {
+    // `/~<name>/<pkg>/-/<file>` — unscoped tarball through a registry endpoint.
+    if let Some(registry) = scope.strip_prefix('~').filter(|registry| !registry.is_empty()) {
         return private_no_cache(
-            serve_tarball_via_uplink(&state, &identity, uplink, &name, &filename).await,
+            serve_registry_tarball(&state, &identity, registry, &name, &filename).await,
         );
     }
     if !scope.starts_with('@') {
@@ -603,42 +735,89 @@ async fn get_tarball_scoped(
 
 /// 4-segment GET:
 /// * `/-/package/{pkg}/dist-tags` — packument's `dist-tags` object.
-/// * `/-/npm/v1/user` — caller's profile (`npm profile get`).
-/// * `/-/npm/v1/tokens` — list bearer tokens for the caller
-///   (`npm token list`).
+/// * `/-/org/{scope}/team` — the teams of the registry claiming `@scope`.
+/// * `/~<name>/-/v1/search` — search through a registry endpoint.
+/// * `/~<name>/@scope/{pkg}/{version}` — scoped version manifest through a
+///   registry endpoint.
 async fn get_four_segments(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
+    OriginalUri(uri): OriginalUri,
     Path((a, b, c, d)): Path<(String, String, String, String)>,
 ) -> Response {
     if a == "-" && b == "package" && d == "dist-tags" {
-        return get_dist_tags(&state, &identity, &c).await;
+        let response = get_dist_tags(&state, &identity, None, &c).await;
+        return private_if_caller_gated(&state, &c, response);
     }
-    if a == "-" && b == "npm" && c == "v1" && d == "user" {
-        return private_no_cache(serve_profile(&identity));
+    if a == "-" && b == "org" && d == "team" {
+        return private_no_cache(get_org_teams(&state, &identity, None, &c));
     }
-    if a == "-" && b == "npm" && c == "v1" && d == "tokens" {
-        return private_no_cache(list_tokens(&state, &identity).await);
+    if let Some(registry) = a.strip_prefix('~').filter(|registry| !registry.is_empty()) {
+        if b == "-" && c == "v1" && d == "search" {
+            let query = uri.query().unwrap_or("");
+            return private_no_cache(serve_search(&state, &identity, Some(registry), query).await);
+        }
+        if b.starts_with('@') && !b.contains('/') {
+            let full = format!("{b}/{c}");
+            let base = upstream_tarball_base(&state.inner.config.public_url, registry);
+            return private_no_cache(
+                serve_registry_version_manifest(&state, &identity, registry, &full, &d, &base)
+                    .await,
+            );
+        }
     }
     not_found()
 }
 
-/// 5-segment GET: `/~<uplink>/@scope/<pkg>/-/<file>` is a scoped tarball
-/// through an uplink endpoint; every other 5-segment GET is a not-found
-/// catchall (the route exists so DELETE/PUT can sit on the same path).
+/// 5-segment GET:
+/// * `/-/team/{scope}/{team}/user` — a team's members.
+/// * `/~<name>/@scope/<pkg>/-/<file>` — scoped tarball through a registry
+///   endpoint.
+/// * `/~<name>/-/package/<pkg>/dist-tags` — dist-tags through a registry
+///   endpoint.
+/// * `/~<name>/-/org/{scope}/team` — org teams through a registry endpoint.
+///
+/// Every other 5-segment GET is a not-found catchall (the route exists so
+/// DELETE/PUT can sit on the same path).
 async fn get_five_segments(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
     Path((a, b, c, d, e)): Path<(String, String, String, String, String)>,
 ) -> Response {
-    if let Some(uplink) = a.strip_prefix('~').filter(|uplink| !uplink.is_empty())
-        && b.starts_with('@')
-        && d == "-"
+    if a == "-" && b == "team" && e == "user" {
+        return private_no_cache(get_team_members(&state, &identity, None, &c, &d));
+    }
+    if let Some(registry) = a.strip_prefix('~').filter(|registry| !registry.is_empty()) {
+        if b.starts_with('@') && d == "-" {
+            let full = format!("{b}/{c}");
+            return private_no_cache(
+                serve_registry_tarball(&state, &identity, registry, &full, &e).await,
+            );
+        }
+        if b == "-" && c == "package" && e == "dist-tags" {
+            return private_no_cache(get_dist_tags(&state, &identity, Some(registry), &d).await);
+        }
+        if b == "-" && c == "org" && e == "team" {
+            return private_no_cache(get_org_teams(&state, &identity, Some(registry), &d));
+        }
+    }
+    not_found()
+}
+
+/// 6-segment GET:
+/// * `/~<name>/-/team/{scope}/{team}/user` — a team's members through a
+///   registry endpoint.
+async fn get_six_segments(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    Path((a, b, c, d, e, f)): Path<(String, String, String, String, String, String)>,
+) -> Response {
+    if let Some(registry) = a.strip_prefix('~').filter(|registry| !registry.is_empty())
+        && b == "-"
+        && c == "team"
+        && f == "user"
     {
-        let full = format!("{b}/{c}");
-        return private_no_cache(
-            serve_tarball_via_uplink(&state, &identity, uplink, &full, &e).await,
-        );
+        return private_no_cache(get_team_members(&state, &identity, Some(registry), &d, &e));
     }
     not_found()
 }
@@ -654,11 +833,12 @@ async fn put_one_segment(
     Path(name): Path<String>,
     body: axum::body::Bytes,
 ) -> Response {
-    publish_package(&state, &identity, &name, body).await
+    publish_package(&state, &identity, None, &name, body).await
 }
 
 /// `PUT /{first}/{second}` — publish a scoped package
-/// (`/@scope/name`). The `/-/package/{pkg}` shape never lands here
+/// (`/@scope/name`), or an unscoped package through a registry endpoint
+/// (`/~<name>/<pkg>`). The `/-/package/{pkg}` shape never lands here
 /// because that's at least 4 segments.
 async fn put_two_segments(
     State(state): State<AppState>,
@@ -666,14 +846,17 @@ async fn put_two_segments(
     Path((first, second)): Path<(String, String)>,
     body: axum::body::Bytes,
 ) -> Response {
+    // `PUT /~<name>/<pkg>` — publish an unscoped package through a registry.
+    if let Some(registry) = first.strip_prefix('~').filter(|registry| !registry.is_empty()) {
+        return publish_package(&state, &identity, Some(registry), &second, body).await;
+    }
     if first.starts_with('@') {
         let full = format!("{first}/{second}");
-        return publish_package(&state, &identity, &full, body).await;
+        return publish_package(&state, &identity, None, &full, body).await;
     }
     not_found()
 }
 
-/// `PUT /-/user/org.couchdb.user:{name}` — adduser / login.
 /// `PUT /{pkg}/-rev/{rev}` — packument update (partial unpublish).
 async fn put_three_segments(
     State(state): State<AppState>,
@@ -681,20 +864,42 @@ async fn put_three_segments(
     Path((first, second, third)): Path<(String, String, String)>,
     body: axum::body::Bytes,
 ) -> Response {
-    if first == "-"
-        && second == "user"
-        && let Some(name) = third.strip_prefix("org.couchdb.user:")
+    // `PUT /~<name>/@scope/<pkg>` — publish a scoped package through a registry.
+    if let Some(registry) = first.strip_prefix('~').filter(|registry| !registry.is_empty())
+        && second.starts_with('@')
     {
-        // adduser/login authenticates from the request body, not the
-        // caller's existing identity.
-        return add_user(&state, name, &body).await;
+        let full = format!("{second}/{third}");
+        return publish_package(&state, &identity, Some(registry), &full, body).await;
     }
     if second == "-rev" {
         // `third` is the opaque revision token the client sent back.
         // We don't track revisions, so it's only used for routing —
         // the body is the full mutated packument.
         let _ = third;
-        return update_packument(&state, &identity, &first, &body).await;
+        return update_packument(&state, &identity, None, &first, &body).await;
+    }
+    not_found()
+}
+
+/// 4-segment PUT:
+/// * `/~<name>/{pkg}/-rev/{rev}` — packument update (partial unpublish)
+///   through a registry endpoint. Scoped packages arrive percent-encoded as a
+///   single `@scope%2Fname` segment, like the path-less 3-segment form.
+async fn put_four_segments(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    Path((a, b, c, d)): Path<(String, String, String, String)>,
+    body: axum::body::Bytes,
+) -> Response {
+    // `PUT /-/org/{scope}/team` — team create; config-managed, rejected.
+    if a == "-" && b == "org" && d == "team" {
+        return reject_team_mutation(&state, &identity, None, &c, "create a team");
+    }
+    if let Some(registry) = a.strip_prefix('~').filter(|registry| !registry.is_empty())
+        && c == "-rev"
+    {
+        let _ = d; // revision token is unused
+        return update_packument(&state, &identity, Some(registry), &b, &body).await;
     }
     not_found()
 }
@@ -710,12 +915,17 @@ async fn delete_three_segments(
 ) -> Response {
     if second == "-rev" {
         let _ = third;
-        return delete_package(&state, &identity, &first).await;
+        return delete_package(&state, &identity, None, &first).await;
     }
     not_found()
 }
 
-/// `PUT /-/package/{pkg}/dist-tags/{tag}` — add/update a dist-tag.
+/// 5-segment PUT:
+/// * `/-/package/{pkg}/dist-tags/{tag}` — add/update a dist-tag.
+/// * `/-/team/{scope}/{team}/user` — team member add; config-managed,
+///   rejected.
+/// * `/~<name>/-/org/{scope}/team` — team create through a registry
+///   endpoint; config-managed, rejected.
 async fn put_five_segments(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
@@ -723,27 +933,80 @@ async fn put_five_segments(
     body: axum::body::Bytes,
 ) -> Response {
     if a == "-" && b == "package" && d == "dist-tags" {
-        return set_dist_tag(&state, &identity, &c, &e, &body).await;
+        return set_dist_tag(&state, &identity, None, &c, &e, &body).await;
+    }
+    if a == "-" && b == "team" && e == "user" {
+        return reject_team_mutation(&state, &identity, None, &c, "add a team member");
+    }
+    if let Some(registry) = a.strip_prefix('~').filter(|registry| !registry.is_empty())
+        && b == "-"
+        && c == "org"
+        && e == "team"
+    {
+        return reject_team_mutation(&state, &identity, Some(registry), &d, "create a team");
     }
     not_found()
 }
 
-/// `DELETE /-/user/token/{tok}` — npm logout. `{tok}` is the raw
-/// bearer token sent verbatim. We hash it and remove the matching
-/// row from the token store.
+/// 6-segment PUT:
+/// * `/~<name>/-/package/{pkg}/dist-tags/{tag}` — add/update a dist-tag
+///   through a registry endpoint.
+/// * `/~<name>/-/team/{scope}/{team}/user` — team member add through a
+///   registry endpoint; config-managed, rejected.
+async fn put_six_segments(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    Path((a, b, c, d, e, f)): Path<(String, String, String, String, String, String)>,
+    body: axum::body::Bytes,
+) -> Response {
+    if let Some(registry) = a.strip_prefix('~').filter(|registry| !registry.is_empty())
+        && b == "-"
+    {
+        if c == "package" && e == "dist-tags" {
+            return set_dist_tag(&state, &identity, Some(registry), &d, &f, &body).await;
+        }
+        if c == "team" && f == "user" {
+            return reject_team_mutation(
+                &state,
+                &identity,
+                Some(registry),
+                &d,
+                "add a team member",
+            );
+        }
+    }
+    not_found()
+}
+
+/// 4-segment DELETE:
+/// * `/-/team/{scope}/{team}` — team destroy; config-managed, rejected.
+/// * `/~<name>/{pkg}/-rev/{rev}` — remove the entire package through a
+///   registry endpoint (scoped packages arrive percent-encoded as one
+///   `@scope%2Fname` segment).
 async fn delete_four_segments(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
     Path((a, b, c, d)): Path<(String, String, String, String)>,
 ) -> Response {
-    if a == "-" && b == "user" && c == "token" {
-        return private_no_cache(logout(&state, &identity, &d).await);
+    if a == "-" && b == "team" {
+        let _ = d; // team name — the mutation is rejected regardless
+        return reject_team_mutation(&state, &identity, None, &c, "destroy a team");
+    }
+    if let Some(registry) = a.strip_prefix('~').filter(|registry| !registry.is_empty())
+        && c == "-rev"
+    {
+        let _ = d; // revision token is unused
+        return delete_package(&state, &identity, Some(registry), &b).await;
     }
     not_found()
 }
 
 /// 5-segment DELETE:
 /// * `/-/package/{pkg}/dist-tags/{tag}` — remove a dist-tag.
+/// * `/-/team/{scope}/{team}/user` — team member remove; config-managed,
+///   rejected.
+/// * `/~<name>/-/team/{scope}/{team}` — team destroy through a registry
+///   endpoint; config-managed, rejected.
 /// * `/{pkg}/-/{filename}/-rev/{rev}` — remove an unscoped tarball
 ///   (one step of `pnpm unpublish <pkg>@<version>`).
 async fn delete_five_segments(
@@ -752,11 +1015,21 @@ async fn delete_five_segments(
     Path((a, b, c, d, e)): Path<(String, String, String, String, String)>,
 ) -> Response {
     if a == "-" && b == "package" && d == "dist-tags" {
-        return remove_dist_tag(&state, &identity, &c, &e).await;
+        return remove_dist_tag(&state, &identity, None, &c, &e).await;
+    }
+    if a == "-" && b == "team" && e == "user" {
+        return reject_team_mutation(&state, &identity, None, &c, "remove a team member");
+    }
+    if let Some(registry) = a.strip_prefix('~').filter(|registry| !registry.is_empty())
+        && b == "-"
+        && c == "team"
+    {
+        let _ = e; // team name — the mutation is rejected regardless
+        return reject_team_mutation(&state, &identity, Some(registry), &d, "destroy a team");
     }
     if b == "-" && d == "-rev" {
         let _ = e; // revision token is unused
-        return delete_tarball(&state, &identity, &a, &c).await;
+        return delete_tarball(&state, &identity, None, &a, &c).await;
     }
     not_found()
 }
@@ -768,22 +1041,186 @@ async fn delete_five_segments(
 ///   form (`http://host/@scope/name/-/name-1.0.0.tgz`), so the
 ///   request lands here unencoded rather than as a 5-seg
 ///   `@scope%2Fname` URL.
-/// * `/-/npm/v1/tokens/token/{key}` — revoke a bearer token by its
-///   listing-side `key` (`npm token revoke`).
+/// * `/~<name>/-/package/{pkg}/dist-tags/{tag}` — remove a dist-tag
+///   through a registry endpoint.
+/// * `/~<name>/-/team/{scope}/{team}/user` — team member remove through a
+///   registry endpoint; config-managed, rejected.
+/// * `/~<name>/{pkg}/-/{filename}/-rev/{rev}` — remove an unscoped
+///   tarball through a registry endpoint.
 async fn delete_six_segments(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
     Path((a, b, c, d, e, f)): Path<(String, String, String, String, String, String)>,
 ) -> Response {
-    if a == "-" && b == "npm" && c == "v1" && d == "tokens" && e == "token" {
-        return private_no_cache(revoke_token_by_key(&state, &identity, &f).await);
-    }
     if a.starts_with('@') && c == "-" && e == "-rev" {
         let _ = f; // revision token is unused
         let full = format!("{a}/{b}");
-        return delete_tarball(&state, &identity, &full, &d).await;
+        return delete_tarball(&state, &identity, None, &full, &d).await;
+    }
+    if let Some(registry) = a.strip_prefix('~').filter(|registry| !registry.is_empty()) {
+        if b == "-" && c == "package" && e == "dist-tags" {
+            return remove_dist_tag(&state, &identity, Some(registry), &d, &f).await;
+        }
+        if b == "-" && c == "team" && f == "user" {
+            return reject_team_mutation(
+                &state,
+                &identity,
+                Some(registry),
+                &d,
+                "remove a team member",
+            );
+        }
+        if c == "-" && e == "-rev" {
+            let _ = f; // revision token is unused
+            return delete_tarball(&state, &identity, Some(registry), &b, &d).await;
+        }
     }
     not_found()
+}
+
+/// 7-segment DELETE:
+/// * `/~<name>/{scope}/{name}/-/{filename}/-rev/{rev}` — remove a scoped
+///   tarball through a registry endpoint (the unencoded literal-slash form the
+///   pnpm unpublish flow reconstructs from the packument's tarball URL).
+async fn delete_seven_segments(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    Path((a, b, c, d, e, f, g)): Path<(String, String, String, String, String, String, String)>,
+) -> Response {
+    if let Some(registry) = a.strip_prefix('~').filter(|registry| !registry.is_empty())
+        && b.starts_with('@')
+        && d == "-"
+        && f == "-rev"
+    {
+        let _ = g; // revision token is unused
+        let full = format!("{b}/{c}");
+        return delete_tarball(&state, &identity, Some(registry), &full, &e).await;
+    }
+    not_found()
+}
+
+// --------------------------------------------------------------------
+// Account routes — adduser/login, whoami, profile, token list and
+// revocation, logout. Mounted on every tier (see the router construction
+// in `router_with_auth_and_osv`). Each has a `/~<prefix>/`-addressed twin
+// whose `/{prefix}/...` route pattern also matches a non-`~` first
+// segment; that shape is not an account URL, so the handler 404s it —
+// though route-level layers still run first (an oversized body to a
+// non-`~` login path is the body cap's 413, not a 404).
+// --------------------------------------------------------------------
+
+/// Whether `prefix` is a `/~<prefix>/`-style first segment — the only
+/// shape the prefixed account routes serve.
+fn is_tilde_prefix(prefix: &str) -> bool {
+    prefix.strip_prefix('~').is_some_and(|rest| !rest.is_empty())
+}
+
+async fn get_whoami(AuthedCaller(identity): AuthedCaller) -> Response {
+    private_no_cache(serve_whoami(&identity))
+}
+
+async fn get_whoami_prefixed(
+    AuthedCaller(identity): AuthedCaller,
+    Path(prefix): Path<String>,
+) -> Response {
+    if !is_tilde_prefix(&prefix) {
+        return not_found();
+    }
+    private_no_cache(serve_whoami(&identity))
+}
+
+/// `PUT /-/user/org.couchdb.user:{name}` — adduser / login. Authenticates
+/// from the request body, not the caller's existing identity.
+async fn put_login(
+    State(state): State<AppState>,
+    Path(user): Path<String>,
+    body: axum::body::Bytes,
+) -> Response {
+    match user.strip_prefix("org.couchdb.user:") {
+        Some(name) => add_user(&state, name, &body).await,
+        None => not_found(),
+    }
+}
+
+async fn put_login_prefixed(
+    State(state): State<AppState>,
+    Path((prefix, user)): Path<(String, String)>,
+    body: axum::body::Bytes,
+) -> Response {
+    if !is_tilde_prefix(&prefix) {
+        return not_found();
+    }
+    put_login(State(state), Path(user), body).await
+}
+
+async fn delete_session_token(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    Path(token): Path<String>,
+) -> Response {
+    private_no_cache(logout(&state, &identity, &token).await)
+}
+
+async fn delete_session_token_prefixed(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    Path((prefix, token)): Path<(String, String)>,
+) -> Response {
+    if !is_tilde_prefix(&prefix) {
+        return not_found();
+    }
+    private_no_cache(logout(&state, &identity, &token).await)
+}
+
+async fn get_profile(AuthedCaller(identity): AuthedCaller) -> Response {
+    private_no_cache(serve_profile(&identity))
+}
+
+async fn get_profile_prefixed(
+    AuthedCaller(identity): AuthedCaller,
+    Path(prefix): Path<String>,
+) -> Response {
+    if !is_tilde_prefix(&prefix) {
+        return not_found();
+    }
+    private_no_cache(serve_profile(&identity))
+}
+
+async fn get_token_list(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+) -> Response {
+    private_no_cache(list_tokens(&state, &identity).await)
+}
+
+async fn get_token_list_prefixed(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    Path(prefix): Path<String>,
+) -> Response {
+    if !is_tilde_prefix(&prefix) {
+        return not_found();
+    }
+    private_no_cache(list_tokens(&state, &identity).await)
+}
+
+async fn delete_token_by_key(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    Path(key): Path<String>,
+) -> Response {
+    private_no_cache(revoke_token_by_key(&state, &identity, &key).await)
+}
+
+async fn delete_token_by_key_prefixed(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    Path((prefix, key)): Path<(String, String)>,
+) -> Response {
+    if !is_tilde_prefix(&prefix) {
+        return not_found();
+    }
+    private_no_cache(revoke_token_by_key(&state, &identity, &key).await)
 }
 
 // --------------------------------------------------------------------
@@ -796,29 +1233,18 @@ async fn serve_packument(
     headers: &HeaderMap,
     raw_name: &str,
 ) -> Response {
-    let name = match PackageName::parse(raw_name) {
-        Ok(n) => n,
-        Err(err) => return error_response(&err),
-    };
-    if let Err(err) = authorize(state, identity, name.as_str(), Action::Access) {
-        return error_response(&err);
-    }
-    match load_packument_bytes(state, &name).await {
-        PackumentLoad::Ok(bytes) => {
-            let abbreviated = wants_abbreviated(headers);
-            match packument_response(
-                &name,
-                &bytes,
-                &state.inner.config.public_url,
-                state.inner.osv_index.as_ref(),
-                abbreviated,
-            ) {
-                Ok(response) => response,
-                Err(err) => error_response(&err),
-            }
+    // The path-less base is an alias for the default-target registry: every
+    // request routes through the registry graph (authoritatively, no
+    // fall-through). With no default target the bare host has no registry.
+    match default_registry_target(state) {
+        Some(target) => {
+            // The path-less base: tarball URLs stay canonical for the bare host.
+            let base = state.inner.config.public_url.clone();
+            let response =
+                serve_registry_packument(state, identity, headers, &target, raw_name, &base).await;
+            private_if_caller_gated(state, raw_name, response)
         }
-        PackumentLoad::NotFound => not_found(),
-        PackumentLoad::Err(err) => error_response(&err),
+        None => not_found(),
     }
 }
 
@@ -828,17 +1254,70 @@ async fn serve_version_manifest(
     raw_name: &str,
     version_or_tag: &str,
 ) -> Response {
+    match default_registry_target(state) {
+        Some(target) => {
+            let base = state.inner.config.public_url.clone();
+            let response = serve_registry_version_manifest(
+                state,
+                identity,
+                &target,
+                raw_name,
+                version_or_tag,
+                &base,
+            )
+            .await;
+            private_if_caller_gated(state, raw_name, response)
+        }
+        None => not_found(),
+    }
+}
+
+/// Serve a single version's manifest (`GET <base>/<pkg>/<version-or-tag>`)
+/// through the registry graph. Resolves the package to its one concrete origin,
+/// loads that origin's packument, and extracts the requested version with its
+/// `dist.tarball` rewritten onto the same origin's base.
+async fn serve_registry_version_manifest(
+    state: &AppState,
+    identity: &Identity,
+    registry: &str,
+    raw_name: &str,
+    version_or_tag: &str,
+    tarball_base: &str,
+) -> Response {
     let name = match PackageName::parse(raw_name) {
         Ok(n) => n,
         Err(err) => return error_response(&err),
     };
-    if let Err(err) = authorize(state, identity, name.as_str(), Action::Access) {
-        return error_response(&err);
-    }
-    let bytes = match load_packument_bytes(state, &name).await {
-        PackumentLoad::Ok(bytes) => bytes,
-        PackumentLoad::NotFound => return not_found(),
-        PackumentLoad::Err(err) => return error_response(&err),
+    let resolved_source = resolve_registry_source(state, registry, name.as_str());
+    let bytes = match &resolved_source {
+        RegistrySource::Upstream(source) => {
+            // The upstream registry's per-package rules gate the read — see
+            // `serve_registry_packument`.
+            if let Err(err) =
+                authorize(state, identity, &resolved_source, name.as_str(), Action::Access)
+            {
+                return error_response(&err);
+            }
+            match load_upstream_packument_for(state, identity, source, &name).await {
+                Ok(Some(bytes)) => bytes,
+                Ok(None) => return not_found(),
+                Err(response) => return *response,
+            }
+        }
+        RegistrySource::Hosted(source) => {
+            // The hosted gate answers a denial itself — a not-found mask or
+            // an explicit-rule 401/403 — see `serve_registry_packument`.
+            let org = match hosted_read_namespace(state, identity, source, name.as_str()) {
+                Ok(org) => org,
+                Err(response) => return *response,
+            };
+            match state.inner.storage.for_hosted(&org).read_hosted_packument(&name).await {
+                Ok(Some(bytes)) => bytes,
+                Ok(None) => return not_found(),
+                Err(err) => return error_response(&err),
+            }
+        }
+        RegistrySource::Unclaimed | RegistrySource::NotFound => return not_found(),
     };
     let packument: Value = match serde_json::from_slice(&bytes) {
         Ok(v) => v,
@@ -850,8 +1329,7 @@ async fn serve_version_manifest(
             return not_found();
         }
     }
-    let Some(manifest) =
-        extract_version_manifest(&packument, &name, version_or_tag, &state.inner.config.public_url)
+    let Some(manifest) = extract_version_manifest(&packument, &name, version_or_tag, tarball_base)
     else {
         return not_found();
     };
@@ -861,75 +1339,134 @@ async fn serve_version_manifest(
     }
 }
 
-/// The `dist.tarball` rewrite base for an uplink's `/~<uplink>/` registry
+/// The `dist.tarball` rewrite base for an upstream's `/~<name>/` registry
 /// endpoint, so a served packument points tarball requests back at the same
 /// endpoint (where this server re-checks access and proxies the bytes).
-fn uplink_tarball_base(public_url: &str, uplink: &str) -> String {
-    format!("{}/~{uplink}", public_url.trim_end_matches('/'))
+fn upstream_tarball_base(public_url: &str, upstream: &str) -> String {
+    format!("{}/~{upstream}", public_url.trim_end_matches('/'))
 }
 
-/// Resolve the upstream behind an authorized `/~<uplink>/` endpoint request.
+/// Resolve the upstream behind an authorized `/~<name>/` endpoint request.
 ///
-/// Fails closed: an uplink that does not exist or carries no `access:` policy
+/// Fails closed: an upstream that does not exist or carries no `access:` policy
 /// is a `404` (it is not a private-route endpoint), and a caller the policy
 /// does not admit is a `403`. Returns the [`Upstream`] to fetch *through* —
-/// `/~<uplink>/` requests never read or write the shared proxy mirror, so a
-/// private uplink's packuments and tarballs can never leak across the public
-/// path or another uplink.
-fn authorized_uplink<'a>(
+/// `/~<name>/` requests never read or write the shared proxy mirror, so a
+/// private upstream's packuments and tarballs can never leak across the public
+/// path or another upstream.
+fn authorized_upstream<'a>(
     state: &'a AppState,
     identity: &Identity,
-    uplink: &str,
+    upstream: &str,
 ) -> Result<&'a Upstream, Box<Response>> {
-    let Some(access) =
-        state.inner.config.uplinks.get(uplink).and_then(|config| config.access.as_ref())
-    else {
+    let Some(config) = state.inner.config.upstreams.get(upstream) else {
         return Err(Box::new(not_found()));
     };
-    if !access.allows(identity) {
-        let user =
-            require_caller(identity, "uplink access").unwrap_or_else(|_| "<anonymous>".to_string());
+    // A private upstream registry gates by its `access:` list; a public registry
+    // (no access) is reachable by anyone at its `/~<name>/` URL, its upstream
+    // credential (if any) staying server-side either way.
+    if let Some(access) = config.access.as_ref()
+        && !access.allows(identity)
+    {
+        let user = require_caller(identity, "upstream access")
+            .unwrap_or_else(|_| "<anonymous>".to_string());
         return Err(Box::new(error_response(&RegistryError::Forbidden {
             user,
             action: "access",
-            resource: format!("uplink {uplink:?}"),
+            resource: format!("upstream {upstream:?}"),
         })));
     }
-    state.inner.upstreams.get(uplink).ok_or_else(|| Box::new(not_found()))
+    state.inner.upstreams.get(upstream).ok_or_else(|| Box::new(not_found()))
 }
 
-/// Serve a packument through an uplink's `/~<uplink>/` endpoint: fetch the
-/// uplink's own copy fresh (never the shared mirror), rewrite its
-/// `dist.tarball` URLs back onto the same endpoint, and apply OSV filtering.
-/// The disposable cache namespace for an uplink's `/~<uplink>/` route, keyed by
-/// the uplink and a digest of its credential so its packuments and tarballs
-/// never collide with the public mirror or another uplink, and so a credential
-/// rotation moves to a fresh namespace. The `(uplink, credential)` is HMAC'd
-/// with the server secret, so the on-disk path leaks neither, and a path-unsafe
-/// uplink name can't escape the cache root (the digest is hex).
-fn uplink_cache_namespace(state: &AppState, uplink: &str) -> String {
-    let authorization = state
+/// The disposable cache namespace for an upstream registry's `/~<name>/` route —
+/// the entry precomputed in [`AppInner::upstream_cache_namespaces`], falling back
+/// to a fresh computation only for a name outside [`Config::upstreams`] (which
+/// the registry dispatch never produces).
+fn upstream_cache_namespace(state: &AppState, upstream: &str) -> String {
+    state
         .inner
-        .config
-        .uplinks
-        .get(uplink)
-        .and_then(|uplink| uplink.headers.get(reqwest::header::AUTHORIZATION))
-        .and_then(|value| value.to_str().ok())
-        .unwrap_or_default();
-    let digest = crate::route::uplink_cache_digest(
-        uplink,
-        crate::route::credential_digest(authorization),
-        &state.inner.config.resolution_cache_secret,
-    );
-    format!("~uplinks/{digest}")
+        .upstream_cache_namespaces
+        .get(upstream)
+        .cloned()
+        .unwrap_or_else(|| compute_upstream_cache_namespace(&state.inner.config, upstream))
 }
 
-/// Load an uplink route's packument: a fresh per-uplink cache entry when one
-/// exists, otherwise a fetch through the uplink (with its server-side
-/// credential) written back to the same private namespace. An uplink with
-/// `cache: false` neither reads nor writes the private cache — it streams the
-/// packument through every time, like the public path's `cache: false` knob.
-async fn load_uplink_packument(
+/// Compute an upstream registry's disposable cache namespace, so its packuments
+/// and tarballs never collide with another registry's.
+///
+/// Both shapes fold in the registry's upstream **URL**: the cache is a mirror of
+/// one declared origin, so repointing a registry's `url:` moves to a fresh
+/// namespace and bytes fetched from the previous origin can never answer for
+/// the new one. The cache-first warm tarball path depends on this — it serves
+/// a cached entry without re-binding it against the current packument.
+///
+/// A **private** registry — any that declares `access:` (so it is not `public`; the
+/// config loader forbids a public registry from carrying any credential) — is
+/// namespaced by an HMAC over `(registry, url, credential)` keyed with
+/// the server secret: the on-disk path leaks neither the registry name nor the
+/// credential, and a credential rotation moves to a fresh namespace. Keying on
+/// the declared visibility rather than on the presence of an `Authorization`
+/// header keeps a registry whose credential rides a *custom* header (or which
+/// gates access without an upstream credential) out of the guessable public
+/// namespace. A **public** registry has nothing private to protect and its content
+/// is integrity-verified, so it uses a *stable* namespace
+/// (`~public/<digest-of-registry-name-and-url>`) that is shared across process
+/// restarts.
+fn compute_upstream_cache_namespace(config: &Config, upstream: &str) -> String {
+    let url =
+        config.upstreams.get(upstream).map_or("", |upstream_config| upstream_config.url.as_str());
+    if let Some(upstream_config) = config.upstreams.get(upstream)
+        && upstream_config.access.is_some()
+    {
+        // The credential epoch covers the origin URL and every header the
+        // upstream attaches upstream, not just `Authorization`, so repointing
+        // the URL or rotating a credential carried in a custom header moves
+        // the private cache to a fresh namespace. The NUL separator keeps
+        // `(url, headers)` pairs unambiguous — a URL cannot contain NUL.
+        let epoch = crate::route::credential_digest(&format!(
+            "{url}\0{}",
+            crate::route::headers_credential_digest(&upstream_config.headers),
+        ));
+        let digest =
+            crate::route::upstream_cache_digest(upstream, epoch, &config.resolution_cache_secret);
+        return format!("~upstreams/{digest}");
+    }
+    // Public registry: a stable, secret-free namespace keyed by the registry name
+    // and its origin URL (hashed so a path-unsafe value can't escape the
+    // cache root).
+    format!("~public/{}", crate::route::credential_digest(&format!("{upstream}\0{url}")))
+}
+
+/// Await `fut`, emitting its duration as a `pnpr::serve_timing` debug event
+/// (`phase`, `package`, `elapsed_us`).
+///
+/// Enabling that target — `RUST_LOG=pnpr::serve_timing=debug`, or a pnpr `log:`
+/// level of `debug`/`trace` — turns the upstream serve paths into a per-request
+/// profile of where time goes: the upstream packument/tarball fetch vs the
+/// on-disk cache read. Meant both for ad-hoc perf diagnosis (e.g. cold-store
+/// regressions) and as a server-side datapoint the integrated benchmark can
+/// scrape from the mock's log as a new testbed measurement, alongside its
+/// client-side phase events. Near zero-cost when the target is disabled: the
+/// only always-on work is one `Instant::now()`; the field values (including
+/// `elapsed`) are computed only when the event is enabled.
+async fn timed<Fut: Future>(phase: &'static str, package: &str, fut: Fut) -> Fut::Output {
+    let start = std::time::Instant::now();
+    let out = fut.await;
+    tracing::debug!(
+        target: "pnpr::serve_timing",
+        phase,
+        package,
+        elapsed_us = start.elapsed().as_micros() as u64,
+    );
+    out
+}
+
+/// Load an upstream route's packument: a fresh per-registry cache entry when one
+/// exists, otherwise a fetch through the registry (with its server-side credential)
+/// written back to the same namespace. A registry with `cache: false` neither reads
+/// nor writes the cache — it streams everything through, refetching each time.
+async fn load_upstream_packument(
     state: &AppState,
     namespace: &str,
     upstream: &Upstream,
@@ -937,63 +1474,180 @@ async fn load_uplink_packument(
     ttl: Duration,
 ) -> Result<Option<Vec<u8>>, RegistryError> {
     if upstream.caches()
-        && let Some(bytes) = state.inner.storage.read_uplink_packument(namespace, name, ttl).await?
+        && let Some(bytes) = timed(
+            "packument:cache_read",
+            name.as_str(),
+            state.inner.storage.read_upstream_packument(namespace, name, ttl),
+        )
+        .await?
     {
         return Ok(Some(bytes));
     }
-    match upstream.fetch_packument(name, &CacheValidators::default()).await? {
+    let fetched = match timed(
+        "packument:upstream_fetch",
+        name.as_str(),
+        upstream.fetch_packument(name, &CacheValidators::default()),
+    )
+    .await
+    {
+        Ok(fetched) => fetched,
+        // Stale-if-error: a stale entry is refetched, but if the upstream is
+        // unreachable, serve the last cached body for this same origin rather
+        // than failing. This preserves availability during a transient outage
+        // and is not a cross-origin fall-through — the bytes came from this very
+        // registry. A clean `NotFound` is an `Ok` variant below, so it never lands
+        // here and stays an authoritative 404.
+        Err(err) => {
+            // Only mask a *transient* availability failure (transport, 5xx, open
+            // circuit). A 4xx is authoritative about this request — auth revoked,
+            // `410 Gone`, throttled — and must surface rather than be answered
+            // from old bytes.
+            if err.is_transient_upstream_error()
+                && upstream.caches()
+                && let Some(bytes) =
+                    state.inner.storage.read_upstream_packument_any(namespace, name).await?
+            {
+                // `log_message()` (not `?err`): an upstream error embeds the
+                // request URL, which can carry credentials (basic-auth userinfo,
+                // a token query param). Log the credential-redacted rendering.
+                tracing::warn!(
+                    error = %err.log_message(),
+                    package = %name.as_str(),
+                    "upstream packument refetch failed; serving stale cache",
+                );
+                return Ok(Some(bytes));
+            }
+            return Err(err);
+        }
+    };
+    match fetched {
         PackumentFetch::Modified(fetched) => {
             if upstream.caches()
                 && let Err(err) = state
                     .inner
                     .storage
-                    .write_uplink_packument(namespace, name, &fetched.bytes)
+                    .write_upstream_packument(namespace, name, &fetched.bytes)
                     .await
             {
-                tracing::warn!(?err, package = %name.as_str(), "uplink packument cache write failed");
+                tracing::warn!(?err, package = %name.as_str(), "upstream packument cache write failed");
             }
             Ok(Some(fetched.bytes))
         }
-        PackumentFetch::NotFound => Ok(None),
-        // `load_uplink_packument` sends no conditional validators (the uplink
+        PackumentFetch::NotFound => {
+            // The 404 is authoritative: the package is gone from this origin,
+            // so drop its cached entry too. Otherwise the stale copy would
+            // outlive every TTL and a later transient outage could resurrect
+            // the unpublished package through the stale-if-error fallback.
+            if upstream.caches()
+                && let Err(err) = state.inner.storage.remove_upstream_package(namespace, name).await
+            {
+                tracing::warn!(
+                    ?err,
+                    package = %name.as_str(),
+                    "failed to purge cached entry after an upstream 404",
+                );
+            }
+            Ok(None)
+        }
+        // `load_upstream_packument` sends no conditional validators (the upstream
         // cache refetches stale entries rather than revalidating — see
-        // `Store::read_uplink_packument`), so a well-behaved upstream never
+        // `Store::read_upstream_packument`), so a well-behaved upstream never
         // answers 304 here. If one does anyway, "not modified" means the cached
         // body is current, so serve it (fresh or stale) rather than a spurious
         // 404 that a client could cache as "package gone".
         PackumentFetch::NotModified => {
-            state.inner.storage.read_uplink_packument_any(namespace, name).await
+            state.inner.storage.read_upstream_packument_any(namespace, name).await
         }
     }
 }
 
-async fn serve_packument_via_uplink(
+/// Authorize and load an upstream registry's packument bytes (from its per-registry
+/// private cache, else a fresh fetch through the registry), or a [`Response`]
+/// error the caller should return. Shared by the packument and version-manifest
+/// serving paths.
+async fn load_upstream_packument_for(
+    state: &AppState,
+    identity: &Identity,
+    upstream: &str,
+    name: &PackageName,
+) -> Result<Option<Vec<u8>>, Box<Response>> {
+    let namespace = upstream_cache_namespace(state, upstream);
+    let upstream = authorized_upstream(state, identity, upstream)?;
+    let ttl = upstream.maxage().unwrap_or(state.inner.config.packument_ttl);
+    load_upstream_packument(state, &namespace, upstream, name, ttl)
+        .await
+        .map_err(|err| Box::new(error_response(&err)))
+}
+
+/// Load a package's packument bytes through the addressed `/~<name>/` (or,
+/// path-less, the default-target registry) — resolving to one concrete origin and
+/// reading there, with no fall-through. `Ok(None)` is a definitive not-found
+/// (unknown package, no route, no default target, or an unauthorized private
+/// hosted org). Used by the readers that aren't
+/// packument/tarball/version-manifest (e.g. `dist-tags`).
+async fn load_packument_for_read(
+    state: &AppState,
+    identity: &Identity,
+    registry: Option<&str>,
+    name: &PackageName,
+) -> Result<Option<Vec<u8>>, Box<Response>> {
+    let target = match registry {
+        Some(registry) => registry.to_string(),
+        None => match default_registry_target(state) {
+            Some(target) => target,
+            None => return Ok(None),
+        },
+    };
+    // The resolved registry's per-package rules apply to every served read,
+    // upstream or hosted — otherwise a restricted package would leak (e.g.
+    // its dist-tags) through these path-less readers. A hosted denial is a
+    // not-found mask rather than a 401/403 that reveals existence (see
+    // `serve_registry_packument`).
+    let resolved_source = resolve_registry_source(state, &target, name.as_str());
+    match &resolved_source {
+        RegistrySource::Upstream(source) => {
+            if let Err(err) =
+                authorize(state, identity, &resolved_source, name.as_str(), Action::Access)
+            {
+                return Err(Box::new(error_response(&err)));
+            }
+            load_upstream_packument_for(state, identity, source, name).await
+        }
+        RegistrySource::Hosted(source) => {
+            let org = match hosted_gate(state, identity, source, name.as_str()) {
+                HostedGate::Allowed(org) => org,
+                HostedGate::MaskNotFound => return Ok(None),
+                HostedGate::Denied(err) => return Err(Box::new(error_response(&err))),
+            };
+            state
+                .inner
+                .storage
+                .for_hosted(&org)
+                .read_hosted_packument(name)
+                .await
+                .map_err(|err| Box::new(error_response(&err)))
+        }
+        RegistrySource::Unclaimed | RegistrySource::NotFound => Ok(None),
+    }
+}
+
+async fn serve_packument_via_upstream(
     state: &AppState,
     identity: &Identity,
     headers: &HeaderMap,
-    uplink: &str,
-    raw_name: &str,
+    upstream: &str,
+    name: &PackageName,
+    tarball_base: &str,
 ) -> Response {
-    let name = match PackageName::parse(raw_name) {
-        Ok(n) => n,
-        Err(err) => return error_response(&err),
-    };
-    let upstream = match authorized_uplink(state, identity, uplink) {
-        Ok(upstream) => upstream,
-        Err(response) => return *response,
-    };
-    let namespace = uplink_cache_namespace(state, uplink);
-    let ttl = upstream.maxage().unwrap_or(state.inner.config.packument_ttl);
-    let bytes = match load_uplink_packument(state, &namespace, upstream, &name, ttl).await {
+    let bytes = match load_upstream_packument_for(state, identity, upstream, name).await {
         Ok(Some(bytes)) => bytes,
         Ok(None) => return not_found(),
-        Err(err) => return error_response(&err),
+        Err(response) => return *response,
     };
-    let base = uplink_tarball_base(&state.inner.config.public_url, uplink);
     match packument_response(
-        &name,
+        name,
         &bytes,
-        &base,
+        tarball_base,
         state.inner.osv_index.as_ref(),
         wants_abbreviated(headers),
     ) {
@@ -1002,16 +1656,16 @@ async fn serve_packument_via_uplink(
     }
 }
 
-/// Serve a tarball through an uplink's `/~<uplink>/` endpoint. The version's
-/// `dist.integrity` is read from the uplink's own packument (served from the
+/// Serve a tarball through an upstream's `/~<name>/` endpoint. The version's
+/// `dist.integrity` is read from the upstream's own packument (served from the
 /// private cache when fresh), and the bytes are verified against it. Both the
-/// packument and the verified tarball are cached under the uplink's private
-/// namespace, so a private uplink's content never lands in the shared proxy
+/// packument and the verified tarball are cached under the upstream's private
+/// namespace, so a private upstream's content never lands in the shared proxy
 /// mirror yet is not re-fetched on every request.
-async fn serve_tarball_via_uplink(
+async fn serve_tarball_via_upstream(
     state: &AppState,
     identity: &Identity,
-    uplink: &str,
+    upstream: &str,
     raw_name: &str,
     filename: &str,
 ) -> Response {
@@ -1019,20 +1673,67 @@ async fn serve_tarball_via_uplink(
         Ok(n) => n,
         Err(err) => return error_response(&err),
     };
-    let (filename, name_version) = match name.parse_tarball_name(filename) {
-        Ok(parsed) => parsed,
-        Err(err) => return error_response(&err),
+    // A canonical `<basename>-<version>.tgz` (or the scoped wire form) is
+    // normalized as usual. A non-canonical basename preserved verbatim from
+    // the upstream's `dist.tarball` (see `rewrite_tarball_urls`) is accepted
+    // opaquely so long as it is safe as a cache path segment — the packument
+    // match below is what authorizes it, binding it to a declared version
+    // and integrity. Rejecting it here would make such a version
+    // un-fetchable through the very URL this server advertised.
+    let (filename, parsed_version) = match name.parse_tarball_name(filename) {
+        Ok((canonical, version)) => (canonical, Some(version)),
+        Err(err) => {
+            if !crate::package_name::is_safe_path_segment(filename) {
+                return error_response(&err);
+            }
+            (filename.to_string(), None)
+        }
     };
-    let upstream = match authorized_uplink(state, identity, uplink) {
+    let namespace = upstream_cache_namespace(state, upstream);
+    let upstream = match authorized_upstream(state, identity, upstream) {
         Ok(upstream) => upstream,
         Err(response) => return *response,
     };
-    if let Err(err) = ensure_osv_allowed(state, &name, &name_version) {
+    // Pre-check OSV on the filename-derived version (when the name is
+    // canonical) to fail fast; the authoritative check against the
+    // packument-resolved version runs below either way.
+    if let Some(version) = &parsed_version
+        && let Err(err) = ensure_osv_allowed(state, &name, version)
+    {
         return error_response(&err);
     }
-    let namespace = uplink_cache_namespace(state, uplink);
     let ttl = upstream.maxage().unwrap_or(state.inner.config.packument_ttl);
-    let packument = match load_uplink_packument(state, &namespace, upstream, &name, ttl).await {
+    // Serve a cached hit before touching the packument: a cached entry was
+    // bound to a declared version and verified against `dist.integrity` when
+    // it was written, and the client re-verifies what it receives, so no
+    // re-bind or re-hash is needed. The packument load — and the full-document
+    // JSON parse in `expected_tarball_dist` — costs milliseconds per request
+    // for a large package and would dominate warm tarball serving.
+    //
+    // Deliberately, a hit is NOT re-bound against the packument as it stands
+    // *now*: a version unpublished since the write stays downloadable from
+    // this disposable mirror until the entry is wiped (registry-CDN
+    // semantics; resolution already stops offering it once the refreshed
+    // packument drops it), and a hostile packument rewrite — say, duplicate
+    // `dist.tarball` basenames — cannot retroactively poison bytes that were
+    // verified on the way in. The fail-closed bind below protects the *fetch*
+    // of new bytes; end-to-end SRI (the client's lockfile) is the authority
+    // on what it accepts. Only OSV screening needs the packument-resolved
+    // version first, so with OSV enabled the cache read waits for the bind
+    // below. A `cache: false` upstream skips the cache and streams through.
+    if upstream.caches()
+        && state.inner.osv_index.is_none()
+        && let Some(response) = cached_upstream_tarball(state, &namespace, &name, &filename).await
+    {
+        return response;
+    }
+    let packument = match timed(
+        "tarball:packument_load",
+        name.as_str(),
+        load_upstream_packument(state, &namespace, upstream, &name, ttl),
+    )
+    .await
+    {
         Ok(Some(bytes)) => bytes,
         Ok(None) => return not_found(),
         Err(err) => return error_response(&err),
@@ -1043,41 +1744,37 @@ async fn serve_tarball_via_uplink(
             Ok(None) => return not_found(),
             Err(err) => return error_response(&err),
         };
-    if version != name_version
+    if parsed_version.as_deref() != Some(version.as_str())
         && let Err(err) = ensure_osv_allowed(state, &name, &version)
     {
         return error_response(&err);
     }
-
-    // Serve a cached private-mirror hit directly: the bytes were verified
-    // against `dist.integrity` when written and the client re-verifies what it
-    // receives, so no re-hash is needed — the same trust model the public proxy
-    // path uses. A `cache: false` uplink skips the cache and streams through.
-    if upstream.caches() {
-        match state.inner.storage.open_uplink_tarball(&namespace, &name, &filename).await {
-            Ok(Some((file, len))) => {
-                return tarball_response(streaming::stream_file(file), Some(len));
-            }
-            Ok(None) => {}
-            Err(err) => {
-                tracing::warn!(?err, package = %name.as_str(), %filename, "uplink tarball cache open failed");
-            }
-        }
+    if upstream.caches()
+        && state.inner.osv_index.is_some()
+        && let Some(response) = cached_upstream_tarball(state, &namespace, &name, &filename).await
+    {
+        return response;
     }
 
-    let response = match upstream.fetch_tarball_response(&name, &filename).await {
+    let response = match timed(
+        "tarball:upstream_fetch",
+        name.as_str(),
+        upstream.fetch_tarball_response(&name, &filename),
+    )
+    .await
+    {
         Ok(FetchOutcome::Ok(response)) => response,
         Ok(FetchOutcome::NotFound) => return not_found(),
         Err(err) => return error_response(&err),
     };
     let write =
-        match state.inner.storage.open_uplink_tarball_tmp(&namespace, &name, &filename).await {
+        match state.inner.storage.open_upstream_tarball_tmp(&namespace, &name, &filename).await {
             Ok(write) => write,
             Err(err) => return error_response(&err),
         };
     if !upstream.caches() {
         // Fetch-through: verify and stream from the temp file, then remove it,
-        // so a `cache: false` uplink's tarball is never persisted.
+        // so a `cache: false` upstream's tarball is never persisted.
         return match streaming::download_verified_to_temp(
             response,
             write,
@@ -1103,9 +1800,188 @@ async fn serve_tarball_via_uplink(
     }
 }
 
-async fn serve_tarball(
+/// The response for a cached upstream tarball, or `None` on a cache miss. A
+/// cache-open fault is logged and treated as a miss so the caller falls back
+/// to the upstream fetch rather than failing the request.
+async fn cached_upstream_tarball(
+    state: &AppState,
+    namespace: &str,
+    name: &PackageName,
+    filename: &str,
+) -> Option<Response> {
+    match timed(
+        "tarball:cache_read",
+        name.as_str(),
+        state.inner.storage.open_upstream_tarball(namespace, name, filename),
+    )
+    .await
+    {
+        Ok(Some((file, len))) => Some(tarball_response(streaming::stream_file(file), Some(len))),
+        Ok(None) => None,
+        Err(err) => {
+            tracing::warn!(?err, package = %name.as_str(), %filename, "upstream tarball cache open failed");
+            None
+        }
+    }
+}
+
+// --------------------------------------------------------------------
+// Registry dispatch. A `/~<name>/` request resolves the package to
+// exactly one concrete origin through the validated registry graph
+// ([`crate::registry`]) and serves it there — authoritatively. Every concrete
+// registry's declared `patterns:` are enforced here, before storage or any
+// upstream is consulted, on the direct address and through a router alike; a
+// router selects the first source whose patterns claim the name. An unclaimed
+// name is a definitive 404 (never a fall-through to another origin), and a
+// selected-but-unavailable upstream surfaces an *error* rather than a 404
+// (the via-upstream path returns `UpstreamUnavailable`), so a down private
+// source can never be reported as "not found" and pushed onto a public origin
+// one layer out.
+// --------------------------------------------------------------------
+
+/// The concrete origin a `/~<name>/` request resolved to, owned so it can be
+/// held across an `await` without borrowing the config.
+enum RegistrySource {
+    /// An upstream registry (public or private), served via its `/~<source>/`
+    /// upstream machinery. The id is a key in [`Config::upstreams`].
+    Upstream(String),
+    /// A hosted registry, served from the hosted store.
+    Hosted(String),
+    /// No declared namespace claims the package — the addressed registry's
+    /// patterns don't cover it, or none of a router's sources claim it. A
+    /// definitive 404 on reads; writes reject it with a reason instead, so a
+    /// typo'd scope fails loudly rather than 404-ing later.
+    Unclaimed,
+    /// The registry id is unknown — a definitive not-found with no fall-through.
+    NotFound,
+}
+
+/// The registry the path-less base (`https://<pnpr>/`) aliases, owned so it can be
+/// held across an `await`. `None` disables the path-less base entirely — the
+/// bare host has no registry and every request is a not-found, so clients must
+/// address a `/~<name>/`. There is no legacy hosted-then-proxy path: a
+/// path-less request resolves through the registry graph or it does not resolve.
+fn default_registry_target(state: &AppState) -> Option<String> {
+    state.inner.config.registries.default_registry().map(str::to_string)
+}
+
+fn resolve_registry_source(state: &AppState, registry: &str, package: &str) -> RegistrySource {
+    match state.inner.config.registries.resolve(registry, package) {
+        Resolved::Concrete { registry, kind: ConcreteKind::Upstream } => {
+            RegistrySource::Upstream(registry.to_string())
+        }
+        Resolved::Concrete { registry, kind: ConcreteKind::Hosted } => {
+            RegistrySource::Hosted(registry.to_string())
+        }
+        // An unclaimed name is definitive — never a fall-through to another
+        // origin, and never a storage or upstream consultation.
+        Resolved::Unclaimed => RegistrySource::Unclaimed,
+        // The graph is the only dispatch table: server construction folds
+        // every configured upstream into it (`ensure_valid_registry_graph`), so
+        // a name it doesn't know is a definitive not-found — there is no
+        // upstream-table side door that would skip namespace enforcement.
+        Resolved::UnknownRegistry => RegistrySource::NotFound,
+    }
+}
+
+/// Whether the concrete origin `package` resolves to through `registry` serves
+/// caller-gated content: a hosted registry whose access list denies anonymous
+/// callers, or an upstream registry that declares `access:`. Responses from such
+/// an origin vary by `Authorization` and must never land in a shared HTTP
+/// cache, whichever URL surface (path-less or `/~<name>/`) served them.
+fn resolves_to_private_source(state: &AppState, registry: &str, package: &str) -> bool {
+    match resolve_registry_source(state, registry, package) {
+        RegistrySource::Hosted(source) => {
+            state.inner.config.hosted.get(&source).is_some_and(|hosted| {
+                !hosted.rules.for_package(package).access.allows(&Identity::Anonymous)
+            })
+        }
+        // A private upstream (registry-level `access:`) is caller-gated for
+        // *every* name — unlike a hosted registry, its registry-level gate is
+        // enforced independently at serving (`authorized_upstream` runs
+        // before per-package rules on every upstream read), so a per-package
+        // `access: $all` entry cannot open a name on it and `access.is_some()`
+        // alone already means the response varies by caller. A public
+        // upstream can still gate individual names through a per-package
+        // `access` rule.
+        RegistrySource::Upstream(source) => {
+            state.inner.config.upstreams.get(&source).is_some_and(|upstream| {
+                upstream.access.is_some()
+                    || !upstream.rules.for_package(package).access.allows(&Identity::Anonymous)
+            })
+        }
+        RegistrySource::Unclaimed | RegistrySource::NotFound => false,
+    }
+}
+
+/// Apply the private-cache headers to a path-less response whenever it can
+/// vary by caller — the default-target resolution for `package` lands on a
+/// source whose effective per-package access denies anonymous callers (so the
+/// same URL answers differently depending on `Authorization`, even through a
+/// public registry). These are the same headers the `/~<name>/` surface applies
+/// unconditionally, so the two URL surfaces for the same content get the same
+/// defense against a shared HTTP cache replaying an authenticated response to
+/// an anonymous caller. A publicly-readable resolution stays cacheable: the
+/// path-less base is the hot install path.
+fn private_if_caller_gated(state: &AppState, package: &str, response: Response) -> Response {
+    match default_registry_target(state) {
+        Some(target) if resolves_to_private_source(state, &target, package) => {
+            private_no_cache(response)
+        }
+        _ => response,
+    }
+}
+
+/// Serve a packument addressed to `/~<name>/<pkg>` through the registry graph.
+async fn serve_registry_packument(
     state: &AppState,
     identity: &Identity,
+    headers: &HeaderMap,
+    registry: &str,
+    raw_name: &str,
+    tarball_base: &str,
+) -> Response {
+    let name = match PackageName::parse(raw_name) {
+        Ok(n) => n,
+        Err(err) => return error_response(&err),
+    };
+    // `tarball_base` is the URL the *client* addressed (the path-less host or a
+    // `/~<name>/`), not the resolved source's `/~<source>/`. The served
+    // packument's `dist.tarball` URLs must stay canonical for that base so a
+    // client's lockfile drops them — persisting the resolved source path would
+    // bake the registry name in and break lockfile portability.
+    let resolved_source = resolve_registry_source(state, registry, name.as_str());
+    match &resolved_source {
+        RegistrySource::Upstream(source) => {
+            // The upstream registry's per-package rules gate every served
+            // read, so an access-gated name can't be read even through a
+            // public upstream. Checked before serving so the decision
+            // precedes any existence-revealing signal like an OSV 403.
+            if let Err(err) =
+                authorize(state, identity, &resolved_source, name.as_str(), Action::Access)
+            {
+                return error_response(&err);
+            }
+            serve_packument_via_upstream(state, identity, headers, source, &name, tarball_base)
+                .await
+        }
+        // A hosted denial answers per its gate tier (see `hosted_gate`): a
+        // registry-default denial is a not-found mask, an explicit
+        // `packages:` entry denies loudly so clients can prompt for auth.
+        RegistrySource::Hosted(source) => {
+            serve_hosted_packument(state, identity, headers, source, &name, tarball_base).await
+        }
+        RegistrySource::Unclaimed | RegistrySource::NotFound => not_found(),
+    }
+}
+
+/// Serve a tarball addressed to `/~<name>/<pkg>/-/<file>` through the registry
+/// graph. Routing is deterministic by package name, so the tarball resolves to
+/// the same concrete source the packument did.
+async fn serve_registry_tarball(
+    state: &AppState,
+    identity: &Identity,
+    registry: &str,
     raw_name: &str,
     filename: &str,
 ) -> Response {
@@ -1113,113 +1989,165 @@ async fn serve_tarball(
         Ok(n) => n,
         Err(err) => return error_response(&err),
     };
-    // `name_version` is the version segment carried by the filename. It is
-    // canonical for hosted tarballs (the publish handler enforces it) and a
-    // best-effort screen here; the authoritative version a proxied tarball
-    // resolves to is the `version` matched below, which may differ for a
-    // non-canonical upstream tarball name.
+    let resolved_source = resolve_registry_source(state, registry, name.as_str());
+    match &resolved_source {
+        RegistrySource::Upstream(source) => {
+            // Per-package rules before serving — see `serve_registry_packument`.
+            if let Err(err) =
+                authorize(state, identity, &resolved_source, name.as_str(), Action::Access)
+            {
+                return error_response(&err);
+            }
+            serve_tarball_via_upstream(state, identity, source, name.as_str(), filename).await
+        }
+        // A hosted denial is a not-found mask, inside `serve_hosted_tarball`
+        // — see `serve_registry_packument`.
+        RegistrySource::Hosted(source) => {
+            serve_hosted_tarball(state, identity, source, &name, filename).await
+        }
+        RegistrySource::Unclaimed | RegistrySource::NotFound => not_found(),
+    }
+}
+
+/// How a hosted registry answers a read of `package` for `identity`:
+/// admitted with the storage namespace to read from, or denied one of two
+/// ways. The two denial shapes preserve the two authorization tiers the
+/// merged `packages:` map folds together: an **explicit** entry's `access`
+/// is declared, discoverable config — deny loudly (401/403, so a client can
+/// prompt for credentials, the registry-mock `needs-auth` contract) — while
+/// the registry-level **default** masks as not-found, so a blanket-private
+/// registry never reveals which names exist.
+enum HostedGate {
+    Allowed(String),
+    /// The registry default denies the caller: indistinguishable from an
+    /// absent package.
+    MaskNotFound,
+    /// An explicit `packages:` entry denies the caller: 401 for an
+    /// anonymous caller (authenticate and retry), 403 for an authenticated
+    /// one outside the allowed set.
+    Denied(RegistryError),
+}
+
+/// Evaluate the hosted read gate: the effective per-package `access` (most
+/// specific `packages:` entry, falling back to the registry-level default)
+/// gates reads and the write routing alike — a caller who may not read a
+/// hosted package may not publish, tag, or unpublish it either.
+fn hosted_gate(state: &AppState, identity: &Identity, source: &str, package: &str) -> HostedGate {
+    let Some(hosted) = state.inner.config.hosted.get(source) else {
+        return HostedGate::MaskNotFound;
+    };
+    let effective = hosted.rules.for_package(package);
+    if effective.access.allows(identity) {
+        return HostedGate::Allowed(hosted.org.clone());
+    }
+    // Loud denial only inside a registry the caller may see: the explicit
+    // entry gates this name, but the registry-level default admits the
+    // caller to the registry itself. When the default denies them too, the
+    // mask below wins — an explicit rule on a blanket-private registry must
+    // not become an existence probe.
+    if effective.access_is_explicit && hosted.rules.default_access().allows(identity) {
+        return HostedGate::Denied(match identity {
+            Identity::Anonymous => {
+                RegistryError::Unauthenticated { resource: format!("package {package:?}") }
+            }
+            Identity::User { username, .. } => RegistryError::Forbidden {
+                user: username.clone(),
+                action: "access",
+                resource: format!("package {package:?}"),
+            },
+        });
+    }
+    HostedGate::MaskNotFound
+}
+
+/// [`hosted_gate`] flattened to a `Result` for the readers: the org to read
+/// from, or the response to answer with.
+fn hosted_read_namespace(
+    state: &AppState,
+    identity: &Identity,
+    source: &str,
+    package: &str,
+) -> Result<String, Box<Response>> {
+    match hosted_gate(state, identity, source, package) {
+        HostedGate::Allowed(org) => Ok(org),
+        HostedGate::MaskNotFound => Err(Box::new(not_found())),
+        HostedGate::Denied(err) => Err(Box::new(error_response(&err))),
+    }
+}
+
+async fn serve_hosted_packument(
+    state: &AppState,
+    identity: &Identity,
+    headers: &HeaderMap,
+    source: &str,
+    name: &PackageName,
+    tarball_base: &str,
+) -> Response {
+    let org = match hosted_read_namespace(state, identity, source, name.as_str()) {
+        Ok(org) => org,
+        Err(response) => return *response,
+    };
+    // A hosted org has no upstream fallback: a package it does not host is a
+    // definitive not-found. Reads come from the org's own storage namespace.
+    match state.inner.storage.for_hosted(&org).read_hosted_packument(name).await {
+        Ok(Some(bytes)) => match packument_response(
+            name,
+            &bytes,
+            tarball_base,
+            state.inner.osv_index.as_ref(),
+            wants_abbreviated(headers),
+        ) {
+            Ok(response) => response,
+            Err(err) => error_response(&err),
+        },
+        Ok(None) => not_found(),
+        Err(err) => error_response(&err),
+    }
+}
+
+async fn serve_hosted_tarball(
+    state: &AppState,
+    identity: &Identity,
+    source: &str,
+    name: &PackageName,
+    filename: &str,
+) -> Response {
+    let org = match hosted_read_namespace(state, identity, source, name.as_str()) {
+        Ok(org) => org,
+        Err(response) => return *response,
+    };
     let (filename, name_version) = match name.parse_tarball_name(filename) {
         Ok(parsed) => parsed,
         Err(err) => return error_response(&err),
     };
-    if let Err(err) = authorize(state, identity, name.as_str(), Action::Access) {
+    if let Err(err) = ensure_osv_allowed(state, name, &name_version) {
         return error_response(&err);
     }
-    if let Err(err) = ensure_osv_allowed(state, &name, &name_version) {
-        return error_response(&err);
-    }
-
-    // The hosted store is authoritative. A genuine fault here (not a
-    // plain miss, which surfaces as `Ok(None)`) must fail closed rather
-    // than fall through to upstream and serve bytes of a different
-    // provenance for the same package name.
-    match state.inner.storage.open_hosted_tarball(&name, &filename).await {
-        Ok(Some((body, len))) => return tarball_response(body, len),
-        Ok(None) => {}
+    match state.inner.storage.for_hosted(&org).open_hosted_tarball(name, &filename).await {
+        Ok(Some((body, len))) => tarball_response(body, len),
+        Ok(None) => not_found(),
         Err(err) => {
             tracing::warn!(?err, package = %name.as_str(), %filename, "hosted tarball open failed");
-            return error_response(&err);
+            error_response(&err)
         }
     }
+}
 
-    let upstreams = resolve_upstreams(state, &name);
-
-    // A cached tarball is verified against `dist.integrity` on the way in
-    // (`stream_verified_to_cache`) and re-verified by the client on receipt,
-    // so a hit can be served without re-hashing.
-    let resolved_dist =
-        match screen_cached_tarball_osv(state, &name, &filename, &name_version).await {
-            Ok(dist) => dist,
-            Err(response) => return response,
-        };
-
-    // Read the cache if any uplink in the chain mirrors tarballs (or there's
-    // no upstream left at all — a leftover mirror).
-    let should_read_cache = upstreams.is_empty() || upstreams.iter().any(|u| u.caches());
-    if should_read_cache {
-        match state.inner.storage.open_cached_tarball(&name, &filename).await {
-            Ok(Some((file, len))) => {
-                return tarball_response(streaming::stream_file(file), Some(len));
-            }
-            Ok(None) => {}
-            Err(err) => {
-                tracing::warn!(?err, package = %name.as_str(), %filename, "tarball cache open failed");
-            }
+async fn serve_tarball(
+    state: &AppState,
+    identity: &Identity,
+    raw_name: &str,
+    filename: &str,
+) -> Response {
+    // The path-less base is an alias for the default-target registry — see
+    // `serve_packument`. With no default target the bare host has no registry.
+    match default_registry_target(state) {
+        Some(target) => {
+            let response =
+                serve_registry_tarball(state, identity, &target, raw_name, filename).await;
+            private_if_caller_gated(state, raw_name, response)
         }
-    }
-
-    if upstreams.is_empty() {
-        return not_found();
-    }
-
-    // Cache miss: the download must be verified against `dist.integrity` before
-    // caching — reuse the dist the OSV screen resolved, or resolve it now.
-    let integrity = match resolved_dist {
-        Some(dist) => dist.integrity,
-        None => match resolve_tarball_dist_and_screen(state, &name, &filename, &name_version).await
-        {
-            Ok(dist) => dist.integrity,
-            Err(response) => return response,
-        },
-    };
-
-    // Walk the uplink fallback chain in declared order: the first uplink to
-    // return the tarball wins; a `NotFound` falls through to the next; a
-    // transport error is remembered and the next uplink tried. Integrity is
-    // enforced on the streamed bytes below regardless of which uplink served
-    // them, so trying several is safe.
-    let (upstream, response) = match fetch_tarball_with_fallback(&upstreams, &name, &filename).await
-    {
-        TarballFetch::Ok(upstream, response) => (upstream, response),
-        TarballFetch::NotFound => return not_found(),
-        TarballFetch::Err(err) => return error_response(&err),
-    };
-
-    let write = match state.inner.storage.open_cached_tarball_tmp(&name, &filename).await {
-        Ok(w) => w,
-        Err(err) => return error_response(&err),
-    };
-
-    if upstream.caches() {
-        // Stream the download to the client (see `stream_verified_to_cache`)
-        // rather than buffering the whole tarball at the server to verify it
-        // first, so the upstream fetch and the client transfer overlap. No
-        // `Content-Length` is set: the upstream's is attacker-controlled and
-        // unverifiable before streaming, so the body is chunked and the client
-        // reads to EOF (then re-verifies the integrity).
-        match streaming::stream_verified_to_cache(response, write, &integrity, MAX_TARBALL_BYTES) {
-            Ok(body) => tarball_response(body, None),
-            Err(err) => error_response(&tarball_stream_error(err, &name, &filename)),
-        }
-    } else {
-        match streaming::download_verified_to_temp(response, write, &integrity, MAX_TARBALL_BYTES)
-            .await
-        {
-            Ok((file, len, tmp_path)) => {
-                tarball_response(streaming::stream_file_and_remove(file, tmp_path), Some(len))
-            }
-            Err(err) => error_response(&tarball_stream_error(err, &name, &filename)),
-        }
+        None => not_found(),
     }
 }
 
@@ -1233,52 +2161,32 @@ struct TarballDist {
     integrity: Integrity,
 }
 
-/// OSV-screen a tarball's resolved version before its cached bytes are served.
-/// Returns the resolved [`TarballDist`] (for the cache-miss path to reuse) when
-/// OSV screening is enabled, or `None` when it is disabled — where the resolved
-/// version isn't needed until a cache miss. On a blocked version or a lookup
-/// failure, returns the [`Response`] the handler should return.
-async fn screen_cached_tarball_osv(
-    state: &AppState,
-    name: &PackageName,
-    filename: &str,
-    name_version: &str,
-) -> Result<Option<TarballDist>, Response> {
-    if state.inner.osv_index.is_none() {
-        return Ok(None);
-    }
-    resolve_tarball_dist_and_screen(state, name, filename, name_version).await.map(Some)
+/// The `versions[v].dist` subset the tarball serve path reads. Every tarball
+/// request re-reads its package's packument to bind the filename to a
+/// declared version and integrity; deserializing into this projection instead
+/// of a full `serde_json::Value` skips building (and allocating) the rest of
+/// the document on that hot path.
+#[derive(serde::Deserialize)]
+struct PackumentDists {
+    #[serde(default)]
+    versions: IndexMap<String, VersionDist>,
 }
 
-/// Resolve a tarball's authoritative [`TarballDist`] from the packument and
-/// OSV-screen the resolved version when it differs from the filename-carried
-/// `name_version` (already screened by the caller). On failure, returns the
-/// [`Response`] the handler should return. Shared by [`screen_cached_tarball_osv`]
-/// and the cache-miss download path in [`serve_tarball`].
-async fn resolve_tarball_dist_and_screen(
-    state: &AppState,
-    name: &PackageName,
-    filename: &str,
-    name_version: &str,
-) -> Result<TarballDist, Response> {
-    let packument = match load_packument_bytes(state, name).await {
-        PackumentLoad::Ok(bytes) => bytes,
-        PackumentLoad::NotFound => return Err(not_found()),
-        PackumentLoad::Err(err) => return Err(error_response(&err)),
-    };
-    let dist = match expected_tarball_dist(&packument, name, filename) {
-        Ok(Some(dist)) => dist,
-        Ok(None) => return Err(not_found()),
-        Err(err) => return Err(error_response(&err)),
-    };
-    // A non-canonical tarball name slips past the filename-version screen, so
-    // this is where OSV sees the version such a tarball really belongs to.
-    if dist.version != name_version
-        && let Err(err) = ensure_osv_allowed(state, name, &dist.version)
-    {
-        return Err(error_response(&err));
-    }
-    Ok(dist)
+#[derive(serde::Deserialize)]
+struct VersionDist {
+    #[serde(default)]
+    dist: Option<DistBlock>,
+}
+
+#[derive(serde::Deserialize)]
+struct DistBlock {
+    #[serde(default)]
+    tarball: Option<String>,
+    #[serde(default)]
+    integrity: Option<String>,
+    /// Legacy hex sha1 — the only hash pre-2017 npm publishes carry.
+    #[serde(default)]
+    shasum: Option<String>,
 }
 
 fn expected_tarball_dist(
@@ -1286,19 +2194,16 @@ fn expected_tarball_dist(
     name: &PackageName,
     filename: &str,
 ) -> Result<Option<TarballDist>, RegistryError> {
-    let packument: Value = serde_json::from_slice(packument)?;
-    let Some(versions) = packument.get("versions").and_then(Value::as_object) else {
-        return Ok(None);
-    };
-    let mut matches = versions.iter().filter(|(_, manifest)| {
-        manifest
-            .get("dist")
-            .and_then(|dist| dist.get("tarball"))
-            .and_then(Value::as_str)
+    let packument: PackumentDists = serde_json::from_slice(packument)?;
+    let mut matches = packument.versions.iter().filter_map(|(version, manifest)| {
+        let dist = manifest.dist.as_ref()?;
+        dist.tarball
+            .as_deref()
             .and_then(tarball_basename)
             .is_some_and(|basename| basename == filename)
+            .then_some((version, dist))
     });
-    let Some((version, manifest)) = matches.next() else {
+    let Some((version, dist)) = matches.next() else {
         return Ok(None);
     };
     // A tarball name must identify exactly one declaring version, or the
@@ -1312,20 +2217,26 @@ fn expected_tarball_dist(
             "packument declares the same dist.tarball basename for multiple versions".to_string(),
         ));
     }
-    let declared = manifest
-        .get("dist")
-        .and_then(|dist| dist.get("integrity"))
-        .and_then(Value::as_str)
-        .ok_or_else(|| {
+    // Prefer the SRI `integrity`; fall back to the legacy hex `shasum`
+    // (pre-2017 npm publishes carry only that) so those packages stay
+    // proxyable — still verified, just against sha1. A version declaring
+    // neither stays unservable: bytes never leave unverified.
+    let integrity = if let Some(declared) = dist.integrity.as_deref() {
+        streaming::parse_integrity(declared).map_err(|err| {
+            tarball_integrity_error(name, filename, format!("malformed dist.integrity: {err}"))
+        })?
+    } else {
+        let shasum = dist.shasum.as_deref().ok_or_else(|| {
             tarball_integrity_error(
                 name,
                 filename,
-                format!("packument has no dist.integrity for version {version:?}"),
+                format!("packument has no dist.integrity or dist.shasum for {version:?}"),
             )
         })?;
-    let integrity = streaming::parse_integrity(declared).map_err(|err| {
-        tarball_integrity_error(name, filename, format!("malformed dist.integrity: {err}"))
-    })?;
+        Integrity::from_hex(shasum, ssri::Algorithm::Sha1).map_err(|err| {
+            tarball_integrity_error(name, filename, format!("malformed dist.shasum: {err}"))
+        })?
+    };
     Ok(Some(TarballDist { version: version.clone(), integrity }))
 }
 
@@ -1544,6 +2455,8 @@ fn token_timestamp_millis(seconds: u64) -> i64 {
     (seconds.min(max_seconds) * MILLIS_PER_SECOND) as i64
 }
 
+mod staged;
+
 #[cfg(test)]
 mod tests;
 
@@ -1622,12 +2535,130 @@ fn private_no_cache(mut response: Response) -> Response {
     response
 }
 
-/// `PUT /:pkg` — publish a new version (or republish). Body is the
-/// full packument with `_attachments` carrying the tarball bytes
-/// base64-encoded.
+/// The hosted storage view a publish writes to: a hosted namespace, or
+/// the flat (path-less) store when `org` is `None`.
+fn hosted_storage(state: &AppState, org: Option<&str>) -> Storage {
+    match org {
+        Some(org) => state.inner.storage.for_hosted(org),
+        None => state.inner.storage.clone(),
+    }
+}
+
+/// Where a publish of `package` writes, given an optional explicit `/~<name>/`.
+enum PublishTarget {
+    /// Write into the hosted registry `source`'s storage namespace `org`.
+    /// The source name is carried so the write's `publish`/`unpublish`
+    /// authorization can consult that registry's `packages:` rules.
+    Hosted { source: String, org: String },
+    /// The resolved target is not a hosted org; reject with this reason.
+    Reject(String),
+    /// The resolved upstream registry denies this caller; answer with the
+    /// same response its reads give (a 403), before any rejection that would
+    /// narrate routing config.
+    Denied(Box<Response>),
+    /// The addressed registry or route does not exist (or the path-less base has
+    /// no default target).
+    NotFound,
+}
+
+/// Resolve where a publish lands. A write may only target a hosted registry
+/// whose declared patterns claim the name: a selection of an upstream is
+/// rejected ("name a hosted registry"), never silently landing on an upstream,
+/// and an unclaimed name is rejected with the reason — so a typo'd scope
+/// fails loudly at publish time instead of storing a name the registry's
+/// namespace can never serve. The registry's `access` list gates the write
+/// exactly as it gates reads — a caller the registry denies gets the same
+/// not-found mask as on a read, whether the name is claimed or not
+/// ([`registry_visible_to_caller`] gates the loud rejection), so a private
+/// registry neither accepts the write nor reveals that it exists. The
+/// path-less base routes through its default-target registry; with no default
+/// target the bare host has no registry and the publish is a not-found,
+/// exactly like a read.
+fn resolve_publish_target(
+    state: &AppState,
+    identity: &Identity,
+    registry: Option<&str>,
+    package: &str,
+) -> PublishTarget {
+    let (target, context) = match registry {
+        Some(registry) => (registry.to_string(), format!("through registry {registry:?}")),
+        None => match default_registry_target(state) {
+            Some(target) => (target, "to the path-less base".to_string()),
+            None => return PublishTarget::NotFound,
+        },
+    };
+    match resolve_registry_source(state, &target, package) {
+        RegistrySource::Hosted(registry) => {
+            match hosted_gate(state, identity, &registry, package) {
+                HostedGate::Allowed(org) => PublishTarget::Hosted { source: registry, org },
+                HostedGate::MaskNotFound => PublishTarget::NotFound,
+                HostedGate::Denied(err) => PublishTarget::Denied(Box::new(error_response(&err))),
+            }
+        }
+        // A write can never land on an upstream — but the upstream's `access:`
+        // gates the write endpoints exactly as it gates reads, so a caller the
+        // upstream denies gets the read path's 403 (`authorized_upstream`), not
+        // a rejection that narrates where the name routes.
+        RegistrySource::Upstream(source) => match authorized_upstream(state, identity, &source) {
+            Err(response) => PublishTarget::Denied(response),
+            Ok(_) => PublishTarget::Reject(format!(
+                "cannot publish {package:?} {context}: it routes to an upstream registry; name \
+                 a hosted registry",
+            )),
+        },
+        // The loud rejection explains a config fact about the addressed
+        // registry, so only a caller the registry is visible to gets it;
+        // anyone else keeps the same not-found mask a read gives, so an
+        // off-pattern probe cannot distinguish a private registry from an
+        // undefined one.
+        RegistrySource::Unclaimed => {
+            if registry_visible_to_caller(state, identity, &target) {
+                PublishTarget::Reject(format!(
+                    "cannot publish {package:?} {context}: no registry's declared `patterns:` \
+                     claim this package name",
+                ))
+            } else {
+                PublishTarget::NotFound
+            }
+        }
+        RegistrySource::NotFound => PublishTarget::NotFound,
+    }
+}
+
+/// Whether `identity` may learn that the registry `name` exists. A hosted
+/// registry is masked behind its access list — a denied caller sees the same
+/// not-found as for an undefined name on every read, so nothing on the write
+/// path may answer differently. An upstream registry is not masked (a denied
+/// caller gets an explicit 403 on reads), and a router is visible whenever
+/// any of its sources is.
+fn registry_visible_to_caller(state: &AppState, identity: &Identity, name: &str) -> bool {
+    let concrete_visible = |name: &str| match state.inner.config.registries.get(name) {
+        // The name being probed is unclaimed, so there is no per-package
+        // entry to consult: the registry-level default `access:` decides
+        // whether the caller may learn the registry exists at all.
+        Some(Registry::Hosted { .. }) => state
+            .inner
+            .config
+            .hosted
+            .get(name)
+            .is_some_and(|hosted| hosted.rules.default_access().allows(identity)),
+        Some(Registry::Upstream { .. }) => true,
+        Some(Registry::Router { .. }) | None => false,
+    };
+    match state.inner.config.registries.get(name) {
+        Some(Registry::Router { sources }) => sources.iter().any(|source| concrete_visible(source)),
+        Some(_) => concrete_visible(name),
+        None => false,
+    }
+}
+
+/// `PUT /:pkg` (path-less) or `PUT /~<name>/:pkg` — publish a new version (or
+/// republish). Body is the full packument with `_attachments` carrying the
+/// tarball bytes base64-encoded.
 async fn publish_package(
     state: &AppState,
     identity: &Identity,
+    registry: Option<&str>,
     raw_name: &str,
     body: axum::body::Bytes,
 ) -> Response {
@@ -1656,10 +2687,14 @@ async fn publish_package(
         });
     }
 
-    let validated = match validate_publish_doc(state, identity, name, incoming).await {
-        Ok(validated) => validated,
-        Err(err) => return error_response(&err),
-    };
+    // Routing, masking, and the publish rule all run inside
+    // `validate_publish_doc`: the write resolves to a hosted registry (or
+    // fails closed), and that registry's `packages:` rules authorize it.
+    let (validated, target) =
+        match validate_publish_doc(state, identity, registry, name, incoming).await {
+            Ok(validated) => validated,
+            Err(response) => return *response,
+        };
 
     // Serialize the read-merge-write against other writers of this same
     // package on this instance, so a concurrent publish can't read the
@@ -1667,7 +2702,7 @@ async fn publish_package(
     // Held until this function returns, past the packument write below.
     let _packument_guard = state.inner.package_locks.lock(validated.name.as_str()).await;
 
-    let staged = match stage_publish(state, validated, &now_iso()).await {
+    let staged = match stage_publish(state, validated, &now_iso(), Some(&target.org)).await {
         Ok(staged) => staged,
         Err(err) => return error_response(&err),
     };
@@ -1736,22 +2771,27 @@ async fn serve_batch_publish(
                 reason: format!("duplicate package {:?} in `packages`", name.as_str()),
             });
         }
-        match validate_publish_doc(&state, &identity, name, doc).await {
+        // The batch endpoint is path-less, so each package routes via the
+        // default target; validation resolves that route and checks the
+        // resolved hosted registry's publish rule per document.
+        match validate_publish_doc(&state, &identity, None, name, doc).await {
             Ok(doc) => validated.push(doc),
-            Err(err) => return error_response(&err),
+            Err(response) => return *response,
         }
     }
 
     // Hold every affected package's lock across the whole
     // stage-and-commit, so concurrent writers of any package in the
     // batch serialize with us just like with a single publish.
-    let names: Vec<&str> = validated.iter().map(|doc| doc.name.as_str()).collect();
+    let names: Vec<&str> = validated.iter().map(|(doc, _)| doc.name.as_str()).collect();
     let _guards = state.inner.package_locks.lock_many(&names).await;
 
     let now = now_iso();
     let mut staged: Vec<StagedPublish> = Vec::with_capacity(validated.len());
-    for doc in validated {
-        match stage_publish(&state, doc, &now).await {
+    for (doc, target) in validated {
+        // Each document's write target was resolved during validation, so a
+        // routing failure surfaced before any tarball was staged.
+        match stage_publish(&state, doc, &now, Some(&target.org)).await {
             Ok(stage) => staged.push(stage),
             Err(err) => {
                 for stage in staged {
@@ -1796,11 +2836,37 @@ struct PreparedAttachment {
 async fn validate_publish_doc(
     state: &AppState,
     identity: &Identity,
+    registry: Option<&str>,
+    name: PackageName,
+    incoming: Value,
+) -> Result<(ValidatedPublish, WriteTarget), Box<Response>> {
+    // Route the write to its hosted registry first (masking a denied caller
+    // as not-found, rejecting an upstream target), then check that
+    // registry's `publish` rule for this package — so routing failures
+    // surface before any 401/403 that would reveal a masked name exists.
+    let target = resolve_write_target(state, identity, registry, &name)?;
+    authorize(
+        state,
+        identity,
+        &RegistrySource::Hosted(target.source.clone()),
+        name.as_str(),
+        Action::Publish,
+    )
+    .map_err(|err| Box::new(error_response(&err)))?;
+
+    let (validated, target) = validate_publish_attachments(name, incoming, target)
+        .map_err(|err| Box::new(error_response(&err)))?;
+    Ok((validated, target))
+}
+
+/// The attachment half of [`validate_publish_doc`], split out so the
+/// routing/authorization half above can use `?` on `Box<Response>` while
+/// this half keeps plain [`RegistryError`]s.
+fn validate_publish_attachments(
     name: PackageName,
     mut incoming: Value,
-) -> Result<ValidatedPublish, RegistryError> {
-    authorize(state, identity, name.as_str(), Action::Publish)?;
-
+    target: WriteTarget,
+) -> Result<(ValidatedPublish, WriteTarget), RegistryError> {
     let attachments = extract_attachments(&mut incoming)?;
 
     // Resolve each attachment's canonical disk filename + matching
@@ -1822,7 +2888,7 @@ async fn validate_publish_doc(
             .unwrap_or(Value::Null);
         prepared.push(PreparedAttachment { attachment, canonical, version, dist });
     }
-    Ok(ValidatedPublish { name, incoming, prepared })
+    Ok((ValidatedPublish { name, incoming, prepared }, target))
 }
 
 /// A publish whose packument is merged and whose tarballs are fully
@@ -1831,7 +2897,12 @@ async fn validate_publish_doc(
 struct StagedPublish {
     name: PackageName,
     merged_bytes: Vec<u8>,
+    base_version: Option<HostedPackumentVersion>,
     slots: Vec<crate::storage::TarballSlot>,
+    /// Hosted-org storage namespace this publish targets, or `None` for the
+    /// flat (path-less) hosted store. Threaded into the commit and journal so
+    /// the write — and any crash-recovery roll-forward — lands in the right org.
+    org: Option<String>,
 }
 
 /// Merge the incoming packument with the on-disk / upstream state
@@ -1843,10 +2914,16 @@ async fn stage_publish(
     state: &AppState,
     doc: ValidatedPublish,
     now_iso: &str,
+    org: Option<&str>,
 ) -> Result<StagedPublish, RegistryError> {
     let ValidatedPublish { name, incoming, prepared } = doc;
+    let storage = hosted_storage(state, org);
 
-    let hosted_bytes = state.inner.storage.read_hosted_packument(&name).await?;
+    let hosted_packument = storage.read_hosted_packument_for_update(&name).await?;
+    let (hosted_bytes, base_version) = match hosted_packument {
+        Some(packument) => (Some(packument.bytes), Some(packument.version)),
+        None => (None, None),
+    };
     let hosted: Option<Value> = match hosted_bytes.as_deref().map(serde_json::from_slice) {
         Some(Ok(value)) => Some(value),
         Some(Err(err)) => return Err(RegistryError::Json(err)),
@@ -1901,26 +2978,9 @@ async fn stage_publish(
         }
     }
 
-    // Seed the merge from whatever the upstream knows about the
-    // package, not just from a cold cache. Without this, a publish
-    // of a brand-new version of an upstream-only package would
-    // start from `None` and the newly-written local packument
-    // would mask every upstream version + dist-tag on subsequent
-    // reads. `update_dist_tag` already does the same fallback —
-    // we just mirror it here.
-    let existing_bytes = match hosted_bytes {
-        Some(bytes) => Some(bytes),
-        None => match load_packument_bytes(state, &name).await {
-            PackumentLoad::Ok(bytes) => Some(bytes),
-            PackumentLoad::NotFound => None,
-            PackumentLoad::Err(err) => return Err(err),
-        },
-    };
-    let existing: Option<Value> = match existing_bytes.as_deref().map(serde_json::from_slice) {
-        Some(Ok(v)) => Some(v),
-        Some(Err(err)) => return Err(RegistryError::Json(err)),
-        None => None,
-    };
+    // A hosted registry has no upstream, so a publish seeds the merge only from
+    // the org's own hosted packument; a brand-new package starts from `None`.
+    let existing: Option<Value> = hosted.clone();
     let merged = merge_manifest(existing.as_ref(), &incoming, hosted.as_ref(), now_iso);
     let merged_bytes = serde_json::to_vec_pretty(&merged).map_err(RegistryError::Json)?;
     // `incoming` is no longer needed; drop it so the base64 strings
@@ -1934,7 +2994,7 @@ async fn stage_publish(
     // along the way so a bad upload leaves no on-disk artifact.
     let mut written_slots = Vec::with_capacity(prepared.len());
     for PreparedAttachment { attachment, canonical, version: _, dist } in prepared {
-        let slot = match state.inner.storage.reserve_hosted_tarball(&name, &canonical).await {
+        let slot = match storage.reserve_hosted_tarball(&name, &canonical).await {
             Ok(slot) => slot,
             Err(err) => {
                 cleanup_tmp_slots(written_slots).await;
@@ -1962,7 +3022,13 @@ async fn stage_publish(
             }
         }
     }
-    Ok(StagedPublish { name, merged_bytes, slots: written_slots })
+    Ok(StagedPublish {
+        name,
+        merged_bytes,
+        base_version,
+        slots: written_slots,
+        org: org.map(str::to_string),
+    })
 }
 
 /// Make every staged publish visible. The full intent — merged
@@ -1984,6 +3050,7 @@ async fn commit_publishes(
         .iter()
         .map(|stage| JournaledPublish {
             name: &stage.name,
+            org: stage.org.as_deref(),
             packument: &stage.merged_bytes,
             slots: &stage.slots,
         })
@@ -2007,10 +3074,48 @@ async fn commit_publishes(
     // that fails.
     let apply_result = async {
         for stage in staged {
+            // Promote into the package's hosted namespace (or the flat
+            // store when it has none) — the same target the journal recorded,
+            // so an inline failure and a startup roll-forward land identically.
+            let store = hosted_storage(state, stage.org.as_deref());
             for slot in stage.slots {
-                state.inner.storage.finalize_tarball_slot(slot).await?;
+                match store.finalize_tarball_slot(slot).await? {
+                    TarballFinalize::Written | TarballFinalize::AlreadyIdentical => {}
+                    // A concurrent replica already promoted a different tarball
+                    // for this version. Its bytes are immutable, so abort the
+                    // apply rather than advertise our integrity against them.
+                    // The seal's roll-forward re-runs from the journal, where it
+                    // drops the version we lost and re-merges the rest.
+                    TarballFinalize::Conflict => {
+                        return Err(RegistryError::PackumentWriteConflict {
+                            package: stage.name.as_str().to_string(),
+                        });
+                    }
+                }
             }
-            state.inner.storage.write_hosted_packument(&stage.name, &stage.merged_bytes).await?;
+            match store
+                .write_hosted_packument_if_current(
+                    &stage.name,
+                    &stage.merged_bytes,
+                    stage.base_version.as_ref(),
+                )
+                .await?
+            {
+                PackumentWrite::Written => {}
+                // Tarballs are already promoted at this point. A conflict means
+                // another replica advanced the packument since staging, so the
+                // base version is stale. Surfacing it drops into the seal's
+                // roll-forward path (the caller), which re-reads the current
+                // packument and re-merges this transaction's journaled manifest —
+                // re-referencing the promoted tarballs — rather than leaving them
+                // orphaned. Only if roll-forward and startup recovery both never
+                // converge would a promoted tarball stay unreferenced.
+                PackumentWrite::Conflict => {
+                    return Err(RegistryError::PackumentWriteConflict {
+                        package: stage.name.as_str().to_string(),
+                    });
+                }
+            }
         }
         Ok::<(), RegistryError>(())
     }
@@ -2058,118 +3163,117 @@ async fn cleanup_tmp_slots(slots: Vec<crate::storage::TarballSlot>) {
 /// proxy can't deliver because npm's search is fuzzy and returns
 /// dozens of unrelated matches for almost anything).
 ///
-/// Results are filtered by the per-package access policy: a package
-/// the caller can't read (e.g. anonymous + `@private/*` or
-/// `@pnpm.e2e/needs-auth` with the default rules) is dropped from
-/// `objects` before the response is built. Without this the search
-/// endpoint would happily enumerate protected packages that the
-/// packument and tarball GETs correctly hide behind 401.
-async fn serve_search(state: &AppState, identity: &Identity, query_string: &str) -> Response {
-    let Some(text) = crate::search::parse_query(query_string) else {
-        let body = json!({ "objects": [], "total": 0, "time": now_iso() });
-        let bytes = serde_json::to_vec(&body).expect("static-shape JSON serializes");
-        return Response::builder()
+/// Results are served through the registry graph and gated exactly like the
+/// packument and tarball GETs:
+///
+/// * Only the hosted registries the addressed registry serves are scanned (see
+///   [`hosted_search_sources`]), each gated by its **registry access list** — a
+///   caller a registry denies gets nothing from it, the same existence mask the
+///   read paths apply. Without this, search would enumerate a private registry's
+///   packages by name/version/description while the packument GET correctly
+///   404s.
+/// * Under a router, a name is kept only when the router actually **routes it
+///   to the scanned source**, so a hosted package shadowed by an earlier route
+///   is as invisible to search as it is to a packument GET.
+/// * The **per-package access policy** drops any package the caller can't
+///   read (e.g. anonymous + `@private/*` with the default rules).
+///
+/// `total` counts the returned (post-filter, size-capped) objects so clients
+/// can't infer the existence of hidden packages from a mismatched total.
+async fn serve_search(
+    state: &AppState,
+    identity: &Identity,
+    registry: Option<&str>,
+    query_string: &str,
+) -> Response {
+    let result = |objects: Vec<Value>| {
+        let total = objects.len();
+        let body = json!({ "objects": objects, "total": total, "time": now_iso() });
+        let bytes = serde_json::to_vec(&body).expect("search response serializes");
+        Response::builder()
             .status(StatusCode::OK)
             .header(header::CONTENT_TYPE, "application/json")
             .body(Body::from(bytes))
-            .expect("static-shape response always builds");
+            .expect("static-shape response always builds")
+    };
+    let Some(text) = crate::search::parse_query(query_string) else {
+        return result(Vec::new());
+    };
+    let Some(registry) = registry.map(str::to_string).or_else(|| default_registry_target(state))
+    else {
+        return result(Vec::new());
     };
     let size = crate::search::parse_size(query_string, 20);
-    let mut body = match crate::search::run_local_search(&state.inner.storage, &text, size).await {
-        Ok(body) => body,
-        Err(err) => return error_response(&err),
-    };
-
-    // Augment with an upstream packument lookup for the exact query
-    // name. Without this, freshly-prepared registry-mock storage
-    // (which ships only scoped packages) returns nothing for queries
-    // like `is-positive` until something else proxies that package
-    // first. Verdaccio's search does an equivalent merge with
-    // upstream results.
-    augment_search_with_upstream(state, &text, &mut body).await;
-
-    if let Some(objects) = body.get_mut("objects").and_then(Value::as_array_mut) {
-        // The caller was resolved once by the middleware; authorize each
-        // candidate synchronously against it inside the filter.
-        objects.retain(|entry| {
-            let Some(name) =
-                entry.get("package").and_then(|pkg| pkg.get("name")).and_then(Value::as_str)
-            else {
-                // Malformed entry — be conservative and drop it.
-                return false;
-            };
-            authorize(state, identity, name, Action::Access).is_ok()
-        });
-        let visible = objects.len();
-        // Surface the post-filter count so clients can't infer the
-        // existence of hidden packages from a mismatched `total`.
-        body["total"] = json!(visible);
+    let mut objects: Vec<Value> = Vec::new();
+    for source in hosted_search_sources(state, &registry) {
+        if objects.len() >= size {
+            break;
+        }
+        let Some(hosted) = state.inner.config.hosted.get(&source) else {
+            continue;
+        };
+        // Fast path: a caller no rule of this registry could ever admit
+        // gets the empty result without a storage scan — the blanket mask
+        // must not become an enumeration (or scan-timing) primitive.
+        if !hosted.rules.any_access_admits(identity) {
+            continue;
+        }
+        let org = hosted.org.clone();
+        let storage = hosted_storage(state, Some(&org));
+        // The caller was resolved once by the middleware; both filters run
+        // synchronously against it inside the scan. Visibility is
+        // per-package: each hit is gated by this hosted registry's effective
+        // access for that name, so a per-package rule can open (or close) a
+        // name regardless of the registry-level default.
+        let keep = |name: &str| {
+            matches!(
+                resolve_registry_source(state, &registry, name),
+                RegistrySource::Hosted(resolved) if resolved == source,
+            ) && matches!(hosted_gate(state, identity, &source, name), HostedGate::Allowed(_))
+        };
+        match crate::search::run_local_search(&storage, &text, size - objects.len(), keep).await {
+            Ok(mut entries) => objects.append(&mut entries),
+            Err(err) => return error_response(&err),
+        }
     }
-    let bytes = serde_json::to_vec(&body).expect("search response serializes");
-    Response::builder()
-        .status(StatusCode::OK)
-        .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(bytes))
-        .expect("static-shape response always builds")
+    result(objects)
 }
 
-/// Inject an exact-name upstream match into a local-search result.
-///
-/// Verdaccio's search proxies to its uplinks; npm's `/-/v1/search`
-/// is too fuzzy to mirror directly (a guaranteed-not-to-exist query
-/// returns 1.7M results), so instead we treat the query as a literal
-/// package name. If it parses as one, isn't already in the local
-/// results, and the upstream returns a real packument for it, we
-/// prepend the resulting entry. The fetch also caches the packument
-/// on disk, so subsequent searches find it without another upstream
-/// hit.
-async fn augment_search_with_upstream(state: &AppState, query: &str, body: &mut Value) {
-    if state.inner.upstreams.is_empty() {
-        return;
-    }
-    let Ok(name) = PackageName::parse(query) else {
-        return;
-    };
-    let already_present = body.get("objects").and_then(Value::as_array).is_some_and(|objects| {
-        objects.iter().any(|object| {
-            object.get("package").and_then(|pkg| pkg.get("name")).and_then(Value::as_str)
-                == Some(name.as_str())
-        })
-    });
-    if already_present {
-        return;
-    }
-    // `load_packument_bytes` fetches from upstream and writes the
-    // result into the cache, so the next search picks it up locally
-    // without another network round trip.
-    let PackumentLoad::Ok(bytes) = load_packument_bytes(state, &name).await else {
-        return;
-    };
-    let Ok(packument) = serde_json::from_slice::<Value>(&bytes) else {
-        return;
-    };
-    let Some(entry) = crate::search::build_search_entry(name.as_str(), &packument) else {
-        return;
-    };
-    if let Some(objects) = body.get_mut("objects").and_then(Value::as_array_mut) {
-        objects.insert(0, entry);
-        let new_total = objects.len();
-        body["total"] = json!(new_total);
+/// The hosted registries a search addressed to `registry` scans, in source order.
+/// A hosted registry scans itself; a router scans each of its hosted sources; an
+/// upstream registry scans nothing — search is local-only, never proxied (an
+/// upstream is reached only through its own registry, by exact package name;
+/// there is no cross-origin search merge).
+fn hosted_search_sources(state: &AppState, registry: &str) -> Vec<String> {
+    match state.inner.config.registries.get(registry) {
+        Some(Registry::Hosted { .. }) => vec![registry.to_string()],
+        Some(Registry::Router { sources }) => sources
+            .iter()
+            .filter(|source| {
+                matches!(
+                    state.inner.config.registries.get(source.as_str()),
+                    Some(Registry::Hosted { .. }),
+                )
+            })
+            .cloned()
+            .collect(),
+        Some(Registry::Upstream { .. }) | None => Vec::new(),
     }
 }
 
-/// `PUT /:pkg/-rev/:rev` — overwrite the on-disk packument with the
-/// client-supplied body. pnpm uses this in the partial-unpublish
-/// flow: it fetches the packument, removes the unpublished version
-/// from `versions` / `dist-tags`, then PUTs the result back. We strip
-/// any `_attachments` so we don't persist base64 payloads alongside
-/// the manifest, and run [`enforce_published_version_immutability`] so
-/// the body can't tamper with a published version's `dist` or smuggle
-/// in a new one — everything else in the body is trusted verbatim, the
-/// same trust verdaccio extends.
+/// `PUT /:pkg/-rev/:rev` (path-less) or `PUT /~<name>/:pkg/-rev/:rev` —
+/// overwrite the on-disk packument with the client-supplied body. pnpm uses
+/// this in the partial-unpublish flow: it fetches the packument, removes the
+/// unpublished version from `versions` / `dist-tags`, then PUTs the result
+/// back. We strip any `_attachments` so we don't persist base64 payloads
+/// alongside the manifest, and run
+/// [`enforce_published_version_immutability`] so the body can't tamper with
+/// a published version's `dist` or smuggle in a new one — everything else in
+/// the body is trusted verbatim, the same trust verdaccio extends.
 async fn update_packument(
     state: &AppState,
     identity: &Identity,
+    registry: Option<&str>,
     raw_name: &str,
     body: &[u8],
 ) -> Response {
@@ -2177,11 +3281,18 @@ async fn update_packument(
         Ok(n) => n,
         Err(err) => return error_response(&err),
     };
+    let target = match resolve_write_target(state, identity, registry, &name) {
+        Ok(target) => target,
+        Err(response) => return *response,
+    };
+    let source = RegistrySource::Hosted(target.source.clone());
     for action in [Action::Publish, Action::Unpublish] {
-        if let Err(err) = authorize(state, identity, name.as_str(), action) {
+        if let Err(err) = authorize(state, identity, &source, name.as_str(), action) {
             return error_response(&err);
         }
     }
+    let org = target.org;
+    let storage = hosted_storage(state, Some(&org));
     let mut packument: Value = match serde_json::from_slice(body) {
         Ok(v) => v,
         Err(err) => return error_response(&RegistryError::Json(err)),
@@ -2208,15 +3319,40 @@ async fn update_packument(
     // packument writers (publish / dist-tag), so the client-supplied
     // rewrite can't interleave with a concurrent merge.
     let _packument_guard = state.inner.package_locks.lock(name.as_str()).await;
-    if let Some(err) = enforce_published_version_immutability(state, &name, &mut packument).await {
+    let hosted_packument = match storage.read_hosted_packument_for_update(&name).await {
+        Ok(Some(packument)) => packument,
+        Ok(None) => {
+            return error_response(&RegistryError::BadRequest {
+                reason: format!(
+                    "cannot update {:?}: it has no published packument to unpublish from",
+                    name.as_str(),
+                ),
+            });
+        }
+        Err(err) => return error_response(&err),
+    };
+    let hosted: Value = match serde_json::from_slice(&hosted_packument.bytes) {
+        Ok(value) => value,
+        Err(err) => return error_response(&RegistryError::Json(err)),
+    };
+    if let Some(err) = enforce_published_version_immutability(&hosted, &name, &mut packument) {
         return error_response(&err);
     }
     let bytes = match serde_json::to_vec_pretty(&packument) {
         Ok(b) => b,
         Err(err) => return error_response(&RegistryError::Json(err)),
     };
-    if let Err(err) = state.inner.storage.write_hosted_packument(&name, &bytes).await {
-        return error_response(&err);
+    match storage
+        .write_hosted_packument_if_current(&name, &bytes, Some(&hosted_packument.version))
+        .await
+    {
+        Ok(PackumentWrite::Written) => {}
+        Ok(PackumentWrite::Conflict) => {
+            return error_response(&RegistryError::PackumentWriteConflict {
+                package: name.as_str().to_string(),
+            });
+        }
+        Err(err) => return error_response(&err),
     }
     let body = json!({ "ok": true });
     let bytes = serde_json::to_vec(&body).expect("static-shape JSON serializes");
@@ -2245,27 +3381,11 @@ async fn update_packument(
 ///
 /// Returns the rejection, or `None` when the body is acceptable (after any
 /// restores). Must hold the package lock so a concurrent publish can't race it.
-async fn enforce_published_version_immutability(
-    state: &AppState,
+fn enforce_published_version_immutability(
+    hosted: &Value,
     name: &PackageName,
     incoming: &mut Value,
 ) -> Option<RegistryError> {
-    let hosted: Value = match state.inner.storage.read_hosted_packument(name).await {
-        // Fail closed: a corrupt packument must not silently disable the gate.
-        Ok(Some(bytes)) => match serde_json::from_slice(&bytes) {
-            Ok(value) => value,
-            Err(err) => return Some(RegistryError::Json(err)),
-        },
-        Ok(None) => {
-            return Some(RegistryError::BadRequest {
-                reason: format!(
-                    "cannot update {:?}: it has no published packument to unpublish from",
-                    name.as_str(),
-                ),
-            });
-        }
-        Err(err) => return Some(err),
-    };
     // None (no versions to enforce) means "accept", not "error" here.
     let incoming_versions = incoming.get("versions").and_then(Value::as_object)?;
     let hosted_versions = hosted.get("versions").and_then(Value::as_object);
@@ -2378,20 +3498,37 @@ fn require_object_dist(manifest: &Value, version: &str) -> Option<RegistryError>
     })
 }
 
-/// `DELETE /:pkg/-rev/:rev` — remove the entire package directory,
-/// packument and all tarballs. Used by `pnpm unpublish --force`.
-async fn delete_package(state: &AppState, identity: &Identity, raw_name: &str) -> Response {
+/// `DELETE /:pkg/-rev/:rev` (path-less) or `DELETE /~<name>/:pkg/-rev/:rev`
+/// — remove the entire package directory, packument and all tarballs. Used
+/// by `pnpm unpublish --force`.
+async fn delete_package(
+    state: &AppState,
+    identity: &Identity,
+    registry: Option<&str>,
+    raw_name: &str,
+) -> Response {
     let name = match PackageName::parse(raw_name) {
         Ok(n) => n,
         Err(err) => return error_response(&err),
     };
-    if let Err(err) = authorize(state, identity, name.as_str(), Action::Unpublish) {
+    let target = match resolve_write_target(state, identity, registry, &name) {
+        Ok(target) => target,
+        Err(response) => return *response,
+    };
+    if let Err(err) = authorize(
+        state,
+        identity,
+        &RegistrySource::Hosted(target.source.clone()),
+        name.as_str(),
+        Action::Unpublish,
+    ) {
         return error_response(&err);
     }
+    let org = target.org;
     // Serialize against same-package publishers so a delete can't race a
     // stage-and-commit and remove the package mid-write.
     let _packument_guard = state.inner.package_locks.lock(name.as_str()).await;
-    if let Err(err) = state.inner.storage.remove_package(&name).await {
+    if let Err(err) = hosted_storage(state, Some(&org)).remove_package(&name).await {
         return error_response(&err);
     }
     let body = json!({ "ok": true });
@@ -2411,6 +3548,7 @@ async fn delete_package(state: &AppState, identity: &Identity, raw_name: &str) -
 async fn delete_tarball(
     state: &AppState,
     identity: &Identity,
+    registry: Option<&str>,
     raw_name: &str,
     filename: &str,
 ) -> Response {
@@ -2422,13 +3560,24 @@ async fn delete_tarball(
         Ok(c) => c,
         Err(err) => return error_response(&err),
     };
-    if let Err(err) = authorize(state, identity, name.as_str(), Action::Unpublish) {
+    let target = match resolve_write_target(state, identity, registry, &name) {
+        Ok(target) => target,
+        Err(response) => return *response,
+    };
+    if let Err(err) = authorize(
+        state,
+        identity,
+        &RegistrySource::Hosted(target.source.clone()),
+        name.as_str(),
+        Action::Unpublish,
+    ) {
         return error_response(&err);
     }
+    let org = target.org;
     // Serialize against same-package publishers so a delete can't race a
     // stage-and-commit and remove a tarball mid-write.
     let _packument_guard = state.inner.package_locks.lock(name.as_str()).await;
-    if let Err(err) = state.inner.storage.remove_tarball(&name, &canonical).await {
+    if let Err(err) = hosted_storage(state, Some(&org)).remove_tarball(&name, &canonical).await {
         return error_response(&err);
     }
     let body = json!({ "ok": true });
@@ -2440,20 +3589,23 @@ async fn delete_tarball(
         .expect("static-shape response always builds")
 }
 
-/// `GET /-/package/:pkg/dist-tags` — return the packument's
+/// `GET /-/package/:pkg/dist-tags` (path-less) or
+/// `GET /~<name>/-/package/:pkg/dist-tags` — return the packument's
 /// `dist-tags` object.
-async fn get_dist_tags(state: &AppState, identity: &Identity, raw_name: &str) -> Response {
+async fn get_dist_tags(
+    state: &AppState,
+    identity: &Identity,
+    registry: Option<&str>,
+    raw_name: &str,
+) -> Response {
     let name = match PackageName::parse(raw_name) {
         Ok(n) => n,
         Err(err) => return error_response(&err),
     };
-    if let Err(err) = authorize(state, identity, name.as_str(), Action::Access) {
-        return error_response(&err);
-    }
-    let bytes = match load_packument_bytes(state, &name).await {
-        PackumentLoad::Ok(bytes) => bytes,
-        PackumentLoad::NotFound => return not_found(),
-        PackumentLoad::Err(err) => return error_response(&err),
+    let bytes = match load_packument_for_read(state, identity, registry, &name).await {
+        Ok(Some(bytes)) => bytes,
+        Ok(None) => return not_found(),
+        Err(response) => return *response,
     };
     let packument: Value = match serde_json::from_slice(&bytes) {
         Ok(v) => v,
@@ -2469,19 +3621,25 @@ async fn get_dist_tags(state: &AppState, identity: &Identity, raw_name: &str) ->
         .expect("static-shape response always builds")
 }
 
-/// `PUT /-/package/:pkg/dist-tags/:tag` — set a dist-tag. Body is
+/// `PUT /-/package/:pkg/dist-tags/:tag` (path-less) or
+/// `PUT /~<name>/-/package/:pkg/dist-tags/:tag` — set a dist-tag. Body is
 /// a JSON-encoded version string (e.g. `"1.0.0"`).
 async fn set_dist_tag(
     state: &AppState,
     identity: &Identity,
+    registry: Option<&str>,
     raw_name: &str,
     tag: &str,
     body: &[u8],
 ) -> Response {
-    update_dist_tag(state, identity, raw_name, tag, |tags| {
-        let version: String = match serde_json::from_slice(body) {
-            Ok(s) => s,
-            Err(err) => return Err(RegistryError::Json(err)),
+    let mut parsed_version: Option<String> = None;
+    update_dist_tag(state, identity, registry, raw_name, tag, move |tags| {
+        let version = if let Some(version) = parsed_version.as_ref() {
+            version.clone()
+        } else {
+            let version: String = serde_json::from_slice(body).map_err(RegistryError::Json)?;
+            parsed_version = Some(version.clone());
+            version
         };
         tags.insert(tag.to_string(), Value::String(version));
         Ok(())
@@ -2492,10 +3650,11 @@ async fn set_dist_tag(
 async fn remove_dist_tag(
     state: &AppState,
     identity: &Identity,
+    registry: Option<&str>,
     raw_name: &str,
     tag: &str,
 ) -> Response {
-    update_dist_tag(state, identity, raw_name, tag, |tags| {
+    update_dist_tag(state, identity, registry, raw_name, tag, |tags| {
         tags.remove(tag);
         Ok(())
     })
@@ -2509,86 +3668,82 @@ async fn remove_dist_tag(
 async fn update_dist_tag<Mutate>(
     state: &AppState,
     identity: &Identity,
+    registry: Option<&str>,
     raw_name: &str,
     tag: &str,
-    mutate: Mutate,
+    mut mutate: Mutate,
 ) -> Response
 where
-    Mutate: FnOnce(&mut serde_json::Map<String, Value>) -> Result<(), RegistryError>,
+    Mutate: FnMut(&mut serde_json::Map<String, Value>) -> Result<(), RegistryError>,
 {
     let name = match PackageName::parse(raw_name) {
         Ok(n) => n,
         Err(err) => return error_response(&err),
     };
-    if let Err(err) = authorize(state, identity, name.as_str(), Action::Publish) {
+    // A dist-tag change is a write, so it routes to a hosted namespace like
+    // a publish — a name routed to an upstream is rejected — and the
+    // resolved registry's `publish` rule gates it.
+    let target = match resolve_write_target(state, identity, registry, &name) {
+        Ok(target) => target,
+        Err(response) => return *response,
+    };
+    if let Err(err) = authorize(
+        state,
+        identity,
+        &RegistrySource::Hosted(target.source.clone()),
+        name.as_str(),
+        Action::Publish,
+    ) {
         return error_response(&err);
     }
+    let org = target.org;
+    let storage = hosted_storage(state, Some(&org));
 
     // Serialize the read-modify-write against other same-package writers
     // on this instance (held until this function returns).
     let _packument_guard = state.inner.package_locks.lock(name.as_str()).await;
 
-    // Start from the authoritative packument if we have one. A
-    // dist-tag change is an authoritative override, so it is written
-    // back to the hosted store (below) regardless of whether the
-    // package originated locally or from upstream.
-    let mut packument: Value = match state.inner.storage.read_hosted_packument(&name).await {
-        Ok(Some(bytes)) => match serde_json::from_slice(&bytes) {
-            Ok(v) => v,
-            Err(err) => return error_response(&RegistryError::Json(err)),
-        },
-        Ok(None) => {
-            // Nothing published yet — pull the current packument
-            // (cache or upstream) so a first dist-tag change against
-            // a proxied package starts from its real version list.
-            match load_packument_bytes(state, &name).await {
-                PackumentLoad::Ok(bytes) => match serde_json::from_slice(&bytes) {
-                    Ok(v) => v,
-                    Err(err) => return error_response(&RegistryError::Json(err)),
-                },
-                PackumentLoad::NotFound => return not_found(),
-                PackumentLoad::Err(err) => return error_response(&err),
-            }
-        }
+    let _ = tag; // the tag name is captured by the `mutate` closure.
+    let outcome = storage
+        .update_hosted_packument_with_retry(&name, PACKUMENT_WRITE_RETRIES, |existing_bytes| {
+            // A hosted org has no upstream, so a dist-tag change starts from the
+            // org's own packument; a package it does not host can't be tagged.
+            let Some(bytes) = existing_bytes else {
+                return Ok(None);
+            };
+            let mut packument: Value = serde_json::from_slice(bytes)?;
+            let Some(packument_obj) = packument.as_object_mut() else {
+                return Err(RegistryError::BadRequest {
+                    reason: "stored packument is not an object".to_string(),
+                });
+            };
+            let tags_entry = packument_obj
+                .entry("dist-tags".to_string())
+                .or_insert_with(|| Value::Object(serde_json::Map::new()));
+            let Some(tags) = tags_entry.as_object_mut() else {
+                return Err(RegistryError::BadRequest {
+                    reason: "stored dist-tags is not an object".to_string(),
+                });
+            };
+            mutate(tags)?;
+            // Refresh `time.modified` so clients do not lag behind a
+            // dist-tag change when deciding packument freshness.
+            let time_entry = packument_obj
+                .entry("time".to_string())
+                .or_insert_with(|| Value::Object(serde_json::Map::new()));
+            let Some(time_obj) = time_entry.as_object_mut() else {
+                return Err(RegistryError::BadRequest {
+                    reason: "stored time is not an object".to_string(),
+                });
+            };
+            time_obj.insert("modified".to_string(), Value::String(now_iso()));
+            Ok(Some(serde_json::to_vec_pretty(&packument)?))
+        })
+        .await;
+    match outcome {
+        Ok(PackumentUpdate::Written) => {}
+        Ok(PackumentUpdate::NotFound) => return not_found(),
         Err(err) => return error_response(&err),
-    };
-
-    let Some(packument_obj) = packument.as_object_mut() else {
-        return error_response(&RegistryError::BadRequest {
-            reason: "stored packument is not an object".to_string(),
-        });
-    };
-    let tags_entry = packument_obj
-        .entry("dist-tags".to_string())
-        .or_insert_with(|| Value::Object(serde_json::Map::new()));
-    let Some(tags) = tags_entry.as_object_mut() else {
-        return error_response(&RegistryError::BadRequest {
-            reason: "stored dist-tags is not an object".to_string(),
-        });
-    };
-    if let Err(err) = mutate(tags) {
-        return error_response(&err);
-    }
-    let _ = tag; // tag name is used by the mutate closure
-    // Refresh `time.modified` so clients that rely on it for
-    // freshness (pacquet's pick_package, npm's abbreviated-packument
-    // staleness check) don't see the post-mutation packument as
-    // older than its dist-tag change.
-    let time_entry = packument_obj
-        .entry("time".to_string())
-        .or_insert_with(|| Value::Object(serde_json::Map::new()));
-    let Some(time_obj) = time_entry.as_object_mut() else {
-        return error_response(&RegistryError::BadRequest {
-            reason: "stored time is not an object".to_string(),
-        });
-    };
-    time_obj.insert("modified".to_string(), Value::String(now_iso()));
-    let new_bytes = match serde_json::to_vec_pretty(&packument) {
-        Ok(b) => b,
-        Err(err) => return error_response(&RegistryError::Json(err)),
-    };
-    if let Err(err) = state.inner.storage.write_hosted_packument(&name, &new_bytes).await {
-        return error_response(&err);
     }
     let body = json!({ "ok": true });
     let bytes = serde_json::to_vec(&body).expect("static-shape JSON serializes");
@@ -2600,8 +3755,137 @@ where
 }
 
 // --------------------------------------------------------------------
+// npm team API — read-only views over the config-declared `teams:` maps.
+// Team membership is part of the registry configuration (it feeds the
+// compiled access lists), so the API serves listings and rejects
+// mutations with an explicit "config-managed" error.
+// --------------------------------------------------------------------
+
+/// The hosted registry whose teams `@{scope}` addresses: the scope routes
+/// through the addressed registry (an explicit `/~<name>/`, or the
+/// path-less default) exactly as a package read in that scope would, then
+/// the registry-level default `access` gates the caller. A denial is
+/// masked as not-found — team and member names must not become an
+/// existence probe for a private registry.
+fn team_registry<'a>(
+    state: &'a AppState,
+    identity: &Identity,
+    registry: Option<&str>,
+    scope: &str,
+) -> Result<&'a HostedConfig, Box<Response>> {
+    let scope = scope.strip_prefix('@').unwrap_or(scope);
+    if scope.is_empty() {
+        return Err(Box::new(not_found()));
+    }
+    let target = match registry {
+        Some(registry) => registry.to_string(),
+        None => match default_registry_target(state) {
+            Some(target) => target,
+            None => return Err(Box::new(not_found())),
+        },
+    };
+    let probe = format!("@{scope}/-");
+    let RegistrySource::Hosted(source) = resolve_registry_source(state, &target, &probe) else {
+        return Err(Box::new(not_found()));
+    };
+    let Some(hosted) = state.inner.config.hosted.get(&source) else {
+        return Err(Box::new(not_found()));
+    };
+    if !hosted.rules.default_access().allows(identity) {
+        return Err(Box::new(not_found()));
+    }
+    Ok(hosted)
+}
+
+/// `GET /-/org/{scope}/team` (path-less) or `GET /~<name>/-/org/{scope}/team`
+/// — list the teams of the hosted registry that claims `@{scope}`, in the
+/// shape the pnpm team command consumes: an array of `{"name": ...}`.
+fn get_org_teams(
+    state: &AppState,
+    identity: &Identity,
+    registry: Option<&str>,
+    scope: &str,
+) -> Response {
+    let hosted = match team_registry(state, identity, registry, scope) {
+        Ok(hosted) => hosted,
+        Err(response) => return *response,
+    };
+    let teams: Vec<Value> = hosted.teams.keys().map(|name| json!({ "name": name })).collect();
+    (StatusCode::OK, axum::Json(Value::Array(teams))).into_response()
+}
+
+/// `GET /-/team/{scope}/{team}/user` (path-less) or
+/// `GET /~<name>/-/team/{scope}/{team}/user` — list a team's members, in
+/// the shape the pnpm team command consumes: an array of `{"name": ...}`.
+fn get_team_members(
+    state: &AppState,
+    identity: &Identity,
+    registry: Option<&str>,
+    scope: &str,
+    team: &str,
+) -> Response {
+    let hosted = match team_registry(state, identity, registry, scope) {
+        Ok(hosted) => hosted,
+        Err(response) => return *response,
+    };
+    let Some(members) = hosted.teams.get(team) else {
+        return not_found();
+    };
+    let members: Vec<Value> = members.iter().map(|name| json!({ "name": name })).collect();
+    (StatusCode::OK, axum::Json(Value::Array(members))).into_response()
+}
+
+/// Every team mutation — create (`PUT /-/org/{scope}/team`), destroy
+/// (`DELETE /-/team/{scope}/{team}`), member add/remove
+/// (`PUT`/`DELETE /-/team/{scope}/{team}/user`) — answers 403: pnpr teams
+/// are declared in the registry config. The same gate as the reads runs
+/// first, so a caller who may not see the registry keeps the not-found
+/// mask.
+fn reject_team_mutation(
+    state: &AppState,
+    identity: &Identity,
+    registry: Option<&str>,
+    scope: &str,
+    action: &'static str,
+) -> Response {
+    if let Err(response) = team_registry(state, identity, registry, scope) {
+        return *response;
+    }
+    error_response(&RegistryError::TeamsConfigManaged { action })
+}
+
+// --------------------------------------------------------------------
 // Helpers.
 // --------------------------------------------------------------------
+
+/// Resolve the hosted storage namespace a non-publish write (dist-tag,
+/// unpublish, packument update) targets, or the [`Response`] to return. A
+/// write routes like a publish: through the addressed `/~<name>/` (or,
+/// path-less, the default-target registry) to a hosted org, rejecting a name
+/// routed to an upstream and 404ing when the path-less base has no default
+/// target or the registry's access list denies the caller.
+fn resolve_write_target(
+    state: &AppState,
+    identity: &Identity,
+    registry: Option<&str>,
+    name: &PackageName,
+) -> Result<WriteTarget, Box<Response>> {
+    match resolve_publish_target(state, identity, registry, name.as_str()) {
+        PublishTarget::Hosted { source, org } => Ok(WriteTarget { source, org }),
+        PublishTarget::Reject(reason) => {
+            Err(Box::new(error_response(&RegistryError::BadRequest { reason })))
+        }
+        PublishTarget::Denied(response) => Err(response),
+        PublishTarget::NotFound => Err(Box::new(not_found())),
+    }
+}
+
+/// The hosted registry a write resolved to: its name (for the
+/// `publish`/`unpublish` rule lookup) and its storage namespace.
+struct WriteTarget {
+    source: String,
+    org: String,
+}
 
 /// What the caller is trying to do with a package. Drives which
 /// rule from the access policy applies.
@@ -2698,7 +3982,7 @@ async fn resolve_caller(
             return Ok(Identity::Anonymous);
         };
         check_token_restrictions(&record, method, peer)?;
-        return Ok(state.inner.config.identity_for_user(record.username));
+        return Ok(Identity::user(record.username));
     }
     // Anything that is not a bearer token — Basic, another scheme, or no
     // credentials — carries no request identity. Going through `identify`
@@ -2738,18 +4022,41 @@ fn check_token_restrictions(
     Ok(())
 }
 
-/// Check an already-resolved `identity` against the per-package rule.
-/// Returns `Ok(())` when the call is allowed; otherwise the appropriate
-/// `Unauthenticated` / `Forbidden` error. The identity is resolved once by
-/// [`authenticate`], so every handler — including the search endpoint that
-/// filters many packages — authorizes synchronously against it.
+/// The `packages:` rules of the concrete registry a request resolved to.
+/// Authorization is entirely registry-scoped — there is no global,
+/// name-keyed ACL — so every check consults the one registry that serves
+/// the package. The fallback (safe defaults: reads open, publishes need
+/// auth, destructive writes denied) only fires for a programmatically
+/// built config whose serving tables miss the graph entry.
+fn source_rules<'a>(state: &'a AppState, source: &RegistrySource) -> &'a PackageRules {
+    static SAFE_DEFAULTS: LazyLock<PackageRules> = LazyLock::new(PackageRules::default);
+    match source {
+        RegistrySource::Hosted(name) => {
+            state.inner.config.hosted.get(name).map(|hosted| &hosted.rules)
+        }
+        RegistrySource::Upstream(name) => {
+            state.inner.config.upstreams.get(name).map(|upstream| &upstream.rules)
+        }
+        RegistrySource::Unclaimed | RegistrySource::NotFound => None,
+    }
+    .unwrap_or(&SAFE_DEFAULTS)
+}
+
+/// Check an already-resolved `identity` against the resolved source
+/// registry's per-package rule (the most specific `packages:` entry, its
+/// omitted fields falling back to the registry defaults). Returns `Ok(())`
+/// when the call is allowed; otherwise the appropriate `Unauthenticated` /
+/// `Forbidden` error. The identity is resolved once by [`authenticate`], so
+/// every handler — including the search endpoint that filters many packages —
+/// authorizes synchronously against it.
 fn authorize(
     state: &AppState,
     identity: &Identity,
+    source: &RegistrySource,
     package: &str,
     action: Action,
 ) -> Result<(), RegistryError> {
-    let effective = state.inner.config.policies.for_package(package);
+    let effective = source_rules(state, source).for_package(package);
     let list = match action {
         Action::Access => effective.access,
         Action::Publish => effective.publish,
@@ -2866,299 +4173,6 @@ fn wants_abbreviated(headers: &HeaderMap) -> bool {
         .get(header::ACCEPT)
         .and_then(|value| value.to_str().ok())
         .is_some_and(|accept| accept.contains(ABBREVIATED_CONTENT_TYPE))
-}
-
-/// Resolve the ordered [`Upstream`] fallback chain that should serve
-/// `package`, by walking the verdaccio-style `packages` rules in declared
-/// order ([`Config::resolve_uplinks`]) and looking each resolved uplink
-/// name up in [`AppInner::upstreams`], preserving order. Returns an empty
-/// vec when no rule with a `proxy:` field matches, leaving the request to
-/// fall through to a not-found.
-fn resolve_upstreams<'a>(state: &'a AppState, package: &PackageName) -> Vec<&'a Upstream> {
-    state
-        .inner
-        .config
-        .resolve_uplinks(package.as_str())
-        .into_iter()
-        .filter_map(|(uplink_name, _)| state.inner.upstreams.get(uplink_name))
-        .collect()
-}
-
-/// Outcome of walking the uplink fallback chain for a tarball.
-enum TarballFetch<'a> {
-    /// `upstream` returned the tarball; the caller streams `response` and
-    /// keys the cache-write decision off `upstream.caches()`.
-    Ok(&'a Upstream, reqwest::Response),
-    /// Every uplink answered `404` — the tarball isn't anywhere in the chain.
-    NotFound,
-    /// No uplink served it and at least one errored. Surfaced rather than a
-    /// `404` so a transient failure isn't reported as "gone".
-    Err(RegistryError),
-}
-
-/// Try each uplink in `upstreams` in order until one returns the tarball.
-/// A `NotFound` falls through to the next uplink (a private uplink later in
-/// the chain may host it); an *availability* error (transport, circuit, 5xx)
-/// is remembered and the next uplink tried. An authoritative upstream error
-/// (401/403/other hard 4xx) stops the walk immediately — see
-/// [`RegistryError::allows_uplink_fallthrough`] — so a later mirror can't
-/// mask the primary's rejection. After the chain is exhausted, an error (if
-/// any was seen) takes precedence over `NotFound`, so a tarball that a
-/// momentarily failing uplink really hosts isn't masked as a hard 404.
-async fn fetch_tarball_with_fallback<'a>(
-    upstreams: &[&'a Upstream],
-    name: &PackageName,
-    filename: &str,
-) -> TarballFetch<'a> {
-    let mut last_err = None;
-    for upstream in upstreams {
-        match upstream.fetch_tarball_response(name, filename).await {
-            Ok(FetchOutcome::Ok(response)) => return TarballFetch::Ok(upstream, response),
-            Ok(FetchOutcome::NotFound) => continue,
-            Err(err) => {
-                tracing::warn!(?err, package = %name.as_str(), %filename, uplink = upstream.name(), "upstream tarball fetch failed");
-                if !err.allows_uplink_fallthrough() {
-                    // Hard upstream rejection — surface it rather than letting
-                    // a later uplink answer for a tarball this one refused.
-                    return TarballFetch::Err(err);
-                }
-                last_err = Some(err);
-            }
-        }
-    }
-    match last_err {
-        Some(err) => TarballFetch::Err(err),
-        None => TarballFetch::NotFound,
-    }
-}
-
-/// Result of loading the packument for a package — either bytes (raw,
-/// from cache or upstream), a definite not-found, or a real error.
-enum PackumentLoad {
-    Ok(Vec<u8>),
-    NotFound,
-    Err(RegistryError),
-}
-
-/// Pull the on-disk packument bytes, hitting the upstream and updating
-/// the cache when configured. The same logic backs both the packument
-/// and the version-manifest endpoints.
-async fn load_packument_bytes(state: &AppState, name: &PackageName) -> PackumentLoad {
-    // A hosted packument — published here or static-served — is
-    // authoritative: serve it as-is and never overwrite it with an
-    // upstream refresh, so hosted versions can't be masked or lost.
-    match state.inner.storage.read_hosted_packument(name).await {
-        Ok(Some(bytes)) => {
-            record_cache_status("hosted");
-            return PackumentLoad::Ok(bytes);
-        }
-        Ok(None) => {}
-        Err(err) => {
-            tracing::warn!(?err, package = %name.as_str(), "published packument read failed");
-        }
-    }
-
-    let upstreams = resolve_upstreams(state, name);
-    if upstreams.is_empty() {
-        // Nothing published and no upstream to proxy. The only thing
-        // left is a leftover cache entry (e.g. a `proxy:` rule was
-        // removed after the package was mirrored).
-        return match state.inner.storage.read_cached_packument(name).await {
-            Ok(Some(bytes)) => {
-                // Served regardless of age — there's no upstream left to
-                // revalidate against — so this is not a fresh `hit`.
-                record_cache_status("orphaned");
-                PackumentLoad::Ok(bytes)
-            }
-            Ok(None) => PackumentLoad::NotFound,
-            Err(err) => PackumentLoad::Err(err),
-        };
-    }
-
-    // Freshness window for the proxy cache: a cached packument younger
-    // than `ttl` is served straight from disk; older than `ttl` it's
-    // "stale" and revalidated against an upstream below. Lower = newer
-    // versions surface sooner but more upstream traffic; higher = the
-    // reverse. The conditional GET on the stale path keeps a high `ttl`
-    // cheap (a `304` refreshes the entry without re-downloading it).
-    //
-    // The TTL is a per-package cache property decided before any uplink is
-    // contacted, so it comes from the primary (first) uplink's `maxage`
-    // (verdaccio's knob) when it sets one; otherwise the global
-    // `packument_ttl` (the `--packument-ttl-secs` flag) applies. Only the
-    // primary governs freshness — a secondary's `maxage` must not control the
-    // shared cache it rarely fills.
-    let ttl = upstreams
-        .first()
-        .and_then(|upstream| upstream.maxage())
-        .unwrap_or(state.inner.config.packument_ttl);
-    // A fresh entry serves immediately (and moves its bytes out — a
-    // packument can be multiple MB). A stale entry yields only its
-    // per-uplink validators; its body stays on disk until a `304`/error
-    // path below actually needs it, so the common stale→`200` refresh never
-    // reads it.
-    let validators = match state.inner.storage.read_cached_packument_entry(name, ttl).await {
-        Ok(Some(CachedPackument::Fresh(bytes))) => {
-            record_cache_status("hit");
-            return PackumentLoad::Ok(bytes);
-        }
-        Ok(Some(CachedPackument::Stale(validators))) => validators,
-        Ok(None) => ValidatorsByUplink::default(),
-        Err(err) => {
-            tracing::warn!(?err, package = %name.as_str(), "cache read failed");
-            ValidatorsByUplink::default()
-        }
-    };
-
-    // Walk the uplink fallback chain in declared order. The first uplink to
-    // return a body (`Modified`) or confirm our cache (`NotModified`) wins;
-    // a `NotFound` falls through to the next (a private uplink later in the
-    // chain may host the package); an *availability* error (transport,
-    // circuit, 5xx) is remembered and the next uplink tried. An authoritative
-    // upstream error (401/403/other hard 4xx) stops the walk immediately —
-    // see [`RegistryError::allows_uplink_fallthrough`] — so a later public
-    // mirror can never mask the primary's rejection of a scoped package. Each
-    // uplink is sent only *its own* cached validators — an `ETag` is
-    // origin-specific, so replaying one uplink's against another could
-    // spuriously `304` and serve stale data.
-    let mut last_err = None;
-    for upstream in &upstreams {
-        // Revalidate conditionally when we hold this uplink's validators:
-        // the upstream can answer `304` and save re-downloading an unchanged
-        // packument.
-        let uplink_validators = validators.get(upstream.name());
-        match upstream.fetch_packument(name, &uplink_validators).await {
-            Ok(PackumentFetch::Modified(fetched)) => {
-                return store_fetched_packument(state, name, upstream.name(), fetched).await;
-            }
-            Ok(PackumentFetch::NotModified) => {
-                return serve_revalidated(state, name, upstream, &uplink_validators).await;
-            }
-            Ok(PackumentFetch::NotFound) => continue,
-            Err(err) => {
-                tracing::warn!(?err, package = %name.as_str(), uplink = upstream.name(), "upstream packument fetch failed");
-                if !err.allows_uplink_fallthrough() {
-                    // Hard upstream rejection (auth/throttle/other 4xx). Surface
-                    // it immediately: don't try later uplinks (which could
-                    // answer for a package this one authoritatively refused) and
-                    // don't fall back to a stale cached body either — serving
-                    // cache here would mask an authoritative denial and keep
-                    // handing out content the upstream is now refusing.
-                    return PackumentLoad::Err(err);
-                }
-                last_err = Some(err);
-            }
-        }
-    }
-
-    // Chain exhausted. If any uplink errored, fall back to a stale cached
-    // body — a transient failure must never be reported as an authoritative
-    // 404 the client would cache as "gone". If every uplink answered a clean
-    // `NotFound`, the package genuinely isn't anywhere in the chain.
-    match last_err {
-        Some(err) => serve_stale_or_error(state, name, err).await,
-        None => PackumentLoad::NotFound,
-    }
-}
-
-/// Handle a `304 Not Modified` from `upstream`: the cached body is still
-/// current, so read it (deferred until now), re-write it to bump the cache
-/// mtime and re-record this uplink's validators, and serve it
-/// (`revalidated`). If the body vanished between the freshness check and
-/// this read (cache wiped concurrently), re-fetch it unconditionally from
-/// the same uplink and self-heal rather than 404-ing a present package.
-async fn serve_revalidated(
-    state: &AppState,
-    name: &PackageName,
-    upstream: &Upstream,
-    validators: &CacheValidators,
-) -> PackumentLoad {
-    match state.inner.storage.read_cached_packument(name).await {
-        Ok(Some(bytes)) => {
-            if let Err(err) = state
-                .inner
-                .storage
-                .write_cached_packument(name, &bytes, upstream.name(), validators)
-                .await
-            {
-                tracing::warn!(?err, package = %name.as_str(), "packument cache refresh failed");
-            }
-            record_cache_status("revalidated");
-            PackumentLoad::Ok(bytes)
-        }
-        Ok(None) => match upstream.fetch_packument(name, &CacheValidators::default()).await {
-            Ok(PackumentFetch::Modified(fetched)) => {
-                store_fetched_packument(state, name, upstream.name(), fetched).await
-            }
-            Ok(_) => PackumentLoad::NotFound,
-            Err(err) => PackumentLoad::Err(err),
-        },
-        Err(err) => PackumentLoad::Err(err),
-    }
-}
-
-/// Every uplink in the chain failed. Fall back to a stale cached body if one
-/// exists (tagging the access `stale`); otherwise surface the upstream
-/// error — unless the cache read itself failed, in which case that I/O error
-/// is the more actionable one to surface.
-async fn serve_stale_or_error(
-    state: &AppState,
-    name: &PackageName,
-    err: RegistryError,
-) -> PackumentLoad {
-    match state.inner.storage.read_cached_packument(name).await {
-        Ok(Some(bytes)) => {
-            record_cache_status("stale");
-            PackumentLoad::Ok(bytes)
-        }
-        Ok(None) => PackumentLoad::Err(err),
-        Err(cache_err) => PackumentLoad::Err(cache_err),
-    }
-}
-
-/// Persist a freshly fetched packument to the proxy cache (recording
-/// `uplink_name`'s validators in the package's per-uplink validator map)
-/// and return it, tagging the access record as a `miss`. A cache-write
-/// failure is logged but not fatal — the fetched bytes are still served.
-async fn store_fetched_packument(
-    state: &AppState,
-    name: &PackageName,
-    uplink_name: &str,
-    fetched: FetchedPackument,
-) -> PackumentLoad {
-    if let Err(err) = state
-        .inner
-        .storage
-        .write_cached_packument(name, &fetched.bytes, uplink_name, &fetched.validators)
-        .await
-    {
-        tracing::warn!(?err, package = %name.as_str(), "packument cache write failed");
-    }
-    record_cache_status("miss");
-    PackumentLoad::Ok(fetched.bytes)
-}
-
-/// Tag the current `pnpr::access` request span with how a packument
-/// request was served against the proxy cache, surfacing as a `cache=…`
-/// field on that request's access-log record:
-///
-/// * `hit` — served from a fresh cache entry (within `packument_ttl`)
-///   without contacting the upstream.
-/// * `revalidated` — entry was stale; the upstream answered `304 Not
-///   Modified`, so the cached body was reused.
-/// * `miss` — fetched a fresh body from the upstream.
-/// * `stale` — every uplink in the chain errored; a stale cached body was
-///   served as a fallback.
-/// * `orphaned` — a leftover mirror served with no upstream left to
-///   revalidate against (its `proxy:` rule was removed after the package
-///   was mirrored). Served regardless of age, so distinct from `hit`.
-/// * `hosted` — served from the authoritative hosted store (a published
-///   or static package), bypassing the proxy cache entirely.
-///
-/// A no-op when called outside a request span (e.g. unit tests), so the
-/// field is simply absent on those records.
-fn record_cache_status(status: &'static str) {
-    Span::current().record("cache", status);
 }
 
 /// Parse the on-disk packument, rewrite `dist.tarball` URLs, and

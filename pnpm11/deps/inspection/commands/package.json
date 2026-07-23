@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.inspection.commands",
-  "version": "1100.4.1",
+  "version": "1100.6.0",
   "description": "The list, ll, why, and outdated commands of pnpm",
   "keywords": [
     "pnpm",
@@ -38,6 +38,7 @@
     "@pnpm/config.matcher": "workspace:*",
     "@pnpm/config.pick-registry-for-package": "workspace:*",
     "@pnpm/config.reader": "workspace:*",
+    "@pnpm/deps.github-actions": "workspace:*",
     "@pnpm/deps.inspection.list": "workspace:*",
     "@pnpm/deps.inspection.outdated": "workspace:*",
     "@pnpm/deps.inspection.peers-checker": "workspace:*",

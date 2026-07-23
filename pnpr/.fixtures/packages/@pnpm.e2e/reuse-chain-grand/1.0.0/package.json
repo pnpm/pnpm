@@ -1,0 +1,7 @@
+{
+  "name": "@pnpm.e2e/reuse-chain-grand",
+  "version": "1.0.0",
+  "dependencies": {
+    "@pnpm.e2e/reuse-chain-parent": "1.0.0"
+  }
+}

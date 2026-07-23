@@ -17,8 +17,8 @@ use super::{
     resolution_cache_key, store_resolution,
 };
 use crate::{
-    config::{Config as RegistryConfig, PublicRoute, UplinkConfig},
-    policy::{AccessList, Identity, PackagePolicies, PackagePolicy},
+    config::{Config as RegistryConfig, PublicRoute, UpstreamConfig},
+    policy::{AccessList, Identity, PackageRule, PackageRules},
     route::{Footprint, PrivateAccessDescriptor, RouteContext},
 };
 
@@ -73,22 +73,22 @@ fn user(name: &str) -> Identity {
     Identity::user(name)
 }
 
-/// The standard token test uplinks carry; the credential digest it produces is
-/// what [`private_alias_footprint`] records, so a footprint and an uplink built
+/// The standard token test upstreams carry; the credential digest it produces is
+/// what [`private_alias_footprint`] records, so a footprint and an upstream built
 /// with it share a credential epoch.
 const ALIAS_TOKEN: &str = "Bearer alias-secret";
 
-fn uplink_with_access(registry: &str, access: &str) -> UplinkConfig {
-    uplink_with_token(registry, access, ALIAS_TOKEN)
+fn upstream_with_access(registry: &str, access: &str) -> UpstreamConfig {
+    upstream_with_token(registry, access, ALIAS_TOKEN)
 }
 
-fn uplink_with_token(registry: &str, access: &str, token: &'static str) -> UplinkConfig {
+fn upstream_with_token(registry: &str, access: &str, token: &'static str) -> UpstreamConfig {
     let mut headers = reqwest::header::HeaderMap::new();
     headers
         .insert(reqwest::header::AUTHORIZATION, reqwest::header::HeaderValue::from_static(token));
-    let mut uplink = UplinkConfig::with_defaults(registry.to_string(), headers);
-    uplink.access = Some(AccessList::parse(access));
-    uplink
+    let mut upstream = UpstreamConfig::with_defaults(registry.to_string(), headers);
+    upstream.access = Some(AccessList::from_tokens([access]));
+    upstream
 }
 
 fn private_alias_footprint(alias: &str) -> Footprint {
@@ -96,26 +96,33 @@ fn private_alias_footprint(alias: &str) -> Footprint {
     footprint.add(PrivateAccessDescriptor::Alias {
         alias: alias.to_string(),
         credential_digest: crate::route::credential_digest(ALIAS_TOKEN),
+        package: None,
     });
     footprint
 }
 
-fn private_hosted_footprint(policy_id: &str) -> Footprint {
+fn private_hosted_footprint(registry: &str, package: &str) -> Footprint {
     let mut footprint = Footprint::default();
-    footprint.add(PrivateAccessDescriptor::Hosted { policy_id: policy_id.to_string() });
+    // Registry-qualified, matching `hosted_policy_id` in the route module.
+    footprint.add(PrivateAccessDescriptor::Hosted { policy_id: format!("{registry}\0{package}") });
     footprint
 }
 
-fn package_policies(pattern: &str, access: &str) -> PackagePolicies {
-    PackagePolicies::new(vec![
-        PackagePolicy::new(
-            pattern,
-            AccessList::parse(access),
-            AccessList::parse("$authenticated"),
-            AccessList::default(),
-        )
-        .expect("policy parses"),
-    ])
+/// Replace the `local` hosted registry's rules with a single-pattern map
+/// whose `access` is `access`, so a test can rotate who may read a hosted
+/// package.
+fn set_local_hosted_rules(config: &mut RegistryConfig, pattern: &str, access: &str) {
+    use crate::registry::PackagePattern;
+    let rules = PackageRules::new(
+        vec![PackageRule {
+            pattern: PackagePattern::parse(pattern).expect("test pattern parses"),
+            access: Some(AccessList::from_tokens([access])),
+            publish: Some(AccessList::from_tokens(["$authenticated"])),
+            unpublish: None,
+        }],
+        None,
+    );
+    config.hosted.get_mut("local").expect("proxy config has a local hosted registry").rules = rules;
 }
 
 fn lockfile(version: &str) -> Lockfile {
@@ -176,6 +183,29 @@ fn resolution_cache_key_normalizes_single_project_requests() {
         resolution_cache_key(&config(), &top_level),
         resolution_cache_key(&config(), &projects),
     );
+}
+
+#[test]
+fn resolution_cache_key_changes_with_project_identity() {
+    let request = |name: &str, version: &str| {
+        serde_json::from_value::<ResolveRequest>(serde_json::json!({
+            "projects": [{
+                "dir": ".",
+                "name": name,
+                "version": version,
+                "dependencies": { "foo": "^1.0.0" }
+            }]
+        }))
+        .expect("resolve request parses")
+    };
+    let base = request("app", "1.0.0");
+    let renamed = request("renamed-app", "1.0.0");
+    let reversioned = request("app", "2.0.0");
+
+    let config = config();
+    let base_key = resolution_cache_key(&config, &base);
+    assert_ne!(base_key, resolution_cache_key(&config, &renamed));
+    assert_ne!(base_key, resolution_cache_key(&config, &reversioned));
 }
 
 #[test]
@@ -295,8 +325,8 @@ fn private_cached_resolution_requires_current_alias_authorization() {
 
     let mut config = registry_config();
     config
-        .uplinks
-        .insert("corp".to_string(), uplink_with_access("https://npm.corp.example/", "alice"));
+        .upstreams
+        .insert("corp".to_string(), upstream_with_access("https://npm.corp.example/", "alice"));
     let context = RouteContext::from_config(&config);
     assert!(
         cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("alice")).is_some(),
@@ -308,9 +338,9 @@ fn private_cached_resolution_requires_current_alias_authorization() {
     // Rotate the upstream credential (new token → new credential digest). The
     // resolution cached under the old credential must no longer be reused, even
     // for a still-authorized caller.
-    config.uplinks.insert(
+    config.upstreams.insert(
         "corp".to_string(),
-        uplink_with_token("https://npm.corp.example/", "alice", "Bearer rotated-secret"),
+        upstream_with_token("https://npm.corp.example/", "alice", "Bearer rotated-secret"),
     );
     let rotated = RouteContext::from_config(&config);
     assert!(
@@ -333,9 +363,9 @@ fn same_alias_authorized_users_share_private_resolution_cache() {
     ));
 
     let mut config = registry_config();
-    config.uplinks.insert(
+    config.upstreams.insert(
         "corp".to_string(),
-        uplink_with_access("https://npm.corp.example/", "$authenticated"),
+        upstream_with_access("https://npm.corp.example/", "$authenticated"),
     );
     let context = RouteContext::from_config(&config);
 
@@ -367,22 +397,72 @@ fn revoked_alias_access_stops_matching_private_resolution_hits() {
 
     let mut config = registry_config();
     config
-        .uplinks
-        .insert("corp".to_string(), uplink_with_access("https://npm.corp.example/", "alice"));
+        .upstreams
+        .insert("corp".to_string(), upstream_with_access("https://npm.corp.example/", "alice"));
     let context = RouteContext::from_config(&config);
     assert!(
         cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("alice")).is_some(),
     );
 
     config
-        .uplinks
-        .insert("corp".to_string(), uplink_with_access("https://npm.corp.example/", "bob"));
+        .upstreams
+        .insert("corp".to_string(), upstream_with_access("https://npm.corp.example/", "bob"));
     let context = RouteContext::from_config(&config);
     assert!(
         cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("alice")).is_none(),
     );
     assert!(
         cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("bob")).is_some(),
+    );
+}
+
+#[test]
+fn package_qualified_alias_descriptor_rechecks_upstream_rules_on_replay() {
+    use crate::policy::{PackageRule, PackageRules};
+    use crate::registry::PackagePattern;
+
+    let cache = Mutex::new(HashMap::new());
+    let key = "base".to_string();
+    let lockfile = lockfile("1.0.0");
+    // A resolution that touched an explicitly refined name records the
+    // package-qualified descriptor (what `RouteHook` would produce).
+    let mut footprint = Footprint::default();
+    footprint.add(PrivateAccessDescriptor::Alias {
+        alias: "corp".to_string(),
+        credential_digest: crate::route::credential_digest(ALIAS_TOKEN),
+        package: Some("@corp/secret".to_string()),
+    });
+    assert!(store_resolution(
+        &cache,
+        Duration::from_mins(1),
+        key.clone(),
+        footprint,
+        b"secret",
+        &lockfile,
+    ));
+
+    let mut config = registry_config();
+    let mut upstream = upstream_with_access("https://npm.corp.example/", "$authenticated");
+    upstream.rules = PackageRules::new(
+        vec![PackageRule {
+            pattern: PackagePattern::parse("@corp/secret").expect("test pattern parses"),
+            access: Some(AccessList::from_tokens(["alice"])),
+            publish: None,
+            unpublish: None,
+        }],
+        Some(AccessList::from_tokens(["$authenticated"])),
+    );
+    config.upstreams.insert("corp".to_string(), upstream);
+    let context = RouteContext::from_config(&config);
+
+    // Alice satisfies the per-package refinement: the hit replays.
+    assert!(
+        cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("alice")).is_some(),
+    );
+    // Bob passes the registry-level alias gate but the refinement denies
+    // him: replay must be exactly as strict as a fresh resolve, so no hit.
+    assert!(
+        cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("bob")).is_none(),
     );
 }
 
@@ -395,13 +475,13 @@ fn revoked_hosted_package_access_stops_matching_private_resolution_hits() {
         &cache,
         Duration::from_mins(1),
         key.clone(),
-        private_hosted_footprint("@private/pkg"),
+        private_hosted_footprint("local", "@private/pkg"),
         b"secret",
         &lockfile,
     ));
 
     let mut config = registry_config();
-    config.policies = package_policies("@private/*", "alice");
+    set_local_hosted_rules(&mut config, "@private/*", "alice");
     let context = RouteContext::from_config(&config);
     assert!(
         cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("alice")).is_some(),
@@ -410,7 +490,7 @@ fn revoked_hosted_package_access_stops_matching_private_resolution_hits() {
         cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("bob")).is_none(),
     );
 
-    config.policies = package_policies("@private/*", "bob");
+    set_local_hosted_rules(&mut config, "@private/*", "bob");
     let context = RouteContext::from_config(&config);
     assert!(
         cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("alice")).is_none(),
@@ -439,9 +519,9 @@ fn public_lockfile_routing_keeps_registry_resolutions_compact() {
 fn private_alias_lockfile_routing_uses_gateway_url() {
     let pacquet_config = config_for_registry("https://npm.corp.example/");
     let mut registry = registry_config();
-    registry.uplinks.insert(
+    registry.upstreams.insert(
         "corp".to_string(),
-        uplink_with_access("https://npm.corp.example/", "$authenticated"),
+        upstream_with_access("https://npm.corp.example/", "$authenticated"),
     );
     let router = tarball_router(&registry, user("alice"));
 
@@ -462,9 +542,9 @@ fn private_alias_lockfile_routing_uses_gateway_url() {
 fn private_alias_lockfile_routing_encodes_scoped_packages_as_one_gateway_segment() {
     let pacquet_config = config_for_registry("https://npm.corp.example/");
     let mut registry = registry_config();
-    registry.uplinks.insert(
+    registry.upstreams.insert(
         "corp".to_string(),
-        uplink_with_access("https://npm.corp.example/", "$authenticated"),
+        upstream_with_access("https://npm.corp.example/", "$authenticated"),
     );
     let router = tarball_router(&registry, user("alice"));
 
@@ -490,7 +570,7 @@ fn unknown_lockfile_routing_leaves_resolution_unrewritten() {
     let input = lockfile("1.0.0");
     let routed = router.route_lockfile(&pacquet_config, &input);
 
-    // An unknown route has no uplink and no managed credential, so pnpr mints
+    // An unknown route has no upstream and no managed credential, so pnpr mints
     // no gateway URL: the integrity-only registry resolution is left untouched
     // (the client fetches the upstream tarball directly, as it was resolved
     // anonymously), never rewritten into an explicit tarball URL.
@@ -642,8 +722,8 @@ fn private_cached_resolution_keeps_routed_tarball_urls() {
     let pacquet_config = config_for_registry("https://npm.corp.example/");
     let mut registry = registry_config();
     registry
-        .uplinks
-        .insert("corp".to_string(), uplink_with_access("https://npm.corp.example/", "alice"));
+        .upstreams
+        .insert("corp".to_string(), upstream_with_access("https://npm.corp.example/", "alice"));
     let router = tarball_router(&registry, user("alice"));
     let routed = router.route_lockfile(&pacquet_config, &lockfile("1.0.0"));
 
@@ -741,9 +821,9 @@ fn package_frames_route_private_alias_tarballs_to_gateway() {
     use pacquet_package_manager::ResolvedPackageHint;
 
     let mut registry = registry_config();
-    registry.uplinks.insert(
+    registry.upstreams.insert(
         "corp".to_string(),
-        uplink_with_access("https://npm.corp.example/", "$authenticated"),
+        upstream_with_access("https://npm.corp.example/", "$authenticated"),
     );
     let router = tarball_router(&registry, user("alice"));
     let frame = super::package_frame(
@@ -770,9 +850,9 @@ fn package_frame_routes_split_domain_registry_tarball_by_registry() {
     use pacquet_package_manager::ResolvedPackageHint;
 
     let mut registry = registry_config();
-    registry.uplinks.insert(
+    registry.upstreams.insert(
         "corp".to_string(),
-        uplink_with_access("https://npm.corp.example/", "$authenticated"),
+        upstream_with_access("https://npm.corp.example/", "$authenticated"),
     );
     // The package resolves from the private corp registry, but its packument's
     // dist.tarball lives on a *different* host (a split-domain CDN).
@@ -883,9 +963,9 @@ fn frozen_package_frames_route_private_alias_tarballs_to_gateway() {
     let lockfile = lockfile("1.0.0");
     let stats = observed_dist_stats_sink();
     let mut registry = registry_config();
-    registry.uplinks.insert(
+    registry.upstreams.insert(
         "corp".to_string(),
-        uplink_with_access("https://npm.corp.example/", "$authenticated"),
+        upstream_with_access("https://npm.corp.example/", "$authenticated"),
     );
 
     let frames = super::frozen_package_frames(

@@ -35,7 +35,7 @@ interface ReplaceEnvInSettingsOptions {
   expandRequestDestinationEnv: boolean
 }
 
-const REQUEST_DESTINATION_SCALAR_KEYS = new Set(['pnprServer', 'registry'])
+const REQUEST_DESTINATION_SCALAR_KEYS = new Set(['pnprServer', 'registry', 'httpProxy', 'httpsProxy', 'noProxy', 'proxy', 'noproxy'])
 
 export function getOptionsFromPnpmSettings (
   manifestDir: string | undefined,
@@ -66,8 +66,80 @@ export function getOptionsFromPnpmSettings (
       settings.patchedDependencies[dep] = path.join(manifestDir, patchFile)
     }
   }
+  translateUpdateSettings(pnpmSettings, settings)
+  translateAuditSettings(pnpmSettings, settings)
 
   return settings
+}
+
+/**
+ * Translates the user-facing `update` settings section into the internal
+ * `updateConfig` shape that the rest of pnpm reads, and removes the raw
+ * `update` key from the returned options.
+ *
+ * The removal is load-bearing: these options are merged into the global config,
+ * where `update` is the boolean flag that turns an install into an update. A
+ * leaked `update` object would be truthy and make a plain `pnpm install` behave
+ * like `pnpm update`.
+ *
+ * `updateConfig` is the deprecated spelling, kept working until the next major.
+ * When both are set, `update` wins.
+ */
+function translateUpdateSettings (pnpmSettings: PnpmSettings, settings: OptionsFromRootManifest): void {
+  delete (settings as { update?: unknown }).update
+  const update = pnpmSettings.update
+  if (update == null) return
+  assertObjectSetting(update, 'update')
+  if (pnpmSettings.updateConfig != null) {
+    globalWarn('Both the "update" and "updateConfig" settings are set. The deprecated "updateConfig" setting is ignored in favor of "update".')
+  }
+  // The `update` section is authoritative when present: build the internal
+  // `updateConfig` shape from it, superseding any deprecated `updateConfig`.
+  const updateConfig: NonNullable<OptionsFromRootManifest['updateConfig']> = {}
+  if (update.ignoreDeps != null) {
+    assertStringArray(update.ignoreDeps, 'update.ignoreDeps')
+    updateConfig.ignoreDependencies = update.ignoreDeps
+  }
+  if (update.changeset != null) {
+    assertBoolean(update.changeset, 'update.changeset')
+    updateConfig.changeset = update.changeset
+  }
+  if (update.githubActions != null) {
+    assertBoolean(update.githubActions, 'update.githubActions')
+    updateConfig.githubActions = update.githubActions
+  }
+  settings.updateConfig = updateConfig
+}
+
+/**
+ * Translates the user-facing `audit` settings section into the internal
+ * `auditConfig` / `auditLevel` settings, and removes the raw `audit` key.
+ *
+ * `auditConfig` and `auditLevel` are the deprecated spellings, kept working
+ * until the next major. When the `audit` section provides a value, it wins
+ * over its deprecated counterpart (with a warning).
+ */
+function translateAuditSettings (pnpmSettings: PnpmSettings, settings: OptionsFromRootManifest): void {
+  delete (settings as { audit?: unknown }).audit
+  const audit = pnpmSettings.audit
+  if (audit == null) return
+  assertObjectSetting(audit, 'audit')
+  if (audit.ignore != null) {
+    assertStringArray(audit.ignore, 'audit.ignore')
+    if (pnpmSettings.auditConfig != null) {
+      globalWarn('Both the "audit" and "auditConfig" settings are set. The deprecated "auditConfig" setting is ignored in favor of "audit".')
+    }
+    settings.auditConfig = { ...settings.auditConfig, ignoreGhsas: audit.ignore }
+  }
+  if (audit.level != null) {
+    if (!AUDIT_LEVELS.has(audit.level)) {
+      throw new PnpmError('INVALID_SETTING', `The "audit.level" setting should be one of ${Array.from(AUDIT_LEVELS).join(', ')}, but got ${JSON.stringify(audit.level)}`)
+    }
+    if ((pnpmSettings as { auditLevel?: unknown }).auditLevel != null) {
+      globalWarn('Both the "audit" and "auditLevel" settings are set. The deprecated "auditLevel" setting is ignored in favor of "audit".')
+    }
+    ;(settings as { auditLevel?: string }).auditLevel = audit.level
+  }
 }
 
 function isGetOptionsFromPnpmSettingsOptions (
@@ -91,6 +163,34 @@ function renderReceivedType (value: unknown): string {
   if (value === null) return 'null'
   if (Array.isArray(value)) return 'array'
   return typeof value
+}
+
+const AUDIT_LEVELS = new Set(['info', 'low', 'moderate', 'high', 'critical'])
+
+// The `update` and `audit` sections come from repo-controlled
+// pnpm-workspace.yaml, which is parsed untyped — so their fields are validated
+// here (the Rust config reader rejects the same malformed shapes at parse
+// time). An invalid `audit.level` is especially worth catching: it would leave
+// `pnpm audit` comparing severities against `undefined`, silently reporting no
+// advisories.
+function assertStringArray (value: unknown, settingName: string): asserts value is string[] {
+  if (!Array.isArray(value) || value.some((item) => typeof item !== 'string')) {
+    throw new PnpmError('INVALID_SETTING', `The "${settingName}" setting should be an array of strings, but got ${renderReceivedType(value)}`)
+  }
+}
+
+function assertBoolean (value: unknown, settingName: string): asserts value is boolean {
+  if (typeof value !== 'boolean') {
+    throw new PnpmError('INVALID_SETTING', `The "${settingName}" setting should be a boolean, but got ${renderReceivedType(value)}`)
+  }
+}
+
+// Not an `asserts` guard on purpose: it only rejects malformed shapes at
+// runtime, without narrowing away the section's declared type at the call site.
+function assertObjectSetting (value: unknown, settingName: string): void {
+  if (value == null || typeof value !== 'object' || Array.isArray(value)) {
+    throw new PnpmError('INVALID_SETTING', `The "${settingName}" setting should be an object, but got ${renderReceivedType(value)}`)
+  }
 }
 
 function replaceEnvInSettings (

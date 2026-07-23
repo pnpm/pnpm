@@ -24,7 +24,6 @@ export interface InstallGlobalPackagesOptions extends CreateStoreControllerOptio
   allowBuilds?: Record<string, string | boolean>
   include: IncludedDependencies
   includeDirect?: IncludedDependencies
-  fetchFullMetadata?: boolean
   omitSummaryLog?: boolean
   rootProjectManifest?: unknown
   rootProjectManifestDir?: string

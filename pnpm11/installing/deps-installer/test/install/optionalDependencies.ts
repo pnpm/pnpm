@@ -219,6 +219,101 @@ function createMetadataStrippingRegistryProxy (): http.Server {
   })
 }
 
+// Covers https://github.com/pnpm/pnpm/issues/12853: a registry that can no
+// longer serve the locked version of an optional dependency (e.g. a stale
+// mirror that hasn't synced a recent release) must not cause the locked
+// entries to be silently erased from the lockfile. That would make the
+// lockfile depend on which machine ran the install, and a frozen install on
+// another machine would find no entry to link.
+test('fail on an optional dependency that cannot be resolved when the lockfile has a satisfying locked entry', async () => {
+  const project = prepareEmpty()
+  const manifest = {
+    dependencies: {
+      '@pnpm.e2e/has-many-optional-deps': '1.0.0',
+    },
+  }
+  await install(manifest, testDefaults())
+
+  const lockfileBefore = project.readLockfile()
+  expect(lockfileBefore.snapshots['@pnpm.e2e/has-many-optional-deps@1.0.0'].optionalDependencies).toStrictEqual({
+    '@pnpm.e2e/darwin-arm64': '1.0.0',
+    '@pnpm.e2e/darwin-x64': '1.0.0',
+    '@pnpm.e2e/linux-arm64': '1.0.0',
+    '@pnpm.e2e/linux-x64': '1.0.0',
+    '@pnpm.e2e/windows-x64': '1.0.0',
+  })
+
+  const server = createVersionHidingRegistryProxy([
+    '@pnpm.e2e/darwin-arm64',
+    '@pnpm.e2e/darwin-x64',
+    '@pnpm.e2e/linux-arm64',
+    '@pnpm.e2e/linux-x64',
+    '@pnpm.e2e/windows-x64',
+  ], '1.0.0')
+  await new Promise<void>((resolve) => {
+    server.listen(0, resolve)
+  })
+  const registryProxy = `http://localhost:${(server.address() as AddressInfo).port}/`
+  try {
+    // dedupe re-resolves every package from registry metadata, so it hits the
+    // stale packuments even though the lockfile already pins the versions.
+    await expect(install(manifest, testDefaults({
+      dedupe: true,
+      registries: { default: registryProxy },
+    }))).rejects.toMatchObject({
+      code: expect.stringMatching(/^ERR_PNPM_NO_(MATCHING_VERSION|VERSIONS)$/),
+      hint: expect.stringContaining('the lockfile contains a resolution for it'),
+    })
+  } finally {
+    server.closeAllConnections()
+    await new Promise<void>((resolve, reject) => {
+      server.close((err) => {
+        if (err == null) {
+          resolve()
+        } else {
+          reject(err)
+        }
+      })
+    })
+  }
+
+  expect(project.readLockfile()).toStrictEqual(lockfileBefore)
+})
+
+// Simulates a registry mirror whose packuments predate a release: the version
+// is missing from the version list even though other packages already
+// reference it. Everything else is forwarded to the registry mock.
+function createVersionHidingRegistryProxy (pkgNames: string[], hiddenVersion: string): http.Server {
+  const hiddenPkgPaths = new Set(pkgNames.map((pkgName) => `/${pkgName}`))
+  return http.createServer((req, res) => {
+    (async () => {
+      const upstream = await fetch(`http://localhost:${REGISTRY_MOCK_PORT}${req.url}`, {
+        method: req.method,
+        headers: { accept: req.headers.accept ?? '*/*' },
+      })
+      const contentType = upstream.headers.get('content-type') ?? ''
+      if (hiddenPkgPaths.has(decodeURIComponent(req.url!)) && contentType.includes('json')) {
+        const doc = await upstream.json() as { versions?: Record<string, unknown>, time?: Record<string, string>, 'dist-tags'?: Record<string, string> }
+        delete doc.versions?.[hiddenVersion]
+        delete doc.time?.[hiddenVersion]
+        for (const [distTag, version] of Object.entries(doc['dist-tags'] ?? {})) {
+          if (version === hiddenVersion) {
+            delete doc['dist-tags']![distTag]
+          }
+        }
+        res.writeHead(upstream.status, { 'content-type': 'application/json' })
+        res.end(JSON.stringify(doc))
+      } else {
+        res.writeHead(upstream.status, { 'content-type': contentType })
+        res.end(Buffer.from(await upstream.arrayBuffer()))
+      }
+    })().catch((err) => {
+      res.writeHead(500, { 'content-type': 'text/plain' })
+      res.end(String(err))
+    })
+  })
+}
+
 test('skip optional dependency that does not support the current Node version', async () => {
   const project = prepareEmpty()
   const reporter = jest.fn()

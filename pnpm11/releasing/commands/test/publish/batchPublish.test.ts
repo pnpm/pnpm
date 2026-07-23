@@ -13,6 +13,7 @@ import { checkPkgExists, DEFAULT_OPTS } from './utils/index.js'
 interface ReceivedRequest {
   method: string
   url: string
+  headers: http.IncomingHttpHeaders
   body: unknown
 }
 
@@ -41,6 +42,7 @@ async function createRegistryStub (): Promise<RegistryStub> {
       received.push({
         method: req.method!,
         url: req.url!,
+        headers: req.headers,
         body: rawBody.length > 0 ? JSON.parse(rawBody.toString()) : undefined,
       })
       if (req.method === 'PUT' && req.url === '/-/pnpm/v1/publish') {
@@ -150,6 +152,25 @@ test('batch publish sends all packages in a single batch publish request', async
   expect(dist.tarball).toBe(`${registry.url}@pnpmtest/batch-pkg-1/-/@pnpmtest/batch-pkg-1-1.0.0.tgz`)
 })
 
+test('batch publish sends configured OTP on the first publish request', async () => {
+  preparePackages([
+    {
+      name: 'batch-otp',
+      version: '1.0.0',
+    },
+  ])
+
+  await publish.handler({
+    ...batchPublishOpts(),
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+    otp: '123456',
+  }, [])
+
+  const publishRequests = registry.received.filter(({ url }) => url === '/-/pnpm/v1/publish')
+  expect(publishRequests).toHaveLength(1)
+  expect(publishRequests[0].headers['npm-otp']).toBe('123456')
+})
+
 test('batch publish with --dry-run sends no request but reports the packages', async () => {
   preparePackages([
     {
@@ -197,7 +218,7 @@ test('batch publish against a real pnpr registry publishes every package', async
     version: '1.0.0',
   }
   const pkg2 = {
-    name: `batch-e2e-project-2-${SUFFIX}`,
+    name: `@pnpmtest/batch-e2e-project-2-${SUFFIX}`,
     version: '1.2.3',
   }
   preparePackages([pkg1, pkg2])

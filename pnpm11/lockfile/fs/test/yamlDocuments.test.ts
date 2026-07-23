@@ -5,9 +5,13 @@ import { describe, expect, test } from '@jest/globals'
 import { temporaryDirectory } from 'tempy'
 
 import {
+  extractEnvDocument,
   extractMainDocument,
+  readLockfileToString,
   streamReadFirstYamlDocument,
 } from '../lib/yamlDocuments.js'
+
+const testOnNonWindows = process.platform === 'win32' ? test.skip : test
 
 describe('streamReadFirstYamlDocument', () => {
   test('returns the first document content from a two-document file', async () => {
@@ -119,6 +123,54 @@ describe('streamReadFirstYamlDocument', () => {
     fs.writeFileSync(filePath, content)
     const result = await streamReadFirstYamlDocument(filePath)
     expect(result).toBe('foo: bar')
+  })
+
+  testOnNonWindows('reads through a symlinked lockfile', async () => {
+    const dir = temporaryDirectory()
+    const realLockfile = path.join(dir, 'real-lockfile.yaml')
+    const lockfilePath = path.join(dir, 'pnpm-lock.yaml')
+    fs.writeFileSync(realLockfile, '---\nfoo: bar\n---\nlockfileVersion: 9.0\n')
+    fs.symlinkSync(realLockfile, lockfilePath, 'file')
+
+    await expect(streamReadFirstYamlDocument(lockfilePath)).resolves.toBe('foo: bar')
+  })
+})
+
+describe('extractEnvDocument', () => {
+  test('whole-file reads strip a BOM and normalize CRLF', async () => {
+    const dir = temporaryDirectory()
+    const filePath = path.join(dir, 'test.yaml')
+    fs.writeFileSync(filePath, '\uFEFF---\r\nfoo: bar\r\n---\r\nlockfileVersion: 9.0\r\n')
+
+    await expect(readLockfileToString(filePath)).resolves.toBe(
+      '---\nfoo: bar\n---\nlockfileVersion: 9.0\n'
+    )
+  })
+
+  test('returns null when content does not start with ---', () => {
+    expect(extractEnvDocument('lockfileVersion: 9.0\npackages: {}\n')).toBeNull()
+  })
+
+  test('returns null when content starts with --- but has no separator', () => {
+    expect(extractEnvDocument('---\nfoo: bar\n')).toBeNull()
+  })
+
+  test('returns the first document from a combined file', () => {
+    expect(extractEnvDocument('---\nfoo: bar\n---\nlockfileVersion: 9.0\n')).toBe('foo: bar')
+  })
+
+  test('handles CRLF line endings in combined file', () => {
+    const combined = '---\nfoo: bar\n---\nlockfileVersion: 9.0\n'.replace(/\n/g, '\r\n')
+    expect(extractEnvDocument(combined)).toBe('foo: bar')
+  })
+
+  test('agrees with streamReadFirstYamlDocument on a combined file', async () => {
+    const dir = temporaryDirectory()
+    const filePath = path.join(dir, 'test.yaml')
+    const combined = '---\nfoo: bar\n---\nlockfileVersion: 9.0\n'
+    fs.writeFileSync(filePath, combined)
+
+    expect(extractEnvDocument(combined)).toBe(await streamReadFirstYamlDocument(filePath))
   })
 })
 

@@ -66,19 +66,19 @@ test('interactively update', async () => {
   const project = prepare({
     dependencies: {
       // has 1.0.0 and 1.0.1 that satisfy this range
-      'is-negative': '^1.0.0',
+      '@pnpm.e2e/multi-version-a': '^1.0.0',
       // only 2.0.0 satisfies this range
-      'is-positive': '^2.0.0',
-      // has many versions that satisfy ^3.0.0
-      micromatch: '^3.0.0',
+      '@pnpm.e2e/multi-version-b': '^2.0.0',
+      // has several versions that satisfy ^3.0.0
+      '@pnpm.e2e/multi-version-c': '^3.0.0',
     },
   })
 
   const storeDir = path.resolve('pnpm-store')
 
   await Promise.all([
-    addDistTag({ package: 'is-negative', version: '2.1.0', distTag: 'latest' }),
-    addDistTag({ package: 'micromatch', version: '4.0.0', distTag: 'latest' }),
+    addDistTag({ package: '@pnpm.e2e/multi-version-a', version: '2.1.0', distTag: 'latest' }),
+    addDistTag({ package: '@pnpm.e2e/multi-version-c', version: '4.0.0', distTag: 'latest' }),
   ])
 
   await add.handler(
@@ -90,10 +90,10 @@ test('interactively update', async () => {
       save: false,
       storeDir,
     },
-    ['is-negative@1.0.0', 'is-positive@2.0.0', 'micromatch@3.0.0']
+    ['@pnpm.e2e/multi-version-a@1.0.0', '@pnpm.e2e/multi-version-b@2.0.0', '@pnpm.e2e/multi-version-c@3.0.0']
   )
 
-  mockCheckbox.mockResolvedValue(['is-negative'])
+  mockCheckbox.mockResolvedValue(['@pnpm.e2e/multi-version-a'])
 
   mockCheckbox.mockClear()
   // Update to compatible versions
@@ -114,20 +114,20 @@ test('interactively update', async () => {
     new Separator(chalk.bold('── dependencies ──')),
     new Separator('  Package                                                    Current   Target            URL '),
     {
-      name: `is-negative                                                  1.0.0 ❯ 1.0.${chalk.greenBright.bold('1')}                 `,
-      value: 'is-negative',
-      short: 'is-negative',
+      name: `@pnpm.e2e/multi-version-a                                    1.0.0 ❯ 1.0.${chalk.greenBright.bold('1')}                 `,
+      value: '@pnpm.e2e/multi-version-a',
+      short: '@pnpm.e2e/multi-version-a',
     },
     {
-      name: `micromatch                                                   3.0.0 ❯ 3.${chalk.yellowBright.bold('1.10')}                `,
-      value: 'micromatch',
-      short: 'micromatch',
+      name: `@pnpm.e2e/multi-version-c                                    3.0.0 ❯ 3.${chalk.yellowBright.bold('1.10')}                `,
+      value: '@pnpm.e2e/multi-version-c',
+      short: '@pnpm.e2e/multi-version-c',
     },
   ])
   expect(mockCheckbox).toHaveBeenCalledWith(
     expect.objectContaining({
       message:
-        'Choose which packages to update ' +
+        'Choose which dependencies to update ' +
         `(Press ${chalk.cyan('<space>')} to select, ` +
         `${chalk.cyan('<a>')} to toggle all, ` +
         `${chalk.cyan('<i>')} to invert selection)\n\nEnter to start updating. Ctrl-c to cancel.`,
@@ -139,14 +139,14 @@ test('interactively update', async () => {
   {
     const lockfile = project.readLockfile()
 
-    expect(lockfile.packages['micromatch@3.0.0']).toBeTruthy()
-    expect(lockfile.packages['is-negative@1.0.1']).toBeTruthy()
-    expect(lockfile.packages['is-positive@2.0.0']).toBeTruthy()
+    expect(lockfile.packages['@pnpm.e2e/multi-version-c@3.0.0']).toBeTruthy()
+    expect(lockfile.packages['@pnpm.e2e/multi-version-a@1.0.1']).toBeTruthy()
+    expect(lockfile.packages['@pnpm.e2e/multi-version-b@2.0.0']).toBeTruthy()
   }
 
   // Update to latest versions
   mockCheckbox.mockClear()
-  mockCheckbox.mockResolvedValue(['is-negative'])
+  mockCheckbox.mockResolvedValue(['@pnpm.e2e/multi-version-a'])
   await update.handler({
     ...DEFAULT_OPTIONS,
     cacheDir: path.resolve('cache'),
@@ -165,25 +165,25 @@ test('interactively update', async () => {
     new Separator(chalk.bold('── dependencies ──')),
     new Separator('  Package                                                    Current   Target            URL '),
     {
-      name: `is-negative                                                  1.0.1 ❯ ${chalk.redBright.bold('2.1.0')}                 `,
-      value: 'is-negative',
-      short: 'is-negative',
+      name: `@pnpm.e2e/multi-version-a                                    1.0.1 ❯ ${chalk.redBright.bold('2.1.0')}                 `,
+      value: '@pnpm.e2e/multi-version-a',
+      short: '@pnpm.e2e/multi-version-a',
     },
     {
-      name: `is-positive                                                  2.0.0 ❯ ${chalk.redBright.bold('3.1.0')}                 `,
-      value: 'is-positive',
-      short: 'is-positive',
+      name: `@pnpm.e2e/multi-version-b                                    2.0.0 ❯ ${chalk.redBright.bold('3.1.0')}                 `,
+      value: '@pnpm.e2e/multi-version-b',
+      short: '@pnpm.e2e/multi-version-b',
     },
     {
-      name: `micromatch                                                   3.0.0 ❯ ${chalk.redBright.bold('4.0.0')}                 `,
-      value: 'micromatch',
-      short: 'micromatch',
+      name: `@pnpm.e2e/multi-version-c                                    3.0.0 ❯ ${chalk.redBright.bold('4.0.0')}                 `,
+      value: '@pnpm.e2e/multi-version-c',
+      short: '@pnpm.e2e/multi-version-c',
     },
   ])
   expect(mockCheckbox).toHaveBeenCalledWith(
     expect.objectContaining({
       message:
-        'Choose which packages to update ' +
+        'Choose which dependencies to update ' +
         `(Press ${chalk.cyan('<space>')} to select, ` +
         `${chalk.cyan('<a>')} to toggle all, ` +
         `${chalk.cyan('<i>')} to invert selection)\n\nEnter to start updating. Ctrl-c to cancel.`,
@@ -193,9 +193,9 @@ test('interactively update', async () => {
   {
     const lockfile = project.readLockfile()
 
-    expect(lockfile.packages['micromatch@3.0.0']).toBeTruthy()
-    expect(lockfile.packages['is-negative@2.1.0']).toBeTruthy()
-    expect(lockfile.packages['is-positive@2.0.0']).toBeTruthy()
+    expect(lockfile.packages['@pnpm.e2e/multi-version-c@3.0.0']).toBeTruthy()
+    expect(lockfile.packages['@pnpm.e2e/multi-version-a@2.1.0']).toBeTruthy()
+    expect(lockfile.packages['@pnpm.e2e/multi-version-b@2.0.0']).toBeTruthy()
   }
 })
 
@@ -324,7 +324,7 @@ test('interactively update should ignore dependencies from the ignoreDependencie
   expect(mockCheckbox).toHaveBeenCalledWith(
     expect.objectContaining({
       message:
-        'Choose which packages to update ' +
+        'Choose which dependencies to update ' +
         `(Press ${chalk.cyan('<space>')} to select, ` +
         `${chalk.cyan('<a>')} to toggle all, ` +
         `${chalk.cyan('<i>')} to invert selection)\n\nEnter to start updating. Ctrl-c to cancel.`,

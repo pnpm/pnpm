@@ -1,7 +1,8 @@
 import { TABLE_OPTIONS } from '@pnpm/cli.utils'
+import { createMatcher } from '@pnpm/config.matcher'
+import { findOutdatedGitHubActions, isGitHubActionSelector, normalizeGitHubActionSelector } from '@pnpm/deps.github-actions'
 import {
   outdatedDepsOfProjects,
-  type OutdatedPackage,
 } from '@pnpm/deps.inspection.outdated'
 import { PnpmError } from '@pnpm/error'
 import type {
@@ -17,11 +18,13 @@ import { isEmpty, sortWith } from 'ramda'
 import {
   getCellWidth,
   type OutdatedCommandOptions,
+  type OutdatedItem,
   type OutdatedPackageJSONOutput,
   renderCurrent,
   renderDetails,
   renderLatest,
   renderPackageName,
+  toOutdatedAction,
   toOutdatedWithVersionDiff,
 } from './outdated.js'
 import { DEFAULT_COMPARATORS, type OutdatedWithVersionDiff } from './utils.js'
@@ -38,7 +41,7 @@ const COMPARATORS = [
     DEP_PRIORITY[o1.belongsTo] - DEP_PRIORITY[o2.belongsTo],
 ]
 
-interface OutdatedInWorkspace extends OutdatedPackage {
+interface OutdatedInWorkspace extends OutdatedItem {
   belongsTo: DependenciesField
   current?: string
   dependentPkgs: Array<{ location: string, manifest: ProjectManifest }>
@@ -53,20 +56,23 @@ export async function outdatedRecursive (
   opts: OutdatedCommandOptions & { include: IncludedDependencies }
 ): Promise<{ output: string, exitCode: number }> {
   const outdatedMap = {} as Record<string, OutdatedInWorkspace>
-  const outdatedPackagesByProject = await outdatedDepsOfProjects(pkgs, params, {
-    ...opts,
-    fullMetadata: opts.long,
-    ignoreDependencies: opts.updateConfig?.ignoreDependencies,
-    minimumReleaseAge: opts.minimumReleaseAge,
-    minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
-    retry: {
-      factor: opts.fetchRetryFactor,
-      maxTimeout: opts.fetchRetryMaxtimeout,
-      minTimeout: opts.fetchRetryMintimeout,
-      retries: opts.fetchRetries,
-    },
-    timeout: opts.fetchTimeout,
-  })
+  const packageParams = params.filter((param) => !isGitHubActionSelector(param))
+  const outdatedPackagesByProject = params.length === 0 || packageParams.length > 0
+    ? await outdatedDepsOfProjects(pkgs, packageParams, {
+      ...opts,
+      fullMetadata: opts.long,
+      ignoreDependencies: opts.updateConfig?.ignoreDependencies,
+      minimumReleaseAge: opts.minimumReleaseAge,
+      minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
+      retry: {
+        factor: opts.fetchRetryFactor,
+        maxTimeout: opts.fetchRetryMaxtimeout,
+        minTimeout: opts.fetchRetryMintimeout,
+        retries: opts.fetchRetries,
+      },
+      timeout: opts.fetchTimeout,
+    })
+    : pkgs.map(() => [])
   for (let i = 0; i < outdatedPackagesByProject.length; i++) {
     const { rootDir, manifest } = pkgs[i]
     for (const outdatedPkg of outdatedPackagesByProject[i]) {
@@ -75,6 +81,21 @@ export async function outdatedRecursive (
         outdatedMap[key] = { ...outdatedPkg, dependentPkgs: [] }
       }
       outdatedMap[key].dependentPkgs.push({ location: rootDir, manifest })
+    }
+  }
+  if (opts.include.devDependencies) {
+    const outdatedActions = await findOutdatedGitHubActions({
+      compatible: opts.compatible,
+      dir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
+      match: params.length > 0 ? createMatcher(params.map(normalizeGitHubActionSelector)) : undefined,
+    })
+    for (const action of outdatedActions) {
+      const outdatedAction = toOutdatedAction(action)
+      const key = JSON.stringify([outdatedAction.packageName, outdatedAction.current, outdatedAction.dependencyType])
+      outdatedMap[key] = {
+        ...outdatedAction,
+        dependentPkgs: [{ location: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir, manifest: { name: '.github' } }],
+      }
     }
   }
 
@@ -190,7 +211,7 @@ function renderOutdatedJSON (
         latest: outdatedPkg.latestManifest?.version,
         wanted: outdatedPkg.wanted,
         isDeprecated: Boolean(outdatedPkg.latestManifest?.deprecated),
-        dependencyType: outdatedPkg.belongsTo,
+        dependencyType: outdatedPkg.dependencyType ?? outdatedPkg.belongsTo,
         dependentPackages: outdatedPkg.dependentPkgs.map(({ manifest, location }) => ({ name: manifest.name!, location })),
       }
       if (opts.long) {

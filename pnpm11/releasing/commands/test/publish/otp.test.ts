@@ -61,6 +61,26 @@ describe('publishWithOtpHandling', () => {
     expect(result).toBe(response)
   })
 
+  it('preserves OTP from publish options on the first publish attempt', async () => {
+    let callCount = 0
+    const context = createMockContext({
+      publish: async (_m, _t, opts) => {
+        callCount++
+        expect(opts.otp).toBe('123456')
+        return createOkResponse()
+      },
+    })
+    const result = await publishWithOtpHandling({
+      context,
+      manifest,
+      publishOptions: { otp: '123456' } as typeof publishOptions,
+      tarballData,
+    })
+
+    expect(result.ok).toBe(true)
+    expect(callCount).toBe(1)
+  })
+
   it('throws non-OTP errors as-is', async () => {
     const error = new Error('network error')
     const context = createMockContext({

@@ -24,7 +24,7 @@
 //!
 //! pnpr is a stateless resolver: it stores no tarballs. Public tarballs
 //! can still be fetched directly from their upstream registry, while a
-//! private proxied route is rewritten to the uplink's `/~<uplink>/`
+//! private proxied route is rewritten to the upstream's `/~<name>/`
 //! registry endpoint so upstream URLs and credentials stay server-side.
 //!
 //! The client's `registry`, `namedRegistries`, `overrides`, and the
@@ -39,7 +39,7 @@
 //! authenticates to pnpr (its request `Authorization` identifies the
 //! caller) but does not forward its own upstream registry credentials:
 //! pnpr selects upstream auth from its route policy (see [`crate::route`]),
-//! so private dependencies resolve via a pnpr-managed uplink credential or
+//! so private dependencies resolve via a pnpr-managed upstream credential or
 //! fail closed.
 
 pub(crate) mod osv;
@@ -123,11 +123,11 @@ pub(crate) struct Resolver {
     verdict_cache: Option<VerdictCache>,
     osv_index: Option<Arc<OsvIndex>>,
     /// Route-classification inputs (public/private rules, pnpr-managed
-    /// uplink credentials, hosted origin, package policy), resolved once
+    /// upstream credentials, hosted origin, package policy), resolved once
     /// from the server config and combined per request with the caller's
     /// identity to drive auth selection and footprint recording.
     route_context: Arc<RouteContext>,
-    /// Public URL clients use for pnpr-hosted and `/~<uplink>/` endpoint
+    /// Public URL clients use for pnpr-hosted and `/~<name>/` endpoint
     /// tarball URLs.
     public_url: String,
     /// HMAC secret namespacing a private footprint's cache descriptor.
@@ -346,7 +346,7 @@ fn intern_config(
 /// `violations` if the input lockfile failed the client's policy. The
 /// short-circuit paths (frozen reuse, cache hit) emit only the terminal
 /// `done` frame. A private proxied tarball is announced through its
-/// uplink's `/~<uplink>/` registry endpoint rather than its upstream URL.
+/// upstream's `/~<name>/` registry endpoint rather than its upstream URL.
 pub(crate) async fn handle_resolve(
     runtime: &Resolver,
     identity: Identity,
@@ -466,7 +466,9 @@ pub(crate) async fn handle_resolve(
     let footprint_for_store = Arc::clone(&footprint);
     let cache_secret = Arc::clone(&runtime.resolution_cache_secret);
     tokio::spawn(async move {
-        match resolve::resolve(config, &client, &request, &request_auth, Some(observer)).await {
+        match Box::pin(resolve::resolve(config, &client, &request, &request_auth, Some(observer)))
+            .await
+        {
             Ok(lockfile) => {
                 let lockfile = tarball_router.route_lockfile(config, &lockfile);
                 if let Some(osv_index) = final_osv_index.as_ref() {
@@ -719,6 +721,8 @@ fn resolution_cache_key(config: &PacquetConfig, request: &ResolveRequest) -> Opt
         .map(|project| {
             serde_json::json!({
                 "dir": project.dir,
+                "name": project.name,
+                "version": project.version,
                 "dependencies": project.dependencies,
                 "devDependencies": project.dev_dependencies,
                 "optionalDependencies": project.optional_dependencies,
@@ -774,7 +778,7 @@ impl TarballRouter {
     /// tarball from a different host than the packument, so classifying by the
     /// tarball URL would misread a private package as public and leak its raw
     /// upstream URL. Classifying by the registry origin keeps a private
-    /// package on its `/~<uplink>/` endpoint; a public one still emits its real
+    /// package on its `/~<name>/` endpoint; a public one still emits its real
     /// (anonymously fetchable) tarball URL for a direct CDN download.
     fn route_registry_url(&self, package: &str, version: &str, tarball_url: &str) -> String {
         let registry = pick_registry_for_package(&self.registries, package, None);
@@ -790,7 +794,7 @@ impl TarballRouter {
                 package,
                 &tarball_filename(package, version, tarball_url),
             ),
-            RouteClass::Proxied { alias, .. } => uplink_endpoint_tarball_url(
+            RouteClass::Proxied { alias, .. } => upstream_endpoint_tarball_url(
                 &self.public_url,
                 &alias,
                 package,
@@ -864,7 +868,7 @@ impl TarballRouter {
                 package,
                 &tarball_filename(package, version, tarball_url),
             ),
-            RouteClass::Proxied { alias, .. } => uplink_endpoint_tarball_url(
+            RouteClass::Proxied { alias, .. } => upstream_endpoint_tarball_url(
                 &self.public_url,
                 &alias,
                 package,
@@ -873,16 +877,16 @@ impl TarballRouter {
         }
     }
 
-    /// Reverse a `/~<uplink>/<pkg>/-/<file>` endpoint tarball URL back to its
+    /// Reverse a `/~<name>/<pkg>/-/<file>` endpoint tarball URL back to its
     /// upstream URL so an input lockfile carrying endpoint URLs can be verified
     /// against the real registry. Returns `None` for any other URL, and for an
     /// endpoint the caller is not authorized for (so verification cannot be
-    /// used as an oracle for an uplink the caller cannot reach).
+    /// used as an oracle for an upstream the caller cannot reach).
     fn upstream_endpoint_tarball_url(&self, tarball_url: &str) -> Option<String> {
         let prefix = format!("{}/~", self.public_url.trim_end_matches('/'));
         let route = tarball_url.strip_prefix(&prefix)?;
-        let (uplink, rest) = route.split_once('/')?;
-        let registry = self.context.uplink_registry(&self.identity, uplink)?;
+        let (upstream, rest) = route.split_once('/')?;
+        let registry = self.context.upstream_registry(&self.identity, upstream)?;
         Some(format!("{}/{rest}", registry.trim_end_matches('/')))
     }
 }
@@ -903,17 +907,17 @@ fn pnpr_tarball_url(public_url: &str, package: &str, filename: &str) -> String {
     format!("{}/{package}/-/{filename}", public_url.trim_end_matches('/'))
 }
 
-/// The `/~<uplink>/<package>/-/<filename>` registry-endpoint URL a proxied
+/// The `/~<name>/<package>/-/<filename>` registry-endpoint URL a proxied
 /// route's tarball is served through. Canonical for a client whose scope is
-/// configured at `https://<pnpr>/~<uplink>/`, so the lockfile entry collapses
+/// configured at `https://<pnpr>/~<name>/`, so the lockfile entry collapses
 /// to integrity-only; the upstream URL and credential stay server-side.
-fn uplink_endpoint_tarball_url(
+fn upstream_endpoint_tarball_url(
     public_url: &str,
-    uplink: &str,
+    upstream: &str,
     package: &str,
     filename: &str,
 ) -> String {
-    format!("{}/~{uplink}/{package}/-/{filename}", public_url.trim_end_matches('/'))
+    format!("{}/~{upstream}/{package}/-/{filename}", public_url.trim_end_matches('/'))
 }
 
 /// NDJSON content type for the `/-/pnpr/v0/resolve` response. One JSON object
@@ -1184,10 +1188,13 @@ fn is_osv_checkable_resolution(resolution: &LockfileResolution) -> bool {
         LockfileResolution::Tarball(tarball) => {
             is_http_tarball_url(&tarball.tarball) && !is_git_hosted_tarball_url(&tarball.tarball)
         }
+        // Custom resolutions are not registry artifacts, so OSV has
+        // no `name@version` advisory coordinates for them.
         LockfileResolution::Directory(_)
         | LockfileResolution::Git(_)
         | LockfileResolution::Binary(_)
-        | LockfileResolution::Variations(_) => false,
+        | LockfileResolution::Variations(_)
+        | LockfileResolution::Custom(_) => false,
     }
 }
 
@@ -1474,7 +1481,7 @@ fn forbidden_off_allowlist(target: &str) -> Response {
         StatusCode::FORBIDDEN,
         &format!(
             "{target:?} is not allowed by this pnpr server; the operator must declare its \
-             registry as a public route or an uplink",
+             registry as a public route or an upstream",
         ),
     )
 }

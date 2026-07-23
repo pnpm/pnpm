@@ -194,7 +194,7 @@ export class ConfigSetUnsupportedWorkspaceKeyError extends PnpmError {
  * Return the camelCase of {@link key} if it's valid.
  */
 function validateWorkspaceKey (key: string): string {
-  if (Object.hasOwn(types, key)) return camelCase(key)
+  if (Object.hasOwn(types, key) || isConfigFileKey(key)) return camelCase(key)
   if (!isCamelCase(key)) throw new ConfigSetUnsupportedWorkspaceKeyError(key)
   return key
 }

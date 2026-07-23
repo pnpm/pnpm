@@ -1,0 +1,29 @@
+[package]
+name                 = "pacquet-global"
+description          = "Global package install support (ports @pnpm/global.packages and @pnpm/global.commands)"
+version              = "0.0.1"
+publish              = false
+authors.workspace    = true
+edition.workspace    = true
+homepage.workspace   = true
+keywords.workspace   = true
+license.workspace    = true
+repository.workspace = true
+
+[dependencies]
+pacquet-cmd-shim                = { workspace = true }
+pacquet-crypto-hash             = { workspace = true }
+pacquet-fs                      = { workspace = true }
+pacquet-package-manifest        = { workspace = true }
+pacquet-resolving-deps-resolver = { workspace = true }
+
+derive_more = { workspace = true }
+miette      = { workspace = true }
+owo-colors  = { workspace = true }
+serde_json  = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+
+[lints]
+workspace = true

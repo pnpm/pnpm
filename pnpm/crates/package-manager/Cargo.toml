@@ -1,0 +1,98 @@
+[package]
+name                  = "pacquet-package-manager"
+version               = "0.0.1"
+publish               = false
+authors.workspace     = true
+description.workspace = true
+edition.workspace     = true
+homepage.workspace    = true
+keywords.workspace    = true
+license.workspace     = true
+repository.workspace  = true
+
+[dependencies]
+pacquet-catalogs-config                   = { workspace = true }
+pacquet-catalogs-protocol-parser          = { workspace = true }
+pacquet-catalogs-resolver                 = { workspace = true }
+pacquet-catalogs-types                    = { workspace = true }
+pacquet-cmd-shim                          = { workspace = true }
+pacquet-crypto-hash                       = { workspace = true }
+pacquet-deps-path                         = { workspace = true }
+pacquet-directory-fetcher                 = { workspace = true }
+pacquet-engine-runtime-bun-resolver       = { workspace = true }
+pacquet-engine-runtime-deno-resolver      = { workspace = true }
+pacquet-engine-runtime-node-resolver      = { workspace = true }
+pacquet-executor                          = { workspace = true }
+pacquet-fs                                = { workspace = true }
+pacquet-git-fetcher                       = { workspace = true }
+pacquet-lockfile                          = { workspace = true }
+pacquet-lockfile-preferred-versions       = { workspace = true }
+pacquet-lockfile-verification             = { workspace = true }
+pacquet-modules-yaml                      = { workspace = true }
+pacquet-network                           = { workspace = true }
+pacquet-config                            = { workspace = true }
+pacquet-config-parse-overrides            = { workspace = true }
+pacquet-graph-hasher                      = { workspace = true }
+pacquet-hooks                             = { workspace = true }
+pacquet-package-manifest                  = { workspace = true }
+pacquet-package-is-installable            = { workspace = true }
+pacquet-patching                          = { workspace = true }
+pacquet-real-hoist                        = { workspace = true }
+pacquet-registry                          = { workspace = true }
+pacquet-reporter                          = { workspace = true }
+pacquet-resolving-default-resolver        = { workspace = true }
+pacquet-resolving-deps-resolver           = { workspace = true }
+pacquet-resolving-git-resolver            = { workspace = true }
+pacquet-resolving-local-resolver          = { workspace = true }
+pacquet-resolving-npm-resolver            = { workspace = true }
+pacquet-resolving-parse-wanted-dependency = { workspace = true }
+pacquet-resolving-resolver-base           = { workspace = true }
+pacquet-resolving-tarball-resolver        = { workspace = true }
+pacquet-store-dir                         = { workspace = true }
+pacquet-tarball                           = { workspace = true }
+pacquet-workspace                         = { workspace = true }
+pacquet-workspace-manifest-writer         = { workspace = true }
+pacquet-workspace-state                   = { workspace = true }
+
+async-recursion = { workspace = true }
+chrono          = { workspace = true }
+dashmap         = { workspace = true }
+derive_more     = { workspace = true }
+dialoguer       = { workspace = true }
+futures-util    = { workspace = true }
+httpdate        = { workspace = true }
+indexmap        = { workspace = true }
+is_ci           = { workspace = true }
+node-semver     = { workspace = true }
+pathdiff        = { workspace = true }
+pipe-trait      = { workspace = true }
+rayon           = { workspace = true }
+reflink-copy    = { workspace = true }
+serde           = { workspace = true }
+serde_json      = { workspace = true }
+ssri            = { workspace = true }
+tempfile        = { workspace = true }
+tokio           = { workspace = true }
+tracing         = { workspace = true }
+miette          = { workspace = true }
+
+[dev-dependencies]
+pacquet-testing-utils = { workspace = true }
+
+async-trait       = { workspace = true }
+dunce             = { workspace = true }
+flate2            = { workspace = true }
+insta             = { workspace = true }
+mockito           = { workspace = true }
+node-semver       = { workspace = true }
+pathdiff          = { workspace = true }
+pretty_assertions = { workspace = true }
+serde-saphyr      = { workspace = true }
+sha2              = { workspace = true }
+ssri              = { workspace = true }
+tar               = { workspace = true }
+text-block-macros = { workspace = true }
+walkdir           = { workspace = true }
+
+[lints]
+workspace = true

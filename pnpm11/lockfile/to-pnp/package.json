@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile.to-pnp",
-  "version": "1100.1.1",
+  "version": "1100.1.8",
   "description": "Creates a Plug'n'Play file from a pnpm-lock.yaml",
   "keywords": [
     "pnpm",
@@ -34,6 +34,7 @@
   },
   "dependencies": {
     "@pnpm/deps.path": "workspace:*",
+    "@pnpm/fs.symlink-dependency": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/types": "workspace:*",

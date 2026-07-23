@@ -20,7 +20,7 @@ jobs:
     if: >-
       github.event.review.state == 'approved' &&
       contains(fromJSON('["coderabbitai[bot]", "qodo-free-for-open-source-projects[bot]", "zkochan"]'), github.event.review.user.login)
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions: {}
     steps:
       - name: Record the review trigger

@@ -1,6 +1,6 @@
 {
   "name": "pnpm",
-  "version": "11.9.0",
+  "version": "11.16.0",
   "description": "Fast, disk space efficient package manager",
   "keywords": [
     "pnpm",
@@ -66,8 +66,9 @@
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "pretest:e2e": "rimraf node_modules/.bin/pnpm",
     "test": "pn compile && pn .test",
-    "prepublishOnly": "pn compile && node bundle-deps.ts",
-    "compile": "tsgo --build && pn lint --fix && rimraf dist bin/nodes && pn bundle && shx cp -r node-gyp-bin dist/node-gyp-bin && shx cp -r node_modules/@pnpm/tabtab/lib/templates dist/templates && shx cp -r node_modules/ps-list/vendor dist/vendor && shx cp pnpmrc dist/pnpmrc",
+    "prepublishOnly": "pn build && node bundle-deps.ts",
+    "compile": "pn lint --fix && pn build",
+    "build": "tsgo --build && rimraf dist bin/nodes && pn bundle && shx cp -r node-gyp-bin dist/node-gyp-bin && shx cp -r node_modules/@pnpm/tabtab/lib/templates dist/templates && shx cp -r node_modules/ps-list/vendor dist/vendor && shx cp pnpmrc dist/pnpmrc",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
@@ -103,6 +104,7 @@
     "@pnpm/engine.runtime.system-version": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/exec.commands": "workspace:*",
+    "@pnpm/exec.lifecycle": "workspace:*",
     "@pnpm/hooks.pnpmfile": "workspace:*",
     "@pnpm/installing.client": "workspace:*",
     "@pnpm/installing.commands": "workspace:*",
@@ -112,6 +114,7 @@
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/network.fetch": "workspace:*",
+    "@pnpm/network.web-auth": "workspace:*",
     "@pnpm/nopt": "catalog:",
     "@pnpm/patching.commands": "workspace:*",
     "@pnpm/pkg-manifest.commands": "workspace:*",
@@ -185,6 +188,22 @@
   },
   "engines": {
     "node": ">=22.13"
+  },
+  "pnpm": {
+    "app": {
+      "entry": "pnpm.cjs",
+      "outputDir": "artifacts",
+      "outputName": "pnpm",
+      "targets": [
+        "win32-x64",
+        "linux-x64",
+        "darwin-arm64",
+        "linux-arm64",
+        "win32-arm64",
+        "linux-x64-musl",
+        "linux-arm64-musl"
+      ]
+    }
   },
   "jest": {
     "collectCoverage": false,

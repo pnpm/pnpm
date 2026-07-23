@@ -106,6 +106,54 @@ test('config set pnpm-specific key using the global option', async () => {
   })
 })
 
+test('config set registries and named registries using the global option', async () => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  const initConfig = {
+    globalRc: undefined,
+    globalYaml: {
+      storeDir: '~/store',
+    },
+    localRc: undefined,
+    localYaml: undefined,
+  } satisfies ConfigFilesData
+  const registries = {
+    default: 'https://registry.example.com/',
+    '@scope': 'https://scope.example.com/',
+  }
+  const namedRegistries = {
+    work: 'https://work.example.com/',
+  }
+  writeConfigFiles(configDir, tmp, initConfig)
+
+  await config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    global: true,
+    json: true,
+    authConfig: {},
+  }), ['set', 'registries', JSON.stringify(registries)])
+
+  await config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    global: true,
+    json: true,
+    authConfig: {},
+  }), ['set', 'named-registries', JSON.stringify(namedRegistries)])
+
+  expect(readConfigFiles(configDir, tmp)).toEqual({
+    ...initConfig,
+    globalYaml: {
+      ...initConfig.globalYaml,
+      registries,
+      namedRegistries,
+    },
+  })
+})
+
 test('config set using the location=global option', async () => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')

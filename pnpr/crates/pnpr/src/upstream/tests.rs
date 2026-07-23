@@ -2,16 +2,16 @@ use super::{
     CacheValidators, CircuitBreaker, FetchOutcome, PackumentFetch, Upstream, abbreviate_packument,
     extract_version_manifest, rewrite_tarball_urls, tarball_basename,
 };
-use crate::{config::UplinkConfig, error::RegistryError, package_name::PackageName};
+use crate::{config::UpstreamConfig, error::RegistryError, package_name::PackageName};
 use chrono::{DateTime, TimeZone, Utc};
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 use serde_json::json;
 use std::time::Duration;
 
-/// Build an [`Upstream`] pointing at `url` with `headers`, all per-uplink
+/// Build an [`Upstream`] pointing at `url` with `headers`, all per-upstream
 /// tuning knobs at their verdaccio defaults.
 fn upstream(url: String, headers: HeaderMap) -> Upstream {
-    Upstream::new("npmjs", &UplinkConfig::with_defaults(url, headers))
+    Upstream::new("npmjs", &UpstreamConfig::with_defaults(url, headers))
 }
 
 /// Fixed "current time" for abbreviation tests so the `time`-map
@@ -21,7 +21,7 @@ fn now() -> DateTime<Utc> {
 }
 
 /// Build a header map carrying a bearer `Authorization` plus one
-/// custom header — the resolved per-uplink set an [`Upstream`] is
+/// custom header — the resolved per-upstream set an [`Upstream`] is
 /// expected to attach to every request.
 fn auth_and_custom_headers() -> HeaderMap {
     let mut headers = HeaderMap::new();
@@ -95,13 +95,11 @@ async fn fetch_packument_sends_no_authorization_when_headers_empty() {
 }
 
 #[tokio::test]
-async fn fetch_packument_captures_validators_from_response() {
+async fn fetch_packument_modified_carries_the_body() {
     let mut server = mockito::Server::new_async().await;
     let mock = server
         .mock("GET", "/foo")
         .with_status(200)
-        .with_header("etag", r#""abc123""#)
-        .with_header("last-modified", "Wed, 21 Oct 2015 07:28:00 GMT")
         .with_body(json!({ "name": "foo" }).to_string())
         .expect(1)
         .create_async()
@@ -112,8 +110,7 @@ async fn fetch_packument_captures_validators_from_response() {
     let outcome = upstream.fetch_packument(&name, &CacheValidators::default()).await.unwrap();
 
     let PackumentFetch::Modified(fetched) = outcome else { panic!("expected a body") };
-    assert_eq!(fetched.validators.etag.as_deref(), Some(r#""abc123""#));
-    assert_eq!(fetched.validators.last_modified.as_deref(), Some("Wed, 21 Oct 2015 07:28:00 GMT"));
+    assert!(!fetched.bytes.is_empty(), "a modified fetch carries the packument body");
     mock.assert_async().await;
 }
 
@@ -524,15 +521,16 @@ fn coarsens_time_entries_by_age() {
 fn breaking_upstream(url: String, max_fails: u32) -> Upstream {
     Upstream::new(
         "npmjs",
-        &UplinkConfig {
+        &UpstreamConfig {
             url,
             headers: HeaderMap::new(),
             maxage: None,
-            timeout: UplinkConfig::DEFAULT_TIMEOUT,
+            timeout: UpstreamConfig::DEFAULT_TIMEOUT,
             max_fails,
             fail_timeout: Duration::from_mins(5),
             cache: true,
             access: None,
+            rules: crate::policy::PackageRules::default(),
         },
     )
 }

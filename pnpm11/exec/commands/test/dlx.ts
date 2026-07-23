@@ -6,7 +6,9 @@ import { prepareEmpty } from '@pnpm/prepare'
 import { DLX_DEFAULT_OPTS as DEFAULT_OPTS } from './utils/index.js'
 
 jest.unstable_mockModule('execa', () => ({
-  safeExeca: jest.fn(),
+  // The handler registers the returned subprocess with the child process
+  // tracker, so the mock returns a minimal subprocess-like object.
+  safeExeca: jest.fn(() => ({ pid: undefined, once: jest.fn() })),
   sync: jest.fn(),
 }))
 

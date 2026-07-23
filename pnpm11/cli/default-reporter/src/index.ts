@@ -1,6 +1,7 @@
 import type { Config, ConfigContext } from '@pnpm/config.reader'
 import type * as logs from '@pnpm/core-loggers'
 import type { LogLevel, StreamParser } from '@pnpm/logger'
+import createDiffer from 'ansi-diff'
 import * as Rx from 'rxjs'
 import { filter, map, mergeAll } from 'rxjs/operators'
 
@@ -12,10 +13,9 @@ import { formatWarn } from './reporterForClient/utils/formatWarn.js'
 
 export { formatWarn }
 
-// ANSI "erase from cursor to end of display". Emitted before reprinting each
-// frame so that anything an external process (e.g. an SSH passphrase prompt)
-// wrote to the terminal between progress updates is cleared instead of bleeding
-// into the progress output.
+// ANSI "erase from cursor to end of display". Appended after each
+// differential update so that anything an external process (e.g. an SSH
+// passphrase prompt) wrote below the rendered frame is cleared.
 const ERASE_TO_END_OF_DISPLAY = '\x1b[0J'
 
 export function initDefaultReporter (
@@ -70,6 +70,26 @@ export function initDefaultReporter (
       subscription.unsubscribe()
     }
   }
+  const stream = opts.useStderr ? proc.stderr : proc.stdout
+  const write = stream.write.bind(stream)
+  const newDiffer = (): ReturnType<typeof createDiffer> => createDiffer({
+    height: stream.rows,
+    width: stream.columns ?? outputMaxWidth,
+  })
+  let diff = newDiffer()
+  // Hold redraws while an interactive prompt owns the terminal (see PromptMessage).
+  let promptActive = false
+  const onLog = (log: logs.Log): void => {
+    if (log.name !== 'pnpm:prompt') return
+    if ((log as logs.PromptLog).action === 'start') {
+      promptActive = true
+    } else {
+      promptActive = false
+      // Drop the differ's now-stale frame: the terminal below it changed while paused.
+      diff = newDiffer()
+    }
+  }
+  opts.streamParser.on('data', onLog)
   const subscription = output$
     .subscribe({
       complete () {}, // eslint-disable-line:no-empty
@@ -78,40 +98,26 @@ export function initDefaultReporter (
       },
       next: logUpdate,
     })
-  const write = opts.useStderr
-    ? proc.stderr.write.bind(proc.stderr)
-    : proc.stdout.write.bind(proc.stdout)
-  let prevRows = 0
   function logUpdate (view: string) {
+    if (promptActive) return
     // A new line should always be appended in case a prompt needs to appear.
     // Without a new line the prompt will be joined with the previous output.
     // An example of such prompt may be seen by running: pnpm update --interactive
     if (!view.endsWith(EOL)) view += EOL
-    // Redraw the whole frame in place: return the cursor to the top-left of the
-    // previous frame, erase everything below it, then reprint. The `\r` resets
-    // the column to 0 (cursor-up alone keeps the column) so the redraw starts
-    // cleanly even when an external process left the cursor mid-line. Doing it
-    // in a single write keeps the redraw atomic (no flicker) and clears any
-    // characters an external process wrote in between.
-    const moveToFrameTop = prevRows > 0 ? `\x1b[${prevRows}A\r` : '\r'
-    write(`${moveToFrameTop}${ERASE_TO_END_OF_DISPLAY}${view}`)
-    prevRows = countRows(view)
+    // `\r` resets the column to 0 in case an external process (e.g. an SSH
+    // passphrase prompt) left the cursor mid-line. `ansi-diff` then writes
+    // only the differential — the characters that actually changed between
+    // the previous frame and this one — so sticky blocks like the lockfile
+    // verdict and deprecation warnings are not re-written on every progress
+    // tick. `\x1b[K` erases trailing characters on the current line;
+    // `\x1b[0J` erases anything an external process wrote below the
+    // rendered frame.
+    write(`\r${diff.update(view)}\x1b[K${ERASE_TO_END_OF_DISPLAY}`)
   }
   return () => {
     subscription.unsubscribe()
+    opts.streamParser.removeListener('data', onLog)
   }
-}
-
-// Number of terminal rows a frame occupies. The frame always ends with a
-// newline, so this also equals how far below the frame's top the cursor rests
-// after printing it. Lines are assumed not to soft-wrap, matching how the
-// progress output is width-constrained before it reaches here.
-function countRows (frame: string): number {
-  let rows = 0
-  for (let i = 0; i < frame.length; i++) {
-    if (frame.charCodeAt(i) === 10 /* \n */) rows++
-  }
-  return rows
 }
 
 export function toOutput$ (

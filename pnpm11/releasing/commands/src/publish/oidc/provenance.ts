@@ -1,4 +1,4 @@
-import { PnpmError } from '@pnpm/error'
+import { PnpmError, redactUrlCredentials } from '@pnpm/error'
 import npa from '@pnpm/npm-package-arg'
 
 import type { PublishPackedPkgOptions } from '../publishPackedPkg.js'
@@ -160,14 +160,15 @@ export class ProvenanceFailedToFetchVisibilityError extends ProvenanceError {
     } else if (errorResponse?.message) {
       message = errorResponse.message
     }
+    const redactedRegistry = redactUrlCredentials(registry)
     super(
       'PROVENANCE_FAILED_TO_FETCH_VISIBILITY',
-      `Failed to fetch visibility for package ${packageName} from registry ${registry} due to ${message} (status code ${status})`
+      `Failed to fetch visibility for package ${packageName} from registry ${redactedRegistry} due to ${message} (status code ${status})`
     )
     this.errorResponse = errorResponse
     this.status = status
     this.packageName = packageName
-    this.registry = registry
+    this.registry = redactedRegistry
   }
 
   static async createErrorFromFetchResponse (response: ProvenanceFetchResponse, packageName: string, registry: string): Promise<ProvenanceFailedToFetchVisibilityError> {

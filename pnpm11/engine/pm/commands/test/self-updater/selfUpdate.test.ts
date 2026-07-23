@@ -1,9 +1,12 @@
+import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals'
+import { linkBins } from '@pnpm/bins.linker'
 import { STORE_VERSION } from '@pnpm/constants'
+import type { PnpmError } from '@pnpm/error'
 import { prepare as prepareWithPkg, tempDir } from '@pnpm/prepare'
 import { prependDirsToPath } from '@pnpm/shell.path'
 import { getRegisteredProjects } from '@pnpm/store.controller'
@@ -15,18 +18,20 @@ const require = createRequire(import.meta.dirname)
 const pnpmTarballPath = require.resolve('@pnpm/tgz-fixtures/tgz/pnpm-9.1.0.tgz')
 
 const actualModule = await import('@pnpm/cli.meta')
+const mockPackageManager = {
+  name: 'pnpm',
+  version: '9.0.0',
+}
 jest.unstable_mockModule('@pnpm/cli.meta', () => {
   return {
     ...actualModule,
-    packageManager: {
-      name: 'pnpm',
-      version: '9.0.0',
-    },
+    packageManager: mockPackageManager,
   }
 })
-const { selfUpdate, installPnpm, linkExePlatformBinary, exePlatformPkgDirName, exePlatformPkgDirNameNext, pnpmPackageNameToInstall } = await import('@pnpm/engine.pm.commands')
+const { selfUpdate, assertPnpmRuns, assertReleaseIsInstallable, installPnpm, linkExePlatformBinary, exePlatformPkgDirName, exePlatformPkgDirNameNext, pnpmPackageNameToInstall } = await import('@pnpm/engine.pm.commands')
 
 beforeEach(async () => {
+  mockPackageManager.version = '9.0.0'
   await setupMockAgent()
   getMockAgent().enableNetConnect()
 })
@@ -143,6 +148,18 @@ function mockRegistryForUpdate (registry: string, version: string, metadata: obj
     .reply(200, tgzData)
 }
 
+function seedGlobalPnpm (opts: ReturnType<typeof prepareOptions>, version: string): string {
+  const installDir = path.join(opts.globalPkgDir, `pnpm-${version}`)
+  const pkgDir = path.join(installDir, 'node_modules', 'pnpm')
+  fs.mkdirSync(pkgDir, { recursive: true })
+  fs.writeFileSync(path.join(installDir, 'package.json'), JSON.stringify({ dependencies: { pnpm: version } }), 'utf8')
+  fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name: 'pnpm', version, bin: { pnpm: 'bin.js' } }), 'utf8')
+  fs.writeFileSync(path.join(pkgDir, 'bin.js'), `#!/usr/bin/env node
+console.log('${version}')`, 'utf8')
+  fs.symlinkSync(installDir, path.join(opts.globalPkgDir, `hash-${version}`))
+  return installDir
+}
+
 test('self-update', async () => {
   const opts = prepare()
   mockRegistryForUpdate(opts.registries.default, '9.1.0', createMetadata('9.1.0', opts.registries.default))
@@ -222,6 +239,59 @@ test('self-update does not write shims to pnpmHomeDir on a clean v11 layout', as
   expect(fs.existsSync(path.join(opts.pnpmHomeDir, 'pnpm.cmd'))).toBe(false)
 })
 
+test('self-update resolves relative legacy shim targets from pnpmHomeDir', async () => {
+  const opts = prepare()
+  const relativeTarget = path.join('global', 'v11', 'old', 'node_modules', 'pnpm', 'bin.js')
+  fs.mkdirSync(path.dirname(path.join(opts.pnpmHomeDir, relativeTarget)), { recursive: true })
+  fs.writeFileSync(path.join(opts.pnpmHomeDir, relativeTarget), 'old pnpm\n')
+  const shimPath = path.join(opts.pnpmHomeDir, 'pnpm')
+  const shimBody = `#!/bin/sh\n# cmd-shim-target=${relativeTarget}\n`
+  fs.writeFileSync(shimPath, shimBody, { mode: 0o755 })
+  mockRegistryForUpdate(opts.registries.default, '9.1.0', createMetadata('9.1.0', opts.registries.default))
+
+  await selfUpdate.handler(opts, [])
+
+  expect(fs.readFileSync(shimPath, 'utf8')).not.toBe(shimBody)
+})
+
+test('self-update ignores a dangling legacy shim at pnpmHomeDir', async () => {
+  // pnpm/pnpm#12496: a v10-layout shim whose install target was later
+  // garbage-collected is dead weight, not a real v10 layout. self-update
+  // must not refresh it or warn about it — that warning would never stop,
+  // because the dangling shim would never be cleaned up by `pnpm setup`.
+  const opts = prepare()
+  // Write a shim that looks like a real cmd-shim product (carries the
+  // marker) but points at a path that does not exist on disk.
+  const danglingTarget = path.join(opts.pnpmHomeDir, 'global', 'v11', 'gone', 'node_modules', 'pnpm', 'bin.js')
+  const shimBody = `#!/bin/sh\n# cmd-shim-target=${danglingTarget}\n`
+  fs.writeFileSync(path.join(opts.pnpmHomeDir, 'pnpm'), shimBody, { mode: 0o755 })
+  // On Windows, v10 cmd-shim wrote a sibling .cmd without a marker. Its
+  // presence must not defeat the dangling-shim detection on the sh shim.
+  if (process.platform === 'win32') {
+    fs.writeFileSync(path.join(opts.pnpmHomeDir, 'pnpm.cmd'), '@echo off\ncall "gone\\pnpm.cmd" %*\n')
+  }
+  mockRegistryForUpdate(opts.registries.default, '9.1.0', createMetadata('9.1.0', opts.registries.default))
+
+  await selfUpdate.handler(opts, [])
+
+  // The dangling shim must not have been refreshed — its body still
+  // references the dead target, because linkBins was not called against
+  // pnpmHomeDir. (When the legacy detector fires, linkBins overwrites the
+  // shim with one pointing at the freshly-installed pnpm.)
+  const refreshed = fs.readFileSync(path.join(opts.pnpmHomeDir, 'pnpm'), 'utf8')
+  expect(refreshed).toBe(shimBody)
+  // The v11 bin layout is still served correctly.
+  const pnpmEnv = prependDirsToPath([path.join(opts.pnpmHomeDir, 'bin')])
+  const { status, stdout } = spawn.sync('pnpm', ['-v'], {
+    env: {
+      ...process.env,
+      [pnpmEnv.name]: pnpmEnv.value,
+    },
+  })
+  expect(status).toBe(0)
+  expect(stdout.toString().trim()).toBe('9.1.0')
+})
+
 test('self-update by exact version', async () => {
   const opts = prepare()
   const metadata = createMetadata('9.2.0', opts.registries.default, ['9.1.0'])
@@ -258,6 +328,7 @@ test('self-update by exact version', async () => {
 
 test('self-update does nothing when pnpm is up to date', async () => {
   const opts = prepare()
+  seedGlobalPnpm(opts, '9.0.0')
   getMockAgent().get(opts.registries.default.replace(/\/$/, ''))
     .intercept({ path: '/pnpm', method: 'GET' })
     .reply(200, createMetadata('9.0.0', opts.registries.default))
@@ -265,6 +336,31 @@ test('self-update does nothing when pnpm is up to date', async () => {
   const output = await selfUpdate.handler(opts, [])
 
   expect(output).toBe('The currently active pnpm v9.0.0 is already "latest" and doesn\'t need an update')
+})
+
+test('self-update installs the active pnpm version when it is missing from the global dir', async () => {
+  mockPackageManager.version = '9.1.0'
+  const opts = prepare()
+  mockRegistryForUpdate(opts.registries.default, '9.1.0', createMetadata('9.1.0', opts.registries.default))
+
+  const output = await selfUpdate.handler(opts, ['9.1.0'])
+
+  expect(output).toBe('Successfully updated pnpm to v9.1.0')
+  const globalEntries = fs.readdirSync(opts.globalPkgDir)
+  const installDirName = globalEntries.find((e) => fs.lstatSync(path.join(opts.globalPkgDir, e)).isDirectory())
+  expect(installDirName).toBeDefined()
+  const pnpmPkgJson = JSON.parse(fs.readFileSync(path.join(opts.globalPkgDir, installDirName!, 'node_modules/pnpm/package.json'), 'utf8'))
+  expect(pnpmPkgJson.version).toBe('9.1.0')
+
+  const pnpmEnv = prependDirsToPath([path.join(opts.pnpmHomeDir, 'bin')])
+  const { status, stdout } = spawn.sync('pnpm', ['-v'], {
+    env: {
+      ...process.env,
+      [pnpmEnv.name]: pnpmEnv.value,
+    },
+  })
+  expect(status).toBe(0)
+  expect(stdout.toString().trim()).toBe('9.1.0')
 })
 
 test('self-update respects minimumReleaseAge for implicit latest resolution', async () => {
@@ -292,6 +388,55 @@ test('self-update respects minimumReleaseAge for implicit latest resolution', as
 
   expect(output).toBe('The current project has been updated to use pnpm v9.0.0')
   expect(JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8')).packageManager).toBe('pnpm@9.0.0')
+})
+
+test('self-update rejects a trust downgrade under trustPolicy=no-downgrade', async () => {
+  const opts = prepare()
+  const registry = opts.registries.default
+  const now = Date.now()
+  // The earlier 9.0.5 was published with strong trust evidence (trusted
+  // publisher + provenance); the later 9.1.0 has none — a trust downgrade
+  // the no-downgrade policy must refuse to switch to.
+  const metadata = {
+    name: 'pnpm',
+    'dist-tags': { latest: '9.1.0' },
+    time: {
+      '9.0.5': new Date(now - 48 * 60 * 60 * 1000).toISOString(),
+      '9.1.0': new Date(now - 8 * 60 * 60 * 1000).toISOString(),
+    },
+    versions: {
+      '9.0.5': {
+        name: 'pnpm',
+        version: '9.0.5',
+        _npmUser: {
+          name: 'pnpm-bot',
+          trustedPublisher: { id: 'github', oidcConfigId: 'release' },
+        },
+        dist: {
+          shasum: '217063ce3fcbf44f3051666f38b810f1ddefee4a',
+          tarball: `${registry}pnpm/-/pnpm-9.0.5.tgz`,
+          integrity: 'sha512-Z/WHmRapKT5c8FnCOFPVcb6vT3U8cH9AyyK+1fsVeMaq07bEEHzLO6CzW+AD62IaFkcayDbIe+tT+dVLtGEnJA==',
+          attestations: { provenance: { predicateType: 'https://slsa.dev/provenance/v1' } },
+        },
+      },
+      '9.1.0': {
+        name: 'pnpm',
+        version: '9.1.0',
+        dist: {
+          shasum: '217063ce3fcbf44f3051666f38b810f1ddefee4a',
+          tarball: `${registry}pnpm/-/pnpm-9.1.0.tgz`,
+          integrity: 'sha512-Z/WHmRapKT5c8FnCOFPVcb6vT3U8cH9AyyK+1fsVeMaq07bEEHzLO6CzW+AD62IaFkcayDbIe+tT+dVLtGEnJA==',
+        },
+      },
+    },
+  }
+  getMockAgent().get(registry.replace(/\/$/, ''))
+    .intercept({ path: '/pnpm', method: 'GET' })
+    .reply(200, metadata).persist()
+
+  await expect(
+    selfUpdate.handler({ ...opts, trustPolicy: 'no-downgrade' }, [])
+  ).rejects.toThrow(/High-risk trust downgrade/)
 })
 
 test('self-update does not write packageManagerDependencies when package manager onFail is ignore', async () => {
@@ -338,9 +483,11 @@ test('global self-update respects minimumReleaseAge: skips immature latest, no-o
   // wantedPackageManager) must not jump to a "latest" version younger than
   // minimumReleaseAge. Active pnpm is mocked as 9.0.0 at the top of this
   // file. The registry's `latest` (9.1.0) is 8h old — immature — so the
-  // resolver should fall back to 9.0.0, which equals the active version,
-  // producing a no-op rather than reinstalling.
+  // resolver should fall back to 9.0.0, which equals the active version and is
+  // already installed globally, producing a no-op rather than reinstalling.
   const opts = prepare()
+  seedGlobalPnpm(opts, '9.0.0')
+  const globalEntriesBefore = fs.readdirSync(opts.globalPkgDir).sort()
   const now = Date.now()
   const metadata = createMetadata('9.1.0', opts.registries.default, ['9.0.0'], {
     '9.0.0': new Date(now - 48 * 60 * 60 * 1000).toISOString(),
@@ -356,9 +503,7 @@ test('global self-update respects minimumReleaseAge: skips immature latest, no-o
   }, [])
 
   expect(output).toBe('The currently active pnpm v9.0.0 is already "latest" and doesn\'t need an update')
-  // No global install dir should have been created.
-  const globalDir = path.join(opts.pnpmHomeDir, 'global', 'v11')
-  expect(fs.existsSync(globalDir)).toBe(false)
+  expect(fs.readdirSync(opts.globalPkgDir).sort()).toStrictEqual(globalEntriesBefore)
 })
 
 test('self-update respects minimumReleaseAgeExclude for implicit latest resolution', async () => {
@@ -986,6 +1131,44 @@ test('self-update updates the packageManager field in package.json', async () =>
   expect(pkgJson.packageManager).toBe('pnpm@9.1.0')
 })
 
+test('installPnpm rejects and cleans up when the installed pnpm has no working executable', async () => {
+  const opts = prepare()
+  // A package with no bin stands in for a release whose executable is missing.
+  // Serving it as pnpm's tarball is the only way here without publishing a
+  // broken pnpm as a fixture, so the metadata carries this tarball's integrity.
+  const tgzWithoutBin = fs.readFileSync(require.resolve('@pnpm/tgz-fixtures/tgz/is-positive-1.0.0.tgz'))
+  const registry = opts.registries.default
+  getMockAgent().get(registry.replace(/\/$/, ''))
+    .intercept({ path: '/pnpm', method: 'GET' })
+    .reply(200, {
+      name: 'pnpm',
+      'dist-tags': { latest: '9.1.0' },
+      versions: {
+        '9.1.0': {
+          name: 'pnpm',
+          version: '9.1.0',
+          dist: {
+            tarball: `${registry}pnpm/-/pnpm-9.1.0.tgz`,
+            integrity: `sha512-${createHash('sha512').update(tgzWithoutBin).digest('base64')}`,
+          },
+        },
+      },
+      time: {},
+    }).persist()
+  getMockAgent().get(registry.replace(/\/$/, ''))
+    .intercept({ path: '/pnpm/-/pnpm-9.1.0.tgz', method: 'GET' })
+    .reply(200, tgzWithoutBin)
+
+  await expect(installPnpm('9.1.0', opts)).rejects.toThrow(/cannot run/)
+
+  // The half-installed directory must not survive: leaving it behind would let
+  // findGlobalPnpmInstallDir hand the broken install to the next run.
+  const installDirs = fs.existsSync(opts.globalPkgDir)
+    ? fs.readdirSync(opts.globalPkgDir).filter((entry) => /^\d+$/.test(entry))
+    : []
+  expect(installDirs).toHaveLength(0)
+})
+
 test('installPnpm without env lockfile uses resolution path', async () => {
   const opts = prepare()
   getMockAgent().get(opts.registries.default.replace(/\/$/, ''))
@@ -1014,7 +1197,7 @@ describe('linkExePlatformBinary', () => {
   const libcFamily = familySync()
   const platformPkgName = exePlatformPkgDirName(platform, arch, libcFamily)
 
-  test('links platform binary in pnpm symlinked node_modules layout', () => {
+  test('prefers the wrapper-adjacent platform binary in a symlinked node_modules layout', () => {
     const dir = tempDir(false)
 
     // Create a virtual store layout like pnpm produces:
@@ -1024,6 +1207,7 @@ describe('linkExePlatformBinary', () => {
     const vsExeDir = path.join(dir, 'node_modules', '.pnpm', '@pnpm+exe@1.0.0', 'node_modules', '@pnpm', 'exe')
     const vsPlatformDir = path.join(dir, 'node_modules', '.pnpm', '@pnpm+exe@1.0.0', 'node_modules', '@pnpm', platformPkgName)
     const topLevelExeDir = path.join(dir, 'node_modules', '@pnpm', 'exe')
+    const topLevelPlatformDir = path.join(dir, 'node_modules', '@pnpm', platformPkgName)
 
     // Create the virtual store directories
     fs.mkdirSync(vsExeDir, { recursive: true })
@@ -1041,6 +1225,8 @@ describe('linkExePlatformBinary', () => {
     // Create the top-level symlink: node_modules/@pnpm/exe -> virtual store
     fs.mkdirSync(path.join(dir, 'node_modules', '@pnpm'), { recursive: true })
     fs.symlinkSync(vsExeDir, topLevelExeDir)
+    fs.mkdirSync(topLevelPlatformDir)
+    fs.writeFileSync(path.join(topLevelPlatformDir, executable), 'wrong platform binary')
 
     // Run the function
     linkExePlatformBinary(dir)
@@ -1146,6 +1332,63 @@ describe('linkExePlatformBinary', () => {
 
     const result = fs.readFileSync(path.join(wrapperDir, executable), 'utf8')
     expect(result).toBe(fakeBinaryContent)
+  })
+
+  test.each([
+    ['legacy', platformPkgName],
+    ['newer', exePlatformPkgDirNameNext(platform, arch, libcFamily)],
+  ])('links @pnpm/exe when its %s platform dependency is in a sibling GVS slot', (_scheme, siblingPlatformPkgName) => {
+    const dir = tempDir(false)
+    const wrapperSlot = path.join(dir, 'links', 'wrapper', 'node_modules', '@pnpm', 'exe')
+    const platformSlot = path.join(dir, 'links', 'platform', 'node_modules', '@pnpm', siblingPlatformPkgName)
+    const wrapperDir = path.join(dir, 'node_modules', '@pnpm', 'exe')
+    const platformDir = path.join(dir, 'node_modules', '@pnpm', siblingPlatformPkgName)
+
+    fs.mkdirSync(wrapperSlot, { recursive: true })
+    fs.mkdirSync(platformSlot, { recursive: true })
+    fs.writeFileSync(path.join(wrapperSlot, executable), 'This file intentionally left blank')
+    fs.writeFileSync(path.join(wrapperSlot, 'package.json'), JSON.stringify({
+      bin: { pnpm: 'pnpm', pn: 'pn', pnpx: 'pnpx', pnx: 'pnx' },
+    }))
+    const fakeBinaryContent = '#!/bin/sh\necho "fake pnpm binary"'
+    fs.writeFileSync(path.join(platformSlot, executable), fakeBinaryContent)
+
+    fs.mkdirSync(path.dirname(wrapperDir), { recursive: true })
+    fs.mkdirSync(path.dirname(platformDir), { recursive: true })
+    fs.symlinkSync(wrapperSlot, wrapperDir)
+    fs.symlinkSync(platformSlot, platformDir)
+
+    linkExePlatformBinary(dir)
+
+    const result = fs.readFileSync(path.join(wrapperDir, executable), 'utf8')
+    expect(result).toBe(fakeBinaryContent)
+  })
+
+  test('runs the self-update wrapper when its platform binary is in a sibling GVS slot', () => {
+    const dir = tempDir(false)
+    const wrapperSlot = path.join(dir, 'links', 'wrapper', 'node_modules', '@pnpm', 'exe')
+    const platformSlot = path.join(dir, 'links', 'platform', 'node_modules', '@pnpm', platformPkgName)
+    const wrapperDir = path.join(dir, 'node_modules', '@pnpm', 'exe')
+    const platformDir = path.join(dir, 'node_modules', '@pnpm', platformPkgName)
+
+    fs.mkdirSync(wrapperSlot, { recursive: true })
+    fs.mkdirSync(platformSlot, { recursive: true })
+    fs.writeFileSync(path.join(wrapperSlot, executable), 'This file intentionally left blank')
+    fs.writeFileSync(path.join(wrapperSlot, 'package.json'), JSON.stringify({
+      bin: { pnpm: 'pnpm', pn: 'pn', pnpx: 'pnpx', pnx: 'pnx' },
+    }))
+    fs.copyFileSync(fs.realpathSync(process.execPath), path.join(platformSlot, executable))
+
+    fs.mkdirSync(path.dirname(wrapperDir), { recursive: true })
+    fs.mkdirSync(path.dirname(platformDir), { recursive: true })
+    fs.symlinkSync(wrapperSlot, wrapperDir)
+    fs.symlinkSync(platformSlot, platformDir)
+
+    linkExePlatformBinary(dir)
+
+    const result = spawn.sync(path.join(wrapperDir, executable), ['--version'])
+    expect(result.status).toBe(0)
+    expect(result.stdout.toString().trim()).toBe(process.version)
   })
 
   // Regression coverage for https://github.com/pnpm/pnpm/issues/11486 — the
@@ -1255,5 +1498,117 @@ describe('exePlatformPkgDirNameNext', () => {
   test('normalizes ia32 to x86 on win32 only', () => {
     expect(exePlatformPkgDirNameNext('win32', 'ia32', null)).toBe('exe.win32-x86')
     expect(exePlatformPkgDirNameNext('linux', 'ia32', null)).toBe('exe.linux-ia32')
+  })
+})
+
+describe('assertReleaseIsInstallable', () => {
+  test.each(['11.12.0', '11.13.0'])('refuses the broken release %s', (version) => {
+    expect(() => {
+      assertReleaseIsInstallable(version)
+    }).toThrow(/pnpm v.+ is a broken release and cannot be installed/)
+  })
+
+  test('the refusal explains that the pin would break teammates', () => {
+    try {
+      assertReleaseIsInstallable('11.13.0')
+      throw new Error('assertReleaseIsInstallable should have thrown')
+    } catch (err: unknown) {
+      const pnpmError = err as PnpmError
+      expect(pnpmError.code).toBe('ERR_PNPM_BROKEN_PNPM_RELEASE')
+      expect(pnpmError.hint).toMatch(/pin is shared/)
+    }
+  })
+
+  test.each(['11.11.0', '11.13.1', '12.0.0'])('allows %s', (version) => {
+    expect(() => {
+      assertReleaseIsInstallable(version)
+    }).not.toThrow()
+  })
+})
+
+describe('assertPnpmRuns', () => {
+  // Build the bins the same way installPnpmToGlobalDir does, so the spawn goes
+  // through the real shim linkBins writes — including the .cmd wrapper on
+  // Windows, which is the part a hand-written fixture would get wrong.
+  async function linkFakePnpm (entry: string): Promise<string> {
+    const dir = tempDir(false)
+    const pkgDir = path.join(dir, 'node_modules', 'fake-pnpm')
+    fs.mkdirSync(pkgDir, { recursive: true })
+    fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({
+      name: 'fake-pnpm',
+      version: '1.0.0',
+      bin: { pnpm: 'entry.js' },
+    }))
+    fs.writeFileSync(path.join(pkgDir, 'entry.js'), `${entry}\n`)
+    const binDir = path.join(dir, 'bin')
+    await linkBins(path.join(dir, 'node_modules'), binDir, { warn: () => {} })
+    return binDir
+  }
+
+  test('passes when the installed pnpm runs', async () => {
+    const binDir = await linkFakePnpm('process.exit(0)')
+    expect(() => {
+      assertPnpmRuns(binDir, '1.0.0')
+    }).not.toThrow()
+  })
+
+  test('reports the failing exit code when the installed pnpm cannot run', async () => {
+    const binDir = await linkFakePnpm('process.exit(1)')
+    expect(() => {
+      assertPnpmRuns(binDir, '1.0.0')
+    }).toThrow(/pnpm v1\.0\.0 that was just installed cannot run.*exited with code 1/s)
+  })
+
+  // Windows has no real signals, so a killed process still reports an exit code
+  // there and this branch is unreachable.
+  const posixOnlyTest = process.platform === 'win32' ? test.skip : test
+
+  posixOnlyTest('describes a signal rather than a null exit code', async () => {
+    // macOS kills a binary whose signature check rejects it, so an incorrectly signed
+    // release arrives here with no exit code at all. The wording matches
+    // pacquet's, which only has the code and cannot name the signal.
+    const binDir = await linkFakePnpm("process.kill(process.pid, 'SIGKILL')")
+    expect(() => {
+      assertPnpmRuns(binDir, '1.0.0')
+    }).toThrow(/cannot run: it exited with a signal/)
+  })
+
+  // pnpm reaches --version only after loading config and running pnpmfile
+  // hooks, so probing from the caller's directory would let an unrelated
+  // project reject a perfectly good release.
+  test('is not affected by the config of the directory self-update was run from', async () => {
+    // Stands in for pnpm's startup: fail if the caller's project is visible.
+    const binDir = await linkFakePnpm("process.exit(require('node:fs').existsSync('.pnpmfile.cjs') ? 1 : 0)")
+    const hostileProject = tempDir(false)
+    fs.writeFileSync(path.join(hostileProject, 'package.json'), '{"name":"p"}')
+    fs.writeFileSync(path.join(hostileProject, 'pnpm-workspace.yaml'), 'packages:\n  - .\n')
+    fs.writeFileSync(path.join(hostileProject, '.pnpmfile.cjs'), "throw new Error('broken pnpmfile')\n")
+    const cwd = process.cwd()
+    process.chdir(hostileProject)
+    try {
+      expect(() => {
+        assertPnpmRuns(binDir, '1.0.0')
+      }).not.toThrow()
+    } finally {
+      process.chdir(cwd)
+    }
+  })
+
+  test('fails when there is no pnpm to run at all', () => {
+    expect(() => {
+      assertPnpmRuns(tempDir(false), '1.0.0')
+    }).toThrow(/cannot run/)
+  })
+
+  test('the failure carries the BROKEN_PNPM_INSTALL code and says the active pnpm was kept', async () => {
+    const binDir = await linkFakePnpm('process.exit(1)')
+    try {
+      assertPnpmRuns(binDir, '1.0.0')
+      throw new Error('assertPnpmRuns should have thrown')
+    } catch (err: unknown) {
+      const pnpmError = err as PnpmError
+      expect(pnpmError.code).toBe('ERR_PNPM_BROKEN_PNPM_INSTALL')
+      expect(pnpmError.hint).toMatch(/currently active pnpm was left in place/)
+    }
   })
 })
