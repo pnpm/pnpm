@@ -19,11 +19,12 @@ jobs:
   update-lockfile:
     if: github.repository == 'pnpm/pnpm' # Only run on the main repository, not forks
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 30
     env:
       # The husky hooks are a developer safety net; CI has its own gates. Without
       # this, the full install wires the hooks and the pre-push hook runs the TS
       # compile/lint (and, when the remote branch doesn't exist yet, the Rust
-      # clippy/doc sweep) during "Commit and push".
+      # clippy/doc sweep) during the action's push.
       HUSKY: 0
     steps:
     - name: Checkout Commit
@@ -31,92 +32,34 @@ jobs:
       with:
         # Don't persist the write-scoped token in .git/config. The full install
         # below runs third-party lifecycle scripts from freshly-bumped
-        # dependencies; the token is only needed to push, which the "Commit and
-        # push" step does with an explicit, single-use remote URL.
+        # dependencies; the token is only needed to push, which pnpm/update does
+        # through a single-use credential helper.
         persist-credentials: false
 
-    # The job regenerates the lockfile and runs the meta-updater itself, so the
-    # action's auto-install would just be wasted work.
+    # pnpm/update runs the install itself, so the action's auto-install would
+    # be wasted work.
     - name: Install pnpm
       uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
       with:
         install: false
 
-    # Build the day's changes on a single, persistent branch based on the latest
-    # main on every run. main is fetched explicitly so the branch is correct even
-    # for a workflow_dispatch run triggered from another ref. If a PR from a
-    # previous day is still open, the force-push below replaces its contents with
-    # today's changes instead of opening a second PR.
-    - name: Prepare update branch
-      run: |
-        git config user.name "github-actions[bot]"
-        git config user.email "github-actions[bot]@users.noreply.github.com"
-        git fetch origin main
-        git checkout -B chore/update-lockfile FETCH_HEAD
+    - name: Update lockfile, Node.js, and pnpm versions
+      uses: pnpm/update@76f98d727df25f56f9bbd38e60ad663fd785d3d4 # v0
+      with:
+        update-deps: false
+        refresh-lockfile: true
+        changesets: false
+        update-pnpm: next-12
+        post-update: pnpm update-manifests
+        branch: chore/update-lockfile
+        token: ${{ secrets.UPDATE_LOCKFILE_TOKEN }}
+        commit-message: 'chore: update lockfile, Node.js, and pnpm versions'
+        pr-title: 'chore: update lockfile, Node.js, and pnpm versions'
+        pr-body: |
+          This automated PR refreshes the project's pinned versions:
 
-    - name: Update dependencies, Node.js, and pnpm versions
-      timeout-minutes: 20
-      run: |
-        # Bump Node.js to the latest 26.x and record it in devEngines.runtime.
-        pnpm runtime set node 26
+          - Updates the lockfile to the latest compatible versions of dependencies.
+          - Bumps Node.js to the latest 26.x release, propagated into the CI, release, and benchmark workflows via the meta-updater.
+          - Bumps pnpm to the latest `next-12` release (`packageManager` and `devEngines.packageManager`).
 
-        # Refresh the whole lockfile to the latest compatible dependency versions.
-        # Remove node_modules too so pnpm cannot reuse node_modules/.pnpm/lock.yaml
-        # as the missing wanted lockfile and skip resolution.
-        rm -rf node_modules pnpm-lock.yaml
-        pnpm install
-
-        # Propagate the new Node.js version into the GitHub Actions workflows,
-        # the `node@runtime:` scripts, and other manifests, then reinstall to
-        # sync the lockfile with any manifest changes.
-        pnpm update-manifests
-
-        # Bump pnpm itself last: this rewrites the `packageManager` and
-        # `devEngines.packageManager` pins, so doing it after the install steps
-        # keeps them running on the action-provided pnpm. The repo is on the v12
-        # prereleases, which are published under the next-12 dist-tag; `latest`
-        # would downgrade back to v11.
-        pnpm self-update next-12
-
-    - name: Check for changes
-      id: changes
-      run: |
-        if [ -z "$(git status --porcelain)" ]; then
-          echo "changed=false" >> "$GITHUB_OUTPUT"
-        else
-          echo "changed=true" >> "$GITHUB_OUTPUT"
-        fi
-
-    - name: Commit and push
-      if: steps.changes.outputs.changed == 'true'
-      env:
-        GH_TOKEN: ${{ secrets.UPDATE_LOCKFILE_TOKEN }}
-      run: |
-        git add -A
-        git commit -m "chore: update lockfile, Node.js, and pnpm versions"
-        git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" chore/update-lockfile
-
-    - name: Create PR if needed
-      if: steps.changes.outputs.changed == 'true'
-      env:
-        GH_TOKEN: ${{ secrets.UPDATE_LOCKFILE_TOKEN }}
-      run: |
-        BRANCH="chore/update-lockfile"
-
-        # An already-open PR from a previous day now points at the freshly
-        # force-pushed branch, so there is nothing more to do.
-        if [ -n "$(gh pr list --head "$BRANCH" --state open --json number --jq '.[].number')" ]; then
-          echo "PR already exists; today's changes were force-pushed to it"
-        else
-          gh pr create \
-            --title "chore: update lockfile, Node.js, and pnpm versions" \
-            --body "This automated PR refreshes the project's pinned versions:
-
-        - Updates the lockfile to the latest compatible versions of dependencies.
-        - Bumps Node.js to the latest 26.x release, propagated into the CI, release, and benchmark workflows via the meta-updater.
-        - Bumps pnpm to the latest \`next-12\` release (\`packageManager\` and \`devEngines.packageManager\`).
-
-        Created by the update-lockfile workflow." \
-            --base main \
-            --head "$BRANCH"
-        fi
+          Created by the [pnpm/update](https://github.com/pnpm/update) action.
