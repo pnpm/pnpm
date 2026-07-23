@@ -6,7 +6,6 @@ use super::{
 };
 use node_semver::Version;
 use pacquet_config::Config;
-use pacquet_default_reporter::format::visible_width;
 use pacquet_lockfile::Lockfile;
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::DependencyGroup;
@@ -156,12 +155,43 @@ fn render_latest_outdated_and_not_deprecated() {
     assert!(!output.contains("(deprecated)"), "no deprecation marker: {output}");
 }
 
+/// Visible column indices of the box-drawing characters that carry a
+/// vertical stroke, ignoring ANSI SGR escapes so a colored cell only counts
+/// its glyphs. These are the column boundaries a well-aligned table keeps
+/// identical on every row.
+fn border_columns(line: &str) -> Vec<usize> {
+    const VERTICAL_BORDERS: &[char] = &['│', '┌', '┐', '├', '┤', '┼', '└', '┘', '┬', '┴'];
+    let mut columns = Vec::new();
+    let mut chars = line.chars();
+    let mut column = 0;
+    while let Some(ch) = chars.next() {
+        if ch == '\u{1b}' {
+            for esc in chars.by_ref() {
+                if esc.is_ascii_alphabetic() {
+                    break;
+                }
+            }
+        } else {
+            if VERTICAL_BORDERS.contains(&ch) {
+                columns.push(column);
+            }
+            column += 1;
+        }
+    }
+    columns
+}
+
 fn assert_borders_aligned(table: &str) {
-    let widths: Vec<usize> = table.lines().map(visible_width).collect();
-    assert!(
-        widths.windows(2).all(|pair| pair[0] == pair[1]),
-        "every row must have the same display width so the borders line up, got {widths:?} for:\n{table}",
-    );
+    let mut rows = table.lines();
+    let expected = rows.next().map(border_columns).unwrap_or_default();
+    assert!(!expected.is_empty(), "expected box-drawing borders in:\n{table}");
+    for row in table.lines() {
+        assert_eq!(
+            border_columns(row),
+            expected,
+            "every row must place its vertical borders at the same columns:\n{table}",
+        );
+    }
 }
 
 /// Forces `owo_colors` global color on for the scope of a test and clears it
