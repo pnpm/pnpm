@@ -48,7 +48,6 @@ jobs:
       with:
         update-deps: latest
         refresh-lockfile: true
-        changesets: false
         github-actions: true
         update-pnpm: next-12
         post-update: pnpm update-manifests
