@@ -13,8 +13,10 @@ use crate::{
     plan::{ReleasePlan, WorkspaceProject, index_project_refs},
     settings::{ChangelogStorage, VersioningSettings, changelog_storage},
 };
+use serde::Serialize;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AppliedRelease {
     pub name: String,
     pub current_version: String,
