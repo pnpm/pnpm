@@ -41,6 +41,7 @@ url           = { workspace = true }
 sha2 = { workspace = true, features = ["asm"] }
 
 [dev-dependencies]
+junction          = { workspace = true }
 pipe-trait        = { workspace = true }
 pretty_assertions = { workspace = true }
 sha2              = { workspace = true }
