@@ -13,7 +13,7 @@ export interface FixResult {
 
 export async function fix (auditReport: AuditReport, opts: AuditOptions): Promise<FixResult> {
   const fixableAdvisories = getFixableAdvisories(Object.values(auditReport.advisories), opts.auditConfig?.ignoreGhsas)
-  const vulnOverrides = createOverrides(fixableAdvisories)
+  const vulnOverrides = createOverrides(fixableAdvisories, opts.saveExact, opts.savePrefix)
   if (Object.values(vulnOverrides).length === 0) return { vulnOverrides, addedAgeExcludes: [] }
   const addedAgeExcludes = opts.minimumReleaseAge ? createMinimumReleaseAgeExcludes(fixableAdvisories) : []
   await writeSettings({
@@ -38,11 +38,11 @@ function getFixableAdvisories (advisories: AuditAdvisory[], ignoreGhsas?: string
   return advisories.filter(({ patched_versions: patchedVersions }) => patchedVersions != null)
 }
 
-function createOverrides (advisories: AuditAdvisory[]): Record<string, string> {
+function createOverrides (advisories: AuditAdvisory[], saveExact?: boolean, savePrefix?: string): Record<string, string> {
   const entries: Array<[string, string]> = []
   for (const advisory of advisories) {
     if (!advisory.patched_versions) continue
-    entries.push([`${advisory.module_name}@${advisory.vulnerable_versions}`, caretRangeForPatched(advisory.patched_versions)])
+    entries.push([`${advisory.module_name}@${advisory.vulnerable_versions}`, caretRangeForPatched(advisory.patched_versions, saveExact, savePrefix)])
   }
   return sortDirectKeys(Object.fromEntries(entries))
 }
@@ -51,9 +51,14 @@ function createOverrides (advisories: AuditAdvisory[]): Record<string, string> {
 // same major as the fix. `>=X.Y.Z` alone can silently promote a dep to a
 // later breaking major; `^X.Y.Z` still satisfies the patch while
 // preserving the major the user originally pinned to.
-export function caretRangeForPatched (patchedRange: string): string {
+// Respects saveExact / savePrefix so --fix=override matches the behavior of
+// --fix=update (which inherits these from the normal install pipeline).
+export function caretRangeForPatched (patchedRange: string, saveExact?: boolean, savePrefix?: string): string {
   const min = semver.minVersion(patchedRange)
-  return min ? `^${min.version}` : patchedRange
+  if (!min) return patchedRange
+  if (saveExact === true || savePrefix === '') return min.version
+  if (savePrefix === '~') return `~${min.version}`
+  return `^${min.version}`
 }
 
 export function createMinimumReleaseAgeExcludes (advisories: AuditAdvisory[]): string[] {
