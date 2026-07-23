@@ -142,6 +142,7 @@ impl WorkspaceSettings {
         json_field!(prefer_offline, "PREFER_OFFLINE");
         json_field!(lockfile_include_tarball_url, "LOCKFILE_INCLUDE_TARBALL_URL");
         string_field!(registry, "REGISTRY");
+        string_field!(scope, "SCOPE");
         string_field!(pnpr_server, "PNPR_SERVER");
         string_field!(https_proxy, "HTTPS_PROXY");
         string_field!(http_proxy, "HTTP_PROXY");

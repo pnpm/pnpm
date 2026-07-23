@@ -99,6 +99,20 @@ fn network_settings_parse_from_env() {
 }
 
 #[test]
+fn scope_parses_from_env() {
+    struct EnvScope;
+    impl EnvVar for EnvScope {
+        fn var(name: &str) -> Option<String> {
+            (name == "PNPM_CONFIG_SCOPE").then(|| "@my-org".to_owned())
+        }
+    }
+    assert_eq!(
+        WorkspaceSettings::from_pnpm_config_env::<EnvScope>().scope.as_deref(),
+        Some("@my-org"),
+    );
+}
+
+#[test]
 fn tri_array_env_var_parses_arrays_and_rejects_null() {
     assert_eq!(parse_tri_array(r#"["a","b"]"#), Some(Some(vec!["a".to_owned(), "b".to_owned()])));
     assert_eq!(parse_tri_array("null"), None);
