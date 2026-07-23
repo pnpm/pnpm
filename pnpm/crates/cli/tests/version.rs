@@ -628,7 +628,7 @@ fn version_json_outputs_release_details_in_json() {
     assert_eq!(arr.len(), 1, "expected exactly one release entry");
     let entry = &arr[0];
     assert_eq!(entry.get("name").and_then(serde_json::Value::as_str), Some("test-pkg"));
-    assert_eq!(entry.get("currentVersion").and_then(serde_json::Value::as_str), Some("1.0.0"),);
+    assert_eq!(entry.get("currentVersion").and_then(serde_json::Value::as_str), Some("1.0.0"));
     assert_eq!(entry.get("newVersion").and_then(serde_json::Value::as_str), Some("1.0.1"));
     drop(root);
 }
