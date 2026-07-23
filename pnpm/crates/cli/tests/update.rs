@@ -767,6 +767,48 @@ fn update_latest_no_save_catalog_bumps_lockfile_only() {
     drop((root, anchor));
 }
 
+/// The alias name does not exist in the mock registry.
+#[test]
+fn update_latest_npm_alias_resolves_aliased_package() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "dep-alias": "npm:{DEP}@~100.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+    eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
+    assert!(virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.0.0"));
+
+    pacquet(&workspace, ["update", "--latest"]).assert().success();
+
+    assert_eq!(dep_spec(&workspace, "dep-alias").as_deref(), Some(&*format!("npm:{DEP}@~101.0.0")));
+    eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
+    assert!(virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@101.0.0"));
+
+    drop((root, anchor));
+}
+
+/// The alias name does not exist in the mock registry.
+#[test]
+fn update_latest_catalog_npm_alias_resolves_aliased_package() {
+    let (root, workspace, anchor) = setup();
+
+    set_named_catalog(&workspace, "grp1", &[("dep-alias", &format!("npm:{DEP}@~100.0.0"))]);
+    write_manifest(&workspace, r#"{ "dep-alias": "catalog:grp1" }"#);
+    pacquet(&workspace, ["install"]).assert().success();
+
+    pacquet(&workspace, ["update", "--latest"]).assert().success();
+
+    assert_eq!(dep_spec(&workspace, "dep-alias").as_deref(), Some("catalog:grp1"));
+
+    let yaml = read_workspace_yaml(&workspace);
+    assert!(
+        yaml.contains(&format!("npm:{DEP}@~101.0.0")),
+        "catalog entry should be bumped to npm:{DEP}@~101.0.0: {yaml}",
+    );
+    assert!(!yaml.contains("100.0.0"), "stale catalog entry should be gone: {yaml}");
+
+    drop((root, anchor));
+}
+
 /// The same preservation applies to the default catalog (`catalog:`).
 #[test]
 fn update_latest_default_catalog_preserves_reference() {

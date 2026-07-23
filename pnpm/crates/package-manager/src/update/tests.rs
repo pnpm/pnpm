@@ -1,6 +1,6 @@
 use super::{
-    is_workspace_local_path_specifier, parse_update_param, persist_selected_manifests,
-    prepare_selected_manifests, selected_project_indices,
+    is_workspace_local_path_specifier, npm_alias_target, parse_update_param,
+    persist_selected_manifests, prepare_selected_manifests, selected_project_indices,
 };
 use pacquet_config::{CatalogMode, Config};
 use pacquet_network::ThrottledClient;
@@ -58,6 +58,31 @@ fn negated_unscoped_pattern_without_version() {
     let parsed = parse_update_param("!foo");
     assert_eq!(parsed.pattern, "!foo");
     assert_eq!(parsed.version, None);
+}
+
+#[test]
+fn npm_alias_specifiers_yield_their_real_package_name() {
+    for (spec, alias, target) in [
+        ("npm:bar@^4.0.0", "foo", Some("bar")),
+        ("npm:bar", "foo", Some("bar")),
+        ("npm:@types/table@6.3.2", "@types/zkochan__table", Some("@types/table")),
+        ("npm:@types/table", "@types/zkochan__table", Some("@types/table")),
+    ] {
+        assert_eq!(npm_alias_target(spec, alias), target, "target of {alias}@{spec}");
+    }
+}
+
+#[test]
+fn non_alias_specifiers_have_no_npm_alias_target() {
+    for (spec, alias) in [
+        ("^1.0.0", "foo"),
+        ("catalog:", "foo"),
+        ("workspace:*", "foo"),
+        ("npm:^1.0.0", "foo"),
+        ("npm:foo@^1.0.0", "foo"),
+    ] {
+        assert_eq!(npm_alias_target(spec, alias), None, "target of {alias}@{spec}");
+    }
 }
 
 #[test]
