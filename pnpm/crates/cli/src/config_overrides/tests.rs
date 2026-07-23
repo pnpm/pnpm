@@ -1,4 +1,4 @@
-use super::{ConfigOverrides, apply_store_dir_override};
+use super::{ConfigOverrides, apply_registry_override, apply_store_dir_override};
 use pacquet_config::{Config, EnvVar, GetCurrentDir, GetHomeDir, LinkProbe, NodeLinker};
 use pacquet_store_dir::STORE_VERSION;
 use pretty_assertions::assert_eq;
@@ -25,6 +25,20 @@ fn extract_separates_config_tokens_from_argv() {
     assert_eq!(
         config.package_manager_bootstrap.registries.get("default").map(String::as_str),
         Some("https://example.test/"),
+    );
+}
+
+#[test]
+fn registry_cli_override_normalizes_and_sets_every_registry_slot() {
+    let mut config = Config::default();
+    // No trailing slash on the input; it is normalized on the way in.
+    apply_registry_override(&mut config, "https://cli.example");
+    assert_eq!(config.registry, "https://cli.example/");
+    assert_eq!(config.registries.get("default").map(String::as_str), Some("https://cli.example/"));
+    assert_eq!(config.package_manager_bootstrap.registry, "https://cli.example/");
+    assert_eq!(
+        config.package_manager_bootstrap.registries.get("default").map(String::as_str),
+        Some("https://cli.example/"),
     );
 }
 

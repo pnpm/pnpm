@@ -7,13 +7,15 @@ use crate::{
     config_deps,
 };
 use clap::Args;
-use miette::Context;
+use derive_more::{Display, Error};
+use miette::{Context, Diagnostic, IntoDiagnostic};
 use pacquet_config::Config;
 use pacquet_package_manager::Add;
 use pacquet_package_manifest::DependencyGroup;
 use pacquet_registry::PinnedVersion;
 use pacquet_reporter::Reporter;
 use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
+use pacquet_workspace_manifest_writer::set_allow_builds;
 use std::{
     collections::BTreeMap,
     path::{Path, PathBuf},
@@ -106,6 +108,10 @@ pub struct AddArgs {
     /// Add the package as a configuration dependency.
     #[clap(long = "config")]
     pub config: bool,
+    /// Package names allowed to run lifecycle (build) scripts during this
+    /// install, appended to `allowBuilds`. May be repeated.
+    #[clap(long = "allow-build")]
+    pub allow_build: Vec<String>,
     /// Dependencies are not downloaded. Only `pnpm-lock.yaml` is updated.
     #[clap(long = "lockfile-only")]
     pub lockfile_only: bool,
@@ -315,10 +321,59 @@ impl AddArgs {
             &self.package_names,
             pinned_version,
             supported_architectures,
+            &self.allow_build,
             dir,
         ))
         .await
     }
+}
+
+/// Honor `--allow-build`: reject any package the root project explicitly
+/// disallows (`allowBuilds: false`), persist the allowed names to
+/// `settings_dir`'s `pnpm-workspace.yaml`, and enable them for this
+/// install. `settings_dir` is the workspace root, or the project
+/// directory outside a workspace. Mirrors pnpm's `add` handler; shared by
+/// the workspace and `--global` add paths.
+pub(crate) fn apply_allow_build(
+    config: &mut Config,
+    allow_build: &[String],
+    settings_dir: &Path,
+) -> miette::Result<()> {
+    if allow_build.is_empty() {
+        return Ok(());
+    }
+    let overlap: Vec<&str> = allow_build
+        .iter()
+        .filter(|pkg| config.allow_builds.get(pkg.as_str()) == Some(&false))
+        .map(String::as_str)
+        .collect();
+    if !overlap.is_empty() {
+        return Err(AllowBuildError::OverridingIgnoredBuiltDependencies {
+            dependencies: overlap.join(", "),
+        }
+        .into());
+    }
+    set_allow_builds(settings_dir, allow_build.iter().map(|pkg| (pkg.as_str(), true)))
+        .into_diagnostic()?;
+    for pkg in allow_build {
+        config.allow_builds.insert(pkg.clone(), true);
+    }
+    Ok(())
+}
+
+#[derive(Debug, Display, Error, Diagnostic)]
+#[non_exhaustive]
+pub enum AllowBuildError {
+    #[display(
+        "The following dependencies are ignored by the root project, but are allowed to be built by the current command: {dependencies}"
+    )]
+    #[diagnostic(
+        code(ERR_PNPM_OVERRIDING_IGNORED_BUILT_DEPENDENCIES),
+        help(
+            "If you are sure you want to allow those dependencies to run installation scripts, remove them from the allowBuilds list (or change their value to true)."
+        )
+    )]
+    OverridingIgnoredBuiltDependencies { dependencies: String },
 }
 
 /// Add a single package to `state`'s manifest and install it.

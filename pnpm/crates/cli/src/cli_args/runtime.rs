@@ -107,6 +107,9 @@ impl RuntimeArgs {
             std::slice::from_ref(&request.package_name),
             PinnedVersion::Major,
             config.supported_architectures.clone(),
+            // `pnpm runtime` installs a runtime, not user packages; it has
+            // no `--allow-build`.
+            &[],
             dir,
         ))
         .await
