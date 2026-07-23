@@ -41,6 +41,7 @@
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "catalog:",
     "is-subdir": "catalog:",
+    "p-limit": "catalog:",
     "ramda": "catalog:",
     "resolve-link-target": "catalog:",
     "symlink-dir": "catalog:"
