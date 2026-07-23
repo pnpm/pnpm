@@ -102,6 +102,8 @@ auditConfig:
     - GHSA-h67p-54hq-rp68
 
 catalog:
+  # @babel/core 8.x (and its plugins) require Node.js ^22.18.0 || >=24.11.0,
+  # above pnpm's supported floor of Node.js >=22.13.
   '@babel/core': ^7.29.7
   '@babel/plugin-transform-explicit-resource-management': ^7.29.7
   '@commitlint/cli': ^21.0.2
@@ -187,6 +189,8 @@ catalog:
   ansi-diff: ^1.2.0
   archy: ^1.0.0
   better-path-resolve: 2.0.0
+  # bin-links 7.x requires Node.js ^22.22.2 || ^24.15.0 || >=26.0.0, above pnpm's
+  # supported floor of Node.js >=22.13.
   bin-links: ^6.0.2
   # bole 6 is ESM-only. Under Jest, the workspace logger's ESM bole and the
   # published @pnpm/logger's CJS bole 5 land in different realms, so the
@@ -258,6 +262,8 @@ catalog:
   json5: ^2.2.3
   keyv: 5.6.0
   lcov-result-merger: ^6.0.0
+  # libnpmpublish 12.x requires Node.js ^22.22.2 || ^24.15.0 || >=26.0.0, above
+  # pnpm's supported floor of Node.js >=22.13.
   libnpmpublish: ^11.2.0
   load-json-file: ^7.0.1
   lodash.kebabcase: ^4.1.1
@@ -279,6 +285,8 @@ catalog:
   # npm-packlist 11.x requires Node.js ^22.22.2 || ^24.15.0 || >=26.0.0, above
   # pnpm's supported floor of Node.js >=22.13.
   npm-packlist: 10.0.4
+  # npm-registry-fetch 20.x requires Node.js ^22.22.2 || ^24.15.0 || >=26.0.0,
+  # above pnpm's supported floor of Node.js >=22.13.
   npm-registry-fetch: ^19.0.0
   object-hash: 3.0.0
   open: ^11.0.0
@@ -540,5 +548,25 @@ trustPolicyExclude:
   - undici-types@6.21.0
 
 trustPolicyIgnoreAfter: 10080 # 1 week
+
+# Packages whose newer versions require a Node.js version above pnpm's supported
+# floor (>=22.13). `pnpm update --latest` (run by the update-lockfile workflow)
+# would otherwise bump them past the versions pinned in the catalog above, where
+# each entry's comment records the exact Node.js requirement that holds it back.
+update:
+  ignoreDeps:
+    - '@babel/core'
+    - '@babel/plugin-transform-explicit-resource-management'
+    - bin-links
+    - cspell
+    - ini
+    - libnpmpublish
+    - normalize-package-data
+    - npm-packlist
+    - npm-registry-fetch
+    - ssri
+    - undici
+    - validate-npm-package-name
+    - write-file-atomic
 
 verifyDepsBeforeRun: install
