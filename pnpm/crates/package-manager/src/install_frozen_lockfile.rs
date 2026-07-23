@@ -3,13 +3,13 @@ use crate::{
     CreateVirtualStoreOutput, HoistedDepGraphError, HoistedDependencies, InstallabilityHost,
     LinkHoistedModulesError, LinkHoistedModulesOpts, LinkRootComponentMembersError,
     LinkVirtualStoreBins, LinkVirtualStoreBinsError, LockfileToHoistedDepGraphOptions,
-    SkippedSnapshots, SymlinkDirectDependencies, SymlinkDirectDependenciesError,
-    SymlinkPackageError, VersionPolicyError, VirtualStoreLayout, any_installability_constraint,
-    build_direct_deps_by_importer, build_hoist_graph, compute_skipped_snapshots,
-    direct_dep_names_for_importer, get_hoisted_dependencies, link_direct_dep_bins_resolved,
-    link_hoisted_modules, link_root_component_members, link_top_level_bins,
-    lockfile_to_hoisted_dep_graph, symlink_direct_dependencies::importer_root_dir,
-    symlink_hoisted_dependencies,
+    MaterializeGlobalVirtualStoreContextError, SkippedSnapshots, SymlinkDirectDependencies,
+    SymlinkDirectDependenciesError, SymlinkPackageError, VersionPolicyError, VirtualStoreLayout,
+    any_installability_constraint, build_direct_deps_by_importer, build_hoist_graph,
+    compute_skipped_snapshots, direct_dep_names_for_importer, get_hoisted_dependencies,
+    link_direct_dep_bins_resolved, link_hoisted_modules, link_root_component_members,
+    link_top_level_bins, lockfile_to_hoisted_dep_graph, materialize_global_virtual_store_context,
+    symlink_direct_dependencies::importer_root_dir, symlink_hoisted_dependencies,
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -219,6 +219,11 @@ pub enum InstallFrozenLockfileError {
 
     #[diagnostic(transparent)]
     SymlinkDirectDependencies(#[error(source)] SymlinkDirectDependenciesError),
+
+    #[diagnostic(transparent)]
+    MaterializeGlobalVirtualStoreContext(
+        #[error(source)] MaterializeGlobalVirtualStoreContextError,
+    ),
 
     /// Surfaces a failure while removing stale direct-dep or hoist
     /// links during the pre-link reconciliation pass.
@@ -908,6 +913,20 @@ where
         };
         let engine_name = initial_engine_name;
 
+        let hoisted_workspace_packages = config
+            .hoist_workspace_packages
+            .then(|| workspace_packages_for_hoist(workspace_root, project_manifests));
+        let (mut pre_hoist, context_projection) = compute_hoist_plan_and_context_projection(
+            config,
+            snapshots,
+            packages,
+            importers,
+            &dependency_groups,
+            &skipped,
+            is_hoisted,
+            hoisted_workspace_packages.as_ref(),
+        );
+
         // Build the install-scoped slot-directory layout. When
         // `enable_global_virtual_store` is on the layout precomputes
         // each snapshot's `<scope>/<name>/<version>/<hash>` suffix
@@ -923,6 +942,7 @@ where
             snapshots,
             packages,
             Some(&allow_build_policy),
+            Some(&context_projection),
         );
 
         // Reject a lockfile whose dependency names, aliases, or
@@ -1040,33 +1060,23 @@ where
         // which is excluded from `.modules.yaml.skipped` serialization
         // so a subsequent install retries the fetch — the skip set is
         // not updated at the catch site.
+        let had_fetch_failures = !fetch_failed.is_empty();
         for key in fetch_failed {
             skipped.add_fetch_failed(key);
         }
+        if had_fetch_failures && (!config.enable_global_virtual_store || is_hoisted) {
+            pre_hoist = compute_hoist_plan(
+                config,
+                snapshots,
+                packages,
+                importers,
+                &dependency_groups,
+                &skipped,
+                is_hoisted,
+                hoisted_workspace_packages.as_ref(),
+            );
+        }
 
-        // Pre-compute the hoist plan so the dedupe pass inside
-        // `SymlinkDirectDependencies` can fold publicly-hoisted aliases
-        // into root's target map — pacquet runs hoist *after*
-        // `SymlinkDirectDependencies`, so without this the dedupe map
-        // only sees root's direct deps and a non-root importer's
-        // direct dep that would land at root via public-hoist stays
-        // un-deduped. The full `HoistResult` is also threaded to the
-        // on-disk hoist pass below so the BFS isn't run twice.
-        // `hoist-workspace-packages`: named non-root projects become
-        // hoist candidates whose links point at the project dirs.
-        let hoisted_workspace_packages = config
-            .hoist_workspace_packages
-            .then(|| workspace_packages_for_hoist(workspace_root, project_manifests));
-        let pre_hoist = compute_hoist_plan(
-            config,
-            snapshots,
-            packages,
-            importers,
-            &dependency_groups,
-            &skipped,
-            is_hoisted,
-            hoisted_workspace_packages.as_ref(),
-        );
         let public_hoist_targets: Option<BTreeMap<String, PathBuf>> =
             pre_hoist.as_ref().map(|plan| {
                 collect_public_hoist_targets(&plan.result, &plan.graph, &layout, &plan.skipped)
@@ -1112,6 +1122,10 @@ where
         // populated, but nothing downstream of it — importer symlinks,
         // per-slot bins, root components — gets linked.
         if !is_hoisted && !config.virtual_store_only {
+            if config.symlink {
+                materialize_global_virtual_store_context(&layout, &skipped, &extra_node_paths)
+                    .map_err(InstallFrozenLockfileError::MaterializeGlobalVirtualStoreContext)?;
+            }
             // Importer ids backed by the install's own declared
             // projects. These may legitimately live outside the
             // lockfile dir (Bit's capsule installs pass such
@@ -1976,6 +1990,54 @@ pub(crate) fn compute_hoist_plan(
         hoisted_workspace_packages,
     })?;
     Some(HoistPlan { graph, result, skipped: hoist_skipped })
+}
+
+/// Computes the hoist plan and the matching resolver-visible projection.
+///
+/// Keeping both results together guarantees that the context hash and the
+/// on-disk hoist use the same alias selection.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the context projection must use the exact lockfile/config inputs that produced the reusable hoist plan"
+)]
+pub(crate) fn compute_hoist_plan_and_context_projection(
+    config: &Config,
+    snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
+    packages: Option<&HashMap<PackageKey, PackageMetadata>>,
+    importers: &HashMap<String, pacquet_lockfile::ProjectSnapshot>,
+    dependency_groups: &[pacquet_package_manifest::DependencyGroup],
+    skipped: &SkippedSnapshots,
+    is_hoisted: bool,
+    hoisted_workspace_packages: Option<&std::collections::BTreeMap<String, PathBuf>>,
+) -> (Option<HoistPlan>, crate::GlobalVirtualStoreContextProjection) {
+    let plan = compute_hoist_plan(
+        config,
+        snapshots,
+        packages,
+        importers,
+        dependency_groups,
+        skipped,
+        is_hoisted,
+        hoisted_workspace_packages,
+    );
+    let projection = if config.enable_global_virtual_store && !is_hoisted {
+        packages.map_or_else(crate::GlobalVirtualStoreContextProjection::new, |packages| {
+            let direct_deps =
+                build_direct_deps_by_importer(importers, dependency_groups.iter().copied());
+            let skipped = plan
+                .as_ref()
+                .map_or_else(|| skipped.iter().cloned().collect(), |plan| plan.skipped.clone());
+            crate::get_global_virtual_store_context_projection(
+                plan.as_ref().map(|plan| &plan.result),
+                &direct_deps,
+                packages,
+                &skipped,
+            )
+        })
+    } else {
+        crate::GlobalVirtualStoreContextProjection::new()
+    };
+    (plan, projection)
 }
 
 /// Build the `<alias → resolved-target-dir>` map for every publicly-

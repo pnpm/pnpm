@@ -10,6 +10,7 @@ import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { addDistTag, getIntegrity } from '@pnpm/testing.registry-mock'
 import type { ProjectRootDir } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
+import { safeExeca as execa } from 'execa'
 
 import { testDefaults } from '../utils/index.js'
 
@@ -17,6 +18,24 @@ const storeIndexes: StoreIndex[] = []
 afterAll(() => {
   for (const si of storeIndexes) si.close()
 })
+
+function getGlobalVirtualStoreSlots (globalVirtualStoreDir: string, name: string, version: string): string[] {
+  const slots: string[] = []
+  const legacyVersionDir = path.join(globalVirtualStoreDir, name, version)
+  if (fs.existsSync(legacyVersionDir)) {
+    slots.push(...fs.readdirSync(legacyVersionDir).map((hash) => path.join(legacyVersionDir, hash)))
+  }
+  const contextsDir = path.join(globalVirtualStoreDir, 'contexts')
+  if (fs.existsSync(contextsDir)) {
+    for (const contextHash of fs.readdirSync(contextsDir)) {
+      const versionDir = path.join(contextsDir, contextHash, name, version)
+      if (fs.existsSync(versionDir)) {
+        slots.push(...fs.readdirSync(versionDir).map((hash) => path.join(versionDir, hash)))
+      }
+    }
+  }
+  return slots.sort()
+}
 
 test('using a global virtual store', async () => {
   prepareEmpty()
@@ -35,10 +54,10 @@ test('using a global virtual store', async () => {
   {
     expect(fs.existsSync(path.resolve('node_modules/.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json'))).toBeTruthy()
     expect(fs.existsSync(path.resolve('node_modules/.pnpm/lock.yaml'))).toBeTruthy()
-    const files = fs.readdirSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep/100.0.0'))
-    expect(files).toHaveLength(1)
-    expect(fs.existsSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep/100.0.0', files[0], 'node_modules/@pnpm.e2e/pkg-with-1-dep/package.json'))).toBeTruthy()
-    expect(fs.existsSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep/100.0.0', files[0], 'node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json'))).toBeTruthy()
+    const slots = getGlobalVirtualStoreSlots(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep', '100.0.0')
+    expect(slots).toHaveLength(1)
+    expect(fs.existsSync(path.join(slots[0], 'node_modules/@pnpm.e2e/pkg-with-1-dep/package.json'))).toBeTruthy()
+    expect(fs.existsSync(path.join(slots[0], 'node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json'))).toBeTruthy()
   }
 
   rimrafSync('node_modules')
@@ -53,11 +72,98 @@ test('using a global virtual store', async () => {
   {
     expect(fs.existsSync(path.resolve('node_modules/.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json'))).toBeTruthy()
     expect(fs.existsSync(path.resolve('node_modules/.pnpm/lock.yaml'))).toBeTruthy()
-    const files = fs.readdirSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep/100.0.0'))
-    expect(files).toHaveLength(1)
-    expect(fs.existsSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep/100.0.0', files[0], 'node_modules/@pnpm.e2e/pkg-with-1-dep/package.json'))).toBeTruthy()
-    expect(fs.existsSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep/100.0.0', files[0], 'node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json'))).toBeTruthy()
+    const slots = getGlobalVirtualStoreSlots(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep', '100.0.0')
+    expect(slots).toHaveLength(1)
+    expect(fs.existsSync(path.join(slots[0], 'node_modules/@pnpm.e2e/pkg-with-1-dep/package.json'))).toBeTruthy()
+    expect(fs.existsSync(path.join(slots[0], 'node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json'))).toBeTruthy()
   }
+})
+
+test('TypeScript resolves consumer-provided types from global virtual store packages', async () => {
+  prepareEmpty()
+  const globalVirtualStoreDir = path.resolve('links')
+  await install({
+    dependencies: {
+      'next-themes': '0.3.0',
+      react: '18.3.1',
+      'react-dom': '18.3.1',
+    },
+    devDependencies: {
+      '@types/react': '18.3.3',
+      typescript: '5.5.4',
+    },
+  }, testDefaults({
+    enableGlobalVirtualStore: true,
+    virtualStoreDir: globalVirtualStoreDir,
+  }))
+
+  fs.writeFileSync('index.ts', `
+import { useTheme } from 'next-themes'
+
+type IsAny<T> = 0 extends (1 & T) ? true : false
+type AssertFalse<T extends false> = T
+
+const { setTheme } = useTheme()
+type SetThemeIsAny = IsAny<typeof setTheme>
+type Check = AssertFalse<SetThemeIsAny>
+  `)
+
+  await execa(process.execPath, [
+    'node_modules/typescript/bin/tsc',
+    '--noEmit',
+    '--skipLibCheck',
+    '--strict',
+    '--moduleResolution',
+    'bundler',
+    '--module',
+    'esnext',
+    'index.ts',
+  ])
+})
+
+test('GVS packages resolve arbitrary project dependencies with native ESM and CommonJS', async () => {
+  prepareEmpty()
+  const globalVirtualStoreDir = path.resolve('links')
+  const manifest = {
+    dependencies: {
+      '@pnpm.e2e/foo': '100.0.0',
+      '@pnpm.e2e/hello-world-js-bin': '1.0.0',
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  }
+  const opts = testDefaults({
+    enableGlobalVirtualStore: true,
+    hoistPattern: [],
+    publicHoistPattern: [],
+    virtualStoreDir: globalVirtualStoreDir,
+  })
+  const assertResolution = async () => {
+    const packageDir = fs.realpathSync('node_modules/@pnpm.e2e/pkg-with-1-dep')
+    const esmProbe = path.join(packageDir, 'gvs-resolution-probe.mjs')
+    const cjsProbe = path.join(packageDir, 'gvs-resolution-probe.cjs')
+    fs.writeFileSync(esmProbe, "import.meta.resolve('@pnpm.e2e/foo/package.json')\n")
+    fs.writeFileSync(cjsProbe, "require.resolve('@pnpm.e2e/foo/package.json')\n")
+    await execa(process.execPath, [esmProbe])
+    await execa(process.execPath, [cjsProbe])
+    const contextHash = path.relative(globalVirtualStoreDir, packageDir).split(path.sep)[1]
+    expect(fs.existsSync(path.join(
+      globalVirtualStoreDir,
+      'contexts',
+      contextHash,
+      'node_modules/.bin/hello-world-js-bin'
+    ))).toBeTruthy()
+  }
+
+  await install(manifest, opts)
+  await assertResolution()
+
+  rimrafSync('node_modules')
+  rimrafSync(globalVirtualStoreDir)
+  await install(manifest, {
+    ...opts,
+    frozenLockfile: true,
+  })
+  await assertResolution()
 })
 
 test('reinstall from warm global virtual store after deleting node_modules', async () => {
@@ -65,6 +171,7 @@ test('reinstall from warm global virtual store after deleting node_modules', asy
   const globalVirtualStoreDir = path.resolve('links')
   const manifest = {
     dependencies: {
+      '@pnpm.e2e/foo': '100.0.0',
       '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
     },
   }
@@ -75,7 +182,9 @@ test('reinstall from warm global virtual store after deleting node_modules', asy
   })
   await install(manifest, opts)
 
-  // Delete only node_modules, keep the global virtual store warm
+  for (const contextHash of fs.readdirSync(path.join(globalVirtualStoreDir, 'contexts'))) {
+    rimrafSync(path.join(globalVirtualStoreDir, 'contexts', contextHash, 'node_modules'))
+  }
   rimrafSync('node_modules')
   expect(fs.existsSync(globalVirtualStoreDir)).toBeTruthy()
 
@@ -98,10 +207,14 @@ test('reinstall from warm global virtual store after deleting node_modules', asy
 
   expect(fs.existsSync(path.resolve('node_modules/.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json'))).toBeTruthy()
   expect(fs.existsSync(path.resolve('node_modules/.pnpm/lock.yaml'))).toBeTruthy()
-  const files = fs.readdirSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep/100.0.0'))
-  expect(files).toHaveLength(1)
-  expect(fs.existsSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep/100.0.0', files[0], 'node_modules/@pnpm.e2e/pkg-with-1-dep/package.json'))).toBeTruthy()
-  expect(fs.existsSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep/100.0.0', files[0], 'node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json'))).toBeTruthy()
+  const slots = getGlobalVirtualStoreSlots(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep', '100.0.0')
+  expect(slots).toHaveLength(1)
+  expect(fs.existsSync(path.join(slots[0], 'node_modules/@pnpm.e2e/pkg-with-1-dep/package.json'))).toBeTruthy()
+  expect(fs.existsSync(path.join(slots[0], 'node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json'))).toBeTruthy()
+  const packageDir = fs.realpathSync('node_modules/@pnpm.e2e/pkg-with-1-dep')
+  const probe = path.join(packageDir, 'warm-context-probe.mjs')
+  fs.writeFileSync(probe, "import.meta.resolve('@pnpm.e2e/foo/package.json')\n")
+  await execa(process.execPath, [probe])
 })
 
 test('modules are correctly updated when using a global virtual store', async () => {
@@ -123,9 +236,9 @@ test('modules are correctly updated when using a global virtual store', async ()
 
   {
     expect(fs.existsSync(path.resolve('node_modules/.pnpm/lock.yaml'))).toBeTruthy()
-    const files = fs.readdirSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/peer-c/2.0.0'))
-    expect(files).toHaveLength(1)
-    expect(fs.existsSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/peer-c/2.0.0', files[0], 'node_modules/@pnpm.e2e/peer-c/package.json'))).toBeTruthy()
+    const slots = getGlobalVirtualStoreSlots(globalVirtualStoreDir, '@pnpm.e2e/peer-c', '2.0.0')
+    expect(slots).toHaveLength(1)
+    expect(fs.existsSync(path.join(slots[0], 'node_modules/@pnpm.e2e/peer-c/package.json'))).toBeTruthy()
   }
 })
 
@@ -157,16 +270,16 @@ test('GVS hashes are engine-agnostic for packages not in allowBuilds', async () 
   }))
 
   // Read hash directories for the parent package from both scenarios
-  const hashNoBuilds = fs.readdirSync(path.join(gvsDir1, '@pnpm.e2e/pkg-with-1-dep/100.0.0'))[0]
-  const hashWithBuilds = fs.readdirSync(path.join(gvsDir2, '@pnpm.e2e/pkg-with-1-dep/100.0.0'))[0]
+  const slotNoBuilds = getGlobalVirtualStoreSlots(gvsDir1, '@pnpm.e2e/pkg-with-1-dep', '100.0.0')[0]
+  const slotWithBuilds = getGlobalVirtualStoreSlots(gvsDir2, '@pnpm.e2e/pkg-with-1-dep', '100.0.0')[0]
 
   // Hashes must differ: scenario 1 omits ENGINE_NAME, scenario 2 includes it
   // (because dep-of-pkg-with-1-dep is allowed to build)
-  expect(hashNoBuilds).not.toBe(hashWithBuilds)
+  expect(path.basename(slotNoBuilds)).not.toBe(path.basename(slotWithBuilds))
 
   // Both scenarios should still produce valid GVS layouts
-  expect(fs.existsSync(path.join(gvsDir1, '@pnpm.e2e/pkg-with-1-dep/100.0.0', hashNoBuilds, 'node_modules/@pnpm.e2e/pkg-with-1-dep/package.json'))).toBeTruthy()
-  expect(fs.existsSync(path.join(gvsDir2, '@pnpm.e2e/pkg-with-1-dep/100.0.0', hashWithBuilds, 'node_modules/@pnpm.e2e/pkg-with-1-dep/package.json'))).toBeTruthy()
+  expect(fs.existsSync(path.join(slotNoBuilds, 'node_modules/@pnpm.e2e/pkg-with-1-dep/package.json'))).toBeTruthy()
+  expect(fs.existsSync(path.join(slotWithBuilds, 'node_modules/@pnpm.e2e/pkg-with-1-dep/package.json'))).toBeTruthy()
 })
 
 test('GVS hashes are stable when allowBuilds targets an unrelated package', async () => {
@@ -197,8 +310,8 @@ test('GVS hashes are stable when allowBuilds targets an unrelated package', asyn
   }))
 
   // Hashes should be identical since the allowBuilds target is not in the dep tree
-  const hash1 = fs.readdirSync(path.join(gvsDir1, '@pnpm.e2e/pkg-with-1-dep/100.0.0'))[0]
-  const hash2 = fs.readdirSync(path.join(gvsDir2, '@pnpm.e2e/pkg-with-1-dep/100.0.0'))[0]
+  const hash1 = path.basename(getGlobalVirtualStoreSlots(gvsDir1, '@pnpm.e2e/pkg-with-1-dep', '100.0.0')[0])
+  const hash2 = path.basename(getGlobalVirtualStoreSlots(gvsDir2, '@pnpm.e2e/pkg-with-1-dep', '100.0.0')[0])
   expect(hash1).toBe(hash2)
 })
 
@@ -218,7 +331,7 @@ test('GVS re-links when allowBuilds changes', async () => {
     allowBuilds: {},
   }))
 
-  const hashBefore = fs.readdirSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep/100.0.0'))[0]
+  const slotBefore = getGlobalVirtualStoreSlots(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep', '100.0.0')[0]
 
   // Verify allowBuilds is stored in modules.yaml
   const rootModules = assertProject(process.cwd())
@@ -232,15 +345,15 @@ test('GVS re-links when allowBuilds changes', async () => {
     allowBuilds: { '@pnpm.e2e/dep-of-pkg-with-1-dep': true },
   }))
 
-  const hashAfter = fs.readdirSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep/100.0.0'))
-    .find((h) => h !== hashBefore)
+  const slotAfter = getGlobalVirtualStoreSlots(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep', '100.0.0')
+    .find((slot) => slot !== slotBefore)
 
   // A new hash directory should have been created
-  expect(hashAfter).toBeDefined()
-  expect(hashAfter).not.toBe(hashBefore)
+  expect(slotAfter).toBeDefined()
+  expect(slotAfter).not.toBe(slotBefore)
 
   // Verify the new GVS layout is valid
-  expect(fs.existsSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep/100.0.0', hashAfter!, 'node_modules/@pnpm.e2e/pkg-with-1-dep/package.json'))).toBeTruthy()
+  expect(fs.existsSync(path.join(slotAfter!, 'node_modules/@pnpm.e2e/pkg-with-1-dep/package.json'))).toBeTruthy()
 
   // Verify modules.yaml is updated with new allowBuilds
   const updatedState = rootModules.readModulesManifest()
@@ -264,10 +377,9 @@ test('GVS successful build creates package directory with build artifacts', asyn
   await install(manifest, opts)
 
   // The GVS directory should exist with build artifacts
-  const pkgDir = path.join(globalVirtualStoreDir, '@pnpm.e2e/pre-and-postinstall-scripts-example/1.0.0')
-  const hashes = fs.readdirSync(pkgDir)
-  expect(hashes).toHaveLength(1)
-  const pkgInGvs = path.join(pkgDir, hashes[0], 'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example')
+  const slots = getGlobalVirtualStoreSlots(globalVirtualStoreDir, '@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0')
+  expect(slots).toHaveLength(1)
+  const pkgInGvs = path.join(slots[0], 'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example')
   expect(fs.existsSync(path.join(pkgInGvs, 'package.json'))).toBeTruthy()
   // Build artifacts created by postinstall script should be present
   expect(fs.existsSync(path.join(pkgInGvs, 'generated-by-postinstall.js'))).toBeTruthy()
@@ -304,9 +416,8 @@ test('GVS: approve-builds scenario — install with no builds, then reinstall wi
     allowBuilds: {},
   }))
 
-  const pkgVersionDir = path.join(globalVirtualStoreDir, '@pnpm.e2e/pre-and-postinstall-scripts-example/1.0.0')
-  const hashBefore = fs.readdirSync(pkgVersionDir)
-  expect(hashBefore).toHaveLength(1)
+  const slotsBefore = getGlobalVirtualStoreSlots(globalVirtualStoreDir, '@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0')
+  expect(slotsBefore).toHaveLength(1)
 
   // Build artifacts should NOT be present
   expect(fs.existsSync(path.resolve('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js'))).toBeFalsy()
@@ -320,13 +431,13 @@ test('GVS: approve-builds scenario — install with no builds, then reinstall wi
   }))
 
   // Step 3: Verify the hash changed and build artifacts are in the new directory
-  const hashesAfter = fs.readdirSync(pkgVersionDir)
-  const newHash = hashesAfter.find((h) => h !== hashBefore[0])
-  expect(newHash).toBeDefined()
-  expect(newHash).not.toBe(hashBefore[0])
+  const newSlot = getGlobalVirtualStoreSlots(globalVirtualStoreDir, '@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0')
+    .find((slot) => slot !== slotsBefore[0])
+  expect(newSlot).toBeDefined()
+  expect(newSlot).not.toBe(slotsBefore[0])
 
   // Build artifacts in new hash directory
-  const newPkgDir = path.join(pkgVersionDir, newHash!, 'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example')
+  const newPkgDir = path.join(newSlot!, 'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example')
   expect(fs.existsSync(path.join(newPkgDir, 'generated-by-postinstall.js'))).toBeTruthy()
   expect(fs.existsSync(path.join(newPkgDir, 'generated-by-preinstall.js'))).toBeTruthy()
 
@@ -354,13 +465,8 @@ test('GVS build failure cleans up broken package directory', async () => {
 
   // The GVS hash directory for the failed package should have been removed
   // on build failure so the next install can re-fetch and re-build.
-  const pkgVersionDir = path.join(globalVirtualStoreDir, '@pnpm.e2e/failing-postinstall/1.0.0')
-  if (fs.existsSync(pkgVersionDir)) {
-    const hashes = fs.readdirSync(pkgVersionDir)
-    for (const hash of hashes) {
-      const pkgInGvs = path.join(pkgVersionDir, hash, 'node_modules/@pnpm.e2e/failing-postinstall')
-      expect(fs.existsSync(pkgInGvs)).toBeFalsy()
-    }
+  for (const slot of getGlobalVirtualStoreSlots(globalVirtualStoreDir, '@pnpm.e2e/failing-postinstall', '1.0.0')) {
+    expect(fs.existsSync(path.join(slot, 'node_modules/@pnpm.e2e/failing-postinstall'))).toBeFalsy()
   }
 })
 
@@ -381,10 +487,9 @@ test('GVS rebuilds successfully after simulated build failure cleanup', async ()
     allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
   }))
 
-  const pkgDir = path.join(globalVirtualStoreDir, '@pnpm.e2e/pre-and-postinstall-scripts-example/1.0.0')
-  const hashes = fs.readdirSync(pkgDir)
-  expect(hashes).toHaveLength(1)
-  const hashDir = path.join(pkgDir, hashes[0])
+  const slots = getGlobalVirtualStoreSlots(globalVirtualStoreDir, '@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0')
+  expect(slots).toHaveLength(1)
+  const hashDir = slots[0]
   expect(fs.existsSync(path.join(hashDir, 'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js'))).toBeTruthy()
 
   // Step 2: Simulate a previous build failure by removing the GVS hash directory
@@ -403,9 +508,9 @@ test('GVS rebuilds successfully after simulated build failure cleanup', async ()
   }))
 
   // The GVS directory should be recreated with build artifacts
-  const hashesAfter = fs.readdirSync(pkgDir)
-  expect(hashesAfter).toHaveLength(1)
-  expect(fs.existsSync(path.join(pkgDir, hashesAfter[0], 'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js'))).toBeTruthy()
+  const slotsAfter = getGlobalVirtualStoreSlots(globalVirtualStoreDir, '@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0')
+  expect(slotsAfter).toHaveLength(1)
+  expect(fs.existsSync(path.join(slotsAfter[0], 'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js'))).toBeTruthy()
 })
 
 test('GVS .pnpm-needs-build marker triggers re-import on next install', async () => {
@@ -425,10 +530,9 @@ test('GVS .pnpm-needs-build marker triggers re-import on next install', async ()
     allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
   }))
 
-  const pkgDir = path.join(globalVirtualStoreDir, '@pnpm.e2e/pre-and-postinstall-scripts-example/1.0.0')
-  const hashes = fs.readdirSync(pkgDir)
-  expect(hashes).toHaveLength(1)
-  const hashDir = path.join(pkgDir, hashes[0])
+  const slots = getGlobalVirtualStoreSlots(globalVirtualStoreDir, '@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0')
+  expect(slots).toHaveLength(1)
+  const hashDir = slots[0]
   const pkgInGvs = path.join(hashDir, 'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example')
   expect(fs.existsSync(path.join(pkgInGvs, 'generated-by-postinstall.js'))).toBeTruthy()
   // Marker should not be present after successful build
@@ -595,11 +699,9 @@ test('virtualStoreOnly with enableModulesDir=false works when GVS is enabled', a
   }))
 
   // GVS should be populated
-  const pkgDir = path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep/100.0.0')
-  expect(fs.existsSync(pkgDir)).toBeTruthy()
-  const hashes = fs.readdirSync(pkgDir)
-  expect(hashes).toHaveLength(1)
-  expect(fs.existsSync(path.join(pkgDir, hashes[0], 'node_modules/@pnpm.e2e/pkg-with-1-dep/package.json'))).toBeTruthy()
+  const slots = getGlobalVirtualStoreSlots(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep', '100.0.0')
+  expect(slots).toHaveLength(1)
+  expect(fs.existsSync(path.join(slots[0], 'node_modules/@pnpm.e2e/pkg-with-1-dep/package.json'))).toBeTruthy()
 })
 
 test('virtualStoreOnly with GVS populates global virtual store without importer links', async () => {
@@ -617,12 +719,10 @@ test('virtualStoreOnly with GVS populates global virtual store without importer 
   }))
 
   // GVS should be populated
-  const pkgDir = path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep/100.0.0')
-  expect(fs.existsSync(pkgDir)).toBeTruthy()
-  const hashes = fs.readdirSync(pkgDir)
-  expect(hashes).toHaveLength(1)
-  expect(fs.existsSync(path.join(pkgDir, hashes[0], 'node_modules/@pnpm.e2e/pkg-with-1-dep/package.json'))).toBeTruthy()
-  expect(fs.existsSync(path.join(pkgDir, hashes[0], 'node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json'))).toBeTruthy()
+  const slots = getGlobalVirtualStoreSlots(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep', '100.0.0')
+  expect(slots).toHaveLength(1)
+  expect(fs.existsSync(path.join(slots[0], 'node_modules/@pnpm.e2e/pkg-with-1-dep/package.json'))).toBeTruthy()
+  expect(fs.existsSync(path.join(slots[0], 'node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json'))).toBeTruthy()
 
   // Importer-level links should NOT exist
   expect(fs.existsSync(path.resolve('node_modules/@pnpm.e2e/pkg-with-1-dep'))).toBeFalsy()
@@ -630,6 +730,8 @@ test('virtualStoreOnly with GVS populates global virtual store without importer 
   expect(fs.existsSync(path.resolve('node_modules/.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep'))).toBeFalsy()
   // No bin links
   expect(fs.existsSync(path.resolve('node_modules/.bin'))).toBeFalsy()
+  const contextHash = path.relative(globalVirtualStoreDir, slots[0]).split(path.sep)[1]
+  expect(fs.existsSync(path.join(globalVirtualStoreDir, 'contexts', contextHash, 'node_modules'))).toBeFalsy()
 })
 
 test('virtualStoreOnly with frozenLockfile populates virtual store without importer symlinks', async () => {
@@ -658,13 +760,11 @@ test('virtualStoreOnly with frozenLockfile populates virtual store without impor
   }))
 
   // GVS should be populated
-  const pkgDir = path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep/100.0.0')
-  expect(fs.existsSync(pkgDir)).toBeTruthy()
-  const hashes = fs.readdirSync(pkgDir)
-  expect(hashes).toHaveLength(1)
-  expect(fs.existsSync(path.join(pkgDir, hashes[0], 'node_modules/@pnpm.e2e/pkg-with-1-dep/package.json'))).toBeTruthy()
+  const slots = getGlobalVirtualStoreSlots(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep', '100.0.0')
+  expect(slots).toHaveLength(1)
+  expect(fs.existsSync(path.join(slots[0], 'node_modules/@pnpm.e2e/pkg-with-1-dep/package.json'))).toBeTruthy()
   // Transitive dependency should also be in GVS
-  expect(fs.existsSync(path.join(pkgDir, hashes[0], 'node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json'))).toBeTruthy()
+  expect(fs.existsSync(path.join(slots[0], 'node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json'))).toBeTruthy()
 
   // Importer-level symlinks should NOT exist
   expect(fs.existsSync(path.resolve('node_modules/@pnpm.e2e/pkg-with-1-dep'))).toBeFalsy()

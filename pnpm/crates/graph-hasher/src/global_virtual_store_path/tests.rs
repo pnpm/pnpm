@@ -1,6 +1,6 @@
 use super::{
-    calc_global_virtual_store_path_with_subdeps, calc_graph_node_hash,
-    calc_leaf_global_virtual_store_path, format_global_virtual_store_path,
+    calc_global_virtual_store_context_hash, calc_global_virtual_store_path_with_subdeps,
+    calc_graph_node_hash, calc_leaf_global_virtual_store_path, format_global_virtual_store_path,
     join_global_virtual_store_path,
 };
 use crate::dep_state::DepsGraphNode;
@@ -19,6 +19,28 @@ fn format_prefixes_unscoped_with_at_slash() {
         format_global_virtual_store_path("@scope/foo", "1.2.3", "deadbeef"),
         "@scope/foo/1.2.3/deadbeef",
     );
+}
+
+#[test]
+fn empty_context_projection_has_no_hash() {
+    assert_eq!(calc_global_virtual_store_context_hash(&BTreeMap::new()), None);
+}
+
+#[test]
+fn context_hash_is_alias_order_independent() {
+    let first = BTreeMap::from([
+        ("react".to_string(), "@/react/18.3.1/aaa".to_string()),
+        ("typescript".to_string(), "@/typescript/5.8.3/bbb".to_string()),
+    ]);
+    let second = [first.iter().next_back().unwrap(), first.iter().next().unwrap()]
+        .into_iter()
+        .map(|(alias, identity)| (alias.clone(), identity.clone()))
+        .collect();
+    let first_hash = calc_global_virtual_store_context_hash(&first).unwrap();
+    assert_eq!(first_hash.len(), 64);
+    assert!(first_hash.bytes().all(|byte| byte.is_ascii_hexdigit()));
+    assert_eq!(first_hash, "6a8473ef1eae61bedbf3819278f86e65abb46550768ca26004b92380a1326297");
+    assert_eq!(first_hash, calc_global_virtual_store_context_hash(&second).unwrap());
 }
 
 /// Guards the native-separator contract of

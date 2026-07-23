@@ -231,6 +231,58 @@ pub struct HoistResult {
     pub hoisted_workspace_aliases: Vec<(String, HoistKind, PathBuf)>,
 }
 
+/// Alias-to-snapshot projection shared by every package slot in one
+/// global-virtual-store context.
+pub type GlobalVirtualStoreContextProjection = BTreeMap<String, PackageKey>;
+
+/// Build the resolver-visible dependency projection for a global-virtual-store
+/// context from the isolated linker's hoist result plus the root
+/// importer's direct dependencies.
+///
+/// Hoisted aliases win the merge, matching the hoister's selected target;
+/// root direct dependencies fill aliases that were not hoisted. Skipped
+/// snapshots and checkout-specific directory dependencies are excluded
+/// because they have no portable package slot that another checkout can
+/// reuse.
+#[must_use]
+pub fn get_global_virtual_store_context_projection(
+    hoist_result: Option<&HoistResult>,
+    direct_deps_by_importer: &DirectDepsByImporter,
+    packages: &HashMap<PackageKey, PackageMetadata>,
+    skipped: &HashSet<PackageKey>,
+) -> GlobalVirtualStoreContextProjection {
+    let is_stable_target = |key: &PackageKey| {
+        !skipped.contains(key)
+            && packages.get(&key.without_peer()).is_some_and(|metadata| {
+                !matches!(&metadata.resolution, pacquet_lockfile::LockfileResolution::Directory(_))
+            })
+    };
+    let mut projection = GlobalVirtualStoreContextProjection::new();
+    if let Some(result) = hoist_result {
+        let mut hoisted = result
+            .hoisted_dependencies_by_node_id
+            .iter()
+            .flat_map(|(key, aliases)| aliases.keys().map(move |alias| (alias, key)))
+            .collect::<Vec<_>>();
+        hoisted.sort_unstable_by(|(alias_a, key_a), (alias_b, key_b)| {
+            alias_a.cmp(alias_b).then_with(|| key_a.to_string().cmp(&key_b.to_string()))
+        });
+        for (alias, key) in hoisted {
+            if is_stable_target(key) {
+                projection.entry(alias.clone()).or_insert_with(|| key.clone());
+            }
+        }
+    }
+    if let Some(root_direct_deps) = direct_deps_by_importer.get(".") {
+        for (alias, key) in root_direct_deps {
+            if is_stable_target(key) {
+                projection.entry(alias.clone()).or_insert_with(|| key.clone());
+            }
+        }
+    }
+    projection
+}
+
 /// Walk the dep graph BFS and decide which aliases should be hoisted.
 ///
 /// Returns `None` when the graph is empty.

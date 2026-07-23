@@ -160,6 +160,7 @@ async fn cold_batch_links_slots_in_parallel() {
         Some(&snapshots),
         Some(&packages),
         Some(&allow_build_policy),
+        None,
     );
     let skipped = SkippedSnapshots::new();
     let logged_methods = AtomicU8::new(0);

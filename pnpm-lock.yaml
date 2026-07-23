@@ -3182,6 +3182,9 @@ importers:
       '@pnpm/hooks.types':
         specifier: workspace:*
         version: link:../../hooks/types
+      '@pnpm/installing.linking.hoist':
+        specifier: workspace:*
+        version: link:../../installing/linking/hoist
       '@pnpm/installing.modules-yaml':
         specifier: workspace:*
         version: link:../../installing/modules-yaml
@@ -5895,6 +5898,9 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../core/core-loggers
+      '@pnpm/deps.graph-builder':
+        specifier: workspace:*
+        version: link:../../deps/graph-builder
       '@pnpm/deps.graph-hasher':
         specifier: workspace:*
         version: link:../../deps/graph-hasher
@@ -5916,6 +5922,9 @@ importers:
       '@pnpm/hooks.types':
         specifier: workspace:*
         version: link:../../hooks/types
+      '@pnpm/installing.modules-yaml':
+        specifier: workspace:*
+        version: link:../modules-yaml
       '@pnpm/lockfile.preferred-versions':
         specifier: workspace:*
         version: link:../../lockfile/preferred-versions

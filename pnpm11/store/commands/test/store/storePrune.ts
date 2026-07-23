@@ -434,6 +434,18 @@ test('prune removes cache directories that outlives dlx-cache-max-age', async ()
   )
 })
 
+function getGlobalVirtualStorePackageNames (linksDir: string, scope: string): string[] {
+  const roots = [linksDir]
+  const contextsDir = path.join(linksDir, 'contexts')
+  if (fs.existsSync(contextsDir)) {
+    roots.push(...fs.readdirSync(contextsDir).map((contextHash) => path.join(contextsDir, contextHash)))
+  }
+  return [...new Set(roots.flatMap((root) => {
+    const scopeDir = path.join(root, scope)
+    return fs.existsSync(scopeDir) ? fs.readdirSync(scopeDir) : []
+  }))].sort()
+}
+
 describe('global virtual store prune', () => {
   test('prune removes unreferenced packages from global virtual store', async () => {
     // Create project that installs a package with global virtual store enabled
@@ -485,10 +497,7 @@ describe('global virtual store prune', () => {
       virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     }, ['prune'])
 
-    // Verify: is-positive should no longer exist in links/@/ directory
-    const unscopedDir = path.join(linksDir, '@')
-    const entries = fs.existsSync(unscopedDir) ? fs.readdirSync(unscopedDir) : []
-    expect(entries).not.toContain('is-positive')
+    expect(getGlobalVirtualStorePackageNames(linksDir, '@')).not.toContain('is-positive')
   })
 
   test('prune keeps packages that are referenced by multiple projects', async () => {
@@ -532,10 +541,8 @@ describe('global virtual store prune', () => {
     // Delete project1
     rimrafSync(project1Dir)
 
-    // Verify package still exists in links/@/ directory
     const linksDir = path.join(storeDir, STORE_VERSION, 'links')
-    const unscopedDir = path.join(linksDir, '@')
-    const beforePrune = fs.readdirSync(unscopedDir)
+    const beforePrune = getGlobalVirtualStorePackageNames(linksDir, '@')
     expect(beforePrune).toContain('is-positive')
 
     // Run prune
@@ -551,7 +558,7 @@ describe('global virtual store prune', () => {
     }, ['prune'])
 
     // Package should still exist because project2 references it
-    const afterPrune = fs.readdirSync(unscopedDir)
+    const afterPrune = getGlobalVirtualStorePackageNames(linksDir, '@')
     expect(afterPrune).toContain('is-positive')
 
     rimrafSync(project2Dir)
@@ -595,11 +602,8 @@ describe('global virtual store prune', () => {
       '--config.ci=false',
     ], { cwd: project2Dir })
 
-    // Verify both packages exist in links/@/ directory
     const linksDir = path.join(storeDir, STORE_VERSION, 'links')
-    const unscopedDir = path.join(linksDir, '@')
-    expect(fs.existsSync(unscopedDir)).toBe(true)
-    const beforePrune = fs.readdirSync(unscopedDir)
+    const beforePrune = getGlobalVirtualStorePackageNames(linksDir, '@')
     expect(beforePrune).toContain('is-positive')
     expect(beforePrune).toContain('is-negative')
 
@@ -619,7 +623,7 @@ describe('global virtual store prune', () => {
     }, ['prune'])
 
     // is-positive should be removed since project1 was deleted
-    const afterPrune = fs.readdirSync(unscopedDir)
+    const afterPrune = getGlobalVirtualStorePackageNames(linksDir, '@')
     expect(afterPrune).not.toContain('is-positive')
     // is-negative should remain since project2 still exists
     expect(afterPrune).toContain('is-negative')
@@ -658,16 +662,12 @@ describe('global virtual store prune', () => {
     // Verify all packages exist in links directory
     const linksDir = path.join(storeDir, STORE_VERSION, 'links')
 
-    // Scoped packages are in links/@pnpm.e2e/pkg-name/
-    const scopeDir = path.join(linksDir, '@pnpm.e2e')
-    const scopedPkgs = fs.readdirSync(scopeDir)
+    const scopedPkgs = getGlobalVirtualStorePackageNames(linksDir, '@pnpm.e2e')
     expect(scopedPkgs).toContain('pkg-with-1-dep')
     expect(scopedPkgs).toContain('dep-of-pkg-with-1-dep')
     expect(scopedPkgs).toContain('romeo')
     expect(scopedPkgs).toContain('romeo-dep')
-    // Unscoped packages are in links/@/pkg-name/ (uniform 4-level depth)
-    const unscopedDir = path.join(linksDir, '@')
-    const unscopedPkgs = fs.readdirSync(unscopedDir)
+    const unscopedPkgs = getGlobalVirtualStorePackageNames(linksDir, '@')
     expect(unscopedPkgs).toContain('is-positive')
 
     // Remove @pnpm.e2e/pkg-with-1-dep, keeping romeo and is-positive
@@ -703,12 +703,10 @@ describe('global virtual store prune', () => {
     // - pkg-with-1-dep and its transitive dep-of-pkg-with-1-dep should be removed
     // - romeo and its transitive romeo-dep should still exist
     // - is-positive should still exist
-    const afterPruneScopes = fs.readdirSync(linksDir)
-    expect(afterPruneScopes).toContain('@') // unscoped packages scope
-    const unscopedAfterPrune = fs.readdirSync(unscopedDir)
+    const unscopedAfterPrune = getGlobalVirtualStorePackageNames(linksDir, '@')
     expect(unscopedAfterPrune).toContain('is-positive')
 
-    const scopedPkgsAfter = fs.readdirSync(scopeDir)
+    const scopedPkgsAfter = getGlobalVirtualStorePackageNames(linksDir, '@pnpm.e2e')
     // pkg-with-1-dep and its transitive dep should be removed
     expect(scopedPkgsAfter).not.toEqual(expect.arrayContaining([expect.stringContaining('pkg-with-1-dep')]))
     expect(scopedPkgsAfter).not.toEqual(expect.arrayContaining([expect.stringContaining('dep-of-pkg-with-1-dep')]))

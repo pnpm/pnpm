@@ -1287,7 +1287,7 @@ fn gvs_layout(dir: &Path) -> &'static VirtualStoreLayout {
     config.global_virtual_store_dir = dir.join("store/links");
     config.virtual_store_dir = dir.join("node_modules/.pacquet");
     let config = config.leak();
-    Box::leak(Box::new(VirtualStoreLayout::new(config, None, None, None, None)))
+    Box::leak(Box::new(VirtualStoreLayout::new(config, None, None, None, None, None)))
 }
 
 /// Run [`BuildModules`] over a single patched `is-positive@1.0.0`
@@ -2562,7 +2562,7 @@ fn pkg_root_for_key_isolated_uses_layout() {
     config.modules_dir = dir.path().join("node_modules");
     config.virtual_store_dir = dir.path().join("node_modules/.pacquet");
     let config = config.leak();
-    let layout = VirtualStoreLayout::new(config, None, None, None, None);
+    let layout = VirtualStoreLayout::new(config, None, None, None, None, None);
 
     let key: PackageKey = "is-positive@1.0.0".parse().expect("parse key");
     let result = super::pkg_root_for_key(&layout, None, &key).expect("isolated lookup hits");
@@ -2587,7 +2587,7 @@ fn pkg_root_for_key_hoisted_uses_override() {
     config.modules_dir = dir.path().join("node_modules");
     config.virtual_store_dir = dir.path().join("node_modules/.pacquet");
     let config = config.leak();
-    let layout = VirtualStoreLayout::new(config, None, None, None, None);
+    let layout = VirtualStoreLayout::new(config, None, None, None, None, None);
 
     let key: PackageKey = "is-positive@1.0.0".parse().expect("parse key");
     let hoisted_dir = PathBuf::from("/repo/node_modules/is-positive");
@@ -2609,7 +2609,7 @@ fn pkg_root_for_key_hoisted_missing_returns_none() {
     config.modules_dir = dir.path().join("node_modules");
     config.virtual_store_dir = dir.path().join("node_modules/.pacquet");
     let config = config.leak();
-    let layout = VirtualStoreLayout::new(config, None, None, None, None);
+    let layout = VirtualStoreLayout::new(config, None, None, None, None, None);
 
     let key: PackageKey = "absent@1.0.0".parse().expect("parse key");
     let map: HashMap<PackageKey, Vec<PathBuf>> = HashMap::new();

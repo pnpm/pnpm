@@ -1,6 +1,7 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
+import { linkBins } from '@pnpm/bins.linker'
 import {
   progressLogger,
   stageLogger,
@@ -51,6 +52,11 @@ export interface LinkPackagesOptions {
   dependenciesByProjectId: Record<string, Map<string, DepPath>>
   disableRelinkLocalDirDeps?: boolean
   force: boolean
+  globalVirtualStoreContext?: {
+    children: Record<string, string>
+    modulesDir: string
+    reservedHoistAliases: string[]
+  }
   depsStateCache: DepsStateCache
   enableGlobalVirtualStore: boolean
   extraNodePaths: string[]
@@ -59,6 +65,7 @@ export interface LinkPackagesOptions {
   hoistPattern?: string[]
   ignoreScripts: boolean
   publicHoistPattern?: string[]
+  preferSymlinkedExecutables?: boolean
   include: IncludedDependencies
   linkedDependenciesByProjectId: Record<string, LinkedDependency[]>
   lockfileDir: string
@@ -113,6 +120,25 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
     depNodes = depNodes.filter(({ optional }) => !optional)
   }
   depGraph = Object.fromEntries(depNodes.map((depNode) => [depNode.depPath, depNode]))
+  const globalVirtualStoreContext = opts.globalVirtualStoreContext == null
+    ? undefined
+    : (() => {
+      const availableDirs = new Set(depNodes.map((depNode) => depNode.dir))
+      const children = Object.fromEntries(
+        Object.entries(opts.globalVirtualStoreContext.children)
+          .filter(([, dir]) => availableDirs.has(dir))
+      )
+      return {
+        children,
+        modulesDir: opts.globalVirtualStoreContext.modulesDir,
+        reservedHoistAliases: [
+          ...new Set([
+            ...opts.globalVirtualStoreContext.reservedHoistAliases,
+            ...Object.keys(opts.globalVirtualStoreContext.children).filter((alias) => !Object.hasOwn(children, alias)),
+          ]),
+        ],
+      }
+    })()
   const removedDepPaths = await prune(projects, {
     currentLockfile: opts.currentLockfile,
     dedupeDirectDeps: opts.dedupeDirectDeps,
@@ -239,6 +265,7 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
         privateHoistPattern: opts.hoistPattern ?? [],
         publicHoistedModulesDir: opts.rootModulesDir,
         publicHoistPattern: opts.publicHoistPattern ?? [],
+        reservedAliases: globalVirtualStoreContext?.reservedHoistAliases,
         virtualStoreDir: opts.virtualStoreDir,
         virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
         hoistedWorkspacePackages: opts.hoistWorkspacePackages
@@ -305,6 +332,13 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
     )
     linkedToRoot = await linkDirectDeps(projectsToLink, { dedupe: opts.dedupeDirectDeps })
   }
+  if (opts.symlink && !opts.virtualStoreOnly && globalVirtualStoreContext != null) {
+    await linkGlobalVirtualStoreContext(globalVirtualStoreContext, {
+      extraNodePaths: opts.extraNodePaths,
+      preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+      warn: (message) => logger.info({ message, prefix: opts.lockfileDir }),
+    })
+  }
 
   return {
     currentLockfile,
@@ -317,6 +351,29 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
       linkedToRoot,
     },
   }
+}
+
+async function linkGlobalVirtualStoreContext (
+  context: Pick<NonNullable<LinkPackagesOptions['globalVirtualStoreContext']>, 'children' | 'modulesDir'>,
+  opts: {
+    extraNodePaths?: string[]
+    preferSymlinkedExecutables?: boolean
+    warn: (message: string) => void
+  }
+): Promise<void> {
+  await symlinkAllModules({
+    deps: [{
+      children: context.children,
+      modules: context.modulesDir,
+      name: '',
+    }],
+  })
+  await linkBins(context.modulesDir, path.join(context.modulesDir, '.bin'), {
+    allowExoticManifests: true,
+    extraNodePaths: opts.extraNodePaths,
+    preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+    warn: opts.warn,
+  })
 }
 
 const isAbsolutePath = /^\/|^[A-Z]:/i
