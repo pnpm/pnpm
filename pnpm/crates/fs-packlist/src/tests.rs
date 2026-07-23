@@ -457,6 +457,48 @@ fn workspace_root_gitignore_excludes_workspace_package_files() {
     );
 }
 
+// Regression test for <https://github.com/pnpm/pnpm/issues/13164>: the
+// workspace-root `.gitignore` ignores compiled `lib/` output, and the
+// walker applied it even when the manifest declared `files: ["lib"]`,
+// so published tarballs kept only the force-included `main` file.
+#[test]
+fn files_field_overrides_workspace_root_gitignore() {
+    let dir = tempdir().unwrap();
+    fs::write(dir.path().join(".gitignore"), "lib\n").unwrap();
+    let root = dir.path().join("packages").join("pkg");
+    fs::create_dir_all(&root).unwrap();
+    touch(&root, "package.json");
+    touch(&root, "lib/index.js");
+    touch(&root, "lib/index.d.ts");
+    touch(&root, "lib/util.js");
+    touch(&root, "src/index.ts");
+
+    let manifest = json!({
+        "name": "x",
+        "version": "0.0.0",
+        "main": "lib/index.js",
+        "files": ["lib", "!*.map"],
+    });
+    let mut out = packlist_with_options(
+        &root,
+        &manifest,
+        PacklistOptions { workspace_dir: Some(dir.path()) },
+    )
+    .unwrap();
+    out.sort();
+
+    assert_eq!(
+        out,
+        vec![
+            "lib/index.d.ts".to_string(),
+            "lib/index.js".into(),
+            "lib/util.js".into(),
+            "package.json".into(),
+        ],
+        "`files` allowlist must override the workspace-root .gitignore",
+    );
+}
+
 #[test]
 fn workspace_root_npmignore_takes_precedence_over_gitignore() {
     let dir = tempdir().unwrap();
