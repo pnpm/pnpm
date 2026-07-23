@@ -148,9 +148,7 @@ fn fresh_install_with_no_runtime_resolves_but_does_not_fetch_the_runtime() {
     )
     .unwrap();
 
-    // No pnpm-lock.yaml: the install takes the fresh-resolve path.
-    // `--no-runtime` must resolve the runtime (it stays in the written
-    // lockfile) without fetching its archive or linking its bin.
+    // No pnpm-lock.yaml, so the install takes the fresh-resolve path.
     command(&workspace).with_args(["install", "--no-runtime"]).assert().success();
 
     let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap();
@@ -166,9 +164,8 @@ fn fresh_install_with_no_runtime_resolves_but_does_not_fetch_the_runtime() {
     for bin in ["node", "node.exe", "node.cmd"] {
         assert!(!bin_dir.join(bin).exists(), "runtime bin {bin} must not be linked");
     }
-    // A follow-up plain install matches the TypeScript CLI (verified
-    // against pnpm 11.13): the modules state is considered up to date,
-    // so the runtime stays unmaterialized rather than being restored.
+    // A follow-up plain install treats the modules state as up to date
+    // and does not restore the runtime — same as the TypeScript CLI.
     command(&workspace).with_arg("install").assert().success();
     assert!(!workspace.join("node_modules/node").exists());
     assert!(!archive.matched(), "the runtime archive must never be downloaded");

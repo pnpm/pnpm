@@ -565,21 +565,17 @@ pub fn compute_skipped_snapshots<Reporter: self::Reporter>(
     Ok(skipped)
 }
 
-/// `--no-runtime` (or `config.skip_runtimes`): exclude every
-/// project-direct runtime dependency — iterate each importer's direct
-/// deps and add the runtime ones to the skip set; transitive runtime
-/// entries (which would be unusual but possible) stay in the install.
-/// The discriminator is a `@runtime:` substring check on the resolved
-/// depPath; pacquet's lockfile preserves the `@runtime:` substring in
-/// the snapshot key, so the string-test works here. Shared by the
-/// frozen- and fresh-lockfile install paths, which both run it right
-/// before extending the skip set with the dependency closure.
+/// `--no-runtime` (or `config.skip_runtimes`): add every project-direct
+/// runtime dependency (a `@runtime:` snapshot key with a binary
+/// resolution) to the skip set, keeping its archive unfetched and its
+/// bins unlinked while the resolved entry stays in the lockfile.
+/// Shared by the frozen- and fresh-lockfile install paths, which run it
+/// right before the dependency-closure extension.
 ///
-/// Re-using `add_optional_excluded` keeps the bucket count (and
-/// `.modules.yaml.skipped` semantics) unchanged: like `--no-optional`,
-/// this is a transient user-driven exclusion that should *not* be
-/// persisted into `.modules.yaml.skipped` — a future install without
-/// the flag must bring the runtime back.
+/// The skips reuse the transient bucket of
+/// [`SkippedSnapshots::add_optional_excluded`], so — like
+/// `--no-optional` — the exclusion is never persisted into
+/// `.modules.yaml.skipped`.
 pub fn add_direct_runtime_skips(
     skipped: &mut SkippedSnapshots,
     importers: &HashMap<String, ProjectSnapshot>,

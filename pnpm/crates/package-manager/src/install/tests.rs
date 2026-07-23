@@ -6317,12 +6317,9 @@ async fn fresh_install_hoisted_node_linker_records_modules_yaml() {
     drop(dir);
 }
 
-/// `--no-runtime` (`config.skip_runtimes = true`) on the fresh path
-/// installs normally: the direct-runtime filter now runs there too
-/// (shared with the frozen path via `add_direct_runtime_skips`). The
-/// end-to-end runtime-skipping behavior is covered by the
-/// `install_runtimes` integration tests; this pins the dispatch — a
-/// fresh install must not be refused for carrying the flag.
+/// A fresh install must not be refused for carrying `--no-runtime`
+/// (`config.skip_runtimes = true`); the runtime-skipping behavior
+/// itself is covered by the `install_runtimes` integration tests.
 #[tokio::test]
 async fn fresh_install_honors_skip_runtimes() {
     let dir = tempdir().unwrap();

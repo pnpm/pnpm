@@ -810,10 +810,6 @@ where
             }
         }
 
-        // `--no-runtime` (or `config.skip_runtimes`): exclude every
-        // project-direct runtime dependency from the materialization.
-        // See [`crate::add_direct_runtime_skips`] (shared with the
-        // fresh-lockfile path).
         if skip_runtimes && let Some(pkgs) = packages {
             crate::add_direct_runtime_skips(&mut skipped, importers, pkgs);
         }

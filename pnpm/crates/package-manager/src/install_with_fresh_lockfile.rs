@@ -168,10 +168,8 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     /// stays untouched (no tarball is fetched) — a dry-run resolve pass.
     /// See [`crate::Install::lockfile_only`].
     pub lockfile_only: bool,
-    /// `config.skip_runtimes || --no-runtime`: resolve runtime
-    /// dependencies (they stay in the written lockfile) but keep their
-    /// archives unfetched and their bins unlinked, mirroring the frozen
-    /// path's runtime filter. See [`crate::add_direct_runtime_skips`].
+    /// `config.skip_runtimes || --no-runtime`; see
+    /// [`crate::add_direct_runtime_skips`].
     pub skip_runtimes: bool,
     /// `--dry-run`: build the would-be lockfile but do not write it to
     /// disk. Implies [`Self::lockfile_only`] (nothing is materialized);
@@ -1949,12 +1947,6 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             }
         }
 
-        // `--no-runtime` (or `config.skip_runtimes`): exclude every
-        // project-direct runtime dependency, exactly like the frozen
-        // path — the skip keeps runtime archives out of the
-        // materialization fetch and their bins unlinked, while the
-        // resolved entries stay in the written lockfile. See
-        // [`crate::add_direct_runtime_skips`].
         if skip_runtimes && let Some(packages) = initial_materialization_lockfile.packages.as_ref()
         {
             crate::add_direct_runtime_skips(
