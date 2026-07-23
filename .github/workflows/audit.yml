@@ -22,7 +22,7 @@ jobs:
       with:
         persist-credentials: false
     - name: Install pnpm
-      uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
+      uses: pnpm/setup@6bfbb82d278149277735183e1ac2cd4353ebfe4f
       with:
         install: false
     - name: Audit
