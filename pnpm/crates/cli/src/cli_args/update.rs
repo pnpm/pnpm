@@ -136,6 +136,13 @@ impl UpdateArgs {
     pub async fn run<Reporter: self::Reporter + 'static>(
         self,
         mut state: State,
+        // Workspace siblings' versions, computed once by the pipeline and shared
+        // across a per-project-lockfile workspace so `--latest` preserves a
+        // bare-semver dep that `linkWorkspacePackages` links locally. `None`
+        // outside a workspace or when it can't apply.
+        workspace_local_versions: Option<
+            std::sync::Arc<std::collections::BTreeMap<String, Vec<String>>>,
+        >,
     ) -> miette::Result<()> {
         // Workspace-link updates depend on workspace-protocol version
         // linking, which pacquet hasn't ported yet. Refuse rather than
@@ -229,7 +236,7 @@ impl UpdateArgs {
                 lockfile_only: self.lockfile_only,
                 resolution_observer: None,
             }
-            .run::<Reporter>()
+            .run::<Reporter>(workspace_local_versions.as_deref())
             .await
             .wrap_err("updating dependencies")?;
         }

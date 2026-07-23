@@ -1168,3 +1168,52 @@ fn update_latest_preserves_link_workspace_packages_on_single_project_path() {
 
     drop((root, anchor));
 }
+
+/// A workspace sibling with no `version` field is still a link target — install
+/// represents it as `0.0.0` (`build_workspace_packages_map`). `update --latest`
+/// must treat it the same and preserve a `*` range on it instead of resolving
+/// the unpublished package from the registry. Regression for the review finding
+/// that versionless siblings were dropped from the link map.
+#[test]
+fn update_latest_preserves_versionless_workspace_sibling() {
+    let (root, workspace, anchor) = setup();
+
+    fs::write(
+        workspace.join("package.json"),
+        r#"{ "name": "root", "version": "1.0.0", "private": true }"#,
+    )
+    .expect("write root package.json");
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    workspace_yaml.push_str("linkWorkspacePackages: true\npackages:\n  - 'packages/*'\n");
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    fs::create_dir_all(workspace.join("packages/a")).expect("mkdir packages/a");
+    fs::write(
+        workspace.join("packages/a/package.json"),
+        format!(
+            r#"{{ "name": "@test/a", "version": "1.0.0", "dependencies": {{ "@test/b": "*", "{DEP}": "^100.0.0" }} }}"#,
+        ),
+    )
+    .expect("write packages/a/package.json");
+    fs::create_dir_all(workspace.join("packages/b")).expect("mkdir packages/b");
+    // `@test/b` has no `version`; the workspace map represents it as `0.0.0`.
+    fs::write(workspace.join("packages/b/package.json"), r#"{ "name": "@test/b" }"#)
+        .expect("write packages/b/package.json");
+
+    pacquet(&workspace, ["-r", "install"]).assert().success();
+    // Before the fix the versionless sibling was dropped from the map, so
+    // `--latest` tried to fetch the unpublished @test/b from the registry.
+    pacquet(&workspace, ["-r", "update", "--latest"]).assert().success();
+
+    let a_manifest = fs::read_to_string(workspace.join("packages/a/package.json"))
+        .expect("read packages/a/package.json");
+    assert!(
+        a_manifest.contains(r#""@test/b":"*""#),
+        "a `*` range on a versionless local sibling should be preserved: {a_manifest}",
+    );
+
+    drop((root, anchor));
+}

@@ -15,7 +15,7 @@ use super::{
 };
 use crate::{State, config_deps};
 use miette::Context;
-use pacquet_config::Config;
+use pacquet_config::{Config, LinkWorkspacePackages};
 use pacquet_reporter::Reporter;
 use std::{
     collections::{BTreeMap, HashSet},
@@ -374,6 +374,20 @@ impl UpdatePipeline {
             }
             _ => {}
         }
+        // `PerProject` and `Single` run each project through `Update::run`,
+        // which — unlike the shared path's `run_selected` — carries no loaded
+        // workspace projects. Under `--latest` with `linkWorkspacePackages` it
+        // needs the siblings' versions to preserve a bare-semver dep that links
+        // locally; walk the workspace once here and share it rather than
+        // re-walking per project. The shared path builds its own map, so it and
+        // the default (non-`--latest` / linking-off) path skip the walk.
+        let workspace_local_versions =
+            (matches!(plan, InstallFamilyPlan::PerProject(_) | InstallFamilyPlan::Single)
+                && args.latest
+                && cfg.link_workspace_packages != LinkWorkspacePackages::Off)
+                .then(|| pacquet_package_manager::discover_workspace_local_versions(cfg))
+                .flatten()
+                .map(Arc::new);
         // Dedicated per-project lockfiles: the non-recursive command
         // mutates only the active project, whose outputs anchor at the
         // project dir.
@@ -402,7 +416,8 @@ impl UpdatePipeline {
                 let cfg: &Config = cfg;
                 for project_dir in project_dirs {
                     let state = init_dedicated_project_state(cfg, &project_dir, false)?;
-                    Box::pin(args.clone().run::<Reporter>(state)).await?;
+                    Box::pin(args.clone().run::<Reporter>(state, workspace_local_versions.clone()))
+                        .await?;
                 }
             }
             InstallFamilyPlan::Shared(selection) => {
@@ -415,7 +430,7 @@ impl UpdatePipeline {
                 let cfg: &'static Config = cfg;
                 let state =
                     State::init(manifest_path, cfg, false).wrap_err("initialize the state")?;
-                Box::pin(args.run::<Reporter>(state)).await?;
+                Box::pin(args.run::<Reporter>(state, workspace_local_versions)).await?;
             }
         }
         if let Some(changeset_context) = changeset_context {

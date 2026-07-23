@@ -196,7 +196,16 @@ fn parse_update_param(input: &str) -> ParsedSelector {
 }
 
 impl Update<'_> {
-    pub async fn run<Reporter: self::Reporter + 'static>(self) -> Result<(), UpdateError> {
+    /// `workspace_local_versions` carries the workspace siblings' versions when
+    /// this is a single-project update inside a workspace (the recursive path
+    /// builds its own from the loaded `projects`). The caller
+    /// ([`crate::discover_workspace_local_versions`]) computes it once and shares
+    /// it across a per-project-lockfile workspace's projects. `None` outside a
+    /// workspace or when `--latest`/`linkWorkspacePackages` make it irrelevant.
+    pub async fn run<Reporter: self::Reporter + 'static>(
+        self,
+        workspace_local_versions: Option<&BTreeMap<String, Vec<String>>>,
+    ) -> Result<(), UpdateError> {
         let Update {
             tarball_mem_cache,
             resolved_packages,
@@ -221,15 +230,6 @@ impl Update<'_> {
             .map_err(UpdateError::MinimumReleaseAge)?;
 
         let mut latest_picker = None;
-        // A single-project update carries no loaded workspace projects, but its
-        // follow-up install still links `linkWorkspacePackages` siblings, so
-        // load them here too — otherwise `--latest` would resolve a would-be
-        // local dep from the registry (and 404 on an unpublished sibling). Gated
-        // so the workspace walk only runs when it can matter.
-        let workspace_local_versions = (latest
-            && config.link_workspace_packages != LinkWorkspacePackages::Off)
-            .then(|| workspace_local_versions_for_single_project(config))
-            .flatten();
         let Some(prepared) = prepare_manifest::<Reporter>(
             manifest,
             http_client,
@@ -245,7 +245,7 @@ impl Update<'_> {
             &mut latest_picker,
             lockfile_only,
             resolution_observer.as_ref(),
-            workspace_local_versions.as_ref(),
+            workspace_local_versions,
         )
         .await?
         else {
@@ -1047,35 +1047,42 @@ fn is_local_specifier(bare_specifier: &str) -> bool {
 
 /// Collect workspace projects' `name` → local `version`s — the map
 /// [`links_to_local_workspace_package`] matches bare-semver ranges against.
-/// Projects missing a `name` or `version` (e.g. the private workspace root)
-/// are skipped: they can't be a link target.
+/// A project without a `name` (e.g. the private workspace root) can't be a link
+/// target and is skipped. A missing or null `version` defaults to `0.0.0`,
+/// mirroring `build_workspace_packages_map` so the guard sees the same versions
+/// the install links against.
 fn collect_workspace_local_versions(
     projects: &[pacquet_workspace::Project],
 ) -> BTreeMap<String, Vec<String>> {
     let mut versions: BTreeMap<String, Vec<String>> = BTreeMap::new();
     for project in projects {
         let manifest = project.manifest.value();
-        let (Some(name), Some(version)) = (
-            manifest.get("name").and_then(|value| value.as_str()),
-            manifest.get("version").and_then(|value| value.as_str()),
-        ) else {
+        let Some(name) = manifest.get("name").and_then(|value| value.as_str()) else {
             continue;
         };
-        versions.entry(name.to_owned()).or_default().push(version.to_owned());
+        let version = match manifest.get("version") {
+            None => "0.0.0".to_owned(),
+            Some(value) if value.is_null() => "0.0.0".to_owned(),
+            Some(value) => match value.as_str() {
+                Some(version) => version.to_owned(),
+                None => continue,
+            },
+        };
+        versions.entry(name.to_owned()).or_default().push(version);
     }
     versions
 }
 
-/// Load workspace siblings' `name` → local `version`s for a single-project
-/// update. The recursive path already carries the loaded `projects`; a
-/// single-project update does not, but its follow-up install still walks the
-/// workspace and links siblings, so `--latest` must see them too or it would
-/// resolve a would-be-local dep from the registry. Only called under `--latest`
-/// with `linkWorkspacePackages` on, so the extra workspace walk never runs on
-/// the default path. `None` outside a workspace — there is nothing to link.
-fn workspace_local_versions_for_single_project(
-    config: &Config,
-) -> Option<BTreeMap<String, Vec<String>>> {
+/// Walk the workspace on disk and collect siblings' `name` → local `version`s.
+/// The recursive update path already holds the loaded `projects` and builds the
+/// map from them; the single-project path does not, so it discovers them here.
+/// Its follow-up install still links `linkWorkspacePackages` siblings, so
+/// `--latest` must see them too or it would resolve a would-be-local dep from
+/// the registry. The caller gates this on `--latest` + `linkWorkspacePackages`
+/// and, for a per-project-lockfile workspace, computes it once and shares it
+/// across every project rather than re-walking per project. `None` outside a
+/// workspace — there is nothing to link.
+pub fn discover_workspace_local_versions(config: &Config) -> Option<BTreeMap<String, Vec<String>>> {
     let workspace_root = config.workspace_dir.as_deref()?;
     let workspace_manifest = pacquet_workspace::read_workspace_manifest(workspace_root).ok()??;
     let opts = pacquet_workspace::FindWorkspaceProjectsOpts {
