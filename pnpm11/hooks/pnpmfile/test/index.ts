@@ -1,4 +1,6 @@
+import { execFileSync } from 'node:child_process'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 import { expect, test } from '@jest/globals'
 import type { Log } from '@pnpm/core-loggers'
@@ -99,9 +101,28 @@ test('.pnpmfile.mjs takes priority over .pnpmfile.cjs when both exist', async ()
   expect(pkg._fromCjs).toBeUndefined()
 })
 
+test('falls back to .pnpmfile.cjs when .pnpmfile.mjs does not exist', async () => {
+  const fixtureDir = path.join(import.meta.dirname, '__fixtures__/default-cjs-only')
+  const { hooks, resolvedPnpmfilePaths } = await requireHooks(fixtureDir, { tryLoadDefaultPnpmfile: true })
+
+  expect(hooks.readPackage).toHaveLength(0)
+  expect(resolvedPnpmfilePaths).toStrictEqual([path.join(fixtureDir, '.pnpmfile.cjs')])
+})
+
 test('calculatePnpmfileChecksum is undefined when pnpmfile does not exist', async () => {
   const { hooks } = await requireHooks(import.meta.dirname, {})
   expect(hooks.calculatePnpmfileChecksum).toBeUndefined()
+})
+
+test('ignores a missing default pnpmfile when asynchronous module hooks are registered', () => {
+  const fixtureDir = path.join(import.meta.dirname, '__fixtures__/async-loader')
+  const registerLoader = pathToFileURL(path.join(fixtureDir, 'register-loader.mjs')).href
+  execFileSync(process.execPath, [path.join(fixtureDir, 'load-missing-default-pnpmfile.mjs')], {
+    env: {
+      ...process.env,
+      NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --disable-warning=DEP0205 --import=${registerLoader}`.trim(),
+    },
+  })
 })
 
 test('calculatePnpmfileChecksum resolves to hash string for existing pnpmfile', async () => {
@@ -127,8 +148,19 @@ test('requirePnpmfile wraps non-native-Error throws instead of crashing', async 
   await expect(requirePnpmfile(pnpmfilePath, import.meta.dirname)).rejects.toThrow('this is a string error, not a native Error')
 })
 
-test('requireHooks throw an error if one of the specified pnpmfiles does not exist', async () => {
-  await expect(requireHooks(import.meta.dirname, { pnpmfiles: ['does-not-exist.cjs'] })).rejects.toThrow('is not found')
+test('requirePnpmfile reports missing imports from an existing ESM pnpmfile', async () => {
+  const pnpmfilePath = path.join(import.meta.dirname, '__fixtures__/missing-import/.pnpmfile.mjs')
+  await expect(requirePnpmfile(pnpmfilePath, import.meta.dirname)).rejects.toMatchObject({
+    code: 'ERR_PNPM_PNPMFILE_FAIL',
+    message: expect.stringContaining('Error during pnpmfile execution'),
+  })
+})
+
+test.each(['cjs', 'mjs'])('requireHooks throws an error if a specified %s pnpmfile does not exist', async (extension) => {
+  await expect(requireHooks(import.meta.dirname, { pnpmfiles: [`does-not-exist.${extension}`] })).rejects.toMatchObject({
+    code: 'ERR_PNPM_PNPMFILE_NOT_FOUND',
+    message: expect.stringContaining('is not found'),
+  })
 })
 
 test('requireHooks throws an error if there are two finders with the same name', async () => {
