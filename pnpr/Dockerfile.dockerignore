@@ -1,0 +1,7 @@
+# BuildKit reads this when building with -f pnpr/Dockerfile. Keeps the
+# repo-root build context small so `COPY . .` doesn't ship build output
+# or installed dependencies into the image.
+target/
+**/node_modules/
+.git/
+*.log

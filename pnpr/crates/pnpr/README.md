@@ -4,6 +4,13 @@ A pnpm-compatible npm registry server, written in Rust.
 
 Lives in the [pnpm monorepo](https://github.com/pnpm/pnpm) under `registry/`.
 
+## Deployment
+
+See [`DEPLOY.md`](../../DEPLOY.md) for running pnpr in a container, the
+`PNPR_*` configuration variables, and a step-by-step Coolify guide. The
+repo ships a [`Dockerfile`](../../Dockerfile) and
+[`docker-compose.yml`](../../docker-compose.yml).
+
 ## License
 
 Source-available under the [PolyForm Shield License 1.0.0](../../LICENSE.md) —
