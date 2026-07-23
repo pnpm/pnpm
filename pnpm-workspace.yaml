@@ -549,22 +549,29 @@ trustPolicyExclude:
 
 trustPolicyIgnoreAfter: 10080 # 1 week
 
-# Packages whose newer versions require a Node.js version above pnpm's supported
-# floor (>=22.13). `pnpm update --latest` (run by the update-lockfile workflow)
-# would otherwise bump them past the versions pinned in the catalog above, where
-# each entry's comment records the exact Node.js requirement that holds it back.
+# Dependencies deliberately held back, which `pnpm update --latest` (run by the
+# update-lockfile workflow) would otherwise bump. Most of them are packages
+# whose newer versions require a Node.js version above pnpm's supported floor
+# (>=22.13); the comment at each catalog entry above records the reason. node-gyp
+# is not in the catalog: it is declared directly in pnpm11/pnpm/package.json, and
+# node-gyp 13 (with its nopt 10 and which 7 dependencies) requires Node.js
+# ^22.22.2 || ^24.15.0 || >=26.0.0.
 update:
   ignoreDeps:
     - '@babel/core'
     - '@babel/plugin-transform-explicit-resource-management'
+    - '@types/node'
     - bin-links
+    - bole
     - cspell
     - ini
     - libnpmpublish
+    - node-gyp
     - normalize-package-data
     - npm-packlist
     - npm-registry-fetch
     - ssri
+    - tempy
     - undici
     - validate-npm-package-name
     - write-file-atomic
