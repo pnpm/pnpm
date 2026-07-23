@@ -6,7 +6,7 @@ import {
   stageLogger,
   statsLogger,
 } from '@pnpm/core-loggers'
-import { calcDepState, type DepsStateCache, findRuntimeNodeVersion } from '@pnpm/deps.graph-hasher'
+import { calcDepState, type DepsStateCache, findRuntimeNodeVersion, shouldIncludeDepGraphHash } from '@pnpm/deps.graph-hasher'
 import { readModulesDir } from '@pnpm/fs.read-modules-dir'
 import { symlinkDependency } from '@pnpm/fs.symlink-dependency'
 import {
@@ -49,6 +49,7 @@ export interface LinkPackagesOptions {
   currentLockfile: LockfileObject
   dedupeDirectDeps: boolean
   dependenciesByProjectId: Record<string, Map<string, DepPath>>
+  deferDependencyBuilds: boolean
   disableRelinkLocalDirDeps?: boolean
   force: boolean
   depsStateCache: DepsStateCache
@@ -157,6 +158,7 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
     depGraph,
     {
       allowBuild: opts.allowBuild,
+      deferDependencyBuilds: opts.deferDependencyBuilds,
       disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
       enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
       force: opts.force,
@@ -329,6 +331,7 @@ function resolvePath (where: string, spec: string): string {
 
 interface LinkNewPackagesOptions {
   allowBuild?: AllowBuild
+  deferDependencyBuilds: boolean
   depsStateCache: DepsStateCache
   disableRelinkLocalDirDeps?: boolean
   enableGlobalVirtualStore: boolean
@@ -448,6 +451,7 @@ async function linkNewPackages (
       allowBuild: opts.allowBuild,
       depGraph,
       depsStateCache: opts.depsStateCache,
+      deferDependencyBuilds: opts.deferDependencyBuilds,
       disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
       enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
       force: opts.force,
@@ -505,6 +509,7 @@ async function linkAllPkgs (
     allowBuild?: AllowBuild
     depGraph: DependenciesGraph
     depsStateCache: DepsStateCache
+    deferDependencyBuilds: boolean
     disableRelinkLocalDirDeps?: boolean
     enableGlobalVirtualStore: boolean
     force: boolean
@@ -528,7 +533,11 @@ async function linkAllPkgs (
       if (opts.sideEffectsCacheRead && files.sideEffectsMaps && !isEmpty(files.sideEffectsMaps)) {
         if (opts.allowBuild?.(depNode.depPath) === true) {
           sideEffectsCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.depPath, {
-            includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild, // true when is built
+            includeDepGraphHash: shouldIncludeDepGraphHash({
+              ignoreScripts: opts.ignoreScripts,
+              deferDependencyBuilds: opts.deferDependencyBuilds,
+              requiresBuild: depNode.requiresBuild,
+            }),
             patchFileHash: depNode.patch?.hash,
             supportedArchitectures: opts.supportedArchitectures,
             nodeVersion,

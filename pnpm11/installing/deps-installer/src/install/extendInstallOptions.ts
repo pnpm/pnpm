@@ -118,6 +118,8 @@ export interface StrictInstallOptions {
   includeDirect: IncludedDependencies
   ignoreCurrentSpecifiers: boolean
   ignoreScripts: boolean
+  /** Dependency builds are postponed until the workspace-wide rebuild pass. */
+  deferDependencyBuilds: boolean
   childConcurrency: number
   userAgent: string
   unsafePerm: boolean
@@ -314,6 +316,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     hooks: {},
     ignoreCurrentSpecifiers: false,
     ignoreScripts: false,
+    deferDependencyBuilds: false,
     include: {
       dependencies: true,
       devDependencies: true,
