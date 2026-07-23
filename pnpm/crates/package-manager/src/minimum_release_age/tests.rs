@@ -47,15 +47,42 @@ impl ApprovalPrompt for FailingPrompt {
     }
 }
 
-static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-static TEST_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+/// Expand the per-test recording reporter at the top of a test body.
+///
+/// Invoked as `recording_reporter!();`, it declares — as items local to the
+/// test function — a `static EVENTS: Mutex<Vec<LogEvent>>`, a
+/// `RecordingReporter` that pushes every emit into it, a `reset_events`
+/// helper, and a `prompt_actions` helper returning the `pnpm:prompt` actions
+/// in emit order.
+macro_rules! recording_reporter {
+    () => {
+        static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
 
-struct RecordingReporter;
+        struct RecordingReporter;
+        impl Reporter for RecordingReporter {
+            fn emit(event: &LogEvent) {
+                EVENTS.lock().expect("event lock").push(event.clone());
+            }
+        }
 
-impl Reporter for RecordingReporter {
-    fn emit(event: &LogEvent) {
-        EVENTS.lock().expect("event lock").push(event.clone());
-    }
+        #[allow(dead_code, reason = "macro emits the full fake surface; tests use a subset")]
+        fn reset_events() {
+            EVENTS.lock().expect("event lock").clear();
+        }
+
+        #[allow(dead_code, reason = "macro emits the full fake surface; tests use a subset")]
+        fn prompt_actions() -> Vec<PromptAction> {
+            EVENTS
+                .lock()
+                .expect("event lock")
+                .iter()
+                .filter_map(|event| match event {
+                    LogEvent::Prompt(log) => Some(log.action),
+                    _ => None,
+                })
+                .collect()
+        }
+    };
 }
 
 #[test]
@@ -79,6 +106,7 @@ fn strict_no_save_is_rejected_before_resolution() {
 
 #[tokio::test]
 async fn non_interactive_strict_mode_reports_every_immature_pick() {
+    recording_reporter!();
     let dir = tempdir().expect("temp dir");
     let mut config = Config::new();
     config.minimum_release_age_strict = Some(true);
@@ -109,8 +137,8 @@ async fn non_interactive_strict_mode_reports_every_immature_pick() {
 
 #[tokio::test]
 async fn approval_persists_canonical_excludes_and_brackets_the_prompt() {
-    let _test_guard = TEST_LOCK.lock().await;
-    EVENTS.lock().expect("event lock").clear();
+    recording_reporter!();
+    reset_events();
     let dir = tempdir().expect("temp dir");
     fs::write(
         dir.path().join("pnpm-workspace.yaml"),
@@ -144,22 +172,13 @@ async fn approval_persists_canonical_excludes_and_brackets_the_prompt() {
     assert!(workspace.contains("- foo@1.0.0 || 2.0.0"));
     assert!(workspace.contains("- bar@3.0.0"));
 
-    let actions: Vec<PromptAction> = EVENTS
-        .lock()
-        .expect("event lock")
-        .iter()
-        .filter_map(|event| match event {
-            LogEvent::Prompt(log) => Some(log.action),
-            _ => None,
-        })
-        .collect();
-    assert_eq!(actions, [PromptAction::Start, PromptAction::End]);
+    assert_eq!(prompt_actions(), [PromptAction::Start, PromptAction::End]);
 }
 
 #[tokio::test]
 async fn denying_approval_leaves_the_workspace_manifest_unchanged() {
-    let _test_guard = TEST_LOCK.lock().await;
-    EVENTS.lock().expect("event lock").clear();
+    recording_reporter!();
+    reset_events();
     let dir = tempdir().expect("temp dir");
     let path = dir.path().join("pnpm-workspace.yaml");
     fs::write(&path, "packages:\n  - packages/*\n").expect("write workspace manifest");
@@ -180,22 +199,13 @@ async fn denying_approval_leaves_the_workspace_manifest_unchanged() {
 
     assert!(matches!(error, MinimumReleaseAgeError::Denied));
     assert_eq!(fs::read_to_string(path).expect("read unchanged manifest"), original);
-    let actions: Vec<PromptAction> = EVENTS
-        .lock()
-        .expect("event lock")
-        .iter()
-        .filter_map(|event| match event {
-            LogEvent::Prompt(log) => Some(log.action),
-            _ => None,
-        })
-        .collect();
-    assert_eq!(actions, [PromptAction::Start, PromptAction::End]);
+    assert_eq!(prompt_actions(), [PromptAction::Start, PromptAction::End]);
 }
 
 #[tokio::test]
 async fn prompt_input_error_releases_the_reporter() {
-    let _test_guard = TEST_LOCK.lock().await;
-    EVENTS.lock().expect("event lock").clear();
+    recording_reporter!();
+    reset_events();
     let dir = tempdir().expect("temp dir");
     let mut config = Config::new();
     config.minimum_release_age_strict = Some(true);
@@ -211,14 +221,5 @@ async fn prompt_input_error_releases_the_reporter() {
     .expect_err("prompt input failure must abort");
 
     assert!(matches!(error, MinimumReleaseAgeError::Prompt(_)));
-    let actions: Vec<PromptAction> = EVENTS
-        .lock()
-        .expect("event lock")
-        .iter()
-        .filter_map(|event| match event {
-            LogEvent::Prompt(log) => Some(log.action),
-            _ => None,
-        })
-        .collect();
-    assert_eq!(actions, [PromptAction::Start, PromptAction::End]);
+    assert_eq!(prompt_actions(), [PromptAction::Start, PromptAction::End]);
 }
