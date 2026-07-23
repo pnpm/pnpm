@@ -27,9 +27,6 @@ jobs:
     # Skip automated issues (Renovate, Dependabot, bots) — they are not user
     # reports and each triage run consumes Warp credits.
     if: github.event.issue.user.type != 'Bot'
-    # Backstop so a wedged run cannot occupy a runner until GitHub's 6h job
-    # ceiling. Successful triage runs finish in ~3 min (13 min worst case so
-    # far), so this only ever fires on a hang.
     timeout-minutes: 30
     permissions:
       contents: read   # let the agent inspect the checked-out codebase
