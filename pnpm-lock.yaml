@@ -3823,7 +3823,7 @@ importers:
     dependencies:
       '@inquirer/prompts':
         specifier: 'catalog:'
-        version: 8.5.2(@types/node@26.1.0)
+        version: 8.5.2(@types/node@26.1.1)
       '@pnpm/bins.linker':
         specifier: workspace:*
         version: link:../../../bins/linker
