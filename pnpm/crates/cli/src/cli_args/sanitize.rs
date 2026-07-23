@@ -14,6 +14,15 @@ pub fn sanitize(text: &str) -> Cow<'_, str> {
     }
 }
 
+/// Strip every control character from text embedded in a single-line field.
+pub fn sanitize_inline(text: &str) -> Cow<'_, str> {
+    if text.chars().any(char::is_control) {
+        Cow::Owned(text.chars().filter(|ch| !ch.is_control()).collect())
+    } else {
+        Cow::Borrowed(text)
+    }
+}
+
 /// Render a capped response body for an error message: lossy UTF-8,
 /// sanitized, with a truncation note when the cap was hit.
 pub fn body_display_string(body: &LimitedBody) -> String {

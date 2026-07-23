@@ -8,11 +8,13 @@ use std::{collections::HashSet, io::Read, path::Path};
 
 use flate2::read::GzDecoder;
 use futures_util::StreamExt;
+use miette::IntoDiagnostic;
 use pacquet_config::Config;
+use pacquet_network::{ThrottledClient, encode_package_name, redact_url_credentials};
 use pacquet_registry::Package;
 use pacquet_versioning::{
-    ChangelogStorage, changelog_storage, list_pending_changelogs, read_pending_changelog,
-    render_changelog,
+    ChangelogStorage, ReleasePlan, changelog_storage, list_pending_changelogs,
+    read_pending_changelog, render_changelog,
 };
 use tar::Archive;
 
@@ -74,6 +76,67 @@ pub async fn confirmed_published_versions(
             changelog.contains(section.trim()).then(|| format!("{name}@{version}"))
         });
     Ok(futures_util::future::join_all(checks).await.into_iter().flatten().collect())
+}
+
+/// The releases in `plan` whose current version the registry does not have —
+/// `AssembleReleasePlanOptions::unpublished_dirs`. Probe failures propagate.
+/// Mirrors the TypeScript `resolveUnpublishedDirs`.
+pub async fn unpublished_release_dirs(
+    config: &Config,
+    plan: &ReleasePlan,
+) -> miette::Result<HashSet<String>> {
+    // Debug-only test seam, compiled out of release builds: the engine tests
+    // advance manifests without publishing, so they force "all published".
+    #[cfg(debug_assertions)]
+    if std::env::var_os("PACQUET_ASSUME_VERSIONS_PUBLISHED").is_some() {
+        return Ok(HashSet::new());
+    }
+    // One client for the batch; its per-origin semaphore bounds the fan-out.
+    let client = build_registry_client(config)?;
+    let checks = plan.releases.iter().map(|release| {
+        let client = &client;
+        async move {
+            let published =
+                is_version_published(client, config, &release.name, &release.current_version)
+                    .await?;
+            Ok::<_, miette::Report>((release.dir.clone(), published))
+        }
+    });
+    let probed = futures_util::future::try_join_all(checks).await?;
+    Ok(probed.into_iter().filter_map(|(dir, published)| (!published).then_some(dir)).collect())
+}
+
+/// Whether `name@version` is published. A 404 reads as unpublished; any other
+/// failure errors.
+async fn is_version_published(
+    client: &ThrottledClient,
+    config: &Config,
+    name: &str,
+    version: &str,
+) -> miette::Result<bool> {
+    let registry = registry_for(config, name);
+    let url = format!("{registry}{}", encode_package_name(name));
+    let guard = client.acquire_for_url(&url).await;
+    let mut request = guard.get(&url).header(
+        "accept",
+        "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
+    );
+    if let Some(value) = config.auth_headers.for_url_with_package(&url, Some(name)) {
+        request = request.header("authorization", value);
+    }
+    let response = request.send().await.into_diagnostic()?;
+    let status = response.status();
+    if status.as_u16() == 404 {
+        return Ok(false);
+    }
+    if !status.is_success() {
+        let display_url = redact_url_credentials(&url);
+        return Err(miette::miette!(
+            "registry returned status {status} for {display_url} while checking whether {name}@{version} is published",
+        ));
+    }
+    let package: Package = response.json().await.into_diagnostic()?;
+    Ok(package.versions.contains_key(version))
 }
 
 enum VersionPick<'a> {

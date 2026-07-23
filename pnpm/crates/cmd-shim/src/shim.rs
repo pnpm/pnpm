@@ -145,15 +145,89 @@ fn strip_env_prefix(input: &str) -> (&str, bool) {
     (trimmed, true)
 }
 
+/// Render `node_path` entries into the platform variants cmd-shim's
+/// `normalizePathEnvVar` produces: `win32` joins with `;` and
+/// backslashes, `posix` joins with `:` and forward slashes. On a
+/// Windows host the posix form additionally rewrites the drive prefix
+/// (`C:` → `/proc/cygdrive/c` under Cygwin/MSYS, `/mnt/c` otherwise),
+/// matching cmd-shim. On Unix the entries pass through unchanged.
+struct NodePathEnvVar {
+    win32: String,
+    posix: String,
+}
+
+fn normalize_node_path_env_var(node_path: &[String]) -> NodePathEnvVar {
+    // The Cygwin/MSYS probe is process-invariant — read the
+    // environment once, not per entry.
+    let mount = cfg!(windows).then(windows_posix_mount_prefix);
+    let mut win32 = String::new();
+    let mut posix = String::new();
+    for entry in node_path {
+        let entry_win32 = entry.replace('/', r"\");
+        let entry_posix = match mount {
+            Some(mount) => windows_entry_to_posix(entry, mount),
+            None => entry.clone(),
+        };
+        if !win32.is_empty() {
+            win32.push(';');
+        }
+        win32.push_str(&entry_win32);
+        if !posix.is_empty() {
+            posix.push(':');
+        }
+        posix.push_str(&entry_posix);
+    }
+    NodePathEnvVar { win32, posix }
+}
+
+/// The mount prefix a Windows drive letter maps to in the posix
+/// rendering. Cygwin/MSYS is detected the way cmd-shim does —
+/// `TERM=CYGWIN` or a set `MSYSTEM`.
+///
+/// NOTE: the probe runs at shim-*generation* time, so the posix path
+/// baked into the `.ps1` reflects the installing shell. A shim
+/// generated under Cygwin and later run under WSL points at a
+/// `/proc/cygdrive` path that doesn't exist there — the same known
+/// trap cmd-shim has.
+fn windows_posix_mount_prefix() -> &'static str {
+    let is_cygwin = std::env::var("TERM").is_ok_and(|term| term == "CYGWIN")
+        || std::env::var_os("MSYSTEM").is_some();
+    if is_cygwin { "/proc/cygdrive" } else { "/mnt" }
+}
+
+/// cmd-shim's Windows-host posix rendering: flip backslashes and map a
+/// leading drive letter to the [`windows_posix_mount_prefix`].
+fn windows_entry_to_posix(entry: &str, mount: &str) -> String {
+    let flipped = entry.replace('\\', "/");
+    let Some((drive, rest)) = flipped.split_once(':') else {
+        return flipped;
+    };
+    if drive.is_empty() || drive.contains('/') {
+        return flipped;
+    }
+    format!("{mount}/{}{rest}", drive.to_lowercase())
+}
+
 /// Generate the Unix shell-shim contents for `target_path`, written to
-/// `shim_path`.
+/// `shim_path`. `node_path` entries (empty for a plain shim) become the
+/// cmd-shim `NODE_PATH` export block.
 #[must_use]
 pub fn generate_sh_shim(
     target_path: &Path,
     shim_path: &Path,
     runtime: Option<&ScriptRuntime>,
+    node_path: &[String],
 ) -> String {
     let mut sh = String::from(SH_SHIM_HEADER);
+
+    let sh_node_path = normalize_node_path_env_var(node_path).posix;
+    if !sh_node_path.is_empty() {
+        writeln!(
+            sh,
+            "if [ -z \"$NODE_PATH\" ]; then\n  export NODE_PATH=\"{sh_node_path}\"\nelse\n  export NODE_PATH=\"{sh_node_path}:$NODE_PATH\"\nfi",
+        )
+        .unwrap();
+    }
 
     let sh_target = relative_target(target_path, shim_path);
     let quoted_target = if Path::new(&sh_target).is_absolute() {
@@ -221,8 +295,9 @@ pub fn generate_sh_shim(
 }
 
 /// Generate the Windows `.cmd` shim contents for `target_path`. Pacquet
-/// skips the `nodePath`/`prependToPath`/`nodeExecPath`/`progArgs`
-/// features; we only ever write a "plain" cmd shim.
+/// skips the `prependToPath`/`nodeExecPath`/`progArgs` features; only
+/// `nodePath` (the `NODE_PATH` block) is supported beyond the "plain"
+/// cmd shim.
 ///
 /// CRLF line endings are part of the on-disk contract for `.cmd` files
 /// on Windows, so the template uses literal `\r\n`.
@@ -231,6 +306,7 @@ pub fn generate_cmd_shim(
     target_path: &Path,
     shim_path: &Path,
     runtime: Option<&ScriptRuntime>,
+    node_path: &[String],
 ) -> String {
     let cmd_target_rel = relative_target_windows(target_path, shim_path);
     let quoted_target = if Path::new(&cmd_target_rel).is_absolute() {
@@ -240,6 +316,15 @@ pub fn generate_cmd_shim(
     };
 
     let mut cmd = String::from("@SETLOCAL\r\n");
+
+    let cmd_node_path = normalize_node_path_env_var(node_path).win32;
+    if !cmd_node_path.is_empty() {
+        write!(
+            cmd,
+            "@IF NOT DEFINED NODE_PATH (\r\n  @SET \"NODE_PATH={cmd_node_path}\"\r\n) ELSE (\r\n  @SET \"NODE_PATH={cmd_node_path};%NODE_PATH%\"\r\n)\r\n",
+        )
+        .unwrap();
+    }
 
     match runtime {
         Some(ScriptRuntime { prog: Some(prog), args }) => {
@@ -260,14 +345,17 @@ pub fn generate_cmd_shim(
 }
 
 /// Generate the cross-shell PowerShell `.ps1` shim contents for
-/// `target_path`, minus the `nodePath`/`prependToPath`/`nodeExecPath`/
-/// `progArgs` branches we don't use. The shim self-detects Windows vs.
-/// POSIX-ish pwsh and adjusts the executable suffix accordingly.
+/// `target_path`, minus the `prependToPath`/`nodeExecPath`/`progArgs`
+/// branches we don't use. `node_path` entries (empty for a plain shim)
+/// become the cmd-shim `NODE_PATH` set/restore blocks. The shim
+/// self-detects Windows vs. POSIX-ish pwsh and adjusts the executable
+/// suffix (and `NODE_PATH` flavor) accordingly.
 #[must_use]
 pub fn generate_pwsh_shim(
     target_path: &Path,
     shim_path: &Path,
     runtime: Option<&ScriptRuntime>,
+    node_path: &[String],
 ) -> String {
     let sh_target = relative_target(target_path, shim_path);
     let quoted_target = if Path::new(&sh_target).is_absolute() {
@@ -277,7 +365,17 @@ pub fn generate_pwsh_shim(
     };
 
     use std::fmt::Write;
-    let mut pwsh = String::from(PWSH_SHIM_HEADER);
+    let NodePathEnvVar { win32: win32_node_path, posix: posix_node_path } =
+        normalize_node_path_env_var(node_path);
+    let has_node_path = !win32_node_path.is_empty();
+    let mut pwsh = if has_node_path {
+        format!(
+            "#!/usr/bin/env pwsh\n$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent\n\n$exe=\"\"\n$pathsep=\":\"\n$env_node_path=$env:NODE_PATH\n$new_node_path=\"{win32_node_path}\"\nif ($PSVersionTable.PSVersion -lt \"6.0\" -or $IsWindows) {{\n  # Fix case when both the Windows and Linux builds of Node\n  # are installed in the same directory\n  $exe=\".exe\"\n  $pathsep=\";\"\n}} else {{\n  $new_node_path=\"{posix_node_path}\"\n}}\nif ([string]::IsNullOrEmpty($env_node_path)) {{\n  $env:NODE_PATH=$new_node_path\n}} else {{\n  $env:NODE_PATH=\"$new_node_path$pathsep$env_node_path\"\n}}",
+        )
+    } else {
+        String::from(PWSH_SHIM_HEADER)
+    };
+    let restore_node_path = has_node_path.then_some("$env:NODE_PATH=$env_node_path");
 
     match runtime {
         Some(ScriptRuntime { prog: Some(prog), args }) => {
@@ -302,6 +400,9 @@ pub fn generate_pwsh_shim(
             writeln!(pwsh, "  }}").unwrap();
             writeln!(pwsh, "  $ret=$LASTEXITCODE").unwrap();
             writeln!(pwsh, "}}").unwrap();
+            if let Some(restore) = restore_node_path {
+                writeln!(pwsh, "{restore}").unwrap();
+            }
             writeln!(pwsh, "exit $ret").unwrap();
         }
         runtime_opt => {
@@ -313,6 +414,9 @@ pub fn generate_pwsh_shim(
             writeln!(pwsh, "}} else {{").unwrap();
             writeln!(pwsh, "  & {quoted_target} {args} $args").unwrap();
             writeln!(pwsh, "}}").unwrap();
+            if let Some(restore) = restore_node_path {
+                writeln!(pwsh, "{restore}").unwrap();
+            }
             writeln!(pwsh, "exit $LASTEXITCODE").unwrap();
         }
     }

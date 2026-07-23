@@ -412,7 +412,7 @@ pub(super) fn run_stage(
     Ok(Some(status))
 }
 
-fn exec_scripts_prepend_node_path(
+pub(crate) fn exec_scripts_prepend_node_path(
     value: pacquet_config::ScriptsPrependNodePath,
 ) -> ScriptsPrependNodePath {
     match value {

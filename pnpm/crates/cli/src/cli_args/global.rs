@@ -73,8 +73,14 @@ fn global_dirs(config: &Config) -> Result<(PathBuf, PathBuf), GlobalError> {
 }
 
 /// Validate the global bin dir is on `PATH` and writable, required for
-/// mutating commands.
+/// mutating commands. Mirrors pnpm's config reader: the directory is
+/// created first, so a fresh `PNPM_HOME` whose `bin` is already on `PATH`
+/// but not yet on disk works on the first global command.
 fn check_bin_dir(global_bin_dir: &Path) -> miette::Result<()> {
+    fs::create_dir_all(global_bin_dir).map_err(|error| {
+        let bin_dir = global_bin_dir.display();
+        miette::miette!("failed to create the global bin directory {bin_dir}: {error}")
+    })?;
     check_global_bin_dir(global_bin_dir, std::env::var("PATH").ok().as_deref(), true)
         .map_err(miette::Report::new)
 }
@@ -146,9 +152,14 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
             .into_diagnostic()
             .wrap_err("link the global package install directory")?;
 
-        link_bins_of_packages_with_excludes::<CmdShimHost>(&pkgs, &global_bin_dir, &bins_to_skip)
-            .map_err(miette::Report::new)
-            .wrap_err("link global package bins")?;
+        link_bins_of_packages_with_excludes::<CmdShimHost>(
+            &pkgs,
+            &global_bin_dir,
+            &bins_to_skip,
+            &[],
+        )
+        .map_err(miette::Report::new)
+        .wrap_err("link global package bins")?;
     }
     Ok(())
 }
@@ -235,9 +246,14 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
             let _ = fs::remove_dir_all(&pkg.install_dir);
         }
 
-        link_bins_of_packages_with_excludes::<CmdShimHost>(&pkgs, &global_bin_dir, &bins_to_skip)
-            .map_err(miette::Report::new)
-            .wrap_err("link global package bins")?;
+        link_bins_of_packages_with_excludes::<CmdShimHost>(
+            &pkgs,
+            &global_bin_dir,
+            &bins_to_skip,
+            &[],
+        )
+        .map_err(miette::Report::new)
+        .wrap_err("link global package bins")?;
     }
     Ok(())
 }
@@ -419,7 +435,7 @@ async fn prompt_approve_global_builds<Reporter: self::Reporter + 'static>(
             names: Some(build_packages),
             projects: Vec::new(),
         };
-        run_rebuild::<Reporter>(&rebuild_state, selection).await?;
+        run_rebuild::<Reporter>(&rebuild_state, selection, None).await?;
     }
     Ok(())
 }

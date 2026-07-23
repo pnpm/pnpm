@@ -67,9 +67,11 @@ use super::{
     team::TeamArgs,
     undeprecate::UndeprecateArgs,
     unlink::UnlinkArgs,
+    unpublish::UnpublishArgs,
     unstar::UnstarArgs,
     update::UpdateArgs,
     version::VersionArgs,
+    view::ViewArgs,
     why::WhyArgs,
     with::WithArgs,
 };
@@ -142,7 +144,17 @@ pub struct CliArgs {
     pub recursive: bool,
 
     /// Reporter output format.
-    #[clap(long, value_enum, default_value_t = ReporterType::Default, global = true)]
+    // Self-override so a repeated `--reporter` takes the last occurrence,
+    // like nopt does — `--silent` expands to `--reporter=silent` (see
+    // `crate::shorthands`), so `--silent --reporter=ndjson` must not be a
+    // duplicate-argument error.
+    #[clap(
+        long,
+        value_enum,
+        default_value_t = ReporterType::Default,
+        global = true,
+        overrides_with = "reporter"
+    )]
     pub reporter: ReporterType,
 
     /// Select which workspace projects to run on. Repeat to add more.
@@ -209,7 +221,7 @@ impl CliArgs {
             self.validate_report_summary_global_option()?;
         }
         if self.no_bail {
-            self.validate_run_scoped_global_option("--no-bail")?;
+            self.validate_no_bail_global_option()?;
         }
         if self.if_present {
             self.validate_if_present_top_level_option()?;
@@ -227,6 +239,17 @@ impl CliArgs {
     /// and [`Self::run`] then observe the promoted flag.
     pub fn promote_recursive_for_filter(&mut self) {
         if !self.filter.is_empty() || !self.filter_prod.is_empty() {
+            self.recursive = true;
+        }
+    }
+
+    /// Promote commands marked recursive-by-default by pnpm when they run
+    /// inside a workspace.
+    pub fn promote_recursive_by_default(&mut self) {
+        if !self.recursive
+            && self.command.recursive_by_default()
+            && pacquet_workspace::find_workspace_dir(&self.dir).is_ok_and(|dir| dir.is_some())
+        {
             self.recursive = true;
         }
     }
@@ -271,6 +294,13 @@ impl CliArgs {
         }
         self.validate_run_scoped_global_option("--report-summary")
     }
+
+    fn validate_no_bail_global_option(&self) -> Result<(), clap::Error> {
+        if matches!(self.command, CliCommand::Rebuild(_)) {
+            return Ok(());
+        }
+        self.validate_run_scoped_global_option("--no-bail")
+    }
 }
 
 #[derive(Debug, Subcommand)]
@@ -293,7 +323,7 @@ pub enum CliCommand {
     /// Update packages to their newest version based on the specified range
     #[clap(visible_aliases = ["up", "upgrade"])]
     Update(UpdateArgs),
-    /// Check for outdated packages
+    /// Check for outdated package and GitHub Actions dependencies
     Outdated(OutdatedArgs),
     /// Checks for known security issues with the installed packages.
     Audit(AuditArgs),
@@ -318,6 +348,9 @@ pub enum CliCommand {
     Licenses(LicensesArgs),
     /// Shows the packages that depend on `pkg`
     Why(WhyArgs),
+    /// View registry information about a package.
+    #[clap(visible_aliases = ["info", "show", "v"])]
+    View(ViewArgs),
     /// Generate a Software Bill of Materials (SBOM).
     Sbom(SbomArgs),
     /// Displays your pnpm username.
@@ -326,6 +359,8 @@ pub enum CliCommand {
     Deprecate(DeprecateArgs),
     /// Removes deprecation from a version of a package in the registry. Only works on already deprecated versions.
     Undeprecate(UndeprecateArgs),
+    /// Removes a package from the registry.
+    Unpublish(UnpublishArgs),
     /// Marks a package as a favorite.
     Star(StarArgs),
     /// Unmarks a package as a favorite.
@@ -479,6 +514,13 @@ pub enum CliCommand {
 }
 
 impl CliCommand {
+    fn recursive_by_default(&self) -> bool {
+        matches!(
+            self,
+            CliCommand::List(_) | CliCommand::Ll(_) | CliCommand::Why(_) | CliCommand::Peers(_),
+        )
+    }
+
     pub(crate) fn default_reporter_summary_scope(&self) -> SummaryScope {
         match self {
             CliCommand::Access(_) => SummaryScope::CurrentPrefix,

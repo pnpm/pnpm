@@ -1,6 +1,5 @@
-//! `login` tests for the web-login error paths — the `From<WebLoginFlowError>`
-//! arms (invalid response, HTTP failure, transport, QR-code, timeout), the
-//! `auth.ini` read error, and the control-character rejection.
+//! `login` tests for the web-login error paths and the QR-generation
+//! fallback.
 
 use std::{
     cell::RefCell,
@@ -145,15 +144,13 @@ async fn should_surface_a_web_login_transport_failure_as_a_request_error() {
     assert!(err.to_string().starts_with("The login request failed:"), "unexpected message: {err}");
 }
 
-/// A `loginUrl` longer than the maximum QR data capacity makes
-/// `generate_qr_code` fail before the poll begins, exercising the `QrCode` arm
-/// of `From<WebLoginFlowError>`.
 #[tokio::test]
-async fn should_fail_when_the_login_url_cannot_be_rendered_as_a_qr_code() {
+async fn should_fall_back_to_url_only_display_when_the_login_url_exceeds_qr_capacity() {
     web_auth_fake!();
     login_fake!(FakeHost);
     reset();
     reset_login();
+    set_fetch(Box::new(|| Ok(ok_token("tok"))));
 
     let long_login_url = format!("https://example.org/auth/{}", "a".repeat(4000));
     let body = json!({
@@ -166,19 +163,20 @@ async fn should_fail_when_the_login_url_cannot_be_rendered_as_a_qr_code() {
     let registry = server.url();
     let config_dir = Path::new("/mock/config");
 
-    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+    login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
         .await
-        .unwrap_err();
+        .expect("the login should succeed without a QR code");
 
-    assert!(matches!(err, LoginError::QrCode(_)), "got {err:?}");
-    assert_eq!(
-        err.pipe_ref(miette::Diagnostic::code).map(|code| code.to_string()).as_deref(),
-        Some("ERR_PNPM_AUTH_COMMANDS_LOGIN_QR_CODE"),
-    );
     assert!(
-        err.to_string().starts_with("Failed to render the login QR code:"),
-        "unexpected message: {err}",
+        warns().iter().any(|message| message.starts_with("Could not generate a QR code:")),
+        "got {:?}",
+        warns(),
     );
+    let auth_message = infos()
+        .into_iter()
+        .find(|message| message.contains(&long_login_url))
+        .expect("the auth URL should be surfaced");
+    assert_eq!(auth_message, format!("Authenticate your account at:\n{long_login_url}"));
 }
 
 /// When the web-auth poll never sees a token before its budget elapses, the

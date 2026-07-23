@@ -518,7 +518,7 @@ async fn prepare_manifest<'a, Reporter: self::Reporter>(
             if is_ignored(name) {
                 continue;
             }
-            if latest && !is_workspace_local_path_specifier(previous) {
+            if latest && !is_local_specifier(previous) {
                 let picker =
                     ensure_latest_picker(latest_picker, config, http_client, resolution_observer)?;
                 let version = resolve_latest_version(picker, name, lockfile_only).await?;
@@ -603,7 +603,7 @@ async fn prepare_manifest<'a, Reporter: self::Reporter>(
         } else {
             for (name, group, previous) in &matched_direct {
                 drop_names.insert(name.clone());
-                if latest && !is_workspace_local_path_specifier(previous) {
+                if latest && !is_local_specifier(previous) {
                     let picker = ensure_latest_picker(
                         latest_picker,
                         config,
@@ -998,6 +998,17 @@ pub(crate) fn is_workspace_local_path_specifier(bare_specifier: &str) -> bool {
         chars.next().is_some_and(|first| first.is_ascii_alphabetic()) && chars.next() == Some(':')
     };
     pref.starts_with('.') || pref.starts_with('/') || pref.starts_with("~/") || is_windows_drive
+}
+
+/// Whether `bare_specifier` resolves to a local package — `workspace:`, `link:`,
+/// or `file:` — rather than a registry one. Such a package resolves to a
+/// directory on disk and may not be published at all, so there is no registry
+/// "latest" to resolve under `--latest`; it is skipped and preserved verbatim.
+/// Mirrors the TS `isLocalRef` in `@pnpm/outdated`.
+fn is_local_specifier(bare_specifier: &str) -> bool {
+    bare_specifier.starts_with("workspace:")
+        || bare_specifier.starts_with("link:")
+        || bare_specifier.starts_with("file:")
 }
 
 #[cfg(test)]

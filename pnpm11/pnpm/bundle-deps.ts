@@ -55,7 +55,6 @@ import { execSync } from 'node:child_process'
 
 const WORKSPACE_DIR = path.join(import.meta.dirname, '..', '..')
 const DEPLOY_DIR = path.join(import.meta.dirname, 'temp-deploy')
-const MANIFEST_PATH = path.join(import.meta.dirname, 'package.json')
 
 const NODE_MODULES_TEMP_DIR = path.join(DEPLOY_DIR, 'node_modules')
 const NODE_MODULES_DEST_DIR = path.join(import.meta.dirname, 'dist/node_modules')
@@ -116,14 +115,10 @@ createDistNodeModules()
 // dependency, so the published manifest must not declare dependencies or
 // devDependencies — otherwise pnpm would install them a second time (and the
 // internal-only devDependencies, e.g. @pnpm/test-ipc-server, aren't even
-// published, so the install would fail).
-//
-// The workspace .pnpmfile.cjs beforePacking hook already drops these fields when
-// packing. This on-disk strip is a temporary workaround for pnpm/pnpm#12955: the
-// pnpm v12 alpha that currently runs the release does not yet honor beforePacking,
-// so it published 11.12.0 with the fields intact. Remove this once the release
-// runs a pnpm that applies the hook.
-const manifest = JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf8'))
-delete manifest.dependencies
-delete manifest.devDependencies
-fs.writeFileSync(MANIFEST_PATH, `${JSON.stringify(manifest, undefined, 2)}\n`)
+// published, so the install would fail). The workspace .pnpmfile.cjs
+// beforePacking hook drops these fields when packing (the release-pinned
+// pnpm honors it since pnpm/pnpm#12955 was fixed, and the release workflow
+// asserts the packed manifest carries no dependency fields before the first
+// publish). The manifest on disk must stay untouched: stripping it here made
+// every later `pnpm install` — including the verifyDepsBeforeRun gate's
+// spawned one — remove the pnpm package's own node_modules mid-release.

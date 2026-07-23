@@ -1,7 +1,4 @@
-use crate::{
-    SkippedSnapshots, SymlinkPackageError, VirtualStoreLayout, link_direct_dep_bins,
-    symlink_package,
-};
+use crate::{SkippedSnapshots, SymlinkPackageError, VirtualStoreLayout, symlink_package};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_cmd_shim::LinkBinsError;
@@ -109,6 +106,10 @@ where
     /// such importers without complaint. Ids *not* in this set keep
     /// the strict malformed-lockfile rejection.
     pub trusted_importer_ids: Option<&'a HashSet<String>>,
+
+    /// [`crate::shim_extra_node_paths`] output — threaded into the
+    /// per-importer `.bin` shim pass.
+    pub extra_node_paths: &'a [String],
 }
 
 /// Error type of [`SymlinkDirectDependencies`].
@@ -167,6 +168,7 @@ where
             link_only,
             public_hoist_targets,
             trusted_importer_ids,
+            extra_node_paths,
         } = self;
 
         // Collect once so the same group order can drive every importer.
@@ -262,6 +264,7 @@ where
                 link_only,
                 dedupe_against,
                 config.symlink,
+                extra_node_paths,
             )?;
         }
 
@@ -410,6 +413,7 @@ fn link_one_importer<Reporter: self::Reporter>(
     link_only: bool,
     dedupe_against: Option<&BTreeMap<String, PathBuf>>,
     symlink: bool,
+    extra_node_paths: &[String],
 ) -> Result<(), SymlinkDirectDependenciesError> {
     let entries = collect_resolved_entries(
         layout,
@@ -534,14 +538,17 @@ fn link_one_importer<Reporter: self::Reporter>(
 
     // After the symlinks exist, walk them to discover each
     // direct dep's `package.json` and link declared bins into
-    // `<modules_dir>/.bin`.
+    // `<modules_dir>/.bin`. Each entry's `target` is the symlink's
+    // destination, so the bin pass gets the resolved location for
+    // free.
     if symlink {
-        let dep_names: Vec<String> = entries.iter().map(|entry| entry.name_str.clone()).collect();
-        link_direct_dep_bins(modules_dir, &dep_names)
+        let deps: Vec<(String, PathBuf)> =
+            entries.iter().map(|entry| (entry.name_str.clone(), entry.target.clone())).collect();
+        crate::link_direct_dep_bins_resolved(modules_dir, &deps, extra_node_paths)
             .map_err(SymlinkDirectDependenciesError::LinkBins)?;
     } else {
         let locations: Vec<PathBuf> = entries.iter().map(|entry| entry.target.clone()).collect();
-        crate::link_direct_dep_bins_from_locations(modules_dir, &locations)
+        crate::link_direct_dep_bins_from_locations(modules_dir, &locations, extra_node_paths)
             .map_err(SymlinkDirectDependenciesError::LinkBins)?;
     }
 

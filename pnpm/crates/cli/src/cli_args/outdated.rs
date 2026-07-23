@@ -9,15 +9,22 @@
 //! in-range version under `--compatible`), while `update` compares against
 //! the version a bump would move to.
 //!
-//! Scope vs. pnpm: pacquet loads a single lockfile (the *wanted*
-//! lockfile), so there is no separate *current* lockfile to diff against —
-//! a dependency's `current` and `wanted` versions are always equal, and
-//! the "missing (wanted X)" state pnpm shows for a resolved-but-not-
-//! installed dependency does not arise. Recursive (`-r`) and global
-//! (`-g`) runs are rejected, matching `pacquet update`.
+//! Scope vs. pnpm: pacquet loads the *wanted* lockfile, so there is no
+//! separate *current* lockfile to diff against — a dependency's `current`
+//! and `wanted` versions are always equal, and the "missing (wanted X)"
+//! state pnpm shows for a resolved-but-not-installed dependency does not
+//! arise.
 
-use crate::State;
+use crate::{
+    State,
+    cli_args::{
+        recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects},
+        sanitize::sanitize_inline,
+    },
+    github_actions,
+};
 use clap::{Args, ValueEnum};
+use miette::IntoDiagnostic;
 use node_semver::Version;
 use owo_colors::{OwoColorize, Stream};
 use pacquet_config::{
@@ -27,9 +34,18 @@ use pacquet_config::{
 use pacquet_lockfile::Lockfile;
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_registry::{Package, PackageVersion};
+use pacquet_registry::{Package, PackageVersion, RegistryError};
+use pacquet_reporter::Reporter;
 use pacquet_resolving_npm_resolver::pick_registry_for_package;
-use std::{collections::HashMap, io::Write};
+use std::{
+    collections::HashMap,
+    io::Write,
+    path::PathBuf,
+    sync::{Arc, Mutex},
+};
+use tokio::sync::OnceCell;
+
+type PackumentCache = Mutex<HashMap<(String, String), Arc<OnceCell<Arc<Package>>>>>;
 
 /// Which registry version a dependency is compared against to decide
 /// whether it is outdated.
@@ -60,12 +76,30 @@ pub struct OutdatedPackage {
     pub belongs_to: DependencyGroup,
     pub current: Version,
     pub target: Version,
+    pub wanted: Version,
+    pub github_action: bool,
     /// Deprecation reason of the `target` version, when the registry
     /// marked it deprecated.
     pub deprecated: Option<String>,
     /// `homepage` of the package, shown in the `--long` details column
     /// when the registry serves it.
     pub homepage: Option<String>,
+}
+
+impl From<github_actions::OutdatedGitHubAction> for OutdatedPackage {
+    fn from(action: github_actions::OutdatedGitHubAction) -> Self {
+        Self {
+            alias: action.name.clone(),
+            package_name: action.name,
+            belongs_to: DependencyGroup::Dev,
+            current: action.current,
+            target: action.latest,
+            wanted: action.wanted,
+            github_action: true,
+            deprecated: None,
+            homepage: Some(action.homepage),
+        }
+    }
 }
 
 /// What counts as outdated for a [`collect_outdated`] run.
@@ -88,8 +122,8 @@ pub struct OutdatedQuery<'a> {
 /// the lockfile-pinned `current` version (or, per
 /// [`OutdatedQuery::include_deprecated`], whose `target` is deprecated).
 ///
-/// A dependency the registry cannot serve (private, renamed, offline) is
-/// skipped rather than failing the whole run.
+/// Registry failures abort the query with package context; dependencies whose
+/// metadata has no compatible target are omitted from the result.
 pub async fn collect_outdated(
     manifest: &PackageManifest,
     lockfile: Option<&Lockfile>,
@@ -116,6 +150,27 @@ pub(crate) async fn collect_outdated_for_importer(
     http_client: &ThrottledClient,
     query: &OutdatedQuery<'_>,
 ) -> miette::Result<Vec<OutdatedPackage>> {
+    collect_outdated_for_importer_with_cache(
+        manifest,
+        lockfile,
+        importer_id,
+        config,
+        http_client,
+        query,
+        &PackumentCache::default(),
+    )
+    .await
+}
+
+async fn collect_outdated_for_importer_with_cache(
+    manifest: &PackageManifest,
+    lockfile: Option<&Lockfile>,
+    importer_id: &str,
+    config: &Config,
+    http_client: &ThrottledClient,
+    query: &OutdatedQuery<'_>,
+    packument_cache: &PackumentCache,
+) -> miette::Result<Vec<OutdatedPackage>> {
     let current_versions =
         current_versions_from_importer(lockfile, importer_id, query.include_direct);
     let current_versions = &current_versions;
@@ -124,8 +179,7 @@ pub(crate) async fn collect_outdated_for_importer(
     // fetch their packuments concurrently — mirroring pnpm's
     // `Promise.all` fan-out. Concurrency is bounded by the HTTP client's
     // per-registry limit (`network_concurrency`), so this does not flood
-    // the registry. Dependencies without a lockfile pin are dropped here;
-    // those the registry cannot serve are dropped after the fetch.
+    // the registry. Dependencies without a lockfile pin are dropped here.
     let fetches = query
         .include_direct
         .iter()
@@ -145,32 +199,69 @@ pub(crate) async fn collect_outdated_for_importer(
                 config.resolved_registries().into_iter().collect();
             let registry =
                 pick_registry_for_package(&registries, package_name, Some(bare_specifier));
-            let package = Package::fetch_from_registry(
+            let package = fetch_package_cached(
+                packument_cache,
                 package_name,
                 http_client,
                 &registry,
                 &config.auth_headers,
             )
             .await
-            .ok()?;
-            let target = resolve_target(&package, range, query.target_version)?;
+            .map_err(|error| {
+                let reason = pacquet_network::redact_url_credentials(&error.to_string());
+                miette::miette!(
+                    code = "ERR_PNPM_OUTDATED_REGISTRY_ERROR",
+                    r#"Failed to fetch metadata for "{package_name}": {reason}"#,
+                )
+            })?;
+            let Some(target) = resolve_target(&package, range, query.target_version) else {
+                return Ok(None);
+            };
             let deprecated = target.deprecated.clone();
             let is_newer = target.version > current;
             if !(is_newer || (query.include_deprecated && deprecated.is_some())) {
-                return None;
+                return Ok(None);
             }
-            Some(OutdatedPackage {
+            Ok(Some(OutdatedPackage {
                 alias: alias.to_string(),
                 package_name: package_name.to_string(),
                 belongs_to: group,
+                wanted: current.clone(),
                 current,
                 target: target.version.clone(),
+                github_action: false,
                 deprecated,
-                homepage: package.homepage,
-            })
+                homepage: package.homepage.clone(),
+            }))
         });
 
-    Ok(futures_util::future::join_all(fetches).await.into_iter().flatten().collect())
+    let fetched = futures_util::future::join_all(fetches)
+        .await
+        .into_iter()
+        .collect::<miette::Result<Vec<_>>>()?;
+    Ok(fetched.into_iter().flatten().collect())
+}
+
+async fn fetch_package_cached(
+    cache: &PackumentCache,
+    package_name: &str,
+    http_client: &ThrottledClient,
+    registry: &str,
+    auth_headers: &pacquet_network::AuthHeaders,
+) -> Result<Arc<Package>, RegistryError> {
+    let key = (registry.to_string(), package_name.to_string());
+    let entry = {
+        let mut cache = cache.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        Arc::clone(cache.entry(key).or_default())
+    };
+    let package = entry
+        .get_or_try_init(|| async {
+            Package::fetch_from_registry(package_name, http_client, registry, auth_headers)
+                .await
+                .map(Arc::new)
+        })
+        .await?;
+    Ok(Arc::clone(package))
 }
 
 /// Resolve the [`TargetVersion`] to a concrete published version, or
@@ -314,62 +405,97 @@ pub enum OutdatedOutcome {
     Outdated,
 }
 
+struct OutdatedInWorkspace {
+    package: OutdatedPackage,
+    dependents: Vec<DependentProject>,
+}
+
+#[derive(Clone)]
+struct DependentProject {
+    name: String,
+    location: PathBuf,
+}
+
 impl OutdatedArgs {
     /// Run the check and print the report to stdout. Returns whether any
     /// dependency was outdated; the caller decides the process exit code.
-    pub async fn run(self, state: State) -> miette::Result<OutdatedOutcome> {
+    pub async fn run<Reporter: self::Reporter>(
+        self,
+        state: State,
+    ) -> miette::Result<OutdatedOutcome> {
         if state.config.recursive {
-            return Err(miette::miette!("`pnpm outdated --recursive` is not supported yet."));
+            return self.run_recursive::<Reporter>(state).await;
         }
 
         let config = state.config;
         let manifest = &state.manifest;
+        let root = config
+            .workspace_dir
+            .as_deref()
+            .unwrap_or_else(|| manifest.path().parent().unwrap_or_else(|| manifest.path()));
         let importer_id = state.active_importer_id();
         let lockfile = state
             .lockfile
             .get()
             .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
         let http_client = &state.http_client;
-
-        // A manifest with no dependencies at all is reported as up to date
-        // (empty, exit 0) *before* the no-lockfile check, so an empty
-        // project doesn't error just because it was never installed.
+        let package_patterns = self
+            .packages
+            .iter()
+            .filter(|selector| !github_actions::is_selector(selector))
+            .cloned()
+            .collect::<Vec<_>>();
+        // An empty package manifest does not require a lockfile, but workflow
+        // actions still need to be inspected.
         let has_any_dependency = manifest
             .dependencies([DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional])
             .next()
             .is_some();
-        if !has_any_dependency {
-            return Ok(OutdatedOutcome::UpToDate);
-        }
-
-        if lockfile.is_none() {
-            let dir = manifest.path().parent().unwrap_or_else(|| manifest.path()).display();
-            return Err(miette::miette!(
-                code = "ERR_PNPM_OUTDATED_NO_LOCKFILE",
-                r#"No lockfile in directory "{dir}". Run `pnpm install` to generate one."#
-            ));
+        let check_packages =
+            has_any_dependency && (self.packages.is_empty() || !package_patterns.is_empty());
+        if check_packages && lockfile.is_none() {
+            let dir = manifest.path().parent().unwrap_or_else(|| manifest.path());
+            return Err(no_lockfile_error(dir));
         }
 
         let include = self.dependency_options.include();
         let target_version =
             if self.compatible { TargetVersion::WithinRange } else { TargetVersion::Latest };
-        let matcher = (!self.packages.is_empty()).then(|| create_matcher(&self.packages));
+        let package_matcher =
+            (!package_patterns.is_empty()).then(|| create_matcher(&package_patterns));
+        let action_matcher = github_actions::selector_matcher(&self.packages);
 
         let query = OutdatedQuery {
             target_version,
             include_direct: &include,
-            match_names: matcher.as_ref(),
+            match_names: package_matcher.as_ref(),
             include_deprecated: true,
         };
-        let mut outdated = collect_outdated_for_importer(
-            manifest,
-            lockfile,
-            &importer_id,
-            config,
-            http_client,
-            &query,
-        )
-        .await?;
+        let mut outdated = if check_packages {
+            collect_outdated_for_importer(
+                manifest,
+                lockfile,
+                &importer_id,
+                config,
+                http_client,
+                &query,
+            )
+            .await?
+        } else {
+            Vec::new()
+        };
+        if include.contains(&DependencyGroup::Dev)
+            && config.update_config.github_actions != Some(false)
+        {
+            let actions = github_actions::find_outdated::<Reporter>(
+                root,
+                self.compatible,
+                action_matcher.as_ref(),
+                config.update_config.github_actions_server.as_deref(),
+            )
+            .await?;
+            outdated.extend(actions.into_iter().map(OutdatedPackage::from));
+        }
 
         sort_outdated(&mut outdated, self.sort_by);
 
@@ -379,9 +505,149 @@ impl OutdatedArgs {
             OutdatedFormat::Json => render_json(&outdated, self.long),
         };
 
-        let mut stdout = std::io::stdout();
-        let _ = writeln!(stdout, "{output}");
-        let _ = stdout.flush();
+        write_output(&output)?;
+
+        Ok(if outdated.is_empty() { OutdatedOutcome::UpToDate } else { OutdatedOutcome::Outdated })
+    }
+
+    async fn run_recursive<Reporter: self::Reporter>(
+        self,
+        state: State,
+    ) -> miette::Result<OutdatedOutcome> {
+        let config = state.config;
+        let workspace_root =
+            config.workspace_dir.clone().unwrap_or_else(|| state.lockfile_dir().to_path_buf());
+        let (projects, _) = discover_workspace_projects(&workspace_root)?;
+        let prefix = state.manifest.path().parent().unwrap_or_else(|| state.manifest.path());
+        let selection =
+            select_recursive_projects(&projects, config, prefix, AutoExcludeRoot::Disabled)?;
+        let include = self.dependency_options.include();
+        let target_version =
+            if self.compatible { TargetVersion::WithinRange } else { TargetVersion::Latest };
+        let matcher = (!self.packages.is_empty()).then(|| create_matcher(&self.packages));
+        let query = OutdatedQuery {
+            target_version,
+            include_direct: &include,
+            match_names: matcher.as_ref(),
+            include_deprecated: true,
+        };
+
+        let shared_lockfile = if config.shared_workspace_lockfile {
+            state
+                .lockfile
+                .get()
+                .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?
+        } else {
+            None
+        };
+        let mut project_inputs = Vec::new();
+        for (project_dir, node) in &selection.selected {
+            let project = node.package.project;
+            let has_any_dependency = project
+                .manifest
+                .dependencies([
+                    DependencyGroup::Prod,
+                    DependencyGroup::Dev,
+                    DependencyGroup::Optional,
+                ])
+                .next()
+                .is_some();
+            if !has_any_dependency {
+                continue;
+            }
+            let project_lockfile = if config.shared_workspace_lockfile {
+                None
+            } else {
+                Lockfile::load_wanted_from_dir(project_dir).into_diagnostic()?
+            };
+            project_inputs.push((project_dir, project, project_lockfile));
+        }
+        let packument_cache = PackumentCache::default();
+        let project_queries =
+            project_inputs.iter().map(|(project_dir, project, project_lockfile)| async {
+                let (lockfile, importer_id) = if config.shared_workspace_lockfile {
+                    (
+                        shared_lockfile,
+                        pacquet_workspace::importer_id_from_root_dir(&workspace_root, project_dir),
+                    )
+                } else {
+                    (project_lockfile.as_ref(), Lockfile::ROOT_IMPORTER_KEY.to_string())
+                };
+                let Some(lockfile) = lockfile else {
+                    let lockfile_dir = if config.shared_workspace_lockfile {
+                        workspace_root.as_path()
+                    } else {
+                        project_dir.as_path()
+                    };
+                    return Err(no_lockfile_error(lockfile_dir));
+                };
+                let project_outdated = collect_outdated_for_importer_with_cache(
+                    &project.manifest,
+                    Some(lockfile),
+                    &importer_id,
+                    config,
+                    &state.http_client,
+                    &query,
+                    &packument_cache,
+                )
+                .await?;
+                let dependent = DependentProject {
+                    name: project
+                        .manifest
+                        .value()
+                        .get("name")
+                        .and_then(|name| name.as_str())
+                        .map_or_else(|| project_dir.to_string_lossy().into_owned(), str::to_owned),
+                    location: (*project_dir).clone(),
+                };
+                Ok::<_, miette::Report>((project_outdated, dependent))
+            });
+        let project_results = futures_util::future::join_all(project_queries).await;
+        let mut outdated: Vec<OutdatedInWorkspace> = Vec::new();
+        let mut outdated_indexes: HashMap<String, usize> = HashMap::new();
+        for result in project_results {
+            let (project_outdated, dependent) = result?;
+            for package in project_outdated {
+                let dependency_type: &'static str = package.belongs_to.into();
+                let key =
+                    format!("{}\0{}\0{}", package.package_name, package.current, dependency_type);
+                if let Some(&index) = outdated_indexes.get(&key) {
+                    outdated[index].dependents.push(dependent.clone());
+                } else {
+                    outdated_indexes.insert(key, outdated.len());
+                    outdated
+                        .push(OutdatedInWorkspace { package, dependents: vec![dependent.clone()] });
+                }
+            }
+        }
+
+        if include.contains(&DependencyGroup::Dev)
+            && config.update_config.github_actions != Some(false)
+        {
+            let action_matcher = github_actions::selector_matcher(&self.packages);
+            let actions = github_actions::find_outdated::<Reporter>(
+                &workspace_root,
+                self.compatible,
+                action_matcher.as_ref(),
+                config.update_config.github_actions_server.as_deref(),
+            )
+            .await?;
+            outdated.extend(actions.into_iter().map(|action| OutdatedInWorkspace {
+                package: OutdatedPackage::from(action),
+                dependents: vec![DependentProject {
+                    name: ".github".to_string(),
+                    location: workspace_root.clone(),
+                }],
+            }));
+        }
+
+        sort_workspace_outdated(&mut outdated);
+        let output = match self.resolve_format() {
+            OutdatedFormat::Table => render_recursive_table(&outdated, self.long),
+            OutdatedFormat::List => render_recursive_list(&outdated, self.long),
+            OutdatedFormat::Json => render_recursive_json(&outdated, self.long),
+        };
+        write_output(&output)?;
 
         Ok(if outdated.is_empty() { OutdatedOutcome::UpToDate } else { OutdatedOutcome::Outdated })
     }
@@ -444,9 +710,7 @@ impl OutdatedArgs {
             OutdatedFormat::Json => render_json(&outdated, self.long),
         };
 
-        let mut stdout = std::io::stdout();
-        let _ = writeln!(stdout, "{output}");
-        let _ = stdout.flush();
+        write_output(&output)?;
 
         Ok(if outdated.is_empty() { OutdatedOutcome::UpToDate } else { OutdatedOutcome::Outdated })
     }
@@ -464,6 +728,20 @@ impl OutdatedArgs {
             self.format
         }
     }
+}
+
+fn no_lockfile_error(dir: &std::path::Path) -> miette::Report {
+    let dir = dir.display();
+    miette::miette!(
+        code = "ERR_PNPM_OUTDATED_NO_LOCKFILE",
+        r#"No lockfile in directory "{dir}". Run `pnpm install` to generate one."#,
+    )
+}
+
+fn write_output(output: &str) -> miette::Result<()> {
+    let mut stdout = std::io::stdout();
+    writeln!(stdout, "{output}").into_diagnostic()?;
+    stdout.flush().into_diagnostic()
 }
 
 /// The kind of semver bump from `current` to `target`. Drives the default
@@ -504,18 +782,40 @@ fn change_priority(change: Change) -> u8 {
 }
 
 fn sort_outdated(outdated: &mut [OutdatedPackage], sort_by: Option<SortBy>) {
-    match sort_by {
-        Some(SortBy::Name) => {
-            outdated.sort_by(|left, right| left.package_name.cmp(&right.package_name));
-        }
-        None => outdated.sort_by(|left, right| {
-            let by_change = change_priority(classify(&left.current, &left.target))
-                .cmp(&change_priority(classify(&right.current, &right.target)));
-            by_change
-                .then_with(|| left.package_name.cmp(&right.package_name))
-                .then_with(|| left.current.to_string().cmp(&right.current.to_string()))
-        }),
+    outdated.sort_by(|left, right| compare_outdated(left, right, sort_by));
+}
+
+fn sort_workspace_outdated(outdated: &mut [OutdatedInWorkspace]) {
+    outdated.sort_by(|left, right| {
+        compare_outdated(&left.package, &right.package, None).then_with(|| {
+            dependency_group_priority(left.package.belongs_to)
+                .cmp(&dependency_group_priority(right.package.belongs_to))
+        })
+    });
+}
+
+fn dependency_group_priority(group: DependencyGroup) -> u8 {
+    match group {
+        DependencyGroup::Optional => 0,
+        DependencyGroup::Prod => 1,
+        DependencyGroup::Dev => 2,
+        DependencyGroup::Peer => 3,
     }
+}
+
+fn compare_outdated(
+    left: &OutdatedPackage,
+    right: &OutdatedPackage,
+    sort_by: Option<SortBy>,
+) -> std::cmp::Ordering {
+    if sort_by == Some(SortBy::Name) {
+        return left.package_name.cmp(&right.package_name);
+    }
+    let by_change = change_priority(classify(&left.current, &left.target))
+        .cmp(&change_priority(classify(&right.current, &right.target)));
+    by_change
+        .then_with(|| left.package_name.cmp(&right.package_name))
+        .then_with(|| left.current.to_string().cmp(&right.current.to_string()))
 }
 
 fn render_table(outdated: &[OutdatedPackage], long: bool) -> String {
@@ -572,11 +872,12 @@ fn render_list(outdated: &[OutdatedPackage], long: bool) -> String {
 fn render_json(outdated: &[OutdatedPackage], long: bool) -> String {
     let mut map = serde_json::Map::new();
     for pkg in outdated {
-        let dependency_type: &'static str = pkg.belongs_to.into();
+        let dependency_type: &'static str =
+            if pkg.github_action { "githubAction" } else { pkg.belongs_to.into() };
         let mut entry = serde_json::json!({
             "current": pkg.current.to_string(),
             "latest": pkg.target.to_string(),
-            "wanted": pkg.current.to_string(),
+            "wanted": pkg.wanted.to_string(),
             "isDeprecated": pkg.deprecated.is_some(),
             "dependencyType": dependency_type,
         });
@@ -594,7 +895,112 @@ fn render_json(outdated: &[OutdatedPackage], long: bool) -> String {
         .expect("serialize outdated report to JSON")
 }
 
+fn render_recursive_table(outdated: &[OutdatedInWorkspace], long: bool) -> String {
+    if outdated.is_empty() {
+        return String::new();
+    }
+    use tabled::builder::Builder;
+    use tabled::settings::Style;
+
+    let mut header: Vec<String> = ["Package", "Current", "Latest", "Dependents"]
+        .iter()
+        .map(|heading| bright_blue(heading))
+        .collect();
+    if long {
+        header.push(bright_blue("Details"));
+    }
+    let mut builder = Builder::default();
+    builder.push_record(header);
+    for entry in outdated {
+        let mut row = vec![
+            render_package_name(&entry.package),
+            entry.package.current.to_string(),
+            render_latest(&entry.package),
+            render_dependents(entry),
+        ];
+        if long {
+            row.push(render_details(&entry.package));
+        }
+        builder.push_record(row);
+    }
+    let mut table = builder.build();
+    table.with(Style::modern());
+    table.to_string()
+}
+
+fn render_recursive_list(outdated: &[OutdatedInWorkspace], long: bool) -> String {
+    outdated
+        .iter()
+        .map(|entry| {
+            let package = &entry.package;
+            let label = if entry.dependents.len() == 1 { "Dependent:" } else { "Dependents:" };
+            let mut info = format!(
+                "{}\n{} {} {}\n{} {}",
+                bold(&render_package_name(package)),
+                package.current,
+                grey("=>"),
+                render_latest(package),
+                bold(label),
+                render_dependents(entry),
+            );
+            if long {
+                let details = render_details(package);
+                if !details.is_empty() {
+                    info.push('\n');
+                    info.push_str(&details);
+                }
+            }
+            info
+        })
+        .collect::<Vec<_>>()
+        .join("\n\n")
+}
+
+fn render_recursive_json(outdated: &[OutdatedInWorkspace], long: bool) -> String {
+    let mut map = serde_json::Map::new();
+    for entry in outdated {
+        let package = &entry.package;
+        let dependency_type: &'static str =
+            if package.github_action { "githubAction" } else { package.belongs_to.into() };
+        let mut value = serde_json::json!({
+            "current": package.current.to_string(),
+            "latest": package.target.to_string(),
+            "wanted": package.current.to_string(),
+            "isDeprecated": package.deprecated.is_some(),
+            "dependencyType": dependency_type,
+            "dependentPackages": entry.dependents.iter().map(|dependent| serde_json::json!({
+                "name": dependent.name,
+                "location": dependent.location.to_string_lossy(),
+            })).collect::<Vec<_>>(),
+        });
+        if long {
+            value["latestManifest"] = serde_json::json!({
+                "name": package.package_name,
+                "version": package.target.to_string(),
+                "deprecated": package.deprecated,
+                "homepage": package.homepage,
+            });
+        }
+        map.insert(package.package_name.clone(), value);
+    }
+    serde_json::to_string_pretty(&serde_json::Value::Object(map))
+        .expect("serialize recursive outdated report to JSON")
+}
+
+fn render_dependents(entry: &OutdatedInWorkspace) -> String {
+    let mut names: Vec<String> = entry
+        .dependents
+        .iter()
+        .map(|dependent| sanitize_inline(&dependent.name).into_owned())
+        .collect();
+    names.sort_unstable();
+    names.join(", ")
+}
+
 fn render_package_name(pkg: &OutdatedPackage) -> String {
+    if pkg.github_action {
+        return format!("{} {}", pkg.package_name, dimmed("(github action)"));
+    }
     match pkg.belongs_to {
         DependencyGroup::Dev => format!("{} {}", pkg.package_name, dimmed("(dev)")),
         DependencyGroup::Optional => format!("{} {}", pkg.package_name, dimmed("(optional)")),

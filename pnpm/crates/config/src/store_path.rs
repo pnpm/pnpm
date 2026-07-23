@@ -171,7 +171,7 @@ pub(crate) fn host_can_link_between_dirs(from_dir: &Path, to_dir: &Path) -> bool
 }
 
 /// Generate a unique temp-path inside `folder`. Mirrors
-/// [`pathTemp`](https://github.com/zkochan/packages/blob/main/path-temp/index.js):
+/// [`pathTemp`](https://github.com/zkochan/packages/blob/e65701a6ae/path-temp/index.js):
 /// `<folder>/_tmp_<pid>_<random>`. Collisions across racing pacquet
 /// processes are avoided by encoding both the pid and a nanosecond
 /// reading, which is sufficient because each callsite uses the path

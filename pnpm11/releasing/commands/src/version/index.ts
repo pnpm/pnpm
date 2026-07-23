@@ -22,6 +22,7 @@ import { inc, valid } from 'semver'
 
 import { renderReleasePlan, toWorkspaceProjects } from '../change/index.js'
 import { changelogHasSection, fetchPublishedChangelog } from '../publish/previousChangelog.js'
+import { type CheckVersionPublished, resolveUnpublishedDirs } from '../resolveUnpublishedDirs.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
@@ -59,7 +60,7 @@ export function help (): string {
     description: 'Bumps the version of a package.',
     usages: [
       'pnpm version <newversion>',
-      'pnpm version <major|minor|patch|premajor|preminor|prepatch|prerelease>',
+      'pnpm version <major|minor|patch|premajor|preminor|prepatch|prerelease|from-git>',
       'pnpm version -r [--dry-run]',
     ],
     descriptionLists: [
@@ -131,6 +132,7 @@ interface VersionChange {
 interface VersionHandlerOptions extends Config {
   allProjects?: Project[]
   allowSameVersion?: boolean
+  checkVersionPublished?: CheckVersionPublished
   commitHooks?: boolean
   dryRun?: boolean
   gitChecks?: boolean
@@ -154,15 +156,16 @@ export async function handler (
     if (opts.recursive) {
       return releaseFromIntents(opts)
     }
-    throw new PnpmError('INVALID_VERSION_BUMP', 'A version argument is required. Must be a valid semver version (e.g. 1.2.3) or one of: major, minor, patch, premajor, preminor, prepatch, prerelease')
-  }
-
-  const explicitVersion = valid(rawBump)
-  if (!explicitVersion && !isBumpType(rawBump)) {
-    throw new PnpmError('INVALID_VERSION_BUMP', `Invalid version argument: ${rawBump}. Must be a valid semver version (e.g. 1.2.3) or one of: major, minor, patch, premajor, preminor, prepatch, prerelease`)
+    throw new PnpmError('INVALID_VERSION_BUMP', 'A version argument is required. Must be a valid semver version (e.g. 1.2.3) or one of: major, minor, patch, premajor, preminor, prepatch, prerelease, from-git')
   }
 
   const gitCwd = opts.workspaceDir ?? opts.dir
+  const explicitVersion = rawBump === 'from-git'
+    ? await versionFromGit(gitCwd, opts.tagVersionPrefix)
+    : valid(rawBump)
+  if (!explicitVersion && !isBumpType(rawBump)) {
+    throw new PnpmError('INVALID_VERSION_BUMP', `Invalid version argument: ${rawBump}. Must be a valid semver version (e.g. 1.2.3) or one of: major, minor, patch, premajor, preminor, prepatch, prerelease, from-git`)
+  }
 
   if (opts.gitChecks !== false && await isGitRepo({ cwd: gitCwd })) {
     if (!await isWorkingTreeClean({ cwd: gitCwd })) {
@@ -233,7 +236,7 @@ async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string>
     ? new Set(Object.keys(opts.selectedProjectsGraph ?? {}).map((rootDir) => toProjectDir(workspaceDir, rootDir)))
     : undefined
 
-  const plan = assembleReleasePlan({
+  const baseArgs = {
     workspaceDir,
     projects,
     intents,
@@ -241,7 +244,9 @@ async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string>
     versioning: opts.versioning,
     filter,
     enforceWorkspaceProtocol: true,
-  })
+  }
+  const unpublishedDirs = await resolveUnpublishedDirs(assembleReleasePlan(baseArgs), opts)
+  const plan = assembleReleasePlan({ ...baseArgs, unpublishedDirs })
 
   const applyOpts: ApplyReleasePlanOptions = {
     workspaceDir,
@@ -297,6 +302,28 @@ function buildVerifyPublished (opts: VersionHandlerOptions): ApplyReleasePlanOpt
       return false
     }
   }
+}
+
+function invalidVersionFromGitError (cwd: string, tagVersionPrefix: string, reason: string): PnpmError {
+  return new PnpmError('INVALID_VERSION_FROM_GIT', `Could not determine a valid version from Git in ${JSON.stringify(cwd)} using tag prefix ${JSON.stringify(tagVersionPrefix)}: ${reason}`)
+}
+
+async function versionFromGit (cwd: string, tagVersionPrefix = 'v'): Promise<string> {
+  const { stdout } = await execa('git', ['describe', '--tags', '--abbrev=0', '--always', '--match=' + tagVersionPrefix + '*.*.*'], { cwd })
+  const tag = typeof stdout === 'string' ? stdout.trim() : ''
+  const { stdout: matchingTag } = await execa('git', ['tag', '--list', '--', tag], { cwd })
+
+  if (typeof matchingTag !== 'string' || matchingTag.trim() !== tag) {
+    throw invalidVersionFromGitError(cwd, tagVersionPrefix, 'no matching Git tag found')
+  }
+
+  const version = tag.startsWith(tagVersionPrefix)
+    ? valid(tag.slice(tagVersionPrefix.length))
+    : null
+  if (!version) {
+    throw invalidVersionFromGitError(cwd, tagVersionPrefix, 'tag is not a valid version: ' + JSON.stringify(tag))
+  }
+  return version
 }
 
 async function bumpPackageVersion (

@@ -15,7 +15,10 @@ use pacquet_package_manifest::PackageManifest;
 use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use pacquet_resolving_resolver_base::get_peer_version_range;
 
-use crate::cli_args::sanitize::sanitize;
+use crate::cli_args::{
+    recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects},
+    sanitize::sanitize,
+};
 
 #[derive(Debug, Default, Clone, Serialize)]
 struct ParentPkg {
@@ -79,7 +82,22 @@ impl PeersArgs {
         dir: &std::path::Path,
         recursive: bool,
     ) -> miette::Result<PeersOutcome> {
-        let lockfile_dir = config.workspace_dir.as_deref().unwrap_or(dir);
+        let lockfile_dir = if config.shared_workspace_lockfile {
+            config.workspace_dir.as_deref().unwrap_or(dir)
+        } else {
+            dir
+        };
+        let project_dirs = if recursive {
+            let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
+            let (projects, _) = discover_workspace_projects(workspace_root)?;
+            select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?
+                .selected
+                .keys()
+                .cloned()
+                .collect()
+        } else {
+            vec![dir.to_path_buf()]
+        };
 
         let lockfile = if self.lockfile_only {
             Lockfile::load_wanted_from_dir(lockfile_dir)
@@ -98,7 +116,7 @@ impl PeersArgs {
         // path (`{}` for `--json`, "No peer dependency issues found" otherwise).
         let issues = match &lockfile {
             Some(lockfile) => {
-                check_peer_dependencies_from_lockfile(lockfile, lockfile_dir, dir, recursive)
+                check_peer_dependencies_from_lockfile(lockfile, lockfile_dir, &project_dirs)
             }
             None => IssuesByProjects::new(),
         };
@@ -125,20 +143,20 @@ impl PeersArgs {
 fn check_peer_dependencies_from_lockfile(
     lockfile: &Lockfile,
     lockfile_dir: &std::path::Path,
-    dir: &std::path::Path,
-    recursive: bool,
+    project_dirs: &[std::path::PathBuf],
 ) -> IssuesByProjects {
     let empty_packages = HashMap::new();
     let empty_snapshots = HashMap::new();
     let packages = lockfile.packages.as_ref().unwrap_or(&empty_packages);
     let snapshots = lockfile.snapshots.as_ref().unwrap_or(&empty_snapshots);
 
-    let mut importer_ids: Vec<String> = if recursive {
-        lockfile.importers.keys().cloned().collect()
-    } else {
-        vec![resolve_importer_id(lockfile_dir, dir)]
-    };
+    let mut importer_ids: Vec<String> = project_dirs
+        .iter()
+        .map(|project_dir| pacquet_workspace::importer_id_from_root_dir(lockfile_dir, project_dir))
+        .filter(|importer_id| lockfile.importers.contains_key(importer_id))
+        .collect();
     importer_ids.sort();
+    importer_ids.dedup();
 
     let mut result: IssuesByProjects = BTreeMap::new();
     // Shared across importers so each package is evaluated once, matching
@@ -183,18 +201,6 @@ fn check_peer_dependencies_from_lockfile(
     }
 
     result
-}
-
-fn resolve_importer_id(lockfile_dir: &std::path::Path, dir: &std::path::Path) -> String {
-    if dir == lockfile_dir {
-        Lockfile::ROOT_IMPORTER_KEY.to_string()
-    } else {
-        dir.strip_prefix(lockfile_dir)
-            .ok()
-            .map(|rel| rel.to_string_lossy().replace('\\', "/"))
-            .filter(|id| !id.is_empty())
-            .unwrap_or_else(|| Lockfile::ROOT_IMPORTER_KEY.to_string())
-    }
 }
 
 fn path_is_within(path: &std::path::Path, base: &std::path::Path) -> bool {
@@ -361,7 +367,10 @@ fn collect_initial_keys(
                 if !path_is_within(&linked_importer_path, lockfile_dir) {
                     continue;
                 }
-                let linked_importer_id = resolve_importer_id(lockfile_dir, &linked_importer_path);
+                let linked_importer_id = pacquet_workspace::importer_id_from_root_dir(
+                    lockfile_dir,
+                    &linked_importer_path,
+                );
                 collect_initial_keys(
                     &linked_importer_id,
                     lockfile,

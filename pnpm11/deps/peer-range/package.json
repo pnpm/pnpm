@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.peer-range",
-  "version": "1100.1.0",
+  "version": "1100.1.1",
   "description": "Validates peer ranges",
   "keywords": [
     "pnpm",

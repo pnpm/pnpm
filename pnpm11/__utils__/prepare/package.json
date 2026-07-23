@@ -1,9 +1,12 @@
 {
   "name": "@pnpm/prepare",
-  "version": "1100.0.20",
+  "version": "1100.0.22",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "type": "module",
+  "files": [
+    "lib/"
+  ],
   "dependencies": {
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/prepare-temp-dir": "workspace:*",

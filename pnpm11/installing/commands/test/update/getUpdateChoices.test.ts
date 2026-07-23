@@ -177,3 +177,23 @@ test('getUpdateChoices() handles long version strings without wrapping', () => {
   // when chalk has colors enabled.
   expect(stripVTControlCharacters(dataRow.message)).toContain('7.0.0-dev.20251214.1')
 })
+
+test('getUpdateChoices() groups GitHub Actions separately', () => {
+  const choices = getUpdateChoices([{
+    alias: 'actions/checkout',
+    belongsTo: 'devDependencies',
+    current: '4.1.0',
+    dependencyType: 'githubAction',
+    latestManifest: {
+      name: 'actions/checkout',
+      version: '4.2.2',
+      homepage: 'https://github.com/actions/checkout',
+    },
+    packageName: 'actions/checkout',
+    wanted: '4.2.2',
+  }], false)
+
+  expect(choices).toHaveLength(1)
+  expect(choices[0].message).toBe('GitHub Actions')
+  expect(choices[0].choices[1]).toMatchObject({ name: 'actions/checkout', value: 'actions/checkout' })
+})

@@ -3,7 +3,9 @@ mod cli_args;
 mod config_deps;
 mod config_overrides;
 mod flag_relocation;
+mod github_actions;
 mod job_control;
+mod shorthands;
 mod state;
 mod with_current;
 
@@ -20,6 +22,20 @@ use std::{ffi::OsString, future::Future, path::Path};
 pub fn main() -> miette::Result<()> {
     enable_tracing_by_env();
     set_panic_hook();
+    // The synchronous startup in `run_cli` — building the negation-augmented
+    // clap command (a recursive walk over every subcommand), relocating
+    // flags, and parsing argv — has a deep enough call chain to overflow
+    // Windows' 1 MiB default main-thread stack (Linux/macOS default to
+    // 8 MiB). `block_on_runtime` already moves the command body onto a
+    // roomy thread; run the parsing startup that precedes it on one too so
+    // the whole path has uniform headroom.
+    run_on_big_stack(run_cli)
+}
+
+/// Build the CLI, parse argv, take any early-return fast path, then execute
+/// the command. Split out of [`main`] so the whole path runs on a
+/// [`MAIN_STACK_SIZE`] thread; see the call site.
+fn run_cli() -> miette::Result<()> {
     // Extract pnpm's `--config.<key>=<value>` tokens before clap sees
     // argv. Clap can't parse a dotted-key flag whose right-hand name is
     // arbitrary, so a `--config.registry=...` from pnpm's forwarded flags
@@ -40,6 +56,10 @@ pub fn main() -> miette::Result<()> {
     // every boolean flag, so pnpm's forwarded negations (`--no-frozen-lockfile`,
     // etc.) parse the same way nopt accepts them upstream. See `boolean_negations`.
     let command = with_boolean_negations(CliArgs::command());
+    // pnpm expands universal shorthands (`--silent` / `-s` →
+    // `--reporter=silent`) over argv before parsing; mirror that so they
+    // work with every command. See `shorthands`.
+    let argv = shorthands::expand_universal_shorthands(&command, argv);
     // pnpm's option parser is position-independent; move subcommand
     // options written before the subcommand to after it so clap agrees.
     // See `flag_relocation`.
@@ -69,6 +89,7 @@ pub fn main() -> miette::Result<()> {
         err.exit();
     }
     args.promote_recursive_for_filter();
+    args.promote_recursive_by_default();
     if let Some(plan) = cli_args::switch_cli_version::switch_plan(&args, &config_overrides)?
         && block_on_runtime(
             "pacquet-switch",
@@ -103,6 +124,26 @@ pub fn main() -> miette::Result<()> {
 /// the 8 MiB Linux/macOS default so the deep install call chain has the
 /// same room on every platform, including Windows (1 MiB default).
 const MAIN_STACK_SIZE: usize = 32 * 1024 * 1024;
+
+/// Run a synchronous closure on a fresh [`MAIN_STACK_SIZE`] thread and
+/// return its result, re-raising any panic on the caller. Gives the CLI
+/// startup the same stack headroom [`block_on_runtime`] gives the command,
+/// without a tokio runtime (so it can wrap code that later builds one).
+fn run_on_big_stack<Work, Output>(work: Work) -> Output
+where
+    Work: FnOnce() -> Output + Send,
+    Output: Send,
+{
+    std::thread::scope(|scope| {
+        std::thread::Builder::new()
+            .name("pacquet-startup".to_string())
+            .stack_size(MAIN_STACK_SIZE)
+            .spawn_scoped(scope, work)
+            .expect("spawn the pacquet startup thread")
+            .join()
+            .unwrap_or_else(|payload| std::panic::resume_unwind(payload))
+    })
+}
 
 fn block_on_runtime<Work, Output>(thread_name: &str, work: Work) -> Output
 where

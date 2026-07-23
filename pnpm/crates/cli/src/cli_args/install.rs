@@ -48,7 +48,7 @@ impl NodeLinkerArg {
     }
 }
 
-#[derive(Debug, Args)]
+#[derive(Debug, Clone, Args)]
 pub struct InstallDependencyOptions {
     /// Install only production dependencies. devDependencies are skipped,
     /// and removed if already installed. Takes precedence over `NODE_ENV`.
@@ -79,7 +79,7 @@ impl InstallDependencyOptions {
     }
 }
 
-#[derive(Debug, Args)]
+#[derive(Debug, Clone, Args)]
 pub struct InstallArgs {
     #[clap(flatten)]
     pub dependency_options: InstallDependencyOptions,
@@ -101,6 +101,13 @@ pub struct InstallArgs {
     /// Show what an install would change without writing anything to disk.
     #[clap(long = "dry-run")]
     pub dry_run: bool,
+
+    /// Reinstall every package the lockfile names: relink packages an
+    /// earlier install already materialized, and install optional
+    /// dependencies whose `cpu` / `os` / `libc` / `engines` don't match
+    /// the host instead of skipping them.
+    #[clap(long)]
+    pub force: bool,
 
     /// Prefer the existing lockfile over re-resolving, even when the
     /// manifest may have changed.
@@ -217,7 +224,13 @@ pub(crate) fn resolve_bool_override(force_on: bool, force_off: bool, config: boo
 }
 
 impl InstallArgs {
-    pub(crate) fn for_patch_manifest_change() -> Self {
+    /// The install args for a reinstall triggered by an out-of-band change to
+    /// the install inputs: `patch-commit` / `patch-remove` (which rewrite the
+    /// manifest's `patchedDependencies`) and `unlink` (which removes `link:`
+    /// overrides from `pnpm-workspace.yaml`). Forces a fresh resolution
+    /// (`preferFrozenLockfile: false`, via `no_prefer_frozen_lockfile`) so the
+    /// changed inputs re-resolve rather than reusing the stale lockfile.
+    pub(crate) fn for_reresolving_install() -> Self {
         Self {
             dependency_options: InstallDependencyOptions {
                 prod: false,
@@ -228,6 +241,7 @@ impl InstallArgs {
             frozen_lockfile: false,
             lockfile_only: false,
             dry_run: false,
+            force: false,
             prefer_frozen_lockfile: false,
             no_prefer_frozen_lockfile: true,
             ignore_manifest_check: false,
@@ -275,10 +289,17 @@ impl InstallArgs {
         config: &pacquet_config::Config,
         emit: fn(&pacquet_reporter::LogEvent),
     ) -> bool {
-        if self.frozen_lockfile || self.lockfile_only || self.pnpr_server.is_some() {
+        if self.frozen_lockfile || self.lockfile_only || self.force || self.pnpr_server.is_some() {
             return false;
         }
         if config.pnpr_server.is_some() {
+            return false;
+        }
+        // Dedicated per-project lockfiles run one install per workspace
+        // project; a single-dir up-to-date probe can't speak for the
+        // sibling projects, so the loop (whose per-project engine runs
+        // each have their own optimistic short-circuit) must always run.
+        if !config.shared_workspace_lockfile && config.workspace_dir.is_some() {
             return false;
         }
         if config.config_dependencies.as_ref().is_some_and(|deps| !deps.is_empty()) {
@@ -346,6 +367,9 @@ impl InstallArgs {
             frozen_lockfile,
             lockfile_only,
             dry_run,
+            // Resolved against config by `apply_install_cli_config` in
+            // the dispatch, like `ignore_scripts` below.
+            force: _,
             prefer_frozen_lockfile,
             no_prefer_frozen_lockfile,
             ignore_manifest_check,

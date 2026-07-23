@@ -69,7 +69,7 @@ Frozen/headless install coverage:
 - [x] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:74` `skip optional dependency that does not support the current OS` verifies `skipped` survives frozen reinstall — ported as `skip_optional_dependency_that_does_not_support_the_current_os` in `crates/cli/tests/optional_dependencies.rs`.
 - [x] `TypeScript repo: installing/deps-installer/test/lockfile.ts:614` `pendingBuilds gets updated if install removes packages` verifies `.modules.yaml.pendingBuilds` is rewritten after pruning — ported as `pending_builds::removing_a_package_shrinks_the_list` in `crates/cli/tests/lifecycle_scripts.rs`.
 - [x] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:205` `GVS re-links when allowBuilds changes` verifies GVS-related `allowBuilds` state is updated in `.modules.yaml` — ported as `gvs_relinks_when_allow_builds_changes` in `crates/cli/tests/global_virtual_store.rs`, which also drove populating `Modules::allow_builds` (previously always unset). Adjacent non-GVS coverage is `rebuild_after_allow_builds_changes` in `crates/cli/tests/lifecycle_scripts.rs`.
-- [ ] `TypeScript repo: pnpm/test/monorepo/index.ts:1467` `custom virtual store directory in a workspace with not shared lockfile` verifies frozen reinstall preserves custom `virtualStoreDir` serialization — stubbed in `known_failures::custom_virtual_store_directory_with_dedicated_lockfiles` (`crates/cli/tests/multiple_importers.rs`; needs `sharedWorkspaceLockfile: false`).
+- [x] `TypeScript repo: pnpm/test/monorepo/index.ts:1467` `custom virtual store directory in a workspace with not shared lockfile` verifies frozen reinstall preserves custom `virtualStoreDir` serialization — ported as `custom_virtual_store_directory_with_dedicated_lockfiles` (`crates/cli/tests/multiple_importers.rs`; `sharedWorkspaceLockfile: false` landed).
 - [x] `TypeScript repo: pnpm/test/monorepo/index.ts:1514` `custom virtual store directory in a workspace with shared lockfile` verifies frozen reinstall preserves root `virtualStoreDir` serialization — ported as `custom_virtual_store_directory_in_a_workspace_with_shared_lockfile` in `crates/cli/tests/multiple_importers.rs`.
 
 Rust port notes:
@@ -83,7 +83,7 @@ Rust port notes:
 Primary frozen/headless tests:
 
 - [x] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:74` `skip optional dependency that does not support the current OS` removes `node_modules`, reinstalls with `frozenLockfile: true`, and verifies skipped packages remain skipped — ported as `skip_optional_dependency_that_does_not_support_the_current_os` in `crates/cli/tests/optional_dependencies.rs`.
-- [x] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:283` `optional subdependency is skipped` includes forced headless install with `force: true, frozenLockfile: true` and verifies incompatible optional subdependency handling — ported as `optional_subdependency_is_skipped` in `crates/cli/tests/optional_dependencies.rs`; the forced-headless tail is a `known_failures` stub until `install --force` exists on the CLI (pnpm/pnpm#13142).
+- [x] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:283` `optional subdependency is skipped` includes forced headless install with `force: true, frozenLockfile: true` and verifies incompatible optional subdependency handling — ported as `optional_subdependency_is_skipped` in `crates/cli/tests/optional_dependencies.rs`; the forced-headless tail is `forced_frozen_install_materializes_incompatible_optionals` in the same file.
 - [x] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:359` `only that package is skipped which is an optional dependency only and not installable` removes `node_modules`, reinstalls frozen, and guards optional/non-optional overlap — ported as `only_optional_only_and_not_installable_package_is_skipped` in `crates/cli/tests/optional_dependencies.rs`.
 - [x] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:594` `install optional dependency for the supported architecture set by the user (nodeLinker=%s)` includes `nodeLinker` variants and frozen reinstall — ported as `install_optional_dependency_for_the_supported_architectures` in `crates/cli/tests/optional_dependencies.rs` (both linkers in one test; isolated-variant resolution is asserted through the `.pnpm/node_modules` fallback, matching upstream's `deepRequireCwd`).
 - [x] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:665` `optional dependency is hardlinked to the store if it does not require a build` includes frozen reinstall and import-method parity — ported (Unix) as `optional_dependency_is_hardlinked_to_the_store_if_it_does_not_require_a_build` in `crates/cli/tests/optional_dependencies.rs`, asserting the on-disk inode sharing instead of the `pnpm:progress` emission.
@@ -100,7 +100,7 @@ Supporting tests:
 - [x] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:45` `skip non-existing optional dependency` — ported as `skip_non_existing_optional_dependency` in `crates/cli/tests/optional_dependencies.rs`.
 - [x] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:143` `skip optional dependency that does not support the current Node version` — ported as `skip_optional_dependency_that_does_not_support_the_current_node_version` in `crates/cli/tests/optional_dependencies.rs`.
 - [x] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:169` `do not skip optional dependency that does not support the current pnpm version` — ported as `do_not_skip_optional_dependency_that_does_not_support_the_current_pnpm_version` in `crates/cli/tests/optional_dependencies.rs`.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:199` `don't skip optional dependency that does not support the current OS when forcing` — `known_failures` stub in `crates/cli/tests/optional_dependencies.rs` until `install --force` exists on the CLI (pnpm/pnpm#13142).
+- [x] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:199` `don't skip optional dependency that does not support the current OS when forcing` — ported as `do_not_skip_unsupported_os_optional_dependency_when_forcing` in `crates/cli/tests/optional_dependencies.rs` (`install --force` landed, pnpm/pnpm#13142).
 - [x] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:213` `optional subdependency is not removed from current lockfile when new dependency added` — ported as `optional_subdependency_stays_in_current_lockfile_when_new_dependency_added` in `crates/cli/tests/optional_dependencies.rs`.
 - [x] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:344` `optional subdependency of newly added optional dependency is skipped` — ported as `optional_subdependency_of_newly_added_optional_dependency_is_skipped` in `crates/cli/tests/optional_dependencies.rs`.
 - [x] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:391` `not installing optional dependencies when optional is false` — ported as `not_installing_optional_dependencies_when_optional_is_false` in `crates/cli/tests/optional_dependencies.rs`.
@@ -167,8 +167,8 @@ Primary tests:
 - [x] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:567` `the hoisted packages should not override the bin files of the direct dependencies` covers public hoist bin precedence after frozen reinstall. Ported as `hoisted_packages_dont_override_direct_dep_bins` in `crates/cli/tests/hoist.rs`.
 - [x] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:587` `hoist packages which is in the dependencies tree of the selected projects`. Ported as the real `workspace_hoist_packages_in_selected_projects_tree` in `crates/cli/tests/hoist.rs` (previously a `known_failures` stub — `--filter` selected-projects installs landed in pnpm/pnpm#13030).
 - [x] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:682` `only hoist packages which is in the dependencies tree of the selected projects with sub dependencies`. Ported as the real `workspace_hoist_only_in_selected_projects_with_subdeps` in `crates/cli/tests/hoist.rs` (the divergent per-parent subdependency pins are produced by repinning the generated lockfile, standing in for upstream's hand-written one).
-- [x] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:790` `should add extra node paths to command shims`. Stubbed in `known_failures::should_add_extra_node_paths_to_command_shims` — `extendNodePath` not implemented.
-- [x] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:799` `should not add extra node paths to command shims, when extend-node-path is set to false`. Stubbed (extendNodePath).
+- [x] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:790` `should add extra node paths to command shims` — ported as `should_add_extra_node_paths_to_command_shims` in `crates/cli/tests/hoist.rs` (`extendNodePath` landed).
+- [x] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:799` `should not add extra node paths to command shims, when extend-node-path is set to false` — ported as `should_not_add_extra_node_paths_when_extend_node_path_false` in `crates/cli/tests/hoist.rs`.
 - [x] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:813` `hoistWorkspacePackages should hoist all workspace projects` covers workspace package hoisting and frozen reinstall. Ported as `hoist_workspace_packages_links_projects_by_name` in `crates/cli/tests/hoist.rs` (loops `hoistWorkspacePackages` on/off, asserts the name-links into `.pnpm/node_modules`, and replays `--frozen-lockfile` after deleting the root `node_modules` to cover the preservation tail).
 
 Headless module-manifest checks:
@@ -195,7 +195,7 @@ The four scenarios below share `assert_patch_install_scenario` in `crates/cli/te
 
 Supporting tests:
 
-- [x] `TypeScript repo: installing/deps-restorer/test/index.ts:848` `installing with no modules directory and a patched dependency` — stubbed in `known_failures::installing_with_no_modules_directory_and_a_patched_dependency`: `enableModulesDir: false` is not a pacquet config setting, tracked in [pnpm/pnpm#12042](https://github.com/pnpm/pnpm/issues/12042) with the other unsupported installation settings. The NAPI binding accepts it and aliases it onto the lockfile-only path (`crates/napi/src/install.rs`), but `pacquet_config::Config` has no `enable_modules_dir` field, so the CLI cannot express it. Unstub once that setting lands.
+- [x] `TypeScript repo: installing/deps-restorer/test/index.ts:848` `installing with no modules directory and a patched dependency` — ported as `installing_with_no_modules_directory_and_a_patched_dependency` in `crates/cli/tests/patch.rs`: `enableModulesDir: false` is now honored from `pnpm-workspace.yaml` (it rides the lockfile-only pipeline in `Install::run`; the NAPI binding keeps its own aliasing in `crates/napi/src/install.rs`).
 - [x] `TypeScript repo: installing/deps-installer/test/install/patch.ts:216` `patch package reports warning if not all patches are applied and allowUnusedPatches is set`
 - [x] `TypeScript repo: installing/deps-installer/test/install/patch.ts:246` `patch package throws an exception if not all patches are applied`
 - [x] `TypeScript repo: installing/deps-installer/test/install/patch.ts:269` `the patched package is updated if the patch is modified` — `install_level_modified_patch_is_reapplied`.
@@ -293,9 +293,9 @@ Headless restorer tests:
 CLI-level frozen workspace tests:
 
 - [x] `TypeScript repo: pnpm/test/monorepo/index.ts:734` `recursive install with shared-workspace-lockfile builds workspace projects in correct order` — ported as `recursive_install_builds_workspace_projects_in_correct_order` in `crates/cli/tests/multiple_importers.rs`.
-- [x] `TypeScript repo: pnpm/test/monorepo/index.ts:1281` `dependencies of workspace projects are built during headless installation` — stubbed in `known_failures::workspace_project_dependencies_built_during_headless_install_with_dedicated_lockfiles` (`crates/cli/tests/multiple_importers.rs`): the upstream fixture requires `sharedWorkspaceLockfile: false`, which pacquet's install family rejects.
+- [x] `TypeScript repo: pnpm/test/monorepo/index.ts:1281` `dependencies of workspace projects are built during headless installation` — ported as `workspace_project_dependencies_built_during_headless_install_with_dedicated_lockfiles` (`crates/cli/tests/multiple_importers.rs`): `sharedWorkspaceLockfile: false` runs one dedicated-lockfile install per project.
 - [x] `TypeScript repo: pnpm/test/monorepo/index.ts:1317` `linking the package's bin to another workspace package in a monorepo` — ported as `links_workspace_package_bin_into_dependent_project` in `crates/cli/tests/multiple_importers.rs`.
-- [x] `TypeScript repo: pnpm/test/monorepo/index.ts:1467` `custom virtual store directory in a workspace with not shared lockfile` — stubbed in `known_failures::custom_virtual_store_directory_with_dedicated_lockfiles` (`crates/cli/tests/multiple_importers.rs`): needs `sharedWorkspaceLockfile: false`.
+- [x] `TypeScript repo: pnpm/test/monorepo/index.ts:1467` `custom virtual store directory in a workspace with not shared lockfile` — ported as `custom_virtual_store_directory_with_dedicated_lockfiles` (`crates/cli/tests/multiple_importers.rs`).
 - [x] `TypeScript repo: pnpm/test/monorepo/index.ts:1514` `custom virtual store directory in a workspace with shared lockfile` — ported as `custom_virtual_store_directory_in_a_workspace_with_shared_lockfile` in `crates/cli/tests/multiple_importers.rs`.
 
 Rust port notes:
@@ -487,7 +487,7 @@ Supporting tests:
 
 - [x] `TypeScript repo: installing/deps-installer/test/install/misc.ts:784` `rewrites node_modules created by npm` is relevant to pre-existing `node_modules`, but not frozen/headless — ported as `rewrites_node_modules_created_by_npm` in `crates/cli/tests/install_state.rs`.
 - [x] `TypeScript repo: installing/deps-restorer/test/index.ts:432` `available packages are used when node_modules is not clean` is headless-restorer behavior around dirty `node_modules` — ported as `available_packages_used_when_node_modules_not_clean` in `crates/cli/tests/repeat_install.rs` (a wiped store pins that on-disk packages are reused, not refetched).
-- [ ] `TypeScript repo: installing/deps-restorer/test/index.ts:469` `available packages are relinked during forced install` covers force-path relinking with existing packages.
+- [x] `TypeScript repo: installing/deps-restorer/test/index.ts:469` `available packages are relinked during forced install` covers force-path relinking with existing packages — ported as `available_packages_are_relinked_during_forced_install` in `crates/cli/tests/repeat_install.rs`.
 - [x] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:63` `reinstall from warm global virtual store after deleting node_modules` repairs project links from a warm GVS — covered by `reinstall_from_warm_global_virtual_store_after_deleting_node_modules`.
 - [x] `TypeScript repo: pnpm/test/install/globalVirtualStore.ts:80` `warm GVS reinstall skips internal linking` is CLI-level existing-`node_modules`/warm-GVS coverage — covered by `reinstall_from_warm_global_virtual_store_after_deleting_node_modules`.
 
@@ -1001,3 +1001,49 @@ Pacquet's port lives in `pacquet-auth-commands` (`login` module) with the CLI ad
 - [x] `TypeScript repo: pnpm11/auth/commands/test/login.test.ts:635` `should not trigger OTP for 401 without www-authenticate otp header` — `login::tests::should_not_trigger_otp_for_401_without_www_authenticate_otp_header`.
 - [x] `TypeScript repo: pnpm11/auth/commands/test/login.test.ts:673` `should succeed when config file does not exist (ENOENT)` — `login::tests::should_succeed_when_config_file_does_not_exist`.
 - [x] `TypeScript repo: pnpm11/auth/commands/test/login.test.ts:711` `should propagate non-ENOENT errors from readIniFile` — `login::tests::should_propagate_non_enoent_errors_from_reading_auth_ini`.
+
+## `pnpm list` / `pnpm why` (deps/inspection)
+
+The `list`/`why` parity port. TypeScript sources live under
+`pnpm11/deps/inspection/{commands,list,tree-builder}` plus the CLI-level
+`pnpm11/pnpm/test/list.ts`.
+
+CLI-level ports (`crates/cli/tests/list.rs`, `crates/cli/tests/why.rs`):
+
+- [x] `TypeScript repo: deps/inspection/commands/test/listing/index.ts:14` `listing packages` — `listing_packages_prints_tree_with_legend_and_summary`.
+- [x] `TypeScript repo: deps/inspection/commands/test/listing/index.ts:82` `listing packages of a project that has an external pnpm-lock.yaml` — `listing_packages_of_a_project_with_an_external_lockfile`.
+- [x] `TypeScript repo: deps/inspection/commands/test/listing/index.ts:176` `listing packages should not fail on package that has local file directory in dependencies` — `listing_packages_with_local_file_directory_dependency`.
+- [x] `TypeScript repo: deps/inspection/commands/test/listing/index.ts:212` `listing packages with --lockfile-only` — `listing_packages_with_lockfile_only`.
+- [x] `TypeScript repo: deps/inspection/commands/test/listing/index.ts:283` `listing packages with --lockfile-only in JSON format` — `listing_packages_with_lockfile_only_in_json_format`.
+- [x] `TypeScript repo: deps/inspection/commands/test/listing/index.ts:306` `listing specific package with --lockfile-only` — `listing_specific_package_with_lockfile_only`.
+- [ ] `TypeScript repo: deps/inspection/commands/test/listing/index.ts:121` `list on a project with skipped optional dependencies` — upstream keeps this `test.skip`-ped; not ported.
+- [x] `TypeScript repo: deps/inspection/commands/test/listing/json.ts:8` `correctly report the value of the private field when arguments are provided` — `list_json_reports_private_field_when_arguments_are_provided`.
+- [x] `TypeScript repo: deps/inspection/commands/test/listing/recursive.ts:77` `recursive list with sharedWorkspaceLockfile` — `recursive_list_renders_workspace_projects_in_one_pass` (the real CLI takes the shared-lockfile single-render path, so the port pins one legend and one combined summary).
+- [x] `TypeScript repo: deps/inspection/commands/test/listing/recursive.ts:265` `pnpm recursive why should fail if no package name was provided` — covered by `why_fails_without_package_name` (same handler-level gate).
+- [x] `TypeScript repo: deps/inspection/list/test/index.ts:826` `--only-projects shows only projects` — `list_only_projects_shows_only_projects` (end-to-end).
+- [x] `TypeScript repo: deps/inspection/list/test/index.ts:237` `list in long format` — `list_in_long_format_appends_manifest_details` (also pins `ll` ≡ `list --long`).
+- [x] `TypeScript repo: pnpm/test/list.ts:10` `ls --filter=not-exist --json should prints an empty array` — `ls_filter_not_exist_json_prints_an_empty_array`.
+- [x] `TypeScript repo: pnpm/test/list.ts:30` `ls should load a finder from .pnpmfile.cjs` — `ls_loads_a_finder_from_pnpmfile` (plus the pacquet-only `ls_with_unknown_finder_fails` pinning `ERR_PNPM_FINDER_NOT_FOUND`).
+- [x] `TypeScript repo: pnpm/test/list.ts:49` `pnpm list returns correct paths with global virtual store` — `list_returns_correct_paths_with_global_virtual_store`.
+- [x] `TypeScript repo: deps/inspection/commands/test/listing/why.ts:14` `pnpm why should fail if no package name was provided` — `why_fails_without_package_name`.
+- [x] `TypeScript repo: deps/inspection/commands/test/listing/why.ts:31` `"why" should show reverse dependency tree for a non-direct dependency` — `why_shows_reverse_dependency_tree_for_a_non_direct_dependency`.
+- [x] `TypeScript repo: deps/inspection/commands/test/listing/why.ts:57` `"why" should find packages by alias name when using npm: protocol` — `why_finds_packages_by_alias_name_when_using_npm_protocol`.
+- [x] `TypeScript repo: deps/inspection/commands/test/listing/why.ts:79` `"why" should find packages by actual package name when using npm: protocol` — `why_finds_packages_by_actual_name_when_using_npm_protocol`.
+- [x] `TypeScript repo: deps/inspection/commands/test/listing/why.ts:100` `"why" should display parseable output` — `why_displays_parseable_output`.
+- [x] `TypeScript repo: deps/inspection/commands/test/listing/why.ts:124` `"why" should display finder message in tree output` — `why_displays_finder_message_in_tree_output`.
+- [x] `TypeScript repo: deps/inspection/commands/test/listing/why.ts:152` `"why" should display finder message in JSON output` — `why_displays_finder_message_in_json_output`.
+- [x] `TypeScript repo: deps/inspection/commands/test/listing/why.ts:182` `"why" finder can read manifest from store` — `why_finder_can_read_manifest_from_store`.
+- [x] `TypeScript repo: deps/inspection/commands/test/listing/why.ts:215` `"why" should find file: protocol local packages` — `why_finds_file_protocol_local_packages`.
+
+Renderer-level ports (`crates/cli/src/cli_args/why/tests.rs`, `crates/cli/src/cli_args/list/tests.rs`):
+
+- [x] `TypeScript repo: deps/inspection/list/test/renderDependentsTree.test.ts` — all 21 tests (renderDependentsTree 6, whySummary 6, renderDependentsJson 5, renderDependentsParseable 4) ported one-to-one into `why::tests`.
+- [x] `TypeScript repo: deps/inspection/list/test/index.ts` renderer-level tests — `print empty`, `don't print empty`, `unsaved dependencies are marked`, `list with many dependencies`, `sort list items`, the four npm:/file: alias-label tests, and the three parseable-search dedup tests ported into `list::tests`.
+
+Tree-builder ports (`crates/cli/src/cli_args/deps_tree/{get_tree,search,pkg_info}/tests.rs`):
+
+- [x] `TypeScript repo: deps/inspection/tree-builder/test/getTree.test.ts` — all 24 tests (depth, cache regression, fully-visited cache, circular detection, linked dependencies, search-with-dedup, multi-root graph, cross-call dedup, exclude peers) ported one-to-one.
+- [x] `TypeScript repo: deps/inspection/tree-builder/test/createPackagesSearcher.spec.ts:` `packages searcher` — ported as `packages_searcher`; the `2 finders` case is covered by the Rust-only `finder_results_are_consulted_by_alias_and_node` + `queries_are_checked_before_finder_results` (finders are JS callbacks pre-evaluated through the pnpmfile worker; end-to-end finder coverage lives in the CLI-level ports above).
+- [x] `TypeScript repo: deps/inspection/tree-builder/test/getPkgInfo.test.ts:` `getPkgInfo handles missing pkgSnapshot without crashing` — ported as `get_pkg_info_handles_missing_pkg_snapshot_without_crashing` (asserts the alias/ref fallbacks; pacquet models "missing" through them rather than an `isMissing` field).
+- [ ] `TypeScript repo: deps/inspection/tree-builder/test/buildDependentsTree.test.ts` `nameFormatter` group (3 tests) — not ported: no pnpm command passes a `nameFormatter`, so pacquet's `build_dependents_tree` has no formatter parameter; the `displayName` rendering it feeds is covered by the renderDependentsTree ports.
+- [ ] `TypeScript repo: deps/inspection/list/test/manyDeps.ts` `list all deps in a project with many dependencies without failing with an OOM error` — the guard it exercises is the materialization dedup cache, pinned directly by the cross-call dedup ports.

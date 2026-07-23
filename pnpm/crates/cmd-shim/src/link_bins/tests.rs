@@ -41,6 +41,7 @@ fn writes_shim_flavors_matching_host_platform() {
     link_bins_of_packages::<Host>(
         &[PackageBinSource::new(pkg_dir, Arc::new(manifest_value))],
         &bins_dir,
+        &[],
     )
     .unwrap();
 
@@ -87,6 +88,7 @@ fn writes_shim_for_bin_string() {
     link_bins_of_packages::<Host>(
         &[PackageBinSource::new(pkg_dir.clone(), Arc::new(manifest_value))],
         &bins_dir,
+        &[],
     )
     .unwrap();
 
@@ -130,7 +132,7 @@ fn link_bins_walks_modules_and_scopes() {
     create_dir_all(modules.join("not-a-package")).unwrap();
 
     let bins = modules.join(".bin");
-    link_bins::<Host>(&modules, &bins).unwrap();
+    link_bins::<Host>(&modules, &bins, &[]).unwrap();
 
     assert!(bins.join("foo").exists(), "foo shim must exist");
     assert!(bins.join("bar").exists(), "scoped @s/bar shim must use bare name `bar`");
@@ -140,7 +142,8 @@ fn link_bins_walks_modules_and_scopes() {
 fn link_bins_handles_missing_modules_dir() {
     let tmp = tempdir().unwrap();
     let bins_dir = tmp.path().join(".bin");
-    link_bins::<Host>(&tmp.path().join("missing"), &bins_dir).expect("missing modules dir is Ok");
+    link_bins::<Host>(&tmp.path().join("missing"), &bins_dir, &[])
+        .expect("missing modules dir is Ok");
     assert!(!bins_dir.exists(), "no shims means no bin dir created");
 }
 
@@ -153,7 +156,7 @@ fn link_bins_of_packages_no_op_when_no_bins() {
     let bins = tmp.path().join(".bin");
     let manifest: Value =
         serde_json::from_slice(&read_file(pkg.join("package.json")).unwrap()).unwrap();
-    link_bins_of_packages::<Host>(&[PackageBinSource::new(pkg, Arc::new(manifest))], &bins)
+    link_bins_of_packages::<Host>(&[PackageBinSource::new(pkg, Arc::new(manifest))], &bins, &[])
         .unwrap();
     assert!(!bins.exists(), "bins dir must not be created when nothing to link");
 }
@@ -192,6 +195,7 @@ fn lexical_compare_breaks_tie_when_neither_owns() {
             PackageBinSource::new(alpha, Arc::new(manifest_alpha)),
         ],
         &bins,
+        &[],
     )
     .unwrap();
 
@@ -210,7 +214,7 @@ fn link_bins_propagates_parse_manifest_error() {
     write_file(modules.join("broken/package.json"), "{ this is not json").unwrap();
 
     let bins = modules.join(".bin");
-    let err = link_bins::<Host>(&modules, &bins).expect_err("invalid manifest must surface");
+    let err = link_bins::<Host>(&modules, &bins, &[]).expect_err("invalid manifest must surface");
     assert!(
         matches!(err, LinkBinsError::ParseManifest { .. }),
         "expected ParseManifest, got {err:?}",
@@ -227,14 +231,14 @@ fn link_bins_skips_existing_shim_with_matching_marker() {
     write_file(modules.join("foo/f.js"), "#!/usr/bin/env node\n").unwrap();
 
     let bins = modules.join(".bin");
-    link_bins::<Host>(&modules, &bins).unwrap();
+    link_bins::<Host>(&modules, &bins, &[]).unwrap();
     let original = read_to_string(bins.join("foo")).unwrap();
     // Append a sentinel. If the second pass rewrites the shim, the
     // sentinel disappears.
     let sentinel = format!("{original}\n# SENTINEL");
     write_file(bins.join("foo"), &sentinel).unwrap();
 
-    link_bins::<Host>(&modules, &bins).unwrap();
+    link_bins::<Host>(&modules, &bins, &[]).unwrap();
     assert_eq!(read_to_string(bins.join("foo")).unwrap(), sentinel);
 }
 
@@ -260,7 +264,7 @@ fn link_bins_rewrites_when_only_canonical_flavor_exists() {
     write_file(modules.join("foo/f.js"), "#!/usr/bin/env node\n").unwrap();
 
     let bins = modules.join(".bin");
-    link_bins::<Host>(&modules, &bins).unwrap();
+    link_bins::<Host>(&modules, &bins, &[]).unwrap();
 
     // Simulate the partial-write / older-pacquet state: delete the
     // .cmd and .ps1 siblings, leaving only the canonical shim with its
@@ -268,7 +272,7 @@ fn link_bins_rewrites_when_only_canonical_flavor_exists() {
     remove_file(bins.join("foo.cmd")).unwrap();
     remove_file(bins.join("foo.ps1")).unwrap();
 
-    link_bins::<Host>(&modules, &bins).unwrap();
+    link_bins::<Host>(&modules, &bins, &[]).unwrap();
 
     assert!(bins.join("foo").exists(), "canonical shim must remain");
     assert!(bins.join("foo.cmd").exists(), ".cmd sibling must be re-created on second pass");
@@ -342,6 +346,7 @@ fn link_bins_propagates_create_bin_dir_error_via_di() {
     let err = link_bins_of_packages::<FailingCreateDir>(
         &[PackageBinSource::new(pkg, Arc::new(manifest))],
         Path::new("/anything"),
+        &[],
     )
     .expect_err("create_dir_all error must propagate");
     assert!(matches!(err, LinkBinsError::CreateBinDir { .. }));
@@ -413,6 +418,7 @@ fn link_bins_propagates_write_shim_error_via_di() {
     let err = link_bins_of_packages::<FailingWrite>(
         &[PackageBinSource::new(pkg, Arc::new(manifest))],
         &tmp.path().join(".bin"),
+        &[],
     )
     .expect_err("write error must propagate");
     assert!(matches!(err, LinkBinsError::WriteShim { .. }));
@@ -482,6 +488,7 @@ fn link_bins_propagates_chmod_error_via_di() {
     let err = link_bins_of_packages::<FailingChmod>(
         &[PackageBinSource::new(pkg, Arc::new(manifest))],
         &tmp.path().join(".bin"),
+        &[],
     )
     .expect_err("chmod error must propagate");
     assert!(matches!(err, LinkBinsError::Chmod { .. }));
@@ -551,6 +558,7 @@ fn link_bins_propagates_target_chmod_error_via_di() {
     let err = link_bins_of_packages::<FailingTargetChmod>(
         &[PackageBinSource::new(pkg, Arc::new(manifest))],
         &tmp.path().join(".bin"),
+        &[],
     )
     .expect_err("non-NotFound target chmod error must propagate as Chmod");
     assert!(matches!(err, LinkBinsError::Chmod { .. }));
@@ -620,6 +628,7 @@ fn link_bins_swallows_target_chmod_not_found_via_di() {
     link_bins_of_packages::<NotFoundTargetChmod>(
         &[PackageBinSource::new(pkg, Arc::new(manifest))],
         &tmp.path().join(".bin"),
+        &[],
     )
     .expect("NotFound on target chmod must be swallowed silently");
 }
@@ -687,6 +696,7 @@ fn link_bins_propagates_probe_shim_source_error_via_di() {
     let err = link_bins_of_packages::<FailingProbe>(
         &[PackageBinSource::new(pkg, Arc::new(manifest))],
         &tmp.path().join(".bin"),
+        &[],
     )
     .expect_err("probe error must propagate");
     assert!(matches!(err, LinkBinsError::ProbeShimSource { .. }));
@@ -748,7 +758,7 @@ fn link_bins_propagates_read_manifest_error_via_di() {
         }
     }
 
-    let err = link_bins::<DenyManifestRead>(Path::new("/x"), Path::new("/x/.bin"))
+    let err = link_bins::<DenyManifestRead>(Path::new("/x"), Path::new("/x/.bin"), &[])
         .expect_err("read_manifest error must propagate");
     assert!(matches!(err, LinkBinsError::ReadManifest { .. }));
 }
@@ -789,6 +799,7 @@ fn ownership_breaks_bin_conflicts_when_existing_owns() {
             PackageBinSource::new(aaa_other, Arc::new(manifest_other)),
         ],
         &bins,
+        &[],
     )
     .unwrap();
 
@@ -854,7 +865,7 @@ fn link_bins_propagates_modules_dir_read_error_via_di() {
         }
     }
 
-    let err = link_bins::<FailingModulesRead>(Path::new("/x"), Path::new("/x/.bin"))
+    let err = link_bins::<FailingModulesRead>(Path::new("/x"), Path::new("/x/.bin"), &[])
         .expect_err("read_dir error must propagate");
     eprintln!("link_bins_propagates_modules_dir_read_error err={err:?}");
     assert!(matches!(err, LinkBinsError::ReadModulesDir { .. }));
@@ -894,6 +905,7 @@ fn ownership_breaks_bin_conflicts() {
             PackageBinSource::new(npm.clone(), Arc::new(manifest_npm)),
         ],
         &bins,
+        &[],
     )
     .unwrap();
 
@@ -940,6 +952,7 @@ fn direct_origin_wins_over_hoisted_regardless_of_lexical() {
             PackageBinSource::new(direct, Arc::new(manifest_direct)).with_origin(BinOrigin::Direct),
         ],
         &bins,
+        &[],
     )
     .unwrap();
 
@@ -988,6 +1001,7 @@ fn hoisted_origin_loses_to_existing_direct() {
                 .with_origin(BinOrigin::Hoisted),
         ],
         &bins,
+        &[],
     )
     .unwrap();
 
@@ -1018,6 +1032,7 @@ fn link_node_bin_symlinks_directly_instead_of_writing_shim() {
     link_bins_of_packages::<Host>(
         &[PackageBinSource::new(node_dir, Arc::new(manifest))],
         &bin_target,
+        &[],
     )
     .unwrap();
 
@@ -1065,6 +1080,7 @@ fn link_node_bin_replaces_dangling_symlink() {
     link_bins_of_packages::<Host>(
         &[PackageBinSource::new(node_dir, Arc::new(manifest))],
         &bin_target,
+        &[],
     )
     .unwrap();
 
@@ -1113,6 +1129,7 @@ fn link_node_bin_does_not_corrupt_hardlinked_target() {
     link_bins_of_packages::<Host>(
         &[PackageBinSource::new(node_dir, Arc::new(manifest))],
         &bin_target,
+        &[],
     )
     .unwrap();
 
@@ -1145,6 +1162,7 @@ fn link_node_bin_hardlinks_node_exe_on_windows() {
     link_bins_of_packages::<Host>(
         &[PackageBinSource::new(node_dir, Arc::new(manifest))],
         &bin_target,
+        &[],
     )
     .unwrap();
 
@@ -1192,6 +1210,7 @@ fn link_node_bin_skips_relink_when_node_exe_already_correct() {
     link_bins_of_packages::<Host>(
         &[PackageBinSource::new(node_dir.clone(), Arc::new(manifest))],
         &bin_target,
+        &[],
     )
     .unwrap();
 
@@ -1229,6 +1248,7 @@ fn link_node_bin_falls_through_to_cmd_shim_when_source_is_not_exe() {
     link_bins_of_packages::<Host>(
         &[PackageBinSource::new(node_dir, Arc::new(manifest))],
         &bin_target,
+        &[],
     )
     .unwrap();
 
@@ -1236,4 +1256,51 @@ fn link_node_bin_falls_through_to_cmd_shim_when_source_is_not_exe() {
     assert!(bin_target.join("node.cmd").exists());
     assert!(bin_target.join("node.ps1").exists());
     assert!(!bin_target.join("node.exe").exists());
+}
+
+/// A caller-supplied resolved location and the canonicalize fallback
+/// must derive the same shim `NODE_PATH` for a package reached through
+/// a virtual-store-style symlink — the lexical fast path is only sound
+/// while this holds.
+#[cfg(unix)]
+#[test]
+fn resolved_location_matches_canonicalize_fallback_for_node_path() {
+    let tmp = tempdir().unwrap();
+    let slot_pkg_dir = tmp.path().join("node_modules/.pnpm/foo@1.0.0/node_modules/foo");
+    create_dir_all(&slot_pkg_dir).unwrap();
+    write_file(
+        slot_pkg_dir.join("package.json"),
+        json!({"name": "foo", "version": "1.0.0", "bin": "cli.js"}).to_string(),
+    )
+    .unwrap();
+    write_file(slot_pkg_dir.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
+    let alias = tmp.path().join("node_modules/foo");
+    std::os::unix::fs::symlink(&slot_pkg_dir, &alias).unwrap();
+
+    let manifest: Arc<Value> = Arc::new(
+        serde_json::from_slice(&read_file(slot_pkg_dir.join("package.json")).unwrap()).unwrap(),
+    );
+    let extras =
+        [tmp.path().join("node_modules/.pnpm/node_modules").to_string_lossy().into_owned()];
+
+    // The fallback resolves the alias symlink; the canonicalized slot
+    // dir anchors the expectation so a `/tmp` → `/private/tmp`-style
+    // ancestor symlink can't skew the comparison.
+    let real_slot_pkg_dir = dunce::canonicalize(&slot_pkg_dir).unwrap();
+    let via_fallback = super::shim_node_path(
+        &PackageBinSource::new(alias.clone(), Arc::clone(&manifest)),
+        &extras,
+    );
+    let via_resolved = super::shim_node_path(
+        &PackageBinSource::new(alias, manifest).with_resolved_location(real_slot_pkg_dir.clone()),
+        &extras,
+    );
+    assert_eq!(via_fallback, via_resolved);
+    assert_eq!(
+        via_resolved[..2],
+        [
+            real_slot_pkg_dir.join("node_modules").to_string_lossy().into_owned(),
+            real_slot_pkg_dir.parent().unwrap().to_string_lossy().into_owned(),
+        ],
+    );
 }

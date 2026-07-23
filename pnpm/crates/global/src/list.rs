@@ -29,6 +29,26 @@ struct ListedDep {
     path: String,
 }
 
+/// The install directories with a direct-dependency alias matching
+/// `params` (any alias when `params` is empty — a group with no
+/// dependencies never matches, mirroring the TypeScript
+/// `findGlobalInstallDirs`). Used by `pnpm ls -g --depth <n>` to narrow
+/// the listing to one install group.
+pub fn find_global_install_dirs(
+    global_dir: &Path,
+    params: &[String],
+) -> std::io::Result<Vec<PathBuf>> {
+    let packages = scan_global_packages(global_dir)?;
+    let mut install_dirs: Vec<PathBuf> = Vec::new();
+    for pkg in packages {
+        let matched = pkg.dependencies.iter().any(|(alias, _)| matches_params(params, alias));
+        if matched && !install_dirs.contains(&pkg.install_dir) {
+            install_dirs.push(pkg.install_dir);
+        }
+    }
+    Ok(install_dirs)
+}
+
 /// Render the globally installed packages matching `params` (all when
 /// empty) in the requested format.
 pub fn list_global_packages(

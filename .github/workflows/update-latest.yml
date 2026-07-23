@@ -27,7 +27,10 @@ env:
   # The pnpm that operates this workflow, never the version being released:
   # validate and verify-upgrade decide what the release is measured against, and
   # tag-in-registry holds the publish token. Bump deliberately, to a version that
-  # has already proven itself as `latest`.
+  # has already proven itself as `latest`. Until this moves to v12, the
+  # `pnpm/setup` steps below stay pinned to 77cf0683 — the last revision of the
+  # action able to install pnpm 11; newer revisions only install the
+  # standalone pnpm v12+.
   RELEASE_TOOL_PNPM_VERSION: 11.13.1
 
 jobs:

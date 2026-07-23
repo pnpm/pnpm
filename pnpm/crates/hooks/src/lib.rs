@@ -155,6 +155,23 @@ pub trait PnpmfileHooks: Send + Sync {
     async fn get_custom_fetchers(&self) -> Result<Vec<Arc<dyn CustomFetcher>>, HookError> {
         Ok(vec![])
     }
+
+    /// The names of the finders exported from the pnpmfile's top-level
+    /// `finders` object (consumed by `pnpm list --find-by` /
+    /// `pnpm why --find-by`).
+    async fn get_finder_names(&self) -> Result<Vec<String>, HookError> {
+        Ok(vec![])
+    }
+
+    /// Run the finder named `finder_name` against one package. `ctx`
+    /// carries `alias`, `name`, `version`, and the package's `manifest`
+    /// (exposed to the JavaScript finder as its `readManifest()`
+    /// callback). Returns the finder's verdict: a boolean or a message
+    /// string.
+    async fn run_finder(&self, finder_name: &str, ctx: Value) -> Result<Value, HookError> {
+        let _ = (finder_name, ctx);
+        Ok(Value::Bool(false))
+    }
 }
 
 /// A custom fetcher exported from a pnpmfile's `fetchers` array.

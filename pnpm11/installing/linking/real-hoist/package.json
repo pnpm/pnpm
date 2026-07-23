@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.linking.real-hoist",
-  "version": "1100.1.7",
+  "version": "1100.1.9",
   "description": "Hoists dependencies in a node_modules created by pnpm",
   "keywords": [
     "pnpm",

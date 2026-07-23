@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/hooks.read-package-hook",
-  "version": "1100.1.1",
+  "version": "1100.1.3",
   "description": "Creates the default package reader hook used by pnpm",
   "keywords": [
     "pnpm",

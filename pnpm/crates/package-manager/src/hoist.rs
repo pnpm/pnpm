@@ -205,10 +205,12 @@ pub struct HoistResult {
     /// fan-out per (node, alias).
     pub hoisted_dependencies_by_node_id: HashMap<PackageKey, HashMap<String, HoistKind>>,
     /// Aliases whose target package declares a bin and were hoisted
-    /// privately. The install pipeline feeds this into
-    /// `link_direct_dep_bins` against the private hoisted modules dir
-    /// to write shims into `<vs>/node_modules/.bin`.
-    pub hoisted_aliases_with_bins: Vec<String>,
+    /// privately, paired with the snapshot key the alias resolves to
+    /// (so the bin pass can derive the slot directory without a
+    /// `realpath`). The install pipeline feeds this into
+    /// `link_direct_dep_bins_resolved` against the private hoisted
+    /// modules dir to write shims into `<vs>/node_modules/.bin`.
+    pub hoisted_aliases_with_bins: Vec<(String, PackageKey)>,
     /// Aliases whose target package declares a bin and were hoisted
     /// publicly. Public-hoist bins land alongside the project's
     /// direct-dep bins in `<root>/node_modules/.bin` — the bins of the
@@ -327,7 +329,7 @@ pub fn get_hoisted_dependencies<'a>(input: &'a HoistInputs<'a>) -> Option<HoistR
     let mut hoisted_dependencies: HoistedDependencies = BTreeMap::new();
     let mut hoisted_dependencies_by_node_id: HashMap<PackageKey, HashMap<String, HoistKind>> =
         HashMap::new();
-    let mut hoisted_aliases_with_bins: Vec<String> = Vec::new();
+    let mut hoisted_aliases_with_bins: Vec<(String, PackageKey)> = Vec::new();
     let mut publicly_hoisted_aliases_with_bins: Vec<String> = Vec::new();
     // Dedup the bin-alias vecs — pacquet emits
     // `Vec`s to keep the consumer signature simple but de-dups via
@@ -408,7 +410,7 @@ pub fn get_hoisted_dependencies<'a>(input: &'a HoistInputs<'a>) -> Option<HoistR
                 match hoist_kind {
                     HoistKind::Private => {
                         if private_bins_seen.insert(alias.clone()) {
-                            hoisted_aliases_with_bins.push(alias.clone());
+                            hoisted_aliases_with_bins.push((alias.clone(), child_node_id.clone()));
                         }
                     }
                     HoistKind::Public => {

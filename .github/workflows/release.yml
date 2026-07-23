@@ -201,11 +201,9 @@ jobs:
         with:
           api_token: ${{ secrets.GARNET_API_TOKEN }}
       - name: Install pnpm and Node
-        uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
+        uses: pnpm/setup@6bfbb82d278149277735183e1ac2cd4353ebfe4f
         with:
           runtime: node@26.5.0
-      - name: Override workspace ignores for the TypeScript pnpm package
-        run: ': > pnpm11/pnpm/.npmignore'
       - name: Build TypeScript executable artifacts
         run: pn --filter=@pnpm/exe run build-artifacts
 
@@ -357,11 +355,9 @@ jobs:
         with:
           api_token: ${{ secrets.GARNET_API_TOKEN }}
       - name: Install pnpm and Node
-        uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
+        uses: pnpm/setup@6bfbb82d278149277735183e1ac2cd4353ebfe4f
         with:
           runtime: node@26.5.0
-      - name: Override workspace ignores for the TypeScript pnpm package
-        run: ': > pnpm11/pnpm/.npmignore'
       # The publish phase is split into three sequential steps to control which packages
       # use trusted publishing (OIDC) vs. a static token. `pnpm publish` currently bails
       # out of OIDC as soon as a static `_authToken` is configured, so the only way to
@@ -370,7 +366,6 @@ jobs:
       # for the longer-term fix that lets OIDC override a configured token.
       - name: Build TypeScript executable artifacts
         run: pn --filter=@pnpm/exe run build-artifacts
-
       - name: Publish @pnpm/exe (trusted publishing)
         # No NPM_TOKEN: pnpm has no static token to short-circuit on, so it will perform
         # the OIDC token exchange against npm's trusted-publishing config for `@pnpm/exe`.
@@ -647,7 +642,7 @@ jobs:
           persist-credentials: false
 
       - name: Install pnpm and Node
-        uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
+        uses: pnpm/setup@6bfbb82d278149277735183e1ac2cd4353ebfe4f
         with:
           runtime: node@22
           install: false
@@ -771,7 +766,7 @@ jobs:
           persist-credentials: false
 
       - name: Install pnpm and Node
-        uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
+        uses: pnpm/setup@6bfbb82d278149277735183e1ac2cd4353ebfe4f
         with:
           runtime: node@22
           install: false
@@ -834,9 +829,12 @@ jobs:
 
       - name: Assert the version tag points at this commit
         # Same tag↔commit invariant as the TypeScript release job's guard: the
-        # binaries below were built from this run's commit, and `target_commitish`
-        # cannot pin the release to it — GitHub ignores it whenever the tag
-        # already exists.
+        # binaries below were built from this run's commit, and this assert is
+        # the only thing pinning the release to it. A `target_commitish` input
+        # cannot: GitHub ignores it whenever the tag already exists, and with
+        # immutable releases enabled its mere presence makes release creation
+        # fail with 403 "Resource not accessible by integration" for the
+        # workflow token (the v12.0.0-alpha.19 draft-release failure).
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.plan.outputs.rust_version }}
@@ -884,7 +882,6 @@ jobs:
           prerelease: ${{ contains(needs.plan.outputs.rust_version, '-') }}
           make_latest: false
           tag_name: v${{ needs.plan.outputs.rust_version }}
-          target_commitish: ${{ github.sha }}
           name: pnpm ${{ needs.plan.outputs.rust_version }}
           body_path: RELEASE.md
           files: |
@@ -1055,7 +1052,7 @@ jobs:
           persist-credentials: false
 
       - name: Install pnpm and Node
-        uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
+        uses: pnpm/setup@6bfbb82d278149277735183e1ac2cd4353ebfe4f
         with:
           runtime: node@22
           install: false
@@ -1166,7 +1163,7 @@ jobs:
           persist-credentials: false
 
       - name: Install pnpm and Node
-        uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
+        uses: pnpm/setup@6bfbb82d278149277735183e1ac2cd4353ebfe4f
         with:
           runtime: node@22
           install: false

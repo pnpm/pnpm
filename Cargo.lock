@@ -140,6 +140,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "ansi-str"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "060de1453b69f46304b28274f382132f4e72c55637cf362920926a70d090890d"
+dependencies = [
+ "ansitok",
+]
+
+[[package]]
+name = "ansitok"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c0a8acea8c2f1c60f0a92a8cd26bf96ca97db56f10bbcab238bbe0cceba659ee"
+dependencies = [
+ "nom 7.1.3",
+ "vte",
+]
+
+[[package]]
 name = "anstream"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -213,6 +232,12 @@ name = "arraydeque"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7d902e3d592a523def97af8f317b08ce16b7ab854c1985a0c671e6f15cebc236"
+
+[[package]]
+name = "arrayvec"
+version = "0.7.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d3fb67a6e08acf24fdeccbac2cb6ac4305825bd1f117462e0e6f2f193345ad56"
 
 [[package]]
 name = "assert-json-diff"
@@ -3912,6 +3937,7 @@ dependencies = [
  "dunce",
  "flate2",
  "futures-util",
+ "getrandom 0.4.3",
  "home",
  "indexmap 2.14.0",
  "insta",
@@ -3922,6 +3948,7 @@ dependencies = [
  "p256",
  "pacquet-auth-commands",
  "pacquet-catalogs-config",
+ "pacquet-catalogs-protocol-parser",
  "pacquet-catalogs-types",
  "pacquet-cmd-shim",
  "pacquet-config",
@@ -3953,6 +3980,7 @@ dependencies = [
  "pacquet-publish",
  "pacquet-registry",
  "pacquet-reporter",
+ "pacquet-resolving-git-resolver",
  "pacquet-resolving-npm-resolver",
  "pacquet-resolving-parse-wanted-dependency",
  "pacquet-resolving-resolver-base",
@@ -3989,6 +4017,8 @@ dependencies = [
  "wax",
  "which 8.0.4",
  "windows-sys 0.61.2",
+ "yaml_serde",
+ "yamlpath",
  "zip",
 ]
 
@@ -3997,6 +4027,7 @@ name = "pacquet-cmd-shim"
 version = "0.0.1"
 dependencies = [
  "derive_more",
+ "dunce",
  "miette 7.6.0",
  "pacquet-fs",
  "pipe-trait",
@@ -4546,10 +4577,13 @@ dependencies = [
  "crossterm",
  "derive_more",
  "dialoguer",
+ "mockito",
  "open",
  "pacquet-diagnostics",
+ "pacquet-network",
  "pacquet-network-web-auth-testing",
  "pacquet-reporter",
+ "pipe-trait",
  "pretty_assertions",
  "qrcode",
  "reqwest 0.13.4",
@@ -5202,6 +5236,8 @@ version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d0984e668274d34691bc2b262ef0d115de5fa9973bcdee7ae32213f93099153e"
 dependencies = [
+ "ansi-str",
+ "ansitok",
  "bytecount",
  "fnv",
  "unicode-width 0.2.2",
@@ -5487,7 +5523,7 @@ dependencies = [
 
 [[package]]
 name = "pnpr"
-version = "0.1.0-alpha.4"
+version = "0.1.0-alpha.5"
 dependencies = [
  "async-trait",
  "axum 0.8.9",
@@ -5508,6 +5544,7 @@ dependencies = [
  "mockito",
  "node-semver",
  "object_store",
+ "pacquet-catalogs-types",
  "pacquet-config",
  "pacquet-config-dir",
  "pacquet-env-replace",
@@ -7343,6 +7380,8 @@ version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b5dc662e6da844ad6e428ad16b57967c9d33c82e16bb1c258326c0c078605dff"
 dependencies = [
+ "ansi-str",
+ "ansitok",
  "papergrid",
  "tabled_derive",
  "testing_table",
@@ -7419,6 +7458,7 @@ version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0f8daae29995a24f65619e19d8d31dea5b389f3d853d8bf297bbf607cd0014cc"
 dependencies = [
+ "ansitok",
  "unicode-width 0.2.2",
 ]
 
@@ -8061,6 +8101,16 @@ name = "version_check"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
+
+[[package]]
+name = "vte"
+version = "0.14.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "231fdcd7ef3037e8330d8e17e61011a2c244126acc0a982f4040ac3f9f0bc077"
+dependencies = [
+ "arrayvec",
+ "memchr",
+]
 
 [[package]]
 name = "wait-timeout"

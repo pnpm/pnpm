@@ -8,7 +8,6 @@ import { publish } from '@pnpm/releasing.commands'
 import { getRegistryMockToken, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import type { ProjectManifest } from '@pnpm/types'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
-import crossSpawn from 'cross-spawn'
 import { safeExeca as execa } from 'execa'
 import { loadJsonFileSync } from 'load-json-file'
 
@@ -83,12 +82,12 @@ test('recursive publish', async () => {
   }, [])
 
   {
-    const { status } = crossSpawn.sync('pnpm', ['view', pkg1.name, 'versions', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`, '--json'])
-    expect(status).toBe(1)
+    const { exitCode } = await execa('pnpm', ['view', pkg1.name, 'versions', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`, '--json'], { reject: false })
+    expect(exitCode).toBe(1)
   }
   {
-    const { status } = crossSpawn.sync('pnpm', ['view', pkg2.name, 'versions', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`, '--json'])
-    expect(status).toBe(1)
+    const { exitCode } = await execa('pnpm', ['view', pkg2.name, 'versions', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`, '--json'], { reject: false })
+    expect(exitCode).toBe(1)
   }
 
   await publish.handler({

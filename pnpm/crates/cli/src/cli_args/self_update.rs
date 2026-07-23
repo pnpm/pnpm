@@ -455,7 +455,7 @@ fn link_into_global_bin(
     let global_pkg_dir = config.global_pkg_dir.clone().ok_or(SelfUpdateError::NoGlobalDir)?;
 
     let pkgs = read_installed_packages(install_dir);
-    link_bins_of_packages_with_excludes::<CmdShimHost>(&pkgs, &global_bin, &HashSet::new())
+    link_bins_of_packages_with_excludes::<CmdShimHost>(&pkgs, &global_bin, &HashSet::new(), &[])
         .map_err(miette::Report::new)
         .wrap_err("link the updated pnpm bins")?;
 

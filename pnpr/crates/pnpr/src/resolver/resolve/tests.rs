@@ -1,6 +1,6 @@
 use super::{importer_manifest_name, sanitized_importer_dir};
 use crate::resolver::protocol::ResolveRequest;
-use pacquet_config::Config;
+use pacquet_config::{Config, LinkWorkspacePackages};
 use pacquet_lockfile::{ImporterDepVersion, Lockfile, PkgName};
 use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_store_dir::StoreDir;
@@ -81,6 +81,39 @@ async fn workspace_star_uses_forwarded_project_name() {
             }
         ]
     })))
+    .await;
+
+    assert_workspace_link(&lockfile, "packages/app", "lib", "../lib");
+}
+
+#[tokio::test]
+async fn forwarded_catalogs_resolve_catalog_specifiers() {
+    // The reconstructed workspace carries no catalog sections, so a
+    // `catalog:` specifier resolves only because the request's `catalogs`
+    // are forwarded into the install as the catalog set. The catalog entry
+    // is a plain version that matches a workspace sibling, so
+    // `link-workspace-packages` links it and the assertion stays offline.
+    let lockfile = Box::pin(resolve_json_with(
+        serde_json::json!({
+            "projects": [
+                {
+                    "dir": "packages/app",
+                    "name": "app",
+                    "version": "1.0.0",
+                    "dependencies": { "lib": "catalog:" }
+                },
+                {
+                    "dir": "packages/lib",
+                    "name": "lib",
+                    "version": "1.2.3"
+                }
+            ],
+            "catalogs": {
+                "default": { "lib": "^1.0.0" }
+            }
+        }),
+        |config| config.link_workspace_packages = LinkWorkspacePackages::Deep,
+    ))
     .await;
 
     assert_workspace_link(&lockfile, "packages/app", "lib", "../lib");
@@ -242,7 +275,21 @@ async fn resolve_json(request: serde_json::Value) -> Lockfile {
     try_resolve_json(request).await.expect("offline workspace resolution succeeds")
 }
 
+async fn resolve_json_with(
+    request: serde_json::Value,
+    configure: impl FnOnce(&mut Config),
+) -> Lockfile {
+    try_resolve_json_with(request, configure).await.expect("offline workspace resolution succeeds")
+}
+
 async fn try_resolve_json(request: serde_json::Value) -> Result<Lockfile, super::ResolveError> {
+    try_resolve_json_with(request, |_| {}).await
+}
+
+async fn try_resolve_json_with(
+    request: serde_json::Value,
+    configure: impl FnOnce(&mut Config),
+) -> Result<Lockfile, super::ResolveError> {
     let temp = tempfile::tempdir().expect("create resolver test directory");
     let mut config = Config::new();
     config.offline = true;
@@ -251,6 +298,7 @@ async fn try_resolve_json(request: serde_json::Value) -> Result<Lockfile, super:
     config.cache_dir = temp.path().join("cache");
     config.modules_dir = temp.path().join("node_modules");
     config.virtual_store_dir = temp.path().join("node_modules/.pnpm");
+    configure(&mut config);
     let config = Box::leak(Box::new(config));
     let request: ResolveRequest = serde_json::from_value(request).expect("resolve request parses");
 

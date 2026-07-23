@@ -1,0 +1,483 @@
+use super::{
+    ActionReference, RepoVersion, find_current, find_outdated_with_runner, is_selector,
+    normalize_selector, render_target_ref, render_target_value,
+    repo_versions as versions_from_refs, selector_matcher, split_uses_value, update_with_runner,
+};
+use node_semver::Version;
+use pacquet_reporter::{GlobalLog, LogEvent, LogLevel, Reporter, SilentReporter};
+use pacquet_resolving_git_resolver::{GitCommandRunner, GitRunError};
+use std::{collections::HashMap, fs, future::Future, path::PathBuf, pin::Pin, sync::Mutex};
+
+const SHA_V4_1_0: &str = "1111111111111111111111111111111111111111";
+const SHA_V4_2_0: &str = "2222222222222222222222222222222222222222";
+const SHA_V5_0_0: &str = "3333333333333333333333333333333333333333";
+
+fn repo_versions() -> Vec<RepoVersion> {
+    versions_from_refs(&refs(&[
+        ("refs/tags/v4.1.0", SHA_V4_1_0),
+        ("refs/tags/v4.2.0", SHA_V4_2_0),
+        ("refs/tags/v5.0.0", SHA_V5_0_0),
+    ]))
+}
+
+fn refs(entries: &[(&str, &str)]) -> HashMap<String, String> {
+    entries.iter().map(|(ref_, commit)| ((*ref_).to_string(), (*commit).to_string())).collect()
+}
+
+fn action(original_value: &str) -> ActionReference {
+    let (value, comment) = split_uses_value(original_value);
+    let (name, ref_) = value.rsplit_once('@').expect("action reference");
+    ActionReference {
+        comment_version: comment
+            .and_then(|comment| comment.split_whitespace().next())
+            .map(str::to_string),
+        file: PathBuf::from("workflow.yml"),
+        flow_style: false,
+        indentation: String::new(),
+        name: name.to_string(),
+        original_value: original_value.to_string(),
+        range: 0..original_value.len(),
+        ref_: ref_.to_string(),
+        repo: "actions/checkout".to_string(),
+    }
+}
+
+struct FakeGitRunner;
+
+impl GitCommandRunner for FakeGitRunner {
+    fn ls_remote<'a>(
+        &'a self,
+        _repo: &'a str,
+        _ref_: Option<&'a str>,
+    ) -> Pin<Box<dyn Future<Output = Result<String, GitRunError>> + Send + 'a>> {
+        Box::pin(async {
+            Ok(format!(
+                "{SHA_V4_1_0}\trefs/tags/v4.1.0\n{SHA_V4_2_0}\trefs/tags/v4.2.0\n{SHA_V5_0_0}\trefs/tags/v5.0.0\n",
+            ))
+        })
+    }
+}
+
+struct PreOneGitRunner;
+
+impl GitCommandRunner for PreOneGitRunner {
+    fn ls_remote<'a>(
+        &'a self,
+        _repo: &'a str,
+        _ref_: Option<&'a str>,
+    ) -> Pin<Box<dyn Future<Output = Result<String, GitRunError>> + Send + 'a>> {
+        Box::pin(async {
+            Ok(concat!(
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\trefs/tags/v0.5.7\n",
+                "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\trefs/tags/v0.5.9\n",
+                "cccccccccccccccccccccccccccccccccccccccc\trefs/tags/v0.6.0\n",
+            )
+            .to_string())
+        })
+    }
+}
+
+#[test]
+fn distinguishes_action_selectors_from_package_selectors() {
+    assert_eq!(
+        [
+            is_selector("actions/checkout"),
+            is_selector("@scope/package"),
+            is_selector("!@scope/package"),
+            is_selector("typescript"),
+        ],
+        [true, false, false, false],
+    );
+}
+
+#[test]
+fn normalizes_ref_qualified_action_selectors() {
+    assert_eq!(normalize_selector("actions/checkout@v4"), "actions/checkout");
+    assert_eq!(normalize_selector("!actions/checkout@v4"), "!actions/checkout");
+    assert_eq!(normalize_selector("@scope/package"), "@scope/package");
+    assert!(
+        selector_matcher(&["actions/checkout@v4".to_string()])
+            .expect("selector matcher")
+            .matches("actions/checkout"),
+    );
+}
+
+#[test]
+fn parses_annotated_semver_tags() {
+    let versions = versions_from_refs(&refs(&[
+        ("refs/tags/v4.2.0", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+        ("refs/tags/v4.2.0^{}", SHA_V4_2_0),
+        ("refs/tags/latest", "not-a-version"),
+    ]));
+    assert_eq!(versions.len(), 1);
+    assert_eq!(versions[0].commit, SHA_V4_2_0);
+    assert_eq!(versions[0].tag, "v4.2.0");
+}
+
+#[test]
+fn preserves_quoting_and_updates_sha_comment() {
+    let action = action(&format!("'actions/checkout@{SHA_V4_1_0}' # v4.1.0 keep pinned"));
+    let target = &repo_versions()[1];
+    assert_eq!(
+        render_target_value(&action, target),
+        format!("'actions/checkout@{SHA_V4_2_0}' # v4.2.0 keep pinned"),
+    );
+}
+
+#[test]
+fn floating_major_resolves_to_an_exact_commit() {
+    let action = action("actions/checkout@v4");
+    let versions = repo_versions();
+    let current = find_current(&action, &versions).expect("current version");
+    assert_eq!(current.version, Version::parse("4.2.0").unwrap());
+    assert_eq!(render_target_ref(&versions[1]), SHA_V4_2_0);
+    assert_eq!(render_target_ref(&versions[2]), SHA_V5_0_0);
+}
+
+#[test]
+fn resolves_prerelease_tags_containing_dots() {
+    let versions = versions_from_refs(&refs(&[
+        ("refs/tags/v5.0.0-alpha.1", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+        ("refs/tags/v5.0.0-alpha.2", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"),
+    ]));
+    let current = find_current(&action("actions/checkout@v5.0.0-alpha.1"), &versions)
+        .expect("prerelease version");
+
+    assert_eq!(current.version, Version::parse("5.0.0-alpha.1").unwrap());
+}
+
+#[tokio::test]
+async fn updates_workflow_files_without_reformatting_them() {
+    let root = tempfile::tempdir().expect("temp directory");
+    let workflows = root.path().join(".github/workflows");
+    fs::create_dir_all(&workflows).expect("workflow directory");
+    let workflow = workflows.join("ci.yml");
+    let source = format!(
+        "name: CI\n\njobs:\n  test:\n    strategy: {{ matrix: {{ node: [22, 24] }} }}\n    steps:\n      - run: |\n          uses: actions/checkout@{SHA_V4_1_0} # not a dependency\n      - name: nested input\n        with:\n          uses: actions/checkout@v4\n      - uses: 'actions/checkout@{SHA_V4_1_0}' # v4.1.0 keep pinned\n      - uses: actions/checkout@v4\n  flow:\n    steps: [{{ uses: actions/checkout@v4 }}]\n",
+    );
+    fs::write(&workflow, &source).expect("workflow");
+
+    update_with_runner::<SilentReporter, _>(
+        root.path(),
+        false,
+        None,
+        "https://github.com",
+        &FakeGitRunner,
+    )
+    .await
+    .expect("update actions");
+
+    assert_eq!(
+        fs::read_to_string(workflow).expect("updated workflow"),
+        format!(
+            "name: CI\n\njobs:\n  test:\n    strategy: {{ matrix: {{ node: [22, 24] }} }}\n    steps:\n      - run: |\n          uses: actions/checkout@{SHA_V4_1_0} # not a dependency\n      - name: nested input\n        with:\n          uses: actions/checkout@v4\n      - uses: 'actions/checkout@{SHA_V4_2_0}' # v4.2.0 keep pinned\n      - uses: actions/checkout@{SHA_V4_2_0} # v4.2.0\n  flow:\n    steps: [{{ uses: actions/checkout@{SHA_V4_2_0} # v4.2.0\n                    }}]\n",
+        ),
+    );
+}
+
+#[tokio::test]
+async fn compatible_outdated_stays_on_the_current_compatibility_line() {
+    let root = tempfile::tempdir().expect("temp directory");
+    let workflows = root.path().join(".github/workflows");
+    fs::create_dir_all(&workflows).expect("workflow directory");
+    fs::write(
+        workflows.join("ci.yml"),
+        format!(
+            "jobs:\n  test:\n    steps:\n      - uses: actions/checkout@{SHA_V4_1_0} # v4.1.0\n",
+        ),
+    )
+    .expect("workflow");
+
+    let default = find_outdated_with_runner::<SilentReporter, _>(
+        root.path(),
+        false,
+        None,
+        "https://github.com",
+        &FakeGitRunner,
+    )
+    .await
+    .expect("default outdated");
+    let compatible = find_outdated_with_runner::<SilentReporter, _>(
+        root.path(),
+        true,
+        None,
+        "https://github.com",
+        &FakeGitRunner,
+    )
+    .await
+    .expect("compatible outdated");
+
+    assert_eq!(default[0].latest, Version::parse("5.0.0").unwrap());
+    assert_eq!(compatible[0].latest, Version::parse("4.2.0").unwrap());
+}
+
+#[tokio::test]
+async fn keeps_pre_one_updates_caret_compatible_unless_latest_is_requested() {
+    let root = tempfile::tempdir().expect("temp directory");
+    let workflows = root.path().join(".github/workflows");
+    fs::create_dir_all(&workflows).expect("workflow directory");
+    let workflow = workflows.join("ci.yml");
+    fs::write(&workflow, "jobs:\n  test:\n    steps:\n      - uses: owner/tool@v0.5.7\n")
+        .expect("workflow");
+
+    let compatible = find_outdated_with_runner::<SilentReporter, _>(
+        root.path(),
+        true,
+        None,
+        "https://github.com",
+        &PreOneGitRunner,
+    )
+    .await
+    .expect("compatible outdated");
+    assert_eq!(compatible[0].latest, Version::parse("0.5.9").unwrap());
+
+    update_with_runner::<SilentReporter, _>(
+        root.path(),
+        false,
+        None,
+        "https://github.com",
+        &PreOneGitRunner,
+    )
+    .await
+    .expect("compatible update");
+    assert!(
+        fs::read_to_string(&workflow)
+            .expect("updated workflow")
+            .contains("uses: owner/tool@bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb # v0.5.9"),
+    );
+
+    update_with_runner::<SilentReporter, _>(
+        root.path(),
+        true,
+        None,
+        "https://github.com",
+        &PreOneGitRunner,
+    )
+    .await
+    .expect("latest update");
+    assert!(
+        fs::read_to_string(&workflow)
+            .expect("updated workflow")
+            .contains("uses: owner/tool@cccccccccccccccccccccccccccccccccccccccc # v0.6.0"),
+    );
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn rejects_workflow_symlinks_outside_the_project() {
+    use std::os::unix::fs::symlink;
+
+    let root = tempfile::tempdir().expect("project directory");
+    let outside = tempfile::tempdir().expect("outside directory");
+    let original = "jobs:\n  test:\n    steps:\n      - uses: actions/checkout@v4\n";
+    fs::write(outside.path().join("ci.yml"), original).expect("outside workflow");
+    fs::create_dir_all(root.path().join(".github")).expect("GitHub directory");
+    symlink(outside.path(), root.path().join(".github/workflows")).expect("workflow symlink");
+
+    let Err(error) = update_with_runner::<SilentReporter, _>(
+        root.path(),
+        false,
+        None,
+        "https://github.com",
+        &FakeGitRunner,
+    )
+    .await
+    else {
+        panic!("outside workflow must be rejected");
+    };
+
+    assert!(error.to_string().contains("outside the project root"));
+    assert_eq!(fs::read_to_string(outside.path().join("ci.yml")).unwrap(), original);
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn reports_local_action_lookup_errors() {
+    use std::os::unix::fs::symlink;
+
+    let root = tempfile::tempdir().expect("project directory");
+    let workflow = root.path().join(".github/workflows/ci.yml");
+    let action_dir = root.path().join(".github/actions/setup");
+    fs::create_dir_all(workflow.parent().unwrap()).expect("workflow directory");
+    fs::create_dir_all(&action_dir).expect("action directory");
+    fs::write(&workflow, "jobs:\n  test:\n    steps:\n      - uses: ./.github/actions/setup\n")
+        .expect("workflow");
+    symlink("action.yml", action_dir.join("action.yml")).expect("symlink loop");
+
+    let Err(error) = find_outdated_with_runner::<SilentReporter, _>(
+        root.path(),
+        false,
+        None,
+        "https://github.com",
+        &FakeGitRunner,
+    )
+    .await
+    else {
+        panic!("local action lookup must fail");
+    };
+
+    assert!(error.to_string().contains("Failed to read"));
+    assert!(error.to_string().contains("action.yml"));
+}
+
+#[tokio::test]
+async fn does_not_mutate_an_external_hardlink_target() {
+    let root = tempfile::tempdir().expect("project directory");
+    let outside = tempfile::tempdir().expect("outside directory");
+    let original = "jobs:\n  test:\n    steps:\n      - uses: actions/checkout@v4\n";
+    let outside_workflow = outside.path().join("ci.yml");
+    let workflow = root.path().join(".github/workflows/ci.yml");
+    fs::write(&outside_workflow, original).expect("outside workflow");
+    fs::create_dir_all(workflow.parent().unwrap()).expect("workflow directory");
+    fs::hard_link(&outside_workflow, &workflow).expect("workflow hardlink");
+
+    update_with_runner::<SilentReporter, _>(
+        root.path(),
+        false,
+        None,
+        "https://github.com",
+        &FakeGitRunner,
+    )
+    .await
+    .expect("update actions");
+
+    assert!(
+        fs::read_to_string(&workflow)
+            .expect("updated workflow")
+            .contains(&format!("uses: actions/checkout@{SHA_V4_2_0} # v4.2.0")),
+    );
+    assert_eq!(fs::read_to_string(outside_workflow).unwrap(), original);
+}
+
+/// Serves refs only for URLs on the given server base, so a test fails
+/// (via the skip-with-warning path) when the wrong server is queried.
+struct ServerBoundGitRunner {
+    server_url: &'static str,
+}
+
+impl GitCommandRunner for ServerBoundGitRunner {
+    fn ls_remote<'a>(
+        &'a self,
+        repo: &'a str,
+        _ref_: Option<&'a str>,
+    ) -> Pin<Box<dyn Future<Output = Result<String, GitRunError>> + Send + 'a>> {
+        Box::pin(async move {
+            if !repo.starts_with(self.server_url) {
+                return Err(GitRunError { message: format!("unexpected repository URL {repo}") });
+            }
+            Ok(format!(
+                "{SHA_V4_1_0}\trefs/tags/v4.1.0\n{SHA_V4_2_0}\trefs/tags/v4.2.0\n{SHA_V5_0_0}\trefs/tags/v5.0.0\n",
+            ))
+        })
+    }
+}
+
+#[tokio::test]
+async fn reads_refs_from_the_configured_server_and_uses_it_in_homepages() {
+    let root = tempfile::tempdir().expect("temp directory");
+    let workflows = root.path().join(".github/workflows");
+    fs::create_dir_all(&workflows).expect("workflow directory");
+    fs::write(
+        workflows.join("ci.yml"),
+        "jobs:\n  test:\n    steps:\n      - uses: actions/checkout@v4.1.0\n",
+    )
+    .expect("workflow");
+    let runner = ServerBoundGitRunner { server_url: "https://github.example.com/" };
+
+    let outdated = find_outdated_with_runner::<SilentReporter, _>(
+        root.path(),
+        false,
+        None,
+        "https://github.example.com",
+        &runner,
+    )
+    .await
+    .expect("outdated actions");
+
+    assert_eq!(outdated.len(), 1);
+    assert_eq!(outdated[0].homepage, "https://github.example.com/actions/checkout");
+}
+
+#[tokio::test]
+async fn skips_repositories_whose_refs_cannot_be_read_and_warns() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    EVENTS.lock().expect("lock").clear();
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().expect("lock").push(event.clone());
+        }
+    }
+
+    struct PartiallyBrokenGitRunner;
+    impl GitCommandRunner for PartiallyBrokenGitRunner {
+        fn ls_remote<'a>(
+            &'a self,
+            repo: &'a str,
+            _ref_: Option<&'a str>,
+        ) -> Pin<Box<dyn Future<Output = Result<String, GitRunError>> + Send + 'a>> {
+            Box::pin(async move {
+                if repo.contains("private-action") {
+                    // A credentialed URL and control characters, which the
+                    // warning must redact and strip.
+                    return Err(GitRunError {
+                        message: "\u{1b}[31mhttps://user:token@ghes.example.com/x.git\u{1b}[0m\nnot found"
+                            .to_string(),
+                    });
+                }
+                Ok(format!("{SHA_V4_1_0}\trefs/tags/v4.1.0\n{SHA_V4_2_0}\trefs/tags/v4.2.0\n"))
+            })
+        }
+    }
+
+    let root = tempfile::tempdir().expect("temp directory");
+    let workflows = root.path().join(".github/workflows");
+    fs::create_dir_all(&workflows).expect("workflow directory");
+    fs::write(
+        workflows.join("ci.yml"),
+        "jobs:\n  test:\n    steps:\n      - uses: actions/checkout@v4.1.0\n      - uses: owner/private-action@v1.0.0\n",
+    )
+    .expect("workflow");
+
+    let outdated = find_outdated_with_runner::<RecordingReporter, _>(
+        root.path(),
+        false,
+        None,
+        "https://github.com",
+        &PartiallyBrokenGitRunner,
+    )
+    .await
+    .expect("outdated actions");
+
+    assert_eq!(outdated.len(), 1);
+    assert_eq!(outdated[0].name, "actions/checkout");
+    let events = EVENTS.lock().expect("lock");
+    let warnings: Vec<&GlobalLog> = events
+        .iter()
+        .filter_map(|event| match event {
+            LogEvent::Global(log) if log.level == LogLevel::Warn => Some(log),
+            _ => None,
+        })
+        .collect();
+    dbg!(&warnings);
+    assert_eq!(warnings.len(), 1);
+    assert_eq!(
+        warnings[0].message,
+        r#"Skipping the GitHub Actions from "owner/private-action": git ls-remote failed: [31mhttps://ghes.example.com/x.git[0mnot found"#,
+    );
+}
+
+#[tokio::test]
+async fn rejects_a_server_url_that_is_not_http() {
+    let root = tempfile::tempdir().expect("temp directory");
+
+    let Err(error) =
+        super::find_outdated::<SilentReporter>(root.path(), false, None, Some("ext::sh -c date"))
+            .await
+    else {
+        panic!("non-http server URL must be rejected");
+    };
+
+    assert!(error.to_string().contains(r#"must use the "https://" or "http://" protocol"#));
+}

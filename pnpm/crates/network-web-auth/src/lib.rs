@@ -22,6 +22,7 @@
 //! pnpm's `globalInfo` / `globalWarn`.
 
 mod capabilities;
+mod format_auth_url_message;
 mod generate_qr_code;
 mod global_log;
 mod poll_for_web_auth_token;
@@ -33,10 +34,11 @@ pub use capabilities::{
     Clock, EnterKeyListener, Host, OpenUrl, PromptError, PromptOtp, Sleep, StdinIsTty, StdoutIsTty,
     WebAuthFetch, WebAuthFetchError,
 };
+pub use format_auth_url_message::{AuthUrlMessage, format_auth_url_message};
 pub use generate_qr_code::{GenerateQrCodeError, generate_qr_code};
 pub use poll_for_web_auth_token::{
     WebAuthFetchOptions, WebAuthFetchResponse, WebAuthRetryOptions, WebAuthTokenPollParams,
-    poll_for_web_auth_token,
+    body_may_carry_token, poll_for_web_auth_token,
 };
 pub use prompt_browser_open::prompt_browser_open;
 pub use web_auth_timeout_error::WebAuthTimeoutError;

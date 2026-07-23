@@ -117,8 +117,10 @@ function resolveVTags (vTags: string[], range: string): string | null {
   return semver.maxSatisfying(vTags, range, true)
 }
 
-async function getRepoRefs (repo: string, ref: string | null): Promise<Record<string, string>> {
-  const gitArgs = [repo]
+export async function getRepoRefs (repo: string, ref: string | null): Promise<Record<string, string>> {
+  // `--` keeps a repo URL that starts with a dash (e.g. from a malicious
+  // config value) from being parsed as a git flag, matching the Rust runner.
+  const gitArgs = ['--', repo]
   if (ref) {
     gitArgs.push(ref)
     // Also request the peeled ref for annotated tags (e.g., refs/tags/v1.0.0^{})
@@ -130,7 +132,7 @@ async function getRepoRefs (repo: string, ref: string | null): Promise<Record<st
   const refs: Record<string, string> = {}
   for (const line of result.stdout.split('\n')) {
     const [commit, refName] = line.split('\t')
-    refs[refName] = commit
+    if (commit && refName) refs[refName] = commit
   }
   return refs
 }

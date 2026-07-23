@@ -18,7 +18,9 @@ use std::{
     collections::{HashMap, HashSet, VecDeque},
 };
 
-use pacquet_lockfile::{PackageKey, PackageMetadata, ProjectSnapshot, SnapshotEntry};
+use pacquet_lockfile::{
+    LockfileResolution, PackageKey, PackageMetadata, ProjectSnapshot, SnapshotEntry,
+};
 use pacquet_package_is_installable::{
     InstallabilityError, InstallabilityOptions, PackageInstallabilityManifest, SkipReason,
     SupportedArchitectures, WantedEngine, WantedPlatformRef, check_package, inferred_platform,
@@ -561,6 +563,50 @@ pub fn compute_skipped_snapshots<Reporter: self::Reporter>(
     }
 
     Ok(skipped)
+}
+
+/// `--no-runtime` (or `config.skip_runtimes`): add every project-direct
+/// runtime dependency (a `@runtime:` snapshot key with a binary
+/// resolution) to the skip set, keeping its archive unfetched and its
+/// bins unlinked while the resolved entry stays in the lockfile.
+/// Shared by the frozen- and fresh-lockfile install paths, which run it
+/// right before the dependency-closure extension.
+///
+/// The skips reuse the transient bucket of
+/// [`SkippedSnapshots::add_optional_excluded`], so — like
+/// `--no-optional` — the exclusion is never persisted into
+/// `.modules.yaml.skipped`.
+pub fn add_direct_runtime_skips(
+    skipped: &mut SkippedSnapshots,
+    importers: &HashMap<String, ProjectSnapshot>,
+    packages: &HashMap<PackageKey, PackageMetadata>,
+) {
+    for importer in importers.values() {
+        for dep_map in [
+            importer.dependencies.as_ref(),
+            importer.dev_dependencies.as_ref(),
+            importer.optional_dependencies.as_ref(),
+        ] {
+            let Some(dep_map) = dep_map else { continue };
+            for (alias, spec) in dep_map {
+                // Build the candidate snapshot key. For non-aliased deps
+                // this is `(alias, version)`; for aliased deps it's the
+                // alias's own (name, suffix). `link:` deps are skipped.
+                let Some(key) = spec.version.resolved_key(alias) else { continue };
+                if !key.to_string().contains("@runtime:") {
+                    continue;
+                }
+                if let Some(meta) = packages.get(&key)
+                    && matches!(
+                        &meta.resolution,
+                        LockfileResolution::Binary(_) | LockfileResolution::Variations(_),
+                    )
+                {
+                    skipped.add_optional_excluded(key);
+                }
+            }
+        }
+    }
 }
 
 /// `None` = compatible. `Some(err)` = incompatible, with the

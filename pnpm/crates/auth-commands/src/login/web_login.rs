@@ -1,8 +1,8 @@
 use pacquet_network::{ThrottledClient, redact_and_sanitize};
 use pacquet_network_web_auth::{
-    Clock, EnterKeyListener, GenerateQrCodeError, OpenUrl, Sleep, StdinIsTty, WebAuthFetch,
-    WebAuthFetchOptions, WebAuthTimeoutError, WebAuthTokenPollParams, generate_qr_code,
-    poll_for_web_auth_token, prompt_browser_open,
+    Clock, EnterKeyListener, OpenUrl, Sleep, StdinIsTty, WebAuthFetch, WebAuthFetchOptions,
+    WebAuthTimeoutError, WebAuthTokenPollParams, format_auth_url_message, poll_for_web_auth_token,
+    prompt_browser_open,
 };
 use pacquet_reporter::Reporter;
 use serde_json::Value;
@@ -46,8 +46,7 @@ where
         return Err(WebLoginFlowError::UnsafeUrl);
     }
 
-    let qr_code = generate_qr_code(&auth_url).map_err(WebLoginFlowError::QrCode)?;
-    global_info::<Reporter>(&format!("Authenticate your account at:\n{auth_url}\n\n{qr_code}"));
+    global_info::<Reporter>(format_auth_url_message::<Reporter>(&auth_url).to_string());
 
     let poll = poll_for_web_auth_token::<Sys>(WebAuthTokenPollParams {
         done_url,
@@ -101,8 +100,6 @@ pub(super) enum WebLoginFlowError {
     UnsafeUrl,
     /// The token poll exceeded its budget.
     Timeout(WebAuthTimeoutError),
-    /// The login URL could not be rendered as a QR code.
-    QrCode(GenerateQrCodeError),
     /// The probe request never produced a response.
     Transport { reason: String },
 }
@@ -114,7 +111,6 @@ impl From<WebLoginFlowError> for LoginError {
             WebLoginFlowError::InvalidResponse => LoginError::InvalidResponse,
             WebLoginFlowError::UnsafeUrl => LoginError::UnsafeLoginUrl,
             WebLoginFlowError::Timeout(timeout) => LoginError::WebAuthTimeout(timeout),
-            WebLoginFlowError::QrCode(qr) => LoginError::QrCode(qr),
             WebLoginFlowError::Transport { reason } => LoginError::Request { reason },
         }
     }

@@ -157,17 +157,23 @@ pub fn write_change_intent(
         id = random_human_id();
     }
 
+    let content = format_change_intent(releases, summary);
+    let file_path = changes_dir.join(format!("{id}.md"));
+    fs::write(&file_path, content)
+        .map_err(|source| VersioningError::Write { path: file_path, source })?;
+    Ok(id)
+}
+
+/// Render one changesets-compatible change intent without writing it.
+#[must_use]
+pub fn format_change_intent(releases: &IndexMap<String, IntentBumpType>, summary: &str) -> String {
     let frontmatter_lines: Vec<String> = releases
         .iter()
         .map(|(pkg_name, bump_type)| {
             format!("{}: {bump_type}", serde_json::to_string(pkg_name).expect("serialize string"))
         })
         .collect();
-    let content = format!("---\n{}\n---\n\n{}\n", frontmatter_lines.join("\n"), summary.trim());
-    let file_path = changes_dir.join(format!("{id}.md"));
-    fs::write(&file_path, content)
-        .map_err(|source| VersioningError::Write { path: file_path, source })?;
-    Ok(id)
+    format!("---\n{}\n---\n\n{}\n", frontmatter_lines.join("\n"), summary.trim())
 }
 
 #[cfg(test)]

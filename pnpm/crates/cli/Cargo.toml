@@ -17,6 +17,7 @@ path = "src/bin/main.rs"
 [dependencies]
 pacquet-auth-commands                     = { workspace = true }
 pacquet-catalogs-config                   = { workspace = true }
+pacquet-catalogs-protocol-parser          = { workspace = true }
 pacquet-catalogs-types                    = { workspace = true }
 pacquet-cmd-shim                          = { workspace = true }
 pacquet-crypto-hash                       = { workspace = true }
@@ -45,6 +46,7 @@ pacquet-patching                          = { workspace = true }
 pacquet-package-is-installable            = { workspace = true }
 pacquet-registry                          = { workspace = true }
 pacquet-reporter                          = { workspace = true }
+pacquet-resolving-git-resolver            = { workspace = true }
 pacquet-resolving-npm-resolver            = { workspace = true }
 pacquet-resolving-parse-wanted-dependency = { workspace = true }
 pacquet-resolving-resolver-base           = { workspace = true }
@@ -66,6 +68,7 @@ dialoguer            = { workspace = true }
 dunce                = { workspace = true }
 flate2               = { workspace = true }
 futures-util         = { workspace = true }
+getrandom            = { workspace = true }
 home                 = { workspace = true }
 indexmap             = { workspace = true }
 node-semver          = { workspace = true }
@@ -87,6 +90,8 @@ tokio                = { workspace = true }
 tracing              = { workspace = true }
 url                  = { workspace = true }
 which                = { workspace = true }
+yaml_serde           = { workspace = true }
+yamlpath             = { workspace = true }
 base64               = { workspace = true }
 wax                  = { workspace = true }
 

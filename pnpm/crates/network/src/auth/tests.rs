@@ -228,6 +228,9 @@ fn redact_and_sanitize_strips_credentials_and_control_chars() {
     assert_eq!(redact_and_sanitize("https://user:pass@host/pkg\u{7}\r\n"), "https://host/pkg");
     // A clean URL is returned unchanged.
     assert_eq!(redact_and_sanitize("https://host/pkg"), "https://host/pkg");
+    // A control character inside the userinfo must not break the redaction:
+    // controls are stripped first, then credentials are redacted.
+    assert_eq!(redact_and_sanitize("https://user:pass\r@host/x"), "https://host/x");
 }
 
 fn build(entries: &[(&str, &str)]) -> AuthHeaders {

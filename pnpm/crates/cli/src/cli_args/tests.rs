@@ -140,6 +140,7 @@ fn script_scoped_global_flags_parse_before_script_commands() {
         ["pacquet", "--report-summary", "test"].as_slice(),
         ["pacquet", "--resume-from", "pkg", "start"].as_slice(),
         ["pacquet", "--no-bail", "stop"].as_slice(),
+        ["pacquet", "-r", "--no-bail", "rebuild"].as_slice(),
         ["pacquet", "-r", "--report-summary", ".test"].as_slice(),
     ] {
         let parsed = CliArgs::try_parse_from(argv).expect("parses script-scoped global flag");
@@ -221,6 +222,7 @@ fn script_scoped_global_flags_reject_unrelated_commands() {
         ["pacquet", "install", "--no-bail"].as_slice(),
         ["pacquet", "restart", "--report-summary"].as_slice(),
         ["pacquet", "restart", "--no-bail"].as_slice(),
+        ["pacquet", "rebuild", "--resume-from", "pkg"].as_slice(),
         ["pacquet", "publish", "--resume-from", "pkg"].as_slice(),
         ["pacquet", "publish", "--no-bail"].as_slice(),
     ] {
@@ -290,6 +292,62 @@ fn no_filter_leaves_recursive_untouched() {
         CliArgs::try_parse_from(["pacquet", "-r", "install"]).expect("parses -r install");
     explicit.promote_recursive_for_filter();
     assert!(explicit.recursive, "an explicit -r is preserved");
+}
+
+#[test]
+fn recursive_by_default_command_is_promoted_inside_workspace() {
+    let workspace = tempfile::tempdir().expect("creates workspace");
+    std::fs::write(workspace.path().join("pnpm-workspace.yaml"), "packages: []\n")
+        .expect("writes workspace manifest");
+    for command in ["list", "why", "peers"] {
+        let mut parsed = CliArgs::try_parse_from([
+            "pacquet",
+            "--dir",
+            workspace.path().to_str().expect("UTF-8 path"),
+            command,
+        ])
+        .expect("parses");
+
+        parsed.promote_recursive_by_default();
+
+        assert!(parsed.recursive, "{command} should be recursive inside a workspace");
+    }
+}
+
+#[test]
+fn recursive_by_default_command_stays_non_recursive_outside_workspace() {
+    let project = tempfile::tempdir().expect("creates project");
+    for command in ["list", "why", "peers"] {
+        let mut parsed = CliArgs::try_parse_from([
+            "pacquet",
+            "--dir",
+            project.path().to_str().expect("UTF-8 path"),
+            command,
+        ])
+        .expect("parses");
+
+        parsed.promote_recursive_by_default();
+
+        assert!(!parsed.recursive, "{command} should stay non-recursive outside a workspace");
+    }
+}
+
+#[test]
+fn commands_without_recursive_by_default_stay_non_recursive_in_workspace() {
+    let workspace = tempfile::tempdir().expect("creates workspace");
+    std::fs::write(workspace.path().join("pnpm-workspace.yaml"), "packages: []\n")
+        .expect("writes workspace manifest");
+    let mut parsed = CliArgs::try_parse_from([
+        "pacquet",
+        "--dir",
+        workspace.path().to_str().expect("UTF-8 path"),
+        "outdated",
+    ])
+    .expect("parses");
+
+    parsed.promote_recursive_by_default();
+
+    assert!(!parsed.recursive);
 }
 
 #[test]

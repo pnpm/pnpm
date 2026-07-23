@@ -407,7 +407,7 @@ fn create_with_unwritable_parent_path_errors() {
 
 /// Re-applying a Modify patch over a file that already contains the
 /// post-patch content must succeed (no-op), the same
-/// [retry-with-reverse-in-dry-run](https://github.com/ds300/patch-package/blob/master/src/applyPatches.ts)
+/// [retry-with-reverse-in-dry-run](https://github.com/ds300/patch-package/blob/be4dfd77d9/src/applyPatches.ts)
 /// idempotency `patch-package` provides. Triggers in practice when two
 /// snapshots of the same
 /// patched package share a hardlinked store file: the first apply

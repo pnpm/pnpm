@@ -241,6 +241,16 @@ impl PackageManifest {
         &mut self.value
     }
 
+    /// Return the manifest shape that [`Self::save`] would write without
+    /// changing the filesystem.
+    pub fn written_value(&self) -> Result<Value, PackageManifestError> {
+        let mut value = self.value.clone();
+        convert_dependencies_to_engines_runtime(&mut value, "devDependencies", "devEngines")?;
+        convert_dependencies_to_engines_runtime(&mut value, "dependencies", "engines")?;
+        normalize_dependency_fields(&mut value);
+        Ok(value)
+    }
+
     /// Persist the manifest in its on-disk shape (`devEngines` folded back,
     /// dependency fields normalized) and return that shape.
     ///
@@ -248,10 +258,7 @@ impl PackageManifest {
     /// state, and is skipped entirely when the file already encodes the
     /// same manifest — so a no-op save never churns formatting or mtime.
     pub fn save_and_get_written_value(&mut self) -> Result<Value, PackageManifestError> {
-        let mut value = self.value.clone();
-        convert_dependencies_to_engines_runtime(&mut value, "devDependencies", "devEngines")?;
-        convert_dependencies_to_engines_runtime(&mut value, "dependencies", "engines")?;
-        normalize_dependency_fields(&mut value);
+        let value = self.written_value()?;
         if self.on_disk.as_ref() == Some(&value) {
             return Ok(value);
         }

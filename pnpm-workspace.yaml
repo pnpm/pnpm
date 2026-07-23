@@ -205,7 +205,6 @@ catalog:
   cli-truncate: ^6.0.0
   cmd-extension: ^2.0.0
   comver-to-semver: ^2.0.0
-  concurrently: 10.0.3
   cross-env: ^10.1.0
   cross-spawn: ^7.0.6
   # cspell 10.x requires Node.js >=22.18.0, above pnpm's supported floor of

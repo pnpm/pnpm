@@ -9,7 +9,9 @@ import {
   TABLE_OPTIONS,
 } from '@pnpm/cli.utils'
 import { colorizeSemverDiff } from '@pnpm/colorize-semver-diff'
+import { createMatcher } from '@pnpm/config.matcher'
 import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
+import { findOutdatedGitHubActions, isGitHubActionSelector, normalizeGitHubActionSelector } from '@pnpm/deps.github-actions'
 import {
   outdatedDepsOfProjects,
   type OutdatedPackage,
@@ -64,7 +66,7 @@ export const commandNames = ['outdated']
 
 export function help (): string {
   return renderHelp({
-    description: `Check for outdated packages. The check can be limited to a subset of the installed packages by providing arguments (patterns are supported).
+    description: `Check for outdated package and GitHub Actions dependencies. The check can be limited to a subset of dependencies by providing arguments (patterns are supported).
 
 Examples:
 pnpm outdated
@@ -170,6 +172,7 @@ export type OutdatedCommandOptions = {
 | 'tag'
 | 'userAgent'
 | 'updateConfig'
+| 'workspaceDir'
 > & Pick<ConfigContext,
 | 'allProjects'
 | 'selectedProjectsGraph'
@@ -206,22 +209,38 @@ export async function handler (
       },
     ]
   }
-  const outdatedPerProject = await outdatedDepsOfProjects(packages, params, {
-    ...opts,
-    fullMetadata: opts.long,
-    ignoreDependencies: opts.updateConfig?.ignoreDependencies,
-    include,
-    minimumReleaseAge: opts.minimumReleaseAge,
-    minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
-    retry: {
-      factor: opts.fetchRetryFactor,
-      maxTimeout: opts.fetchRetryMaxtimeout,
-      minTimeout: opts.fetchRetryMintimeout,
-      retries: opts.fetchRetries,
-    },
-    timeout: opts.fetchTimeout,
-  })
-  const outdatedPackages = outdatedPerProject.flat()
+  const packageParams = params.filter((param) => !isGitHubActionSelector(param))
+  const [outdatedPerProject, outdatedActions] = await Promise.all([
+    params.length === 0 || packageParams.length > 0
+      ? outdatedDepsOfProjects(packages, packageParams, {
+        ...opts,
+        fullMetadata: opts.long,
+        ignoreDependencies: opts.updateConfig?.ignoreDependencies,
+        include,
+        minimumReleaseAge: opts.minimumReleaseAge,
+        minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
+        retry: {
+          factor: opts.fetchRetryFactor,
+          maxTimeout: opts.fetchRetryMaxtimeout,
+          minTimeout: opts.fetchRetryMintimeout,
+          retries: opts.fetchRetries,
+        },
+        timeout: opts.fetchTimeout,
+      })
+      : [],
+    opts.global || !include.devDependencies || opts.updateConfig?.githubActions === false
+      ? []
+      : findOutdatedGitHubActions({
+        compatible: opts.compatible,
+        dir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
+        match: params.length > 0 ? createMatcher(params.map(normalizeGitHubActionSelector)) : undefined,
+        serverUrl: opts.updateConfig?.githubActionsServer,
+      }),
+  ])
+  const outdatedPackages: OutdatedItem[] = [
+    ...outdatedPerProject.flat(),
+    ...outdatedActions.map(toOutdatedAction),
+  ]
 
   let output!: string
   switch (opts.format ?? 'table') {
@@ -247,7 +266,9 @@ export async function handler (
   }
 }
 
-function renderOutdatedTable (outdatedPackages: readonly OutdatedPackage[], opts: { long?: boolean, sortBy?: 'name' }): string {
+export type OutdatedItem = OutdatedPackage & { dependencyType?: 'githubAction' }
+
+function renderOutdatedTable (outdatedPackages: readonly OutdatedItem[], opts: { long?: boolean, sortBy?: 'name' }): string {
   if (outdatedPackages.length === 0) return ''
   const columnNames = [
     'Package',
@@ -295,7 +316,7 @@ function renderOutdatedTable (outdatedPackages: readonly OutdatedPackage[], opts
   return table(data, tableOptions)
 }
 
-function renderOutdatedList (outdatedPackages: readonly OutdatedPackage[], opts: { long?: boolean, sortBy?: 'name' }): string {
+function renderOutdatedList (outdatedPackages: readonly OutdatedItem[], opts: { long?: boolean, sortBy?: 'name' }): string {
   if (outdatedPackages.length === 0) return ''
   return sortOutdatedPackages(outdatedPackages, { sortBy: opts.sortBy })
     .map((outdatedPkg) => {
@@ -320,11 +341,11 @@ export interface OutdatedPackageJSONOutput {
   latest?: string
   wanted: string
   isDeprecated: boolean
-  dependencyType: DependenciesField
+  dependencyType: DependenciesField | 'githubAction'
   latestManifest?: PackageManifest
 }
 
-function renderOutdatedJSON (outdatedPackages: readonly OutdatedPackage[], opts: { long?: boolean, sortBy?: 'name' }): string {
+function renderOutdatedJSON (outdatedPackages: readonly OutdatedItem[], opts: { long?: boolean, sortBy?: 'name' }): string {
   const outdatedPackagesJSON: Record<string, OutdatedPackageJSONOutput> = sortOutdatedPackages(outdatedPackages, { sortBy: opts.sortBy })
     .reduce((acc, outdatedPkg) => {
       acc[outdatedPkg.packageName] = {
@@ -332,7 +353,7 @@ function renderOutdatedJSON (outdatedPackages: readonly OutdatedPackage[], opts:
         latest: outdatedPkg.latestManifest?.version,
         wanted: outdatedPkg.wanted,
         isDeprecated: Boolean(outdatedPkg.latestManifest?.deprecated),
-        dependencyType: outdatedPkg.belongsTo,
+        dependencyType: outdatedPkg.dependencyType ?? outdatedPkg.belongsTo,
       }
       if (opts.long) {
         acc[outdatedPkg.packageName].latestManifest = outdatedPkg.latestManifest
@@ -342,7 +363,7 @@ function renderOutdatedJSON (outdatedPackages: readonly OutdatedPackage[], opts:
   return JSON.stringify(outdatedPackagesJSON, null, 2)
 }
 
-function sortOutdatedPackages (outdatedPackages: readonly OutdatedPackage[], opts?: { sortBy?: 'name' }) {
+function sortOutdatedPackages (outdatedPackages: readonly OutdatedItem[], opts?: { sortBy?: 'name' }) {
   const sortBy = opts?.sortBy
   const comparators = (sortBy === 'name') ? [NAME_COMPARATOR] : DEFAULT_COMPARATORS
   return sortWith(
@@ -375,7 +396,8 @@ export function toOutdatedWithVersionDiff<Pkg extends OutdatedPackage> (outdated
   }
 }
 
-export function renderPackageName ({ belongsTo, packageName }: OutdatedPackage): string {
+export function renderPackageName ({ belongsTo, dependencyType, packageName }: OutdatedItem): string {
+  if (dependencyType === 'githubAction') return `${packageName} ${chalk.dim('(github action)')}`
   switch (belongsTo) {
     case 'devDependencies': return `${packageName} ${chalk.dim('(dev)')}`
     case 'optionalDependencies': return `${packageName} ${chalk.dim('(optional)')}`
@@ -416,4 +438,20 @@ export function renderDetails ({ latestManifest }: OutdatedPackage): string {
     outputs.push(chalk.underline(latestManifest.homepage))
   }
   return outputs.join('\n')
+}
+
+export function toOutdatedAction (action: Awaited<ReturnType<typeof findOutdatedGitHubActions>>[number]): OutdatedItem {
+  return {
+    alias: action.name,
+    belongsTo: 'devDependencies',
+    current: action.current,
+    dependencyType: 'githubAction',
+    latestManifest: {
+      name: action.name,
+      version: action.latest,
+      homepage: action.homepage,
+    },
+    packageName: action.name,
+    wanted: action.wanted,
+  }
 }

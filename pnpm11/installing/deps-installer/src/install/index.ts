@@ -45,6 +45,7 @@ import { readModulesManifest, type StrictModules, writeModulesManifest } from '@
 import {
   type CatalogSnapshots,
   cleanGitBranchLockfiles,
+  getLockfileImporterId,
   getWantedLockfileName,
   isEmptyLockfile,
   type LockfileObject,
@@ -2695,6 +2696,10 @@ async function installViaPnprServer (
       namedRegistries: opts.namedRegistries,
       authorization: pnprAuthorization,
       overrides: opts.overrides,
+      // The reconstructed workspace the server builds from this request has no
+      // catalog sections, so forward the catalogs for the server to resolve
+      // `catalog:` specifiers in both dependencies and overrides.
+      catalogs: opts.catalogs,
       minimumReleaseAge: opts.minimumReleaseAge,
       lockfile: existingLockfile ?? undefined,
     })
@@ -2753,7 +2758,10 @@ async function installViaPnprServer (
           {
             binsDir: path.join(p.rootDir, 'node_modules', '.bin'),
             buildIndex: i,
-            id: (path.relative(lockfileDir, p.rootDir) || '.') as ProjectId,
+            // POSIX-normalize so the importer id matches the lockfile keys the
+            // pnpr server emits — on Windows a nested member's `path.relative`
+            // would otherwise be `packages\foo`, missing `packages/foo`.
+            id: getLockfileImporterId(lockfileDir, p.rootDir),
             manifest: p.manifest,
             modulesDir: path.join(p.rootDir, 'node_modules'),
             rootDir: p.rootDir,
