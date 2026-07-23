@@ -486,10 +486,12 @@ fn applied_selectors_records_each_matched_override() {
 
     let applied = overrider.applied_selectors();
     assert_eq!(
-        applied.into_iter().collect::<std::collections::BTreeSet<_>>(),
-        ["delete-me".to_string(), "foo".to_string(), "parent>bar".to_string()]
-            .into_iter()
-            .collect(),
+        applied,
+        std::collections::HashSet::from([
+            "delete-me".to_string(),
+            "foo".to_string(),
+            "parent>bar".to_string(),
+        ]),
     );
 }
 
