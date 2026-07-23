@@ -328,7 +328,13 @@ macro_rules! web_auth_fake {
 /// A still-pending web-auth poll response (HTTP 202, keep polling).
 #[must_use]
 pub fn ok_202() -> WebAuthFetchResponse {
-    WebAuthFetchResponse { ok: true, status: 202, retry_after: None, body: "{}".to_owned() }
+    WebAuthFetchResponse {
+        ok: true,
+        status: 202,
+        retry_after: None,
+        body: b"{}".to_vec(),
+        truncated: false,
+    }
 }
 
 /// A completed web-auth poll response carrying the granted `token`.
@@ -338,7 +344,25 @@ pub fn ok_token(token: &str) -> WebAuthFetchResponse {
         ok: true,
         status: 200,
         retry_after: None,
-        body: json!({ "token": token }).to_string(),
+        body: json!({ "token": token }).to_string().into_bytes(),
+        truncated: false,
+    }
+}
+
+/// A completed web-auth poll response whose body the provider capped at the
+/// size limit (`truncated`), simulating a registry that returned an
+/// over-cap body. Drives the token-body-limit branch through the
+/// dependency-injection seam.
+#[must_use]
+pub fn ok_truncated() -> WebAuthFetchResponse {
+    WebAuthFetchResponse {
+        ok: true,
+        status: 200,
+        retry_after: None,
+        // A real token, to prove that a truncated response is discarded
+        // *because* it was truncated, not because the body lacked a token.
+        body: json!({ "token": "web-token-123" }).to_string().into_bytes(),
+        truncated: true,
     }
 }
 

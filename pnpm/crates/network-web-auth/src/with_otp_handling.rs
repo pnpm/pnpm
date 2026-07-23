@@ -3,12 +3,12 @@ use pacquet_reporter::Reporter;
 use serde_json::Value;
 
 use crate::{
-    GenerateQrCodeError, WebAuthTimeoutError,
+    WebAuthTimeoutError,
     capabilities::{
         Clock, EnterKeyListener, OpenUrl, PromptError, PromptOtp, Sleep, StdinIsTty, StdoutIsTty,
         WebAuthFetch,
     },
-    generate_qr_code::generate_qr_code,
+    format_auth_url_message::format_auth_url_message,
     global_log::{global_info, global_warn},
     poll_for_web_auth_token::{
         WebAuthFetchOptions, WebAuthTokenPollParams, poll_for_web_auth_token,
@@ -84,7 +84,7 @@ fn extract_url_field<Reporter: self::Reporter>(
         None => None,
         Some(Value::String(value)) => Some(value.clone()),
         Some(other) => {
-            global_warn::<Reporter>(&format!(
+            global_warn::<Reporter>(format!(
                 "OTP error body: {field} has type {}, expected string",
                 js_typeof(other),
             ));
@@ -197,9 +197,6 @@ pub enum WithOtpError<Error: Diagnostic + 'static> {
 
     #[display("{_0}")]
     Prompt(PromptError),
-
-    #[display("{_0}")]
-    QrCode(GenerateQrCodeError),
 }
 
 /// Run `operation`, transparently satisfying an OTP challenge if it raises
@@ -257,10 +254,7 @@ where
 
     let otp = match web_auth_urls {
         Some((auth_url, done_url)) => {
-            let qr_code = generate_qr_code(&auth_url).map_err(WithOtpError::QrCode)?;
-            global_info::<Reporter>(&format!(
-                "Authenticate your account at:\n{auth_url}\n\n{qr_code}",
-            ));
+            global_info::<Reporter>(format_auth_url_message::<Reporter>(&auth_url).to_string());
             let poll = poll_for_web_auth_token::<Sys>(WebAuthTokenPollParams {
                 done_url,
                 fetch_options,

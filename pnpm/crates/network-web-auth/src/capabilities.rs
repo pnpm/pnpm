@@ -23,8 +23,11 @@ use std::{
 };
 
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
+use pacquet_network::{LimitedBody, read_limited_body};
 
-use crate::poll_for_web_auth_token::{WebAuthFetchOptions, WebAuthFetchResponse};
+use crate::poll_for_web_auth_token::{
+    WebAuthFetchOptions, WebAuthFetchResponse, body_may_carry_token,
+};
 
 /// Read the current wall-clock time as Unix-epoch milliseconds.
 ///
@@ -136,6 +139,12 @@ impl Sleep for Host {
     }
 }
 
+/// The most bytes of a poll response body [`Host::fetch`] reads. The
+/// expected body is a small JSON object carrying the token, and the URL it
+/// comes from is registry-controlled, so an unbounded read on every poll
+/// tick would let a malicious or compromised registry grow memory at will.
+const TOKEN_BODY_LIMIT: usize = 64 * 1024;
+
 impl WebAuthFetch for Host {
     async fn fetch(
         url: &str,
@@ -157,12 +166,34 @@ impl WebAuthFetch for Host {
             .get(reqwest::header::RETRY_AFTER)
             .and_then(|value| value.to_str().ok())
             .map(str::to_owned);
-        // A body read failure is treated the same as `response.json()`
-        // rejecting upstream: an empty body makes `token()` fail to parse,
-        // so the poll loop retries — while `status` / `retry_after` stay
-        // usable for the 202 branch.
-        let body = response.text().await.unwrap_or_default();
-        Ok(WebAuthFetchResponse { ok, status, retry_after, body })
+        // The poll loop never reads the body of a non-ok or 202 response;
+        // returning early leaves `response` unread, stopping the transfer.
+        if !body_may_carry_token(ok, status) {
+            return Ok(WebAuthFetchResponse {
+                ok,
+                status,
+                retry_after,
+                body: Vec::new(),
+                truncated: false,
+            });
+        }
+        // Copy the capped bytes through verbatim; `WebAuthFetchResponse::token`
+        // decodes and parses them, so this provider interprets nothing. A read
+        // failure yields an empty, untruncated body, which `token` treats the
+        // same as an unparsable one (the poll retries); an over-cap body reports
+        // `truncated` so `token` reports no token.
+        match read_limited_body(response, TOKEN_BODY_LIMIT).await {
+            Ok(LimitedBody { bytes: body, truncated }) => {
+                Ok(WebAuthFetchResponse { ok, status, retry_after, body, truncated })
+            }
+            Err(_) => Ok(WebAuthFetchResponse {
+                ok,
+                status,
+                retry_after,
+                body: Vec::new(),
+                truncated: false,
+            }),
+        }
     }
 }
 
@@ -191,18 +222,31 @@ impl OpenUrl for Host {
 const ENTER_POLL_INTERVAL: Duration = Duration::from_millis(100);
 
 /// Production [`EnterKeyListener::Handle`]. Resolves once the background
-/// thread observes an Enter keypress; dropping it sets the cancel flag so
-/// that thread stops within one [`ENTER_POLL_INTERVAL`] — crossterm's
-/// blocking `event::read()` cannot be cancelled, so the thread polls with
-/// a timeout instead of blocking forever.
+/// thread observes an Enter keypress, and stays resolved on re-polls;
+/// dropping it sets the cancel flag so that thread stops within one
+/// [`ENTER_POLL_INTERVAL`] — crossterm's blocking `event::read()` cannot be
+/// cancelled, so the thread polls with a timeout instead of blocking
+/// forever.
 ///
 /// Meant to be raced and dropped when another branch wins (e.g. inside a
 /// `tokio::select!`): on a stdin read error it deliberately never resolves,
 /// so awaiting it on its own would hang.
 pub struct HostEnterHandle {
     enter: tokio::sync::oneshot::Receiver<()>,
-    fired: bool,
+    state: EnterListenerState,
     cancel: Arc<AtomicBool>,
+}
+
+/// Where a [`HostEnterHandle`] is in its lifecycle. `Completed` and
+/// `Disabled` are both terminal — the oneshot receiver must not be polled
+/// again — but they resolve differently: a completed handle re-polls as
+/// `Ready` while a disabled one (stdin read error) stays `Pending` forever
+/// so the browser is not opened spuriously.
+#[derive(Clone, Copy)]
+enum EnterListenerState {
+    Waiting,
+    Completed,
+    Disabled,
 }
 
 impl Future for HostEnterHandle {
@@ -210,20 +254,21 @@ impl Future for HostEnterHandle {
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<()> {
         let this = self.get_mut();
-        if this.fired {
-            return Poll::Pending;
+        match this.state {
+            EnterListenerState::Completed => return Poll::Ready(()),
+            EnterListenerState::Disabled => return Poll::Pending,
+            EnterListenerState::Waiting => {}
         }
         match Pin::new(&mut this.enter).poll(cx) {
             Poll::Pending => Poll::Pending,
             // Enter pressed: the reader thread signalled.
             Poll::Ready(Ok(())) => {
-                this.fired = true;
+                this.state = EnterListenerState::Completed;
                 Poll::Ready(())
             }
-            // Reader exited without signalling (read error): never fire, so
-            // the browser is not opened spuriously.
+            // Reader exited without signalling (read error).
             Poll::Ready(Err(_)) => {
-                this.fired = true;
+                this.state = EnterListenerState::Disabled;
                 Poll::Pending
             }
         }
@@ -253,7 +298,12 @@ impl EnterKeyListener for Host {
                 match event::poll(ENTER_POLL_INTERVAL) {
                     // Input is ready, but skip it without consuming when the
                     // handle was dropped meanwhile — otherwise `read()` would
-                    // steal a keystroke from whatever reads stdin next.
+                    // steal a keystroke from whatever reads stdin next. The
+                    // re-check is best-effort: a drop landing between it and
+                    // `read()` can still lose one keystroke. That residual
+                    // window is a few instructions wide and accepted;
+                    // crossterm offers no way to close it short of not
+                    // reading stdin at all.
                     Ok(true) => {
                         if reader_cancel.load(Ordering::Relaxed) {
                             return;
@@ -279,7 +329,7 @@ impl EnterKeyListener for Host {
                 }
             }
         })?;
-        Ok(HostEnterHandle { enter, fired: false, cancel })
+        Ok(HostEnterHandle { enter, state: EnterListenerState::Waiting, cancel })
     }
 }
 
