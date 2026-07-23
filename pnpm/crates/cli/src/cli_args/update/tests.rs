@@ -62,7 +62,7 @@ fn github_actions_are_opt_in_for_every_update() {
 
     assert!(!update_args(&[]).should_update_github_actions(&config, &include_direct));
     assert!(
-        !update_args(&["--interactive"]).should_update_github_actions(&config, &include_direct)
+        !update_args(&["--interactive"]).should_update_github_actions(&config, &include_direct),
     );
     assert!(
         update_args(&["--include-github-actions"])
