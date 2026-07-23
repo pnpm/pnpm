@@ -18,7 +18,9 @@ use std::{
     collections::{HashMap, HashSet, VecDeque},
 };
 
-use pacquet_lockfile::{PackageKey, PackageMetadata, ProjectSnapshot, SnapshotEntry};
+use pacquet_lockfile::{
+    LockfileResolution, PackageKey, PackageMetadata, ProjectSnapshot, SnapshotEntry,
+};
 use pacquet_package_is_installable::{
     InstallabilityError, InstallabilityOptions, PackageInstallabilityManifest, SkipReason,
     SupportedArchitectures, WantedEngine, WantedPlatformRef, check_package, inferred_platform,
@@ -561,6 +563,54 @@ pub fn compute_skipped_snapshots<Reporter: self::Reporter>(
     }
 
     Ok(skipped)
+}
+
+/// `--no-runtime` (or `config.skip_runtimes`): exclude every
+/// project-direct runtime dependency — iterate each importer's direct
+/// deps and add the runtime ones to the skip set; transitive runtime
+/// entries (which would be unusual but possible) stay in the install.
+/// The discriminator is a `@runtime:` substring check on the resolved
+/// depPath; pacquet's lockfile preserves the `@runtime:` substring in
+/// the snapshot key, so the string-test works here. Shared by the
+/// frozen- and fresh-lockfile install paths, which both run it right
+/// before extending the skip set with the dependency closure.
+///
+/// Re-using `add_optional_excluded` keeps the bucket count (and
+/// `.modules.yaml.skipped` semantics) unchanged: like `--no-optional`,
+/// this is a transient user-driven exclusion that should *not* be
+/// persisted into `.modules.yaml.skipped` — a future install without
+/// the flag must bring the runtime back.
+pub fn add_direct_runtime_skips(
+    skipped: &mut SkippedSnapshots,
+    importers: &HashMap<String, ProjectSnapshot>,
+    packages: &HashMap<PackageKey, PackageMetadata>,
+) {
+    for importer in importers.values() {
+        for dep_map in [
+            importer.dependencies.as_ref(),
+            importer.dev_dependencies.as_ref(),
+            importer.optional_dependencies.as_ref(),
+        ] {
+            let Some(dep_map) = dep_map else { continue };
+            for (alias, spec) in dep_map {
+                // Build the candidate snapshot key. For non-aliased deps
+                // this is `(alias, version)`; for aliased deps it's the
+                // alias's own (name, suffix). `link:` deps are skipped.
+                let Some(key) = spec.version.resolved_key(alias) else { continue };
+                if !key.to_string().contains("@runtime:") {
+                    continue;
+                }
+                if let Some(meta) = packages.get(&key)
+                    && matches!(
+                        &meta.resolution,
+                        LockfileResolution::Binary(_) | LockfileResolution::Variations(_),
+                    )
+                {
+                    skipped.add_optional_excluded(key);
+                }
+            }
+        }
+    }
 }
 
 /// `None` = compatible. `Some(err)` = incompatible, with the
