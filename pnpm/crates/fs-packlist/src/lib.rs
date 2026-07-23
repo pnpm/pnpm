@@ -52,6 +52,7 @@ use pacquet_package_manifest::safe_read_package_json_from_dir;
 use serde_json::Value;
 use std::{
     collections::{BTreeSet, HashSet, VecDeque},
+    ffi::OsStr,
     fs,
     path::{Component, Path, PathBuf},
 };
@@ -335,11 +336,11 @@ fn collect_own_files(
         if entry.depth() == 0 {
             return true;
         }
-        let name = entry.file_name().to_string_lossy();
-        if entry.depth() == 1 && name == "node_modules" {
+        let name = entry.file_name();
+        if entry.depth() == 1 && name == OsStr::new("node_modules") {
             return false;
         }
-        !ALWAYS_EXCLUDED_DIR_SEGMENTS.contains(&name.as_ref())
+        !ALWAYS_EXCLUDED_DIR_SEGMENTS.iter().any(|segment| name == OsStr::new(segment))
     });
     if files_matcher.is_some() {
         builder.git_ignore(false);
