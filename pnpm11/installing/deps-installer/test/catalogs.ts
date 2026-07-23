@@ -1967,7 +1967,7 @@ describe('update', () => {
     }])
 
     const catalogs = {
-      default: { 'foo-alias': 'npm:@pnpm.e2e/foo@1.0.0' },
+      default: { 'foo-alias': 'npm:@pnpm.e2e/foo@~1.0.0' },
     }
 
     const mutateOpts = {
@@ -1979,7 +1979,7 @@ describe('update', () => {
     await mutateModules(installProjects(projects), mutateOpts)
 
     expect(readLockfile().catalogs.default).toEqual({
-      'foo-alias': { specifier: 'npm:@pnpm.e2e/foo@1.0.0', version: '1.0.0' },
+      'foo-alias': { specifier: 'npm:@pnpm.e2e/foo@~1.0.0', version: '1.0.0' },
     })
 
     const { updatedCatalogs, updatedManifest } = await addDependenciesToPackage(
@@ -1994,7 +1994,7 @@ describe('update', () => {
       })
 
     // The manifest keeps the catalog reference; the bumped catalog entry
-    // keeps the npm: alias prefix.
+    // keeps the npm: alias prefix and the entry's own range operator.
     expect(updatedManifest).toEqual({
       name: 'project1',
       dependencies: {
@@ -2003,7 +2003,7 @@ describe('update', () => {
     })
     expect(updatedCatalogs).toEqual({
       default: {
-        'foo-alias': 'npm:@pnpm.e2e/foo@100.1.0',
+        'foo-alias': 'npm:@pnpm.e2e/foo@~100.1.0',
       },
     })
 
