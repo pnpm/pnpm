@@ -979,3 +979,55 @@ fn update_latest_reports_invalid_minimum_release_age_exclude() {
 
     drop((root, anchor));
 }
+
+/// `pnpm update --latest` must not resolve a `workspace:` dependency against
+/// the registry: it links a local workspace package that may be unpublished, so
+/// there is no registry "latest" to fetch. Regression for the pnpm/pnpm
+/// update-lockfile job, whose `@pnpm-private/*` deps are `workspace:*`.
+#[test]
+fn update_latest_preserves_workspace_protocol_dependencies() {
+    let (root, workspace, anchor) = setup();
+
+    fs::write(
+        workspace.join("package.json"),
+        r#"{ "name": "root", "version": "1.0.0", "private": true }"#,
+    )
+    .expect("write root package.json");
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    workspace_yaml.push_str("packages:\n  - 'packages/*'\n");
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    // Package `a` links the local, unpublished package `b` via `workspace:*`,
+    // alongside a real registry dependency so `--latest` has work to do.
+    fs::create_dir_all(workspace.join("packages/a")).expect("mkdir packages/a");
+    fs::write(
+        workspace.join("packages/a/package.json"),
+        format!(
+            r#"{{ "name": "@test/a", "version": "1.0.0", "dependencies": {{ "@test/b": "workspace:*", "{DEP}": "^100.0.0" }} }}"#,
+        ),
+    )
+    .expect("write packages/a/package.json");
+    fs::create_dir_all(workspace.join("packages/b")).expect("mkdir packages/b");
+    fs::write(
+        workspace.join("packages/b/package.json"),
+        r#"{ "name": "@test/b", "version": "1.0.0" }"#,
+    )
+    .expect("write packages/b/package.json");
+
+    pacquet(&workspace, ["-r", "install"]).assert().success();
+    // Before the fix this failed with ERR_PNPM_PACKAGE_MANAGER_UPDATE_RESOLVE_LATEST
+    // trying to fetch the unpublished @test/b from the registry.
+    pacquet(&workspace, ["-r", "update", "--latest"]).assert().success();
+
+    let a_manifest = fs::read_to_string(workspace.join("packages/a/package.json"))
+        .expect("read packages/a/package.json");
+    assert!(
+        a_manifest.contains(r#""@test/b":"workspace:*""#),
+        "the workspace: spec should be preserved verbatim: {a_manifest}",
+    );
+
+    drop((root, anchor));
+}
