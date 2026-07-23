@@ -1,6 +1,8 @@
+use std::{cell::Cell, time::Duration};
+
 use super::{
     ProvenanceGenError, SignProvenance, SignedProvenance, build_statement, fetch_sigstore_token,
-    generate_provenance, github_statement, gitlab_statement, npm_purl,
+    generate_provenance, github_statement, gitlab_statement, npm_purl, sign_with_retry,
 };
 use crate::{
     capabilities::{Clock, EnvVar, OidcFetch, OidcFetchError, OidcRequest, OidcResponse},
@@ -352,6 +354,48 @@ async fn generate_provenance_surfaces_a_signer_failure() {
     .await
     .expect_err("a signer failure aborts provenance generation");
     assert!(matches!(err, ProvenanceGenError::Sign { .. }), "got {err:?}");
+}
+
+/// A zero-delay policy so the retry tests don't sleep.
+const INSTANT_RETRIES: pacquet_network::RetryOpts = pacquet_network::RetryOpts {
+    retries: 2,
+    factor: 2,
+    min_timeout: Duration::ZERO,
+    max_timeout: Duration::ZERO,
+};
+
+#[tokio::test]
+async fn sign_with_retry_recovers_from_transient_failures() {
+    let attempts = Cell::new(0u32);
+    let signed = sign_with_retry(INSTANT_RETRIES, || {
+        let attempt = attempts.get();
+        attempts.set(attempt + 1);
+        async move {
+            if attempt < 2 {
+                return Err(ProvenanceGenError::Sign {
+                    source: "Failed to get timestamp".to_owned(),
+                });
+            }
+            Ok(SignedProvenance { media_type: "bundle".to_owned(), data: "{}".to_owned() })
+        }
+    })
+    .await
+    .expect("the third attempt succeeds");
+    assert_eq!(signed.data, "{}");
+    assert_eq!(attempts.get(), 3);
+}
+
+#[tokio::test]
+async fn sign_with_retry_surfaces_the_final_failure_once_retries_are_exhausted() {
+    let attempts = Cell::new(0u32);
+    let err = sign_with_retry(INSTANT_RETRIES, || {
+        attempts.set(attempts.get() + 1);
+        async { Err(ProvenanceGenError::Sign { source: "Failed to get timestamp".to_owned() }) }
+    })
+    .await
+    .expect_err("every attempt fails");
+    assert!(matches!(err, ProvenanceGenError::Sign { .. }), "got {err:?}");
+    assert_eq!(attempts.get(), INSTANT_RETRIES.retries + 1);
 }
 
 #[tokio::test]
