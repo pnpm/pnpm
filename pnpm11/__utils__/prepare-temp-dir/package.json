@@ -4,6 +4,9 @@
   "main": "lib/index.js",
   "type": "module",
   "types": "lib/index.d.ts",
+  "files": [
+    "lib/"
+  ],
   "devDependencies": {
     "@pnpm/prepare-temp-dir": "workspace:*",
     "@types/node": "catalog:"

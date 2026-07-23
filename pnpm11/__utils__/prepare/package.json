@@ -4,6 +4,9 @@
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "type": "module",
+  "files": [
+    "lib/"
+  ],
   "dependencies": {
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/prepare-temp-dir": "workspace:*",

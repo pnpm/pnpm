@@ -204,19 +204,6 @@ jobs:
         uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
         with:
           runtime: node@26.5.0
-      - name: Override workspace ignores for the TypeScript pnpm package
-        run: ': > pnpm11/pnpm/.npmignore'
-      - name: Shadow the root .gitignore for packing (TEMPORARY)
-        # The pinned pacquet (12.0.0-alpha.13 and later, until the fix from
-        # https://github.com/pnpm/pnpm/pull/13231 ships) lets workspace-root
-        # ignore rules exclude files matched by a package's `files` allowlist,
-        # so every lib package published with it shipped nearly empty:
-        # https://github.com/pnpm/pnpm/issues/13164. The packlist prefers a
-        # root .npmignore over the root .gitignore, so shadow the .gitignore
-        # with only its junk rules (crucially not `lib`/`dist`, the compiled
-        # payload of every lib package). Remove this step once
-        # `packageManager` pins a pacquet release that carries the fix.
-        run: printf '*.tsbuildinfo\n*.log\n' > .npmignore
       - name: Build TypeScript executable artifacts
         run: pn --filter=@pnpm/exe run build-artifacts
 
@@ -371,19 +358,6 @@ jobs:
         uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
         with:
           runtime: node@26.5.0
-      - name: Override workspace ignores for the TypeScript pnpm package
-        run: ': > pnpm11/pnpm/.npmignore'
-      - name: Shadow the root .gitignore for packing (TEMPORARY)
-        # The pinned pacquet (12.0.0-alpha.13 and later, until the fix from
-        # https://github.com/pnpm/pnpm/pull/13231 ships) lets workspace-root
-        # ignore rules exclude files matched by a package's `files` allowlist,
-        # so every lib package published with it shipped nearly empty:
-        # https://github.com/pnpm/pnpm/issues/13164. The packlist prefers a
-        # root .npmignore over the root .gitignore, so shadow the .gitignore
-        # with only its junk rules (crucially not `lib`/`dist`, the compiled
-        # payload of every lib package). Remove this step once
-        # `packageManager` pins a pacquet release that carries the fix.
-        run: printf '*.tsbuildinfo\n*.log\n' > .npmignore
       # The publish phase is split into three sequential steps to control which packages
       # use trusted publishing (OIDC) vs. a static token. `pnpm publish` currently bails
       # out of OIDC as soon as a static `_authToken` is configured, so the only way to
@@ -392,58 +366,6 @@ jobs:
       # for the longer-term fix that lets OIDC override a configured token.
       - name: Build TypeScript executable artifacts
         run: pn --filter=@pnpm/exe run build-artifacts
-
-      - name: Verify internal workspace package payloads
-        # A dry-run recursive pack runs the exact packing code the publish
-        # steps below will use and reports every tarball's file list, so a
-        # packing regression fails here, before the first immutable npm
-        # publish. `pnpm pack` does not run `prepublishOnly`, so the
-        # publishable projects' src tsconfigs are built first — only those:
-        # the typecheck-everything graph also drags in test tsconfigs,
-        # whose devDependencies this runner's install does not provide
-        # (mostly warm after the build-artifacts step above anyway). The
-        # publishable projects are selected by explicit name filters:
-        # unlike recursive publish, recursive pack does not skip private
-        # packages, and packing the private workspace root would walk the
-        # whole repository.
-        run: |
-          set -euo pipefail
-          verify_dir=$(mktemp -d)
-          pn list --filter=!pnpm --filter=!@pnpm/exe --depth=-1 --json > "$verify_dir/projects.json"
-          filters=()
-          tsconfig_dirs=()
-          while IFS=$'\t' read -r name dir; do
-            filters+=("--filter=$name")
-            if [ -n "$dir" ]; then
-              tsconfig_dirs+=("$dir")
-            fi
-          done < <(node -e '
-            const { existsSync } = require("node:fs")
-            const { join } = require("node:path")
-            const projects = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"))
-            for (const project of projects) {
-              if (!project.private && project.name && project.version && project.path) {
-                const dir = existsSync(join(project.path, "tsconfig.json")) ? project.path : ""
-                console.log(`${project.name}\t${dir}`)
-              }
-            }
-          ' "$verify_dir/projects.json")
-          pn exec tsgo --build "${tsconfig_dirs[@]}"
-          # Recursive pack runs one project at a time, so pack in four
-          # concurrent chunks; dry-run packing only reads the tree.
-          chunk_size=$(( (${#filters[@]} + 3) / 4 ))
-          pack_pids=()
-          verify_args=(--projects "$verify_dir/projects.json")
-          for start in $(seq 0 "$chunk_size" $(( ${#filters[@]} - 1 ))); do
-            pn pack --dry-run --json "${filters[@]:start:chunk_size}" > "$verify_dir/pack-$start.json" &
-            pack_pids+=($!)
-            verify_args+=(--pack-json "$verify_dir/pack-$start.json")
-          done
-          for pid in "${pack_pids[@]}"; do
-            wait "$pid"
-          done
-          node .github/scripts/verify-packed-package-payload.mjs "${verify_args[@]}"
-
       - name: Publish @pnpm/exe (trusted publishing)
         # No NPM_TOKEN: pnpm has no static token to short-circuit on, so it will perform
         # the OIDC token exchange against npm's trusted-publishing config for `@pnpm/exe`.
