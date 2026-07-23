@@ -246,14 +246,13 @@ async fn selected_update_latest_depth_zero_is_noop_when_no_project_matches() {
     assert!(prepared.persist_indices.is_empty());
 }
 
-/// `--latest` rewrites a dependency only if a resolver claims it and
-/// reports a specifier back. No resolver in the latest-capable chain
-/// claims any of these, so each manifest entry survives verbatim — and
-/// none of them costs a network round trip during manifest preparation.
-/// The sibling test below is the positive control, proving the skip is a
-/// decision rather than an inert harness.
+// No resolver in the latest-capable chain claims any of these, so none of
+// them may cost a network round trip during manifest preparation — which is
+// what the closed-port registry enforces. `runtime:` is covered end to end
+// by the `update_latest_keeps_runtime_dependency_on_the_runtime_resolver`
+// CLI test instead: its resolver does claim it, against a mocked mirror.
 #[tokio::test]
-async fn latest_leaves_specifiers_the_npm_resolver_does_not_claim() {
+async fn latest_leaves_specifiers_no_resolver_claims() {
     for specifier in [
         "workspace:*",
         "workspace:^1.0.0",
@@ -269,7 +268,7 @@ async fn latest_leaves_specifiers_the_npm_resolver_does_not_claim() {
         let config = unroutable_registry_config();
         let http_client = std::sync::Arc::new(ThrottledClient::default());
 
-        prepare_selected_manifests::<SilentReporter>(
+        let prepared = prepare_selected_manifests::<SilentReporter>(
             &mut projects,
             &[0],
             dir.path(),
@@ -291,7 +290,10 @@ async fn latest_leaves_specifiers_the_npm_resolver_does_not_claim() {
         });
 
         assert_eq!(dependency_specifier(&projects[0].manifest), specifier);
-        assert_eq!(saved_dependency_specifier(&projects[0].manifest), specifier);
+        assert!(
+            prepared.persist_indices.is_empty(),
+            "{specifier} was queued for a manifest rewrite",
+        );
     }
 }
 
@@ -342,9 +344,9 @@ fn project_with_foo_specifier(root: &std::path::Path, name: &str, specifier: &st
     }
 }
 
-/// A config whose registry is a closed port, so any dependency that reaches
-/// registry resolution fails loudly instead of hitting the network. Retries
-/// are off so that failure is immediate rather than a minute of backoff.
+// A closed port, so any dependency that reaches registry resolution fails
+// loudly instead of hitting the network. Retries are off so that failure is
+// immediate rather than a minute of backoff.
 fn unroutable_registry_config() -> Config {
     Config { registry: "http://127.0.0.1:1/".to_string(), fetch_retries: 0, ..Config::new() }
 }
