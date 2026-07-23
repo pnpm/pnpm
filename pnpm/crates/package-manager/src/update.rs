@@ -521,10 +521,17 @@ async fn prepare_manifest<'a, Reporter: self::Reporter>(
             if latest && !is_local_specifier(previous) {
                 let picker =
                     ensure_latest_picker(latest_picker, config, http_client, resolution_observer)?;
-                let version = resolve_latest_version(picker, name, lockfile_only).await?;
-                let pin =
-                    latest_pin(&mut catalog_ctx, manifest, config, previous, name, pinned_version)?;
-                rewrites.push((name.clone(), *group, version.serialize(pin)));
+                let effective =
+                    effective_specifier(&mut catalog_ctx, manifest, config, previous, name)?;
+                let specifier = resolve_latest_specifier(
+                    picker,
+                    &effective,
+                    name,
+                    pinned_version,
+                    lockfile_only,
+                )
+                .await?;
+                rewrites.push((name.clone(), *group, specifier));
             }
             drop_names.insert(name.clone());
         }
@@ -610,16 +617,17 @@ async fn prepare_manifest<'a, Reporter: self::Reporter>(
                         http_client,
                         resolution_observer,
                     )?;
-                    let version = resolve_latest_version(picker, name, lockfile_only).await?;
-                    let pin = latest_pin(
-                        &mut catalog_ctx,
-                        manifest,
-                        config,
-                        previous,
+                    let effective =
+                        effective_specifier(&mut catalog_ctx, manifest, config, previous, name)?;
+                    let specifier = resolve_latest_specifier(
+                        picker,
+                        &effective,
                         name,
                         pinned_version,
-                    )?;
-                    rewrites.push((name.clone(), *group, version.serialize(pin)));
+                        lockfile_only,
+                    )
+                    .await?;
+                    rewrites.push((name.clone(), *group, specifier));
                 } else if let Some(specifier) = selectors
                     .iter()
                     .find(|selector| matcher_one(&selector.pattern).matches(name))
@@ -869,29 +877,74 @@ fn ensure_catalog_ctx<'slot>(
     Ok(slot.as_ref().expect("just populated"))
 }
 
-/// The range operator to write a `--latest` bump with: the operator the
-/// dependency already pinned wins over the
-/// configured default. For a `catalog:` reference the pin comes from the
-/// catalog entry it points to (the reference carries none of its own), which
-/// is the only case that needs to consult the catalogs.
-fn latest_pin(
+/// The specifier a `--latest` bump derives its rewrite from: the catalog
+/// entry for a `catalog:` reference (the reference itself carries neither an
+/// alias target nor a range operator), the dependency's own specifier
+/// otherwise. Reading the catalogs is deferred to here so an update that
+/// rewrites nothing never parses them.
+fn effective_specifier(
     catalog_ctx: &mut Option<CatalogCtx>,
     manifest: &PackageManifest,
     config: &Config,
     prev: &str,
     name: &str,
-    default: PinnedVersion,
-) -> Result<PinnedVersion, UpdateError> {
+) -> Result<String, UpdateError> {
     if let Some(catalog_name) = parse_catalog_protocol(prev) {
         let ctx = ensure_catalog_ctx(catalog_ctx, manifest, config)?;
-        return Ok(ctx
-            .catalogs
-            .get(catalog_name)
-            .and_then(|catalog| catalog.get(name))
-            .and_then(|spec| which_version_is_pinned(spec))
-            .unwrap_or(default));
+        if let Some(spec) = ctx.catalogs.get(catalog_name).and_then(|catalog| catalog.get(name)) {
+            return Ok(spec.clone());
+        }
     }
-    Ok(which_version_is_pinned(prev).unwrap_or(default))
+    Ok(prev.to_string())
+}
+
+/// Compute the rewritten specifier for one direct dependency under
+/// `--latest`. The `effective` specifier decides both halves of the rewrite:
+///
+/// * **Which package "latest" means.** An `npm:` alias (written directly or
+///   stored in the catalog entry a `catalog:` reference points to) resolves
+///   the *aliased* package — the alias name itself may not exist on the
+///   registry — and keeps the `npm:<real name>@` prefix in the written
+///   specifier. Mirrors the TypeScript resolver's
+///   `unwrapPackageName`/`calcSpecifier` pair.
+/// * **The range operator to write.** The operator the dependency already
+///   pinned wins over the configured default.
+async fn resolve_latest_specifier(
+    picker: &LatestPicker<'_>,
+    effective: &str,
+    name: &str,
+    default_pin: PinnedVersion,
+    lockfile_only: bool,
+) -> Result<String, UpdateError> {
+    let target = npm_alias_target(effective, name);
+    let version = resolve_latest_version(picker, target.unwrap_or(name), lockfile_only).await?;
+    let range = version.serialize(which_version_is_pinned(effective).unwrap_or(default_pin));
+    Ok(match target {
+        Some(real_name) => format!("npm:{real_name}@{range}"),
+        None => range,
+    })
+}
+
+/// The real registry package an `npm:` alias specifier installs under a
+/// different name (`bar` for `foo@npm:bar@^4`), or `None` when the rewrite
+/// needs no `npm:` prefix: a non-`npm:` specifier, the `npm:<range>`
+/// shorthand (the body is a version range, so the alias is the real package
+/// name), or an alias of the package's own name — the TypeScript resolver's
+/// `calcSpecifier` writes a plain range for those. A sibling of the
+/// deps-resolver's `real_package_name_of`, which answers the same question
+/// for update-target matching.
+fn npm_alias_target<'a>(bare_specifier: &'a str, alias: &str) -> Option<&'a str> {
+    let rest = bare_specifier.strip_prefix("npm:")?;
+    if rest.parse::<node_semver::Range>().is_ok() {
+        return None;
+    }
+    // The last `@` separates the real name from the version range; without
+    // one the whole body is the name (default-tag form `npm:bar`).
+    let name = match rest.rfind('@') {
+        Some(idx) if idx >= 1 => &rest[..idx],
+        _ => rest,
+    };
+    (!name.is_empty() && name != alias).then_some(name)
 }
 
 /// Read the effective catalogs and the directories around them.
