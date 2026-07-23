@@ -1040,10 +1040,14 @@ fn update_latest_preserves_local_protocol_dependencies() {
 
     let a_manifest = fs::read_to_string(workspace.join("packages/a/package.json"))
         .expect("read packages/a/package.json");
-    for (dep, protocol) in [("@test/b", "workspace:"), ("@test/c", "file:"), ("@test/d", "link:")] {
+    for (dep, spec) in [
+        ("@test/b", "workspace:*"),
+        ("@test/c", "file:./fixtures/c"),
+        ("@test/d", "link:./fixtures/d"),
+    ] {
         assert!(
-            a_manifest.contains(&format!(r#""{dep}":"{protocol}"#)),
-            "the {protocol} spec for {dep} should be preserved verbatim: {a_manifest}",
+            a_manifest.contains(&format!(r#""{dep}":"{spec}""#)),
+            "the spec for {dep} should be preserved verbatim as {spec}: {a_manifest}",
         );
     }
 
@@ -1096,6 +1100,63 @@ fn update_latest_preserves_link_workspace_packages_dependencies() {
     pacquet(&workspace, ["-r", "install"]).assert().success();
     // Before the fix, `--latest` ignored linkWorkspacePackages and tried to
     // fetch the unpublished @test/b from the registry.
+    pacquet(&workspace, ["-r", "update", "--latest"]).assert().success();
+
+    let a_manifest = fs::read_to_string(workspace.join("packages/a/package.json"))
+        .expect("read packages/a/package.json");
+    assert!(
+        a_manifest.contains(r#""@test/b":"^1.0.0""#),
+        "a bare-semver dep linked to a local sibling should be preserved: {a_manifest}",
+    );
+
+    drop((root, anchor));
+}
+
+/// The same `linkWorkspacePackages` guard must hold on the single-project update
+/// path. With `sharedWorkspaceLockfile: false`, a recursive update processes
+/// each project through `Update::run` (not the recursive `run_selected`), which
+/// carries no pre-loaded workspace projects — it must load them itself, since
+/// the follow-up install still links the sibling. Regression for the review
+/// finding that the single-project path could re-introduce the 404.
+#[test]
+fn update_latest_preserves_link_workspace_packages_on_single_project_path() {
+    let (root, workspace, anchor) = setup();
+
+    fs::write(
+        workspace.join("package.json"),
+        r#"{ "name": "root", "version": "1.0.0", "private": true }"#,
+    )
+    .expect("write root package.json");
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    // `sharedWorkspaceLockfile: false` makes the recursive update run each
+    // project through the single-project path rather than `run_selected`.
+    workspace_yaml.push_str(
+        "linkWorkspacePackages: true\nsharedWorkspaceLockfile: false\npackages:\n  - 'packages/*'\n",
+    );
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    fs::create_dir_all(workspace.join("packages/a")).expect("mkdir packages/a");
+    fs::write(
+        workspace.join("packages/a/package.json"),
+        format!(
+            r#"{{ "name": "@test/a", "version": "1.0.0", "dependencies": {{ "@test/b": "^1.0.0", "{DEP}": "^100.0.0" }} }}"#,
+        ),
+    )
+    .expect("write packages/a/package.json");
+    fs::create_dir_all(workspace.join("packages/b")).expect("mkdir packages/b");
+    fs::write(
+        workspace.join("packages/b/package.json"),
+        r#"{ "name": "@test/b", "version": "1.0.0" }"#,
+    )
+    .expect("write packages/b/package.json");
+
+    pacquet(&workspace, ["-r", "install"]).assert().success();
+    // Recursive update, but per-project lockfiles route it through
+    // `Update::run`. Before the fix, that path passed no workspace versions and
+    // 404'd on the unpublished @test/b.
     pacquet(&workspace, ["-r", "update", "--latest"]).assert().success();
 
     let a_manifest = fs::read_to_string(workspace.join("packages/a/package.json"))

@@ -221,6 +221,15 @@ impl Update<'_> {
             .map_err(UpdateError::MinimumReleaseAge)?;
 
         let mut latest_picker = None;
+        // A single-project update carries no loaded workspace projects, but its
+        // follow-up install still links `linkWorkspacePackages` siblings, so
+        // load them here too — otherwise `--latest` would resolve a would-be
+        // local dep from the registry (and 404 on an unpublished sibling). Gated
+        // so the workspace walk only runs when it can matter.
+        let workspace_local_versions = (latest
+            && config.link_workspace_packages != LinkWorkspacePackages::Off)
+            .then(|| workspace_local_versions_for_single_project(config))
+            .flatten();
         let Some(prepared) = prepare_manifest::<Reporter>(
             manifest,
             http_client,
@@ -236,9 +245,7 @@ impl Update<'_> {
             &mut latest_picker,
             lockfile_only,
             resolution_observer.as_ref(),
-            // A single-project update loads no workspace siblings, so a
-            // bare-semver dep has nothing local to link to.
-            None,
+            workspace_local_versions.as_ref(),
         )
         .await?
         else {
@@ -1059,6 +1066,25 @@ fn collect_workspace_local_versions(
     versions
 }
 
+/// Load workspace siblings' `name` → local `version`s for a single-project
+/// update. The recursive path already carries the loaded `projects`; a
+/// single-project update does not, but its follow-up install still walks the
+/// workspace and links siblings, so `--latest` must see them too or it would
+/// resolve a would-be-local dep from the registry. Only called under `--latest`
+/// with `linkWorkspacePackages` on, so the extra workspace walk never runs on
+/// the default path. `None` outside a workspace — there is nothing to link.
+fn workspace_local_versions_for_single_project(
+    config: &Config,
+) -> Option<BTreeMap<String, Vec<String>>> {
+    let workspace_root = config.workspace_dir.as_deref()?;
+    let workspace_manifest = pacquet_workspace::read_workspace_manifest(workspace_root).ok()??;
+    let opts = pacquet_workspace::FindWorkspaceProjectsOpts {
+        patterns: Some(pacquet_workspace::workspace_package_patterns(&workspace_manifest)),
+    };
+    let projects = pacquet_workspace::find_workspace_projects(workspace_root, &opts).ok()?;
+    Some(collect_workspace_local_versions(&projects))
+}
+
 /// Whether a bare-semver dependency would link to a local workspace package
 /// rather than the registry. Under `linkWorkspacePackages`, a direct dependency
 /// whose range a workspace sibling's version satisfies links to that sibling,
@@ -1066,8 +1092,8 @@ fn collect_workspace_local_versions(
 /// `workspace:`/`link:`/`file:` specifier, it has no registry "latest" to
 /// resolve under `--latest` and is preserved verbatim. Mirrors the resolver's
 /// own matching (`resolve_from_workspace`) so `--latest` and install agree on
-/// which deps are local. `workspace_local_versions` is `None` for a
-/// single-project update, which has no siblings to link.
+/// which deps are local. `workspace_local_versions` is `None` outside a
+/// workspace, where there are no siblings to link.
 fn links_to_local_workspace_package(
     config: &Config,
     workspace_local_versions: Option<&BTreeMap<String, Vec<String>>>,
