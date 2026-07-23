@@ -25,13 +25,15 @@ jobs:
     # No repo contents or issue writes are needed; the event payload carries the
     # issue data and the only outbound call is the Discord webhook.
     permissions: {}
+    # Defined at job level, not step level: a step's own `if` is evaluated before
+    # its step-level env exists, so the gate must live here to be visible to `if`.
+    env:
+      HAS_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_REGRESSION != '' }}
     steps:
       - name: Announce on Discord
-        # The webhook is optional; skip the step when it is unset. HAS_WEBHOOK is
-        # resolved at job level because step-level env is not visible to `if`.
+        # The webhook is optional; skip the step when it is unset.
         if: env.HAS_WEBHOOK == 'true'
         env:
-          HAS_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_REGRESSION != '' }}
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_REGRESSION }}
           # Issue fields are passed as env, never inlined into the script, so a
           # title like "$(rm -rf)" cannot be interpreted as shell code.
