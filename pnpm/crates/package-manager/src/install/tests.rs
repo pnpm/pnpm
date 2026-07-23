@@ -6317,12 +6317,11 @@ async fn fresh_install_hoisted_node_linker_records_modules_yaml() {
     drop(dir);
 }
 
-/// `--no-runtime` (`config.skip_runtimes = true`) on the fresh path
-/// is refused for the same reason: pacquet's runtime filter runs only
-/// inside the frozen-lockfile path, so honoring the flag on a fresh
-/// install would need a runtime-snapshot filter there too.
+/// A fresh install must not be refused for carrying `--no-runtime`
+/// (`config.skip_runtimes = true`); the runtime-skipping behavior
+/// itself is covered by the `install_runtimes` integration tests.
 #[tokio::test]
-async fn fresh_install_refuses_skip_runtimes_before_writing_state() {
+async fn fresh_install_honors_skip_runtimes() {
     let dir = tempdir().unwrap();
     let store_dir = dir.path().join("pacquet-store");
     let project_root = dir.path().join("project");
@@ -6373,10 +6372,9 @@ async fn fresh_install_refuses_skip_runtimes_before_writing_state() {
     .run::<SilentReporter>()
     .await;
 
-    assert!(matches!(result, Err(InstallError::UnsupportedFreshInstallSkipRuntimes)));
-    assert!(!dir.path().join(Lockfile::FILE_NAME).exists(), "no wanted lockfile written");
-    assert!(!virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME).exists(), "no current lockfile");
-    assert!(!modules_dir.join(".modules.yaml").exists(), "no modules manifest");
+    result.expect("fresh install with skip_runtimes should succeed");
+    let _ = virtual_store_dir;
+    assert!(modules_dir.join(".modules.yaml").exists(), "modules manifest written");
 
     drop(dir);
 }

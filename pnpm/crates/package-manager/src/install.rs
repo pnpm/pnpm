@@ -384,18 +384,6 @@ pub enum InstallError {
     #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
     CustomResolverForceResolve(#[error(not(source))] pacquet_hooks::HookError),
 
-    /// `--no-runtime` (or `config.skip_runtimes`) is honored only on
-    /// the frozen-lockfile path today, where the runtime filter runs
-    /// against the loaded lockfile's `packages:` map. A non-frozen
-    /// install would still fetch + materialize runtime archives
-    /// despite the opt-out, so refuse the install instead of
-    /// silently ignoring the flag.
-    #[display(
-        "--no-runtime / skipRuntimes is not supported without --frozen-lockfile yet. Re-run with --frozen-lockfile against an existing pnpm-lock.yaml, or drop the flag."
-    )]
-    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_UNSUPPORTED_FRESH_INSTALL_SKIP_RUNTIMES))]
-    UnsupportedFreshInstallSkipRuntimes,
-
     #[diagnostic(transparent)]
     FrozenLockfile(#[error(source)] InstallFrozenLockfileError),
 
@@ -1889,24 +1877,6 @@ where
                 .await?;
             }
 
-            // Flag combinations the fresh-lockfile path doesn't honor
-            // yet are validated here, after the dispatch decision so an
-            // auto-frozen install (state 2 of [`Install::run`]) doesn't
-            // get rejected up front:
-            //
-            // - `skip_runtimes` (CLI `--no-runtime`) on the fresh path
-            //   would need a runtime-filter at the materialization step
-            //   matching the frozen path's runtime filter. Without it,
-            //   runtime archives get fetched + materialized despite the
-            //   opt-out.
-            //
-            // Bypassed under `--lockfile-only`: that path writes only
-            // `pnpm-lock.yaml` and never materializes, so the runtime
-            // filter is irrelevant to its output.
-            if !resolve_only && skip_runtimes {
-                return Err(InstallError::UnsupportedFreshInstallSkipRuntimes);
-            }
-
             // The fresh-lockfile path has no installability check
             // (no `packages:` metadata to evaluate constraints
             // against), so its skip set is empty by construction.
@@ -1968,6 +1938,7 @@ where
                 node_linker,
                 supported_architectures: supported_architectures.as_ref(),
                 lockfile_only: resolve_only,
+                skip_runtimes,
                 dry_run,
                 can_prompt,
                 is_full_install,
