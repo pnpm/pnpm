@@ -8,4 +8,4 @@
 "pacquet": minor
 ---
 
-Added GitHub Actions dependencies to `pnpm outdated` and interactive `pnpm update`. Non-interactive updates can include them with `--include-github-actions` or by setting `update.githubActions` to `true` in `pnpm-workspace.yaml`. Updated actions are pinned to exact commit hashes with their release tags preserved in comments.
+Added GitHub Actions dependencies to `pnpm outdated` and `pnpm update`. Both commands include them when `--include-github-actions` is passed or `update.githubActions` is set to `true` in `pnpm-workspace.yaml`. Updated actions are pinned to exact commit hashes with their release tags preserved in comments.

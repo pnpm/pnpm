@@ -384,6 +384,10 @@ pub struct OutdatedArgs {
     #[clap(long, value_enum)]
     pub sort_by: Option<SortBy>,
 
+    /// Also check GitHub Actions dependencies in workflow and action files.
+    #[clap(long = "include-github-actions")]
+    pub include_github_actions: bool,
+
     /// Check globally installed packages.
     #[clap(short = 'g', long)]
     pub global: bool,
@@ -485,7 +489,7 @@ impl OutdatedArgs {
             Vec::new()
         };
         if include.contains(&DependencyGroup::Dev)
-            && config.update_config.github_actions != Some(false)
+            && github_actions::opted_in(self.include_github_actions, config)
         {
             let actions = github_actions::find_outdated::<Reporter>(
                 root,
@@ -622,7 +626,7 @@ impl OutdatedArgs {
         }
 
         if include.contains(&DependencyGroup::Dev)
-            && config.update_config.github_actions != Some(false)
+            && github_actions::opted_in(self.include_github_actions, config)
         {
             let action_matcher = github_actions::selector_matcher(&self.packages);
             let actions = github_actions::find_outdated::<Reporter>(
