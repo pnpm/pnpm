@@ -442,8 +442,7 @@ pub enum CliCommand {
     /// (not a `clean` script) overrides it when present.
     #[clap(name = "purge")]
     Purge(CleanArgs),
-    /// Runs `pnpm clean` followed by `pnpm install --frozen-lockfile`.
-    /// Designed for CI/CD environments.
+    /// Runs clean then install with a frozen lockfile.
     #[clap(visible_aliases = ["clean-install", "ic", "install-clean"])]
     Ci(CiArgs),
     /// Print the effective `node_modules` directory.

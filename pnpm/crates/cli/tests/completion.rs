@@ -202,6 +202,17 @@ fn completion_server_completes_ic_alias() {
 }
 
 #[test]
+fn completion_server_completes_install_clean_alias() {
+    let output = pacquet()
+        .args(["completion-server", "--", "pnpm", "install-clean"])
+        .output()
+        .expect("run pnpm completion-server");
+    let reply = stdout(output);
+
+    assert_eq!(reply.lines().collect::<Vec<_>>(), ["install-clean"]);
+}
+
+#[test]
 fn completion_server_filters_command_prefixes() {
     let output = pacquet()
         .args(["completion-server", "--", "pnpm", "inst"])

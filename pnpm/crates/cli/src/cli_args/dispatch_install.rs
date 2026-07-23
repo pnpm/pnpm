@@ -271,10 +271,7 @@ pub(super) fn ci<'a>(ctx: &RunCtx<'a>, args: CiArgs) -> miette::Result<CommandFu
     let mut install_args = args.install_args;
     install_args.frozen_lockfile = true;
 
-    // `clean` is synchronous — run it eagerly before constructing the
-    // async future so errors surface immediately.  Pass "clean" as the
-    // command name so a `clean` script in package.json overrides the
-    // built-in, matching TypeScript's `clean.handler(opts)` call path.
+    // Run clean eagerly before the async future so errors surface immediately. Pass the command name so a package.json script can override the built-in.
     clean_args.run(ctx, "clean")?;
 
     install(ctx, install_args)
