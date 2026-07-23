@@ -8,11 +8,14 @@
 //! The algorithm has four passes:
 //!
 //! 1. **Walk with ignore-file filtering**, honoring npm-packlist's
-//!    three-tier priority at the package root: (a) `files` present
-//!    disables both `.gitignore` and `.npmignore`, leaving the
-//!    allowlist in pass 2 as the sole gate; (b) no `files` but a
-//!    root `.npmignore` exists disables `.gitignore`; (c) neither
-//!    present falls back to `.gitignore`.
+//!    three-tier priority at the package root: (a) a usable `files`
+//!    allowlist disables `.gitignore` and `.npmignore` — the
+//!    package's own and any workspace-inherited ones alike — leaving
+//!    the allowlist in pass 2 as the sole gate (a `files` field with
+//!    no usable entry is treated as absent, see
+//!    `build_files_matcher`); (b) no `files` but a root
+//!    `.npmignore` exists disables `.gitignore`; (c) neither present
+//!    falls back to `.gitignore`.
 //! 2. **Apply the `files` field allowlist** on top of the walk's
 //!    output: when the manifest sets `files: ["dist/**"]`, drop
 //!    anything outside that set (except the always-included files
@@ -49,6 +52,7 @@ use pacquet_package_manifest::safe_read_package_json_from_dir;
 use serde_json::Value;
 use std::{
     collections::{BTreeSet, HashSet, VecDeque},
+    ffi::OsStr,
     fs,
     path::{Component, Path, PathBuf},
 };
@@ -116,10 +120,11 @@ pub struct PacklistOptions<'a> {
 }
 
 /// Variant of [`packlist`] that lets callers pass workspace context.
-/// Workspace packages without a package-level `.npmignore` honor ancestor
-/// `.npmignore` / `.gitignore` files between the workspace root and the
-/// package, matching npm-packlist's `prefix` / `workspaces` behavior. Callers
-/// without workspace context keep the safer package-only walk.
+/// Workspace packages without a package-level `.npmignore` and without a
+/// manifest `files` allowlist honor ancestor `.npmignore` / `.gitignore`
+/// files between the workspace root and the package, matching npm-packlist's
+/// `prefix` / `workspaces` behavior. Callers without workspace context keep
+/// the safer package-only walk.
 pub fn packlist_with_options(
     pkg_dir: &Path,
     manifest: &Value,
@@ -322,16 +327,37 @@ fn collect_own_files(
         .git_global(false)
         .require_git(false)
         .parents(false);
-    if files_field.is_some() {
+    // Prune subtrees whose every entry the post-walk filters would drop
+    // anyway: the package's own `node_modules` (bundled separately) and
+    // VCS dirs. Purely a traversal cost cut — with a `files` allowlist
+    // no ignore file applies, so an installed dependency tree would
+    // otherwise be enumerated entry by entry only to be discarded.
+    builder.filter_entry(|entry| {
+        if entry.depth() == 0 {
+            return true;
+        }
+        let name = entry.file_name();
+        if entry.depth() == 1 && name == OsStr::new("node_modules") {
+            return false;
+        }
+        !ALWAYS_EXCLUDED_DIR_SEGMENTS.iter().any(|segment| name == OsStr::new(segment))
+    });
+    if files_matcher.is_some() {
         builder.git_ignore(false);
-    } else if has_root_npmignore {
-        builder.git_ignore(false);
-        builder.add_custom_ignore_filename(".npmignore");
     } else {
-        builder.git_ignore(true);
+        if has_root_npmignore {
+            builder.git_ignore(false);
+        } else {
+            builder.git_ignore(true);
+        }
         builder.add_custom_ignore_filename(".npmignore");
+        // Workspace-inherited ignore files apply only in tiers (b)/(c):
+        // with a `files` allowlist an ancestor rule must not filter the
+        // walk, or an allowlisted directory the workspace root happens
+        // to `.gitignore` (a compiled `lib/`) never reaches pass 2 and
+        // silently vanishes from the tarball.
+        add_workspace_ignore_files(&mut builder, pkg_dir, workspace_dir)?;
     }
-    add_workspace_ignore_files(&mut builder, pkg_dir, workspace_dir)?;
 
     for entry in builder.build() {
         let entry = entry.map_err(|err| io_error(pkg_dir, into_io(err)))?;
