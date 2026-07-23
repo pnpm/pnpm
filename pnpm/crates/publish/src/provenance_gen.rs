@@ -93,8 +93,7 @@ where
 pub trait SignProvenance {
     /// Sign `statement` (the serialized in-toto statement) using `jwt`, the
     /// OIDC token minted for the `sigstore` audience. `timeout` caps each
-    /// signing attempt (`fetch-timeout`); `None` falls back to the
-    /// implementation's default, mirroring sigstore-js's `options.timeout`.
+    /// signing attempt; `None` falls back to the implementation's default.
     fn sign_statement(
         jwt: &str,
         statement: &[u8],
@@ -155,8 +154,6 @@ const SIGN_RETRY_OPTS: RetryOpts = RetryOpts {
 /// until the OS gives up on the socket.
 const DEFAULT_SIGN_TIMEOUT: Duration = Duration::from_secs(5);
 
-/// Cap one signing attempt at `deadline`, converting an elapsed timer into a
-/// retryable [`ProvenanceGenError::Sign`].
 async fn with_sign_deadline<Fut>(
     deadline: Duration,
     attempt: Fut,
@@ -175,9 +172,6 @@ where
     }
 }
 
-/// Run `attempt_fn` — one full signing exchange — retrying under
-/// `retry_opts`'s exponential backoff until it succeeds or the retries are
-/// exhausted.
 async fn sign_with_retry<Fut>(
     retry_opts: RetryOpts,
     mut attempt_fn: impl FnMut() -> Fut,
