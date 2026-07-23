@@ -160,7 +160,7 @@ fn enforce_resolution_policy(
     }
     let prompt = format!(
         "pnpm@{version} {reason}.{cutoff_source}\nUpdate anyway?",
-        reason = violation.reason
+        reason = violation.reason,
     );
     // An interrupted prompt (Esc / Ctrl-C) counts as a refusal.
     match dialoguer::Confirm::new().with_prompt(prompt).default(false).interact() {
