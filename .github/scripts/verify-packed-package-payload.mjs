@@ -1,6 +1,15 @@
 #!/usr/bin/env node
-import { createHash } from 'node:crypto'
-import { existsSync, lstatSync, readFileSync, readdirSync } from 'node:fs'
+// Verifies that packed tarballs contain every payload file the manifest
+// declares (`files`, `main`, `module`, `types`, `exports`, `browser`,
+// `bin`, `publishConfig.executableFiles`), so a packing regression fails
+// the release before the first immutable npm publish
+// (https://github.com/pnpm/pnpm/issues/13164).
+//
+// Release mode consumes the output of `pnpm pack --dry-run --json`
+// (an entry per project with the tarball's file list), so no tarball is
+// ever written or read. The single-package mode reads one real tarball's
+// listing for debugging, e.g. against a downloaded npm artifact.
+import { lstatSync, readFileSync, readdirSync } from 'node:fs'
 import { basename, isAbsolute, posix, relative, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 
@@ -9,63 +18,67 @@ const args = parseArgs(process.argv.slice(2))
 if (args.projects) {
   verifyPackedProjects(args)
 } else if (args.packageDir && args.tarball) {
-  verifyPackedPackage(args.packageDir, args.tarball)
+  verifyPackage(args.packageDir, readTarballListing(args.tarball), args.tarball)
 } else {
-  usage('expected either --projects/--pack-json/--tarball-dir or --package-dir/--tarball')
+  usage('expected either --projects/--pack-json or --package-dir/--tarball')
 }
 
-function verifyPackedProjects ({ projects, packJson, tarballDir }) {
-  if (!packJson) usage('missing --pack-json')
-  if (!tarballDir) usage('missing --tarball-dir')
+function verifyPackedProjects ({ projects, packJsons }) {
+  if (packJsons.length === 0) usage('missing --pack-json')
 
-  const projectById = new Map()
-  for (const project of readJson(projects)) {
-    if (!project.name || !project.version || !project.path) continue
-    projectById.set(`${project.name}@${project.version}`, project.path)
-  }
-
-  const packedPackages = normalizeArray(readJson(packJson))
-  for (const packedPackage of packedPackages) {
-    const projectDir = projectById.get(`${packedPackage.name}@${packedPackage.version}`)
-    if (!projectDir) {
-      throw new Error(`Cannot find workspace project for packed package ${packedPackage.name}@${packedPackage.version}`)
+  const packedById = new Map()
+  for (const packJson of packJsons) {
+    for (const packedPackage of normalizeArray(readJson(packJson))) {
+      if (!Array.isArray(packedPackage.files)) {
+        throw new Error(`Packed entry for ${packedPackage.name}@${packedPackage.version} carries no file list; pass the output of \`pnpm pack --dry-run --json\``)
+      }
+      packedById.set(
+        `${packedPackage.name}@${packedPackage.version}`,
+        new Set(packedPackage.files.map((file) => file.path))
+      )
     }
-    const tarball = isAbsolute(packedPackage.filename)
-      ? packedPackage.filename
-      : resolve(tarballDir, packedPackage.filename)
-    verifyPackedPackage(projectDir, tarball)
   }
+
+  const publishable = readJson(projects).filter(
+    (project) => !project.private && project.name && project.version && project.path
+  )
+  if (publishable.length === 0) {
+    throw new Error(`No publishable projects listed in ${projects}`)
+  }
+
+  const failures = []
+  const unpacked = publishable.filter((project) => !packedById.has(`${project.name}@${project.version}`))
+  if (unpacked.length > 0) {
+    failures.push(`Publishable projects missing from the pack result: ${unpacked.map((project) => project.name).join(', ')}`)
+  }
+
+  for (const project of publishable) {
+    const packedFiles = packedById.get(`${project.name}@${project.version}`)
+    if (!packedFiles) continue
+    try {
+      verifyPackage(project.path, packedFiles, 'pack result')
+    } catch (error) {
+      failures.push(error.message)
+    }
+  }
+  if (failures.length > 0) {
+    throw new Error(`Payload verification failed:\n\n${failures.join('\n\n')}`)
+  }
+  console.log(`Verified payloads of ${publishable.length} packages`)
 }
 
-function verifyPackedPackage (packageDir, tarball) {
+function verifyPackage (packageDir, packedFiles, packedSource) {
   const packageRoot = resolve(packageDir)
-  const manifestPath = resolve(packageRoot, 'package.json')
-  const manifest = readJson(manifestPath)
+  const manifest = readJson(resolve(packageRoot, 'package.json'))
   const expectedFiles = collectExpectedFiles(packageRoot, manifest)
   if (expectedFiles.size === 0) {
     console.log(`No literal package payload files declared by ${manifest.name ?? packageDir}`)
     return
   }
-  if (!existsSync(tarball)) {
-    throw new Error(`Missing tarball ${tarball}`)
-  }
 
-  for (const file of [...expectedFiles].sort()) {
-    const source = resolvePayloadPath(packageRoot, file)
-    const stat = lstatSync(source, { throwIfNoEntry: false })
-    if (stat?.isSymbolicLink()) {
-      throw new Error(`Payload file cannot be a symlink: ${source}`)
-    }
-    if (!stat?.isFile()) {
-      throw new Error(`Missing payload file ${source}`)
-    }
-
-    const packed = extractTarEntry(tarball, `package/${file}`)
-    const sourceHash = sha256(readFileSync(source))
-    const packedHash = sha256(packed)
-    if (sourceHash !== packedHash) {
-      throw new Error(`Packed payload differs from source for ${manifest.name ?? packageDir}: ${file}`)
-    }
+  const missing = [...expectedFiles].filter((file) => !packedFiles.has(file)).sort()
+  if (missing.length > 0) {
+    throw new Error(`Payload files of ${manifest.name ?? packageDir} missing from ${packedSource}:\n  ${missing.join('\n  ')}`)
   }
 
   console.log(`Verified ${expectedFiles.size} payload files for ${manifest.name ?? packageDir}`)
@@ -131,21 +144,23 @@ function addExportTargets (value, add) {
   }
 }
 
-function extractTarEntry (tarball, entry) {
-  const result = spawnSync('tar', ['-xOf', tarball, entry], {
-    encoding: 'buffer',
+function readTarballListing (tarball) {
+  const result = spawnSync('tar', ['-tf', tarball], {
+    encoding: 'utf8',
     maxBuffer: 1024 * 1024 * 64,
   })
-  const stderr = (result.stderr ?? Buffer.from('')).toString()
   if (result.error) {
-    throw new Error(
-      `Failed to extract packed entry ${entry} from ${tarball}: ${result.error.message}${stderr ? `\n${stderr}` : ''}`
-    )
+    throw new Error(`Failed to list ${tarball}: ${result.error.message}`)
   }
   if (result.status !== 0) {
-    throw new Error(`Missing packed entry ${entry} in ${tarball}${stderr ? `\n${stderr}` : ''}`)
+    throw new Error(`Failed to list ${tarball}${result.stderr ? `\n${result.stderr}` : ''}`)
   }
-  return result.stdout
+  return new Set(
+    result.stdout
+      .split('\n')
+      .filter((entry) => entry.startsWith('package/'))
+      .map((entry) => entry.slice('package/'.length))
+  )
 }
 
 function globMatcher (pattern) {
@@ -195,10 +210,6 @@ function resolvePayloadPath (packageDir, file) {
   return source
 }
 
-function sha256 (buffer) {
-  return createHash('sha256').update(buffer).digest('hex')
-}
-
 function readJson (file) {
   return JSON.parse(readFileSync(file, 'utf8'))
 }
@@ -208,15 +219,13 @@ function normalizeArray (value) {
 }
 
 function parseArgs (rawArgs) {
-  const args = {}
+  const args = { packJsons: [] }
   for (let i = 0; i < rawArgs.length; i++) {
     const arg = rawArgs[i]
     if (arg === '--projects') {
       args.projects = rawArgs[++i]
     } else if (arg === '--pack-json') {
-      args.packJson = rawArgs[++i]
-    } else if (arg === '--tarball-dir') {
-      args.tarballDir = rawArgs[++i]
+      args.packJsons.push(rawArgs[++i])
     } else if (arg === '--package-dir') {
       args.packageDir = rawArgs[++i]
     } else if (arg === '--tarball') {
@@ -231,7 +240,7 @@ function parseArgs (rawArgs) {
 function usage (message) {
   console.error(message)
   console.error(`Usage:
-  verify-packed-package-payload.mjs --package-dir <dir> --tarball <file>
-  verify-packed-package-payload.mjs --projects <projects.json> --pack-json <pack.json> --tarball-dir <dir>`)
+  verify-packed-package-payload.mjs --projects <projects.json> --pack-json <pack.json> [--pack-json <more.json>...]
+  verify-packed-package-payload.mjs --package-dir <dir> --tarball <file>`)
   process.exit(1)
 }
