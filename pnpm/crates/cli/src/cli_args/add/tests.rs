@@ -10,13 +10,11 @@ fn allow_build_merges_into_config_and_persists_to_workspace_yaml() {
     apply_allow_build(&mut config, &["esbuild".to_string()], dir.path())
         .expect("allow-build applies");
 
-    // Enabled for the current install.
-    assert_eq!(config.allow_builds.get("esbuild"), Some(&true));
+    assert_eq!(config.allow_builds.get("esbuild"), Some(&true), "enabled for this install");
 
-    // Persisted to the settings dir's pnpm-workspace.yaml.
     let yaml = std::fs::read_to_string(dir.path().join("pnpm-workspace.yaml"))
         .expect("pnpm-workspace.yaml written");
-    assert!(yaml.contains("esbuild"), "allowBuilds entry written, got:\n{yaml}");
+    assert!(yaml.contains("esbuild"), "allowBuilds entry persisted, got:\n{yaml}");
 }
 
 #[test]
@@ -31,8 +29,7 @@ fn allow_build_rejects_a_package_the_root_disallows() {
         err.code().map(|code| code.to_string()).as_deref(),
         Some("ERR_PNPM_OVERRIDING_IGNORED_BUILT_DEPENDENCIES"),
     );
-    // Nothing was persisted for a rejected apply.
-    assert!(!dir.path().join("pnpm-workspace.yaml").exists());
+    assert!(!dir.path().join("pnpm-workspace.yaml").exists(), "a rejected apply persists nothing");
 }
 
 #[test]
