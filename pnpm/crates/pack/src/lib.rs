@@ -115,8 +115,8 @@ pub struct PackOptions {
 /// Result of packing one project.
 #[derive(Debug)]
 pub struct PackResult {
-    /// The manifest sent to the registry as package metadata. See
-    /// [`with_registry_readme`].
+    /// The manifest sent to the registry as package metadata. It always
+    /// carries the readme, whatever `embed_readme` says.
     pub published_manifest: Value,
     /// The `package.json` written into the tarball.
     pub packed_manifest: Value,
