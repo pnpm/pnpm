@@ -7463,6 +7463,9 @@ importers:
       realpath-missing:
         specifier: 'catalog:'
         version: 2.0.0
+      rename-overwrite:
+        specifier: 'catalog:'
+        version: 7.0.1
       render-help:
         specifier: 'catalog:'
         version: 2.0.0
@@ -7472,6 +7475,9 @@ importers:
       semver:
         specifier: 'catalog:'
         version: 7.8.5
+      shlex:
+        specifier: 'catalog:'
+        version: 3.0.0
       terminal-link:
         specifier: 'catalog:'
         version: 5.0.0

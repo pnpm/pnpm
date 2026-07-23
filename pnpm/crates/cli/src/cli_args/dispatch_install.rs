@@ -6,6 +6,7 @@ use super::{
     deploy::DeployArgs,
     dispatch::{CommandFuture, RunCtx},
     dlx::DlxArgs,
+    edit::EditArgs,
     fetch::FetchArgs,
     global,
     import::ImportArgs,
@@ -433,6 +434,16 @@ pub(super) fn unlink<'a>(ctx: &RunCtx<'a>, args: UnlinkArgs) -> miette::Result<C
         }
         Ok(())
     }))
+}
+
+pub(super) fn edit<'a>(ctx: &RunCtx<'a>, args: EditArgs) -> miette::Result<CommandFuture<'a>> {
+    Ok(match ctx.reporter {
+        ReporterType::Default | ReporterType::AppendOnly => {
+            Box::pin(args.run::<DefaultReporter>((ctx.state)(true)?))
+        }
+        ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>((ctx.state)(true)?)),
+        ReporterType::Silent => Box::pin(args.run::<SilentReporter>((ctx.state)(true)?)),
+    })
 }
 
 pub(super) fn rebuild<'a>(

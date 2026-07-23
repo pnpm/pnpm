@@ -195,6 +195,9 @@ fn version_publish_time(name: &str, version: &str) -> &'static str {
         ("@pnpm.e2e/bravo-dep", "1.1.0") => "2022-05-01T20:17:46.770Z",
         ("@pnpm.e2e/romeo-dep", "1.0.0") => "2022-03-01T20:17:46.770Z",
         ("@pnpm.e2e/romeo-dep", "1.1.0") => "2022-07-01T20:17:46.770Z",
+        ("@pnpm/e2e.test-provenance", "0.0.0") => "2022-01-01T00:00:00.000Z",
+        ("@pnpm/e2e.test-provenance", "0.0.4") => "2022-01-02T00:00:00.000Z",
+        ("@pnpm/e2e.test-provenance", "0.0.5") => "2022-01-03T00:00:00.000Z",
         _ => DEFAULT_PUBLISH_TIME,
     }
 }
@@ -234,8 +237,13 @@ impl PackageVersion {
         let mut packument_manifest = manifest;
         let manifest_object =
             packument_manifest.as_object_mut().expect("fixture package.json is an object");
-        manifest_object
-            .insert("dist".to_string(), json!({ "tarball": tarball_url, "integrity": integrity }));
+        let mut dist = manifest_object
+            .get("dist")
+            .and_then(|dist_val| dist_val.as_object().cloned())
+            .unwrap_or_default();
+        dist.insert("tarball".to_string(), json!(tarball_url));
+        dist.insert("integrity".to_string(), json!(integrity));
+        manifest_object.insert("dist".to_string(), Value::Object(dist));
         // Verdaccio's abbreviated metadata exposes `bundleDependencies` (no "d"),
         // and that is the key pnpm reads, so mirror `bundledDependencies` onto it
         // when only the longer spelling is present in the fixture manifest.

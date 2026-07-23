@@ -1,0 +1,13 @@
+{
+  "name": "@pnpm/macos-x64",
+  "version": "9.1.3",
+  "bin": {
+    "pnpm": "pnpm"
+  },
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "x64"
+  ]
+}

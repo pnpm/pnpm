@@ -1,0 +1,13 @@
+{
+  "name": "@pnpm/win-x64",
+  "version": "9.3.0",
+  "bin": {
+    "pnpm": "pnpm"
+  },
+  "os": [
+    "win32"
+  ],
+  "cpu": [
+    "x64"
+  ]
+}

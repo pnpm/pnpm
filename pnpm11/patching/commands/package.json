@@ -60,9 +60,11 @@
     "normalize-path": "catalog:",
     "ramda": "catalog:",
     "realpath-missing": "catalog:",
+    "rename-overwrite": "catalog:",
     "render-help": "catalog:",
     "safe-execa": "catalog:",
     "semver": "catalog:",
+    "shlex": "catalog:",
     "terminal-link": "catalog:",
     "tinyglobby": "catalog:"
   },

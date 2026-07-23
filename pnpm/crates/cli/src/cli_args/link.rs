@@ -48,7 +48,11 @@ fn is_filespec(input: &str) -> bool {
 }
 
 fn link_spec(base: &Path, target: &Path) -> String {
-    let rel = pathdiff::diff_paths(target, base).unwrap_or_else(|| target.to_path_buf());
+    let (base, target) = match (dunce::canonicalize(base), dunce::canonicalize(target)) {
+        (Ok(b), Ok(t)) => (b, t),
+        _ => (base.to_path_buf(), target.to_path_buf()),
+    };
+    let rel = pathdiff::diff_paths(&target, &base).unwrap_or_else(|| target.clone());
     format!("link:{}", rel.display().to_string().replace('\\', "/"))
 }
 

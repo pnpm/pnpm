@@ -1,0 +1,15 @@
+{
+  "name": "@pnpm/exe",
+  "version": "10.0.0",
+  "optionalDependencies": {
+    "@pnpm/win-x64": "10.0.0",
+    "@pnpm/linux-x64": "10.0.0",
+    "@pnpm/macos-x64": "10.0.0",
+    "@pnpm/win-arm64": "10.0.0",
+    "@pnpm/linux-arm64": "10.0.0",
+    "@pnpm/macos-arm64": "10.0.0"
+  },
+  "bin": {
+    "pnpm": "pnpm"
+  }
+}
