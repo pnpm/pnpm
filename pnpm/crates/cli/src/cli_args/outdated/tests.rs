@@ -1,19 +1,14 @@
 use super::{
     Change, DependentProject, OutdatedDependencyOptions, OutdatedInWorkspace, OutdatedPackage,
     PackumentCache, classify, current_versions_from_importer, fetch_package_cached,
-    render_dependents, render_json, render_latest, render_recursive_json, render_recursive_table,
-    render_table, sort_outdated,
+    render_dependents, render_json, render_latest, render_recursive_json, sort_outdated,
 };
 use node_semver::Version;
 use pacquet_config::Config;
 use pacquet_lockfile::Lockfile;
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::DependencyGroup;
-use std::{
-    collections::HashMap,
-    path::PathBuf,
-    sync::{Mutex, PoisonError},
-};
+use std::{collections::HashMap, path::PathBuf};
 use text_block_macros::text_block;
 
 #[cfg(unix)]
@@ -194,49 +189,44 @@ fn assert_borders_aligned(table: &str) {
     }
 }
 
-/// Forces `owo_colors` global color on for the scope of a test and clears it
-/// on drop, so the process-global override can't leak into other tests even
-/// if an assertion panics. Paired with [`COLOR_OVERRIDE_LOCK`] to serialize
-/// the tests that toggle it.
-struct ForcedColor;
-
-impl Drop for ForcedColor {
-    fn drop(&mut self) {
-        owo_colors::unset_override();
-    }
-}
-
-fn force_color() -> ForcedColor {
-    owo_colors::set_override(true);
-    ForcedColor
-}
-
-static COLOR_OVERRIDE_LOCK: Mutex<()> = Mutex::new(());
-
-// A colored cell carries ANSI escape sequences whose bytes must not count
-// toward the column width, or the borders drift out of alignment. Force
-// color on and check that the box-drawing borders stay vertically aligned
-// across rows whose cells differ in how many escapes they hold.
+// Enabling `tabled`'s `ansi` feature makes it size a colored cell by its
+// visible glyphs, not its escape bytes; without it the columns and borders
+// drift apart. Feed a modern-style table the kind of ANSI-colored cells the
+// `outdated` renderers emit — a highlighted version segment, a dim group
+// label, bright-blue headers — and confirm every vertical border lands on the
+// same column. Coloring the cells directly (`owo_colors` unconditional
+// styling) rather than forcing the global color override keeps the test free
+// of process-global state, so it can't leak into or be perturbed by other
+// tests running in the same binary.
 #[test]
 fn colored_table_borders_stay_aligned() {
-    let _lock = COLOR_OVERRIDE_LOCK.lock().unwrap_or_else(PoisonError::into_inner);
-    let _color = force_color();
+    use owo_colors::OwoColorize;
+    use tabled::builder::Builder;
+    use tabled::settings::Style;
 
-    let packages = [
-        pkg("actions/checkout", "7.0.0", "7.0.1", DependencyGroup::Dev),
-        pkg("typescript", "6.0.3", "7.0.2", DependencyGroup::Dev),
-        pkg("@typescript/native-preview", "1.0.0", "26.1.1", DependencyGroup::Dev),
+    let header = ["Package", "Current", "Latest"].map(|name| name.bright_blue().to_string());
+    let rows = [
+        [
+            format!("actions/checkout {}", "(github action)".dimmed()),
+            "7.0.0".to_owned(),
+            format!("7.0.{}", "1".green()),
+        ],
+        [
+            format!("@typescript/native-preview {}", "(dev)".dimmed()),
+            "1.0.0".to_owned(),
+            "26.1.1".red().to_string(),
+        ],
     ];
-    assert_borders_aligned(&render_table(&packages, false));
 
-    let workspace = [OutdatedInWorkspace {
-        package: pkg("typescript", "6.0.3", "7.0.2", DependencyGroup::Dev),
-        dependents: vec![DependentProject {
-            name: "app".to_string(),
-            location: PathBuf::from("packages/app"),
-        }],
-    }];
-    assert_borders_aligned(&render_recursive_table(&workspace, false));
+    let mut builder = Builder::default();
+    builder.push_record(header);
+    for row in rows {
+        builder.push_record(row);
+    }
+    let mut table = builder.build();
+    table.with(Style::modern());
+
+    assert_borders_aligned(&table.to_string());
 }
 
 #[test]
