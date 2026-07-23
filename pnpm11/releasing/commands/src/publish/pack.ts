@@ -45,6 +45,7 @@ export function cliOptionsTypes (): Record<string, unknown> {
     recursive: Boolean,
     ...pick([
       'dry-run',
+      'ignore-scripts',
       'pack-destination',
       'pack-gzip-level',
       'json',
@@ -74,7 +75,11 @@ export function help (): string {
             name: '--pack-destination <dir>',
           },
           {
-            description: 'Prints the packed tarball and contents in the json format.',
+            description: 'Does not run the `prepack`, `prepare` and `postpack` lifecycle scripts. Combined with `--dry-run --json`, this prints the manifest that would be published without building the package.',
+            name: '--ignore-scripts',
+          },
+          {
+            description: 'Prints the packed tarball, its contents and the manifest that goes into it in the json format.',
             name: '--json',
           },
           {
@@ -155,6 +160,7 @@ export interface PackResultJson {
   version: string
   filename: string
   files: Array<{ path: string }>
+  manifest: ExportedManifest
 }
 
 export async function handler (opts: PackOptions): Promise<string> {
@@ -376,6 +382,7 @@ export async function api (opts: PackOptions): Promise<PackResult> {
   }
   return {
     publishedManifest: await withRegistryReadme(publishManifest, dir),
+    packedManifest: publishManifest,
     contents: packedContents,
     tarballPath: packedTarballPath,
     unpackedSize,
@@ -397,7 +404,10 @@ async function withRegistryReadme (manifest: ExportedManifest, projectDir: strin
 }
 
 export interface PackResult {
+  /** The manifest sent to the registry as package metadata. See {@link withRegistryReadme}. */
   publishedManifest: ExportedManifest
+  /** The `package.json` written into the tarball. */
+  packedManifest: ExportedManifest
   contents: string[]
   tarballPath: string
   /** Total uncompressed size of all files in the tarball, in bytes. */
@@ -506,11 +516,12 @@ async function createPublishManifest (opts: {
 }
 
 function toPackResultJson (packResult: PackResult): PackResultJson {
-  const { publishedManifest, contents, tarballPath } = packResult
+  const { packedManifest, contents, tarballPath } = packResult
   return {
-    name: publishedManifest.name as string,
-    version: publishedManifest.version as string,
+    name: packedManifest.name as string,
+    version: packedManifest.version as string,
     filename: tarballPath,
     files: contents.map((file) => ({ path: file })),
+    manifest: packedManifest,
   }
 }

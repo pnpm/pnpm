@@ -928,7 +928,75 @@ test('pack: display in json format', async () => {
         path: 'src/index.ts',
       },
     ],
+    manifest: {
+      name: 'test-publish-package.json',
+      version: '0.0.0',
+    },
   }, null, 2))
+})
+
+test('pack: json output contains the publish-transformed manifest', async () => {
+  prepare({
+    name: 'test-published-manifest',
+    version: '0.0.0',
+    main: './src/index.ts',
+    publishConfig: {
+      main: './dist/index.js',
+    },
+    scripts: {
+      build: 'exit 0',
+      prepublishOnly: 'exit 0',
+    },
+    pnpm: {
+      overrides: {
+        'is-positive': '1.0.0',
+      },
+    },
+  } as Parameters<typeof prepare>[0] & { pnpm?: Record<string, unknown> })
+  fs.writeFileSync('README.md', '# test-published-manifest', 'utf8')
+
+  const output = await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+    dryRun: true,
+    json: true,
+  })
+
+  const { manifest }: PackResultJson = JSON.parse(output)
+
+  expect(manifest.main).toBe('./dist/index.js')
+  expect(manifest.publishConfig).toBeUndefined()
+  expect(manifest.scripts).toStrictEqual({ build: 'exit 0' })
+  expect(manifest.pnpm).toBeUndefined()
+  // The readme is registry metadata that `withRegistryReadme` adds to the
+  // published manifest regardless of `embedReadme`; the packed one omits it.
+  expect(manifest.readme).toBeUndefined()
+  expect(fs.existsSync('test-published-manifest-0.0.0.tgz')).toBeFalsy()
+})
+
+test('pack: --ignore-scripts does not run the lifecycle scripts', async () => {
+  prepare({
+    name: 'test-pack-ignore-scripts',
+    version: '0.0.0',
+    scripts: {
+      prepack: 'node -e "require(\'fs\').writeFileSync(\'prepack-ran\', \'\')"',
+    },
+  })
+
+  const output = await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+    dryRun: true,
+    ignoreScripts: true,
+    json: true,
+  })
+
+  expect(fs.existsSync('prepack-ran')).toBeFalsy()
+  expect((JSON.parse(output) as PackResultJson).manifest.name).toBe('test-pack-ignore-scripts')
 })
 
 test('pack: recursive pack and display in json format', async () => {
@@ -1010,6 +1078,7 @@ test('pack: recursive pack and display in json format', async () => {
     expect(pkg).toHaveProperty('version')
     expect(pkg).toHaveProperty('filename')
     expect(pkg).toHaveProperty('files')
+    expect(pkg.manifest.name).toBe(pkg.name)
     expect(Array.isArray(pkg.files)).toBeTruthy()
     for (const file of pkg.files) {
       expect(file).toHaveProperty('path')

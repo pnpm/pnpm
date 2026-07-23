@@ -115,8 +115,11 @@ pub struct PackOptions {
 /// Result of packing one project.
 #[derive(Debug)]
 pub struct PackResult {
-    /// The manifest packed inside the tarball.
+    /// The manifest sent to the registry as package metadata. It always
+    /// carries the readme, whatever `embed_readme` says.
     pub published_manifest: Value,
+    /// The `package.json` written into the tarball.
+    pub packed_manifest: Value,
     /// Sorted, de-duplicated list of the tarball's contents (paths
     /// relative to the package root, `package.json` for the manifest).
     pub contents: Vec<String>,
@@ -134,6 +137,7 @@ pub struct PackResultJson {
     pub version: String,
     pub filename: String,
     pub files: Vec<PackFile>,
+    pub manifest: Value,
 }
 
 /// One entry of [`PackResultJson::files`].
@@ -375,8 +379,14 @@ where
 
     let tarball_path = packed_tarball_path(&opts.dir, &dir, &dest_dir, &tarball_name);
 
-    let published_manifest = with_registry_readme(publish_manifest, &dir)?;
-    Ok(PackResult { published_manifest, contents, tarball_path, unpacked_size })
+    let published_manifest = with_registry_readme(publish_manifest.clone(), &dir)?;
+    Ok(PackResult {
+        published_manifest,
+        packed_manifest: publish_manifest,
+        contents,
+        tarball_path,
+        unpacked_size,
+    })
 }
 
 /// The readme is always reported as part of the published manifest, matching the npm CLI, so a
@@ -443,12 +453,13 @@ fn before_packing_logger<Reporter: self::Reporter>(pnpmfile: &Path, prefix: &str
 /// Project a [`PackResult`] into its JSON shape.
 #[must_use]
 pub fn to_pack_result_json(result: &PackResult) -> PackResultJson {
-    let manifest = &result.published_manifest;
+    let manifest = &result.packed_manifest;
     PackResultJson {
         name: manifest.get("name").and_then(Value::as_str).unwrap_or_default().to_string(),
         version: manifest.get("version").and_then(Value::as_str).unwrap_or_default().to_string(),
         filename: result.tarball_path.clone(),
         files: result.contents.iter().map(|path| PackFile { path: path.clone() }).collect(),
+        manifest: manifest.clone(),
     }
 }
 
