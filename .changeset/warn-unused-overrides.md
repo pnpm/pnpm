@@ -11,6 +11,8 @@ Warn during install when an entry in `overrides` matches no dependency. Closes p
 
 The warning is buffered until the `resolution_done` stage and rendered as a single grouped line by the default reporter (e.g. `[WARN] 2 overrides matched no dependency: foo, parent>child`). Set `warnUnusedOverrides: false` in `pnpm-workspace.yaml` to disable the warning — useful for orgs that share a common set of overrides across repos where not every override applies everywhere. The same behavior is in pacquet.
 
+Detection only runs during a full lockfile reanalysis: the applied-override set is collected by the read-package hook as manifests stream through resolution, so any install that short-circuits against a cached lockfile (`--frozen-lockfile`, `--prefer-frozen-lockfile`, or a partial resolution that reuses prior subtrees) skips the check. In those modes, unused overrides are not reported.
+
 Internal/public API additions that support the feature:
 
 - `@pnpm/core-loggers` — new `pnpm:unused-override` channel (`unusedOverrideLogger`, `UnusedOverrideLog`, `UnusedOverrideMessage`).

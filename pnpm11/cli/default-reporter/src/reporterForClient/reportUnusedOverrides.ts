@@ -35,8 +35,8 @@ export function reportUnusedOverrides (
   )
   return log$.unusedOverride.pipe(
     buffer(resolutionDone$),
+    filter((unusedOverrides) => unusedOverrides.length > 0),
     map((unusedOverrides) => {
-      if (unusedOverrides.length === 0) return Rx.EMPTY
       const selectors = unusedOverrides
         .map((log) => sanitizeSelector(log.selector))
         .sort()
