@@ -206,6 +206,17 @@ jobs:
           runtime: node@26.5.0
       - name: Override workspace ignores for the TypeScript pnpm package
         run: ': > pnpm11/pnpm/.npmignore'
+      - name: Shadow the root .gitignore for packing (TEMPORARY)
+        # The pinned pacquet (12.0.0-alpha.13 and later, until the fix from
+        # https://github.com/pnpm/pnpm/pull/13231 ships) lets workspace-root
+        # ignore rules exclude files matched by a package's `files` allowlist,
+        # so every lib package published with it shipped nearly empty:
+        # https://github.com/pnpm/pnpm/issues/13164. The packlist prefers a
+        # root .npmignore over the root .gitignore, so shadow the .gitignore
+        # with only its junk rules (crucially not `lib`/`dist`, the compiled
+        # payload of every lib package). Remove this step once
+        # `packageManager` pins a pacquet release that carries the fix.
+        run: printf '*.tsbuildinfo\n*.log\n' > .npmignore
       - name: Build TypeScript executable artifacts
         run: pn --filter=@pnpm/exe run build-artifacts
 
@@ -362,6 +373,17 @@ jobs:
           runtime: node@26.5.0
       - name: Override workspace ignores for the TypeScript pnpm package
         run: ': > pnpm11/pnpm/.npmignore'
+      - name: Shadow the root .gitignore for packing (TEMPORARY)
+        # The pinned pacquet (12.0.0-alpha.13 and later, until the fix from
+        # https://github.com/pnpm/pnpm/pull/13231 ships) lets workspace-root
+        # ignore rules exclude files matched by a package's `files` allowlist,
+        # so every lib package published with it shipped nearly empty:
+        # https://github.com/pnpm/pnpm/issues/13164. The packlist prefers a
+        # root .npmignore over the root .gitignore, so shadow the .gitignore
+        # with only its junk rules (crucially not `lib`/`dist`, the compiled
+        # payload of every lib package). Remove this step once
+        # `packageManager` pins a pacquet release that carries the fix.
+        run: printf '*.tsbuildinfo\n*.log\n' > .npmignore
       # The publish phase is split into three sequential steps to control which packages
       # use trusted publishing (OIDC) vs. a static token. `pnpm publish` currently bails
       # out of OIDC as soon as a static `_authToken` is configured, so the only way to

@@ -457,6 +457,112 @@ fn workspace_root_gitignore_excludes_workspace_package_files() {
     );
 }
 
+// Regression test for <https://github.com/pnpm/pnpm/issues/13164>: a
+// workspace-root `.gitignore` that ignores compiled `lib/` output must
+// not filter a `files: ["lib"]` allowlist — every `lib/` file ships,
+// not just the force-included `main` one.
+#[test]
+fn files_field_overrides_workspace_root_gitignore() {
+    let dir = tempdir().unwrap();
+    fs::write(dir.path().join(".gitignore"), "lib\n").unwrap();
+    let root = dir.path().join("packages").join("pkg");
+    fs::create_dir_all(&root).unwrap();
+    touch(&root, "package.json");
+    touch(&root, "lib/index.js");
+    touch(&root, "lib/index.d.ts");
+    touch(&root, "lib/index.js.map");
+    touch(&root, "lib/util.js");
+    touch(&root, "src/index.ts");
+
+    let manifest = json!({
+        "name": "x",
+        "version": "0.0.0",
+        "main": "lib/index.js",
+        "files": ["lib", "!*.map"],
+    });
+    let mut out = packlist_with_options(
+        &root,
+        &manifest,
+        PacklistOptions { workspace_dir: Some(dir.path()) },
+    )
+    .unwrap();
+    out.sort();
+
+    assert_eq!(
+        out,
+        vec![
+            "lib/index.d.ts".to_string(),
+            "lib/index.js".into(),
+            "lib/util.js".into(),
+            "package.json".into(),
+        ],
+        "`files` allowlist must override the workspace-root .gitignore",
+    );
+}
+
+#[test]
+fn files_field_overrides_workspace_root_npmignore() {
+    let dir = tempdir().unwrap();
+    fs::write(dir.path().join(".npmignore"), "lib\n").unwrap();
+    let root = dir.path().join("packages").join("pkg");
+    fs::create_dir_all(&root).unwrap();
+    touch(&root, "package.json");
+    touch(&root, "lib/index.js");
+    touch(&root, "lib/index.d.ts");
+    touch(&root, "lib/index.js.map");
+    touch(&root, "src/index.ts");
+
+    let manifest = json!({
+        "name": "x",
+        "version": "0.0.0",
+        "main": "lib/index.js",
+        "files": ["lib", "!*.map"],
+    });
+    let mut out = packlist_with_options(
+        &root,
+        &manifest,
+        PacklistOptions { workspace_dir: Some(dir.path()) },
+    )
+    .unwrap();
+    out.sort();
+
+    assert_eq!(
+        out,
+        vec!["lib/index.d.ts".to_string(), "lib/index.js".into(), "package.json".into()],
+        "`files` allowlist must override the workspace-root .npmignore",
+    );
+}
+
+// A `files` field with no usable entry is treated as absent (see
+// `build_files_matcher`), so it must not disable ignore-file filtering:
+// otherwise nothing would gate the walk at all and every ignored file
+// would ship.
+#[test]
+fn empty_files_field_keeps_workspace_ignores_active() {
+    let dir = tempdir().unwrap();
+    fs::write(dir.path().join(".gitignore"), "dist/\n").unwrap();
+    let root = dir.path().join("packages").join("pkg");
+    fs::create_dir_all(&root).unwrap();
+    touch(&root, "package.json");
+    touch(&root, "dist/generated.js");
+    touch(&root, "src/index.js");
+
+    let manifest = json!({ "name": "x", "version": "0.0.0", "files": [] });
+    let mut out = packlist_with_options(
+        &root,
+        &manifest,
+        PacklistOptions { workspace_dir: Some(dir.path()) },
+    )
+    .unwrap();
+    out.sort();
+
+    assert_eq!(
+        out,
+        vec!["package.json".to_string(), "src/index.js".into()],
+        "an empty `files` array must be treated as absent, keeping ignore files active",
+    );
+}
+
 #[test]
 fn workspace_root_npmignore_takes_precedence_over_gitignore() {
     let dir = tempdir().unwrap();
