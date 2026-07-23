@@ -10,7 +10,7 @@ import { readYamlFileSync } from 'read-yaml-file'
 import { writeJsonFileSync } from 'write-json-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpm, execPnpmSync, pnpmBinLocation } from './utils/index.js'
+import { execPnpm, execPnpmSync, isCurrentVersionPublished, pnpmBinLocation } from './utils/index.js'
 
 test('patch from configuration dependency is applied', async () => {
   prepare()
@@ -150,10 +150,12 @@ test('package manager from the packageManager field is not saved into the lockfi
 })
 
 // These tests resolve the running pnpm version's integrity from registry-mock,
-// which proxies pnpm to npmjs. They fail between a release commit and the
-// matching npm publish ("No matching version found for pnpm@<version>"), and
-// pass again once the version lands on npmjs.
-describe('release-brittle: may fail until current version is published to npm', () => {
+// which proxies pnpm to npmjs, so they can only pass once the running version
+// is published. They are skipped in the window between a release commit and
+// the matching npm publish.
+const describeOnPublishedVersion = isCurrentVersionPublished() ? describe : describe.skip
+
+describeOnPublishedVersion('requires the running pnpm version to be published to npm', () => {
   test('packageManagerDependencies is refreshed when pnpm is invoked via corepack (#11397)', async () => {
     const pnpmVersion = JSON.parse(fs.readFileSync(path.join(path.dirname(pnpmBinLocation), '..', 'package.json'), 'utf8')).version as string
     prepare({
