@@ -137,7 +137,10 @@ export function convertToLockfileObject (lockfile: LockfileFile): LockfileObject
   const packages: PackageSnapshots = {}
   for (const [depPath, pkg] of Object.entries(lockfile.snapshots ?? {})) {
     const pkgId = removeSuffix(depPath)
-    const snapshot = Object.assign(pkg, lockfile.packages?.[pkgId])
+    const snapshot = Object.assign({}, pkg, lockfile.packages?.[pkgId])
+    if (snapshot.resolution != null) {
+      snapshot.resolution = { ...snapshot.resolution }
+    }
     // Defense-in-depth for pruned lockfiles (older `turbo prune --docker`,
     // pre vercel/turborepo#12825): a peer-variant injected workspace
     // snapshot whose base `packages:` entry was dropped now has a null

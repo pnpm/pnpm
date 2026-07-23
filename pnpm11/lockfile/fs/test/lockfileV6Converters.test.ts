@@ -1,4 +1,5 @@
 import { expect, test } from '@jest/globals'
+import type { LockfileFile } from '@pnpm/lockfile.types'
 import type { DepPath } from '@pnpm/types'
 
 import { convertToLockfileFile, convertToLockfileObject } from '../lib/lockfileFormatConverters.js'
@@ -92,6 +93,37 @@ test('convertToLockfileFile()', () => {
   }
   expect(convertToLockfileFile(lockfileV5)).toEqual(lockfileV6)
   expect(convertToLockfileObject(lockfileV6)).toEqual(lockfileV5)
+})
+
+test('convertToLockfileObject() does not mutate its LockfileFile input', () => {
+  const lockfileFile: LockfileFile = {
+    lockfileVersion: '9.0',
+    importers: {
+      '.': {
+        dependencies: {
+          foo: { specifier: '1.0.0', version: '1.0.0' },
+        },
+      },
+    },
+    packages: {
+      'foo@1.0.0': {
+        resolution: {
+          tarball: 'https://codeload.github.com/example/foo/tar.gz/0000000000000000000000000000000000000000',
+        },
+      },
+    },
+    snapshots: {
+      'foo@1.0.0': {},
+    },
+  }
+  const expectedLockfileFile = structuredClone(lockfileFile)
+
+  const lockfileObject = convertToLockfileObject(lockfileFile)
+
+  expect(lockfileObject.packages?.['foo@1.0.0' as DepPath]?.resolution).toMatchObject({
+    gitHosted: true,
+  })
+  expect(lockfileFile).toStrictEqual(expectedLockfileFile)
 })
 
 test('convertToLockfileObject() reconstructs a dropped directory resolution for a pruned file: peer-variant, but never for a file: tarball', () => {
