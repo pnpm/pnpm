@@ -15,8 +15,7 @@ impl Reporter for UnexpectedReporter {
     }
 }
 
-/// The happy path renders the auth URL followed by its QR code. This mirrors
-/// the TypeScript `formatAuthUrlMessage` "appends a QR code" unit test, so a
+/// Mirrors the TypeScript `formatAuthUrlMessage` "appends a QR code" test, so a
 /// regression that drops the code from the message is caught in both stacks.
 #[test]
 fn renders_the_auth_url_with_its_qr_code() {
