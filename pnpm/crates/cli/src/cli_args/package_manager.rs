@@ -160,8 +160,9 @@ fn pnpm_version_from(root_dir: &Path) -> Option<String> {
 }
 
 pub(crate) fn exact_version(version: &str) -> Option<String> {
-    let parsed = node_semver::Version::parse(version).ok()?;
-    (parsed.to_string() == version).then(|| version.to_string())
+    let normalized = version.strip_prefix('=').unwrap_or(version);
+    let parsed = node_semver::Version::parse(normalized).ok()?;
+    (parsed.to_string() == normalized).then(|| normalized.to_string())
 }
 
 pub(crate) fn version_satisfies(version: &str, wanted_range: &str) -> bool {

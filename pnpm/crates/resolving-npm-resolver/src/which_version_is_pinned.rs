@@ -62,11 +62,14 @@ pub fn which_version_is_pinned(spec: &str) -> Option<PinnedVersion> {
         Some(Operator::Tilde) => Some(PinnedVersion::Minor),
         Some(Operator::Caret) => Some(PinnedVersion::Major),
         Some(Operator::Other) => None,
-        // A bare `=` pins the same way the plain version it prefixes does.
-        Some(Operator::Eq) | None if comparator.has_patch => Some(PinnedVersion::Patch),
-        Some(Operator::Eq) | None if comparator.has_minor => Some(PinnedVersion::Minor),
-        Some(Operator::Eq) | None if comparator.has_major => Some(PinnedVersion::Major),
-        Some(Operator::Eq) | None => None,
+        Some(Operator::Eq) if comparator.has_patch => Some(PinnedVersion::Exact),
+        Some(Operator::Eq) if comparator.has_minor => Some(PinnedVersion::Minor),
+        Some(Operator::Eq) if comparator.has_major => Some(PinnedVersion::Major),
+        Some(Operator::Eq) => None,
+        None if comparator.has_patch => Some(PinnedVersion::Patch),
+        None if comparator.has_minor => Some(PinnedVersion::Minor),
+        None if comparator.has_major => Some(PinnedVersion::Major),
+        None => None,
     }
 }
 

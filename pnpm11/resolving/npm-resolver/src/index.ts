@@ -1101,6 +1101,7 @@ function calcSpecifierForWorkspaceDep ({
       switch (pinnedVersion) {
         case 'major': return `${prefix}^`
         case 'minor': return `${prefix}~`
+        case 'exact':
         case 'patch':
         case 'none': return `${prefix}*`
       }
@@ -1194,6 +1195,8 @@ function createVersionSpec (version: string, pinnedVersion?: PinnedVersion): str
       return `^${version}`
     case 'minor':
       return `~${version}`
+    case 'exact':
+      return `=${version}`
     case 'patch':
       return version
     default:

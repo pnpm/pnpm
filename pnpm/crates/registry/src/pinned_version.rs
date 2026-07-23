@@ -10,6 +10,8 @@ pub enum PinnedVersion {
     /// pnpm's default.
     #[default]
     Major,
+    /// Preserve an explicit equals exact range (`=version`).
+    Exact,
     /// Save with a tilde range (`~version`), allowing patch-level updates.
     Minor,
     /// Save the exact resolved version with no range operator.
@@ -35,6 +37,7 @@ impl PinnedVersion {
     pub fn range_prefix(self) -> &'static str {
         match self {
             PinnedVersion::Major | PinnedVersion::None => "^",
+            PinnedVersion::Exact => "=",
             PinnedVersion::Minor => "~",
             PinnedVersion::Patch => "",
         }

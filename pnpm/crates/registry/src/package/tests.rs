@@ -53,6 +53,7 @@ pub fn serialized_according_to_params() {
     assert_eq!(version.serialize(PinnedVersion::Patch), "3.2.1");
     assert_eq!(version.serialize(PinnedVersion::Minor), "~3.2.1");
     assert_eq!(version.serialize(PinnedVersion::Major), "^3.2.1");
+    assert_eq!(version.serialize(PinnedVersion::Exact), "=3.2.1");
     assert_eq!(version.serialize(PinnedVersion::None), "^3.2.1");
 }
 
@@ -75,6 +76,7 @@ pub fn serialize_keeps_prerelease_version_without_prefix() {
     assert_eq!(version.serialize(PinnedVersion::Major), "2.1.0-rc.1");
     assert_eq!(version.serialize(PinnedVersion::Minor), "2.1.0-rc.1");
     assert_eq!(version.serialize(PinnedVersion::Patch), "2.1.0-rc.1");
+    assert_eq!(version.serialize(PinnedVersion::Exact), "=2.1.0-rc.1");
     assert_eq!(version.serialize(PinnedVersion::None), "2.1.0-rc.1");
 }
 

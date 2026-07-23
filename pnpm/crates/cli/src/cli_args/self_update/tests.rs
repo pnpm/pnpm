@@ -2,6 +2,7 @@ use super::{
     install_pnpm, is_installed_globally, package_manager_pin_specifier, update_version_constraint,
     version_lt,
 };
+use crate::cli_args::package_manager::exact_version;
 use std::{fs, path::Path};
 
 #[test]
@@ -16,8 +17,14 @@ fn version_constraint_preserves_pinning_style() {
     assert_eq!(update_version_constraint(Some("~1.0.0"), "2.0.0"), "~2.0.0");
     // An exact pin stays exact.
     assert_eq!(update_version_constraint(Some("1.0.0"), "2.0.0"), "2.0.0");
+    assert_eq!(update_version_constraint(Some("=1.0.0"), "2.0.0"), "=2.0.0");
     // A complex multi-comparator range falls back to a caret range.
     assert_eq!(update_version_constraint(Some(">=1.0.0 <2.0.0"), "3.0.0"), "^3.0.0");
+}
+
+#[test]
+fn exact_version_accepts_equals_prefixed_pins() {
+    assert_eq!(exact_version("=1.2.3"), Some("1.2.3".to_string()));
 }
 
 fn seed_global_engine(global_dir: &Path, package_name: &str, version: &str) {

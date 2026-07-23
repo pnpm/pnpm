@@ -121,10 +121,12 @@ fn peer_dependency_keeps_prerelease_resolved_version_without_prefix() {
 }
 
 #[test]
-fn peer_dependency_respects_patch_and_none_pins() {
-    for (pinned_version, expected) in
-        [(PinnedVersion::Patch, "3.2.1"), (PinnedVersion::None, "^3.2.1")]
-    {
+fn peer_dependency_respects_patch_none_and_exact_pins() {
+    for (pinned_version, expected) in [
+        (PinnedVersion::Patch, "3.2.1"),
+        (PinnedVersion::None, "^3.2.1"),
+        (PinnedVersion::Exact, "=3.2.1"),
+    ] {
         let (_dir, mut manifest) = manifest_from_json(&json!({}));
         apply(
             &mut manifest,

@@ -196,6 +196,23 @@ test('update --latest --save-exact', async function () {
   expect(pkg.dependencies?.['is-negative']).toBe('github:kevva/is-negative')
 })
 
+test('update --latest preserves equals exact pins', async function () {
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': '=100.0.0',
+    },
+  })
+
+  await addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '101.0.0', 'latest')
+
+  await execPnpm(['update', '--latest'])
+
+  project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '101.0.0')
+
+  const pkg = await readPackageJsonFromDir(process.cwd())
+  expect(pkg.dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('=101.0.0')
+})
+
 test('update --latest specific dependency', async function () {
   const project = prepare()
 

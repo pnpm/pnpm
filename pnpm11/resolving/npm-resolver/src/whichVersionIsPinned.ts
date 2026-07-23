@@ -22,8 +22,11 @@ export function whichVersionIsPinned (spec: string): PinnedVersion | undefined {
   switch (versionObject.operator) {
     case '~': return 'minor'
     case '^': return 'major'
-    // A bare '=' pins the same way the plain version it prefixes does.
     case '=':
+      if (versionObject.patch) return 'exact'
+      if (versionObject.minor) return 'minor'
+      if (versionObject.major) return 'major'
+      break
     case undefined:
       if (versionObject.patch) return 'patch'
       if (versionObject.minor) return 'minor'
