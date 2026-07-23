@@ -190,6 +190,15 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
         }
         return Ok(());
     }
+    // The fan-out processed every candidate before collecting
+    // violations, so the terminal event reports the full count.
+    emit_guard.cancel(LockfileVerificationMessage::Failed {
+        entries,
+        checked: entries,
+        // Refreshed by the Drop impl.
+        elapsed_ms: 0,
+        lockfile_path: lockfile_path_str,
+    });
     Err(build_verification_error(violations))
 }
 
@@ -561,9 +570,11 @@ fn emit<Reporter: self::Reporter>(level: LogLevel, message: LockfileVerification
 }
 
 /// Drop guard that fires the terminal `Failed` payload when the
-/// runner panics or returns early through `?`. On the success path
-/// the runner calls [`Self::cancel`] with the `Done` payload, which
-/// replaces the queued message and emits it on drop instead.
+/// runner panics or returns early through `?`. Paths that know their
+/// outcome call [`Self::cancel`] with the terminal payload (`Done` on
+/// success, `Failed` with the real checked count after a completed
+/// fan-out), which replaces the queued message and emits it on drop
+/// instead.
 struct TerminalEmitGuard<Reporter: self::Reporter> {
     pending: Option<LockfileVerificationMessage>,
     /// `Started` instant captured at runner entry. The Drop impl uses
@@ -580,10 +591,11 @@ impl<Reporter: self::Reporter> TerminalEmitGuard<Reporter> {
         Self {
             pending: Some(LockfileVerificationMessage::Failed {
                 entries,
-                // Pacquet does not track per-entry progress yet, so the
-                // checked count is not known on the failure path. Zero
-                // is the safe minimum — the reporter renders `0/entries`
-                // rather than `undefined/entries`.
+                // Pacquet does not track per-entry progress yet, so on
+                // the paths where the fan-out did not run to completion
+                // (panic, registry fetch abort) the checked count is
+                // unknown. Zero is the safe minimum — the reporter
+                // renders `0/entries` rather than `undefined/entries`.
                 checked: 0,
                 // Placeholder; the Drop impl overwrites this with
                 // the real elapsed when the guard actually fires.
@@ -595,8 +607,8 @@ impl<Reporter: self::Reporter> TerminalEmitGuard<Reporter> {
         }
     }
 
-    fn cancel(&mut self, success: LockfileVerificationMessage) {
-        self.pending = Some(success);
+    fn cancel(&mut self, message: LockfileVerificationMessage) {
+        self.pending = Some(message);
     }
 }
 
