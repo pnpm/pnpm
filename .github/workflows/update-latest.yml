@@ -19,15 +19,19 @@ on:
 permissions: {}
 
 env:
-  # Passed to each command as `--config.registry`, which both the TypeScript
-  # and Rust CLIs read; pnpm ignores `npm_config_registry`.
+  # Passed to each command as `--registry`, which is the only form pnpm reads;
+  # it ignores `npm_config_registry`.
   REGISTRY: https://registry.npmjs.org/
   # Keeps a runner-level .npmrc from redirecting any of this.
   npm_config_userconfig: /dev/null
   # The pnpm that operates this workflow, never the version being released:
   # validate and verify-upgrade decide what the release is measured against, and
-  # tag-in-registry holds the publish token. Bump deliberately.
-  RELEASE_TOOL_PNPM_VERSION: 12.0.0-alpha.19
+  # tag-in-registry holds the publish token. Bump deliberately, to a version that
+  # has already proven itself as `latest`. Until this moves to v12, the
+  # `pnpm/setup` steps below stay pinned to 77cf0683 — the last revision of the
+  # action able to install pnpm 11; newer revisions only install the
+  # standalone pnpm v12+.
+  RELEASE_TOOL_PNPM_VERSION: 11.13.1
 
 jobs:
   validate:
@@ -36,7 +40,7 @@ jobs:
     permissions: {}
     steps:
     - name: Install pnpm and Node
-      uses: pnpm/setup@6bfbb82d278149277735183e1ac2cd4353ebfe4f
+      uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
       with:
         version: ${{ env.RELEASE_TOOL_PNPM_VERSION }}
         runtime: node@26.5.0
@@ -66,7 +70,7 @@ jobs:
             fi
             ;;
           latest)
-            CURRENT_LATEST_MAJOR="$(pn view pnpm dist-tags.latest --config.registry="$REGISTRY" | cut -d . -f 1)"
+            CURRENT_LATEST_MAJOR="$(pn view pnpm dist-tags.latest --registry="$REGISTRY" | cut -d . -f 1)"
             # A dist-tag that could not be read must not pass the guard: an
             # empty value makes the comparison below error out with a non-zero
             # status, which `if` swallows, silently skipping the check.
@@ -95,7 +99,7 @@ jobs:
     permissions: {}
     steps:
     - name: Install pnpm and Node
-      uses: pnpm/setup@6bfbb82d278149277735183e1ac2cd4353ebfe4f
+      uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
       with:
         version: ${{ env.RELEASE_TOOL_PNPM_VERSION }}
         runtime: node@26.5.0
@@ -114,8 +118,8 @@ jobs:
         MAJOR="${VERSION%%.*}"
         # Upgrade from what users on this release line are running today. A new
         # major has no latest-<major> yet, so fall back to the current latest.
-        if ! FROM=$(pn view "pnpm@latest-${MAJOR}" version --config.registry="$REGISTRY" 2>/dev/null) || [ -z "$FROM" ]; then
-          FROM=$(pn view pnpm dist-tags.latest --config.registry="$REGISTRY")
+        if ! FROM=$(pn view "pnpm@latest-${MAJOR}" version --registry="$REGISTRY" 2>/dev/null) || [ -z "$FROM" ]; then
+          FROM=$(pn view pnpm dist-tags.latest --registry="$REGISTRY")
         fi
         echo "Upgrading from v${FROM} to v${VERSION}"
 
@@ -133,15 +137,15 @@ jobs:
           cd "$work"
           mkdir -p "$work/from"
           printf '{"name":"pnpm-upgrade-check","version":"0.0.0","private":true}\n' >"$work/from/package.json"
-          # `allowBuilds` is what makes this install the starting point rather
+          # `--allow-build` is what makes this install the starting point rather
           # than a fake one: pnpm blocks dependency build scripts by default, and
           # `@pnpm/exe`'s setup.js is what swaps its placeholder bin for the real
           # native. Without it every run reproduces the exact breakage this gate
           # exists to catch (the placeholder surviving) and blames the release.
-          printf 'allowBuilds:\n  "@pnpm/exe": true\n' >"$work/from/pnpm-workspace.yaml"
-          pn --dir "$work/from" \
-            add "${package}@${FROM}" \
-            --config.registry="$REGISTRY"
+          pn add "${package}@${FROM}" \
+            --dir "$work/from" \
+            --allow-build=@pnpm/exe \
+            --registry="$REGISTRY"
           # Drive through the bin shim rather than a path into the package: the
           # entry point differs by major (pnpm.cjs in v10, pnpm.mjs in v11) and
           # between the two wrappers, and the shim is what a user gets.
@@ -197,7 +201,7 @@ jobs:
       with:
         api_token: ${{ secrets.GARNET_API_TOKEN }}
     - name: Install pnpm and Node
-      uses: pnpm/setup@6bfbb82d278149277735183e1ac2cd4353ebfe4f
+      uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
       with:
         version: ${{ env.RELEASE_TOOL_PNPM_VERSION }}
         runtime: node@26.5.0
@@ -215,11 +219,11 @@ jobs:
         pn config set "//registry.npmjs.org/:_authToken" "${NPM_TOKEN}"
 
         MAJOR="${VERSION%%.*}"
-        pn dist-tag add "pnpm@${VERSION}" "latest-${MAJOR}" --config.registry="$REGISTRY"
-        pn dist-tag add "@pnpm/exe@${VERSION}" "latest-${MAJOR}" --config.registry="$REGISTRY"
+        pn dist-tag add "pnpm@${VERSION}" "latest-${MAJOR}" --registry="$REGISTRY"
+        pn dist-tag add "@pnpm/exe@${VERSION}" "latest-${MAJOR}" --registry="$REGISTRY"
         if [ "$TAG" != "latest-${MAJOR}" ]; then
-          pn dist-tag add "pnpm@${VERSION}" "${TAG}" --config.registry="$REGISTRY"
-          pn dist-tag add "@pnpm/exe@${VERSION}" "${TAG}" --config.registry="$REGISTRY"
+          pn dist-tag add "pnpm@${VERSION}" "${TAG}" --registry="$REGISTRY"
+          pn dist-tag add "@pnpm/exe@${VERSION}" "${TAG}" --registry="$REGISTRY"
         fi
 
   publish-to-winget:
