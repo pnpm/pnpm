@@ -60,8 +60,7 @@ export function help (): string {
   })
 }
 
-export type SelfUpdateCommandOptions = CreateStoreControllerOptions & Pick<Config,
-| 'ci'
+export type SelfUpdateCommandOptions = CreateStoreControllerOptions & Partial<Pick<Config, 'ci'>> & Pick<Config,
 | 'globalPkgDir'
 | 'lockfileDir'
 | 'minimumReleaseAge'
