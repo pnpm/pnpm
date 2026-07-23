@@ -767,8 +767,7 @@ fn update_latest_no_save_catalog_bumps_lockfile_only() {
     drop((root, anchor));
 }
 
-/// `update --latest` must resolve the *aliased* package: the alias name
-/// itself does not exist on the registry, so resolving it would 404.
+/// The alias name does not exist in the mock registry.
 #[test]
 fn update_latest_npm_alias_resolves_aliased_package() {
     let (root, workspace, anchor) = setup();
@@ -787,8 +786,7 @@ fn update_latest_npm_alias_resolves_aliased_package() {
     drop((root, anchor));
 }
 
-/// The same alias unwrapping applies to the `npm:` alias stored in the
-/// catalog entry a `catalog:` reference points to.
+/// The alias name does not exist in the mock registry.
 #[test]
 fn update_latest_catalog_npm_alias_resolves_aliased_package() {
     let (root, workspace, anchor) = setup();

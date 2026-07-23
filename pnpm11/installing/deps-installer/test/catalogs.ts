@@ -1957,8 +1957,7 @@ describe('update', () => {
   test('update --latest resolves an npm: alias catalog entry to the aliased package', async () => {
     await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
 
-    // The alias name does not exist on the registry, so resolving it instead
-    // of the aliased package would fail.
+    // The alias name does not exist on the registry.
     const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
       name: 'project1',
       dependencies: {
@@ -1993,8 +1992,6 @@ describe('update', () => {
         updateToLatest: true,
       })
 
-    // The manifest keeps the catalog reference; the bumped catalog entry
-    // keeps the npm: alias prefix and the entry's own range operator.
     expect(updatedManifest).toEqual({
       name: 'project1',
       dependencies: {

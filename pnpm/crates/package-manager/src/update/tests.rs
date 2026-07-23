@@ -75,13 +75,10 @@ fn npm_alias_specifiers_yield_their_real_package_name() {
 #[test]
 fn non_alias_specifiers_have_no_npm_alias_target() {
     for (spec, alias) in [
-        // Plain and protocol specifiers are no aliases at all.
         ("^1.0.0", "foo"),
         ("catalog:", "foo"),
         ("workspace:*", "foo"),
-        // The `npm:<range>` shorthand: the alias is the real package name.
         ("npm:^1.0.0", "foo"),
-        // An alias of the package's own name is written as a plain range.
         ("npm:foo@^1.0.0", "foo"),
     ] {
         assert_eq!(npm_alias_target(spec, alias), None, "target of {alias}@{spec}");

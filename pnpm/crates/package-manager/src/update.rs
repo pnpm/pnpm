@@ -877,11 +877,6 @@ fn ensure_catalog_ctx<'slot>(
     Ok(slot.as_ref().expect("just populated"))
 }
 
-/// The specifier a `--latest` bump derives its rewrite from: the catalog
-/// entry for a `catalog:` reference (the reference itself carries neither an
-/// alias target nor a range operator), the dependency's own specifier
-/// otherwise. Reading the catalogs is deferred to here so an update that
-/// rewrites nothing never parses them.
 fn effective_specifier(
     catalog_ctx: &mut Option<CatalogCtx>,
     manifest: &PackageManifest,
@@ -898,17 +893,6 @@ fn effective_specifier(
     Ok(prev.to_string())
 }
 
-/// Compute the rewritten specifier for one direct dependency under
-/// `--latest`. The `effective` specifier decides both halves of the rewrite:
-///
-/// * **Which package "latest" means.** An `npm:` alias (written directly or
-///   stored in the catalog entry a `catalog:` reference points to) resolves
-///   the *aliased* package — the alias name itself may not exist on the
-///   registry — and keeps the `npm:<real name>@` prefix in the written
-///   specifier. Mirrors the TypeScript resolver's
-///   `unwrapPackageName`/`calcSpecifier` pair.
-/// * **The range operator to write.** The operator the dependency already
-///   pinned wins over the configured default.
 async fn resolve_latest_specifier(
     picker: &LatestPicker<'_>,
     effective: &str,
@@ -925,21 +909,13 @@ async fn resolve_latest_specifier(
     })
 }
 
-/// The real registry package an `npm:` alias specifier installs under a
-/// different name (`bar` for `foo@npm:bar@^4`), or `None` when the rewrite
-/// needs no `npm:` prefix: a non-`npm:` specifier, the `npm:<range>`
-/// shorthand (the body is a version range, so the alias is the real package
-/// name), or an alias of the package's own name — the TypeScript resolver's
-/// `calcSpecifier` writes a plain range for those. A sibling of the
-/// deps-resolver's `real_package_name_of`, which answers the same question
-/// for update-target matching.
+/// Mirrors the TypeScript resolver's `unwrapPackageName`/`calcSpecifier`
+/// pair.
 fn npm_alias_target<'a>(bare_specifier: &'a str, alias: &str) -> Option<&'a str> {
     let rest = bare_specifier.strip_prefix("npm:")?;
     if rest.parse::<node_semver::Range>().is_ok() {
         return None;
     }
-    // The last `@` separates the real name from the version range; without
-    // one the whole body is the name (default-tag form `npm:bar`).
     let name = match rest.rfind('@') {
         Some(idx) if idx >= 1 => &rest[..idx],
         _ => rest,
