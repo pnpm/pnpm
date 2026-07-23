@@ -13,7 +13,7 @@
 //!    package's own and any workspace-inherited ones alike — leaving
 //!    the allowlist in pass 2 as the sole gate (a `files` field with
 //!    no usable entry is treated as absent, see
-//!    [`build_files_matcher`]); (b) no `files` but a root
+//!    `build_files_matcher`); (b) no `files` but a root
 //!    `.npmignore` exists disables `.gitignore`; (c) neither present
 //!    falls back to `.gitignore`.
 //! 2. **Apply the `files` field allowlist** on top of the walk's
