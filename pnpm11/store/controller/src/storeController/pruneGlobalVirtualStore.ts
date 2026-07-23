@@ -258,7 +258,8 @@ async function getDeclaredDepsOfGvsPackage (
       return null
     }
     throw new Error(
-      `Failed to read declared dependencies for ${pkgNodeModules}: ${(err as Error).message}`
+      `Failed to read declared dependencies for ${pkgNodeModules}: ${(err as Error).message}`,
+      { cause: err }
     )
   }
   return null
