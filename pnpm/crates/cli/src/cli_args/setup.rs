@@ -8,7 +8,8 @@
 mod path_extender;
 
 use clap::Args;
-use miette::{Context, IntoDiagnostic};
+use derive_more::{Display, Error};
+use miette::{Context, Diagnostic, IntoDiagnostic};
 use pacquet_config::{Host, PNPM_VERSION, default_pnpm_home_dir};
 use pacquet_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use path_extender::{
@@ -56,6 +57,7 @@ fn handler<Reporter: self::Reporter + 'static>(force: bool, dir: &Path) -> miett
     // the self-install subprocess's `PATH` or the alias-script writes.
     path_extender::validate_pnpm_home_dir(&pnpm_home_dir)?;
     let bin_dir = pnpm_home_dir.join("bin");
+    validate_github_actions_environment_file_values(&pnpm_home_dir, &bin_dir)?;
 
     let exec_path = std::env::current_exe()
         .into_diagnostic()
@@ -76,28 +78,57 @@ fn handler<Reporter: self::Reporter + 'static>(force: bool, dir: &Path) -> miett
             position: AddingPosition::Start,
         },
     )?;
-    persist_github_actions_environment::<Reporter>(dir, &pnpm_home_dir, &bin_dir)?;
+    persist_github_actions_environment::<Reporter>(dir, &pnpm_home_dir, &bin_dir);
     remove_legacy_homedir_shims(&pnpm_home_dir);
     Ok(render_setup_output(&report))
+}
+
+/// `GITHUB_ENV` and `GITHUB_PATH` are line-oriented, so a line break in a
+/// persisted value would append attacker-chosen records to the environment of
+/// every later step in the workflow job.
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display("{name} cannot contain newline or NUL characters")]
+#[diagnostic(code(ERR_PNPM_BAD_GITHUB_ACTIONS_ENVIRONMENT_VALUE))]
+struct BadGitHubActionsEnvironmentValue {
+    name: &'static str,
+}
+
+fn validate_github_actions_environment_file_values(
+    pnpm_home_dir: &Path,
+    bin_dir: &Path,
+) -> miette::Result<()> {
+    if !should_persist_github_actions_environment_files() {
+        return Ok(());
+    }
+    validate_github_actions_environment_file_value("PNPM_HOME", pnpm_home_dir)?;
+    validate_github_actions_environment_file_value("pnpm setup bin directory", bin_dir)
+}
+
+fn validate_github_actions_environment_file_value(
+    name: &'static str,
+    value: &Path,
+) -> miette::Result<()> {
+    if value.to_string_lossy().contains(['\n', '\r', '\0']) {
+        return Err(BadGitHubActionsEnvironmentValue { name }.into());
+    }
+    Ok(())
 }
 
 fn persist_github_actions_environment<Reporter: self::Reporter>(
     prefix_dir: &Path,
     pnpm_home_dir: &Path,
     bin_dir: &Path,
-) -> miette::Result<()> {
-    let is_github_actions =
-        std::env::var_os("GITHUB_ACTIONS").is_some_and(|value| value == OsStr::new("true"));
+) {
     let github_env = std::env::var_os("GITHUB_ENV").map(PathBuf::from);
     let github_path = std::env::var_os("GITHUB_PATH").map(PathBuf::from);
     persist_github_actions_environment_to_files::<Reporter>(
         prefix_dir,
-        is_github_actions,
+        is_github_actions(),
         pnpm_home_dir,
         bin_dir,
         github_env.as_deref(),
         github_path.as_deref(),
-    )
+    );
 }
 
 fn persist_github_actions_environment_to_files<Reporter: self::Reporter>(
@@ -107,12 +138,10 @@ fn persist_github_actions_environment_to_files<Reporter: self::Reporter>(
     bin_dir: &Path,
     github_env: Option<&Path>,
     github_path: Option<&Path>,
-) -> miette::Result<()> {
-    if !is_github_actions || (github_env.is_none() && github_path.is_none()) {
-        return Ok(());
+) {
+    if !is_github_actions {
+        return;
     }
-    validate_github_actions_environment_file_value("PNPM_HOME", pnpm_home_dir)?;
-    validate_github_actions_environment_file_value("pnpm setup bin directory", bin_dir)?;
     write_github_actions_environment_files::<Reporter>(
         prefix_dir,
         pnpm_home_dir,
@@ -120,18 +149,15 @@ fn persist_github_actions_environment_to_files<Reporter: self::Reporter>(
         github_env,
         github_path,
     );
-    Ok(())
 }
 
-fn validate_github_actions_environment_file_value(name: &str, value: &Path) -> miette::Result<()> {
-    let value = value.to_string_lossy();
-    if let Some(character) = value.chars().find(|character| matches!(character, '\n' | '\r' | '\0'))
-    {
-        return Err(miette::miette!(
-            "{name} cannot contain newline or NUL characters: found {character:?}"
-        ));
-    }
-    Ok(())
+fn should_persist_github_actions_environment_files() -> bool {
+    is_github_actions()
+        && (std::env::var_os("GITHUB_ENV").is_some() || std::env::var_os("GITHUB_PATH").is_some())
+}
+
+fn is_github_actions() -> bool {
+    std::env::var_os("GITHUB_ACTIONS").is_some_and(|value| value == OsStr::new("true"))
 }
 
 fn write_github_actions_environment_files<Reporter: self::Reporter>(

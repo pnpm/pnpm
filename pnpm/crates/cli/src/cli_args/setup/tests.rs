@@ -174,8 +174,7 @@ fn github_actions_environment_files_are_ignored_outside_github_actions() {
         &bin_dir,
         Some(&github_env),
         Some(&github_path),
-    )
-    .expect("skip outside GitHub Actions");
+    );
 
     assert_eq!(std::fs::read_to_string(github_env).expect("read github env"), "");
     assert_eq!(std::fs::read_to_string(github_path).expect("read github path"), "");
@@ -198,8 +197,7 @@ fn github_actions_environment_files_are_written_independently() {
         &bin_dir,
         Some(&github_env),
         None,
-    )
-    .expect("write github env");
+    );
     persist_github_actions_environment_to_files::<SilentReporter>(
         dir.path(),
         true,
@@ -207,13 +205,38 @@ fn github_actions_environment_files_are_written_independently() {
         &bin_dir,
         None,
         Some(&github_path),
-    )
-    .expect("write github path");
+    );
 
     assert_eq!(
         std::fs::read_to_string(github_env).expect("read github env"),
         format!("PNPM_HOME={}\n", pnpm_home_dir.display()),
     );
+    assert_eq!(
+        std::fs::read_to_string(github_path).expect("read github path"),
+        format!("{}\n", bin_dir.display()),
+    );
+}
+
+#[test]
+fn github_actions_environment_files_skip_non_regular_targets() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let pnpm_home_dir = dir.path().join("pnpm-home");
+    let bin_dir = pnpm_home_dir.join("bin");
+    let github_env = dir.path().join("github-env-dir");
+    let github_path = dir.path().join("github-path");
+    std::fs::create_dir(&github_env).expect("create github env dir");
+    std::fs::write(&github_path, "").expect("create github path");
+
+    persist_github_actions_environment_to_files::<SilentReporter>(
+        dir.path(),
+        true,
+        &pnpm_home_dir,
+        &bin_dir,
+        Some(&github_env),
+        Some(&github_path),
+    );
+
+    assert!(github_env.is_dir());
     assert_eq!(
         std::fs::read_to_string(github_path).expect("read github path"),
         format!("{}\n", bin_dir.display()),
@@ -240,7 +263,7 @@ fn github_actions_environment_file_failures_do_not_skip_other_targets() {
     let github_path = dir.path().join("github-path");
     std::fs::write(&github_path, "").expect("create github path");
 
-    let result = persist_github_actions_environment_to_files::<RecordingReporter>(
+    persist_github_actions_environment_to_files::<RecordingReporter>(
         dir.path(),
         true,
         &pnpm_home_dir,
@@ -248,7 +271,6 @@ fn github_actions_environment_file_failures_do_not_skip_other_targets() {
         Some(&github_env),
         Some(&github_path),
     );
-    result.expect("persist GitHub Actions environment files");
 
     assert_eq!(
         std::fs::read_to_string(github_path).expect("read github path"),
@@ -275,8 +297,7 @@ fn github_actions_environment_files_are_not_created() {
         &bin_dir,
         Some(&github_env),
         None,
-    )
-    .expect("skip missing github env");
+    );
 
     assert!(!github_env.exists());
 }
@@ -289,5 +310,9 @@ fn github_actions_environment_file_values_reject_line_breaking_characters() {
     )
     .expect_err("reject newline");
 
-    assert!(err.to_string().contains("PNPM_HOME"));
+    assert_eq!(err.to_string(), "PNPM_HOME cannot contain newline or NUL characters");
+    assert_eq!(
+        err.code().expect("diagnostic code").to_string(),
+        "ERR_PNPM_BAD_GITHUB_ACTIONS_ENVIRONMENT_VALUE",
+    );
 }

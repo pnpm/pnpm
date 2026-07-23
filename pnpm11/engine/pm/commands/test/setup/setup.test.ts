@@ -215,6 +215,50 @@ test('setup does not create missing GitHub Actions env files', async () => {
   }
 })
 
+test('setup skips GitHub Actions env files that are not regular files', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
+    oldSettings: 'PNPM_HOME=dir',
+    newSettings: 'PNPM_HOME=dir',
+  }))
+  const tmpDir = actualFs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-setup-github-actions-'))
+  const pnpmHomeDir = path.join(tmpDir, 'pnpm-home')
+  const githubEnv = path.join(tmpDir, 'github-env-dir')
+  const githubPath = path.join(tmpDir, 'github-path')
+  actualFs.mkdirSync(githubEnv)
+  actualFs.writeFileSync(githubPath, '')
+  process.env.GITHUB_ACTIONS = 'true'
+  process.env.GITHUB_ENV = githubEnv
+  process.env.GITHUB_PATH = githubPath
+  try {
+    await setup.handler({ pnpmHomeDir })
+    expect(actualFs.readdirSync(githubEnv)).toStrictEqual([])
+    expect(actualFs.readFileSync(githubPath, 'utf8')).toBe(`${path.join(pnpmHomeDir, 'bin')}\n`)
+  } finally {
+    actualFs.rmSync(tmpDir, { recursive: true, force: true })
+  }
+})
+
+test('setup writes the remaining GitHub Actions env files after one target fails', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
+    oldSettings: 'PNPM_HOME=dir',
+    newSettings: 'PNPM_HOME=dir',
+  }))
+  const tmpDir = actualFs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-setup-github-actions-'))
+  const pnpmHomeDir = path.join(tmpDir, 'pnpm-home')
+  const githubEnv = path.join(tmpDir, 'a'.repeat(300))
+  const githubPath = path.join(tmpDir, 'github-path')
+  actualFs.writeFileSync(githubPath, '')
+  process.env.GITHUB_ACTIONS = 'true'
+  process.env.GITHUB_ENV = githubEnv
+  process.env.GITHUB_PATH = githubPath
+  try {
+    await setup.handler({ pnpmHomeDir })
+    expect(actualFs.readFileSync(githubPath, 'utf8')).toBe(`${path.join(pnpmHomeDir, 'bin')}\n`)
+  } finally {
+    actualFs.rmSync(tmpDir, { recursive: true, force: true })
+  }
+})
+
 test('setup rejects GitHub Actions env-file values with line-breaking characters', async () => {
   jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
     oldSettings: 'PNPM_HOME=dir',
