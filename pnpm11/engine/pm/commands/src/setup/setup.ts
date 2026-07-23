@@ -13,10 +13,7 @@ import {
 import PATH from 'path-name'
 import { renderHelp } from 'render-help'
 
-import {
-  validateGitHubActionsEnvironmentFileValues,
-  writeGitHubActionsEnvironmentFiles,
-} from './githubActionsEnv.js'
+import * as githubActionsEnv from './githubActionsEnv.js'
 
 export const rcOptionsTypes = (): Record<string, unknown> => ({})
 
@@ -167,7 +164,7 @@ export async function handler (
 ): Promise<string> {
   const execPath = getExecPath()
   const binDir = path.join(opts.pnpmHomeDir, 'bin')
-  validateGitHubActionsEnvironmentFileValues(opts.pnpmHomeDir, binDir)
+  githubActionsEnv.validateValues(opts.pnpmHomeDir, binDir)
   if (execPath.match(/\.[cm]?js$/) == null) {
     installCliGlobally(execPath, opts.pnpmHomeDir)
     createAliasScripts(binDir)
@@ -180,7 +177,7 @@ export async function handler (
       overwrite: opts.force,
       position: 'start',
     })
-    writeGitHubActionsEnvironmentFiles(opts.pnpmHomeDir, binDir)
+    githubActionsEnv.persist(opts.pnpmHomeDir, binDir)
     removeLegacyHomeDirShims(opts.pnpmHomeDir)
     return renderSetupOutput(report)
   } catch (err: any) { // eslint-disable-line

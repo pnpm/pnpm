@@ -1,11 +1,16 @@
 //! Persist `PNPM_HOME` and `$PNPM_HOME/bin` for the rest of a GitHub
 //! Actions job.
 //!
-//! A workflow step gets a fresh shell, so the rc-file edit
-//! [`super::path_extender::add_dir_to_env_path`] makes is invisible to
-//! every later step. The runner instead reads back two line-oriented
-//! files whose paths arrive in `GITHUB_ENV` and `GITHUB_PATH`, and
-//! applies each record to the steps that follow.
+//! Every workflow step gets a fresh shell, so the rc-file edit
+//! [`super::path_extender::add_dir_to_env_path`] makes is invisible to the
+//! steps that follow. The runner instead reads back two line-oriented
+//! files, named by `GITHUB_ENV` and `GITHUB_PATH`, and applies each record
+//! to the rest of the job.
+//!
+//! Both files belong to the runner, which creates them up front. A path
+//! that holds anything else is not the runner's target. A missing file, a
+//! symlink, or a directory is therefore left alone rather than created or
+//! followed.
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -21,9 +26,9 @@ use std::{
 #[cfg(unix)]
 use std::os::unix::fs::OpenOptionsExt;
 
-/// Reject a value that cannot be persisted, before `setup` performs any
-/// side effect.
-pub(super) fn validate_persisted_values<Sys: EnvVarOs>(
+/// Called before `setup` performs any side effect, so an unusable value
+/// aborts the command instead of half-completing it.
+pub(super) fn validate_values<Sys: EnvVarOs>(
     pnpm_home_dir: &Path,
     bin_dir: &Path,
 ) -> miette::Result<()> {
@@ -34,9 +39,9 @@ pub(super) fn validate_persisted_values<Sys: EnvVarOs>(
     validate_value("pnpm setup bin directory", bin_dir)
 }
 
-/// Append `PNPM_HOME` to `GITHUB_ENV` and the bin directory to
-/// `GITHUB_PATH`. A target that cannot be written is reported as a
-/// warning and never stops the other one from being written.
+/// An unwritable target is reported as a warning rather than failing the
+/// command. The shell config is already updated by this point, so the setup
+/// itself succeeded.
 pub(super) fn persist<Reporter: self::Reporter, Sys: EnvVarOs>(
     prefix_dir: &Path,
     pnpm_home_dir: &Path,
@@ -65,9 +70,8 @@ fn is_github_actions<Sys: EnvVarOs>() -> bool {
     Sys::var_os("GITHUB_ACTIONS").is_some_and(|value| value == OsStr::new("true"))
 }
 
-/// `GITHUB_ENV` and `GITHUB_PATH` are line-oriented, so a line break in a
-/// persisted value would append attacker-chosen records to the
-/// environment of every later step in the workflow job.
+/// The files are line-oriented, so a line break in a persisted value would
+/// append attacker-chosen records to the environment of every later step.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[display("{name} cannot contain newline or NUL characters")]
 #[diagnostic(code(ERR_PNPM_BAD_GITHUB_ACTIONS_ENVIRONMENT_VALUE))]
@@ -113,7 +117,7 @@ fn append_file<Reporter: self::Reporter>(
     path: &Path,
     line: &str,
 ) {
-    if let Err(err) = append_existing_regular_file(path, line) {
+    if let Err(err) = append_line(path, line) {
         warn::<Reporter>(
             prefix_dir,
             &format!(
@@ -124,28 +128,27 @@ fn append_file<Reporter: self::Reporter>(
     }
 }
 
-/// The runner creates both files up front, so anything but an existing
-/// regular file at `path` is not the runner's target: skip it instead of
-/// creating it or following a symlink to it.
-fn append_existing_regular_file(path: &Path, line: &str) -> std::io::Result<()> {
+fn append_line(path: &Path, line: &str) -> std::io::Result<()> {
     match fs::symlink_metadata(path) {
         Ok(metadata) if metadata.file_type().is_file() => {}
         Ok(_) => return Ok(()),
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(()),
         Err(err) => return Err(err),
     }
-    let mut file = match open_existing_file_for_append(path) {
+    let mut file = match open_for_append(path) {
         Ok(file) => file,
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(()),
         Err(err) => return Err(err),
     };
+    // The `symlink_metadata` above races with anything that swaps the path
+    // between the two syscalls, so re-check through the descriptor.
     if !file.metadata()?.file_type().is_file() {
         return Ok(());
     }
     write_line(&mut file, line)
 }
 
-fn open_existing_file_for_append(path: &Path) -> std::io::Result<File> {
+fn open_for_append(path: &Path) -> std::io::Result<File> {
     let mut options = OpenOptions::new();
     options.read(true).append(true);
     #[cfg(unix)]
@@ -153,8 +156,6 @@ fn open_existing_file_for_append(path: &Path) -> std::io::Result<File> {
     options.open(path)
 }
 
-/// Start a record of its own even when the runner left the file without
-/// a trailing newline.
 fn write_line(file: &mut File, line: &str) -> std::io::Result<()> {
     let mut output = String::new();
     if file.metadata()?.len() > 0 {

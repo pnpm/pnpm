@@ -1,4 +1,4 @@
-use super::{BadValue, persist, validate_persisted_values, write_files};
+use super::{BadValue, persist, validate_values, write_files};
 use pacquet_config::EnvVarOs;
 use pacquet_reporter::{LogEvent, LogLevel, PnpmLog, Reporter, SilentReporter};
 use pretty_assertions::assert_eq;
@@ -8,8 +8,6 @@ use std::{
     sync::{Mutex, OnceLock},
 };
 
-/// Outside a workflow every lookup is unset, so both the gate and the
-/// value validation must fall through.
 struct NoEnv;
 impl EnvVarOs for NoEnv {
     fn var_os(_name: &str) -> Option<OsString> {
@@ -17,8 +15,7 @@ impl EnvVarOs for NoEnv {
     }
 }
 
-/// Inside a workflow with only `GITHUB_ENV` provided. The paths never
-/// reach the filesystem in the tests that use this fake.
+/// The `GITHUB_ENV` path is never opened by the tests using this fake.
 struct InGitHubActions;
 impl EnvVarOs for InGitHubActions {
     fn var_os(name: &str) -> Option<OsString> {
@@ -238,8 +235,8 @@ fn values_with_line_breaks_are_rejected_inside_github_actions() {
     let pnpm_home_dir = PathBuf::from("/tmp/pnpm-home\nINJECTED=value");
     let bin_dir = pnpm_home_dir.join("bin");
 
-    let err = validate_persisted_values::<InGitHubActions>(&pnpm_home_dir, &bin_dir)
-        .expect_err("reject newline");
+    let err =
+        validate_values::<InGitHubActions>(&pnpm_home_dir, &bin_dir).expect_err("reject newline");
 
     assert_eq!(err.to_string(), "PNPM_HOME cannot contain newline or NUL characters");
     assert_eq!(
@@ -257,6 +254,6 @@ fn values_are_not_validated_outside_github_actions() {
     let pnpm_home_dir = PathBuf::from("/tmp/pnpm-home\nINJECTED=value");
     let bin_dir = pnpm_home_dir.join("bin");
 
-    validate_persisted_values::<NoEnv>(&pnpm_home_dir, &bin_dir)
+    validate_values::<NoEnv>(&pnpm_home_dir, &bin_dir)
         .expect("no value is persisted outside GitHub Actions");
 }

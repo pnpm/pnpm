@@ -48,7 +48,7 @@ fn handler<Reporter: self::Reporter + 'static>(force: bool, dir: &Path) -> miett
     // the self-install subprocess's `PATH` or the alias-script writes.
     path_extender::validate_pnpm_home_dir(&pnpm_home_dir)?;
     let bin_dir = pnpm_home_dir.join("bin");
-    github_actions_env::validate_persisted_values::<Host>(&pnpm_home_dir, &bin_dir)?;
+    github_actions_env::validate_values::<Host>(&pnpm_home_dir, &bin_dir)?;
 
     let exec_path = std::env::current_exe()
         .into_diagnostic()
