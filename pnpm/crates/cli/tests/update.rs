@@ -979,3 +979,77 @@ fn update_latest_reports_invalid_minimum_release_age_exclude() {
 
     drop((root, anchor));
 }
+
+/// `pnpm update --latest` must not resolve a local dependency against the
+/// registry. `workspace:`, `file:`, and `link:` all point at a local package
+/// that may be unpublished, so there is no registry "latest" to fetch; each is
+/// preserved verbatim. Mirrors the TS `isLocalRef` guard (`link:`/`file:`/`workspace:`)
+/// in `@pnpm/outdated`. Regression for the pnpm/pnpm update-lockfile job, whose
+/// `@pnpm-private/*` deps are `workspace:*`.
+#[test]
+fn update_latest_preserves_local_protocol_dependencies() {
+    let (root, workspace, anchor) = setup();
+
+    fs::write(
+        workspace.join("package.json"),
+        r#"{ "name": "root", "version": "1.0.0", "private": true }"#,
+    )
+    .expect("write root package.json");
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    workspace_yaml.push_str("packages:\n  - 'packages/*'\n");
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    // Package `a` links three local, unpublished packages — `b` via `workspace:*`,
+    // `c` via `file:`, and `d` via `link:` — alongside a real registry dependency
+    // so `--latest` has work to do. `c` and `d` live under `packages/a/fixtures`,
+    // which the `packages/*` glob does not match, so they are plain local deps
+    // rather than workspace members.
+    fs::create_dir_all(workspace.join("packages/a/fixtures/c")).expect("mkdir fixtures/c");
+    fs::create_dir_all(workspace.join("packages/a/fixtures/d")).expect("mkdir fixtures/d");
+    fs::write(
+        workspace.join("packages/a/package.json"),
+        format!(
+            r#"{{ "name": "@test/a", "version": "1.0.0", "dependencies": {{ "@test/b": "workspace:*", "@test/c": "file:./fixtures/c", "@test/d": "link:./fixtures/d", "{DEP}": "^100.0.0" }} }}"#,
+        ),
+    )
+    .expect("write packages/a/package.json");
+    fs::write(
+        workspace.join("packages/a/fixtures/c/package.json"),
+        r#"{ "name": "@test/c", "version": "1.0.0" }"#,
+    )
+    .expect("write fixtures/c package.json");
+    fs::write(
+        workspace.join("packages/a/fixtures/d/package.json"),
+        r#"{ "name": "@test/d", "version": "1.0.0" }"#,
+    )
+    .expect("write fixtures/d package.json");
+    fs::create_dir_all(workspace.join("packages/b")).expect("mkdir packages/b");
+    fs::write(
+        workspace.join("packages/b/package.json"),
+        r#"{ "name": "@test/b", "version": "1.0.0" }"#,
+    )
+    .expect("write packages/b/package.json");
+
+    pacquet(&workspace, ["-r", "install"]).assert().success();
+    // Before the fix this failed with ERR_PNPM_PACKAGE_MANAGER_UPDATE_RESOLVE_LATEST
+    // trying to fetch the unpublished @test/b, @test/c, and @test/d from the registry.
+    pacquet(&workspace, ["-r", "update", "--latest"]).assert().success();
+
+    let a_manifest = fs::read_to_string(workspace.join("packages/a/package.json"))
+        .expect("read packages/a/package.json");
+    for (dep, spec) in [
+        ("@test/b", "workspace:*"),
+        ("@test/c", "file:./fixtures/c"),
+        ("@test/d", "link:./fixtures/d"),
+    ] {
+        assert!(
+            a_manifest.contains(&format!(r#""{dep}":"{spec}""#)),
+            "the spec for {dep} should be preserved verbatim as {spec}: {a_manifest}",
+        );
+    }
+
+    drop((root, anchor));
+}
