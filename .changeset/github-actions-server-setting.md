@@ -4,6 +4,7 @@
 "@pnpm/deps.github-actions": minor
 "@pnpm/deps.inspection.commands": minor
 "@pnpm/installing.commands": minor
+"@pnpm/resolving.git-resolver": patch
 "pnpm": minor
 "pacquet": minor
 ---
