@@ -1552,10 +1552,11 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                     .filter(|selector| !applied.contains(*selector))
                     .collect();
                 unused.sort_unstable();
+                let prefix = lockfile_dir.to_string_lossy().into_owned();
                 for selector in unused {
                     Reporter::emit(&LogEvent::UnusedOverride(UnusedOverrideLog {
                         level: LogLevel::Debug,
-                        prefix: lockfile_dir.to_string_lossy().into_owned(),
+                        prefix: prefix.clone(),
                         selector: selector.to_string(),
                     }));
                 }

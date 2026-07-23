@@ -47,12 +47,12 @@ pub struct VersionsOverrider {
     /// override are not recorded — the convergence override never
     /// governs them.
     converge_declared_ranges: Mutex<HashMap<String, HashSet<String>>>,
-    /// Selectors that have been observed to match at least one
-    /// manifest passed through `apply*`. Mirrors pnpm's
-    /// `appliedOverrides` Set threaded via `onApplied` in
-    /// `createVersionsOverrider`; readers (the post-resolution
-    /// unused-override check) call [`Self::applied_selectors`] to
-    /// compute the diff against the configured set.
+    // Selectors that have been observed to match at least one
+    // manifest passed through `apply*`. Mirrors pnpm's
+    // `appliedOverrides` Set threaded via `onApplied` in
+    // `createVersionsOverrider`; readers (the post-resolution
+    // unused-override check) call [`Self::applied_selectors`] to
+    // compute the diff against the configured set.
     applied: Mutex<HashSet<String>>,
 }
 
@@ -399,12 +399,12 @@ impl VersionsOverrider {
             .or_else(|| self.pick_most_specific_generic(dep_name, dep_spec))
     }
 
-    /// Record a hit on `chosen` so the post-resolution
-    /// unused-override verifier can tell it apart from overrides that
-    /// never matched. The selector stored is the raw override key
-    /// (`foo`, `parent>child`, `foo@^1`); pnpm uses the same value
-    /// for its diff. Checked before cloning to avoid repeated
-    /// allocations when the same selector matches many manifests.
+    // Record a hit on `chosen` so the post-resolution
+    // unused-override verifier can tell it apart from overrides that
+    // never matched. The selector stored is the raw override key
+    // (`foo`, `parent>child`, `foo@^1`); pnpm uses the same value
+    // for its diff. Checked before cloning to avoid repeated
+    // allocations when the same selector matches many manifests.
     fn record_applied(&self, chosen: &ResolvedOverride) {
         let mut guard = self.applied.lock().expect("applied overrides mutex not poisoned");
         if !guard.contains(&chosen.inner.selector) {

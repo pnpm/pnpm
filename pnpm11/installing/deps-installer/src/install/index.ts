@@ -2769,6 +2769,12 @@ async function installViaPnprServer (
       }))
       const applied = findAppliedOverrideSelectorsFromLockfile(lockfile, parsedOverrides, projectManifests)
       for (const override of parsedOverrides) {
+        // Convergence overrides have their own staleness path
+        // (`convergeDeclaredRanges`); they never match `findAppliedOverrideSelectorsFromLockfile`
+        // in the same sense, so leaving them in this diff would flag every
+        // applied convergence override as unused. Same exclusion as the
+        // local-resolver loop above.
+        if (override.converge) continue
         if (!applied.has(override.selector)) {
           unusedOverrideLogger.debug({
             prefix: lockfileDir,

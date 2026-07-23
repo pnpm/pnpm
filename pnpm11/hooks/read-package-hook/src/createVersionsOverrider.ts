@@ -45,8 +45,18 @@ export function createVersionsOverrider (
   opts?: CreateVersionsOverriderOptions
 ): ReadPackageHook {
   const [convergeOverrides, explicitOverrides] = partition(({ converge }) => converge === true, overrides)
+  // Drop parent-scoped overrides whose parent range is not a valid semver
+  // range once, at hook construction. Such entries can never satisfy any
+  // manifest version, so `onApplied` would never fire — they fall through
+  // to the unused-override diff either way, and skipping the per-manifest
+  // `semver.validRange` call avoids re-parsing the same bad range for
+  // every manifest the hook sees.
+  const viableExplicitOverrides = explicitOverrides.filter((override) => {
+    const parentRange = override.parentPkg?.bareSpecifier
+    return parentRange == null || semver.validRange(parentRange) != null
+  })
   const [versionOverrides, genericVersionOverrides] = partition(({ parentPkg }) => parentPkg != null,
-    explicitOverrides.map((override) => ({
+    viableExplicitOverrides.map((override) => ({
       ...override,
       localTarget: createLocalTarget(override, rootDir),
     }))
@@ -58,7 +68,6 @@ export function createVersionsOverrider (
         parentPkg.name === manifest.name &&
         (!parentPkg.bareSpecifier ||
           (manifest.version != null &&
-            semver.validRange(parentPkg.bareSpecifier) != null &&
             semver.satisfies(manifest.version, parentPkg.bareSpecifier)))
       )
     })
