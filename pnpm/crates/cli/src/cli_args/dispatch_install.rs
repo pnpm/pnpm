@@ -277,9 +277,7 @@ pub(super) fn ci<'a>(ctx: &RunCtx<'a>, args: CiArgs) -> miette::Result<CommandFu
     // built-in, matching TypeScript's `clean.handler(opts)` call path.
     clean_args.run(ctx, "clean")?;
 
-    let install_future = install(ctx, install_args)?;
-
-    Ok(Box::pin(async move { install_future.await }))
+    install(ctx, install_args)
 }
 
 pub(super) fn deploy<'a>(ctx: &RunCtx<'a>, args: DeployArgs) -> miette::Result<CommandFuture<'a>> {
