@@ -612,6 +612,28 @@ fn an_empty_tag_version_prefix_removes_the_v() {
 }
 
 #[test]
+fn version_json_outputs_release_details_in_json() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    init_git(&workspace);
+    write_manifest(&workspace, r#"{"name":"test-pkg","version":"1.0.0"}"#);
+    git_commit_all(&workspace, "init");
+
+    let output = pacquet_version(&workspace, &["patch", "--json", "--no-git-tag-version"]);
+
+    assert!(output.status.success(), "{}", stderr_of(&output));
+    let parsed: serde_json::Value =
+        serde_json::from_str(String::from_utf8_lossy(&output.stdout).trim())
+            .expect("stdout must be JSON");
+    let arr = parsed.as_array().expect("a JSON array");
+    assert_eq!(arr.len(), 1, "expected exactly one release entry");
+    let entry = &arr[0];
+    assert_eq!(entry.get("name").and_then(serde_json::Value::as_str), Some("test-pkg"));
+    assert_eq!(entry.get("currentVersion").and_then(serde_json::Value::as_str), Some("1.0.0"),);
+    assert_eq!(entry.get("newVersion").and_then(serde_json::Value::as_str), Some("1.0.1"));
+    drop(root);
+}
+
+#[test]
 fn version_recursive_json_prints_empty_array_when_no_pending_changes() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     fs::write(workspace.join("package.json"), r#"{"name":"root","version":"1.0.0"}"#)
@@ -650,7 +672,9 @@ fn version_recursive_json_prints_applied_releases_when_pending_changes() {
     let parsed: serde_json::Value =
         serde_json::from_str(String::from_utf8_lossy(&output.stdout).trim())
             .expect("stdout must be JSON");
-    let entry = &parsed.as_array().expect("a JSON array")[0];
+    let arr = parsed.as_array().expect("a JSON array");
+    assert_eq!(arr.len(), 1, "expected exactly one release entry");
+    let entry = &arr[0];
     assert_eq!(entry.get("name").and_then(serde_json::Value::as_str), Some("pkg-a"));
     assert_eq!(entry.get("currentVersion").and_then(serde_json::Value::as_str), Some("1.0.0"));
     assert_eq!(entry.get("newVersion").and_then(serde_json::Value::as_str), Some("1.1.0"));
