@@ -201,7 +201,7 @@ jobs:
         with:
           api_token: ${{ secrets.GARNET_API_TOKEN }}
       - name: Install pnpm and Node
-        uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
+        uses: pnpm/setup@6bfbb82d278149277735183e1ac2cd4353ebfe4f
         with:
           runtime: node@26.5.0
       - name: Override workspace ignores for the TypeScript pnpm package
@@ -357,7 +357,7 @@ jobs:
         with:
           api_token: ${{ secrets.GARNET_API_TOKEN }}
       - name: Install pnpm and Node
-        uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
+        uses: pnpm/setup@6bfbb82d278149277735183e1ac2cd4353ebfe4f
         with:
           runtime: node@26.5.0
       - name: Override workspace ignores for the TypeScript pnpm package
@@ -647,7 +647,7 @@ jobs:
           persist-credentials: false
 
       - name: Install pnpm and Node
-        uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
+        uses: pnpm/setup@6bfbb82d278149277735183e1ac2cd4353ebfe4f
         with:
           runtime: node@22
           install: false
@@ -771,7 +771,7 @@ jobs:
           persist-credentials: false
 
       - name: Install pnpm and Node
-        uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
+        uses: pnpm/setup@6bfbb82d278149277735183e1ac2cd4353ebfe4f
         with:
           runtime: node@22
           install: false
@@ -1055,7 +1055,7 @@ jobs:
           persist-credentials: false
 
       - name: Install pnpm and Node
-        uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
+        uses: pnpm/setup@6bfbb82d278149277735183e1ac2cd4353ebfe4f
         with:
           runtime: node@22
           install: false
@@ -1166,7 +1166,7 @@ jobs:
           persist-credentials: false
 
       - name: Install pnpm and Node
-        uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
+        uses: pnpm/setup@6bfbb82d278149277735183e1ac2cd4353ebfe4f
         with:
           runtime: node@22
           install: false
