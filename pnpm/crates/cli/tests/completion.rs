@@ -156,6 +156,63 @@ fn completion_server_lists_nested_subcommands() {
 }
 
 #[test]
+fn completion_server_lists_ci_command() {
+    let output = pacquet()
+        .args(["completion-server", "--", "pnpm", "ci", "--"])
+        .output()
+        .expect("run pnpm completion-server");
+    let reply = stdout(output);
+
+    assert!(reply.lines().any(|line| line == "--frozen-lockfile"), "{reply}");
+    assert!(reply.lines().any(|line| line == "--dry-run"), "{reply}");
+    assert!(reply.lines().any(|line| line == "--lockfile"), "{reply}");
+}
+
+#[test]
+fn completion_server_completes_ci_aliases() {
+    let output = pacquet()
+        .args(["completion-server", "--", "pnpm", "ci"])
+        .output()
+        .expect("run pnpm completion-server");
+    let reply = stdout(output);
+
+    assert_eq!(reply.lines().collect::<Vec<_>>(), ["ci"]);
+}
+
+#[test]
+fn completion_server_completes_clean_install_alias() {
+    let output = pacquet()
+        .args(["completion-server", "--", "pnpm", "clean-install"])
+        .output()
+        .expect("run pnpm completion-server");
+    let reply = stdout(output);
+
+    assert_eq!(reply.lines().collect::<Vec<_>>(), ["clean-install"]);
+}
+
+#[test]
+fn completion_server_completes_ic_alias() {
+    let output = pacquet()
+        .args(["completion-server", "--", "pnpm", "ic"])
+        .output()
+        .expect("run pnpm completion-server");
+    let reply = stdout(output);
+
+    assert_eq!(reply.lines().collect::<Vec<_>>(), ["ic"]);
+}
+
+#[test]
+fn completion_server_completes_install_clean_alias() {
+    let output = pacquet()
+        .args(["completion-server", "--", "pnpm", "install-clean"])
+        .output()
+        .expect("run pnpm completion-server");
+    let reply = stdout(output);
+
+    assert_eq!(reply.lines().collect::<Vec<_>>(), ["install-clean"]);
+}
+
+#[test]
 fn completion_server_filters_command_prefixes() {
     let output = pacquet()
         .args(["completion-server", "--", "pnpm", "inst"])
@@ -163,7 +220,7 @@ fn completion_server_filters_command_prefixes() {
         .expect("run pnpm completion-server");
     let reply = stdout(output);
 
-    assert_eq!(reply.lines().collect::<Vec<_>>(), ["install", "install-test"]);
+    assert_eq!(reply.lines().collect::<Vec<_>>(), ["install", "install-test", "install-clean"]);
 }
 
 #[test]

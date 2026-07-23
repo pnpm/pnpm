@@ -509,6 +509,7 @@ fn command_name(command: &CliCommand) -> &'static str {
         CliCommand::Bin(_) => "bin",
         CliCommand::Clean(_) => "clean",
         CliCommand::Purge(_) => "purge",
+        CliCommand::Ci(_) => "ci",
         CliCommand::Root(_) => "root",
         CliCommand::Prefix(_) => "prefix",
         CliCommand::Config(_) => "config",

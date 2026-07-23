@@ -1,6 +1,7 @@
 use super::{
     add::{AddArgs, apply_allow_build},
     approve_builds::ApproveBuildsArgs,
+    ci::CiArgs,
     create::CreateArgs,
     dedupe::DedupeArgs,
     deploy::DeployArgs,
@@ -264,6 +265,17 @@ pub(super) fn install_test<'a>(
 
         Ok(())
     }))
+}
+
+pub(super) fn ci<'a>(ctx: &RunCtx<'a>, args: CiArgs) -> miette::Result<CommandFuture<'a>> {
+    let clean_args = args.clean_args;
+    let mut install_args = args.install_args;
+    install_args.frozen_lockfile = true;
+
+    // Run clean eagerly before the async future so errors surface immediately. Pass the command name so a package.json script can override the built-in.
+    clean_args.run(ctx, "clean")?;
+
+    install(ctx, install_args)
 }
 
 pub(super) fn deploy<'a>(ctx: &RunCtx<'a>, args: DeployArgs) -> miette::Result<CommandFuture<'a>> {
