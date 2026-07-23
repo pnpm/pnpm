@@ -607,3 +607,27 @@ test('createNpmResolutionVerifier() still flags a version absent from fetched me
 
   expect(result).toMatchObject({ ok: false, code: 'TARBALL_URL_MISMATCH' })
 })
+
+test('createNpmResolutionVerifier() throws INVALID_MINIMUM_RELEASE_AGE for NaN', () => {
+  expect(() => createNpmResolutionVerifier(makeVerifierOpts({ minimumReleaseAge: NaN })))
+    .toThrow(expect.objectContaining({ code: 'ERR_PNPM_INVALID_MINIMUM_RELEASE_AGE' }))
+})
+
+test('createNpmResolutionVerifier() throws INVALID_MINIMUM_RELEASE_AGE for Infinity', () => {
+  expect(() => createNpmResolutionVerifier(makeVerifierOpts({ minimumReleaseAge: Infinity })))
+    .toThrow(expect.objectContaining({ code: 'ERR_PNPM_INVALID_MINIMUM_RELEASE_AGE' }))
+})
+
+test('createNpmResolutionVerifier() throws INVALID_MINIMUM_RELEASE_AGE for a negative value', () => {
+  expect(() => createNpmResolutionVerifier(makeVerifierOpts({ minimumReleaseAge: -1 })))
+    .toThrow(expect.objectContaining({ code: 'ERR_PNPM_INVALID_MINIMUM_RELEASE_AGE' }))
+})
+
+test('createNpmResolutionVerifier() coerces a single-string minimumReleaseAgeExclude to an array', () => {
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts({
+    minimumReleaseAge: 1440,
+    minimumReleaseAgeExclude: 'is-odd',
+  }))
+  expect(verifier).toBeDefined()
+  expect(verifier.policy.minimumReleaseAgeExclude).toStrictEqual(['is-odd'])
+})
