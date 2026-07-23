@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use super::{
     DistHashes, PackedPkg, PublishHttpError, PublishNetwork, PublishPackedPkgError,
     PublishPackedPkgOptions, build_publish_document, clean_version, is_otp_challenge,
@@ -648,7 +650,11 @@ impl OidcFetch for OfflineSys {
     }
 }
 impl SignProvenance for OfflineSys {
-    async fn sign_statement(_: &str, _: &[u8]) -> Result<SignedProvenance, ProvenanceGenError> {
+    async fn sign_statement(
+        _: &str,
+        _: &[u8],
+        _: Option<Duration>,
+    ) -> Result<SignedProvenance, ProvenanceGenError> {
         unreachable!("a dry run never signs provenance")
     }
 }
@@ -737,7 +743,11 @@ impl OidcFetch for ProvenanceSys {
     }
 }
 impl SignProvenance for ProvenanceSys {
-    async fn sign_statement(_: &str, _: &[u8]) -> Result<SignedProvenance, ProvenanceGenError> {
+    async fn sign_statement(
+        _: &str,
+        _: &[u8],
+        _: Option<Duration>,
+    ) -> Result<SignedProvenance, ProvenanceGenError> {
         Ok(SignedProvenance {
             media_type: "application/vnd.dev.sigstore.bundle.v0.3+json".to_owned(),
             data: "signed-bundle-json".to_owned(),

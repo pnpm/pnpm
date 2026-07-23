@@ -74,7 +74,8 @@ where
     let statement_bytes = serde_json::to_vec(&statement).expect("serialize provenance statement");
 
     let jwt = fetch_sigstore_token::<Sys, Reporter>(options).await?;
-    let signed = Sys::sign_statement(&jwt, &statement_bytes).await?;
+    let timeout = options.fetch_timeout.map(Duration::from_millis);
+    let signed = Sys::sign_statement(&jwt, &statement_bytes, timeout).await?;
 
     global_info::<Reporter>("Signed provenance statement with source and build information");
 
@@ -91,10 +92,13 @@ where
 /// so [`generate_provenance`] runs offline and deterministically.
 pub trait SignProvenance {
     /// Sign `statement` (the serialized in-toto statement) using `jwt`, the
-    /// OIDC token minted for the `sigstore` audience.
+    /// OIDC token minted for the `sigstore` audience. `timeout` caps each
+    /// signing attempt (`fetch-timeout`); `None` falls back to the
+    /// implementation's default, mirroring sigstore-js's `options.timeout`.
     fn sign_statement(
         jwt: &str,
         statement: &[u8],
+        timeout: Option<Duration>,
     ) -> impl Future<Output = Result<SignedProvenance, ProvenanceGenError>>;
 }
 
@@ -110,18 +114,21 @@ impl SignProvenance for Host {
     async fn sign_statement(
         jwt: &str,
         statement: &[u8],
+        timeout: Option<Duration>,
     ) -> Result<SignedProvenance, ProvenanceGenError> {
         let token = IdentityToken::from_jwt(jwt)
             .map_err(|source| ProvenanceGenError::IdentityToken { source: source.to_string() })?;
         let context = SigningContext::production();
-        sign_with_retry(SIGN_RETRY_OPTS, || async {
-            let bundle = context
-                .signer(token.clone())
-                .sign_raw_statement(statement)
-                .await
-                .map_err(|source| ProvenanceGenError::Sign { source: source.to_string() })?;
-            let data = serde_json::to_string(&bundle).expect("serialize sigstore bundle");
-            Ok(SignedProvenance { media_type: bundle.media_type, data })
+        let deadline = timeout.unwrap_or(DEFAULT_SIGN_TIMEOUT);
+        sign_with_retry(SIGN_RETRY_OPTS, || {
+            with_sign_deadline(deadline, async {
+                let bundle =
+                    context.signer(token.clone()).sign_raw_statement(statement).await.map_err(
+                        |source| ProvenanceGenError::Sign { source: source.to_string() },
+                    )?;
+                let data = serde_json::to_string(&bundle).expect("serialize sigstore bundle");
+                Ok(SignedProvenance { media_type: bundle.media_type, data })
+            })
         })
         .await
     }
@@ -141,6 +148,32 @@ const SIGN_RETRY_OPTS: RetryOpts = RetryOpts {
     min_timeout: Duration::from_secs(1),
     max_timeout: Duration::from_mins(1),
 };
+
+/// sigstore-js's `DEFAULT_TIMEOUT`, used only when the caller supplies no
+/// `fetch-timeout` — the sigstore-rust clients set no request timeout of
+/// their own, so without a deadline a hung connection stalls the publish
+/// until the OS gives up on the socket.
+const DEFAULT_SIGN_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// Cap one signing attempt at `deadline`, converting an elapsed timer into a
+/// retryable [`ProvenanceGenError::Sign`].
+async fn with_sign_deadline<Fut>(
+    deadline: Duration,
+    attempt: Fut,
+) -> Result<SignedProvenance, ProvenanceGenError>
+where
+    Fut: Future<Output = Result<SignedProvenance, ProvenanceGenError>>,
+{
+    match tokio::time::timeout(deadline, attempt).await {
+        Ok(result) => result,
+        Err(_) => Err(ProvenanceGenError::Sign {
+            source: format!(
+                "no response from the sigstore signing exchange within {} ms",
+                deadline.as_millis(),
+            ),
+        }),
+    }
+}
 
 /// Run `attempt_fn` — one full signing exchange — retrying under
 /// `retry_opts`'s exponential backoff until it succeeds or the retries are

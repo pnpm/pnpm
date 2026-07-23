@@ -3,6 +3,7 @@ use std::{cell::Cell, time::Duration};
 use super::{
     ProvenanceGenError, SignProvenance, SignedProvenance, build_statement, fetch_sigstore_token,
     generate_provenance, github_statement, gitlab_statement, npm_purl, sign_with_retry,
+    with_sign_deadline,
 };
 use crate::{
     capabilities::{Clock, EnvVar, OidcFetch, OidcFetchError, OidcRequest, OidcResponse},
@@ -292,9 +293,11 @@ impl SignProvenance for GhSignSys {
     async fn sign_statement(
         jwt: &str,
         statement: &[u8],
+        timeout: Option<Duration>,
     ) -> Result<SignedProvenance, ProvenanceGenError> {
         assert_eq!(jwt, "sigstore-token", "the sigstore-audience token is passed to the signer");
         assert!(!statement.is_empty(), "a serialized statement is signed");
+        assert_eq!(timeout, None, "no fetch-timeout was configured");
         Ok(SignedProvenance {
             media_type: "application/vnd.dev.sigstore.bundle.v0.3+json".to_owned(),
             data: r#"{"mediaType":"application/vnd.dev.sigstore.bundle.v0.3+json"}"#.to_owned(),
@@ -320,6 +323,43 @@ async fn generate_provenance_builds_the_signed_attachment() {
     assert_eq!(attachment.data, r#"{"mediaType":"application/vnd.dev.sigstore.bundle.v0.3+json"}"#);
 }
 
+/// The configured `fetch-timeout` (milliseconds) reaches the signer as its
+/// per-attempt deadline.
+#[tokio::test]
+async fn generate_provenance_forwards_fetch_timeout_to_the_signer() {
+    struct TimeoutSys;
+    impl Clock for TimeoutSys {
+        fn now_ms() -> u64 {
+            0
+        }
+    }
+    impl EnvVar for TimeoutSys {
+        fn var(name: &str) -> Option<String> {
+            GhSignSys::var(name)
+        }
+    }
+    impl OidcFetch for TimeoutSys {
+        async fn fetch(request: OidcRequest<'_>) -> Result<OidcResponse, OidcFetchError> {
+            GhSignSys::fetch(request).await
+        }
+    }
+    impl SignProvenance for TimeoutSys {
+        async fn sign_statement(
+            _: &str,
+            _: &[u8],
+            timeout: Option<Duration>,
+        ) -> Result<SignedProvenance, ProvenanceGenError> {
+            assert_eq!(timeout, Some(Duration::from_millis(1234)));
+            Ok(SignedProvenance { media_type: "bundle".to_owned(), data: "{}".to_owned() })
+        }
+    }
+
+    let options = OidcHttpOptions { fetch_timeout: Some(1234), ..OidcHttpOptions::default() };
+    generate_provenance::<TimeoutSys, SilentReporter>("pkg", "1.0.0", b"tarball", &options)
+        .await
+        .expect("provenance generation succeeds");
+}
+
 /// A signer failure propagates as the publish-facing provenance error.
 #[tokio::test]
 async fn generate_provenance_surfaces_a_signer_failure() {
@@ -340,7 +380,11 @@ async fn generate_provenance_surfaces_a_signer_failure() {
         }
     }
     impl SignProvenance for FailingSigner {
-        async fn sign_statement(_: &str, _: &[u8]) -> Result<SignedProvenance, ProvenanceGenError> {
+        async fn sign_statement(
+            _: &str,
+            _: &[u8],
+            _: Option<Duration>,
+        ) -> Result<SignedProvenance, ProvenanceGenError> {
             Err(ProvenanceGenError::Sign { source: "fulcio rejected the request".to_owned() })
         }
     }
@@ -363,6 +407,24 @@ const INSTANT_RETRIES: pacquet_network::RetryOpts = pacquet_network::RetryOpts {
     min_timeout: Duration::ZERO,
     max_timeout: Duration::ZERO,
 };
+
+#[tokio::test]
+async fn with_sign_deadline_times_out_a_hung_attempt() {
+    let err = with_sign_deadline(Duration::ZERO, std::future::pending())
+        .await
+        .expect_err("a hung exchange hits the deadline");
+    assert!(matches!(err, ProvenanceGenError::Sign { .. }), "got {err:?}");
+}
+
+#[tokio::test]
+async fn with_sign_deadline_passes_a_completed_attempt_through() {
+    let signed = with_sign_deadline(Duration::from_secs(5), async {
+        Ok(SignedProvenance { media_type: "bundle".to_owned(), data: "{}".to_owned() })
+    })
+    .await
+    .expect("a completed attempt is returned unchanged");
+    assert_eq!(signed.data, "{}");
+}
 
 #[tokio::test]
 async fn sign_with_retry_recovers_from_transient_failures() {
