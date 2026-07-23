@@ -17,7 +17,7 @@ use pacquet_catalogs_config::{
 };
 use pacquet_catalogs_protocol_parser::parse_catalog_protocol;
 use pacquet_catalogs_types::Catalogs;
-use pacquet_config::{CatalogMode, Config, matcher::create_matcher};
+use pacquet_config::{CatalogMode, Config, LinkWorkspacePackages, matcher::create_matcher};
 use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
@@ -25,6 +25,7 @@ use pacquet_registry::{PackageVersion, PinnedVersion};
 use pacquet_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
 use pacquet_resolving_npm_resolver::{shared_packument_fetch_locker, which_version_is_pinned};
 use pacquet_tarball::MemCache;
+use pacquet_workspace_range_resolver::resolve_workspace_range;
 use std::{
     collections::{BTreeMap, HashSet},
     path::{Path, PathBuf},
@@ -235,6 +236,9 @@ impl Update<'_> {
             &mut latest_picker,
             lockfile_only,
             resolution_observer.as_ref(),
+            // A single-project update loads no workspace siblings, so a
+            // bare-semver dep has nothing local to link to.
+            None,
         )
         .await?
         else {
@@ -463,6 +467,7 @@ async fn prepare_manifest<'a, Reporter: self::Reporter>(
     latest_picker: &mut Option<LatestPicker<'a>>,
     lockfile_only: bool,
     resolution_observer: Option<&Arc<dyn crate::ResolutionObserver>>,
+    workspace_local_versions: Option<&BTreeMap<String, Vec<String>>>,
 ) -> Result<Option<UpdatePreparation>, UpdateError> {
     // `pacquet update` has no `--save-prefix` flag yet, so `save_exact`
     // selects between an exact pin and the default caret range.
@@ -518,7 +523,15 @@ async fn prepare_manifest<'a, Reporter: self::Reporter>(
             if is_ignored(name) {
                 continue;
             }
-            if latest && !is_local_specifier(previous) {
+            if latest
+                && !is_local_specifier(previous)
+                && !links_to_local_workspace_package(
+                    config,
+                    workspace_local_versions,
+                    name,
+                    previous,
+                )
+            {
                 let picker =
                     ensure_latest_picker(latest_picker, config, http_client, resolution_observer)?;
                 let version = resolve_latest_version(picker, name, lockfile_only).await?;
@@ -603,7 +616,15 @@ async fn prepare_manifest<'a, Reporter: self::Reporter>(
         } else {
             for (name, group, previous) in &matched_direct {
                 drop_names.insert(name.clone());
-                if latest && !is_local_specifier(previous) {
+                if latest
+                    && !is_local_specifier(previous)
+                    && !links_to_local_workspace_package(
+                        config,
+                        workspace_local_versions,
+                        name,
+                        previous,
+                    )
+                {
                     let picker = ensure_latest_picker(
                         latest_picker,
                         config,
@@ -744,6 +765,11 @@ async fn prepare_selected_manifests<'a, Reporter: self::Reporter>(
     let mut workspace_dir_for_catalogs = None;
     let mut any_work = false;
 
+    // Only `--latest` consults the workspace map (to skip re-resolving a
+    // bare-semver dep that `linkWorkspacePackages` links to a local sibling),
+    // so it is built once here and never for a compatible bump.
+    let workspace_local_versions = latest.then(|| collect_workspace_local_versions(projects));
+
     for &index in selected_indices {
         let Some(prepared) = prepare_manifest::<Reporter>(
             &mut projects[index].manifest,
@@ -760,6 +786,7 @@ async fn prepare_selected_manifests<'a, Reporter: self::Reporter>(
             &mut latest_picker,
             lockfile_only,
             resolution_observer,
+            workspace_local_versions.as_ref(),
         )
         .await?
         else {
@@ -1009,6 +1036,50 @@ fn is_local_specifier(bare_specifier: &str) -> bool {
     bare_specifier.starts_with("workspace:")
         || bare_specifier.starts_with("link:")
         || bare_specifier.starts_with("file:")
+}
+
+/// Collect workspace projects' `name` → local `version`s — the map
+/// [`links_to_local_workspace_package`] matches bare-semver ranges against.
+/// Projects missing a `name` or `version` (e.g. the private workspace root)
+/// are skipped: they can't be a link target.
+fn collect_workspace_local_versions(
+    projects: &[pacquet_workspace::Project],
+) -> BTreeMap<String, Vec<String>> {
+    let mut versions: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for project in projects {
+        let manifest = project.manifest.value();
+        let (Some(name), Some(version)) = (
+            manifest.get("name").and_then(|value| value.as_str()),
+            manifest.get("version").and_then(|value| value.as_str()),
+        ) else {
+            continue;
+        };
+        versions.entry(name.to_owned()).or_default().push(version.to_owned());
+    }
+    versions
+}
+
+/// Whether a bare-semver dependency would link to a local workspace package
+/// rather than the registry. Under `linkWorkspacePackages`, a direct dependency
+/// whose range a workspace sibling's version satisfies links to that sibling,
+/// exactly as a `workspace:` range would — so, like an explicit
+/// `workspace:`/`link:`/`file:` specifier, it has no registry "latest" to
+/// resolve under `--latest` and is preserved verbatim. Mirrors the resolver's
+/// own matching (`resolve_from_workspace`) so `--latest` and install agree on
+/// which deps are local. `workspace_local_versions` is `None` for a
+/// single-project update, which has no siblings to link.
+fn links_to_local_workspace_package(
+    config: &Config,
+    workspace_local_versions: Option<&BTreeMap<String, Vec<String>>>,
+    name: &str,
+    bare_specifier: &str,
+) -> bool {
+    if config.link_workspace_packages == LinkWorkspacePackages::Off {
+        return false;
+    }
+    workspace_local_versions
+        .and_then(|versions| versions.get(name))
+        .is_some_and(|versions| resolve_workspace_range(bare_specifier, versions).is_some())
 }
 
 #[cfg(test)]

@@ -983,7 +983,7 @@ fn update_latest_reports_invalid_minimum_release_age_exclude() {
 /// `pnpm update --latest` must not resolve a local dependency against the
 /// registry. `workspace:`, `file:`, and `link:` all point at a local package
 /// that may be unpublished, so there is no registry "latest" to fetch; each is
-/// preserved verbatim. Mirrors the TS `isLocalRef` guard (link:/file:/workspace:)
+/// preserved verbatim. Mirrors the TS `isLocalRef` guard (`link:`/`file:`/`workspace:`)
 /// in `@pnpm/outdated`. Regression for the pnpm/pnpm update-lockfile job, whose
 /// `@pnpm-private/*` deps are `workspace:*`.
 #[test]
@@ -1046,6 +1046,64 @@ fn update_latest_preserves_local_protocol_dependencies() {
             "the {protocol} spec for {dep} should be preserved verbatim: {a_manifest}",
         );
     }
+
+    drop((root, anchor));
+}
+
+/// `pnpm update --latest` must not resolve a *bare-semver* dependency against
+/// the registry when `linkWorkspacePackages` links it to a local workspace
+/// sibling. The sibling may be unpublished, so — as with an explicit
+/// `workspace:` range — there is no registry "latest" to fetch; the range is
+/// preserved verbatim. This is the `link-workspace-packages` case the TS CLI
+/// covers by keying `isLocalRef` off the resolved (`link:`) ref rather than the
+/// declared spec.
+#[test]
+fn update_latest_preserves_link_workspace_packages_dependencies() {
+    let (root, workspace, anchor) = setup();
+
+    fs::write(
+        workspace.join("package.json"),
+        r#"{ "name": "root", "version": "1.0.0", "private": true }"#,
+    )
+    .expect("write root package.json");
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    // `linkWorkspacePackages: true` links a bare-semver dep on a sibling to the
+    // local copy, exactly as a `workspace:` range would.
+    workspace_yaml.push_str("linkWorkspacePackages: true\npackages:\n  - 'packages/*'\n");
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    // Package `a` depends on the local, unpublished package `b` via a plain
+    // semver range (not `workspace:`); `b@1.0.0` satisfies `^1.0.0`, so
+    // `linkWorkspacePackages` links it locally.
+    fs::create_dir_all(workspace.join("packages/a")).expect("mkdir packages/a");
+    fs::write(
+        workspace.join("packages/a/package.json"),
+        format!(
+            r#"{{ "name": "@test/a", "version": "1.0.0", "dependencies": {{ "@test/b": "^1.0.0", "{DEP}": "^100.0.0" }} }}"#,
+        ),
+    )
+    .expect("write packages/a/package.json");
+    fs::create_dir_all(workspace.join("packages/b")).expect("mkdir packages/b");
+    fs::write(
+        workspace.join("packages/b/package.json"),
+        r#"{ "name": "@test/b", "version": "1.0.0" }"#,
+    )
+    .expect("write packages/b/package.json");
+
+    pacquet(&workspace, ["-r", "install"]).assert().success();
+    // Before the fix, `--latest` ignored linkWorkspacePackages and tried to
+    // fetch the unpublished @test/b from the registry.
+    pacquet(&workspace, ["-r", "update", "--latest"]).assert().success();
+
+    let a_manifest = fs::read_to_string(workspace.join("packages/a/package.json"))
+        .expect("read packages/a/package.json");
+    assert!(
+        a_manifest.contains(r#""@test/b":"^1.0.0""#),
+        "a bare-semver dep linked to a local sibling should be preserved: {a_manifest}",
+    );
 
     drop((root, anchor));
 }
