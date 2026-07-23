@@ -742,9 +742,9 @@ test('implicit phantom hoisted dependencies are linked into global virtual store
     hoistPattern: ['*'],
   }))
 
-  const files = fs.readdirSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep/100.0.0'))
-  expect(files.length).toBeGreaterThan(0)
-  // Assert that @pnpm.e2e/peer-c (which is undeclared in @pnpm.e2e/pkg-with-1-dep) is linked into pkg-with-1-dep's GVS node_modules
-  expect(fs.existsSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep/100.0.0', files[0], 'node_modules/@pnpm.e2e/peer-c/package.json'))).toBeTruthy()
+  const filesPeerC = fs.readdirSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/peer-c/2.0.0'))
+  expect(filesPeerC.length).toBeGreaterThan(0)
+  // Assert that @pnpm.e2e/dep-of-pkg-with-1-dep (which is undeclared in @pnpm.e2e/peer-c) is linked into peer-c's GVS node_modules
+  expect(fs.existsSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/peer-c/2.0.0', filesPeerC[0], 'node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json'))).toBeTruthy()
 })
 
