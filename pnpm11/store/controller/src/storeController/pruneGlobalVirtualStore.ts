@@ -129,7 +129,7 @@ async function walkSymlinksToStore (
           const target = await fs.readlink(entryPath)
           const absoluteTarget = path.isAbsolute(target)
             ? target
-            : path.resolve(dir, target)
+            : path.resolve(path.dirname(entryPath), target)
 
           // Check if this symlink points into the global virtual store
           if (isSubdir(linksDir, absoluteTarget)) {
@@ -146,9 +146,9 @@ async function walkSymlinksToStore (
               // Store relative path like "@scope/pkg-a/1.0.0/hash123" or "@/pkg-a/1.0.0/hash123"
               const relativePath = parts.slice(0, nodeModulesIdx).join(path.sep)
               reachable.add(relativePath)
-              // Also walk into the package's node_modules for transitive deps
+              // Also walk into the package's node_modules for declared transitive deps
               const pkgNodeModules = path.join(linksDir, relativePath, 'node_modules')
-              await walkSymlinksToStore(pkgNodeModules, linksDir, reachable, visited)
+              await walkGvsPackageNodeModules(pkgNodeModules, linksDir, reachable, visited)
             }
           }
         } catch {
@@ -160,6 +160,101 @@ async function walkSymlinksToStore (
       }
     })
   )
+}
+
+/**
+ * Walk symlinks inside a GVS package's node_modules, restricting traversal
+ * strictly to dependencies declared in its package.json so phantom fallback symlinks
+ * do not cause orphaned packages to be preserved during prune.
+ */
+async function walkGvsPackageNodeModules (
+  pkgNodeModules: string,
+  linksDir: string,
+  reachable: Set<string>,
+  visited: Set<string>
+): Promise<void> {
+  const dirHash = await getRealPathHash(pkgNodeModules)
+  if (visited.has(dirHash)) {
+    return
+  }
+  visited.add(dirHash)
+
+  const declaredDeps = await getDeclaredDepsOfGvsPackage(pkgNodeModules)
+  if (!declaredDeps || declaredDeps.size === 0) return
+
+  await Promise.all(
+    Array.from(declaredDeps).map(async (depAlias) => {
+      const symlinkPath = path.join(pkgNodeModules, depAlias)
+      try {
+        const target = await fs.readlink(symlinkPath)
+        const absoluteTarget = path.isAbsolute(target)
+          ? target
+          : path.resolve(path.dirname(symlinkPath), target)
+
+        if (isSubdir(linksDir, absoluteTarget)) {
+          const relPath = path.relative(linksDir, absoluteTarget)
+          const parts = relPath.split(path.sep)
+          const nodeModulesIdx = parts.indexOf('node_modules')
+          if (nodeModulesIdx !== -1) {
+            const childRelativePath = parts.slice(0, nodeModulesIdx).join(path.sep)
+            if (!reachable.has(childRelativePath)) {
+              reachable.add(childRelativePath)
+              const childPkgNodeModules = path.join(linksDir, childRelativePath, 'node_modules')
+              await walkGvsPackageNodeModules(childPkgNodeModules, linksDir, reachable, visited)
+            }
+          }
+        }
+      } catch {
+        // Ignore missing or non-symlink declared dependencies
+      }
+    })
+  )
+}
+
+async function getDeclaredDepsOfGvsPackage (
+  pkgNodeModules: string
+): Promise<Set<string> | null> {
+  try {
+    const entries = await fs.readdir(pkgNodeModules, { withFileTypes: true })
+    const candidatePaths: string[] = []
+    await Promise.all(
+      entries.map(async (entry) => {
+        if (entry.name.startsWith('.')) return
+        if (entry.name.startsWith('@')) {
+          try {
+            const sub = await fs.readdir(path.join(pkgNodeModules, entry.name), { withFileTypes: true })
+            for (const s of sub) {
+              if (s.isDirectory() && !s.isSymbolicLink()) {
+                candidatePaths.push(path.join(pkgNodeModules, entry.name, s.name, 'package.json'))
+              }
+            }
+          } catch {}
+        } else if (entry.isDirectory() && !entry.isSymbolicLink()) {
+          candidatePaths.push(path.join(pkgNodeModules, entry.name, 'package.json'))
+        }
+      })
+    )
+
+    const contents = await Promise.all(
+      candidatePaths.map(async (p) => {
+        try {
+          return JSON.parse(await fs.readFile(p, 'utf8'))
+        } catch {
+          return null
+        }
+      })
+    )
+
+    for (const content of contents) {
+      if (!content) continue
+      return new Set([
+        ...Object.keys(content.dependencies || {}),
+        ...Object.keys(content.peerDependencies || {}),
+        ...Object.keys(content.optionalDependencies || {}),
+      ])
+    }
+  } catch {}
+  return null
 }
 
 /**
