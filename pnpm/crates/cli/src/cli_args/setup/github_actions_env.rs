@@ -39,9 +39,9 @@ pub(super) fn validate_values<Sys: EnvVarOs>(
     validate_value("pnpm setup bin directory", bin_dir)
 }
 
-/// An unwritable target is reported as a warning rather than failing the
-/// command. The shell config is already updated by this point, so the setup
-/// itself succeeded.
+/// A target that cannot be written is reported as a warning rather than
+/// failing the command. The shell config is already updated by this point,
+/// so the setup itself succeeded.
 pub(super) fn persist<Reporter: self::Reporter, Sys: EnvVarOs>(
     prefix_dir: &Path,
     pnpm_home_dir: &Path,

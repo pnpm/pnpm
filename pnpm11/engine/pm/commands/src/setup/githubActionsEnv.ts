@@ -26,9 +26,9 @@ export function validateValues (pnpmHomeDir: string, binDir: string): void {
 }
 
 /**
- * An unwritable target is reported as a warning rather than failing the
- * command. The shell config is already updated by this point, so the setup
- * itself succeeded.
+ * A target that cannot be written is reported as a warning rather than
+ * failing the command. The shell config is already updated by this point,
+ * so the setup itself succeeded.
  */
 export function persist (pnpmHomeDir: string, binDir: string): void {
   if (!shouldPersist()) return
