@@ -101,6 +101,7 @@ fn mapped_rows(cfg: &Config) -> Vec<(&'static str, Scalar)> {
     vec![
         ("auto-install-peers", Bool(cfg.auto_install_peers)),
         ("block-exotic-subdeps", Bool(cfg.block_exotic_subdeps)),
+        ("warn-unused-overrides", Bool(cfg.warn_unused_overrides)),
         ("dangerously-allow-all-builds", Bool(cfg.dangerously_allow_all_builds)),
         ("strict-dep-builds", Bool(cfg.strict_dep_builds)),
         ("virtual-store-only", Bool(cfg.virtual_store_only)),

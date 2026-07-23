@@ -243,6 +243,7 @@ export interface StrictInstallOptions {
   trustLockfile?: boolean
   packageVulnerabilityAudit?: PackageVulnerabilityAudit
   blockExoticSubdeps?: boolean
+  warnUnusedOverrides?: boolean
   /**
    * Optional alternative install engine. When set, the installer
    * delegates the install to `run` instead of calling `headlessInstall`.
@@ -386,6 +387,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     virtualStoreDirMaxLength: 120,
     peersSuffixMaxLength: 1000,
     blockExoticSubdeps: false,
+    warnUnusedOverrides: true,
     omitSummaryLog: false,
     resolutionVerifiers: [] as ResolutionVerifier[],
   } as StrictInstallOptions
@@ -400,6 +402,7 @@ export interface ProcessedInstallOptions extends StrictInstallOptions {
    * those packages; the staleness check reads it after a full resolution.
    */
   convergeDeclaredRanges?: Map<string, Set<string>>
+  appliedOverrides: Set<string>
 }
 
 export function extendOptions (
@@ -414,11 +417,13 @@ export function extendOptions (
   }
 
   const defaultOpts = defaults(opts)
+  const appliedOverrides: Set<string> = new Set()
   const extendedOpts: ProcessedInstallOptions = {
     ...defaultOpts,
     ...opts,
     storeDir: defaultOpts.storeDir,
     parsedOverrides: parseOverrides(opts.overrides ?? {}, opts.catalogs ?? {}),
+    appliedOverrides,
   }
   if (extendedOpts.parsedOverrides.some(({ converge }) => converge)) {
     extendedOpts.convergeDeclaredRanges = new Map()
@@ -428,6 +433,7 @@ export function extendOptions (
     readPackageHook: extendedOpts.hooks?.readPackage,
     overrides: extendedOpts.parsedOverrides,
     convergeDeclaredRanges: extendedOpts.convergeDeclaredRanges,
+    onOverrideApplied: (override) => appliedOverrides.add(override.selector),
     lockfileDir: extendedOpts.lockfileDir,
     packageExtensions: extendedOpts.packageExtensions,
     ignoredOptionalDependencies: extendedOpts.ignoredOptionalDependencies,

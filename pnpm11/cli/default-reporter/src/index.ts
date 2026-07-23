@@ -172,6 +172,7 @@ export function toOutput$ (
   const scopePushStream = new Rx.Subject<logs.ScopeLog>()
   const requestRetryPushStream = new Rx.Subject<logs.RequestRetryLog>()
   const updateCheckPushStream = new Rx.Subject<logs.UpdateCheckLog>()
+  const unusedOverridePushStream = new Rx.Subject<logs.UnusedOverrideLog>()
   setTimeout(() => {
     opts.streamParser.on('data', (log: logs.Log) => {
       switch (log.name) {
@@ -247,6 +248,9 @@ export function toOutput$ (
         case 'pnpm:update-check':
           updateCheckPushStream.next(log)
           break
+        case 'pnpm:unused-override':
+          unusedOverridePushStream.next(log)
+          break
       case 'pnpm' as any: // eslint-disable-line
       case 'pnpm:global' as any: // eslint-disable-line
       case 'pnpm:store' as any: // eslint-disable-line
@@ -290,6 +294,7 @@ export function toOutput$ (
     stats: Rx.from(statsPushStream),
     summary: Rx.from(summaryPushStream),
     updateCheck: Rx.from(updateCheckPushStream),
+    unusedOverride: Rx.from(unusedOverridePushStream),
   }
   const cmd = opts.context.argv[0]
   const outputs: Array<Rx.Observable<Rx.Observable<{ msg: string }>>> = reporterForClient(

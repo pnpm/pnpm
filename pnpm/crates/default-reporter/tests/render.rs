@@ -15,7 +15,7 @@ use pacquet_reporter::{
     LogEvent, LogLevel, PackageImportMethod, PackageImportMethodLog, PackageManifestLog,
     PackageManifestMessage, PnpmLog, ProgressLog, ProgressMessage, RootLog, RootMessage,
     SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalParent,
-    SkippedOptionalReason, Stage, StageLog, StatsLog, StatsMessage, SummaryLog,
+    SkippedOptionalReason, Stage, StageLog, StatsLog, StatsMessage, SummaryLog, UnusedOverrideLog,
 };
 
 const CWD: &str = "/repo";
@@ -890,6 +890,41 @@ fn zoomed_direct_deprecation_omits_the_message() {
 }
 
 #[test]
+fn unused_overrides_buffer_until_resolution_done_then_emit_grouped_warning() {
+    let mut reporter = state(false);
+    // Feed selectors out of order — the reporter sorts before joining,
+    // so the output must still be sorted.
+    let events = vec![
+        LogEvent::UnusedOverride(UnusedOverrideLog {
+            level: LogLevel::Debug,
+            prefix: CWD.to_string(),
+            selector: "parent>child".to_string(),
+        }),
+        LogEvent::UnusedOverride(UnusedOverrideLog {
+            level: LogLevel::Debug,
+            prefix: CWD.to_string(),
+            selector: "bar@1.0.0".to_string(),
+        }),
+        LogEvent::UnusedOverride(UnusedOverrideLog {
+            level: LogLevel::Debug,
+            prefix: CWD.to_string(),
+            selector: "foo".to_string(),
+        }),
+        LogEvent::Stage(StageLog {
+            level: LogLevel::Debug,
+            prefix: CWD.to_string(),
+            stage: Stage::ResolutionDone,
+        }),
+    ];
+    let frame = render(&mut reporter, events);
+    let lines: Vec<&str> = frame.lines().collect();
+    assert_eq!(
+        lines,
+        vec!["[WARN] 3 overrides matched no dependency: bar@1.0.0, foo, parent>child"],
+    );
+}
+
+#[test]
 fn transitive_deprecations_flush_as_a_summary_at_resolution_done() {
     let mut reporter = state(false);
     let frame = render(
@@ -903,4 +938,63 @@ fn transitive_deprecations_flush_as_a_summary_at_resolution_done() {
 
     let frame = render(&mut reporter, vec![resolution_done()]);
     assert_eq!(frame, "[WARN] 2 deprecated subdependencies found: request@2.88.2, uuid@3.4.0");
+}
+
+#[test]
+fn unused_overrides_uses_singular_form_for_single_unused() {
+    let mut reporter = state(false);
+    let events = vec![
+        LogEvent::UnusedOverride(UnusedOverrideLog {
+            level: LogLevel::Debug,
+            prefix: CWD.to_string(),
+            selector: "foo".to_string(),
+        }),
+        LogEvent::Stage(StageLog {
+            level: LogLevel::Debug,
+            prefix: CWD.to_string(),
+            stage: Stage::ResolutionDone,
+        }),
+    ];
+    let frame = render(&mut reporter, events);
+    let lines: Vec<&str> = frame.lines().collect();
+    assert_eq!(lines, vec!["[WARN] 1 override matched no dependency: foo"]);
+}
+
+#[test]
+fn unused_overrides_no_events_emits_nothing_at_resolution_done() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![LogEvent::Stage(StageLog {
+            level: LogLevel::Debug,
+            prefix: CWD.to_string(),
+            stage: Stage::ResolutionDone,
+        })],
+    );
+    assert!(frame.is_empty(), "expected no warning frame, got: {frame}");
+}
+
+#[test]
+fn unused_overrides_strips_control_characters_from_selectors() {
+    let mut reporter = state(false);
+    let events = vec![
+        LogEvent::UnusedOverride(UnusedOverrideLog {
+            level: LogLevel::Debug,
+            prefix: CWD.to_string(),
+            // `\u{202E}` (RIGHT-TO-LEFT OVERRIDE) and `\u{200B}` (ZERO
+            // WIDTH SPACE) cover Cf; `\x1b` (ESC) covers Cc. `\u{2069}`
+            // (BIDI ISOLATE) and `\u{FEFF}` (BOM) cover the remaining
+            // Cf ranges. All must be stripped or a crafted key can
+            // visually flip / hide text or inject terminal sequences.
+            selector: "inj\u{202E}ect\u{200B}ion\u{2069}\u{FEFF}\x1b".to_string(),
+        }),
+        LogEvent::Stage(StageLog {
+            level: LogLevel::Debug,
+            prefix: CWD.to_string(),
+            stage: Stage::ResolutionDone,
+        }),
+    ];
+    let frame = render(&mut reporter, events);
+    let lines: Vec<&str> = frame.lines().collect();
+    assert_eq!(lines, vec!["[WARN] 1 override matched no dependency: injection"]);
 }

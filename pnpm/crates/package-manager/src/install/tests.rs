@@ -8807,7 +8807,7 @@ async fn optimistic_repeat_install_restores_missing_lockfile_offline() {
 
 #[tokio::test]
 async fn fresh_lockfile_applies_overrides_to_direct_dependencies() {
-    let (_dir, lockfile) = fresh_lockfile_only_with_overrides(
+    let (_dir, lockfile) = fresh_lockfile_only_with_overrides::<SilentReporter>(
         &[("@pnpm.e2e/foo", "^100.0.0")],
         &[("@pnpm.e2e/foo@^100.0.0", "100.0.0")],
         None,
@@ -8820,7 +8820,7 @@ async fn fresh_lockfile_applies_overrides_to_direct_dependencies() {
 
 #[tokio::test]
 async fn fresh_lockfile_applies_overrides_to_transitive_dependencies() {
-    let (_dir, lockfile) = fresh_lockfile_only_with_overrides(
+    let (_dir, lockfile) = fresh_lockfile_only_with_overrides::<SilentReporter>(
         &[("@pnpm.e2e/has-foo-100.0.0-range-dep", "1.0.0")],
         &[("@pnpm.e2e/foo@^100.0.0", "100.0.0")],
         None,
@@ -8834,7 +8834,7 @@ async fn fresh_lockfile_applies_overrides_to_transitive_dependencies() {
 
 #[tokio::test]
 async fn fresh_lockfile_resolves_catalog_protocol_in_overrides() {
-    let (_dir, lockfile) = fresh_lockfile_only_with_overrides(
+    let (_dir, lockfile) = fresh_lockfile_only_with_overrides::<SilentReporter>(
         &[("@pnpm.e2e/foo", "^100.0.0")],
         &[("@pnpm.e2e/foo@^100.0.0", "catalog:")],
         Some("catalog:\n  '@pnpm.e2e/foo': '100.0.0'\n"),
@@ -8853,7 +8853,46 @@ async fn fresh_lockfile_resolves_catalog_protocol_in_overrides() {
     );
 }
 
-async fn fresh_lockfile_only_with_overrides(
+/// The unused-override warning fires once per override selector that matched
+/// no resolved edge. Verified end-to-end through the fresh-lockfile installer
+/// with a `RecordingReporter` that captures `LogEvent::UnusedOverride` events;
+/// the applied override (`foo@^100.0.0`) must NOT appear, only the dangling
+/// one. Mirrors the TS e2e in `pnpm/test/install/unusedOverrides.ts`.
+#[tokio::test]
+async fn fresh_lockfile_emits_unused_override_for_dangling_selector() {
+    use pacquet_reporter::{LogEvent, Reporter};
+    use std::sync::Mutex;
+
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    EVENTS.lock().unwrap().clear();
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().unwrap().push(event.clone());
+        }
+    }
+
+    fresh_lockfile_only_with_overrides::<RecordingReporter>(
+        &[("@pnpm.e2e/foo", "^100.0.0")],
+        &[("@pnpm.e2e/foo@^100.0.0", "100.0.0"), ("@pnpm.e2e/missing-pkg@^1.0.0", "1.0.0")],
+        None,
+    )
+    .await;
+
+    let unused: Vec<String> = EVENTS
+        .lock()
+        .unwrap()
+        .iter()
+        .filter_map(|event| match event {
+            LogEvent::UnusedOverride(log) => Some(log.selector.clone()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(unused, vec!["@pnpm.e2e/missing-pkg@^1.0.0"]);
+}
+
+async fn fresh_lockfile_only_with_overrides<ReporterT: pacquet_reporter::Reporter + 'static>(
     dependencies: &[(&str, &str)],
     overrides: &[(&str, &str)],
     workspace_yaml: Option<&str>,
@@ -8921,7 +8960,7 @@ async fn fresh_lockfile_only_with_overrides(
         pnpmfile_hook_override: None,
         workspace_projects_override: None,
     }
-    .run::<SilentReporter>()
+    .run::<ReporterT>()
     .await
     .expect("lockfile-only install should succeed");
 

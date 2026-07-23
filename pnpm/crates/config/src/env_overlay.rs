@@ -167,6 +167,7 @@ impl WorkspaceSettings {
         json_field!(ignore_compatibility_db, "IGNORE_COMPATIBILITY_DB");
         json_field!(resolve_peers_from_workspace_root, "RESOLVE_PEERS_FROM_WORKSPACE_ROOT");
         json_field!(block_exotic_subdeps, "BLOCK_EXOTIC_SUBDEPS");
+        json_field!(warn_unused_overrides, "WARN_UNUSED_OVERRIDES");
         json_field!(verify_store_integrity, "VERIFY_STORE_INTEGRITY");
         json_field!(side_effects_cache, "SIDE_EFFECTS_CACHE");
         json_field!(side_effects_cache_readonly, "SIDE_EFFECTS_CACHE_READONLY");

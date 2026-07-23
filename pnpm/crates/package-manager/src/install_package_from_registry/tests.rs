@@ -86,6 +86,7 @@ fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path)
         ignore_compatibility_db: false,
         resolve_peers_from_workspace_root: false,
         block_exotic_subdeps: false,
+        warn_unused_overrides: true,
         verify_store_integrity: true,
         frozen_store: false,
         force: false,
