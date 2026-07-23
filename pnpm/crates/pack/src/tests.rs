@@ -532,8 +532,10 @@ fn tarball_write_failure_surfaces_as_write_error() {
 
 #[test]
 fn format_pack_output_json_single_vs_multiple() {
+    // The two manifests differ by the readme, the way `with_registry_readme`
+    // leaves them, so serializing the registry one would be visible here.
     let result = PackResult {
-        published_manifest: json!({ "name": "foo", "version": "1.0.0" }),
+        published_manifest: json!({ "name": "foo", "version": "1.0.0", "readme": "# foo" }),
         packed_manifest: json!({ "name": "foo", "version": "1.0.0" }),
         contents: vec!["package.json".to_string()],
         tarball_path: "foo-1.0.0.tgz".to_string(),
@@ -544,7 +546,7 @@ fn format_pack_output_json_single_vs_multiple() {
     assert_eq!(parsed["name"], json!("foo"));
     assert_eq!(parsed["filename"], json!("foo-1.0.0.tgz"));
     assert_eq!(parsed["files"], json!([{ "path": "package.json" }]));
-    assert_eq!(parsed["manifest"], json!({ "name": "foo", "version": "1.0.0" }));
+    assert_eq!(parsed["manifest"], result.packed_manifest);
 
     let two = vec![to_pack_result_json(&result), to_pack_result_json(&result)];
     let json_multi = format_pack_output(&two, true, false);

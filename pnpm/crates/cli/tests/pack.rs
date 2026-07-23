@@ -170,8 +170,9 @@ fn recursive_pack_applies_before_packing_hook_to_every_project() {
     drop(root);
 }
 
-/// `--dry-run --json` reports the manifest that would be packed, with the
-/// publish-time transformations applied and no tarball written.
+/// The reported manifest is the tarball's, not the registry metadata: the
+/// two differ by the readme, which `with_registry_readme` adds to the
+/// published manifest whatever `embed_readme` says.
 #[test]
 fn dry_run_json_reports_the_publish_transformed_manifest() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -188,6 +189,7 @@ fn dry_run_json_reports_the_publish_transformed_manifest() {
         .to_string(),
     )
     .expect("write package.json");
+    fs::write(workspace.join("README.md"), "# pkg").expect("write README.md");
 
     let output = pacquet
         .with_arg("pack")
@@ -206,13 +208,17 @@ fn dry_run_json_reports_the_publish_transformed_manifest() {
     assert!(manifest.get("publishConfig").is_none(), "publishConfig must be stripped");
     assert_eq!(manifest["scripts"], json!({ "build": "exit 0" }));
     assert!(manifest.get("pnpm").is_none(), "the pnpm field must be stripped");
+    assert!(
+        manifest.get("readme").is_none(),
+        "the readme is registry metadata, not part of the packed manifest",
+    );
     assert!(!workspace.join("pkg-1.0.0.tgz").exists(), "--dry-run must not write a tarball");
 
     drop(root);
 }
 
-/// `--ignore-scripts` skips the pack lifecycle scripts, so the manifest
-/// can be inspected without building the package.
+/// Skipping the scripts is what makes `--dry-run --json` usable as a
+/// side-effect-free query for the manifest.
 #[test]
 fn ignore_scripts_skips_the_pack_lifecycle_scripts() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();

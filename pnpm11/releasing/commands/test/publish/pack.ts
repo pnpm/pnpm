@@ -953,6 +953,7 @@ test('pack: json output contains the publish-transformed manifest', async () => 
       },
     },
   } as Parameters<typeof prepare>[0] & { pnpm?: Record<string, unknown> })
+  fs.writeFileSync('README.md', '# test-published-manifest', 'utf8')
 
   const output = await pack.handler({
     ...DEFAULT_OPTS,
@@ -969,6 +970,9 @@ test('pack: json output contains the publish-transformed manifest', async () => 
   expect(manifest.publishConfig).toBeUndefined()
   expect(manifest.scripts).toStrictEqual({ build: 'exit 0' })
   expect(manifest.pnpm).toBeUndefined()
+  // The readme is registry metadata that `withRegistryReadme` adds to the
+  // published manifest regardless of `embedReadme`; the packed one omits it.
+  expect(manifest.readme).toBeUndefined()
   expect(fs.existsSync('test-published-manifest-0.0.0.tgz')).toBeFalsy()
 })
 
