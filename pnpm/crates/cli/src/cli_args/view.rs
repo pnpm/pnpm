@@ -24,6 +24,8 @@ use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use pacquet_workspace::try_read_project_manifest;
 use serde_json::{Map, Value};
 
+use super::deprecate::normalize_registry_url;
+
 /// Errors from `pacquet view`. The codes are the `ERR_PNPM_*` codes pnpm
 /// defines for these failures.
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -70,6 +72,10 @@ pub struct ViewArgs {
     /// omitted, the nearest project manifest's name is used.
     pub params: Vec<String>,
 
+    /// The base URL of the npm registry.
+    #[clap(long)]
+    pub registry: Option<String>,
+
     /// Show information in JSON format.
     #[clap(long)]
     pub json: bool,
@@ -87,7 +93,7 @@ impl ViewArgs {
         };
         let fields = self.params.get(1..).unwrap_or(&[]);
 
-        let info = fetch_package_info(config, &package_spec).await?;
+        let info = fetch_package_info(config, self.registry.as_deref(), &package_spec).await?;
 
         if !fields.is_empty() {
             return Ok(render_fields(&info, fields, self.json));
@@ -147,14 +153,21 @@ fn invalid_manifest(dir: &Path) -> ViewError {
 /// version satisfying the spec, then extend that version's manifest with the
 /// packument-level `versions`, `dist-tags`, and `time` fields the renderers
 /// read.
-async fn fetch_package_info(config: &Config, package_spec: &str) -> miette::Result<Value> {
+async fn fetch_package_info(
+    config: &Config,
+    registry_override: Option<&str>,
+    package_spec: &str,
+) -> miette::Result<Value> {
     let parsed = parse_wanted_dependency(package_spec);
     let alias = parsed.alias.as_deref();
     let bare = parsed.bare_specifier.as_deref().unwrap_or("latest");
     let name_hint = alias.unwrap_or(package_spec);
 
-    let registries: std::collections::HashMap<String, String> =
+    let mut registries: std::collections::HashMap<String, String> =
         config.resolved_registries().into_iter().collect();
+    if let Some(registry) = registry_override {
+        registries.insert("default".to_string(), normalize_registry_url(registry));
+    }
     let registry = pick_registry_for_package(&registries, name_hint, Some(bare));
 
     let spec = parse_bare_specifier(bare, alias, "latest", &registry)
