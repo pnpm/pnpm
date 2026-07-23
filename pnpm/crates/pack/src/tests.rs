@@ -534,6 +534,7 @@ fn tarball_write_failure_surfaces_as_write_error() {
 fn format_pack_output_json_single_vs_multiple() {
     let result = PackResult {
         published_manifest: json!({ "name": "foo", "version": "1.0.0" }),
+        packed_manifest: json!({ "name": "foo", "version": "1.0.0" }),
         contents: vec!["package.json".to_string()],
         tarball_path: "foo-1.0.0.tgz".to_string(),
         unpacked_size: 42,
@@ -543,6 +544,7 @@ fn format_pack_output_json_single_vs_multiple() {
     assert_eq!(parsed["name"], json!("foo"));
     assert_eq!(parsed["filename"], json!("foo-1.0.0.tgz"));
     assert_eq!(parsed["files"], json!([{ "path": "package.json" }]));
+    assert_eq!(parsed["manifest"], json!({ "name": "foo", "version": "1.0.0" }));
 
     let two = vec![to_pack_result_json(&result), to_pack_result_json(&result)];
     let json_multi = format_pack_output(&two, true, false);
@@ -568,6 +570,7 @@ fn text_output_strips_control_characters_from_paths() {
     // verbatim, or it could spoof/obscure the printed output.
     let result = PackResult {
         published_manifest: json!({ "name": "foo", "version": "1.0.0" }),
+        packed_manifest: json!({ "name": "foo", "version": "1.0.0" }),
         contents: vec!["evil\u{1b}[2K.js".to_string(), "package.json".into()],
         tarball_path: "foo-1.0.0.tgz".to_string(),
         unpacked_size: 0,
@@ -581,6 +584,7 @@ fn text_output_strips_control_characters_from_paths() {
 fn format_pack_output_text_block() {
     let result = PackResult {
         published_manifest: json!({ "name": "foo", "version": "1.0.0" }),
+        packed_manifest: json!({ "name": "foo", "version": "1.0.0" }),
         contents: vec!["index.js".to_string(), "package.json".into()],
         tarball_path: "foo-1.0.0.tgz".to_string(),
         unpacked_size: 0,

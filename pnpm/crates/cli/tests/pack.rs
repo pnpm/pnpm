@@ -170,6 +170,70 @@ fn recursive_pack_applies_before_packing_hook_to_every_project() {
     drop(root);
 }
 
+/// `--dry-run --json` reports the manifest that would be packed, with the
+/// publish-time transformations applied and no tarball written.
+#[test]
+fn dry_run_json_reports_the_publish_transformed_manifest() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "pkg",
+            "version": "1.0.0",
+            "main": "./src/index.ts",
+            "publishConfig": { "main": "./dist/index.js" },
+            "scripts": { "build": "exit 0", "prepublishOnly": "exit 0" },
+            "pnpm": { "overrides": { "is-positive": "1.0.0" } },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    let output = pacquet
+        .with_arg("pack")
+        .with_arg("--dry-run")
+        .with_arg("--json")
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let result: serde_json::Value =
+        serde_json::from_slice(&output).expect("parse pack --json output");
+    let manifest = &result["manifest"];
+
+    assert_eq!(manifest["main"], json!("./dist/index.js"), "publishConfig must be applied");
+    assert!(manifest.get("publishConfig").is_none(), "publishConfig must be stripped");
+    assert_eq!(manifest["scripts"], json!({ "build": "exit 0" }));
+    assert!(manifest.get("pnpm").is_none(), "the pnpm field must be stripped");
+    assert!(!workspace.join("pkg-1.0.0.tgz").exists(), "--dry-run must not write a tarball");
+
+    drop(root);
+}
+
+/// `--ignore-scripts` skips the pack lifecycle scripts, so the manifest
+/// can be inspected without building the package.
+#[test]
+fn ignore_scripts_skips_the_pack_lifecycle_scripts() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "pkg",
+            "version": "1.0.0",
+            "scripts": { "prepack": "node -e \"require('fs').writeFileSync('prepack-ran', '')\"" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet.with_arg("pack").with_arg("--dry-run").with_arg("--ignore-scripts").assert().success();
+
+    assert!(!workspace.join("prepack-ran").exists(), "prepack must not run");
+
+    drop(root);
+}
+
 /// Extract `package/package.json` from a packed tarball.
 fn read_manifest_from_tarball(tarball: &Path) -> serde_json::Value {
     use std::io::Read as _;
