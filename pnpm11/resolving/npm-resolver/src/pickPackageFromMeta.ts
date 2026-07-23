@@ -24,6 +24,15 @@ export interface PickPackageFromMetaOptions {
   publishedByExclude?: PackageVersionPolicy
 }
 
+export interface PickPackageFromMetaResult {
+  package: PackageInRegistry | null
+  // Policy-aware `dist-tags.latest`: when `publishedBy` filters the packument,
+  // this is the rewritten tag (highest mature version); otherwise the raw
+  // registry tag. Surfaced so the install summary reporter does not advertise
+  // a version the maturity policy itself held back.
+  latest: string | undefined
+}
+
 export function pickPackageFromMeta (
   pickVersionByVersionRangeFn: PickVersionByVersionRange,
   {
@@ -33,7 +42,7 @@ export function pickPackageFromMeta (
   }: PickPackageFromMetaOptions,
   meta: PackageMeta,
   spec: RegistryPackageSpec
-): PackageInRegistry | null {
+): PickPackageFromMetaResult {
   if (publishedBy) {
     const excludeResult = publishedByExclude?.(meta.name) ?? false
     if (excludeResult !== true) {
@@ -58,6 +67,8 @@ export function pickPackageFromMeta (
       }
     }
   }
+  // Captured after any filter rewrite above, so this is the policy-aware latest.
+  const latest = meta['dist-tags']?.latest
   if ((!meta.versions || Object.keys(meta.versions).length === 0) && !publishedBy) {
     // Unfortunately, the npm registry doesn't return the time field in the abbreviated metadata.
     // So we won't always know if the package was unpublished.
@@ -84,7 +95,7 @@ export function pickPackageFromMeta (
         })
         break
     }
-    if (!version) return null
+    if (!version) return { package: null, latest }
     const manifest = meta.versions[version]
     if (manifest && meta['name']) {
       // Packages that are published to the GitHub registry are always published with a scope.
@@ -94,7 +105,7 @@ export function pickPackageFromMeta (
       // In order to avoid issues, we consider that the real name of the package is the one with the scope.
       manifest.name = meta['name']
     }
-    return manifest
+    return { package: manifest, latest }
   } catch (err: unknown) {
     if (
       util.types.isNativeError(err) &&

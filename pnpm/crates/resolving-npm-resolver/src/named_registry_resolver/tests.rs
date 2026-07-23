@@ -3,6 +3,7 @@ use std::{
     sync::Arc,
 };
 
+use chrono::TimeZone;
 use pacquet_lockfile::LockfileResolution;
 use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use pacquet_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
@@ -388,4 +389,33 @@ async fn update_requested_keeps_non_version_selectors() {
     // dropped it (alongside the version pin), the picker would have returned
     // latest 2.1.0.
     assert_eq!(result.id.as_str(), "@acme/private@2.0.0");
+}
+
+#[tokio::test]
+async fn latest_is_policy_aware_under_published_by() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/@acme%2Fprivate")
+        .with_status(200)
+        .with_body(ACME_PRIVATE_BODY)
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+
+    let mut user = HashMap::new();
+    user.insert("gh".to_string(), registry);
+    let (resolver, _tempdir) = build_resolver(user);
+
+    let wanted = WantedDependency {
+        alias: Some("@acme/private".to_string()),
+        bare_specifier: Some("gh:^2.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let opts = ResolveOptions {
+        published_by: Some(chrono::Utc.with_ymd_and_hms(2024, 7, 1, 0, 0, 0).unwrap()),
+        ..ResolveOptions::default()
+    };
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
+    assert_eq!(result.id.as_str(), "@acme/private@2.0.0");
+    assert_eq!(result.latest.as_deref(), Some("2.0.0"), "policy-aware latest, not raw 2.1.0");
 }

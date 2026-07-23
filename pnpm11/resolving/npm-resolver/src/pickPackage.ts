@@ -24,6 +24,7 @@ import {
   pickLowestVersionByVersionRange,
   pickPackageFromMeta,
   type PickPackageFromMetaOptions,
+  type PickPackageFromMetaResult,
   pickVersionByVersionRange,
 } from './pickPackageFromMeta.js'
 import { toRaw } from './toRaw.js'
@@ -101,27 +102,28 @@ interface PickerOptions extends PickPackageFromMetaOptions {
   ignoreMissingTimeField?: boolean
 }
 
+type PickResult = PickPackageFromMetaResult
+
 // When includeLatestTag is set, the "latest" dist-tag is added as a candidate
 // alongside the requested spec, and the higher-versioned pick wins.
 function runPicker (
   pickerOpts: PickerOptions,
   spec: RegistryPackageSpec,
-  pickOne: (targetSpec: RegistryPackageSpec) => PackageInRegistry | null
-): PackageInRegistry | null {
+  pickOne: (targetSpec: RegistryPackageSpec) => PickResult
+): PickResult {
   const currentPkg = pickOne(spec)
   if (!pickerOpts.includeLatestTag) return currentPkg
   const latestPkg = pickOne({ ...spec, type: 'tag', fetchSpec: 'latest' })
   return pickMax(latestPkg, currentPkg)
 }
 
-// Returns whichever pick has the higher version, treating null as "no match".
-function pickMax (
-  a: PackageInRegistry | null,
-  b: PackageInRegistry | null
-): PackageInRegistry | null {
-  if (!a) return b
-  if (!b) return a
-  return semver.lt(a.version, b.version) ? b : a
+// Returns whichever pick has the higher version; treats a null `package` as
+// "no match" but still propagates `latest` (the policy-aware tag) so the
+// caller can surface it even when no candidate satisfied the spec.
+function pickMax (a: PickResult, b: PickResult): PickResult {
+  if (!a.package) return b
+  if (!b.package) return a
+  return semver.lt(a.package.version, b.package.version) ? b : a
 }
 
 const pickHighest = pickPackageFromMeta.bind(null, pickVersionByVersionRange)
@@ -135,13 +137,17 @@ function pickRespectingMinReleaseAge (
   pickerOpts: PickerOptions,
   spec: RegistryPackageSpec,
   meta: PackageMeta
-): PackageInRegistry | null {
+): PickResult {
   return runPicker(pickerOpts, spec, (targetSpec) => {
     const highest = pickHighest(pickerOpts, meta, targetSpec)
-    if (highest) return highest
-    return pickLowest({
+    if (highest.package) return highest
+    // Fall back to lowest regardless of maturity so the install layer can flag
+    // the violation; preserve highest.latest so the reporter doesn't advertise
+    // an immature version.
+    const fallback = pickLowest({
       preferredVersionSelectors: pickerOpts.preferredVersionSelectors,
     }, meta, targetSpec)
+    return { package: fallback.package, latest: highest.latest }
   })
 }
 
@@ -150,7 +156,7 @@ function pickIgnoringReleaseAge (
   pickerOpts: PickerOptions,
   spec: RegistryPackageSpec,
   meta: PackageMeta
-): PackageInRegistry | null {
+): PickResult {
   const pickVersion = pickerOpts.pickLowestVersion ? pickLowest : pickHighest
   return runPicker(pickerOpts, spec, (targetSpec) => pickVersion(pickerOpts, meta, targetSpec))
 }
@@ -162,7 +168,7 @@ function pickMatchingVersionFast (
   pickerOpts: PickerOptions,
   spec: RegistryPackageSpec,
   meta: PackageMeta
-): PackageInRegistry | null {
+): PickResult {
   return pickerOpts.publishedBy
     ? pickRespectingMinReleaseAge(pickerOpts, spec, meta)
     : pickIgnoringReleaseAge(pickerOpts, spec, meta)
@@ -176,7 +182,7 @@ function pickMatchingVersionFinal (
   pickerOpts: PickerOptions,
   spec: RegistryPackageSpec,
   meta: PackageMeta
-): PackageInRegistry | null {
+): PickResult {
   try {
     return pickMatchingVersionFast(pickerOpts, spec, meta)
   } catch (err: unknown) {
@@ -243,7 +249,7 @@ export async function pickPackage (
   },
   spec: RegistryPackageSpec,
   opts: PickPackageOptions
-): Promise<{ meta: PackageMeta, pickedPackage: PackageInRegistry | null }> {
+): Promise<{ meta: PackageMeta, pickedPackage: PackageInRegistry | null, latest?: string }> {
   opts = opts || {}
 
   const pickerOpts: PickerOptions = {
@@ -283,11 +289,12 @@ export async function pickPackage (
     if (upgrade.upgradedFrom != null) {
       ctx.metaCache.set(cacheKey, metaForCache)
     }
-    const pickedPackage = pickMatchingVersionFinal(pickerOpts, spec, metaForCache)
-    if (pickedPackage != null || ctx.offline === true || !unverifiedDiskPackuments.has(metaForCache)) {
+    const picked = pickMatchingVersionFinal(pickerOpts, spec, metaForCache)
+    if (picked.package != null || ctx.offline === true || !unverifiedDiskPackuments.has(metaForCache)) {
       return {
         meta: metaForCache,
-        pickedPackage,
+        pickedPackage: picked.package,
+        latest: picked.latest,
       }
     }
     // Disk-promoted meta that can't satisfy the spec: fall through and
@@ -309,9 +316,11 @@ export async function pickPackage (
           // offline, so a later in-memory cache hit returns this same meta
           // without any network access.
           cacheDiskLoadedMeta(ctx.metaCache, cacheKey, diskMeta)
+          const picked = pickMatchingVersionFinal(pickerOpts, spec, diskMeta)
           return {
             meta: diskMeta,
-            pickedPackage: pickMatchingVersionFinal(pickerOpts, spec, diskMeta),
+            pickedPackage: picked.package,
+            latest: picked.latest,
           }
         }
 
@@ -326,8 +335,8 @@ export async function pickPackage (
         if (upgrade.upgradedFrom != null) {
           ctx.metaCache.set(cacheKey, diskMeta)
         }
-        const pickedPackage = pickMatchingVersionFinal(pickerOpts, spec, diskMeta)
-        if (pickedPackage) {
+        const picked = pickMatchingVersionFinal(pickerOpts, spec, diskMeta)
+        if (picked.package) {
           // A cache hit re-runs maybeUpgradeAbbreviatedMetaForReleaseAge, so
           // serving this meta from memory can't bypass the release-age
           // upgrade. When the upgrade branch above already cached the
@@ -338,7 +347,8 @@ export async function pickPackage (
           }
           return {
             meta: diskMeta,
-            pickedPackage,
+            pickedPackage: picked.package,
+            latest: picked.latest,
           }
         }
       }
@@ -350,12 +360,13 @@ export async function pickPackage (
       // otherwise it is probably out of date
       if ((diskMeta?.versions?.[spec.fetchSpec]) != null) {
         try {
-          const pickedPackage = pickMatchingVersionFast(pickerOpts, spec, diskMeta)
-          if (pickedPackage) {
+          const picked = pickMatchingVersionFast(pickerOpts, spec, diskMeta)
+          if (picked.package) {
             cacheDiskLoadedMeta(ctx.metaCache, cacheKey, diskMeta)
             return {
               meta: diskMeta,
-              pickedPackage,
+              pickedPackage: picked.package,
+              latest: picked.latest,
             }
           }
         } catch {
@@ -372,11 +383,12 @@ export async function pickPackage (
         diskMeta = diskMeta ?? await limit(loadMetaCondensed)
         if (diskMeta != null) {
           try {
-            const pickedPackage = pickMatchingVersionFast(pickerOpts, spec, diskMeta)
-            if (pickedPackage) {
+            const picked = pickMatchingVersionFast(pickerOpts, spec, diskMeta)
+            if (picked.package) {
               return {
                 meta: diskMeta,
-                pickedPackage,
+                pickedPackage: picked.package,
+                latest: picked.latest,
               }
             }
           } catch {
@@ -426,16 +438,18 @@ export async function pickPackage (
       if (meta == null) throw err
       logger.error(err, err)
       logger.debug({ message: `Using cached meta from ${pkgMirror}` })
+      const picked = pickMatchingVersionFinal(pickerOpts, spec, meta)
       return {
         meta,
-        pickedPackage: pickMatchingVersionFinal(pickerOpts, spec, meta),
+        pickedPackage: picked.package,
+        latest: picked.latest,
       }
     }
 
     // A 304 whose cached body is still on disk: the registry vouched the
     // packument is current, so restart its validation clock, upgrade
     // abbreviated -> full when the maturity check needs `time`, and serve it.
-    async function serveValidatedMeta (cached: PackageMeta): Promise<{ meta: PackageMeta, pickedPackage: PackageInRegistry | null }> {
+    async function serveValidatedMeta (cached: PackageMeta): Promise<{ meta: PackageMeta, pickedPackage: PackageInRegistry | null, latest?: string }> {
       // The registry just vouched that the cached packument equals its current
       // one, so the validation clock restarts now: bump the mirror's mtime so
       // the publishedBy freshness shortcut above can fire again on the next
@@ -455,16 +469,18 @@ export async function pickPackage (
       const upgrade = await maybeUpgradeAbbreviatedMetaForReleaseAge(ctx, spec, opts, cached)
       const meta = upgradeMetaForCache(ctx, upgrade, { pkgMirror, dryRun: opts.dryRun })
       ctx.metaCache.set(cacheKey, meta)
+      const picked = pickMatchingVersionFinal(pickerOpts, spec, meta)
       return {
         meta,
-        pickedPackage: pickMatchingVersionFinal(pickerOpts, spec, meta),
+        pickedPackage: picked.package,
+        latest: picked.latest,
       }
     }
 
     // A freshly downloaded 200 body: when minimumReleaseAge needs the
     // per-version `time` an abbreviated document omits, upgrade to full
     // metadata; then filter, persist to the mirror, and cache it.
-    async function persistFreshMeta (fetched: FetchMetadataResult): Promise<{ meta: PackageMeta, pickedPackage: PackageInRegistry | null }> {
+    async function persistFreshMeta (fetched: FetchMetadataResult): Promise<{ meta: PackageMeta, pickedPackage: PackageInRegistry | null, latest?: string }> {
       let meta = fetched.meta
       let resultToSave: FetchMetadataResult = fetched
 
@@ -517,9 +533,11 @@ export async function pickPackage (
       meta.etag = resultToSave.etag
       // only save meta to cache, when it is fresh
       ctx.metaCache.set(cacheKey, meta)
+      const picked = pickMatchingVersionFinal(pickerOpts, spec, meta)
       return {
         meta,
-        pickedPackage: pickMatchingVersionFinal(pickerOpts, spec, meta),
+        pickedPackage: picked.package,
+        latest: picked.latest,
       }
     }
   })

@@ -597,7 +597,7 @@ async function resolveNpm (
   }
 
   const authHeaderValue = ctx.getAuthHeaderValueByURI(registry, { pkgName: spec.name })
-  let pickResult!: { meta: PackageMeta, pickedPackage: PackageInRegistry | null }
+  let pickResult!: { meta: PackageMeta, pickedPackage: PackageInRegistry | null, latest?: string }
   try {
     pickResult = await ctx.pickPackage(spec, {
       pickLowestVersion: opts.pickLowestVersion,
@@ -679,7 +679,7 @@ async function resolveNpm (
           calcSpecifier: opts.calcSpecifier,
           pinnedVersion: opts.pinnedVersion,
         }),
-        latest: meta['dist-tags'].latest,
+        latest: pickResult.latest,
       }
     }
     const localVersion = pickMatchingLocalVersionOrNull(workspacePkgsMatchingName, spec)
@@ -694,7 +694,7 @@ async function resolveNpm (
           calcSpecifier: opts.calcSpecifier,
           pinnedVersion: opts.pinnedVersion,
         }),
-        latest: meta['dist-tags'].latest,
+        latest: pickResult.latest,
       }
     }
   }
@@ -717,7 +717,7 @@ async function resolveNpm (
   const publishedAt = meta.time?.[pickedPackage.version]
   return {
     id,
-    latest: meta['dist-tags'].latest,
+    latest: pickResult.latest,
     manifest: pickedPackage,
     resolution,
     resolvedVia: 'npm-registry',
@@ -846,7 +846,7 @@ async function pickFromSimpleRegistry (
   policyViolation?: ResolutionPolicyViolation
 }> {
   const authHeaderValue = ctx.getAuthHeaderValueByURI(registry, { pkgName: spec.name })
-  const { meta, pickedPackage } = await ctx.pickPackage(spec, {
+  const pickResult = await ctx.pickPackage(spec, {
     pickLowestVersion: opts.pickLowestVersion,
     publishedBy: opts.publishedBy,
     publishedByExclude: opts.publishedByExclude,
@@ -858,6 +858,7 @@ async function pickFromSimpleRegistry (
     updateChecksums: opts.updateChecksums,
     optional: wantedDependency.optional,
   })
+  const { meta, pickedPackage } = pickResult
   if (pickedPackage == null) {
     throw new NoMatchingVersionError({ wantedDependency, packageMeta: meta, registry })
   }
@@ -869,7 +870,7 @@ async function pickFromSimpleRegistry (
   const publishedAt = meta.time?.[pickedPackage.version]
   return {
     id: `${pickedPackage.name}@${pickedPackage.version}` as PkgResolutionId,
-    latest: meta['dist-tags'].latest,
+    latest: pickResult.latest,
     manifest: pickedPackage,
     resolution,
     publishedAt,

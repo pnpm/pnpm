@@ -152,6 +152,7 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
             registry,
             published_by: opts.published_by,
             published_by_exclude: opts.published_by_exclude.as_ref(),
+            latest: picked.latest.as_deref(),
             picked_manifest_cache: &self.picked_manifest_cache,
         })?;
 

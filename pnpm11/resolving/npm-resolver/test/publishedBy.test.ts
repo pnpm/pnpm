@@ -270,6 +270,9 @@ test('ignoreMissingTimeField=true skips maturity check when full metadata has no
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.id).toBe('is-positive@3.1.0')
+  // Maturity check was skipped (no time field), so latest is the raw tag —
+  // the install summary '(X is available)' hint is unaffected for this pkg.
+  expect(resolveResult!.latest).toBe('3.1.0')
 })
 
 test('ignoreMissingTimeField=true still upgrades abbreviated→full when time is missing', async () => {
@@ -584,4 +587,99 @@ test('excluded packages bypass the mtime cache shortcut and refresh stale metada
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.id).toBe('is-positive@3.1.0')
+})
+
+test('latest is the policy-aware tag when publishedBy filters out the registry latest', async () => {
+  // is-positive-full has 1.0.0 (2015-06-02), 2.0.0 (2015-06-17), 3.0.0 (2015-07-10),
+  // 3.1.0 (2016-01-11); dist-tags.latest = 3.1.0. publishedBy between 3.0.0 and
+  // 3.1.0 filters 3.1.0 out as immature, so the policy-aware latest becomes 3.0.0.
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveMeta)
+
+  const cacheDir = temporaryDirectory()
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    filterMetadata: true,
+    fullMetadata: true,
+    registries,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.0.0' }, {
+    publishedBy: new Date('2015-10-01T00:00:00.000Z'),
+  })
+
+  expect(resolveResult!.id).toBe('is-positive@3.0.0')
+  expect(resolveResult!.latest).toBe('3.0.0')
+})
+
+test('latest is the raw registry tag when publishedBy is not set', async () => {
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveMeta)
+
+  const cacheDir = temporaryDirectory()
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    filterMetadata: true,
+    fullMetadata: true,
+    registries,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.0.0' }, {})
+
+  expect(resolveResult!.id).toBe('is-positive@3.1.0')
+  expect(resolveResult!.latest).toBe('3.1.0')
+})
+
+test('latest is the raw registry tag when publishedByExclude fully excludes the package', async () => {
+  // publishedBy would normally filter 3.1.0 (2026) out as immature against the
+  // 2015-10-01 cutoff, leaving 3.0.0 as the policy-aware latest. But the
+  // exclude policy returns true for is-positive, so the maturity filter is
+  // skipped entirely and the resolver returns the raw registry tag (3.1.0).
+  // Important for the reporter: an excluded package must not have its
+  // '(X is available)' hint suppressed by a policy that doesn't apply to it.
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveMeta)
+
+  const cacheDir = temporaryDirectory()
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    filterMetadata: true,
+    fullMetadata: true,
+    registries,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.0.0' }, {
+    publishedBy: new Date('2015-10-01T00:00:00.000Z'),
+    publishedByExclude: (pkgName) => pkgName === 'is-positive',
+  })
+
+  expect(resolveResult!.id).toBe('is-positive@3.1.0')
+  expect(resolveResult!.latest).toBe('3.1.0')
+})
+
+test('latest is undefined when all versions are filtered out as immature (fallback case)', async () => {
+  // publishedBy 2015-06-01 is before every is-positive version → all filtered
+  // out → fallback picks 1.0.0; latest must stay undefined so the reporter
+  // doesn't advertise an immature version.
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveMeta)
+
+  const cacheDir = temporaryDirectory()
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    filterMetadata: true,
+    fullMetadata: true,
+    registries,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^1.0.0' }, {
+    publishedBy: new Date('2015-06-01T00:00:00.000Z'),
+  })
+
+  expect(resolveResult!.id).toBe('is-positive@1.0.0')
+  expect(resolveResult!.latest).toBeUndefined()
 })

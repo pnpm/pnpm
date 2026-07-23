@@ -261,7 +261,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
                 opts,
             )
         {
-            result.latest = picked.meta.dist_tag("latest").map(str::to_string);
+            result.latest.clone_from(&picked.latest);
             return Ok(Some(result));
         }
 
@@ -274,6 +274,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             registry: &registry,
             published_by: opts.published_by,
             published_by_exclude: opts.published_by_exclude.as_ref(),
+            latest: picked.latest.as_deref(),
             picked_manifest_cache: &self.picked_manifest_cache,
         })?;
 
@@ -320,6 +321,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             registry,
             published_by: opts.published_by,
             published_by_exclude: opts.published_by_exclude.as_ref(),
+            latest: picked.latest.as_deref(),
             picked_manifest_cache: &self.picked_manifest_cache,
         })?;
 
@@ -511,6 +513,11 @@ fn default_tag_spec(alias: &str, default_tag: &str) -> RegistryPackageSpec {
 pub(crate) struct PickedFromRegistry {
     pub(crate) meta: std::sync::Arc<Package>,
     pub(crate) version: std::sync::Arc<PackageVersion>,
+    /// Policy-aware `dist-tags.latest` (rewritten tag when the maturity
+    /// filter applied, otherwise the raw tag). Surfaced for the install
+    /// summary reporter so `(X is available)` only fires for versions
+    /// the policy would actually install.
+    pub(crate) latest: Option<String>,
 }
 
 pub(crate) struct PickFromRegistryOptions<'a> {
@@ -568,13 +575,21 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
             };
         };
         let Some(guard) = opts.package_version_guard else {
-            return Ok(Some(PickedFromRegistry { meta: pick_result.meta, version }));
+            return Ok(Some(PickedFromRegistry {
+                meta: pick_result.meta,
+                version,
+                latest: pick_result.latest,
+            }));
         };
 
         let version_str = version.version.to_string();
         match guard.check(&opts.spec.name, &version_str).await? {
             PackageVersionGuardDecision::Allow => {
-                return Ok(Some(PickedFromRegistry { meta: pick_result.meta, version }));
+                return Ok(Some(PickedFromRegistry {
+                    meta: pick_result.meta,
+                    version,
+                    latest: pick_result.latest,
+                }));
             }
             PackageVersionGuardDecision::Reject { reason } => {
                 tracing::debug!(
@@ -653,6 +668,10 @@ pub(crate) struct BuildResolveResult<'a> {
     pub registry: &'a str,
     pub published_by: Option<DateTime<Utc>>,
     pub published_by_exclude: Option<&'a PackageVersionPolicy>,
+    /// Policy-aware `dist-tags.latest` from the picker. Falls back to
+    /// `meta.dist_tag("latest")` when `None` (only happens for callers
+    /// that bypass [`pick_package`], e.g. workspace-shadowed picks).
+    pub latest: Option<&'a str>,
     pub picked_manifest_cache: &'a crate::PickedManifestCache,
 }
 
@@ -672,6 +691,7 @@ pub(crate) fn build_resolve_result(
         registry,
         published_by,
         published_by_exclude,
+        latest,
         picked_manifest_cache,
     } = args;
     let pkg_name =
@@ -724,7 +744,7 @@ pub(crate) fn build_resolve_result(
     Ok(ResolveResult {
         id,
         name_ver: Some(name_ver),
-        latest: meta.dist_tag("latest").map(str::to_string),
+        latest: latest.map(str::to_string),
         published_at,
         manifest,
         resolution,

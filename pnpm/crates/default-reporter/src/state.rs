@@ -794,8 +794,13 @@ impl ReporterState {
         if let Some(version) = &pkg.version {
             result.push(' ');
             result.push_str(&self.colors.grey(version));
+            // Only advertise an upgrade when latest is strictly newer than
+            // the installed version. A bare `!=` would also fire when the
+            // user has pinned a newer version than the registry's latest
+            // tag (e.g. a beta), wrongly suggesting a downgrade.
             if let Some(latest) = &pkg.latest
                 && latest != version
+                && is_strictly_newer(latest, version)
             {
                 result.push(' ');
                 result.push_str(&self.colors.grey(&format!("({latest} is available)")));
@@ -1296,6 +1301,13 @@ fn lifecycle_ids(message: &LifecycleMessage) -> (&str, &str, &str) {
 
 fn entries_label(entries: u64) -> String {
     if entries == 1 { "1 entry".to_string() } else { format!("{entries} entries") }
+}
+
+fn is_strictly_newer(latest: &str, version: &str) -> bool {
+    match (node_semver::Version::parse(latest), node_semver::Version::parse(version)) {
+        (Ok(l), Ok(v)) => l > v,
+        _ => false,
+    }
 }
 
 fn remove_optional_from_prod(manifest: &Value) -> Value {
