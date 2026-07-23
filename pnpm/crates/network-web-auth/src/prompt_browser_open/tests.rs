@@ -28,15 +28,7 @@ enum Outcome {
 /// `Fake` implementing [`StdinIsTty`], [`OpenUrl`], and [`EnterKeyListener`]
 /// over them, a `RecordingReporter`, and the `reset` / `set_*` /
 /// `simulate_enter` / `open_calls` / `closed` / `infos` / `warns` /
-/// `messages_at` helpers. Because the state lives inside the test function,
-/// every test gets its own storage; nothing is shared at module scope, so
-/// concurrently running tests can never race on it. This is the "state in a
-/// `static` inside the `#[test]` body" rule of the "Dependency injection for
-/// tests" section of `pnpm/CODE_STYLE_GUIDE.md`.
-///
-/// The generated helpers carry `#[allow(dead_code)]`: every expansion emits
-/// the full fake surface, but each test drives only the pieces its scenario
-/// needs.
+/// `messages_at` helpers that drive and inspect it.
 macro_rules! browser_fake {
     () => {
         thread_local! {

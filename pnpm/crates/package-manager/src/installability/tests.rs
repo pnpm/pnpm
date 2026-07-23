@@ -18,11 +18,7 @@ use std::{collections::HashMap, sync::Mutex};
 /// Invoked as `recording_reporter!();`, it declares — as items local to the
 /// test function — a `static RECORDED_EVENTS: Mutex<Vec<LogEvent>>`, a
 /// `RecordingReporter` that pushes every emit into it, and the `take_events`
-/// / `reset_events` helpers. Because the static lives inside the test
-/// function, every test gets its own buffer and nothing is shared at module
-/// scope, so concurrently running tests can never race on it. This is the
-/// "state in a `static` inside the `#[test]` body" rule of the "Dependency
-/// injection for tests" section of `pnpm/CODE_STYLE_GUIDE.md`.
+/// / `reset_events` helpers that drain and clear it.
 macro_rules! recording_reporter {
     () => {
         static RECORDED_EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());

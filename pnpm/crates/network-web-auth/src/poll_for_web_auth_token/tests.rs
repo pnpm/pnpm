@@ -89,15 +89,7 @@ enum SleepBehavior {
 /// function — the `TIME` / `SLEEP_BEHAVIOR` / `SLEEPS` / `FETCH`
 /// thread-locals, a unit `Fake` implementing [`Clock`], [`Sleep`], and
 /// [`WebAuthFetch`] over them, and the `reset` / `set_sleep_behavior` /
-/// `set_fetch` / `recorded_sleeps` helpers. Because the state lives inside
-/// the test function, every test gets its own storage; nothing is shared at
-/// module scope, so concurrently running tests can never race on it. This is
-/// the "state in a `static` inside the `#[test]` body" rule of the
-/// "Dependency injection for tests" section of `pnpm/CODE_STYLE_GUIDE.md`.
-///
-/// The generated helpers carry `#[allow(dead_code)]`: every expansion emits
-/// the full fake surface, but each test drives only the pieces its scenario
-/// needs.
+/// `set_fetch` / `recorded_sleeps` helpers that drive and inspect it.
 macro_rules! poll_fake {
     () => {
         thread_local! {

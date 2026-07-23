@@ -75,15 +75,10 @@ fn resolve_store_dir_same_volume_uses_home_default() {
 ///
 /// Invoked as `prefix_probe!();`, it declares — as items local to the test
 /// function — a `static ALLOW_PREFIXES: Mutex<Vec<PathBuf>>`, a `PrefixProbe`
-/// whose `can_link_between_dirs` accepts a `to_dir` iff its canonical path
-/// starts with one of the allowlisted prefixes, and a `set_allow` helper that
-/// installs the allowlist. This lets a test pin the mountpoint
-/// deterministically without needing two real volumes. Because the allowlist
-/// lives inside the test function, every test gets its own storage; nothing is
-/// shared at module scope, so parallel test execution can never race the
-/// allowlist between installing it and probing with it. This is the "state in
-/// a `static` inside the `#[test]` body" rule of the "Dependency injection for
-/// tests" section of `pnpm/CODE_STYLE_GUIDE.md`.
+/// whose `can_link_between_dirs` accepts a `to_dir` iff its path starts with
+/// one of the allowlisted prefixes, and a `set_allow` helper that installs
+/// the allowlist. This pins the mountpoint deterministically without needing
+/// two real volumes.
 #[cfg(unix)]
 macro_rules! prefix_probe {
     () => {

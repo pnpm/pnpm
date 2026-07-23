@@ -100,17 +100,7 @@ macro_rules! host_current_dir {
 /// function — the `FAKE_ENV` / `FAKE_CWD` thread-locals, a `FakeEnv` `Sys`
 /// fake whose env reads come from `FAKE_ENV` (and nothing else) with no home
 /// dir, and the `set_fake_env` / `set_fake_cwd` / `load_with_fake_env`
-/// helpers. Because the maps live inside the test function, every test gets
-/// its own storage; nothing is shared at module scope, so concurrently
-/// running tests can never race on it — no `set_var` and no `EnvGuard` lock,
-/// so the `npmrcAuthFile` / registry / token env-resolution tests stay
-/// isolated from the developer's real shell. This is the "state in a `static`
-/// inside the `#[test]` body" rule of the "Dependency injection for tests"
-/// section of `pnpm/CODE_STYLE_GUIDE.md`.
-///
-/// The generated `set_*` / `load_with_fake_env` helpers carry
-/// `#[allow(dead_code)]`: every expansion emits the full fake surface, but
-/// each test drives only the pieces its scenario needs.
+/// helpers that drive it.
 macro_rules! fake_env {
     () => {
         thread_local! {
