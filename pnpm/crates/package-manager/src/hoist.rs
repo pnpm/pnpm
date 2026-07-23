@@ -578,7 +578,32 @@ pub fn symlink_hoisted_dependencies(
         work.push((Arc::new(project_dir.clone()), *kind, alias));
     }
 
-    if work.is_empty() {
+    // Under enableGlobalVirtualStore, fallback-hoisted dependencies are linked into GVS package directories
+    // so that Node.js/TypeScript symlink target real-path resolution can locate implicit/phantom dependencies.
+    let mut gvs_work: Vec<(Arc<PathBuf>, PathBuf)> = Vec::new();
+    if layout.enable_global_virtual_store() {
+        for (node_id, node) in graph {
+            if skipped.contains(node_id) {
+                continue;
+            }
+            let gvs_modules_dir = layout.slot_dir(node_id).join("node_modules");
+            for (dep_dir, _kind, alias) in &work {
+                if node.children.contains_key(alias.as_str()) || node.name.to_string() == **alias {
+                    continue;
+                }
+                if alias.starts_with('@')
+                    && let Some(slash) = alias.find('/')
+                {
+                    scope_dirs.insert(gvs_modules_dir.join(&alias[..slash]));
+                }
+                if let Ok(dest) = safe_join_modules_dir(&gvs_modules_dir, alias) {
+                    gvs_work.push((Arc::clone(dep_dir), dest));
+                }
+            }
+        }
+    }
+
+    if work.is_empty() && gvs_work.is_empty() {
         return Ok(());
     }
 
@@ -627,7 +652,28 @@ pub fn symlink_hoisted_dependencies(
                 }),
             }
         },
-    )
+    )?;
+
+    gvs_work.par_iter().try_for_each(|(dep_dir, dest)| -> Result<(), crate::SymlinkPackageError> {
+        match pacquet_fs::symlink_dir(dep_dir.as_path(), dest) {
+            Ok(()) => Ok(()),
+            Err(ref error) if error.kind() == ErrorKind::AlreadyExists => {
+                update_stale_hoist_symlink(
+                    dep_dir.as_path(),
+                    dest,
+                    layout.package_store_dir(),
+                    private_hoisted_modules_dir.parent().expect(
+                        "private_hoisted_modules_dir (<vs>/node_modules) always has a parent",
+                    ),
+                )
+            }
+            Err(error) => Err(crate::SymlinkPackageError::SymlinkDir {
+                symlink_target: dep_dir.as_path().to_path_buf(),
+                symlink_path: dest.clone(),
+                error,
+            }),
+        }
+    })
 }
 
 /// Read the existing symlink at `dest` and decide whether it should

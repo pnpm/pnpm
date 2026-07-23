@@ -726,3 +726,25 @@ test('virtualStoreOnly suppresses hoisting even with explicit hoistPattern', asy
   // No importer-level symlinks
   expect(fs.existsSync(path.resolve('node_modules/@pnpm.e2e/pkg-with-1-dep'))).toBeFalsy()
 })
+
+test('implicit phantom hoisted dependencies are linked into global virtual store package directories', async () => {
+  prepareEmpty()
+  const globalVirtualStoreDir = path.resolve('links')
+  const manifest = {
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+      '@pnpm.e2e/peer-c': '2.0.0',
+    },
+  }
+  await install(manifest, testDefaults({
+    enableGlobalVirtualStore: true,
+    virtualStoreDir: globalVirtualStoreDir,
+    hoistPattern: ['*'],
+  }))
+
+  const filesPeerC = fs.readdirSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/peer-c/2.0.0'))
+  expect(filesPeerC.length).toBeGreaterThan(0)
+  // Assert that @pnpm.e2e/dep-of-pkg-with-1-dep (which is undeclared in @pnpm.e2e/peer-c) is linked into peer-c's GVS node_modules
+  expect(fs.existsSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/peer-c/2.0.0', filesPeerC[0], 'node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json'))).toBeTruthy()
+})
+

@@ -716,4 +716,81 @@ describe('global virtual store prune', () => {
     expect(scopedPkgsAfter).toContain('romeo')
     expect(scopedPkgsAfter).toContain('romeo-dep')
   })
+
+  test('prune removes phantom fallback symlinks inside GVS package node_modules but keeps declared deps', async () => {
+    // @pnpm.e2e/romeo depends on @pnpm.e2e/romeo-dep (declared).
+    // The GVS linker also writes phantom fallback symlinks for every hoisted
+    // package into each GVS package's node_modules — including is-positive,
+    // which is NOT declared by @pnpm.e2e/romeo.
+    //
+    // After removing is-positive from the project and pruning, the prune
+    // mark phase must NOT follow the phantom is-positive symlink inside
+    // @pnpm.e2e/romeo's GVS node_modules (undeclared dep).
+    // Therefore is-positive should be removed from the store.
+    prepare({
+      dependencies: {
+        '@pnpm.e2e/romeo': '1.0.0',
+        'is-positive': '1.0.0',
+      },
+    })
+
+    const storeDir = path.resolve('..', 'phantom-store')
+    const cacheDir = path.resolve('..', 'phantom-cache')
+
+    await execa('node', [
+      pnpmBin,
+      'install',
+      `--store-dir=${storeDir}`,
+      `--cache-dir=${cacheDir}`,
+      `--registry=${REGISTRY}`,
+      '--config.enableGlobalVirtualStore=true',
+      '--config.ci=false',
+    ])
+
+    const linksDir = path.join(storeDir, STORE_VERSION, 'links')
+    const scopeDir = path.join(linksDir, '@pnpm.e2e')
+    const unscopedDir = path.join(linksDir, '@')
+
+    // Sanity: both romeo and is-positive are present after install
+    expect(fs.readdirSync(scopeDir)).toContain('romeo')
+    expect(fs.readdirSync(unscopedDir)).toContain('is-positive')
+
+    // Remove is-positive — only romeo remains
+    fs.writeFileSync('package.json', JSON.stringify({
+      dependencies: {
+        '@pnpm.e2e/romeo': '1.0.0',
+      },
+    }))
+    await execa('node', [
+      pnpmBin,
+      'install',
+      `--store-dir=${storeDir}`,
+      `--cache-dir=${cacheDir}`,
+      `--registry=${REGISTRY}`,
+      '--config.enableGlobalVirtualStore=true',
+      '--config.ci=false',
+    ])
+
+    // Prune the store
+    await store.handler({
+      cacheDir,
+      dir: process.cwd(),
+      pnpmHomeDir: '',
+      configByUri: {},
+      registries: { default: REGISTRY },
+      storeDir: path.join(storeDir, STORE_VERSION),
+      dlxCacheMaxAge: Infinity,
+      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+    }, ['prune'])
+
+    // is-positive must be removed: the prune must not follow the phantom
+    // fallback symlink inside romeo's GVS node_modules to keep it alive.
+    const unscopedAfter = fs.existsSync(unscopedDir) ? fs.readdirSync(unscopedDir) : []
+    expect(unscopedAfter).not.toContain('is-positive')
+
+    // romeo and its declared transitive dep romeo-dep must be preserved
+    const scopedAfter = fs.readdirSync(scopeDir)
+    expect(scopedAfter).toContain('romeo')
+    expect(scopedAfter).toContain('romeo-dep')
+  })
 })

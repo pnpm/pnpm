@@ -30,6 +30,7 @@ export interface DirectDependenciesByImporterId<T extends string> {
 const hoistLogger = logger('hoist')
 
 export interface HoistOpts<T extends string> extends GetHoistedDependenciesOpts<T> {
+  enableGlobalVirtualStore?: boolean
   extraNodePath?: string[]
   preferSymlinkedExecutables?: boolean
   virtualStoreDir: string
@@ -42,6 +43,7 @@ export async function hoist<T extends string> (opts: HoistOpts<T>): Promise<Hois
   const { hoistedDependencies, hoistedAliasesWithBins, hoistedDependenciesByNodeId } = result
 
   await symlinkHoistedDependencies(hoistedDependenciesByNodeId, {
+    enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
     graph: opts.graph,
     directDepsByImporterId: opts.directDepsByImporterId,
     privateHoistedModulesDir: opts.privateHoistedModulesDir,
@@ -264,9 +266,19 @@ function hoistGraph<T extends string> (
   }
 }
 
+function getModulesDir (pkgDir: string, pkgName: string): string {
+  const depth = pkgName.startsWith('@') && pkgName.includes('/') ? 2 : 1
+  let dir = pkgDir
+  for (let i = 0; i < depth; i++) {
+    dir = path.dirname(dir)
+  }
+  return dir
+}
+
 async function symlinkHoistedDependencies<T extends string> (
   hoistedDependenciesByNodeId: HoistedDependenciesByNodeId<T>,
   opts: {
+    enableGlobalVirtualStore?: boolean
     graph: DependenciesGraph<T>
     directDepsByImporterId: DirectDependenciesByImporterId<T>
     privateHoistedModulesDir: string
@@ -300,7 +312,17 @@ async function symlinkHoistedDependencies<T extends string> (
           ? opts.publicHoistedModulesDir
           : opts.privateHoistedModulesDir
         const dest = path.join(targetDir, pkgAlias)
-        return symlink(depLocation, dest)
+        await symlink(depLocation, dest)
+        if (opts.enableGlobalVirtualStore && opts.graph) {
+          const graphNodes = Object.values(opts.graph) as Array<DependenciesGraphNode<T>>
+          await Promise.all(graphNodes.map(async (graphNode) => {
+            if (!graphNode.dir || !graphNode.children || graphNode.name === pkgAlias) return
+            if (graphNode.children[pkgAlias]) return
+            const modulesDir = getModulesDir(graphNode.dir, graphNode.name)
+            const gvsDest = path.join(modulesDir, pkgAlias)
+            await symlink(depLocation, gvsDest)
+          }))
+        }
       }))
     })())
   }

@@ -226,6 +226,7 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
     newHoistedDependencies = {
       ...opts.hoistedDependencies,
       ...await hoist({
+        enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
         extraNodePath: opts.extraNodePaths,
         graph: depGraph,
         directDepsByImporterId: {

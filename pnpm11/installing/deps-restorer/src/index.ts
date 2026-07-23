@@ -483,6 +483,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       newHoistedDependencies = {
         ...opts.hoistedDependencies,
         ...await hoist({
+          enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
           extraNodePath: opts.extraNodePaths,
           graph,
           directDepsByImporterId: Object.fromEntries(Object.entries(directDependenciesByImporterId).map(([projectId, deps]) => [
