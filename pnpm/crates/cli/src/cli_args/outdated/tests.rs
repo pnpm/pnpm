@@ -173,7 +173,7 @@ fn assert_borders_aligned(table: &str) {
     let widths: Vec<usize> = table.lines().map(visible_width).collect();
     assert!(
         widths.windows(2).all(|pair| pair[0] == pair[1]),
-        "every row must have the same display width so the borders line up, got {widths:?} for:\n{table}"
+        "every row must have the same display width so the borders line up, got {widths:?} for:\n{table}",
     );
 }
 
