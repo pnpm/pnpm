@@ -1,6 +1,6 @@
 use super::{
-    is_workspace_local_path_specifier, npm_alias_target, parse_update_param,
-    persist_selected_manifests, prepare_selected_manifests, selected_project_indices,
+    is_workspace_local_path_specifier, parse_update_param, persist_selected_manifests,
+    prepare_selected_manifests, selected_project_indices,
 };
 use pacquet_config::{CatalogMode, Config};
 use pacquet_network::ThrottledClient;
@@ -61,31 +61,6 @@ fn negated_unscoped_pattern_without_version() {
 }
 
 #[test]
-fn npm_alias_specifiers_yield_their_real_package_name() {
-    for (spec, alias, target) in [
-        ("npm:bar@^4.0.0", "foo", Some("bar")),
-        ("npm:bar", "foo", Some("bar")),
-        ("npm:@types/table@6.3.2", "@types/zkochan__table", Some("@types/table")),
-        ("npm:@types/table", "@types/zkochan__table", Some("@types/table")),
-    ] {
-        assert_eq!(npm_alias_target(spec, alias), target, "target of {alias}@{spec}");
-    }
-}
-
-#[test]
-fn non_alias_specifiers_have_no_npm_alias_target() {
-    for (spec, alias) in [
-        ("^1.0.0", "foo"),
-        ("catalog:", "foo"),
-        ("workspace:*", "foo"),
-        ("npm:^1.0.0", "foo"),
-        ("npm:foo@^1.0.0", "foo"),
-    ] {
-        assert_eq!(npm_alias_target(spec, alias), None, "target of {alias}@{spec}");
-    }
-}
-
-#[test]
 fn workspace_local_path_specifiers_are_detected() {
     for spec in [
         "workspace:.",
@@ -129,7 +104,7 @@ async fn selected_update_prepares_and_persists_only_selected_projects() {
     let selected_dirs = ordered_dirs.iter().cloned().collect::<HashSet<_>>();
     let indices = selected_project_indices(&projects, &ordered_dirs, &selected_dirs);
     let config = Config::new();
-    let http_client = ThrottledClient::default();
+    let http_client = std::sync::Arc::new(ThrottledClient::default());
 
     let prepared = prepare_selected_manifests::<SilentReporter>(
         &mut projects,
@@ -173,7 +148,7 @@ async fn selected_update_no_save_mutates_in_memory_without_persisting() {
     let indices = selected_project_indices(&projects, &ordered_dirs, &selected_dirs);
     let mut config = Config::new();
     config.catalog_mode = CatalogMode::Prefer;
-    let http_client = ThrottledClient::default();
+    let http_client = std::sync::Arc::new(ThrottledClient::default());
 
     let prepared = prepare_selected_manifests::<SilentReporter>(
         &mut projects,
@@ -215,7 +190,7 @@ async fn selected_update_depth_zero_skips_projects_without_a_matching_dependency
     let mut projects = [project_without_foo(dir.path(), "a"), project_with_foo(dir.path(), "b")];
     let selected_indices = [0, 1];
     let config = Config::new();
-    let http_client = ThrottledClient::default();
+    let http_client = std::sync::Arc::new(ThrottledClient::default());
 
     let prepared = prepare_selected_manifests::<SilentReporter>(
         &mut projects,
@@ -246,7 +221,7 @@ async fn selected_update_latest_depth_zero_is_noop_when_no_project_matches() {
     let mut projects = [project_without_foo(dir.path(), "a"), project_without_foo(dir.path(), "b")];
     let selected_indices = [0, 1];
     let config = Config::new();
-    let http_client = ThrottledClient::default();
+    let http_client = std::sync::Arc::new(ThrottledClient::default());
 
     let prepared = prepare_selected_manifests::<SilentReporter>(
         &mut projects,
@@ -271,19 +246,107 @@ async fn selected_update_latest_depth_zero_is_noop_when_no_project_matches() {
     assert!(prepared.persist_indices.is_empty());
 }
 
+/// `--latest` rewrites a dependency only if a resolver claims it and
+/// reports a specifier back. No resolver in the latest-capable chain
+/// claims any of these, so each manifest entry survives verbatim — and
+/// none of them costs a network round trip during manifest preparation.
+/// The sibling test below is the positive control, proving the skip is a
+/// decision rather than an inert harness.
+#[tokio::test]
+async fn latest_leaves_specifiers_the_npm_resolver_does_not_claim() {
+    for specifier in [
+        "workspace:*",
+        "workspace:^1.0.0",
+        "workspace:../packages/foo",
+        "link:../foo",
+        "file:../foo.tgz",
+        "github:user/repo",
+        "git+ssh://git@github.com/user/repo.git#v1.0.0",
+        "https://example.com/foo.tgz",
+    ] {
+        let dir = tempdir().expect("create tempdir");
+        let mut projects = [project_with_foo_specifier(dir.path(), "a", specifier)];
+        let config = unroutable_registry_config();
+        let http_client = std::sync::Arc::new(ThrottledClient::default());
+
+        prepare_selected_manifests::<SilentReporter>(
+            &mut projects,
+            &[0],
+            dir.path(),
+            &http_client,
+            &config,
+            None,
+            &[],
+            true,
+            false,
+            true,
+            &[DependencyGroup::Prod],
+            0,
+            false,
+            None,
+        )
+        .await
+        .unwrap_or_else(|error| {
+            panic!("update --latest reached the registry for {specifier}: {error}")
+        });
+
+        assert_eq!(dependency_specifier(&projects[0].manifest), specifier);
+        assert_eq!(saved_dependency_specifier(&projects[0].manifest), specifier);
+    }
+}
+
+#[tokio::test]
+async fn latest_rewrites_a_specifier_the_npm_resolver_claims() {
+    let dir = tempdir().expect("create tempdir");
+    let mut projects = [project_with_foo(dir.path(), "a")];
+    let config = unroutable_registry_config();
+    let http_client = std::sync::Arc::new(ThrottledClient::default());
+
+    let result = prepare_selected_manifests::<SilentReporter>(
+        &mut projects,
+        &[0],
+        dir.path(),
+        &http_client,
+        &config,
+        None,
+        &[],
+        true,
+        false,
+        true,
+        &[DependencyGroup::Prod],
+        0,
+        false,
+        None,
+    )
+    .await;
+
+    assert!(result.is_err(), "a range specifier is the registry's to bump, so it must be fetched");
+}
+
 fn project_with_foo(root: &std::path::Path, name: &str) -> Project {
+    project_with_foo_specifier(root, name, "^1.0.0")
+}
+
+fn project_with_foo_specifier(root: &std::path::Path, name: &str, specifier: &str) -> Project {
     let root_dir = root.join(name);
     std::fs::create_dir_all(&root_dir).expect("create project directory");
     let package_json = root_dir.join("package.json");
     std::fs::write(
         &package_json,
-        json!({ "name": name, "dependencies": { "foo": "^1.0.0" } }).to_string(),
+        json!({ "name": name, "dependencies": { "foo": specifier } }).to_string(),
     )
     .expect("write package.json");
     Project {
         root_dir,
         manifest: PackageManifest::from_path(package_json).expect("read package.json"),
     }
+}
+
+/// A config whose registry is a closed port, so any dependency that reaches
+/// registry resolution fails loudly instead of hitting the network. Retries
+/// are off so that failure is immediate rather than a minute of backoff.
+fn unroutable_registry_config() -> Config {
+    Config { registry: "http://127.0.0.1:1/".to_string(), fetch_retries: 0, ..Config::new() }
 }
 
 fn project_without_foo(root: &std::path::Path, name: &str) -> Project {

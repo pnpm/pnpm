@@ -5014,6 +5014,7 @@ dependencies = [
  "node-semver",
  "pacquet-config",
  "pacquet-lockfile",
+ "pacquet-registry",
  "serde",
  "serde_json",
  "ssri",
