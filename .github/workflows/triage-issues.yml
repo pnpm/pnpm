@@ -40,10 +40,6 @@ jobs:
       - name: Triage with Oz agent
         uses: warpdotdev/oz-agent-action@fcbed2c2043c310881424f41757da05d5c9d4047 # v1.0.24
         id: triage
-        # Every hang observed so far wedges inside this step before the agent
-        # takes its first turn, producing no output and no issue comment. A
-        # step-level timeout surfaces that as a red run within minutes and
-        # still lets post-job cleanup reap the orphaned `oz` process.
         timeout-minutes: 20
         env:
           # Authenticates the `gh` CLI the agent uses to read/label/comment.
