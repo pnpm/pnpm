@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/crypto.integrity",
-  "version": "1100.0.1",
+  "version": "1100.0.2",
   "description": "Parse and validate integrity strings",
   "keywords": [
     "pnpm",

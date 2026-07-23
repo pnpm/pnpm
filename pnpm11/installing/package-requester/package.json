@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.package-requester",
-  "version": "1102.1.5",
+  "version": "1102.1.6",
   "description": "Concurrent downloader of npm-compatible packages",
   "keywords": [
     "pnpm",

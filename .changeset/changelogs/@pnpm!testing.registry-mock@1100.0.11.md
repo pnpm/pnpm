@@ -3,5 +3,5 @@
 ### Patch Changes
 
 - Updated dependencies:
-  - @pnpm/network.fetch@1100.1.7
-  - @pnpm/registry-access.client@1100.1.9
+  - @pnpm/network.fetch@1100.1.8
+  - @pnpm/registry-access.client@1100.1.10

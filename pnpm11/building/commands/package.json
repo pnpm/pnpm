@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/building.commands",
-  "version": "1100.1.16",
+  "version": "1100.1.17",
   "description": "Commands for rebuilding and managing dependency builds",
   "keywords": [
     "pnpm",

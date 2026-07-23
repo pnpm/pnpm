@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.dedupe.types",
-  "version": "1100.0.1",
+  "version": "1100.0.2",
   "description": "Types for the pnpm dedupe command",
   "keywords": [
     "pnpm",
