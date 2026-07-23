@@ -105,8 +105,9 @@ pub struct CliArgs {
     #[clap(short = 'y', long, global = true)]
     pub yes: bool,
 
-    /// Set working directory.
-    #[clap(short = 'C', long, default_value = ".")]
+    /// Set working directory. Accepted anywhere on the command line,
+    /// before or after the subcommand, like every other rc-option.
+    #[clap(short = 'C', long, default_value = ".", global = true)]
     pub dir: PathBuf,
 
     /// Directory in which the package store is created. Relative paths
@@ -125,6 +126,13 @@ pub struct CliArgs {
     /// default `~/.npmrc`.
     #[clap(long = "npmrc-auth-file", visible_alias = "userconfig", global = true)]
     pub npmrc_auth_file: Option<PathBuf>,
+
+    /// Base URL of the npm registry to resolve and fetch packages from.
+    /// Universal rc-option: accepted on every command and layered onto
+    /// the config like `--config.registry=<url>`. Commands that expose
+    /// their own `--registry` still read the same value.
+    #[clap(long, global = true)]
+    pub registry: Option<String>,
 
     /// Proxy for HTTPS registry and tarball requests.
     #[clap(long = "https-proxy", global = true)]

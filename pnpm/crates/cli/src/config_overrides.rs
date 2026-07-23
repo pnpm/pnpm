@@ -178,13 +178,7 @@ impl ConfigOverrides {
             self.no_proxy.as_deref(),
         );
         if let Some(registry) = &self.registry {
-            config.registry.clone_from(registry);
-            config.registries.insert("default".to_string(), registry.clone());
-            config.package_manager_bootstrap.registry.clone_from(registry);
-            config
-                .package_manager_bootstrap
-                .registries
-                .insert("default".to_string(), registry.clone());
+            apply_registry_override(config, registry);
         }
         for (scope, registry) in &self.registries {
             config.registries.insert(scope.clone(), registry.clone());
@@ -275,6 +269,7 @@ fn global_option_width(arg: &str) -> Option<usize> {
             | "https-proxy"
             | "no-proxy"
             | "npmrc-auth-file"
+            | "registry"
             | "reporter"
             | "store-dir"
             | "userconfig",
@@ -314,6 +309,20 @@ fn classify(arg: &OsStr) -> ConfigToken<'_> {
 fn scoped_registry_key(key: &str) -> Option<&str> {
     key.strip_suffix(":registry")
         .filter(|scope| scope.starts_with('@') && scope.len() > 1 && !scope.contains('/'))
+}
+
+/// Layer a registry URL (the universal `--registry` flag or a
+/// `--config.registry=<url>` override) onto `config`, setting the default
+/// registry everywhere it is read: the resolved registry, the `default`
+/// entry of the named-registry map, and the package-manager bootstrap
+/// copies of both. The URL is normalized to a trailing slash first, so an
+/// already-normalized override applies idempotently.
+pub(crate) fn apply_registry_override(config: &mut Config, registry: &str) {
+    let registry = normalize_registry_url(registry);
+    config.registry.clone_from(&registry);
+    config.registries.insert("default".to_string(), registry.clone());
+    config.package_manager_bootstrap.registry.clone_from(&registry);
+    config.package_manager_bootstrap.registries.insert("default".to_string(), registry);
 }
 
 fn normalize_registry_url(registry: &str) -> String {

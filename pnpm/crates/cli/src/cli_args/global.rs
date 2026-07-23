@@ -9,8 +9,10 @@
 use crate::{
     State,
     cli_args::{
-        add::add_packages, approve_builds::ApproveBuildsArgs,
-        ignored_builds::get_automatically_ignored_builds, rebuild::run_rebuild,
+        add::{add_packages, apply_allow_build},
+        approve_builds::ApproveBuildsArgs,
+        ignored_builds::get_automatically_ignored_builds,
+        rebuild::run_rebuild,
     },
 };
 use derive_more::{Display, Error};
@@ -92,6 +94,7 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
     params: &[String],
     pinned_version: PinnedVersion,
     supported_architectures: Option<SupportedArchitectures>,
+    allow_build: &[String],
     cwd: &Path,
 ) -> miette::Result<()> {
     // Normalize each selector to its package name first, so versioned forms
@@ -115,6 +118,7 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
             &group,
             pinned_version,
             supported_architectures.clone(),
+            allow_build,
         ))
         .await?;
 
@@ -207,6 +211,9 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
             &selectors,
             pinned_version,
             supported_architectures.clone(),
+            // `update -g` takes no `--allow-build`; the build policy comes
+            // from the global `allowBuilds` loaded in `run_group_install`.
+            &[],
         ))
         .await?;
         let _ = config;
@@ -301,6 +308,7 @@ async fn run_group_install<Reporter: self::Reporter + 'static>(
     selectors: &[String],
     pinned_version: PinnedVersion,
     supported_architectures: Option<SupportedArchitectures>,
+    allow_build: &[String],
 ) -> miette::Result<(PathBuf, &'static Config)> {
     let install_dir = create_install_dir(global_pkg_dir)
         .into_diagnostic()
@@ -361,6 +369,10 @@ async fn run_group_install<Reporter: self::Reporter + 'static>(
             cfg.dangerously_allow_all_builds = allow_all;
         }
     }
+    // `pnpm add -g --allow-build=<pkg>` opts the named packages into their
+    // build scripts for this global install and persists them to the
+    // global `allowBuilds`, on top of the settings just loaded.
+    apply_allow_build(&mut cfg, allow_build, global_pkg_dir)?;
     // Don't fail the install when a dependency's build is ignored; the
     // global approval prompt (run after the install) records the ignored
     // builds and prompts rather than erroring under `strictDepBuilds`.

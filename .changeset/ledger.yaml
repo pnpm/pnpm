@@ -1149,6 +1149,12 @@ pacquet@12.0.0-alpha.19:
     - update-latest-workspace-deps
     - view-registry-flag
     - web-auth-qr-code-fallback
+pacquet@12.0.0-alpha.20:
+  dir: pnpm/npm/pnpm
+  intents:
+    - pacquet-registry-allow-build-dir-parity
+    - retry-provenance-signing
+    - update-latest-npm-alias-target
 pacquet@12.0.0-alpha.9:
   dir: pnpm/npm/pnpm
   intents:

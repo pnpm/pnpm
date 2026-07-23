@@ -1,5 +1,6 @@
 use super::{
     CliArgs,
+    add::AddArgs,
     cli_command::CliCommand,
     install::{InstallArgs, resolve_bool_override},
     list::RecursionLimit,
@@ -21,6 +22,45 @@ fn install_args(argv: &[&str]) -> InstallArgs {
 
 fn default_reporter_summary_scope(argv: &[&str]) -> SummaryScope {
     CliArgs::try_parse_from(argv).expect("parses").command.default_reporter_summary_scope()
+}
+
+fn add_args(argv: &[&str]) -> AddArgs {
+    match CliArgs::try_parse_from(argv).expect("parses").command {
+        CliCommand::Add(add) => add,
+        other => panic!("expected add, got {other:?}"),
+    }
+}
+
+#[test]
+fn dir_is_global_and_parses_on_either_side_of_the_subcommand() {
+    for argv in [
+        ["pacquet", "--dir", "project", "add", "foo"].as_slice(),
+        ["pacquet", "add", "foo", "--dir", "project"].as_slice(),
+        ["pacquet", "add", "foo", "-C", "project"].as_slice(),
+    ] {
+        let parsed = CliArgs::try_parse_from(argv).expect("parses global --dir");
+        assert_eq!(parsed.dir, std::path::PathBuf::from("project"));
+        assert!(matches!(parsed.command, CliCommand::Add(_)));
+    }
+}
+
+#[test]
+fn registry_is_a_universal_global_option() {
+    for argv in [
+        ["pacquet", "--registry=https://r.test/", "add", "foo"].as_slice(),
+        ["pacquet", "add", "foo", "--registry=https://r.test/"].as_slice(),
+        ["pacquet", "view", "foo", "--registry=https://r.test/"].as_slice(),
+    ] {
+        let parsed = CliArgs::try_parse_from(argv).expect("parses universal --registry");
+        assert_eq!(parsed.registry.as_deref(), Some("https://r.test/"));
+    }
+}
+
+#[test]
+fn add_allow_build_collects_repeated_values() {
+    let args =
+        add_args(&["pacquet", "add", "foo", "--allow-build=esbuild", "--allow-build", "sharp"]);
+    assert_eq!(args.allow_build, ["esbuild", "sharp"]);
 }
 
 #[test]
