@@ -27,6 +27,7 @@ use pacquet_config::Config;
 use pacquet_lockfile::Lockfile;
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
+use pacquet_reporter::Reporter;
 use std::{collections::HashSet, path::Path};
 
 struct InteractiveUpdateProject<'a> {
@@ -44,7 +45,7 @@ pub(crate) struct InteractiveUpdateOptions<'a> {
 /// selected package names. `Ok(None)` means "nothing to do" — either no
 /// dependency has an update available or the prompt was answered with an
 /// empty selection — and the caller should not run an update.
-pub(crate) async fn select_packages(
+pub(crate) async fn select_packages<Reporter: self::Reporter>(
     root: &Path,
     manifest: &PackageManifest,
     lockfile: Option<&Lockfile>,
@@ -64,12 +65,18 @@ pub(crate) async fn select_packages(
     )
     .await?;
     if options.include_github_actions {
-        append_github_actions(&mut choices, root, options.latest).await?;
+        append_github_actions::<Reporter>(
+            &mut choices,
+            root,
+            options.latest,
+            config.update_config.github_actions_server.as_deref(),
+        )
+        .await?;
     }
     prompt_for_packages(&choices, options.latest)
 }
 
-pub(crate) async fn select_packages_for_projects(
+pub(crate) async fn select_packages_for_projects<Reporter: self::Reporter>(
     root: &Path,
     selection: &InstallFamilySelection,
     lockfile: Option<&Lockfile>,
@@ -99,18 +106,25 @@ pub(crate) async fn select_packages_for_projects(
     )
     .await?;
     if options.include_github_actions {
-        append_github_actions(&mut choices, root, options.latest).await?;
+        append_github_actions::<Reporter>(
+            &mut choices,
+            root,
+            options.latest,
+            config.update_config.github_actions_server.as_deref(),
+        )
+        .await?;
     }
     prompt_for_packages(&choices, options.latest)
 }
 
-async fn append_github_actions(
+async fn append_github_actions<Reporter: self::Reporter>(
     choices: &mut Vec<OutdatedPackage>,
     root: &Path,
     latest: bool,
+    server_url: Option<&str>,
 ) -> miette::Result<()> {
     choices.extend(
-        github_actions::find_outdated(root, !latest, None)
+        github_actions::find_outdated::<Reporter>(root, !latest, None, server_url)
             .await?
             .into_iter()
             .map(OutdatedPackage::from),

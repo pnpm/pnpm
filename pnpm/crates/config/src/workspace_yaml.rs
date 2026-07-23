@@ -538,9 +538,19 @@ pub struct UpdateSettings {
     pub changeset: Option<bool>,
 
     /// Whether `pnpm update` should also update GitHub Actions
-    /// dependencies.
+    /// dependencies. When explicitly set to `false`, `pnpm outdated`
+    /// and the interactive `pnpm update` skip GitHub Actions
+    /// dependencies as well.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub github_actions: Option<bool>,
+
+    /// `githubActionsServer`: the base URL of the GitHub server that
+    /// hosts the repositories of the GitHub Actions referenced by the
+    /// workflow files (for example, a GitHub Enterprise Server). When
+    /// not set, the `GITHUB_SERVER_URL` environment variable is used,
+    /// falling back to <https://github.com>.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub github_actions_server: Option<String>,
 }
 
 /// `updateConfig` entry: settings that tune `pnpm update`.
@@ -560,9 +570,19 @@ pub struct UpdateConfig {
     pub ignore_dependencies: Option<Vec<String>>,
 
     /// Whether `pnpm update` should also update GitHub Actions
-    /// dependencies.
+    /// dependencies. When explicitly set to `false`, `pnpm outdated`
+    /// and the interactive `pnpm update` skip GitHub Actions
+    /// dependencies as well.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub github_actions: Option<bool>,
+
+    /// The base URL of the GitHub server that hosts the repositories of
+    /// the GitHub Actions referenced by the workflow files (for example,
+    /// a GitHub Enterprise Server). When not set, the
+    /// `GITHUB_SERVER_URL` environment variable is used, falling back to
+    /// <https://github.com>.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub github_actions_server: Option<String>,
 }
 
 /// `peerDependencyRules` entry: customizations applied when reporting
@@ -936,6 +956,7 @@ impl WorkspaceSettings {
                 ignore_dependencies: update.ignore_deps,
                 changeset: update.changeset,
                 github_actions: update.github_actions,
+                github_actions_server: update.github_actions_server,
             };
         }
 

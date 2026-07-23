@@ -35,6 +35,7 @@ use pacquet_lockfile::Lockfile;
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_registry::{Package, PackageVersion, RegistryError};
+use pacquet_reporter::Reporter;
 use pacquet_resolving_npm_resolver::pick_registry_for_package;
 use std::{
     collections::HashMap,
@@ -418,9 +419,12 @@ struct DependentProject {
 impl OutdatedArgs {
     /// Run the check and print the report to stdout. Returns whether any
     /// dependency was outdated; the caller decides the process exit code.
-    pub async fn run(self, state: State) -> miette::Result<OutdatedOutcome> {
+    pub async fn run<Reporter: self::Reporter>(
+        self,
+        state: State,
+    ) -> miette::Result<OutdatedOutcome> {
         if state.config.recursive {
-            return self.run_recursive(state).await;
+            return self.run_recursive::<Reporter>(state).await;
         }
 
         let config = state.config;
@@ -480,10 +484,16 @@ impl OutdatedArgs {
         } else {
             Vec::new()
         };
-        if include.contains(&DependencyGroup::Dev) {
-            let actions =
-                github_actions::find_outdated(root, self.compatible, action_matcher.as_ref())
-                    .await?;
+        if include.contains(&DependencyGroup::Dev)
+            && config.update_config.github_actions != Some(false)
+        {
+            let actions = github_actions::find_outdated::<Reporter>(
+                root,
+                self.compatible,
+                action_matcher.as_ref(),
+                config.update_config.github_actions_server.as_deref(),
+            )
+            .await?;
             outdated.extend(actions.into_iter().map(OutdatedPackage::from));
         }
 
@@ -500,7 +510,10 @@ impl OutdatedArgs {
         Ok(if outdated.is_empty() { OutdatedOutcome::UpToDate } else { OutdatedOutcome::Outdated })
     }
 
-    async fn run_recursive(self, state: State) -> miette::Result<OutdatedOutcome> {
+    async fn run_recursive<Reporter: self::Reporter>(
+        self,
+        state: State,
+    ) -> miette::Result<OutdatedOutcome> {
         let config = state.config;
         let workspace_root =
             config.workspace_dir.clone().unwrap_or_else(|| state.lockfile_dir().to_path_buf());
@@ -606,6 +619,26 @@ impl OutdatedArgs {
                         .push(OutdatedInWorkspace { package, dependents: vec![dependent.clone()] });
                 }
             }
+        }
+
+        if include.contains(&DependencyGroup::Dev)
+            && config.update_config.github_actions != Some(false)
+        {
+            let action_matcher = github_actions::selector_matcher(&self.packages);
+            let actions = github_actions::find_outdated::<Reporter>(
+                &workspace_root,
+                self.compatible,
+                action_matcher.as_ref(),
+                config.update_config.github_actions_server.as_deref(),
+            )
+            .await?;
+            outdated.extend(actions.into_iter().map(|action| OutdatedInWorkspace {
+                package: OutdatedPackage::from(action),
+                dependents: vec![DependentProject {
+                    name: ".github".to_string(),
+                    location: workspace_root.clone(),
+                }],
+            }));
         }
 
         sort_workspace_outdated(&mut outdated);
@@ -927,7 +960,8 @@ fn render_recursive_json(outdated: &[OutdatedInWorkspace], long: bool) -> String
     let mut map = serde_json::Map::new();
     for entry in outdated {
         let package = &entry.package;
-        let dependency_type: &'static str = package.belongs_to.into();
+        let dependency_type: &'static str =
+            if package.github_action { "githubAction" } else { package.belongs_to.into() };
         let mut value = serde_json::json!({
             "current": package.current.to_string(),
             "latest": package.target.to_string(),

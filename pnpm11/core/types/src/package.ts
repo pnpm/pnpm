@@ -209,8 +209,17 @@ export interface UpdateSettings {
   changeset?: boolean
   /**
    * Whether `pnpm update` should also update GitHub Actions dependencies.
+   * When explicitly set to `false`, `pnpm outdated` and the interactive
+   * `pnpm update` skip GitHub Actions dependencies as well.
    */
   githubActions?: boolean
+  /**
+   * The base URL of the GitHub server that hosts the repositories of the
+   * GitHub Actions referenced by the workflow files (for example, a GitHub
+   * Enterprise Server). When not set, the `GITHUB_SERVER_URL` environment
+   * variable is used, falling back to https://github.com.
+   */
+  githubActionsServer?: string
 }
 
 export interface PnpmSettings {
@@ -235,6 +244,7 @@ export interface PnpmSettings {
     changeset?: boolean
     ignoreDependencies?: string[]
     githubActions?: boolean
+    githubActionsServer?: string
   }
   audit?: AuditSettings
   /**

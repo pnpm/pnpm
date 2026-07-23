@@ -3124,6 +3124,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error
+      '@pnpm/logger':
+        specifier: 'catalog:'
+        version: 1100.0.0
       '@pnpm/resolving.git-resolver':
         specifier: workspace:*
         version: link:../../resolving/git-resolver

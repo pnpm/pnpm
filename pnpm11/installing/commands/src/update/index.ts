@@ -243,11 +243,13 @@ async function interactiveUpdate (
         timeout: opts.fetchTimeout,
       })
       : projects.map(() => []),
-    include.devDependencies && opts.save !== false && !opts.lockfileOnly
+    include.devDependencies && opts.save !== false && !opts.lockfileOnly &&
+    (opts.updateConfig?.githubActions !== false || opts.includeGithubActions === true)
       ? findOutdatedGitHubActions({
         compatible: opts.latest !== true,
         dir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
         match: input.length > 0 ? createMatcher(input.map(normalizeGitHubActionSelector)) : undefined,
+        serverUrl: opts.updateConfig?.githubActionsServer,
       })
       : [],
   ])
@@ -324,7 +326,12 @@ async function interactiveUpdate (
     throw err
   }
 
-  return update(updatePkgNames, { ...opts, includeGithubActions: true }, rebuildHandler) as Promise<undefined>
+  // An explicit `update.githubActions: false` must survive into the update
+  // phase — only the `--include-github-actions` flag may override it.
+  return update(updatePkgNames, {
+    ...opts,
+    includeGithubActions: opts.includeGithubActions === true || opts.updateConfig?.githubActions !== false,
+  }, rebuildHandler) as Promise<undefined>
 }
 
 async function update (
@@ -392,6 +399,7 @@ async function update (
       dir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
       latest: opts.latest,
       match: dependencies.length > 0 ? createMatcher(dependencies.map(normalizeGitHubActionSelector)) : undefined,
+      serverUrl: opts.updateConfig?.githubActionsServer,
     })
   }
   if (changesetContext != null) {

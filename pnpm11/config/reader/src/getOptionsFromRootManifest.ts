@@ -108,6 +108,10 @@ function translateUpdateSettings (pnpmSettings: PnpmSettings, settings: OptionsF
     assertBoolean(update.githubActions, 'update.githubActions')
     updateConfig.githubActions = update.githubActions
   }
+  if (update.githubActionsServer != null) {
+    assertString(update.githubActionsServer, 'update.githubActionsServer')
+    updateConfig.githubActionsServer = update.githubActionsServer
+  }
   settings.updateConfig = updateConfig
 }
 
@@ -182,6 +186,12 @@ function assertStringArray (value: unknown, settingName: string): asserts value 
 function assertBoolean (value: unknown, settingName: string): asserts value is boolean {
   if (typeof value !== 'boolean') {
     throw new PnpmError('INVALID_SETTING', `The "${settingName}" setting should be a boolean, but got ${renderReceivedType(value)}`)
+  }
+}
+
+function assertString (value: unknown, settingName: string): asserts value is string {
+  if (typeof value !== 'string') {
+    throw new PnpmError('INVALID_SETTING', `The "${settingName}" setting should be a string, but got ${renderReceivedType(value)}`)
   }
 }
 

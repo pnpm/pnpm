@@ -64,9 +64,10 @@ pub(super) fn recursive<'a>(_ctx: &RunCtx<'a>) -> miette::Result<CommandFuture<'
 }
 
 // `outdated` is a read-only query: it prints a report to stdout and never
-// installs, so it has no reporter-typed install pipeline to dispatch on. It
-// reports back whether any dependency was outdated; process termination stays
-// here, at the top-level harness, rather than inside the command.
+// installs. The reporter type only routes the `globalWarn` channel (skipped
+// GitHub Actions repositories). It reports back whether any dependency was
+// outdated; process termination stays here, at the top-level harness, rather
+// than inside the command.
 pub(super) fn outdated<'a>(
     ctx: &RunCtx<'a>,
     args: OutdatedArgs,
@@ -85,16 +86,25 @@ pub(super) fn outdated<'a>(
         }));
     }
     let command_state = (ctx.state)(false)?;
-    Ok(Box::pin(async move {
-        if args.run(command_state).await? == OutdatedOutcome::Outdated {
-            #[expect(
-                clippy::exit,
-                reason = "`outdated` exits non-zero when a dependency is outdated, mirroring pnpm"
-            )]
-            std::process::exit(1);
-        }
-        Ok(())
-    }))
+    macro_rules! run_outdated {
+        ($reporter:ty) => {
+            Box::pin(async move {
+                if args.run::<$reporter>(command_state).await? == OutdatedOutcome::Outdated {
+                    #[expect(
+                        clippy::exit,
+                        reason = "`outdated` exits non-zero when a dependency is outdated, mirroring pnpm"
+                    )]
+                    std::process::exit(1);
+                }
+                Ok(())
+            })
+        };
+    }
+    Ok(match ctx.reporter {
+        ReporterType::Default | ReporterType::AppendOnly => run_outdated!(DefaultReporter),
+        ReporterType::Ndjson => run_outdated!(NdjsonReporter),
+        ReporterType::Silent => run_outdated!(SilentReporter),
+    })
 }
 
 pub(super) fn audit<'a>(ctx: &RunCtx<'a>, args: AuditArgs) -> miette::Result<CommandFuture<'a>> {

@@ -72,4 +72,15 @@ fn github_actions_are_opt_in_except_for_interactive_updates() {
     assert!(
         !update_args(&["--prod"]).should_update_github_actions(&config, &[DependencyGroup::Prod],),
     );
+
+    // An explicit `false` opts interactive updates out of GitHub Actions,
+    // but never overrides the explicit `--include-github-actions` flag.
+    config.update_config.github_actions = Some(false);
+    assert!(
+        !update_args(&["--interactive"]).should_update_github_actions(&config, &include_direct),
+    );
+    assert!(
+        update_args(&["--include-github-actions"])
+            .should_update_github_actions(&config, &include_direct),
+    );
 }
