@@ -46,8 +46,6 @@ fn dir_is_global_and_parses_on_either_side_of_the_subcommand() {
 
 #[test]
 fn registry_is_a_universal_global_option() {
-    // Accepted on a command that has no command-local `--registry`
-    // (`add`, `view`), before or after the subcommand.
     for argv in [
         ["pacquet", "--registry=https://r.test/", "add", "foo"].as_slice(),
         ["pacquet", "add", "foo", "--registry=https://r.test/"].as_slice(),

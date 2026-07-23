@@ -30,10 +30,7 @@ where
     (root, workspace, npmrc_info)
 }
 
-/// `add` accepts the three universal options together, in the exact flag
-/// shape the Tag release operator uses (pnpm/pnpm#13242): `pnpm add <pkg>
-/// --dir <d> --allow-build=<pkg> --registry=<url>`, with every option
-/// written after the subcommand and its positional.
+/// Regression test for the Tag release operator's invocation (pnpm/pnpm#13242).
 #[test]
 fn add_accepts_dir_allow_build_and_registry_after_the_subcommand() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -53,8 +50,6 @@ fn add_accepts_dir_allow_build_and_registry_after_the_subcommand() {
         .assert()
         .success();
 
-    // `--allow-build` alone, with no pre-existing `allowBuilds`, is enough
-    // to opt the package into its lifecycle scripts.
     let pkg_dir = workspace.join(
         "node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0\
          /node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example",
