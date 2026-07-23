@@ -24,11 +24,11 @@ use pacquet_global::{
 use pacquet_lockfile::EnvLockfile;
 use pacquet_package_manifest::PackageManifest;
 use pacquet_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
-use pacquet_resolving_npm_resolver::which_version_is_pinned;
+use pacquet_resolving_npm_resolver::{MINIMUM_RELEASE_AGE_VIOLATION_CODE, which_version_is_pinned};
 use serde_json::Value;
-use std::{collections::HashSet, path::Path};
+use std::{collections::HashSet, io::IsTerminal, path::Path};
 
-use crate::config_deps;
+use crate::config_deps::{self, PnpmPolicyViolation};
 
 /// Migration guidance printed once when `self-update` crosses a major
 /// boundary. Add an entry per future major that ships breaking changes
@@ -61,6 +61,19 @@ pub(crate) enum SelfUpdateError {
     )]
     #[diagnostic(code(ERR_PNPM_PNPM_RELEASE_POLICY_VIOLATION))]
     ReleasePolicyViolation { version: String },
+
+    #[display("pnpm@{version} {reason}.{cutoff_source}")]
+    #[diagnostic(
+        code(ERR_PNPM_NO_MATURE_MATCHING_VERSION),
+        help(
+            "Wait for the release to mature past the cutoff, or set PNPM_CONFIG_MINIMUM_RELEASE_AGE=0 to update anyway."
+        )
+    )]
+    NoMatureMatchingVersion { version: String, reason: String, cutoff_source: String },
+
+    #[display("Aborted: the immature pnpm version was not approved")]
+    #[diagnostic(code(ERR_PNPM_MINIMUM_RELEASE_AGE_DENIED))]
+    MinimumReleaseAgeDenied,
 
     #[display("{message}")]
     #[diagnostic(code(ERR_PNPM_PNPM_ENGINE_IDENTITY_UNVERIFIABLE))]
@@ -103,6 +116,57 @@ pub struct SelfUpdateArgs {
     /// The version, range, or dist-tag to update to. Defaults to the
     /// `latest` dist-tag (which refuses to downgrade).
     pub version: Option<String>,
+}
+
+/// Act on a policy violation the resolver attached to self-update's pick.
+///
+/// A `minimumReleaseAge` cutoff exists so a freshly published pnpm cannot
+/// reach the machine before anyone has had a chance to notice it is
+/// malicious, and pnpm itself is the most valuable thing on the machine to
+/// compromise — so under strict mode an immature pick is refused. An
+/// interactive run may still confirm it: naming a version on the command line
+/// is a deliberate act by the person at the keyboard, unlike a dependency
+/// drifting onto a new release. Non-interactive runs always fail closed.
+///
+/// A `trustPolicy` violation is not negotiable — it means the release's trust
+/// evidence weakened relative to the installed version.
+fn enforce_resolution_policy(
+    config: &Config,
+    version: &str,
+    violation: &PnpmPolicyViolation,
+) -> miette::Result<()> {
+    if violation.code != MINIMUM_RELEASE_AGE_VIOLATION_CODE {
+        return Err(SelfUpdateError::ReleasePolicyViolation { version: version.to_string() }.into());
+    }
+    let Some(minutes) = config.resolved_minimum_release_age() else {
+        return Ok(());
+    };
+    if !config.resolved_minimum_release_age_strict() {
+        return Ok(());
+    }
+    let cutoff_source = match config.minimum_release_age_source.as_deref() {
+        Some(source) => {
+            format!(" The {minutes}-minute minimumReleaseAge cutoff comes from {source}.")
+        }
+        None => String::new(),
+    };
+    if !std::io::stdin().is_terminal() {
+        return Err(SelfUpdateError::NoMatureMatchingVersion {
+            version: version.to_string(),
+            reason: violation.reason.clone(),
+            cutoff_source,
+        }
+        .into());
+    }
+    let prompt = format!(
+        "pnpm@{version} {reason}.{cutoff_source}\nUpdate anyway?",
+        reason = violation.reason
+    );
+    // An interrupted prompt (Esc / Ctrl-C) counts as a refusal.
+    match dialoguer::Confirm::new().with_prompt(prompt).default(false).interact() {
+        Ok(true) => Ok(()),
+        Ok(false) | Err(_) => Err(SelfUpdateError::MinimumReleaseAgeDenied.into()),
+    }
 }
 
 /// Refuse to self-update under corepack (which manages its own updates).
@@ -155,14 +219,8 @@ async fn handler<Reporter: self::Reporter + 'static>(
     // shared, so a release this wrapper survives can still break a teammate's.
     install_pnpm::assert_release_is_installable(&target_version)?;
 
-    // Under strict resolution (`minimumReleaseAge` strict, or
-    // `trustPolicy='no-downgrade'`), a policy violation must fail closed
-    // rather than silently switch.
-    let strict_resolution = (config.resolved_minimum_release_age().is_some()
-        && config.resolved_minimum_release_age_strict())
-        || config.trust_policy == pacquet_config::TrustPolicy::NoDowngrade;
-    if strict_resolution && resolved.policy_violation {
-        return Err(SelfUpdateError::ReleasePolicyViolation { version: target_version }.into());
+    if let Some(violation) = resolved.policy_violation {
+        enforce_resolution_policy(config, &target_version, &violation)?;
     }
 
     let manifest_value = super::package_manager::read_manifest_json(&dir.join("package.json"))?;

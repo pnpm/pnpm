@@ -2206,63 +2206,74 @@ pub fn pnpm_config_env_var_overrides_workspace_yaml() {
 }
 
 #[test]
-pub fn self_update_config_drops_all_workspace_manifest_settings() {
+pub fn self_update_config_lets_the_workspace_manifest_raise_the_cutoff() {
+    let tmp = tempdir().unwrap();
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "minimumReleaseAge: 4320\n")
+        .expect("write to pnpm-workspace.yaml");
+
+    let config =
+        Config::new().current_for_self_update::<HostNoHome>(tmp.path()).expect("config loads");
+
+    assert_eq!(config.minimum_release_age, Some(4320));
+    assert_eq!(config.minimum_release_age_strict, Some(true));
+    assert_eq!(
+        config.minimum_release_age_source.as_deref(),
+        Some(tmp.path().join("pnpm-workspace.yaml").display().to_string().as_str()),
+    );
+    assert_eq!(config.workspace_dir.as_deref(), Some(tmp.path()));
+}
+
+#[test]
+pub fn self_update_config_refuses_a_workspace_manifest_that_loosens_the_cutoff() {
     let tmp = tempdir().unwrap();
     fs::write(
         tmp.path().join("pnpm-workspace.yaml"),
-        "minimumReleaseAge: 60\nminimumReleaseAgeStrict: false\nnodeLinker: hoisted\n",
+        "minimumReleaseAge: 0\nminimumReleaseAgeStrict: false\nminimumReleaseAgeExclude:\n  - pnpm\n",
     )
     .expect("write to pnpm-workspace.yaml");
 
-    let config =
-        Config::new().current_for_self_update::<HostNoHome>(tmp.path()).expect("config loads");
+    struct HostWithStrictEnv;
+    impl EnvVar for HostWithStrictEnv {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "PNPM_CONFIG_MINIMUM_RELEASE_AGE_STRICT" => Some("true".to_owned()),
+                _ => safe_host_var(name),
+            }
+        }
+    }
+    impl EnvVarOs for HostWithStrictEnv {
+        fn var_os(_: &str) -> Option<OsString> {
+            None
+        }
+    }
+    impl GetHomeDir for HostWithStrictEnv {
+        fn home_dir() -> Option<PathBuf> {
+            None
+        }
+    }
+    inert_link_probe!(HostWithStrictEnv);
+    host_current_dir!(HostWithStrictEnv);
 
-    // Every workspace-manifest setting is dropped — release-age AND structural
-    // — so self-update's fetch can't be steered by a repo-controlled manifest.
+    let config = Config::new()
+        .current_for_self_update::<HostWithStrictEnv>(tmp.path())
+        .expect("config loads");
+
     assert_eq!(config.minimum_release_age, Config::new().minimum_release_age);
     assert_eq!(config.minimum_release_age_strict, Some(true));
-    assert_ne!(config.node_linker, NodeLinker::Hoisted);
-    // The workspace root is structural context and must stay set, otherwise
-    // self-update run from a subdirectory anchors lockfile ops at the subdir
-    // instead of the workspace root.
-    assert_eq!(config.workspace_dir.as_deref(), Some(tmp.path()));
+    assert_eq!(config.minimum_release_age_exclude, None);
 }
 
 #[test]
-pub fn self_update_config_ignores_project_npmrc() {
+pub fn self_update_config_keeps_non_release_age_workspace_settings() {
     let tmp = tempdir().unwrap();
-    fs::write(tmp.path().join(".npmrc"), "registry=https://self-update-test.example/\n")
-        .expect("write project .npmrc");
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "nodeLinker: hoisted\n")
+        .expect("write to pnpm-workspace.yaml");
 
     let config =
         Config::new().current_for_self_update::<HostNoHome>(tmp.path()).expect("config loads");
 
-    // A repo-controlled project .npmrc must not steer self-update's registry.
-    assert!(
-        !config.registry.contains("self-update-test.example"),
-        "project .npmrc must not steer self-update; registry={} ;",
-        config.registry,
-    );
-}
-
-#[test]
-pub fn self_update_config_does_not_parse_a_malformed_workspace_yaml() {
-    let tmp = tempdir().unwrap();
-    // A genuine YAML syntax error (unclosed flow sequence). `find_and_load`
-    // would surface this as `LoadWorkspaceYamlError::ParseYaml`; self-update
-    // must not parse the file at all, so the error never fires.
-    fs::write(tmp.path().join("pnpm-workspace.yaml"), "minimumReleaseAge: [1, 2\n")
-        .expect("write malformed pnpm-workspace.yaml");
-
-    let config =
-        Config::new().current_for_self_update::<HostNoHome>(tmp.path()).expect("config loads");
-
-    // self-update must not parse the file, so the malformation is invisible:
-    // defaults apply, strict is forced on, and the workspace root is still
-    // discovered for structural context.
-    assert_eq!(config.minimum_release_age, Config::new().minimum_release_age);
-    assert_eq!(config.minimum_release_age_strict, Some(true));
-    assert_eq!(config.workspace_dir.as_deref(), Some(tmp.path()));
+    assert_eq!(config.node_linker, NodeLinker::Hoisted);
+    assert_eq!(config.minimum_release_age_source.as_deref(), Some("pnpm's built-in default"));
 }
 
 #[test]
@@ -2270,7 +2281,7 @@ pub fn self_update_config_honors_trusted_release_age_env_override() {
     let tmp = tempdir().unwrap();
     fs::write(
         tmp.path().join("pnpm-workspace.yaml"),
-        "minimumReleaseAge: 60\nminimumReleaseAgeStrict: true\n",
+        "minimumReleaseAge: 4320\nminimumReleaseAgeStrict: true\n",
     )
     .expect("write to pnpm-workspace.yaml");
 
@@ -2303,6 +2314,10 @@ pub fn self_update_config_honors_trusted_release_age_env_override() {
 
     assert_eq!(config.minimum_release_age, Some(0));
     assert_eq!(config.minimum_release_age_strict, Some(false));
+    assert_eq!(
+        config.minimum_release_age_source.as_deref(),
+        Some("the PNPM_CONFIG_MINIMUM_RELEASE_AGE environment variable"),
+    );
 }
 
 #[test]

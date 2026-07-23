@@ -74,10 +74,18 @@ pub async fn sync_package_manager_dependencies(
 #[derive(Debug)]
 pub struct ResolvedPnpm {
     pub version: String,
-    /// `true` when the resolver picked a version despite the maturity
+    /// Set when the resolver picked a version despite the maturity
     /// (`minimumReleaseAge`) or `trustPolicy` gate. Self-update fails
-    /// closed on this under strict resolution.
-    pub policy_violation: bool,
+    /// closed on this under strict resolution; the code tells the two
+    /// gates apart, and the reason is the user-facing explanation.
+    pub policy_violation: Option<PnpmPolicyViolation>,
+}
+
+/// Why the resolver's pnpm pick violates a policy.
+#[derive(Debug)]
+pub struct PnpmPolicyViolation {
+    pub code: &'static str,
+    pub reason: String,
 }
 
 /// Resolve `pnpm@<bare_specifier>` against the trusted package-manager
@@ -173,7 +181,10 @@ pub async fn resolve_pnpm_version(
     }
     Ok(Some(ResolvedPnpm {
         version: name_ver.suffix.to_string(),
-        policy_violation: result.policy_violation.is_some(),
+        policy_violation: result.policy_violation.map(|violation| PnpmPolicyViolation {
+            code: violation.code,
+            reason: violation.reason,
+        }),
     }))
 }
 

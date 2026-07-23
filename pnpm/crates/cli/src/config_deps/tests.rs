@@ -320,7 +320,7 @@ async fn resolve_pnpm_version_resolves_a_clean_update_under_no_downgrade() {
         .expect("a matching pnpm version resolves");
 
     assert_eq!(resolved.version, "1.1.0");
-    assert!(!resolved.policy_violation);
+    assert!(resolved.policy_violation.is_none());
 }
 
 /// `registrySupportsTimeField=true` (abbreviated metadata carries `time`)

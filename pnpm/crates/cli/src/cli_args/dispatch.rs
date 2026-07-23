@@ -45,6 +45,10 @@ pub(crate) struct RunCtx<'a> {
     /// `--dir`, so a `-g` install can't inherit the caller project's
     /// `.npmrc` network / TLS / registry settings.
     pub(crate) global_config: &'a (dyn Fn() -> miette::Result<&'static mut Config> + Sync),
+    /// Like [`Self::config`] but loaded through
+    /// [`Config::current_for_self_update`], so a repo-controlled
+    /// `pnpm-workspace.yaml` can only tighten the release-age policy that
+    /// governs the pnpm download.
     pub(crate) config_self_update: &'a (dyn Fn() -> miette::Result<&'static mut Config> + Sync),
     pub(crate) state: &'a (dyn Fn(bool) -> miette::Result<State> + Sync),
 }
@@ -272,9 +276,6 @@ impl CliArgs {
         let pnpm_home_dir = default_pnpm_home_dir::<Host>();
         let global_config_anchor = pnpm_home_dir.as_deref().unwrap_or(&dir);
         let global_config = || load_config(global_config_anchor);
-        // Like [`RunCtx::config`] but loaded through
-        // `Config::current_for_self_update`, so a repo-controlled workspace
-        // manifest or project `.npmrc` can't steer the pnpm fetch.
         let config_self_update = || -> miette::Result<&'static mut Config> {
             Config { npmrc_auth_file: npmrc_auth_file.clone(), ..Config::default() }
                 .current_for_self_update::<Host>(&dir)
