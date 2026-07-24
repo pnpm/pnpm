@@ -115,8 +115,7 @@ pub struct AddArgs {
     /// Dependencies are not downloaded. Only `pnpm-lock.yaml` is updated.
     #[clap(long = "lockfile-only")]
     pub lockfile_only: bool,
-    /// The directory with links to the store (default is `node_modules/.pnpm`).
-    /// All direct and indirect dependencies of the project are linked into this directory
+    /// Directory with store links (default `node_modules/.pnpm`).
     #[clap(long = "virtual-store-dir")]
     pub virtual_store_dir: Option<PathBuf>,
 
