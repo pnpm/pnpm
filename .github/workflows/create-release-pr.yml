@@ -7,6 +7,24 @@ on:
         description: Branch to release (the PR base; e.g. main or release/11.1).
         default: main
         required: true
+      # Each product is a separate checkbox, so a release can cover any
+      # combination. Only the checked products' pending changesets are consumed;
+      # the rest stay in the ledger for a later release. This lets a rapid v12
+      # (Rust) cadence release without dragging the TypeScript CLI (v11) along —
+      # and with it the near-daily "Update available!" notification. Leaving all
+      # three checked reproduces the historical "release everything pending" run.
+      pnpm11:
+        description: Release pnpm v11 (the TypeScript CLI) and the rest of the default lane.
+        type: boolean
+        default: true
+      pnpm:
+        description: Release pnpm (the Rust CLI, v12 alpha prerelease) and its @pnpm/napi addon.
+        type: boolean
+        default: true
+      pnpr:
+        description: Release pnpr (the registry server).
+        type: boolean
+        default: true
 
 permissions:
   contents: write
@@ -62,7 +80,12 @@ jobs:
     # keys, so a stale set could break verification after a key rotation. Any
     # drift is committed below along with the version bumps, so the new trust
     # roots are reviewed as part of the release PR diff.
+    # The embedded trust roots ship in the TypeScript CLI (v11) release, so they
+    # are only refreshed when pnpm11 is one of the products being released. A run
+    # that releases only the Rust products leaves v11 alone; any key drift is
+    # picked up by the next release that includes pnpm11.
     - name: Update embedded npm signing keys
+      if: github.event.inputs.pnpm11 == 'true'
       run: node pnpm11/deps/security/signatures/scripts/update-npm-signing-keys.mjs --update
 
     # Refresh the embedded Node.js release keys (used to verify the signature of
@@ -70,6 +93,7 @@ jobs:
     # nodejs/release-keys list, so a new release signer cannot break Node.js
     # runtime verification. Reviewed in the release PR diff like the npm keys.
     - name: Update embedded Node.js release keys
+      if: github.event.inputs.pnpm11 == 'true'
       run: node pnpm11/crypto/shasums-file/scripts/update-node-release-keys.mjs --update
 
     # A refreshed trust root must show up in the changelogs, so synthesize a
@@ -78,6 +102,7 @@ jobs:
     # on the PR, so a trust-root change cannot hide in a large version-bump diff.
     - name: Add changesets for refreshed keys
       id: keys
+      if: github.event.inputs.pnpm11 == 'true'
       run: |
         drifted=""
         if ! git diff --quiet -- pnpm11/deps/security/signatures/src/npmSigningKeys.ts; then
@@ -105,10 +130,24 @@ jobs:
         echo "drifted=$drifted" >> "$GITHUB_OUTPUT"
 
     # Consumes the pending changesets: bumps versions, writes changelogs, updates
-    # the ledger, and syncs manifests. A no-op (no pending changesets) leaves the
-    # tree clean and the steps below skip.
+    # the ledger, and syncs manifests. Only the checked products' intents are
+    # consumed; the rest stay in the ledger for a later release. A no-op (nothing
+    # pending in scope) leaves the tree clean and the steps below skip.
     - name: Bump versions
-      run: pnpm bump
+      env:
+        RELEASE_PNPM11: ${{ github.event.inputs.pnpm11 }}
+        RELEASE_PNPM: ${{ github.event.inputs.pnpm }}
+        RELEASE_PNPR: ${{ github.event.inputs.pnpr }}
+      run: |
+        args=()
+        [ "$RELEASE_PNPM11" = "true" ] && args+=(--release pnpm11)
+        [ "$RELEASE_PNPM" = "true" ] && args+=(--release pnpm)
+        [ "$RELEASE_PNPR" = "true" ] && args+=(--release pnpr)
+        if [ ${#args[@]} -eq 0 ]; then
+          echo "Select at least one product to release." >&2
+          exit 1
+        fi
+        pnpm run bump -- "${args[@]}"
 
     - name: Check for changes
       id: changes
