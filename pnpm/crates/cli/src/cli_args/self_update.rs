@@ -134,6 +134,8 @@ pub struct SelfUpdateArgs {
 ///
 /// A `trustPolicy` violation is not negotiable — it means the release's trust
 /// evidence weakened relative to the installed version.
+///
+/// [`WorkspaceSettings::clear_self_update_policy`]: pacquet_config::WorkspaceSettings::clear_self_update_policy
 fn enforce_resolution_policy(
     config: &Config,
     version: &str,
