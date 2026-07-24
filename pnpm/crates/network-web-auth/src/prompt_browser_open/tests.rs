@@ -146,32 +146,12 @@ macro_rules! browser_fake {
     };
     (@helper infos) => {
         fn infos() -> Vec<String> {
-            EMITTED
-                .lock()
-                .expect("EMITTED not poisoned")
-                .iter()
-                .filter_map(|event| match event {
-                    LogEvent::Global(GlobalLog { level, message }) if *level == LogLevel::Info => {
-                        Some(message.clone())
-                    }
-                    _ => None,
-                })
-                .collect()
+            global_messages_at(&EMITTED.lock().expect("EMITTED not poisoned"), LogLevel::Info)
         }
     };
     (@helper warns) => {
         fn warns() -> Vec<String> {
-            EMITTED
-                .lock()
-                .expect("EMITTED not poisoned")
-                .iter()
-                .filter_map(|event| match event {
-                    LogEvent::Global(GlobalLog { level, message }) if *level == LogLevel::Warn => {
-                        Some(message.clone())
-                    }
-                    _ => None,
-                })
-                .collect()
+            global_messages_at(&EMITTED.lock().expect("EMITTED not poisoned"), LogLevel::Warn)
         }
     };
     (@helper $unknown:ident) => {
@@ -182,6 +162,20 @@ macro_rules! browser_fake {
             "simulate_enter, open_calls, closed, infos, warns",
         ));
     };
+}
+
+// The `Global`-log messages at `level`, in emit order — the projection that
+// the fake's `infos` and `warns` accessors share.
+fn global_messages_at(events: &[LogEvent], level: LogLevel) -> Vec<String> {
+    events
+        .iter()
+        .filter_map(|event| match event {
+            LogEvent::Global(GlobalLog { level: emitted, message }) if *emitted == level => {
+                Some(message.clone())
+            }
+            _ => None,
+        })
+        .collect()
 }
 
 /// Poll error type. Carries a message so the rejection tests can assert
