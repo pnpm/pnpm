@@ -869,20 +869,29 @@ async fn frozen_lockfile_rejects_old_format_migration() {
     );
 }
 
-/// Recording reporter capturing `pnpm:installing-config-deps` statuses.
-struct RecordingReporter;
-static CONFIG_DEP_EVENTS: Mutex<Vec<InstallingConfigDepsStatus>> = Mutex::new(Vec::new());
-
-impl Reporter for RecordingReporter {
-    fn emit(event: &LogEvent) {
-        if let LogEvent::InstallingConfigDeps(log) = event {
-            CONFIG_DEP_EVENTS.lock().unwrap().push(log.status);
-        }
-    }
-}
-
 #[tokio::test]
 async fn emits_installing_config_deps_events_only_when_work_is_needed() {
+    // Recording reporter capturing every `LogEvent`. The static lives in this
+    // fn's scope, so other tests get independent storage and never race on it.
+    static CONFIG_DEP_EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            CONFIG_DEP_EVENTS.lock().unwrap().push(event.clone());
+        }
+    }
+
+    // The `pnpm:installing-config-deps` statuses in emit order.
+    fn config_dep_statuses(events: &[LogEvent]) -> Vec<InstallingConfigDepsStatus> {
+        events
+            .iter()
+            .filter_map(|event| match event {
+                LogEvent::InstallingConfigDeps(log) => Some(log.status),
+                _ => None,
+            })
+            .collect()
+    }
+
     let harness = harness();
     let (resolver, _cache) = build_resolver(&harness.registry_url);
     let root = TempDir::new().unwrap();
@@ -901,7 +910,7 @@ async fn emits_installing_config_deps_events_only_when_work_is_needed() {
     // The channel is order-sensitive for pnpm compatibility.
     let first = std::mem::take(&mut *CONFIG_DEP_EVENTS.lock().unwrap());
     assert_eq!(
-        first,
+        config_dep_statuses(&first),
         vec![InstallingConfigDepsStatus::Started, InstallingConfigDepsStatus::Done],
         "first install emits exactly started then done",
     );
@@ -914,7 +923,7 @@ async fn emits_installing_config_deps_events_only_when_work_is_needed() {
     .await
     .unwrap();
     let second = std::mem::take(&mut *CONFIG_DEP_EVENTS.lock().unwrap());
-    assert!(second.is_empty(), "a no-op install emits nothing: {second:?}");
+    assert!(config_dep_statuses(&second).is_empty(), "a no-op install emits nothing: {second:?}");
 }
 
 #[test]

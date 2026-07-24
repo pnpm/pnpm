@@ -83,67 +83,91 @@ enum SleepBehavior {
     AdvanceByFixed(u64),
 }
 
-thread_local! {
-    static TIME: Cell<u64> = const { Cell::new(0) };
-    static SLEEP_BEHAVIOR: Cell<SleepBehavior> = const { Cell::new(SleepBehavior::NoAdvance) };
-    static SLEEPS: RefCell<Vec<u64>> = const { RefCell::new(Vec::new()) };
-    static FETCH: RefCell<Option<FetchScript>> = const { RefCell::new(None) };
-}
-
-struct Fake;
-
-impl Clock for Fake {
-    fn now_ms() -> u64 {
-        TIME.with(Cell::get)
-    }
-}
-
-impl Sleep for Fake {
-    fn sleep_ms(ms: u64) -> impl Future<Output = ()> {
-        SLEEPS.with(|sleeps| sleeps.borrow_mut().push(ms));
-        let delta = match SLEEP_BEHAVIOR.with(Cell::get) {
-            SleepBehavior::NoAdvance => 0,
-            SleepBehavior::AdvanceByMs => ms,
-            SleepBehavior::AdvanceByFixed(jump) => jump,
-        };
-        if delta != 0 {
-            TIME.with(|time| time.set(time.get().saturating_add(delta)));
+// Per-test fake for the web-auth clock, sleeps, and fetch. Its state lives in
+// fn-local thread-locals, so each `#[test]` gets independent storage and
+// concurrent tests never share the clock or the recorded sleeps. Each test
+// names the optional helpers it drives, so every emitted helper is used and
+// none needs a `dead_code` allow.
+macro_rules! poll_fake {
+    ($($helper:ident),* $(,)?) => {
+        thread_local! {
+            static TIME: Cell<u64> = const { Cell::new(0) };
+            static SLEEP_BEHAVIOR: Cell<SleepBehavior> =
+                const { Cell::new(SleepBehavior::NoAdvance) };
+            static SLEEPS: RefCell<Vec<u64>> = const { RefCell::new(Vec::new()) };
+            static FETCH: RefCell<Option<FetchScript>> = const { RefCell::new(None) };
         }
-        future::ready(())
-    }
-}
 
-impl WebAuthFetch for Fake {
-    fn fetch(
-        url: &str,
-        options: &WebAuthFetchOptions,
-    ) -> impl Future<Output = Result<WebAuthFetchResponse, WebAuthFetchError>> {
-        let result = FETCH.with(|fetch| {
-            (fetch.borrow_mut().as_mut().expect("a fetch script must be installed"))(url, options)
-        });
-        future::ready(result)
-    }
-}
+        struct Fake;
 
-/// Reset the shared fake state. Called first in every test so a reused
-/// libtest worker thread never leaks state between tests.
-fn reset() {
-    TIME.with(|time| time.set(0));
-    SLEEP_BEHAVIOR.with(|behavior| behavior.set(SleepBehavior::NoAdvance));
-    SLEEPS.with(|sleeps| sleeps.borrow_mut().clear());
-    FETCH.with(|fetch| *fetch.borrow_mut() = None);
-}
+        impl Clock for Fake {
+            fn now_ms() -> u64 {
+                TIME.with(Cell::get)
+            }
+        }
 
-fn set_sleep_behavior(behavior: SleepBehavior) {
-    SLEEP_BEHAVIOR.with(|cell| cell.set(behavior));
-}
+        impl Sleep for Fake {
+            fn sleep_ms(ms: u64) -> impl Future<Output = ()> {
+                SLEEPS.with(|sleeps| sleeps.borrow_mut().push(ms));
+                let delta = match SLEEP_BEHAVIOR.with(Cell::get) {
+                    SleepBehavior::NoAdvance => 0,
+                    SleepBehavior::AdvanceByMs => ms,
+                    SleepBehavior::AdvanceByFixed(jump) => jump,
+                };
+                if delta != 0 {
+                    TIME.with(|time| time.set(time.get().saturating_add(delta)));
+                }
+                future::ready(())
+            }
+        }
 
-fn set_fetch(script: FetchScript) {
-    FETCH.with(|fetch| *fetch.borrow_mut() = Some(script));
-}
+        impl WebAuthFetch for Fake {
+            fn fetch(
+                url: &str,
+                options: &WebAuthFetchOptions,
+            ) -> impl Future<Output = Result<WebAuthFetchResponse, WebAuthFetchError>> {
+                let result = FETCH.with(|fetch| {
+                    let mut fetch = fetch.borrow_mut();
+                    let script = fetch.as_mut().expect("a fetch script must be installed");
+                    script(url, options)
+                });
+                future::ready(result)
+            }
+        }
 
-fn recorded_sleeps() -> Vec<u64> {
-    SLEEPS.with(|sleeps| sleeps.borrow().clone())
+        // Reset the fake state, in case the same test is re-run within the
+        // same process on retry.
+        fn reset() {
+            TIME.with(|time| time.set(0));
+            SLEEP_BEHAVIOR.with(|behavior| behavior.set(SleepBehavior::NoAdvance));
+            SLEEPS.with(|sleeps| sleeps.borrow_mut().clear());
+            FETCH.with(|fetch| *fetch.borrow_mut() = None);
+        }
+
+        fn set_fetch(script: FetchScript) {
+            FETCH.with(|fetch| *fetch.borrow_mut() = Some(script));
+        }
+
+        $( poll_fake!(@helper $helper); )*
+    };
+
+    (@helper set_sleep_behavior) => {
+        fn set_sleep_behavior(behavior: SleepBehavior) {
+            SLEEP_BEHAVIOR.with(|cell| cell.set(behavior));
+        }
+    };
+    (@helper recorded_sleeps) => {
+        fn recorded_sleeps() -> Vec<u64> {
+            SLEEPS.with(|sleeps| sleeps.borrow().clone())
+        }
+    };
+    (@helper $unknown:ident) => {
+        compile_error!(concat!(
+            "unknown `poll_fake!` helper `",
+            stringify!($unknown),
+            "`; expected one of: set_sleep_behavior, recorded_sleeps",
+        ));
+    };
 }
 
 fn ok_202(retry_after: Option<&str>) -> WebAuthFetchResponse {
@@ -209,6 +233,7 @@ fn params(timeout_ms: Option<u64>) -> WebAuthTokenPollParams {
 
 #[tokio::test]
 async fn returns_token_when_done_url_responds_with_200_and_token() {
+    poll_fake!();
     reset();
     let calls = Rc::new(Cell::new(0));
     let counter = Rc::clone(&calls);
@@ -225,6 +250,7 @@ async fn returns_token_when_done_url_responds_with_200_and_token() {
 
 #[tokio::test]
 async fn passes_done_url_and_fetch_options_to_fetch() {
+    poll_fake!();
     reset();
     let captured = Rc::new(RefCell::new(Vec::<(String, WebAuthFetchOptions)>::new()));
     let sink = Rc::clone(&captured);
@@ -250,6 +276,7 @@ async fn passes_done_url_and_fetch_options_to_fetch() {
 
 #[tokio::test]
 async fn respects_retry_after_header_when_polling() {
+    poll_fake!(recorded_sleeps);
     reset();
     let calls = Rc::new(Cell::new(0));
     let counter = Rc::clone(&calls);
@@ -267,6 +294,7 @@ async fn respects_retry_after_header_when_polling() {
 
 #[tokio::test]
 async fn ignores_retry_after_when_value_is_not_a_finite_number() {
+    poll_fake!(recorded_sleeps);
     reset();
     let calls = Rc::new(Cell::new(0));
     let counter = Rc::clone(&calls);
@@ -282,6 +310,7 @@ async fn ignores_retry_after_when_value_is_not_a_finite_number() {
 
 #[tokio::test]
 async fn ignores_retry_after_when_value_is_absent() {
+    poll_fake!(recorded_sleeps);
     reset();
     let calls = Rc::new(Cell::new(0));
     let counter = Rc::clone(&calls);
@@ -297,6 +326,7 @@ async fn ignores_retry_after_when_value_is_absent() {
 
 #[tokio::test]
 async fn skips_additional_delay_when_retry_after_is_less_than_poll_interval() {
+    poll_fake!(recorded_sleeps);
     reset();
     let calls = Rc::new(Cell::new(0));
     let counter = Rc::clone(&calls);
@@ -312,6 +342,7 @@ async fn skips_additional_delay_when_retry_after_is_less_than_poll_interval() {
 
 #[tokio::test]
 async fn caps_retry_after_additional_delay_to_remaining_timeout() {
+    poll_fake!(set_sleep_behavior, recorded_sleeps);
     reset();
     set_sleep_behavior(SleepBehavior::AdvanceByMs);
     set_fetch(Box::new(|_url, _options| Ok(ok_202(Some("60")))));
@@ -328,6 +359,7 @@ async fn caps_retry_after_additional_delay_to_remaining_timeout() {
 
 #[tokio::test]
 async fn throws_timeout_error_when_timeout_expires_during_retry_after_wait() {
+    poll_fake!(set_sleep_behavior);
     reset();
     set_sleep_behavior(SleepBehavior::AdvanceByMs);
     set_fetch(Box::new(|_url, _options| Ok(ok_202(Some("100")))));
@@ -341,6 +373,7 @@ async fn throws_timeout_error_when_timeout_expires_during_retry_after_wait() {
 
 #[tokio::test]
 async fn continues_polling_when_fetch_fails() {
+    poll_fake!();
     reset();
     let calls = Rc::new(Cell::new(0));
     let counter = Rc::clone(&calls);
@@ -357,6 +390,7 @@ async fn continues_polling_when_fetch_fails() {
 
 #[tokio::test]
 async fn continues_polling_when_response_is_not_ok() {
+    poll_fake!();
     reset();
     let calls = Rc::new(Cell::new(0));
     let counter = Rc::clone(&calls);
@@ -373,6 +407,7 @@ async fn continues_polling_when_response_is_not_ok() {
 
 #[tokio::test]
 async fn continues_polling_when_response_body_is_not_json() {
+    poll_fake!();
     reset();
     let calls = Rc::new(Cell::new(0));
     let counter = Rc::clone(&calls);
@@ -404,6 +439,7 @@ async fn continues_polling_when_response_body_is_not_json() {
 /// without the real HTTP transport.
 #[tokio::test]
 async fn continues_polling_when_response_body_was_truncated() {
+    poll_fake!();
     reset();
     let calls = Rc::new(Cell::new(0));
     let counter = Rc::clone(&calls);
@@ -420,6 +456,7 @@ async fn continues_polling_when_response_body_was_truncated() {
 
 #[tokio::test]
 async fn continues_polling_when_response_body_has_no_token() {
+    poll_fake!();
     reset();
     let calls = Rc::new(Cell::new(0));
     let counter = Rc::clone(&calls);
@@ -440,6 +477,7 @@ async fn continues_polling_when_response_body_has_no_token() {
 
 #[tokio::test]
 async fn continues_polling_when_token_is_empty_string() {
+    poll_fake!();
     reset();
     let calls = Rc::new(Cell::new(0));
     let counter = Rc::clone(&calls);
@@ -456,6 +494,7 @@ async fn continues_polling_when_token_is_empty_string() {
 
 #[tokio::test]
 async fn throws_timeout_error_after_timeout() {
+    poll_fake!(set_sleep_behavior);
     reset();
     // Jump past the default 5-minute budget on the first sleep.
     set_sleep_behavior(SleepBehavior::AdvanceByFixed(6 * 60 * 1000));
@@ -466,6 +505,7 @@ async fn throws_timeout_error_after_timeout() {
 
 #[tokio::test]
 async fn uses_custom_timeout_value() {
+    poll_fake!(set_sleep_behavior);
     reset();
     set_sleep_behavior(SleepBehavior::AdvanceByFixed(2000));
     set_fetch(Box::new(|_url, _options| Ok(ok_202(None))));
@@ -479,6 +519,7 @@ async fn uses_custom_timeout_value() {
 
 #[tokio::test]
 async fn recovers_after_multiple_consecutive_fetch_errors() {
+    poll_fake!();
     reset();
     let calls = Rc::new(Cell::new(0));
     let counter = Rc::clone(&calls);
@@ -495,6 +536,7 @@ async fn recovers_after_multiple_consecutive_fetch_errors() {
 
 #[tokio::test]
 async fn waits_poll_interval_before_each_fetch_call() {
+    poll_fake!(recorded_sleeps);
     reset();
     let calls = Rc::new(Cell::new(0));
     let counter = Rc::clone(&calls);
@@ -510,6 +552,7 @@ async fn waits_poll_interval_before_each_fetch_call() {
 
 #[tokio::test]
 async fn throws_timeout_error_when_remaining_time_is_zero_during_retry_after() {
+    poll_fake!(set_sleep_behavior);
     reset();
     set_sleep_behavior(SleepBehavior::AdvanceByMs);
     let calls = Rc::new(Cell::new(0));

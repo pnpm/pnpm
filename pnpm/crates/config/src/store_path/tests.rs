@@ -6,11 +6,11 @@ use std::{
 };
 use tempfile::tempdir;
 
-// The `PrefixProbe` machinery below is only used by tests gated on
+// The `prefix_probe!` fake below is only used by tests gated on
 // `cfg(unix)` (the cross-volume scenarios construct absolute Unix paths
 // like `/Volumes/src/...`). On Windows, every consumer is excluded, so
-// gate the fake itself to keep clippy's `dead_code` lint happy under
-// `-D warnings`.
+// gate the macro and its imports to keep clippy's `dead_code`/`unused`
+// lints happy under `-D warnings`.
 #[cfg(unix)]
 use crate::api::LinkProbe;
 #[cfg(unix)]
@@ -71,56 +71,38 @@ fn resolve_store_dir_same_volume_uses_home_default() {
     assert_eq!(resolved, home_default);
 }
 
-/// Fake [`LinkProbe`] driven by a path-allowlist for the
-/// `to_dir`: only directories whose canonical path starts with one
-/// of the recorded prefixes accept the hardlink. Lets a test pin
-/// the mountpoint deterministically without needing two real
-/// volumes.
-///
-/// The allowlist lives in [`ALLOW_PREFIXES`]. To keep two
-/// concurrently-running scenarios from clobbering each other's
-/// allowlist between `set_allow` and the subsequent `resolve_store_dir`
-/// call (nextest runs tests in parallel by default), every scenario
-/// goes through [`PrefixProbe::with_allow`], which holds
-/// [`PREFIX_PROBE_SCENARIO_LOCK`] across the entire set-and-probe.
-/// Per `CodeRabbit` review on pnpm/pnpm#11804.
+// Per-test [`LinkProbe`] fake whose `can_link_between_dirs` accepts a `to_dir`
+// only under an allowlisted prefix, pinning the mountpoint deterministically
+// without two real volumes. The allowlist is fn-local, so each `#[test]` owns
+// its own and concurrent tests never share it.
 #[cfg(unix)]
-static ALLOW_PREFIXES: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
+macro_rules! prefix_probe {
+    () => {
+        static ALLOW_PREFIXES: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
 
-#[cfg(unix)]
-static PREFIX_PROBE_SCENARIO_LOCK: Mutex<()> = Mutex::new(());
+        struct PrefixProbe;
+        impl LinkProbe for PrefixProbe {
+            fn can_link_between_dirs(_from_dir: &Path, to_dir: &Path) -> bool {
+                ALLOW_PREFIXES
+                    .lock()
+                    .expect("ALLOW_PREFIXES not poisoned")
+                    .iter()
+                    .any(|allowed| to_dir.starts_with(allowed))
+            }
+        }
 
-#[cfg(unix)]
-struct PrefixProbe;
-
-#[cfg(unix)]
-impl PrefixProbe {
-    /// Install `prefixes` as the allowlist, run `body`, then drop
-    /// the scenario lock. Serialises every [`PrefixProbe`]-driven
-    /// scenario so parallel test execution can't race the allowlist
-    /// out from under a `resolve_store_dir` call.
-    fn with_allow<Output>(prefixes: &[&Path], body: impl FnOnce() -> Output) -> Output {
-        let _scenario =
-            PREFIX_PROBE_SCENARIO_LOCK.lock().expect("PREFIX_PROBE_SCENARIO_LOCK not poisoned");
-        let mut slot = ALLOW_PREFIXES.lock().expect("ALLOW_PREFIXES not poisoned");
-        slot.clear();
-        slot.extend(prefixes.iter().map(|p| p.to_path_buf()));
-        drop(slot);
-        body()
-    }
-}
-
-#[cfg(unix)]
-impl LinkProbe for PrefixProbe {
-    fn can_link_between_dirs(_from_dir: &Path, to_dir: &Path) -> bool {
-        let slot = ALLOW_PREFIXES.lock().expect("ALLOW_PREFIXES not poisoned");
-        slot.iter().any(|allowed| to_dir.starts_with(allowed))
-    }
+        fn set_allow(prefixes: &[&Path]) {
+            let mut slot = ALLOW_PREFIXES.lock().expect("ALLOW_PREFIXES not poisoned");
+            slot.clear();
+            slot.extend(prefixes.iter().map(|prefix| prefix.to_path_buf()));
+        }
+    };
 }
 
 #[test]
 #[cfg(unix)]
 fn resolve_store_dir_cross_volume_walks_to_mountpoint() {
+    prefix_probe!();
     let tmp = tempdir().expect("create tempdir");
     let mount = tmp.path().join("Volumes/src");
     let pkg_root = mount.join("project");
@@ -134,15 +116,15 @@ fn resolve_store_dir_cross_volume_walks_to_mountpoint() {
 
     // Only the mount and its descendants are linkable — anything
     // higher (the tempdir root, `/`, the home dir) fails the probe.
-    let resolved = PrefixProbe::with_allow(&[&mount_canon], || {
-        resolve_store_dir::<PrefixProbe>(home_default, &pnpm_home, &pkg_root_canon)
-    });
+    set_allow(&[&mount_canon]);
+    let resolved = resolve_store_dir::<PrefixProbe>(home_default, &pnpm_home, &pkg_root_canon);
     assert_eq!(resolved, mount_canon.join(".pnpm-store"));
 }
 
 #[test]
 #[cfg(unix)]
 fn resolve_store_dir_prefers_parent_when_parent_is_also_linkable() {
+    prefix_probe!();
     let tmp = tempdir().expect("create tempdir");
     let parent_mount = tmp.path().join("VolumesGroup");
     let mount = parent_mount.join("src");
@@ -154,15 +136,15 @@ fn resolve_store_dir_prefers_parent_when_parent_is_also_linkable() {
     let home_default = PathBuf::from("/home/test-user/Library/pnpm/store");
     let pnpm_home = PathBuf::from("/home/test-user/Library/pnpm");
 
-    let resolved = PrefixProbe::with_allow(&[&parent_canon], || {
-        resolve_store_dir::<PrefixProbe>(home_default, &pnpm_home, &pkg_root_canon)
-    });
+    set_allow(&[&parent_canon]);
+    let resolved = resolve_store_dir::<PrefixProbe>(home_default, &pnpm_home, &pkg_root_canon);
     assert_eq!(resolved, parent_canon.join(".pnpm-store"));
 }
 
 #[test]
 #[cfg(unix)]
 fn resolve_store_dir_falls_back_when_only_pkg_root_is_linkable() {
+    prefix_probe!();
     let tmp = tempdir().expect("create tempdir");
     let pkg_root = tmp.path().join("project");
     fs::create_dir_all(&pkg_root).expect("create project dir");
@@ -170,15 +152,16 @@ fn resolve_store_dir_falls_back_when_only_pkg_root_is_linkable() {
     let home_default = PathBuf::from("/home/test-user/Library/pnpm/store");
     let pnpm_home = PathBuf::from("/home/test-user/Library/pnpm");
 
-    let resolved = PrefixProbe::with_allow(&[&pkg_root_canon], || {
-        resolve_store_dir::<PrefixProbe>(home_default.clone(), &pnpm_home, &pkg_root_canon)
-    });
+    set_allow(&[&pkg_root_canon]);
+    let resolved =
+        resolve_store_dir::<PrefixProbe>(home_default.clone(), &pnpm_home, &pkg_root_canon);
     assert_eq!(resolved, home_default);
 }
 
 #[test]
 #[cfg(unix)]
 fn resolve_store_dir_falls_back_when_no_mountpoint_is_linkable() {
+    prefix_probe!();
     let tmp = tempdir().expect("create tempdir");
     let pkg_root = tmp.path().join("project");
     fs::create_dir_all(&pkg_root).expect("create project dir");
@@ -186,9 +169,9 @@ fn resolve_store_dir_falls_back_when_no_mountpoint_is_linkable() {
     let home_default = PathBuf::from("/home/test-user/Library/pnpm/store");
     let pnpm_home = PathBuf::from("/home/test-user/Library/pnpm");
 
-    let resolved = PrefixProbe::with_allow(&[], || {
-        resolve_store_dir::<PrefixProbe>(home_default.clone(), &pnpm_home, &pkg_root_canon)
-    });
+    set_allow(&[]);
+    let resolved =
+        resolve_store_dir::<PrefixProbe>(home_default.clone(), &pnpm_home, &pkg_root_canon);
     assert_eq!(resolved, home_default);
 }
 
