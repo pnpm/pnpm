@@ -4,6 +4,7 @@ import path from 'node:path'
 
 import { detectIfCurrentPkgIsExecutable, packageManager } from '@pnpm/cli.meta'
 import { docsUrl } from '@pnpm/cli.utils'
+import { getHomedir } from '@pnpm/config.reader'
 import { logger } from '@pnpm/logger'
 import {
   addDirToEnvPath,
@@ -173,16 +174,26 @@ export async function handler (
     createAliasScripts(binDir)
   }
   try {
-    const report = await addDirToEnvPath(opts.pnpmHomeDir, {
-      configSectionName: 'pnpm',
-      proxyVarName: 'PNPM_HOME',
-      proxyVarSubDir: 'bin',
-      overwrite: opts.force,
-      position: 'start',
-    })
-    writeGHActionsEnvFiles(opts.pnpmHomeDir, binDir)
-    removeLegacyHomeDirShims(opts.pnpmHomeDir)
-    return renderSetupOutput(report)
+    const originalHome = process.env.HOME
+    try {
+      process.env.HOME = getHomedir()
+      const report = await addDirToEnvPath(opts.pnpmHomeDir, {
+        configSectionName: 'pnpm',
+        proxyVarName: 'PNPM_HOME',
+        proxyVarSubDir: 'bin',
+        overwrite: opts.force,
+        position: 'start',
+      })
+      writeGHActionsEnvFiles(opts.pnpmHomeDir, binDir)
+      removeLegacyHomeDirShims(opts.pnpmHomeDir)
+      return renderSetupOutput(report)
+    } finally {
+      if (originalHome !== undefined) {
+        process.env.HOME = originalHome
+      } else {
+        delete process.env.HOME
+      }
+    }
   } catch (err: any) { // eslint-disable-line
     switch (err.code) {
       case 'ERR_PNPM_BAD_ENV_FOUND':

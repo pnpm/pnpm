@@ -129,6 +129,39 @@ impl EnvVarOs for Host {
 
 impl GetHomeDir for Host {
     fn home_dir() -> Option<PathBuf> {
+        if let Ok(sudo_user_raw) = std::env::var("SUDO_USER") {
+            let sudo_user = sudo_user_raw.trim().to_string();
+            if sudo_user != "root" && !sudo_user.is_empty() {
+                #[cfg(all(unix, not(target_os = "cygwin")))]
+                {
+                    use std::ffi::CString;
+                    if let Ok(c_user) = CString::new(sudo_user) {
+                        // SAFETY: Zero-initializing a libc struct is safe.
+                        let mut pw_buf: libc::passwd = unsafe { std::mem::zeroed() };
+                        let mut buf: Vec<libc::c_char> = vec![0; 4096];
+                        let mut result_ptr = std::ptr::null_mut();
+                        // SAFETY: FFI call with valid pointers and buffer lengths.
+                        let status = unsafe {
+                            libc::getpwnam_r(
+                                c_user.as_ptr(),
+                                &raw mut pw_buf,
+                                buf.as_mut_ptr(),
+                                buf.len(),
+                                &raw mut result_ptr,
+                            )
+                        };
+                        if status == 0 && !result_ptr.is_null() && !pw_buf.pw_dir.is_null() {
+                            // SAFETY: pw_dir is guaranteed to be a valid null-terminated C string.
+                            let pw_dir = unsafe { std::ffi::CStr::from_ptr(pw_buf.pw_dir) };
+                            if let Ok(path) = pw_dir.to_str() {
+                                return Some(PathBuf::from(path));
+                            }
+                        }
+                    }
+                    return None;
+                }
+            }
+        }
         home::home_dir()
     }
 }

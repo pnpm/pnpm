@@ -1,5 +1,6 @@
-import os from 'node:os'
 import path from 'node:path'
+
+import { getHomedir } from './homedir.js'
 
 export const npmDefaults = {
   registry: 'https://registry.npmjs.org/',
@@ -8,6 +9,8 @@ export const npmDefaults = {
     process.platform === 'cygwin' ||
     !(process.getuid && process.setuid && process.getgid && process.setgid) ||
     process.getuid!() !== 0,
-  userconfig: path.resolve(os.homedir(), '.npmrc'),
+  get userconfig (): string {
+    return path.resolve(getHomedir(), '.npmrc')
+  },
   maxsockets: 50,
 }
