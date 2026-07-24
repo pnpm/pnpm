@@ -62,14 +62,14 @@ pub(crate) enum SelfUpdateError {
     #[diagnostic(code(ERR_PNPM_PNPM_RELEASE_POLICY_VIOLATION))]
     ReleasePolicyViolation { version: String },
 
-    #[display("pnpm@{version} {reason}.{cutoff_source}")]
+    #[display("pnpm@{version} {reason}.")]
     #[diagnostic(
         code(ERR_PNPM_NO_MATURE_MATCHING_VERSION),
         help(
             "Wait for the release to mature past the cutoff, or set PNPM_CONFIG_MINIMUM_RELEASE_AGE=0 to update anyway."
         )
     )]
-    NoMatureMatchingVersion { version: String, reason: String, cutoff_source: String },
+    NoMatureMatchingVersion { version: String, reason: String },
 
     #[display("Aborted: the immature pnpm version was not approved")]
     #[diagnostic(code(ERR_PNPM_MINIMUM_RELEASE_AGE_DENIED))]
@@ -126,7 +126,10 @@ pub struct SelfUpdateArgs {
 /// compromise — so under strict mode an immature pick is refused. An
 /// interactive run may still confirm it: naming a version on the command line
 /// is a deliberate act by the person at the keyboard, unlike a dependency
-/// drifting onto a new release. Non-interactive runs always fail closed.
+/// drifting onto a new release. Non-interactive runs always fail closed. The
+/// cutoff never comes from the project — see
+/// [`WorkspaceSettings::clear_release_age_policy`] — so the only policy to
+/// confirm here is the user's own.
 ///
 /// A `trustPolicy` violation is not negotiable — it means the release's trust
 /// evidence weakened relative to the installed version.
@@ -138,30 +141,19 @@ fn enforce_resolution_policy(
     if violation.code != MINIMUM_RELEASE_AGE_VIOLATION_CODE {
         return Err(SelfUpdateError::ReleasePolicyViolation { version: version.to_string() }.into());
     }
-    let Some(minutes) = config.resolved_minimum_release_age() else {
-        return Ok(());
-    };
-    if !config.resolved_minimum_release_age_strict() {
+    if config.resolved_minimum_release_age().is_none()
+        || !config.resolved_minimum_release_age_strict()
+    {
         return Ok(());
     }
-    let cutoff_source = match config.minimum_release_age_source.as_deref() {
-        Some(source) => {
-            format!(" The {minutes}-minute minimumReleaseAge cutoff comes from {source}.")
-        }
-        None => String::new(),
-    };
     if !std::io::stdin().is_terminal() {
         return Err(SelfUpdateError::NoMatureMatchingVersion {
             version: version.to_string(),
             reason: violation.reason.clone(),
-            cutoff_source,
         }
         .into());
     }
-    let prompt = format!(
-        "pnpm@{version} {reason}.{cutoff_source}\nUpdate anyway?",
-        reason = violation.reason,
-    );
+    let prompt = format!("pnpm@{version} {reason}.\nUpdate anyway?", reason = violation.reason);
     // An interrupted prompt (Esc / Ctrl-C) counts as a refusal.
     match dialoguer::Confirm::new().with_prompt(prompt).default(false).interact() {
         Ok(true) => Ok(()),

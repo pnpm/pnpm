@@ -61,13 +61,6 @@ export interface ConfigContext {
   cliOptions: Record<string, any> // eslint-disable-line
   /** Keys explicitly set from workspace yaml, CLI, or env vars (not defaults). */
   explicitlySetKeys: Set<string>
-  /**
-   * Where the effective `minimumReleaseAge` policy came from, in prose (a file
-   * path, a flag, an env var, or the built-in default). Only resolved for
-   * `self-update`, which names it when refusing an immature pnpm so the user
-   * can tell a repo-set cooldown from their own.
-   */
-  minimumReleaseAgeSource?: string
   packageManager: {
     name: string
     version: string

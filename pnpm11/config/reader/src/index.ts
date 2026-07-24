@@ -5,7 +5,7 @@ import { stripVTControlCharacters } from 'node:util'
 
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { createMatcher } from '@pnpm/config.matcher'
-import { GLOBAL_CONFIG_YAML_FILENAME, GLOBAL_LAYOUT_VERSION, WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
+import { GLOBAL_CONFIG_YAML_FILENAME, GLOBAL_LAYOUT_VERSION } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { getCurrentBranch } from '@pnpm/network.git-utils'
 import { applyRuntimeOnFailOverride } from '@pnpm/pkg-manifest.utils'
@@ -102,9 +102,8 @@ export async function getConfig (opts: {
   onlyInheritDlxSettingsFromLocal?: boolean
   ignoreLocalSettings?: boolean
   /**
-   * Set by `self-update`: resolve the `minimumReleaseAge` policy so that the
-   * project `pnpm-workspace.yaml` can only tighten it. See
-   * {@link applySelfUpdateReleaseAgePolicy}.
+   * Set by `self-update`: skip the project `pnpm-workspace.yaml`'s
+   * `minimumReleaseAge` settings. See {@link SELF_UPDATE_SKIPPED_SETTINGS}.
    */
   forSelfUpdate?: boolean
 }): Promise<{ config: Config, context: ConfigContext, warnings: string[] }> {
@@ -451,13 +450,6 @@ export async function getConfig (opts: {
 
   pnpmConfig.rootProjectManifestDir = pnpmConfig.lockfileDir ?? pnpmConfig.workspaceDir ?? pnpmConfig.dir
   let workspaceManifestRegistries: Record<string, string> | undefined
-  // Snapshot the release-age policy as the trusted sources left it — built-in
-  // defaults, the global config yaml, and CLI flags have all been applied by
-  // now, while the project `pnpm-workspace.yaml` merges in below.
-  const trustedReleaseAgePolicy = opts.forSelfUpdate
-    ? { values: pickReleaseAgePolicy(pnpmConfig), explicitKeys: new Set(explicitlySetKeys) }
-    : undefined
-  let projectReleaseAgePolicy: ReleaseAgePolicy | undefined
   if (!opts.ignoreLocalSettings) {
     pnpmConfig.rootProjectManifest = await safeReadProjectManifestOnly(pnpmConfig.rootProjectManifestDir) ?? undefined
     if (pnpmConfig.rootProjectManifest != null) {
@@ -483,12 +475,10 @@ export async function getConfig (opts: {
 
       pnpmConfig.workspacePackagePatterns = cliOptions['workspace-packages'] as string[] ?? workspaceManifest?.packages ?? ['.']
       if (workspaceManifest) {
-        if (trustedReleaseAgePolicy != null) {
-          projectReleaseAgePolicy = pickReleaseAgePolicy(workspaceManifest)
-        }
         addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
           configFromCliOpts,
           projectManifest: pnpmConfig.rootProjectManifest,
+          skipSettings: opts.forSelfUpdate ? SELF_UPDATE_SKIPPED_SETTINGS : undefined,
           workspaceDir: pnpmConfig.workspaceDir,
           workspaceManifest,
         })
@@ -559,7 +549,6 @@ export async function getConfig (opts: {
     'umask', // the type is a private function named 'Umask'
   ], types)
 
-  const envSetKeys = new Set<string>()
   for (const { key, value } of parseEnvVars(key => envPnpmTypes[key as keyof typeof envPnpmTypes], env)) {
     // undefined means that the env key was defined, but its value couldn't be parsed according to the schema
     // TODO: should we throw some error or print some warning here?
@@ -570,7 +559,6 @@ export async function getConfig (opts: {
     // @ts-expect-error
     pnpmConfig[key] = value
     explicitlySetKeys.add(key)
-    envSetKeys.add(key)
 
     if (key === 'registry') {
       if (typeof value !== 'string') {
@@ -593,16 +581,6 @@ export async function getConfig (opts: {
     pnpmConfig.minimumReleaseAgeStrict == null
   ) {
     pnpmConfig.minimumReleaseAgeStrict = true
-  }
-
-  if (trustedReleaseAgePolicy != null) {
-    applySelfUpdateReleaseAgePolicy(pnpmConfig, {
-      trusted: trustedReleaseAgePolicy,
-      project: projectReleaseAgePolicy,
-      envSetKeys,
-      cliSetKeys: new Set(Object.keys(configFromCliOpts)),
-      globalConfigPath: getGlobalConfigPath(configDir),
-    })
   }
 
   overrideSupportedArchitecturesWithCLI(pnpmConfig, cliOptions)
@@ -788,7 +766,6 @@ export async function getConfig (opts: {
     rootProjectManifest, rootProjectManifestDir,
     cliOptions: ctxCliOptions,
     explicitlySetKeys: ctxExplicitlySetKeys,
-    minimumReleaseAgeSource,
     packageManager: ctxPackageManager, wantedPackageManager,
     ...config
   } = pnpmConfig as Config & ConfigContext
@@ -798,7 +775,6 @@ export async function getConfig (opts: {
     rootProjectManifest, rootProjectManifestDir,
     cliOptions: ctxCliOptions,
     explicitlySetKeys: ctxExplicitlySetKeys,
-    minimumReleaseAgeSource,
     packageManager: ctxPackageManager, wantedPackageManager,
   }
   return { config, context, warnings }
@@ -1087,130 +1063,46 @@ function getNodeVersionFromEnginesRuntime (manifest: ProjectManifest): string | 
   return undefined
 }
 
-type ReleaseAgePolicy = Pick<Config,
-| 'minimumReleaseAge'
-| 'minimumReleaseAgeExclude'
-| 'minimumReleaseAgeIgnoreMissingTime'
-| 'minimumReleaseAgeStrict'
->
-
 /**
- * Read the release-age settings out of a config layer. Values of the wrong
- * type are dropped: one caller is the workspace manifest, whose yaml is
- * repo-controlled and unvalidated, and self-update compares these values to
- * decide whether the project tightened the policy.
- */
-function pickReleaseAgePolicy (source: object): ReleaseAgePolicy {
-  const settings = source as Partial<Record<keyof ReleaseAgePolicy, unknown>>
-  return {
-    minimumReleaseAge: typeof settings.minimumReleaseAge === 'number' ? settings.minimumReleaseAge : undefined,
-    minimumReleaseAgeExclude: Array.isArray(settings.minimumReleaseAgeExclude)
-      ? settings.minimumReleaseAgeExclude.filter((entry) => typeof entry === 'string')
-      : undefined,
-    minimumReleaseAgeIgnoreMissingTime: typeof settings.minimumReleaseAgeIgnoreMissingTime === 'boolean' ? settings.minimumReleaseAgeIgnoreMissingTime : undefined,
-    minimumReleaseAgeStrict: typeof settings.minimumReleaseAgeStrict === 'boolean' ? settings.minimumReleaseAgeStrict : undefined,
-  }
-}
-
-/**
- * Resolve the `minimumReleaseAge` policy that governs `pnpm self-update`.
+ * Settings the project `pnpm-workspace.yaml` does not contribute to
+ * `self-update`'s config.
  *
- * The cooldown an organization configures protects the pnpm binary too — it is
- * the highest-value download on the machine, and every later install runs
- * through it — so the project `pnpm-workspace.yaml` keeps applying to
- * `self-update`, but only in the tightening direction. The project may raise
- * the cutoff and turn strict mode on; it may never lower the cutoff, exempt
- * pnpm from it, or turn strict mode off. A trusted source (global config yaml,
- * environment, CLI flag) that sets a key explicitly wins outright, so the
- * person running pnpm stays in control of their own tooling.
- *
- * Records {@link ConfigContext.minimumReleaseAgeSource} so `self-update` can
- * name where the cutoff came from when it refuses an immature pnpm.
+ * `self-update` replaces the pnpm binary every later install runs through, so
+ * a repository must not get a say in whether it may be replaced. The cooldown
+ * is dangerous in both directions here: lowering it waives the protection the
+ * user configured, and raising it pins the machine to the installed pnpm —
+ * including past a release that fixes a vulnerability in it. Unlike a blocked
+ * dependency upgrade, that decision follows the user out of the repository.
+ * The policy therefore comes from the built-in defaults, the global config
+ * yaml, the environment, and CLI flags only.
  */
-function applySelfUpdateReleaseAgePolicy (pnpmConfig: Config & ConfigContext, {
-  trusted,
-  project,
-  envSetKeys,
-  cliSetKeys,
-  globalConfigPath,
-}: {
-  trusted: { values: ReleaseAgePolicy, explicitKeys: Set<string> }
-  project: ReleaseAgePolicy | undefined
-  envSetKeys: Set<string>
-  cliSetKeys: Set<string>
-  globalConfigPath: string
-}): void {
-  function trustedValueOf<Key extends keyof ReleaseAgePolicy> (key: Key): ReleaseAgePolicy[Key] {
-    return envSetKeys.has(key) ? pnpmConfig[key] : trusted.values[key]
-  }
-  function setByTrustedSource (key: keyof ReleaseAgePolicy): boolean {
-    return trusted.explicitKeys.has(key) || envSetKeys.has(key)
-  }
-
-  const trustedAge = trustedValueOf('minimumReleaseAge')
-  const projectAge = project?.minimumReleaseAge
-  const projectTightens = !setByTrustedSource('minimumReleaseAge') && projectAge != null && projectAge > (trustedAge ?? 0)
-  pnpmConfig.minimumReleaseAge = projectTightens ? projectAge : trustedAge
-
-  if (setByTrustedSource('minimumReleaseAgeStrict')) {
-    pnpmConfig.minimumReleaseAgeStrict = trustedValueOf('minimumReleaseAgeStrict')
-  } else if (
-    setByTrustedSource('minimumReleaseAge') ||
-    (project?.minimumReleaseAge ?? 0) > 0 ||
-    project?.minimumReleaseAgeStrict === true
-  ) {
-    // Same reasoning as the explicitly-set default above: a source that asks
-    // for a cooldown means it, and asking for one is a tightening whichever
-    // layer it comes from.
-    pnpmConfig.minimumReleaseAgeStrict = true
-  } else {
-    pnpmConfig.minimumReleaseAgeStrict = trustedValueOf('minimumReleaseAgeStrict')
-  }
-
-  // An exclude entry can only ever waive the cutoff, so the project's list is
-  // dropped entirely rather than merged.
-  pnpmConfig.minimumReleaseAgeExclude = trustedValueOf('minimumReleaseAgeExclude')
-  pnpmConfig.minimumReleaseAgeIgnoreMissingTime =
-    !setByTrustedSource('minimumReleaseAgeIgnoreMissingTime') && project?.minimumReleaseAgeIgnoreMissingTime === false
-      ? false
-      : trustedValueOf('minimumReleaseAgeIgnoreMissingTime')
-
-  pnpmConfig.minimumReleaseAgeSource = (() => {
-    // Either key can be the reason self-update refuses a version: the cutoff
-    // decides which versions are immature, strict mode decides whether an
-    // immature pick is fatal. Name the highest-priority layer that set either.
-    const policyKeys = ['minimumReleaseAge', 'minimumReleaseAgeStrict'] as const
-    const cliKey = policyKeys.find((key) => cliSetKeys.has(key))
-    if (cliKey != null) return `the --${kebabCase(cliKey)} flag`
-    const envKey = policyKeys.find((key) => envSetKeys.has(key))
-    if (envKey != null) return `the PNPM_CONFIG_${kebabCase(envKey).replaceAll('-', '_').toUpperCase()} environment variable`
-    if (policyKeys.some((key) => trusted.explicitKeys.has(key))) return globalConfigPath
-    if (
-      pnpmConfig.workspaceDir != null &&
-      ((project?.minimumReleaseAge ?? 0) > 0 || project?.minimumReleaseAgeStrict === true)
-    ) {
-      return path.join(pnpmConfig.workspaceDir, WORKSPACE_MANIFEST_FILENAME)
-    }
-    return "pnpm's built-in default"
-  })()
-}
+const SELF_UPDATE_SKIPPED_SETTINGS: ReadonlySet<string> = new Set([
+  'minimumReleaseAge',
+  'minimumReleaseAgeExclude',
+  'minimumReleaseAgeIgnoreMissingTime',
+  'minimumReleaseAgeStrict',
+] satisfies Array<keyof Config>)
 
 function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigContext, {
   configFromCliOpts,
   expandRequestDestinationEnv,
   projectManifest,
+  skipSettings,
   workspaceManifest,
   workspaceDir,
 }: {
   configFromCliOpts: Record<string, unknown>
   expandRequestDestinationEnv?: boolean
   projectManifest: ProjectManifest | undefined
+  /** Settings this manifest may not contribute. See {@link SELF_UPDATE_SKIPPED_SETTINGS}. */
+  skipSettings?: ReadonlySet<string>
   workspaceDir: string | undefined
   workspaceManifest: WorkspaceManifest
 }): void {
   const newSettings = Object.assign(getOptionsFromPnpmSettings(workspaceDir, workspaceManifest, { manifest: projectManifest, expandRequestDestinationEnv }), configFromCliOpts)
   for (const [key, value] of Object.entries(newSettings)) {
     if (!isCamelCase(key)) continue
+    if (skipSettings?.has(key)) continue
 
     // @ts-expect-error
     pnpmConfig[key] = value

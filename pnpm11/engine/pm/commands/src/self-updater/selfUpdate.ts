@@ -72,7 +72,6 @@ export type SelfUpdateCommandOptions = CreateStoreControllerOptions & Partial<Pi
 | 'packageManagerRegistries'
 | 'pnpmHomeDir'
 > & Pick<ConfigContext,
-| 'minimumReleaseAgeSource'
 | 'rootProjectManifestDir'
 | 'wantedPackageManager'
 >
@@ -292,28 +291,24 @@ export async function handler (
  * person at the keyboard, unlike a dependency drifting onto a new release. CI
  * and other non-interactive runs always fail closed.
  *
+ * The cutoff itself never comes from the project (see the config reader's
+ * `SELF_UPDATE_SKIPPED_SETTINGS`), so the only thing to confirm here is the
+ * user's own policy.
+ *
  * A `trustPolicy` violation is not negotiable — it means the release's trust
  * evidence weakened relative to the installed version — so it keeps failing
  * with the same error {@link makeResolutionStrict} would have raised.
  */
 async function enforceResolutionPolicy (
   violation: ResolutionPolicyViolation | undefined,
-  opts: Pick<SelfUpdateCommandOptions,
-  | 'ci'
-  | 'minimumReleaseAge'
-  | 'minimumReleaseAgeSource'
-  | 'minimumReleaseAgeStrict'
-  >
+  opts: Pick<SelfUpdateCommandOptions, 'ci' | 'minimumReleaseAge' | 'minimumReleaseAgeStrict'>
 ): Promise<void> {
   if (violation == null) return
   if (violation.code !== MINIMUM_RELEASE_AGE_VIOLATION_CODE) {
     throw policyViolationToError(violation)
   }
   if (!opts.minimumReleaseAge || opts.minimumReleaseAgeStrict !== true) return
-  const cutoffSource = opts.minimumReleaseAgeSource != null
-    ? ` The ${opts.minimumReleaseAge}-minute minimumReleaseAge cutoff comes from ${opts.minimumReleaseAgeSource}.`
-    : ''
-  const message = `${violation.name}@${violation.version} ${violation.reason}.${cutoffSource}`
+  const message = `${violation.name}@${violation.version} ${violation.reason}.`
   const canPrompt = !(opts.ci ?? isCI) && Boolean(process.stdin.isTTY)
   if (!canPrompt) {
     throw new PnpmError('NO_MATURE_MATCHING_VERSION', message, {

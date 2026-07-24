@@ -548,24 +548,26 @@ describe('minimumReleaseAgeStrict default', () => {
   })
 })
 
-describe('forSelfUpdate (the project may only tighten the release-age policy)', () => {
-  test('a workspace manifest raising the cutoff applies, and turns strict on', async () => {
+describe("forSelfUpdate (the project manifest doesn't set self-update's release-age policy)", () => {
+  test('a workspace manifest cannot raise the cutoff or turn strict mode on', async () => {
     prepareEmpty()
 
     writeYamlFileSync('pnpm-workspace.yaml', {
       minimumReleaseAge: 4320,
+      minimumReleaseAgeStrict: true,
     })
 
-    const { config, context } = await getConfig({
+    const { config } = await getConfig({
       cliOptions: {},
       packageManager: { name: 'pnpm', version: '1.0.0' },
       workspaceDir: process.cwd(),
       forSelfUpdate: true,
     })
 
-    expect(config.minimumReleaseAge).toBe(4320)
-    expect(config.minimumReleaseAgeStrict).toBe(true)
-    expect(context.minimumReleaseAgeSource).toBe(path.join(process.cwd(), 'pnpm-workspace.yaml'))
+    // A repo that raises the cutoff would pin the machine to the installed
+    // pnpm, including past a release that fixes a vulnerability in it.
+    expect(config.minimumReleaseAge).toBe(1440)
+    expect(config.minimumReleaseAgeStrict).toBeUndefined()
   })
 
   test('a workspace manifest cannot lower the cutoff, waive strict mode, or exempt pnpm', async () => {
@@ -590,52 +592,14 @@ describe('forSelfUpdate (the project may only tighten the release-age policy)', 
     expect(config.minimumReleaseAgeExclude).toBeUndefined()
   })
 
-  test('a workspace manifest asking for strict mode is honored', async () => {
+  test('a trusted env var still sets the policy', async () => {
     prepareEmpty()
 
     writeYamlFileSync('pnpm-workspace.yaml', {
-      minimumReleaseAgeStrict: true,
+      minimumReleaseAge: 4320,
     })
 
     const { config } = await getConfig({
-      cliOptions: {},
-      packageManager: { name: 'pnpm', version: '1.0.0' },
-      workspaceDir: process.cwd(),
-      forSelfUpdate: true,
-    })
-
-    expect(config.minimumReleaseAge).toBe(1440)
-    expect(config.minimumReleaseAgeStrict).toBe(true)
-  })
-
-  test('a trusted CLI flag wins over the workspace manifest in both directions', async () => {
-    prepareEmpty()
-
-    writeYamlFileSync('pnpm-workspace.yaml', {
-      minimumReleaseAge: 4320,
-    })
-
-    const { config, context } = await getConfig({
-      cliOptions: {
-        'minimum-release-age': 0,
-      },
-      packageManager: { name: 'pnpm', version: '1.0.0' },
-      workspaceDir: process.cwd(),
-      forSelfUpdate: true,
-    })
-
-    expect(config.minimumReleaseAge).toBe(0)
-    expect(context.minimumReleaseAgeSource).toBe('the --minimum-release-age flag')
-  })
-
-  test('a trusted env var wins over the workspace manifest', async () => {
-    prepareEmpty()
-
-    writeYamlFileSync('pnpm-workspace.yaml', {
-      minimumReleaseAge: 4320,
-    })
-
-    const { config, context } = await getConfig({
       cliOptions: {},
       packageManager: { name: 'pnpm', version: '1.0.0' },
       workspaceDir: process.cwd(),
@@ -645,22 +609,25 @@ describe('forSelfUpdate (the project may only tighten the release-age policy)', 
 
     expect(config.minimumReleaseAge).toBe(60)
     expect(config.minimumReleaseAgeStrict).toBe(true)
-    expect(context.minimumReleaseAgeSource).toBe('the PNPM_CONFIG_MINIMUM_RELEASE_AGE environment variable')
   })
 
-  test('the built-in default is named as the source at zero config', async () => {
+  test('a trusted CLI flag still sets the policy', async () => {
     prepareEmpty()
 
-    const { config, context } = await getConfig({
-      cliOptions: {},
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      minimumReleaseAge: 4320,
+    })
+
+    const { config } = await getConfig({
+      cliOptions: {
+        'minimum-release-age': 0,
+      },
       packageManager: { name: 'pnpm', version: '1.0.0' },
       workspaceDir: process.cwd(),
       forSelfUpdate: true,
     })
 
-    expect(config.minimumReleaseAge).toBe(1440)
-    expect(config.minimumReleaseAgeStrict).toBeUndefined()
-    expect(context.minimumReleaseAgeSource).toBe("pnpm's built-in default")
+    expect(config.minimumReleaseAge).toBe(0)
   })
 
   test('settings other than the release-age policy still come from the workspace manifest', async () => {
@@ -678,6 +645,23 @@ describe('forSelfUpdate (the project may only tighten the release-age policy)', 
     })
 
     expect(config.nodeLinker).toBe('hoisted')
+  })
+
+  test('the workspace manifest keeps setting the policy for every other command', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      minimumReleaseAge: 4320,
+    })
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.minimumReleaseAge).toBe(4320)
+    expect(config.minimumReleaseAgeStrict).toBe(true)
   })
 })
 

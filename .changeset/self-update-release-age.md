@@ -6,9 +6,9 @@
 "pnpm": minor
 ---
 
-`pnpm self-update` no longer lets a repository weaken the protections around the pnpm download:
+`pnpm self-update` no longer takes any instruction from the project it is run in:
 
-- pnpm is now fetched through the same trusted registry/auth configuration used when switching pnpm versions, so a project `.npmrc` or `pnpm-workspace.yaml` cannot redirect the download or attach credentials to it, and the project's default `.pnpmfile.(c|m)js` is no longer loaded. Pnpmfiles from trusted sources (the `pnpmfile` setting, the global pnpmfile, config-dependency plugins) still apply.
-- A project `pnpm-workspace.yaml` may only *tighten* the `minimumReleaseAge` policy that governs `self-update`: it can raise the cutoff or turn `minimumReleaseAgeStrict` on, but it can no longer lower the cutoff, turn strict mode off, or exempt pnpm through `minimumReleaseAgeExclude`. A value set from a trusted source (global config, environment variable, CLI flag) wins over the project's.
+- pnpm is fetched through the same trusted registry and auth configuration used when switching pnpm versions, so a project `.npmrc` or `pnpm-workspace.yaml` can no longer redirect the download or attach credentials to it, and the project's default `.pnpmfile.(c|m)js` is no longer loaded. Pnpmfiles from trusted sources (the `pnpmfile` setting, the global pnpmfile, config dependencies) still apply.
+- The `minimumReleaseAge` settings in `pnpm-workspace.yaml` no longer affect `self-update`. They still govern the project's own dependencies; for `self-update` the cooldown now comes from the built-in default, your global config, a `PNPM_CONFIG_*` environment variable, or a command-line flag. This fixes `self-update` failing inside a workspace that raises the cutoff while succeeding everywhere else, and stops a repository from either waiving the cooldown or keeping you on an outdated pnpm by raising it.
 
-When `self-update` refuses a version that is younger than the cutoff, the error now names where the cutoff came from, and an interactive run offers to update anyway.
+When `self-update` refuses a version that is younger than the cutoff, an interactive run now offers to update anyway; non-interactive runs still fail.
