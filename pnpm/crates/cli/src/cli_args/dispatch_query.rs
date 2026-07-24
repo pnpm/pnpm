@@ -583,7 +583,7 @@ pub(super) fn self_update<'a>(
     // Refuse corepack before loading project config, so a broken `.npmrc`
     // / workspace config can't mask the corepack refusal.
     super::self_update::reject_if_corepack()?;
-    let config = (ctx.config)()?;
+    let config = (ctx.config_self_update)()?;
     let dir = ctx.dir;
     macro_rules! run_self_update {
         ($reporter:ty) => {

@@ -3821,6 +3821,9 @@ importers:
 
   pnpm11/engine/pm/commands:
     dependencies:
+      '@inquirer/prompts':
+        specifier: 'catalog:'
+        version: 8.5.2(@types/node@26.1.1)
       '@pnpm/bins.linker':
         specifier: workspace:*
         version: link:../../../bins/linker
@@ -3896,6 +3899,9 @@ importers:
       '@pnpm/workspace.project-manifest-reader':
         specifier: workspace:*
         version: link:../../../workspace/project-manifest-reader
+      ci-info:
+        specifier: 'catalog:'
+        version: 4.4.0
       cross-spawn:
         specifier: 'catalog:'
         version: 7.0.6

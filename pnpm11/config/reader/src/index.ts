@@ -57,6 +57,11 @@ export { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concu
 export { getGlobalConfigPath } from './dirs.js'
 export { getDefaultCreds, getNetworkConfigs, type NetworkConfigs } from './getNetworkConfigs.js'
 export { getOptionsFromPnpmSettings, type OptionsFromRootManifest } from './getOptionsFromRootManifest.js'
+export {
+  getPackageManagerBootstrapConfig,
+  getPackageManagerRegistries,
+  type PackageManagerBootstrapConfig,
+} from './packageManagerRegistries.js'
 export type { Creds } from './parseCreds.js'
 export {
   createProjectConfigRecord,
@@ -96,6 +101,12 @@ export async function getConfig (opts: {
   env?: Record<string, string | undefined>
   onlyInheritDlxSettingsFromLocal?: boolean
   ignoreLocalSettings?: boolean
+  /**
+   * Set by `self-update`: skip the project `pnpm-workspace.yaml`'s settings
+   * that govern whether the pnpm binary may be replaced. See
+   * {@link SELF_UPDATE_SKIPPED_SETTINGS}.
+   */
+  forSelfUpdate?: boolean
 }): Promise<{ config: Config, context: ConfigContext, warnings: string[] }> {
   if (opts.onlyInheritDlxSettingsFromLocal) {
     const { onlyInheritDlxSettingsFromLocal: _, ...localOpts } = opts
@@ -468,6 +479,7 @@ export async function getConfig (opts: {
         addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
           configFromCliOpts,
           projectManifest: pnpmConfig.rootProjectManifest,
+          skipSettings: opts.forSelfUpdate ? SELF_UPDATE_SKIPPED_SETTINGS : undefined,
           workspaceDir: pnpmConfig.workspaceDir,
           workspaceManifest,
         })
@@ -1052,22 +1064,53 @@ function getNodeVersionFromEnginesRuntime (manifest: ProjectManifest): string | 
   return undefined
 }
 
+/**
+ * Settings the project `pnpm-workspace.yaml` does not contribute to
+ * `self-update`'s config.
+ *
+ * `self-update` replaces the pnpm binary every later install runs through, so
+ * a repository must not get a say in whether it may be replaced. Each of these
+ * is dangerous in both directions: a release-age cooldown lowered waives the
+ * protection the user configured, raised it pins the machine to the installed
+ * pnpm — including past a release that fixes a vulnerability in it; a
+ * `trustPolicy` turned off accepts a pnpm release whose trust evidence the
+ * user meant to reject, turned on blocks the update the same way; and `ci`
+ * decides whether an immature pick may be confirmed at the keyboard at all.
+ * Unlike a blocked dependency upgrade, those decisions follow the user out of
+ * the repository. The policy therefore comes from the built-in defaults, the
+ * global config yaml, the environment, and CLI flags only.
+ */
+const SELF_UPDATE_SKIPPED_SETTINGS: ReadonlySet<string> = new Set([
+  'ci',
+  'minimumReleaseAge',
+  'minimumReleaseAgeExclude',
+  'minimumReleaseAgeIgnoreMissingTime',
+  'minimumReleaseAgeStrict',
+  'trustPolicy',
+  'trustPolicyExclude',
+  'trustPolicyIgnoreAfter',
+] satisfies Array<keyof Config>)
+
 function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigContext, {
   configFromCliOpts,
   expandRequestDestinationEnv,
   projectManifest,
+  skipSettings,
   workspaceManifest,
   workspaceDir,
 }: {
   configFromCliOpts: Record<string, unknown>
   expandRequestDestinationEnv?: boolean
   projectManifest: ProjectManifest | undefined
+  /** Settings this manifest may not contribute. See {@link SELF_UPDATE_SKIPPED_SETTINGS}. */
+  skipSettings?: ReadonlySet<string>
   workspaceDir: string | undefined
   workspaceManifest: WorkspaceManifest
 }): void {
   const newSettings = Object.assign(getOptionsFromPnpmSettings(workspaceDir, workspaceManifest, { manifest: projectManifest, expandRequestDestinationEnv }), configFromCliOpts)
   for (const [key, value] of Object.entries(newSettings)) {
     if (!isCamelCase(key)) continue
+    if (skipSettings?.has(key)) continue
 
     // @ts-expect-error
     pnpmConfig[key] = value

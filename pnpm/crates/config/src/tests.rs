@@ -1,6 +1,6 @@
 use super::{
     Config, EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, LinkProbe, LoadWorkspaceYamlError,
-    NodeLinker, NodePackageMapType, PackageImportMethod, fs,
+    NodeLinker, NodePackageMapType, PackageImportMethod, TrustPolicy, fs,
 };
 use crate::defaults::default_store_dir;
 use pacquet_store_dir::StoreDir;
@@ -2203,6 +2203,168 @@ pub fn pnpm_config_env_var_overrides_workspace_yaml() {
         config.enable_global_virtual_store,
         "PNPM_CONFIG_* env var must win over pnpm-workspace.yaml",
     );
+}
+
+#[test]
+pub fn self_update_config_ignores_a_workspace_manifest_that_raises_the_cutoff() {
+    let tmp = tempdir().unwrap();
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "minimumReleaseAge: 4320\nminimumReleaseAgeStrict: true\n",
+    )
+    .expect("write to pnpm-workspace.yaml");
+
+    let config =
+        Config::new().current_for_self_update::<HostNoHome>(tmp.path()).expect("config loads");
+
+    // A repo that raises the cutoff would pin the machine to the installed
+    // pnpm, including past a release that fixes a vulnerability in it.
+    assert_eq!(config.minimum_release_age, Config::new().minimum_release_age);
+    assert_eq!(config.minimum_release_age_strict, None);
+    assert_eq!(config.workspace_dir.as_deref(), Some(tmp.path()));
+}
+
+#[test]
+pub fn self_update_config_ignores_a_workspace_manifest_that_loosens_the_cutoff() {
+    let tmp = tempdir().unwrap();
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "minimumReleaseAge: 0\nminimumReleaseAgeStrict: false\nminimumReleaseAgeExclude:\n  - pnpm\n",
+    )
+    .expect("write to pnpm-workspace.yaml");
+
+    struct HostWithStrictEnv;
+    impl EnvVar for HostWithStrictEnv {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "PNPM_CONFIG_MINIMUM_RELEASE_AGE_STRICT" => Some("true".to_owned()),
+                _ => safe_host_var(name),
+            }
+        }
+    }
+    impl EnvVarOs for HostWithStrictEnv {
+        fn var_os(_: &str) -> Option<OsString> {
+            None
+        }
+    }
+    impl GetHomeDir for HostWithStrictEnv {
+        fn home_dir() -> Option<PathBuf> {
+            None
+        }
+    }
+    inert_link_probe!(HostWithStrictEnv);
+    host_current_dir!(HostWithStrictEnv);
+
+    let config = Config::new()
+        .current_for_self_update::<HostWithStrictEnv>(tmp.path())
+        .expect("config loads");
+
+    assert_eq!(config.minimum_release_age, Config::new().minimum_release_age);
+    assert_eq!(config.minimum_release_age_strict, Some(true));
+    assert_eq!(config.minimum_release_age_exclude, None);
+}
+
+#[test]
+pub fn self_update_config_ignores_a_workspace_manifest_that_loosens_the_trust_policy() {
+    let tmp = tempdir().unwrap();
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "trustPolicy: off\ntrustPolicyExclude:\n  - pnpm\ntrustPolicyIgnoreAfter: 525600\n",
+    )
+    .expect("write to pnpm-workspace.yaml");
+
+    struct HostWithTrustPolicyEnv;
+    impl EnvVar for HostWithTrustPolicyEnv {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "PNPM_CONFIG_TRUST_POLICY" => Some("no-downgrade".to_owned()),
+                _ => safe_host_var(name),
+            }
+        }
+    }
+    impl EnvVarOs for HostWithTrustPolicyEnv {
+        fn var_os(_: &str) -> Option<OsString> {
+            None
+        }
+    }
+    impl GetHomeDir for HostWithTrustPolicyEnv {
+        fn home_dir() -> Option<PathBuf> {
+            None
+        }
+    }
+    inert_link_probe!(HostWithTrustPolicyEnv);
+    host_current_dir!(HostWithTrustPolicyEnv);
+
+    let config = Config::new()
+        .current_for_self_update::<HostWithTrustPolicyEnv>(tmp.path())
+        .expect("config loads");
+
+    assert_eq!(config.trust_policy, TrustPolicy::NoDowngrade);
+    assert_eq!(config.trust_policy_exclude, None);
+    assert_eq!(config.trust_policy_ignore_after, None);
+}
+
+#[test]
+pub fn self_update_config_keeps_non_policy_workspace_settings() {
+    let tmp = tempdir().unwrap();
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "nodeLinker: hoisted\n")
+        .expect("write to pnpm-workspace.yaml");
+
+    let config =
+        Config::new().current_for_self_update::<HostNoHome>(tmp.path()).expect("config loads");
+
+    assert_eq!(config.node_linker, NodeLinker::Hoisted);
+}
+
+#[test]
+pub fn self_update_config_honors_trusted_release_age_env_override() {
+    let tmp = tempdir().unwrap();
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "minimumReleaseAge: 4320\nminimumReleaseAgeStrict: true\n",
+    )
+    .expect("write to pnpm-workspace.yaml");
+
+    struct HostWithReleaseAgeEnv;
+    impl EnvVar for HostWithReleaseAgeEnv {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "PNPM_CONFIG_MINIMUM_RELEASE_AGE" => Some("0".to_owned()),
+                "PNPM_CONFIG_MINIMUM_RELEASE_AGE_STRICT" => Some("false".to_owned()),
+                _ => safe_host_var(name),
+            }
+        }
+    }
+    impl EnvVarOs for HostWithReleaseAgeEnv {
+        fn var_os(_: &str) -> Option<OsString> {
+            None
+        }
+    }
+    impl GetHomeDir for HostWithReleaseAgeEnv {
+        fn home_dir() -> Option<PathBuf> {
+            None
+        }
+    }
+    inert_link_probe!(HostWithReleaseAgeEnv);
+    host_current_dir!(HostWithReleaseAgeEnv);
+
+    let config = Config::new()
+        .current_for_self_update::<HostWithReleaseAgeEnv>(tmp.path())
+        .expect("config loads");
+
+    assert_eq!(config.minimum_release_age, Some(0));
+    assert_eq!(config.minimum_release_age_strict, Some(false));
+}
+
+#[test]
+pub fn workspace_manifest_still_sets_the_release_age_policy_for_other_commands() {
+    let tmp = tempdir().unwrap();
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "minimumReleaseAge: 4320\n")
+        .expect("write to pnpm-workspace.yaml");
+
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("config loads");
+
+    assert_eq!(config.minimum_release_age, Some(4320));
 }
 
 #[test]

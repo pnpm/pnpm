@@ -7,7 +7,7 @@ use pacquet_store_dir::STORE_VERSION;
 use pacquet_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     fixtures::{BIG_LOCKFILE, BIG_MANIFEST},
-    fs::{get_all_files, get_all_folders, is_symlink_or_junction},
+    fs::{bump_mtime, get_all_files, get_all_folders, is_symlink_or_junction},
 };
 #[cfg(unix)]
 use pipe_trait::Pipe;
@@ -920,6 +920,7 @@ fn peer_dependency_binds_the_same_when_added_to_an_existing_lockfile() {
         .to_string(),
     )
     .expect("rewrite package.json");
+    bump_mtime(&workspace.join("package.json"));
     new_pacquet_command(&workspace).with_arg("install").assert().success();
 
     let lockfile =
