@@ -357,7 +357,10 @@ catalog:
   touch: 3.1.1
   tree-kill: ^1.2.2
   ts-jest-resolver: 2.0.1
-  typescript: 7.0.2
+  # Kept on 6.x because typescript-eslint does not support the TypeScript 7.0 API
+  # yet (https://github.com/typescript-eslint/typescript-eslint/issues/10940); the
+  # 7.x compiler ships separately as @typescript/native-preview (tsgo).
+  typescript: 6.0.3
   typescript-eslint: ^8.65.0
   # undici 8.x requires Node.js >=22.19.0, above pnpm's supported floor of
   # Node.js >=22.13.
@@ -555,7 +558,8 @@ trustPolicyIgnoreAfter: 10080 # 1 week
 # (>=22.13); the comment at each catalog entry above records the reason. node-gyp
 # is not in the catalog: it is declared directly in pnpm11/pnpm/package.json, and
 # node-gyp 13 (with its nopt 10 and which 7 dependencies) requires Node.js
-# ^22.22.2 || ^24.15.0 || >=26.0.0.
+# ^22.22.2 || ^24.15.0 || >=26.0.0. typescript is held on 6.x because
+# typescript-eslint does not support the TypeScript 7.0 API yet.
 update:
   ignoreDeps:
     - '@babel/core'
@@ -572,6 +576,7 @@ update:
     - npm-registry-fetch
     - ssri
     - tempy
+    - typescript
     - undici
     - validate-npm-package-name
     - write-file-atomic
