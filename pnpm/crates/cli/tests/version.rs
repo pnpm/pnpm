@@ -67,12 +67,6 @@ fn test_command(mut command: Command, root: &Path) -> Command {
     command
 }
 
-// ---------------------------------------------------------------------------
-// npm-style `pnpm version <bump|semver>` — ported from the upstream suites
-// releasing/commands/test/version/index.test.ts and pnpm/test/version.ts.
-// The spawned binary's stdout is a pipe, so reporter styling is plain text.
-// ---------------------------------------------------------------------------
-
 fn pacquet_version(workspace: &Path, args: &[&str]) -> std::process::Output {
     use assert_cmd::cargo::CommandCargoExt as _;
     let mut command = Command::cargo_bin("pnpm").expect("find the pnpm binary");

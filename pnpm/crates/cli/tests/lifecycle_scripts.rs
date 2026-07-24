@@ -478,9 +478,11 @@ mod dependency_build_scripts {
         eprintln!("Checking allowed package DID run scripts...");
         assert!(allowed_pkg.join("generated-by-install.js").exists());
 
-        // TODO: assert the `pnpm:ignored-scripts` reporter event lists
-        // `@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0` here. Pacquet
-        // does not emit that channel yet (see <https://github.com/pnpm/pacquet/issues/397>).
+        eprintln!("Checking pnpm:ignored-scripts lists the unapproved package...");
+        assert_eq!(
+            ignored_scripts_package_names(&output),
+            ["@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0"],
+        );
 
         eprintln!(
             "Re-running install with explicit denial of pre-and-postinstall-scripts-example...",
@@ -504,9 +506,8 @@ mod dependency_build_scripts {
         assert!(!denied_pkg.join("generated-by-postinstall.js").exists());
         assert!(allowed_pkg.join("generated-by-install.js").exists());
 
-        // The `pnpm:ignored-scripts` reporter event should list no
-        // package names this time: explicit denial moves the package from
-        // "ignored" to "silently skipped".
+        eprintln!("Checking pnpm:ignored-scripts is empty under explicit denial...");
+        assert_eq!(ignored_scripts_package_names(&frozen_output), Vec::<String>::new());
 
         drop((root, mock_instance));
     }
