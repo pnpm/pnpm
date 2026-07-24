@@ -265,7 +265,7 @@ async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string>
     if (!opts.dryRun && filter == null) {
       await applyReleasePlan(plan, applyOpts)
     }
-    return 'No pending changes. Record one with "pnpm change".'
+    return opts.json ? '[]' : 'No pending changes. Record one with "pnpm change".'
   }
 
   if (opts.dryRun) {

@@ -1,6 +1,6 @@
 use clap::Args;
 use derive_more::{Display, Error};
-use miette::{Context, Diagnostic};
+use miette::{Context, Diagnostic, IntoDiagnostic};
 use node_semver::{Identifier, Version};
 use pacquet_config::Config;
 use pacquet_executor::{RunPostinstallHooks, run_lifecycle_hook};
@@ -72,8 +72,8 @@ pub struct VersionArgs {
     #[clap(long = "tag-version-prefix", default_value = "v")]
     pub tag_version_prefix: String,
 
-    /// Show information in JSON format.
-    #[clap(long)]
+    /// Output release details in JSON format.
+    #[clap(long = "json")]
     pub json: bool,
 }
 
@@ -408,7 +408,11 @@ impl VersionArgs {
                     &confirmed,
                 )?;
             }
-            println!(r#"No pending changes. Record one with "pnpm change"."#);
+            if self.json {
+                println!("[]");
+            } else {
+                println!(r#"No pending changes. Record one with "pnpm change"."#);
+            }
             return Ok(());
         }
         if self.dry_run {
@@ -425,6 +429,11 @@ impl VersionArgs {
             Some(&config.versioning),
             &confirmed,
         )?;
+
+        if self.json {
+            println!("{}", serde_json::to_string_pretty(&applied).into_diagnostic()?);
+            return Ok(());
+        }
 
         use std::fmt::Write as _;
         let mut output = String::from("Versions applied:\n");
