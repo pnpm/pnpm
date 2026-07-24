@@ -390,7 +390,7 @@ test('self-update respects minimumReleaseAge for implicit latest resolution', as
   expect(JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8')).packageManager).toBe('pnpm@9.0.0')
 })
 
-test('self-update refuses an immature version under strict minimumReleaseAge and names the cutoff source', async () => {
+test('self-update refuses an immature version under strict minimumReleaseAge', async () => {
   const opts = prepare()
   const now = Date.now()
   const metadata = createMetadata('9.1.0', opts.registries.default, [], {
@@ -406,8 +406,7 @@ test('self-update refuses an immature version under strict minimumReleaseAge and
     ...opts,
     minimumReleaseAge: 24 * 60,
     minimumReleaseAgeStrict: true,
-    minimumReleaseAgeSource: '/home/user/pnpm-workspace.yaml',
-  }, [])).rejects.toThrow(/within the minimumReleaseAge cutoff.+comes from \/home\/user\/pnpm-workspace\.yaml/s)
+  }, [])).rejects.toThrow(/within the minimumReleaseAge cutoff/)
 })
 
 test('self-update installs an immature version when minimumReleaseAge is not strict', async () => {

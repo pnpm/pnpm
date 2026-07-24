@@ -2206,25 +2206,26 @@ pub fn pnpm_config_env_var_overrides_workspace_yaml() {
 }
 
 #[test]
-pub fn self_update_config_lets_the_workspace_manifest_raise_the_cutoff() {
+pub fn self_update_config_ignores_a_workspace_manifest_that_raises_the_cutoff() {
     let tmp = tempdir().unwrap();
-    fs::write(tmp.path().join("pnpm-workspace.yaml"), "minimumReleaseAge: 4320\n")
-        .expect("write to pnpm-workspace.yaml");
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "minimumReleaseAge: 4320\nminimumReleaseAgeStrict: true\n",
+    )
+    .expect("write to pnpm-workspace.yaml");
 
     let config =
         Config::new().current_for_self_update::<HostNoHome>(tmp.path()).expect("config loads");
 
-    assert_eq!(config.minimum_release_age, Some(4320));
-    assert_eq!(config.minimum_release_age_strict, Some(true));
-    assert_eq!(
-        config.minimum_release_age_source.as_deref(),
-        Some(tmp.path().join("pnpm-workspace.yaml").display().to_string().as_str()),
-    );
+    // A repo that raises the cutoff would pin the machine to the installed
+    // pnpm, including past a release that fixes a vulnerability in it.
+    assert_eq!(config.minimum_release_age, Config::new().minimum_release_age);
+    assert_eq!(config.minimum_release_age_strict, None);
     assert_eq!(config.workspace_dir.as_deref(), Some(tmp.path()));
 }
 
 #[test]
-pub fn self_update_config_refuses_a_workspace_manifest_that_loosens_the_cutoff() {
+pub fn self_update_config_ignores_a_workspace_manifest_that_loosens_the_cutoff() {
     let tmp = tempdir().unwrap();
     fs::write(
         tmp.path().join("pnpm-workspace.yaml"),
@@ -2273,7 +2274,6 @@ pub fn self_update_config_keeps_non_release_age_workspace_settings() {
         Config::new().current_for_self_update::<HostNoHome>(tmp.path()).expect("config loads");
 
     assert_eq!(config.node_linker, NodeLinker::Hoisted);
-    assert_eq!(config.minimum_release_age_source.as_deref(), Some("pnpm's built-in default"));
 }
 
 #[test]
@@ -2314,10 +2314,17 @@ pub fn self_update_config_honors_trusted_release_age_env_override() {
 
     assert_eq!(config.minimum_release_age, Some(0));
     assert_eq!(config.minimum_release_age_strict, Some(false));
-    assert_eq!(
-        config.minimum_release_age_source.as_deref(),
-        Some("the PNPM_CONFIG_MINIMUM_RELEASE_AGE environment variable"),
-    );
+}
+
+#[test]
+pub fn workspace_manifest_still_sets_the_release_age_policy_for_other_commands() {
+    let tmp = tempdir().unwrap();
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "minimumReleaseAge: 4320\n")
+        .expect("write to pnpm-workspace.yaml");
+
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("config loads");
+
+    assert_eq!(config.minimum_release_age, Some(4320));
 }
 
 #[test]

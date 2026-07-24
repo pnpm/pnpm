@@ -1704,13 +1704,6 @@ pub struct Config {
     /// raw value. The `config` command turns this into the record it prints.
     pub explicit_settings: serde_json::Map<String, serde_json::Value>,
 
-    /// Where the effective `minimumReleaseAge` policy came from, in prose (a
-    /// file path, an env var, or the built-in default). Only resolved by
-    /// [`Config::current_for_self_update`], which is the one caller that has
-    /// to tell a repo-set cooldown apart from the user's own when it refuses
-    /// an immature pnpm.
-    pub minimum_release_age_source: Option<String>,
-
     /// Raw `.npmrc` / `auth.ini` config keys (those for which
     /// [`config_types::is_ini_config_key`] holds: `registry`, `@scope:registry`,
     /// `//host/:_authToken`, `username`, `ca`, ...), post-`${VAR}` substitution
@@ -2093,12 +2086,9 @@ impl Config {
         self.current_inner::<Sys>(start_dir, false)
     }
 
-    /// Like [`Config::current`], but resolves the `minimumReleaseAge` policy
-    /// the way `self-update` needs it: the project `pnpm-workspace.yaml` may
-    /// raise the cutoff and turn strict mode on, never lower the cutoff, waive
-    /// strict mode, or exempt pnpm through `minimumReleaseAgeExclude`. A
-    /// trusted source (global `config.yaml`, `PNPM_CONFIG_*` env) that sets a
-    /// key explicitly wins outright.
+    /// Like [`Config::current`], but the project `pnpm-workspace.yaml` does
+    /// not contribute the `minimumReleaseAge` policy — see
+    /// [`WorkspaceSettings::clear_release_age_policy`].
     pub fn current_for_self_update<Sys>(
         self,
         start_dir: &std::path::Path,
@@ -2380,17 +2370,6 @@ impl Config {
             self.workspace_dir = saved_workspace_dir;
         }
 
-        // Snapshot the release-age policy as the trusted sources left it —
-        // built-in defaults and the global `config.yaml` have been applied,
-        // the project `pnpm-workspace.yaml` has not. See
-        // [`Self::apply_self_update_release_age_policy`].
-        let mut trusted_release_age = for_self_update.then(|| {
-            let global_config_path =
-                global_config_dir.as_deref().map(|dir| dir.join(GLOBAL_CONFIG_YAML_FILENAME));
-            TrustedReleaseAgePolicy::snapshot(&self, global_config_path)
-        });
-        let mut project_release_age = ReleaseAgePolicy::default();
-
         // Layer pnpm-workspace.yaml overrides on top. A missing file is
         // silent. Read or parse failures propagated while resolving
         // `workspace_yaml` above.
@@ -2448,7 +2427,7 @@ impl Config {
                 settings.substitute_env_untrusted::<Sys>();
                 self.http_proxy_is_explicit |= has_nonempty_string(settings.http_proxy.as_deref());
                 if for_self_update {
-                    project_release_age = ReleaseAgePolicy::of_settings(&settings);
+                    settings.clear_release_age_policy();
                 }
                 collect_explicit_settings(&mut self.explicit_settings, &settings);
                 settings.apply_to(&mut self, &base_dir);
@@ -2479,9 +2458,6 @@ impl Config {
         global_virtual_store_dir_explicit |= env_settings.global_virtual_store_dir.is_some();
         store_dir_explicit |= env_settings.store_dir.is_some();
         env_settings.substitute_env_trusted::<Sys>();
-        if let Some(trusted_release_age) = trusted_release_age.as_mut() {
-            trusted_release_age.absorb_env(&env_settings);
-        }
         // `PNPM_CONFIG_REGISTRY` comes from the environment, not the
         // repository, so it overrides the bootstrap default registry too.
         let env_registry_override = env_settings.registry.clone();
@@ -2572,180 +2548,12 @@ impl Config {
             .map(|dir| vec![dir.join("node_modules").join(".bin")])
             .unwrap_or_default();
 
-        if let Some(trusted_release_age) = trusted_release_age {
-            self.apply_self_update_release_age_policy(trusted_release_age, &project_release_age);
-        }
-
         Ok(self)
-    }
-
-    /// Resolve the `minimumReleaseAge` policy that governs `self-update`.
-    ///
-    /// The cooldown an organization configures protects the pnpm binary too —
-    /// it is the highest-value download on the machine, and every later
-    /// install runs through it — so the project `pnpm-workspace.yaml` keeps
-    /// applying to `self-update`, but only in the tightening direction. The
-    /// project may raise the cutoff and turn strict mode on; it may never
-    /// lower the cutoff, exempt pnpm from it, or turn strict mode off. A
-    /// trusted source (global `config.yaml`, `PNPM_CONFIG_*` env) that sets a
-    /// key explicitly wins outright, so the person running pnpm stays in
-    /// control of their own tooling.
-    ///
-    /// Records [`Self::minimum_release_age_source`] so `self-update` can name
-    /// where the cutoff came from when it refuses an immature pnpm.
-    fn apply_self_update_release_age_policy(
-        &mut self,
-        trusted: TrustedReleaseAgePolicy,
-        project: &ReleaseAgePolicy,
-    ) {
-        let project_tightens =
-            !trusted.explicit.age && project.age.is_some_and(|age| age > trusted.age.unwrap_or(0));
-        if project_tightens {
-            self.minimum_release_age = project.age;
-        } else {
-            self.minimum_release_age = trusted.age;
-        }
-
-        self.minimum_release_age_strict = if trusted.explicit.strict {
-            trusted.strict
-        } else if trusted.explicit.age
-            || project.age.is_some_and(|age| age > 0)
-            || project.strict == Some(true)
-        {
-            // A source that asks for a cooldown means it, and asking for one
-            // is a tightening whichever layer it comes from — the same
-            // reasoning behind the explicitly-set default in
-            // [`WorkspaceSettings::apply_to`].
-            Some(true)
-        } else {
-            trusted.strict
-        };
-
-        // An exclude entry can only ever waive the cutoff, so the project's
-        // list is dropped rather than merged.
-        self.minimum_release_age_exclude = trusted.exclude;
-        self.minimum_release_age_ignore_missing_time = if !trusted.explicit.ignore_missing_time
-            && project.ignore_missing_time == Some(false)
-        {
-            false
-        } else {
-            trusted.ignore_missing_time
-        };
-
-        self.minimum_release_age_source = Some(trusted.source.unwrap_or_else(|| {
-            // Either key can be the reason self-update refuses a version: the
-            // cutoff decides which versions are immature, strict mode decides
-            // whether an immature pick is fatal.
-            let project_sets_policy =
-                project.age.is_some_and(|age| age > 0) || project.strict == Some(true);
-            match self.workspace_dir.as_deref() {
-                Some(dir) if project_sets_policy => {
-                    dir.join(WORKSPACE_MANIFEST_FILENAME).display().to_string()
-                }
-                _ => "pnpm's built-in default".to_string(),
-            }
-        }));
     }
 
     /// Persist the config data until the program terminates.
     pub fn leak(self) -> &'static mut Self {
         self.pipe(Box::new).pipe(Box::leak)
-    }
-}
-
-/// The `minimumReleaseAge` settings the project `pnpm-workspace.yaml` set.
-/// `None` means the manifest left the key alone. `minimumReleaseAgeExclude`
-/// is absent because an exclude entry can only waive the cutoff, so the
-/// project's list is never consulted for `self-update`.
-#[derive(Debug, Default)]
-struct ReleaseAgePolicy {
-    age: Option<u64>,
-    ignore_missing_time: Option<bool>,
-    strict: Option<bool>,
-}
-
-impl ReleaseAgePolicy {
-    fn of_settings(settings: &WorkspaceSettings) -> Self {
-        ReleaseAgePolicy {
-            age: settings.minimum_release_age,
-            ignore_missing_time: settings.minimum_release_age_ignore_missing_time,
-            strict: settings.minimum_release_age_strict,
-        }
-    }
-}
-
-/// The `minimumReleaseAge` policy as the trusted layers — built-in defaults,
-/// the global `config.yaml`, and `PNPM_CONFIG_*` env vars — resolved it.
-/// Feeds [`Config::apply_self_update_release_age_policy`].
-struct TrustedReleaseAgePolicy {
-    age: Option<u64>,
-    exclude: Option<Vec<String>>,
-    ignore_missing_time: bool,
-    strict: Option<bool>,
-    /// Which keys a trusted source set explicitly, as opposed to inheriting
-    /// from the built-in defaults. `exclude` needs no flag: the trusted value
-    /// wins whether or not it was set.
-    explicit: ReleaseAgeExplicit,
-    /// Prose origin of the policy, when a trusted source set it. `None`
-    /// leaves the origin to the project manifest or the built-in default.
-    source: Option<String>,
-}
-
-#[derive(Debug, Default)]
-struct ReleaseAgeExplicit {
-    age: bool,
-    ignore_missing_time: bool,
-    strict: bool,
-}
-
-impl TrustedReleaseAgePolicy {
-    /// Snapshot the policy after the trusted file layers and before the
-    /// project `pnpm-workspace.yaml` is applied.
-    fn snapshot(config: &Config, global_config_path: Option<PathBuf>) -> Self {
-        let explicit = ReleaseAgeExplicit {
-            age: config.explicit_settings.contains_key("minimumReleaseAge"),
-            ignore_missing_time: config
-                .explicit_settings
-                .contains_key("minimumReleaseAgeIgnoreMissingTime"),
-            strict: config.explicit_settings.contains_key("minimumReleaseAgeStrict"),
-        };
-        let source = (explicit.age || explicit.strict)
-            .then(|| global_config_path.map(|path| path.display().to_string()))
-            .flatten();
-        TrustedReleaseAgePolicy {
-            age: config.minimum_release_age,
-            exclude: config.minimum_release_age_exclude.clone(),
-            ignore_missing_time: config.minimum_release_age_ignore_missing_time,
-            strict: config.minimum_release_age_strict,
-            explicit,
-            source,
-        }
-    }
-
-    /// Fold in the `PNPM_CONFIG_*` layer. It is trusted (it comes from the
-    /// environment, not the repository) but is applied after the project
-    /// manifest, so it joins the snapshot here rather than in it.
-    fn absorb_env(&mut self, env: &WorkspaceSettings) {
-        if let Some(age) = env.minimum_release_age {
-            self.age = Some(age);
-            self.explicit.age = true;
-            self.source =
-                Some("the PNPM_CONFIG_MINIMUM_RELEASE_AGE environment variable".to_string());
-        }
-        if let Some(strict) = env.minimum_release_age_strict {
-            self.strict = Some(strict);
-            self.explicit.strict = true;
-            self.source.get_or_insert_with(|| {
-                "the PNPM_CONFIG_MINIMUM_RELEASE_AGE_STRICT environment variable".to_string()
-            });
-        }
-        if let Some(ignore_missing_time) = env.minimum_release_age_ignore_missing_time {
-            self.ignore_missing_time = ignore_missing_time;
-            self.explicit.ignore_missing_time = true;
-        }
-        if let Some(exclude) = env.minimum_release_age_exclude.clone() {
-            self.exclude = Some(exclude);
-        }
     }
 }
 
