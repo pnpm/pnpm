@@ -2789,11 +2789,10 @@ async function installViaPnprServer (
       // `pnpm:stats` log events.
       stats: stats ?? { added: 0, removed: 0, linkedToRoot: 0 },
       lockfile,
-      // Server-side resolution (pnpr server) enforces `minimumReleaseAge`
-      // itself — the pnpr server picks only mature versions and the lockfile
-      // can't contain immature entries to auto-collect. `trustPolicy` is
-      // guarded above (we refuse to enter this path when it's set), so
-      // there's nothing for the install command to react to here.
+      // The pnpr server enforces the whole verification policy itself and
+      // reports any violation as a terminal `violations` frame, which the
+      // client turns into a thrown error — so a resolve that got this far
+      // produced a policy-clean lockfile with nothing left to react to.
       resolutionPolicyViolations: [],
     }
   } finally {
