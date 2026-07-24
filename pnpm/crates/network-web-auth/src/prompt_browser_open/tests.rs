@@ -3,6 +3,7 @@ use std::{
     future::{self, Future},
     io,
     pin::Pin,
+    sync::Mutex,
     task::{Context, Poll},
 };
 
@@ -20,7 +21,8 @@ enum Outcome {
 }
 
 // Per-test fake for stdin-tty / browser-open / enter-key, plus a recording
-// reporter. Its state lives in fn-local thread-locals, so each `#[test]` gets
+// reporter. Its state is fn-local — thread-locals for the inputs and a `static
+// Mutex<Vec<LogEvent>>` for the captured log events — so each `#[test]` gets
 // independent storage and concurrent tests never share it. Each test names the
 // optional helpers it drives, so every emitted helper is used and none needs a
 // `dead_code` allow.
@@ -33,8 +35,8 @@ macro_rules! browser_fake {
             static OPEN_CALLS: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
             static CLOSED: Cell<bool> = const { Cell::new(false) };
             static ENTER_TX: RefCell<Option<oneshot::Sender<()>>> = const { RefCell::new(None) };
-            static EMITTED: RefCell<Vec<(LogLevel, String)>> = const { RefCell::new(Vec::new()) };
         }
+        static EMITTED: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
 
         struct Fake;
 
@@ -93,9 +95,7 @@ macro_rules! browser_fake {
 
         impl Reporter for RecordingReporter {
             fn emit(event: &LogEvent) {
-                if let LogEvent::Global(GlobalLog { level, message }) = event {
-                    EMITTED.with(|emitted| emitted.borrow_mut().push((*level, message.clone())));
-                }
+                EMITTED.lock().expect("EMITTED not poisoned").push(event.clone());
             }
         }
 
@@ -106,7 +106,7 @@ macro_rules! browser_fake {
             OPEN_CALLS.with(|calls| calls.borrow_mut().clear());
             CLOSED.with(|closed| closed.set(false));
             ENTER_TX.with(|cell| *cell.borrow_mut() = None);
-            EMITTED.with(|emitted| emitted.borrow_mut().clear());
+            EMITTED.lock().expect("EMITTED not poisoned").clear();
         }
 
         $( browser_fake!(@helper $helper); )*
@@ -146,26 +146,32 @@ macro_rules! browser_fake {
     };
     (@helper infos) => {
         fn infos() -> Vec<String> {
-            EMITTED.with(|emitted| {
-                emitted
-                    .borrow()
-                    .iter()
-                    .filter(|(level, _)| *level == LogLevel::Info)
-                    .map(|(_, message)| message.clone())
-                    .collect()
-            })
+            EMITTED
+                .lock()
+                .expect("EMITTED not poisoned")
+                .iter()
+                .filter_map(|event| match event {
+                    LogEvent::Global(GlobalLog { level, message }) if *level == LogLevel::Info => {
+                        Some(message.clone())
+                    }
+                    _ => None,
+                })
+                .collect()
         }
     };
     (@helper warns) => {
         fn warns() -> Vec<String> {
-            EMITTED.with(|emitted| {
-                emitted
-                    .borrow()
-                    .iter()
-                    .filter(|(level, _)| *level == LogLevel::Warn)
-                    .map(|(_, message)| message.clone())
-                    .collect()
-            })
+            EMITTED
+                .lock()
+                .expect("EMITTED not poisoned")
+                .iter()
+                .filter_map(|event| match event {
+                    LogEvent::Global(GlobalLog { level, message }) if *level == LogLevel::Warn => {
+                        Some(message.clone())
+                    }
+                    _ => None,
+                })
+                .collect()
         }
     };
     (@helper $unknown:ident) => {
