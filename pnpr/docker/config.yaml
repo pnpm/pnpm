@@ -1,0 +1,41 @@
+# Production-oriented pnpr config for container deployments.
+#
+# Unlike the bundled default config (which is tuned for
+# @pnpm/registry-mock's test packages), this one proxies the whole npm
+# namespace through registry.npmjs.org and persists all state under
+# ${PNPR_STORAGE}. `${VAR:-default}` placeholders are substituted from
+# the environment at startup, so a PaaS can configure it without editing
+# the file.
+
+storage: ${PNPR_STORAGE:-/data}
+
+auth:
+  htpasswd:
+    file: ${PNPR_STORAGE:-/data}/htpasswd
+    # Cap open registration. Omit for unlimited; set to -1 to disable
+    # `npm adduser` entirely once your accounts exist.
+    #max_users: -1
+  tokens:
+    file: ${PNPR_STORAGE:-/data}/tokens.db
+
+uplinks:
+  npmjs:
+    url: https://registry.npmjs.org/
+
+# Evaluated in order; first match wins. Publishing requires auth;
+# everything not published locally is proxied from npmjs and cached.
+packages:
+  '@*/*':
+    access: $all
+    publish: $authenticated
+    proxy: npmjs
+
+  '**':
+    access: $all
+    publish: $authenticated
+    proxy: npmjs
+
+log:
+  type: stdout
+  format: ${PNPR_LOG_FORMAT:-json}
+  level: ${PNPR_LOG_LEVEL:-info}

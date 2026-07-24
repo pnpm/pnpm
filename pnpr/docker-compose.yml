@@ -1,0 +1,28 @@
+# Build context is the monorepo root because pnpr depends on pacquet-*
+# crates from the shared Cargo workspace. Run from the pnpr/ directory:
+#
+#   docker compose up --build
+#
+# Or point a PaaS (e.g. Coolify) at this file. See DEPLOY.md.
+
+services:
+  pnpr:
+    build:
+      context: ..
+      dockerfile: pnpr/Dockerfile
+    image: pnpr:local
+    restart: unless-stopped
+    ports:
+      - "4873:4873"
+    environment:
+      # The URL clients use to reach this server. Set it to your public
+      # domain in production so proxied tarball URLs are rewritten
+      # correctly.
+      PNPR_PUBLIC_URL: ${PNPR_PUBLIC_URL:-http://localhost:4873}
+      PNPR_LOG_LEVEL: info
+      PNPR_LOG_FORMAT: json
+    volumes:
+      - pnpr-data:/data
+
+volumes:
+  pnpr-data:
