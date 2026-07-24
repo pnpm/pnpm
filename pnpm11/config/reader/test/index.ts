@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globa
 import { GLOBAL_LAYOUT_VERSION } from '@pnpm/constants'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
+import { isCI } from 'ci-info'
 import PATH from 'path-name'
 import { symlinkDir } from 'symlink-dir'
 import { writeYamlFileSync } from 'write-yaml-file'
@@ -548,7 +549,7 @@ describe('minimumReleaseAgeStrict default', () => {
   })
 })
 
-describe("forSelfUpdate (the project manifest doesn't set self-update's release-age policy)", () => {
+describe("forSelfUpdate (the project manifest doesn't set self-update's release-age or trust policy)", () => {
   test('a workspace manifest cannot raise the cutoff or turn strict mode on', async () => {
     prepareEmpty()
 
@@ -630,7 +631,48 @@ describe("forSelfUpdate (the project manifest doesn't set self-update's release-
     expect(config.minimumReleaseAge).toBe(0)
   })
 
-  test('settings other than the release-age policy still come from the workspace manifest', async () => {
+  test('a workspace manifest cannot turn the trust policy off or exempt pnpm from it', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      trustPolicy: 'off',
+      trustPolicyExclude: ['pnpm'],
+      trustPolicyIgnoreAfter: 525600,
+    })
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+      forSelfUpdate: true,
+      env: { PNPM_CONFIG_TRUST_POLICY: 'no-downgrade' },
+    })
+
+    expect(config.trustPolicy).toBe('no-downgrade')
+    expect(config.trustPolicyExclude).toBeUndefined()
+    expect(config.trustPolicyIgnoreAfter).toBeUndefined()
+  })
+
+  test('a workspace manifest cannot override CI detection', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      ci: !isCI,
+    })
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+      forSelfUpdate: true,
+    })
+
+    // `ci: false` in the repo would re-enable the "update anyway?" prompt on a
+    // CI runner with a pseudo-TTY, where self-update has to fail closed.
+    expect(config.ci).toBe(isCI)
+  })
+
+  test('settings other than the release-age and trust policies still come from the workspace manifest', async () => {
     prepareEmpty()
 
     writeYamlFileSync('pnpm-workspace.yaml', {

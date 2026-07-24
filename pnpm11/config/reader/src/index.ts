@@ -102,8 +102,9 @@ export async function getConfig (opts: {
   onlyInheritDlxSettingsFromLocal?: boolean
   ignoreLocalSettings?: boolean
   /**
-   * Set by `self-update`: skip the project `pnpm-workspace.yaml`'s
-   * `minimumReleaseAge` settings. See {@link SELF_UPDATE_SKIPPED_SETTINGS}.
+   * Set by `self-update`: skip the project `pnpm-workspace.yaml`'s settings
+   * that govern whether the pnpm binary may be replaced. See
+   * {@link SELF_UPDATE_SKIPPED_SETTINGS}.
    */
   forSelfUpdate?: boolean
 }): Promise<{ config: Config, context: ConfigContext, warnings: string[] }> {
@@ -1068,19 +1069,26 @@ function getNodeVersionFromEnginesRuntime (manifest: ProjectManifest): string | 
  * `self-update`'s config.
  *
  * `self-update` replaces the pnpm binary every later install runs through, so
- * a repository must not get a say in whether it may be replaced. The cooldown
- * is dangerous in both directions here: lowering it waives the protection the
- * user configured, and raising it pins the machine to the installed pnpm —
- * including past a release that fixes a vulnerability in it. Unlike a blocked
- * dependency upgrade, that decision follows the user out of the repository.
- * The policy therefore comes from the built-in defaults, the global config
- * yaml, the environment, and CLI flags only.
+ * a repository must not get a say in whether it may be replaced. Each of these
+ * is dangerous in both directions: a release-age cooldown lowered waives the
+ * protection the user configured, raised it pins the machine to the installed
+ * pnpm — including past a release that fixes a vulnerability in it; a
+ * `trustPolicy` turned off accepts a pnpm release whose trust evidence the
+ * user meant to reject, turned on blocks the update the same way; and `ci`
+ * decides whether an immature pick may be confirmed at the keyboard at all.
+ * Unlike a blocked dependency upgrade, those decisions follow the user out of
+ * the repository. The policy therefore comes from the built-in defaults, the
+ * global config yaml, the environment, and CLI flags only.
  */
 const SELF_UPDATE_SKIPPED_SETTINGS: ReadonlySet<string> = new Set([
+  'ci',
   'minimumReleaseAge',
   'minimumReleaseAgeExclude',
   'minimumReleaseAgeIgnoreMissingTime',
   'minimumReleaseAgeStrict',
+  'trustPolicy',
+  'trustPolicyExclude',
+  'trustPolicyIgnoreAfter',
 ] satisfies Array<keyof Config>)
 
 function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigContext, {

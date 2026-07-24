@@ -2087,8 +2087,8 @@ impl Config {
     }
 
     /// Like [`Config::current`], but the project `pnpm-workspace.yaml` does
-    /// not contribute the `minimumReleaseAge` policy — see
-    /// [`WorkspaceSettings::clear_release_age_policy`].
+    /// not contribute the `minimumReleaseAge` / `trustPolicy` policies — see
+    /// [`WorkspaceSettings::clear_self_update_policy`].
     pub fn current_for_self_update<Sys>(
         self,
         start_dir: &std::path::Path,
@@ -2427,7 +2427,7 @@ impl Config {
                 settings.substitute_env_untrusted::<Sys>();
                 self.http_proxy_is_explicit |= has_nonempty_string(settings.http_proxy.as_deref());
                 if for_self_update {
-                    settings.clear_release_age_policy();
+                    settings.clear_self_update_policy();
                 }
                 collect_explicit_settings(&mut self.explicit_settings, &settings);
                 settings.apply_to(&mut self, &base_dir);

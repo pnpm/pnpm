@@ -716,22 +716,27 @@ impl WorkspaceSettings {
         Ok(Some(settings))
     }
 
-    /// Zero out the `minimumReleaseAge` policy for `self-update`.
+    /// Zero out the release-age and trust policies for `self-update`.
     ///
     /// `self-update` replaces the pnpm binary every later install runs
     /// through, so a repository must not get a say in whether it may be
-    /// replaced. The cooldown is dangerous in both directions here: lowering
-    /// it waives the protection the user configured, and raising it pins the
-    /// machine to the installed pnpm — including past a release that fixes a
-    /// vulnerability in it. Unlike a blocked dependency upgrade, that decision
-    /// follows the user out of the repository. The policy therefore comes from
-    /// the built-in defaults, the global `config.yaml`, and `PNPM_CONFIG_*`
-    /// env vars only (plus CLI flags, applied by the caller).
-    pub fn clear_release_age_policy(&mut self) {
+    /// replaced. Both policies are dangerous in both directions here: a
+    /// cooldown lowered waives the protection the user configured, raised it
+    /// pins the machine to the installed pnpm — including past a release that
+    /// fixes a vulnerability in it; a trust policy turned off accepts a pnpm
+    /// release whose trust evidence the user meant to reject, turned on blocks
+    /// the update the same way. Unlike a blocked dependency upgrade, those
+    /// decisions follow the user out of the repository. The policies therefore
+    /// come from the built-in defaults, the global `config.yaml`, and
+    /// `PNPM_CONFIG_*` env vars only (plus CLI flags, applied by the caller).
+    pub fn clear_self_update_policy(&mut self) {
         self.minimum_release_age = None;
         self.minimum_release_age_exclude = None;
         self.minimum_release_age_ignore_missing_time = None;
         self.minimum_release_age_strict = None;
+        self.trust_policy = None;
+        self.trust_policy_exclude = None;
+        self.trust_policy_ignore_after = None;
     }
 
     /// Zero out fields not permitted in the global `config.yaml`.

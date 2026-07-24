@@ -128,7 +128,7 @@ pub struct SelfUpdateArgs {
 /// is a deliberate act by the person at the keyboard, unlike a dependency
 /// drifting onto a new release. Non-interactive runs always fail closed. The
 /// cutoff never comes from the project — see
-/// [`WorkspaceSettings::clear_release_age_policy`] — so the only policy to
+/// [`WorkspaceSettings::clear_self_update_policy`] — so the only policy to
 /// confirm here is the user's own.
 ///
 /// A `trustPolicy` violation is not negotiable — it means the release's trust

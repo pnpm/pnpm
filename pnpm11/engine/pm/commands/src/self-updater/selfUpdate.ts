@@ -291,9 +291,9 @@ export async function handler (
  * person at the keyboard, unlike a dependency drifting onto a new release. CI
  * and other non-interactive runs always fail closed.
  *
- * The cutoff itself never comes from the project (see the config reader's
- * `SELF_UPDATE_SKIPPED_SETTINGS`), so the only thing to confirm here is the
- * user's own policy.
+ * Neither the cutoff nor the `ci` flag gating the prompt comes from the
+ * project (see the config reader's `SELF_UPDATE_SKIPPED_SETTINGS`), so the
+ * only thing to confirm here is the user's own policy.
  *
  * A `trustPolicy` violation is not negotiable — it means the release's trust
  * evidence weakened relative to the installed version — so it keeps failing
