@@ -1155,6 +1155,12 @@ pacquet@12.0.0-alpha.20:
     - pacquet-registry-allow-build-dir-parity
     - retry-provenance-signing
     - update-latest-npm-alias-target
+pacquet@12.0.0-alpha.21:
+  dir: pnpm/npm/pnpm
+  intents:
+    - interactive-update-github-actions-opt-in
+    - pnpm-setup-github-actions
+    - update-latest-non-registry-specs
 pacquet@12.0.0-alpha.9:
   dir: pnpm/npm/pnpm
   intents:
