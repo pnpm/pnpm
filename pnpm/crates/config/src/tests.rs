@@ -1,6 +1,6 @@
 use super::{
     Config, EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, LinkProbe, LoadWorkspaceYamlError,
-    NodeLinker, NodePackageMapType, PackageImportMethod, fs,
+    NodeLinker, NodePackageMapType, PackageImportMethod, TrustPolicy, fs,
 };
 use crate::defaults::default_store_dir;
 use pacquet_store_dir::StoreDir;
@@ -2265,7 +2265,47 @@ pub fn self_update_config_ignores_a_workspace_manifest_that_loosens_the_cutoff()
 }
 
 #[test]
-pub fn self_update_config_keeps_non_release_age_workspace_settings() {
+pub fn self_update_config_ignores_a_workspace_manifest_that_loosens_the_trust_policy() {
+    let tmp = tempdir().unwrap();
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "trustPolicy: off\ntrustPolicyExclude:\n  - pnpm\ntrustPolicyIgnoreAfter: 525600\n",
+    )
+    .expect("write to pnpm-workspace.yaml");
+
+    struct HostWithTrustPolicyEnv;
+    impl EnvVar for HostWithTrustPolicyEnv {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "PNPM_CONFIG_TRUST_POLICY" => Some("no-downgrade".to_owned()),
+                _ => safe_host_var(name),
+            }
+        }
+    }
+    impl EnvVarOs for HostWithTrustPolicyEnv {
+        fn var_os(_: &str) -> Option<OsString> {
+            None
+        }
+    }
+    impl GetHomeDir for HostWithTrustPolicyEnv {
+        fn home_dir() -> Option<PathBuf> {
+            None
+        }
+    }
+    inert_link_probe!(HostWithTrustPolicyEnv);
+    host_current_dir!(HostWithTrustPolicyEnv);
+
+    let config = Config::new()
+        .current_for_self_update::<HostWithTrustPolicyEnv>(tmp.path())
+        .expect("config loads");
+
+    assert_eq!(config.trust_policy, TrustPolicy::NoDowngrade);
+    assert_eq!(config.trust_policy_exclude, None);
+    assert_eq!(config.trust_policy_ignore_after, None);
+}
+
+#[test]
+pub fn self_update_config_keeps_non_policy_workspace_settings() {
     let tmp = tempdir().unwrap();
     fs::write(tmp.path().join("pnpm-workspace.yaml"), "nodeLinker: hoisted\n")
         .expect("write to pnpm-workspace.yaml");
