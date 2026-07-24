@@ -581,7 +581,8 @@ fn dependencies_meta_equal(
     /// Strip manifest entries without `injected` or `patch` (matching lockfile-write filter).
     fn filter_manifest(value: Option<&serde_json::Value>) -> Option<&serde_json::Value> {
         let obj = value?.as_object()?;
-        let has_known = obj.values().any(|v| v.get("injected").is_some() || v.get("patch").is_some());
+        let has_known =
+            obj.values().any(|v| v.get("injected").is_some() || v.get("patch").is_some());
         has_known.then_some(value?)
     }
     let manifest_filtered = filter_manifest(manifest);
