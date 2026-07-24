@@ -2095,8 +2095,10 @@ impl Config {
 
     /// Like [`Config::current`], but resolves the `minimumReleaseAge` policy
     /// the way `self-update` needs it: the project `pnpm-workspace.yaml` may
-    /// only tighten it. See
-    /// [`Self::apply_self_update_release_age_policy`].
+    /// raise the cutoff and turn strict mode on, never lower the cutoff, waive
+    /// strict mode, or exempt pnpm through `minimumReleaseAgeExclude`. A
+    /// trusted source (global `config.yaml`, `PNPM_CONFIG_*` env) that sets a
+    /// key explicitly wins outright.
     pub fn current_for_self_update<Sys>(
         self,
         start_dir: &std::path::Path,
