@@ -677,6 +677,23 @@ fn workspace_root_requires_a_workspace() {
     assert!(matches!(error, WorkspaceRootError::NotInWorkspace));
 }
 
+/// An unusable `--dir` is reported as such, not as a missing workspace:
+/// `-w` must not change which error a bad `--dir` produces, and the
+/// walk it drives would otherwise silently start from an unresolved path.
+#[test]
+fn workspace_root_reports_an_uncanonicalizable_dir() {
+    let (root, _canonical) = workspace_fixture();
+    let missing = root.path().join("packages/does-not-exist");
+
+    let mut args =
+        CliArgs::try_parse_from(["pacquet", "add", "foo", "-w", "-C", &missing.to_string_lossy()])
+            .expect("parses");
+    let error = args.apply_workspace_root().expect_err("--dir cannot be canonicalized");
+
+    dbg!(&error);
+    assert!(matches!(error, WorkspaceRootError::CanonicalizeDir { .. }));
+}
+
 #[test]
 fn config_merged_boolean_negations_parse() {
     // Each config-OR-merged boolean now exposes an explicit `--no-` inverse

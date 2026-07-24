@@ -443,8 +443,8 @@ fn filter_against<Pkg: BaseProject>(
 /// selector is appended so a recursive `run` / `exec` skips the root
 /// project unless it is explicitly included.
 ///
-/// `--workspace-root` takes precedence over every variant: it pins the
-/// selection to the root project itself, whichever command is running.
+/// `--workspace-root` replaces that exclusion with an inclusion for every
+/// variant, whichever command is running.
 #[derive(Clone, Copy)]
 pub enum AutoExcludeRoot<'a> {
     /// `run` / `exec` (also `add` / `test`): exclude the root when no
@@ -463,9 +463,10 @@ impl AutoExcludeRoot<'_> {
     /// the pass whose `follow_prod_deps_only` matches (the prod pass when
     /// a `--filter-prod` selector is present, else the regular pass).
     fn root_selector(&self, config: &Config, prefix: &Path) -> Option<String> {
-        // `--workspace-root` pins the run to the root project, for every
-        // recursive command — unlike the exclusion below, it is not gated
-        // on the command being `run` / `exec` / `add` / `test`.
+        // `--workspace-root` adds the root project to the selection for
+        // every recursive command: unlike the exclusion below, it is not
+        // gated on the command being `run` / `exec` / `add` / `test`, and
+        // it augments rather than overrides the `--filter` selectors.
         if config.workspace_root {
             return Some(format!("{{{}}}", relative_workspace_dir(config, prefix)));
         }

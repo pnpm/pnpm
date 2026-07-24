@@ -266,7 +266,10 @@ impl CliArgs {
     /// it. `--dir` is canonicalized first so the upward walk for the
     /// workspace manifest starts from a real absolute path — the whole
     /// point of the flag is to be run from a subdirectory, which a
-    /// relative `--dir` has no ancestors to walk up from.
+    /// relative `--dir` has no ancestors to walk up from. A `--dir` that
+    /// cannot be canonicalized is reported as such rather than as a
+    /// missing workspace, so `-w` does not change which error an
+    /// unusable `--dir` produces.
     pub fn apply_workspace_root(&mut self) -> Result<(), WorkspaceRootError> {
         if !self.workspace_root {
             return Ok(());
@@ -274,7 +277,9 @@ impl CliArgs {
         if self.command.is_global() {
             return Err(WorkspaceRootError::GlobalConflict);
         }
-        let dir = dunce::canonicalize(&self.dir).unwrap_or_else(|_| self.dir.clone());
+        let dir = dunce::canonicalize(&self.dir).map_err(|source| {
+            WorkspaceRootError::CanonicalizeDir { path: self.dir.clone(), source }
+        })?;
         let workspace_dir = pacquet_workspace::find_workspace_dir(&dir)
             .map_err(WorkspaceRootError::FindWorkspaceDir)?
             .ok_or(WorkspaceRootError::NotInWorkspace)?;
@@ -352,6 +357,14 @@ pub enum WorkspaceRootError {
     #[display("--workspace-root may only be used inside a workspace")]
     #[diagnostic(code(ERR_PNPM_NOT_IN_WORKSPACE))]
     NotInWorkspace,
+
+    #[display("canonicalizing the `--dir` argument: {}: {source}", path.display())]
+    #[diagnostic(code(ERR_PNPM_CANONICALIZE_DIR))]
+    CanonicalizeDir {
+        path: PathBuf,
+        #[error(source)]
+        source: std::io::Error,
+    },
 
     #[diagnostic(transparent)]
     FindWorkspaceDir(#[error(source)] pacquet_workspace::FindWorkspaceDirError),

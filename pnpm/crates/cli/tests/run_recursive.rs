@@ -321,9 +321,9 @@ fn recursive_run_settings_only_workspace_enumerates_root_only() {
     drop(root);
 }
 
-/// `pacquet -r -w run <script>` narrows the recursive run to the root
-/// project — the inverse of the `!{<workspace-root>}` auto-exclusion that
-/// an unfiltered recursive `run` applies.
+/// An unfiltered `pacquet -r -w run <script>` narrows the recursive run to
+/// the root project — the inverse of the `!{<workspace-root>}`
+/// auto-exclusion an unfiltered recursive `run` otherwise applies.
 #[test]
 fn recursive_run_workspace_root_selects_only_the_root_project() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -357,6 +357,48 @@ fn recursive_run_workspace_root_selects_only_the_root_project() {
             "{name} must not run under --workspace-root",
         );
     }
+
+    drop(root);
+}
+
+/// `--workspace-root` *adds* the root project to a `--filter` selection
+/// rather than replacing it, so `-r -w --filter <name>` runs both. pnpm
+/// pushes the `{<workspace-root>}` selector onto the `--filter` /
+/// `--filter-prod` list, and `pnpm -r -w --filter project-1 run build`
+/// accordingly reports `Scope: 2 of 3 workspace projects`. Narrowing to
+/// the root alone here would diverge from it.
+#[test]
+fn recursive_run_workspace_root_adds_the_root_to_a_filter_selection() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[
+            ("project-1", build_writes_marker("project-1")),
+            ("project-2", build_writes_marker("project-2")),
+        ],
+    );
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "root",
+            "version": "1.0.0",
+            "scripts": { "build": "touch root-ran.txt" },
+        })
+        .to_string(),
+    )
+    .expect("write root package.json");
+
+    pacquet.with_args(["-r", "-w", "--filter", "project-1", "run", "build"]).assert().success();
+
+    assert!(workspace.join("root-ran.txt").exists(), "--workspace-root selects the root project");
+    assert!(
+        workspace.join("project-1").join("ran.txt").exists(),
+        "--workspace-root must not drop the --filter-selected project",
+    );
+    assert!(
+        !workspace.join("project-2").join("ran.txt").exists(),
+        "project-2 matches neither the filter nor the root selector",
+    );
 
     drop(root);
 }
