@@ -59,11 +59,11 @@
     "shx": "catalog:",
     "typescript": "catalog:"
   },
-  "packageManager": "pnpm@12.0.0-alpha.20",
+  "packageManager": "pnpm@12.0.0-alpha.21",
   "devEngines": {
     "packageManager": {
       "name": "pnpm",
-      "version": "12.0.0-alpha.20",
+      "version": "12.0.0-alpha.21",
       "onFail": "download"
     },
     "runtime": {
