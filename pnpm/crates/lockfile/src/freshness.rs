@@ -579,14 +579,17 @@ fn dependencies_meta_equal(
         map.is_none_or(HashMap::is_empty)
     }
     /// Strip manifest entries without `injected` or `patch` (matching lockfile-write filter).
-    fn filter_manifest(value: Option<&serde_json::Value>) -> Option<&serde_json::Value> {
+    fn filter_manifest(value: Option<&serde_json::Value>) -> Option<serde_json::Value> {
         let obj = value?.as_object()?;
-        let has_known =
-            obj.values().any(|v| v.get("injected").is_some() || v.get("patch").is_some());
-        has_known.then_some(value?)
+        let filtered: serde_json::Map<String, serde_json::Value> = obj
+            .iter()
+            .filter(|(_, v)| v.get("injected").is_some() || v.get("patch").is_some())
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+        (!filtered.is_empty()).then(|| serde_json::Value::Object(filtered))
     }
     let manifest_filtered = filter_manifest(manifest);
-    match (importer, manifest_filtered) {
+    match (importer, manifest_filtered.as_ref()) {
         (None, None) => true,
         (a, b) if is_empty_importer(a) && is_empty(b) => true,
         (Some(importer_map), Some(serde_json::Value::Object(manifest_obj))) => {
