@@ -244,6 +244,40 @@ test('runs every active verifier per entry and stops at the first failure', asyn
   expect(calls).toEqual(['first', 'second'])
 })
 
+test('does not emit progress after an unexpected verifier failure', async () => {
+  const lockfile = makeLockfile({
+    'a@1.0.0': { resolution: tarballResolution('sha512-a') },
+    'b@1.0.0': { resolution: tarballResolution('sha512-b') },
+  })
+  let releaseSlowTask!: () => void
+  const slowTask = new Promise<void>((resolve) => {
+    releaseSlowTask = resolve
+  })
+  const verifier = wrap(async (_, { name }) => {
+    if (name === 'a') {
+      throw new Error('boom')
+    }
+    await slowTask
+    return { ok: true }
+  })
+  const debugSpy = jest.spyOn(lockfileVerificationLogger, 'debug').mockImplementation(() => {})
+
+  try {
+    const promise = verifyLockfileResolutions(lockfile, [verifier], { concurrency: 2 })
+    // Let `a` throw and set fetchError before `b` settles, so the progress
+    // guard (fetchError == null) suppresses any progress event from `b`.
+    // The fetchError pattern waits for the full fan-out to settle before
+    // rethrowing, so `b` must be released for the promise to reject.
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    releaseSlowTask()
+    await expect(promise).rejects.toThrow('boom')
+
+    expect(debugSpy.mock.calls.map(([message]) => message?.status)).toEqual(['started', 'failed'])
+  } finally {
+    debugSpy.mockRestore()
+  }
+})
+
 function exampleSlot (current: number): Omit<ResolutionVerifier, 'verify'> {
   return {
     policy: { minimumReleaseAge: current },

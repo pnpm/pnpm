@@ -942,6 +942,7 @@ fn lockfile_verification_done_event_matches_pnpm_wire_shape() {
         level: LogLevel::Debug,
         message: LockfileVerificationMessage::Done {
             entries: 12,
+            checked: 12,
             elapsed_ms: 234,
             lockfile_path: Some("/proj/pnpm-lock.yaml".to_string()),
         },
@@ -955,6 +956,7 @@ fn lockfile_verification_done_event_matches_pnpm_wire_shape() {
     assert_eq!(json["name"], "pnpm:lockfile-verification");
     assert_eq!(json["status"], "done");
     assert_eq!(json["entries"], 12);
+    assert_eq!(json["checked"], 12);
     assert_eq!(json["elapsedMs"], 234);
     assert_eq!(json["lockfilePath"], "/proj/pnpm-lock.yaml");
 }
@@ -970,6 +972,7 @@ fn lockfile_verification_failed_event_matches_pnpm_wire_shape() {
         level: LogLevel::Debug,
         message: LockfileVerificationMessage::Failed {
             entries: 12,
+            checked: 0,
             elapsed_ms: 999,
             lockfile_path: Some("/proj/pnpm-lock.yaml".to_string()),
         },
@@ -982,6 +985,7 @@ fn lockfile_verification_failed_event_matches_pnpm_wire_shape() {
         .expect("parse JSON");
     assert_eq!(json["status"], "failed");
     assert_eq!(json["entries"], 12);
+    assert_eq!(json["checked"], 0);
     assert_eq!(json["elapsedMs"], 999);
     assert_eq!(json["lockfilePath"], "/proj/pnpm-lock.yaml");
 }

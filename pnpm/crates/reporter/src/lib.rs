@@ -749,6 +749,9 @@ pub enum LockfileVerificationMessage {
     },
     Done {
         entries: u64,
+        /// Number of entries that were checked before finishing.
+        /// On success this equals `entries` — all entries were verified.
+        checked: u64,
         #[serde(rename = "elapsedMs")]
         elapsed_ms: u64,
         #[serde(rename = "lockfilePath", skip_serializing_if = "Option::is_none")]
@@ -756,6 +759,12 @@ pub enum LockfileVerificationMessage {
     },
     Failed {
         entries: u64,
+        /// Number of entries that were checked before the failure.
+        /// Zero when the failure happened before any per-entry work
+        /// completed (panics, early returns, etc.) — Pacquet does not
+        /// track per-entry progress yet, so the field is the safe
+        /// minimum when the count is unknown.
+        checked: u64,
         #[serde(rename = "elapsedMs")]
         elapsed_ms: u64,
         #[serde(rename = "lockfilePath", skip_serializing_if = "Option::is_none")]
