@@ -2637,18 +2637,6 @@ async function installViaPnprServer (
       { hint: 'Disable the pnpr server (unset `--pnpr-server` / `pnprServer` in pnpm-workspace.yaml) so the install reads from the existing store, or unset `frozenStore` to allow store writes.' }
     )
   }
-  // The pnpr server path skips client-side resolution, so resolver-side policies
-  // can't be enforced locally. `minimumReleaseAge` is forwarded to the
-  // pnpr server and enforced server-side. `trustPolicy` has no server-side
-  // counterpart yet, so refuse to run under it instead of silently
-  // letting through a lockfile the local verifier would reject.
-  if (opts.trustPolicy === 'no-downgrade') {
-    throw new PnpmError(
-      'TRUST_POLICY_INCOMPATIBLE_WITH_PNPR',
-      'The pnpr server does not yet enforce `trustPolicy: no-downgrade`, so running an install through it under this policy would produce a lockfile that the local verifier rejects.',
-      { hint: 'Unset `trustPolicy` for this install, or disable the pnpr server (unset `--pnpr-server` / `pnprServer` in pnpm-workspace.yaml) so resolution runs locally and the trust check applies.' }
-    )
-  }
   const { resolveViaPnprServer } = await import('@pnpm/pnpr.client')
   const { createGetAuthHeaderByURI } = await import('@pnpm/network.auth-header')
 
@@ -2702,6 +2690,12 @@ async function installViaPnprServer (
       // `catalog:` specifiers in both dependencies and overrides.
       catalogs: opts.catalogs,
       minimumReleaseAge: opts.minimumReleaseAge,
+      minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
+      minimumReleaseAgeIgnoreMissingTime: opts.minimumReleaseAgeIgnoreMissingTime,
+      trustPolicy: opts.trustPolicy,
+      trustPolicyExclude: opts.trustPolicyExclude,
+      trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
+      trustLockfile: opts.trustLockfile,
       lockfile: existingLockfile ?? undefined,
     })
 

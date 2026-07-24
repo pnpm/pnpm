@@ -10136,6 +10136,9 @@ importers:
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../../pnpm11/lockfile/types
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../pnpm11/core/types
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -10143,9 +10146,6 @@ importers:
       '@pnpm/pnpr.client':
         specifier: workspace:*
         version: 'link:'
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../pnpm11/core/types
 
   pnpr/npm/pnpr: {}
 

@@ -140,6 +140,44 @@ test('pnpr returns the resolution policy violations the install command reacts t
   expect(result.resolutionPolicyViolations).toStrictEqual([])
 })
 
+test("pnpr forwards the client's whole verification policy, not just the age cutoff", async () => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  const manifest: ProjectManifest = { name: 'app', version: '1.2.3' }
+  const options = createOptions(workspaceRoot, rootDir, {
+    minimumReleaseAge: 1440,
+    minimumReleaseAgeExclude: ['@acme/*'],
+    minimumReleaseAgeIgnoreMissingTime: false,
+    trustPolicy: 'no-downgrade',
+    trustPolicyExclude: ['legacy-pkg'],
+    trustPolicyIgnoreAfter: 43200,
+    trustLockfile: true,
+  })
+
+  await install(manifest, options)
+
+  expect(resolveViaPnprServer).toHaveBeenCalledWith(expect.objectContaining({
+    minimumReleaseAge: 1440,
+    minimumReleaseAgeExclude: ['@acme/*'],
+    minimumReleaseAgeIgnoreMissingTime: false,
+    trustPolicy: 'no-downgrade',
+    trustPolicyExclude: ['legacy-pkg'],
+    trustPolicyIgnoreAfter: 43200,
+    trustLockfile: true,
+  }))
+})
+
+test('pnpr runs under trustPolicy instead of refusing the install', async () => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  const manifest: ProjectManifest = { name: 'app', version: '1.2.3' }
+  const options = createOptions(workspaceRoot, rootDir, { trustPolicy: 'no-downgrade' })
+
+  await expect(install(manifest, options)).resolves.toBeDefined()
+
+  expect(resolveViaPnprServer).toHaveBeenCalledTimes(1)
+})
+
 function createOptions (
   workspaceRoot: string,
   rootDir: ProjectRootDir,
