@@ -223,10 +223,6 @@ fn split_set_params(
     }
 }
 
-// ---------------------------------------------------------------------------
-// config set / delete
-// ---------------------------------------------------------------------------
-
 /// `pnpm config set` (when `value` is `Some`) / `pnpm config delete` (when
 /// `value` is `None`). Port of `configSet`.
 fn config_set(
@@ -448,10 +444,6 @@ const STRING_ONLY_INI_KEYS: &[&str] = &["_auth", "_authToken", "_password", "use
 fn is_string_only_ini_key(key: &str) -> bool {
     STRING_ONLY_INI_KEYS.contains(&key) || key.starts_with('@') || key.starts_with("//")
 }
-
-// ---------------------------------------------------------------------------
-// config get / list
-// ---------------------------------------------------------------------------
 
 /// `configGet`: resolve and render the value at `key`. Port of `configGet`.
 fn config_get(config: &Config, flags: ConfigFlags, key: &str) -> Result<String, ConfigError> {

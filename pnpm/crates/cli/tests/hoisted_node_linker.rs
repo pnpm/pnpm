@@ -476,9 +476,8 @@ fn node_major() -> u32 {
 /// node-linker is hoisted` (`multipleImporters.ts:87`). The subset
 /// install lands the selected project's dependency at the workspace
 /// root, and the wanted lockfile keeps the unselected importer's
-/// entries. (Upstream leaves "the unselected dependency is absent" as a
-/// TODO — the hoisted linker materializes the full shared graph — so
-/// only the positive assertions are pinned, matching upstream.)
+/// entries. The hoisted linker materializes the full shared graph, so
+/// only the positive assertions are pinned, matching upstream.
 #[test]
 fn install_only_dependencies_of_specified_importer_with_hoisted_linker() {
     let fixture = WorkspaceFixture::new();

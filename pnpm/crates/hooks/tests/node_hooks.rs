@@ -687,8 +687,6 @@ async fn custom_resolver_errors_propagate() {
     assert!(err.to_string().contains("refresh check crashed"), "got: {err}");
 }
 
-// --- Custom fetcher integration tests ---
-
 fn write_custom_fetchers_pnpmfile(dir: &std::path::Path) -> std::path::PathBuf {
     let pnpmfile_path = dir.join(".pnpmfile.cjs");
     std::fs::write(

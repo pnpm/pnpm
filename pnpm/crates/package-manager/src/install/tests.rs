@@ -267,8 +267,8 @@ async fn should_install_dependencies() {
     let dir = tempdir().unwrap();
     let store_dir = dir.path().join("pacquet-store");
     let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules"); // TODO: we shouldn't have to define this
-    let virtual_store_dir = modules_dir.join(".pacquet"); // TODO: we shouldn't have to define this
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
 
     let manifest_path = dir.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
@@ -1336,8 +1336,7 @@ async fn frozen_lockfile_flag_with_no_lockfile_errors() {
 /// `pnpm:context` carries `currentLockfileExists`, `storeDir`,
 /// `virtualStoreDir`. `currentLockfileExists` is hard-coded
 /// `false` today (pacquet doesn't read or write
-/// `node_modules/.pnpm/lock.yaml`), matching the TODO in
-/// [`Install::run`].
+/// `node_modules/.pnpm/lock.yaml`).
 #[tokio::test]
 async fn install_emits_pnpm_event_sequence() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
@@ -1606,12 +1605,9 @@ async fn install_writes_modules_yaml() {
         virtual_store_dir_max_length,
         pacquet_config::default_virtual_store_dir_max_length(),
     );
+    assert_eq!(registries.get("default").map(String::as_str), Some(config.registry.as_str()));
     assert_eq!(
-        registries.as_ref().and_then(|r| r.get("default")).map(String::as_str),
-        Some(config.registry.as_str()),
-    );
-    assert_eq!(
-        registries.as_ref().and_then(|r| r.get("@private")).map(String::as_str),
+        registries.get("@private").map(String::as_str),
         Some("https://private.example.com/npm/"),
     );
     assert_eq!(package_manager, format!("pnpm@{}", pacquet_config::PNPM_VERSION));
@@ -5221,7 +5217,6 @@ async fn frozen_lockfile_gate_rejects_under_huge_minimum_release_age() {
     drop((dir, mock_instance));
 }
 
-// ----------------------------------------------------------------------------
 // Fresh-install lockfile generation
 //
 // These tests exercise a *fresh* install — the path that converts the

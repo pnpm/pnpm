@@ -2651,9 +2651,7 @@ async fn registry_only_serves_registry_and_refuses_resolver_endpoints() {
     mock.assert_async().await;
 }
 
-// --------------------------------------------------------------------
 // Registry routing (RFC: registries for pnpr).
-// --------------------------------------------------------------------
 
 /// Mock a one-version packument plus its tarball for `pkg` on `server`,
 /// returning the tarball bytes.

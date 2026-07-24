@@ -81,8 +81,6 @@ fn duplicate_specs_collapse_in_set() {
     assert_eq!(result, vec!["foo".to_string(), "foo@1.0.0".to_string()]);
 }
 
-// ─── create_package_version_policy ────────────────────────────────────
-
 #[test]
 fn create_policy_exact_version_match_returns_versions() {
     let policy = create_package_version_policy(["axios@1.12.2"]).unwrap();

@@ -507,8 +507,6 @@ mod dependency_build_scripts {
         assert!(allowed_pkg.join("generated-by-install.js").exists());
 
         eprintln!("Checking pnpm:ignored-scripts is empty under explicit denial...");
-        // Explicit denial moves the package from "ignored" to "silently
-        // skipped", so the event carries no package names this time.
         assert_eq!(ignored_scripts_package_names(&frozen_output), Vec::<String>::new());
 
         drop((root, mock_instance));

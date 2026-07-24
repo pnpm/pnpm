@@ -346,11 +346,6 @@ fn list_json_with_package_arg_omits_unsaved_dependencies() {
     drop(root);
 }
 
-// --- ports of the TypeScript listing command tests ---------------------------
-//
-// Sources: pnpm11/deps/inspection/commands/test/listing/{index.ts,json.ts,
-// recursive.ts} and pnpm11/pnpm/test/list.ts.
-
 const DEP: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";
 const HELLO: &str = "@pnpm.e2e/hello-world-js-bin";
 const PKG: &str = "@pnpm.e2e/pkg-with-1-dep";

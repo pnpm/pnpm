@@ -1,9 +1,21 @@
 use crate::api::{EnvVar, GetCurrentDir, GetHomeDir};
 use pacquet_store_dir::StoreDir;
-use std::{env, path::PathBuf};
+use std::{
+    env,
+    path::{Path, PathBuf},
+};
 
 #[cfg(windows)]
-use std::path::{Component, Path};
+use std::path::Component;
+
+/// If `path` starts with `~`, replace it with `home_dir`.
+fn expand_tilde(path: &str, home_dir: &std::path::Path) -> PathBuf {
+    if let Some(rest) = path.strip_prefix('~') {
+        home_dir.join(rest.trim_start_matches(['/', '\\']))
+    } else {
+        PathBuf::from(path)
+    }
+}
 
 pub fn default_hoist_pattern() -> Vec<String> {
     vec!["*".to_string()]
@@ -78,12 +90,19 @@ pub fn default_store_dir<Sys>() -> StoreDir
 where
     Sys: EnvVar + GetHomeDir + GetCurrentDir,
 {
-    // TODO: If env variables start with ~, make sure to resolve it into home_dir.
     if let Some(pnpm_home) = Sys::var("PNPM_HOME") {
+        if pnpm_home.starts_with('~') {
+            let home_dir = Sys::home_dir().expect("Home directory is not available");
+            return expand_tilde(&pnpm_home, &home_dir).join("store").into();
+        }
         return PathBuf::from(pnpm_home).join("store").into();
     }
 
     if let Some(xdg_data_home) = Sys::var("XDG_DATA_HOME") {
+        if xdg_data_home.starts_with('~') {
+            let home_dir = Sys::home_dir().expect("Home directory is not available");
+            return expand_tilde(&xdg_data_home, &home_dir).join("pnpm").join("store").into();
+        }
         return PathBuf::from(xdg_data_home).join("pnpm").join("store").into();
     }
 
@@ -139,8 +158,8 @@ where
 }
 
 pub fn default_modules_dir() -> PathBuf {
-    // TODO: find directory with package.json
-    env::current_dir().expect("current directory is unavailable").join("node_modules")
+    let cwd = env::current_dir().expect("current directory is unavailable");
+    find_nearest_package_json_dir(&cwd).join("node_modules")
 }
 
 /// Resolve the directory pnpm reads `config.yaml` (the global config
@@ -188,8 +207,20 @@ where
 }
 
 pub fn default_virtual_store_dir() -> PathBuf {
-    // TODO: find directory with package.json
-    env::current_dir().expect("current directory is unavailable").join("node_modules/.pnpm")
+    let cwd = env::current_dir().expect("current directory is unavailable");
+    find_nearest_package_json_dir(&cwd).join("node_modules/.pnpm")
+}
+
+/// Find the nearest ancestor containing `package.json`, falling back to `start`.
+pub fn find_nearest_package_json_dir(start: &Path) -> PathBuf {
+    let mut cursor = Some(start);
+    while let Some(dir) = cursor {
+        if dir.join("package.json").is_file() {
+            return dir.to_path_buf();
+        }
+        cursor = dir.parent();
+    }
+    start.to_path_buf()
 }
 
 /// Default for `enableGlobalVirtualStore`: `false` for regular installs.

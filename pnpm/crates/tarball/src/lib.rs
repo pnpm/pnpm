@@ -2165,9 +2165,6 @@ impl<'a> DownloadTarballToStore<'a> {
             return Ok(cas_paths);
         }
 
-        // QUESTION: I see no copying from existing store_dir, is there such mechanism?
-        // TODO: If it's not implemented yet, implement it
-
         // `DashMap::get` returns a `Ref` that holds a shard read guard for
         // its entire lifetime. Holding it across `.await` deadlocks: while
         // this task is parked, another task on the same worker can call

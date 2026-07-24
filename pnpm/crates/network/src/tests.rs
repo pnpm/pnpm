@@ -589,8 +589,6 @@ async fn socks5_proxy_connects_to_real_target() {
     socks.await.expect("SOCKS5 task");
 }
 
-// --- TLS / local-address tests ---
-
 /// Minimal self-signed certificate used to assert `Certificate::from_pem`
 /// accepts well-formed PEM. Lives at
 /// `crates/network/tests/fixtures/test-ca.pem` rather than inline so
@@ -790,8 +788,6 @@ fn for_installs_with_cert_but_no_key_skips_identity() {
     .expect("cert without key builds (identity skipped)");
 }
 
-// --- Per-registry routing tests ---
-
 #[test]
 fn for_installs_builds_per_registry_clients() {
     // Two per-registry overrides — one per host — plus an empty
@@ -895,8 +891,6 @@ async fn acquire_for_url_falls_back_to_default_when_no_overrides() {
     let b_ptr: *const reqwest::Client = &raw const *permit_b;
     assert_eq!(a_ptr, b_ptr, "without overrides every URL should hit the default client");
 }
-
-// --- PKCS#1 / rustls regression tests ---
 
 /// PKCS#1 client cert + key fixture. Generated with:
 ///

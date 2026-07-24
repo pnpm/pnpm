@@ -200,6 +200,7 @@ fn setup_fresh_install_with_config(
 
     let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
+    config.virtual_store_dir = workspace_root.join("node_modules/.pnpm");
     configure(&mut config);
     let config = Box::leak(Box::new(config));
     // Pre-create the modules dir so the "missing node_modules" guard

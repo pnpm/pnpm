@@ -315,8 +315,20 @@ fn build_importer(
     let dependencies_meta = manifest
         .value()
         .get("dependenciesMeta")
-        .filter(|value| value.as_object().is_some_and(|meta| !meta.is_empty()))
-        .cloned();
+        .and_then(|value| value.as_object())
+        .filter(|meta| !meta.is_empty())
+        .map(|meta| {
+            meta.iter()
+                .filter_map(|(name, entry)| {
+                    let injected = entry.get("injected").and_then(serde_json::Value::as_bool);
+                    let patch = entry.get("patch").and_then(|v| v.as_str()).map(str::to_string);
+                    (injected.is_some() || patch.is_some()).then(|| {
+                        (name.clone(), pacquet_lockfile::DependencyMeta { injected, patch })
+                    })
+                })
+                .collect::<HashMap<_, _>>()
+        })
+        .filter(|meta| !meta.is_empty());
     let publish_directory = manifest
         .value()
         .get("publishConfig")

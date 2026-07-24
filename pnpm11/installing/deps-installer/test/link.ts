@@ -76,28 +76,3 @@ test('relative link is rewritten by named installation to regular dependency', a
   const currentLockfile = project.readCurrentLockfile()
   expect(currentLockfile.importers['.'].dependencies?.['@pnpm.e2e/hello-world-js-bin'].version).toBe('1.0.0')
 })
-
-// test.skip('relative link when an external lockfile is used', async () => {
-//   const projects = prepare(t, [
-//     {
-//       name: 'project',
-//       version: '1.0.0',
-
-//       dependencies: {},
-//     },
-//   ])
-
-//   const opts = testDefaults({ lockfileDir: path.join('..') })
-//   await link([process.cwd()], path.resolve(process.cwd(), 'node_modules'), opts)
-
-//   const lockfile = await readYamlFile<Lockfile>(path.resolve('..', WANTED_LOCKFILE))
-
-//   t.deepEqual(lockfile && lockfile['importers'], {
-//     project: {
-//       dependencies: {
-//         project: 'link:',
-//       },
-//       specifiers: {},
-//     },
-//   })
-// })

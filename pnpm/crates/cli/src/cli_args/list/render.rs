@@ -256,8 +256,6 @@ fn list_summary(projects: &[ProjectHierarchy]) -> String {
     dim(&parts.join(" in "))
 }
 
-// --- parseable ---------------------------------------------------------------
-
 pub(crate) struct RenderParseableOptions {
     pub long: bool,
     pub always_print_root_package: bool,
@@ -361,8 +359,6 @@ fn flatten<'a>(
     }
     packages
 }
-
-// --- JSON --------------------------------------------------------------------
 
 pub(crate) fn render_json(projects: &[ProjectHierarchy], long: bool) -> String {
     let arr: Vec<Value> = projects

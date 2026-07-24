@@ -458,7 +458,7 @@ test('.npmrc does not load pnpm settings', async () => {
   // workspace-specific settings are omitted
   expect(config.authConfig['dlx-cache-max-age']).toBeUndefined()
   expect(config.authConfig['dlxCacheMaxAge']).toBeUndefined()
-  expect(config.dlxCacheMaxAge).toBe(24 * 60) // TODO: refactor to make defaultOptions importable
+  expect(config.dlxCacheMaxAge).toBe(24 * 60)
   expect(config.authConfig['trust-policy-exclude']).toBeUndefined()
   expect(config.authConfig['trustPolicyExclude']).toBeUndefined()
   expect(config.trustPolicyExclude).toBeUndefined()
@@ -661,7 +661,6 @@ test('when using --global, linkWorkspacePackages, sharedWorkspaceLockfile and lo
     })
     expect(config.linkWorkspacePackages).toBeFalsy()
     expect(config.sharedWorkspaceLockfile).toBeFalsy()
-    // FIXME: it supposed to return null but is undefined
     expect(config.lockfileDir).toBeUndefined()
   }
 })
@@ -2633,30 +2632,6 @@ test('normalize the value of the color flag', async () => {
   }
 })
 
-// NOTE: This test currently fails as pnpm currently lack a way to verify pnpm-workspace.yaml
-test.skip('read only supported settings from config', async () => {
-  prepare()
-
-  writeYamlFileSync('pnpm-workspace.yaml', {
-    storeDir: '__store__',
-    foo: 'bar',
-  })
-
-  const { config } = await getConfig({
-    cliOptions: {},
-    packageManager: {
-      name: 'pnpm',
-      version: '1.0.0',
-    },
-    workspaceDir: process.cwd(),
-  })
-
-  expect(config.storeDir).toBe('__store__')
-  // @ts-expect-error
-  expect(config['foo']).toBeUndefined() // NOTE: This line current fails as there are yet a way to verify fields in pnpm-workspace.yaml
-  expect(config.authConfig['foo']).toBe('bar')
-})
-
 test('all CLI options are added to the config', async () => {
   const { config } = await getConfig({
     cliOptions: {
@@ -3624,8 +3599,6 @@ describe('global config.yaml', () => {
       dangerouslyAllowAllBuilds: true,
     })
 
-    // TODO: `getConfigDir`, `getHomeDir`, etc. (from dirs.ts) should allow customizing env or process.
-    // TODO: after that, remove this `describe` wrapper.
     process.env.XDG_CONFIG_HOME = path.resolve('.config')
 
     const { config } = await getConfig({

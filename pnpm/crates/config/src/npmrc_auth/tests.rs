@@ -568,8 +568,6 @@ fn base64_decode_covers_every_alphabet_branch() {
     assert_eq!(base64_decode("not*base64"), None);
 }
 
-// --- Proxy parsing and cascade tests ---
-
 #[test]
 fn parses_https_proxy_from_ini() {
     let auth =
@@ -713,8 +711,6 @@ fn cascade_env_var_lowercase_lookup() {
     auth.apply_to::<LowercaseEnv>(&mut config);
     assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://lower.example:8080"));
 }
-
-// --- TLS + local-address tests ---
 
 /// Same self-signed cert as `crates/network/src/tests.rs`; loaded from
 /// the shared fixture under `crates/network/tests/fixtures/test-ca.pem`
@@ -962,8 +958,6 @@ fn defaults_leave_tls_config_empty() {
     assert_eq!(config.tls.strict_ssl, None);
     assert!(config.tls.local_address.is_none(), "tls.local_address={:?}", config.tls.local_address);
 }
-
-// --- Per-registry TLS tests ---
 
 #[test]
 fn parses_scoped_inline_ca() {

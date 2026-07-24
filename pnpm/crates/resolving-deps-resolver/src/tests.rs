@@ -1747,11 +1747,9 @@ mod peers {
 
     /// Two parallel peer chains in one importer — each peer resolves
     /// against its own sibling, no cross-pollination. Stands in for
-    /// the npm-alias peer case; the real alias case needs `npm:`
-    /// plumbing in the stub resolver.
-    // TODO(pacquet#?): replace with the real `npm:foo@2` alias once
-    // `parse_bare_specifier` routes npm-alias specifiers through the
-    // stub resolver in tests.
+    /// the npm-alias peer case.
+    // TODO: replace with real npm:foo@2 alias once parse_bare_specifier
+    // routes npm-alias specifiers through the stub resolver.
     #[tokio::test]
     async fn two_peer_chains_resolve_against_their_own_sibling() {
         let mut table = HashMap::new();

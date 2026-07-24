@@ -12,7 +12,7 @@ pub use package_version::{Approver, NpmUser, PackageVersion, TrustedPublisher};
 pub use package_versions::PackageVersions;
 pub use pinned_version::PinnedVersion;
 
-use derive_more::{Display, Error, From};
+use derive_more::{Display, Error};
 use miette::Diagnostic;
 
 #[derive(Debug, Display, Error)]
@@ -23,27 +23,38 @@ pub struct NetworkError {
     pub error: reqwest::Error,
 }
 
-#[derive(Debug, Display, Error, Diagnostic, From)]
+#[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum RegistryError {
-    #[from(ignore)] // TODO: remove this after derive(From) has been removed
     #[display("Missing latest tag on {_0}")]
     #[diagnostic(code(ERR_PNPM_REGISTRY_MISSING_LATEST_TAG))]
     MissingLatestTag(#[error(not(source))] String),
 
-    #[from(ignore)] // TODO: remove this after derive(From) has been removed
     #[display("Missing version {_0} on package {_1}")]
     #[diagnostic(code(ERR_PNPM_REGISTRY_MISSING_VERSION_RELEASE))]
     MissingVersionRelease(String, String),
 
     #[diagnostic(code(ERR_PNPM_REGISTRY_NETWORK_ERROR))]
-    Network(NetworkError), // TODO: remove derive(Error), split this variant
+    // TODO: remove derive(Error), split this variant into its own error type
+    Network(NetworkError),
 
     #[diagnostic(code(ERR_PNPM_REGISTRY_IO_ERROR))]
-    Io(std::io::Error), // TODO: remove derive(Error), split this variant
+    // TODO: remove derive(Error), split this variant into its own error type
+    Io(std::io::Error),
 
-    #[from(ignore)] // TODO: remove this after derive(From) has been removed
     #[display("Serialization failed: {_0}")]
     #[diagnostic(code(ERR_PNPM_REGISTRY_SERIALIZATION_ERROR))]
     Serialization(#[error(not(source))] String),
+}
+
+impl From<NetworkError> for RegistryError {
+    fn from(err: NetworkError) -> Self {
+        Self::Network(err)
+    }
+}
+
+impl From<std::io::Error> for RegistryError {
+    fn from(err: std::io::Error) -> Self {
+        Self::Io(err)
+    }
 }
