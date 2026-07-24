@@ -684,6 +684,35 @@ where
 
 The provider implements each trait independently, so adding a domain to an existing `Sys` is one more `impl X for Host` block — no churn on the production type beyond the new line, and no churn on existing tests beyond the ones whose fakes now need the new method.
 
+#### Sharing a stateful fake across many tests
+
+Principle 3 keeps a fake's state inside each `#[test]` body, so a fake that serves a whole module would repeat the same `thread_local!` / `static` block and capability `impl`s in every test. Hoist that boilerplate into a module-local `macro_rules!` that expands the fn-local state at the top of each test body. `login_fake!` in `crates/auth-commands/src/login/support.rs` is the reference implementation; pnpm/pnpm#13256 applies the same shape to `poll_fake!`, `browser_fake!`, `fake_env!`, `recording_reporter!`, and `recording_browser!`.
+
+Emit the always-used core — the state block, the capability `impl`s, `reset` — unconditionally, but **gate each optional helper behind a named macro argument** rather than emitting them all and silencing the unused ones with `#[allow(dead_code)]`. That suppression is noise, and it can mask a helper that has become genuinely dead. The entry arm takes the helper names as a variadic list and forwards each to an internal `(@helper $name)` arm; each test invokes the macro naming exactly the helpers it drives, so every emitted function is used:
+
+```rust
+macro_rules! poll_fake {
+    ($($helper:ident),* $(,)?) => {
+        // always emitted: fn-local state, capability impls, reset()
+        $( poll_fake!(@helper $helper); )*
+    };
+    (@helper set_sleep_behavior) => { /* fn set_sleep_behavior(...) { ... } */ };
+    (@helper recorded_sleeps) => { /* fn recorded_sleeps() -> Vec<u64> { ... } */ };
+    (@helper $unknown:ident) => {
+        compile_error!(concat!(
+            "unknown `poll_fake!` helper `", stringify!($unknown),
+            "`; expected one of: set_sleep_behavior, recorded_sleeps",
+        ));
+    };
+}
+
+poll_fake!();                                     // core only
+poll_fake!(recorded_sleeps);                      // + one helper
+poll_fake!(set_sleep_behavior, recorded_sleeps);  // + both
+```
+
+Always include the catch-all `(@helper $unknown:ident)` arm. Without it a mistyped helper name expands to an internal macro call with no matching arm, and the compiler points at the macro internals; the `compile_error!` turns the same typo into a clear message that lists the valid helper names.
+
 ### Reporter / log events
 
 Pacquet and the TypeScript pnpm CLI share one reporter wire protocol — the NDJSON stream that `@pnpm/cli.default-reporter` parses. Every channel one stack fires must fire from the corresponding site in the other, with the same payload shape and the same firing cadence. The reporter lives in `crates/reporter` (the `Reporter` capability trait, the `LogEvent` enum, the `NdjsonReporter` and `SilentReporter` sinks); this section is the convention for keeping pacquet's emissions in step with that shared contract.
