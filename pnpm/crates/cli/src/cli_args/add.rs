@@ -33,25 +33,44 @@ pub struct AddDependencyOptions {
     #[clap(short = 'O', long)]
     save_optional: bool,
     /// Using --save-peer will add one or more packages to peerDependencies and install them as dev dependencies
-    #[clap(long)]
+    #[clap(long, overrides_with = "no_save_peer")]
     save_peer: bool,
+    /// Don't add the packages to peerDependencies, overriding a
+    /// `savePeer: true` setting.
+    #[clap(long = "no-save-peer", overrides_with = "save_peer")]
+    no_save_peer: bool,
 }
 
 impl AddDependencyOptions {
-    /// `--save-peer` layered over the `savePeer` setting.
+    /// `--save-peer` / `--no-save-peer` layered over the `savePeer` setting.
     fn with_save_peer_setting(self, save_peer: bool) -> Self {
-        Self { save_peer: self.save_peer || save_peer, ..self }
+        Self {
+            save_peer: resolve_bool_override(self.save_peer, self.no_save_peer, save_peer),
+            ..self
+        }
     }
 
     /// Whether to add entry to `"dependencies"`.
     fn save_prod(&self) -> bool {
-        let &AddDependencyOptions { save_prod, save_dev, save_optional, save_peer } = self;
+        let &AddDependencyOptions {
+            save_prod,
+            save_dev,
+            save_optional,
+            save_peer,
+            no_save_peer: _,
+        } = self;
         save_prod || (!save_dev && !save_optional && !save_peer)
     }
 
     /// Whether to add entry to `"devDependencies"`.
     fn save_dev(&self) -> bool {
-        let &AddDependencyOptions { save_prod, save_dev, save_optional, save_peer } = self;
+        let &AddDependencyOptions {
+            save_prod,
+            save_dev,
+            save_optional,
+            save_peer,
+            no_save_peer: _,
+        } = self;
         save_dev || (!save_prod && !save_optional && save_peer)
     }
 
@@ -80,7 +99,13 @@ impl AddDependencyOptions {
     /// (an already-declared dependency is updated in the group it
     /// occupies; a new one lands in `dependencies`).
     fn save_target(&self) -> Option<Vec<DependencyGroup>> {
-        let &AddDependencyOptions { save_prod, save_dev, save_optional, save_peer } = self;
+        let &AddDependencyOptions {
+            save_prod,
+            save_dev,
+            save_optional,
+            save_peer,
+            no_save_peer: _,
+        } = self;
         (save_prod || save_dev || save_optional || save_peer)
             .then(|| self.dependency_groups().collect())
     }
