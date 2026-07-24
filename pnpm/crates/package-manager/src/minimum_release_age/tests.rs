@@ -49,9 +49,10 @@ impl ApprovalPrompt for FailingPrompt {
 
 // Per-test recording reporter. Its `Mutex<Vec<LogEvent>>` buffer is fn-local,
 // so each `#[test]` captures into its own and concurrent tests never share or
-// race on it.
+// race on it. Each test names the helpers it drives, so every emitted helper is
+// used and none needs a `dead_code` allow.
 macro_rules! recording_reporter {
-    () => {
+    ($($helper:ident),* $(,)?) => {
         static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
 
         struct RecordingReporter;
@@ -61,12 +62,15 @@ macro_rules! recording_reporter {
             }
         }
 
-        #[allow(dead_code, reason = "macro emits the full fake surface; tests use a subset")]
+        $( recording_reporter!(@helper $helper); )*
+    };
+
+    (@helper reset_events) => {
         fn reset_events() {
             EVENTS.lock().expect("event lock").clear();
         }
-
-        #[allow(dead_code, reason = "macro emits the full fake surface; tests use a subset")]
+    };
+    (@helper prompt_actions) => {
         fn prompt_actions() -> Vec<PromptAction> {
             EVENTS
                 .lock()
@@ -78,6 +82,13 @@ macro_rules! recording_reporter {
                 })
                 .collect()
         }
+    };
+    (@helper $unknown:ident) => {
+        compile_error!(concat!(
+            "unknown `recording_reporter!` helper `",
+            stringify!($unknown),
+            "`; expected one of: reset_events, prompt_actions",
+        ));
     };
 }
 
@@ -133,7 +144,7 @@ async fn non_interactive_strict_mode_reports_every_immature_pick() {
 
 #[tokio::test]
 async fn approval_persists_canonical_excludes_and_brackets_the_prompt() {
-    recording_reporter!();
+    recording_reporter!(reset_events, prompt_actions);
     reset_events();
     let dir = tempdir().expect("temp dir");
     fs::write(
@@ -173,7 +184,7 @@ async fn approval_persists_canonical_excludes_and_brackets_the_prompt() {
 
 #[tokio::test]
 async fn denying_approval_leaves_the_workspace_manifest_unchanged() {
-    recording_reporter!();
+    recording_reporter!(reset_events, prompt_actions);
     reset_events();
     let dir = tempdir().expect("temp dir");
     let path = dir.path().join("pnpm-workspace.yaml");
@@ -200,7 +211,7 @@ async fn denying_approval_leaves_the_workspace_manifest_unchanged() {
 
 #[tokio::test]
 async fn prompt_input_error_releases_the_reporter() {
-    recording_reporter!();
+    recording_reporter!(reset_events, prompt_actions);
     reset_events();
     let dir = tempdir().expect("temp dir");
     let mut config = Config::new();

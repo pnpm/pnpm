@@ -15,9 +15,10 @@ use std::{collections::HashMap, sync::Mutex};
 
 // Per-test recording reporter. Its `Mutex<Vec<LogEvent>>` buffer is fn-local,
 // so each `#[test]` captures into its own and concurrent tests never share or
-// race on it.
+// race on it. Each test names the helpers it drives, so every emitted helper is
+// used and none needs a `dead_code` allow.
 macro_rules! recording_reporter {
-    () => {
+    ($($helper:ident),* $(,)?) => {
         static RECORDED_EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
 
         struct RecordingReporter;
@@ -27,15 +28,25 @@ macro_rules! recording_reporter {
             }
         }
 
-        #[allow(dead_code, reason = "macro emits the full fake surface; tests use a subset")]
+        $( recording_reporter!(@helper $helper); )*
+    };
+
+    (@helper take_events) => {
         fn take_events() -> Vec<LogEvent> {
             std::mem::take(&mut *RECORDED_EVENTS.lock().expect("RECORDED_EVENTS not poisoned"))
         }
-
-        #[allow(dead_code, reason = "macro emits the full fake surface; tests use a subset")]
+    };
+    (@helper reset_events) => {
         fn reset_events() {
             RECORDED_EVENTS.lock().expect("RECORDED_EVENTS not poisoned").clear();
         }
+    };
+    (@helper $unknown:ident) => {
+        compile_error!(concat!(
+            "unknown `recording_reporter!` helper `",
+            stringify!($unknown),
+            "`; expected one of: take_events, reset_events",
+        ));
     };
 }
 
@@ -139,7 +150,7 @@ fn host(node_version: &str, os: &'static str, cpu: &'static str) -> Installabili
 
 #[test]
 fn skip_optional_with_wrong_os() {
-    recording_reporter!();
+    recording_reporter!(reset_events, take_events);
     reset_events();
     let key = snapshot_key("not-compatible-with-any-os@1.0.0");
     let mut snapshots = HashMap::new();
@@ -182,7 +193,7 @@ fn skip_optional_with_wrong_os() {
 
 #[test]
 fn skip_optional_with_wrong_node_engine() {
-    recording_reporter!();
+    recording_reporter!(reset_events, take_events);
     reset_events();
     let key = snapshot_key("for-legacy-node@1.0.0");
     let mut snapshots = HashMap::new();
@@ -214,7 +225,7 @@ fn skip_optional_with_wrong_node_engine() {
 
 #[test]
 fn compatible_snapshots_are_not_skipped() {
-    recording_reporter!();
+    recording_reporter!(reset_events, take_events);
     reset_events();
     let key = snapshot_key("compat@1.0.0");
     let mut snapshots = HashMap::new();
@@ -242,7 +253,7 @@ fn compatible_snapshots_are_not_skipped() {
 
 #[test]
 fn non_optional_incompatible_is_not_skipped() {
-    recording_reporter!();
+    recording_reporter!(reset_events, take_events);
     reset_events();
     let key = snapshot_key("non-optional-but-wrong-os@1.0.0");
     let mut snapshots = HashMap::new();
@@ -270,7 +281,7 @@ fn non_optional_incompatible_is_not_skipped() {
 
 #[test]
 fn no_constraints_skips_the_per_snapshot_pass() {
-    recording_reporter!();
+    recording_reporter!(reset_events, take_events);
     reset_events();
     let key = snapshot_key("no-constraints@1.0.0");
     let mut snapshots = HashMap::new();
@@ -386,7 +397,7 @@ fn optional_constraint_triggers_optional_gate() {
 
 #[test]
 fn duplicate_metadata_dedupes_reporter_events() {
-    recording_reporter!();
+    recording_reporter!(reset_events, take_events);
     reset_events();
     let metadata_key = snapshot_key("not-compatible-with-any-os@1.0.0");
     let snapshot_key_a = snapshot_key("not-compatible-with-any-os@1.0.0(react@17.0.2)");
@@ -426,7 +437,7 @@ fn duplicate_metadata_dedupes_reporter_events() {
 
 #[test]
 fn supported_architectures_widens_accept_set_so_optional_stays() {
-    recording_reporter!();
+    recording_reporter!(reset_events, take_events);
     reset_events();
     let key = snapshot_key("darwin-only-pkg@1.0.0");
     let mut snapshots = HashMap::new();
@@ -461,7 +472,7 @@ fn supported_architectures_widens_accept_set_so_optional_stays() {
 
 #[test]
 fn supported_architectures_does_not_implicitly_include_host() {
-    recording_reporter!();
+    recording_reporter!(reset_events);
     reset_events();
     let key = snapshot_key("darwin-only-pkg@1.0.0");
     let mut snapshots = HashMap::new();
@@ -494,7 +505,7 @@ fn supported_architectures_does_not_implicitly_include_host() {
 
 #[test]
 fn seeded_still_incompatible_snapshot_stays_skipped() {
-    recording_reporter!();
+    recording_reporter!(reset_events, take_events);
     reset_events();
     let key = snapshot_key("for-legacy-node@1.0.0");
     let mut snapshots = HashMap::new();
@@ -526,7 +537,7 @@ fn seeded_still_incompatible_snapshot_stays_skipped() {
 /// the newly compatible optional is installed instead of staying skipped.
 #[test]
 fn seeded_snapshot_compatible_with_new_host_is_unskipped() {
-    recording_reporter!();
+    recording_reporter!(reset_events);
     reset_events();
     let key = snapshot_key("darwin-arm64-only@1.0.0");
     let mut snapshots = HashMap::new();
@@ -554,7 +565,7 @@ fn seeded_snapshot_compatible_with_new_host_is_unskipped() {
 
 #[test]
 fn seeded_non_optional_snapshot_is_rechecked() {
-    recording_reporter!();
+    recording_reporter!(reset_events, take_events);
     reset_events();
     let key = snapshot_key("not-compatible-with-any-os@1.0.0");
     let mut snapshots = HashMap::new();
@@ -583,7 +594,7 @@ fn seeded_non_optional_snapshot_is_rechecked() {
 
 #[test]
 fn fast_path_preserves_seed() {
-    recording_reporter!();
+    recording_reporter!(reset_events);
     reset_events();
     let key = snapshot_key("previously-skipped@1.0.0");
     let mut snapshots = HashMap::new();
@@ -679,7 +690,7 @@ fn fetch_failed_and_optional_excluded_are_symmetric() {
 
 #[test]
 fn skip_optional_with_platform_inferred_from_name() {
-    recording_reporter!();
+    recording_reporter!(reset_events, take_events);
     reset_events();
     let foreign = snapshot_key("@nx/nx-win32-arm64-msvc@1.0.0");
     let matching = snapshot_key("@nx/nx-linux-x64-gnu@1.0.0");
@@ -714,7 +725,7 @@ fn skip_optional_with_platform_inferred_from_name() {
 
 #[test]
 fn name_inference_does_not_apply_to_non_optional_snapshots() {
-    recording_reporter!();
+    recording_reporter!(reset_events);
     reset_events();
     let key = snapshot_key("@nx/nx-win32-arm64-msvc@1.0.0");
     let mut snapshots = HashMap::new();
@@ -737,7 +748,7 @@ fn name_inference_does_not_apply_to_non_optional_snapshots() {
 
 #[test]
 fn missing_libc_is_inferred_from_name() {
-    recording_reporter!();
+    recording_reporter!(reset_events);
     reset_events();
     let musl = snapshot_key("@nx/nx-linux-x64-musl@1.0.0");
     let gnu = snapshot_key("@nx/nx-linux-x64-gnu@1.0.0");
@@ -823,7 +834,7 @@ fn detect_with_overrides_node_version_and_engine_strict() {
 
 #[test]
 fn engine_strict_hard_fails_a_required_incompatible_dep() {
-    recording_reporter!();
+    recording_reporter!(reset_events);
     let key = snapshot_key("needs-newer-node@1.0.0");
     let mut snapshots = HashMap::new();
     snapshots.insert(key.clone(), SnapshotEntry { optional: false, ..Default::default() });
@@ -869,7 +880,7 @@ fn engine_strict_hard_fails_a_required_incompatible_dep() {
 /// dispatch wins over the snapshot-level `optional: true` flag.
 #[test]
 fn engine_strict_fails_incompatible_regular_dep_of_installed_optional() {
-    recording_reporter!();
+    recording_reporter!(reset_events, take_events);
     let importers = root_importer(&[], &["has-not-compatible-dep@1.0.0"]);
     let parent = snapshot_key("has-not-compatible-dep@1.0.0");
     let incompatible = snapshot_key("not-compatible-with-any-os@1.0.0");
@@ -940,7 +951,7 @@ fn engine_strict_fails_incompatible_regular_dep_of_installed_optional() {
 /// parent, so it is skipped even under `engine_strict`.
 #[test]
 fn incompatible_regular_dep_of_skipped_optional_is_skipped_not_failed() {
-    recording_reporter!();
+    recording_reporter!(reset_events, take_events);
     let importers = root_importer(&[], &["not-compatible-with-not-compatible-dep@1.0.0"]);
     let parent = snapshot_key("not-compatible-with-not-compatible-dep@1.0.0");
     let incompatible = snapshot_key("not-compatible-with-any-os@1.0.0");
@@ -1009,7 +1020,7 @@ fn incompatible_regular_dep_of_skipped_optional_is_skipped_not_failed() {
 /// wins over the (deliberately stale) snapshot-level `optional` flag.
 #[test]
 fn regular_edge_from_installed_parent_wins_over_optional_reachability() {
-    recording_reporter!();
+    recording_reporter!(reset_events);
     let importers = root_importer(&["compat-parent@1.0.0"], &["not-compatible-with-any-os@1.0.0"]);
     let compat_parent = snapshot_key("compat-parent@1.0.0");
     let incompatible = snapshot_key("not-compatible-with-any-os@1.0.0");

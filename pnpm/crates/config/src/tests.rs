@@ -95,9 +95,11 @@ macro_rules! host_current_dir {
 
 // Per-test configurable environment fake: env reads come from a fn-local
 // `FAKE_ENV`, with no home dir. The state is fn-local, so each `#[test]` gets
-// its own environment and concurrent tests never share it.
+// its own environment and concurrent tests never share it. Each test names the
+// optional helpers it drives, so every emitted helper is used and none needs a
+// `dead_code` allow.
 macro_rules! fake_env {
-    () => {
+    ($($helper:ident),* $(,)?) => {
         thread_local! {
             static FAKE_ENV: std::cell::RefCell<std::collections::HashMap<String, String>> =
                 std::cell::RefCell::new(std::collections::HashMap::new());
@@ -134,7 +136,6 @@ macro_rules! fake_env {
 
         // Reset `FAKE_ENV` to the given env and clear any fake cwd, so a re-run
         // of the same test on the same worker thread starts clean.
-        #[allow(dead_code, reason = "macro emits the full fake surface; tests use a subset")]
         fn set_fake_env(pairs: &[(&str, &str)]) {
             FAKE_ENV.with(|map| {
                 let mut map = map.borrow_mut();
@@ -146,15 +147,25 @@ macro_rules! fake_env {
             FAKE_CWD.with(|cwd| *cwd.borrow_mut() = None);
         }
 
-        #[allow(dead_code, reason = "macro emits the full fake surface; tests use a subset")]
+        $( fake_env!(@helper $helper); )*
+    };
+
+    (@helper set_fake_cwd) => {
         fn set_fake_cwd(dir: &Path) {
             FAKE_CWD.with(|cwd| *cwd.borrow_mut() = Some(dir.to_path_buf()));
         }
-
-        #[allow(dead_code, reason = "macro emits the full fake surface; tests use a subset")]
+    };
+    (@helper load_with_fake_env) => {
         fn load_with_fake_env(start_dir: &Path) -> Config {
             Config::default().current::<FakeEnv>(start_dir).expect("load config")
         }
+    };
+    (@helper $unknown:ident) => {
+        compile_error!(concat!(
+            "unknown `fake_env!` helper `",
+            stringify!($unknown),
+            "`; expected one of: set_fake_cwd, load_with_fake_env",
+        ));
     };
 }
 
@@ -289,7 +300,7 @@ fn write_registry_auth_file(path: &Path, registry: &str, token: &str) {
 
 #[test]
 pub fn npmrc_auth_file_from_pnpm_config_env() {
-    fake_env!();
+    fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");
     let auth = tempdir().expect("auth tempdir");
     let auth_file = auth.path().join("ci-npmrc");
@@ -307,7 +318,7 @@ pub fn npmrc_auth_file_from_pnpm_config_env() {
 
 #[test]
 pub fn npmrc_auth_file_from_lowercase_pnpm_config_env() {
-    fake_env!();
+    fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");
     let auth = tempdir().expect("auth tempdir");
     let auth_file = auth.path().join("ci-npmrc");
@@ -324,7 +335,7 @@ pub fn npmrc_auth_file_from_lowercase_pnpm_config_env() {
 
 #[test]
 pub fn npmrc_auth_file_empty_env_falls_through_to_userconfig() {
-    fake_env!();
+    fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");
     let auth = tempdir().expect("auth tempdir");
     let auth_file = auth.path().join("user-npmrc");
@@ -344,7 +355,7 @@ pub fn npmrc_auth_file_empty_env_falls_through_to_userconfig() {
 
 #[test]
 pub fn npmrc_auth_file_outranks_userconfig() {
-    fake_env!();
+    fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");
     let auth = tempdir().expect("auth tempdir");
     let auth_file = auth.path().join("auth-file");
@@ -367,7 +378,7 @@ pub fn npmrc_auth_file_outranks_userconfig() {
 
 #[test]
 pub fn npmrc_auth_file_npm_config_userconfig_is_compat_fallback() {
-    fake_env!();
+    fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");
     let auth = tempdir().expect("auth tempdir");
     let npm_file = auth.path().join("npm-userconfig");
@@ -395,7 +406,7 @@ pub fn npmrc_auth_file_npm_config_userconfig_is_compat_fallback() {
 
 #[test]
 pub fn global_config_npmrc_auth_file_expands_env() {
-    fake_env!();
+    fake_env!(load_with_fake_env);
     let xdg = tempdir().expect("xdg tempdir");
     let config_dir = xdg.path().join("pnpm");
     fs::create_dir_all(&config_dir).expect("create config dir");
@@ -421,7 +432,7 @@ pub fn global_config_npmrc_auth_file_expands_env() {
 
 #[test]
 pub fn global_config_yaml_request_destination_values_expand_env() {
-    fake_env!();
+    fake_env!(load_with_fake_env);
     let xdg = tempdir().expect("xdg tempdir");
     let config_dir = xdg.path().join("pnpm");
     fs::create_dir_all(&config_dir).expect("create config dir");
@@ -453,7 +464,7 @@ namedRegistries:
 
 #[test]
 pub fn pnpm_config_request_destinations_expand_env() {
-    fake_env!();
+    fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");
     set_fake_env(&[
         ("PNPM_CONFIG_PNPR_SERVER", "https://${REGISTRY_HOST}/pnpr/"),
@@ -504,7 +515,7 @@ pub fn user_auth_token_pins_to_its_own_file_registry() {
 
 #[test]
 pub fn url_scoped_env_auth_is_used_and_outranks_project_npmrc() {
-    fake_env!();
+    fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");
     write_file(&project.path().join(".npmrc"), "//env2e.example.com/:_authToken=project-token\n");
     set_fake_env(&[("npm_config_//env2e.example.com/:_authToken", "env-token")]);
@@ -519,7 +530,7 @@ pub fn url_scoped_env_auth_is_used_and_outranks_project_npmrc() {
 
 #[test]
 pub fn url_scoped_env_auth_prefix_is_case_insensitive_end_to_end() {
-    fake_env!();
+    fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");
     set_fake_env(&[("NPM_CONFIG_//env2e.example.com/:_authToken", "upper-token")]);
 
@@ -533,7 +544,7 @@ pub fn url_scoped_env_auth_prefix_is_case_insensitive_end_to_end() {
 
 #[test]
 pub fn json_env_host_keyed_token_is_used_and_outranks_project_npmrc() {
-    fake_env!();
+    fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");
     write_file(&project.path().join(".npmrc"), "//json2e.example.com/:_authToken=project-token\n");
     set_fake_env(&[(
@@ -551,7 +562,7 @@ pub fn json_env_host_keyed_token_is_used_and_outranks_project_npmrc() {
 
 #[test]
 pub fn json_env_repo_registry_cannot_redirect_token() {
-    fake_env!();
+    fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");
     write_file(
         &project.path().join("pnpm-workspace.yaml"),
@@ -585,7 +596,7 @@ pub fn json_env_repo_registry_cannot_redirect_token() {
 
 #[test]
 pub fn json_env_per_scope_token_on_shared_host() {
-    fake_env!();
+    fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");
     set_fake_env(&[(
         "pnpm_config__auth",
@@ -639,7 +650,7 @@ pub fn json_env_non_object_top_level_aborts_the_load() {
 /// pnpm/pnpm#12559.
 #[test]
 pub fn json_env_default_scope_routes_default_registry() {
-    fake_env!();
+    fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");
     set_fake_env(&[(
         "pnpm_config__auth",
@@ -663,7 +674,7 @@ pub fn json_env_default_scope_routes_default_registry() {
 /// to its host.
 #[test]
 pub fn json_env_scoped_entry_routes_that_scope() {
-    fake_env!();
+    fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");
     set_fake_env(&[(
         "pnpm_config__auth",
@@ -684,7 +695,7 @@ pub fn json_env_scoped_entry_routes_that_scope() {
 /// cannot redirect the env token to a different registry.
 #[test]
 pub fn json_env_env_default_wins_over_workspace_yaml_default() {
-    fake_env!();
+    fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");
     write_file(
         &project.path().join("pnpm-workspace.yaml"),
@@ -712,7 +723,7 @@ pub fn json_env_env_default_wins_over_workspace_yaml_default() {
 /// `global config.yaml registries cannot redirect pnpm_config__auth routes`.
 #[test]
 pub fn global_config_yaml_registries_cannot_redirect_json_env_token() {
-    fake_env!();
+    fake_env!(load_with_fake_env);
     let xdg = tempdir().expect("xdg tempdir");
     let config_dir = xdg.path().join("pnpm");
     fs::create_dir_all(&config_dir).expect("create config dir");
@@ -763,7 +774,7 @@ pub fn global_config_yaml_registries_cannot_redirect_json_env_token() {
 /// `pnpm_config__auth` env var.
 #[test]
 pub fn global_config_yaml_auth_configures_registry_auth() {
-    fake_env!();
+    fake_env!(load_with_fake_env);
     let xdg = tempdir().expect("xdg tempdir");
     let config_dir = xdg.path().join("pnpm");
     fs::create_dir_all(&config_dir).expect("create config dir");
@@ -792,7 +803,7 @@ pub fn global_config_yaml_auth_configures_registry_auth() {
 /// `config.yaml` `_auth` on a conflicting key.
 #[test]
 pub fn json_env_auth_wins_over_global_config_yaml_auth() {
-    fake_env!();
+    fake_env!(load_with_fake_env);
     let xdg = tempdir().expect("xdg tempdir");
     let config_dir = xdg.path().join("pnpm");
     fs::create_dir_all(&config_dir).expect("create config dir");
@@ -819,7 +830,7 @@ pub fn json_env_auth_wins_over_global_config_yaml_auth() {
 /// repo-controlled config must never supply registry credentials.
 #[test]
 pub fn project_workspace_yaml_auth_is_ignored() {
-    fake_env!();
+    fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");
     write_file(
         &project.path().join("pnpm-workspace.yaml"),
@@ -841,7 +852,7 @@ pub fn project_workspace_yaml_auth_is_ignored() {
 /// yaml" precedence.
 #[test]
 pub fn json_env_env_registry_flag_wins_over_json_env_default() {
-    fake_env!();
+    fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");
     set_fake_env(&[
         (
@@ -873,7 +884,7 @@ pub fn json_env_env_registry_flag_wins_over_json_env_default() {
 /// package-manager bootstrap path (self-download / version switching).
 #[test]
 pub fn json_env_inferred_registries_flow_to_bootstrap() {
-    fake_env!();
+    fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");
     set_fake_env(&[(
         "pnpm_config__auth",
@@ -912,7 +923,7 @@ pub fn json_env_inferred_registries_flow_to_bootstrap() {
 /// that breaks routing while leaving auth-header pinning intact is caught.
 #[test]
 pub fn json_env_env_scoped_wins_over_workspace_yaml_scoped() {
-    fake_env!();
+    fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");
     write_file(
         &project.path().join("pnpm-workspace.yaml"),
@@ -966,7 +977,7 @@ pub fn json_env_invalid_auth_aborts_the_load() {
 /// `ConfigOverrides`.
 #[test]
 pub fn json_env_overrides_user_bootstrap_scoped_registry() {
-    fake_env!();
+    fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");
     let auth = tempdir().expect("auth tempdir");
     let auth_file = auth.path().join("user-npmrc");
@@ -1046,7 +1057,7 @@ pub fn workspace_unscoped_creds_pin_to_workspace_registry() {
 
 #[test]
 pub fn workspace_npmrc_overrides_global_auth_file() {
-    fake_env!();
+    fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");
     fs::write(project.path().join(".npmrc"), "//registry.npmjs.org/:_authToken=workspace-token\n")
         .expect("write workspace .npmrc");
@@ -1068,7 +1079,7 @@ pub fn workspace_npmrc_overrides_global_auth_file() {
 
 #[test]
 pub fn global_config_yaml_supplies_proxy_settings() {
-    fake_env!();
+    fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");
     let xdg = tempdir().expect("config tempdir");
     let config_dir = xdg.path().join("pnpm");
@@ -1098,7 +1109,7 @@ pub fn global_config_yaml_supplies_proxy_settings() {
 
 #[test]
 pub fn global_config_yaml_proxy_overrides_project_npmrc() {
-    fake_env!();
+    fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");
     fs::write(project.path().join(".npmrc"), "https-proxy=http://npmrc-proxy.example.com:8080\n")
         .expect("write project .npmrc");
@@ -1117,7 +1128,7 @@ pub fn global_config_yaml_proxy_overrides_project_npmrc() {
 
 #[test]
 pub fn global_config_yaml_https_proxy_preserves_project_npmrc_http_proxy() {
-    fake_env!();
+    fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");
     fs::write(
         project.path().join(".npmrc"),
@@ -1146,7 +1157,7 @@ pub fn global_config_yaml_https_proxy_preserves_project_npmrc_http_proxy() {
 
 #[test]
 pub fn workspace_yaml_proxy_is_not_trusted_for_package_manager_bootstrap() {
-    fake_env!();
+    fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");
     fs::write(
         project.path().join("pnpm-workspace.yaml"),
@@ -1186,7 +1197,7 @@ pub fn workspace_yaml_proxy_is_not_trusted_for_package_manager_bootstrap() {
 
 #[test]
 pub fn pnpm_config_https_proxy_preserves_global_http_proxy() {
-    fake_env!();
+    fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");
     let xdg = tempdir().expect("config tempdir");
     let config_dir = xdg.path().join("pnpm");
@@ -1211,7 +1222,7 @@ pub fn pnpm_config_https_proxy_preserves_global_http_proxy() {
 
 #[test]
 pub fn project_npmrc_proxy_settings_are_preserved() {
-    fake_env!();
+    fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");
     fs::write(
         project.path().join(".npmrc"),
@@ -1234,7 +1245,7 @@ pub fn project_npmrc_proxy_settings_are_preserved() {
 
 #[test]
 pub fn cli_https_proxy_preserves_project_npmrc_http_proxy_only_for_project_requests() {
-    fake_env!();
+    fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");
     fs::write(
         project.path().join(".npmrc"),
@@ -1277,7 +1288,7 @@ pub fn cli_https_proxy_preserves_trusted_npmrc_http_proxy_for_bootstrap_requests
 
 #[test]
 pub fn cli_https_proxy_precedes_standard_http_proxy_environment_fallback() {
-    fake_env!();
+    fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");
     set_fake_env(&[("HTTP_PROXY", "http://environment-http-proxy.example.com:8080")]);
 
@@ -2620,7 +2631,7 @@ pub fn package_manager_bootstrap_default_registry_is_npm() {
 /// mirroring pnpm's env/CLI `registry` handling.
 #[test]
 pub fn package_manager_bootstrap_honors_env_registry() {
-    fake_env!();
+    fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");
     write_file(&project.path().join(".npmrc"), "registry=https://attacker.example.com/\n");
     set_fake_env(&[("PNPM_CONFIG_REGISTRY", "https://env.example.com/")]);
@@ -2642,7 +2653,7 @@ pub fn package_manager_bootstrap_honors_env_registry() {
 /// `package_manager_bootstrap`) all key against the normalized form.
 #[test]
 pub fn env_registry_override_appends_missing_trailing_slash() {
-    fake_env!();
+    fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");
     set_fake_env(&[("PNPM_CONFIG_REGISTRY", "https://env.example.com")]);
 
@@ -2663,7 +2674,7 @@ pub fn env_registry_override_appends_missing_trailing_slash() {
 // at the project .npmrc, no "Ignored project-level auth setting" warning should fire.
 #[test]
 pub fn npmrc_auth_file_pointing_at_project_npmrc_suppresses_warning() {
-    fake_env!();
+    fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");
     let project_npmrc = project.path().join(".npmrc");
     fs::write(&project_npmrc, "//registry.npmjs.org/:_authToken=${MY_TOKEN}\n")
@@ -2690,7 +2701,7 @@ pub fn npmrc_auth_file_pointing_at_project_npmrc_suppresses_warning() {
 // `PNPM_CONFIG_NPMRC_AUTH_FILE=.npmrc`, anchored at the cwd.
 #[test]
 pub fn npmrc_auth_file_relative_to_cwd_pointing_at_project_npmrc_suppresses_warning() {
-    fake_env!();
+    fake_env!(set_fake_cwd, load_with_fake_env);
     let project = tempdir().expect("project tempdir");
     fs::write(project.path().join(".npmrc"), "//registry.npmjs.org/:_authToken=${MY_TOKEN}\n")
         .expect("write project .npmrc");
@@ -2720,7 +2731,7 @@ pub fn npmrc_auth_file_relative_to_cwd_pointing_at_project_npmrc_suppresses_warn
 // .npmrc must not trust it — the warning stays.
 #[test]
 pub fn npmrc_auth_file_relative_resolving_elsewhere_keeps_warning() {
-    fake_env!();
+    fake_env!(set_fake_cwd, load_with_fake_env);
     let project = tempdir().expect("project tempdir");
     let elsewhere = tempdir().expect("elsewhere tempdir");
     fs::write(project.path().join(".npmrc"), "//registry.npmjs.org/:_authToken=${MY_TOKEN}\n")
@@ -2743,7 +2754,7 @@ pub fn npmrc_auth_file_relative_resolving_elsewhere_keeps_warning() {
 // a workspace; exactly the workspace root's `node_modules/.bin` inside one.
 #[test]
 pub fn extra_bin_paths_lists_workspace_root_bin_only_inside_a_workspace() {
-    fake_env!();
+    fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");
     set_fake_env(&[]);
 

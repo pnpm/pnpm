@@ -21,9 +21,11 @@ enum Outcome {
 
 // Per-test fake for stdin-tty / browser-open / enter-key, plus a recording
 // reporter. Its state lives in fn-local thread-locals, so each `#[test]` gets
-// independent storage and concurrent tests never share it.
+// independent storage and concurrent tests never share it. Each test names the
+// optional helpers it drives, so every emitted helper is used and none needs a
+// `dead_code` allow.
 macro_rules! browser_fake {
-    () => {
+    ($($helper:ident),* $(,)?) => {
         thread_local! {
             static STDIN_TTY: Cell<bool> = const { Cell::new(true) };
             static LISTEN_OUTCOME: Cell<Outcome> = const { Cell::new(Outcome::Succeed) };
@@ -97,7 +99,6 @@ macro_rules! browser_fake {
             }
         }
 
-        #[allow(dead_code, reason = "macro emits the full fake surface; tests use a subset")]
         fn reset() {
             STDIN_TTY.with(|tty| tty.set(true));
             LISTEN_OUTCOME.with(|outcome| outcome.set(Outcome::Succeed));
@@ -108,59 +109,72 @@ macro_rules! browser_fake {
             EMITTED.with(|emitted| emitted.borrow_mut().clear());
         }
 
-        #[allow(dead_code, reason = "macro emits the full fake surface; tests use a subset")]
+        $( browser_fake!(@helper $helper); )*
+    };
+
+    (@helper set_stdin_tty) => {
         fn set_stdin_tty(is_tty: bool) {
             STDIN_TTY.with(|tty| tty.set(is_tty));
         }
-
-        #[allow(dead_code, reason = "macro emits the full fake surface; tests use a subset")]
+    };
+    (@helper set_listen_outcome) => {
         fn set_listen_outcome(outcome: Outcome) {
             LISTEN_OUTCOME.with(|cell| cell.set(outcome));
         }
-
-        #[allow(dead_code, reason = "macro emits the full fake surface; tests use a subset")]
+    };
+    (@helper set_open_outcome) => {
         fn set_open_outcome(outcome: Outcome) {
             OPEN_OUTCOME.with(|cell| cell.set(outcome));
         }
-
-        #[allow(dead_code, reason = "macro emits the full fake surface; tests use a subset")]
+    };
+    (@helper simulate_enter) => {
         fn simulate_enter() {
             if let Some(tx) = ENTER_TX.with(|cell| cell.borrow_mut().take()) {
                 let _ = tx.send(());
             }
         }
-
-        #[allow(dead_code, reason = "macro emits the full fake surface; tests use a subset")]
+    };
+    (@helper open_calls) => {
         fn open_calls() -> Vec<String> {
             OPEN_CALLS.with(|calls| calls.borrow().clone())
         }
-
-        #[allow(dead_code, reason = "macro emits the full fake surface; tests use a subset")]
+    };
+    (@helper closed) => {
         fn closed() -> bool {
             CLOSED.with(Cell::get)
         }
-
-        #[allow(dead_code, reason = "macro emits the full fake surface; tests use a subset")]
+    };
+    (@helper infos) => {
         fn infos() -> Vec<String> {
-            messages_at(LogLevel::Info)
-        }
-
-        #[allow(dead_code, reason = "macro emits the full fake surface; tests use a subset")]
-        fn warns() -> Vec<String> {
-            messages_at(LogLevel::Warn)
-        }
-
-        #[allow(dead_code, reason = "macro emits the full fake surface; tests use a subset")]
-        fn messages_at(level: LogLevel) -> Vec<String> {
             EMITTED.with(|emitted| {
                 emitted
                     .borrow()
                     .iter()
-                    .filter(|(emitted_level, _)| *emitted_level == level)
+                    .filter(|(level, _)| *level == LogLevel::Info)
                     .map(|(_, message)| message.clone())
                     .collect()
             })
         }
+    };
+    (@helper warns) => {
+        fn warns() -> Vec<String> {
+            EMITTED.with(|emitted| {
+                emitted
+                    .borrow()
+                    .iter()
+                    .filter(|(level, _)| *level == LogLevel::Warn)
+                    .map(|(_, message)| message.clone())
+                    .collect()
+            })
+        }
+    };
+    (@helper $unknown:ident) => {
+        compile_error!(concat!(
+            "unknown `browser_fake!` helper `",
+            stringify!($unknown),
+            "`; expected one of: set_stdin_tty, set_listen_outcome, set_open_outcome, ",
+            "simulate_enter, open_calls, closed, infos, warns",
+        ));
     };
 }
 
@@ -173,7 +187,7 @@ const AUTH_URL: &str = "https://example.com/auth";
 
 #[tokio::test]
 async fn returns_the_poll_result_when_poll_completes_before_enter_keypress() {
-    browser_fake!();
+    browser_fake!(open_calls, closed);
     reset();
 
     let token = prompt_browser_open::<Fake, RecordingReporter, PollError, _>(
@@ -190,7 +204,7 @@ async fn returns_the_poll_result_when_poll_completes_before_enter_keypress() {
 
 #[tokio::test]
 async fn opens_browser_when_enter_key_is_pressed_before_poll_completes() {
-    browser_fake!();
+    browser_fake!(simulate_enter, open_calls, closed);
     reset();
     LocalSet::new()
         .run_until(async {
@@ -218,7 +232,7 @@ async fn opens_browser_when_enter_key_is_pressed_before_poll_completes() {
 
 #[tokio::test]
 async fn warns_and_continues_polling_when_open_fails() {
-    browser_fake!();
+    browser_fake!(set_open_outcome, simulate_enter, infos, warns);
     reset();
     set_open_outcome(Outcome::Fail);
     LocalSet::new()
@@ -249,7 +263,7 @@ async fn warns_and_continues_polling_when_open_fails() {
 
 #[tokio::test]
 async fn warns_and_falls_back_to_plain_poll_when_listen_fails() {
-    browser_fake!();
+    browser_fake!(set_listen_outcome, open_calls, warns);
     reset();
     set_listen_outcome(Outcome::Fail);
 
@@ -271,7 +285,7 @@ async fn warns_and_falls_back_to_plain_poll_when_listen_fails() {
 
 #[tokio::test]
 async fn falls_back_to_plain_poll_when_stdin_is_not_a_tty() {
-    browser_fake!();
+    browser_fake!(set_stdin_tty, open_calls);
     reset();
     set_stdin_tty(false);
 
@@ -288,7 +302,7 @@ async fn falls_back_to_plain_poll_when_stdin_is_not_a_tty() {
 
 #[tokio::test]
 async fn shows_the_press_enter_message() {
-    browser_fake!();
+    browser_fake!(infos);
     reset();
 
     prompt_browser_open::<Fake, RecordingReporter, PollError, _>(
@@ -303,7 +317,7 @@ async fn shows_the_press_enter_message() {
 
 #[tokio::test]
 async fn does_not_open_browser_for_non_http_auth_url() {
-    browser_fake!();
+    browser_fake!(open_calls);
     for auth_url in ["javascript:alert(1)", "file:///etc/passwd", "not a url"] {
         reset();
 
@@ -321,7 +335,7 @@ async fn does_not_open_browser_for_non_http_auth_url() {
 
 #[tokio::test]
 async fn cleans_up_when_poll_rejects() {
-    browser_fake!();
+    browser_fake!(closed);
     reset();
 
     let error = prompt_browser_open::<Fake, RecordingReporter, PollError, _>(
