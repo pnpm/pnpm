@@ -106,12 +106,12 @@ catalog:
   # above pnpm's supported floor of Node.js >=22.13.
   '@babel/core': ^7.29.7
   '@babel/plugin-transform-explicit-resource-management': ^7.29.7
-  '@commitlint/cli': ^21.0.2
-  '@commitlint/config-conventional': ^21.0.2
-  '@commitlint/prompt-cli': ^21.0.2
+  '@commitlint/cli': ^21.2.1
+  '@commitlint/config-conventional': ^21.2.0
+  '@commitlint/prompt-cli': ^21.2.0
   '@cyclonedx/cyclonedx-library': 10.1.0
   '@eslint/js': ^10.0.1
-  '@inquirer/prompts': ^8.4.3
+  '@inquirer/prompts': ^8.5.2
   '@jest/globals': 30.4.1
   '@npm/types': ^2.1.0
   '@pnpm/byline': ^1.0.0
@@ -132,7 +132,7 @@ catalog:
   '@pnpm/tgz-fixtures': 0.0.0
   '@pnpm/util.lex-comparator': ^4.0.1
   '@reflink/reflink': 0.1.19
-  '@rushstack/worker-pool': 0.7.18
+  '@rushstack/worker-pool': 0.7.22
   '@stylistic/eslint-plugin': ^5.10.0
   '@types/adm-zip': ^0.5.8
   '@types/archy': 0.0.36
@@ -162,7 +162,7 @@ catalog:
   '@types/pnpm__byline': npm:@types/byline@^4.2.36
   '@types/proxyquire': ^1.3.31
   '@types/qrcode-terminal': ^0.12.2
-  '@types/ramda': 0.31.1
+  '@types/ramda': 0.32.0
   '@types/retry': ^0.12.5
   '@types/semver': 7.7.1
   '@types/ssri': ^7.1.5
@@ -173,19 +173,19 @@ catalog:
   '@types/write-file-atomic': ^4.0.3
   '@types/yarnpkg__lockfile': ^1.1.9
   '@types/zkochan__table': npm:@types/table@6.3.2
-  '@typescript-eslint/utils': ^8.61.0
-  '@typescript/native-preview': 7.0.0-dev.20260610.1
-  '@yarnpkg/core': 4.8.0
+  '@typescript-eslint/utils': ^8.65.0
+  '@typescript/native-preview': 7.0.0-dev.20260707.2
+  '@yarnpkg/core': 4.9.0
   '@yarnpkg/extensions': 2.0.6
   '@yarnpkg/lockfile': ^1.1.0
-  '@yarnpkg/nm': 4.0.7
-  '@yarnpkg/pnp': ^4.1.6
+  '@yarnpkg/nm': 4.1.0
+  '@yarnpkg/pnp': ^4.1.7
   '@zkochan/cmd-shim': ^9.0.6
   '@zkochan/retry': ^0.2.0
   '@zkochan/rimraf': ^4.0.0
   '@zkochan/table': ^2.0.1
   adm-zip: ^0.6.0
-  amaro: ^1.1.9
+  amaro: ^1.1.11
   ansi-diff: ^1.2.0
   archy: ^1.0.0
   better-path-resolve: 2.0.0
@@ -199,14 +199,14 @@ catalog:
   # Keep bole 5 until the published @pnpm/logger ships with bole 6.
   bole: ^5.0.29
   boxen: npm:@zkochan/boxen@5.1.2
-  c8: ^11.0.0
+  c8: ^12.0.0
   camelcase: ^9.0.0
   camelcase-keys: ^10.0.2
   can-link: ^3.0.0
   can-write-to-dir: ^2.0.0
   chalk: ^5.6.2
   ci-info: ^4.4.0
-  cli-truncate: ^6.0.0
+  cli-truncate: ^6.1.1
   cmd-extension: ^2.0.0
   comver-to-semver: ^2.0.0
   cross-env: ^10.1.0
@@ -221,22 +221,22 @@ catalog:
   didyoumean2: ^7.0.4
   dint: ^5.1.0
   dir-is-case-sensitive: ^3.0.0
-  empathic: ^2.0.0
+  empathic: ^2.0.1
   encode-registry: ^3.0.1
   esbuild: ^0.28.1
   escape-string-regexp: ^5.0.0
-  eslint: ^10.4.0
-  eslint-plugin-import-x: ^4.16.2
-  eslint-plugin-jest: ^29.15.2
-  eslint-plugin-n: ^18.1.0
+  eslint: ^10.7.0
+  eslint-plugin-import-x: ^4.17.1
+  eslint-plugin-jest: ^29.15.5
+  eslint-plugin-n: ^18.2.2
   eslint-plugin-promise: ^7.3.0
-  eslint-plugin-regexp: ^3.1.0
-  eslint-plugin-simple-import-sort: ^13.0.0
+  eslint-plugin-regexp: ^3.1.1
+  eslint-plugin-simple-import-sort: ^14.0.0
   execa: npm:safe-execa@0.3.0
   exists-link: 2.0.0
   fast-deep-equal: ^3.1.3
   fast-glob: ^3.3.3
-  fs-extra: ^11.3.5
+  fs-extra: ^11.3.6
   fuse-native: ^2.2.6
   get-port: ^7.2.0
   ghooks: 2.0.4
@@ -269,7 +269,7 @@ catalog:
   lodash.kebabcase: ^4.1.1
   lodash.throttle: 4.1.1
   loud-rejection: ^2.2.0
-  lru-cache: ^11.5.0
+  lru-cache: ^11.5.2
   make-empty-dir: ^4.0.0
   mdast-util-to-string: ^4.0.0
   memoize: ^11.0.0
@@ -295,9 +295,9 @@ catalog:
   p-defer: ^4.0.1
   p-every: ^2.0.0
   p-filter: ^4.1.0
-  p-limit: ^7.3.0
+  p-limit: ^7.3.1
   p-map-values: ^0.1.0
-  p-queue: ^9.3.0
+  p-queue: ^9.3.3
   parse-json: ^8.3.0
   parse-npm-tarball-url: ^5.0.0
   path-absolute: ^2.0.0
@@ -306,7 +306,7 @@ catalog:
   path-temp: ^3.0.0
   pidtree: ^1.0.0
   preferred-pm: ^5.0.0
-  pretty-bytes: ^7.1.0
+  pretty-bytes: ^7.1.1
   pretty-ms: ^9.3.0
   promise-share: ^2.0.1
   proxyquire: ^2.1.3
@@ -329,13 +329,13 @@ catalog:
   safe-execa: ^0.3.0
   safe-promise-defer: ^2.0.0
   sanitize-filename: ^1.6.4
-  semver: ^7.8.4
+  semver: ^7.8.5
   semver-range-intersect: ^0.3.1
   semver-utils: ^1.1.4
   shlex: ^3.0.0
   shx: ^0.4.0
   socks: ^2.8.9
-  sort-keys: ^6.0.0
+  sort-keys: ^6.0.1
   split-cmd: ^1.1.0
   split2: ^4.2.0
   # ssri 14.x requires Node.js ^22.22.2 || ^24.15.0 || >=26.0.0, above pnpm's
@@ -346,19 +346,19 @@ catalog:
   strip-bom: ^5.0.0
   strip-comments-strings: 1.2.0
   symlink-dir: ^10.0.1
-  tar: ^7.5.15
+  tar: ^7.5.21
   tar-stream: ^3.2.0
   # tempy >=3.1.0 uses temp-dir 3.x which has an async fs.realpath() in its
   # module init. When esbuild bundles this into its __esm lazy-init pattern,
   # the async operation deadlocks and the pnpm binary hangs on startup.
   tempy: 3.0.0
   terminal-link: ^5.0.0
-  tinyglobby: ^0.2.16
+  tinyglobby: ^0.2.17
   touch: 3.1.1
   tree-kill: ^1.2.2
   ts-jest-resolver: 2.0.1
-  typescript: 6.0.3
-  typescript-eslint: ^8.61.0
+  typescript: 7.0.2
+  typescript-eslint: ^8.65.0
   # undici 8.x requires Node.js >=22.19.0, above pnpm's supported floor of
   # Node.js >=22.13.
   undici: ^7.27.2
