@@ -3941,6 +3941,7 @@ dependencies = [
  "home",
  "indexmap 2.14.0",
  "insta",
+ "is_ci",
  "miette 7.6.0",
  "mockito",
  "node-semver",

@@ -71,6 +71,7 @@ futures-util         = { workspace = true }
 getrandom            = { workspace = true }
 home                 = { workspace = true }
 indexmap             = { workspace = true }
+is_ci                = { workspace = true }
 node-semver          = { workspace = true }
 miette               = { workspace = true }
 owo-colors.workspace = true

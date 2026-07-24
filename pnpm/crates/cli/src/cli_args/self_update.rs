@@ -126,8 +126,9 @@ pub struct SelfUpdateArgs {
 /// compromise — so under strict mode an immature pick is refused. An
 /// interactive run may still confirm it: naming a version on the command line
 /// is a deliberate act by the person at the keyboard, unlike a dependency
-/// drifting onto a new release. Non-interactive runs always fail closed. The
-/// cutoff never comes from the project — see
+/// drifting onto a new release. CI and other non-interactive runs always fail
+/// closed — a CI runner that allocates a pseudo-TTY has no one at the keyboard
+/// either. The cutoff never comes from the project — see
 /// [`WorkspaceSettings::clear_self_update_policy`] — so the only policy to
 /// confirm here is the user's own.
 ///
@@ -146,7 +147,7 @@ fn enforce_resolution_policy(
     {
         return Ok(());
     }
-    if !std::io::stdin().is_terminal() {
+    if is_ci::cached() || !std::io::stdin().is_terminal() {
         return Err(SelfUpdateError::NoMatureMatchingVersion {
             version: version.to_string(),
             reason: violation.reason.clone(),
