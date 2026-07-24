@@ -87,6 +87,28 @@ registry: https://reg.example
 }
 
 #[test]
+fn parses_and_applies_scope_from_yaml() {
+    let settings: WorkspaceSettings = serde_saphyr::from_str("scope: '@my-org'\n").unwrap();
+    assert_eq!(settings.scope.as_deref(), Some("@my-org"));
+
+    let mut config = Config::new();
+    assert_eq!(config.scope, None);
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(config.scope.as_deref(), Some("@my-org"));
+}
+
+#[test]
+fn apply_scope_overrides_npmrc_scope() {
+    // In `Config::current`, `.npmrc` scope is applied before
+    // `pnpm-workspace.yaml`, so yaml wins — mirroring `registry`.
+    let settings: WorkspaceSettings = serde_saphyr::from_str("scope: '@from-yaml'\n").unwrap();
+    let mut config = Config::new();
+    config.scope = Some("@from-npmrc".to_owned());
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(config.scope.as_deref(), Some("@from-yaml"));
+}
+
+#[test]
 fn apply_resolves_relative_paths_against_base_dir() {
     let yaml = "storeDir: ../shared-store\n";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();

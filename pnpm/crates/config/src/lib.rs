@@ -866,6 +866,11 @@ pub struct Config {
     #[default(_code = "default_registry()")]
     pub registry: String, // TODO: use Url type (compatible with reqwest)
 
+    /// The default package scope for `pnpm login` and `pnpm adduser`: the
+    /// granted token is associated with this scope and the scope-to-registry
+    /// mapping is recorded. Overridden by `--scope`.
+    pub scope: Option<String>,
+
     /// Scoped registry routes keyed by `@scope`, populated from
     /// `.npmrc` `@scope:registry=...` and
     /// `pnpm-workspace.yaml#registries`.

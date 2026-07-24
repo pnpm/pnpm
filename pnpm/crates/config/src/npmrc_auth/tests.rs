@@ -70,6 +70,24 @@ fn preserves_existing_trailing_slash() {
 }
 
 #[test]
+fn picks_up_scope_and_applies() {
+    let auth = NpmrcAuth::from_ini::<NoEnv>("scope=@my-org\n", Path::new(""));
+    assert_eq!(auth.scope.as_deref(), Some("@my-org"));
+
+    let mut config = Config::new();
+    auth.apply_to::<NoEnv>(&mut config);
+    assert_eq!(config.scope.as_deref(), Some("@my-org"));
+}
+
+#[test]
+fn scope_is_unset_without_an_npmrc_entry() {
+    let mut config = Config::new();
+    NpmrcAuth::from_ini::<NoEnv>("registry=https://r.example/\n", Path::new(""))
+        .apply_to::<NoEnv>(&mut config);
+    assert_eq!(config.scope, None);
+}
+
+#[test]
 fn parses_scoped_registry_and_applies() {
     let auth = NpmrcAuth::from_ini::<NoEnv>(
         "@private:registry=https://private.example/npm\n",
