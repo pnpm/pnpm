@@ -395,9 +395,7 @@ impl UpdateArgs {
         include_direct.contains(&DependencyGroup::Dev)
             && !self.no_save
             && !self.lockfile_only
-            && ((self.interactive && config.update_config.github_actions != Some(false))
-                || self.include_github_actions
-                || config.update_config.github_actions == Some(true))
+            && github_actions::opted_in(self.include_github_actions, config)
     }
 }
 

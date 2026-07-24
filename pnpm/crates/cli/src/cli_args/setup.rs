@@ -5,6 +5,7 @@
 //! `PNPM_HOME` plus `$PNPM_HOME/bin` are added to the user's environment
 //! (the shell rc file on POSIX, the registry on Windows).
 
+mod gh_actions_env;
 mod path_extender;
 
 use clap::Args;
@@ -47,6 +48,7 @@ fn handler<Reporter: self::Reporter + 'static>(force: bool, dir: &Path) -> miett
     // the self-install subprocess's `PATH` or the alias-script writes.
     path_extender::validate_pnpm_home_dir(&pnpm_home_dir)?;
     let bin_dir = pnpm_home_dir.join("bin");
+    gh_actions_env::validate_gh_actions_env_file_values::<Host>(&pnpm_home_dir, &bin_dir)?;
 
     let exec_path = std::env::current_exe()
         .into_diagnostic()
@@ -67,6 +69,7 @@ fn handler<Reporter: self::Reporter + 'static>(force: bool, dir: &Path) -> miett
             position: AddingPosition::Start,
         },
     )?;
+    gh_actions_env::write_gh_actions_env_files::<Reporter, Host>(dir, &pnpm_home_dir, &bin_dir);
     remove_legacy_homedir_shims(&pnpm_home_dir);
     Ok(render_setup_output(&report))
 }

@@ -72,6 +72,21 @@ interface PlannedUpdate {
 const SHA_PATTERN = /^[0-9a-f]{40}$/
 const limitRepoReads = pLimit(8)
 
+export interface GitHubActionsOptInOptions {
+  includeGithubActions?: boolean
+  updateConfig?: { githubActions?: boolean }
+}
+
+/**
+ * GitHub Actions dependencies are opt-in. Reading them means running
+ * `git ls-remote` against every referenced repository, so `pnpm outdated` and
+ * `pnpm update` only look at workflow files when asked to, either with
+ * `--include-github-actions` or with `update.githubActions: true`.
+ */
+export function shouldCheckGitHubActions (opts: GitHubActionsOptInOptions): boolean {
+  return opts.includeGithubActions === true || opts.updateConfig?.githubActions === true
+}
+
 export function isGitHubActionSelector (selector: string): boolean {
   const pattern = selector.startsWith('!') ? selector.slice(1) : selector
   return !pattern.startsWith('@') && pattern.includes('/')

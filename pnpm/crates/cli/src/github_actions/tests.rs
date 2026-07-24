@@ -1,9 +1,10 @@
 use super::{
     ActionReference, RepoVersion, find_current, find_outdated_with_runner, is_selector,
-    normalize_selector, render_target_ref, render_target_value,
+    normalize_selector, opted_in, render_target_ref, render_target_value,
     repo_versions as versions_from_refs, selector_matcher, split_uses_value, update_with_runner,
 };
 use node_semver::Version;
+use pacquet_config::Config;
 use pacquet_reporter::{GlobalLog, LogEvent, LogLevel, Reporter, SilentReporter};
 use pacquet_resolving_git_resolver::{GitCommandRunner, GitRunError};
 use std::{collections::HashMap, fs, future::Future, path::PathBuf, pin::Pin, sync::Mutex};
@@ -75,6 +76,20 @@ impl GitCommandRunner for PreOneGitRunner {
             .to_string())
         })
     }
+}
+
+#[test]
+fn workflow_files_are_read_only_when_opted_in() {
+    let mut config = Config::new();
+    assert!(!opted_in(false, &config));
+    assert!(opted_in(true, &config));
+
+    config.update_config.github_actions = Some(false);
+    assert!(!opted_in(false, &config));
+    assert!(opted_in(true, &config));
+
+    config.update_config.github_actions = Some(true);
+    assert!(opted_in(false, &config));
 }
 
 #[test]

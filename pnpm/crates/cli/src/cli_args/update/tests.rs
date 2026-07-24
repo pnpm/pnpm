@@ -56,25 +56,30 @@ fn prod_with_no_optional_drops_optional() {
 }
 
 #[test]
-fn github_actions_are_opt_in_except_for_interactive_updates() {
+fn github_actions_are_opt_in_for_every_update() {
     let include_direct = vec![DependencyGroup::Prod, DependencyGroup::Dev];
     let mut config = Config::new();
 
     assert!(!update_args(&[]).should_update_github_actions(&config, &include_direct));
     assert!(
+        !update_args(&["--interactive"]).should_update_github_actions(&config, &include_direct),
+    );
+    assert!(
         update_args(&["--include-github-actions"])
             .should_update_github_actions(&config, &include_direct),
     );
-    assert!(update_args(&["--interactive"]).should_update_github_actions(&config, &include_direct));
+    assert!(
+        update_args(&["--interactive", "--include-github-actions"])
+            .should_update_github_actions(&config, &include_direct),
+    );
 
     config.update_config.github_actions = Some(true);
     assert!(update_args(&[]).should_update_github_actions(&config, &include_direct));
+    assert!(update_args(&["--interactive"]).should_update_github_actions(&config, &include_direct));
     assert!(
         !update_args(&["--prod"]).should_update_github_actions(&config, &[DependencyGroup::Prod],),
     );
 
-    // An explicit `false` opts interactive updates out of GitHub Actions,
-    // but never overrides the explicit `--include-github-actions` flag.
     config.update_config.github_actions = Some(false);
     assert!(
         !update_args(&["--interactive"]).should_update_github_actions(&config, &include_direct),

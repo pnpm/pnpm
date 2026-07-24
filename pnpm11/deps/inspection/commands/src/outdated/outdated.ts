@@ -11,7 +11,7 @@ import {
 import { colorizeSemverDiff } from '@pnpm/colorize-semver-diff'
 import { createMatcher } from '@pnpm/config.matcher'
 import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
-import { findOutdatedGitHubActions, isGitHubActionSelector, normalizeGitHubActionSelector } from '@pnpm/deps.github-actions'
+import { findOutdatedGitHubActions, isGitHubActionSelector, normalizeGitHubActionSelector, shouldCheckGitHubActions } from '@pnpm/deps.github-actions'
 import {
   outdatedDepsOfProjects,
   type OutdatedPackage,
@@ -51,6 +51,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
 
 export const cliOptionsTypes = (): Record<string, unknown> => ({
   ...rcOptionsTypes(),
+  'include-github-actions': Boolean,
   recursive: Boolean,
 })
 
@@ -66,7 +67,7 @@ export const commandNames = ['outdated']
 
 export function help (): string {
   return renderHelp({
-    description: `Check for outdated package and GitHub Actions dependencies. The check can be limited to a subset of dependencies by providing arguments (patterns are supported).
+    description: `Check for outdated package dependencies. GitHub Actions dependencies can be included with --include-github-actions. The check can be limited to a subset of dependencies by providing arguments (patterns are supported).
 
 Examples:
 pnpm outdated
@@ -116,6 +117,10 @@ For options that may be used with `-r`, see "pnpm help recursive"',
             name: '--format <format>',
           },
           {
+            description: 'Also check GitHub Actions dependencies in workflow and action files',
+            name: '--include-github-actions',
+          },
+          {
             description: 'Specify the sorting method. Currently only `name` is supported.',
             name: '--sort-by',
           },
@@ -136,6 +141,7 @@ export const completion: CompletionFunc = async (cliOpts) => {
 
 export type OutdatedCommandOptions = {
   compatible?: boolean
+  includeGithubActions?: boolean
   long?: boolean
   recursive?: boolean
   format?: 'table' | 'list' | 'json'
@@ -228,7 +234,7 @@ export async function handler (
         timeout: opts.fetchTimeout,
       })
       : [],
-    opts.global || !include.devDependencies || opts.updateConfig?.githubActions === false
+    opts.global || !include.devDependencies || !shouldCheckGitHubActions(opts)
       ? []
       : findOutdatedGitHubActions({
         compatible: opts.compatible,

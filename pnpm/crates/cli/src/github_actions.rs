@@ -1,6 +1,9 @@
 use futures_util::{StreamExt, stream};
 use node_semver::{Range as SemverRange, Version};
-use pacquet_config::matcher::{Matcher, create_matcher};
+use pacquet_config::{
+    Config,
+    matcher::{Matcher, create_matcher},
+};
 use pacquet_network::redact_and_sanitize;
 use pacquet_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
 use pacquet_resolving_git_resolver::{GitCommandRunner, RealGitRunner, get_repo_refs};
@@ -72,6 +75,14 @@ struct PlannedUpdate {
 }
 
 const GIT_CONCURRENCY: usize = 8;
+
+/// GitHub Actions dependencies are opt-in. Reading them means running `git
+/// ls-remote` against every referenced repository, so `pnpm outdated` and
+/// `pnpm update` only look at workflow files when asked to, either with
+/// `--include-github-actions` or with `update.githubActions: true`.
+pub fn opted_in(include_github_actions: bool, config: &Config) -> bool {
+    include_github_actions || config.update_config.github_actions == Some(true)
+}
 
 pub async fn find_outdated<Reporter: self::Reporter>(
     root: &Path,
