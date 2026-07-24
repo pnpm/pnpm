@@ -321,6 +321,46 @@ fn recursive_run_settings_only_workspace_enumerates_root_only() {
     drop(root);
 }
 
+/// `pacquet -r -w run <script>` narrows the recursive run to the root
+/// project — the inverse of the `!{<workspace-root>}` auto-exclusion that
+/// an unfiltered recursive `run` applies.
+#[test]
+fn recursive_run_workspace_root_selects_only_the_root_project() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[
+            ("project-1", build_writes_marker("project-1")),
+            ("project-2", build_writes_marker("project-2")),
+        ],
+    );
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "root",
+            "version": "1.0.0",
+            "scripts": { "build": "touch root-ran.txt" },
+        })
+        .to_string(),
+    )
+    .expect("write root package.json");
+
+    pacquet.with_arg("-r").with_arg("-w").with_arg("run").with_arg("build").assert().success();
+
+    assert!(
+        workspace.join("root-ran.txt").exists(),
+        "--workspace-root should select the root project",
+    );
+    for name in ["project-1", "project-2"] {
+        assert!(
+            !workspace.join(name).join("ran.txt").exists(),
+            "{name} must not run under --workspace-root",
+        );
+    }
+
+    drop(root);
+}
+
 /// `pacquet -r --filter <name> run <script>` runs the script only in the
 /// `--filter`-selected project, leaving the rest untouched. Threads
 /// `config.filter` through the recursive dispatch to build the selected
