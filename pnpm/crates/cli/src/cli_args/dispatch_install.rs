@@ -183,8 +183,8 @@ pub(super) fn install<'a>(
             // `&'static mut Config` return.
             let cfg = config()?;
             apply_install_cli_config(cfg, &args);
-            let require_lockfile = args.frozen_lockfile;
-            let frozen_lockfile = args.frozen_lockfile;
+            let frozen_lockfile = args.effective_frozen_lockfile(cfg);
+            let require_lockfile = frozen_lockfile;
             // Config dependencies are workspace-level state: their
             // `.pnpm-config` and env lockfile live at the lockfile /
             // workspace root, not the CLI cwd. Use the same root

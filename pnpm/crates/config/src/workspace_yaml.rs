@@ -101,6 +101,10 @@ pub struct WorkspaceSettings {
     pub peers_suffix_max_length: Option<u64>,
     pub lockfile: Option<bool>,
     pub prefer_frozen_lockfile: Option<bool>,
+
+    /// `frozenLockfile` from `pnpm-workspace.yaml`. Unset by default:
+    /// see [`Config::frozen_lockfile`].
+    pub frozen_lockfile: Option<bool>,
     pub deploy_all_files: Option<bool>,
     pub force_legacy_deploy: Option<bool>,
     pub shared_workspace_lockfile: Option<bool>,
@@ -474,6 +478,24 @@ pub struct WorkspaceSettings {
     /// [`Config::cleanup_unused_catalogs`]. Default `false`.
     pub cleanup_unused_catalogs: Option<bool>,
 
+    /// `saveCatalogName` from `pnpm-workspace.yaml`. See
+    /// [`Config::save_catalog_name`].
+    ///
+    /// [`Config::save_catalog_name`]: crate::Config::save_catalog_name
+    pub save_catalog_name: Option<String>,
+
+    /// `savePrefix` from `pnpm-workspace.yaml`. See
+    /// [`Config::save_prefix`].
+    ///
+    /// [`Config::save_prefix`]: crate::Config::save_prefix
+    pub save_prefix: Option<String>,
+
+    /// `savePeer` from `pnpm-workspace.yaml`. See
+    /// [`Config::save_peer`]. Default `false`.
+    ///
+    /// [`Config::save_peer`]: crate::Config::save_peer
+    pub save_peer: Option<bool>,
+
     /// `registrySupportsTimeField` from `pnpm-workspace.yaml`. See
     /// [`Config::registry_supports_time_field`].
     ///
@@ -737,6 +759,7 @@ impl WorkspaceSettings {
         self.node_linker = None;
         self.symlink = None;
         self.lockfile = None;
+        self.frozen_lockfile = None;
         self.deploy_all_files = None;
         self.force_legacy_deploy = None;
         self.shared_workspace_lockfile = None;
@@ -769,6 +792,8 @@ impl WorkspaceSettings {
         self.test_pattern = None;
         self.changed_files_ignore_pattern = None;
         self.allow_unused_patches = None;
+        self.save_catalog_name = None;
+        self.save_peer = None;
     }
 
     /// Walk up from `start_dir` looking for a readable `pnpm-workspace.yaml`.
@@ -933,7 +958,7 @@ impl WorkspaceSettings {
             virtual_store_only, enable_modules_dir,
             git_shallow_hosts,
             test_pattern, changed_files_ignore_pattern,
-            resolution_mode, catalog_mode, cleanup_unused_catalogs,
+            resolution_mode, catalog_mode, cleanup_unused_catalogs, save_peer,
             registry_supports_time_field,
             allowed_deprecated_versions, update_config, peer_dependency_rules,
             enable_pre_post_scripts, dlx_cache_max_age,
@@ -958,6 +983,16 @@ impl WorkspaceSettings {
                 github_actions: update.github_actions,
                 github_actions_server: update.github_actions_server,
             };
+        }
+
+        if let Some(frozen_lockfile) = self.frozen_lockfile {
+            config.frozen_lockfile = Some(frozen_lockfile);
+        }
+        if let Some(save_catalog_name) = self.save_catalog_name {
+            config.save_catalog_name = Some(save_catalog_name);
+        }
+        if let Some(save_prefix) = self.save_prefix {
+            config.save_prefix = Some(save_prefix);
         }
 
         if let Some(inner) = self.hoist_pattern {

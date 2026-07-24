@@ -879,3 +879,39 @@ fn add_updates_dependency_in_the_group_it_already_occupies() {
 
     drop((root, npmrc_info)); // cleanup
 }
+
+/// The `savePrefix` and `savePeer` settings drive `pnpm add` the same
+/// way `--save-prefix` / `--save-peer` do, and the flags still win.
+#[test]
+fn save_prefix_and_save_peer_settings_drive_add() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        std::fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    if !workspace_yaml.ends_with('\n') {
+        workspace_yaml.push('\n');
+    }
+    workspace_yaml.push_str("savePrefix: '~'\nsavePeer: true\n");
+    std::fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    pacquet.with_args(["add", "@pnpm.e2e/hello-world-js-bin"]).assert().success();
+
+    let manifest =
+        workspace.join("package.json").pipe(PackageManifest::from_path).expect("read manifest");
+    let peer_spec = manifest
+        .dependencies([DependencyGroup::Peer])
+        .find(|(name, _)| *name == "@pnpm.e2e/hello-world-js-bin")
+        .map(|(_, spec)| spec.to_string());
+    let dev_spec = manifest
+        .dependencies([DependencyGroup::Dev])
+        .find(|(name, _)| *name == "@pnpm.e2e/hello-world-js-bin")
+        .map(|(_, spec)| spec.to_string());
+    eprintln!("PEER: {peer_spec:?}, DEV: {dev_spec:?}");
+    assert_eq!(peer_spec.as_deref(), Some("~1.0.0"), "savePeer must add a peerDependencies entry");
+    assert_eq!(dev_spec.as_deref(), Some("~1.0.0"), "savePeer also saves it as a dev dependency");
+
+    drop((root, mock_instance));
+}

@@ -90,8 +90,13 @@ pub struct InstallArgs {
     pub supported_architectures: SupportedArchitecturesArgs,
 
     /// Don't generate a lockfile, and fail if an update to it is needed.
-    #[clap(long)]
+    #[clap(long, overrides_with = "no_frozen_lockfile")]
     pub frozen_lockfile: bool,
+
+    /// Allow the lockfile to be updated, overriding a `frozenLockfile: true`
+    /// setting.
+    #[clap(long = "no-frozen-lockfile", overrides_with = "frozen_lockfile")]
+    pub no_frozen_lockfile: bool,
 
     /// Only update `pnpm-lock.yaml`. Don't download packages or write
     /// `node_modules`.
@@ -228,8 +233,10 @@ impl InstallArgs {
     /// the install inputs: `patch-commit` / `patch-remove` (which rewrite the
     /// manifest's `patchedDependencies`) and `unlink` (which removes `link:`
     /// overrides from `pnpm-workspace.yaml`). Forces a fresh resolution
-    /// (`preferFrozenLockfile: false`, via `no_prefer_frozen_lockfile`) so the
-    /// changed inputs re-resolve rather than reusing the stale lockfile.
+    /// (`preferFrozenLockfile: false`, via `no_prefer_frozen_lockfile`, and
+    /// `frozenLockfile: false`, via `no_frozen_lockfile`) so the changed
+    /// inputs re-resolve rather than reusing — or failing against — the
+    /// stale lockfile.
     pub(crate) fn for_reresolving_install() -> Self {
         Self {
             dependency_options: InstallDependencyOptions {
@@ -239,6 +246,7 @@ impl InstallArgs {
             },
             supported_architectures: SupportedArchitecturesArgs::default(),
             frozen_lockfile: false,
+            no_frozen_lockfile: true,
             lockfile_only: false,
             dry_run: false,
             force: false,
@@ -289,7 +297,11 @@ impl InstallArgs {
         config: &pacquet_config::Config,
         emit: fn(&pacquet_reporter::LogEvent),
     ) -> bool {
-        if self.frozen_lockfile || self.lockfile_only || self.force || self.pnpr_server.is_some() {
+        if self.effective_frozen_lockfile(config)
+            || self.lockfile_only
+            || self.force
+            || self.pnpr_server.is_some()
+        {
             return false;
         }
         if config.pnpr_server.is_some() {
@@ -342,6 +354,16 @@ impl InstallArgs {
         true
     }
 
+    /// `--frozen-lockfile` / `--no-frozen-lockfile` layered over the
+    /// `frozenLockfile` setting.
+    pub(crate) fn effective_frozen_lockfile(&self, config: &pacquet_config::Config) -> bool {
+        resolve_bool_override(
+            self.frozen_lockfile,
+            self.no_frozen_lockfile,
+            config.frozen_lockfile.unwrap_or(false),
+        )
+    }
+
     pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
         Box::pin(self.run_inner::<Reporter>(state, None)).await
     }
@@ -361,10 +383,13 @@ impl InstallArgs {
     ) -> miette::Result<()> {
         let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
             &state;
+        let frozen_lockfile = self.effective_frozen_lockfile(config);
         let InstallArgs {
             dependency_options,
             supported_architectures,
-            frozen_lockfile,
+            // Layered over the `frozenLockfile` setting above.
+            frozen_lockfile: _,
+            no_frozen_lockfile: _,
             lockfile_only,
             dry_run,
             // Resolved against config by `apply_install_cli_config` in

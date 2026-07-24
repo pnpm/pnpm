@@ -135,6 +135,7 @@ impl WorkspaceSettings {
         json_field!(peers_suffix_max_length, "PEERS_SUFFIX_MAX_LENGTH");
         json_field!(lockfile, "LOCKFILE");
         json_field!(prefer_frozen_lockfile, "PREFER_FROZEN_LOCKFILE");
+        json_field!(frozen_lockfile, "FROZEN_LOCKFILE");
         json_field!(deploy_all_files, "DEPLOY_ALL_FILES");
         json_field!(force_legacy_deploy, "FORCE_LEGACY_DEPLOY");
         json_field!(shared_workspace_lockfile, "SHARED_WORKSPACE_LOCKFILE");
@@ -237,6 +238,9 @@ impl WorkspaceSettings {
         json_field!(trust_policy_ignore_after, "TRUST_POLICY_IGNORE_AFTER");
         enum_field!(resolution_mode, "RESOLUTION_MODE", ResolutionMode);
         enum_field!(catalog_mode, "CATALOG_MODE", CatalogMode);
+        string_field!(save_catalog_name, "SAVE_CATALOG_NAME");
+        string_field!(save_prefix, "SAVE_PREFIX");
+        json_field!(save_peer, "SAVE_PEER");
         json_field!(registry_supports_time_field, "REGISTRY_SUPPORTS_TIME_FIELD");
         json_field!(allowed_deprecated_versions, "ALLOWED_DEPRECATED_VERSIONS");
         json_field!(update_config, "UPDATE_CONFIG");

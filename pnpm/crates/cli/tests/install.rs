@@ -1603,3 +1603,44 @@ fn set_dir_modes(path: &std::path::Path, mode: u32) {
     }
     fs::set_permissions(path, fs::Permissions::from_mode(mode)).expect("set directory mode");
 }
+
+/// `frozenLockfile: true` in `pnpm-workspace.yaml` drives the same
+/// headless install `--frozen-lockfile` does, and `--no-frozen-lockfile`
+/// overrides it back off.
+#[test]
+fn frozen_lockfile_setting_drives_the_headless_install() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    if !workspace_yaml.ends_with('\n') {
+        workspace_yaml.push('\n');
+    }
+    workspace_yaml.push_str("frozenLockfile: true\n");
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": { "@pnpm.e2e/hello-world-js-bin": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    let assert = new_pacquet_command(&workspace).with_arg("install").assert().failure();
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    eprintln!("STDERR:\n{stderr}\n");
+    assert!(
+        stderr.contains("Headless installation requires a pnpm-lock.yaml file"),
+        "the setting alone must take the frozen path; got:\n{stderr}",
+    );
+
+    pacquet.with_args(["install", "--no-frozen-lockfile"]).assert().success();
+    assert!(workspace.join("pnpm-lock.yaml").is_file(), "--no-frozen-lockfile must overrule");
+
+    drop((root, mock_instance));
+}
