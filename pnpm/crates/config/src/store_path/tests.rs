@@ -71,14 +71,10 @@ fn resolve_store_dir_same_volume_uses_home_default() {
     assert_eq!(resolved, home_default);
 }
 
-/// Expand a per-test [`LinkProbe`] fake at the top of a `#[test]` body.
-///
-/// Invoked as `prefix_probe!();`, it declares — as items local to the test
-/// function — a `static ALLOW_PREFIXES: Mutex<Vec<PathBuf>>`, a `PrefixProbe`
-/// whose `can_link_between_dirs` accepts a `to_dir` iff its path starts with
-/// one of the allowlisted prefixes, and a `set_allow` helper that installs
-/// the allowlist. This pins the mountpoint deterministically without needing
-/// two real volumes.
+// Per-test [`LinkProbe`] fake whose `can_link_between_dirs` accepts a `to_dir`
+// only under an allowlisted prefix, pinning the mountpoint deterministically
+// without two real volumes. The allowlist is fn-local, so each `#[test]` owns
+// its own and concurrent tests never share it.
 #[cfg(unix)]
 macro_rules! prefix_probe {
     () => {

@@ -93,14 +93,9 @@ macro_rules! host_current_dir {
     )+};
 }
 
-/// Expand a per-test configurable environment fake at the top of a
-/// `#[test]` body.
-///
-/// Invoked as `fake_env!();`, it declares — as items local to the test
-/// function — the `FAKE_ENV` / `FAKE_CWD` thread-locals, a `FakeEnv` `Sys`
-/// fake whose env reads come from `FAKE_ENV` (and nothing else) with no home
-/// dir, and the `set_fake_env` / `set_fake_cwd` / `load_with_fake_env`
-/// helpers that drive it.
+// Per-test configurable environment fake: env reads come from a fn-local
+// `FAKE_ENV`, with no home dir. The state is fn-local, so each `#[test]` gets
+// its own environment and concurrent tests never share it.
 macro_rules! fake_env {
     () => {
         thread_local! {
@@ -137,10 +132,8 @@ macro_rules! fake_env {
         }
         inert_link_probe!(FakeEnv);
 
-        /// Reset `FAKE_ENV` to the given env and clear any fake cwd, so a
-        /// test's setup never leaks into a re-run of the same test on the
-        /// same worker thread; the ones that need a fake cwd call
-        /// `set_fake_cwd` afterwards.
+        // Reset `FAKE_ENV` to the given env and clear any fake cwd, so a re-run
+        // of the same test on the same worker thread starts clean.
         #[allow(dead_code, reason = "macro emits the full fake surface; tests use a subset")]
         fn set_fake_env(pairs: &[(&str, &str)]) {
             FAKE_ENV.with(|map| {

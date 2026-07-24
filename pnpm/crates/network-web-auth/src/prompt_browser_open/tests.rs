@@ -19,16 +19,9 @@ enum Outcome {
     Fail,
 }
 
-/// Expand the per-test browser-open fake at the top of a `#[tokio::test]`
-/// body.
-///
-/// Invoked as `browser_fake!();`, it declares — as items local to the test
-/// function — the `STDIN_TTY` / `LISTEN_OUTCOME` / `OPEN_OUTCOME` /
-/// `OPEN_CALLS` / `CLOSED` / `ENTER_TX` / `EMITTED` thread-locals, a unit
-/// `Fake` implementing [`StdinIsTty`], [`OpenUrl`], and [`EnterKeyListener`]
-/// over them, a `RecordingReporter`, and the `reset` / `set_*` /
-/// `simulate_enter` / `open_calls` / `closed` / `infos` / `warns` /
-/// `messages_at` helpers that drive and inspect it.
+// Per-test fake for stdin-tty / browser-open / enter-key, plus a recording
+// reporter. Its state lives in fn-local thread-locals, so each `#[test]` gets
+// independent storage and concurrent tests never share it.
 macro_rules! browser_fake {
     () => {
         thread_local! {
@@ -59,8 +52,8 @@ macro_rules! browser_fake {
             }
         }
 
-        /// Resolves when the test simulates an Enter keypress; sets the
-        /// `CLOSED` flag on drop, standing in for `readline.Interface.close`.
+        // Resolves when the test simulates an Enter keypress; sets the
+        // `CLOSED` flag on drop, standing in for `readline.Interface.close`.
         struct FakeEnterHandle {
             rx: oneshot::Receiver<()>,
         }

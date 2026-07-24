@@ -83,13 +83,9 @@ enum SleepBehavior {
     AdvanceByFixed(u64),
 }
 
-/// Expand the per-test poll fake at the top of a `#[tokio::test]` body.
-///
-/// Invoked as `poll_fake!();`, it declares — as items local to the test
-/// function — the `TIME` / `SLEEP_BEHAVIOR` / `SLEEPS` / `FETCH`
-/// thread-locals, a unit `Fake` implementing [`Clock`], [`Sleep`], and
-/// [`WebAuthFetch`] over them, and the `reset` / `set_sleep_behavior` /
-/// `set_fetch` / `recorded_sleeps` helpers that drive and inspect it.
+// Per-test fake for the web-auth clock, sleeps, and fetch. Its state lives in
+// fn-local thread-locals, so each `#[test]` gets independent storage and
+// concurrent tests never share the clock or the recorded sleeps.
 macro_rules! poll_fake {
     () => {
         thread_local! {
@@ -137,8 +133,8 @@ macro_rules! poll_fake {
             }
         }
 
-        /// Reset the fake state, in case the same test is re-run within the
-        /// same process (nextest does this on retry).
+        // Reset the fake state, in case the same test is re-run within the
+        // same process on retry.
         #[allow(dead_code, reason = "macro emits the full fake surface; tests use a subset")]
         fn reset() {
             TIME.with(|time| time.set(0));

@@ -13,12 +13,9 @@ use pacquet_reporter::{LogEvent, Reporter, SkippedOptionalPackage, SkippedOption
 use pretty_assertions::assert_eq;
 use std::{collections::HashMap, sync::Mutex};
 
-/// Expand a per-test recording reporter at the top of a `#[test]` body.
-///
-/// Invoked as `recording_reporter!();`, it declares — as items local to the
-/// test function — a `static RECORDED_EVENTS: Mutex<Vec<LogEvent>>`, a
-/// `RecordingReporter` that pushes every emit into it, and the `take_events`
-/// / `reset_events` helpers that drain and clear it.
+// Per-test recording reporter. Its `Mutex<Vec<LogEvent>>` buffer is fn-local,
+// so each `#[test]` captures into its own and concurrent tests never share or
+// race on it.
 macro_rules! recording_reporter {
     () => {
         static RECORDED_EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());

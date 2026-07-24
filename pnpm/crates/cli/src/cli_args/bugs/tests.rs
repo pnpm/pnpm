@@ -300,22 +300,18 @@ fn repo_url_strips_scp_fragment_and_query() {
     );
 }
 
-/// Expand the per-test browser fake at the top of a `#[tokio::test]` body.
-///
-/// Invoked as `recording_browser!();`, it declares — as items local to the
-/// test function — the `OPENED_URLS` thread-local, a `RecordingBrowser`
-/// [`OpenUrl`] fake that records each opened URL into it, the `opened_urls`
-/// drain helper, and the `run_bugs_in_project` / `run_bugs_against_registry`
-/// helpers that run `pnpm bugs` with that fake as the browser.
+// Per-test browser fake recording the URLs `pnpm bugs` opens. Its buffer is
+// fn-local, so each `#[test]` records into its own and concurrent tests never
+// share it.
 macro_rules! recording_browser {
     () => {
         thread_local! {
             static OPENED_URLS: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
         }
 
-        /// [`OpenUrl`] fake standing in for the user's browser; mirrors the
-        /// mocked `open` module in the TypeScript tests
-        /// (`pnpm11/deps/inspection/commands/test/bugs.ts`).
+        // [`OpenUrl`] fake standing in for the user's browser; mirrors the
+        // mocked `open` module in the TypeScript tests
+        // (`pnpm11/deps/inspection/commands/test/bugs.ts`).
         struct RecordingBrowser;
 
         impl OpenUrl for RecordingBrowser {
@@ -325,7 +321,6 @@ macro_rules! recording_browser {
             }
         }
 
-        /// Drain the recorded URLs.
         fn opened_urls() -> Vec<String> {
             OPENED_URLS.with(RefCell::take)
         }

@@ -47,13 +47,9 @@ impl ApprovalPrompt for FailingPrompt {
     }
 }
 
-/// Expand the per-test recording reporter at the top of a test body.
-///
-/// Invoked as `recording_reporter!();`, it declares — as items local to the
-/// test function — a `static EVENTS: Mutex<Vec<LogEvent>>`, a
-/// `RecordingReporter` that pushes every emit into it, a `reset_events`
-/// helper, and a `prompt_actions` helper returning the `pnpm:prompt` actions
-/// in emit order.
+// Per-test recording reporter. Its `Mutex<Vec<LogEvent>>` buffer is fn-local,
+// so each `#[test]` captures into its own and concurrent tests never share or
+// race on it.
 macro_rules! recording_reporter {
     () => {
         static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
