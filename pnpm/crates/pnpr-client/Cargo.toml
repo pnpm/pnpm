@@ -11,6 +11,7 @@ repository.workspace = true
 path = "src/lib.rs"
 
 [dependencies]
+pacquet-catalogs-types        = { workspace = true }
 pacquet-config                = { workspace = true }
 pacquet-lockfile              = { workspace = true }
 pacquet-lockfile-verification = { workspace = true }

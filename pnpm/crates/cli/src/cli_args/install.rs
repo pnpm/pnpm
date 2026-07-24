@@ -7,7 +7,9 @@ use crate::{
 };
 use clap::{Args, ValueEnum};
 use derive_more::{Display, Error};
-use miette::{Context, Diagnostic};
+use miette::{Context, Diagnostic, IntoDiagnostic};
+use pacquet_catalogs_config::get_catalogs_from_workspace_manifest;
+use pacquet_catalogs_types::Catalogs;
 use pacquet_config::NodeLinker;
 use pacquet_lockfile::{Lockfile, LockfileResolution, MaybeLazyLockfile};
 use pacquet_modules_yaml::IncludedDependencies;
@@ -739,6 +741,7 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
         // route policy, so they stay out of the request body.
         authorization: state.config.auth_headers.for_url(pnpr_server),
         overrides,
+        catalogs: pnpr_catalogs(state)?,
         lockfile: previous_wanted.clone(),
         frozen_lockfile: link.frozen_lockfile,
         prefer_frozen_lockfile: Some(link.prefer_frozen_lockfile),
@@ -1049,6 +1052,26 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
     }
 
     Ok(())
+}
+
+/// The catalogs the pnpr server resolves `catalog:` specifiers against,
+/// picked the same way [`pacquet_package_manager::Install`] picks them:
+/// an `updateConfig` pnpmfile hook's complete set when it produced one,
+/// otherwise the raw workspace-manifest read. `None` when the workspace
+/// defines none, which keeps the field off the request entirely.
+fn pnpr_catalogs(state: &State) -> miette::Result<Option<Catalogs>> {
+    if let Some(catalogs) = state.config.catalogs.clone() {
+        return Ok(Some(catalogs));
+    }
+    let workspace_root = state.config.workspace_dir.as_deref().unwrap_or_else(|| {
+        state.manifest.path().parent().expect("manifest path always has a parent dir")
+    });
+    let workspace_manifest =
+        pacquet_workspace::read_workspace_manifest(workspace_root).into_diagnostic()?;
+    let catalogs = get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())
+        .into_diagnostic()
+        .wrap_err("reading catalogs to forward to the pnpr server")?;
+    Ok((!catalogs.is_empty()).then_some(catalogs))
 }
 
 fn resolve_projects_for_pnpr(

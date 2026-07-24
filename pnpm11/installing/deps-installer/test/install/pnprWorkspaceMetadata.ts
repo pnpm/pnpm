@@ -167,6 +167,23 @@ test("pnpr forwards the client's whole verification policy, not just the age cut
   }))
 })
 
+test('pnpr forwards the resolution mode so --frozen-lockfile is not silently ignored', async () => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  const manifest: ProjectManifest = { name: 'app', version: '1.2.3' }
+  const options = createOptions(workspaceRoot, rootDir, {
+    frozenLockfile: true,
+    preferFrozenLockfile: false,
+  })
+
+  await install(manifest, options)
+
+  expect(resolveViaPnprServer).toHaveBeenCalledWith(expect.objectContaining({
+    frozenLockfile: true,
+    preferFrozenLockfile: false,
+  }))
+})
+
 test('pnpr runs under trustPolicy instead of refusing the install', async () => {
   const workspaceRoot = prepareEmpty().dir()
   const rootDir = workspaceRoot as ProjectRootDir

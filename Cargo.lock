@@ -4817,6 +4817,7 @@ dependencies = [
  "derive_more",
  "futures-util",
  "mockito",
+ "pacquet-catalogs-types",
  "pacquet-config",
  "pacquet-lockfile",
  "pacquet-lockfile-verification",

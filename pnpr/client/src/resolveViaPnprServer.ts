@@ -83,6 +83,13 @@ export interface ResolveViaPnprServerOptions {
    */
   trustLockfile?: boolean
   /**
+   * Resolution behavior — whether the server uses the lockfile as-is or
+   * reuses its pins and resolves what changed. Distinct from the policy
+   * fields above: neither affects whether the input lockfile is verified.
+   */
+  frozenLockfile?: boolean
+  preferFrozenLockfile?: boolean
+  /**
    * Existing lockfile for incremental resolution, in the on-disk format
    * the wire protocol carries. The caller reads it with
    * `readWantedLockfileFile` so no in-memory→on-disk round-trip is needed.
@@ -147,6 +154,8 @@ export async function resolveViaPnprServer (
     trustPolicyExclude: opts.trustPolicyExclude,
     trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
     trustLockfile: opts.trustLockfile,
+    frozenLockfile: opts.frozenLockfile,
+    preferFrozenLockfile: opts.preferFrozenLockfile,
     // Sent as-is: `opts.lockfile` is already the on-disk format the wire
     // protocol carries (split `packages`/`snapshots`, `{ specifier, version }`
     // importer deps).

@@ -209,6 +209,7 @@ fn options(
         named_registries: BTreeMap::new(),
         authorization: Some(authorization.to_string()),
         overrides: None,
+        catalogs: None,
         lockfile: None,
         frozen_lockfile: false,
         prefer_frozen_lockfile: None,
