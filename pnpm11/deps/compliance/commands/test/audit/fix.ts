@@ -54,27 +54,27 @@ test('overrides are added for vulnerable dependencies', async () => {
 })
 
 test('audit --fix without value (string "true") works like boolean true', async () => {
-    const tmp = f.prepare('has-vulnerabilities')
+  const tmp = f.prepare('has-vulnerabilities')
 
-    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
-      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
-      .reply(200, responses.ALL_VULN_RESP)
+  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    .reply(200, responses.ALL_VULN_RESP)
 
-    const { exitCode, output } = await audit.handler({
-      ...AUDIT_REGISTRY_OPTS,
-      auditLevel: 'moderate',
-      minimumReleaseAge: 1440,
-      dir: tmp,
-      rootProjectManifestDir: tmp,
-      fix: 'true' as unknown as true, // Simulate the CLI parsing bug where --fix without value gets string "true"
-    })
-
-    expect(exitCode).toBe(0)
-    expect(output).toMatch(/Run "pnpm install"/)
-
-    const manifest = readYamlFileSync<{ overrides?: Record<string, string> }>(path.join(tmp, 'pnpm-workspace.yaml'))
-    expect(manifest.overrides?.['axios@<=0.18.0']).toBe('^0.18.1')
+  const { exitCode, output } = await audit.handler({
+    ...AUDIT_REGISTRY_OPTS,
+    auditLevel: 'moderate',
+    minimumReleaseAge: 1440,
+    dir: tmp,
+    rootProjectManifestDir: tmp,
+    fix: 'true',
   })
+
+  expect(exitCode).toBe(0)
+  expect(output).toMatch(/Run "pnpm install"/)
+
+  const manifest = readYamlFileSync<{ overrides?: Record<string, string> }>(path.join(tmp, 'pnpm-workspace.yaml'))
+  expect(manifest.overrides?.['axios@<=0.18.0']).toBe('^0.18.1')
+})
 
   test('no overrides are added if no vulnerabilities are found', async () => {
   const tmp = f.prepare('fixture')

@@ -158,7 +158,7 @@ export function help (): string {
 }
 
 export type AuditOptions = Pick<UniversalOptions, 'dir'> & {
-  fix?: boolean | 'override' | 'update'
+  fix?: boolean | 'override' | 'update' | 'true'
   ignoreRegistryErrors?: boolean
   interactive?: boolean
   json?: boolean
