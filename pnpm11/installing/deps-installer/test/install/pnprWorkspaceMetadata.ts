@@ -127,6 +127,19 @@ test("pnpr forwards every workspace project's name and version", async () => {
   }
 })
 
+test('pnpr returns the resolution policy violations the install command reacts to', async () => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  const manifest: ProjectManifest = { name: 'app', version: '1.2.3' }
+  const options = createOptions(workspaceRoot, rootDir, {
+    allProjects: [{ buildIndex: 0, manifest, rootDir }],
+  })
+
+  const result = await mutateModules([{ mutation: 'install', rootDir }], options)
+
+  expect(result.resolutionPolicyViolations).toStrictEqual([])
+})
+
 function createOptions (
   workspaceRoot: string,
   rootDir: ProjectRootDir,

@@ -2609,7 +2609,8 @@ async function mutateModulesViaPnpr (
     updatedProjects,
     stats: result.stats,
     ignoredBuilds: result.ignoredBuilds,
-  } as MutateModulesResult
+    resolutionPolicyViolations: result.resolutionPolicyViolations,
+  }
 }
 
 /**
