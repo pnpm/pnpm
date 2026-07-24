@@ -44,9 +44,10 @@ use std::{
 pub(crate) struct NpmrcAuth {
     pub registry: Option<String>,
     pub scoped_registries: BTreeMap<String, String>,
-    /// Default-registry creds (i.e. `_auth=…`, `_authToken=…`,
-    /// `username=…` / `_password=…` without a leading `//host/`).
-    /// Applied to whichever URI the resolved `registry` points at.
+    /// Unscoped creds (i.e. `_auth=…`, `_authToken=…`, `username=…` /
+    /// `_password=…` without a leading `//host/`), as written. Emptied by
+    /// [`NpmrcAuth::rescope_unscoped`], which pins them to the registry
+    /// this same source declared; nothing downstream reads them.
     pub default_creds: RawCreds,
     /// Per-registry creds keyed as `[registry_uri][scope]`. The `@`
     /// scope stores registry-wide credentials.
@@ -409,11 +410,11 @@ impl NpmrcAuth {
                     continue;
                 }
                 "cert" => {
-                    auth.cert = Some(value);
+                    auth.cert = Some(expand_inline_pem(&value));
                     continue;
                 }
                 "key" => {
-                    auth.key = Some(value);
+                    auth.key = Some(expand_inline_pem(&value));
                     continue;
                 }
                 "strict-ssl" => {
@@ -435,16 +436,14 @@ impl NpmrcAuth {
 
             if let Some((uri, field, is_file)) = split_ssl_key(&key) {
                 // For `*file` variants the value is a path; read the
-                // file at parse time (silent on error). For inline
-                // variants expand `\n` → real newlines so a single-line
-                // INI value can carry a multi-line PEM.
+                // file at parse time (silent on error).
                 let resolved = if is_file {
                     let Ok(contents) = std::fs::read_to_string(&value) else {
                         continue;
                     };
                     contents
                 } else {
-                    value.replace(r"\n", "\n")
+                    expand_inline_pem(&value)
                 };
                 let entry = auth.tls_by_uri.entry(uri.to_owned()).or_default();
                 apply_tls_field(entry, field, resolved);
@@ -571,9 +570,13 @@ impl NpmrcAuth {
         }
     }
 
-    /// Phase 2: compute and store the final [`AuthHeaders`] map,
-    /// keying default-registry creds at `config.registry`'s nerf-darted
-    /// URI.
+    /// Phase 2: compute and store the final [`AuthHeaders`] map.
+    ///
+    /// Every credential is keyed at the URI it was authored for:
+    /// [`Self::rescope_unscoped`] has already pinned the unscoped ones to
+    /// their own source's registry, so nothing here consults
+    /// `config.registry` and a later layer overriding it cannot move a
+    /// credential to another host.
     ///
     /// A `tokenHelper` credential becomes an un-executed command in the
     /// [`AuthHeaders`] (run lazily on lookup) rather than a baked header;
@@ -582,6 +585,10 @@ impl NpmrcAuth {
     /// [`LoadWorkspaceYamlError::TokenHelperUnsupportedCharacter`] if a
     /// honored helper's value contains a reserved character.
     pub fn build_auth_headers(self, config: &mut Config) -> Result<(), LoadWorkspaceYamlError> {
+        debug_assert!(
+            self.default_creds.is_empty(),
+            "rescope_unscoped must pin unscoped credentials before headers are built",
+        );
         let mut auth_header_by_uri: HashMap<String, String> = HashMap::new();
         let mut auth_header_by_scope_by_uri: HashMap<String, HashMap<String, String>> =
             HashMap::new();
@@ -620,20 +627,6 @@ impl NpmrcAuth {
                 }
             }
         }
-        if !self.default_creds.is_empty() {
-            let default_uri = pacquet_network::nerf_dart(&config.registry);
-            if let Some(token) = &self.default_creds.auth_token {
-                auth_tokens_by_uri.insert(default_uri.clone(), token.clone());
-            }
-            if let Some(command) =
-                parse_token_helper_field(self.default_creds.token_helper.as_deref())?
-            {
-                token_helper_by_uri.insert(default_uri, command);
-            } else if let Some(header) = creds_to_header(&self.default_creds) {
-                auth_header_by_uri.insert(default_uri, header);
-            }
-        }
-
         config.auth_tokens_by_uri = auth_tokens_by_uri;
         config.auth_headers = Arc::new(AuthHeaders::from_parts_with_token_helpers(
             auth_header_by_uri,
@@ -644,12 +637,14 @@ impl NpmrcAuth {
         Ok(())
     }
 
-    /// Pin this source file's **unscoped** credentials (`_authToken`,
-    /// `_auth`, `username`/`_password`) and client `cert`/`key` to the
-    /// registry declared in this same file — or the npmjs default
-    /// ([`DEFAULT_REGISTRY`]) when the file has no `registry=` of its
-    /// own — by nerf-darting that registry into a per-URI key and moving
-    /// the values onto [`Self::creds_by_scope_by_uri`] / [`Self::tls_by_uri`].
+    /// Pin this source file's **unscoped** per-registry settings
+    /// ([`unscoped_key_names`]) to the registry declared in this same
+    /// file — or the npmjs default ([`DEFAULT_REGISTRY`]) when the file has
+    /// no `registry=` of its own — by nerf-darting that registry into a
+    /// per-URI key and moving the values onto
+    /// [`Self::creds_by_scope_by_uri`] / [`Self::tls_by_uri`], plus the
+    /// matching rewrite of [`Self::raw_ini_config`] so `pnpm config get` /
+    /// `pnpm config list` report the pinned spelling.
     ///
     /// This is a security boundary: rescoping happens per file *before*
     /// sources are merged, so a credential can never be pulled to a
@@ -661,74 +656,74 @@ impl NpmrcAuth {
     ///
     /// `source_label` names the file for that warning.
     pub fn rescope_unscoped(&mut self, source_label: &str) {
-        let has_creds = !self.default_creds.is_empty();
-        let has_identity = self.cert.is_some() || self.key.is_some();
-        if !has_creds && !has_identity {
+        let creds = std::mem::take(&mut self.default_creds);
+        let cert = self.cert.take();
+        let private_key = self.key.take();
+        let unscoped = unscoped_key_names(&creds, cert.is_some(), private_key.is_some());
+        if unscoped.is_empty() {
             return;
         }
+        let names = unscoped.join(", ");
 
-        let registry = self
+        let declared_registry = self
             .registry
             .as_deref()
             .filter(|registry| !registry.is_empty())
-            .map_or_else(|| DEFAULT_REGISTRY.to_string(), normalize_registry_url);
-        let key = pacquet_network::nerf_dart(&registry);
-        if key.is_empty() {
+            .unwrap_or_default()
+            .to_owned();
+        let target_registry = if declared_registry.is_empty() {
+            DEFAULT_REGISTRY.to_owned()
+        } else {
+            normalize_registry_url(&declared_registry)
+        };
+        let uri = pacquet_network::nerf_dart(&target_registry);
+        if uri.is_empty() {
             // Unparsable registry (e.g. an unresolved `${VAR}`). Drop
             // the unscoped material rather than risk sending it to the
             // wrong host.
-            self.default_creds = RawCreds::default();
-            self.cert = None;
-            self.key = None;
+            for raw_key in &unscoped {
+                self.raw_ini_config.remove(*raw_key);
+            }
             self.warnings.push(format!(
-                "Unscoped per-registry settings in {source_label:?} were ignored because the registry URL could not be parsed.",
+                "Unscoped per-registry settings ({names}) in {source_label:?} were ignored: \
+                 the source's \"registry\" value ({declared_registry:?}) is not a parseable URL, \
+                 so pnpm cannot pin them anywhere safe. Write them URL-scoped \
+                 (e.g. \"//registry.example.com/:_authToken=...\") to send them to a specific \
+                 registry.",
             ));
             return;
         }
 
-        let mut rescoped: Vec<&str> = Vec::new();
-        if has_creds {
-            let taken = std::mem::take(&mut self.default_creds);
-            if taken.auth_token.is_some() {
-                rescoped.push("_authToken");
-            }
-            if taken.auth_pair_base64.is_some() {
-                rescoped.push("_auth");
-            }
-            if taken.username.is_some() {
-                rescoped.push("username");
-            }
-            if taken.password.is_some() {
-                rescoped.push("_password");
-            }
-            // An explicitly URL-scoped value for the same key wins, so
-            // the rescoped unscoped value only fills the gaps.
+        // An explicitly URL-scoped value for the same key wins, so the
+        // rescoped value only fills the gaps.
+        if !creds.is_empty() {
             self.creds_by_scope_by_uri
-                .entry(key.clone())
+                .entry(uri.clone())
                 .or_default()
                 .entry(DEFAULT_REGISTRY_SCOPE.to_owned())
                 .or_default()
-                .fill_from(taken);
+                .fill_from(creds);
         }
-        if has_identity {
-            let entry = self.tls_by_uri.entry(key.clone()).or_default();
-            if let Some(cert) = self.cert.take() {
+        if cert.is_some() || private_key.is_some() {
+            let entry = self.tls_by_uri.entry(uri.clone()).or_default();
+            if let Some(cert) = cert {
                 entry.cert.get_or_insert(cert);
-                rescoped.push("cert");
             }
-            if let Some(private_key) = self.key.take() {
+            if let Some(private_key) = private_key {
                 entry.key.get_or_insert(private_key);
-                rescoped.push("key");
             }
         }
-        if !rescoped.is_empty() {
-            self.warnings.push(format!(
-                "Unscoped per-registry settings ({}) in {source_label:?} are deprecated. \
-                 pnpm pinned them to {key:?} for this run; write them as \
-                 \"{key}:<setting>=...\" instead.",
-                rescoped.join(", "),
-            ));
+        for raw_key in &unscoped {
+            if let Some(value) = self.raw_ini_config.remove(*raw_key) {
+                self.raw_ini_config.entry(format!("{uri}:{raw_key}")).or_insert(value);
+            }
         }
+        self.warnings.push(format!(
+            "Unscoped per-registry settings ({names}) in {source_label:?} are deprecated. \
+             pnpm pinned them to {uri:?} for this run, but a future release will stop supporting \
+             unscoped per-registry settings. Write them as \"{uri}:{}=...\" instead.",
+            unscoped[0],
+        ));
     }
 
     /// Merge a lower-priority source under `self` (the higher-priority
@@ -818,6 +813,35 @@ impl NpmrcAuth {
 /// single trailing slash.
 fn normalize_registry_url(registry: &str) -> String {
     if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") }
+}
+
+/// The unscoped per-registry settings [`NpmrcAuth::rescope_unscoped`]
+/// pins, in the order pnpm reports them. `ca` / `cafile` are deliberately
+/// absent: they are trust anchors rather than credentials, and corporate
+/// MITM-proxy setups rely on them applying to every HTTPS request, so a
+/// default-registry override cannot weaponize them.
+fn unscoped_key_names(creds: &RawCreds, has_cert: bool, has_key: bool) -> Vec<&'static str> {
+    [
+        ("_authToken", creds.auth_token.is_some()),
+        ("_auth", creds.auth_pair_base64.is_some()),
+        ("username", creds.username.is_some()),
+        ("_password", creds.password.is_some()),
+        ("tokenHelper", creds.token_helper.is_some()),
+        ("cert", has_cert),
+        ("key", has_key),
+    ]
+    .into_iter()
+    .filter_map(|(name, is_set)| is_set.then_some(name))
+    .collect()
+}
+
+/// Turn the `\n` escapes of an inline PEM into real newlines, so a
+/// single INI line can carry a multi-line certificate. The unscoped
+/// `cert=` / `key=` spellings go through it too: those become
+/// per-registry TLS in [`NpmrcAuth::rescope_unscoped`], and both
+/// spellings of the same identity must produce byte-identical PEMs.
+fn expand_inline_pem(value: &str) -> String {
+    value.replace(r"\n", "\n")
 }
 
 /// Resolve a top-level `cafile=` value against the directory of the

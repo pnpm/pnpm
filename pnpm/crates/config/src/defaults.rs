@@ -202,6 +202,7 @@ pub fn default_enable_global_virtual_store() -> bool {
     false
 }
 
+#[must_use]
 pub fn default_registry() -> String {
     "https://registry.npmjs.org/".to_string()
 }

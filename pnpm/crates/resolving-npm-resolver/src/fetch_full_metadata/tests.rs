@@ -80,10 +80,10 @@ async fn fetch_full_metadata_targets_full_endpoint_with_auth() {
 
     let registry = format!("{}/", server.url());
     let http_client = ThrottledClient::default();
-    let auth_headers = AuthHeaders::from_creds_map(
-        [(pacquet_network::nerf_dart(&registry), "Bearer top-secret".to_owned())],
-        None,
-    );
+    let auth_headers = AuthHeaders::from_creds_map([(
+        pacquet_network::nerf_dart(&registry),
+        "Bearer top-secret".to_owned(),
+    )]);
     let opts = FetchFullMetadataOptions {
         registry: &registry,
         http_client: &http_client,
@@ -134,13 +134,10 @@ async fn fetch_full_metadata_uses_package_scope_auth() {
 
     let registry = format!("{}/", server.url());
     let http_client = ThrottledClient::default();
-    let auth_headers = AuthHeaders::from_creds_map(
-        [(
-            format!("{}@scope", pacquet_network::nerf_dart(&registry)),
-            "Bearer scoped-token".to_owned(),
-        )],
-        None,
-    );
+    let auth_headers = AuthHeaders::from_creds_map([(
+        format!("{}@scope", pacquet_network::nerf_dart(&registry)),
+        "Bearer scoped-token".to_owned(),
+    )]);
     let opts = FetchFullMetadataOptions {
         registry: &registry,
         http_client: &http_client,

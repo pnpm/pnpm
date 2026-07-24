@@ -1464,7 +1464,7 @@ async fn fetch_for_resolution_uses_package_id_for_scoped_auth() {
     let client = ThrottledClient::default();
     let registry_key = format!("{}@scope", pacquet_network::nerf_dart(&server.url()));
     let auth_headers =
-        AuthHeaders::from_creds_map([(registry_key, "Bearer scoped-token".to_owned())], None);
+        AuthHeaders::from_creds_map([(registry_key, "Bearer scoped-token".to_owned())]);
 
     let resolved = FetchTarballForResolution {
         http_client: &client,
@@ -1956,10 +1956,10 @@ async fn fetch_attaches_authorization_header_when_creds_match_tarball_url() {
     let url = format!("{}/pkg.tgz", server.url());
     let client = ThrottledClient::default();
     let pkg_integrity = integrity(FASTIFY_ERROR_INTEGRITY);
-    let auth_headers = AuthHeaders::from_creds_map(
-        [(pacquet_network::nerf_dart(&url), "Bearer test-token".to_owned())],
-        None,
-    );
+    let auth_headers = AuthHeaders::from_creds_map([(
+        pacquet_network::nerf_dart(&url),
+        "Bearer test-token".to_owned(),
+    )]);
 
     let (_integrity, cas_paths, _idx) = fetch_and_extract_with_retry::<SilentReporter>(
         &client,
@@ -2001,7 +2001,7 @@ async fn fetch_attaches_authorization_header_when_scope_creds_match_package_id()
     let pkg_integrity = integrity(FASTIFY_ERROR_INTEGRITY);
     let registry_key = format!("{}@scope", pacquet_network::nerf_dart(&server.url()));
     let auth_headers =
-        AuthHeaders::from_creds_map([(registry_key, "Bearer scoped-token".to_owned())], None);
+        AuthHeaders::from_creds_map([(registry_key, "Bearer scoped-token".to_owned())]);
 
     let (_integrity, cas_paths, _idx) = fetch_and_extract_with_retry::<SilentReporter>(
         &client,
@@ -2054,10 +2054,10 @@ async fn retry_re_attaches_authorization_header_on_each_attempt() {
     let url = format!("{}/pkg.tgz", server.url());
     let client = ThrottledClient::default();
     let pkg_integrity = integrity(FASTIFY_ERROR_INTEGRITY);
-    let auth_headers = AuthHeaders::from_creds_map(
-        [(pacquet_network::nerf_dart(&url), "Bearer test-token".to_owned())],
-        None,
-    );
+    let auth_headers = AuthHeaders::from_creds_map([(
+        pacquet_network::nerf_dart(&url),
+        "Bearer test-token".to_owned(),
+    )]);
 
     let (_integrity, cas_paths, _idx) = fetch_and_extract_with_retry::<SilentReporter>(
         &client,

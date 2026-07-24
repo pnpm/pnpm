@@ -30,7 +30,10 @@ structured envelope.
 
 Auth: pass `authHeaderByUri` — a map of nerf-darted registry URI → `Authorization`
 header value (with `""` for the default registry). The host resolves these from
-its `.npmrc` credentials; the engine applies them as-is.
+its `.npmrc` credentials; the engine applies them as-is. The `""` entry is
+pinned to the `registry` / `registries.default` passed alongside it (npmjs when
+neither is given), so a `registry=` in the project's own `.npmrc` cannot
+redirect that credential to another host.
 
 ## Distribution
 

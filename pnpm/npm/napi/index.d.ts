@@ -85,6 +85,9 @@ export interface SharedEngineOptions {
    * URI (`//host/path/`), plus `''` for the default registry — e.g.
    * `{ '': 'Bearer abc', '//npm.example.com/': 'Basic <base64(user:pass)>' }`. The
    * host resolves these from its `authConfig`; the engine applies them as-is.
+   * The `''` entry is pinned to the `registry` / `registries.default` passed
+   * alongside it (npmjs when neither is given), so a `registry=` in the
+   * project's own `.npmrc` cannot redirect that credential to another host.
    */
   authHeaderByUri?: Record<string, string>
   proxyConfig?: ProxyConfig

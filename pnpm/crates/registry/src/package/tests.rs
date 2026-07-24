@@ -94,10 +94,10 @@ async fn fetch_from_registry_attaches_authorization_header() {
 
     let registry = format!("{}/", server.url());
     let client = ThrottledClient::default();
-    let auth_headers = AuthHeaders::from_creds_map(
-        [(pacquet_network::nerf_dart(&registry), "Bearer top-secret".to_owned())],
-        None,
-    );
+    let auth_headers = AuthHeaders::from_creds_map([(
+        pacquet_network::nerf_dart(&registry),
+        "Bearer top-secret".to_owned(),
+    )]);
 
     let pkg = Package::fetch_from_registry("acme", &client, &registry, &auth_headers)
         .await

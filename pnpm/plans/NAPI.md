@@ -340,8 +340,9 @@ Bit's `pnpm11-rust` branch is rewired to `@pnpm/napi` and **`npm run lint`
 Bit installs `@teambit/*` from a private registry. Auth is now wired end-to-end:
 the binding accepts `authHeaderByUri` (a `SharedEngineOptions` field) — a map of
 nerf-darted registry URI → `Authorization` header value, with `""` for the
-default registry — and applies it via `AuthHeaders::from_creds_map`, replacing
-the `.npmrc`-derived `config.auth_headers`. Bit computes the header map in
+default registry, pinned to the `registry` / `registries.default` the same
+overlay declared — replacing the `.npmrc`-derived `config.auth_headers`. Bit
+computes the header map in
 `lynx.ts` (`buildAuthHeaderByUri`) from its `authConfig` using the kept
 `@pnpm/config.reader` (`getNetworkConfigs` / `getDefaultCreds`) — `_authToken` →
 `Bearer …`, `_auth` (username/password) → `Basic …` — so npmrc auth is parsed
