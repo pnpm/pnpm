@@ -6,13 +6,14 @@ use indexmap::IndexMap;
 use pacquet_deps_path::DepPath;
 use pacquet_lockfile::{
     DirectoryResolution, GitResolution, ImporterDepVersion, LockfileResolution, PackageKey,
-    PkgName, PkgNameVer, RegistryResolution, SnapshotDepRef, TarballResolution,
-    VariationsResolution,
+    PkgName, PkgNameVer, ProjectSnapshot, RegistryResolution, ResolvedDependencyMap,
+    ResolvedDependencySpec, SnapshotDepRef, TarballResolution, VariationsResolution,
 };
 use pacquet_package_manifest::PackageManifest;
 use pacquet_resolving_deps_resolver::{
     ChildEdge, DependenciesGraph, DependenciesGraphNode, DependenciesTreeNode, DirectDep, NodeId,
-    PeerDep, ResolvePeersOptions, ResolvedPackage, ResolvedTree, TreeChildren, resolve_peers,
+    PeerDep, ResolvePeersOptions, ResolvedPackage, ResolvedTree, TreeChildren, UpdateReuseScope,
+    resolve_peers,
 };
 use pacquet_resolving_resolver_base::{PkgResolutionId, ResolveResult};
 use serde_json::json;
@@ -64,6 +65,9 @@ fn single_importer_opts<'a>(
         catalogs: &EMPTY_CATALOGS,
         registry: "https://registry.npmjs.org",
         lockfile_include_tarball_url: false,
+        previous_importers: None,
+        update_reuse_scope: UpdateReuseScope::All,
+        update_reuse_scopes_by_importer: BTreeMap::new(),
     }
 }
 
@@ -253,6 +257,9 @@ fn dedupe_peers_round_trips_through_lockfile_settings() {
         catalogs: &EMPTY_CATALOGS,
         registry: "https://registry.npmjs.org",
         lockfile_include_tarball_url: false,
+        previous_importers: None,
+        update_reuse_scope: UpdateReuseScope::All,
+        update_reuse_scopes_by_importer: BTreeMap::new(),
     });
     let on_settings = on.settings.as_ref().expect("settings written");
     assert_eq!(on_settings.dedupe_peers, Some(true));
@@ -280,6 +287,9 @@ fn dedupe_peers_round_trips_through_lockfile_settings() {
         catalogs: &EMPTY_CATALOGS,
         registry: "https://registry.npmjs.org",
         lockfile_include_tarball_url: false,
+        previous_importers: None,
+        update_reuse_scope: UpdateReuseScope::All,
+        update_reuse_scopes_by_importer: BTreeMap::new(),
     });
     let off_settings = off.settings.as_ref().expect("settings written");
     assert_eq!(off_settings.dedupe_peers, None);
@@ -361,6 +371,9 @@ fn patched_dependencies_flow_into_lockfile_and_empty_is_omitted() {
             catalogs: &EMPTY_CATALOGS,
             registry: "https://registry.npmjs.org",
             lockfile_include_tarball_url: false,
+            previous_importers: None,
+            update_reuse_scope: UpdateReuseScope::All,
+            update_reuse_scopes_by_importer: BTreeMap::new(),
         })
     };
 
@@ -515,6 +528,9 @@ fn aliased_catalog_dependency_records_catalog_snapshot() {
         catalogs: &catalogs,
         registry: "https://registry.npmjs.org",
         lockfile_include_tarball_url: false,
+        previous_importers: None,
+        update_reuse_scope: UpdateReuseScope::All,
+        update_reuse_scopes_by_importer: BTreeMap::new(),
     });
 
     let snapshots = lockfile.catalogs.as_ref().expect("catalogs snapshot present");
@@ -1480,6 +1496,9 @@ fn snapshot_link_uses_lockfile_root_while_importer_link_uses_project_root() {
         catalogs: &EMPTY_CATALOGS,
         registry: "https://registry.npmjs.org",
         lockfile_include_tarball_url: false,
+        previous_importers: None,
+        update_reuse_scope: UpdateReuseScope::All,
+        update_reuse_scopes_by_importer: BTreeMap::new(),
     });
 
     let importer = lockfile.importers.get("apps/nested/app").expect("nested importer");
@@ -1567,6 +1586,9 @@ fn multi_importer_workspace_writes_per_project_lockfile_entries() {
         catalogs: &EMPTY_CATALOGS,
         registry: "https://registry.npmjs.org",
         lockfile_include_tarball_url: false,
+        previous_importers: None,
+        update_reuse_scope: UpdateReuseScope::All,
+        update_reuse_scopes_by_importer: BTreeMap::new(),
     });
 
     let a_snap = lockfile.importers.get("packages/a").expect("importer a");
@@ -1672,6 +1694,9 @@ fn multi_importer_pruner_marks_shared_dep_non_optional_when_any_importer_reaches
         catalogs: &EMPTY_CATALOGS,
         registry: "https://registry.npmjs.org",
         lockfile_include_tarball_url: false,
+        previous_importers: None,
+        update_reuse_scope: UpdateReuseScope::All,
+        update_reuse_scopes_by_importer: BTreeMap::new(),
     });
 
     let snapshots = lockfile.snapshots.as_ref().expect("snapshots map");
@@ -1803,6 +1828,9 @@ fn workspace_sibling_link_renders_per_importer_with_link_ref() {
         catalogs: &EMPTY_CATALOGS,
         registry: "https://registry.npmjs.org",
         lockfile_include_tarball_url: false,
+        previous_importers: None,
+        update_reuse_scope: UpdateReuseScope::All,
+        update_reuse_scopes_by_importer: BTreeMap::new(),
     });
 
     let a_snap = lockfile.importers.get("packages/a").expect("importer a");
@@ -1960,5 +1988,329 @@ fn same_name_injected_dep_serializes_as_plain_file_ref() {
     assert!(
         matches!(renamed, ImporterDepVersion::Alias(_)),
         "renamed aliases must keep the <name>@<ref> form: {renamed:?}",
+    );
+}
+
+/// Build a graph node for an injected workspace dependency that resolved
+/// to a `file:` dep path (the shape `dedupe_injected_deps` leaves behind
+/// when the injected copy's peer context genuinely diverges). `name_ver`
+/// is left `None` so the package name is read from the manifest, matching
+/// a real directory resolution.
+fn make_file_node(target: &str, manifest: serde_json::Value) -> DependenciesGraphNode {
+    let id_text = format!("file:{target}");
+    let resolve_result = ResolveResult {
+        id: PkgResolutionId::from(id_text.clone()),
+        name_ver: None,
+        latest: None,
+        published_at: None,
+        manifest: Some(std::sync::Arc::new(manifest)),
+        resolution: LockfileResolution::Directory(DirectoryResolution {
+            directory: target.to_string(),
+        }),
+        resolved_via: "workspace".to_string(),
+        normalized_bare_specifier: None,
+        alias: None,
+        policy_violation: None,
+    };
+    DependenciesGraphNode {
+        dep_path: DepPath::from(id_text.clone()),
+        resolved_package_id: id_text,
+        resolve_result: std::sync::Arc::new(resolve_result),
+        children: BTreeMap::new(),
+        optional_children: HashSet::new(),
+        peer_dependencies: BTreeMap::new(),
+        transitive_peer_dependencies: HashSet::new(),
+        resolved_peer_names: HashSet::new(),
+        depth: 0,
+        installable: true,
+        is_pure: true,
+        optional: false,
+    }
+}
+
+/// A single-importer previous lockfile whose `alias` dependency was
+/// recorded as `link:<target>`.
+fn previous_importers_with_link(
+    alias: &str,
+    specifier: &str,
+    target: &str,
+) -> HashMap<String, ProjectSnapshot> {
+    let mut deps = ResolvedDependencyMap::new();
+    deps.insert(
+        PkgName::parse(alias).unwrap(),
+        ResolvedDependencySpec {
+            specifier: specifier.to_string(),
+            version: ImporterDepVersion::Link(target.to_string()),
+        },
+    );
+    let snapshot = ProjectSnapshot { dependencies: Some(deps), ..Default::default() };
+    let mut importers = HashMap::new();
+    importers.insert(".".to_string(), snapshot);
+    importers
+}
+
+/// A `consumer -> n` edge whose fresh resolution is a divergent `file:`
+/// injection, with a previous lockfile that recorded it as `link:`.
+/// Shared by the guard tests below.
+fn injected_link_fixture()
+-> (TempDir, PackageManifest, DependenciesGraph, BTreeMap<String, DepPath>) {
+    let (tmp, manifest) = write_manifest(json!({
+        "name": "consumer",
+        "version": "1.0.0",
+        "dependencies": { "n": "workspace:*" },
+    }));
+    let file_node = make_file_node("packages/n", json!({ "name": "n", "version": "1.0.0" }));
+    let mut graph = DependenciesGraph::new();
+    graph.insert(file_node.dep_path.clone(), file_node.clone());
+    let mut direct = BTreeMap::new();
+    direct.insert("n".to_string(), file_node.dep_path);
+    (tmp, manifest, graph, direct)
+}
+
+// pnpm/pnpm#10433: a plain install (UpdateReuseScope::All) that does not
+// target a workspace dependency must keep its prior `link:` importer
+// entry, even though the fresh resolution landed on a divergent `file:`.
+#[test]
+fn injected_workspace_dep_keeps_prior_link_on_untargeted_install() {
+    let (_tmp, manifest, graph, direct) = injected_link_fixture();
+    let previous = previous_importers_with_link("n", "workspace:*", "../n");
+
+    let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
+        previous_importers: Some(&previous),
+        update_reuse_scope: UpdateReuseScope::All,
+        ..single_importer_opts(&manifest, &graph, direct, false, false, None, None)
+    });
+
+    let importer = lockfile.root_project().expect("root importer");
+    let entry = importer
+        .dependencies
+        .as_ref()
+        .and_then(|deps| deps.get(&PkgName::parse("n").unwrap()))
+        .expect("n entry");
+    match &entry.version {
+        ImporterDepVersion::Link(target) => assert_eq!(target, "../n"),
+        other => panic!("expected the prior Link(..) to be preserved, got {other:?}"),
+    }
+}
+
+// Without a previous `link:` to preserve (a first install), the divergent
+// `file:` resolution stands — the guard only preserves, never invents.
+#[test]
+fn injected_workspace_dep_renders_file_without_prior_link() {
+    let (_tmp, manifest, graph, direct) = injected_link_fixture();
+
+    let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
+        previous_importers: None,
+        update_reuse_scope: UpdateReuseScope::All,
+        ..single_importer_opts(&manifest, &graph, direct, false, false, None, None)
+    });
+
+    let importer = lockfile.root_project().expect("root importer");
+    let entry = importer
+        .dependencies
+        .as_ref()
+        .and_then(|deps| deps.get(&PkgName::parse("n").unwrap()))
+        .expect("n entry");
+    assert!(
+        matches!(&entry.version, ImporterDepVersion::File(_)),
+        "expected File(..) with no prior link to preserve, got {:?}",
+        entry.version,
+    );
+}
+
+// A `pacquet update n` (UpdateReuseScope::Except containing the package
+// name) targets the dependency, so its divergent `file:` resolution is
+// kept rather than reverted to the prior `link:`.
+#[test]
+fn injected_workspace_dep_flips_to_file_when_update_targets_it() {
+    let (_tmp, manifest, graph, direct) = injected_link_fixture();
+    let previous = previous_importers_with_link("n", "workspace:*", "../n");
+
+    let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
+        previous_importers: Some(&previous),
+        update_reuse_scope: UpdateReuseScope::Except(HashSet::from(["n".to_string()])),
+        ..single_importer_opts(&manifest, &graph, direct, false, false, None, None)
+    });
+
+    let importer = lockfile.root_project().expect("root importer");
+    let entry = importer
+        .dependencies
+        .as_ref()
+        .and_then(|deps| deps.get(&PkgName::parse("n").unwrap()))
+        .expect("n entry");
+    assert!(
+        matches!(&entry.version, ImporterDepVersion::File(_)),
+        "an update that targets n must keep the fresh file: resolution, got {:?}",
+        entry.version,
+    );
+}
+
+// A changed specifier (a new or edited manifest entry) targets the
+// dependency too, so the divergent `file:` stands.
+#[test]
+fn injected_workspace_dep_flips_to_file_when_specifier_changed() {
+    let (_tmp, manifest, graph, direct) = injected_link_fixture();
+    // Previous lockfile recorded a different specifier than the manifest
+    // now declares (`workspace:*`).
+    let previous = previous_importers_with_link("n", "workspace:^1.0.0", "../n");
+
+    let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
+        previous_importers: Some(&previous),
+        update_reuse_scope: UpdateReuseScope::All,
+        ..single_importer_opts(&manifest, &graph, direct, false, false, None, None)
+    });
+
+    let importer = lockfile.root_project().expect("root importer");
+    let entry = importer
+        .dependencies
+        .as_ref()
+        .and_then(|deps| deps.get(&PkgName::parse("n").unwrap()))
+        .expect("n entry");
+    assert!(
+        matches!(&entry.version, ImporterDepVersion::File(_)),
+        "a spec change must keep the fresh file: resolution, got {:?}",
+        entry.version,
+    );
+}
+
+// `pacquet update n --recursive` lowers to a `ByImporter` policy whose
+// global scope is `All`, with the named package recorded per importer.
+// The guard resolves the effective per-importer scope, so `n` in the
+// importer that declares it is targeted and its divergent `file:` stands.
+#[test]
+fn injected_workspace_dep_flips_to_file_when_recursive_update_targets_it_per_importer() {
+    let (_tmp, manifest, graph, direct) = injected_link_fixture();
+    let previous = previous_importers_with_link("n", "workspace:*", "../n");
+    // Global All (recursive updates never withhold globally); the named
+    // package lives in the per-importer scope for the root importer (".").
+    let scopes_by_importer = BTreeMap::from([(
+        ".".to_string(),
+        UpdateReuseScope::Except(HashSet::from(["n".to_string()])),
+    )]);
+
+    let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
+        previous_importers: Some(&previous),
+        update_reuse_scope: UpdateReuseScope::All,
+        update_reuse_scopes_by_importer: scopes_by_importer,
+        ..single_importer_opts(&manifest, &graph, direct, false, false, None, None)
+    });
+
+    let importer = lockfile.root_project().expect("root importer");
+    let entry = importer
+        .dependencies
+        .as_ref()
+        .and_then(|deps| deps.get(&PkgName::parse("n").unwrap()))
+        .expect("n entry");
+    assert!(
+        matches!(&entry.version, ImporterDepVersion::File(_)),
+        "a recursive update naming n must keep the fresh file: resolution, got {:?}",
+        entry.version,
+    );
+}
+
+// The pnpm/pnpm#10433 scenario for the recursive path: `pacquet update <other>
+// --recursive` records `<other>` (not `n`) in the per-importer scope, so
+// `n` is untargeted and its `link:` must be preserved even though it
+// re-resolved to a divergent `file:`. Without honoring the per-importer
+// scope the guard would read the global `All` and (correctly, here) also
+// preserve — so to prove the per-importer scope is actually consulted, the
+// companion test above names `n` and asserts the opposite outcome.
+#[test]
+fn injected_workspace_dep_keeps_link_when_recursive_update_targets_other_pkg() {
+    let (_tmp, manifest, graph, direct) = injected_link_fixture();
+    let previous = previous_importers_with_link("n", "workspace:*", "../n");
+    let scopes_by_importer = BTreeMap::from([(
+        ".".to_string(),
+        UpdateReuseScope::Except(HashSet::from(["some-other-pkg".to_string()])),
+    )]);
+
+    let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
+        previous_importers: Some(&previous),
+        update_reuse_scope: UpdateReuseScope::All,
+        update_reuse_scopes_by_importer: scopes_by_importer,
+        ..single_importer_opts(&manifest, &graph, direct, false, false, None, None)
+    });
+
+    let importer = lockfile.root_project().expect("root importer");
+    let entry = importer
+        .dependencies
+        .as_ref()
+        .and_then(|deps| deps.get(&PkgName::parse("n").unwrap()))
+        .expect("n entry");
+    match &entry.version {
+        ImporterDepVersion::Link(target) => assert_eq!(target, "../n"),
+        other => panic!("a recursive update of another package must keep n's link:, got {other:?}"),
+    }
+}
+
+// Bare `pacquet update` (UpdateReuseScope::None) re-resolves the whole
+// graph, so every workspace dependency is targeted and its divergent
+// `file:` resolution stands — exercises the `None` arm of the guard.
+#[test]
+fn injected_workspace_dep_flips_to_file_on_scope_wide_update() {
+    let (_tmp, manifest, graph, direct) = injected_link_fixture();
+    let previous = previous_importers_with_link("n", "workspace:*", "../n");
+
+    let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
+        previous_importers: Some(&previous),
+        update_reuse_scope: UpdateReuseScope::None,
+        ..single_importer_opts(&manifest, &graph, direct, false, false, None, None)
+    });
+
+    let importer = lockfile.root_project().expect("root importer");
+    let entry = importer
+        .dependencies
+        .as_ref()
+        .and_then(|deps| deps.get(&PkgName::parse("n").unwrap()))
+        .expect("n entry");
+    assert!(
+        matches!(&entry.version, ImporterDepVersion::File(_)),
+        "a scope-wide update must keep the fresh file: resolution, got {:?}",
+        entry.version,
+    );
+}
+
+// Same `pacquet update <name>` targeting as
+// `injected_workspace_dep_flips_to_file_when_update_targets_it`, but the
+// injected node carries a structured `name_ver` (rather than learning its
+// name from the manifest) — exercises the `name_ver` arm of
+// `node_pkg_name` used to match the update scope.
+#[test]
+fn injected_workspace_dep_flips_to_file_when_update_targets_named_node() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "consumer",
+        "version": "1.0.0",
+        "dependencies": { "n": "workspace:*" },
+    }));
+    // A file: injected node whose resolver produced a structured name.
+    let mut file_node = make_file_node("packages/n", json!({ "name": "n", "version": "1.0.0" }));
+    let resolve_result = ResolveResult {
+        name_ver: Some("n@1.0.0".parse().expect("parse PkgNameVer")),
+        ..(*file_node.resolve_result).clone()
+    };
+    file_node.resolve_result = std::sync::Arc::new(resolve_result);
+    let mut graph = DependenciesGraph::new();
+    graph.insert(file_node.dep_path.clone(), file_node.clone());
+    let mut direct = BTreeMap::new();
+    direct.insert("n".to_string(), file_node.dep_path);
+
+    let previous = previous_importers_with_link("n", "workspace:*", "../n");
+
+    let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
+        previous_importers: Some(&previous),
+        update_reuse_scope: UpdateReuseScope::Except(HashSet::from(["n".to_string()])),
+        ..single_importer_opts(&manifest, &graph, direct, false, false, None, None)
+    });
+
+    let importer = lockfile.root_project().expect("root importer");
+    let entry = importer
+        .dependencies
+        .as_ref()
+        .and_then(|deps| deps.get(&PkgName::parse("n").unwrap()))
+        .expect("n entry");
+    assert!(
+        matches!(&entry.version, ImporterDepVersion::File(_)),
+        "an update targeting a name_ver-bearing node must keep file:, got {:?}",
+        entry.version,
     );
 }

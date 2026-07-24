@@ -19,7 +19,9 @@ use pacquet_lockfile::{
     ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry, VersionPart,
 };
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_resolving_deps_resolver::{DepPath, DependenciesGraph, DependenciesGraphNode};
+use pacquet_resolving_deps_resolver::{
+    DepPath, DependenciesGraph, DependenciesGraphNode, UpdateReuseScope,
+};
 use pacquet_resolving_resolver_base::ResolveResult;
 use serde_json::Value;
 
@@ -99,6 +101,29 @@ pub struct GraphToLockfileOptions<'a> {
     /// When `true`, registry tarball URLs are kept in the lockfile even when
     /// reconstructible (the `lockfileIncludeTarballUrl` setting).
     pub lockfile_include_tarball_url: bool,
+    /// The previous run's importer entries (the wanted lockfile's
+    /// `importers:` map), keyed by the same importer ids as
+    /// [`Self::importers`]. Used to preserve a workspace dependency's
+    /// prior `link:` entry when this install does not target it — see
+    /// `build_importer` and pnpm/pnpm#10433. `None` when there is no
+    /// previous lockfile (a first install).
+    pub previous_importers: Option<&'a HashMap<String, ProjectSnapshot>>,
+    /// How this install reuses the prior resolution, mapped from the
+    /// `pacquet update` seed policy. Together with a spec change it
+    /// decides whether an importer's workspace dependency is *targeted*
+    /// by the run (and so may legitimately change its `link:`/`file:`
+    /// form) — see `build_importer`. This is the workspace-wide default;
+    /// [`Self::update_reuse_scopes_by_importer`] overrides it per importer.
+    pub update_reuse_scope: UpdateReuseScope,
+    /// Per-importer update scopes, mirroring the resolver's
+    /// `update_reuse_scope_for`: a `pacquet update <name> --recursive`
+    /// lowers to a `ByImporter` policy whose workspace-wide scope is `All`
+    /// with the named packages recorded per importer here. The guard
+    /// resolves each importer's effective scope as: global when the global
+    /// is `None`, else this map's entry, else the global — so a recursive
+    /// update targets the named dependency in the importer that declares
+    /// it while leaving untouched importers' `link:` entries intact.
+    pub update_reuse_scopes_by_importer: BTreeMap<String, UpdateReuseScope>,
 }
 
 /// Error returned while converting a resolver graph into a lockfile.
@@ -151,6 +176,9 @@ pub fn dependencies_graph_to_lockfile(
         catalogs,
         registry,
         lockfile_include_tarball_url,
+        previous_importers,
+        update_reuse_scope,
+        update_reuse_scopes_by_importer,
     } = opts;
 
     let optional_overrides = compute_corrected_optional(&importer_inputs, graph);
@@ -164,7 +192,28 @@ pub fn dependencies_graph_to_lockfile(
     let mut importers: HashMap<String, ProjectSnapshot> =
         HashMap::with_capacity(importer_inputs.len());
     for (id, input) in &importer_inputs {
-        importers.insert(id.clone(), build_importer(input, graph, exclude_links_from_lockfile)?);
+        let previous_importer = previous_importers.and_then(|imps| imps.get(id));
+        // Effective update scope for this importer, mirroring the resolver's
+        // `update_reuse_scope_for`: a global `None` (bare `update`) applies to
+        // every importer; otherwise the per-importer entry wins, falling back
+        // to the global. This is what lets a `pacquet update <name> --recursive`
+        // target the named dependency in the importer that declares it while
+        // leaving untouched importers on their global scope.
+        let effective_update_reuse_scope = if matches!(update_reuse_scope, UpdateReuseScope::None) {
+            &update_reuse_scope
+        } else {
+            update_reuse_scopes_by_importer.get(id).unwrap_or(&update_reuse_scope)
+        };
+        importers.insert(
+            id.clone(),
+            build_importer(
+                input,
+                graph,
+                exclude_links_from_lockfile,
+                previous_importer,
+                effective_update_reuse_scope,
+            )?,
+        );
     }
 
     let catalog_snapshots = build_catalog_snapshots(&importers, catalogs);
@@ -253,6 +302,8 @@ fn build_importer(
     input: &ImporterLockfileInput<'_>,
     graph: &DependenciesGraph,
     exclude_links_from_lockfile: bool,
+    previous_importer: Option<&ProjectSnapshot>,
+    update_reuse_scope: &UpdateReuseScope,
 ) -> Result<ProjectSnapshot, DependenciesGraphToLockfileError> {
     let manifest = input.manifest;
     let direct = &input.direct_dependencies_by_alias;
@@ -281,7 +332,7 @@ fn build_importer(
         // version directly from the `link:` depPath instead. Non-link
         // direct deps must be present in the graph — a missing entry
         // means the resolver dropped the edge, so skip.
-        let version = if let Some(target) = dep_path.as_str().strip_prefix("link:") {
+        let mut version = if let Some(target) = dep_path.as_str().strip_prefix("link:") {
             if exclude_links_from_lockfile && !specifier.starts_with("workspace:") {
                 continue;
             }
@@ -296,6 +347,46 @@ fn build_importer(
                 }
             })?
         };
+        // pnpm/pnpm#10433: a fresh-lockfile install re-resolves every
+        // importer, and an injected workspace dependency whose peer context
+        // genuinely diverges (or with `dedupeInjectedDeps` off) reaches
+        // `importer_dep_version`'s `file:` arm instead of deduping back to
+        // `link:`. When this install does not *target* that dependency, keep
+        // its previous `link:` importer entry rather than rewriting it to a
+        // peer-suffixed `file:`. `dedupe_injected_deps` runs earlier in the
+        // resolver and does not reach this finalization path.
+        if let ImporterDepVersion::File(_) = &version
+            && let Some(previous) =
+                previous_importer.and_then(|prev| previous_importer_dep(prev, &name_for_key))
+            && let ImporterDepVersion::Link(_) = &previous.version
+        {
+            // A workspace dependency the run doesn't target keeps its
+            // `link:`. It is targeted when this importer's update scope names
+            // it (`pacquet update <name>`, including the per-importer scope of
+            // a `--recursive` run), when the scope is `None` (a scope-wide
+            // bare `update` / forced re-resolve), or when its specifier
+            // changed (a new or edited manifest entry). `KeepAll` (plain
+            // install / add) never targets on its own, so an untouched
+            // workspace dep is preserved. `update_reuse_scope` here is already
+            // resolved for this importer (see `update_reuse_scope_for` in the
+            // caller), so `pacquet update <name> --recursive` targets the
+            // named dep in the importer that declares it while untouched
+            // importers keep their `link:`. Matches the TS resolver's
+            // `updateTargetedAliases` / `updateMatching` guard, where a plain
+            // install's blanket spec re-check must not count as targeting.
+            let targeted_by_update = match update_reuse_scope {
+                UpdateReuseScope::All => false,
+                UpdateReuseScope::None => true,
+                UpdateReuseScope::Except(names) => graph
+                    .get(dep_path)
+                    .and_then(node_pkg_name)
+                    .is_some_and(|name| names.contains(&name)),
+            };
+            let targeted_by_spec_change = previous.specifier != specifier;
+            if !targeted_by_update && !targeted_by_spec_change {
+                version = previous.version.clone();
+            }
+        }
         let spec = ResolvedDependencySpec { specifier: specifier.clone(), version };
         specifiers.insert(alias.clone(), specifier);
         let group = alias_to_group.get(alias).copied().unwrap_or(DependencyGroup::Prod);
@@ -425,6 +516,36 @@ fn importer_dep_version(
         return Ok(ImporterDepVersion::File(payload.to_string()));
     }
     Ok(parsed)
+}
+
+/// The previous importer's recorded entry for `name`, searched across
+/// its `dependencies` / `optionalDependencies` / `devDependencies` maps
+/// (mirrors the lookup order in
+/// [`pacquet_resolving_deps_resolver`]'s `lockfile_reuse`). Used by the
+/// pnpm/pnpm#10433 guard in [`build_importer`] to recover a workspace
+/// dependency's prior `link:` entry.
+fn previous_importer_dep<'a>(
+    importer: &'a ProjectSnapshot,
+    name: &PkgName,
+) -> Option<&'a ResolvedDependencySpec> {
+    importer
+        .dependencies
+        .as_ref()
+        .and_then(|map| map.get(name))
+        .or_else(|| importer.optional_dependencies.as_ref().and_then(|map| map.get(name)))
+        .or_else(|| importer.dev_dependencies.as_ref().and_then(|map| map.get(name)))
+}
+
+/// The resolved package name for a graph node — the structured
+/// `name_ver` when the resolver produced one, otherwise the `name` from
+/// the fetched manifest (the case for a directory/workspace resolution,
+/// whose `name_ver` is unset). Used to match a workspace dependency
+/// against an `update <name>` scope in [`build_importer`].
+fn node_pkg_name(node: &DependenciesGraphNode) -> Option<String> {
+    if let Some(name_ver) = node.resolve_result.name_ver.as_ref() {
+        return Some(name_ver.name.to_string());
+    }
+    node.resolve_result.manifest.as_ref()?.get("name")?.as_str().map(str::to_string)
 }
 
 /// `Some(real_name)` when the resolver produced a structured name; `None`
