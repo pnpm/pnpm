@@ -7,9 +7,9 @@ use crate::{
     },
     decide_catalog, emit_initial_package_manifest, package_manifest_prefix,
     resolution_policy::PickPolicy,
-    resolve_latest::LatestPicker,
     selected_project_indices,
 };
+use chrono::{DateTime, Utc};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_catalogs_config::{
@@ -17,13 +17,23 @@ use pacquet_catalogs_config::{
 };
 use pacquet_catalogs_protocol_parser::parse_catalog_protocol;
 use pacquet_catalogs_types::Catalogs;
-use pacquet_config::{CatalogMode, Config, matcher::create_matcher};
+use pacquet_config::{
+    CatalogMode, Config, matcher::create_matcher, version_policy::PackageVersionPolicy,
+};
+use pacquet_engine_runtime_bun_resolver::BunResolver;
+use pacquet_engine_runtime_deno_resolver::DenoResolver;
+use pacquet_engine_runtime_node_resolver::NodeResolver;
 use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
-use pacquet_registry::{PackageVersion, PinnedVersion};
+use pacquet_registry::PinnedVersion;
 use pacquet_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
-use pacquet_resolving_npm_resolver::{shared_packument_fetch_locker, which_version_is_pinned};
+use pacquet_resolving_default_resolver::DefaultResolver;
+use pacquet_resolving_npm_resolver::{
+    InMemoryPackageMetaCache, NpmResolver, merge_named_registries, shared_packument_fetch_locker,
+    shared_picked_manifest_cache,
+};
+use pacquet_resolving_resolver_base::{ResolveOptions, Resolver, UpdateBehavior, WantedDependency};
 use pacquet_tarball::MemCache;
 use std::{
     collections::{BTreeMap, HashSet},
@@ -122,15 +132,21 @@ pub enum UpdateError {
     #[diagnostic(code(ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES))]
     NoPackageInDependencies,
 
-    /// Resolving a package's `latest` tag against the registry failed while
-    /// computing the new manifest range for `--latest`.
+    /// A resolver failed while computing the specifier `--latest` should
+    /// write for a direct dependency.
     #[display("Failed to resolve the latest version of {name}: {error}")]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_UPDATE_RESOLVE_LATEST))]
     ResolveLatest {
         name: String,
         #[error(source)]
-        error: crate::resolve_latest::ResolveLatestError,
+        error: pacquet_resolving_resolver_base::ResolveError,
     },
+
+    /// A `named-registries` alias is misconfigured.
+    #[diagnostic(transparent)]
+    InvalidNamedRegistry(
+        #[error(source)] pacquet_resolving_npm_resolver::MergeNamedRegistriesError,
+    ),
 
     /// `minimumReleaseAgeExclude` contained an invalid rule.
     #[display("Invalid value in minimumReleaseAgeExclude: {_0}")]
@@ -219,10 +235,10 @@ impl Update<'_> {
         crate::minimum_release_age::ensure_strict_minimum_release_age_can_save(config, save)
             .map_err(UpdateError::MinimumReleaseAge)?;
 
-        let mut latest_picker = None;
+        let mut latest_chain = None;
         let Some(prepared) = prepare_manifest::<Reporter>(
             manifest,
-            http_client,
+            &http_client_arc,
             config,
             lockfile,
             packages,
@@ -232,7 +248,7 @@ impl Update<'_> {
             &include_direct,
             depth,
             None,
-            &mut latest_picker,
+            &mut latest_chain,
             lockfile_only,
             resolution_observer.as_ref(),
         )
@@ -352,7 +368,7 @@ impl Update<'_> {
             projects,
             &selected_indices,
             workspace_root,
-            http_client,
+            &http_client_arc,
             config,
             lockfile,
             packages,
@@ -448,10 +464,10 @@ struct SelectedUpdatePreparation {
     clippy::too_many_arguments,
     reason = "manifest preparation consumes the update command's matching inputs"
 )]
-async fn prepare_manifest<'a, Reporter: self::Reporter>(
+async fn prepare_manifest<Reporter: self::Reporter>(
     manifest: &mut PackageManifest,
-    http_client: &'a ThrottledClient,
-    config: &'a Config,
+    http_client_arc: &Arc<ThrottledClient>,
+    config: &Config,
     lockfile: Option<&Lockfile>,
     packages: &[String],
     latest: bool,
@@ -460,7 +476,7 @@ async fn prepare_manifest<'a, Reporter: self::Reporter>(
     include_direct: &[DependencyGroup],
     depth: usize,
     catalogs_seed: Option<&Catalogs>,
-    latest_picker: &mut Option<LatestPicker<'a>>,
+    latest_chain: &mut Option<LatestResolverChain>,
     lockfile_only: bool,
     resolution_observer: Option<&Arc<dyn crate::ResolutionObserver>>,
 ) -> Result<Option<UpdatePreparation>, UpdateError> {
@@ -506,6 +522,15 @@ async fn prepare_manifest<'a, Reporter: self::Reporter>(
         && depth > 0
         && !latest;
 
+    let rewrite_ctx = LatestRewriteCtx {
+        manifest,
+        config,
+        http_client_arc,
+        resolution_observer,
+        pinned_version,
+        lockfile_only,
+    };
+
     let seed_policy = if selectors.is_empty() {
         // `updateConfig.ignoreDependencies` applies only when no selector was
         // supplied and remains scoped by the included direct groups.
@@ -518,19 +543,11 @@ async fn prepare_manifest<'a, Reporter: self::Reporter>(
             if is_ignored(name) {
                 continue;
             }
-            if latest && !is_local_specifier(previous) {
-                let picker =
-                    ensure_latest_picker(latest_picker, config, http_client, resolution_observer)?;
-                let effective =
-                    effective_specifier(&mut catalog_ctx, manifest, config, previous, name)?;
-                let specifier = resolve_latest_specifier(
-                    picker,
-                    &effective,
-                    name,
-                    pinned_version,
-                    lockfile_only,
-                )
-                .await?;
+            if latest
+                && let Some(specifier) =
+                    latest_specifier(&rewrite_ctx, latest_chain, &mut catalog_ctx, name, previous)
+                        .await?
+            {
                 rewrites.push((name.clone(), *group, specifier));
             }
             drop_names.insert(name.clone());
@@ -610,29 +627,18 @@ async fn prepare_manifest<'a, Reporter: self::Reporter>(
         } else {
             for (name, group, previous) in &matched_direct {
                 drop_names.insert(name.clone());
-                if latest && !is_local_specifier(previous) {
-                    let picker = ensure_latest_picker(
-                        latest_picker,
-                        config,
-                        http_client,
-                        resolution_observer,
-                    )?;
-                    let effective =
-                        effective_specifier(&mut catalog_ctx, manifest, config, previous, name)?;
-                    let specifier = resolve_latest_specifier(
-                        picker,
-                        &effective,
-                        name,
-                        pinned_version,
-                        lockfile_only,
-                    )
-                    .await?;
-                    rewrites.push((name.clone(), *group, specifier));
-                } else if let Some(specifier) = selectors
-                    .iter()
-                    .find(|selector| matcher_one(&selector.pattern).matches(name))
-                    .and_then(|selector| selector.version.clone())
-                {
+                // The two sources are exclusive: `--latest` rejects versioned
+                // selectors above, so under it no selector carries a version.
+                let rewrite = if latest {
+                    latest_specifier(&rewrite_ctx, latest_chain, &mut catalog_ctx, name, previous)
+                        .await?
+                } else {
+                    selectors
+                        .iter()
+                        .find(|selector| matcher_one(&selector.pattern).matches(name))
+                        .and_then(|selector| selector.version.clone())
+                };
+                if let Some(specifier) = rewrite {
                     rewrites.push((name.clone(), *group, specifier));
                 }
             }
@@ -726,12 +732,12 @@ async fn prepare_manifest<'a, Reporter: self::Reporter>(
     clippy::too_many_arguments,
     reason = "selected update preparation reuses the command's matching inputs"
 )]
-async fn prepare_selected_manifests<'a, Reporter: self::Reporter>(
+async fn prepare_selected_manifests<Reporter: self::Reporter>(
     projects: &mut [pacquet_workspace::Project],
     selected_indices: &[usize],
     workspace_root: &Path,
-    http_client: &'a ThrottledClient,
-    config: &'a Config,
+    http_client_arc: &Arc<ThrottledClient>,
+    config: &Config,
     lockfile: Option<&Lockfile>,
     packages: &[String],
     latest: bool,
@@ -744,7 +750,7 @@ async fn prepare_selected_manifests<'a, Reporter: self::Reporter>(
 ) -> Result<SelectedUpdatePreparation, UpdateError> {
     // One picker across every selected project: it is created on first
     // use, so a selection that resolves no `latest` tag never builds one.
-    let mut latest_picker = None;
+    let mut latest_chain = None;
     let mut seed_policies = BTreeMap::new();
     let mut persist_indices = Vec::new();
     let mut updated_catalogs = Catalogs::new();
@@ -755,7 +761,7 @@ async fn prepare_selected_manifests<'a, Reporter: self::Reporter>(
     for &index in selected_indices {
         let Some(prepared) = prepare_manifest::<Reporter>(
             &mut projects[index].manifest,
-            http_client,
+            http_client_arc,
             config,
             lockfile,
             packages,
@@ -765,7 +771,7 @@ async fn prepare_selected_manifests<'a, Reporter: self::Reporter>(
             include_direct,
             depth,
             catalogs_override.as_ref(),
-            &mut latest_picker,
+            &mut latest_chain,
             lockfile_only,
             resolution_observer,
         )
@@ -893,36 +899,6 @@ fn effective_specifier(
     Ok(prev.to_string())
 }
 
-async fn resolve_latest_specifier(
-    picker: &LatestPicker<'_>,
-    effective: &str,
-    name: &str,
-    default_pin: PinnedVersion,
-    lockfile_only: bool,
-) -> Result<String, UpdateError> {
-    let target = npm_alias_target(effective, name);
-    let version = resolve_latest_version(picker, target.unwrap_or(name), lockfile_only).await?;
-    let range = version.serialize(which_version_is_pinned(effective).unwrap_or(default_pin));
-    Ok(match target {
-        Some(real_name) => format!("npm:{real_name}@{range}"),
-        None => range,
-    })
-}
-
-/// Mirrors the TypeScript resolver's `unwrapPackageName`/`calcSpecifier`
-/// pair.
-fn npm_alias_target<'a>(bare_specifier: &'a str, alias: &str) -> Option<&'a str> {
-    let rest = bare_specifier.strip_prefix("npm:")?;
-    if rest.parse::<node_semver::Range>().is_ok() {
-        return None;
-    }
-    let name = match rest.rfind('@') {
-        Some(idx) if idx >= 1 => &rest[..idx],
-        _ => rest,
-    };
-    (!name.is_empty() && name != alias).then_some(name)
-}
-
 /// Read the effective catalogs and the directories around them.
 ///
 /// The catalogs prefer a post-`updateConfig` pnpmfile hook's output
@@ -968,44 +944,133 @@ fn read_catalog_ctx_with_catalogs(
     Ok(CatalogCtx { catalogs, workspace_dir_opt, manifest_dir, prefix })
 }
 
-/// The run's [`LatestPicker`], created on first use so that command
-/// validation and no-op updates never parse `minimumReleaseAgeExclude`,
-/// matching the TypeScript CLI, which parses the excludes only once
-/// resolution starts. The resolution observer can widen the excludes,
-/// matching the follow-up install's own resolution.
-fn ensure_latest_picker<'p, 'a>(
-    picker: &'p mut Option<LatestPicker<'a>>,
+/// The `--latest` inputs that are the same for every direct dependency of a
+/// project, gathered so [`latest_specifier`] takes them as one argument.
+struct LatestRewriteCtx<'a, 'borrow> {
+    manifest: &'borrow PackageManifest,
     config: &'a Config,
-    http_client: &'a ThrottledClient,
-    resolution_observer: Option<&Arc<dyn crate::ResolutionObserver>>,
-) -> Result<&'p LatestPicker<'a>, UpdateError> {
-    if picker.is_none() {
-        let extra_excludes = resolution_observer
-            .and_then(|observer| observer.minimum_release_age_exclude_override());
-        let policy = PickPolicy::from_config_with_extra_excludes(config, extra_excludes.as_deref())
-            .map_err(UpdateError::MinimumReleaseAgeExclude)?;
-        *picker = Some(LatestPicker::new(
-            config,
-            http_client,
-            policy,
-            Arc::default(),
-            shared_packument_fetch_locker(),
-        ));
-    }
-    Ok(picker.as_ref().expect("picker initialized above"))
+    http_client_arc: &'borrow Arc<ThrottledClient>,
+    resolution_observer: Option<&'borrow Arc<dyn crate::ResolutionObserver>>,
+    pinned_version: PinnedVersion,
+    lockfile_only: bool,
 }
 
-/// [`LatestPicker::resolve`] with the failure tagged with `name` as an
-/// [`UpdateError`].
-async fn resolve_latest_version(
-    picker: &LatestPicker<'_>,
+/// The specifier `--latest` should write for `name`, or `None` when no
+/// resolver claims the dependency and its manifest entry therefore stands.
+///
+/// The answer is the resolvers': the chain is asked to resolve the
+/// dependency with [`UpdateBehavior::Latest`], and whichever resolver
+/// claims it reports back the specifier its own protocol round-trips to —
+/// the npm picker takes the higher of the declared range and the `latest`
+/// tag, the `runtime:` resolvers re-resolve within the spec the manifest
+/// already declares, and the local resolvers echo their spec unchanged.
+/// Nothing here needs to know which protocols those are.
+async fn latest_specifier(
+    ctx: &LatestRewriteCtx<'_, '_>,
+    chain: &mut Option<LatestResolverChain>,
+    catalog_ctx: &mut Option<CatalogCtx>,
     name: &str,
-    lockfile_only: bool,
-) -> Result<Arc<PackageVersion>, UpdateError> {
-    picker
-        .resolve(name, lockfile_only)
+    previous: &str,
+) -> Result<Option<String>, UpdateError> {
+    let effective = effective_specifier(catalog_ctx, ctx.manifest, ctx.config, previous, name)?;
+    // `preserveWorkspaceProtocol` is always on under `update --latest`, so a
+    // `workspace:` entry keeps its text whatever version the workspace
+    // package is at. Asking the chain would also hand the npm resolver a
+    // spec it answers only against the install's workspace-package map,
+    // which manifest preparation has not built.
+    if effective.starts_with("workspace:") {
+        return Ok(None);
+    }
+    let chain = ensure_latest_resolver_chain(chain, ctx)?;
+    let wanted = WantedDependency {
+        alias: Some(name.to_string()),
+        bare_specifier: Some(effective.clone()),
+        ..WantedDependency::default()
+    };
+    let manifest_dir =
+        ctx.manifest.path().parent().expect("manifest path always has a parent dir").to_path_buf();
+    let opts = ResolveOptions {
+        project_dir: manifest_dir.clone(),
+        lockfile_dir: manifest_dir,
+        default_tag: Some("latest".to_string()),
+        update: UpdateBehavior::Latest,
+        calc_specifier: true,
+        pinned_version: Some(ctx.pinned_version),
+        published_by: chain.published_by,
+        published_by_exclude: chain.published_by_exclude.clone(),
+        dry_run: ctx.lockfile_only,
+        ..ResolveOptions::default()
+    };
+    let resolved = Resolver::resolve(&chain.resolver, &wanted, &opts)
         .await
-        .map_err(|error| UpdateError::ResolveLatest { name: name.to_string(), error })
+        .map_err(|error| UpdateError::ResolveLatest { name: name.to_string(), error })?;
+    // A resolver that reports back what the manifest already says has
+    // nothing to rewrite. Recording it anyway would mark the manifest dirty
+    // and persist it, which for a `runtime:` dependency means rewriting the
+    // entry into `devEngines.runtime` — a change the user never asked for.
+    Ok(resolved
+        .and_then(|result| result.normalized_bare_specifier)
+        .filter(|specifier| *specifier != effective))
+}
+
+/// The resolvers that can answer "what is the latest for this dependency",
+/// built on first use so an update whose deps are all local opens no
+/// client. Deliberately excludes the git, tarball and local-path
+/// resolvers: they have no notion of a `latest`, and asking them would
+/// clone or download during manifest preparation only to be told the
+/// specifier stands.
+struct LatestResolverChain {
+    resolver: DefaultResolver,
+    published_by: Option<DateTime<Utc>>,
+    published_by_exclude: Option<PackageVersionPolicy>,
+}
+
+fn ensure_latest_resolver_chain<'chain>(
+    chain: &'chain mut Option<LatestResolverChain>,
+    ctx: &LatestRewriteCtx<'_, '_>,
+) -> Result<&'chain LatestResolverChain, UpdateError> {
+    if chain.is_none() {
+        let extra_excludes = ctx
+            .resolution_observer
+            .and_then(|observer| observer.minimum_release_age_exclude_override());
+        let policy =
+            PickPolicy::from_config_with_extra_excludes(ctx.config, extra_excludes.as_deref())
+                .map_err(UpdateError::MinimumReleaseAgeExclude)?;
+        let named_registries =
+            merge_named_registries(&ctx.config.named_registries.clone().into_iter().collect())
+                .map_err(UpdateError::InvalidNamedRegistry)?;
+        let npm_resolver: Arc<dyn Resolver> = Arc::new(NpmResolver {
+            registries: ctx.config.resolved_registries().into_iter().collect(),
+            named_registries,
+            http_client: Arc::clone(ctx.http_client_arc),
+            auth_headers: Arc::clone(&ctx.config.auth_headers),
+            meta_cache: Arc::<InMemoryPackageMetaCache>::default(),
+            fetch_locker: shared_packument_fetch_locker(),
+            picked_manifest_cache: shared_picked_manifest_cache(),
+            cache_dir: Some(ctx.config.cache_dir.clone()),
+            offline: ctx.config.offline,
+            prefer_offline: ctx.config.prefer_offline,
+            ignore_missing_time_field: ctx.config.minimum_release_age_ignore_missing_time,
+            full_metadata: policy.full_metadata,
+            filter_metadata: policy.full_metadata,
+            retry_opts: crate::retry_config::retry_opts_from_config(ctx.config),
+        });
+        let mut node_resolver = NodeResolver::new(Arc::clone(ctx.http_client_arc));
+        node_resolver.node_download_mirrors.clone_from(&ctx.config.node_download_mirrors);
+        node_resolver.offline = ctx.config.offline;
+        let resolver = DefaultResolver::new(vec![
+            Box::new(Arc::clone(&npm_resolver)) as Box<dyn Resolver>,
+            Box::new(node_resolver),
+            Box::new(DenoResolver::new(Arc::clone(ctx.http_client_arc), Arc::clone(&npm_resolver))),
+            Box::new(BunResolver::new(Arc::clone(ctx.http_client_arc), Arc::clone(&npm_resolver))),
+        ]);
+        *chain = Some(LatestResolverChain {
+            resolver,
+            published_by: policy.published_by,
+            published_by_exclude: policy.published_by_exclude,
+        });
+    }
+    Ok(chain.as_ref().expect("chain initialized above"))
 }
 
 /// Whether `bare_specifier` is a `workspace:` spec that points at a local
@@ -1027,17 +1092,6 @@ pub(crate) fn is_workspace_local_path_specifier(bare_specifier: &str) -> bool {
         chars.next().is_some_and(|first| first.is_ascii_alphabetic()) && chars.next() == Some(':')
     };
     pref.starts_with('.') || pref.starts_with('/') || pref.starts_with("~/") || is_windows_drive
-}
-
-/// Whether `bare_specifier` resolves to a local package — `workspace:`, `link:`,
-/// or `file:` — rather than a registry one. Such a package resolves to a
-/// directory on disk and may not be published at all, so there is no registry
-/// "latest" to resolve under `--latest`; it is skipped and preserved verbatim.
-/// Mirrors the TS `isLocalRef` in `@pnpm/outdated`.
-fn is_local_specifier(bare_specifier: &str) -> bool {
-    bare_specifier.starts_with("workspace:")
-        || bare_specifier.starts_with("link:")
-        || bare_specifier.starts_with("file:")
 }
 
 #[cfg(test)]

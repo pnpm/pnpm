@@ -12,6 +12,7 @@ use chrono::{DateTime, Utc};
 use derive_more::{Display, From};
 use pacquet_config::{TrustPolicy, version_policy::PackageVersionPolicy};
 use pacquet_lockfile::{LockfileResolution, PkgNameVer};
+use pacquet_registry::PinnedVersion;
 use serde::{Deserialize, Serialize};
 
 use crate::verifier::ResolutionPolicyViolation;
@@ -317,7 +318,19 @@ pub struct ResolveOptions {
     /// flag.
     pub update_checksums: bool,
     pub inject_workspace_packages: bool,
+    /// Ask the resolver to report a manifest-ready
+    /// [`normalized_bare_specifier`](ResolveResult::normalized_bare_specifier)
+    /// for the version it picked, so `add` / `update` can write it back
+    /// without re-deriving what the specifier for this protocol should
+    /// look like. Set for importer-level deps only — nothing below the
+    /// top level is written to a manifest.
     pub calc_specifier: bool,
+    /// The range operator to apply when [`Self::calc_specifier`] computes
+    /// a specifier for a dependency whose current one declares none.
+    /// A specifier that already carries an operator keeps it (`^` stays
+    /// `^`, `~` stays `~`, an exact pin stays exact). `None` leaves the
+    /// choice to the resolver's own default.
+    pub pinned_version: Option<PinnedVersion>,
     /// `minimumReleaseAge` cutoff. Versions published after this point
     /// are filtered out by the npm picker (or reported inline via
     /// [`ResolveResult::policy_violation`] when no mature pick exists).

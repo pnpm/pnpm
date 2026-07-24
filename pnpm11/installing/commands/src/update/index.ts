@@ -9,7 +9,7 @@ import {
 } from '@pnpm/cli.utils'
 import { createMatcher } from '@pnpm/config.matcher'
 import { types as allTypes } from '@pnpm/config.reader'
-import { findOutdatedGitHubActions, isGitHubActionSelector, normalizeGitHubActionSelector, updateGitHubActions } from '@pnpm/deps.github-actions'
+import { findOutdatedGitHubActions, isGitHubActionSelector, normalizeGitHubActionSelector, shouldCheckGitHubActions, updateGitHubActions } from '@pnpm/deps.github-actions'
 import { outdatedDepsOfProjects } from '@pnpm/deps.inspection.outdated'
 import { PnpmError } from '@pnpm/error'
 import { handleGlobalUpdate } from '@pnpm/global.commands'
@@ -243,8 +243,7 @@ async function interactiveUpdate (
         timeout: opts.fetchTimeout,
       })
       : projects.map(() => []),
-    include.devDependencies && opts.save !== false && !opts.lockfileOnly &&
-    (opts.updateConfig?.githubActions !== false || opts.includeGithubActions === true)
+    shouldUpdateGitHubActions(opts, include)
       ? findOutdatedGitHubActions({
         compatible: opts.latest !== true,
         dir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
@@ -326,12 +325,7 @@ async function interactiveUpdate (
     throw err
   }
 
-  // An explicit `update.githubActions: false` must survive into the update
-  // phase — only the `--include-github-actions` flag may override it.
-  return update(updatePkgNames, {
-    ...opts,
-    includeGithubActions: opts.includeGithubActions === true || opts.updateConfig?.githubActions !== false,
-  }, rebuildHandler) as Promise<undefined>
+  return update(updatePkgNames, opts, rebuildHandler) as Promise<undefined>
 }
 
 async function update (
@@ -340,10 +334,7 @@ async function update (
   rebuildHandler?: CommandHandler
 ): Promise<void> {
   const includeDirect = makeIncludeDependenciesFromCLI(opts.cliOptions)
-  const updateActions = includeDirect.devDependencies &&
-    opts.save !== false &&
-    !opts.lockfileOnly &&
-    (opts.includeGithubActions === true || opts.updateConfig?.githubActions === true)
+  const updateActions = shouldUpdateGitHubActions(opts, includeDirect)
   if (opts.latest) {
     const dependenciesWithTags = dependencies.filter((name) =>
       (!updateActions || !isGitHubActionSelector(name)) && parseUpdateParam(name).versionSpec != null)
@@ -405,6 +396,13 @@ async function update (
   if (changesetContext != null) {
     await generateUpdateChangeset(changesetContext)
   }
+}
+
+function shouldUpdateGitHubActions (opts: UpdateCommandOptions, include: IncludedDependencies): boolean {
+  return include.devDependencies &&
+    opts.save !== false &&
+    !opts.lockfileOnly &&
+    shouldCheckGitHubActions(opts)
 }
 
 function makeIncludeDependenciesFromCLI (opts: {

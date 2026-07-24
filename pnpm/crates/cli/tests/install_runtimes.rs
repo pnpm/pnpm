@@ -132,6 +132,36 @@ fn installs_node_runtime_from_the_rc_channel() {
     assert!(fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap().contains(version));
 }
 
+/// The registry mock knows no package named "node", so resolving the alias
+/// name there instead of leaving the dependency to the runtime resolver
+/// fails the update.
+#[test]
+fn update_latest_keeps_runtime_dependency_on_the_runtime_resolver() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new();
+    let version = "24.0.0-rc.4";
+    let _mocks = mock_node_release(&mut server, version);
+    let workspace = prepare_workspace(
+        &root,
+        format!("nodeDownloadMirrors:\n  rc: '{}/'\n", server.url()).as_str(),
+    );
+    fs::write(workspace.join(".npmrc"), format!("registry={}/npm/\n", server.url())).unwrap();
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "dependencies": { "node": format!("runtime:{version}") } }).to_string(),
+    )
+    .unwrap();
+    command(&workspace).with_arg("install").assert().success();
+
+    command(&workspace).with_args(["update", "--latest"]).assert().success();
+
+    let manifest = fs::read_to_string(workspace.join("package.json")).unwrap();
+    assert!(
+        manifest.contains(&format!("runtime:{version}")),
+        "the manifest keeps the runtime spec: {manifest}",
+    );
+}
+
 #[test]
 fn fresh_install_with_no_runtime_resolves_but_does_not_fetch_the_runtime() {
     let root = tempfile::tempdir().unwrap();

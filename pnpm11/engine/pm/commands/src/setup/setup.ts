@@ -13,6 +13,11 @@ import {
 import PATH from 'path-name'
 import { renderHelp } from 'render-help'
 
+import {
+  validateGHActionsEnvFileValues,
+  writeGHActionsEnvFiles,
+} from './ghActionsEnv.js'
+
 export const rcOptionsTypes = (): Record<string, unknown> => ({})
 
 export const cliOptionsTypes = (): Record<string, unknown> => ({
@@ -162,6 +167,7 @@ export async function handler (
 ): Promise<string> {
   const execPath = getExecPath()
   const binDir = path.join(opts.pnpmHomeDir, 'bin')
+  validateGHActionsEnvFileValues(opts.pnpmHomeDir, binDir)
   if (execPath.match(/\.[cm]?js$/) == null) {
     installCliGlobally(execPath, opts.pnpmHomeDir)
     createAliasScripts(binDir)
@@ -174,6 +180,7 @@ export async function handler (
       overwrite: opts.force,
       position: 'start',
     })
+    writeGHActionsEnvFiles(opts.pnpmHomeDir, binDir)
     removeLegacyHomeDirShims(opts.pnpmHomeDir)
     return renderSetupOutput(report)
   } catch (err: any) { // eslint-disable-line
