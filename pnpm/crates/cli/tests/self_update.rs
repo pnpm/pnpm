@@ -1,8 +1,9 @@
 //! `pacquet self-update` — dispatch-level coverage.
 //!
 //! Exercises the dispatch wiring that routes `self-update` through the
-//! `config_self_update` closure, which resolves the release-age policy so a
-//! repo-controlled `pnpm-workspace.yaml` can only tighten it. The resolver can't be covered here because
+//! `config_self_update` closure, which drops the release-age and trust
+//! policies a repo-controlled `pnpm-workspace.yaml` would otherwise set.
+//! The resolver can't be covered here because
 //! the mock registry doesn't serve `pnpm` / `@pnpm/exe` (see `tests/with.rs`
 //! for the same limitation), so the command is expected to fail at the
 //! resolve step — by which point the closure has already run.
