@@ -19,10 +19,10 @@ import { logger } from '@pnpm/logger'
  * Called before `setup` performs any side effect, so an unusable value aborts
  * the command instead of half-completing it.
  */
-export function validateValues (pnpmHomeDir: string, binDir: string): void {
-  if (!shouldPersist()) return
-  validateValue('PNPM_HOME', pnpmHomeDir)
-  validateValue('pnpm setup bin directory', binDir)
+export function validateGHActionsEnvFileValues (pnpmHomeDir: string, binDir: string): void {
+  if (!shouldWriteGHActionsEnvFiles()) return
+  validateGHActionsEnvFileValue('PNPM_HOME', pnpmHomeDir)
+  validateGHActionsEnvFileValue('pnpm setup bin directory', binDir)
 }
 
 /**
@@ -30,19 +30,19 @@ export function validateValues (pnpmHomeDir: string, binDir: string): void {
  * failing the command. The shell config is already updated by this point,
  * so the setup itself succeeded.
  */
-export function persist (pnpmHomeDir: string, binDir: string): void {
-  if (!shouldPersist()) return
+export function writeGHActionsEnvFiles (pnpmHomeDir: string, binDir: string): void {
+  if (!shouldWriteGHActionsEnvFiles()) return
   const githubEnv = process.env.GITHUB_ENV
   const githubPath = process.env.GITHUB_PATH
   if (githubEnv != null) {
-    appendFile('GITHUB_ENV', githubEnv, `PNPM_HOME=${pnpmHomeDir}`)
+    appendGHActionsEnvFile('GITHUB_ENV', githubEnv, `PNPM_HOME=${pnpmHomeDir}`)
   }
   if (githubPath != null) {
-    appendFile('GITHUB_PATH', githubPath, binDir)
+    appendGHActionsEnvFile('GITHUB_PATH', githubPath, binDir)
   }
 }
 
-function shouldPersist (): boolean {
+function shouldWriteGHActionsEnvFiles (): boolean {
   return process.env.GITHUB_ACTIONS === 'true' && (process.env.GITHUB_ENV != null || process.env.GITHUB_PATH != null)
 }
 
@@ -50,16 +50,16 @@ function shouldPersist (): boolean {
  * The files are line-oriented, so a line break in a persisted value would
  * append attacker-chosen records to the environment of every later step.
  */
-function validateValue (name: string, value: string): void {
+function validateGHActionsEnvFileValue (name: string, value: string): void {
   if (value.includes('\n') || value.includes('\r') || value.includes('\0')) {
     throw new PnpmError('BAD_GITHUB_ACTIONS_ENVIRONMENT_VALUE', `${name} cannot contain newline or NUL characters`)
   }
 }
 
-function appendFile (targetName: string, filePath: string, line: string): void {
+function appendGHActionsEnvFile (targetName: string, filePath: string, line: string): void {
   try {
     if (!fs.lstatSync(filePath).isFile()) return
-    appendLine(filePath, line)
+    appendLineToRegularFile(filePath, line)
   } catch (err: unknown) {
     if (util.types.isNativeError(err) && (err as NodeJS.ErrnoException).code === 'ENOENT') return
     logger.warn({
@@ -69,7 +69,7 @@ function appendFile (targetName: string, filePath: string, line: string): void {
   }
 }
 
-function appendLine (filePath: string, line: string): void {
+function appendLineToRegularFile (filePath: string, line: string): void {
   const fd = fs.openSync(
     filePath,
     fs.constants.O_RDWR |
@@ -81,13 +81,13 @@ function appendLine (filePath: string, line: string): void {
     // The lstat above races with anything that swaps the path between the
     // two syscalls, so re-check through the descriptor.
     if (!stats.isFile()) return
-    fs.writeSync(fd, `${leadingSeparator(fd, stats.size)}${line}\n`, null, 'utf8')
+    fs.writeSync(fd, `${missingLineBreak(fd, stats.size)}${line}\n`, null, 'utf8')
   } finally {
     fs.closeSync(fd)
   }
 }
 
-function leadingSeparator (fd: number, size: number): string {
+function missingLineBreak (fd: number, size: number): string {
   if (size === 0) return ''
   const lastByte = Buffer.allocUnsafe(1)
   const bytesRead = fs.readSync(fd, lastByte, 0, 1, size - 1)

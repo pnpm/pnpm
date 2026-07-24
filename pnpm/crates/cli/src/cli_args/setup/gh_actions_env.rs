@@ -28,31 +28,31 @@ use std::os::unix::fs::OpenOptionsExt;
 
 /// Called before `setup` performs any side effect, so an unusable value
 /// aborts the command instead of half-completing it.
-pub(super) fn validate_values<Sys: EnvVarOs>(
+pub(super) fn validate_gh_actions_env_file_values<Sys: EnvVarOs>(
     pnpm_home_dir: &Path,
     bin_dir: &Path,
 ) -> miette::Result<()> {
-    if !should_persist::<Sys>() {
+    if !should_write_gh_actions_env_files::<Sys>() {
         return Ok(());
     }
-    validate_value("PNPM_HOME", pnpm_home_dir)?;
-    validate_value("pnpm setup bin directory", bin_dir)
+    validate_gh_actions_env_file_value("PNPM_HOME", pnpm_home_dir)?;
+    validate_gh_actions_env_file_value("pnpm setup bin directory", bin_dir)
 }
 
 /// A target that cannot be written is reported as a warning rather than
 /// failing the command. The shell config is already updated by this point,
 /// so the setup itself succeeded.
-pub(super) fn persist<Reporter: self::Reporter, Sys: EnvVarOs>(
+pub(super) fn write_gh_actions_env_files<Reporter: self::Reporter, Sys: EnvVarOs>(
     prefix_dir: &Path,
     pnpm_home_dir: &Path,
     bin_dir: &Path,
 ) {
-    if !is_github_actions::<Sys>() {
+    if !is_gh_actions::<Sys>() {
         return;
     }
     let github_env = Sys::var_os("GITHUB_ENV").map(PathBuf::from);
     let github_path = Sys::var_os("GITHUB_PATH").map(PathBuf::from);
-    write_files::<Reporter>(
+    append_gh_actions_env_files::<Reporter>(
         prefix_dir,
         pnpm_home_dir,
         bin_dir,
@@ -61,12 +61,12 @@ pub(super) fn persist<Reporter: self::Reporter, Sys: EnvVarOs>(
     );
 }
 
-fn should_persist<Sys: EnvVarOs>() -> bool {
-    is_github_actions::<Sys>()
+fn should_write_gh_actions_env_files<Sys: EnvVarOs>() -> bool {
+    is_gh_actions::<Sys>()
         && (Sys::var_os("GITHUB_ENV").is_some() || Sys::var_os("GITHUB_PATH").is_some())
 }
 
-fn is_github_actions<Sys: EnvVarOs>() -> bool {
+fn is_gh_actions<Sys: EnvVarOs>() -> bool {
     Sys::var_os("GITHUB_ACTIONS").is_some_and(|value| value == OsStr::new("true"))
 }
 
@@ -75,18 +75,18 @@ fn is_github_actions<Sys: EnvVarOs>() -> bool {
 #[derive(Debug, Display, Error, Diagnostic)]
 #[display("{name} cannot contain newline or NUL characters")]
 #[diagnostic(code(ERR_PNPM_BAD_GITHUB_ACTIONS_ENVIRONMENT_VALUE))]
-pub(super) struct BadValue {
+pub(super) struct BadGhActionsEnvFileValue {
     name: &'static str,
 }
 
-fn validate_value(name: &'static str, value: &Path) -> miette::Result<()> {
+fn validate_gh_actions_env_file_value(name: &'static str, value: &Path) -> miette::Result<()> {
     if value.to_string_lossy().contains(['\n', '\r', '\0']) {
-        return Err(BadValue { name }.into());
+        return Err(BadGhActionsEnvFileValue { name }.into());
     }
     Ok(())
 }
 
-fn write_files<Reporter: self::Reporter>(
+fn append_gh_actions_env_files<Reporter: self::Reporter>(
     prefix_dir: &Path,
     pnpm_home_dir: &Path,
     bin_dir: &Path,
@@ -94,7 +94,7 @@ fn write_files<Reporter: self::Reporter>(
     github_path: Option<&Path>,
 ) {
     if let Some(github_env) = github_env {
-        append_file::<Reporter>(
+        append_gh_actions_env_file::<Reporter>(
             prefix_dir,
             "GITHUB_ENV",
             github_env,
@@ -102,7 +102,7 @@ fn write_files<Reporter: self::Reporter>(
         );
     }
     if let Some(github_path) = github_path {
-        append_file::<Reporter>(
+        append_gh_actions_env_file::<Reporter>(
             prefix_dir,
             "GITHUB_PATH",
             github_path,
@@ -111,13 +111,13 @@ fn write_files<Reporter: self::Reporter>(
     }
 }
 
-fn append_file<Reporter: self::Reporter>(
+fn append_gh_actions_env_file<Reporter: self::Reporter>(
     prefix_dir: &Path,
     target_name: &str,
     path: &Path,
     line: &str,
 ) {
-    if let Err(err) = append_line(path, line) {
+    if let Err(err) = append_line_to_regular_file(path, line) {
         warn::<Reporter>(
             prefix_dir,
             &format!(
@@ -128,7 +128,7 @@ fn append_file<Reporter: self::Reporter>(
     }
 }
 
-fn append_line(path: &Path, line: &str) -> std::io::Result<()> {
+fn append_line_to_regular_file(path: &Path, line: &str) -> std::io::Result<()> {
     match fs::symlink_metadata(path) {
         Ok(metadata) if metadata.file_type().is_file() => {}
         Ok(_) => return Ok(()),
