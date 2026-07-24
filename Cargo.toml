@@ -128,7 +128,7 @@ napi = { version = "3.10.3", default-features = false, features = ["napi8", "ser
 napi-build = { version = "2.3.2" }
 napi-derive = { version = "3.5.9" }
 num_cpus = { version = "1.17.0" }
-object_store = { version = "0.13", features = ["aws"] }
+object_store = { version = "0.14", features = ["aws"] }
 open = { version = "5.3.5" }
 os_display = { version = "0.1.4" }
 owo-colors = { version = "4", features = ["supports-colors"] }
