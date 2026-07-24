@@ -2,7 +2,7 @@ use std::{fs, sync::Mutex};
 
 use pacquet_config::Config;
 use pacquet_lockfile::{LockfileResolution, RegistryResolution};
-use pacquet_reporter::{LogEvent, PromptAction, Reporter};
+use pacquet_reporter::{LogEvent, PromptAction, Reporter, SilentReporter};
 use pacquet_resolving_resolver_base::ResolutionPolicyViolation;
 use ssri::Integrity;
 use tempfile::tempdir;
@@ -113,7 +113,6 @@ fn strict_no_save_is_rejected_before_resolution() {
 
 #[tokio::test]
 async fn non_interactive_strict_mode_reports_every_immature_pick() {
-    recording_reporter!();
     let dir = tempdir().expect("temp dir");
     let mut config = Config::new();
     config.minimum_release_age_strict = Some(true);
@@ -124,7 +123,7 @@ async fn non_interactive_strict_mode_reports_every_immature_pick() {
         violation("ignored", "3.0.0", "TRUST_DOWNGRADE"),
     ];
 
-    let error = handle_minimum_release_age_violations_with::<RecordingReporter, _>(
+    let error = handle_minimum_release_age_violations_with::<SilentReporter, _>(
         &config,
         dir.path(),
         &violations,
