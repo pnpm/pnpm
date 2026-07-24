@@ -111,6 +111,7 @@ export async function main (inputArgv: string[]): Promise<void> {
       globalDirShouldAllowWrite,
       workspaceDir,
       onlyInheritDlxSettingsFromLocal: isDlxOrCreateCommand,
+      forSelfUpdate: cmd === 'self-update',
     }) as { config: typeof config, context: ConfigContext })
     if (cmd !== 'setup' && !shouldSkipPmHandling(cmd, cliParams)) {
       if (context.wantedPackageManager != null) {
@@ -147,6 +148,7 @@ export async function main (inputArgv: string[]): Promise<void> {
     // hit the #10684 crash via any of these three entry points.
     ;({ config, context } = await installConfigDepsAndLoadHooks(config, context, {
       tolerateConfigDependenciesErrors: isConfigCommand,
+      forSelfUpdate: cmd === 'self-update',
     }) as { config: typeof config, context: ConfigContext })
     if (cmd != null && COMMANDS_WITH_STDERR_REPORTER.has(cmd)) {
       config.useStderr = true

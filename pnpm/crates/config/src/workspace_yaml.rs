@@ -716,6 +716,29 @@ impl WorkspaceSettings {
         Ok(Some(settings))
     }
 
+    /// Zero out the release-age and trust policies for `self-update`.
+    ///
+    /// `self-update` replaces the pnpm binary every later install runs
+    /// through, so a repository must not get a say in whether it may be
+    /// replaced. Both policies are dangerous in both directions here: a
+    /// cooldown lowered waives the protection the user configured, raised it
+    /// pins the machine to the installed pnpm — including past a release that
+    /// fixes a vulnerability in it; a trust policy turned off accepts a pnpm
+    /// release whose trust evidence the user meant to reject, turned on blocks
+    /// the update the same way. Unlike a blocked dependency upgrade, those
+    /// decisions follow the user out of the repository. The policies therefore
+    /// come from the built-in defaults, the global `config.yaml`, and
+    /// `PNPM_CONFIG_*` env vars only (plus CLI flags, applied by the caller).
+    pub fn clear_self_update_policy(&mut self) {
+        self.minimum_release_age = None;
+        self.minimum_release_age_exclude = None;
+        self.minimum_release_age_ignore_missing_time = None;
+        self.minimum_release_age_strict = None;
+        self.trust_policy = None;
+        self.trust_policy_exclude = None;
+        self.trust_policy_ignore_after = None;
+    }
+
     /// Zero out fields not permitted in the global `config.yaml`.
     ///
     /// Every field listed here is a key excluded from the global
@@ -879,9 +902,8 @@ impl WorkspaceSettings {
 
     /// Apply every set field onto `config`, leaving unset ones untouched.
     ///
-    /// Path-valued fields (`store_dir`, `modules_dir`, `virtual_store_dir`)
-    /// are resolved against `base_dir` if relative — anchored at the
-    /// workspace root where the yaml was found, matching pnpm.
+    /// Path-valued settings are resolved against `base_dir` if relative —
+    /// anchored at the workspace root where the yaml was found, matching pnpm.
     pub fn apply_to(self, config: &mut Config, base_dir: &Path) {
         let http_proxy_is_explicit = config.http_proxy_is_explicit;
         self.apply_proxy_to(&mut config.proxy, http_proxy_is_explicit);
@@ -1218,7 +1240,7 @@ fn resolve(base: &Path, value: &str) -> PathBuf {
     if candidate.is_absolute() { candidate.to_path_buf() } else { base.join(candidate) }
 }
 
-fn find_workspace_manifest(start: &Path) -> Option<PathBuf> {
+pub(crate) fn find_workspace_manifest(start: &Path) -> Option<PathBuf> {
     let mut cursor = Some(start);
     while let Some(dir) = cursor {
         let candidate = dir.join(WORKSPACE_MANIFEST_FILENAME);

@@ -1,7 +1,7 @@
 import path from 'node:path'
 
 import { packageManager } from '@pnpm/cli.meta'
-import { type Config, type ConfigContext, shouldPersistLockfile } from '@pnpm/config.reader'
+import { type Config, type ConfigContext, getPackageManagerBootstrapConfig, shouldPersistLockfile } from '@pnpm/config.reader'
 import { assertReleaseIsInstallable, installPnpmToStore } from '@pnpm/engine.pm.commands'
 import { PnpmError } from '@pnpm/error'
 import { isPackageManagerResolved, resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
@@ -14,7 +14,6 @@ import semver from 'semver'
 
 import { exit } from './exit.js'
 import { assertPackageManagerLockfileUsesRegistryResolutions } from './packageManagerLockfile.js'
-import { getPackageManagerBootstrapConfig } from './packageManagerRegistries.js'
 
 export async function switchCliVersion (config: Config, context: ConfigContext): Promise<void> {
   const pm = context.wantedPackageManager

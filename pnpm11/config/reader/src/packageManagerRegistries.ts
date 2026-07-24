@@ -1,5 +1,8 @@
-import type { Config } from '@pnpm/config.reader'
 import type { Registries, RegistryConfig } from '@pnpm/types'
+
+import type { Config } from './Config.js'
+
+type PackageManagerConfig = Pick<Config, 'packageManagerRegistries' | 'packageManagerNetworkConfig'>
 
 const DEFAULT_PACKAGE_MANAGER_REGISTRY = 'https://registry.npmjs.org/'
 
@@ -16,14 +19,14 @@ export interface PackageManagerBootstrapConfig {
   strictSsl?: boolean
 }
 
-export function getPackageManagerRegistries (config: Config): Registries {
+export function getPackageManagerRegistries (config: PackageManagerConfig): Registries {
   return {
     default: DEFAULT_PACKAGE_MANAGER_REGISTRY,
     ...config.packageManagerRegistries,
   }
 }
 
-export function getPackageManagerBootstrapConfig (config: Config): PackageManagerBootstrapConfig {
+export function getPackageManagerBootstrapConfig (config: PackageManagerConfig): PackageManagerBootstrapConfig {
   return {
     ca: config.packageManagerNetworkConfig?.ca,
     cert: config.packageManagerNetworkConfig?.cert,

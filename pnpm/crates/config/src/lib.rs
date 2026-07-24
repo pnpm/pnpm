@@ -2060,11 +2060,11 @@ impl Config {
         Ok(Some(calc_patch_hashes(resolved)?))
     }
 
-    /// Build the runtime config by layering:
-    /// 1. hard-coded defaults, then
-    /// 2. the supported `.npmrc` subset read from the nearest `.npmrc`
-    ///    (cwd, falling back to home), then
-    /// 3. the nearest `pnpm-workspace.yaml` walking up from cwd.
+    /// Load the merged configuration for a CLI run.
+    ///
+    /// Config sources (low → high precedence): `SmartDefault`, the supported
+    /// `.npmrc` subset (cwd, falling back to home), global `config.yaml`,
+    /// project `pnpm-workspace.yaml`, then `PNPM_CONFIG_*` env.
     ///
     /// Pacquet currently applies `registry`, scoped registry routes,
     /// npm-auth credentials, the
@@ -2076,14 +2076,33 @@ impl Config {
     /// ignored here. Those must come from `pnpm-workspace.yaml` or CLI
     /// flags, matching pnpm 11.
     ///
-    /// The yaml wins over `.npmrc` on any key it sets.
-    ///
     /// Returns [`LoadWorkspaceYamlError`] when an existing
-    /// `pnpm-workspace.yaml` cannot be read or parsed.
-    /// A missing file is not an error.
-    pub fn current<Sys>(
+    /// `pnpm-workspace.yaml` cannot be read or parsed. A missing file is not
+    /// an error.
+    pub fn current<Sys>(self, start_dir: &std::path::Path) -> Result<Self, LoadWorkspaceYamlError>
+    where
+        Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
+    {
+        self.current_inner::<Sys>(start_dir, false)
+    }
+
+    /// Like [`Config::current`], but the project `pnpm-workspace.yaml` does
+    /// not contribute the `minimumReleaseAge` / `trustPolicy` policies — see
+    /// [`WorkspaceSettings::clear_self_update_policy`].
+    pub fn current_for_self_update<Sys>(
+        self,
+        start_dir: &std::path::Path,
+    ) -> Result<Self, LoadWorkspaceYamlError>
+    where
+        Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
+    {
+        self.current_inner::<Sys>(start_dir, true)
+    }
+
+    fn current_inner<Sys>(
         mut self,
         start_dir: &std::path::Path,
+        for_self_update: bool,
     ) -> Result<Self, LoadWorkspaceYamlError>
     where
         Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
@@ -2391,6 +2410,12 @@ impl Config {
             if !virtual_store_dir_explicit {
                 self.virtual_store_dir = base_dir.join("node_modules/.pnpm");
             }
+            // The workspace root is structural context (env-lockfile reads/
+            // writes, pin persistence), not a "setting" — set it whenever a
+            // workspace is discovered, even on the `NPM_CONFIG_WORKSPACE_DIR`
+            // path when the yaml file is missing and `apply_to` (which also
+            // writes it) never runs.
+            self.workspace_dir = Some(base_dir.clone());
             if let Some(mut settings) = settings {
                 // `|=` rather than `=` so an `enableGlobalVirtualStore` /
                 // `virtualStoreDir` set in the global `config.yaml` still
@@ -2401,6 +2426,9 @@ impl Config {
                 store_dir_explicit |= settings.store_dir.is_some();
                 settings.substitute_env_untrusted::<Sys>();
                 self.http_proxy_is_explicit |= has_nonempty_string(settings.http_proxy.as_deref());
+                if for_self_update {
+                    settings.clear_self_update_policy();
+                }
                 collect_explicit_settings(&mut self.explicit_settings, &settings);
                 settings.apply_to(&mut self, &base_dir);
             }

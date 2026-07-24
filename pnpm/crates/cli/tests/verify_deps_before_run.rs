@@ -8,7 +8,7 @@ pub use _utils::*;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_testing_utils::bin::CommandTempCwd;
+use pacquet_testing_utils::{bin::CommandTempCwd, fs::bump_mtime};
 use serde_json::json;
 use std::{fs, path::Path};
 
@@ -109,6 +109,7 @@ fn error_action_follows_the_dependency_state() {
     std::thread::sleep(std::time::Duration::from_millis(10));
     fs::write(workspace.join("package.json"), manifest.to_string())
         .expect("write modified package.json");
+    bump_mtime(&workspace.join("package.json"));
     let output = pacquet_in(&workspace)
         .with_args(["--config.verify-deps-before-run=error", "run", "hello"])
         .output()
