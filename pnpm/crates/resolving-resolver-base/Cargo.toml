@@ -13,6 +13,7 @@ repository.workspace  = true
 [dependencies]
 pacquet-config   = { workspace = true }
 pacquet-lockfile = { workspace = true }
+pacquet-registry = { workspace = true }
 
 chrono      = { workspace = true }
 derive_more = { workspace = true }

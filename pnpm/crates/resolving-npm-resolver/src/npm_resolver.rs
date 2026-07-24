@@ -30,7 +30,7 @@ use node_semver::Version;
 use pacquet_config::{TrustPolicy, version_policy::PackageVersionPolicy};
 use pacquet_lockfile::{LockfileResolution, PkgName, PkgNameVer, TarballResolution};
 use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
-use pacquet_registry::{Package, PackageVersion};
+use pacquet_registry::{Package, PackageVersion, PinnedVersion};
 use pacquet_resolving_resolver_base::{
     LatestInfo, LatestQuery, PackageVersionGuardDecision, ResolutionPolicyViolation, ResolveError,
     ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, UpdateBehavior,
@@ -275,6 +275,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             published_by: opts.published_by,
             published_by_exclude: opts.published_by_exclude.as_ref(),
             picked_manifest_cache: &self.picked_manifest_cache,
+            calc_specifier_from: calc_specifier_from(wanted_dependency, opts),
         })?;
 
         Ok(Some(result))
@@ -321,6 +322,11 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             published_by: opts.published_by,
             published_by_exclude: opts.published_by_exclude.as_ref(),
             picked_manifest_cache: &self.picked_manifest_cache,
+            // A `jsr:` entry round-trips as `jsr:@scope/name@<range>`, a
+            // shape `calc_specifier` does not build. Reporting an
+            // npm-shaped range here would rewrite the manifest into a
+            // registry dependency, so the entry is left as declared.
+            calc_specifier_from: None,
         })?;
 
         Ok(Some(result))
@@ -654,6 +660,10 @@ pub(crate) struct BuildResolveResult<'a> {
     pub published_by: Option<DateTime<Utc>>,
     pub published_by_exclude: Option<&'a PackageVersionPolicy>,
     pub picked_manifest_cache: &'a crate::PickedManifestCache,
+    /// The dependency's current specifier, when the caller asked for a
+    /// manifest-ready one back (`ResolveOptions::calc_specifier`), paired
+    /// with the pin to apply if it declares no range operator.
+    pub calc_specifier_from: Option<(&'a str, PinnedVersion)>,
 }
 
 #[expect(
@@ -673,6 +683,7 @@ pub(crate) fn build_resolve_result(
         published_by,
         published_by_exclude,
         picked_manifest_cache,
+        calc_specifier_from,
     } = args;
     let pkg_name =
         PkgName::parse(picked.name.as_str()).map_err(|err| Box::new(err) as ResolveError)?;
@@ -729,10 +740,28 @@ pub(crate) fn build_resolve_result(
         manifest,
         resolution,
         resolved_via: resolved_via.to_string(),
-        normalized_bare_specifier: spec.normalized_bare_specifier.clone(),
+        normalized_bare_specifier: spec.normalized_bare_specifier.clone().or_else(|| {
+            calc_specifier_from.map(|(bare_specifier, default_pin)| {
+                crate::calc_specifier(bare_specifier, alias, picked, default_pin)
+            })
+        }),
         alias: alias.map(str::to_string),
         policy_violation,
     })
+}
+
+/// The `(specifier, pin)` pair [`build_resolve_result`] needs to compute a
+/// manifest-ready specifier, or `None` when the caller did not ask for one.
+/// Caret is the fallback pin, matching pnpm's default save prefix.
+fn calc_specifier_from<'a>(
+    wanted_dependency: &'a WantedDependency,
+    opts: &ResolveOptions,
+) -> Option<(&'a str, PinnedVersion)> {
+    if !opts.calc_specifier {
+        return None;
+    }
+    let bare_specifier = wanted_dependency.bare_specifier.as_deref()?;
+    Some((bare_specifier, opts.pinned_version.unwrap_or(PinnedVersion::Major)))
 }
 
 /// Resolver-time `trustPolicy='no-downgrade'` check on a fresh pick.
