@@ -15,6 +15,7 @@ use super::{
         should_persist_package_manager_lockfile, version_satisfies, wanted_package_manager,
     },
     reporter::reporter_emit,
+    sanitize::sanitize_inline,
     self_update::install_pnpm::{assert_release_is_installable, pnpm_package_to_install},
     with::{
         PackageManagerCheck,
@@ -166,7 +167,7 @@ fn pre_command_plan_from_input(
             } else if input.global {
                 global_warn(
                     input.emit,
-                    "Using --global skips the package manager check for this project".to_string(),
+                    "Using --global skips the package manager check for this project",
                 );
             } else {
                 check_package_manager(&pm, on_fail, process_state, input.emit)?;
@@ -199,10 +200,11 @@ fn check_package_manager(
         return Ok(());
     }
     if pm.name != "pnpm" {
+        let name = sanitize_inline(&pm.name).into_owned();
         if should_error {
-            return Err(PreCommandError::OtherPmExpected { name: pm.name.clone() }.into());
+            return Err(PreCommandError::OtherPmExpected { name }.into());
         }
-        global_warn(emit, format!("This project is configured to use {}", pm.name));
+        global_warn(emit, &format!("This project is configured to use {name}"));
         return Ok(());
     }
     let Some(wanted) = pm.version.as_deref() else {
@@ -216,11 +218,12 @@ fn check_package_manager(
     } else {
         ("", PM_ON_FAIL_HINT.to_string())
     };
-    let error = PreCommandError::BadPmVersion { wanted: wanted.to_string(), note, hint };
+    let error =
+        PreCommandError::BadPmVersion { wanted: sanitize_inline(wanted).into_owned(), note, hint };
     if should_error {
         return Err(error.into());
     }
-    global_warn(emit, error.to_string());
+    global_warn(emit, &error.to_string());
     Ok(())
 }
 
@@ -267,7 +270,7 @@ fn check_runtime(runtime: &Value, name: &str, emit: fn(&LogEvent)) -> miette::Re
     let Some(wanted_range) = wanted_range.filter(|range| !range.is_empty()) else {
         return fail_runtime_check(
             on_fail,
-            format!(
+            &format!(
                 "This project requires a {display_name} runtime but does not specify a version range",
             ),
             emit,
@@ -276,7 +279,7 @@ fn check_runtime(runtime: &Value, name: &str, emit: fn(&LogEvent)) -> miette::Re
     if node_semver::Range::parse(wanted_range).is_err() {
         return fail_runtime_check(
             on_fail,
-            format!(
+            &format!(
                 "This project requires an invalid {display_name} version range: {wanted_range}",
             ),
             emit,
@@ -285,7 +288,7 @@ fn check_runtime(runtime: &Value, name: &str, emit: fn(&LogEvent)) -> miette::Re
     let Some(current_version) = system_runtime_version(name) else {
         return fail_runtime_check(
             on_fail,
-            format!(
+            &format!(
                 "This project requires {display_name} {wanted_range}, but {display_name} was not found on the system",
             ),
             emit,
@@ -296,7 +299,7 @@ fn check_runtime(runtime: &Value, name: &str, emit: fn(&LogEvent)) -> miette::Re
     }
     fail_runtime_check(
         on_fail,
-        format!(
+        &format!(
             "This project requires {display_name} {wanted_range}. Your current {display_name} is v{current_version}",
         ),
         emit,
@@ -307,10 +310,11 @@ fn check_runtime(runtime: &Value, name: &str, emit: fn(&LogEvent)) -> miette::Re
 /// define — degrades to a warning.
 fn fail_runtime_check(
     on_fail: Option<&str>,
-    message: String,
+    message: &str,
     emit: fn(&LogEvent),
 ) -> miette::Result<()> {
     if on_fail == Some("error") {
+        let message = sanitize_inline(message).into_owned();
         return Err(PreCommandError::BadRuntimeVersion { message }.into());
     }
     global_warn(emit, message);
@@ -325,7 +329,11 @@ fn runtime_display_name(runtime: &str) -> &'static str {
     }
 }
 
-fn global_warn(emit: fn(&LogEvent), message: String) {
+/// Every warning here quotes the project's manifest, which is untrusted
+/// input in a repository the user has only cloned, so control characters
+/// are stripped before the message reaches the terminal.
+fn global_warn(emit: fn(&LogEvent), message: &str) {
+    let message = sanitize_inline(message).into_owned();
     emit(&LogEvent::Global(GlobalLog { level: LogLevel::Warn, message }));
 }
 

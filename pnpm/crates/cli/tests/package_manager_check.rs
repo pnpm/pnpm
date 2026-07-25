@@ -80,6 +80,19 @@ fn a_package_manager_field_holding_a_url_is_not_checked() {
 }
 
 #[test]
+fn control_characters_in_a_package_manager_name_are_stripped_from_the_output() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(&workspace, &serde_json::json!({ "packageManager": "ya\u{1b}[2Jrn@4.0.0" }));
+
+    let output = run(pacquet, root.path(), &["install"]);
+
+    assert_failure(&output);
+    let stderr = stderr(&output);
+    assert!(!stderr.contains('\u{1b}'), "escape sequence reached the terminal:\n{stderr}");
+    assert_contains(&stderr, "This project is configured to use ya[2Jrn");
+}
+
+#[test]
 fn commands_that_do_not_belong_to_the_project_skip_the_check() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_manifest(&workspace, &serde_json::json!({ "packageManager": "yarn@3.0.0" }));
@@ -520,8 +533,14 @@ fn run(command: Command, root: &Path, args: &[&str]) -> Output {
     command.env("PNPM_HOME", root.join("pnpm-home"));
     command.env("HOME", root);
     command.env("XDG_CONFIG_HOME", root.join("xdg-config"));
+    // Clear the inherited settings the checks read, without disturbing the
+    // ones a test set on purpose. Windows matches environment names
+    // case-insensitively, so an explicit `pnpm_config_pm_on_fail` must also
+    // suppress the removal of `PNPM_CONFIG_PM_ON_FAIL`.
+    let explicitly_set =
+        command.get_envs().map(|(name, _)| name.to_string_lossy().into_owned()).collect::<Vec<_>>();
     for name in ["pnpm_config_pm_on_fail", "PNPM_CONFIG_PM_ON_FAIL", "COREPACK_ROOT"] {
-        if command.get_envs().all(|(set_name, _)| set_name != name) {
+        if !explicitly_set.iter().any(|set_name| set_name.eq_ignore_ascii_case(name)) {
             command.env_remove(name);
         }
     }

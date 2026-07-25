@@ -15,7 +15,12 @@ pub(crate) fn system_runtime_version(runtime: &str) -> Option<String> {
     }
 }
 
+/// Resolve `program` on `PATH` and run `<program> --version`. The lookup is
+/// explicit because a bare [`Command::new`] on Windows also searches the
+/// current directory, which would let a runtime pin in an untrusted
+/// repository run a `deno.exe` / `bun.exe` checked in beside it.
 fn run_version_command(program: &str) -> Option<String> {
+    let program = which::which(program).ok()?;
     let output = Command::new(program).arg("--version").output().ok()?;
     if !output.status.success() {
         return None;
@@ -32,24 +37,22 @@ fn parse_deno_version(stdout: &str) -> Option<String> {
             return None;
         }
         let version = rest.split_whitespace().next()?;
-        starts_with_version(version).then(|| version.to_string())
+        accept_version(version)
     })
 }
 
 /// `bun --version` prints the bare version and nothing else.
 fn parse_bun_version(stdout: &str) -> Option<String> {
-    let version = stdout.trim();
-    starts_with_version(version).then(|| version.to_string())
+    accept_version(stdout.trim())
 }
 
-/// Whether `text` starts with `<digits>.<digits>.<digit>` — the shape both
-/// upstream probes require before accepting the reported version.
-fn starts_with_version(text: &str) -> bool {
-    let mut parts = text.splitn(3, '.');
-    let is_number = |part: &str| !part.is_empty() && part.bytes().all(|byte| byte.is_ascii_digit());
-    parts.next().is_some_and(is_number)
-        && parts.next().is_some_and(is_number)
-        && parts.next().is_some_and(|patch| patch.starts_with(|char: char| char.is_ascii_digit()))
+/// `text` when it is a whole semver version. The probed binary is only as
+/// trustworthy as `PATH`, and its output is echoed back in the
+/// runtime-mismatch message, so anything that is not a version — including
+/// a version followed by terminal escapes — is rejected outright rather
+/// than reported as the installed version.
+fn accept_version(text: &str) -> Option<String> {
+    node_semver::Version::parse(text).ok().map(|_| text.to_string())
 }
 
 #[cfg(test)]
