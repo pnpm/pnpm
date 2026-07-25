@@ -80,6 +80,7 @@ use clap::{CommandFactory, Parser, Subcommand, error::ErrorKind};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_default_reporter::SummaryScope;
+use pipe_trait::Pipe;
 use std::path::PathBuf;
 
 /// Experimental package manager for node.js written in rust.
@@ -281,11 +282,10 @@ impl CliArgs {
         if self.command.is_global() {
             return Err(WorkspaceRootError::GlobalConflict);
         }
-        let dir =
-            dunce::canonicalize(&self.dir).or_else(|_| std::path::absolute(&self.dir)).map_or_else(
-                |_| pacquet_fs::lexical_normalize(&self.dir),
-                |dir| pacquet_fs::lexical_normalize(&dir),
-            );
+        let dir = dunce::canonicalize(&self.dir)
+            .or_else(|_| std::path::absolute(&self.dir))
+            .unwrap_or_else(|_| self.dir.clone())
+            .pipe_deref(pacquet_fs::lexical_normalize);
         let workspace_dir = pacquet_workspace::find_workspace_dir(&dir)
             .map_err(WorkspaceRootError::FindWorkspaceDir)?
             .ok_or(WorkspaceRootError::NotInWorkspace)?;
