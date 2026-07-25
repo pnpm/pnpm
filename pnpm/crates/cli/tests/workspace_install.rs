@@ -13,12 +13,15 @@
 
 pub mod _utils;
 
+use _utils::{importer, importer_version, read_lockfile};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
+use pacquet_lockfile::PkgName;
 use pacquet_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     fs::is_symlink_or_junction,
 };
+use pretty_assertions::assert_eq;
 use std::{fs, path::Path, process::Command};
 
 fn pacquet_at(workspace: &Path) -> Command {
@@ -262,32 +265,28 @@ fn optional_peer_stays_out_of_the_importer_without_auto_install_peers() {
 
     pacquet_at(&workspace).with_arg("install").assert().success();
 
-    let lockfile =
-        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
-    let a_section = lockfile
-        .split("  pkg-a:\n")
-        .nth(1)
-        .and_then(|tail| tail.split("\n  pkg-b:").next())
-        .expect("pnpm-lock.yaml missing pkg-a importer section");
-    eprintln!("pkg-a importer section:\n{a_section}");
-    // The peer-suffixed version of `abc-optional-peers` names `peer-c`
-    // too, so match the importer entry's own key.
+    let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    let pkg_a = importer(&lockfile, "pkg-a");
+    dbg!(pkg_a);
+    let peer_c: PkgName = "@pnpm.e2e/peer-c".parse().expect("parse peer name");
+    for group in [&pkg_a.dependencies, &pkg_a.dev_dependencies, &pkg_a.optional_dependencies] {
+        assert!(
+            !group.as_ref().is_some_and(|dependencies| dependencies.contains_key(&peer_c)),
+            "optional peer added to pkg-a under `autoInstallPeers: false`",
+        );
+    }
     assert!(
-        !a_section.contains("'@pnpm.e2e/peer-c':"),
-        "optional peer added to pkg-a under `autoInstallPeers: false`\n{lockfile}",
+        !workspace.join("pkg-a/node_modules/@pnpm.e2e/peer-c").exists(),
+        "optional peer linked into pkg-a under `autoInstallPeers: false`",
     );
     // The optional peer is still deduplicated into the dependent's peer
     // context — the same entry the TypeScript CLI writes for this
     // workspace. Its counterpart lives in `peerDependencies.ts`, in
     // `an optional peer declared by a workspace project is not added to
     // its own importer, when auto-install-peers is off`.
-    assert!(
-        a_section.contains("version: 1.0.0(@pnpm.e2e/peer-c@1.0.0)"),
-        "pkg-a lost the deduplicated optional-peer context\n{lockfile}",
-    );
-    assert!(
-        !workspace.join("pkg-a/node_modules/@pnpm.e2e/peer-c").exists(),
-        "optional peer linked into pkg-a under `autoInstallPeers: false`",
+    assert_eq!(
+        importer_version(&lockfile, "pkg-a", "@pnpm.e2e/abc-optional-peers"),
+        "1.0.0(@pnpm.e2e/peer-c@1.0.0)",
     );
 
     pacquet_at(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
