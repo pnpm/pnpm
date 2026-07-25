@@ -3,9 +3,7 @@
 //!
 //! Such a specifier is relative to the manifest that declares it, not to
 //! the importer that pulled the chain in — pnpm's `parentPkg.rootDir`.
-//! Regression tests for pnpm/pnpm#13323, where the nested specifier was
-//! resolved against the importer and produced a directory that doesn't
-//! exist.
+//! Covers pnpm/pnpm#13323.
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
@@ -17,10 +15,10 @@ fn write_manifest(dir: &Path, manifest: &serde_json::Value) {
     fs::write(dir.join("package.json"), manifest.to_string()).expect("write package.json");
 }
 
-/// `parent` sits next to `child` inside the importer, so the buggy
-/// resolution (`<importer>/../child`) escapes the workspace entirely
-/// while the correct one (`<importer>/parent/../child`) lands on
-/// `child`.
+/// `parent` sits next to `child` inside the importer, so the two
+/// candidate bases disagree: `file:../child` lands on `child` from the
+/// declaring manifest's directory, and outside the workspace from the
+/// importer's.
 #[test]
 fn nested_file_dep_resolves_against_the_declaring_manifest() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =

@@ -600,12 +600,17 @@ fn project_relative_cache_scope(
 
 /// The directory the `file:` dependencies declared by a resolved
 /// package resolve against — pnpm's `parentPkg.rootDir`. A package
-/// fetched from a local directory declares them relative to its own
+/// copied from a local directory declares them relative to its own
 /// directory; every other resolution has no directory of its own, so
 /// its `file:` children stay on the consuming importer's.
 ///
-/// Directory resolutions record their path relative to the lockfile
-/// root, except for `link:`-shaped ones, which record it absolute.
+/// Only `file:`-shaped directory resolutions qualify. They record
+/// their directory relative to the lockfile root (absolute under
+/// `preserveAbsolutePaths`), whereas a `link:`-shaped one records it
+/// relative to the consuming importer (workspace links) or absolute
+/// (the local resolver). Nothing asks for a linked node's directory:
+/// a linked project resolves its own dependencies as a separate
+/// importer, so the walk never descends into one.
 fn declaring_manifest_dir(
     ctx: &TreeCtx,
     result: &pacquet_resolving_resolver_base::ResolveResult,
@@ -613,6 +618,9 @@ fn declaring_manifest_dir(
     let pacquet_lockfile::LockfileResolution::Directory(resolution) = &result.resolution else {
         return None;
     };
+    if !result.id.as_str().starts_with("file:") {
+        return None;
+    }
     let directory = Path::new(&resolution.directory);
     let absolute = if directory.is_absolute() {
         pacquet_fs::lexical_normalize(directory)
