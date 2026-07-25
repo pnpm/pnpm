@@ -847,7 +847,7 @@ fn version_recursive_json_prints_applied_releases_when_pending_changes() {
     drop(root);
 }
 
-// Regression: https://github.com/pnpm/pnpm/issues/13271
+// Regression: <https://github.com/pnpm/pnpm/issues/13271>
 // `pnpm version -r --dry-run` was rejected with "Unknown option: 'dry-run'" because
 // --dry-run was not registered in the version command's arg schema.
 #[test]
