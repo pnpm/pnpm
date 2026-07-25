@@ -6216,10 +6216,7 @@ async fn fresh_install_skips_platform_incompatible_optional_dependency() {
         std::fs::read_to_string(&current_lockfile_path).expect("read current lockfile");
     let current_lockfile: Lockfile =
         serde_saphyr::from_str(&current_content).expect("parse current lockfile");
-    // `.modules.yaml.skipped` carries the skip, so the current lockfile
-    // keeps the entries and stays comparable to the wanted lockfile —
-    // what lets a repeat frozen install short-circuit
-    // (<https://github.com/pnpm/pnpm/issues/13312>).
+    // `.modules.yaml.skipped`, asserted above, is what carries the skip.
     assert_eq!(current_lockfile, lockfile);
 
     drop((dir, mock_instance));

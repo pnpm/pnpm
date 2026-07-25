@@ -323,13 +323,9 @@ fn a_global_virtual_store_install_still_writes_the_current_lockfile() {
     drop((root, mock_instance));
 }
 
-/// A platform-incompatible optional dependency is skipped, but it stays
-/// recorded in the current lockfile — `.modules.yaml.skipped` is what
-/// carries the skip. Dropping it would leave the current lockfile
-/// permanently different from the wanted one, so a repeat
-/// `--frozen-lockfile` install could never take the "already up to date"
-/// short-circuit and would re-run every lifecycle script
-/// (<https://github.com/pnpm/pnpm/issues/13312>).
+/// The short-circuit gates on the two lockfiles being equal, so a
+/// current lockfile that dropped the skipped optional would disable it
+/// forever (<https://github.com/pnpm/pnpm/issues/13312>).
 #[test]
 fn a_skipped_optional_dependency_still_lets_a_repeat_frozen_install_be_a_no_op() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =

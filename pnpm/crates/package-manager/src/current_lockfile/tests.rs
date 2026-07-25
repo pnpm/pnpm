@@ -308,10 +308,8 @@ fn user_excluded_packages_filtered_to_surviving_metadata_keys() {
     );
 }
 
-/// A platform-incompatible optional dependency stays in every section
-/// of the current lockfile, so a repeat `--frozen-lockfile` install can
-/// still match it against the wanted lockfile and short-circuit
-/// (<https://github.com/pnpm/pnpm/issues/13312>).
+/// Retaining them is what keeps the current lockfile comparable to the
+/// wanted one — see [`SkippedSnapshots::transient_only`].
 #[test]
 fn installability_skipped_entries_are_preserved() {
     let mut importers = HashMap::new();
@@ -353,8 +351,8 @@ fn installability_skipped_entries_are_preserved() {
     assert_eq!(filtered, lockfile);
 }
 
-/// A fetch failure is transient and recorded nowhere, so the snapshot
-/// has to leave the current lockfile for the next install to retry it.
+/// A fetch failure is recorded nowhere else, so dropping the snapshot
+/// here is what makes the next install retry it.
 #[test]
 fn fetch_failed_snapshot_is_pruned() {
     let mut importers = HashMap::new();
@@ -1163,9 +1161,8 @@ fn merge_filtered_current_lockfile_does_not_restore_a_skipped_selected_snapshot(
     assert!(packages.contains_key(&key("child", "1.0.0")));
 }
 
-/// The filtered-install merge keeps installability-skipped snapshots
-/// for the same reason [`super::filter_lockfile_for_current`] does
-/// (<https://github.com/pnpm/pnpm/issues/13312>).
+/// The filtered-install path has to agree with
+/// [`super::filter_lockfile_for_current`] here — it writes the same file.
 #[test]
 fn merge_filtered_current_lockfile_keeps_an_installability_skipped_snapshot() {
     let selected_id = "packages/selected".to_string();
