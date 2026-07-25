@@ -11,8 +11,9 @@ use chrono::{DateTime, TimeZone, Utc};
 use pacquet_lockfile::{DirectoryResolution, LockfileResolution};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_resolving_resolver_base::{
-    LatestQuery, PkgResolutionId, PreferredVersions, ResolveError, ResolveFuture,
-    ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, WantedDependency,
+    LatestQuery, NoMatchingVersionError, PkgResolutionId, PreferredVersions, RegistryResponseError,
+    RegistryResponseErrorOptions, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
+    ResolveResult, Resolver, WantedDependency,
 };
 use pretty_assertions::assert_eq;
 
@@ -1029,6 +1030,40 @@ async fn shared_subtree_miss_unsatisfied_by_first_importer_still_hoists() {
 struct FailingAliasResolver {
     table: HashMap<(String, String), ResolveResult>,
     failing: std::collections::HashSet<String>,
+    failure: FailureShape,
+}
+
+/// How [`FailingAliasResolver`] fails. The tree walker recovers the coded
+/// shapes by downcasting the type-erased [`ResolveError`], so an optional
+/// dependency has to keep being skipped for each of them, not only for the
+/// plain string error every other resolver produces.
+#[derive(Clone, Copy)]
+enum FailureShape {
+    Plain,
+    NoMatchingVersion,
+    RegistryResponse,
+}
+
+impl FailureShape {
+    fn error(self, alias: &str, range: &str) -> ResolveError {
+        match self {
+            FailureShape::Plain => format!("No matching version found for {alias}@{range}").into(),
+            FailureShape::NoMatchingVersion => Box::new(NoMatchingVersionError {
+                dep: format!("{alias}@{range}"),
+                registry: "https://registry.example/".to_string(),
+                published_versions: format!(r#"The latest release of {alias} is "2.0.0"."#),
+            }),
+            FailureShape::RegistryResponse => {
+                Box::new(RegistryResponseError::new(RegistryResponseErrorOptions {
+                    url: &format!("https://registry.example/{alias}"),
+                    status: 404,
+                    status_text: "Not Found",
+                    pkg_name: alias,
+                    auth_header_value: None,
+                }))
+            }
+        }
+    }
 }
 
 impl Resolver for FailingAliasResolver {
@@ -1040,10 +1075,11 @@ impl Resolver for FailingAliasResolver {
         let alias = wanted.alias.clone().unwrap_or_default();
         let range = wanted.bare_specifier.clone().unwrap_or_default();
         let failing = self.failing.contains(&alias);
+        let failure = self.failure;
         let result = self.table.get(&(alias.clone(), range.clone())).cloned();
         Box::pin(async move {
             if failing {
-                return Err(format!("No matching version found for {alias}@{range}").into());
+                return Err(failure.error(&alias, &range));
             }
             Ok::<_, ResolveError>(result)
         })
@@ -1060,7 +1096,9 @@ impl Resolver for FailingAliasResolver {
 
 /// One importer whose manifest carries a resolvable regular dep
 /// (`kept`) and an optional dep (`broken`) whose resolution fails.
-fn optional_failure_fixture() -> (tempfile::TempDir, PackageManifest, FailingAliasResolver) {
+fn optional_failure_fixture(
+    failure: FailureShape,
+) -> (tempfile::TempDir, PackageManifest, FailingAliasResolver) {
     let tmp = tempfile::tempdir().expect("tempdir");
     let path = tmp.path().join("package.json");
     let json = serde_json::json!({
@@ -1082,6 +1120,7 @@ fn optional_failure_fixture() -> (tempfile::TempDir, PackageManifest, FailingAli
             ),
         )]),
         failing: std::collections::HashSet::from(["broken".to_string()]),
+        failure,
     };
     (tmp, manifest, resolver)
 }
@@ -1128,7 +1167,7 @@ fn lockfile_with_package(key: &str) -> pacquet_lockfile::Lockfile {
 
 #[tokio::test]
 async fn skips_an_optional_dependency_whose_resolution_fails_with_no_locked_entry() {
-    let (_tmp, manifest, resolver) = optional_failure_fixture();
+    let (_tmp, manifest, resolver) = optional_failure_fixture(FailureShape::Plain);
     let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
     let skipped = std::sync::Arc::new(Mutex::new(Vec::new()));
     let mut opts = workspace_opts(false, false);
@@ -1172,7 +1211,7 @@ async fn skips_an_optional_dependency_whose_resolution_fails_with_no_locked_entr
 // loudly instead of silently dropping the locked entries.
 #[tokio::test]
 async fn fails_on_an_optional_dependency_that_cannot_be_resolved_with_a_satisfying_locked_entry() {
-    let (_tmp, manifest, resolver) = optional_failure_fixture();
+    let (_tmp, manifest, resolver) = optional_failure_fixture(FailureShape::Plain);
     let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
     let mut opts = workspace_opts(false, false);
     opts.wanted_lockfile = Some(std::sync::Arc::new(lockfile_with_package("broken@1.2.0")));
@@ -1201,7 +1240,7 @@ async fn fails_on_an_optional_dependency_that_cannot_be_resolved_with_a_satisfyi
 
 #[tokio::test]
 async fn skips_an_optional_dependency_when_the_locked_entry_does_not_satisfy_the_wanted_range() {
-    let (_tmp, manifest, resolver) = optional_failure_fixture();
+    let (_tmp, manifest, resolver) = optional_failure_fixture(FailureShape::Plain);
     let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
     let mut opts = workspace_opts(false, false);
     opts.wanted_lockfile = Some(std::sync::Arc::new(lockfile_with_package("broken@0.9.0")));
@@ -1218,6 +1257,70 @@ async fn skips_an_optional_dependency_when_the_locked_entry_does_not_satisfy_the
 
     let direct = &result.peers.direct_dependencies_by_importer["."];
     assert!(!direct.contains_key("broken"), "the failing optional edge is dropped: {direct:?}");
+}
+
+/// The coded resolver failures arrive as their own error variants rather
+/// than the generic `Resolve` envelope, so each has to stay in the
+/// optional-dependency skip arm: an optional dependency the registry has
+/// no version of — or no package for — must keep dropping its edge
+/// instead of failing the install.
+#[tokio::test]
+async fn skips_an_optional_dependency_for_every_coded_resolver_failure() {
+    for failure in [FailureShape::NoMatchingVersion, FailureShape::RegistryResponse] {
+        let (_tmp, manifest, resolver) = optional_failure_fixture(failure);
+        let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
+        let skipped = std::sync::Arc::new(Mutex::new(Vec::new()));
+        let mut opts = workspace_opts(false, false);
+        opts.skipped_optional_log = Some(std::sync::Arc::new({
+            let skipped = std::sync::Arc::clone(&skipped);
+            move |notification| skipped.lock().unwrap().push(notification)
+        }));
+        let result = resolve_workspace(
+            &resolver,
+            &importers,
+            &[DependencyGroup::Prod, DependencyGroup::Optional],
+            opts,
+            |_| importer_opts(std::path::PathBuf::from("/repo"), None),
+        )
+        .await
+        .expect("a coded resolution failure of an optional dependency is skipped");
+
+        let direct = &result.peers.direct_dependencies_by_importer["."];
+        assert!(direct.contains_key("kept"), "the regular dep resolves: {direct:?}");
+        assert!(!direct.contains_key("broken"), "the failing optional edge is dropped: {direct:?}");
+        let skipped = skipped.lock().unwrap();
+        assert_eq!(skipped.len(), 1);
+        assert_eq!(skipped[0].name.as_deref(), Some("broken"));
+    }
+}
+
+/// The loud-failure path for a locked optional dependency has to cover
+/// the coded failures too, for the same reason as the skip arm.
+#[tokio::test]
+async fn fails_loudly_on_a_locked_optional_dependency_for_every_coded_resolver_failure() {
+    for failure in [FailureShape::NoMatchingVersion, FailureShape::RegistryResponse] {
+        let (_tmp, manifest, resolver) = optional_failure_fixture(failure);
+        let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
+        let mut opts = workspace_opts(false, false);
+        opts.wanted_lockfile = Some(std::sync::Arc::new(lockfile_with_package("broken@1.2.0")));
+        opts.update_reuse_scope = crate::UpdateReuseScope::None;
+        let result = resolve_workspace(
+            &resolver,
+            &importers,
+            &[DependencyGroup::Prod, DependencyGroup::Optional],
+            opts,
+            |_| importer_opts(std::path::PathBuf::from("/repo"), None),
+        )
+        .await;
+
+        let Err(crate::ResolveImporterError::Resolve(err)) = result else {
+            panic!("a locked optional dependency must fail loudly");
+        };
+        assert!(
+            matches!(err, crate::ResolveDependencyTreeError::LockedOptionalResolutionFailure(_)),
+            "unexpected error: {err}",
+        );
+    }
 }
 
 /// A newly-resolved package whose manifest carries `deprecated` is

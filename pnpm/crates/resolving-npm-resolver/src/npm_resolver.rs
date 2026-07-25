@@ -29,10 +29,11 @@ use chrono::{DateTime, Utc};
 use node_semver::Version;
 use pacquet_config::{TrustPolicy, version_policy::PackageVersionPolicy};
 use pacquet_lockfile::{LockfileResolution, PkgName, PkgNameVer, TarballResolution};
-use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
+use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_and_sanitize};
 use pacquet_registry::{Package, PackageVersion, PinnedVersion};
 use pacquet_resolving_resolver_base::{
-    LatestInfo, LatestQuery, PackageVersionGuardDecision, ResolutionPolicyViolation, ResolveError,
+    LatestInfo, LatestQuery, NoMatchingVersionError, PackageVersionGuardDecision,
+    RegistryResponseError, RegistryResponseErrorOptions, ResolutionPolicyViolation, ResolveError,
     ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, UpdateBehavior,
     WantedDependency, WorkspacePackages, parse_packument_timestamp,
 };
@@ -41,8 +42,11 @@ use crate::{
     errors::{AllVersionsBlockedError, GuardRepickLimitError},
     named_registry::pick_registry_for_package,
     parse_bare_specifier::{parse_bare_specifier, parse_jsr_specifier_to_registry_package_spec},
-    pick_package::{PackageMetaCache, PickPackageContext, PickPackageOptions, pick_package},
+    pick_package::{
+        PackageMetaCache, PickPackageContext, PickPackageError, PickPackageOptions, pick_package,
+    },
     pick_package_from_meta::{RegistryPackageSpec, RegistryPackageSpecType},
+    registry_url::to_registry_url,
     resolve_from_workspace::{
         ResolveFromWorkspaceError, ResolveFromWorkspaceOptions, SavedSpecifierOptions,
         pick_matching_local_version_or_null, resolve_from_local_package,
@@ -214,8 +218,8 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
 
         let pick_result = self.pick_from_registry(&registry, &spec, opts, optional).await;
         let picked = match pick_result {
-            Ok(Some(picked)) => picked,
-            Ok(None) => {
+            Ok(RegistryPick::Picked(picked)) => picked,
+            Ok(RegistryPick::NoMatchingVersion(meta)) => {
                 return match workspace_packages_active.map(|workspace_packages| {
                     try_workspace_fallback(workspace_packages, &spec, wanted_dependency, opts)
                 }) {
@@ -229,7 +233,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
                             ..
                         },
                     )) => Err(Box::new(ws_err)),
-                    _ => Ok(None),
+                    _ => Err(no_matching_version(wanted_dependency, &registry, &meta)),
                 };
             }
             Err(err) => {
@@ -307,10 +311,12 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         let registry = self.registries.get("@jsr").map_or(DEFAULT_JSR_REGISTRY, String::as_str);
 
         let optional = wanted_dependency.optional.unwrap_or(false);
-        let Some(picked) =
-            self.pick_from_registry(registry, &jsr_spec.spec, opts, optional).await?
-        else {
-            return Ok(None);
+        let picked = match self.pick_from_registry(registry, &jsr_spec.spec, opts, optional).await?
+        {
+            RegistryPick::Picked(picked) => picked,
+            RegistryPick::NoMatchingVersion(meta) => {
+                return Err(no_matching_version(wanted_dependency, registry, &meta));
+            }
         };
 
         let result = build_resolve_result(BuildResolveResult {
@@ -334,16 +340,14 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
     }
 
     /// Common picker invocation shared by [`Self::resolve_impl`] and
-    /// [`Self::resolve_jsr_impl`]. Returns `Ok(None)` when the picker
-    /// finds no matching version so each caller can fold that into
-    /// its own `Ok(None)` short-circuit.
+    /// [`Self::resolve_jsr_impl`].
     async fn pick_from_registry(
         &self,
         registry: &str,
         spec: &RegistryPackageSpec,
         opts: &ResolveOptions,
         optional: bool,
-    ) -> Result<Option<PickedFromRegistry>, ResolveError> {
+    ) -> Result<RegistryPick, ResolveError> {
         let overlay_selectors =
             crate::preferred_overlay::overlay_merged_selectors(opts, &spec.name);
         let base_selectors =
@@ -379,7 +383,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             },
         )
         .await?;
-        if let Some(picked) = &picked {
+        if let RegistryPick::Picked(picked) = &picked {
             crate::preferred_overlay::warn_once_on_held_back_update(
                 opts,
                 spec,
@@ -413,7 +417,13 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         if !query.compatible {
             resolve_opts.update = UpdateBehavior::Latest;
         }
-        let result = self.resolve_impl(&wanted, &resolve_opts).await?;
+        let result = match self.resolve_impl(&wanted, &resolve_opts).await {
+            Ok(result) => result,
+            Err(err) if swallowed_as_no_latest(&err, opts) => {
+                return Ok(Some(LatestInfo { latest_manifest: None }));
+            }
+            Err(err) => return Err(err),
+        };
         let Some(result) = result else {
             return Ok(None);
         };
@@ -426,6 +436,30 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         }
         Ok(Some(LatestInfo { latest_manifest: result.manifest }))
     }
+}
+
+/// Whether a latest-version lookup should report "no latest" instead of
+/// failing. `minimumReleaseAge` filters the packument before the pick, so
+/// every published version can be too young to match — a policy outcome the
+/// caller renders as "nothing to update to", not an error.
+pub(crate) fn swallowed_as_no_latest(err: &ResolveError, opts: &ResolveOptions) -> bool {
+    opts.published_by.is_some() && err.is::<NoMatchingVersionError>()
+}
+
+/// The `ERR_PNPM_NO_MATCHING_VERSION` error for a registry that publishes the
+/// package but nothing the request accepts.
+pub(crate) fn no_matching_version(
+    wanted_dependency: &WantedDependency,
+    registry: &str,
+    meta: &Package,
+) -> ResolveError {
+    let dep = match wanted_dependency.alias.as_deref() {
+        Some(alias) => {
+            format!("{alias}@{}", wanted_dependency.bare_specifier.as_deref().unwrap_or_default())
+        }
+        None => wanted_dependency.bare_specifier.clone().unwrap_or_default(),
+    };
+    Box::new(NoMatchingVersionError::new(dep, redact_and_sanitize(registry), meta))
 }
 
 /// Registry pick was unavailable (no matching version or fetch
@@ -533,6 +567,15 @@ pub(crate) struct PickedFromRegistry {
     pub(crate) version: std::sync::Arc<PackageVersion>,
 }
 
+/// Outcome of a registry pick.
+pub(crate) enum RegistryPick {
+    Picked(PickedFromRegistry),
+    /// The registry served the packument but no published version satisfied
+    /// the request. The packument comes along because
+    /// [`NoMatchingVersionError`] reports what *is* published.
+    NoMatchingVersion(std::sync::Arc<Package>),
+}
+
 pub(crate) struct PickFromRegistryOptions<'a> {
     pub registry: &'a str,
     pub spec: &'a RegistryPackageSpec,
@@ -556,7 +599,7 @@ const GUARD_REPICK_LIMIT: usize = 1000;
 pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
     ctx: &PickPackageContext<'_, Cache>,
     opts: PickFromRegistryOptions<'_>,
-) -> Result<Option<PickedFromRegistry>, ResolveError> {
+) -> Result<RegistryPick, ResolveError> {
     let mut blocked_versions = std::collections::HashSet::new();
     let mut last_rejection: Option<String> = None;
     loop {
@@ -574,27 +617,32 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
         };
         let pick_result = pick_package(ctx, opts.spec, &pick_opts)
             .await
-            .map_err(|err| Box::new(err) as ResolveError)?;
+            .map_err(|err| map_pick_error(ctx, &opts, err))?;
 
         let Some(version) = pick_result.picked_package else {
             // No candidate left. With no prior guard rejection this is the
-            // ordinary "no matching version" outcome the resolver folds into
-            // Ok(None); once the guard has rejected every match, surface that
-            // as a distinct error instead of letting it read as an
-            // unsupported spec downstream.
+            // ordinary "no matching version" outcome; once the guard has
+            // rejected every match, surface that as a distinct error rather
+            // than blaming the range the user wrote.
             return match last_rejection {
                 Some(reason) => Err(all_versions_blocked(opts.spec, reason)),
-                None => Ok(None),
+                None => Ok(RegistryPick::NoMatchingVersion(pick_result.meta)),
             };
         };
         let Some(guard) = opts.package_version_guard else {
-            return Ok(Some(PickedFromRegistry { meta: pick_result.meta, version }));
+            return Ok(RegistryPick::Picked(PickedFromRegistry {
+                meta: pick_result.meta,
+                version,
+            }));
         };
 
         let version_str = version.version.to_string();
         match guard.check(&opts.spec.name, &version_str).await? {
             PackageVersionGuardDecision::Allow => {
-                return Ok(Some(PickedFromRegistry { meta: pick_result.meta, version }));
+                return Ok(RegistryPick::Picked(PickedFromRegistry {
+                    meta: pick_result.meta,
+                    version,
+                }));
             }
             PackageVersionGuardDecision::Reject { reason } => {
                 tracing::debug!(
@@ -657,6 +705,34 @@ fn blocked_packument_key(
 
 fn all_versions_blocked(spec: &RegistryPackageSpec, reason: String) -> ResolveError {
     Box::new(AllVersionsBlockedError { name: spec.name.clone(), reason })
+}
+
+/// Box a picker failure for the resolver chain, restating a non-2xx registry
+/// answer as [`RegistryResponseError`]. Without that the transport-level
+/// message ("HTTP status client error (404 Not Found) for url ...") is all the
+/// user sees: no `ERR_PNPM_FETCH_404`, and no hint that a 404 from a private
+/// registry is often really an authorization failure.
+fn map_pick_error<Cache: PackageMetaCache>(
+    ctx: &PickPackageContext<'_, Cache>,
+    opts: &PickFromRegistryOptions<'_>,
+    error: PickPackageError,
+) -> ResolveError {
+    let Some(status) = registry_response_status(&error) else {
+        return Box::new(error);
+    };
+    let url = to_registry_url(opts.registry, &opts.spec.name);
+    // Look the credential up with the URL the fetch itself used. An inline
+    // `user:pass@` is exactly what `AuthHeaders` turns into a Basic header, so
+    // redacting before the lookup would report "no authorization header was
+    // set" for the registries that most certainly carry one.
+    let auth_header_value = ctx.auth_headers.for_url_with_package(&url, Some(&opts.spec.name));
+    Box::new(RegistryResponseError::new(RegistryResponseErrorOptions {
+        url: &redact_and_sanitize(&url),
+        status: status.as_u16(),
+        status_text: status.canonical_reason().unwrap_or_default(),
+        pkg_name: &opts.spec.name,
+        auth_header_value: auth_header_value.as_deref(),
+    }))
 }
 
 /// Input bundle for [`build_resolve_result`]. Grouped so the
@@ -841,18 +917,30 @@ fn detect_min_release_age_violation(
     })
 }
 
-/// Whether any error in the source chain is a reqwest `404 Not Found`.
+/// Whether the registry answered "no such package" for this pick.
 fn is_not_found_error(err: &(dyn std::error::Error + 'static)) -> bool {
+    registry_response_status(err) == Some(reqwest::StatusCode::NOT_FOUND)
+}
+
+/// The HTTP status a registry answered with, recovered from anywhere in the
+/// error chain. Both shapes occur: the picker's raw `reqwest` failure, and the
+/// [`RegistryResponseError`] [`map_pick_error`] restates it as.
+fn registry_response_status(
+    err: &(dyn std::error::Error + 'static),
+) -> Option<reqwest::StatusCode> {
     let mut current = Some(err);
     while let Some(err) = current {
+        if let Some(response_err) = err.downcast_ref::<RegistryResponseError>() {
+            return reqwest::StatusCode::from_u16(response_err.status).ok();
+        }
         if let Some(reqwest_err) = err.downcast_ref::<reqwest::Error>()
-            && reqwest_err.status() == Some(reqwest::StatusCode::NOT_FOUND)
+            && let Some(status) = reqwest_err.status()
         {
-            return true;
+            return Some(status);
         }
         current = err.source();
     }
-    false
+    None
 }
 
 #[cfg(test)]

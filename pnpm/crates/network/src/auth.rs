@@ -734,6 +734,31 @@ pub fn base64_encode(input: &str) -> String {
     out
 }
 
+/// Mask an `Authorization` header value for display in an error message.
+/// The scheme survives so the reader can tell a `Bearer` token from `Basic`
+/// credentials, and a token long enough to be recognized by its owner keeps
+/// its first four characters; everything else becomes `[hidden]`.
+///
+/// Control characters are dropped first: the value comes from an untrusted
+/// `.npmrc` / environment variable and the masked result is printed to the
+/// terminal, so a token carrying raw escapes could otherwise inject terminal
+/// output through the characters masking leaves behind.
+#[must_use]
+pub fn hide_auth_information(auth_header_value: &str) -> String {
+    let sanitized: String =
+        auth_header_value.chars().filter(|character| !character.is_control()).collect();
+    let mut parts = sanitized.split(' ');
+    let auth_type = parts.next().unwrap_or_default();
+    let Some(token) = parts.next() else {
+        return "[hidden]".to_string();
+    };
+    if token.chars().count() < 20 {
+        return format!("{auth_type} [hidden]");
+    }
+    let prefix: String = token.chars().take(4).collect();
+    format!("{auth_type} {prefix}[hidden]")
+}
+
 /// Strip `user:pass@` (or `user@`) that appears right after a URL scheme in
 /// any message text, e.g. `… https://user:pass@host/pkg …` →
 /// `… https://host/pkg …`. A registry configured as `https://user:pass@host/`

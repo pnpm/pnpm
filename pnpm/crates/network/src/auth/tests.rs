@@ -1,6 +1,6 @@
 use super::{
-    AuthHeaders, DEFAULT_REGISTRY_SCOPE, UpstreamRouteHook, base64_encode, nerf_dart,
-    redact_and_sanitize, redact_url_credentials,
+    AuthHeaders, DEFAULT_REGISTRY_SCOPE, UpstreamRouteHook, base64_encode, hide_auth_information,
+    nerf_dart, redact_and_sanitize, redact_url_credentials,
 };
 use crate::TokenHelperOutput;
 use pretty_assertions::assert_eq;
@@ -231,6 +231,29 @@ fn redact_and_sanitize_strips_credentials_and_control_chars() {
     // A control character inside the userinfo must not break the redaction:
     // controls are stripped first, then credentials are redacted.
     assert_eq!(redact_and_sanitize("https://user:pass\r@host/x"), "https://host/x");
+}
+
+#[test]
+fn hide_auth_information_keeps_the_scheme_and_masks_the_credential() {
+    // A token long enough to recognize keeps four characters.
+    assert_eq!(hide_auth_information("Bearer npm_0123456789abcdefghij"), "Bearer npm_[hidden]");
+    // A short token could be guessed from a prefix, so none of it survives.
+    assert_eq!(hide_auth_information("Bearer short-token"), "Bearer [hidden]");
+    assert_eq!(hide_auth_information("Basic Zm9vOmJhcg=="), "Basic [hidden]");
+    // No scheme to report — the whole value is a credential.
+    assert_eq!(hide_auth_information("bare-token"), "[hidden]");
+}
+
+#[test]
+fn hide_auth_information_strips_control_characters() {
+    // The masked value is printed to the terminal, so escapes carried by an
+    // untrusted `.npmrc` token must not survive masking.
+    let masked = hide_auth_information("Bea\u{1b}[31mrer \u{1b}[0m0123456789abcdefghijk\r\n");
+    dbg!(&masked);
+    assert!(
+        !masked.chars().any(char::is_control),
+        "no control character may reach the terminal: {masked:?}",
+    );
 }
 
 fn build(entries: &[(&str, &str)]) -> AuthHeaders {

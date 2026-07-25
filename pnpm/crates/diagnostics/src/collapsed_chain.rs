@@ -4,10 +4,12 @@
 //! `#[diagnostic(transparent)]` variants so `?` composes across crate
 //! boundaries. Such a variant displays as its inner error *and* keeps
 //! it as its `source`, so a leaf error four wrappers deep renders the
-//! same sentence at five levels of miette's `├─▶` cause chain. The
-//! handler here folds those levels away before delegating to miette's
-//! own renderer, which keeps every theme, width, and colour decision
-//! miette would otherwise make.
+//! same sentence at five levels of miette's `├─▶` cause chain. A
+//! wrapper that prefixes the inner message with context
+//! ("Failed to resolve dependency tree: {inner}") repeats it just as
+//! fully, one line above. The handler here folds those levels away
+//! before delegating to miette's own renderer, which keeps every theme,
+//! width, and colour decision miette would otherwise make.
 
 use miette::{
     Diagnostic, LabeledSpan, MietteHandler, MietteHandlerOpts, ReportHandler, Severity, SourceCode,
@@ -40,8 +42,8 @@ impl ReportHandler for CollapsingHandler {
     }
 }
 
-/// The reported error, with consecutive repeats of the same message
-/// dropped from its cause chain.
+/// The reported error, with every cause the level above it already
+/// states in full dropped from its chain (see [`restates`]).
 ///
 /// Every [`Diagnostic`] method delegates to the reported error itself,
 /// so its code, help, labels, and source snippet render unchanged.
@@ -71,7 +73,7 @@ impl<'a> Collapsed<'a> {
         let mut level = nested(Level::Diagnostic(head));
         while let Some(current) = level {
             let message = current.to_string();
-            if message != last {
+            if !restates(&last, &message) {
                 messages.push(message.clone());
                 last = message;
             }
@@ -84,6 +86,21 @@ impl<'a> Collapsed<'a> {
         }
         Collapsed { head, causes }
     }
+}
+
+/// Whether `outer` already says everything `inner` says: the two are equal, or
+/// `outer` is a wrapper that appended `inner` verbatim behind a separator
+/// ("Failed to resolve dependency tree: {inner}"). A cause level renders as its
+/// message and nothing else, so one whose whole message the line above already
+/// ends with adds no information.
+///
+/// The separator is what makes the tail a restatement rather than a
+/// coincidence: without it, a short cause ("0.1") would fold into any wrapper
+/// whose sentence happens to end with those characters ("resolved to 3.0.1"),
+/// dropping a distinct cause.
+fn restates(outer: &str, inner: &str) -> bool {
+    let Some(prefix) = outer.strip_suffix(inner) else { return false };
+    prefix.is_empty() || prefix.ends_with([' ', ':'])
 }
 
 /// One level of the reported error's cause chain. miette walks a mix
