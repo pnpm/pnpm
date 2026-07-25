@@ -62,11 +62,18 @@ impl DirLock {
             match fs::create_dir(&path) {
                 Ok(()) => {
                     let token = mint_token();
-                    // Best-effort: an unwritable owner file only costs
-                    // this holder the stale-successor check below, which
-                    // is what the code did before the file existed.
-                    let _ = fs::write(path.join(OWNER_FILE), &token);
-                    return Ok(Some(DirLock { path, token }));
+                    if fs::write(path.join(OWNER_FILE), &token).is_ok() {
+                        return Ok(Some(DirLock { path, token }));
+                    }
+                    // Without its owner record this lock cannot tell, at
+                    // release time, whether it is still the one it took.
+                    // Rather than hold an unidentifiable lock, give the
+                    // directory back and report the lock as not taken —
+                    // the caller's documented degradation is to proceed
+                    // unserialized, which is no worse than not having
+                    // tried.
+                    let _ = fs::remove_dir_all(&path);
+                    return Ok(None);
                 }
                 Err(error) if error.kind() != io::ErrorKind::AlreadyExists => return Err(error),
                 Err(_) => {}
@@ -92,6 +99,16 @@ impl Drop for DirLock {
         // `abandoned_after` has already had its directory removed and
         // replaced by the next process in line; removing that one would
         // hand the resource to two processes at once.
+        //
+        // Reading the record and removing the directory are two steps, so
+        // a takeover landing between them is still removable — the check
+        // narrows the window from the whole guarded operation to a couple
+        // of syscalls, it does not close it. Closing it needs an atomic
+        // compare-and-remove no portable filesystem API offers. The
+        // residual is acceptable because reaching it requires a takeover,
+        // which requires this holder to have already run past
+        // `abandoned_after` — a bound the caller sizes well above the
+        // work being guarded.
         match fs::read_to_string(self.path.join(OWNER_FILE)) {
             Ok(owner) if owner != self.token => return,
             Err(error) if error.kind() != io::ErrorKind::NotFound => return,

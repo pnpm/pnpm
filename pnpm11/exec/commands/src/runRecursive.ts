@@ -130,7 +130,17 @@ export async function runRecursive (
         if (!process.env.npm_lifecycle_event) {
           throwOrFilterHiddenScripts([scriptName], scriptName)
         }
-        result[prefix].status = 'running'
+        // Guarded for the same reason as the 'passed' write below: a
+        // sibling script starting after this project already failed would
+        // otherwise reset it, and 'running' is no more a failure than
+        // 'passed' is as far as countFailures is concerned.
+        // Guarded for the same reason as the 'passed' write below: a
+        // sibling script starting after this project already failed would
+        // otherwise reset it, and 'running' is no more a failure than
+        // 'passed' is as far as countFailures is concerned.
+        if (!failedPrefixes.has(prefix)) {
+          result[prefix].status = 'running'
+        }
         const startTime = process.hrtime()
         hasCommand++
         try {

@@ -1326,11 +1326,12 @@ test('pnpm recursive run with a regex selector keeps a failure when a later matc
       version: '1.0.0',
 
       scripts: {
-        // The selector matches both. `check:b` is delayed so it always
-        // settles after `check:a` has failed, which is the ordering that
-        // would let its success overwrite the recorded failure.
+        // The selector matches both, and they run one after the other
+        // (see workspaceConcurrency below), so `check:b` both starts and
+        // settles after `check:a` has failed — the ordering in which its
+        // 'running' and 'passed' writes would each erase that failure.
         'check:a': 'exit 1',
-        'check:b': 'node -e "setTimeout(() => {}, 500)"',
+        'check:b': 'exit 0',
       },
     },
   ])
@@ -1347,6 +1348,7 @@ test('pnpm recursive run with a regex selector keeps a failure when a later matc
       selectedProjectsGraph,
       workspaceDir: process.cwd(),
       bail: false,
+      workspaceConcurrency: 1,
     }, ['/^check:/'])
   } catch (_err: any) { // eslint-disable-line
     err = _err

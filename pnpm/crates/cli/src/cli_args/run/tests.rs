@@ -42,8 +42,9 @@ fn specified_scripts_selects_every_regexp_match() {
         ScriptSelector::new("/^build:(backend|frontend)$/").unwrap().select(&manifest),
         vec!["build:backend".to_string(), "build:frontend".to_string()],
     );
-    // The pattern is searched for, not anchored, so `build` matches too,
-    // and the matches keep the manifest's declaration order.
+    // The pattern is not implicitly anchored to the whole script name —
+    // it is searched for — so `build` matches this one too, and the
+    // matches keep the manifest's declaration order.
     assert_eq!(
         ScriptSelector::new("/^build/").unwrap().select(&manifest),
         vec!["build:backend".to_string(), "build:frontend".to_string(), "build".to_string()],
