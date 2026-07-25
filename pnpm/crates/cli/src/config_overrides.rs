@@ -1,5 +1,3 @@
-use crate::cli_args::CliArgs;
-use clap::CommandFactory;
 use pacquet_config::{
     Config, EnvVar, GetCurrentDir, GetHomeDir, LinkProbe, NodeLinker, PmOnFail, RuntimeOnFail,
     VerifyDepsBeforeRun,
@@ -104,15 +102,11 @@ impl ConfigOverrides {
         Argv: IntoIterator<Item = OsString>,
     {
         let argv = argv.into_iter().collect::<Vec<_>>();
-        let external_command_index = external_command_index(&argv);
-        // Everything past `--` belongs to whatever pnpm runs, not to pnpm.
-        let separator_index = argv.iter().position(|arg| arg == "--");
+        let passthrough_from = crate::parse_boundary::passthrough_from(&argv);
         let mut overrides = Self::default();
         let mut remaining = Vec::new();
         for (index, arg) in argv.into_iter().enumerate() {
-            if external_command_index.is_some_and(|command_index| index > command_index)
-                || separator_index.is_some_and(|separator| index > separator)
-            {
+            if passthrough_from.is_some_and(|boundary| index >= boundary) {
                 remaining.push(arg);
                 continue;
             }
@@ -240,67 +234,6 @@ fn verify_deps_env_is_set() -> bool {
     ["PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN", pacquet_executor::VERIFY_DEPS_BEFORE_RUN_ENV]
         .iter()
         .any(|name| std::env::var(name).is_ok())
-}
-
-fn external_command_index(argv: &[OsString]) -> Option<usize> {
-    let mut index = 1;
-    while index < argv.len() {
-        let Some(arg) = argv[index].to_str() else {
-            return Some(index);
-        };
-        if arg == "--" {
-            return None;
-        }
-        if arg.starts_with("--config.") {
-            index += 1;
-            continue;
-        }
-        if let Some(width) = global_option_width(arg) {
-            index += width;
-            continue;
-        }
-        if arg.starts_with('-') {
-            index += 1;
-            continue;
-        }
-        return (!is_known_top_level_command(arg)).then_some(index);
-    }
-    None
-}
-
-fn global_option_width(arg: &str) -> Option<usize> {
-    if matches!(arg, "-r" | "-v") {
-        return Some(1);
-    }
-    if matches!(arg, "-C" | "-F") {
-        return Some(2);
-    }
-    if arg.starts_with("-C") || arg.starts_with("-F") {
-        return Some(1);
-    }
-    let name = arg.strip_prefix("--")?;
-    let (name, has_value) = name.split_once('=').map_or((name, false), |(name, _)| (name, true));
-    let consumes_value = matches!(
-        name,
-        "dir"
-            | "filter"
-            | "filter-prod"
-            | "http-proxy"
-            | "https-proxy"
-            | "no-proxy"
-            | "npmrc-auth-file"
-            | "registry"
-            | "reporter"
-            | "store-dir"
-            | "userconfig",
-    );
-    Some(if consumes_value && !has_value { 2 } else { 1 })
-}
-
-fn is_known_top_level_command(name: &str) -> bool {
-    CliArgs::command().get_subcommands().any(|command| {
-        command.get_name() == name || command.get_all_aliases().any(|alias| alias == name)
-    })
 }
 
 enum ConfigToken<'a> {

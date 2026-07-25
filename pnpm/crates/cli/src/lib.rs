@@ -5,6 +5,7 @@ mod config_overrides;
 mod flag_relocation;
 mod github_actions;
 mod job_control;
+mod parse_boundary;
 mod shorthands;
 mod state;
 mod with_current;
