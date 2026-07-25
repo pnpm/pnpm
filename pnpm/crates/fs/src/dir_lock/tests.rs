@@ -87,3 +87,16 @@ fn a_stale_holder_does_not_release_its_successors_lock() {
     drop(successor);
     assert!(!path.exists(), "the successor releases it on its own drop");
 }
+
+#[test]
+fn claiming_a_directory_that_cannot_hold_the_record_fails() {
+    let root = tempdir().expect("create tempdir");
+    // Nothing at this path, so writing the owner record inside it fails —
+    // standing in for the unwritable store the real caller hits.
+    let path = root.path().join("missing").join("engine.lock");
+
+    let error = super::claim(path.clone()).expect_err("an unrecordable lock is not taken");
+
+    assert_eq!(error.kind(), std::io::ErrorKind::NotFound);
+    assert!(!path.exists(), "no lock is left behind");
+}

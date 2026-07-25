@@ -47,12 +47,9 @@ impl DirLock {
     /// take, or a slow holder gets its lock stolen — which is why it is
     /// the caller's to choose and not tied to `wait`.
     ///
-    /// `Ok(None)` means the lock is held by someone else. An `Err` means
-    /// the locking mechanism itself failed — the parent directory or the
-    /// owner record could not be written — which is a different thing
-    /// entirely, and the caller should say so rather than quietly running
-    /// unserialized as though it had merely lost a race. Losing the race
-    /// is what the wait is for.
+    /// `Ok(None)` is a lock someone else holds; `Err` is one that could
+    /// not be established at all. Callers that degrade rather than fail
+    /// need to tell those apart.
     pub fn acquire(
         path: PathBuf,
         wait: Duration,
@@ -110,13 +107,8 @@ impl Drop for DirLock {
 }
 
 /// Record this process as the owner of a lock directory it just created.
-///
-/// Without its owner record a lock cannot tell, at release time, whether
-/// it is still the one it took, so an unwritable record hands the
-/// directory back rather than holding an unidentifiable lock. That is
-/// reported as an error, not as a busy lock: a store this process cannot
-/// write is not the same as one another process is using, and the caller
-/// should be able to say which happened.
+/// A lock that cannot be recorded is given back, since [`Drop`] would
+/// have no way to tell at release time whether it is still ours.
 fn claim(path: PathBuf) -> io::Result<DirLock> {
     let token = mint_token();
     if let Err(error) = fs::write(path.join(OWNER_FILE), &token) {

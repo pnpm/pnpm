@@ -160,10 +160,6 @@ async fn install_pnpm_from_env_with_config<Reporter: self::Reporter + 'static>(
 /// when it can't be taken. Losing the lock is not a reason to refuse to
 /// run: the install below is the same one every other process is racing
 /// to perform, so proceeding unserialized is exactly today's behavior.
-///
-/// A lock that could not be *established* is warned about instead:
-/// running unserialized is survivable, but doing it because the store
-/// could not be written would otherwise hide why the race came back.
 fn engine_install_lock<Reporter: self::Reporter>(
     config: &Config,
     package_name: &str,
