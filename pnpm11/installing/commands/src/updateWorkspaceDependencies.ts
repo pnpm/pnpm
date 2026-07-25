@@ -19,6 +19,32 @@ export function updateToWorkspacePackagesFromManifest (
 }
 
 /**
+ * The dependency selectors a `--workspace` install resolves from the workspace
+ * instead of the registry.
+ *
+ * `selectors` are the dependency names the update already matched, which is
+ * empty both when the user named nothing and when the packages they named
+ * matched no direct dependency. `userNamedDeps` separates those: only the
+ * former expands to every workspace dependency in the manifest, and only the
+ * latter treats a dependency missing from the workspace as an error.
+ */
+export function toWorkspaceSpecs (
+  selectors: string[],
+  opts: {
+    manifest: ProjectManifest
+    include: IncludedDependencies
+    workspacePackages: WorkspacePackages
+    userNamedDeps: boolean
+  }
+): string[] {
+  if (selectors.length > 0) {
+    return createWorkspaceSpecs(selectors, opts.workspacePackages, { skipPackagesOutsideWorkspace: !opts.userNamedDeps })
+  }
+  if (opts.userNamedDeps) return []
+  return updateToWorkspacePackagesFromManifest(opts.manifest, opts.include, opts.workspacePackages)
+}
+
+/**
  * Rewrite dependency selectors to point at the workspace copies of the same
  * packages.
  *

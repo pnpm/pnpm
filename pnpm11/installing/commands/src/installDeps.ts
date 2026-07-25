@@ -56,7 +56,7 @@ import {
   type UpdateDepsMatcher,
 } from './recursive.js'
 import { makeRunPacquet } from './runPacquet.js'
-import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies.js'
+import { toWorkspaceSpecs } from './updateWorkspaceDependencies.js'
 import { verifyPacquetIdentity } from './verifyPacquetIdentity.js'
 
 const OVERWRITE_UPDATE_OPTIONS = {
@@ -397,16 +397,12 @@ export async function installDeps (
     params = Object.keys(filterDependenciesByType(manifest, includeDirect))
   }
   if (opts.workspace) {
-    if (!params || (params.length === 0)) {
-      // The user's own selectors matched no direct dependency, so there is
-      // nothing they asked to link; linking every workspace dependency instead
-      // would update packages that were never named.
-      if (!userNamedDeps) {
-        params = updateToWorkspacePackagesFromManifest(manifest, includeDirect, workspacePackages)
-      }
-    } else {
-      params = createWorkspaceSpecs(params, workspacePackages, { skipPackagesOutsideWorkspace: !userNamedDeps })
-    }
+    params = toWorkspaceSpecs(params ?? [], {
+      manifest,
+      include: includeDirect,
+      workspacePackages,
+      userNamedDeps,
+    })
   }
   if (params?.length) {
     const mutatedProject = {

@@ -58,7 +58,7 @@ import { getPinnedVersion } from './getPinnedVersion.js'
 import { getSaveType } from './getSaveType.js'
 import { handleIgnoredBuilds } from './handleIgnoredBuilds.js'
 import { type PolicyViolation, setupPolicyHandlers } from './policyHandlers.js'
-import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies.js'
+import { toWorkspaceSpecs } from './updateWorkspaceDependencies.js'
 
 export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'bail'
@@ -277,13 +277,12 @@ export async function recursive (
         currentInput = Object.keys(filterDependenciesByType(manifest, includeDirect))
       }
       if (opts.workspace) {
-        if (!currentInput || (currentInput.length === 0)) {
-          if (!userNamedDeps) {
-            currentInput = updateToWorkspacePackagesFromManifest(manifest, includeDirect, workspacePackages)
-          }
-        } else {
-          currentInput = createWorkspaceSpecs(currentInput, workspacePackages, { skipPackagesOutsideWorkspace: !userNamedDeps })
-        }
+        currentInput = toWorkspaceSpecs(currentInput, {
+          manifest,
+          include: includeDirect,
+          workspacePackages,
+          userNamedDeps,
+        })
       }
       switch (mutation) {
         case 'uninstallSome':
@@ -407,13 +406,12 @@ export async function recursive (
           currentInput = Object.keys(filterDependenciesByType(manifest, includeDirect))
         }
         if (opts.workspace) {
-          if (!currentInput || (currentInput.length === 0)) {
-            if (!userNamedDeps) {
-              currentInput = updateToWorkspacePackagesFromManifest(manifest, includeDirect, workspacePackages)
-            }
-          } else {
-            currentInput = createWorkspaceSpecs(currentInput, workspacePackages, { skipPackagesOutsideWorkspace: !userNamedDeps })
-          }
+          currentInput = toWorkspaceSpecs(currentInput, {
+            manifest,
+            include: includeDirect,
+            workspacePackages,
+            userNamedDeps,
+          })
         }
 
         type ActionOpts =

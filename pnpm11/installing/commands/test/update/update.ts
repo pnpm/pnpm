@@ -225,7 +225,7 @@ test('update: fail when both "latest" and "workspace" are true', async () => {
   expect(err.message).toBe('Cannot use --latest with --workspace simultaneously')
 })
 
-test('update --workspace leaves registry dependencies alone when some dependencies are ignored', async () => {
+test('update --workspace skips ignored dependencies and leaves registry dependencies alone', async () => {
   preparePackages([
     {
       name: 'project-1',
@@ -233,11 +233,16 @@ test('update --workspace leaves registry dependencies alone when some dependenci
       dependencies: {
         '@pnpm.e2e/foo': '1.0.0',
         'project-2': '0.0.0',
+        'project-3': '^3.0.0',
       },
     },
     {
       name: 'project-2',
       version: '2.0.0',
+    },
+    {
+      name: 'project-3',
+      version: '3.0.0',
     },
   ])
 
@@ -245,7 +250,7 @@ test('update --workspace leaves registry dependencies alone when some dependenci
     ...DEFAULT_OPTS,
     dir: path.resolve('project-1'),
     saveWorkspaceProtocol: 'rolling',
-    updateConfig: { ignoreDependencies: ['@pnpm.e2e/bar'] },
+    updateConfig: { ignoreDependencies: ['project-3'] },
     workspace: true,
     workspaceDir: process.cwd(),
   })
@@ -253,8 +258,12 @@ test('update --workspace leaves registry dependencies alone when some dependenci
   const manifest = loadJsonFileSync<ProjectManifest>(path.resolve('project-1/package.json'))
 
   expect(manifest.dependencies).toStrictEqual({
+    // Only published to the registry: nothing to link it to, and having
+    // any ignored dependency must not turn that into an error.
     '@pnpm.e2e/foo': '1.0.0',
     'project-2': 'workspace:*',
+    // A workspace package, but ignored, so it keeps its specifier.
+    'project-3': '^3.0.0',
   })
 })
 
