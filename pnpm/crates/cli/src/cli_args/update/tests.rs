@@ -111,5 +111,5 @@ fn workspace_option_is_checked_before_anything_is_read() {
     let with_latest = update_args(&["--workspace", "--latest"])
         .check_workspace_option(Some(workspace_root))
         .expect_err("--workspace with --latest");
-    assert_eq!(with_latest.to_string(), "Cannot use --latest with --workspace simultaneously",);
+    assert_eq!(with_latest.to_string(), "Cannot use --latest with --workspace simultaneously");
 }
