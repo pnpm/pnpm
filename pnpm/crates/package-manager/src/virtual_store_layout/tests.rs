@@ -7,7 +7,8 @@ use pacquet_lockfile::{
 use pretty_assertions::{assert_eq, assert_ne};
 use std::{
     collections::{HashMap, HashSet},
-    path::PathBuf,
+    ffi::OsStr,
+    path::{Path, PathBuf},
 };
 
 /// Build a `Config` test-double with the GVS-relevant fields
@@ -508,7 +509,7 @@ fn directory_deps_get_a_slot_per_project() {
             Some(&snapshots),
             Some(&packages),
             None,
-            Some(std::path::Path::new(lockfile_dir)),
+            Some(Path::new(lockfile_dir)),
         )
         .slot_dir(&key)
     };
@@ -516,8 +517,12 @@ fn directory_deps_get_a_slot_per_project() {
     let in_project_a = slot_in("/home/user/a");
     let in_project_b = slot_in("/home/user/b");
     assert_ne!(in_project_a, in_project_b);
-    assert!(
-        in_project_a.to_string_lossy().contains("dep/directory/"),
+    // The slot is `<root>/@/dep/<version>/<hash>`, so the version segment is
+    // the hash directory's parent. Compared as a component rather than a
+    // substring: the separator is native, `\` on Windows.
+    assert_eq!(
+        in_project_a.parent().and_then(Path::file_name),
+        Some(OsStr::new("directory")),
         "directory deps take the anchored version segment; got {in_project_a:?}",
     );
 }
