@@ -465,6 +465,10 @@ fn local_directory_scope(
 ) -> Option<String> {
     match resolution {
         Some(LockfileResolution::Directory(_)) => {
+            // Lossy on purpose: the TypeScript CLI hashes the same slot from a
+            // JS string, and Node decodes a path as UTF-8 with replacement, so
+            // this is the identical input. Hashing the raw bytes instead would
+            // give the two stacks different slots for the same project.
             lockfile_dir.map(|dir| dir.to_string_lossy().into_owned())
         }
         _ => None,
