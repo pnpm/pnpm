@@ -69,6 +69,12 @@ importers:
         choices.iter().map(|choice| choice.alias.as_str()).collect::<Vec<_>>(),
         vec!["foo", "bar"],
     );
+    // Each entry remembers the project it came from, which is what the
+    // interactive list's `Workspace` column shows.
+    assert_eq!(
+        choices.iter().map(|choice| choice.workspace.as_deref()).collect::<Vec<_>>(),
+        vec![Some("packages-a"), Some("packages-b")],
+    );
     foo_mock.assert_async().await;
     bar_mock.assert_async().await;
 }

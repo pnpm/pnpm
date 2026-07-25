@@ -75,7 +75,7 @@ pub(crate) async fn select_packages<Reporter: self::Reporter>(
         )
         .await?;
     }
-    prompt_for_packages(&choices, options.latest)
+    prompt_for_packages(&choices, options.latest, config.workspace_dir.is_some())
 }
 
 pub(crate) async fn select_packages_for_projects<Reporter: self::Reporter>(
@@ -116,7 +116,7 @@ pub(crate) async fn select_packages_for_projects<Reporter: self::Reporter>(
         )
         .await?;
     }
-    prompt_for_packages(&choices, options.latest)
+    prompt_for_packages(&choices, options.latest, true)
 }
 
 async fn append_github_actions<Reporter: self::Reporter>(
@@ -181,6 +181,7 @@ async fn collect_choices(
 fn prompt_for_packages(
     choices: &[OutdatedPackage],
     latest: bool,
+    workspaces_enabled: bool,
 ) -> miette::Result<Option<Vec<String>>> {
     if choices.is_empty() {
         let message = if latest {
@@ -192,7 +193,7 @@ fn prompt_for_packages(
         return Ok(None);
     }
 
-    let groups = choices::update_choices(&choices.iter().collect::<Vec<_>>());
+    let groups = choices::update_choices(&choices.iter().collect::<Vec<_>>(), workspaces_enabled);
     let (labels, values) = flatten_groups(&groups);
 
     let selected_indices = MultiSelect::new()

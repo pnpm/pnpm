@@ -32,6 +32,7 @@ fn pkg(
         github_action: false,
         deprecated: None,
         homepage: None,
+        workspace: None,
     }
 }
 
@@ -49,7 +50,7 @@ fn groups_by_dependency_type_in_manifest_order() {
         pkg("qaz", "qaz", "1.0.1", "1.2.0", DependencyGroup::Optional),
     ];
 
-    let groups = update_choices(&packages.iter().collect::<Vec<_>>());
+    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false);
 
     let rendered: Vec<(&str, Vec<&str>)> =
         groups.iter().map(|group| (group.message.as_str(), values(group))).collect();
@@ -69,7 +70,7 @@ fn groups_by_dependency_type_in_manifest_order() {
 fn each_group_opens_with_an_unselectable_header() {
     let packages = [pkg("foo", "foo", "1.0.0", "2.0.0", DependencyGroup::Prod)];
 
-    let groups = update_choices(&packages.iter().collect::<Vec<_>>());
+    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false);
 
     let header = &groups[0].rows[0];
     assert_eq!(header.value, None);
@@ -88,7 +89,7 @@ fn a_package_outdated_in_two_groups_is_offered_once() {
         pkg("foo", "foo", "1.0.0", "2.0.0", DependencyGroup::Dev),
     ];
 
-    let groups = update_choices(&packages.iter().collect::<Vec<_>>());
+    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false);
 
     assert_eq!(groups.len(), 1);
     assert_eq!(groups[0].message, "dependencies");
@@ -104,7 +105,7 @@ fn the_same_name_at_different_versions_is_offered_twice() {
         pkg("qaz", "foo", "1.0.1", "1.2.0", DependencyGroup::Dev),
     ];
 
-    let groups = update_choices(&packages.iter().collect::<Vec<_>>());
+    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false);
 
     // The row is labelled by package name but selects by alias, so the
     // npm-aliased entry updates `qaz` rather than the name it resolves to.
@@ -120,7 +121,7 @@ fn github_actions_form_their_own_group() {
     action.github_action = true;
     let packages = [pkg("foo", "foo", "1.0.0", "2.0.0", DependencyGroup::Dev), action];
 
-    let groups = update_choices(&packages.iter().collect::<Vec<_>>());
+    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false);
 
     let rendered: Vec<(&str, Vec<&str>)> =
         groups.iter().map(|group| (group.message.as_str(), values(group))).collect();
@@ -143,7 +144,7 @@ fn a_long_version_keeps_the_row_on_one_line() {
         DependencyGroup::Dev,
     )];
 
-    let groups = update_choices(&packages.iter().collect::<Vec<_>>());
+    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false);
 
     let row = &groups[0].rows[1];
     assert_eq!(row.value.as_deref(), Some("@typescript/native-preview"));
@@ -167,7 +168,7 @@ fn columns_line_up_within_a_group() {
         pkg("b", "b", "1.0.0", "2.0.0", DependencyGroup::Prod),
     ];
 
-    let groups = update_choices(&packages.iter().collect::<Vec<_>>());
+    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false);
 
     let arrow_offsets: Vec<usize> = groups[0]
         .rows
@@ -181,7 +182,7 @@ fn columns_line_up_within_a_group() {
 /// Nothing outdated means nothing to choose from.
 #[test]
 fn an_empty_set_produces_no_groups() {
-    assert_eq!(update_choices(&[]), Vec::new());
+    assert_eq!(update_choices(&[], false), Vec::new());
 }
 
 /// Two manifest entries aliasing the same package are separate
@@ -194,7 +195,7 @@ fn two_aliases_of_one_package_are_both_offered() {
         pkg("b", "foo", "1.0.0", "2.0.0", DependencyGroup::Prod),
     ];
 
-    let groups = update_choices(&packages.iter().collect::<Vec<_>>());
+    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false);
 
     assert_eq!(values(&groups[0]), vec!["a", "b"]);
 }
@@ -208,10 +209,42 @@ fn control_characters_in_registry_metadata_are_stripped() {
     package.homepage = Some("https://example.test/\u{1b}[2J\nEVIL".to_string());
     let packages = [package];
 
-    let groups = update_choices(&packages.iter().collect::<Vec<_>>());
+    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false);
 
     let row = &groups[0].rows[1];
     assert!(!row.label.contains('\u{1b}'), "escape survived: {:?}", row.label);
     assert!(!row.label.contains('\n'), "newline survived: {:?}", row.label);
     assert!(row.label.contains("https://example.test/"), "url lost: {:?}", row.label);
+}
+
+/// Inside a workspace the list gains a `Workspace` column naming the
+/// project each dependency was found in, so the same package outdated in
+/// two projects is tellable apart.
+#[test]
+fn a_workspace_run_names_the_project_each_row_came_from() {
+    let mut in_app = pkg("foo", "foo", "1.0.0", "2.0.0", DependencyGroup::Prod);
+    in_app.workspace = Some("app".to_string());
+    let mut in_lib = pkg("foo", "foo", "1.1.0", "2.0.0", DependencyGroup::Prod);
+    in_lib.workspace = Some("lib".to_string());
+    let packages = [in_app, in_lib];
+
+    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), true);
+
+    assert!(groups[0].rows[0].label.contains("Workspace"));
+    assert!(groups[0].rows[1].label.contains("app"), "{}", groups[0].rows[1].label);
+    assert!(groups[0].rows[2].label.contains("lib"), "{}", groups[0].rows[2].label);
+}
+
+/// Outside a workspace the column is absent, as upstream omits it when
+/// workspaces are not enabled.
+#[test]
+fn a_single_project_run_has_no_workspace_column() {
+    let mut package = pkg("foo", "foo", "1.0.0", "2.0.0", DependencyGroup::Prod);
+    package.workspace = Some("solo".to_string());
+    let packages = [package];
+
+    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false);
+
+    assert!(!groups[0].rows[0].label.contains("Workspace"));
+    assert!(!groups[0].rows[1].label.contains("solo"), "{}", groups[0].rows[1].label);
 }

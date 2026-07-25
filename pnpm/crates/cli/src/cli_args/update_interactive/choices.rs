@@ -76,7 +76,10 @@ impl ChoiceGroupKind {
 /// once, under whichever type came first: the deduplication key omits
 /// the dependency type. This matches pnpm, whose `uniqBy` runs before
 /// its `groupBy` over the same key.
-pub(crate) fn update_choices(outdated: &[&OutdatedPackage]) -> Vec<ChoiceGroup> {
+pub(crate) fn update_choices(
+    outdated: &[&OutdatedPackage],
+    workspaces_enabled: bool,
+) -> Vec<ChoiceGroup> {
     let mut seen = HashSet::new();
     let mut grouped: Vec<(ChoiceGroupKind, Vec<&OutdatedPackage>)> = Vec::new();
     for package in outdated {
@@ -105,35 +108,40 @@ pub(crate) fn update_choices(outdated: &[&OutdatedPackage]) -> Vec<ChoiceGroup> 
         .into_iter()
         .map(|(kind, packages)| ChoiceGroup {
             message: kind.message().to_string(),
-            rows: render_rows(&packages),
+            rows: render_rows(&packages, workspaces_enabled),
         })
         .collect()
 }
 
 /// The header row plus one row per package, padded so every column lines
 /// up within the group.
-fn render_rows(packages: &[&OutdatedPackage]) -> Vec<ChoiceRow> {
-    let header = vec![
-        "Package".to_string(),
-        "Current".to_string(),
-        String::new(),
-        "Target".to_string(),
-        "URL".to_string(),
-    ];
+fn render_rows(packages: &[&OutdatedPackage], workspaces_enabled: bool) -> Vec<ChoiceRow> {
+    let mut header =
+        vec!["Package".to_string(), "Current".to_string(), String::new(), "Target".to_string()];
+    if workspaces_enabled {
+        header.push("Workspace".to_string());
+    }
+    header.push("URL".to_string());
 
     let mut cells = vec![header];
     for package in packages {
-        // The name and homepage are registry metadata, so they are
-        // stripped of control characters before reaching the terminal:
-        // an escape sequence would corrupt the prompt's redraw, and a
-        // newline would break the row apart.
-        let row = vec![
+        // The name, workspace, and homepage are read out of manifests
+        // and registry metadata, so they are stripped of control
+        // characters before reaching the terminal: an escape sequence
+        // would corrupt the prompt's redraw, and a newline would break
+        // the row apart.
+        let mut row = vec![
             sanitize_inline(&package.package_name).into_owned(),
             package.current.to_string(),
             "❯".to_string(),
             colorize_target(package),
-            package.homepage.as_deref().map(sanitize_inline).unwrap_or_default().into_owned(),
         ];
+        if workspaces_enabled {
+            row.push(
+                package.workspace.as_deref().map(sanitize_inline).unwrap_or_default().into_owned(),
+            );
+        }
+        row.push(package.homepage.as_deref().map(sanitize_inline).unwrap_or_default().into_owned());
         cells.push(row);
     }
 
