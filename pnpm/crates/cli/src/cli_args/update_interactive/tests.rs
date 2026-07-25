@@ -69,6 +69,12 @@ importers:
         choices.iter().map(|choice| choice.alias.as_str()).collect::<Vec<_>>(),
         vec!["foo", "bar"],
     );
+    // Each entry remembers the project it came from, which is what the
+    // interactive list's `Workspace` column shows.
+    assert_eq!(
+        choices.iter().map(|choice| choice.workspace.as_deref()).collect::<Vec<_>>(),
+        vec![Some("packages-a"), Some("packages-b")],
+    );
     foo_mock.assert_async().await;
     bar_mock.assert_async().await;
 }
@@ -131,6 +137,131 @@ importers:
     foo_mock.assert_async().await;
 }
 
+/// The same dependency at the same version in two projects has to reach
+/// [`super::choices::update_choices`] as two entries, or the collapsed
+/// row it renders can only name one of the projects.
+#[tokio::test]
+async fn one_dependency_in_two_projects_keeps_both_workspaces() {
+    let temp = tempfile::tempdir().expect("create temporary workspace");
+    let first = manifest_with_dependency(temp.path(), "packages/a", "foo");
+    let second = manifest_with_dependency(temp.path(), "packages/b", "foo");
+    let lockfile: Lockfile = serde_saphyr::from_str(
+        r"
+lockfileVersion: '9.0'
+importers:
+  packages/a:
+    dependencies:
+      foo:
+        specifier: ^1.0.0
+        version: 1.0.0
+  packages/b:
+    dependencies:
+      foo:
+        specifier: ^1.0.0
+        version: 1.0.0
+",
+    )
+    .expect("parse workspace lockfile");
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let foo_mock = server
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(package_body("foo", &registry))
+        .expect(2)
+        .create_async()
+        .await;
+    let mut config = Config::new();
+    config.registry = registry;
+    let projects = [
+        InteractiveUpdateProject { manifest: &first, importer_id: "packages/a".to_string() },
+        InteractiveUpdateProject { manifest: &second, importer_id: "packages/b".to_string() },
+    ];
+
+    let choices = collect_choices(
+        &projects,
+        Some(&lockfile),
+        &config,
+        &ThrottledClient::default(),
+        false,
+        &[DependencyGroup::Prod],
+    )
+    .await
+    .expect("collect interactive choices");
+
+    assert_eq!(
+        choices.iter().map(|choice| choice.workspace.as_deref()).collect::<Vec<_>>(),
+        vec![Some("packages-a"), Some("packages-b")],
+    );
+    // And they render as one row naming both.
+    let groups = super::choices::update_choices(&choices.iter().collect::<Vec<_>>(), true);
+    assert!(
+        groups[0].rows[1].label.contains("packages-a, packages-b"),
+        "{}",
+        groups[0].rows[1].label,
+    );
+    foo_mock.assert_async().await;
+}
+
+/// A project may omit its `name` or declare it empty; either way the
+/// label would be blank, leaving several such projects indistinguishable
+/// in the interactive list, so the entry falls back to the path that
+/// identifies the project in the lockfile.
+#[tokio::test]
+async fn a_project_without_a_usable_name_is_labelled_with_its_importer_path() {
+    for name in [None, Some("")] {
+        let temp = tempfile::tempdir().expect("create temporary workspace");
+        let manifest = manifest_without_usable_name(temp.path(), "packages/a", name);
+        let lockfile: Lockfile = serde_saphyr::from_str(
+            r"
+lockfileVersion: '9.0'
+importers:
+  packages/a:
+    dependencies:
+      foo:
+        specifier: ^1.0.0
+        version: 1.0.0
+",
+        )
+        .expect("parse workspace lockfile");
+        let mut server = mockito::Server::new_async().await;
+        let registry = format!("{}/", server.url());
+        let foo_mock = server
+            .mock("GET", "/foo")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(package_body("foo", &registry))
+            .expect(1)
+            .create_async()
+            .await;
+        let mut config = Config::new();
+        config.registry = registry;
+        let projects = [InteractiveUpdateProject {
+            manifest: &manifest,
+            importer_id: "packages/a".to_string(),
+        }];
+
+        let choices = collect_choices(
+            &projects,
+            Some(&lockfile),
+            &config,
+            &ThrottledClient::default(),
+            false,
+            &[DependencyGroup::Prod],
+        )
+        .await
+        .expect("collect interactive choices");
+
+        assert_eq!(
+            choices.iter().map(|choice| choice.workspace.as_deref()).collect::<Vec<_>>(),
+            vec![Some("packages/a")],
+            "a {name:?} name should fall back to the importer path",
+        );
+        foo_mock.assert_async().await;
+    }
+}
+
 fn manifest_with_dependency(
     root: &std::path::Path,
     relative: &str,
@@ -157,6 +288,24 @@ fn manifest_with_dependency_spec(
         .to_string(),
     )
     .expect("write project manifest");
+    PackageManifest::from_path(manifest_path).expect("read project manifest")
+}
+
+/// A project manifest whose `name` is absent, or present but empty —
+/// both shapes a workspace project's `package.json` can carry.
+fn manifest_without_usable_name(
+    root: &std::path::Path,
+    relative: &str,
+    name: Option<&str>,
+) -> PackageManifest {
+    let project_dir = root.join(relative);
+    std::fs::create_dir_all(&project_dir).expect("create project directory");
+    let manifest_path = project_dir.join("package.json");
+    let mut manifest = json!({ "dependencies": { "foo": "^1.0.0" } });
+    if let Some(name) = name {
+        manifest["name"] = json!(name);
+    }
+    std::fs::write(&manifest_path, manifest.to_string()).expect("write project manifest");
     PackageManifest::from_path(manifest_path).expect("read project manifest")
 }
 

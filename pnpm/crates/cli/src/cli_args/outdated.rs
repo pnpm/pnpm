@@ -84,6 +84,11 @@ pub struct OutdatedPackage {
     /// `homepage` of the package, shown in the `--long` details column
     /// when the registry serves it.
     pub homepage: Option<String>,
+    /// Name of the workspace project this dependency was found in, shown
+    /// in the interactive update list's `Workspace` column. `None` for a
+    /// project without a `name`, and for entries that belong to no
+    /// project (GitHub Actions).
+    pub workspace: Option<String>,
 }
 
 impl From<github_actions::OutdatedGitHubAction> for OutdatedPackage {
@@ -98,6 +103,7 @@ impl From<github_actions::OutdatedGitHubAction> for OutdatedPackage {
             github_action: true,
             deprecated: None,
             homepage: Some(action.homepage),
+            workspace: None,
         }
     }
 }
@@ -174,6 +180,19 @@ async fn collect_outdated_for_importer_with_cache(
     let current_versions =
         current_versions_from_importer(lockfile, importer_id, query.include_direct);
     let current_versions = &current_versions;
+    // Recorded on every entry so the interactive update list can say
+    // which workspace project each outdated dependency came from. A
+    // project is not required to declare a name, and an empty label
+    // leaves several unnamed projects indistinguishable, so fall back to
+    // the path that identifies the project in the lockfile.
+    let workspace = manifest
+        .value()
+        .get("name")
+        .and_then(serde_json::Value::as_str)
+        // An empty name gives just as blank a label as no name at all.
+        .filter(|name| !name.is_empty())
+        .map_or_else(|| importer_id.to_string(), str::to_string);
+    let workspace = &workspace;
 
     // Gather the lockfile-pinned direct dependencies to inspect, then
     // fetch their packuments concurrently — mirroring pnpm's
@@ -232,6 +251,7 @@ async fn collect_outdated_for_importer_with_cache(
                 github_action: false,
                 deprecated,
                 homepage: package.homepage.clone(),
+                workspace: Some(workspace.clone()),
             }))
         });
 

@@ -81,6 +81,13 @@ export async function outdated (
 
   const allDeps = getAllDependenciesFromManifest(await getOverriddenManifest())
   const importerId = getLockfileImporterId(opts.lockfileDir, opts.prefix)
+  // A workspace project is not required to declare a name, and an empty
+  // label leaves several unnamed projects indistinguishable in the
+  // interactive update list, so fall back to the path that identifies
+  // the project in the lockfile.
+  // `||` rather than `??`: a project that declares an empty name gives
+  // just as blank a label as one that declares none.
+  const workspace = opts.manifest.name || importerId
   const currentLockfile: LockfileObject = opts.currentLockfile ?? { lockfileVersion: LOCKFILE_VERSION, importers: { [importerId]: { specifiers: {} } } }
 
   const outdated: OutdatedPackage[] = []
@@ -152,7 +159,7 @@ export async function outdated (
                 latestManifest: undefined,
                 packageName,
                 wanted,
-                workspace: opts.manifest.name,
+                workspace,
               })
             }
             return
@@ -164,7 +171,7 @@ export async function outdated (
               latestManifest,
               packageName,
               wanted,
-              workspace: opts.manifest.name,
+              workspace,
             })
             return
           }
@@ -176,7 +183,7 @@ export async function outdated (
               latestManifest,
               packageName,
               wanted,
-              workspace: opts.manifest.name,
+              workspace,
             })
           }
         })

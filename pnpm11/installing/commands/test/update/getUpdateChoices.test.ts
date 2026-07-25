@@ -197,3 +197,52 @@ test('getUpdateChoices() groups GitHub Actions separately', () => {
   expect(choices[0].message).toBe('GitHub Actions')
   expect(choices[0].choices[1]).toMatchObject({ name: 'actions/checkout', value: 'actions/checkout' })
 })
+
+test('getUpdateChoices() names every workspace a collapsed choice came from', () => {
+  const outdated = (workspace: string) => ({
+    alias: 'foo',
+    belongsTo: 'dependencies' as const,
+    current: '1.0.0',
+    latestManifest: { name: 'foo', version: '2.0.0' },
+    packageName: 'foo',
+    wanted: '1.0.0',
+    workspace,
+  })
+
+  const choices = getUpdateChoices([outdated('web'), outdated('tooling')], true)
+
+  // Selecting the choice updates the package in every project, so the two
+  // entries stay one row — but the row has to say which projects it covers.
+  expect(choices).toHaveLength(1)
+  expect(choices[0].choices).toHaveLength(2)
+  const dataRow = choices[0].choices[1] as { message: string }
+  expect(stripVTControlCharacters(dataRow.message)).toContain('web, tooling')
+})
+
+test('getUpdateChoices() strips control characters from labels it renders', () => {
+  const choices = getUpdateChoices([
+    {
+      alias: 'foo',
+      belongsTo: 'dependencies' as const,
+      current: '1.0.0',
+      latestManifest: {
+        name: 'foo',
+        version: '2.0.0',
+        homepage: 'https://example.test/\u001b[2J\nEVIL',
+      },
+      packageName: 'foo',
+      wanted: '1.0.0',
+      workspace: 'web\u001b[31m\nEVIL',
+    },
+  ], true)
+
+  const dataRow = choices[0].choices[1] as { message: string }
+  // Once the escape byte is gone the remainder is inert text, so what
+  // matters is that no escape or newline reaches the prompt. The
+  // colorized target carries escapes of its own by design, hence the
+  // check on the workspace and URL cells rather than the whole row.
+  const cells = dataRow.message.split('❯')[1]
+  expect(cells).not.toContain('\u001b')
+  expect(dataRow.message).not.toContain('\n')
+  expect(dataRow.message).toContain('https://example.test/')
+})
