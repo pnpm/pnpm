@@ -118,7 +118,7 @@ fn a_recursive_run_reports_the_scope_it_selected() {
                 "name": member,
                 "version": "1.0.0",
                 "private": true,
-                "scripts": { "greet": "node -e \"console.log('hi')\"" },
+                "scripts": { "greet": r#"node -e "console.log('hi')""# },
             })
             .to_string(),
         )
