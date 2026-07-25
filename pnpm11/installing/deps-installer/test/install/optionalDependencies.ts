@@ -749,7 +749,11 @@ test('headless install keeps the required dependency of an installable optional 
   // The parent is installable, so skipping the dependency it declares would
   // link a package that cannot resolve its own import.
   expect(fs.existsSync(path.resolve('node_modules/@pnpm.e2e/has-not-compatible-dep/package.json'))).toBeTruthy()
-  expect(fs.existsSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+has-not-compatible-dep@1.0.0/node_modules/@pnpm.e2e/not-compatible-with-any-os/package.json'))).toBeTruthy()
+  expect(deepRequireCwd([
+    '@pnpm.e2e/has-not-compatible-dep',
+    '@pnpm.e2e/not-compatible-with-any-os',
+    './package.json',
+  ]).version).toBe('1.0.0')
 
   const modulesInfo = readYamlFileSync<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
   expect(modulesInfo.skipped).toStrictEqual([])
