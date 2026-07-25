@@ -549,6 +549,16 @@ fn run_pre_and_postinstall_scripts_in_a_workspace_with_hoisted_linker() {
             );
         }
     }
+    // Asserting the nested version too: a nested copy of the *root's*
+    // version would satisfy the build checks above while still being the
+    // wrong layout.
+    for project in &projects[2..] {
+        assert_eq!(
+            read_pkg_version(project, &format!("node_modules/{SCRIPTS}")),
+            "2.0.0",
+            "the nested copy must be the version that lost the root slot",
+        );
+    }
     // The projects whose version won the root slot reach it by walking
     // up, so they must not carry a second copy of their own.
     for project in &projects[..2] {
@@ -557,6 +567,58 @@ fn run_pre_and_postinstall_scripts_in_a_workspace_with_hoisted_linker() {
             "a project on the hoisted version must not nest its own copy",
         );
     }
+}
+
+/// A version that lost the root slot and later wins it must leave no
+/// nested copy behind: the stale entry would keep shadowing the root for
+/// that project, which is the duplication this layout avoids.
+#[test]
+fn a_nested_copy_is_removed_once_its_version_wins_the_root_slot() {
+    const SCRIPTS: &str = "@pnpm.e2e/pre-and-postinstall-scripts-example";
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml(&format!(
+        "nodeLinker: hoisted\nallowBuilds:\n  '{SCRIPTS}': true\n",
+    ));
+    let loser = fixture.project(
+        "loser",
+        "loser",
+        ManifestDeps { prod: &[(SCRIPTS, "2")], ..Default::default() },
+    );
+    for dir in ["winner-a", "winner-b"] {
+        fixture.project(dir, dir, ManifestDeps { prod: &[(SCRIPTS, "1")], ..Default::default() });
+    }
+    fixture.run(["install"]);
+    assert_eq!(
+        read_pkg_version(&loser, &format!("node_modules/{SCRIPTS}")),
+        "2.0.0",
+        "the minority version starts out nested",
+    );
+
+    // Flip the majority so the formerly nested version wins the root slot.
+    for dir in ["winner-a", "winner-b"] {
+        fixture.project(dir, dir, ManifestDeps { prod: &[(SCRIPTS, "2")], ..Default::default() });
+    }
+    fixture.run(["install"]);
+
+    assert_eq!(
+        read_pkg_version(&fixture.workspace, &format!("node_modules/{SCRIPTS}")),
+        "2.0.0",
+        "the new majority version must hold the root slot",
+    );
+    assert!(
+        !loser.join("node_modules").join(SCRIPTS).exists(),
+        "the stale nested copy must not survive the transition",
+    );
+
+    // The same must hold for a link left behind by an install that did
+    // materialize the root-slot winner inside the project.
+    let stale = loser.join("node_modules").join(SCRIPTS);
+    fs::create_dir_all(stale.parent().expect("scope dir")).expect("create the scope dir");
+    std::os::unix::fs::symlink(fixture.workspace.join("node_modules").join(SCRIPTS), &stale)
+        .expect("plant a stale link");
+    fixture.run(["install"]);
+
+    assert!(!stale.exists(), "a stale project-local link must not survive a reinstall");
 }
 
 /// TS: `overwriting (…@3.0.0 with …@latest)`

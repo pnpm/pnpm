@@ -1831,16 +1831,6 @@ fn link_selected_hoisted_direct_dependencies(
             == pacquet_fs::lexical_normalize(lockfile_dir);
         let mut linked_names = Vec::new();
         for (alias, target) in direct_dependencies {
-            // A dependency that won the workspace-root slot is reached by
-            // walking up from the project, exactly as it is under pnpm.
-            // Repeating it inside the project would give a build a second
-            // copy to run lifecycle scripts in.
-            if !is_workspace_root
-                && pacquet_fs::lexical_normalize(target)
-                    == pacquet_fs::lexical_normalize(&root_modules_dir.join(alias))
-            {
-                continue;
-            }
             let link_path =
                 crate::safe_join_modules_dir::safe_join_modules_dir(&modules_dir, alias).map_err(
                     |source| {
@@ -1853,6 +1843,38 @@ fn link_selected_hoisted_direct_dependencies(
                         )
                     },
                 )?;
+            // A dependency that won the workspace-root slot is reached by
+            // walking up from the project, exactly as it is under pnpm.
+            // Repeating it inside the project would give a build a second
+            // copy to run lifecycle scripts in. Checked after `link_path`
+            // so an unusable alias still reports itself.
+            if !is_workspace_root
+                && pacquet_fs::lexical_normalize(target)
+                    == pacquet_fs::lexical_normalize(&root_modules_dir.join(alias))
+            {
+                // An install that predates this rule, or one where the
+                // version had lost the slot, leaves a link here. Left in
+                // place it keeps shadowing the root copy, which is the
+                // duplicate this skip exists to avoid. A real directory is
+                // the pruner's to remove, and only ever belongs to a
+                // version that lost the slot.
+                if link_path.is_symlink() {
+                    pacquet_fs::remove_symlink_dir(&link_path).map_err(|error| {
+                        HoistedLinkerError::SymlinkDirectDependencies(
+                            SymlinkDirectDependenciesError::SymlinkPackage {
+                                importer_id: importer_id.clone(),
+                                name: alias.clone(),
+                                source: SymlinkPackageError::SymlinkDir {
+                                    symlink_target: target.clone(),
+                                    symlink_path: link_path.clone(),
+                                    error,
+                                },
+                            },
+                        )
+                    })?;
+                }
+                continue;
+            }
             if pacquet_fs::lexical_normalize(&link_path) == pacquet_fs::lexical_normalize(target) {
                 linked_names.push(alias.clone());
                 continue;
