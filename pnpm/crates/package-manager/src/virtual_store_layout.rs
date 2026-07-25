@@ -20,11 +20,16 @@
 //! [`PkgNameVerPeer::to_virtual_store_name`]: pacquet_lockfile::PkgNameVerPeer::to_virtual_store_name
 //! [`pacquet_graph_hasher::format_global_virtual_store_path`]: pacquet_graph_hasher::format_global_virtual_store_path
 
-use crate::{AllowBuildPolicy, install_frozen_lockfile::find_own_runtime_node_major};
+use crate::{
+    AllowBuildPolicy,
+    install_frozen_lockfile::{
+        find_own_runtime_node_major, find_runtime_node_major, parse_major_from_version,
+    },
+};
 use pacquet_config::Config;
 use pacquet_deps_path::get_pkg_id_with_patch_hash;
 use pacquet_graph_hasher::{
-    DepsGraphNode, DepsStateCache, calc_graph_node_hash, engine_name,
+    DepsGraphNode, DepsStateCache, calc_graph_node_hash, detect_node_major, engine_name,
     format_global_virtual_store_path, join_global_virtual_store_path,
 };
 use pacquet_lockfile::{
@@ -278,6 +283,26 @@ impl VirtualStoreLayout {
         // pushes it as a single component).
         join_global_virtual_store_path(&self.package_store_dir, &suffix)
     }
+}
+
+/// Build a lockfile's layout using the runtime pin, effective Node version, then host.
+#[must_use]
+pub fn virtual_store_layout_for_lockfile(
+    config: &Config,
+    effective_node_version: Option<&str>,
+    snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
+    packages: Option<&HashMap<PackageKey, PackageMetadata>>,
+    allow_build_policy: Option<&AllowBuildPolicy>,
+) -> VirtualStoreLayout {
+    let engine = if config.enable_global_virtual_store {
+        find_runtime_node_major(snapshots)
+            .or_else(|| effective_node_version.and_then(parse_major_from_version))
+            .or_else(detect_node_major)
+            .map(|major| engine_name(major, None, None))
+    } else {
+        None
+    };
+    VirtualStoreLayout::new(config, engine.as_deref(), snapshots, packages, allow_build_policy)
 }
 
 /// Map each injected `file:` project to the virtual-store package

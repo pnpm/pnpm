@@ -1,11 +1,19 @@
-use crate::cli_args::recursive::{
-    AutoExcludeRoot, discover_workspace_projects, select_recursive_projects,
+use crate::cli_args::{
+    deps_tree::pkg_info::is_unsafe_path_component,
+    recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects},
 };
 use clap::Args;
-use miette::IntoDiagnostic;
+use derive_more::{Display, Error};
+use miette::{Diagnostic, IntoDiagnostic};
 use pacquet_config::Config;
 use pacquet_lockfile::{Lockfile, PackageKey, PkgName, ResolvedDependencyMap};
-use pacquet_package_manifest::{extract_author, extract_homepage, safe_read_package_json_from_dir};
+use pacquet_package_manager::{
+    AllowBuildPolicy, validate_virtual_store_slot_containment, virtual_store_layout_for_lockfile,
+};
+use pacquet_package_manifest::{
+    extract_author, extract_homepage, node_version_from_engines_runtime,
+    safe_read_package_json_from_dir,
+};
 use serde::Serialize;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use tabled::{builder::Builder, settings::Style};
@@ -22,6 +30,23 @@ pub struct LicensesArgs {
 
     #[clap(flatten)]
     pub dependency_options: LicensesDependencyOptions,
+
+    /// Subcommand and arguments.
+    pub params: Vec<String>,
+}
+
+#[derive(Debug, Display, Error, Diagnostic)]
+enum LicensesError {
+    #[display("Please specify the subcommand")]
+    #[diagnostic(
+        code(ERR_PNPM_LICENCES_NO_SUBCOMMAND),
+        help("Run `pnpm licenses --help` for available subcommands.")
+    )]
+    NoSubcommand,
+
+    #[display("This subcommand is not known")]
+    #[diagnostic(code(ERR_PNPM_LICENSES_UNKNOWN_SUBCOMMAND))]
+    UnknownSubcommand,
 }
 
 #[derive(Debug, Args)]
@@ -92,6 +117,12 @@ impl LicensesArgs {
         dir: &std::path::Path,
         recursive: bool,
     ) -> miette::Result<()> {
+        match self.params.first().map(String::as_str) {
+            Some("list" | "ls") => {}
+            Some(_) => return Err(LicensesError::UnknownSubcommand.into()),
+            None => return Err(LicensesError::NoSubcommand.into()),
+        }
+
         let lockfile_dir = config.workspace_dir.as_deref().unwrap_or(dir);
         let lockfile = Lockfile::load_wanted_from_dir(lockfile_dir).into_diagnostic()?;
         let Some(lockfile) = lockfile else {
@@ -200,14 +231,21 @@ impl LicensesArgs {
             }
         }
 
-        let project_root_dir = dir.to_path_buf();
-        let effective_vsd = config.effective_virtual_store_dir();
-        let virtual_store_dir = if effective_vsd.is_absolute() {
-            effective_vsd.to_path_buf()
-        } else {
-            project_root_dir.join(effective_vsd)
-        };
-        let virtual_store_dir_max_length = config.virtual_store_dir_max_length as usize;
+        let allow_build_policy = AllowBuildPolicy::from_config(config).into_diagnostic()?;
+        let project_manifest = safe_read_package_json_from_dir(dir).into_diagnostic()?;
+        let manifest_node_version =
+            project_manifest.as_ref().and_then(node_version_from_engines_runtime);
+        let effective_node_version =
+            config.node_version.as_deref().or(manifest_node_version.as_deref());
+        let layout = virtual_store_layout_for_lockfile(
+            config,
+            effective_node_version,
+            lockfile.snapshots.as_ref(),
+            lockfile.packages.as_ref(),
+            Some(&allow_build_policy),
+        );
+        validate_virtual_store_slot_containment(lockfile.snapshots.as_ref(), &layout)
+            .into_diagnostic()?;
 
         let mut results_by_license: BTreeMap<String, BTreeMap<String, LicenseInfo>> =
             BTreeMap::new();
@@ -224,14 +262,8 @@ impl LicensesArgs {
                 version.clone_from(v);
             }
 
-            let store_name = key.to_virtual_store_name(virtual_store_dir_max_length);
-
-            let pkg_dir = virtual_store_dir.join(&store_name).join("node_modules").join(&name);
-            let is_unsafe = store_name.contains("..")
-                || name.contains("..")
-                || std::path::Path::new(&store_name).is_absolute()
-                || std::path::Path::new(&name).is_absolute();
-            let manifest = if is_unsafe {
+            let pkg_dir = layout.slot_dir(&key).join("node_modules").join(&name);
+            let manifest = if is_unsafe_path_component(&name) {
                 None
             } else {
                 safe_read_package_json_from_dir(&pkg_dir).unwrap_or(None)
