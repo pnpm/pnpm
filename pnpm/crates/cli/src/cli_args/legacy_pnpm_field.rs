@@ -3,7 +3,9 @@
 //! that still carries one of the migrated keys gets a warning naming it,
 //! so the setting isn't silently dropped.
 
+use super::package_manager::read_manifest_json;
 use pacquet_reporter::{GlobalLog, LogEvent, LogLevel};
+use serde_json::Value;
 use std::path::Path;
 
 /// Keys pnpm reads from `pnpm-workspace.yaml` and never from the `pnpm`
@@ -35,11 +37,11 @@ const MIGRATED_PNPM_FIELD_KEYS: &[&str] = &[
 ];
 
 /// Warn about every migrated key the root project manifest still
-/// declares under `pnpm`. An unreadable or malformed manifest is not
-/// this function's problem — the install path reports it with far more
-/// context — so it simply produces no warning.
-pub(crate) fn warn_ignored_pnpm_manifest_fields(root_dir: &Path, emit: fn(&LogEvent)) {
-    let ignored = ignored_pnpm_field_keys(root_dir);
+/// declares under `pnpm`. A manifest that could not be read is not this
+/// function's problem — the install path reports it with far more
+/// context — so `None` simply produces no warning.
+pub(crate) fn warn_ignored_pnpm_manifest_fields(manifest: Option<&Value>, emit: fn(&LogEvent)) {
+    let ignored = ignored_pnpm_field_keys(manifest);
     if ignored.is_empty() {
         return;
     }
@@ -54,14 +56,20 @@ pub(crate) fn warn_ignored_pnpm_manifest_fields(root_dir: &Path, emit: fn(&LogEv
     }));
 }
 
-fn ignored_pnpm_field_keys(root_dir: &Path) -> Vec<String> {
-    let Ok(bytes) = std::fs::read(root_dir.join("package.json")) else {
-        return Vec::new();
-    };
-    let Ok(manifest) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
-        return Vec::new();
-    };
-    let Some(legacy_field) = manifest.get("pnpm").and_then(serde_json::Value::as_object) else {
+/// [`warn_ignored_pnpm_manifest_fields`] for a caller that has not read
+/// the root manifest yet.
+pub(crate) fn warn_ignored_pnpm_manifest_fields_in(root_dir: &Path, emit: fn(&LogEvent)) {
+    warn_ignored_pnpm_manifest_fields(root_manifest(root_dir).as_ref(), emit);
+}
+
+fn root_manifest(root_dir: &Path) -> Option<Value> {
+    read_manifest_json(&root_dir.join("package.json")).ok().flatten()
+}
+
+fn ignored_pnpm_field_keys(manifest: Option<&Value>) -> Vec<String> {
+    let Some(legacy_field) =
+        manifest.and_then(|manifest| manifest.get("pnpm")).and_then(Value::as_object)
+    else {
         return Vec::new();
     };
     legacy_field

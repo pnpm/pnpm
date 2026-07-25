@@ -1795,6 +1795,46 @@ fn migrated_keys_are_reported_by_the_up_to_date_fast_path() {
     drop(root);
 }
 
+/// Each emit site reads the root manifest on its own, and an editor may
+/// leave a UTF-8 BOM at its head. A reader that trips over one drops the
+/// warning without a trace, so both sites are exercised: the install
+/// pipeline on the first run, the up-to-date fast path on the second.
+#[test]
+fn migrated_keys_are_reported_through_a_utf8_bom() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let manifest = serde_json::json!({
+        "name": "root",
+        "version": "1.0.0",
+        "private": true,
+        "pnpm": { "overrides": { "is-number": "6.0.0" } },
+    });
+    fs::write(workspace.join("package.json"), format!("\u{feff}{manifest}"))
+        .expect("write package.json");
+
+    let assert = pacquet.with_arg("install").assert().success();
+    let stdout = String::from_utf8_lossy(&assert.get_output().stdout).into_owned();
+
+    eprintln!("STDOUT:\n{stdout}");
+    assert!(
+        stdout.contains("no longer read by pnpm"),
+        "the BOM must not swallow the warning; got:\n{stdout}",
+    );
+
+    let assert = pacquet_in(&workspace).with_arg("install").assert().success();
+    let stdout = String::from_utf8_lossy(&assert.get_output().stdout).into_owned();
+
+    eprintln!("STDOUT:\n{stdout}");
+    let warning = stdout.find("no longer read by pnpm").unwrap_or_else(|| {
+        panic!("the fast path reads the manifest on its own; got:\n{stdout}");
+    });
+    let up_to_date = stdout
+        .find("Already up to date")
+        .unwrap_or_else(|| panic!("expected the fast path's own output; got:\n{stdout}"));
+    assert!(warning < up_to_date, "the warning must precede the install output; got:\n{stdout}");
+
+    drop(root);
+}
+
 /// Both emit sites resolve the root manifest the way pnpm does — the
 /// workspace root when there is one, the current directory otherwise —
 /// so a run from a workspace package names the root's keys and never
@@ -1828,7 +1868,8 @@ fn migrated_keys_are_read_from_the_workspace_root() {
     )
     .expect("write the workspace package's package.json");
 
-    let assert = pacquet_in(&package_dir).with_arg("install").assert().success();
+    let assert =
+        pacquet_in(&package_dir).with_args(["install", "--lockfile-only"]).assert().success();
     let stdout = String::from_utf8_lossy(&assert.get_output().stdout).into_owned();
 
     eprintln!("STDOUT:\n{stdout}");
