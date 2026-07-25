@@ -218,3 +218,31 @@ test('getUpdateChoices() names every workspace a collapsed choice came from', ()
   const dataRow = choices[0].choices[1] as { message: string }
   expect(stripVTControlCharacters(dataRow.message)).toContain('web, tooling')
 })
+
+test('getUpdateChoices() strips control characters from labels it renders', () => {
+  const choices = getUpdateChoices([
+    {
+      alias: 'foo',
+      belongsTo: 'dependencies' as const,
+      current: '1.0.0',
+      latestManifest: {
+        name: 'foo',
+        version: '2.0.0',
+        homepage: 'https://example.test/\u001b[2J\nEVIL',
+      },
+      packageName: 'foo',
+      wanted: '1.0.0',
+      workspace: 'web\u001b[31m\nEVIL',
+    },
+  ], true)
+
+  const dataRow = choices[0].choices[1] as { message: string }
+  // Once the escape byte is gone the remainder is inert text, so what
+  // matters is that no escape or newline reaches the prompt. The
+  // colorized target carries escapes of its own by design, hence the
+  // check on the workspace and URL cells rather than the whole row.
+  const cells = dataRow.message.split('❯')[1]
+  expect(cells).not.toContain('\u001b')
+  expect(dataRow.message).not.toContain('\n')
+  expect(dataRow.message).toContain('https://example.test/')
+})

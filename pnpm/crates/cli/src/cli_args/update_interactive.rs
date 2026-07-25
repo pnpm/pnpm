@@ -160,6 +160,9 @@ async fn collect_choices(
         )
     }))
     .await;
+    // Keyed by workspace as well, so an entry each project contributed
+    // survives to [`choices::update_choices`] — that is what lets a
+    // collapsed row name every project it covers instead of the first.
     let mut unique = HashSet::new();
     let mut collected = Vec::new();
     for choices in choices {
@@ -169,6 +172,7 @@ async fn collect_choices(
                 choice.package_name.clone(),
                 choice.current.to_string(),
                 choice.target.to_string(),
+                choice.workspace.clone(),
             );
             if unique.insert(key) {
                 collected.push(choice);

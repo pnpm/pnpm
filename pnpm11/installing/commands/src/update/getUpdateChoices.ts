@@ -128,20 +128,33 @@ function buildPkgChoice (outdatedPkg: UpdateChoiceDependency, workspacesEnabled:
   const label = outdatedPkg.packageName
 
   const raw: string[] = [
-    label,
+    sanitizeCell(label),
     outdatedPkg.current ?? '',
     '❯',
+    // Not sanitized: `colorizeSemverDiff` puts the highlighting escapes
+    // in here deliberately.
     nextVersion,
   ]
   if (workspacesEnabled) {
-    raw.push(Array.from(workspaces ?? []).join(', '))
+    raw.push(Array.from(workspaces ?? []).map(sanitizeCell).join(', '))
   }
-  raw.push(getPkgUrl(outdatedPkg))
+  raw.push(sanitizeCell(getPkgUrl(outdatedPkg)))
 
   return {
     raw,
     name: outdatedPkg.packageName,
   }
+}
+
+/**
+ * Strip control characters from text that goes into a single-line table
+ * cell. Package names, workspace labels, and homepages come out of
+ * manifests and registry metadata, so an escape sequence there would
+ * corrupt the prompt's redraw and a newline would split the row.
+ */
+function sanitizeCell (text: string): string {
+  // eslint-disable-next-line no-control-regex
+  return text.replace(/[\u0000-\u001F\u007F-\u009F]/g, '')
 }
 
 function getPkgUrl (pkg: OutdatedPackage): string {
