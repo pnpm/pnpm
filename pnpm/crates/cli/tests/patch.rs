@@ -464,6 +464,57 @@ fn install_level_modified_patch_is_reapplied() {
     drop((root, mock_instance));
 }
 
+/// Regression test for <https://github.com/pnpm/pnpm/issues/13307>.
+#[test]
+fn install_reads_patched_dependencies_written_by_pnpm_10() {
+    let (root, workspace, npmrc_info) =
+        setup_configured_patch("is-positive@1.0.0", "is-positive@1.0.0.patch");
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    pacquet(&workspace, ["install", "--reporter=silent"]).assert().success();
+
+    let patch_hash = patch_file_hash(&workspace, "is-positive@1.0.0.patch");
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let lockfile_text = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
+    let pnpm_10_text = lockfile_text.replace(
+        &format!("  is-positive@1.0.0: {patch_hash}\n"),
+        &format!(
+            "  is-positive@1.0.0:\n    hash: {patch_hash}\n    path: patches/is-positive@1.0.0.patch\n",
+        ),
+    );
+    assert_ne!(pnpm_10_text, lockfile_text, "lockfile: {lockfile_text}");
+    fs::write(&lockfile_path, &pnpm_10_text).expect("write the pnpm 10 lockfile");
+
+    remove_dir_if_exists(&workspace.join("node_modules"));
+    pacquet(&workspace, ["install", "--frozen-lockfile", "--reporter=silent"]).assert().success();
+    let frozen = read_installed_index(&workspace);
+    assert!(frozen.contains("// patched"), "frozen: {frozen}");
+    assert_eq!(
+        fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml"),
+        pnpm_10_text,
+        "a frozen install must leave the lockfile alone",
+    );
+
+    remove_dir_if_exists(&workspace.join("node_modules"));
+    let patch_path = workspace.join("patches/is-positive@1.0.0.patch");
+    let patch = fs::read_to_string(&patch_path).expect("read the patch file");
+    fs::write(&patch_path, patch.replace("// patched", "// edited patch"))
+        .expect("rewrite the patch file");
+    pacquet(&workspace, ["install", "--reporter=silent"]).assert().success();
+    let installed = read_installed_index(&workspace);
+    assert!(installed.contains("// edited patch"), "installed: {installed}");
+
+    let edited_hash = patch_file_hash(&workspace, "is-positive@1.0.0.patch");
+    let rewritten = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
+    assert_eq!(
+        rewritten,
+        lockfile_text.replace(&patch_hash, &edited_hash),
+        "an install that rewrites the lockfile normalizes the entry to the bare hash",
+    );
+
+    drop((root, mock_instance));
+}
+
 /// TS: `patch package when the patched package has no dependencies and
 /// appears multiple times` (`patch.ts:475`). `is-not-positive` depends on
 /// `is-positive@^3.1.0`, which the override pins back onto the patched
