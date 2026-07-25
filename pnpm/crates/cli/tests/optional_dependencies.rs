@@ -252,38 +252,6 @@ fn forced_frozen_install_materializes_incompatible_optionals() {
     drop((root, npmrc_info)); // cleanup
 }
 
-mod known_failures {
-    //! Optional-dependency cases blocked on engine behavior pacquet
-    //! hasn't built yet. Each entry stubs the not-yet-built subject
-    //! under test through [`pacquet_testing_utils::allow_known_failure`]
-    //! so the test exits early rather than masking a real bug.
-
-    use pacquet_testing_utils::{
-        allow_known_failure,
-        known_failure::{KnownFailure, KnownResult},
-    };
-
-    fn edge_aware_engine_strict() -> KnownResult<()> {
-        Err(KnownFailure::new(
-            "pacquet's `engineStrict` dispatch keys on the lockfile's \
-             snapshot-level `optional: true` flag, so an incompatible \
-             package that is only optionally *reachable* is skipped even \
-             when its inbound edge is a regular dependency. Upstream \
-             evaluates installability per edge at resolve time and fails \
-             this shape (pnpm/pnpm#13143).",
-        ))
-    }
-
-    /// TS: `fail on unsupported dependency of optional dependency`
-    /// (`optionalDependencies.ts:552`). Under `engineStrict`, an
-    /// installable optional whose *regular* dependency is incompatible
-    /// fails the install upstream.
-    #[test]
-    fn fail_on_unsupported_dependency_of_optional_dependency() {
-        allow_known_failure!(edge_aware_engine_strict());
-    }
-}
-
 /// TS: `only skip optional dependencies`
 /// (`optionalDependencies.ts:610`).
 #[test]
@@ -935,7 +903,6 @@ fn fail_on_unsupported_dependency_of_optional_dependency() {
         .assert()
         .failure();
     let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
-    eprintln!("STDERR:\n{stderr}\n");
     assert!(
         stderr.contains("ERR_PNPM_UNSUPPORTED_PLATFORM"),
         "the incompatible regular dependency of an installable optional must fail the install; got:\n{stderr}",
