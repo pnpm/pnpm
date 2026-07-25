@@ -38,6 +38,7 @@ async fn test_empty_lockfile() {
             no_optional: false,
             optional: false,
         },
+        params: vec!["list".to_string()],
     };
 
     // An empty directory has no lockfile, so it should just print "{}" and exit ok
