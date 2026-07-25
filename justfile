@@ -53,6 +53,18 @@ check:
 test:
   cargo nextest run
 
+# A test process that is killed cannot run `TempDir`'s cleanup, so a
+# fail-fast or interrupted run abandons whole fixture trees — each holding a
+# per-test store for the mocked-registry tests, which is what actually adds
+# up. Only `pacquet-test-*` is swept: that prefix comes from
+# `CommandTempCwd`, so a match is known to be ours. `-mindepth 1` keeps the
+# root itself out of the match, and the age floor leaves a concurrent run
+# alone.
+
+# Remove fixture trees that earlier test runs abandoned.
+sweep-test-temp:
+  find "${TMPDIR:-/tmp}" -mindepth 1 -maxdepth 1 -name 'pacquet-test-*' -mmin +60 -exec rm -rf {} + 2>/dev/null || true
+
 # Run pacquet package tests only.
 test-pacquet:
   cargo nextest run --workspace --exclude pnpr --exclude pnpr-fixtures

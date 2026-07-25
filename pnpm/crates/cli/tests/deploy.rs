@@ -301,9 +301,13 @@ fn deploy_all_files_rejects_symlink_escape() {
         .expect("run pacquet deploy");
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
+    // miette wraps the message, and where it wraps depends on how long the
+    // temp path is, so match against whitespace-collapsed output rather than
+    // a phrase that a line break can land inside.
+    let flattened = stderr.split_whitespace().collect::<Vec<_>>().join(" ");
     assert!(
-        stderr.contains("ERR_PNPM_DIRECTORY_FETCHER_PATH_ESCAPE")
-            && stderr.contains("resolves outside"),
+        flattened.contains("ERR_PNPM_DIRECTORY_FETCHER_PATH_ESCAPE")
+            && flattened.contains("resolves outside source directory"),
         "unexpected stderr:\n{stderr}",
     );
     assert!(

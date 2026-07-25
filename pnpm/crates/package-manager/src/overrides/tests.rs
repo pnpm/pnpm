@@ -16,18 +16,8 @@ fn parsed(map: &[(&str, &str)]) -> Vec<pacquet_config_parse_overrides::VersionOv
 
 /// Build an in-memory `PackageManifest` from a JSON value. The path
 /// is a stub (the overrider reads `value()` / `value_mut()` only).
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "test helper called from multiple sites with owned literals; by-value keeps the call sites clean"
-)]
 fn manifest_from_value(value: Value) -> PackageManifest {
-    let dir = tempfile::tempdir().expect("tempdir for manifest");
-    let path = dir.path().join("package.json");
-    std::fs::write(&path, serde_json::to_string(&value).unwrap()).unwrap();
-    // Persist the tempdir; tests only inspect the in-memory value and
-    // don't rely on cleanup.
-    let _ = dir.keep();
-    PackageManifest::from_path(path).expect("read fixture manifest")
+    PackageManifest::from_value(PathBuf::from("package.json"), value)
 }
 
 fn dep_spec<'a>(manifest: &'a PackageManifest, group: &str, name: &str) -> Option<&'a str> {
