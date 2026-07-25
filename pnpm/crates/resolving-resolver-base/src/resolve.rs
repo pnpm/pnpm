@@ -10,7 +10,7 @@ use std::{collections::BTreeMap, future::Future, path::PathBuf, pin::Pin, sync::
 
 use chrono::{DateTime, Utc};
 use derive_more::{Display, From};
-use pacquet_config::{TrustPolicy, version_policy::PackageVersionPolicy};
+use pacquet_config::{SaveWorkspaceProtocol, TrustPolicy, version_policy::PackageVersionPolicy};
 use pacquet_lockfile::{LockfileResolution, PkgNameVer};
 use pacquet_registry::PinnedVersion;
 use serde::{Deserialize, Serialize};
@@ -331,6 +331,9 @@ pub struct ResolveOptions {
     /// `^`, `~` stays `~`, an exact pin stays exact). `None` leaves the
     /// choice to the resolver's own default.
     pub pinned_version: Option<PinnedVersion>,
+    /// How [`Self::calc_specifier`] writes a dependency that resolved to
+    /// a workspace package. The `saveWorkspaceProtocol` setting.
+    pub save_workspace_protocol: SaveWorkspaceProtocol,
     /// `minimumReleaseAge` cutoff. Versions published after this point
     /// are filtered out by the npm picker (or reported inline via
     /// [`ResolveResult::policy_violation`] when no mature pick exists).

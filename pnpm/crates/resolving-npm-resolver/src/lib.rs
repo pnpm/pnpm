@@ -16,6 +16,7 @@
 //!   npm-resolved lockfile entry the install loads.
 
 mod calc_specifier;
+mod calc_specifier_for_workspace_dep;
 mod create_npm_resolution_verifier;
 mod errors;
 mod fetch_attestation_published_at;
@@ -38,6 +39,7 @@ mod which_version_is_pinned;
 mod workspace_pref_to_npm;
 
 pub use calc_specifier::calc_specifier;
+pub use calc_specifier_for_workspace_dep::{DeclaredSpecifiers, calc_specifier_for_workspace_dep};
 pub use create_npm_resolution_verifier::{
     CreateNpmResolutionVerifierOptions, DistStats, NpmResolutionVerifier, ObservedDistStats,
     create_npm_resolution_verifier, observed_dist_stats_sink,

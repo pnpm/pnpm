@@ -13,8 +13,8 @@
 
 use crate::{
     AuditLevel, CatalogMode, HoistingLimits, NodeLinker, NodePackageMapType, PackageImportMethod,
-    PmOnFail, ResolutionMode, RuntimeOnFail, ScriptsPrependNodePath, TrustPolicy,
-    VerifyDepsBeforeRun, WorkspaceSettings, api::EnvVar,
+    PmOnFail, ResolutionMode, RuntimeOnFail, SaveWorkspaceProtocol, ScriptsPrependNodePath,
+    TrustPolicy, VerifyDepsBeforeRun, WorkspaceSettings, api::EnvVar,
 };
 use serde::de::DeserializeOwned;
 
@@ -256,6 +256,7 @@ impl WorkspaceSettings {
             settings.save_prefix = Some(save_prefix);
         }
         json_field!(save_peer, "SAVE_PEER");
+        enum_field!(save_workspace_protocol, "SAVE_WORKSPACE_PROTOCOL", SaveWorkspaceProtocol);
         json_field!(registry_supports_time_field, "REGISTRY_SUPPORTS_TIME_FIELD");
         json_field!(allowed_deprecated_versions, "ALLOWED_DEPRECATED_VERSIONS");
         json_field!(update_config, "UPDATE_CONFIG");

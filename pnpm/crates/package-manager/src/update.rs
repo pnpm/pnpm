@@ -32,8 +32,8 @@ use pacquet_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMe
 use pacquet_resolving_default_resolver::DefaultResolver;
 use pacquet_resolving_deps_resolver::UpdateDepth;
 use pacquet_resolving_npm_resolver::{
-    InMemoryPackageMetaCache, NpmResolver, merge_named_registries, shared_packument_fetch_locker,
-    shared_picked_manifest_cache, which_version_is_pinned,
+    DeclaredSpecifiers, InMemoryPackageMetaCache, NpmResolver, calc_specifier_for_workspace_dep,
+    merge_named_registries, shared_packument_fetch_locker, shared_picked_manifest_cache,
 };
 use pacquet_resolving_resolver_base::{
     ResolveOptions, Resolver, UpdateBehavior, WantedDependency, WorkspacePackages,
@@ -992,10 +992,9 @@ fn workspace_link_targets(
 /// The `workspace:` specifier `--workspace` writes for a linked
 /// dependency.
 ///
-/// Under [`SaveWorkspaceProtocol::Rolling`] the range operator is written
-/// without a version, so the entry survives the workspace package's next
-/// release; otherwise the linked version is written under the operator
-/// the dependency already declared.
+/// `--workspace` is an explicit request for the protocol, so unlike
+/// `pnpm add` this never declines on [`SaveWorkspaceProtocol::Off`] —
+/// the setting only chooses the shape.
 fn workspace_specifier(
     target: &WorkspaceLinkTarget,
     versions: &WorkspacePackagesByVersion,
@@ -1008,24 +1007,14 @@ fn workspace_specifier(
     let Some(version) = pick_workspace_version(versions, &target.wanted_range) else {
         return format!("workspace:{}", target.wanted_range);
     };
-    if protocol == SaveWorkspaceProtocol::Rolling {
-        let operator = match target.declared.as_str() {
-            "workspace:*" | "workspace:^" | "workspace:~" => {
-                return target.declared.clone();
-            }
-            _ => match which_version_is_pinned(&target.declared) {
-                Some(PinnedVersion::Minor) => "~",
-                Some(PinnedVersion::Patch | PinnedVersion::None) => "*",
-                Some(PinnedVersion::Major) | None => "^",
-            },
-        };
-        return format!("workspace:{operator}");
-    }
-    if node_semver::Version::parse(&version).is_ok_and(|version| !version.pre_release.is_empty()) {
-        return format!("workspace:{version}");
-    }
-    let pin = which_version_is_pinned(&target.declared).unwrap_or(default_pin);
-    format!("workspace:{}{version}", pin.range_prefix())
+    calc_specifier_for_workspace_dep(
+        DeclaredSpecifiers { prev: Some(&target.declared), bare: None },
+        None,
+        &target.name,
+        Some(&version),
+        protocol,
+        default_pin,
+    )
 }
 
 /// The workspace version a `workspace:<range>` specifier would resolve
