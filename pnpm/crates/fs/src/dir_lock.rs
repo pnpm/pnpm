@@ -47,8 +47,9 @@ impl DirLock {
     /// take, or a slow holder gets its lock stolen — which is why it is
     /// the caller's to choose and not tied to `wait`.
     ///
-    /// Errors are limited to creating the lock's parent directory;
-    /// everything else is a lost race, which is what the wait is for.
+    /// `Ok(None)` is a lock someone else holds; `Err` is one that could
+    /// not be established at all. Callers that degrade rather than fail
+    /// need to tell those apart.
     pub fn acquire(
         path: PathBuf,
         wait: Duration,
@@ -60,22 +61,9 @@ impl DirLock {
         let deadline = SystemTime::now() + wait;
         loop {
             match fs::create_dir(&path) {
-                Ok(()) => {
-                    let token = mint_token();
-                    if fs::write(path.join(OWNER_FILE), &token).is_ok() {
-                        return Ok(Some(DirLock { path, token }));
-                    }
-                    // Without its owner record this lock cannot tell, at
-                    // release time, whether it is still the one it took.
-                    // Rather than hold an unidentifiable lock, give the
-                    // directory back and report the lock as not taken —
-                    // the caller's documented degradation is to proceed
-                    // unserialized, which is no worse than not having
-                    // tried.
-                    let _ = fs::remove_dir_all(&path);
-                    return Ok(None);
-                }
+                Ok(()) => return claim(path).map(Some),
                 Err(error) if error.kind() != io::ErrorKind::AlreadyExists => return Err(error),
+                // Held by someone else: fall through to the wait below.
                 Err(_) => {}
             }
             if is_abandoned(&path, abandoned_after) {
@@ -116,6 +104,18 @@ impl Drop for DirLock {
         }
         let _ = fs::remove_dir_all(&self.path);
     }
+}
+
+/// Record this process as the owner of a lock directory it just created.
+/// A lock that cannot be recorded is given back, since [`Drop`] would
+/// have no way to tell at release time whether it is still ours.
+fn claim(path: PathBuf) -> io::Result<DirLock> {
+    let token = mint_token();
+    if let Err(error) = fs::write(path.join(OWNER_FILE), &token) {
+        let _ = fs::remove_dir_all(&path);
+        return Err(error);
+    }
+    Ok(DirLock { path, token })
 }
 
 /// A value no concurrent acquisition shares. The clock supplies

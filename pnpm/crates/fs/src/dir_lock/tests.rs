@@ -87,3 +87,17 @@ fn a_stale_holder_does_not_release_its_successors_lock() {
     drop(successor);
     assert!(!path.exists(), "the successor releases it on its own drop");
 }
+
+#[test]
+fn claiming_a_directory_that_cannot_hold_the_record_fails() {
+    let root = tempdir().expect("create tempdir");
+    let path = root.path().join("engine.lock");
+    // A directory where the owner record belongs: the lock directory is
+    // real, so the cleanup assertion below has something to observe, and
+    // writing the record into it still fails.
+    fs::create_dir_all(path.join("owner")).expect("block the owner record");
+
+    let error = super::claim(path.clone()).expect_err("an unrecordable lock is not taken");
+
+    assert!(!path.exists(), "the lock directory is given back: {error}");
+}
