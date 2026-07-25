@@ -35,6 +35,8 @@ use pacquet_resolving_npm_resolver::{
 };
 use pacquet_resolving_resolver_base::WorkspacePackages;
 use pacquet_tarball::MemCache;
+use pacquet_workspace_range_resolver::resolve_workspace_range;
+use pacquet_workspace_spec::WorkspaceSpec;
 use std::{collections::HashSet, path::PathBuf, sync::Arc};
 
 #[must_use]
@@ -977,13 +979,13 @@ fn workspace_packages_for_add(config: &Config) -> Option<WorkspacePackages> {
 }
 
 /// The `workspace:` specifier to save for `package_name`, or `None`
-/// when this add isn't a workspace dependency at all.
+/// when this add isn't a workspace dependency.
 ///
-/// A dependency counts as one when the user asked for `workspace:`
-/// explicitly, or when the workspace index carries the name and
-/// `saveWorkspaceProtocol` is on — the latter matching pnpm, which
-/// rewrites a bare-semver request into the protocol once it resolves
-/// locally.
+/// Only an explicit `workspace:` request is rewritten. pnpm also
+/// rewrites a bare-semver request once it resolves to a local package,
+/// but pacquet's resolver has no workspace fallback for that case yet
+/// (it fails against the registry first), so there is nothing here to
+/// rewrite.
 ///
 /// A relative `workspace:./pkg` is left alone: it names a directory, not
 /// a range, so there is no operator to roll.
@@ -995,21 +997,30 @@ fn workspace_save_specifier(
     pinned_version: PinnedVersion,
     workspace_packages: Option<&WorkspacePackages>,
 ) -> Option<String> {
-    let asked_for_workspace = explicit_spec.is_some_and(|spec| spec.starts_with("workspace:"));
-    if explicit_spec.is_some_and(|spec| spec.starts_with("workspace:.")) {
+    let spec = WorkspaceSpec::parse(explicit_spec?)?;
+    if spec.version.starts_with('.') {
         return None;
     }
-    let versions = workspace_packages.and_then(|packages| packages.get(package_name));
-    if !asked_for_workspace
-        && (versions.is_none() || save_workspace_protocol == SaveWorkspaceProtocol::Off)
-    {
-        return None;
-    }
+    // `workspace:<target>@<range>` installs `<target>` under the name
+    // the selector gave, so the target — not the install name — is what
+    // the workspace is searched for and what the saved specifier names.
+    let target_name = spec.alias.as_deref().unwrap_or(package_name);
+    let resolved_version =
+        workspace_packages.and_then(|packages| packages.get(target_name)).and_then(|versions| {
+            let available: Vec<String> = versions.keys().cloned().collect();
+            // The highest local version, semver-aware, so a workspace
+            // holding both `9.0.0` and `10.0.0` does not pin to the
+            // lexicographically greater `9.0.0`. Deliberately not
+            // filtered by the requested range: pnpm pins whatever the
+            // workspace holds, leaving a genuine mismatch for the
+            // install to report as `NO_MATCHING_VERSION_INSIDE_WORKSPACE`.
+            resolve_workspace_range("*", &available)
+        });
     Some(calc_specifier_for_workspace_dep(
         DeclaredSpecifiers { prev: prev_specifier, bare: explicit_spec },
         Some(package_name),
-        package_name,
-        versions.and_then(|versions| versions.keys().next_back()).map(String::as_str),
+        target_name,
+        resolved_version.as_deref(),
         save_workspace_protocol,
         pinned_version,
     ))
