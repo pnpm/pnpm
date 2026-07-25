@@ -41,6 +41,14 @@ pub struct ImporterLockfileInput<'a> {
     pub direct_dependencies_by_alias: BTreeMap<String, DepPath>,
 }
 
+/// The install-wide settings [`build_importer`] reads. Both decide
+/// which direct dependencies reach the importer entry, so they travel
+/// together instead of as two adjacent `bool` parameters.
+struct ImporterLockfileFlags {
+    exclude_links_from_lockfile: bool,
+    auto_install_peers: bool,
+}
+
 /// Options threaded into [`dependencies_graph_to_lockfile`].
 pub struct GraphToLockfileOptions<'a> {
     /// One entry per workspace project being installed. Keyed by the
@@ -164,7 +172,14 @@ pub fn dependencies_graph_to_lockfile(
     let mut importers: HashMap<String, ProjectSnapshot> =
         HashMap::with_capacity(importer_inputs.len());
     for (id, input) in &importer_inputs {
-        importers.insert(id.clone(), build_importer(input, graph, exclude_links_from_lockfile)?);
+        importers.insert(
+            id.clone(),
+            build_importer(
+                input,
+                graph,
+                &ImporterLockfileFlags { exclude_links_from_lockfile, auto_install_peers },
+            )?,
+        );
     }
 
     let catalog_snapshots = build_catalog_snapshots(&importers, catalogs);
@@ -252,8 +267,9 @@ fn importer_resolved_version(importer: &ProjectSnapshot, alias: &str) -> Option<
 fn build_importer(
     input: &ImporterLockfileInput<'_>,
     graph: &DependenciesGraph,
-    exclude_links_from_lockfile: bool,
+    flags: &ImporterLockfileFlags,
 ) -> Result<ProjectSnapshot, DependenciesGraphToLockfileError> {
+    let ImporterLockfileFlags { exclude_links_from_lockfile, auto_install_peers } = *flags;
     let manifest = input.manifest;
     let direct = &input.direct_dependencies_by_alias;
 
@@ -275,7 +291,9 @@ fn build_importer(
         // snapshots graph below. Writing them here would carry specifiers
         // the manifest can't satisfy through `satisfies_package_manifest`
         // and force every later install onto the fresh-resolve path.
-        let Some(specifier) = read_manifest_specifier(manifest, alias) else { continue };
+        let Some(specifier) = read_manifest_specifier(manifest, alias, auto_install_peers) else {
+            continue;
+        };
         // Workspace-link nodes don't enter the graph (the resolver
         // short-circuits them at `depth = -1`); resolve the importer
         // version directly from the `link:` depPath instead. Non-link
@@ -349,18 +367,23 @@ fn manifest_alias_to_group(manifest: &PackageManifest) -> HashMap<String, Depend
 }
 
 /// Look up the user-written specifier for `alias` in the manifest's
-/// `optionalDependencies` / `dependencies` / `devDependencies` /
-/// `peerDependencies` maps, in that precedence order. Returns `None` for
-/// a peer-only entry that was auto-installed but isn't recorded as a
-/// direct dep in the manifest — such entries don't go into the
-/// importer's `specifiers` map.
-fn read_manifest_specifier(manifest: &PackageManifest, alias: &str) -> Option<String> {
-    for group in [
-        DependencyGroup::Optional,
-        DependencyGroup::Prod,
-        DependencyGroup::Dev,
-        DependencyGroup::Peer,
-    ] {
+/// `optionalDependencies` / `dependencies` / `devDependencies` maps —
+/// plus `peerDependencies` when `auto_install_peers` materializes those
+/// into the importer's dependencies. Returns `None` for an alias the
+/// manifest doesn't declare in any of those groups, including a peer the
+/// hoist installed while `autoInstallPeers` is off: such entries stay out
+/// of the importer's `specifiers` map and are only reachable through the
+/// snapshots graph.
+fn read_manifest_specifier(
+    manifest: &PackageManifest,
+    alias: &str,
+    auto_install_peers: bool,
+) -> Option<String> {
+    let materialized_peers = auto_install_peers.then_some(DependencyGroup::Peer);
+    for group in [DependencyGroup::Optional, DependencyGroup::Prod, DependencyGroup::Dev]
+        .into_iter()
+        .chain(materialized_peers)
+    {
         let group_key: &str = group.into();
         if let Some(map) = manifest.value().get(group_key).and_then(Value::as_object)
             && let Some(spec) = map.get(alias).and_then(Value::as_str)

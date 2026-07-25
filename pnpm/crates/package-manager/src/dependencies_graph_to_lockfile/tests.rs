@@ -2013,3 +2013,83 @@ fn same_name_injected_dep_serializes_as_plain_file_ref() {
         "renamed aliases must keep the <name>@<ref> form: {renamed:?}",
     );
 }
+
+/// Regression for <https://github.com/pnpm/pnpm/issues/13325>: a peer
+/// the hoist installed for the importer is a direct dependency of the
+/// resolved tree either way, but it only belongs in the importer's
+/// lockfile entry when `autoInstallPeers` materializes the manifest's
+/// `peerDependencies` into its dependencies.
+#[test]
+fn importer_records_a_peer_only_alias_only_under_auto_install_peers() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": { "consumer": "1.0.0" },
+        "peerDependencies": { "peer": "^1.0.0" },
+        "peerDependenciesMeta": { "peer": { "optional": true } },
+    }));
+    let peer = make_node(
+        "peer",
+        "1.0.0",
+        json!({ "name": "peer", "version": "1.0.0" }),
+        BTreeMap::new(),
+        BTreeMap::new(),
+        HashSet::new(),
+    );
+    let consumer = make_node(
+        "consumer",
+        "1.0.0",
+        json!({
+            "name": "consumer",
+            "version": "1.0.0",
+            "peerDependencies": { "peer": "^1.0.0" },
+            "peerDependenciesMeta": { "peer": { "optional": true } },
+        }),
+        BTreeMap::from([("peer".to_string(), peer.dep_path.clone())]),
+        BTreeMap::from([(
+            "peer".to_string(),
+            PeerDep { version: "^1.0.0".to_string(), optional: true },
+        )]),
+        HashSet::new(),
+    );
+    let mut graph = DependenciesGraph::new();
+    for node in [peer, consumer] {
+        graph.insert(node.dep_path.clone(), node);
+    }
+    let direct = BTreeMap::from([
+        ("consumer".to_string(), DepPath::from("consumer@1.0.0".to_string())),
+        ("peer".to_string(), DepPath::from("peer@1.0.0".to_string())),
+    ]);
+
+    let peer_key = PkgName::parse("peer").unwrap();
+    let without_auto_install = dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest,
+        &graph,
+        direct.clone(),
+        false,
+        false,
+        None,
+        None,
+    ));
+    let importer = without_auto_install.root_project().expect("root importer exists");
+    dbg!(&importer.dependencies);
+    assert!(
+        !importer.dependencies.as_ref().is_some_and(|deps| deps.contains_key(&peer_key)),
+        "a peer-only alias must stay out of the importer entry under `autoInstallPeers: false`",
+    );
+    assert!(
+        !importer.specifiers.as_ref().is_some_and(|specs| specs.contains_key("peer")),
+        "a peer-only alias must stay out of the importer specifiers under `autoInstallPeers: false`",
+    );
+
+    let with_auto_install = dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest, &graph, direct, true, false, None, None,
+    ));
+    let importer = with_auto_install.root_project().expect("root importer exists");
+    let entry = importer
+        .dependencies
+        .as_ref()
+        .and_then(|deps| deps.get(&peer_key))
+        .expect("auto-installed peer entry");
+    assert_eq!(entry.specifier, "^1.0.0");
+}

@@ -13,12 +13,15 @@
 
 pub mod _utils;
 
+use _utils::{importer, importer_version, read_lockfile};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
+use pacquet_lockfile::PkgName;
 use pacquet_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     fs::is_symlink_or_junction,
 };
+use pretty_assertions::assert_eq;
 use std::{fs, path::Path, process::Command};
 
 fn pacquet_at(workspace: &Path) -> Command {
@@ -226,6 +229,66 @@ fn frozen_install_accepts_auto_installed_workspace_peer() {
     );
 
     // The materialized peer must not read as lockfile drift.
+    pacquet_at(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+
+    drop((root, mock_instance));
+}
+
+/// Regression for [#13325](https://github.com/pnpm/pnpm/issues/13325):
+/// with `autoInstallPeers: false`, an optional peer that a sibling
+/// importer's resolution makes available must not turn into a direct
+/// dependency of the importer that only declares it as an optional
+/// peer.
+#[test]
+fn optional_peer_stays_out_of_the_importer_without_auto_install_peers() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } = two_project_workspace(
+        &serde_json::json!({
+            "name": "pkg-a",
+            "version": "1.0.0",
+            "dependencies": { "@pnpm.e2e/abc-optional-peers": "1.0.0" },
+            "peerDependencies": { "@pnpm.e2e/peer-c": "^1.0.0" },
+            "peerDependenciesMeta": { "@pnpm.e2e/peer-c": { "optional": true } },
+        }),
+        &serde_json::json!({
+            "name": "pkg-b",
+            "version": "1.0.0",
+            "dependencies": { "@pnpm.e2e/peer-c": "1.0.0" },
+        }),
+    );
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    workspace_yaml.push_str("autoInstallPeers: false\n");
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    pacquet_at(&workspace).with_arg("install").assert().success();
+
+    let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    let pkg_a = importer(&lockfile, "pkg-a");
+    dbg!(pkg_a);
+    let peer_c: PkgName = "@pnpm.e2e/peer-c".parse().expect("parse peer name");
+    for group in [&pkg_a.dependencies, &pkg_a.dev_dependencies, &pkg_a.optional_dependencies] {
+        assert!(
+            !group.as_ref().is_some_and(|dependencies| dependencies.contains_key(&peer_c)),
+            "optional peer added to pkg-a under `autoInstallPeers: false`",
+        );
+    }
+    assert!(
+        !workspace.join("pkg-a/node_modules/@pnpm.e2e/peer-c").exists(),
+        "optional peer linked into pkg-a under `autoInstallPeers: false`",
+    );
+    // The optional peer is still deduplicated into the dependent's peer
+    // context — the same entry the TypeScript CLI writes for this
+    // workspace. Its counterpart lives in `peerDependencies.ts`, in
+    // `an optional peer declared by a workspace project is not added to
+    // its own importer, when auto-install-peers is off`.
+    assert_eq!(
+        importer_version(&lockfile, "pkg-a", "@pnpm.e2e/abc-optional-peers"),
+        "1.0.0(@pnpm.e2e/peer-c@1.0.0)",
+    );
+
     pacquet_at(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
 
     drop((root, mock_instance));

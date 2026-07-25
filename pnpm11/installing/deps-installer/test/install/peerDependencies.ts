@@ -1536,6 +1536,59 @@ test('deduplicate packages that have peers, when adding new dependency in a work
   expect(depPaths).toContain(`@pnpm.e2e/abc-parent-with-ab@1.0.0${createPeerDepGraphHash([{ name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`)
 })
 
+test('an optional peer declared by a workspace project is not added to its own importer, when auto-install-peers is off', async () => {
+  // Regression test for https://github.com/pnpm/pnpm/issues/13325
+  // project-1 declares @pnpm.e2e/peer-c only as an optional peer, and a sibling
+  // project resolves that very version. The optional peer may be deduplicated
+  // into the peer context of project-1's dependency, but it must not become a
+  // direct dependency of project-1 itself.
+  await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/peer-c', version: '1.0.0', distTag: 'latest' })
+
+  const manifest1 = {
+    name: 'project-1',
+    dependencies: {
+      '@pnpm.e2e/abc-optional-peers': '1.0.0',
+    },
+    peerDependencies: {
+      '@pnpm.e2e/peer-c': '^1.0.0',
+    },
+    peerDependenciesMeta: {
+      '@pnpm.e2e/peer-c': { optional: true },
+    },
+  }
+  const manifest2 = {
+    name: 'project-2',
+    dependencies: {
+      '@pnpm.e2e/peer-c': '1.0.0',
+    },
+  }
+  preparePackages([
+    { location: 'project-1', package: manifest1 },
+    { location: 'project-2', package: manifest2 },
+  ])
+
+  const importers: MutatedProject[] = [
+    { mutation: 'install', rootDir: path.resolve('project-1') as ProjectRootDir },
+    { mutation: 'install', rootDir: path.resolve('project-2') as ProjectRootDir },
+  ]
+  const allProjects = [
+    { buildIndex: 0, manifest: manifest1, rootDir: path.resolve('project-1') as ProjectRootDir },
+    { buildIndex: 0, manifest: manifest2, rootDir: path.resolve('project-2') as ProjectRootDir },
+  ]
+  await mutateModules(importers, testDefaults({ allProjects, autoInstallPeers: false }))
+
+  const lockfile = readYamlFileSync<LockfileFile>(path.resolve(WANTED_LOCKFILE))
+  expect(lockfile.importers!['project-1'].dependencies).not.toHaveProperty(['@pnpm.e2e/peer-c'])
+  expect(fs.existsSync(path.resolve('project-1/node_modules/@pnpm.e2e/peer-c'))).toBeFalsy()
+  // The optional peer is still deduplicated into the dependent's peer context.
+  // pacquet writes the identical entry; its counterpart is
+  // `optional_peer_stays_out_of_the_importer_without_auto_install_peers` in
+  // pnpm/crates/cli/tests/workspace_install.rs.
+  expect(lockfile.importers!['project-1'].dependencies!['@pnpm.e2e/abc-optional-peers'].version)
+    .toBe('1.0.0(@pnpm.e2e/peer-c@1.0.0)')
+})
+
 test('resolve peer dependencies from aliased subdependencies if they are dependencies of a parent package', async () => {
   prepareEmpty()
   await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.0', distTag: 'latest' })
