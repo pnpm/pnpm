@@ -1012,6 +1012,17 @@ fn render_package_name(pkg: &OutdatedPackage) -> String {
     }
 }
 
+/// The `target` version with the segment that changed highlighted, and
+/// nothing else — the form the interactive update list shows, where a
+/// deprecation is not part of the row.
+pub(crate) fn colorize_target(pkg: &OutdatedPackage) -> String {
+    let change = classify(&pkg.current, &pkg.target);
+    if change == Change::None {
+        return pkg.target.to_string();
+    }
+    colorize_version(&pkg.target, change)
+}
+
 fn render_latest(pkg: &OutdatedPackage) -> String {
     let change = classify(&pkg.current, &pkg.target);
     if change == Change::None {
