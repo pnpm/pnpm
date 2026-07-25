@@ -4,7 +4,10 @@
 //! split into one group per dependency type, and each group is rendered
 //! as a column-aligned table under a header row.
 
-use crate::cli_args::outdated::{OutdatedPackage, colorize_target};
+use crate::cli_args::{
+    outdated::{OutdatedPackage, colorize_target},
+    sanitize::sanitize_inline,
+};
 use pacquet_package_manifest::DependencyGroup;
 use std::collections::HashSet;
 
@@ -70,15 +73,19 @@ impl ChoiceGroupKind {
 /// `groupBy`.
 ///
 /// A package that is outdated in more than one dependency type appears
-/// once, under whichever type came first: the deduplication key is the
-/// package, its versions, and whether it is a GitHub Action — not the
-/// dependency type. This matches pnpm, whose `uniqBy` runs before its
-/// `groupBy` over the same key.
+/// once, under whichever type came first: the deduplication key omits
+/// the dependency type. This matches pnpm, whose `uniqBy` runs before
+/// its `groupBy` over the same key.
 pub(crate) fn update_choices(outdated: &[&OutdatedPackage]) -> Vec<ChoiceGroup> {
     let mut seen = HashSet::new();
     let mut grouped: Vec<(ChoiceGroupKind, Vec<&OutdatedPackage>)> = Vec::new();
     for package in outdated {
+        // Keyed by alias as well as package name, because the alias is
+        // what a selected row updates: two manifest entries aliasing one
+        // package (`"a": "npm:foo@1"`, `"b": "npm:foo@1"`) are separate
+        // dependencies and both have to be offered.
         let key = (
+            package.alias.as_str(),
             package.package_name.as_str(),
             package.current.to_string(),
             package.target.to_string(),
@@ -116,12 +123,16 @@ fn render_rows(packages: &[&OutdatedPackage]) -> Vec<ChoiceRow> {
 
     let mut cells = vec![header];
     for package in packages {
+        // The name and homepage are registry metadata, so they are
+        // stripped of control characters before reaching the terminal:
+        // an escape sequence would corrupt the prompt's redraw, and a
+        // newline would break the row apart.
         let row = vec![
-            package.package_name.clone(),
+            sanitize_inline(&package.package_name).into_owned(),
             package.current.to_string(),
             "❯".to_string(),
             colorize_target(package),
-            package.homepage.clone().unwrap_or_default(),
+            package.homepage.as_deref().map(sanitize_inline).unwrap_or_default().into_owned(),
         ];
         cells.push(row);
     }
@@ -181,7 +192,14 @@ fn pad_row(row: &[String], widths: &[usize]) -> String {
     line.trim_end().to_string()
 }
 
-/// The displayed width of `text`, ignoring ANSI colour escapes.
+/// The column width of `text`, skipping the SGR escapes that colour it.
+///
+/// Only the colouring this module applies through [`colorize_target`]
+/// reaches here — every other cell is stripped of control characters by
+/// [`sanitize_inline`] first — so this handles the `ESC [ … m` sequences
+/// `owo_colors` emits rather than ANSI in general. Width is counted in
+/// characters, which matches column width for the ASCII that package
+/// names and semver versions are made of.
 fn printable_width(text: &str) -> usize {
     let mut width = 0;
     let mut chars = text.chars();

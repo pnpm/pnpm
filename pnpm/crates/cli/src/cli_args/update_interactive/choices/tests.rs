@@ -183,3 +183,35 @@ fn columns_line_up_within_a_group() {
 fn an_empty_set_produces_no_groups() {
     assert_eq!(update_choices(&[]), Vec::new());
 }
+
+/// Two manifest entries aliasing the same package are separate
+/// dependencies: updating one must not silently drop the other, so both
+/// are offered even though their package name and versions match.
+#[test]
+fn two_aliases_of_one_package_are_both_offered() {
+    let packages = [
+        pkg("a", "foo", "1.0.0", "2.0.0", DependencyGroup::Prod),
+        pkg("b", "foo", "1.0.0", "2.0.0", DependencyGroup::Prod),
+    ];
+
+    let groups = update_choices(&packages.iter().collect::<Vec<_>>());
+
+    assert_eq!(values(&groups[0]), vec!["a", "b"]);
+}
+
+/// Registry metadata reaches the prompt as a label, so control
+/// characters are stripped: an escape sequence would corrupt the
+/// prompt's redraw and a newline would split the row in two.
+#[test]
+fn control_characters_in_registry_metadata_are_stripped() {
+    let mut package = pkg("foo", "foo\u{1b}[31m", "1.0.0", "2.0.0", DependencyGroup::Prod);
+    package.homepage = Some("https://example.test/\u{1b}[2J\nEVIL".to_string());
+    let packages = [package];
+
+    let groups = update_choices(&packages.iter().collect::<Vec<_>>());
+
+    let row = &groups[0].rows[1];
+    assert!(!row.label.contains('\u{1b}'), "escape survived: {:?}", row.label);
+    assert!(!row.label.contains('\n'), "newline survived: {:?}", row.label);
+    assert!(row.label.contains("https://example.test/"), "url lost: {:?}", row.label);
+}
