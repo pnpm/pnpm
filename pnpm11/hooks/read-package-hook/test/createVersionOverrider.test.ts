@@ -926,6 +926,13 @@ describe('createDependencyOverrider()', () => {
     expect(overrideDependency('react', '^18.0.0')).toBeUndefined()
   })
 
+  test('resolves a local override relative to the directory of the package that gets the dependency', () => {
+    const overrideDependency = createDependencyOverrider(parseOverrides({
+      qar: 'link:../qar',
+    }), process.cwd())
+    expect(overrideDependency('qar', '^1.0.0', path.resolve('pkg'))).toBe('link:../../qar')
+  })
+
   test('applies a convergence override only when it satisfies the range', () => {
     const overrideDependency = createDependencyOverrider(parseOverrides({
       'react@': '18.3.1',

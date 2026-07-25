@@ -195,7 +195,7 @@ export interface ResolutionContext {
   force: boolean
   preferWorkspacePackages?: boolean
   readPackageHook?: ReadPackageHook
-  overrideBareSpecifier?: (name: string, range: string) => string | undefined
+  overrideBareSpecifier?: (name: string, bareSpecifier: string, dir?: string) => string | undefined
   engineStrict: boolean
   nodeVersion?: string
   pnpmVersion: string
@@ -412,16 +412,21 @@ export async function resolveRootDependencies (
   } else {
     workspaceRootDeps = []
   }
-  const _hoistPeers = hoistPeers.bind(null, {
-    autoInstallPeers: ctx.autoInstallPeers,
-    allPreferredVersions: ctx.allPreferredVersions,
-    workspaceRootDeps,
-    overrideBareSpecifier: ctx.overrideBareSpecifier,
-  })
   /* eslint-disable no-await-in-loop */
   while (true) {
     const allMissingOptionalPeersByImporters = await Promise.all(pkgAddressesByImportersWithoutPeers.map(async (importerResolutionResult, index) => {
       const { parentPkgAliases, preferredVersions, options } = importers[index]
+      // The importer is the manifest the hoisted peer is added to, so a local
+      // override's `link:`/`file:` target is made relative to its directory,
+      // exactly as it would be for a dependency the importer declares.
+      const _hoistPeers = hoistPeers.bind(null, {
+        autoInstallPeers: ctx.autoInstallPeers,
+        allPreferredVersions: ctx.allPreferredVersions,
+        workspaceRootDeps,
+        overrideBareSpecifier: ctx.overrideBareSpecifier == null
+          ? undefined
+          : (name, range) => ctx.overrideBareSpecifier!(name, range, options.prefix),
+      })
       const allMissingOptionalPeers: Record<string, string[]> = {}
       while (true) {
         for (const pkgAddress of importerResolutionResult.pkgAddresses) {

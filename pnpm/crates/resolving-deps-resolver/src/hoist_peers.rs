@@ -2,7 +2,7 @@
 //! "what to add to the importer's direct deps" map. Used by the
 //! orchestrator (`resolve_importer`) inside its hoist loop.
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, path::Path};
 
 use node_semver::{Range, Version};
 use pacquet_resolving_resolver_base::{
@@ -35,8 +35,11 @@ pub struct MissingPeerInfo {
 /// without this it would resolve against its declared peer range and
 /// silently produce the second copy the override exists to prevent.
 /// Returns the overriding specifier, `"-"` when the override drops the
-/// peer, or `None` when no override claims it.
-pub type DependencyOverrider = dyn Fn(&str, &str) -> Option<String> + Send + Sync;
+/// peer, or `None` when no override claims it. The path is the directory
+/// of the importer the peer is hoisted into — the manifest that would
+/// have declared the dependency — which a `link:` / `file:` override
+/// target is made relative to.
+pub type DependencyOverrider = dyn Fn(&str, &str, &Path) -> Option<String> + Send + Sync;
 
 /// Options for [`hoist_peers`].
 pub struct HoistPeersOptions<'a> {
@@ -44,6 +47,9 @@ pub struct HoistPeersOptions<'a> {
     pub all_preferred_versions: &'a PreferredVersions,
     pub workspace_root_deps: &'a [WorkspaceRootDep],
     pub override_bare_specifier: Option<&'a DependencyOverrider>,
+    /// Directory of the importer the peers are hoisted into. Only read
+    /// to resolve a local override target; see [`DependencyOverrider`].
+    pub project_dir: &'a Path,
 }
 
 /// Pick a specifier for each missing required peer. Returns a map of
@@ -58,8 +64,23 @@ pub fn hoist_peers(
     for (peer_name, info) in missing_required_peers {
         let range = &info.range;
 
-        if let Some(overridden) =
-            opts.override_bare_specifier.and_then(|overrider| overrider(peer_name, range))
+        let root_bare_specifier = find_workspace_root_dep(opts.workspace_root_deps, peer_name)
+            .and_then(|dep| dep.normalized_bare_specifier.as_ref());
+        // Without auto-install-peers, hoisting only deduplicates a
+        // package the graph or the workspace root already provides. An
+        // override redirects such a hoist; it must never create one, or
+        // disabling auto-install-peers would still install a peer
+        // nobody depends on.
+        if !opts.auto_install_peers
+            && root_bare_specifier.is_none()
+            && !opts.all_preferred_versions.contains_key(peer_name)
+        {
+            continue;
+        }
+
+        if let Some(overridden) = opts
+            .override_bare_specifier
+            .and_then(|overrider| overrider(peer_name, range, opts.project_dir))
         {
             if overridden != "-" {
                 dependencies.insert(peer_name.clone(), overridden);
@@ -67,9 +88,7 @@ pub fn hoist_peers(
             continue;
         }
 
-        if let Some(dep) = find_workspace_root_dep(opts.workspace_root_deps, peer_name)
-            && let Some(spec) = &dep.normalized_bare_specifier
-        {
+        if let Some(spec) = root_bare_specifier {
             dependencies.insert(peer_name.clone(), spec.clone());
             continue;
         }
@@ -156,10 +175,13 @@ pub fn get_hoistable_optional_peers(
         // same way it short-circuits `hoist_peers` above. Maximizing over
         // every version in the graph instead lets one importer's newer
         // resolution be hoisted into a sibling that declares nothing,
-        // adding a second instance of a package the root already pins.
+        // adding a second instance of a package the root already pins. A
+        // scheme specifier bounds them through the version body
+        // `get_peer_version_range` extracts; one with no version body
+        // yields `*` and leaves them unbounded.
         let root_range = find_workspace_root_dep(workspace_root_deps, peer_name)
             .and_then(|dep| dep.normalized_bare_specifier.as_deref())
-            .and_then(|spec| spec.parse::<Range>().ok());
+            .and_then(|spec| get_peer_version_range(spec).parse::<Range>().ok());
         // An unparsable range is satisfied by nothing, so bailing on the
         // peer matches failing the check per candidate.
         let Ok(parsed_ranges) =

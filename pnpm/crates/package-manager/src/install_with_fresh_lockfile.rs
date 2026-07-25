@@ -1147,8 +1147,8 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                     None
                 } else {
                     let overrider = Arc::clone(overrider);
-                    Some(Arc::new(move |name: &str, range: &str| {
-                        overrider.override_for_undeclared_dependency(name, range)
+                    Some(Arc::new(move |name: &str, range: &str, pkg_dir: &Path| {
+                        overrider.override_for_undeclared_dependency(name, range, pkg_dir)
                     }) as Arc<DependencyOverrider>)
                 }
             });

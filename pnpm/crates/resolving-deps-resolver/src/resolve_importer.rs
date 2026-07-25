@@ -521,6 +521,7 @@ impl ImporterHoistState {
                     all_preferred_versions: &self.all_preferred_versions,
                     workspace_root_deps,
                     override_bare_specifier: self.override_bare_specifier.as_deref(),
+                    project_dir: &self.project_dir,
                 },
                 &missing_as_pairs,
             );

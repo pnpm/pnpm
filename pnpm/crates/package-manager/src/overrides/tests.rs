@@ -459,15 +459,38 @@ fn override_for_undeclared_dependency_applies_generic_overrides() {
     let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
 
     assert_eq!(
-        overrider.override_for_undeclared_dependency("react", "^18.0.0").as_deref(),
+        overrider
+            .override_for_undeclared_dependency("react", "^18.0.0", Path::new("/workspace/pkg"))
+            .as_deref(),
         Some("npm:react@19.2.0"),
     );
     assert_eq!(
-        overrider.override_for_undeclared_dependency("zoo", "^1.5.0").as_deref(),
+        overrider
+            .override_for_undeclared_dependency("zoo", "^1.5.0", Path::new("/workspace/pkg"))
+            .as_deref(),
         Some("1.0.0"),
     );
-    assert_eq!(overrider.override_for_undeclared_dependency("zoo", "^2.0.0"), None);
-    assert_eq!(overrider.override_for_undeclared_dependency("qar", "^1.0.0"), None);
+    assert_eq!(
+        overrider.override_for_undeclared_dependency("zoo", "^2.0.0", Path::new("/workspace/pkg")),
+        None
+    );
+    assert_eq!(
+        overrider.override_for_undeclared_dependency("qar", "^1.0.0", Path::new("/workspace/pkg")),
+        None
+    );
+}
+
+#[test]
+fn override_for_undeclared_dependency_resolves_a_local_target_relative_to_the_package_dir() {
+    let overrides = parsed(&[("qar", "link:../qar")]);
+    let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+
+    assert_eq!(
+        overrider
+            .override_for_undeclared_dependency("qar", "^1.0.0", Path::new("/workspace/pkg"))
+            .as_deref(),
+        Some("link:../../qar"),
+    );
 }
 
 #[test]
@@ -475,7 +498,14 @@ fn override_for_undeclared_dependency_ignores_parent_scoped_overrides() {
     let overrides = parsed(&[("foo>react", "19.2.0")]);
     let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
 
-    assert_eq!(overrider.override_for_undeclared_dependency("react", "^18.0.0"), None);
+    assert_eq!(
+        overrider.override_for_undeclared_dependency(
+            "react",
+            "^18.0.0",
+            Path::new("/workspace/pkg")
+        ),
+        None
+    );
 }
 
 #[test]
@@ -484,9 +514,18 @@ fn override_for_undeclared_dependency_applies_converge_only_within_range() {
     let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
 
     assert_eq!(
-        overrider.override_for_undeclared_dependency("react", "^18.0.0").as_deref(),
+        overrider
+            .override_for_undeclared_dependency("react", "^18.0.0", Path::new("/workspace/pkg"))
+            .as_deref(),
         Some("18.3.1"),
     );
-    assert_eq!(overrider.override_for_undeclared_dependency("react", "^19.0.0"), None);
+    assert_eq!(
+        overrider.override_for_undeclared_dependency(
+            "react",
+            "^19.0.0",
+            Path::new("/workspace/pkg")
+        ),
+        None
+    );
     assert!(overrider.converge_declared_ranges().is_empty());
 }

@@ -38,7 +38,7 @@ export function createDependencyOverrider (
 ): DependencyOverrider {
   const { genericVersionOverrides, convergeVersions } = splitOverrides(overrides, rootDir)
   return (name, bareSpecifier, dir) => {
-    const versionOverride = pickVersionOverride([], genericVersionOverrides, name, bareSpecifier)
+    const versionOverride = pickVersionOverride({ versionOverrides: [], genericVersionOverrides }, name, bareSpecifier)
     if (versionOverride) {
       return versionOverride.newBareSpecifier === '-'
         ? '-'
@@ -155,7 +155,7 @@ function overrideDeps (
   peerDeps: Dependencies | undefined
 ): void {
   for (const [name, bareSpecifier] of Object.entries(peerDeps ?? deps)) {
-    const versionOverride = pickVersionOverride(versionOverrides, genericVersionOverrides, name, bareSpecifier)
+    const versionOverride = pickVersionOverride({ versionOverrides, genericVersionOverrides }, name, bareSpecifier)
     if (!versionOverride) {
       convergeDep(convergeOpts, { deps, peerDeps }, name, bareSpecifier)
       continue
@@ -228,8 +228,10 @@ function convergeBareSpecifier (
 }
 
 function pickVersionOverride (
-  versionOverrides: VersionOverrideWithParent[],
-  genericVersionOverrides: VersionOverride[],
+  { versionOverrides, genericVersionOverrides }: {
+    versionOverrides: VersionOverrideWithParent[]
+    genericVersionOverrides: VersionOverride[]
+  },
   name: string,
   bareSpecifier: string
 ): VersionOverride | undefined {

@@ -285,6 +285,30 @@ test('hoistPeers installs an auto-installed peer at the overridden specifier', (
   })
 })
 
+test('hoistPeers does not let an override install a peer that nothing provides when peers are not auto-installed', () => {
+  expect(hoistPeers({
+    autoInstallPeers: false,
+    allPreferredVersions: {},
+    workspaceRootDeps: [],
+    overrideBareSpecifier: () => 'npm:react@19.2.0',
+  }, [['react', { range: '^18.0.0' }]])).toStrictEqual({})
+})
+
+test('hoistPeers redirects a deduplicating hoist through an override when peers are not auto-installed', () => {
+  expect(hoistPeers({
+    autoInstallPeers: false,
+    allPreferredVersions: {
+      react: {
+        '18.3.1': 'version',
+      },
+    },
+    workspaceRootDeps: [],
+    overrideBareSpecifier: () => 'npm:react@19.2.0',
+  }, [['react', { range: '^18.0.0' }]])).toStrictEqual({
+    react: 'npm:react@19.2.0',
+  })
+})
+
 test('hoistPeers leaves a peer removed by an override uninstalled', () => {
   expect(hoistPeers({
     autoInstallPeers: true,
@@ -313,5 +337,35 @@ test('getHoistableOptionalPeers stays within the workspace root\'s range', () =>
   })
   expect(getHoistableOptionalPeers(allMissingOptionalPeers, allPreferredVersions)).toStrictEqual({
     postcss: '8.5.22',
+  })
+})
+
+test('getHoistableOptionalPeers stays within the version range of a scheme-prefixed workspace root specifier', () => {
+  const allMissingOptionalPeers = { postcss: ['*'] }
+  const allPreferredVersions = {
+    postcss: {
+      '8.5.10': 'version' as const,
+      '9.0.0': 'version' as const,
+    },
+  }
+  for (const normalizedBareSpecifier of ['workspace:^8.5.10', 'npm:postcss@^8.5.10', 'work:^8.5.10']) {
+    expect(getHoistableOptionalPeers(allMissingOptionalPeers, allPreferredVersions, [
+      { alias: 'postcss', pkgName: 'postcss', normalizedBareSpecifier },
+    ])).toStrictEqual({
+      postcss: '8.5.10',
+    })
+  }
+})
+
+test('getHoistableOptionalPeers keeps candidates unbounded when the workspace root specifier has no version', () => {
+  expect(getHoistableOptionalPeers({ postcss: ['*'] }, {
+    postcss: {
+      '8.5.10': 'version',
+      '9.0.0': 'version',
+    },
+  }, [
+    { alias: 'postcss', pkgName: 'postcss', normalizedBareSpecifier: 'file:../postcss' },
+  ])).toStrictEqual({
+    postcss: '9.0.0',
   })
 })

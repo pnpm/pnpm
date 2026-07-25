@@ -372,6 +372,9 @@ impl VersionsOverrider {
     /// edge that has no declaring manifest — a peer pnpm auto-installs.
     /// `"-"` means the edge is dropped. Parent-scoped overrides never
     /// apply: there is no parent manifest to match them against.
+    /// `pkg_dir` is the directory of the package the edge is added to, so
+    /// a `link:` / `file:` target stays relative to it instead of
+    /// hard-coding this machine's layout into the lockfile.
     ///
     /// Such an edge never reaches [`Self::apply`], so the convergence
     /// collector must not see it either — a range no manifest declares
@@ -381,6 +384,7 @@ impl VersionsOverrider {
         &self,
         dep_name: &str,
         dep_spec: &str,
+        pkg_dir: &Path,
     ) -> Option<String> {
         if let Some(chosen) = self.choose_override(&[], dep_name, dep_spec) {
             if chosen.inner.new_bare_specifier == "-" {
@@ -388,7 +392,7 @@ impl VersionsOverrider {
             }
             return Some(chosen.local_target.as_ref().map_or_else(
                 || chosen.inner.new_bare_specifier.clone(),
-                |target| resolve_local_override_spec(target, None),
+                |target| resolve_local_override_spec(target, Some(pkg_dir)),
             ));
         }
         self.converge_applies(dep_name, dep_spec)

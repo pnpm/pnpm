@@ -27,6 +27,12 @@ export function hoistPeers (
 ): Record<string, string> {
   const dependencies: Record<string, string> = {}
   for (const [peerName, { range }] of missingRequiredPeers) {
+    const rootBareSpecifier = findWorkspaceRootDep(opts.workspaceRootDeps, peerName)?.normalizedBareSpecifier
+    // Without autoInstallPeers, hoisting only deduplicates a package the graph
+    // or the workspace root already provides. An override redirects such a
+    // hoist; it must never create one, or disabling autoInstallPeers would
+    // still install a peer nobody depends on.
+    if (!opts.autoInstallPeers && !rootBareSpecifier && !opts.allPreferredVersions![peerName]) continue
     const overridden = opts.overrideBareSpecifier?.(peerName, range)
     if (overridden != null) {
       if (overridden !== '-') {
@@ -34,9 +40,8 @@ export function hoistPeers (
       }
       continue
     }
-    const rootDep = findWorkspaceRootDep(opts.workspaceRootDeps, peerName)
-    if (rootDep?.normalizedBareSpecifier) {
-      dependencies[peerName] = rootDep.normalizedBareSpecifier
+    if (rootBareSpecifier) {
+      dependencies[peerName] = rootBareSpecifier
       continue
     }
     if (opts.allPreferredVersions![peerName]) {
@@ -101,9 +106,11 @@ export function getHoistableOptionalPeers (
     // it short-circuits `hoistPeers` above. Maximizing over every version in
     // the graph instead lets one importer's newer resolution be hoisted into
     // a sibling that declares nothing, adding a second instance of a package
-    // the root already pins.
+    // the root already pins. A scheme specifier bounds them through the
+    // version body getPeerVersionRange extracts; one with no version body
+    // yields `*` and leaves them unbounded.
     const rootBareSpecifier = findWorkspaceRootDep(workspaceRootDeps, missingOptionalPeerName)?.normalizedBareSpecifier
-    const rootRange = rootBareSpecifier != null ? semver.validRange(rootBareSpecifier) : null
+    const rootRange = rootBareSpecifier != null ? semver.validRange(getPeerVersionRange(rootBareSpecifier)) : null
 
     let maxSatisfyingVersion: string | undefined
     for (const [version, selector] of Object.entries(allPreferredVersions[missingOptionalPeerName])) {

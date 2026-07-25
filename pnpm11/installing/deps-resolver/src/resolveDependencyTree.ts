@@ -126,7 +126,7 @@ export interface ResolveDependenciesOptions {
   hooks: {
     readPackage?: ReadPackageHook
   }
-  overrideBareSpecifier?: (name: string, range: string) => string | undefined
+  overrideBareSpecifier?: (name: string, bareSpecifier: string, dir?: string) => string | undefined
   nodeVersion?: string
   registries: Registries
   namedRegistries?: Record<string, string>
