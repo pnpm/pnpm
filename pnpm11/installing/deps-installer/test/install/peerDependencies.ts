@@ -1591,8 +1591,8 @@ test('an optional peer declared by a workspace project is not added to its own i
 
 test('no peer is hoisted when auto-install-peers and dedupe-peer-dependents are both off', async () => {
   // Peers are hoisted for either setting, so with both off the sibling's
-  // @pnpm.e2e/peer-c is left alone and the dependent keeps an unsuffixed
-  // snapshot. pacquet's counterpart is
+  // @pnpm.e2e/peer-c is left alone and the dependent keeps a snapshot with
+  // no peer suffix. pacquet's counterpart is
   // `no_peer_is_hoisted_when_auto_install_peers_and_dedupe_peer_dependents_are_off`
   // in pnpm/crates/cli/tests/workspace_install.rs.
   await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.0', distTag: 'latest' })
