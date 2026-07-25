@@ -12,7 +12,9 @@ use std::path::{Path, PathBuf};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::Version;
+use pacquet_config::SaveWorkspaceProtocol;
 use pacquet_lockfile::{DirectoryResolution, LockfileResolution};
+use pacquet_registry::PinnedVersion;
 use pacquet_resolving_resolver_base::{
     PkgResolutionId, ResolveResult, WantedDependency, WorkspacePackage, WorkspacePackages,
     WorkspacePackagesByVersion,
@@ -20,6 +22,7 @@ use pacquet_resolving_resolver_base::{
 use pacquet_workspace_range_resolver::resolve_workspace_range;
 
 use crate::{
+    calc_specifier_for_workspace_dep::{DeclaredSpecifiers, calc_specifier_for_workspace_dep},
     parse_bare_specifier::parse_bare_specifier,
     pick_package_from_meta::{RegistryPackageSpec, RegistryPackageSpecType},
     workspace_pref_to_npm::{InvalidWorkspaceSpecError, workspace_pref_to_npm},
@@ -51,6 +54,27 @@ pub struct ResolveFromWorkspaceOptions<'a> {
     /// `inject-workspace-packages` config plus the per-dep `injected`
     /// toggle.
     pub inject_workspace_packages: bool,
+    /// How to write the manifest specifier for this pick, when the
+    /// caller wants one at all.
+    pub saved_specifier: SavedSpecifierOptions,
+}
+
+/// What [`resolve_from_local_package`] needs to produce a
+/// manifest-ready [`ResolveResult::normalized_bare_specifier`].
+///
+/// Mirrors the same-named fields of
+/// [`ResolveOptions`](pacquet_resolving_resolver_base::ResolveOptions);
+/// carried separately because the workspace entry point takes its own
+/// options struct.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct SavedSpecifierOptions {
+    /// `false` suppresses the computation entirely — nothing below an
+    /// importer's direct dependencies is written to a manifest.
+    pub calc_specifier: bool,
+    /// Range operator to apply when the dependency declares none.
+    pub pinned_version: Option<PinnedVersion>,
+    /// The `saveWorkspaceProtocol` setting.
+    pub save_workspace_protocol: SaveWorkspaceProtocol,
 }
 
 /// Error envelope for [`try_resolve_from_workspace`]. The two error
@@ -190,6 +214,7 @@ pub(crate) fn try_resolve_from_workspace_packages(
         opts.inject_workspace_packages || wanted_dependency.injected.unwrap_or(false),
         opts.project_dir,
         opts.lockfile_dir,
+        opts.saved_specifier,
     ))
 }
 
@@ -214,16 +239,13 @@ pub(crate) fn pick_matching_local_version_or_null(
 }
 
 /// Build a `link:` / `file:` [`ResolveResult`] for a workspace package.
-///
-/// The `normalized_bare_specifier` field for the add / update paths
-/// stays `None` because pacquet doesn't carry the pinned-version /
-/// save-workspace-protocol config through to the resolver yet.
 pub(crate) fn resolve_from_local_package(
     local_package: &WorkspacePackage,
     wanted_dependency: &WantedDependency,
     hard_link_local_packages: bool,
     project_dir: &Path,
     lockfile_dir: &Path,
+    saved_specifier: SavedSpecifierOptions,
 ) -> ResolveResult {
     let local_dir = resolve_local_package_dir(local_package);
 
@@ -245,10 +267,34 @@ pub(crate) fn resolve_from_local_package(
         manifest: Some(std::sync::Arc::new(local_package.manifest.clone())),
         resolution: LockfileResolution::Directory(DirectoryResolution { directory }),
         resolved_via: "workspace".to_string(),
-        normalized_bare_specifier: None,
+        normalized_bare_specifier: saved_specifier
+            .calc_specifier
+            .then(|| workspace_specifier(local_package, wanted_dependency, saved_specifier))
+            .flatten(),
         alias: wanted_dependency.alias.clone(),
         policy_violation: None,
     }
+}
+
+/// The manifest specifier for a workspace pick, or `None` when the
+/// local manifest carries no name to write the protocol against.
+fn workspace_specifier(
+    local_package: &WorkspacePackage,
+    wanted_dependency: &WantedDependency,
+    saved_specifier: SavedSpecifierOptions,
+) -> Option<String> {
+    let manifest_field = |key| local_package.manifest.get(key).and_then(serde_json::Value::as_str);
+    Some(calc_specifier_for_workspace_dep(
+        DeclaredSpecifiers {
+            prev: wanted_dependency.prev_specifier.as_deref(),
+            bare: wanted_dependency.bare_specifier.as_deref(),
+        },
+        wanted_dependency.alias.as_deref(),
+        manifest_field("name")?,
+        manifest_field("version"),
+        saved_specifier.save_workspace_protocol,
+        saved_specifier.pinned_version.unwrap_or_default(),
+    ))
 }
 
 /// Honours `publishConfig.directory` when `publishConfig.linkDirectory`

@@ -11,7 +11,10 @@ use pacquet_resolving_resolver_base::{
 };
 use serde_json::json;
 
-use super::{ResolveFromWorkspaceError, ResolveFromWorkspaceOptions, try_resolve_from_workspace};
+use super::{
+    ResolveFromWorkspaceError, ResolveFromWorkspaceOptions, SavedSpecifierOptions,
+    try_resolve_from_workspace,
+};
 
 fn build_packages() -> WorkspacePackages {
     let mut foo: WorkspacePackagesByVersion = BTreeMap::new();
@@ -53,6 +56,7 @@ fn opts(packages: &WorkspacePackages) -> ResolveFromWorkspaceOptions<'_> {
         default_tag: "latest",
         workspace_packages: Some(packages),
         inject_workspace_packages: false,
+        saved_specifier: SavedSpecifierOptions::default(),
     }
 }
 
@@ -116,6 +120,7 @@ fn workspace_self_dependency_renders_as_bare_link() {
         default_tag: "latest",
         workspace_packages: Some(&packages),
         inject_workspace_packages: false,
+        saved_specifier: SavedSpecifierOptions::default(),
     };
     let result = try_resolve_from_workspace(&wanted("self", "workspace:*"), &opts)
         .expect("ok")
@@ -221,6 +226,7 @@ fn publish_config_directory_overrides_root_when_link_directory_is_unset() {
         default_tag: "latest",
         workspace_packages: Some(&packages),
         inject_workspace_packages: false,
+        saved_specifier: SavedSpecifierOptions::default(),
     };
 
     let result = try_resolve_from_workspace(&wanted("foo", "workspace:*"), &opts)
@@ -253,6 +259,7 @@ fn publish_config_link_directory_false_keeps_root() {
         default_tag: "latest",
         workspace_packages: Some(&packages),
         inject_workspace_packages: false,
+        saved_specifier: SavedSpecifierOptions::default(),
     };
 
     let result = try_resolve_from_workspace(&wanted("foo", "workspace:*"), &opts)

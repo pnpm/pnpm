@@ -1,5 +1,8 @@
 use super::{WorkspaceSettings, parse_json_or_string, parse_tri_array};
-use crate::{NodeLinker, NodePackageMapType, ScriptsPrependNodePath, TrustPolicy, api::EnvVar};
+use crate::{
+    NodeLinker, NodePackageMapType, SaveWorkspaceProtocol, ScriptsPrependNodePath, TrustPolicy,
+    api::EnvVar,
+};
 use pretty_assertions::assert_eq;
 
 #[test]
@@ -42,6 +45,34 @@ fn empty_save_prefix_env_var_survives() {
     }
     let settings = WorkspaceSettings::from_pnpm_config_env::<EnvEmptySavePrefix>();
     assert_eq!(settings.save_prefix.as_deref(), Some(""));
+}
+
+/// `saveWorkspaceProtocol` is `boolean | "rolling"`, so its env var has
+/// to accept both JSON booleans and the bare identifier.
+#[test]
+fn save_workspace_protocol_env_var_accepts_all_three_shapes() {
+    for (value, expected) in [
+        ("true", SaveWorkspaceProtocol::On),
+        ("false", SaveWorkspaceProtocol::Off),
+        ("rolling", SaveWorkspaceProtocol::Rolling),
+    ] {
+        assert_eq!(parse_json_or_string::<SaveWorkspaceProtocol>(value), Some(expected));
+    }
+    assert_eq!(parse_json_or_string::<SaveWorkspaceProtocol>("nonsense"), None);
+}
+
+/// The binding is wired to the `PNPM_CONFIG_*` name pnpm uses, not just
+/// parseable in isolation.
+#[test]
+fn save_workspace_protocol_reads_from_the_environment() {
+    struct EnvPinned;
+    impl EnvVar for EnvPinned {
+        fn var(name: &str) -> Option<String> {
+            (name == "PNPM_CONFIG_SAVE_WORKSPACE_PROTOCOL").then(|| "true".to_owned())
+        }
+    }
+    let settings = WorkspaceSettings::from_pnpm_config_env::<EnvPinned>();
+    assert_eq!(settings.save_workspace_protocol, Some(SaveWorkspaceProtocol::On));
 }
 
 #[test]

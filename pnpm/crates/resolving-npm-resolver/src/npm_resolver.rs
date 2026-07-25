@@ -44,7 +44,7 @@ use crate::{
     pick_package::{PackageMetaCache, PickPackageContext, PickPackageOptions, pick_package},
     pick_package_from_meta::{RegistryPackageSpec, RegistryPackageSpecType},
     resolve_from_workspace::{
-        ResolveFromWorkspaceError, ResolveFromWorkspaceOptions,
+        ResolveFromWorkspaceError, ResolveFromWorkspaceOptions, SavedSpecifierOptions,
         pick_matching_local_version_or_null, resolve_from_local_package,
         try_resolve_from_workspace, try_resolve_from_workspace_packages,
     },
@@ -164,6 +164,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
                 default_tag,
                 workspace_packages: opts.workspace_packages.as_ref(),
                 inject_workspace_packages: opts.inject_workspace_packages,
+                saved_specifier: saved_specifier_options(opts),
             };
             return try_resolve_from_workspace(wanted_dependency, &ws_opts)
                 .map_err(|err| Box::new(err) as ResolveError);
@@ -465,6 +466,7 @@ fn try_workspace_shadow(
             hard_link,
             project_dir,
             lockfile_dir,
+            saved_specifier_options(opts),
         ));
     }
 
@@ -481,6 +483,7 @@ fn try_workspace_shadow(
         hard_link,
         project_dir,
         lockfile_dir,
+        saved_specifier_options(opts),
     ))
 }
 
@@ -497,6 +500,17 @@ fn workspace_fallback_options(opts: &ResolveOptions) -> ResolveFromWorkspaceOpti
         default_tag: UNUSED,
         workspace_packages: opts.workspace_packages.as_ref(),
         inject_workspace_packages: opts.inject_workspace_packages,
+        saved_specifier: saved_specifier_options(opts),
+    }
+}
+
+/// Project the specifier-writing knobs out of [`ResolveOptions`] for the
+/// workspace entry point, which carries its own options struct.
+fn saved_specifier_options(opts: &ResolveOptions) -> SavedSpecifierOptions {
+    SavedSpecifierOptions {
+        calc_specifier: opts.calc_specifier,
+        pinned_version: opts.pinned_version,
+        save_workspace_protocol: opts.save_workspace_protocol,
     }
 }
 

@@ -4763,6 +4763,7 @@ dependencies = [
  "pacquet-workspace",
  "pacquet-workspace-manifest-writer",
  "pacquet-workspace-range-resolver",
+ "pacquet-workspace-spec",
  "pacquet-workspace-state",
  "pathdiff",
  "pipe-trait",
