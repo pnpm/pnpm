@@ -45,3 +45,23 @@ async fn test_empty_lockfile() {
     let res = args.run(&config, dir.path(), false).await;
     assert!(res.is_ok());
 }
+
+#[tokio::test]
+async fn test_no_subcommand_matches_pnpm_error_code() {
+    let dir = TempDir::new().unwrap();
+    let config = Config::default();
+    let args = LicensesArgs {
+        json: false,
+        long: false,
+        dependency_options: LicensesDependencyOptions {
+            prod: false,
+            dev: false,
+            no_optional: false,
+            optional: false,
+        },
+        params: vec![],
+    };
+
+    let err = args.run(&config, dir.path(), false).await.unwrap_err();
+    assert!(format!("{err:?}").contains("ERR_PNPM_LICENCES_NO_SUBCOMMAND"));
+}

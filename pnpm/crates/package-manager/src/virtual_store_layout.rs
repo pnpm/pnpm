@@ -285,17 +285,18 @@ impl VirtualStoreLayout {
     }
 }
 
-/// Build a lockfile's layout using the same runtime precedence as installation.
+/// Build a lockfile's layout using the runtime pin, effective Node version, then host.
 #[must_use]
 pub fn virtual_store_layout_for_lockfile(
     config: &Config,
+    effective_node_version: Option<&str>,
     snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
     packages: Option<&HashMap<PackageKey, PackageMetadata>>,
     allow_build_policy: Option<&AllowBuildPolicy>,
 ) -> VirtualStoreLayout {
     let engine = if config.enable_global_virtual_store {
         find_runtime_node_major(snapshots)
-            .or_else(|| config.node_version.as_deref().and_then(parse_major_from_version))
+            .or_else(|| effective_node_version.and_then(parse_major_from_version))
             .or_else(detect_node_major)
             .map(|major| engine_name(major, None, None))
     } else {
