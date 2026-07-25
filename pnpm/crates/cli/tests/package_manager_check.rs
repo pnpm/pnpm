@@ -539,7 +539,17 @@ fn run(command: Command, root: &Path, args: &[&str]) -> Output {
     // suppress the removal of `PNPM_CONFIG_PM_ON_FAIL`.
     let explicitly_set =
         command.get_envs().map(|(name, _)| name.to_string_lossy().into_owned()).collect::<Vec<_>>();
-    for name in ["pnpm_config_pm_on_fail", "PNPM_CONFIG_PM_ON_FAIL", "COREPACK_ROOT"] {
+    for name in [
+        "pnpm_config_pm_on_fail",
+        "PNPM_CONFIG_PM_ON_FAIL",
+        "pnpm_config_runtime_on_fail",
+        "PNPM_CONFIG_RUNTIME_ON_FAIL",
+        "npm_config_manage_package_manager_versions",
+        "NPM_CONFIG_MANAGE_PACKAGE_MANAGER_VERSIONS",
+        "pnpm_config_manage_package_manager_versions",
+        "PNPM_CONFIG_MANAGE_PACKAGE_MANAGER_VERSIONS",
+        "COREPACK_ROOT",
+    ] {
         if !explicitly_set.iter().any(|set_name| set_name.eq_ignore_ascii_case(name)) {
             command.env_remove(name);
         }

@@ -46,6 +46,35 @@ fn extract_accepts_the_on_fail_settings_as_bare_flags() {
 }
 
 #[test]
+fn extract_leaves_config_tokens_after_the_separator_for_the_child() {
+    let (overrides, remaining) = ConfigOverrides::extract(argv([
+        "pacquet",
+        "run",
+        "build",
+        "--",
+        "--pm-on-fail=ignore",
+        "--config.registry=https://example.test/",
+    ]));
+
+    // Past `--` the tokens are the script's arguments, not pnpm's settings.
+    assert_eq!(
+        remaining,
+        argv([
+            "pacquet",
+            "run",
+            "build",
+            "--",
+            "--pm-on-fail=ignore",
+            "--config.registry=https://example.test/",
+        ]),
+    );
+    let mut config = Config::default();
+    overrides.apply(&mut config);
+    assert_eq!(config.pm_on_fail, None);
+    assert_eq!(config.registry, Config::default().registry);
+}
+
+#[test]
 fn extract_leaves_other_bare_flags_for_clap() {
     let (_, remaining) =
         ConfigOverrides::extract(argv(["pacquet", "install", "--node-linker=hoisted"]));

@@ -105,10 +105,14 @@ impl ConfigOverrides {
     {
         let argv = argv.into_iter().collect::<Vec<_>>();
         let external_command_index = external_command_index(&argv);
+        // Everything past `--` belongs to whatever pnpm runs, not to pnpm.
+        let separator_index = argv.iter().position(|arg| arg == "--");
         let mut overrides = Self::default();
         let mut remaining = Vec::new();
         for (index, arg) in argv.into_iter().enumerate() {
-            if external_command_index.is_some_and(|command_index| index > command_index) {
+            if external_command_index.is_some_and(|command_index| index > command_index)
+                || separator_index.is_some_and(|separator| index > separator)
+            {
                 remaining.push(arg);
                 continue;
             }
