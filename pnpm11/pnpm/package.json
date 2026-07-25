@@ -73,7 +73,7 @@
   },
   "dependencies": {
     "@reflink/reflink": "catalog:",
-    "node-gyp": "^12.3.0",
+    "node-gyp": "^12.4.0",
     "v8-compile-cache": "2.4.0"
   },
   "devDependencies": {
