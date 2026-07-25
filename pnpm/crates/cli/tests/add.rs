@@ -268,6 +268,33 @@ fn add_workspace_root_tolerates_a_dir_that_does_not_exist() {
     drop(root); // cleanup
 }
 
+/// The counterpart to the tolerated nonexistent `--dir` above.
+#[test]
+fn add_workspace_root_rejects_a_dir_that_climbs_out_of_the_workspace() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace_with_local_fixtures(&workspace);
+
+    let output = pacquet
+        .with_args([
+            "--dir",
+            "../../outside-does-not-exist",
+            "add",
+            "-D",
+            "local-a@file:./fixtures/local-a",
+            "-w",
+        ])
+        .assert()
+        .failure();
+
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+    assert!(
+        stderr.contains("ERR_PNPM_NOT_IN_WORKSPACE"),
+        "a --dir pointing outside the workspace must not fall back to it: {stderr}",
+    );
+
+    drop(root); // cleanup
+}
+
 /// `pnpm add -D <pkg> <pkg> -w` run from a workspace subdirectory
 /// (pnpm/pnpm#13031).
 #[test]
