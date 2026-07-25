@@ -903,7 +903,6 @@ fn fail_on_unsupported_dependency_of_optional_dependency() {
         .assert()
         .failure();
     let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
-    eprintln!("STDERR:\n{stderr}\n");
     assert!(
         stderr.contains("ERR_PNPM_UNSUPPORTED_PLATFORM"),
         "the incompatible regular dependency of an installable optional must fail the install; got:\n{stderr}",
