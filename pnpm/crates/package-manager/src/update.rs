@@ -298,6 +298,7 @@ impl Update<'_> {
         let UpdatePreparation {
             seed_policy,
             persist_manifest: should_persist_manifest,
+            linked_workspace_packages,
             catalogs_override,
             ..
         } = prepared;
@@ -325,9 +326,9 @@ impl Update<'_> {
             // A targeted `pacquet update <pkg>` is a partial install
             // (pnpm's `installSome`); a bare `pacquet update` is a full
             // install that runs the project's own lifecycle scripts.
-            // `--workspace` always names the dependencies it re-points,
-            // so it is partial too.
-            is_full_install: packages.is_empty() && workspace_packages.is_none(),
+            // `--workspace` names the dependencies it re-points, so a
+            // run that linked any of them is partial too.
+            is_full_install: packages.is_empty() && !linked_workspace_packages,
             installs_only: true,
             resolved_packages,
             supported_architectures,
@@ -442,7 +443,7 @@ impl Update<'_> {
             skip_runtimes: config.skip_runtimes,
             trust_lockfile: config.trust_lockfile,
             update_checksums: false,
-            is_full_install: packages.is_empty() && workspace_packages.is_none(),
+            is_full_install: packages.is_empty() && !prepared.linked_workspace_packages,
             installs_only: true,
             resolved_packages,
             supported_architectures,
@@ -479,6 +480,11 @@ impl Update<'_> {
 struct UpdatePreparation {
     seed_policy: UpdateSeedPolicy,
     persist_manifest: bool,
+    /// Whether `--workspace` found anything to link. `false` when the
+    /// flag was absent, and also when it was passed but matched no
+    /// linkable direct dependency — that run is an ordinary update, so
+    /// it must not be downgraded to a partial install.
+    linked_workspace_packages: bool,
     updated_catalogs: Catalogs,
     catalogs_override: Option<Catalogs>,
     workspace_dir_for_catalogs: Option<PathBuf>,
@@ -487,6 +493,9 @@ struct UpdatePreparation {
 struct SelectedUpdatePreparation {
     seed_policies: BTreeMap<String, ImporterUpdateSeedPolicy>,
     persist_indices: Vec<usize>,
+    /// Whether `--workspace` linked anything in any selected project.
+    /// See [`UpdatePreparation::linked_workspace_packages`].
+    linked_workspace_packages: bool,
     updated_catalogs: Catalogs,
     catalogs_override: Option<Catalogs>,
     workspace_dir_for_catalogs: Option<PathBuf>,
@@ -575,8 +584,9 @@ async fn prepare_manifest<Reporter: self::Reporter>(
         .transpose()?
         .unwrap_or_default();
 
+    let linked_workspace_packages = !workspace_targets.is_empty();
     let seed_policy = if let Some(workspace_packages) =
-        workspace_packages.filter(|_| !workspace_targets.is_empty())
+        workspace_packages.filter(|_| linked_workspace_packages)
     {
         for target in workspace_targets {
             let specifier = workspace_specifier(
@@ -780,6 +790,7 @@ async fn prepare_manifest<Reporter: self::Reporter>(
     Ok(Some(UpdatePreparation {
         seed_policy,
         persist_manifest,
+        linked_workspace_packages,
         updated_catalogs,
         catalogs_override,
         workspace_dir_for_catalogs,
@@ -816,6 +827,7 @@ async fn prepare_selected_manifests<Reporter: self::Reporter>(
     let mut catalogs_override = None;
     let mut workspace_dir_for_catalogs = None;
     let mut any_work = false;
+    let mut linked_workspace_packages = false;
 
     for &index in selected_indices {
         let Some(prepared) = prepare_manifest::<Reporter>(
@@ -854,6 +866,7 @@ async fn prepare_selected_manifests<Reporter: self::Reporter>(
                 unreachable!("per-manifest preparation never produces importer policies")
             }
         }
+        linked_workspace_packages |= prepared.linked_workspace_packages;
         if prepared.persist_manifest {
             persist_indices.push(index);
         }
@@ -873,6 +886,7 @@ async fn prepare_selected_manifests<Reporter: self::Reporter>(
     Ok(SelectedUpdatePreparation {
         seed_policies,
         persist_indices,
+        linked_workspace_packages,
         updated_catalogs,
         catalogs_override,
         workspace_dir_for_catalogs,
@@ -960,6 +974,12 @@ fn workspace_link_targets(
 
     let patterns = selectors.iter().map(|selector| selector.pattern.clone()).collect::<Vec<_>>();
     let matcher = create_matcher(&patterns);
+    // Per-selector matchers, compiled once, map a matched dependency back
+    // to the selector that claimed it — and so to the version it asked for.
+    let claims = selectors
+        .iter()
+        .map(|selector| (matcher_one(&selector.pattern), selector.version.as_deref()))
+        .collect::<Vec<_>>();
     for (name, group, declared) in direct {
         if !matcher.matches(name.as_str()) {
             continue;
@@ -967,16 +987,16 @@ fn workspace_link_targets(
         if !workspace_packages.contains_key(name) {
             return Err(UpdateError::WorkspacePackageNotFound(name.clone()));
         }
-        let wanted = selectors
+        let wanted = claims
             .iter()
-            .find(|selector| matcher_one(&selector.pattern).matches(name))
-            .and_then(|selector| selector.version.clone())
-            .unwrap_or_else(|| "*".to_string());
+            .find(|(matcher, _)| matcher.matches(name))
+            .and_then(|(_, version)| *version)
+            .unwrap_or("*");
         targets.push(WorkspaceLinkTarget {
             name: name.clone(),
             group: *group,
             declared: declared.clone(),
-            wanted_range: wanted.strip_prefix("workspace:").unwrap_or(&wanted).to_string(),
+            wanted_range: wanted.strip_prefix("workspace:").unwrap_or(wanted).to_string(),
         });
     }
     Ok(targets)

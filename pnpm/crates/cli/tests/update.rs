@@ -765,6 +765,37 @@ fn update_workspace_leaves_registry_dependencies_alone() {
     drop((root, anchor));
 }
 
+/// `--workspace` that links nothing is an ordinary selector-less
+/// update, so it stays a *full* install and runs the project's own
+/// lifecycle scripts. Only the dependencies it actually re-points make
+/// the run partial.
+#[test]
+fn update_workspace_that_links_nothing_still_runs_project_scripts() {
+    let (root, workspace, anchor) = setup();
+
+    // A workspace sibling exists, but nothing depends on it, so
+    // `--workspace` has no link target.
+    add_workspace_package(&workspace, "sibling", "2.0.0");
+    fs::write(
+        workspace.join("package.json"),
+        format!(
+            r#"{{ "name": "test-update", "version": "1.0.0",
+                  "scripts": {{ "postinstall": "node -e \"require('fs').writeFileSync('postinstall-ran', '')\"" }},
+                  "dependencies": {{ "{DEP}": "^100.0.0" }} }}"#,
+        ),
+    )
+    .expect("write package.json");
+
+    pacquet(&workspace, ["update", "--workspace"]).assert().success();
+
+    assert!(
+        workspace.join("postinstall-ran").exists(),
+        "a --workspace update with nothing to link should run the project's own scripts",
+    );
+
+    drop((root, anchor));
+}
+
 /// Naming a dependency that no workspace project publishes fails, since
 /// there is nothing to link it to.
 #[test]
