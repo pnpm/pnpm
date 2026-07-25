@@ -296,9 +296,9 @@ pub(crate) struct ImporterHoistState {
     /// importer's initial wave has resolved, and shared unchanged by
     /// every importer for the rest of the install: the root's own
     /// hoisted peers must not become root-dep candidates for the
-    /// importers hoisted after it. Empty until then, and empty for good
-    /// when the install's importer set excludes the root (a filtered
-    /// install), matching pnpm's absent-root-importer case.
+    /// importers hoisted after it. Empty until the caller assigns it,
+    /// and empty for good for an importer set with no root at all,
+    /// matching pnpm's absent-root-importer case.
     workspace_root_deps: Arc<Vec<WorkspaceRootDep>>,
     /// `alias → bare_specifier` for the importer's own declared deps.
     /// The hoist picker wants the specifier a peer provider would be

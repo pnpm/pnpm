@@ -275,8 +275,12 @@ where
     // Every importer hoists against the *root* importer's direct deps, not
     // its own. Computed here — after the init barrier, so the root's initial
     // wave has resolved — and shared unchanged for the rest of the install.
-    // An importer set that excludes the root leaves it empty, which turns the
-    // hoist picker's root short-circuit off for this install.
+    //
+    // The install layer passes every workspace project, `--filter` or not, so
+    // the root is normally present. The empty fallback covers an importer set
+    // that genuinely has no root, and matches pnpm, whose root-importer lookup
+    // is an unchecked index that yields `undefined` and an empty candidate
+    // list rather than an error.
     let root_deps = Arc::new(
         states
             .iter()
