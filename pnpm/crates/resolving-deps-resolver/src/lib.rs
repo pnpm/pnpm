@@ -80,7 +80,8 @@ pub use dependencies_graph::{
     PeerDependencyIssues,
 };
 pub use hoist_peers::{
-    HoistPeersOptions, MissingPeerInfo, WorkspaceRootDep, get_hoistable_optional_peers, hoist_peers,
+    DependencyOverrider, HoistPeersOptions, MissingPeerInfo, WorkspaceRootDep,
+    get_hoistable_optional_peers, hoist_peers,
 };
 pub use node_id::NodeId;
 pub use pacquet_deps_path::DepPath;

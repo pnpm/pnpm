@@ -174,6 +174,7 @@ fn importer_opts(
         resolve_peers_from_workspace_root: false,
         dedupe_peers: false,
         all_preferred_versions: PreferredVersions::new(),
+        override_bare_specifier: None,
         patched_dependencies: None,
         base_opts: ResolveOptions { published_by, project_dir, ..ResolveOptions::default() },
         pick_lowest_direct: false,

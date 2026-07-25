@@ -30,12 +30,20 @@ pub struct MissingPeerInfo {
     pub range: String,
 }
 
+/// Applies `overrides` to a peer nobody declares as a dependency.
+/// Such a peer has no manifest for the override hook to rewrite, so
+/// without this it would resolve against its declared peer range and
+/// silently produce the second copy the override exists to prevent.
+/// Returns the overriding specifier, `"-"` when the override drops the
+/// peer, or `None` when no override claims it.
+pub type DependencyOverrider = dyn Fn(&str, &str) -> Option<String> + Send + Sync;
+
 /// Options for [`hoist_peers`].
-#[derive(Debug)]
 pub struct HoistPeersOptions<'a> {
     pub auto_install_peers: bool,
     pub all_preferred_versions: &'a PreferredVersions,
     pub workspace_root_deps: &'a [WorkspaceRootDep],
+    pub override_bare_specifier: Option<&'a DependencyOverrider>,
 }
 
 /// Pick a specifier for each missing required peer. Returns a map of
@@ -50,21 +58,16 @@ pub fn hoist_peers(
     for (peer_name, info) in missing_required_peers {
         let range = &info.range;
 
-        if let Some(dep) =
-            opts.workspace_root_deps.iter().find(|root_dep| &root_dep.alias == peer_name)
-            && let Some(spec) = &dep.normalized_bare_specifier
+        if let Some(overridden) =
+            opts.override_bare_specifier.and_then(|overrider| overrider(peer_name, range))
         {
-            dependencies.insert(peer_name.clone(), spec.clone());
+            if overridden != "-" {
+                dependencies.insert(peer_name.clone(), overridden);
+            }
             continue;
         }
 
-        let mut by_pkg_name: Vec<&WorkspaceRootDep> = opts
-            .workspace_root_deps
-            .iter()
-            .filter(|root_dep| &root_dep.pkg_name == peer_name)
-            .collect();
-        by_pkg_name.sort_by(|a, b| a.alias.cmp(&b.alias));
-        if let Some(dep) = by_pkg_name.first()
+        if let Some(dep) = find_workspace_root_dep(opts.workspace_root_deps, peer_name)
             && let Some(spec) = &dep.normalized_bare_specifier
         {
             dependencies.insert(peer_name.clone(), spec.clone());
@@ -144,10 +147,19 @@ pub fn hoist_peers(
 pub fn get_hoistable_optional_peers(
     all_missing_optional_peers: &BTreeMap<String, Vec<String>>,
     all_preferred_versions: &PreferredVersions,
+    workspace_root_deps: &[WorkspaceRootDep],
 ) -> BTreeMap<String, String> {
     let mut optional_dependencies = BTreeMap::new();
     for (peer_name, ranges) in all_missing_optional_peers {
         let Some(selectors) = all_preferred_versions.get(peer_name) else { continue };
+        // The workspace root's own specifier bounds the candidates the
+        // same way it short-circuits `hoist_peers` above. Maximizing over
+        // every version in the graph instead lets one importer's newer
+        // resolution be hoisted into a sibling that declares nothing,
+        // adding a second instance of a package the root already pins.
+        let root_range = find_workspace_root_dep(workspace_root_deps, peer_name)
+            .and_then(|dep| dep.normalized_bare_specifier.as_deref())
+            .and_then(|spec| spec.parse::<Range>().ok());
         // An unparsable range is satisfied by nothing, so bailing on the
         // peer matches failing the check per candidate.
         let Ok(parsed_ranges) =
@@ -165,6 +177,9 @@ pub fn get_hoistable_optional_peers(
                 continue;
             }
             let Ok(version) = version_str.parse::<Version>() else { continue };
+            if root_range.as_ref().is_some_and(|range| !range.satisfies(&version)) {
+                continue;
+            }
             // Strict, unlike the required-peer picker above: an optional
             // peer nobody declared is installed only to deduplicate, so a
             // prerelease its range rejects is not worth splitting a
@@ -181,6 +196,24 @@ pub fn get_hoistable_optional_peers(
         }
     }
     optional_dependencies
+}
+
+/// The root dependency that provides `peer_name`: an alias match wins
+/// over a package-name match (an `npm:` alias can install the same
+/// package under a different slot), and among package-name matches the
+/// lexicographically first alias wins so the pick is stable.
+fn find_workspace_root_dep<'a>(
+    workspace_root_deps: &'a [WorkspaceRootDep],
+    peer_name: &str,
+) -> Option<&'a WorkspaceRootDep> {
+    let by_alias = workspace_root_deps.iter().find(|root_dep| root_dep.alias == peer_name);
+    if by_alias.is_some_and(|dep| dep.normalized_bare_specifier.is_some()) {
+        return by_alias;
+    }
+    workspace_root_deps
+        .iter()
+        .filter(|root_dep| root_dep.pkg_name == peer_name)
+        .min_by(|a, b| a.alias.cmp(&b.alias))
 }
 
 /// Highest version from `versions` that satisfies `range`, including

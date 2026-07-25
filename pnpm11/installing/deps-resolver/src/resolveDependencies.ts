@@ -195,6 +195,7 @@ export interface ResolutionContext {
   force: boolean
   preferWorkspacePackages?: boolean
   readPackageHook?: ReadPackageHook
+  overrideBareSpecifier?: (name: string, range: string) => string | undefined
   engineStrict: boolean
   nodeVersion?: string
   pnpmVersion: string
@@ -415,6 +416,7 @@ export async function resolveRootDependencies (
     autoInstallPeers: ctx.autoInstallPeers,
     allPreferredVersions: ctx.allPreferredVersions,
     workspaceRootDeps,
+    overrideBareSpecifier: ctx.overrideBareSpecifier,
   })
   /* eslint-disable no-await-in-loop */
   while (true) {
@@ -477,7 +479,7 @@ export async function resolveRootDependencies (
     await Promise.all(allMissingOptionalPeersByImporters.map(async (allMissingOptionalPeers, index) => {
       const { preferredVersions, parentPkgAliases, options } = importers[index]
       if (Object.keys(allMissingOptionalPeers).length && ctx.allPreferredVersions) {
-        const optionalDependencies = getHoistableOptionalPeers(allMissingOptionalPeers, ctx.allPreferredVersions)
+        const optionalDependencies = getHoistableOptionalPeers(allMissingOptionalPeers, ctx.allPreferredVersions, workspaceRootDeps)
         if (Object.keys(optionalDependencies).length) {
           hasNewMissingPeers = true
           const wantedDependencies = getNonDevWantedDependencies({ optionalDependencies })

@@ -15,19 +15,26 @@ export function hoistPeers (
     autoInstallPeers: boolean
     allPreferredVersions?: PreferredVersions
     workspaceRootDeps: HoistableRootDep[]
+    /**
+     * Applies `overrides` to a peer nobody declares as a dependency. Such a
+     * peer has no manifest for the read-package hook to rewrite, so without
+     * this it would resolve against its declared peer range and silently
+     * produce the second copy the override exists to prevent.
+     */
+    overrideBareSpecifier?: (name: string, range: string) => string | undefined
   },
   missingRequiredPeers: Array<[string, { range: string }]>
 ): Record<string, string> {
   const dependencies: Record<string, string> = {}
   for (const [peerName, { range }] of missingRequiredPeers) {
-    const rootDepByAlias = opts.workspaceRootDeps.find((rootDep) => rootDep.alias === peerName)
-    if (rootDepByAlias?.normalizedBareSpecifier) {
-      dependencies[peerName] = rootDepByAlias.normalizedBareSpecifier
+    const overridden = opts.overrideBareSpecifier?.(peerName, range)
+    if (overridden != null) {
+      if (overridden !== '-') {
+        dependencies[peerName] = overridden
+      }
       continue
     }
-    const rootDep = opts.workspaceRootDeps
-      .filter((rootDep) => rootDep.pkgName === peerName)
-      .sort((rootDep1, rootDep2) => lexCompare(rootDep1.alias, rootDep2.alias))[0]
+    const rootDep = findWorkspaceRootDep(opts.workspaceRootDeps, peerName)
     if (rootDep?.normalizedBareSpecifier) {
       dependencies[peerName] = rootDep.normalizedBareSpecifier
       continue
@@ -83,17 +90,27 @@ export function hoistPeers (
 
 export function getHoistableOptionalPeers (
   allMissingOptionalPeers: Record<string, string[]>,
-  allPreferredVersions: PreferredVersions
+  allPreferredVersions: PreferredVersions,
+  workspaceRootDeps: HoistableRootDep[] = []
 ): Record<string, string> {
   const optionalDependencies: Record<string, string> = {}
   for (const [missingOptionalPeerName, ranges] of Object.entries(allMissingOptionalPeers)) {
     if (!allPreferredVersions[missingOptionalPeerName]) continue
+
+    // The workspace root's own specifier bounds the candidates the same way
+    // it short-circuits `hoistPeers` above. Maximizing over every version in
+    // the graph instead lets one importer's newer resolution be hoisted into
+    // a sibling that declares nothing, adding a second instance of a package
+    // the root already pins.
+    const rootBareSpecifier = findWorkspaceRootDep(workspaceRootDeps, missingOptionalPeerName)?.normalizedBareSpecifier
+    const rootRange = rootBareSpecifier != null ? semver.validRange(rootBareSpecifier) : null
 
     let maxSatisfyingVersion: string | undefined
     for (const [version, selector] of Object.entries(allPreferredVersions[missingOptionalPeerName])) {
       const specType = typeof selector === 'string' ? selector : selector.selectorType
       if (
         specType === 'version' &&
+        (rootRange == null || semver.satisfies(version, rootRange)) &&
         ranges.every(range => semver.satisfies(version, range)) &&
         (!maxSatisfyingVersion || semver.gt(version, maxSatisfyingVersion))
       ) {
@@ -105,4 +122,21 @@ export function getHoistableOptionalPeers (
     }
   }
   return optionalDependencies
+}
+
+/**
+ * The root dependency that provides `peerName`: an alias match wins over a
+ * package-name match (an `npm:` alias can install the same package under a
+ * different slot), and among package-name matches the lexicographically
+ * first alias wins so the pick is stable.
+ */
+function findWorkspaceRootDep (
+  workspaceRootDeps: HoistableRootDep[],
+  peerName: string
+): HoistableRootDep | undefined {
+  const rootDepByAlias = workspaceRootDeps.find((rootDep) => rootDep.alias === peerName)
+  if (rootDepByAlias?.normalizedBareSpecifier) return rootDepByAlias
+  return workspaceRootDeps
+    .filter((rootDep) => rootDep.pkgName === peerName)
+    .sort((rootDep1, rootDep2) => lexCompare(rootDep1.alias, rootDep2.alias))[0]
 }

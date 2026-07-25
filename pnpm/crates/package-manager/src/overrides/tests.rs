@@ -452,3 +452,41 @@ fn apply_to_arc_clones_when_only_a_peer_matches() {
         Some(">=8.18.0"),
     );
 }
+
+#[test]
+fn override_for_undeclared_dependency_applies_generic_overrides() {
+    let overrides = parsed(&[("react", "npm:react@19.2.0"), ("zoo@^1", "1.0.0")]);
+    let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+
+    assert_eq!(
+        overrider.override_for_undeclared_dependency("react", "^18.0.0").as_deref(),
+        Some("npm:react@19.2.0"),
+    );
+    assert_eq!(
+        overrider.override_for_undeclared_dependency("zoo", "^1.5.0").as_deref(),
+        Some("1.0.0"),
+    );
+    assert_eq!(overrider.override_for_undeclared_dependency("zoo", "^2.0.0"), None);
+    assert_eq!(overrider.override_for_undeclared_dependency("qar", "^1.0.0"), None);
+}
+
+#[test]
+fn override_for_undeclared_dependency_ignores_parent_scoped_overrides() {
+    let overrides = parsed(&[("foo>react", "19.2.0")]);
+    let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+
+    assert_eq!(overrider.override_for_undeclared_dependency("react", "^18.0.0"), None);
+}
+
+#[test]
+fn override_for_undeclared_dependency_applies_converge_only_within_range() {
+    let overrides = parsed(&[("react@", "18.3.1")]);
+    let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+
+    assert_eq!(
+        overrider.override_for_undeclared_dependency("react", "^18.0.0").as_deref(),
+        Some("18.3.1"),
+    );
+    assert_eq!(overrider.override_for_undeclared_dependency("react", "^19.0.0"), None);
+    assert!(overrider.converge_declared_ranges().is_empty());
+}

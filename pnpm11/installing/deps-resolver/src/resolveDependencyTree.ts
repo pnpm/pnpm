@@ -126,6 +126,7 @@ export interface ResolveDependenciesOptions {
   hooks: {
     readPackage?: ReadPackageHook
   }
+  overrideBareSpecifier?: (name: string, range: string) => string | undefined
   nodeVersion?: string
   registries: Registries
   namedRegistries?: Record<string, string>
@@ -209,6 +210,7 @@ export async function resolveDependencyTree<T> (
     pnpmVersion: opts.pnpmVersion,
     preferWorkspacePackages: opts.preferWorkspacePackages,
     readPackageHook: opts.hooks.readPackage,
+    overrideBareSpecifier: opts.overrideBareSpecifier,
     registries: opts.registries,
     namedRegistryPrefixes: Array.from(
       new Set([

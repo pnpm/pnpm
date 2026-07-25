@@ -25,8 +25,8 @@ use crate::{
     DirectDep,
     dependencies_graph::MissingPeer,
     hoist_peers::{
-        HoistPeersOptions, MissingPeerInfo, WorkspaceRootDep, get_hoistable_optional_peers,
-        hoist_peers,
+        DependencyOverrider, HoistPeersOptions, MissingPeerInfo, WorkspaceRootDep,
+        get_hoistable_optional_peers, hoist_peers,
     },
     resolve_dependency_tree::{
         ResolveDependencyTreeError, TreeCtx, WantedSpec, WorkspaceTreeCtx, extend_tree,
@@ -87,6 +87,10 @@ pub struct ResolveImporterOptions {
     /// `lockfile-preferred-versions` crate, or an empty map when no
     /// lockfile + manifest seeding is available.
     pub all_preferred_versions: PreferredVersions,
+
+    /// Applies `overrides` to auto-installed peers. See
+    /// [`crate::DependencyOverrider`].
+    pub override_bare_specifier: Option<Arc<DependencyOverrider>>,
 
     /// Configured `patchedDependencies`, grouped by package name. The
     /// tree walker appends `(patch_hash=<hash>)` to each matched
@@ -164,6 +168,10 @@ impl std::fmt::Debug for ResolveImporterOptions {
             .field("resolve_peers_from_workspace_root", &self.resolve_peers_from_workspace_root)
             .field("dedupe_peers", &self.dedupe_peers)
             .field("all_preferred_versions", &self.all_preferred_versions)
+            .field(
+                "override_bare_specifier",
+                &self.override_bare_specifier.as_ref().map(|_| "<overrider>"),
+            )
             .field("patched_dependencies", &self.patched_dependencies)
             .field("base_opts", &self.base_opts)
             .field("pick_lowest_direct", &self.pick_lowest_direct)
@@ -302,6 +310,7 @@ pub(crate) struct ImporterHoistState {
     parent_pkg_aliases: HashSet<String>,
     all_missing_optional_peers: BTreeMap<String, Vec<String>>,
     all_preferred_versions: PreferredVersions,
+    override_bare_specifier: Option<Arc<DependencyOverrider>>,
     auto_install_peers: bool,
     auto_install_peers_from_highest_match: bool,
     resolve_peers_from_workspace_root: bool,
@@ -335,6 +344,7 @@ impl ImporterHoistState {
             resolve_peers_from_workspace_root,
             dedupe_peers,
             all_preferred_versions,
+            override_bare_specifier,
             patched_dependencies,
             base_opts,
             pick_lowest_direct,
@@ -386,6 +396,7 @@ impl ImporterHoistState {
             parent_pkg_aliases,
             all_missing_optional_peers: BTreeMap::new(),
             all_preferred_versions,
+            override_bare_specifier,
             auto_install_peers,
             auto_install_peers_from_highest_match,
             resolve_peers_from_workspace_root,
@@ -509,6 +520,7 @@ impl ImporterHoistState {
                     auto_install_peers: self.auto_install_peers,
                     all_preferred_versions: &self.all_preferred_versions,
                     workspace_root_deps,
+                    override_bare_specifier: self.override_bare_specifier.as_deref(),
                 },
                 &missing_as_pairs,
             );
@@ -581,9 +593,12 @@ impl ImporterHoistState {
         if self.all_missing_optional_peers.is_empty() {
             return Ok(false);
         }
+        let workspace_root_deps: &[WorkspaceRootDep] =
+            if self.resolve_peers_from_workspace_root { &self.workspace_root_deps } else { &[] };
         let hoisted_optional = get_hoistable_optional_peers(
             &self.all_missing_optional_peers,
             &self.all_preferred_versions,
+            workspace_root_deps,
         );
         if hoisted_optional.is_empty() {
             return Ok(false);

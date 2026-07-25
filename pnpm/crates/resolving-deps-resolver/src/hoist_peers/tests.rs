@@ -8,7 +8,9 @@ use pacquet_resolving_resolver_base::{
 };
 use pretty_assertions::assert_eq;
 
-use super::{HoistPeersOptions, MissingPeerInfo, get_hoistable_optional_peers, hoist_peers};
+use super::{
+    HoistPeersOptions, MissingPeerInfo, WorkspaceRootDep, get_hoistable_optional_peers, hoist_peers,
+};
 
 fn preferred(entries: &[(&str, &[(&str, VersionSelectorEntry)])]) -> PreferredVersions {
     let mut map = PreferredVersions::new();
@@ -34,7 +36,12 @@ fn opts(
     auto_install_peers: bool,
     all_preferred_versions: &PreferredVersions,
 ) -> HoistPeersOptions<'_> {
-    HoistPeersOptions { auto_install_peers, all_preferred_versions, workspace_root_deps: &[] }
+    HoistPeersOptions {
+        auto_install_peers,
+        all_preferred_versions,
+        workspace_root_deps: &[],
+        override_bare_specifier: None,
+    }
 }
 
 #[test]
@@ -237,7 +244,7 @@ fn get_hoistable_optional_peers_picks_a_version_that_satisfies_all_optional_rang
     )]);
     let mut missing = BTreeMap::new();
     missing.insert("foo".to_string(), vec!["2".to_string(), "2.1".to_string()]);
-    let result = get_hoistable_optional_peers(&missing, &preferred);
+    let result = get_hoistable_optional_peers(&missing, &preferred, &[]);
     let mut expected = BTreeMap::new();
     expected.insert("foo".to_string(), "2.1.0".to_string());
     assert_eq!(result, expected);
@@ -254,7 +261,7 @@ fn get_hoistable_optional_peers_picks_the_highest_satisfying_version() {
     )]);
     let mut missing = BTreeMap::new();
     missing.insert("foo".to_string(), vec!["2".to_string(), "2.1".to_string()]);
-    let result = get_hoistable_optional_peers(&missing, &preferred);
+    let result = get_hoistable_optional_peers(&missing, &preferred, &[]);
     let mut expected = BTreeMap::new();
     expected.insert("foo".to_string(), "2.1.1".to_string());
     assert_eq!(result, expected);
@@ -277,7 +284,7 @@ fn get_hoistable_optional_peers_handles_version_selector_with_weight() {
     )]);
     let mut missing = BTreeMap::new();
     missing.insert("jsdom".to_string(), vec!["*".to_string()]);
-    let result = get_hoistable_optional_peers(&missing, &preferred);
+    let result = get_hoistable_optional_peers(&missing, &preferred, &[]);
     let mut expected = BTreeMap::new();
     expected.insert("jsdom".to_string(), "27.4.0".to_string());
     assert_eq!(result, expected);
@@ -299,7 +306,7 @@ fn get_hoistable_optional_peers_rejects_prerelease_against_non_prerelease_range(
         preferred(&[("react", &[("18.0.0-rc.1", plain(VersionSelectorType::Version))])]);
     let mut missing = BTreeMap::new();
     missing.insert("react".to_string(), vec!["^18.0.0".to_string()]);
-    let result = get_hoistable_optional_peers(&missing, &preferred);
+    let result = get_hoistable_optional_peers(&missing, &preferred, &[]);
     assert_eq!(result, BTreeMap::new());
 }
 
@@ -314,8 +321,72 @@ fn get_hoistable_optional_peers_rejects_prerelease_within_the_range_span() {
     )]);
     let mut missing = BTreeMap::new();
     missing.insert("jest-util".to_string(), vec!["^29.0.0 || ^30.0.0".to_string()]);
-    let result = get_hoistable_optional_peers(&missing, &preferred);
+    let result = get_hoistable_optional_peers(&missing, &preferred, &[]);
     let mut expected = BTreeMap::new();
     expected.insert("jest-util".to_string(), "29.7.0".to_string());
     assert_eq!(result, expected);
+}
+
+#[test]
+fn installs_auto_installed_peer_at_the_overridden_specifier() {
+    let preferred = preferred(&[("react", &[("18.3.1", plain(VersionSelectorType::Version))])]);
+    let root_deps = [WorkspaceRootDep {
+        alias: "react".to_string(),
+        pkg_name: "react".to_string(),
+        normalized_bare_specifier: Some("18.3.1".to_string()),
+    }];
+    let overrider =
+        |name: &str, _range: &str| (name == "react").then(|| "npm:react@19.2.0".to_string());
+    let opts = HoistPeersOptions {
+        auto_install_peers: true,
+        all_preferred_versions: &preferred,
+        workspace_root_deps: &root_deps,
+        override_bare_specifier: Some(&overrider),
+    };
+    let result = hoist_peers(&opts, &[missing("react", "^16.5.1 || ^17.0.0 || ^18.0.0")]);
+    let mut expected = BTreeMap::new();
+    expected.insert("react".to_string(), "npm:react@19.2.0".to_string());
+    assert_eq!(result, expected);
+}
+
+#[test]
+fn leaves_peer_removed_by_an_override_uninstalled() {
+    let preferred = preferred(&[("react", &[("18.3.1", plain(VersionSelectorType::Version))])]);
+    let overrider = |_name: &str, _range: &str| Some("-".to_string());
+    let opts = HoistPeersOptions {
+        auto_install_peers: true,
+        all_preferred_versions: &preferred,
+        workspace_root_deps: &[],
+        override_bare_specifier: Some(&overrider),
+    };
+    let result = hoist_peers(&opts, &[missing("react", "^18.0.0")]);
+    assert_eq!(result, BTreeMap::new());
+}
+
+#[test]
+fn get_hoistable_optional_peers_stays_within_the_workspace_roots_range() {
+    let preferred = preferred(&[(
+        "postcss",
+        &[
+            ("8.5.10", plain(VersionSelectorType::Version)),
+            ("8.5.22", plain(VersionSelectorType::Version)),
+        ],
+    )]);
+    let mut missing = BTreeMap::new();
+    missing.insert("postcss".to_string(), vec!["*".to_string()]);
+    let root_deps = [WorkspaceRootDep {
+        alias: "postcss".to_string(),
+        pkg_name: "postcss".to_string(),
+        normalized_bare_specifier: Some("8.5.10".to_string()),
+    }];
+
+    let result = get_hoistable_optional_peers(&missing, &preferred, &root_deps);
+    let mut expected = BTreeMap::new();
+    expected.insert("postcss".to_string(), "8.5.10".to_string());
+    assert_eq!(result, expected);
+
+    let unbounded = get_hoistable_optional_peers(&missing, &preferred, &[]);
+    let mut expected_unbounded = BTreeMap::new();
+    expected_unbounded.insert("postcss".to_string(), "8.5.22".to_string());
+    assert_eq!(unbounded, expected_unbounded);
 }
