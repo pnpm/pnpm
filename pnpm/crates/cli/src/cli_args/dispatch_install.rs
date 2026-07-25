@@ -58,7 +58,7 @@ pub(super) fn add<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<Command
         let cfg = config()?;
         args.apply_cli_config(cfg);
         let (config_root, package_manager_to_sync) =
-            derive_config_root_and_package_manager_to_sync(cfg, dir)
+            derive_config_root_and_package_manager_to_sync(cfg, dir, reporter)
                 .wrap_err("derive workspace root and package manager policy")?;
         apply_allow_build(cfg, &args.allow_build, &config_root)?;
         let pipeline = AddPipeline {
@@ -101,7 +101,7 @@ pub(super) fn update<'a>(ctx: &RunCtx<'a>, args: UpdateArgs) -> miette::Result<C
     Ok(Box::pin(async move {
         let cfg = config()?;
         let (config_root, package_manager_to_sync) =
-            derive_config_root_and_package_manager_to_sync(cfg, dir)
+            derive_config_root_and_package_manager_to_sync(cfg, dir, reporter)
                 .wrap_err("derive workspace root and package manager policy")?;
         let pipeline = UpdatePipeline {
             args,
@@ -136,7 +136,7 @@ pub(super) fn remove<'a>(ctx: &RunCtx<'a>, args: RemoveArgs) -> miette::Result<C
     Ok(Box::pin(async move {
         let cfg = config()?;
         let (config_root, package_manager_to_sync) =
-            derive_config_root_and_package_manager_to_sync(cfg, dir)
+            derive_config_root_and_package_manager_to_sync(cfg, dir, reporter)
                 .wrap_err("derive workspace root and package manager policy")?;
         let pipeline = RemovePipeline {
             args,
@@ -193,7 +193,7 @@ pub(super) fn install<'a>(
             // for a single-package repo. Owned so it doesn't hold a
             // borrow of `cfg` across the `&mut` `updateConfig` pass.
             let (config_root, package_manager_to_sync) =
-                derive_config_root_and_package_manager_to_sync(cfg, dir)
+                derive_config_root_and_package_manager_to_sync(cfg, dir, reporter)
                     .wrap_err("derive workspace root and package manager policy")?;
             // Resolve + install configurational dependencies, then
             // run their `updateConfig` plugin hooks, before the main
@@ -289,7 +289,7 @@ pub(super) fn deploy<'a>(ctx: &RunCtx<'a>, args: DeployArgs) -> miette::Result<C
             let cfg = config()?;
             apply_install_cli_config(cfg, &args.install_args);
             let (config_root, package_manager_to_sync) =
-                derive_config_root_and_package_manager_to_sync(cfg, dir)
+                derive_config_root_and_package_manager_to_sync(cfg, dir, reporter)
                     .wrap_err("derive workspace root and package manager policy")?;
             let pipeline = DeployPipeline { args, cfg, config_root, package_manager_to_sync };
             match reporter {
@@ -316,7 +316,7 @@ pub(super) fn dedupe<'a>(ctx: &RunCtx<'a>, args: DedupeArgs) -> miette::Result<C
     Ok(Box::pin(async move {
         let cfg = config()?;
         let (config_root, package_manager_to_sync) =
-            derive_config_root_and_package_manager_to_sync(cfg, dir)
+            derive_config_root_and_package_manager_to_sync(cfg, dir, reporter)
                 .wrap_err("derive workspace root and package manager policy")?;
         let dedupe = DedupePipeline {
             args,
@@ -344,7 +344,7 @@ pub(super) fn prune<'a>(ctx: &RunCtx<'a>, args: PruneArgs) -> miette::Result<Com
     Ok(Box::pin(async move {
         let cfg = config()?;
         let (config_root, package_manager_to_sync) =
-            derive_config_root_and_package_manager_to_sync(cfg, dir)
+            derive_config_root_and_package_manager_to_sync(cfg, dir, reporter)
                 .wrap_err("derive workspace root and package manager policy")?;
         let pipeline = PrunePipeline {
             args,
@@ -423,7 +423,7 @@ pub(super) fn unlink<'a>(ctx: &RunCtx<'a>, args: UnlinkArgs) -> miette::Result<C
         // fresh resolution so the removed `link:` overrides re-resolve from
         // the registry.
         let (config_root, package_manager_to_sync) =
-            derive_config_root_and_package_manager_to_sync(cfg, dir)
+            derive_config_root_and_package_manager_to_sync(cfg, dir, reporter)
                 .wrap_err("derive workspace root and package manager policy")?;
         let pipeline = InstallPipeline {
             args: InstallArgs::for_reresolving_install(),

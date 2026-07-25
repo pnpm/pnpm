@@ -13,7 +13,14 @@ use super::{
     update::UpdateArgs,
     update_changeset::UpdateChangesetContext,
 };
-use crate::{State, config_deps};
+use crate::{
+    State,
+    cli_args::{
+        legacy_pnpm_field::warn_ignored_pnpm_manifest_fields,
+        reporter::{ReporterType, reporter_emit},
+    },
+    config_deps,
+};
 use miette::Context;
 use pacquet_config::Config;
 use pacquet_reporter::Reporter;
@@ -600,8 +607,13 @@ async fn run_dedicated_lockfile_workspace_install<Reporter: self::Reporter + 'st
 pub(crate) fn derive_config_root_and_package_manager_to_sync(
     cfg: &Config,
     dir_ref: &Path,
+    reporter: ReporterType,
 ) -> miette::Result<(PathBuf, Option<PackageManagerToSync>)> {
     let config_root = cfg.workspace_dir.clone().unwrap_or_else(|| dir_ref.to_path_buf());
+    // pnpm warns from config-reading, so the notice lands ahead of any
+    // install output. This is the install family's earliest point that
+    // knows the root manifest's directory.
+    warn_ignored_pnpm_manifest_fields(&config_root, reporter_emit(reporter));
     let package_manager_to_sync =
         package_manager_to_sync(&config_root.join("package.json"), &config_root)
             .wrap_err("read package manager policy")?;

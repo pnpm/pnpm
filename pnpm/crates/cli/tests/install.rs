@@ -1645,3 +1645,65 @@ fn frozen_lockfile_setting_drives_the_headless_install() {
 
     drop((root, mock_instance));
 }
+
+/// pnpm 10 moved the install settings out of `package.json`'s `pnpm`
+/// field into `pnpm-workspace.yaml`, and warns about every migrated key
+/// a manifest still declares so the setting isn't silently dropped.
+/// A repository that hasn't migrated its `pnpm.overrides` would
+/// otherwise see only the downstream symptom.
+///
+/// The message is asserted verbatim: it is the same string pnpm emits,
+/// and `@pnpm/cli.default-reporter` renders it.
+#[test]
+fn migrated_keys_under_the_package_json_pnpm_field_are_reported() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "root",
+            "version": "1.0.0",
+            "private": true,
+            // `app` is not a key pnpm ever owned, so it must not be named.
+            "pnpm": { "overrides": { "is-number": "6.0.0" }, "app": {} },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    let assert = pacquet.with_args(["install", "--lockfile-only"]).assert().success();
+    // The default reporter renders every warning into its stdout frame.
+    let stdout = String::from_utf8_lossy(&assert.get_output().stdout).into_owned();
+
+    eprintln!("STDOUT:\n{stdout}");
+    assert!(
+        stdout.contains(
+            "The \"pnpm\" field in package.json is no longer read by pnpm. \
+             The following keys were ignored: \"pnpm.overrides\". \
+             See https://pnpm.io/settings for the new home of each setting."
+        ),
+        "expected the ignored-field warning; got:\n{stdout}",
+    );
+
+    drop(root);
+}
+
+/// The warning names only keys pnpm migrated, so a manifest carrying a
+/// `pnpm` field that third-party tooling owns stays quiet.
+#[test]
+fn an_unmigrated_package_json_pnpm_field_is_not_reported() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "root", "version": "1.0.0", "private": true, "pnpm": { "app": {} } })
+            .to_string(),
+    )
+    .expect("write package.json");
+
+    let assert = pacquet.with_args(["install", "--lockfile-only"]).assert().success();
+    let stdout = String::from_utf8_lossy(&assert.get_output().stdout).into_owned();
+
+    eprintln!("STDOUT:\n{stdout}");
+    assert!(!stdout.contains("no longer read by pnpm"), "must stay quiet; got:\n{stdout}");
+
+    drop(root);
+}
