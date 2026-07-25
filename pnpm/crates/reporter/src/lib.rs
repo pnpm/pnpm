@@ -36,6 +36,14 @@ pub enum LogEvent {
     #[serde(rename = "pnpm:stage")]
     Stage(StageLog),
 
+    /// How many workspace projects the command runs over (`pnpm:scope`).
+    /// Emitted once per run, before the command's own output. The
+    /// default reporter renders it as the `Scope:` line for the commands
+    /// pnpm reports scope for, and stays silent when a single project is
+    /// selected.
+    #[serde(rename = "pnpm:scope")]
+    Scope(ScopeLog),
+
     /// Brackets an interactive terminal prompt (`pnpm:prompt`). The default
     /// reporter holds live redraws between `start` and `end` so they cannot
     /// overwrite the question while it is waiting for input.
@@ -780,6 +788,22 @@ pub struct PnpmLog {
     pub level: LogLevel,
     pub message: String,
     pub prefix: String,
+}
+
+/// `pnpm:scope` payload: how many workspace projects the command
+/// selected, out of how many the workspace has. `total` is absent when
+/// the command runs against a single project, and `workspace_prefix` is
+/// absent outside a workspace — the two shapes pnpm's `ScopeMessage`
+/// distinguishes, which its reporter renders as "projects" rather than
+/// "workspace projects".
+#[derive(Debug, Clone, Serialize)]
+pub struct ScopeLog {
+    pub level: LogLevel,
+    pub selected: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total: Option<usize>,
+    #[serde(rename = "workspacePrefix", skip_serializing_if = "Option::is_none")]
+    pub workspace_prefix: Option<String>,
 }
 
 /// Global-channel (`name: "pnpm:global"`) payload. Carries only a

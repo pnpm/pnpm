@@ -2,7 +2,7 @@ use super::{
     dispatch::{CommandFuture, RunCtx},
     exec::ExecArgs,
     pkg::PkgArgs,
-    reporter::ReporterType,
+    reporter::{ReporterType, reporter_emit},
     restart::RestartArgs,
     run::RunArgs,
     script_shortcut::ScriptShortcutArgs,
@@ -46,7 +46,7 @@ pub(super) fn test<'a>(
 pub(super) fn run<'a>(ctx: &RunCtx<'a>, args: RunArgs) -> miette::Result<CommandFuture<'a>> {
     let args = with_recursive_run_options(ctx, args);
     if ctx.recursive {
-        args.run_recursive((ctx.config)()?, ctx.dir)?;
+        args.run_recursive((ctx.config)()?, ctx.dir, reporter_emit(ctx.reporter))?;
     } else {
         args.run(ctx.dir, (ctx.config)()?, matches!(ctx.reporter, ReporterType::Silent))?;
     }
@@ -68,7 +68,7 @@ pub(super) fn fallback<'a>(
     };
     let args = with_recursive_run_options(ctx, args);
     if ctx.recursive {
-        args.run_recursive((ctx.config)()?, ctx.dir)?;
+        args.run_recursive((ctx.config)()?, ctx.dir, reporter_emit(ctx.reporter))?;
     } else {
         args.run_fallback(ctx.dir, (ctx.config)()?, matches!(ctx.reporter, ReporterType::Silent))?;
     }

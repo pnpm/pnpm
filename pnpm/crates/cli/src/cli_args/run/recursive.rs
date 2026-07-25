@@ -21,6 +21,7 @@ use indexmap::IndexMap;
 use miette::Diagnostic;
 use pacquet_config::Config;
 use pacquet_package_manager::{make_node_package_map_option, package_map_path_for_execution};
+use pacquet_reporter::{LogEvent, LogLevel, ScopeLog};
 use std::{
     collections::HashMap,
     env,
@@ -72,7 +73,12 @@ pub enum RecursiveRunError {
 /// workspace root (and the directory the summary is written to) is
 /// `config.workspace_dir`, falling back to `dir` when no
 /// `pnpm-workspace.yaml` exists.
-pub fn run_recursive(args: &RunArgs, config: &Config, dir: &Path) -> miette::Result<()> {
+pub fn run_recursive(
+    args: &RunArgs,
+    config: &Config,
+    dir: &Path,
+    emit: fn(&LogEvent),
+) -> miette::Result<()> {
     // The script name is optional so single-project `run` can list
     // scripts; recursive mode has no such "list" behavior, so a missing
     // script name is a usage error (`ERR_PNPM_SCRIPT_NAME_IS_REQUIRED`).
@@ -89,6 +95,17 @@ pub fn run_recursive(args: &RunArgs, config: &Config, dir: &Path) -> miette::Res
         AutoExcludeRoot::Enabled { workspace_patterns: patterns.as_deref() },
     )?;
     let graph = &selection.selected;
+    // Report what the `--filter` selection resolved to before running a
+    // single script, so the user can confirm it covers what they meant.
+    emit(&LogEvent::Scope(ScopeLog {
+        level: LogLevel::Debug,
+        selected: graph.len(),
+        total: Some(projects.len()),
+        workspace_prefix: config
+            .workspace_dir
+            .as_deref()
+            .map(|dir| dir.to_string_lossy().into_owned()),
+    }));
     // An empty `--filter` selection is a no-op (exit 0); an empty
     // workspace instead falls through to the no-script error below.
     if !projects.is_empty() && graph.is_empty() {

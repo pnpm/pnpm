@@ -6,6 +6,7 @@ use pacquet_config::Config;
 use pacquet_executor::{RunScript, ScriptsPrependNodePath, run_script};
 use pacquet_package_manager::{make_node_package_map_option, package_map_path_for_execution};
 use pacquet_package_manifest::PackageManifest;
+use pacquet_reporter::LogEvent;
 use pacquet_workspace::{ReadProjectManifestOnlyError, read_project_manifest_only};
 use regex::Regex;
 use serde_json::Value;
@@ -234,9 +235,14 @@ impl RunArgs {
     /// Execute the subcommand across the `--filter`-selected workspace
     /// projects, in topological order. The recursive counterpart of
     /// [`Self::run`], selected when the global `-r` / `--recursive` flag is set.
-    pub fn run_recursive(&self, config: &Config, dir: &Path) -> miette::Result<()> {
+    pub fn run_recursive(
+        &self,
+        config: &Config,
+        dir: &Path,
+        emit: fn(&LogEvent),
+    ) -> miette::Result<()> {
         super::verify_deps::verify_deps_before_run(dir, config, false)?;
-        recursive::run_recursive(self, config, dir)
+        recursive::run_recursive(self, config, dir, emit)
     }
 }
 

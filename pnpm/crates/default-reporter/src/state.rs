@@ -10,12 +10,14 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
+use chrono::{DateTime, Utc};
 use pacquet_reporter::{
     AddedRoot, ContextLog, DependencyType, DeprecationLog, ExecutionTimeLog,
     FetchingProgressMessage, HookLog, IgnoredScriptsLog, InstallingConfigDepsLog,
     InstallingConfigDepsStatus, LifecycleMessage, LifecycleStdio, LockfileVerificationMessage,
     LogEvent, LogLevel, PackageImportMethod, PackageManifestMessage, ProgressMessage, RemovedRoot,
-    RequestRetryLog, SkippedOptionalDependencyLog, SkippedOptionalPackage, Stage, StatsMessage,
+    RequestRetryLog, ScopeLog, SkippedOptionalDependencyLog, SkippedOptionalPackage, Stage,
+    StatsMessage,
 };
 use serde_json::Value;
 
@@ -24,7 +26,7 @@ use crate::{
     colors::Colors,
     format::{
         contains_path, cut_line, format_prefix, format_prefix_no_trim, highlight_last_folder,
-        normalize, pretty_bytes, pretty_ms, relative, visible_width, zoom_out,
+        normalize, pretty_bytes, pretty_ms, pretty_ms_compact, relative, visible_width, zoom_out,
     },
 };
 
@@ -49,6 +51,11 @@ pub struct ReporterOptions {
     pub hide_progress_prefix: bool,
     /// Select which project prefixes contribute to the package summary.
     pub summary_scope: SummaryScope,
+    /// Whether the running command reports the workspace scope it
+    /// selected. Mirrors pnpm's `COMMANDS_THAT_REPORT_SCOPE` gate, which
+    /// lives in the reporter because the `pnpm:scope` event itself is
+    /// command-agnostic.
+    pub reports_scope: bool,
 }
 
 impl Default for ReporterOptions {
@@ -58,6 +65,7 @@ impl Default for ReporterOptions {
             hide_added_pkgs_progress: false,
             hide_progress_prefix: false,
             summary_scope: SummaryScope::CurrentPrefix,
+            reports_scope: false,
         }
     }
 }
@@ -253,6 +261,9 @@ pub struct ReporterState {
     summary_rendered: bool,
     summary_scope: SummaryScope,
 
+    reports_scope: bool,
+    scope_slot: BlockSlot,
+
     lifecycle: HashMap<String, LifecycleEntry>,
     lifecycle_slots: HashMap<String, BlockSlot>,
     lifecycle_colors: HashMap<String, usize>,
@@ -330,6 +341,7 @@ impl ReporterState {
             hide_added_pkgs_progress,
             hide_progress_prefix,
             summary_scope,
+            reports_scope,
         } = options;
         let mut diff = HashMap::new();
         for kind in SUMMARY_ORDER {
@@ -358,6 +370,8 @@ impl ReporterState {
             summary_seen: false,
             summary_rendered: false,
             summary_scope,
+            reports_scope,
+            scope_slot: BlockSlot::default(),
             lifecycle: HashMap::new(),
             lifecycle_slots: HashMap::new(),
             lifecycle_colors: HashMap::new(),
@@ -385,6 +399,7 @@ impl ReporterState {
             }
             LogEvent::Progress(log) => self.on_progress(&log.message),
             LogEvent::Stage(log) => self.on_stage(&log.prefix, log.stage),
+            LogEvent::Scope(log) => self.on_scope(log),
             LogEvent::FetchingProgress(log) => self.on_fetching(&log.message),
             LogEvent::Stats(log) => self.on_stats(&log.message),
             LogEvent::Root(log) => self.on_root(&log.message),
@@ -423,6 +438,27 @@ impl ReporterState {
                 Output::Frame(frame)
             }
         }
+    }
+
+    // --- scope ------------------------------------------------------------
+
+    /// pnpm's `reportScope`: how many workspace projects the command
+    /// selected. Silent for a command that doesn't report scope, and for a
+    /// single selected project — where the answer is the directory the
+    /// user is already standing in.
+    fn on_scope(&mut self, log: &ScopeLog) {
+        if !self.reports_scope || log.selected == 1 {
+            return;
+        }
+        let count = match log.total {
+            Some(total) if total == log.selected => format!("all {total}"),
+            Some(total) => format!("{} of {total}", log.selected),
+            None => log.selected.to_string(),
+        };
+        let unit = if log.workspace_prefix.is_some() { "workspace projects" } else { "projects" };
+        let mut slot = std::mem::take(&mut self.scope_slot);
+        self.frame.emit(&mut slot, format!("Scope: {count} {unit}"), false);
+        self.scope_slot = slot;
     }
 
     // --- context ----------------------------------------------------------
@@ -1028,11 +1064,12 @@ impl ReporterState {
 
     fn on_lockfile_verification(&mut self, message: &LockfileVerificationMessage) {
         let msg = match message {
-            LockfileVerificationMessage::Cached { lockfile_path, .. } => {
+            LockfileVerificationMessage::Cached { verified_at, lockfile_path } => {
                 let path = self.lockfile_path_suffix(lockfile_path.as_deref());
                 format!(
-                    "{} Lockfile{path} passes supply-chain policies (previously verified)",
+                    "{} Lockfile{path} passes supply-chain policies ({})",
                     self.colors.green("✓"),
+                    cached_verdict(verified_at.as_deref(), Utc::now()),
                 )
             }
             LockfileVerificationMessage::Started { entries, lockfile_path } => {
@@ -1314,6 +1351,22 @@ fn entries_label(entries: u64) -> String {
     if entries == 1 { "1 entry".to_string() } else { format!("{entries} entries") }
 }
 
+/// How a cache-satisfied verification verdict is dated: relative to `now`
+/// when the record carries a parseable timestamp, timeless otherwise. The
+/// age is clamped at zero so a clock that moved backwards between the
+/// verification run and this install cannot render a negative age.
+fn cached_verdict(verified_at: Option<&str>, now: DateTime<Utc>) -> String {
+    let elapsed_ms = verified_at
+        .and_then(|verified_at| DateTime::parse_from_rfc3339(verified_at).ok())
+        .map(|verified_at| (now - verified_at.with_timezone(&Utc)).num_milliseconds().max(0));
+    match elapsed_ms {
+        Some(elapsed_ms) => {
+            format!("verified {} ago", pretty_ms_compact(elapsed_ms.unsigned_abs().into()))
+        }
+        None => "previously verified".to_string(),
+    }
+}
+
 fn remove_optional_from_prod(manifest: &Value) -> Value {
     let mut manifest = manifest.clone();
     let optional: Vec<String> = manifest
@@ -1340,3 +1393,6 @@ fn manifest_dep_versions(manifest: &Value, prop: &str) -> HashMap<String, String
         })
         .unwrap_or_default()
 }
+
+#[cfg(test)]
+mod tests;

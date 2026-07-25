@@ -13,6 +13,7 @@ repository.workspace  = true
 [dependencies]
 pacquet-reporter = { workspace = true }
 
+chrono     = { workspace = true }
 libc       = { workspace = true }
 owo-colors = { workspace = true }
 serde_json = { workspace = true }

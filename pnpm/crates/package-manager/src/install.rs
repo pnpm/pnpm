@@ -34,7 +34,7 @@ use pacquet_package_manifest::{
     DependencyGroup, PackageManifest, node_version_from_engines_runtime,
 };
 use pacquet_reporter::{
-    ContextLog, LogEvent, LogLevel, PnpmLog, Reporter, Stage, StageLog, SummaryLog,
+    ContextLog, LogEvent, LogLevel, PnpmLog, Reporter, ScopeLog, Stage, StageLog, SummaryLog,
 };
 use pacquet_resolving_npm_resolver::InMemoryPackageMetaCache;
 use pacquet_resolving_resolver_base::ResolutionVerifier;
@@ -44,7 +44,7 @@ use pacquet_workspace_state::{
 };
 use rayon::prelude::*;
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     io::IsTerminal,
     path::{Path, PathBuf},
     sync::{Arc, atomic::AtomicU8},
@@ -549,6 +549,15 @@ pub enum InstallError {
     #[diagnostic(transparent)]
     WriteWorkspaceState(#[error(source)] UpdateWorkspaceStateError),
 
+    /// Surfaces a failure to record the `allowBuilds` placeholders for the
+    /// builds this install ignored. Fatal rather than silent: the install
+    /// is about to tell the user to decide those builds, and a message
+    /// pointing at a file that was never written is worse than no message.
+    #[diagnostic(transparent)]
+    ScaffoldAllowBuilds(
+        #[error(source)] pacquet_workspace_manifest_writer::UpdateWorkspaceManifestError,
+    ),
+
     /// Surfaces a failure to persist `node_modules/.package-map.json`,
     /// the package-map metadata Node consumes when the user opts into
     /// `--experimental-package-map`.
@@ -895,6 +904,25 @@ where
             || loaded_workspace_projects.as_deref(),
             |selection| Some(selection.all_projects),
         );
+
+        // An unnarrowed install covers the whole workspace. A narrowed one
+        // already reported its own scope where the `--filter` was resolved,
+        // and so did the dedicated-lockfile plan that installs each selected
+        // project separately — this child install must not report the
+        // workspace over the top of it.
+        if selection.is_none()
+            && config.shared_workspace_lockfile
+            && let Some(projects) = workspace_projects
+        {
+            Reporter::emit(&LogEvent::Scope(ScopeLog {
+                level: LogLevel::Debug,
+                selected: projects.len(),
+                total: Some(projects.len()),
+                workspace_prefix: workspace_dir_opt
+                    .as_deref()
+                    .map(|dir| dir.to_string_lossy().into_owned()),
+            }));
+        }
 
         // Optimistic repeat-install short-circuit. When nothing has
         // changed since the previous successful install (settings,
@@ -2432,6 +2460,30 @@ where
         // the accumulated `pnpm:root` events as a "+N -M" block. Must
         // come after `importing_done`.
         Reporter::emit(&LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix }));
+
+        // A global install is exempt from the scaffold below: its root is a
+        // throwaway per-group directory, and the approval prompt that
+        // follows it records the ignored builds against the stable global
+        // packages dir instead.
+        let is_global_install = config
+            .global_pkg_dir
+            .as_deref()
+            .is_some_and(|global_pkg_dir| workspace_root.starts_with(global_pkg_dir));
+        // Leave the user a line to edit in `pnpm-workspace.yaml` for every
+        // build this install blocked, so approving one is an edit rather
+        // than recalling the `allowBuilds` shape. Written before the strict
+        // failure below, which is the very run whose message it answers.
+        if !ignored_builds.is_empty() && !is_global_install {
+            let allow_build_keys: BTreeSet<String> = ignored_builds
+                .iter()
+                .map(|dep_path| crate::allow_build_key_from_ignored_build(dep_path))
+                .collect();
+            pacquet_workspace_manifest_writer::scaffold_allow_builds(
+                config.workspace_dir.as_deref().unwrap_or(&workspace_root),
+                allow_build_keys.iter().map(String::as_str),
+            )
+            .map_err(InstallError::ScaffoldAllowBuilds)?;
+        }
 
         // When `strictDepBuilds` is on (the default), an install that
         // blocked any dependency build script fails with

@@ -582,6 +582,38 @@ pub(crate) fn add_allow_build(manifest: &mut Manifest, name: &str, value: bool) 
     changed
 }
 
+/// Add `name: <placeholder>` to the `allowBuilds:` block, creating the
+/// block when absent. An entry that already exists is left alone whatever
+/// its value, so a recorded decision — or a placeholder a previous install
+/// wrote — survives. Returns whether the document changed.
+pub(crate) fn add_undecided_allow_build(
+    manifest: &mut Manifest,
+    name: &str,
+    placeholder: &str,
+) -> bool {
+    const BLOCK: &str = "allowBuilds";
+    let text = manifest.text();
+    let Some(mapping) = locate(text, &[BLOCK]) else {
+        let block = format!(
+            "{BLOCK}:\n  {}: {}\n",
+            render::render_value(name),
+            render::render_value(placeholder),
+        );
+        let new_text = insert_top_level_block(manifest, BLOCK, &block);
+        manifest.set_text(new_text);
+        manifest.top_level_keys =
+            render::target_order(&manifest.top_level_keys, &[BLOCK.to_string()]);
+        return true;
+    };
+    if mapping.entries.iter().any(|entry| entry.key == name) {
+        return false;
+    }
+    let new_text =
+        insert_rendered_entry_at(text, &[BLOCK], name, &render::render_value(placeholder));
+    manifest.set_text(new_text);
+    true
+}
+
 fn render_bool(value: bool) -> &'static str {
     if value { "true" } else { "false" }
 }

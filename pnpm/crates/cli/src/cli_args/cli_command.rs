@@ -612,6 +612,27 @@ impl CliCommand {
         )
     }
 
+    /// Whether this run prints the `Scope:` line naming the workspace
+    /// projects it selected. pnpm gates this on two things at once: the
+    /// command must be one of the few that report scope, and the run must
+    /// be workspace-wide — either asked for with `-r` / `--filter`, or
+    /// because the command is workspace-wide by nature (`install`).
+    pub(crate) fn reports_scope(&self, recursive: bool) -> bool {
+        let reports_scope = matches!(
+            self,
+            CliCommand::Install(_)
+                | CliCommand::Link(_)
+                | CliCommand::Prune(_)
+                | CliCommand::Rebuild(_)
+                | CliCommand::Remove(_)
+                | CliCommand::Unlink(_)
+                | CliCommand::Update(_)
+                | CliCommand::Run(_)
+                | CliCommand::Test(_),
+        );
+        reports_scope && (recursive || matches!(self, CliCommand::Install(_)))
+    }
+
     pub(crate) fn default_reporter_summary_scope(&self) -> SummaryScope {
         match self {
             CliCommand::Access(_) => SummaryScope::CurrentPrefix,
