@@ -754,7 +754,10 @@ fn filtered_hoisted_install_materializes_full_shared_graph_but_links_only_select
             "hoisted shared graph is missing {dependency}",
         );
     }
-    assert!(selected.join("node_modules").join(HELLO).exists());
+    // The selected project's dependency won the workspace-root slot, so
+    // it resolves by walking up; nesting a second entry for it is what
+    // upstream avoids.
+    assert!(!selected.join("node_modules").join(HELLO).exists());
     assert!(!unselected.join("node_modules").exists());
     assert_full_wanted(&fixture.wanted(), &["packages/selected", "packages/unselected"]);
     let current = fixture.current();

@@ -5163,7 +5163,7 @@ dependencies = [
  "command-extra",
  "dunce",
  "flate2",
- "junction",
+ "pacquet-fs",
  "pnpr",
  "pnpr-fixtures",
  "serde_json",

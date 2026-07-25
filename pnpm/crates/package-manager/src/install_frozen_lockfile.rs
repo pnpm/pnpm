@@ -1818,12 +1818,17 @@ fn link_selected_hoisted_direct_dependencies(
 ) -> Result<(), HoistedLinkerError> {
     let modules_dir_name =
         config.modules_dir.file_name().unwrap_or_else(|| OsStr::new("node_modules"));
+    let root_modules_dir = pacquet_fs::lexical_normalize(&lockfile_dir.join(modules_dir_name));
     for (project_dir, _) in project_manifests {
         let importer_id = pacquet_workspace::importer_id_from_root_dir(lockfile_dir, project_dir);
         let Some(direct_dependencies) = direct_dependencies_by_importer_id.get(&importer_id) else {
             continue;
         };
         let modules_dir = project_dir.join(modules_dir_name);
+        // The workspace root owns the hoisted slot itself, so its own
+        // entries are the real directories rather than links to them.
+        let is_workspace_root = pacquet_fs::lexical_normalize(project_dir)
+            == pacquet_fs::lexical_normalize(lockfile_dir);
         let mut linked_names = Vec::new();
         for (alias, target) in direct_dependencies {
             let link_path =
@@ -1838,6 +1843,62 @@ fn link_selected_hoisted_direct_dependencies(
                         )
                     },
                 )?;
+            // A dependency that won the workspace-root slot is reached by
+            // walking up from the project, exactly as it is under pnpm.
+            // Repeating it inside the project would give a build a second
+            // copy to run lifecycle scripts in. Checked after `link_path`
+            // so an unusable alias still reports itself.
+            if !is_workspace_root
+                && pacquet_fs::lexical_normalize(target)
+                    == pacquet_fs::lexical_normalize(&root_modules_dir.join(alias))
+            {
+                // An install that predates this rule, or one where the
+                // version had lost the slot, leaves a link here. Left in
+                // place it keeps shadowing the root copy, which is the
+                // duplicate this skip exists to avoid. A real directory is
+                // the pruner's to remove, and only ever belongs to a
+                // version that lost the slot.
+                // `is_symlink_or_junction`, not `Path::is_symlink`: on
+                // Windows `symlink_dir` falls back to a junction when it
+                // cannot create a true symlink, and a junction is not a
+                // symlink to the stdlib.
+                let stale_link = match pacquet_fs::is_symlink_or_junction(&link_path) {
+                    Ok(is_link) => is_link,
+                    // Nothing to clean up — the common case, and the one
+                    // `junction::exists` reports as an error rather than
+                    // `Ok(false)`.
+                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
+                    Err(error) => {
+                        return Err(HoistedLinkerError::SymlinkDirectDependencies(
+                            SymlinkDirectDependenciesError::SymlinkPackage {
+                                importer_id: importer_id.clone(),
+                                name: alias.clone(),
+                                source: SymlinkPackageError::SymlinkDir {
+                                    symlink_target: target.clone(),
+                                    symlink_path: link_path.clone(),
+                                    error,
+                                },
+                            },
+                        ));
+                    }
+                };
+                if stale_link {
+                    pacquet_fs::remove_symlink_dir(&link_path).map_err(|error| {
+                        HoistedLinkerError::SymlinkDirectDependencies(
+                            SymlinkDirectDependenciesError::SymlinkPackage {
+                                importer_id: importer_id.clone(),
+                                name: alias.clone(),
+                                source: SymlinkPackageError::SymlinkDir {
+                                    symlink_target: target.clone(),
+                                    symlink_path: link_path.clone(),
+                                    error,
+                                },
+                            },
+                        )
+                    })?;
+                }
+                continue;
+            }
             if pacquet_fs::lexical_normalize(&link_path) == pacquet_fs::lexical_normalize(target) {
                 linked_names.push(alias.clone());
                 continue;
