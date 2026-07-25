@@ -11,6 +11,7 @@ use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     fs::{get_all_folders, get_filenames_in_folder},
+    registry::TestRegistry,
 };
 use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
@@ -878,4 +879,72 @@ fn add_updates_dependency_in_the_group_it_already_occupies() {
     assert_eq!(group_spec(DependencyGroup::Prod, "@pnpm.e2e/bar"), None);
 
     drop((root, npmrc_info)); // cleanup
+}
+
+/// The `savePrefix` and `savePeer` settings drive `pnpm add` the same
+/// way `--save-prefix` / `--save-peer` do.
+#[test]
+fn save_prefix_and_save_peer_settings_drive_add() {
+    let (root, workspace, mock_instance) = add_with_save_settings(&["add"]);
+
+    let manifest =
+        workspace.join("package.json").pipe(PackageManifest::from_path).expect("read manifest");
+    let peer_spec = manifest
+        .dependencies([DependencyGroup::Peer])
+        .find(|(name, _)| *name == "@pnpm.e2e/hello-world-js-bin")
+        .map(|(_, spec)| spec.to_string());
+    let dev_spec = manifest
+        .dependencies([DependencyGroup::Dev])
+        .find(|(name, _)| *name == "@pnpm.e2e/hello-world-js-bin")
+        .map(|(_, spec)| spec.to_string());
+    eprintln!("PEER: {peer_spec:?}, DEV: {dev_spec:?}");
+    assert_eq!(peer_spec.as_deref(), Some("~1.0.0"), "savePeer must add a peerDependencies entry");
+    assert_eq!(dev_spec.as_deref(), Some("~1.0.0"), "savePeer also saves it as a dev dependency");
+
+    drop((root, mock_instance));
+}
+
+/// `--save-prefix` and `--no-save-peer` overrule the `savePrefix` and
+/// `savePeer` settings, in the usual CLI-beats-config order.
+#[test]
+fn save_flags_overrule_the_save_settings() {
+    let (root, workspace, mock_instance) =
+        add_with_save_settings(&["add", "--save-prefix", "^", "--no-save-peer"]);
+
+    let manifest =
+        workspace.join("package.json").pipe(PackageManifest::from_path).expect("read manifest");
+    let prod_spec = manifest
+        .dependencies([DependencyGroup::Prod])
+        .find(|(name, _)| *name == "@pnpm.e2e/hello-world-js-bin")
+        .map(|(_, spec)| spec.to_string());
+    let peer_spec = manifest
+        .dependencies([DependencyGroup::Peer])
+        .find(|(name, _)| *name == "@pnpm.e2e/hello-world-js-bin")
+        .map(|(_, spec)| spec.to_string());
+    eprintln!("PROD: {prod_spec:?}, PEER: {peer_spec:?}");
+    assert_eq!(prod_spec.as_deref(), Some("^1.0.0"), "--save-prefix must overrule savePrefix");
+    assert_eq!(peer_spec, None, "--no-save-peer must overrule savePeer");
+
+    drop((root, mock_instance));
+}
+
+/// Run `pnpm add @pnpm.e2e/hello-world-js-bin` in a workspace whose
+/// `pnpm-workspace.yaml` sets `savePrefix: '~'` and `savePeer: true`.
+fn add_with_save_settings(args: &[&str]) -> (TempDir, PathBuf, TestRegistry) {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        std::fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    if !workspace_yaml.ends_with('\n') {
+        workspace_yaml.push('\n');
+    }
+    workspace_yaml.push_str("savePrefix: '~'\nsavePeer: true\n");
+    std::fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    pacquet.with_args(args).with_arg("@pnpm.e2e/hello-world-js-bin").assert().success();
+
+    (root, workspace, mock_instance)
 }

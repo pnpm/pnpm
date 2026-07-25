@@ -28,6 +28,22 @@ fn empty_env_var_is_treated_as_unset() {
     assert_eq!(settings.store_dir, None);
 }
 
+/// `savePrefix` is the exception to [`empty_env_var_is_treated_as_unset`]:
+/// `""` is the value that pins an exact version, so
+/// `PNPM_CONFIG_SAVE_PREFIX=` must reach the config as `Some("")` — the
+/// same state `savePrefix: ""` in `pnpm-workspace.yaml` produces.
+#[test]
+fn empty_save_prefix_env_var_survives() {
+    struct EnvEmptySavePrefix;
+    impl EnvVar for EnvEmptySavePrefix {
+        fn var(name: &str) -> Option<String> {
+            (name == "PNPM_CONFIG_SAVE_PREFIX").then(String::new)
+        }
+    }
+    let settings = WorkspaceSettings::from_pnpm_config_env::<EnvEmptySavePrefix>();
+    assert_eq!(settings.save_prefix.as_deref(), Some(""));
+}
+
 #[test]
 fn enum_env_var_accepts_bare_identifier() {
     assert_eq!(parse_json_or_string::<NodeLinker>("hoisted"), Some(NodeLinker::Hoisted));

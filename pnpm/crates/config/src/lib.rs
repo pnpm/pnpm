@@ -766,6 +766,16 @@ pub struct Config {
     #[default = true]
     pub prefer_frozen_lockfile: bool,
 
+    /// The `frozenLockfile` setting: `install` neither re-resolves nor
+    /// writes `pnpm-lock.yaml`, and fails when the lockfile is out of
+    /// date with the manifests.
+    ///
+    /// `None` — the default — means "not configured", which the CLI
+    /// distinguishes from an explicit `false` (`--no-frozen-lockfile`)
+    /// so the two can layer over each other in the usual
+    /// CLI-beats-config order.
+    pub frozen_lockfile: Option<bool>,
+
     /// When `true`, `pacquet install` performs a workspace-state
     /// freshness check before any of the install setup runs and
     /// returns immediately ("Already up to date") if nothing has
@@ -1629,10 +1639,19 @@ pub struct Config {
     /// `catalog:`/`catalog:<name>` to the manifest and inserts the
     /// entry into `pnpm-workspace.yaml` even under
     /// [`CatalogMode::Manual`]. The `saveCatalogName` setting (default
-    /// `undefined`). A CLI-only flag, so pacquet does not read it from
-    /// `pnpm-workspace.yaml`; the effective value is threaded onto the
-    /// `add` command from the CLI.
+    /// `undefined`).
     pub save_catalog_name: Option<String>,
+
+    /// The range operator `pnpm add` prepends to a resolved version
+    /// when saving it: `^` (the default), `~`, or `""` for an exact
+    /// pin. The `savePrefix` setting, overridden per-invocation by
+    /// `--save-prefix` / `--save-exact`.
+    pub save_prefix: Option<String>,
+
+    /// Whether `pnpm add` also records the new dependency in
+    /// `peerDependencies` (and saves it as a dev dependency). The
+    /// `savePeer` setting, equivalent to passing `--save-peer`.
+    pub save_peer: bool,
 
     /// Whether the configured registry returns the per-version `time`
     /// field in its *abbreviated* metadata. When `false` (the default),
