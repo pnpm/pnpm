@@ -179,9 +179,11 @@ function pickPkgsWithAllDeps (
  */
 function classifyDeps (ctx: PickPkgsContext, depEdges: DepEdge[], opts: PickPkgsOptions): void {
   const incompatible = new Map<DepPath, boolean>()
+  // Walked with a cursor rather than `shift()`, which is O(n) per dequeue on
+  // a JS array and would make the walk quadratic on a large lockfile.
   const queue = [...depEdges]
-  while (queue.length > 0) {
-    const { depPath, optional } = queue.shift()!
+  for (let next = 0; next < queue.length; next++) {
+    const { depPath, optional } = queue[next]
     if (!optional) ctx.requiredDepPaths.add(depPath)
     if (ctx.installed.has(depPath)) continue
     const pkgSnapshot = ctx.lockfile.packages![depPath]
@@ -204,7 +206,12 @@ function classifyDeps (ctx: PickPkgsContext, depEdges: DepEdge[], opts: PickPkgs
     if (optional && incompatible.get(depPath)) continue
     ctx.installed.add(depPath)
     ctx.pickedPackages[depPath] = pkgSnapshot
-    queue.push(...nextDepEdges(ctx, pkgSnapshot, opts))
+    // Appended one by one: `push(...edges)` passes each edge as its own
+    // argument and overflows the engine's argument limit on a wide enough
+    // dependency list.
+    for (const edge of nextDepEdges(ctx, pkgSnapshot, opts)) {
+      queue.push(edge)
+    }
   }
 }
 
@@ -257,8 +264,8 @@ function toInstallabilityManifest (depPath: DepPath, pkgSnapshot: PackageSnapsho
 function pickSkippedDeps (ctx: PickPkgsContext, depEdges: DepEdge[], opts: PickPkgsOptions): void {
   const queue = depEdges.map(({ depPath }) => depPath)
   const visited = new Set<DepPath>()
-  while (queue.length > 0) {
-    const depPath = queue.shift()!
+  for (let next = 0; next < queue.length; next++) {
+    const depPath = queue[next]
     if (visited.has(depPath)) continue
     visited.add(depPath)
     const pkgSnapshot = ctx.lockfile.packages![depPath]
@@ -275,7 +282,9 @@ function pickSkippedDeps (ctx: PickPkgsContext, depEdges: DepEdge[], opts: PickP
       }
       ctx.pickedPackages[depPath] = pkgSnapshot
     }
-    queue.push(...nextDepEdges(ctx, pkgSnapshot, opts).map(({ depPath }) => depPath))
+    for (const edge of nextDepEdges(ctx, pkgSnapshot, opts)) {
+      queue.push(edge.depPath)
+    }
   }
 }
 

@@ -683,6 +683,63 @@ test('filterByImportersAndEngine(): a non-optional edge wins over an optional on
   ])
 })
 
+test('filterByImportersAndEngine(): a workspace project linked as an optional dependency keeps its own dependencies non-optional', () => {
+  const skipped = new Set<string>()
+  const { requiredDepPaths } = filterLockfileByImportersAndEngine(
+    {
+      importers: {
+        ['project-1' as ProjectId]: {
+          optionalDependencies: {
+            'project-2': 'link:project-2',
+          },
+          specifiers: {
+            'project-2': 'workspace:*',
+          },
+        },
+        ['project-2' as ProjectId]: {
+          dependencies: {
+            'not-compatible': '1.0.0',
+          },
+          specifiers: {
+            'not-compatible': '^1.0.0',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['not-compatible@1.0.0' as DepPath]: {
+          engines: {
+            node: '1000',
+          },
+          resolution: { integrity: '' },
+        },
+      },
+    },
+    ['project-1' as ProjectId],
+    {
+      currentEngine: {
+        nodeVersion: '10.0.0',
+        pnpmVersion: '2.0.0',
+      },
+      engineStrict: false,
+      failOnMissingDependencies: true,
+      include: {
+        dependencies: true,
+        devDependencies: true,
+        optionalDependencies: true,
+      },
+      lockfileDir: process.cwd(),
+      skipped,
+    }
+  )
+
+  // The link only decides whether project-2 is part of the install, not how
+  // project-2 depends on its own dependencies — pnpm installs the linked
+  // project's dependencies, so they stay required.
+  expect(requiredDepPaths.has('not-compatible@1.0.0' as DepPath)).toBe(true)
+  expect(Array.from(skipped)).toStrictEqual([])
+})
+
 test('filterByImportersAndEngine(): includes linked packages', () => {
   const filteredLockfile = filterLockfileByImportersAndEngine(
     {
