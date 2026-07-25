@@ -81,18 +81,21 @@ fn command_boundary(argv: &[OsString]) -> Option<usize> {
             return Some(next_positional(argv, index + 1, &arity)? + 1);
         }
         if subcommand.get_name() == "with" {
-            // `with` splits on its version. `with current` is spliced into
-            // pnpm's own argv by [`crate::with_current::rewrite`], which runs
-            // after the pre-clap passes, so those tokens are still pnpm's to
-            // claim — leaving a `--config.*` in them for clap to mistake for
-            // the script name. Any other version execs a child pnpm, whose
-            // command line is its own, so stripping an override there would
-            // lose it.
+            // `with` splits on its version. Any version but `current` execs a
+            // child pnpm, whose command line is its own, so stripping an
+            // override there would lose it.
             let version = next_positional(argv, index + 1, &arity)?;
-            if argv[version] == "current" {
-                return None;
+            if argv[version] != "current" {
+                return Some(version + 1);
             }
-            return Some(version + 1);
+            // `with current` is spliced into pnpm's own argv by
+            // [`crate::with_current::rewrite`], which runs after the pre-clap
+            // passes. So resume the scan just past it: whatever boundary the
+            // nested command line has is the one that will apply, and pnpm
+            // still owns everything ahead of it.
+            index = version + 1;
+            prefix_allowed = true;
+            continue;
         }
         // A known command that parses its own arguments: pnpm owns the rest.
         return None;

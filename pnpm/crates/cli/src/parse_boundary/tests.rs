@@ -124,8 +124,25 @@ fn a_value_taking_option_does_not_move_the_boundary_onto_its_value() {
 /// for that child.
 #[test]
 fn with_forwards_only_for_a_version_that_execs_a_child() {
-    let (_, current) = split(&["with", "current", "run", "--config.foo=bar", "build"]);
-    assert!(current.is_empty(), "`with current` keeps its overrides: {current:?}");
+    // `with current` resumes the scan on the nested command line, so the
+    // nested boundary is what applies: ahead of the inner script name the
+    // tokens are pnpm's, past it they are the script's.
+    let (_, before) = split(&["with", "current", "run", "--config.foo=bar", "build"]);
+    assert!(before.is_empty(), "an override ahead of the script name is pnpm's: {before:?}");
+
+    for (argv, forwarded) in [
+        (
+            ["with", "current", "run", "show", "--config.foo=bar"].as_slice(),
+            ["--config.foo=bar"].as_slice(),
+        ),
+        (&["with", "current", "run", "show", "--silent"], &["--silent"]),
+        (&["with", "current", "recursive", "run", "show", "--silent"], &["--silent"]),
+        // A nested command that parses its own arguments still owns them.
+        (&["with", "current", "install", "--config.foo=bar"], &[]),
+    ] {
+        let (_, actual) = split(argv);
+        assert_eq!(actual, forwarded, "{argv:?}");
+    }
 
     for argv in [
         ["with", "10", "install", "--config.foo=bar"].as_slice(),
