@@ -12,7 +12,9 @@ use miette::Diagnostic;
 use pacquet_fs::file_mode;
 pub use pacquet_network::RetryOpts;
 use pacquet_network::{AuthHeaders, ThrottledClient, UNPRIORITIZED};
-use pacquet_package_manifest::{files_include_install_scripts, manifest_requires_build};
+use pacquet_package_manifest::{
+    files_include_install_scripts, manifest_requires_build, parse_manifest_bytes,
+};
 use pacquet_reporter::{
     FetchingProgressLog, FetchingProgressMessage, LogEvent, LogLevel, ProgressLog, ProgressMessage,
     Reporter, RequestRetryError, RequestRetryLog,
@@ -824,7 +826,7 @@ fn extract_tarball_entries(
         // publisher's fault and downstream code can fall back to
         // disk reads).
         if cleaned_entry_path == "package.json" {
-            match serde_json::from_slice::<serde_json::Value>(entry_data) {
+            match parse_manifest_bytes(entry_data) {
                 Ok(parsed) => {
                     manifest_build_scripts = manifest_requires_build(&parsed);
                     manifest = normalize_bundled_manifest(&parsed);

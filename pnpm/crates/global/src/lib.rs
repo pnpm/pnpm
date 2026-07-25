@@ -13,7 +13,7 @@ mod global_package_dir;
 mod list;
 mod scan;
 
-use pacquet_package_manifest::convert_engines_runtime_to_dependencies;
+use pacquet_package_manifest::{convert_engines_runtime_to_dependencies, parse_manifest};
 use serde_json::Value;
 use std::path::Path;
 
@@ -42,7 +42,7 @@ pub use scan::{
 /// direct dependency it is.
 pub(crate) fn read_package_json(dir: &Path) -> Option<Value> {
     let text = std::fs::read_to_string(dir.join("package.json")).ok()?;
-    let mut value: Value = serde_json::from_str(&text).ok()?;
+    let mut value: Value = parse_manifest(&text).ok()?;
     convert_engines_runtime_to_dependencies(&mut value, "devEngines", "devDependencies");
     convert_engines_runtime_to_dependencies(&mut value, "engines", "dependencies");
     Some(value)

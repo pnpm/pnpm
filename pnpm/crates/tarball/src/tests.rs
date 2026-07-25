@@ -1142,6 +1142,36 @@ fn extract_tarball_records_requires_build_from_manifest() {
     drop(tempdir);
 }
 
+/// Published packages ship `package.json` files carrying a UTF-8 BOM.
+/// The bundled manifest and the install-script detection derived from it
+/// must survive one, or the package silently loses its build pass.
+#[test]
+fn extract_tarball_reads_a_manifest_that_starts_with_a_utf8_bom() {
+    let (tempdir, store_path) = tempdir_with_leaked_path();
+
+    let mut tar_bytes = Vec::new();
+    {
+        let mut builder = tar::Builder::new(&mut tar_bytes);
+        let body = b"\xEF\xBB\xBF{\"name\":\"bom\",\"scripts\":{\"install\":\"node-gyp rebuild\"}}";
+        let mut header = tar::Header::new_gnu();
+        header.set_size(body.len() as u64);
+        header.set_mode(0o644);
+        header.set_entry_type(tar::EntryType::Regular);
+        header.set_cksum();
+        builder
+            .append_data(&mut header, "package/package.json", &body[..])
+            .expect("append manifest");
+        builder.finish().expect("finalize tar");
+    }
+
+    let (_cas_paths, pkg_files_idx) =
+        extract_tarball_entries(&tar_bytes, store_path, None).expect("tarball extraction");
+
+    assert_eq!(pkg_files_idx.requires_build, Some(true));
+    assert!(pkg_files_idx.manifest.is_some(), "the bundled manifest must be recorded");
+    drop(tempdir);
+}
+
 /// `RetryOpts::default()` uses pnpm's network-fetch defaults: 2
 /// retries, factor 10, minTimeout 10 s, maxTimeout 60 s. The first
 /// post-failure delay is `minTimeout`; subsequent delays multiply by

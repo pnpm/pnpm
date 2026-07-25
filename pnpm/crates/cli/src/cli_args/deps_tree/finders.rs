@@ -8,6 +8,7 @@ use std::{collections::HashMap, path::Path, sync::Arc};
 
 use pacquet_config::Config;
 use pacquet_hooks::PnpmfileHooks;
+use pacquet_package_manifest::parse_manifest_bytes;
 use pacquet_store_dir::{StoreDir, StoreIndex, store_index_key};
 
 use super::{
@@ -211,7 +212,7 @@ fn read_manifest(
     }
     std::fs::read(source.path.join("package.json"))
         .ok()
-        .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+        .and_then(|bytes| parse_manifest_bytes(&bytes).ok())
         .unwrap_or(serde_json::Value::Null)
 }
 

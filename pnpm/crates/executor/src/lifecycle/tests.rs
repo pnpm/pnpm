@@ -446,11 +446,8 @@ fn malformed_manifest_propagates_error() {
     assert!(
         matches!(
             err,
-            LifecycleScriptError::ReadManifest {
-                source: PackageManifestError::Serialization(_),
-                ..
-            },
+            LifecycleScriptError::ReadManifest { source: PackageManifestError::Parse { .. }, .. },
         ),
-        "expected ReadManifest(Serialization), got {err:?}",
+        "expected ReadManifest(Parse), got {err:?}",
     );
 }

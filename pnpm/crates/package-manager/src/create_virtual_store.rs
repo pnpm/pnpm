@@ -13,7 +13,9 @@ use pacquet_lockfile::{
     PlatformSelector, SnapshotEntry, select_platform_variant,
 };
 use pacquet_network::ThrottledClient;
-use pacquet_package_manifest::{files_include_install_scripts, manifest_requires_build};
+use pacquet_package_manifest::{
+    files_include_install_scripts, manifest_requires_build, parse_manifest,
+};
 use pacquet_reporter::{
     BrokenModulesLog, LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter, StatsLog,
     StatsMessage,
@@ -1075,7 +1077,7 @@ fn requires_build_from_cas_paths(cas_paths: &HashMap<String, PathBuf>) -> bool {
     }
     let Some(package_json) = cas_paths.get("package.json") else { return false };
     let Ok(contents) = fs::read_to_string(package_json) else { return false };
-    let Ok(manifest) = serde_json::from_str::<serde_json::Value>(&contents) else {
+    let Ok(manifest) = parse_manifest(&contents) else {
         return false;
     };
     manifest_requires_build(&manifest)
