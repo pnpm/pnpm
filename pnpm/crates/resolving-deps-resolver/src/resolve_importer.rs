@@ -734,12 +734,14 @@ fn cross_importer_specifier(spec: Option<String>) -> Option<String> {
     spec.filter(|spec| !is_project_relative_specifier(spec))
 }
 
-/// `link:` / `file:` / `workspace:` resolve against the consuming
-/// project's directory, so the root's copy of one can't stand in for
-/// another importer's peer — the same specifier would reach a different
-/// path there, or nothing. Same set `project_relative_cache_scope` uses.
+/// `link:` / `file:` and the path form of `workspace:` resolve against
+/// the consuming project's directory, so the root's copy of one can't
+/// stand in for another importer's peer — the same specifier would reach
+/// a different path there, or nothing. A `workspace:` range is not
+/// path-relative: it selects the same workspace package from every
+/// importer, so it stays a candidate.
 fn is_project_relative_specifier(spec: &str) -> bool {
-    spec.starts_with("link:") || spec.starts_with("file:") || spec.starts_with("workspace:")
+    spec.starts_with("link:") || spec.starts_with("file:") || spec.starts_with("workspace:.")
 }
 
 /// `name_ver`, else the manifest — the canonical name for the protocols

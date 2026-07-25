@@ -528,14 +528,17 @@ function getHoistableRootDeps (
       wantedSpecifierByAlias.set(wantedDep.alias, wantedDep.bareSpecifier)
     }
   }
-  const rootDeps: HoistableRootDep[] = rootPkgAddresses.map((pkgAddress) => ({
-    alias: pkgAddress.alias,
-    pkgName: pkgAddress.pkg.name,
-    normalizedBareSpecifier: pkgAddress.normalizedBareSpecifier ?? wantedSpecifierByAlias.get(pkgAddress.alias),
-  }))
+  const rootDeps: HoistableRootDep[] = rootPkgAddresses.map((pkgAddress) => {
+    const bareSpecifier = pkgAddress.normalizedBareSpecifier ?? wantedSpecifierByAlias.get(pkgAddress.alias)
+    return {
+      alias: pkgAddress.alias,
+      pkgName: pkgAddress.pkg.name,
+      normalizedBareSpecifier: bareSpecifier != null && isProjectRelativeSpecifier(bareSpecifier) ? undefined : bareSpecifier,
+    }
+  })
   const coveredAliases = new Set(rootDeps.map(({ alias }) => alias))
   for (const [alias, bareSpecifier] of wantedSpecifierByAlias) {
-    if (coveredAliases.has(alias)) continue
+    if (coveredAliases.has(alias) || isProjectRelativeSpecifier(bareSpecifier)) continue
     rootDeps.push({
       alias,
       pkgName: unwrapPackageName(alias, bareSpecifier).pkgName,
@@ -543,6 +546,17 @@ function getHoistableRootDeps (
     })
   }
   return rootDeps
+}
+
+/**
+ * `link:`, `file:`, and the path form of `workspace:` resolve against the
+ * consuming project's directory, so the root's copy of one cannot stand in for
+ * another importer's peer — the same specifier would reach a different path
+ * there, or nothing. A `workspace:` range is not path-relative: it selects the
+ * same workspace package from every importer, so it stays a candidate.
+ */
+function isProjectRelativeSpecifier (bareSpecifier: string): boolean {
+  return bareSpecifier.startsWith('link:') || bareSpecifier.startsWith('file:') || bareSpecifier.startsWith('workspace:.')
 }
 
 interface ResolvedDependenciesResult {
