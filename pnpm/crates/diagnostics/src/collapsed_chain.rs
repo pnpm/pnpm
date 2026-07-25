@@ -73,7 +73,7 @@ impl<'a> Collapsed<'a> {
         let mut level = nested(Level::Diagnostic(head));
         while let Some(current) = level {
             let message = current.to_string();
-            if !last.ends_with(&message) {
+            if !restates(&last, &message) {
                 messages.push(message.clone());
                 last = message;
             }
@@ -86,6 +86,21 @@ impl<'a> Collapsed<'a> {
         }
         Collapsed { head, causes }
     }
+}
+
+/// Whether `outer` already says everything `inner` says: the two are equal, or
+/// `outer` is a wrapper that appended `inner` verbatim behind a separator
+/// ("Failed to resolve dependency tree: {inner}"). A cause level renders as its
+/// message and nothing else, so one whose whole message the line above already
+/// ends with adds no information.
+///
+/// The separator is what makes the tail a restatement rather than a
+/// coincidence: without it, a short cause ("0.1") would fold into any wrapper
+/// whose sentence happens to end with those characters ("resolved to 3.0.1"),
+/// dropping a distinct cause.
+fn restates(outer: &str, inner: &str) -> bool {
+    let Some(prefix) = outer.strip_suffix(inner) else { return false };
+    prefix.is_empty() || prefix.ends_with([' ', ':'])
 }
 
 /// One level of the reported error's cause chain. miette walks a mix

@@ -122,6 +122,24 @@ fn a_context_prefixed_wrapper_absorbs_its_cause() {
     );
 }
 
+/// A cause is only absorbed when the wrapper appended it behind a
+/// separator. A tail that matches mid-token is a coincidence, and the
+/// cause survives.
+#[test]
+fn a_coincidental_tail_match_is_not_a_restatement() {
+    let leaf = Leaf {
+        message: "the range resolved to 3.0.1",
+        source: Some(Box::new(Leaf { message: "0.1", source: None })),
+    };
+
+    let collapsed = Collapsed::new(&leaf);
+
+    assert_eq!(
+        messages(&collapsed),
+        vec!["the range resolved to 3.0.1".to_string(), "0.1".to_string()],
+    );
+}
+
 /// The kept levels keep answering for themselves — the collapsed head
 /// still carries the code miette prints above the report.
 #[test]
