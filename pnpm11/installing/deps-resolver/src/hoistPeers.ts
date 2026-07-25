@@ -28,12 +28,14 @@ export function hoistPeers (
   const dependencies: Record<string, string> = {}
   for (const [peerName, { range }] of missingRequiredPeers) {
     const rootBareSpecifier = findWorkspaceRootDep(opts.workspaceRootDeps, peerName)?.normalizedBareSpecifier
-    // Without autoInstallPeers, hoisting only deduplicates a package the graph
-    // or the workspace root already provides. An override redirects such a
-    // hoist; it must never create one, or disabling autoInstallPeers would
-    // still install a peer nobody depends on.
-    if (!opts.autoInstallPeers && !rootBareSpecifier && !opts.allPreferredVersions![peerName]) continue
-    const overridden = opts.overrideBareSpecifier?.(peerName, range)
+    // An override redirects a hoist; it must never create one, or disabling
+    // autoInstallPeers would still install a peer nobody depends on. Only the
+    // workspace root's own dependency hoists a peer that autoInstallPeers is
+    // not asking for, so that is the one hoist an override still governs here;
+    // the deduplication below installs nothing new either way.
+    const overridden = opts.autoInstallPeers || rootBareSpecifier
+      ? opts.overrideBareSpecifier?.(peerName, range)
+      : undefined
     if (overridden != null) {
       if (overridden !== '-') {
         dependencies[peerName] = overridden

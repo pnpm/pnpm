@@ -66,21 +66,17 @@ pub fn hoist_peers(
 
         let root_bare_specifier = find_workspace_root_dep(opts.workspace_root_deps, peer_name)
             .and_then(|dep| dep.normalized_bare_specifier.as_ref());
-        // Without auto-install-peers, hoisting only deduplicates a
-        // package the graph or the workspace root already provides. An
-        // override redirects such a hoist; it must never create one, or
-        // disabling auto-install-peers would still install a peer
-        // nobody depends on.
-        if !opts.auto_install_peers
-            && root_bare_specifier.is_none()
-            && !opts.all_preferred_versions.contains_key(peer_name)
-        {
-            continue;
-        }
-
-        if let Some(overridden) = opts
-            .override_bare_specifier
-            .and_then(|overrider| overrider(peer_name, range, opts.project_dir))
+        // An override redirects a hoist; it must never create one, or
+        // disabling auto-install-peers would still install a peer nobody
+        // depends on. Only the workspace root's own dependency hoists a
+        // peer that auto-install-peers is not asking for, so that is the
+        // one hoist an override still governs here; the deduplication
+        // below installs nothing new either way.
+        let overrider = (opts.auto_install_peers || root_bare_specifier.is_some())
+            .then_some(opts.override_bare_specifier)
+            .flatten();
+        if let Some(overridden) =
+            overrider.and_then(|overrider| overrider(peer_name, range, opts.project_dir))
         {
             if overridden != "-" {
                 dependencies.insert(peer_name.clone(), overridden);

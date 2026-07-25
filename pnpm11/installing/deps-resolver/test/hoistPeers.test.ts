@@ -294,7 +294,7 @@ test('hoistPeers does not let an override install a peer that nothing provides w
   }, [['react', { range: '^18.0.0' }]])).toStrictEqual({})
 })
 
-test('hoistPeers redirects a deduplicating hoist through an override when peers are not auto-installed', () => {
+test('hoistPeers leaves a deduplicating hoist to the graph when peers are not auto-installed', () => {
   expect(hoistPeers({
     autoInstallPeers: false,
     allPreferredVersions: {
@@ -303,6 +303,17 @@ test('hoistPeers redirects a deduplicating hoist through an override when peers 
       },
     },
     workspaceRootDeps: [],
+    overrideBareSpecifier: () => 'npm:react@19.2.0',
+  }, [['react', { range: '^18.0.0' }]])).toStrictEqual({
+    react: '18.3.1',
+  })
+})
+
+test('hoistPeers redirects the workspace root\'s hoist through an override when peers are not auto-installed', () => {
+  expect(hoistPeers({
+    autoInstallPeers: false,
+    allPreferredVersions: {},
+    workspaceRootDeps: [{ alias: 'react', pkgName: 'react', normalizedBareSpecifier: '18.3.1' }],
     overrideBareSpecifier: () => 'npm:react@19.2.0',
   }, [['react', { range: '^18.0.0' }]])).toStrictEqual({
     react: 'npm:react@19.2.0',

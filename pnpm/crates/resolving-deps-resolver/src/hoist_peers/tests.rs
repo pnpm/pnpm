@@ -369,7 +369,7 @@ fn override_does_not_install_a_peer_nothing_provides_without_auto_install_peers(
 }
 
 #[test]
-fn override_redirects_a_deduplicating_hoist_without_auto_install_peers() {
+fn leaves_a_deduplicating_hoist_to_the_graph_without_auto_install_peers() {
     let preferred = preferred(&[("react", &[("18.3.1", plain(VersionSelectorType::Version))])]);
     let overrider =
         |_name: &str, _range: &str, _pkg_dir: &Path| Some("npm:react@19.2.0".to_string());
@@ -377,6 +377,29 @@ fn override_redirects_a_deduplicating_hoist_without_auto_install_peers() {
         auto_install_peers: false,
         all_preferred_versions: &preferred,
         workspace_root_deps: &[],
+        override_bare_specifier: Some(&overrider),
+        project_dir: Path::new("/workspace"),
+    };
+    let result = hoist_peers(&opts, &[missing("react", "^18.0.0")]);
+    let mut expected = BTreeMap::new();
+    expected.insert("react".to_string(), "18.3.1".to_string());
+    assert_eq!(result, expected);
+}
+
+#[test]
+fn override_redirects_the_workspace_roots_hoist_without_auto_install_peers() {
+    let empty = PreferredVersions::new();
+    let root_deps = [WorkspaceRootDep {
+        alias: "react".to_string(),
+        pkg_name: "react".to_string(),
+        normalized_bare_specifier: Some("18.3.1".to_string()),
+    }];
+    let overrider =
+        |_name: &str, _range: &str, _pkg_dir: &Path| Some("npm:react@19.2.0".to_string());
+    let opts = HoistPeersOptions {
+        auto_install_peers: false,
+        all_preferred_versions: &empty,
+        workspace_root_deps: &root_deps,
         override_bare_specifier: Some(&overrider),
         project_dir: Path::new("/workspace"),
     };
