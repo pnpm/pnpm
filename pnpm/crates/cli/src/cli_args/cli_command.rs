@@ -77,6 +77,8 @@ use super::{
     with::WithArgs,
 };
 use clap::{CommandFactory, Parser, Subcommand, error::ErrorKind};
+use derive_more::{Display, Error};
+use miette::Diagnostic;
 use pacquet_default_reporter::SummaryScope;
 use std::path::PathBuf;
 
@@ -151,6 +153,13 @@ pub struct CliArgs {
     /// the project in `--dir`.
     #[clap(short = 'r', long, global = true)]
     pub recursive: bool,
+
+    /// Run the command on the root workspace project, whatever directory
+    /// it is invoked from.
+    // Resolved by `CliArgs::apply_workspace_root`, which folds the flag
+    // into `dir` before dispatch.
+    #[clap(short = 'w', long = "workspace-root", global = true)]
+    pub workspace_root: bool,
 
     /// Reporter output format.
     // Self-override so a repeated `--reporter` takes the last occurrence,
@@ -250,6 +259,31 @@ impl CliArgs {
         if !self.filter.is_empty() || !self.filter_prod.is_empty() {
             self.recursive = true;
         }
+    }
+
+    /// Re-anchor `--dir` at the workspace root for `-w` /
+    /// `--workspace-root`, so the command runs on the root project from
+    /// anywhere inside the workspace.
+    ///
+    /// Rewriting `dir` is the whole implementation, matching pnpm: every
+    /// command already resolves its project from `dir`, so none of them
+    /// need to know the flag exists.
+    pub fn apply_workspace_root(&mut self) -> Result<(), WorkspaceRootError> {
+        if !self.workspace_root {
+            return Ok(());
+        }
+        if self.command.is_global() {
+            return Err(WorkspaceRootError::ConflictsWithGlobal);
+        }
+        // The upward walk needs a real path to climb: `--dir` still holds
+        // whatever was typed, and its default `.` has no parent to walk to.
+        // Dispatch canonicalizes `dir` again later, which is idempotent.
+        let from = dunce::canonicalize(&self.dir).unwrap_or_else(|_| self.dir.clone());
+        let workspace_dir = pacquet_workspace::find_workspace_dir(&from)
+            .map_err(|_| WorkspaceRootError::NotInWorkspace)?
+            .ok_or(WorkspaceRootError::NotInWorkspace)?;
+        self.dir = workspace_dir;
+        Ok(())
     }
 
     /// Promote commands marked recursive-by-default by pnpm when they run
@@ -526,6 +560,25 @@ pub enum CliCommand {
 }
 
 impl CliCommand {
+    /// Whether the command was given `-g` / `--global`. Only the commands
+    /// that expose the flag can answer yes; the rest have no global mode
+    /// to conflict with.
+    fn is_global(&self) -> bool {
+        match self {
+            CliCommand::Add(args) => args.global,
+            CliCommand::Bin(args) => args.global,
+            CliCommand::Config(args) => args.is_global(),
+            CliCommand::List(args) | CliCommand::Ll(args) => args.global,
+            CliCommand::Outdated(args) => args.global,
+            CliCommand::Prefix(args) => args.global,
+            CliCommand::Remove(args) => args.global,
+            CliCommand::Root(args) => args.global,
+            CliCommand::Runtime(args) => args.global,
+            CliCommand::Update(args) => args.global,
+            _ => false,
+        }
+    }
+
     fn recursive_by_default(&self) -> bool {
         matches!(
             self,
@@ -551,4 +604,28 @@ impl CliCommand {
             _ => SummaryScope::CurrentPrefix,
         }
     }
+}
+
+/// `-w` / `--workspace-root` could not be honored. Mirrors the two
+/// conditions pnpm rejects when resolving the flag.
+#[derive(Debug, Display, Error, Diagnostic)]
+pub enum WorkspaceRootError {
+    /// Mirrors pnpm's `ERR_PNPM_OPTIONS_CONFLICT`.
+    #[display("--workspace-root may not be used with --global")]
+    #[diagnostic(
+        code(ERR_PNPM_OPTIONS_CONFLICT),
+        help(
+            "Drop --global to act on the workspace root, or drop --workspace-root to act on the globally installed packages."
+        )
+    )]
+    ConflictsWithGlobal,
+    /// Mirrors pnpm's `ERR_PNPM_NOT_IN_WORKSPACE`.
+    #[display("--workspace-root may only be used inside a workspace")]
+    #[diagnostic(
+        code(ERR_PNPM_NOT_IN_WORKSPACE),
+        help(
+            "Run the command from a directory inside a workspace — one with a pnpm-workspace.yaml at its root."
+        )
+    )]
+    NotInWorkspace,
 }

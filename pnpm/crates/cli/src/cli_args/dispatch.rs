@@ -154,6 +154,9 @@ impl CliArgs {
             version: _,
             color: _,
             yes: _,
+            // Consumed before dispatch by `CliArgs::apply_workspace_root`,
+            // which folds it into `dir`.
+            workspace_root: _,
             sort: _,
             no_sort,
             workspace_concurrency,

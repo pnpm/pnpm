@@ -34,6 +34,19 @@ pub struct ConfigArgs {
     pub command: ConfigSubcommand,
 }
 
+impl ConfigArgs {
+    /// Whether `-g` / `--global` was given. The flag lives on each
+    /// subcommand's [`ConfigFlags`] rather than on [`ConfigArgs`] itself.
+    pub(crate) fn is_global(&self) -> bool {
+        match &self.command {
+            ConfigSubcommand::Set(args) => args.flags.global,
+            ConfigSubcommand::Get(args) => args.flags.global,
+            ConfigSubcommand::Delete(args) => args.flags.global,
+            ConfigSubcommand::List(args) => args.flags.global,
+        }
+    }
+}
+
 #[derive(Debug, Subcommand)]
 pub enum ConfigSubcommand {
     /// Set the config key to the value provided.

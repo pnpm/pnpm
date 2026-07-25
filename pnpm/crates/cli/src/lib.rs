@@ -88,6 +88,9 @@ fn run_cli() -> miette::Result<()> {
     if let Err(err) = args.validate_command_scoped_global_options() {
         err.exit();
     }
+    // Before the recursive promotions and the install fast path, both of
+    // which resolve the project from `--dir`.
+    args.apply_workspace_root()?;
     args.promote_recursive_for_filter();
     args.promote_recursive_by_default();
     if let Some(plan) = cli_args::switch_cli_version::switch_plan(&args, &config_overrides)?
