@@ -737,3 +737,42 @@ fn run_start_fallback_uses_dir_for_server_js_probe() {
 
     drop(root);
 }
+
+/// `pnpm test` / `start` / `stop` name no command in pnpm — they reach
+/// `run` through the `pnpm <script>` fallback, so every token after the
+/// command name is the script's, a `--` separator and anything shaped
+/// like a pnpm flag included.
+#[cfg(unix)]
+#[test]
+fn script_shortcuts_forward_every_argument_to_the_script() {
+    for (command, arguments, expected) in [
+        ("test", &["--flag", "value"][..], "--flag value"),
+        ("test", &["--", "--flag"][..], "-- --flag"),
+        // `--if-present` and `-s` are pnpm's own flags on other commands;
+        // for a shortcut they belong to the script.
+        ("start", &["--if-present"][..], "--if-present"),
+        ("stop", &["-s"][..], "-s"),
+        ("stop", &["--", "--flag", "x"][..], "-- --flag x"),
+    ] {
+        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+        let marker = workspace.join("args.txt");
+        write_executable(
+            &workspace.join("record-args"),
+            &format!("#!/bin/sh\nprintf '%s' \"$*\" > \"{}\"\n", marker.display()),
+        );
+        let manifest = json!({
+            "name": "test",
+            "version": "0.0.0",
+            "scripts": { command: "./record-args" },
+        })
+        .to_string();
+        fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+
+        pacquet.with_arg(command).with_args(arguments).assert().success();
+
+        let written = fs::read_to_string(&marker).expect("read marker");
+        assert_eq!(written, expected, "command: {command} {arguments:?}");
+
+        drop(root);
+    }
+}

@@ -20,6 +20,14 @@ use std::ffi::OsString;
 /// invocations forward their arguments to another process.
 const COMMANDS_TAKING_A_FOREIGN_COMMAND_LINE: [&str; 3] = ["run", "exec", "dlx"];
 
+/// Commands that stand for one named script, whose own arguments are that
+/// script's command line.
+///
+/// pnpm has no command by these names: they reach `run` through the
+/// `pnpm <script>` fallback, so the boundary is the token right after the
+/// command name — there is no script name to skip, unlike `run`.
+const SCRIPT_SHORTCUTS: [&str; 3] = ["test", "start", "stop"];
+
 /// Commands that prefix another command rather than taking arguments of
 /// their own, so the command to classify is the positional after them.
 const COMMAND_PREFIXES: [&str; 3] = ["recursive", "multi", "m"];
@@ -39,14 +47,23 @@ pub(crate) fn passthrough_from(argv: &[OsString]) -> Option<usize> {
     // for a command that would otherwise own the rest of argv, as in
     // `pnpm install -- --config.foo=bar`.
     let separator = argv.iter().position(|arg| arg == "--").map(|index| index + 1);
-    match (separator, command_boundary(argv)) {
+    match (separator, command_boundary(argv).map(|boundary| boundary.index)) {
         (Some(separator), Some(command)) => Some(separator.min(command)),
         (separator, command) => separator.or(command),
     }
 }
 
+/// Where a command's forwarded arguments begin, and whether that command
+/// is a script shortcut — the one shape whose arguments can *open* on a
+/// `--`, since no script name precedes them.
+#[derive(Clone, Copy)]
+pub(crate) struct CommandBoundary {
+    pub(crate) index: usize,
+    pub(crate) is_script_shortcut: bool,
+}
+
 /// The boundary implied by the command alone, ignoring any `--`.
-fn command_boundary(argv: &[OsString]) -> Option<usize> {
+pub(crate) fn command_boundary(argv: &[OsString]) -> Option<CommandBoundary> {
     let command = CliArgs::command();
     // Both halves of the union: a global lives on the top-level command,
     // a command's own options on its subcommand.
@@ -57,7 +74,7 @@ fn command_boundary(argv: &[OsString]) -> Option<usize> {
     while index < argv.len() {
         // Non-UTF-8 cannot be classified, so treat it as the child's.
         let Some(arg) = argv[index].to_str() else {
-            return Some(index);
+            return Some(CommandBoundary { index, is_script_shortcut: false });
         };
         if arg == "--" {
             // The separator governs from here; see `passthrough_from`.
@@ -75,10 +92,14 @@ fn command_boundary(argv: &[OsString]) -> Option<usize> {
         }
         let Some(subcommand) = matching_subcommand(&command, arg) else {
             // Names no command: the `pnpm <script>` fallback.
-            return Some(index + 1);
+            return Some(CommandBoundary { index: index + 1, is_script_shortcut: false });
         };
         if COMMANDS_TAKING_A_FOREIGN_COMMAND_LINE.contains(&subcommand.get_name()) {
-            return Some(next_positional(argv, index + 1, &arity)? + 1);
+            let index = next_positional(argv, index + 1, &arity)? + 1;
+            return Some(CommandBoundary { index, is_script_shortcut: false });
+        }
+        if SCRIPT_SHORTCUTS.contains(&subcommand.get_name()) {
+            return Some(CommandBoundary { index: index + 1, is_script_shortcut: true });
         }
         if subcommand.get_name() == "with" {
             // `with` splits on its version. Any version but `current` execs a
@@ -86,7 +107,7 @@ fn command_boundary(argv: &[OsString]) -> Option<usize> {
             // override there would lose it.
             let version = next_positional(argv, index + 1, &arity)?;
             if argv[version] != "current" {
-                return Some(version + 1);
+                return Some(CommandBoundary { index: version + 1, is_script_shortcut: false });
             }
             // `with current` is spliced into pnpm's own argv by
             // [`crate::with_current::rewrite`], which runs after the pre-clap

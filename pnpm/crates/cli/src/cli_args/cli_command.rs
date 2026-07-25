@@ -56,6 +56,7 @@ use super::{
     run::RunArgs,
     runtime::RuntimeArgs,
     sbom::SbomArgs,
+    script_shortcut::ScriptShortcutArgs,
     search::SearchArgs,
     self_update::SelfUpdateArgs,
     set_script::SetScriptArgs,
@@ -63,7 +64,6 @@ use super::{
     stage::StageArgs,
     star::StarArgs,
     stars::StarsArgs,
-    stop::StopArgs,
     store::StoreCommand,
     team::TeamArgs,
     undeprecate::UndeprecateArgs,
@@ -324,8 +324,8 @@ impl CliArgs {
             CliCommand::Run(_)
                 | CliCommand::Exec(_)
                 | CliCommand::External(_)
-                | CliCommand::Test
-                | CliCommand::Start
+                | CliCommand::Test(_)
+                | CliCommand::Start(_)
                 | CliCommand::Stop(_),
         ) {
             return Ok(());
@@ -472,7 +472,7 @@ pub enum CliCommand {
     #[clap(visible_alias = "ss")]
     SetScript(SetScriptArgs),
     /// Runs a package's "test" script, if one was provided.
-    Test,
+    Test(ScriptShortcutArgs),
     /// Runs a defined package script.
     Run(RunArgs),
     /// Run a shell command in the context of a project.
@@ -487,9 +487,9 @@ pub enum CliCommand {
     #[clap(name = "completion-server", hide = true)]
     CompletionServer(CompletionServerArgs),
     /// Runs an arbitrary command specified in the package's start property of its scripts object.
-    Start,
+    Start(ScriptShortcutArgs),
     /// Runs a package's "stop" script, if one was provided.
-    Stop(StopArgs),
+    Stop(ScriptShortcutArgs),
     /// Restarts a package. Runs "stop", "restart", and "start" scripts,
     /// and associated pre- and post- scripts.
     Restart(RestartArgs),

@@ -179,7 +179,9 @@ fn stop_without_script_fails() {
     drop(root);
 }
 
-/// `pacquet stop` with no "stop" script succeeds with --if-present.
+/// `pacquet stop` with no "stop" script succeeds with --if-present, which
+/// has to precede the command: `stop` stands for a script, so everything
+/// after it is that script's, as it is under pnpm.
 #[test]
 fn stop_without_script_succeeds_with_if_present() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -191,7 +193,26 @@ fn stop_without_script_succeeds_with_if_present() {
     .to_string();
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
 
-    pacquet.with_arg("stop").with_arg("--if-present").assert().success();
+    pacquet.with_arg("--if-present").with_arg("stop").assert().success();
+
+    drop(root);
+}
+
+/// The mirror of the above: after the command name `--if-present` is the
+/// script's argument, so a missing script is still an error — pnpm reports
+/// `Command "stop" not found` for the same invocation.
+#[test]
+fn stop_without_script_fails_when_if_present_follows_the_command() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let manifest = json!({
+        "name": "test",
+        "version": "0.0.0",
+        "scripts": { "build": "echo built" },
+    })
+    .to_string();
+    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+
+    pacquet.with_arg("stop").with_arg("--if-present").assert().failure();
 
     drop(root);
 }

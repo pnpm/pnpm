@@ -3,7 +3,7 @@
 // and dead-code warnings.
 #![cfg(unix)]
 
-use super::StopArgs;
+use super::ScriptShortcutArgs;
 use serde_json::json;
 use tempfile::TempDir;
 
@@ -29,8 +29,8 @@ fn stop_runs_declared_script() {
         }),
     );
     let config = test_config();
-    StopArgs { args: vec![], if_present: false }
-        .run(dir, &config, true)
+    ScriptShortcutArgs { args: vec![] }
+        .run("stop", false, dir, &config, true)
         .expect("stop should succeed");
     assert!(marker.exists(), "stop script should have run");
 }
@@ -42,8 +42,8 @@ fn stop_with_if_present_skips_missing_script() {
     let dir = tmp.path();
     setup_project(dir, &json!({}));
     let config = test_config();
-    StopArgs { args: vec![], if_present: true }
-        .run(dir, &config, true)
+    ScriptShortcutArgs { args: vec![] }
+        .run("stop", true, dir, &config, true)
         .expect("--if-present should succeed when script is missing");
 }
 
@@ -54,11 +54,11 @@ fn stop_fails_on_missing_script_without_if_present() {
     let dir = tmp.path();
     setup_project(dir, &json!({}));
     let config = test_config();
-    let res = StopArgs { args: vec![], if_present: false }.run(dir, &config, true);
+    let res = ScriptShortcutArgs { args: vec![] }.run("stop", false, dir, &config, true);
     assert!(res.is_err(), "should fail because script is missing");
 }
 
-/// These tests drive `StopArgs::run` in-process, so the
+/// These tests drive `ScriptShortcutArgs::run` in-process, so the
 /// verify-deps-before-run gate must stay off: its `install` default
 /// would spawn `current_exe()` — the test harness binary — as the
 /// installer. pnpm's unit tests equally construct their options

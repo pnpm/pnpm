@@ -58,7 +58,6 @@ fn short_s_expands_for_commands_that_do_not_own_it() {
     assert_eq!(expand(&["pnpm", "install", "-s"]), ["pnpm", "install", "--reporter=silent"]);
     // Pre-subcommand placement expands too — nopt is position-independent.
     assert_eq!(expand(&["pnpm", "-s", "install"]), ["pnpm", "--reporter=silent", "install"]);
-    assert_eq!(expand(&["pnpm", "test", "-s"]), ["pnpm", "test", "--reporter=silent"]);
 }
 
 #[test]
@@ -77,6 +76,11 @@ fn short_s_is_left_for_the_script_fallback() {
     // `pnpm <script>` dispatches through `run`, which inherits its
     // shorthand table in pnpm.
     assert_eq!(expand(&["pnpm", "my-script", "-s"]), ["pnpm", "my-script", "-s"]);
+    // `test` / `start` / `stop` are that same fallback in pnpm rather than
+    // commands of their own, so `-s` is the script's argument too.
+    for command in ["test", "start", "stop"] {
+        assert_eq!(expand(&["pnpm", command, "-s"]), ["pnpm", command, "-s"]);
+    }
 }
 
 #[test]
