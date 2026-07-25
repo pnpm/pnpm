@@ -1,7 +1,6 @@
 use super::{
-    CreateVirtualStore, CreateVirtualStoreError, InstallPackageBySnapshotError,
-    emit_warm_snapshot_progress, integrity_equal, removed_child_aliases, snapshot_cache_key,
-    snapshot_deps_equal,
+    CreateVirtualStore, emit_warm_snapshot_progress, integrity_equal, removed_child_aliases,
+    snapshot_cache_key, snapshot_deps_equal,
 };
 use crate::install_package_by_snapshot::host_platform_selector;
 use pacquet_lockfile::{
@@ -453,25 +452,20 @@ fn snapshot_cache_key_for_git_hosted_tarball_uses_git_hosted_key() {
     );
 }
 
-/// Failing closed at the cache-key site (rather than only at the
-/// install-side guard) is the whole point of the check duplication —
-/// otherwise a malformed lockfile burns the warm rayon batch before
-/// the install path fires the same error.
+/// Lockfile entries written before pnpm pinned a hash for git-host
+/// archives carry no `integrity`, and pnpm's `pickStoreIndexKey`
+/// addresses those by the git-hosted key shape rather than failing.
 #[test]
-fn snapshot_cache_key_rejects_tarball_without_integrity() {
+fn snapshot_cache_key_for_tarball_without_integrity_uses_git_hosted_key() {
     let pkg = key("foo", "1.0.0");
     let packages = HashMap::from([(pkg.clone(), tarball_metadata_without_integrity())]);
 
-    let err = snapshot_cache_key(&pkg, &packages, false, &host_platform_selector())
-        .expect_err("missing integrity must reject upfront");
-    assert!(
-        matches!(
-            &err,
-            CreateVirtualStoreError::InstallPackageBySnapshot(
-                InstallPackageBySnapshotError::MissingTarballIntegrity { package_key },
-            ) if package_key == &pkg.to_string(),
-        ),
-        "expected MissingTarballIntegrity for `{pkg}`, got {err:?}",
+    let received = snapshot_cache_key(&pkg, &packages, false, &host_platform_selector())
+        .expect("snapshot_cache_key must not error");
+    assert_eq!(
+        received,
+        Some(format!("{pkg}\tbuilt")),
+        "an integrity-less tarball must route through gitHostedStoreIndexKey",
     );
 }
 

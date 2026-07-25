@@ -207,7 +207,7 @@ async fn packages_under_orgs_should_work() {
         store_index: None,
         store_index_writer: None,
         verify_store_integrity: true,
-        package_integrity: &integrity("sha512-dj7vjIn1Ar8sVXj2yAXiMNCJDmS9MQ9XMlIecX2dIzzhjSHCyKo4DdXjXMs7wKW2kj6yvVRSpuQjOZ3YLrh56w=="),
+        package_integrity: Some(&integrity("sha512-dj7vjIn1Ar8sVXj2yAXiMNCJDmS9MQ9XMlIecX2dIzzhjSHCyKo4DdXjXMs7wKW2kj6yvVRSpuQjOZ3YLrh56w==")),
         package_unpacked_size: Some(16697),
         package_file_count: None,
         package_url: "https://registry.npmjs.org/@fastify/error/-/error-3.3.0.tgz",
@@ -272,7 +272,7 @@ async fn network_fetch_records_progress_key() {
         store_index: None,
         store_index_writer: None,
         verify_store_integrity: true,
-        package_integrity: &pkg_integrity,
+        package_integrity: Some(&pkg_integrity),
         package_unpacked_size: Some(16697),
         package_file_count: None,
         package_url: "https://registry.npmjs.org/@fastify/error/-/error-3.3.0.tgz",
@@ -309,7 +309,7 @@ async fn should_throw_error_on_checksum_mismatch() {
         store_index: None,
         store_index_writer: None,
         verify_store_integrity: true,
-        package_integrity: &integrity("sha512-aaaan1Ar8sVXj2yAXiMNCJDmS9MQ9XMlIecX2dIzzhjSHCyKo4DdXjXMs7wKW2kj6yvVRSpuQjOZ3YLrh56w=="),
+        package_integrity: Some(&integrity("sha512-aaaan1Ar8sVXj2yAXiMNCJDmS9MQ9XMlIecX2dIzzhjSHCyKo4DdXjXMs7wKW2kj6yvVRSpuQjOZ3YLrh56w==")),
         package_unpacked_size: Some(16697),
         package_file_count: None,
         package_url: "https://registry.npmjs.org/@fastify/error/-/error-3.3.0.tgz",
@@ -389,7 +389,7 @@ async fn reuses_cached_cas_paths_when_index_entry_is_live() {
         store_index: StoreIndex::shared_readonly_in(store_path),
         store_index_writer: None,
         verify_store_integrity: true,
-        package_integrity: &pkg_integrity,
+        package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
         package_file_count: None,
         // Any request that reaches the network here would fail the
@@ -461,7 +461,7 @@ async fn reuses_prefetched_cas_paths_when_provided() {
         store_index: None,
         store_index_writer: None,
         verify_store_integrity: true,
-        package_integrity: &pkg_integrity,
+        package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
         package_file_count: None,
         package_url: "http://127.0.0.1:1/unreachable.tgz",
@@ -743,7 +743,7 @@ async fn falls_through_when_cafs_file_missing() {
         store_index: StoreIndex::shared_readonly_in(store_path),
         store_index_writer: None,
         verify_store_integrity: true,
-        package_integrity: &pkg_integrity,
+        package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
         package_file_count: None,
         package_url: "http://127.0.0.1:1/unreachable.tgz",
@@ -805,7 +805,7 @@ async fn falls_through_when_digest_is_malformed() {
         store_index: StoreIndex::shared_readonly_in(store_path),
         store_index_writer: None,
         verify_store_integrity: true,
-        package_integrity: &pkg_integrity,
+        package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
         package_file_count: None,
         package_url: "http://127.0.0.1:1/unreachable.tgz",
@@ -872,7 +872,7 @@ async fn falls_through_when_cafs_path_is_a_directory() {
         store_index: StoreIndex::shared_readonly_in(store_path),
         store_index_writer: None,
         verify_store_integrity: true,
-        package_integrity: &pkg_integrity,
+        package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
         package_file_count: None,
         package_url: "http://127.0.0.1:1/unreachable.tgz",
@@ -949,7 +949,7 @@ async fn falls_through_when_cafs_path_is_a_symlink() {
         store_index: StoreIndex::shared_readonly_in(store_path),
         store_index_writer: None,
         verify_store_integrity: true,
-        package_integrity: &pkg_integrity,
+        package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
         package_file_count: None,
         package_url: "http://127.0.0.1:1/unreachable.tgz",
@@ -1331,7 +1331,7 @@ async fn run_without_mem_cache_reads_local_file_tarball() {
         store_index: None,
         store_index_writer: None,
         verify_store_integrity: true,
-        package_integrity: &package_integrity,
+        package_integrity: Some(&package_integrity),
         package_unpacked_size: Some(16697),
         package_file_count: None,
         package_url: &package_url,
@@ -1351,6 +1351,57 @@ async fn run_without_mem_cache_reads_local_file_tarball() {
     .expect("local tarballs should be read from disk without network access");
 
     assert!(cas_paths.contains_key("package.json"));
+
+    drop((store_dir, local_dir));
+}
+
+/// A resolution that pins no integrity is downloaded unverified, and
+/// the fetch claims no store-index row: the key pnpm addresses such a
+/// package by (`pickStoreIndexKey`'s `pkg_id\tbuilt` fallback) belongs
+/// to the git-hosted prepare pass, which writes the *prepared* file set
+/// there.
+#[tokio::test]
+async fn run_without_mem_cache_fetches_unverified_and_writes_no_index_row() {
+    let local_dir = tempdir().unwrap();
+    let tarball_path = local_dir.path().join("pkg.tgz");
+    std::fs::write(&tarball_path, FASTIFY_ERROR_TARBALL).unwrap();
+
+    let (store_dir, store_path) = tempdir_with_leaked_path();
+    let package_url = format!("file:{}", tarball_path.display());
+    let client = fast_fail_client();
+    let (writer, writer_task) = StoreIndexWriter::spawn(store_path);
+    let cas_paths = DownloadTarballToStore {
+        http_client: &client,
+        store_dir: store_path,
+        store_index: None,
+        store_index_writer: Some(Arc::clone(&writer)),
+        verify_store_integrity: true,
+        package_integrity: None,
+        package_unpacked_size: None,
+        package_file_count: None,
+        package_url: &package_url,
+        package_id: "@fastify/error@3.3.0",
+        requester: "",
+        prefetched_cas_paths: None,
+        verified_files_cache: SharedVerifiedFilesCache::default(),
+        retry_opts: test_retry_opts(),
+        auth_headers: &AuthHeaders::default(),
+        ignore_file_pattern: None,
+        offline: true,
+        progress_reported: None,
+        append_manifest: None,
+    }
+    .run_without_mem_cache::<SilentReporter>()
+    .await
+    .expect("a resolution without an integrity should still be fetched");
+
+    assert!(cas_paths.contains_key("package.json"));
+
+    drop(writer);
+    writer_task.await.expect("writer task").expect("writer flushed");
+    let index = StoreIndex::open_in(store_path).expect("open store index");
+    let keys: Vec<String> = index.keys().expect("read index keys");
+    assert!(keys.is_empty(), "an unverified fetch must claim no index row: {keys:?}");
 
     drop((store_dir, local_dir));
 }
@@ -1872,7 +1923,7 @@ fn run_with_mem_cache_does_not_deadlock_on_dashmap_shard_contention() {
                     store_index: None,
                     store_index_writer: None,
                     verify_store_integrity: true,
-                    package_integrity: pkg_integrity,
+                    package_integrity: Some(pkg_integrity),
                     package_unpacked_size: None,
                     package_file_count: None,
                     package_url: url,
@@ -2168,7 +2219,7 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
         store_index_writer: None,
         verify_store_integrity: true,
         verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
-        package_integrity: &pkg_integrity,
+        package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
         package_file_count: None,
         package_url: &url,
@@ -2198,7 +2249,7 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
         store_index_writer: None,
         verify_store_integrity: true,
         verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
-        package_integrity: &pkg_integrity,
+        package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
         package_file_count: None,
         package_url: &url,
@@ -2295,7 +2346,7 @@ async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
         store_index_writer: None,
         verify_store_integrity: true,
         verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
-        package_integrity: &pkg_integrity,
+        package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
         package_file_count: None,
         package_url: &url,
@@ -2334,7 +2385,7 @@ async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
         store_index_writer: None,
         verify_store_integrity: true,
         verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
-        package_integrity: &pkg_integrity,
+        package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
         package_file_count: None,
         package_url: &url,
@@ -2417,7 +2468,7 @@ async fn run_with_mem_cache_recovers_from_owning_fetch_error() {
         store_index_writer: None,
         verify_store_integrity: true,
         verified_files_cache: SharedVerifiedFilesCache::default(),
-        package_integrity: pkg_integrity,
+        package_integrity: Some(pkg_integrity),
         package_unpacked_size: None,
         package_file_count: None,
         package_url: url,
@@ -2705,7 +2756,7 @@ async fn found_in_store_event_fires_on_cache_hit() {
         store_index_writer: Some(Arc::clone(&writer)),
         verify_store_integrity: true,
         verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
-        package_integrity: &pkg_integrity,
+        package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
         package_file_count: None,
         package_url: &url,
@@ -2746,7 +2797,7 @@ async fn found_in_store_event_fires_on_cache_hit() {
         store_index_writer: None,
         verify_store_integrity: true,
         verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
-        package_integrity: &pkg_integrity,
+        package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
         package_file_count: None,
         package_url: &url,
@@ -3134,7 +3185,7 @@ async fn offline_mode_skips_network_on_cache_miss() {
         store_index_writer: None,
         verify_store_integrity: true,
         verified_files_cache: SharedVerifiedFilesCache::default(),
-        package_integrity: &pkg_integrity,
+        package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
         package_file_count: None,
         package_url: &url,
@@ -3207,7 +3258,7 @@ async fn offline_mode_still_uses_prefetched_cache() {
         store_index_writer: None,
         verify_store_integrity: true,
         verified_files_cache: SharedVerifiedFilesCache::default(),
-        package_integrity: &pkg_integrity,
+        package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
         package_file_count: None,
         package_url: &url,
