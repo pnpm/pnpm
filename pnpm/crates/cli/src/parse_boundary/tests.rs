@@ -22,7 +22,6 @@ fn a_command_taking_a_foreign_command_line_forwards_everything_after_its_first_p
         (&["run", "show", "-s", "--if-present"], &["-s", "--if-present"]),
         (&["exec", "node", "show.js", "--config.foo=bar"], &["show.js", "--config.foo=bar"]),
         (&["dlx", "cowsay", "--silent"], &["--silent"]),
-        (&["with", "pnpm@9", "install", "--silent"], &["install", "--silent"]),
         // The recursive prefix forms defer the classification one positional.
         (&["recursive", "run", "show", "--silent"], &["--silent"]),
         (&["m", "run", "show", "--silent"], &["--silent"]),
@@ -56,6 +55,8 @@ fn a_command_parsing_its_own_arguments_owns_all_of_argv() {
         // A package that happens to share an escaping command's name is
         // still just an argument to `add`.
         &["add", "run", "--config.foo=bar"],
+        // `with` included: see `with_current_keeps_its_inner_command_line_parseable`.
+        &["with", "pnpm@9", "install", "--silent"],
     ] {
         let (_, forwarded) = split(argv);
         assert!(forwarded.is_empty(), "{argv:?} forwards {forwarded:?}");
@@ -90,4 +91,37 @@ fn a_foreign_command_line_without_a_positional_forwards_nothing() {
         let (_, forwarded) = split(argv);
         assert!(forwarded.is_empty(), "{argv:?} forwards {forwarded:?}");
     }
+}
+
+/// Arity has to come from clap: a value-taking option whose value looks
+/// like a positional would otherwise land the boundary on that value and
+/// forward pnpm's own later flags to the child.
+#[test]
+fn a_value_taking_option_does_not_move_the_boundary_onto_its_value() {
+    for (argv, forwarded) in [
+        // `--package` is `dlx`'s own option, not a global one.
+        (
+            ["dlx", "--package", "cowsay", "--silent", "cowsay", "--moo", "hi"].as_slice(),
+            ["--moo", "hi"].as_slice(),
+        ),
+        (&["dlx", "--package", "cowsay", "cowsay", "--silent"], &["--silent"]),
+        (&["dlx", "--allow-build", "esbuild", "cowsay", "--moo"], &["--moo"]),
+        // Value-taking globals, including ones no hand-written list had.
+        (&["--workspace-concurrency", "2", "install", "--config.registry=x"], &[]),
+        (&["--test-pattern", "**/*.spec.ts", "install", "--config.foo=bar"], &[]),
+        (&["--resume-from", "pkg", "-r", "run", "build", "--silent"], &["--silent"]),
+    ] {
+        let (_, actual) = split(argv);
+        assert_eq!(actual, forwarded, "{argv:?}");
+    }
+}
+
+/// `with` is deliberately not treated as taking a foreign command line:
+/// `with_current::rewrite` splices its inner command line into pnpm's own
+/// argv *after* `ConfigOverrides::extract` has run, so an override in it is
+/// still pnpm's to claim at this point.
+#[test]
+fn with_current_keeps_its_inner_command_line_parseable() {
+    let (_, forwarded) = split(&["with", "current", "run", "--config.foo=bar", "build"]);
+    assert!(forwarded.is_empty(), "forwarded {forwarded:?}");
 }
