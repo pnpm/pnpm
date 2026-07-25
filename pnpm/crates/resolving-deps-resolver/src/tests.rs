@@ -2917,6 +2917,10 @@ mod peer_own_dep_shadowing {
         let parser = tree.packages.get("parser@1.0.0").expect("parser resolved");
         assert!(parser.peer_dependencies.contains_key("types"));
         assert!(!tree.packages.contains_key("types@1.0.0"));
+        assert!(
+            tree.packages.contains_key("types@2.0.0"),
+            "the importer's copy is the one resolved",
+        );
     }
 
     #[tokio::test]
