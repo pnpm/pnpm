@@ -523,9 +523,35 @@ fn force_link(src: &Path, dest: &Path) -> std::io::Result<()> {
             return Err(err);
         }
     }
-    fs::rename(&staged, dest).inspect_err(|_| {
+    swap_into_place(&staged, dest).inspect_err(|_| {
         let _ = fs::remove_file(&staged);
     })
+}
+
+/// `rename` `staged` over `dest`, retrying briefly.
+///
+/// Replacing a file another process has open fails on Windows with a
+/// sharing violation, and this destination is an executable several pnpm
+/// processes reach at once — plus whatever an antivirus or search
+/// indexer holds open behind them. Those handles are released in
+/// milliseconds, so a short retry turns a spurious install failure into
+/// a pause. A destination that stays busy still surfaces its error.
+fn swap_into_place(staged: &Path, dest: &Path) -> std::io::Result<()> {
+    /// Ten tries over ~250ms: long enough to outlast a scanner's handle,
+    /// short enough not to stall a command that is genuinely blocked.
+    const ATTEMPTS: usize = 10;
+    const BACKOFF: std::time::Duration = std::time::Duration::from_millis(25);
+
+    for attempt in 1..ATTEMPTS {
+        match fs::rename(staged, dest) {
+            Ok(()) => return Ok(()),
+            // A missing staged file is not contention — nothing will
+            // change on a retry, so fail now with the real error.
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Err(err),
+            Err(_) => std::thread::sleep(BACKOFF * u32::try_from(attempt).unwrap_or(1)),
+        }
+    }
+    fs::rename(staged, dest)
 }
 
 /// Point the Windows wrapper's `bin` field at the `.exe` variants (the

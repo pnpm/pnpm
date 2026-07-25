@@ -1493,3 +1493,42 @@ fn recursive_run_executes_every_script_matching_a_regexp_selector() {
 
     drop(root);
 }
+
+/// A `/pattern/` selector can match several scripts in one project, but
+/// the summary carries a single status per project and the exit code is
+/// derived from it. Under `--no-bail` a later script's success must not
+/// erase an earlier one's failure.
+#[test]
+fn recursive_run_keeps_a_failure_when_a_later_selected_script_passes() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[(
+            "pkg",
+            json!({
+                "name": "pkg",
+                "version": "1.0.0",
+                "scripts": {
+                    // Alphabetical order puts the failure first, so a
+                    // regression reports the project as passed.
+                    "check:a": "exit 1",
+                    "check:b": "true",
+                },
+            }),
+        )],
+    );
+
+    pacquet
+        .with_args(["-r", "run", "--no-bail", "--report-summary", "/^check:/"])
+        .assert()
+        .failure();
+
+    let statuses = summary_statuses(&workspace);
+    assert_eq!(
+        statuses.get("pkg").map(String::as_str),
+        Some("failure"),
+        "a failed script must survive a later passing one: {statuses:?}",
+    );
+
+    drop(root);
+}

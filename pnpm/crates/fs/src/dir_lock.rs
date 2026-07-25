@@ -14,18 +14,27 @@
 use std::{
     fs, io,
     path::{Path, PathBuf},
+    sync::atomic::{AtomicU64, Ordering},
     thread::sleep,
-    time::{Duration, SystemTime},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 /// How often the lock directory is retried while another process holds
 /// it.
 const POLL_INTERVAL: Duration = Duration::from_millis(50);
 
+/// Names the file inside the lock directory that records who took it.
+const OWNER_FILE: &str = "owner";
+
 /// A held lock. Released on drop.
 #[derive(Debug)]
 pub struct DirLock {
     path: PathBuf,
+    /// Identifies this acquisition, so releasing can tell "the lock I
+    /// took" from "a lock someone else took at the same path after mine
+    /// was declared abandoned". Without it a slow holder would release
+    /// its successor's lock on drop.
+    token: String,
 }
 
 impl DirLock {
@@ -51,7 +60,14 @@ impl DirLock {
         let deadline = SystemTime::now() + wait;
         loop {
             match fs::create_dir(&path) {
-                Ok(()) => return Ok(Some(DirLock { path })),
+                Ok(()) => {
+                    let token = mint_token();
+                    // Best-effort: an unwritable owner file only costs
+                    // this holder the stale-successor check below, which
+                    // is what the code did before the file existed.
+                    let _ = fs::write(path.join(OWNER_FILE), &token);
+                    return Ok(Some(DirLock { path, token }));
+                }
                 Err(error) if error.kind() != io::ErrorKind::AlreadyExists => return Err(error),
                 Err(_) => {}
             }
@@ -59,7 +75,7 @@ impl DirLock {
                 // Best-effort: whoever removes it first wins the next
                 // `create_dir`, and a failure just means another waiter
                 // got there first.
-                let _ = fs::remove_dir(&path);
+                let _ = fs::remove_dir_all(&path);
                 continue;
             }
             if SystemTime::now() >= deadline {
@@ -72,8 +88,27 @@ impl DirLock {
 
 impl Drop for DirLock {
     fn drop(&mut self) {
-        let _ = fs::remove_dir(&self.path);
+        // Only release a lock that is still ours. A holder that outran
+        // `abandoned_after` has already had its directory removed and
+        // replaced by the next process in line; removing that one would
+        // hand the resource to two processes at once.
+        match fs::read_to_string(self.path.join(OWNER_FILE)) {
+            Ok(owner) if owner != self.token => return,
+            Err(error) if error.kind() != io::ErrorKind::NotFound => return,
+            _ => {}
+        }
+        let _ = fs::remove_dir_all(&self.path);
     }
+}
+
+/// A value no concurrent acquisition shares. The clock supplies
+/// cross-process (and cross-host, for a store on a network filesystem)
+/// distinctness that a pid alone cannot, and the counter separates two
+/// acquisitions within the same clock tick.
+fn mint_token() -> String {
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+    let nanos = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos();
+    format!("{}-{nanos}-{}", std::process::id(), COUNTER.fetch_add(1, Ordering::Relaxed))
 }
 
 fn is_abandoned(path: &Path, abandoned_after: Duration) -> bool {

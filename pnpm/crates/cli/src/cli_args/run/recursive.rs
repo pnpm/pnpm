@@ -10,7 +10,7 @@
 //! auto-exclusion of the workspace root is applied via
 //! [`AutoExcludeRoot::Enabled`].
 
-use super::{RunArgs, RunContext, run_stages, specified_scripts};
+use super::{RunArgs, RunContext, ScriptSelector, run_stages};
 use crate::cli_args::recursive::{
     AutoExcludeRoot, ExecutionStatus, Status, count_failures, discover_workspace_projects,
     get_resumed_package_chunks, select_recursive_projects, sort_filtered_projects,
@@ -109,6 +109,8 @@ pub fn run_recursive(args: &RunArgs, config: &Config, dir: &Path) -> miette::Res
         chunks = get_resumed_package_chunks(resume_from, chunks, graph)?;
     }
 
+    // Compiled once for the whole run, not per project.
+    let selector = ScriptSelector::new(script_name)?;
     let bail = !args.no_bail;
     let mut result: IndexMap<PathBuf, ExecutionStatus> =
         chunks.iter().flatten().map(|root| (root.clone(), ExecutionStatus::queued())).collect();
@@ -134,14 +136,20 @@ pub fn run_recursive(args: &RunArgs, config: &Config, dir: &Path) -> miette::Res
     for chunk in &chunks {
         for root in chunk {
             let manifest = &graph[root].package.project.manifest;
-            let specified = specified_scripts(manifest.value(), script_name)?;
+            let specified = selector.select(manifest.value());
             if specified.is_empty() {
                 result[root].status = Status::Skipped;
                 continue;
             }
+            // A `/pattern/` selector can match several scripts in one
+            // project, but the summary carries a single status per
+            // project and `count_failures` derives the exit code from
+            // it. Once one of them has failed, nothing a later script
+            // does may overwrite that.
+            let mut project_failed = false;
             for selected in &specified {
                 let Some(script) = manifest.script(selected, true)? else {
-                    result[root].status = Status::Skipped;
+                    mark_skipped(&mut result[root], project_failed);
                     continue;
                 };
                 // Per-stage no-ops: an empty body (`!scripts[name]`) is
@@ -153,7 +161,7 @@ pub fn run_recursive(args: &RunArgs, config: &Config, dir: &Path) -> miette::Res
                 if script.is_empty()
                     || (args.script_args().is_empty() && script == "npx only-allow pnpm")
                 {
-                    result[root].status = Status::Skipped;
+                    mark_skipped(&mut result[root], project_failed);
                     continue;
                 }
                 // Recursion guard: skip a project when `npm_lifecycle_event`
@@ -178,7 +186,9 @@ pub fn run_recursive(args: &RunArgs, config: &Config, dir: &Path) -> miette::Res
                     return Err(super::RunError::HiddenScript { script: selected.clone() }.into());
                 }
 
-                result[root].status = Status::Running;
+                if !project_failed {
+                    result[root].status = Status::Running;
+                }
                 has_command += 1;
                 let start = Instant::now();
                 // Per-project pre/main/post via the same machinery
@@ -204,10 +214,13 @@ pub fn run_recursive(args: &RunArgs, config: &Config, dir: &Path) -> miette::Res
                 let duration = start.elapsed().as_secs_f64() * 1e3;
 
                 if status.success() {
-                    let entry = &mut result[root];
-                    entry.status = Status::Passed;
-                    entry.duration = Some(duration);
+                    if !project_failed {
+                        let entry = &mut result[root];
+                        entry.status = Status::Passed;
+                        entry.duration = Some(duration);
+                    }
                 } else {
+                    project_failed = true;
                     let prefix = root.to_string_lossy().into_owned();
                     let entry = &mut result[root];
                     entry.status = Status::Failure;
@@ -252,4 +265,13 @@ pub fn run_recursive(args: &RunArgs, config: &Config, dir: &Path) -> miette::Res
         return Err(RecursiveRunError::RecursiveFail { count: failures }.into());
     }
     Ok(())
+}
+
+/// Record that a selected script had nothing to run, unless one of this
+/// project's other selected scripts already failed — see the
+/// `project_failed` bookkeeping in [`run_recursive`].
+fn mark_skipped(entry: &mut ExecutionStatus, project_failed: bool) {
+    if !project_failed {
+        entry.status = Status::Skipped;
+    }
 }

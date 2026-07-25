@@ -1,26 +1,23 @@
-use super::{
-    RunError, render_project_commands, specified_scripts, specified_scripts_with_start,
-    throw_or_filter_hidden_scripts,
-};
+use super::{RunError, ScriptSelector, render_project_commands, throw_or_filter_hidden_scripts};
 use clap::Parser;
 use serde_json::json;
 
 #[test]
 fn specified_scripts_exact_match() {
     let manifest = json!({ "scripts": { "build": "tsc", "test": "jest" } });
-    assert_eq!(specified_scripts(&manifest, "build").unwrap(), vec!["build".to_string()]);
-    assert_eq!(specified_scripts(&manifest, "test").unwrap(), vec!["test".to_string()]);
+    assert_eq!(ScriptSelector::new("build").unwrap().select(&manifest), vec!["build".to_string()]);
+    assert_eq!(ScriptSelector::new("test").unwrap().select(&manifest), vec!["test".to_string()]);
 }
 
 #[test]
 fn specified_scripts_start_fallback() {
     let manifest = json!({ "scripts": { "build": "tsc" } });
     assert_eq!(
-        specified_scripts_with_start(&manifest, "start").unwrap(),
+        ScriptSelector::new("start").unwrap().select_with_start(&manifest),
         vec!["start".to_string()],
     );
     assert!(
-        specified_scripts(&manifest, "start").unwrap().is_empty(),
+        ScriptSelector::new("start").unwrap().select(&manifest).is_empty(),
         "the fallback belongs to `run`, not to the recursive selector",
     );
 }
@@ -28,7 +25,7 @@ fn specified_scripts_start_fallback() {
 #[test]
 fn specified_scripts_missing_is_empty() {
     let manifest = json!({ "scripts": { "build": "tsc" } });
-    assert!(specified_scripts(&manifest, "nonexistent").unwrap().is_empty());
+    assert!(ScriptSelector::new("nonexistent").unwrap().select(&manifest).is_empty());
 }
 
 #[test]
@@ -42,13 +39,13 @@ fn specified_scripts_selects_every_regexp_match() {
         },
     });
     assert_eq!(
-        specified_scripts(&manifest, "/^build:(backend|frontend)$/").unwrap(),
+        ScriptSelector::new("/^build:(backend|frontend)$/").unwrap().select(&manifest),
         vec!["build:backend".to_string(), "build:frontend".to_string()],
     );
     // The pattern is searched for, not anchored, so `build` matches too,
     // and the matches keep the manifest's declaration order.
     assert_eq!(
-        specified_scripts(&manifest, "/^build/").unwrap(),
+        ScriptSelector::new("/^build/").unwrap().select(&manifest),
         vec!["build:backend".to_string(), "build:frontend".to_string(), "build".to_string()],
     );
 }
@@ -58,13 +55,14 @@ fn specified_scripts_selects_every_regexp_match() {
 #[test]
 fn specified_scripts_prefers_an_exact_match_over_the_pattern() {
     let manifest = json!({ "scripts": { "/^a/": "echo literal", "ab": "echo matched" } });
-    assert_eq!(specified_scripts(&manifest, "/^a/").unwrap(), vec!["/^a/".to_string()]);
+    assert_eq!(ScriptSelector::new("/^a/").unwrap().select(&manifest), vec!["/^a/".to_string()]);
 }
 
 #[test]
 fn specified_scripts_rejects_regexp_flags() {
-    let manifest = json!({ "scripts": { "build": "tsc" } });
-    let err = specified_scripts(&manifest, "/^BUILD/i").unwrap_err();
+    // Rejected while building the selector, before any manifest is read,
+    // so a recursive run reports it once rather than per project.
+    let err = ScriptSelector::new("/^BUILD/i").expect_err("flags are rejected");
     assert!(matches!(err, RunError::UnsupportedScriptCommandFormat), "got {err:?}");
 }
 
@@ -76,7 +74,7 @@ fn specified_scripts_treats_non_literals_as_names() {
     let manifest = json!({ "scripts": { "build": "tsc" } });
     for name in ["/a/b/", "//", "/build", "build/", "/[/"] {
         assert!(
-            specified_scripts(&manifest, name).unwrap().is_empty(),
+            ScriptSelector::new(name).unwrap().select(&manifest).is_empty(),
             "{name} is not a regexp selector",
         );
     }

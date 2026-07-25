@@ -166,7 +166,7 @@ impl RunArgs {
             Err(err) => return Err(RunError::Manifest(err).into()),
         };
 
-        let mut specified = specified_scripts_with_start(manifest.value(), script_name)?;
+        let mut specified = ScriptSelector::new(script_name)?.select_with_start(manifest.value());
 
         // Hidden scripts (names starting with `.`) can only be invoked
         // from within another script, detected by an inherited
@@ -452,43 +452,59 @@ pub(crate) fn exec_scripts_prepend_node_path(
     }
 }
 
-/// Resolve which script names to run for `name`: the exact-match arm plus
-/// the `start` fallback, around the shared [`specified_scripts`] selector.
-fn specified_scripts_with_start(manifest: &Value, name: &str) -> Result<Vec<String>, RunError> {
-    let specified = specified_scripts(manifest, name)?;
-    if !specified.is_empty() {
-        return Ok(specified);
-    }
-    // `pnpm start` falls back to `node server.js`, so it resolves even
-    // when the manifest declares no `start` script.
-    if name == "start" {
-        return Ok(vec![name.to_string()]);
-    }
-    Ok(Vec::new())
+/// The `run` positional, resolved once into whichever of pnpm's two
+/// readings it is: a script name, or a `/regexp/` matching several.
+///
+/// Built once per command rather than per project. The recursive runner
+/// applies the same selector across every selected project, so compiling
+/// the pattern there would repeat the work — and would report a rejected
+/// pattern once per project instead of once.
+#[derive(Debug)]
+pub(super) struct ScriptSelector<'a> {
+    name: &'a str,
+    /// `None` when the positional is a plain script name — including a
+    /// regexp literal whose pattern the engine rejects, which pnpm also
+    /// falls back to reading as a name.
+    pattern: Option<Regex>,
 }
 
-/// Resolve which script names to run for `name`: an exact match wins,
-/// otherwise a `/regexp/` selector selects every script whose name it
-/// matches.
-///
-/// Shared with the recursive runner, which has no `start` fallback.
-pub(super) fn specified_scripts(manifest: &Value, name: &str) -> Result<Vec<String>, RunError> {
-    let scripts = manifest.get("scripts").and_then(Value::as_object);
-    let has_script = scripts
-        .and_then(|scripts| scripts.get(name))
-        .and_then(Value::as_str)
-        .is_some_and(|script| !script.is_empty());
-
-    if has_script {
-        return Ok(vec![name.to_string()]);
+impl<'a> ScriptSelector<'a> {
+    pub(super) fn new(name: &'a str) -> Result<ScriptSelector<'a>, RunError> {
+        Ok(ScriptSelector { name, pattern: try_build_regex_from_command(name)? })
     }
-    let Some(selector) = try_build_regex_from_command(name)? else {
-        return Ok(Vec::new());
-    };
-    let Some(scripts) = scripts else {
-        return Ok(Vec::new());
-    };
-    Ok(scripts.keys().filter(|script| selector.is_match(script)).cloned().collect())
+
+    /// The script names this selector picks out of `manifest`: an exact
+    /// match wins, otherwise every script the pattern matches.
+    pub(super) fn select(&self, manifest: &Value) -> Vec<String> {
+        let scripts = manifest.get("scripts").and_then(Value::as_object);
+        let has_script = scripts
+            .and_then(|scripts| scripts.get(self.name))
+            .and_then(Value::as_str)
+            .is_some_and(|script| !script.is_empty());
+
+        if has_script {
+            return vec![self.name.to_string()];
+        }
+        let (Some(pattern), Some(scripts)) = (self.pattern.as_ref(), scripts) else {
+            return Vec::new();
+        };
+        scripts.keys().filter(|script| pattern.is_match(script)).cloned().collect()
+    }
+
+    /// [`Self::select`] plus single-project `run`'s `start` fallback:
+    /// `pnpm start` resolves to `node server.js` even when the manifest
+    /// declares no `start` script. The recursive runner has no such
+    /// fallback.
+    fn select_with_start(&self, manifest: &Value) -> Vec<String> {
+        let specified = self.select(manifest);
+        if !specified.is_empty() {
+            return specified;
+        }
+        if self.name == "start" {
+            return vec![self.name.to_string()];
+        }
+        Vec::new()
+    }
 }
 
 /// Compile a `/pattern/` script selector, as pnpm's

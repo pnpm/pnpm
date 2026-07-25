@@ -1318,3 +1318,39 @@ test('pnpm recursive run with custom node-options', async () => {
     workspaceDir: process.cwd(),
   }, ['build'])
 })
+
+test('pnpm recursive run with a regex selector keeps a failure when a later matched script passes', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      scripts: {
+        // The selector matches both. `check:b` is delayed so it always
+        // settles after `check:a` has failed, which is the ordering that
+        // would let its success overwrite the recorded failure.
+        'check:a': 'exit 1',
+        'check:b': 'node -e "setTimeout(() => {}, 500)"',
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+
+  let err!: PnpmError
+  try {
+    await run.handler({
+      ...DEFAULT_OPTS,
+      allProjects,
+      dir: process.cwd(),
+      recursive: true,
+      selectedProjectsGraph,
+      workspaceDir: process.cwd(),
+      bail: false,
+    }, ['/^check:/'])
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
+
+  expect(err?.code).toBe('ERR_PNPM_RECURSIVE_FAIL')
+})

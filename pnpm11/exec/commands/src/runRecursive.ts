@@ -97,6 +97,14 @@ export async function runRecursive (
   }
 
   const result = createEmptyRecursiveSummary(packageChunks)
+  // A RegExp selector can match several scripts in one project, but the
+  // summary carries a single status per project and countFailures derives
+  // the exit code from it. Once one of a project's scripts has failed,
+  // nothing a later one does may overwrite that — under --no-bail the run
+  // would otherwise report itself green. Tracked separately because the
+  // scripts settle concurrently, so reading back the recorded status
+  // would race (and TypeScript narrows it to 'running' regardless).
+  const failedPrefixes = new Set<string>()
 
   for (const chunk of packageChunks) {
     const selectedScripts = chunk.map(prefix => {
@@ -171,10 +179,13 @@ export async function runRecursive (
             }))
           await _runScript(scriptName)
           groupEnd?.()
-          result[prefix].status = 'passed'
-          result[prefix].duration = getExecutionDuration(startTime)
+          if (!failedPrefixes.has(prefix)) {
+            result[prefix].status = 'passed'
+            result[prefix].duration = getExecutionDuration(startTime)
+          }
         } catch (err: unknown) {
           assert(util.types.isNativeError(err))
+          failedPrefixes.add(prefix)
           result[prefix] = {
             status: 'failure',
             duration: getExecutionDuration(startTime),
