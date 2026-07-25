@@ -80,7 +80,7 @@ use clap::{CommandFactory, Parser, Subcommand, error::ErrorKind};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_default_reporter::SummaryScope;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 /// Experimental package manager for node.js written in rust.
 #[derive(Debug, Parser)]
@@ -269,10 +269,15 @@ impl CliArgs {
     /// workspace manifest, mirroring the `fs.realpath.native` that pnpm's
     /// `findWorkspaceDir` applies for this flag's sake: a case-insensitive
     /// filesystem otherwise finds the root under one spelling and the
-    /// member projects under another. Resolution failure falls back to
-    /// `--dir` made absolute rather than erroring, also matching pnpm — the
-    /// walk is lexical from there, so a `--dir` that does not exist yet
-    /// still redirects to the workspace root above it.
+    /// member projects under another.
+    ///
+    /// Resolution failure falls back to `--dir` made absolute rather than
+    /// erroring, also matching pnpm — the walk is lexical from there, so a
+    /// `--dir` that does not exist yet still redirects to the workspace
+    /// root above it. Absolutizing is itself fallible (it reads the process
+    /// cwd), and a last fallback keeps `--dir` verbatim; that leaves the
+    /// walk relative, but a process whose cwd cannot be read has no
+    /// workspace to find either way.
     pub fn apply_workspace_root(&mut self) -> Result<(), WorkspaceRootError> {
         if !self.workspace_root {
             return Ok(());
@@ -280,7 +285,9 @@ impl CliArgs {
         if self.command.is_global() {
             return Err(WorkspaceRootError::GlobalConflict);
         }
-        let dir = dunce::canonicalize(&self.dir).unwrap_or_else(|_| absolute_dir(&self.dir));
+        let dir = dunce::canonicalize(&self.dir)
+            .or_else(|_| std::path::absolute(&self.dir))
+            .unwrap_or_else(|_| self.dir.clone());
         let workspace_dir = pacquet_workspace::find_workspace_dir(&dir)
             .map_err(WorkspaceRootError::FindWorkspaceDir)?
             .ok_or(WorkspaceRootError::NotInWorkspace)?;
@@ -346,17 +353,6 @@ impl CliArgs {
         }
         self.validate_run_scoped_global_option("--no-bail")
     }
-}
-
-/// `path` resolved against the process cwd, without requiring it to exist.
-/// The workspace-manifest walk climbs `Path::ancestors`, which a bare
-/// relative path runs out of at `""` — the resulting empty workspace dir
-/// would then fail to canonicalize downstream.
-fn absolute_dir(path: &Path) -> PathBuf {
-    if path.is_absolute() {
-        return path.to_path_buf();
-    }
-    std::env::current_dir().map_or_else(|_| path.to_path_buf(), |cwd| cwd.join(path))
 }
 
 /// Error type of [`CliArgs::apply_workspace_root`].
