@@ -913,7 +913,7 @@ where
         //
         // A full install (pnpm's `mutation: "install"`) is the workspace-wide
         // one and counts every project; a partial one (`add`, `update`,
-        // `remove`, …) targets the project it was run in and reports the
+        // `remove`, ...) targets the project it was run in and reports the
         // single-project shape, with no `total`, exactly as pnpm's
         // non-recursive `scopeLogger` call does.
         if selection.is_none() && config.shared_workspace_lockfile {
