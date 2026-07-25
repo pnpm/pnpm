@@ -162,8 +162,8 @@ pub enum StalenessReason {
 
     /// The lockfile's `settings.autoInstallPeers` differs from the
     /// current install's `Config::auto_install_peers`. Only checked when
-    /// the lockfile records a `settings` block: a lockfile that never
-    /// carried one says nothing about the setting it was written under.
+    /// the lockfile records a `settings` block, which is the only place
+    /// the value it was written under is preserved.
     #[display(
         "`autoInstallPeers` in the lockfile ({lockfile}) doesn't match the current config ({config})"
     )]
@@ -394,9 +394,9 @@ pub fn check_lockfile_settings(
         });
     }
 
-    // A lockfile with no `settings` block predates the field and says
-    // nothing about the setting it was written under, so it can't drift
-    // — pnpm's `lockfile.settings?.autoInstallPeers != null` guard.
+    // A lockfile with no `settings` block records nothing about the
+    // setting it was written under, so there is nothing to compare —
+    // pnpm's `lockfile.settings?.autoInstallPeers != null` guard.
     if let Some(settings) = lockfile.settings.as_ref()
         && settings.auto_install_peers != auto_install_peers
     {

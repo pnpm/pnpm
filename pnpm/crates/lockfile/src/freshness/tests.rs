@@ -1325,8 +1325,8 @@ fn check_settings_returns_drift_when_auto_install_peers_differs() {
     assert_eq!(err.setting_name(), Some("settings.autoInstallPeers"));
 }
 
-/// A lockfile with no `settings` block predates the field, so it can't
-/// disagree with the config about it.
+/// A lockfile with no `settings` block records no value to disagree
+/// with.
 #[test]
 fn check_settings_ignores_auto_install_peers_without_a_settings_block() {
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {

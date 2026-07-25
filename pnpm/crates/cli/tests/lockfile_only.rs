@@ -6,6 +6,9 @@
 //! `--frozen-lockfile --lockfile-only` combination still validates the
 //! on-disk lockfile against the manifest and fails when it is stale.
 
+pub mod _utils;
+pub use _utils::append_workspace_yaml_key;
+
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pacquet_testing_utils::{
@@ -125,10 +128,7 @@ fn frozen_lockfile_only_rejects_a_drifted_setting() {
 
     pacquet.with_args(["install", "--lockfile-only"]).assert().success();
 
-    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
-    let yaml = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
-    fs::write(&workspace_yaml, format!("{yaml}autoInstallPeers: false\n"))
-        .expect("flip autoInstallPeers");
+    append_workspace_yaml_key(&workspace, "autoInstallPeers", false);
 
     let output = pacquet_at(&workspace)
         .with_args(["install", "--frozen-lockfile", "--lockfile-only"])
