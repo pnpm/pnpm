@@ -73,8 +73,8 @@ fn transparent_wrappers_render_the_message_once() {
     assert_eq!(messages(&collapsed), vec!["tarball server returned HTTP 404".to_string()]);
 }
 
-/// Only *consecutive* repeats fold: a wrapper that adds its own
-/// context, and a cause that genuinely repeats an earlier message
+/// Only *consecutive* restatements fold: a wrapper that says something
+/// of its own, and a cause that genuinely repeats an earlier message
 /// further down the chain, both stay in the rendering.
 #[test]
 fn distinct_causes_survive() {
@@ -95,6 +95,29 @@ fn distinct_causes_survive() {
             "installing dependencies".to_string(),
             "tarball server returned HTTP 404".to_string(),
             "installing dependencies".to_string(),
+        ],
+    );
+}
+
+/// A wrapper that prefixes its cause with context repeats it in full,
+/// so the cause folds into the wrapper's line.
+#[test]
+fn a_context_prefixed_wrapper_absorbs_its_cause() {
+    let leaf = Leaf {
+        message: "Failed to resolve dependency tree: No matching version found for is-odd@99.99.99",
+        source: Some(Box::new(Leaf {
+            message: "No matching version found for is-odd@99.99.99",
+            source: None,
+        })),
+    };
+
+    let collapsed = Collapsed::new(&leaf);
+
+    assert_eq!(
+        messages(&collapsed),
+        vec![
+            "Failed to resolve dependency tree: No matching version found for is-odd@99.99.99"
+                .to_string(),
         ],
     );
 }

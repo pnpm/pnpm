@@ -174,7 +174,12 @@ fn metadata_authorization_failure_is_reported() {
     let output = install_command(&workspace, root.path()).with_arg("install").output().unwrap();
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("403 Forbidden"), "got {stderr}");
+    assert!(stderr.contains("ERR_PNPM_FETCH_403"), "got {stderr}");
+    assert!(stderr.contains("Forbidden - 403"), "got {stderr}");
+    assert!(
+        stderr.contains("No authorization header was set for the request."),
+        "the report must say which credential, if any, was sent: {stderr}",
+    );
 
     forbidden.assert();
 }

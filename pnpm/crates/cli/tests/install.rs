@@ -1005,14 +1005,7 @@ fn install_surfaces_catalog_misconfiguration() {
     let output = pacquet.with_arg("install").assert().failure();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
     eprintln!("stderr={stderr}");
-    // The miette report hard-wraps the message and inserts a leading
-    // `│` on the wrapped line. Strip all whitespace and box-drawing
-    // characters before substring-matching so wrap position can't
-    // make the assertion brittle.
-    let flattened: String = stderr
-        .chars()
-        .filter(|ch| !ch.is_whitespace() && !matches!(ch, '│' | '├' | '╰' | '─' | '▶' | '×'))
-        .collect();
+    let flattened = flatten_report(&stderr);
     assert!(
         flattened.contains(
             "Nocatalogentry'@pnpm.e2e/hello-world-js-bin-parent'wasfoundforcatalog'default'.",
@@ -1022,6 +1015,89 @@ fn install_surfaces_catalog_misconfiguration() {
     assert!(
         stderr.contains("ERR_PNPM_CATALOG_ENTRY_NOT_FOUND_FOR_SPEC"),
         "the catalog error must surface upstream's code, not the resolver chain's: {stderr}",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// A well-formed range that the registry publishes nothing for is
+/// `ERR_PNPM_NO_MATCHING_VERSION`, not the chain's
+/// `ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER` — the specifier is
+/// supported, the version simply doesn't exist (pnpm/pnpm#13319). The
+/// report also names the latest published release and how to list the
+/// rest, the way the TypeScript CLI does.
+#[test]
+fn install_reports_a_missing_version_as_no_matching_version() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    eprintln!("Creating package.json that asks for a version nobody published...");
+    let manifest_path = workspace.join("package.json");
+    let package_json_content = serde_json::json!({
+        "dependencies": {
+            "@pnpm.e2e/hello-world-js-bin-parent": "99.99.99",
+        },
+    });
+    fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
+
+    eprintln!("Executing command...");
+    let output = pacquet.with_arg("install").assert().failure();
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+    eprintln!("stderr={stderr}");
+    let flattened = flatten_report(&stderr);
+    assert!(
+        stderr.contains("ERR_PNPM_NO_MATCHING_VERSION"),
+        "a missing version must not read as an unsupported specifier: {stderr}",
+    );
+    assert!(
+        flattened.contains("Nomatchingversionfoundfor@pnpm.e2e/hello-world-js-bin-parent@99.99.99"),
+        "stderr did not name the dependency that has no matching version: {stderr}",
+    );
+    assert!(
+        flattened.contains(r#"run"pnpmview@pnpm.e2e/hello-world-js-bin-parentversions""#),
+        "stderr did not say how to list the published versions: {stderr}",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// A package the registry has never heard of is `ERR_PNPM_FETCH_404`
+/// with pnpm's "not in the npm registry, or you have no permission"
+/// hint — not a bare HTTP-client message (pnpm/pnpm#13319).
+#[test]
+fn install_reports_an_unknown_package_as_fetch_404() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    eprintln!("Creating package.json that depends on a package nobody published...");
+    let manifest_path = workspace.join("package.json");
+    let package_json_content = serde_json::json!({
+        "dependencies": {
+            "@pnpm.e2e/definitely-not-a-published-package": "1.0.0",
+        },
+    });
+    fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
+
+    eprintln!("Executing command...");
+    let output = pacquet.with_arg("install").assert().failure();
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+    eprintln!("stderr={stderr}");
+    let flattened = flatten_report(&stderr);
+    assert!(
+        stderr.contains("ERR_PNPM_FETCH_404"),
+        "a missing package must surface upstream's fetch code: {stderr}",
+    );
+    assert!(
+        flattened.contains("NotFound-404"),
+        "stderr did not report the registry's status: {stderr}",
+    );
+    assert!(
+        flattened.contains(
+            "@pnpm.e2e/definitely-not-a-published-packageisnotinthenpmregistry,oryouhavenopermissiontofetchit.",
+        ),
+        "stderr did not carry the missing-package hint: {stderr}",
     );
 
     drop((root, mock_instance));
@@ -1348,13 +1424,7 @@ fn frozen_store_with_a_pnpr_server_is_a_config_conflict() {
         .failure();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
     eprintln!("stderr={stderr}");
-    // The miette report hard-wraps the message and inserts box-drawing
-    // characters on wrapped lines; strip whitespace and those glyphs before
-    // substring-matching so wrap position can't make the assertion brittle.
-    let flattened: String = stderr
-        .chars()
-        .filter(|ch| !ch.is_whitespace() && !matches!(ch, '│' | '├' | '╰' | '─' | '▶' | '×'))
-        .collect();
+    let flattened = flatten_report(&stderr);
     assert!(
         flattened.contains("ERR_PNPM_FROZEN_STORE_INCOMPATIBLE_WITH_PNPR"),
         "stderr did not carry the frozen-store/pnpr conflict code: {stderr}",

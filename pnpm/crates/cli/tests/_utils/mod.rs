@@ -27,6 +27,17 @@ pub fn pacquet_in(workspace: &Path) -> Command {
     Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
 }
 
+/// Strip whitespace and box-drawing glyphs out of a miette report so a
+/// substring assertion can't be broken by where the renderer chose to
+/// hard-wrap the message.
+#[must_use]
+pub fn flatten_report(report: &str) -> String {
+    report
+        .chars()
+        .filter(|ch| !ch.is_whitespace() && !matches!(ch, '│' | '├' | '╰' | '─' | '▶' | '×'))
+        .collect()
+}
+
 /// Flip the `enableGlobalVirtualStore` key in the `pnpm-workspace.yaml`
 /// that [`pacquet_testing_utils::bin::CommandTempCwd::add_mocked_registry`]
 /// populated with `storeDir` / `cacheDir` / `enableGlobalVirtualStore: false`.

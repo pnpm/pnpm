@@ -5073,9 +5073,11 @@ version = "0.0.1"
 dependencies = [
  "chrono",
  "derive_more",
+ "miette 7.6.0",
  "node-semver",
  "pacquet-config",
  "pacquet-lockfile",
+ "pacquet-network",
  "pacquet-registry",
  "serde",
  "serde_json",

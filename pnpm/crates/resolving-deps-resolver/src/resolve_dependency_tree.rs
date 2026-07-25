@@ -12,7 +12,8 @@ use pacquet_hooks::PnpmfileHooks;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest, engines_runtime_dependencies};
 use pacquet_patching::{PatchGroupRecord, PatchKeyConflictError, get_patch_info};
 use pacquet_resolving_resolver_base::{
-    PreferredVersionsOverlay, ResolveError, ResolveOptions, Resolver, WantedDependency,
+    NoMatchingVersionError, PreferredVersionsOverlay, RegistryResponseError, ResolveError,
+    ResolveOptions, Resolver, WantedDependency,
 };
 use pipe_trait::Pipe;
 use serde_json::Value;
@@ -270,6 +271,16 @@ pub enum ResolveDependencyTreeError {
     /// The inner error is the boxed type the resolver returned.
     #[display("Failed to resolve dependency: {_0}")]
     Resolve(#[error(not(source))] String),
+
+    /// The registry publishes the package but nothing the request accepts,
+    /// raised with the `ERR_PNPM_NO_MATCHING_VERSION` code.
+    #[diagnostic(transparent)]
+    NoMatchingVersion(#[error(source)] NoMatchingVersionError),
+
+    /// The registry answered the metadata request with a non-2xx status,
+    /// raised with the matching `ERR_PNPM_FETCH_<status>` code.
+    #[diagnostic(transparent)]
+    RegistryResponse(#[error(source)] RegistryResponseError),
 
     /// An optional dependency failed to resolve while the wanted
     /// lockfile still holds a package entry satisfying the wanted
@@ -1617,6 +1628,8 @@ where
             // keep aborting even for optional edges.
             Err(
                 err @ (ResolveDependencyTreeError::Resolve(_)
+                | ResolveDependencyTreeError::NoMatchingVersion(_)
+                | ResolveDependencyTreeError::RegistryResponse(_)
                 | ResolveDependencyTreeError::SpecNotSupported { .. }),
             ) if wanted.optional.unwrap_or(false) => {
                 if wanted_lockfile_contains_satisfying_entry(
@@ -2063,10 +2076,7 @@ where
     } else {
         opts
     };
-    let mut result = resolver
-        .resolve(wanted, opts)
-        .await
-        .map_err(|err: ResolveError| ResolveDependencyTreeError::Resolve(err.to_string()))?;
+    let mut result = resolver.resolve(wanted, opts).await.map_err(map_resolve_error)?;
     let Some(result_inner) = result.as_mut() else {
         return Err(ResolveDependencyTreeError::SpecNotSupported {
             specifier: render_specifier(wanted),
@@ -2121,6 +2131,24 @@ where
         .entry(cache_key)
         .or_insert_with(|| Arc::clone(&result));
     Ok(result)
+}
+
+/// Wrap a resolver-chain failure, keeping the pnpm error code of the ones
+/// that carry one. The chain hands back a type-erased
+/// [`ResolveError`], which drops the `miette::Diagnostic` facet, so the codes
+/// that are part of pnpm's public contract are recovered by downcast; every
+/// other failure keeps the generic envelope.
+fn map_resolve_error(err: ResolveError) -> ResolveDependencyTreeError {
+    let err = match err.downcast::<NoMatchingVersionError>() {
+        Ok(no_matching_version) => {
+            return ResolveDependencyTreeError::NoMatchingVersion(*no_matching_version);
+        }
+        Err(err) => err,
+    };
+    match err.downcast::<RegistryResponseError>() {
+        Ok(response) => ResolveDependencyTreeError::RegistryResponse(*response),
+        Err(err) => ResolveDependencyTreeError::Resolve(err.to_string()),
+    }
 }
 
 /// Speculatively warm a freshly-seeded node's children resolutions so

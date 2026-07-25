@@ -4,10 +4,12 @@
 //! `#[diagnostic(transparent)]` variants so `?` composes across crate
 //! boundaries. Such a variant displays as its inner error *and* keeps
 //! it as its `source`, so a leaf error four wrappers deep renders the
-//! same sentence at five levels of miette's `├─▶` cause chain. The
-//! handler here folds those levels away before delegating to miette's
-//! own renderer, which keeps every theme, width, and colour decision
-//! miette would otherwise make.
+//! same sentence at five levels of miette's `├─▶` cause chain. A
+//! wrapper that prefixes the inner message with context
+//! ("Failed to resolve dependency tree: {inner}") repeats it just as
+//! fully, one line above. The handler here folds those levels away
+//! before delegating to miette's own renderer, which keeps every theme,
+//! width, and colour decision miette would otherwise make.
 
 use miette::{
     Diagnostic, LabeledSpan, MietteHandler, MietteHandlerOpts, ReportHandler, Severity, SourceCode,
@@ -71,7 +73,7 @@ impl<'a> Collapsed<'a> {
         let mut level = nested(Level::Diagnostic(head));
         while let Some(current) = level {
             let message = current.to_string();
-            if message != last {
+            if !last.ends_with(&message) {
                 messages.push(message.clone());
                 last = message;
             }
