@@ -187,6 +187,23 @@ fn dev_engines_package_manager_array_defaults_on_fail_to_ignore_before_the_last_
     assert_success(&output);
 }
 
+/// The pinned pnpm belongs in the lockfile whichever command records it, so
+/// a project's first pacquet command being something other than an install
+/// must not leave `packageManagerDependencies` unwritten.
+#[test]
+fn a_command_outside_the_install_family_records_the_pinned_package_manager() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_dev_engines_package_manager(&workspace, "pnpm", pacquet_config::PNPM_VERSION, None);
+
+    let output = run(pacquet, root.path(), &EXEC_NODE_VERSION);
+
+    assert_success(&output);
+    let lockfile =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read the written lockfile");
+    assert_contains(&lockfile, "packageManagerDependencies:");
+    assert_contains(&lockfile, &format!("pnpm@{}", pacquet_config::PNPM_VERSION));
+}
+
 #[test]
 fn the_pm_on_fail_hint_can_be_followed_as_a_bare_flag() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();

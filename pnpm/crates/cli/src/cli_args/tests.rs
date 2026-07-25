@@ -553,7 +553,7 @@ fn package_manager_to_sync_preserves_dev_engine_specifier() {
 
     let manifest = read_manifest_json(&manifest_path).expect("read manifest").expect("manifest");
     let package_manager =
-        package_manager_to_sync(&manifest, root.path()).expect("sync package manager");
+        package_manager_to_sync(&manifest, root.path(), None).expect("sync package manager");
 
     assert_eq!(package_manager.specifier, ">=0.0.0");
     assert_eq!(

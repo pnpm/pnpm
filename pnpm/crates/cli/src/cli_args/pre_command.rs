@@ -2,6 +2,8 @@
 //! manager and the pinned runtimes are reconciled with what is actually
 //! running. A pnpm pin with `onFail: "download"` switches the CLI to the
 //! wanted version; every other pin is validated in place and fails or warns.
+//! A pin that persists to the lockfile is also recorded there, whatever the
+//! command — see [`env_lockfile_sync`].
 //!
 //! Mirrors the block at the top of pnpm's `pnpm/src/main.ts`.
 
@@ -11,8 +13,9 @@ use super::{
     cli_command::{CliArgs, CliCommand},
     config::ConfigSubcommand,
     package_manager::{
-        PACKAGE_MANAGER_SWITCH_ENV_VARS, WantedPackageManager, read_manifest_json,
-        should_persist_package_manager_lockfile, version_satisfies, wanted_package_manager,
+        PACKAGE_MANAGER_SWITCH_ENV_VARS, PackageManagerToSync, WantedPackageManager,
+        package_manager_to_sync, read_manifest_json, should_persist_package_manager_lockfile,
+        version_satisfies, wanted_package_manager,
     },
     reporter::reporter_emit,
     sanitize::sanitize_inline,
@@ -28,6 +31,7 @@ use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pacquet_config::{Config, Host, PNPM_VERSION, PmOnFail};
 use pacquet_default_reporter::DefaultReporter;
+use pacquet_env_installer::is_package_manager_resolved;
 use pacquet_lockfile::{EnvLockfile, LockfileResolution, PackageKey, PackageMetadata, VersionPart};
 use pacquet_package_manifest::{apply_runtime_on_fail_override, is_runtime_alias};
 use pacquet_reporter::{GlobalLog, LogEvent, LogLevel, Reporter, SilentReporter};
@@ -39,13 +43,13 @@ use std::{
 };
 use system_runtime_version::system_runtime_version;
 
-/// Run the pre-command checks and return the version switch they ask for,
-/// if any. The checks themselves report through `args.reporter` and fail
-/// the command by returning an error.
+/// Run the pre-command checks and return the work they ask for, if any. The
+/// checks themselves report through `args.reporter` and fail the command by
+/// returning an error.
 pub(crate) fn pre_command_plan(
     args: &CliArgs,
     config_overrides: &ConfigOverrides,
-) -> miette::Result<Option<SwitchPlan>> {
+) -> miette::Result<Option<PreCommandPlan>> {
     if should_skip_command(&args.command) {
         return Ok(None);
     }
@@ -54,6 +58,7 @@ pub(crate) fn pre_command_plan(
             switch: SwitchInput::from_cli_args(args),
             global: is_global(&args.command),
             check_runtimes: true,
+            syncs_env_lockfile_in_pipeline: syncs_env_lockfile_in_pipeline(&args.command),
             emit: reporter_emit(args.reporter),
         },
         config_overrides,
@@ -68,12 +73,15 @@ pub(crate) fn pre_command_plan(
 pub(crate) fn pre_command_plan_for_version_flag(
     argv: &[OsString],
     config_overrides: &ConfigOverrides,
-) -> miette::Result<Option<SwitchPlan>> {
+) -> miette::Result<Option<PreCommandPlan>> {
     pre_command_plan_from_input(
         &PreCommandInput {
             switch: SwitchInput::from_version_argv(argv),
             global: false,
             check_runtimes: false,
+            // No install pipeline runs behind `--version`, so nothing else
+            // would record the pin.
+            syncs_env_lockfile_in_pipeline: false,
             emit: DefaultReporter::emit,
         },
         config_overrides,
@@ -81,11 +89,31 @@ pub(crate) fn pre_command_plan_for_version_flag(
     )
 }
 
-#[expect(clippy::exit, reason = "delegated pnpm must preserve the child exit code")]
-pub(crate) async fn execute_switch(
-    plan: SwitchPlan,
+/// Carry out what the pre-command checks planned. Returns whether the command
+/// has already been run by a delegated pnpm, in which case the caller is done.
+pub(crate) async fn execute_plan(
+    plan: PreCommandPlan,
     child_argv: &[OsString],
 ) -> miette::Result<bool> {
+    match plan {
+        PreCommandPlan::Switch(plan) => execute_switch(plan, child_argv).await,
+        PreCommandPlan::SyncEnvLockfile(sync) => {
+            let EnvLockfileSync { config, root_dir, package_manager } = sync;
+            config_deps::sync_package_manager_dependencies(
+                &config,
+                &root_dir,
+                &package_manager.specifier,
+                &package_manager.version,
+                false,
+            )
+            .await?;
+            Ok(false)
+        }
+    }
+}
+
+#[expect(clippy::exit, reason = "delegated pnpm must preserve the child exit code")]
+async fn execute_switch(plan: SwitchPlan, child_argv: &[OsString]) -> miette::Result<bool> {
     let SwitchPlan { config, target } = plan;
     let SwitchTarget { spec, source } = target;
     let config = Config::leak(config);
@@ -130,7 +158,7 @@ fn pre_command_plan_from_input(
     input: &PreCommandInput,
     config_overrides: &ConfigOverrides,
     process_state: SwitchProcessState,
-) -> miette::Result<Option<SwitchPlan>> {
+) -> miette::Result<Option<PreCommandPlan>> {
     let switch = &input.switch;
     if switch.command.as_deref().is_some_and(should_skip_command_name) {
         return Ok(None);
@@ -148,7 +176,10 @@ fn pre_command_plan_from_input(
     let root_dir = config.workspace_dir.clone().unwrap_or_else(|| dir.clone());
     let manifest = read_manifest_json(&root_dir.join("package.json"))?;
 
-    if let Some(pm) = manifest.as_ref().and_then(wanted_package_manager) {
+    let mut package_manager_to_sync = None;
+    if let Some(root_manifest) = manifest.as_ref()
+        && let Some(pm) = wanted_package_manager(root_manifest)
+    {
         let on_fail = effective_on_fail(&config, &pm);
         let switch_wanted = pm.name == "pnpm" && on_fail == PmOnFail::Download;
         // Turning `manage-package-manager-versions` off is the user taking
@@ -159,10 +190,24 @@ fn pre_command_plan_from_input(
         let unmanaged_pin = switch_wanted && process_state.package_manager_switch_disabled;
         if on_fail != PmOnFail::Ignore && !unmanaged_pin {
             if switch_wanted && !process_state.executed_by_corepack {
-                if let Some(target) = switch_target(&config, &root_dir)?
-                    && !version_satisfies(PNPM_VERSION, &target.spec)
-                {
-                    return Ok(Some(SwitchPlan { config, target }));
+                if let Some(target) = switch_target(&config, &root_dir)? {
+                    if !version_satisfies(PNPM_VERSION, &target.spec) {
+                        return Ok(Some(PreCommandPlan::Switch(SwitchPlan { config, target })));
+                    }
+                    // The running pnpm already satisfies the pin, so there is
+                    // nothing to switch to — but the pin still has to reach
+                    // the lockfile, which the switch would otherwise have
+                    // written on its way to the wanted version.
+                    package_manager_to_sync = env_lockfile_sync(
+                        root_manifest,
+                        &root_dir,
+                        on_fail,
+                        input,
+                        match &target.source {
+                            SwitchSource::LockedEnv { env, .. } => ReadEnvLockfile::Already(env),
+                            SwitchSource::Resolve { .. } => ReadEnvLockfile::NotYet,
+                        },
+                    )?;
                 }
             } else if input.global {
                 global_warn(
@@ -171,6 +216,13 @@ fn pre_command_plan_from_input(
                 );
             } else {
                 check_package_manager(&pm, on_fail, process_state, input.emit)?;
+                package_manager_to_sync = env_lockfile_sync(
+                    root_manifest,
+                    &root_dir,
+                    on_fail,
+                    input,
+                    ReadEnvLockfile::NotYet,
+                )?;
             }
         }
     }
@@ -181,7 +233,69 @@ fn pre_command_plan_from_input(
     {
         check_runtimes(manifest, &config, input.emit)?;
     }
-    Ok(None)
+    Ok(package_manager_to_sync.map(|package_manager| {
+        PreCommandPlan::SyncEnvLockfile(EnvLockfileSync { config, root_dir, package_manager })
+    }))
+}
+
+/// pnpm's `syncEnvLockfile`: the pnpm version a project pins is recorded in
+/// the env lockfile's `packageManagerDependencies` by every command, not only
+/// by the install family, so the entry is the same whichever command a
+/// contributor happens to run first.
+///
+/// `None` when the project doesn't pin a persisting pnpm version, when the
+/// lockfile already records one that satisfies the pin, or when the command's
+/// own pipeline syncs it — the install family passes its `frozen-lockfile`
+/// value to the sync, and a frozen install must fail on an out-of-date
+/// `packageManagerDependencies` rather than have it repaired here first.
+fn env_lockfile_sync(
+    root_manifest: &Value,
+    root_dir: &Path,
+    on_fail: PmOnFail,
+    input: &PreCommandInput,
+    read_lockfile: ReadEnvLockfile<'_>,
+) -> miette::Result<Option<PackageManagerToSync>> {
+    if input.syncs_env_lockfile_in_pipeline {
+        return Ok(None);
+    }
+    let Some(package_manager) = package_manager_to_sync(root_manifest, root_dir, Some(on_fail))
+    else {
+        return Ok(None);
+    };
+    let read;
+    let env_lockfile = match read_lockfile {
+        ReadEnvLockfile::Already(env_lockfile) => Some(env_lockfile),
+        ReadEnvLockfile::NotYet => {
+            read = read_env_lockfile(root_dir)?;
+            read.as_ref()
+        }
+    };
+    if env_lockfile.is_some_and(|env_lockfile| {
+        is_package_manager_resolved(
+            env_lockfile,
+            &package_manager.specifier,
+            &package_manager.version,
+        )
+    }) {
+        return Ok(None);
+    }
+    Ok(Some(package_manager))
+}
+
+/// Whether the caller already holds the parsed env lockfile. The download
+/// path reads it to look for a version to switch to, and `pnpm-lock.yaml`
+/// is read whole, so reading it a second time to answer the same question
+/// would double the cost of every command in a pinned project.
+#[derive(Clone, Copy)]
+enum ReadEnvLockfile<'a> {
+    Already(&'a EnvLockfile),
+    NotYet,
+}
+
+fn read_env_lockfile(root_dir: &Path) -> miette::Result<Option<EnvLockfile>> {
+    EnvLockfile::read(root_dir).map_err(miette::Report::new).wrap_err_with(|| {
+        format!("read the package-manager env lockfile in {}", root_dir.display())
+    })
 }
 
 /// pnpm's `checkPackageManager`. `on_fail` is already resolved against the
@@ -370,7 +484,29 @@ struct PreCommandInput {
     switch: SwitchInput,
     global: bool,
     check_runtimes: bool,
+    syncs_env_lockfile_in_pipeline: bool,
     emit: fn(&LogEvent),
+}
+
+/// The install-family commands that sync `packageManagerDependencies` from
+/// their own pipeline, where the effective `frozen-lockfile` value is known —
+/// the commands whose dispatch calls
+/// `pipelines::derive_config_root_and_package_manager_to_sync`.
+/// See [`env_lockfile_sync`].
+fn syncs_env_lockfile_in_pipeline(command: &CliCommand) -> bool {
+    matches!(
+        command,
+        CliCommand::Add(_)
+            | CliCommand::Ci(_)
+            | CliCommand::Dedupe(_)
+            | CliCommand::Deploy(_)
+            | CliCommand::Install(_)
+            | CliCommand::InstallTest(_)
+            | CliCommand::Prune(_)
+            | CliCommand::Remove(_)
+            | CliCommand::Unlink(_)
+            | CliCommand::Update(_),
+    )
 }
 
 /// pnpm treats `--global` as an opt-out of the project's package manager
@@ -417,14 +553,11 @@ fn switch_target(config: &Config, root_dir: &Path) -> miette::Result<Option<Swit
     if on_fail != PmOnFail::Download {
         return Ok(None);
     }
-    pm.on_fail = Some(on_fail_str(on_fail).to_string());
+    pm.on_fail = Some(on_fail.as_str().to_string());
 
     let persist_lockfile = should_persist_package_manager_lockfile(&pm);
     if persist_lockfile
-        && let Some(env) =
-            EnvLockfile::read(root_dir).map_err(miette::Report::new).wrap_err_with(|| {
-                format!("read the package-manager env lockfile in {}", root_dir.display())
-            })?
+        && let Some(env) = read_env_lockfile(root_dir)?
         && let Some(version) = locked_package_manager_version(&env, &spec)?
     {
         return Ok(Some(SwitchTarget { spec, source: SwitchSource::LockedEnv { env, version } }));
@@ -585,15 +718,6 @@ fn effective_on_fail(config: &Config, pm: &WantedPackageManager) -> PmOnFail {
     })
 }
 
-fn on_fail_str(on_fail: PmOnFail) -> &'static str {
-    match on_fail {
-        PmOnFail::Download => "download",
-        PmOnFail::Error => "error",
-        PmOnFail::Warn => "warn",
-        PmOnFail::Ignore => "ignore",
-    }
-}
-
 /// The commands pnpm marks with `skipPackageManagerCheck`, plus `setup` —
 /// they either predate the project's pins (`setup`), inspect pnpm itself
 /// (`store`, `doctor`, and so on), or run something that is not the project
@@ -671,6 +795,20 @@ struct SwitchTarget {
 pub(crate) struct SwitchPlan {
     config: Config,
     target: SwitchTarget,
+}
+
+/// The asynchronous work the (synchronous) pre-command checks scheduled.
+#[derive(Debug)]
+pub(crate) enum PreCommandPlan {
+    Switch(SwitchPlan),
+    SyncEnvLockfile(EnvLockfileSync),
+}
+
+#[derive(Debug)]
+pub(crate) struct EnvLockfileSync {
+    config: Config,
+    root_dir: PathBuf,
+    package_manager: PackageManagerToSync,
 }
 
 #[derive(Debug)]

@@ -616,8 +616,9 @@ pub(crate) fn derive_config_root_and_package_manager_to_sync(
     // install output. This is the install family's earliest point that
     // knows the root manifest's directory.
     warn_ignored_pnpm_manifest_fields(root_manifest.as_ref(), reporter_emit(reporter));
-    let package_manager_to_sync =
-        root_manifest.as_ref().and_then(|manifest| package_manager_to_sync(manifest, &config_root));
+    let package_manager_to_sync = root_manifest
+        .as_ref()
+        .and_then(|manifest| package_manager_to_sync(manifest, &config_root, cfg.pm_on_fail));
     Ok((config_root, package_manager_to_sync))
 }
 

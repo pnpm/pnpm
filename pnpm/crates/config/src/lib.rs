@@ -139,6 +139,18 @@ pub enum PmOnFail {
     Ignore,
 }
 
+impl PmOnFail {
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Download => "download",
+            Self::Error => "error",
+            Self::Warn => "warn",
+            Self::Ignore => "ignore",
+        }
+    }
+}
+
 /// What to do when a runtime declared through `devEngines.runtime` or
 /// `engines.runtime` does not match the current process.
 ///

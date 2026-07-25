@@ -1,9 +1,9 @@
 use super::{
-    PreCommandInput, SwitchInput, SwitchProcessState, SwitchSource, pre_command_plan_from_input,
-    switch_target,
+    PackageManagerToSync, PreCommandInput, PreCommandPlan, SwitchInput, SwitchProcessState,
+    SwitchSource, pre_command_plan_from_input, switch_target,
 };
 use crate::config_overrides::ConfigOverrides;
-use pacquet_config::{Config, PmOnFail};
+use pacquet_config::{Config, PNPM_VERSION, PmOnFail};
 use pacquet_reporter::{Reporter, SilentReporter};
 use std::{
     ffi::OsString,
@@ -170,15 +170,161 @@ fn pre_command_plan_skips_the_runtime_check_for_global_commands() {
     assert!(plan.is_none(), "unexpected switch plan");
 }
 
+#[test]
+fn pre_command_plan_records_a_pin_the_running_pnpm_already_satisfies() {
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), PNPM_VERSION);
+
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: false, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    // No switch is needed, but the pin still has to reach the lockfile.
+    let Some(PreCommandPlan::SyncEnvLockfile(sync)) = plan else {
+        panic!("expected an env lockfile sync, got {plan:?}");
+    };
+    assert_eq!(
+        sync.package_manager,
+        PackageManagerToSync {
+            specifier: PNPM_VERSION.to_string(),
+            version: PNPM_VERSION.to_string(),
+        },
+    );
+}
+
+#[test]
+fn pre_command_plan_records_a_pin_that_only_warns() {
+    let root = TempDir::new().expect("tmp dir");
+    write_manifest(
+        root.path(),
+        &format!(
+            r#"{{"devEngines":{{"packageManager":{{"name":"pnpm","version":"{PNPM_VERSION}","onFail":"warn"}}}}}}"#,
+        ),
+    );
+
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: false, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    assert!(
+        matches!(plan, Some(PreCommandPlan::SyncEnvLockfile(_))),
+        "expected an env lockfile sync, got {plan:?}",
+    );
+}
+
+#[test]
+fn pre_command_plan_leaves_the_env_lockfile_sync_to_the_install_pipeline() {
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), PNPM_VERSION);
+
+    let plan = pre_command_plan_from_input(
+        &PreCommandInput { syncs_env_lockfile_in_pipeline: true, ..pre_command_input(root.path()) },
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: false, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    assert!(plan.is_none(), "unexpected pre-command plan: {plan:?}");
+}
+
+#[test]
+fn pre_command_plan_skips_the_env_lockfile_sync_when_the_lockfile_is_up_to_date() {
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), PNPM_VERSION);
+    write_lockfile(root.path(), &locked_package_manager(PNPM_VERSION, PNPM_VERSION));
+
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: false, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    assert!(plan.is_none(), "unexpected pre-command plan: {plan:?}");
+}
+
+#[test]
+fn pre_command_plan_records_a_pin_whose_specifier_the_lockfile_no_longer_matches() {
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), PNPM_VERSION);
+    // The locked version still satisfies the pin — so there is nothing to
+    // switch to, and the lockfile the switch lookup already read is the one
+    // the sync decision reuses — but it was resolved from a wider specifier.
+    write_lockfile(root.path(), &locked_package_manager(">=0.0.0", PNPM_VERSION));
+
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: false, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    assert!(
+        matches!(plan, Some(PreCommandPlan::SyncEnvLockfile(_))),
+        "expected an env lockfile sync, got {plan:?}",
+    );
+}
+
+#[test]
+fn pre_command_plan_records_a_pin_the_pm_on_fail_setting_reactivated() {
+    let root = TempDir::new().expect("tmp dir");
+    write_manifest(
+        root.path(),
+        &format!(
+            r#"{{"devEngines":{{"packageManager":{{"name":"pnpm","version":"{PNPM_VERSION}","onFail":"ignore"}}}}}}"#,
+        ),
+    );
+
+    // `pmOnFail` overrides the manifest's own `onFail`, so the pin the
+    // manifest asked to ignore is enforced — and recorded — after all.
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &config_overrides(&["--config.pm-on-fail=warn"]),
+        SwitchProcessState { package_manager_switch_disabled: false, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    assert!(
+        matches!(plan, Some(PreCommandPlan::SyncEnvLockfile(_))),
+        "expected an env lockfile sync, got {plan:?}",
+    );
+}
+
+#[test]
+fn pre_command_plan_does_not_record_a_pin_the_pm_on_fail_setting_turned_off() {
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), PNPM_VERSION);
+
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &config_overrides(&["--config.pm-on-fail=ignore"]),
+        SwitchProcessState { package_manager_switch_disabled: false, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    assert!(plan.is_none(), "unexpected pre-command plan: {plan:?}");
+}
+
+fn config_overrides(argv: &[&str]) -> ConfigOverrides {
+    ConfigOverrides::extract(argv.iter().copied().map(OsString::from)).0
+}
+
 fn pre_command_input(dir: &Path) -> PreCommandInput {
     PreCommandInput {
         switch: SwitchInput {
             dir: dir.to_path_buf(),
             npmrc_auth_file: None,
-            command: Some("install".to_string()),
+            command: Some("run".to_string()),
         },
         global: false,
         check_runtimes: true,
+        syncs_env_lockfile_in_pipeline: false,
         emit: SilentReporter::emit,
     }
 }
@@ -364,6 +510,43 @@ fn write_manifest(root: &Path, content: &str) {
 
 fn write_lockfile(root: &Path, content: &str) {
     fs::write(root.join("pnpm-lock.yaml"), content).expect("write lockfile");
+}
+
+/// An env lockfile whose `packageManagerDependencies` record `version`,
+/// resolved from the registry, against `specifier`.
+fn locked_package_manager(specifier: &str, version: &str) -> String {
+    format!(
+        r"---
+lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    configDependencies: {{}}
+    packageManagerDependencies:
+      '@pnpm/exe':
+        specifier: '{specifier}'
+        version: {version}
+      pnpm:
+        specifier: '{specifier}'
+        version: {version}
+
+packages:
+
+  '@pnpm/exe@{version}':
+    resolution: {{integrity: sha512-di6YvqPO/2jvih6kCJ8r0ySzQNjQWrBXPEfqEHtrmwOamuNALnfASwhFBwEtMjWmaA8QG7TqAg2qEvAe+8cBkQ==}}
+
+  pnpm@{version}:
+    resolution: {{integrity: sha512-QVocwll0cx51RVwUaDcb50xapft2IbUNQFbSIkUWCfEUEvI/1gLmFp8eBgRmZB95hZfhvpYaEGiINqZ7FlaUmQ==}}
+
+snapshots:
+
+  '@pnpm/exe@{version}': {{}}
+
+  pnpm@{version}: {{}}
+---
+",
+    )
 }
 
 fn switch_target_error(root: &Path) -> miette::Report {
