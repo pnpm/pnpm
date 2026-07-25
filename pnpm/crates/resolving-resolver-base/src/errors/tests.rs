@@ -103,7 +103,7 @@ fn no_matching_version_help_lists_the_other_dist_tags_in_a_stable_order() {
     dbg!(&help);
     assert!(
         help.contains("Other releases are:\n  * legacy: 1.0.0\n  * next: 4.0.0-beta.1\n"),
-        "{help}"
+        "{help}",
     );
 }
 
@@ -117,7 +117,7 @@ fn registry_response_error_codes_the_status_and_hints_at_the_missing_package() {
         auth_header_value: None,
     });
 
-    assert_eq!(error.to_string(), "GET https://registry.npmjs.org/@repro%2Fpkg-a: Not Found - 404",);
+    assert_eq!(error.to_string(), "GET https://registry.npmjs.org/@repro%2Fpkg-a: Not Found - 404");
     assert_eq!(error.code().map(|code| code.to_string()).as_deref(), Some("ERR_PNPM_FETCH_404"));
     assert_eq!(
         rendered_help(&error),
