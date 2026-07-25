@@ -64,6 +64,18 @@ fn sole_hash_dir(pkg_version_dir: &Path) -> PathBuf {
     pkg_version_dir.join(&hashes[0])
 }
 
+/// Replace a file the importer materialized with garbage, standing in
+/// for a slot left half-written by a crashed install.
+///
+/// Unlinking before writing matters: when the store and the slot sit on
+/// one filesystem the importer hardlinks, so truncating the slot's copy
+/// in place would rewrite the store's content-addressed file too — and
+/// then no re-import could ever restore the original bytes.
+fn corrupt_pristine_file(path: &Path) {
+    fs::remove_file(path).unwrap_or_else(|err| panic!("unlink {path:?}: {err}"));
+    fs::write(path, "{}").unwrap_or_else(|err| panic!("corrupt {path:?}: {err}"));
+}
+
 /// `<hash>/node_modules/<name>` — where the package's files actually live.
 fn pkg_in_slot(hash_dir: &Path, name: &str) -> PathBuf {
     hash_dir.join("node_modules").join(name)
@@ -722,7 +734,7 @@ fn needs_build_marker_triggers_reimport_on_next_install() {
     eprintln!("Simulating a crash after import but before the build...");
     fs::write(&marker, "").expect("write the incomplete-build marker");
     fs::remove_file(&postinstall_artifact).expect("remove the build artifact");
-    fs::write(&package_manifest, "{}").expect("corrupt a pristine package file");
+    corrupt_pristine_file(&package_manifest);
 
     eprintln!("Frozen reinstall with intact project links must rebuild the marked slot...");
     pacquet(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
