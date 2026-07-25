@@ -272,6 +272,21 @@ where
             .await?,
         );
     }
+    // Every importer hoists against the *root* importer's direct deps, not
+    // its own. Computed here — after the init barrier, so the root's initial
+    // wave has resolved — and shared unchanged for the rest of the install.
+    // An importer set that excludes the root leaves it empty, which turns the
+    // hoist picker's root short-circuit off for this install.
+    let root_deps = Arc::new(
+        states
+            .iter()
+            .find(|state| state.importer_id() == pacquet_lockfile::Lockfile::ROOT_IMPORTER_KEY)
+            .map(ImporterHoistState::hoistable_root_deps)
+            .unwrap_or_default(),
+    );
+    for state in &mut states {
+        state.set_workspace_root_deps(Arc::clone(&root_deps));
+    }
     loop {
         for state in &mut states {
             state.run_required_round(resolver).await?;

@@ -1689,3 +1689,76 @@ async fn fresh_resolved_parent_on_recorded_version_reuses_child_subtrees() {
         assert_eq!(graph_versions_of(&result, name), ["1.0.0"], "{name} must keep 1.0.0");
     }
 }
+
+/// `resolvePeersFromWorkspaceRoot` reads the *root* importer's direct
+/// deps, not the deps of whichever importer is hoisting. A non-root
+/// importer that pulls in a package with a `react` peer must get the
+/// root's `react`, even though the root's version doesn't satisfy the
+/// declared peer range — the setting exists to keep one copy across the
+/// workspace. Sourcing the picker from the hoisting importer instead
+/// left it with no candidate, and it resolved a second `react` from the
+/// range.
+#[tokio::test]
+async fn non_root_importer_hoists_the_root_importers_peer_provider() {
+    let (_root_tmp, root_manifest) = fake_manifest(serde_json::json!({ "react": "19.2.0" }));
+    let (_app_tmp, app_manifest) = fake_manifest(serde_json::json!({ "lucide": "1.0.0" }));
+    let importers = vec![
+        WorkspaceImporter { id: ".".to_string(), manifest: &root_manifest },
+        WorkspaceImporter { id: "app-b".to_string(), manifest: &app_manifest },
+    ];
+    let resolver = RecordingResolver {
+        table: HashMap::from([
+            (
+                ("react".to_string(), "19.2.0".to_string()),
+                fake_result(
+                    "react",
+                    "19.2.0",
+                    None,
+                    serde_json::json!({ "name": "react", "version": "19.2.0" }),
+                ),
+            ),
+            // Only reachable when the picker misses the root's `react`
+            // and falls back to resolving the peer range itself.
+            (
+                ("react".to_string(), "^18.0.0".to_string()),
+                fake_result(
+                    "react",
+                    "18.3.1",
+                    None,
+                    serde_json::json!({ "name": "react", "version": "18.3.1" }),
+                ),
+            ),
+            (
+                ("lucide".to_string(), "1.0.0".to_string()),
+                fake_result(
+                    "lucide",
+                    "1.0.0",
+                    None,
+                    serde_json::json!({
+                        "name": "lucide",
+                        "version": "1.0.0",
+                        "peerDependencies": { "react": "^18.0.0" },
+                    }),
+                ),
+            ),
+        ]),
+        seen: Mutex::new(HashMap::new()),
+    };
+    let mut opts = workspace_opts(false, false);
+    opts.auto_install_peers = true;
+    opts.resolve_peers_from_workspace_root = true;
+    let result =
+        resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
+            let mut importer_opts =
+                importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None);
+            importer_opts.resolve_peers_from_workspace_root = true;
+            importer_opts
+        })
+        .await
+        .expect("resolve workspace with a root-provided peer");
+
+    assert_eq!(graph_versions_of(&result, "react"), ["19.2.0"], "one react, the root's");
+    let app_deps = &result.peers.direct_dependencies_by_importer["app-b"];
+    assert_eq!(app_deps["react"].as_str(), "react@19.2.0");
+    assert_eq!(app_deps["lucide"].as_str(), "lucide@1.0.0(react@19.2.0)");
+}

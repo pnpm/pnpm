@@ -133,8 +133,9 @@ pub fn hoist_peers(
 }
 
 /// Pick an installable version for each missing optional peer, but only
-/// when at least one preferred version satisfies *every* recorded range.
-/// Returns `peer_name → version`.
+/// when at least one preferred version satisfies *every* recorded range
+/// under strict semver — prereleases do not count against a range that
+/// carries none. Returns `peer_name → version`.
 ///
 /// Version selectors may be plain entries produced while resolving or
 /// weighted entries seeded from the wanted lockfile. Both are eligible
@@ -158,11 +159,18 @@ pub fn get_hoistable_optional_peers(
                 continue;
             }
             let Ok(version) = version_str.parse::<Version>() else { continue };
-            if !ranges.iter().all(|range| {
-                range
-                    .parse::<Range>()
-                    .is_ok_and(|parsed| satisfies_including_prerelease(&parsed, &version))
-            }) {
+            // Strict semver, unlike the required-peer picker above: a
+            // prerelease is not an acceptable stand-in for a range that
+            // didn't ask for one. An optional peer nobody declared is
+            // installed only to deduplicate onto something the graph
+            // already has, so silently binding it to, say,
+            // `30.0.0-alpha.6` for `^29.0.0 || ^30.0.0` would split a
+            // package family across release lines to satisfy a peer that
+            // was fine left unresolved.
+            if !ranges
+                .iter()
+                .all(|range| range.parse::<Range>().is_ok_and(|parsed| parsed.satisfies(&version)))
+            {
                 continue;
             }
             if max_satisfying_version.as_ref().is_none_or(|cur| version > *cur) {
