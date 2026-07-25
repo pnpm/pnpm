@@ -113,7 +113,9 @@ pub struct InstallOptions {
     /// `peerDependencyRules` — how peer-dependency mismatches are treated.
     pub peer_dependency_rules: Option<PeerDependencyRulesInput>,
     /// Pre-computed `Authorization` header values keyed by nerf-darted registry
-    /// URI (`//host/path/`), plus `""` for the default registry.
+    /// URI (`//host/path/`), plus `""` for the default registry — which the
+    /// engine pins to the `registry` / `registries.default` passed alongside
+    /// it, never to a registry the project's own `.npmrc` names.
     pub auth_header_by_uri: Option<HashMap<String, String>>,
     pub pnpm_home_dir: Option<String>,
 }

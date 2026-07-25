@@ -37,15 +37,15 @@ use std::{
 pub use crate::defaults::{
     GLOBAL_LAYOUT_VERSION, PNPM_VERSION, available_parallelism, default_config_dir,
     default_git_shallow_hosts, default_peers_suffix_max_length, default_pnpm_home_dir,
-    default_unsafe_perm, default_virtual_store_dir_max_length, default_workspace_concurrency,
-    is_unsafe_perm_posix, resolve_child_concurrency,
+    default_registry, default_unsafe_perm, default_virtual_store_dir_max_length,
+    default_workspace_concurrency, is_unsafe_perm_posix, resolve_child_concurrency,
 };
 use crate::defaults::{
     default_cache_dir, default_child_concurrency, default_enable_global_virtual_store,
     default_fetch_retries, default_fetch_retry_factor, default_fetch_retry_maxtimeout,
     default_fetch_retry_mintimeout, default_fetch_timeout, default_hoist_pattern,
     default_modules_cache_max_age, default_modules_dir, default_public_hoist_pattern,
-    default_registry, default_store_dir, default_user_agent, default_virtual_store_dir,
+    default_store_dir, default_user_agent, default_virtual_store_dir,
 };
 pub use workspace_yaml::{
     AuditSettings, GLOBAL_CONFIG_YAML_FILENAME, LoadWorkspaceYamlError, PackageExtension,
@@ -2217,9 +2217,11 @@ impl Config {
         // Build the merge sources in priority order (high → low):
         // project `.npmrc` > `auth.ini` > user-level `.npmrc`. Each is
         // parsed and rescoped independently before being folded together.
-        let parse_trusted_source = |text: String, dir: PathBuf, label: &str| {
+        // The rescope warning names the file it read, so each source
+        // labels itself with the path it was actually loaded from.
+        let parse_trusted_source = |text: String, dir: PathBuf, path: &Path| {
             let mut auth = NpmrcAuth::from_ini::<Sys>(&text, &dir);
-            auth.rescope_unscoped(label);
+            auth.rescope_unscoped(&path.display().to_string());
             auth
         };
         let project_npmrc_dir =
@@ -2243,12 +2245,12 @@ impl Config {
             } else {
                 NpmrcAuth::from_project_ini::<Sys>(&text, project_npmrc_dir)
             };
-            auth.rescope_unscoped("<project>/.npmrc");
+            auth.rescope_unscoped(&project_npmrc_path.display().to_string());
             auth
         });
         let auth_ini_source = global_config_dir.as_deref().and_then(|dir| {
-            read_npmrc_file(&dir.join("auth.ini"))
-                .map(|text| parse_trusted_source(text, dir.to_path_buf(), "auth.ini"))
+            let path = dir.join("auth.ini");
+            read_npmrc_file(&path).map(|text| parse_trusted_source(text, dir.to_path_buf(), &path))
         });
         let user_source = match &user_npmrc_path {
             Some(path) => read_npmrc_file(path).map(|text| {
@@ -2257,10 +2259,11 @@ impl Config {
                 // that's the empty path — i.e. the process cwd — never
                 // the file itself.
                 let dir = path.parent().map(std::path::Path::to_path_buf).unwrap_or_default();
-                parse_trusted_source(text, dir, "<user>/.npmrc")
+                parse_trusted_source(text, dir, path)
             }),
             None => Sys::home_dir().and_then(|dir| {
-                read_npmrc(&dir).map(|text| parse_trusted_source(text, dir, "~/.npmrc"))
+                let path = dir.join(".npmrc");
+                read_npmrc(&dir).map(|text| parse_trusted_source(text, dir, &path))
             }),
         };
 
