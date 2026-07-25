@@ -905,19 +905,23 @@ where
             |selection| Some(selection.all_projects),
         );
 
-        // An unnarrowed install covers the whole workspace. A narrowed one
-        // already reported its own scope where the `--filter` was resolved,
-        // and so did the dedicated-lockfile plan that installs each selected
-        // project separately — this child install must not report the
-        // workspace over the top of it.
-        if selection.is_none()
-            && config.shared_workspace_lockfile
-            && let Some(projects) = workspace_projects
-        {
+        // Report what this run covers. A narrowed one already reported its
+        // own scope where the `--filter` was resolved, and so did the
+        // dedicated-lockfile plan that installs each selected project
+        // separately — those child installs must not report over the top
+        // of it.
+        //
+        // A full install (pnpm's `mutation: "install"`) is the workspace-wide
+        // one and counts every project; a partial one (`add`, `update`,
+        // `remove`, …) targets the project it was run in and reports the
+        // single-project shape, with no `total`, exactly as pnpm's
+        // non-recursive `scopeLogger` call does.
+        if selection.is_none() && config.shared_workspace_lockfile {
+            let workspace_wide = is_full_install.then_some(workspace_projects).flatten();
             Reporter::emit(&LogEvent::Scope(ScopeLog {
                 level: LogLevel::Debug,
-                selected: projects.len(),
-                total: Some(projects.len()),
+                selected: workspace_wide.map_or(1, <[_]>::len),
+                total: workspace_wide.map(<[_]>::len),
                 workspace_prefix: workspace_dir_opt
                     .as_deref()
                     .map(|dir| dir.to_string_lossy().into_owned()),
@@ -3693,18 +3697,29 @@ pub struct UpToDateFastPathCheck<'a> {
 
 /// Pre-runtime twin of the repeat-install short-circuit inside
 /// [`Install::run`]: same workspace discovery, same
+/// What an up-to-date install reports about the workspace it covered.
+#[derive(Debug, PartialEq, Eq)]
+pub struct UpToDateWorkspace {
+    /// The workspace root — the reporter `prefix` for the "Already up to
+    /// date" emission.
+    pub root: PathBuf,
+    /// How many projects the workspace has, or `None` when there is no
+    /// `pnpm-workspace.yaml`. Feeds the `pnpm:scope` report, which the
+    /// full install path derives from the same walk.
+    pub project_count: Option<usize>,
+}
+
 /// [`check_optimistic_repeat_install`] inputs, callable from a
 /// synchronous context so the CLI can finish an up-to-date install
 /// before paying for the async runtime, the HTTP client, and the
-/// state setup. Returns the workspace root — the reporter `prefix`
-/// for the "Already up to date" emission — when the install can
-/// short-circuit.
+/// state setup. Returns what the short-circuit covered when the install
+/// can take it.
 ///
 /// Failures deliberately collapse to `None`: the caller falls through
 /// to the full install path, which reproduces the failure with its
 /// established error shape.
 #[must_use]
-pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<PathBuf> {
+pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<UpToDateWorkspace> {
     let UpToDateFastPathCheck {
         config,
         manifest,
@@ -3784,7 +3799,10 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<P
             return None;
         }
     }
-    Some(workspace_root)
+    Some(UpToDateWorkspace {
+        root: workspace_root,
+        project_count: workspace_projects.as_ref().map(Vec::len),
+    })
 }
 
 /// Discovery twin of [`install_already_up_to_date`] for the

@@ -51,6 +51,15 @@ fn default_workspace() -> CommandTempCwd<AddMockedRegistry> {
 /// Everything the command printed. The reporter writes to stdout and
 /// diagnostics to stderr, and which stream a line lands on is not what
 /// these tests are about.
+/// The `pnpm:scope` records in an NDJSON run, decoded.
+fn scope_records(printed: &str) -> Vec<serde_json::Value> {
+    printed
+        .lines()
+        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .filter(|record| record["name"] == "pnpm:scope")
+        .collect()
+}
+
 fn output_of(mut command: Command) -> String {
     let output = command.output().expect("run pnpm");
     let printed = format!(
@@ -68,6 +77,13 @@ fn install_reports_the_whole_workspace_as_its_scope() {
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let printed = output_of(pacquet(&workspace).with_arg("install"));
+    assert!(printed.contains("Scope: all 3 workspace projects"), "output:\n{printed}");
+
+    // The repeat-install short-circuit is the common case, and it covers
+    // the same projects — it reports the scope rather than going quiet
+    // about what it just decided was current.
+    let printed = output_of(pacquet(&workspace).with_arg("install"));
+    assert!(printed.contains("Already up to date"), "the short-circuit ran:\n{printed}");
     assert!(printed.contains("Scope: all 3 workspace projects"), "output:\n{printed}");
 
     drop((mock_instance, root));
@@ -158,11 +174,37 @@ fn a_dedicated_lockfile_install_reports_its_scope_once() {
         "pkg-*",
         "--reporter=ndjson",
     ]));
-    let scopes: Vec<&str> =
-        printed.lines().filter(|line| line.contains(r#""name":"pnpm:scope""#)).collect();
+    let scopes = scope_records(&printed);
     assert_eq!(scopes.len(), 1, "exactly one scope record: {printed}");
-    assert!(scopes[0].contains(r#""selected":2"#), "the filtered count: {}", scopes[0]);
-    assert!(scopes[0].contains(r#""total":3"#), "the workspace total: {}", scopes[0]);
+    assert_eq!(scopes[0]["level"], "debug");
+    assert_eq!(scopes[0]["selected"], 2);
+    assert_eq!(scopes[0]["total"], 3);
+    assert_eq!(scopes[0]["workspacePrefix"], workspace.to_string_lossy().as_ref());
+
+    drop((mock_instance, root));
+}
+
+/// pnpm reports the workspace only for a run that covers it. A partial
+/// install targets the project it was run in, and says so with the
+/// single-project payload — `selected: 1` and no `total` — which is also
+/// what stops the reporter rendering a `Scope:` line for it.
+#[test]
+fn a_partial_install_reports_the_single_project_shape() {
+    let CommandTempCwd { workspace, root, npmrc_info, .. } = default_workspace();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    pacquet(&workspace).with_arg("install").assert().success();
+    let printed = output_of(pacquet(&workspace).with_args([
+        "add",
+        "@pnpm.e2e/hello-world-js-bin",
+        "--reporter=ndjson",
+    ]));
+
+    let scopes = scope_records(&printed);
+    assert_eq!(scopes.len(), 1, "exactly one scope record: {printed}");
+    assert_eq!(scopes[0]["selected"], 1);
+    assert!(scopes[0].get("total").is_none(), "no total: {}", scopes[0]);
+    assert_eq!(scopes[0]["workspacePrefix"], workspace.to_string_lossy().as_ref());
 
     drop((mock_instance, root));
 }

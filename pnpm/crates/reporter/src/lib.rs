@@ -791,11 +791,14 @@ pub struct PnpmLog {
 }
 
 /// `pnpm:scope` payload: how many workspace projects the command
-/// selected, out of how many the workspace has. `total` is absent when
-/// the command runs against a single project, and `workspace_prefix` is
-/// absent outside a workspace — the two shapes pnpm's `ScopeMessage`
-/// distinguishes, which its reporter renders as "projects" rather than
-/// "workspace projects".
+/// selected, out of how many the workspace has.
+///
+/// `total` accompanies a workspace-wide run — including a `--filter` that
+/// narrowed it to one project — and is absent from the single-project
+/// shape a command targeting only the project it was run in reports.
+/// `workspace_prefix` is absent outside a workspace, which is what makes
+/// the reporter say "projects" rather than "workspace projects". Both are
+/// the shapes pnpm's `ScopeMessage` distinguishes.
 #[derive(Debug, Clone, Serialize)]
 pub struct ScopeLog {
     pub level: LogLevel,
