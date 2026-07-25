@@ -189,6 +189,8 @@ async fn collect_outdated_for_importer_with_cache(
         .value()
         .get("name")
         .and_then(serde_json::Value::as_str)
+        // An empty name gives just as blank a label as no name at all.
+        .filter(|name| !name.is_empty())
         .map_or_else(|| importer_id.to_string(), str::to_string);
     let workspace = &workspace;
 
