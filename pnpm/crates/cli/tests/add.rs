@@ -268,8 +268,7 @@ fn add_workspace_root_tolerates_a_dir_that_does_not_exist() {
     drop(root); // cleanup
 }
 
-/// The counterpart to the tolerated nonexistent `--dir` above: one that
-/// climbs *out* of the workspace must not fall back to it.
+/// The counterpart to the tolerated nonexistent `--dir` above.
 #[test]
 fn add_workspace_root_rejects_a_dir_that_climbs_out_of_the_workspace() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
