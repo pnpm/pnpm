@@ -70,6 +70,27 @@ fn unkeyed_header_is_dropped_when_the_default_registry_is_unparsable() {
     assert!(by_uri.is_empty(), "{by_uri:?} should not carry the unkeyed header");
 }
 
+/// "Explicit wins" has to survive a host key spelled without the trailing
+/// slash: left un-normalized it would stay a separate entry here and only
+/// collide once `AuthHeaders` canonicalizes, letting map order pick the
+/// winner.
+#[test]
+fn an_explicit_key_missing_its_trailing_slash_still_wins() {
+    let overlay = ConfigOverlay {
+        registry: Some("https://trusted.example.com/".to_string()),
+        ..ConfigOverlay::default()
+    };
+    let headers = BTreeMap::from([
+        (String::new(), "Bearer unkeyed".to_string()),
+        ("//trusted.example.com".to_string(), "Bearer explicit".to_string()),
+    ]);
+
+    let by_uri = pin_unkeyed_header(&headers, &overlay_default_registry(&overlay));
+
+    assert_eq!(by_uri.get("//trusted.example.com/").map(String::as_str), Some("Bearer explicit"));
+    assert_eq!(by_uri.len(), 1);
+}
+
 #[test]
 fn a_header_the_host_keyed_explicitly_wins_over_the_unkeyed_one() {
     let overlay = ConfigOverlay {

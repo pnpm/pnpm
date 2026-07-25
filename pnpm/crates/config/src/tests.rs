@@ -1472,6 +1472,24 @@ pub fn rescoped_creds_are_reported_under_their_pinned_key() {
     assert!(!config.raw_auth_config.contains_key("_authToken"));
 }
 
+/// An unscoped `tokenHelper` is honored but has no INI-readable spelling
+/// of its own, so the parser never captures it verbatim. It is still
+/// reported under the key it was pinned to, matching a helper written
+/// URL-scoped by hand.
+#[test]
+pub fn rescoped_token_helper_is_reported_under_its_pinned_key() {
+    let auth = tempdir().expect("auth tempdir");
+    let user_file = auth.path().join("user-npmrc");
+    write_file(&user_file, "registry=https://trusted.example.com/\ntokenHelper=/bin/echo\n");
+
+    let config = load_with_project_and_user("", user_file);
+
+    assert_eq!(
+        config.raw_auth_config.get("//trusted.example.com/:tokenHelper").map(String::as_str),
+        Some("/bin/echo"),
+    );
+}
+
 /// `auth.ini` (in the global config dir) with no `registry=` of its
 /// own falls back to the npmjs default for its unscoped creds — it
 /// does not borrow the user file's or workspace's registry.

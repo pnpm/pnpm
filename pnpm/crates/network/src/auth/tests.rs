@@ -476,6 +476,15 @@ fn unkeyed_creds_are_dropped_rather_than_bound_to_the_default_registry() {
     assert_eq!(headers.for_url("https://reg.com/pkg").as_deref(), Some("Bearer scoped-token"));
 }
 
+/// Keys are canonicalized as they are collected, so a caller's
+/// trailing-slash-less spelling reaches the same slot as the canonical
+/// one instead of surviving as a second entry that races with it.
+#[test]
+fn a_key_without_its_trailing_slash_lands_on_the_canonical_uri() {
+    let headers = build(&[("//reg.com", "Bearer token")]);
+    assert_eq!(headers.for_url("https://reg.com/pkg").as_deref(), Some("Bearer token"));
+}
+
 #[test]
 fn registry_with_pathname_matches_with_explicit_port() {
     let headers = build(&[("//custom.domain.com/artifactory/api/npm/npm-virtual/", "Bearer xyz")]);

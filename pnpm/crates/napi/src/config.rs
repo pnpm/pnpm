@@ -37,7 +37,7 @@ use pacquet_config::{
     Config, GetHomeDir, Host, LinkWorkspacePackages, LoadWorkspaceYamlError, NodeLinker,
     PackageImportMethod, default_registry,
 };
-use pacquet_network::{AuthHeaders, ProxyConfig, TlsConfig, nerf_dart};
+use pacquet_network::{AuthHeaders, ProxyConfig, TlsConfig, nerf_dart, normalize_auth_key};
 use pacquet_store_dir::StoreDir;
 
 /// Host-supplied config values. Every field is optional: `None` keeps the
@@ -414,7 +414,10 @@ fn pin_unkeyed_header(
         if uri.is_empty() {
             unkeyed = Some(header);
         } else {
-            by_uri.insert(uri.clone(), header.clone());
+            // Normalized on the way in, so a host key spelled without the
+            // trailing slash still counts as "already keyed at that URI"
+            // below instead of colliding with the pinned entry later.
+            by_uri.insert(normalize_auth_key(uri.clone()), header.clone());
         }
     }
     let default_uri = nerf_dart(default_registry);

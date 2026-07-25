@@ -182,7 +182,16 @@ impl AuthHeaders {
     where
         Iter: IntoIterator<Item = (String, String)>,
     {
-        Self::from_map(headers.into_iter().filter(|(uri, _)| !uri.is_empty()).collect())
+        Self::from_map(
+            headers
+                .into_iter()
+                .filter(|(uri, _)| !uri.is_empty())
+                // Normalize before collecting: two spellings of one URI
+                // (`//reg.com` and `//reg.com/`) must collapse here rather
+                // than survive as distinct keys and race in [`Self::from_map`].
+                .map(|(uri, header)| (normalize_auth_key(uri), header))
+                .collect(),
+        )
     }
 
     /// Build an [`AuthHeaders`] directly from an already-keyed map.
@@ -545,7 +554,11 @@ impl AuthHeaders {
     }
 }
 
-fn normalize_auth_key(mut uri: String) -> String {
+/// Canonicalize an auth-map key to the trailing-slash form the lookup
+/// compares against, so `//reg.com` and `//reg.com/` cannot coexist as
+/// two entries for one registry.
+#[must_use]
+pub fn normalize_auth_key(mut uri: String) -> String {
     if !uri.is_empty() && !uri.ends_with('/') {
         uri.push('/');
     }

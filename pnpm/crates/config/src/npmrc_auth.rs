@@ -664,6 +664,22 @@ impl NpmrcAuth {
             return;
         }
         let names = unscoped.join(", ");
+        // Take each setting's raw INI spelling along with its structured
+        // value, so both move to the pinned key together. `tokenHelper` is
+        // not an INI-readable key on its own ([`is_ini_config_key`] mirrors
+        // npm, which has no unscoped form), so the parser never captured it
+        // — its raw value comes from the parsed credential instead.
+        let raw_values: Vec<(&str, String)> = unscoped
+            .iter()
+            .filter_map(|key| {
+                self.raw_ini_config
+                    .remove(*key)
+                    .or_else(|| {
+                        (*key == "tokenHelper").then(|| creds.token_helper.clone()).flatten()
+                    })
+                    .map(|value| (*key, value))
+            })
+            .collect();
 
         let declared_registry = self
             .registry
@@ -679,13 +695,10 @@ impl NpmrcAuth {
         let uri = pacquet_network::nerf_dart(&target_registry);
         if uri.is_empty() {
             // Unparsable registry (e.g. an unresolved `${VAR}`). Drop
-            // the unscoped material rather than risk sending it to the
-            // wrong host.
-            for raw_key in &unscoped {
-                self.raw_ini_config.remove(*raw_key);
-            }
+            // the unscoped material — already taken above — rather than
+            // risk sending it to the wrong host.
             self.warnings.push(format!(
-                "Unscoped per-registry settings ({names}) in {source_label:?} were ignored: \
+                "Unscoped per-registry settings ({names}) in \"{source_label}\" were ignored: \
                  the source's \"registry\" value ({declared_registry:?}) is not a parseable URL, \
                  so pnpm cannot pin them anywhere safe. Write them URL-scoped \
                  (e.g. \"//registry.example.com/:_authToken=...\") to send them to a specific \
@@ -713,13 +726,11 @@ impl NpmrcAuth {
                 entry.key.get_or_insert(private_key);
             }
         }
-        for raw_key in &unscoped {
-            if let Some(value) = self.raw_ini_config.remove(*raw_key) {
-                self.raw_ini_config.entry(format!("{uri}:{raw_key}")).or_insert(value);
-            }
+        for (raw_key, value) in raw_values {
+            self.raw_ini_config.entry(format!("{uri}:{raw_key}")).or_insert(value);
         }
         self.warnings.push(format!(
-            "Unscoped per-registry settings ({names}) in {source_label:?} are deprecated. \
+            "Unscoped per-registry settings ({names}) in \"{source_label}\" are deprecated. \
              pnpm pinned them to {uri:?} for this run, but a future release will stop supporting \
              unscoped per-registry settings. Write them as \"{uri}:{}=...\" instead.",
             unscoped[0],
