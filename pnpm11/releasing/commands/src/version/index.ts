@@ -247,7 +247,9 @@ async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string>
     enforceWorkspaceProtocol: true,
   }
   const publishedNames = publishedNameByManifestName(projects)
-  const unpublishedDirs = await resolveUnpublishedDirs(assembleReleasePlan(baseArgs), { ...opts, publishedNames })
+  // In dry-run mode we only print the release plan, so there is no need to
+  // probe the registry for already-published versions.
+  const unpublishedDirs = opts.dryRun ? undefined : await resolveUnpublishedDirs(assembleReleasePlan(baseArgs), { ...opts, publishedNames })
   const plan = assembleReleasePlan({ ...baseArgs, unpublishedDirs })
 
   const applyOpts: ApplyReleasePlanOptions = {

@@ -388,8 +388,13 @@ impl VersionArgs {
                 },
             )
         };
-        let unpublished_dirs =
-            unpublished_release_dirs(config, &assemble(HashSet::new())?, &published_names).await?;
+        // In dry-run mode we only print the release plan, so there is no need
+        // to probe the registry for already-published versions.
+        let unpublished_dirs = if self.dry_run {
+            HashSet::new()
+        } else {
+            unpublished_release_dirs(config, &assemble(HashSet::new())?, &published_names).await?
+        };
         let plan = assemble(unpublished_dirs)?;
 
         if plan.releases.is_empty() {

@@ -41,6 +41,9 @@ describe('version command', () => {
     expect(types['git-tag-version']).toBe(Boolean)
     expect(types['sign-git-tag']).toBe(Boolean)
     expect(types.recursive).toBe(Boolean)
+    // Regression: --dry-run must be a known CLI option so that `pnpm version -r --dry-run`
+    // is not rejected with "Unknown option: 'dry-run'" (https://github.com/pnpm/pnpm/issues/13271).
+    expect(types['dry-run']).toBe(Boolean)
   })
 
   it('should throw error with invalid bump type', async () => {

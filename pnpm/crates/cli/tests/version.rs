@@ -846,3 +846,40 @@ fn version_recursive_json_prints_applied_releases_when_pending_changes() {
 
     drop(root);
 }
+
+// Regression: https://github.com/pnpm/pnpm/issues/13271
+// `pnpm version -r --dry-run` was rejected with "Unknown option: 'dry-run'" because
+// --dry-run was not registered in the version command's arg schema.
+#[test]
+fn recursive_dry_run_is_accepted_as_a_known_flag() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    write_two_package_workspace(&workspace);
+    fs::create_dir_all(workspace.join(".changeset")).expect("create .changeset");
+    fs::write(
+        workspace.join(".changeset").join("bump-pkg-a.md"),
+        "---\n\"pkg-a\": minor\n---\n\nA change.\n",
+    )
+    .expect("write change intent");
+
+    // All three argument orderings that were broken must succeed.
+    for args in [
+        vec!["version", "-r", "--dry-run"],
+        vec!["version", "-r", "--no-git-checks", "--dry-run"],
+        vec!["-r", "version", "--dry-run"],
+    ] {
+        let output = pacquet_recursive_version(&workspace, &args);
+        // --dry-run only prints the release plan without mutating files, so
+        // the command must succeed regardless of git state.
+        assert!(
+            output.status.success(),
+            "pnpm {args:?} must not fail with 'Unknown option':\n{}",
+            stderr_of(&output),
+        );
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(
+            stdout.contains("Release plan:"),
+            "pnpm {args:?}: expected release plan in stdout:\n{stdout}",
+        );
+    }
+    drop(root);
+}
