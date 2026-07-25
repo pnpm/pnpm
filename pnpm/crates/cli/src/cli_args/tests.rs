@@ -674,8 +674,12 @@ fn workspace_root_conflicts_with_global_for_every_subcommand() {
                 .apply_workspace_root()
                 .expect_err(&format!("{subcommand:?} must reject -w with {global}"));
 
-            dbg!(subcommand, global, &error);
-            assert!(matches!(error, WorkspaceRootError::GlobalConflict), "{subcommand:?} {global}");
+            // The message carries what `dbg!` would, without 24 lines of it
+            // on the way past.
+            assert!(
+                matches!(error, WorkspaceRootError::GlobalConflict),
+                "{subcommand:?} {global}: {error:?}",
+            );
         }
     }
 }
