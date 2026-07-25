@@ -25,7 +25,7 @@ pub struct ApproveBuildsArgs {
     pub all: bool,
 
     /// Approve builds for globally installed packages (not supported yet).
-    #[clap(long)]
+    #[clap(short = 'g', long)]
     pub global: bool,
 }
 
