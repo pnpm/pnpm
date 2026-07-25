@@ -231,6 +231,61 @@ fn frozen_install_accepts_auto_installed_workspace_peer() {
     drop((root, mock_instance));
 }
 
+/// Regression for [#13325](https://github.com/pnpm/pnpm/issues/13325):
+/// with `autoInstallPeers: false`, an optional peer that a sibling
+/// importer's resolution makes available must not turn into a direct
+/// dependency of the importer that only declares it as an optional
+/// peer.
+#[test]
+fn optional_peer_stays_out_of_the_importer_without_auto_install_peers() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } = two_project_workspace(
+        &serde_json::json!({
+            "name": "pkg-a",
+            "version": "1.0.0",
+            "dependencies": { "@pnpm.e2e/abc-optional-peers": "1.0.0" },
+            "peerDependencies": { "@pnpm.e2e/peer-c": "^1.0.0" },
+            "peerDependenciesMeta": { "@pnpm.e2e/peer-c": { "optional": true } },
+        }),
+        &serde_json::json!({
+            "name": "pkg-b",
+            "version": "1.0.0",
+            "dependencies": { "@pnpm.e2e/peer-c": "1.0.0" },
+        }),
+    );
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    workspace_yaml.push_str("autoInstallPeers: false\n");
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    pacquet_at(&workspace).with_arg("install").assert().success();
+
+    let lockfile =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    let a_section = lockfile
+        .split("  pkg-a:\n")
+        .nth(1)
+        .and_then(|tail| tail.split("\n  pkg-b:").next())
+        .expect("pnpm-lock.yaml missing pkg-a importer section");
+    eprintln!("pkg-a importer section:\n{a_section}");
+    // The peer-suffixed version of `abc-optional-peers` names `peer-c`
+    // too, so match the importer entry's own key.
+    assert!(
+        !a_section.contains("'@pnpm.e2e/peer-c':"),
+        "optional peer added to pkg-a under `autoInstallPeers: false`\n{lockfile}",
+    );
+    assert!(
+        !workspace.join("pkg-a/node_modules/@pnpm.e2e/peer-c").exists(),
+        "optional peer linked into pkg-a under `autoInstallPeers: false`",
+    );
+
+    pacquet_at(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn changed_workspace_importer_invalidates_lockfile() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } = two_project_workspace(
