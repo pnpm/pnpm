@@ -464,10 +464,7 @@ fn install_level_modified_patch_is_reapplied() {
     drop((root, mock_instance));
 }
 
-/// Regression test for <https://github.com/pnpm/pnpm/issues/13307>: a
-/// lockfile committed by pnpm 10 records each patched dependency as a
-/// `{hash, path}` mapping instead of the bare hash. Installing over it
-/// used to abort with `ERR_PNPM_BROKEN_LOCKFILE`, frozen or not.
+/// Regression test for <https://github.com/pnpm/pnpm/issues/13307>.
 #[test]
 fn install_reads_patched_dependencies_written_by_pnpm_10() {
     let (root, workspace, npmrc_info) =
