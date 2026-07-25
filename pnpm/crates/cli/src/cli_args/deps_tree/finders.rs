@@ -229,5 +229,5 @@ fn read_manifest_from_cafs(
     let manifest_entry = index.files.get("package.json")?;
     let manifest_path =
         store_dir.cas_file_path_by_mode(&manifest_entry.digest, manifest_entry.mode)?;
-    std::fs::read(manifest_path).ok().and_then(|bytes| serde_json::from_slice(&bytes).ok())
+    std::fs::read(manifest_path).ok().and_then(|bytes| parse_manifest_bytes(&bytes).ok())
 }

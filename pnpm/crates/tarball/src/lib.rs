@@ -2605,7 +2605,7 @@ async fn read_subdir_manifest(
     let bytes = tokio::fs::read(cas_path)
         .await
         .map_err(|source| TarballError::ReadLocalTarball { path: cas_path.clone(), source })?;
-    match serde_json::from_slice::<serde_json::Value>(&bytes) {
+    match parse_manifest_bytes(&bytes) {
         Ok(parsed) => Ok(normalize_bundled_manifest(&parsed)),
         Err(error) => {
             tracing::debug!(

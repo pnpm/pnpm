@@ -14,6 +14,7 @@ use pacquet_config::Config;
 use pacquet_graph_hasher::{detect_node_major, engine_name};
 use pacquet_lockfile::{EnvLockfile, PackageKey};
 use pacquet_package_manager::{AllowBuildPolicy, VirtualStoreLayout};
+use pacquet_package_manifest::parse_manifest;
 use pacquet_reporter::Reporter;
 use pacquet_store_dir::StoreDir;
 use serde_json::Value;
@@ -228,7 +229,7 @@ fn link_bins(pkg_dir: &Path, bin_dir: &Path) -> miette::Result<()> {
     let text = fs::read_to_string(&manifest_path)
         .into_diagnostic()
         .wrap_err_with(|| format!("read {}", manifest_path.display()))?;
-    let manifest: Value = serde_json::from_str(&text)
+    let manifest: Value = parse_manifest(&text)
         .into_diagnostic()
         .wrap_err_with(|| format!("parse {}", manifest_path.display()))?;
     let source = PackageBinSource::new(pkg_dir.to_path_buf(), Arc::new(manifest));

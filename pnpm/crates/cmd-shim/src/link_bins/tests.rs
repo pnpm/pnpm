@@ -221,6 +221,27 @@ fn link_bins_propagates_parse_manifest_error() {
     );
 }
 
+/// A dependency whose `package.json` carries a UTF-8 BOM must still get
+/// its bins linked; rejecting the manifest here would fail the install
+/// after extraction had already accepted the package.
+#[test]
+fn link_bins_links_a_package_whose_manifest_starts_with_a_utf8_bom() {
+    let tmp = tempdir().unwrap();
+    let modules = tmp.path().join("node_modules");
+    create_dir_all(modules.join("bom")).unwrap();
+    write_file(
+        modules.join("bom/package.json"),
+        format!("\u{feff}{}", json!({"name": "bom", "bin": "cli.js"})),
+    )
+    .unwrap();
+    write_file(modules.join("bom/cli.js"), "#!/usr/bin/env node\n").unwrap();
+
+    let bins = modules.join(".bin");
+    link_bins::<Host>(&modules, &bins, &[]).unwrap();
+
+    assert!(bins.join("bom").exists(), "missing shim for the BOM-prefixed package");
+}
+
 #[test]
 fn link_bins_skips_existing_shim_with_matching_marker() {
     let tmp = tempdir().unwrap();

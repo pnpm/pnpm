@@ -8,6 +8,7 @@ use pacquet_cmd_shim::{
 };
 use pacquet_config::{Config, NodeLinker};
 use pacquet_lockfile::{LockfileResolution, PackageKey, PackageMetadata, PkgName, SnapshotEntry};
+use pacquet_package_manifest::parse_manifest_bytes;
 use rayon::prelude::*;
 use std::{
     collections::{HashMap, HashSet},
@@ -108,7 +109,7 @@ fn link_named_dep_bins(
                     return Some(Err(LinkBinsError::ReadManifest { path: manifest_path, error }));
                 }
             };
-            let manifest: serde_json::Value = match serde_json::from_slice(&bytes) {
+            let manifest: serde_json::Value = match parse_manifest_bytes(&bytes) {
                 Ok(manifest) => manifest,
                 Err(error) => {
                     return Some(Err(LinkBinsError::ParseManifest { path: manifest_path, error }));
@@ -253,7 +254,7 @@ fn read_bin_sources(
                     return Some(Err(LinkBinsError::ReadManifest { path: manifest_path, error }));
                 }
             };
-            let manifest: serde_json::Value = match serde_json::from_slice(&bytes) {
+            let manifest: serde_json::Value = match parse_manifest_bytes(&bytes) {
                 Ok(manifest) => manifest,
                 Err(error) => {
                     return Some(Err(LinkBinsError::ParseManifest { path: manifest_path, error }));
@@ -824,7 +825,7 @@ fn read_package<Sys: FsReadFile>(
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(LinkBinsError::ReadManifest { path: manifest_path, error }),
     };
-    let manifest: serde_json::Value = serde_json::from_slice(&bytes)
+    let manifest: serde_json::Value = parse_manifest_bytes(&bytes)
         .map_err(|error| LinkBinsError::ParseManifest { path: manifest_path, error })?;
     Ok(Some(PackageBinSource::new(location.to_path_buf(), Arc::new(manifest))))
 }

@@ -6,6 +6,7 @@ use std::{fs::File, io::Read, path::Path};
 
 use flate2::read::GzDecoder;
 use pacquet_diagnostics::miette::{self, Diagnostic};
+use pacquet_package_manifest::parse_manifest;
 use serde_json::Value;
 
 const TARBALL_SUFFIXES: [&str; 2] = [".tar.gz", ".tgz"];
@@ -36,7 +37,7 @@ pub fn extract_manifest_from_packed(tarball_path: &str) -> Result<Value, Extract
         }
         let mut text = String::new();
         entry.read_to_string(&mut text).map_err(read_err)?;
-        return serde_json::from_str(&text).map_err(|source| ExtractManifestError::Parse {
+        return parse_manifest(&text).map_err(|source| ExtractManifestError::Parse {
             tarball_path: tarball_path.to_owned(),
             source,
         });
@@ -85,7 +86,7 @@ pub fn extract_publish_manifest_from_packed(
             tarball_path: tarball_path.to_owned(),
         })
     })?;
-    let mut manifest: Value = serde_json::from_str(&manifest_text).map_err(|source| {
+    let mut manifest: Value = parse_manifest(&manifest_text).map_err(|source| {
         ExtractManifestError::Parse { tarball_path: tarball_path.to_owned(), source }
     })?;
     if let Some(readme) = readme
