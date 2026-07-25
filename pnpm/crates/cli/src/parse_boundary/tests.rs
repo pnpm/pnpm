@@ -144,14 +144,16 @@ fn with_forwards_only_for_a_version_that_execs_a_child() {
         assert_eq!(actual, forwarded, "{argv:?}");
     }
 
-    for argv in [
-        ["with", "10", "install", "--config.foo=bar"].as_slice(),
-        &["with", "pnpm@9", "install", "--silent"],
+    // The whole child command line, command included — forwarding only the
+    // options would leave the child pnpm with nothing to run.
+    for (argv, forwarded) in [
+        (
+            ["with", "10", "install", "--config.foo=bar"].as_slice(),
+            ["install", "--config.foo=bar"].as_slice(),
+        ),
+        (&["with", "pnpm@9", "install", "--silent"], &["install", "--silent"]),
     ] {
-        let (_, forwarded) = split(argv);
-        assert!(
-            forwarded.contains(&argv[argv.len() - 1].to_string()),
-            "{argv:?} must forward its child's own options, got {forwarded:?}",
-        );
+        let (_, actual) = split(argv);
+        assert_eq!(actual, forwarded, "{argv:?}");
     }
 }
