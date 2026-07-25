@@ -62,13 +62,10 @@ pub struct ResolveImporterOptions {
     /// failure. This is the `autoInstallPeersFromHighestMatch` setting.
     pub auto_install_peers_from_highest_match: bool,
 
-    /// When true, the *workspace root* importer's direct deps are used
-    /// as `workspace_root_deps` for the hoist picker, so a peer matching
-    /// a root dep's alias / name short-circuits straight to that dep's
-    /// specifier. [`fn@crate::resolve_workspace`] supplies the root's
-    /// deps to every importer; on the single-importer
-    /// [`fn@resolve_importer`] path the importer is the root, so it
-    /// supplies its own.
+    /// When true, a missing peer matching one of the *workspace root*
+    /// importer's direct deps is installed from that dep's specifier.
+    /// [`fn@crate::resolve_workspace`] supplies the root's deps; the
+    /// single-importer [`fn@resolve_importer`] path supplies its own.
     pub resolve_peers_from_workspace_root: bool,
 
     /// Threaded into [`ResolvePeersOptions::dedupe_peers`] on every
@@ -289,24 +286,12 @@ pub(crate) struct ImporterHoistState {
     importer_id: String,
     ctx: TreeCtx,
     direct: Vec<DirectDep>,
-    /// The *workspace root* importer's direct deps, so a missing peer
-    /// whose name matches one of them short-circuits to that dep's
-    /// specifier — pnpm's `resolvePeersFromWorkspaceRoot`. Assigned by
-    /// the caller through [`Self::set_workspace_root_deps`] once every
-    /// importer's initial wave has resolved, and shared unchanged by
-    /// every importer for the rest of the install: the root's own
-    /// hoisted peers must not become root-dep candidates for the
-    /// importers hoisted after it. Empty until the caller assigns it,
-    /// and empty for good for an importer set with no root at all,
-    /// matching pnpm's absent-root-importer case.
+    /// Empty until the caller assigns it; see
+    /// [`ResolveImporterOptions::resolve_peers_from_workspace_root`].
     workspace_root_deps: Arc<Vec<WorkspaceRootDep>>,
-    /// `alias → bare_specifier` for the importer's own declared deps.
-    /// The hoist picker wants the specifier a peer provider would be
-    /// installed from, and the resolver only reports a
-    /// `normalized_bare_specifier` for specs that needed normalizing
-    /// (npm aliases, `workspace:`, ...) — a plain `"19.2.0"` arrives as
-    /// `None`. This is the fallback, and the source for deps the
-    /// resolver couldn't name at all.
+    /// `alias → bare_specifier` as declared. Stands in wherever the
+    /// resolver reports no normalized form — a plain `"19.2.0"` arrives
+    /// as `None`.
     wanted_specifier_by_alias: BTreeMap<String, String>,
     /// `NodeIds` appended to `direct` by
     /// [`Self::append_resolved_peer_providers`]. Threaded into
@@ -413,14 +398,10 @@ impl ImporterHoistState {
         })
     }
 
-    /// This importer's id, for the caller's root-importer lookup.
     pub(crate) fn importer_id(&self) -> &str {
         &self.importer_id
     }
 
-    /// The hoist-picker view of this importer's initial direct-dep wave.
-    /// The caller calls it on the root importer only, once, and feeds the
-    /// result to every importer's [`Self::set_workspace_root_deps`].
     pub(crate) fn hoistable_root_deps(&self) -> Vec<WorkspaceRootDep> {
         build_workspace_root_deps(
             &self.direct,
@@ -731,33 +712,23 @@ fn intersect_ranges(ranges: &[&str]) -> Option<String> {
     .map(|range| range.to_string())
 }
 
-/// Keep a specifier only if it means the same thing when resolved from
-/// an importer other than the root. Every candidate specifier passes
-/// through this one gate, whichever source it came from. See
-/// [`is_project_relative_specifier`] for what disqualifies one.
+/// The one gate every candidate specifier passes through, whatever its
+/// source. See [`is_project_relative_specifier`].
 fn cross_importer_specifier(spec: Option<String>) -> Option<String> {
     spec.filter(|spec| !is_project_relative_specifier(spec))
 }
 
-/// Whether a specifier resolves against the consuming project's own
-/// directory — the `link:` / `file:` / `workspace:` protocols, the same
-/// set `project_relative_cache_scope` scopes its resolution cache by. A
-/// root dep declared this way is not
-/// a candidate for another importer's missing peer: hoisting the
-/// specifier verbatim would resolve it relative to *that* importer and
-/// reach a different path, or nothing at all. Dropping it leaves the
-/// peer to the preferred-versions arm, which is where such deps sat
-/// before they could be named at all.
+/// `link:` / `file:` / `workspace:` resolve against the consuming
+/// project's directory, so the root's copy of one can't stand in for
+/// another importer's peer — the same specifier would reach a different
+/// path there, or nothing. Same set `project_relative_cache_scope` uses.
 fn is_project_relative_specifier(spec: &str) -> bool {
     spec.starts_with("link:") || spec.starts_with("file:") || spec.starts_with("workspace:")
 }
 
-/// The package's real name: the resolution-time `name_ver` when the
-/// resolver reported one, else the fetched manifest's `name`, which is
-/// the canonical source for the non-npm protocols that leave `name_ver`
-/// unset. `None` when neither is available — a git resolution reports
-/// no manifest until after the fetch, which is past the point the hoist
-/// picker runs.
+/// `name_ver`, else the manifest — the canonical name for the protocols
+/// that leave `name_ver` unset. `None` for a git resolution, which has
+/// neither until it is fetched.
 fn resolved_pkg_name(result: &pacquet_resolving_resolver_base::ResolveResult) -> Option<String> {
     if let Some(name_ver) = result.name_ver.as_ref() {
         return Some(name_ver.name.to_string());
@@ -765,17 +736,9 @@ fn resolved_pkg_name(result: &pacquet_resolving_resolver_base::ResolveResult) ->
     result.manifest.as_deref()?.get("name").and_then(serde_json::Value::as_str).map(str::to_string)
 }
 
-/// Build the [`WorkspaceRootDep`] slice the hoist picker sees. Reads
-/// `direct` for the slot names and `snapshot` for the resolved package
-/// each slot points at, with `declared` supplying the specifier
-/// whenever the resolver reports no normalized one.
-///
-/// The picker matches a peer against a root dep by alias *and* by real
-/// package name, so the name has to be the resolved one wherever it can
-/// be had — see [`resolved_pkg_name`]. A dep whose name can't be had at
-/// all still makes it in through `declared` under its alias: matching by
-/// alias alone beats dropping the root's provider entirely, and an alias
-/// usually *is* the package name.
+/// The picker matches by alias *and* by real package name, so a dep
+/// [`resolved_pkg_name`] can't name still enters under its alias —
+/// usually the package name anyway, and better than no candidate.
 fn build_workspace_root_deps(
     direct: &[DirectDep],
     snapshot: &ResolvedTree,

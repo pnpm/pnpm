@@ -303,8 +303,6 @@ fn get_hoistable_optional_peers_rejects_prerelease_against_non_prerelease_range(
     assert_eq!(result, BTreeMap::new());
 }
 
-/// A prerelease inside the range's span is rejected too — the check is
-/// plain semver, not "reject only prereleases below the lower bound".
 #[test]
 fn get_hoistable_optional_peers_rejects_prerelease_within_the_range_span() {
     let preferred = preferred(&[(

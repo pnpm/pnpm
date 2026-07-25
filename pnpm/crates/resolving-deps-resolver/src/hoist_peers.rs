@@ -134,8 +134,7 @@ pub fn hoist_peers(
 
 /// Pick an installable version for each missing optional peer, but only
 /// when at least one preferred version satisfies *every* recorded range
-/// under strict semver — prereleases do not count against a range that
-/// carries none. Returns `peer_name → version`.
+/// under strict semver. Returns `peer_name → version`.
 ///
 /// Version selectors may be plain entries produced while resolving or
 /// weighted entries seeded from the wanted lockfile. Both are eligible
@@ -149,9 +148,8 @@ pub fn get_hoistable_optional_peers(
     let mut optional_dependencies = BTreeMap::new();
     for (peer_name, ranges) in all_missing_optional_peers {
         let Some(selectors) = all_preferred_versions.get(peer_name) else { continue };
-        // Parsed once per peer, not once per candidate version. An
-        // unparsable range leaves no version satisfying every range, so
-        // bailing here matches checking and failing per candidate.
+        // An unparsable range is satisfied by nothing, so bailing on the
+        // peer matches failing the check per candidate.
         let Ok(parsed_ranges) =
             ranges.iter().map(|range| range.parse::<Range>()).collect::<Result<Vec<_>, _>>()
         else {
@@ -167,14 +165,10 @@ pub fn get_hoistable_optional_peers(
                 continue;
             }
             let Ok(version) = version_str.parse::<Version>() else { continue };
-            // Strict semver, unlike the required-peer picker above: a
-            // prerelease is not an acceptable stand-in for a range that
-            // didn't ask for one. An optional peer nobody declared is
-            // installed only to deduplicate onto something the graph
-            // already has, so silently binding it to, say,
-            // `30.0.0-alpha.6` for `^29.0.0 || ^30.0.0` would split a
-            // package family across release lines to satisfy a peer that
-            // was fine left unresolved.
+            // Strict, unlike the required-peer picker above: an optional
+            // peer nobody declared is installed only to deduplicate, so a
+            // prerelease its range rejects is not worth splitting a
+            // package family over.
             if !parsed_ranges.iter().all(|parsed| parsed.satisfies(&version)) {
                 continue;
             }

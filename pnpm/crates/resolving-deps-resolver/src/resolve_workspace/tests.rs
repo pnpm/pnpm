@@ -1690,14 +1690,9 @@ async fn fresh_resolved_parent_on_recorded_version_reuses_child_subtrees() {
     }
 }
 
-/// `resolvePeersFromWorkspaceRoot` reads the *root* importer's direct
-/// deps, not the deps of whichever importer is hoisting. A non-root
-/// importer that pulls in a package with a `react` peer must get the
-/// root's `react`, even though the root's version doesn't satisfy the
-/// declared peer range — the setting exists to keep one copy across the
-/// workspace: if the picker were sourced from the hoisting importer, it
-/// would find no candidate there and resolve a second `react` from the
-/// range.
+/// The root's `react` wins even though it doesn't satisfy `lucide-react`'s
+/// declared peer range: keeping one copy across the workspace is the point
+/// of the setting.
 #[tokio::test]
 async fn non_root_importer_hoists_the_root_importers_peer_provider() {
     let (_root_tmp, root_manifest) = fake_manifest(serde_json::json!({ "react": "19.2.0" }));
@@ -1717,8 +1712,6 @@ async fn non_root_importer_hoists_the_root_importers_peer_provider() {
                     serde_json::json!({ "name": "react", "version": "19.2.0" }),
                 ),
             ),
-            // Only reachable when the picker misses the root's `react`
-            // and falls back to resolving the peer range itself.
             (
                 ("react".to_string(), "^18.0.0".to_string()),
                 fake_result(
@@ -1763,12 +1756,8 @@ async fn non_root_importer_hoists_the_root_importers_peer_provider() {
     assert_eq!(app_deps["lucide"].as_str(), "lucide@1.0.0(react@19.2.0)");
 }
 
-/// A tarball / git / local root dep is only recognizable as a peer
-/// provider by its *resolved* name: those resolvers leave `name_ver`
-/// unset, and the alias it was declared under need not match. Falling
-/// back to the fetched manifest's `name` keeps the picker able to match
-/// it — without that, the peer misses the root's copy and resolves its
-/// own from the registry.
+/// A tarball / git / local root dep leaves `name_ver` unset, and the alias
+/// it was declared under need not be its name.
 #[tokio::test]
 async fn root_dep_named_only_by_its_manifest_still_provides_the_peer() {
     const TARBALL: &str = "https://tarballs.example/real-peer-1.0.0.tgz";
@@ -1786,14 +1775,11 @@ async fn root_dep_named_only_by_its_manifest_still_provides_the_peer() {
     );
     unnamed.name_ver = None;
     unnamed.id = pacquet_resolving_resolver_base::PkgResolutionId::from(TARBALL.to_string());
-    // Declared as `aliased`, so only the manifest reveals `real-peer`.
     unnamed.alias = Some("aliased".to_string());
     let resolver = RecordingResolver {
         table: HashMap::from([
             (("aliased".to_string(), TARBALL.to_string()), unnamed.clone()),
             (("real-peer".to_string(), TARBALL.to_string()), unnamed),
-            // Only reachable when the picker fails to recognize the
-            // root's tarball dep as `real-peer`.
             (
                 ("real-peer".to_string(), "^1.0.0".to_string()),
                 fake_result(
@@ -1839,15 +1825,10 @@ async fn root_dep_named_only_by_its_manifest_still_provides_the_peer() {
     );
 }
 
-/// A `file:` root dep is not a peer-provider candidate: the specifier
-/// resolves against the consuming project's directory, so handing it to
-/// another importer would point at a path relative to *that* importer.
-/// The peer falls through to normal resolution instead.
-///
-/// Run for both shapes a local resolution can take, because they reach
-/// the guard by different routes: with a manifest the dep is nameable
-/// and carries the resolver's own specifier, without one it is named by
-/// its alias from the declared specifier.
+/// Both shapes a local resolution can take reach the guard by different
+/// routes: with a manifest the dep is nameable and carries the resolver's
+/// own specifier, without one it is named by its alias from the declared
+/// specifier.
 #[tokio::test]
 async fn a_project_relative_root_dep_is_not_offered_as_a_peer_provider() {
     project_relative_root_dep_is_not_a_provider(ManifestAvailability::Absent).await;
@@ -1872,8 +1853,6 @@ async fn project_relative_root_dep_is_not_a_provider(manifest: ManifestAvailabil
         WorkspaceImporter { id: ".".to_string(), manifest: &root_manifest },
         WorkspaceImporter { id: "app-b".to_string(), manifest: &app_manifest },
     ];
-    // A local tarball reports neither `name_ver` nor a manifest until it
-    // is fetched, so the declared specifier is all the picker could use.
     let mut unnamed = fake_result(
         "real-peer",
         "1.0.0",
