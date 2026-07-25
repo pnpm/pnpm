@@ -146,13 +146,11 @@ impl RunArgs {
         // spawning a doomed install (see check_deps_status_before_run_at).
         super::verify_deps::verify_deps_before_run(dir, config, silent)?;
         let RunArgs { script, if_present, sequential, .. } = self;
-        let mut script = script.into_iter();
-        let Some(script_name) = script.next() else {
+        let Some((script_name, args)) = script.split_first() else {
             let manifest = read_project_manifest_only(dir).map_err(RunError::Manifest)?;
             println!("{}", render_project_commands(manifest.value()));
             return Ok(());
         };
-        let args: Vec<String> = script.collect();
         let manifest = match read_project_manifest_only(dir) {
             Ok(manifest) => manifest,
             Err(ReadProjectManifestOnlyError::NoImporterManifestFound { .. })
@@ -163,13 +161,13 @@ impl RunArgs {
             Err(err) => return Err(RunError::Manifest(err).into()),
         };
 
-        let mut specified = specified_scripts(manifest.value(), &script_name);
+        let mut specified = specified_scripts(manifest.value(), script_name);
 
         // Hidden scripts (names starting with `.`) can only be invoked
         // from within another script, detected by an inherited
         // `npm_lifecycle_event`.
         if env::var_os("npm_lifecycle_event").is_none() {
-            specified = throw_or_filter_hidden_scripts(specified, &script_name)?;
+            specified = throw_or_filter_hidden_scripts(specified, script_name)?;
         }
 
         if specified.is_empty() {
@@ -218,7 +216,7 @@ impl RunArgs {
             if args.is_empty() && main == "npx only-allow pnpm" {
                 continue;
             }
-            let status = run_stages(&ctx, name, &main, &args)?;
+            let status = run_stages(&ctx, name, &main, args)?;
             if !status.success() {
                 // A failing script sets the process exit code.
                 // `run_stage` already emitted the `[ELIFECYCLE]` line.
@@ -238,13 +236,13 @@ impl RunArgs {
 }
 
 fn exec_fallback(
-    script_name: String,
-    args: Vec<String>,
+    script_name: &str,
+    args: &[String],
     dir: &Path,
     config: &Config,
 ) -> miette::Result<()> {
     ExecArgs {
-        command: std::iter::once(script_name).chain(args).collect(),
+        command: RunArgs::script(script_name, args.iter().cloned()),
         shell_mode: false,
         resume_from: None,
         report_summary: false,

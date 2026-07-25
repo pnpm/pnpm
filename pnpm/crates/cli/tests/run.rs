@@ -83,37 +83,70 @@ fn run_passes_extra_arguments_to_the_script() {
 
 /// `pnpm run <script> -- <args>` forwards the separator, so an argument
 /// shaped like an option of the script's own program reaches the script
-/// instead of being claimed by it (pnpm/pnpm#13295). Asserted on what the
-/// script received, not on the echoed command line.
+/// instead of being claimed by it (pnpm/pnpm#13295). Asserts what the
+/// script received rather than the echoed command line, and mirrors the
+/// TypeScript counterpart in `pnpm11/pnpm/test/run.ts` ("run: pass the
+/// args to the command that is specified in the build script"), down to
+/// only the main stage seeing the arguments.
 #[test]
 fn run_forwards_the_separator_and_option_shaped_arguments() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    let marker_path = workspace.join("args.json");
-    // `node -e` claims any option-shaped argument that reaches it before
-    // a `--`, exiting 9 with "bad option" — which is the failure this
-    // guards against, so the script has to be a program that would.
-    let script = format!(
-        r#"node -e "require('fs').writeFileSync({}, JSON.stringify(process.argv.slice(1)))""#,
-        serde_json::to_string(&marker_path.to_string_lossy().into_owned())
-            .expect("encode marker path")
-            .replace('"', "'"),
-    );
+    // A recorder file rather than an inlined `node -e` program, so no
+    // path has to survive quoting into a JS string literal on either
+    // platform. Same approach as the TypeScript test.
+    fs::write(
+        workspace.join("recordArgs.js"),
+        "require('fs').writeFileSync('args.json', \
+JSON.stringify(require('./args.json').concat([process.argv.slice(2)])), 'utf8')",
+    )
+    .expect("write recordArgs.js");
+    fs::write(workspace.join("args.json"), "[]").expect("seed args.json");
     fs::write(
         workspace.join("package.json"),
         json!({
             "name": "test",
             "version": "0.0.0",
-            "scripts": { "show": script },
+            "scripts": {
+                "prefoo": "node recordArgs",
+                "foo": "node recordArgs",
+                "postfoo": "node recordArgs",
+            },
         })
         .to_string(),
     )
     .expect("write package.json");
 
-    pacquet.with_args(["run", "show", "--", "--other=1", "-s", "--if-present"]).assert().success();
+    pacquet
+        .with_args([
+            "--config.enable-pre-post-scripts",
+            "run",
+            "foo",
+            "arg",
+            "--",
+            "--other=1",
+            "-s",
+            "--if-present",
+        ])
+        .assert()
+        .success();
 
-    let written = fs::read_to_string(&marker_path).expect("read marker");
-    let received: Vec<String> = serde_json::from_str(&written).expect("parse marker");
-    assert_eq!(received, ["--other=1", "-s", "--if-present"]);
+    let recorded: Vec<Vec<String>> =
+        serde_json::from_str(&fs::read_to_string(workspace.join("args.json")).expect("read args"))
+            .expect("parse args.json");
+    assert_eq!(
+        recorded,
+        vec![
+            Vec::<String>::new(),
+            vec![
+                "arg".to_string(),
+                "--".to_string(),
+                "--other=1".to_string(),
+                "-s".to_string(),
+                "--if-present".to_string(),
+            ],
+            Vec::<String>::new(),
+        ],
+    );
 
     drop(root);
 }
