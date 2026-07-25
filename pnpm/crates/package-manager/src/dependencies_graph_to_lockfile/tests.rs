@@ -1,6 +1,6 @@
 use super::{
     DependenciesGraphToLockfileError, GraphToLockfileOptions, ImporterLockfileInput,
-    dependencies_graph_to_lockfile as try_dependencies_graph_to_lockfile,
+    dependencies_graph_to_lockfile as try_dependencies_graph_to_lockfile, read_string_or_list,
 };
 use indexmap::IndexMap;
 use pacquet_deps_path::DepPath;
@@ -235,6 +235,18 @@ fn fresh_install_records_string_libc_without_coercing_scalar_bundle_metadata() {
     let metadata = &lockfile.packages.as_ref().expect("packages")[&package_key];
     assert_eq!(metadata.libc.as_deref(), Some(["musl".to_string()].as_slice()));
     assert!(metadata.bundled_dependencies.is_none());
+}
+
+#[test]
+fn string_or_list_metadata_accepts_arrays_and_rejects_other_values() {
+    let array_manifest = json!({ "libc": ["glibc", "musl"] });
+    assert_eq!(
+        read_string_or_list(Some(&array_manifest), "libc"),
+        Some(vec!["glibc".to_string(), "musl".to_string()]),
+    );
+
+    let object_manifest = json!({ "libc": { "name": "musl" } });
+    assert_eq!(read_string_or_list(Some(&object_manifest), "libc"), None);
 }
 
 #[test]
