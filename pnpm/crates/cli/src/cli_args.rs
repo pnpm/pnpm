@@ -31,6 +31,7 @@ pub mod import;
 pub mod install;
 pub mod install_test;
 pub mod lane;
+pub(crate) mod legacy_pnpm_field;
 pub mod licenses;
 pub mod link;
 pub mod list;
