@@ -1842,6 +1842,11 @@ where
     let is_leaf = is_link || pkg_is_leaf(&result);
     let node_id = if is_leaf { NodeId::leaf(&id) } else { NodeId::next() };
 
+    // The claim is taken while holding the `packages` lock so claims and
+    // envelope writes stay in the same order: an occurrence that lost the
+    // claim in between would otherwise leave its peer set on an envelope
+    // whose children the winning occurrence walked.
+    let mut packages = lock_recoverable(&ctx.workspace.packages);
     let children_owner = claim_children_owner(
         ctx,
         &id,
@@ -1853,13 +1858,11 @@ where
             ctx.workspace.auto_install_peers,
         ),
     );
-
     let peer_dependencies = if is_link {
         BTreeMap::new()
     } else {
         extract_peer_dependencies(&result, &children_owner.peer_shadowed)
     };
-    let mut packages = lock_recoverable(&ctx.workspace.packages);
     if let Some(existing) = packages.get_mut(&id) {
         existing.optional = existing.optional && current_is_optional;
         // A fresh claim can shadow a different set of dependencies than
