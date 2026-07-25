@@ -82,7 +82,7 @@ pub(crate) fn update_choices(
     outdated: &[&OutdatedPackage],
     workspaces_enabled: bool,
 ) -> Vec<ChoiceGroup> {
-    let mut seen: HashMap<ChoiceKey, usize> = HashMap::new();
+    let mut seen: HashMap<ChoiceKey<'_>, usize> = HashMap::new();
     let mut choices: Vec<Choice<'_>> = Vec::new();
     let mut grouped: Vec<(ChoiceGroupKind, Vec<usize>)> = Vec::new();
     for package in outdated {
@@ -91,8 +91,8 @@ pub(crate) fn update_choices(
         // package (`"a": "npm:foo@1"`, `"b": "npm:foo@1"`) are separate
         // dependencies and both have to be offered.
         let key = (
-            package.alias.clone(),
-            package.package_name.clone(),
+            package.alias.as_str(),
+            package.package_name.as_str(),
             package.current.to_string(),
             package.target.to_string(),
             package.github_action,
@@ -135,7 +135,7 @@ struct Choice<'a> {
     workspaces: Vec<String>,
 }
 
-type ChoiceKey = (String, String, String, String, bool);
+type ChoiceKey<'a> = (&'a str, &'a str, String, String, bool);
 
 /// The header row plus one row per offered dependency, padded so every
 /// column lines up within the group.

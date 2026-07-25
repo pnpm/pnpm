@@ -143,8 +143,8 @@ importers:
 #[tokio::test]
 async fn one_dependency_in_two_projects_keeps_both_workspaces() {
     let temp = tempfile::tempdir().expect("create temporary workspace");
-    let a = manifest_with_dependency(temp.path(), "packages/a", "foo");
-    let b = manifest_with_dependency(temp.path(), "packages/b", "foo");
+    let first = manifest_with_dependency(temp.path(), "packages/a", "foo");
+    let second = manifest_with_dependency(temp.path(), "packages/b", "foo");
     let lockfile: Lockfile = serde_saphyr::from_str(
         r"
 lockfileVersion: '9.0'
@@ -175,8 +175,8 @@ importers:
     let mut config = Config::new();
     config.registry = registry;
     let projects = [
-        InteractiveUpdateProject { manifest: &a, importer_id: "packages/a".to_string() },
-        InteractiveUpdateProject { manifest: &b, importer_id: "packages/b".to_string() },
+        InteractiveUpdateProject { manifest: &first, importer_id: "packages/a".to_string() },
+        InteractiveUpdateProject { manifest: &second, importer_id: "packages/b".to_string() },
     ];
 
     let choices = collect_choices(
