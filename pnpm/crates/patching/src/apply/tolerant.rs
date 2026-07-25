@@ -85,7 +85,7 @@ struct Part<'a> {
     ends_file: bool,
 }
 
-#[derive(PartialEq, Eq, Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum Kind {
     Context,
     Delete,
@@ -181,8 +181,8 @@ fn evaluate_hunk<'a>(
 /// Trailing whitespace is ignored, which is what lets an LF patch match
 /// a CRLF file: the `\r` the file carries is whitespace the patch's
 /// context lines don't have.
-fn lines_are_equal(a: &str, b: &str) -> bool {
-    a.trim_end() == b.trim_end()
+fn lines_are_equal(file_line: &str, patch_line: &str) -> bool {
+    file_line.trim_end() == patch_line.trim_end()
 }
 
 fn to_isize(value: usize) -> isize {

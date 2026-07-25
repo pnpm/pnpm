@@ -214,7 +214,7 @@ pub fn run_recursive(args: &RunArgs, config: &Config, dir: &Path) -> miette::Res
                     entry.duration = Some(duration);
                     entry.message = Some(format!(
                         "command failed with exit code {}",
-                        status.code().unwrap_or(1)
+                        status.code().unwrap_or(1),
                     ));
                     entry.prefix = Some(prefix.clone());
 

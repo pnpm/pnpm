@@ -1453,7 +1453,7 @@ mod project_scripts {
 
         let record_user_agent = |file: &str| {
             format!(
-                r#"node -e "require('fs').writeFileSync('{file}',process.env.npm_config_user_agent||'<unset>')""#
+                r#"node -e "require('fs').writeFileSync('{file}',process.env.npm_config_user_agent||'<unset>')""#,
             )
         };
         let manifest = serde_json::json!({

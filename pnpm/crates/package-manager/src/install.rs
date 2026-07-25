@@ -476,11 +476,11 @@ pub enum InstallError {
     /// setting that changed is more actionable than dumping the diff,
     /// and it is the code pnpm reports.
     #[display(
-        "Cannot proceed with the frozen installation. The current \"{setting}\" configuration doesn't match the value found in the lockfile"
+        r#"Cannot proceed with the frozen installation. The current "{setting}" configuration doesn't match the value found in the lockfile"#
     )]
     #[diagnostic(
         code(ERR_PNPM_LOCKFILE_CONFIG_MISMATCH),
-        help("Update your lockfile using \"pnpm install --no-frozen-lockfile\"")
+        help(r#"Update your lockfile using "pnpm install --no-frozen-lockfile""#)
     )]
     LockfileConfigMismatch { setting: &'static str },
 
