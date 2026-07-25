@@ -734,6 +734,27 @@ test('fail on unsupported dependency of optional dependency', async () => {
   ).rejects.toThrow()
 })
 
+test('headless install keeps the required dependency of an installable optional dependency', async () => {
+  prepareEmpty()
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
+    {},
+    ['@pnpm.e2e/has-not-compatible-dep@1.0.0'],
+    testDefaults({ targetDependenciesField: 'optionalDependencies' })
+  )
+  rimrafSync('node_modules')
+
+  await install(manifest, testDefaults({ frozenLockfile: true }))
+
+  // The parent is installable, so skipping the dependency it declares would
+  // link a package that cannot resolve its own import.
+  expect(fs.existsSync(path.resolve('node_modules/@pnpm.e2e/has-not-compatible-dep/package.json'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+has-not-compatible-dep@1.0.0/node_modules/@pnpm.e2e/not-compatible-with-any-os/package.json'))).toBeTruthy()
+
+  const modulesInfo = readYamlFileSync<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
+  expect(modulesInfo.skipped).toStrictEqual([])
+})
+
 test('fail on unsupported dependency of optional dependency during a headless install', async () => {
   prepareEmpty()
 
