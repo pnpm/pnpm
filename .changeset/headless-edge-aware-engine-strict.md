@@ -2,7 +2,8 @@
 "@pnpm/installing.deps-restorer": minor
 "@pnpm/deps.graph-builder": minor
 "@pnpm/lockfile.filtering": minor
+"@pnpm/config.package-is-installable": minor
 "pnpm": minor
 ---
 
-A headless (frozen-lockfile) install now decides whether a package is optional from the dependency edges that reach it, the same way a fresh resolution does, instead of from the `optional` flag stored on the lockfile snapshot. A package that an installable package depends on through a regular `dependencies` edge is no longer treated as optional just because its whole subtree happens to hang off an `optionalDependencies` entry: an incompatible one now fails the install under `engineStrict` — and is installed with a warning without it — on both install paths. Packages reachable only through optional edges, or through a skipped parent, are still skipped [#13286](https://github.com/pnpm/pnpm/issues/13286).
+Fixed an installed optional dependency being left without one of its own required dependencies. When a package reached through `optionalDependencies` is installable on the current system but one of its regular `dependencies` is not, a lockfile-based install skipped that dependency and installed the parent anyway, so importing the parent failed at runtime. The dependency is now installed — and, under `engineStrict`, fails the install exactly as a fresh resolution already did. A dependency is only skipped when every path to it is optional, or when the package that pulls it in was itself skipped [#13286](https://github.com/pnpm/pnpm/issues/13286).
