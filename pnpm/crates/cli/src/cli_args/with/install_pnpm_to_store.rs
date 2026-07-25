@@ -160,6 +160,10 @@ async fn install_pnpm_from_env_with_config<Reporter: self::Reporter + 'static>(
 /// when it can't be taken. Losing the lock is not a reason to refuse to
 /// run: the install below is the same one every other process is racing
 /// to perform, so proceeding unserialized is exactly today's behavior.
+///
+/// A lock that could not be taken because the mechanism itself failed is
+/// warned about — running unserialized is survivable, but silently doing
+/// it because the store is unwritable would hide why the race came back.
 fn engine_install_lock(config: &Config, package_name: &str, version: &str) -> Option<DirLock> {
     /// Long enough for a cold install of the engine over a slow link,
     /// short enough that a wedged host isn't hung on indefinitely.
@@ -170,7 +174,17 @@ fn engine_install_lock(config: &Config, package_name: &str, version: &str) -> Op
 
     let name = format!("{}@{version}.lock", package_name.replace('/', "+"));
     let path = config.store_dir.tmp().join("engine-locks").join(name);
-    DirLock::acquire(path, WAIT, ABANDONED_AFTER).ok().flatten()
+    match DirLock::acquire(path.clone(), WAIT, ABANDONED_AFTER) {
+        Ok(lock) => lock,
+        Err(error) => {
+            tracing::warn!(
+                ?error,
+                lock = %path.display(),
+                "could not take the engine install lock; installing unserialized",
+            );
+            None
+        }
+    }
 }
 
 fn package_manager_engine_config(config: &Config) -> miette::Result<Config> {

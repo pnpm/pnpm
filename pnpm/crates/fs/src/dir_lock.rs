@@ -47,8 +47,12 @@ impl DirLock {
     /// take, or a slow holder gets its lock stolen — which is why it is
     /// the caller's to choose and not tied to `wait`.
     ///
-    /// Errors are limited to creating the lock's parent directory;
-    /// everything else is a lost race, which is what the wait is for.
+    /// `Ok(None)` means the lock is held by someone else. An `Err` means
+    /// the locking mechanism itself failed — the parent directory or the
+    /// owner record could not be written — which is a different thing
+    /// entirely, and the caller should say so rather than quietly running
+    /// unserialized as though it had merely lost a race. Losing the race
+    /// is what the wait is for.
     pub fn acquire(
         path: PathBuf,
         wait: Duration,
@@ -62,18 +66,21 @@ impl DirLock {
             match fs::create_dir(&path) {
                 Ok(()) => {
                     let token = mint_token();
-                    if fs::write(path.join(OWNER_FILE), &token).is_ok() {
-                        return Ok(Some(DirLock { path, token }));
-                    }
-                    // Without its owner record this lock cannot tell, at
-                    // release time, whether it is still the one it took.
-                    // Rather than hold an unidentifiable lock, give the
-                    // directory back and report the lock as not taken —
-                    // the caller's documented degradation is to proceed
-                    // unserialized, which is no worse than not having
-                    // tried.
-                    let _ = fs::remove_dir_all(&path);
-                    return Ok(None);
+                    return match fs::write(path.join(OWNER_FILE), &token) {
+                        Ok(()) => Ok(Some(DirLock { path, token })),
+                        // Without its owner record this lock cannot tell,
+                        // at release time, whether it is still the one it
+                        // took, so hand the directory back rather than
+                        // hold an unidentifiable lock. Reported as an
+                        // error, not as a busy lock: a store this process
+                        // cannot write is not the same as one another
+                        // process is using, and the caller should be able
+                        // to say which happened.
+                        Err(error) => {
+                            let _ = fs::remove_dir_all(&path);
+                            Err(error)
+                        }
+                    };
                 }
                 Err(error) if error.kind() != io::ErrorKind::AlreadyExists => return Err(error),
                 Err(_) => {}
