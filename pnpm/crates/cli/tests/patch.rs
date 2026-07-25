@@ -482,7 +482,7 @@ fn install_reads_patched_dependencies_written_by_pnpm_10() {
     let pnpm_10_text = lockfile_text.replace(
         &format!("  is-positive@1.0.0: {patch_hash}\n"),
         &format!(
-            "  is-positive@1.0.0:\n    hash: {patch_hash}\n    path: patches/is-positive@1.0.0.patch\n"
+            "  is-positive@1.0.0:\n    hash: {patch_hash}\n    path: patches/is-positive@1.0.0.patch\n",
         ),
     );
     assert_ne!(pnpm_10_text, lockfile_text, "lockfile: {lockfile_text}");
