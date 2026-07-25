@@ -381,9 +381,8 @@ fn fetch_failed_snapshot_is_pruned() {
     let snaps = filtered.snapshots.as_ref().unwrap();
     assert!(snaps.contains_key(&key("keep", "1.0.0")));
     assert!(!snaps.contains_key(&key("drop", "1.0.0")));
-    assert!(
-        filtered.importers.get(".").unwrap().optional_dependencies.as_ref().unwrap().is_empty()
-    );
+    let imp = filtered.importers.get(".").unwrap();
+    assert!(imp.optional_dependencies.as_ref().unwrap().is_empty());
 }
 
 #[test]

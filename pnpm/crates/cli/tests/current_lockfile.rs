@@ -340,7 +340,7 @@ fn a_skipped_optional_dependency_still_lets_a_repeat_frozen_install_be_a_no_op()
         "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.0.0" },
         "optionalDependencies": { "@pnpm.e2e/not-compatible-with-any-os": "*" },
         "scripts": {
-            "postinstall": "node -e \"require('fs').appendFileSync('postinstall.log', 'x')\"",
+            "postinstall": r#"node -e "require('fs').appendFileSync('postinstall.log', 'x')""#,
         },
     });
     fs::write(workspace.join("package.json"), package_json.to_string())
