@@ -248,6 +248,31 @@ const TOO_MANY_CONFIGS_MESSAGE: &str = "too many distinct registry configuration
 /// `128 KiB` is far above any real registry/overrides configuration.
 const MAX_CONFIG_KEY_BYTES: usize = 128 * 1024;
 
+/// The slice of an input lockfile's `settings` block that
+/// [`intern_config`] adopts, and the only part of it the interning key
+/// carries. Keying on the whole block would let a caller mint an
+/// unbounded number of distinct configs out of the fields the config
+/// never reads (`peersSuffixMaxLength` alone is a `u64`) and exhaust
+/// [`MAX_INTERNED_CONFIGS`], after which no caller gets a config at all.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AdoptedLockfileSettings {
+    auto_install_peers: bool,
+    dedupe_peers: bool,
+    exclude_links_from_lockfile: bool,
+}
+
+impl From<&pacquet_lockfile::LockfileSettings> for AdoptedLockfileSettings {
+    fn from(settings: &pacquet_lockfile::LockfileSettings) -> Self {
+        AdoptedLockfileSettings {
+            auto_install_peers: settings.auto_install_peers,
+            // Written only while the setting is on, so an absent key is `false`.
+            dedupe_peers: settings.dedupe_peers.unwrap_or(false),
+            exclude_links_from_lockfile: settings.exclude_links_from_lockfile,
+        }
+    }
+}
+
 /// Build + leak a `&'static Config` for a request's registry
 /// configuration, interned by its canonical JSON so repeat requests reuse
 /// it. Returns `None` when the config can't be safely interned:
@@ -289,8 +314,11 @@ fn intern_config(
     // client would; leaving the server's own defaults in place would make
     // the frozen path reject a lockfile that is valid for its owner, since
     // the freshness gate compares these against the config.
-    let lockfile_settings =
-        request.lockfile.as_ref().and_then(|lockfile| lockfile.settings.as_ref());
+    let lockfile_settings = request
+        .lockfile
+        .as_ref()
+        .and_then(|lockfile| lockfile.settings.as_ref())
+        .map(AdoptedLockfileSettings::from);
 
     let key = serde_json::json!({
         "registry": registry,
@@ -340,8 +368,7 @@ fn intern_config(
     config.trust_policy_ignore_after = request.trust_policy_ignore_after;
     if let Some(settings) = lockfile_settings {
         config.auto_install_peers = settings.auto_install_peers;
-        // Written only while the setting is on, so an absent key is `false`.
-        config.dedupe_peers = settings.dedupe_peers.unwrap_or(false);
+        config.dedupe_peers = settings.dedupe_peers;
         config.exclude_links_from_lockfile = settings.exclude_links_from_lockfile;
     }
     let config: &'static PacquetConfig = config.leak();

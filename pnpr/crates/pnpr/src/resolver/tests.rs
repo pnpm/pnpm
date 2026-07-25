@@ -1084,6 +1084,43 @@ fn intern_config_adopts_the_input_lockfile_settings() {
     assert!(!defaults.exclude_links_from_lockfile);
 }
 
+/// Only the three adopted fields may reach the interning key. The rest of
+/// the `settings` block doesn't change the config, and keying on it would
+/// let a caller mint a distinct leaked config per value —
+/// `peersSuffixMaxLength` is a `u64` — until `MAX_INTERNED_CONFIGS` is
+/// spent and every caller is refused.
+#[test]
+fn intern_config_ignores_lockfile_settings_it_does_not_adopt() {
+    use super::intern_config;
+    use pacquet_store_dir::StoreDir;
+    use std::{collections::HashMap, path::PathBuf, sync::Mutex};
+
+    let configs = Mutex::new(HashMap::new());
+    let store_dir = StoreDir::new(PathBuf::from("/tmp/pnpr-unadopted-settings-store"));
+    let cache_dir = PathBuf::from("/tmp/pnpr-unadopted-settings-cache");
+    let request = |peers_suffix_max_length: u64| ResolveRequest {
+        registry: Some("https://a.test/".to_string()),
+        lockfile: Some(Lockfile {
+            settings: Some(pacquet_lockfile::LockfileSettings {
+                peers_suffix_max_length: Some(peers_suffix_max_length),
+                ..pacquet_lockfile::LockfileSettings::default()
+            }),
+            ..lockfile("1.0.0")
+        }),
+        ..ResolveRequest::default()
+    };
+    // A cap of one: a second distinct key would be refused outright.
+    let intern = |request: &ResolveRequest| {
+        intern_config(&configs, &store_dir, &cache_dir, request, 1, usize::MAX)
+    };
+
+    assert!(intern(&request(1000)).is_some());
+    assert!(
+        intern(&request(10)).is_some(),
+        "a field the config never reads must not mint a second interned config",
+    );
+}
+
 #[test]
 fn intern_config_caps_distinct_leaked_configs_but_keeps_serving_known_ones() {
     use super::intern_config;
