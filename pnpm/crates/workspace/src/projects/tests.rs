@@ -313,3 +313,28 @@ fn non_notfound_walk_failure_still_errors() {
         "the walk error's kind must survive the conversion, or the skip cannot be decided",
     );
 }
+
+/// Workspaces do contain manifests written with a leading UTF-8 BOM —
+/// Vite ships one as the `utf8-bom-package` fixture — and discovery must
+/// enumerate them rather than failing the whole walk.
+#[test]
+fn discovers_a_project_whose_manifest_starts_with_a_utf8_bom() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    let dir = tmp.path().join("packages/utf8-bom-package");
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join("package.json"), "\u{feff}{\"name\": \"bom\", \"version\": \"1.0.0\"}\n")
+        .unwrap();
+
+    let projects = find_workspace_projects(
+        tmp.path(),
+        &FindWorkspaceProjectsOpts { patterns: Some(vec!["packages/*".to_string()]) },
+    )
+    .unwrap();
+
+    let names: Vec<String> = projects
+        .iter()
+        .map(|project| project.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
+        .collect();
+    assert_eq!(names, vec!["root".to_string(), "bom".to_string()]);
+}

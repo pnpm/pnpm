@@ -19,7 +19,7 @@ use pacquet_config::Config;
 use pacquet_fs::{read_symlink_dir, remove_symlink_dir};
 use pacquet_lockfile::Lockfile;
 use pacquet_modules_yaml::IncludedDependencies;
-use pacquet_package_manifest::DependencyGroup;
+use pacquet_package_manifest::{DependencyGroup, parse_manifest_bytes};
 use std::{
     collections::HashSet,
     ffi::OsStr,
@@ -243,7 +243,7 @@ fn remove_dep_bins(modules_dir: &Path, link: &Path) -> Result<(), PruneDirectDep
             return Err(PruneDirectDepsError::ReadManifest { path: manifest_path, error });
         }
     };
-    let Ok(manifest) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
+    let Ok(manifest) = parse_manifest_bytes(&bytes) else {
         return Ok(());
     };
     // Shims are deleted with plain `remove_file`, so a `.bin` that is

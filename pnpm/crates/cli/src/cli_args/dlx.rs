@@ -12,7 +12,9 @@ use pacquet_config_parse_overrides::parse_overrides_iter;
 use pacquet_crypto_hash::create_short_hash;
 use pacquet_fs::force_symlink_dir;
 use pacquet_package_is_installable::SupportedArchitectures;
-use pacquet_package_manifest::{DependencyGroup, convert_engines_runtime_to_dependencies};
+use pacquet_package_manifest::{
+    DependencyGroup, convert_engines_runtime_to_dependencies, parse_manifest,
+};
 use pacquet_registry::PinnedVersion;
 use pacquet_reporter::Reporter;
 use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
@@ -528,7 +530,7 @@ fn get_pkg_name(cached_dir: &Path) -> Result<String, DlxError> {
 fn read_json(path: &Path) -> Result<Value, DlxError> {
     let text = fs::read_to_string(path)
         .map_err(|source| DlxError::ReadManifest { path: path.display().to_string(), source })?;
-    serde_json::from_str(&text).map_err(|error| DlxError::ReadManifest {
+    parse_manifest(&text).map_err(|error| DlxError::ReadManifest {
         path: path.display().to_string(),
         source: error.into(),
     })

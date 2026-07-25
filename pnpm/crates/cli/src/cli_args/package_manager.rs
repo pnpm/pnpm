@@ -1,4 +1,5 @@
 use miette::IntoDiagnostic;
+use pacquet_package_manifest::parse_manifest;
 use serde_json::Value;
 use std::{fs, io::ErrorKind, path::Path};
 
@@ -56,7 +57,7 @@ pub(crate) fn read_manifest_json(path: &Path) -> miette::Result<Option<Value>> {
         Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(error).into_diagnostic(),
     };
-    serde_json::from_str(&content).into_diagnostic().map(Some)
+    parse_manifest(&content).into_diagnostic().map(Some)
 }
 
 pub(crate) fn wanted_package_manager(manifest: &Value) -> Option<WantedPackageManager> {

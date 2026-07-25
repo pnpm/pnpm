@@ -11,7 +11,8 @@ license.workspace    = true
 repository.workspace = true
 
 [dependencies]
-pacquet-fs = { workspace = true }
+pacquet-fs               = { workspace = true }
+pacquet-package-manifest = { workspace = true }
 
 derive_more = { workspace = true }
 dunce       = { workspace = true }

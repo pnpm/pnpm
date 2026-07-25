@@ -12,7 +12,7 @@ use pacquet_config::{Config, PackageManagerBootstrap};
 use pacquet_global::{clean_orphaned_install_dirs, create_install_dir, find_global_package};
 use pacquet_graph_hasher::{format_global_virtual_store_path, host_arch, host_libc, host_platform};
 use pacquet_package_is_installable::SupportedArchitectures;
-use pacquet_package_manifest::DependencyGroup;
+use pacquet_package_manifest::{DependencyGroup, parse_manifest};
 use pacquet_registry::PinnedVersion;
 use pacquet_reporter::Reporter;
 use serde_json::Value;
@@ -161,7 +161,7 @@ pub(super) fn assert_pnpm_runs(
 pub(super) fn installed_version(install_dir: &Path, package_name: &str) -> Option<String> {
     let pkg_json = package_dir(install_dir, package_name).join("package.json");
     let text = fs::read_to_string(pkg_json).ok()?;
-    let value: Value = serde_json::from_str(&text).ok()?;
+    let value: Value = parse_manifest(&text).ok()?;
     value.get("version").and_then(Value::as_str).map(ToString::to_string)
 }
 
@@ -519,7 +519,7 @@ fn rewrite_windows_bin_field(wrapper_dir: &Path) {
     let Ok(text) = fs::read_to_string(&pkg_json_path) else {
         return;
     };
-    let Ok(mut pkg) = serde_json::from_str::<Value>(&text) else {
+    let Ok(mut pkg) = parse_manifest(&text) else {
         return;
     };
     let Some(bin) = pkg.get_mut("bin").and_then(Value::as_object_mut) else {
