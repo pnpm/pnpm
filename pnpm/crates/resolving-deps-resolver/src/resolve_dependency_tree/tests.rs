@@ -41,6 +41,88 @@ fn dependency_engines_runtime_is_walked_as_a_runtime_dependency() {
     );
 }
 
+fn manifest_result(manifest: serde_json::Value) -> ResolveResult {
+    ResolveResult {
+        id: PkgResolutionId::from("parent@1.0.0"),
+        name_ver: None,
+        latest: None,
+        published_at: None,
+        manifest: Some(std::sync::Arc::new(manifest)),
+        resolution: LockfileResolution::Directory(DirectoryResolution {
+            directory: "parent".to_string(),
+        }),
+        resolved_via: "npm-registry".to_string(),
+        normalized_bare_specifier: None,
+        alias: Some("parent".to_string()),
+        policy_violation: None,
+    }
+}
+
+// Regression test for pnpm/pnpm#13334: npm ships bundled dependencies
+// inside the package's own tarball, so they must not be resolved as
+// edges of their own.
+#[test]
+fn bundled_dependencies_are_not_walked() {
+    let result = manifest_result(serde_json::json!({
+        "name": "parent",
+        "version": "1.0.0",
+        "dependencies": { "bundled-dep": "^1.0.0", "regular-dep": "^2.0.0" },
+        "optionalDependencies": { "bundled-optional": "^3.0.0" },
+        "bundledDependencies": ["bundled-dep", "bundled-optional"],
+    }));
+    assert_eq!(
+        extract_children(&result).unwrap(),
+        vec![("regular-dep".to_string(), "^2.0.0".to_string(), false)],
+    );
+}
+
+#[test]
+fn bundle_dependencies_spelling_is_honored() {
+    let result = manifest_result(serde_json::json!({
+        "name": "parent",
+        "version": "1.0.0",
+        "dependencies": { "bundled-dep": "^1.0.0", "regular-dep": "^2.0.0" },
+        "bundleDependencies": ["bundled-dep"],
+    }));
+    assert_eq!(
+        extract_children(&result).unwrap(),
+        vec![("regular-dep".to_string(), "^2.0.0".to_string(), false)],
+    );
+}
+
+#[test]
+fn bundled_dependencies_true_bundles_every_dependency() {
+    let result = manifest_result(serde_json::json!({
+        "name": "parent",
+        "version": "1.0.0",
+        "dependencies": { "one": "^1.0.0", "two": "^2.0.0" },
+        "optionalDependencies": { "three": "^3.0.0" },
+        "bundledDependencies": true,
+    }));
+    assert_eq!(
+        extract_children(&result).unwrap(),
+        vec![("three".to_string(), "^3.0.0".to_string(), true)],
+    );
+}
+
+// `bundledDependencies: true` names the `dependencies` keys, and upstream
+// filters the merged `{...optionalDependencies, ...dependencies}` map, so an
+// alias listed in both groups is dropped from both.
+#[test]
+fn bundled_dependencies_true_also_drops_the_optional_duplicate() {
+    let result = manifest_result(serde_json::json!({
+        "name": "parent",
+        "version": "1.0.0",
+        "dependencies": { "both": "^1.0.0" },
+        "optionalDependencies": { "both": "^1.0.0", "optional-only": "^3.0.0" },
+        "bundledDependencies": true,
+    }));
+    assert_eq!(
+        extract_children(&result).unwrap(),
+        vec![("optional-only".to_string(), "^3.0.0".to_string(), true)],
+    );
+}
+
 fn key(raw: &str) -> PkgNameVerPeer {
     raw.parse().expect("parse snapshot key")
 }

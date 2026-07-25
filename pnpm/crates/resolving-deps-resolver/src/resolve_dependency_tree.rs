@@ -3064,25 +3064,52 @@ fn render_specifier(wanted: &WantedDependency) -> String {
 /// `optionalDependencies`. The walker propagates this through
 /// `current_is_optional` so [`ResolvedPackage::optional`] reflects
 /// whether every path to the node went through an optional edge.
+///
+/// Names the manifest bundles are dropped: npm ships them inside the
+/// package's own tarball, so resolving them again would install a
+/// second copy the package never loads.
 fn extract_children(
     result: &pacquet_resolving_resolver_base::ResolveResult,
 ) -> Result<Vec<ChildSpec>, ResolveDependencyTreeError> {
     let Some(manifest) = result.manifest.as_ref() else { return Ok(Vec::new()) };
     let parent = render_parent(result);
+    let bundled = bundled_dependency_names(manifest);
     let mut out = Vec::new();
-    collect_deps(manifest, "dependencies", false, &parent, &mut out)?;
-    collect_deps(manifest, "optionalDependencies", true, &parent, &mut out)?;
+    collect_deps(manifest, "dependencies", false, &parent, &bundled, &mut out)?;
+    collect_deps(manifest, "optionalDependencies", true, &parent, &bundled, &mut out)?;
     for (name, specifier) in engines_runtime_dependencies(manifest, "engines", "dependencies") {
         out.push((name.to_string(), specifier, false));
     }
     Ok(out)
 }
 
+/// The dependency names a manifest declares as bundled, read from
+/// `bundledDependencies` with `bundleDependencies` as the fallback
+/// spelling. `true` stands for "every entry in `dependencies`".
+fn bundled_dependency_names(manifest: &Value) -> HashSet<&str> {
+    let bundled = ["bundledDependencies", "bundleDependencies"]
+        .into_iter()
+        .find_map(|key| manifest.get(key).filter(|value| !value.is_null()));
+    match bundled {
+        Some(Value::Bool(true)) => manifest
+            .get("dependencies")
+            .and_then(Value::as_object)
+            .map(|map| map.keys().map(String::as_str).collect())
+            .unwrap_or_default(),
+        Some(Value::Array(names)) => names.iter().filter_map(Value::as_str).collect(),
+        _ => HashSet::new(),
+    }
+}
+
+/// Dependency names are validated before the bundled filter runs, so a
+/// manifest with an unusable alias is rejected whether or not the
+/// package bundles that alias.
 fn collect_deps(
     manifest: &Value,
     key: &str,
     optional: bool,
     parent: &str,
+    bundled: &HashSet<&str>,
     out: &mut Vec<ChildSpec>,
 ) -> Result<(), ResolveDependencyTreeError> {
     let Some(map) = manifest.get(key).and_then(Value::as_object) else { return Ok(()) };
@@ -3093,6 +3120,9 @@ fn collect_deps(
                     parent: parent.to_string(),
                     alias: name.clone(),
                 });
+            }
+            if bundled.contains(name.as_str()) {
+                continue;
             }
             out.push((name.clone(), range_str.to_string(), optional));
         }
