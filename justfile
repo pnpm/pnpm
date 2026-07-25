@@ -54,13 +54,16 @@ test:
   cargo nextest run
 
 # A test process that is killed cannot run `TempDir`'s cleanup, so a
-# fail-fast or interrupted run always leaves some behind. Only entries older
-# than an hour are removed, so a concurrent run is left alone.
+# fail-fast or interrupted run abandons whole fixture trees — each holding a
+# per-test store for the mocked-registry tests, which is what actually adds
+# up. Only `pacquet-test-*` is swept: that prefix comes from
+# `CommandTempCwd`, so a match is known to be ours. `-mindepth 1` keeps the
+# root itself out of the match, and the age floor leaves a concurrent run
+# alone.
 
-# Remove what earlier test runs left behind in the system temp dir.
+# Remove fixture trees that earlier test runs abandoned.
 sweep-test-temp:
-  find "${TMPDIR:-/tmp}" -maxdepth 1 -name 'pnpm-e2e-*' -mmin +60 -exec rm -rf {} + 2>/dev/null || true
-  find "${TMPDIR:-/tmp}" -maxdepth 1 -name '.tmp*' -mmin +60 -exec rm -rf {} + 2>/dev/null || true
+  find "${TMPDIR:-/tmp}" -mindepth 1 -maxdepth 1 -name 'pacquet-test-*' -mmin +60 -exec rm -rf {} + 2>/dev/null || true
 
 # Run pacquet package tests only.
 test-pacquet:
