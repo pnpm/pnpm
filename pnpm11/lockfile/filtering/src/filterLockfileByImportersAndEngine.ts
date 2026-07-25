@@ -1,4 +1,8 @@
-import { packageIsInstallable } from '@pnpm/config.package-is-installable'
+import {
+  checkPackageInstallability,
+  type InstallabilityManifest,
+  packageIsInstallable,
+} from '@pnpm/config.package-is-installable'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import * as dp from '@pnpm/deps.path'
 import { LockfileMissingDependencyError } from '@pnpm/error'
@@ -18,6 +22,17 @@ const lockfileLogger = logger('lockfile')
 export interface FilterLockfileResult {
   lockfile: LockfileObject
   selectedImporterIds: ProjectId[]
+  /**
+   * Dep paths reached by a non-optional edge from an importer or from a
+   * package that is itself part of the install. Their installability is
+   * evaluated as non-optional — an incompatible one fails the install under
+   * `engineStrict` instead of being skipped — even when the lockfile marks
+   * the snapshot `optional: true` because the subtree happens to hang off an
+   * optional dependency. Downstream consumers must classify by this set
+   * rather than by `pkgSnapshot.optional` so every stage of a headless
+   * install agrees with the resolver, which classifies by edge too.
+   */
+  requiredDepPaths: Set<DepPath>
 }
 
 export function filterLockfileByEngine (
@@ -50,15 +65,15 @@ export function filterLockfileByImportersAndEngine (
 ): FilterLockfileResult {
   const importerIdSet = new Set(importerIds)
 
-  const directDepPaths = toImporterDepPaths(lockfile, importerIds, {
+  const directDepEdges = toImporterDepPaths(lockfile, importerIds, {
     include: opts.include,
     importerIdSet,
     skipRuntimes: opts.skipRuntimes,
   })
 
-  const packages =
+  const { packages, requiredDepPaths } =
     lockfile.packages != null
-      ? pickPkgsWithAllDeps(lockfile, directDepPaths, importerIdSet, {
+      ? pickPkgsWithAllDeps(lockfile, directDepEdges, importerIdSet, {
         currentEngine: opts.currentEngine,
         engineStrict: opts.engineStrict,
         failOnMissingDependencies: opts.failOnMissingDependencies,
@@ -70,7 +85,7 @@ export function filterLockfileByImportersAndEngine (
         skipRuntimes: opts.skipRuntimes,
         supportedArchitectures: opts.supportedArchitectures,
       })
-      : {}
+      : { packages: {}, requiredDepPaths: new Set<DepPath>() }
 
   const importers = mapValues((importer) => {
     const newImporter = filterImporter(importer, opts.include, { skipRuntimes: opts.skipRuntimes })
@@ -90,58 +105,162 @@ export function filterLockfileByImportersAndEngine (
       packages,
     },
     selectedImporterIds: Array.from(importerIdSet),
+    requiredDepPaths,
   }
+}
+
+interface PickPkgsOptions {
+  currentEngine: {
+    nodeVersion?: string
+    pnpmVersion: string
+  }
+  engineStrict: boolean
+  failOnMissingDependencies: boolean
+  include: { [dependenciesField in DependenciesField]: boolean }
+  includeIncompatiblePackages: boolean
+  lockfileDir: string
+  skipped: Set<string>
+  skipRuntimes?: boolean
+  supportedArchitectures?: SupportedArchitectures
+}
+
+interface PickPkgsContext {
+  lockfile: LockfileObject
+  pickedPackages: PackageSnapshots
+  importerIdSet: Set<ProjectId>
+  /** Dep paths that are part of the install. */
+  installed: Set<DepPath>
+  requiredDepPaths: Set<DepPath>
+  /**
+   * Dep paths an edge out of the install reaches, in the order the walk
+   * reached them. These are the ones whose installability is reported;
+   * anything below a package that is not itself installed is skipped without
+   * being checked.
+   */
+  evaluated: DepPath[]
 }
 
 function pickPkgsWithAllDeps (
   lockfile: LockfileObject,
-  depPaths: DepPath[],
+  depEdges: DepEdge[],
   importerIdSet: Set<ProjectId>,
-  opts: {
-    currentEngine: {
-      nodeVersion?: string
-      pnpmVersion: string
-    }
-    engineStrict: boolean
-    failOnMissingDependencies: boolean
-    include: { [dependenciesField in DependenciesField]: boolean }
-    includeIncompatiblePackages: boolean
-    lockfileDir: string
-    skipped: Set<string>
-    skipRuntimes?: boolean
-    supportedArchitectures?: SupportedArchitectures
+  opts: PickPkgsOptions
+): { packages: PackageSnapshots, requiredDepPaths: Set<DepPath> } {
+  const ctx: PickPkgsContext = {
+    lockfile,
+    pickedPackages: {} as PackageSnapshots,
+    importerIdSet,
+    installed: new Set(),
+    requiredDepPaths: new Set(),
+    evaluated: [],
   }
-): PackageSnapshots {
-  const pickedPackages = {} as PackageSnapshots
-  pkgAllDeps({ lockfile, pickedPackages, importerIdSet }, depPaths, true, opts)
-  return pickedPackages
+  classifyDeps(ctx, depEdges, opts)
+  reportInstallability(ctx, opts)
+  pickSkippedDeps(ctx, depEdges, opts)
+  return { packages: ctx.pickedPackages, requiredDepPaths: ctx.requiredDepPaths }
 }
 
-function pkgAllDeps (
-  ctx: {
-    lockfile: LockfileObject
-    pickedPackages: PackageSnapshots
-    importerIdSet: Set<ProjectId>
-  },
-  depPaths: DepPath[],
-  parentIsInstallable: boolean,
-  opts: {
-    currentEngine: {
-      nodeVersion?: string
-      pnpmVersion: string
+/**
+ * Work out which packages the install actually reaches, and over which kind
+ * of edge.
+ *
+ * An edge is only expanded once its source is known to be part of the
+ * install, so the optionality of the edge — not the `optional` flag the
+ * resolver propagated onto the snapshot — decides whether an incompatible
+ * package is skipped: only a package whose every inbound edge is optional
+ * stays out of the install.
+ *
+ * Traversal is breadth-first over edges rather than depth-first over
+ * packages so the verdict does not depend on which edge happens to reach a
+ * package first: a package left out on an optional edge is reconsidered when
+ * a non-optional one arrives later. Nothing is reported from here — a
+ * package can be visited once per inbound edge, and its installability must
+ * be reported exactly once, which [reportInstallability] does afterwards.
+ */
+function classifyDeps (ctx: PickPkgsContext, depEdges: DepEdge[], opts: PickPkgsOptions): void {
+  const incompatible = new Map<DepPath, boolean>()
+  const queue = [...depEdges]
+  while (queue.length > 0) {
+    const { depPath, optional } = queue.shift()!
+    if (!optional) ctx.requiredDepPaths.add(depPath)
+    if (ctx.installed.has(depPath)) continue
+    const pkgSnapshot = ctx.lockfile.packages![depPath]
+    // Missing entries are reported by the closure pass, which reaches every
+    // dep path this one does.
+    if (!pkgSnapshot) continue
+    if (!incompatible.has(depPath)) {
+      ctx.evaluated.push(depPath)
+      // TODO: depPath is not the package ID. Should be fixed
+      incompatible.set(depPath, !opts.includeIncompatiblePackages && checkPackageInstallability(
+        pkgSnapshot.id ?? depPath,
+        toInstallabilityManifest(depPath, pkgSnapshot),
+        {
+          nodeVersion: opts.currentEngine.nodeVersion,
+          optional: true,
+          supportedArchitectures: opts.supportedArchitectures,
+        }
+      ) != null)
     }
-    engineStrict: boolean
-    failOnMissingDependencies: boolean
-    include: { [dependenciesField in DependenciesField]: boolean }
-    includeIncompatiblePackages: boolean
-    lockfileDir: string
-    skipped: Set<string>
-    skipRuntimes?: boolean
-    supportedArchitectures?: SupportedArchitectures
+    if (optional && incompatible.get(depPath)) continue
+    ctx.installed.add(depPath)
+    ctx.pickedPackages[depPath] = pkgSnapshot
+    queue.push(...nextDepEdges(ctx, pkgSnapshot, opts))
   }
-) {
-  for (const depPath of depPaths) {
-    if (ctx.pickedPackages[depPath]) continue
+}
+
+/**
+ * Report each reached package once, against the edge kind it was classified
+ * by. This is where an incompatible package that a non-optional edge reaches
+ * fails the install under `engineStrict`, and where a skipped optional gets
+ * its `skippedOptionalDependencyLogger` entry.
+ */
+function reportInstallability (ctx: PickPkgsContext, opts: PickPkgsOptions): void {
+  for (const depPath of ctx.evaluated) {
+    const pkgSnapshot = ctx.lockfile.packages![depPath]
+    const installable =
+      opts.includeIncompatiblePackages ||
+      packageIsInstallable(
+        pkgSnapshot.id ?? depPath,
+        toInstallabilityManifest(depPath, pkgSnapshot),
+        {
+          engineStrict: opts.engineStrict,
+          lockfileDir: opts.lockfileDir,
+          nodeVersion: opts.currentEngine.nodeVersion,
+          optional: !ctx.installed.has(depPath) || !ctx.requiredDepPaths.has(depPath),
+          supportedArchitectures: opts.supportedArchitectures,
+        }
+      ) !== false
+    if (installable) {
+      opts.skipped.delete(depPath)
+    } else {
+      opts.skipped.add(depPath)
+    }
+  }
+}
+
+function toInstallabilityManifest (depPath: DepPath, pkgSnapshot: PackageSnapshots[DepPath]): InstallabilityManifest {
+  return {
+    ...nameVerFromPkgSnapshot(depPath, pkgSnapshot),
+    cpu: pkgSnapshot.cpu,
+    engines: pkgSnapshot.engines,
+    os: pkgSnapshot.os,
+    libc: pkgSnapshot.libc,
+  }
+}
+
+/**
+ * Extend the picked set over the packages that are reachable but not part of
+ * the install — an incompatible optional and everything below it. They stay
+ * in the filtered lockfile and are recorded as skipped, so a later install on
+ * a host that does support them can pick them up without a re-resolution.
+ */
+function pickSkippedDeps (ctx: PickPkgsContext, depEdges: DepEdge[], opts: PickPkgsOptions): void {
+  const queue = depEdges.map(({ depPath }) => depPath)
+  const visited = new Set<DepPath>()
+  while (queue.length > 0) {
+    const depPath = queue.shift()!
+    if (visited.has(depPath)) continue
+    visited.add(depPath)
     const pkgSnapshot = ctx.lockfile.packages![depPath]
     if (!pkgSnapshot && !depPath.startsWith('link:')) {
       if (opts.failOnMissingDependencies) {
@@ -150,55 +269,33 @@ function pkgAllDeps (
       lockfileLogger.debug(`No entry for "${depPath}" in ${WANTED_LOCKFILE}`)
       continue
     }
-    let installable!: boolean
-    if (!parentIsInstallable) {
-      installable = false
+    if (!ctx.installed.has(depPath)) {
       if (!ctx.pickedPackages[depPath] && pkgSnapshot.optional === true) {
         opts.skipped.add(depPath)
       }
-    } else {
-      const pkg = {
-        ...nameVerFromPkgSnapshot(depPath, pkgSnapshot),
-        cpu: pkgSnapshot.cpu,
-        engines: pkgSnapshot.engines,
-        os: pkgSnapshot.os,
-        libc: pkgSnapshot.libc,
-      }
-      // TODO: depPath is not the package ID. Should be fixed
-      installable =
-        opts.includeIncompatiblePackages ||
-        packageIsInstallable(pkgSnapshot.id ?? depPath, pkg, {
-          engineStrict: opts.engineStrict,
-          lockfileDir: opts.lockfileDir,
-          nodeVersion: opts.currentEngine.nodeVersion,
-          optional: pkgSnapshot.optional === true,
-          supportedArchitectures: opts.supportedArchitectures,
-        }) !== false
-      if (!installable) {
-        if (!ctx.pickedPackages[depPath] && pkgSnapshot.optional === true) {
-          opts.skipped.add(depPath)
-        }
-      } else {
-        opts.skipped.delete(depPath)
-      }
+      ctx.pickedPackages[depPath] = pkgSnapshot
     }
-    ctx.pickedPackages[depPath] = pkgSnapshot
-    const { depPaths: nextRelDepPaths, importerIds: additionalImporterIds } = parseDepRefs(Object.entries({
-      ...pkgSnapshot.dependencies,
-      ...(opts.include.optionalDependencies
-        ? pkgSnapshot.optionalDependencies
-        : {}),
-    }), ctx.lockfile)
-    additionalImporterIds.forEach((importerId) => ctx.importerIdSet.add(importerId))
-    nextRelDepPaths.push(
-      ...toImporterDepPaths(ctx.lockfile, additionalImporterIds, {
-        include: opts.include,
-        importerIdSet: ctx.importerIdSet,
-        skipRuntimes: opts.skipRuntimes,
-      })
-    )
-    pkgAllDeps(ctx, nextRelDepPaths, installable, opts)
+    queue.push(...nextDepEdges(ctx, pkgSnapshot, opts).map(({ depPath }) => depPath))
   }
+}
+
+/** The outbound edges of a package, tagged with the optionality of each. */
+function nextDepEdges (ctx: PickPkgsContext, pkgSnapshot: PackageSnapshots[DepPath], opts: PickPkgsOptions): DepEdge[] {
+  const { depEdges, importerIds } = parseDepRefs([
+    ...toDepRefs(pkgSnapshot.dependencies, false),
+    ...(opts.include.optionalDependencies ? toDepRefs(pkgSnapshot.optionalDependencies, true) : []),
+  ], ctx.lockfile)
+  for (const importerId of importerIds) {
+    ctx.importerIdSet.add(importerId)
+  }
+  return [
+    ...depEdges,
+    ...toImporterDepPaths(ctx.lockfile, importerIds, {
+      include: opts.include,
+      importerIdSet: ctx.importerIdSet,
+      skipRuntimes: opts.skipRuntimes,
+    }),
+  ]
 }
 
 function toImporterDepPaths (
@@ -209,45 +306,59 @@ function toImporterDepPaths (
     importerIdSet: Set<ProjectId>
     skipRuntimes?: boolean
   }
-): DepPath[] {
+): DepEdge[] {
   const importerDeps = importerIds
     .map(importerId => lockfile.importers[importerId])
-    .map(importer => ({
-      ...(opts.include.dependencies ? importer.dependencies : {}),
-      ...(opts.include.devDependencies ? importer.devDependencies : {}),
-      ...(opts.include.optionalDependencies
-        ? importer.optionalDependencies
-        : {}),
-    }))
-    .map(Object.entries)
-    .map(entries => opts.skipRuntimes ? entries.filter(([, ref]) => !ref.startsWith('runtime:')) : entries)
+    .map(importer => [
+      ...(opts.include.dependencies ? toDepRefs(importer.dependencies, false) : []),
+      ...(opts.include.devDependencies ? toDepRefs(importer.devDependencies, false) : []),
+      ...(opts.include.optionalDependencies ? toDepRefs(importer.optionalDependencies, true) : []),
+    ])
+    .map(refs => opts.skipRuntimes ? refs.filter(({ ref }) => !ref.startsWith('runtime:')) : refs)
 
-  let { depPaths, importerIds: nextImporterIds } = parseDepRefs(unnest(importerDeps), lockfile)
+  let { depEdges, importerIds: nextImporterIds } = parseDepRefs(unnest(importerDeps), lockfile)
 
   if (!nextImporterIds.length) {
-    return depPaths
+    return depEdges
   }
   nextImporterIds = nextImporterIds.filter(importerId => !opts.importerIdSet.has(importerId))
   for (const importerId of nextImporterIds) {
     opts.importerIdSet.add(importerId)
   }
   return [
-    ...depPaths,
+    ...depEdges,
     ...toImporterDepPaths(lockfile, nextImporterIds, opts),
   ]
 }
 
+/** A dependency edge, tagged with whether the dependency is declared optional by its dependent. */
+interface DepEdge {
+  depPath: DepPath
+  optional: boolean
+}
+
+interface DepRef {
+  pkgName: string
+  ref: string
+  optional: boolean
+}
+
+function toDepRefs (refsByPkgNames: Record<string, string> | undefined, optional: boolean): DepRef[] {
+  if (refsByPkgNames == null) return []
+  return Object.entries(refsByPkgNames).map(([pkgName, ref]) => ({ pkgName, ref, optional }))
+}
+
 interface ParsedDepRefs {
-  depPaths: DepPath[]
+  depEdges: DepEdge[]
   importerIds: ProjectId[]
 }
 
-function parseDepRefs (refsByPkgNames: Array<[string, string]>, lockfile: LockfileObject): ParsedDepRefs {
+function parseDepRefs (depRefs: DepRef[], lockfile: LockfileObject): ParsedDepRefs {
   const acc: ParsedDepRefs = {
-    depPaths: [],
+    depEdges: [],
     importerIds: [],
   }
-  for (const [pkgName, ref] of refsByPkgNames) {
+  for (const { pkgName, ref, optional } of depRefs) {
     if (ref.startsWith('link:')) {
       const importerId = ref.substring(5) as ProjectId
       if (lockfile.importers[importerId]) {
@@ -257,7 +368,7 @@ function parseDepRefs (refsByPkgNames: Array<[string, string]>, lockfile: Lockfi
     }
     const depPath = dp.refToRelative(ref, pkgName)
     if (depPath == null) continue
-    acc.depPaths.push(depPath)
+    acc.depEdges.push({ depPath, optional })
   }
   return acc
 }

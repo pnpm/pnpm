@@ -84,6 +84,12 @@ export interface LockfileToDepGraphOptions {
   pnpmVersion: string
   patchedDependencies?: PatchGroupRecord
   registries: Registries
+  /**
+   * The dep paths a non-optional edge reaches, as classified by
+   * `filterLockfileByImportersAndEngine`. Installability is evaluated as
+   * optional for everything outside this set.
+   */
+  requiredDepPaths: Set<DepPath>
   sideEffectsCacheRead: boolean
   skipped: Set<DepPath>
   storeController: StoreController
@@ -208,7 +214,7 @@ async function buildGraphFromPackages (
         engineStrict: opts.engineStrict,
         lockfileDir: opts.lockfileDir,
         nodeVersion: opts.nodeVersion,
-        optional: pkgSnapshot.optional === true,
+        optional: !opts.requiredDepPaths.has(depPath),
         supportedArchitectures: opts.supportedArchitectures,
       }) === false) {
         opts.skipped.add(depPath)

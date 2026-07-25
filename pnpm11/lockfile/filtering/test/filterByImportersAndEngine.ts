@@ -1,5 +1,6 @@
 import { afterEach, expect, jest, test } from '@jest/globals'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
+import type { LockfileObject } from '@pnpm/lockfile.types'
 import type { DepPath, ProjectId } from '@pnpm/types'
 
 const REGIONAL_ARCH = Object.assign({}, process.arch)
@@ -555,6 +556,131 @@ test('filterByImportersAndEngine(): filter the packages that set libc', () => {
     },
   })
   expect(Array.from(skippedPackages)).toStrictEqual(['preserve-existing-skipped@1.0.0', 'optional-dep@1.0.0', 'foo@1.0.0'])
+})
+
+test('filterByImportersAndEngine(): an incompatible package reached by a non-optional edge fails under engineStrict', () => {
+  const lockfile: LockfileObject = {
+    importers: {
+      ['project-1' as ProjectId]: {
+        optionalDependencies: {
+          'installable-optional': '1.0.0',
+        },
+        specifiers: {
+          'installable-optional': '^1.0.0',
+        },
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {
+      // Only optionally reachable, so the resolver marked the whole subtree
+      // `optional: true` — but the edge that reaches it is a regular one.
+      ['installable-optional@1.0.0' as DepPath]: {
+        dependencies: {
+          'not-compatible': '1.0.0',
+        },
+        optional: true,
+        resolution: { integrity: '' },
+      },
+      ['not-compatible@1.0.0' as DepPath]: {
+        engines: {
+          node: '1000',
+        },
+        optional: true,
+        resolution: { integrity: '' },
+      },
+    },
+  }
+  const opts = {
+    currentEngine: {
+      nodeVersion: '10.0.0',
+      pnpmVersion: '2.0.0',
+    },
+    failOnMissingDependencies: true,
+    include: {
+      dependencies: true,
+      devDependencies: true,
+      optionalDependencies: true,
+    },
+    lockfileDir: process.cwd(),
+  }
+
+  expect(() => {
+    filterLockfileByImportersAndEngine(lockfile, ['project-1' as ProjectId], {
+      ...opts,
+      engineStrict: true,
+      skipped: new Set<string>(),
+    })
+  }).toThrow(/Unsupported engine/)
+
+  const skipped = new Set<string>()
+  const { requiredDepPaths } = filterLockfileByImportersAndEngine(lockfile, ['project-1' as ProjectId], {
+    ...opts,
+    engineStrict: false,
+    skipped,
+  })
+  expect(requiredDepPaths.has('not-compatible@1.0.0' as DepPath)).toBe(true)
+  expect(Array.from(skipped)).toStrictEqual([])
+})
+
+test('filterByImportersAndEngine(): a non-optional edge wins over an optional one that reaches the package first', () => {
+  const skipped = new Set<string>()
+  const { lockfile: filteredLockfile, requiredDepPaths } = filterLockfileByImportersAndEngine(
+    {
+      importers: {
+        ['project-1' as ProjectId]: {
+          dependencies: {
+            'regular-parent': '1.0.0',
+          },
+          optionalDependencies: {
+            'not-compatible': '1.0.0',
+          },
+          specifiers: {
+            'not-compatible': '^1.0.0',
+            'regular-parent': '^1.0.0',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['not-compatible@1.0.0' as DepPath]: {
+          engines: {
+            node: '1000',
+          },
+          optional: true,
+          resolution: { integrity: '' },
+        },
+        ['regular-parent@1.0.0' as DepPath]: {
+          dependencies: {
+            'not-compatible': '1.0.0',
+          },
+          resolution: { integrity: '' },
+        },
+      },
+    },
+    ['project-1' as ProjectId],
+    {
+      currentEngine: {
+        nodeVersion: '10.0.0',
+        pnpmVersion: '2.0.0',
+      },
+      engineStrict: false,
+      failOnMissingDependencies: true,
+      include: {
+        dependencies: true,
+        devDependencies: true,
+        optionalDependencies: true,
+      },
+      lockfileDir: process.cwd(),
+      skipped,
+    }
+  )
+
+  expect(requiredDepPaths.has('not-compatible@1.0.0' as DepPath)).toBe(true)
+  expect(Array.from(skipped)).toStrictEqual([])
+  expect(Object.keys(filteredLockfile.packages ?? {}).sort()).toStrictEqual([
+    'not-compatible@1.0.0',
+    'regular-parent@1.0.0',
+  ])
 })
 
 test('filterByImportersAndEngine(): includes linked packages', () => {

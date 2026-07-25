@@ -734,6 +734,21 @@ test('fail on unsupported dependency of optional dependency', async () => {
   ).rejects.toThrow()
 })
 
+test('fail on unsupported dependency of optional dependency during a headless install', async () => {
+  prepareEmpty()
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
+    {},
+    ['@pnpm.e2e/has-not-compatible-dep@1.0.0'],
+    testDefaults({ targetDependenciesField: 'optionalDependencies' })
+  )
+  rimrafSync('node_modules')
+
+  await expect(
+    install(manifest, testDefaults({ frozenLockfile: true, engineStrict: true }))
+  ).rejects.toThrow(/Unsupported platform/)
+})
+
 test('do not fail on an optional dependency that has a non-optional dependency with a failing postinstall script', async () => {
   prepareEmpty()
   await expect(
