@@ -274,9 +274,14 @@ fn optional_peer_stays_out_of_the_importer_without_auto_install_peers() {
             "optional peer added to pkg-a under `autoInstallPeers: false`: {pkg_a:?}",
         );
     }
-    // `symlink_metadata` so a dangling link counts as linked too.
+    // `symlink_metadata` so a dangling link counts as linked too, and
+    // `NotFound` specifically so an unreadable directory isn't mistaken
+    // for an absent link.
     assert!(
-        fs::symlink_metadata(workspace.join("pkg-a/node_modules/@pnpm.e2e/peer-c")).is_err(),
+        matches!(
+            fs::symlink_metadata(workspace.join("pkg-a/node_modules/@pnpm.e2e/peer-c")),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound
+        ),
         "optional peer linked into pkg-a under `autoInstallPeers: false`",
     );
     // The optional peer is still deduplicated into the dependent's peer
