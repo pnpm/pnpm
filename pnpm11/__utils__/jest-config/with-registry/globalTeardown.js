@@ -1,4 +1,7 @@
 import { rm } from 'node:fs/promises'
+import path from 'node:path'
+
+import { STORAGE_PREFIX } from './storagePrefix.js'
 
 export default async () => {
   // The server is killed before its storage is removed: pnpr writes
@@ -33,14 +36,23 @@ export default async () => {
  * Remove the storage `globalSetup` created for this run.
  *
  * Errors propagate: `force` already ignores a directory that isn't
- * there, so anything reaching the caller is unexpected, and downgrading
- * it to a warning would let the leak this teardown prevents come back
- * unnoticed. `maxRetries` covers the transient case where the
- * just-killed server has not released its handles yet, which Windows is
- * prone to.
+ * there, so anything reaching the caller is unexpected, and a warning
+ * would be easy to miss in a passing run — which is how storage
+ * accumulates in `/tmp` unnoticed. `maxRetries` covers the transient
+ * case where the just-killed server has not released its handles yet,
+ * which Windows is prone to.
  */
 async function removeStorage () {
   const storage = global.registryMockStorage
   if (storage == null) return
+  // This is a recursive force-delete, so it only ever runs against a
+  // path shaped like the one `globalSetup` mkdtemp'd. Anything else
+  // means the global was set by something other than that setup, and
+  // guessing at its intent is not worth the blast radius.
+  if (!path.basename(storage).startsWith(STORAGE_PREFIX)) {
+    throw new Error(
+      `Refusing to remove ${storage}: not a ${STORAGE_PREFIX}* directory created by globalSetup.`
+    )
+  }
   await rm(storage, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
 }

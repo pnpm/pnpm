@@ -8,6 +8,8 @@ import { promisify } from 'node:util'
 import getPort from 'get-port'
 import treeKill from 'tree-kill'
 
+import { STORAGE_PREFIX } from './storagePrefix.js'
+
 const kill = promisify(treeKill)
 
 const REPO_ROOT = path.join(import.meta.dirname, '..', '..', '..', '..')
@@ -23,7 +25,7 @@ export default async () => {
   // Build verdaccio-shaped storage from the in-repo package fixtures. The
   // registry mutates this storage during tests (publishes, dist-tags), so it
   // gets its own writable copy in a temp dir, never the read-only fixtures.
-  const storage = mkdtempSync(path.join(tmpdir(), 'pnpm-registry-mock-storage-'))
+  const storage = mkdtempSync(path.join(tmpdir(), STORAGE_PREFIX))
   buildStorage(storage)
   process.env.PNPM_REGISTRY_MOCK_STORAGE = storage
   // Handed to globalTeardown so it removes only the directory this run

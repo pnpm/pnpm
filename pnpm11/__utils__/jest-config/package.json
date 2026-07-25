@@ -26,7 +26,8 @@
   ],
   "repository": "https://github.com/pnpm/pnpm/tree/main/pnpm11/__utils__/jest-config",
   "scripts": {
-    "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest"
+    "test": "pn .test",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "jest": {
     "preset": "@pnpm/jest-config"
