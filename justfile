@@ -73,15 +73,19 @@ test-pacquet:
 test-pnpr:
   cargo nextest run -p pnpr -p pnpr-fixtures
 
-# List expected-failing test ports. Exits 0 when there are none, so an
-# empty list reads as "nothing stubbed" rather than as a failure.
+# List expected-failing test ports. The build runs on its own line so a
+# workspace that doesn't compile fails the recipe with cargo's diagnostics;
+# the listing line then tolerates `rg`'s exit 1, so an empty list reads as
+# "nothing stubbed" rather than as a failure.
 [unix]
 known-failures:
-  @cargo test --workspace known_failures -- --list 2>/dev/null | rg '^known_failures::' || true
+  cargo test --workspace --no-run --quiet
+  -@cargo test --workspace known_failures -- --list 2>/dev/null | rg '^known_failures::'
 
 [windows]
 known-failures:
-  @cargo test --workspace known_failures -- --list 2>nul | rg '^known_failures::' || true
+  cargo test --workspace --no-run --quiet
+  -@cargo test --workspace known_failures -- --list 2>nul | rg '^known_failures::'
 # Lint the whole project
 lint:
   cargo clippy --locked --workspace --all-targets -- --deny warnings
