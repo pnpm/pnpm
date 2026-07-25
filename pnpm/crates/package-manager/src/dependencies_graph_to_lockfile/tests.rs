@@ -199,6 +199,45 @@ fn fresh_install_records_a_single_direct_dependency() {
 }
 
 #[test]
+fn fresh_install_records_string_libc_without_coercing_scalar_bundle_metadata() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": { "sass-embedded-linux-musl-x64": "1.100.0" },
+    }));
+    let node = make_node(
+        "sass-embedded-linux-musl-x64",
+        "1.100.0",
+        json!({
+            "name": "sass-embedded-linux-musl-x64",
+            "version": "1.100.0",
+            "cpu": ["x64"],
+            "os": ["linux"],
+            "libc": "musl",
+            "bundledDependencies": "not-an-array",
+        }),
+        BTreeMap::new(),
+        BTreeMap::new(),
+        HashSet::new(),
+    );
+    let mut graph = DependenciesGraph::new();
+    graph.insert(node.dep_path.clone(), node);
+    let direct = BTreeMap::from([(
+        "sass-embedded-linux-musl-x64".to_string(),
+        DepPath::from("sass-embedded-linux-musl-x64@1.100.0".to_string()),
+    )]);
+
+    let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest, &graph, direct, false, false, None, None,
+    ));
+
+    let package_key: PackageKey = "sass-embedded-linux-musl-x64@1.100.0".parse().unwrap();
+    let metadata = &lockfile.packages.as_ref().expect("packages")[&package_key];
+    assert_eq!(metadata.libc.as_deref(), Some(["musl".to_string()].as_slice()));
+    assert!(metadata.bundled_dependencies.is_none());
+}
+
+#[test]
 fn fresh_install_records_importer_manifest_metadata() {
     let (_tmp, manifest) = write_manifest(json!({
         "name": "fixture",
