@@ -19,6 +19,7 @@ import {
   ignoredScriptsLogger,
   stageLogger,
   summaryLogger,
+  unusedOverrideLogger,
 } from '@pnpm/core-loggers'
 import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
 import * as dp from '@pnpm/deps.path'
@@ -103,6 +104,7 @@ import {
   type InstallOptions,
   type ProcessedInstallOptions as StrictInstallOptions,
 } from './extendInstallOptions.js'
+import { findAppliedOverrideSelectorsFromLockfile } from './findAppliedOverrides.js'
 import { linkPackages } from './link.js'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues.js'
 import { validateModules } from './validateModules.js'
@@ -186,7 +188,10 @@ export async function install (
   const rootDir = (opts.dir ?? process.cwd()) as ProjectRootDir
 
   // When a pnpr server is configured, use server-side resolution
-  // instead of the normal resolution flow.
+  // instead of the normal resolution flow. The pnpr protocol resolves
+  // with overrides but does not report which selectors matched; the
+  // unused-override warning is computed by scanning the resolved
+  // lockfile inside installViaPnprServer.
   if (opts.pnprServer) {
     return installViaPnprServer(manifest, rootDir, opts)
   }
@@ -327,7 +332,9 @@ export async function mutateModules (
   // When a pnpr server is configured, use server-side resolution. The pnpr server
   // path supports `install`, `installSome` (pnpm add), and `uninstallSome`
   // (pnpm remove). Mutations that need full client-side resolution (update
-  // flags) still fall through to the normal flow.
+  // flags) still fall through to the normal flow. The unused-override
+  // warning is computed by scanning the resolved lockfile — see the
+  // comment in `installViaPnprServer`.
   if (opts.pnprServer && canUsePnprForMutations(projects)) {
     const pnprResult = await mutateModulesViaPnpr(projects, opts)
     if (pnprResult) return pnprResult
@@ -881,6 +888,7 @@ export async function mutateModules (
         preferredSpecs,
         saveCatalogName: opts.saveCatalogName,
         overrides: opts.overrides,
+        onOverrideApplied: (selector) => opts.appliedOverrides.add(selector),
         defaultCatalog: opts.catalogs?.default,
       })
 
@@ -1675,6 +1683,32 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           ctx.skipped.add(depPath)
           dependenciesByProjectId[id].delete(alias)
         }
+      }
+    }
+  }
+
+  // Same gate as the patches verifier (deps-resolver/index.ts): only check
+  // when the whole lockfile was reanalyzed, otherwise the applied-override
+  // set is incomplete (resolution short-circuited against the cache) and we
+  // would warn about overrides that are actually in use. Emitted before the
+  // 'resolution_done' stage so the reporter's buffer(resolutionDone$) captures it.
+  if (
+    opts.warnUnusedOverrides &&
+    opts.parsedOverrides.length &&
+    (forceFullResolution || isEmpty(ctx.wantedLockfile.packages ?? {})) &&
+    Object.keys(ctx.wantedLockfile.importers).length === Object.keys(ctx.projects).length
+  ) {
+    for (const override of opts.parsedOverrides) {
+      // Convergence overrides have their own staleness path
+      // (`convergeDeclaredRanges`); `onApplied` is never called for them,
+      // so leaving them in this diff would flag every applied convergence
+      // override as unused.
+      if (override.converge) continue
+      if (!opts.appliedOverrides.has(override.selector)) {
+        unusedOverrideLogger.debug({
+          prefix: ctx.lockfileDir,
+          selector: override.selector,
+        })
       }
     }
   }
@@ -2716,6 +2750,42 @@ async function installViaPnprServer (
     logger.info({
       message: `Resolved ${pnprStats.totalPackages} packages`,
       prefix: rootDir,
+    })
+
+    // The pnpr protocol resolves with overrides but does not report
+    // which selectors matched. Scan the resolved lockfile to determine
+    // that, then emit unused-override events for unmatched selectors —
+    // same behavior as the local-resolver path. Emitted before
+    // 'resolution_done' so the reporter's buffer captures them.
+    const parsedOverrides = parseOverrides(opts.overrides ?? {}, opts.catalogs ?? {})
+    if (opts.warnUnusedOverrides && parsedOverrides.length > 0) {
+      // Build the project-manifest list so parent-scoped overrides can
+      // match workspace project names (which appear in lockfile.importers,
+      // not lockfile.packages). Importer IDs are POSIX-normalized relative
+      // paths from the lockfileDir — same computation as `projectsList`.
+      const projectManifests = (allInstallProjects ?? [{ rootDir, manifest }]).map(p => ({
+        importerId: (path.relative(lockfileDir, p.rootDir) || '.').split(path.sep).join('/'),
+        manifest: p.manifest,
+      }))
+      const applied = findAppliedOverrideSelectorsFromLockfile(lockfile, parsedOverrides, projectManifests)
+      for (const override of parsedOverrides) {
+        // Convergence overrides have their own staleness path
+        // (`convergeDeclaredRanges`); they never match `findAppliedOverrideSelectorsFromLockfile`
+        // in the same sense, so leaving them in this diff would flag every
+        // applied convergence override as unused. Same exclusion as the
+        // local-resolver loop above.
+        if (override.converge) continue
+        if (!applied.has(override.selector)) {
+          unusedOverrideLogger.debug({
+            prefix: lockfileDir,
+            selector: override.selector,
+          })
+        }
+      }
+    }
+    stageLogger.debug({
+      prefix: lockfileDir,
+      stage: 'resolution_done',
     })
 
     // `--lockfile-only`: the pnpr server resolved and we wrote the lockfile, but

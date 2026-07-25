@@ -98,6 +98,7 @@ export const pnpmTypes = {
   'publish-branch': String,
   'recursive-install': Boolean,
   'block-exotic-subdeps': Boolean,
+  'warn-unused-overrides': Boolean,
   reporter: String,
   'resolution-mode': ['highest', 'time-based', 'lowest-direct'],
   'resolve-peers-from-workspace-root': Boolean,

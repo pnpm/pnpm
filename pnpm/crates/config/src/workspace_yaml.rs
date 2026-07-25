@@ -176,6 +176,7 @@ pub struct WorkspaceSettings {
     pub ignore_compatibility_db: Option<bool>,
     pub resolve_peers_from_workspace_root: Option<bool>,
     pub block_exotic_subdeps: Option<bool>,
+    pub warn_unused_overrides: Option<bool>,
     pub verify_store_integrity: Option<bool>,
     /// `frozenStore` from `pnpm-workspace.yaml`. Opens the store
     /// read-only and suppresses every store write — see
@@ -807,6 +808,7 @@ impl WorkspaceSettings {
         self.ignore_compatibility_db = None;
         self.resolve_peers_from_workspace_root = None;
         self.block_exotic_subdeps = None;
+        self.warn_unused_overrides = None;
         self.hoisting_limits = None;
         self.external_dependencies = None;
         self.patched_dependencies = None;
@@ -973,6 +975,7 @@ impl WorkspaceSettings {
             resolve_peers_from_workspace_root, verify_store_integrity, frozen_store,
             verify_deps_before_run,
             block_exotic_subdeps,
+            warn_unused_overrides,
             link_workspace_packages,
             save_workspace_protocol,
             inject_workspace_packages,

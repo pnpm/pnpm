@@ -13,7 +13,7 @@ use crate::{
     PromptAction, PromptLog, RemovedRoot, Reporter, RequestRetryError, RequestRetryLog, RootLog,
     RootMessage, SilentReporter, SkippedOptionalDependencyLog, SkippedOptionalPackage,
     SkippedOptionalParent, SkippedOptionalReason, Stage, StageLog, StatsLog, StatsMessage,
-    SummaryLog,
+    SummaryLog, UnusedOverrideLog,
 };
 
 #[test]
@@ -711,6 +711,29 @@ fn skipped_optional_dependency_event_matches_pnpm_wire_shape() {
     assert_eq!(json["package"]["name"], "foo");
     assert_eq!(json["package"]["version"], "1.0.0");
     assert!(json.get("parents").is_none(), "non-resolver emits carry no parents, got {json:?}");
+}
+
+/// `pnpm:unused-override` matches upstream's wire shape: `prefix` and
+/// `selector` at the top level alongside the bunyan-envelope `level`.
+/// Mirrors `UnusedOverrideMessage` at
+/// <https://github.com/pnpm/pnpm/blob/3b12eb27de/core/core-loggers/src/unusedOverrideLogger.ts>.
+#[test]
+fn unused_override_event_matches_pnpm_wire_shape() {
+    let event = LogEvent::UnusedOverride(UnusedOverrideLog {
+        level: LogLevel::Debug,
+        prefix: "/projects/x".to_string(),
+        selector: "foo>bar".to_string(),
+    });
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
+    let json: Value = envelope
+        .pipe_ref(serde_json::to_string)
+        .expect("serialize envelope")
+        .pipe_as_ref(serde_json::from_str)
+        .expect("parse JSON");
+    assert_eq!(json["name"], "pnpm:unused-override");
+    assert_eq!(json["level"], "debug");
+    assert_eq!(json["prefix"], "/projects/x");
+    assert_eq!(json["selector"], "foo>bar");
 }
 
 /// `details` is optional upstream and must be omitted from the wire
