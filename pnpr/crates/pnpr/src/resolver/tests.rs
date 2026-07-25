@@ -1058,6 +1058,7 @@ fn intern_config_adopts_the_input_lockfile_settings() {
     let request = |settings: Option<pacquet_lockfile::LockfileSettings>| ResolveRequest {
         registry: Some("https://a.test/".to_string()),
         lockfile: Some(Lockfile { settings, ..lockfile("1.0.0") }),
+        frozen_lockfile: true,
         ..ResolveRequest::default()
     };
     let intern = |request: &ResolveRequest| {
@@ -1084,6 +1085,40 @@ fn intern_config_adopts_the_input_lockfile_settings() {
     assert!(!defaults.exclude_links_from_lockfile);
 }
 
+/// A request that may update resolutions resolves under the server's
+/// settings, not the lockfile's: the lockfile records what the last
+/// install used, which is stale precisely when the client has just
+/// changed one. Nothing in the request carries the client's current
+/// value, so the frozen contract is the only place adoption is sound.
+#[test]
+fn intern_config_adopts_lockfile_settings_only_for_a_frozen_request() {
+    use super::intern_config;
+    use pacquet_store_dir::StoreDir;
+    use std::{collections::HashMap, path::PathBuf, sync::Mutex};
+
+    let configs = Mutex::new(HashMap::new());
+    let store_dir = StoreDir::new(PathBuf::from("/tmp/pnpr-update-settings-store"));
+    let cache_dir = PathBuf::from("/tmp/pnpr-update-settings-cache");
+    let request = ResolveRequest {
+        registry: Some("https://a.test/".to_string()),
+        lockfile: Some(Lockfile {
+            settings: Some(pacquet_lockfile::LockfileSettings {
+                auto_install_peers: false,
+                exclude_links_from_lockfile: true,
+                ..pacquet_lockfile::LockfileSettings::default()
+            }),
+            ..lockfile("1.0.0")
+        }),
+        frozen_lockfile: false,
+        ..ResolveRequest::default()
+    };
+
+    let config = intern_config(&configs, &store_dir, &cache_dir, &request, 10, usize::MAX)
+        .expect("intern config");
+    assert!(config.auto_install_peers);
+    assert!(!config.exclude_links_from_lockfile);
+}
+
 /// Only the three adopted fields may reach the interning key. The rest of
 /// the `settings` block doesn't change the config, and keying on it would
 /// let a caller mint a distinct leaked config per value —
@@ -1100,6 +1135,7 @@ fn intern_config_ignores_lockfile_settings_it_does_not_adopt() {
     let cache_dir = PathBuf::from("/tmp/pnpr-unadopted-settings-cache");
     let request = |peers_suffix_max_length: u64| ResolveRequest {
         registry: Some("https://a.test/".to_string()),
+        frozen_lockfile: true,
         lockfile: Some(Lockfile {
             settings: Some(pacquet_lockfile::LockfileSettings {
                 peers_suffix_max_length: Some(peers_suffix_max_length),

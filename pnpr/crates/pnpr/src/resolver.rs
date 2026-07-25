@@ -309,15 +309,22 @@ fn intern_config(
         .map(|overrides| overrides.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect());
 
     // The protocol carries no `autoInstallPeers` / `dedupePeers` /
-    // `excludeLinksFromLockfile`, but an input lockfile records the values
-    // it was written under. Adopting them makes the server resolve as the
-    // client would; leaving the server's own defaults in place would make
-    // the frozen path reject a lockfile that is valid for its owner, since
-    // the freshness gate compares these against the config.
+    // `excludeLinksFromLockfile`, so the server's own defaults would
+    // otherwise decide them. On a frozen request the input lockfile is the
+    // contract — nothing is re-resolved, and the freshness gate compares
+    // these three against the config — so its recorded values are the ones
+    // to honor; the server's defaults would reject a lockfile that is
+    // valid for its owner.
+    //
+    // A request that may update resolutions keeps the server defaults: the
+    // lockfile records what the *last* install used, which is stale exactly
+    // when the client has just changed one of these. Neither value is the
+    // client's current setting, and only the protocol can carry that
+    // ([pnpm/pnpm#13389](https://github.com/pnpm/pnpm/issues/13389)).
     let lockfile_settings = request
-        .lockfile
-        .as_ref()
-        .and_then(|lockfile| lockfile.settings.as_ref())
+        .frozen_lockfile
+        .then(|| request.lockfile.as_ref()?.settings.as_ref())
+        .flatten()
         .map(AdoptedLockfileSettings::from);
 
     let key = serde_json::json!({
