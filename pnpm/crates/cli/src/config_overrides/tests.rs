@@ -1,5 +1,7 @@
 use super::{ConfigOverrides, apply_registry_override, apply_store_dir_override};
-use pacquet_config::{Config, EnvVar, GetCurrentDir, GetHomeDir, LinkProbe, NodeLinker};
+use pacquet_config::{
+    Config, EnvVar, GetCurrentDir, GetHomeDir, LinkProbe, NodeLinker, PmOnFail, RuntimeOnFail,
+};
 use pacquet_store_dir::STORE_VERSION;
 use pretty_assertions::assert_eq;
 use std::{ffi::OsString, path::PathBuf};
@@ -26,6 +28,28 @@ fn extract_separates_config_tokens_from_argv() {
         config.package_manager_bootstrap.registries.get("default").map(String::as_str),
         Some("https://example.test/"),
     );
+}
+
+#[test]
+fn extract_accepts_the_on_fail_settings_as_bare_flags() {
+    let (overrides, remaining) = ConfigOverrides::extract(argv([
+        "pacquet",
+        "install",
+        "--pm-on-fail=ignore",
+        "--runtime-on-fail=warn",
+    ]));
+    assert_eq!(remaining, argv(["pacquet", "install"]));
+    let mut config = Config::default();
+    overrides.apply(&mut config);
+    assert_eq!(config.pm_on_fail, Some(PmOnFail::Ignore));
+    assert_eq!(config.runtime_on_fail, Some(RuntimeOnFail::Warn));
+}
+
+#[test]
+fn extract_leaves_other_bare_flags_for_clap() {
+    let (_, remaining) =
+        ConfigOverrides::extract(argv(["pacquet", "install", "--node-linker=hoisted"]));
+    assert_eq!(remaining, argv(["pacquet", "install", "--node-linker=hoisted"]));
 }
 
 #[test]

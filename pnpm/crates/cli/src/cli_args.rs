@@ -93,8 +93,8 @@ mod dispatch_query;
 mod dispatch_script;
 mod package_manager;
 mod pipelines;
+pub(crate) mod pre_command;
 pub(crate) mod reporter;
-pub(crate) mod switch_cli_version;
 mod verify_deps;
 
 pub(crate) use cli_command::CliArgs;
