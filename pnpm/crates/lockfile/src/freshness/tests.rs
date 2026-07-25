@@ -916,7 +916,7 @@ fn check_settings_passes_when_both_sides_empty() {
         "lockfileVersion: '9.0'"
     })
     .expect("parse minimal lockfile");
-    assert!(check_lockfile_settings(&lockfile, settings_check(&Catalogs::new())).is_ok(),);
+    assert!(check_lockfile_settings(&lockfile, settings_check(&Catalogs::new())).is_ok());
     assert!(
         check_lockfile_settings(
             &lockfile,
@@ -1004,7 +1004,7 @@ fn check_settings_passes_when_overrides_both_empty() {
         "lockfileVersion: '9.0'"
     })
     .expect("parse minimal lockfile");
-    assert!(check_lockfile_settings(&lockfile, settings_check(&Catalogs::new())).is_ok(),);
+    assert!(check_lockfile_settings(&lockfile, settings_check(&Catalogs::new())).is_ok());
 
     let empty: std::collections::HashMap<String, String> = std::collections::HashMap::new();
     assert!(
@@ -1177,7 +1177,7 @@ fn check_settings_returns_ok_when_no_package_extensions_checksum_on_either_side(
         "lockfileVersion: '9.0'"
     })
     .expect("parse minimal lockfile");
-    assert!(check_lockfile_settings(&lockfile, settings_check(&Catalogs::new())).is_ok(),);
+    assert!(check_lockfile_settings(&lockfile, settings_check(&Catalogs::new())).is_ok());
 }
 
 #[test]
@@ -1415,7 +1415,7 @@ fn check_settings_passes_when_inject_workspace_packages_both_false() {
         "lockfileVersion: '9.0'"
     })
     .expect("parse minimal lockfile");
-    assert!(check_lockfile_settings(&lockfile, settings_check(&Catalogs::new())).is_ok(),);
+    assert!(check_lockfile_settings(&lockfile, settings_check(&Catalogs::new())).is_ok());
 }
 
 #[test]
@@ -1492,7 +1492,7 @@ fn check_settings_passes_when_peers_suffix_max_length_unset_and_config_is_defaul
         "lockfileVersion: '9.0'"
     })
     .expect("parse minimal lockfile");
-    assert!(check_lockfile_settings(&lockfile, settings_check(&Catalogs::new())).is_ok(),);
+    assert!(check_lockfile_settings(&lockfile, settings_check(&Catalogs::new())).is_ok());
 }
 
 /// Lockfile carries no `settings.peersSuffixMaxLength` (writer used
@@ -1539,7 +1539,7 @@ fn check_settings_passes_when_explicit_peers_suffix_max_length_matches() {
                 ..settings_check(&Catalogs::new())
             }
         )
-        .is_ok()
+        .is_ok(),
     );
 }
 
