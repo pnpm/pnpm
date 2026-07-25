@@ -99,7 +99,7 @@ pub fn published_names(projects: &[pacquet_workspace::Project]) -> HashMap<Strin
             continue;
         };
         if published != name {
-            renames.insert(name.to_string(), published);
+            renames.insert(name.to_string(), published.to_string());
         }
     }
     renames
@@ -107,10 +107,14 @@ pub fn published_names(projects: &[pacquet_workspace::Project]) -> HashMap<Strin
 
 /// The releases in `plan` whose current version the registry does not have —
 /// `AssembleReleasePlanOptions::unpublished_dirs`. Probe failures propagate.
-/// Mirrors the TypeScript `resolveUnpublishedDirs`.
+/// A release is keyed by its manifest name, so `published_names` translates it
+/// for the probe; without that a renamed project reads as never published and
+/// debuts at its manifest version on every release. Mirrors the TypeScript
+/// `resolveUnpublishedDirs`.
 pub async fn unpublished_release_dirs(
     config: &Config,
     plan: &ReleasePlan,
+    published_names: &HashMap<String, String>,
 ) -> miette::Result<HashSet<String>> {
     // Debug-only test seam, compiled out of release builds: the engine tests
     // advance manifests without publishing, so they force "all published".
@@ -122,10 +126,11 @@ pub async fn unpublished_release_dirs(
     let client = build_registry_client(config)?;
     let checks = plan.releases.iter().map(|release| {
         let client = &client;
+        let probe =
+            published_names.get(&release.name).map_or(release.name.as_str(), String::as_str);
         async move {
             let published =
-                is_version_published(client, config, &release.name, &release.current_version)
-                    .await?;
+                is_version_published(client, config, probe, &release.current_version).await?;
             Ok::<_, miette::Report>((release.dir.clone(), published))
         }
     });
@@ -261,18 +266,13 @@ fn read_name_version(project_dir: &Path) -> Option<(String, String, String)> {
             .ok()?;
     let value = manifest.value();
     let name = value.get("name")?.as_str()?.to_string();
-    let published = published_name(value).unwrap_or_else(|| name.clone());
+    let published = published_name(value).map_or_else(|| name.clone(), ToString::to_string);
     let version = value.get("version")?.as_str()?.to_string();
     Some((name, published, version))
 }
 
 /// The name a manifest publishes under, when it renames itself via
-/// `publishConfig.name`.
-pub fn published_name(manifest: &serde_json::Value) -> Option<String> {
-    manifest
-        .get("publishConfig")?
-        .get("name")?
-        .as_str()
-        .filter(|name| !name.is_empty())
-        .map(ToString::to_string)
+/// `publishConfig.name`. An empty rename is no rename.
+pub fn published_name(manifest: &serde_json::Value) -> Option<&str> {
+    manifest.get("publishConfig")?.get("name")?.as_str().filter(|name| !name.is_empty())
 }

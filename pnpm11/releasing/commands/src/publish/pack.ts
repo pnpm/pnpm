@@ -24,6 +24,7 @@ import tar from 'tar-stream'
 import { glob } from 'tinyglobby'
 import validateNpmPackageName from 'validate-npm-package-name'
 
+import { normalizePackageName } from '../tarball/safeTarballFilename.js'
 import { fetchPreviousChangelog, type PreviousChangelogOptions } from './previousChangelog.js'
 import { runScriptsIfPresent } from './publish.js'
 
@@ -279,9 +280,15 @@ export async function api (opts: PackOptions): Promise<PackResult> {
   let packDestination: string | undefined
   // Read back off the publish manifest so a `publishConfig.name` rename reaches
   // the filename too — the tarball name, the packed manifest, and the registry
-  // metadata all name one artifact.
-  const publishedName = publishManifest.name ?? manifest.name
-  const normalizedName = publishedName.replace('@', '').replace('/', '-')
+  // metadata all name one artifact. The rename never went through the check on
+  // `manifest.name` above, so it is validated here: it lands in the tarball
+  // filename, where a separator would smuggle path components into the join and
+  // write outside the pack destination.
+  const publishedName = publishManifest.name || manifest.name
+  if (!validateNpmPackageName(publishedName).validForOldPackages) {
+    throw new PnpmError('INVALID_PACKAGE_NAME', `Invalid package name "${publishedName}".`)
+  }
+  const normalizedName = normalizePackageName(publishedName)
   if (opts.out) {
     if (opts.packDestination) {
       throw new PnpmError('INVALID_OPTION', 'Cannot use --pack-destination and --out together')

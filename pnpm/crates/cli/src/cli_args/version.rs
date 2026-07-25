@@ -388,7 +388,8 @@ impl VersionArgs {
                 },
             )
         };
-        let unpublished_dirs = unpublished_release_dirs(config, &assemble(HashSet::new())?).await?;
+        let unpublished_dirs =
+            unpublished_release_dirs(config, &assemble(HashSet::new())?, &published_names).await?;
         let plan = assemble(unpublished_dirs)?;
 
         if plan.releases.is_empty() {

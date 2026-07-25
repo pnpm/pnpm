@@ -10,6 +10,7 @@ interface FixturePkg {
   name: string
   version: string
   dependencies?: Record<string, string>
+  publishConfig?: { name: string }
 }
 
 describe('change command and intent-consuming version -r', () => {
@@ -227,6 +228,23 @@ describe('change command and intent-consuming version -r', () => {
     expect(JSON.parse(fs.readFileSync(path.join(lib.rootDir, 'package.json'), 'utf8')).version).toBe('1100.0.0')
     // The intent is still consumed and ledgered against the debut version.
     expect(fs.readFileSync(path.join(tempDir, '.changeset', 'ledger.yaml'), 'utf8')).toContain('lib@1100.0.0:')
+  })
+
+  it('a package renamed by publishConfig.name is probed under the name the registry knows', async () => {
+    const lib = addPkg({ name: 'lib', version: '1100.0.0', publishConfig: { name: 'lib-on-npm' } })
+    // Only the published name is on the registry — the workspace name is either
+    // absent or, as with `pacquet`, someone else's package.
+    const opts = { ...baseOpts([lib]), checkVersionPublished: async (name: string) => name === 'lib-on-npm' }
+
+    await change.handler({ ...opts, bump: 'minor', summary: 'A feature.' } as any, ['lib']) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+    const status = await change.handler(opts as any, ['status']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(status).toContain('lib: 1100.0.0 → 1100.1.0')
+
+    // Probing the workspace name would read as unpublished and debut the
+    // release at 1100.0.0, republishing a version that is already out.
+    const applied = await version.handler(opts as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(applied).toContain('lib: 1100.0.0 → 1100.1.0')
   })
 
   it('a registry probe failure fails the command rather than guessing the version', async () => {

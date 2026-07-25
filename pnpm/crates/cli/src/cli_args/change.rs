@@ -14,13 +14,14 @@ use pacquet_versioning::{
 use pacquet_workspace::Project;
 use pacquet_workspace_projects_filter::{GetChangedProjectsOptions, get_changed_projects};
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     path::{Path, PathBuf},
     process::Command,
 };
 
 use crate::cli_args::{
-    changelog::unpublished_release_dirs, recursive::discover_workspace_projects,
+    changelog::{published_names, unpublished_release_dirs},
+    recursive::discover_workspace_projects,
 };
 
 /// `pnpm change` — record a change intent: which packages a change affects,
@@ -85,7 +86,13 @@ impl ChangeArgs {
             && self.bump.is_none()
             && self.summary.is_none()
         {
-            let output = render_status(&workspace_dir, &engine_projects, config).await?;
+            let output = render_status(
+                &workspace_dir,
+                &engine_projects,
+                &published_names(&projects),
+                config,
+            )
+            .await?;
             println!("{output}");
             return Ok(());
         }
@@ -290,6 +297,7 @@ fn prompt_bump_types(pkg_refs: &[String]) -> miette::Result<IndexMap<String, Int
 async fn render_status(
     workspace_dir: &Path,
     projects: &[WorkspaceProject],
+    published_names: &HashMap<String, String>,
     config: &Config,
 ) -> miette::Result<String> {
     let intents = read_change_intents(workspace_dir)?;
@@ -305,7 +313,8 @@ async fn render_status(
         )
     };
     // Probe as the release does, so the preview matches it.
-    let unpublished_dirs = unpublished_release_dirs(config, &assemble(HashSet::new())?).await?;
+    let unpublished_dirs =
+        unpublished_release_dirs(config, &assemble(HashSet::new())?, published_names).await?;
     let plan = assemble(unpublished_dirs)?;
     if plan.releases.is_empty() {
         return Ok("No pending changes.".to_string());

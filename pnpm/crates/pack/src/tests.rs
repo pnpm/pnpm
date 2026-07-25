@@ -311,6 +311,24 @@ fn invalid_package_name_is_rejected() {
 }
 
 #[test]
+fn invalid_publish_config_name_is_rejected() {
+    // The rename never passes the check on the manifest name, and it lands in
+    // the default `<name>-<version>.tgz` filename, so a separator in it would
+    // write the tarball outside the destination directory.
+    for published in ["Foo BAR", "../../evil", r"..\..\evil", "@a/b/c"] {
+        let (_dir, opts) = fixture(&json!({
+            "name": "foo",
+            "version": "1.0.0",
+            "publishConfig": { "name": published },
+        }));
+        assert!(
+            matches!(api::<SilentReporter, Host>(&opts), Err(PackError::InvalidPackageName { .. })),
+            "publishConfig.name {published:?} should be rejected",
+        );
+    }
+}
+
+#[test]
 fn version_with_path_separator_is_rejected() {
     // A separator in the manifest version would smuggle path components
     // into the default `<name>-<version>.tgz` filename and write the

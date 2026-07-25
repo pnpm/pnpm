@@ -315,10 +315,19 @@ where
 
     // Read back off the publish manifest so a `publishConfig.name` rename
     // reaches the filename too — the tarball name, the packed manifest, and
-    // the registry metadata all name one artifact.
-    let published_name =
-        publish_manifest.get("name").and_then(Value::as_str).filter(|name| !name.is_empty());
-    let normalized_name = normalize_tarball_name(published_name.unwrap_or(name));
+    // the registry metadata all name one artifact. The rename never went
+    // through the check on `name` above, so it is validated here: it lands in
+    // the tarball filename, where a separator would smuggle path components
+    // into the join and write outside `dest_dir`.
+    let published_name = publish_manifest
+        .get("name")
+        .and_then(Value::as_str)
+        .filter(|name| !name.is_empty())
+        .unwrap_or(name);
+    if !is_valid_old_npm_package_name(published_name) {
+        return Err(PackError::InvalidPackageName { name: published_name.to_string() });
+    }
+    let normalized_name = normalize_tarball_name(published_name);
     let (tarball_name, pack_destination) =
         resolve_output(opts, &normalized_name, &published_version)?;
 

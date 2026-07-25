@@ -5,7 +5,6 @@ import { type Config, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { runLifecycleHook, type RunLifecycleHookOptions } from '@pnpm/exec.lifecycle'
 import { isGitRepo, isWorkingTreeClean } from '@pnpm/network.git-utils'
-import type { WorkspaceProject } from '@pnpm/releasing.versioning'
 import {
   applyReleasePlan,
   type ApplyReleasePlanOptions,
@@ -23,6 +22,7 @@ import { inc, valid } from 'semver'
 
 import { renderReleasePlan, toWorkspaceProjects } from '../change/index.js'
 import { changelogHasSection, fetchPublishedChangelog } from '../publish/previousChangelog.js'
+import { publishedNameByManifestName } from '../publishedNames.js'
 import { type CheckVersionPublished, resolveUnpublishedDirs } from '../resolveUnpublishedDirs.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
@@ -246,7 +246,8 @@ async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string>
     filter,
     enforceWorkspaceProtocol: true,
   }
-  const unpublishedDirs = await resolveUnpublishedDirs(assembleReleasePlan(baseArgs), opts)
+  const publishedNames = publishedNameByManifestName(projects)
+  const unpublishedDirs = await resolveUnpublishedDirs(assembleReleasePlan(baseArgs), { ...opts, publishedNames })
   const plan = assembleReleasePlan({ ...baseArgs, unpublishedDirs })
 
   const applyOpts: ApplyReleasePlanOptions = {
@@ -254,7 +255,7 @@ async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string>
     projects,
     allIntents: intents,
     versioning: opts.versioning,
-    verifyPublished: buildVerifyPublished(opts, projects),
+    verifyPublished: buildVerifyPublished(opts, publishedNames),
   }
 
   if (plan.releases.length === 0) {
@@ -293,9 +294,8 @@ async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string>
  * is kept. `undefined` in `repository` storage, where the committed changelog
  * makes the ledger alone sufficient.
  */
-function buildVerifyPublished (opts: VersionHandlerOptions, projects: WorkspaceProject[]): ApplyReleasePlanOptions['verifyPublished'] {
+function buildVerifyPublished (opts: VersionHandlerOptions, publishedNames: ReadonlyMap<string, string>): ApplyReleasePlanOptions['verifyPublished'] {
   if (changelogStorage(opts.versioning) !== 'registry') return undefined
-  const publishedNames = publishedNameByManifestName(projects)
   return async (name, version, section) => {
     try {
       // The parked section is keyed by the manifest name, which is what the
@@ -306,22 +306,6 @@ function buildVerifyPublished (opts: VersionHandlerOptions, projects: WorkspaceP
       return false
     }
   }
-}
-
-/**
- * Manifest name → published name, for every project that renames itself with
- * `publishConfig.name`. Projects that publish under their manifest name are
- * absent, so a lookup miss means "no rename".
- */
-function publishedNameByManifestName (projects: WorkspaceProject[]): Map<string, string> {
-  const renames = new Map<string, string>()
-  for (const { manifest } of projects) {
-    const published = manifest.publishConfig?.name
-    if (manifest.name && typeof published === 'string' && published !== '' && published !== manifest.name) {
-      renames.set(manifest.name, published)
-    }
-  }
-  return renames
 }
 
 function invalidVersionFromGitError (cwd: string, tagVersionPrefix: string, reason: string): PnpmError {
