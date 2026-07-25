@@ -5,23 +5,23 @@ use std::{error::Error, fmt};
 /// A `#[diagnostic(transparent)]` wrapper: displays as its inner error
 /// and keeps it as the source.
 #[derive(Debug)]
-struct Wrapper<E> {
-    inner: E,
+struct Wrapper<Inner> {
+    inner: Inner,
 }
 
-impl<E: fmt::Display> fmt::Display for Wrapper<E> {
+impl<Inner: fmt::Display> fmt::Display for Wrapper<Inner> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(&self.inner, formatter)
     }
 }
 
-impl<E: Error + 'static> Error for Wrapper<E> {
+impl<Inner: Error + 'static> Error for Wrapper<Inner> {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         Some(&self.inner)
     }
 }
 
-impl<E: Diagnostic + 'static> Diagnostic for Wrapper<E> {
+impl<Inner: Diagnostic + 'static> Diagnostic for Wrapper<Inner> {
     fn code(&self) -> Option<Box<dyn fmt::Display + '_>> {
         self.inner.code()
     }
@@ -107,5 +107,5 @@ fn the_head_keeps_its_diagnostic_code() {
 
     let collapsed = Collapsed::new(&wrapped);
 
-    assert_eq!(collapsed.code().map(|code| code.to_string()), Some("ERR_PNPM_LEAF".to_string()),);
+    assert_eq!(collapsed.code().map(|code| code.to_string()), Some("ERR_PNPM_LEAF".to_string()));
 }

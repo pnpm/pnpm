@@ -149,7 +149,7 @@ pub enum InstallPackageBySnapshotError {
     /// Message and code mirror the TypeScript
     /// `assertFetchableResolution` in
     /// `pnpm11/installing/package-requester/src/packageRequester.ts`.
-    /// See [`unverified_fetch_is_allowed`] for the shapes that are
+    /// See `unverified_fetch_is_allowed` for the shapes that are
     /// exempt.
     #[display(
         "Cannot fetch package \"{package_key}\" from the lockfile: it has no \"integrity\" field, so the downloaded tarball cannot be verified. Run a fresh install to repair the lockfile."
@@ -686,7 +686,7 @@ fn local_file_tarball_install_url<'a>(
 /// prefetch mem-cache keys line up.
 ///
 /// The integrity is `None` only for the shapes
-/// [`unverified_fetch_is_allowed`] exempts — every other tarball
+/// `unverified_fetch_is_allowed` exempts — every other tarball
 /// resolution that records none is refused here rather than fetched
 /// unchecked. See
 /// [`pacquet_tarball::DownloadTarballToStore::package_integrity`] for
