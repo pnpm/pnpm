@@ -88,6 +88,28 @@ where
     hash_object_without_sorting(&payload, HashEncoding::Hex)
 }
 
+/// Hash the resolver-visible dependency projection shared by every slot in one
+/// global-virtual-store context.
+///
+/// `base_slot_identities` maps each projected alias to the target's
+/// context-free [`format_global_virtual_store_path`] value. The caller
+/// computes those identities with caches separate from the package-slot
+/// pass, so resolver-visible aliases never become dependency-graph edges
+/// and never change an inner package hash.
+#[must_use]
+pub fn calc_global_virtual_store_context_hash(
+    base_slot_identities: &BTreeMap<String, String>,
+) -> Option<String> {
+    if base_slot_identities.is_empty() {
+        return None;
+    }
+    let projection = base_slot_identities
+        .iter()
+        .map(|(alias, identity)| (alias.clone(), Value::String(identity.clone())))
+        .collect::<serde_json::Map<_, _>>();
+    Some(hash_object_without_sorting(&Value::Object(projection), HashEncoding::Hex))
+}
+
 /// Compute the GVS hash for a config dependency that has no children
 /// at all.
 ///

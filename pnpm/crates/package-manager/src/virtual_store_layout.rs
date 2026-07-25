@@ -1,13 +1,12 @@
 //! Per-install computed layout of the virtual store.
 //!
-//! Stage 1 of pnpm/pacquet#432 introduces a path split: when the global
-//! virtual store is enabled, packages live at
-//! `<store_dir>/links/<scope>/<name>/<version>/<hash>/node_modules/<name>`,
-//! not at the project-local
-//! `<project>/node_modules/.pnpm/<flat-name>/node_modules/<name>`. The
-//! shape of `<flat-name>` versus `<scope>/<name>/<version>/<hash>` is
-//! also different — flat name uses [`PkgNameVerPeer::to_virtual_store_name`]
-//! while the GVS layout uses
+//! When the global virtual store is enabled, packages live under
+//! `<store_dir>/links`. A nonempty resolver-visible projection adds a shared
+//! `contexts/<context-hash>/` namespace before the legacy
+//! `<scope>/<name>/<version>/<hash>/node_modules/<name>` package path.
+//! Without GVS, packages remain under the project-local
+//! `<project>/node_modules/.pnpm/<flat-name>/node_modules/<name>`.
+//! Flat names use [`PkgNameVerPeer::to_virtual_store_name`], while GVS uses
 //! [`pacquet_graph_hasher::format_global_virtual_store_path`] over a
 //! `calc_graph_node_hash`-computed digest.
 //!
@@ -24,15 +23,15 @@ use crate::{AllowBuildPolicy, install_frozen_lockfile::find_own_runtime_node_maj
 use pacquet_config::Config;
 use pacquet_deps_path::get_pkg_id_with_patch_hash;
 use pacquet_graph_hasher::{
-    DepsGraphNode, DepsStateCache, calc_graph_node_hash, engine_name,
-    format_global_virtual_store_path, join_global_virtual_store_path,
+    DepsGraphNode, DepsStateCache, calc_global_virtual_store_context_hash, calc_graph_node_hash,
+    engine_name, format_global_virtual_store_path, join_global_virtual_store_path,
 };
 use pacquet_lockfile::{
     LockfileResolution, PackageKey, PackageMetadata, PkgIdWithPatchHash, PkgName, PkgVerPeer,
     SnapshotDepRef, SnapshotEntry, VersionPart,
 };
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     path::{Path, PathBuf},
 };
 
@@ -65,13 +64,20 @@ pub struct VirtualStoreLayout {
 
     /// `Some` only when the global virtual store is enabled. For each
     /// snapshot, holds the precomputed
-    /// `[<scope>/]<name>/<version>/<hash>` suffix that goes after
-    /// `package_store_dir`. `None` when GVS is off — callers fall back
+    /// relative package path that goes after `package_store_dir`.
+    /// Contextual layouts prefix the legacy package path with
+    /// `contexts/<context-hash>/`. `None` when GVS is off — callers fall back
     /// to [`PkgNameVerPeer::to_virtual_store_name`] computed on demand
     /// from the snapshot key.
     ///
     /// [`PkgNameVerPeer::to_virtual_store_name`]: pacquet_lockfile::PkgNameVerPeer::to_virtual_store_name
     gvs_suffixes: Option<HashMap<PackageKey, String>>,
+
+    /// Shared context namespace. `None` preserves legacy GVS paths.
+    context_hash: Option<String>,
+
+    /// Resolver-visible aliases materialized under the context's `node_modules`.
+    context_projection: crate::GlobalVirtualStoreContextProjection,
 
     /// Threshold passed into
     /// [`PkgNameVerPeer::to_virtual_store_name`] for the legacy flat-
@@ -100,6 +106,8 @@ impl VirtualStoreLayout {
         VirtualStoreLayout {
             package_store_dir: root.into(),
             gvs_suffixes: None,
+            context_hash: None,
+            context_projection: BTreeMap::new(),
             virtual_store_dir_max_length,
         }
     }
@@ -150,12 +158,17 @@ impl VirtualStoreLayout {
     /// `engine = null` so their GVS directories survive Node.js
     /// upgrades. When `None`, every snapshot keeps the engine in
     /// its hash payload.
+    ///
+    /// A nonempty `context_projection` is hashed from sorted aliases
+    /// to context-free GVS package paths. The package paths retain
+    /// their existing hashes and are placed under that context.
     pub fn new(
         config: &Config,
         engine: Option<&str>,
         snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
         packages: Option<&HashMap<PackageKey, PackageMetadata>>,
         allow_build_policy: Option<&AllowBuildPolicy>,
+        context_projection: Option<&crate::GlobalVirtualStoreContextProjection>,
     ) -> Self {
         // Pacquet keeps `virtual_store_dir` and `global_virtual_store_dir`
         // as two separate fields (see
@@ -174,6 +187,8 @@ impl VirtualStoreLayout {
             return VirtualStoreLayout {
                 package_store_dir,
                 gvs_suffixes: None,
+                context_hash: None,
+                context_projection: BTreeMap::new(),
                 virtual_store_dir_max_length,
             };
         }
@@ -181,6 +196,8 @@ impl VirtualStoreLayout {
             return VirtualStoreLayout {
                 package_store_dir,
                 gvs_suffixes: Some(HashMap::new()),
+                context_hash: None,
+                context_projection: BTreeMap::new(),
                 virtual_store_dir_max_length,
             };
         };
@@ -203,35 +220,52 @@ impl VirtualStoreLayout {
         let mut build_required_cache: HashMap<PackageKey, bool> = HashMap::new();
         let mut gvs_suffixes: HashMap<PackageKey, String> = HashMap::with_capacity(snapshots.len());
         for (snapshot_key, snapshot) in snapshots {
-            // Per-snapshot engine resolution: a snapshot that declares
-            // its own `engines.runtime` carries the desugared
-            // `dependencies.node: 'runtime:<version>'` pin, which has
-            // to drive the engine portion of *its* hash rather than
-            // the install-wide fallback. Precedence: own pin first,
-            // install-wide fallback second. Default host platform /
-            // arch (`None`, `None`) matches whatever the caller used
-            // to format the fallback `engine` so the two strings
-            // remain comparable across snapshots in one install.
-            let own_engine =
-                find_own_runtime_node_major(snapshot).map(|major| engine_name(major, None, None));
-            let snapshot_engine = own_engine.as_deref().or(engine);
-            let hex_digest = calc_graph_node_hash(
+            let suffix = calc_base_gvs_suffix(
                 &graph,
                 &mut cache,
                 snapshot_key,
-                snapshot_engine,
+                snapshot,
+                engine,
                 built_dep_paths.as_ref(),
                 &mut build_required_cache,
             );
-            let metadata_key = snapshot_key.without_peer();
-            let name = metadata_key.name.to_string();
-            let version = gvs_version_segment(&metadata_key.suffix);
-            let suffix = format_global_virtual_store_path(&name, &version, &hex_digest);
             gvs_suffixes.insert(snapshot_key.clone(), suffix);
+        }
+        let mut projected_base_slots = BTreeMap::new();
+        let mut retained_projection = crate::GlobalVirtualStoreContextProjection::new();
+        let mut context_cache: DepsStateCache<PackageKey> = HashMap::new();
+        let mut context_build_required_cache: HashMap<PackageKey, bool> = HashMap::new();
+        for (alias, snapshot_key) in context_projection.into_iter().flatten() {
+            let Some(snapshot) = snapshots.get(snapshot_key) else {
+                continue;
+            };
+            projected_base_slots.insert(
+                alias.clone(),
+                calc_base_gvs_suffix(
+                    &graph,
+                    &mut context_cache,
+                    snapshot_key,
+                    snapshot,
+                    engine,
+                    built_dep_paths.as_ref(),
+                    &mut context_build_required_cache,
+                ),
+            );
+            retained_projection.insert(alias.clone(), snapshot_key.clone());
+        }
+        let context_hash = calc_global_virtual_store_context_hash(&projected_base_slots);
+        if let Some(context_hash) = &context_hash {
+            for suffix in gvs_suffixes.values_mut() {
+                *suffix = format!("contexts/{context_hash}/{suffix}");
+            }
+        } else {
+            retained_projection.clear();
         }
         VirtualStoreLayout {
             package_store_dir,
             gvs_suffixes: Some(gvs_suffixes),
+            context_hash,
+            context_projection: retained_projection,
             virtual_store_dir_max_length,
         }
     }
@@ -256,21 +290,36 @@ impl VirtualStoreLayout {
         self.gvs_suffixes.is_some()
     }
 
+    #[must_use]
+    pub fn context_modules_dir(&self) -> Option<PathBuf> {
+        self.context_hash
+            .as_ref()
+            .map(|hash| self.package_store_dir.join("contexts").join(hash).join("node_modules"))
+    }
+
+    #[must_use]
+    pub fn context_projection(&self) -> &crate::GlobalVirtualStoreContextProjection {
+        &self.context_projection
+    }
+
     /// Absolute directory that holds `node_modules/<name>` for one
     /// snapshot. Falls back to
     /// [`PkgNameVerPeer::to_virtual_store_name`](pacquet_lockfile::PkgNameVerPeer::to_virtual_store_name)
     /// when GVS is off, or when GVS is on but the key isn't in the
     /// precomputed map (which would indicate a bug — every snapshot
     /// the install touches must have been visited in
-    /// [`Self::new`]; the fallback is defensive rather than expected
-    /// to fire).
+    /// [`Self::new`]). A contextual fallback stays inside the same
+    /// context namespace.
     #[must_use]
     pub fn slot_dir(&self, key: &PackageKey) -> PathBuf {
         let suffix = match &self.gvs_suffixes {
-            Some(map) => map
-                .get(key)
-                .cloned()
-                .unwrap_or_else(|| key.to_virtual_store_name(self.virtual_store_dir_max_length)),
+            Some(map) => map.get(key).cloned().unwrap_or_else(|| {
+                let fallback = key.to_virtual_store_name(self.virtual_store_dir_max_length);
+                match &self.context_hash {
+                    Some(hash) => format!("contexts/{hash}/{fallback}"),
+                    None => fallback,
+                }
+            }),
             None => key.to_virtual_store_name(self.virtual_store_dir_max_length),
         };
         // The flat non-GVS `to_virtual_store_name` fallback carries no
@@ -278,6 +327,34 @@ impl VirtualStoreLayout {
         // pushes it as a single component).
         join_global_virtual_store_path(&self.package_store_dir, &suffix)
     }
+}
+
+fn calc_base_gvs_suffix(
+    graph: &HashMap<PackageKey, DepsGraphNode<PackageKey>>,
+    cache: &mut DepsStateCache<PackageKey>,
+    snapshot_key: &PackageKey,
+    snapshot: &SnapshotEntry,
+    fallback_engine: Option<&str>,
+    built_dep_paths: Option<&HashSet<PackageKey>>,
+    build_required_cache: &mut HashMap<PackageKey, bool>,
+) -> String {
+    let own_engine =
+        find_own_runtime_node_major(snapshot).map(|major| engine_name(major, None, None));
+    let snapshot_engine = own_engine.as_deref().or(fallback_engine);
+    let hex_digest = calc_graph_node_hash(
+        graph,
+        cache,
+        snapshot_key,
+        snapshot_engine,
+        built_dep_paths,
+        build_required_cache,
+    );
+    let metadata_key = snapshot_key.without_peer();
+    format_global_virtual_store_path(
+        &metadata_key.name.to_string(),
+        &gvs_version_segment(&metadata_key.suffix),
+        &hex_digest,
+    )
 }
 
 /// Map each injected `file:` project to the virtual-store package

@@ -4,10 +4,12 @@ import type { Catalogs } from '@pnpm/catalogs.types'
 import {
   packageManifestLogger,
 } from '@pnpm/core-loggers'
+import { getGlobalVirtualStoreHoistProjection, type GlobalVirtualStoreContext } from '@pnpm/deps.graph-builder'
 import { findRuntimeNodeVersion, iterateHashedGraphNodes } from '@pnpm/deps.graph-hasher'
 import { isRuntimeDepPath } from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import { safeJoinModulesDir } from '@pnpm/fs.symlink-dependency'
+import type { IncludedDependencies } from '@pnpm/installing.modules-yaml'
 import type {
   LockfileObject,
   ProjectSnapshot,
@@ -108,6 +110,7 @@ export interface ImporterToResolve extends Importer<{
 export interface ResolveDependenciesResult {
   dependenciesByProjectId: DependenciesByProjectId
   dependenciesGraph: GenericDependenciesGraphWithResolvedChildren<ResolvedPackage>
+  globalVirtualStoreContext?: GlobalVirtualStoreContext
   updatedCatalogs?: Catalogs | undefined
   outdatedDependencies: {
     [pkgId: string]: string
@@ -144,7 +147,10 @@ export async function resolveDependencies (
     lockfileIncludeTarballUrl?: boolean
     allowUnusedPatches?: boolean
     enableGlobalVirtualStore?: boolean
-    allProjectIds: string[]
+    allProjectIds: ProjectId[]
+    hoistPattern?: string[]
+    include: IncludedDependencies
+    publicHoistPattern?: string[]
     /**
      * Generic checkpoint invoked between `resolveDependencyTree` and
      * `resolvePeers` once any inline-collected policy violations have
@@ -431,9 +437,11 @@ export async function resolveDependencies (
     }))
   }
 
+  const extendedGraph = extendGraph(dependenciesGraph, newLockfile, opts)
   return {
     dependenciesByProjectId,
-    dependenciesGraph: extendGraph(dependenciesGraph, opts),
+    dependenciesGraph: extendedGraph.graph,
+    globalVirtualStoreContext: extendedGraph.globalVirtualStoreContext,
     outdatedDependencies,
     linkedDependenciesByProjectId,
     updatedCatalogs,
@@ -591,13 +599,21 @@ function * iterateGraphPkgMetaEntries (graph: DependenciesGraph, runtimeOnly?: b
 
 function extendGraph (
   graph: DependenciesGraph,
+  lockfile: LockfileObject,
   opts: {
     allowBuild?: AllowBuild
     globalVirtualStoreDir: string
     enableGlobalVirtualStore?: boolean
+    allProjectIds: ProjectId[]
+    hoistPattern?: string[]
+    include: IncludedDependencies
+    publicHoistPattern?: string[]
     supportedArchitectures?: SupportedArchitectures
   }
-): DependenciesGraph {
+): {
+  globalVirtualStoreContext?: GlobalVirtualStoreContext
+  graph: DependenciesGraph
+} {
   const pkgMetaIter = iterateGraphPkgMetaEntries(graph, !opts.enableGlobalVirtualStore)
   // Only use allowBuild for engine-agnostic hash optimization when GVS is on
   const allowBuild = opts.enableGlobalVirtualStore ? opts.allowBuild : undefined
@@ -609,7 +625,28 @@ function extendGraph (
   // `process.version` instead of the script-runner Node, splitting
   // the cache between pinned and non-pinned installs on the same host.
   const nodeVersion = findRuntimeNodeVersion(Object.keys(graph))
-  for (const { pkgMeta: { depPath }, hash } of iterateHashedGraphNodes(graph, pkgMetaIter, allowBuild, opts.supportedArchitectures, nodeVersion)) {
+  const hoistProjection = opts.enableGlobalVirtualStore
+    ? getGlobalVirtualStoreHoistProjection(lockfile, {
+      hoistPattern: opts.hoistPattern,
+      importerIds: opts.allProjectIds,
+      include: opts.include,
+      publicHoistPattern: opts.publicHoistPattern,
+      skipped: new Set(
+        Object.keys(lockfile.packages ?? {})
+          .filter((depPath) => graph[depPath as DepPath] == null) as DepPath[]
+      ),
+    })
+    : {}
+  let globalVirtualStoreContextHash: string | undefined
+  for (const { contextHash, pkgMeta: { depPath }, hash } of iterateHashedGraphNodes(
+    graph,
+    pkgMetaIter,
+    allowBuild,
+    opts.supportedArchitectures,
+    nodeVersion,
+    hoistProjection
+  )) {
+    globalVirtualStoreContextHash = contextHash
     const modules = path.join(opts.globalVirtualStoreDir, hash, 'node_modules')
     const node = graph[depPath]
     Object.assign(node, {
@@ -617,5 +654,17 @@ function extendGraph (
       dir: safeJoinModulesDir(modules, node.name),
     })
   }
-  return graph
+  if (globalVirtualStoreContextHash == null) return { graph }
+  const children = Object.fromEntries(
+    Object.entries(hoistProjection)
+      .flatMap(([alias, depPath]) => graph[depPath] == null ? [] : [[alias, graph[depPath].dir]])
+  )
+  return {
+    globalVirtualStoreContext: {
+      children,
+      modulesDir: path.join(opts.globalVirtualStoreDir, 'contexts', globalVirtualStoreContextHash, 'node_modules'),
+      reservedHoistAliases: Object.keys(hoistProjection).filter((alias) => !Object.hasOwn(children, alias)),
+    },
+    graph,
+  }
 }

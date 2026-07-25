@@ -1,7 +1,19 @@
-use crate::{SkippedSnapshots, SymlinkPackageError, VirtualStoreLayout, create_symlink_layout};
-use pacquet_lockfile::{PackageKey, PkgName, SnapshotDepRef};
+use crate::{
+    SkippedSnapshots, SymlinkPackageError, VirtualStoreLayout, create_symlink_layout,
+    materialize_global_virtual_store_context,
+};
+use pacquet_config::Config;
+use pacquet_lockfile::{
+    LockfileResolution, PackageKey, PackageMetadata, PkgName, RegistryResolution, SnapshotDepRef,
+    SnapshotEntry,
+};
 use pretty_assertions::assert_eq;
-use std::{collections::HashMap, fs, path::PathBuf};
+use std::{
+    collections::{BTreeMap, HashMap},
+    fs,
+    path::PathBuf,
+    process::Command,
+};
 use tempfile::tempdir;
 
 fn pkg_name(input: &str) -> PkgName {
@@ -274,4 +286,143 @@ fn rejects_traversal_dependency_alias() {
     // linked into (or out of) the slot's node_modules.
     let linked = fs::read_dir(&virtual_node_modules_dir).unwrap().count();
     assert_eq!(linked, 0);
+}
+
+#[test]
+fn context_projection_resolves_for_cjs_and_esm_with_declared_child_precedence() {
+    let tmp = tempdir().expect("tempdir");
+    let mut config = Config::new();
+    config.enable_global_virtual_store = true;
+    config.global_virtual_store_dir = tmp.path().join("store/links");
+    config.virtual_store_dir = tmp.path().join("node_modules/.pnpm");
+
+    let consumer: PackageKey = "consumer@1.0.0".parse().unwrap();
+    let ambient_consumer: PackageKey = "ambient-consumer@1.0.0".parse().unwrap();
+    let declared: PackageKey = "ambient@1.0.0".parse().unwrap();
+    let projected: PackageKey = "ambient@2.0.0".parse().unwrap();
+    let snapshots = HashMap::from([
+        (consumer.clone(), SnapshotEntry::default()),
+        (ambient_consumer.clone(), SnapshotEntry::default()),
+        (declared.clone(), SnapshotEntry::default()),
+        (projected.clone(), SnapshotEntry::default()),
+    ]);
+    let metadata = |integrity: &str| PackageMetadata {
+        resolution: LockfileResolution::Registry(RegistryResolution {
+            integrity: integrity.parse().expect("parse integrity"),
+        }),
+        version: None,
+        engines: None,
+        cpu: None,
+        os: None,
+        libc: None,
+        deprecated: None,
+        has_bin: None,
+        prepare: None,
+        bundled_dependencies: None,
+        peer_dependencies: None,
+        peer_dependencies_meta: None,
+    };
+    let packages = HashMap::from([
+        (
+            consumer.clone(),
+            metadata(
+                "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            ),
+        ),
+        (
+            ambient_consumer.clone(),
+            metadata(
+                "sha512-DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD",
+            ),
+        ),
+        (
+            declared.clone(),
+            metadata(
+                "sha512-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+            ),
+        ),
+        (
+            projected.clone(),
+            metadata(
+                "sha512-CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
+            ),
+        ),
+    ]);
+    let projection = BTreeMap::from([("ambient".to_string(), projected.clone())]);
+    let layout = VirtualStoreLayout::new(
+        &config,
+        None,
+        Some(&snapshots),
+        Some(&packages),
+        None,
+        Some(&projection),
+    );
+
+    let package_dir =
+        |key: &PackageKey| layout.slot_dir(key).join("node_modules").join(key.name.to_string());
+    let consumer_dir = package_dir(&consumer);
+    let ambient_consumer_dir = package_dir(&ambient_consumer);
+    let declared_dir = package_dir(&declared);
+    let projected_dir = package_dir(&projected);
+    for dir in [&consumer_dir, &ambient_consumer_dir, &declared_dir, &projected_dir] {
+        fs::create_dir_all(dir).unwrap();
+    }
+    fs::write(
+        declared_dir.join("package.json"),
+        br#"{"name":"ambient","version":"1.0.0","main":"index.js"}"#,
+    )
+    .unwrap();
+    fs::write(declared_dir.join("index.js"), b"module.exports = 'declared'").unwrap();
+    fs::write(
+        projected_dir.join("package.json"),
+        br#"{"name":"ambient","version":"2.0.0","main":"index.js"}"#,
+    )
+    .unwrap();
+    fs::write(projected_dir.join("index.js"), b"module.exports = 'projected'").unwrap();
+    fs::write(consumer_dir.join("package.json"), br#"{"name":"consumer","version":"1.0.0"}"#)
+        .unwrap();
+    fs::write(consumer_dir.join("cjs.cjs"), b"process.stdout.write(require('ambient'))").unwrap();
+    fs::write(
+        consumer_dir.join("esm.mjs"),
+        b"import ambient from 'ambient'; process.stdout.write(ambient)",
+    )
+    .unwrap();
+    fs::write(
+        ambient_consumer_dir.join("package.json"),
+        br#"{"name":"ambient-consumer","version":"1.0.0"}"#,
+    )
+    .unwrap();
+    fs::write(ambient_consumer_dir.join("cjs.cjs"), b"process.stdout.write(require('ambient'))")
+        .unwrap();
+    fs::write(
+        ambient_consumer_dir.join("esm.mjs"),
+        b"import ambient from 'ambient'; process.stdout.write(ambient)",
+    )
+    .unwrap();
+
+    let dependencies = HashMap::from([(pkg_name("ambient"), dep_ref("1.0.0"))]);
+    create_symlink_layout(
+        Some(&dependencies),
+        None,
+        &pkg_name("consumer"),
+        &SkippedSnapshots::new(),
+        &layout,
+        &layout.slot_dir(&consumer).join("node_modules"),
+    )
+    .unwrap();
+    materialize_global_virtual_store_context(&layout, &SkippedSnapshots::new(), &[]).unwrap();
+
+    for (package_dir, expected) in
+        [(&consumer_dir, "declared"), (&ambient_consumer_dir, "projected")]
+    {
+        for entrypoint in ["cjs.cjs", "esm.mjs"] {
+            let output = Command::new("node").arg(package_dir.join(entrypoint)).output().unwrap();
+            assert!(
+                output.status.success(),
+                "{entrypoint} failed: {}",
+                String::from_utf8_lossy(&output.stderr),
+            );
+            assert_eq!(String::from_utf8(output.stdout).unwrap(), expected);
+        }
+    }
 }

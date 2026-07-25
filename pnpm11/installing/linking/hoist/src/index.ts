@@ -74,6 +74,7 @@ export interface GetHoistedDependenciesOpts<T extends string> {
   privateHoistedModulesDir: string
   publicHoistPattern: string[]
   publicHoistedModulesDir: string
+  reservedAliases?: string[]
   hoistedWorkspacePackages?: Record<ProjectId, HoistedWorkspaceProject>
 }
 
@@ -119,8 +120,30 @@ export function getHoistedDependencies<T extends string> (opts: GetHoistedDepend
   return hoistGraph(deps, opts.directDepsByImporterId['.' as ProjectId] ?? new Map(), {
     getAliasHoistType,
     graph: opts.graph,
+    reservedAliases: opts.reservedAliases,
     skipped: opts.skipped,
   })
+}
+
+export function getGlobalVirtualStoreHoistProjection<T extends string> (
+  opts: GetHoistedDependenciesOpts<T>
+): Record<string, T> {
+  const projection: Record<string, T> = Object.create(null)
+  const hoisted = getHoistedDependencies(opts)
+  if (hoisted != null) {
+    for (const [nodeId, aliases] of hoisted.hoistedDependenciesByNodeId) {
+      if (opts.graph[nodeId as T] == null) continue
+      for (const alias of Object.keys(aliases)) {
+        projection[alias] = nodeId as T
+      }
+    }
+  }
+  for (const [alias, nodeId] of opts.directDepsByImporterId['.' as ProjectId] ?? []) {
+    if (!Object.hasOwn(projection, alias) && opts.graph[nodeId] != null) {
+      projection[alias] = nodeId
+    }
+  }
+  return projection
 }
 
 type GetAliasHoistType = (alias: string) => 'private' | 'public' | false
@@ -214,10 +237,11 @@ function hoistGraph<T extends string> (
   opts: {
     getAliasHoistType: GetAliasHoistType
     graph: DependenciesGraph<T>
+    reservedAliases?: string[]
     skipped: Set<DepPath>
   }
 ): HoistGraphResult<T> {
-  const hoistedAliases = new Set(currentSpecifiers.keys())
+  const hoistedAliases = new Set([...currentSpecifiers.keys(), ...(opts.reservedAliases ?? [])])
   const hoistedDependencies: HoistedDependencies = Object.create(null)
   const hoistedDependenciesByNodeId: HoistedDependenciesByNodeId<T> = new Map()
   const hoistedAliasesWithBins = new Set<string>()

@@ -5,8 +5,8 @@
 
 use super::{
     Install, InstallError, UpToDateFastPathCheck, exclude_linked_dependencies,
-    install_already_up_to_date, load_workspace_projects, order_project_lifecycle_groups,
-    project_requires_lifecycle_scripts, should_write_package_map,
+    gvs_build_marker_present, install_already_up_to_date, load_workspace_projects,
+    order_project_lifecycle_groups, project_requires_lifecycle_scripts, should_write_package_map,
 };
 use crate::{InstallWithFreshLockfileError, MinimumReleaseAgeError};
 use pacquet_config::{Config, NodePackageMapType};
@@ -48,6 +48,35 @@ fn empty_test_lockfile() -> Lockfile {
         packages: None,
         snapshots: None,
     }
+}
+
+#[test]
+fn gvs_build_marker_discovery_scans_context_namespaces() {
+    let temp = tempdir().unwrap();
+    let mut config = Config::new();
+    config.enable_global_virtual_store = true;
+    config.global_virtual_store_dir = temp.path().join("links");
+    config.allow_builds.insert("foo@1.0.0".to_string(), true);
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "importers:"
+        "  .:"
+        "packages:"
+        "  foo@1.0.0:"
+        "    resolution:"
+        "      integrity: sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        "snapshots:"
+        "  foo@1.0.0: {}"
+    })
+    .unwrap();
+    let marker = config
+        .global_virtual_store_dir
+        .join("contexts/context-hash/@/foo/1.0.0/slot-hash/node_modules/foo")
+        .join(crate::NEEDS_BUILD_MARKER);
+    fs::create_dir_all(marker.parent().unwrap()).unwrap();
+    fs::write(marker, "").unwrap();
+
+    assert!(gvs_build_marker_present(&lockfile, &config));
 }
 
 #[test]

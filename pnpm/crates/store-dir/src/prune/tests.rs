@@ -157,3 +157,40 @@ fn prune_marks_transitive_slot_reachable() {
     assert!(foo.exists(), "direct dep slot survives");
     assert!(bar.exists(), "transitive dep slot also survives");
 }
+
+#[test]
+fn prune_keeps_live_context_slots_and_removes_dead_contexts() {
+    let store = tempdir().unwrap();
+    let store_dir = StoreDir::new(store.path().to_path_buf());
+    let links = store_dir.links();
+    let live_context = links.join("contexts/live-context");
+    let consumer = make_slot(&live_context, "@", "consumer", "1.0.0", "consumer01");
+    let ambient = make_slot(&live_context, "@", "ambient", "2.0.0", "ambient02");
+    fs::create_dir_all(live_context.join("node_modules")).unwrap();
+    symlink_dir(
+        &ambient.join("node_modules").join("ambient"),
+        &live_context.join("node_modules/ambient"),
+    )
+    .unwrap();
+
+    let dead_context = links.join("contexts/dead-context");
+    let dead = make_slot(&dead_context, "@", "dead", "1.0.0", "dead01");
+    fs::create_dir_all(dead_context.join("node_modules")).unwrap();
+    symlink_dir(&dead.join("node_modules").join("dead"), &dead_context.join("node_modules/dead"))
+        .unwrap();
+
+    let project = tempdir().unwrap();
+    fs::create_dir_all(project.path().join("node_modules")).unwrap();
+    symlink_dir(
+        &consumer.join("node_modules").join("consumer"),
+        &project.path().join("node_modules/consumer"),
+    )
+    .unwrap();
+    register_project(&store_dir, project.path()).expect("register");
+
+    store_dir.prune().expect("prune");
+
+    assert!(consumer.exists(), "project-referenced contextual slot survives");
+    assert!(ambient.exists(), "projection target in the live context survives");
+    assert!(!dead_context.exists(), "unreferenced context namespace is removed");
+}

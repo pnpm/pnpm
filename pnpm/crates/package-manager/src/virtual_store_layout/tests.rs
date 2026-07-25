@@ -6,7 +6,7 @@ use pacquet_lockfile::{
 };
 use pretty_assertions::{assert_eq, assert_ne};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     path::PathBuf,
 };
 
@@ -22,6 +22,25 @@ fn make_config(gvs: bool, virtual_store_dir: PathBuf, gvs_dir: PathBuf) -> Confi
     config
 }
 
+fn registry_metadata(integrity: &str) -> PackageMetadata {
+    PackageMetadata {
+        resolution: LockfileResolution::Registry(RegistryResolution {
+            integrity: integrity.parse().expect("parse integrity"),
+        }),
+        version: None,
+        engines: None,
+        cpu: None,
+        os: None,
+        libc: None,
+        deprecated: None,
+        has_bin: None,
+        prepare: None,
+        bundled_dependencies: None,
+        peer_dependencies: None,
+        peer_dependencies_meta: None,
+    }
+}
+
 #[test]
 fn slot_dir_uses_flat_name_when_gvs_off() {
     let config = make_config(
@@ -29,7 +48,7 @@ fn slot_dir_uses_flat_name_when_gvs_off() {
         PathBuf::from("/tmp/proj/node_modules/.pnpm"),
         PathBuf::from("/tmp/store/links"),
     );
-    let layout = VirtualStoreLayout::new(&config, Some("ignored"), None, None, None);
+    let layout = VirtualStoreLayout::new(&config, Some("ignored"), None, None, None, None);
     let key: PackageKey = "@scope/foo@1.2.3".parse().unwrap();
     assert_eq!(
         layout.slot_dir(&key),
@@ -74,6 +93,7 @@ fn slot_dir_uses_gvs_layout_when_gvs_on() {
         Some("darwin-arm64-node20"),
         Some(&snapshots),
         Some(&packages),
+        None,
         None,
     );
     let slot = layout.slot_dir(&key);
@@ -128,6 +148,7 @@ fn slot_dir_prefixes_unscoped_with_at_slash_under_gvs() {
         Some(&snapshots),
         Some(&packages),
         None,
+        None,
     );
     let slot = layout.slot_dir(&key);
     let _ = slot
@@ -174,6 +195,7 @@ fn slot_dir_engine_agnostic_with_empty_allow_build_policy() {
         Some(&snapshots),
         Some(&packages),
         Some(&policy),
+        None,
     )
     .slot_dir(&key);
     let linux = VirtualStoreLayout::new(
@@ -182,6 +204,7 @@ fn slot_dir_engine_agnostic_with_empty_allow_build_policy() {
         Some(&snapshots),
         Some(&packages),
         Some(&policy),
+        None,
     )
     .slot_dir(&key);
     assert_eq!(
@@ -231,6 +254,7 @@ fn slot_dir_engine_specific_when_snapshot_is_built() {
         Some(&snapshots),
         Some(&packages),
         Some(&policy),
+        None,
     )
     .slot_dir(&key);
     let linux = VirtualStoreLayout::new(
@@ -239,6 +263,7 @@ fn slot_dir_engine_specific_when_snapshot_is_built() {
         Some(&snapshots),
         Some(&packages),
         Some(&policy),
+        None,
     )
     .slot_dir(&key);
     assert_ne!(darwin, linux, "builder snapshot must partition GVS slot by engine string");
@@ -263,6 +288,7 @@ fn missing_metadata_keeps_source_dep_path_untrusted_for_gvs() {
         Some(&snapshots),
         Some(&packages),
         Some(&policy),
+        None,
     )
     .slot_dir(&key);
     let linux = VirtualStoreLayout::new(
@@ -271,6 +297,7 @@ fn missing_metadata_keeps_source_dep_path_untrusted_for_gvs() {
         Some(&snapshots),
         Some(&packages),
         Some(&policy),
+        None,
     )
     .slot_dir(&key);
     assert_eq!(darwin, linux, "source depPath with missing metadata must not be name-allowed");
@@ -377,6 +404,7 @@ fn cross_pinning_siblings_get_distinct_slots() {
         Some(&snapshots),
         Some(&packages),
         Some(&policy),
+        None,
     );
     let slot_22 = layout.slot_dir(&pins_22);
     let slot_20 = layout.slot_dir(&pins_20);
@@ -429,6 +457,90 @@ fn gvs_version_segment_renders_file_deps_as_undefined() {
 
     let file_dep: PackageKey = "b@file:packages/b".parse().unwrap();
     assert_eq!(super::gvs_version_segment(&file_dep.suffix), "undefined");
+}
+
+#[test]
+fn empty_context_projection_preserves_legacy_gvs_path() {
+    let config = make_config(
+        true,
+        PathBuf::from("/tmp/proj/node_modules/.pnpm"),
+        PathBuf::from("/tmp/store/links"),
+    );
+    let key: PackageKey = "consumer@1.0.0".parse().unwrap();
+    let snapshots = HashMap::from([(key.clone(), SnapshotEntry::default())]);
+    let packages = HashMap::from([(
+        key.clone(),
+        registry_metadata(
+            "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        ),
+    )]);
+    let legacy =
+        VirtualStoreLayout::new(&config, None, Some(&snapshots), Some(&packages), None, None);
+    let empty_projection = BTreeMap::new();
+    let contextual = VirtualStoreLayout::new(
+        &config,
+        None,
+        Some(&snapshots),
+        Some(&packages),
+        None,
+        Some(&empty_projection),
+    );
+
+    assert_eq!(contextual.slot_dir(&key), legacy.slot_dir(&key));
+    assert!(contextual.context_modules_dir().is_none());
+}
+
+#[test]
+fn context_hash_changes_with_projected_target_version() {
+    let config = make_config(
+        true,
+        PathBuf::from("/tmp/proj/node_modules/.pnpm"),
+        PathBuf::from("/tmp/store/links"),
+    );
+    let consumer: PackageKey = "consumer@1.0.0".parse().unwrap();
+    let target_v1: PackageKey = "ambient@1.0.0".parse().unwrap();
+    let target_v2: PackageKey = "ambient@2.0.0".parse().unwrap();
+    let consumer_metadata = registry_metadata(
+        "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    );
+    let target_metadata = registry_metadata(
+        "sha512-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+    );
+
+    let make_layout = |target: &PackageKey| {
+        let snapshots = HashMap::from([
+            (consumer.clone(), SnapshotEntry::default()),
+            (target.clone(), SnapshotEntry::default()),
+        ]);
+        let packages = HashMap::from([
+            (consumer.clone(), consumer_metadata.clone()),
+            (target.clone(), target_metadata.clone()),
+        ]);
+        let projection = BTreeMap::from([("ambient".to_string(), target.clone())]);
+        VirtualStoreLayout::new(
+            &config,
+            None,
+            Some(&snapshots),
+            Some(&packages),
+            None,
+            Some(&projection),
+        )
+    };
+    let v1_layout = make_layout(&target_v1);
+    let v2_layout = make_layout(&target_v2);
+    let v1_rel = v1_layout.slot_dir(&consumer).strip_prefix("/tmp/store/links").unwrap().to_owned();
+    let v2_rel = v2_layout.slot_dir(&consumer).strip_prefix("/tmp/store/links").unwrap().to_owned();
+    let v1_parts = v1_rel.iter().collect::<Vec<_>>();
+    let v2_parts = v2_rel.iter().collect::<Vec<_>>();
+
+    assert_eq!(v1_parts[0], "contexts");
+    assert_eq!(v2_parts[0], "contexts");
+    assert_ne!(v1_parts[1], v2_parts[1], "target version must partition the context namespace");
+    assert_eq!(
+        &v1_parts[2..],
+        &v2_parts[2..],
+        "the consumer's dependency-only inner slot identity must stay unchanged",
+    );
 }
 
 /// `collect_injected_deps` maps each `file:` snapshot's source path to

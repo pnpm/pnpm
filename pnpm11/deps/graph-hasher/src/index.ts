@@ -169,6 +169,7 @@ export interface PkgMeta {
 export type PkgMetaIterator<T extends PkgMeta> = IterableIterator<T>
 
 export interface HashedDepPath<T extends PkgMeta> {
+  contextHash?: string
   pkgMeta: T
   hash: string
 }
@@ -190,13 +191,26 @@ export function * iterateHashedGraphNodes<T extends PkgMeta> (
    * {@link engineName}'s default (system `node --version`, with
    * `process.version` as a last resort).
    */
-  nodeVersion?: string
+  nodeVersion?: string,
+  hoistProjection?: Record<string, DepPath>
 ): IterableIterator<HashedDepPath<T>> {
   let builtDepPaths: Set<DepPath> | undefined
   let entries: Iterable<T>
-  if (allowBuild != null) {
+  let contextHash: string | undefined
+  if (allowBuild != null || Object.keys(hoistProjection ?? {}).length > 0) {
     const pkgMetaList = Array.from(pkgMetaIterator)
-    builtDepPaths = computeBuiltDepPaths(pkgMetaList, allowBuild)
+    if (allowBuild != null) {
+      builtDepPaths = computeBuiltDepPaths(pkgMetaList, allowBuild)
+    }
+    if (Object.keys(hoistProjection ?? {}).length > 0) {
+      contextHash = calcGlobalVirtualStoreHoistProjectionHash({
+        builtDepPaths,
+        graph,
+        nodeVersion,
+        pkgMetaList,
+        supportedArchitectures,
+      }, hoistProjection!)
+    }
     entries = pkgMetaList
   } else {
     entries = pkgMetaIterator
@@ -208,9 +222,11 @@ export function * iterateHashedGraphNodes<T extends PkgMeta> (
     buildRequiredCache: builtDepPaths !== undefined ? {} : undefined,
     supportedArchitectures,
     nodeVersion,
+    contextHash,
   }
   for (const pkgMeta of entries) {
     yield {
+      contextHash,
       hash: calcGraphNodeHash(ctx, pkgMeta),
       pkgMeta,
     }
@@ -218,7 +234,7 @@ export function * iterateHashedGraphNodes<T extends PkgMeta> (
 }
 
 export function calcGraphNodeHash<T extends PkgMeta> (
-  { graph, cache, builtDepPaths, buildRequiredCache, supportedArchitectures, nodeVersion }: {
+  { graph, cache, builtDepPaths, buildRequiredCache, supportedArchitectures, nodeVersion, contextHash }: {
     graph: DepsGraph<DepPath>
     cache: DepsStateCache
     builtDepPaths?: Set<DepPath>
@@ -226,6 +242,7 @@ export function calcGraphNodeHash<T extends PkgMeta> (
     supportedArchitectures?: SupportedArchitectures
     /** See [`iterateHashedGraphNodes`]'s `nodeVersion` parameter. */
     nodeVersion?: string
+    contextHash?: string
   },
   pkgMeta: T
 ): string {
@@ -246,7 +263,37 @@ export function calcGraphNodeHash<T extends PkgMeta> (
   const engine = includeEngine ? engineName(ownPin ?? nodeVersion) : null
   const deps = calcDepGraphHash(graph, cache, new Set(), depPath, supportedArchitectures)
   const hexDigest = hashObjectWithoutSorting({ engine, deps }, { encoding: 'hex' })
-  return formatGlobalVirtualStorePath(name, version, hexDigest)
+  const packagePath = formatGlobalVirtualStorePath(name, version, hexDigest)
+  return contextHash == null ? packagePath : `contexts/${contextHash}/${packagePath}`
+}
+
+function calcGlobalVirtualStoreHoistProjectionHash<T extends PkgMeta> (
+  opts: {
+    builtDepPaths?: Set<DepPath>
+    graph: DepsGraph<DepPath>
+    nodeVersion?: string
+    pkgMetaList: T[]
+    supportedArchitectures?: SupportedArchitectures
+  },
+  hoistProjection: Record<string, DepPath>
+): string {
+  const pkgMetaByDepPath = new Map(opts.pkgMetaList.map((pkgMeta) => [pkgMeta.depPath, pkgMeta]))
+  const projectedDependencies: Record<string, string> = Object.create(null)
+  const hashOpts = {
+    buildRequiredCache: opts.builtDepPaths !== undefined ? {} : undefined,
+    builtDepPaths: opts.builtDepPaths,
+    cache: {},
+    contextHash: undefined,
+    graph: opts.graph,
+    nodeVersion: opts.nodeVersion,
+    supportedArchitectures: opts.supportedArchitectures,
+  }
+  for (const alias of Object.keys(hoistProjection).sort()) {
+    const pkgMeta = pkgMetaByDepPath.get(hoistProjection[alias])
+    if (pkgMeta == null) continue
+    projectedDependencies[alias] = calcGraphNodeHash(hashOpts, pkgMeta)
+  }
+  return hashObjectWithoutSorting(projectedDependencies, { encoding: 'hex' })
 }
 
 export function calcLeafGlobalVirtualStorePath (fullPkgId: string, name: string, version: string): string {
