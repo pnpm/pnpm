@@ -98,13 +98,22 @@ pub enum UpdateWorkspaceManifestError {
     InvalidControlCharacter { path: std::path::PathBuf, value: String },
 }
 
-/// Whether `value` holds a control character (newline, carriage return, etc.).
-/// The block-style writers splice `value` into a single `key: value` / `- item`
-/// line, so a control character would force a multi-line scalar and corrupt the
-/// document. The values these writers handle (GHSA ids, version-policy specs,
-/// override selectors/specifiers) never legitimately contain one.
+/// Whether `value` holds a character YAML treats as a line break: a
+/// control character (newline, carriage return, ...) or one of the Unicode
+/// line/paragraph separators, which are not in the control category.
+///
+/// The block-style writers splice `value` into a single `key: value` /
+/// `- item` line. A control character forces a multi-line scalar and
+/// corrupts the document outright; a separator is subtler — the emitter
+/// folds the scalar and the parser reads back the folding indentation as
+/// part of the value, so the write silently succeeds with a mangled
+/// value. The values these writers handle (GHSA ids, version-policy
+/// specs, override selectors/specifiers, catalog names) never
+/// legitimately contain either.
 fn has_control_char(value: &str) -> bool {
-    value.chars().any(char::is_control)
+    value
+        .chars()
+        .any(|character| character.is_control() || matches!(character, '\u{2028}' | '\u{2029}'))
 }
 
 /// Inputs of [`update_workspace_manifest`].

@@ -939,18 +939,23 @@ fn minimum_release_age_excludes_rejects_control_characters() {
 
 /// `saveCatalogName` is unconstrained — it comes from
 /// `pnpm-workspace.yaml`, `PNPM_CONFIG_SAVE_CATALOG_NAME`, or
-/// `--save-catalog-name` — and a newline in it renders as a YAML block
-/// scalar, which the block splice would write into the middle of the
-/// `catalogs:` header.
+/// `--save-catalog-name`. A newline in it renders as a YAML block scalar
+/// that the splice would write into the middle of the `catalogs:`
+/// header; U+2028 / U+2029 are subtler, folding the scalar so the name
+/// parses back with the folding indentation embedded in it.
 #[test]
 fn add_catalogs_rejects_control_characters() {
+    let original = "packages:\n  - pkgs/*\n";
     let dir = TempDir::new().expect("temp dir");
     let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
+    fs::write(&path, original).expect("seed manifest");
 
     for updated in [
         catalogs(&[("shared\n  injected: oops", &[("foo", "^1.0.0")])]),
         catalogs(&[("shared", &[("foo\nbar", "^1.0.0")])]),
         catalogs(&[("shared", &[("foo", "^1.0.0\nbaz: qux")])]),
+        catalogs(&[("sha\u{2028}red", &[("foo", "^1.0.0")])]),
+        catalogs(&[("sha\u{2029}red", &[("foo", "^1.0.0")])]),
     ] {
         let err = update_workspace_manifest(
             dir.path(),
@@ -959,10 +964,10 @@ fn add_catalogs_rejects_control_characters() {
                 ..Default::default()
             },
         )
-        .expect_err("must reject a control character");
+        .expect_err("must reject a line-break character");
 
         assert!(matches!(err, crate::UpdateWorkspaceManifestError::InvalidControlCharacter { .. }));
-        assert!(!path.exists(), "nothing should be written");
+        assert_eq!(fs::read_to_string(&path).expect("manifest kept"), original);
     }
 }
 

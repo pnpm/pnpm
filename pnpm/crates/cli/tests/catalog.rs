@@ -220,6 +220,34 @@ fn save_catalog_name_preserves_the_dependency_group() {
     drop((root, anchor));
 }
 
+/// A `saveCatalogName` carrying a newline would render as a YAML block
+/// scalar and splice a corrupt `catalogs:` header into
+/// `pnpm-workspace.yaml`. The whole chain — workspace yaml → `Config` →
+/// catalog decision → manifest writer — must refuse it and leave the
+/// file as it was.
+#[test]
+fn a_catalog_name_with_a_control_character_is_refused() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, "{}");
+    append_workspace_yaml(&workspace, "saveCatalogName: \"tools\\n  injected: oops\"\n");
+    let before = read(&workspace, "pnpm-workspace.yaml");
+
+    let output = pacquet(&workspace, ["add", "--lockfile-only", &format!("{FOO}@1.0.0")])
+        .output()
+        .expect("run pacquet");
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("STDERR:\n{stderr}");
+    assert!(!output.status.success(), "the control character must be refused");
+    assert!(
+        stderr.contains("ERR_PNPM_WORKSPACE_MANIFEST_WRITER_INVALID_CONTROL_CHARACTER"),
+        "expected the control-character diagnostic; got:\n{stderr}",
+    );
+    assert_eq!(read(&workspace, "pnpm-workspace.yaml"), before, "the manifest must be untouched");
+
+    drop((root, anchor));
+}
+
 #[test]
 fn install_with_catalog_reference_writes_catalog_snapshot() {
     let (root, workspace, anchor) = setup();
