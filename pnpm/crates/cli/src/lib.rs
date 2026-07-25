@@ -89,6 +89,7 @@ fn run_cli() -> miette::Result<()> {
         err.exit();
     }
     args.promote_recursive_for_filter();
+    args.apply_workspace_root()?;
     args.promote_recursive_by_default();
     if let Some(plan) = cli_args::pre_command::pre_command_plan(&args, &config_overrides)?
         && block_on_runtime(

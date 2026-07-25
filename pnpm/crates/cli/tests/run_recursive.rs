@@ -321,6 +321,72 @@ fn recursive_run_settings_only_workspace_enumerates_root_only() {
     drop(root);
 }
 
+#[test]
+fn recursive_run_workspace_root_selects_only_the_root_project() {
+    for start_dir in WORKSPACE_ROOT_START_DIRS {
+        assert_eq!(
+            workspace_root_run_selection(start_dir, None),
+            ["<root>"],
+            "--dir {start_dir}: --workspace-root selects the root project alone",
+        );
+    }
+}
+
+/// pnpm reports `Scope: 2 of 3 workspace projects` for this command.
+#[test]
+fn recursive_run_workspace_root_adds_the_root_to_a_filter_selection() {
+    for start_dir in WORKSPACE_ROOT_START_DIRS {
+        assert_eq!(
+            workspace_root_run_selection(start_dir, Some("project-1")),
+            ["<root>", "project-1"],
+            "--dir {start_dir}: --workspace-root keeps the --filter-selected project",
+        );
+    }
+}
+
+/// Starting inside a member project is what the flag exists for
+/// (pnpm/pnpm#13031), so every case is checked from both.
+const WORKSPACE_ROOT_START_DIRS: [&str; 2] = [".", "project-1"];
+
+/// The projects whose `build` ran, in workspace order, naming the root
+/// project `"<root>"`.
+fn workspace_root_run_selection(start_dir: &str, filter: Option<&str>) -> Vec<String> {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[
+            ("project-1", build_writes_marker("project-1")),
+            ("project-2", build_writes_marker("project-2")),
+        ],
+    );
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "root",
+            "version": "1.0.0",
+            "scripts": { "build": "touch root-ran.txt" },
+        })
+        .to_string(),
+    )
+    .expect("write root package.json");
+
+    let mut args = vec!["--dir", start_dir, "-r", "-w"];
+    if let Some(filter) = filter {
+        args.extend(["--filter", filter]);
+    }
+    args.extend(["run", "build"]);
+    pacquet.with_args(args).assert().success();
+
+    let ran = std::iter::once(("<root>", workspace.join("root-ran.txt")))
+        .chain(["project-1", "project-2"].map(|name| (name, workspace.join(name).join("ran.txt"))))
+        .filter(|(_, marker)| marker.exists())
+        .map(|(name, _)| name.to_string())
+        .collect();
+
+    drop(root); // cleanup
+    ran
+}
+
 /// `pacquet -r --filter <name> run <script>` runs the script only in the
 /// `--filter`-selected project, leaving the rest untouched. Threads
 /// `config.filter` through the recursive dispatch to build the selected

@@ -17,7 +17,11 @@ use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
 #[cfg(unix)]
 use std::fs;
-use std::{ffi::OsStr, path::PathBuf, process::Command};
+use std::{
+    ffi::OsStr,
+    path::{Path, PathBuf},
+    process::Command,
+};
 use tempfile::TempDir;
 
 fn exec_pacquet_in_temp_cwd<Args>(args: Args) -> (TempDir, PathBuf, AddMockedRegistry)
@@ -197,6 +201,122 @@ fn add_accepts_multiple_local_package_selectors() {
             "{package_name} is installed",
         );
     }
+
+    drop(root); // cleanup
+}
+
+/// A one-member workspace whose `fixtures/` packages let a `-w` add use
+/// `file:` specs instead of reaching the registry. Returns the member's
+/// directory.
+fn write_workspace_with_local_fixtures(workspace: &Path) -> PathBuf {
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml = std::fs::read_to_string(&workspace_yaml_path).unwrap_or_default();
+    if !workspace_yaml.is_empty() && !workspace_yaml.ends_with('\n') {
+        workspace_yaml.push('\n');
+    }
+    workspace_yaml.push_str("packages:\n  - 'packages/*'\n");
+    std::fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    for package_name in ["local-a", "local-b"] {
+        let package_dir = workspace.join("fixtures").join(package_name);
+        std::fs::create_dir_all(&package_dir).expect("create local package directory");
+        std::fs::write(
+            package_dir.join("package.json"),
+            serde_json::json!({ "name": package_name, "version": "1.0.0" }).to_string(),
+        )
+        .expect("write local package manifest");
+    }
+
+    let member_dir = workspace.join("packages/a");
+    std::fs::create_dir_all(&member_dir).expect("mkdir packages/a");
+    std::fs::write(
+        member_dir.join("package.json"),
+        serde_json::json!({ "name": "a", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write packages/a/package.json");
+    member_dir
+}
+
+/// End to end rather than a unit test: a relative `--dir` resolves
+/// against the process cwd, which a unit test must not mutate.
+#[test]
+fn add_workspace_root_tolerates_a_dir_that_does_not_exist() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace_with_local_fixtures(&workspace);
+
+    pacquet
+        .with_args([
+            "--dir",
+            "packages/does-not-exist",
+            "add",
+            "-D",
+            "local-a@file:./fixtures/local-a",
+            "-w",
+        ])
+        .assert()
+        .success();
+
+    let root_manifest = workspace
+        .join("package.json")
+        .pipe(PackageManifest::from_path)
+        .expect("read root manifest");
+    assert!(
+        root_manifest.dependencies([DependencyGroup::Dev]).any(|(key, _)| key == "local-a"),
+        "a nonexistent --dir must still redirect the add to the root manifest",
+    );
+
+    drop(root); // cleanup
+}
+
+/// `pnpm add -D <pkg> <pkg> -w` run from a workspace subdirectory
+/// (pnpm/pnpm#13031).
+#[test]
+fn add_workspace_root_saves_to_the_root_manifest_from_a_subdir() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let member_dir = write_workspace_with_local_fixtures(&workspace);
+
+    pacquet
+        .with_args([
+            "--dir",
+            "packages/a",
+            "add",
+            "-D",
+            // Relative to the root: a `file:` spec resolves from the
+            // manifest that records it, which `-w` makes the root's.
+            "local-a@file:./fixtures/local-a",
+            "local-b@file:./fixtures/local-b",
+            "-w",
+        ])
+        .assert()
+        .success();
+
+    let root_manifest = workspace
+        .join("package.json")
+        .pipe(PackageManifest::from_path)
+        .expect("read root manifest");
+    for package_name in ["local-a", "local-b"] {
+        assert!(
+            root_manifest.dependencies([DependencyGroup::Dev]).any(|(key, _)| key == package_name),
+            "--workspace-root must save {package_name} to the root manifest",
+        );
+    }
+
+    let member_manifest = member_dir
+        .join("package.json")
+        .pipe(PackageManifest::from_path)
+        .expect("read packages/a manifest");
+    assert_eq!(
+        member_manifest
+            .dependencies([
+                DependencyGroup::Prod,
+                DependencyGroup::Dev,
+                DependencyGroup::Optional,
+                DependencyGroup::Peer,
+            ])
+            .count(),
+        0,
+        "--workspace-root must leave the `--dir` project's manifest untouched",
+    );
 
     drop(root); // cleanup
 }

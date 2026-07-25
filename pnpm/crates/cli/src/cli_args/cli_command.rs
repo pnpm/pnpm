@@ -77,6 +77,8 @@ use super::{
     with::WithArgs,
 };
 use clap::{CommandFactory, Parser, Subcommand, error::ErrorKind};
+use derive_more::{Display, Error};
+use miette::Diagnostic;
 use pacquet_default_reporter::SummaryScope;
 use std::path::PathBuf;
 
@@ -178,6 +180,10 @@ pub struct CliArgs {
     #[clap(long = "filter-prod", global = true)]
     pub filter_prod: Vec<String>,
 
+    /// Run the command on the root workspace project.
+    #[clap(short = 'w', long = "workspace-root", global = true)]
+    pub workspace_root: bool,
+
     /// Glob patterns naming test files, used by the `[since]` `--filter`
     /// selector to decide which changes count.
     #[clap(long = "test-pattern", global = true)]
@@ -252,6 +258,32 @@ impl CliArgs {
         }
     }
 
+    /// Apply `--workspace-root` / `-w`: point `--dir` at the workspace
+    /// root so the command runs on the root project. Call after
+    /// [`Self::promote_recursive_for_filter`] and before anything reads
+    /// `--dir`, matching where pnpm's CLI parser applies it.
+    ///
+    /// The `--dir` resolution mirrors pnpm's `findWorkspaceDir`: real path
+    /// first, because a case-insensitive filesystem otherwise finds the
+    /// root under one spelling and the members under another; then a
+    /// lexical fallback, so an unresolvable `--dir` is not fatal.
+    pub fn apply_workspace_root(&mut self) -> Result<(), WorkspaceRootError> {
+        if !self.workspace_root {
+            return Ok(());
+        }
+        if self.command.is_global() {
+            return Err(WorkspaceRootError::GlobalConflict);
+        }
+        let dir = dunce::canonicalize(&self.dir)
+            .or_else(|_| std::path::absolute(&self.dir))
+            .unwrap_or_else(|_| self.dir.clone());
+        let workspace_dir = pacquet_workspace::find_workspace_dir(&dir)
+            .map_err(WorkspaceRootError::FindWorkspaceDir)?
+            .ok_or(WorkspaceRootError::NotInWorkspace)?;
+        self.dir = workspace_dir;
+        Ok(())
+    }
+
     /// Promote commands marked recursive-by-default by pnpm when they run
     /// inside a workspace.
     pub fn promote_recursive_by_default(&mut self) {
@@ -310,6 +342,21 @@ impl CliArgs {
         }
         self.validate_run_scoped_global_option("--no-bail")
     }
+}
+
+/// Error type of [`CliArgs::apply_workspace_root`].
+#[derive(Debug, Display, Error, Diagnostic)]
+pub enum WorkspaceRootError {
+    #[display("--workspace-root may not be used with --global")]
+    #[diagnostic(code(ERR_PNPM_OPTIONS_CONFLICT))]
+    GlobalConflict,
+
+    #[display("--workspace-root may only be used inside a workspace")]
+    #[diagnostic(code(ERR_PNPM_NOT_IN_WORKSPACE))]
+    NotInWorkspace,
+
+    #[diagnostic(transparent)]
+    FindWorkspaceDir(#[error(source)] pacquet_workspace::FindWorkspaceDirError),
 }
 
 #[derive(Debug, Subcommand)]
@@ -526,6 +573,25 @@ pub enum CliCommand {
 }
 
 impl CliCommand {
+    /// Whether `--global` was passed. pnpm parses it as one CLI-wide
+    /// option; pacquet declares it per subcommand.
+    fn is_global(&self) -> bool {
+        match self {
+            CliCommand::Add(args) => args.global,
+            CliCommand::ApproveBuilds(args) => args.global,
+            CliCommand::Bin(args) => args.global,
+            CliCommand::Config(args) => args.is_global(),
+            CliCommand::List(args) | CliCommand::Ll(args) => args.global,
+            CliCommand::Outdated(args) => args.global,
+            CliCommand::Prefix(args) => args.global,
+            CliCommand::Remove(args) => args.global,
+            CliCommand::Root(args) => args.global,
+            CliCommand::Runtime(args) => args.global,
+            CliCommand::Update(args) => args.global,
+            _ => false,
+        }
+    }
+
     fn recursive_by_default(&self) -> bool {
         matches!(
             self,
