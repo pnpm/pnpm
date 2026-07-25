@@ -124,9 +124,9 @@ async fn add_resolves_package_selectors_concurrently_and_reports_in_selector_ord
         barrier_expired: bool,
     }
 
-    // Only has to outlast the scheduling latency of a machine running
-    // the whole suite in parallel — the verdict comes from `max_active`,
-    // not from the deadline.
+    // Bounds the barrier so a lost overlap fails instead of hanging.
+    // Sized to outlast the scheduling latency of a machine running the
+    // whole suite in parallel, since expiry is itself a failure.
     const OVERLAP_BARRIER_TIMEOUT: Duration = Duration::from_secs(15);
 
     let dir = tempdir().unwrap();
@@ -179,6 +179,10 @@ async fn add_resolves_package_selectors_concurrently_and_reports_in_selector_ord
                         requests.started < packages.len() && !requests.barrier_expired
                     })
                     .unwrap();
+                // `wait_timeout_while` re-checks the predicate before it
+                // reports a timeout, so `timed_out()` means the peers were
+                // still missing when the budget ran out — never that the
+                // last one arrived on the deadline.
                 if wait.timed_out() {
                     requests.barrier_expired = true;
                     ready.notify_all();
