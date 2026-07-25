@@ -143,9 +143,18 @@ function findWorkspaceRootDep (
   workspaceRootDeps: HoistableRootDep[],
   peerName: string
 ): HoistableRootDep | undefined {
-  const candidates = workspaceRootDeps.filter((rootDep) => rootDep.normalizedBareSpecifier)
-  return candidates.find((rootDep) => rootDep.alias === peerName) ??
-    candidates
-      .filter((rootDep) => rootDep.pkgName === peerName)
-      .sort((rootDep1, rootDep2) => lexCompare(rootDep1.alias, rootDep2.alias))[0]
+  // One allocation-free pass: this runs for every missing peer of every
+  // importer on each hoist round.
+  let rootDepByPkgName: HoistableRootDep | undefined
+  for (const rootDep of workspaceRootDeps) {
+    if (!rootDep.normalizedBareSpecifier) continue
+    if (rootDep.alias === peerName) return rootDep
+    if (
+      rootDep.pkgName === peerName &&
+      (rootDepByPkgName == null || lexCompare(rootDep.alias, rootDepByPkgName.alias) < 0)
+    ) {
+      rootDepByPkgName = rootDep
+    }
+  }
+  return rootDepByPkgName
 }
