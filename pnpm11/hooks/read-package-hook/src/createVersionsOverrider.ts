@@ -32,11 +32,17 @@ export interface CreateVersionsOverriderOptions {
  */
 export type DependencyOverrider = (name: string, bareSpecifier: string, dir?: string) => string | undefined
 
+/**
+ * `undefined` when no override in the set could ever claim an undeclared
+ * dependency, so the resolver skips the per-peer call in the common case of a
+ * project with no overrides — or with parent-scoped ones only.
+ */
 export function createDependencyOverrider (
   overrides: VersionOverrideWithoutRawSelector[],
   rootDir: string
-): DependencyOverrider {
+): DependencyOverrider | undefined {
   const { genericVersionOverrides, convergeVersions } = splitOverrides(overrides, rootDir)
+  if (genericVersionOverrides.length === 0 && convergeVersions.size === 0) return undefined
   return (name, bareSpecifier, dir) => {
     const versionOverride = pickVersionOverride({ versionOverrides: [], genericVersionOverrides }, name, bareSpecifier)
     if (versionOverride) {

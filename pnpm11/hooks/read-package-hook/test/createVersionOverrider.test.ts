@@ -912,31 +912,31 @@ describe('createDependencyOverrider()', () => {
     const overrideDependency = createDependencyOverrider(parseOverrides({
       react: 'npm:react@19.2.0',
       'zoo@^1': '1.0.0',
-    }), process.cwd())
+    }), process.cwd())!
     expect(overrideDependency('react', '^18.0.0')).toBe('npm:react@19.2.0')
     expect(overrideDependency('zoo', '^1.5.0')).toBe('1.0.0')
     expect(overrideDependency('zoo', '^2.0.0')).toBeUndefined()
     expect(overrideDependency('qar', '^1.0.0')).toBeUndefined()
   })
 
-  test('ignores parent-scoped overrides', () => {
-    const overrideDependency = createDependencyOverrider(parseOverrides({
+  test('is not created for a set that cannot claim an undeclared dependency', () => {
+    expect(createDependencyOverrider([], process.cwd())).toBeUndefined()
+    expect(createDependencyOverrider(parseOverrides({
       'foo>react': '19.2.0',
-    }), process.cwd())
-    expect(overrideDependency('react', '^18.0.0')).toBeUndefined()
+    }), process.cwd())).toBeUndefined()
   })
 
   test('resolves a local override relative to the directory of the package that gets the dependency', () => {
     const overrideDependency = createDependencyOverrider(parseOverrides({
       qar: 'link:../qar',
-    }), process.cwd())
+    }), process.cwd())!
     expect(overrideDependency('qar', '^1.0.0', path.resolve('pkg'))).toBe('link:../../qar')
   })
 
   test('applies a convergence override only when it satisfies the range', () => {
     const overrideDependency = createDependencyOverrider(parseOverrides({
       'react@': '18.3.1',
-    }), process.cwd())
+    }), process.cwd())!
     expect(overrideDependency('react', '^18.0.0')).toBe('18.3.1')
     expect(overrideDependency('react', '^19.0.0')).toBeUndefined()
   })
