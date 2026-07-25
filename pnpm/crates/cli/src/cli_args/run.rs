@@ -19,13 +19,18 @@ mod recursive;
 
 #[derive(Debug, Args)]
 pub struct RunArgs {
-    /// A pre-defined package script. When omitted, the available scripts
-    /// are listed.
-    pub command: Option<String>,
-
-    /// Arguments passed to the script after the script name.
+    /// A pre-defined package script followed by the arguments passed to
+    /// it. When empty, the available scripts are listed.
+    ///
+    /// One positional rather than a script name plus a separate argument
+    /// list, so parsing stops *at* the script name — pnpm puts `run` in
+    /// `SPECIALLY_ESCAPED_CMDS` to the same effect. Every later token
+    /// reaches the script verbatim, including a `--` separator and
+    /// anything shaped like a pnpm flag. Splitting the two lets clap keep
+    /// parsing past the script name, which swallows both
+    /// (pnpm/pnpm#13295). `exec` / `dlx` / `with` take the same shape.
     #[clap(trailing_var_arg = true, allow_hyphen_values = true)]
-    pub args: Vec<String>,
+    pub script: Vec<String>,
 
     /// Avoid exiting with a non-zero exit code when the script is undefined.
     #[clap(long)]
@@ -91,6 +96,26 @@ pub enum RunError {
 }
 
 impl RunArgs {
+    /// Build the positional from a script name and its arguments, for the
+    /// paths that synthesize a `run` rather than parsing one.
+    pub(super) fn script<Args>(name: &str, args: Args) -> Vec<String>
+    where
+        Args: IntoIterator<Item = String>,
+    {
+        std::iter::once(name.to_string()).chain(args).collect()
+    }
+
+    /// The script to run, or `None` when `run` was given no positional and
+    /// should list the available scripts instead.
+    pub(super) fn script_name(&self) -> Option<&str> {
+        self.script.first().map(String::as_str)
+    }
+
+    /// The arguments to forward to the script, verbatim.
+    pub(super) fn script_args(&self) -> &[String] {
+        self.script.get(1..).unwrap_or_default()
+    }
+
     /// Execute the subcommand in `dir`. `silent` suppresses the
     /// `$ <script>` echo (set when the reporter is `silent`).
     ///
@@ -120,12 +145,14 @@ impl RunArgs {
         // directory without a project skips the check instead of
         // spawning a doomed install (see check_deps_status_before_run_at).
         super::verify_deps::verify_deps_before_run(dir, config, silent)?;
-        let RunArgs { command, args, if_present, sequential, .. } = self;
-        let Some(script_name) = command else {
+        let RunArgs { script, if_present, sequential, .. } = self;
+        let mut script = script.into_iter();
+        let Some(script_name) = script.next() else {
             let manifest = read_project_manifest_only(dir).map_err(RunError::Manifest)?;
             println!("{}", render_project_commands(manifest.value()));
             return Ok(());
         };
+        let args: Vec<String> = script.collect();
         let manifest = match read_project_manifest_only(dir) {
             Ok(manifest) => manifest,
             Err(ReadProjectManifestOnlyError::NoImporterManifestFound { .. })
