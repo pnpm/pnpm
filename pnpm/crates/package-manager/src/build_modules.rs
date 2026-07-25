@@ -684,6 +684,21 @@ impl BuildModules<'_> {
         // the point of memoization.
         let deps_state_cache: Mutex<pacquet_graph_hasher::DepsStateCache<PackageKey>> =
             Mutex::new(pacquet_graph_hasher::DepsStateCache::new());
+        // Prime it in lockfile key order before any chunk runs. The
+        // chunk members race for the mutex, and a snapshot inside a
+        // dependency cycle takes the digest of whichever walk reached
+        // it first — so an unprimed cache would hand the same install
+        // a different side-effects-cache key on every run, and every
+        // repeat install would re-run the build it already has cached.
+        if let Some(graph) = &dep_graph {
+            let mut cache_guard =
+                deps_state_cache.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            pacquet_graph_hasher::warm_deps_state_cache(
+                graph,
+                &mut cache_guard,
+                crate::deps_graph::in_lockfile_order(graph).into_iter().map(|(key, _)| key),
+            );
+        }
 
         let chunks = build_sequence(&requires_build_map, patches, snapshots, importers, skipped);
 

@@ -1,4 +1,8 @@
-use super::{CalcDepStateOptions, DepsGraphNode, calc_dep_state, transitively_requires_build};
+use super::{
+    CalcDepStateOptions, DepsGraphNode, calc_dep_state, transitively_requires_build,
+    warm_deps_state_cache,
+};
+use indexmap::IndexMap;
 use pretty_assertions::assert_eq;
 use std::collections::HashMap;
 
@@ -43,7 +47,7 @@ fn dep_graph_hash_for_leaf_uses_id_and_empty_deps() {
         "leaf@1.0.0".to_string(),
         DepsGraphNode {
             full_pkg_id: "leaf@1.0.0:sha512-leaf".to_string(),
-            children: HashMap::new(),
+            children: IndexMap::new(),
         },
     );
     let mut cache = HashMap::new();
@@ -68,7 +72,7 @@ fn cache_makes_repeat_calls_byte_equal() {
     let mut graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
     graph.insert(
         "leaf@1.0.0".to_string(),
-        DepsGraphNode { full_pkg_id: "leaf@1.0.0:sha512-x".to_string(), children: HashMap::new() },
+        DepsGraphNode { full_pkg_id: "leaf@1.0.0:sha512-x".to_string(), children: IndexMap::new() },
     );
     let mut cache = HashMap::new();
     let opts = CalcDepStateOptions {
@@ -85,7 +89,7 @@ fn cache_makes_repeat_calls_byte_equal() {
 #[test]
 fn diamond_graph_resolves_consistently() {
     let mut graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
-    let mut root_children = HashMap::new();
+    let mut root_children = IndexMap::new();
     root_children.insert("a".to_string(), "a@1.0.0".to_string());
     root_children.insert("b".to_string(), "b@1.0.0".to_string());
     graph.insert(
@@ -95,13 +99,13 @@ fn diamond_graph_resolves_consistently() {
             children: root_children,
         },
     );
-    let mut a_children = HashMap::new();
+    let mut a_children = IndexMap::new();
     a_children.insert("c".to_string(), "c@1.0.0".to_string());
     graph.insert(
         "a@1.0.0".to_string(),
         DepsGraphNode { full_pkg_id: "a@1.0.0:sha512-a".to_string(), children: a_children },
     );
-    let mut b_children = HashMap::new();
+    let mut b_children = IndexMap::new();
     b_children.insert("c".to_string(), "c@1.0.0".to_string());
     graph.insert(
         "b@1.0.0".to_string(),
@@ -109,7 +113,7 @@ fn diamond_graph_resolves_consistently() {
     );
     graph.insert(
         "c@1.0.0".to_string(),
-        DepsGraphNode { full_pkg_id: "c@1.0.0:sha512-c".to_string(), children: HashMap::new() },
+        DepsGraphNode { full_pkg_id: "c@1.0.0:sha512-c".to_string(), children: IndexMap::new() },
     );
     let mut cache = HashMap::new();
     let result = calc_dep_state(
@@ -129,13 +133,13 @@ fn diamond_graph_resolves_consistently() {
 #[test]
 fn cyclic_graph_terminates_and_is_stable() {
     let mut graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
-    let mut a_children = HashMap::new();
+    let mut a_children = IndexMap::new();
     a_children.insert("b".to_string(), "b@1.0.0".to_string());
     graph.insert(
         "a@1.0.0".to_string(),
         DepsGraphNode { full_pkg_id: "a@1.0.0:sha512-a".to_string(), children: a_children },
     );
-    let mut b_children = HashMap::new();
+    let mut b_children = IndexMap::new();
     b_children.insert("a".to_string(), "a@1.0.0".to_string());
     graph.insert(
         "b@1.0.0".to_string(),
@@ -157,7 +161,7 @@ fn dep_graph_and_patch_concatenate_in_upstream_order() {
     let mut graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
     graph.insert(
         "x@1.0.0".to_string(),
-        DepsGraphNode { full_pkg_id: "x@1.0.0:sha512-x".to_string(), children: HashMap::new() },
+        DepsGraphNode { full_pkg_id: "x@1.0.0:sha512-x".to_string(), children: IndexMap::new() },
     );
     let mut cache = HashMap::new();
     let result = calc_dep_state(
@@ -182,7 +186,7 @@ fn transitively_requires_build_self_in_built_set() {
         "builder@1.0.0".to_string(),
         DepsGraphNode {
             full_pkg_id: "builder@1.0.0:sha512-b".to_string(),
-            children: HashMap::new(),
+            children: IndexMap::new(),
         },
     );
     let built: std::collections::HashSet<String> =
@@ -202,7 +206,7 @@ fn transitively_requires_build_self_in_built_set() {
 #[test]
 fn transitively_requires_build_walks_to_descendant_builder() {
     let mut graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
-    let mut root_children = HashMap::new();
+    let mut root_children = IndexMap::new();
     root_children.insert("dep".to_string(), "builder@1.0.0".to_string());
     graph.insert(
         "root@1.0.0".to_string(),
@@ -212,7 +216,7 @@ fn transitively_requires_build_walks_to_descendant_builder() {
         "builder@1.0.0".to_string(),
         DepsGraphNode {
             full_pkg_id: "builder@1.0.0:sha512-b".to_string(),
-            children: HashMap::new(),
+            children: IndexMap::new(),
         },
     );
     let built: std::collections::HashSet<String> =
@@ -233,7 +237,7 @@ fn transitively_requires_build_walks_to_descendant_builder() {
 #[test]
 fn transitively_requires_build_returns_false_for_unrelated_tree() {
     let mut graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
-    let mut root_children = HashMap::new();
+    let mut root_children = IndexMap::new();
     root_children.insert("dep".to_string(), "leaf@1.0.0".to_string());
     graph.insert(
         "root@1.0.0".to_string(),
@@ -241,7 +245,7 @@ fn transitively_requires_build_returns_false_for_unrelated_tree() {
     );
     graph.insert(
         "leaf@1.0.0".to_string(),
-        DepsGraphNode { full_pkg_id: "leaf@1.0.0:sha512-l".to_string(), children: HashMap::new() },
+        DepsGraphNode { full_pkg_id: "leaf@1.0.0:sha512-l".to_string(), children: IndexMap::new() },
     );
     let built: std::collections::HashSet<String> =
         std::iter::once("builder@9.9.9".to_string()).collect();
@@ -279,13 +283,13 @@ fn transitively_requires_build_caches_false_for_missing_node() {
 #[test]
 fn transitively_requires_build_cycle_terminates() {
     let mut graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
-    let mut a_children = HashMap::new();
+    let mut a_children = IndexMap::new();
     a_children.insert("b".to_string(), "b@1.0.0".to_string());
     graph.insert(
         "a@1.0.0".to_string(),
         DepsGraphNode { full_pkg_id: "a@1.0.0:sha512-a".to_string(), children: a_children },
     );
-    let mut b_children = HashMap::new();
+    let mut b_children = IndexMap::new();
     b_children.insert("a".to_string(), "a@1.0.0".to_string());
     graph.insert(
         "b@1.0.0".to_string(),
@@ -310,14 +314,14 @@ fn transitively_requires_build_cycle_terminates() {
 fn transitively_requires_build_cycle_does_not_mask_sibling_builder() {
     let mut graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
     // Two children so child iteration order can take either path.
-    let mut a_children = HashMap::new();
+    let mut a_children = IndexMap::new();
     a_children.insert("b".to_string(), "b@1.0.0".to_string());
     a_children.insert("c".to_string(), "builder@1.0.0".to_string());
     graph.insert(
         "a@1.0.0".to_string(),
         DepsGraphNode { full_pkg_id: "a@1.0.0:sha512-a".to_string(), children: a_children },
     );
-    let mut b_children = HashMap::new();
+    let mut b_children = IndexMap::new();
     b_children.insert("a".to_string(), "a@1.0.0".to_string());
     graph.insert(
         "b@1.0.0".to_string(),
@@ -327,7 +331,7 @@ fn transitively_requires_build_cycle_does_not_mask_sibling_builder() {
         "builder@1.0.0".to_string(),
         DepsGraphNode {
             full_pkg_id: "builder@1.0.0:sha512-x".to_string(),
-            children: HashMap::new(),
+            children: IndexMap::new(),
         },
     );
     let built: std::collections::HashSet<String> =
@@ -341,4 +345,67 @@ fn transitively_requires_build_cycle_does_not_mask_sibling_builder() {
         &"a@1.0.0".to_string(),
         &mut parents
     ));
+}
+
+/// `a` sits in two cycles at once — `a` ↔ `b` and `a` ↔ `m` — so the
+/// digest each member settles on depends on which entry point the walk
+/// started from.
+fn entry_order_sensitive_graph() -> HashMap<String, DepsGraphNode<String>> {
+    fn node(id: &str, children: &[(&str, &str)]) -> DepsGraphNode<String> {
+        DepsGraphNode {
+            full_pkg_id: format!("{id}@1.0.0:sha512-{id}"),
+            children: children
+                .iter()
+                .map(|(alias, key)| ((*alias).to_string(), (*key).to_string()))
+                .collect(),
+        }
+    }
+    HashMap::from([
+        ("a".to_string(), node("a", &[("m", "m"), ("z", "z"), ("b", "b")])),
+        ("b".to_string(), node("b", &[("a", "a")])),
+        ("m".to_string(), node("m", &[("a", "a")])),
+        ("z".to_string(), node("z", &[])),
+    ])
+}
+
+fn dep_states(
+    graph: &HashMap<String, DepsGraphNode<String>>,
+    cache: &mut HashMap<String, String>,
+    query_order: &[&str],
+) -> Vec<(String, String)> {
+    let opts = CalcDepStateOptions {
+        engine_name: "darwin;arm64;node20",
+        patch_file_hash: None,
+        include_dep_graph_hash: true,
+    };
+    let mut states: Vec<(String, String)> = query_order
+        .iter()
+        .map(|key| ((*key).to_string(), calc_dep_state(graph, cache, &(*key).to_string(), &opts)))
+        .collect();
+    states.sort();
+    states
+}
+
+#[test]
+fn query_order_alone_decides_cyclic_dep_states() {
+    let graph = entry_order_sensitive_graph();
+    let forward = dep_states(&graph, &mut HashMap::new(), &["a", "b", "m", "z"]);
+    let backward = dep_states(&graph, &mut HashMap::new(), &["z", "m", "b", "a"]);
+    assert_ne!(forward, backward, "the cache is what `warm_deps_state_cache` exists to pin");
+}
+
+#[test]
+fn warming_makes_cyclic_dep_states_independent_of_query_order() {
+    let graph = entry_order_sensitive_graph();
+    let keys = ["a".to_string(), "b".to_string(), "m".to_string(), "z".to_string()];
+
+    let mut forward_cache = HashMap::new();
+    warm_deps_state_cache(&graph, &mut forward_cache, &keys);
+    let forward = dep_states(&graph, &mut forward_cache, &["a", "b", "m", "z"]);
+
+    let mut backward_cache = HashMap::new();
+    warm_deps_state_cache(&graph, &mut backward_cache, &keys);
+    let backward = dep_states(&graph, &mut backward_cache, &["z", "m", "b", "a"]);
+
+    assert_eq!(forward, backward);
 }

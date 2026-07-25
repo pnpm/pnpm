@@ -4427,6 +4427,7 @@ name = "pacquet-graph-hasher"
 version = "0.0.1"
 dependencies = [
  "base64 0.22.1",
+ "indexmap 2.14.0",
  "pacquet-detect-libc",
  "pretty_assertions",
  "serde_json",

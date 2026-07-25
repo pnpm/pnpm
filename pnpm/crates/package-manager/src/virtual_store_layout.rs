@@ -33,8 +33,8 @@ use pacquet_graph_hasher::{
     format_global_virtual_store_path, join_global_virtual_store_path,
 };
 use pacquet_lockfile::{
-    LockfileResolution, PackageKey, PackageMetadata, PkgIdWithPatchHash, PkgName, PkgVerPeer,
-    SnapshotDepRef, SnapshotEntry, VersionPart,
+    LockfileResolution, PackageKey, PackageMetadata, PkgIdWithPatchHash, PkgVerPeer, SnapshotEntry,
+    VersionPart,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -207,7 +207,11 @@ impl VirtualStoreLayout {
         // when `built_dep_paths` is `None`.
         let mut build_required_cache: HashMap<PackageKey, bool> = HashMap::new();
         let mut gvs_suffixes: HashMap<PackageKey, String> = HashMap::with_capacity(snapshots.len());
-        for (snapshot_key, snapshot) in snapshots {
+        // Lockfile key order, not `HashMap` order: `calc_graph_node_hash`
+        // memoizes into `cache` / `build_required_cache`, and for a
+        // snapshot inside a dependency cycle the digest that lands there
+        // depends on which snapshot the walk reached it from.
+        for (snapshot_key, snapshot) in crate::deps_graph::in_lockfile_order(snapshots) {
             // Per-snapshot engine resolution: a snapshot that declares
             // its own `engines.runtime` carries the desugared
             // `dependencies.node: 'runtime:<version>'` pin, which has
@@ -431,7 +435,7 @@ fn lockfile_to_dep_graph(
     snapshots
         .iter()
         .map(|(snapshot_key, snapshot)| {
-            let children = collect_children(snapshot);
+            let children = crate::deps_graph::build_children(snapshot);
             let metadata_key = snapshot_key.without_peer();
             // The metadata-map key (peer- and patch-hash-stripped) is
             // derived via `without_peer` for the `packages:` lookup.
@@ -444,33 +448,6 @@ fn lockfile_to_dep_graph(
             (snapshot_key.clone(), DepsGraphNode { full_pkg_id, children })
         })
         .collect()
-}
-
-/// Combine a snapshot's `dependencies` and `optionalDependencies` into
-/// the graph's alias→key edges, equivalent to a
-/// `{...deps, ...optionalDeps}` spread.
-fn collect_children(snapshot: &SnapshotEntry) -> HashMap<String, PackageKey> {
-    let mut children = HashMap::new();
-    if let Some(deps) = &snapshot.dependencies {
-        merge_into_children(&mut children, deps);
-    }
-    if let Some(deps) = &snapshot.optional_dependencies {
-        merge_into_children(&mut children, deps);
-    }
-    children
-}
-
-fn merge_into_children(
-    children: &mut HashMap<String, PackageKey>,
-    deps: &HashMap<PkgName, SnapshotDepRef>,
-) {
-    for (alias, dep_ref) in deps {
-        // `link:` deps have no snapshot key — skip them.
-        let Some(resolved) = dep_ref.resolve(alias) else {
-            continue;
-        };
-        children.insert(alias.to_string(), resolved);
-    }
 }
 
 /// `variations` (cross-platform variant) resolutions don't exist in
