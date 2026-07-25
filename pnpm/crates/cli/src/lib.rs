@@ -81,7 +81,7 @@ fn run_cli() -> miette::Result<()> {
                 cli_args::pre_command::pre_command_plan_for_version_flag(&argv, &config_overrides)?
                 && block_on_runtime(
                     "pacquet-pre-command",
-                    cli_args::pre_command::execute_switch(plan, &child_argv),
+                    cli_args::pre_command::execute_plan(plan, &child_argv),
                 )?
             {
                 return Ok(());
@@ -100,7 +100,7 @@ fn run_cli() -> miette::Result<()> {
     if let Some(plan) = cli_args::pre_command::pre_command_plan(&args, &config_overrides)?
         && block_on_runtime(
             "pacquet-pre-command",
-            cli_args::pre_command::execute_switch(plan, &child_argv),
+            cli_args::pre_command::execute_plan(plan, &child_argv),
         )?
     {
         return Ok(());
