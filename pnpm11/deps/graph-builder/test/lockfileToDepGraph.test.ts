@@ -50,6 +50,7 @@ function graphOpts (lockfileDir: string): LockfileToDepGraphOptions {
     nodeVersion: process.version,
     pnpmVersion: '0.0.0',
     registries: { default: 'http://localhost/' },
+    requiredDepPaths: new Set(),
     sideEffectsCacheRead: false,
     skipped: new Set(),
     storeController: {

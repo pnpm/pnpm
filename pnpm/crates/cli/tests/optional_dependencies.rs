@@ -945,7 +945,7 @@ fn fail_on_unsupported_dependency_of_optional_dependency() {
 }
 
 /// TS: `fail on unsupported dependency of optional dependency during a
-/// headless install` (`optionalDependencies.ts:738`). The lockfile marks
+/// headless install` (`optionalDependencies.ts:737`). The lockfile marks
 /// the whole subtree `optional: true` because it hangs off a root
 /// `optionalDependencies` entry, so only a per-edge dispatch reaches the
 /// `engineStrict` failure on the frozen path too.

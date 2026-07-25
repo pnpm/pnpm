@@ -138,6 +138,11 @@ interface PickPkgsContext {
    * being checked.
    */
   evaluated: DepPath[]
+  /**
+   * Outbound edges of the packages the classification pass expanded, so the
+   * closure pass looks them up instead of re-parsing every dependency ref.
+   */
+  edgesByDepPath: Map<DepPath, DepEdge[]>
 }
 
 function pickPkgsWithAllDeps (
@@ -153,6 +158,7 @@ function pickPkgsWithAllDeps (
     installed: new Set(),
     requiredDepPaths: new Set(),
     evaluated: [],
+    edgesByDepPath: new Map(),
   }
   classifyDeps(ctx, depEdges, opts)
   reportInstallability(ctx, opts)
@@ -206,10 +212,12 @@ function classifyDeps (ctx: PickPkgsContext, depEdges: DepEdge[], opts: PickPkgs
     if (optional && incompatible.get(depPath)) continue
     ctx.installed.add(depPath)
     ctx.pickedPackages[depPath] = pkgSnapshot
+    const edges = nextDepEdges(ctx, pkgSnapshot, opts)
+    ctx.edgesByDepPath.set(depPath, edges)
     // Appended one by one: `push(...edges)` passes each edge as its own
     // argument and overflows the engine's argument limit on a wide enough
     // dependency list.
-    for (const edge of nextDepEdges(ctx, pkgSnapshot, opts)) {
+    for (const edge of edges) {
       queue.push(edge)
     }
   }
@@ -282,7 +290,7 @@ function pickSkippedDeps (ctx: PickPkgsContext, depEdges: DepEdge[], opts: PickP
       }
       ctx.pickedPackages[depPath] = pkgSnapshot
     }
-    for (const edge of nextDepEdges(ctx, pkgSnapshot, opts)) {
+    for (const edge of ctx.edgesByDepPath.get(depPath) ?? nextDepEdges(ctx, pkgSnapshot, opts)) {
       queue.push(edge.depPath)
     }
   }
