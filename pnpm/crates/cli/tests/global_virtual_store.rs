@@ -767,6 +767,50 @@ fn needs_build_marker_triggers_reimport_on_next_install() {
     drop((root, mock_instance));
 }
 
+/// TS: `local directory dependency works with global virtual store`
+/// (`globalVirtualStore.ts`).
+///
+/// The lockfile records no version for a directory snapshot while the
+/// resolver reads one off the manifest, so both install paths have to
+/// agree on the anchored `directory` segment or the reinstall would
+/// relocate the package. Upstream additionally crashed here — see
+/// <https://github.com/pnpm/pnpm/issues/13335>.
+#[test]
+fn local_directory_dependency_works_with_global_virtual_store() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+
+    set_gvs_workspace_yaml(&workspace, "");
+    write_manifest(&workspace, &serde_json::json!({ "dep": "file:dep" }));
+    fs::create_dir_all(workspace.join("dep")).expect("mkdir dep");
+    fs::write(
+        workspace.join("dep/package.json"),
+        serde_json::json!({ "name": "dep", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write dep/package.json");
+
+    pacquet(&workspace).with_arg("install").assert().success();
+
+    let version_dir = pkg_version_dir(&store_dir, "@/dep", "directory");
+    let slot_after_install = sole_hash_dir(&version_dir);
+    assert!(
+        pkg_in_slot(&slot_after_install, "dep").join("package.json").exists(),
+        "the local directory dependency must be materialized in its GVS slot",
+    );
+
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    pacquet(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+
+    assert_eq!(
+        sole_hash_dir(&version_dir),
+        slot_after_install,
+        "the frozen reinstall must land on the slot the first install created",
+    );
+
+    drop((root, mock_instance));
+}
+
 /// TS: `injected local packages work with global virtual store`
 /// (`globalVirtualStore.ts:461`).
 ///

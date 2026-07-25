@@ -243,6 +243,7 @@ impl LicensesArgs {
             lockfile.snapshots.as_ref(),
             lockfile.packages.as_ref(),
             Some(&allow_build_policy),
+            Some(lockfile_dir),
         );
         validate_virtual_store_slot_containment(lockfile.snapshots.as_ref(), &layout)
             .into_diagnostic()?;

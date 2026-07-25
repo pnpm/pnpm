@@ -192,8 +192,8 @@ export interface GraphNodeHashOptions {
   /**
    * Directory the lockfile lives in. Scopes the slots of local directory
    * dependencies to the project that owns them — see
-   * {@link localDirectoryScope}. Omitting it leaves those packages on a shared
-   * slot, which is only safe for a lockfile known to have no directory
+   * {@link isLocalDirectoryResolution}. Omitting it leaves those packages on a
+   * shared slot, which is only safe for a lockfile known to have no directory
    * dependencies.
    */
   lockfileDir?: string
@@ -260,11 +260,15 @@ export function calcGraphNodeHash<T extends PkgMeta> (
   const ownPin = readSnapshotRuntimePin(graph[depPath]?.children)
   const engine = includeEngine ? engineName(ownPin ?? nodeVersion) : null
   const deps = calcDepGraphHash(graph, cache, new Set(), depPath, supportedArchitectures)
-  const project = localDirectoryScope(graph[depPath]?.resolution, lockfileDir)
+  const isLocalDirectory = isLocalDirectoryResolution(graph[depPath]?.resolution)
+  // Scoping the slot needs the project's identity; the segment only needs to
+  // know that the package is a local directory, so a caller that leaves
+  // `lockfileDir` out still gets a well-formed path.
+  const project = isLocalDirectory ? lockfileDir : undefined
   const hexDigest = project == null
     ? hashObjectWithoutSorting({ engine, deps }, { encoding: 'hex' })
     : hashObjectWithoutSorting({ engine, deps, project }, { encoding: 'hex' })
-  return formatGlobalVirtualStorePath(name, project == null ? version : LOCAL_DIRECTORY_SEGMENT, hexDigest)
+  return formatGlobalVirtualStorePath(name, isLocalDirectory ? LOCAL_DIRECTORY_SEGMENT : version, hexDigest)
 }
 
 /**
@@ -278,26 +282,19 @@ export function calcGraphNodeHash<T extends PkgMeta> (
 const LOCAL_DIRECTORY_SEGMENT = 'directory'
 
 /**
- * Extra hash input that keeps a package resolved from a local directory —
- * a `file:` directory dependency or an injected workspace package — on a slot
- * of its own. Returns `undefined` for every other resolution, which then hashes
- * exactly as before.
+ * Whether the package came from a local directory — a `file:` directory
+ * dependency or an injected workspace package.
  *
- * A directory resolution is the one resolution with no integrity: it is a path
- * relative to the lockfile, so `file:dep` hashes identically in every project
- * that happens to depend on a directory of that name. Sharing the slot would
- * hand one project the files of whichever project installed first, and because
- * the source directory is mutable pnpm re-imports it on every install — so the
- * projects would go on overwriting each other's dependency.
+ * Such a package needs a slot of its own per project. A directory resolution is
+ * the one resolution with no integrity: it is a path relative to the lockfile,
+ * so `file:dep` hashes identically in every project that happens to depend on a
+ * directory of that name. Sharing the slot would hand one project the files of
+ * whichever project installed first, and because the source directory is
+ * mutable pnpm re-imports it on every install — so the projects would go on
+ * overwriting each other's dependency.
  */
-function localDirectoryScope (
-  resolution: LockfileResolution | undefined,
-  lockfileDir: string | undefined
-): string | undefined {
-  if (lockfileDir == null || resolution == null || !('type' in resolution) || resolution.type !== 'directory') {
-    return undefined
-  }
-  return lockfileDir
+function isLocalDirectoryResolution (resolution: LockfileResolution | undefined): boolean {
+  return resolution != null && 'type' in resolution && resolution.type === 'directory'
 }
 
 export function calcLeafGlobalVirtualStorePath (fullPkgId: string, name: string, version: string): string {

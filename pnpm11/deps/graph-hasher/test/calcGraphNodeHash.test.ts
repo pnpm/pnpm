@@ -521,6 +521,15 @@ describe('calcGraphNodeHash', () => {
       expect(inProjectA).not.toBe(inProjectB)
     })
 
+    it('keeps the segment when the caller supplies no lockfile directory', () => {
+      // A caller that hashes a lockfile it knows has no directory deps may
+      // leave `lockfileDir` out; one that slips through must still produce a
+      // path rather than dereference the missing version.
+      const result = calcGraphNodeHash({ graph, cache: {} }, pkgMeta)
+
+      expect(result).toMatch(/^@\/dep\/directory\/[a-f0-9]+$/)
+    })
+
     it('leaves packages resolved from the registry unscoped', () => {
       const registryGraph: DepsGraph<DepPath> = {
         ['foo@1.0.0' as DepPath]: {

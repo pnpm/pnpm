@@ -924,6 +924,7 @@ where
             snapshots,
             packages,
             Some(&allow_build_policy),
+            Some(workspace_root),
         );
 
         // Reject a lockfile whose dependency names, aliases, or

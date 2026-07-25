@@ -155,12 +155,22 @@ impl VirtualStoreLayout {
     /// `engine = null` so their GVS directories survive Node.js
     /// upgrades. When `None`, every snapshot keeps the engine in
     /// its hash payload.
+    ///
+    /// `lockfile_dir` scopes the slots of snapshots resolved from a
+    /// local directory to the project that owns them: a directory
+    /// resolution is a lockfile-relative path with no integrity, so
+    /// `file:dep` otherwise hashes identically in every project that
+    /// depends on a directory of that name, and they all link to
+    /// whichever project installed first. `None` leaves them on that
+    /// shared slot, which is only safe for a lockfile known to have no
+    /// directory resolutions.
     pub fn new(
         config: &Config,
         engine: Option<&str>,
         snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
         packages: Option<&HashMap<PackageKey, PackageMetadata>>,
         allow_build_policy: Option<&AllowBuildPolicy>,
+        lockfile_dir: Option<&Path>,
     ) -> Self {
         // Pacquet keeps `virtual_store_dir` and `global_virtual_store_dir`
         // as two separate fields (see
@@ -224,6 +234,10 @@ impl VirtualStoreLayout {
             let own_engine =
                 find_own_runtime_node_major(snapshot).map(|major| engine_name(major, None, None));
             let snapshot_engine = own_engine.as_deref().or(engine);
+            let metadata_key = snapshot_key.without_peer();
+            let metadata = packages.and_then(|map| map.get(&metadata_key));
+            let resolution = metadata.map(|meta| &meta.resolution);
+            let project = local_directory_scope(resolution, lockfile_dir);
             let hex_digest = calc_graph_node_hash(
                 &graph,
                 &mut cache,
@@ -231,10 +245,10 @@ impl VirtualStoreLayout {
                 snapshot_engine,
                 built_dep_paths.as_ref(),
                 &mut build_required_cache,
+                project.as_deref(),
             );
-            let metadata_key = snapshot_key.without_peer();
             let name = metadata_key.name.to_string();
-            let version = gvs_version_segment(&metadata_key.suffix);
+            let version = gvs_version_segment(metadata, &metadata_key.suffix);
             let suffix = format_global_virtual_store_path(&name, &version, &hex_digest);
             gvs_suffixes.insert(snapshot_key.clone(), suffix);
         }
@@ -297,6 +311,7 @@ pub fn virtual_store_layout_for_lockfile(
     snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
     packages: Option<&HashMap<PackageKey, PackageMetadata>>,
     allow_build_policy: Option<&AllowBuildPolicy>,
+    lockfile_dir: Option<&Path>,
 ) -> VirtualStoreLayout {
     let engine = if config.enable_global_virtual_store {
         find_runtime_node_major(snapshots)
@@ -306,7 +321,14 @@ pub fn virtual_store_layout_for_lockfile(
     } else {
         None
     };
-    VirtualStoreLayout::new(config, engine.as_deref(), snapshots, packages, allow_build_policy)
+    VirtualStoreLayout::new(
+        config,
+        engine.as_deref(),
+        snapshots,
+        packages,
+        allow_build_policy,
+        lockfile_dir,
+    )
 }
 
 /// Map each injected `file:` project to the virtual-store package
@@ -401,16 +423,51 @@ pub fn collect_injected_deps(
 /// the version as `pkgSnapshot.version ?? pkgInfo.version`, then feeds
 /// it into the global-virtual-store path format.
 ///
-/// An injected `file:` workspace dep carries no `version` field in the
-/// lockfile, and its depPath version is non-semver, so the version
-/// derivation returns `undefined` and the path format stringifies it to
-/// the literal segment `undefined`. Emitting the raw `file:<path>` here
-/// instead would put a `:` (and embedded `/`) into the slot path —
+/// A snapshot resolved from a local directory gets the fixed
+/// [`LOCAL_DIRECTORY_SEGMENT`] instead: the lockfile records no version
+/// for one, and the install path that resolves from manifests does know
+/// the version, so anchoring the segment is what keeps a re-install on
+/// the slot the first install created. Emitting the raw `file:<path>`
+/// here would put a `:` (and embedded `/`) into the slot path —
 /// rejected on Windows with `ERROR_INVALID_NAME`.
-fn gvs_version_segment(suffix: &PkgVerPeer) -> String {
+fn gvs_version_segment(metadata: Option<&PackageMetadata>, suffix: &PkgVerPeer) -> String {
+    if matches!(metadata.map(|meta| &meta.resolution), Some(LockfileResolution::Directory(_))) {
+        return LOCAL_DIRECTORY_SEGMENT.to_string();
+    }
+    if let Some(version) = metadata.and_then(|meta| meta.version.as_deref()) {
+        return version.to_string();
+    }
     match suffix.version() {
-        VersionPart::File(_) => "undefined".to_string(),
+        VersionPart::File(_) => LOCAL_DIRECTORY_SEGMENT.to_string(),
         VersionPart::Semver(_) | VersionPart::NonSemver(_) => suffix.version().to_string(),
+    }
+}
+
+/// Stands in for the version of a snapshot resolved from a local
+/// directory — see [`gvs_version_segment`].
+const LOCAL_DIRECTORY_SEGMENT: &str = "directory";
+
+/// Extra hash input that keeps a snapshot resolved from a local
+/// directory — a `file:` directory dependency or an injected workspace
+/// package — on a slot of its own. Returns `None` for every other
+/// resolution, which then hashes exactly as it did before.
+///
+/// A directory resolution is the one resolution with no integrity: it
+/// is a path relative to the lockfile, so `file:dep` hashes identically
+/// in every project that happens to depend on a directory of that name.
+/// Sharing the slot would hand one project the files of whichever
+/// project installed first, and because the source directory is mutable
+/// the install re-imports it every time — so the projects would go on
+/// overwriting each other's dependency.
+fn local_directory_scope(
+    resolution: Option<&LockfileResolution>,
+    lockfile_dir: Option<&Path>,
+) -> Option<String> {
+    match resolution {
+        Some(LockfileResolution::Directory(_)) => {
+            lockfile_dir.map(|dir| dir.to_string_lossy().into_owned())
+        }
+        _ => None,
     }
 }
 

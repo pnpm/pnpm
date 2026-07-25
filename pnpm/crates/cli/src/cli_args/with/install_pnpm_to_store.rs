@@ -235,6 +235,11 @@ fn compute_engine_slot(
         Some(&env.snapshots),
         Some(&env.packages),
         Some(&policy),
+        // No lockfile directory: this lockfile only ever holds the pnpm
+        // package and its registry dependencies, and the install that
+        // materializes the slot runs from a throwaway directory that
+        // differs on every self-update.
+        None,
     );
     Some(layout.slot_dir(&key))
 }

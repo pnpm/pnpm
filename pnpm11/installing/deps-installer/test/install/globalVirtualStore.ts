@@ -536,8 +536,8 @@ test('injected local packages work with global virtual store', async () => {
   expect(fs.existsSync(path.join(injectedDepLocation!, 'foo.js'))).toBeTruthy()
 })
 
-// The lockfile records no version for a directory snapshot, so a headless
-// install used to crash while building the slot path.
+// The lockfile records no version for a directory snapshot, so the headless
+// install has none to put in the slot path.
 // See https://github.com/pnpm/pnpm/issues/13335.
 test('local directory dependency works with global virtual store', async () => {
   const project = prepareEmpty()

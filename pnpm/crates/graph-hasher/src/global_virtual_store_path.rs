@@ -51,6 +51,12 @@ use std::{
 ///   every snapshot in the install. Untouched when `built_dep_paths`
 ///   is `None`; callers that don't care can hold a throwaway
 ///   `let mut cache = HashMap::new();` and pass `&mut cache`.
+///
+/// `project` scopes the slot to one project instead of sharing it
+/// across every project in the store. Callers pass `Some(lockfile_dir)`
+/// for a snapshot resolved from a local directory and `None` for
+/// everything else — see
+/// [`local_directory_scope`](../../../../package-manager/src/virtual_store_layout.rs).
 pub fn calc_graph_node_hash<Key>(
     graph: &HashMap<Key, DepsGraphNode<Key>>,
     cache: &mut DepsStateCache<Key>,
@@ -58,6 +64,7 @@ pub fn calc_graph_node_hash<Key>(
     engine: Option<&str>,
     built_dep_paths: Option<&HashSet<Key>>,
     build_required_cache: &mut HashMap<Key, bool>,
+    project: Option<&str>,
 ) -> String
 where
     Key: Clone + Eq + std::hash::Hash,
@@ -81,10 +88,10 @@ where
         Value::Null
     };
     let deps_hash = calc_dep_graph_hash(graph, cache, &mut HashSet::new(), dep_path);
-    let payload = json!({
-        "engine": engine_value,
-        "deps": deps_hash,
-    });
+    let payload = match project {
+        None => json!({ "engine": engine_value, "deps": deps_hash }),
+        Some(project) => json!({ "engine": engine_value, "deps": deps_hash, "project": project }),
+    };
     hash_object_without_sorting(&payload, HashEncoding::Hex)
 }
 
