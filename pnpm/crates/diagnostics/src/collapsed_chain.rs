@@ -42,8 +42,8 @@ impl ReportHandler for CollapsingHandler {
     }
 }
 
-/// The reported error, with consecutive repeats of the same message
-/// dropped from its cause chain.
+/// The reported error, with every cause the level above it already
+/// states in full dropped from its chain (see [`restates`]).
 ///
 /// Every [`Diagnostic`] method delegates to the reported error itself,
 /// so its code, help, labels, and source snippet render unchanged.
