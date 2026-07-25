@@ -1,7 +1,8 @@
 use crate::{
     State,
     cli_args::{
-        pipelines::InstallFamilySelection, recursive::discover_workspace_projects,
+        legacy_pnpm_field::warn_ignored_pnpm_manifest_fields, pipelines::InstallFamilySelection,
+        recursive::discover_workspace_projects,
         supported_architectures::SupportedArchitecturesArgs,
     },
 };
@@ -343,6 +344,11 @@ impl InstallArgs {
         }) else {
             return false;
         };
+        // Emitted from the deciding branch, not next to the config load
+        // above: every `return false` before this point hands the command
+        // to the full install path, which warns from
+        // `derive_config_root_and_package_manager_to_sync`.
+        warn_ignored_pnpm_manifest_fields(&config_root, emit);
         let prefix = workspace_root.to_string_lossy().into_owned();
         emit(&pacquet_reporter::LogEvent::Pnpm(pacquet_reporter::PnpmLog {
             level: pacquet_reporter::LogLevel::Info,

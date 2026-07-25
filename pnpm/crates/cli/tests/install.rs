@@ -1675,14 +1675,52 @@ fn migrated_keys_under_the_package_json_pnpm_field_are_reported() {
     let stdout = String::from_utf8_lossy(&assert.get_output().stdout).into_owned();
 
     eprintln!("STDOUT:\n{stdout}");
-    assert!(
-        stdout.contains(
+    let warning = stdout
+        .find(
             "The \"pnpm\" field in package.json is no longer read by pnpm. \
              The following keys were ignored: \"pnpm.overrides\". \
-             See https://pnpm.io/settings for the new home of each setting."
-        ),
-        "expected the ignored-field warning; got:\n{stdout}",
-    );
+             See https://pnpm.io/settings for the new home of each setting.",
+        )
+        .unwrap_or_else(|| panic!("expected the ignored-field warning; got:\n{stdout}"));
+    let footer = stdout
+        .find("Done in ")
+        .unwrap_or_else(|| panic!("expected the end-of-command footer; got:\n{stdout}"));
+    assert!(warning < footer, "the warning must precede the install output; got:\n{stdout}");
+
+    drop(root);
+}
+
+/// The up-to-date fast path finishes `install` before the pipeline that
+/// carries the warning ever runs, so it has to warn on its own: pnpm
+/// warns from config-reading and therefore keeps warning on a repeat
+/// install that has nothing to do.
+#[test]
+fn migrated_keys_are_reported_by_the_up_to_date_fast_path() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "root",
+            "version": "1.0.0",
+            "private": true,
+            "pnpm": { "overrides": { "is-number": "6.0.0" } },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet.with_arg("install").assert().success();
+    let assert = pacquet_in(&workspace).with_arg("install").assert().success();
+    let stdout = String::from_utf8_lossy(&assert.get_output().stdout).into_owned();
+
+    eprintln!("STDOUT:\n{stdout}");
+    let warning = stdout.find("no longer read by pnpm").unwrap_or_else(|| {
+        panic!("the fast path must warn too; got:\n{stdout}");
+    });
+    let up_to_date = stdout
+        .find("Already up to date")
+        .unwrap_or_else(|| panic!("expected the fast path's own output; got:\n{stdout}"));
+    assert!(warning < up_to_date, "the warning must precede the install output; got:\n{stdout}");
 
     drop(root);
 }
