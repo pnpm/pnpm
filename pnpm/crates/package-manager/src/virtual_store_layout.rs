@@ -236,8 +236,7 @@ impl VirtualStoreLayout {
             let snapshot_engine = own_engine.as_deref().or(engine);
             let metadata_key = snapshot_key.without_peer();
             let metadata = packages.and_then(|map| map.get(&metadata_key));
-            let resolution = metadata.map(|meta| &meta.resolution);
-            let project = local_directory_scope(resolution, lockfile_dir);
+            let project = local_directory_scope(metadata, &metadata_key.suffix, lockfile_dir);
             let hex_digest = calc_graph_node_hash(
                 &graph,
                 &mut cache,
@@ -431,15 +430,12 @@ pub fn collect_injected_deps(
 /// here would put a `:` (and embedded `/`) into the slot path —
 /// rejected on Windows with `ERROR_INVALID_NAME`.
 fn gvs_version_segment(metadata: Option<&PackageMetadata>, suffix: &PkgVerPeer) -> String {
-    if matches!(metadata.map(|meta| &meta.resolution), Some(LockfileResolution::Directory(_))) {
+    if is_local_directory(metadata, suffix) {
         return LOCAL_DIRECTORY_SEGMENT.to_string();
     }
-    if let Some(version) = metadata.and_then(|meta| meta.version.as_deref()) {
-        return version.to_string();
-    }
-    match suffix.version() {
-        VersionPart::File(_) => LOCAL_DIRECTORY_SEGMENT.to_string(),
-        VersionPart::Semver(_) | VersionPart::NonSemver(_) => suffix.version().to_string(),
+    match metadata.and_then(|meta| meta.version.as_deref()) {
+        Some(version) => version.to_string(),
+        None => suffix.version().to_string(),
     }
 }
 
@@ -447,10 +443,35 @@ fn gvs_version_segment(metadata: Option<&PackageMetadata>, suffix: &PkgVerPeer) 
 /// directory — see [`gvs_version_segment`].
 const LOCAL_DIRECTORY_SEGMENT: &str = "directory";
 
-/// Extra hash input that keeps a snapshot resolved from a local
-/// directory — a `file:` directory dependency or an injected workspace
-/// package — on a slot of its own. Returns `None` for every other
-/// resolution, which then hashes exactly as it did before.
+/// Whether the snapshot is a package taken from a local directory — a
+/// `file:` directory dependency or an injected workspace package.
+///
+/// Both the version segment and the project scope below are derived
+/// from this one answer. Deciding it twice is what lets a snapshot take
+/// the anchored segment while missing the scope, which is the collision
+/// the scope exists to prevent.
+///
+/// Without a `packages:` entry the resolution is unavailable and the
+/// snapshot key's `file:` version part is the only signal left. Reading
+/// it as a directory is the safe way to be wrong: the slot stays scoped,
+/// and the segment stays a legal path component (the raw `file:<path>`
+/// carries a `:` and a `/`, which Windows rejects with
+/// `ERROR_INVALID_NAME`).
+fn is_local_directory(metadata: Option<&PackageMetadata>, suffix: &PkgVerPeer) -> bool {
+    if let Some(metadata) = metadata {
+        if matches!(metadata.resolution, LockfileResolution::Directory(_)) {
+            return true;
+        }
+        if metadata.version.is_some() {
+            return false;
+        }
+    }
+    matches!(suffix.version(), VersionPart::File(_))
+}
+
+/// Extra hash input that keeps a snapshot taken from a local directory
+/// on a slot of its own. `None` for every other snapshot, which then
+/// hashes exactly as it did before.
 ///
 /// A directory resolution is the one resolution with no integrity: it
 /// is a path relative to the lockfile, so `file:dep` hashes identically
@@ -460,19 +481,18 @@ const LOCAL_DIRECTORY_SEGMENT: &str = "directory";
 /// the install re-imports it every time — so the projects would go on
 /// overwriting each other's dependency.
 fn local_directory_scope(
-    resolution: Option<&LockfileResolution>,
+    metadata: Option<&PackageMetadata>,
+    suffix: &PkgVerPeer,
     lockfile_dir: Option<&Path>,
 ) -> Option<String> {
-    match resolution {
-        Some(LockfileResolution::Directory(_)) => {
-            // Lossy on purpose: the TypeScript CLI hashes the same slot from a
-            // JS string, and Node decodes a path as UTF-8 with replacement, so
-            // this is the identical input. Hashing the raw bytes instead would
-            // give the two stacks different slots for the same project.
-            lockfile_dir.map(|dir| dir.to_string_lossy().into_owned())
-        }
-        _ => None,
+    if !is_local_directory(metadata, suffix) {
+        return None;
     }
+    // Lossy on purpose: the TypeScript CLI hashes the same slot from a JS
+    // string, and Node decodes a path as UTF-8 with replacement, so this is
+    // the identical input. Hashing the raw bytes instead would give the two
+    // stacks different slots for the same project.
+    lockfile_dir.map(|dir| dir.to_string_lossy().into_owned())
 }
 
 /// Build the dependency graph from the lockfile's `snapshots` /

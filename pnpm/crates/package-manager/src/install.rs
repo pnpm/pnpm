@@ -3730,7 +3730,15 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<P
     }
     if gvs_build_markers_may_require_recovery(config) {
         let wanted = lockfile.get().ok().flatten()?;
-        if gvs_build_marker_present(wanted, config, &workspace_root) {
+        // `workspace_root` above is the workspace-state root, which stays the
+        // discovered workspace dir even under `sharedWorkspaceLockfile: false`.
+        // The slot lookup needs the lockfile dir instead — `run_inner`'s
+        // `lockfileDir = sharedWorkspaceLockfile ? workspaceDir : projectDir` —
+        // or this fast path would probe a directory dep's slot under a project
+        // that does not own it and miss the marker it is looking for.
+        let lockfile_dir =
+            if config.shared_workspace_lockfile { workspace_root.as_path() } else { manifest_dir };
+        if gvs_build_marker_present(wanted, config, lockfile_dir) {
             return None;
         }
     }
