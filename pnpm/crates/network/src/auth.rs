@@ -738,9 +738,16 @@ pub fn base64_encode(input: &str) -> String {
 /// The scheme survives so the reader can tell a `Bearer` token from `Basic`
 /// credentials, and a token long enough to be recognized by its owner keeps
 /// its first four characters; everything else becomes `[hidden]`.
+///
+/// Control characters are dropped first: the value comes from an untrusted
+/// `.npmrc` / environment variable and the masked result is printed to the
+/// terminal, so a token carrying raw escapes could otherwise inject terminal
+/// output through the characters masking leaves behind.
 #[must_use]
 pub fn hide_auth_information(auth_header_value: &str) -> String {
-    let mut parts = auth_header_value.split(' ');
+    let sanitized: String =
+        auth_header_value.chars().filter(|character| !character.is_control()).collect();
+    let mut parts = sanitized.split(' ');
     let auth_type = parts.next().unwrap_or_default();
     let Some(token) = parts.next() else {
         return "[hidden]".to_string();

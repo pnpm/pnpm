@@ -29,7 +29,7 @@ use chrono::{DateTime, Utc};
 use node_semver::Version;
 use pacquet_config::{TrustPolicy, version_policy::PackageVersionPolicy};
 use pacquet_lockfile::{LockfileResolution, PkgName, PkgNameVer, TarballResolution};
-use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_url_credentials};
+use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_and_sanitize};
 use pacquet_registry::{Package, PackageVersion, PinnedVersion};
 use pacquet_resolving_resolver_base::{
     LatestInfo, LatestQuery, NoMatchingVersionError, PackageVersionGuardDecision,
@@ -459,7 +459,7 @@ pub(crate) fn no_matching_version(
         }
         None => wanted_dependency.bare_specifier.clone().unwrap_or_default(),
     };
-    Box::new(NoMatchingVersionError::new(dep, registry.to_string(), meta))
+    Box::new(NoMatchingVersionError::new(dep, redact_and_sanitize(registry), meta))
 }
 
 /// Registry pick was unavailable (no matching version or fetch
@@ -720,10 +720,14 @@ fn map_pick_error<Cache: PackageMetaCache>(
     let Some(status) = registry_response_status(&error) else {
         return Box::new(error);
     };
-    let url = redact_url_credentials(&to_registry_url(opts.registry, &opts.spec.name));
+    let url = to_registry_url(opts.registry, &opts.spec.name);
+    // Look the credential up with the URL the fetch itself used. An inline
+    // `user:pass@` is exactly what `AuthHeaders` turns into a Basic header, so
+    // redacting before the lookup would report "no authorization header was
+    // set" for the registries that most certainly carry one.
     let auth_header_value = ctx.auth_headers.for_url_with_package(&url, Some(&opts.spec.name));
     Box::new(RegistryResponseError::new(RegistryResponseErrorOptions {
-        url: &url,
+        url: &redact_and_sanitize(&url),
         status: status.as_u16(),
         status_text: status.canonical_reason().unwrap_or_default(),
         pkg_name: &opts.spec.name,

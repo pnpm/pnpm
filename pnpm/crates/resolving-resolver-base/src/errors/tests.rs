@@ -1,10 +1,11 @@
 use std::collections::HashMap;
 
+use chrono::{TimeDelta, Utc};
 use miette::Diagnostic;
 use pacquet_registry::{Package, PackageDistribution, PackageVersion};
 
 use super::{
-    NoMatchingVersionError, RegistryResponseError, RegistryResponseErrorOptions,
+    NoMatchingVersionError, RegistryResponseError, RegistryResponseErrorOptions, stringify_date,
     strip_trailing_semver_suffix,
 };
 
@@ -165,6 +166,30 @@ fn registry_response_error_leaves_a_500_without_a_hint() {
     });
 
     assert!(error.hint.is_none(), "{:?}", error.hint);
+}
+
+#[test]
+fn a_release_older_than_a_day_is_dated_without_a_time_of_day() {
+    let rendered = stringify_date("2024-03-15T09:42:13Z").expect("a parsable timestamp");
+    dbg!(&rendered);
+    assert!(rendered.starts_with("3/1"), "expected a month/day/year date, got {rendered:?}");
+    assert!(!rendered.contains(':'), "an old release carries no time of day: {rendered:?}");
+}
+
+#[test]
+fn a_release_published_within_the_day_carries_its_time_of_day() {
+    let an_hour_ago = Utc::now() - TimeDelta::hours(1);
+    let rendered = stringify_date(&an_hour_ago.to_rfc3339()).expect("a parsable timestamp");
+    dbg!(&rendered);
+    assert!(
+        rendered.ends_with(" AM") || rendered.ends_with(" PM"),
+        "a fresh release carries its time of day: {rendered:?}",
+    );
+}
+
+#[test]
+fn an_unparsable_timestamp_is_dropped_rather_than_echoed() {
+    assert_eq!(stringify_date("last tuesday"), None);
 }
 
 #[test]
