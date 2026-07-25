@@ -1,6 +1,6 @@
-use super::{FindWorkspaceProjectsOpts, find_workspace_projects};
+use super::{FindWorkspaceProjectsError, FindWorkspaceProjectsOpts, find_workspace_projects};
 use pretty_assertions::assert_eq;
-use std::fs;
+use std::{fs, io::ErrorKind};
 use tempfile::TempDir;
 
 fn make_project(root: &std::path::Path, rel: &str, name: &str) {
@@ -284,29 +284,32 @@ fn missing_pattern_directory_matches_nothing() {
     assert_eq!(names, vec!["root".to_string()]);
 }
 
-/// The absorbed kind is `NotFound` only: an existing-but-unreadable
-/// directory is a real failure and must not be mistaken for "no matches".
+/// The absorbed kind is `NotFound` only: any other walk failure is real
+/// and must not be mistaken for "no matches", with its `io::ErrorKind`
+/// intact so the decision can be made at all.
+///
+/// A regular file where the pattern expects a directory, rather than a
+/// `0o000` directory — the walk then fails for a reason no privilege level
+/// can bypass, so the fixture holds even when the tests run as root.
 #[test]
-#[cfg(unix)]
-fn unreadable_pattern_directory_still_errors() {
-    use std::os::unix::fs::PermissionsExt;
-
+fn non_notfound_walk_failure_still_errors() {
     let tmp = TempDir::new().unwrap();
     make_project(tmp.path(), ".", "root");
-    make_project(tmp.path(), "packages/alpha", "alpha");
-    let packages = tmp.path().join("packages");
-    fs::set_permissions(&packages, fs::Permissions::from_mode(0o000)).unwrap();
+    fs::write(tmp.path().join("packages"), "not a directory").unwrap();
 
     let result = find_workspace_projects(
         tmp.path(),
         &FindWorkspaceProjectsOpts { patterns: Some(vec!["packages/*".to_string()]) },
     );
 
-    // Restore before asserting so the TempDir can always clean itself up.
-    fs::set_permissions(&packages, fs::Permissions::from_mode(0o755)).unwrap();
     // `expect_err` would need `Project: Debug`, which it deliberately is not.
-    let Err(error) = result else {
-        panic!("an unreadable directory must be a real failure, not an empty match");
+    let Err(FindWorkspaceProjectsError::Walk { source, .. }) = result else {
+        panic!("a non-NotFound walk failure must surface as Walk, not an empty match");
     };
-    dbg!(&error);
+    dbg!(&source);
+    assert_ne!(
+        source.kind(),
+        ErrorKind::NotFound,
+        "the walk error's kind must survive the conversion, or the skip cannot be decided",
+    );
 }
