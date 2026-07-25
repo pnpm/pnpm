@@ -313,7 +313,12 @@ where
         object.insert("version".to_string(), Value::String(published_version.clone()));
     }
 
-    let normalized_name = normalize_tarball_name(name);
+    // Read back off the publish manifest so a `publishConfig.name` rename
+    // reaches the filename too — the tarball name, the packed manifest, and
+    // the registry metadata all name one artifact.
+    let published_name =
+        publish_manifest.get("name").and_then(Value::as_str).filter(|name| !name.is_empty());
+    let normalized_name = normalize_tarball_name(published_name.unwrap_or(name));
     let (tarball_name, pack_destination) =
         resolve_output(opts, &normalized_name, &published_version)?;
 

@@ -277,7 +277,11 @@ export async function api (opts: PackOptions): Promise<PackResult> {
   publishManifest.version = stripBuildMetadata(publishManifest.version!)
   let tarballName: string
   let packDestination: string | undefined
-  const normalizedName = manifest.name.replace('@', '').replace('/', '-')
+  // Read back off the publish manifest so a `publishConfig.name` rename reaches
+  // the filename too — the tarball name, the packed manifest, and the registry
+  // metadata all name one artifact.
+  const publishedName = publishManifest.name ?? manifest.name
+  const normalizedName = publishedName.replace('@', '').replace('/', '-')
   if (opts.out) {
     if (opts.packDestination) {
       throw new PnpmError('INVALID_OPTION', 'Cannot use --pack-destination and --out together')
@@ -315,7 +319,7 @@ export async function api (opts: PackOptions): Promise<PackResult> {
   // composed here on top of the previously published version's changelog and
   // packed in. A composed entry supersedes any stale committed CHANGELOG.md.
   const injectedEntries: Record<string, string> = {}
-  const composedChangelog = await composeRegistryChangelog(opts, manifest.name, manifest.version)
+  const composedChangelog = await composeRegistryChangelog(opts, manifest.name, publishedName, manifest.version)
   if (composedChangelog != null) {
     delete filesMap['package/CHANGELOG.md']
     injectedEntries['package/CHANGELOG.md'] = composedChangelog
@@ -418,14 +422,20 @@ function isManifestEntry (name: string): boolean {
  * `repository`, there is no workspace, or the release has no parked section
  * (an ordinary `pnpm pack` of a package that is not mid-release).
  */
-async function composeRegistryChangelog (opts: PackOptions, pkgName: string, version: string): Promise<string | undefined> {
+/**
+ * `pkgName` keys the parked section — the workspace, the ledger, and every
+ * intent address the project by its manifest name. `publishedName` is the only
+ * name the registry knows, so it selects the previous changelog to build on and
+ * titles the composed one.
+ */
+async function composeRegistryChangelog (opts: PackOptions, pkgName: string, publishedName: string, version: string): Promise<string | undefined> {
   if (changelogStorage(opts.versioning) !== 'registry' || opts.workspaceDir == null) return undefined
   const section = await readPendingChangelog(opts.workspaceDir, pkgName, version)
   if (section == null) return undefined
   const previous = opts.registries != null
-    ? await fetchPreviousChangelog(opts as PreviousChangelogOptions, pkgName, version)
+    ? await fetchPreviousChangelog(opts as PreviousChangelogOptions, publishedName, version)
     : undefined
-  return renderChangelog(previous ?? null, pkgName, section)
+  return renderChangelog(previous ?? null, publishedName, section)
 }
 
 function stripBuildMetadata (version: string): string {

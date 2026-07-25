@@ -75,6 +75,13 @@ export type DevEngines = Partial<Record<DevEngineKey, EngineDependency | EngineD
 export interface PublishConfig extends Record<string, unknown> {
   access?: 'public' | 'restricted'
   directory?: string
+  /**
+   * Publishes the package under a different name than the one its manifest
+   * carries in the workspace — for a project whose name is already taken by a
+   * sibling. Only the published artifact is renamed; dependents, the lockfile,
+   * and release tooling keep addressing the project by its manifest name.
+   */
+  name?: string
   linkDirectory?: boolean
   executableFiles?: string[]
   registry?: string

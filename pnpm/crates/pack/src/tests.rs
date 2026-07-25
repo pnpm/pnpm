@@ -112,6 +112,30 @@ fn injected_files_are_packed_and_supersede_an_on_disk_entry() {
     assert_eq!(tarball_entry_content(&tarball, "package/CHANGELOG.md").as_deref(), Some(composed));
 }
 
+/// A `publishConfig.name` rename has to reach the tarball filename and the
+/// packed manifest together — the registry derives the published package from
+/// the manifest, so a filename naming the workspace package would name a
+/// different artifact than the one inside it.
+#[test]
+fn publish_config_name_renames_the_tarball_and_the_packed_manifest() {
+    let (dir, opts) = fixture(&json!({
+        "name": "pacquet",
+        "version": "1.2.3",
+        "publishConfig": { "name": "pnpm" },
+    }));
+    touch(dir.path(), "index.js", "module.exports = 1\n");
+
+    let result = api::<SilentReporter, Host>(&opts).unwrap();
+
+    assert!(result.tarball_path.ends_with("pnpm-1.2.3.tgz"), "{:?}", result.tarball_path);
+    let tarball = dir.path().join("pnpm-1.2.3.tgz");
+    let manifest = tarball_entry_content(&tarball, "package/package.json")
+        .expect("the tarball carries a manifest");
+    let manifest: serde_json::Value = serde_json::from_str(&manifest).unwrap();
+    assert_eq!(manifest["name"], json!("pnpm"));
+    assert_eq!(manifest.get("publishConfig"), None);
+}
+
 #[test]
 fn packs_a_basic_package_to_a_tarball() {
     let (dir, opts) = fixture(&json!({ "name": "foo", "version": "1.2.3" }));
