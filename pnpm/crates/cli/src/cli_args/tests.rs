@@ -658,22 +658,25 @@ const GLOBAL_SUBCOMMAND_ARGV: [&[&str]; 12] = [
 fn workspace_root_conflicts_with_global_for_every_subcommand() {
     let (root, _canonical) = workspace_fixture();
 
-    for subcommand in GLOBAL_SUBCOMMAND_ARGV {
-        let argv = std::iter::once("pacquet")
-            .chain(subcommand.iter().copied())
-            // The long form throughout: `approve-builds` declares
-            // `--global` without a `-g` short.
-            .chain(["-w", "--global", "-C"])
-            .chain([root.path().to_str().expect("utf-8 tmp dir")]);
-        let mut args = CliArgs::try_parse_from(argv).unwrap_or_else(|error| {
-            panic!("{subcommand:?} should parse with -w --global: {error}");
-        });
-        let error = args
-            .apply_workspace_root()
-            .expect_err(&format!("{subcommand:?} must reject -w with --global"));
+    // Both spellings: pnpm accepts `-g` wherever it accepts `--global`, so a
+    // subcommand declaring only the long form fails in the parser instead of
+    // reaching the conflict check (pnpm/pnpm#13310).
+    for global in ["--global", "-g"] {
+        for subcommand in GLOBAL_SUBCOMMAND_ARGV {
+            let argv = std::iter::once("pacquet")
+                .chain(subcommand.iter().copied())
+                .chain(["-w", global, "-C"])
+                .chain([root.path().to_str().expect("utf-8 tmp dir")]);
+            let mut args = CliArgs::try_parse_from(argv).unwrap_or_else(|error| {
+                panic!("{subcommand:?} should parse with -w {global}: {error}");
+            });
+            let error = args
+                .apply_workspace_root()
+                .expect_err(&format!("{subcommand:?} must reject -w with {global}"));
 
-        dbg!(subcommand, &error);
-        assert!(matches!(error, WorkspaceRootError::GlobalConflict), "{subcommand:?}");
+            dbg!(subcommand, global, &error);
+            assert!(matches!(error, WorkspaceRootError::GlobalConflict), "{subcommand:?} {global}");
+        }
     }
 }
 
