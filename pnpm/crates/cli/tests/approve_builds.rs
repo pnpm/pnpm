@@ -345,17 +345,22 @@ fn approve_builds_all_with_args_is_rejected() {
     drop(root);
 }
 
+/// Both spellings reach the same rejection. `-g` used to stop in the
+/// argument parser instead (pnpm/pnpm#13310), which the long form alone
+/// could not have caught.
 #[test]
 fn approve_builds_global_is_rejected() {
-    let CommandTempCwd { workspace, root, .. } = CommandTempCwd::init();
-    fs::write(workspace.join("package.json"), "{}").expect("write package.json");
+    for global in ["--global", "-g"] {
+        let CommandTempCwd { workspace, root, .. } = CommandTempCwd::init();
+        fs::write(workspace.join("package.json"), "{}").expect("write package.json");
 
-    let assert = pacquet(&workspace).with_args(["approve-builds", "--global"]).assert().failure();
-    let stderr = String::from_utf8_lossy(&assert.get_output().stderr).into_owned();
-    assert!(
-        stderr.contains("ERR_PNPM_APPROVE_BUILDS_NOT_SUPPORTED_WITH_GLOBAL"),
-        "stderr: {stderr}",
-    );
+        let assert = pacquet(&workspace).with_args(["approve-builds", global]).assert().failure();
+        let stderr = String::from_utf8_lossy(&assert.get_output().stderr).into_owned();
+        assert!(
+            stderr.contains("ERR_PNPM_APPROVE_BUILDS_NOT_SUPPORTED_WITH_GLOBAL"),
+            "{global} stderr: {stderr}",
+        );
 
-    drop(root);
+        drop(root);
+    }
 }
