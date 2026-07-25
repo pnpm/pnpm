@@ -211,7 +211,7 @@ async function buildGraphFromPackages (
 
       const packageId = packageIdFromSnapshot(depPath, pkgSnapshot)
       if (!opts.force && packageIsInstallable(packageId, pkg, {
-        engineStrict: opts.engineStrict,
+        engineStrict: opts.engineStrict && pkgSnapshot.optional !== true,
         lockfileDir: opts.lockfileDir,
         nodeVersion: opts.nodeVersion,
         optional: !opts.requiredDepPaths.has(depPath),

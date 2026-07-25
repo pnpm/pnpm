@@ -238,7 +238,11 @@ function reportInstallability (ctx: PickPkgsContext, opts: PickPkgsOptions): voi
         pkgSnapshot.id ?? depPath,
         toInstallabilityManifest(depPath, pkgSnapshot),
         {
-          engineStrict: opts.engineStrict,
+          // A subtree hanging off an `optionalDependencies` entry stays
+          // best-effort: the dependency is installed so its dependent is not
+          // left broken, but an incompatibility inside it does not fail the
+          // install. Only a package no optional path reaches is fatal here.
+          engineStrict: opts.engineStrict && pkgSnapshot.optional !== true,
           lockfileDir: opts.lockfileDir,
           nodeVersion: opts.currentEngine.nodeVersion,
           optional: !ctx.installed.has(depPath) || !ctx.requiredDepPaths.has(depPath),

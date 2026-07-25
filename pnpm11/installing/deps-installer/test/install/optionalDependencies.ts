@@ -759,7 +759,7 @@ test('headless install keeps the required dependency of an installable optional 
   expect(modulesInfo.skipped).toStrictEqual([])
 })
 
-test('fail on unsupported dependency of optional dependency during a headless install', async () => {
+test('headless install does not fail under engineStrict on an incompatible package inside an optional subtree', async () => {
   prepareEmpty()
 
   const { updatedManifest: manifest } = await addDependenciesToPackage(
@@ -769,9 +769,17 @@ test('fail on unsupported dependency of optional dependency during a headless in
   )
   rimrafSync('node_modules')
 
+  // Everything here is reachable only through an `optionalDependencies` entry,
+  // so it stays best-effort: the dependency is installed rather than skipped,
+  // but its incompatibility does not fail the install.
   await expect(
     install(manifest, testDefaults({ frozenLockfile: true, engineStrict: true }))
-  ).rejects.toThrow(/Unsupported platform/)
+  ).resolves.toBeTruthy()
+  expect(deepRequireCwd([
+    '@pnpm.e2e/has-not-compatible-dep',
+    '@pnpm.e2e/not-compatible-with-any-os',
+    './package.json',
+  ]).version).toBe('1.0.0')
 })
 
 test('do not fail on an optional dependency that has a non-optional dependency with a failing postinstall script', async () => {

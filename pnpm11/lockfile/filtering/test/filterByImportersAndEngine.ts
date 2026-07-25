@@ -558,7 +558,7 @@ test('filterByImportersAndEngine(): filter the packages that set libc', () => {
   expect(Array.from(skippedPackages)).toStrictEqual(['preserve-existing-skipped@1.0.0', 'optional-dep@1.0.0', 'foo@1.0.0'])
 })
 
-test('filterByImportersAndEngine(): an incompatible package reached by a non-optional edge fails under engineStrict', () => {
+test('filterByImportersAndEngine(): an incompatible package reached by a non-optional edge inside an optional subtree is installed, not skipped', () => {
   const lockfile: LockfileObject = {
     importers: {
       ['project-1' as ProjectId]: {
@@ -604,22 +604,63 @@ test('filterByImportersAndEngine(): an incompatible package reached by a non-opt
     lockfileDir: process.cwd(),
   }
 
-  expect(() => {
-    filterLockfileByImportersAndEngine(lockfile, ['project-1' as ProjectId], {
+  // The whole subtree hangs off an `optionalDependencies` entry, so it stays
+  // best-effort under engineStrict — but the dependency is still installed, or
+  // `installable-optional` would be linked without a dependency it declares.
+  for (const engineStrict of [false, true]) {
+    const skipped = new Set<string>()
+    const { requiredDepPaths } = filterLockfileByImportersAndEngine(lockfile, ['project-1' as ProjectId], {
       ...opts,
-      engineStrict: true,
-      skipped: new Set<string>(),
+      engineStrict,
+      skipped,
     })
-  }).toThrow(/Unsupported engine/)
+    expect(requiredDepPaths.has('not-compatible@1.0.0' as DepPath)).toBe(true)
+    expect(Array.from(skipped)).toStrictEqual([])
+  }
+})
 
-  const skipped = new Set<string>()
-  const { requiredDepPaths } = filterLockfileByImportersAndEngine(lockfile, ['project-1' as ProjectId], {
-    ...opts,
-    engineStrict: false,
-    skipped,
-  })
-  expect(requiredDepPaths.has('not-compatible@1.0.0' as DepPath)).toBe(true)
-  expect(Array.from(skipped)).toStrictEqual([])
+test('filterByImportersAndEngine(): an incompatible package no optional path reaches still fails under engineStrict', () => {
+  expect(() => {
+    filterLockfileByImportersAndEngine(
+      {
+        importers: {
+          ['project-1' as ProjectId]: {
+            dependencies: {
+              'not-compatible': '1.0.0',
+            },
+            specifiers: {
+              'not-compatible': '^1.0.0',
+            },
+          },
+        },
+        lockfileVersion: LOCKFILE_VERSION,
+        packages: {
+          ['not-compatible@1.0.0' as DepPath]: {
+            engines: {
+              node: '1000',
+            },
+            resolution: { integrity: '' },
+          },
+        },
+      },
+      ['project-1' as ProjectId],
+      {
+        currentEngine: {
+          nodeVersion: '10.0.0',
+          pnpmVersion: '2.0.0',
+        },
+        engineStrict: true,
+        failOnMissingDependencies: true,
+        include: {
+          dependencies: true,
+          devDependencies: true,
+          optionalDependencies: true,
+        },
+        lockfileDir: process.cwd(),
+        skipped: new Set<string>(),
+      }
+    )
+  }).toThrow(/Unsupported engine/)
 })
 
 test('filterByImportersAndEngine(): a non-optional edge wins over an optional one that reaches the package first', () => {
