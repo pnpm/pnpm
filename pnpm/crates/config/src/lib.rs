@@ -1402,10 +1402,7 @@ pub struct Config {
     pub filter_prod: Vec<String>,
 
     /// `--workspace-root` / `-w`: run the command on the root workspace
-    /// project. The CLI points `--dir` at the workspace root before the
-    /// command runs; a recursive command additionally narrows its
-    /// selection to the root project alone. CLI-only, like
-    /// [`Self::filter`].
+    /// project. CLI-only, like [`Self::filter`].
     pub workspace_root: bool,
 
     /// `testPattern` from `pnpm-workspace.yaml` /

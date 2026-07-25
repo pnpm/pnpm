@@ -321,9 +321,6 @@ fn recursive_run_settings_only_workspace_enumerates_root_only() {
     drop(root);
 }
 
-/// An unfiltered `pacquet -r -w run <script>` narrows the recursive run to
-/// the root project — the inverse of the `!{<workspace-root>}`
-/// auto-exclusion an unfiltered recursive `run` otherwise applies.
 #[test]
 fn recursive_run_workspace_root_selects_only_the_root_project() {
     for start_dir in WORKSPACE_ROOT_START_DIRS {
@@ -335,12 +332,7 @@ fn recursive_run_workspace_root_selects_only_the_root_project() {
     }
 }
 
-/// `--workspace-root` *adds* the root project to a `--filter` selection
-/// rather than replacing it, so `-r -w --filter <name>` runs both. pnpm
-/// pushes the `{<workspace-root>}` selector onto the `--filter` /
-/// `--filter-prod` list, and `pnpm -r -w --filter project-1 run build`
-/// accordingly reports `Scope: 2 of 3 workspace projects`. Narrowing to
-/// the root alone here would diverge from it.
+/// pnpm reports `Scope: 2 of 3 workspace projects` for this command.
 #[test]
 fn recursive_run_workspace_root_adds_the_root_to_a_filter_selection() {
     for start_dir in WORKSPACE_ROOT_START_DIRS {
@@ -352,18 +344,12 @@ fn recursive_run_workspace_root_adds_the_root_to_a_filter_selection() {
     }
 }
 
-/// The `--dir` values every `--workspace-root` selection case is checked
-/// from. Starting inside a member project is the scenario the flag exists
-/// for (pnpm/pnpm#13031), so each case is asserted to select the same
-/// projects from there as from the workspace root — the whole path from
-/// the `--dir` redirect through manifest discovery to the script lookup
-/// has to hold, not just the selector.
+/// Starting inside a member project is what the flag exists for
+/// (pnpm/pnpm#13031), so every case is checked from both.
 const WORKSPACE_ROOT_START_DIRS: [&str; 2] = [".", "project-1"];
 
-/// Run `-r -w [--filter <filter>] run build` from `start_dir` in a fresh
-/// workspace of a root project plus `project-1` / `project-2`, each
-/// writing a marker when its `build` runs, and return the names that ran
-/// (`"<root>"` for the root project) in workspace order.
+/// The projects whose `build` ran, in workspace order, naming the root
+/// project `"<root>"`.
 fn workspace_root_run_selection(start_dir: &str, filter: Option<&str>) -> Vec<String> {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_workspace(

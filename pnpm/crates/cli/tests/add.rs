@@ -236,11 +236,8 @@ fn write_workspace_with_local_fixtures(workspace: &Path) -> PathBuf {
     member_dir
 }
 
-/// A `--dir` that does not exist still redirects to the workspace root
-/// above it, matching pnpm: its `findWorkspaceDir` falls back to the given
-/// path when `fs.realpath` fails, then walks it for the manifest. Covered
-/// end to end because a relative `--dir` resolves against the process cwd,
-/// which a unit test must not mutate.
+/// End to end rather than a unit test: a relative `--dir` resolves
+/// against the process cwd, which a unit test must not mutate.
 #[test]
 fn add_workspace_root_tolerates_a_dir_that_does_not_exist() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -283,9 +280,8 @@ fn add_workspace_root_saves_to_the_root_manifest_from_a_subdir() {
             "packages/a",
             "add",
             "-D",
-            // Relative to the workspace root: `--workspace-root` moves the
-            // add to the root manifest, and a `file:` spec resolves from
-            // the manifest that records it.
+            // Relative to the root: a `file:` spec resolves from the
+            // manifest that records it, which `-w` makes the root's.
             "local-a@file:./fixtures/local-a",
             "local-b@file:./fixtures/local-b",
             "-w",

@@ -259,25 +259,14 @@ impl CliArgs {
     }
 
     /// Apply `--workspace-root` / `-w`: point `--dir` at the workspace
-    /// root so the command runs on the root project.
+    /// root so the command runs on the root project. Call after
+    /// [`Self::promote_recursive_for_filter`] and before anything reads
+    /// `--dir`, matching where pnpm's CLI parser applies it.
     ///
-    /// Call after [`Self::promote_recursive_for_filter`] and before
-    /// anything reads `--dir`, matching where pnpm's CLI parser applies
-    /// it.
-    ///
-    /// `--dir` is resolved to its real path before the upward walk for the
-    /// workspace manifest, mirroring the `fs.realpath.native` that pnpm's
-    /// `findWorkspaceDir` applies for this flag's sake: a case-insensitive
-    /// filesystem otherwise finds the root under one spelling and the
-    /// member projects under another.
-    ///
-    /// Resolution failure falls back to `--dir` made absolute rather than
-    /// erroring, also matching pnpm — the walk is lexical from there, so a
-    /// `--dir` that does not exist yet still redirects to the workspace
-    /// root above it. Absolutizing is itself fallible (it reads the process
-    /// cwd), and a last fallback keeps `--dir` verbatim; that leaves the
-    /// walk relative, but a process whose cwd cannot be read has no
-    /// workspace to find either way.
+    /// The `--dir` resolution mirrors pnpm's `findWorkspaceDir`: real path
+    /// first, because a case-insensitive filesystem otherwise finds the
+    /// root under one spelling and the members under another; then a
+    /// lexical fallback, so an unresolvable `--dir` is not fatal.
     pub fn apply_workspace_root(&mut self) -> Result<(), WorkspaceRootError> {
         if !self.workspace_root {
             return Ok(());
@@ -584,9 +573,8 @@ pub enum CliCommand {
 }
 
 impl CliCommand {
-    /// Whether `--global` / `-g` was passed. pnpm parses `--global` as one
-    /// CLI-wide option; pacquet declares it per subcommand, so this
-    /// reassembles that CLI-wide view across every subcommand declaring it.
+    /// Whether `--global` was passed. pnpm parses it as one CLI-wide
+    /// option; pacquet declares it per subcommand.
     fn is_global(&self) -> bool {
         match self {
             CliCommand::Add(args) => args.global,

@@ -586,9 +586,8 @@ fn trust_lockfile_pair_resolves_last_one_wins() {
     assert!(last_on.trust_lockfile && !last_on.no_trust_lockfile, "--trust wins when last");
 }
 
-/// A workspace root holding a `pnpm-workspace.yaml` plus a `packages/a`
-/// project, returned with its canonicalized path so a `--dir` redirect
-/// compares equal on platforms whose temp dir is a symlink.
+/// Returns the canonicalized root too: a temp dir is a symlink on some
+/// platforms, so a `--dir` redirect would not compare equal otherwise.
 fn workspace_fixture() -> (TempDir, std::path::PathBuf) {
     let root = TempDir::new().expect("tmp dir");
     std::fs::write(root.path().join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
@@ -638,24 +637,62 @@ fn workspace_root_leaves_dir_alone_when_not_requested() {
     assert_eq!(args.dir, subdir);
 }
 
+/// Every subcommand declaring `--global`. A new one added without wiring
+/// it into [`CliCommand::is_global`] slips past the conflict check.
+const GLOBAL_SUBCOMMAND_ARGV: [&[&str]; 12] = [
+    &["add", "foo"],
+    &["approve-builds"],
+    &["bin"],
+    &["config", "get", "store-dir"],
+    &["list"],
+    &["ll"],
+    &["outdated"],
+    &["prefix"],
+    &["remove", "foo"],
+    &["root"],
+    &["runtime", "use", "node@20"],
+    &["update"],
+];
+
 #[test]
-fn workspace_root_conflicts_with_global() {
+fn workspace_root_conflicts_with_global_for_every_subcommand() {
     let (root, _canonical) = workspace_fixture();
 
-    let mut args = CliArgs::try_parse_from([
-        "pacquet",
-        "add",
-        "foo",
-        "-w",
-        "-g",
-        "-C",
-        &root.path().to_string_lossy(),
-    ])
-    .expect("parses");
-    let error = args.apply_workspace_root().expect_err("--global conflicts");
+    for subcommand in GLOBAL_SUBCOMMAND_ARGV {
+        let argv = std::iter::once("pacquet")
+            .chain(subcommand.iter().copied())
+            // The long form throughout: `approve-builds` declares
+            // `--global` without a `-g` short.
+            .chain(["-w", "--global", "-C"])
+            .chain([root.path().to_str().expect("utf-8 tmp dir")]);
+        let mut args = CliArgs::try_parse_from(argv).unwrap_or_else(|error| {
+            panic!("{subcommand:?} should parse with -w --global: {error}");
+        });
+        let error = args
+            .apply_workspace_root()
+            .expect_err(&format!("{subcommand:?} must reject -w with --global"));
 
-    dbg!(&error);
-    assert!(matches!(error, WorkspaceRootError::GlobalConflict));
+        dbg!(subcommand, &error);
+        assert!(matches!(error, WorkspaceRootError::GlobalConflict), "{subcommand:?}");
+    }
+}
+
+#[test]
+fn workspace_root_is_allowed_for_subcommands_without_global() {
+    let (root, canonical) = workspace_fixture();
+
+    for subcommand in [["install"].as_slice(), ["run", "build"].as_slice(), ["pack"].as_slice()] {
+        let argv = std::iter::once("pacquet")
+            .chain(subcommand.iter().copied())
+            .chain(["-w", "-C"])
+            .chain([root.path().to_str().expect("utf-8 tmp dir")]);
+        let mut args = CliArgs::try_parse_from(argv).expect("parses");
+        args.apply_workspace_root().unwrap_or_else(|error| {
+            panic!("{subcommand:?} should accept -w: {error}");
+        });
+
+        assert_eq!(args.dir, canonical, "{subcommand:?}");
+    }
 }
 
 #[test]
@@ -677,11 +714,8 @@ fn workspace_root_requires_a_workspace() {
     assert!(matches!(error, WorkspaceRootError::NotInWorkspace));
 }
 
-/// A `--dir` that does not exist still redirects to the workspace root
-/// above it: pnpm's `findWorkspaceDir` falls back to the given path when
-/// `fs.realpath` fails and walks it lexically, so `pnpm --dir
-/// packages/does-not-exist add <pkg> -w` adds to the root manifest instead
-/// of failing. Erroring here would diverge from that.
+/// pnpm's `findWorkspaceDir` falls back to a lexical walk when
+/// `fs.realpath` fails, so erroring here would diverge.
 #[test]
 fn workspace_root_tolerates_a_dir_that_does_not_exist() {
     let (root, canonical) = workspace_fixture();
