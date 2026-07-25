@@ -5,8 +5,8 @@ use super::{
     reporter::ReporterType,
     restart::RestartArgs,
     run::RunArgs,
+    script_shortcut::ScriptShortcutArgs,
     set_script::SetScriptArgs,
-    stop::StopArgs,
 };
 use miette::Context;
 use pacquet_package_manifest::PackageManifest;
@@ -36,8 +36,11 @@ pub(super) fn pkg<'a>(ctx: &RunCtx<'a>, args: PkgArgs) -> miette::Result<Command
     Ok(Box::pin(std::future::ready(result)))
 }
 
-pub(super) fn test<'a>(ctx: &RunCtx<'a>) -> miette::Result<CommandFuture<'a>> {
-    run(ctx, run_args_for_script("test", true))
+pub(super) fn test<'a>(
+    ctx: &RunCtx<'a>,
+    args: ScriptShortcutArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    run(ctx, args.into_run_args("test", true))
 }
 
 pub(super) fn run<'a>(ctx: &RunCtx<'a>, args: RunArgs) -> miette::Result<CommandFuture<'a>> {
@@ -99,16 +102,27 @@ fn with_recursive_exec_options(ctx: &RunCtx<'_>, mut args: ExecArgs) -> ExecArgs
     args
 }
 
-pub(super) fn start<'a>(ctx: &RunCtx<'a>) -> miette::Result<CommandFuture<'a>> {
-    run(ctx, run_args_for_script("start", false))
+pub(super) fn start<'a>(
+    ctx: &RunCtx<'a>,
+    args: ScriptShortcutArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    run(ctx, args.into_run_args("start", ctx.if_present))
 }
 
-pub(super) fn stop<'a>(ctx: &RunCtx<'a>, mut args: StopArgs) -> miette::Result<CommandFuture<'a>> {
-    args.if_present |= ctx.if_present;
+pub(super) fn stop<'a>(
+    ctx: &RunCtx<'a>,
+    args: ScriptShortcutArgs,
+) -> miette::Result<CommandFuture<'a>> {
     if ctx.recursive {
-        run(ctx, args.into_run_args())
+        run(ctx, args.into_run_args("stop", ctx.if_present))
     } else {
-        args.run(ctx.dir, (ctx.config)()?, matches!(ctx.reporter, ReporterType::Silent))?;
+        args.run(
+            "stop",
+            ctx.if_present,
+            ctx.dir,
+            (ctx.config)()?,
+            matches!(ctx.reporter, ReporterType::Silent),
+        )?;
         Ok(Box::pin(std::future::ready(Ok(()))))
     }
 }
@@ -120,16 +134,4 @@ pub(super) fn restart<'a>(
     args.if_present |= ctx.if_present;
     args.run(ctx.dir, (ctx.config)()?, matches!(ctx.reporter, ReporterType::Silent))?;
     Ok(Box::pin(std::future::ready(Ok(()))))
-}
-
-fn run_args_for_script(command: &str, if_present: bool) -> RunArgs {
-    RunArgs {
-        script: RunArgs::script(command, []),
-        if_present,
-        resume_from: None,
-        report_summary: false,
-        no_bail: false,
-        sort: true,
-        sequential: false,
-    }
 }
