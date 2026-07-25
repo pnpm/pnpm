@@ -8,11 +8,6 @@
 //! then runs `pacquet install` so the fresh resolver builds the
 //! lockfile in memory and the hoisted linker materializes a flat
 //! `node_modules/` of **real directories**.
-//!
-//! Cases that depend on features pacquet hasn't built yet live in
-//! [`known_failures`] below with
-//! [`pacquet_testing_utils::allow_known_failure`] gating the assertion
-//! against the not-yet-implemented subject under test.
 
 #![cfg(unix)] // hoisted bin shims + real-dir-vs-junction checks are unix-shaped here.
 
@@ -545,17 +540,22 @@ fn run_pre_and_postinstall_scripts_in_a_workspace_with_hoisted_linker() {
             fixture.workspace.join("node_modules").join(SCRIPTS).join(generated).exists(),
             "the hoisted root copy must be built ({generated})",
         );
-        // Pacquet's hoisted linker materializes each project's direct
-        // dep under the project as well — upstream nests a copy only
-        // for the version that lost the root slot (see
-        // `known_failures::hoisted_workspace_layout_does_not_duplicate_root_version`).
-        // Every copy that is materialized must be built.
-        for project in &projects {
+        // Only the versions that lost the root slot are nested, and
+        // every nested copy must be built.
+        for project in &projects[2..] {
             assert!(
                 project.join("node_modules").join(SCRIPTS).join(generated).exists(),
-                "every materialized copy must be built ({generated})",
+                "every nested copy must be built ({generated})",
             );
         }
+    }
+    // The projects whose version won the root slot reach it by walking
+    // up, so they must not carry a second copy of their own.
+    for project in &projects[..2] {
+        assert!(
+            !project.join("node_modules").join(SCRIPTS).exists(),
+            "a project on the hoisted version must not nest its own copy",
+        );
     }
 }
 
@@ -866,40 +866,4 @@ fn lifecycle_scripts_do_not_fail_on_repeat_hoisted_install() {
     }
 
     drop((root, mock_instance));
-}
-
-mod known_failures {
-    //! Hoisted-node-linker cases blocked on features pacquet hasn't
-    //! built yet. Each stubs the not-yet-built subject through
-    //! [`pacquet_testing_utils::allow_known_failure`] so the test exits
-    //! early rather than masking a real bug. The `pnpm add` / update
-    //! manifest-mutation cases formerly stubbed here are real tests in
-    //! the parent module since the prune-stale-modules reconciliation
-    //! landed.
-
-    use pacquet_testing_utils::{
-        allow_known_failure,
-        known_failure::{KnownFailure, KnownResult},
-    };
-
-    fn hoisted_workspace_duplicate_materialization() -> KnownResult<()> {
-        Err(KnownFailure::new(
-            "Pacquet's hoisted linker materializes each workspace \
-             project's direct dependency under the project's own \
-             `node_modules` even when the same version already won the \
-             workspace-root slot. Upstream nests a copy only for \
-             versions that lost the root slot \
-             (`lifecycleScripts.ts:718` asserts the hoisted-version \
-             consumers have no nested copy).",
-        ))
-    }
-
-    /// The layout tail of TS `run pre/postinstall scripts in a
-    /// workspace that uses node-linker=hoisted`
-    /// (`lifecycleScripts.ts:718`); the script-execution half is the
-    /// real [`super::run_pre_and_postinstall_scripts_in_a_workspace_with_hoisted_linker`].
-    #[test]
-    fn hoisted_workspace_layout_does_not_duplicate_root_version() {
-        allow_known_failure!(hoisted_workspace_duplicate_materialization());
-    }
 }

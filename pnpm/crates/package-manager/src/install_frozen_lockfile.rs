@@ -1818,14 +1818,29 @@ fn link_selected_hoisted_direct_dependencies(
 ) -> Result<(), HoistedLinkerError> {
     let modules_dir_name =
         config.modules_dir.file_name().unwrap_or_else(|| OsStr::new("node_modules"));
+    let root_modules_dir = pacquet_fs::lexical_normalize(&lockfile_dir.join(modules_dir_name));
     for (project_dir, _) in project_manifests {
         let importer_id = pacquet_workspace::importer_id_from_root_dir(lockfile_dir, project_dir);
         let Some(direct_dependencies) = direct_dependencies_by_importer_id.get(&importer_id) else {
             continue;
         };
         let modules_dir = project_dir.join(modules_dir_name);
+        // The workspace root owns the hoisted slot itself, so its own
+        // entries are the real directories rather than links to them.
+        let is_workspace_root = pacquet_fs::lexical_normalize(project_dir)
+            == pacquet_fs::lexical_normalize(lockfile_dir);
         let mut linked_names = Vec::new();
         for (alias, target) in direct_dependencies {
+            // A dependency that won the workspace-root slot is reached by
+            // walking up from the project, exactly as it is under pnpm.
+            // Repeating it inside the project would give a build a second
+            // copy to run lifecycle scripts in.
+            if !is_workspace_root
+                && pacquet_fs::lexical_normalize(target)
+                    == pacquet_fs::lexical_normalize(&root_modules_dir.join(alias))
+            {
+                continue;
+            }
             let link_path =
                 crate::safe_join_modules_dir::safe_join_modules_dir(&modules_dir, alias).map_err(
                     |source| {
