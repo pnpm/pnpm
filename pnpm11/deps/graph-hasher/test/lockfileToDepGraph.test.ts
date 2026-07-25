@@ -38,6 +38,7 @@ test('lockfileToDepGraph', () => {
       children: {
         qar: 'qar@1.0.0',
       },
+      resolution: { integrity: '1' },
       fullPkgId: 'bar@1.0.0:1',
     },
     'foo@1.0.0': {
@@ -45,10 +46,12 @@ test('lockfileToDepGraph', () => {
         bar: 'bar@1.0.0',
         qar: 'qar@1.0.0',
       },
+      resolution: { integrity: '0' },
       fullPkgId: 'foo@1.0.0:0',
     },
     'qar@1.0.0': {
       children: {},
+      resolution: { integrity: '2' },
       fullPkgId: 'qar@1.0.0:2',
     },
   })

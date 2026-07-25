@@ -536,6 +536,73 @@ test('injected local packages work with global virtual store', async () => {
   expect(fs.existsSync(path.join(injectedDepLocation!, 'foo.js'))).toBeTruthy()
 })
 
+// The lockfile records no version for a directory snapshot, so a headless
+// install used to crash while building the slot path.
+// See https://github.com/pnpm/pnpm/issues/13335.
+test('local directory dependency works with global virtual store', async () => {
+  const project = prepareEmpty()
+  fs.mkdirSync('dep')
+  fs.writeFileSync('dep/package.json', JSON.stringify({ name: 'dep', version: '1.0.0' }), 'utf8')
+
+  const globalVirtualStoreDir = path.resolve('links')
+  const manifest = {
+    dependencies: {
+      dep: 'file:dep',
+    },
+  }
+  const opts = testDefaults({
+    enableGlobalVirtualStore: true,
+    virtualStoreDir: globalVirtualStoreDir,
+  })
+  await install(manifest, opts)
+
+  project.has('dep')
+  const slotBeforeReinstall = fs.realpathSync(path.resolve('node_modules/dep'))
+  expect(slotBeforeReinstall.startsWith(globalVirtualStoreDir)).toBeTruthy()
+
+  rimrafSync('node_modules')
+  await install(manifest, { ...opts, frozenLockfile: true })
+
+  project.has('dep')
+  // The resolver reads the version off the manifest and the headless install
+  // reads it off the lockfile, where there is none — both have to land on the
+  // same slot or the reinstall would relocate the package.
+  expect(fs.realpathSync(path.resolve('node_modules/dep'))).toBe(slotBeforeReinstall)
+})
+
+test('two projects with a same-named local directory dependency get separate global virtual store slots', async () => {
+  preparePackages([
+    { location: 'project-1', package: { name: 'project-1', version: '1.0.0' } },
+    { location: 'project-2', package: { name: 'project-2', version: '1.0.0' } },
+  ])
+  const globalVirtualStoreDir = path.resolve('links')
+
+  // The second install has to see what the first one left in the shared store,
+  // so the two run one after the other.
+  const slotOfProject1 = await installLocalDirectoryDependency('project-1', globalVirtualStoreDir)
+  const slotOfProject2 = await installLocalDirectoryDependency('project-2', globalVirtualStoreDir)
+
+  // Both resolve to `dep@file:dep` with no recorded version — only the project
+  // they belong to tells the two slots apart.
+  expect(slotOfProject1).not.toBe(slotOfProject2)
+  expect(fs.readFileSync(path.resolve('project-1/node_modules/dep/index.js'), 'utf8')).toBe("module.exports = 'project-1'")
+  expect(fs.readFileSync(path.resolve('project-2/node_modules/dep/index.js'), 'utf8')).toBe("module.exports = 'project-2'")
+})
+
+/** Installs a `./dep` directory dependency into `project` and returns its slot. */
+async function installLocalDirectoryDependency (project: string, globalVirtualStoreDir: string): Promise<string> {
+  fs.mkdirSync(path.resolve(project, 'dep'))
+  fs.writeFileSync(path.resolve(project, 'dep/package.json'), JSON.stringify({ name: 'dep', version: '1.0.0' }), 'utf8')
+  fs.writeFileSync(path.resolve(project, 'dep/index.js'), `module.exports = '${project}'`, 'utf8')
+  await install({ dependencies: { dep: 'file:dep' } }, testDefaults({
+    dir: path.resolve(project),
+    lockfileDir: path.resolve(project),
+    enableGlobalVirtualStore: true,
+    virtualStoreDir: globalVirtualStoreDir,
+  }))
+  return fs.realpathSync(path.resolve(project, 'node_modules/dep'))
+}
+
 test('virtualStoreOnly populates standard virtual store without importer symlinks', async () => {
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
   prepareEmpty()
