@@ -9,21 +9,15 @@
 //! [`expand_universal_shorthands`]: crate::shorthands::expand_universal_shorthands
 
 use crate::{cli_args::CliArgs, flag_relocation::ArgTable};
-use clap::CommandFactory;
+use clap::{Command, CommandFactory};
 use std::ffi::OsString;
 
-/// Commands whose own arguments are a foreign command line.
+/// Commands whose own arguments are unconditionally a foreign command line.
 ///
 /// pnpm's `SPECIALLY_ESCAPED_CMDS` is `run` / `dlx` / `with`; `exec` joins
-/// them here because its argv shape reaches the same place. `with` does
-/// *not*: [`crate::with_current::rewrite`] runs after
-/// [`ConfigOverrides::extract`] and splices the inner command line into
-/// pnpm's own argv, so at this point those tokens are still pnpm's to
-/// claim — `pnpm with current run --config.foo=bar build` must have the
-/// override stripped here, or clap sees it after the rewrite and takes it
-/// for the script name.
-///
-/// [`ConfigOverrides::extract`]: crate::config_overrides::ConfigOverrides::extract
+/// them here because its argv shape reaches the same place. `with` is
+/// handled separately in [`command_boundary`], because only some of its
+/// invocations forward their arguments to another process.
 const COMMANDS_TAKING_A_FOREIGN_COMMAND_LINE: [&str; 3] = ["run", "exec", "dlx"];
 
 /// Commands that prefix another command rather than taking arguments of
@@ -79,11 +73,26 @@ fn command_boundary(argv: &[OsString]) -> Option<usize> {
             index += 1;
             continue;
         }
-        if takes_a_foreign_command_line(arg) {
+        let Some(subcommand) = matching_subcommand(&command, arg) else {
+            // Names no command: the `pnpm <script>` fallback.
+            return Some(index + 1);
+        };
+        if COMMANDS_TAKING_A_FOREIGN_COMMAND_LINE.contains(&subcommand.get_name()) {
             return Some(next_positional(argv, index + 1, &arity)? + 1);
         }
-        if !is_known_top_level_command(arg) {
-            return Some(index + 1);
+        if subcommand.get_name() == "with" {
+            // `with` splits on its version. `with current` is spliced into
+            // pnpm's own argv by [`crate::with_current::rewrite`], which runs
+            // after the pre-clap passes, so those tokens are still pnpm's to
+            // claim — leaving a `--config.*` in them for clap to mistake for
+            // the script name. Any other version execs a child pnpm, whose
+            // command line is its own, so stripping an override there would
+            // lose it.
+            let version = next_positional(argv, index + 1, &arity)?;
+            if argv[version] == "current" {
+                return None;
+            }
+            return Some(version + 1);
         }
         // A known command that parses its own arguments: pnpm owns the rest.
         return None;
@@ -139,23 +148,15 @@ fn option_width(arg: &str, arity: &ArgTable) -> Option<usize> {
     Some(if consumes_value && is_bare_short { 2 } else { 1 })
 }
 
-fn takes_a_foreign_command_line(name: &str) -> bool {
-    resolves_to_any(name, &COMMANDS_TAKING_A_FOREIGN_COMMAND_LINE)
-}
-
-pub(crate) fn is_known_top_level_command(name: &str) -> bool {
-    CliArgs::command().get_subcommands().any(|command| resolves_to(command, name))
-}
-
-/// Whether `name` is one of `canonical_names`, or an alias of one.
-fn resolves_to_any(name: &str, canonical_names: &[&str]) -> bool {
-    CliArgs::command()
+/// The subcommand `name` resolves to, whether by its own name or an alias.
+///
+/// Takes the already-built `command`: assembling the clap tree is the
+/// expensive part of this module, and one boundary computation must not pay
+/// for it more than once.
+fn matching_subcommand<'a>(command: &'a Command, name: &str) -> Option<&'a Command> {
+    command
         .get_subcommands()
-        .any(|command| canonical_names.contains(&command.get_name()) && resolves_to(command, name))
-}
-
-fn resolves_to(command: &clap::Command, name: &str) -> bool {
-    command.get_name() == name || command.get_all_aliases().any(|alias| alias == name)
+        .find(|sub| sub.get_name() == name || sub.get_all_aliases().any(|alias| alias == name))
 }
 
 #[cfg(test)]

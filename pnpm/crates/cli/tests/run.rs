@@ -121,6 +121,10 @@ JSON.stringify(require('./args.json').concat([process.argv.slice(2)])), 'utf8')"
             "--config.enable-pre-post-scripts",
             "run",
             "foo",
+            // A pnpm-settings-shaped token before the separator: the
+            // pre-clap config pass must leave it for the script too
+            // (pnpm/pnpm#13302), which `--other=1` alone would not catch.
+            "--config.foo=bar",
             "arg",
             "--",
             "--other=1",
@@ -138,6 +142,7 @@ JSON.stringify(require('./args.json').concat([process.argv.slice(2)])), 'utf8')"
         vec![
             Vec::<String>::new(),
             vec![
+                "--config.foo=bar".to_string(),
                 "arg".to_string(),
                 "--".to_string(),
                 "--other=1".to_string(),

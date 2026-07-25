@@ -55,8 +55,6 @@ fn a_command_parsing_its_own_arguments_owns_all_of_argv() {
         // A package that happens to share an escaping command's name is
         // still just an argument to `add`.
         &["add", "run", "--config.foo=bar"],
-        // `with` included: see `with_current_keeps_its_inner_command_line_parseable`.
-        &["with", "pnpm@9", "install", "--silent"],
     ] {
         let (_, forwarded) = split(argv);
         assert!(forwarded.is_empty(), "{argv:?} forwards {forwarded:?}");
@@ -116,12 +114,27 @@ fn a_value_taking_option_does_not_move_the_boundary_onto_its_value() {
     }
 }
 
-/// `with` is deliberately not treated as taking a foreign command line:
-/// `with_current::rewrite` splices its inner command line into pnpm's own
-/// argv *after* `ConfigOverrides::extract` has run, so an override in it is
-/// still pnpm's to claim at this point.
+/// `with` splits on its version, because only some of its invocations hand
+/// their arguments to another process.
+///
+/// `with current` is spliced into pnpm's own argv by `with_current::rewrite`
+/// *after* the pre-clap passes, so an override in it is still pnpm's to
+/// claim — leaving it would let clap mistake it for the script name. Any
+/// other version execs a child pnpm, so stripping an override would lose it
+/// for that child.
 #[test]
-fn with_current_keeps_its_inner_command_line_parseable() {
-    let (_, forwarded) = split(&["with", "current", "run", "--config.foo=bar", "build"]);
-    assert!(forwarded.is_empty(), "forwarded {forwarded:?}");
+fn with_forwards_only_for_a_version_that_execs_a_child() {
+    let (_, current) = split(&["with", "current", "run", "--config.foo=bar", "build"]);
+    assert!(current.is_empty(), "`with current` keeps its overrides: {current:?}");
+
+    for argv in [
+        ["with", "10", "install", "--config.foo=bar"].as_slice(),
+        &["with", "pnpm@9", "install", "--silent"],
+    ] {
+        let (_, forwarded) = split(argv);
+        assert!(
+            forwarded.contains(&argv[argv.len() - 1].to_string()),
+            "{argv:?} must forward its child's own options, got {forwarded:?}",
+        );
+    }
 }
