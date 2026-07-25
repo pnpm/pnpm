@@ -64,25 +64,9 @@ impl DirLock {
         let deadline = SystemTime::now() + wait;
         loop {
             match fs::create_dir(&path) {
-                Ok(()) => {
-                    let token = mint_token();
-                    return match fs::write(path.join(OWNER_FILE), &token) {
-                        Ok(()) => Ok(Some(DirLock { path, token })),
-                        // Without its owner record this lock cannot tell,
-                        // at release time, whether it is still the one it
-                        // took, so hand the directory back rather than
-                        // hold an unidentifiable lock. Reported as an
-                        // error, not as a busy lock: a store this process
-                        // cannot write is not the same as one another
-                        // process is using, and the caller should be able
-                        // to say which happened.
-                        Err(error) => {
-                            let _ = fs::remove_dir_all(&path);
-                            Err(error)
-                        }
-                    };
-                }
+                Ok(()) => return claim(path).map(Some),
                 Err(error) if error.kind() != io::ErrorKind::AlreadyExists => return Err(error),
+                // Held by someone else: fall through to the wait below.
                 Err(_) => {}
             }
             if is_abandoned(&path, abandoned_after) {
@@ -123,6 +107,23 @@ impl Drop for DirLock {
         }
         let _ = fs::remove_dir_all(&self.path);
     }
+}
+
+/// Record this process as the owner of a lock directory it just created.
+///
+/// Without its owner record a lock cannot tell, at release time, whether
+/// it is still the one it took, so an unwritable record hands the
+/// directory back rather than holding an unidentifiable lock. That is
+/// reported as an error, not as a busy lock: a store this process cannot
+/// write is not the same as one another process is using, and the caller
+/// should be able to say which happened.
+fn claim(path: PathBuf) -> io::Result<DirLock> {
+    let token = mint_token();
+    if let Err(error) = fs::write(path.join(OWNER_FILE), &token) {
+        let _ = fs::remove_dir_all(&path);
+        return Err(error);
+    }
+    Ok(DirLock { path, token })
 }
 
 /// A value no concurrent acquisition shares. The clock supplies

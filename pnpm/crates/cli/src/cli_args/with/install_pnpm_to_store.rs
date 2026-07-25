@@ -16,7 +16,7 @@ use pacquet_graph_hasher::{detect_node_major, engine_name};
 use pacquet_lockfile::{EnvLockfile, PackageKey};
 use pacquet_package_manager::{AllowBuildPolicy, VirtualStoreLayout};
 use pacquet_package_manifest::parse_manifest;
-use pacquet_reporter::Reporter;
+use pacquet_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pacquet_store_dir::StoreDir;
 use serde_json::Value;
 use std::{
@@ -102,7 +102,7 @@ async fn install_pnpm_from_env_with_config<Reporter: self::Reporter + 'static>(
     // all of which reach this point together on a cold cache; without the
     // lock, one clears the slot out from under another and the loser dies
     // looking for a binary that no longer exists.
-    let _lock = engine_install_lock(config, package_name, version);
+    let _lock = engine_install_lock::<Reporter>(config, package_name, version);
     // The wait may have been for a process that installed the very engine
     // we want, so ask the cache again before paying for the download.
     if let Some(slot) = compute_engine_slot(config, env, package_name, version) {
@@ -161,10 +161,14 @@ async fn install_pnpm_from_env_with_config<Reporter: self::Reporter + 'static>(
 /// run: the install below is the same one every other process is racing
 /// to perform, so proceeding unserialized is exactly today's behavior.
 ///
-/// A lock that could not be taken because the mechanism itself failed is
-/// warned about — running unserialized is survivable, but silently doing
-/// it because the store is unwritable would hide why the race came back.
-fn engine_install_lock(config: &Config, package_name: &str, version: &str) -> Option<DirLock> {
+/// A lock that could not be *established* is warned about instead:
+/// running unserialized is survivable, but doing it because the store
+/// could not be written would otherwise hide why the race came back.
+fn engine_install_lock<Reporter: self::Reporter>(
+    config: &Config,
+    package_name: &str,
+    version: &str,
+) -> Option<DirLock> {
     /// Long enough for a cold install of the engine over a slow link,
     /// short enough that a wedged host isn't hung on indefinitely.
     const WAIT: Duration = Duration::from_mins(5);
@@ -174,17 +178,22 @@ fn engine_install_lock(config: &Config, package_name: &str, version: &str) -> Op
 
     let name = format!("{}@{version}.lock", package_name.replace('/', "+"));
     let path = config.store_dir.tmp().join("engine-locks").join(name);
-    match DirLock::acquire(path.clone(), WAIT, ABANDONED_AFTER) {
-        Ok(lock) => lock,
-        Err(error) => {
-            tracing::warn!(
-                ?error,
-                lock = %path.display(),
-                "could not take the engine install lock; installing unserialized",
-            );
-            None
-        }
-    }
+    let error = match DirLock::acquire(path.clone(), WAIT, ABANDONED_AFTER) {
+        Ok(lock) => return lock,
+        Err(error) => error,
+    };
+    // Through the reporter rather than `tracing`, which is only wired to
+    // a subscriber when `TRACE` is set and would drop this on every
+    // ordinary run.
+    Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+        level: LogLevel::Warn,
+        message: format!(
+            "Could not lock the pnpm engine install at {}: {error}. Installing without it, which is unsafe if another pnpm is installing the same version.",
+            path.display(),
+        ),
+        prefix: String::new(),
+    }));
+    None
 }
 
 fn package_manager_engine_config(config: &Config) -> miette::Result<Config> {
