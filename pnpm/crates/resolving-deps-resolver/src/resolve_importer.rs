@@ -65,10 +65,10 @@ pub struct ResolveImporterOptions {
     /// When true, the *workspace root* importer's direct deps are used
     /// as `workspace_root_deps` for the hoist picker, so a peer matching
     /// a root dep's alias / name short-circuits straight to that dep's
-    /// specifier. The caller supplies them through
-    /// [`ImporterHoistState::set_workspace_root_deps`]; on the
-    /// single-importer [`fn@resolve_importer`] path the importer is the
-    /// root, so it supplies its own.
+    /// specifier. [`fn@crate::resolve_workspace`] supplies the root's
+    /// deps to every importer; on the single-importer
+    /// [`fn@resolve_importer`] path the importer is the root, so it
+    /// supplies its own.
     pub resolve_peers_from_workspace_root: bool,
 
     /// Threaded into [`ResolvePeersOptions::dedupe_peers`] on every
@@ -304,7 +304,7 @@ pub(crate) struct ImporterHoistState {
     /// The hoist picker wants the specifier a peer provider would be
     /// installed from, and the resolver only reports a
     /// `normalized_bare_specifier` for specs that needed normalizing
-    /// (npm aliases, `workspace:`, …) — a plain `"19.2.0"` arrives as
+    /// (npm aliases, `workspace:`, ...) — a plain `"19.2.0"` arrives as
     /// `None`. This is the fallback, and the source for deps the
     /// resolver couldn't name at all.
     wanted_specifier_by_alias: BTreeMap<String, String>,
