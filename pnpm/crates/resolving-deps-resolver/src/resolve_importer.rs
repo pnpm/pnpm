@@ -740,9 +740,9 @@ fn cross_importer_specifier(spec: Option<String>) -> Option<String> {
 }
 
 /// Whether a specifier resolves against the consuming project's own
-/// directory — the `link:` / `file:` / `workspace:` protocols, same set
-/// [`fn@crate::resolve_dependency_tree::project_relative_cache_scope`]
-/// scopes its resolution cache by. A root dep declared this way is not
+/// directory — the `link:` / `file:` / `workspace:` protocols, the same
+/// set `project_relative_cache_scope` scopes its resolution cache by. A
+/// root dep declared this way is not
 /// a candidate for another importer's missing peer: hoisting the
 /// specifier verbatim would resolve it relative to *that* importer and
 /// reach a different path, or nothing at all. Dropping it leaves the
