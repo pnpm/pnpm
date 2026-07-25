@@ -107,7 +107,7 @@ pub fn published_names(projects: &[pacquet_workspace::Project]) -> HashMap<Strin
 
 /// The releases in `plan` whose current version the registry does not have —
 /// `AssembleReleasePlanOptions::unpublished_dirs`. Probe failures propagate.
-/// A release is keyed by its manifest name, so `published_names` translates it
+/// A release is keyed by its manifest name, so [`published_names`] translates it
 /// for the probe; without that a renamed project reads as never published and
 /// debuts at its manifest version on every release. Mirrors the TypeScript
 /// `resolveUnpublishedDirs`.
