@@ -1,24 +1,85 @@
-use super::{RunError, render_project_commands, specified_scripts, throw_or_filter_hidden_scripts};
+use super::{
+    RunError, render_project_commands, specified_scripts, specified_scripts_with_start,
+    throw_or_filter_hidden_scripts,
+};
 use clap::Parser;
 use serde_json::json;
 
 #[test]
 fn specified_scripts_exact_match() {
     let manifest = json!({ "scripts": { "build": "tsc", "test": "jest" } });
-    assert_eq!(specified_scripts(&manifest, "build"), vec!["build".to_string()]);
-    assert_eq!(specified_scripts(&manifest, "test"), vec!["test".to_string()]);
+    assert_eq!(specified_scripts(&manifest, "build").unwrap(), vec!["build".to_string()]);
+    assert_eq!(specified_scripts(&manifest, "test").unwrap(), vec!["test".to_string()]);
 }
 
 #[test]
 fn specified_scripts_start_fallback() {
     let manifest = json!({ "scripts": { "build": "tsc" } });
-    assert_eq!(specified_scripts(&manifest, "start"), vec!["start".to_string()]);
+    assert_eq!(
+        specified_scripts_with_start(&manifest, "start").unwrap(),
+        vec!["start".to_string()],
+    );
+    assert!(
+        specified_scripts(&manifest, "start").unwrap().is_empty(),
+        "the fallback belongs to `run`, not to the recursive selector",
+    );
 }
 
 #[test]
 fn specified_scripts_missing_is_empty() {
     let manifest = json!({ "scripts": { "build": "tsc" } });
-    assert!(specified_scripts(&manifest, "nonexistent").is_empty());
+    assert!(specified_scripts(&manifest, "nonexistent").unwrap().is_empty());
+}
+
+#[test]
+fn specified_scripts_selects_every_regexp_match() {
+    let manifest = json!({
+        "scripts": {
+            "build:backend": "tsc",
+            "build:frontend": "vite build",
+            "build": "echo all",
+            "typecheck": "tsc --noEmit",
+        },
+    });
+    assert_eq!(
+        specified_scripts(&manifest, "/^build:(backend|frontend)$/").unwrap(),
+        vec!["build:backend".to_string(), "build:frontend".to_string()],
+    );
+    // The pattern is searched for, not anchored, so `build` matches too,
+    // and the matches keep the manifest's declaration order.
+    assert_eq!(
+        specified_scripts(&manifest, "/^build/").unwrap(),
+        vec!["build:backend".to_string(), "build:frontend".to_string(), "build".to_string()],
+    );
+}
+
+/// An exact hit wins over the regexp reading, so a script literally named
+/// like a regexp literal stays runnable.
+#[test]
+fn specified_scripts_prefers_an_exact_match_over_the_pattern() {
+    let manifest = json!({ "scripts": { "/^a/": "echo literal", "ab": "echo matched" } });
+    assert_eq!(specified_scripts(&manifest, "/^a/").unwrap(), vec!["/^a/".to_string()]);
+}
+
+#[test]
+fn specified_scripts_rejects_regexp_flags() {
+    let manifest = json!({ "scripts": { "build": "tsc" } });
+    let err = specified_scripts(&manifest, "/^BUILD/i").unwrap_err();
+    assert!(matches!(err, RunError::UnsupportedScriptCommandFormat), "got {err:?}");
+}
+
+/// Anything that isn't a well-formed regexp literal — a bare `/`-bearing
+/// name, an empty pattern, or a pattern the engine can't compile — reads
+/// as a plain script name and finds nothing.
+#[test]
+fn specified_scripts_treats_non_literals_as_names() {
+    let manifest = json!({ "scripts": { "build": "tsc" } });
+    for name in ["/a/b/", "//", "/build", "build/", "/[/"] {
+        assert!(
+            specified_scripts(&manifest, name).unwrap().is_empty(),
+            "{name} is not a regexp selector",
+        );
+    }
 }
 
 #[test]

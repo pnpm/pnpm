@@ -76,6 +76,37 @@ fn ignored_builds_lists_the_blocked_dependency() {
     drop(harness);
 }
 
+/// pnpm scaffolds an `allowBuilds` entry per ignored build with a
+/// placeholder string. The workspace pnpm left behind must stay usable:
+/// the config still loads, and the undecided package is reported as
+/// automatically — not explicitly — ignored.
+#[test]
+fn allow_builds_placeholder_does_not_block_commands() {
+    let (harness, workspace) = install_with_ignored_build();
+
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&yaml_path).expect("read yaml");
+    writeln!(
+        yaml,
+        "allowBuilds:\n  \"@pnpm.e2e/install-script-example\": set this to true or false",
+    )
+    .expect("format allowBuilds");
+    fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
+
+    let output = stdout_of(pacquet(&workspace).with_arg("ignored-builds").assert());
+    assert!(
+        output.contains("Automatically ignored builds during installation:"),
+        "output: {output}",
+    );
+    assert!(output.contains("@pnpm.e2e/install-script-example"), "output: {output}");
+    assert!(
+        !output.contains("Explicitly ignored package builds"),
+        "an undecided entry is not an explicit denial: {output}",
+    );
+
+    drop(harness);
+}
+
 #[test]
 fn approve_builds_with_args_runs_the_build() {
     let (harness, workspace) = install_with_ignored_build();

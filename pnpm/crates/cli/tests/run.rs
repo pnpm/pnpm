@@ -776,3 +776,57 @@ fn script_shortcuts_forward_every_argument_to_the_script() {
         drop(root);
     }
 }
+
+/// A `/pattern/` positional selects every matching script rather than
+/// naming one, through both `pnpm run <selector>` and the bare
+/// `pnpm <selector>` fallback.
+#[cfg(unix)]
+#[test]
+fn run_executes_every_script_matching_a_regexp_selector() {
+    for prefix in [&["run"][..], &[][..]] {
+        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+        let manifest = json!({
+            "name": "test",
+            "version": "0.0.0",
+            "scripts": {
+                "typecheck:one": format!(r#"touch "{}""#, workspace.join("one.txt").display()),
+                "typecheck:two": format!(r#"touch "{}""#, workspace.join("two.txt").display()),
+                "build": format!(r#"touch "{}""#, workspace.join("build.txt").display()),
+            },
+        })
+        .to_string();
+        fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+
+        pacquet.with_args(prefix).with_arg("/^typecheck:.+/").assert().success();
+
+        assert!(workspace.join("one.txt").exists(), "prefix: {prefix:?}");
+        assert!(workspace.join("two.txt").exists(), "prefix: {prefix:?}");
+        assert!(!workspace.join("build.txt").exists(), "prefix: {prefix:?}");
+
+        drop(root);
+    }
+}
+
+/// Flags on a selector say nothing about which scripts to pick, so pnpm
+/// rejects them instead of honouring a subset.
+#[cfg(unix)]
+#[test]
+fn run_rejects_regexp_flags_in_a_selector() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let manifest = json!({
+        "name": "test",
+        "version": "0.0.0",
+        "scripts": { "build": "true" },
+    })
+    .to_string();
+    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+
+    let output = pacquet.with_args(["run", "/^BUILD/i"]).assert().failure();
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr).into_owned();
+    assert!(
+        stderr.contains("ERR_PNPM_UNSUPPORTED_SCRIPT_COMMAND_FORMAT"),
+        "should reject the flags:\n{stderr}",
+    );
+
+    drop(root);
+}

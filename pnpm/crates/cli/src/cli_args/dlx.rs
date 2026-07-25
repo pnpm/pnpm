@@ -168,6 +168,7 @@ impl DlxArgs {
             create_cache_key(&pkgs, &registries, &allow_build, effective_architectures.as_ref());
         let extra_bin_paths = config.extra_bin_paths.clone();
         let extra_env = config.extra_env.clone();
+        let user_agent = config.user_agent.clone();
 
         let dlx_command_cache_dir = cache_dir.join("dlx").join(&cache_key);
         fs::create_dir_all(&dlx_command_cache_dir).map_err(|source| DlxError::Cache {
@@ -218,7 +219,18 @@ impl DlxArgs {
         // The dlx bin runs in the process working directory
         // (`cwd: process.cwd()`), independent of `--dir`.
         let run_cwd = std::env::current_dir().unwrap_or_else(|_| dir.to_path_buf());
-        run_bin(&bin_name, args, &run_cwd, bins_dir, &extra_bin_paths, &extra_env, shell_mode)
+        run_bin(
+            &bin_name,
+            args,
+            &run_cwd,
+            bins_dir,
+            &SpawnEnv {
+                extra_bin_paths: &extra_bin_paths,
+                extra_env: &extra_env,
+                user_agent: &user_agent,
+            },
+            shell_mode,
+        )
     }
 }
 
@@ -327,15 +339,23 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
 
 /// Resolve and spawn the bin, prepending the cache's `node_modules/.bin`
 /// (and `extraBinPaths`) to `PATH`.
+/// The config-derived environment a dlx bin is spawned with, read off
+/// `Config` before the install path consumes it.
+struct SpawnEnv<'a> {
+    extra_bin_paths: &'a [PathBuf],
+    extra_env: &'a HashMap<String, String>,
+    user_agent: &'a str,
+}
+
 fn run_bin(
     bin_name: &str,
     args: &[String],
     cwd: &Path,
     bins_dir: PathBuf,
-    extra_bin_paths: &[PathBuf],
-    extra_env: &HashMap<String, String>,
+    env: &SpawnEnv<'_>,
     shell_mode: bool,
 ) -> miette::Result<()> {
+    let SpawnEnv { extra_bin_paths, extra_env, user_agent } = *env;
     let mut prepend = Vec::with_capacity(1 + extra_bin_paths.len());
     prepend.push(bins_dir);
     prepend.extend(extra_bin_paths.iter().cloned());
@@ -372,7 +392,7 @@ fn run_bin(
     cmd.env_remove("PATH");
     cmd.env_remove("Path");
     cmd.env("PATH", &path);
-    cmd.env("npm_config_user_agent", "pnpm");
+    cmd.env("npm_config_user_agent", user_agent);
 
     let status =
         cmd.status().map_err(|source| DlxError::Spawn { command: bin_name.to_string(), source })?;

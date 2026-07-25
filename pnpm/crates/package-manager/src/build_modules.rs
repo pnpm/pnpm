@@ -463,6 +463,9 @@ pub struct BuildModules<'a> {
     /// spawned lifecycle script. Default [`ScriptsPrependNodePath::Never`].
     pub scripts_prepend_node_path: ScriptsPrependNodePath,
     pub extra_env: &'a HashMap<String, String>,
+    /// Mirrors `config.user_agent`, stamped into each build script's
+    /// `npm_config_user_agent`.
+    pub user_agent: &'a str,
     /// Mirrors `config.unsafe_perm`. When `false`, [`pacquet_executor`]
     /// runs each lifecycle script under a per-package TMPDIR set to
     /// `node_modules/.tmp`; when `true`, TMPDIR is left at the
@@ -592,6 +595,7 @@ impl BuildModules<'_> {
             patches,
             scripts_prepend_node_path,
             extra_env,
+            user_agent,
             unsafe_perm,
             child_concurrency,
             skipped,
@@ -753,6 +757,7 @@ impl BuildModules<'_> {
                         modules_dir,
                         lockfile_dir,
                         extra_env,
+                        user_agent,
                         scripts_prepend_node_path,
                         unsafe_perm,
                         frozen_store,
@@ -832,6 +837,7 @@ fn build_one_snapshot<Reporter: self::Reporter>(
     modules_dir: &Path,
     lockfile_dir: &Path,
     extra_env: &HashMap<String, String>,
+    user_agent: &str,
     scripts_prepend_node_path: ScriptsPrependNodePath,
     unsafe_perm: bool,
     frozen_store: bool,
@@ -892,10 +898,16 @@ fn build_one_snapshot<Reporter: self::Reporter>(
                 // the end of `BuildModules::run` for the safety
                 // argument (BTreeSet insertion is atomic from the
                 // data-structure's POV).
+                // The patch hash is kept: two copies of a package that
+                // differ only by an applied patch are different builds to
+                // approve, and pnpm's `dedupePackageNamesFromIgnoredBuilds`
+                // reports them apart for the same reason. `dep_path` above
+                // has already lost it, so re-derive from the full key.
+                let ignored_key = get_pkg_id_with_patch_hash(&snapshot_key.to_string()).to_string();
                 ignored_builds
                     .lock()
                     .unwrap_or_else(std::sync::PoisonError::into_inner)
-                    .insert(dep_path);
+                    .insert(ignored_key);
                 should_run_scripts = false;
             }
             Some(true) => {}
@@ -1180,7 +1192,7 @@ fn build_one_snapshot<Reporter: self::Reporter>(
             node_execpath: None,
             npm_execpath: None,
             node_gyp_path: None,
-            user_agent: None,
+            user_agent: Some(user_agent),
             unsafe_perm,
             node_gyp_bin: None,
             scripts_prepend_node_path,

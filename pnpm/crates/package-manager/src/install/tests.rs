@@ -3040,12 +3040,10 @@ async fn frozen_lockfile_errors_when_overrides_drift_from_lockfile() {
     .run::<SilentReporter>()
     .await;
 
-    let err = result.expect_err("overrides drift must surface as OutdatedLockfile");
+    let err = result.expect_err("overrides drift must surface as a config mismatch");
     match err {
-        InstallError::OutdatedLockfile {
-            reason: pacquet_lockfile::StalenessReason::OverridesChanged { .. },
-        } => {}
-        other => panic!("expected OutdatedLockfile::OverridesChanged, got {other:?}"),
+        InstallError::LockfileConfigMismatch { setting: "overrides" } => {}
+        other => panic!("expected LockfileConfigMismatch for `overrides`, got {other:?}"),
     }
 
     drop(dir);
@@ -9237,13 +9235,11 @@ async fn frozen_lockfile_errors_when_package_extensions_drift_from_lockfile() {
     .run::<SilentReporter>()
     .await;
 
-    let err = result.expect_err("packageExtensions drift must surface as OutdatedLockfile");
+    let err = result.expect_err("packageExtensions drift must surface as a config mismatch");
     match err {
-        InstallError::OutdatedLockfile {
-            reason: pacquet_lockfile::StalenessReason::PackageExtensionsChecksumChanged { .. },
-        } => {}
+        InstallError::LockfileConfigMismatch { setting: "packageExtensionsChecksum" } => {}
         other => {
-            panic!("expected OutdatedLockfile::PackageExtensionsChecksumChanged, got {other:?}")
+            panic!("expected LockfileConfigMismatch for `packageExtensionsChecksum`, got {other:?}")
         }
     }
 

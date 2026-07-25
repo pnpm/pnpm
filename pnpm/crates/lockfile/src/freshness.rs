@@ -158,6 +158,45 @@ pub enum StalenessReason {
     },
 }
 
+impl StalenessReason {
+    /// The name of the drifted setting, or `None` when the drift is
+    /// between the lockfile and `package.json` rather than between the
+    /// lockfile and the configuration.
+    ///
+    /// pnpm reports the two classes differently: settings drift is an
+    /// `ERR_PNPM_LOCKFILE_CONFIG_MISMATCH` naming the field, manifest
+    /// drift an `ERR_PNPM_OUTDATED_LOCKFILE` spelling out the diff. The
+    /// names returned here are the ones pnpm's
+    /// `getOutdatedLockfileSetting` reports, so an error message quotes
+    /// the same field either stack produced it.
+    #[must_use]
+    pub fn setting_name(&self) -> Option<&'static str> {
+        match self {
+            StalenessReason::CatalogsChanged { .. } => Some("catalogs"),
+            StalenessReason::OverridesChanged { .. } => Some("overrides"),
+            StalenessReason::PackageExtensionsChecksumChanged { .. } => {
+                Some("packageExtensionsChecksum")
+            }
+            StalenessReason::IgnoredOptionalDependenciesChanged { .. } => {
+                Some("ignoredOptionalDependencies")
+            }
+            StalenessReason::PatchedDependenciesChanged { .. } => Some("patchedDependencies"),
+            StalenessReason::PeersSuffixMaxLengthChanged { .. } => {
+                Some("settings.peersSuffixMaxLength")
+            }
+            StalenessReason::InjectWorkspacePackagesChanged { .. } => {
+                Some("settings.injectWorkspacePackages")
+            }
+            StalenessReason::NoImporter { .. }
+            | StalenessReason::SpecifiersDiffer(_)
+            | StalenessReason::PublishDirectoryMismatch { .. }
+            | StalenessReason::DependenciesMetaMismatch { .. }
+            | StalenessReason::DepSpecifierMismatch { .. }
+            | StalenessReason::ResolutionDoesNotSatisfy { .. } => None,
+        }
+    }
+}
+
 /// Per-bucket diff against the manifest's flat union of deps.
 /// Identical entries are omitted. Empty buckets render as nothing in
 /// the `Display` impl so the resulting message lists only what the

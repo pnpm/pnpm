@@ -259,7 +259,7 @@ impl WritePackageForPatch<'_> {
                     allow_build: &allow_build_closure,
                     ignore_scripts: config.ignore_scripts,
                     unsafe_perm: config.unsafe_perm,
-                    user_agent: None,
+                    user_agent: Some(&config.user_agent),
                     scripts_prepend_node_path: executor_scripts_prepend_node_path(
                         config.scripts_prepend_node_path,
                     ),

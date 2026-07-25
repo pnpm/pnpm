@@ -11,6 +11,7 @@
 use miette::{Context, IntoDiagnostic};
 use pacquet_cmd_shim::{Host as CmdShimHost, PackageBinSource, link_bins_of_packages};
 use pacquet_config::Config;
+use pacquet_fs::DirLock;
 use pacquet_graph_hasher::{detect_node_major, engine_name};
 use pacquet_lockfile::{EnvLockfile, PackageKey};
 use pacquet_package_manager::{AllowBuildPolicy, VirtualStoreLayout};
@@ -22,6 +23,7 @@ use std::{
     fs,
     path::{Path, PathBuf},
     sync::Arc,
+    time::Duration,
 };
 
 use crate::{
@@ -93,6 +95,23 @@ async fn install_pnpm_from_env_with_config<Reporter: self::Reporter + 'static>(
         }
     }
 
+    // The engine's global-virtual-store slot is shared by every process on
+    // the host, and materializing it is destructive: a slot left carrying
+    // an interrupted-build marker is removed and re-staged. A task runner
+    // that pins `packageManager` spawns many `pnpm run` children at once,
+    // all of which reach this point together on a cold cache; without the
+    // lock, one clears the slot out from under another and the loser dies
+    // looking for a binary that no longer exists.
+    let _lock = engine_install_lock(config, package_name, version);
+    // The wait may have been for a process that installed the very engine
+    // we want, so ask the cache again before paying for the download.
+    if let Some(slot) = compute_engine_slot(config, env, package_name, version) {
+        let pkg_dir = package_dir(&slot, package_name);
+        if pkg_dir.join("package.json").exists() {
+            return link_cached_engine_bins(&slot, package_name, package.links_native_binary);
+        }
+    }
+
     // Genuine download: verify the engine's registry signature before
     // installing or executing it.
     verify_pnpm_engine_identity(env, version, config)
@@ -135,6 +154,23 @@ async fn install_pnpm_from_env_with_config<Reporter: self::Reporter + 'static>(
     }
     link_bins(&pkg_dir, &bin_dir)?;
     Ok(bin_dir)
+}
+
+/// Take the host-wide lock guarding this engine's install, or `None`
+/// when it can't be taken. Losing the lock is not a reason to refuse to
+/// run: the install below is the same one every other process is racing
+/// to perform, so proceeding unserialized is exactly today's behavior.
+fn engine_install_lock(config: &Config, package_name: &str, version: &str) -> Option<DirLock> {
+    /// Long enough for a cold install of the engine over a slow link,
+    /// short enough that a wedged host isn't hung on indefinitely.
+    const WAIT: Duration = Duration::from_mins(5);
+    /// Comfortably above `WAIT`, so a process still legitimately
+    /// installing never has its lock stolen by one that gave up waiting.
+    const ABANDONED_AFTER: Duration = Duration::from_mins(30);
+
+    let name = format!("{}@{version}.lock", package_name.replace('/', "+"));
+    let path = config.store_dir.tmp().join("engine-locks").join(name);
+    DirLock::acquire(path, WAIT, ABANDONED_AFTER).ok().flatten()
 }
 
 fn package_manager_engine_config(config: &Config) -> miette::Result<Config> {

@@ -496,18 +496,36 @@ pub(crate) fn package_dir(install_dir: &Path, package_name: &str) -> PathBuf {
 /// Hard-link `src` to `dest`, replacing any existing file. Marks the
 /// result executable on Unix (a copy/link can lose the bit).
 fn force_link(src: &Path, dest: &Path) -> std::io::Result<()> {
-    match fs::remove_file(dest) {
+    // The engine's global-virtual-store slot is shared by every process
+    // on the host, and each of them re-links the native binary on its way
+    // through. Unlinking a `dest` that is already the wanted inode would
+    // pull the executable out from under a concurrent process running it,
+    // so the already-linked case is left alone, and a `dest` that must
+    // actually change is replaced by a rename rather than an unlink —
+    // a rename swaps the dirent and leaves a running process on the inode
+    // it opened.
+    if same_file::is_same_file(src, dest).unwrap_or(false) {
+        return Ok(());
+    }
+    let file_name = dest.file_name().unwrap_or(dest.as_os_str()).to_string_lossy().into_owned();
+    let staged = dest.with_file_name(format!(".{file_name}.{}.pacquet-tmp", std::process::id()));
+    match fs::remove_file(&staged) {
         Ok(()) => {}
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
         Err(err) => return Err(err),
     }
-    fs::hard_link(src, dest)?;
+    fs::hard_link(src, &staged)?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(dest, fs::Permissions::from_mode(0o755))?;
+        if let Err(err) = fs::set_permissions(&staged, fs::Permissions::from_mode(0o755)) {
+            let _ = fs::remove_file(&staged);
+            return Err(err);
+        }
     }
-    Ok(())
+    fs::rename(&staged, dest).inspect_err(|_| {
+        let _ = fs::remove_file(&staged);
+    })
 }
 
 /// Point the Windows wrapper's `bin` field at the `.exe` variants (the

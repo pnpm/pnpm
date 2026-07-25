@@ -18,7 +18,9 @@ use crate::{
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pacquet_cmd_shim::{Host as CmdShimHost, link_bins_of_packages_with_excludes, remove_bin};
-use pacquet_config::{CatalogMode, Config, WorkspaceSettings, check_global_bin_dir};
+use pacquet_config::{
+    CatalogMode, Config, WorkspaceSettings, check_global_bin_dir, decided_allow_builds,
+};
 use pacquet_fs::{force_symlink_dir, is_subdir, lexical_normalize};
 use pacquet_global::{
     GlobalPackageInfo, check_global_bin_conflicts, clean_orphaned_install_dirs,
@@ -363,7 +365,7 @@ async fn run_group_install<Reporter: self::Reporter + 'static>(
         .wrap_err("load global allowBuilds")?
     {
         if let Some(allow_builds) = settings.allow_builds {
-            cfg.allow_builds = allow_builds;
+            cfg.allow_builds = decided_allow_builds(allow_builds);
         }
         if let Some(allow_all) = settings.dangerously_allow_all_builds {
             cfg.dangerously_allow_all_builds = allow_all;

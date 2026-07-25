@@ -1446,3 +1446,50 @@ fn test_pattern_from_workspace_yaml_is_respected_by_the_test_script() {
 
     drop(root);
 }
+
+/// A `/pattern/` selector runs every matching script in every selected
+/// project, not just one script per project.
+#[test]
+fn recursive_run_executes_every_script_matching_a_regexp_selector() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[
+            (
+                "both",
+                json!({
+                    "name": "both",
+                    "version": "1.0.0",
+                    "scripts": {
+                        "build:backend": "touch backend.txt",
+                        "build:frontend": "touch frontend.txt",
+                        "test": "touch test.txt",
+                    },
+                }),
+            ),
+            (
+                "neither",
+                json!({
+                    "name": "neither",
+                    "version": "1.0.0",
+                    "scripts": { "test": "touch test.txt" },
+                }),
+            ),
+        ],
+    );
+
+    pacquet
+        .with_args(["-r", "run", "--report-summary", "/^build:(backend|frontend)$/"])
+        .assert()
+        .success();
+
+    assert!(workspace.join("both").join("backend.txt").exists());
+    assert!(workspace.join("both").join("frontend.txt").exists());
+    assert!(!workspace.join("both").join("test.txt").exists());
+
+    let statuses = summary_statuses(&workspace);
+    assert_eq!(statuses.get("both").map(String::as_str), Some("passed"));
+    assert_eq!(statuses.get("neither").map(String::as_str), Some("skipped"), "{statuses:?}");
+
+    drop(root);
+}
