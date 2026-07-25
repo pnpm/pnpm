@@ -78,20 +78,26 @@ struct Harness {
     http_client: ThrottledClient,
     auth_headers: AuthHeaders,
     store_dir: &'static StoreDir,
+    /// Owns the directory `store_dir` points at. Only the [`StoreDir`] value
+    /// has to be `'static`, so the directory itself is dropped with the
+    /// harness rather than left behind for the run's temp dir to accumulate.
+    _store_root: TempDir,
 }
 
 fn harness() -> Harness {
     let registry_url = TestRegistry::start().url();
     let mut registries = std::collections::HashMap::new();
     registries.insert("default".to_string(), registry_url.clone());
+    let store_root = TempDir::new().unwrap();
     let store_dir: &'static StoreDir =
-        Box::leak(Box::new(StoreDir::new(TempDir::new().unwrap().keep())));
+        Box::leak(Box::new(StoreDir::new(store_root.path().to_path_buf())));
     Harness {
         registry_url,
         registries,
         http_client: ThrottledClient::default(),
         auth_headers: AuthHeaders::default(),
         store_dir,
+        _store_root: store_root,
     }
 }
 

@@ -24,7 +24,12 @@ use std::{
 };
 use tempfile::tempdir;
 
-fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path) -> Config {
+fn create_config(
+    store_dir: &Path,
+    modules_dir: &Path,
+    virtual_store_dir: &Path,
+    cache_dir: &Path,
+) -> Config {
     Config {
         versioning: Default::default(),
         hoist: false,
@@ -132,7 +137,7 @@ fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path)
         ignored_optional_dependencies: None,
         overrides: None,
         package_extensions: None,
-        cache_dir: tempdir().unwrap().keep(),
+        cache_dir: cache_dir.to_path_buf(),
         dlx_cache_max_age: 24 * 60,
         minimum_release_age: None,
         minimum_release_age_exclude: None,
@@ -215,7 +220,12 @@ pub async fn should_install_package_from_pre_resolved_result() {
     let virtual_store_dir = tempdir().unwrap();
     let cache_dir = tempdir().unwrap();
 
-    let mut config = create_config(store_dir.path(), modules_dir.path(), virtual_store_dir.path());
+    let mut config = create_config(
+        store_dir.path(),
+        modules_dir.path(),
+        virtual_store_dir.path(),
+        cache_dir.path(),
+    );
     config.registry = mock_instance.url();
     let config: &'static Config = config.pipe(Box::new).pipe(Box::leak);
 
@@ -295,7 +305,12 @@ async fn second_visit_skips_progress_emits_but_still_links() {
     let virtual_store_dir = tempdir().unwrap();
     let cache_dir = tempdir().unwrap();
 
-    let mut config = create_config(store_dir.path(), modules_dir.path(), virtual_store_dir.path());
+    let mut config = create_config(
+        store_dir.path(),
+        modules_dir.path(),
+        virtual_store_dir.path(),
+        cache_dir.path(),
+    );
     config.registry = mock_instance.url();
     let config: &'static Config = config.pipe(Box::new).pipe(Box::leak);
 
@@ -405,7 +420,12 @@ async fn install_emits_progress_sequence() {
     let virtual_store_dir = tempdir().unwrap();
     let cache_dir = tempdir().unwrap();
 
-    let mut config = create_config(store_dir.path(), modules_dir.path(), virtual_store_dir.path());
+    let mut config = create_config(
+        store_dir.path(),
+        modules_dir.path(),
+        virtual_store_dir.path(),
+        cache_dir.path(),
+    );
     config.registry = mock_instance.url();
     let config: &'static Config = config.pipe(Box::new).pipe(Box::leak);
 
@@ -494,8 +514,14 @@ async fn install_returns_unsupported_resolution_when_name_ver_missing() {
     let store_dir = tempdir().unwrap();
     let modules_dir = tempdir().unwrap();
     let virtual_store_dir = tempdir().unwrap();
+    let cache_dir = tempdir().unwrap();
 
-    let config = create_config(store_dir.path(), modules_dir.path(), virtual_store_dir.path());
+    let config = create_config(
+        store_dir.path(),
+        modules_dir.path(),
+        virtual_store_dir.path(),
+        cache_dir.path(),
+    );
     let config: &'static Config = config.pipe(Box::new).pipe(Box::leak);
 
     let http_client = Arc::new(ThrottledClient::new_for_installs());
@@ -551,7 +577,7 @@ async fn install_returns_unsupported_resolution_when_name_ver_missing() {
         other => panic!("expected UnsupportedResolution, got {other:?}"),
     }
 
-    drop((store_dir, modules_dir, virtual_store_dir));
+    drop((store_dir, modules_dir, virtual_store_dir, cache_dir));
 }
 
 /// A tarball/git/file dep whose manifest `name` is a path traversal
@@ -564,8 +590,14 @@ async fn install_rejects_traversal_manifest_name() {
     let store_dir = tempdir().unwrap();
     let modules_dir = tempdir().unwrap();
     let virtual_store_dir = tempdir().unwrap();
+    let cache_dir = tempdir().unwrap();
 
-    let config = create_config(store_dir.path(), modules_dir.path(), virtual_store_dir.path());
+    let config = create_config(
+        store_dir.path(),
+        modules_dir.path(),
+        virtual_store_dir.path(),
+        cache_dir.path(),
+    );
     let config: &'static Config = config.pipe(Box::new).pipe(Box::leak);
 
     let http_client = Arc::new(ThrottledClient::new_for_installs());
@@ -627,5 +659,5 @@ async fn install_rejects_traversal_manifest_name() {
     assert!(!virtual_store_dir.path().join("OUTSIDE").exists());
     assert!(!slot_dir.join("node_modules").join("OUTSIDE").exists());
 
-    drop((store_dir, modules_dir, virtual_store_dir));
+    drop((store_dir, modules_dir, virtual_store_dir, cache_dir));
 }

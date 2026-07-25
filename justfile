@@ -53,6 +53,15 @@ check:
 test:
   cargo nextest run
 
+# A test process that is killed cannot run `TempDir`'s cleanup, so a
+# fail-fast or interrupted run always leaves some behind. Only entries older
+# than an hour are removed, so a concurrent run is left alone.
+
+# Remove what earlier test runs left behind in the system temp dir.
+sweep-test-temp:
+  find "${TMPDIR:-/tmp}" -maxdepth 1 -name 'pnpm-e2e-*' -mmin +60 -exec rm -rf {} + 2>/dev/null || true
+  find "${TMPDIR:-/tmp}" -maxdepth 1 -name '.tmp*' -mmin +60 -exec rm -rf {} + 2>/dev/null || true
+
 # Run pacquet package tests only.
 test-pacquet:
   cargo nextest run --workspace --exclude pnpr --exclude pnpr-fixtures
