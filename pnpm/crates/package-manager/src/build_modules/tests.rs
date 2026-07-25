@@ -357,6 +357,7 @@ fn build_modules_collects_ignored_builds() {
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
         extra_env: &HashMap::new(),
+        user_agent: "pnpm/test",
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -423,6 +424,7 @@ fn ignore_scripts_skips_build_without_collecting_ignored() {
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
         extra_env: &HashMap::new(),
+        user_agent: "pnpm/test",
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -478,6 +480,7 @@ fn cached_requires_build_false_skips_package_dir_probe() {
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
         extra_env: &HashMap::new(),
+        user_agent: "pnpm/test",
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -553,6 +556,7 @@ fn build_modules_collects_ignored_builds_under_concurrency() {
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
         extra_env: &HashMap::new(),
+        user_agent: "pnpm/test",
         unsafe_perm: true,
         child_concurrency: 2,
         skipped: &SkippedSnapshots::default(),
@@ -620,6 +624,7 @@ fn build_modules_excludes_explicit_deny_from_ignored() {
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
         extra_env: &HashMap::new(),
+        user_agent: "pnpm/test",
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -704,6 +709,7 @@ fn do_not_fail_on_optional_dep_with_failing_postinstall() {
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
         extra_env: &HashMap::new(),
+        user_agent: "pnpm/test",
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -865,6 +871,7 @@ fn using_side_effects_cache_skips_rebuild() {
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
         extra_env: &HashMap::new(),
+        user_agent: "pnpm/test",
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -991,6 +998,7 @@ fn corrupt_side_effects_cache_falls_back_to_rebuild() {
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
         extra_env: &HashMap::new(),
+        user_agent: "pnpm/test",
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -1108,6 +1116,7 @@ fn materialization_failure_on_incomplete_slot_is_fatal() {
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
         extra_env: &HashMap::new(),
+        user_agent: "pnpm/test",
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -1175,6 +1184,7 @@ fn side_effects_cache_disabled_bypasses_the_gate() {
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
         extra_env: &HashMap::new(),
+        user_agent: "pnpm/test",
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -1240,6 +1250,7 @@ fn fail_when_failing_postinstall_is_required() {
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
         extra_env: &HashMap::new(),
+        user_agent: "pnpm/test",
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -1329,6 +1340,7 @@ fn frozen_backstop_run(
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
         extra_env: &HashMap::new(),
+        user_agent: "pnpm/test",
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -1650,6 +1662,7 @@ async fn write_path_populates_side_effects_row() {
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
         extra_env: &HashMap::new(),
+        user_agent: "pnpm/test",
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -1770,6 +1783,7 @@ async fn write_path_disabled_skips_upload() {
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
         extra_env: &HashMap::new(),
+        user_agent: "pnpm/test",
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -1862,6 +1876,7 @@ async fn frozen_store_skips_side_effects_upload() {
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
         extra_env: &HashMap::new(),
+        user_agent: "pnpm/test",
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -2003,6 +2018,7 @@ async fn upload_error_does_not_interrupt_install() {
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
         extra_env: &HashMap::new(),
+        user_agent: "pnpm/test",
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -2258,6 +2274,7 @@ new file mode 100644
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
         extra_env: &HashMap::new(),
+        user_agent: "pnpm/test",
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -2371,6 +2388,7 @@ new file mode 100644
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
         extra_env: &HashMap::new(),
+        user_agent: "pnpm/test",
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -2456,6 +2474,7 @@ async fn missing_patch_file_path_errors_with_diagnostic() {
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
         extra_env: &HashMap::new(),
+        user_agent: "pnpm/test",
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -2715,6 +2734,7 @@ fn rebuild_selection_runs_only_selected_scripts() {
         patches: None,
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
         extra_env: &HashMap::new(),
+        user_agent: "pnpm/test",
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),

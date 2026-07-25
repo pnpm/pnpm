@@ -1269,3 +1269,67 @@ mod remove_unused_catalogs {
         );
     }
 }
+
+/// pnpm scaffolds undecided entries with a multi-word plain scalar.
+/// Deciding one replaces the whole value: ending it at the first
+/// whitespace would leave `true this to true or false` behind, which
+/// YAML reads as a string, so the package would stay undecided.
+#[test]
+fn allow_builds_replaces_a_multi_word_placeholder_value() {
+    let out = run_allow_builds(
+        Some("allowBuilds:\n  esbuild: set this to true or false\n"),
+        &[("esbuild", true)],
+    );
+    assert_eq!(out.as_deref(), Some("allowBuilds:\n  esbuild: true\n"));
+}
+
+/// A comment after the value is the one thing that must survive the
+/// replacement, which is why the value span stops at ` #`.
+#[test]
+fn allow_builds_keeps_a_trailing_comment() {
+    let out =
+        run_allow_builds(Some("allowBuilds:\n  esbuild: false # why\n"), &[("esbuild", true)]);
+    assert_eq!(out.as_deref(), Some("allowBuilds:\n  esbuild: true # why\n"));
+}
+
+/// A `#` inside a quoted value is part of the value, not a comment, so
+/// the replacement must not preserve it as one.
+#[test]
+fn allow_builds_replaces_a_quoted_value_containing_a_hash() {
+    let out = run_allow_builds(Some("allowBuilds:\n  esbuild: \"a # b\"\n"), &[("esbuild", false)]);
+    assert_eq!(out.as_deref(), Some("allowBuilds:\n  esbuild: false\n"));
+}
+
+/// A quote only delimits a scalar when it opens the value, so an
+/// apostrophe inside a plain scalar is a character, not an unterminated
+/// quoted string that would swallow a following comment.
+#[test]
+fn allow_builds_replaces_a_plain_value_containing_a_quote() {
+    let out = run_allow_builds(
+        Some("allowBuilds:\n  esbuild: don't know yet # decide later\n"),
+        &[("esbuild", true)],
+    );
+    assert_eq!(out.as_deref(), Some("allowBuilds:\n  esbuild: true # decide later\n"));
+}
+
+/// An escaped quote does not end a double-quoted scalar, so a `#` after
+/// it is still inside the value.
+#[test]
+fn allow_builds_replaces_a_value_with_an_escaped_quote() {
+    let out = run_allow_builds(
+        Some("allowBuilds:\n  esbuild: \"a \\\" # b\" # real\n"),
+        &[("esbuild", false)],
+    );
+    assert_eq!(out.as_deref(), Some("allowBuilds:\n  esbuild: false # real\n"));
+}
+
+/// A doubled quote is the single-quoted style's escape, so it does not
+/// end the scalar either.
+#[test]
+fn allow_builds_replaces_a_value_with_a_doubled_single_quote() {
+    let out = run_allow_builds(
+        Some("allowBuilds:\n  esbuild: 'it''s # fine' # real\n"),
+        &[("esbuild", true)],
+    );
+    assert_eq!(out.as_deref(), Some("allowBuilds:\n  esbuild: true # real\n"));
+}

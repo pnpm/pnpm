@@ -1441,6 +1441,66 @@ mod project_scripts {
         drop((root, mock_instance));
     }
 
+    /// `npm_config_user_agent` carries the configured user agent in every
+    /// script context. Guards such as n8n's `preinstall` compare its
+    /// leading `name/version` token against `pnpm`, so a missing or
+    /// truncated value makes them reject the install.
+    #[test]
+    fn stamps_the_configured_user_agent_on_install_scripts_run_and_exec() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        // The body as a bare JS expression, so it can be passed either
+        // through a shell (a script body) or straight to `node -e`.
+        let record_user_agent_js = |file: &str| {
+            format!(
+                "require('fs').writeFileSync('{file}',process.env.npm_config_user_agent||'<unset>')",
+            )
+        };
+        let record_user_agent = |file: &str| format!(r#"node -e "{}""#, record_user_agent_js(file));
+        let manifest = serde_json::json!({
+            "name": "project-reading-the-user-agent",
+            "version": "1.0.0",
+            "scripts": {
+                "preinstall": record_user_agent("preinstall-ua.txt"),
+                "show-ua": record_user_agent("run-ua.txt"),
+            },
+        });
+        fs::write(workspace.join("package.json"), manifest.to_string())
+            .expect("write package.json");
+
+        pacquet.with_arg("install").assert().success();
+        for args in [
+            vec!["run".to_string(), "show-ua".to_string()],
+            // `exec` builds its child's environment separately from the
+            // lifecycle executor, so it needs its own coverage.
+            vec![
+                "exec".to_string(),
+                "node".to_string(),
+                "-e".to_string(),
+                record_user_agent_js("exec-ua.txt"),
+            ],
+        ] {
+            Command::cargo_bin("pnpm")
+                .expect("find the pnpm binary")
+                .with_current_dir(&workspace)
+                .with_args(args)
+                .assert()
+                .success();
+        }
+
+        for file in ["preinstall-ua.txt", "run-ua.txt", "exec-ua.txt"] {
+            let user_agent = fs::read_to_string(workspace.join(file))
+                .unwrap_or_else(|error| panic!("read {file}: {error}"));
+            let (name, rest) = user_agent.split_once('/').unwrap_or((&user_agent, ""));
+            assert_eq!(name, "pnpm", "{file}: {user_agent}");
+            assert!(!rest.is_empty(), "{file} carries a version: {user_agent}");
+        }
+
+        drop((root, mock_instance));
+    }
+
     #[test]
     fn runs_project_lifecycle_scripts_on_frozen_install() {
         let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =

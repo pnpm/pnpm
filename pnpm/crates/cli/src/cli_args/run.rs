@@ -7,6 +7,7 @@ use pacquet_executor::{RunScript, ScriptsPrependNodePath, run_script};
 use pacquet_package_manager::{make_node_package_map_option, package_map_path_for_execution};
 use pacquet_package_manifest::PackageManifest;
 use pacquet_workspace::{ReadProjectManifestOnlyError, read_project_manifest_only};
+use regex::Regex;
 use serde_json::Value;
 use std::{
     collections::HashMap,
@@ -93,6 +94,10 @@ pub enum RunError {
     #[display("Missing script start or file server.js")]
     #[diagnostic(code(ERR_PNPM_NO_SCRIPT_OR_SERVER))]
     NoScriptOrServer,
+
+    #[display("RegExp flags are not supported in script command selector")]
+    #[diagnostic(code(ERR_PNPM_UNSUPPORTED_SCRIPT_COMMAND_FORMAT))]
+    UnsupportedScriptCommandFormat,
 }
 
 impl RunArgs {
@@ -161,7 +166,7 @@ impl RunArgs {
             Err(err) => return Err(RunError::Manifest(err).into()),
         };
 
-        let mut specified = specified_scripts(manifest.value(), script_name);
+        let mut specified = ScriptSelector::new(script_name)?.select_with_start(manifest.value());
 
         // Hidden scripts (names starting with `.`) can only be invoked
         // from within another script, detected by an inherited
@@ -416,7 +421,7 @@ pub(super) fn run_stage(
         ),
         node_execpath: None,
         npm_execpath: None,
-        user_agent: Some("pnpm"),
+        user_agent: Some(&ctx.config.user_agent),
         extra_env: ctx.extra_env,
         silent: ctx.silent,
     })
@@ -447,24 +452,102 @@ pub(crate) fn exec_scripts_prepend_node_path(
     }
 }
 
-/// Resolve which script names to run for `name`: the exact-match arm plus
-/// the `start` fallback. The `/regexp/` selector is not supported because
-/// pacquet has no regex dependency.
-fn specified_scripts(manifest: &Value, name: &str) -> Vec<String> {
-    let has_script = manifest
-        .get("scripts")
-        .and_then(Value::as_object)
-        .and_then(|scripts| scripts.get(name))
-        .and_then(Value::as_str)
-        .is_some_and(|script| !script.is_empty());
+/// The `run` positional, resolved once into whichever of pnpm's two
+/// readings it is: a script name, or a `/regexp/` matching several.
+///
+/// Built once per command rather than per project. The recursive runner
+/// applies the same selector across every selected project, so compiling
+/// the pattern there would repeat the work — and would report a rejected
+/// pattern once per project instead of once.
+#[derive(Debug)]
+pub(super) struct ScriptSelector<'a> {
+    name: &'a str,
+    /// `None` when the positional is a plain script name — including a
+    /// regexp literal whose pattern the engine rejects, which pnpm also
+    /// falls back to reading as a name.
+    pattern: Option<Regex>,
+}
 
-    if has_script {
-        return vec![name.to_string()];
+impl<'a> ScriptSelector<'a> {
+    pub(super) fn new(name: &'a str) -> Result<ScriptSelector<'a>, RunError> {
+        Ok(ScriptSelector { name, pattern: try_build_regex_from_command(name)? })
     }
-    if name == "start" {
-        return vec![name.to_string()];
+
+    /// The script names this selector picks out of `manifest`: an exact
+    /// match wins, otherwise every script the pattern matches.
+    pub(super) fn select(&self, manifest: &Value) -> Vec<String> {
+        let scripts = manifest.get("scripts").and_then(Value::as_object);
+        let has_script = scripts
+            .and_then(|scripts| scripts.get(self.name))
+            .and_then(Value::as_str)
+            .is_some_and(|script| !script.is_empty());
+
+        if has_script {
+            return vec![self.name.to_string()];
+        }
+        let (Some(pattern), Some(scripts)) = (self.pattern.as_ref(), scripts) else {
+            return Vec::new();
+        };
+        scripts.keys().filter(|script| pattern.is_match(script)).cloned().collect()
     }
-    Vec::new()
+
+    /// [`Self::select`] plus single-project `run`'s `start` fallback:
+    /// `pnpm start` resolves to `node server.js` even when the manifest
+    /// declares no `start` script. The recursive runner has no such
+    /// fallback.
+    fn select_with_start(&self, manifest: &Value) -> Vec<String> {
+        let specified = self.select(manifest);
+        if !specified.is_empty() {
+            return specified;
+        }
+        if self.name == "start" {
+            return vec![self.name.to_string()];
+        }
+        Vec::new()
+    }
+}
+
+/// Compile a `/pattern/` script selector, as pnpm's
+/// `tryBuildRegExpFromCommand` does. `Ok(None)` means `command` is not a
+/// regexp literal and addresses a script by name; a pattern the engine
+/// rejects also reads as a plain name, so a mistyped selector surfaces as
+/// the usual "missing script" error rather than a parser diagnostic.
+fn try_build_regex_from_command(command: &str) -> Result<Option<Regex>, RunError> {
+    let Some((pattern, flags)) = split_regex_literal(command) else {
+        return Ok(None);
+    };
+    // Flags say nothing useful about which scripts to select, so pnpm
+    // rejects them rather than silently honouring a subset.
+    if !flags.is_empty() {
+        return Err(RunError::UnsupportedScriptCommandFormat);
+    }
+    Ok(Regex::new(pattern).ok())
+}
+
+/// Split `/pattern/flags` into its two parts. `None` when `command` is
+/// not shaped like a regexp literal: pnpm requires a non-empty pattern
+/// whose only `/` characters are backslash-escaped, and flags drawn from
+/// JavaScript's flag set. The closing delimiter is therefore the last
+/// `/` in the string.
+fn split_regex_literal(command: &str) -> Option<(&str, &str)> {
+    let body = command.strip_prefix('/')?;
+    let close = body.rfind('/')?;
+    let (pattern, flags) = body.split_at(close);
+    let flags = &flags[1..];
+    if pattern.is_empty() || !flags.chars().all(|flag| "dgimuvys".contains(flag)) {
+        return None;
+    }
+    let mut chars = pattern.chars();
+    while let Some(char) = chars.next() {
+        match char {
+            '\\' => {
+                chars.next();
+            }
+            '/' => return None,
+            _ => {}
+        }
+    }
+    Some((pattern, flags))
 }
 
 /// Drop hidden scripts (names starting with `.`) or reject an explicit

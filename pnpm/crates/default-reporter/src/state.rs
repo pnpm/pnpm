@@ -5,7 +5,7 @@
 //! path per log channel.
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fmt::Write as _,
     path::{Component, Path, PathBuf},
 };
@@ -269,6 +269,12 @@ pub struct ReporterState {
 
     deprecated_subdeps: Vec<DeprecationLog>,
     deprecated_slot: BlockSlot,
+    /// Package ids already reported as a direct-dependency deprecation.
+    /// pnpm reports each deprecated package once, on first resolution;
+    /// pacquet's resolver re-emits a package it later meets at a
+    /// shallower depth, so the "already said this" bookkeeping lives
+    /// here instead.
+    reported_direct_deprecations: HashSet<String>,
 }
 
 const MAX_SHOWN_WARNINGS: usize = 5;
@@ -364,6 +370,7 @@ impl ReporterState {
             collapsed_warn_slot: BlockSlot::default(),
             deprecated_subdeps: Vec::new(),
             deprecated_slot: BlockSlot::default(),
+            reported_direct_deprecations: HashSet::new(),
         }
     }
 
@@ -1135,6 +1142,13 @@ impl ReporterState {
     /// `resolution_done` summary.
     fn on_deprecation(&mut self, log: &DeprecationLog) {
         if log.depth == 0 {
+            // A package that already went out as a subdependency is
+            // really a direct one; drop the pending summary entry so it
+            // isn't counted twice.
+            self.deprecated_subdeps.retain(|pending| pending.pkg_id != log.pkg_id);
+            if !self.reported_direct_deprecations.insert(log.pkg_id.clone()) {
+                return;
+            }
             if log.prefix.is_empty() || log.prefix == self.cwd {
                 self.push_block(format!(
                     "{} {} {}@{}: {}",
@@ -1156,7 +1170,9 @@ impl ReporterState {
                 );
                 self.push_block(zoom_out(&self.cwd, &log.prefix, &msg));
             }
-        } else {
+        } else if !self.reported_direct_deprecations.contains(&log.pkg_id)
+            && !self.deprecated_subdeps.iter().any(|pending| pending.pkg_id == log.pkg_id)
+        {
             self.deprecated_subdeps.push(log.clone());
         }
     }

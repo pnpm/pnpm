@@ -517,6 +517,7 @@ pub(crate) fn run_build_phase<Reporter: self::Reporter>(
         patches: patches.as_ref(),
         scripts_prepend_node_path,
         extra_env,
+        user_agent: &config.user_agent,
         unsafe_perm: config.unsafe_perm,
         child_concurrency: config.child_concurrency,
         skipped,

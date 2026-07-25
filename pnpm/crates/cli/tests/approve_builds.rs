@@ -76,6 +76,60 @@ fn ignored_builds_lists_the_blocked_dependency() {
     drop(harness);
 }
 
+/// pnpm scaffolds an `allowBuilds` entry per ignored build with a
+/// placeholder string. The workspace pnpm left behind must stay usable:
+/// the config still loads, and the undecided package is reported as
+/// automatically — not explicitly — ignored.
+#[test]
+fn allow_builds_placeholder_does_not_block_commands() {
+    let (harness, workspace) = install_with_ignored_build();
+
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&yaml_path).expect("read yaml");
+    writeln!(
+        yaml,
+        "allowBuilds:\n  \"@pnpm.e2e/install-script-example\": set this to true or false\n  \
+         other-pkg: set this to true or false",
+    )
+    .expect("format allowBuilds");
+    fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
+
+    let output = stdout_of(pacquet(&workspace).with_arg("ignored-builds").assert());
+    assert!(
+        output.contains("Automatically ignored builds during installation:"),
+        "output: {output}",
+    );
+    assert!(output.contains("@pnpm.e2e/install-script-example"), "output: {output}");
+    assert!(
+        !output.contains("Explicitly ignored package builds"),
+        "an undecided entry is not an explicit denial: {output}",
+    );
+
+    // Deciding a package replaces its placeholder outright — the whole
+    // value, not the first word of it, which would leave the rest behind
+    // as a plain scalar that reads as undecided all over again.
+    pacquet(&workspace)
+        .with_args(["approve-builds", "@pnpm.e2e/install-script-example"])
+        .assert()
+        .success();
+    let yaml = fs::read_to_string(&yaml_path).expect("read yaml");
+    // Matched whole-line: a value of `true this to true or false` would
+    // satisfy a `contains` on the prefix while still reading as a
+    // string, leaving the package undecided.
+    assert!(
+        yaml.lines().any(|line| line.trim() == r#""@pnpm.e2e/install-script-example": true"#),
+        "the decided entry is replaced cleanly: {yaml}",
+    );
+    // A package the approval didn't name keeps its placeholder, even
+    // though an undecided entry never reaches `Config::allow_builds`.
+    assert!(
+        yaml.contains("other-pkg: set this to true or false"),
+        "an unrelated undecided entry survives: {yaml}",
+    );
+
+    drop(harness);
+}
+
 #[test]
 fn approve_builds_with_args_runs_the_build() {
     let (harness, workspace) = install_with_ignored_build();

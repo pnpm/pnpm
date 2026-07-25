@@ -3,7 +3,7 @@ use pacquet_reporter::{
     PromptAction, StatsLog, StatsMessage,
 };
 
-use super::{LogEvent, Output, Sink, is_coalesceable};
+use super::{Colors, LogEvent, Output, ReporterState, Sink, is_coalesceable};
 
 #[test]
 fn progress_and_in_progress_downloads_coalesce() {
@@ -86,4 +86,54 @@ fn prompt_renders_only_the_latest_buffered_frame() {
     let output = String::from_utf8(writes).expect("utf8 output");
     assert!(output.contains("latest"));
     assert!(!output.contains("stale"));
+}
+
+/// pnpm reports each deprecated package once, on first resolution.
+/// pacquet's resolver re-emits a package it later meets at a shallower
+/// depth, so the reporter has to fold the repeats away: one line per
+/// package, and a package that turns out to be direct must not also be
+/// counted among the deprecated subdependencies.
+#[test]
+fn a_deprecated_package_is_reported_once_even_when_re_emitted() {
+    use pacquet_reporter::{DeprecationLog, Stage, StageLog};
+
+    let deprecation = |pkg_id: &str, depth: i32, prefix: &str| {
+        LogEvent::Deprecation(DeprecationLog {
+            level: LogLevel::Debug,
+            pkg_name: "glob".to_string(),
+            pkg_version: "10.5.0".to_string(),
+            pkg_id: pkg_id.to_string(),
+            prefix: prefix.to_string(),
+            deprecated: "no longer supported".to_string(),
+            depth,
+        })
+    };
+
+    let mut state = ReporterState::new("/repo".to_string(), 120, Colors { enabled: false }, true);
+    let mut rendered = String::new();
+    let mut record = |output: Output| {
+        if let Output::Lines(lines) = output {
+            for line in lines {
+                rendered.push_str(&line);
+                rendered.push('\n');
+            }
+        }
+    };
+
+    // First met deep in the tree, then again as a direct dependency of
+    // two workspace projects.
+    record(state.handle(&deprecation("glob@10.5.0", 3, "/repo/packages/a")));
+    record(state.handle(&deprecation("glob@10.5.0", 0, "/repo")));
+    record(state.handle(&deprecation("glob@10.5.0", 0, "/repo/packages/b")));
+    record(state.handle(&LogEvent::Stage(StageLog {
+        level: LogLevel::Debug,
+        prefix: "/repo".to_string(),
+        stage: Stage::ResolutionDone,
+    })));
+
+    assert_eq!(rendered.matches("deprecated").count(), 1, "rendered:\n{rendered}");
+    assert!(
+        !rendered.contains("deprecated subdependencies found"),
+        "a direct deprecation must not also be summarized as a subdependency:\n{rendered}",
+    );
 }

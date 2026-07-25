@@ -35,6 +35,40 @@ where
     Option::<Value>::deserialize(deserializer).map(Some)
 }
 
+/// The value of an `allowBuilds` entry.
+///
+/// pnpm scaffolds an entry per ignored build with the placeholder string
+/// `set this to true or false` for the user to edit, so the file it wrote
+/// itself must stay loadable. Only [`AllowBuild::Decided`] entries reach
+/// [`Config::allow_builds`]; an undecided one leaves the package under the
+/// default-deny policy, exactly as pnpm's `createAllowBuildFunction`
+/// (which matches on `true`/`false` and ignores anything else) does.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum AllowBuild {
+    Decided(bool),
+    Undecided(String),
+}
+
+impl AllowBuild {
+    /// The policy this entry resolves to, or `None` while it is still an
+    /// unedited placeholder.
+    #[must_use]
+    pub fn decided(&self) -> Option<bool> {
+        match self {
+            AllowBuild::Decided(allowed) => Some(*allowed),
+            AllowBuild::Undecided(_) => None,
+        }
+    }
+}
+
+/// Reduce a parsed `allowBuilds` map to the entries that drive the build
+/// policy, dropping the ones still awaiting a decision.
+#[must_use]
+pub fn decided_allow_builds(allow_builds: HashMap<String, AllowBuild>) -> HashMap<String, bool> {
+    allow_builds.into_iter().filter_map(|(pkg, value)| Some((pkg, value.decided()?))).collect()
+}
+
 /// Settings readable from `pnpm-workspace.yaml`.
 ///
 /// pnpm 10+ moved the bulk of its configuration (`storeDir`, `registry`,
@@ -238,13 +272,13 @@ pub struct WorkspaceSettings {
     /// and reinstalls on every invocation.
     pub config_dependencies: Option<BTreeMap<String, ConfigDependency>>,
 
-    /// Map of `name[@version]` → `true` / `false`. Drives pnpm 11's
+    /// Map of `name[@version]` → [`AllowBuild`]. Drives pnpm 11's
     /// default-deny build policy: a package's lifecycle scripts only
     /// run when an entry here resolves to `true`.
     ///
     /// pnpm 10+ moved `allowBuilds` out of `package.json#pnpm` into
     /// `pnpm-workspace.yaml` alongside other install settings.
-    pub allow_builds: Option<HashMap<String, bool>>,
+    pub allow_builds: Option<HashMap<String, AllowBuild>>,
 
     /// Bypass the [`allow_builds`] gate entirely — every package may
     /// run lifecycle scripts. Same `pnpm-workspace.yaml` migration
@@ -1081,7 +1115,7 @@ impl WorkspaceSettings {
             config.config_dependencies = Some(v);
         }
         if let Some(v) = self.allow_builds {
-            config.allow_builds = v;
+            config.allow_builds = decided_allow_builds(v);
         }
         if let Some(v) = self.dangerously_allow_all_builds {
             config.dangerously_allow_all_builds = v;

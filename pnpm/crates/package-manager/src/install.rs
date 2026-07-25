@@ -468,6 +468,22 @@ pub enum InstallError {
     )]
     OutdatedLockfile { reason: StalenessReason },
 
+    /// A setting the lockfile records no longer matches the one the
+    /// current install resolved — `overrides`, `patchedDependencies`,
+    /// `catalogs`, and the rest of pnpm's `getOutdatedLockfileSetting`
+    /// set. Distinct from [`InstallError::OutdatedLockfile`], which is
+    /// drift between the lockfile and `package.json`: naming the one
+    /// setting that changed is more actionable than dumping the diff,
+    /// and it is the code pnpm reports.
+    #[display(
+        r#"Cannot proceed with the frozen installation. The current "{setting}" configuration doesn't match the value found in the lockfile"#
+    )]
+    #[diagnostic(
+        code(ERR_PNPM_LOCKFILE_CONFIG_MISMATCH),
+        help(r#"Update your lockfile using "pnpm install --no-frozen-lockfile""#)
+    )]
+    LockfileConfigMismatch { setting: &'static str },
+
     /// `--frozen-lockfile` was requested against a lockfile whose
     /// `importers` map has no entry for the root project. Distinct
     /// from `NoLockfile` (file missing) — here the file exists but
@@ -2696,7 +2712,10 @@ impl From<FreshnessCheckError> for InstallError {
             FreshnessCheckError::CalcPatchHashes(inner) => InstallError::WithFreshLockfile(
                 InstallWithFreshLockfileError::CalcPatchHashes(inner),
             ),
-            FreshnessCheckError::Stale(reason) => InstallError::OutdatedLockfile { reason },
+            FreshnessCheckError::Stale(reason) => match reason.setting_name() {
+                Some(setting) => InstallError::LockfileConfigMismatch { setting },
+                None => InstallError::OutdatedLockfile { reason },
+            },
         }
     }
 }
@@ -3580,7 +3599,7 @@ fn run_projects_lifecycle_scripts<Reporter: self::Reporter>(
                 node_execpath: None,
                 npm_execpath: None,
                 node_gyp_path: None,
-                user_agent: None,
+                user_agent: Some(&config.user_agent),
                 unsafe_perm: config.unsafe_perm,
                 node_gyp_bin: None,
                 scripts_prepend_node_path,

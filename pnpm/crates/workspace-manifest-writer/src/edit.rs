@@ -1086,10 +1086,16 @@ fn replace_bool_value_at(text: &str, path: &[&str], key: &str, value: bool) -> S
     let colon = indent_len
         + structural_colon_index(&content[indent_len..]).expect("entry line has a delimiter");
     let key_text = content[..colon].trim_end();
-    // Preserve any trailing comment after the value token.
+    // Preserve any trailing comment, and replace the whole value.
+    // Ending the value at its first whitespace would truncate a
+    // multi-word plain scalar and leave the tail behind as garbage —
+    // `allowBuilds` entries carry exactly such a value while they still
+    // hold pnpm's `set this to true or false` placeholder.
     let after = content[colon + 1..].trim_start();
-    let value_end = after.find(char::is_whitespace).unwrap_or(after.len());
-    let trailing = &after[value_end..];
+    let trailing = match comment_start(after) {
+        Some(idx) => format!(" {}", &after[idx..]),
+        None => String::new(),
+    };
     let new_line = format!("{key_text}: {}{trailing}\n", render_bool(value));
 
     let mut out = String::with_capacity(text.len());
@@ -1097,6 +1103,51 @@ fn replace_bool_value_at(text: &str, path: &[&str], key: &str, value: bool) -> S
     out.push_str(&new_line);
     out.push_str(&text[entry.line_end..]);
     out
+}
+
+/// Byte offset of a value's trailing comment, if it has one.
+///
+/// A `#` opens a comment only when whitespace precedes it and it sits
+/// outside a quoted scalar, so neither a `#` within the value nor one in
+/// a quoted string is mistaken for a comment.
+///
+/// A quote delimits a scalar only when it opens the value: YAML has no
+/// way to start quoting partway through, so `don't` is a plain scalar
+/// holding an apostrophe, not an unterminated quote.
+fn comment_start(value: &str) -> Option<usize> {
+    let scan_from = match value.as_bytes().first() {
+        Some(&quote @ (b'"' | b'\'')) => closing_quote(value, quote)? + 1,
+        _ => 0,
+    };
+    let bytes = value.as_bytes();
+    (scan_from..bytes.len())
+        .find(|&idx| bytes[idx] == b'#' && idx > 0 && bytes[idx - 1].is_ascii_whitespace())
+}
+
+/// Byte offset of the quote closing the scalar `value` opens with.
+/// `None` when it is never closed, which leaves the value unparsable —
+/// the caller then treats the whole of it as the value rather than
+/// guessing where a comment might start.
+///
+/// Escaping differs by quote style: a double-quoted scalar escapes with
+/// `\`, a single-quoted one by doubling the quote.
+fn closing_quote(value: &str, quote: u8) -> Option<usize> {
+    let bytes = value.as_bytes();
+    let mut idx = 1;
+    while idx < bytes.len() {
+        match bytes[idx] {
+            b'\\' if quote == b'"' => idx += 2,
+            byte if byte == quote => {
+                if quote == b'\'' && bytes.get(idx + 1) == Some(&quote) {
+                    idx += 2;
+                } else {
+                    return Some(idx);
+                }
+            }
+            _ => idx += 1,
+        }
+    }
+    None
 }
 
 fn strip_quotes(key: &str) -> String {

@@ -1446,3 +1446,124 @@ fn test_pattern_from_workspace_yaml_is_respected_by_the_test_script() {
 
     drop(root);
 }
+
+/// A `/pattern/` selector runs every matching script in every selected
+/// project, not just one script per project.
+#[test]
+fn recursive_run_executes_every_script_matching_a_regexp_selector() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[
+            (
+                "both",
+                json!({
+                    "name": "both",
+                    "version": "1.0.0",
+                    "scripts": {
+                        "build:backend": "touch backend.txt",
+                        "build:frontend": "touch frontend.txt",
+                        "test": "touch test.txt",
+                    },
+                }),
+            ),
+            (
+                "neither",
+                json!({
+                    "name": "neither",
+                    "version": "1.0.0",
+                    "scripts": { "test": "touch test.txt" },
+                }),
+            ),
+        ],
+    );
+
+    pacquet
+        .with_args(["-r", "run", "--report-summary", "/^build:(backend|frontend)$/"])
+        .assert()
+        .success();
+
+    assert!(workspace.join("both").join("backend.txt").exists());
+    assert!(workspace.join("both").join("frontend.txt").exists());
+    assert!(!workspace.join("both").join("test.txt").exists());
+
+    let statuses = summary_statuses(&workspace);
+    assert_eq!(statuses.get("both").map(String::as_str), Some("passed"));
+    assert_eq!(statuses.get("neither").map(String::as_str), Some("skipped"), "{statuses:?}");
+
+    drop(root);
+}
+
+/// A `/pattern/` selector can match several scripts in one project, but
+/// the summary carries a single status per project and the exit code is
+/// derived from it. Under `--no-bail` a later script's success must not
+/// erase an earlier one's failure.
+#[test]
+fn recursive_run_keeps_a_failure_when_a_later_selected_script_passes() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[(
+            "pkg",
+            json!({
+                "name": "pkg",
+                "version": "1.0.0",
+                "scripts": {
+                    // Alphabetical order puts the failure first, so a
+                    // regression reports the project as passed.
+                    "check:a": "exit 1",
+                    "check:b": "true",
+                },
+            }),
+        )],
+    );
+
+    pacquet
+        .with_args(["-r", "run", "--no-bail", "--report-summary", "/^check:/"])
+        .assert()
+        .failure();
+
+    let statuses = summary_statuses(&workspace);
+    assert_eq!(
+        statuses.get("pkg").map(String::as_str),
+        Some("failure"),
+        "a failed script must survive a later passing one: {statuses:?}",
+    );
+
+    drop(root);
+}
+
+/// A selector can match a script with an empty body alongside a real
+/// one. The no-op says nothing about the script that did run, so it must
+/// not overwrite the project's recorded status.
+#[test]
+fn recursive_run_keeps_a_pass_when_a_later_selected_script_is_a_no_op() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[(
+            "pkg",
+            json!({
+                "name": "pkg",
+                "version": "1.0.0",
+                "scripts": {
+                    "check:a": "true",
+                    // Sorts after `check:a`, so a regression reports the
+                    // project as skipped rather than passed.
+                    "check:b": "",
+                },
+            }),
+        )],
+    );
+
+    pacquet.with_args(["-r", "run", "--report-summary", "/^check:/"]).assert().success();
+
+    let statuses = summary_statuses(&workspace);
+    assert_eq!(
+        statuses.get("pkg").map(String::as_str),
+        Some("passed"),
+        "a no-op script must not erase the passing one: {statuses:?}",
+    );
+
+    drop(root);
+}

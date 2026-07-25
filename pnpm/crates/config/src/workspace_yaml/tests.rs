@@ -1,4 +1,4 @@
-use super::{LoadWorkspaceYamlError, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings};
+use super::{AllowBuild, LoadWorkspaceYamlError, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings};
 use crate::{
     AuditLevel, CatalogMode, Config, HoistingLimits, LinkWorkspacePackages, NodeLinker,
     NodePackageMapType, ResolutionMode, ScriptsPrependNodePath, TrustPolicy, api::EnvVar,
@@ -641,14 +641,39 @@ allowBuilds:
 "#;
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     let raw = settings.allow_builds.clone().expect("field present");
-    assert_eq!(raw.get("esbuild").copied(), Some(true));
-    assert_eq!(raw.get("foo@1.0.0").copied(), Some(true));
-    assert_eq!(raw.get("bar").copied(), Some(false));
+    assert_eq!(raw.get("esbuild").and_then(AllowBuild::decided), Some(true));
+    assert_eq!(raw.get("foo@1.0.0").and_then(AllowBuild::decided), Some(true));
+    assert_eq!(raw.get("bar").and_then(AllowBuild::decided), Some(false));
 
     let mut config = Config::new();
     assert!(config.allow_builds.is_empty(), "default is empty");
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert_eq!(config.allow_builds.get("esbuild").copied(), Some(true));
+}
+
+/// pnpm scaffolds `allowBuilds` entries with a placeholder string for the
+/// user to replace. The file pnpm wrote must stay loadable, and the
+/// undecided package must stay under the default-deny policy rather than
+/// becoming an explicit `false` (which `pnpm ignored-builds` would then
+/// report as explicitly ignored).
+#[test]
+fn accepts_placeholder_strings_in_allow_builds() {
+    let yaml = r"
+allowBuilds:
+  esbuild: set this to true or false
+  sharp: true
+";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let raw = settings.allow_builds.clone().expect("field present");
+    assert_eq!(
+        raw.get("esbuild"),
+        Some(&AllowBuild::Undecided("set this to true or false".to_string())),
+    );
+
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(config.allow_builds.get("sharp").copied(), Some(true));
+    assert_eq!(config.allow_builds.get("esbuild").copied(), None);
 }
 
 /// `dangerouslyAllowAllBuilds` is a single boolean — default `false`
