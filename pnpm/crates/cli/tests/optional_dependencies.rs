@@ -911,6 +911,34 @@ fn fail_on_unsupported_dependency_of_optional_dependency() {
     drop((root, npmrc_info)); // cleanup
 }
 
+/// TS: `fail on unsupported dependency of optional dependency during a
+/// headless install` (`optionalDependencies.ts:737`). The lockfile marks
+/// the whole subtree `optional: true` because it hangs off a root
+/// `optionalDependencies` entry, so only a per-edge dispatch reaches the
+/// `engineStrict` failure on the frozen path too.
+#[test]
+fn fail_on_unsupported_dependency_of_optional_dependency_during_a_headless_install() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+
+    pacquet
+        .with_args(["add", "--save-optional", "@pnpm.e2e/has-not-compatible-dep@1.0.0"])
+        .assert()
+        .success();
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    append_workspace_yaml_key(&workspace, "engineStrict", "true");
+
+    let assert =
+        pacquet_in(&workspace).with_args(["install", "--frozen-lockfile"]).assert().failure();
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    assert!(
+        stderr.contains("ERR_PNPM_UNSUPPORTED_PLATFORM"),
+        "the frozen install must dispatch per edge like the resolve path; got:\n{stderr}",
+    );
+
+    drop((root, npmrc_info)); // cleanup
+}
+
 /// TS: `do not fail on an optional dependency that has a non-optional
 /// dependency with a failing postinstall script`
 /// (`optionalDependencies.ts:563`).

@@ -319,7 +319,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   const initialImporterIds = (opts.ignorePackageManifest === true || opts.nodeLinker === 'hoisted')
     ? Object.keys(wantedLockfile.importers) as ProjectId[]
     : selectedProjects.map(({ id }) => id)
-  const { lockfile: filteredLockfile, selectedImporterIds: importerIds } = filterLockfileByImportersAndEngine(wantedLockfile, initialImporterIds, filterOpts)
+  const { lockfile: filteredLockfile, selectedImporterIds: importerIds, requiredDepPaths } = filterLockfileByImportersAndEngine(wantedLockfile, initialImporterIds, filterOpts)
   if (opts.excludeLinksFromLockfile) {
     for (const { id, manifest, rootDir } of selectedProjects) {
       if (filteredLockfile.importers[id]) {
@@ -359,6 +359,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     allowBuild,
     importerIds,
     lockfileDir,
+    requiredDepPaths,
     skipped,
     virtualStoreDir,
     nodeVersion: opts.currentEngine.nodeVersion,

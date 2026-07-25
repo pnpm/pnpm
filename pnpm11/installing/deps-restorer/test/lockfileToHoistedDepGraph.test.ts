@@ -49,6 +49,7 @@ function hoistedOpts (lockfileDir: string): Parameters<typeof lockfileToHoistedD
     nodeVersion: process.version,
     pnpmVersion: '0.0.0',
     registries: { default: 'http://localhost/' },
+    requiredDepPaths: new Set(),
     sideEffectsCacheRead: false,
     skipped: new Set<string>(),
     storeController: {
