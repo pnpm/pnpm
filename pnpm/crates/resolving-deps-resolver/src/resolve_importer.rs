@@ -728,20 +728,6 @@ fn intersect_ranges(ranges: &[&str]) -> Option<String> {
     .map(|range| range.to_string())
 }
 
-/// The one gate every candidate specifier passes through, whatever its
-/// source. See [`is_project_relative_specifier`].
-fn cross_importer_specifier(spec: Option<String>) -> Option<String> {
-    spec.filter(|spec| !is_project_relative_specifier(spec))
-}
-
-/// `link:` / `file:` / `workspace:` resolve against the consuming
-/// project's directory, so the root's copy of one can't stand in for
-/// another importer's peer — the same specifier would reach a different
-/// path there, or nothing. Same set `project_relative_cache_scope` uses.
-fn is_project_relative_specifier(spec: &str) -> bool {
-    spec.starts_with("link:") || spec.starts_with("file:") || spec.starts_with("workspace:")
-}
-
 /// `name_ver`, else the manifest — the canonical name for the protocols
 /// that leave `name_ver` unset. `None` for a git resolution, which has
 /// neither until it is fetched.
@@ -769,18 +755,15 @@ fn build_workspace_root_deps(
         out.push(WorkspaceRootDep {
             alias: dep.alias.clone(),
             pkg_name,
-            normalized_bare_specifier: cross_importer_specifier(
-                pkg.result
-                    .normalized_bare_specifier
-                    .clone()
-                    .or_else(|| declared.get(&dep.alias).cloned()),
-            ),
+            normalized_bare_specifier: pkg
+                .result
+                .normalized_bare_specifier
+                .clone()
+                .or_else(|| declared.get(&dep.alias).cloned()),
         });
     }
     for (alias, bare_specifier) in declared {
-        if named.contains(alias.as_str())
-            || cross_importer_specifier(Some(bare_specifier.clone())).is_none()
-        {
+        if named.contains(alias.as_str()) {
             continue;
         }
         let (pkg_name, _) = unwrap_package_name(alias, bare_specifier);

@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import { getPeerVersionRange } from '@pnpm/deps.peer-range'
 import type { PreferredVersions } from '@pnpm/resolving.resolver-base'
 import { lexCompare } from '@pnpm/util.lex-comparator'
@@ -137,9 +139,10 @@ export function getHoistableOptionalPeers (
  * The root dependency that provides `peerName`: an alias match wins over a
  * package-name match (an `npm:` alias can install the same package under a
  * different slot), and among package-name matches the lexicographically
- * first alias wins so the pick is stable. Only a dependency that has a
- * normalized specifier is a candidate — the callers have nothing to install
- * or bound the peer with otherwise.
+ * first alias wins so the pick is stable. A dependency is a candidate only
+ * when it has a normalized specifier another importer can resolve to the same
+ * package — the callers have nothing to install or bound the peer with
+ * otherwise.
  */
 function findWorkspaceRootDep (
   workspaceRootDeps: HoistableRootDep[],
@@ -149,7 +152,7 @@ function findWorkspaceRootDep (
   // importer on each hoist round.
   let rootDepByPkgName: HoistableRootDep | undefined
   for (const rootDep of workspaceRootDeps) {
-    if (!rootDep.normalizedBareSpecifier) continue
+    if (!rootDep.normalizedBareSpecifier || isImporterRelativeSpecifier(rootDep.normalizedBareSpecifier)) continue
     if (rootDep.alias === peerName) return rootDep
     if (
       rootDep.pkgName === peerName &&
@@ -159,4 +162,19 @@ function findWorkspaceRootDep (
     }
   }
   return rootDepByPkgName
+}
+
+/**
+ * Whether another importer resolving `bareSpecifier` verbatim would reach a
+ * different package. A rootless `link:` / `file:` path is taken relative to
+ * the directory of the importer that resolves it, so the workspace root's copy
+ * of one names something else from anywhere but the root. Every other
+ * specifier travels — a `workspace:` range among them, since it names a
+ * workspace package by version rather than by path.
+ */
+export function isImporterRelativeSpecifier (bareSpecifier: string): boolean {
+  const localProtocol = ['link:', 'file:'].find((protocol) => bareSpecifier.startsWith(protocol))
+  if (localProtocol == null) return false
+  const localPath = bareSpecifier.slice(localProtocol.length)
+  return !path.isAbsolute(localPath) && !localPath.startsWith('~/')
 }

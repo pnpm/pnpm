@@ -1473,3 +1473,24 @@ mod resolution_mode {
         assert_eq!(resolver.opts_for("sub"), (false, Some(cutoff)));
     }
 }
+
+/// The picker, not the builder, decides which specifiers may satisfy
+/// another importer's peer: see
+/// `hoist_peers::is_importer_relative_specifier`.
+#[test]
+fn build_workspace_root_deps_keeps_every_declared_specifier() {
+    let declared = std::collections::BTreeMap::from([
+        ("bar".to_string(), "link:../bar".to_string()),
+        ("foo".to_string(), "workspace:^1.2.3".to_string()),
+    ]);
+    let root_deps = crate::resolve_importer::build_workspace_root_deps(
+        &[],
+        &crate::resolved_tree::ResolvedTree::default(),
+        &declared,
+    );
+    let specs: Vec<(&str, Option<&str>)> = root_deps
+        .iter()
+        .map(|dep| (dep.alias.as_str(), dep.normalized_bare_specifier.as_deref()))
+        .collect();
+    assert_eq!(specs, vec![("bar", Some("link:../bar")), ("foo", Some("workspace:^1.2.3"))]);
+}

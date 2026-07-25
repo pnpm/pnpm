@@ -17,10 +17,10 @@ pub struct WorkspaceRootDep {
     /// The package's real name (for npm-alias entries, differs from
     /// the alias).
     pub pkg_name: String,
-    /// The specifier pacquet would resolve. `None` for entries with
-    /// no normalized form (e.g. linked-from-disk workspace packages
-    /// whose spec is a `link:` path); those are treated the same as
-    /// "not a candidate".
+    /// The specifier pacquet would resolve, as the root declared or
+    /// resolved it — including the local protocols
+    /// [`is_importer_relative_specifier`] rejects. `None` for entries
+    /// with no normalized form at all; those are not candidates either.
     pub normalized_bare_specifier: Option<String>,
 }
 
@@ -219,20 +219,40 @@ pub fn get_hoistable_optional_peers(
 /// The root dependency that provides `peer_name`: an alias match wins
 /// over a package-name match (an `npm:` alias can install the same
 /// package under a different slot), and among package-name matches the
-/// lexicographically first alias wins so the pick is stable. Only a
-/// dependency that has a normalized specifier is a candidate — the
-/// callers have nothing to install or bound the peer with otherwise.
+/// lexicographically first alias wins so the pick is stable. A
+/// dependency is a candidate only when it has a normalized specifier
+/// another importer can resolve to the same package — the callers have
+/// nothing to install or bound the peer with otherwise.
 fn find_workspace_root_dep<'a>(
     workspace_root_deps: &'a [WorkspaceRootDep],
     peer_name: &str,
 ) -> Option<&'a WorkspaceRootDep> {
-    let candidates =
-        || workspace_root_deps.iter().filter(|dep| dep.normalized_bare_specifier.is_some());
+    let candidates = || {
+        workspace_root_deps.iter().filter(|dep| {
+            dep.normalized_bare_specifier
+                .as_deref()
+                .is_some_and(|spec| !is_importer_relative_specifier(spec))
+        })
+    };
     candidates().find(|root_dep| root_dep.alias == peer_name).or_else(|| {
         candidates()
             .filter(|root_dep| root_dep.pkg_name == peer_name)
             .min_by(|a, b| a.alias.cmp(&b.alias))
     })
+}
+
+/// Whether another importer resolving `spec` verbatim would reach a
+/// different package. A rootless `link:` / `file:` path is taken
+/// relative to the directory of the importer that resolves it, so the
+/// workspace root's copy of one names something else from anywhere but
+/// the root. Every other specifier travels — a `workspace:` range among
+/// them, since it names a workspace package by version rather than by
+/// path.
+fn is_importer_relative_specifier(spec: &str) -> bool {
+    let Some(local_path) = spec.strip_prefix("link:").or_else(|| spec.strip_prefix("file:")) else {
+        return false;
+    };
+    !Path::new(local_path).is_absolute() && !local_path.starts_with("~/")
 }
 
 /// Highest version from `versions` that satisfies `range`, including

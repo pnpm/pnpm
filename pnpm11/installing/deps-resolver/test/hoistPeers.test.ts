@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import { expect, test } from '@jest/globals'
 
 import { getHoistableOptionalPeers, hoistPeers } from '../lib/hoistPeers.js'
@@ -370,6 +372,52 @@ test('hoistPeers skips a workspace root dependency that has no specifier in favo
     },
   }, workspaceRootDeps)).toStrictEqual({
     postcss: '8.5.10',
+  })
+})
+
+test('hoistPeers satisfies a peer from a workspace root dependency on a workspace package', () => {
+  expect(hoistPeers({
+    autoInstallPeers: true,
+    allPreferredVersions: {},
+    workspaceRootDeps: [{ alias: 'postcss', pkgName: 'postcss', normalizedBareSpecifier: 'workspace:^8.5.10' }],
+  }, [['postcss', { range: '^8.0.0' }]])).toStrictEqual({
+    postcss: 'workspace:^8.5.10',
+  })
+})
+
+test('hoistPeers ignores a workspace root dependency whose path another importer would resolve elsewhere', () => {
+  for (const normalizedBareSpecifier of ['link:../postcss', 'file:../postcss.tgz', 'link:postcss']) {
+    expect(hoistPeers({
+      autoInstallPeers: true,
+      allPreferredVersions: {},
+      workspaceRootDeps: [{ alias: 'postcss', pkgName: 'postcss', normalizedBareSpecifier }],
+    }, [['postcss', { range: '^8.0.0' }]])).toStrictEqual({
+      postcss: '^8.0.0',
+    })
+  }
+})
+
+test('hoistPeers keeps a workspace root dependency on an absolute path', () => {
+  const normalizedBareSpecifier = `link:${path.resolve('postcss')}`
+  expect(hoistPeers({
+    autoInstallPeers: true,
+    allPreferredVersions: {},
+    workspaceRootDeps: [{ alias: 'postcss', pkgName: 'postcss', normalizedBareSpecifier }],
+  }, [['postcss', { range: '^8.0.0' }]])).toStrictEqual({
+    postcss: normalizedBareSpecifier,
+  })
+})
+
+test('getHoistableOptionalPeers ignores a workspace root dependency on a relative path', () => {
+  expect(getHoistableOptionalPeers({ postcss: ['*'] }, {
+    postcss: {
+      '8.5.10': 'version',
+      '9.0.0': 'version',
+    },
+  }, [
+    { alias: 'postcss', pkgName: 'postcss', normalizedBareSpecifier: 'link:../postcss' },
+  ])).toStrictEqual({
+    postcss: '9.0.0',
   })
 })
 

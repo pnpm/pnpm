@@ -510,6 +510,85 @@ fn skips_a_workspace_root_dep_without_a_specifier_in_favor_of_one_with() {
     assert_eq!(optional, expected);
 }
 
+fn root_dep(spec: &str) -> [WorkspaceRootDep; 1] {
+    [WorkspaceRootDep {
+        alias: "postcss".to_string(),
+        pkg_name: "postcss".to_string(),
+        normalized_bare_specifier: Some(spec.to_string()),
+    }]
+}
+
+#[test]
+fn satisfies_a_peer_from_a_workspace_root_dep_on_a_workspace_package() {
+    let empty = PreferredVersions::new();
+    let root_deps = root_dep("workspace:^8.5.10");
+    let opts = HoistPeersOptions {
+        auto_install_peers: true,
+        all_preferred_versions: &empty,
+        workspace_root_deps: &root_deps,
+        override_bare_specifier: None,
+        project_dir: Path::new("/workspace"),
+    };
+    let result = hoist_peers(&opts, &[missing("postcss", "^8.0.0")]);
+    let mut expected = BTreeMap::new();
+    expected.insert("postcss".to_string(), "workspace:^8.5.10".to_string());
+    assert_eq!(result, expected);
+}
+
+#[test]
+fn ignores_a_workspace_root_dep_whose_path_another_importer_would_resolve_elsewhere() {
+    let empty = PreferredVersions::new();
+    for spec in ["link:../postcss", "file:../postcss.tgz", "link:postcss"] {
+        let root_deps = root_dep(spec);
+        let opts = HoistPeersOptions {
+            auto_install_peers: true,
+            all_preferred_versions: &empty,
+            workspace_root_deps: &root_deps,
+            override_bare_specifier: None,
+            project_dir: Path::new("/workspace"),
+        };
+        let result = hoist_peers(&opts, &[missing("postcss", "^8.0.0")]);
+        let mut expected = BTreeMap::new();
+        expected.insert("postcss".to_string(), "^8.0.0".to_string());
+        dbg!(spec);
+        assert_eq!(result, expected);
+    }
+}
+
+#[test]
+fn keeps_a_workspace_root_dep_on_an_absolute_path() {
+    let empty = PreferredVersions::new();
+    let root_deps = root_dep("link:/workspace/postcss");
+    let opts = HoistPeersOptions {
+        auto_install_peers: true,
+        all_preferred_versions: &empty,
+        workspace_root_deps: &root_deps,
+        override_bare_specifier: None,
+        project_dir: Path::new("/workspace"),
+    };
+    let result = hoist_peers(&opts, &[missing("postcss", "^8.0.0")]);
+    let mut expected = BTreeMap::new();
+    expected.insert("postcss".to_string(), "link:/workspace/postcss".to_string());
+    assert_eq!(result, expected);
+}
+
+#[test]
+fn get_hoistable_optional_peers_ignores_a_workspace_root_dep_on_a_relative_path() {
+    let preferred = preferred(&[(
+        "postcss",
+        &[
+            ("8.5.10", plain(VersionSelectorType::Version)),
+            ("9.0.0", plain(VersionSelectorType::Version)),
+        ],
+    )]);
+    let mut missing = BTreeMap::new();
+    missing.insert("postcss".to_string(), vec!["*".to_string()]);
+    let result = get_hoistable_optional_peers(&missing, &preferred, &root_dep("link:../postcss"));
+    let mut expected = BTreeMap::new();
+    expected.insert("postcss".to_string(), "9.0.0".to_string());
+    assert_eq!(result, expected);
+}
+
 #[test]
 fn get_hoistable_optional_peers_bounds_by_a_scheme_prefixed_workspace_root_specifier() {
     let preferred = preferred(&[(
