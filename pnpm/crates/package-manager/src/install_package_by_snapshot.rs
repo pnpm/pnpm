@@ -751,7 +751,7 @@ pub fn tarball_url_and_integrity<'a>(
 /// Every other remote tarball must carry one, so bytes fetched over
 /// the network for a package the lockfile claims to pin stay
 /// verifiable.
-fn unverified_fetch_is_allowed(tarball_url: &str) -> bool {
+pub(crate) fn unverified_fetch_is_allowed(tarball_url: &str) -> bool {
     tarball_url.starts_with("file:") || is_git_hosted_tarball_url(tarball_url)
 }
 

@@ -399,7 +399,8 @@ fn git_metadata() -> PackageMetadata {
 fn git_hosted_tarball_metadata() -> PackageMetadata {
     PackageMetadata {
         resolution: LockfileResolution::Tarball(TarballResolution {
-            tarball: "https://codeload.github.com/foo/bar/tar.gz/abc1234".to_string(),
+            tarball: "https://codeload.github.com/foo/bar/tar.gz/f43f6a1cefff47fb361c88cf4b943fdbcaafe540"
+                .to_string(),
             integrity: None,
             git_hosted: Some(true),
             path: None,
@@ -452,21 +453,19 @@ fn snapshot_cache_key_for_git_hosted_tarball_uses_git_hosted_key() {
     );
 }
 
-/// Lockfile entries written before pnpm pinned a hash for git-host
-/// archives carry no `integrity`, and pnpm's `pickStoreIndexKey`
-/// addresses those by the git-hosted key shape rather than failing.
+/// A plain remote tarball with no `integrity` is refused when the
+/// fetch path reaches it, so it gets no warm key: the git-hosted key
+/// shape `pickStoreIndexKey` would hand it is shared with every
+/// package of the same id, and a row sitting there would materialize
+/// the snapshot without the refusal ever running.
 #[test]
-fn snapshot_cache_key_for_tarball_without_integrity_uses_git_hosted_key() {
+fn snapshot_cache_key_for_a_refused_tarball_is_absent() {
     let pkg = key("foo", "1.0.0");
     let packages = HashMap::from([(pkg.clone(), tarball_metadata_without_integrity())]);
 
     let received = snapshot_cache_key(&pkg, &packages, false, &host_platform_selector())
         .expect("snapshot_cache_key must not error");
-    assert_eq!(
-        received,
-        Some(format!("{pkg}\tbuilt")),
-        "an integrity-less tarball must route through gitHostedStoreIndexKey",
-    );
+    assert_eq!(received, None, "a tarball the fetch path refuses must not warm-hit");
 }
 
 fn tarball_metadata_without_integrity() -> PackageMetadata {

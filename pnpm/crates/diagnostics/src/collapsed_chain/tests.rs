@@ -1,5 +1,5 @@
-use super::Collapsed;
-use miette::Diagnostic;
+use super::{Collapsed, CollapsingHandler};
+use miette::{Diagnostic, MietteHandlerOpts, ReportHandler};
 use std::{error::Error, fmt};
 
 /// A `#[diagnostic(transparent)]` wrapper: displays as its inner error
@@ -108,4 +108,62 @@ fn the_head_keeps_its_diagnostic_code() {
     let collapsed = Collapsed::new(&wrapped);
 
     assert_eq!(collapsed.code().map(|code| code.to_string()), Some("ERR_PNPM_LEAF".to_string()));
+}
+
+/// A wrapper that offers its inner error as a *diagnostic* source.
+/// miette prefers that over the plain error source, so the fold has to
+/// descend it too.
+#[derive(Debug)]
+struct DiagnosticWrapper {
+    inner: Leaf,
+}
+
+impl fmt::Display for DiagnosticWrapper {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&self.inner, formatter)
+    }
+}
+
+impl Error for DiagnosticWrapper {}
+
+impl Diagnostic for DiagnosticWrapper {
+    fn diagnostic_source(&self) -> Option<&dyn Diagnostic> {
+        Some(&self.inner)
+    }
+}
+
+#[test]
+fn a_diagnostic_source_is_folded_like_an_error_source() {
+    let wrapped = DiagnosticWrapper {
+        inner: Leaf { message: "tarball server returned HTTP 404", source: None },
+    };
+
+    let collapsed = Collapsed::new(&wrapped);
+
+    assert_eq!(messages(&collapsed), vec!["tarball server returned HTTP 404".to_string()]);
+}
+
+/// Renders through the installed handler, which is the only thing the
+/// CLI ever calls. `format!("{:?}")` is how miette's `Report` reaches
+/// it.
+#[test]
+fn the_handler_renders_a_repeated_message_once() {
+    struct Rendered<'a>(&'a CollapsingHandler, &'a dyn Diagnostic);
+
+    impl fmt::Debug for Rendered<'_> {
+        fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+            self.0.debug(self.1, formatter)
+        }
+    }
+
+    let handler = CollapsingHandler { inner: MietteHandlerOpts::new().build() };
+    let wrapped = Wrapper { inner: Wrapper { inner: Leaf { message: "boom", source: None } } };
+
+    let rendered = format!("{:?}", Rendered(&handler, &wrapped));
+
+    assert_eq!(
+        rendered.matches("boom").count(),
+        1,
+        "the message must be rendered once, got:\n{rendered}",
+    );
 }

@@ -1,6 +1,7 @@
 use crate::{
     CasPathsByPkgId, InstallPackageBySnapshot, InstallPackageBySnapshotError, SkippedSnapshots,
-    install_package_by_snapshot::runtime_platform_selector, store_init::init_store_dir_best_effort,
+    install_package_by_snapshot::{runtime_platform_selector, unverified_fetch_is_allowed},
+    store_init::init_store_dir_best_effort,
 };
 use derive_more::{Display, Error};
 use futures_util::future;
@@ -1242,6 +1243,16 @@ fn snapshot_cache_key(
     let pkg_id = metadata_key.to_string();
     match &metadata.resolution {
         LockfileResolution::Tarball(t) => {
+            // A tarball with no integrity that isn't one of the shapes
+            // exempt from verification never reaches the store: the
+            // fetch path refuses it. Give it no warm key at all, so a
+            // row already sitting at the shared `pkg_id\tbuilt` key
+            // (written for a git-hosted package of the same id) can't
+            // skip that refusal — pnpm likewise asserts fetchability
+            // before it consults the store.
+            if t.integrity.is_none() && !unverified_fetch_is_allowed(&t.tarball) {
+                return Ok(None);
+            }
             // Git-hosted tarballs land in the CAS via
             // `pacquet_git_fetcher::GitHostedTarballFetcher`, which
             // writes the row under `gitHostedStoreIndexKey(pkg_id,
