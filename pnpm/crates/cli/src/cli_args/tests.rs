@@ -677,21 +677,23 @@ fn workspace_root_requires_a_workspace() {
     assert!(matches!(error, WorkspaceRootError::NotInWorkspace));
 }
 
-/// An unusable `--dir` is reported as such, not as a missing workspace:
-/// `-w` must not change which error a bad `--dir` produces, and the
-/// walk it drives would otherwise silently start from an unresolved path.
+/// A `--dir` that does not exist still redirects to the workspace root
+/// above it: pnpm's `findWorkspaceDir` falls back to the given path when
+/// `fs.realpath` fails and walks it lexically, so `pnpm --dir
+/// packages/does-not-exist add <pkg> -w` adds to the root manifest instead
+/// of failing. Erroring here would diverge from that.
 #[test]
-fn workspace_root_reports_an_uncanonicalizable_dir() {
-    let (root, _canonical) = workspace_fixture();
-    let missing = root.path().join("packages/does-not-exist");
+fn workspace_root_tolerates_a_dir_that_does_not_exist() {
+    let (root, canonical) = workspace_fixture();
+    let missing = canonical.join("packages/does-not-exist");
 
     let mut args =
         CliArgs::try_parse_from(["pacquet", "add", "foo", "-w", "-C", &missing.to_string_lossy()])
             .expect("parses");
-    let error = args.apply_workspace_root().expect_err("--dir cannot be canonicalized");
+    args.apply_workspace_root().expect("redirects to the workspace root anyway");
 
-    dbg!(&error);
-    assert!(matches!(error, WorkspaceRootError::CanonicalizeDir { .. }));
+    assert_eq!(args.dir, canonical);
+    drop(root); // cleanup
 }
 
 #[test]

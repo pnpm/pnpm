@@ -16,7 +16,11 @@ use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
 #[cfg(unix)]
 use std::fs;
-use std::{ffi::OsStr, path::PathBuf, process::Command};
+use std::{
+    ffi::OsStr,
+    path::{Path, PathBuf},
+    process::Command,
+};
 use tempfile::TempDir;
 
 fn exec_pacquet_in_temp_cwd<Args>(args: Args) -> (TempDir, PathBuf, AddMockedRegistry)
@@ -200,12 +204,11 @@ fn add_accepts_multiple_local_package_selectors() {
     drop(root); // cleanup
 }
 
-/// `pnpm add -D <pkg> <pkg> -w` run from a workspace subdirectory
-/// (pnpm/pnpm#13031).
-#[test]
-fn add_workspace_root_saves_to_the_root_manifest_from_a_subdir() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-
+/// Declare `packages/*` as workspace packages with a single `packages/a`
+/// member, and write `local-a` / `local-b` under `fixtures/`, so a `-w` add
+/// can use `file:` specs that resolve from the root manifest instead of
+/// reaching the registry. Returns the member's directory.
+fn write_workspace_with_local_fixtures(workspace: &Path) -> PathBuf {
     let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
     let mut workspace_yaml = std::fs::read_to_string(&workspace_yaml_path).unwrap_or_default();
     if !workspace_yaml.is_empty() && !workspace_yaml.ends_with('\n') {
@@ -214,9 +217,8 @@ fn add_workspace_root_saves_to_the_root_manifest_from_a_subdir() {
     workspace_yaml.push_str("packages:\n  - 'packages/*'\n");
     std::fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
 
-    let fixtures_dir = workspace.join("fixtures");
     for package_name in ["local-a", "local-b"] {
-        let package_dir = fixtures_dir.join(package_name);
+        let package_dir = workspace.join("fixtures").join(package_name);
         std::fs::create_dir_all(&package_dir).expect("create local package directory");
         std::fs::write(
             package_dir.join("package.json"),
@@ -232,6 +234,49 @@ fn add_workspace_root_saves_to_the_root_manifest_from_a_subdir() {
         serde_json::json!({ "name": "a", "version": "1.0.0" }).to_string(),
     )
     .expect("write packages/a/package.json");
+    member_dir
+}
+
+/// A `--dir` that does not exist still redirects to the workspace root
+/// above it, matching pnpm: its `findWorkspaceDir` falls back to the given
+/// path when `fs.realpath` fails, then walks it for the manifest. Covered
+/// end to end because a relative `--dir` resolves against the process cwd,
+/// which a unit test must not mutate.
+#[test]
+fn add_workspace_root_tolerates_a_dir_that_does_not_exist() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace_with_local_fixtures(&workspace);
+
+    pacquet
+        .with_args([
+            "--dir",
+            "packages/does-not-exist",
+            "add",
+            "-D",
+            "local-a@file:./fixtures/local-a",
+            "-w",
+        ])
+        .assert()
+        .success();
+
+    let root_manifest = workspace
+        .join("package.json")
+        .pipe(PackageManifest::from_path)
+        .expect("read root manifest");
+    assert!(
+        root_manifest.dependencies([DependencyGroup::Dev]).any(|(key, _)| key == "local-a"),
+        "a nonexistent --dir must still redirect the add to the root manifest",
+    );
+
+    drop(root); // cleanup
+}
+
+/// `pnpm add -D <pkg> <pkg> -w` run from a workspace subdirectory
+/// (pnpm/pnpm#13031).
+#[test]
+fn add_workspace_root_saves_to_the_root_manifest_from_a_subdir() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let member_dir = write_workspace_with_local_fixtures(&workspace);
 
     pacquet
         .with_args([
