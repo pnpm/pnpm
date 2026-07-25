@@ -26,6 +26,11 @@ export default async () => {
   const storage = mkdtempSync(path.join(tmpdir(), 'pnpm-registry-mock-storage-'))
   buildStorage(storage)
   process.env.PNPM_REGISTRY_MOCK_STORAGE = storage
+  // Handed to globalTeardown so it removes only the directory this run
+  // created. The storage is a couple of gigabytes, so leaking one per
+  // run fills a tmpfs /tmp and later runs start failing with ENOSPC in
+  // whichever test happens to write next.
+  global.registryMockStorage = storage
   const config = writeTestConfig(storage)
 
   const bin = resolvePnprBin()
