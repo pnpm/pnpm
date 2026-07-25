@@ -356,8 +356,14 @@ fn approve_builds_global_is_rejected() {
 
         let assert = pacquet(&workspace).with_args(["approve-builds", global]).assert().failure();
         let stderr = String::from_utf8_lossy(&assert.get_output().stderr).into_owned();
+        // Code and message both: the code alone would not catch the two
+        // spellings drifting to different user-facing text.
         assert!(
             stderr.contains("ERR_PNPM_APPROVE_BUILDS_NOT_SUPPORTED_WITH_GLOBAL"),
+            "{global} stderr: {stderr}",
+        );
+        assert!(
+            stderr.contains(r#""approve-builds" is not supported with global packages"#),
             "{global} stderr: {stderr}",
         );
 
