@@ -223,19 +223,20 @@ pub fn get_hoistable_optional_peers(
 /// The root dependency that provides `peer_name`: an alias match wins
 /// over a package-name match (an `npm:` alias can install the same
 /// package under a different slot), and among package-name matches the
-/// lexicographically first alias wins so the pick is stable.
+/// lexicographically first alias wins so the pick is stable. Only a
+/// dependency that has a normalized specifier is a candidate — the
+/// callers have nothing to install or bound the peer with otherwise.
 fn find_workspace_root_dep<'a>(
     workspace_root_deps: &'a [WorkspaceRootDep],
     peer_name: &str,
 ) -> Option<&'a WorkspaceRootDep> {
-    let by_alias = workspace_root_deps.iter().find(|root_dep| root_dep.alias == peer_name);
-    if by_alias.is_some_and(|dep| dep.normalized_bare_specifier.is_some()) {
-        return by_alias;
-    }
-    workspace_root_deps
-        .iter()
-        .filter(|root_dep| root_dep.pkg_name == peer_name)
-        .min_by(|a, b| a.alias.cmp(&b.alias))
+    let candidates =
+        || workspace_root_deps.iter().filter(|dep| dep.normalized_bare_specifier.is_some());
+    candidates().find(|root_dep| root_dep.alias == peer_name).or_else(|| {
+        candidates()
+            .filter(|root_dep| root_dep.pkg_name == peer_name)
+            .min_by(|a, b| a.alias.cmp(&b.alias))
+    })
 }
 
 /// Highest version from `versions` that satisfies `range`, including

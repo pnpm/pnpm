@@ -340,6 +340,28 @@ test('getHoistableOptionalPeers stays within the workspace root\'s range', () =>
   })
 })
 
+test('hoistPeers skips a workspace root dependency that has no specifier in favor of one that has', () => {
+  const workspaceRootDeps = [
+    { alias: 'postcss', pkgName: 'postcss' },
+    { alias: 'zz-postcss', pkgName: 'postcss', normalizedBareSpecifier: '8.5.10' },
+  ]
+  expect(hoistPeers({
+    autoInstallPeers: true,
+    allPreferredVersions: {},
+    workspaceRootDeps,
+  }, [['postcss', { range: '^8.0.0' }]])).toStrictEqual({
+    postcss: '8.5.10',
+  })
+  expect(getHoistableOptionalPeers({ postcss: ['*'] }, {
+    postcss: {
+      '8.5.10': 'version',
+      '9.0.0': 'version',
+    },
+  }, workspaceRootDeps)).toStrictEqual({
+    postcss: '8.5.10',
+  })
+})
+
 test('getHoistableOptionalPeers stays within the version range of a scheme-prefixed workspace root specifier', () => {
   const allMissingOptionalPeers = { postcss: ['*'] }
   const allPreferredVersions = {

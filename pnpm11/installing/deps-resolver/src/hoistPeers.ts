@@ -135,15 +135,17 @@ export function getHoistableOptionalPeers (
  * The root dependency that provides `peerName`: an alias match wins over a
  * package-name match (an `npm:` alias can install the same package under a
  * different slot), and among package-name matches the lexicographically
- * first alias wins so the pick is stable.
+ * first alias wins so the pick is stable. Only a dependency that has a
+ * normalized specifier is a candidate — the callers have nothing to install
+ * or bound the peer with otherwise.
  */
 function findWorkspaceRootDep (
   workspaceRootDeps: HoistableRootDep[],
   peerName: string
 ): HoistableRootDep | undefined {
-  const rootDepByAlias = workspaceRootDeps.find((rootDep) => rootDep.alias === peerName)
-  if (rootDepByAlias?.normalizedBareSpecifier) return rootDepByAlias
-  return workspaceRootDeps
-    .filter((rootDep) => rootDep.pkgName === peerName)
-    .sort((rootDep1, rootDep2) => lexCompare(rootDep1.alias, rootDep2.alias))[0]
+  const candidates = workspaceRootDeps.filter((rootDep) => rootDep.normalizedBareSpecifier)
+  return candidates.find((rootDep) => rootDep.alias === peerName) ??
+    candidates
+      .filter((rootDep) => rootDep.pkgName === peerName)
+      .sort((rootDep1, rootDep2) => lexCompare(rootDep1.alias, rootDep2.alias))[0]
 }
