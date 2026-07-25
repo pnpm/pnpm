@@ -290,7 +290,12 @@ function pickSkippedDeps (ctx: PickPkgsContext, depEdges: DepEdge[], opts: PickP
       }
       ctx.pickedPackages[depPath] = pkgSnapshot
     }
-    for (const edge of ctx.edgesByDepPath.get(depPath) ?? nextDepEdges(ctx, pkgSnapshot, opts)) {
+    // `visited` guarantees one pass per dep path, so a cached entry is
+    // released as soon as it is consumed rather than being retained until the
+    // whole walk ends.
+    const edges = ctx.edgesByDepPath.get(depPath) ?? nextDepEdges(ctx, pkgSnapshot, opts)
+    ctx.edgesByDepPath.delete(depPath)
+    for (const edge of edges) {
       queue.push(edge.depPath)
     }
   }
