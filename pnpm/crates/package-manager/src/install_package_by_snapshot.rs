@@ -437,7 +437,7 @@ impl InstallPackageBySnapshot<'_> {
                 // endpoint doesn't run `prepare`/`prepublish*` and
                 // the file set typically needs packlist filtering.
                 if let LockfileResolution::Tarball(t) = resolution
-                    && t.git_hosted == Some(true)
+                    && t.is_git_hosted()
                 {
                     // `built` tracks `!ignore_scripts`, in lock-step
                     // with the key shape `snapshot_cache_key` produces —

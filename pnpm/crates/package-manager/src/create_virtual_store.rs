@@ -1254,7 +1254,7 @@ fn snapshot_cache_key(
             // address the same slot.
             Ok(Some(pick_store_index_key(
                 t.integrity.as_ref().map(ToString::to_string).as_deref(),
-                t.git_hosted == Some(true),
+                t.is_git_hosted(),
                 &pkg_id,
                 !ignore_scripts,
             )))
