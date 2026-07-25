@@ -92,7 +92,7 @@ fn resolves_configured_registry_scope_and_fetch_settings() {
 /// real HTTP client to `mockito`; the token poll is served by the fake fetch.
 #[tokio::test]
 async fn execute_performs_web_login_and_returns_the_success_message() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter, set_fetch);
     login_host_fake!(FakeHost);
     reset();
     set_fetch(Box::new(|| Ok(ok_token("web-token"))));
@@ -120,7 +120,7 @@ async fn execute_performs_web_login_and_returns_the_success_message() {
 /// HTTP-client build to the login call.
 #[tokio::test]
 async fn execute_propagates_the_non_interactive_error_from_login() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter, set_stdin_tty);
     login_host_fake!(FakeHost);
     reset();
     set_stdin_tty(false);

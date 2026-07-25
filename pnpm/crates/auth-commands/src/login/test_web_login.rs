@@ -22,7 +22,7 @@ use super::{
 
 #[tokio::test]
 async fn should_use_web_login_when_registry_supports_it() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter, set_fetch, infos);
     login_fake!(FakeHost, login_writes);
     reset();
     reset_login();
@@ -59,7 +59,7 @@ async fn should_use_web_login_when_registry_supports_it() {
 
 #[tokio::test]
 async fn should_log_in_to_a_registry_under_a_subpath_without_a_trailing_slash() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter, set_fetch);
     login_fake!(FakeHost, login_writes);
     reset();
     reset_login();
@@ -89,7 +89,7 @@ async fn should_log_in_to_a_registry_under_a_subpath_without_a_trailing_slash() 
 
 #[tokio::test]
 async fn should_succeed_when_config_file_does_not_exist() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter, set_fetch, infos);
     login_fake!(FakeHost, set_ini_read, login_writes);
     reset();
     reset_login();

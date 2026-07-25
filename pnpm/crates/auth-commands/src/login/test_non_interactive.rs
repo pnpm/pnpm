@@ -18,7 +18,7 @@ use super::{
 
 #[tokio::test]
 async fn should_throw_in_non_interactive_terminal() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter, set_stdin_tty);
     login_fake!(FakeHost);
     reset();
     reset_login();
