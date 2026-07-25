@@ -522,3 +522,167 @@ fn collect_injected_deps_maps_file_snapshots_to_slots() {
     assert_eq!(injected_hoisted.len(), 1, "unplaced sources dropped: {injected_hoisted:?}");
     assert_eq!(injected_hoisted["comp2"], vec!["node_modules/@scope/comp2".to_string()]);
 }
+
+/// Digests taken from pnpm's own `iterateHashedGraphNodes` over the
+/// same graph. Both CLIs share one global virtual store, so a snapshot
+/// inside a dependency cycle has to land on the same slot whichever of
+/// them installed it.
+#[test]
+fn cyclic_gvs_slots_match_pnpm() {
+    let expected = [
+        ("a@1.0.0", "@/a/1.0.0/3bf76a728c7e155a17137e13ca7af820eb13a0ff4003fed5c39649aac0309905"),
+        ("b@1.0.0", "@/b/1.0.0/728ab1a600ca69780231a2630496c2e83a88c82e965d09ac193fa448c0148a6d"),
+        ("m@1.0.0", "@/m/1.0.0/d671219222f32dfed181f294115e23fc07805b7b78048002872f131f69c07983"),
+        ("n@1.0.0", "@/n/1.0.0/92dec6e2ee818106a34b91bea178347566cc47fe25208afa683831ca5d494605"),
+        ("p@1.0.0", "@/p/1.0.0/b666adb72829d0d822cf2005226985c0b19de632b569fcd75363adf141af3c41"),
+        ("q@1.0.0", "@/q/1.0.0/49a1cd21058b93255957e5accf04137fe74ef88364f96f4b1116e3ca75083b6a"),
+        ("x@1.0.0", "@/x/1.0.0/4230805547fe5208b58758d53b200bc13c5475e3324af75adc87538fcf247857"),
+        ("y@1.0.0", "@/y/1.0.0/4fba92559776b8cd9c4a541f07da9fcc95c8a8ea427f4116de7b2f0606f0f03d"),
+    ];
+    assert_eq!(
+        cyclic_slot_suffixes(),
+        expected
+            .iter()
+            .map(|(key, suffix)| ((*key).to_string(), (*suffix).to_string()))
+            .collect::<Vec<_>>(),
+    );
+}
+
+/// The `HashMap`s a lockfile parses into iterate in a different order
+/// on every run, so a layout that walked them directly would move a
+/// cycle's slots around and make each repeat install re-import whatever
+/// landed on a fresh one ([pnpm/pnpm#13316](https://github.com/pnpm/pnpm/issues/13316)).
+#[test]
+fn cyclic_gvs_slots_are_stable_across_runs() {
+    let first = cyclic_slot_suffixes();
+    for _ in 0..64 {
+        assert_eq!(cyclic_slot_suffixes(), first);
+    }
+}
+
+fn cyclic_slot_suffixes() -> Vec<(String, String)> {
+    let config = make_config(
+        true,
+        PathBuf::from("/tmp/proj/node_modules/.pnpm"),
+        PathBuf::from("/tmp/store/links"),
+    );
+    let (snapshots, packages) = cyclic_snapshots();
+    // An empty policy allows no builds, which makes every snapshot hash
+    // engine-agnostically — the digests below then hold on any host.
+    let policy = crate::AllowBuildPolicy::default();
+    let layout = VirtualStoreLayout::new(
+        &config,
+        Some("darwin-arm64-node20"),
+        Some(&snapshots),
+        Some(&packages),
+        Some(&policy),
+    );
+    let mut suffixes: Vec<(String, String)> = snapshots
+        .keys()
+        .map(|snapshot_key| {
+            let slot = layout.slot_dir(snapshot_key);
+            let suffix = slot
+                .strip_prefix("/tmp/store/links")
+                .expect("slot under the global virtual store")
+                .to_string_lossy()
+                // `slot_dir` builds the tail from native components, so
+                // compare against the `/`-separated form the GVS path is
+                // canonically written in.
+                .replace('\\', "/");
+            (snapshot_key.to_string(), suffix)
+        })
+        .collect();
+    suffixes.sort();
+    suffixes
+}
+
+/// Two cyclic subgraphs whose digests only come out right when the
+/// hasher visits a snapshot's children the way pnpm's
+/// `{...dependencies, ...optionalDependencies}` object does.
+///
+/// `a` reaches the `p` ↔ `x` cycle through two regular dependencies —
+/// aliased `c` and `p` — so it pins the order *within* a section.
+/// `b` reaches the `n` ↔ `y` cycle through a regular `n` and an
+/// optional `c`, whose alias sorts first, so it pins that
+/// `optionalDependencies` still come last.
+fn cyclic_snapshots() -> (HashMap<PackageKey, SnapshotEntry>, HashMap<PackageKey, PackageMetadata>)
+{
+    let snapshots = HashMap::from([
+        (
+            key("a@1.0.0"),
+            SnapshotEntry {
+                dependencies: Some(HashMap::from([
+                    (alias("c"), SnapshotDepRef::Alias(key("q@1.0.0"))),
+                    (alias("p"), plain("1.0.0")),
+                ])),
+                ..Default::default()
+            },
+        ),
+        (
+            key("b@1.0.0"),
+            SnapshotEntry {
+                dependencies: Some(HashMap::from([(alias("n"), plain("1.0.0"))])),
+                optional_dependencies: Some(HashMap::from([(
+                    alias("c"),
+                    SnapshotDepRef::Alias(key("m@1.0.0")),
+                )])),
+                ..Default::default()
+            },
+        ),
+        (key("m@1.0.0"), depends_on("y")),
+        (key("n@1.0.0"), depends_on("y")),
+        (key("p@1.0.0"), depends_on("x")),
+        (key("q@1.0.0"), depends_on("x")),
+        (key("x@1.0.0"), depends_on("p")),
+        (key("y@1.0.0"), depends_on("n")),
+    ]);
+    let packages = snapshots
+        .keys()
+        .map(|snapshot_key| {
+            let lead = snapshot_key.name.to_string().to_uppercase();
+            (snapshot_key.clone(), registry_metadata(&lead))
+        })
+        .collect();
+    (snapshots, packages)
+}
+
+fn key(text: &str) -> PackageKey {
+    text.parse().expect("parse package key")
+}
+
+fn alias(text: &str) -> PkgName {
+    PkgName::parse(text).expect("parse alias")
+}
+
+fn plain(version: &str) -> SnapshotDepRef {
+    SnapshotDepRef::Plain(version.parse().expect("parse version"))
+}
+
+fn depends_on(name: &str) -> SnapshotEntry {
+    SnapshotEntry {
+        dependencies: Some(HashMap::from([(alias(name), plain("1.0.0"))])),
+        ..Default::default()
+    }
+}
+
+/// Registry metadata whose integrity starts with `lead`, so each
+/// package contributes a distinct `full_pkg_id` to the digests.
+fn registry_metadata(lead: &str) -> PackageMetadata {
+    let integrity = format!("sha512-{lead}{}", "A".repeat(91));
+    PackageMetadata {
+        resolution: LockfileResolution::Registry(RegistryResolution {
+            integrity: integrity.parse().expect("parse integrity"),
+        }),
+        version: None,
+        engines: None,
+        cpu: None,
+        os: None,
+        libc: None,
+        deprecated: None,
+        has_bin: None,
+        prepare: None,
+        bundled_dependencies: None,
+        peer_dependencies: None,
+        peer_dependencies_meta: None,
+    }
+}

@@ -4,6 +4,7 @@ use super::{
     join_global_virtual_store_path,
 };
 use crate::dep_state::DepsGraphNode;
+use indexmap::IndexMap;
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     path::{MAIN_SEPARATOR, Path},
@@ -48,7 +49,7 @@ fn identical_leaves_hash_identically() {
     let mut graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
     graph.insert(
         "leaf@1.0.0".to_string(),
-        DepsGraphNode { full_pkg_id: "leaf@1.0.0:sha512-x".to_string(), children: HashMap::new() },
+        DepsGraphNode { full_pkg_id: "leaf@1.0.0:sha512-x".to_string(), children: IndexMap::new() },
     );
     let mut cache_a = HashMap::new();
     let mut cache_b = HashMap::new();
@@ -79,7 +80,7 @@ fn engine_string_changes_hash() {
     let mut graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
     graph.insert(
         "leaf@1.0.0".to_string(),
-        DepsGraphNode { full_pkg_id: "leaf@1.0.0:sha512-x".to_string(), children: HashMap::new() },
+        DepsGraphNode { full_pkg_id: "leaf@1.0.0:sha512-x".to_string(), children: IndexMap::new() },
     );
     let mut cache = HashMap::new();
     let mut br = HashMap::new();
@@ -123,7 +124,7 @@ fn engine_agnostic_when_subtree_has_no_builders() {
         "pure-js@1.0.0".to_string(),
         DepsGraphNode {
             full_pkg_id: "pure-js@1.0.0:sha512-x".to_string(),
-            children: HashMap::new(),
+            children: IndexMap::new(),
         },
     );
     let built: HashSet<String> = std::iter::once("someone-else@1.0.0".to_string()).collect();
@@ -160,7 +161,7 @@ fn engine_included_when_self_in_built_set() {
         "native@1.0.0".to_string(),
         DepsGraphNode {
             full_pkg_id: "native@1.0.0:sha512-n".to_string(),
-            children: HashMap::new(),
+            children: IndexMap::new(),
         },
     );
     let built: HashSet<String> = std::iter::once("native@1.0.0".to_string()).collect();
@@ -190,7 +191,7 @@ fn engine_included_when_self_in_built_set() {
 #[test]
 fn engine_included_for_ancestor_of_builder() {
     let mut graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
-    let mut root_children = HashMap::new();
+    let mut root_children = IndexMap::new();
     root_children.insert("dep".to_string(), "native@1.0.0".to_string());
     graph.insert(
         "root@1.0.0".to_string(),
@@ -200,7 +201,7 @@ fn engine_included_for_ancestor_of_builder() {
         "native@1.0.0".to_string(),
         DepsGraphNode {
             full_pkg_id: "native@1.0.0:sha512-n".to_string(),
-            children: HashMap::new(),
+            children: IndexMap::new(),
         },
     );
     let built: HashSet<String> = std::iter::once("native@1.0.0".to_string()).collect();
@@ -234,7 +235,7 @@ fn none_built_dep_paths_disables_gating() {
         "pure-js@1.0.0".to_string(),
         DepsGraphNode {
             full_pkg_id: "pure-js@1.0.0:sha512-x".to_string(),
-            children: HashMap::new(),
+            children: IndexMap::new(),
         },
     );
     let mut cache_a = HashMap::new();
@@ -265,9 +266,9 @@ fn different_children_change_hash() {
     let mut graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
     graph.insert(
         "leaf@1.0.0".to_string(),
-        DepsGraphNode { full_pkg_id: "leaf@1.0.0:sha512-x".to_string(), children: HashMap::new() },
+        DepsGraphNode { full_pkg_id: "leaf@1.0.0:sha512-x".to_string(), children: IndexMap::new() },
     );
-    let mut root_a_children = HashMap::new();
+    let mut root_a_children = IndexMap::new();
     root_a_children.insert("a".to_string(), "leaf@1.0.0".to_string());
     graph.insert(
         "root@1.0.0(a)".to_string(),
@@ -275,7 +276,7 @@ fn different_children_change_hash() {
     );
     graph.insert(
         "root@1.0.0(b)".to_string(),
-        DepsGraphNode { full_pkg_id: "root@1.0.0:sha512-r".to_string(), children: HashMap::new() },
+        DepsGraphNode { full_pkg_id: "root@1.0.0:sha512-r".to_string(), children: IndexMap::new() },
     );
     let mut cache_a = HashMap::new();
     let mut br_a = HashMap::new();
@@ -306,7 +307,7 @@ fn leaf_matches_single_node_graph_hash() {
     let mut graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
     graph.insert(
         "leaf@1.0.0".to_string(),
-        DepsGraphNode { full_pkg_id: full.to_string(), children: HashMap::new() },
+        DepsGraphNode { full_pkg_id: full.to_string(), children: IndexMap::new() },
     );
     let mut cache = HashMap::new();
     let mut br = HashMap::new();

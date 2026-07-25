@@ -64,6 +64,18 @@ fn sole_hash_dir(pkg_version_dir: &Path) -> PathBuf {
     pkg_version_dir.join(&hashes[0])
 }
 
+/// Replace a file the importer materialized with garbage, standing in
+/// for a slot left half-written by a crashed install.
+///
+/// Unlinking before writing matters: when the store and the slot sit on
+/// one filesystem the importer hardlinks, so truncating the slot's copy
+/// in place would rewrite the store's content-addressed file too — and
+/// then no re-import could ever restore the original bytes.
+fn corrupt_pristine_file(path: &Path) {
+    fs::remove_file(path).unwrap_or_else(|err| panic!("unlink {path:?}: {err}"));
+    fs::write(path, "{}").unwrap_or_else(|err| panic!("corrupt {path:?}: {err}"));
+}
+
 /// `<hash>/node_modules/<name>` — where the package's files actually live.
 fn pkg_in_slot(hash_dir: &Path, name: &str) -> PathBuf {
     hash_dir.join("node_modules").join(name)
@@ -722,7 +734,7 @@ fn needs_build_marker_triggers_reimport_on_next_install() {
     eprintln!("Simulating a crash after import but before the build...");
     fs::write(&marker, "").expect("write the incomplete-build marker");
     fs::remove_file(&postinstall_artifact).expect("remove the build artifact");
-    fs::write(&package_manifest, "{}").expect("corrupt a pristine package file");
+    corrupt_pristine_file(&package_manifest);
 
     eprintln!("Frozen reinstall with intact project links must rebuild the marked slot...");
     pacquet(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
@@ -1167,6 +1179,47 @@ fn approve_builds_updates_gvs_symlinks_and_runs_builds_at_the_new_hash_dir() {
         yaml.contains("@pnpm.e2e/pre-and-postinstall-scripts-example"),
         "approve-builds must record the approval in pnpm-workspace.yaml; got:\n{yaml}",
     );
+
+    drop((root, mock_instance));
+}
+
+/// The GVS hash of a package inside a dependency cycle depends on the
+/// order the hasher walks the lockfile, so an install that walked the
+/// parsed `HashMap`s directly re-derived a *different* slot for the
+/// cycle on some fraction of its runs — and re-imported the packages
+/// that landed there. `pnpm install --frozen-lockfile` over an
+/// unchanged project must reuse the slots the previous run
+/// materialized ([pnpm/pnpm#13316](https://github.com/pnpm/pnpm/issues/13316)).
+#[test]
+fn repeat_installs_reuse_the_slots_of_circular_dependencies() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+
+    write_manifest(&workspace, &serde_json::json!({ "@pnpm.e2e/circular-deps-1-of-2": "1.0.2" }));
+    set_gvs_workspace_yaml(&workspace, "");
+    pacquet(&workspace).with_arg("install").assert().success();
+
+    let version_dirs = [
+        pkg_version_dir(&store_dir, "@pnpm.e2e/circular-deps-1-of-2", "1.0.2"),
+        pkg_version_dir(&store_dir, "@pnpm.e2e/circular-deps-2-of-2", "1.0.2"),
+    ];
+    let slots_after_first: Vec<Vec<String>> =
+        version_dirs.iter().map(|dir| hash_dirs(dir)).collect();
+
+    // Each repeat is a fresh process, and therefore a fresh set of
+    // `HashMap` iteration orders.
+    for _ in 0..3 {
+        pacquet(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    }
+
+    for (version_dir, expected) in version_dirs.iter().zip(&slots_after_first) {
+        assert_eq!(
+            &hash_dirs(version_dir),
+            expected,
+            "a repeat install moved {version_dir:?} to a new slot",
+        );
+    }
 
     drop((root, mock_instance));
 }
