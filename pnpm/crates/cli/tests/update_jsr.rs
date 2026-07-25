@@ -131,10 +131,10 @@ mod known_failures {
         drop((root, anchor));
     }
 
-    /// Ports `jsr with alias`: the aliased form keeps both the alias and
-    /// the package name it resolves through, bumping only the version.
+    /// The install half of `jsr with alias`: the aliased form is recorded
+    /// as a direct dependency under its alias.
     #[test]
-    fn update_latest_bumps_an_aliased_jsr_dependency() {
+    fn install_records_an_aliased_jsr_dependency() {
         let (root, workspace, anchor) = setup();
 
         write_manifest(&workspace, r#"{ "bar-from-jsr": "jsr:@pnpm-e2e/bar@1.0.0" }"#);
@@ -146,13 +146,28 @@ mod known_failures {
             Some(("jsr:@pnpm-e2e/bar@1.0.0".to_string(), "@jsr/pnpm-e2e__bar@1.0.0".to_string())),
         );
 
-        pacquet(&workspace, ["update", "--latest"]).assert().success();
-        allow_known_failure!(jsr_specifiers_are_not_rewritten_by_latest());
+        drop((root, anchor));
+    }
 
+    /// Ports `jsr with alias`: the aliased form keeps both the alias and
+    /// the package name it resolves through, bumping only the version.
+    /// Each gate sits in front of the assertion its gap blocks, so the
+    /// install and update both run whichever gap is still open.
+    #[test]
+    fn update_latest_bumps_an_aliased_jsr_dependency() {
+        let (root, workspace, anchor) = setup();
+
+        write_manifest(&workspace, r#"{ "bar-from-jsr": "jsr:@pnpm-e2e/bar@1.0.0" }"#);
+        pacquet(&workspace, ["install"]).assert().success();
+        pacquet(&workspace, ["update", "--latest"]).assert().success();
+
+        allow_known_failure!(jsr_specifiers_are_not_rewritten_by_latest());
         assert_eq!(
             dep_spec(&workspace, "bar-from-jsr").as_deref(),
             Some("jsr:@pnpm-e2e/bar@2.0.0"),
         );
+
+        allow_known_failure!(an_aliased_jsr_dependency_is_missing_from_the_importer());
         assert_eq!(
             lockfile_entry(&workspace, "bar-from-jsr"),
             Some(("jsr:@pnpm-e2e/bar@2.0.0".to_string(), "@jsr/pnpm-e2e__bar@2.0.0".to_string())),

@@ -66,6 +66,32 @@ fn has_module(project_dir: &Path, name: &str) -> bool {
     project_dir.join("node_modules").join(name).exists()
 }
 
+/// The names under a project's `node_modules`, with scope directories
+/// expanded, for logging before existence assertions.
+fn list_modules(project_dir: &Path) -> Vec<String> {
+    fn names(dir: &Path) -> Vec<String> {
+        let Ok(entries) = fs::read_dir(dir) else { return Vec::new() };
+        entries
+            .filter_map(Result::ok)
+            .flat_map(|entry| {
+                let name = entry.file_name().to_string_lossy().into_owned();
+                if name.starts_with('@') {
+                    names(&entry.path()).iter().map(|inner| format!("{name}/{inner}")).collect()
+                } else {
+                    vec![name]
+                }
+            })
+            .collect()
+    }
+    names(&project_dir.join("node_modules"))
+}
+
+/// Where a project's `node_modules/<name>` resolves to, following the
+/// symlink a workspace dependency is installed as.
+fn module_target(project_dir: &Path, name: &str) -> Option<std::path::PathBuf> {
+    dunce::canonicalize(project_dir.join("node_modules").join(name)).ok()
+}
+
 fn installed_version(project_dir: &Path, name: &str) -> Option<String> {
     let manifest_path = project_dir.join("node_modules").join(name).join("package.json");
     let contents = fs::read_to_string(manifest_path).ok()?;
@@ -103,10 +129,9 @@ fn recursive_update_only_reaches_projects_that_have_the_dependency() {
         Some("100.1.0"),
         "the project that declares it should have been updated",
     );
-    assert!(
-        !has_module(&workspace.join("project-2"), DEP),
-        "a project that never declared it must not gain it",
-    );
+    let project_2 = workspace.join("project-2");
+    eprintln!("project-2 node_modules: {:?}", list_modules(&project_2));
+    assert!(!has_module(&project_2, DEP), "a project that never declared it must not gain it");
 
     drop((root, anchor));
 }
@@ -131,14 +156,22 @@ fn recursive_update_does_not_add_a_dependency_no_project_declares() {
         .output()
         .expect("run pacquet update");
 
-    assert!(!output.status.success(), "updating an undeclared package should fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("STATUS: {}\nSTDERR:\n{stderr}", output.status);
+    assert!(!output.status.success(), "updating an undeclared package should fail");
+    assert!(
+        stderr.contains("ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES"),
+        "the failure must carry the NO_PACKAGE_IN_DEPENDENCIES code",
+    );
     assert!(
         stderr.contains("None of the specified packages were found in the dependencies"),
-        "stderr did not mention NO_PACKAGE_IN_DEPENDENCIES: {stderr}",
+        "the failure must carry the NO_PACKAGE_IN_DEPENDENCIES message",
     );
     for project in ["project-1", "project-2"] {
-        assert!(!has_module(&workspace.join(project), DEP), "{project} gained the dependency");
+        let project_dir = workspace.join(project);
+        eprintln!("{project} node_modules: {:?}", list_modules(&project_dir));
+        assert!(!has_module(&project_dir, DEP), "{project} gained the dependency");
+        assert_eq!(dep_spec(&project_dir, DEP), None, "{project}'s manifest gained the dependency");
     }
 
     drop((root, anchor));
@@ -166,9 +199,15 @@ fn recursive_update_keeps_an_aliased_workspace_dependency() {
 
     pacquet(&workspace, ["-r", "update", "--depth", "0"]).assert().success();
 
-    assert!(has_module(&workspace.join("project-1"), "pkg"), "the alias should stay linked");
+    let project_1 = workspace.join("project-1");
+    eprintln!("project-1 node_modules: {:?}", list_modules(&project_1));
     assert_eq!(
-        dep_spec(&workspace.join("project-1"), "pkg").as_deref(),
+        module_target(&project_1, "pkg"),
+        dunce::canonicalize(workspace.join("project-2")).ok(),
+        "the alias should stay linked to project-2",
+    );
+    assert_eq!(
+        dep_spec(&project_1, "pkg").as_deref(),
         Some("workspace:project-2@^"),
         "the aliased workspace specifier should survive the update",
     );
