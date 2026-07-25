@@ -575,7 +575,7 @@ fn assert_failure(output: &Output) {
 fn assert_contains(text: &str, expected: &str) {
     assert!(
         unwrap_diagnostic(text).contains(&unwrap_diagnostic(expected)),
-        "expected {expected:?} in:\n{text}"
+        "expected {expected:?} in:\n{text}",
     );
 }
 

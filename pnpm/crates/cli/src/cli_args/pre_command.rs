@@ -268,7 +268,7 @@ fn check_runtime(runtime: &Value, name: &str, emit: fn(&LogEvent)) -> miette::Re
         return fail_runtime_check(
             on_fail,
             format!(
-                "This project requires a {display_name} runtime but does not specify a version range"
+                "This project requires a {display_name} runtime but does not specify a version range",
             ),
             emit,
         );
@@ -277,7 +277,7 @@ fn check_runtime(runtime: &Value, name: &str, emit: fn(&LogEvent)) -> miette::Re
         return fail_runtime_check(
             on_fail,
             format!(
-                "This project requires an invalid {display_name} version range: {wanted_range}"
+                "This project requires an invalid {display_name} version range: {wanted_range}",
             ),
             emit,
         );
@@ -286,7 +286,7 @@ fn check_runtime(runtime: &Value, name: &str, emit: fn(&LogEvent)) -> miette::Re
         return fail_runtime_check(
             on_fail,
             format!(
-                "This project requires {display_name} {wanted_range}, but {display_name} was not found on the system"
+                "This project requires {display_name} {wanted_range}, but {display_name} was not found on the system",
             ),
             emit,
         );
@@ -297,7 +297,7 @@ fn check_runtime(runtime: &Value, name: &str, emit: fn(&LogEvent)) -> miette::Re
     fail_runtime_check(
         on_fail,
         format!(
-            "This project requires {display_name} {wanted_range}. Your current {display_name} is v{current_version}"
+            "This project requires {display_name} {wanted_range}. Your current {display_name} is v{current_version}",
         ),
         emit,
     )
@@ -337,7 +337,7 @@ const PM_ON_FAIL_HINT: &str = r#"If you want to bypass this version check, you c
 /// download-on-mismatch contract that silently did not download.
 const COREPACK_NOTE: &str = "\nCorepack invoked pnpm with this version, and pnpm does not switch versions when running under corepack.";
 
-const COREPACK_PM_HINT_PREFIX: &str = "Align the \"packageManager\" field in package.json with \"devEngines.packageManager\", or invoke pnpm directly (without corepack) so it can switch versions automatically.";
+const COREPACK_PM_HINT_PREFIX: &str = r#"Align the "packageManager" field in package.json with "devEngines.packageManager", or invoke pnpm directly (without corepack) so it can switch versions automatically."#;
 
 const RUNTIME_ON_FAIL_HINT: &str = r#"If you want to bypass this version check, set "runtimeOnFail" to "warn" or "ignore" (e.g. via --runtime-on-fail=ignore), or set "devEngines.runtime.onFail"/"engines.runtime.onFail" to "warn" or "ignore""#;
 
@@ -588,7 +588,7 @@ fn on_fail_str(on_fail: PmOnFail) -> &'static str {
 
 /// The commands pnpm marks with `skipPackageManagerCheck`, plus `setup` —
 /// they either predate the project's pins (`setup`), inspect pnpm itself
-/// (`store`, `doctor`, …), or run something that is not the project
+/// (`store`, `doctor`, and so on), or run something that is not the project
 /// (`dlx`).
 fn should_skip_command(command: &CliCommand) -> bool {
     matches!(
