@@ -29,8 +29,8 @@ use pacquet_reporter::{
 };
 use pacquet_resolving_default_resolver::DefaultResolver;
 use pacquet_resolving_deps_resolver::{
-    ManifestHook, ResolveDependencyTreeError, ResolveImporterError, ResolveImporterOptions,
-    UpdateDepth,
+    DependencyOverrider, ManifestHook, ResolveDependencyTreeError, ResolveImporterError,
+    ResolveImporterOptions, UpdateDepth,
 };
 use pacquet_resolving_git_resolver::{GitFetchContext, GitResolver, RealGitProbe, RealGitRunner};
 use pacquet_resolving_local_resolver::{
@@ -1141,6 +1141,17 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             compose_manifest_hooks(compat_package_extensions_hook, package_extensions_hook),
             overrides_hook,
         );
+        let override_bare_specifier: Option<Arc<DependencyOverrider>> =
+            versions_overrider.as_ref().and_then(|overrider| {
+                if overrider.is_empty() {
+                    None
+                } else {
+                    let overrider = Arc::clone(overrider);
+                    Some(Arc::new(move |name: &str, range: &str, pkg_dir: &Path| {
+                        overrider.override_for_undeclared_dependency(name, range, pkg_dir)
+                    }) as Arc<DependencyOverrider>)
+                }
+            });
 
         // Seed `allPreferredVersions` from every importer's manifest +
         // the wanted lockfile's snapshots (when an existing one is
@@ -1418,6 +1429,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                     // The per-importer hoist loop mutates its own copy, so
                     // clone the shared seed's map here (deref past the `Arc`).
                     all_preferred_versions: importer_preferred_versions.as_ref().clone(),
+                    override_bare_specifier: override_bare_specifier.clone(),
                     patched_dependencies: patched_dependencies.clone(),
                     // `pick_lowest_direct` / `subdep_published_by` are
                     // authoritative from `resolve_workspace` (it computes

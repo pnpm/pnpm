@@ -30,6 +30,7 @@ import {
   runLifecycleHooksConcurrently,
   type RunLifecycleHooksConcurrentlyOptions,
 } from '@pnpm/exec.lifecycle'
+import { createDependencyOverrider } from '@pnpm/hooks.read-package-hook'
 import { getContext, type PnpmContext } from '@pnpm/installing.context'
 import {
   type DependenciesGraph,
@@ -1585,6 +1586,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       hooks: {
         readPackage: opts.readPackageHook,
       },
+      overrideBareSpecifier: createDependencyOverrider(opts.parsedOverrides, opts.lockfileDir),
       linkWorkspacePackagesDepth: opts.linkWorkspacePackagesDepth ?? (opts.saveWorkspaceProtocol ? 0 : -1),
       lockfileDir: opts.lockfileDir,
       nodeVersion: opts.nodeVersion,

@@ -24,6 +24,12 @@ fn dep_spec<'a>(manifest: &'a PackageManifest, group: &str, name: &str) -> Optio
     manifest.value().get(group)?.get(name)?.as_str()
 }
 
+/// [`VersionsOverrider::override_for_undeclared_dependency`] for an edge
+/// added to `/workspace/pkg`.
+fn undeclared(overrider: &VersionsOverrider, name: &str, spec: &str) -> Option<String> {
+    overrider.override_for_undeclared_dependency(name, spec, Path::new("/workspace/pkg"))
+}
+
 #[test]
 fn generic_override_rewrites_dependencies_spec() {
     let overrides = parsed(&[("foo", "1.0.0")]);
@@ -451,4 +457,41 @@ fn apply_to_arc_clones_when_only_a_peer_matches() {
         updated.get("peerDependencies").and_then(|peers| peers.get("ajv")).and_then(Value::as_str),
         Some(">=8.18.0"),
     );
+}
+
+#[test]
+fn override_for_undeclared_dependency_applies_generic_overrides() {
+    let overrides = parsed(&[("react", "npm:react@19.2.0"), ("zoo@^1", "1.0.0")]);
+    let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+
+    assert_eq!(undeclared(&overrider, "react", "^18.0.0").as_deref(), Some("npm:react@19.2.0"));
+    assert_eq!(undeclared(&overrider, "zoo", "^1.5.0").as_deref(), Some("1.0.0"));
+    assert_eq!(undeclared(&overrider, "zoo", "^2.0.0"), None);
+    assert_eq!(undeclared(&overrider, "qar", "^1.0.0"), None);
+}
+
+#[test]
+fn override_for_undeclared_dependency_resolves_a_local_target_relative_to_the_package_dir() {
+    let overrides = parsed(&[("qar", "link:../qar")]);
+    let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+
+    assert_eq!(undeclared(&overrider, "qar", "^1.0.0").as_deref(), Some("link:../../qar"));
+}
+
+#[test]
+fn override_for_undeclared_dependency_ignores_parent_scoped_overrides() {
+    let overrides = parsed(&[("foo>react", "19.2.0")]);
+    let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+
+    assert_eq!(undeclared(&overrider, "react", "^18.0.0"), None);
+}
+
+#[test]
+fn override_for_undeclared_dependency_applies_converge_only_within_range() {
+    let overrides = parsed(&[("react@", "18.3.1")]);
+    let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+
+    assert_eq!(undeclared(&overrider, "react", "^18.0.0").as_deref(), Some("18.3.1"));
+    assert_eq!(undeclared(&overrider, "react", "^19.0.0"), None);
+    assert!(overrider.converge_declared_ranges().is_empty());
 }
