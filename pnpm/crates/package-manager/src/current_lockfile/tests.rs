@@ -308,8 +308,12 @@ fn user_excluded_packages_filtered_to_surviving_metadata_keys() {
     );
 }
 
+/// A platform-incompatible optional dependency stays in every section
+/// of the current lockfile, so a repeat `--frozen-lockfile` install can
+/// still match it against the wanted lockfile and short-circuit
+/// (<https://github.com/pnpm/pnpm/issues/13312>).
 #[test]
-fn installability_skipped_metadata_is_preserved() {
+fn installability_skipped_entries_are_preserved() {
     let mut importers = HashMap::new();
     importers.insert(
         ".".to_string(),
@@ -337,20 +341,49 @@ fn installability_skipped_metadata_is_preserved() {
         ..empty_lockfile()
     };
 
+    // The recorded skip set is the reachability closure of the direct
+    // skip, matching what `.modules.yaml.skipped` holds after an
+    // install that dropped `drop@1.0.0`.
     let mut skipped = SkippedSnapshots::new();
     skipped.insert_installability(key("drop", "1.0.0"));
+    skipped.insert_installability(key("child", "1.0.0"));
+
+    let filtered = super::filter_lockfile_for_current(&lockfile, include_all(), &skipped);
+
+    assert_eq!(filtered, lockfile);
+}
+
+/// A fetch failure is transient and recorded nowhere, so the snapshot
+/// has to leave the current lockfile for the next install to retry it.
+#[test]
+fn fetch_failed_snapshot_is_pruned() {
+    let mut importers = HashMap::new();
+    importers.insert(
+        ".".to_string(),
+        ProjectSnapshot {
+            dependencies: Some(importer_map(&[("keep", "1.0.0")])),
+            optional_dependencies: Some(importer_map(&[("drop", "1.0.0")])),
+            ..Default::default()
+        },
+    );
+
+    let mut snapshots = HashMap::new();
+    snapshots.insert(key("keep", "1.0.0"), SnapshotEntry::default());
+    snapshots.insert(key("drop", "1.0.0"), SnapshotEntry::default());
+
+    let lockfile = Lockfile { importers, snapshots: Some(snapshots), ..empty_lockfile() };
+
+    let mut skipped = SkippedSnapshots::new();
+    skipped.add_fetch_failed(key("drop", "1.0.0"));
 
     let filtered = super::filter_lockfile_for_current(&lockfile, include_all(), &skipped);
 
     let snaps = filtered.snapshots.as_ref().unwrap();
     assert!(snaps.contains_key(&key("keep", "1.0.0")));
     assert!(!snaps.contains_key(&key("drop", "1.0.0")));
-    assert!(!snaps.contains_key(&key("child", "1.0.0")));
-
-    let pkgs = filtered.packages.as_ref().unwrap();
-    assert!(pkgs.contains_key(&key("keep", "1.0.0")));
-    assert!(pkgs.contains_key(&key("drop", "1.0.0")));
-    assert!(pkgs.contains_key(&key("child", "1.0.0")));
+    assert!(
+        filtered.importers.get(".").unwrap().optional_dependencies.as_ref().unwrap().is_empty()
+    );
 }
 
 #[test]
@@ -1112,7 +1145,7 @@ fn merge_filtered_current_lockfile_does_not_restore_a_skipped_selected_snapshot(
         ..empty_lockfile()
     };
     let mut skipped = SkippedSnapshots::new();
-    skipped.insert_installability(key("parent", "1.0.0"));
+    skipped.add_fetch_failed(key("parent", "1.0.0"));
 
     let merged = super::merge_filtered_current_lockfile(
         Some(&previous),
@@ -1129,6 +1162,46 @@ fn merge_filtered_current_lockfile_does_not_restore_a_skipped_selected_snapshot(
     let packages = merged.packages.as_ref().unwrap();
     assert!(packages.contains_key(&key("parent", "1.0.0")));
     assert!(packages.contains_key(&key("child", "1.0.0")));
+}
+
+/// The filtered-install merge keeps installability-skipped snapshots
+/// for the same reason [`super::filter_lockfile_for_current`] does
+/// (<https://github.com/pnpm/pnpm/issues/13312>).
+#[test]
+fn merge_filtered_current_lockfile_keeps_an_installability_skipped_snapshot() {
+    let selected_id = "packages/selected".to_string();
+    let selected_importer = ProjectSnapshot {
+        optional_dependencies: Some(importer_map(&[("parent", "1.0.0")])),
+        ..Default::default()
+    };
+    let snapshots = HashMap::from([
+        (key("parent", "1.0.0"), snapshot_with_deps(&[("child", "1.0.0")])),
+        (key("child", "1.0.0"), SnapshotEntry::default()),
+    ]);
+    let packages = HashMap::from([
+        (key("parent", "1.0.0"), package_metadata("parent")),
+        (key("child", "1.0.0"), package_metadata("child")),
+    ]);
+    let wanted = Lockfile {
+        importers: HashMap::from([(selected_id.clone(), selected_importer)]),
+        snapshots: Some(snapshots),
+        packages: Some(packages),
+        ..empty_lockfile()
+    };
+    let mut skipped = SkippedSnapshots::new();
+    skipped.insert_installability(key("parent", "1.0.0"));
+    skipped.insert_installability(key("child", "1.0.0"));
+
+    let merged = super::merge_filtered_current_lockfile(
+        None,
+        &wanted,
+        &HashSet::from([selected_id]),
+        include_all(),
+        &skipped,
+        Path::new("/workspace"),
+    );
+
+    assert_eq!(merged, wanted);
 }
 
 #[test]

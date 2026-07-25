@@ -323,6 +323,55 @@ fn a_global_virtual_store_install_still_writes_the_current_lockfile() {
     drop((root, mock_instance));
 }
 
+/// A platform-incompatible optional dependency is skipped, but it stays
+/// recorded in the current lockfile — `.modules.yaml.skipped` is what
+/// carries the skip. Dropping it would leave the current lockfile
+/// permanently different from the wanted one, so a repeat
+/// `--frozen-lockfile` install could never take the "already up to date"
+/// short-circuit and would re-run every lifecycle script
+/// (<https://github.com/pnpm/pnpm/issues/13312>).
+#[test]
+fn a_skipped_optional_dependency_still_lets_a_repeat_frozen_install_be_a_no_op() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let package_json = serde_json::json!({
+        "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.0.0" },
+        "optionalDependencies": { "@pnpm.e2e/not-compatible-with-any-os": "*" },
+        "scripts": {
+            "postinstall": "node -e \"require('fs').appendFileSync('postinstall.log', 'x')\"",
+        },
+    });
+    fs::write(workspace.join("package.json"), package_json.to_string())
+        .expect("write package.json");
+
+    pacquet.with_arg("install").assert().success();
+
+    let wanted_text =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    let wanted: pacquet_lockfile::Lockfile =
+        serde_saphyr::from_str(&wanted_text).expect("parse pnpm-lock.yaml");
+    assert_eq!(
+        read_current_lockfile(&workspace),
+        wanted,
+        "the skipped optional dependency must leave both lockfiles identical",
+    );
+
+    let log_path = workspace.join("postinstall.log");
+    assert_eq!(fs::read_to_string(&log_path).expect("read postinstall.log"), "x");
+
+    rerun(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+
+    assert_eq!(
+        fs::read_to_string(&log_path).expect("read postinstall.log"),
+        "x",
+        "the repeat frozen install must short-circuit instead of re-running the postinstall",
+    );
+
+    drop((root, mock_instance));
+}
+
 /// TS: `a broken private lockfile is ignored`
 /// (`deps-installer/test/lockfile.ts:1351`).
 #[test]

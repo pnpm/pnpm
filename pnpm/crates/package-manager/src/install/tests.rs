@@ -6216,20 +6216,11 @@ async fn fresh_install_skips_platform_incompatible_optional_dependency() {
         std::fs::read_to_string(&current_lockfile_path).expect("read current lockfile");
     let current_lockfile: Lockfile =
         serde_saphyr::from_str(&current_content).expect("parse current lockfile");
-    assert!(
-        current_lockfile
-            .packages
-            .as_ref()
-            .is_some_and(|packages| packages.contains_key(&skipped_key.without_peer())),
-        "platform-incompatible optional dependency metadata must stay in current lockfile",
-    );
-    assert!(
-        !current_lockfile
-            .snapshots
-            .as_ref()
-            .is_some_and(|snapshots| snapshots.contains_key(&skipped_key)),
-        "platform-incompatible optional dependency must not be saved in current lockfile",
-    );
+    // `.modules.yaml.skipped` carries the skip, so the current lockfile
+    // keeps the entries and stays comparable to the wanted lockfile —
+    // what lets a repeat frozen install short-circuit
+    // (<https://github.com/pnpm/pnpm/issues/13312>).
+    assert_eq!(current_lockfile, lockfile);
 
     drop((dir, mock_instance));
 }

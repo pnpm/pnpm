@@ -3,14 +3,14 @@
 //!
 //! Rather than re-running the engine + `supportedArchitectures` +
 //! `skipped` checks at filter time, reuse the [`SkippedSnapshots`]
-//! set produced during install. The full set filters materialized
-//! snapshots; the package metadata map only drops user exclusions
-//! such as `--no-optional` and `--no-runtime`.
+//! set produced during install — its
+//! [transient subset][`SkippedSnapshots::transient_only`], since
+//! installability skips stay in the file.
 //!
 //! The output drives the **next** install's diff. Without this
 //! filter, pacquet's current lockfile recorded every snapshot the
-//! resolver imagined, including ones that `--no-optional` or
-//! installability dropped — so a follow-up install would think
+//! resolver imagined, including ones `--no-optional` or a failed
+//! optional fetch dropped — so a follow-up install would think
 //! those slots were already on disk and skip work that should
 //! actually run.
 
@@ -191,8 +191,13 @@ pub(crate) fn merge_filtered_current_lockfile(
     skipped: &SkippedSnapshots,
     workspace_root: &Path,
 ) -> Lockfile {
-    let selected =
-        materialization_closure(wanted, workspace_root, requested_importer_ids, included, skipped);
+    let selected = materialization_closure(
+        wanted,
+        workspace_root,
+        requested_importer_ids,
+        included,
+        &skipped.transient_only(),
+    );
     let Some(previous_current) = previous_current else {
         return selected.lockfile;
     };
@@ -331,10 +336,10 @@ fn lockfile_with_graph(
 /// Importers lose dep maps whose `include` flag is false; importer
 /// `optionalDependencies` lose entries whose resolved snapshot got
 /// skipped; the snapshot map is pruned to the transitive closure
-/// reachable from the surviving importer roots. The package metadata
-/// map preserves installability-skipped entries, matching pnpm's
-/// current-lockfile shape while `.modules.yaml.skipped` records the
-/// materialization skip.
+/// reachable from the surviving importer roots. Installability-skipped
+/// entries survive in both maps, matching pnpm's current-lockfile
+/// shape while `.modules.yaml.skipped` records the materialization
+/// skip — see [`SkippedSnapshots::transient_only`].
 #[must_use]
 pub fn filter_lockfile_for_current(
     lockfile: &Lockfile,
@@ -347,7 +352,14 @@ pub fn filter_lockfile_for_current(
     // resolve those links against. The empty root keeps the walk in the
     // lockfile-relative space importer IDs already use — `importer_root_dir("", id)`
     // is `id` — so link resolution stays correct rather than merely unused.
-    materialization_closure(lockfile, Path::new(""), &all_importer_ids, included, skipped).lockfile
+    materialization_closure(
+        lockfile,
+        Path::new(""),
+        &all_importer_ids,
+        included,
+        &skipped.transient_only(),
+    )
+    .lockfile
 }
 
 /// Per-importer filter: drop dep maps whose `include` flag is
