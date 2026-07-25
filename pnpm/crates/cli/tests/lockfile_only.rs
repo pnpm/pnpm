@@ -106,6 +106,53 @@ fn writes_lockfile_without_downloading_or_linking() {
     drop((root, mock_instance));
 }
 
+/// A `settings.*` key the lockfile records is part of the frozen
+/// contract too: flipping one after the lockfile was written makes the
+/// recorded resolution unreproducible, so pnpm refuses the install and
+/// names the drifted setting. Pinned end to end because the code and
+/// the quoted name are what CI logs show.
+#[test]
+fn frozen_lockfile_only_rejects_a_drifted_setting() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "is-positive": "1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet.with_args(["install", "--lockfile-only"]).assert().success();
+
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let yaml = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    fs::write(&workspace_yaml, format!("{yaml}autoInstallPeers: false\n"))
+        .expect("flip autoInstallPeers");
+
+    let output = pacquet_at(&workspace)
+        .with_args(["install", "--frozen-lockfile", "--lockfile-only"])
+        .output()
+        .expect("spawn pacquet install");
+
+    assert!(
+        !output.status.success(),
+        "a drifted setting must fail the frozen install (stderr: {})",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+    assert!(
+        stderr.contains("ERR_PNPM_LOCKFILE_CONFIG_MISMATCH"),
+        "stderr must name the config-mismatch diagnostic; got:\n{stderr}",
+    );
+    assert!(
+        stderr.contains(r#""settings.autoInstallPeers""#),
+        "stderr must quote the drifted setting; got:\n{stderr}",
+    );
+
+    drop((root, mock_instance));
+}
+
 /// `--frozen-lockfile --lockfile-only` keeps frozen semantics: it
 /// validates the on-disk `pnpm-lock.yaml` against the manifest and
 /// fails when the manifest has drifted, never rewriting the lockfile.

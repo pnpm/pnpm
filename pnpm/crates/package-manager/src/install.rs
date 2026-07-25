@@ -2544,7 +2544,7 @@ pub(crate) fn check_lockfile_settings_drift(
     // from what the lockfile recorded.
     let patched_dependency_hashes =
         config.patched_dependency_hashes().map_err(FreshnessCheckError::CalcPatchHashes)?;
-    pacquet_lockfile::check_lockfile_settings_with_catalogs(
+    pacquet_lockfile::check_lockfile_settings(
         lockfile,
         pacquet_lockfile::LockfileSettingsCheck {
             catalogs,
@@ -2552,6 +2552,9 @@ pub(crate) fn check_lockfile_settings_drift(
             package_extensions_checksum: package_extensions_checksum.as_deref(),
             ignored_optional_dependencies: config.ignored_optional_dependencies.as_deref(),
             patched_dependencies: patched_dependency_hashes.as_ref(),
+            auto_install_peers: config.auto_install_peers,
+            dedupe_peers: config.dedupe_peers,
+            exclude_links_from_lockfile: config.exclude_links_from_lockfile,
             inject_workspace_packages: config.inject_workspace_packages,
             peers_suffix_max_length: config.peers_suffix_max_length,
         },
