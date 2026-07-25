@@ -326,7 +326,10 @@ fn no_peer_is_hoisted_when_auto_install_peers_and_dedupe_peer_dependents_are_off
     let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
     assert_eq!(importer_version(&lockfile, "pkg-a", "@pnpm.e2e/abc-optional-peers"), "1.0.0");
     assert!(
-        fs::symlink_metadata(workspace.join("pkg-a/node_modules/@pnpm.e2e/peer-c")).is_err(),
+        matches!(
+            fs::symlink_metadata(workspace.join("pkg-a/node_modules/@pnpm.e2e/peer-c")),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound
+        ),
         "optional peer linked into pkg-a with both hoist settings off",
     );
 
