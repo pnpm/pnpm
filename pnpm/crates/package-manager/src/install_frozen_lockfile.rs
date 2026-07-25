@@ -1858,7 +1858,31 @@ fn link_selected_hoisted_direct_dependencies(
                 // duplicate this skip exists to avoid. A real directory is
                 // the pruner's to remove, and only ever belongs to a
                 // version that lost the slot.
-                if link_path.is_symlink() {
+                // `is_symlink_or_junction`, not `Path::is_symlink`: on
+                // Windows `symlink_dir` falls back to a junction when it
+                // cannot create a true symlink, and a junction is not a
+                // symlink to the stdlib.
+                let stale_link = match pacquet_fs::is_symlink_or_junction(&link_path) {
+                    Ok(is_link) => is_link,
+                    // Nothing to clean up — the common case, and the one
+                    // `junction::exists` reports as an error rather than
+                    // `Ok(false)`.
+                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
+                    Err(error) => {
+                        return Err(HoistedLinkerError::SymlinkDirectDependencies(
+                            SymlinkDirectDependenciesError::SymlinkPackage {
+                                importer_id: importer_id.clone(),
+                                name: alias.clone(),
+                                source: SymlinkPackageError::SymlinkDir {
+                                    symlink_target: target.clone(),
+                                    symlink_path: link_path.clone(),
+                                    error,
+                                },
+                            },
+                        ));
+                    }
+                };
+                if stale_link {
                     pacquet_fs::remove_symlink_dir(&link_path).map_err(|error| {
                         HoistedLinkerError::SymlinkDirectDependencies(
                             SymlinkDirectDependenciesError::SymlinkPackage {

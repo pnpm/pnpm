@@ -75,6 +75,35 @@ fn relative_target_for(original: &Path, link: &Path) -> PathBuf {
     crate::relative_path(parent, original)
 }
 
+/// Whether `link` is a directory symlink or, on Windows, a junction —
+/// the two shapes [`symlink_dir`] can produce.
+///
+/// [`Path::is_symlink`] only reports the `IO_REPARSE_TAG_SYMLINK` shape,
+/// so a caller that cleans up after [`symlink_dir`] and tests with it
+/// alone misses every junction [`symlink_dir`] fell back to.
+pub fn is_symlink_or_junction(link: &Path) -> io::Result<bool> {
+    #[cfg(windows)]
+    {
+        // Check the symlink case first so a true symlink never reaches
+        // `junction::exists`.
+        if link.is_symlink() {
+            return Ok(true);
+        }
+        // `junction::exists` reports a path that is not a reparse point
+        // at all (a plain directory) as `ERROR_NOT_A_REPARSE_POINT`
+        // rather than `Ok(false)`; for this question that is a plain
+        // "no".
+        const ERROR_NOT_A_REPARSE_POINT: i32 = 4390;
+        return match junction::exists(link) {
+            Ok(is_junction) => Ok(is_junction),
+            Err(error) if error.raw_os_error() == Some(ERROR_NOT_A_REPARSE_POINT) => Ok(false),
+            Err(error) => Err(error),
+        };
+    }
+    #[cfg(not(windows))]
+    Ok(link.is_symlink())
+}
+
 /// Remove a symlink (or junction on Windows) previously created with
 /// [`symlink_dir`].
 ///

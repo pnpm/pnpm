@@ -25,9 +25,8 @@ url               = { workspace = true }
 walkdir           = { workspace = true }
 text-block-macros = { workspace = true }
 pnpr-fixtures     = { workspace = true }
+pacquet-fs        = { workspace = true }
 
-[target.'cfg(windows)'.dependencies]
-junction = { workspace = true }
 
 [lints]
 workspace = true
