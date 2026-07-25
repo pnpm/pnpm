@@ -299,6 +299,50 @@ fn optional_peer_stays_out_of_the_importer_without_auto_install_peers() {
     drop((root, mock_instance));
 }
 
+/// Companion to
+/// [`optional_peer_stays_out_of_the_importer_without_auto_install_peers`]:
+/// peers are hoisted for `autoInstallPeers` *or* `dedupePeerDependents`,
+/// so with both off the sibling's version is left alone and the
+/// dependent keeps an unsuffixed snapshot.
+#[test]
+fn no_peer_is_hoisted_when_auto_install_peers_and_dedupe_peer_dependents_are_off() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } = two_project_workspace(
+        &serde_json::json!({
+            "name": "pkg-a",
+            "version": "1.0.0",
+            "dependencies": { "@pnpm.e2e/abc-optional-peers": "1.0.0" },
+        }),
+        &serde_json::json!({
+            "name": "pkg-b",
+            "version": "1.0.0",
+            "dependencies": { "@pnpm.e2e/peer-c": "1.0.0" },
+        }),
+    );
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    workspace_yaml.push_str("autoInstallPeers: false\ndedupePeerDependents: false\n");
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    pacquet_at(&workspace).with_arg("install").assert().success();
+
+    let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    assert_eq!(importer_version(&lockfile, "pkg-a", "@pnpm.e2e/abc-optional-peers"), "1.0.0");
+    assert!(
+        matches!(
+            fs::symlink_metadata(workspace.join("pkg-a/node_modules/@pnpm.e2e/peer-c")),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound
+        ),
+        "optional peer linked into pkg-a with both hoist settings off",
+    );
+
+    pacquet_at(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn changed_workspace_importer_invalidates_lockfile() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } = two_project_workspace(

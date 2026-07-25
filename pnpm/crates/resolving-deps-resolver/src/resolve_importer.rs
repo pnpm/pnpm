@@ -73,6 +73,15 @@ pub struct ResolveImporterOptions {
     /// See the field doc on [`ResolvePeersOptions`] for the behavior.
     pub dedupe_peers: bool,
 
+    /// The `dedupePeerDependents` setting (default `true`). Together
+    /// with [`Self::auto_install_peers`] it decides whether the hoist
+    /// rounds run at all — a peer nothing asked to install is still
+    /// hoisted to collapse peer-suffixed variants, so turning both off
+    /// leaves every missing peer missing. The cross-importer collapse
+    /// itself lives in [`fn@crate::resolve_peers_workspace`] and reads
+    /// the setting separately.
+    pub dedupe_peer_dependents: bool,
+
     /// Seed for the preferred-versions tie-break table. The
     /// orchestrator extends this in place as packages are walked —
     /// each newly-resolved `name@version` lands as a plain
@@ -167,6 +176,7 @@ impl std::fmt::Debug for ResolveImporterOptions {
             )
             .field("resolve_peers_from_workspace_root", &self.resolve_peers_from_workspace_root)
             .field("dedupe_peers", &self.dedupe_peers)
+            .field("dedupe_peer_dependents", &self.dedupe_peer_dependents)
             .field("all_preferred_versions", &self.all_preferred_versions)
             .field(
                 "override_bare_specifier",
@@ -311,6 +321,11 @@ pub(crate) struct ImporterHoistState {
     all_missing_optional_peers: BTreeMap<String, Vec<String>>,
     all_preferred_versions: PreferredVersions,
     override_bare_specifier: Option<Arc<DependencyOverrider>>,
+    /// `auto_install_peers || dedupe_peer_dependents` — upstream's
+    /// `hoistPeers`. Both hoist rounds no-op when it is `false`, so a
+    /// missing peer stays missing and the packages that declare it keep
+    /// an unsuffixed snapshot.
+    hoist_peers: bool,
     auto_install_peers: bool,
     auto_install_peers_from_highest_match: bool,
     resolve_peers_from_workspace_root: bool,
@@ -343,6 +358,7 @@ impl ImporterHoistState {
             auto_install_peers_from_highest_match,
             resolve_peers_from_workspace_root,
             dedupe_peers,
+            dedupe_peer_dependents,
             all_preferred_versions,
             override_bare_specifier,
             patched_dependencies,
@@ -397,6 +413,7 @@ impl ImporterHoistState {
             all_missing_optional_peers: BTreeMap::new(),
             all_preferred_versions,
             override_bare_specifier,
+            hoist_peers: auto_install_peers || dedupe_peer_dependents,
             auto_install_peers,
             auto_install_peers_from_highest_match,
             resolve_peers_from_workspace_root,
@@ -441,7 +458,9 @@ impl ImporterHoistState {
 
     /// Resolve the importer's missing *required* peers to a fixpoint,
     /// rebuilding the missing-*optional* buckets the round's
-    /// [`Self::hoist_optional_round`] consumes.
+    /// [`Self::hoist_optional_round`] consumes. No-op when nothing may
+    /// be hoisted (see [`ImporterHoistState::hoist_peers`]); the final
+    /// peer pass still reports every unmet peer as a warning.
     pub(crate) async fn run_required_round<Chain>(
         &mut self,
         resolver: &Chain,
@@ -449,6 +468,9 @@ impl ImporterHoistState {
     where
         Chain: Resolver + ?Sized,
     {
+        if !self.hoist_peers {
+            return Ok(());
+        }
         // Both hoists read the run-extended preferred-versions map:
         // every resolved package's version is folded into
         // `all_preferred_versions` and consulted for the optional hoist
@@ -583,7 +605,8 @@ impl ImporterHoistState {
     }
 
     /// Hoist this round's missing optional peers; `true` when any were
-    /// installed (the workspace runs another round).
+    /// installed (the workspace runs another round). No-op when nothing
+    /// may be hoisted (see [`ImporterHoistState::hoist_peers`]).
     pub(crate) async fn hoist_optional_round<Chain>(
         &mut self,
         resolver: &Chain,
@@ -591,7 +614,7 @@ impl ImporterHoistState {
     where
         Chain: Resolver + ?Sized,
     {
-        if self.all_missing_optional_peers.is_empty() {
+        if !self.hoist_peers || self.all_missing_optional_peers.is_empty() {
             return Ok(false);
         }
         let workspace_root_deps: &[WorkspaceRootDep] =

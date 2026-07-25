@@ -97,6 +97,7 @@ fn default_opts() -> ResolveImporterOptions {
         auto_install_peers_from_highest_match: false,
         resolve_peers_from_workspace_root: false,
         dedupe_peers: false,
+        dedupe_peer_dependents: true,
         all_preferred_versions: PreferredVersions::new(),
         override_bare_specifier: None,
         patched_dependencies: None,
@@ -1472,4 +1473,74 @@ mod resolution_mode {
         assert_eq!(resolver.opts_for("direct"), (true, Some(maximum)));
         assert_eq!(resolver.opts_for("sub"), (false, Some(cutoff)));
     }
+}
+
+/// `hoistPeers` is `autoInstallPeers || dedupePeerDependents`: with both
+/// off, a missing optional peer stays missing even though a preferred
+/// version is in scope, so the packages that declare it keep an
+/// unsuffixed snapshot.
+#[tokio::test]
+async fn both_hoist_settings_off_leaves_the_optional_peer_missing() {
+    let mut table = HashMap::new();
+    table.insert(
+        ("abc".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "abc",
+            "1.0.0",
+            serde_json::json!({
+                "name": "abc",
+                "version": "1.0.0",
+                "peerDependencies": { "peer-c": "^1.0.0" },
+                "peerDependenciesMeta": { "peer-c": { "optional": true } },
+            }),
+        ),
+    );
+    table.insert(
+        ("peer-c".to_string(), "1.0.0".to_string()),
+        fake_result("peer-c", "1.0.0", serde_json::json!({ "name": "peer-c", "version": "1.0.0" })),
+    );
+    let (_tmp, manifest) = fake_manifest(serde_json::json!({ "abc": "1.0.0" }));
+
+    // A sibling importer already resolved the peer, so the optional
+    // hoist would have a version to pick.
+    let seeded_preferred_versions = || {
+        let mut selectors = VersionSelectors::new();
+        selectors
+            .insert("1.0.0".to_string(), VersionSelectorEntry::Plain(VersionSelectorType::Version));
+        PreferredVersions::from([("peer-c".to_string(), selectors)])
+    };
+
+    let hoisting_off = ResolveImporterOptions {
+        auto_install_peers: false,
+        dedupe_peer_dependents: false,
+        all_preferred_versions: seeded_preferred_versions(),
+        ..default_opts()
+    };
+    let resolver = StubResolver { table: table.clone(), calls: Mutex::new(Vec::new()) };
+    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], hoisting_off)
+        .await
+        .unwrap();
+    let direct: Vec<&str> =
+        result.peers_result.direct_dependencies_by_alias.keys().map(String::as_str).collect();
+    assert_eq!(direct, ["abc"]);
+    assert_eq!(
+        result.peers_result.direct_dependencies_by_alias.get("abc"),
+        Some(&DepPath::from("abc@1.0.0".to_string())),
+    );
+
+    // `dedupePeerDependents` alone still hoists it, without
+    // `autoInstallPeers`.
+    let dedupe_only = ResolveImporterOptions {
+        auto_install_peers: false,
+        dedupe_peer_dependents: true,
+        all_preferred_versions: seeded_preferred_versions(),
+        ..default_opts()
+    };
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let result =
+        resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], dedupe_only).await.unwrap();
+    assert_eq!(
+        result.peers_result.direct_dependencies_by_alias.get("abc"),
+        Some(&DepPath::from("abc@1.0.0(peer-c@1.0.0)".to_string())),
+    );
 }

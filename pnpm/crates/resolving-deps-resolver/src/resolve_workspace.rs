@@ -215,15 +215,16 @@ where
 
     // Build every importer's options up front so the `time-based`
     // pre-pass and the resolve loop see the same per-importer wiring.
-    // `auto_install_peers` is workspace-wide (one setting per install),
-    // so the workspace-level value overrides whatever the per-importer
-    // callback set — the importer hoist loop and the tree walk's shadow
-    // pruning must agree.
+    // `auto_install_peers` and `dedupe_peer_dependents` are
+    // workspace-wide (one setting per install), so the workspace-level
+    // values override whatever the per-importer callback set — the
+    // importer hoist loop and the tree walk's shadow pruning must agree.
     let importer_opts: Vec<ResolveImporterOptions> = importers
         .iter()
         .map(&mut per_importer_options)
         .map(|mut opts| {
             opts.auto_install_peers = auto_install_peers;
+            opts.dedupe_peer_dependents = dedupe_peer_dependents;
             opts
         })
         .collect();
