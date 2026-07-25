@@ -142,8 +142,17 @@ pub fn update_workspace_manifest(
         .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
 
     let mut changed = match opts.updated_catalogs {
-        Some(updated_catalogs) => edit::add_catalogs(&mut manifest, updated_catalogs)
-            .map_err(|source| UpdateWorkspaceManifestError::Edit { path: path.clone(), source })?,
+        Some(updated_catalogs) => {
+            if let Some(bad) = first_control_char_value(updated_catalogs) {
+                return Err(UpdateWorkspaceManifestError::InvalidControlCharacter {
+                    path,
+                    value: bad.to_string(),
+                });
+            }
+            edit::add_catalogs(&mut manifest, updated_catalogs).map_err(|source| {
+                UpdateWorkspaceManifestError::Edit { path: path.clone(), source }
+            })?
+        }
         None => false,
     };
     if opts.cleanup_unused_catalogs && !opts.all_projects.is_empty() {
@@ -155,6 +164,20 @@ pub fn update_workspace_manifest(
     }
 
     write_or_remove_manifest(&path, manifest)
+}
+
+/// The first catalog name, dependency name, or specifier in `catalogs` that
+/// holds a control character, if any. `saveCatalogName` reaches this writer
+/// from `pnpm-workspace.yaml`, `PNPM_CONFIG_SAVE_CATALOG_NAME`, and
+/// `--save-catalog-name`, none of which constrain the value.
+fn first_control_char_value(catalogs: &Catalogs) -> Option<&str> {
+    catalogs
+        .iter()
+        .flat_map(|(catalog_name, entries)| {
+            std::iter::once(catalog_name).chain(entries.keys()).chain(entries.values())
+        })
+        .find(|value| has_control_char(value))
+        .map(String::as_str)
 }
 
 /// The upstream `packageReferences` map: every raw dependency specifier per

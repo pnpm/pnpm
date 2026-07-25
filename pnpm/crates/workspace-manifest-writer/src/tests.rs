@@ -937,6 +937,35 @@ fn minimum_release_age_excludes_rejects_control_characters() {
     assert!(matches!(err, crate::UpdateWorkspaceManifestError::InvalidControlCharacter { .. }));
 }
 
+/// `saveCatalogName` is unconstrained — it comes from
+/// `pnpm-workspace.yaml`, `PNPM_CONFIG_SAVE_CATALOG_NAME`, or
+/// `--save-catalog-name` — and a newline in it renders as a YAML block
+/// scalar, which the block splice would write into the middle of the
+/// `catalogs:` header.
+#[test]
+fn add_catalogs_rejects_control_characters() {
+    let dir = TempDir::new().expect("temp dir");
+    let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
+
+    for updated in [
+        catalogs(&[("shared\n  injected: oops", &[("foo", "^1.0.0")])]),
+        catalogs(&[("shared", &[("foo\nbar", "^1.0.0")])]),
+        catalogs(&[("shared", &[("foo", "^1.0.0\nbaz: qux")])]),
+    ] {
+        let err = update_workspace_manifest(
+            dir.path(),
+            &UpdateWorkspaceManifestOptions {
+                updated_catalogs: Some(&updated),
+                ..Default::default()
+            },
+        )
+        .expect_err("must reject a control character");
+
+        assert!(matches!(err, crate::UpdateWorkspaceManifestError::InvalidControlCharacter { .. }));
+        assert!(!path.exists(), "nothing should be written");
+    }
+}
+
 #[test]
 fn set_overrides_rejects_control_characters() {
     let dir = TempDir::new().expect("temp dir");

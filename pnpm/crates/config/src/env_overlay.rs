@@ -26,6 +26,19 @@ fn read_env<Sys: EnvVar>(suffix: &str) -> Option<String> {
     Sys::var(&upper).or_else(|| Sys::var(&lower)).filter(|value| !value.is_empty())
 }
 
+/// Read an env var by suffix, keeping an empty value as `Some("")`.
+///
+/// For nearly every setting an empty env var is indistinguishable from
+/// an unset one, which is why [`read_env`] drops it. `savePrefix` is the
+/// exception: `""` is the value that selects an exact version pin, and
+/// pnpm's own env pass only skips a variable that is absent, never one
+/// that is empty.
+fn read_env_allow_empty<Sys: EnvVar>(suffix: &str) -> Option<String> {
+    let upper = format!("PNPM_CONFIG_{suffix}");
+    let lower = format!("pnpm_config_{}", suffix.to_lowercase());
+    Sys::var(&upper).or_else(|| Sys::var(&lower))
+}
+
 /// Parse `value` as JSON. Returns `None` on parse failure so the
 /// caller falls through to its default (skip the field).
 fn parse_json<Target: DeserializeOwned>(value: &str) -> Option<Target> {
@@ -239,7 +252,9 @@ impl WorkspaceSettings {
         enum_field!(resolution_mode, "RESOLUTION_MODE", ResolutionMode);
         enum_field!(catalog_mode, "CATALOG_MODE", CatalogMode);
         string_field!(save_catalog_name, "SAVE_CATALOG_NAME");
-        string_field!(save_prefix, "SAVE_PREFIX");
+        if let Some(save_prefix) = read_env_allow_empty::<Sys>("SAVE_PREFIX") {
+            settings.save_prefix = Some(save_prefix);
+        }
         json_field!(save_peer, "SAVE_PEER");
         json_field!(registry_supports_time_field, "REGISTRY_SUPPORTS_TIME_FIELD");
         json_field!(allowed_deprecated_versions, "ALLOWED_DEPRECATED_VERSIONS");
