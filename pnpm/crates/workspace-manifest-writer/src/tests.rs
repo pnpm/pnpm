@@ -1299,3 +1299,37 @@ fn allow_builds_replaces_a_quoted_value_containing_a_hash() {
     let out = run_allow_builds(Some("allowBuilds:\n  esbuild: \"a # b\"\n"), &[("esbuild", false)]);
     assert_eq!(out.as_deref(), Some("allowBuilds:\n  esbuild: false\n"));
 }
+
+/// A quote only delimits a scalar when it opens the value, so an
+/// apostrophe inside a plain scalar is a character, not an unterminated
+/// quoted string that would swallow a following comment.
+#[test]
+fn allow_builds_replaces_a_plain_value_containing_a_quote() {
+    let out = run_allow_builds(
+        Some("allowBuilds:\n  esbuild: don't know yet # decide later\n"),
+        &[("esbuild", true)],
+    );
+    assert_eq!(out.as_deref(), Some("allowBuilds:\n  esbuild: true # decide later\n"));
+}
+
+/// An escaped quote does not end a double-quoted scalar, so a `#` after
+/// it is still inside the value.
+#[test]
+fn allow_builds_replaces_a_value_with_an_escaped_quote() {
+    let out = run_allow_builds(
+        Some("allowBuilds:\n  esbuild: \"a \\\" # b\" # real\n"),
+        &[("esbuild", false)],
+    );
+    assert_eq!(out.as_deref(), Some("allowBuilds:\n  esbuild: false # real\n"));
+}
+
+/// A doubled quote is the single-quoted style's escape, so it does not
+/// end the scalar either.
+#[test]
+fn allow_builds_replaces_a_value_with_a_doubled_single_quote() {
+    let out = run_allow_builds(
+        Some("allowBuilds:\n  esbuild: 'it''s # fine' # real\n"),
+        &[("esbuild", true)],
+    );
+    assert_eq!(out.as_deref(), Some("allowBuilds:\n  esbuild: true # real\n"));
+}

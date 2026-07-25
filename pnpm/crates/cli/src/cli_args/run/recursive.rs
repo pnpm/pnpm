@@ -149,7 +149,6 @@ pub fn run_recursive(args: &RunArgs, config: &Config, dir: &Path) -> miette::Res
             let mut project_failed = false;
             for selected in &specified {
                 let Some(script) = manifest.script(selected, true)? else {
-                    mark_skipped(&mut result[root], project_failed);
                     continue;
                 };
                 // Per-stage no-ops: an empty body (`!scripts[name]`) is
@@ -158,10 +157,15 @@ pub fn run_recursive(args: &RunArgs, config: &Config, dir: &Path) -> miette::Res
                 // Without these guards the recursive loop would fork a
                 // useless shell per project and (for the npm guard) might
                 // run the wrong-package-manager warning.
+                // A no-op among several selected scripts leaves the
+                // project's status alone: it says nothing about the
+                // scripts that did run, and overwriting a recorded
+                // `Passed` (or `Failure`) with `Skipped` would misreport
+                // them. A project where *nothing* matched is marked
+                // skipped above, before this loop.
                 if script.is_empty()
                     || (args.script_args().is_empty() && script == "npx only-allow pnpm")
                 {
-                    mark_skipped(&mut result[root], project_failed);
                     continue;
                 }
                 // Recursion guard: skip a project when `npm_lifecycle_event`
@@ -265,13 +269,4 @@ pub fn run_recursive(args: &RunArgs, config: &Config, dir: &Path) -> miette::Res
         return Err(RecursiveRunError::RecursiveFail { count: failures }.into());
     }
     Ok(())
-}
-
-/// Record that a selected script had nothing to run, unless one of this
-/// project's other selected scripts already failed — see the
-/// `project_failed` bookkeeping in [`run_recursive`].
-fn mark_skipped(entry: &mut ExecutionStatus, project_failed: bool) {
-    if !project_failed {
-        entry.status = Status::Skipped;
-    }
 }

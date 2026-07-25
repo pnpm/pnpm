@@ -130,14 +130,9 @@ export async function runRecursive (
         if (!process.env.npm_lifecycle_event) {
           throwOrFilterHiddenScripts([scriptName], scriptName)
         }
-        // Guarded for the same reason as the 'passed' write below: a
-        // sibling script starting after this project already failed would
-        // otherwise reset it, and 'running' is no more a failure than
-        // 'passed' is as far as countFailures is concerned.
-        // Guarded for the same reason as the 'passed' write below: a
-        // sibling script starting after this project already failed would
-        // otherwise reset it, and 'running' is no more a failure than
-        // 'passed' is as far as countFailures is concerned.
+        // 'running' is no more a failure than 'passed' is as far as
+        // countFailures is concerned, so a sibling script starting after
+        // this project failed must not reset it either.
         if (!failedPrefixes.has(prefix)) {
           result[prefix].status = 'running'
         }

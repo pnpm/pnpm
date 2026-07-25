@@ -537,8 +537,9 @@ fn force_link(src: &Path, dest: &Path) -> std::io::Result<()> {
 /// milliseconds, so a short retry turns a spurious install failure into
 /// a pause. A destination that stays busy still surfaces its error.
 fn swap_into_place(staged: &Path, dest: &Path) -> std::io::Result<()> {
-    /// Ten tries over ~250ms: long enough to outlast a scanner's handle,
-    /// short enough not to stall a command that is genuinely blocked.
+    /// Ten tries backing off linearly, ~1.1s of sleep in total: long
+    /// enough to outlast a scanner's handle, short enough not to stall a
+    /// command whose destination is genuinely blocked.
     const ATTEMPTS: usize = 10;
     const BACKOFF: std::time::Duration = std::time::Duration::from_millis(25);
 

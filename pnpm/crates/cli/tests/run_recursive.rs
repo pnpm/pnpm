@@ -1532,3 +1532,38 @@ fn recursive_run_keeps_a_failure_when_a_later_selected_script_passes() {
 
     drop(root);
 }
+
+/// A selector can match a script with an empty body alongside a real
+/// one. The no-op says nothing about the script that did run, so it must
+/// not overwrite the project's recorded status.
+#[test]
+fn recursive_run_keeps_a_pass_when_a_later_selected_script_is_a_no_op() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[(
+            "pkg",
+            json!({
+                "name": "pkg",
+                "version": "1.0.0",
+                "scripts": {
+                    "check:a": "true",
+                    // Sorts after `check:a`, so a regression reports the
+                    // project as skipped rather than passed.
+                    "check:b": "",
+                },
+            }),
+        )],
+    );
+
+    pacquet.with_args(["-r", "run", "--report-summary", "/^check:/"]).assert().success();
+
+    let statuses = summary_statuses(&workspace);
+    assert_eq!(
+        statuses.get("pkg").map(String::as_str),
+        Some("passed"),
+        "a no-op script must not erase the passing one: {statuses:?}",
+    );
+
+    drop(root);
+}

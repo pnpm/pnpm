@@ -1491,7 +1491,8 @@ mod project_scripts {
         }
 
         for file in ["preinstall-ua.txt", "run-ua.txt", "exec-ua.txt"] {
-            let user_agent = fs::read_to_string(workspace.join(file)).expect("read {file}");
+            let user_agent = fs::read_to_string(workspace.join(file))
+                .unwrap_or_else(|error| panic!("read {file}: {error}"));
             let (name, rest) = user_agent.split_once('/').unwrap_or((&user_agent, ""));
             assert_eq!(name, "pnpm", "{file}: {user_agent}");
             assert!(!rest.is_empty(), "{file} carries a version: {user_agent}");
