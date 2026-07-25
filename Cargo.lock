@@ -4761,6 +4761,7 @@ dependencies = [
  "pacquet-testing-utils",
  "pacquet-workspace",
  "pacquet-workspace-manifest-writer",
+ "pacquet-workspace-range-resolver",
  "pacquet-workspace-state",
  "pathdiff",
  "pipe-trait",

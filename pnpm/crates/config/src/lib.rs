@@ -437,6 +437,75 @@ impl<'de> serde::Deserialize<'de> for LinkWorkspacePackages {
     }
 }
 
+/// `saveWorkspaceProtocol`. How a dependency linked to a workspace
+/// package is written back to `package.json`.
+///
+/// The setting is `saveWorkspaceProtocol: boolean | 'rolling'`. Default
+/// is [`SaveWorkspaceProtocol::Rolling`]
+/// (`'save-workspace-protocol': 'rolling'`).
+///
+/// [`SaveWorkspaceProtocol::Off`] only suppresses the `workspace:`
+/// prefix for a dependency that did not already declare one; a
+/// `workspace:` specifier always keeps its protocol, so the two
+/// non-rolling states behave alike wherever the protocol is already
+/// present.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum SaveWorkspaceProtocol {
+    /// `false`.
+    Off,
+    /// `true`. The resolved version is written under the protocol,
+    /// keeping the range operator the dependency already declared
+    /// (`workspace:^1.2.3`).
+    On,
+    /// `"rolling"`. The range operator is written without a version
+    /// (`workspace:*`, `workspace:^`, `workspace:~`), so the entry
+    /// never needs rewriting when the workspace package's version
+    /// changes.
+    #[default]
+    Rolling,
+}
+
+impl serde::Serialize for SaveWorkspaceProtocol {
+    fn serialize<Ser: serde::Serializer>(&self, serializer: Ser) -> Result<Ser::Ok, Ser::Error> {
+        match self {
+            SaveWorkspaceProtocol::Off => serializer.serialize_bool(false),
+            SaveWorkspaceProtocol::On => serializer.serialize_bool(true),
+            SaveWorkspaceProtocol::Rolling => serializer.serialize_str("rolling"),
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for SaveWorkspaceProtocol {
+    fn deserialize<De>(deserializer: De) -> Result<Self, De::Error>
+    where
+        De: serde::Deserializer<'de>,
+    {
+        use serde::de::{self, Visitor};
+        use std::fmt;
+
+        struct V;
+        impl Visitor<'_> for V {
+            type Value = SaveWorkspaceProtocol;
+            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.write_str(r#"a boolean or the string "rolling""#)
+            }
+            fn visit_bool<DeError: de::Error>(self, value: bool) -> Result<Self::Value, DeError> {
+                Ok(if value { SaveWorkspaceProtocol::On } else { SaveWorkspaceProtocol::Off })
+            }
+            fn visit_str<DeError: de::Error>(self, value: &str) -> Result<Self::Value, DeError> {
+                match value {
+                    "rolling" => Ok(SaveWorkspaceProtocol::Rolling),
+                    other => Err(DeError::invalid_value(
+                        de::Unexpected::Str(other),
+                        &r#"true, false, or "rolling""#,
+                    )),
+                }
+            }
+        }
+        deserializer.deserialize_any(V)
+    }
+}
+
 /// How the resolver picks a version for a direct dependency when more
 /// than one satisfies the wanted range.
 ///
@@ -973,6 +1042,12 @@ pub struct Config {
     /// [`LinkWorkspacePackages`] for the tri-state semantics.
     /// Default `false` (`'link-workspace-packages': false`).
     pub link_workspace_packages: LinkWorkspacePackages,
+
+    /// `saveWorkspaceProtocol`. How `pacquet update --workspace`
+    /// writes a dependency it links to a workspace package. See
+    /// [`SaveWorkspaceProtocol`].
+    /// Default `"rolling"` (`'save-workspace-protocol': 'rolling'`).
+    pub save_workspace_protocol: SaveWorkspaceProtocol,
 
     /// `injectWorkspacePackages` from `pnpm-workspace.yaml`. When
     /// `true`, workspace-package resolutions materialize as `file:`

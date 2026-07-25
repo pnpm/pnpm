@@ -58,7 +58,7 @@ import { getPinnedVersion } from './getPinnedVersion.js'
 import { getSaveType } from './getSaveType.js'
 import { handleIgnoredBuilds } from './handleIgnoredBuilds.js'
 import { type PolicyViolation, setupPolicyHandlers } from './policyHandlers.js'
-import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies.js'
+import { toWorkspaceSpecs } from './updateWorkspaceDependencies.js'
 
 export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'bail'
@@ -226,6 +226,10 @@ export async function recursive (
   }
 
   let updateMatch: UpdateDepsMatcher | null
+  // `params` is rewritten per project into the dependency names it matched, so
+  // remember whether the user named any package. `--workspace` only insists
+  // that a dependency exists in the workspace when it was asked for by name.
+  const userNamedDeps = params.length > 0
   if (cmdFullName === 'update') {
     if (params.length === 0) {
       const ignoreDeps = opts.updateConfig?.ignoreDependencies
@@ -273,11 +277,12 @@ export async function recursive (
         currentInput = Object.keys(filterDependenciesByType(manifest, includeDirect))
       }
       if (opts.workspace) {
-        if (!currentInput || (currentInput.length === 0)) {
-          currentInput = updateToWorkspacePackagesFromManifest(manifest, includeDirect, workspacePackages)
-        } else {
-          currentInput = createWorkspaceSpecs(currentInput, workspacePackages)
-        }
+        currentInput = toWorkspaceSpecs(currentInput, {
+          manifest,
+          include: includeDirect,
+          workspacePackages,
+          userNamedDeps,
+        })
       }
       switch (mutation) {
         case 'uninstallSome':
@@ -401,11 +406,12 @@ export async function recursive (
           currentInput = Object.keys(filterDependenciesByType(manifest, includeDirect))
         }
         if (opts.workspace) {
-          if (!currentInput || (currentInput.length === 0)) {
-            currentInput = updateToWorkspacePackagesFromManifest(manifest, includeDirect, workspacePackages)
-          } else {
-            currentInput = createWorkspaceSpecs(currentInput, workspacePackages)
-          }
+          currentInput = toWorkspaceSpecs(currentInput, {
+            manifest,
+            include: includeDirect,
+            workspacePackages,
+            userNamedDeps,
+          })
         }
 
         type ActionOpts =

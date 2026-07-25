@@ -302,7 +302,7 @@ fn run_install_inner(
     // `update: true` re-resolves the whole graph to the highest in-range
     // version — pnpm's `update: true` / `depth: Infinity`. The binding takes no
     // package selectors, so an update always targets every dependency
-    // (`UpdateSeedPolicy::DropAll`); `depth` is only pnpm's direct-vs-any-depth
+    // (`UpdateSeedPolicy::drop_all()`); `depth` is only pnpm's direct-vs-any-depth
     // selector toggle, which has no effect without selectors and is accepted for
     // API compatibility only. Mirrors `pacquet_package_manager::Update`, which
     // forces `prefer_frozen_lockfile: false` and a non-frozen path so the
@@ -344,7 +344,7 @@ fn run_install_inner(
         options.prefer_frozen_lockfile
     };
     let update_seed_policy =
-        if update_requested { UpdateSeedPolicy::DropAll } else { UpdateSeedPolicy::KeepAll };
+        if update_requested { UpdateSeedPolicy::drop_all() } else { UpdateSeedPolicy::KeepAll };
     let is_full_install = matches!(mode, EngineMode::Install);
 
     let runtime =

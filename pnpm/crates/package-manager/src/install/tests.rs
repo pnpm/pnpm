@@ -603,7 +603,7 @@ async fn install_with_drop_all_seed_policy_bumps_dependency_within_range() {
         lockfile_only: false,
         dry_run: false,
         resolved_packages: &Default::default(),
-        update_seed_policy: crate::UpdateSeedPolicy::DropAll,
+        update_seed_policy: crate::UpdateSeedPolicy::drop_all(),
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,

@@ -17,7 +17,7 @@
 
 use crate::{
     resolve_dependency_tree::{
-        ManifestHook, UpdateReuseScope, WorkspaceTreeCtx, importer_direct_wanted_specs,
+        ManifestHook, UpdateDepth, UpdateReuseScope, WorkspaceTreeCtx, importer_direct_wanted_specs,
     },
     resolve_importer::{ImporterHoistState, ResolveImporterError, ResolveImporterOptions},
     resolve_peers::{
@@ -99,6 +99,10 @@ pub struct WorkspaceResolveOptions {
     /// Per-importer update scopes for filtered workspace updates. An importer
     /// absent from this map uses [`Self::update_reuse_scope`].
     pub update_reuse_scopes_by_importer: BTreeMap<String, UpdateReuseScope>,
+    /// `pacquet update --depth`: how deep the update reaches. Nodes
+    /// past the ceiling keep their locked resolutions even when their
+    /// name is an update target.
+    pub update_depth: UpdateDepth,
 
     /// `pnpmfileHook` applied to every resolved manifest before it
     /// enters the wanted-dep cache. Workspace-wide (one hook per
@@ -189,6 +193,7 @@ where
         wanted_lockfile,
         update_reuse_scope,
         update_reuse_scopes_by_importer,
+        update_depth,
         auto_install_peers,
         registries,
     } = opts;
@@ -198,6 +203,7 @@ where
             .with_wanted_lockfile(wanted_lockfile)
             .with_update_reuse_scope(update_reuse_scope)
             .with_update_reuse_scopes_by_importer(update_reuse_scopes_by_importer)
+            .with_update_depth(update_depth)
             .with_pnpmfile_hook(pnpmfile_hook)
             .with_read_package_log(read_package_log)
             .with_skipped_optional_log(skipped_optional_log)

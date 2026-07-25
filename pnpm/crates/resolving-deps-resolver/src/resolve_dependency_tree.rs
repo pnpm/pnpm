@@ -57,9 +57,52 @@ pub enum UpdateReuseScope {
     /// Reuse nothing — the whole graph re-resolves. `pacquet update`
     /// with no selectors.
     None,
-    /// Reuse everything except the named packages (matched at any depth).
-    /// `pacquet update <pattern>`.
+    /// Reuse everything except the named packages (matched at any depth
+    /// the update reaches). `pacquet update <pattern>`.
     Except(std::collections::HashSet<String>),
+}
+
+/// How deep `pacquet update` reaches — the `--depth` ceiling. A node
+/// below it keeps its locked resolution even when its name is an update
+/// target, matching pnpm's `currentDepth <= updateDepth` gate.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct UpdateDepth(Option<i32>);
+
+impl UpdateDepth {
+    /// `--depth Infinity`, the default.
+    pub const UNLIMITED: Self = Self(None);
+
+    /// A depth no dependency graph can reach — `usize::MAX`, which the
+    /// CLI uses for the `Infinity` default, among them — is unlimited.
+    #[must_use]
+    pub fn new(depth: usize) -> Self {
+        i32::try_from(depth).map_or(Self::UNLIMITED, |depth| Self(Some(depth)))
+    }
+
+    /// Whether an update reaches a node at `depth`.
+    #[must_use]
+    fn reaches(self, depth: i32) -> bool {
+        self.0.is_none_or(|max_depth| depth <= max_depth)
+    }
+
+    /// The depth to memoise a subtree-reuse answer under. Beyond the
+    /// ceiling no node is an update target, so every deeper level shares
+    /// one answer — and an unlimited update never varies by depth at all.
+    #[must_use]
+    fn memo_bucket(self, depth: i32) -> i32 {
+        match self.0 {
+            None => 0,
+            Some(max_depth) => depth.min(max_depth.saturating_add(1)),
+        }
+    }
+}
+
+/// The `pacquet update` scope a node is judged against: which names the
+/// update targets, and how deep it reaches.
+#[derive(Debug, Clone, Copy)]
+struct UpdateScope<'a> {
+    reuse: &'a UpdateReuseScope,
+    max_depth: UpdateDepth,
 }
 
 /// How the current [`fn@resolve_node`] call may reuse the prior
@@ -526,7 +569,7 @@ type WantedKey = (
     bool,
 );
 
-type SubtreeReuseKey = (Option<String>, PkgNameVerPeer);
+type SubtreeReuseKey = (Option<String>, PkgNameVerPeer, i32);
 
 /// Whether a wanted dep's resolution is computed relative to the
 /// consuming importer's directory rather than being
@@ -623,6 +666,8 @@ pub struct WorkspaceTreeCtx {
     /// Importer overrides used by filtered workspace updates. IDs absent from
     /// this map keep the workspace default above.
     update_reuse_scopes_by_importer: BTreeMap<String, UpdateReuseScope>,
+    /// `pacquet update --depth`: how deep the suppression above reaches.
+    update_depth: UpdateDepth,
     /// Memoises [`fn@subtree_fully_reusable`] per update scope and snapshot
     /// key. Keep-all importers share one scope; update-active importers use
     /// isolated scopes so one importer's reuse answer cannot leak to another.
@@ -722,6 +767,7 @@ impl Default for WorkspaceTreeCtx {
             wanted_lockfile: None,
             update_reuse_scope: UpdateReuseScope::All,
             update_reuse_scopes_by_importer: BTreeMap::new(),
+            update_depth: UpdateDepth::UNLIMITED,
             subtree_reusable: Mutex::new(HashMap::new()),
             pnpmfile_hook: None,
             read_package_log: None,
@@ -851,6 +897,12 @@ impl WorkspaceTreeCtx {
         scopes: BTreeMap<String, UpdateReuseScope>,
     ) -> Self {
         self.update_reuse_scopes_by_importer = scopes;
+        self
+    }
+
+    #[must_use]
+    pub fn with_update_depth(mut self, update_depth: UpdateDepth) -> Self {
+        self.update_depth = update_depth;
         self
     }
 
@@ -1100,6 +1152,10 @@ impl TreeCtx {
 
     fn update_reuse_scope(&self) -> &UpdateReuseScope {
         self.workspace.update_reuse_scope_for(&self.importer_id)
+    }
+
+    fn update_scope(&self) -> UpdateScope<'_> {
+        UpdateScope { reuse: self.update_reuse_scope(), max_depth: self.workspace.update_depth }
     }
 
     fn update_cache_scope(&self) -> Option<String> {
@@ -1452,7 +1508,7 @@ where
     // would keep the pin, leaving the lockfile non-convergent).
     if reuse.allows_reuse()
         && !node_depends_on_changed_direct_dep(ctx, prior_key.as_ref())
-        && let Some(reused) = try_reuse_node(ctx, &wanted, prior_key.as_ref())
+        && let Some(reused) = try_reuse_node(ctx, &wanted, prior_key.as_ref(), depth)
     {
         return resolve_reused_node(
             ctx,
@@ -1534,7 +1590,7 @@ where
             view
         })
         .unwrap_or_default();
-    let update_target = is_update_target(ctx.update_reuse_scope(), &wanted);
+    let update_target = is_update_target(ctx.update_scope(), &wanted, depth);
     let cache_key: WantedKey = (
         wanted.alias.clone(),
         wanted.bare_specifier.clone(),
@@ -2125,7 +2181,7 @@ where
                     None,
                     Vec::new(),
                     ctx.update_cache_scope(),
-                    is_update_target(ctx.update_reuse_scope(), &wanted),
+                    is_update_target(ctx.update_scope(), &wanted, pending.depth + 1),
                 );
                 let _ = resolve_wanted_cached(ctx, resolver, &wanted, opts, None, cache_key).await;
             }
@@ -2372,23 +2428,30 @@ fn try_reuse_node(
     ctx: &TreeCtx,
     wanted: &WantedDependency,
     prior_key: Option<&PkgNameVerPeer>,
+    depth: i32,
 ) -> Option<ReusedNode> {
     let lockfile = ctx.workspace.wanted_lockfile.as_ref()?;
-    if matches!(ctx.update_reuse_scope(), UpdateReuseScope::None) {
+    let scope = ctx.update_scope();
+    if matches!(scope.reuse, UpdateReuseScope::None) && scope.max_depth.reaches(depth) {
         return None;
     }
     let alias = wanted.alias.as_deref()?;
     let key = prior_key?;
-    if !subtree_fully_reusable(ctx, lockfile, key) {
+    if !subtree_fully_reusable(ctx, lockfile, key, depth) {
         return None;
     }
     let result = synthesize_reused_result(lockfile, key, alias)?;
     Some(ReusedNode { key: key.clone(), result })
 }
 
-/// `true` when `name` is a `pacquet update` target excluded from reuse.
-fn update_excludes(scope: &UpdateReuseScope, name: &str) -> bool {
-    match scope {
+/// `true` when a node named `name` at `depth` is a `pacquet update`
+/// target, and so excluded from reuse. Past the `--depth` ceiling the
+/// update no longer reaches, so every node keeps its locked resolution.
+fn update_excludes(scope: UpdateScope<'_>, name: &str, depth: i32) -> bool {
+    if !scope.max_depth.reaches(depth) {
+        return false;
+    }
+    match scope.reuse {
         UpdateReuseScope::All => false,
         // `None` is handled earlier in `try_reuse_node`; treat it the
         // same here for completeness.
@@ -2544,15 +2607,18 @@ fn real_package_name_of(wanted: &WantedDependency) -> Option<Cow<'_, str>> {
 /// picker's held-back-update warning.
 ///
 /// Returns `false` for `All`/`None` scopes (no individually targeted
-/// packages) and for `Except` scopes where the wanted package's real
-/// name is not in the target list. Returns `true` only when the real
-/// name is in the `Except` set.
+/// packages), for a node past the `--depth` ceiling, and for `Except`
+/// scopes where the wanted package's real name is not in the target
+/// list. Returns `true` only when the real name is in the `Except` set.
 #[inline]
-fn is_update_target(scope: &UpdateReuseScope, wanted: &WantedDependency) -> bool {
-    match scope {
+fn is_update_target(scope: UpdateScope<'_>, wanted: &WantedDependency, depth: i32) -> bool {
+    if !scope.max_depth.reaches(depth) {
+        return false;
+    }
+    match scope.reuse {
         UpdateReuseScope::All | UpdateReuseScope::None => false,
         UpdateReuseScope::Except(_) => {
-            real_package_name_of(wanted).is_some_and(|n| update_excludes(scope, n.as_ref()))
+            real_package_name_of(wanted).is_some_and(|n| update_excludes(scope, n.as_ref(), depth))
         }
     }
 }
@@ -2576,8 +2642,10 @@ fn subtree_fully_reusable(
     ctx: &TreeCtx,
     lockfile: &pacquet_lockfile::Lockfile,
     key: &PkgNameVerPeer,
+    depth: i32,
 ) -> bool {
-    let memo_key = (ctx.update_cache_scope(), key.clone());
+    let scope = ctx.update_scope();
+    let memo_key = (ctx.update_cache_scope(), key.clone(), scope.max_depth.memo_bucket(depth));
     if let Some(&cached) = lock_recoverable(&ctx.workspace.subtree_reusable).get(&memo_key) {
         return cached;
     }
@@ -2587,11 +2655,11 @@ fn subtree_fully_reusable(
     lock_recoverable(&ctx.workspace.subtree_reusable).insert(memo_key.clone(), false);
     // A `pacquet update` target anywhere in the subtree forces the whole
     // subtree to re-resolve so the bump's new transitive deps are picked
-    // up — update names match at any depth.
+    // up — update names match at every depth the update reaches.
     let name = key.name.to_string();
-    let reusable = !update_excludes(ctx.update_reuse_scope(), &name)
+    let reusable = !update_excludes(scope, &name, depth)
         && synthesize_reused_result(lockfile, key, &name).is_some()
-        && subtree_children_reusable(ctx, lockfile, key);
+        && subtree_children_reusable(ctx, lockfile, key, depth);
     lock_recoverable(&ctx.workspace.subtree_reusable).insert(memo_key, reusable);
     reusable
 }
@@ -2604,6 +2672,7 @@ fn subtree_children_reusable(
     ctx: &TreeCtx,
     lockfile: &pacquet_lockfile::Lockfile,
     key: &PkgNameVerPeer,
+    depth: i32,
 ) -> bool {
     let Some(snapshot) = lockfile.snapshots.as_ref().and_then(|snaps| snaps.get(key)) else {
         // No snapshot entry → the lockfile doesn't record this node's
@@ -2621,7 +2690,7 @@ fn subtree_children_reusable(
             let Some(child_key) = dep_ref.resolve(child_name) else {
                 return false;
             };
-            if !subtree_fully_reusable(ctx, lockfile, &child_key) {
+            if !subtree_fully_reusable(ctx, lockfile, &child_key, depth + 1) {
                 return false;
             }
         }

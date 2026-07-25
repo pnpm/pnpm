@@ -1903,6 +1903,7 @@ async fn fix_with_update<Reporter: self::Reporter + 'static>(
                 DependencyGroup::Optional,
             ],
             depth: usize::MAX,
+            workspace_packages: None,
             supported_architectures: config.supported_architectures.clone(),
             lockfile_only: false,
             resolution_observer: Some(observer),

@@ -225,6 +225,77 @@ test('update: fail when both "latest" and "workspace" are true', async () => {
   expect(err.message).toBe('Cannot use --latest with --workspace simultaneously')
 })
 
+test('update --workspace skips ignored dependencies and leaves registry dependencies alone', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        '@pnpm.e2e/foo': '1.0.0',
+        'project-2': '0.0.0',
+        'project-3': '^3.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '2.0.0',
+    },
+    {
+      name: 'project-3',
+      version: '3.0.0',
+    },
+  ])
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    dir: path.resolve('project-1'),
+    saveWorkspaceProtocol: 'rolling',
+    updateConfig: { ignoreDependencies: ['project-3'] },
+    workspace: true,
+    workspaceDir: process.cwd(),
+  })
+
+  const manifest = loadJsonFileSync<ProjectManifest>(path.resolve('project-1/package.json'))
+
+  expect(manifest.dependencies).toStrictEqual({
+    // Only published to the registry: nothing to link it to, and having
+    // any ignored dependency must not turn that into an error.
+    '@pnpm.e2e/foo': '1.0.0',
+    'project-2': 'workspace:*',
+    // A workspace package, but ignored, so it keeps its specifier.
+    'project-3': '^3.0.0',
+  })
+})
+
+test('update --workspace links nothing when the given selectors match no direct dependency', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'project-2': '^2.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '2.0.0',
+    },
+  ])
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    depth: 1,
+    dir: path.resolve('project-1'),
+    lockfileDir: process.cwd(),
+    workspace: true,
+    workspaceDir: process.cwd(),
+  }, ['@pnpm.e2e/not-a-dependency'])
+
+  const manifest = loadJsonFileSync<ProjectManifest>(path.resolve('project-1/package.json'))
+
+  expect(manifest.dependencies).toStrictEqual({ 'project-2': '^2.0.0' })
+})
+
 test('update --latest forbids specs', async () => {
   prepare()
 

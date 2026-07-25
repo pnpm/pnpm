@@ -435,7 +435,7 @@ mod is_update_target {
 
     use pacquet_resolving_resolver_base::WantedDependency;
 
-    use super::super::{UpdateReuseScope, is_update_target};
+    use super::super::{UpdateDepth, UpdateReuseScope, UpdateScope, is_update_target};
 
     fn wanted_with(alias: Option<&str>, bare_specifier: Option<&str>) -> WantedDependency {
         WantedDependency {
@@ -449,12 +449,19 @@ mod is_update_target {
         UpdateReuseScope::Except(names.iter().map(|s| (*s).to_string()).collect::<HashSet<_>>())
     }
 
+    /// The scope of a `--depth Infinity` update — the default, under
+    /// which every node is judged by name alone.
+    fn unlimited(reuse: &UpdateReuseScope) -> UpdateScope<'_> {
+        UpdateScope { reuse, max_depth: UpdateDepth::UNLIMITED }
+    }
+
     #[test]
     fn returns_false_for_all_scope() {
         // `All` = install/add default: no package is targeted for update.
         assert!(!is_update_target(
-            &UpdateReuseScope::All,
+            unlimited(&UpdateReuseScope::All),
             &wanted_with(Some("foo"), Some("^1.0.0")),
+            0,
         ));
     }
 
@@ -462,8 +469,9 @@ mod is_update_target {
     fn returns_false_for_none_scope() {
         // `None` is the "no reuse" sentinel; same outcome as `All` here.
         assert!(!is_update_target(
-            &UpdateReuseScope::None,
+            unlimited(&UpdateReuseScope::None),
             &wanted_with(Some("foo"), Some("^1.0.0")),
+            0,
         ));
     }
 
@@ -471,13 +479,21 @@ mod is_update_target {
     fn returns_true_for_except_scope_when_targeted() {
         // `foo` is in the user's update target list → this resolution
         // carries `update_requested`.
-        assert!(is_update_target(&except(&["foo"]), &wanted_with(Some("foo"), Some("^1.0.0")),));
+        assert!(is_update_target(
+            unlimited(&except(&["foo"])),
+            &wanted_with(Some("foo"), Some("^1.0.0")),
+            0,
+        ));
     }
 
     #[test]
     fn returns_false_for_except_scope_when_not_targeted() {
         // `foo` is not in the user's update target list.
-        assert!(!is_update_target(&except(&["bar"]), &wanted_with(Some("foo"), Some("^1.0.0")),));
+        assert!(!is_update_target(
+            unlimited(&except(&["bar"])),
+            &wanted_with(Some("foo"), Some("^1.0.0")),
+            0,
+        ));
     }
 
     #[test]
@@ -485,14 +501,46 @@ mod is_update_target {
         // The user updates `bar`, but the importer installed it under
         // alias `foo` via `foo@npm:bar@^4`. The real name `bar` is in
         // the target list, so the aliased dep counts as a target.
-        assert!(is_update_target(&except(&["bar"]), &wanted_with(Some("foo"), Some("npm:bar@^4"))));
+        assert!(is_update_target(
+            unlimited(&except(&["bar"])),
+            &wanted_with(Some("foo"), Some("npm:bar@^4")),
+            0,
+        ));
     }
 
     #[test]
     fn returns_false_when_real_name_is_unrecoverable() {
         // Alias missing AND no bare_specifier pattern that yields a name.
         // Defensive: "not a targeted update" since we can't match.
-        assert!(!is_update_target(&except(&["foo"]), &wanted_with(None, None),));
+        assert!(!is_update_target(unlimited(&except(&["foo"])), &wanted_with(None, None), 0));
+    }
+
+    #[test]
+    fn depth_zero_targets_direct_dependencies_only() {
+        let reuse = except(&["foo"]);
+        let scope = UpdateScope { reuse: &reuse, max_depth: UpdateDepth::new(0) };
+        let wanted = wanted_with(Some("foo"), Some("^1.0.0"));
+
+        assert!(is_update_target(scope, &wanted, 0));
+        assert!(!is_update_target(scope, &wanted, 1));
+    }
+
+    #[test]
+    fn a_finite_depth_reaches_every_level_up_to_it() {
+        let reuse = except(&["foo"]);
+        let scope = UpdateScope { reuse: &reuse, max_depth: UpdateDepth::new(2) };
+        let wanted = wanted_with(Some("foo"), Some("^1.0.0"));
+
+        assert!(is_update_target(scope, &wanted, 2));
+        assert!(!is_update_target(scope, &wanted, 3));
+    }
+
+    #[test]
+    fn a_depth_no_graph_can_reach_is_unlimited() {
+        let reuse = except(&["foo"]);
+        let scope = UpdateScope { reuse: &reuse, max_depth: UpdateDepth::new(usize::MAX) };
+
+        assert!(is_update_target(scope, &wanted_with(Some("foo"), Some("^1.0.0")), i32::MAX));
     }
 }
 
