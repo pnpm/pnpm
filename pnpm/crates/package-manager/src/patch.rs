@@ -8,7 +8,7 @@ use node_semver::{Range, Version};
 use pacquet_config::{Config, PackageImportMethod, ScriptsPrependNodePath};
 use pacquet_executor::ScriptsPrependNodePath as ExecScriptsPrependNodePath;
 use pacquet_git_fetcher::{GitFetchOutput, GitFetcherError, GitHostedTarballFetcher};
-use pacquet_lockfile::{Lockfile, LockfileResolution, PackageKey, is_git_hosted_tarball_url};
+use pacquet_lockfile::{Lockfile, LockfileResolution, PackageKey};
 use pacquet_network::ThrottledClient;
 use pacquet_reporter::Reporter;
 use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
@@ -355,10 +355,8 @@ async fn shutdown_store_index_writer_for_patch(
 
 fn git_tarball_url(resolution: &LockfileResolution) -> Option<String> {
     let LockfileResolution::Tarball(tarball) = resolution else { return None };
-    (tarball.git_hosted == Some(true)
-        || is_git_hosted_tarball_url(&tarball.tarball)
-        || tarball.tarball.starts_with("https://pkg.pr.new/"))
-    .then(|| tarball.tarball.clone())
+    (tarball.is_git_hosted() || tarball.tarball.starts_with("https://pkg.pr.new/"))
+        .then(|| tarball.tarball.clone())
 }
 
 fn executor_scripts_prepend_node_path(

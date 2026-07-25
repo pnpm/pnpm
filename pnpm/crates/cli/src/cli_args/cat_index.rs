@@ -162,7 +162,7 @@ fn request_matches_dependency(
 
 fn metadata_store_index_keys(pkg_id: &str, metadata: &PackageMetadata) -> Vec<String> {
     match &metadata.resolution {
-        LockfileResolution::Tarball(resolution) if resolution.git_hosted == Some(true) => {
+        LockfileResolution::Tarball(resolution) if resolution.is_git_hosted() => {
             git_store_index_keys(pkg_id)
         }
         LockfileResolution::Tarball(resolution) => resolution

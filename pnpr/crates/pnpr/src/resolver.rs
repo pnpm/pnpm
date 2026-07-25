@@ -815,7 +815,10 @@ impl TarballRouter {
             ) {
                 continue;
             }
-            let Ok((tarball_url, integrity)) =
+            // A resolution that pins no integrity keeps its original URL:
+            // routing it through the endpoint would hand the client a
+            // mirrored tarball it has no hash to check.
+            let Ok((tarball_url, Some(integrity))) =
                 tarball_url_and_integrity(&metadata.resolution, package_key, config)
             else {
                 continue;
@@ -1010,7 +1013,9 @@ fn frozen_package_frames(
         ) {
             continue;
         }
-        let Ok((tarball_url, integrity)) =
+        // The frame carries the integrity the client prefetches against;
+        // an entry that pins none has no frame to announce.
+        let Ok((tarball_url, Some(integrity))) =
             tarball_url_and_integrity(&snapshot.resolution, package_key, config)
         else {
             continue;

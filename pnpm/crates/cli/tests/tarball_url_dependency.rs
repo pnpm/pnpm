@@ -223,3 +223,71 @@ fn remote_tarball_reresolves_from_warm_store_without_refetch() {
 
     drop((root, mock_instance));
 }
+
+/// A `packages:` entry whose tarball resolution records no
+/// `integrity` is refused for a plain remote tarball: the bytes come
+/// off the network and nothing in the lockfile pins them. pnpm fails
+/// the same entry closed
+/// ([#13308](https://github.com/pnpm/pnpm/issues/13308)), and the
+/// message names the way out.
+///
+/// Git-host archive URLs are the exemption — they are what older pnpm
+/// versions wrote without an `integrity` — and that shape is covered
+/// by `unverified_fetch_is_allowed`'s unit tests, since no local
+/// server can answer for a git host.
+#[test]
+fn frozen_install_refuses_a_remote_tarball_without_integrity() {
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let tarball_path = "/pkg-from-tarball-1.0.0.tgz";
+    let mut tarball_server = mockito::Server::new();
+    let head_mock = tarball_server.mock("HEAD", tarball_path).with_status(200).create();
+    let get_mock = tarball_server
+        .mock("GET", tarball_path)
+        .with_status(200)
+        .with_body(minimal_tarball("pkg-from-tarball", "1.0.0"))
+        .create();
+    let tarball_url = format!("{}{tarball_path}", tarball_server.url());
+    let package_key = format!("pkg-from-tarball@{tarball_url}");
+    let manifest_path = workspace.join("package.json");
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+
+    fs::write(
+        &manifest_path,
+        serde_json::json!({ "dependencies": { "pkg-from-tarball": &tarball_url } }).to_string(),
+    )
+    .expect("write package.json");
+    pacquet_at(&workspace).with_arg("install").assert().success();
+
+    let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
+    let integrity = package_integrity(&lockfile, &package_key).unwrap_or_else(|| {
+        panic!("the fresh install must record an integrity for the tarball dep:\n{lockfile}")
+    });
+    let stripped = lockfile.replace(&format!("integrity: {integrity}, "), "");
+    assert!(
+        package_integrity(&stripped, &package_key).is_none(),
+        "the fixture must end up without an integrity:\n{stripped}",
+    );
+    fs::write(&lockfile_path, &stripped).expect("write pnpm-lock.yaml");
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+
+    let output = pacquet_at(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .failure()
+        .get_output()
+        .clone();
+    let stderr = String::from_utf8(output.stderr).expect("stderr is UTF-8");
+    // miette wraps the rendered message to the terminal width, so the
+    // sentences are matched against a single-spaced rendering.
+    let unwrapped = stderr.split_whitespace().collect::<Vec<_>>().join(" ");
+    assert!(
+        unwrapped.contains("ERR_PNPM_MISSING_TARBALL_INTEGRITY")
+            && unwrapped.contains("Run a fresh install to repair the lockfile"),
+        "the refusal must name the error code and the way out; got:\n{stderr}",
+    );
+
+    drop((root, mock_instance, head_mock, get_mock, tarball_server));
+}
