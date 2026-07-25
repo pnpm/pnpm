@@ -336,10 +336,10 @@ fn lockfile_with_graph(
 /// Importers lose dep maps whose `include` flag is false; importer
 /// `optionalDependencies` lose entries whose resolved snapshot got
 /// skipped; the snapshot map is pruned to the transitive closure
-/// reachable from the surviving importer roots. Installability-skipped
-/// entries survive in both maps, matching pnpm's current-lockfile
-/// shape while `.modules.yaml.skipped` records the materialization
-/// skip — see [`SkippedSnapshots::transient_only`].
+/// reachable from the surviving importer roots. Only the transient
+/// skips prune: installability-skipped entries survive in both maps,
+/// matching pnpm's current-lockfile shape while `.modules.yaml.skipped`
+/// records the materialization skip.
 #[must_use]
 pub fn filter_lockfile_for_current(
     lockfile: &Lockfile,
