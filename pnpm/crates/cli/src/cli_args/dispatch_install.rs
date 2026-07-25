@@ -236,8 +236,7 @@ pub(super) fn install_test<'a>(
 ) -> miette::Result<CommandFuture<'a>> {
     let install_args = args.install_args;
     let run_args = super::run::RunArgs {
-        command: Some("test".to_string()),
-        args: args.args,
+        script: super::run::RunArgs::script("test", args.args),
         if_present: ctx.if_present,
         resume_from: ctx.recursive_resume_from.map(str::to_string),
         report_summary: ctx.recursive_report_summary,

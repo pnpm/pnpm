@@ -73,10 +73,10 @@ pub enum RecursiveRunError {
 /// `config.workspace_dir`, falling back to `dir` when no
 /// `pnpm-workspace.yaml` exists.
 pub fn run_recursive(args: &RunArgs, config: &Config, dir: &Path) -> miette::Result<()> {
-    // `RunArgs::command` is optional so single-project `run` can list
+    // The script name is optional so single-project `run` can list
     // scripts; recursive mode has no such "list" behavior, so a missing
     // script name is a usage error (`ERR_PNPM_SCRIPT_NAME_IS_REQUIRED`).
-    let Some(script_name) = args.command.as_deref() else {
+    let Some(script_name) = args.script_name() else {
         return Err(RecursiveRunError::ScriptNameRequired.into());
     };
     let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
@@ -144,7 +144,9 @@ pub fn run_recursive(args: &RunArgs, config: &Config, dir: &Path) -> miette::Res
             // Without these guards the recursive loop would fork a
             // useless shell per project and (for the npm guard) might
             // run the wrong-package-manager warning.
-            if script.is_empty() || (args.args.is_empty() && script == "npx only-allow pnpm") {
+            if script.is_empty()
+                || (args.script_args().is_empty() && script == "npx only-allow pnpm")
+            {
                 result[root].status = Status::Skipped;
                 continue;
             }
@@ -194,7 +196,7 @@ pub fn run_recursive(args: &RunArgs, config: &Config, dir: &Path) -> miette::Res
                 silent: true,
                 sequential: args.sequential,
             };
-            let status = run_stages(&ctx, script_name, script, &args.args)?;
+            let status = run_stages(&ctx, script_name, script, args.script_args())?;
             let duration = start.elapsed().as_secs_f64() * 1e3;
 
             if status.success() {

@@ -18,8 +18,7 @@ impl StopArgs {
     pub(crate) fn into_run_args(self) -> RunArgs {
         let StopArgs { args, if_present } = self;
         RunArgs {
-            command: Some("stop".to_string()),
-            args,
+            script: RunArgs::script("stop", args),
             if_present,
             resume_from: None,
             report_summary: false,

@@ -54,10 +54,8 @@ pub(super) fn fallback<'a>(
     ctx: &RunCtx<'a>,
     command: Vec<String>,
 ) -> miette::Result<CommandFuture<'a>> {
-    let mut command = command.into_iter();
     let args = RunArgs {
-        command: command.next(),
-        args: command.collect(),
+        script: command,
         if_present: false,
         resume_from: None,
         report_summary: false,
@@ -126,8 +124,7 @@ pub(super) fn restart<'a>(
 
 fn run_args_for_script(command: &str, if_present: bool) -> RunArgs {
     RunArgs {
-        command: Some(command.to_string()),
-        args: Vec::new(),
+        script: RunArgs::script(command, []),
         if_present,
         resume_from: None,
         report_summary: false,
