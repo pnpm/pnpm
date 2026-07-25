@@ -149,6 +149,13 @@ pub fn find_workspace_projects_no_check(
         message: err.to_string(),
     })?;
 
+    // `NotFound` is the one error kind this enumeration absorbs, in both
+    // the walk below and the manifest read after it: a pattern whose
+    // directory is absent matches nothing, and a file may vanish between
+    // being listed and being read. Every other kind — parse failures,
+    // permission denials, "is a directory" — must propagate, so a
+    // malformed `package.json` surfaces as a diagnostic instead of being
+    // silently dropped from the workspace.
     let mut manifest_paths: BTreeSet<PathBuf> = BTreeSet::new();
     for pattern in include_patterns {
         for normalized in normalize_manifest_patterns(pattern) {
@@ -169,10 +176,22 @@ pub fn find_workspace_projects_no_check(
             })?;
 
             for entry in walk {
-                let entry = entry.map_err(|err| FindWorkspaceProjectsError::Walk {
-                    root: workspace_root.to_path_buf(),
-                    source: std::io::Error::other(err.to_string()),
-                })?;
+                let entry = match entry {
+                    Ok(entry) => entry,
+                    Err(err) => {
+                        // Converting rather than restringifying keeps the
+                        // underlying `io::ErrorKind`, which the skip below
+                        // needs.
+                        let err = std::io::Error::from(err);
+                        if err.kind() == ErrorKind::NotFound {
+                            continue;
+                        }
+                        return Err(FindWorkspaceProjectsError::Walk {
+                            root: workspace_root.to_path_buf(),
+                            source: err,
+                        });
+                    }
+                };
                 manifest_paths.insert(entry.path().to_path_buf());
             }
         }
@@ -202,12 +221,6 @@ pub fn find_workspace_projects_no_check(
         }
         let manifest = match read_exact_project_manifest(&manifest_path) {
             Ok(m) => m,
-            // Swallow ENOENT mid-walk (a file vanished between listing
-            // and reading). This is the exact-and-only carve-out: parse
-            // errors, permission failures, and "is a directory" must
-            // still propagate so a malformed `package.json` surfaces as
-            // a diagnostic instead of being silently dropped from the
-            // workspace.
             Err(ReadProjectManifestError::Read(PackageManifestError::Io(err)))
                 if err.kind() == ErrorKind::NotFound =>
             {

@@ -259,3 +259,54 @@ fn empty_patterns_array_enumerates_root_only() {
         .collect();
     assert_eq!(names, vec!["root".to_string()]);
 }
+
+/// A pattern whose directory does not exist matches nothing instead of
+/// aborting the enumeration, so a workspace that declares `packages/*`
+/// before creating `packages/` still resolves its root project
+/// (pnpm/pnpm#13296).
+#[test]
+fn missing_pattern_directory_matches_nothing() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+
+    let projects = find_workspace_projects(
+        tmp.path(),
+        &FindWorkspaceProjectsOpts {
+            patterns: Some(vec!["packages/*".to_string(), "apps/**".to_string()]),
+        },
+    )
+    .expect("a missing pattern directory is not an error");
+
+    let names: Vec<String> = projects
+        .iter()
+        .map(|project| project.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
+        .collect();
+    assert_eq!(names, vec!["root".to_string()]);
+}
+
+/// The absorbed kind is `NotFound` only: an existing-but-unreadable
+/// directory is a real failure and must not be mistaken for "no matches".
+#[test]
+#[cfg(unix)]
+fn unreadable_pattern_directory_still_errors() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    make_project(tmp.path(), "packages/alpha", "alpha");
+    let packages = tmp.path().join("packages");
+    fs::set_permissions(&packages, fs::Permissions::from_mode(0o000)).unwrap();
+
+    let result = find_workspace_projects(
+        tmp.path(),
+        &FindWorkspaceProjectsOpts { patterns: Some(vec!["packages/*".to_string()]) },
+    );
+
+    // Restore before asserting so the TempDir can always clean itself up.
+    fs::set_permissions(&packages, fs::Permissions::from_mode(0o755)).unwrap();
+    // `expect_err` would need `Project: Debug`, which it deliberately is not.
+    let Err(error) = result else {
+        panic!("an unreadable directory must be a real failure, not an empty match");
+    };
+    dbg!(&error);
+}
