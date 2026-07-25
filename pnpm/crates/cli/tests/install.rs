@@ -1725,6 +1725,55 @@ fn migrated_keys_are_reported_by_the_up_to_date_fast_path() {
     drop(root);
 }
 
+/// Both emit sites resolve the root manifest the way pnpm does — the
+/// workspace root when there is one, the current directory otherwise —
+/// so a run from a workspace package names the root's keys and never
+/// the package's own.
+#[test]
+fn migrated_keys_are_read_from_the_workspace_root() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "root",
+            "version": "1.0.0",
+            "private": true,
+            "pnpm": { "overrides": { "is-number": "6.0.0" } },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    let package_dir = workspace.join("packages").join("leaf");
+    fs::create_dir_all(&package_dir).expect("create the workspace package");
+    fs::write(
+        package_dir.join("package.json"),
+        serde_json::json!({
+            "name": "leaf",
+            "version": "1.0.0",
+            "pnpm": { "neverBuiltDependencies": [] },
+        })
+        .to_string(),
+    )
+    .expect("write the workspace package's package.json");
+
+    let assert = pacquet_in(&package_dir).with_arg("install").assert().success();
+    let stdout = String::from_utf8_lossy(&assert.get_output().stdout).into_owned();
+
+    eprintln!("STDOUT:\n{stdout}");
+    assert!(
+        stdout.contains(r#"The following keys were ignored: "pnpm.overrides"."#),
+        "the root manifest's keys must be named; got:\n{stdout}",
+    );
+    assert!(
+        !stdout.contains("neverBuiltDependencies"),
+        "the workspace package's own `pnpm` field is not the root manifest; got:\n{stdout}",
+    );
+
+    drop(root);
+}
+
 /// The warning names only keys pnpm migrated, so a manifest carrying a
 /// `pnpm` field that third-party tooling owns stays quiet.
 #[test]
