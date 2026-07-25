@@ -1,10 +1,10 @@
 use super::{
-    CalcDepStateOptions, DepsGraphNode, calc_dep_state, transitively_requires_build,
-    warm_deps_state_cache,
+    CalcDepStateOptions, DepsGraphNode, calc_dep_graph_hash, calc_dep_state,
+    transitively_requires_build, warm_deps_state_cache,
 };
 use indexmap::IndexMap;
 use pretty_assertions::assert_eq;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 #[test]
 fn engine_only_key() {
@@ -408,4 +408,13 @@ fn warming_makes_cyclic_dep_states_independent_of_query_order() {
     let backward = dep_states(&graph, &mut backward_cache, &["z", "m", "b", "a"]);
 
     assert_eq!(forward, backward);
+
+    // The warm-up threads one `parents` set through every walk; that is
+    // only sound while each walk leaves it empty again, so hold it
+    // against walks that each start from a fresh set.
+    let mut per_key_cache = HashMap::new();
+    for key in &keys {
+        calc_dep_graph_hash(&graph, &mut per_key_cache, &mut HashSet::new(), key);
+    }
+    assert_eq!(forward_cache, per_key_cache);
 }

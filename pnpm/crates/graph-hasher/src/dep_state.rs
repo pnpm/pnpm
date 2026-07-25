@@ -163,8 +163,14 @@ pub fn warm_deps_state_cache<'a, Key>(
 ) where
     Key: 'a + Clone + Eq + std::hash::Hash,
 {
+    // One `parents` set for the whole warm-up: each walk leaves it empty
+    // again, and a key that is already memoized needs no walk at all.
+    let mut parents = HashSet::new();
     for key in keys {
-        calc_dep_graph_hash(graph, cache, &mut HashSet::new(), key);
+        if cache.contains_key(key) {
+            continue;
+        }
+        calc_dep_graph_hash(graph, cache, &mut parents, key);
     }
 }
 
