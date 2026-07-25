@@ -731,16 +731,51 @@ fn intersect_ranges(ranges: &[&str]) -> Option<String> {
     .map(|range| range.to_string())
 }
 
+/// Keep a specifier only if it means the same thing when resolved from
+/// an importer other than the root. Every candidate specifier passes
+/// through this one gate, whichever source it came from. See
+/// [`is_project_relative_specifier`] for what disqualifies one.
+fn cross_importer_specifier(spec: Option<String>) -> Option<String> {
+    spec.filter(|spec| !is_project_relative_specifier(spec))
+}
+
+/// Whether a specifier resolves against the consuming project's own
+/// directory — the `link:` / `file:` / `workspace:` protocols, same set
+/// [`fn@crate::resolve_dependency_tree::project_relative_cache_scope`]
+/// scopes its resolution cache by. A root dep declared this way is not
+/// a candidate for another importer's missing peer: hoisting the
+/// specifier verbatim would resolve it relative to *that* importer and
+/// reach a different path, or nothing at all. Dropping it leaves the
+/// peer to the preferred-versions arm, which is where such deps sat
+/// before they could be named at all.
+fn is_project_relative_specifier(spec: &str) -> bool {
+    spec.starts_with("link:") || spec.starts_with("file:") || spec.starts_with("workspace:")
+}
+
+/// The package's real name: the resolution-time `name_ver` when the
+/// resolver reported one, else the fetched manifest's `name`, which is
+/// the canonical source for the non-npm protocols that leave `name_ver`
+/// unset. `None` when neither is available — a git resolution reports
+/// no manifest until after the fetch, which is past the point the hoist
+/// picker runs.
+fn resolved_pkg_name(result: &pacquet_resolving_resolver_base::ResolveResult) -> Option<String> {
+    if let Some(name_ver) = result.name_ver.as_ref() {
+        return Some(name_ver.name.to_string());
+    }
+    result.manifest.as_deref()?.get("name").and_then(serde_json::Value::as_str).map(str::to_string)
+}
+
 /// Build the [`WorkspaceRootDep`] slice the hoist picker sees. Reads
 /// `direct` for the slot names and `snapshot` for the resolved package
 /// each slot points at, with `declared` supplying the specifier
 /// whenever the resolver reports no normalized one.
 ///
-/// Deps the resolver couldn't name at resolution time still make it in
-/// through `declared`: `name_ver` is `None` for resolvers that learn
-/// the name from the manifest only after the fetch (git / tarball /
-/// local), and dropping them would hide a root peer provider declared
-/// that way from the picker.
+/// The picker matches a peer against a root dep by alias *and* by real
+/// package name, so the name has to be the resolved one wherever it can
+/// be had — see [`resolved_pkg_name`]. A dep whose name can't be had at
+/// all still makes it in through `declared` under its alias: matching by
+/// alias alone beats dropping the root's provider entirely, and an alias
+/// usually *is* the package name.
 fn build_workspace_root_deps(
     direct: &[DirectDep],
     snapshot: &ResolvedTree,
@@ -750,20 +785,23 @@ fn build_workspace_root_deps(
     let mut named = HashSet::new();
     for dep in direct {
         let Some(pkg) = snapshot.packages.get(&dep.id) else { continue };
-        let Some(name_ver) = pkg.result.name_ver.as_ref() else { continue };
+        let Some(pkg_name) = resolved_pkg_name(&pkg.result) else { continue };
         named.insert(dep.alias.as_str());
         out.push(WorkspaceRootDep {
             alias: dep.alias.clone(),
-            pkg_name: name_ver.name.to_string(),
-            normalized_bare_specifier: pkg
-                .result
-                .normalized_bare_specifier
-                .clone()
-                .or_else(|| declared.get(&dep.alias).cloned()),
+            pkg_name,
+            normalized_bare_specifier: cross_importer_specifier(
+                pkg.result
+                    .normalized_bare_specifier
+                    .clone()
+                    .or_else(|| declared.get(&dep.alias).cloned()),
+            ),
         });
     }
     for (alias, bare_specifier) in declared {
-        if named.contains(alias.as_str()) {
+        if named.contains(alias.as_str())
+            || cross_importer_specifier(Some(bare_specifier.clone())).is_none()
+        {
             continue;
         }
         let (pkg_name, _) = unwrap_package_name(alias, bare_specifier);

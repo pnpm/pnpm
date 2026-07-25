@@ -149,6 +149,14 @@ pub fn get_hoistable_optional_peers(
     let mut optional_dependencies = BTreeMap::new();
     for (peer_name, ranges) in all_missing_optional_peers {
         let Some(selectors) = all_preferred_versions.get(peer_name) else { continue };
+        // Parsed once per peer, not once per candidate version. An
+        // unparsable range leaves no version satisfying every range, so
+        // bailing here matches checking and failing per candidate.
+        let Ok(parsed_ranges) =
+            ranges.iter().map(|range| range.parse::<Range>()).collect::<Result<Vec<_>, _>>()
+        else {
+            continue;
+        };
         let mut max_satisfying_version: Option<Version> = None;
         for (version_str, entry) in selectors {
             let selector_type = match entry {
@@ -167,10 +175,7 @@ pub fn get_hoistable_optional_peers(
             // `30.0.0-alpha.6` for `^29.0.0 || ^30.0.0` would split a
             // package family across release lines to satisfy a peer that
             // was fine left unresolved.
-            if !ranges
-                .iter()
-                .all(|range| range.parse::<Range>().is_ok_and(|parsed| parsed.satisfies(&version)))
-            {
+            if !parsed_ranges.iter().all(|parsed| parsed.satisfies(&version)) {
                 continue;
             }
             if max_satisfying_version.as_ref().is_none_or(|cur| version > *cur) {
