@@ -30,7 +30,7 @@ pub(crate) struct ChoiceGroup {
 
 /// The dependency type a choice is grouped under. GitHub Actions form
 /// their own group even though they are read out of `devDependencies`.
-#[derive(PartialEq, Eq, Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum ChoiceGroupKind {
     Prod,
     Dev,
