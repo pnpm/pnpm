@@ -118,7 +118,16 @@ async fn add_resolves_package_selectors_concurrently_and_reports_in_selector_ord
         active: usize,
         max_active: usize,
         started: usize,
+        /// Set once a handler gave up waiting for its peers. Later
+        /// handlers then skip the wait, so a genuine loss of concurrency
+        /// costs one timeout instead of one per selector.
+        barrier_expired: bool,
     }
+
+    // Only has to outlast the scheduling latency of a machine running
+    // the whole suite in parallel — the verdict comes from `max_active`,
+    // not from the deadline.
+    const OVERLAP_BARRIER_TIMEOUT: Duration = Duration::from_secs(15);
 
     let dir = tempdir().unwrap();
     let project_root = dir.path().join("project");
@@ -165,11 +174,15 @@ async fn add_resolves_package_selectors_concurrently_and_reports_in_selector_ord
                 requests.started += 1;
                 requests.max_active = requests.max_active.max(requests.active);
                 ready.notify_all();
-                let (mut requests, _) = ready
-                    .wait_timeout_while(requests, Duration::from_secs(2), |requests| {
-                        requests.started < packages.len()
+                let (mut requests, wait) = ready
+                    .wait_timeout_while(requests, OVERLAP_BARRIER_TIMEOUT, |requests| {
+                        requests.started < packages.len() && !requests.barrier_expired
                     })
                     .unwrap();
+                if wait.timed_out() {
+                    requests.barrier_expired = true;
+                    ready.notify_all();
+                }
                 drop(requests);
                 std::thread::sleep(Duration::from_millis(response_delay_ms));
                 requests = lock.lock().unwrap();
@@ -220,6 +233,10 @@ async fn add_resolves_package_selectors_concurrently_and_reports_in_selector_ord
 
     {
         let requests = request_state.0.lock().unwrap();
+        assert!(
+            !requests.barrier_expired,
+            "the selectors' latest requests never overlapped within {OVERLAP_BARRIER_TIMEOUT:?}",
+        );
         assert_eq!(
             requests.max_active,
             packages.len(),
@@ -432,7 +449,11 @@ async fn add_does_not_wait_for_a_slower_later_resolution_after_an_error() {
     let mut manifest = PackageManifest::create_if_needed(project_root.join("package.json"))
         .expect("create manifest");
 
-    let packages = [("first", "a", 100), ("second", "b", 3_000)];
+    // The gap between the two delays is what the deadline below reads:
+    // the failing selector must return well inside it while the slower
+    // peer is still sleeping, with enough slack that a loaded machine
+    // cannot push the fast path past the deadline.
+    let packages = [("first", "a", 100), ("second", "b", 20_000)];
     let mut config = Config::new();
     config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir;
@@ -466,7 +487,7 @@ async fn add_does_not_wait_for_a_slower_later_resolution_after_an_error() {
     let http_client = ThrottledClient::default();
     let resolved_packages = ResolvedPackages::default();
     let result = tokio::time::timeout(
-        Duration::from_secs(2),
+        Duration::from_secs(5),
         Add {
             tarball_mem_cache: Arc::default(),
             resolved_packages: &resolved_packages,
