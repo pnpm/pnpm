@@ -268,6 +268,37 @@ fn add_workspace_root_tolerates_a_dir_that_does_not_exist() {
     drop(root); // cleanup
 }
 
+/// A nonexistent `--dir` that climbs *out* of the workspace is a
+/// different case from one that stays inside it: the workspace the
+/// command was invoked from must not be selected after the user pointed
+/// away from it. The ancestor walk is lexical, so the `..` components
+/// have to be resolved before it runs, or it climbs back through them.
+#[test]
+fn add_workspace_root_rejects_a_dir_that_climbs_out_of_the_workspace() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace_with_local_fixtures(&workspace);
+
+    let output = pacquet
+        .with_args([
+            "--dir",
+            "../../outside-does-not-exist",
+            "add",
+            "-D",
+            "local-a@file:./fixtures/local-a",
+            "-w",
+        ])
+        .assert()
+        .failure();
+
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+    assert!(
+        stderr.contains("ERR_PNPM_NOT_IN_WORKSPACE"),
+        "a --dir pointing outside the workspace must not fall back to it: {stderr}",
+    );
+
+    drop(root); // cleanup
+}
+
 /// `pnpm add -D <pkg> <pkg> -w` run from a workspace subdirectory
 /// (pnpm/pnpm#13031).
 #[test]

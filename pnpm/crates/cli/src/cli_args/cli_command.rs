@@ -267,6 +267,13 @@ impl CliArgs {
     /// first, because a case-insensitive filesystem otherwise finds the
     /// root under one spelling and the members under another; then a
     /// lexical fallback, so an unresolvable `--dir` is not fatal.
+    ///
+    /// The fallback resolves `..` itself rather than leaving the components
+    /// in place. [`pacquet_workspace::find_workspace_dir`] walks ancestors
+    /// lexically, so a `--dir` that climbs out of the workspace and lands
+    /// on a directory that does not exist — `../../elsewhere` — would
+    /// otherwise walk right back up through its own `..` components and
+    /// select the workspace the user pointed away from.
     pub fn apply_workspace_root(&mut self) -> Result<(), WorkspaceRootError> {
         if !self.workspace_root {
             return Ok(());
@@ -274,9 +281,11 @@ impl CliArgs {
         if self.command.is_global() {
             return Err(WorkspaceRootError::GlobalConflict);
         }
-        let dir = dunce::canonicalize(&self.dir)
-            .or_else(|_| std::path::absolute(&self.dir))
-            .unwrap_or_else(|_| self.dir.clone());
+        let dir =
+            dunce::canonicalize(&self.dir).or_else(|_| std::path::absolute(&self.dir)).map_or_else(
+                |_| pacquet_fs::lexical_normalize(&self.dir),
+                |dir| pacquet_fs::lexical_normalize(&dir),
+            );
         let workspace_dir = pacquet_workspace::find_workspace_dir(&dir)
             .map_err(WorkspaceRootError::FindWorkspaceDir)?
             .ok_or(WorkspaceRootError::NotInWorkspace)?;
