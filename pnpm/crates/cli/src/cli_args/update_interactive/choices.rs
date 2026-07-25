@@ -8,6 +8,7 @@ use crate::cli_args::{
     outdated::{OutdatedPackage, colorize_target},
     sanitize::sanitize_inline,
 };
+use node_semver::Version;
 use pacquet_package_manifest::DependencyGroup;
 use std::collections::HashMap;
 
@@ -93,8 +94,8 @@ pub(crate) fn update_choices(
         let key = (
             package.alias.as_str(),
             package.package_name.as_str(),
-            package.current.to_string(),
-            package.target.to_string(),
+            &package.current,
+            &package.target,
             package.github_action,
         );
         let index = *seen.entry(key).or_insert_with(|| {
@@ -135,7 +136,7 @@ struct Choice<'a> {
     workspaces: Vec<String>,
 }
 
-type ChoiceKey<'a> = (&'a str, &'a str, String, String, bool);
+type ChoiceKey<'a> = (&'a str, &'a str, &'a Version, &'a Version, bool);
 
 /// The header row plus one row per offered dependency, padded so every
 /// column lines up within the group.
