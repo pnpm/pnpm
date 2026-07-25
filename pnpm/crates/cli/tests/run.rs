@@ -662,3 +662,61 @@ fn run_start_fallback_uses_dir_for_server_js_probe() {
 
     drop(root);
 }
+
+/// pnpm appends every token after the script name to the script, the `--`
+/// separator included, so the program the script invokes reads what
+/// follows as operands instead of as its own options. Asserting on the
+/// arguments the script *receives* (rather than on the echoed command
+/// line) is what catches the separator going missing: without it,
+/// `node -e … --flag` fails with "bad option".
+#[cfg(unix)]
+#[test]
+fn run_forwards_the_argument_separator_to_the_script() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let marker = workspace.join("args.txt");
+    write_executable(
+        &workspace.join("record-args"),
+        &format!("#!/bin/sh\nprintf '%s' \"$*\" > \"{}\"\n", marker.display()),
+    );
+    let manifest = json!({
+        "name": "test",
+        "version": "0.0.0",
+        "scripts": { "record": "./record-args" },
+    })
+    .to_string();
+    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+
+    pacquet.with_args(["run", "record", "--", "--flag", "value"]).assert().success();
+
+    let written = fs::read_to_string(&marker).expect("read marker");
+    assert_eq!(written, "-- --flag value");
+
+    drop(root);
+}
+
+/// A separator that follows an argument is already an ordinary value, and
+/// must not be doubled.
+#[cfg(unix)]
+#[test]
+fn run_keeps_a_separator_that_follows_an_argument() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let marker = workspace.join("args.txt");
+    write_executable(
+        &workspace.join("record-args"),
+        &format!("#!/bin/sh\nprintf '%s' \"$*\" > \"{}\"\n", marker.display()),
+    );
+    let manifest = json!({
+        "name": "test",
+        "version": "0.0.0",
+        "scripts": { "record": "./record-args" },
+    })
+    .to_string();
+    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+
+    pacquet.with_args(["run", "record", "first", "--", "second"]).assert().success();
+
+    let written = fs::read_to_string(&marker).expect("read marker");
+    assert_eq!(written, "first -- second");
+
+    drop(root);
+}

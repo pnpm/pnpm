@@ -5,6 +5,7 @@ mod config_overrides;
 mod flag_relocation;
 mod github_actions;
 mod job_control;
+mod script_separator;
 mod shorthands;
 mod state;
 mod with_current;
@@ -64,6 +65,9 @@ fn run_cli() -> miette::Result<()> {
     // options written before the subcommand to after it so clap agrees.
     // See `flag_relocation`.
     let argv = relocate_pre_subcommand_flags(&command, argv);
+    // pnpm gives a script every token after its name, `--` included; clap
+    // would eat that `--` as its own escape. See `script_separator`.
+    let argv = script_separator::preserve_script_separator(&command, argv);
     let mut args = match command
         .try_get_matches_from(argv.clone())
         .and_then(|matches| CliArgs::from_arg_matches(&matches))
