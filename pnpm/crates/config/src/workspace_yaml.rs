@@ -1,7 +1,7 @@
 use crate::{
     AuditConfig, AuditLevel, CatalogMode, Config, HoistingLimits, LinkWorkspacePackages,
     NodeLinker, NodePackageMapType, PackageImportMethod, PmOnFail, ResolutionMode, RuntimeOnFail,
-    ScriptsPrependNodePath, TrustPolicy, VerifyDepsBeforeRun, api::EnvVar,
+    SaveWorkspaceProtocol, ScriptsPrependNodePath, TrustPolicy, VerifyDepsBeforeRun, api::EnvVar,
     npmrc_auth::parse_no_proxy, resolve_child_concurrency,
 };
 use derive_more::{Display, Error};
@@ -149,6 +149,9 @@ pub struct WorkspaceSettings {
     /// `linkWorkspacePackages` from `pnpm-workspace.yaml`. Tri-state
     /// (`true | false | "deep"`) — see [`LinkWorkspacePackages`].
     pub link_workspace_packages: Option<LinkWorkspacePackages>,
+    /// `saveWorkspaceProtocol` from `pnpm-workspace.yaml`. Tri-state
+    /// (`true | false | "rolling"`) — see [`SaveWorkspaceProtocol`].
+    pub save_workspace_protocol: Option<SaveWorkspaceProtocol>,
     /// `injectWorkspacePackages` from `pnpm-workspace.yaml`. When
     /// `true`, every workspace-resolved dep is materialized as a
     /// `file:` (hard-linked copy) instead of a `link:` symlink. See
@@ -793,6 +796,7 @@ impl WorkspaceSettings {
         self.exclude_links_from_lockfile = None;
         self.hoist_workspace_packages = None;
         self.link_workspace_packages = None;
+        self.save_workspace_protocol = None;
         self.inject_workspace_packages = None;
         self.dedupe_peer_dependents = None;
         self.dedupe_peers = None;
@@ -970,6 +974,7 @@ impl WorkspaceSettings {
             verify_deps_before_run,
             block_exotic_subdeps,
             link_workspace_packages,
+            save_workspace_protocol,
             inject_workspace_packages,
             prefer_workspace_packages,
             side_effects_cache, side_effects_cache_readonly,

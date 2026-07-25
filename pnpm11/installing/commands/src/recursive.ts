@@ -226,6 +226,10 @@ export async function recursive (
   }
 
   let updateMatch: UpdateDepsMatcher | null
+  // `params` is rewritten per project into the dependency names it matched, so
+  // remember whether the user named any package. `--workspace` only insists
+  // that a dependency exists in the workspace when it was asked for by name.
+  const userNamedDeps = params.length > 0
   if (cmdFullName === 'update') {
     if (params.length === 0) {
       const ignoreDeps = opts.updateConfig?.ignoreDependencies
@@ -274,9 +278,11 @@ export async function recursive (
       }
       if (opts.workspace) {
         if (!currentInput || (currentInput.length === 0)) {
-          currentInput = updateToWorkspacePackagesFromManifest(manifest, includeDirect, workspacePackages)
+          if (!userNamedDeps) {
+            currentInput = updateToWorkspacePackagesFromManifest(manifest, includeDirect, workspacePackages)
+          }
         } else {
-          currentInput = createWorkspaceSpecs(currentInput, workspacePackages)
+          currentInput = createWorkspaceSpecs(currentInput, workspacePackages, { skipPackagesOutsideWorkspace: !userNamedDeps })
         }
       }
       switch (mutation) {
@@ -402,9 +408,11 @@ export async function recursive (
         }
         if (opts.workspace) {
           if (!currentInput || (currentInput.length === 0)) {
-            currentInput = updateToWorkspacePackagesFromManifest(manifest, includeDirect, workspacePackages)
+            if (!userNamedDeps) {
+              currentInput = updateToWorkspacePackagesFromManifest(manifest, includeDirect, workspacePackages)
+            }
           } else {
-            currentInput = createWorkspaceSpecs(currentInput, workspacePackages)
+            currentInput = createWorkspaceSpecs(currentInput, workspacePackages, { skipPackagesOutsideWorkspace: !userNamedDeps })
           }
         }
 

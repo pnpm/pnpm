@@ -18,13 +18,36 @@ export function updateToWorkspacePackagesFromManifest (
     .map(depName => `${depName}@workspace:*`)
 }
 
-export function createWorkspaceSpecs (specs: string[], workspacePackages: WorkspacePackages): string[] {
-  return specs.map((spec) => {
+/**
+ * Rewrite dependency selectors to point at the workspace copies of the same
+ * packages.
+ *
+ * A selector naming a package the workspace doesn't have is an error, since
+ * `--workspace` was asked to link something that isn't there. Pass
+ * `skipPackagesOutsideWorkspace` when the selectors weren't named by the user
+ * (they were derived from the manifest), where a registry dependency is
+ * expected and simply keeps its specifier.
+ */
+export function createWorkspaceSpecs (
+  specs: string[],
+  workspacePackages: WorkspacePackages,
+  opts?: { skipPackagesOutsideWorkspace?: boolean }
+): string[] {
+  const workspaceSpecs: string[] = []
+  for (const spec of specs) {
     const parsed = parseWantedDependency(spec)
     if (!parsed.alias) throw new PnpmError('NO_PKG_NAME_IN_SPEC', `Cannot update/install from workspace through "${spec}"`)
-    if (!workspacePackages.has(parsed.alias)) throw new PnpmError('WORKSPACE_PACKAGE_NOT_FOUND', `"${parsed.alias}" not found in the workspace`)
-    if (!parsed.bareSpecifier) return `${parsed.alias}@workspace:*`
-    if (parsed.bareSpecifier.startsWith('workspace:')) return spec
-    return `${parsed.alias}@workspace:${parsed.bareSpecifier}`
-  })
+    if (!workspacePackages.has(parsed.alias)) {
+      if (opts?.skipPackagesOutsideWorkspace) continue
+      throw new PnpmError('WORKSPACE_PACKAGE_NOT_FOUND', `"${parsed.alias}" not found in the workspace`)
+    }
+    if (!parsed.bareSpecifier) {
+      workspaceSpecs.push(`${parsed.alias}@workspace:*`)
+    } else if (parsed.bareSpecifier.startsWith('workspace:')) {
+      workspaceSpecs.push(spec)
+    } else {
+      workspaceSpecs.push(`${parsed.alias}@workspace:${parsed.bareSpecifier}`)
+    }
+  }
+  return workspaceSpecs
 }

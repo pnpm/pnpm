@@ -60,7 +60,7 @@ impl DedupeArgs {
             node_linker: config.node_linker,
             lockfile_only: true,
             dry_run: false,
-            update_seed_policy: pacquet_package_manager::UpdateSeedPolicy::DropAll,
+            update_seed_policy: pacquet_package_manager::UpdateSeedPolicy::drop_all(),
             auth_override: None,
             resolution_observer: None,
             peer_issues_sink: None,

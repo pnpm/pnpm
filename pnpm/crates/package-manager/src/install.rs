@@ -3964,7 +3964,13 @@ fn configured_or_discovered_workspace_dir(
 /// entries (`{ rootDir, manifest }`) consumed by the resolver.
 /// Projects whose manifest lacks a name are skipped. A missing or null
 /// version is indexed as `0.0.0`; malformed non-string versions are skipped.
-fn build_workspace_packages_map(
+/// Index the workspace projects by package name and version — the
+/// resolver's view of what the workspace publishes, and the link
+/// targets `pacquet update --workspace` re-points dependencies at. A
+/// project without a name publishes nothing; a missing or null version
+/// reads as `0.0.0`, matching pnpm.
+#[must_use]
+pub fn build_workspace_packages_map(
     projects: Option<&[pacquet_workspace::Project]>,
 ) -> Option<pacquet_resolving_resolver_base::WorkspacePackages> {
     let projects = projects?;

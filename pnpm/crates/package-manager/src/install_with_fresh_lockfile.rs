@@ -30,6 +30,7 @@ use pacquet_reporter::{
 use pacquet_resolving_default_resolver::DefaultResolver;
 use pacquet_resolving_deps_resolver::{
     ManifestHook, ResolveDependencyTreeError, ResolveImporterError, ResolveImporterOptions,
+    UpdateDepth,
 };
 use pacquet_resolving_git_resolver::{GitFetchContext, GitResolver, RealGitProbe, RealGitRunner};
 use pacquet_resolving_local_resolver::{
@@ -235,6 +236,11 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
 ///
 /// `KeepAll` is the install/add default (every pin seeds the table, so
 /// unrelated entries keep their resolutions on a rewrite).
+///
+/// Every withholding variant carries the update's `--depth` ceiling,
+/// which bounds how deep the re-resolution reaches: a node past it keeps
+/// its locked resolution even when its name is a target. See
+/// [`UpdateDepth`].
 #[derive(Debug, Default, Clone)]
 pub enum UpdateSeedPolicy {
     /// Seed every lockfile pin. `pacquet install` / `pacquet add`.
@@ -242,12 +248,39 @@ pub enum UpdateSeedPolicy {
     KeepAll,
     /// Withhold every lockfile pin. `pacquet update` with no package
     /// selectors — the whole graph re-resolves to highest-in-range.
-    DropAll,
+    DropAll {
+        max_depth: UpdateDepth,
+    },
     /// Withhold only the named packages' pins. `pacquet update <pattern>`
-    /// — matched names (at any depth) re-resolve while everything else
-    /// keeps its pin. Keyed by package name (scope included).
-    DropOnly(std::collections::HashSet<String>),
-    ByImporter(BTreeMap<String, ImporterUpdateSeedPolicy>),
+    /// — matched names re-resolve while everything else keeps its pin.
+    /// Keyed by package name (scope included).
+    DropOnly {
+        names: std::collections::HashSet<String>,
+        max_depth: UpdateDepth,
+    },
+    ByImporter {
+        policies: BTreeMap<String, ImporterUpdateSeedPolicy>,
+        max_depth: UpdateDepth,
+    },
+}
+
+impl UpdateSeedPolicy {
+    /// Withhold every pin at every depth — the re-resolve `pacquet
+    /// dedupe` / `pacquet import` and the napi install perform, none of
+    /// which expose a `--depth`.
+    #[must_use]
+    pub fn drop_all() -> Self {
+        UpdateSeedPolicy::DropAll { max_depth: UpdateDepth::UNLIMITED }
+    }
+
+    fn max_depth(&self) -> UpdateDepth {
+        match self {
+            UpdateSeedPolicy::KeepAll => UpdateDepth::UNLIMITED,
+            UpdateSeedPolicy::DropAll { max_depth }
+            | UpdateSeedPolicy::DropOnly { max_depth, .. }
+            | UpdateSeedPolicy::ByImporter { max_depth, .. } => *max_depth,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -266,11 +299,11 @@ fn update_reuse_scopes(
 
     match policy {
         UpdateSeedPolicy::KeepAll => (UpdateReuseScope::All, BTreeMap::new()),
-        UpdateSeedPolicy::DropAll => (UpdateReuseScope::None, BTreeMap::new()),
-        UpdateSeedPolicy::DropOnly(names) => {
+        UpdateSeedPolicy::DropAll { .. } => (UpdateReuseScope::None, BTreeMap::new()),
+        UpdateSeedPolicy::DropOnly { names, .. } => {
             (UpdateReuseScope::Except(names.clone()), BTreeMap::new())
         }
-        UpdateSeedPolicy::ByImporter(policies) => (
+        UpdateSeedPolicy::ByImporter { policies, .. } => (
             UpdateReuseScope::All,
             policies
                 .iter()
@@ -1125,19 +1158,19 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // else keeps its pin. Manifest preferences remain workspace-wide.
         let lockfile_snapshots = wanted_lockfile.and_then(|lockfile| lockfile.snapshots.as_ref());
         let all_preferred_versions = match &update_seed_policy {
-            UpdateSeedPolicy::KeepAll | UpdateSeedPolicy::ByImporter(_) => {
+            UpdateSeedPolicy::KeepAll | UpdateSeedPolicy::ByImporter { .. } => {
                 pacquet_lockfile_preferred_versions::get_preferred_versions_from_lockfile_and_manifests(
                     lockfile_snapshots,
                     manifests_for_preferred.as_slice(),
                 )
             }
-            UpdateSeedPolicy::DropAll => {
+            UpdateSeedPolicy::DropAll { .. } => {
                 pacquet_lockfile_preferred_versions::get_preferred_versions_from_lockfile_and_manifests(
                     None,
                     manifests_for_preferred.as_slice(),
                 )
             }
-            UpdateSeedPolicy::DropOnly(names) => {
+            UpdateSeedPolicy::DropOnly { names, .. } => {
                 let excluded_names = names
                     .iter()
                     .filter_map(|name| pacquet_lockfile::PkgName::parse(name.as_str()).ok())
@@ -1155,7 +1188,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // with a refcount bump rather than deep-cloning the map.
         let preferred_versions_seed = Arc::new(all_preferred_versions);
         let mut preferred_versions_seeds_by_importer = BTreeMap::new();
-        if let UpdateSeedPolicy::ByImporter(policies) = &update_seed_policy {
+        if let UpdateSeedPolicy::ByImporter { policies, .. } = &update_seed_policy {
             let mut drop_all_seed = None;
             let mut drop_only_seeds = HashMap::new();
             for (importer_id, policy) in policies {
@@ -1345,6 +1378,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             wanted_lockfile: lockfile_reuse_seed.cloned().map(Arc::new),
             update_reuse_scope,
             update_reuse_scopes_by_importer,
+            update_depth: update_seed_policy.max_depth(),
             auto_install_peers: config.auto_install_peers,
             registries,
             allowed_deprecated_versions: config.allowed_deprecated_versions.clone(),

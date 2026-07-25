@@ -89,3 +89,27 @@ fn github_actions_are_opt_in_for_every_update() {
             .should_update_github_actions(&config, &include_direct),
     );
 }
+
+#[test]
+fn workspace_option_is_checked_before_anything_is_read() {
+    let workspace_root = std::path::Path::new("/workspace");
+
+    assert_eq!(
+        update_args(&[]).check_workspace_option(Some(workspace_root)).expect("no flag"),
+        None,
+    );
+    assert_eq!(
+        update_args(&["--workspace"]).check_workspace_option(Some(workspace_root)).expect("linked"),
+        Some(workspace_root),
+    );
+
+    let outside = update_args(&["--workspace"])
+        .check_workspace_option(None)
+        .expect_err("--workspace outside a workspace");
+    assert_eq!(outside.to_string(), "--workspace can only be used inside a workspace");
+
+    let with_latest = update_args(&["--workspace", "--latest"])
+        .check_workspace_option(Some(workspace_root))
+        .expect_err("--workspace with --latest");
+    assert_eq!(with_latest.to_string(), "Cannot use --latest with --workspace simultaneously",);
+}

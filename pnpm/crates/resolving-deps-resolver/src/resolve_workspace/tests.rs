@@ -209,6 +209,7 @@ fn workspace_opts(pick_lowest_direct: bool, time_based: bool) -> WorkspaceResolv
         wanted_lockfile: None,
         update_reuse_scope: crate::UpdateReuseScope::All,
         update_reuse_scopes_by_importer: BTreeMap::new(),
+        update_depth: crate::UpdateDepth::UNLIMITED,
         auto_install_peers: false,
         registries: HashMap::new(),
     }

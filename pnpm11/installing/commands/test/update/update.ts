@@ -225,6 +225,68 @@ test('update: fail when both "latest" and "workspace" are true', async () => {
   expect(err.message).toBe('Cannot use --latest with --workspace simultaneously')
 })
 
+test('update --workspace leaves registry dependencies alone when some dependencies are ignored', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        '@pnpm.e2e/foo': '1.0.0',
+        'project-2': '0.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '2.0.0',
+    },
+  ])
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    dir: path.resolve('project-1'),
+    saveWorkspaceProtocol: 'rolling',
+    updateConfig: { ignoreDependencies: ['@pnpm.e2e/bar'] },
+    workspace: true,
+    workspaceDir: process.cwd(),
+  })
+
+  const manifest = loadJsonFileSync<ProjectManifest>(path.resolve('project-1/package.json'))
+
+  expect(manifest.dependencies).toStrictEqual({
+    '@pnpm.e2e/foo': '1.0.0',
+    'project-2': 'workspace:*',
+  })
+})
+
+test('update --workspace links nothing when the given selectors match no direct dependency', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'project-2': '^2.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '2.0.0',
+    },
+  ])
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    depth: 1,
+    dir: path.resolve('project-1'),
+    lockfileDir: process.cwd(),
+    workspace: true,
+    workspaceDir: process.cwd(),
+  }, ['@pnpm.e2e/not-a-dependency'])
+
+  const manifest = loadJsonFileSync<ProjectManifest>(path.resolve('project-1/package.json'))
+
+  expect(manifest.dependencies).toStrictEqual({ 'project-2': '^2.0.0' })
+})
+
 test('update --latest forbids specs', async () => {
   prepare()
 

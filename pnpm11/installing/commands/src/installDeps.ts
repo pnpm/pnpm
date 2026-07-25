@@ -357,6 +357,10 @@ export async function installDeps (
   let updateMatch: UpdateDepsMatcher | null
   let updatePackageManifest = opts.updatePackageManifest
   let updateMatching: UpdateMatchingFunction | undefined
+  // `params` is rewritten below into the dependency names it matched, so
+  // remember whether the user named any package. `--workspace` only insists
+  // that a dependency exists in the workspace when it was asked for by name.
+  const userNamedDeps = params.length > 0
   if (opts.update) {
     if (params.length === 0) {
       const ignoreDeps = opts.updateConfig?.ignoreDependencies
@@ -394,9 +398,14 @@ export async function installDeps (
   }
   if (opts.workspace) {
     if (!params || (params.length === 0)) {
-      params = updateToWorkspacePackagesFromManifest(manifest, includeDirect, workspacePackages)
+      // The user's own selectors matched no direct dependency, so there is
+      // nothing they asked to link; linking every workspace dependency instead
+      // would update packages that were never named.
+      if (!userNamedDeps) {
+        params = updateToWorkspacePackagesFromManifest(manifest, includeDirect, workspacePackages)
+      }
     } else {
-      params = createWorkspaceSpecs(params, workspacePackages)
+      params = createWorkspaceSpecs(params, workspacePackages, { skipPackagesOutsideWorkspace: !userNamedDeps })
     }
   }
   if (params?.length) {

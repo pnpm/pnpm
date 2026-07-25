@@ -119,6 +119,7 @@ async fn selected_update_prepares_and_persists_only_selected_projects() {
         true,
         &[DependencyGroup::Prod],
         0,
+        None,
         false,
         None,
     )
@@ -163,6 +164,7 @@ async fn selected_update_no_save_mutates_in_memory_without_persisting() {
         false,
         &[DependencyGroup::Prod],
         0,
+        None,
         false,
         None,
     )
@@ -205,6 +207,7 @@ async fn selected_update_depth_zero_skips_projects_without_a_matching_dependency
         true,
         &[DependencyGroup::Prod],
         0,
+        None,
         false,
         None,
     )
@@ -236,6 +239,7 @@ async fn selected_update_latest_depth_zero_is_noop_when_no_project_matches() {
         true,
         &[DependencyGroup::Prod],
         0,
+        None,
         false,
         None,
     )
@@ -281,6 +285,7 @@ async fn latest_leaves_specifiers_no_resolver_claims() {
             true,
             &[DependencyGroup::Prod],
             0,
+            None,
             false,
             None,
         )
@@ -317,6 +322,7 @@ async fn latest_rewrites_a_specifier_the_npm_resolver_claims() {
         true,
         &[DependencyGroup::Prod],
         0,
+        None,
         false,
         None,
     )
