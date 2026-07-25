@@ -138,9 +138,9 @@ fn current_lockfile_contains_only_installed_dependencies() {
 /// "Lockfile is up to date, resolution step is skipped").
 ///
 /// Upstream additionally asserts the unselected link target's own
-/// dependencies are *not* installed; pacquet expands the subset closure
-/// through importer-level links, so that tail lives in
-/// [`known_failures::subset_install_does_not_install_unselected_link_targets_dependencies`].
+/// dependencies are *not* installed. pnpm v12 deliberately installs them
+/// instead; see
+/// [`subset_install_materializes_a_linked_targets_dependencies`].
 #[test]
 fn headless_install_is_used_when_package_is_linked_to_another_workspace_package() {
     let fixture = WorkspaceFixture::new();
@@ -724,36 +724,40 @@ fn custom_virtual_store_directory_with_dedicated_lockfiles() {
     assert_recorded_virtual_store("frozen");
 }
 
-mod known_failures {
-    //! Multi-importer cases blocked on features pacquet hasn't built
-    //! yet. Each entry stubs the not-yet-built subject under test
-    //! through [`pacquet_testing_utils::allow_known_failure`] so the
-    //! test exits early rather than masking a real bug.
+/// A subset install materializes the dependencies of a `link:` target it
+/// pulled in, so the selected project can actually run.
+///
+/// This is where pnpm v12 departs from v11 deliberately. Upstream's
+/// `headless install is used when package linked to another package in the
+/// workspace` (`multipleImporters.ts:540`) asserts the opposite tail —
+/// `projects['project-2'].hasNot('is-negative')` — because v11 keeps link
+/// targets shallow and reserves `--filter <project>...` for widening. A
+/// project selected on its own then links to a target whose own
+/// dependencies are missing, and importing from it fails at runtime.
+#[test]
+fn subset_install_materializes_a_linked_targets_dependencies() {
+    let fixture = WorkspaceFixture::new();
+    let project_1 = fixture.project(
+        "project-1",
+        "project-1",
+        ManifestDeps {
+            prod: &[(FOO, "1.0.0"), ("project-2", "link:../project-2")],
+            ..Default::default()
+        },
+    );
+    let project_2 = fixture.project(
+        "project-2",
+        "project-2",
+        ManifestDeps { prod: &[(NO_DEPS, "1.0.0")], ..Default::default() },
+    );
+    fixture.run(["install", "--lockfile-only"]);
 
-    use pacquet_testing_utils::{
-        allow_known_failure,
-        known_failure::{KnownFailure, KnownResult},
-    };
+    fixture.run(["--filter", "project-1", "install"]);
 
-    fn importer_level_link_closure_divergence() -> KnownResult<()> {
-        Err(KnownFailure::new(
-            "Pacquet's subset-install materialization closure follows \
-             importer-level `link:` / workspace-linked dependencies of \
-             the selected projects and installs the link targets' own \
-             dependencies (`materialization_closure` in \
-             `crates/package-manager/src/current_lockfile.rs`). The \
-             TypeScript CLI keeps those targets shallow — only \
-             `--filter <project>...` widens the selection — so the two \
-             stacks need a shared decision before this can be pinned.",
-        ))
-    }
-
-    /// The tail of TS `headless install is used when package linked to
-    /// another package in the workspace` (`multipleImporters.ts:540`):
-    /// the unselected `link:` target's own dependencies must not be
-    /// installed by the subset install.
-    #[test]
-    fn subset_install_does_not_install_unselected_link_targets_dependencies() {
-        allow_known_failure!(importer_level_link_closure_divergence());
-    }
+    assert!(has_link(&project_1, FOO));
+    assert!(has_link(&project_1, "project-2"));
+    assert!(
+        project_2.join("node_modules").join(NO_DEPS).exists(),
+        "the linked target's own dependency must be installed so the link resolves",
+    );
 }
