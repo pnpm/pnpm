@@ -16,12 +16,13 @@ use cli_args::CliArgs;
 use config_overrides::ConfigOverrides;
 use flag_relocation::relocate_pre_subcommand_flags;
 use miette::set_panic_hook;
-use pacquet_diagnostics::enable_tracing_by_env;
+use pacquet_diagnostics::{enable_tracing_by_env, install_report_handler};
 use state::State;
 use std::{ffi::OsString, future::Future, path::Path};
 
 pub fn main() -> miette::Result<()> {
     enable_tracing_by_env();
+    install_report_handler();
     set_panic_hook();
     // The synchronous startup in `run_cli` — building the negation-augmented
     // clap command (a recursive walk over every subcommand), relocating
