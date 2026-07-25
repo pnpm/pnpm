@@ -423,31 +423,39 @@ fn importer_dep_version(
     let parsed = dep_path_str.parse::<ImporterDepVersion>()?;
     // An injected workspace dep reaches this point as its full peered
     // dep path, `<name>@file:<path>(peers)` — the bare `file:` strip
-    // above only matches peerless dep paths, and `real_name` is unset
-    // for directory resolutions (they learn their name from the
-    // manifest). pnpm v11 reserves the `<name>@<ref>` alias form for
-    // *renamed* deps and writes the plain `file:<path>(peers)` ref when
-    // the alias equals the package name; a self-aliased ref would
-    // double-prefix every consumer that composes `alias@version` into a
-    // snapshot key (v11 readers, Bit's graph converter).
+    // above only matches peerless dep paths.
     if let ImporterDepVersion::Alias(parsed_alias) = &parsed
-        && match parsed_alias.name.scope.as_deref() {
-            Some(scope) => {
-                alias.strip_prefix('@').and_then(|unscoped| unscoped.split_once('/')).is_some_and(
-                    |(alias_scope, bare)| alias_scope == scope && bare == parsed_alias.name.bare,
-                )
-            }
-            None => alias == parsed_alias.name.bare,
-        }
-        && matches!(parsed_alias.suffix.version(), VersionPart::File(_))
+        && let Some(ver) = self_aliased_file_ver(alias, parsed_alias)
     {
-        let suffix = parsed_alias.suffix.to_string();
+        let suffix = ver.to_string();
         let payload = suffix
             .strip_prefix("file:")
             .expect("a File version part always displays with the file: scheme");
         return Ok(ImporterDepVersion::File(payload.to_string()));
     }
     Ok(parsed)
+}
+
+/// `Some(version)` when `key` names a `file:` package aliased to its own
+/// name. pnpm reserves the `<name>@<ref>` alias form for *renamed* deps
+/// and writes the plain `file:<path>(peers)` ref when the alias equals
+/// the package name; a self-aliased ref would double-prefix every
+/// consumer that composes `alias@version` into a snapshot key (v11
+/// readers, Bit's graph converter).
+///
+/// The dep path is the only place the name is available for these:
+/// [`real_name`] is unset for directory resolutions, which learn their
+/// name from the fetched manifest.
+fn self_aliased_file_ver<'a>(alias: &str, key: &'a PkgNameVerPeer) -> Option<&'a PkgVerPeer> {
+    let aliased_to_own_name = match key.name.scope.as_deref() {
+        Some(scope) => alias
+            .strip_prefix('@')
+            .and_then(|unscoped| unscoped.split_once('/'))
+            .is_some_and(|(alias_scope, bare)| alias_scope == scope && bare == key.name.bare),
+        None => alias == key.name.bare,
+    };
+    (aliased_to_own_name && matches!(key.suffix.version(), VersionPart::File(_)))
+        .then_some(&key.suffix)
 }
 
 /// `Some(real_name)` when the resolver produced a structured name; `None`
@@ -468,10 +476,9 @@ fn real_name(result: &ResolveResult) -> Option<String> {
     // - a git dep with no host archive (`<name>@git+<repo>#<commit>` ->
     //   `version: git+<repo>#<commit>`), the shape every non-host repo
     //   resolves to (ssh, self-hosted, `file:`).
-    // `file:` resolutions are deliberately left to the `None` path so
-    // their importer entries keep pacquet's current prefixed shape —
-    // bringing those in line is separate from
-    // <https://github.com/pnpm/pnpm/issues/12053>.
+    // `file:` resolutions stay on the `None` path: both callers strip
+    // their `<name>@` prefix from the parsed dep path instead, via
+    // [`self_aliased_file_ver`].
     let reads_name_from_manifest = match &result.resolution {
         LockfileResolution::Variations(_) | LockfileResolution::Git(_) => true,
         LockfileResolution::Tarball(tarball) => is_remote_http_tarball(&tarball.tarball),
@@ -866,7 +873,11 @@ fn snapshot_dep_ref(
             return Some(SnapshotDepRef::Plain(parsed));
         }
     }
-    dep_path_str.parse::<PkgNameVerPeer>().ok().map(SnapshotDepRef::Alias)
+    let key = dep_path_str.parse::<PkgNameVerPeer>().ok()?;
+    if let Some(ver) = self_aliased_file_ver(alias, &key) {
+        return Some(SnapshotDepRef::Plain(ver.clone()));
+    }
+    Some(SnapshotDepRef::Alias(key))
 }
 
 #[cfg(test)]

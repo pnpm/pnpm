@@ -1460,6 +1460,73 @@ fn workspace_link_child_renders_as_snapshot_link() {
     }
 }
 
+/// Build a fake `DependenciesGraphNode` for a package resolved from a
+/// local directory (`file:<dir>`). The local resolver keys these by
+/// `<name>@file:<dir>` and leaves `name_ver` as `None` — the name lives
+/// in the fetched manifest only.
+fn make_file_node(name: &str, directory: &str) -> DependenciesGraphNode {
+    let id_text = format!("file:{directory}");
+    let dep_path = DepPath::from(format!("{name}@{id_text}"));
+    let resolve_result = ResolveResult {
+        id: PkgResolutionId::from(id_text),
+        name_ver: None,
+        latest: None,
+        published_at: None,
+        manifest: Some(Arc::new(json!({ "name": name, "version": "1.0.0" }))),
+        resolution: LockfileResolution::Directory(DirectoryResolution {
+            directory: directory.to_string(),
+        }),
+        resolved_via: "local-filesystem".to_string(),
+        normalized_bare_specifier: None,
+        alias: None,
+        policy_violation: None,
+    };
+    DependenciesGraphNode {
+        resolved_package_id: dep_path.to_string(),
+        dep_path,
+        resolve_result: Arc::new(resolve_result),
+        children: BTreeMap::new(),
+        optional_children: HashSet::new(),
+        peer_dependencies: BTreeMap::new(),
+        transitive_peer_dependencies: HashSet::new(),
+        resolved_peer_names: HashSet::new(),
+        depth: 1,
+        installable: true,
+        is_pure: true,
+        optional: false,
+    }
+}
+
+#[test]
+fn file_dep_child_renders_as_bare_file_ref() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "app",
+        "version": "1.0.0",
+        "dependencies": { "nested-parent": "file:./parent" },
+    }));
+
+    let child = make_file_node("nested-child", "child");
+    let mut parent = make_file_node("nested-parent", "parent");
+    parent.children.insert("nested-child".to_string(), child.dep_path.clone());
+
+    let mut graph = DependenciesGraph::new();
+    let parent_dep_path = parent.dep_path.clone();
+    graph.insert(parent_dep_path.clone(), parent);
+    graph.insert(child.dep_path.clone(), child);
+
+    let direct = BTreeMap::from([("nested-parent".to_string(), parent_dep_path)]);
+
+    let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest, &graph, direct, false, false, None, None,
+    ));
+
+    let snapshots = lockfile.snapshots.as_ref().expect("snapshots map");
+    let parent_key: PackageKey = "nested-parent@file:parent".parse().unwrap();
+    let deps = snapshots[&parent_key].dependencies.as_ref().expect("nested-parent dependencies");
+    let child_ref = deps.get(&PkgName::parse("nested-child").unwrap()).expect("nested-child child");
+    assert_eq!(dbg!(child_ref).to_string(), "file:child");
+}
+
 #[test]
 fn snapshot_link_uses_lockfile_root_while_importer_link_uses_project_root() {
     let (_tmp, manifest) = write_manifest(json!({

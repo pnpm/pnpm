@@ -598,6 +598,48 @@ fn project_relative_cache_scope(
     .then(|| opts.project_dir.clone())
 }
 
+/// The directory the `file:` dependencies declared by a resolved
+/// package resolve against — pnpm's `parentPkg.rootDir`. A package
+/// fetched from a local directory declares them relative to its own
+/// directory; every other resolution has no directory of its own, so
+/// its `file:` children stay on the consuming importer's.
+///
+/// Directory resolutions record their path relative to the lockfile
+/// root, except for `link:`-shaped ones, which record it absolute.
+fn declaring_manifest_dir(
+    ctx: &TreeCtx,
+    result: &pacquet_resolving_resolver_base::ResolveResult,
+) -> Option<Arc<Path>> {
+    let pacquet_lockfile::LockfileResolution::Directory(resolution) = &result.resolution else {
+        return None;
+    };
+    let directory = Path::new(&resolution.directory);
+    let absolute = if directory.is_absolute() {
+        pacquet_fs::lexical_normalize(directory)
+    } else {
+        pacquet_fs::lexical_normalize(&ctx.lockfile_dir.join(directory))
+    };
+    Some(Arc::from(absolute))
+}
+
+/// Point a `file:` specifier at the directory of the manifest that
+/// declares it ([`declaring_manifest_dir`]) instead of the consuming
+/// importer's. Every other specifier keeps the caller's options.
+fn opts_relative_to_declaring_manifest<'a>(
+    opts: &'a ResolveOptions,
+    wanted: &WantedDependency,
+    parent_dir: Option<&Path>,
+) -> Cow<'a, ResolveOptions> {
+    match parent_dir {
+        Some(parent_dir)
+            if wanted.bare_specifier.as_deref().is_some_and(|spec| spec.starts_with("file:")) =>
+        {
+            Cow::Owned(ResolveOptions { project_dir: parent_dir.to_path_buf(), ..opts.clone() })
+        }
+        _ => Cow::Borrowed(opts),
+    }
+}
+
 /// One spec carried through [`extend_tree`] and the importer-side
 /// orchestrator: `(alias, range, optional, injected)`. `injected`
 /// reflects the importer manifest's `dependenciesMeta[alias].injected`
@@ -1352,9 +1394,18 @@ where
                     ..WantedDependency::default()
                 };
                 let base_overlay = ctx.base_opts.preferred_versions_overlay.clone();
-                let seed =
-                    resolve_node_seed(ctx, resolver, wanted, &[], 0, false, reuse, base_overlay)
-                        .await?;
+                let seed = resolve_node_seed(
+                    ctx,
+                    resolver,
+                    wanted,
+                    &[],
+                    0,
+                    false,
+                    reuse,
+                    base_overlay,
+                    None,
+                )
+                .await?;
                 warm_children_resolutions(ctx, resolver, &seed).await;
                 Ok::<NodeSeed, ResolveDependencyTreeError>(seed)
             }
@@ -1418,6 +1469,7 @@ where
         parent_optional,
         reuse,
         base_overlay.clone(),
+        None,
     )
     .await?
     {
@@ -1478,6 +1530,10 @@ struct PendingNode {
 /// map omits the cycled child. Without this, two nodes for the same id
 /// race each other into `graph.insert`, and an empty-children entry for
 /// the cycled occurrence can overwrite the real one.
+///
+/// `parent_dir` is the directory of the manifest that declares this
+/// edge, when that manifest is a package resolved from a local
+/// directory — see [`declaring_manifest_dir`].
 #[expect(
     clippy::too_many_arguments,
     reason = "internal walker helper threading per-node context through the recursion"
@@ -1492,6 +1548,7 @@ async fn resolve_node_seed<Chain>(
     parent_optional: bool,
     reuse: ReuseSource,
     pick_overlay: Option<Arc<PreferredVersionsOverlay>>,
+    parent_dir: Option<&Path>,
 ) -> Result<NodeSeed, ResolveDependencyTreeError>
 where
     Chain: Resolver + ?Sized,
@@ -1567,6 +1624,8 @@ where
         }
         None => opts,
     };
+    let opts_for_file_dep = opts_relative_to_declaring_manifest(opts, &wanted, parent_dir);
+    let opts = opts_for_file_dep.as_ref();
     // Project-relative resolutions (`link:`/`file:`/`workspace:`) are
     // keyed by the consuming importer so one importer's relative path
     // is never reused by another. See [`WantedKey`]. The prior key
@@ -1856,6 +1915,7 @@ where
         let direct_versions = lock_recoverable(&ctx.workspace.direct_dep_versions)
             .get(&ctx.importer_id)
             .map(Arc::clone);
+        let declaring_dir = declaring_manifest_dir(ctx, &result);
         let child_seeds = child_specs
             .iter()
             .map(|(child_name, child_range, child_optional)| {
@@ -1888,6 +1948,7 @@ where
                 }
                 let next_ancestors = Arc::clone(&next_ancestors);
                 let pick_overlay = children_overlay.clone();
+                let declaring_dir = declaring_dir.clone();
                 async move {
                     let seed = resolve_node_seed(
                         ctx,
@@ -1898,6 +1959,7 @@ where
                         current_is_optional,
                         ReuseSource::Transitive { key: child_prior },
                         pick_overlay,
+                        declaring_dir.as_deref(),
                     )
                     .await?;
                     warm_children_resolutions(ctx, resolver, &seed).await;
@@ -2179,6 +2241,7 @@ where
     }
     let Ok(specs) = extract_children(&pending.result) else { return };
     let opts = ctx.opts_for_depth(pending.depth + 1);
+    let declaring_dir = declaring_manifest_dir(ctx, &pending.result);
     specs
         .iter()
         .map(|(name, range, optional)| {
@@ -2188,7 +2251,9 @@ where
                 optional: Some(*optional),
                 ..WantedDependency::default()
             };
+            let opts = opts_relative_to_declaring_manifest(opts, &wanted, declaring_dir.as_deref());
             async move {
+                let opts = opts.as_ref();
                 // Warm through the same per-wanted dedup cache, under
                 // the empty-overlay-view key: when the real pick's
                 // view is empty too (the overwhelmingly common case)
