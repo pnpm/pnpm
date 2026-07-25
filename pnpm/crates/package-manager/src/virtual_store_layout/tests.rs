@@ -585,7 +585,10 @@ fn cyclic_slot_suffixes() -> Vec<(String, String)> {
                 .strip_prefix("/tmp/store/links")
                 .expect("slot under the global virtual store")
                 .to_string_lossy()
-                .into_owned();
+                // `slot_dir` builds the tail from native components, so
+                // compare against the `/`-separated form the GVS path is
+                // canonically written in.
+                .replace('\\', "/");
             (snapshot_key.to_string(), suffix)
         })
         .collect();
