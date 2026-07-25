@@ -85,9 +85,9 @@ export async function outdated (
   // label leaves several unnamed projects indistinguishable in the
   // interactive update list, so fall back to the path that identifies
   // the project in the lockfile.
-  // `||` rather than `??`: a project that declares an empty name gives
-  // just as blank a label as one that declares none.
-  const workspace = opts.manifest.name || importerId
+  // Trimmed, and `||` rather than `??`: a name that is missing, empty, or
+  // only whitespace all give an equally blank label.
+  const workspace = opts.manifest.name?.trim() || importerId
   const currentLockfile: LockfileObject = opts.currentLockfile ?? { lockfileVersion: LOCKFILE_VERSION, importers: { [importerId]: { specifiers: {} } } }
 
   const outdated: OutdatedPackage[] = []

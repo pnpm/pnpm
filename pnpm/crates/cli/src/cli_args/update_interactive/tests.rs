@@ -210,7 +210,7 @@ importers:
 /// identifies the project in the lockfile.
 #[tokio::test]
 async fn a_project_without_a_usable_name_is_labelled_with_its_importer_path() {
-    for name in [None, Some("")] {
+    for name in [None, Some(""), Some("   ")] {
         let temp = tempfile::tempdir().expect("create temporary workspace");
         let manifest = manifest_without_usable_name(temp.path(), "packages/a", name);
         let lockfile: Lockfile = serde_saphyr::from_str(

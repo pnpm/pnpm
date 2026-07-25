@@ -1202,6 +1202,7 @@ test('outdated() does not list runtime that is already up to date', async () => 
 test.each([
   ['absent', undefined],
   ['empty', ''],
+  ['whitespace-only', '   '],
 ])('outdated() labels a project with an %s name by its importer path', async (_case, name) => {
   const lockfile = {
     importers: {
