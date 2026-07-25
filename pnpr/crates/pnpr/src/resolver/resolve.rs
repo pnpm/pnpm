@@ -271,10 +271,15 @@ pub fn fresh_frozen_input_lockfile(config: &Config, request: &ResolveRequest) ->
     }
 
     let lockfile = request.lockfile.as_ref()?;
+    // The request's catalogs are the effective ones — they are what the
+    // install below resolves `catalog:` specifiers against. Checking the
+    // lockfile's snapshot against an empty set instead would call every
+    // catalog-bearing lockfile stale and cost them this short-circuit.
+    let no_catalogs = Catalogs::new();
     check_lockfile_settings(
         lockfile,
         LockfileSettingsCheck {
-            catalogs: &Catalogs::new(),
+            catalogs: request.catalogs.as_ref().unwrap_or(&no_catalogs),
             overrides: None,
             package_extensions_checksum: None,
             ignored_optional_dependencies: None,

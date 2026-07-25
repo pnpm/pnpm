@@ -1040,6 +1040,50 @@ fn tarball_url_version_extracts_conventional_names_only() {
     assert_eq!(tarball_url_version("https://r/foo/-/foo.tgz", "foo"), None);
 }
 
+/// The resolve protocol carries no `autoInstallPeers` / `dedupePeers` /
+/// `excludeLinksFromLockfile`, so a request's config would otherwise
+/// resolve — and compare its frozen lockfile — under the server's
+/// defaults. The input lockfile records what its owner used, and the
+/// freshness gate rejects a lockfile whose settings disagree, so those
+/// values have to reach the config.
+#[test]
+fn intern_config_adopts_the_input_lockfile_settings() {
+    use super::intern_config;
+    use pacquet_store_dir::StoreDir;
+    use std::{collections::HashMap, path::PathBuf, sync::Mutex};
+
+    let configs = Mutex::new(HashMap::new());
+    let store_dir = StoreDir::new(PathBuf::from("/tmp/pnpr-lockfile-settings-store"));
+    let cache_dir = PathBuf::from("/tmp/pnpr-lockfile-settings-cache");
+    let request = |settings: Option<pacquet_lockfile::LockfileSettings>| ResolveRequest {
+        registry: Some("https://a.test/".to_string()),
+        lockfile: Some(Lockfile { settings, ..lockfile("1.0.0") }),
+        ..ResolveRequest::default()
+    };
+    let intern = |request: &ResolveRequest| {
+        intern_config(&configs, &store_dir, &cache_dir, request, 10, usize::MAX)
+            .expect("intern config")
+    };
+
+    let client_settings = pacquet_lockfile::LockfileSettings {
+        auto_install_peers: false,
+        dedupe_peers: Some(true),
+        exclude_links_from_lockfile: true,
+        ..pacquet_lockfile::LockfileSettings::default()
+    };
+    let adopted = intern(&request(Some(client_settings)));
+    assert!(!adopted.auto_install_peers);
+    assert!(adopted.dedupe_peers);
+    assert!(adopted.exclude_links_from_lockfile);
+
+    // A lockfile with no `settings` block says nothing, so the server's
+    // own defaults stand — and the two must not share an interned config.
+    let defaults = intern(&request(None));
+    assert!(defaults.auto_install_peers);
+    assert!(!defaults.dedupe_peers);
+    assert!(!defaults.exclude_links_from_lockfile);
+}
+
 #[test]
 fn intern_config_caps_distinct_leaked_configs_but_keeps_serving_known_ones() {
     use super::intern_config;

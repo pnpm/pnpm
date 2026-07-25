@@ -283,8 +283,18 @@ fn intern_config(
         .as_ref()
         .map(|overrides| overrides.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect());
 
+    // The protocol carries no `autoInstallPeers` / `dedupePeers` /
+    // `excludeLinksFromLockfile`, but an input lockfile records the values
+    // it was written under. Adopting them makes the server resolve as the
+    // client would; leaving the server's own defaults in place would make
+    // the frozen path reject a lockfile that is valid for its owner, since
+    // the freshness gate compares these against the config.
+    let lockfile_settings =
+        request.lockfile.as_ref().and_then(|lockfile| lockfile.settings.as_ref());
+
     let key = serde_json::json!({
         "registry": registry,
+        "lockfileSettings": lockfile_settings,
         "namedRegistries": request.named_registries,
         "overrides": overrides_key,
         "minimumReleaseAge": request.minimum_release_age,
@@ -328,6 +338,12 @@ fn intern_config(
     config.trust_policy = request.trust_policy;
     config.trust_policy_exclude.clone_from(&request.trust_policy_exclude);
     config.trust_policy_ignore_after = request.trust_policy_ignore_after;
+    if let Some(settings) = lockfile_settings {
+        config.auto_install_peers = settings.auto_install_peers;
+        // Written only while the setting is on, so an absent key is `false`.
+        config.dedupe_peers = settings.dedupe_peers.unwrap_or(false);
+        config.exclude_links_from_lockfile = settings.exclude_links_from_lockfile;
+    }
     let config: &'static PacquetConfig = config.leak();
     configs.insert(key, config);
     Some(config)
