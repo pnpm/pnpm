@@ -6,6 +6,7 @@ use super::{
     list::RecursionLimit,
     package_manager::{
         current_source_pnpm_version, package_manager_to_sync, parse_package_manager,
+        read_manifest_json,
     },
 };
 use clap::Parser;
@@ -550,9 +551,9 @@ fn package_manager_to_sync_preserves_dev_engine_specifier() {
     )
     .expect("write manifest");
 
-    let package_manager = package_manager_to_sync(&manifest_path, root.path())
-        .expect("read policy")
-        .expect("sync package manager");
+    let manifest = read_manifest_json(&manifest_path).expect("read manifest").expect("manifest");
+    let package_manager =
+        package_manager_to_sync(&manifest, root.path()).expect("sync package manager");
 
     assert_eq!(package_manager.specifier, ">=0.0.0");
     assert_eq!(

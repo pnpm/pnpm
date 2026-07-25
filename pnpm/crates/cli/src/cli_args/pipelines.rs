@@ -3,7 +3,7 @@ use super::{
     dedupe::{self, DedupeArgs},
     deploy::DeployArgs,
     install::{InstallArgs, resolve_bool_override},
-    package_manager::{PackageManagerToSync, package_manager_to_sync},
+    package_manager::{PackageManagerToSync, package_manager_to_sync, read_manifest_json},
     prune::PruneArgs,
     recursive::{
         AutoExcludeRoot, discover_workspace_projects, select_recursive_projects,
@@ -610,13 +610,14 @@ pub(crate) fn derive_config_root_and_package_manager_to_sync(
     reporter: ReporterType,
 ) -> miette::Result<(PathBuf, Option<PackageManagerToSync>)> {
     let config_root = cfg.workspace_dir.clone().unwrap_or_else(|| dir_ref.to_path_buf());
+    let root_manifest = read_manifest_json(&config_root.join("package.json"))
+        .wrap_err("read package manager policy")?;
     // pnpm warns from config-reading, so the notice lands ahead of any
     // install output. This is the install family's earliest point that
     // knows the root manifest's directory.
-    warn_ignored_pnpm_manifest_fields(&config_root, reporter_emit(reporter));
+    warn_ignored_pnpm_manifest_fields(root_manifest.as_ref(), reporter_emit(reporter));
     let package_manager_to_sync =
-        package_manager_to_sync(&config_root.join("package.json"), &config_root)
-            .wrap_err("read package manager policy")?;
+        root_manifest.as_ref().and_then(|manifest| package_manager_to_sync(manifest, &config_root));
     Ok((config_root, package_manager_to_sync))
 }
 

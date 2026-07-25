@@ -1,8 +1,12 @@
-use super::ignored_pnpm_field_keys;
-use std::fs;
+use super::{ignored_pnpm_field_keys, root_manifest};
+use std::{fs, path::Path};
 
-fn write_manifest(dir: &std::path::Path, contents: &str) {
+fn write_manifest(dir: &Path, contents: &str) {
     fs::write(dir.join("package.json"), contents).expect("write package.json");
+}
+
+fn keys_in(dir: &Path) -> Vec<String> {
+    ignored_pnpm_field_keys(root_manifest(dir).as_ref())
 }
 
 #[test]
@@ -13,7 +17,7 @@ fn reports_migrated_keys_in_declaration_order() {
         r#"{"pnpm":{"onlyBuiltDependencies":["a"],"app":{},"overrides":{"x":"1"}}}"#,
     );
     assert_eq!(
-        ignored_pnpm_field_keys(dir.path()),
+        keys_in(dir.path()),
         vec!["onlyBuiltDependencies".to_string(), "overrides".to_string()],
     );
 }
@@ -22,7 +26,17 @@ fn reports_migrated_keys_in_declaration_order() {
 fn ignores_manifests_without_a_migrated_key() {
     let dir = tempfile::tempdir().expect("create temp dir");
     write_manifest(dir.path(), r#"{"pnpm":{"app":{}},"name":"x"}"#);
-    assert!(ignored_pnpm_field_keys(dir.path()).is_empty());
+    assert!(keys_in(dir.path()).is_empty());
+}
+
+/// An editor-written manifest may open with a UTF-8 BOM, which every
+/// other manifest read in the CLI strips. The warning has to see the
+/// same keys those reads do.
+#[test]
+fn reports_migrated_keys_through_a_utf8_bom() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    write_manifest(dir.path(), "\u{feff}{\"pnpm\":{\"overrides\":{\"x\":\"1\"}}}");
+    assert_eq!(keys_in(dir.path()), vec!["overrides".to_string()]);
 }
 
 /// A non-object `pnpm` field belongs to some other tool; there is
@@ -31,11 +45,11 @@ fn ignores_manifests_without_a_migrated_key() {
 #[test]
 fn tolerates_absent_malformed_and_non_object_manifests() {
     let dir = tempfile::tempdir().expect("create temp dir");
-    assert!(ignored_pnpm_field_keys(dir.path()).is_empty(), "no manifest");
+    assert!(keys_in(dir.path()).is_empty(), "no manifest");
 
     write_manifest(dir.path(), "{ not json");
-    assert!(ignored_pnpm_field_keys(dir.path()).is_empty(), "malformed manifest");
+    assert!(keys_in(dir.path()).is_empty(), "malformed manifest");
 
     write_manifest(dir.path(), r#"{"pnpm":"11.0.0"}"#);
-    assert!(ignored_pnpm_field_keys(dir.path()).is_empty(), "non-object pnpm field");
+    assert!(keys_in(dir.path()).is_empty(), "non-object pnpm field");
 }

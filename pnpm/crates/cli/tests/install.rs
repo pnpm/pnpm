@@ -1828,7 +1828,8 @@ fn migrated_keys_are_read_from_the_workspace_root() {
     )
     .expect("write the workspace package's package.json");
 
-    let assert = pacquet_in(&package_dir).with_arg("install").assert().success();
+    let assert =
+        pacquet_in(&package_dir).with_args(["install", "--lockfile-only"]).assert().success();
     let stdout = String::from_utf8_lossy(&assert.get_output().stdout).into_owned();
 
     eprintln!("STDOUT:\n{stdout}");
