@@ -1086,10 +1086,16 @@ fn replace_bool_value_at(text: &str, path: &[&str], key: &str, value: bool) -> S
     let colon = indent_len
         + structural_colon_index(&content[indent_len..]).expect("entry line has a delimiter");
     let key_text = content[..colon].trim_end();
-    // Preserve any trailing comment after the value token.
+    // Preserve any trailing comment, and replace the whole value.
+    // Ending the value at its first whitespace would truncate a
+    // multi-word plain scalar and leave the tail behind as garbage —
+    // `allowBuilds` entries carry exactly such a value while they still
+    // hold pnpm's `set this to true or false` placeholder.
     let after = content[colon + 1..].trim_start();
-    let value_end = after.find(char::is_whitespace).unwrap_or(after.len());
-    let trailing = &after[value_end..];
+    let trailing = match comment_start(after) {
+        Some(idx) => format!(" {}", &after[idx..]),
+        None => String::new(),
+    };
     let new_line = format!("{key_text}: {}{trailing}\n", render_bool(value));
 
     let mut out = String::with_capacity(text.len());
@@ -1097,6 +1103,27 @@ fn replace_bool_value_at(text: &str, path: &[&str], key: &str, value: bool) -> S
     out.push_str(&new_line);
     out.push_str(&text[entry.line_end..]);
     out
+}
+
+/// Byte offset of a value's trailing comment, if it has one. A `#` opens
+/// a comment only when whitespace precedes it and it sits outside a
+/// quoted scalar, so a `#` within the value itself is not mistaken for
+/// one.
+fn comment_start(value: &str) -> Option<usize> {
+    let bytes = value.as_bytes();
+    let mut quote: Option<u8> = None;
+    for (idx, &byte) in bytes.iter().enumerate() {
+        match quote {
+            Some(open) if byte == open => quote = None,
+            Some(_) => {}
+            None => match byte {
+                b'"' | b'\'' => quote = Some(byte),
+                b'#' if idx > 0 && bytes[idx - 1].is_ascii_whitespace() => return Some(idx),
+                _ => {}
+            },
+        }
+    }
+    None
 }
 
 fn strip_quotes(key: &str) -> String {

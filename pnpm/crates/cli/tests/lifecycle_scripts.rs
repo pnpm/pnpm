@@ -1446,16 +1446,19 @@ mod project_scripts {
     /// leading `name/version` token against `pnpm`, so a missing or
     /// truncated value makes them reject the install.
     #[test]
-    fn stamps_the_configured_user_agent_on_install_scripts_and_run() {
+    fn stamps_the_configured_user_agent_on_install_scripts_run_and_exec() {
         let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
             CommandTempCwd::init().add_mocked_registry();
         let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-        let record_user_agent = |file: &str| {
+        // The body as a bare JS expression, so it can be passed either
+        // through a shell (a script body) or straight to `node -e`.
+        let record_user_agent_js = |file: &str| {
             format!(
-                r#"node -e "require('fs').writeFileSync('{file}',process.env.npm_config_user_agent||'<unset>')""#,
+                "require('fs').writeFileSync('{file}',process.env.npm_config_user_agent||'<unset>')",
             )
         };
+        let record_user_agent = |file: &str| format!(r#"node -e "{}""#, record_user_agent_js(file));
         let manifest = serde_json::json!({
             "name": "project-reading-the-user-agent",
             "version": "1.0.0",
@@ -1468,14 +1471,26 @@ mod project_scripts {
             .expect("write package.json");
 
         pacquet.with_arg("install").assert().success();
-        Command::cargo_bin("pnpm")
-            .expect("find the pnpm binary")
-            .with_current_dir(&workspace)
-            .with_args(["run", "show-ua"])
-            .assert()
-            .success();
+        for args in [
+            vec!["run".to_string(), "show-ua".to_string()],
+            // `exec` builds its child's environment separately from the
+            // lifecycle executor, so it needs its own coverage.
+            vec![
+                "exec".to_string(),
+                "node".to_string(),
+                "-e".to_string(),
+                record_user_agent_js("exec-ua.txt"),
+            ],
+        ] {
+            Command::cargo_bin("pnpm")
+                .expect("find the pnpm binary")
+                .with_current_dir(&workspace)
+                .with_args(args)
+                .assert()
+                .success();
+        }
 
-        for file in ["preinstall-ua.txt", "run-ua.txt"] {
+        for file in ["preinstall-ua.txt", "run-ua.txt", "exec-ua.txt"] {
             let user_agent = fs::read_to_string(workspace.join(file)).expect("read {file}");
             let (name, rest) = user_agent.split_once('/').unwrap_or((&user_agent, ""));
             assert_eq!(name, "pnpm", "{file}: {user_agent}");
