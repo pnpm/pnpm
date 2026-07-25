@@ -326,39 +326,13 @@ fn recursive_run_settings_only_workspace_enumerates_root_only() {
 /// auto-exclusion an unfiltered recursive `run` otherwise applies.
 #[test]
 fn recursive_run_workspace_root_selects_only_the_root_project() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_workspace(
-        &workspace,
-        &[
-            ("project-1", build_writes_marker("project-1")),
-            ("project-2", build_writes_marker("project-2")),
-        ],
-    );
-    fs::write(
-        workspace.join("package.json"),
-        json!({
-            "name": "root",
-            "version": "1.0.0",
-            "scripts": { "build": "touch root-ran.txt" },
-        })
-        .to_string(),
-    )
-    .expect("write root package.json");
-
-    pacquet.with_arg("-r").with_arg("-w").with_arg("run").with_arg("build").assert().success();
-
-    assert!(
-        workspace.join("root-ran.txt").exists(),
-        "--workspace-root should select the root project",
-    );
-    for name in ["project-1", "project-2"] {
-        assert!(
-            !workspace.join(name).join("ran.txt").exists(),
-            "{name} must not run under --workspace-root",
+    for start_dir in WORKSPACE_ROOT_START_DIRS {
+        assert_eq!(
+            workspace_root_run_selection(start_dir, None),
+            ["<root>"],
+            "--dir {start_dir}: --workspace-root selects the root project alone",
         );
     }
-
-    drop(root);
 }
 
 /// `--workspace-root` *adds* the root project to a `--filter` selection
@@ -369,6 +343,28 @@ fn recursive_run_workspace_root_selects_only_the_root_project() {
 /// the root alone here would diverge from it.
 #[test]
 fn recursive_run_workspace_root_adds_the_root_to_a_filter_selection() {
+    for start_dir in WORKSPACE_ROOT_START_DIRS {
+        assert_eq!(
+            workspace_root_run_selection(start_dir, Some("project-1")),
+            ["<root>", "project-1"],
+            "--dir {start_dir}: --workspace-root keeps the --filter-selected project",
+        );
+    }
+}
+
+/// The `--dir` values every `--workspace-root` selection case is checked
+/// from. Starting inside a member project is the scenario the flag exists
+/// for (pnpm/pnpm#13031), so each case is asserted to select the same
+/// projects from there as from the workspace root — the whole path from
+/// the `--dir` redirect through manifest discovery to the script lookup
+/// has to hold, not just the selector.
+const WORKSPACE_ROOT_START_DIRS: [&str; 2] = [".", "project-1"];
+
+/// Run `-r -w [--filter <filter>] run build` from `start_dir` in a fresh
+/// workspace of a root project plus `project-1` / `project-2`, each
+/// writing a marker when its `build` runs, and return the names that ran
+/// (`"<root>"` for the root project) in workspace order.
+fn workspace_root_run_selection(start_dir: &str, filter: Option<&str>) -> Vec<String> {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_workspace(
         &workspace,
@@ -388,19 +384,21 @@ fn recursive_run_workspace_root_adds_the_root_to_a_filter_selection() {
     )
     .expect("write root package.json");
 
-    pacquet.with_args(["-r", "-w", "--filter", "project-1", "run", "build"]).assert().success();
+    let mut args = vec!["--dir", start_dir, "-r", "-w"];
+    if let Some(filter) = filter {
+        args.extend(["--filter", filter]);
+    }
+    args.extend(["run", "build"]);
+    pacquet.with_args(args).assert().success();
 
-    assert!(workspace.join("root-ran.txt").exists(), "--workspace-root selects the root project");
-    assert!(
-        workspace.join("project-1").join("ran.txt").exists(),
-        "--workspace-root must not drop the --filter-selected project",
-    );
-    assert!(
-        !workspace.join("project-2").join("ran.txt").exists(),
-        "project-2 matches neither the filter nor the root selector",
-    );
+    let ran = std::iter::once(("<root>", workspace.join("root-ran.txt")))
+        .chain(["project-1", "project-2"].map(|name| (name, workspace.join(name).join("ran.txt"))))
+        .filter(|(_, marker)| marker.exists())
+        .map(|(name, _)| name.to_string())
+        .collect();
 
-    drop(root);
+    drop(root); // cleanup
+    ran
 }
 
 /// `pacquet -r --filter <name> run <script>` runs the script only in the
