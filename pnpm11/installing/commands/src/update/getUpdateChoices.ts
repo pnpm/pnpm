@@ -4,7 +4,7 @@ import { colorizeSemverDiff } from '@pnpm/colorize-semver-diff'
 import type { OutdatedPackage } from '@pnpm/deps.inspection.outdated'
 import { semverDiff } from '@pnpm/semver-diff'
 import { getBorderCharacters, table } from '@zkochan/table'
-import { and, groupBy, isEmpty, pickBy, pipe, pluck, uniqBy } from 'ramda'
+import { and, groupBy, isEmpty, pickBy, pluck } from 'ramda'
 
 export interface ChoiceRow {
   name: string
@@ -31,12 +31,29 @@ export function getUpdateChoices (outdatedPkgsOfProjects: UpdateChoiceDependency
     return JSON.stringify([outdatedPkg.packageName, outdatedPkg.latestManifest?.version, outdatedPkg.current, outdatedPkg.dependencyType])
   }
 
-  const dedupeAndGroupPkgs = pipe(
-    uniqBy((outdatedPkg: UpdateChoiceDependency) => pkgUniqueKey(outdatedPkg)),
-    groupBy((outdatedPkg: UpdateChoiceDependency) => outdatedPkg.dependencyType ?? outdatedPkg.belongsTo)
-  )
+  // Entries that differ only by the project they came from collapse into
+  // one choice, because selecting it updates the package in every
+  // project. Their workspaces are collected onto the survivor so the
+  // Workspace column names all of them rather than whichever came first.
+  const deduped: UpdateChoiceDependency[] = []
+  const workspacesByKey = new Map<string, Set<string>>()
+  for (const outdatedPkg of outdatedPkgsOfProjects) {
+    const key = pkgUniqueKey(outdatedPkg)
+    let workspaces = workspacesByKey.get(key)
+    if (workspaces == null) {
+      workspaces = new Set()
+      workspacesByKey.set(key, workspaces)
+      deduped.push(outdatedPkg)
+    }
+    if (outdatedPkg.workspace) {
+      workspaces.add(outdatedPkg.workspace)
+    }
+  }
 
-  const groupPkgsByType = dedupeAndGroupPkgs(outdatedPkgsOfProjects)
+  const groupPkgsByType = groupBy(
+    (outdatedPkg: UpdateChoiceDependency) => outdatedPkg.dependencyType ?? outdatedPkg.belongsTo,
+    deduped
+  )
 
   const headerRow = {
     Package: true,
@@ -58,7 +75,7 @@ export function getUpdateChoices (outdatedPkgsOfProjects: UpdateChoiceDependency
       // and entries from registries we cannot resolve against (no manifest).
       // We only want to show those dependencies that have a known newer version.
       if (choice.latestManifest != null && choice.latestManifest.version !== choice.current) {
-        rawChoices.push(buildPkgChoice(choice, workspacesEnabled))
+        rawChoices.push(buildPkgChoice(choice, workspacesEnabled, workspacesByKey.get(pkgUniqueKey(choice))))
       }
     }
     if (rawChoices.length === 0) continue
@@ -103,7 +120,7 @@ interface RawChoice {
   disabled?: boolean
 }
 
-function buildPkgChoice (outdatedPkg: UpdateChoiceDependency, workspacesEnabled: boolean): RawChoice {
+function buildPkgChoice (outdatedPkg: UpdateChoiceDependency, workspacesEnabled: boolean, workspaces?: Set<string>): RawChoice {
   const sdiff = semverDiff(outdatedPkg.wanted, outdatedPkg.latestManifest!.version)
   const nextVersion = sdiff.change === null
     ? outdatedPkg.latestManifest!.version
@@ -117,7 +134,7 @@ function buildPkgChoice (outdatedPkg: UpdateChoiceDependency, workspacesEnabled:
     nextVersion,
   ]
   if (workspacesEnabled) {
-    raw.push(outdatedPkg.workspace ?? '')
+    raw.push(Array.from(workspaces ?? []).join(', '))
   }
   raw.push(getPkgUrl(outdatedPkg))
 

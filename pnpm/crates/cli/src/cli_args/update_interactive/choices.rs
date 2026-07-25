@@ -9,7 +9,7 @@ use crate::cli_args::{
     sanitize::sanitize_inline,
 };
 use pacquet_package_manifest::DependencyGroup;
-use std::collections::HashSet;
+use std::collections::HashMap;
 
 /// One line of a [`ChoiceGroup`].
 #[derive(Debug, PartialEq, Eq)]
@@ -75,47 +75,71 @@ impl ChoiceGroupKind {
 /// A package that is outdated in more than one dependency type appears
 /// once, under whichever type came first: the deduplication key omits
 /// the dependency type. This matches pnpm, whose `uniqBy` runs before
-/// its `groupBy` over the same key.
+/// its `groupBy` over the same key. Collapsed entries keep every
+/// workspace project they came from, since selecting the row updates the
+/// package in all of them.
 pub(crate) fn update_choices(
     outdated: &[&OutdatedPackage],
     workspaces_enabled: bool,
 ) -> Vec<ChoiceGroup> {
-    let mut seen = HashSet::new();
-    let mut grouped: Vec<(ChoiceGroupKind, Vec<&OutdatedPackage>)> = Vec::new();
+    let mut seen: HashMap<ChoiceKey, usize> = HashMap::new();
+    let mut choices: Vec<Choice<'_>> = Vec::new();
+    let mut grouped: Vec<(ChoiceGroupKind, Vec<usize>)> = Vec::new();
     for package in outdated {
         // Keyed by alias as well as package name, because the alias is
         // what a selected row updates: two manifest entries aliasing one
         // package (`"a": "npm:foo@1"`, `"b": "npm:foo@1"`) are separate
         // dependencies and both have to be offered.
         let key = (
-            package.alias.as_str(),
-            package.package_name.as_str(),
+            package.alias.clone(),
+            package.package_name.clone(),
             package.current.to_string(),
             package.target.to_string(),
             package.github_action,
         );
-        if !seen.insert(key) {
-            continue;
-        }
-        let kind = ChoiceGroupKind::of(package);
-        match grouped.iter_mut().find(|(group, _)| *group == kind) {
-            Some((_, packages)) => packages.push(package),
-            None => grouped.push((kind, vec![*package])),
+        let index = *seen.entry(key).or_insert_with(|| {
+            let index = choices.len();
+            choices.push(Choice { package, workspaces: Vec::new() });
+            let kind = ChoiceGroupKind::of(package);
+            match grouped.iter_mut().find(|(group, _)| *group == kind) {
+                Some((_, indices)) => indices.push(index),
+                None => grouped.push((kind, vec![index])),
+            }
+            index
+        });
+        // Collect every project the collapsed entries came from, so the
+        // `Workspace` column names all of them rather than whichever was
+        // seen first — selecting the row updates the package in each.
+        if let Some(workspace) = &package.workspace
+            && !choices[index].workspaces.contains(workspace)
+        {
+            choices[index].workspaces.push(workspace.clone());
         }
     }
 
     grouped
         .into_iter()
-        .map(|(kind, packages)| ChoiceGroup {
+        .map(|(kind, indices)| ChoiceGroup {
             message: kind.message().to_string(),
-            rows: render_rows(&packages, workspaces_enabled),
+            rows: render_rows(
+                &indices.into_iter().map(|index| &choices[index]).collect::<Vec<_>>(),
+                workspaces_enabled,
+            ),
         })
         .collect()
 }
 
-/// The header row plus one row per package, padded so every column lines
-/// up within the group.
-fn render_rows(packages: &[&OutdatedPackage], workspaces_enabled: bool) -> Vec<ChoiceRow> {
+/// One offered dependency, with every workspace project it was found in.
+struct Choice<'a> {
+    package: &'a OutdatedPackage,
+    workspaces: Vec<String>,
+}
+
+type ChoiceKey = (String, String, String, String, bool);
+
+/// The header row plus one row per offered dependency, padded so every
+/// column lines up within the group.
+fn render_rows(choices: &[&Choice<'_>], workspaces_enabled: bool) -> Vec<ChoiceRow> {
     let mut header =
         vec!["Package".to_string(), "Current".to_string(), String::new(), "Target".to_string()];
     if workspaces_enabled {
@@ -124,8 +148,9 @@ fn render_rows(packages: &[&OutdatedPackage], workspaces_enabled: bool) -> Vec<C
     header.push("URL".to_string());
 
     let mut cells = vec![header];
-    for package in packages {
-        // The name, workspace, and homepage are read out of manifests
+    for choice in choices {
+        let package = choice.package;
+        // The name, workspaces, and homepage are read out of manifests
         // and registry metadata, so they are stripped of control
         // characters before reaching the terminal: an escape sequence
         // would corrupt the prompt's redraw, and a newline would break
@@ -138,7 +163,12 @@ fn render_rows(packages: &[&OutdatedPackage], workspaces_enabled: bool) -> Vec<C
         ];
         if workspaces_enabled {
             row.push(
-                package.workspace.as_deref().map(sanitize_inline).unwrap_or_default().into_owned(),
+                choice
+                    .workspaces
+                    .iter()
+                    .map(|workspace| sanitize_inline(workspace))
+                    .collect::<Vec<_>>()
+                    .join(", "),
             );
         }
         row.push(package.homepage.as_deref().map(sanitize_inline).unwrap_or_default().into_owned());
@@ -151,8 +181,10 @@ fn render_rows(packages: &[&OutdatedPackage], workspaces_enabled: bool) -> Vec<C
     let header = rows.next().expect("the header row is always pushed first");
     std::iter::once(header)
         .chain(
-            rows.zip(packages)
-                .map(|(row, package)| ChoiceRow { value: Some(package.alias.clone()), ..row }),
+            rows.zip(choices).map(|(row, choice)| ChoiceRow {
+                value: Some(choice.package.alias.clone()),
+                ..row
+            }),
         )
         .collect()
 }

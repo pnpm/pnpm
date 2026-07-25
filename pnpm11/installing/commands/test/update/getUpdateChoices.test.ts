@@ -197,3 +197,24 @@ test('getUpdateChoices() groups GitHub Actions separately', () => {
   expect(choices[0].message).toBe('GitHub Actions')
   expect(choices[0].choices[1]).toMatchObject({ name: 'actions/checkout', value: 'actions/checkout' })
 })
+
+test('getUpdateChoices() names every workspace a collapsed choice came from', () => {
+  const outdated = (workspace: string) => ({
+    alias: 'foo',
+    belongsTo: 'dependencies' as const,
+    current: '1.0.0',
+    latestManifest: { name: 'foo', version: '2.0.0' },
+    packageName: 'foo',
+    wanted: '1.0.0',
+    workspace,
+  })
+
+  const choices = getUpdateChoices([outdated('web'), outdated('tooling')], true)
+
+  // Selecting the choice updates the package in every project, so the two
+  // entries stay one row — but the row has to say which projects it covers.
+  expect(choices).toHaveLength(1)
+  expect(choices[0].choices).toHaveLength(2)
+  const dataRow = choices[0].choices[1] as { message: string }
+  expect(stripVTControlCharacters(dataRow.message)).toContain('web, tooling')
+})

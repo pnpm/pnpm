@@ -218,8 +218,8 @@ fn control_characters_in_registry_metadata_are_stripped() {
 }
 
 /// Inside a workspace the list gains a `Workspace` column naming the
-/// project each dependency was found in, so the same package outdated in
-/// two projects is tellable apart.
+/// project each dependency was found in, so entries that differ by
+/// version are tellable apart.
 #[test]
 fn a_workspace_run_names_the_project_each_row_came_from() {
     let mut in_app = pkg("foo", "foo", "1.0.0", "2.0.0", DependencyGroup::Prod);
@@ -247,4 +247,35 @@ fn a_single_project_run_has_no_workspace_column() {
 
     assert!(!groups[0].rows[0].label.contains("Workspace"));
     assert!(!groups[0].rows[1].label.contains("solo"), "{}", groups[0].rows[1].label);
+}
+
+/// Entries that differ only by the project they came from collapse into
+/// one row, because selecting it updates the package in every project —
+/// so the row has to name all of them rather than whichever came first.
+#[test]
+fn a_collapsed_row_names_every_project_it_covers() {
+    let mut in_web = pkg("foo", "foo", "1.0.0", "2.0.0", DependencyGroup::Prod);
+    in_web.workspace = Some("web".to_string());
+    let mut in_tooling = pkg("foo", "foo", "1.0.0", "2.0.0", DependencyGroup::Prod);
+    in_tooling.workspace = Some("tooling".to_string());
+    let packages = [in_web, in_tooling];
+
+    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), true);
+
+    assert_eq!(values(&groups[0]), vec!["foo"]);
+    assert!(groups[0].rows[1].label.contains("web, tooling"), "{}", groups[0].rows[1].label);
+}
+
+/// A project appearing twice for one dependency is named once.
+#[test]
+fn a_repeated_project_is_named_once() {
+    let mut first = pkg("foo", "foo", "1.0.0", "2.0.0", DependencyGroup::Prod);
+    first.workspace = Some("web".to_string());
+    let mut second = pkg("foo", "foo", "1.0.0", "2.0.0", DependencyGroup::Prod);
+    second.workspace = Some("web".to_string());
+    let packages = [first, second];
+
+    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), true);
+
+    assert!(!groups[0].rows[1].label.contains("web, web"), "{}", groups[0].rows[1].label);
 }

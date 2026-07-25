@@ -181,9 +181,15 @@ async fn collect_outdated_for_importer_with_cache(
         current_versions_from_importer(lockfile, importer_id, query.include_direct);
     let current_versions = &current_versions;
     // Recorded on every entry so the interactive update list can say
-    // which workspace project each outdated dependency came from.
-    let workspace =
-        manifest.value().get("name").and_then(serde_json::Value::as_str).map(str::to_string);
+    // which workspace project each outdated dependency came from. A
+    // project is not required to declare a name, and an empty label
+    // leaves several unnamed projects indistinguishable, so fall back to
+    // the path that identifies the project in the lockfile.
+    let workspace = manifest
+        .value()
+        .get("name")
+        .and_then(serde_json::Value::as_str)
+        .map_or_else(|| importer_id.to_string(), str::to_string);
     let workspace = &workspace;
 
     // Gather the lockfile-pinned direct dependencies to inspect, then
@@ -243,7 +249,7 @@ async fn collect_outdated_for_importer_with_cache(
                 github_action: false,
                 deprecated,
                 homepage: package.homepage.clone(),
-                workspace: workspace.clone(),
+                workspace: Some(workspace.clone()),
             }))
         });
 
