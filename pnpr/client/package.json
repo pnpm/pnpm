@@ -34,12 +34,12 @@
   "dependencies": {
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
-    "@pnpm/lockfile.types": "workspace:*"
+    "@pnpm/lockfile.types": "workspace:*",
+    "@pnpm/types": "workspace:*"
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
-    "@pnpm/pnpr.client": "workspace:*",
-    "@pnpm/types": "workspace:*"
+    "@pnpm/pnpr.client": "workspace:*"
   },
   "engines": {
     "node": ">=22.13"

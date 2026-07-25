@@ -186,6 +186,7 @@ export interface StrictInstallOptions {
   ci?: boolean
   minimumReleaseAge?: number
   minimumReleaseAgeExclude?: string[]
+  minimumReleaseAgeIgnoreMissingTime?: boolean
   /**
    * Resolver-agnostic post-tree gate, invoked between
    * `resolveDependencyTree` and `resolvePeers` inside
