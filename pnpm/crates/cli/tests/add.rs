@@ -1202,6 +1202,31 @@ fn the_pinned_form_picks_the_highest_workspace_version_by_semver() {
     drop(root);
 }
 
+/// The setting is readable from `PNPM_CONFIG_SAVE_WORKSPACE_PROTOCOL`
+/// too, not only `pnpm-workspace.yaml` — pnpm exposes every setting
+/// through its env pass.
+#[test]
+fn the_env_var_drives_the_saved_workspace_range() {
+    const LIB: &str = "@pnpm.e2e/ws-env";
+    for (value, expected) in
+        [("true", "workspace:^1.2.3"), ("rolling", "workspace:^"), ("false", "workspace:^1.2.3")]
+    {
+        let (root, app_dir) =
+            workspace_with_lib(None, &[(LIB, "1.2.3")], "packages/app/package.json");
+        Command::cargo_bin("pnpm")
+            .expect("find the pnpm binary")
+            .with_current_dir(&app_dir)
+            .with_args(["add", &format!("{LIB}@workspace:^1.0.0"), "--lockfile-only"])
+            .env("PNPM_CONFIG_SAVE_WORKSPACE_PROTOCOL", value)
+            .assert()
+            .success();
+
+        eprintln!("PNPM_CONFIG_SAVE_WORKSPACE_PROTOCOL={value} -> {:?}", saved_spec(&app_dir, LIB));
+        assert_eq!(saved_spec(&app_dir, LIB).as_deref(), Some(expected));
+        drop(root);
+    }
+}
+
 /// Scaffold a workspace whose `packages/*` hold `libs` (one directory
 /// per entry, so the same name may appear at several versions) plus an
 /// `app` member. Returns the temp root and the app's directory.

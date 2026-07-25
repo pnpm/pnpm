@@ -1,7 +1,7 @@
 //! Manifest-ready specifiers for dependencies that resolve to a
 //! workspace package.
 //!
-//! The registry counterpart lives in [`crate::calc_specifier`]. A
+//! The registry counterpart lives in [`crate::calc_specifier()`]. A
 //! workspace pick differs in that the text written back keeps the
 //! `workspace:` protocol, and under the default
 //! [`SaveWorkspaceProtocol::Rolling`] carries no version at all — the
