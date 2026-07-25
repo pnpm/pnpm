@@ -204,10 +204,9 @@ fn add_accepts_multiple_local_package_selectors() {
     drop(root); // cleanup
 }
 
-/// Declare `packages/*` as workspace packages with a single `packages/a`
-/// member, and write `local-a` / `local-b` under `fixtures/`, so a `-w` add
-/// can use `file:` specs that resolve from the root manifest instead of
-/// reaching the registry. Returns the member's directory.
+/// A one-member workspace whose `fixtures/` packages let a `-w` add use
+/// `file:` specs instead of reaching the registry. Returns the member's
+/// directory.
 fn write_workspace_with_local_fixtures(workspace: &Path) -> PathBuf {
     let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
     let mut workspace_yaml = std::fs::read_to_string(&workspace_yaml_path).unwrap_or_default();
