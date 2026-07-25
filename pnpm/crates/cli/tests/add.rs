@@ -268,11 +268,8 @@ fn add_workspace_root_tolerates_a_dir_that_does_not_exist() {
     drop(root); // cleanup
 }
 
-/// A nonexistent `--dir` that climbs *out* of the workspace is a
-/// different case from one that stays inside it: the workspace the
-/// command was invoked from must not be selected after the user pointed
-/// away from it. The ancestor walk is lexical, so the `..` components
-/// have to be resolved before it runs, or it climbs back through them.
+/// The counterpart to the tolerated nonexistent `--dir` above: one that
+/// climbs *out* of the workspace must not fall back to it.
 #[test]
 fn add_workspace_root_rejects_a_dir_that_climbs_out_of_the_workspace() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
