@@ -110,14 +110,15 @@ test-pnpr:
   # child, and this is the selection that puts that binary in `target/`.
   cargo nextest run {{ if shared_test_build == "1" { "--workspace -E '" + pnpr_tests + "'" } else { "-p pnpm-registry-mock -p pnpr -p pnpr-auth -p pnpr-cargo -p pnpr-config -p pnpr-error -p pnpr-fixtures -p pnpr-libsql -p pnpr-oci -p pnpr-osv -p pnpr-package-name -p pnpr-pipeline-runs -p pnpr-policy -p pnpr-pypi -p pnpr-registry -p pnpr-route -p pnpr-search -p pnpr-shared-artifacts -p pnpr-storage -p pnpr-upstream" } }}
 
-# List expected-failing test ports
+# List expected-failing test ports. Exits 0 when there are none, so an
+# empty list reads as "nothing stubbed" rather than as a failure.
 [unix]
 known-failures:
-  @cargo test --workspace known_failures -- --list 2>/dev/null | rg '^known_failures::'
+  @cargo test --workspace known_failures -- --list 2>/dev/null | rg '^known_failures::' || true
 
 [windows]
 known-failures:
-  @cargo test --workspace known_failures -- --list 2>nul | rg '^known_failures::'
+  @cargo test --workspace known_failures -- --list 2>nul | rg '^known_failures::' || true
 # Lint the whole project
 lint:
   cargo clippy --locked --workspace --all-targets -- --deny warnings
