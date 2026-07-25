@@ -199,7 +199,7 @@ fn fresh_install_records_a_single_direct_dependency() {
 }
 
 #[test]
-fn fresh_install_records_string_libc_metadata() {
+fn fresh_install_records_string_libc_without_coercing_scalar_bundle_metadata() {
     let (_tmp, manifest) = write_manifest(json!({
         "name": "fixture",
         "version": "1.0.0",
@@ -214,6 +214,7 @@ fn fresh_install_records_string_libc_metadata() {
             "cpu": ["x64"],
             "os": ["linux"],
             "libc": "musl",
+            "bundledDependencies": "not-an-array",
         }),
         BTreeMap::new(),
         BTreeMap::new(),
@@ -231,10 +232,9 @@ fn fresh_install_records_string_libc_metadata() {
     ));
 
     let package_key: PackageKey = "sass-embedded-linux-musl-x64@1.100.0".parse().unwrap();
-    assert_eq!(
-        lockfile.packages.as_ref().expect("packages")[&package_key].libc.as_deref(),
-        Some(["musl".to_string()].as_slice()),
-    );
+    let metadata = &lockfile.packages.as_ref().expect("packages")[&package_key];
+    assert_eq!(metadata.libc.as_deref(), Some(["musl".to_string()].as_slice()));
+    assert!(metadata.bundled_dependencies.is_none());
 }
 
 #[test]
