@@ -30,7 +30,7 @@ use crate::{
     },
     resolve_dependency_tree::{
         ResolveDependencyTreeError, TreeCtx, WantedSpec, WorkspaceTreeCtx, extend_tree,
-        importer_direct_wanted_specs, record_changed_direct_deps,
+        importer_direct_wanted_specs, record_changed_direct_deps, unwrap_package_name,
     },
     resolve_peers::{ResolvePeersOptions, ResolvePeersResult, resolve_peers},
     resolved_tree::ResolvedTree,
@@ -62,11 +62,10 @@ pub struct ResolveImporterOptions {
     /// failure. This is the `autoInstallPeersFromHighestMatch` setting.
     pub auto_install_peers_from_highest_match: bool,
 
-    /// When true, the importer's direct deps are used as
-    /// `workspace_root_deps` for the hoist picker so a peer matching a
-    /// direct dep's alias / name short-circuits straight to that
-    /// dep's specifier. Single-importer pacquet treats the importer
-    /// as the root.
+    /// When true, a missing peer matching one of the *workspace root*
+    /// importer's direct deps is installed from that dep's specifier.
+    /// [`fn@crate::resolve_workspace`] supplies the root's deps; the
+    /// single-importer [`fn@resolve_importer`] path supplies its own.
     pub resolve_peers_from_workspace_root: bool,
 
     /// Threaded into [`ResolvePeersOptions::dedupe_peers`] on every
@@ -262,6 +261,9 @@ where
         workspace,
     )
     .await?;
+    // Single importer, so it *is* the workspace root.
+    let root_deps = Arc::new(state.hoistable_root_deps());
+    state.set_workspace_root_deps(root_deps);
     loop {
         state.run_required_round(resolver).await?;
         if !state.hoist_optional_round(resolver).await? {
@@ -284,6 +286,13 @@ pub(crate) struct ImporterHoistState {
     importer_id: String,
     ctx: TreeCtx,
     direct: Vec<DirectDep>,
+    /// Empty until the caller assigns it; see
+    /// [`ResolveImporterOptions::resolve_peers_from_workspace_root`].
+    workspace_root_deps: Arc<Vec<WorkspaceRootDep>>,
+    /// `alias → bare_specifier` as declared. Stands in wherever the
+    /// resolver reports no normalized form — a plain `"19.2.0"` arrives
+    /// as `None`.
+    wanted_specifier_by_alias: BTreeMap<String, String>,
     /// `NodeIds` appended to `direct` by
     /// [`Self::append_resolved_peer_providers`]. Threaded into
     /// [`ResolvePeersOptions::hoisted_peer_provider_node_ids`] so the
@@ -360,6 +369,10 @@ impl ImporterHoistState {
             .with_resolution_mode(pick_lowest_direct, subdep_published_by)
             .with_catalogs(catalogs);
         record_changed_direct_deps(&ctx, importer_id, &initial_wanted);
+        let wanted_specifier_by_alias: BTreeMap<String, String> = initial_wanted
+            .iter()
+            .map(|(alias, range, ..)| (alias.clone(), range.clone()))
+            .collect();
         let direct = extend_tree(&ctx, resolver, initial_wanted, importer_id).await?;
         let parent_pkg_aliases: HashSet<String> =
             direct.iter().map(|dep| dep.alias.clone()).collect();
@@ -367,6 +380,8 @@ impl ImporterHoistState {
             importer_id: importer_id.to_string(),
             ctx,
             direct,
+            workspace_root_deps: Arc::default(),
+            wanted_specifier_by_alias,
             hoisted_peer_provider_node_ids: HashSet::new(),
             parent_pkg_aliases,
             all_missing_optional_peers: BTreeMap::new(),
@@ -381,6 +396,22 @@ impl ImporterHoistState {
             project_dir,
             modules_dir,
         })
+    }
+
+    pub(crate) fn importer_id(&self) -> &str {
+        &self.importer_id
+    }
+
+    pub(crate) fn hoistable_root_deps(&self) -> Vec<WorkspaceRootDep> {
+        build_workspace_root_deps(
+            &self.direct,
+            &self.ctx.snapshot(self.direct.clone()),
+            &self.wanted_specifier_by_alias,
+        )
+    }
+
+    pub(crate) fn set_workspace_root_deps(&mut self, deps: Arc<Vec<WorkspaceRootDep>>) {
+        self.workspace_root_deps = deps;
     }
 
     fn peers_opts(&self) -> ResolvePeersOptions {
@@ -464,10 +495,11 @@ impl ImporterHoistState {
                 break;
             }
 
-            let workspace_root_deps = if self.resolve_peers_from_workspace_root {
-                build_workspace_root_deps(&self.direct, &snapshot)
+            let workspace_root_deps: &[WorkspaceRootDep] = if self.resolve_peers_from_workspace_root
+            {
+                &self.workspace_root_deps
             } else {
-                Vec::new()
+                &[]
             };
 
             let missing_as_pairs: Vec<(String, MissingPeerInfo)> =
@@ -476,7 +508,7 @@ impl ImporterHoistState {
                 &HoistPeersOptions {
                     auto_install_peers: self.auto_install_peers,
                     all_preferred_versions: &self.all_preferred_versions,
-                    workspace_root_deps: &workspace_root_deps,
+                    workspace_root_deps,
                 },
                 &missing_as_pairs,
             );
@@ -680,27 +712,66 @@ fn intersect_ranges(ranges: &[&str]) -> Option<String> {
     .map(|range| range.to_string())
 }
 
-/// Build the [`WorkspaceRootDep`] slice the hoist picker sees. Reads
-/// `direct` for the importer's slot names and `snapshot` for the
-/// resolved package each slot points at — `normalized_bare_specifier`
-/// passes through from the resolver verbatim.
+/// The one gate every candidate specifier passes through, whatever its
+/// source. See [`is_project_relative_specifier`].
+fn cross_importer_specifier(spec: Option<String>) -> Option<String> {
+    spec.filter(|spec| !is_project_relative_specifier(spec))
+}
+
+/// `link:` / `file:` / `workspace:` resolve against the consuming
+/// project's directory, so the root's copy of one can't stand in for
+/// another importer's peer — the same specifier would reach a different
+/// path there, or nothing. Same set `project_relative_cache_scope` uses.
+fn is_project_relative_specifier(spec: &str) -> bool {
+    spec.starts_with("link:") || spec.starts_with("file:") || spec.starts_with("workspace:")
+}
+
+/// `name_ver`, else the manifest — the canonical name for the protocols
+/// that leave `name_ver` unset. `None` for a git resolution, which has
+/// neither until it is fetched.
+fn resolved_pkg_name(result: &pacquet_resolving_resolver_base::ResolveResult) -> Option<String> {
+    if let Some(name_ver) = result.name_ver.as_ref() {
+        return Some(name_ver.name.to_string());
+    }
+    result.manifest.as_deref()?.get("name").and_then(serde_json::Value::as_str).map(str::to_string)
+}
+
+/// The picker matches by alias *and* by real package name, so a dep
+/// [`resolved_pkg_name`] can't name still enters under its alias —
+/// usually the package name anyway, and better than no candidate.
 fn build_workspace_root_deps(
     direct: &[DirectDep],
     snapshot: &ResolvedTree,
+    declared: &BTreeMap<String, String>,
 ) -> Vec<WorkspaceRootDep> {
     let mut out = Vec::with_capacity(direct.len());
+    let mut named = HashSet::new();
     for dep in direct {
         let Some(pkg) = snapshot.packages.get(&dep.id) else { continue };
-        // `name_ver` is `None` for resolvers that learn the name from
-        // the manifest only after the fetch (git / tarball / local).
-        // Workspace-root short-circuit needs the resolution-time real
-        // name, so skip those — they fall through to the
-        // preferred-versions arm of `hoist_peers` instead.
-        let Some(name_ver) = pkg.result.name_ver.as_ref() else { continue };
+        let Some(pkg_name) = resolved_pkg_name(&pkg.result) else { continue };
+        named.insert(dep.alias.as_str());
         out.push(WorkspaceRootDep {
             alias: dep.alias.clone(),
-            pkg_name: name_ver.name.to_string(),
-            normalized_bare_specifier: pkg.result.normalized_bare_specifier.clone(),
+            pkg_name,
+            normalized_bare_specifier: cross_importer_specifier(
+                pkg.result
+                    .normalized_bare_specifier
+                    .clone()
+                    .or_else(|| declared.get(&dep.alias).cloned()),
+            ),
+        });
+    }
+    for (alias, bare_specifier) in declared {
+        if named.contains(alias.as_str())
+            || cross_importer_specifier(Some(bare_specifier.clone())).is_none()
+        {
+            continue;
+        }
+        let (pkg_name, _) = unwrap_package_name(alias, bare_specifier);
+        out.push(WorkspaceRootDep {
+            alias: alias.clone(),
+            pkg_name: pkg_name.to_string(),
+            normalized_bare_specifier: Some(bare_specifier.clone()),
         });
     }
     out

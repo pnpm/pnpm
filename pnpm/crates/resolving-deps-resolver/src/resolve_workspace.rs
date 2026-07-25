@@ -272,6 +272,19 @@ where
             .await?,
         );
     }
+    // Computed after the init barrier and shared unchanged: recomputing it
+    // per round would let the root's own hoisted peers become candidates for
+    // the importers hoisted after it.
+    let root_deps = Arc::new(
+        states
+            .iter()
+            .find(|state| state.importer_id() == pacquet_lockfile::Lockfile::ROOT_IMPORTER_KEY)
+            .map(ImporterHoistState::hoistable_root_deps)
+            .unwrap_or_default(),
+    );
+    for state in &mut states {
+        state.set_workspace_root_deps(Arc::clone(&root_deps));
+    }
     loop {
         for state in &mut states {
             state.run_required_round(resolver).await?;

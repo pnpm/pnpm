@@ -2535,7 +2535,10 @@ fn pkgs_info_from_ids(
 /// [`fn@real_package_name_of`] it also yields the range and does not
 /// special-case the `npm:<range>` form, so the locked-entry check
 /// matches its TypeScript counterpart byte for byte.
-fn unwrap_package_name<'a>(alias: &'a str, bare_specifier: &'a str) -> (&'a str, &'a str) {
+pub(crate) fn unwrap_package_name<'a>(
+    alias: &'a str,
+    bare_specifier: &'a str,
+) -> (&'a str, &'a str) {
     let Some(rest) = bare_specifier.strip_prefix("npm:") else {
         return (alias, bare_specifier);
     };

@@ -1689,3 +1689,226 @@ async fn fresh_resolved_parent_on_recorded_version_reuses_child_subtrees() {
         assert_eq!(graph_versions_of(&result, name), ["1.0.0"], "{name} must keep 1.0.0");
     }
 }
+
+/// The root's `react` wins even though it doesn't satisfy `lucide-react`'s
+/// declared peer range: keeping one copy across the workspace is the point
+/// of the setting.
+#[tokio::test]
+async fn non_root_importer_hoists_the_root_importers_peer_provider() {
+    let (_root_tmp, root_manifest) = fake_manifest(serde_json::json!({ "react": "19.2.0" }));
+    let (_app_tmp, app_manifest) = fake_manifest(serde_json::json!({ "lucide": "1.0.0" }));
+    let importers = vec![
+        WorkspaceImporter { id: ".".to_string(), manifest: &root_manifest },
+        WorkspaceImporter { id: "app-b".to_string(), manifest: &app_manifest },
+    ];
+    let resolver = RecordingResolver {
+        table: HashMap::from([
+            (
+                ("react".to_string(), "19.2.0".to_string()),
+                fake_result(
+                    "react",
+                    "19.2.0",
+                    None,
+                    serde_json::json!({ "name": "react", "version": "19.2.0" }),
+                ),
+            ),
+            (
+                ("react".to_string(), "^18.0.0".to_string()),
+                fake_result(
+                    "react",
+                    "18.3.1",
+                    None,
+                    serde_json::json!({ "name": "react", "version": "18.3.1" }),
+                ),
+            ),
+            (
+                ("lucide".to_string(), "1.0.0".to_string()),
+                fake_result(
+                    "lucide",
+                    "1.0.0",
+                    None,
+                    serde_json::json!({
+                        "name": "lucide",
+                        "version": "1.0.0",
+                        "peerDependencies": { "react": "^18.0.0" },
+                    }),
+                ),
+            ),
+        ]),
+        seen: Mutex::new(HashMap::new()),
+    };
+    let mut opts = workspace_opts(false, false);
+    opts.auto_install_peers = true;
+    opts.resolve_peers_from_workspace_root = true;
+    let result =
+        resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
+            let mut importer_opts =
+                importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None);
+            importer_opts.resolve_peers_from_workspace_root = true;
+            importer_opts
+        })
+        .await
+        .expect("resolve workspace with a root-provided peer");
+
+    assert_eq!(graph_versions_of(&result, "react"), ["19.2.0"], "one react, the root's");
+    let app_deps = &result.peers.direct_dependencies_by_importer["app-b"];
+    assert_eq!(app_deps["react"].as_str(), "react@19.2.0");
+    assert_eq!(app_deps["lucide"].as_str(), "lucide@1.0.0(react@19.2.0)");
+}
+
+/// A tarball / git / local root dep leaves `name_ver` unset, and the alias
+/// it was declared under need not be its name.
+#[tokio::test]
+async fn root_dep_named_only_by_its_manifest_still_provides_the_peer() {
+    const TARBALL: &str = "https://tarballs.example/real-peer-1.0.0.tgz";
+    let (_root_tmp, root_manifest) = fake_manifest(serde_json::json!({ "aliased": TARBALL }));
+    let (_app_tmp, app_manifest) = fake_manifest(serde_json::json!({ "consumer": "1.0.0" }));
+    let importers = vec![
+        WorkspaceImporter { id: ".".to_string(), manifest: &root_manifest },
+        WorkspaceImporter { id: "app-b".to_string(), manifest: &app_manifest },
+    ];
+    let mut unnamed = fake_result(
+        "real-peer",
+        "1.0.0",
+        None,
+        serde_json::json!({ "name": "real-peer", "version": "1.0.0" }),
+    );
+    unnamed.name_ver = None;
+    unnamed.id = pacquet_resolving_resolver_base::PkgResolutionId::from(TARBALL.to_string());
+    unnamed.alias = Some("aliased".to_string());
+    let resolver = RecordingResolver {
+        table: HashMap::from([
+            (("aliased".to_string(), TARBALL.to_string()), unnamed.clone()),
+            (("real-peer".to_string(), TARBALL.to_string()), unnamed),
+            (
+                ("real-peer".to_string(), "^1.0.0".to_string()),
+                fake_result(
+                    "real-peer",
+                    "1.9.9",
+                    None,
+                    serde_json::json!({ "name": "real-peer", "version": "1.9.9" }),
+                ),
+            ),
+            (
+                ("consumer".to_string(), "1.0.0".to_string()),
+                fake_result(
+                    "consumer",
+                    "1.0.0",
+                    None,
+                    serde_json::json!({
+                        "name": "consumer",
+                        "version": "1.0.0",
+                        "peerDependencies": { "real-peer": "^1.0.0" },
+                    }),
+                ),
+            ),
+        ]),
+        seen: Mutex::new(HashMap::new()),
+    };
+    let mut opts = workspace_opts(false, false);
+    opts.auto_install_peers = true;
+    opts.resolve_peers_from_workspace_root = true;
+    let result =
+        resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
+            let mut importer_opts =
+                importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None);
+            importer_opts.resolve_peers_from_workspace_root = true;
+            importer_opts
+        })
+        .await
+        .expect("resolve workspace with a manifest-named root peer provider");
+
+    assert!(
+        !result.peers.graph.keys().any(|dep_path| dep_path.as_str().contains("1.9.9")),
+        "the peer must come from the root's tarball dep, not a second copy off the registry: {:?}",
+        result.peers.graph.keys().map(|k| k.as_str().to_string()).collect::<Vec<_>>(),
+    );
+}
+
+/// Both shapes a local resolution can take reach the guard by different
+/// routes: with a manifest the dep is nameable and carries the resolver's
+/// own specifier, without one it is named by its alias from the declared
+/// specifier.
+#[tokio::test]
+async fn a_project_relative_root_dep_is_not_offered_as_a_peer_provider() {
+    project_relative_root_dep_is_not_a_provider(ManifestAvailability::Absent).await;
+}
+
+#[tokio::test]
+async fn a_nameable_project_relative_root_dep_is_not_offered_as_a_peer_provider() {
+    project_relative_root_dep_is_not_a_provider(ManifestAvailability::Present).await;
+}
+
+#[derive(Clone, Copy)]
+enum ManifestAvailability {
+    Present,
+    Absent,
+}
+
+async fn project_relative_root_dep_is_not_a_provider(manifest: ManifestAvailability) {
+    const LOCAL: &str = "file:./vendor/real-peer.tgz";
+    let (_root_tmp, root_manifest) = fake_manifest(serde_json::json!({ "real-peer": LOCAL }));
+    let (_app_tmp, app_manifest) = fake_manifest(serde_json::json!({ "consumer": "1.0.0" }));
+    let importers = vec![
+        WorkspaceImporter { id: ".".to_string(), manifest: &root_manifest },
+        WorkspaceImporter { id: "app-b".to_string(), manifest: &app_manifest },
+    ];
+    let mut unnamed = fake_result(
+        "real-peer",
+        "1.0.0",
+        None,
+        serde_json::json!({ "name": "real-peer", "version": "1.0.0" }),
+    );
+    unnamed.name_ver = None;
+    if matches!(manifest, ManifestAvailability::Absent) {
+        unnamed.manifest = None;
+    }
+    unnamed.normalized_bare_specifier = Some(LOCAL.to_string());
+    unnamed.id = pacquet_resolving_resolver_base::PkgResolutionId::from(LOCAL.to_string());
+    let resolver = RecordingResolver {
+        table: HashMap::from([
+            (("real-peer".to_string(), LOCAL.to_string()), unnamed),
+            (
+                ("real-peer".to_string(), "^1.0.0".to_string()),
+                fake_result(
+                    "real-peer",
+                    "1.9.9",
+                    None,
+                    serde_json::json!({ "name": "real-peer", "version": "1.9.9" }),
+                ),
+            ),
+            (
+                ("consumer".to_string(), "1.0.0".to_string()),
+                fake_result(
+                    "consumer",
+                    "1.0.0",
+                    None,
+                    serde_json::json!({
+                        "name": "consumer",
+                        "version": "1.0.0",
+                        "peerDependencies": { "real-peer": "^1.0.0" },
+                    }),
+                ),
+            ),
+        ]),
+        seen: Mutex::new(HashMap::new()),
+    };
+    let mut opts = workspace_opts(false, false);
+    opts.auto_install_peers = true;
+    opts.resolve_peers_from_workspace_root = true;
+    let result =
+        resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
+            let mut importer_opts =
+                importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None);
+            importer_opts.resolve_peers_from_workspace_root = true;
+            importer_opts
+        })
+        .await
+        .expect("resolve workspace with a project-relative root dep");
+
+    assert_eq!(
+        result.peers.direct_dependencies_by_importer["app-b"]["real-peer"].as_str(),
+        "real-peer@1.9.9",
+        "the `file:` specifier must not be hoisted into app-b",
+    );
+}

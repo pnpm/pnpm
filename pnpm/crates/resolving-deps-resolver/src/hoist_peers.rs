@@ -133,8 +133,8 @@ pub fn hoist_peers(
 }
 
 /// Pick an installable version for each missing optional peer, but only
-/// when at least one preferred version satisfies *every* recorded range.
-/// Returns `peer_name → version`.
+/// when at least one preferred version satisfies *every* recorded range
+/// under strict semver. Returns `peer_name → version`.
 ///
 /// Version selectors may be plain entries produced while resolving or
 /// weighted entries seeded from the wanted lockfile. Both are eligible
@@ -148,6 +148,13 @@ pub fn get_hoistable_optional_peers(
     let mut optional_dependencies = BTreeMap::new();
     for (peer_name, ranges) in all_missing_optional_peers {
         let Some(selectors) = all_preferred_versions.get(peer_name) else { continue };
+        // An unparsable range is satisfied by nothing, so bailing on the
+        // peer matches failing the check per candidate.
+        let Ok(parsed_ranges) =
+            ranges.iter().map(|range| range.parse::<Range>()).collect::<Result<Vec<_>, _>>()
+        else {
+            continue;
+        };
         let mut max_satisfying_version: Option<Version> = None;
         for (version_str, entry) in selectors {
             let selector_type = match entry {
@@ -158,11 +165,11 @@ pub fn get_hoistable_optional_peers(
                 continue;
             }
             let Ok(version) = version_str.parse::<Version>() else { continue };
-            if !ranges.iter().all(|range| {
-                range
-                    .parse::<Range>()
-                    .is_ok_and(|parsed| satisfies_including_prerelease(&parsed, &version))
-            }) {
+            // Strict, unlike the required-peer picker above: an optional
+            // peer nobody declared is installed only to deduplicate, so a
+            // prerelease its range rejects is not worth splitting a
+            // package family over.
+            if !parsed_ranges.iter().all(|parsed| parsed.satisfies(&version)) {
                 continue;
             }
             if max_satisfying_version.as_ref().is_none_or(|cur| version > *cur) {

@@ -294,13 +294,28 @@ fn hoist_peers_accepts_prerelease_against_non_prerelease_range() {
 }
 
 #[test]
-fn get_hoistable_optional_peers_accepts_prerelease_against_non_prerelease_range() {
+fn get_hoistable_optional_peers_rejects_prerelease_against_non_prerelease_range() {
     let preferred =
         preferred(&[("react", &[("18.0.0-rc.1", plain(VersionSelectorType::Version))])]);
     let mut missing = BTreeMap::new();
     missing.insert("react".to_string(), vec!["^18.0.0".to_string()]);
     let result = get_hoistable_optional_peers(&missing, &preferred);
+    assert_eq!(result, BTreeMap::new());
+}
+
+#[test]
+fn get_hoistable_optional_peers_rejects_prerelease_within_the_range_span() {
+    let preferred = preferred(&[(
+        "jest-util",
+        &[
+            ("29.7.0", plain(VersionSelectorType::Version)),
+            ("30.0.0-alpha.6", plain(VersionSelectorType::Version)),
+        ],
+    )]);
+    let mut missing = BTreeMap::new();
+    missing.insert("jest-util".to_string(), vec!["^29.0.0 || ^30.0.0".to_string()]);
+    let result = get_hoistable_optional_peers(&missing, &preferred);
     let mut expected = BTreeMap::new();
-    expected.insert("react".to_string(), "18.0.0-rc.1".to_string());
+    expected.insert("jest-util".to_string(), "29.7.0".to_string());
     assert_eq!(result, expected);
 }
