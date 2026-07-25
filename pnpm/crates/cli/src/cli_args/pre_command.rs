@@ -1,9 +1,21 @@
+//! pnpm's pre-command handling: before a command runs, the pinned package
+//! manager and the pinned runtimes are reconciled with what is actually
+//! running. A pnpm pin with `onFail: "download"` switches the CLI to the
+//! wanted version; every other pin is validated in place and fails or warns.
+//!
+//! Mirrors the block at the top of pnpm's `pnpm/src/main.ts`.
+
+mod system_runtime_version;
+
 use super::{
     cli_command::{CliArgs, CliCommand},
+    config::ConfigSubcommand,
     package_manager::{
         PACKAGE_MANAGER_SWITCH_ENV_VARS, WantedPackageManager, read_manifest_json,
         should_persist_package_manager_lockfile, version_satisfies, wanted_package_manager,
     },
+    reporter::reporter_emit,
+    sanitize::sanitize_inline,
     self_update::install_pnpm::{assert_release_is_installable, pnpm_package_to_install},
     with::{
         PackageManagerCheck,
@@ -12,37 +24,58 @@ use super::{
     },
 };
 use crate::{config_deps, config_overrides::ConfigOverrides};
-use miette::{Context, IntoDiagnostic};
+use derive_more::{Display, Error};
+use miette::{Context, Diagnostic, IntoDiagnostic};
 use pacquet_config::{Config, Host, PNPM_VERSION, PmOnFail};
+use pacquet_default_reporter::DefaultReporter;
 use pacquet_lockfile::{EnvLockfile, LockfileResolution, PackageKey, PackageMetadata, VersionPart};
-use pacquet_reporter::SilentReporter;
+use pacquet_package_manifest::{apply_runtime_on_fail_override, is_runtime_alias};
+use pacquet_reporter::{GlobalLog, LogEvent, LogLevel, Reporter, SilentReporter};
+use serde_json::Value;
 use std::{
     collections::HashSet,
     ffi::{OsStr, OsString},
-    fmt::Display,
     path::{Path, PathBuf},
 };
+use system_runtime_version::system_runtime_version;
 
-pub(crate) fn switch_plan(
+/// Run the pre-command checks and return the version switch they ask for,
+/// if any. The checks themselves report through `args.reporter` and fail
+/// the command by returning an error.
+pub(crate) fn pre_command_plan(
     args: &CliArgs,
     config_overrides: &ConfigOverrides,
 ) -> miette::Result<Option<SwitchPlan>> {
     if should_skip_command(&args.command) {
         return Ok(None);
     }
-    switch_plan_from_input(
-        &SwitchInput::from_cli_args(args),
+    pre_command_plan_from_input(
+        &PreCommandInput {
+            switch: SwitchInput::from_cli_args(args),
+            global: is_global(&args.command),
+            check_runtimes: true,
+            emit: reporter_emit(args.reporter),
+        },
         config_overrides,
         SwitchProcessState::current(),
     )
 }
 
-pub(crate) fn switch_plan_for_version_flag(
+/// The `pnpm --version` path, which clap answers before a command is
+/// parsed. pnpm checks the package manager there too, but skips the runtime
+/// checks — printing the version must work in a project whose runtime pin
+/// the system cannot satisfy.
+pub(crate) fn pre_command_plan_for_version_flag(
     argv: &[OsString],
     config_overrides: &ConfigOverrides,
 ) -> miette::Result<Option<SwitchPlan>> {
-    switch_plan_from_input(
-        &SwitchInput::from_version_argv(argv),
+    pre_command_plan_from_input(
+        &PreCommandInput {
+            switch: SwitchInput::from_version_argv(argv),
+            global: false,
+            check_runtimes: false,
+            emit: DefaultReporter::emit,
+        },
         config_overrides,
         SwitchProcessState::current(),
     )
@@ -93,34 +126,278 @@ pub(crate) async fn execute_switch(
     Ok(true)
 }
 
-fn switch_plan_from_input(
-    input: &SwitchInput,
+fn pre_command_plan_from_input(
+    input: &PreCommandInput,
     config_overrides: &ConfigOverrides,
     process_state: SwitchProcessState,
 ) -> miette::Result<Option<SwitchPlan>> {
-    if input.command.as_deref().is_some_and(should_skip_command_name)
-        || process_state.package_manager_switch_disabled
-        || process_state.executed_by_corepack
-    {
+    let switch = &input.switch;
+    if switch.command.as_deref().is_some_and(should_skip_command_name) {
         return Ok(None);
     }
-    let dir = dunce::canonicalize(&input.dir).into_diagnostic().wrap_err_with(|| {
-        format!("canonicalizing the `--dir` argument: {}", input.dir.display())
+    let dir = dunce::canonicalize(&switch.dir).into_diagnostic().wrap_err_with(|| {
+        format!("canonicalizing the `--dir` argument: {}", switch.dir.display())
     })?;
-    let mut config = Config { npmrc_auth_file: input.npmrc_auth_file.clone(), ..Config::default() }
-        .current::<Host>(&dir)
-        .map_err(miette::Report::new)
-        .wrap_err("load configuration")?;
+    let mut config =
+        Config { npmrc_auth_file: switch.npmrc_auth_file.clone(), ..Config::default() }
+            .current::<Host>(&dir)
+            .map_err(miette::Report::new)
+            .wrap_err("load configuration")?;
     config_overrides.apply(&mut config);
 
     let root_dir = config.workspace_dir.clone().unwrap_or_else(|| dir.clone());
-    let Some(target) = switch_target(&config, &root_dir)? else {
-        return Ok(None);
-    };
-    if version_satisfies(PNPM_VERSION, &target.spec) {
-        return Ok(None);
+    let manifest = read_manifest_json(&root_dir.join("package.json"))?;
+
+    if let Some(pm) = manifest.as_ref().and_then(wanted_package_manager) {
+        let on_fail = effective_on_fail(&config, &pm);
+        let switch_wanted = pm.name == "pnpm" && on_fail == PmOnFail::Download;
+        // Turning `manage-package-manager-versions` off is the user taking
+        // over version selection, so a pin that only asked pnpm to switch has
+        // nothing left to report. Corepack is the opposite case: it manages
+        // the version and picked the wrong one, so the mismatch is reported
+        // rather than switched.
+        let unmanaged_pin = switch_wanted && process_state.package_manager_switch_disabled;
+        if on_fail != PmOnFail::Ignore && !unmanaged_pin {
+            if switch_wanted && !process_state.executed_by_corepack {
+                if let Some(target) = switch_target(&config, &root_dir)?
+                    && !version_satisfies(PNPM_VERSION, &target.spec)
+                {
+                    return Ok(Some(SwitchPlan { config, target }));
+                }
+            } else if input.global {
+                global_warn(
+                    input.emit,
+                    "Using --global skips the package manager check for this project",
+                );
+            } else {
+                check_package_manager(&pm, on_fail, process_state, input.emit)?;
+            }
+        }
     }
-    Ok(Some(SwitchPlan { config, target }))
+
+    if input.check_runtimes
+        && !input.global
+        && let Some(manifest) = manifest
+    {
+        check_runtimes(manifest, &config, input.emit)?;
+    }
+    Ok(None)
+}
+
+/// pnpm's `checkPackageManager`. `on_fail` is already resolved against the
+/// `pmOnFail` setting and is never [`PmOnFail::Ignore`] here.
+fn check_package_manager(
+    pm: &WantedPackageManager,
+    on_fail: PmOnFail,
+    process_state: SwitchProcessState,
+    emit: fn(&LogEvent),
+) -> miette::Result<()> {
+    // `download` reaches this function only when the switch it asks for
+    // cannot happen, which leaves the mismatch unresolved — as strict a
+    // failure as `error`.
+    let should_error = matches!(on_fail, PmOnFail::Error | PmOnFail::Download);
+    if pm.name.is_empty() {
+        return Ok(());
+    }
+    if pm.name != "pnpm" {
+        let name = sanitize_inline(&pm.name).into_owned();
+        if should_error {
+            return Err(PreCommandError::OtherPmExpected { name }.into());
+        }
+        global_warn(emit, &format!("This project is configured to use {name}"));
+        return Ok(());
+    }
+    let Some(wanted) = pm.version.as_deref() else {
+        return Ok(());
+    };
+    if version_satisfies(PNPM_VERSION, wanted) {
+        return Ok(());
+    }
+    let (note, hint) = if process_state.executed_by_corepack {
+        (COREPACK_NOTE, format!("{COREPACK_PM_HINT_PREFIX}\n{PM_ON_FAIL_HINT}"))
+    } else {
+        ("", PM_ON_FAIL_HINT.to_string())
+    };
+    let error =
+        PreCommandError::BadPmVersion { wanted: sanitize_inline(wanted).into_owned(), note, hint };
+    if should_error {
+        return Err(error.into());
+    }
+    global_warn(emit, &error.to_string());
+    Ok(())
+}
+
+/// pnpm's `getWantedRuntimes` + `checkRuntime`: validate every runtime the
+/// root manifest pins against the runtime installed on the system.
+fn check_runtimes(mut manifest: Value, config: &Config, emit: fn(&LogEvent)) -> miette::Result<()> {
+    if let Some(runtime_on_fail) = config.runtime_on_fail {
+        apply_runtime_on_fail_override(&mut manifest, runtime_on_fail.as_str());
+    }
+    // `devEngines.runtime` wins over `engines.runtime`: the first entry seen
+    // for a runtime is the one that gets checked.
+    let mut checked = HashSet::new();
+    for engines_field in ["devEngines", "engines"] {
+        let Some(runtime_entry) =
+            manifest.get(engines_field).and_then(|engines| engines.get("runtime"))
+        else {
+            continue;
+        };
+        let runtimes: &[Value] = match runtime_entry {
+            Value::Array(runtimes) => runtimes.as_slice(),
+            runtime @ Value::Object(_) => std::slice::from_ref(runtime),
+            _ => continue,
+        };
+        for runtime in runtimes {
+            let Some(name) = runtime.get("name").and_then(Value::as_str) else {
+                continue;
+            };
+            if !is_runtime_alias(name) || !checked.insert(name.to_string()) {
+                continue;
+            }
+            check_runtime(runtime, name, emit)?;
+        }
+    }
+    Ok(())
+}
+
+fn check_runtime(runtime: &Value, name: &str, emit: fn(&LogEvent)) -> miette::Result<()> {
+    let on_fail = runtime.get("onFail").and_then(Value::as_str);
+    if matches!(on_fail, None | Some("ignore" | "download")) {
+        return Ok(());
+    }
+    let display_name = runtime_display_name(name);
+    let wanted_range = runtime.get("version").and_then(Value::as_str).map(str::trim);
+    let Some(wanted_range) = wanted_range.filter(|range| !range.is_empty()) else {
+        return fail_runtime_check(
+            on_fail,
+            &format!(
+                "This project requires a {display_name} runtime but does not specify a version range",
+            ),
+            emit,
+        );
+    };
+    if node_semver::Range::parse(wanted_range).is_err() {
+        return fail_runtime_check(
+            on_fail,
+            &format!(
+                "This project requires an invalid {display_name} version range: {wanted_range}",
+            ),
+            emit,
+        );
+    }
+    let Some(current_version) = system_runtime_version(name) else {
+        return fail_runtime_check(
+            on_fail,
+            &format!(
+                "This project requires {display_name} {wanted_range}, but {display_name} was not found on the system",
+            ),
+            emit,
+        );
+    };
+    if version_satisfies(&current_version, wanted_range) {
+        return Ok(());
+    }
+    fail_runtime_check(
+        on_fail,
+        &format!(
+            "This project requires {display_name} {wanted_range}. Your current {display_name} is v{current_version}",
+        ),
+        emit,
+    )
+}
+
+/// Every `onFail` other than `error` — including a value pnpm does not
+/// define — degrades to a warning.
+fn fail_runtime_check(
+    on_fail: Option<&str>,
+    message: &str,
+    emit: fn(&LogEvent),
+) -> miette::Result<()> {
+    if on_fail == Some("error") {
+        let message = sanitize_inline(message).into_owned();
+        return Err(PreCommandError::BadRuntimeVersion { message }.into());
+    }
+    global_warn(emit, message);
+    Ok(())
+}
+
+fn runtime_display_name(runtime: &str) -> &'static str {
+    match runtime {
+        "deno" => "Deno",
+        "bun" => "Bun",
+        _ => "Node.js",
+    }
+}
+
+/// Every warning here quotes the project's manifest, which is untrusted
+/// input in a repository the user has only cloned, so control characters
+/// are stripped before the message reaches the terminal.
+fn global_warn(emit: fn(&LogEvent), message: &str) {
+    let message = sanitize_inline(message).into_owned();
+    emit(&LogEvent::Global(GlobalLog { level: LogLevel::Warn, message }));
+}
+
+const PM_ON_FAIL_HINT: &str = r#"If you want to bypass this version check, you can set the "pmOnFail" configuration to "warn" or "ignore" (e.g. via --pm-on-fail=ignore). If using "devEngines.packageManager", you can set its "onFail" to "warn" or "ignore""#;
+
+/// Corepack, not pnpm, picks the running version, so the mismatch survives
+/// even the `download` policy that would otherwise switch versions. Both
+/// the message and the hint have to say so, or the user is left with a
+/// download-on-mismatch contract that silently did not download.
+const COREPACK_NOTE: &str = "\nCorepack invoked pnpm with this version, and pnpm does not switch versions when running under corepack.";
+
+const COREPACK_PM_HINT_PREFIX: &str = r#"Align the "packageManager" field in package.json with "devEngines.packageManager", or invoke pnpm directly (without corepack) so it can switch versions automatically."#;
+
+const RUNTIME_ON_FAIL_HINT: &str = r#"If you want to bypass this version check, set "runtimeOnFail" to "warn" or "ignore" (e.g. via --runtime-on-fail=ignore), or set "devEngines.runtime.onFail"/"engines.runtime.onFail" to "warn" or "ignore""#;
+
+#[derive(Debug, Display, Error, Diagnostic)]
+pub(crate) enum PreCommandError {
+    #[display("This project is configured to use {name}")]
+    #[diagnostic(code(ERR_PNPM_OTHER_PM_EXPECTED))]
+    OtherPmExpected { name: String },
+
+    #[display(
+        "This project is configured to use {wanted} of pnpm. Your current pnpm is v{PNPM_VERSION}{note}"
+    )]
+    #[diagnostic(code(ERR_PNPM_BAD_PM_VERSION), help("{hint}"))]
+    BadPmVersion { wanted: String, note: &'static str, hint: String },
+
+    #[display("{message}")]
+    #[diagnostic(code(ERR_PNPM_BAD_RUNTIME_VERSION), help("{RUNTIME_ON_FAIL_HINT}"))]
+    BadRuntimeVersion { message: String },
+}
+
+struct PreCommandInput {
+    switch: SwitchInput,
+    global: bool,
+    check_runtimes: bool,
+    emit: fn(&LogEvent),
+}
+
+/// pnpm treats `--global` as an opt-out of the project's package manager
+/// and runtime pins — a global install does not belong to the project.
+fn is_global(command: &CliCommand) -> bool {
+    match command {
+        CliCommand::Add(args) => args.global,
+        CliCommand::ApproveBuilds(args) => args.global,
+        CliCommand::Bin(args) => args.global,
+        CliCommand::Config(args) => match &args.command {
+            ConfigSubcommand::Set(args) => args.flags.global,
+            ConfigSubcommand::Get(args) => args.flags.global,
+            ConfigSubcommand::Delete(args) => args.flags.global,
+            ConfigSubcommand::List(args) => args.flags.global,
+        },
+        CliCommand::List(args) | CliCommand::Ll(args) => args.global,
+        CliCommand::Outdated(args) => args.global,
+        CliCommand::Prefix(args) => args.global,
+        CliCommand::Remove(args) => args.global,
+        CliCommand::Root(args) => args.global,
+        CliCommand::Runtime(args) => args.global,
+        CliCommand::Update(args) => args.global,
+        // `pnpm link` with no arguments links the current project into the
+        // global directory.
+        CliCommand::Link(args) => args.package_paths.is_empty(),
+        _ => false,
+    }
 }
 
 fn switch_target(config: &Config, root_dir: &Path) -> miette::Result<Option<SwitchTarget>> {
@@ -291,7 +568,7 @@ fn assert_integrity_only_resolution(
     }
 }
 
-fn invalid_package_manager_lockfile(dep_path: impl Display) -> miette::Report {
+fn invalid_package_manager_lockfile(dep_path: impl std::fmt::Display) -> miette::Report {
     miette::miette!(
         r#"The packageManager dependency "{}" in pnpm-lock.yaml must use a registry package path and an integrity-only resolution"#,
         dep_path,
@@ -317,12 +594,20 @@ fn on_fail_str(on_fail: PmOnFail) -> &'static str {
     }
 }
 
+/// The commands pnpm marks with `skipPackageManagerCheck`, plus `setup` —
+/// they either predate the project's pins (`setup`), inspect pnpm itself
+/// (`store`, `doctor`, and so on), or run something that is not the project
+/// (`dlx`).
 fn should_skip_command(command: &CliCommand) -> bool {
     matches!(
         command,
-        CliCommand::Completion(_)
+        CliCommand::CatFile(_)
+            | CliCommand::CatIndex(_)
+            | CliCommand::Completion(_)
             | CliCommand::CompletionServer(_)
+            | CliCommand::Dlx(_)
             | CliCommand::Doctor(_)
+            | CliCommand::FindHash(_)
             | CliCommand::Runtime(_)
             | CliCommand::SelfUpdate(_)
             | CliCommand::Setup(_)
@@ -334,10 +619,14 @@ fn should_skip_command(command: &CliCommand) -> bool {
 fn should_skip_command_name(command: &str) -> bool {
     matches!(
         command,
-        "completion"
+        "cat-file"
+            | "cat-index"
+            | "completion"
             | "completion-server"
+            | "dlx"
             | "doctor"
             | "env"
+            | "find-hash"
             | "runtime"
             | "rt"
             | "self-update"
@@ -378,6 +667,7 @@ struct SwitchTarget {
     source: SwitchSource,
 }
 
+#[derive(Debug)]
 pub(crate) struct SwitchPlan {
     config: Config,
     target: SwitchTarget,

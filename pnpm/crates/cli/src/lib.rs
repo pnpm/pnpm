@@ -71,13 +71,13 @@ fn run_cli() -> miette::Result<()> {
         Ok(args) => args,
         // pnpm prints the bare version, not clap's "pnpm <version>" rendering.
         Err(err) if err.kind() == clap::error::ErrorKind::DisplayVersion => {
-            if let Some(plan) = cli_args::switch_cli_version::switch_plan_for_version_flag(
-                &argv,
-                &config_overrides,
-            )? && block_on_runtime(
-                "pacquet-switch",
-                cli_args::switch_cli_version::execute_switch(plan, &child_argv),
-            )? {
+            if let Some(plan) =
+                cli_args::pre_command::pre_command_plan_for_version_flag(&argv, &config_overrides)?
+                && block_on_runtime(
+                    "pacquet-pre-command",
+                    cli_args::pre_command::execute_switch(plan, &child_argv),
+                )?
+            {
                 return Ok(());
             }
             println!("{}", pacquet_config::PNPM_VERSION);
@@ -90,10 +90,10 @@ fn run_cli() -> miette::Result<()> {
     }
     args.promote_recursive_for_filter();
     args.promote_recursive_by_default();
-    if let Some(plan) = cli_args::switch_cli_version::switch_plan(&args, &config_overrides)?
+    if let Some(plan) = cli_args::pre_command::pre_command_plan(&args, &config_overrides)?
         && block_on_runtime(
-            "pacquet-switch",
-            cli_args::switch_cli_version::execute_switch(plan, &child_argv),
+            "pacquet-pre-command",
+            cli_args::pre_command::execute_switch(plan, &child_argv),
         )?
     {
         return Ok(());

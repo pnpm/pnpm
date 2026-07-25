@@ -1,6 +1,10 @@
-use super::{SwitchInput, SwitchProcessState, SwitchSource, switch_plan_from_input, switch_target};
+use super::{
+    PreCommandInput, SwitchInput, SwitchProcessState, SwitchSource, pre_command_plan_from_input,
+    switch_target,
+};
 use crate::config_overrides::ConfigOverrides;
 use pacquet_config::{Config, PmOnFail};
+use pacquet_reporter::{Reporter, SilentReporter};
 use std::{
     ffi::OsString,
     fs,
@@ -72,18 +76,111 @@ fn version_argv_reads_dir_auth_file_and_command_forms() {
 }
 
 #[test]
-fn switch_plan_skips_when_executed_by_corepack() {
-    let input =
-        SwitchInput { dir: PathBuf::from("missing-project"), npmrc_auth_file: None, command: None };
+fn pre_command_plan_reports_a_pnpm_pin_corepack_prevents_switching() {
+    let root = TempDir::new().expect("tmp dir");
+    write_manifest(root.path(), r#"{"packageManager":"pnpm@9.3.0"}"#);
 
-    let plan = switch_plan_from_input(
-        &input,
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
         &ConfigOverrides::default(),
         SwitchProcessState { package_manager_switch_disabled: false, executed_by_corepack: true },
-    )
-    .expect("switch plan");
+    );
 
-    assert!(plan.is_none(), "unexpected switch plan when executed by Corepack");
+    // Corepack owns version selection, so the mismatch is reported instead
+    // of switched.
+    let error = plan.expect_err("expected the package manager check to fail");
+    dbg!(&error);
+    assert!(
+        error.to_string().contains("This project is configured to use 9.3.0 of pnpm"),
+        "unexpected error: {error:?}",
+    );
+}
+
+#[test]
+fn pre_command_plan_accepts_a_pnpm_pin_when_version_switching_is_turned_off() {
+    let root = TempDir::new().expect("tmp dir");
+    write_manifest(root.path(), r#"{"packageManager":"pnpm@9.3.0"}"#);
+
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: true, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    assert!(plan.is_none(), "unexpected switch plan");
+}
+
+#[test]
+fn pre_command_plan_reports_a_project_pinned_to_another_package_manager() {
+    let root = TempDir::new().expect("tmp dir");
+    write_manifest(root.path(), r#"{"packageManager":"yarn@4.0.0"}"#);
+
+    let error = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: true, executed_by_corepack: false },
+    )
+    .expect_err("expected the package manager check to fail");
+
+    dbg!(&error);
+    assert!(
+        error.to_string().contains("This project is configured to use yarn"),
+        "unexpected error: {error:?}",
+    );
+}
+
+#[test]
+fn pre_command_plan_checks_the_runtime_pinned_by_the_root_manifest() {
+    let root = TempDir::new().expect("tmp dir");
+    write_manifest(
+        root.path(),
+        r#"{"devEngines":{"runtime":{"name":"node","version":"99999.0.0","onFail":"error"}}}"#,
+    );
+
+    let error = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &ConfigOverrides::default(),
+        SwitchProcessState::current(),
+    )
+    .expect_err("expected the runtime check to fail");
+
+    dbg!(&error);
+    assert!(
+        error.to_string().contains("This project requires Node.js 99999.0.0"),
+        "unexpected error: {error:?}",
+    );
+}
+
+#[test]
+fn pre_command_plan_skips_the_runtime_check_for_global_commands() {
+    let root = TempDir::new().expect("tmp dir");
+    write_manifest(
+        root.path(),
+        r#"{"devEngines":{"runtime":{"name":"node","version":"99999.0.0","onFail":"error"}}}"#,
+    );
+
+    let plan = pre_command_plan_from_input(
+        &PreCommandInput { global: true, ..pre_command_input(root.path()) },
+        &ConfigOverrides::default(),
+        SwitchProcessState::current(),
+    )
+    .expect("pre-command plan");
+
+    assert!(plan.is_none(), "unexpected switch plan");
+}
+
+fn pre_command_input(dir: &Path) -> PreCommandInput {
+    PreCommandInput {
+        switch: SwitchInput {
+            dir: dir.to_path_buf(),
+            npmrc_auth_file: None,
+            command: Some("install".to_string()),
+        },
+        global: false,
+        check_runtimes: true,
+        emit: SilentReporter::emit,
+    }
 }
 
 #[test]
