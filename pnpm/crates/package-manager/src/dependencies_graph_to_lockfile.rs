@@ -597,13 +597,19 @@ fn build_package_metadata(
     }
 }
 
-/// Read a JSON array field off the resolver's manifest fragment and
-/// flatten it into a `Vec<String>`. `None` when the field is missing or
-/// not an array of strings — malformed metadata is silently dropped.
+/// Read a JSON string or array field off the resolver's manifest fragment and
+/// flatten it into a `Vec<String>`. `None` when the field is missing or has no
+/// string values — malformed metadata is silently dropped.
 fn read_string_list(manifest: Option<&Value>, key: &str) -> Option<Vec<String>> {
-    let arr = manifest?.get(key)?.as_array()?;
-    let out: Vec<String> = arr.iter().filter_map(Value::as_str).map(ToString::to_string).collect();
-    (!out.is_empty()).then_some(out)
+    match manifest?.get(key)? {
+        Value::String(value) if !value.is_empty() => Some(vec![value.clone()]),
+        Value::Array(items) => {
+            let out: Vec<String> =
+                items.iter().filter_map(Value::as_str).map(ToString::to_string).collect();
+            (!out.is_empty()).then_some(out)
+        }
+        _ => None,
+    }
 }
 
 /// `Some(true)` when the manifest declares a `bin` entry (string or
