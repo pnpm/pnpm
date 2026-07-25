@@ -267,16 +267,21 @@ fn optional_peer_stays_out_of_the_importer_without_auto_install_peers() {
 
     let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
     let pkg_a = importer(&lockfile, "pkg-a");
-    dbg!(pkg_a);
     let peer_c: PkgName = "@pnpm.e2e/peer-c".parse().expect("parse peer name");
     for group in [&pkg_a.dependencies, &pkg_a.dev_dependencies, &pkg_a.optional_dependencies] {
         assert!(
             !group.as_ref().is_some_and(|dependencies| dependencies.contains_key(&peer_c)),
-            "optional peer added to pkg-a under `autoInstallPeers: false`",
+            "optional peer added to pkg-a under `autoInstallPeers: false`: {pkg_a:?}",
         );
     }
+    // `symlink_metadata` so a dangling link counts as linked too, and
+    // `NotFound` specifically so an unreadable directory isn't mistaken
+    // for an absent link.
     assert!(
-        !workspace.join("pkg-a/node_modules/@pnpm.e2e/peer-c").exists(),
+        matches!(
+            fs::symlink_metadata(workspace.join("pkg-a/node_modules/@pnpm.e2e/peer-c")),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound
+        ),
         "optional peer linked into pkg-a under `autoInstallPeers: false`",
     );
     // The optional peer is still deduplicated into the dependent's peer
