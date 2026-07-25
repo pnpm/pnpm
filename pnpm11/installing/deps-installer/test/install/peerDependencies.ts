@@ -1581,6 +1581,12 @@ test('an optional peer declared by a workspace project is not added to its own i
   const lockfile = readYamlFileSync<LockfileFile>(path.resolve(WANTED_LOCKFILE))
   expect(lockfile.importers!['project-1'].dependencies).not.toHaveProperty(['@pnpm.e2e/peer-c'])
   expect(fs.existsSync(path.resolve('project-1/node_modules/@pnpm.e2e/peer-c'))).toBeFalsy()
+  // The optional peer is still deduplicated into the dependent's peer context.
+  // pacquet writes the identical entry; its counterpart is
+  // `optional_peer_stays_out_of_the_importer_without_auto_install_peers` in
+  // pnpm/crates/cli/tests/workspace_install.rs.
+  expect(lockfile.importers!['project-1'].dependencies!['@pnpm.e2e/abc-optional-peers'].version)
+    .toBe('1.0.0(@pnpm.e2e/peer-c@1.0.0)')
 })
 
 test('resolve peer dependencies from aliased subdependencies if they are dependencies of a parent package', async () => {

@@ -276,6 +276,15 @@ fn optional_peer_stays_out_of_the_importer_without_auto_install_peers() {
         !a_section.contains("'@pnpm.e2e/peer-c':"),
         "optional peer added to pkg-a under `autoInstallPeers: false`\n{lockfile}",
     );
+    // The optional peer is still deduplicated into the dependent's peer
+    // context — the same entry the TypeScript CLI writes for this
+    // workspace. Its counterpart lives in `peerDependencies.ts`, in
+    // `an optional peer declared by a workspace project is not added to
+    // its own importer, when auto-install-peers is off`.
+    assert!(
+        a_section.contains("version: 1.0.0(@pnpm.e2e/peer-c@1.0.0)"),
+        "pkg-a lost the deduplicated optional-peer context\n{lockfile}",
+    );
     assert!(
         !workspace.join("pkg-a/node_modules/@pnpm.e2e/peer-c").exists(),
         "optional peer linked into pkg-a under `autoInstallPeers: false`",
