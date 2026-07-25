@@ -18,9 +18,10 @@ pub struct WorkspaceRootDep {
     /// the alias).
     pub pkg_name: String,
     /// The specifier pacquet would resolve, as the root declared or
-    /// resolved it — including the local protocols
-    /// [`is_importer_relative_specifier`] rejects. `None` for entries
-    /// with no normalized form at all; those are not candidates either.
+    /// resolved it — including the local protocols the pickers reject
+    /// because another importer would resolve them to a different
+    /// package. `None` for entries with no normalized form at all;
+    /// those are not candidates either.
     pub normalized_bare_specifier: Option<String>,
 }
 
