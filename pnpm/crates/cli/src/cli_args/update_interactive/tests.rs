@@ -181,3 +181,67 @@ fn package_body(name: &str, registry: &str) -> String {
     })
     .to_string()
 }
+
+mod selection {
+    use super::super::{
+        choices::{ChoiceGroup, ChoiceRow},
+        flatten_groups, selected_packages,
+    };
+
+    fn group(message: &str, rows: &[(&str, Option<&str>)]) -> ChoiceGroup {
+        ChoiceGroup {
+            message: message.to_string(),
+            rows: rows
+                .iter()
+                .map(|(label, value)| ChoiceRow {
+                    label: (*label).to_string(),
+                    value: value.map(str::to_string),
+                })
+                .collect(),
+        }
+    }
+
+    /// Checking a group heading or a column header updates nothing —
+    /// `dialoguer` lets either be checked, where pnpm's prompt disables
+    /// them outright.
+    #[test]
+    fn headings_and_headers_select_nothing() {
+        let groups =
+            [group("dependencies", &[("Package Current", None), ("foo 1 ❯ 2", Some("foo"))])];
+
+        let (labels, values) = flatten_groups(&groups);
+
+        assert_eq!(labels.len(), 3, "heading, header row, and one package");
+        // 0 is the heading, 1 the column header, 2 the package.
+        assert_eq!(selected_packages(&values, &[0, 1]), Vec::<String>::new());
+        assert_eq!(selected_packages(&values, &[2]), vec!["foo".to_string()]);
+    }
+
+    /// The same package offered by two importers is returned once, in the
+    /// order it was first checked.
+    #[test]
+    fn a_package_checked_twice_is_returned_once() {
+        let groups = [
+            group("dependencies", &[("hdr", None), ("foo", Some("foo"))]),
+            group("devDependencies", &[("hdr", None), ("bar", Some("bar")), ("foo", Some("foo"))]),
+        ];
+
+        let (_, values) = flatten_groups(&groups);
+
+        // 2 = foo (prod), 5 = bar, 6 = foo (dev).
+        assert_eq!(
+            selected_packages(&values, &[2, 5, 6]),
+            vec!["foo".to_string(), "bar".to_string()],
+        );
+    }
+
+    /// An out-of-range index cannot panic the selection.
+    #[test]
+    fn an_unknown_index_is_ignored() {
+        let groups = [group("dependencies", &[("hdr", None), ("foo", Some("foo"))])];
+
+        let (_, values) = flatten_groups(&groups);
+
+        assert_eq!(selected_packages(&values, &[99]), Vec::<String>::new());
+    }
+}
