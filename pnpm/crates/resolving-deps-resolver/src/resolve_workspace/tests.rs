@@ -2147,7 +2147,7 @@ async fn link_root_dep_peer_provider(linked_version: Option<&str>, expected: &st
 
     assert_eq!(
         result.peers.direct_dependencies_by_importer["app-b"]["real-peer"].as_str(),
-        expected
+        expected,
     );
 }
 
