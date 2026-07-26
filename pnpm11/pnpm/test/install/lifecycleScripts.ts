@@ -538,6 +538,30 @@ test('a targeted update in a larger workspace runs the postinstall of every muta
   expect(projectsThatRanPostinstall(['a', 'b'])).toStrictEqual(['root', 'a'])
 })
 
+test('an argumentless update in a workspace member runs the postinstall of that member and the root', () => {
+  prepareInstalledWorkspace(['a', 'b'])
+
+  execPnpmSync(['update'], { cwd: path.resolve('packages/a'), expectSuccess: true })
+
+  expect(projectsThatRanPostinstall(['a', 'b'])).toStrictEqual(['root', 'a'])
+})
+
+test('an add in a workspace member runs the postinstall of that member and the root', () => {
+  prepareInstalledWorkspace(['a', 'b'])
+
+  execPnpmSync(['add', '@pnpm.e2e/foo'], { cwd: path.resolve('packages/a'), expectSuccess: true })
+
+  expect(projectsThatRanPostinstall(['a', 'b'])).toStrictEqual(['root', 'a'])
+})
+
+test('a remove in a workspace member runs no project postinstall', () => {
+  prepareInstalledWorkspace(['a', 'b'])
+
+  execPnpmSync(['remove', DEP], { cwd: path.resolve('packages/a'), expectSuccess: true })
+
+  expect(projectsThatRanPostinstall(['a', 'b'])).toStrictEqual([])
+})
+
 test('an argumentless update at the workspace root runs the postinstall of the root alone', () => {
   prepareInstalledWorkspace(['a', 'b'])
 
