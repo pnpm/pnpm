@@ -1351,6 +1351,29 @@ async fn read_local_tarball_metadata_rejects_an_unparsable_manifest() {
     }
 }
 
+/// Duplicate `package.json` entries are last-entry-wins, matching
+/// `extract_tarball_entries`, so only the surviving one is parsed — the
+/// two reads must agree on which manifest describes the package.
+#[tokio::test]
+async fn read_local_tarball_metadata_lets_a_later_manifest_supersede_a_malformed_one() {
+    let local_dir = tempdir().unwrap();
+    let tarball_path = local_dir.path().join("pkg.tgz");
+    std::fs::write(
+        &tarball_path,
+        gzipped_tar(&[
+            ("package/package.json", b"{ BROKEN"),
+            ("package/package.json", br#"{"name":"dup-pkg","version":"2.0.0"}"#),
+        ]),
+    )
+    .unwrap();
+
+    let metadata = read_local_tarball_metadata(&tarball_path)
+        .await
+        .expect("the surviving manifest parses, so the read succeeds");
+    let manifest = metadata.manifest.expect("bundled manifest");
+    assert_eq!(manifest.get("name").and_then(serde_json::Value::as_str), Some("dup-pkg"));
+}
+
 /// An archive with no `package.json` at all is a different shape from a
 /// corrupt one: pnpm installs it, so the read degrades to `None` instead
 /// of failing.
@@ -1366,7 +1389,6 @@ async fn read_local_tarball_metadata_tolerates_an_archive_with_no_manifest() {
     assert!(metadata.manifest.is_none(), "got {:?}", metadata.manifest);
 }
 
-/// Build a gzipped tar carrying exactly `entries`, as `(path, bytes)`.
 fn gzipped_tar(entries: &[(&str, &[u8])]) -> Vec<u8> {
     use std::io::Write;
 

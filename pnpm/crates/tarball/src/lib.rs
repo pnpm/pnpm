@@ -2733,27 +2733,22 @@ pub async fn read_local_tarball_metadata(
 /// manifest an extraction stashes on [`PackageFilesIndex`].
 ///
 /// Shares the entry conventions of the manifest capture in
-/// [`extract_tarball_entries`]: the top-level archive component is
-/// dropped, the payload is borrowed out of the archive buffer via
-/// [`tar_entry_payload`], and a duplicate entry wins over earlier ones.
+/// [`extract_tarball_entries`] — top-level component dropped, duplicates
+/// last-entry-wins — but not its error handling: there an unparsable
+/// `package.json` degrades to `None`, because install-side consumers can
+/// re-read it from disk. Here it is the only thing that names the
+/// package, and a package with no name resolves to a dep path no
+/// lockfile key parses, so this raises
+/// [`TarballError::ParseBundledManifest`] instead.
 ///
-/// It parts ways with that capture on a `package.json` that isn't valid
-/// JSON. There the manifest is a convenience — install-side consumers
-/// re-read from disk — so it degrades to `None`. Here it is the only
-/// thing that names the package, and an unnamed package resolves to a
-/// dep path no lockfile key parses, which drops it from `packages:` and
-/// `snapshots:` and installs a dangling symlink. So this raises
-/// [`TarballError::ParseBundledManifest`], the way pnpm fails the same
-/// tarball with `ERR_PNPM_TARBALL_EXTRACT`.
-///
-/// `None` still means "no root `package.json` in the archive at all",
-/// which is a distinct shape pnpm tolerates.
+/// `None` means the archive holds no root `package.json` at all — a
+/// distinct shape, and one pnpm tolerates.
 fn read_bundled_manifest(
     tar_data: &[u8],
     tarball_path: &str,
 ) -> Result<Option<serde_json::Value>, TarballError> {
     let mut archive = Archive::new(Cursor::new(tar_data));
-    let mut manifest = None;
+    let mut payload = None;
     for entry in archive.entries_with_seek().map_err(TarballError::ReadTarballEntries)? {
         let entry = entry.map_err(TarballError::ReadTarballEntries)?;
         if !entry.header().entry_type().is_file() {
@@ -2767,13 +2762,15 @@ fn read_bundled_manifest(
             continue;
         }
         drop(components);
-        let bytes = tar_entry_payload(tar_data, &entry)?;
-        let parsed = parse_manifest_bytes(bytes).map_err(|source| {
-            TarballError::ParseBundledManifest { tarball: tarball_path.to_string(), source }
-        })?;
-        manifest = normalize_bundled_manifest(&parsed);
+        // Only the surviving entry is parsed, so a malformed duplicate
+        // that a later one supersedes can't fail the read.
+        payload = Some(tar_entry_payload(tar_data, &entry)?);
     }
-    Ok(manifest)
+    let Some(payload) = payload else { return Ok(None) };
+    let parsed = parse_manifest_bytes(payload).map_err(|source| {
+        TarballError::ParseBundledManifest { tarball: tarball_path.to_string(), source }
+    })?;
+    Ok(normalize_bundled_manifest(&parsed))
 }
 
 /// `name@version` from a bundled manifest, when both fields are present.
