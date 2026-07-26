@@ -131,8 +131,9 @@ fn importer_dep<'a>(
 
 /// Whether `version` satisfies `range`, keeping a prerelease eligible
 /// for a range that carries none of its own by retrying with the
-/// prerelease tag stripped. Same shape as `satisfies_with_prereleases`
-/// in the `resolve_peers` module.
+/// prerelease tag stripped — the same rule peer binding applies
+/// elsewhere in this crate, and looser than the range semantics the
+/// required-peer picker needs.
 fn satisfies_with_prereleases(range: &Range, version: &Version) -> bool {
     if range.satisfies(version) {
         return true;
