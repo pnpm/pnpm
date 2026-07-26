@@ -123,6 +123,11 @@ const DEPENDENCY_LIFECYCLE_STAGES: [&str; 3] = ["preinstall", "install", "postin
 pub const PROJECT_LIFECYCLE_STAGES: [&str; 6] =
     ["preinstall", "install", "postinstall", "preprepare", "prepare", "postprepare"];
 
+/// The pnpm-specific hook the root project may define to prepare state
+/// the install itself depends on. It runs before resolution, so unlike
+/// [`PROJECT_LIFECYCLE_STAGES`] it cannot rely on `node_modules`.
+pub const DEV_PREINSTALL_STAGE: &str = "pnpm:devPreinstall";
+
 /// Run the preinstall, install, and postinstall lifecycle scripts for
 /// a single dependency.
 ///
@@ -148,9 +153,18 @@ pub fn run_project_lifecycle_scripts<Reporter: self::Reporter>(
     run_lifecycle_stages::<Reporter>(opts, &PROJECT_LIFECYCLE_STAGES)
 }
 
+/// Run the root project's [`DEV_PREINSTALL_STAGE`] script, if it has one.
+///
+/// Returns `true` when the script was present and executed.
+pub fn run_dev_preinstall_hook<Reporter: self::Reporter>(
+    opts: &RunPostinstallHooks<'_>,
+) -> Result<bool, LifecycleScriptError> {
+    run_lifecycle_stages::<Reporter>(opts, &[DEV_PREINSTALL_STAGE])
+}
+
 /// Read the manifest at `opts.pkg_root` and run each of `stages` whose
-/// script is present, in order. Shared by [`run_postinstall_hooks`]
-/// and [`run_project_lifecycle_scripts`].
+/// script is present, in order. Shared by [`run_postinstall_hooks`],
+/// [`run_project_lifecycle_scripts`], and [`run_dev_preinstall_hook`].
 ///
 /// The `install` stage falls back to `node-gyp rebuild` when neither
 /// `install` nor `preinstall` is defined and a `binding.gyp` exists.

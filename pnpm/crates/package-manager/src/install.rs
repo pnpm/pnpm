@@ -15,7 +15,8 @@ use pacquet_cmd_shim::LinkBinsError;
 use pacquet_config::{Config, NodeLinker, PNPM_VERSION};
 use pacquet_executor::{
     LifecycleScriptError, RunPostinstallHooks,
-    ScriptsPrependNodePath as ExecScriptsPrependNodePath, run_project_lifecycle_scripts,
+    ScriptsPrependNodePath as ExecScriptsPrependNodePath, run_dev_preinstall_hook,
+    run_project_lifecycle_scripts,
 };
 use pacquet_lockfile::{
     LazyLockfile, LoadLockfileError, Lockfile, MaybeLazyLockfile, SaveLockfileError,
@@ -427,7 +428,8 @@ pub enum InstallError {
     FrozenLockfile(#[error(source)] InstallFrozenLockfileError),
 
     /// A workspace project's own lifecycle script
-    /// (preinstall/install/postinstall/preprepare/prepare/postprepare)
+    /// (`pnpm:devPreinstall`, or
+    /// preinstall/install/postinstall/preprepare/prepare/postprepare)
     /// exited non-zero. Unlike a dependency build failure — which
     /// `BuildModules` can swallow for optional deps — a project script
     /// failure always fails the install, matching pnpm.
@@ -1272,6 +1274,24 @@ where
             store_dir: config.store_dir.display().to_string(),
             virtual_store_dir: config.effective_virtual_store_dir().to_string_lossy().into_owned(),
         }));
+
+        // `pnpm:devPreinstall` runs ahead of everything the install does
+        // with the lockfile — including the frozen path's freshness
+        // check — because what it prepares is an input to resolution and
+        // linking. What skips it:
+        //
+        // - `resolve_only`, which materializes nothing for the hook to
+        //   prepare. pnpm reaches the same outcome by having
+        //   `--lockfile-only` (and `--dry-run`, which sets it) imply
+        //   `ignoreScripts`.
+        // - A rebuild, which resolves and links nothing.
+        // - `ignore_manifest_check`, which covers `pacquet fetch` (pnpm's
+        //   `ignorePackageManifest`, installing from the lockfile alone)
+        //   and the TypeScript CLI delegating a frozen materialization,
+        //   which already ran the hook before handing the install over.
+        if !config.ignore_scripts && !resolve_only && !ignore_manifest_check && rebuild.is_none() {
+            run_dev_preinstall::<Reporter>(config, &workspace_root)?;
+        }
 
         Reporter::emit(&LogEvent::Stage(StageLog {
             level: LogLevel::Debug,
@@ -3643,6 +3663,85 @@ fn order_project_lifecycle_groups<'a>(
         .collect())
 }
 
+fn modules_dir_basename(config: &Config) -> &std::ffi::OsStr {
+    config.modules_dir.file_name().unwrap_or_else(|| std::ffi::OsStr::new("node_modules"))
+}
+
+/// Same tri-state mapping the dependency-build path applies; see the doc
+/// on [`pacquet_config::ScriptsPrependNodePath`].
+fn exec_scripts_prepend_node_path(config: &Config) -> ExecScriptsPrependNodePath {
+    match config.scripts_prepend_node_path {
+        pacquet_config::ScriptsPrependNodePath::Always => ExecScriptsPrependNodePath::Always,
+        pacquet_config::ScriptsPrependNodePath::Never => ExecScriptsPrependNodePath::Never,
+        pacquet_config::ScriptsPrependNodePath::WarnOnly => ExecScriptsPrependNodePath::WarnOnly,
+    }
+}
+
+/// The environment any install-time lifecycle script receives on top of
+/// the parent process's: the configured `extraEnv` and `nodeOptions`.
+fn lifecycle_extra_env(config: &Config) -> HashMap<String, String> {
+    let mut extra_env = config.extra_env.clone();
+    if let Some(node_options) = &config.node_options {
+        extra_env.insert("NODE_OPTIONS".to_string(), node_options.clone());
+    }
+    extra_env
+}
+
+/// [`lifecycle_extra_env`] plus the `NODE_OPTIONS` entry pointing Node at
+/// `node_modules/.package-map.json` when the user opted into the
+/// experimental package map. pnpm adds it only once it links and builds,
+/// which is why `pnpm:devPreinstall` — running before the file exists —
+/// takes the plain [`lifecycle_extra_env`].
+fn project_lifecycle_extra_env(
+    config: &Config,
+    node_linker: NodeLinker,
+) -> HashMap<String, String> {
+    let mut extra_env = lifecycle_extra_env(config);
+    if config.node_experimental_package_map && !matches!(node_linker, NodeLinker::Pnp) {
+        let package_map_path = config.modules_dir.join(crate::package_map::PACKAGE_MAP_FILENAME);
+        let node_options = extra_env.get("NODE_OPTIONS").map(String::as_str);
+        extra_env.insert(
+            "NODE_OPTIONS".to_string(),
+            crate::make_node_package_map_option(&package_map_path, node_options),
+        );
+    }
+    extra_env
+}
+
+/// Run the root project's `pnpm:devPreinstall` script, if it defines one.
+///
+/// The hook exists so a workspace can prepare state that resolution or
+/// linking depends on — next.js creates the placeholder `next` bin its
+/// other packages link against — so it runs from the lockfile directory
+/// before either, and only for the root project.
+fn run_dev_preinstall<Reporter: self::Reporter>(
+    config: &Config,
+    workspace_root: &Path,
+) -> Result<(), InstallError> {
+    let root_modules_dir = workspace_root.join(modules_dir_basename(config));
+    let extra_env = lifecycle_extra_env(config);
+    let dep_path = workspace_root.to_string_lossy();
+    run_dev_preinstall_hook::<Reporter>(&RunPostinstallHooks {
+        dep_path: &dep_path,
+        pkg_root: workspace_root,
+        root_modules_dir: &root_modules_dir,
+        init_cwd: workspace_root,
+        extra_bin_paths: &config.extra_bin_paths,
+        extra_env: &extra_env,
+        node_execpath: None,
+        npm_execpath: None,
+        node_gyp_path: None,
+        user_agent: Some(&config.user_agent),
+        unsafe_perm: config.unsafe_perm,
+        node_gyp_bin: None,
+        scripts_prepend_node_path: exec_scripts_prepend_node_path(config),
+        script_shell: None,
+        optional: false,
+    })
+    .map(drop)
+    .map_err(InstallError::ProjectLifecycleScript)
+}
+
 /// Run workspace projects' own lifecycle scripts in topological build
 /// groups. Projects within one group run concurrently; each group settles
 /// before the next starts. Every project re-links its bins immediately
@@ -3654,27 +3753,9 @@ fn run_projects_lifecycle_scripts<Reporter: self::Reporter>(
     node_linker: NodeLinker,
     workspace_root: &Path,
 ) -> Result<(), InstallError> {
-    let modules_dir_basename =
-        config.modules_dir.file_name().unwrap_or_else(|| std::ffi::OsStr::new("node_modules"));
-    // Same tri-state mapping the dependency-build path applies; see
-    // the doc on [`pacquet_config::ScriptsPrependNodePath`].
-    let scripts_prepend_node_path = match config.scripts_prepend_node_path {
-        pacquet_config::ScriptsPrependNodePath::Always => ExecScriptsPrependNodePath::Always,
-        pacquet_config::ScriptsPrependNodePath::Never => ExecScriptsPrependNodePath::Never,
-        pacquet_config::ScriptsPrependNodePath::WarnOnly => ExecScriptsPrependNodePath::WarnOnly,
-    };
-    let mut extra_env = config.extra_env.clone();
-    if let Some(node_options) = &config.node_options {
-        extra_env.insert("NODE_OPTIONS".to_string(), node_options.clone());
-    }
-    if config.node_experimental_package_map && !matches!(node_linker, NodeLinker::Pnp) {
-        let package_map_path = config.modules_dir.join(crate::package_map::PACKAGE_MAP_FILENAME);
-        let node_options = extra_env.get("NODE_OPTIONS").map(String::as_str);
-        extra_env.insert(
-            "NODE_OPTIONS".to_string(),
-            crate::make_node_package_map_option(&package_map_path, node_options),
-        );
-    }
+    let modules_dir_basename = modules_dir_basename(config);
+    let scripts_prepend_node_path = exec_scripts_prepend_node_path(config);
+    let extra_env = project_lifecycle_extra_env(config, node_linker);
     let max_group_size = project_groups.iter().map(Vec::len).max().unwrap_or(0);
     let extra_node_paths = crate::shim_extra_node_paths(config, node_linker);
     let run_project =
