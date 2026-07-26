@@ -686,12 +686,12 @@ fn local_file_tarball_install_url<'a>(
 /// prefetch mem-cache keys line up.
 ///
 /// The integrity is `None` only for the shapes
-/// `unverified_fetch_is_allowed` exempts — every other tarball
-/// resolution that records none is refused here rather than fetched
+/// `unverified_fetch_is_allowed` exempts — every other resolution whose
+/// recorded integrity pins nothing (absent, or the empty SRI string an
+/// edited lockfile can carry) is refused here rather than fetched
 /// unchecked. See
 /// [`pacquet_tarball::DownloadTarballToStore::package_integrity`] for
-/// what an unverified fetch does; a registry resolution always carries
-/// an integrity.
+/// what an unverified fetch does.
 ///
 /// # Panics
 ///
@@ -705,7 +705,7 @@ pub fn tarball_url_and_integrity<'a>(
     match resolution {
         LockfileResolution::Tarball(tarball_resolution) => {
             let tarball_url = tarball_resolution.tarball.as_str();
-            let integrity = tarball_resolution.integrity.as_ref();
+            let integrity = resolution.checkable_integrity();
             if integrity.is_none() && !unverified_fetch_is_allowed(tarball_url) {
                 return Err(InstallPackageBySnapshotError::MissingTarballIntegrity {
                     package_key: package_key.to_string(),
@@ -713,7 +713,12 @@ pub fn tarball_url_and_integrity<'a>(
             }
             Ok((tarball_url.pipe(Cow::Borrowed), integrity))
         }
-        LockfileResolution::Registry(registry_resolution) => {
+        LockfileResolution::Registry(_) => {
+            let Some(integrity) = resolution.checkable_integrity() else {
+                return Err(InstallPackageBySnapshotError::MissingTarballIntegrity {
+                    package_key: package_key.to_string(),
+                });
+            };
             let registries: HashMap<String, String> =
                 config.resolved_registries().into_iter().collect();
             let name = package_key.name.to_string();
@@ -722,7 +727,7 @@ pub fn tarball_url_and_integrity<'a>(
             let version = package_key.suffix.version();
             let bare_name = package_key.name.bare.as_str();
             let tarball_url = format!("{registry}/{name}/-/{bare_name}-{version}.tgz");
-            Ok((Cow::Owned(tarball_url), Some(&registry_resolution.integrity)))
+            Ok((Cow::Owned(tarball_url), Some(integrity)))
         }
         // Caller (`run`) only invokes this helper for the tarball /
         // registry arms; git, directory, binary, variations, and

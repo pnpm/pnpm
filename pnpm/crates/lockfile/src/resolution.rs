@@ -324,6 +324,15 @@ impl LockfileResolution {
         }
     }
 
+    /// [`Self::integrity`] narrowed to an integrity that can actually
+    /// check downloaded bytes. An `integrity: ''` entry parses into zero
+    /// hashes, which pins nothing — pnpm treats that as no integrity at
+    /// all, and [`Integrity::check`] would panic on it.
+    #[must_use]
+    pub fn checkable_integrity(&self) -> Option<&'_ Integrity> {
+        self.integrity().filter(|integrity| !integrity.hashes.is_empty())
+    }
+
     /// Convert an in-memory resolution into the form written to the lockfile.
     ///
     /// For a registry tarball whose URL is reconstructible from `name`,
