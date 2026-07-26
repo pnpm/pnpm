@@ -1906,14 +1906,11 @@ where
 /// declares, else the name the resolver resolved it under, else the
 /// resolved package's own name.
 ///
-/// The manifest key has to win. An aliased `jsr:` or named-registry
-/// entry (`"bar-from-jsr": "jsr:@pnpm-e2e/bar@1.0.0"`) resolves under
-/// the protocol's package name, but the importer records dependencies
-/// under the manifest's own keys, so keying such an edge by the
-/// resolved name drops it from the lockfile importer altogether
-/// (pnpm/pnpm#13362). The resolver's alias covers the edges that carry
-/// no key of their own — `pnpm add jsr:@pnpm-e2e/bar`, a bare tarball
-/// URL — where it names the package the specifier resolved to.
+/// The manifest key wins because an importer entry is only recorded for
+/// an alias the manifest declares, so an edge keyed by a resolver alias
+/// that differs from its manifest key is dropped from the lockfile
+/// importer. The resolver's alias names the edges that declare no key
+/// of their own.
 fn node_alias(
     wanted: &WantedDependency,
     result: &pacquet_resolving_resolver_base::ResolveResult,

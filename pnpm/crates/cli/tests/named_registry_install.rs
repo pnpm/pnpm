@@ -4,6 +4,7 @@
 
 pub mod _utils;
 
+use _utils::append_workspace_yaml_key;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pacquet_lockfile::{Lockfile, PkgName};
@@ -17,11 +18,8 @@ use tempfile::TempDir;
 fn setup() -> (TempDir, std::path::PathBuf, AddMockedRegistry) {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
-    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
-    let yaml = fs::read_to_string(&workspace_yaml).expect("read the harness pnpm-workspace.yaml");
     let registry = npmrc_info.mock_instance.url();
-    fs::write(&workspace_yaml, format!("{yaml}namedRegistries:\n  work: {registry}\n"))
-        .expect("write pnpm-workspace.yaml");
+    append_workspace_yaml_key(&workspace, "namedRegistries", format!("{{ work: '{registry}' }}"));
     (root, workspace, npmrc_info)
 }
 
