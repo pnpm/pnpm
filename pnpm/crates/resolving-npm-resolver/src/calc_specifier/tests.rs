@@ -112,8 +112,6 @@ fn an_aliased_prefixed_specifier_keeps_naming_the_package_it_resolves_through() 
     );
 }
 
-/// Without an alias the dependency is installed under the package's own
-/// name, so the specifier carries the range alone.
 #[test]
 fn an_unaliased_prefixed_specifier_carries_the_range_alone() {
     assert_eq!(

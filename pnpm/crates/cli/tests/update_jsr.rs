@@ -81,9 +81,7 @@ fn install_records_a_plain_jsr_dependency() {
     drop((root, anchor));
 }
 
-/// Ports `jsr without alias`: the manifest keeps the `jsr:` protocol
-/// and the version behind it is bumped, while the lockfile records
-/// the resolved `@jsr/` package.
+/// Ports the `--latest` half of `jsr without alias`.
 #[test]
 fn update_latest_bumps_a_jsr_dependency() {
     let (root, workspace, anchor) = setup();
@@ -138,10 +136,9 @@ mod known_failures {
         drop((root, anchor));
     }
 
-    /// Ports `jsr with alias`: the aliased form keeps both the alias and
-    /// the package name it resolves through, bumping only the version.
-    /// The gate sits in front of the assertion its gap blocks, so the
-    /// manifest half runs while the importer gap is still open.
+    /// Ports the `--latest` half of `jsr with alias`. The gate sits in
+    /// front of the assertion its gap blocks, so the manifest half runs
+    /// while the importer gap is still open.
     #[test]
     fn update_latest_bumps_an_aliased_jsr_dependency() {
         let (root, workspace, anchor) = setup();

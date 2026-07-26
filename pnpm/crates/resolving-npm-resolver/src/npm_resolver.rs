@@ -280,7 +280,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             published_by: opts.published_by,
             published_by_exclude: opts.published_by_exclude.as_ref(),
             picked_manifest_cache: &self.picked_manifest_cache,
-            calculated_specifier: calc_specifier_from(wanted_dependency, opts).map(
+            calculated_specifier: calc_specifier_from(wanted_dependency, opts, &spec).map(
                 |(bare_specifier, default_pin)| {
                     crate::calc_specifier(
                         bare_specifier,
@@ -341,7 +341,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             // The entry stays a JSR dependency, so it round-trips under
             // the `jsr:` protocol rather than as the npm-shaped range
             // `calc_specifier` would build.
-            calculated_specifier: calc_specifier_from(wanted_dependency, opts).map(
+            calculated_specifier: calc_specifier_from(wanted_dependency, opts, &jsr_spec.spec).map(
                 |(bare_specifier, default_pin)| {
                     crate::calc_prefixed_specifier(
                         "jsr:",
@@ -853,14 +853,17 @@ pub(crate) fn build_resolve_result(
 }
 
 /// The `(specifier, pin)` pair a manifest-ready specifier is computed
-/// from, or `None` when the caller did not ask for one
-/// (`ResolveOptions::calc_specifier`). Caret is the fallback pin,
-/// matching pnpm's default save prefix.
+/// from, or `None` when there is nothing to compute: the caller did not
+/// ask for one (`ResolveOptions::calc_specifier`), or `spec` already
+/// carries the text the entry has to keep — a registry-host tarball URL,
+/// which [`build_resolve_result`] prefers over anything computed here.
+/// Caret is the fallback pin, matching pnpm's default save prefix.
 fn calc_specifier_from<'a>(
     wanted_dependency: &'a WantedDependency,
     opts: &ResolveOptions,
+    spec: &RegistryPackageSpec,
 ) -> Option<(&'a str, PinnedVersion)> {
-    if !opts.calc_specifier {
+    if !opts.calc_specifier || spec.normalized_bare_specifier.is_some() {
         return None;
     }
     let bare_specifier = wanted_dependency.bare_specifier.as_deref()?;
