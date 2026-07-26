@@ -12,8 +12,11 @@ use std::{
 };
 
 use dashmap::DashMap;
+use pacquet_catalogs_types::Catalogs;
 use pacquet_config::{Config, NodeLinker};
-use pacquet_lockfile::{Lockfile, check_lockfile_settings, satisfies_package_manifest};
+use pacquet_lockfile::{
+    Lockfile, LockfileSettingsCheck, check_lockfile_settings, satisfies_package_manifest,
+};
 use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_package_manager::{Install, ResolutionObserver, ResolvedPackages};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
@@ -268,14 +271,25 @@ pub fn fresh_frozen_input_lockfile(config: &Config, request: &ResolveRequest) ->
     }
 
     let lockfile = request.lockfile.as_ref()?;
+    // The request's catalogs are the effective ones — they are what the
+    // install below resolves `catalog:` specifiers against. Checking the
+    // lockfile's snapshot against an empty set instead would call every
+    // catalog-bearing lockfile stale and cost them this short-circuit.
+    let no_catalogs = Catalogs::new();
     check_lockfile_settings(
         lockfile,
-        None,
-        None,
-        None,
-        None,
-        config.inject_workspace_packages,
-        config.peers_suffix_max_length,
+        LockfileSettingsCheck {
+            catalogs: request.catalogs.as_ref().unwrap_or(&no_catalogs),
+            overrides: None,
+            package_extensions_checksum: None,
+            ignored_optional_dependencies: None,
+            patched_dependencies: None,
+            auto_install_peers: config.auto_install_peers,
+            dedupe_peers: config.dedupe_peers,
+            exclude_links_from_lockfile: config.exclude_links_from_lockfile,
+            inject_workspace_packages: config.inject_workspace_packages,
+            peers_suffix_max_length: config.peers_suffix_max_length,
+        },
     )
     .ok()?;
 

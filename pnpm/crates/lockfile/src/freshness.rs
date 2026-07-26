@@ -27,6 +27,9 @@ pub struct LockfileSettingsCheck<'a> {
     pub package_extensions_checksum: Option<&'a str>,
     pub ignored_optional_dependencies: Option<&'a [String]>,
     pub patched_dependencies: Option<&'a BTreeMap<String, String>>,
+    pub auto_install_peers: bool,
+    pub dedupe_peers: bool,
+    pub exclude_links_from_lockfile: bool,
     pub inject_workspace_packages: bool,
     pub peers_suffix_max_length: u64,
 }
@@ -156,6 +159,35 @@ pub enum StalenessReason {
         lockfile: BTreeMap<String, String>,
         config: BTreeMap<String, String>,
     },
+
+    /// The lockfile's `settings.autoInstallPeers` differs from the
+    /// current install's `Config::auto_install_peers`. Only checked when
+    /// the lockfile records a `settings` block, which is the only place
+    /// the value it was written under is preserved.
+    #[display(
+        "`autoInstallPeers` in the lockfile ({lockfile}) doesn't match the current config ({config})"
+    )]
+    AutoInstallPeersChanged { lockfile: bool, config: bool },
+
+    /// The lockfile's `settings.dedupePeers` differs from the current
+    /// install's `Config::dedupe_peers`. The key is written only while
+    /// the setting is on, so both sides normalize to a boolean and an
+    /// absent key equals `false`.
+    #[display(
+        "`dedupePeers` in the lockfile ({lockfile}) doesn't match the current config ({config})"
+    )]
+    DedupePeersChanged { lockfile: bool, config: bool },
+
+    /// The lockfile's `settings.excludeLinksFromLockfile` differs from
+    /// the current install's `Config::exclude_links_from_lockfile`. The
+    /// setting decides whether `link:` deps are recorded at all, so a
+    /// flip invalidates every importer snapshot. Like
+    /// [`Self::AutoInstallPeersChanged`], only checked when the lockfile
+    /// records a `settings` block.
+    #[display(
+        "`excludeLinksFromLockfile` in the lockfile ({lockfile}) doesn't match the current config ({config})"
+    )]
+    ExcludeLinksFromLockfileChanged { lockfile: bool, config: bool },
 }
 
 impl StalenessReason {
@@ -181,6 +213,11 @@ impl StalenessReason {
                 Some("ignoredOptionalDependencies")
             }
             StalenessReason::PatchedDependenciesChanged { .. } => Some("patchedDependencies"),
+            StalenessReason::AutoInstallPeersChanged { .. } => Some("settings.autoInstallPeers"),
+            StalenessReason::DedupePeersChanged { .. } => Some("settings.dedupePeers"),
+            StalenessReason::ExcludeLinksFromLockfileChanged { .. } => {
+                Some("settings.excludeLinksFromLockfile")
+            }
             StalenessReason::PeersSuffixMaxLengthChanged { .. } => {
                 Some("settings.peersSuffixMaxLength")
             }
@@ -272,46 +309,21 @@ impl SpecDiff {
 }
 
 /// Verify that lockfile-level settings the install pipeline reads
-/// from `pnpm-workspace.yaml` haven't drifted since the lockfile
-/// was written. Today this covers `catalogs`, `overrides`,
-/// `packageExtensionsChecksum`, `ignoredOptionalDependencies`,
-/// `patchedDependencies`, and the relevant `settings.*` keys (umbrella
-/// [#434] slice 7); the variants below will grow as more settings land
-/// (`pnpmfileChecksum`, etc.).
+/// from `pnpm-workspace.yaml` haven't drifted since the lockfile was
+/// written: `catalogs`, `overrides`, `packageExtensionsChecksum`,
+/// `ignoredOptionalDependencies`, `patchedDependencies`,
+/// and the relevant `settings.*` keys (umbrella
+/// [#434] slice 7).
 ///
 /// Drift in any of these settings would otherwise require a full
 /// resolution; pacquet has no resolver, so the matching action is to
-/// abort the frozen install with `OutdatedLockfile`. The check ordering
-/// is deterministic so the *first* drifted field is reported — which
-/// matters for tests and for CI logs that quote the reason verbatim.
+/// abort the frozen install with `OutdatedLockfile`. The fields are
+/// compared in the order pnpm's `getOutdatedLockfileSetting` compares
+/// them, because only the *first* drifted field is reported and both
+/// stacks must name the same one.
 ///
 /// [#434]: https://github.com/pnpm/pacquet/issues/434
 pub fn check_lockfile_settings(
-    lockfile: &Lockfile,
-    overrides: Option<&HashMap<String, String>>,
-    package_extensions_checksum: Option<&str>,
-    ignored_optional_dependencies: Option<&[String]>,
-    patched_dependencies: Option<&BTreeMap<String, String>>,
-    inject_workspace_packages: bool,
-    peers_suffix_max_length: u64,
-) -> Result<(), StalenessReason> {
-    check_lockfile_settings_with_catalogs(
-        lockfile,
-        LockfileSettingsCheck {
-            catalogs: &Catalogs::new(),
-            overrides,
-            package_extensions_checksum,
-            ignored_optional_dependencies,
-            patched_dependencies,
-            inject_workspace_packages,
-            peers_suffix_max_length,
-        },
-    )
-}
-
-/// Catalog-aware variant of [`check_lockfile_settings`] used by install paths
-/// that have already loaded `pnpm-workspace.yaml`.
-pub fn check_lockfile_settings_with_catalogs(
     lockfile: &Lockfile,
     check: LockfileSettingsCheck<'_>,
 ) -> Result<(), StalenessReason> {
@@ -321,6 +333,9 @@ pub fn check_lockfile_settings_with_catalogs(
         package_extensions_checksum,
         ignored_optional_dependencies,
         patched_dependencies,
+        auto_install_peers,
+        dedupe_peers,
+        exclude_links_from_lockfile,
         inject_workspace_packages,
         peers_suffix_max_length,
     } = check;
@@ -379,12 +394,33 @@ pub fn check_lockfile_settings_with_catalogs(
         });
     }
 
-    let lockfile_inject =
-        lockfile.settings.as_ref().is_some_and(|settings| settings.inject_workspace_packages);
-    if lockfile_inject != inject_workspace_packages {
-        return Err(StalenessReason::InjectWorkspacePackagesChanged {
-            lockfile: lockfile_inject,
-            config: inject_workspace_packages,
+    // A lockfile with no `settings` block records nothing about the
+    // setting it was written under, so there is nothing to compare —
+    // pnpm's `lockfile.settings?.autoInstallPeers != null` guard.
+    if let Some(settings) = lockfile.settings.as_ref()
+        && settings.auto_install_peers != auto_install_peers
+    {
+        return Err(StalenessReason::AutoInstallPeersChanged {
+            lockfile: settings.auto_install_peers,
+            config: auto_install_peers,
+        });
+    }
+
+    let lockfile_dedupe_peers =
+        lockfile.settings.as_ref().and_then(|settings| settings.dedupe_peers).unwrap_or(false);
+    if lockfile_dedupe_peers != dedupe_peers {
+        return Err(StalenessReason::DedupePeersChanged {
+            lockfile: lockfile_dedupe_peers,
+            config: dedupe_peers,
+        });
+    }
+
+    if let Some(settings) = lockfile.settings.as_ref()
+        && settings.exclude_links_from_lockfile != exclude_links_from_lockfile
+    {
+        return Err(StalenessReason::ExcludeLinksFromLockfileChanged {
+            lockfile: settings.exclude_links_from_lockfile,
+            config: exclude_links_from_lockfile,
         });
     }
 
@@ -397,6 +433,15 @@ pub fn check_lockfile_settings_with_catalogs(
         return Err(StalenessReason::PeersSuffixMaxLengthChanged {
             lockfile: lockfile_peers_suffix_max_length,
             config: peers_suffix_max_length,
+        });
+    }
+
+    let lockfile_inject =
+        lockfile.settings.as_ref().is_some_and(|settings| settings.inject_workspace_packages);
+    if lockfile_inject != inject_workspace_packages {
+        return Err(StalenessReason::InjectWorkspacePackagesChanged {
+            lockfile: lockfile_inject,
+            config: inject_workspace_packages,
         });
     }
 

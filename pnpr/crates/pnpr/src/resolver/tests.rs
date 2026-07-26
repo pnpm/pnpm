@@ -1040,6 +1040,123 @@ fn tarball_url_version_extracts_conventional_names_only() {
     assert_eq!(tarball_url_version("https://r/foo/-/foo.tgz", "foo"), None);
 }
 
+/// The resolve protocol carries no `autoInstallPeers` / `dedupePeers` /
+/// `excludeLinksFromLockfile`, so a request's config would otherwise
+/// resolve — and compare its frozen lockfile — under the server's
+/// defaults. The input lockfile records what its owner used, and the
+/// freshness gate rejects a lockfile whose settings disagree, so those
+/// values have to reach the config.
+#[test]
+fn intern_config_adopts_the_input_lockfile_settings() {
+    use super::intern_config;
+    use pacquet_store_dir::StoreDir;
+    use std::{collections::HashMap, path::PathBuf, sync::Mutex};
+
+    let configs = Mutex::new(HashMap::new());
+    let store_dir = StoreDir::new(PathBuf::from("/tmp/pnpr-lockfile-settings-store"));
+    let cache_dir = PathBuf::from("/tmp/pnpr-lockfile-settings-cache");
+    let request = |settings: Option<pacquet_lockfile::LockfileSettings>| ResolveRequest {
+        registry: Some("https://a.test/".to_string()),
+        lockfile: Some(Lockfile { settings, ..lockfile("1.0.0") }),
+        frozen_lockfile: true,
+        ..ResolveRequest::default()
+    };
+    let intern = |request: &ResolveRequest| {
+        intern_config(&configs, &store_dir, &cache_dir, request, 10, usize::MAX)
+            .expect("intern config")
+    };
+
+    let client_settings = pacquet_lockfile::LockfileSettings {
+        auto_install_peers: false,
+        dedupe_peers: Some(true),
+        exclude_links_from_lockfile: true,
+        ..pacquet_lockfile::LockfileSettings::default()
+    };
+    let adopted = intern(&request(Some(client_settings)));
+    assert!(!adopted.auto_install_peers);
+    assert!(adopted.dedupe_peers);
+    assert!(adopted.exclude_links_from_lockfile);
+
+    // A lockfile with no `settings` block says nothing, so the server's
+    // own defaults stand — and the two must not share an interned config.
+    let defaults = intern(&request(None));
+    assert!(defaults.auto_install_peers);
+    assert!(!defaults.dedupe_peers);
+    assert!(!defaults.exclude_links_from_lockfile);
+}
+
+/// A request that may update resolutions resolves under the server's
+/// settings, not the lockfile's: the lockfile records what the last
+/// install used, which is stale precisely when the client has just
+/// changed one. Nothing in the request carries the client's current
+/// value, so the frozen contract is the only place adoption is sound.
+#[test]
+fn intern_config_adopts_lockfile_settings_only_for_a_frozen_request() {
+    use super::intern_config;
+    use pacquet_store_dir::StoreDir;
+    use std::{collections::HashMap, path::PathBuf, sync::Mutex};
+
+    let configs = Mutex::new(HashMap::new());
+    let store_dir = StoreDir::new(PathBuf::from("/tmp/pnpr-update-settings-store"));
+    let cache_dir = PathBuf::from("/tmp/pnpr-update-settings-cache");
+    let request = ResolveRequest {
+        registry: Some("https://a.test/".to_string()),
+        lockfile: Some(Lockfile {
+            settings: Some(pacquet_lockfile::LockfileSettings {
+                auto_install_peers: false,
+                exclude_links_from_lockfile: true,
+                ..pacquet_lockfile::LockfileSettings::default()
+            }),
+            ..lockfile("1.0.0")
+        }),
+        frozen_lockfile: false,
+        ..ResolveRequest::default()
+    };
+
+    let config = intern_config(&configs, &store_dir, &cache_dir, &request, 10, usize::MAX)
+        .expect("intern config");
+    assert!(config.auto_install_peers);
+    assert!(!config.exclude_links_from_lockfile);
+}
+
+/// Only the three adopted fields may reach the interning key. The rest of
+/// the `settings` block doesn't change the config, and keying on it would
+/// let a caller mint a distinct leaked config per value —
+/// `peersSuffixMaxLength` is a `u64` — until `MAX_INTERNED_CONFIGS` is
+/// spent and every caller is refused.
+#[test]
+fn intern_config_ignores_lockfile_settings_it_does_not_adopt() {
+    use super::intern_config;
+    use pacquet_store_dir::StoreDir;
+    use std::{collections::HashMap, path::PathBuf, sync::Mutex};
+
+    let configs = Mutex::new(HashMap::new());
+    let store_dir = StoreDir::new(PathBuf::from("/tmp/pnpr-unadopted-settings-store"));
+    let cache_dir = PathBuf::from("/tmp/pnpr-unadopted-settings-cache");
+    let request = |peers_suffix_max_length: u64| ResolveRequest {
+        registry: Some("https://a.test/".to_string()),
+        frozen_lockfile: true,
+        lockfile: Some(Lockfile {
+            settings: Some(pacquet_lockfile::LockfileSettings {
+                peers_suffix_max_length: Some(peers_suffix_max_length),
+                ..pacquet_lockfile::LockfileSettings::default()
+            }),
+            ..lockfile("1.0.0")
+        }),
+        ..ResolveRequest::default()
+    };
+    // A cap of one: a second distinct key would be refused outright.
+    let intern = |request: &ResolveRequest| {
+        intern_config(&configs, &store_dir, &cache_dir, request, 1, usize::MAX)
+    };
+
+    assert!(intern(&request(1000)).is_some());
+    assert!(
+        intern(&request(10)).is_some(),
+        "a field the config never reads must not mint a second interned config",
+    );
+}
+
 #[test]
 fn intern_config_caps_distinct_leaked_configs_but_keeps_serving_known_ones() {
     use super::intern_config;
