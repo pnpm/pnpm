@@ -112,19 +112,20 @@ pub fn build_env(
     //    PNPM_SCRIPT_SRC_DIR, npm_config_user_agent }` — the reserved
     //    keys overwrite anything `extra_env` set. A non-reserved key
     //    still takes effect.
+    //    `extra_env` is also the one route by which
+    //    [`DEV_PREINSTALL_ALREADY_RAN_ENV`] could re-enter after
+    //    [`filter_parent_env`] dropped it, so it is refused here — under
+    //    the same casing rule that filter uses, since on Windows a
+    //    differently-cased entry names the same variable.
     for (k, v) in opts.extra_env {
+        if is_dev_preinstall_marker(k, cfg!(windows)) {
+            continue;
+        }
         env.insert(k.clone(), v.clone());
     }
 
     env.insert("INIT_CWD".into(), opts.init_cwd.to_string_lossy().into_owned());
     env.insert("PNPM_SCRIPT_SRC_DIR".into(), opts.script_src_dir.to_string_lossy().into_owned());
-
-    // Dropped after `extra_env` as well as from the parent env, so the
-    // scoping holds however the value arrived — a user `extraEnv` that
-    // names the marker cannot hand it to a script either. Spelled the
-    // same way [`is_stamping_key`] matches it, so the two agree on
-    // Windows, where a differently-cased entry is the same variable.
-    env.retain(|key, _| !is_dev_preinstall_marker(key, cfg!(windows)));
 
     if let Some(ua) = opts.user_agent {
         env.insert("npm_config_user_agent".into(), ua.to_string());
