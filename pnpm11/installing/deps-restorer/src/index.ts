@@ -10,7 +10,7 @@ import {
 } from '@pnpm/constants'
 import {
   packageManifestLogger,
-  progressLogger,
+  reportPackageImported,
   stageLogger,
   statsLogger,
   summaryLogger,
@@ -1033,10 +1033,9 @@ async function linkAllPkgs (
         sideEffectsCacheKey,
       })
       if (importMethod) {
-        progressLogger.debug({
+        reportPackageImported({
           method: importMethod,
           requester: opts.lockfileDir,
-          status: 'imported',
           to: depNode.dir,
         })
       }

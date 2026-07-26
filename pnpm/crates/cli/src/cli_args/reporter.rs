@@ -31,15 +31,17 @@ pub(crate) fn reporter_emit(reporter: ReporterType) -> fn(&LogEvent) {
 }
 
 /// Seed the process-global default-reporter state that can't be recovered
-/// from events. Idempotent; safe to call from both the fast path and the main
-/// run.
+/// from events. Idempotent — the first call wins, so it has to run before
+/// anything can emit.
 pub(crate) fn configure_default_reporter(
     reporter: ReporterType,
     dir: &Path,
     summary_scope: SummaryScope,
+    reports_scope: bool,
 ) {
     pacquet_default_reporter::set_cwd(dir.to_string_lossy().into_owned());
     pacquet_default_reporter::set_summary_scope(summary_scope);
+    pacquet_default_reporter::set_reports_scope(reports_scope);
     if matches!(reporter, ReporterType::AppendOnly) {
         pacquet_default_reporter::force_append_only();
     }

@@ -302,6 +302,57 @@ where
     write_or_remove_manifest(&path, manifest)
 }
 
+/// The value an install writes for a package whose build it ignored. Not a
+/// decision — pnpm's build policy only acts on `true` / `false` — so it is
+/// purely a prompt to edit, next to the packages the user already decided.
+pub const UNDECIDED_ALLOW_BUILD: &str = "set this to true or false";
+
+/// Add an [`UNDECIDED_ALLOW_BUILD`] entry to `dir`'s `pnpm-workspace.yaml`
+/// `allowBuilds:` block (creating the file/block if absent) for every name
+/// in `names` that has no entry there yet, preserving the rest of the
+/// document's formatting. Names that already have one — decided or not —
+/// are left alone, so this never overwrites a user's answer.
+///
+/// `names` is iterated in its own order; pass an ordered collection for a
+/// deterministic result.
+pub fn scaffold_allow_builds<'a, Names>(
+    dir: &Path,
+    names: Names,
+) -> Result<(), UpdateWorkspaceManifestError>
+where
+    Names: IntoIterator<Item = &'a str>,
+{
+    let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
+
+    let original = match fs::read_to_string(&path) {
+        Ok(text) => Some(text),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => None,
+        Err(source) => return Err(UpdateWorkspaceManifestError::Read { path, source }),
+    };
+
+    let mut manifest = Manifest::parse(original.as_deref())
+        .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
+
+    let mut changed = false;
+    for name in names {
+        // Same guard as `set_allow_builds`: the block-style splice writes
+        // the entry on one line, so a control character in `name` would
+        // corrupt the document.
+        if has_control_char(name) {
+            return Err(UpdateWorkspaceManifestError::InvalidControlCharacter {
+                path,
+                value: name.to_string(),
+            });
+        }
+        changed |= edit::add_undecided_allow_build(&mut manifest, name, UNDECIDED_ALLOW_BUILD);
+    }
+    if !changed {
+        return Ok(());
+    }
+
+    write_or_remove_manifest(&path, manifest)
+}
+
 /// Merge `patched_dependencies` into `dir`'s `pnpm-workspace.yaml`
 /// `patchedDependencies:` block, preserving the rest of the document's
 /// formatting.

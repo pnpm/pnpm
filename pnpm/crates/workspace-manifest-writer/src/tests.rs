@@ -344,6 +344,47 @@ fn allow_builds_no_op_when_unchanged_keeps_file() {
     assert_eq!(out.as_deref(), Some(original));
 }
 
+/// Run `scaffold_allow_builds` against `original` (when `Some`) and
+/// return the resulting file contents (or `None` when no file exists
+/// afterward).
+fn run_scaffold_allow_builds(original: Option<&str>, names: &[&str]) -> Option<String> {
+    let dir = TempDir::new().expect("temp dir");
+    let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
+    if let Some(text) = original {
+        fs::write(&path, text).expect("seed manifest");
+    }
+    crate::scaffold_allow_builds(dir.path(), names.iter().copied()).expect("update succeeds");
+    fs::read_to_string(&path).ok()
+}
+
+#[test]
+fn scaffold_allow_builds_creates_block_when_absent() {
+    let out = run_scaffold_allow_builds(Some("packages: []\n"), &["es5-ext"]);
+    assert_eq!(
+        out.as_deref(),
+        Some("packages: []\nallowBuilds:\n  es5-ext: set this to true or false\n"),
+    );
+}
+
+#[test]
+fn scaffold_allow_builds_leaves_a_decided_entry_alone() {
+    let original = "allowBuilds:\n  esbuild: false\n";
+    let out = run_scaffold_allow_builds(Some(original), &["esbuild", "es5-ext"]);
+    assert_eq!(
+        out.as_deref(),
+        Some("allowBuilds:\n  es5-ext: set this to true or false\n  esbuild: false\n"),
+    );
+}
+
+/// Every install that keeps ignoring the same build re-runs the scaffold;
+/// the second one must not rewrite the file (and bump its mtime).
+#[test]
+fn scaffold_allow_builds_no_op_when_already_scaffolded_keeps_file() {
+    let original = "allowBuilds:\n  es5-ext: set this to true or false\n";
+    let out = run_scaffold_allow_builds(Some(original), &["es5-ext"]);
+    assert_eq!(out.as_deref(), Some(original));
+}
+
 #[test]
 fn allow_builds_preserves_other_keys_and_comments() {
     let original = "# top comment\nstoreDir: ../store\n";

@@ -24,7 +24,7 @@ use super::{
     prune::PruneArgs,
     rebuild::RebuildArgs,
     remove::RemoveArgs,
-    reporter::ReporterType,
+    reporter::{ReporterType, reporter_emit},
     runtime::RuntimeArgs,
     unlink::UnlinkArgs,
     update::UpdateArgs,
@@ -257,7 +257,7 @@ pub(super) fn install_test<'a>(
 
         let cfg = config()?;
         if recursive {
-            run_args.run_recursive(cfg, dir)?;
+            run_args.run_recursive(cfg, dir, reporter_emit(reporter))?;
         } else {
             run_args.run(dir, cfg, matches!(reporter, ReporterType::Silent))?;
         }

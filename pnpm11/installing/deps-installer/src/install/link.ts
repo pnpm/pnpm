@@ -2,7 +2,7 @@ import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
 import {
-  progressLogger,
+  reportPackageImported,
   stageLogger,
   statsLogger,
 } from '@pnpm/core-loggers'
@@ -544,10 +544,9 @@ async function linkAllPkgs (
         requiresBuild: depNode.patch != null || depNode.requiresBuild,
       })
       if (importMethod) {
-        progressLogger.debug({
+        reportPackageImported({
           method: importMethod,
           requester: opts.lockfileDir,
-          status: 'imported',
           to: depNode.dir,
         })
       }

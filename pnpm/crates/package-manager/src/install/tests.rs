@@ -19,7 +19,7 @@ use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_reporter::{
     BrokenModulesLog, ContextLog, HookLog, IgnoredScriptsLog, LockfileVerificationMessage,
     LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, ProgressLog, ProgressMessage,
-    Reporter, SilentReporter, Stage, StageLog, StatsLog, StatsMessage, SummaryLog,
+    Reporter, ScopeLog, SilentReporter, Stage, StageLog, StatsLog, StatsMessage, SummaryLog,
 };
 use pacquet_store_dir::STORE_VERSION;
 use pacquet_testing_utils::{
@@ -1420,20 +1420,23 @@ async fn install_emits_pnpm_event_sequence() {
 
     let captured = EVENTS.lock().unwrap();
 
-    // Event ordering: manifest snapshot, context,
-    // importing_started, the `pnpm:stats` added/removed pair from
-    // `CreateVirtualStore::run`, then `importing_done` once extraction
-    // and symlink linking are complete,
+    // Event ordering: the scope this run covers, manifest snapshot,
+    // context, importing_started, the `pnpm:stats` added/removed pair
+    // from `CreateVirtualStore::run`, then `importing_done` once
+    // extraction and symlink linking are complete,
     // followed by the `pnpm:ignored-scripts` summary that
     // `BuildModules::run` produces, then summary closing the run. The
     // empty snapshot map still triggers the stats emit (`added: 0`,
     // `removed: 0`), matching pnpm's unconditional emit at link time.
     // The empty lockfile produces no ignored builds, so
-    // `ignored-scripts` carries an empty list.
+    // `ignored-scripts` carries an empty list. Outside a workspace the
+    // scope is the single project, which is the payload pnpm reports
+    // for a run it doesn't spread over a workspace.
     assert!(
         matches!(
             captured.as_slice(),
             [
+                LogEvent::Scope(ScopeLog { selected: 1, total: None, .. }),
                 LogEvent::PackageManifest(PackageManifestLog {
                     message: PackageManifestMessage::Initial { .. },
                     ..
@@ -1451,8 +1454,8 @@ async fn install_emits_pnpm_event_sequence() {
     );
 
     // Empty lockfile produces no ignored builds.
-    let LogEvent::IgnoredScripts(IgnoredScriptsLog { package_names, .. }) = &captured[6] else {
-        unreachable!("ignored-scripts at index 6, asserted above");
+    let LogEvent::IgnoredScripts(IgnoredScriptsLog { package_names, .. }) = &captured[7] else {
+        unreachable!("ignored-scripts at index 7, asserted above");
     };
     assert!(package_names.is_empty(), "no builds in empty lockfile: {package_names:?}");
 
@@ -1463,9 +1466,9 @@ async fn install_emits_pnpm_event_sequence() {
     let LogEvent::PackageManifest(PackageManifestLog {
         message: PackageManifestMessage::Initial { prefix: manifest_prefix, initial },
         ..
-    }) = &captured[0]
+    }) = &captured[1]
     else {
-        unreachable!("first event is package-manifest, asserted above");
+        unreachable!("package-manifest follows the scope, asserted above");
     };
     assert_eq!(manifest_prefix, &expected_prefix);
     assert_eq!(initial, manifest.value());
@@ -1480,9 +1483,9 @@ async fn install_emits_pnpm_event_sequence() {
         store_dir: emitted_store_dir,
         virtual_store_dir: emitted_virtual_store_dir,
         ..
-    }) = &captured[1]
+    }) = &captured[2]
     else {
-        unreachable!("second event is context, asserted above");
+        unreachable!("context follows the manifest snapshot, asserted above");
     };
     assert!(!current_lockfile_exists);
     assert_eq!(emitted_store_dir, &store_dir.join(STORE_VERSION).display().to_string());
@@ -7599,7 +7602,11 @@ fn sync_fast_path_matches_optimistic_short_circuit() {
         supported_architectures: None,
     };
     let root = install_already_up_to_date(&check);
-    assert_eq!(root.as_deref(), Some(&*project_root), "fresh state must short-circuit");
+    assert_eq!(
+        root.map(|up_to_date| up_to_date.root).as_deref(),
+        Some(&*project_root),
+        "fresh state must short-circuit",
+    );
 
     // Outdate the manifest relative to the recorded timestamp: the
     // fast path must decline and leave the decision to the full
@@ -7615,7 +7622,7 @@ fn sync_fast_path_matches_optimistic_short_circuit() {
     // The manifest content still matches no lockfile (config.lockfile
     // is off and no current lockfile exists), so the content re-check
     // cannot vouch for it either.
-    assert_eq!(install_already_up_to_date(&check), None, "modified manifest must fall through");
+    assert!(install_already_up_to_date(&check).is_none(), "modified manifest must fall through");
 }
 
 #[test]
@@ -7708,7 +7715,10 @@ fn sync_fast_path_reads_the_workspace_root_wanted_lockfile_from_a_member() {
         supported_architectures: None,
     };
 
-    assert_eq!(install_already_up_to_date(&check).as_deref(), Some(&*workspace_root));
+    assert_eq!(
+        install_already_up_to_date(&check).map(|up_to_date| up_to_date.root).as_deref(),
+        Some(&*workspace_root),
+    );
     assert_eq!(std::fs::read_to_string(&wanted_path).expect("reread wanted lockfile"), current);
 
     std::fs::write(project_root.join(Lockfile::FILE_NAME), current).expect("write member lockfile");
@@ -7728,7 +7738,10 @@ fn sync_fast_path_reads_the_workspace_root_wanted_lockfile_from_a_member() {
         supported_architectures: None,
     };
 
-    assert_eq!(install_already_up_to_date(&per_project_check).as_deref(), Some(&*workspace_root));
+    assert_eq!(
+        install_already_up_to_date(&per_project_check).map(|up_to_date| up_to_date.root).as_deref(),
+        Some(&*workspace_root),
+    );
 }
 
 /// `--frozen-lockfile` disables the optimistic short-circuit because

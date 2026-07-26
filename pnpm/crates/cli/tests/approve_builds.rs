@@ -84,8 +84,13 @@ fn ignored_builds_lists_the_blocked_dependency() {
 fn allow_builds_placeholder_does_not_block_commands() {
     let (harness, workspace) = install_with_ignored_build();
 
+    // The install already scaffolded the blocked package; restate it in
+    // the quoted spelling pnpm writes and add a second undecided entry,
+    // both inside the one `allowBuilds` block a YAML document may have.
     let yaml_path = workspace.join("pnpm-workspace.yaml");
-    let mut yaml = fs::read_to_string(&yaml_path).expect("read yaml");
+    let yaml = fs::read_to_string(&yaml_path).expect("read yaml");
+    let (before, _) = yaml.split_once("allowBuilds:").expect("the install scaffolded the block");
+    let mut yaml = before.to_string();
     writeln!(
         yaml,
         "allowBuilds:\n  \"@pnpm.e2e/install-script-example\": set this to true or false\n  \
@@ -125,6 +130,37 @@ fn allow_builds_placeholder_does_not_block_commands() {
     assert!(
         yaml.contains("other-pkg: set this to true or false"),
         "an unrelated undecided entry survives: {yaml}",
+    );
+
+    drop(harness);
+}
+
+/// The install that blocks a build leaves the user a line to edit
+/// instead of making them recall the `allowBuilds` shape. The
+/// placeholder is not a decision, so the package stays blocked and a
+/// rerun must neither duplicate the entry nor fail to load the config.
+#[test]
+fn install_scaffolds_an_allow_builds_entry_for_the_blocked_build() {
+    let (harness, workspace) = install_with_ignored_build();
+
+    let yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
+        .expect("read pnpm-workspace.yaml");
+    assert!(
+        yaml.contains(
+            "allowBuilds:\n  '@pnpm.e2e/install-script-example': set this to true or false",
+        ),
+        "yaml: {yaml}",
+    );
+
+    pacquet(&workspace).with_arg("install").assert().success();
+    assert_eq!(
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("reread"),
+        yaml,
+        "a rerun must not rewrite the scaffold",
+    );
+    assert!(
+        !workspace.join(INSTALL_MARKER).exists(),
+        "an undecided placeholder must not allow the build",
     );
 
     drop(harness);
@@ -285,24 +321,41 @@ fn install_two_with_ignored_builds() -> (CommandTempCwd<AddMockedRegistry>, std:
 }
 
 /// The `allowBuilds` map recorded in the workspace manifest.
+/// The *decided* `allowBuilds` entries. An install scaffolds an
+/// undecided placeholder for every build it blocked, which is a prompt to
+/// edit rather than a decision, so it is dropped here exactly as the
+/// config drops it.
 fn allow_builds(workspace: &Path) -> std::collections::BTreeMap<String, bool> {
     #[derive(serde::Deserialize)]
     struct Manifest {
         #[serde(rename = "allowBuilds", default)]
-        allow_builds: std::collections::BTreeMap<String, bool>,
+        allow_builds: std::collections::BTreeMap<String, serde_json::Value>,
     }
     let text = fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read yaml");
-    serde_saphyr::from_str::<Manifest>(&text).expect("parse yaml").allow_builds
+    serde_saphyr::from_str::<Manifest>(&text)
+        .expect("parse yaml")
+        .allow_builds
+        .into_iter()
+        .filter_map(|(name, value)| Some((name, value.as_bool()?)))
+        .collect()
 }
 
-/// Seed an existing `allowBuilds: { name: true }` entry in the manifest.
+/// Seed an existing `allowBuilds: { name: true }` entry in the manifest,
+/// merging into the block the install already scaffolded rather than
+/// starting a second one (which YAML rejects as a duplicate key).
 fn seed_allow_build(workspace: &Path, name: &str) {
+    const BLOCK: &str = "allowBuilds:\n";
     let path = workspace.join("pnpm-workspace.yaml");
     let mut yaml = fs::read_to_string(&path).unwrap_or_default();
-    if !yaml.is_empty() && !yaml.ends_with('\n') {
-        yaml.push('\n');
+    let entry = format!("  '{name}': true\n");
+    if let Some(block_start) = yaml.find(BLOCK) {
+        yaml.insert_str(block_start + BLOCK.len(), &entry);
+    } else {
+        if !yaml.is_empty() && !yaml.ends_with('\n') {
+            yaml.push('\n');
+        }
+        write!(yaml, "{BLOCK}{entry}").expect("format allowBuilds");
     }
-    writeln!(yaml, "allowBuilds:\n  '{name}': true").expect("format allowBuilds");
     fs::write(&path, yaml).expect("write pnpm-workspace.yaml");
 }
 

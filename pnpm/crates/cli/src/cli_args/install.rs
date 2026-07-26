@@ -333,7 +333,7 @@ impl InstallArgs {
             return false;
         };
         let node_linker = self.node_linker.map_or(config.node_linker, NodeLinkerArg::into_config);
-        let Some(workspace_root) = install_already_up_to_date(&UpToDateFastPathCheck {
+        let Some(up_to_date) = install_already_up_to_date(&UpToDateFastPathCheck {
             config,
             manifest: &manifest,
             dependency_groups: self.dependency_options.dependency_groups().collect(),
@@ -349,7 +349,19 @@ impl InstallArgs {
         // to the full install path, which warns from
         // `derive_config_root_and_package_manager_to_sync`.
         warn_ignored_pnpm_manifest_fields_in(&config_root, emit);
-        let prefix = workspace_root.to_string_lossy().into_owned();
+        // The scope covers the same projects the full install path would
+        // report; an up-to-date run says so too rather than going quiet
+        // about what it just decided was current.
+        emit(&pacquet_reporter::LogEvent::Scope(pacquet_reporter::ScopeLog {
+            level: pacquet_reporter::LogLevel::Debug,
+            selected: up_to_date.project_count.unwrap_or(1),
+            total: up_to_date.project_count,
+            workspace_prefix: config
+                .workspace_dir
+                .as_deref()
+                .map(|dir| dir.to_string_lossy().into_owned()),
+        }));
+        let prefix = up_to_date.root.to_string_lossy().into_owned();
         emit(&pacquet_reporter::LogEvent::Pnpm(pacquet_reporter::PnpmLog {
             level: pacquet_reporter::LogLevel::Info,
             message: "Already up to date".to_string(),

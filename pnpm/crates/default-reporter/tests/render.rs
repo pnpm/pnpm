@@ -13,7 +13,7 @@ use pacquet_reporter::{
     AddedRoot, ContextLog, DependencyType, DeprecationLog, ExecutionTimeLog, FetchingProgressLog,
     FetchingProgressMessage, GlobalLog, HookLog, LifecycleLog, LifecycleMessage, LifecycleStdio,
     LogEvent, LogLevel, PackageImportMethod, PackageImportMethodLog, PackageManifestLog,
-    PackageManifestMessage, PnpmLog, ProgressLog, ProgressMessage, RootLog, RootMessage,
+    PackageManifestMessage, PnpmLog, ProgressLog, ProgressMessage, RootLog, RootMessage, ScopeLog,
     SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalParent,
     SkippedOptionalReason, Stage, StageLog, StatsLog, StatsMessage, SummaryLog,
 };
@@ -903,4 +903,59 @@ fn transitive_deprecations_flush_as_a_summary_at_resolution_done() {
 
     let frame = render(&mut reporter, vec![resolution_done()]);
     assert_eq!(frame, "[WARN] 2 deprecated subdependencies found: request@2.88.2, uuid@3.4.0");
+}
+
+fn scope(selected: usize, total: Option<usize>, workspace_prefix: Option<&str>) -> LogEvent {
+    LogEvent::Scope(ScopeLog {
+        level: LogLevel::Debug,
+        selected,
+        total,
+        workspace_prefix: workspace_prefix.map(ToString::to_string),
+    })
+}
+
+fn scope_reporting_state() -> ReporterState {
+    state_with_options(ReporterOptions { reports_scope: true, ..ReporterOptions::default() })
+}
+
+#[test]
+fn reports_an_unnarrowed_workspace_scope() {
+    let mut reporter = scope_reporting_state();
+    assert_eq!(
+        render(&mut reporter, vec![scope(3, Some(3), Some(CWD))]),
+        "Scope: all 3 workspace projects",
+    );
+}
+
+#[test]
+fn reports_a_narrowed_workspace_scope() {
+    let mut reporter = scope_reporting_state();
+    assert_eq!(
+        render(&mut reporter, vec![scope(2, Some(3), Some(CWD))]),
+        "Scope: 2 of 3 workspace projects",
+    );
+}
+
+/// Outside a workspace there are no "workspace projects" to count, which
+/// is the shape pnpm renders without the qualifier.
+#[test]
+fn reports_a_scope_without_a_workspace_prefix_as_plain_projects() {
+    let mut reporter = scope_reporting_state();
+    assert_eq!(render(&mut reporter, vec![scope(2, None, None)]), "Scope: 2 projects");
+}
+
+/// A single selected project is the directory the user is standing in, so
+/// pnpm says nothing — even for a command that reports scope.
+#[test]
+fn stays_silent_for_a_single_selected_project() {
+    let mut reporter = scope_reporting_state();
+    assert!(render(&mut reporter, vec![scope(1, Some(3), Some(CWD))]).is_empty());
+}
+
+/// The event fires for every command; only the ones in pnpm's
+/// `COMMANDS_THAT_REPORT_SCOPE` render it.
+#[test]
+fn stays_silent_for_a_command_that_does_not_report_scope() {
+    let mut reporter = state(false);
+    assert!(render(&mut reporter, vec![scope(3, Some(3), Some(CWD))]).is_empty());
 }

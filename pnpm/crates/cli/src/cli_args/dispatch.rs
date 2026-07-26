@@ -9,7 +9,6 @@ use crate::{
 };
 use miette::{Context, IntoDiagnostic};
 use pacquet_config::{Config, Host, default_pnpm_home_dir};
-use pacquet_default_reporter::SummaryScope;
 use pacquet_network_web_auth::OtpNonInteractiveError;
 use pacquet_reporter::{ExecutionTimeLog, LogEvent, LogLevel};
 use std::{future::Future, path::Path, pin::Pin};
@@ -54,6 +53,26 @@ pub(crate) struct RunCtx<'a> {
 }
 
 impl CliArgs {
+    /// Seed the process-global default-reporter state from the parsed
+    /// arguments. The entry point calls this before the pre-command
+    /// checks, which are the first thing that can emit — the state is set
+    /// once, so whoever emits first must already see the real values.
+    /// [`Self::run`] and the install fast path call it again so a direct
+    /// in-process caller is configured too; the repeat calls are no-ops.
+    ///
+    /// A `--dir` that cannot be canonicalized is left as given: the same
+    /// path fails with a proper diagnostic in [`Self::run`], and the
+    /// reporter only uses it to shorten the paths it prints.
+    pub fn configure_reporter(&self) {
+        let dir = dunce::canonicalize(&self.dir).unwrap_or_else(|_| self.dir.clone());
+        configure_default_reporter(
+            self.reporter,
+            &dir,
+            self.command.default_reporter_summary_scope(),
+            self.command.reports_scope(self.recursive),
+        );
+    }
+
     pub fn run_completion_if_requested(&self) -> miette::Result<bool> {
         match &self.command {
             CliCommand::Completion(args) => {
@@ -109,7 +128,7 @@ impl CliArgs {
         {
             return false;
         }
-        configure_default_reporter(self.reporter, &dir, SummaryScope::CurrentPrefix);
+        self.configure_reporter();
         let emit = reporter_emit(self.reporter);
         let finished = install_args.finished_via_up_to_date_fast_path(&dir, &config, emit);
         if finished {
@@ -134,6 +153,7 @@ impl CliArgs {
         if self.run_completion_if_requested()? {
             return Ok(());
         }
+        self.configure_reporter();
 
         // `version` short-circuits in `main`, never reaching dispatch.
         let CliArgs {
@@ -175,10 +195,6 @@ impl CliArgs {
         let dir = dunce::canonicalize(&dir)
             .into_diagnostic()
             .wrap_err_with(|| format!("canonicalizing the `--dir` argument: {}", dir.display()))?;
-        // The default reporter renders paths relative to the install root and
-        // its `Done in ...` footer over the whole command; seed both before any
-        // event can fire.
-        configure_default_reporter(reporter, &dir, command.default_reporter_summary_scope());
         let started_at = now_millis();
         let is_install_family = matches!(
             &command,
