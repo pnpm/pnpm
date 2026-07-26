@@ -5,7 +5,7 @@ use super::{
     allocate_tarball_buffer, apply_append_manifest, bounded_gzip_size_hint, decompress_gzip,
     download_priority, extract_tarball_entries, extract_zip_entries, fetch_and_extract_with_retry,
     is_transient_error, local_file_tarball_path, normalize_bundled_manifest, open_local_tarball,
-    prefetch_cas_paths, read_local_tarball_buffer,
+    prefetch_cas_paths, read_local_tarball_buffer, read_local_tarball_metadata,
 };
 use pacquet_network::{AuthHeaders, ThrottledClient, UNPRIORITIZED};
 use pacquet_reporter::SilentReporter;
@@ -1310,6 +1310,40 @@ async fn read_local_tarball_buffer_rejects_growth_past_checked_size() {
             assert_eq!(path, tarball_path);
             assert_eq!(source.kind(), ErrorKind::InvalidData);
             assert!(source.to_string().contains("changed while reading"), "got: {source}");
+        }
+        other => panic!("expected ReadLocalTarball, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn read_local_tarball_metadata_reads_integrity_and_bundled_manifest() {
+    let local_dir = tempdir().unwrap();
+    let tarball_path = local_dir.path().join("pkg.tgz");
+    std::fs::write(&tarball_path, FASTIFY_ERROR_TARBALL).unwrap();
+
+    let metadata = read_local_tarball_metadata(&tarball_path)
+        .await
+        .expect("read the local tarball's metadata");
+
+    assert_eq!(metadata.integrity.to_string(), FASTIFY_ERROR_INTEGRITY);
+    let manifest = metadata.manifest.expect("bundled manifest");
+    assert_eq!(manifest.get("name").and_then(serde_json::Value::as_str), Some("@fastify/error"));
+    assert_eq!(manifest.get("version").and_then(serde_json::Value::as_str), Some("3.3.0"));
+}
+
+/// The local resolver maps this to `ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND`,
+/// so the error kind has to survive.
+#[tokio::test]
+async fn read_local_tarball_metadata_reports_a_missing_file_as_not_found() {
+    let local_dir = tempdir().unwrap();
+    let tarball_path = local_dir.path().join("missing.tgz");
+
+    let err =
+        read_local_tarball_metadata(&tarball_path).await.expect_err("a missing tarball must fail");
+    match err {
+        TarballError::ReadLocalTarball { path, source } => {
+            assert_eq!(path, tarball_path);
+            assert_eq!(source.kind(), ErrorKind::NotFound);
         }
         other => panic!("expected ReadLocalTarball, got {other:?}"),
     }

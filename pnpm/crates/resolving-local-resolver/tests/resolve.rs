@@ -203,15 +203,12 @@ async fn resolve_directory_specified_using_the_link_protocol() {
     assert_eq!(result.normalized_bare_specifier.as_deref(), Some("link:.."));
 }
 
-/// Build a tiny tarball at `path` and return its sha512 SSRI string.
+/// Build a tarball for `pnpm-local-resolver@0.1.1` at `path` and return
+/// its sha512 SSRI string.
 fn write_tarball(path: &Path) -> String {
-    // Any bytes work — the test asserts the integrity round-trips
-    // through the resolver, not a specific pinned value.
-    let bytes: &[u8] = b"\x1f\x8b\x08\x00fake-tarball-bytes-for-test\n";
-    fs::write(path, bytes).expect("write tarball");
-    let mut opts = ssri::IntegrityOpts::new().algorithm(ssri::Algorithm::Sha512);
-    opts.input(bytes);
-    opts.result().to_string()
+    let bytes = pacquet_testing_utils::fixtures::minimal_tarball("pnpm-local-resolver", "0.1.1");
+    fs::write(path, &bytes).expect("write tarball");
+    pacquet_testing_utils::fixtures::sha512_integrity(&bytes)
 }
 
 #[tokio::test]
@@ -245,6 +242,14 @@ async fn resolve_file() {
     assert_eq!(tarball, "file:pnpm-local-resolver-0.1.1.tgz");
     assert_eq!(got_integrity.as_ref().expect("integrity").to_string(), integrity);
     assert_eq!(result.resolved_via, "local-filesystem");
+    // Without the bundled manifest the dep path stays the bare
+    // `file:<path>`, which no lockfile key parses.
+    let manifest = result.manifest.as_deref().expect("bundled manifest");
+    assert_eq!(
+        manifest.get("name").and_then(serde_json::Value::as_str),
+        Some("pnpm-local-resolver")
+    );
+    assert_eq!(manifest.get("version").and_then(serde_json::Value::as_str), Some("0.1.1"));
 }
 
 #[tokio::test]

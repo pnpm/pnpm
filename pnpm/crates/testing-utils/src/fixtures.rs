@@ -4,9 +4,16 @@ pub const BIG_LOCKFILE: &str = include_str!("fixtures/big/pnpm-lock.yaml");
 /// Returns a gzipped package tarball containing a manifest with the given identity.
 #[must_use]
 pub fn minimal_tarball(name: &str, version: &str) -> Vec<u8> {
+    tarball_with_manifest(&serde_json::json!({ "name": name, "version": version }))
+}
+
+/// Returns a gzipped package tarball whose only entry is `manifest`,
+/// written to `package/package.json`.
+#[must_use]
+pub fn tarball_with_manifest(manifest: &serde_json::Value) -> Vec<u8> {
     use std::io::Write;
 
-    let manifest = serde_json::json!({ "name": name, "version": version }).to_string();
+    let manifest = manifest.to_string();
     let manifest = manifest.as_bytes();
     let mut builder = tar::Builder::new(Vec::new());
     let mut header = tar::Header::new_gnu();

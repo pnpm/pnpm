@@ -2651,6 +2651,88 @@ async fn read_subdir_manifest(
     }
 }
 
+/// Outcome of [`read_local_tarball_metadata`]: the sha512 integrity
+/// computed from the tarball's bytes and the bundled manifest read from
+/// its root `package.json`.
+#[derive(Debug)]
+pub struct LocalTarballMetadata {
+    pub integrity: Integrity,
+    pub manifest: Option<serde_json::Value>,
+}
+
+/// Read a local tarball's sha512 integrity and bundled manifest during
+/// *resolution*.
+///
+/// A `file:` tarball dependency carries no name, version, or integrity
+/// in its specifier — those live in the archive's own `package.json` —
+/// and pacquet builds the lockfile before the install pass runs, so the
+/// local resolver has to read them here.
+///
+/// Nothing is written to the store, unlike the remote-tarball sibling
+/// [`FetchTarballForResolution`]: the install pass addresses a `file:`
+/// tarball's store-index row by its `<name>@file:<path>` dep path, not
+/// by the `<name>@<version>` a resolve-time extraction could key, so a
+/// row written here would never be read.
+pub async fn read_local_tarball_metadata(
+    path: &Path,
+) -> Result<LocalTarballMetadata, TarballError> {
+    let package_url = format!("file:{}", path.display());
+    let (file, size) = open_local_tarball(path).await?;
+    let buffer = read_local_tarball_buffer(file, path, &package_url, size).await?;
+
+    let _post_download_permit = post_download_semaphore()
+        .acquire()
+        .await
+        .expect("post-download semaphore shouldn't be closed this soon");
+    tokio::task::spawn_blocking(move || {
+        let integrity = verify_tarball_integrity(&buffer, None, package_url)?;
+        let tar_data = decompress_gzip(&buffer, None)?;
+        let manifest = read_bundled_manifest(&tar_data)?;
+        Ok(LocalTarballMetadata { integrity, manifest })
+    })
+    .await
+    .map_err(TarballError::TaskJoin)?
+}
+
+/// Read the root `package.json` out of a decompressed tar stream,
+/// narrowed by [`normalize_bundled_manifest`] so it matches the
+/// manifest an extraction stashes on [`PackageFilesIndex`].
+///
+/// Follows the same conventions as the manifest capture in
+/// [`extract_tarball_entries`]: the top-level archive component is
+/// dropped, a duplicate entry wins over earlier ones, and an unparsable
+/// `package.json` degrades to `None` rather than failing the read.
+fn read_bundled_manifest(tar_data: &[u8]) -> Result<Option<serde_json::Value>, TarballError> {
+    let mut archive = Archive::new(Cursor::new(tar_data));
+    let mut manifest = None;
+    for entry in archive.entries_with_seek().map_err(TarballError::ReadTarballEntries)? {
+        let mut entry = entry.map_err(TarballError::ReadTarballEntries)?;
+        if !entry.header().entry_type().is_file() {
+            continue;
+        }
+        let path = entry.path().map_err(TarballError::ReadTarballEntries)?;
+        let mut components = path.components().skip(1);
+        if components.next() != Some(Component::Normal("package.json".as_ref()))
+            || components.next().is_some()
+        {
+            continue;
+        }
+        let mut bytes = Vec::new();
+        entry.read_to_end(&mut bytes).map_err(TarballError::ReadTarballEntries)?;
+        manifest = match parse_manifest_bytes(&bytes) {
+            Ok(parsed) => normalize_bundled_manifest(&parsed),
+            Err(error) => {
+                tracing::debug!(
+                    ?error,
+                    "package.json in tarball failed to parse as JSON; bundled manifest cleared",
+                );
+                None
+            }
+        };
+    }
+    Ok(manifest)
+}
+
 /// `name@version` from a bundled manifest, when both fields are present.
 fn manifest_package_id(manifest: Option<&serde_json::Value>) -> Option<String> {
     let manifest = manifest?;

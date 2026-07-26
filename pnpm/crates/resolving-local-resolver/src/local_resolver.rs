@@ -1,7 +1,7 @@
 //! Free functions backing the local-filesystem resolver. They all
-//! funnel into [`resolve_spec`], which handles the tarball integrity /
-//! directory manifest reading once a [`LocalPackageSpec`] has been
-//! chosen.
+//! funnel into [`resolve_spec`], which reads the package's manifest —
+//! out of the archive for a tarball, off disk for a directory — once a
+//! [`LocalPackageSpec`] has been chosen.
 
 use std::path::PathBuf;
 
@@ -10,7 +10,7 @@ use miette::Diagnostic;
 use pacquet_lockfile::{DirectoryResolution, LockfileResolution, TarballResolution};
 use pacquet_package_manifest::{PackageManifestError, safe_read_package_json_from_dir};
 use pacquet_resolving_resolver_base::{LatestInfo, LatestQuery, PkgResolutionId, ResolveResult};
-use ssri::{Algorithm, Integrity, IntegrityOpts};
+use pacquet_tarball::{LocalTarballMetadata, TarballError, read_local_tarball_metadata};
 
 use crate::parse_bare_specifier::{
     LocalPackageSpec, LocalSpecKind, ParseOptions, PathProtocolNotSupportedError,
@@ -129,8 +129,9 @@ pub enum ResolveLocalError {
         path: String,
     },
 
-    /// Tarball integrity computation failed for a `file:` spec.
-    Integrity(#[error(source)] std::io::Error),
+    /// Reading a `file:` tarball — its bytes, its sha512 integrity, or
+    /// the `package.json` bundled inside it — failed.
+    ReadTarball(#[error(source)] TarballError),
 
     /// Reading `<spec.fetchSpec>/package.json` raised something the
     /// resolver doesn't have a specific code for (malformed JSON,
@@ -194,18 +195,19 @@ async fn resolve_spec(
         // A missing tarball file raises the same `ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND`
         // code the directory branch uses for a missing `file:` target,
         // so both kinds of missing `file:` target share one error code.
-        let integrity = match compute_tarball_integrity(&spec.fetch_spec).await {
-            Ok(integrity) => integrity,
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
-                return Err(ResolveLocalError::LinkedPkgDirNotFound {
-                    path: spec.fetch_spec.display().to_string(),
-                });
-            }
-            Err(err) => return Err(ResolveLocalError::Integrity(err)),
-        };
+        let LocalTarballMetadata { integrity, manifest } =
+            match read_local_tarball_metadata(&spec.fetch_spec).await {
+                Ok(metadata) => metadata,
+                Err(err) if is_missing_tarball(&err) => {
+                    return Err(ResolveLocalError::LinkedPkgDirNotFound {
+                        path: spec.fetch_spec.display().to_string(),
+                    });
+                }
+                Err(err) => return Err(ResolveLocalError::ReadTarball(err)),
+            };
         return Ok(Some(LocalResolveResult {
             id: spec.id.clone(),
-            manifest: None,
+            manifest: manifest.map(std::sync::Arc::new),
             normalized_bare_specifier: Some(spec.normalized_bare_specifier),
             resolution: LockfileResolution::Tarball(TarballResolution {
                 tarball: spec.id.as_str().to_string(),
@@ -325,13 +327,6 @@ fn handle_manifest_read_failure(
     ResolveLocalError::ReadManifest(err)
 }
 
-/// Compute the SSRI integrity hash for a local tarball by reading the
-/// whole file and feeding it to ssri's incremental hasher in one shot.
-/// Tarballs in the `file:` install path are typically a few MB so
-/// buffering the whole file has no measurable cost.
-async fn compute_tarball_integrity(path: &std::path::Path) -> std::io::Result<Integrity> {
-    let bytes = tokio::fs::read(path).await?;
-    let mut opts = IntegrityOpts::new().algorithm(Algorithm::Sha512);
-    opts.input(&bytes);
-    Ok(opts.result())
+fn is_missing_tarball(err: &TarballError) -> bool {
+    matches!(err, TarballError::ReadLocalTarball { source, .. } if source.kind() == std::io::ErrorKind::NotFound)
 }
