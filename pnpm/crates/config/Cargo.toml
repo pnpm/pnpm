@@ -17,6 +17,7 @@ pacquet-detect-libc            = { workspace = true }
 pacquet-env-replace            = { workspace = true }
 pacquet-network                = { workspace = true }
 pacquet-package-is-installable = { workspace = true }
+pacquet-package-manifest       = { workspace = true }
 pacquet-patching               = { workspace = true }
 pacquet-store-dir              = { workspace = true }
 pacquet-versioning             = { workspace = true }

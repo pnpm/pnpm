@@ -6,6 +6,7 @@ mod global_bin_check;
 pub mod matcher;
 pub mod naming_cases;
 mod npmrc_auth;
+mod override_version_references;
 pub mod property_path;
 pub mod protected_settings;
 mod store_path;
@@ -2544,6 +2545,16 @@ impl Config {
                 }
                 collect_explicit_settings(&mut self.explicit_settings, &settings);
                 settings.apply_to(&mut self, &base_dir);
+                // `overrides` reaches `Config` only from the workspace
+                // yaml (the global config.yaml is stripped of the key,
+                // and no `PNPM_CONFIG_*` var carries a map), so the
+                // `$dep-name` values it may hold are resolved here,
+                // against the workspace root's manifest.
+                if let Some(overrides) = self.overrides.as_mut() {
+                    crate::override_version_references::resolve_version_references(
+                        overrides, &base_dir,
+                    )?;
+                }
             }
         }
 

@@ -38,6 +38,7 @@ pub mod list;
 pub mod login;
 pub mod logout;
 pub mod outdated;
+pub(crate) mod override_version_references;
 pub mod owner;
 pub mod pack;
 pub mod pack_app;

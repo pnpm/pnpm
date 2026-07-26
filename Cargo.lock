@@ -4113,6 +4113,7 @@ dependencies = [
  "pacquet-env-replace",
  "pacquet-network",
  "pacquet-package-is-installable",
+ "pacquet-package-manifest",
  "pacquet-patching",
  "pacquet-store-dir",
  "pacquet-testing-utils",
