@@ -601,13 +601,11 @@ fn registry_dependency_can_alias_a_git_dependency_that_provides_a_peer() {
     drop((root, npmrc_info));
 }
 
-/// A workspace-root git dependency installed under an alias satisfies
-/// another importer's peer of the package's *real* name
-/// (`pnpm/pnpm#13351`). A git specifier names a repository, not a
-/// package, so that name lives only in the repo's own manifest, which
-/// the resolver reads during resolution — early enough for the hoist
-/// `resolvePeersFromWorkspaceRoot` runs, which matches a root dep by
-/// alias and by package name.
+/// A git specifier names a repository, not a package, so the name the
+/// peer is matched on lives only in the repo's own manifest — read
+/// during resolution, early enough for the hoist that
+/// `resolvePeersFromWorkspaceRoot` runs. Reported as broken in
+/// `pnpm/pnpm#13351`.
 #[test]
 fn an_aliased_git_root_dependency_provides_another_importers_peer() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
