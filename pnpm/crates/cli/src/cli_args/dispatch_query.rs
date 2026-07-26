@@ -168,10 +168,10 @@ pub(super) fn peers<'a>(ctx: &RunCtx<'a>, args: PeersArgs) -> miette::Result<Com
     let recursive = ctx.recursive;
     let dir = ctx.dir;
     Ok(Box::pin(async move {
-        if args.run(cfg, dir, recursive)? == PeersOutcome::IssuesFound {
+        if args.run(cfg, dir, recursive)? != PeersOutcome::NoIssues {
             #[expect(
                 clippy::exit,
-                reason = "`peers` exits non-zero when peer issues are found, mirroring pnpm"
+                reason = "`peers` exits non-zero when peer issues are found or the subcommand is unknown, mirroring pnpm"
             )]
             std::process::exit(1);
         }

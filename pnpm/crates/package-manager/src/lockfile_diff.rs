@@ -1,12 +1,15 @@
-//! Diff + report for `pacquet install --dry-run`.
+//! Structural diff between two lockfiles, plus the report
+//! `pacquet install --dry-run` prints.
 //!
-//! Compares the freshly-resolved lockfile against the existing on-disk one
-//! and renders a human report of what a real install would change, without
-//! writing anything. Mirrors pnpm's `install --dry-run` preview.
+//! `install --dry-run` compares the freshly-resolved lockfile against the
+//! existing on-disk one to preview what a real install would change;
+//! `dedupe --check` compares the pre- and post-deduplication lockfiles to
+//! report what deduplication would rewrite. Mirrors pnpm's
+//! `calcDedupeCheckIssues`, which serves both commands the same way.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-use pacquet_lockfile::{Lockfile, ProjectSnapshot, SnapshotEntry};
+use pacquet_lockfile::{Lockfile, PkgName, ProjectSnapshot, SnapshotDepRef, SnapshotEntry};
 
 /// What a real install would change, derived from two lockfiles.
 ///
@@ -16,31 +19,70 @@ use pacquet_lockfile::{Lockfile, ProjectSnapshot, SnapshotEntry};
 #[derive(Debug, Default)]
 pub struct LockfileDiff {
     /// Per-importer direct-dependency changes, in importer-id order.
-    pub importers: Vec<ImporterDiff>,
+    pub importers: Vec<SnapshotDiff>,
     /// `snapshots:` keys present in the new lockfile but not the old.
     pub added_packages: Vec<String>,
     /// `snapshots:` keys present in the old lockfile but not the new.
     pub removed_packages: Vec<String>,
-    /// `snapshots:` keys present in both whose dependency wiring changed.
-    pub updated_packages: Vec<String>,
+    /// `snapshots:` entries present in both whose dependency wiring changed.
+    pub updated_packages: Vec<SnapshotDiff>,
 }
 
-/// Direct-dependency changes for a single importer, keyed by manifest
-/// specifier.
+/// Dependency changes within a single snapshot — an importer's direct
+/// dependencies or one `snapshots:` entry's dependency wiring.
 #[derive(Debug)]
-pub struct ImporterDiff {
+pub struct SnapshotDiff {
+    /// The importer id or `snapshots:` key these changes belong to.
     pub id: String,
-    /// `(alias, specifier)` pairs newly added.
+    /// `(alias, value)` pairs newly added.
     pub added: Vec<(String, String)>,
-    /// `(alias, specifier)` pairs removed.
+    /// `(alias, value)` pairs removed.
     pub removed: Vec<(String, String)>,
-    /// `(alias, old_specifier, new_specifier)` pairs whose specifier changed.
+    /// `(alias, old_value, new_value)` pairs whose value changed.
     pub updated: Vec<(String, String, String)>,
 }
 
-impl ImporterDiff {
-    fn is_empty(&self) -> bool {
+/// Which value an importer's direct dependencies are compared by.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ImporterDiffKey {
+    /// The manifest specifier. A real install rewrites the lockfile
+    /// whenever a specifier changes — even when it still resolves to the
+    /// same version — so `install --dry-run` previews by specifier.
+    Specifier,
+    /// The resolved version. Deduplication rewrites peer-resolved
+    /// versions while the specifiers stay put, so `dedupe --check`
+    /// compares by version, like pnpm's, which diffs the importers'
+    /// resolved-dependency fields and leaves their specifiers out.
+    Version,
+}
+
+impl SnapshotDiff {
+    fn new(id: String) -> Self {
+        SnapshotDiff { id, added: Vec::new(), removed: Vec::new(), updated: Vec::new() }
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
         self.added.is_empty() && self.removed.is_empty() && self.updated.is_empty()
+    }
+
+    /// Record the per-alias differences between two `alias -> value` maps.
+    /// Mirrors pnpm's `getResolutionUpdates`.
+    fn extend(&mut self, old: &BTreeMap<String, String>, new: &BTreeMap<String, String>) {
+        for (alias, new_value) in new {
+            match old.get(alias) {
+                None => self.added.push((alias.clone(), new_value.clone())),
+                Some(old_value) if old_value != new_value => {
+                    self.updated.push((alias.clone(), old_value.clone(), new_value.clone()));
+                }
+                Some(_) => {}
+            }
+        }
+        for (alias, old_value) in old {
+            if !new.contains_key(alias) {
+                self.removed.push((alias.clone(), old_value.clone()));
+            }
+        }
     }
 }
 
@@ -58,7 +100,11 @@ impl LockfileDiff {
 /// (`new`). A `None` `new` yields an empty diff — there is nothing a real
 /// install would produce to compare against.
 #[must_use]
-pub fn diff_lockfiles(old: Option<&Lockfile>, new: Option<&Lockfile>) -> LockfileDiff {
+pub fn diff_lockfiles(
+    old: Option<&Lockfile>,
+    new: Option<&Lockfile>,
+    importer_key: ImporterDiffKey,
+) -> LockfileDiff {
     let Some(new) = new else {
         return LockfileDiff::default();
     };
@@ -74,6 +120,7 @@ pub fn diff_lockfiles(old: Option<&Lockfile>, new: Option<&Lockfile>) -> Lockfil
             id,
             old.and_then(|lockfile| lockfile.importers.get(id)),
             new.importers.get(id),
+            importer_key,
         );
         if !importer_diff.is_empty() {
             diff.importers.push(importer_diff);
@@ -96,10 +143,12 @@ fn diff_snapshots(old: Option<&Lockfile>, new: Option<&Lockfile>, diff: &mut Loc
     for (key, new_entry) in new_snapshots.into_iter().flatten() {
         match old_snapshots.and_then(|snapshots| snapshots.get(key)) {
             None => diff.added_packages.push(key.to_string()),
-            Some(old_entry) if snapshot_wiring_differs(old_entry, new_entry) => {
-                diff.updated_packages.push(key.to_string());
+            Some(old_entry) => {
+                let entry_diff = diff_snapshot_entry(key.to_string(), old_entry, new_entry);
+                if !entry_diff.is_empty() {
+                    diff.updated_packages.push(entry_diff);
+                }
             }
-            Some(_) => {}
         }
     }
     for key in old_snapshots.into_iter().flatten().map(|(key, _)| key) {
@@ -110,55 +159,50 @@ fn diff_snapshots(old: Option<&Lockfile>, new: Option<&Lockfile>, diff: &mut Loc
 
     diff.added_packages.sort();
     diff.removed_packages.sort();
-    diff.updated_packages.sort();
+    diff.updated_packages.sort_by(|left, right| left.id.cmp(&right.id));
 }
 
-/// Whether a real install would rewrite this snapshot's dependency wiring.
-/// Compares only `dependencies` / `optionalDependencies`, matching pnpm's
-/// `PACKAGE_SNAPSHOT_DEP_FIELDS`.
-fn snapshot_wiring_differs(old: &SnapshotEntry, new: &SnapshotEntry) -> bool {
-    old.dependencies != new.dependencies || old.optional_dependencies != new.optional_dependencies
+/// Diff one `snapshots:` entry's dependency wiring, over `dependencies` /
+/// `optionalDependencies` only — pnpm's `PACKAGE_SNAPSHOT_DEP_FIELDS`.
+fn diff_snapshot_entry(key: String, old: &SnapshotEntry, new: &SnapshotEntry) -> SnapshotDiff {
+    let mut diff = SnapshotDiff::new(key);
+    diff.extend(&dep_refs(old.dependencies.as_ref()), &dep_refs(new.dependencies.as_ref()));
+    diff.extend(
+        &dep_refs(old.optional_dependencies.as_ref()),
+        &dep_refs(new.optional_dependencies.as_ref()),
+    );
+    diff
+}
+
+/// One dependency group of a `snapshots:` entry as an
+/// `alias -> resolved reference` map.
+fn dep_refs(deps: Option<&HashMap<PkgName, SnapshotDepRef>>) -> BTreeMap<String, String> {
+    deps.into_iter()
+        .flatten()
+        .map(|(name, dep_ref)| (name.to_string(), dep_ref.to_string()))
+        .collect()
 }
 
 fn diff_importer(
     id: &str,
     old: Option<&ProjectSnapshot>,
     new: Option<&ProjectSnapshot>,
-) -> ImporterDiff {
-    let mut added = Vec::new();
-    let mut removed = Vec::new();
-    let mut updated = Vec::new();
-
-    // The diff key is each direct dependency's manifest `specifier`, not its
-    // resolved version: a real install rewrites the lockfile whenever a
-    // specifier changes (even if it still resolves to the same version), and
-    // for a direct dependency the resolved version only changes when the
-    // specifier does — so the specifier captures every importer-level change.
+    key: ImporterDiffKey,
+) -> SnapshotDiff {
+    let mut diff = SnapshotDiff::new(id.to_string());
     for group in 0..3 {
-        let old_deps = group_specifiers(old, group);
-        let new_deps = group_specifiers(new, group);
-        for (alias, new_specifier) in &new_deps {
-            match old_deps.get(alias) {
-                None => added.push((alias.clone(), new_specifier.clone())),
-                Some(old_specifier) if old_specifier != new_specifier => {
-                    updated.push((alias.clone(), old_specifier.clone(), new_specifier.clone()));
-                }
-                Some(_) => {}
-            }
-        }
-        for (alias, old_specifier) in &old_deps {
-            if !new_deps.contains_key(alias) {
-                removed.push((alias.clone(), old_specifier.clone()));
-            }
-        }
+        diff.extend(&group_deps(old, group, key), &group_deps(new, group, key));
     }
-
-    ImporterDiff { id: id.to_string(), added, removed, updated }
+    diff
 }
 
-/// The `alias -> specifier` map for one dependency group of an importer
-/// (0 = prod, 1 = dev, 2 = optional).
-fn group_specifiers(snapshot: Option<&ProjectSnapshot>, group: usize) -> BTreeMap<String, String> {
+/// The `alias -> specifier` (or `alias -> version`) map for one dependency
+/// group of an importer (0 = prod, 1 = dev, 2 = optional).
+fn group_deps(
+    snapshot: Option<&ProjectSnapshot>,
+    group: usize,
+    key: ImporterDiffKey,
+) -> BTreeMap<String, String> {
     let mut map = BTreeMap::new();
     let Some(snapshot) = snapshot else {
         return map;
@@ -170,7 +214,11 @@ fn group_specifiers(snapshot: Option<&ProjectSnapshot>, group: usize) -> BTreeMa
     };
     if let Some(deps) = deps {
         for (name, spec) in deps {
-            map.insert(name.to_string(), spec.specifier.clone());
+            let value = match key {
+                ImporterDiffKey::Specifier => spec.specifier.clone(),
+                ImporterDiffKey::Version => spec.version.to_string(),
+            };
+            map.insert(name.to_string(), value);
         }
     }
     map
@@ -219,8 +267,8 @@ pub fn render_dry_run_report(diff: &LockfileDiff) -> String {
         for key in &diff.removed_packages {
             lines.push(format!("- {key}"));
         }
-        for key in &diff.updated_packages {
-            lines.push(format!("~ {key}"));
+        for package in &diff.updated_packages {
+            lines.push(format!("~ {}", package.id));
         }
     }
 

@@ -3,12 +3,26 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::State;
+use crate::{
+    State,
+    cli_args::{
+        deps_tree::render::{
+            TreeNode, blue_bright_underline, gray, green, plain, red, render_archy,
+        },
+        peers::peer_issues_warrant_warning,
+        recursive::discover_workspace_projects,
+    },
+};
 use clap::Args;
-use miette::{Context, IntoDiagnostic};
-use pacquet_package_manager::{Install, ProjectMutation};
+use derive_more::{Display, Error};
+use miette::{Context, Diagnostic, IntoDiagnostic};
+use pacquet_config::Config;
+use pacquet_lockfile::Lockfile;
+use pacquet_package_manager::{
+    ImporterDiffKey, Install, LockfileDiff, ProjectMutation, SnapshotDiff, diff_lockfiles,
+};
 use pacquet_package_manifest::DependencyGroup;
-use pacquet_reporter::Reporter;
+use pacquet_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
 use tempfile::NamedTempFile;
 
 #[derive(Debug, Args)]
@@ -73,6 +87,8 @@ impl DedupeArgs {
         .await
         .wrap_err("deduplicating dependencies")?;
 
+        warn_on_peer_issues::<Reporter>(config, lockfile_path)?;
+
         if self.check {
             let mut guard = guard.unwrap();
             let current = read_lockfile_snapshot(lockfile_path)?;
@@ -80,12 +96,131 @@ impl DedupeArgs {
                 guard.disarm();
                 Ok(())
             } else {
-                Err(miette::miette!("Lockfile would be modified by deduplication"))
+                let report = render_dedupe_check_issues(&diff_lockfiles(
+                    parse_snapshot(existing.as_deref(), lockfile_path).as_ref(),
+                    parse_snapshot(current.as_deref(), lockfile_path).as_ref(),
+                    ImporterDiffKey::Version,
+                ));
+                eprintln!("{report}");
+                Err(DedupeError::CheckIssues.into())
             }
         } else {
             Ok(())
         }
     }
+}
+
+#[derive(Debug, Display, Error, Diagnostic)]
+enum DedupeError {
+    #[display("Dedupe --check found changes to the lockfile")]
+    #[diagnostic(
+        code(ERR_PNPM_DEDUPE_CHECK_ISSUES),
+        help("Run `pnpm dedupe` to apply the changes above.")
+    )]
+    CheckIssues,
+}
+
+/// Point the user at `pnpm peers check` when the deduplicated lockfile has
+/// peer-dependency issues, mirroring the warning pnpm's install emits.
+fn warn_on_peer_issues<Reporter: self::Reporter>(
+    config: &Config,
+    lockfile_path: &Path,
+) -> miette::Result<()> {
+    let lockfile_dir = lockfile_path.parent().unwrap_or_else(|| Path::new("."));
+    let Some(lockfile) =
+        Lockfile::load_wanted_from_dir(lockfile_dir).into_diagnostic().wrap_err("load lockfile")?
+    else {
+        return Ok(());
+    };
+    let workspace_root = config.workspace_dir.as_deref().unwrap_or(lockfile_dir);
+    let (projects, _) = discover_workspace_projects(workspace_root)?;
+    let project_dirs: Vec<PathBuf> = projects.into_iter().map(|project| project.root_dir).collect();
+    if peer_issues_warrant_warning(
+        &lockfile,
+        lockfile_dir,
+        &project_dirs,
+        &config.peer_dependency_rules,
+    ) {
+        Reporter::emit(&LogEvent::Global(GlobalLog {
+            level: LogLevel::Warn,
+            message: r#"Issues with peer dependencies found. Run "pnpm peers check" to list them."#
+                .to_string(),
+        }));
+    }
+    Ok(())
+}
+
+/// Parse one side of the `--check` diff. A snapshot that does not parse —
+/// an older lockfile format the dedupe install has just rewritten, say —
+/// yields no baseline rather than replacing the check's verdict with a
+/// parse error: the run already knows the lockfile would change, and only
+/// the detail of the report is lost.
+fn parse_snapshot(content: Option<&str>, lockfile_path: &Path) -> Option<Lockfile> {
+    content.and_then(|content| Lockfile::parse(content, lockfile_path).ok().flatten())
+}
+
+/// Render what `pnpm dedupe` would rewrite, mirroring pnpm's
+/// `renderDedupeCheckIssues`: one tree per changed importer or package
+/// snapshot, plus the snapshots deduplication would add or drop.
+///
+/// The lockfile can also be rewritten without any resolution changing —
+/// recorded settings drift, a config dependency the run synced — so an
+/// empty diff still says why the check failed.
+fn render_dedupe_check_issues(diff: &LockfileDiff) -> String {
+    if diff.is_empty() {
+        return "The lockfile would be rewritten, but no dependency resolution would change."
+            .to_string();
+    }
+    [
+        render_section("Importers", &diff.importers, &[], &[]),
+        render_section(
+            "Packages",
+            &diff.updated_packages,
+            &diff.added_packages,
+            &diff.removed_packages,
+        ),
+    ]
+    .into_iter()
+    .flatten()
+    .collect::<Vec<_>>()
+    .join("\n")
+}
+
+fn render_section(
+    title: &str,
+    updated: &[SnapshotDiff],
+    added: &[String],
+    removed: &[String],
+) -> Option<String> {
+    let mut lines: Vec<String> = updated.iter().map(render_snapshot_diff).collect();
+    lines.extend(added.iter().map(|id| format!("{} {}", green("+"), plain(id))));
+    lines.extend(removed.iter().map(|id| format!("{} {}", red("-"), plain(id))));
+    if lines.is_empty() {
+        return None;
+    }
+    Some(format!("{}\n{}\n", blue_bright_underline(title), lines.join("\n")))
+}
+
+fn render_snapshot_diff(diff: &SnapshotDiff) -> String {
+    let added = diff
+        .added
+        .iter()
+        .map(|(alias, next)| format!("{} {} {}", green("+"), plain(alias), gray(next)));
+    let removed = diff
+        .removed
+        .iter()
+        .map(|(alias, prev)| format!("{} {} {}", red("-"), plain(alias), gray(prev)));
+    let updated = diff.updated.iter().map(|(alias, prev, next)| {
+        format!("{} {} {} {}", plain(alias), red(prev), gray("→"), green(next))
+    });
+    let nodes = added
+        .chain(removed)
+        .chain(updated)
+        .map(|label| TreeNode::with_children(label, Vec::new()))
+        .collect();
+    render_archy(&TreeNode::with_children(plain(&diff.id), nodes))
+        .trim_end_matches('\n')
+        .to_string()
 }
 
 /// Atomically write `content` to `path` via temp-file + rename, so the write

@@ -74,3 +74,40 @@ fn recursive_peers_uses_the_active_dedicated_lockfile() {
 
     drop(root);
 }
+
+/// `pnpm peers check` is the documented spelling — pnpm's own dedupe output
+/// tells users to run it — so it must behave like the bare command.
+#[test]
+fn peers_accepts_the_check_subcommand() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), r#"{ "name": "root", "version": "1.0.0" }"#)
+        .expect("write root manifest");
+    fs::write(workspace.join("pnpm-lock.yaml"), "lockfileVersion: '9.0'\nimporters:\n  .: {}\n")
+        .expect("write lockfile");
+
+    let bare = run_peers(&workspace, &["peers", "--lockfile-only", "--json"]);
+    let checked = run_peers(&workspace, &["peers", "check", "--lockfile-only", "--json"]);
+    assert_eq!(bare, checked);
+
+    drop(root);
+}
+
+#[test]
+fn peers_rejects_an_unknown_subcommand() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), r#"{ "name": "root", "version": "1.0.0" }"#)
+        .expect("write root manifest");
+
+    let output = Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .with_args(["peers", "list"])
+        .output()
+        .expect("run pnpm peers list");
+
+    assert_eq!(output.status.code(), Some(1), "an unknown subcommand must exit 1: {output:?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
+    assert!(stdout.contains("Usage: pnpm peers"), "the help must be printed; got:\n{stdout}");
+
+    drop(root);
+}
