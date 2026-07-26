@@ -1,6 +1,6 @@
 use super::{
-    EnvOptions, VERIFY_DEPS_BEFORE_RUN_ENV, build_env, escape_newlines, is_stamping_key,
-    sanitize_env_key, stamp_package,
+    DEV_PREINSTALL_ALREADY_RAN_ENV, EnvOptions, VERIFY_DEPS_BEFORE_RUN_ENV, build_env,
+    escape_newlines, is_dev_preinstall_marker, is_stamping_key, sanitize_env_key, stamp_package,
 };
 use pretty_assertions::assert_eq;
 use serde_json::json;
@@ -291,6 +291,41 @@ fn is_stamping_key_is_case_sensitive_on_posix() {
     assert!(is_stamping_key("INIT_CWD", false));
     assert!(is_stamping_key("PNPM_SCRIPT_SRC_DIR", false));
     assert!(!is_stamping_key("PNPM_HOME", false));
+    assert!(is_stamping_key(DEV_PREINSTALL_ALREADY_RAN_ENV, false));
+    assert!(!is_stamping_key(&DEV_PREINSTALL_ALREADY_RAN_ENV.to_lowercase(), false));
+    assert!(is_stamping_key(&DEV_PREINSTALL_ALREADY_RAN_ENV.to_lowercase(), true));
+}
+
+/// The marker describes the install currently running. Leaving it in a
+/// script's env would make a nested install started by that script
+/// treat its own root hook as already run.
+#[test]
+fn the_dev_preinstall_delegation_marker_never_reaches_a_script() {
+    let mut parent = HashMap::new();
+    parent.insert(DEV_PREINSTALL_ALREADY_RAN_ENV.into(), "true".into());
+
+    let pkg_root = Path::new("/tmp/nested");
+    // Whichever way the value arrives: inherited above, or named by a
+    // user's `extraEnv`, which is merged in after the parent-env filter.
+    let mut extra = empty_extra();
+    extra.insert(DEV_PREINSTALL_ALREADY_RAN_ENV.into(), "true".into());
+    let built = build_env(
+        &base_opts(pkg_root, pkg_root, &extra),
+        &json!({ "name": "nested", "version": "1.0.0" }),
+        parent,
+    );
+
+    assert_eq!(built.env.get(DEV_PREINSTALL_ALREADY_RAN_ENV), None);
+}
+
+/// On Windows a differently-cased spelling is the same variable, so an
+/// `extraEnv` naming it that way must be dropped too.
+#[test]
+fn a_differently_cased_delegation_marker_is_dropped_on_windows() {
+    assert!(is_dev_preinstall_marker(DEV_PREINSTALL_ALREADY_RAN_ENV, false));
+    assert!(!is_dev_preinstall_marker(&DEV_PREINSTALL_ALREADY_RAN_ENV.to_lowercase(), false));
+    assert!(is_dev_preinstall_marker(&DEV_PREINSTALL_ALREADY_RAN_ENV.to_lowercase(), true));
+    assert!(!is_dev_preinstall_marker("PNPM_INTERNAL_SOMETHING_ELSE", true));
 }
 
 /// Regression: the byte-level prefix check inside the Windows

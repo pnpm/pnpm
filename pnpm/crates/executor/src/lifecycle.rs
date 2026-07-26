@@ -123,6 +123,28 @@ const DEPENDENCY_LIFECYCLE_STAGES: [&str; 3] = ["preinstall", "install", "postin
 pub const PROJECT_LIFECYCLE_STAGES: [&str; 6] =
     ["preinstall", "install", "postinstall", "preprepare", "prepare", "postprepare"];
 
+/// The pnpm-specific hook the root project may define to prepare state
+/// the install itself depends on. It runs before resolution, so unlike
+/// [`PROJECT_LIFECYCLE_STAGES`] it cannot rely on `node_modules`.
+pub const DEV_PREINSTALL_STAGE: &str = "pnpm:devPreinstall";
+
+/// Set by the TypeScript CLI when it delegates a *resolving* install to
+/// pacquet, to say it already ran the root project's
+/// [`DEV_PREINSTALL_STAGE`] script itself. That path passes no flags of
+/// its own — a frozen delegation is distinguishable by its
+/// `--ignore-manifest-check` — so without this marker the hook would run
+/// once on each side of the handover.
+///
+/// A private handshake between the two stacks for the lifetime of one
+/// delegated install, which is why it sits outside the user-facing
+/// `PNPM_CONFIG_*` namespace and why [`build_env`] drops it from every
+/// script environment it builds: it describes the install currently
+/// running, not any install a script of that install may start.
+/// Its counterpart lives in the TypeScript CLI's `runPacquet.ts`.
+///
+/// [`build_env`]: crate::build_env
+pub const DEV_PREINSTALL_ALREADY_RAN_ENV: &str = "PNPM_INTERNAL_DEV_PREINSTALL_ALREADY_RAN";
+
 /// Run the preinstall, install, and postinstall lifecycle scripts for
 /// a single dependency.
 ///
@@ -148,9 +170,18 @@ pub fn run_project_lifecycle_scripts<Reporter: self::Reporter>(
     run_lifecycle_stages::<Reporter>(opts, &PROJECT_LIFECYCLE_STAGES)
 }
 
+/// Run the root project's [`DEV_PREINSTALL_STAGE`] script, if it has one.
+///
+/// Returns `true` when the script was present and executed.
+pub fn run_dev_preinstall_hook<Reporter: self::Reporter>(
+    opts: &RunPostinstallHooks<'_>,
+) -> Result<bool, LifecycleScriptError> {
+    run_lifecycle_stages::<Reporter>(opts, &[DEV_PREINSTALL_STAGE])
+}
+
 /// Read the manifest at `opts.pkg_root` and run each of `stages` whose
-/// script is present, in order. Shared by [`run_postinstall_hooks`]
-/// and [`run_project_lifecycle_scripts`].
+/// script is present, in order. Shared by [`run_postinstall_hooks`],
+/// [`run_project_lifecycle_scripts`], and [`run_dev_preinstall_hook`].
 ///
 /// The `install` stage falls back to `node-gyp rebuild` when neither
 /// `install` nor `preinstall` is defined and a `binding.gyp` exists.
