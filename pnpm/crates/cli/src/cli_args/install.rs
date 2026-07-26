@@ -1,8 +1,9 @@
 use crate::{
     State,
     cli_args::{
-        legacy_pnpm_field::warn_ignored_pnpm_manifest_fields_in, pipelines::InstallFamilySelection,
-        recursive::discover_workspace_projects,
+        legacy_pnpm_field::warn_ignored_pnpm_manifest_fields_in,
+        override_version_references::warn_deprecated_override_version_references,
+        pipelines::InstallFamilySelection, recursive::discover_workspace_projects,
         supported_architectures::SupportedArchitecturesArgs,
     },
 };
@@ -350,6 +351,7 @@ impl InstallArgs {
         // to the full install path, which warns from
         // `derive_config_root_and_package_manager_to_sync`.
         warn_ignored_pnpm_manifest_fields_in(&config_root, emit);
+        warn_deprecated_override_version_references(config, emit);
         // The scope covers the same projects the full install path would
         // report; an up-to-date run says so too rather than going quiet
         // about what it just decided was current.

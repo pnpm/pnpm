@@ -748,6 +748,21 @@ pub enum LoadWorkspaceYamlError {
         )
     )]
     TokenHelperUnsupportedCharacter { character: char },
+    /// The root manifest a `$dep-name` self-reference in `overrides`
+    /// resolves against exists but could not be read or parsed.
+    /// Boxed so the returned `Result` stays small.
+    #[display("Failed to read the root package.json: {source}")]
+    ReadRootManifest {
+        #[error(source)]
+        source: Box<pacquet_package_manifest::PackageManifestError>,
+    },
+    /// An `overrides` value used the `$dep-name` self-reference syntax,
+    /// but the root manifest declares no such direct dependency.
+    #[display(
+        r#"Cannot resolve version {spec} in overrides. The direct dependencies don't have dependency "{dependency_name}"."#
+    )]
+    #[diagnostic(code(ERR_PNPM_CANNOT_RESOLVE_OVERRIDE_VERSION))]
+    CannotResolveOverrideVersion { spec: String, dependency_name: String },
 }
 
 impl WorkspaceSettings {
@@ -1171,9 +1186,10 @@ impl WorkspaceSettings {
         if let Some(v) = self.ignored_optional_dependencies {
             config.ignored_optional_dependencies = Some(v);
         }
-        // `$dep-name` self-reference resolution happens elsewhere (the
-        // resolver chain), since it needs the workspace's root manifest
-        // and that isn't in scope here.
+        // `$dep-name` self-references are resolved by
+        // [`crate::override_version_references::resolve_version_references`]
+        // once the cascade knows the workspace root, whose manifest
+        // carries the direct dependencies they point at.
         if let Some(v) = self.overrides {
             config.overrides = (!v.is_empty()).then_some(v);
         }
