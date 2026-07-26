@@ -1187,9 +1187,7 @@ async fn catalog_misconfiguration_surfaces_pnpm_error_code() {
                 "No catalog entry 'foo' was found for catalog 'default'.",
             );
         }
-        other @ ResolveImporterError::Resolve(_) => {
-            panic!("expected CatalogMisconfiguration, got {other:?}")
-        }
+        other => panic!("expected CatalogMisconfiguration, got {other:?}"),
     }
 }
 

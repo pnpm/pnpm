@@ -39,15 +39,19 @@ use crate::{
 use chrono::{DateTime, Utc};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use node_semver::Range;
+use node_semver::{Range, Version};
 use pacquet_catalogs_types::Catalogs;
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
+use pacquet_package_manifest::{
+    DependencyGroup, PackageManifest, PackageManifestError, safe_read_package_json_from_dir,
+};
 use pacquet_patching::PatchGroupRecord;
 use pacquet_resolving_resolver_base::{
     PreferredVersions, ResolveOptions, Resolver, VersionSelectorEntry, VersionSelectorType,
 };
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
+    io,
+    path::Path,
     sync::Arc,
 };
 
@@ -212,11 +216,22 @@ pub struct ResolveImporterResult {
 pub enum ResolveImporterError {
     #[display("{_0}")]
     Resolve(#[error(source)] ResolveDependencyTreeError),
+
+    /// Reading the manifest of a workspace-root `link:` / `file:`
+    /// dependency, whose version stands in for the peer it may satisfy.
+    #[display("{_0}")]
+    RootDepManifest(#[error(source)] PackageManifestError),
 }
 
 impl From<ResolveDependencyTreeError> for ResolveImporterError {
     fn from(err: ResolveDependencyTreeError) -> Self {
         ResolveImporterError::Resolve(err)
+    }
+}
+
+impl From<PackageManifestError> for ResolveImporterError {
+    fn from(err: PackageManifestError) -> Self {
+        ResolveImporterError::RootDepManifest(err)
     }
 }
 
@@ -281,7 +296,7 @@ where
     )
     .await?;
     // Single importer, so it *is* the workspace root.
-    let root_deps = Arc::new(state.hoistable_root_deps());
+    let root_deps = Arc::new(state.hoistable_root_deps()?);
     state.set_workspace_root_deps(root_deps);
     loop {
         state.run_required_round(resolver).await?;
@@ -444,12 +459,16 @@ impl ImporterHoistState {
         &self.importer_id
     }
 
-    pub(crate) fn hoistable_root_deps(&self) -> Vec<WorkspaceRootDep> {
+    pub(crate) fn hoistable_root_deps(
+        &self,
+    ) -> Result<Vec<WorkspaceRootDep>, ResolveImporterError> {
         build_workspace_root_deps(
             &self.direct,
             &self.ctx.snapshot(self.direct.clone()),
             &self.wanted_specifier_by_alias,
+            &self.project_dir,
         )
+        .map_err(ResolveImporterError::from)
     }
 
     pub(crate) fn set_workspace_root_deps(&mut self, deps: Arc<Vec<WorkspaceRootDep>>) {
@@ -778,18 +797,67 @@ fn intersect_ranges(ranges: &[&str]) -> Option<String> {
     .map(|range| range.to_string())
 }
 
-/// The one gate every candidate specifier passes through, whatever its
-/// source. See [`is_project_relative_specifier`].
-fn cross_importer_specifier(spec: Option<String>) -> Option<String> {
-    spec.filter(|spec| !is_project_relative_specifier(spec))
+/// `link:` / `file:` and the path form of `workspace:` name a directory
+/// relative to the project that declares them, so the root's specifier
+/// can't be hoisted verbatim — it would reach a different path from the
+/// importer the peer is hoisted into, or nothing. A `workspace:` range is
+/// not path-relative: it selects the same workspace package from every
+/// importer, so it needs none of this.
+fn is_project_relative_specifier(spec: &str) -> bool {
+    spec.starts_with("link:") || spec.starts_with("file:") || spec.starts_with("workspace:.")
 }
 
-/// `link:` / `file:` / `workspace:` resolve against the consuming
-/// project's directory, so the root's copy of one can't stand in for
-/// another importer's peer — the same specifier would reach a different
-/// path there, or nothing. Same set `project_relative_cache_scope` uses.
-fn is_project_relative_specifier(spec: &str) -> bool {
-    spec.starts_with("link:") || spec.starts_with("file:") || spec.starts_with("workspace:")
+/// The name and version of the package a project-relative specifier points
+/// at, or `None` when there is none to read. Its version is what stands in
+/// for the path in [`build_workspace_root_deps`], so the root keeps the
+/// authority over the peer that a registry dependency has and the peer
+/// resolves to the same package from every importer. The manifest is read
+/// from disk rather than taken from the resolved tree, which a linked
+/// dependency reused from the lockfile is absent from — reading it makes a
+/// repeat install hoist what a fresh install of the same manifest hoists.
+fn local_target_identity(
+    spec: &str,
+    project_dir: &Path,
+) -> Result<Option<LocalTargetIdentity>, PackageManifestError> {
+    let path_without_protocol = spec.split_once(':').map_or(spec, |(_, path)| path);
+    let Some(manifest) = read_manifest_of_local_target(&project_dir.join(path_without_protocol))?
+    else {
+        return Ok(None);
+    };
+    let Some(version) = manifest.get("version").and_then(serde_json::Value::as_str) else {
+        return Ok(None);
+    };
+    if version.parse::<Version>().is_err() {
+        return Ok(None);
+    }
+    Ok(Some(LocalTargetIdentity {
+        name: manifest.get("name").and_then(serde_json::Value::as_str).map(str::to_string),
+        version: version.to_string(),
+    }))
+}
+
+/// What a project-relative root dep is pinned to. See
+/// [`local_target_identity`].
+struct LocalTargetIdentity {
+    /// `None` when the manifest carries no name, leaving the dep under the
+    /// name it was already listed by.
+    name: Option<String>,
+    version: String,
+}
+
+/// [`safe_read_package_json_from_dir`] maps only a missing file to
+/// `Ok(None)`; a `file:` target is a tarball as often as a directory, and
+/// a path component of a tarball is not a directory to read a manifest
+/// from.
+fn read_manifest_of_local_target(
+    dir: &Path,
+) -> Result<Option<serde_json::Value>, PackageManifestError> {
+    match safe_read_package_json_from_dir(dir) {
+        Err(PackageManifestError::Io(err)) if err.kind() == io::ErrorKind::NotADirectory => {
+            Ok(None)
+        }
+        result => result,
+    }
 }
 
 /// `name_ver`, else the manifest — the canonical name for the protocols
@@ -813,7 +881,8 @@ fn build_workspace_root_deps(
     direct: &[DirectDep],
     snapshot: &ResolvedTree,
     declared: &BTreeMap<String, String>,
-) -> Vec<WorkspaceRootDep> {
+    project_dir: &Path,
+) -> Result<Vec<WorkspaceRootDep>, PackageManifestError> {
     let mut out = Vec::with_capacity(direct.len());
     let mut named = HashSet::new();
     for dep in direct {
@@ -823,18 +892,15 @@ fn build_workspace_root_deps(
         out.push(WorkspaceRootDep {
             alias: dep.alias.clone(),
             pkg_name,
-            normalized_bare_specifier: cross_importer_specifier(
-                pkg.result
-                    .normalized_bare_specifier
-                    .clone()
-                    .or_else(|| declared.get(&dep.alias).cloned()),
-            ),
+            normalized_bare_specifier: pkg
+                .result
+                .normalized_bare_specifier
+                .clone()
+                .or_else(|| declared.get(&dep.alias).cloned()),
         });
     }
     for (alias, bare_specifier) in declared {
-        if named.contains(alias.as_str())
-            || cross_importer_specifier(Some(bare_specifier.clone())).is_none()
-        {
+        if named.contains(alias.as_str()) {
             continue;
         }
         let (pkg_name, _) = unwrap_package_name(alias, bare_specifier);
@@ -844,7 +910,24 @@ fn build_workspace_root_deps(
             normalized_bare_specifier: Some(bare_specifier.clone()),
         });
     }
-    out
+    for dep in &mut out {
+        // Cloned so the identity can be written back onto `dep`; only the
+        // handful of root deps declared with a local protocol reach here.
+        let Some(spec) = dep.normalized_bare_specifier.clone() else { continue };
+        if !is_project_relative_specifier(&spec) {
+            continue;
+        }
+        // A path is never hoistable, so a target that names no version to
+        // stand in for it leaves the root offering no candidate at all.
+        dep.normalized_bare_specifier = None;
+        if let Some(identity) = local_target_identity(&spec, project_dir)? {
+            if let Some(name) = identity.name {
+                dep.pkg_name = name;
+            }
+            dep.normalized_bare_specifier = Some(identity.version);
+        }
+    }
+    Ok(out)
 }
 
 /// Add every newly-resolved `name@version` from `ctx` to

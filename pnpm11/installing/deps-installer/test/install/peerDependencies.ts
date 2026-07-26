@@ -480,6 +480,155 @@ describe('peer dependency is resolved from the root of the workspace even if the
       expect(lockfile.importers.pkg?.dependencies?.['ajv-keywords'].version).toBe('1.5.0(ajv@4.10.0)')
     }
   })
+  test('the package in the root is linked with the link: protocol', async () => {
+    fs.mkdirSync('ajv-local')
+    fs.writeFileSync('ajv-local/package.json', JSON.stringify({ name: 'ajv', version: '4.10.0' }))
+    const allProjects: ProjectOptions[] = [
+      {
+        buildIndex: 0,
+        manifest: {
+          name: 'root',
+          version: '1.0.0',
+
+          dependencies: {
+            ajv: 'link:ajv-local',
+          },
+        },
+        rootDir: process.cwd() as ProjectRootDir,
+      },
+      ...nonRootProjects,
+    ]
+    await mutateModules(mutatedProjects, testDefaults({ allProjects, resolvePeersFromWorkspaceRoot: true }))
+
+    const lockfile = projects.root.readLockfile()
+    // The linked package's own version, not the newer one pkg2 brought, and not
+    // the root's path — which would reach pkg/ajv-local, a directory that does
+    // not exist.
+    expect(lockfile.importers.pkg?.dependencies?.['ajv-keywords'].version).toBe('1.5.0(ajv@4.10.0)')
+  })
+  test('the package in the root is linked to a directory whose manifest has no version', async () => {
+    fs.mkdirSync('ajv-local')
+    fs.writeFileSync('ajv-local/package.json', JSON.stringify({ name: 'ajv' }))
+    const allProjects: ProjectOptions[] = [
+      {
+        buildIndex: 0,
+        manifest: {
+          name: 'root',
+          version: '1.0.0',
+
+          dependencies: {
+            ajv: 'link:ajv-local',
+          },
+        },
+        rootDir: process.cwd() as ProjectRootDir,
+      },
+      ...nonRootProjects,
+    ]
+    await mutateModules(mutatedProjects, testDefaults({ allProjects, resolvePeersFromWorkspaceRoot: true }))
+
+    const lockfile = projects.root.readLockfile()
+    expect(lockfile.importers.pkg?.dependencies?.['ajv-keywords'].version).toBe('1.5.0(ajv@5.0.0)')
+  })
+  test('the package in the root is linked to a directory that has no manifest to read a version from', async () => {
+    const allProjects: ProjectOptions[] = [
+      {
+        buildIndex: 0,
+        manifest: {
+          name: 'root',
+          version: '1.0.0',
+
+          dependencies: {
+            ajv: 'link:ajv-local',
+          },
+        },
+        rootDir: process.cwd() as ProjectRootDir,
+      },
+      ...nonRootProjects,
+    ]
+    await mutateModules(mutatedProjects, testDefaults({ allProjects, resolvePeersFromWorkspaceRoot: true }))
+
+    const lockfile = projects.root.readLockfile()
+    expect(lockfile.importers.pkg?.dependencies?.['ajv-keywords'].version).toBe('1.5.0(ajv@5.0.0)')
+  })
+})
+
+test('peer dependency is resolved from a workspace: range in the workspace root project', async () => {
+  const projects = preparePackages([
+    {
+      location: '.',
+      package: { name: 'root' },
+    },
+    {
+      location: 'ajv',
+      package: { name: 'ajv', version: '4.10.0' },
+    },
+    {
+      location: 'pkg',
+      package: {},
+    },
+    {
+      location: 'pkg2',
+      package: {},
+    },
+  ])
+  const allProjects: ProjectOptions[] = [
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'root',
+        version: '1.0.0',
+
+        dependencies: {
+          ajv: 'workspace:^4.10.0',
+        },
+      },
+      rootDir: process.cwd() as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'ajv',
+        version: '4.10.0',
+      },
+      rootDir: path.resolve('ajv') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'pkg',
+        version: '1.0.0',
+
+        dependencies: {
+          'ajv-keywords': '1.5.0',
+        },
+      },
+      rootDir: path.resolve('pkg') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'pkg2',
+        version: '1.0.0',
+
+        dependencies: {
+          ajv: '5.0.0',
+        },
+      },
+      rootDir: path.resolve('pkg2') as ProjectRootDir,
+    },
+  ]
+  const reporter = jest.fn()
+  await mutateModules(allProjects.map(({ rootDir }) => ({
+    mutation: 'install' as const,
+    rootDir,
+  })), testDefaults({ allProjects, reporter, resolvePeersFromWorkspaceRoot: true }))
+
+  expect(reporter).not.toHaveBeenCalledWith(expect.objectContaining({
+    name: 'pnpm:peer-dependency-issues',
+  }))
+
+  const lockfile = projects.root.readLockfile()
+  expect(lockfile.importers.pkg?.dependencies?.['ajv-keywords'].version).toBe('1.5.0(ajv@ajv)')
 })
 
 test('warning is reported when cannot resolve peer dependency for non-top-level dependency', async () => {

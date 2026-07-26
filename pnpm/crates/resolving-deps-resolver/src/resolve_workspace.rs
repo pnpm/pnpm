@@ -281,6 +281,7 @@ where
             .iter()
             .find(|state| state.importer_id() == pacquet_lockfile::Lockfile::ROOT_IMPORTER_KEY)
             .map(ImporterHoistState::hoistable_root_deps)
+            .transpose()?
             .unwrap_or_default(),
     );
     for state in &mut states {

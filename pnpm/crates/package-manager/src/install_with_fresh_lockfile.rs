@@ -416,6 +416,13 @@ pub enum InstallWithFreshLockfileError {
     #[diagnostic(transparent)]
     ResolveDependencyTree(#[error(source)] ResolveDependencyTreeError),
 
+    /// Surfaces a failure to read the manifest of a workspace-root
+    /// `link:` / `file:` dependency, whose version stands in for the peer
+    /// it may satisfy under `resolvePeersFromWorkspaceRoot`.
+    #[display("Failed to read the manifest of a workspace root dependency: {_0}")]
+    #[diagnostic(transparent)]
+    RootDepManifest(#[error(source)] pacquet_package_manifest::PackageManifestError),
+
     #[display("Failed to build lockfile from resolved dependency graph: {_0}")]
     #[diagnostic(code(pacquet_package_manager::dependencies_graph_to_lockfile))]
     DependenciesGraphToLockfile(#[error(source)] Box<DependenciesGraphToLockfileError>),
@@ -1473,8 +1480,13 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             },
         )
         .await
-        .map_err(|ResolveImporterError::Resolve(err)| {
-            InstallWithFreshLockfileError::ResolveDependencyTree(err)
+        .map_err(|err| match err {
+            ResolveImporterError::Resolve(err) => {
+                InstallWithFreshLockfileError::ResolveDependencyTree(err)
+            }
+            ResolveImporterError::RootDepManifest(err) => {
+                InstallWithFreshLockfileError::RootDepManifest(err)
+            }
         })?;
         crate::minimum_release_age::handle_minimum_release_age_violations::<Reporter>(
             config,
