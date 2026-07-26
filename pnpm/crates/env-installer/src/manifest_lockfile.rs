@@ -1,4 +1,4 @@
-use pacquet_lockfile::{PackageMetadata, PeerDependencyMeta};
+use pacquet_lockfile::{BundledDependencies, PackageMetadata, PeerDependencyMeta};
 use pacquet_resolving_resolver_base::ResolveResult;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -29,8 +29,7 @@ pub(crate) fn package_metadata(
             .map(ToString::to_string),
         has_bin: manifest_has_bin(manifest),
         prepare: None,
-        bundled_dependencies: read_string_list(manifest, "bundledDependencies")
-            .or_else(|| read_string_list(manifest, "bundleDependencies")),
+        bundled_dependencies: BundledDependencies::from_manifest(manifest),
         peer_dependencies: read_string_map(manifest, "peerDependencies"),
         peer_dependencies_meta: read_peer_dependencies_meta(manifest),
     }

@@ -41,7 +41,7 @@ pub struct PackageMetadata {
     pub prepare: Option<bool>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub bundled_dependencies: Option<Vec<String>>,
+    pub bundled_dependencies: Option<BundledDependencies>,
     #[serde(
         skip_serializing_if = "Option::is_none",
         serialize_with = "crate::serialize_yaml::sorted_map_opt"
@@ -52,6 +52,43 @@ pub struct PackageMetadata {
         serialize_with = "crate::serialize_yaml::sorted_map_opt"
     )]
     pub peer_dependencies_meta: Option<HashMap<String, PeerDependencyMeta>>,
+}
+
+/// What a package bundles inside its own tarball, as pnpm records it: the
+/// bundled names, or the boolean form that covers every entry of
+/// `dependencies`. Both manifest spellings (`bundledDependencies` and
+/// `bundleDependencies`) land here under the `bundledDependencies` key.
+///
+/// The presence of the field — whatever its shape — is what tells the
+/// installer to link the bins the tarball ships in its own `node_modules`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum BundledDependencies {
+    Boolean(bool),
+    Names(Vec<String>),
+}
+
+impl BundledDependencies {
+    /// Read the declaration off a package manifest. Only a list or `true` is
+    /// recorded; anything else (including `false`) falls through to the legacy
+    /// `bundleDependencies` spelling and then to `None`, because a package that
+    /// bundles nothing must not look like one that does.
+    #[must_use]
+    pub fn from_manifest(manifest: Option<&serde_json::Value>) -> Option<Self> {
+        ["bundledDependencies", "bundleDependencies"].into_iter().find_map(|key| {
+            match manifest?.get(key)? {
+                serde_json::Value::Array(items) => Some(BundledDependencies::Names(
+                    items
+                        .iter()
+                        .filter_map(serde_json::Value::as_str)
+                        .map(ToString::to_string)
+                        .collect(),
+                )),
+                serde_json::Value::Bool(true) => Some(BundledDependencies::Boolean(true)),
+                _ => None,
+            }
+        })
+    }
 }
 
 // Some packages declare `libc` as a plain string in `package.json`; pnpm writes
