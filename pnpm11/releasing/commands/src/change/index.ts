@@ -20,6 +20,7 @@ import { safeExeca as execa } from 'execa'
 import { renderHelp } from 'render-help'
 import { valid } from 'semver'
 
+import { publishedNameByManifestName } from '../publishedNames.js'
 import { resolveUnpublishedDirs, type UnpublishedProbeOptions } from '../resolveUnpublishedDirs.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
@@ -244,7 +245,8 @@ async function renderStatus (workspaceDir: string, opts: ChangeCommandOptions): 
     ledger,
     versioning: opts.versioning,
   }
-  const unpublishedDirs = await resolveUnpublishedDirs(assembleReleasePlan(baseArgs), opts)
+  const publishedNames = publishedNameByManifestName(baseArgs.projects)
+  const unpublishedDirs = await resolveUnpublishedDirs(assembleReleasePlan(baseArgs), { ...opts, publishedNames })
   const plan = assembleReleasePlan({ ...baseArgs, unpublishedDirs })
   if (plan.releases.length === 0) {
     return 'No pending changes.'

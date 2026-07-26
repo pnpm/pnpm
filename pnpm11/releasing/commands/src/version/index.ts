@@ -22,6 +22,7 @@ import { inc, valid } from 'semver'
 
 import { renderReleasePlan, toWorkspaceProjects } from '../change/index.js'
 import { changelogHasSection, fetchPublishedChangelog } from '../publish/previousChangelog.js'
+import { publishedNameByManifestName } from '../publishedNames.js'
 import { type CheckVersionPublished, resolveUnpublishedDirs } from '../resolveUnpublishedDirs.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
@@ -245,7 +246,8 @@ async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string>
     filter,
     enforceWorkspaceProtocol: true,
   }
-  const unpublishedDirs = await resolveUnpublishedDirs(assembleReleasePlan(baseArgs), opts)
+  const publishedNames = publishedNameByManifestName(projects)
+  const unpublishedDirs = await resolveUnpublishedDirs(assembleReleasePlan(baseArgs), { ...opts, publishedNames })
   const plan = assembleReleasePlan({ ...baseArgs, unpublishedDirs })
 
   const applyOpts: ApplyReleasePlanOptions = {
@@ -253,7 +255,7 @@ async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string>
     projects,
     allIntents: intents,
     versioning: opts.versioning,
-    verifyPublished: buildVerifyPublished(opts),
+    verifyPublished: buildVerifyPublished(opts, publishedNames),
   }
 
   if (plan.releases.length === 0) {
@@ -292,11 +294,13 @@ async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string>
  * is kept. `undefined` in `repository` storage, where the committed changelog
  * makes the ledger alone sufficient.
  */
-function buildVerifyPublished (opts: VersionHandlerOptions): ApplyReleasePlanOptions['verifyPublished'] {
+function buildVerifyPublished (opts: VersionHandlerOptions, publishedNames: ReadonlyMap<string, string>): ApplyReleasePlanOptions['verifyPublished'] {
   if (changelogStorage(opts.versioning) !== 'registry') return undefined
   return async (name, version, section) => {
     try {
-      const changelog = await fetchPublishedChangelog(opts, name, version)
+      // The parked section is keyed by the manifest name, which is what the
+      // ledger joins on; the registry only knows the published one.
+      const changelog = await fetchPublishedChangelog(opts, publishedNames.get(name) ?? name, version)
       return changelog != null && changelogHasSection(changelog, section)
     } catch {
       return false

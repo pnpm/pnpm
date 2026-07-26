@@ -304,6 +304,38 @@ test('pack a package with invalid package name', async () => {
   })).rejects.toThrow('Invalid package name "@".')
 })
 
+test('pack a package renamed by publishConfig.name', async () => {
+  prepare({
+    name: 'workspace-only-name',
+    version: '1.2.3',
+    publishConfig: { name: '@scope/published-name' },
+  })
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+  })
+
+  expect(fs.existsSync('scope-published-name-1.2.3.tgz')).toBeTruthy()
+})
+
+test('pack a package with an invalid publishConfig.name', async () => {
+  prepare({
+    name: 'valid-workspace-name',
+    version: '0.0.0',
+    publishConfig: { name: '../escaped' },
+  })
+
+  await expect(pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+  })).rejects.toThrow('Invalid package name "../escaped".')
+})
+
 test('pack a package without package version', async () => {
   prepare({
     name: 'test-publish-package-no-version',

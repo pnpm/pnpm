@@ -354,6 +354,62 @@ fn recursive_publish_skips_already_published_packages() {
     drop(root);
 }
 
+/// The already-published probe addresses the registry, so a project renamed by
+/// `publishConfig.name` is probed — and published — under the name the registry
+/// knows. Probing the workspace name would 404 and republish a version already
+/// out.
+#[test]
+fn recursive_publish_probes_a_renamed_project_under_its_published_name() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    write_workspace(
+        &workspace,
+        &[(
+            "project-1",
+            json!({
+                "name": "workspace-only-name",
+                "version": "1.0.0",
+                "publishConfig": { "name": "published-name" },
+            }),
+        )],
+    );
+    write_registry_npmrc(&workspace, &format!("{}/", server.url()));
+
+    let packument = json!({
+        "name": "published-name",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "published-name",
+                "version": "1.0.0",
+                "dist": {
+                    "tarball": "http://example.test/published-name-1.0.0.tgz",
+                    "integrity": "sha512-deadbeef",
+                },
+            },
+        },
+    });
+    let probe = server
+        .mock("GET", "/published-name")
+        .with_status(200)
+        .with_body(packument.to_string())
+        .create();
+    let workspace_name_probe = server.mock("GET", "/workspace-only-name").expect(0).create();
+    let put = server.mock("PUT", Matcher::Any).expect(0).create();
+
+    clear_ci(pacquet)
+        .with_arg("-r")
+        .with_arg("publish")
+        .with_arg("--no-git-checks")
+        .assert()
+        .success();
+
+    probe.assert();
+    workspace_name_probe.assert();
+    put.assert();
+    drop(root);
+}
+
 /// `--force` skips the already-published probe entirely and republishes, so no
 /// `GET` is issued.
 #[test]

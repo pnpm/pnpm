@@ -51,7 +51,14 @@ const PREPUBLISH_SCRIPTS: &[&str] =
     &["prepublishOnly", "prepack", "prepare", "postpack", "publish", "postpublish"];
 
 /// Manifest keys hoisted from `publishConfig` onto the manifest root.
+///
+/// `name` lets a package be published under a name it cannot carry in the
+/// workspace — typically because a sibling project already owns that name.
+/// Nothing else in the workspace observes the rename: dependents,
+/// `pnpm-lock.yaml`, and the changeset ledger all keep addressing the project
+/// by its manifest name.
 const PUBLISH_CONFIG_WHITELIST: &[&str] = &[
+    "name",
     "bin",
     "engines",
     "type",

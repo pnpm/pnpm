@@ -82,6 +82,38 @@ fn first_release_probe_debuts_an_unpublished_version_verbatim() {
     drop(root);
 }
 
+/// A project renamed by `publishConfig.name` is only on the registry under the
+/// published name — the workspace name is either absent or, as with `pacquet`,
+/// someone else's package. Probing the workspace name would read as unpublished
+/// and debut the release at its manifest version, republishing a version that
+/// is already out.
+#[test]
+fn first_release_probe_uses_the_published_name_of_a_renamed_project() {
+    let CommandTempCwd { workspace, root, .. } = CommandTempCwd::init().add_mocked_registry();
+    setup_mock_workspace(&workspace);
+    let pkg_dir = workspace.join("packages").join("foo");
+    fs::create_dir_all(&pkg_dir).expect("create package dir");
+    fs::write(
+        pkg_dir.join("package.json"),
+        "{\"name\": \"workspace-only-name\", \"version\": \"1.2.0\", \"publishConfig\": {\"name\": \"@pnpm.e2e/foo\"}}\n",
+    )
+    .expect("write package.json");
+
+    stdout_of(pnpm_probing(&workspace).with_args([
+        "change",
+        "--bump",
+        "minor",
+        "--summary",
+        "A feature.",
+        "workspace-only-name",
+    ]));
+    let applied = stdout_of(pnpm_probing(&workspace).with_args(["version", "-r"]));
+    assert!(applied.contains("workspace-only-name: 1.2.0 → 1.3.0"), "unexpected: {applied}");
+    assert_eq!(manifest_version(&workspace, "foo"), "1.3.0");
+
+    drop(root);
+}
+
 /// A registry that cannot answer the probe (here an unroutable port, so the
 /// check fails with a connection error rather than a 404) must fail
 /// `pnpm change status` and `pnpm version -r` rather than guess a version.
