@@ -1,6 +1,6 @@
 use super::{
     DEV_PREINSTALL_ALREADY_RAN_ENV, EnvOptions, VERIFY_DEPS_BEFORE_RUN_ENV, build_env,
-    escape_newlines, is_stamping_key, sanitize_env_key, stamp_package,
+    escape_newlines, is_dev_preinstall_marker, is_stamping_key, sanitize_env_key, stamp_package,
 };
 use pretty_assertions::assert_eq;
 use serde_json::json;
@@ -316,6 +316,16 @@ fn the_dev_preinstall_delegation_marker_never_reaches_a_script() {
     );
 
     assert_eq!(built.env.get(DEV_PREINSTALL_ALREADY_RAN_ENV), None);
+}
+
+/// On Windows a differently-cased spelling is the same variable, so an
+/// `extraEnv` naming it that way must be dropped too.
+#[test]
+fn a_differently_cased_delegation_marker_is_dropped_on_windows() {
+    assert!(is_dev_preinstall_marker(DEV_PREINSTALL_ALREADY_RAN_ENV, false));
+    assert!(!is_dev_preinstall_marker(&DEV_PREINSTALL_ALREADY_RAN_ENV.to_lowercase(), false));
+    assert!(is_dev_preinstall_marker(&DEV_PREINSTALL_ALREADY_RAN_ENV.to_lowercase(), true));
+    assert!(!is_dev_preinstall_marker("PNPM_INTERNAL_SOMETHING_ELSE", true));
 }
 
 /// Regression: the byte-level prefix check inside the Windows

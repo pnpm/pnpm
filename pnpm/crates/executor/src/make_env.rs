@@ -121,8 +121,10 @@ pub fn build_env(
 
     // Dropped after `extra_env` as well as from the parent env, so the
     // scoping holds however the value arrived — a user `extraEnv` that
-    // names the marker cannot hand it to a script either.
-    env.remove(DEV_PREINSTALL_ALREADY_RAN_ENV);
+    // names the marker cannot hand it to a script either. Spelled the
+    // same way [`is_stamping_key`] matches it, so the two agree on
+    // Windows, where a differently-cased entry is the same variable.
+    env.retain(|key, _| !is_dev_preinstall_marker(key, cfg!(windows)));
 
     if let Some(ua) = opts.user_agent {
         env.insert("npm_config_user_agent".into(), ua.to_string());
@@ -193,6 +195,16 @@ fn is_stamping_key(key: &str, is_windows: bool) -> bool {
         return DROPPED.iter().any(|name| key.eq_ignore_ascii_case(name));
     }
     DROPPED.contains(&key)
+}
+
+/// Whether `key` names [`DEV_PREINSTALL_ALREADY_RAN_ENV`], under the
+/// same casing rule [`is_stamping_key`] applies: on Windows every
+/// spelling is the same variable, so every spelling must be dropped.
+fn is_dev_preinstall_marker(key: &str, is_windows: bool) -> bool {
+    if is_windows {
+        return key.eq_ignore_ascii_case(DEV_PREINSTALL_ALREADY_RAN_ENV);
+    }
+    key == DEV_PREINSTALL_ALREADY_RAN_ENV
 }
 
 /// Return the slice of `key` after `prefix` when `key` starts with it
