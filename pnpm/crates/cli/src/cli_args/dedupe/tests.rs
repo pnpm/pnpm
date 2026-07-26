@@ -7,7 +7,7 @@ fn a_resolution_free_rewrite_says_so() {
     let report = render_dedupe_check_issues(&LockfileDiff::default());
     assert_eq!(
         report,
-        "The lockfile would be rewritten, but no dependency resolution would change."
+        "The lockfile would be rewritten, but no dependency resolution would change.",
     );
 }
 
