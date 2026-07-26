@@ -467,6 +467,11 @@ Supporting tests:
 - [x] `TypeScript repo: installing/deps-installer/test/install/misc.ts:1130` `installing with no symlinks with PnP` verifies `.bin` exists with no symlink layout — ported as `pnp_install_without_symlinks_still_writes_modules_manifest_and_bin_directory` in `crates/cli/tests/install_state.rs`.
 - [x] `TypeScript repo: installing/deps-installer/test/hoistedNodeLinker/install.ts:187` `run pre/postinstall scripts. bin files should be linked in a hoisted node_modules`. Ported as `run_pre_and_postinstall_scripts_and_link_bins` in `crates/cli/tests/hoisted_node_linker.rs`.
 - [x] `TypeScript repo: installing/deps-installer/test/hoistedNodeLinker/install.ts:264` `linking bins of local projects when node-linker is set to hoisted`. Ported as `linking_bins_of_local_projects`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/bundledDependencies.ts:10` `bundledDependencies (pkg-with-bundled-dependencies@1.0.0)` — ported as `bundled_dependencies_are_kept_out_of_the_lockfile` in `crates/cli/tests/bundled_dependencies.rs`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/bundledDependencies.ts:64` `bundleDependencies (pkg-with-bundle-dependencies@1.0.0)` — ported as `bundle_dependencies_spelling_is_kept_out_of_the_lockfile`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/bundledDependencies.ts:79` `installing a package with bundleDependencies set to false` — ported as `bundle_dependencies_false_is_not_recorded`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/bundledDependencies.ts:89` `installing a package with bundleDependencies set to true` — ported as `bundle_dependencies_true_is_recorded_as_true`, extended with the lockfile round trip the boolean form needs. Pacquet also keeps `bundled_bins_are_linked_under_the_hoisted_linker` for the `nodeLinker: hoisted` counterpart, which upstream reaches only through `linkAllBins`.
+- [ ] `TypeScript repo: installing/deps-installer/test/install/bundledDependencies.ts:29` `local tarball with bundledDependencies` and `:46` `local tarball with bundledDependencies true` (covering <https://github.com/pnpm/pnpm/issues/7411>) — need `.tgz` fixtures on the Rust side.
 
 Rust port notes:
 

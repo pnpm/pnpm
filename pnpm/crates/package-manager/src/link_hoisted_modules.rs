@@ -23,7 +23,7 @@ use crate::{
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_cmd_shim::LinkBinsError;
+use pacquet_cmd_shim::{Host, LinkBinsError, link_bins};
 use pacquet_config::PackageImportMethod;
 use pacquet_lockfile::PkgIdWithPatchHash;
 use pacquet_reporter::{LogEvent, LogLevel, Reporter, StatsLog, StatsMessage};
@@ -249,6 +249,20 @@ fn link_all_pkgs_in_order<Reporter: self::Reporter>(
         // pnpm gates `extraNodePaths` on the isolated linker, so
         // hoisted-tree shims never carry `NODE_PATH`.
         link_direct_dep_bins(&modules_dir, &dep_names, &[])
+            .map_err(LinkHoistedModulesError::LinkBins)?;
+    }
+
+    // Packages the tarball ships in its own `node_modules` are not graph
+    // nodes, so the pass above never sees them; their bins are reachable
+    // only from inside the bundling package.
+    for child_dir in hierarchy.0.keys() {
+        let bundles = opts.graph.get(child_dir).is_some_and(|node| node.has_bundled_dependencies);
+        if !bundles {
+            continue;
+        }
+        let bundled_modules_dir = child_dir.join("node_modules");
+        let bins_dir = bundled_modules_dir.join(".bin");
+        link_bins::<Host>(&bundled_modules_dir, &bins_dir, &[])
             .map_err(LinkHoistedModulesError::LinkBins)?;
     }
 

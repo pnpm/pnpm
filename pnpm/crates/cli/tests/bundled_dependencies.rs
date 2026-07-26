@@ -8,7 +8,7 @@ use pacquet_testing_utils::{bin::CommandTempCwd, fs::is_path_executable};
 use std::{fs, path::Path};
 
 pub mod _utils;
-pub use _utils::pacquet_in;
+pub use _utils::{append_workspace_yaml_key, pacquet_in};
 
 #[test]
 fn bundled_dependencies_are_kept_out_of_the_lockfile() {
@@ -91,6 +91,25 @@ fn bundle_dependencies_true_is_recorded_as_true() {
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
     pacquet_in(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
     assert!(is_path_executable(&bundled_bin));
+
+    drop((root, npmrc_info)); // cleanup
+}
+
+#[test]
+fn bundled_bins_are_linked_under_the_hoisted_linker() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+
+    append_workspace_yaml_key(&workspace, "nodeLinker", "hoisted");
+
+    pacquet.with_args(["add", "@pnpm.e2e/pkg-with-bundled-dependencies@1.0.0"]).assert().success();
+
+    assert!(
+        is_path_executable(&workspace.join(
+            "node_modules/@pnpm.e2e/pkg-with-bundled-dependencies/node_modules/.bin/hello-world-js-bin"
+        )),
+        "the hoisted tree keeps the bundled dependency's bin inside the bundling package",
+    );
 
     drop((root, npmrc_info)); // cleanup
 }

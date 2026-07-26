@@ -460,6 +460,7 @@ fn build_bundling_set(
 /// The two lockfile-derived slot classifications [`run_lockfile_driven`]
 /// consults before doing any per-slot work, from [`build_has_bin_set`] and
 /// [`build_bundling_set`] respectively.
+#[derive(Clone, Copy)]
 struct BinSlotSets<'a> {
     has_bin: Option<&'a HashSet<PackageKey>>,
     bundling: &'a HashSet<PackageKey>,
