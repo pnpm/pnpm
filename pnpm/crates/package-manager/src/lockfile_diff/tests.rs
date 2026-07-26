@@ -1,13 +1,13 @@
 use std::{collections::HashMap, str::FromStr};
 
 use pacquet_lockfile::{
-    ImporterDepVersion, PkgName, PkgVerPeer, ProjectSnapshot, ResolvedDependencyMap,
-    ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
+    ComVer, ImporterDepVersion, Lockfile, LockfileVersion, PackageKey, PkgName, PkgVerPeer,
+    ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
 };
 
 use super::{
-    ImporterDiffKey, LockfileDiff, SnapshotDiff, diff_importer, diff_snapshot_entry,
-    render_dry_run_report,
+    ImporterDiffKey, LockfileDiff, SnapshotDiff, diff_importer, diff_lockfiles,
+    diff_snapshot_entry, render_dry_run_report,
 };
 
 fn pkg(name: &str) -> PkgName {
@@ -16,6 +16,93 @@ fn pkg(name: &str) -> PkgName {
 
 fn ver(version: &str) -> PkgVerPeer {
     version.parse().expect("parse PkgVerPeer")
+}
+
+/// The whole-lockfile diff `dedupe --check` reports: an importer whose
+/// resolved version moved, the snapshots that came and went with it, and
+/// one that stayed but was rewired.
+#[test]
+fn lockfile_diff_covers_importers_and_snapshots() {
+    let old = lockfile(
+        ProjectSnapshot {
+            dependencies: Some(importer_map(&[("is-positive", "^1.0.0", "1.0.0")])),
+            ..Default::default()
+        },
+        &[("is-positive@1.0.0", snapshot(&[])), ("shared@1.0.0", snapshot(&[("dep", "1.0.0")]))],
+    );
+    let new = lockfile(
+        ProjectSnapshot {
+            dependencies: Some(importer_map(&[("is-positive", "^1.0.0", "2.0.0")])),
+            ..Default::default()
+        },
+        &[("is-positive@2.0.0", snapshot(&[])), ("shared@1.0.0", snapshot(&[("dep", "2.0.0")]))],
+    );
+
+    let diff = diff_lockfiles(Some(&old), Some(&new), ImporterDiffKey::Version);
+
+    assert_eq!(diff.importers.len(), 1);
+    assert_eq!(diff.importers[0].id, ".");
+    assert_eq!(
+        diff.importers[0].updated,
+        vec![("is-positive".to_string(), "1.0.0".to_string(), "2.0.0".to_string())],
+    );
+    assert_eq!(diff.added_packages, vec!["is-positive@2.0.0".to_string()]);
+    assert_eq!(diff.removed_packages, vec!["is-positive@1.0.0".to_string()]);
+    assert_eq!(diff.updated_packages.len(), 1);
+    assert_eq!(diff.updated_packages[0].id, "shared@1.0.0");
+    assert_eq!(
+        diff.updated_packages[0].updated,
+        vec![("dep".to_string(), "1.0.0".to_string(), "2.0.0".to_string())],
+    );
+}
+
+/// An identical lockfile is not a change — the equality short-circuit and
+/// the per-alias walk have to agree on that.
+#[test]
+fn identical_lockfiles_yield_an_empty_diff() {
+    let importer = ProjectSnapshot {
+        dependencies: Some(importer_map(&[("is-positive", "^1.0.0", "1.0.0")])),
+        ..Default::default()
+    };
+    let one = lockfile(importer.clone(), &[("is-positive@1.0.0", snapshot(&[("dep", "1.0.0")]))]);
+    let other = lockfile(importer, &[("is-positive@1.0.0", snapshot(&[("dep", "1.0.0")]))]);
+
+    let diff = diff_lockfiles(Some(&one), Some(&other), ImporterDiffKey::Version);
+    assert!(diff.is_empty(), "got: {diff:?}");
+}
+
+fn key(package_key: &str) -> PackageKey {
+    package_key.parse().expect("parse PackageKey")
+}
+
+/// A lockfile with one root importer and the given `snapshots:` entries.
+fn lockfile(root: ProjectSnapshot, snapshots: &[(&str, SnapshotEntry)]) -> Lockfile {
+    Lockfile {
+        lockfile_version: LockfileVersion::<9>::try_from(ComVer { major: 9, minor: 0 })
+            .expect("lockfile version 9.0"),
+        settings: None,
+        catalogs: None,
+        overrides: None,
+        package_extensions_checksum: None,
+        pnpmfile_checksum: None,
+        ignored_optional_dependencies: None,
+        patched_dependencies: None,
+        importers: HashMap::from([(".".to_string(), root)]),
+        packages: None,
+        snapshots: Some(snapshots.iter().map(|(id, entry)| (key(id), entry.clone())).collect()),
+    }
+}
+
+/// A `snapshots:` entry with the given `dependencies` edges.
+fn snapshot(deps: &[(&str, &str)]) -> SnapshotEntry {
+    SnapshotEntry {
+        dependencies: Some(
+            deps.iter()
+                .map(|(alias, version)| (pkg(alias), SnapshotDepRef::Plain(ver(version))))
+                .collect(),
+        ),
+        ..Default::default()
+    }
 }
 
 /// Build an importer dependency map from `(alias, specifier, version)` triples.

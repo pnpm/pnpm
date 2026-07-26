@@ -261,3 +261,6 @@ pub(crate) fn read_lockfile_snapshot(lockfile_path: &Path) -> miette::Result<Opt
         Err(e) => Err(e).into_diagnostic().wrap_err("reading lockfile"),
     }
 }
+
+#[cfg(test)]
+mod tests;
