@@ -858,7 +858,7 @@ pub(crate) fn build_resolve_result(
 /// carries the text the entry has to keep — a registry-host tarball URL,
 /// which [`build_resolve_result`] prefers over anything computed here.
 /// Caret is the fallback pin, matching pnpm's default save prefix.
-fn calc_specifier_from<'a>(
+pub(crate) fn calc_specifier_from<'a>(
     wanted_dependency: &'a WantedDependency,
     opts: &ResolveOptions,
     spec: &RegistryPackageSpec,

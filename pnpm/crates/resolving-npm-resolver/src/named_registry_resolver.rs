@@ -29,7 +29,8 @@ use pacquet_resolving_resolver_base::{
 use crate::{
     npm_resolver::{
         BuildResolveResult, PickFromRegistryOptions, RegistryPick, build_resolve_result,
-        no_matching_version, pick_from_registry_with_guard, swallowed_as_no_latest,
+        calc_specifier_from, no_matching_version, pick_from_registry_with_guard,
+        swallowed_as_no_latest,
     },
     parse_bare_specifier::{
         NamedRegistryPackageSpec, parse_named_registry_specifier_to_registry_package_spec,
@@ -156,12 +157,20 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
             published_by: opts.published_by,
             published_by_exclude: opts.published_by_exclude.as_ref(),
             picked_manifest_cache: &self.picked_manifest_cache,
-            // TODO(pnpm/pnpm#13393): render the entry back under
-            // `<alias>:` with `calc_prefixed_specifier`, the way the JSR
-            // path does. Until then it is left as declared, since an
-            // npm-shaped range would drop the alias and repoint the
-            // dependency at the default registry.
-            calculated_specifier: None,
+            // The entry stays a named-registry dependency, so it
+            // round-trips under the `<alias>:` protocol prefix.
+            calculated_specifier: calc_specifier_from(wanted_dependency, opts, &spec).map(
+                |(bare_specifier, default_pin)| {
+                    crate::calc_prefixed_specifier(
+                        &format!("{registry_name}:"),
+                        &spec.name,
+                        bare_specifier,
+                        wanted_dependency.alias.as_deref(),
+                        &picked.version,
+                        default_pin,
+                    )
+                },
+            ),
         })?;
 
         Ok(Some(result))
