@@ -242,8 +242,8 @@ async fn resolve_file() {
     assert_eq!(tarball, "file:pnpm-local-resolver-0.1.1.tgz");
     assert_eq!(got_integrity.as_ref().expect("integrity").to_string(), integrity);
     assert_eq!(result.resolved_via, "local-filesystem");
-    // Without the bundled manifest the dep path stays the bare
-    // `file:<path>`, which no lockfile key parses.
+    // The bundled manifest is what gives the dep path its `<name>@`
+    // prefix, so a lockfile key can be parsed out of it.
     let manifest = result.manifest.as_deref().expect("bundled manifest");
     assert_eq!(
         manifest.get("name").and_then(serde_json::Value::as_str),

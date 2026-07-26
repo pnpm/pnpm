@@ -15,9 +15,9 @@ use pacquet_catalogs_types::Catalogs;
 use pacquet_lockfile::{
     BundledDependencies, CatalogSnapshots, ComVer, ImporterDepVersion, Lockfile,
     LockfileResolution, LockfileSettings, LockfileVersion, PackageKey, PackageMetadata,
-    ParseImporterDepVersionError, ParsePkgNameVerPeerError, PeerDependencyMeta, PkgName,
-    PkgNameVerPeer, PkgVerPeer, ProjectSnapshot, ResolvedCatalogEntry, ResolvedDependencyMap,
-    ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry, VersionPart,
+    ParseImporterDepVersionError, PeerDependencyMeta, PkgName, PkgNameVerPeer, PkgVerPeer,
+    ProjectSnapshot, ResolvedCatalogEntry, ResolvedDependencyMap, ResolvedDependencySpec,
+    SnapshotDepRef, SnapshotEntry, VersionPart,
 };
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_resolving_deps_resolver::{DepPath, DependenciesGraph, DependenciesGraphNode};
@@ -122,13 +122,6 @@ pub enum DependenciesGraphToLockfileError {
         dep_path: String,
         #[error(source)]
         source: Box<ParseImporterDepVersionError>,
-    },
-
-    #[display("Dependency path {dep_path:?} is not a valid lockfile key: {source}")]
-    UnparsableDepPath {
-        dep_path: String,
-        #[error(source)]
-        source: Box<ParsePkgNameVerPeerError>,
     },
 }
 
@@ -529,23 +522,7 @@ fn build_packages_and_snapshots(
     let mut snapshots: HashMap<PackageKey, SnapshotEntry> = HashMap::new();
 
     for node in graph.values() {
-        let dep_path = node.dep_path.as_str();
-        // A `link:` dep is recorded on its importer alone — pnpm writes
-        // no `packages:` / `snapshots:` row for one — and `link:<path>`
-        // carries no version to key such a row by.
-        if dep_path.starts_with("link:") {
-            continue;
-        }
-        // Every other shape must key a row. Skipping one silently drops
-        // the package from both blocks while the importer still points
-        // at it, which installs as a dangling symlink off a lockfile
-        // that looks complete.
-        let snapshot_key = dep_path.parse::<PackageKey>().map_err(|source| {
-            DependenciesGraphToLockfileError::UnparsableDepPath {
-                dep_path: dep_path.to_string(),
-                source: Box::new(source),
-            }
-        })?;
+        let Ok(snapshot_key) = node.dep_path.as_str().parse::<PackageKey>() else { continue };
         let metadata_key = snapshot_key.without_peer();
 
         let snapshot = build_snapshot_entry(node, graph, optional_overrides);

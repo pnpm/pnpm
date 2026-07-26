@@ -1,13 +1,10 @@
-//! Local `file:*.tgz` dependencies install end to end, recording both
-//! lockfile blocks and linking a working `node_modules/<name>`.
+//! End-to-end coverage for local `file:*.tgz` dependencies.
 //!
 //! A `file:` tarball's name, version, and integrity live inside the
-//! archive, not in its specifier. pacquet builds the lockfile before the
-//! install pass, so the local resolver reads them during resolution —
-//! the same reason the remote-tarball resolver downloads at resolve time
-//! (see `tarball_url_dependency.rs`). Without the name the dep path
-//! stays the bare `file:<path>`, which keys no `packages:` / `snapshots:`
-//! entry, and the install exits 0 over a dangling symlink.
+//! archive, not in its specifier, and pacquet builds the lockfile before
+//! the install pass — so the local resolver reads them during
+//! resolution, for the same reason the remote-tarball resolver downloads
+//! at resolve time (see `tarball_url_dependency.rs`).
 //!
 //! Covers <https://github.com/pnpm/pnpm/issues/13379>.
 
@@ -81,9 +78,9 @@ fn local_tarball_dependency_is_recorded_and_installed() {
     drop((root, mock_instance));
 }
 
-/// A local tarball's own dependencies are walked. They are readable only
-/// from the manifest bundled in the archive, so before it was read at
-/// resolve time the package installed with none of them.
+/// A local tarball's own dependencies are readable only from the
+/// manifest bundled in the archive, so they exercise the resolve-time
+/// read from a second angle: the dep path alone would not reveal them.
 #[test]
 fn local_tarball_dependency_pulls_in_its_own_dependencies() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =

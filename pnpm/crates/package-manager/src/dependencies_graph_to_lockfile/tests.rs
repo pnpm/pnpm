@@ -852,12 +852,8 @@ fn non_host_git_dependency_records_bare_git_url_in_importer() {
     );
 }
 
-/// A dep path that keys no `packages:` / `snapshots:` row has to abort
-/// the conversion. Dropping it would emit a lockfile whose importer
-/// points at a package neither block describes — an install off it exits
-/// 0 and leaves a dangling symlink.
 #[test]
-fn malformed_dep_path_returns_structured_error() {
+fn malformed_importer_dependency_path_returns_structured_error() {
     let (_tmp, manifest) = write_manifest(json!({
         "name": "fixture",
         "version": "1.0.0",
@@ -885,9 +881,8 @@ fn malformed_dep_path_returns_structured_error() {
         .unwrap_err(),
     );
 
-    let DependenciesGraphToLockfileError::UnparsableDepPath { dep_path, .. } = error else {
-        panic!("expected an unparsable-dep-path error, got {error:?}");
-    };
+    let DependenciesGraphToLockfileError::ImporterDependency { alias, dep_path, .. } = error;
+    assert_eq!(alias, "broken");
     assert_eq!(dep_path, "broken@1.0.0(");
 }
 

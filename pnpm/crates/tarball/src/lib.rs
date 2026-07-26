@@ -727,30 +727,7 @@ fn extract_tarball_entries(
         let file_mode = entry.header().mode().map_err(TarballError::ReadTarballEntries)?;
         let file_is_executable = file_mode::is_executable(file_mode);
         let file_size = entry.header().size().map_err(TarballError::ReadTarballEntries)?;
-        let data_offset = usize::try_from(entry.raw_file_position()).map_err(|_| {
-            TarballError::ReadTarballEntries(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "tar entry file offset does not fit in usize",
-            ))
-        })?;
-        let size = usize::try_from(file_size).map_err(|_| {
-            TarballError::ReadTarballEntries(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "tar entry file size does not fit in usize",
-            ))
-        })?;
-        let end = data_offset.checked_add(size).ok_or_else(|| {
-            TarballError::ReadTarballEntries(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "tar entry file offset plus size overflows usize",
-            ))
-        })?;
-        let entry_data = tar_data.get(data_offset..end).ok_or_else(|| {
-            TarballError::ReadTarballEntries(std::io::Error::new(
-                std::io::ErrorKind::UnexpectedEof,
-                "tar entry payload extends beyond archive",
-            ))
-        })?;
+        let entry_data = tar_entry_payload(tar_data, &entry)?;
 
         let entry_path = entry.path().map_err(TarballError::ReadTarballEntries)?;
         // `components().skip(1)` drops the top-level package
@@ -897,6 +874,42 @@ fn extract_tarball_entries(
         side_effects: None,
     };
     Ok((cas_paths, pkg_files_idx))
+}
+
+/// Borrow one tar entry's payload out of the decompressed archive.
+///
+/// The tar reader is seekable over an in-memory buffer, so an entry's
+/// bytes are already there — slicing them costs nothing, where reading
+/// through the entry would copy every payload into a fresh allocation
+/// sized by the archive's own (untrusted) header.
+///
+/// The bounds are all checked: a header whose offset or size doesn't fit
+/// a `usize`, whose sum overflows, or whose range runs past the end of
+/// the archive is rejected rather than truncated.
+fn tar_entry_payload<'a, R: std::io::Read>(
+    tar_data: &'a [u8],
+    entry: &tar::Entry<'_, R>,
+) -> Result<&'a [u8], TarballError> {
+    let invalid = |message: &str| {
+        TarballError::ReadTarballEntries(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            message.to_string(),
+        ))
+    };
+    let file_size = entry.header().size().map_err(TarballError::ReadTarballEntries)?;
+    let data_offset = usize::try_from(entry.raw_file_position())
+        .map_err(|_| invalid("tar entry file offset does not fit in usize"))?;
+    let size = usize::try_from(file_size)
+        .map_err(|_| invalid("tar entry file size does not fit in usize"))?;
+    let end = data_offset
+        .checked_add(size)
+        .ok_or_else(|| invalid("tar entry file offset plus size overflows usize"))?;
+    tar_data.get(data_offset..end).ok_or_else(|| {
+        TarballError::ReadTarballEntries(std::io::Error::new(
+            std::io::ErrorKind::UnexpectedEof,
+            "tar entry payload extends beyond archive",
+        ))
+    })
 }
 
 /// Walk a zip archive, writing each regular-file entry into the CAFS
@@ -2700,13 +2713,15 @@ pub async fn read_local_tarball_metadata(
 ///
 /// Follows the same conventions as the manifest capture in
 /// [`extract_tarball_entries`]: the top-level archive component is
-/// dropped, a duplicate entry wins over earlier ones, and an unparsable
-/// `package.json` degrades to `None` rather than failing the read.
+/// dropped, the payload is borrowed out of the archive buffer via
+/// [`tar_entry_payload`], a duplicate entry wins over earlier ones, and
+/// an unparsable `package.json` degrades to `None` rather than failing
+/// the read.
 fn read_bundled_manifest(tar_data: &[u8]) -> Result<Option<serde_json::Value>, TarballError> {
     let mut archive = Archive::new(Cursor::new(tar_data));
     let mut manifest = None;
     for entry in archive.entries_with_seek().map_err(TarballError::ReadTarballEntries)? {
-        let mut entry = entry.map_err(TarballError::ReadTarballEntries)?;
+        let entry = entry.map_err(TarballError::ReadTarballEntries)?;
         if !entry.header().entry_type().is_file() {
             continue;
         }
@@ -2717,9 +2732,9 @@ fn read_bundled_manifest(tar_data: &[u8]) -> Result<Option<serde_json::Value>, T
         {
             continue;
         }
-        let mut bytes = Vec::new();
-        entry.read_to_end(&mut bytes).map_err(TarballError::ReadTarballEntries)?;
-        manifest = match parse_manifest_bytes(&bytes) {
+        drop(components);
+        let bytes = tar_entry_payload(tar_data, &entry)?;
+        manifest = match parse_manifest_bytes(bytes) {
             Ok(parsed) => normalize_bundled_manifest(&parsed),
             Err(error) => {
                 tracing::debug!(
