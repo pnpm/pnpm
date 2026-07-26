@@ -96,11 +96,28 @@ fn bundled_bins_are_linked_under_the_hoisted_linker() {
 
     append_workspace_yaml_key(&workspace, "nodeLinker", "hoisted");
 
-    pacquet.with_args(["add", "@pnpm.e2e/pkg-with-bundled-dependencies@1.0.0"]).assert().success();
+    // Both declaration shapes, because the hoisted linker reaches the bundling
+    // signal through `DependenciesGraphNode::has_bundled_dependencies` rather
+    // than the lockfile row the isolated linker reads.
+    pacquet
+        .with_args([
+            "add",
+            "@pnpm.e2e/pkg-with-bundled-dependencies@1.0.0",
+            "@pnpm.e2e/pkg-with-bundle-dependencies-true@1.0.0",
+        ])
+        .assert()
+        .success();
 
-    assert_bin_linked(&workspace.join(
-        "node_modules/@pnpm.e2e/pkg-with-bundled-dependencies/node_modules/.bin/hello-world-js-bin",
-    ));
+    for bundling_pkg in
+        ["@pnpm.e2e/pkg-with-bundled-dependencies", "@pnpm.e2e/pkg-with-bundle-dependencies-true"]
+    {
+        assert_bin_linked(
+            &workspace
+                .join("node_modules")
+                .join(bundling_pkg)
+                .join("node_modules/.bin/hello-world-js-bin"),
+        );
+    }
 
     drop((root, npmrc_info)); // cleanup
 }
