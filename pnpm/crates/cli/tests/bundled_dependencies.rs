@@ -4,7 +4,7 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pacquet_lockfile::{BundledDependencies, Lockfile, PackageMetadata};
-use pacquet_testing_utils::{bin::CommandTempCwd, fs::is_path_executable};
+use pacquet_testing_utils::bin::CommandTempCwd;
 use std::{fs, path::Path};
 
 pub mod _utils;
@@ -17,12 +17,9 @@ fn bundled_dependencies_are_kept_out_of_the_lockfile() {
 
     pacquet.with_args(["add", "@pnpm.e2e/pkg-with-bundled-dependencies@1.0.0"]).assert().success();
 
-    assert!(
-        is_path_executable(&workspace.join(
-            "node_modules/@pnpm.e2e/pkg-with-bundled-dependencies/node_modules/.bin/hello-world-js-bin"
-        )),
-        "the bundled dependency's bin must be linked inside the bundling package",
-    );
+    assert_bin_linked(&workspace.join(
+        "node_modules/@pnpm.e2e/pkg-with-bundled-dependencies/node_modules/.bin/hello-world-js-bin",
+    ));
 
     let lockfile = read_wanted_lockfile(&workspace);
     assert_eq!(
@@ -44,12 +41,9 @@ fn bundle_dependencies_spelling_is_kept_out_of_the_lockfile() {
 
     pacquet.with_args(["add", "@pnpm.e2e/pkg-with-bundle-dependencies@1.0.0"]).assert().success();
 
-    assert!(
-        is_path_executable(&workspace.join(
-            "node_modules/@pnpm.e2e/pkg-with-bundle-dependencies/node_modules/.bin/hello-world-js-bin"
-        )),
-        "the bundled dependency's bin must be linked inside the bundling package",
-    );
+    assert_bin_linked(&workspace.join(
+        "node_modules/@pnpm.e2e/pkg-with-bundle-dependencies/node_modules/.bin/hello-world-js-bin",
+    ));
 
     let lockfile = read_wanted_lockfile(&workspace);
     assert_eq!(
@@ -84,13 +78,13 @@ fn bundle_dependencies_true_is_recorded_as_true() {
     let bundled_bin = workspace.join(
         "node_modules/@pnpm.e2e/pkg-with-bundle-dependencies-true/node_modules/.bin/hello-world-js-bin",
     );
-    assert!(is_path_executable(&bundled_bin));
+    assert_bin_linked(&bundled_bin);
 
     // The boolean form has to survive a round trip through the lockfile,
     // both to parse at all and to keep driving the bundled-bin linking.
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
     pacquet_in(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
-    assert!(is_path_executable(&bundled_bin));
+    assert_bin_linked(&bundled_bin);
 
     drop((root, npmrc_info)); // cleanup
 }
@@ -104,12 +98,9 @@ fn bundled_bins_are_linked_under_the_hoisted_linker() {
 
     pacquet.with_args(["add", "@pnpm.e2e/pkg-with-bundled-dependencies@1.0.0"]).assert().success();
 
-    assert!(
-        is_path_executable(&workspace.join(
-            "node_modules/@pnpm.e2e/pkg-with-bundled-dependencies/node_modules/.bin/hello-world-js-bin"
-        )),
-        "the hoisted tree keeps the bundled dependency's bin inside the bundling package",
-    );
+    assert_bin_linked(&workspace.join(
+        "node_modules/@pnpm.e2e/pkg-with-bundled-dependencies/node_modules/.bin/hello-world-js-bin",
+    ));
 
     drop((root, npmrc_info)); // cleanup
 }
@@ -133,6 +124,17 @@ fn bundle_dependencies_false_is_not_recorded() {
     );
 
     drop((root, npmrc_info)); // cleanup
+}
+
+/// Windows has no executable bit — `link_bins_of_packages` writes `.cmd` and
+/// `.ps1` siblings there instead — so only the shim's existence is portable.
+fn assert_bin_linked(shim: &Path) {
+    assert!(shim.exists(), "the bundled dependency's bin must be linked at {shim:?}");
+    #[cfg(unix)]
+    assert!(
+        pacquet_testing_utils::fs::is_path_executable(shim),
+        "the bundled dependency's bin shim at {shim:?} must be executable",
+    );
 }
 
 fn read_wanted_lockfile(workspace: &Path) -> Lockfile {
