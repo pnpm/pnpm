@@ -1302,11 +1302,11 @@ where
             // back to the executor's own read covers a root that isn't
             // among the importers, as a filtered install's is not —
             // pnpm's `safeReadProjectManifestOnly` fallback.
+            let normalized_root = pacquet_fs::lexical_normalize(&workspace_root);
             let root_defines_hook = project_manifests
                 .iter()
                 .find(|(project_dir, _)| {
-                    pacquet_fs::lexical_normalize(project_dir)
-                        == pacquet_fs::lexical_normalize(&workspace_root)
+                    pacquet_fs::lexical_normalize(project_dir) == normalized_root
                 })
                 .is_none_or(|(_, manifest)| {
                     matches!(manifest.script(DEV_PREINSTALL_STAGE, true), Ok(Some(_)))
@@ -3737,9 +3737,11 @@ fn project_lifecycle_extra_env(
 /// value — unset, empty, `false` — runs the hook, so a stray assignment
 /// in someone's environment cannot silently suppress it.
 ///
-/// The marker is inherited by anything the install spawns, so a nested
-/// `pnpm install` started from a lifecycle script during a delegated
-/// install sees it too and skips its own hook.
+/// The marker reaches no process this install spawns — [`build_env`]
+/// drops it — so a nested `pnpm install` started from a lifecycle script
+/// still runs its own hook.
+///
+/// [`build_env`]: pacquet_executor::build_env
 fn dev_preinstall_already_ran() -> bool {
     std::env::var(DEV_PREINSTALL_ALREADY_RAN_ENV).is_ok_and(|value| value == "true")
 }

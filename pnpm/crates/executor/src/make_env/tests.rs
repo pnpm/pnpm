@@ -305,7 +305,10 @@ fn the_dev_preinstall_delegation_marker_never_reaches_a_script() {
     parent.insert(DEV_PREINSTALL_ALREADY_RAN_ENV.into(), "true".into());
 
     let pkg_root = Path::new("/tmp/nested");
-    let extra = empty_extra();
+    // Whichever way the value arrives: inherited above, or named by a
+    // user's `extraEnv`, which is merged in after the parent-env filter.
+    let mut extra = empty_extra();
+    extra.insert(DEV_PREINSTALL_ALREADY_RAN_ENV.into(), "true".into());
     let built = build_env(
         &base_opts(pkg_root, pkg_root, &extra),
         &json!({ "name": "nested", "version": "1.0.0" }),
