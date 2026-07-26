@@ -105,6 +105,21 @@ fn a_reference_without_a_root_manifest_is_rejected() {
     );
 }
 
+#[test]
+fn a_malformed_root_manifest_reports_itself() {
+    let root = tempdir().expect("create a temporary workspace root");
+    fs::write(root.path().join("package.json"), "{ not json").expect("write the root package.json");
+    let mut overrides = overrides_map(&[("is-odd", "$is-odd")]);
+
+    let error = resolve_version_references(&mut overrides, root.path())
+        .expect_err("the unparsable manifest is the problem to report");
+
+    assert!(
+        matches!(&error, LoadWorkspaceYamlError::ReadRootManifest { .. }),
+        "unexpected error: {error:?}",
+    );
+}
+
 /// The read is skipped entirely when no value carries a reference, so a
 /// workspace root without a manifest is not an error for everyone else.
 #[test]

@@ -12,7 +12,7 @@
 
 use crate::workspace_yaml::LoadWorkspaceYamlError;
 use indexmap::IndexMap;
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
+use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
 use std::{collections::HashMap, path::Path};
 
 /// The dependency groups a `$dep-name` reference may point at, in
@@ -24,9 +24,10 @@ const REFERENCEABLE_GROUPS: [DependencyGroup; 3] =
 /// Replace every `$dep-name` value in `overrides` with the specifier
 /// the manifest at `root_dir` declares for that dependency.
 ///
-/// A root manifest that is missing or unreadable contributes no
-/// dependencies, so every reference in it fails to resolve — the install
-/// path reports the unreadable manifest itself with far more context.
+/// A workspace root without a manifest declares no dependencies, so
+/// every reference then fails to resolve. A manifest that exists but
+/// cannot be read or parsed propagates its own error instead — the
+/// unreadable file is what the user has to fix.
 pub(crate) fn resolve_version_references(
     overrides: &mut IndexMap<String, String>,
     root_dir: &Path,
@@ -34,7 +35,13 @@ pub(crate) fn resolve_version_references(
     if !overrides.values().any(|spec| spec.starts_with('$')) {
         return Ok(());
     }
-    let root_manifest = PackageManifest::from_path(root_dir.join("package.json")).ok();
+    let root_manifest = match PackageManifest::from_path(root_dir.join("package.json")) {
+        Ok(manifest) => Some(manifest),
+        Err(PackageManifestError::NoImporterManifestFound(_)) => None,
+        Err(source) => {
+            return Err(LoadWorkspaceYamlError::ReadRootManifest { source: Box::new(source) });
+        }
+    };
     let direct_dependencies: HashMap<&str, &str> = root_manifest
         .as_ref()
         .map(|manifest| manifest.dependencies(REFERENCEABLE_GROUPS).collect())

@@ -748,6 +748,14 @@ pub enum LoadWorkspaceYamlError {
         )
     )]
     TokenHelperUnsupportedCharacter { character: char },
+    /// The root manifest a `$dep-name` self-reference in `overrides`
+    /// resolves against exists but could not be read or parsed.
+    /// Boxed so the returned `Result` stays small.
+    #[display("Failed to read the root package.json: {source}")]
+    ReadRootManifest {
+        #[error(source)]
+        source: Box<pacquet_package_manifest::PackageManifestError>,
+    },
     /// An `overrides` value used the `$dep-name` self-reference syntax,
     /// but the root manifest declares no such direct dependency.
     #[display(
