@@ -75,17 +75,26 @@ test(`${DEV_PREINSTALL_ALREADY_RAN_ENV} is set only when delegating a resolving 
 })
 
 // An ambient value would otherwise suppress the hook on a frozen
-// delegation, where pnpm relies on pacquet not having run it.
-test(`an inherited ${DEV_PREINSTALL_ALREADY_RAN_ENV} never leaks into a non-resolving delegation`, () => {
-  const previous = process.env[DEV_PREINSTALL_ALREADY_RAN_ENV]
-  process.env[DEV_PREINSTALL_ALREADY_RAN_ENV] = 'true'
+// delegation, where pnpm relies on pacquet not having run it. The
+// lowercase spelling is a distinct key on POSIX but the same one on
+// Windows, where pacquet would read it as a delegation marker.
+test.each([
+  DEV_PREINSTALL_ALREADY_RAN_ENV,
+  DEV_PREINSTALL_ALREADY_RAN_ENV.toLowerCase(),
+])('an inherited %s never leaks into a non-resolving delegation', (key) => {
+  const previous = process.env[key]
+  process.env[key] = 'true'
   try {
-    expect(makePacquetEnv(envOpts)[DEV_PREINSTALL_ALREADY_RAN_ENV]).toBeUndefined()
+    const env = makePacquetEnv(envOpts)
+    const survivor = Object.keys(env).find(
+      (name) => name.toLowerCase() === DEV_PREINSTALL_ALREADY_RAN_ENV.toLowerCase()
+    )
+    expect(survivor).toBeUndefined()
   } finally {
     if (previous == null) {
-      delete process.env[DEV_PREINSTALL_ALREADY_RAN_ENV]
+      delete process.env[key]
     } else {
-      process.env[DEV_PREINSTALL_ALREADY_RAN_ENV] = previous
+      process.env[key] = previous
     }
   }
 })

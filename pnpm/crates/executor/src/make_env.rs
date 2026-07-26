@@ -1,3 +1,4 @@
+use crate::lifecycle::DEV_PREINSTALL_ALREADY_RAN_ENV;
 use serde_json::Value;
 use std::{
     collections::HashMap,
@@ -145,10 +146,8 @@ pub fn build_env(
     EnvBuild { env, tmpdir }
 }
 
-/// Keep PATH (handled by the caller) and every key that is not an
-/// `npm_package_*` stamp, a `(npm|pnpm)_config_*` auth key, or one of
-/// the per-call stamps we re-derive (NODE / TMPDIR / `INIT_CWD` /
-/// `PNPM_SCRIPT_SRC_DIR`).
+/// Keep PATH (handled by the caller) and every key [`is_stamping_key`]
+/// does not claim.
 ///
 /// On Windows the comparison is case-insensitive because Rust's
 /// `Command::env` treats env keys case-insensitively on that
@@ -161,11 +160,14 @@ fn filter_parent_env(env: HashMap<String, String>) -> HashMap<String, String> {
     env.into_iter().filter(|(k, _)| !is_stamping_key(k, cfg!(windows))).collect()
 }
 
-/// Whether `key` is one that [`build_env`] re-derives and so must be
-/// dropped from the inherited parent env: an `npm_package_*` stamp, a
-/// `(npm|pnpm)_config_*` auth credential, or a per-call stamp (`NODE`,
-/// `TMPDIR`, `INIT_CWD`, `PNPM_SCRIPT_SRC_DIR`). Stripping the auth
-/// credentials keeps them out of dependency lifecycle scripts.
+/// Whether `key` must be dropped from the inherited parent env: an
+/// `npm_package_*` stamp, a `(npm|pnpm)_config_*` auth credential, a
+/// per-call stamp [`build_env`] re-derives (`NODE`, `TMPDIR`,
+/// `INIT_CWD`, `PNPM_SCRIPT_SRC_DIR`), or
+/// [`DEV_PREINSTALL_ALREADY_RAN_ENV`]. Stripping the auth credentials
+/// keeps them out of dependency lifecycle scripts; stripping the
+/// delegation marker keeps it scoped to the install that received it,
+/// so a nested install started by a script still runs its own hook.
 ///
 /// `is_windows` toggles case-insensitive matching so test code can
 /// drive both branches without `#[cfg(windows)]` gating the test
@@ -180,12 +182,12 @@ fn is_stamping_key(key: &str, is_windows: bool) -> bool {
     {
         return true;
     }
+    const DROPPED: [&str; 5] =
+        ["NODE", "TMPDIR", "INIT_CWD", "PNPM_SCRIPT_SRC_DIR", DEV_PREINSTALL_ALREADY_RAN_ENV];
     if is_windows {
-        return ["NODE", "TMPDIR", "INIT_CWD", "PNPM_SCRIPT_SRC_DIR"]
-            .iter()
-            .any(|name| key.eq_ignore_ascii_case(name));
+        return DROPPED.iter().any(|name| key.eq_ignore_ascii_case(name));
     }
-    matches!(key, "NODE" | "TMPDIR" | "INIT_CWD" | "PNPM_SCRIPT_SRC_DIR")
+    DROPPED.contains(&key)
 }
 
 /// Return the slice of `key` after `prefix` when `key` starts with it

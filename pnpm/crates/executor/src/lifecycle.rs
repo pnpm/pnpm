@@ -128,6 +128,23 @@ pub const PROJECT_LIFECYCLE_STAGES: [&str; 6] =
 /// [`PROJECT_LIFECYCLE_STAGES`] it cannot rely on `node_modules`.
 pub const DEV_PREINSTALL_STAGE: &str = "pnpm:devPreinstall";
 
+/// Set by the TypeScript CLI when it delegates a *resolving* install to
+/// pacquet, to say it already ran the root project's
+/// [`DEV_PREINSTALL_STAGE`] script itself. That path passes no flags of
+/// its own — a frozen delegation is distinguishable by its
+/// `--ignore-manifest-check` — so without this marker the hook would run
+/// once on each side of the handover.
+///
+/// A private handshake between the two stacks for the lifetime of one
+/// delegated install, which is why it sits outside the user-facing
+/// `PNPM_CONFIG_*` namespace and why [`build_env`] drops it from every
+/// script environment it builds: it describes the install currently
+/// running, not any install a script of that install may start.
+/// Its counterpart lives in the TypeScript CLI's `runPacquet.ts`.
+///
+/// [`build_env`]: crate::build_env
+pub const DEV_PREINSTALL_ALREADY_RAN_ENV: &str = "PNPM_INTERNAL_DEV_PREINSTALL_ALREADY_RAN";
+
 /// Run the preinstall, install, and postinstall lifecycle scripts for
 /// a single dependency.
 ///

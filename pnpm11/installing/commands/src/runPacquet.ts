@@ -206,9 +206,11 @@ function makeRun (opts: MakeRunPacquetOpts): (callOpts?: RunPacquetCallOpts) => 
  * Tells pacquet that pnpm already ran the root project's
  * `pnpm:devPreinstall`, so it must not run it a second time.
  *
- * Only resolve mode needs it. A frozen materialization is already
- * suppressed by the `--ignore-manifest-check` it is given, and pacquet
- * invoked directly by a user has no earlier run to deduplicate against.
+ * Only resolve mode needs it. A frozen materialization is given
+ * `--ignore-manifest-check`, which pacquet's own gate for this hook
+ * already reads as "the caller ran it" — so it is suppressed there
+ * without a marker. Pacquet invoked directly by a user has no earlier
+ * run to deduplicate against.
  *
  * Deliberately outside the `PNPM_CONFIG_*` namespace: this is a private
  * handshake between the two stacks for the lifetime of one delegated
@@ -222,7 +224,10 @@ export function makePacquetEnv (opts: MakeRunPacquetOpts, callOpts?: RunPacquetC
     if (key.toLowerCase() === 'pnpm_config_virtual_store_dir_max_length') {
       delete env[key]
     }
-    if (key === DEV_PREINSTALL_ALREADY_RAN_ENV) {
+    // Case-insensitively, like the key above: Windows treats env names
+    // that way, so a differently-cased inherited copy would otherwise
+    // survive into the child and read as a delegation marker there.
+    if (key.toLowerCase() === DEV_PREINSTALL_ALREADY_RAN_ENV.toLowerCase()) {
       delete env[key]
     }
   }

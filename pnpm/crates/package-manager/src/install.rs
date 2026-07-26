@@ -14,9 +14,9 @@ use pacquet_catalogs_types::Catalogs;
 use pacquet_cmd_shim::LinkBinsError;
 use pacquet_config::{Config, NodeLinker, PNPM_VERSION};
 use pacquet_executor::{
-    DEV_PREINSTALL_STAGE, LifecycleScriptError, RunPostinstallHooks,
-    ScriptsPrependNodePath as ExecScriptsPrependNodePath, run_dev_preinstall_hook,
-    run_project_lifecycle_scripts,
+    DEV_PREINSTALL_ALREADY_RAN_ENV, DEV_PREINSTALL_STAGE, LifecycleScriptError,
+    RunPostinstallHooks, ScriptsPrependNodePath as ExecScriptsPrependNodePath,
+    run_dev_preinstall_hook, run_project_lifecycle_scripts,
 };
 use pacquet_lockfile::{
     LazyLockfile, LoadLockfileError, Lockfile, MaybeLazyLockfile, SaveLockfileError,
@@ -3730,18 +3730,6 @@ fn project_lifecycle_extra_env(
     }
     extra_env
 }
-
-/// Set by the TypeScript CLI when it delegates a *resolving* install to
-/// pacquet, to say it already ran the root project's `pnpm:devPreinstall`
-/// itself. That path passes no flags of its own — a frozen delegation is
-/// distinguishable by its `--ignore-manifest-check` — so without this
-/// marker the hook would run once on each side of the handover.
-///
-/// A private handshake between the two stacks for the lifetime of one
-/// delegated install, which is why it sits outside the user-facing
-/// `PNPM_CONFIG_*` namespace. Its counterpart lives in the TypeScript
-/// CLI's `runPacquet.ts`.
-const DEV_PREINSTALL_ALREADY_RAN_ENV: &str = "PNPM_INTERNAL_DEV_PREINSTALL_ALREADY_RAN";
 
 /// Whether the delegating CLI claims to have run the hook already.
 ///

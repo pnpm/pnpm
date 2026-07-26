@@ -6,9 +6,9 @@ mod shell;
 
 pub use extend_path::{ScriptsPrependNodePath, extend_path};
 pub use lifecycle::{
-    DEV_PREINSTALL_STAGE, LifecycleScriptError, PROJECT_LIFECYCLE_STAGES, RunPostinstallHooks,
-    push_script_arg, run_dev_preinstall_hook, run_lifecycle_hook, run_postinstall_hooks,
-    run_project_lifecycle_scripts,
+    DEV_PREINSTALL_ALREADY_RAN_ENV, DEV_PREINSTALL_STAGE, LifecycleScriptError,
+    PROJECT_LIFECYCLE_STAGES, RunPostinstallHooks, push_script_arg, run_dev_preinstall_hook,
+    run_lifecycle_hook, run_postinstall_hooks, run_project_lifecycle_scripts,
 };
 pub use make_env::{EnvBuild, EnvOptions, VERIFY_DEPS_BEFORE_RUN_ENV, build_env};
 pub use run_script::{RunScript, RunScriptError, run_script};
