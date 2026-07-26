@@ -4,7 +4,7 @@ use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::{Context, Diagnostic};
 use pacquet_config::Config;
-use pacquet_package_manager::{Install, UpdateSeedPolicy};
+use pacquet_package_manager::{Install, ProjectMutation, UpdateSeedPolicy};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_reporter::Reporter;
 use pacquet_workspace_manifest_writer::set_overrides;
@@ -152,7 +152,7 @@ impl LinkArgs {
             skip_runtimes: config.skip_runtimes,
             trust_lockfile: config.trust_lockfile,
             update_checksums: false,
-            is_full_install: false,
+            mutation: ProjectMutation::NoInstall,
             installs_only: false,
             resolved_packages,
             supported_architectures: config.supported_architectures.clone(),

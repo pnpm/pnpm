@@ -104,6 +104,48 @@ pub struct WorkspaceInstallSelection<'a> {
     pub active_manifest_is_standin: bool,
 }
 
+/// What this run does to the manifests of the projects it installs —
+/// pnpm's `MutatedProject.mutation`, which decides both whether the run
+/// counts as a full install and which projects fire their own
+/// `preinstall`/`install`/`postinstall`/`prepare` scripts.
+///
+/// pnpm builds a *mutated importer* list per command: the projects the
+/// command acts on, plus the workspace root, which its recursive dispatch
+/// pushes in as a plain `mutation: 'install'` whenever the selection
+/// leaves it out. A project runs its own scripts when that list covers
+/// only part of the workspace, or — when it covers all of it — when the
+/// project's own mutation is a full install.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProjectMutation {
+    /// pnpm's workspace-wide `mutation: 'install'`: `pacquet install`,
+    /// `dedupe`, `prune`, `deploy`. Every project the run materializes is
+    /// installed in full and runs its own scripts.
+    InstallWorkspace,
+    /// pnpm's `mutation: 'install'` narrowed to the projects the command
+    /// was pointed at: a selector-less `pacquet update`, which installs
+    /// those projects in full but leaves the rest of the workspace alone.
+    InstallSelected,
+    /// pnpm's `mutation: 'installSome'`: `pacquet add`,
+    /// `pacquet update <selector>` and `pacquet update --latest`, which
+    /// rewrite named dependencies rather than installing the project's
+    /// whole manifest.
+    InstallSome,
+    /// A run that installs no project's manifest: pnpm's
+    /// `mutation: 'uninstallSome'` (`pacquet remove`) and the commands
+    /// that only materialize what the lockfile already records
+    /// (`link`, `import`, `fetch`, `rebuild`).
+    NoInstall,
+}
+
+impl ProjectMutation {
+    /// Whether this run is a full project install (pnpm's
+    /// `mutation: 'install'`) rather than a partial one.
+    #[must_use]
+    pub fn is_full_install(self) -> bool {
+        matches!(self, ProjectMutation::InstallWorkspace | ProjectMutation::InstallSelected)
+    }
+}
+
 pub(crate) fn selected_project_indices(
     projects: &[pacquet_workspace::Project],
     ordered_dirs: &[PathBuf],
@@ -205,22 +247,19 @@ where
     /// from the registry. Skips the frozen-lockfile path so the
     /// fresh-resolve path rewrites them.
     pub update_checksums: bool,
-    /// Whether this is a full project install (`pacquet install`,
-    /// pnpm's `mutation: 'install'`) rather than a partial one
-    /// (`pacquet add`, pnpm's `mutation: 'installSome'`). Gates the
-    /// project's own lifecycle scripts: they run only for the full
-    /// install via the `mutation === 'install'` filter, so a named
-    /// install such as `pacquet add foo` does not fire the root
-    /// project's preinstall/postinstall/prepare/etc.
-    pub is_full_install: bool,
+    /// What this run does to the manifests of the projects it installs.
+    /// Decides whether the run counts as a full install and which
+    /// projects fire their own lifecycle scripts — see
+    /// [`ProjectMutation`].
+    pub mutation: ProjectMutation,
     /// Whether every mutation this run performs is a plain install
     /// (upstream's `installsOnly`, true for `pacquet install` /
     /// `pacquet update`). A plain install may recreate a modules
     /// directory whose layout settings drifted; `add` / `remove` set
     /// this `false` and fail with the upstream `*_DIFF` errors
     /// instead — pnpm's `validateModules` contract. Distinct from
-    /// [`Self::is_full_install`], which stays `false` for a named
-    /// `update`.
+    /// [`ProjectMutation::is_full_install`], which stays `false` for a
+    /// named `update`.
     pub installs_only: bool,
     /// `supportedArchitectures` after merging
     /// `Config::supported_architectures` from `pnpm-workspace.yaml`
@@ -752,7 +791,7 @@ where
             skip_runtimes,
             trust_lockfile,
             update_checksums,
-            is_full_install,
+            mutation,
             installs_only,
             supported_architectures,
             node_linker,
@@ -917,7 +956,7 @@ where
         // single-project shape, with no `total`, exactly as pnpm's
         // non-recursive `scopeLogger` call does.
         if selection.is_none() && config.shared_workspace_lockfile {
-            let workspace_wide = is_full_install.then_some(workspace_projects).flatten();
+            let workspace_wide = mutation.is_full_install().then_some(workspace_projects).flatten();
             Reporter::emit(&LogEvent::Scope(ScopeLog {
                 level: LogLevel::Debug,
                 selected: workspace_wide.map_or(1, <[_]>::len),
@@ -1003,7 +1042,7 @@ where
         // excluded through its seed policy: a compatible bump leaves
         // the manifest byte-identical, which the check would likewise
         // read as up to date and skip the registry re-resolution.
-        let optimistic_decision = is_full_install
+        let optimistic_decision = mutation.is_full_install()
             && matches!(update_seed_policy, UpdateSeedPolicy::KeepAll)
             && !filtered_install
             && !frozen_lockfile
@@ -1775,7 +1814,7 @@ where
             // for an empty lockfile (`isEmptyLockfile`), and an explicit
             // `pnpm rebuild` is not an install, so both stay silent.
             if rebuild.is_none() && !lockfile.is_empty() {
-                let message = if ignore_manifest_check && !is_full_install {
+                let message = if ignore_manifest_check && !mutation.is_full_install() {
                     "Importing packages to virtual store"
                 } else {
                     "Lockfile is up to date, resolution step is skipped"
@@ -1989,7 +2028,7 @@ where
                 skip_runtimes,
                 dry_run,
                 can_prompt,
-                is_full_install,
+                is_full_install: mutation.is_full_install(),
                 update_seed_policy,
                 auth_override,
                 resolution_observer,
@@ -2383,29 +2422,25 @@ where
         // `pnpm:lifecycle` events these scripts produce render before
         // the closing `pnpm:summary` below.
         //
-        // Skipped for partial installs (`pacquet add`): pnpm filters
-        // to `mutation === 'install'` so a named install does not fire
-        // the project's own scripts (see [`Install::is_full_install`]).
+        // Which projects those are is [`ProjectMutation`]'s call.
         //
-        // Also skipped under `--ignore-scripts`: pnpm suppresses the
+        // Skipped under `--ignore-scripts`: pnpm suppresses the
         // project's own lifecycle scripts alongside dependency build
         // scripts when `ignoreScripts` is set.
         //
         // And under `virtualStoreOnly`, which stops before any linking
         // the project's scripts would expect to find in place.
         //
-        // A `pnpm rebuild --pending` is the exception to the
-        // full-install gate: it is not a full install, but the projects
-        // it names are exactly the ones whose scripts an earlier
-        // `--ignore-scripts` install deferred, and running them is what
-        // lets the install drop those entries from `pendingBuilds` (see
+        // A `pnpm rebuild --pending` is the exception to the mutation
+        // gate: it installs no manifest, but the projects it names are
+        // exactly the ones whose scripts an earlier `--ignore-scripts`
+        // install deferred, and running them is what lets the install
+        // drop those entries from `pendingBuilds` (see
         // [`merge_pending_builds`]).
         let projects_to_run: Vec<(std::path::PathBuf, &PackageManifest)> = if config.ignore_scripts
             || config.virtual_store_only
         {
             Vec::new()
-        } else if is_full_install {
-            materialized_project_manifests.clone()
         } else if let Some(rebuild) = rebuild.as_ref() {
             materialized_project_manifests
                 .iter()
@@ -2417,7 +2452,14 @@ where
                 .cloned()
                 .collect()
         } else {
-            Vec::new()
+            projects_running_own_scripts(&ProjectScriptsInputs {
+                mutation,
+                workspace_root: &workspace_root,
+                active_project_dir: manifest_dir,
+                selected_dirs: selection.as_ref().map(|selection| selection.selected_dirs),
+                project_manifests: &project_manifests,
+                materialized_project_manifests: &materialized_project_manifests,
+            })
         };
         if !projects_to_run.is_empty() {
             let project_groups = order_project_lifecycle_groups(
@@ -4014,6 +4056,76 @@ impl ProjectDirMatcher {
         };
         std::fs::canonicalize(project_dir).is_ok_and(|project_dir| project_dir == canonical)
     }
+}
+
+struct ProjectScriptsInputs<'a, 'manifest> {
+    mutation: ProjectMutation,
+    workspace_root: &'a Path,
+    /// The project the command was run in, which is the sole mutated
+    /// importer of an unfiltered `add` / `update`.
+    active_project_dir: &'a Path,
+    /// The `--filter` / `-r` selection, when the run was narrowed to one.
+    selected_dirs: Option<&'a HashSet<PathBuf>>,
+    /// Every project of the workspace.
+    project_manifests: &'a [(PathBuf, &'manifest PackageManifest)],
+    /// The subset this run materialized. A project outside it has no
+    /// linked `node_modules` for its scripts to import, so it never runs
+    /// them even when the mutated set nominally covers it.
+    materialized_project_manifests: &'a [(PathBuf, &'manifest PackageManifest)],
+}
+
+/// The projects that fire their own lifecycle scripts at the end of this
+/// run, following pnpm's mutated-importer rule (see [`ProjectMutation`]).
+fn projects_running_own_scripts<'manifest>(
+    inputs: &ProjectScriptsInputs<'_, 'manifest>,
+) -> Vec<(PathBuf, &'manifest PackageManifest)> {
+    let ProjectScriptsInputs {
+        mutation,
+        workspace_root,
+        active_project_dir,
+        selected_dirs,
+        project_manifests,
+        materialized_project_manifests,
+    } = *inputs;
+    let full_install = match mutation {
+        ProjectMutation::NoInstall => return Vec::new(),
+        ProjectMutation::InstallWorkspace => return materialized_project_manifests.to_vec(),
+        ProjectMutation::InstallSelected => true,
+        ProjectMutation::InstallSome => false,
+    };
+    let mutated_dirs = match selected_dirs {
+        Some(selected_dirs) => {
+            selected_dirs.iter().map(|dir| pacquet_fs::lexical_normalize(dir)).collect()
+        }
+        None => HashSet::from([pacquet_fs::lexical_normalize(active_project_dir)]),
+    };
+    // pnpm's recursive dispatch pushes the workspace root into the
+    // mutated importers as a plain `mutation: 'install'` whenever the
+    // selection leaves it out, so the root installs in full — and runs
+    // its own scripts — even when the command was pointed elsewhere.
+    let workspace_root = pacquet_fs::lexical_normalize(workspace_root);
+    let root_was_pushed_in = !mutated_dirs.contains(&workspace_root);
+    let is_pushed_root = |project_dir: &Path| root_was_pushed_in && project_dir == workspace_root;
+    // A run that mutates only part of the workspace materializes the rest
+    // from the lockfile alone; pnpm runs the scripts of everything it did
+    // mutate, whatever the mutation. Only when the mutated set covers the
+    // whole workspace does the `mutation === 'install'` filter decide.
+    let covers_workspace = project_manifests.iter().all(|(project_dir, _)| {
+        let project_dir = pacquet_fs::lexical_normalize(project_dir);
+        mutated_dirs.contains(&project_dir) || is_pushed_root(&project_dir)
+    });
+    materialized_project_manifests
+        .iter()
+        .filter(|(project_dir, _)| {
+            let project_dir = pacquet_fs::lexical_normalize(project_dir);
+            let pushed_root = is_pushed_root(&project_dir);
+            if !pushed_root && !mutated_dirs.contains(&project_dir) {
+                return false;
+            }
+            !covers_workspace || full_install || pushed_root
+        })
+        .cloned()
+        .collect()
 }
 
 fn selected_manifest_freshness_inputs<'a>(

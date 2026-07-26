@@ -1,7 +1,7 @@
 use crate::State;
 use clap::Args;
 use miette::Context;
-use pacquet_package_manager::Install;
+use pacquet_package_manager::{Install, ProjectMutation};
 use pacquet_package_manifest::DependencyGroup;
 use pacquet_reporter::Reporter;
 
@@ -56,7 +56,7 @@ impl PruneArgs {
             skip_runtimes: false,
             trust_lockfile: false,
             update_checksums: false,
-            is_full_install: true,
+            mutation: ProjectMutation::InstallWorkspace,
             installs_only: true,
             resolved_packages,
             supported_architectures: config.supported_architectures.clone(),

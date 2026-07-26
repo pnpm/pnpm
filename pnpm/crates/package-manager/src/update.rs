@@ -1,7 +1,7 @@
 use crate::{
     CatalogDecision, CatalogModeDep, CatalogVersionMismatchError, DIRECT_GROUPS,
-    ImporterUpdateSeedPolicy, Install, InstallError, ResolvedPackages, UpdateSeedPolicy,
-    WorkspaceInstallSelection,
+    ImporterUpdateSeedPolicy, Install, InstallError, ProjectMutation, ResolvedPackages,
+    UpdateSeedPolicy, WorkspaceInstallSelection,
     catalog_cleanup::{
         WriteWorkspaceCatalogsError, write_workspace_catalogs, write_workspace_catalogs_selected,
     },
@@ -234,6 +234,22 @@ fn parse_update_param(input: &str) -> ParsedSelector {
     }
 }
 
+/// pnpm's mutation for an update: a full install of the projects it was
+/// pointed at when the user named nothing, and `installSome` once the
+/// update targets specific dependencies — either by selector or through
+/// `--latest`, which expands to every direct dependency's spec.
+///
+/// `--workspace` does not enter into it: pnpm picks the mutation from the
+/// selectors the user passed, so a selector-less workspace-link update
+/// stays a full install.
+fn update_mutation(packages: &[String], latest: bool) -> ProjectMutation {
+    if packages.is_empty() && !latest {
+        ProjectMutation::InstallSelected
+    } else {
+        ProjectMutation::InstallSome
+    }
+}
+
 impl Update<'_> {
     pub async fn run<Reporter: self::Reporter + 'static>(self) -> Result<(), UpdateError> {
         let Update {
@@ -322,13 +338,7 @@ impl Update<'_> {
             skip_runtimes: config.skip_runtimes,
             trust_lockfile: config.trust_lockfile,
             update_checksums: false,
-            // A targeted `pacquet update <pkg>` is a partial install
-            // (pnpm's `installSome`); a bare `pacquet update` is a full
-            // install that runs the project's own lifecycle scripts.
-            // `--workspace` does not enter into it: pnpm picks the
-            // mutation from the selectors the user passed, so a
-            // selector-less workspace-link update stays a full install.
-            is_full_install: packages.is_empty(),
+            mutation: update_mutation(packages, latest),
             installs_only: true,
             resolved_packages,
             supported_architectures,
@@ -443,7 +453,7 @@ impl Update<'_> {
             skip_runtimes: config.skip_runtimes,
             trust_lockfile: config.trust_lockfile,
             update_checksums: false,
-            is_full_install: packages.is_empty(),
+            mutation: update_mutation(packages, latest),
             installs_only: true,
             resolved_packages,
             supported_architectures,

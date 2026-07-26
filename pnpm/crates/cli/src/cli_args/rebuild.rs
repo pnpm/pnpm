@@ -4,7 +4,7 @@ use pacquet_config::Config;
 use pacquet_lockfile::MaybeLazyLockfile;
 use pacquet_modules_yaml::{Host, read_modules_layout, read_modules_manifest};
 use pacquet_package_manager::{
-    Install, RebuildOptions, UpdateSeedPolicy, allow_build_key_from_ignored_build,
+    Install, ProjectMutation, RebuildOptions, UpdateSeedPolicy, allow_build_key_from_ignored_build,
 };
 use pacquet_package_manifest::DependencyGroup;
 use pacquet_reporter::Reporter;
@@ -207,7 +207,7 @@ pub(crate) async fn run_rebuild<Reporter: self::Reporter + 'static>(
         // `rebuild` re-runs dependency build scripts. The root
         // project's own lifecycle scripts run only for the importers
         // `--pending` names (see `RebuildOptions::pending_projects`).
-        is_full_install: false,
+        mutation: ProjectMutation::NoInstall,
         installs_only: true,
         resolved_packages,
         supported_architectures: config.supported_architectures.clone(),
