@@ -38,7 +38,7 @@ mod violation_codes;
 mod which_version_is_pinned;
 mod workspace_pref_to_npm;
 
-pub use calc_specifier::calc_specifier;
+pub use calc_specifier::{calc_prefixed_specifier, calc_specifier};
 pub use calc_specifier_for_workspace_dep::{DeclaredSpecifiers, calc_specifier_for_workspace_dep};
 pub use create_npm_resolution_verifier::{
     CreateNpmResolutionVerifierOptions, DistStats, NpmResolutionVerifier, ObservedDistStats,

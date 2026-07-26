@@ -81,6 +81,26 @@ fn install_records_a_plain_jsr_dependency() {
     drop((root, anchor));
 }
 
+/// Ports `jsr without alias`: the manifest keeps the `jsr:` protocol
+/// and the version behind it is bumped, while the lockfile records
+/// the resolved `@jsr/` package.
+#[test]
+fn update_latest_bumps_a_jsr_dependency() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, r#"{ "@pnpm-e2e/bar": "jsr:1.0.0" }"#);
+    pacquet(&workspace, ["install"]).assert().success();
+    pacquet(&workspace, ["update", "--latest"]).assert().success();
+
+    assert_eq!(dep_spec(&workspace, "@pnpm-e2e/bar").as_deref(), Some("jsr:2.0.0"));
+    assert_eq!(
+        lockfile_entry(&workspace, "@pnpm-e2e/bar"),
+        Some(("jsr:2.0.0".to_string(), "@jsr/pnpm-e2e__bar@2.0.0".to_string())),
+    );
+
+    drop((root, anchor));
+}
+
 mod known_failures {
     use super::{dep_spec, lockfile_entry, pacquet, setup, write_manifest};
     use assert_cmd::prelude::*;
@@ -90,16 +110,6 @@ mod known_failures {
     };
     use pretty_assertions::assert_eq;
 
-    /// `parse_jsr_specifier_to_registry_package_spec` builds a spec with
-    /// no normalized bare specifier, so `update --latest` has nothing to
-    /// write back and the `jsr:` version stays put. See pnpm/pnpm#13363.
-    fn jsr_specifiers_are_not_rewritten_by_latest() -> KnownResult<()> {
-        Err(KnownFailure::new(
-            "pacquet's jsr specifier parser produces no normalized bare specifier, so \
-             `update --latest` leaves the `jsr:` version untouched.",
-        ))
-    }
-
     /// An aliased `jsr:` dependency resolves into `packages` and
     /// `snapshots` but leaves the importer empty, so the lockfile never
     /// records it as a direct dependency. See pnpm/pnpm#13362.
@@ -108,27 +118,6 @@ mod known_failures {
             "pacquet resolves an aliased `jsr:` dependency but leaves the importer empty, \
              so the lockfile does not record it as a direct dependency.",
         ))
-    }
-
-    /// Ports `jsr without alias`: the manifest keeps the `jsr:` protocol
-    /// and the version behind it is bumped, while the lockfile records
-    /// the resolved `@jsr/` package.
-    #[test]
-    fn update_latest_bumps_a_jsr_dependency() {
-        let (root, workspace, anchor) = setup();
-
-        write_manifest(&workspace, r#"{ "@pnpm-e2e/bar": "jsr:1.0.0" }"#);
-        pacquet(&workspace, ["install"]).assert().success();
-        pacquet(&workspace, ["update", "--latest"]).assert().success();
-        allow_known_failure!(jsr_specifiers_are_not_rewritten_by_latest());
-
-        assert_eq!(dep_spec(&workspace, "@pnpm-e2e/bar").as_deref(), Some("jsr:2.0.0"));
-        assert_eq!(
-            lockfile_entry(&workspace, "@pnpm-e2e/bar"),
-            Some(("jsr:2.0.0".to_string(), "@jsr/pnpm-e2e__bar@2.0.0".to_string())),
-        );
-
-        drop((root, anchor));
     }
 
     /// The install half of `jsr with alias`: the aliased form is recorded
@@ -151,8 +140,8 @@ mod known_failures {
 
     /// Ports `jsr with alias`: the aliased form keeps both the alias and
     /// the package name it resolves through, bumping only the version.
-    /// Each gate sits in front of the assertion its gap blocks, so the
-    /// install and update both run whichever gap is still open.
+    /// The gate sits in front of the assertion its gap blocks, so the
+    /// manifest half runs while the importer gap is still open.
     #[test]
     fn update_latest_bumps_an_aliased_jsr_dependency() {
         let (root, workspace, anchor) = setup();
@@ -161,7 +150,6 @@ mod known_failures {
         pacquet(&workspace, ["install"]).assert().success();
         pacquet(&workspace, ["update", "--latest"]).assert().success();
 
-        allow_known_failure!(jsr_specifiers_are_not_rewritten_by_latest());
         assert_eq!(
             dep_spec(&workspace, "bar-from-jsr").as_deref(),
             Some("jsr:@pnpm-e2e/bar@2.0.0"),

@@ -1,6 +1,6 @@
 use pacquet_registry::{PackageVersion, PinnedVersion};
 
-use super::calc_specifier;
+use super::{calc_prefixed_specifier, calc_specifier};
 
 fn picked(version: &str) -> PackageVersion {
     serde_json::from_value(serde_json::json!({
@@ -74,5 +74,57 @@ fn a_prerelease_pick_is_written_exactly() {
     assert_eq!(
         calc_specifier("^1.0.0", Some("foo"), &picked("5.0.0-rc.1"), PinnedVersion::Major),
         "5.0.0-rc.1",
+    );
+}
+
+#[test]
+fn a_prefixed_specifier_keeps_its_protocol_and_the_declared_range_operator() {
+    for (bare_specifier, expected) in
+        [("jsr:^1.0.0", "jsr:^4.2.0"), ("jsr:~1.0.0", "jsr:~4.2.0"), ("jsr:1.0.0", "jsr:4.2.0")]
+    {
+        assert_eq!(
+            calc_prefixed_specifier(
+                "jsr:",
+                "@pnpm-e2e/foo",
+                bare_specifier,
+                Some("@pnpm-e2e/foo"),
+                &picked("4.2.0"),
+                PinnedVersion::Major,
+            ),
+            expected,
+            "specifier for {bare_specifier}",
+        );
+    }
+}
+
+#[test]
+fn an_aliased_prefixed_specifier_keeps_naming_the_package_it_resolves_through() {
+    assert_eq!(
+        calc_prefixed_specifier(
+            "jsr:",
+            "@pnpm-e2e/foo",
+            "jsr:@pnpm-e2e/foo@1.0.0",
+            Some("foo-from-jsr"),
+            &picked("4.2.0"),
+            PinnedVersion::Major,
+        ),
+        "jsr:@pnpm-e2e/foo@4.2.0",
+    );
+}
+
+/// Without an alias the dependency is installed under the package's own
+/// name, so the specifier carries the range alone.
+#[test]
+fn an_unaliased_prefixed_specifier_carries_the_range_alone() {
+    assert_eq!(
+        calc_prefixed_specifier(
+            "jsr:",
+            "@pnpm-e2e/foo",
+            "jsr:latest",
+            None,
+            &picked("4.2.0"),
+            PinnedVersion::Minor,
+        ),
+        "jsr:~4.2.0",
     );
 }

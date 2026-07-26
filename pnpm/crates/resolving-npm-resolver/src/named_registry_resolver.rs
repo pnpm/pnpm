@@ -156,12 +156,12 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
             published_by: opts.published_by,
             published_by_exclude: opts.published_by_exclude.as_ref(),
             picked_manifest_cache: &self.picked_manifest_cache,
-            // A named-registry entry round-trips as
-            // `<alias>:<name>@<range>`, a shape `calc_specifier` does not
-            // build. Reporting an npm-shaped range here would drop the
-            // alias and repoint the dependency at the default registry,
-            // so the entry is left as declared.
-            calc_specifier_from: None,
+            // TODO(pnpm/pnpm#13393): render the entry back under
+            // `<alias>:` with `calc_prefixed_specifier`, the way the JSR
+            // path does. Until then it is left as declared, since an
+            // npm-shaped range would drop the alias and repoint the
+            // dependency at the default registry.
+            calculated_specifier: None,
         })?;
 
         Ok(Some(result))
