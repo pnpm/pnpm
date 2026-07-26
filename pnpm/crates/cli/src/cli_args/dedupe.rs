@@ -10,13 +10,11 @@ use crate::{
             TreeNode, blue_bright_underline, gray, green, plain, red, render_archy,
         },
         peers::peer_issues_warrant_warning,
-        recursive::discover_workspace_projects,
     },
 };
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pacquet_config::Config;
 use pacquet_lockfile::Lockfile;
 use pacquet_package_manager::{
     ImporterDiffKey, Install, LockfileDiff, ProjectMutation, SnapshotDiff, diff_lockfiles,
@@ -87,18 +85,30 @@ impl DedupeArgs {
         .await
         .wrap_err("deduplicating dependencies")?;
 
-        warn_on_peer_issues::<Reporter>(config, lockfile_path)?;
+        let current = read_lockfile_snapshot(lockfile_path)?;
+        let deduped = parse_snapshot(current.as_deref(), lockfile_path);
+
+        let lockfile_dir = lockfile_path.parent().unwrap_or_else(|| Path::new("."));
+        if let Some(deduped) = &deduped
+            && peer_issues_warrant_warning(deduped, lockfile_dir, &config.peer_dependency_rules)
+        {
+            Reporter::emit(&LogEvent::Global(GlobalLog {
+                level: LogLevel::Warn,
+                message:
+                    r#"Issues with peer dependencies found. Run "pnpm peers check" to list them."#
+                        .to_string(),
+            }));
+        }
 
         if self.check {
             let mut guard = guard.unwrap();
-            let current = read_lockfile_snapshot(lockfile_path)?;
             if existing == current {
                 guard.disarm();
                 Ok(())
             } else {
                 let report = render_dedupe_check_issues(&diff_lockfiles(
                     parse_snapshot(existing.as_deref(), lockfile_path).as_ref(),
-                    parse_snapshot(current.as_deref(), lockfile_path).as_ref(),
+                    deduped.as_ref(),
                     ImporterDiffKey::Version,
                 ));
                 eprintln!("{report}");
@@ -118,36 +128,6 @@ enum DedupeError {
         help("Run `pnpm dedupe` to apply the changes above.")
     )]
     CheckIssues,
-}
-
-/// Point the user at `pnpm peers check` when the deduplicated lockfile has
-/// peer-dependency issues, mirroring the warning pnpm's install emits.
-fn warn_on_peer_issues<Reporter: self::Reporter>(
-    config: &Config,
-    lockfile_path: &Path,
-) -> miette::Result<()> {
-    let lockfile_dir = lockfile_path.parent().unwrap_or_else(|| Path::new("."));
-    let Some(lockfile) =
-        Lockfile::load_wanted_from_dir(lockfile_dir).into_diagnostic().wrap_err("load lockfile")?
-    else {
-        return Ok(());
-    };
-    let workspace_root = config.workspace_dir.as_deref().unwrap_or(lockfile_dir);
-    let (projects, _) = discover_workspace_projects(workspace_root)?;
-    let project_dirs: Vec<PathBuf> = projects.into_iter().map(|project| project.root_dir).collect();
-    if peer_issues_warrant_warning(
-        &lockfile,
-        lockfile_dir,
-        &project_dirs,
-        &config.peer_dependency_rules,
-    ) {
-        Reporter::emit(&LogEvent::Global(GlobalLog {
-            level: LogLevel::Warn,
-            message: r#"Issues with peer dependencies found. Run "pnpm peers check" to list them."#
-                .to_string(),
-        }));
-    }
-    Ok(())
 }
 
 /// Parse one side of the `--check` diff. A snapshot that does not parse —

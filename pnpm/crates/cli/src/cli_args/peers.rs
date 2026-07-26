@@ -160,14 +160,18 @@ impl PeersArgs {
 /// `pnpm peers check`. Mirrors pnpm's install-time gate: a bad peer, or a
 /// missing peer that at least one parent requires non-optionally, once
 /// `peerDependencyRules` have been applied.
+///
+/// Every importer the lockfile records is checked, since an install writes
+/// them all — no workspace scan needed to name them.
 pub(crate) fn peer_issues_warrant_warning(
     lockfile: &Lockfile,
     lockfile_dir: &std::path::Path,
-    project_dirs: &[std::path::PathBuf],
     rules: &PeerDependencyRules,
 ) -> bool {
+    let mut importer_ids: Vec<String> = lockfile.importers.keys().cloned().collect();
+    importer_ids.sort();
     let issues = filter_peer_issues(
-        check_peer_dependencies_from_lockfile(lockfile, lockfile_dir, project_dirs),
+        check_peer_dependencies_of_importers(lockfile, lockfile_dir, &importer_ids),
         rules,
     );
     issues.values().any(|project_issues| {
@@ -184,11 +188,6 @@ fn check_peer_dependencies_from_lockfile(
     lockfile_dir: &std::path::Path,
     project_dirs: &[std::path::PathBuf],
 ) -> IssuesByProjects {
-    let empty_packages = HashMap::new();
-    let empty_snapshots = HashMap::new();
-    let packages = lockfile.packages.as_ref().unwrap_or(&empty_packages);
-    let snapshots = lockfile.snapshots.as_ref().unwrap_or(&empty_snapshots);
-
     let mut importer_ids: Vec<String> = project_dirs
         .iter()
         .map(|project_dir| pacquet_workspace::importer_id_from_root_dir(lockfile_dir, project_dir))
@@ -196,6 +195,18 @@ fn check_peer_dependencies_from_lockfile(
         .collect();
     importer_ids.sort();
     importer_ids.dedup();
+    check_peer_dependencies_of_importers(lockfile, lockfile_dir, &importer_ids)
+}
+
+fn check_peer_dependencies_of_importers(
+    lockfile: &Lockfile,
+    lockfile_dir: &std::path::Path,
+    importer_ids: &[String],
+) -> IssuesByProjects {
+    let empty_packages = HashMap::new();
+    let empty_snapshots = HashMap::new();
+    let packages = lockfile.packages.as_ref().unwrap_or(&empty_packages);
+    let snapshots = lockfile.snapshots.as_ref().unwrap_or(&empty_snapshots);
 
     let mut result: IssuesByProjects = BTreeMap::new();
     // Shared across importers so each package is evaluated once, matching
@@ -203,7 +214,7 @@ fn check_peer_dependencies_from_lockfile(
     // importer's step.
     let mut visited_packages = HashSet::new();
 
-    for importer_id in &importer_ids {
+    for importer_id in importer_ids {
         let mut issues = PeerIssues {
             bad: BTreeMap::new(),
             missing: BTreeMap::new(),

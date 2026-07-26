@@ -57,32 +57,65 @@ pub enum ImporterDiffKey {
 }
 
 impl SnapshotDiff {
-    fn new(id: String) -> Self {
-        SnapshotDiff { id, added: Vec::new(), removed: Vec::new(), updated: Vec::new() }
-    }
-
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.added.is_empty() && self.removed.is_empty() && self.updated.is_empty()
     }
+}
 
+/// What happened to one alias between the two lockfiles.
+enum AliasChange {
+    Added(String),
+    Removed(String),
+    Updated { prev: String, next: String },
+}
+
+/// The per-alias changes of one snapshot, merged across its dependency
+/// groups.
+///
+/// pnpm folds every group's diff into one alias-keyed map, so an alias
+/// that only moves between groups — `devDependencies` to `dependencies`,
+/// say — yields the last group's single verdict rather than an addition
+/// and a removal that contradict each other. Merging in pnpm's group
+/// order therefore decides which verdict wins.
+#[derive(Default)]
+struct AliasChanges(BTreeMap<String, AliasChange>);
+
+impl AliasChanges {
     /// Record the per-alias differences between two `alias -> value` maps.
     /// Mirrors pnpm's `getResolutionUpdates`.
-    fn extend(&mut self, old: &BTreeMap<String, String>, new: &BTreeMap<String, String>) {
+    fn merge(&mut self, old: &BTreeMap<String, String>, new: &BTreeMap<String, String>) {
         for (alias, new_value) in new {
             match old.get(alias) {
-                None => self.added.push((alias.clone(), new_value.clone())),
+                None => {
+                    self.0.insert(alias.clone(), AliasChange::Added(new_value.clone()));
+                }
                 Some(old_value) if old_value != new_value => {
-                    self.updated.push((alias.clone(), old_value.clone(), new_value.clone()));
+                    let change =
+                        AliasChange::Updated { prev: old_value.clone(), next: new_value.clone() };
+                    self.0.insert(alias.clone(), change);
                 }
                 Some(_) => {}
             }
         }
         for (alias, old_value) in old {
             if !new.contains_key(alias) {
-                self.removed.push((alias.clone(), old_value.clone()));
+                self.0.insert(alias.clone(), AliasChange::Removed(old_value.clone()));
             }
         }
+    }
+
+    fn into_diff(self, id: String) -> SnapshotDiff {
+        let mut diff =
+            SnapshotDiff { id, added: Vec::new(), removed: Vec::new(), updated: Vec::new() };
+        for (alias, change) in self.0 {
+            match change {
+                AliasChange::Added(next) => diff.added.push((alias, next)),
+                AliasChange::Removed(prev) => diff.removed.push((alias, prev)),
+                AliasChange::Updated { prev, next } => diff.updated.push((alias, prev, next)),
+            }
+        }
+        diff
     }
 }
 
@@ -143,12 +176,16 @@ fn diff_snapshots(old: Option<&Lockfile>, new: Option<&Lockfile>, diff: &mut Loc
     for (key, new_entry) in new_snapshots.into_iter().flatten() {
         match old_snapshots.and_then(|snapshots| snapshots.get(key)) {
             None => diff.added_packages.push(key.to_string()),
-            Some(old_entry) => {
+            // The equality check keeps the common case — a snapshot both
+            // lockfiles wire identically — off the per-alias path, which
+            // allocates a map per dependency group on both sides.
+            Some(old_entry) if snapshot_wiring_differs(old_entry, new_entry) => {
                 let entry_diff = diff_snapshot_entry(key.to_string(), old_entry, new_entry);
                 if !entry_diff.is_empty() {
                     diff.updated_packages.push(entry_diff);
                 }
             }
+            Some(_) => {}
         }
     }
     for key in old_snapshots.into_iter().flatten().map(|(key, _)| key) {
@@ -162,16 +199,23 @@ fn diff_snapshots(old: Option<&Lockfile>, new: Option<&Lockfile>, diff: &mut Loc
     diff.updated_packages.sort_by(|left, right| left.id.cmp(&right.id));
 }
 
+/// Whether a real install would rewrite this snapshot's dependency wiring.
+/// Compares only `dependencies` / `optionalDependencies`, matching pnpm's
+/// `PACKAGE_SNAPSHOT_DEP_FIELDS`.
+fn snapshot_wiring_differs(old: &SnapshotEntry, new: &SnapshotEntry) -> bool {
+    old.dependencies != new.dependencies || old.optional_dependencies != new.optional_dependencies
+}
+
 /// Diff one `snapshots:` entry's dependency wiring, over `dependencies` /
 /// `optionalDependencies` only — pnpm's `PACKAGE_SNAPSHOT_DEP_FIELDS`.
 fn diff_snapshot_entry(key: String, old: &SnapshotEntry, new: &SnapshotEntry) -> SnapshotDiff {
-    let mut diff = SnapshotDiff::new(key);
-    diff.extend(&dep_refs(old.dependencies.as_ref()), &dep_refs(new.dependencies.as_ref()));
-    diff.extend(
+    let mut changes = AliasChanges::default();
+    changes.merge(&dep_refs(old.dependencies.as_ref()), &dep_refs(new.dependencies.as_ref()));
+    changes.merge(
         &dep_refs(old.optional_dependencies.as_ref()),
         &dep_refs(new.optional_dependencies.as_ref()),
     );
-    diff
+    changes.into_diff(key)
 }
 
 /// One dependency group of a `snapshots:` entry as an
@@ -189,18 +233,30 @@ fn diff_importer(
     new: Option<&ProjectSnapshot>,
     key: ImporterDiffKey,
 ) -> SnapshotDiff {
-    let mut diff = SnapshotDiff::new(id.to_string());
-    for group in 0..3 {
-        diff.extend(&group_deps(old, group, key), &group_deps(new, group, key));
+    let mut changes = AliasChanges::default();
+    for group in IMPORTER_GROUPS {
+        changes.merge(&group_deps(old, group, key), &group_deps(new, group, key));
     }
-    diff
+    changes.into_diff(id.to_string())
+}
+
+/// The importer dependency groups, in pnpm's `DEPENDENCIES_FIELDS` order —
+/// which decides the winner for an alias that moves between them.
+const IMPORTER_GROUPS: [ImporterGroup; 3] =
+    [ImporterGroup::Optional, ImporterGroup::Prod, ImporterGroup::Dev];
+
+#[derive(Debug, Clone, Copy)]
+enum ImporterGroup {
+    Prod,
+    Dev,
+    Optional,
 }
 
 /// The `alias -> specifier` (or `alias -> version`) map for one dependency
-/// group of an importer (0 = prod, 1 = dev, 2 = optional).
+/// group of an importer.
 fn group_deps(
     snapshot: Option<&ProjectSnapshot>,
-    group: usize,
+    group: ImporterGroup,
     key: ImporterDiffKey,
 ) -> BTreeMap<String, String> {
     let mut map = BTreeMap::new();
@@ -208,9 +264,9 @@ fn group_deps(
         return map;
     };
     let deps = match group {
-        0 => &snapshot.dependencies,
-        1 => &snapshot.dev_dependencies,
-        _ => &snapshot.optional_dependencies,
+        ImporterGroup::Prod => &snapshot.dependencies,
+        ImporterGroup::Dev => &snapshot.dev_dependencies,
+        ImporterGroup::Optional => &snapshot.optional_dependencies,
     };
     if let Some(deps) = deps {
         for (name, spec) in deps {
