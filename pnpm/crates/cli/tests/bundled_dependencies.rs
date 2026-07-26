@@ -143,8 +143,10 @@ fn bundle_dependencies_false_is_not_recorded() {
     drop((root, npmrc_info)); // cleanup
 }
 
-/// Windows has no executable bit — `link_bins_of_packages` writes `.cmd` and
-/// `.ps1` siblings there instead — so only the shim's existence is portable.
+/// A linked bin means something different per platform: Unix has the
+/// executable bit on the extensionless shim, while Windows has no such bit and
+/// instead relies on the `.cmd` / `.ps1` launchers written next to it. Assert
+/// whichever of the two actually makes the bin invocable on the host.
 fn assert_bin_linked(shim: &Path) {
     assert!(shim.exists(), "the bundled dependency's bin must be linked at {shim:?}");
     #[cfg(unix)]
@@ -152,6 +154,14 @@ fn assert_bin_linked(shim: &Path) {
         pacquet_testing_utils::fs::is_path_executable(shim),
         "the bundled dependency's bin shim at {shim:?} must be executable",
     );
+    #[cfg(windows)]
+    for extension in ["cmd", "ps1"] {
+        let launcher = shim.with_file_name(format!(
+            "{}.{extension}",
+            shim.file_name().expect("bin shim has a file name").to_string_lossy(),
+        ));
+        assert!(launcher.exists(), "the bin shim at {shim:?} needs its {extension} launcher");
+    }
 }
 
 fn read_wanted_lockfile(workspace: &Path) -> Lockfile {
