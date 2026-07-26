@@ -247,7 +247,7 @@ async fn resolve_file() {
     let manifest = result.manifest.as_deref().expect("bundled manifest");
     assert_eq!(
         manifest.get("name").and_then(serde_json::Value::as_str),
-        Some("pnpm-local-resolver")
+        Some("pnpm-local-resolver"),
     );
     assert_eq!(manifest.get("version").and_then(serde_json::Value::as_str), Some("0.1.1"));
 }
