@@ -51,6 +51,13 @@ fn default_workspace() -> CommandTempCwd<AddMockedRegistry> {
 /// Everything the command printed. The reporter writes to stdout and
 /// diagnostics to stderr, and which stream a line lands on is not what
 /// these tests are about.
+/// The workspace path as the CLI reports it: `--dir` is canonicalized
+/// before anything is emitted, so on macOS the reported prefix resolves
+/// `/var` to `/private/var` while the `TempDir` path does not.
+fn reported_prefix(workspace: &Path) -> String {
+    dunce::canonicalize(workspace).expect("canonicalize workspace").to_string_lossy().into_owned()
+}
+
 /// The `pnpm:scope` records in an NDJSON run, decoded.
 fn scope_records(printed: &str) -> Vec<serde_json::Value> {
     printed
@@ -179,7 +186,7 @@ fn a_dedicated_lockfile_install_reports_its_scope_once() {
     assert_eq!(scopes[0]["level"], "debug");
     assert_eq!(scopes[0]["selected"], 2);
     assert_eq!(scopes[0]["total"], 3);
-    assert_eq!(scopes[0]["workspacePrefix"], workspace.to_string_lossy().as_ref());
+    assert_eq!(scopes[0]["workspacePrefix"], reported_prefix(&workspace));
 
     drop((mock_instance, root));
 }
@@ -204,7 +211,7 @@ fn a_partial_install_reports_the_single_project_shape() {
     assert_eq!(scopes.len(), 1, "exactly one scope record: {printed}");
     assert_eq!(scopes[0]["selected"], 1);
     assert!(scopes[0].get("total").is_none(), "no total: {}", scopes[0]);
-    assert_eq!(scopes[0]["workspacePrefix"], workspace.to_string_lossy().as_ref());
+    assert_eq!(scopes[0]["workspacePrefix"], reported_prefix(&workspace));
 
     drop((mock_instance, root));
 }
