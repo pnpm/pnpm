@@ -1,6 +1,8 @@
 //! npm's `includePrerelease` range semantics, built on `node_semver`.
 
-use node_semver::{Range, Version};
+use std::borrow::Cow;
+
+use node_semver::{MAX_SAFE_INTEGER, Range, Version};
 
 /// A semver range evaluated the way npm's `semver` does with
 /// `includePrerelease: true`.
@@ -34,9 +36,17 @@ impl IncludePrereleaseRange {
 
     #[must_use]
     pub(crate) fn satisfies(&self, version: &Version) -> bool {
+        // The eligibility rule `includePrerelease` drops only ever
+        // excludes prereleases, so for a release `node_semver` already
+        // answers with the endpoint test — and answers it without the
+        // single-version ranges the prerelease path has to build.
+        if !version.is_prerelease() {
+            return self.alternatives.iter().any(|alternative| {
+                alternative.iter().all(|comparator| comparator.bounds.satisfies(version))
+            });
+        }
         let Some(point) = point_range(version) else { return false };
-        let release_point =
-            version.is_prerelease().then(|| point_range(&release_of(version))).flatten();
+        let release_point = point_range(&release_of(version));
         self.alternatives.iter().any(|alternative| {
             alternative
                 .iter()
@@ -84,16 +94,14 @@ fn comparators(alternative: &str) -> Option<Vec<Comparator>> {
     let mut index = 0;
     while index < tokens.len() {
         let is_hyphen_range = tokens.get(index + 1) == Some(&"-") && index + 2 < tokens.len();
-        let (text, lower_bound_admits_prereleases, width) = if is_hyphen_range {
+        let (text, lower_bound_admits_prereleases, width): (Cow<'_, str>, _, _) = if is_hyphen_range
+        {
             let text = format!("{} - {}", tokens[index], tokens[index + 2]);
-            (text, !names_a_prerelease(tokens[index]), 3)
+            (text.into(), !names_a_prerelease(tokens[index]), 3)
         } else {
             let token = tokens[index];
-            (
-                npm_upper_bound(token).unwrap_or_else(|| token.to_string()),
-                omits_a_component(token),
-                1,
-            )
+            let text = npm_upper_bound(token).map_or(Cow::Borrowed(token), Cow::Owned);
+            (text, omits_a_component(token), 1)
         };
         if let Ok(bounds) = text.parse::<Range>() {
             comparators.push(Comparator { bounds, lower_bound_admits_prereleases });
@@ -139,7 +147,8 @@ fn omits_a_component(token: &str) -> bool {
 /// them as `<=18.0.0-0` and `<18.1.0`, both off by the omitted
 /// component, so those two operators are rewritten before it sees them.
 /// Returns `None` for every other token, including a fully spelled-out
-/// bound, which it already agrees on.
+/// bound, which it already agrees on, and a component past the largest
+/// one `node_semver` accepts, whose rewrite it would only reject again.
 fn npm_upper_bound(token: &str) -> Option<String> {
     let (inclusive, version) = match token.strip_prefix("<=") {
         Some(version) => (true, version),
@@ -154,10 +163,14 @@ fn npm_upper_bound(token: &str) -> Option<String> {
     let minor: Option<u64> = components.next().and_then(|minor| minor.parse().ok());
     let patch_is_named =
         components.next().is_some_and(|patch| patch.parse::<u64>().is_ok()) && minor.is_some();
+    let past_the_end = |component: u64| {
+        let bound = component.checked_add(u64::from(inclusive))?;
+        (bound <= MAX_SAFE_INTEGER).then_some(bound)
+    };
     match (minor, patch_is_named) {
         (_, true) => None,
-        (None, _) => Some(format!("<{}.0.0-0", major + u64::from(inclusive))),
-        (Some(minor), _) => Some(format!("<{major}.{}.0-0", minor + u64::from(inclusive))),
+        (None, _) => Some(format!("<{}.0.0-0", past_the_end(major)?)),
+        (Some(minor), _) => Some(format!("<{major}.{}.0-0", past_the_end(minor)?)),
     }
 }
 

@@ -191,3 +191,16 @@ fn matches_npm_semver_under_include_prerelease() {
     }
     assert!(divergences.is_empty(), "{}", divergences.join("\n"));
 }
+
+/// A peer range reaches this evaluator straight from a manifest, which
+/// can name a component larger than any parser accepts. npm rejects the
+/// whole range and reports no match; rewriting the bound is skipped
+/// rather than overflowed, and the comparator no parser accepts drops
+/// its alternative to the same answer.
+#[test]
+fn matches_nothing_when_a_bound_names_an_out_of_range_component() {
+    for range in ["<=18446744073709551615", "<=18.18446744073709551615"] {
+        let version = "1.0.0".parse().expect("valid version");
+        assert!(!IncludePrereleaseRange::parse(range).satisfies(&version), "{range}");
+    }
+}
