@@ -886,9 +886,9 @@ fn extract_tarball_entries(
 /// The bounds are all checked: a header whose offset or size doesn't fit
 /// a `usize`, whose sum overflows, or whose range runs past the end of
 /// the archive is rejected rather than truncated.
-fn tar_entry_payload<'a, R: std::io::Read>(
+fn tar_entry_payload<'a, Reader: std::io::Read>(
     tar_data: &'a [u8],
-    entry: &tar::Entry<'_, R>,
+    entry: &tar::Entry<'_, Reader>,
 ) -> Result<&'a [u8], TarballError> {
     let invalid = |message: &str| {
         TarballError::ReadTarballEntries(std::io::Error::new(
