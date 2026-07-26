@@ -201,22 +201,28 @@ impl RunArgs {
                 }
             }
         } else {
-            let results: Vec<_> = std::thread::scope(|s| {
-                specified
-                    .iter()
-                    .filter_map(|name| {
-                        let main = match resolve_main_script(&ctx, name) {
-                            Ok(Some(m)) => m,
-                            Ok(None) => return None,
-                            Err(e) => return Some(Err(e.into())),
-                        };
-                        if args.is_empty() && main == "npx only-allow pnpm" {
-                            return None;
+            let results: Vec<_> = std::thread::scope(|scope| {
+                let mut handles = Vec::with_capacity(specified.len());
+                for name in &specified {
+                    let main = match resolve_main_script(&ctx, name) {
+                        Ok(Some(m)) => m,
+                        Ok(None) => continue,
+                        Err(e) => {
+                            handles.push(Err(e.into()));
+                            continue;
                         }
-                        let main = main.clone();
-                        Some(Ok(s.spawn(move || run_stages(&ctx, name, &main, &args))))
-                    })
-                    .map(|h| match h {
+                    };
+                    if args.is_empty() && main == "npx only-allow pnpm" {
+                        continue;
+                    }
+                    let name = name.clone();
+                    let ctx = &ctx;
+                    let args = &args;
+                    handles.push(Ok(scope.spawn(move || run_stages(ctx, &name, &main, args))));
+                }
+                handles
+                    .into_iter()
+                    .map(|handle_result| match handle_result {
                         Ok(handle) => handle
                             .join()
                             .unwrap_or_else(|_| Err(miette::miette!("script thread panicked"))),
@@ -278,6 +284,7 @@ pub(super) struct RunContext<'a> {
     pub(super) config: &'a Config,
     pub(super) extra_env: &'a HashMap<String, String>,
     pub(super) silent: bool,
+    #[allow(dead_code)]
     pub(super) sequential: bool,
 }
 
