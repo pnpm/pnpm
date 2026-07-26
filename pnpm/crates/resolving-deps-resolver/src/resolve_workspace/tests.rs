@@ -2045,14 +2045,27 @@ async fn project_relative_root_dep_is_not_a_provider(local: &str, manifest: Mani
 /// to a registry dependency of the root.
 #[tokio::test]
 async fn a_link_root_dep_provides_the_peer_at_the_linked_packages_version() {
+    link_root_dep_peer_provider(Some("1.2.3"), "real-peer@1.2.3").await;
+}
+
+/// Nothing stands in for the path when the target names no version, so the
+/// root offers no candidate and the peer falls through to the graph — the
+/// path itself must never survive as the specifier.
+#[tokio::test]
+async fn a_versionless_link_root_dep_is_not_offered_as_a_peer_provider() {
+    link_root_dep_peer_provider(None, "real-peer@1.9.9").await;
+}
+
+async fn link_root_dep_peer_provider(linked_version: Option<&str>, expected: &str) {
     let root_tmp = tempfile::tempdir().expect("tempdir");
     let linked_dir = root_tmp.path().join("vendor/real-peer");
     std::fs::create_dir_all(&linked_dir).expect("create the linked package's directory");
-    std::fs::write(
-        linked_dir.join("package.json"),
-        serde_json::json!({ "name": "real-peer", "version": "1.2.3" }).to_string(),
-    )
-    .expect("write the linked package's manifest");
+    let linked_manifest = match linked_version {
+        Some(version) => serde_json::json!({ "name": "real-peer", "version": version }),
+        None => serde_json::json!({ "name": "real-peer" }),
+    };
+    std::fs::write(linked_dir.join("package.json"), linked_manifest.to_string())
+        .expect("write the linked package's manifest");
     let root_manifest_path = root_tmp.path().join("package.json");
     std::fs::write(
         &root_manifest_path,
@@ -2134,8 +2147,7 @@ async fn a_link_root_dep_provides_the_peer_at_the_linked_packages_version() {
 
     assert_eq!(
         result.peers.direct_dependencies_by_importer["app-b"]["real-peer"].as_str(),
-        "real-peer@1.2.3",
-        "the linked package's version, not the newer copy already in the graph",
+        expected
     );
 }
 

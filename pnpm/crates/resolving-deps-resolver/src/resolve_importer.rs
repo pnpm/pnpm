@@ -757,35 +757,42 @@ fn is_project_relative_specifier(spec: &str) -> bool {
     spec.starts_with("link:") || spec.starts_with("file:") || spec.starts_with("workspace:.")
 }
 
-/// Substitutes the linked package's own version for its path, so the root
-/// keeps the authority over the peer that a registry dependency has, and
-/// the peer resolves to the same package from every importer. The manifest
-/// is read from disk rather than taken from the resolved tree, which a
-/// linked dependency reused from the lockfile is absent from — reading it
-/// makes a repeat install hoist what a fresh install of the same manifest
-/// hoists. A target with no manifest to read (a `file:` tarball, a path
-/// that does not exist) or no version in it is not a candidate.
-fn pin_project_relative_dep_to_its_version(
-    dep: &mut WorkspaceRootDep,
+/// The name and version of the package a project-relative specifier points
+/// at, or `None` when there is none to read. Its version is what stands in
+/// for the path in [`build_workspace_root_deps`], so the root keeps the
+/// authority over the peer that a registry dependency has and the peer
+/// resolves to the same package from every importer. The manifest is read
+/// from disk rather than taken from the resolved tree, which a linked
+/// dependency reused from the lockfile is absent from — reading it makes a
+/// repeat install hoist what a fresh install of the same manifest hoists.
+fn local_target_identity(
+    spec: &str,
     project_dir: &Path,
-) -> Result<(), PackageManifestError> {
-    let spec = dep.normalized_bare_specifier.take().unwrap_or_default();
-    let path_without_protocol = spec.split_once(':').map_or(spec.as_str(), |(_, path)| path);
+) -> Result<Option<LocalTargetIdentity>, PackageManifestError> {
+    let path_without_protocol = spec.split_once(':').map_or(spec, |(_, path)| path);
     let Some(manifest) = read_manifest_of_local_target(&project_dir.join(path_without_protocol))?
     else {
-        return Ok(());
+        return Ok(None);
     };
     let Some(version) = manifest.get("version").and_then(serde_json::Value::as_str) else {
-        return Ok(());
+        return Ok(None);
     };
     if version.parse::<Version>().is_err() {
-        return Ok(());
+        return Ok(None);
     }
-    if let Some(name) = manifest.get("name").and_then(serde_json::Value::as_str) {
-        dep.pkg_name = name.to_string();
-    }
-    dep.normalized_bare_specifier = Some(version.to_string());
-    Ok(())
+    Ok(Some(LocalTargetIdentity {
+        name: manifest.get("name").and_then(serde_json::Value::as_str).map(str::to_string),
+        version: version.to_string(),
+    }))
+}
+
+/// What a project-relative root dep is pinned to. See
+/// [`local_target_identity`].
+struct LocalTargetIdentity {
+    /// `None` when the manifest carries no name, leaving the dep under the
+    /// name it was already listed by.
+    name: Option<String>,
+    version: String,
 }
 
 /// [`safe_read_package_json_from_dir`] maps only a missing file to
@@ -850,8 +857,20 @@ fn build_workspace_root_deps(
         });
     }
     for dep in &mut out {
-        if dep.normalized_bare_specifier.as_deref().is_some_and(is_project_relative_specifier) {
-            pin_project_relative_dep_to_its_version(dep, project_dir)?;
+        // Cloned so the identity can be written back onto `dep`; only the
+        // handful of root deps declared with a local protocol reach here.
+        let Some(spec) = dep.normalized_bare_specifier.clone() else { continue };
+        if !is_project_relative_specifier(&spec) {
+            continue;
+        }
+        // A path is never hoistable, so a target that names no version to
+        // stand in for it leaves the root offering no candidate at all.
+        dep.normalized_bare_specifier = None;
+        if let Some(identity) = local_target_identity(&spec, project_dir)? {
+            if let Some(name) = identity.name {
+                dep.pkg_name = name;
+            }
+            dep.normalized_bare_specifier = Some(identity.version);
         }
     }
     Ok(out)
