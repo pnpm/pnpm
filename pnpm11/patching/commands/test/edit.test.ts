@@ -20,7 +20,51 @@ const baseOptions = {
 }
 
 describe('edit command', () => {
-  test('edit dependency, verify de-hardlinking, edit file, and rebuild', async () => {
+  test('edit dependency, verify de-hardlinking, edit file', async () => {
+    prepare({
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    })
+
+    const cacheDir = path.resolve('cache')
+    const storeDir = path.resolve('store')
+    const projectDir = process.cwd()
+
+    await install.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      storeDir,
+      dir: projectDir,
+      saveLockfile: true,
+      packageImportMethod: 'hardlink',
+    })
+
+    const pkgPath = path.resolve('node_modules/is-positive')
+    const indexPath = path.join(pkgPath, 'index.js')
+    expect(fs.existsSync(indexPath)).toBe(true)
+
+    const initialStat = fs.statSync(indexPath)
+    const originalInode = initialStat.ino
+    expect(initialStat.nlink).toBeGreaterThan(1)
+
+    const dummyEditor = 'node -e "const fs = require(\'fs\'); fs.writeFileSync(require(\'path\').join(process.argv[1], \'index.js\'), \'module.exports = () => \\"modified\\";\');"'
+
+    await edit.handler({
+      ...baseOptions,
+      dir: projectDir,
+      editor: dummyEditor,
+    }, ['is-positive'])
+
+    const modifiedContent = fs.readFileSync(indexPath, 'utf8')
+    expect(modifiedContent).toContain('modified')
+
+    const newStat = fs.statSync(indexPath)
+    expect(newStat.ino).not.toBe(originalInode)
+    expect(newStat.nlink).toBe(1)
+  })
+
+  test('edit dependency, verify rebuild', async () => {
     prepare({
       dependencies: {
         '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
@@ -44,10 +88,6 @@ describe('edit command', () => {
     const packageJsonPath = path.join(pkgPath, 'package.json')
     expect(fs.existsSync(packageJsonPath)).toBe(true)
 
-    const initialStat = fs.statSync(packageJsonPath)
-    const originalInode = initialStat.ino
-    expect(initialStat.nlink).toBeGreaterThan(1)
-
     // The fixture has a postinstall script that creates generated-by-postinstall.js.
     // We delete it before edit to verify that rebuild runs and recreates it.
     const markerPath = path.join(pkgPath, 'generated-by-postinstall.js')
@@ -65,10 +105,6 @@ describe('edit command', () => {
     const indexPath = path.join(pkgPath, 'index.js')
     const modifiedContent = fs.readFileSync(indexPath, 'utf8')
     expect(modifiedContent).toContain('modified')
-
-    const newStat = fs.statSync(packageJsonPath)
-    expect(newStat.ino).not.toBe(originalInode)
-    expect(newStat.nlink).toBe(1)
 
     // Assert that rebuild actually ran by checking the marker file
     expect(fs.existsSync(markerPath)).toBe(true)
