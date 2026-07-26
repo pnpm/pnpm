@@ -200,6 +200,14 @@ impl VirtualStoreLayout {
             };
         };
         let graph = lockfile_to_dep_graph(snapshots, packages);
+        // One conversion for the whole lockfile: the same string scopes every
+        // local directory snapshot in it.
+        //
+        // Lossy on purpose: the TypeScript CLI hashes the same slot from a JS
+        // string, and Node decodes a path as UTF-8 with replacement, so this is
+        // the identical input. Hashing the raw bytes instead would give the two
+        // stacks different slots for the same project.
+        let project_scope = lockfile_dir.map(|dir| dir.to_string_lossy());
         // Build the engine-agnostic gating set once per install.
         // `None` here disables gating so every snapshot still hashes
         // with its engine string.
@@ -236,7 +244,8 @@ impl VirtualStoreLayout {
             let snapshot_engine = own_engine.as_deref().or(engine);
             let metadata_key = snapshot_key.without_peer();
             let metadata = packages.and_then(|map| map.get(&metadata_key));
-            let project = local_directory_scope(metadata, &metadata_key.suffix, lockfile_dir);
+            let project =
+                local_directory_scope(metadata, &metadata_key.suffix, project_scope.as_deref());
             let hex_digest = calc_graph_node_hash(
                 &graph,
                 &mut cache,
@@ -244,7 +253,7 @@ impl VirtualStoreLayout {
                 snapshot_engine,
                 built_dep_paths.as_ref(),
                 &mut build_required_cache,
-                project.as_deref(),
+                project,
             );
             let name = metadata_key.name.to_string();
             let version = gvs_version_segment(metadata, &metadata_key.suffix);
@@ -480,19 +489,12 @@ fn is_local_directory(metadata: Option<&PackageMetadata>, suffix: &PkgVerPeer) -
 /// project installed first, and because the source directory is mutable
 /// the install re-imports it every time — so the projects would go on
 /// overwriting each other's dependency.
-fn local_directory_scope(
+fn local_directory_scope<'a>(
     metadata: Option<&PackageMetadata>,
     suffix: &PkgVerPeer,
-    lockfile_dir: Option<&Path>,
-) -> Option<String> {
-    if !is_local_directory(metadata, suffix) {
-        return None;
-    }
-    // Lossy on purpose: the TypeScript CLI hashes the same slot from a JS
-    // string, and Node decodes a path as UTF-8 with replacement, so this is
-    // the identical input. Hashing the raw bytes instead would give the two
-    // stacks different slots for the same project.
-    lockfile_dir.map(|dir| dir.to_string_lossy().into_owned())
+    lockfile_dir: Option<&'a str>,
+) -> Option<&'a str> {
+    is_local_directory(metadata, suffix).then_some(lockfile_dir).flatten()
 }
 
 /// Build the dependency graph from the lockfile's `snapshots` /

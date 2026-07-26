@@ -491,8 +491,8 @@ fn a_file_snapshot_without_metadata_is_still_scoped() {
 
     assert_eq!(super::gvs_version_segment(None, &dir_dep.suffix), "directory");
     assert_eq!(
-        super::local_directory_scope(None, &dir_dep.suffix, Some(Path::new("/home/user/a"))),
-        Some("/home/user/a".to_string()),
+        super::local_directory_scope(None, &dir_dep.suffix, Some("/home/user/a")),
+        Some("/home/user/a"),
     );
 
     // The same holds when the entry is present but carries neither a
@@ -508,8 +508,8 @@ fn a_file_snapshot_without_metadata_is_still_scoped() {
     );
     assert_eq!(super::gvs_version_segment(Some(&bare), &dir_dep.suffix), "directory");
     assert_eq!(
-        super::local_directory_scope(Some(&bare), &dir_dep.suffix, Some(Path::new("/home/user/a"))),
-        Some("/home/user/a".to_string()),
+        super::local_directory_scope(Some(&bare), &dir_dep.suffix, Some("/home/user/a")),
+        Some("/home/user/a"),
     );
 }
 
