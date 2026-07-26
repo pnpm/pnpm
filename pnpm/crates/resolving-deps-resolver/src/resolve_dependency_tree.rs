@@ -1905,12 +1905,10 @@ where
 /// The name the edge installs under: the key its parent manifest
 /// declares, else the name the resolver resolved it under, else the
 /// resolved package's own name.
-///
-/// The manifest key wins because an importer entry is only recorded for
-/// an alias the manifest declares, so an edge keyed by a resolver alias
-/// that differs from its manifest key is dropped from the lockfile
-/// importer. The resolver's alias names the edges that declare no key
-/// of their own.
+// The manifest key has to come first: an importer entry is only
+// recorded for an alias the manifest declares, so an edge keyed by a
+// resolver alias that differs from its manifest key is dropped from the
+// lockfile importer.
 fn node_alias(
     wanted: &WantedDependency,
     result: &pacquet_resolving_resolver_base::ResolveResult,
