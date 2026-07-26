@@ -13,10 +13,11 @@ use indexmap::IndexMap;
 use pacquet_catalogs_protocol_parser::parse_catalog_protocol;
 use pacquet_catalogs_types::Catalogs;
 use pacquet_lockfile::{
-    CatalogSnapshots, ComVer, ImporterDepVersion, Lockfile, LockfileResolution, LockfileSettings,
-    LockfileVersion, PackageKey, PackageMetadata, ParseImporterDepVersionError, PeerDependencyMeta,
-    PkgName, PkgNameVerPeer, PkgVerPeer, ProjectSnapshot, ResolvedCatalogEntry,
-    ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry, VersionPart,
+    BundledDependencies, CatalogSnapshots, ComVer, ImporterDepVersion, Lockfile,
+    LockfileResolution, LockfileSettings, LockfileVersion, PackageKey, PackageMetadata,
+    ParseImporterDepVersionError, PeerDependencyMeta, PkgName, PkgNameVerPeer, PkgVerPeer,
+    ProjectSnapshot, ResolvedCatalogEntry, ResolvedDependencyMap, ResolvedDependencySpec,
+    SnapshotDepRef, SnapshotEntry, VersionPart,
 };
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_resolving_deps_resolver::{DepPath, DependenciesGraph, DependenciesGraphNode};
@@ -588,8 +589,7 @@ fn build_package_metadata(
 
     let has_bin = manifest_has_bin(manifest);
 
-    let bundled_dependencies = read_string_list(manifest, "bundledDependencies")
-        .or_else(|| read_string_list(manifest, "bundleDependencies"));
+    let bundled_dependencies = BundledDependencies::from_manifest(manifest);
 
     let (peer_dependencies, peer_dependencies_meta) = build_peer_dep_blocks(node);
 

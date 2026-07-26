@@ -379,10 +379,11 @@ impl LinkVirtualStoreBins<'_> {
         } = self;
         if let Some(snapshots) = snapshots {
             let has_bin_set = build_has_bin_set(packages);
+            let bundling_set = build_bundling_set(packages);
             run_lockfile_driven::<Sys>(
                 layout,
                 snapshots,
-                has_bin_set.as_ref(),
+                BinSlotSets { has_bin: has_bin_set.as_ref(), bundling: &bundling_set },
                 package_manifests,
                 skipped,
                 extra_node_paths,
@@ -436,10 +437,38 @@ fn build_has_bin_set(
     )
 }
 
+/// Pre-compute the set of package keys that ship dependencies inside their
+/// own tarball. Presence of the lockfile's `bundledDependencies` field is
+/// the signal, whatever its shape — a name list and the `true` form both
+/// mean the package carries a populated `node_modules` of its own.
+///
+/// Unlike [`build_has_bin_set`] there is no "metadata absent" case to
+/// distinguish: without a `packages:` section no slot can be known to
+/// bundle, and probing every slot's package directory for a `node_modules`
+/// that almost never exists would cost a `read_dir` per slot.
+fn build_bundling_set(
+    packages: Option<&HashMap<PackageKey, PackageMetadata>>,
+) -> HashSet<PackageKey> {
+    packages
+        .into_iter()
+        .flatten()
+        .filter(|(_, meta)| meta.bundled_dependencies.is_some())
+        .map(|(key, _)| key.clone())
+        .collect()
+}
+
+/// The two lockfile-derived slot classifications [`run_lockfile_driven`]
+/// consults before doing any per-slot work, from [`build_has_bin_set`] and
+/// [`build_bundling_set`] respectively.
+struct BinSlotSets<'a> {
+    has_bin: Option<&'a HashSet<PackageKey>>,
+    bundling: &'a HashSet<PackageKey>,
+}
+
 /// Walk the lockfile's `snapshots:` map, build each slot's bin output
 /// directory lexically, and link every child's bins into it. The
 /// child set comes from `snapshot.dependencies` +
-/// `snapshot.optional_dependencies`, filtered by `has_bin_set` so
+/// `snapshot.optional_dependencies`, filtered by `sets.has_bin` so
 /// packages that don't declare a bin never make it into the
 /// per-slot path-building or manifest-lookup work. The corresponding
 /// manifest comes from [`PackageManifests`] (no disk read) or, for
@@ -449,13 +478,14 @@ fn build_has_bin_set(
 fn run_lockfile_driven<Sys>(
     layout: &crate::VirtualStoreLayout,
     snapshots: &HashMap<PackageKey, SnapshotEntry>,
-    has_bin_set: Option<&HashSet<PackageKey>>,
+    sets: BinSlotSets<'_>,
     package_manifests: &PackageManifests,
     skipped: &SkippedSnapshots,
     extra_node_paths: &[String],
 ) -> Result<(), LinkVirtualStoreBinsError>
 where
-    Sys: FsReadFile
+    Sys: FsReadDir
+        + FsReadFile
         + FsReadToString
         + FsReadHead
         + FsCreateDirAll
@@ -464,6 +494,7 @@ where
         + FsSetExecutable
         + FsEnsureExecutableBits,
 {
+    let BinSlotSets { has_bin: has_bin_set, bundling: bundling_set } = sets;
     // `has_bin_set` is `Some` exactly when the lockfile's `packages:`
     // section was present at install start — in which case the set
     // is authoritative and every slot is filtered through it (an
@@ -538,7 +569,8 @@ where
             // costs at most one `package.json` read.
             None => true,
         };
-        if with_bin.is_empty() && !self_has_bin {
+        let self_bundles = bundling_set.contains(&self_metadata_key);
+        if with_bin.is_empty() && !self_has_bin && !self_bundles {
             return Ok(());
         }
 
@@ -581,6 +613,17 @@ where
                     Err(error) => return Err(LinkVirtualStoreBinsError::LinkBins(error)),
                 }
             }
+        }
+
+        // Packages the tarball ships in its own `node_modules` are not
+        // lockfile children, so nothing above sees them; their bins are
+        // reachable only from inside the bundling package and have to be
+        // shimmed straight from disk.
+        if self_bundles {
+            bin_sources.extend(
+                collect_packages_in_modules_dir::<Sys>(&self_pkg_dir.join("node_modules"))
+                    .map_err(LinkVirtualStoreBinsError::LinkBins)?,
+            );
         }
 
         // Self-bin source (slot's own package), when its lockfile row
