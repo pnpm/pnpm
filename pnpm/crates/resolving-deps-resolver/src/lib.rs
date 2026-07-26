@@ -68,6 +68,7 @@ mod dependencies_graph;
 mod hoist_peers;
 mod lockfile_reuse;
 mod node_id;
+mod parent_pkg_aliases;
 mod resolve_dependency_tree;
 mod resolve_importer;
 mod resolve_peers;
@@ -85,6 +86,7 @@ pub use hoist_peers::{
 };
 pub use node_id::NodeId;
 pub use pacquet_deps_path::DepPath;
+pub use parent_pkg_aliases::ParentPkgAliases;
 pub use resolve_dependency_tree::{
     Deprecation, DeprecationLogFn, ManifestHook, ResolveDependencyTreeError,
     ResolveDependencyTreeOptions, SkippedOptionalDependency, SkippedOptionalDependencyParent,

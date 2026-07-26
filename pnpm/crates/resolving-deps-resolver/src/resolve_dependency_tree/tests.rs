@@ -249,8 +249,11 @@ fn matches_a_name_prefixed_file_id() {
 
 #[test]
 fn owner_missing_record_is_written_once_per_generation() {
-    use super::{ChildrenOwner, WorkspaceTreeCtx, lock_recoverable};
-    use std::collections::{HashMap, HashSet};
+    use super::{ChildrenOwner, ChildrenOwnerEntry, WorkspaceTreeCtx, lock_recoverable};
+    use std::{
+        collections::{HashMap, HashSet},
+        sync::Arc,
+    };
 
     let ctx = WorkspaceTreeCtx::default();
     let owner = ChildrenOwner {
@@ -260,7 +263,12 @@ fn owner_missing_record_is_written_once_per_generation() {
         parent_path: vec!["root-dep@1.0.0".to_string()],
         importer_id: ".".to_string(),
     };
-    lock_recoverable(&ctx.children_owner_by_id).insert("pkg@1.0.0".to_string(), owner.clone());
+    let entry = |owner: ChildrenOwner| ChildrenOwnerEntry {
+        owner,
+        peer_shadowed: Arc::new(HashSet::new()),
+    };
+    lock_recoverable(&ctx.children_owner_by_id)
+        .insert("pkg@1.0.0".to_string(), entry(owner.clone()));
 
     let miss = |names: &[&str]| {
         let mut map: HashMap<String, HashSet<String>> = HashMap::new();
@@ -286,7 +294,7 @@ fn owner_missing_record_is_written_once_per_generation() {
     );
 
     let new_owner = ChildrenOwner { depth: 0, ..owner };
-    lock_recoverable(&ctx.children_owner_by_id).insert("pkg@1.0.0".to_string(), new_owner);
+    lock_recoverable(&ctx.children_owner_by_id).insert("pkg@1.0.0".to_string(), entry(new_owner));
     ctx.record_first_walk_missing(".", &miss(&[]));
     assert_eq!(
         ctx.first_walk_missing_by_pkg().get("pkg@1.0.0").map(HashSet::len),

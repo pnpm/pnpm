@@ -28,6 +28,7 @@ use crate::{
         DependencyOverrider, HoistPeersOptions, MissingPeerInfo, WorkspaceRootDep,
         get_hoistable_optional_peers, hoist_peers,
     },
+    parent_pkg_aliases::ParentPkgAliases,
     resolve_dependency_tree::{
         ResolveDependencyTreeError, TreeCtx, WantedSpec, WorkspaceTreeCtx, extend_tree,
         importer_direct_wanted_specs, record_changed_direct_deps, unwrap_package_name,
@@ -399,9 +400,22 @@ impl ImporterHoistState {
             .iter()
             .map(|(alias, range, ..)| (alias.clone(), range.clone()))
             .collect();
-        let direct = extend_tree(&ctx, resolver, initial_wanted, importer_id).await?;
-        let parent_pkg_aliases: HashSet<String> =
-            direct.iter().map(|dep| dep.alias.clone()).collect();
+        // pnpm seeds `parentPkgAliases` from the importer's wanted
+        // dependencies, before any of them resolve, so a direct dep's
+        // own peer-shadowed dependency is dropped even when the
+        // shadowing sibling is still resolving — and stays seeded even
+        // when the sibling drops out (a skipped optional).
+        let mut parent_pkg_aliases: HashSet<String> =
+            initial_wanted.iter().map(|(alias, ..)| alias.clone()).collect();
+        let direct = extend_tree(
+            &ctx,
+            resolver,
+            initial_wanted,
+            importer_id,
+            &ParentPkgAliases::root(parent_pkg_aliases.clone()),
+        )
+        .await?;
+        parent_pkg_aliases.extend(direct.iter().map(|dep| dep.alias.clone()));
         Ok(ImporterHoistState {
             importer_id: importer_id.to_string(),
             ctx,
@@ -565,8 +579,14 @@ impl ImporterHoistState {
             // wanted dependency without threading the per-dep meta.
             let new_wanted: Vec<WantedSpec> =
                 hoisted.into_iter().map(|(name, range)| (name, range, false, false)).collect();
-            let new_direct =
-                extend_tree(&self.ctx, resolver, new_wanted, &self.importer_id).await?;
+            let new_direct = extend_tree(
+                &self.ctx,
+                resolver,
+                new_wanted,
+                &self.importer_id,
+                &ParentPkgAliases::root(self.parent_pkg_aliases.clone()),
+            )
+            .await?;
             self.direct.extend(new_direct);
             update_preferred_versions_with_ctx(&self.ctx, &mut self.all_preferred_versions);
         }
@@ -637,7 +657,14 @@ impl ImporterHoistState {
         // also defaults to `false` for the same reason.
         let new_wanted: Vec<WantedSpec> =
             hoisted_optional.into_iter().map(|(name, range)| (name, range, false, false)).collect();
-        let new_direct = extend_tree(&self.ctx, resolver, new_wanted, &self.importer_id).await?;
+        let new_direct = extend_tree(
+            &self.ctx,
+            resolver,
+            new_wanted,
+            &self.importer_id,
+            &ParentPkgAliases::root(self.parent_pkg_aliases.clone()),
+        )
+        .await?;
         self.direct.extend(new_direct);
         update_preferred_versions_with_ctx(&self.ctx, &mut self.all_preferred_versions);
         Ok(true)
