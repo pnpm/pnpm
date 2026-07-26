@@ -183,7 +183,7 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     pub can_prompt: bool,
     /// A full workspace install versus a partial one (`pacquet add` and the
     /// package installs built on it — `dlx`, global add, the engine install).
-    /// See [`crate::Install::is_full_install`]. Gates the `--no-optional`
+    /// See [`crate::ProjectMutation::is_full_install`]. Gates the `--no-optional`
     /// exclusion: only a full install's `dependency_groups` carries that
     /// intent, so a partial run must not drop transitive optionals.
     pub is_full_install: bool,

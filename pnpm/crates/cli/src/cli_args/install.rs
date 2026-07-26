@@ -15,9 +15,10 @@ use pacquet_config::NodeLinker;
 use pacquet_lockfile::{Lockfile, LockfileResolution, MaybeLazyLockfile};
 use pacquet_modules_yaml::IncludedDependencies;
 use pacquet_package_manager::{
-    Install, InstallFrozenLockfileError, LockfileVerificationOverride, SkippedSnapshots,
-    TarballPrefetcher, UpToDateFastPathCheck, UpdateSeedPolicy, WorkspaceInstallSelection,
-    install_already_up_to_date, materialization_closure, merge_filtered_wanted_lockfile,
+    Install, InstallFrozenLockfileError, LockfileVerificationOverride, ProjectMutation,
+    SkippedSnapshots, TarballPrefetcher, UpToDateFastPathCheck, UpdateSeedPolicy,
+    WorkspaceInstallSelection, install_already_up_to_date, materialization_closure,
+    merge_filtered_wanted_lockfile,
 };
 use pacquet_package_manifest::DependencyGroup;
 use pacquet_pnpr_client::{
@@ -536,10 +537,7 @@ impl InstallArgs {
             skip_runtimes,
             trust_lockfile,
             update_checksums,
-            // `pacquet install` is always a full install (it takes no
-            // package arguments), so the project's own lifecycle
-            // scripts run. `pacquet add` sets this to `false`.
-            is_full_install: true,
+            mutation: ProjectMutation::InstallWorkspace,
             installs_only: true,
             resolved_packages,
             supported_architectures,
@@ -898,7 +896,7 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
             skip_runtimes: link.skip_runtimes,
             trust_lockfile: true,
             update_checksums: false,
-            is_full_install: true,
+            mutation: ProjectMutation::InstallWorkspace,
             installs_only: true,
             resolved_packages: &state.resolved_packages,
             supported_architectures: link.supported_architectures,
@@ -1062,7 +1060,7 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
         // ([pnpm/pnpm#12139](https://github.com/pnpm/pnpm/issues/12139)).
         trust_lockfile: true,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         resolved_packages: &state.resolved_packages,
         supported_architectures: link.supported_architectures,

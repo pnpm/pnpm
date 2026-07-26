@@ -25,7 +25,9 @@ use napi_derive::napi;
 use pacquet_hooks::PnpmfileHooks;
 use pacquet_lockfile::{LazyLockfile, Lockfile, MaybeLazyLockfile};
 use pacquet_network::{NetworkSettings, NoProxySetting, ProxyConfig, ThrottledClient, TlsConfig};
-use pacquet_package_manager::{Install, RebuildOptions, ResolvedPackages, UpdateSeedPolicy};
+use pacquet_package_manager::{
+    Install, ProjectMutation, RebuildOptions, ResolvedPackages, UpdateSeedPolicy,
+};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_tarball::MemCache;
 use tokio::sync::Mutex;
@@ -345,7 +347,11 @@ fn run_install_inner(
     };
     let update_seed_policy =
         if update_requested { UpdateSeedPolicy::drop_all() } else { UpdateSeedPolicy::KeepAll };
-    let is_full_install = matches!(mode, EngineMode::Install);
+    let mutation = if matches!(mode, EngineMode::Install) {
+        ProjectMutation::InstallWorkspace
+    } else {
+        ProjectMutation::NoInstall
+    };
 
     let runtime =
         tokio::runtime::Builder::new_multi_thread().enable_all().build().map_err(|error| {
@@ -371,7 +377,7 @@ fn run_install_inner(
                 skip_runtimes: false,
                 trust_lockfile: config.trust_lockfile,
                 update_checksums: false,
-                is_full_install,
+                mutation,
                 installs_only: true,
                 supported_architectures: None,
                 node_linker: config.node_linker,

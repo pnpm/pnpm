@@ -18,7 +18,7 @@ use pacquet_lockfile::{
     Lockfile, LockfileSettingsCheck, check_lockfile_settings, satisfies_package_manifest,
 };
 use pacquet_network::{AuthHeaders, ThrottledClient};
-use pacquet_package_manager::{Install, ResolutionObserver, ResolvedPackages};
+use pacquet_package_manager::{Install, ProjectMutation, ResolutionObserver, ResolvedPackages};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_reporter::SilentReporter;
 use pacquet_tarball::MemCache;
@@ -210,7 +210,7 @@ pub async fn resolve(
         // must not re-verify it.
         trust_lockfile: true,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: NodeLinker::Isolated,

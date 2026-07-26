@@ -1,6 +1,6 @@
 use crate::{
     CatalogDecision, CatalogModeDep, CatalogVersionMismatchError, DIRECT_GROUPS, Install,
-    InstallError, ResolvedPackages, UpdateSeedPolicy, WorkspaceInstallSelection,
+    InstallError, ProjectMutation, ResolvedPackages, UpdateSeedPolicy, WorkspaceInstallSelection,
     catalog_cleanup::{
         WriteWorkspaceCatalogsError, write_workspace_catalogs, write_workspace_catalogs_selected,
     },
@@ -258,10 +258,7 @@ where
             skip_runtimes: config.skip_runtimes,
             trust_lockfile: config.trust_lockfile,
             update_checksums: false,
-            // `pacquet add` is a partial install, so the root project's
-            // own lifecycle scripts must not run — they fire only for a
-            // full install.
-            is_full_install: false,
+            mutation: ProjectMutation::InstallSome,
             installs_only: false,
             resolved_packages,
             supported_architectures,
@@ -360,7 +357,7 @@ where
                 skip_runtimes: config.skip_runtimes,
                 trust_lockfile: config.trust_lockfile,
                 update_checksums: false,
-                is_full_install: false,
+                mutation: ProjectMutation::InstallSome,
                 installs_only: false,
                 resolved_packages,
                 supported_architectures,
