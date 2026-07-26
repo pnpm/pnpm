@@ -766,8 +766,11 @@ fn is_project_relative_specifier(spec: &str) -> bool {
 }
 
 /// `name_ver`, else the manifest — the canonical name for the protocols
-/// that leave `name_ver` unset. `None` for a git resolution, which has
-/// neither until it is fetched.
+/// that leave `name_ver` unset. The git and remote-tarball resolvers read
+/// the package's own manifest during resolution, so those arrive named
+/// too. `None` only for a package with no manifest name at all — a
+/// repository without a `package.json` — where the alias is the only
+/// name anywhere in the graph.
 fn resolved_pkg_name(result: &pacquet_resolving_resolver_base::ResolveResult) -> Option<String> {
     if let Some(name_ver) = result.name_ver.as_ref() {
         return Some(name_ver.name.to_string());

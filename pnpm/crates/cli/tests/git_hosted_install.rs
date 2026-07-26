@@ -601,6 +601,60 @@ fn registry_dependency_can_alias_a_git_dependency_that_provides_a_peer() {
     drop((root, npmrc_info));
 }
 
+/// A workspace-root git dependency installed under an alias satisfies
+/// another importer's peer of the package's *real* name
+/// (`pnpm/pnpm#13351`). A git specifier names a repository, not a
+/// package, so that name lives only in the repo's own manifest, which
+/// the resolver reads during resolution — early enough for the hoist
+/// `resolvePeersFromWorkspaceRoot` runs, which matches a root dep by
+/// alias and by package name.
+#[test]
+fn an_aliased_git_root_dependency_provides_another_importers_peer() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let repo = GitRepoFixture::init(root.path(), "scoped-peer");
+    repo.write_file("package.json", r#"{"name":"@scoped/peer","version":"1.0.0"}"#);
+    let commit = repo.commit("init");
+    let spec = repo.git_url_at(&commit);
+    write_manifest_value(
+        &workspace,
+        &json!({
+            "name": "root",
+            "version": "1.0.0",
+            "private": true,
+            "dependencies": { "vendored-peer": spec },
+        }),
+    );
+    let app = workspace.join("app");
+    fs::create_dir(&app).expect("create the app project");
+    write_manifest_value(
+        &app,
+        &json!({
+            "name": "app",
+            "version": "1.0.0",
+            "dependencies": { "@having/scoped-peer": "1.0.0" },
+        }),
+    );
+    append_workspace_yaml_key(&workspace, "packages", "[app]");
+
+    pacquet.with_args(["install"]).assert().success();
+
+    let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    let git_key = format!("@scoped/peer@{spec}");
+    assert_eq!(importer_version(&lockfile, ".", "vendored-peer"), git_key);
+    assert_eq!(
+        importer_version(&lockfile, "app", "@having/scoped-peer"),
+        format!("1.0.0({git_key})"),
+    );
+    assert_eq!(
+        sole_package(&lockfile, "@scoped/peer").0,
+        git_key,
+        "the peer must be the root's git dep, not a second copy off the registry",
+    );
+
+    drop((root, npmrc_info));
+}
+
 // TS: `updating package that has a github-hosted dependency`
 // (`lockfile.ts:600`).
 #[test]
