@@ -1,7 +1,6 @@
 use super::{
-    ImporterPeerInput, NodeRecord, ResolvePeersOptions, Walker,
-    dep_path_with_allowed_peer_segments, importer_relative_link_dep_path, peer_segment_names,
-    resolve_peers, resolve_peers_workspace, satisfies_with_prereleases,
+    ImporterPeerInput, NodeRecord, ResolvePeersOptions, Walker, importer_relative_link_dep_path,
+    peer_segment_names, resolve_peers, resolve_peers_workspace, satisfies_with_prereleases,
 };
 use crate::{
     dependencies_graph::{DependenciesGraph, PeerDependencyIssues},
@@ -67,17 +66,6 @@ fn parses_peer_suffix_after_patch_hash() {
     assert_eq!(
         peer_segment_names(&dep_path),
         Some(vec!["@types/node".to_string(), "better-sqlite3".to_string(), "express".to_string(),]),
-    );
-
-    let allowed = HashSet::from(["@types/node".to_string(), "express".to_string()]);
-    assert_eq!(
-        dep_path_with_allowed_peer_segments(&dep_path, &allowed),
-        Some(DepPath::from(concat!(
-            "@medusajs/workflows-sdk@2.13.3",
-            "(patch_hash=248195172cff27c28650c005b6aa0aa3b2f2976f9739544b360b81668f2d8b59)",
-            "(@types/node@20.19.17)",
-            "(express@4.21.2)",
-        ))),
     );
 }
 
@@ -921,7 +909,6 @@ fn final_graph_keeps_first_equal_depth_payload_and_unions_transitive_peers() {
         second.clone(),
         NodeRecord {
             edges: BTreeMap::from([("peer".to_string(), second_child)]),
-            peer_edges: HashSet::new(),
             optional_child_aliases: HashSet::new(),
             transitive_peer_dependencies: HashSet::from(["debug".to_string()]),
             depth: 1,
@@ -934,7 +921,6 @@ fn final_graph_keeps_first_equal_depth_payload_and_unions_transitive_peers() {
         first.clone(),
         NodeRecord {
             edges: BTreeMap::from([("peer".to_string(), first_child)]),
-            peer_edges: HashSet::new(),
             optional_child_aliases: HashSet::new(),
             transitive_peer_dependencies: HashSet::new(),
             depth: 1,
@@ -990,7 +976,6 @@ fn final_graph_duplicate_parent_prefers_child_variant_matching_parent_peers() {
         first.clone(),
         NodeRecord {
             edges: BTreeMap::from([("webpack-cli".to_string(), first_child.clone())]),
-            peer_edges: HashSet::new(),
             optional_child_aliases: HashSet::new(),
             transitive_peer_dependencies: HashSet::new(),
             depth: 1,
@@ -1003,7 +988,6 @@ fn final_graph_duplicate_parent_prefers_child_variant_matching_parent_peers() {
         second.clone(),
         NodeRecord {
             edges: BTreeMap::from([("webpack-cli".to_string(), second_child.clone())]),
-            peer_edges: HashSet::new(),
             optional_child_aliases: HashSet::new(),
             transitive_peer_dependencies: HashSet::new(),
             depth: 1,
@@ -1024,7 +1008,7 @@ fn final_graph_duplicate_parent_prefers_child_variant_matching_parent_peers() {
 }
 
 #[test]
-fn final_graph_peer_edge_uses_provider_variant_without_unavailable_extra_peers() {
+fn final_graph_peer_edge_keeps_the_providers_own_peer_suffix() {
     let provider_analyzer = NodeId::next();
     let provider_bare = NodeId::next();
     let consumer = NodeId::next();
@@ -1032,7 +1016,7 @@ fn final_graph_peer_edge_uses_provider_variant_without_unavailable_extra_peers()
     let provider_analyzer_dep_path = DepPath::from(
         "webpack-cli@6.0.1(webpack-bundle-analyzer@4.10.2)(webpack-dev-server@5.2.2)(webpack@5.107.2)",
     );
-    let provider_middle_dep_path =
+    let trimmed_dep_path =
         DepPath::from("webpack-cli@6.0.1(webpack-dev-server@5.2.2)(webpack@5.107.2)");
     let provider_bare_dep_path = DepPath::from("webpack-cli@6.0.1(webpack@5.107.2)");
     let consumer_dep_path = DepPath::from(
@@ -1085,7 +1069,6 @@ fn final_graph_peer_edge_uses_provider_variant_without_unavailable_extra_peers()
         provider_analyzer.clone(),
         NodeRecord {
             edges: BTreeMap::new(),
-            peer_edges: HashSet::new(),
             optional_child_aliases: HashSet::new(),
             transitive_peer_dependencies: HashSet::new(),
             depth: 0,
@@ -1098,7 +1081,6 @@ fn final_graph_peer_edge_uses_provider_variant_without_unavailable_extra_peers()
         provider_bare.clone(),
         NodeRecord {
             edges: BTreeMap::new(),
-            peer_edges: HashSet::new(),
             optional_child_aliases: HashSet::new(),
             transitive_peer_dependencies: HashSet::new(),
             depth: 0,
@@ -1111,7 +1093,6 @@ fn final_graph_peer_edge_uses_provider_variant_without_unavailable_extra_peers()
         consumer.clone(),
         NodeRecord {
             edges: BTreeMap::from([("webpack-cli".to_string(), provider_analyzer.clone())]),
-            peer_edges: HashSet::from(["webpack-dev-server".to_string(), "webpack".to_string()]),
             optional_child_aliases: HashSet::new(),
             transitive_peer_dependencies: HashSet::new(),
             depth: 1,
@@ -1143,15 +1124,16 @@ fn final_graph_peer_edge_uses_provider_variant_without_unavailable_extra_peers()
     );
 
     let graph = walker.build_final_graph(&HashMap::from([
-        (provider_analyzer, provider_analyzer_dep_path),
+        (provider_analyzer, provider_analyzer_dep_path.clone()),
         (provider_bare, provider_bare_dep_path),
         (consumer, consumer_dep_path.clone()),
     ]));
 
     assert_eq!(
         graph[&consumer_dep_path].children.get("webpack-cli"),
-        Some(&provider_middle_dep_path),
+        Some(&provider_analyzer_dep_path),
     );
+    assert!(!graph.contains_key(&trimmed_dep_path), "no variant is fabricated for the edge");
 }
 
 #[test]
@@ -1216,7 +1198,6 @@ fn final_graph_peer_edge_keeps_provider_transitive_peer_suffixes() {
         provider.clone(),
         NodeRecord {
             edges: BTreeMap::new(),
-            peer_edges: HashSet::new(),
             optional_child_aliases: HashSet::new(),
             transitive_peer_dependencies: HashSet::from([
                 "bufferutil".to_string(),
@@ -1233,11 +1214,6 @@ fn final_graph_peer_edge_keeps_provider_transitive_peer_suffixes() {
         consumer.clone(),
         NodeRecord {
             edges: BTreeMap::from([("webpack-dev-server".to_string(), provider.clone())]),
-            peer_edges: HashSet::from([
-                "webpack".to_string(),
-                "webpack-bundle-analyzer".to_string(),
-                "webpack-dev-server".to_string(),
-            ]),
             optional_child_aliases: HashSet::new(),
             transitive_peer_dependencies: HashSet::new(),
             depth: 0,
@@ -1575,6 +1551,148 @@ fn workspace_importers_get_distinct_instances_for_different_peer_versions() {
         result.direct_dependencies_by_importer["project-b"]["consumer"],
         DepPath::from("consumer@1.0.0(peer@2.0.0)"),
     );
+}
+
+#[test]
+fn a_shared_consumer_keeps_the_first_importers_peer_provider_variant() {
+    let plugin_v1 = NodeId::next();
+    let plugin_v2 = NodeId::next();
+    let utils_root = NodeId::next();
+    let utils_app = NodeId::next();
+    let resolver_root = NodeId::next();
+    let resolver_app = NodeId::next();
+    let parser = NodeId::leaf("parser@1.0.0");
+
+    let importers = [
+        ImporterPeerInput {
+            id: ".".to_string(),
+            direct: vec![
+                DirectDep {
+                    alias: "plugin".to_string(),
+                    node_id: plugin_v1.clone(),
+                    id: "plugin@1.0.0".to_string(),
+                },
+                DirectDep {
+                    alias: "parser".to_string(),
+                    node_id: parser.clone(),
+                    id: "parser@1.0.0".to_string(),
+                },
+                DirectDep {
+                    alias: "resolver".to_string(),
+                    node_id: resolver_root.clone(),
+                    id: "resolver@1.0.0".to_string(),
+                },
+            ],
+            root_dir: std::path::PathBuf::from("/repo"),
+            modules_dir: None,
+        },
+        ImporterPeerInput {
+            id: "app".to_string(),
+            direct: vec![
+                DirectDep {
+                    alias: "plugin".to_string(),
+                    node_id: plugin_v2.clone(),
+                    id: "plugin@2.0.0".to_string(),
+                },
+                DirectDep {
+                    alias: "resolver".to_string(),
+                    node_id: resolver_app.clone(),
+                    id: "resolver@1.0.0".to_string(),
+                },
+            ],
+            root_dir: std::path::PathBuf::from("/repo/app"),
+            modules_dir: None,
+        },
+    ];
+
+    let mut tree = ResolvedTree {
+        direct: Vec::new(),
+        packages: HashMap::from([
+            ("plugin@1.0.0".to_string(), package("plugin", "1.0.0", &[("parser", "*")], false)),
+            ("plugin@2.0.0".to_string(), package("plugin", "2.0.0", &[("parser", "*")], false)),
+            (
+                "utils@1.0.0".to_string(),
+                package("utils", "1.0.0", &[("resolver", "*"), ("parser", "*")], false),
+            ),
+            ("resolver@1.0.0".to_string(), package("resolver", "1.0.0", &[("plugin", "*")], false)),
+            ("parser@1.0.0".to_string(), package("parser", "1.0.0", &[], true)),
+        ]),
+        dependencies_tree: HashMap::from([
+            (
+                plugin_v1,
+                tree_node(
+                    "plugin@1.0.0",
+                    BTreeMap::from([("utils".to_string(), utils_root.clone())]),
+                    0,
+                ),
+            ),
+            (
+                plugin_v2,
+                tree_node(
+                    "plugin@2.0.0",
+                    BTreeMap::from([("utils".to_string(), utils_app.clone())]),
+                    0,
+                ),
+            ),
+            (utils_root, tree_node("utils@1.0.0", BTreeMap::new(), 1)),
+            (utils_app, tree_node("utils@1.0.0", BTreeMap::new(), 1)),
+            (resolver_root, tree_node("resolver@1.0.0", BTreeMap::new(), 0)),
+            (resolver_app, tree_node("resolver@1.0.0", BTreeMap::new(), 0)),
+            (parser, tree_node("parser@1.0.0", BTreeMap::new(), 0)),
+        ]),
+        all_peer_dep_names: HashSet::from([
+            "plugin".to_string(),
+            "resolver".to_string(),
+            "parser".to_string(),
+        ]),
+        policy_violations: Vec::new(),
+        applied_patches: HashSet::new(),
+        children_by_id: HashMap::new(),
+    };
+
+    let result = resolve_peers_workspace(
+        &mut tree,
+        &importers,
+        std::path::Path::new("/repo"),
+        false,
+        false,
+        true,
+        ResolvePeersOptions::default(),
+    );
+
+    // Both `utils` occurrences collapse onto one depPath because the
+    // `resolver` peer id collapses on the plugin/resolver peer cycle, so
+    // exactly one of them supplies the graph node's edges.
+    let utils = result.graph.keys().filter(|dep_path| dep_path.as_str().starts_with("utils@"));
+    assert_eq!(utils.count(), 1, "one utils entry: {:?}", result.graph.keys().collect::<Vec<_>>());
+    let utils_dep_path = result
+        .graph
+        .keys()
+        .find(|dep_path| dep_path.as_str().starts_with("utils@"))
+        .expect("utils entry")
+        .clone();
+    assert_eq!(
+        result.graph[&utils_dep_path].children.get("resolver"),
+        Some(&DepPath::from("resolver@1.0.0(plugin@1.0.0)")),
+    );
+    // Trimming a peer segment off the edge would key it to a variant no
+    // importer reaches, leaving an orphan entry in the lockfile —
+    // https://github.com/pnpm/pnpm/issues/13320.
+    let mut reachable: HashSet<DepPath> = HashSet::new();
+    let mut queue: Vec<DepPath> = result
+        .direct_dependencies_by_importer
+        .values()
+        .flat_map(|direct| direct.values().cloned())
+        .collect();
+    while let Some(dep_path) = queue.pop() {
+        if !reachable.insert(dep_path.clone()) {
+            continue;
+        }
+        queue.extend(result.graph[&dep_path].children.values().cloned());
+    }
+    let orphans: Vec<_> =
+        result.graph.keys().filter(|dep_path| !reachable.contains(*dep_path)).collect();
+    assert!(orphans.is_empty(), "every graph entry is reachable from an importer: {orphans:?}");
 }
 
 #[test]
