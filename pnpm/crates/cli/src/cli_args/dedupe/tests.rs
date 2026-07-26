@@ -34,6 +34,7 @@ fn changes_render_under_importer_and_package_headings() {
     };
 
     let report = render_dedupe_check_issues(&diff);
+    eprintln!("REPORT:\n{report}\n");
 
     assert_eq!(
         report,
