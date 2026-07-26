@@ -5,8 +5,14 @@ use serde_json::json;
 #[test]
 fn specified_scripts_exact_match() {
     let manifest = json!({ "scripts": { "build": "tsc", "test": "jest" } });
-    assert_eq!(ScriptSelector::new("build").unwrap().select(&manifest, false), vec!["build".to_string()]);
-    assert_eq!(ScriptSelector::new("test").unwrap().select(&manifest, false), vec!["test".to_string()]);
+    assert_eq!(
+        ScriptSelector::new("build").unwrap().select(&manifest, false),
+        vec!["build".to_string()]
+    );
+    assert_eq!(
+        ScriptSelector::new("test").unwrap().select(&manifest, false),
+        vec!["test".to_string()]
+    );
 }
 
 #[test]
@@ -56,7 +62,10 @@ fn specified_scripts_selects_every_regexp_match() {
 #[test]
 fn specified_scripts_prefers_an_exact_match_over_the_pattern() {
     let manifest = json!({ "scripts": { "/^a/": "echo literal", "ab": "echo matched" } });
-    assert_eq!(ScriptSelector::new("/^a/").unwrap().select(&manifest, false), vec!["/^a/".to_string()]);
+    assert_eq!(
+        ScriptSelector::new("/^a/").unwrap().select(&manifest, false),
+        vec!["/^a/".to_string()]
+    );
 }
 
 #[test]

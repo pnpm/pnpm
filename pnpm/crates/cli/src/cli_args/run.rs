@@ -142,7 +142,8 @@ impl RunArgs {
             Err(err) => return Err(RunError::Manifest(err).into()),
         };
 
-        let mut specified = ScriptSelector::new(script_name)?.select_with_start(manifest.value(), self.sequential);
+        let mut specified =
+            ScriptSelector::new(script_name)?.select_with_start(manifest.value(), self.sequential);
 
         // Hidden scripts (names starting with `.`) can only be invoked
         // from within another script, detected by an inherited
@@ -489,7 +490,8 @@ impl<'a> ScriptSelector<'a> {
         let (Some(pattern), Some(scripts)) = (self.pattern.as_ref(), scripts) else {
             return Vec::new();
         };
-        let mut keys: Vec<String> = scripts.keys().filter(|script| pattern.is_match(script)).cloned().collect();
+        let mut keys: Vec<String> =
+            scripts.keys().filter(|script| pattern.is_match(script)).cloned().collect();
         if !sequential {
             keys.sort();
         }
