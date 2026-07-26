@@ -235,7 +235,10 @@ fn remote_tarball_reresolves_from_warm_store_without_refetch() {
 /// not from the per-entry fetch-path backstop
 /// (`tarball_url_and_integrity`), which only speaks up for entries that
 /// reach a fetch without having passed the gate
-/// ([#13364](https://github.com/pnpm/pnpm/issues/13364)).
+/// ([#13364](https://github.com/pnpm/pnpm/issues/13364)). The
+/// zero-request expectation on the re-armed tarball mocks is what pins
+/// "before anything is fetched": a refusal that only came from the fetch
+/// path would have downloaded the bytes first.
 ///
 /// Git-host archive URLs are the exemption — they are what older pnpm
 /// versions wrote without an `integrity` — and that shape is covered
@@ -279,6 +282,18 @@ fn frozen_install_refuses_a_remote_tarball_without_integrity() {
     fs::write(&lockfile_path, &stripped).expect("write pnpm-lock.yaml");
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
 
+    // Re-arm the same endpoints with a zero-request expectation, so the
+    // frozen install below has to fail *before* fetching: the mocks still
+    // answer, and answering is what the assertion catches.
+    drop((head_mock, get_mock));
+    let head_mock = tarball_server.mock("HEAD", tarball_path).with_status(200).expect(0).create();
+    let get_mock = tarball_server
+        .mock("GET", tarball_path)
+        .with_status(200)
+        .with_body(minimal_tarball("pkg-from-tarball", "1.0.0"))
+        .expect(0)
+        .create();
+
     let output = pacquet_at(&workspace)
         .with_args(["install", "--frozen-lockfile"])
         .assert()
@@ -298,6 +313,8 @@ fn frozen_install_refuses_a_remote_tarball_without_integrity() {
             && unwrapped.contains(r#"run "pnpm clean --lockfile""#),
         "the verification gate must name the error code, the entry, and the way out; got:\n{stderr}",
     );
+    head_mock.assert();
+    get_mock.assert();
 
-    drop((root, mock_instance, head_mock, get_mock, tarball_server));
+    drop((root, mock_instance, tarball_server));
 }
