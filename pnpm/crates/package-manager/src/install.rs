@@ -14,7 +14,7 @@ use pacquet_catalogs_types::Catalogs;
 use pacquet_cmd_shim::LinkBinsError;
 use pacquet_config::{Config, NodeLinker, PNPM_VERSION};
 use pacquet_executor::{
-    LifecycleScriptError, RunPostinstallHooks,
+    DEV_PREINSTALL_STAGE, LifecycleScriptError, RunPostinstallHooks,
     ScriptsPrependNodePath as ExecScriptsPrependNodePath, run_dev_preinstall_hook,
     run_project_lifecycle_scripts,
 };
@@ -1289,8 +1289,31 @@ where
         //   `ignorePackageManifest`, installing from the lockfile alone)
         //   and the TypeScript CLI delegating a frozen materialization,
         //   which already ran the hook before handing the install over.
-        if !config.ignore_scripts && !resolve_only && !ignore_manifest_check && rebuild.is_none() {
-            run_dev_preinstall::<Reporter>(config, &workspace_root)?;
+        // - [`DEV_PREINSTALL_ALREADY_RAN_ENV`], the delegating CLI's
+        //   marker for the one path that carries no flag of its own.
+        if !config.ignore_scripts
+            && !resolve_only
+            && !ignore_manifest_check
+            && rebuild.is_none()
+            && !dev_preinstall_already_ran()
+        {
+            // pnpm reads the hook off the root project's in-memory
+            // manifest and only shells out when it is defined. Falling
+            // back to the executor's own read covers a root that isn't
+            // among the importers, as a filtered install's is not —
+            // pnpm's `safeReadProjectManifestOnly` fallback.
+            let root_defines_hook = project_manifests
+                .iter()
+                .find(|(project_dir, _)| {
+                    pacquet_fs::lexical_normalize(project_dir)
+                        == pacquet_fs::lexical_normalize(&workspace_root)
+                })
+                .is_none_or(|(_, manifest)| {
+                    matches!(manifest.script(DEV_PREINSTALL_STAGE, true), Ok(Some(_)))
+                });
+            if root_defines_hook {
+                run_dev_preinstall::<Reporter>(config, &workspace_root)?;
+            }
         }
 
         Reporter::emit(&LogEvent::Stage(StageLog {
@@ -3706,6 +3729,31 @@ fn project_lifecycle_extra_env(
         );
     }
     extra_env
+}
+
+/// Set by the TypeScript CLI when it delegates a *resolving* install to
+/// pacquet, to say it already ran the root project's `pnpm:devPreinstall`
+/// itself. That path passes no flags of its own — a frozen delegation is
+/// distinguishable by its `--ignore-manifest-check` — so without this
+/// marker the hook would run once on each side of the handover.
+///
+/// A private handshake between the two stacks for the lifetime of one
+/// delegated install, which is why it sits outside the user-facing
+/// `PNPM_CONFIG_*` namespace. Its counterpart lives in the TypeScript
+/// CLI's `runPacquet.ts`.
+const DEV_PREINSTALL_ALREADY_RAN_ENV: &str = "PNPM_INTERNAL_DEV_PREINSTALL_ALREADY_RAN";
+
+/// Whether the delegating CLI claims to have run the hook already.
+///
+/// Only the exact `true` the TypeScript CLI writes counts. Every other
+/// value — unset, empty, `false` — runs the hook, so a stray assignment
+/// in someone's environment cannot silently suppress it.
+///
+/// The marker is inherited by anything the install spawns, so a nested
+/// `pnpm install` started from a lifecycle script during a delegated
+/// install sees it too and skips its own hook.
+fn dev_preinstall_already_ran() -> bool {
+    std::env::var(DEV_PREINSTALL_ALREADY_RAN_ENV).is_ok_and(|value| value == "true")
 }
 
 /// Run the root project's `pnpm:devPreinstall` script, if it defines one.

@@ -1877,6 +1877,57 @@ mod project_scripts {
             drop((root, mock_instance));
         }
 
+        /// The TypeScript CLI sets this when it delegates a resolving
+        /// install, having already run the hook itself. That handover
+        /// carries no flag of its own, so without the marker the script
+        /// would run once on each side of it.
+        #[test]
+        fn is_skipped_when_the_delegating_cli_already_ran_it() {
+            let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+                CommandTempCwd::init().add_mocked_registry();
+            let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+            fs::write(workspace.join("package.json"), project_with_dev_preinstall().to_string())
+                .expect("write package.json");
+
+            pacquet
+                .with_env("PNPM_INTERNAL_DEV_PREINSTALL_ALREADY_RAN", "true")
+                .with_arg("install")
+                .assert()
+                .success();
+
+            let order = fs::read_to_string(workspace.join("order.txt")).expect("read order.txt");
+            let stages: Vec<&str> = order.lines().collect();
+            assert_eq!(stages, &EXPECTED_ORDER[1..], "only pnpm:devPreinstall should be skipped");
+
+            drop((root, mock_instance));
+        }
+
+        /// Only the exact `true` the delegating CLI writes suppresses the
+        /// hook, so a stray assignment cannot silently reintroduce the
+        /// bug this marker exists to avoid.
+        #[test]
+        fn an_empty_delegation_marker_does_not_suppress_it() {
+            let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+                CommandTempCwd::init().add_mocked_registry();
+            let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+            fs::write(workspace.join("package.json"), project_with_dev_preinstall().to_string())
+                .expect("write package.json");
+
+            pacquet
+                .with_env("PNPM_INTERNAL_DEV_PREINSTALL_ALREADY_RAN", "")
+                .with_arg("install")
+                .assert()
+                .success();
+
+            let order = fs::read_to_string(workspace.join("order.txt")).expect("read order.txt");
+            let stages: Vec<&str> = order.lines().collect();
+            assert_eq!(stages, EXPECTED_ORDER);
+
+            drop((root, mock_instance));
+        }
+
         /// An install that materializes nothing has nothing for the hook
         /// to prepare. pnpm reaches the same outcome by having
         /// `--lockfile-only` imply `ignoreScripts`.
