@@ -280,7 +280,16 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             published_by: opts.published_by,
             published_by_exclude: opts.published_by_exclude.as_ref(),
             picked_manifest_cache: &self.picked_manifest_cache,
-            calc_specifier_from: calc_specifier_from(wanted_dependency, opts),
+            calculated_specifier: calc_specifier_from(wanted_dependency, opts, &spec).map(
+                |(bare_specifier, default_pin)| {
+                    crate::calc_specifier(
+                        bare_specifier,
+                        wanted_dependency.alias.as_deref(),
+                        &picked.version,
+                        default_pin,
+                    )
+                },
+            ),
         })?;
 
         Ok(Some(result))
@@ -329,11 +338,21 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             published_by: opts.published_by,
             published_by_exclude: opts.published_by_exclude.as_ref(),
             picked_manifest_cache: &self.picked_manifest_cache,
-            // A `jsr:` entry round-trips as `jsr:@scope/name@<range>`, a
-            // shape `calc_specifier` does not build. Reporting an
-            // npm-shaped range here would rewrite the manifest into a
-            // registry dependency, so the entry is left as declared.
-            calc_specifier_from: None,
+            // The entry stays a JSR dependency, so it round-trips under
+            // the `jsr:` protocol rather than as the npm-shaped range
+            // `calc_specifier` would build.
+            calculated_specifier: calc_specifier_from(wanted_dependency, opts, &jsr_spec.spec).map(
+                |(bare_specifier, default_pin)| {
+                    crate::calc_prefixed_specifier(
+                        "jsr:",
+                        &jsr_spec.jsr_pkg_name,
+                        bare_specifier,
+                        wanted_dependency.alias.as_deref(),
+                        &picked.version,
+                        default_pin,
+                    )
+                },
+            ),
         })?;
 
         Ok(Some(result))
@@ -750,16 +769,13 @@ pub(crate) struct BuildResolveResult<'a> {
     pub published_by: Option<DateTime<Utc>>,
     pub published_by_exclude: Option<&'a PackageVersionPolicy>,
     pub picked_manifest_cache: &'a crate::PickedManifestCache,
-    /// The dependency's current specifier, when the caller asked for a
-    /// manifest-ready one back (`ResolveOptions::calc_specifier`), paired
-    /// with the pin to apply if it declares no range operator.
-    pub calc_specifier_from: Option<(&'a str, PinnedVersion)>,
+    /// The manifest-ready specifier for `picked`, rendered in whichever
+    /// shape the caller's protocol round-trips through, or `None` when
+    /// the caller did not ask for one
+    /// (`ResolveOptions::calc_specifier`).
+    pub calculated_specifier: Option<String>,
 }
 
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "destructures BuildResolveResult and consumes its fields by value downstream"
-)]
 pub(crate) fn build_resolve_result(
     args: BuildResolveResult<'_>,
 ) -> Result<ResolveResult, ResolveError> {
@@ -773,7 +789,7 @@ pub(crate) fn build_resolve_result(
         published_by,
         published_by_exclude,
         picked_manifest_cache,
-        calc_specifier_from,
+        calculated_specifier,
     } = args;
     let pkg_name =
         PkgName::parse(picked.name.as_str()).map_err(|err| Box::new(err) as ResolveError)?;
@@ -830,24 +846,24 @@ pub(crate) fn build_resolve_result(
         manifest,
         resolution,
         resolved_via: resolved_via.to_string(),
-        normalized_bare_specifier: spec.normalized_bare_specifier.clone().or_else(|| {
-            calc_specifier_from.map(|(bare_specifier, default_pin)| {
-                crate::calc_specifier(bare_specifier, alias, picked, default_pin)
-            })
-        }),
+        normalized_bare_specifier: spec.normalized_bare_specifier.clone().or(calculated_specifier),
         alias: alias.map(str::to_string),
         policy_violation,
     })
 }
 
-/// The `(specifier, pin)` pair [`build_resolve_result`] needs to compute a
-/// manifest-ready specifier, or `None` when the caller did not ask for one.
+/// The `(specifier, pin)` pair a manifest-ready specifier is computed
+/// from, or `None` when there is nothing to compute: the caller did not
+/// ask for one (`ResolveOptions::calc_specifier`), or `spec` already
+/// carries the text the entry has to keep — a registry-host tarball URL,
+/// which [`build_resolve_result`] prefers over anything computed here.
 /// Caret is the fallback pin, matching pnpm's default save prefix.
 fn calc_specifier_from<'a>(
     wanted_dependency: &'a WantedDependency,
     opts: &ResolveOptions,
+    spec: &RegistryPackageSpec,
 ) -> Option<(&'a str, PinnedVersion)> {
-    if !opts.calc_specifier {
+    if !opts.calc_specifier || spec.normalized_bare_specifier.is_some() {
         return None;
     }
     let bare_specifier = wanted_dependency.bare_specifier.as_deref()?;
