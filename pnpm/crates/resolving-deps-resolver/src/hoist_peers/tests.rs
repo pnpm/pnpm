@@ -291,13 +291,55 @@ fn get_hoistable_optional_peers_handles_version_selector_with_weight() {
     assert_eq!(result, expected);
 }
 
+/// `^18.0.0` spells its lower bound out, so `includePrerelease` leaves
+/// it at `18.0.0` and the prerelease stays below the range. Hoisting the
+/// range instead lets the registry supply a stable `18.x`.
 #[test]
-fn hoist_peers_accepts_prerelease_against_non_prerelease_range() {
+fn hoist_peers_rejects_a_prerelease_below_a_spelled_out_lower_bound() {
     let preferred =
         preferred(&[("react", &[("18.0.0-rc.1", plain(VersionSelectorType::Version))])]);
     let result = hoist_peers(&opts(true, &preferred), &[missing("react", "^18.0.0")]);
     let mut expected = BTreeMap::new();
+    expected.insert("react".to_string(), "^18.0.0".to_string());
+    assert_eq!(result, expected);
+}
+
+/// The same prerelease against `^18.x`, whose lower bound npm
+/// synthesized from the omitted patch and therefore lowers to
+/// `18.0.0-0`.
+#[test]
+fn hoist_peers_accepts_a_prerelease_below_a_synthesized_lower_bound() {
+    let preferred =
+        preferred(&[("react", &[("18.0.0-rc.1", plain(VersionSelectorType::Version))])]);
+    let result = hoist_peers(&opts(true, &preferred), &[missing("react", "^18.x")]);
+    let mut expected = BTreeMap::new();
     expected.insert("react".to_string(), "18.0.0-rc.1".to_string());
+    assert_eq!(result, expected);
+}
+
+#[test]
+fn hoist_peers_accepts_a_prerelease_inside_the_span_of_a_union() {
+    let preferred = preferred(&[(
+        "react",
+        &[("19.3.0-canary-28cd4bb0-20260723", plain(VersionSelectorType::Version))],
+    )]);
+    let result = hoist_peers(&opts(true, &preferred), &[missing("react", "^18.x || ^19.x")]);
+    let mut expected = BTreeMap::new();
+    expected.insert("react".to_string(), "19.3.0-canary-28cd4bb0-20260723".to_string());
+    assert_eq!(result, expected);
+}
+
+/// A prerelease sitting at the lower bound of a union's second
+/// alternative is rejected by both alternatives, so the peer resolves
+/// from the registry rather than auto-installing the alpha.
+#[test]
+fn hoist_peers_rejects_a_prerelease_at_the_lower_bound_of_a_union() {
+    let preferred =
+        preferred(&[("jest-util", &[("30.0.0-alpha.6", plain(VersionSelectorType::Version))])]);
+    let result =
+        hoist_peers(&opts(true, &preferred), &[missing("jest-util", "^29.0.0 || ^30.0.0")]);
+    let mut expected = BTreeMap::new();
+    expected.insert("jest-util".to_string(), "^29.0.0 || ^30.0.0".to_string());
     assert_eq!(result, expected);
 }
 
