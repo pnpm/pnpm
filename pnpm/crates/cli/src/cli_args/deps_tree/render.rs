@@ -229,3 +229,12 @@ pub(crate) fn blue(text: &str) -> String {
 pub(crate) fn red(text: &str) -> String {
     sanitize(text).if_supports_color(Stream::Stdout, |t| t.red()).to_string()
 }
+
+pub(crate) fn green(text: &str) -> String {
+    sanitize(text).if_supports_color(Stream::Stdout, |t| t.green()).to_string()
+}
+
+pub(crate) fn blue_bright_underline(text: &str) -> String {
+    let style = owo_colors::Style::new().bright_blue().underline();
+    sanitize(text).if_supports_color(Stream::Stdout, |t| t.style(style)).to_string()
+}

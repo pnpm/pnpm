@@ -2087,11 +2087,13 @@ where
             // not a preview — no report.
             if dry_run && peer_issues_sink_is_none {
                 use std::io::Write as _;
-                let report =
-                    crate::dry_run::render_dry_run_report(&crate::dry_run::diff_lockfiles(
+                let report = crate::lockfile_diff::render_dry_run_report(
+                    &crate::lockfile_diff::diff_lockfiles(
                         existing_wanted_lockfile,
                         fresh_lockfile.as_ref(),
-                    ));
+                        crate::lockfile_diff::ImporterDiffKey::Specifier,
+                    ),
+                );
                 let mut stdout = std::io::stdout();
                 let _ = writeln!(stdout, "{report}");
                 let _ = stdout.flush();

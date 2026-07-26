@@ -3,12 +3,24 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::State;
+use crate::{
+    State,
+    cli_args::{
+        deps_tree::render::{
+            TreeNode, blue_bright_underline, gray, green, plain, red, render_archy,
+        },
+        peers::peer_issues_warrant_warning,
+    },
+};
 use clap::Args;
-use miette::{Context, IntoDiagnostic};
-use pacquet_package_manager::{Install, ProjectMutation};
+use derive_more::{Display, Error};
+use miette::{Context, Diagnostic, IntoDiagnostic};
+use pacquet_lockfile::Lockfile;
+use pacquet_package_manager::{
+    ImporterDiffKey, Install, LockfileDiff, ProjectMutation, SnapshotDiff, diff_lockfiles,
+};
 use pacquet_package_manifest::DependencyGroup;
-use pacquet_reporter::Reporter;
+use pacquet_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
 use tempfile::NamedTempFile;
 
 #[derive(Debug, Args)]
@@ -73,19 +85,122 @@ impl DedupeArgs {
         .await
         .wrap_err("deduplicating dependencies")?;
 
+        let current = read_lockfile_snapshot(lockfile_path)?;
+        let deduped = parse_snapshot(current.as_deref(), lockfile_path);
+
+        let lockfile_dir = lockfile_path.parent().unwrap_or_else(|| Path::new("."));
+        if let Some(deduped) = &deduped
+            && peer_issues_warrant_warning(deduped, lockfile_dir, &config.peer_dependency_rules)
+        {
+            Reporter::emit(&LogEvent::Global(GlobalLog {
+                level: LogLevel::Warn,
+                message:
+                    r#"Issues with peer dependencies found. Run "pnpm peers check" to list them."#
+                        .to_string(),
+            }));
+        }
+
         if self.check {
             let mut guard = guard.unwrap();
-            let current = read_lockfile_snapshot(lockfile_path)?;
             if existing == current {
                 guard.disarm();
                 Ok(())
             } else {
-                Err(miette::miette!("Lockfile would be modified by deduplication"))
+                let report = render_dedupe_check_issues(&diff_lockfiles(
+                    parse_snapshot(existing.as_deref(), lockfile_path).as_ref(),
+                    deduped.as_ref(),
+                    ImporterDiffKey::Version,
+                ));
+                eprintln!("{report}");
+                Err(DedupeError::CheckIssues.into())
             }
         } else {
             Ok(())
         }
     }
+}
+
+#[derive(Debug, Display, Error, Diagnostic)]
+enum DedupeError {
+    #[display("Dedupe --check found changes to the lockfile")]
+    #[diagnostic(
+        code(ERR_PNPM_DEDUPE_CHECK_ISSUES),
+        help("Run `pnpm dedupe` to apply the changes above.")
+    )]
+    CheckIssues,
+}
+
+/// Parse one side of the `--check` diff. A snapshot that does not parse —
+/// an older lockfile format the dedupe install has just rewritten, say —
+/// yields no baseline rather than replacing the check's verdict with a
+/// parse error: the run already knows the lockfile would change, and only
+/// the detail of the report is lost.
+fn parse_snapshot(content: Option<&str>, lockfile_path: &Path) -> Option<Lockfile> {
+    content.and_then(|content| Lockfile::parse(content, lockfile_path).ok().flatten())
+}
+
+/// Render what `pnpm dedupe` would rewrite, mirroring pnpm's
+/// `renderDedupeCheckIssues`: one tree per changed importer or package
+/// snapshot, plus the snapshots deduplication would add or drop.
+///
+/// The lockfile can also be rewritten without any resolution changing —
+/// recorded settings drift, a config dependency the run synced — so an
+/// empty diff still says why the check failed.
+fn render_dedupe_check_issues(diff: &LockfileDiff) -> String {
+    if diff.is_empty() {
+        return "The lockfile would be rewritten, but no dependency resolution would change."
+            .to_string();
+    }
+    [
+        render_section("Importers", &diff.importers, &[], &[]),
+        render_section(
+            "Packages",
+            &diff.updated_packages,
+            &diff.added_packages,
+            &diff.removed_packages,
+        ),
+    ]
+    .into_iter()
+    .flatten()
+    .collect::<Vec<_>>()
+    .join("\n")
+}
+
+fn render_section(
+    title: &str,
+    updated: &[SnapshotDiff],
+    added: &[String],
+    removed: &[String],
+) -> Option<String> {
+    let mut lines: Vec<String> = updated.iter().map(render_snapshot_diff).collect();
+    lines.extend(added.iter().map(|id| format!("{} {}", green("+"), plain(id))));
+    lines.extend(removed.iter().map(|id| format!("{} {}", red("-"), plain(id))));
+    if lines.is_empty() {
+        return None;
+    }
+    Some(format!("{}\n{}\n", blue_bright_underline(title), lines.join("\n")))
+}
+
+fn render_snapshot_diff(diff: &SnapshotDiff) -> String {
+    let added = diff
+        .added
+        .iter()
+        .map(|(alias, next)| format!("{} {} {}", green("+"), plain(alias), gray(next)));
+    let removed = diff
+        .removed
+        .iter()
+        .map(|(alias, prev)| format!("{} {} {}", red("-"), plain(alias), gray(prev)));
+    let updated = diff.updated.iter().map(|(alias, prev, next)| {
+        format!("{} {} {} {}", plain(alias), red(prev), gray("→"), green(next))
+    });
+    let nodes = added
+        .chain(removed)
+        .chain(updated)
+        .map(|label| TreeNode::with_children(label, Vec::new()))
+        .collect();
+    render_archy(&TreeNode::with_children(plain(&diff.id), nodes))
+        .trim_end_matches('\n')
+        .to_string()
 }
 
 /// Atomically write `content` to `path` via temp-file + rename, so the write
@@ -146,3 +261,6 @@ pub(crate) fn read_lockfile_snapshot(lockfile_path: &Path) -> miette::Result<Opt
         Err(e) => Err(e).into_diagnostic().wrap_err("reading lockfile"),
     }
 }
+
+#[cfg(test)]
+mod tests;
