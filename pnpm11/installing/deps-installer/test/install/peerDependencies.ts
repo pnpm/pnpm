@@ -501,6 +501,30 @@ describe('peer dependency is resolved from the root of the workspace even if the
     await mutateModules(mutatedProjects, testDefaults({ allProjects, resolvePeersFromWorkspaceRoot: true }))
 
     const lockfile = projects.root.readLockfile()
+    // The linked package's own version, not the newer one pkg2 brought, and not
+    // the root's path — which would reach pkg/ajv-local, a directory that does
+    // not exist.
+    expect(lockfile.importers.pkg?.dependencies?.['ajv-keywords'].version).toBe('1.5.0(ajv@4.10.0)')
+  })
+  test('the package in the root is linked to a directory that has no manifest to read a version from', async () => {
+    const allProjects: ProjectOptions[] = [
+      {
+        buildIndex: 0,
+        manifest: {
+          name: 'root',
+          version: '1.0.0',
+
+          dependencies: {
+            ajv: 'link:ajv-local',
+          },
+        },
+        rootDir: process.cwd() as ProjectRootDir,
+      },
+      ...nonRootProjects,
+    ]
+    await mutateModules(mutatedProjects, testDefaults({ allProjects, resolvePeersFromWorkspaceRoot: true }))
+
+    const lockfile = projects.root.readLockfile()
     expect(lockfile.importers.pkg?.dependencies?.['ajv-keywords'].version).toBe('1.5.0(ajv@5.0.0)')
   })
 })
