@@ -604,8 +604,8 @@ fn registry_dependency_can_alias_a_git_dependency_that_provides_a_peer() {
 /// A git specifier names a repository, not a package, so the name the
 /// peer is matched on lives only in the repo's own manifest — read
 /// during resolution, early enough for the hoist that
-/// `resolvePeersFromWorkspaceRoot` runs. Reported as broken in
-/// `pnpm/pnpm#13351`.
+/// `resolvePeersFromWorkspaceRoot` runs
+/// (<https://github.com/pnpm/pnpm/issues/13351>).
 #[test]
 fn an_aliased_git_root_dependency_provides_another_importers_peer() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -637,7 +637,8 @@ fn an_aliased_git_root_dependency_provides_another_importers_peer() {
 
     pacquet.with_args(["install"]).assert().success();
 
-    let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let lockfile = read_lockfile(&lockfile_path);
     let git_key = format!("@scoped/peer@{spec}");
     assert_eq!(importer_version(&lockfile, ".", "vendored-peer"), git_key);
     assert_eq!(
@@ -648,6 +649,16 @@ fn an_aliased_git_root_dependency_provides_another_importers_peer() {
         sole_package(&lockfile, "@scoped/peer").0,
         git_key,
         "the peer must be the root's git dep, not a second copy off the registry",
+    );
+
+    // Every install after the first re-resolves with the prior lockfile
+    // in hand, which is the shape a real workspace spends its life in.
+    let first_install = fs::read(&lockfile_path).expect("read the lockfile");
+    pnpm_at(&workspace).with_args(["install", "--no-prefer-frozen-lockfile"]).assert().success();
+    assert_eq!(
+        fs::read(&lockfile_path).expect("reread the lockfile"),
+        first_install,
+        "re-resolving against the recorded lockfile must not move the peer",
     );
 
     drop((root, npmrc_info));
