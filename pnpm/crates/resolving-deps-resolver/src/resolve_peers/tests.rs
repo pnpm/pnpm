@@ -1677,7 +1677,7 @@ fn a_shared_consumer_keeps_the_first_importers_peer_provider_variant() {
     );
     // Trimming a peer segment off the edge would key it to a variant no
     // importer reaches, leaving an orphan entry in the lockfile —
-    // https://github.com/pnpm/pnpm/issues/13320.
+    // <https://github.com/pnpm/pnpm/issues/13320>.
     let mut reachable: HashSet<DepPath> = HashSet::new();
     let mut queue: Vec<DepPath> = result
         .direct_dependencies_by_importer
