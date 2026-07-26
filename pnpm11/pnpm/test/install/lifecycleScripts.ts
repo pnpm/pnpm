@@ -477,43 +477,6 @@ test('approve-builds works after stashing and re-adding a dependency (#12221)', 
 
 const DEP = '@pnpm.e2e/dep-of-pkg-with-1-dep' // published at 100.0.0, 100.1.0 and 101.0.0
 
-function projectManifest (name: string): ProjectManifest {
-  return {
-    name,
-    version: '1.0.0',
-    dependencies: { [DEP]: '^100.0.0' },
-    scripts: {
-      postinstall: 'node -e "require(\'fs\').writeFileSync(\'ran-postinstall.txt\',\'\')"',
-    },
-  }
-}
-
-/** A workspace whose root and `packages/*` members all stamp a file from `postinstall`, installed once with the stamps then cleared. */
-function prepareInstalledWorkspace (members: string[]): void {
-  preparePackages(members.map((name) => ({
-    location: `packages/${name}`,
-    package: projectManifest(name),
-  })))
-  fs.writeFileSync('package.json', JSON.stringify(projectManifest('root')))
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['packages/*'] })
-
-  execPnpmSync(['install'], { expectSuccess: true })
-  clearPostinstallStamps(members)
-}
-
-function clearPostinstallStamps (members: string[]): void {
-  for (const dir of ['.', ...members.map((name) => path.join('packages', name))]) {
-    fs.rmSync(path.join(dir, 'ran-postinstall.txt'), { force: true })
-  }
-}
-
-function projectsThatRanPostinstall (members: string[]): string[] {
-  return ['root', ...members].filter((project) => {
-    const dir = project === 'root' ? '.' : path.join('packages', project)
-    return fs.existsSync(path.join(dir, 'ran-postinstall.txt'))
-  })
-}
-
 test('postinstall is not executed after a targeted update', () => {
   prepare({
     dependencies: { [DEP]: '^100.0.0' },
@@ -598,3 +561,40 @@ test('a recursive argumentless update runs the postinstall of every project', ()
 
   expect(projectsThatRanPostinstall(['a', 'b'])).toStrictEqual(['root', 'a', 'b'])
 })
+
+/** A workspace whose root and `packages/*` members all stamp a file from `postinstall`, installed once with the stamps then cleared. */
+function prepareInstalledWorkspace (members: string[]): void {
+  preparePackages(members.map((name) => ({
+    location: `packages/${name}`,
+    package: projectManifest(name),
+  })))
+  fs.writeFileSync('package.json', JSON.stringify(projectManifest('root')))
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['packages/*'] })
+
+  execPnpmSync(['install'], { expectSuccess: true })
+  clearPostinstallStamps(members)
+}
+
+function projectsThatRanPostinstall (members: string[]): string[] {
+  return ['root', ...members].filter((project) => {
+    const dir = project === 'root' ? '.' : path.join('packages', project)
+    return fs.existsSync(path.join(dir, 'ran-postinstall.txt'))
+  })
+}
+
+function projectManifest (name: string): ProjectManifest {
+  return {
+    name,
+    version: '1.0.0',
+    dependencies: { [DEP]: '^100.0.0' },
+    scripts: {
+      postinstall: 'node -e "require(\'fs\').writeFileSync(\'ran-postinstall.txt\',\'\')"',
+    },
+  }
+}
+
+function clearPostinstallStamps (members: string[]): void {
+  for (const dir of ['.', ...members.map((name) => path.join('packages', name))]) {
+    fs.rmSync(path.join(dir, 'ran-postinstall.txt'), { force: true })
+  }
+}
