@@ -112,6 +112,66 @@ test('hoistPeers does not treat a prerelease of the next major as satisfying a c
   })
 })
 
+// `includePrerelease` keeps a prerelease eligible for the comparators it
+// falls between; it does not lower a bound the range spells out. `^18.0.0`
+// therefore still starts at 18.0.0, and hoisting the range lets a stable
+// 18.x be resolved from the registry.
+test('hoistPeers rejects a prerelease below a spelled-out lower bound', () => {
+  expect(hoistPeers({
+    autoInstallPeers: true,
+    allPreferredVersions: {
+      react: {
+        '18.0.0-rc.1': 'version',
+      },
+    },
+    workspaceRootDeps: [],
+  }, [['react', { range: '^18.0.0' }]])).toStrictEqual({
+    react: '^18.0.0',
+  })
+})
+
+test('hoistPeers accepts a prerelease below a lower bound synthesized from an omitted component', () => {
+  expect(hoistPeers({
+    autoInstallPeers: true,
+    allPreferredVersions: {
+      react: {
+        '18.0.0-rc.1': 'version',
+      },
+    },
+    workspaceRootDeps: [],
+  }, [['react', { range: '^18.x' }]])).toStrictEqual({
+    react: '18.0.0-rc.1',
+  })
+})
+
+test('hoistPeers accepts a prerelease inside the span of a union', () => {
+  expect(hoistPeers({
+    autoInstallPeers: true,
+    allPreferredVersions: {
+      react: {
+        '19.3.0-canary-28cd4bb0-20260723': 'version',
+      },
+    },
+    workspaceRootDeps: [],
+  }, [['react', { range: '^18.x || ^19.x' }]])).toStrictEqual({
+    react: '19.3.0-canary-28cd4bb0-20260723',
+  })
+})
+
+test('hoistPeers rejects a prerelease at the lower bound of a union', () => {
+  expect(hoistPeers({
+    autoInstallPeers: true,
+    allPreferredVersions: {
+      'jest-util': {
+        '30.0.0-alpha.6': 'version',
+      },
+    },
+    workspaceRootDeps: [],
+  }, [['jest-util', { range: '^29.0.0 || ^30.0.0' }]])).toStrictEqual({
+    'jest-util': '^29.0.0 || ^30.0.0',
+  })
+})
+
 test('hoistPeers falls back to the range when no preferred version satisfies a non-exact range', () => {
   expect(hoistPeers({
     autoInstallPeers: true,

@@ -66,6 +66,7 @@ mod dedupe_peer_dependents;
 mod dep_path_compatibility;
 mod dependencies_graph;
 mod hoist_peers;
+mod include_prerelease_range;
 mod lockfile_reuse;
 mod node_id;
 mod parent_pkg_aliases;
