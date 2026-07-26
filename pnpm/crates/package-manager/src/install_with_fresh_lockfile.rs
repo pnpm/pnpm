@@ -1947,6 +1947,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             initial_materialization_lockfile.snapshots.as_ref(),
             initial_materialization_lockfile.packages.as_ref(),
             Some(&allow_build_policy),
+            Some(lockfile_dir),
         );
         if config.enable_global_virtual_store {
             tracing::info!(

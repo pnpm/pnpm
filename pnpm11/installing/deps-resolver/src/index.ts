@@ -595,6 +595,7 @@ function extendGraph (
     allowBuild?: AllowBuild
     globalVirtualStoreDir: string
     enableGlobalVirtualStore?: boolean
+    lockfileDir: string
     supportedArchitectures?: SupportedArchitectures
   }
 ): DependenciesGraph {
@@ -609,7 +610,12 @@ function extendGraph (
   // `process.version` instead of the script-runner Node, splitting
   // the cache between pinned and non-pinned installs on the same host.
   const nodeVersion = findRuntimeNodeVersion(Object.keys(graph))
-  for (const { pkgMeta: { depPath }, hash } of iterateHashedGraphNodes(graph, pkgMetaIter, allowBuild, opts.supportedArchitectures, nodeVersion)) {
+  for (const { pkgMeta: { depPath }, hash } of iterateHashedGraphNodes(graph, pkgMetaIter, {
+    allowBuild,
+    supportedArchitectures: opts.supportedArchitectures,
+    nodeVersion,
+    lockfileDir: opts.lockfileDir,
+  })) {
     const modules = path.join(opts.globalVirtualStoreDir, hash, 'node_modules')
     const node = graph[depPath]
     Object.assign(node, {

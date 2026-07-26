@@ -62,6 +62,7 @@ fn identical_leaves_hash_identically() {
         Some("darwin-arm64-node20"),
         None,
         &mut br_a,
+        None,
     );
     let second = calc_graph_node_hash(
         &graph,
@@ -70,6 +71,7 @@ fn identical_leaves_hash_identically() {
         Some("darwin-arm64-node20"),
         None,
         &mut br_b,
+        None,
     );
     assert_eq!(first, second, "deterministic for same input");
     assert_eq!(first.len(), 64, "sha256 hex digest is 64 chars");
@@ -91,6 +93,7 @@ fn engine_string_changes_hash() {
         Some("darwin-arm64-node20"),
         None,
         &mut br,
+        None,
     );
     let mut cache_other = HashMap::new();
     let mut br_other = HashMap::new();
@@ -101,6 +104,7 @@ fn engine_string_changes_hash() {
         Some("linux-x64-node22"),
         None,
         &mut br_other,
+        None,
     );
     let mut cache_null = HashMap::new();
     let mut br_null = HashMap::new();
@@ -111,6 +115,7 @@ fn engine_string_changes_hash() {
         None,
         None,
         &mut br_null,
+        None,
     );
     assert_ne!(with_engine, with_other_engine);
     assert_ne!(with_engine, with_null);
@@ -137,6 +142,7 @@ fn engine_agnostic_when_subtree_has_no_builders() {
         Some("darwin-arm64-node20"),
         Some(&built),
         &mut br_a,
+        None,
     );
     let mut cache_b = HashMap::new();
     let mut br_b = HashMap::new();
@@ -147,6 +153,7 @@ fn engine_agnostic_when_subtree_has_no_builders() {
         Some("linux-x64-node22"),
         Some(&built),
         &mut br_b,
+        None,
     );
     assert_eq!(
         darwin, linux,
@@ -174,6 +181,7 @@ fn engine_included_when_self_in_built_set() {
         Some("darwin-arm64-node20"),
         Some(&built),
         &mut br_a,
+        None,
     );
     let mut cache_b = HashMap::new();
     let mut br_b = HashMap::new();
@@ -184,6 +192,7 @@ fn engine_included_when_self_in_built_set() {
         Some("linux-x64-node22"),
         Some(&built),
         &mut br_b,
+        None,
     );
     assert_ne!(darwin, linux, "builder must partition by engine string");
 }
@@ -214,6 +223,7 @@ fn engine_included_for_ancestor_of_builder() {
         Some("darwin-arm64-node20"),
         Some(&built),
         &mut br_a,
+        None,
     );
     let mut cache_b = HashMap::new();
     let mut br_b = HashMap::new();
@@ -224,6 +234,7 @@ fn engine_included_for_ancestor_of_builder() {
         Some("linux-x64-node22"),
         Some(&built),
         &mut br_b,
+        None,
     );
     assert_ne!(darwin, linux, "ancestor of a builder must partition by engine string");
 }
@@ -247,6 +258,7 @@ fn none_built_dep_paths_disables_gating() {
         Some("darwin-arm64-node20"),
         None,
         &mut br_a,
+        None,
     );
     let mut cache_b = HashMap::new();
     let mut br_b = HashMap::new();
@@ -257,6 +269,7 @@ fn none_built_dep_paths_disables_gating() {
         Some("linux-x64-node22"),
         None,
         &mut br_b,
+        None,
     );
     assert_ne!(darwin, linux, "without builtDepPaths gating, engine is always part of the hash");
 }
@@ -287,6 +300,7 @@ fn different_children_change_hash() {
         Some("darwin-arm64-node20"),
         None,
         &mut br_a,
+        None,
     );
     let mut cache_b = HashMap::new();
     let mut br_b = HashMap::new();
@@ -297,6 +311,7 @@ fn different_children_change_hash() {
         Some("darwin-arm64-node20"),
         None,
         &mut br_b,
+        None,
     );
     assert_ne!(with_dep, without_dep, "same root, different children must not collide on GVS hash");
 }
@@ -311,8 +326,15 @@ fn leaf_matches_single_node_graph_hash() {
     );
     let mut cache = HashMap::new();
     let mut br = HashMap::new();
-    let digest =
-        calc_graph_node_hash(&graph, &mut cache, &"leaf@1.0.0".to_string(), None, None, &mut br);
+    let digest = calc_graph_node_hash(
+        &graph,
+        &mut cache,
+        &"leaf@1.0.0".to_string(),
+        None,
+        None,
+        &mut br,
+        None,
+    );
     assert_eq!(
         calc_leaf_global_virtual_store_path(full, "leaf", "1.0.0"),
         format_global_virtual_store_path("leaf", "1.0.0", &digest),

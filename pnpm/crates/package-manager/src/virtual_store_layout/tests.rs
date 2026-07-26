@@ -2,12 +2,13 @@ use super::VirtualStoreLayout;
 use pacquet_config::Config;
 use pacquet_lockfile::{
     DirectoryResolution, LockfileResolution, PackageKey, PackageMetadata, PkgName,
-    RegistryResolution, SnapshotDepRef, SnapshotEntry,
+    RegistryResolution, SnapshotDepRef, SnapshotEntry, TarballResolution,
 };
 use pretty_assertions::{assert_eq, assert_ne};
 use std::{
     collections::{HashMap, HashSet},
-    path::PathBuf,
+    ffi::OsStr,
+    path::{Path, PathBuf},
 };
 
 /// Build a `Config` test-double with the GVS-relevant fields
@@ -22,6 +23,24 @@ fn make_config(gvs: bool, virtual_store_dir: PathBuf, gvs_dir: PathBuf) -> Confi
     config
 }
 
+/// [`PackageMetadata`] carrying only the fields the layout reads.
+fn package_metadata(resolution: LockfileResolution, version: Option<&str>) -> PackageMetadata {
+    PackageMetadata {
+        resolution,
+        version: version.map(str::to_string),
+        engines: None,
+        cpu: None,
+        os: None,
+        libc: None,
+        deprecated: None,
+        has_bin: None,
+        prepare: None,
+        bundled_dependencies: None,
+        peer_dependencies: None,
+        peer_dependencies_meta: None,
+    }
+}
+
 #[test]
 fn slot_dir_uses_flat_name_when_gvs_off() {
     let config = make_config(
@@ -29,7 +48,7 @@ fn slot_dir_uses_flat_name_when_gvs_off() {
         PathBuf::from("/tmp/proj/node_modules/.pnpm"),
         PathBuf::from("/tmp/store/links"),
     );
-    let layout = VirtualStoreLayout::new(&config, Some("ignored"), None, None, None);
+    let layout = VirtualStoreLayout::new(&config, Some("ignored"), None, None, None, None);
     let key: PackageKey = "@scope/foo@1.2.3".parse().unwrap();
     assert_eq!(
         layout.slot_dir(&key),
@@ -74,6 +93,7 @@ fn slot_dir_uses_gvs_layout_when_gvs_on() {
         Some("darwin-arm64-node20"),
         Some(&snapshots),
         Some(&packages),
+        None,
         None,
     );
     let slot = layout.slot_dir(&key);
@@ -128,6 +148,7 @@ fn slot_dir_prefixes_unscoped_with_at_slash_under_gvs() {
         Some(&snapshots),
         Some(&packages),
         None,
+        None,
     );
     let slot = layout.slot_dir(&key);
     let _ = slot
@@ -174,6 +195,7 @@ fn slot_dir_engine_agnostic_with_empty_allow_build_policy() {
         Some(&snapshots),
         Some(&packages),
         Some(&policy),
+        None,
     )
     .slot_dir(&key);
     let linux = VirtualStoreLayout::new(
@@ -182,6 +204,7 @@ fn slot_dir_engine_agnostic_with_empty_allow_build_policy() {
         Some(&snapshots),
         Some(&packages),
         Some(&policy),
+        None,
     )
     .slot_dir(&key);
     assert_eq!(
@@ -231,6 +254,7 @@ fn slot_dir_engine_specific_when_snapshot_is_built() {
         Some(&snapshots),
         Some(&packages),
         Some(&policy),
+        None,
     )
     .slot_dir(&key);
     let linux = VirtualStoreLayout::new(
@@ -239,6 +263,7 @@ fn slot_dir_engine_specific_when_snapshot_is_built() {
         Some(&snapshots),
         Some(&packages),
         Some(&policy),
+        None,
     )
     .slot_dir(&key);
     assert_ne!(darwin, linux, "builder snapshot must partition GVS slot by engine string");
@@ -263,6 +288,7 @@ fn missing_metadata_keeps_source_dep_path_untrusted_for_gvs() {
         Some(&snapshots),
         Some(&packages),
         Some(&policy),
+        None,
     )
     .slot_dir(&key);
     let linux = VirtualStoreLayout::new(
@@ -271,6 +297,7 @@ fn missing_metadata_keeps_source_dep_path_untrusted_for_gvs() {
         Some(&snapshots),
         Some(&packages),
         Some(&policy),
+        None,
     )
     .slot_dir(&key);
     assert_eq!(darwin, linux, "source depPath with missing metadata must not be name-allowed");
@@ -377,6 +404,7 @@ fn cross_pinning_siblings_get_distinct_slots() {
         Some(&snapshots),
         Some(&packages),
         Some(&policy),
+        None,
     );
     let slot_22 = layout.slot_dir(&pins_22);
     let slot_20 = layout.slot_dir(&pins_20);
@@ -423,12 +451,113 @@ fn full_pkg_id_keeps_patch_hash_when_present() {
 }
 
 #[test]
-fn gvs_version_segment_renders_file_deps_as_undefined() {
+fn gvs_version_segment_anchors_directory_deps() {
     let semver: PackageKey = "foo@1.2.3".parse().unwrap();
-    assert_eq!(super::gvs_version_segment(&semver.suffix), "1.2.3");
+    assert_eq!(super::gvs_version_segment(None, &semver.suffix), "1.2.3");
 
-    let file_dep: PackageKey = "b@file:packages/b".parse().unwrap();
-    assert_eq!(super::gvs_version_segment(&file_dep.suffix), "undefined");
+    // The lockfile records no version for a directory snapshot, and the
+    // install path that resolves from manifests does know it — so the
+    // segment has to be the same either way, or a re-install would
+    // relocate the package.
+    let dir_dep: PackageKey = "b@file:packages/b".parse().unwrap();
+    let dir_metadata = package_metadata(
+        LockfileResolution::Directory(DirectoryResolution { directory: "packages/b".to_string() }),
+        None,
+    );
+    assert_eq!(super::gvs_version_segment(Some(&dir_metadata), &dir_dep.suffix), "directory");
+
+    // A local tarball is content-addressed and does carry a version.
+    let tarball_dep: PackageKey = "tar-dep@file:vendor/dep.tgz".parse().unwrap();
+    let tarball_metadata = package_metadata(
+        LockfileResolution::Tarball(TarballResolution {
+            tarball: "file:vendor/dep.tgz".to_string(),
+            integrity: None,
+            git_hosted: None,
+            path: None,
+        }),
+        Some("0.0.0"),
+    );
+    assert_eq!(super::gvs_version_segment(Some(&tarball_metadata), &tarball_dep.suffix), "0.0.0");
+}
+
+/// A lockfile that keeps a `file:` snapshot but drops or mismatches its
+/// `packages:` entry leaves no resolution to read. The segment and the
+/// project scope have to reach the same verdict from what is left, or
+/// the snapshot takes the anchored segment while missing the scope —
+/// which is the collision the scope exists to prevent.
+#[test]
+fn a_file_snapshot_without_metadata_is_still_scoped() {
+    let dir_dep: PackageKey = "b@file:packages/b".parse().unwrap();
+
+    assert_eq!(super::gvs_version_segment(None, &dir_dep.suffix), "directory");
+    assert_eq!(
+        super::local_directory_scope(None, &dir_dep.suffix, Some("/home/user/a")),
+        Some("/home/user/a"),
+    );
+
+    // The same holds when the entry is present but carries neither a
+    // directory resolution nor a version to fall back on.
+    let bare = package_metadata(
+        LockfileResolution::Tarball(TarballResolution {
+            tarball: "file:packages/b".to_string(),
+            integrity: None,
+            git_hosted: None,
+            path: None,
+        }),
+        None,
+    );
+    assert_eq!(super::gvs_version_segment(Some(&bare), &dir_dep.suffix), "directory");
+    assert_eq!(
+        super::local_directory_scope(Some(&bare), &dir_dep.suffix, Some("/home/user/a")),
+        Some("/home/user/a"),
+    );
+}
+
+/// Two unrelated projects that both depend on a `./dep` directory
+/// resolve to the same snapshot key, name, and (absent) version — only
+/// the lockfile directory tells their slots apart.
+#[test]
+fn directory_deps_get_a_slot_per_project() {
+    let key: PackageKey = "dep@file:dep".parse().unwrap();
+    let mut snapshots = HashMap::new();
+    snapshots.insert(key.clone(), SnapshotEntry::default());
+    let mut packages = HashMap::new();
+    packages.insert(
+        key.without_peer(),
+        package_metadata(
+            LockfileResolution::Directory(DirectoryResolution { directory: "dep".to_string() }),
+            None,
+        ),
+    );
+
+    let config = make_config(
+        true,
+        PathBuf::from("/tmp/proj/node_modules/.pnpm"),
+        PathBuf::from("/tmp/store/links"),
+    );
+    let slot_in = |lockfile_dir: &str| {
+        super::VirtualStoreLayout::new(
+            &config,
+            None,
+            Some(&snapshots),
+            Some(&packages),
+            None,
+            Some(Path::new(lockfile_dir)),
+        )
+        .slot_dir(&key)
+    };
+
+    let in_project_a = slot_in("/home/user/a");
+    let in_project_b = slot_in("/home/user/b");
+    assert_ne!(in_project_a, in_project_b);
+    // The slot is `<root>/@/dep/<version>/<hash>`, so the version segment is
+    // the hash directory's parent. Compared as a component rather than a
+    // substring: the separator is native, `\` on Windows.
+    assert_eq!(
+        in_project_a.parent().and_then(Path::file_name),
+        Some(OsStr::new("directory")),
+        "directory deps take the anchored version segment; got {in_project_a:?}",
+    );
 }
 
 /// `collect_injected_deps` maps each `file:` snapshot's source path to
@@ -576,6 +705,7 @@ fn cyclic_slot_suffixes() -> Vec<(String, String)> {
         Some(&snapshots),
         Some(&packages),
         Some(&policy),
+        None,
     );
     let mut suffixes: Vec<(String, String)> = snapshots
         .keys()

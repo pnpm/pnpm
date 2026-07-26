@@ -1074,7 +1074,7 @@ where
             // swallowed read error.
             let marker_safe = if gvs_build_markers_may_require_recovery(config) {
                 match lockfile.get() {
-                    Ok(Some(wanted)) => !gvs_build_marker_present(wanted, config),
+                    Ok(Some(wanted)) => !gvs_build_marker_present(wanted, config, &workspace_root),
                     Ok(None) => true,
                     Err(_) => false,
                 }
@@ -1702,7 +1702,7 @@ where
             // project-state input checked above. Let materialization inspect
             // buildable and patched GVS slots instead of declaring the local
             // tree complete from importer links alone.
-            && !gvs_build_marker_present(wanted_lockfile, config)
+            && !gvs_build_marker_present(wanted_lockfile, config, &workspace_root)
             // An explicit `pacquet rebuild` always re-runs the build phase,
             // so it never short-circuits here.
             && rebuild.is_none()
@@ -2186,6 +2186,7 @@ where
                 current.snapshots.as_ref(),
                 current.packages.as_ref(),
                 Some(&allow_build_policy),
+                Some(workspace_root.as_path()),
             );
             crate::package_map::write_package_map(
                 current,
@@ -2976,7 +2977,7 @@ fn gvs_build_markers_may_require_recovery(config: &Config) -> bool {
 /// marker for this lockfile. Hash directories are enumerated rather than
 /// recomputed because buildable slots include the runtime engine in their
 /// graph hash, which the pre-runtime fast path deliberately has not resolved.
-fn gvs_build_marker_present(wanted: &Lockfile, config: &Config) -> bool {
+fn gvs_build_marker_present(wanted: &Lockfile, config: &Config, lockfile_dir: &Path) -> bool {
     if !gvs_build_markers_may_require_recovery(config) {
         return false;
     }
@@ -2989,6 +2990,7 @@ fn gvs_build_marker_present(wanted: &Lockfile, config: &Config) -> bool {
         wanted.snapshots.as_ref(),
         wanted.packages.as_ref(),
         Some(&policy),
+        Some(lockfile_dir),
     );
     if crate::validate_virtual_store_slot_containment(wanted.snapshots.as_ref(), &layout).is_err() {
         return true;
@@ -3840,7 +3842,15 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<U
     }
     if gvs_build_markers_may_require_recovery(config) {
         let wanted = lockfile.get().ok().flatten()?;
-        if gvs_build_marker_present(wanted, config) {
+        // `workspace_root` above is the workspace-state root, which stays the
+        // discovered workspace dir even under `sharedWorkspaceLockfile: false`.
+        // The slot lookup needs the lockfile dir instead — `run_inner`'s
+        // `lockfileDir = sharedWorkspaceLockfile ? workspaceDir : projectDir` —
+        // or this fast path would probe a directory dep's slot under a project
+        // that does not own it and miss the marker it is looking for.
+        let lockfile_dir =
+            if config.shared_workspace_lockfile { workspace_root.as_path() } else { manifest_dir };
+        if gvs_build_marker_present(wanted, config, lockfile_dir) {
             return None;
         }
     }

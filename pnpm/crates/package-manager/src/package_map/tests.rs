@@ -143,7 +143,7 @@ fn lockfile_package_map_uses_global_virtual_store_layout() {
         HashMap::from([("dep1@1.0.0".parse::<PackageKey>().unwrap(), SnapshotEntry::default())]);
     // GVS precomputes a `<name>/<version>/<hash>` slot per snapshot; the
     // package map must read those locations rather than the flat depPath name.
-    let layout = VirtualStoreLayout::new(&config, None, Some(&snapshots), None, None);
+    let layout = VirtualStoreLayout::new(&config, None, Some(&snapshots), None, None, None);
 
     let root_manifest = manifest("root");
     let project_manifests = vec![(cwd.clone(), &root_manifest)];
