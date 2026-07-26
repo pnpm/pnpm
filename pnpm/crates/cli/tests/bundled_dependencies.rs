@@ -4,7 +4,7 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pacquet_lockfile::{BundledDependencies, Lockfile, PackageMetadata};
-use pacquet_testing_utils::bin::CommandTempCwd;
+use pacquet_testing_utils::{bin::CommandTempCwd, fs::is_symlink_or_junction};
 use std::{fs, path::Path};
 
 pub mod _utils;
@@ -111,12 +111,16 @@ fn bundled_bins_are_linked_under_the_hoisted_linker() {
     for bundling_pkg in
         ["@pnpm.e2e/pkg-with-bundled-dependencies", "@pnpm.e2e/pkg-with-bundle-dependencies-true"]
     {
-        assert_bin_linked(
-            &workspace
-                .join("node_modules")
-                .join(bundling_pkg)
-                .join("node_modules/.bin/hello-world-js-bin"),
+        let pkg_dir = workspace.join("node_modules").join(bundling_pkg);
+        // The hoisted linker materializes a real directory where the isolated
+        // one leaves a symlink into the virtual store, so this is what proves
+        // the `nodeLinker` key took effect and the other linker is not what
+        // linked the bin below.
+        assert!(
+            pkg_dir.is_dir() && !is_symlink_or_junction(&pkg_dir).expect("stat the package dir"),
+            "{bundling_pkg} must be a real directory under the hoisted linker",
         );
+        assert_bin_linked(&pkg_dir.join("node_modules/.bin/hello-world-js-bin"));
     }
 
     drop((root, npmrc_info)); // cleanup
