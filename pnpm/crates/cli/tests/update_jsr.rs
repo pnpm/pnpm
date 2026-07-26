@@ -99,65 +99,39 @@ fn update_latest_bumps_a_jsr_dependency() {
     drop((root, anchor));
 }
 
-mod known_failures {
-    use super::{dep_spec, lockfile_entry, pacquet, setup, write_manifest};
-    use assert_cmd::prelude::*;
-    use pacquet_testing_utils::{
-        allow_known_failure,
-        known_failure::{KnownFailure, KnownResult},
-    };
-    use pretty_assertions::assert_eq;
+/// The install half of `jsr with alias`: the aliased form is recorded
+/// as a direct dependency under the alias the manifest declares, and
+/// linked into `node_modules` under it too.
+#[test]
+fn install_records_an_aliased_jsr_dependency() {
+    let (root, workspace, anchor) = setup();
 
-    /// An aliased `jsr:` dependency resolves into `packages` and
-    /// `snapshots` but leaves the importer empty, so the lockfile never
-    /// records it as a direct dependency. See pnpm/pnpm#13362.
-    fn an_aliased_jsr_dependency_is_missing_from_the_importer() -> KnownResult<()> {
-        Err(KnownFailure::new(
-            "pacquet resolves an aliased `jsr:` dependency but leaves the importer empty, \
-             so the lockfile does not record it as a direct dependency.",
-        ))
-    }
+    write_manifest(&workspace, r#"{ "bar-from-jsr": "jsr:@pnpm-e2e/bar@1.0.0" }"#);
+    pacquet(&workspace, ["install"]).assert().success();
 
-    /// The install half of `jsr with alias`: the aliased form is recorded
-    /// as a direct dependency under its alias.
-    #[test]
-    fn install_records_an_aliased_jsr_dependency() {
-        let (root, workspace, anchor) = setup();
+    assert_eq!(
+        lockfile_entry(&workspace, "bar-from-jsr"),
+        Some(("jsr:@pnpm-e2e/bar@1.0.0".to_string(), "@jsr/pnpm-e2e__bar@1.0.0".to_string())),
+    );
+    assert!(workspace.join("node_modules/bar-from-jsr/package.json").exists());
 
-        write_manifest(&workspace, r#"{ "bar-from-jsr": "jsr:@pnpm-e2e/bar@1.0.0" }"#);
-        pacquet(&workspace, ["install"]).assert().success();
-        allow_known_failure!(an_aliased_jsr_dependency_is_missing_from_the_importer());
+    drop((root, anchor));
+}
 
-        assert_eq!(
-            lockfile_entry(&workspace, "bar-from-jsr"),
-            Some(("jsr:@pnpm-e2e/bar@1.0.0".to_string(), "@jsr/pnpm-e2e__bar@1.0.0".to_string())),
-        );
+/// Ports the `--latest` half of `jsr with alias`.
+#[test]
+fn update_latest_bumps_an_aliased_jsr_dependency() {
+    let (root, workspace, anchor) = setup();
 
-        drop((root, anchor));
-    }
+    write_manifest(&workspace, r#"{ "bar-from-jsr": "jsr:@pnpm-e2e/bar@1.0.0" }"#);
+    pacquet(&workspace, ["install"]).assert().success();
+    pacquet(&workspace, ["update", "--latest"]).assert().success();
 
-    /// Ports the `--latest` half of `jsr with alias`. The gate sits in
-    /// front of the assertion its gap blocks, so the manifest half runs
-    /// while the importer gap is still open.
-    #[test]
-    fn update_latest_bumps_an_aliased_jsr_dependency() {
-        let (root, workspace, anchor) = setup();
+    assert_eq!(dep_spec(&workspace, "bar-from-jsr").as_deref(), Some("jsr:@pnpm-e2e/bar@2.0.0"));
+    assert_eq!(
+        lockfile_entry(&workspace, "bar-from-jsr"),
+        Some(("jsr:@pnpm-e2e/bar@2.0.0".to_string(), "@jsr/pnpm-e2e__bar@2.0.0".to_string())),
+    );
 
-        write_manifest(&workspace, r#"{ "bar-from-jsr": "jsr:@pnpm-e2e/bar@1.0.0" }"#);
-        pacquet(&workspace, ["install"]).assert().success();
-        pacquet(&workspace, ["update", "--latest"]).assert().success();
-
-        assert_eq!(
-            dep_spec(&workspace, "bar-from-jsr").as_deref(),
-            Some("jsr:@pnpm-e2e/bar@2.0.0"),
-        );
-
-        allow_known_failure!(an_aliased_jsr_dependency_is_missing_from_the_importer());
-        assert_eq!(
-            lockfile_entry(&workspace, "bar-from-jsr"),
-            Some(("jsr:@pnpm-e2e/bar@2.0.0".to_string(), "@jsr/pnpm-e2e__bar@2.0.0".to_string())),
-        );
-
-        drop((root, anchor));
-    }
+    drop((root, anchor));
 }

@@ -5,8 +5,9 @@
 //! the alias up in the merged named-registries map, and picks the
 //! version against that registry's URL. The result carries
 //! `resolved_via = "named-registry"` and the scoped package name as
-//! the alias so the install layer records the dependency under its
-//! original name.
+//! the alias, so an edge that declares no name of its own is installed
+//! under its original name. An edge declared under a manifest key keeps
+//! that key.
 //!
 //! Authentication piggybacks on the existing per-URL `.npmrc`
 //! mechanism: a `//npm.pkg.github.com/:_authToken=...` entry takes
