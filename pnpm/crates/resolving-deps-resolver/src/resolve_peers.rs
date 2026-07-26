@@ -755,7 +755,6 @@ struct NodeRecord {
     /// edges) but holding `NodeIds`, so the rebuild can map each edge to
     /// its final depPath.
     edges: BTreeMap<String, NodeId>,
-    peer_edges: HashSet<String>,
     optional_child_aliases: HashSet<String>,
     transitive_peer_dependencies: HashSet<String>,
     depth: i32,
@@ -1339,14 +1338,12 @@ impl Walker<'_> {
             record_edges.insert(peer_alias.clone(), peer_node_id.clone());
         }
         let optional_child_aliases = self.optional_child_aliases(&pkg.id, &record_edges);
-        let peer_edges = own_resolved_peers.keys().cloned().collect();
         let record_order = self.next_record_order;
         self.next_record_order += 1;
         self.node_records.insert(
             node_id.clone(),
             NodeRecord {
                 edges: record_edges,
-                peer_edges,
                 optional_child_aliases: optional_child_aliases.clone(),
                 transitive_peer_dependencies: transitive_peer_dependencies.clone(),
                 depth: tree_node.depth,
@@ -1999,6 +1996,13 @@ impl Walker<'_> {
     /// `depth`, like the inline build); nodes whose suffix was
     /// previously collapsed by the cycle fallback now split into
     /// distinct entries.
+    ///
+    /// Every edge — a regular child or a resolved peer — points at the
+    /// depPath the edge's own node resolved to, matching upstream's
+    /// `resolveChildren`, which maps each `childrenNodeIds` entry
+    /// through `pathsByNodeId`. A peer provider therefore keeps its own
+    /// peer suffix even where the consumer resolved none of those peers
+    /// itself.
     fn build_final_graph(&self, final_dep_paths: &HashMap<NodeId, DepPath>) -> DependenciesGraph {
         // Minimum tree depth across *every* occurrence that resolves to a
         // given final depPath. `pure_pkgs` / `find_hit` revisits
@@ -2019,41 +2023,19 @@ impl Walker<'_> {
         }
 
         let mut record_dep_paths: HashMap<NodeId, DepPath> = HashMap::new();
-        let mut record_resolved_peer_names: HashMap<NodeId, HashSet<String>> = HashMap::new();
-        let mut variants_by_pkg_id: HashMap<String, Vec<(DepPath, HashSet<String>)>> =
-            HashMap::new();
         let mut transitive_peer_dependencies_by_dep_path: HashMap<DepPath, HashSet<String>> =
             HashMap::new();
         for (node_id, record) in &self.node_records {
             let dep_path = self.final_dep_path_of(node_id, final_dep_paths);
-            let pkg_id = self.tree.dependencies_tree[node_id].resolved_package_id.clone();
-            let resolved_peer_names: HashSet<String> = self
-                .node_external_peers
-                .get(node_id)
-                .map(|peers| peers.keys().cloned().collect())
-                .unwrap_or_default();
-            record_dep_paths.insert(node_id.clone(), dep_path.clone());
-            record_resolved_peer_names.insert(node_id.clone(), resolved_peer_names.clone());
-            let variant_peer_names: HashSet<String> =
-                peer_segment_names(&dep_path).unwrap_or_default().into_iter().collect();
-            variants_by_pkg_id.entry(pkg_id).or_default().push((dep_path, variant_peer_names));
             transitive_peer_dependencies_by_dep_path
-                .entry(record_dep_paths[node_id].clone())
+                .entry(dep_path.clone())
                 .or_default()
                 .extend(record.transitive_peer_dependencies.iter().cloned());
-        }
-        for variants in variants_by_pkg_id.values_mut() {
-            variants.sort_by(|(left_dep_path, left_peers), (right_dep_path, right_peers)| {
-                right_peers
-                    .len()
-                    .cmp(&left_peers.len())
-                    .then_with(|| left_dep_path.cmp(right_dep_path))
-            });
+            record_dep_paths.insert(node_id.clone(), dep_path);
         }
 
         let mut graph = DependenciesGraph::new();
         let mut graph_order: HashMap<DepPath, u64> = HashMap::new();
-        let mut synthetic_nodes: HashMap<DepPath, DependenciesGraphNode> = HashMap::new();
         for (node_id, record) in &self.node_records {
             let dep_path = record_dep_paths[node_id].clone();
             let depth = min_depth.get(&dep_path).copied().unwrap_or(record.depth);
@@ -2061,30 +2043,14 @@ impl Walker<'_> {
             let pkg = &self.tree.packages[&pkg_id];
             let mut children: BTreeMap<String, DepPath> = BTreeMap::new();
             for (alias, edge_node_id) in &record.edges {
-                let is_peer_edge =
-                    record.peer_edges.contains(alias) || pkg.peer_dependencies.contains_key(alias);
-                let (edge_dep_path, synthetic_node) = if is_peer_edge {
-                    self.final_peer_edge_dep_path(
-                        node_id,
-                        edge_node_id,
-                        final_dep_paths,
-                        &record_resolved_peer_names,
-                        &variants_by_pkg_id,
-                    )
-                } else {
-                    (self.final_dep_path_of(edge_node_id, final_dep_paths), None)
-                };
-                if let Some(node) = synthetic_node {
-                    transitive_peer_dependencies_by_dep_path
-                        .entry(node.dep_path.clone())
-                        .or_default()
-                        .extend(node.transitive_peer_dependencies.iter().cloned());
-                    synthetic_nodes.entry(node.dep_path.clone()).or_insert(node);
-                }
-                children.insert(alias.clone(), edge_dep_path);
+                children
+                    .insert(alias.clone(), self.final_dep_path_of(edge_node_id, final_dep_paths));
             }
-            let resolved_peer_names =
-                record_resolved_peer_names.get(node_id).cloned().unwrap_or_default();
+            let resolved_peer_names: HashSet<String> = self
+                .node_external_peers
+                .get(node_id)
+                .map(|peers| peers.keys().cloned().collect())
+                .unwrap_or_default();
             let mut candidate = DependenciesGraphNode {
                 dep_path: dep_path.clone(),
                 resolved_package_id: pkg_id.clone(),
@@ -2139,128 +2105,7 @@ impl Walker<'_> {
                 }
             }
         }
-        for (dep_path, node) in synthetic_nodes {
-            graph.entry(dep_path).or_insert(node);
-        }
         graph
-    }
-
-    fn final_peer_edge_dep_path(
-        &self,
-        consumer_node_id: &NodeId,
-        provider_node_id: &NodeId,
-        final_dep_paths: &HashMap<NodeId, DepPath>,
-        record_resolved_peer_names: &HashMap<NodeId, HashSet<String>>,
-        variants_by_pkg_id: &HashMap<String, Vec<(DepPath, HashSet<String>)>>,
-    ) -> (DepPath, Option<DependenciesGraphNode>) {
-        let original = self.final_dep_path_of(provider_node_id, final_dep_paths);
-        let Some(provider_tree_node) = self.tree.dependencies_tree.get(provider_node_id) else {
-            return (original, None);
-        };
-        let Some(consumer_tree_node) = self.tree.dependencies_tree.get(consumer_node_id) else {
-            return (original, None);
-        };
-        let Some(consumer_pkg) = self.tree.packages.get(&consumer_tree_node.resolved_package_id)
-        else {
-            return (original, None);
-        };
-        let mut available_peer_names = HashSet::new();
-        if let Some(consumer_record) = self.node_records.get(consumer_node_id) {
-            available_peer_names.extend(consumer_record.peer_edges.iter().cloned());
-            for alias in consumer_record.edges.keys() {
-                if self.tree.all_peer_dep_names.contains(alias) {
-                    available_peer_names.insert(alias.clone());
-                }
-            }
-        }
-        available_peer_names.insert(pkg_name_version(&consumer_pkg.result).0);
-
-        let Some(variants) = variants_by_pkg_id.get(&provider_tree_node.resolved_package_id) else {
-            return (original, None);
-        };
-        if variants
-            .iter()
-            .find(|(dep_path, _)| dep_path == &original)
-            .is_some_and(|(_, peer_names)| peer_names.is_subset(&available_peer_names))
-        {
-            return (original, None);
-        }
-        let unavailable = unavailable_peer_segment_names(&original, &available_peer_names);
-        if unavailable.is_some_and(|names| {
-            !names.is_empty()
-                && self.node_records.get(provider_node_id).is_some_and(|record| {
-                    names.iter().all(|name| record.transitive_peer_dependencies.contains(name))
-                })
-        }) {
-            return (original, None);
-        }
-        if let Some(trimmed) = dep_path_with_allowed_peer_segments(&original, &available_peer_names)
-        {
-            if variants.iter().any(|(dep_path, _)| dep_path == &trimmed) {
-                return (trimmed, None);
-            }
-            if let Some(node) = self.synthetic_peer_variant_node(
-                provider_node_id,
-                trimmed.clone(),
-                &available_peer_names,
-                final_dep_paths,
-                record_resolved_peer_names,
-            ) {
-                return (trimmed, Some(node));
-            }
-        }
-        variants
-            .iter()
-            .find(|(_, peer_names)| peer_names.is_subset(&available_peer_names))
-            .map(|(dep_path, _)| (dep_path.clone(), None))
-            .unwrap_or((original, None))
-    }
-
-    fn synthetic_peer_variant_node(
-        &self,
-        provider_node_id: &NodeId,
-        dep_path: DepPath,
-        available_peer_names: &HashSet<String>,
-        final_dep_paths: &HashMap<NodeId, DepPath>,
-        record_resolved_peer_names: &HashMap<NodeId, HashSet<String>>,
-    ) -> Option<DependenciesGraphNode> {
-        let record = self.node_records.get(provider_node_id)?;
-        let tree_node = self.tree.dependencies_tree.get(provider_node_id)?;
-        let pkg = self.tree.packages.get(&tree_node.resolved_package_id)?;
-        let mut children = BTreeMap::new();
-        for (alias, edge_node_id) in &record.edges {
-            if record.peer_edges.contains(alias) && !available_peer_names.contains(alias) {
-                continue;
-            }
-            children.insert(alias.clone(), self.final_dep_path_of(edge_node_id, final_dep_paths));
-        }
-        let optional_children = record
-            .optional_child_aliases
-            .iter()
-            .filter(|alias| children.contains_key(*alias))
-            .cloned()
-            .collect();
-        let resolved_peer_names: HashSet<String> = record_resolved_peer_names
-            .get(provider_node_id)
-            .into_iter()
-            .flat_map(|names| names.iter())
-            .filter(|name| available_peer_names.contains(*name))
-            .cloned()
-            .collect();
-        Some(DependenciesGraphNode {
-            dep_path,
-            resolved_package_id: tree_node.resolved_package_id.clone(),
-            resolve_result: Arc::clone(&pkg.result),
-            children,
-            optional_children,
-            peer_dependencies: pkg.peer_dependencies.clone(),
-            transitive_peer_dependencies: record.transitive_peer_dependencies.clone(),
-            resolved_peer_names,
-            depth: record.depth,
-            installable: record.installable,
-            is_pure: false,
-            optional: pkg.optional,
-        })
     }
 
     fn optional_child_aliases(
@@ -2771,41 +2616,6 @@ fn unavailable_non_transitive_peer_segment_names(
             })
             .collect(),
     )
-}
-
-fn dep_path_with_allowed_peer_segments(
-    dep_path: &DepPath,
-    allowed_peer_names: &HashSet<String>,
-) -> Option<DepPath> {
-    let raw = dep_path.as_str();
-    let suffix = index_of_dep_path_suffix(raw);
-    let peers_index = suffix.peers_index?;
-    let segments = split_peer_suffix_segments(&raw[peers_index..])?;
-    let mut kept = Vec::new();
-    for segment in &segments {
-        let name = peer_segment_name(segment)?;
-        if allowed_peer_names.contains(name) {
-            kept.push(segment.as_str());
-        }
-    }
-    if kept.is_empty() || kept.len() == segments.len() {
-        return None;
-    }
-    let mut out = raw[..peers_index].to_string();
-    for segment in kept {
-        out.push('(');
-        out.push_str(segment);
-        out.push(')');
-    }
-    Some(DepPath::from(out))
-}
-
-fn unavailable_peer_segment_names(
-    dep_path: &DepPath,
-    available_peer_names: &HashSet<String>,
-) -> Option<Vec<String>> {
-    let names = peer_segment_names(dep_path)?;
-    Some(names.into_iter().filter(|name| !available_peer_names.contains(name)).collect())
 }
 
 fn peer_segment_names(dep_path: &DepPath) -> Option<Vec<String>> {
