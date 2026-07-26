@@ -189,6 +189,21 @@ pub enum TarballError {
     #[diagnostic(code(ERR_PNPM_TARBALL_DECODE_GZIP))]
     DecodeGzip(InflateDecodeErrors),
 
+    /// The tarball's own `package.json` is not valid JSON. Only the
+    /// resolve-time read ([`read_local_tarball_metadata`]) raises this:
+    /// there the manifest is the package's sole source of identity, so a
+    /// corrupt one has to stop the install rather than degrade to an
+    /// unnamed package. Matches the code and wording pnpm reports for
+    /// the same tarball.
+    #[from(ignore)]
+    #[display("Failed to add tarball from \"{tarball}\" to store: {source}")]
+    #[diagnostic(code(ERR_PNPM_TARBALL_EXTRACT))]
+    ParseBundledManifest {
+        tarball: String,
+        #[error(source)]
+        source: serde_json::Error,
+    },
+
     #[from(ignore)]
     #[display("Failed to write cafs: {_0}")]
     #[diagnostic(transparent)]
@@ -1602,6 +1617,9 @@ fn tarball_error_to_request_retry(err: &TarballError) -> RequestRetryError {
         TarballError::ReadTarballEntries(_) => {
             out.code = Some("ERR_PNPM_TARBALL_TAR".to_string());
         }
+        TarballError::ParseBundledManifest { .. } => {
+            out.code = Some("ERR_PNPM_TARBALL_EXTRACT".to_string());
+        }
         TarballError::ReadLocalTarball { .. } => {
             out.code = Some("ERR_PNPM_TARBALL_FILE".to_string());
         }
@@ -2690,6 +2708,9 @@ pub async fn read_local_tarball_metadata(
     path: &Path,
 ) -> Result<LocalTarballMetadata, TarballError> {
     let package_url = format!("file:{}", path.display());
+    // pnpm names the plain filesystem path — not the `file:` URL — when
+    // it reports a bad tarball, so the manifest error quotes the same.
+    let tarball_path = path.display().to_string();
     let (file, size) = open_local_tarball(path).await?;
     let buffer = read_local_tarball_buffer(file, path, &package_url, size).await?;
 
@@ -2700,7 +2721,7 @@ pub async fn read_local_tarball_metadata(
     tokio::task::spawn_blocking(move || {
         let integrity = verify_tarball_integrity(&buffer, None, package_url)?;
         let tar_data = decompress_gzip(&buffer, None)?;
-        let manifest = read_bundled_manifest(&tar_data)?;
+        let manifest = read_bundled_manifest(&tar_data, &tarball_path)?;
         Ok(LocalTarballMetadata { integrity, manifest })
     })
     .await
@@ -2711,13 +2732,26 @@ pub async fn read_local_tarball_metadata(
 /// narrowed by [`normalize_bundled_manifest`] so it matches the
 /// manifest an extraction stashes on [`PackageFilesIndex`].
 ///
-/// Follows the same conventions as the manifest capture in
+/// Shares the entry conventions of the manifest capture in
 /// [`extract_tarball_entries`]: the top-level archive component is
 /// dropped, the payload is borrowed out of the archive buffer via
-/// [`tar_entry_payload`], a duplicate entry wins over earlier ones, and
-/// an unparsable `package.json` degrades to `None` rather than failing
-/// the read.
-fn read_bundled_manifest(tar_data: &[u8]) -> Result<Option<serde_json::Value>, TarballError> {
+/// [`tar_entry_payload`], and a duplicate entry wins over earlier ones.
+///
+/// It parts ways with that capture on a `package.json` that isn't valid
+/// JSON. There the manifest is a convenience — install-side consumers
+/// re-read from disk — so it degrades to `None`. Here it is the only
+/// thing that names the package, and an unnamed package resolves to a
+/// dep path no lockfile key parses, which drops it from `packages:` and
+/// `snapshots:` and installs a dangling symlink. So this raises
+/// [`TarballError::ParseBundledManifest`], the way pnpm fails the same
+/// tarball with `ERR_PNPM_TARBALL_EXTRACT`.
+///
+/// `None` still means "no root `package.json` in the archive at all",
+/// which is a distinct shape pnpm tolerates.
+fn read_bundled_manifest(
+    tar_data: &[u8],
+    tarball_path: &str,
+) -> Result<Option<serde_json::Value>, TarballError> {
     let mut archive = Archive::new(Cursor::new(tar_data));
     let mut manifest = None;
     for entry in archive.entries_with_seek().map_err(TarballError::ReadTarballEntries)? {
@@ -2734,16 +2768,10 @@ fn read_bundled_manifest(tar_data: &[u8]) -> Result<Option<serde_json::Value>, T
         }
         drop(components);
         let bytes = tar_entry_payload(tar_data, &entry)?;
-        manifest = match parse_manifest_bytes(bytes) {
-            Ok(parsed) => normalize_bundled_manifest(&parsed),
-            Err(error) => {
-                tracing::debug!(
-                    ?error,
-                    "package.json in tarball failed to parse as JSON; bundled manifest cleared",
-                );
-                None
-            }
-        };
+        let parsed = parse_manifest_bytes(bytes).map_err(|source| {
+            TarballError::ParseBundledManifest { tarball: tarball_path.to_string(), source }
+        })?;
+        manifest = normalize_bundled_manifest(&parsed);
     }
     Ok(manifest)
 }

@@ -1331,6 +1331,61 @@ async fn read_local_tarball_metadata_reads_integrity_and_bundled_manifest() {
     assert_eq!(manifest.get("version").and_then(serde_json::Value::as_str), Some("3.3.0"));
 }
 
+/// The manifest is the package's only source of identity here, so an
+/// unparsable one fails the resolve rather than degrading to `None` —
+/// matching how pnpm rejects the same tarball.
+#[tokio::test]
+async fn read_local_tarball_metadata_rejects_an_unparsable_manifest() {
+    let local_dir = tempdir().unwrap();
+    let tarball_path = local_dir.path().join("pkg.tgz");
+    std::fs::write(&tarball_path, gzipped_tar(&[("package/package.json", b"{ BROKEN")])).unwrap();
+
+    let err = read_local_tarball_metadata(&tarball_path)
+        .await
+        .expect_err("an unparsable bundled manifest must fail the read");
+    match err {
+        TarballError::ParseBundledManifest { tarball, .. } => {
+            assert_eq!(tarball, tarball_path.display().to_string());
+        }
+        other => panic!("expected ParseBundledManifest, got {other:?}"),
+    }
+}
+
+/// An archive with no `package.json` at all is a different shape from a
+/// corrupt one: pnpm installs it, so the read degrades to `None` instead
+/// of failing.
+#[tokio::test]
+async fn read_local_tarball_metadata_tolerates_an_archive_with_no_manifest() {
+    let local_dir = tempdir().unwrap();
+    let tarball_path = local_dir.path().join("pkg.tgz");
+    std::fs::write(&tarball_path, gzipped_tar(&[("package/README.md", b"hi")])).unwrap();
+
+    let metadata = read_local_tarball_metadata(&tarball_path)
+        .await
+        .expect("an archive without a manifest still reads");
+    assert!(metadata.manifest.is_none(), "got {:?}", metadata.manifest);
+}
+
+/// Build a gzipped tar carrying exactly `entries`, as `(path, bytes)`.
+fn gzipped_tar(entries: &[(&str, &[u8])]) -> Vec<u8> {
+    use std::io::Write;
+
+    let mut builder = tar::Builder::new(Vec::new());
+    for (path, bytes) in entries {
+        let mut header = tar::Header::new_gnu();
+        header.set_path(path).expect("set tar entry path");
+        header.set_size(bytes.len() as u64);
+        header.set_mode(0o644);
+        header.set_cksum();
+        builder.append(&header, *bytes).expect("append tar entry");
+    }
+    let tar_bytes = builder.into_inner().expect("finish tar");
+
+    let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+    encoder.write_all(&tar_bytes).expect("gzip tar");
+    encoder.finish().expect("finish gzip")
+}
+
 /// The local resolver maps this to `ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND`,
 /// so the error kind has to survive.
 #[tokio::test]
