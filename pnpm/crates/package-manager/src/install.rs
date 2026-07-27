@@ -2438,7 +2438,7 @@ where
             // Filter the wanted lockfile down to the snapshots that
             // were actually materialized: dep maps the user excluded
             // (`--no-optional`, `--no-dev`) plus snapshots the
-            // install-time skip set dropped (installability, fetch
+            // install-time skip set transiently dropped (a fetch
             // failure, `--no-optional`-only entries). The next install
             // diffs against this filtered shape so dropped snapshots
             // aren't mistaken for already-done work.

@@ -174,6 +174,27 @@ impl SkippedSnapshots {
         self.optional_excluded.contains(key)
     }
 
+    /// The same set with the `installability` subset dropped — the
+    /// skips a written current lockfile has to reflect.
+    ///
+    /// `.modules.yaml.skipped` carries the installability subset from
+    /// one install to the next, so the current lockfile can keep those
+    /// entries and still describe what is on disk. It has to keep
+    /// them: pnpm's current lockfile does, and a repeat install's
+    /// "already up to date" comparison against the wanted lockfile
+    /// would otherwise never match again once a platform-incompatible
+    /// optional dependency was skipped. Fetch failures and
+    /// `--no-optional` exclusions are recorded nowhere else, so
+    /// leaving those out is what makes the next install redo them.
+    #[must_use]
+    pub(crate) fn transient_only(&self) -> Self {
+        Self {
+            installability: HashSet::new(),
+            fetch_failed: self.fetch_failed.clone(),
+            optional_excluded: self.optional_excluded.clone(),
+        }
+    }
+
     pub(crate) fn retain_installability_for_optional_snapshots(
         &mut self,
         snapshots: &HashMap<PackageKey, SnapshotEntry>,
