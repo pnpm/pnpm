@@ -105,7 +105,13 @@ function diffSnapshots<TSnapshot> (
 
   const added = (Object.keys(next) as DepPath[]).filter(id => prev[id] == null)
 
-  return { added, removed, updated }
+  added.sort()
+  removed.sort()
+  const sortedUpdated = Object.fromEntries(
+    Object.entries(updated).sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
+  )
+
+  return { added, removed, updated: sortedUpdated }
 }
 
 function getResolutionUpdates (prev: ResolvedDependencies, next: ResolvedDependencies): ResolutionChangesByAlias {
