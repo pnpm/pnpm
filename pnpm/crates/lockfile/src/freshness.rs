@@ -32,6 +32,27 @@ pub struct LockfileSettingsCheck<'a> {
     pub exclude_links_from_lockfile: bool,
     pub inject_workspace_packages: bool,
     pub peers_suffix_max_length: u64,
+    pub pnpmfile_checksum: PnpmfileChecksumCheck<'a>,
+}
+
+/// What [`check_lockfile_settings`] compares the lockfile's
+/// `pnpmfileChecksum` against.
+///
+/// The value is not a plain config read: pnpm records a checksum only
+/// when a loaded pnpmfile exports a `hooks` object, so computing it can
+/// mean evaluating the pnpmfile. Callers that already know the
+/// pnpmfiles are unchanged — or that have no pnpmfile to speak of —
+/// say so with [`PnpmfileChecksumCheck::Skip`] instead of inventing a
+/// value, since passing `Current(None)` would fail every install in a
+/// project whose lockfile legitimately records one.
+#[derive(Clone, Copy)]
+pub enum PnpmfileChecksumCheck<'a> {
+    /// The checksum the current install would record: the hash of the
+    /// pnpmfiles that export hooks, `None` when none do.
+    Current(Option<&'a str>),
+
+    /// Leave `pnpmfileChecksum` uncompared.
+    Skip,
 }
 
 /// Why an importer's lockfile entry doesn't satisfy the on-disk
@@ -188,6 +209,17 @@ pub enum StalenessReason {
         "`excludeLinksFromLockfile` in the lockfile ({lockfile}) doesn't match the current config ({config})"
     )]
     ExcludeLinksFromLockfileChanged { lockfile: bool, config: bool },
+
+    /// The lockfile's `pnpmfileChecksum` doesn't match the checksum the
+    /// current install would record: a pnpmfile was added, edited, or
+    /// removed since the lockfile was written, so the manifests the
+    /// recorded resolution was built from are no longer the ones this
+    /// install would see. Both values are the prefixed `sha256-…`
+    /// strings, absent when no pnpmfile exports hooks.
+    #[display(
+        "`pnpmfileChecksum` in the lockfile ({lockfile:?}) doesn't match the current pnpmfile ({config:?})"
+    )]
+    PnpmfileChecksumChanged { lockfile: Option<String>, config: Option<String> },
 }
 
 impl StalenessReason {
@@ -221,6 +253,7 @@ impl StalenessReason {
             StalenessReason::PeersSuffixMaxLengthChanged { .. } => {
                 Some("settings.peersSuffixMaxLength")
             }
+            StalenessReason::PnpmfileChecksumChanged { .. } => Some("pnpmfileChecksum"),
             StalenessReason::InjectWorkspacePackagesChanged { .. } => {
                 Some("settings.injectWorkspacePackages")
             }
@@ -312,7 +345,7 @@ impl SpecDiff {
 /// from `pnpm-workspace.yaml` haven't drifted since the lockfile was
 /// written: `catalogs`, `overrides`, `packageExtensionsChecksum`,
 /// `ignoredOptionalDependencies`, `patchedDependencies`,
-/// and the relevant `settings.*` keys (umbrella
+/// `pnpmfileChecksum`, and the relevant `settings.*` keys (umbrella
 /// [#434] slice 7).
 ///
 /// Drift in any of these settings would otherwise require a full
@@ -338,6 +371,7 @@ pub fn check_lockfile_settings(
         exclude_links_from_lockfile,
         inject_workspace_packages,
         peers_suffix_max_length,
+        pnpmfile_checksum,
     } = check;
 
     if !all_catalogs_are_up_to_date(catalogs, lockfile.catalogs.as_ref()) {
@@ -433,6 +467,15 @@ pub fn check_lockfile_settings(
         return Err(StalenessReason::PeersSuffixMaxLengthChanged {
             lockfile: lockfile_peers_suffix_max_length,
             config: peers_suffix_max_length,
+        });
+    }
+
+    if let PnpmfileChecksumCheck::Current(pnpmfile_checksum) = pnpmfile_checksum
+        && lockfile.pnpmfile_checksum.as_deref() != pnpmfile_checksum
+    {
+        return Err(StalenessReason::PnpmfileChecksumChanged {
+            lockfile: lockfile.pnpmfile_checksum.clone(),
+            config: pnpmfile_checksum.map(str::to_string),
         });
     }
 

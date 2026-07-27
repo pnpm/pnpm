@@ -1,5 +1,6 @@
 use super::{
-    LockfileSettingsCheck, StalenessReason, check_lockfile_settings, satisfies_package_manifest,
+    LockfileSettingsCheck, PnpmfileChecksumCheck, StalenessReason, check_lockfile_settings,
+    satisfies_package_manifest,
 };
 use crate::Lockfile;
 use pacquet_catalogs_types::Catalogs;
@@ -33,6 +34,7 @@ fn settings_check(catalogs: &Catalogs) -> LockfileSettingsCheck<'_> {
         exclude_links_from_lockfile: false,
         inject_workspace_packages: false,
         peers_suffix_max_length: crate::DEFAULT_PEERS_SUFFIX_MAX_LENGTH,
+        pnpmfile_checksum: PnpmfileChecksumCheck::Current(None),
     }
 }
 
@@ -1565,6 +1567,169 @@ fn check_settings_returns_drift_when_explicit_peers_suffix_max_length_differs() 
     )
     .expect_err("changed peersSuffixMaxLength must surface drift");
     assert_eq!(err, StalenessReason::PeersSuffixMaxLengthChanged { lockfile: 10, config: 100 });
+}
+
+// ---------------------------------------------------------------------------
+// `pnpmfileChecksum` drift — an added, edited, or removed pnpmfile
+// ---------------------------------------------------------------------------
+
+/// A lockfile written without a pnpmfile, checked by an install that
+/// still has none.
+#[test]
+fn check_settings_passes_when_neither_side_has_a_pnpmfile() {
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+    })
+    .expect("parse minimal lockfile");
+    assert!(check_lockfile_settings(&lockfile, settings_check(&Catalogs::new())).is_ok());
+}
+
+#[test]
+fn check_settings_passes_when_pnpmfile_checksum_matches() {
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "pnpmfileChecksum: sha256-abc"
+    })
+    .expect("parse lockfile with a pnpmfile checksum");
+    assert!(
+        check_lockfile_settings(
+            &lockfile,
+            LockfileSettingsCheck {
+                pnpmfile_checksum: PnpmfileChecksumCheck::Current(Some("sha256-abc")),
+                ..settings_check(&Catalogs::new())
+            },
+        )
+        .is_ok(),
+    );
+}
+
+/// An edited pnpmfile hashes differently, so the lockfile no longer
+/// describes what this install's `readPackage` hooks would produce.
+#[test]
+fn check_settings_returns_drift_when_pnpmfile_checksum_differs() {
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "pnpmfileChecksum: sha256-abc"
+    })
+    .expect("parse lockfile with a pnpmfile checksum");
+    let err = check_lockfile_settings(
+        &lockfile,
+        LockfileSettingsCheck {
+            pnpmfile_checksum: PnpmfileChecksumCheck::Current(Some("sha256-def")),
+            ..settings_check(&Catalogs::new())
+        },
+    )
+    .expect_err("an edited pnpmfile must surface drift");
+    assert_eq!(
+        err,
+        StalenessReason::PnpmfileChecksumChanged {
+            lockfile: Some("sha256-abc".to_string()),
+            config: Some("sha256-def".to_string()),
+        },
+    );
+    assert_eq!(err.setting_name(), Some("pnpmfileChecksum"));
+}
+
+/// The reproduction from pnpm/pnpm#13385: a hooks-exporting pnpmfile
+/// added after the lockfile was written.
+#[test]
+fn check_settings_returns_drift_when_a_pnpmfile_appeared() {
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+    })
+    .expect("parse minimal lockfile");
+    let err = check_lockfile_settings(
+        &lockfile,
+        LockfileSettingsCheck {
+            pnpmfile_checksum: PnpmfileChecksumCheck::Current(Some("sha256-abc")),
+            ..settings_check(&Catalogs::new())
+        },
+    )
+    .expect_err("a new pnpmfile must surface drift");
+    assert_eq!(
+        err,
+        StalenessReason::PnpmfileChecksumChanged {
+            lockfile: None,
+            config: Some("sha256-abc".to_string()),
+        },
+    );
+}
+
+#[test]
+fn check_settings_returns_drift_when_the_pnpmfile_was_removed() {
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "pnpmfileChecksum: sha256-abc"
+    })
+    .expect("parse lockfile with a pnpmfile checksum");
+    let err = check_lockfile_settings(&lockfile, settings_check(&Catalogs::new()))
+        .expect_err("a removed pnpmfile must surface drift");
+    assert_eq!(
+        err,
+        StalenessReason::PnpmfileChecksumChanged {
+            lockfile: Some("sha256-abc".to_string()),
+            config: None,
+        },
+    );
+}
+
+/// A caller that can't produce the checksum leaves the field alone
+/// rather than reading its absence as "no pnpmfile", which would fail
+/// every lockfile that legitimately records one.
+#[test]
+fn check_settings_skips_the_pnpmfile_checksum_on_request() {
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "pnpmfileChecksum: sha256-abc"
+    })
+    .expect("parse lockfile with a pnpmfile checksum");
+    assert!(
+        check_lockfile_settings(
+            &lockfile,
+            LockfileSettingsCheck {
+                pnpmfile_checksum: PnpmfileChecksumCheck::Skip,
+                ..settings_check(&Catalogs::new())
+            },
+        )
+        .is_ok(),
+    );
+}
+
+/// pnpm compares `pnpmfileChecksum` after `settings.peersSuffixMaxLength`
+/// and before `settings.injectWorkspacePackages`, and only the first
+/// drifted field is reported.
+#[test]
+fn check_settings_reports_pnpmfile_checksum_between_its_pnpm_neighbors() {
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "pnpmfileChecksum: sha256-abc"
+        "settings:"
+        "  autoInstallPeers: true"
+        "  excludeLinksFromLockfile: false"
+        "  peersSuffixMaxLength: 10"
+    })
+    .expect("parse lockfile with a checksum and settings");
+    let err = check_lockfile_settings(
+        &lockfile,
+        LockfileSettingsCheck {
+            peers_suffix_max_length: 100,
+            inject_workspace_packages: true,
+            ..settings_check(&Catalogs::new())
+        },
+    )
+    .expect_err("all three fields drifted");
+    assert_eq!(err.setting_name(), Some("settings.peersSuffixMaxLength"));
+
+    let err = check_lockfile_settings(
+        &lockfile,
+        LockfileSettingsCheck {
+            peers_suffix_max_length: 10,
+            inject_workspace_packages: true,
+            ..settings_check(&Catalogs::new())
+        },
+    )
+    .expect_err("the checksum and injectWorkspacePackages drifted");
+    assert_eq!(err.setting_name(), Some("pnpmfileChecksum"));
 }
 
 /// Once `check_lockfile_settings` passes, `satisfies_package_manifest`
