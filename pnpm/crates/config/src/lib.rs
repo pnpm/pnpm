@@ -2069,6 +2069,19 @@ impl Config {
         self.public_hoist_pattern = Some(Vec::new());
     }
 
+    /// Apply the legacy `shamefullyHoist` setting to the public hoist pattern.
+    ///
+    /// This runs after all config sources have been merged because an explicit
+    /// `shamefullyHoist` value takes precedence over `publicHoistPattern`
+    /// regardless of which source supplied either setting.
+    fn apply_shamefully_hoist_derivation(&mut self) {
+        match self.explicit_settings.get("shamefullyHoist").and_then(serde_json::Value::as_bool) {
+            Some(true) => self.public_hoist_pattern = Some(vec!["*".to_string()]),
+            Some(false) => self.public_hoist_pattern = None,
+            None => {}
+        }
+    }
+
     /// Restore the smart default store after a higher-precedence config
     /// source explicitly clears `storeDir`.
     pub fn reset_store_dir_to_default<Sys>(&mut self, start_dir: &Path)
@@ -2640,6 +2653,7 @@ impl Config {
             global_virtual_store_dir_explicit,
         );
 
+        self.apply_shamefully_hoist_derivation();
         self.apply_virtual_store_only_derivation();
 
         // Resolve the global install directories:
