@@ -130,7 +130,8 @@ describe('dedupeDiffCheck', () => {
         ['a@1.0.0' as DepPath]: {
           resolution: { integrity: 'sha512-a' },
           dependencies: {
-            dependency: '1.0.0',
+            zDependency: '1.0.0',
+            aDependency: '1.0.0',
           },
         },
       },
@@ -158,7 +159,8 @@ describe('dedupeDiffCheck', () => {
         ['a@1.0.0' as DepPath]: {
           resolution: { integrity: 'sha512-a' },
           dependencies: {
-            dependency: '2.0.0',
+            zDependency: '2.0.0',
+            aDependency: '2.0.0',
           },
         },
       },
@@ -170,7 +172,8 @@ describe('dedupeDiffCheck', () => {
       removed: [],
       updated: {
         'a@1.0.0': {
-          dependency: { type: 'updated', prev: '1.0.0', next: '2.0.0' },
+          aDependency: { type: 'updated', prev: '1.0.0', next: '2.0.0' },
+          zDependency: { type: 'updated', prev: '1.0.0', next: '2.0.0' },
         },
         'z@1.0.0': {
           dependency: { type: 'added', next: '2.0.0' },
