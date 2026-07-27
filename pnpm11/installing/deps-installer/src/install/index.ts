@@ -349,7 +349,7 @@ export async function mutateModules (
 
   let ctx = await getContext(opts)
 
-  if (!opts.lockfileOnly && ctx.modulesFile != null) {
+  if (!opts.lockfileOnly && !isCheckOnlyInstall(opts) && ctx.modulesFile != null) {
     const { purged } = await validateModules(ctx.modulesFile, Object.values(ctx.projects), {
       forceNewModules: installsOnly,
       include: opts.include,

@@ -174,16 +174,23 @@ async function testFixture (fixtureName: string) {
   // unmodified after a regular install.
   await install.handler(opts)
   expect(readProjectLockfile()).toEqual(originalLockfile)
+  const modulesFilePath = path.join(project.dir(), 'node_modules/.modules.yaml')
+  const originalModulesFile = fs.readFileSync(modulesFilePath, 'utf8')
 
   let dedupeCheckError: DedupeCheckIssuesError | undefined
   try {
-    await dedupe.handler({ ...opts, check: true })
+    await dedupe.handler({
+      ...opts,
+      check: true,
+      storeDir: path.join(project.dir(), 'different-store'),
+    })
   } catch (err: unknown) {
     expect(err).toBeInstanceOf(DedupeCheckIssuesError)
     dedupeCheckError = err as DedupeCheckIssuesError
   } finally {
     // The dedupe check option should never change the lockfile.
     expect(readProjectLockfile()).toEqual(originalLockfile)
+    expect(fs.readFileSync(modulesFilePath, 'utf8')).toBe(originalModulesFile)
   }
 
   if (dedupeCheckError == null) {
