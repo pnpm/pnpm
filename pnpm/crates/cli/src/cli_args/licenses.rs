@@ -1,5 +1,8 @@
 use crate::cli_args::{
-    deps_tree::pkg_info::is_unsafe_path_component,
+    deps_tree::{
+        dep_types::{DepType, detect_dep_types},
+        pkg_info::is_unsafe_path_component,
+    },
     recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects},
     sanitize::{sanitize, sanitize_inline},
 };
@@ -22,6 +25,8 @@ use pacquet_package_manifest::{
 use serde::Serialize;
 use std::collections::{BTreeMap, HashMap};
 use tabled::{builder::Builder, settings::Style};
+
+mod license_resolver;
 
 #[derive(Debug, Args)]
 pub struct LicensesArgs {
@@ -109,6 +114,8 @@ pub struct LicenseInfo {
     pub license: String,
     #[serde(skip)]
     belongs_to: BelongsTo,
+    #[serde(skip)]
+    selected_version: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub author: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -212,10 +219,20 @@ impl LicensesArgs {
                 safe_read_package_json_from_dir(&pkg_dir).unwrap_or(None)
             };
 
-            let license = manifest
-                .as_ref()
-                .and_then(extract_license)
-                .unwrap_or_else(|| "Unknown".to_string());
+            let license = match manifest.as_ref() {
+                Some(manifest) => match extract_license(manifest) {
+                    Some(license) if !license.to_ascii_lowercase().contains("see license") => {
+                        license
+                    }
+                    manifest_license => {
+                        license_resolver::resolve_license_from_dir(manifest_license, &pkg_dir)
+                            .await
+                            .into_diagnostic()?
+                            .unwrap_or_else(|| "Unknown".to_string())
+                    }
+                },
+                None => "Unknown".to_string(),
+            };
             let author = manifest.as_ref().and_then(extract_author);
             let homepage = manifest.as_ref().and_then(extract_homepage);
             let description = manifest
@@ -232,12 +249,17 @@ impl LicensesArgs {
                 paths: Vec::new(),
                 license,
                 belongs_to: kind,
-                author,
-                homepage,
-                description,
+                selected_version: version.clone(),
+                author: author.clone(),
+                homepage: homepage.clone(),
+                description: description.clone(),
             });
 
-            info.belongs_to = info.belongs_to.min(kind);
+            if select_newer_version(info, &version, kind) {
+                info.author = author;
+                info.homepage = homepage;
+                info.description = description;
+            }
             if !info.versions.contains(&version) {
                 info.versions.push(version);
             }
@@ -411,7 +433,36 @@ fn collect_dependencies(
         }
     }
 
+    let dep_types = detect_dep_types(lockfile);
+    for (key, belongs_to) in &mut belongs_to {
+        *belongs_to = if dep_types.get(key) == Some(&DepType::DevOnly) {
+            BelongsTo::Dev
+        } else {
+            BelongsTo::Prod
+        };
+    }
+
     belongs_to
+}
+
+fn version_is_newer(candidate: &str, selected: &str) -> bool {
+    match (node_semver::Version::parse(candidate), node_semver::Version::parse(selected)) {
+        (Ok(candidate), Ok(selected)) => candidate > selected,
+        _ => candidate > selected,
+    }
+}
+
+fn select_newer_version(
+    info: &mut LicenseInfo,
+    candidate_version: &str,
+    candidate_belongs_to: BelongsTo,
+) -> bool {
+    if !version_is_newer(candidate_version, &info.selected_version) {
+        return false;
+    }
+    info.belongs_to = candidate_belongs_to;
+    info.selected_version = candidate_version.to_string();
+    true
 }
 
 fn render_package_name(info: &LicenseInfo) -> String {

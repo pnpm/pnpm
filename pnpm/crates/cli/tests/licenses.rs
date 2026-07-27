@@ -63,7 +63,11 @@ fn licenses_reads_global_store_metadata_with_a_manifest_selected_runtime() {
                 .iter()
                 .map(|package| package["name"].as_str().expect("package name"))
                 .collect::<Vec<_>>(),
-            ["@pnpm.e2e/install-script-example", "@pnpm.e2e/legacy-license"],
+            [
+                "@pnpm.e2e/for-legacy-node",
+                "@pnpm.e2e/install-script-example",
+                "@pnpm.e2e/legacy-license",
+            ],
         );
         for package in packages {
             assert_eq!(package["versions"], json!(["1.0.0"]));
