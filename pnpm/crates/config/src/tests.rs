@@ -2661,6 +2661,17 @@ pub fn shamefully_hoist_false_disables_public_hoisting() {
 }
 
 #[test]
+pub fn unset_shamefully_hoist_preserves_the_public_hoist_pattern() {
+    let tmp = tempdir().unwrap();
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "publicHoistPattern:\n  - eslint\n")
+        .expect("write to pnpm-workspace.yaml");
+
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");
+
+    assert_eq!(config.public_hoist_pattern, Some(vec!["eslint".to_string()]));
+}
+
+#[test]
 pub fn virtual_store_dir_max_length_matches_pnpm_default() {
     let tmp = tempdir().unwrap();
     let config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");
