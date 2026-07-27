@@ -3631,10 +3631,9 @@ fn apply_append_manifest_is_a_noop_when_the_archive_ships_a_package_json() {
     assert!(idx.manifest.is_none(), "the archive's manifest handling is left alone");
 }
 
-/// An archive with no `package.json` of its own gets pnpm's placeholder,
-/// so `package.json` stays every package slot's completion marker. The
-/// placeholder is not the package's manifest, so the row's bundled
-/// `manifest` must stay empty — see
+/// The placeholder is a completion marker, not the package's identity,
+/// so it must not become the row's bundled `manifest` the way
+/// `apply_append_manifest`'s real one does — see
 /// <https://github.com/pnpm/pnpm/issues/13410>.
 #[test]
 fn apply_placeholder_manifest_marks_an_archive_that_ships_no_package_json() {
@@ -3654,9 +3653,6 @@ fn apply_placeholder_manifest_marks_an_archive_that_ships_no_package_json() {
     assert!(idx.manifest.is_none(), "a placeholder is not the package's bundled manifest");
 }
 
-/// A real `package.json` — the archive's own, or the one
-/// `apply_append_manifest` synthesized for a runtime — always wins over
-/// the placeholder.
 #[test]
 fn apply_placeholder_manifest_is_a_noop_when_a_package_json_is_already_recorded() {
     let (_keep, store_path) = tempdir_with_leaked_path();

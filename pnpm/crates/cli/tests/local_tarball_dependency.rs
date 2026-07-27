@@ -78,10 +78,9 @@ fn local_tarball_dependency_is_recorded_and_installed() {
     drop((root, mock_instance));
 }
 
-/// An archive with no `package.json` at all has no name to prefix its
-/// dep path with, so pnpm synthesizes one from the alias and installs it
-/// at version `0.0.0`, writing a placeholder `package.json` into the
-/// extraction.
+/// An archive with no `package.json` at all is the one tarball shape
+/// with no name of its own to prefix its dep path with, so pnpm falls
+/// back to the alias the consumer gave it.
 ///
 /// Covers <https://github.com/pnpm/pnpm/issues/13410>.
 #[test]

@@ -635,17 +635,13 @@ fn write_cas_entry(
 
 /// Fold a synthesized `package.json` (pnpm's `appendManifest`) into a
 /// freshly extracted archive's CAFS output. Runtime archives (Node.js /
-/// Bun / Deno) carry no `package.json`, so the bytes are written to the
-/// content-addressed store and recorded in both `cas_paths` (this
-/// install's slot) and the persisted `pkg_files_idx` — its `files` map
-/// *and* its bundled `manifest`. Baking the manifest into the store-index
-/// row is what lets a later warm materialization land a `package.json`
-/// slot and lets the warm-batch bin linker find the runtime's bin without
-/// a disk round-trip.
+/// Bun / Deno) carry no `package.json` of their own, so the caller
+/// supplies one, and it also becomes the store-index row's bundled
+/// `manifest` — which is what lets the warm-batch bin linker find the
+/// runtime's bin without a disk round-trip.
 ///
-/// A no-op when the archive already carries a `package.json` (matches
-/// pnpm's `manifest == null` guard), so ordinary npm tarballs are
-/// untouched.
+/// See [`write_synthesized_package_json`] for what reaching the store
+/// entails and when the write is skipped.
 fn apply_append_manifest(
     store_dir: &StoreDir,
     manifest_bytes: &[u8],
@@ -667,18 +663,18 @@ fn apply_append_manifest(
 }
 
 /// Give an archive that ships no `package.json` of its own the
-/// placeholder one pnpm writes, so `package.json` is every package
-/// slot's completion marker — the file `pacquet-package-manager`'s
-/// `marker_file` looks for to decide a slot was fully imported.
+/// placeholder one pnpm writes, so every extracted package has one and
+/// materialization can treat it as the slot's completion marker.
 ///
 /// The placeholder is a marker, not a manifest: its `_pnpmPlaceholder`
 /// field is how a reader tells it apart from a real one, and the
 /// store-index row's bundled `manifest` stays empty so nothing mistakes
 /// it for the package's identity.
 ///
-/// A no-op when the archive carried a `package.json` — including the one
-/// [`apply_append_manifest`] just synthesized, which is a real manifest
-/// and takes precedence.
+/// See [`write_synthesized_package_json`] for what reaching the store
+/// entails and when the write is skipped — a real `package.json`,
+/// including one [`apply_append_manifest`] just synthesized, always
+/// takes precedence.
 fn apply_placeholder_manifest(
     store_dir: &StoreDir,
     cas_paths: &mut HashMap<String, PathBuf>,

@@ -715,8 +715,6 @@ mod fallback_manifest {
         );
     }
 
-    /// A pin the lockfile already recorded is a better identity than one
-    /// derived from the specifier, so it wins.
     #[test]
     fn the_lockfile_s_pin_wins_over_the_alias() {
         assert_eq!(

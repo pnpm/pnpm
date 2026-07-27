@@ -852,8 +852,6 @@ fn non_host_git_dependency_records_bare_git_url_in_importer() {
     );
 }
 
-/// Build the single-importer conversion of a graph holding one node
-/// under `dep_path`, and return the error it fails with.
 fn error_from_single_node_graph(alias: &str, dep_path: &str) -> DependenciesGraphToLockfileError {
     let (_tmp, manifest) = write_manifest(json!({
         "name": "fixture",
