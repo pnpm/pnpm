@@ -59,6 +59,7 @@ impl CleanArgs {
                 report_summary: false,
                 no_bail: false,
                 sort: true,
+                parallel: false,
                 sequential: false,
             }
             .run(ctx.dir, config, matches!(ctx.reporter, ReporterType::Silent));

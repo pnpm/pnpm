@@ -61,6 +61,10 @@ pub struct RunArgs {
     #[clap(skip = true)]
     pub sort: bool,
 
+    /// Start scripts in all selected projects concurrently.
+    #[clap(skip = true)]
+    pub parallel: bool,
+
     /// Run the specified scripts one by one.
     #[clap(long, short = 's')]
     pub sequential: bool,

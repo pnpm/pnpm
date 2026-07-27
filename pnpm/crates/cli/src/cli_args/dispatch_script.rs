@@ -64,6 +64,7 @@ pub(super) fn fallback<'a>(
         report_summary: false,
         no_bail: false,
         sort: true,
+        parallel: false,
         sequential: false,
     };
     let args = with_recursive_run_options(ctx, args);
@@ -90,6 +91,7 @@ fn with_recursive_run_options(ctx: &RunCtx<'_>, mut args: RunArgs) -> RunArgs {
     args.report_summary = ctx.recursive_report_summary;
     args.no_bail = ctx.recursive_no_bail;
     args.sort = ctx.recursive_sort;
+    args.parallel = ctx.recursive_parallel;
     args.if_present |= ctx.if_present;
     args
 }

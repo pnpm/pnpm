@@ -107,6 +107,54 @@ fn recursive_run_executes_script_in_every_project() {
 }
 
 #[test]
+fn parallel_before_run_starts_selected_projects_concurrently() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let waits_for_peer = |name: &str, peer: &str| {
+        json!({
+            "name": name,
+            "version": "1.0.0",
+            "scripts": {
+                "build": format!(
+                    "touch ../{name}.started; \
+                     attempts=0; \
+                     while [ ! -f ../{peer}.started ] && [ \"$attempts\" -lt 100 ]; do \
+                       sleep 0.01; attempts=$((attempts + 1)); \
+                     done; \
+                     test -f ../{peer}.started"
+                ),
+            },
+        })
+    };
+    write_workspace(
+        &workspace,
+        &[
+            ("project-1", waits_for_peer("project-1", "project-2")),
+            ("project-2", waits_for_peer("project-2", "project-1")),
+        ],
+    );
+
+    pacquet
+        .with_arg("-r")
+        .with_arg("--filter=./project-*")
+        .with_arg("--parallel")
+        .with_arg("run")
+        .with_arg("build")
+        .assert()
+        .success();
+
+    assert!(
+        workspace.join("project-1.started").exists(),
+        "project-1 should start while project-2 is waiting",
+    );
+    assert!(
+        workspace.join("project-2.started").exists(),
+        "project-2 should start while project-1 is waiting",
+    );
+
+    drop(root);
+}
+
+#[test]
 fn top_level_fallback_enters_recursive_run() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     let commitlint_writes_marker = |name: &str| {

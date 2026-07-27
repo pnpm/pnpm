@@ -94,6 +94,7 @@ fn run_cli() -> miette::Result<()> {
     if let Err(err) = args.validate_command_scoped_global_options() {
         err.exit();
     }
+    args.apply_parallel_run_options();
     args.promote_recursive_for_filter();
     args.apply_workspace_root()?;
     args.promote_recursive_by_default();
