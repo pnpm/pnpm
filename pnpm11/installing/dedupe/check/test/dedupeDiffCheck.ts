@@ -131,6 +131,8 @@ describe('dedupeDiffCheck', () => {
           resolution: { integrity: 'sha512-a' },
           dependencies: {
             zDependency: '1.0.0',
+          },
+          optionalDependencies: {
             aDependency: '1.0.0',
           },
         },
@@ -160,6 +162,8 @@ describe('dedupeDiffCheck', () => {
           resolution: { integrity: 'sha512-a' },
           dependencies: {
             zDependency: '2.0.0',
+          },
+          optionalDependencies: {
             aDependency: '2.0.0',
           },
         },

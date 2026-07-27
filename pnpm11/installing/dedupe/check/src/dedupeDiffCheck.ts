@@ -99,7 +99,7 @@ function diffSnapshots<TSnapshot> (
     }
 
     if (Object.keys(updates).length > 0) {
-      updated[id] = updates
+      updated[id] = sortRecord(updates)
     }
   }
 
@@ -132,7 +132,7 @@ function getResolutionUpdates (prev: ResolvedDependencies, next: ResolvedDepende
     updates[alias] = { type: 'added', next: nextResolution }
   }
 
-  return sortRecord(updates)
+  return updates
 }
 
 function sortRecord<T> (record: Record<string, T>): Record<string, T> {
