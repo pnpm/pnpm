@@ -90,12 +90,14 @@ test('getUpdateChoices()', () => {
             message: 'Package                                                    Current   Target            URL              ',
             disabled: true,
             hint: '',
+            short: '',
             value: '',
           },
           {
             message: `foo                                                          1.0.0 ❯ ${chalk.redBright.bold('2.0.0')}             https://pnpm.io/ `,
             value: 'foo',
             name: 'foo',
+            short: 'foo',
           },
         ],
       },
@@ -108,21 +110,25 @@ test('getUpdateChoices()', () => {
             message: 'Package                                                    Current   Target            URL ',
             disabled: true,
             hint: '',
+            short: '',
             value: '',
           },
           {
             message: `qar                                                          1.0.0 ❯ 1.${chalk.yellowBright.bold('2.0')}                 `,
             name: 'qar',
+            short: 'qar',
             value: 'qar',
           },
           {
             message: `zoo                                                          1.1.0 ❯ 1.${chalk.yellowBright.bold('2.0')}                 `,
             name: 'zoo',
+            short: 'zoo',
             value: 'zoo',
           },
           {
             message: `foo                                                          1.0.1 ❯ 1.${chalk.yellowBright.bold('2.0')}                 `,
             name: 'foo',
+            short: 'foo',
             value: 'foo',
           },
         ],
@@ -136,11 +142,13 @@ test('getUpdateChoices()', () => {
             message: 'Package                                                    Current   Target            URL ',
             disabled: true,
             hint: '',
+            short: '',
             value: '',
           },
           {
             message: `qaz                                                          1.0.1 ❯ 1.${chalk.yellowBright.bold('2.0')}                 `,
             name: 'qaz',
+            short: 'qaz',
             value: 'qaz',
           },
         ],
@@ -164,11 +172,12 @@ test('getUpdateChoices() handles long version strings without wrapping', () => {
     },
   ], false)
 
-  const dataRow = choices[0].choices[1] as { message: string; value: string; name: string }
+  const dataRow = choices[0].choices[1] as { message: string; value: string; name: string; short: string }
   expect(dataRow).toStrictEqual({
     message: expect.stringContaining('7.0.0-dev.20251209.1'),
     value: '@typescript/native-preview',
     name: '@typescript/native-preview',
+    short: '@typescript/native-preview',
   })
   // The rendered message must be a single line (no wrapping)
   expect(dataRow.message).not.toContain('\n')
@@ -260,7 +269,7 @@ test('getUpdateChoices() strips control and formatting characters from labels it
     },
   ], true)
 
-  const dataRow = choices[0].choices[1] as { message: string, value: string }
+  const dataRow = choices[0].choices[1] as { message: string, short: string, value: string }
   // Once the escape byte is gone the remainder is inert text, so what
   // matters is that no escape or newline reaches the prompt. The
   // colorized target carries escapes of its own by design, hence the
@@ -271,4 +280,5 @@ test('getUpdateChoices() strips control and formatting characters from labels it
   expect(dataRow.message).not.toMatch(/[\u202E\u2066\u2069]/u)
   expect(dataRow.message).toContain('https://example.test/')
   expect(dataRow.value).toBe('foo\u202E')
+  expect(dataRow.short).toBe('foo')
 })

@@ -9,6 +9,7 @@ export interface ChoiceRow {
   name: string
   value: string
   message: string
+  short: string
   disabled?: boolean
 }
 
@@ -92,6 +93,7 @@ export function getUpdateChoices (outdatedPkgsOfProjects: UpdateChoiceDependency
           name: renderedTable[i],
           message: renderedTable[i],
           value: '',
+          short: '',
           disabled: true,
           hint: '',
         }
@@ -100,6 +102,7 @@ export function getUpdateChoices (outdatedPkgsOfProjects: UpdateChoiceDependency
         name: outdatedPkg.name,
         message: renderedTable[i],
         value: outdatedPkg.name,
+        short: sanitizeCell(outdatedPkg.name),
       }
     })
 
