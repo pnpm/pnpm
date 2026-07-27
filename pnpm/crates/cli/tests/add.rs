@@ -1161,6 +1161,21 @@ fn save_workspace_protocol_decides_the_saved_workspace_range() {
     }
 }
 
+#[test]
+fn a_bare_workspace_add_uses_the_local_package_and_saved_protocol_setting() {
+    const LIB: &str = "@pnpm.e2e/ws-bare";
+    for (setting, expected) in
+        [(None, "workspace:^"), (Some("true"), "workspace:^1.2.3"), (Some("false"), "^1.2.3")]
+    {
+        let (root, app_dir) =
+            workspace_with_lib(setting, &[(LIB, "1.2.3")], "packages/app/package.json");
+        add_in(&app_dir, LIB);
+
+        assert_eq!(saved_spec(&app_dir, LIB).as_deref(), Some(expected));
+        drop(root);
+    }
+}
+
 /// `workspace:<target>@<range>` installs `<target>` under the name the
 /// selector gave, so the saved specifier has to keep naming the target —
 /// dropping it would leave a `workspace:` entry pointing at the install
