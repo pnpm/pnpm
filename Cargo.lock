@@ -4541,6 +4541,8 @@ version = "0.0.0"
 dependencies = [
  "clap",
  "criterion",
+ "flate2",
+ "futures-util",
  "mockito",
  "node-semver",
  "pacquet-lockfile",
@@ -4553,6 +4555,7 @@ dependencies = [
  "project-root",
  "serde_json",
  "ssri",
+ "tar",
  "tempfile",
  "tokio",
 ]
