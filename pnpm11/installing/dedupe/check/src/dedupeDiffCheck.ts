@@ -99,7 +99,7 @@ function diffSnapshots<TSnapshot> (
     }
 
     if (Object.keys(updates).length > 0) {
-      updated[id] = sortRecord(updates)
+      updated[id] = updates
     }
   }
 
@@ -107,9 +107,8 @@ function diffSnapshots<TSnapshot> (
 
   added.sort()
   removed.sort()
-  const sortedUpdated = sortRecord(updated)
 
-  return { added, removed, updated: sortedUpdated }
+  return { added, removed, updated }
 }
 
 function getResolutionUpdates (prev: ResolvedDependencies, next: ResolvedDependencies): ResolutionChangesByAlias {
@@ -133,12 +132,6 @@ function getResolutionUpdates (prev: ResolvedDependencies, next: ResolvedDepende
   }
 
   return updates
-}
-
-function sortRecord<T> (record: Record<string, T>): Record<string, T> {
-  return Object.fromEntries(
-    Object.entries(record).sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
-  )
 }
 
 export function countChangedSnapshots (snapshotChanges: SnapshotsChanges): number {

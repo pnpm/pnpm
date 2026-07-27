@@ -1,5 +1,6 @@
 ---
 "@pnpm/installing.dedupe.check": patch
+"@pnpm/installing.dedupe.issues-renderer": patch
 "pnpm": patch
 ---
 
