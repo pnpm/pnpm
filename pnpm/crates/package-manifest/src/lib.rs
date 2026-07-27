@@ -18,7 +18,6 @@ pub enum PackageManifestError {
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANIFEST_SERIALIZATION_ERROR))]
     Serialization(serde_json::Error),
 
-    #[from(ignore)] // TODO: remove this after derive(From) has been removed
     #[display("Failed to parse {}: {source}", path.display())]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANIFEST_SERIALIZATION_ERROR))]
     Parse {
