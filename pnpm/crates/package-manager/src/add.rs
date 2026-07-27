@@ -1003,6 +1003,9 @@ fn workspace_save_specifier(
             if !config.link_workspace_packages.enabled_at_depth(0) {
                 return None;
             }
+            if explicit_spec.is_some_and(|specifier| specifier.starts_with("npm:")) {
+                return None;
+            }
             let registries: std::collections::HashMap<String, String> =
                 config.resolved_registries().into_iter().collect();
             let registry = pick_registry_for_package(&registries, package_name, explicit_spec);
