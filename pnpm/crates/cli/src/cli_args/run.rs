@@ -106,6 +106,24 @@ pub enum RunError {
 }
 
 impl RunArgs {
+    pub fn script(name: &str, args: impl IntoIterator<Item = String>) -> Vec<String> {
+        let mut script = vec![name.to_string()];
+        script.extend(args);
+        script
+    }
+
+    pub fn script_name(&self) -> Option<&str> {
+        self.script.first().map(String::as_str)
+    }
+
+    pub fn script_args(&self) -> &[String] {
+        if self.script.is_empty() {
+            &[]
+        } else {
+            &self.script[1..]
+        }
+    }
+
     /// Execute the subcommand in `dir`; `silent` suppresses the `$ <script>` echo.
     pub fn run(self, dir: &Path, config: &Config, silent: bool) -> miette::Result<()> {
         self.run_inner(dir, config, silent, false)
