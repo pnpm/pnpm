@@ -718,7 +718,10 @@ fn dependencies_meta_equal(
         let obj = value?.as_object()?;
         let filtered: serde_json::Map<String, serde_json::Value> = obj
             .iter()
-            .filter(|(_, v)| v.get("injected").is_some() || v.get("patch").is_some())
+            .filter(|(_, v)| {
+                v.get("injected").and_then(serde_json::Value::as_bool).is_some()
+                    || v.get("patch").and_then(|val| val.as_str()).is_some()
+            })
             .map(|(k, v)| (k.clone(), v.clone()))
             .collect();
         (!filtered.is_empty()).then(|| serde_json::Value::Object(filtered))
