@@ -202,7 +202,8 @@ impl RunArgs {
             }
         } else {
             let results: Vec<_> = std::thread::scope(|scope| {
-                let mut handles = Vec::with_capacity(specified.len());
+                let mut handles: Vec<Result<_, miette::Report>> =
+                    Vec::with_capacity(specified.len());
                 for name in &specified {
                     let main = match resolve_main_script(&ctx, name) {
                         Ok(Some(m)) => m,
@@ -262,7 +263,7 @@ fn exec_fallback(
     config: &Config,
 ) -> miette::Result<()> {
     ExecArgs {
-        command: RunArgs::script(script_name, args.iter().cloned()),
+        command: std::iter::once(script_name.to_string()).chain(args.iter().cloned()).collect(),
         shell_mode: false,
         resume_from: None,
         report_summary: false,
