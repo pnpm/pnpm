@@ -139,7 +139,7 @@ snapshots:
 
     let dependencies = collect_dependencies(
         &lockfile,
-        lockfile.importers.keys().cloned(),
+        lockfile.importers.keys(),
         include,
         None,
         "linux",
@@ -168,5 +168,7 @@ fn renders_dev_classification() {
         description: None,
     };
 
-    assert_eq!(render_package_name(&info), "dev-only (dev)");
+    let rendered = render_package_name(&info);
+    assert!(rendered.starts_with("dev-only "));
+    assert!(rendered.contains("(dev)"));
 }

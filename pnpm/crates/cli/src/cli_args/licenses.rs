@@ -1,6 +1,7 @@
 use crate::cli_args::{
     deps_tree::pkg_info::is_unsafe_path_component,
     recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects},
+    sanitize::{sanitize, sanitize_inline},
 };
 use clap::Args;
 use derive_more::{Display, Error};
@@ -285,7 +286,8 @@ impl LicensesArgs {
         all_packages.sort_by(|a, b| a.name.cmp(&b.name));
 
         for info in all_packages {
-            let mut row = vec![render_package_name(info), info.license.clone()];
+            let mut row =
+                vec![render_package_name(info), sanitize_inline(&info.license).into_owned()];
             if self.long {
                 let mut details = Vec::new();
                 if let Some(author) = &info.author {
@@ -297,7 +299,7 @@ impl LicensesArgs {
                 if let Some(home) = &info.homepage {
                     details.push(home.clone());
                 }
-                row.push(details.join("\n"));
+                row.push(sanitize(&details.join("\n")).into_owned());
             }
             builder.push_record(row);
         }
@@ -312,7 +314,7 @@ impl LicensesArgs {
 
 fn collect_dependencies(
     lockfile: &Lockfile,
-    importer_ids: impl IntoIterator<Item = String>,
+    importer_ids: impl IntoIterator<Item = impl AsRef<str>>,
     include: Include,
     supported_architectures: Option<&SupportedArchitectures>,
     current_os: &str,
@@ -323,7 +325,9 @@ fn collect_dependencies(
     let mut stack: Vec<(PackageKey, BelongsTo)> = Vec::new();
 
     for id in importer_ids {
-        let Some(importer) = lockfile.importers.get(&id).or_else(|| lockfile.root_project()) else {
+        let Some(importer) =
+            lockfile.importers.get(id.as_ref()).or_else(|| lockfile.root_project())
+        else {
             continue;
         };
         let mut queue_deps = |deps: Option<&ResolvedDependencyMap>, kind: BelongsTo| {
@@ -367,7 +371,10 @@ fn collect_dependencies(
                     cpu: package.cpu.as_deref(),
                     libc: package.libc.as_deref(),
                 };
-                let inferred = inferred_platform(&key.name.to_string(), declared);
+                let inferred =
+                    (declared.os.is_none() || declared.cpu.is_none() || declared.libc.is_none())
+                        .then(|| key.name.to_string())
+                        .and_then(|name| inferred_platform(&name, declared));
                 let wanted = inferred.as_ref().map_or(declared, |platform| WantedPlatformRef {
                     os: platform.os.as_deref(),
                     cpu: platform.cpu.as_deref(),
@@ -410,11 +417,12 @@ fn collect_dependencies(
 }
 
 fn render_package_name(info: &LicenseInfo) -> String {
+    let name = sanitize_inline(&info.name);
     let suffix = match info.belongs_to {
-        BelongsTo::Prod | BelongsTo::Optional => return info.name.clone(),
+        BelongsTo::Prod | BelongsTo::Optional => return name.into_owned(),
         BelongsTo::Dev => "(dev)",
     };
-    format!("{} {}", info.name, suffix.if_supports_color(Stream::Stdout, |text| text.dimmed()))
+    format!("{} {}", name, suffix.if_supports_color(Stream::Stdout, |text| text.dimmed()))
 }
 
 #[cfg(test)]
