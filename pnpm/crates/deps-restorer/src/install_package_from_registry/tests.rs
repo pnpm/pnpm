@@ -159,7 +159,6 @@ fn create_config(
         cleanup_unused_catalogs: false,
         catalogs: None,
         save_catalog_name: None,
-        save_prefix: None,
         save_exact: false,
         save_peer: false,
         registry_supports_time_field: false,
