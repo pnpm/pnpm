@@ -374,6 +374,48 @@ fn run_preserves_embedded_quotes_in_script() {
     drop(root);
 }
 
+#[test]
+fn run_preserves_parent_tmpdir() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let alternate_tmpdir = workspace.join("project-tmp");
+    fs::create_dir(&alternate_tmpdir).expect("create alternate temp dir");
+    fs::write(
+        workspace.join("show-tmp.js"),
+        "require('fs').writeFileSync('tmpdir.json', JSON.stringify({ \
+env: process.env.TMPDIR, os: require('os').tmpdir() }))",
+    )
+    .expect("write show-tmp.js");
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "test",
+            "version": "0.0.0",
+            "scripts": { "show-tmp": "node show-tmp.js" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet
+        .with_env("TMPDIR", &alternate_tmpdir)
+        .with_arg("run")
+        .with_arg("show-tmp")
+        .assert()
+        .success();
+
+    let recorded: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(workspace.join("tmpdir.json")).expect("read tmpdir.json"),
+    )
+    .expect("parse tmpdir.json");
+    let expected_tmpdir = alternate_tmpdir.to_string_lossy();
+    assert_eq!(recorded["env"], expected_tmpdir.as_ref());
+    if cfg!(not(windows)) {
+        assert_eq!(recorded["os"], expected_tmpdir.as_ref());
+    }
+
+    drop(root);
+}
+
 /// A failing `test` script prints pnpm's stage-specific lifecycle error
 /// (`Test failed. See above for more details.`) rather than the generic
 /// exit-code line, matching reportLifecycleError's `test` special case.

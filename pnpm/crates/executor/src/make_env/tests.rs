@@ -1,6 +1,7 @@
 use super::{
     DEV_PREINSTALL_ALREADY_RAN_ENV, EnvOptions, VERIFY_DEPS_BEFORE_RUN_ENV, build_env,
-    escape_newlines, is_dev_preinstall_marker, is_stamping_key, sanitize_env_key, stamp_package,
+    build_env_for_platform, escape_newlines, is_dev_preinstall_marker, is_stamping_key,
+    sanitize_env_key, stamp_package,
 };
 use pretty_assertions::assert_eq;
 use serde_json::json;
@@ -157,21 +158,39 @@ fn make_env_stamps_lifecycle_specific_keys() {
 }
 
 #[test]
-fn make_env_tmpdir_gating_mirrors_unsafe_perm() {
+fn make_env_preserves_or_overrides_tmpdir_based_on_unsafe_perm() {
     let pkg_root = Path::new("/tmp/z");
     let extra = empty_extra();
+    let parent = HashMap::from([("TMPDIR".to_string(), "/alternate/tmp".to_string())]);
 
     let mut opts = base_opts(pkg_root, pkg_root, &extra);
     opts.unsafe_perm = true;
-    let built = build_env(&opts, &json!({"name":"z","version":"0"}), HashMap::new());
+    let built = build_env(&opts, &json!({"name":"z","version":"0"}), parent.clone());
     assert!(built.tmpdir.is_none());
-    assert!(!built.env.contains_key("TMPDIR"));
+    assert_eq!(built.env.get("TMPDIR").map(String::as_str), Some("/alternate/tmp"));
 
     opts.unsafe_perm = false;
-    let built = build_env(&opts, &json!({"name":"z","version":"0"}), HashMap::new());
+    let built = build_env(&opts, &json!({"name":"z","version":"0"}), parent);
     let expected_tmpdir = pkg_root.join("node_modules").join(".tmp");
     assert_eq!(built.tmpdir.as_deref(), Some(expected_tmpdir.as_path()));
     assert_eq!(built.env.get("TMPDIR"), Some(&expected_tmpdir.to_string_lossy().into_owned()));
+}
+
+#[test]
+fn make_env_windows_tmpdir_override_removes_differently_cased_keys() {
+    let pkg_root = Path::new("/tmp/z");
+    let extra = HashMap::from([("tmpdir".to_string(), "/extra/tmp".to_string())]);
+    let parent = HashMap::from([("TmpDir".to_string(), "/parent/tmp".to_string())]);
+    let mut opts = base_opts(pkg_root, pkg_root, &extra);
+    opts.unsafe_perm = false;
+
+    let built = build_env_for_platform(&opts, &json!({"name":"z","version":"0"}), parent, true);
+    let expected_tmpdir = pkg_root.join("node_modules").join(".tmp");
+
+    assert_eq!(built.env.get("TMPDIR"), Some(&expected_tmpdir.to_string_lossy().into_owned()));
+    let tmpdir_key_count =
+        built.env.keys().filter(|key| key.eq_ignore_ascii_case("TMPDIR")).count();
+    assert_eq!(tmpdir_key_count, 1);
 }
 
 /// pnpm's reserved per-call stamps override a user `extraEnv` that
@@ -287,7 +306,7 @@ fn is_stamping_key_is_case_sensitive_on_posix() {
     assert!(is_stamping_key("NODE", false));
     assert!(!is_stamping_key("Node", false));
     assert!(!is_stamping_key("node", false));
-    assert!(is_stamping_key("TMPDIR", false));
+    assert!(!is_stamping_key("TMPDIR", false));
     assert!(is_stamping_key("INIT_CWD", false));
     assert!(is_stamping_key("PNPM_SCRIPT_SRC_DIR", false));
     assert!(!is_stamping_key("PNPM_HOME", false));
@@ -368,7 +387,7 @@ fn is_stamping_key_is_case_insensitive_on_windows() {
     assert!(is_stamping_key("NODE", true));
     assert!(is_stamping_key("Node", true));
     assert!(is_stamping_key("node", true));
-    assert!(is_stamping_key("tmpdir", true));
+    assert!(!is_stamping_key("tmpdir", true));
     assert!(is_stamping_key("init_cwd", true));
     assert!(is_stamping_key("pnpm_script_src_dir", true));
     assert!(!is_stamping_key("NPM", true));
