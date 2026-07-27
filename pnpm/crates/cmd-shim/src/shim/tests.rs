@@ -578,10 +578,11 @@ fn generate_pwsh_shim_emits_direct_exec_when_no_runtime() {
 #[cfg(unix)]
 #[test]
 fn shim_execution_resolves_symlink_chain() {
-    use tempfile::tempdir;
     use std::fs;
+    use std::os::unix::fs::PermissionsExt;
     use std::os::unix::fs::symlink;
     use std::process::Command;
+    use tempfile::tempdir;
 
     let tmp = tempdir().unwrap();
     let tmp_path = tmp.path();
@@ -595,9 +596,8 @@ fn shim_execution_resolves_symlink_chain() {
     // Create target executable (a simple script that prints "tsc-output")
     let target_path = target_dir.join("tsc");
     fs::write(&target_path, "#!/bin/sh\necho \"tsc-output\"\n").unwrap();
-    
+
     // Make target executable
-    use std::os::unix::fs::PermissionsExt;
     let mut perms = fs::metadata(&target_path).unwrap().permissions();
     perms.set_mode(0o755);
     fs::set_permissions(&target_path, perms).unwrap();
@@ -620,12 +620,13 @@ fn shim_execution_resolves_symlink_chain() {
     symlink(&hop1, &hop2).unwrap();
 
     // Execute the final hop and assert it runs successfully and prints the correct output
-    let output = Command::new(&hop2)
-        .output()
-        .expect("Failed to execute symlink hop");
+    let output = Command::new(&hop2).output().expect("Failed to execute symlink hop");
 
-    assert!(output.status.success(), "Shim execution failed: {:?}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "Shim execution failed: {:?}",
+        String::from_utf8_lossy(&output.stderr),
+    );
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("tsc-output"), "Unexpected stdout: {}", stdout);
+    assert!(stdout.contains("tsc-output"), "Unexpected stdout: {stdout}");
 }
-
