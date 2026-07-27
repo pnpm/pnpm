@@ -2269,15 +2269,20 @@ mod script_shell {
     use std::{fs, os::unix::fs::PermissionsExt, path::Path};
 
     /// Install a shell shim that appends each script it is asked to run
-    /// to `log`, then hands the script to the real `/bin/sh`, and point
-    /// `scriptShell` at it. Every spawn that honors the setting shows up
-    /// in the log; every spawn that ignores it silently does not.
+    /// to a log beside itself, then hands the script to the real
+    /// `/bin/sh`, and point `scriptShell` at it. Every spawn that honors
+    /// the setting shows up in the log; every spawn that ignores it
+    /// silently does not.
+    ///
+    /// The shim derives the log path from its own location rather than
+    /// having it interpolated in, so nothing from the temp directory's
+    /// name is ever parsed as shell source.
     fn install_probe_shell(workspace: &Path) -> std::path::PathBuf {
         let log = workspace.join("shell-invocations.txt");
         let shim = workspace.join("probe-shell.sh");
         fs::write(
             &shim,
-            format!("#!/bin/sh\nprintf '%s\\n' \"$2\" >> {log:?}\nexec /bin/sh -c \"$2\"\n"),
+            "#!/bin/sh\nprintf '%s\\n' \"$2\" >> \"$(dirname \"$0\")/shell-invocations.txt\"\nexec /bin/sh -c \"$2\"\n",
         )
         .expect("write the probe shell");
         fs::set_permissions(&shim, fs::Permissions::from_mode(0o755))
