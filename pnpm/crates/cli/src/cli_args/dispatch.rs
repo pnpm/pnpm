@@ -36,6 +36,7 @@ pub(crate) struct RunCtx<'a> {
     pub(crate) recursive_report_summary: bool,
     pub(crate) recursive_no_bail: bool,
     pub(crate) recursive_sort: bool,
+    pub(crate) recursive_parallel: bool,
     /// The top-level `--if-present` spelling (`pnpm --if-present test`);
     /// merged with the flag the script subcommands declare themselves.
     pub(crate) if_present: bool,
@@ -178,6 +179,7 @@ impl CliArgs {
             sort: _,
             no_sort,
             workspace_concurrency,
+            parallel,
             resume_from,
             report_summary,
             no_bail,
@@ -323,6 +325,7 @@ impl CliArgs {
             recursive_report_summary: report_summary,
             recursive_no_bail: no_bail,
             recursive_sort: !no_sort,
+            recursive_parallel: parallel,
             if_present,
             config: &config,
             global_config: &global_config,

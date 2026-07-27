@@ -242,6 +242,7 @@ pub(super) fn install_test<'a>(
         report_summary: ctx.recursive_report_summary,
         no_bail: ctx.recursive_no_bail,
         sort: ctx.recursive_sort,
+        parallel: ctx.recursive_parallel,
         sequential: false,
     };
 

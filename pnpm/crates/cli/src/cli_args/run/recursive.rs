@@ -4,17 +4,17 @@
 //! `config.filter` / `config.filter_prod` (`--filter` / `--filter-prod`,
 //! include and exclude selectors) narrow the selected set via
 //! [`select_recursive_projects`]; the selection is then sorted
-//! topologically by default, or kept in workspace order under `--no-sort`,
-//! and run sequentially. `--reverse` and `--workspace-concurrency`
-//! parallelism are not supported yet. The main-dispatch
-//! auto-exclusion of the workspace root is applied via
+//! topologically by default, or kept in workspace order under `--no-sort`.
+//! `--parallel` starts every selected project concurrently. `--reverse`
+//! and bounded `--workspace-concurrency` parallelism are not supported yet.
+//! The main-dispatch auto-exclusion of the workspace root is applied via
 //! [`AutoExcludeRoot::Enabled`].
 
 use super::{RunArgs, RunContext, ScriptSelector, render_project_commands, run_stages};
 use crate::cli_args::recursive::{
-    AutoExcludeRoot, ExecutionStatus, Status, count_failures, discover_workspace_projects,
-    get_resumed_package_chunks, select_recursive_projects, sort_filtered_projects,
-    write_recursive_summary,
+    AutoExcludeRoot, ExecutionStatus, GraphPkg, Status, count_failures,
+    discover_workspace_projects, get_resumed_package_chunks, select_recursive_projects,
+    sort_filtered_projects, write_recursive_summary,
 };
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
@@ -22,6 +22,7 @@ use miette::Diagnostic;
 use pacquet_config::Config;
 use pacquet_package_manager::{make_node_package_map_option, package_map_path_for_execution};
 use pacquet_reporter::{LogEvent, LogLevel, ScopeLog};
+use pacquet_workspace_projects_graph::ProjectGraph;
 use std::{
     collections::HashMap,
     env,
@@ -162,114 +163,72 @@ pub fn run_recursive(
         );
     }
 
-    for chunk in &chunks {
-        for root in chunk {
-            let manifest = &graph[root].package.project.manifest;
-            let specified = selector.select(manifest.value());
-            if specified.is_empty() {
-                result[root].status = Status::Skipped;
-                continue;
+    if args.parallel {
+        let roots = chunks.iter().flatten().collect::<Vec<_>>();
+        let executions = std::thread::scope(|scope| {
+            roots
+                .iter()
+                .map(|root| {
+                    scope.spawn(|| {
+                        run_project(RunProjectOptions {
+                            root,
+                            graph,
+                            selector: &selector,
+                            args,
+                            init_cwd: &init_cwd,
+                            config,
+                            extra_env: &extra_env,
+                            bail,
+                        })
+                    })
+                })
+                .collect::<Vec<_>>()
+                .into_iter()
+                .map(|handle| {
+                    handle.join().unwrap_or_else(|panic| std::panic::resume_unwind(panic))
+                })
+                .collect::<miette::Result<Vec<_>>>()
+        })?;
+        for (root, execution) in roots.into_iter().zip(executions) {
+            has_command += execution.has_command;
+            result.insert(root.clone(), execution.status);
+        }
+        if bail
+            && let Some((root, _)) =
+                result.iter().find(|(_, execution)| execution.status == Status::Failure)
+        {
+            if args.report_summary {
+                write_recursive_summary(workspace_root, &result)?;
             }
-            // A `/pattern/` selector can match several scripts in one
-            // project, but the summary carries a single status per
-            // project and `count_failures` derives the exit code from
-            // it. Once one of them has failed, nothing a later script
-            // does may overwrite that.
-            let mut project_failed = false;
-            for selected in &specified {
-                let Some(script) = manifest.script(selected, true)? else {
-                    continue;
-                };
-                // Per-stage no-ops: an empty body (`!scripts[name]`) is
-                // treated as absent → skip, and a stage whose post-args
-                // command is exactly `npx only-allow pnpm` is skipped.
-                // Without these guards the recursive loop would fork a
-                // useless shell per project and (for the npm guard) might
-                // run the wrong-package-manager warning.
-                // A no-op among several selected scripts leaves the
-                // project's status alone: it says nothing about the
-                // scripts that did run, and overwriting a recorded
-                // `Passed` (or `Failure`) with `Skipped` would misreport
-                // them. A project where *nothing* matched is marked
-                // skipped above, before this loop.
-                if script.is_empty()
-                    || (args.script_args().is_empty() && script == "npx only-allow pnpm")
-                {
-                    continue;
-                }
-                // Recursion guard: skip a project when `npm_lifecycle_event`
-                // matches the requested script AND `PNPM_SCRIPT_SRC_DIR`
-                // matches the project root — i.e. this very project is
-                // already executing this very script and we're now inside its
-                // child invocation. Without this, a `build` script that itself
-                // calls `pacquet -r run build` from within a workspace project
-                // recurses without bound (every child sees the same env and
-                // walks the workspace again). Status stays Queued.
-                if env::var_os("npm_lifecycle_event").is_some_and(|event| event == **selected)
-                    && env::var_os("PNPM_SCRIPT_SRC_DIR")
-                        .is_some_and(|src_dir| Path::new(&src_dir) == root)
-                {
-                    continue;
-                }
-                // Hidden-script gate, checked *after* the truthy-body skip
-                // above so a hidden name that no project defines surfaces as
-                // `ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT` rather than
-                // `ERR_PNPM_HIDDEN_SCRIPT` — preserving the error precedence.
-                if selected.starts_with('.') && env::var_os("npm_lifecycle_event").is_none() {
-                    return Err(super::RunError::HiddenScript { script: selected.clone() }.into());
-                }
-
-                if !project_failed {
-                    result[root].status = Status::Running;
-                }
-                has_command += 1;
-                let start = Instant::now();
-                // Per-project pre/main/post via the same machinery
-                // single-project `run` uses. The outer manifest /
-                // empty-body / `npx only-allow pnpm` guards above
-                // discharge `run_stages`' precondition (non-empty body
-                // that isn't the args-less npx no-op), so the main stage
-                // is guaranteed to run and `run_stages` returns a plain
-                // `ExitStatus`. Pre/post scripts run with
-                // `enablePrePostScripts`. The per-package failure surface
-                // comes from the `ExecutionStatus` summary, not the
-                // `$ <script>` echo.
-                let ctx = RunContext {
-                    manifest,
-                    dir: root,
+            return Err(RecursiveRunError::RecursiveRunFirstFail {
+                prefix: root.to_string_lossy().into_owned(),
+            }
+            .into());
+        }
+    } else {
+        for chunk in &chunks {
+            for root in chunk {
+                let execution = run_project(RunProjectOptions {
+                    root,
+                    graph,
+                    selector: &selector,
+                    args,
                     init_cwd: &init_cwd,
                     config,
                     extra_env: &extra_env,
-                    silent: true,
-                    sequential: args.sequential,
-                };
-                let status = run_stages(&ctx, selected, script, args.script_args())?;
-                let duration = start.elapsed().as_secs_f64() * 1e3;
-
-                if status.success() {
-                    if !project_failed {
-                        let entry = &mut result[root];
-                        entry.status = Status::Passed;
-                        entry.duration = Some(duration);
+                    bail,
+                })?;
+                has_command += execution.has_command;
+                let failed = execution.status.status == Status::Failure;
+                result.insert(root.clone(), execution.status);
+                if bail && failed {
+                    if args.report_summary {
+                        write_recursive_summary(workspace_root, &result)?;
                     }
-                } else {
-                    project_failed = true;
-                    let prefix = root.to_string_lossy().into_owned();
-                    let entry = &mut result[root];
-                    entry.status = Status::Failure;
-                    entry.duration = Some(duration);
-                    entry.message = Some(format!(
-                        "command failed with exit code {}",
-                        status.code().unwrap_or(1),
-                    ));
-                    entry.prefix = Some(prefix.clone());
-
-                    if bail {
-                        if args.report_summary {
-                            write_recursive_summary(workspace_root, &result)?;
-                        }
-                        return Err(RecursiveRunError::RecursiveRunFirstFail { prefix }.into());
+                    return Err(RecursiveRunError::RecursiveRunFirstFail {
+                        prefix: root.to_string_lossy().into_owned(),
                     }
+                    .into());
                 }
             }
         }
@@ -298,4 +257,87 @@ pub fn run_recursive(
         return Err(RecursiveRunError::RecursiveFail { count: failures }.into());
     }
     Ok(())
+}
+
+struct ProjectExecution {
+    status: ExecutionStatus,
+    has_command: usize,
+}
+
+#[derive(Clone, Copy)]
+struct RunProjectOptions<'a, 'project> {
+    root: &'a Path,
+    graph: &'a ProjectGraph<GraphPkg<'project>>,
+    selector: &'a ScriptSelector<'a>,
+    args: &'a RunArgs,
+    init_cwd: &'a Path,
+    config: &'a Config,
+    extra_env: &'a HashMap<String, String>,
+    bail: bool,
+}
+
+fn run_project(options: RunProjectOptions<'_, '_>) -> miette::Result<ProjectExecution> {
+    let RunProjectOptions { root, graph, selector, args, init_cwd, config, extra_env, bail } =
+        options;
+    let manifest = &graph[root].package.project.manifest;
+    let specified = selector.select(manifest.value());
+    if specified.is_empty() {
+        let mut status = ExecutionStatus::queued();
+        status.status = Status::Skipped;
+        return Ok(ProjectExecution { status, has_command: 0 });
+    }
+
+    let mut execution = ProjectExecution { status: ExecutionStatus::queued(), has_command: 0 };
+    let mut project_failed = false;
+    for selected in &specified {
+        let Some(script) = manifest.script(selected, true)? else {
+            continue;
+        };
+        if script.is_empty() || (args.script_args().is_empty() && script == "npx only-allow pnpm") {
+            continue;
+        }
+        if env::var_os("npm_lifecycle_event").is_some_and(|event| event == **selected)
+            && env::var_os("PNPM_SCRIPT_SRC_DIR").is_some_and(|src_dir| Path::new(&src_dir) == root)
+        {
+            continue;
+        }
+        if selected.starts_with('.') && env::var_os("npm_lifecycle_event").is_none() {
+            return Err(super::RunError::HiddenScript { script: selected.clone() }.into());
+        }
+
+        if !project_failed {
+            execution.status.status = Status::Running;
+        }
+        execution.has_command += 1;
+        let start = Instant::now();
+        let ctx = RunContext {
+            manifest,
+            dir: root,
+            init_cwd,
+            config,
+            extra_env,
+            silent: true,
+            sequential: args.sequential,
+        };
+        let status = run_stages(&ctx, selected, script, args.script_args())?;
+        let duration = start.elapsed().as_secs_f64() * 1e3;
+
+        if status.success() {
+            if !project_failed {
+                execution.status.status = Status::Passed;
+                execution.status.duration = Some(duration);
+            }
+        } else {
+            project_failed = true;
+            execution.status.status = Status::Failure;
+            execution.status.duration = Some(duration);
+            execution.status.message =
+                Some(format!("command failed with exit code {}", status.code().unwrap_or(1)));
+            execution.status.prefix = Some(root.to_string_lossy().into_owned());
+            if bail {
+                break;
+            }
+        }
+    }
+    Ok(execution)
 }

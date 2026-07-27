@@ -32,6 +32,7 @@ impl RestartArgs {
                 report_summary: false,
                 no_bail: false,
                 sort: true,
+                parallel: false,
                 sequential: false,
             }
             .run(dir, config, silent)?;

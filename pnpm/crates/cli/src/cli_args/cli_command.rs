@@ -207,6 +207,11 @@ pub struct CliArgs {
     #[clap(long = "workspace-concurrency", global = true)]
     pub workspace_concurrency: Option<i32>,
 
+    /// Run scripts in every selected workspace project concurrently,
+    /// disregarding topological sorting.
+    #[clap(long, global = true)]
+    pub parallel: bool,
+
     /// Recursive only: resume execution from the given package.
     #[clap(long = "resume-from", global = true, hide = true)]
     pub resume_from: Option<String>,
@@ -242,6 +247,9 @@ impl CliArgs {
         if self.if_present {
             self.validate_if_present_top_level_option()?;
         }
+        if self.parallel {
+            self.validate_parallel_global_option()?;
+        }
         Ok(())
     }
 
@@ -256,6 +264,15 @@ impl CliArgs {
     pub fn promote_recursive_for_filter(&mut self) {
         if !self.filter.is_empty() || !self.filter_prod.is_empty() {
             self.recursive = true;
+        }
+    }
+
+    /// Apply the recursive-run settings represented by pnpm's
+    /// `--parallel` shorthand.
+    pub fn apply_parallel_run_options(&mut self) {
+        if self.parallel {
+            self.recursive = true;
+            self.no_sort = true;
         }
     }
 
@@ -350,6 +367,20 @@ impl CliArgs {
             return Ok(());
         }
         self.validate_run_scoped_global_option("--no-bail")
+    }
+
+    fn validate_parallel_global_option(&self) -> Result<(), clap::Error> {
+        if matches!(
+            self.command,
+            CliCommand::Run(_)
+                | CliCommand::External(_)
+                | CliCommand::Test(_)
+                | CliCommand::Start(_)
+                | CliCommand::Stop(_),
+        ) {
+            return Ok(());
+        }
+        Err(Self::unexpected_argument_error("--parallel"))
     }
 }
 
