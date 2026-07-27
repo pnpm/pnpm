@@ -1,9 +1,10 @@
 use super::{
     Add, AddError, node_runtime_version_spec, normalized_save_specifier,
     persist_selected_manifests, prepare_selected_manifests, selected_project_indices,
+    workspace_save_specifier,
 };
 use crate::ResolvedPackages;
-use pacquet_config::Config;
+use pacquet_config::{Config, LinkWorkspacePackages};
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_registry::PinnedVersion;
@@ -18,6 +19,24 @@ use std::{
 use tempfile::tempdir;
 
 const SCOPED_TEST_INTEGRITY: &str = "sha512-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa==";
+
+#[test]
+fn explicit_npm_specifier_is_not_rewritten_as_a_workspace_dependency() {
+    let mut config = Config::new();
+    config.link_workspace_packages = LinkWorkspacePackages::DirectOnly;
+
+    assert_eq!(
+        workspace_save_specifier(
+            "foo",
+            Some("npm:foo@^1.0.0"),
+            None,
+            &config,
+            PinnedVersion::Major,
+            None,
+        ),
+        None,
+    );
+}
 
 #[tokio::test]
 async fn add_routes_scoped_packages_to_configured_scoped_registry() {

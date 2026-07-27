@@ -76,7 +76,8 @@ pub use pick_package_from_meta::{
 };
 pub use registry_url::to_registry_url;
 pub use resolve_from_workspace::{
-    ResolveFromWorkspaceError, ResolveFromWorkspaceOptions, try_resolve_from_workspace,
+    ResolveFromWorkspaceError, ResolveFromWorkspaceOptions, pick_matching_local_version_or_null,
+    try_resolve_from_workspace,
 };
 pub use trust_checks::{
     TrustCheckOptions, TrustEvidence, TrustViolation, fail_if_trust_downgraded, get_trust_evidence,

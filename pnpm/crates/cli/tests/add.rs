@@ -1107,28 +1107,29 @@ fn add_with_save_settings(args: &[&str]) -> (TempDir, PathBuf, TestRegistry) {
 fn save_workspace_protocol_decides_the_saved_workspace_range() {
     const LIB: &str = "@pnpm.e2e/ws-lib";
     let cases = [
-        (None, "workspace:^1.2.3", "1.2.3", "workspace:^"),
-        (None, "workspace:~1.2.3", "1.2.3", "workspace:~"),
-        (None, "workspace:1.2.3", "1.2.3", "workspace:*"),
-        (None, "workspace:*", "1.2.3", "workspace:*"),
-        (Some("true"), "workspace:^1.2.3", "1.2.3", "workspace:^1.2.3"),
+        (None, "workspace:^1.2.3", "1.2.3", true, "workspace:^"),
+        (None, "workspace:^1.2.3", "1.2.3", false, "workspace:^"),
+        (None, "workspace:~1.2.3", "1.2.3", true, "workspace:~"),
+        (None, "workspace:1.2.3", "1.2.3", true, "workspace:*"),
+        (None, "workspace:*", "1.2.3", true, "workspace:*"),
+        (Some("true"), "workspace:^1.2.3", "1.2.3", true, "workspace:^1.2.3"),
         // The typed `~` loses to the default `^`: the pinned form reads
         // its operator off the previous entry, and there is none here.
-        (Some("true"), "workspace:~1.2.3", "1.2.3", "workspace:^1.2.3"),
+        (Some("true"), "workspace:~1.2.3", "1.2.3", true, "workspace:^1.2.3"),
         // The local version wins over the typed range.
-        (Some("true"), "workspace:^1.0.0", "2.5.0", "workspace:^2.5.0"),
+        (Some("true"), "workspace:^1.0.0", "2.5.0", true, "workspace:^2.5.0"),
         // A range over a prerelease would not match it, so it is exact.
-        (Some("true"), "workspace:^1.0.0", "2.0.0-beta.1", "workspace:2.0.0-beta.1"),
-        (Some("false"), "workspace:^1.2.3", "1.2.3", "workspace:^1.2.3"),
+        (Some("true"), "workspace:^1.0.0", "2.0.0-beta.1", true, "workspace:2.0.0-beta.1"),
+        (Some("false"), "workspace:^1.2.3", "1.2.3", true, "workspace:^1.2.3"),
     ];
 
-    for (setting, requested, lib_version, expected) in cases {
+    for (setting, requested, lib_version, link_workspace_packages, expected) in cases {
         let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
         let protocol_line = setting
             .map(|setting| format!("saveWorkspaceProtocol: {setting}\n"))
             .unwrap_or_default();
         let yaml = format!(
-            "{HERMETIC_STORE_YAML}packages:\n  - packages/*\nlinkWorkspacePackages: true\n{protocol_line}",
+            "{HERMETIC_STORE_YAML}packages:\n  - packages/*\nlinkWorkspacePackages: {link_workspace_packages}\n{protocol_line}",
         );
         std::fs::write(workspace.join("pnpm-workspace.yaml"), yaml).expect("write workspace yaml");
         write_json(&workspace.join("package.json"), &serde_json::json!({ "name": "root" }));
@@ -1157,6 +1158,21 @@ fn save_workspace_protocol_decides_the_saved_workspace_range() {
         eprintln!("setting={setting:?} requested={requested} local={lib_version} -> {saved:?}");
         assert_eq!(saved.as_deref(), Some(expected));
 
+        drop(root);
+    }
+}
+
+#[test]
+fn a_bare_workspace_add_uses_the_local_package_and_saved_protocol_setting() {
+    const LIB: &str = "@pnpm.e2e/ws-bare";
+    for (setting, expected) in
+        [(None, "workspace:^"), (Some("true"), "workspace:^1.2.3"), (Some("false"), "^1.2.3")]
+    {
+        let (root, app_dir) =
+            workspace_with_lib(setting, &[(LIB, "1.2.3")], "packages/app/package.json");
+        add_in(&app_dir, LIB);
+
+        assert_eq!(saved_spec(&app_dir, LIB).as_deref(), Some(expected));
         drop(root);
     }
 }

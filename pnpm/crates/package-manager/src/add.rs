@@ -30,8 +30,9 @@ use pacquet_resolving_git_resolver::{
 };
 use pacquet_resolving_npm_resolver::{
     DeclaredSpecifiers, InMemoryPackageMetaCache, PackumentFetchLocker, PickPackageError,
-    PickPackageOptions, calc_specifier_for_workspace_dep, parse_bare_specifier, pick_package,
-    pick_registry_for_package, shared_packument_fetch_locker, which_version_is_pinned,
+    PickPackageOptions, calc_specifier_for_workspace_dep, parse_bare_specifier,
+    pick_matching_local_version_or_null, pick_package, pick_registry_for_package,
+    shared_packument_fetch_locker, which_version_is_pinned,
 };
 use pacquet_resolving_resolver_base::WorkspacePackages;
 use pacquet_tarball::MemCache;
@@ -186,11 +187,8 @@ where
         let meta_cache = std::sync::Arc::new(InMemoryPackageMetaCache::default());
         let fetch_locker = shared_packument_fetch_locker();
         let catalog_ctx = read_catalog_ctx(manifest, config)?;
-        // The rolling default writes a range with no version in it, so
-        // the workspace only has to be enumerated for the shapes that
-        // carry the local package's actual version. Skipping the walk
-        // otherwise keeps the default `add` off the filesystem.
-        let workspace_packages = (config.save_workspace_protocol != SaveWorkspaceProtocol::Rolling)
+        let workspace_packages = (config.link_workspace_packages.enabled_at_depth(0)
+            || config.save_workspace_protocol != SaveWorkspaceProtocol::Rolling)
             .then(|| workspace_packages_for_add(config))
             .flatten();
         let updated_catalogs = prepare_manifest::<Reporter>(
@@ -706,7 +704,7 @@ async fn resolve_added_dependency<'a>(
         package_name,
         explicit_spec,
         prev_specifier.as_deref(),
-        config.save_workspace_protocol,
+        config,
         pinned_version,
         workspace_packages,
     ) {
@@ -978,49 +976,66 @@ fn workspace_packages_for_add(config: &Config) -> Option<WorkspacePackages> {
 /// The `workspace:` specifier to save for `package_name`, or `None`
 /// when this add isn't a workspace dependency.
 ///
-/// Only an explicit `workspace:` request is rewritten. pnpm also
-/// rewrites a bare-semver request once it resolves to a local package,
-/// but pacquet's resolver has no workspace fallback for that case yet
-/// (it fails against the registry first), so there is nothing here to
-/// rewrite.
-///
 /// A relative `workspace:./pkg` is left alone: it names a directory, not
 /// a range, so there is no operator to roll.
 fn workspace_save_specifier(
     package_name: &str,
     explicit_spec: Option<&str>,
     prev_specifier: Option<&str>,
-    save_workspace_protocol: SaveWorkspaceProtocol,
+    config: &Config,
     pinned_version: PinnedVersion,
     workspace_packages: Option<&WorkspacePackages>,
 ) -> Option<String> {
-    let spec = WorkspaceSpec::parse(explicit_spec?)?;
-    if spec.version.starts_with('.') {
-        return None;
-    }
-    // `workspace:<target>@<range>` installs `<target>` under the name
-    // the selector gave, so the target — not the install name — is what
-    // the workspace is searched for and what the saved specifier names.
-    let target_name = spec.alias.as_deref().unwrap_or(package_name);
-    let resolved_version =
-        workspace_packages.and_then(|packages| packages.get(target_name)).and_then(|versions| {
-            let available: Vec<String> = versions.keys().cloned().collect();
-            // The highest local version, semver-aware, so a workspace
-            // holding both `9.0.0` and `10.0.0` does not pin to the
-            // lexicographically greater `9.0.0`. Deliberately not
-            // filtered by the requested range: pnpm pins whatever the
-            // workspace holds, leaving a genuine mismatch for the
-            // install to report as `NO_MATCHING_VERSION_INSIDE_WORKSPACE`.
-            resolve_workspace_range("*", &available)
-        });
-    Some(calc_specifier_for_workspace_dep(
+    let (target_name, resolved_version) =
+        if let Some(spec) = explicit_spec.and_then(WorkspaceSpec::parse) {
+            if spec.version.starts_with('.') {
+                return None;
+            }
+            let target_name = spec.alias.unwrap_or_else(|| package_name.to_string());
+            let resolved_version = workspace_packages
+                .and_then(|packages| packages.get(&target_name))
+                .and_then(|versions| {
+                    let available: Vec<String> = versions.keys().cloned().collect();
+                    resolve_workspace_range("*", &available)
+                });
+            (target_name, resolved_version)
+        } else {
+            if !config.link_workspace_packages.enabled_at_depth(0) {
+                return None;
+            }
+            if explicit_spec.is_some_and(|specifier| specifier.starts_with("npm:")) {
+                return None;
+            }
+            let registries: std::collections::HashMap<String, String> =
+                config.resolved_registries().into_iter().collect();
+            let registry = pick_registry_for_package(&registries, package_name, explicit_spec);
+            let parsed = parse_bare_specifier(
+                explicit_spec.unwrap_or("latest"),
+                Some(package_name),
+                "latest",
+                &registry,
+            )?;
+            if parsed.name != package_name || parsed.normalized_bare_specifier.is_some() {
+                return None;
+            }
+            let versions = workspace_packages?.get(package_name)?;
+            let resolved_version = pick_matching_local_version_or_null(versions, &parsed)?;
+            (package_name.to_string(), Some(resolved_version))
+        };
+    let workspace_specifier = calc_specifier_for_workspace_dep(
         DeclaredSpecifiers { prev: prev_specifier, bare: explicit_spec },
         Some(package_name),
-        target_name,
+        &target_name,
         resolved_version.as_deref(),
-        save_workspace_protocol,
+        config.save_workspace_protocol,
         pinned_version,
-    ))
+    );
+    if config.save_workspace_protocol == SaveWorkspaceProtocol::Off
+        && !explicit_spec.is_some_and(|specifier| specifier.starts_with("workspace:"))
+    {
+        return workspace_specifier.strip_prefix("workspace:").map(str::to_string);
+    }
+    Some(workspace_specifier)
 }
 
 /// Split a `pacquet add` argument into its package name and optional

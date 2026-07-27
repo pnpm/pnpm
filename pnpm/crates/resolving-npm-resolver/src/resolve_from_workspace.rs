@@ -219,7 +219,8 @@ pub(crate) fn try_resolve_from_workspace_packages(
 }
 
 /// Pick the local workspace version that satisfies `spec`, or `None`.
-pub(crate) fn pick_matching_local_version_or_null(
+#[must_use]
+pub fn pick_matching_local_version_or_null(
     versions: &WorkspacePackagesByVersion,
     spec: &RegistryPackageSpec,
 ) -> Option<String> {
