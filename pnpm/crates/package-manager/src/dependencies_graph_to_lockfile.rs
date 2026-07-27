@@ -673,10 +673,17 @@ fn read_string_list(manifest: Option<&Value>, key: &str) -> Option<Vec<String>> 
     }
 }
 
-fn read_string_or_list(manifest: Option<&Value>, key: &str) -> Option<Vec<String>> {
+fn read_string_or_list(
+    manifest: Option<&Value>,
+    key: &str,
+) -> Option<pacquet_lockfile::StringOrList> {
     match manifest?.get(key)? {
-        Value::String(value) if !value.is_empty() => Some(vec![value.clone()]),
-        Value::Array(_) => read_string_list(manifest, key),
+        Value::String(value) if !value.is_empty() => {
+            Some(pacquet_lockfile::StringOrList::String(value.clone()))
+        }
+        Value::Array(_) => {
+            read_string_list(manifest, key).map(pacquet_lockfile::StringOrList::List)
+        }
         _ => None,
     }
 }

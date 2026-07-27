@@ -23,6 +23,7 @@ use std::{
     sync::Arc,
 };
 use tempfile::TempDir;
+use text_block_macros::text_block;
 
 fn dependencies_graph_to_lockfile(opts: GraphToLockfileOptions<'_>) -> pacquet_lockfile::Lockfile {
     try_dependencies_graph_to_lockfile(opts).expect("convert dependency graph to lockfile")
@@ -269,11 +270,84 @@ fn string_or_list_metadata_accepts_arrays_and_rejects_other_values() {
     let array_manifest = json!({ "libc": ["glibc", "musl"] });
     assert_eq!(
         read_string_or_list(Some(&array_manifest), "libc"),
-        Some(vec!["glibc".to_string(), "musl".to_string()]),
+        Some(vec!["glibc".to_string(), "musl".to_string()].into()),
     );
 
     let object_manifest = json!({ "libc": { "name": "musl" } });
     assert_eq!(read_string_or_list(Some(&object_manifest), "libc"), None);
+}
+
+#[test]
+fn generated_lockfile_preserves_libc_manifest_shape() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": {
+            "list-libc": "1.0.0",
+            "scalar-libc": "1.0.0",
+        },
+    }));
+    let mut graph = DependenciesGraph::new();
+    for (name, libc) in [("list-libc", json!(["glibc"])), ("scalar-libc", json!("musl"))] {
+        let node = make_node(
+            name,
+            "1.0.0",
+            json!({ "name": name, "version": "1.0.0", "libc": libc }),
+            BTreeMap::new(),
+            BTreeMap::new(),
+            HashSet::new(),
+        );
+        graph.insert(node.dep_path.clone(), node);
+    }
+    let direct = BTreeMap::from([
+        ("list-libc".to_string(), DepPath::from("list-libc@1.0.0".to_string())),
+        ("scalar-libc".to_string(), DepPath::from("scalar-libc@1.0.0".to_string())),
+    ]);
+
+    let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest, &graph, direct, false, false, None, None,
+    ));
+
+    let yaml = lockfile.to_yaml_string().expect("serialize generated lockfile");
+    let expected = format!(
+        "{}\n",
+        text_block! {
+                "lockfileVersion: '9.0'"
+                ""
+                "settings:"
+                "  autoInstallPeers: false"
+                "  excludeLinksFromLockfile: false"
+                ""
+                "importers:"
+                ""
+                "  .:"
+                "    dependencies:"
+                "      list-libc:"
+                "        specifier: 1.0.0"
+                "        version: 1.0.0"
+                "      scalar-libc:"
+                "        specifier: 1.0.0"
+                "        version: 1.0.0"
+                ""
+                "packages:"
+                ""
+                "  list-libc@1.0.0:"
+                "    resolution: {integrity: sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==}"
+                "    libc: [glibc]"
+                ""
+                "  scalar-libc@1.0.0:"
+                "    resolution: {integrity: sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==}"
+                "    libc: musl"
+                ""
+                "snapshots:"
+                ""
+                "  list-libc@1.0.0: {}"
+                ""
+                "  scalar-libc@1.0.0: {}"
+        },
+    );
+    eprintln!("GENERATED LOCKFILE:\n{yaml}\n");
+    assert_eq!(yaml, expected);
 }
 
 #[test]

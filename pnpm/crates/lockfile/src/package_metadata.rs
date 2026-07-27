@@ -1,6 +1,6 @@
 use crate::LockfileResolution;
-use serde::{Deserialize, Deserializer, Serialize};
-use std::collections::HashMap;
+use serde::{Deserialize, Serialize};
+use std::{collections::HashMap, ops::Deref};
 
 /// Metadata for one resolved package version, as stored in the v9
 /// `packages:` map. This is the per-version data that does not vary by
@@ -27,13 +27,8 @@ pub struct PackageMetadata {
     pub cpu: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub os: Option<Vec<String>>,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "deserialize_string_or_vec",
-        serialize_with = "serialize_string_or_vec"
-    )]
-    pub libc: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub libc: Option<StringOrList>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub deprecated: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -92,45 +87,37 @@ impl BundledDependencies {
     }
 }
 
-// Some packages declare `libc` as a plain string in `package.json`; pnpm writes
-// that string as-is into the lockfile.
-fn deserialize_string_or_vec<'de, Value, Deser>(
-    deserializer: Deser,
-) -> Result<Option<Vec<Value>>, Deser::Error>
-where
-    Value: Deserialize<'de>,
-    Deser: Deserializer<'de>,
-{
-    #[derive(Deserialize)]
-    #[serde(untagged)]
-    enum StringOrVec<Value> {
-        String(Value),
-        Vec(Vec<Value>),
-    }
-
-    let opt = Option::<StringOrVec<Value>>::deserialize(deserializer)?;
-    Ok(opt.map(|value| match value {
-        StringOrVec::String(item) => vec![item],
-        StringOrVec::Vec(items) => items,
-    }))
+/// A package-manifest field that accepts either one string or a list.
+///
+/// pnpm preserves this distinction in the lockfile, so retaining only the
+/// normalized values is insufficient for byte-identical serialization.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum StringOrList {
+    String(String),
+    List(Vec<String>),
 }
 
-#[expect(
-    clippy::ref_option,
-    reason = "serde serialize_with requires a reference to the field type"
-)]
-fn serialize_string_or_vec<Value, Ser>(
-    value: &Option<Vec<Value>>,
-    serializer: Ser,
-) -> Result<Ser::Ok, Ser::Error>
-where
-    Value: Serialize,
-    Ser: serde::Serializer,
-{
-    match value.as_deref() {
-        Some([item]) => item.serialize(serializer),
-        Some(items) => items.serialize(serializer),
-        None => serializer.serialize_none(),
+impl Deref for StringOrList {
+    type Target = [String];
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            StringOrList::String(value) => std::slice::from_ref(value),
+            StringOrList::List(values) => values,
+        }
+    }
+}
+
+impl From<Vec<String>> for StringOrList {
+    fn from(values: Vec<String>) -> Self {
+        StringOrList::List(values)
+    }
+}
+
+impl FromIterator<String> for StringOrList {
+    fn from_iter<Values: IntoIterator<Item = String>>(iter: Values) -> Self {
+        StringOrList::List(iter.into_iter().collect())
     }
 }
 

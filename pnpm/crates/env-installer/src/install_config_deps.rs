@@ -450,7 +450,7 @@ fn read_optional_subdeps(
             tarball,
             os: pkg.os.clone(),
             cpu: pkg.cpu.clone(),
-            libc: pkg.libc.clone(),
+            libc: pkg.libc.as_deref().map(<[String]>::to_vec),
         });
     }
     Ok(subdeps)
