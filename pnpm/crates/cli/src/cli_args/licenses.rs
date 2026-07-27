@@ -9,8 +9,7 @@ use owo_colors::{OwoColorize, Stream};
 use pacquet_config::Config;
 use pacquet_lockfile::{Lockfile, PackageKey, PkgName, ResolvedDependencyMap};
 use pacquet_package_is_installable::{
-    SupportedArchitectures, WantedPlatform, WantedPlatformRef, inferred_platform,
-    platform_is_supported,
+    SupportedArchitectures, WantedPlatformRef, inferred_platform, platform_is_supported,
 };
 use pacquet_package_manager::{
     AllowBuildPolicy, validate_virtual_store_slot_containment, virtual_store_layout_for_lockfile,
@@ -361,31 +360,28 @@ fn collect_dependencies(
         let snapshot = snapshots.get(&key);
         let package =
             lockfile.packages.as_ref().and_then(|packages| packages.get(&key.without_peer()));
-        if package.is_some_and(|package| {
-            let declared = WantedPlatformRef {
-                os: package.os.as_deref(),
-                cpu: package.cpu.as_deref(),
-                libc: package.libc.as_deref(),
-            };
-            let inferred: Option<WantedPlatform>;
-            let wanted = if snapshot.is_some_and(|snapshot| snapshot.optional) {
-                inferred = inferred_platform(&key.name.to_string(), declared);
-                inferred.as_ref().map_or(declared, |platform| WantedPlatformRef {
+        if snapshot.is_some_and(|snapshot| snapshot.optional)
+            && package.is_some_and(|package| {
+                let declared = WantedPlatformRef {
+                    os: package.os.as_deref(),
+                    cpu: package.cpu.as_deref(),
+                    libc: package.libc.as_deref(),
+                };
+                let inferred = inferred_platform(&key.name.to_string(), declared);
+                let wanted = inferred.as_ref().map_or(declared, |platform| WantedPlatformRef {
                     os: platform.os.as_deref(),
                     cpu: platform.cpu.as_deref(),
                     libc: platform.libc.as_deref(),
-                })
-            } else {
-                declared
-            };
-            !platform_is_supported(
-                wanted,
-                supported_architectures,
-                current_os,
-                current_cpu,
-                current_libc,
-            )
-        }) {
+                });
+                !platform_is_supported(
+                    wanted,
+                    supported_architectures,
+                    current_os,
+                    current_cpu,
+                    current_libc,
+                )
+            })
+        {
             continue;
         }
 

@@ -92,6 +92,9 @@ importers:
       prod-only:
         specifier: 1.0.0
         version: 1.0.0
+      required-darwin:
+        specifier: 1.0.0
+        version: 1.0.0
 packages:
   '@esbuild/darwin-arm64@1.0.0':
     resolution: {integrity: sha512-inferred-darwin}
@@ -104,6 +107,11 @@ packages:
     resolution: {integrity: sha512-hidden}
   prod-only@1.0.0:
     resolution: {integrity: sha512-prod}
+  required-child@1.0.0:
+    resolution: {integrity: sha512-required-child}
+  required-darwin@1.0.0:
+    resolution: {integrity: sha512-required-darwin}
+    os: [darwin]
   visible-child@1.0.0:
     resolution: {integrity: sha512-visible}
 snapshots:
@@ -118,6 +126,10 @@ snapshots:
   prod-only@1.0.0:
     dependencies:
       visible-child: 1.0.0
+  required-child@1.0.0: {}
+  required-darwin@1.0.0:
+    dependencies:
+      required-child: 1.0.0
   visible-child@1.0.0: {}
 ",
     )
@@ -135,9 +147,11 @@ snapshots:
         "glibc",
     );
 
-    assert_eq!(dependencies.len(), 3);
+    assert_eq!(dependencies.len(), 5);
     assert_eq!(dependencies[&"dev-only@1.0.0".parse().unwrap()], BelongsTo::Dev);
     assert_eq!(dependencies[&"prod-only@1.0.0".parse().unwrap()], BelongsTo::Prod);
+    assert_eq!(dependencies[&"required-child@1.0.0".parse().unwrap()], BelongsTo::Prod);
+    assert_eq!(dependencies[&"required-darwin@1.0.0".parse().unwrap()], BelongsTo::Prod);
     assert_eq!(dependencies[&"visible-child@1.0.0".parse().unwrap()], BelongsTo::Prod);
 }
 
