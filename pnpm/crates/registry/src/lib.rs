@@ -35,9 +35,11 @@ pub enum RegistryError {
     MissingVersionRelease(String, String),
 
     #[diagnostic(code(ERR_PNPM_REGISTRY_NETWORK_ERROR))]
+    // TODO: remove derive(Error), split this variant into its own error type
     Network(NetworkError),
 
     #[diagnostic(code(ERR_PNPM_REGISTRY_IO_ERROR))]
+    // TODO: remove derive(Error), split this variant into its own error type
     Io(std::io::Error),
 
     #[display("Serialization failed: {_0}")]

@@ -9,9 +9,7 @@ use tempfile::TempDir;
 fn manifest_from_json(value: &Value) -> (TempDir, PackageManifest) {
     let dir = tempfile::tempdir().expect("create temp dir");
     let path = dir.path().join("package.json");
-    std::fs::write(&path, serde_json::to_string(value).expect("serialize fixture"))
-        .expect("write package.json");
-    let manifest = PackageManifest::from_path(path).expect("read package.json");
+    let manifest = PackageManifest::from_value(path, value.clone());
     (dir, manifest)
 }
 
