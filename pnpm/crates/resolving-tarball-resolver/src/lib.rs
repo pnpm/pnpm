@@ -24,4 +24,4 @@
 
 mod tarball_resolver;
 
-pub use tarball_resolver::{TarballFetchContext, TarballResolver};
+pub use tarball_resolver::{PriorTarballEntry, TarballFetchContext, TarballResolver};

@@ -41,7 +41,7 @@ use pacquet_resolving_npm_resolver::{
     merge_named_registries, shared_packument_fetch_locker, shared_picked_manifest_cache,
 };
 use pacquet_resolving_resolver_base::{ResolveOptions, Resolver};
-use pacquet_resolving_tarball_resolver::{TarballFetchContext, TarballResolver};
+use pacquet_resolving_tarball_resolver::{PriorTarballEntry, TarballFetchContext, TarballResolver};
 use pacquet_store_dir::{SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter, store_index_key};
 use pacquet_tarball::{MemCache, SharedReportedProgressKeys};
 use std::{
@@ -866,14 +866,20 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // the materializing and `--lockfile-only` paths: the lockfile
         // needs the integrity regardless of whether `node_modules` is
         // built.
-        // Map every remote-tarball URL the prior lockfile recorded (with an
+        // Map every remote tarball the prior lockfile recorded (with an
         // integrity) to its `<integrity>\t<pkg_id>` store-index key, keyed
         // exactly as `snapshot_cache_key` / the install pass address the row.
         // The `TarballResolver` uses it to reuse a warm store entry instead
         // of re-downloading on re-resolution. Git-hosted tarballs are skipped
         // (they key by `gitHostedStoreIndexKey`, not the integrity) and just
         // re-fetch as before. Empty on a first install.
-        let prior_tarball_entries: HashMap<String, (ssri::Integrity, String)> = wanted_lockfile
+        //
+        // The map is keyed by `pkg_id` — the bare specifier — rather than
+        // `resolution.tarball`, because that is what the resolver looks a
+        // dependency up by. The two differ once an immutable response has
+        // redirected: the lockfile then records the post-redirect URL while
+        // the id stays the specifier the manifest asked for.
+        let prior_tarball_entries: HashMap<String, PriorTarballEntry> = wanted_lockfile
             .and_then(|lockfile| lockfile.packages.as_ref())
             .map(|packages| {
                 packages
@@ -881,8 +887,16 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                     .filter_map(|(key, metadata)| match &metadata.resolution {
                         LockfileResolution::Tarball(t) if t.git_hosted != Some(true) => {
                             let integrity = t.integrity.clone()?;
-                            let cache_key = store_index_key(&integrity.to_string(), &key.pkg_id());
-                            Some((t.tarball.clone(), (integrity, cache_key)))
+                            let pkg_id = key.pkg_id();
+                            let store_index_key = store_index_key(&integrity.to_string(), &pkg_id);
+                            Some((
+                                pkg_id,
+                                PriorTarballEntry {
+                                    integrity,
+                                    store_index_key,
+                                    tarball_url: t.tarball.clone(),
+                                },
+                            ))
                         }
                         _ => None,
                     })

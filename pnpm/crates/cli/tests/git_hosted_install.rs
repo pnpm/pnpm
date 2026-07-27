@@ -683,6 +683,39 @@ fn updating_a_registry_package_that_has_a_git_dependency() {
     drop((root, npmrc_info));
 }
 
+/// A git dependency installed under an alias is gated on its *manifest*
+/// name, not the alias: `allowBuilds` has to name `<manifest name>@<spec>`
+/// for `prepare` to run.
+///
+/// The lockfile keys the package the same way, and pnpm's
+/// `preparePackage` builds the identity it checks from the fetched
+/// `package.json` too, so the alias never enters the build policy.
+#[test]
+fn an_aliased_git_dependency_is_gated_on_its_manifest_name() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let repo = GitRepoFixture::init(root.path(), "hi");
+    repo.write_file(
+        "package.json",
+        r#"{"name":"hi","version":"1.0.0","files":["package.json","prepare.txt"],"scripts":{"prepare":"node -e \"require('fs').writeFileSync('prepare.txt', 'prepared')\""}}"#,
+    );
+    let commit = repo.commit("init");
+    let spec = repo.git_url_at(&commit);
+    write_dependencies(&workspace, &[("say-hi", &spec)]);
+    allow_builds(&workspace, &[&format!("hi@{spec}")]);
+
+    pacquet.with_args(["install"]).assert().success();
+
+    let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    assert_eq!(importer_version(&lockfile, ".", "say-hi"), format!("hi@{spec}"));
+    assert!(
+        workspace.join("node_modules/say-hi/prepare.txt").exists(),
+        "the manifest-name allowBuilds entry must let `prepare` run under the alias",
+    );
+
+    drop((root, npmrc_info));
+}
+
 /// The store index is shared with the TypeScript CLI, which keys a git
 /// dependency's row by the bare `git+…#<commit>` resolution id. Keying
 /// it by the lockfile's `<name>@git+…` form instead leaves a store

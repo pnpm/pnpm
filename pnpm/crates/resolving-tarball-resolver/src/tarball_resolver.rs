@@ -38,11 +38,27 @@ pub struct TarballFetchContext {
     pub store_index: Option<SharedReadonlyStoreIndex>,
     pub verify_store_integrity: bool,
     pub verified_files_cache: SharedVerifiedFilesCache,
-    /// Tarball URL → `(integrity, "<integrity>\t<pkg_id>" store-index key)`
-    /// for every remote-tarball entry the prior lockfile recorded. Lets a
-    /// re-resolve reuse the already-extracted store content instead of
-    /// re-downloading. Empty on a first install.
-    pub prior_tarball_entries: Arc<HashMap<String, (Integrity, String)>>,
+    /// What the prior lockfile recorded for each remote-tarball entry,
+    /// keyed by `pkg_id`. Lets a re-resolve reuse the already-extracted
+    /// store content instead of re-downloading. Empty on a first install.
+    ///
+    /// A remote tarball's `pkg_id` is its normalized bare specifier, so
+    /// [`TarballResolver::reuse_from_warm_store`] can look an entry up
+    /// before the preflight that would reveal a redirect.
+    pub prior_tarball_entries: Arc<HashMap<String, PriorTarballEntry>>,
+}
+
+/// One remote-tarball entry carried over from the prior lockfile.
+#[derive(Debug, Clone)]
+pub struct PriorTarballEntry {
+    pub integrity: Integrity,
+    /// `<integrity>\t<pkg_id>` — the store-index row holding the
+    /// extracted content.
+    pub store_index_key: String,
+    /// The URL the lockfile recorded. An immutable redirect moves this
+    /// off the bare specifier, so a warm reuse replays it rather than
+    /// re-deriving one and churning the lockfile.
+    pub tarball_url: String,
 }
 
 /// Resolves `http://...` / `https://...` tarball URLs from a project's
@@ -193,20 +209,21 @@ impl TarballResolver {
         )))
     }
 
-    /// Reuse an already-extracted store entry for `tarball_url` when the
-    /// prior lockfile recorded it with an integrity and the store still
-    /// holds the content + its bundled manifest. Returns `None` (caller
-    /// downloads) when there's no fetch context, no prior entry for the
-    /// URL, or the store-index lookup misses — never on a wrong-content
-    /// risk, since the key embeds the integrity and the CAFS is
-    /// content-addressed.
+    /// Reuse an already-extracted store entry for the dependency whose
+    /// `pkg_id` is `normalized_bare_specifier`, when the prior lockfile
+    /// recorded it with an integrity and the store still holds the
+    /// content + its bundled manifest. Returns `None` (caller downloads)
+    /// when there's no fetch context, no prior entry for the id, or the
+    /// store-index lookup misses — never on a wrong-content risk, since
+    /// the key embeds the integrity and the CAFS is content-addressed.
     async fn reuse_from_warm_store(
         &self,
         wanted_dependency: &WantedDependency,
-        tarball_url: &str,
+        normalized_bare_specifier: &str,
     ) -> Option<ResolveResult> {
         let ctx = self.fetch_context.as_ref()?;
-        let (integrity, cache_key) = ctx.prior_tarball_entries.get(tarball_url)?;
+        let prior = ctx.prior_tarball_entries.get(normalized_bare_specifier)?;
+        let cache_key = &prior.store_index_key;
         let PrefetchResult { cas_paths, manifests, .. } = prefetch_cas_paths(
             ctx.store_index.clone(),
             ctx.store_dir,
@@ -224,9 +241,9 @@ impl TarballResolver {
         let manifest = manifests.get(cache_key)?;
         Some(Self::head_only_result(
             wanted_dependency,
-            tarball_url.to_string(),
-            tarball_url.to_string(),
-            Some(integrity.clone()),
+            normalized_bare_specifier.to_string(),
+            prior.tarball_url.clone(),
+            Some(prior.integrity.clone()),
             Some(Arc::clone(manifest)),
         ))
     }
