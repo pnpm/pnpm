@@ -653,7 +653,7 @@ pub(crate) fn derive_config_root_and_package_manager_to_sync(
     // pnpm warns from config-reading, so the notice lands ahead of any
     // install output. This is the install family's earliest point that
     // knows the root manifest's directory.
-    warn_ignored_pnpm_manifest_fields(root_manifest.as_ref(), reporter_emit(reporter));
+    warn_ignored_pnpm_manifest_fields(root_manifest.as_ref());
     warn_deprecated_override_version_references(cfg, reporter_emit(reporter));
     let package_manager_to_sync = root_manifest
         .as_ref()

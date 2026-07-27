@@ -1722,8 +1722,10 @@ fn frozen_lockfile_setting_drives_the_headless_install() {
 /// A repository that hasn't migrated its `pnpm.overrides` would
 /// otherwise see only the downstream symptom.
 ///
-/// The message is asserted verbatim: it is the same string pnpm emits,
-/// and `@pnpm/cli.default-reporter` renders it.
+/// The message is asserted verbatim, `[WARN]` label included: it is the
+/// same string pnpm's `getConfig` prints with `console.warn`. Config-load
+/// warnings go to stderr, outside the reporter, so a script capturing
+/// stdout never sees them mixed into the command's own output.
 #[test]
 fn migrated_keys_under_the_package_json_pnpm_field_are_reported() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -1741,21 +1743,22 @@ fn migrated_keys_under_the_package_json_pnpm_field_are_reported() {
     .expect("write package.json");
 
     let assert = pacquet.with_args(["install", "--lockfile-only"]).assert().success();
-    // The default reporter renders every warning into its stdout frame.
     let stdout = String::from_utf8_lossy(&assert.get_output().stdout).into_owned();
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr).into_owned();
 
-    eprintln!("STDOUT:\n{stdout}");
-    let warning = stdout
-        .find(
-            "The \"pnpm\" field in package.json is no longer read by pnpm. \
+    eprintln!("STDOUT:\n{stdout}\nSTDERR:\n{stderr}");
+    assert!(
+        stderr.contains(
+            "[WARN] The \"pnpm\" field in package.json is no longer read by pnpm. \
              The following keys were ignored: \"pnpm.overrides\". \
              See https://pnpm.io/settings for the new home of each setting.",
-        )
-        .unwrap_or_else(|| panic!("expected the ignored-field warning; got:\n{stdout}"));
-    let footer = stdout
-        .find("Done in ")
-        .unwrap_or_else(|| panic!("expected the end-of-command footer; got:\n{stdout}"));
-    assert!(warning < footer, "the warning must precede the install output; got:\n{stdout}");
+        ),
+        "expected the ignored-field warning on stderr; got:\n{stderr}",
+    );
+    assert!(
+        !stdout.contains("no longer read by pnpm"),
+        "the warning must stay out of stdout; got:\n{stdout}",
+    );
 
     drop(root);
 }
@@ -1782,15 +1785,17 @@ fn migrated_keys_are_reported_by_the_up_to_date_fast_path() {
     pacquet.with_arg("install").assert().success();
     let assert = pacquet_in(&workspace).with_arg("install").assert().success();
     let stdout = String::from_utf8_lossy(&assert.get_output().stdout).into_owned();
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr).into_owned();
 
-    eprintln!("STDOUT:\n{stdout}");
-    let warning = stdout.find("no longer read by pnpm").unwrap_or_else(|| {
-        panic!("the fast path must warn too; got:\n{stdout}");
-    });
-    let up_to_date = stdout
-        .find("Already up to date")
-        .unwrap_or_else(|| panic!("expected the fast path's own output; got:\n{stdout}"));
-    assert!(warning < up_to_date, "the warning must precede the install output; got:\n{stdout}");
+    eprintln!("STDOUT:\n{stdout}\nSTDERR:\n{stderr}");
+    assert!(
+        stderr.contains("no longer read by pnpm"),
+        "the fast path must warn too; got:\n{stderr}",
+    );
+    assert!(
+        stdout.contains("Already up to date"),
+        "expected the fast path's own output; got:\n{stdout}",
+    );
 
     drop(root);
 }
@@ -1812,25 +1817,27 @@ fn migrated_keys_are_reported_through_a_utf8_bom() {
         .expect("write package.json");
 
     let assert = pacquet.with_arg("install").assert().success();
-    let stdout = String::from_utf8_lossy(&assert.get_output().stdout).into_owned();
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr).into_owned();
 
-    eprintln!("STDOUT:\n{stdout}");
+    eprintln!("STDERR:\n{stderr}");
     assert!(
-        stdout.contains("no longer read by pnpm"),
-        "the BOM must not swallow the warning; got:\n{stdout}",
+        stderr.contains("no longer read by pnpm"),
+        "the BOM must not swallow the warning; got:\n{stderr}",
     );
 
     let assert = pacquet_in(&workspace).with_arg("install").assert().success();
     let stdout = String::from_utf8_lossy(&assert.get_output().stdout).into_owned();
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr).into_owned();
 
-    eprintln!("STDOUT:\n{stdout}");
-    let warning = stdout.find("no longer read by pnpm").unwrap_or_else(|| {
-        panic!("the fast path reads the manifest on its own; got:\n{stdout}");
-    });
-    let up_to_date = stdout
-        .find("Already up to date")
-        .unwrap_or_else(|| panic!("expected the fast path's own output; got:\n{stdout}"));
-    assert!(warning < up_to_date, "the warning must precede the install output; got:\n{stdout}");
+    eprintln!("STDOUT:\n{stdout}\nSTDERR:\n{stderr}");
+    assert!(
+        stderr.contains("no longer read by pnpm"),
+        "the fast path reads the manifest on its own; got:\n{stderr}",
+    );
+    assert!(
+        stdout.contains("Already up to date"),
+        "expected the fast path's own output; got:\n{stdout}",
+    );
 
     drop(root);
 }
@@ -1870,16 +1877,16 @@ fn migrated_keys_are_read_from_the_workspace_root() {
 
     let assert =
         pacquet_in(&package_dir).with_args(["install", "--lockfile-only"]).assert().success();
-    let stdout = String::from_utf8_lossy(&assert.get_output().stdout).into_owned();
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr).into_owned();
 
-    eprintln!("STDOUT:\n{stdout}");
+    eprintln!("STDERR:\n{stderr}");
     assert!(
-        stdout.contains(r#"The following keys were ignored: "pnpm.overrides"."#),
-        "the root manifest's keys must be named; got:\n{stdout}",
+        stderr.contains(r#"The following keys were ignored: "pnpm.overrides"."#),
+        "the root manifest's keys must be named; got:\n{stderr}",
     );
     assert!(
-        !stdout.contains("neverBuiltDependencies"),
-        "the workspace package's own `pnpm` field is not the root manifest; got:\n{stdout}",
+        !stderr.contains("neverBuiltDependencies"),
+        "the workspace package's own `pnpm` field is not the root manifest; got:\n{stderr}",
     );
 
     drop(root);
@@ -1899,9 +1906,13 @@ fn an_unmigrated_package_json_pnpm_field_is_not_reported() {
 
     let assert = pacquet.with_args(["install", "--lockfile-only"]).assert().success();
     let stdout = String::from_utf8_lossy(&assert.get_output().stdout).into_owned();
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr).into_owned();
 
-    eprintln!("STDOUT:\n{stdout}");
-    assert!(!stdout.contains("no longer read by pnpm"), "must stay quiet; got:\n{stdout}");
+    eprintln!("STDOUT:\n{stdout}\nSTDERR:\n{stderr}");
+    assert!(
+        !stdout.contains("no longer read by pnpm") && !stderr.contains("no longer read by pnpm"),
+        "must stay quiet; got stdout:\n{stdout}\nstderr:\n{stderr}",
+    );
 
     drop(root);
 }

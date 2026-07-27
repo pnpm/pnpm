@@ -350,7 +350,7 @@ impl InstallArgs {
         // above: every `return false` before this point hands the command
         // to the full install path, which warns from
         // `derive_config_root_and_package_manager_to_sync`.
-        warn_ignored_pnpm_manifest_fields_in(&config_root, emit);
+        warn_ignored_pnpm_manifest_fields_in(&config_root);
         warn_deprecated_override_version_references(config, emit);
         // The scope covers the same projects the full install path would
         // report; an up-to-date run says so too rather than going quiet

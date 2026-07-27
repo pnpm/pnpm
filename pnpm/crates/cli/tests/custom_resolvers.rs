@@ -142,7 +142,11 @@ fn failing_should_refresh_resolution_aborts_the_install() {
 
     let output = pacquet_at(&workspace).with_arg("install").assert().failure();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr).into_owned();
-    assert!(stderr.contains("refresh check crashed"), "stderr: {stderr}");
+    // miette wraps the report at the terminal width, and where the wrap
+    // falls depends on the temp-dir path length in the message, so the
+    // phrase is matched with the wrapping collapsed.
+    let unwrapped = stderr.split_whitespace().collect::<Vec<_>>().join(" ");
+    assert!(unwrapped.contains("refresh check crashed"), "stderr: {stderr}");
 
     drop((root, mock_instance)); // cleanup
 }
