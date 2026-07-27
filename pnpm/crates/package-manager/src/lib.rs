@@ -131,6 +131,29 @@ pub(crate) const DIRECT_GROUPS: [pacquet_package_manifest::DependencyGroup; 3] =
 
 pub(crate) const NEEDS_BUILD_MARKER: &str = ".pnpm-needs-build";
 
+pub(crate) fn store_index_key_for_resolution(
+    resolution: &pacquet_lockfile::LockfileResolution,
+    pkg_id: &str,
+    built: bool,
+) -> Option<String> {
+    match resolution {
+        pacquet_lockfile::LockfileResolution::Tarball(tarball) => {
+            Some(pacquet_store_dir::pick_store_index_key(
+                tarball.integrity.as_ref().map(ToString::to_string).as_deref(),
+                tarball.is_git_hosted(),
+                pkg_id,
+                built,
+            ))
+        }
+        pacquet_lockfile::LockfileResolution::Git(_) => {
+            Some(pacquet_store_dir::git_hosted_store_index_key(pkg_id, built))
+        }
+        _ => resolution
+            .integrity()
+            .map(|integrity| pacquet_store_dir::store_index_key(&integrity.to_string(), pkg_id)),
+    }
+}
+
 pub(crate) fn snapshot_has_patch(snapshot_key: &pacquet_lockfile::PackageKey) -> bool {
     pacquet_deps_path::index_of_dep_path_suffix(&snapshot_key.to_string())
         .patch_hash_index

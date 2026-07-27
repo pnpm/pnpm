@@ -1,7 +1,7 @@
 use crate::{
     ImportIndexedDirError, ImportIndexedDirOpts, NEEDS_BUILD_MARKER, SkippedSnapshots,
     build_sequence::build_sequence,
-    import_indexed_dir,
+    import_indexed_dir, store_index_key_for_resolution,
     version_policy::{VersionPolicyError, expand_package_version_specs},
 };
 use derive_more::{Display, Error};
@@ -1258,10 +1258,8 @@ fn build_one_snapshot<Reporter: self::Reporter>(
     // subsequent installs hit the cache.
     //
     // The other preconditions: cache_key composable (engine + graph
-    // present), `packages` map available for the integrity lookup,
-    // and the metadata row carries an integrity (registry / tarball
-    // resolutions — git / directory have no integrity, so those
-    // aren't cached).
+    // present), `packages` map available for store-index key selection,
+    // and the resolution has a store-backed key.
     //
     // All errors are swallowed with a `tracing::warn!`. A failed
     // upload doesn't fail the install: the next install re-runs the
@@ -1274,20 +1272,20 @@ fn build_one_snapshot<Reporter: self::Reporter>(
         && let Some(cache_key) = cache_key.as_deref()
         && let Some(packages) = packages
         && let Some(metadata) = packages.get(&metadata_key)
-        && let Some(integrity) = metadata.resolution.integrity()
-    {
-        let files_index_file =
-            pacquet_store_dir::store_index_key(&integrity.to_string(), &metadata_key.pkg_id());
-        if let Err(err) =
+        && let Some(files_index_file) = store_index_key_for_resolution(
+            &metadata.resolution,
+            &metadata_key.pkg_id(),
+            !ignore_scripts,
+        )
+        && let Err(err) =
             pacquet_store_dir::upload(store, &pkg_dir, &files_index_file, cache_key, writer)
-        {
-            tracing::warn!(
-                target: "pacquet::build",
-                ?err,
-                dep_path = %snapshot_key,
-                "side-effects cache upload failed; build proceeds",
-            );
-        }
+    {
+        tracing::warn!(
+            target: "pacquet::build",
+            ?err,
+            dep_path = %snapshot_key,
+            "side-effects cache upload failed; build proceeds",
+        );
     }
 
     Ok(())
