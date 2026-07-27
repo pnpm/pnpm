@@ -62,7 +62,7 @@ pub fn build_env(
     // 1. Start from the parent env, stripping `npm_package_*` (we
     //    regenerate them below) and the `(npm|pnpm)_config_*` auth
     //    keys, plus the per-call stamps we re-derive (`NODE`,
-    //    `TMPDIR`, `INIT_CWD`, `PNPM_SCRIPT_SRC_DIR`). User-defined
+    //    `INIT_CWD`, `PNPM_SCRIPT_SRC_DIR`). User-defined
     //    `npm_config_*` such as `npm_config_platform_arch` are
     //    preserved. `pnpm_*` keys such as `PNPM_HOME` are intentionally
     //    NOT in the filter.
@@ -170,8 +170,8 @@ fn filter_parent_env(env: HashMap<String, String>) -> HashMap<String, String> {
 
 /// Whether `key` must be dropped from the inherited parent env: an
 /// `npm_package_*` stamp, a `(npm|pnpm)_config_*` auth credential, a
-/// per-call stamp [`build_env`] re-derives (`NODE`, `TMPDIR`,
-/// `INIT_CWD`, `PNPM_SCRIPT_SRC_DIR`), or
+/// per-call stamp [`build_env`] re-derives (`NODE`, `INIT_CWD`,
+/// `PNPM_SCRIPT_SRC_DIR`), or
 /// [`DEV_PREINSTALL_ALREADY_RAN_ENV`]. Stripping the auth credentials
 /// keeps them out of dependency lifecycle scripts; stripping the
 /// delegation marker keeps it scoped to the install that received it,
@@ -190,8 +190,8 @@ fn is_stamping_key(key: &str, is_windows: bool) -> bool {
     {
         return true;
     }
-    const DROPPED: [&str; 5] =
-        ["NODE", "TMPDIR", "INIT_CWD", "PNPM_SCRIPT_SRC_DIR", DEV_PREINSTALL_ALREADY_RAN_ENV];
+    const DROPPED: [&str; 4] =
+        ["NODE", "INIT_CWD", "PNPM_SCRIPT_SRC_DIR", DEV_PREINSTALL_ALREADY_RAN_ENV];
     if is_windows {
         return DROPPED.iter().any(|name| key.eq_ignore_ascii_case(name));
     }
