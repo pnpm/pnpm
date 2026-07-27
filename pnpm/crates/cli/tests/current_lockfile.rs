@@ -28,6 +28,23 @@ fn package_names(lockfile: &pacquet_lockfile::Lockfile) -> Vec<String> {
     names
 }
 
+fn assert_skipped_optional_is_retained(lockfile: &pacquet_lockfile::Lockfile) {
+    dbg!(lockfile);
+    assert!(
+        importer_has_group_dependency(
+            lockfile,
+            pacquet_lockfile::Lockfile::ROOT_IMPORTER_KEY,
+            "optionalDependencies",
+            "@pnpm.e2e/not-compatible-with-any-os",
+        ),
+        "the root importer must retain the platform-skipped optional dependency",
+    );
+    assert!(
+        has_snapshot(lockfile, "@pnpm.e2e/not-compatible-with-any-os", "1.0.0"),
+        "the platform-skipped optional dependency must retain its snapshot",
+    );
+}
+
 /// TS: `installing a simple project` (`deps-restorer/test/index.ts:54`),
 /// the current-lockfile half.
 #[test]
@@ -117,14 +134,28 @@ fn a_deleted_wanted_lockfile_is_regenerated_from_the_current_one() {
             "@pnpm.e2e/pkg-with-1-dep": "^100.0.0",
             "@pnpm.e2e/foo": "^100.0.0",
         },
+        "optionalDependencies": {
+            "@pnpm.e2e/not-compatible-with-any-os": "*",
+        },
     });
     fs::write(workspace.join("package.json"), package_json.to_string())
         .expect("write package.json");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet.with_args(["install", "--lockfile-only"]).assert().success();
     let wanted_path = workspace.join("pnpm-lock.yaml");
     let wanted = fs::read_to_string(&wanted_path).expect("read pnpm-lock.yaml");
-    let current = package_names(&read_current_lockfile(&workspace));
+
+    rerun(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    let current = read_current_lockfile(&workspace);
+    let wanted_lockfile =
+        serde_saphyr::from_str(&wanted).expect("parse the original pnpm-lock.yaml");
+    assert_skipped_optional_is_retained(&wanted_lockfile);
+    assert_skipped_optional_is_retained(&current);
+    dbg!(&current, &wanted_lockfile);
+    assert_eq!(
+        current, wanted_lockfile,
+        "the current lockfile must retain the platform-skipped optional dependency",
+    );
 
     fs::remove_file(&wanted_path).expect("remove pnpm-lock.yaml");
     // The harness writes a `pnpm-workspace.yaml` for storeDir/cacheDir, so
@@ -133,14 +164,24 @@ fn a_deleted_wanted_lockfile_is_regenerated_from_the_current_one() {
     fs::remove_file(workspace.join("node_modules/.pnpm-workspace-state-v1.json"))
         .expect("remove the workspace state file");
 
-    rerun(&workspace).with_arg("install").assert().success();
+    rerun(&workspace)
+        .with_args(["install", "--lockfile-only", "--prefer-frozen-lockfile"])
+        .assert()
+        .success();
 
+    let regenerated =
+        fs::read_to_string(&wanted_path).expect("read the regenerated pnpm-lock.yaml");
+    eprintln!("original pnpm-lock.yaml:\n{wanted}\nregenerated pnpm-lock.yaml:\n{regenerated}");
     assert_eq!(
-        fs::read_to_string(&wanted_path).expect("read the regenerated pnpm-lock.yaml"),
-        wanted,
+        regenerated, wanted,
         "the wanted lockfile must be rebuilt from the current one, not re-resolved",
     );
-    assert_eq!(package_names(&read_current_lockfile(&workspace)), current);
+    let regenerated_lockfile =
+        serde_saphyr::from_str(&regenerated).expect("parse the regenerated pnpm-lock.yaml");
+    assert_skipped_optional_is_retained(&regenerated_lockfile);
+    let regenerated_current = read_current_lockfile(&workspace);
+    dbg!(&regenerated_current, &current);
+    assert_eq!(regenerated_current, current);
 
     drop((root, mock_instance));
 }
