@@ -572,9 +572,6 @@ pub struct WorkspaceSettings {
 
     /// `saveExact` from `.npmrc` / `pnpm-workspace.yaml`.
     pub save_exact: Option<bool>,
-
-    /// `savePrefix` from `.npmrc` / `pnpm-workspace.yaml`.
-    pub save_prefix: Option<String>,
 }
 
 /// `audit` entry: settings that tune `pnpm audit`. Supersedes the
@@ -1280,9 +1277,6 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.save_exact {
             config.save_exact = v;
-        }
-        if let Some(v) = self.save_prefix {
-            config.save_prefix = Some(v);
         }
     }
 
