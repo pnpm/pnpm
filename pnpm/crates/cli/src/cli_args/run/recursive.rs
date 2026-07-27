@@ -18,7 +18,7 @@ use crate::cli_args::recursive::{
 };
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
-use miette::Diagnostic;
+use miette::{Diagnostic, IntoDiagnostic, WrapErr};
 use pacquet_config::Config;
 use pacquet_package_manager::{make_node_package_map_option, package_map_path_for_execution};
 use pacquet_reporter::{LogEvent, LogLevel, ScopeLog};
@@ -165,24 +165,30 @@ pub fn run_recursive(
 
     if args.parallel {
         let roots = chunks.iter().flatten().collect::<Vec<_>>();
-        let executions = std::thread::scope(|scope| {
-            roots
+        let executions = std::thread::scope(|scope| -> miette::Result<Vec<_>> {
+            let handles = roots
                 .iter()
                 .map(|root| {
-                    scope.spawn(|| {
-                        run_project(RunProjectOptions {
-                            root,
-                            graph,
-                            selector: &selector,
-                            args,
-                            init_cwd: &init_cwd,
-                            config,
-                            extra_env: &extra_env,
-                            bail,
+                    std::thread::Builder::new()
+                        .spawn_scoped(scope, || {
+                            run_project(RunProjectOptions {
+                                root,
+                                graph,
+                                selector: &selector,
+                                args,
+                                init_cwd: &init_cwd,
+                                config,
+                                extra_env: &extra_env,
+                                bail,
+                            })
                         })
-                    })
+                        .into_diagnostic()
+                        .wrap_err_with(|| {
+                            format!("failed to start parallel script runner for {}", root.display())
+                        })
                 })
-                .collect::<Vec<_>>()
+                .collect::<miette::Result<Vec<_>>>()?;
+            handles
                 .into_iter()
                 .map(|handle| {
                     handle.join().unwrap_or_else(|panic| std::panic::resume_unwind(panic))
