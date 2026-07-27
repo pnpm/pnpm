@@ -2023,6 +2023,7 @@ fn walker_for_tests(tree: &mut ResolvedTree) -> Walker<'_> {
         opts: ResolvePeersOptions::default(),
         graph: DependenciesGraph::new(),
         issues: PeerDependencyIssues::default(),
+        missing_ancestor_pkg_ids: HashMap::new(),
         node_dep_paths: HashMap::new(),
         node_external_peers: HashMap::new(),
         node_missing_peers: HashMap::new(),

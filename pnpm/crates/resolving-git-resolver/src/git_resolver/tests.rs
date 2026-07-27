@@ -129,6 +129,7 @@ async fn github_shortcut_full_commit_returns_tarball() {
                 "https://codeload.github.com/zkochan/is-negative/tar.gz/163360a8d3ae6bee9524541043197ff356f8ed99",
             );
             assert_eq!(t.git_hosted, Some(true));
+            assert!(t.integrity.is_none());
             assert!(t.path.is_none());
         }
         other => panic!("expected Tarball, got {other:?}"),
