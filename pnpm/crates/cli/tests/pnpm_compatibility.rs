@@ -327,8 +327,7 @@ fn same_global_virtual_store_layout_pure_js() {
 /// directories.
 ///
 /// Scripts run on both sides (neither install uses `--ignore-scripts`)
-/// because pacquet doesn't expose `--ignore-scripts` yet
-/// (pnpm/crates/cli/README.md lists it as a TODO) — if pnpm
+/// because pacquet doesn't expose `--ignore-scripts` yet — if pnpm
 /// skipped scripts while pacquet ran them the slot trees would
 /// diverge on the script-generated `generated-by-*.js` files even
 /// though the hash itself agreed.

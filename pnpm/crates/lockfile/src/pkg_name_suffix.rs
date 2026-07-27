@@ -48,7 +48,6 @@ pub enum ParsePkgNameSuffixError<ParseSuffixError> {
 impl<Suffix: FromStr> FromStr for PkgNameSuffix<Suffix> {
     type Err = ParsePkgNameSuffixError<Suffix::Err>;
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        // FIXME: use parser-combinator pattern for code reuse (PkgName parser insufficient)
         let (name, suffix) = match value.split_first_char() {
             None => return Err(ParsePkgNameSuffixError::EmptyInput),
             Some(('@', rest)) => {
