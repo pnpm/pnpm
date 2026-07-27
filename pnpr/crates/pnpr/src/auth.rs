@@ -660,9 +660,7 @@ pub async fn identify(
     Ok(None)
 }
 
-// ---------------------------------------------------------------
 // htpasswd I/O
-// ---------------------------------------------------------------
 
 /// Parse an Apache-shaped htpasswd file. Each non-empty, non-comment
 /// line is `username:hash`; we accept any bcrypt variant (`$2a$`,
@@ -754,9 +752,7 @@ fn unique_tmp_path(base: &Path) -> PathBuf {
     }
 }
 
-// ---------------------------------------------------------------
 // bcrypt helpers
-// ---------------------------------------------------------------
 
 /// Hash a password off the reactor — bcrypt at cost 10 takes
 /// ~50–100 ms and stalls every other async task on the same thread
@@ -794,9 +790,7 @@ async fn verify_returning_user(
     }
 }
 
-// ---------------------------------------------------------------
 // SQLite-backed token store
-// ---------------------------------------------------------------
 
 /// `tokens` table DDL — shared by every SQL-backed auth store so the
 /// backends store the same shape and records can be moved between them.
@@ -884,9 +878,7 @@ fn insert_token(conn: &Connection, token_hash: &str, record: &TokenRecord) -> Re
     Ok(())
 }
 
-// ---------------------------------------------------------------
 // crypto helpers
-// ---------------------------------------------------------------
 
 /// Build a freshly-randomized secret for [`TokenStore::issue`].
 /// Pulls 32 bytes from the OS CSPRNG (`getrandom` → `/dev/urandom`

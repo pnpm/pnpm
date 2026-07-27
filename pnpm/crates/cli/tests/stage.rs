@@ -392,11 +392,9 @@ fn gzipped_tarball(entries: &[(&str, &str)]) -> Vec<u8> {
     encoder.finish().expect("finish the gzip stream")
 }
 
-// --------------------------------------------------------------------
 // End-to-end lifecycle against a hosted in-process pnpr. The shared
 // `pacquet_testing_utils` registry runs in proxy mode and rejects
 // publishes, so these tests serve their own static-mode instance.
-// --------------------------------------------------------------------
 
 /// A hosted pnpr on an ephemeral localhost port, backed by a fresh
 /// storage tempdir (returned so it outlives the test).

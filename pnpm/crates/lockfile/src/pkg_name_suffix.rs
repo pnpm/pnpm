@@ -49,7 +49,7 @@ impl<Suffix: FromStr> FromStr for PkgNameSuffix<Suffix> {
     type Err = ParsePkgNameSuffixError<Suffix::Err>;
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         // The parsing code of PkgName is insufficient for this, so the code have to be duplicated for now.
-        // TODO: use parser combinator pattern to enable code reuse
+        // FIXME: refactor to use the repo's parser-combinator pattern for code reuse
         let (name, suffix) = match value.split_first_char() {
             None => return Err(ParsePkgNameSuffixError::EmptyInput),
             Some(('@', rest)) => {
