@@ -5020,6 +5020,7 @@ dependencies = [
  "pacquet-lockfile",
  "pacquet-package-manifest",
  "pacquet-resolving-default-resolver",
+ "pacquet-resolving-parse-wanted-dependency",
  "pacquet-resolving-resolver-base",
  "pacquet-tarball",
  "pacquet-testing-utils",

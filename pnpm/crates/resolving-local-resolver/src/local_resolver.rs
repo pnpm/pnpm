@@ -9,6 +9,7 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_lockfile::{DirectoryResolution, LockfileResolution, TarballResolution};
 use pacquet_package_manifest::{PackageManifestError, safe_read_package_json_from_dir};
+use pacquet_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
 use pacquet_resolving_resolver_base::{LatestInfo, LatestQuery, PkgResolutionId, ResolveResult};
 use pacquet_tarball::{LocalTarballMetadata, TarballError, read_local_tarball_metadata};
 
@@ -143,6 +144,19 @@ pub enum ResolveLocalError {
         specifier: String,
     },
 
+    /// A `file:` tarball bundles a `package.json` whose name isn't a
+    /// valid npm package name. The name becomes both a dep-path segment
+    /// and a `node_modules/<name>` directory, so an invalid one either
+    /// fails to parse back out of the dep path or writes somewhere it
+    /// shouldn't.
+    #[display("Refusing to install {specifier} with the invalid package name {name:?}")]
+    #[diagnostic(code(ERR_PNPM_INVALID_DEPENDENCY_NAME))]
+    InvalidPackageName {
+        #[error(not(source))]
+        specifier: String,
+        name: String,
+    },
+
     /// Reading `<spec.fetchSpec>/package.json` raised something the
     /// resolver doesn't have a specific code for (malformed JSON,
     /// permission denied, ...).
@@ -215,15 +229,26 @@ async fn resolve_spec(
                 }
                 Err(err) => return Err(ResolveLocalError::ReadTarball(err)),
             };
-        // A bundled `package.json` that names no package is refused: the
-        // name is what prefixes the dep path, so the package would key
-        // no lockfile entry and install as a dangling symlink. An
-        // archive that ships no manifest at all is a different shape and
-        // stays tolerated here.
-        if has_manifest_entry && bundled_package_name(manifest.as_ref()).is_none() {
-            return Err(ResolveLocalError::MissingPackageName {
-                specifier: spec.normalized_bare_specifier,
-            });
+        // The bundled name prefixes the dep path and names the package's
+        // `node_modules` directory, so it has to be present and valid
+        // before it reaches either. An archive that ships no manifest at
+        // all is a different shape and stays tolerated here.
+        if has_manifest_entry {
+            match bundled_package_name(manifest.as_ref()) {
+                None => {
+                    return Err(ResolveLocalError::MissingPackageName {
+                        specifier: spec.normalized_bare_specifier,
+                    });
+                }
+                Some(name) if !is_valid_old_npm_package_name(name) => {
+                    let name = name.to_string();
+                    return Err(ResolveLocalError::InvalidPackageName {
+                        specifier: spec.normalized_bare_specifier,
+                        name,
+                    });
+                }
+                Some(_) => {}
+            }
         }
         return Ok(Some(LocalResolveResult {
             id: spec.id.clone(),

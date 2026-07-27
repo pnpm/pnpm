@@ -219,6 +219,7 @@ fn write_tarball(path: &Path) -> String {
 async fn fail_when_a_tarball_manifest_names_no_package() {
     for manifest in [
         serde_json::json!({}),
+        serde_json::json!({ "name": "" }),
         serde_json::json!({ "version": "1.0.0" }),
         serde_json::json!([1, 2]),
         serde_json::json!(null),
@@ -244,6 +245,42 @@ async fn fail_when_a_tarball_manifest_names_no_package() {
                 assert_eq!(specifier, "file:nameless-1.0.0.tgz");
             }
             other => panic!("expected MissingPackageName for {manifest}, got {other:?}"),
+        }
+    }
+}
+
+/// The bundled name becomes both a dep-path segment and a
+/// `node_modules/<name>` directory. pnpm refuses an invalid one with
+/// `ERR_PNPM_INVALID_DEPENDENCY_NAME`; letting `evil@name` through here
+/// yields the dep path `evil@name@file:<path>`, which parses back out as
+/// the unrelated package `evil` and links a dangling symlink.
+#[tokio::test]
+async fn fail_when_a_tarball_manifest_name_is_not_a_valid_npm_name() {
+    for name in ["evil@name", " lead-space", "../escape", ".hidden", "node_modules"] {
+        let tmp = TempDir::new().expect("tempdir");
+        let test_dir = tmp.path().join("tgz");
+        fs::create_dir_all(&test_dir).expect("create tgz dir");
+        fs::write(
+            test_dir.join("bad-1.0.0.tgz"),
+            pacquet_testing_utils::fixtures::tarball_with_manifest(
+                &serde_json::json!({ "name": name, "version": "1.0.0" }),
+            ),
+        )
+        .expect("write tarball");
+
+        let wd = WantedLocalDependency {
+            bare_specifier: "file:./bad-1.0.0.tgz".to_string(),
+            injected: false,
+        };
+        let err = resolve_from_local_scheme(&ctx_default(), &wd, &opts(&test_dir))
+            .await
+            .expect_err(&format!("an invalid package name must be refused: {name:?}"));
+        match err {
+            ResolveLocalError::InvalidPackageName { specifier, name: got } => {
+                assert_eq!(specifier, "file:bad-1.0.0.tgz");
+                assert_eq!(got, name);
+            }
+            other => panic!("expected InvalidPackageName for {name:?}, got {other:?}"),
         }
     }
 }
