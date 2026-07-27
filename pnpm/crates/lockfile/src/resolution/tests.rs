@@ -16,6 +16,22 @@ fn integrity(integrity_str: &str) -> Integrity {
     integrity_str.parse().expect("parse integrity string")
 }
 
+/// An `integrity: ''` entry — what an edited lockfile carries when the hash
+/// is emptied instead of deleted — parses into an SRI with zero hashes. It
+/// pins nothing, so `checkable_integrity` reports it as absent while the raw
+/// accessor still shows what the lockfile said.
+#[test]
+fn empty_integrity_string_is_not_checkable() {
+    let yaml = text_block! {
+        "tarball: https://registry.example/p/-/p-1.0.0.tgz"
+        "integrity: ''"
+    };
+    let received: LockfileResolution = serde_saphyr::from_str(yaml).unwrap();
+    dbg!(&received);
+    assert!(received.integrity().is_some());
+    assert!(received.checkable_integrity().is_none());
+}
+
 /// Render a resolution exactly as it appears under a `packages:` entry, then
 /// dedent the `resolution:` block. Exercises the real write path: the deep key
 /// sort and the single-line-vs-block decision both depend on the `resolution`

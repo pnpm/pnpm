@@ -128,6 +128,41 @@ fn remote_tarball_resolution_without_integrity_is_refused() {
     );
 }
 
+/// An emptied-out `integrity: ''` pins nothing, so it is refused on the
+/// same footing as an absent field — for a registry resolution too,
+/// whose integrity is structurally mandatory but can still be empty.
+#[test]
+fn empty_integrity_is_refused_like_a_missing_one() {
+    let config = Config::new();
+    let empty = "".parse::<ssri::Integrity>().expect("empty integrity parses");
+    let tarball = "https://example.com/pkg-from-tarball-1.0.0.tgz";
+    let cases = [
+        (
+            LockfileResolution::Tarball(TarballResolution {
+                tarball: tarball.to_string(),
+                integrity: Some(empty.clone()),
+                git_hosted: None,
+                path: None,
+            }),
+            format!("pkg-from-tarball@{tarball}"),
+        ),
+        (
+            LockfileResolution::Registry(pacquet_lockfile::RegistryResolution { integrity: empty }),
+            "acme@1.0.0".to_string(),
+        ),
+    ];
+
+    for (resolution, key) in cases {
+        let package_key: PackageKey = key.parse().expect("parse package key");
+        let err = tarball_url_and_integrity(&resolution, &package_key, &config)
+            .expect_err("an empty integrity is not fetchable");
+        assert!(
+            matches!(&err, InstallPackageBySnapshotError::MissingTarballIntegrity { .. }),
+            "expected MissingTarballIntegrity for `{package_key}`, got {err:?}",
+        );
+    }
+}
+
 #[test]
 fn local_file_tarball_install_url_resolves_relative_specs_against_workspace_root() {
     let tmp = tempfile::tempdir().expect("tempdir");
