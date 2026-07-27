@@ -10,7 +10,7 @@ import { execPnpm } from '../utils/index.js'
 
 const ENGINE_DIR = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
 
-test.skip('caching side effects of native package', async function () {
+test('caching side effects of native package', async function () {
   const project = prepare()
 
   await execPnpm(['add', '--side-effects-cache', 'diskusage@1.1.3'])
@@ -30,7 +30,7 @@ test.skip('caching side effects of native package', async function () {
   expect(stat1.ino).not.toBe(stat3.ino)
 })
 
-test.skip('using side effects cache', async function () {
+test('using side effects cache', async function () {
   const project = prepare()
 
   // Right now, hardlink does not work with side effects, so we specify copy as the packageImportMethod
@@ -47,7 +47,7 @@ test.skip('using side effects cache', async function () {
   expect(fs.existsSync('node_modules/diskusage/build/new-file.txt')).toBeTruthy()
 })
 
-test.skip('readonly side effects cache', async function () {
+test('readonly side effects cache', async function () {
   const project = prepare()
 
   await execPnpm(['add', 'diskusage@1.1.2', '--side-effects-cache', '--no-verify-store-integrity'])

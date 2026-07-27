@@ -445,8 +445,6 @@ impl Storage {
         Storage { hosted: self.hosted.namespaced(org), cached: self.cached.clone() }
     }
 
-    //  Authoritative (hosted) store --------------------------------
-
     /// Read the authoritative packument for `name`, fresh or stale.
     /// Hosted content has no TTL — it is the source of truth.
     pub async fn read_hosted_packument(&self, name: &PackageName) -> Result<Option<Vec<u8>>> {
@@ -554,7 +552,6 @@ impl Storage {
         Ok(hosted || cached)
     }
 
-    //  Per-upstream private cache (the `/~<name>/` registry endpoint) -
     //
     // A private upstream's packuments and tarballs are cached under a namespace
     // derived from the upstream and its rotation generation, kept separate from
@@ -653,7 +650,6 @@ impl Storage {
         crate::journal::PublishJournal::new(root.join(crate::journal::JOURNAL_DIR))
     }
 
-    //  Staged publishes (`-/stage`) ----------------------------------
     //
     // A staged publish is a publish document held back until it is approved
     // (`POST /-/stage/:id/approve`) or rejected (`DELETE /-/stage/:id`). Each

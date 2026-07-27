@@ -3,19 +3,14 @@ use pacquet_package_manifest::DependencyGroup;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-/// Per-dependency metadata entries from an importer's `dependenciesMeta`.
-///
-/// Each key is a dependency alias; the value carries optional flags that
-/// control how that dependency is installed.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+/// Per-dependency metadata from `dependenciesMeta` in `package.json`.
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DependencyMeta {
-    /// When `true`, the dependency is hard-linked (injected) into the
-    /// importer's `node_modules` instead of being symlinked from the
-    /// virtual store.
+    /// When `true`, the dependency is injected into `node_modules` instead of symlinked.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub injected: Option<bool>,
-    /// Path to a patch file that should be applied to this dependency.
+    /// Path to a patch file to apply.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub patch: Option<String>,
 }
