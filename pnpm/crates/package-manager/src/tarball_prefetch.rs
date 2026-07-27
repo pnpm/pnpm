@@ -301,7 +301,7 @@ impl TarballPrefetcher {
             let (tarball_url, integrity) =
                 tarball_url_and_integrity(&metadata.resolution, package_key, config)
                     .expect("registry resolutions are always fetchable");
-            let package_id = package_key.without_peer().to_string();
+            let package_id = package_key.pkg_id();
             let integrity =
                 integrity.expect("registry resolutions always carry an integrity").to_string();
             pending.push(PendingPrefetch {

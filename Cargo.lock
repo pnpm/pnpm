@@ -4481,6 +4481,7 @@ dependencies = [
  "node-semver",
  "pacquet-catalogs-types",
  "pacquet-crypto-hash",
+ "pacquet-deps-path",
  "pacquet-diagnostics",
  "pacquet-fs",
  "pacquet-package-manifest",

@@ -318,3 +318,52 @@ fn frozen_install_refuses_a_remote_tarball_without_integrity() {
 
     drop((root, mock_instance, tarball_server));
 }
+
+/// A remote tarball lands in the store index under exactly one row, keyed
+/// by the bare URL — the `pkgId` the TypeScript CLI writes, so a store
+/// warmed by one stack stays warm for the other
+/// ([#13365](https://github.com/pnpm/pnpm/issues/13365)).
+///
+/// Two rows appeared here before: the resolve-time fetch keyed its row by
+/// the manifest's `name@version` while the install pass keyed one by the
+/// lockfile's `name@<url>`, so one tarball cost two index entries and two
+/// extractions.
+#[test]
+fn a_remote_tarball_is_indexed_once_under_the_bare_url() {
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let store_dir = pacquet_store_dir::StoreDir::from(npmrc_info.store_dir.clone());
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let tarball_path = "/pkg-from-tarball-1.0.0.tgz";
+    let mut tarball_server = mockito::Server::new();
+    let head_mock = tarball_server.mock("HEAD", tarball_path).with_status(200).create();
+    let get_mock = tarball_server
+        .mock("GET", tarball_path)
+        .with_status(200)
+        .with_body(minimal_tarball("pkg-from-tarball", "1.0.0"))
+        .create();
+    let tarball_url = format!("{}{tarball_path}", tarball_server.url());
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "pkg-from-tarball": &tarball_url } }).to_string(),
+    )
+    .expect("write package.json");
+    pacquet_at(&workspace).with_arg("install").assert().success();
+
+    let keys = pacquet_store_dir::StoreIndex::open_readonly_in(&store_dir)
+        .expect("open the store index")
+        .keys()
+        .expect("read the store index keys");
+    let rows: Vec<&String> =
+        keys.iter().filter(|key| key.contains("pkg-from-tarball")).collect::<Vec<_>>();
+    assert_eq!(rows.len(), 1, "one tarball dependency must occupy one store-index row: {keys:?}");
+    assert!(
+        rows[0].ends_with(&format!("\t{tarball_url}")),
+        "the store-index row must be keyed by the bare tarball URL: {:?}",
+        rows[0],
+    );
+
+    drop((head_mock, get_mock, root, mock_instance, tarball_server));
+}

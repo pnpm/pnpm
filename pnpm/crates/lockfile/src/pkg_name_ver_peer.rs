@@ -45,6 +45,26 @@ impl PkgNameVerPeer {
     pub fn without_peer(&self) -> PkgNameVerPeer {
         PkgNameVerPeer::new(self.name.clone(), self.suffix.without_peer())
     }
+
+    /// The package id pnpm addresses this package by outside the
+    /// lockfile: the store-index row key
+    /// ([`pacquet_store_dir::store_index_key`] /
+    /// [`pacquet_store_dir::git_hosted_store_index_key`] — named in
+    /// prose because `pacquet-lockfile` deliberately does not depend on
+    /// `pacquet-store-dir`), the `packageId` of a `pnpm:progress`
+    /// event, and the argument the git fetchers hand to the
+    /// `allowBuild` policy.
+    ///
+    /// For a registry package this is the peer-stripped key itself
+    /// (`name@version`). For a non-registry resolution — a URL tarball,
+    /// a git-host archive, a `type: git` dependency — it is the bare
+    /// resolution id, without the `name@` prefix the lockfile key
+    /// carries. The store index is a contract shared with the
+    /// TypeScript CLI, which keys those rows by the bare id.
+    #[must_use]
+    pub fn pkg_id(&self) -> String {
+        pacquet_deps_path::try_get_package_id(&self.to_string()).into_owned()
+    }
 }
 
 #[cfg(test)]

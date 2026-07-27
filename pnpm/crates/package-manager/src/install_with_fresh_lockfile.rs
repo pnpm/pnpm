@@ -881,8 +881,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                     .filter_map(|(key, metadata)| match &metadata.resolution {
                         LockfileResolution::Tarball(t) if t.git_hosted != Some(true) => {
                             let integrity = t.integrity.clone()?;
-                            let cache_key =
-                                store_index_key(&integrity.to_string(), &key.to_string());
+                            let cache_key = store_index_key(&integrity.to_string(), &key.pkg_id());
                             Some((t.tarball.clone(), (integrity, cache_key)))
                         }
                         _ => None,
@@ -2651,10 +2650,9 @@ fn is_partial_workspace_selection(
 /// install.
 ///
 /// Skips nodes whose resolver result isn't a non-git-hosted tarball
-/// with an `integrity` and a resolvable `name@version` (from `name_ver`
-/// or, for remote-tarball direct deps, the fetched manifest):
-/// git-hosted tarballs and directory / git / binary resolutions use a
-/// different key shape (`pkg_id`-only) and route through the cold path.
+/// with an `integrity`: git-hosted tarballs and directory / git /
+/// binary resolutions use a different key shape (`pkg_id`-only) and
+/// route through the cold path.
 fn collect_prefetch_cache_keys_from_graph(
     graph: &pacquet_resolving_deps_resolver::DependenciesGraph,
 ) -> Vec<String> {
@@ -2670,18 +2668,12 @@ fn collect_prefetch_cache_keys_from_graph(
                 return None;
             }
             let integrity = tarball.integrity.as_ref()?.to_string();
-            // `name_ver` when the resolver produced one (npm registry);
-            // otherwise the manifest's `name@version` — remote-tarball
-            // direct deps learn both from `package.json`, and the
-            // resolve-time fetch keyed the store-index row the same way.
-            let pkg_id = if let Some(name_ver) = node.resolve_result.name_ver.as_ref() {
-                format!("{}@{}", name_ver.name, name_ver.suffix)
-            } else {
-                let manifest = node.resolve_result.manifest.as_deref()?;
-                let name = manifest.get("name")?.as_str()?;
-                let version = manifest.get("version")?.as_str()?;
-                format!("{name}@{version}")
-            };
+            // The node's dep path carries the same `name@<id>` shape the
+            // lockfile records, so stripping it yields the `pkg_id` the
+            // install pass and the resolve-time fetch address the row by
+            // — `name@version` for a registry package, the bare URL for a
+            // remote tarball.
+            let pkg_id = pacquet_deps_path::try_get_package_id(node.dep_path.as_str());
             Some(pacquet_store_dir::store_index_key(&integrity, &pkg_id))
         })
         .collect();

@@ -683,6 +683,38 @@ fn updating_a_registry_package_that_has_a_git_dependency() {
     drop((root, npmrc_info));
 }
 
+/// The store index is shared with the TypeScript CLI, which keys a git
+/// dependency's row by the bare `git+…#<commit>` resolution id. Keying
+/// it by the lockfile's `<name>@git+…` form instead leaves a store
+/// warmed by one stack cold for the other
+/// ([#13365](https://github.com/pnpm/pnpm/issues/13365)).
+#[test]
+fn a_git_dependency_is_indexed_under_the_bare_resolution_id() {
+    let fixture = CommandTempCwd::init();
+    let (repo, commit) = say_hi_repo(fixture.root.path());
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } = fixture.add_mocked_registry();
+    write_dependencies(&workspace, &[("hi", &repo.git_url_at(&commit))]);
+
+    pacquet.with_args(["install"]).assert().success();
+
+    let store_dir = pacquet_store_dir::StoreDir::from(npmrc_info.store_dir.clone());
+    let keys = pacquet_store_dir::StoreIndex::open_readonly_in(&store_dir)
+        .expect("open the store index")
+        .keys()
+        .expect("read the store index keys");
+    let pkg_id = repo.git_url_at(&commit);
+    assert!(
+        keys.iter().any(|key| key == &format!("{pkg_id}\tbuilt")),
+        "no store-index row keyed by the bare resolution id {pkg_id:?}: {keys:?}",
+    );
+    assert!(
+        !keys.iter().any(|key| key.starts_with("hi@")),
+        "the lockfile-shaped `<name>@<id>` key must not reach the store index: {keys:?}",
+    );
+
+    drop((root, npmrc_info));
+}
+
 /// Append an `allowBuilds` block to the `pnpm-workspace.yaml` the
 /// harness wrote, opting the listed `<name>@<specifier>` keys into
 /// running lifecycle scripts.

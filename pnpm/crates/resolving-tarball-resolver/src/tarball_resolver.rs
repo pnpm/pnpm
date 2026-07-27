@@ -169,9 +169,12 @@ impl TarballResolver {
             store_dir: ctx.store_dir,
             store_index_writer: ctx.store_index_writer.clone(),
             package_url: &resolved_url,
-            // A direct https tarball has no resolver-known name@version, so the URL is the
-            // only identifier; such tarballs carry no scoped-registry auth.
-            package_id: &resolved_url,
+            // The bare specifier — not `resolved_url` — is this
+            // dependency's `pkg_id`: it is what the lockfile key carries
+            // and therefore what the install pass keys the store-index
+            // row by. The two differ when an immutable response
+            // redirects. Such tarballs carry no scoped-registry auth.
+            package_id: &normalized_bare_specifier,
             auth_headers: &ctx.auth_headers,
             retry_opts: ctx.retry_opts,
             // A plain tarball is the package; its manifest is at the root.

@@ -770,7 +770,7 @@ impl CreateVirtualStore<'_> {
             // hits — the link work just happens later, in
             // `link_hoisted_modules`.
             for (snapshot_key, _, _, cache_key, _) in &warm {
-                let package_id = snapshot_key.without_peer().to_string();
+                let package_id = snapshot_key.pkg_id();
                 emit_warm_snapshot_progress::<Reporter>(
                     &package_id,
                     requester,
@@ -1157,7 +1157,7 @@ fn link_slots_parallel<Reporter: self::Reporter>(
     let phase_start = std::time::Instant::now();
     let link_work = || {
         slots.par_iter().try_for_each(|slot| {
-            let package_id = slot.snapshot_key.without_peer().to_string();
+            let package_id = slot.snapshot_key.pkg_id();
             if let Some(cache_key) = slot.warm_cache_key {
                 emit_warm_snapshot_progress::<Reporter>(
                     &package_id,
@@ -1240,7 +1240,7 @@ fn snapshot_cache_key(
             metadata_key: metadata_key.to_string(),
         }
     })?;
-    let pkg_id = metadata_key.to_string();
+    let pkg_id = metadata_key.pkg_id();
     match &metadata.resolution {
         LockfileResolution::Tarball(t) => {
             // A tarball with no integrity that isn't one of the shapes

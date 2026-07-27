@@ -298,7 +298,7 @@ impl InstallPackageBySnapshot<'_> {
         } = self;
 
         // TODO: skip when already exists in store?
-        let package_id = package_key.without_peer().to_string();
+        let package_id = package_key.pkg_id();
         emit_progress_resolved::<Reporter>(&package_id, requester);
 
         // Adapter shared between the `Git` arm below and the
@@ -904,7 +904,7 @@ async fn fetch_binary_resolution_to_cas<Reporter: self::Reporter>(
     requester: &str,
     ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
 ) -> Result<HashMap<String, PathBuf>, InstallPackageBySnapshotError> {
-    let package_id = package_key.without_peer().to_string();
+    let package_id = package_key.pkg_id();
 
     // Synthesize the `package.json` runtime archives (Node.js / Bun /
     // Deno) don't ship, and hand it to the fetcher as `append_manifest`.
