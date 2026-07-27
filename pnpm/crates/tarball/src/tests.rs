@@ -2,10 +2,11 @@ use super::{
     DownloadTarballToStore, FetchTarballForResolution, HttpStatusError,
     MAX_UNTRUSTED_PREALLOC_BYTES, MemCache, NetworkError, PrefetchedCasPaths, RetryOpts,
     SharedReportedProgressKeys, TarballError, VerifyChecksumError, allocate_local_tarball_buffer,
-    allocate_tarball_buffer, apply_append_manifest, bounded_gzip_size_hint, decompress_gzip,
-    download_priority, extract_tarball_entries, extract_zip_entries, fetch_and_extract_with_retry,
-    is_transient_error, local_file_tarball_path, normalize_bundled_manifest, open_local_tarball,
-    prefetch_cas_paths, read_local_tarball_buffer, read_local_tarball_metadata,
+    allocate_tarball_buffer, apply_append_manifest, apply_placeholder_manifest,
+    bounded_gzip_size_hint, decompress_gzip, download_priority, extract_tarball_entries,
+    extract_zip_entries, fetch_and_extract_with_retry, is_transient_error, local_file_tarball_path,
+    normalize_bundled_manifest, open_local_tarball, prefetch_cas_paths, read_local_tarball_buffer,
+    read_local_tarball_metadata,
 };
 use pacquet_network::{AuthHeaders, ThrottledClient, UNPRIORITIZED};
 use pacquet_reporter::SilentReporter;
@@ -3628,4 +3629,46 @@ fn apply_append_manifest_is_a_noop_when_the_archive_ships_a_package_json() {
     assert!(cas_paths.is_empty(), "the real package.json is not overwritten in cas_paths");
     assert_eq!(idx.files["package.json"].digest, "kept", "the row's real file entry is kept");
     assert!(idx.manifest.is_none(), "the archive's manifest handling is left alone");
+}
+
+/// An archive with no `package.json` of its own gets pnpm's placeholder,
+/// so `package.json` stays every package slot's completion marker. The
+/// placeholder is not the package's manifest, so the row's bundled
+/// `manifest` must stay empty — see
+/// <https://github.com/pnpm/pnpm/issues/13410>.
+#[test]
+fn apply_placeholder_manifest_marks_an_archive_that_ships_no_package_json() {
+    let (_keep, store_path) = tempdir_with_leaked_path();
+    let mut cas_paths = HashMap::new();
+    let mut idx = PackageFilesIndex { algo: "sha512".to_string(), ..Default::default() };
+
+    apply_placeholder_manifest(store_path, &mut cas_paths, &mut idx)
+        .expect("write the placeholder into the CAS");
+
+    assert!(cas_paths.contains_key("package.json"), "cas_paths gains package.json");
+    let file = idx.files.get("package.json").expect("row records the placeholder file");
+    assert!(!file.digest.is_empty(), "the placeholder is content-addressed");
+    let written =
+        std::fs::read_to_string(&cas_paths["package.json"]).expect("read the placeholder");
+    assert!(written.contains("_pnpmPlaceholder"), "got {written}");
+    assert!(idx.manifest.is_none(), "a placeholder is not the package's bundled manifest");
+}
+
+/// A real `package.json` — the archive's own, or the one
+/// `apply_append_manifest` synthesized for a runtime — always wins over
+/// the placeholder.
+#[test]
+fn apply_placeholder_manifest_is_a_noop_when_a_package_json_is_already_recorded() {
+    let (_keep, store_path) = tempdir_with_leaked_path();
+    let existing =
+        CafsFileInfo { digest: "kept".to_string(), mode: 0o644, size: 3, checked_at: None };
+    let mut idx = PackageFilesIndex { algo: "sha512".to_string(), ..Default::default() };
+    idx.files.insert("package.json".to_string(), existing);
+    let mut cas_paths = HashMap::new();
+
+    apply_placeholder_manifest(store_path, &mut cas_paths, &mut idx)
+        .expect("a no-op still returns Ok");
+
+    assert!(cas_paths.is_empty(), "the real package.json is not overwritten in cas_paths");
+    assert_eq!(idx.files["package.json"].digest, "kept", "the row's real file entry is kept");
 }

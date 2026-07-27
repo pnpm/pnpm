@@ -15,9 +15,9 @@ use pacquet_catalogs_types::Catalogs;
 use pacquet_lockfile::{
     BundledDependencies, CatalogSnapshots, ComVer, ImporterDepVersion, Lockfile,
     LockfileResolution, LockfileSettings, LockfileVersion, PackageKey, PackageMetadata,
-    ParseImporterDepVersionError, PeerDependencyMeta, PkgName, PkgNameVerPeer, PkgVerPeer,
-    ProjectSnapshot, ResolvedCatalogEntry, ResolvedDependencyMap, ResolvedDependencySpec,
-    SnapshotDepRef, SnapshotEntry, VersionPart,
+    ParseImporterDepVersionError, ParsePkgNameSuffixError, ParsePkgVerPeerError,
+    PeerDependencyMeta, PkgName, PkgNameVerPeer, PkgVerPeer, ProjectSnapshot, ResolvedCatalogEntry,
+    ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry, VersionPart,
 };
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_resolving_deps_resolver::{DepPath, DependenciesGraph, DependenciesGraphNode};
@@ -122,6 +122,22 @@ pub enum DependenciesGraphToLockfileError {
         dep_path: String,
         #[error(source)]
         source: Box<ParseImporterDepVersionError>,
+    },
+
+    /// A resolved package whose depPath parses as no [`PackageKey`], so
+    /// it can key neither `packages:` nor `snapshots:`. Every resolution
+    /// but a `link:` gets a name prefixed onto its depPath — from the
+    /// resolver, or failing that from the manifest the deps-resolver
+    /// synthesizes — so reaching here means a resolver produced a
+    /// nameless depPath. Writing the lockfile anyway would leave the
+    /// importer pointing at a package neither map describes, and the
+    /// install would link a dangling symlink into a virtual-store
+    /// directory nothing created.
+    #[display("Resolved dependency path {dep_path:?} keys no lockfile entry: {source}")]
+    UnkeyedDepPath {
+        dep_path: String,
+        #[error(source)]
+        source: Box<ParsePkgNameSuffixError<ParsePkgVerPeerError>>,
     },
 }
 
@@ -522,7 +538,20 @@ fn build_packages_and_snapshots(
     let mut snapshots: HashMap<PackageKey, SnapshotEntry> = HashMap::new();
 
     for node in graph.values() {
-        let Ok(snapshot_key) = node.dep_path.as_str().parse::<PackageKey>() else { continue };
+        let dep_path = node.dep_path.as_str();
+        let snapshot_key = match dep_path.parse::<PackageKey>() {
+            Ok(snapshot_key) => snapshot_key,
+            // A workspace link is the one node with no row of its own —
+            // it resolves as its own importer and pnpm writes it none
+            // either.
+            Err(_) if dep_path.starts_with("link:") => continue,
+            Err(source) => {
+                return Err(DependenciesGraphToLockfileError::UnkeyedDepPath {
+                    dep_path: dep_path.to_string(),
+                    source: Box::new(source),
+                });
+            }
+        };
         let metadata_key = snapshot_key.without_peer();
 
         let snapshot = build_snapshot_entry(node, graph, optional_overrides);

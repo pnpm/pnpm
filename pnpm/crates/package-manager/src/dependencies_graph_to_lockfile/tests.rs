@@ -852,18 +852,19 @@ fn non_host_git_dependency_records_bare_git_url_in_importer() {
     );
 }
 
-#[test]
-fn malformed_importer_dependency_path_returns_structured_error() {
+/// Build the single-importer conversion of a graph holding one node
+/// under `dep_path`, and return the error it fails with.
+fn error_from_single_node_graph(alias: &str, dep_path: &str) -> DependenciesGraphToLockfileError {
     let (_tmp, manifest) = write_manifest(json!({
         "name": "fixture",
         "version": "1.0.0",
-        "dependencies": { "broken": "^1.0.0" },
+        "dependencies": { alias: "^1.0.0" },
     }));
-    let dep_path = DepPath::from("broken@1.0.0(".to_string());
+    let dep_path = DepPath::from(dep_path.to_string());
     let mut node = make_node(
-        "broken",
+        alias,
         "1.0.0",
-        json!({ "name": "broken", "version": "1.0.0" }),
+        json!({ "name": alias, "version": "1.0.0" }),
         BTreeMap::new(),
         BTreeMap::new(),
         HashSet::new(),
@@ -872,18 +873,40 @@ fn malformed_importer_dependency_path_returns_structured_error() {
 
     let mut graph = DependenciesGraph::new();
     graph.insert(dep_path.clone(), node);
-    let direct = BTreeMap::from([("broken".to_string(), dep_path)]);
+    let direct = BTreeMap::from([(alias.to_string(), dep_path)]);
 
-    let error = dbg!(
+    dbg!(
         try_dependencies_graph_to_lockfile(single_importer_opts(
             &manifest, &graph, direct, false, false, None, None,
         ))
-        .unwrap_err(),
-    );
+        .unwrap_err()
+    )
+}
 
-    let DependenciesGraphToLockfileError::ImporterDependency { alias, dep_path, .. } = error;
+#[test]
+fn malformed_importer_dependency_path_returns_structured_error() {
+    let error = error_from_single_node_graph("broken", "1.0.0(react@17.0.0");
+
+    let DependenciesGraphToLockfileError::ImporterDependency { alias, dep_path, .. } = error else {
+        panic!("expected an importer-dependency error, got {error}");
+    };
     assert_eq!(alias, "broken");
-    assert_eq!(dep_path, "broken@1.0.0(");
+    assert_eq!(dep_path, "1.0.0(react@17.0.0");
+}
+
+/// A resolver that hands back no package name leaves a bare
+/// `file:<path>` depPath, which keys neither `packages:` nor
+/// `snapshots:`. Dropping it would write a lockfile whose importer
+/// points at a package neither map describes — see
+/// <https://github.com/pnpm/pnpm/issues/13410>.
+#[test]
+fn nameless_dep_path_returns_structured_error() {
+    let error = error_from_single_node_graph("no-manifest", "file:no-manifest-1.0.0.tgz");
+
+    let DependenciesGraphToLockfileError::UnkeyedDepPath { dep_path, .. } = error else {
+        panic!("expected an unkeyed-depPath error, got {error}");
+    };
+    assert_eq!(dep_path, "file:no-manifest-1.0.0.tgz");
 }
 
 #[test]

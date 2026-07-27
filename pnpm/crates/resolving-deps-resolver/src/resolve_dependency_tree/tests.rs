@@ -666,3 +666,76 @@ fn deprecated_pkg_name_ver_falls_back_to_the_manifest() {
         None,
     );
 }
+
+/// A resolver that hands back no manifest still has to give the package
+/// an identity — see <https://github.com/pnpm/pnpm/issues/13410>.
+mod fallback_manifest {
+    use pacquet_lockfile::{DirectoryResolution, LockfileResolution};
+    use pacquet_resolving_resolver_base::{CurrentPkg, PkgResolutionId, WantedDependency};
+
+    fn wanted(alias: Option<&str>, bare_specifier: Option<&str>) -> WantedDependency {
+        WantedDependency {
+            alias: alias.map(str::to_string),
+            bare_specifier: bare_specifier.map(str::to_string),
+            ..WantedDependency::default()
+        }
+    }
+
+    fn current_pkg(name: Option<&str>, version: Option<&str>) -> CurrentPkg {
+        CurrentPkg {
+            id: PkgResolutionId::from("file:sub"),
+            name: name.map(str::to_string),
+            version: version.map(str::to_string),
+            resolution: LockfileResolution::Directory(DirectoryResolution {
+                directory: "sub".to_string(),
+            }),
+            published_at: None,
+        }
+    }
+
+    #[test]
+    fn the_alias_names_the_package() {
+        assert_eq!(
+            super::super::fallback_manifest(
+                &wanted(Some("no-manifest"), Some("file:./no-manifest-1.0.0.tgz")),
+                None,
+            ),
+            serde_json::json!({ "name": "no-manifest", "version": "0.0.0" }),
+        );
+    }
+
+    #[test]
+    fn an_unaliased_dep_is_named_by_its_specifier_s_last_segment() {
+        assert_eq!(
+            super::super::fallback_manifest(
+                &wanted(None, Some("https://example.com/no-manifest-1.0.0.tgz")),
+                None,
+            ),
+            serde_json::json!({ "name": "no-manifest-1.0.0.tgz", "version": "0.0.0" }),
+        );
+    }
+
+    /// A pin the lockfile already recorded is a better identity than one
+    /// derived from the specifier, so it wins.
+    #[test]
+    fn the_lockfile_s_pin_wins_over_the_alias() {
+        assert_eq!(
+            super::super::fallback_manifest(
+                &wanted(Some("sub"), Some("file:./sub")),
+                Some(&current_pkg(Some("sub"), Some("2.0.0"))),
+            ),
+            serde_json::json!({ "name": "sub", "version": "2.0.0" }),
+        );
+    }
+
+    #[test]
+    fn a_half_recorded_pin_falls_through_to_the_alias() {
+        assert_eq!(
+            super::super::fallback_manifest(
+                &wanted(Some("sub"), Some("file:./sub")),
+                Some(&current_pkg(Some("sub"), None)),
+            ),
+            serde_json::json!({ "name": "sub", "version": "0.0.0" }),
+        );
+    }
+}

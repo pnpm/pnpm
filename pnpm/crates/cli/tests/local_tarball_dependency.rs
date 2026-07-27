@@ -12,7 +12,7 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pacquet_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
-    fixtures::tarball_with_manifest,
+    fixtures::{tarball_with_manifest, tarball_without_manifest},
 };
 use std::{fs, path::Path, process::Command};
 
@@ -74,6 +74,57 @@ fn local_tarball_dependency_is_recorded_and_installed() {
         .assert()
         .success();
     assert!(installed.exists(), "a frozen install must materialize the tarball too");
+
+    drop((root, mock_instance));
+}
+
+/// An archive with no `package.json` at all has no name to prefix its
+/// dep path with, so pnpm synthesizes one from the alias and installs it
+/// at version `0.0.0`, writing a placeholder `package.json` into the
+/// extraction.
+///
+/// Covers <https://github.com/pnpm/pnpm/issues/13410>.
+#[test]
+fn local_tarball_without_a_bundled_manifest_installs_under_its_alias() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(workspace.join("no-manifest-1.0.0.tgz"), tarball_without_manifest())
+        .expect("write tarball");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "root",
+            "version": "1.0.0",
+            "dependencies": { "no-manifest": "file:./no-manifest-1.0.0.tgz" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet.with_arg("install").assert().success();
+
+    let lockfile =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    assert!(
+        lockfile.contains("no-manifest@file:no-manifest-1.0.0.tgz:"),
+        "the alias must key the tarball in packages: and snapshots::\n{lockfile}",
+    );
+    assert!(
+        lockfile.contains("version: 0.0.0"),
+        "a package with no manifest is recorded at version 0.0.0:\n{lockfile}",
+    );
+
+    let installed = workspace
+        .join("node_modules/.pnpm/no-manifest@file+no-manifest-1.0.0.tgz/node_modules/no-manifest");
+    assert!(installed.join("README.md").exists(), "the archive's contents must be extracted");
+    let placeholder =
+        fs::read_to_string(installed.join("package.json")).expect("read the placeholder manifest");
+    assert!(
+        placeholder.contains("_pnpmPlaceholder"),
+        "an extraction with no manifest of its own gets pnpm's placeholder: {placeholder}",
+    );
 
     drop((root, mock_instance));
 }

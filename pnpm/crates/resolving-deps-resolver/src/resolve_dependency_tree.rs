@@ -12,8 +12,8 @@ use pacquet_hooks::PnpmfileHooks;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest, engines_runtime_dependencies};
 use pacquet_patching::{PatchGroupRecord, PatchKeyConflictError, get_patch_info};
 use pacquet_resolving_resolver_base::{
-    NoMatchingVersionError, PreferredVersionsOverlay, RegistryResponseError, ResolveError,
-    ResolveOptions, Resolver, WantedDependency,
+    CurrentPkg, NoMatchingVersionError, PreferredVersionsOverlay, RegistryResponseError,
+    ResolveError, ResolveOptions, Resolver, WantedDependency,
 };
 use pipe_trait::Pipe;
 use serde_json::Value;
@@ -2266,6 +2266,10 @@ where
             specifier: render_specifier(wanted),
         });
     };
+    if result_inner.manifest.is_none() {
+        result_inner.manifest =
+            Some(Arc::new(fallback_manifest(wanted, opts.current_pkg.as_ref())));
+    }
     // Apply the configured `readPackageHook` (today:
     // `packageExtensions`) to the manifest fragment before
     // anything downstream sees it. The hook clones the inner `Value`
@@ -2309,6 +2313,44 @@ where
         .entry(cache_key)
         .or_insert_with(|| Arc::clone(&result));
     Ok(result)
+}
+
+/// Stand in for the manifest a resolver didn't supply (pnpm's
+/// `getManifestFromResponse`).
+///
+/// Every consumer downstream of the resolver chain reads the package's
+/// identity off its manifest — most of all
+/// [`build_pkg_id_with_patch_hash`], which has no name to prefix the dep
+/// path with when there is none, leaving a bare `file:<path>` / URL that
+/// keys no `packages:` row. A package with no `package.json` of its own
+/// (an archive that ships none, a directory pin restored from the
+/// lockfile) still has to install, so it borrows the identity the
+/// lockfile recorded for it, or failing that its alias and `0.0.0` — the
+/// version pnpm writes into `packages:` for such a package.
+fn fallback_manifest(
+    wanted: &WantedDependency,
+    current_pkg: Option<&CurrentPkg>,
+) -> pacquet_resolving_resolver_base::DependencyManifest {
+    if let Some(current) = current_pkg
+        && let Some(name) = current.name.as_deref().filter(|name| !name.is_empty())
+        && let Some(version) = current.version.as_deref().filter(|version| !version.is_empty())
+    {
+        return serde_json::json!({ "name": name, "version": version });
+    }
+    let name = match wanted.alias.as_deref().filter(|alias| !alias.is_empty()) {
+        Some(alias) => alias,
+        // A specifier's last path segment is the closest thing to a name
+        // an unaliased dep carries: `file:./no-manifest-1.0.0.tgz` and
+        // `https://host/no-manifest-1.0.0.tgz` both name the archive.
+        None => wanted
+            .bare_specifier
+            .as_deref()
+            .unwrap_or_default()
+            .rsplit('/')
+            .next()
+            .unwrap_or_default(),
+    };
+    serde_json::json!({ "name": name, "version": "0.0.0" })
 }
 
 /// Wrap a resolver-chain failure, keeping the pnpm error code of the ones
@@ -3460,9 +3502,10 @@ fn extract_peer_dependencies(
 /// `true` when the package has no `dependencies`, `optionalDependencies`,
 /// `peerDependencies`, or `peerDependenciesMeta`.
 ///
-/// Conservatively returns `false` when the manifest is missing — a
-/// future visit may reveal children, and collapsing onto a leaf
-/// `NodeId` would lose that information.
+/// Conservatively returns `false` when the manifest is missing —
+/// collapsing onto a leaf `NodeId` would claim knowledge of children
+/// there is none of. Resolutions reaching here always carry one, real
+/// or synthesized by [`fallback_manifest`].
 fn pkg_is_leaf(result: &pacquet_resolving_resolver_base::ResolveResult) -> bool {
     let Some(manifest) = result.manifest.as_ref() else { return false };
     is_empty_or_absent(manifest.get("dependencies"))
