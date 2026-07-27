@@ -1,6 +1,6 @@
 use super::{
     BelongsTo, Config, Include, LicenseInfo, LicensesArgs, LicensesDependencyOptions,
-    collect_dependencies, render_package_name,
+    collect_dependencies, render_package_name, select_newer_version,
 };
 use pacquet_lockfile::Lockfile;
 use tempfile::TempDir;
@@ -163,6 +163,7 @@ fn renders_dev_classification() {
         paths: Vec::new(),
         license: "MIT".to_string(),
         belongs_to: BelongsTo::Dev,
+        selected_version: "1.0.0".to_string(),
         author: None,
         homepage: None,
         description: None,
@@ -171,4 +172,25 @@ fn renders_dev_classification() {
     let rendered = render_package_name(&info);
     assert!(rendered.starts_with("dev-only "));
     assert!(rendered.contains("(dev)"));
+}
+
+#[test]
+fn selects_latest_version_classification_with_semver_precedence() {
+    let mut info = LicenseInfo {
+        name: "multiple-versions".to_string(),
+        versions: vec!["2.0.0".to_string()],
+        paths: Vec::new(),
+        license: "MIT".to_string(),
+        belongs_to: BelongsTo::Prod,
+        selected_version: "2.0.0".to_string(),
+        author: None,
+        homepage: None,
+        description: None,
+    };
+
+    assert!(select_newer_version(&mut info, "10.0.0", BelongsTo::Dev));
+    assert_eq!(info.belongs_to, BelongsTo::Dev);
+    assert_eq!(info.selected_version, "10.0.0");
+    assert!(!select_newer_version(&mut info, "3.0.0", BelongsTo::Prod));
+    assert_eq!(info.belongs_to, BelongsTo::Dev);
 }
