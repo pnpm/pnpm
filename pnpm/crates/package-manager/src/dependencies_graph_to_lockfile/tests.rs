@@ -308,11 +308,10 @@ fn generated_lockfile_preserves_libc_manifest_shape() {
         &manifest, &graph, direct, false, false, None, None,
     ));
 
-    assert_eq!(
-        lockfile.to_yaml_string().expect("serialize generated lockfile"),
-        format!(
-            "{}\n",
-            text_block! {
+    let yaml = lockfile.to_yaml_string().expect("serialize generated lockfile");
+    let expected = format!(
+        "{}\n",
+        text_block! {
                 "lockfileVersion: '9.0'"
                 ""
                 "settings:"
@@ -345,9 +344,10 @@ fn generated_lockfile_preserves_libc_manifest_shape() {
                 "  list-libc@1.0.0: {}"
                 ""
                 "  scalar-libc@1.0.0: {}"
-            }
-        ),
+        },
     );
+    eprintln!("GENERATED LOCKFILE:\n{yaml}\n");
+    assert_eq!(yaml, expected);
 }
 
 #[test]
