@@ -21,7 +21,10 @@ use std::{
     borrow::Cow,
     collections::{BTreeMap, HashMap, HashSet},
     path::{Path, PathBuf},
-    sync::{Arc, Mutex, MutexGuard},
+    sync::{
+        Arc, Mutex, MutexGuard,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
 /// Acquire a [`Mutex`] guard, recovering from poisoning the same way
@@ -797,6 +800,7 @@ pub struct WorkspaceTreeCtx {
     /// reuses the owner occurrence's children and missing-peer report. Consumed via
     /// [`crate::HoistMissingScope`].
     first_importer_by_pkg: Mutex<HashMap<String, String>>,
+    cross_importer_children_reuse: AtomicBool,
     /// Per package: the missing-peer names reported by the *initial*
     /// peer walk of the current children-owner generation, plus the
     /// owner that recorded them (`None` while only a non-owner's
@@ -861,6 +865,7 @@ impl Default for WorkspaceTreeCtx {
             auto_install_peers: false,
             registries: HashMap::new(),
             first_importer_by_pkg: Mutex::new(HashMap::new()),
+            cross_importer_children_reuse: AtomicBool::new(false),
             first_walk_missing_by_pkg: Mutex::new(HashMap::new()),
             changed_direct_deps: Mutex::new(HashMap::new()),
             direct_dep_versions: Mutex::new(HashMap::new()),
@@ -916,6 +921,11 @@ impl WorkspaceTreeCtx {
     #[must_use]
     pub fn first_importer_by_pkg(&self) -> HashMap<String, String> {
         lock_recoverable(&self.first_importer_by_pkg).clone()
+    }
+
+    #[must_use]
+    pub fn has_cross_importer_children_reuse(&self) -> bool {
+        self.cross_importer_children_reuse.load(Ordering::Relaxed)
     }
 
     /// Record a walk's per-package missing-peer names. The owning
@@ -2651,6 +2661,12 @@ fn claim_children_owner(
     };
     let (owns_children, peer_shadowed) = {
         let mut owners = lock_recoverable(&ctx.workspace.children_owner_by_id);
+        if owners
+            .get(pkg_id)
+            .is_some_and(|existing| existing.owner.importer_id != owner.importer_id)
+        {
+            ctx.workspace.cross_importer_children_reuse.store(true, Ordering::Relaxed);
+        }
         match owners.get(pkg_id) {
             Some(existing) if !owner.wins_over(&existing.owner) => {
                 (false, Arc::clone(&existing.peer_shadowed))

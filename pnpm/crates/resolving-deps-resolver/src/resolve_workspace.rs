@@ -292,7 +292,7 @@ where
         for state in &mut states {
             state.run_required_round(resolver).await?;
         }
-        if !owner_missing_sets_initialized && states.len() > 1 {
+        if !owner_missing_sets_initialized && workspace.has_cross_importer_children_reuse() {
             // A non-owner importer can be visited before the importer that owns
             // a shared package's children. Refresh every hoist input after all
             // owners have published their missing-peer sets so foreign
