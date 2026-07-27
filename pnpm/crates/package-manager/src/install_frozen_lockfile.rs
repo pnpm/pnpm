@@ -516,6 +516,7 @@ pub(crate) fn run_build_phase<Reporter: self::Reporter>(
         store_index_writer: Some(store_index_writer),
         patches: patches.as_ref(),
         scripts_prepend_node_path,
+        script_shell: config.script_shell.as_deref().map(Path::new),
         extra_env,
         user_agent: &config.user_agent,
         unsafe_perm: config.unsafe_perm,

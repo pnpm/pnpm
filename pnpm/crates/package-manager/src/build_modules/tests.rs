@@ -391,6 +391,8 @@ fn build_modules_collects_ignored_builds() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+
+        script_shell: None,
         extra_env: &HashMap::new(),
         user_agent: "pnpm/test",
         unsafe_perm: true,
@@ -458,6 +460,8 @@ fn ignore_scripts_skips_build_without_collecting_ignored() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+
+        script_shell: None,
         extra_env: &HashMap::new(),
         user_agent: "pnpm/test",
         unsafe_perm: true,
@@ -514,6 +518,8 @@ fn cached_requires_build_false_skips_package_dir_probe() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+
+        script_shell: None,
         extra_env: &HashMap::new(),
         user_agent: "pnpm/test",
         unsafe_perm: true,
@@ -590,6 +596,8 @@ fn build_modules_collects_ignored_builds_under_concurrency() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+
+        script_shell: None,
         extra_env: &HashMap::new(),
         user_agent: "pnpm/test",
         unsafe_perm: true,
@@ -658,6 +666,8 @@ fn build_modules_excludes_explicit_deny_from_ignored() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+
+        script_shell: None,
         extra_env: &HashMap::new(),
         user_agent: "pnpm/test",
         unsafe_perm: true,
@@ -743,6 +753,8 @@ fn do_not_fail_on_optional_dep_with_failing_postinstall() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+
+        script_shell: None,
         extra_env: &HashMap::new(),
         user_agent: "pnpm/test",
         unsafe_perm: true,
@@ -905,6 +917,8 @@ fn using_side_effects_cache_skips_rebuild() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+
+        script_shell: None,
         extra_env: &HashMap::new(),
         user_agent: "pnpm/test",
         unsafe_perm: true,
@@ -1032,6 +1046,8 @@ fn corrupt_side_effects_cache_falls_back_to_rebuild() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+
+        script_shell: None,
         extra_env: &HashMap::new(),
         user_agent: "pnpm/test",
         unsafe_perm: true,
@@ -1150,6 +1166,8 @@ fn materialization_failure_on_incomplete_slot_is_fatal() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+
+        script_shell: None,
         extra_env: &HashMap::new(),
         user_agent: "pnpm/test",
         unsafe_perm: true,
@@ -1218,6 +1236,8 @@ fn side_effects_cache_disabled_bypasses_the_gate() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+
+        script_shell: None,
         extra_env: &HashMap::new(),
         user_agent: "pnpm/test",
         unsafe_perm: true,
@@ -1284,6 +1304,8 @@ fn fail_when_failing_postinstall_is_required() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+
+        script_shell: None,
         extra_env: &HashMap::new(),
         user_agent: "pnpm/test",
         unsafe_perm: true,
@@ -1374,6 +1396,8 @@ fn frozen_backstop_run(
         patches: Some(&patches),
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+
+        script_shell: None,
         extra_env: &HashMap::new(),
         user_agent: "pnpm/test",
         unsafe_perm: true,
@@ -1696,6 +1720,8 @@ async fn write_path_populates_side_effects_row() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+
+        script_shell: None,
         extra_env: &HashMap::new(),
         user_agent: "pnpm/test",
         unsafe_perm: true,
@@ -1817,6 +1843,8 @@ async fn write_path_disabled_skips_upload() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+
+        script_shell: None,
         extra_env: &HashMap::new(),
         user_agent: "pnpm/test",
         unsafe_perm: true,
@@ -1910,6 +1938,8 @@ async fn frozen_store_skips_side_effects_upload() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+
+        script_shell: None,
         extra_env: &HashMap::new(),
         user_agent: "pnpm/test",
         unsafe_perm: true,
@@ -2052,6 +2082,8 @@ async fn upload_error_does_not_interrupt_install() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+
+        script_shell: None,
         extra_env: &HashMap::new(),
         user_agent: "pnpm/test",
         unsafe_perm: true,
@@ -2308,6 +2340,8 @@ new file mode 100644
         patches: Some(&patches),
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+
+        script_shell: None,
         extra_env: &HashMap::new(),
         user_agent: "pnpm/test",
         unsafe_perm: true,
@@ -2422,6 +2456,8 @@ new file mode 100644
         patches: Some(&patches),
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+
+        script_shell: None,
         extra_env: &HashMap::new(),
         user_agent: "pnpm/test",
         unsafe_perm: true,
@@ -2508,6 +2544,8 @@ async fn missing_patch_file_path_errors_with_diagnostic() {
         patches: Some(&patches),
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+
+        script_shell: None,
         extra_env: &HashMap::new(),
         user_agent: "pnpm/test",
         unsafe_perm: true,
@@ -2768,6 +2806,7 @@ fn rebuild_selection_runs_only_selected_scripts() {
         store_index_writer: None,
         patches: None,
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        script_shell: None,
         extra_env: &HashMap::new(),
         user_agent: "pnpm/test",
         unsafe_perm: true,
