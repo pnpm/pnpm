@@ -174,16 +174,10 @@ fn recursive_run_flags_parse_before_fallback_command() {
 
 #[test]
 fn parallel_before_run_is_a_recursive_unsorted_run_option() {
-    let mut parsed = CliArgs::try_parse_from([
-        "pacquet",
-        "-r",
-        "--filter=./packages/**",
-        "--parallel",
-        "run",
-        "build",
-    ])
-    .expect("parses --parallel before run");
+    let mut parsed = CliArgs::try_parse_from(["pacquet", "--parallel", "run", "build"])
+        .expect("parses --parallel before run");
     assert!(parsed.parallel);
+    assert!(!parsed.recursive);
     parsed.validate_command_scoped_global_options().expect("run accepts --parallel");
     parsed.apply_parallel_run_options();
     assert!(parsed.recursive);
