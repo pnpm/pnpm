@@ -148,10 +148,6 @@ async fn owner_ls_404_returns_package_not_found() {
     assert!(formatted.contains("not found"), "expected PackageNotFound, got: {formatted}");
 }
 
-/// The `ls` fetch path shares the `add`/`rm` write path's status mapping (TS
-/// `fetchOwners` delegates to `throwRegistryError`), so a 401/403 surfaces the
-/// registry's response body as an Unauthorized/Forbidden error rather than a
-/// bare status line.
 #[tokio::test]
 async fn owner_ls_401_returns_unauthorized() {
     let mut server = mockito::Server::new_async().await;
@@ -329,9 +325,6 @@ async fn owner_add_403_returns_forbidden() {
     assert!(formatted.contains("permission"), "expected Forbidden, got: {formatted}");
 }
 
-/// The write path (add/rm) mirrors the TypeScript `throwRegistryError`, whose
-/// 404 message is `Package not found in registry. {body}` — distinct from the
-/// `ls` fetch path, which quotes the package name instead.
 #[tokio::test]
 async fn owner_add_404_returns_package_not_found() {
     let mut server = mockito::Server::new_async().await;
