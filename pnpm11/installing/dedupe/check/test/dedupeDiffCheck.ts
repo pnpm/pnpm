@@ -1,5 +1,9 @@
 import { describe, expect, it } from '@jest/globals'
-import { DedupeCheckIssuesError, dedupeDiffCheck } from '@pnpm/installing.dedupe.check'
+import {
+  calcDedupeCheckIssues,
+  DedupeCheckIssuesError,
+  dedupeDiffCheck,
+} from '@pnpm/installing.dedupe.check'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import type { DepPath, ProjectId } from '@pnpm/types'
 
@@ -110,5 +114,75 @@ describe('dedupeDiffCheck', () => {
         updated: {},
       },
     }))
+  })
+
+  it('sorts snapshot changes independently of resolution order', () => {
+    const before: LockfileObject = {
+      importers: {
+        ['.' as ProjectId]: {
+          specifiers: {},
+        },
+      },
+      packages: {
+        ['z@1.0.0' as DepPath]: {
+          resolution: { integrity: 'sha512-z' },
+        },
+        ['a@1.0.0' as DepPath]: {
+          resolution: { integrity: 'sha512-a' },
+          dependencies: {
+            zDependency: '1.0.0',
+          },
+          optionalDependencies: {
+            aDependency: '1.0.0',
+          },
+        },
+      },
+      lockfileVersion: 'testLockfileVersion',
+    }
+    const after: LockfileObject = {
+      importers: {
+        ['.' as ProjectId]: {
+          specifiers: {},
+        },
+      },
+      packages: {
+        ['z-new@1.0.0' as DepPath]: {
+          resolution: { integrity: 'sha512-z-new' },
+        },
+        ['a-new@1.0.0' as DepPath]: {
+          resolution: { integrity: 'sha512-a-new' },
+        },
+        ['z@1.0.0' as DepPath]: {
+          resolution: { integrity: 'sha512-z' },
+          dependencies: {
+            dependency: '2.0.0',
+          },
+        },
+        ['a@1.0.0' as DepPath]: {
+          resolution: { integrity: 'sha512-a' },
+          dependencies: {
+            zDependency: '2.0.0',
+          },
+          optionalDependencies: {
+            aDependency: '2.0.0',
+          },
+        },
+      },
+      lockfileVersion: 'testLockfileVersion',
+    }
+
+    expect(calcDedupeCheckIssues(before, after).packageIssuesByDepPath).toEqual({
+      added: ['a-new@1.0.0', 'z-new@1.0.0'],
+      removed: [],
+      updated: {
+        'a@1.0.0': {
+          aDependency: { type: 'updated', prev: '1.0.0', next: '2.0.0' },
+          zDependency: { type: 'updated', prev: '1.0.0', next: '2.0.0' },
+        },
+        'z@1.0.0': {
+          dependency: { type: 'added', next: '2.0.0' },
+        },
+      },
+    })
   })
 })
