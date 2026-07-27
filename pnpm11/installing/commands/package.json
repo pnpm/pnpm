@@ -103,6 +103,7 @@
     "p-limit": "catalog:",
     "ramda": "catalog:",
     "render-help": "catalog:",
+    "string-width": "catalog:",
     "version-selector-type": "catalog:"
   },
   "peerDependencies": {

@@ -774,6 +774,9 @@ catalogs:
     string-length:
       specifier: ^7.0.1
       version: 7.0.1
+    string-width:
+      specifier: ^8.2.2
+      version: 8.2.2
     strip-bom:
       specifier: ^5.0.0
       version: 5.0.0
@@ -5389,6 +5392,9 @@ importers:
       render-help:
         specifier: 'catalog:'
         version: 2.0.0
+      string-width:
+        specifier: 'catalog:'
+        version: 8.2.2
       version-selector-type:
         specifier: 'catalog:'
         version: 3.0.0

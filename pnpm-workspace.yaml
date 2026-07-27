@@ -343,6 +343,7 @@ catalog:
   ssri: 13.0.1
   stacktracey: ^2.2.0
   string-length: ^7.0.1
+  string-width: ^8.2.2
   strip-bom: ^5.0.0
   strip-comments-strings: 1.2.0
   symlink-dir: ^10.0.1
