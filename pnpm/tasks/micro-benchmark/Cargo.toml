@@ -24,12 +24,15 @@ pacquet-lockfile  = { workspace = true }
 
 clap         = { workspace = true }
 criterion    = { workspace = true }
+flate2       = { workspace = true }
+futures-util = { workspace = true }
 mockito      = { workspace = true }
 tokio        = { workspace = true }
 tempfile     = { workspace = true }
 pipe-trait   = { workspace = true }
 project-root = { workspace = true }
 ssri         = { workspace = true }
+tar          = { workspace = true }
 node-semver  = { workspace = true }
 serde_json   = { workspace = true }
 
