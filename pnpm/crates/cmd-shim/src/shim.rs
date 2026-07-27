@@ -447,7 +447,16 @@ fn relative_target_windows(target_path: &Path, shim_path: &Path) -> String {
 }
 
 const SH_SHIM_HEADER: &str = r#"#!/bin/sh
-basedir=$(dirname "$(echo "$0" | sed -e 's,\\,/,g')")
+# Resolve symlinks if any
+link="$0"
+while [ -L "$link" ]; do
+  target=$(readlink "$link")
+  case "$target" in
+    /*) link="$target" ;;
+    *)  link="$(dirname "$link")/$target" ;;
+  esac
+done
+basedir=$(dirname "$(echo "$link" | sed -e 's,\\,/,g')")
 basedir_win="$basedir"
 exe=""
 msys=""
