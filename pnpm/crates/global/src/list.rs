@@ -225,7 +225,7 @@ fn leaf_label(dep: &ListedDep) -> String {
     format!("{}{}", dep.name, gray(&format!("@{}", dep.version)))
 }
 
-// --- archy tree renderer ----------------------------------------------------
+//  archy tree renderer -------------------------------------------------
 
 struct TreeNode {
     label: String,
@@ -281,7 +281,7 @@ fn render_node(node: &TreeNode, connector: &str, prefix: &str, out: &mut String)
     }
 }
 
-// --- helpers ---------------------------------------------------------------
+//  helpers ------------------------------------------------------------
 
 fn read_dep_manifest(dep: &ListedDep) -> Option<Value> {
     crate::read_package_json(&dep.location)
