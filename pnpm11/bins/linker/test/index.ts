@@ -825,3 +825,37 @@ test('linkBins() resolves conflicts using BIN_OWNER_OVERRIDES (npx owned by npm)
   // Use a regex that matches both forward and backslashes for Windows compatibility
   expect(content).toMatch(/npm[/\\]bin[/\\]npx-cli\.js/)
 })
+
+test('linkBins() generated POSIX shim resolves symlink chains and executes target correctly', async () => {
+  if (process.platform === 'win32') return;
+
+  const projectDir = temporaryDirectory()
+  const binDir = path.join(projectDir, 'node_modules', '.bin')
+  const targetDir = path.join(projectDir, 'node_modules', 'typescript', 'bin')
+  fs.mkdirSync(binDir, { recursive: true })
+  fs.mkdirSync(targetDir, { recursive: true })
+
+  // Write a target executable script
+  const targetPath = path.join(targetDir, 'tsc')
+  fs.writeFileSync(targetPath, '#!/bin/sh\necho "tsc-output"\n', 'utf8')
+  fs.chmodSync(targetPath, 0o755)
+
+  // Run cmdShim to generate shim in node_modules/.bin/tsc
+  const { cmdShim } = await import('@zkochan/cmd-shim')
+  const shimPath = path.join(binDir, 'tsc')
+  await cmdShim(targetPath, shimPath)
+  fs.chmodSync(shimPath, 0o755)
+
+  // Create external symlink chain containing multiple hops
+  const hop1 = path.join(projectDir, 'symlink_hop_1')
+  const hop2 = path.join(projectDir, 'symlink_hop_2')
+  fs.symlinkSync(shimPath, hop1)
+  fs.symlinkSync(hop1, hop2)
+
+  // Execute the final hop and assert it runs successfully and prints the correct output
+  const { execSync } = await import('node:child_process')
+  const stdout = execSync(hop2, { encoding: 'utf8' })
+  expect(stdout.trim()).toBe('tsc-output')
+})
+
+

@@ -574,3 +574,58 @@ fn generate_pwsh_shim_emits_direct_exec_when_no_runtime() {
     );
     assert!(body.ends_with("exit $LASTEXITCODE\n"));
 }
+
+#[cfg(unix)]
+#[test]
+fn shim_execution_resolves_symlink_chain() {
+    use tempfile::tempdir;
+    use std::fs;
+    use std::os::unix::fs::symlink;
+    use std::process::Command;
+
+    let tmp = tempdir().unwrap();
+    let tmp_path = tmp.path();
+
+    // Create directories
+    let bin_dir = tmp_path.join("node_modules").join(".bin");
+    let target_dir = tmp_path.join("node_modules").join("typescript").join("bin");
+    fs::create_dir_all(&bin_dir).unwrap();
+    fs::create_dir_all(&target_dir).unwrap();
+
+    // Create target executable (a simple script that prints "tsc-output")
+    let target_path = target_dir.join("tsc");
+    fs::write(&target_path, "#!/bin/sh\necho \"tsc-output\"\n").unwrap();
+    
+    // Make target executable
+    use std::os::unix::fs::PermissionsExt;
+    let mut perms = fs::metadata(&target_path).unwrap().permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(&target_path, perms).unwrap();
+
+    // Generate shim at node_modules/.bin/tsc
+    let shim_path = bin_dir.join("tsc");
+    let shim_body = generate_sh_shim(&target_path, &shim_path, None, &[]);
+    fs::write(&shim_path, &shim_body).unwrap();
+
+    // Make shim executable
+    let mut perms = fs::metadata(&shim_path).unwrap().permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(&shim_path, perms).unwrap();
+
+    // Create external symlink chain containing multiple hops
+    let hop1 = tmp_path.join("symlink_hop_1");
+    let hop2 = tmp_path.join("symlink_hop_2");
+
+    symlink(&shim_path, &hop1).unwrap();
+    symlink(&hop1, &hop2).unwrap();
+
+    // Execute the final hop and assert it runs successfully and prints the correct output
+    let output = Command::new(&hop2)
+        .output()
+        .expect("Failed to execute symlink hop");
+
+    assert!(output.status.success(), "Shim execution failed: {:?}", String::from_utf8_lossy(&output.stderr));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("tsc-output"), "Unexpected stdout: {}", stdout);
+}
+

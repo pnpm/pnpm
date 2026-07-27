@@ -530,6 +530,7 @@ packageExtensions:
       unified: '*'
 
 patchedDependencies:
+  '@zkochan/cmd-shim@9.0.6': __patches__/@zkochan__cmd-shim@9.0.6.patch
   graceful-fs@4.2.11: __patches__/graceful-fs@4.2.11.patch
   normalize-registry-url@2.0.1: __patches__/normalize-registry-url@2.0.1.patch
 

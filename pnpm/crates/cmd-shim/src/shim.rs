@@ -447,7 +447,8 @@ fn relative_target_windows(target_path: &Path, shim_path: &Path) -> String {
 }
 
 const SH_SHIM_HEADER: &str = r#"#!/bin/sh
-# Resolve symlinks if any
+# The bin shim must resolve its own physical path to derive basedir,
+# preventing failures when invoked via external symlinks on PATH.
 link="$0"
 while [ -L "$link" ]; do
   target=$(readlink "$link")
