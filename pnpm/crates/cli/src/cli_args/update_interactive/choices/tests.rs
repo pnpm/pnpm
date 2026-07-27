@@ -6,7 +6,7 @@
 //! the user sees: which groups appear, in what order, which packages sit
 //! in each, and that every column lines up.
 
-use super::{ChoiceGroup, update_choices};
+use super::{ChoiceGroup, column_widths, pad_row, update_choices};
 use crate::cli_args::outdated::OutdatedPackage;
 use console::measure_text_width;
 use node_semver::Version;
@@ -186,19 +186,40 @@ fn columns_line_up_within_a_group() {
 }
 
 /// Padding is counted in terminal columns rather than in `char`s, so a
-/// name made of double-width characters does not push the rest of its row
-/// out of line with its neighbours'.
+/// name made of double-width characters — CJK, most emoji — does not push
+/// the rest of its row out of line with its neighbours'.
 #[test]
 fn a_wide_name_does_not_shift_its_row() {
     let packages = [
         pkg("中文包名字", "中文包名字", "1.0.0", "2.0.0", DependencyGroup::Prod),
+        pkg("party-🎉-pkg", "party-🎉-pkg", "1.0.0", "2.0.0", DependencyGroup::Prod),
         pkg("b", "b", "1.0.0", "2.0.0", DependencyGroup::Prod),
     ];
 
     let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false);
 
     let offsets = arrow_offsets(&groups[0]);
-    assert_eq!(offsets[0], offsets[1]);
+    assert_eq!(offsets, vec![offsets[0]; 3]);
+}
+
+/// The escapes colouring the target are not printed, so they must not
+/// count toward its cell's width: a coloured cell would otherwise be
+/// measured as wider than it renders and push the columns after it out.
+///
+/// [`colorize_target`] emits nothing when colour is off, which is how it
+/// runs under test, so this drives the padding directly.
+#[test]
+fn colour_escapes_do_not_count_toward_a_cells_width() {
+    let coloured = vec!["\u{1b}[31m2.0.0\u{1b}[0m".to_string(), "web".to_string()];
+    let plain = vec!["2.0.0".to_string(), "web".to_string()];
+
+    let widths = column_widths(&[coloured.clone(), plain.clone()]);
+
+    assert_eq!(widths[0], "2.0.0".len());
+    assert_eq!(
+        measure_text_width(&pad_row(&coloured, &widths)),
+        measure_text_width(&pad_row(&plain, &widths)),
+    );
 }
 
 /// Nothing outdated means nothing to choose from.
