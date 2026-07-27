@@ -8,7 +8,8 @@ use tempfile::{NamedTempFile, tempdir};
 use super::{
     BundleDependencies, PackageManifest, PackageManifestError, apply_runtime_on_fail_override,
     convert_dependencies_to_engines_runtime, convert_engines_runtime_to_dependencies,
-    node_version_from_engines_runtime, parse_manifest_bytes, safe_read_package_json_from_dir,
+    extract_license, node_version_from_engines_runtime, parse_manifest_bytes,
+    safe_read_package_json_from_dir,
 };
 use crate::DependencyGroup;
 use serde_json::json;
@@ -1120,6 +1121,44 @@ fn safe_read_package_json_from_dir_reads_a_manifest_that_starts_with_a_utf8_bom(
 
     let manifest = safe_read_package_json_from_dir(dir.path()).unwrap().unwrap();
     assert_eq!(manifest.get("name").unwrap(), &json!("fixture"));
+}
+
+#[test]
+fn extracts_license_from_modern_and_legacy_manifest_fields() {
+    assert_eq!(extract_license(&json!({ "license": "MIT" })), Some("MIT".to_string()));
+    assert_eq!(
+        extract_license(&json!({ "license": { "type": "Apache-2.0" } })),
+        Some("Apache-2.0".to_string()),
+    );
+    assert_eq!(
+        extract_license(&json!({ "licenses": [{ "type": "MIT" }] })),
+        Some("MIT".to_string()),
+    );
+    assert_eq!(
+        extract_license(&json!({
+            "licenses": [{ "type": "MIT" }, { "name": "Apache-2.0" }]
+        })),
+        Some("(MIT OR Apache-2.0)".to_string()),
+    );
+}
+
+#[test]
+fn modern_license_takes_priority_and_invalid_values_fall_back() {
+    assert_eq!(
+        extract_license(&json!({
+            "license": "BSD-3-Clause",
+            "licenses": [{ "type": "MIT" }]
+        })),
+        Some("BSD-3-Clause".to_string()),
+    );
+    assert_eq!(
+        extract_license(&json!({
+            "license": "",
+            "licenses": [{ "type": "MIT" }]
+        })),
+        Some("MIT".to_string()),
+    );
+    assert_eq!(extract_license(&json!({ "license": 42, "licenses": [] })), None);
 }
 
 /// A BOM is only stripped where a document may legitimately start, so a

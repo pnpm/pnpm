@@ -931,3 +931,44 @@ pub fn extract_author(manifest: &serde_json::Value) -> Option<String> {
 pub fn extract_homepage(manifest: &serde_json::Value) -> Option<String> {
     manifest.get("homepage").and_then(|v| v.as_str()).map(ToString::to_string)
 }
+
+/// Extracts the license from either the modern `license` field or the legacy
+/// `licenses` field.
+pub fn extract_license(manifest: &serde_json::Value) -> Option<String> {
+    manifest
+        .get("license")
+        .and_then(extract_license_field)
+        .or_else(|| manifest.get("licenses").and_then(extract_license_field))
+}
+
+fn extract_license_field(field: &serde_json::Value) -> Option<String> {
+    if let Some(license) = field.as_str() {
+        return (!license.is_empty()).then(|| license.to_string());
+    }
+    if let Some(entries) = field.as_array() {
+        let licenses: Vec<&str> = entries.iter().filter_map(extract_license_type).collect();
+        return match licenses.as_slice() {
+            [] => None,
+            [license] => Some((*license).to_string()),
+            licenses => Some(format!("({})", licenses.join(" OR "))),
+        };
+    }
+    extract_license_type(field).map(ToString::to_string)
+}
+
+fn extract_license_type(entry: &serde_json::Value) -> Option<&str> {
+    entry.as_str().filter(|license| !license.is_empty()).or_else(|| {
+        entry.as_object().and_then(|entry| {
+            entry
+                .get("type")
+                .and_then(serde_json::Value::as_str)
+                .filter(|license| !license.is_empty())
+                .or_else(|| {
+                    entry
+                        .get("name")
+                        .and_then(serde_json::Value::as_str)
+                        .filter(|license| !license.is_empty())
+                })
+        })
+    })
+}

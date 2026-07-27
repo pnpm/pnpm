@@ -16,7 +16,7 @@ use pacquet_package_manager::{
     AllowBuildPolicy, validate_virtual_store_slot_containment, virtual_store_layout_for_lockfile,
 };
 use pacquet_package_manifest::{
-    extract_author, extract_homepage, node_version_from_engines_runtime,
+    extract_author, extract_homepage, extract_license, node_version_from_engines_runtime,
     safe_read_package_json_from_dir,
 };
 use serde::Serialize;
@@ -214,10 +214,8 @@ impl LicensesArgs {
 
             let license = manifest
                 .as_ref()
-                .and_then(|m| m.get("license"))
-                .and_then(|v| v.as_str())
-                .unwrap_or("Unknown")
-                .to_string();
+                .and_then(extract_license)
+                .unwrap_or_else(|| "Unknown".to_string());
             let author = manifest.as_ref().and_then(extract_author);
             let homepage = manifest.as_ref().and_then(extract_homepage);
             let description = manifest
