@@ -19,8 +19,8 @@ use pacquet_executor::{
     run_dev_preinstall_hook, run_project_lifecycle_scripts,
 };
 use pacquet_lockfile::{
-    LazyLockfile, LoadLockfileError, Lockfile, MaybeLazyLockfile, SaveLockfileError,
-    StalenessReason, VersionPart, satisfies_package_manifest,
+    LazyLockfile, LoadLockfileError, Lockfile, MaybeLazyLockfile, PnpmfileChecksumCheck,
+    SaveLockfileError, StalenessReason, VersionPart, satisfies_package_manifest,
 };
 use pacquet_lockfile_verification::{
     VerifyError, VerifyLockfileResolutionsOptions, record_lockfile_verified,
@@ -1164,6 +1164,15 @@ where
             emit_initial_package_manifest::<Reporter>(manifest);
         }
 
+        // The pnpmfile whose checksum the freshness gates compare
+        // against a lockfile's `pnpmfileChecksum`, resolved the way the
+        // install that records one resolves it. Building the handle
+        // costs a `stat`. The Node worker only starts if a gate has to
+        // ask whether the pnpmfile exports hooks. The handle is handed to
+        // the resolve path below so an install spawns at most one.
+        let pnpmfile_hook = pnpmfile_hook_override
+            .or_else(|| pacquet_hooks::finder::load_pnpmfile(&workspace_root));
+
         // Load the *current* lockfile that records what the previous
         // install actually materialized in `<virtual_store_dir>/lock.yaml`.
         // The frozen-lockfile path diffs each wanted snapshot against
@@ -1193,23 +1202,23 @@ where
         // when `pnpm-lock.yaml` is absent and the materialized snapshot still
         // satisfies the manifest. The install then skips resolution and
         // regenerates `pnpm-lock.yaml` from the synthesized object.
-        let synthesized_lockfile: Option<Lockfile> =
-            if lockfile.is_none() && !frozen_lockfile && prefer_frozen_lockfile {
-                current_lockfile.as_ref().and_then(|current| {
-                    check_lockfile_freshness(
-                        current,
-                        &manifest_freshness_inputs,
-                        config,
-                        &catalogs,
-                        ignore_manifest_check,
-                        true,
-                    )
-                    .ok()
-                    .map(|()| current.clone())
-                })
-            } else {
-                None
-            };
+        let synthesized_lockfile: Option<Lockfile> = match current_lockfile.as_ref() {
+            Some(current) if lockfile.is_none() && !frozen_lockfile && prefer_frozen_lockfile => {
+                check_lockfile_freshness(
+                    current,
+                    &manifest_freshness_inputs,
+                    config,
+                    &catalogs,
+                    pnpmfile_hook.as_ref(),
+                    ignore_manifest_check,
+                    true,
+                )
+                .await
+                .ok()
+                .map(|()| current.clone())
+            }
+            _ => None,
+        };
         let lockfile_synthesized_from_current = synthesized_lockfile.is_some();
         // The dry-run diff baseline is the actual on-disk `pnpm-lock.yaml`
         // (`None` when it is absent), captured before the synthesized-from-
@@ -1390,9 +1399,11 @@ where
                 &manifest_freshness_inputs,
                 config,
                 &catalogs,
+                pnpmfile_hook.as_ref(),
                 ignore_manifest_check,
                 false,
             )
+            .await
             .map_err(InstallError::from)?;
             true
         } else if update_checksums {
@@ -1411,9 +1422,12 @@ where
                     &manifest_freshness_inputs,
                     config,
                     &catalogs,
+                    pnpmfile_hook.as_ref(),
                     ignore_manifest_check,
                     true,
-                ) {
+                )
+                .await
+                {
                     // Even an up-to-date lockfile may not go frozen: a
                     // custom resolver's `shouldRefreshResolution` can
                     // force the fresh-resolve path. The hook's verdict
@@ -2076,7 +2090,7 @@ where
                 auth_override,
                 resolution_observer,
                 peer_issues_sink: peer_issues_sink.clone(),
-                pnpmfile_hook_override,
+                pnpmfile_hook_override: pnpmfile_hook,
                 real_importer_ids: requested_importer_ids.as_ref().map(|_| &real_importer_ids),
                 selected_importer_ids: requested_importer_ids.as_ref(),
                 current_lockfile: current_lockfile.as_ref(),
@@ -2612,16 +2626,33 @@ where
 /// `package.json` to disk, so the freshness check would always fire
 /// on `pnpm up` / `add` / `remove`. Settings drift (`overrides`,
 /// `ignoredOptionalDependencies`) still runs.
-fn check_lockfile_freshness(
+///
+/// `pnpmfile_hook` is the pnpmfile an install of this project would
+/// load, whose checksum the settings gate compares against
+/// `lockfile.pnpmfileChecksum` (see
+/// [`pacquet_hooks::current_pnpmfile_checksum`]).
+async fn check_lockfile_freshness(
     lockfile: &Lockfile,
     manifest_freshness_inputs: &[(String, &PackageManifest)],
     config: &Config,
     catalogs: &Catalogs,
+    pnpmfile_hook: Option<&Arc<dyn pacquet_hooks::PnpmfileHooks>>,
     ignore_manifest_check: bool,
     allow_missing_dependency_free_importers: bool,
 ) -> Result<(), FreshnessCheckError> {
     let parsed_overrides_opt = parse_config_overrides(config, catalogs)?;
-    check_lockfile_settings_drift(lockfile, config, catalogs, parsed_overrides_opt.as_deref())?;
+    let pnpmfile_checksum = pacquet_hooks::current_pnpmfile_checksum(
+        pnpmfile_hook,
+        lockfile.pnpmfile_checksum.as_deref(),
+    )
+    .await;
+    check_lockfile_settings_drift(
+        lockfile,
+        config,
+        catalogs,
+        parsed_overrides_opt.as_deref(),
+        PnpmfileChecksumCheck::Current(pnpmfile_checksum.as_deref()),
+    )?;
 
     if ignore_manifest_check {
         return Ok(());
@@ -2672,11 +2703,16 @@ pub(crate) fn parse_config_overrides(
 /// `packageExtensionsChecksum` drift between the lockfile-recorded
 /// values and the current config before the per-importer specifier
 /// check.
+///
+/// `pnpmfile_checksum` is the one input the config doesn't carry.
+/// callers that can't produce it pass
+/// [`PnpmfileChecksumCheck::Skip`].
 pub(crate) fn check_lockfile_settings_drift(
     lockfile: &Lockfile,
     config: &Config,
     catalogs: &Catalogs,
     parsed_overrides: Option<&[pacquet_config_parse_overrides::VersionOverride]>,
+    pnpmfile_checksum: PnpmfileChecksumCheck<'_>,
 ) -> Result<(), FreshnessCheckError> {
     let overrides_map: Option<std::collections::HashMap<String, String>> =
         parsed_overrides.map(pacquet_config_parse_overrides::create_overrides_map_from_parsed);
@@ -2701,6 +2737,7 @@ pub(crate) fn check_lockfile_settings_drift(
             exclude_links_from_lockfile: config.exclude_links_from_lockfile,
             inject_workspace_packages: config.inject_workspace_packages,
             peers_suffix_max_length: config.peers_suffix_max_length,
+            pnpmfile_checksum,
         },
     )
     .map_err(FreshnessCheckError::Stale)

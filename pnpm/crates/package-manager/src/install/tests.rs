@@ -9251,6 +9251,74 @@ async fn frozen_lockfile_errors_when_package_extensions_drift_from_lockfile() {
     drop(dir);
 }
 
+#[tokio::test]
+async fn frozen_lockfile_errors_when_pnpmfile_checksum_drifts() {
+    let dir = tempdir().unwrap();
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    std::fs::create_dir_all(&project_root).unwrap();
+    let manifest = PackageManifest::create_if_needed(project_root.join("package.json")).unwrap();
+
+    let mut config = Config::new();
+    config.store_dir = dir.path().join("pacquet-store").into();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = modules_dir.join(".pacquet");
+    let config = config.leak();
+
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "importers:"
+        "  .: {}"
+    })
+    .expect("parse minimal lockfile");
+
+    std::fs::write(
+        project_root.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { readPackage: pkg => pkg } }\n",
+    )
+    .unwrap();
+
+    let result = Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        emit_initial_manifest: true,
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod],
+        frozen_lockfile: true,
+        prefer_frozen_lockfile: None,
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        mutation: ProjectMutation::InstallWorkspace,
+        installs_only: true,
+        resolved_packages: &Default::default(),
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        lockfile_only: false,
+        dry_run: false,
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        auth_override: None,
+        resolution_observer: None,
+        peer_issues_sink: None,
+        catalogs_override: None,
+        disable_optimistic_repeat_install: false,
+        pnpmfile_hook_override: None,
+        workspace_projects_override: None,
+    }
+    .run::<SilentReporter>()
+    .await;
+
+    assert!(matches!(
+        result,
+        Err(InstallError::LockfileConfigMismatch { setting: "pnpmfileChecksum" })
+    ));
+}
+
 /// Runs a fresh install in `root` with `root_deps` as direct prod
 /// dependencies and `pnpmfile_src` written to `<root>/.pnpmfile.cjs`, so the
 /// pnpmfile hooks are discovered and run during resolution.

@@ -732,6 +732,12 @@ fn modified_manifests_match_lockfile(
         config,
         catalogs,
         parsed_overrides.as_deref(),
+        // `pnpmfileChecksum` needs no comparison here: reaching this
+        // point means `pnpmfiles_modified_since` already proved the
+        // pnpmfile list and contents are what the install that wrote
+        // this lockfile saw. Computing the checksum instead would cost
+        // a Node worker on the path that exists to avoid starting one.
+        pacquet_lockfile::PnpmfileChecksumCheck::Skip,
     ) {
         tracing::debug!(target: "pacquet::install", %error, "repeat-install content check: lockfile settings drift");
         return Err("a lockfile setting drifted from the current configuration");

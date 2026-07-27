@@ -251,6 +251,33 @@ pub trait CustomResolver: Send + Sync {
     ) -> Result<bool, HookError>;
 }
 
+/// The `pnpmfileChecksum` an install through `hooks` would record in
+/// `pnpm-lock.yaml`, for comparison against the `recorded` value in the
+/// lockfile a freshness gate is checking.
+///
+/// [`PnpmfileHooks::calculate_pnpmfile_checksum`] evaluates the
+/// pnpmfile to answer whether it exports hooks, which costs a Node
+/// worker. `recorded` settles the comparison without it whenever the
+/// lockfile already holds a checksum: a pnpmfile whose bytes still hash
+/// to that value is the same module that produced it and still exports
+/// hooks, while one that hashes differently is drift whether or not it
+/// exports any. Only a lockfile that records no checksum needs the
+/// pnpmfile evaluated, to tell "no pnpmfile" from "a pnpmfile that
+/// exports none".
+pub async fn current_pnpmfile_checksum(
+    hooks: Option<&Arc<dyn PnpmfileHooks>>,
+    recorded: Option<&str>,
+) -> Option<String> {
+    let hooks = hooks?;
+    if recorded.is_some()
+        && let Some(file) = hooks.source_path()
+        && let Ok(hash) = pacquet_crypto_hash::create_hash_from_file(file)
+    {
+        return Some(hash);
+    }
+    hooks.calculate_pnpmfile_checksum().await
+}
+
 /// A no-op implementation of [`PnpmfileHooks`].
 pub struct NoopHooks;
 

@@ -15,7 +15,8 @@ use dashmap::DashMap;
 use pacquet_catalogs_types::Catalogs;
 use pacquet_config::{Config, NodeLinker};
 use pacquet_lockfile::{
-    Lockfile, LockfileSettingsCheck, check_lockfile_settings, satisfies_package_manifest,
+    Lockfile, LockfileSettingsCheck, PnpmfileChecksumCheck, check_lockfile_settings,
+    satisfies_package_manifest,
 };
 use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_package_manager::{Install, ProjectMutation, ResolutionObserver, ResolvedPackages};
@@ -289,6 +290,12 @@ pub fn fresh_frozen_input_lockfile(config: &Config, request: &ResolveRequest) ->
             exclude_links_from_lockfile: config.exclude_links_from_lockfile,
             inject_workspace_packages: config.inject_workspace_packages,
             peers_suffix_max_length: config.peers_suffix_max_length,
+            // A `pnpmfileChecksum` in the request's lockfile records the
+            // client's pnpmfile, which ran client-side and has no
+            // counterpart here. The server resolves without one, so it
+            // has nothing to compare and would reject every lockfile
+            // written by a project that has one.
+            pnpmfile_checksum: PnpmfileChecksumCheck::Skip,
         },
     )
     .ok()?;
