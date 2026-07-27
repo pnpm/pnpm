@@ -133,6 +133,16 @@ pub enum ResolveLocalError {
     /// the `package.json` bundled inside it — failed.
     ReadTarball(#[error(source)] TarballError),
 
+    /// A `file:` tarball bundles a `package.json` that names no package.
+    /// The name is what gives the dep path its `<name>@` prefix, so
+    /// without it the package keys no lockfile entry.
+    #[display("Can't install {specifier}: Missing package name")]
+    #[diagnostic(code(ERR_PNPM_MISSING_PACKAGE_NAME))]
+    MissingPackageName {
+        #[error(not(source))]
+        specifier: String,
+    },
+
     /// Reading `<spec.fetchSpec>/package.json` raised something the
     /// resolver doesn't have a specific code for (malformed JSON,
     /// permission denied, ...).
@@ -195,7 +205,7 @@ async fn resolve_spec(
         // A missing tarball file raises the same `ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND`
         // code the directory branch uses for a missing `file:` target,
         // so both kinds of missing `file:` target share one error code.
-        let LocalTarballMetadata { integrity, manifest } =
+        let LocalTarballMetadata { integrity, manifest, has_manifest_entry } =
             match read_local_tarball_metadata(&spec.fetch_spec).await {
                 Ok(metadata) => metadata,
                 Err(err) if is_missing_tarball(&err) => {
@@ -205,6 +215,16 @@ async fn resolve_spec(
                 }
                 Err(err) => return Err(ResolveLocalError::ReadTarball(err)),
             };
+        // A bundled `package.json` that names no package is refused: the
+        // name is what prefixes the dep path, so the package would key
+        // no lockfile entry and install as a dangling symlink. An
+        // archive that ships no manifest at all is a different shape and
+        // stays tolerated here.
+        if has_manifest_entry && bundled_package_name(manifest.as_ref()).is_none() {
+            return Err(ResolveLocalError::MissingPackageName {
+                specifier: spec.normalized_bare_specifier,
+            });
+        }
         return Ok(Some(LocalResolveResult {
             id: spec.id.clone(),
             manifest: manifest.map(std::sync::Arc::new),
@@ -325,6 +345,10 @@ fn handle_manifest_read_failure(
         }
     }
     ResolveLocalError::ReadManifest(err)
+}
+
+fn bundled_package_name(manifest: Option<&serde_json::Value>) -> Option<&str> {
+    manifest?.get("name")?.as_str().filter(|name| !name.is_empty())
 }
 
 fn is_missing_tarball(err: &TarballError) -> bool {

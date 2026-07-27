@@ -2688,7 +2688,19 @@ async fn read_subdir_manifest(
 #[derive(Debug)]
 pub struct LocalTarballMetadata {
     pub integrity: Integrity,
+    /// `None` when the narrowing kept nothing — the archive has no root
+    /// `package.json`, or one that is not a JSON object, or one whose
+    /// every field was dropped.
     pub manifest: Option<serde_json::Value>,
+    /// Whether the archive carried a root `package.json` at all,
+    /// regardless of what survived the narrowing.
+    ///
+    /// The two shapes behind a `None` manifest call for opposite
+    /// handling, and only the reader can tell them apart: pnpm installs
+    /// an archive that ships no manifest (synthesizing a name from the
+    /// alias) but refuses one whose manifest names no package
+    /// (`ERR_PNPM_MISSING_PACKAGE_NAME`).
+    pub has_manifest_entry: bool,
 }
 
 /// Read a local tarball's sha512 integrity and bundled manifest during
@@ -2721,8 +2733,8 @@ pub async fn read_local_tarball_metadata(
     tokio::task::spawn_blocking(move || {
         let integrity = verify_tarball_integrity(&buffer, None, package_url)?;
         let tar_data = decompress_gzip(&buffer, None)?;
-        let manifest = read_bundled_manifest(&tar_data, &tarball_path)?;
-        Ok(LocalTarballMetadata { integrity, manifest })
+        let (manifest, has_manifest_entry) = read_bundled_manifest(&tar_data, &tarball_path)?;
+        Ok(LocalTarballMetadata { integrity, manifest, has_manifest_entry })
     })
     .await
     .map_err(TarballError::TaskJoin)?
@@ -2741,12 +2753,15 @@ pub async fn read_local_tarball_metadata(
 /// lockfile key parses, so this raises
 /// [`TarballError::ParseBundledManifest`] instead.
 ///
-/// `None` means the archive holds no root `package.json` at all — a
-/// distinct shape, and one pnpm tolerates.
+/// The returned flag reports whether a root `package.json` was present
+/// at all, which a `None` manifest alone can't say — the narrowing also
+/// yields `None` for a manifest that isn't a JSON object, or one whose
+/// every field was dropped. See [`LocalTarballMetadata`] for why the
+/// caller has to tell those apart.
 fn read_bundled_manifest(
     tar_data: &[u8],
     tarball_path: &str,
-) -> Result<Option<serde_json::Value>, TarballError> {
+) -> Result<(Option<serde_json::Value>, bool), TarballError> {
     let mut archive = Archive::new(Cursor::new(tar_data));
     let mut payload = None;
     for entry in archive.entries_with_seek().map_err(TarballError::ReadTarballEntries)? {
@@ -2766,11 +2781,11 @@ fn read_bundled_manifest(
         // that a later one supersedes can't fail the read.
         payload = Some(tar_entry_payload(tar_data, &entry)?);
     }
-    let Some(payload) = payload else { return Ok(None) };
+    let Some(payload) = payload else { return Ok((None, false)) };
     let parsed = parse_manifest_bytes(payload).map_err(|source| {
         TarballError::ParseBundledManifest { tarball: tarball_path.to_string(), source }
     })?;
-    Ok(normalize_bundled_manifest(&parsed))
+    Ok((normalize_bundled_manifest(&parsed), true))
 }
 
 /// `name@version` from a bundled manifest, when both fields are present.
