@@ -54,10 +54,20 @@ pub struct EnvBuild {
 /// `parent_env` is taken by value so the production caller can pass
 /// `env::vars().collect()` and tests can pass a controlled fixture
 /// without racing on the global process env.
+#[must_use]
 pub fn build_env(
     opts: &EnvOptions<'_>,
     manifest: &Value,
     parent_env: HashMap<String, String>,
+) -> EnvBuild {
+    build_env_for_platform(opts, manifest, parent_env, cfg!(windows))
+}
+
+fn build_env_for_platform(
+    opts: &EnvOptions<'_>,
+    manifest: &Value,
+    parent_env: HashMap<String, String>,
+    is_windows: bool,
 ) -> EnvBuild {
     // 1. Start from the parent env, stripping `npm_package_*` (we
     //    regenerate them below) and the `(npm|pnpm)_config_*` auth
@@ -66,7 +76,7 @@ pub fn build_env(
     //    `npm_config_*` such as `npm_config_platform_arch` are
     //    preserved. `pnpm_*` keys such as `PNPM_HOME` are intentionally
     //    NOT in the filter.
-    let mut env = filter_parent_env(parent_env);
+    let mut env = filter_parent_env(parent_env, is_windows);
 
     // 2. `npm_package_*` recursive stamp. Top-level keeps only
     //    name/version/config/engines/bin; recursion below those
@@ -118,7 +128,7 @@ pub fn build_env(
     //    the same casing rule that filter uses, since on Windows a
     //    differently-cased entry names the same variable.
     for (k, v) in opts.extra_env {
-        if is_dev_preinstall_marker(k, cfg!(windows)) {
+        if is_dev_preinstall_marker(k, is_windows) {
             continue;
         }
         env.insert(k.clone(), v.clone());
@@ -143,6 +153,11 @@ pub fn build_env(
         None
     } else {
         let dir = opts.pkg_root.join("node_modules").join(".tmp");
+        // Windows treats differently cased spellings as one variable,
+        // so remove them before inserting the authoritative override.
+        if is_windows {
+            env.retain(|key, _| !key.eq_ignore_ascii_case("TMPDIR"));
+        }
         env.insert("TMPDIR".into(), dir.to_string_lossy().into_owned());
         Some(dir)
     };
@@ -164,8 +179,8 @@ pub fn build_env(
 /// an unpredictable winner.
 ///
 /// [`Command::env`]: https://doc.rust-lang.org/std/process/struct.Command.html#method.env
-fn filter_parent_env(env: HashMap<String, String>) -> HashMap<String, String> {
-    env.into_iter().filter(|(k, _)| !is_stamping_key(k, cfg!(windows))).collect()
+fn filter_parent_env(env: HashMap<String, String>, is_windows: bool) -> HashMap<String, String> {
+    env.into_iter().filter(|(k, _)| !is_stamping_key(k, is_windows)).collect()
 }
 
 /// Whether `key` must be dropped from the inherited parent env: an
