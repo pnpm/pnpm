@@ -13,6 +13,7 @@ pub mod ci;
 pub mod clean;
 pub mod completion;
 pub mod config;
+pub(crate) mod config_warnings;
 pub mod create;
 pub mod dedupe;
 pub mod deploy;
