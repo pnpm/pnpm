@@ -298,8 +298,11 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
     /// JSR counterpart to the npm path: runs the JSR-specifier parser,
     /// picks against the `@jsr` registry, then stamps
     /// `resolved_via = "jsr-registry"` and
-    /// `alias = spec.jsr_pkg_name` on the result so the install layer
-    /// records the dependency under its JSR-style name.
+    /// `alias = spec.jsr_pkg_name` on the result, so an edge that
+    /// declares no name of its own (`pnpm add jsr:@pnpm-e2e/bar`) is
+    /// installed under its JSR-style name rather than the folded
+    /// `@jsr/…` one. An edge declared under a manifest key keeps that
+    /// key.
     async fn resolve_jsr_impl(
         &self,
         wanted_dependency: &WantedDependency,

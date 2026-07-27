@@ -1809,12 +1809,7 @@ where
         return Ok(NodeSeed::Done(None));
     }
 
-    let alias = result
-        .alias
-        .clone()
-        .or_else(|| wanted.alias.clone())
-        .or_else(|| result.name_ver.as_ref().map(|nv| nv.name.to_string()))
-        .unwrap_or_else(|| id.clone());
+    let alias = node_alias(&wanted, &result, &id);
 
     // Build (or look up) the ResolvedPackage envelope. The first
     // visitor populates it; later visitors AND-fold the `optional`
@@ -1905,6 +1900,27 @@ where
         current_is_optional,
         prior_key,
     })))
+}
+
+/// The name the edge installs under: the key its parent manifest
+/// declares, else the name the resolver resolved it under, else the
+/// resolved package's own name.
+// The manifest key has to come first: an importer entry is only
+// recorded for an alias the manifest declares, so an edge keyed by a
+// resolver alias that differs from its manifest key is dropped from the
+// lockfile importer.
+fn node_alias(
+    wanted: &WantedDependency,
+    result: &pacquet_resolving_resolver_base::ResolveResult,
+    id: &str,
+) -> String {
+    wanted
+        .alias
+        .clone()
+        .filter(|alias| !alias.is_empty())
+        .or_else(|| result.alias.clone())
+        .or_else(|| result.name_ver.as_ref().map(|name_ver| name_ver.name.to_string()))
+        .unwrap_or_else(|| id.to_string())
 }
 
 /// Walk a seeded node's children. `children_overlay` is the preferred-versions
@@ -2982,12 +2998,7 @@ where
         return Ok(None);
     }
 
-    let alias = result
-        .alias
-        .clone()
-        .or_else(|| wanted.alias.clone())
-        .or_else(|| result.name_ver.as_ref().map(|nv| nv.name.to_string()))
-        .unwrap_or_else(|| id.clone());
+    let alias = node_alias(&wanted, &result, &id);
 
     // Leaf classification reads the snapshot graph (the source of truth
     // for a reused node's children), not the synthesized manifest (whose
