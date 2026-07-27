@@ -8,10 +8,11 @@ use std::{
 #[cfg(windows)]
 use std::path::Component;
 
-/// If `path` starts with `~`, replace it with `home_dir`.
 fn expand_tilde(path: &str, home_dir: &std::path::Path) -> PathBuf {
-    if let Some(rest) = path.strip_prefix('~') {
-        home_dir.join(rest.trim_start_matches(['/', '\\']))
+    if path == "~" {
+        home_dir.to_path_buf()
+    } else if let Some(rest) = path.strip_prefix("~/").or_else(|| path.strip_prefix("~\\")) {
+        home_dir.join(rest)
     } else {
         PathBuf::from(path)
     }
