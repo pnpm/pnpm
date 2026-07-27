@@ -246,6 +246,10 @@ pub enum UpdateSeedPolicy {
     /// Seed every lockfile pin. `pacquet install` / `pacquet add`.
     #[default]
     KeepAll,
+    /// Seed every lockfile pin but re-resolve every dependency edge.
+    /// `pacquet dedupe` uses this to preserve valid pins while rebuilding
+    /// the graph around the fewest compatible versions.
+    KeepAllResolveAll,
     /// Withhold every lockfile pin. `pacquet update` with no package
     /// selectors — the whole graph re-resolves to highest-in-range.
     DropAll {
@@ -275,7 +279,9 @@ impl UpdateSeedPolicy {
 
     fn max_depth(&self) -> UpdateDepth {
         match self {
-            UpdateSeedPolicy::KeepAll => UpdateDepth::UNLIMITED,
+            UpdateSeedPolicy::KeepAll | UpdateSeedPolicy::KeepAllResolveAll => {
+                UpdateDepth::UNLIMITED
+            }
             UpdateSeedPolicy::DropAll { max_depth }
             | UpdateSeedPolicy::DropOnly { max_depth, .. }
             | UpdateSeedPolicy::ByImporter { max_depth, .. } => *max_depth,
@@ -299,6 +305,7 @@ fn update_reuse_scopes(
 
     match policy {
         UpdateSeedPolicy::KeepAll => (UpdateReuseScope::All, BTreeMap::new()),
+        UpdateSeedPolicy::KeepAllResolveAll => (UpdateReuseScope::None, BTreeMap::new()),
         UpdateSeedPolicy::DropAll { .. } => (UpdateReuseScope::None, BTreeMap::new()),
         UpdateSeedPolicy::DropOnly { names, .. } => {
             (UpdateReuseScope::Except(names.clone()), BTreeMap::new())
@@ -1189,7 +1196,9 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // else keeps its pin. Manifest preferences remain workspace-wide.
         let lockfile_snapshots = wanted_lockfile.and_then(|lockfile| lockfile.snapshots.as_ref());
         let all_preferred_versions = match &update_seed_policy {
-            UpdateSeedPolicy::KeepAll | UpdateSeedPolicy::ByImporter { .. } => {
+            UpdateSeedPolicy::KeepAll
+            | UpdateSeedPolicy::KeepAllResolveAll
+            | UpdateSeedPolicy::ByImporter { .. } => {
                 pacquet_lockfile_preferred_versions::get_preferred_versions_from_lockfile_and_manifests(
                     lockfile_snapshots,
                     manifests_for_preferred.as_slice(),

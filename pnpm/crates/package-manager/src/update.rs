@@ -855,6 +855,9 @@ async fn prepare_selected_manifests<Reporter: self::Reporter>(
             pacquet_workspace::importer_id_from_root_dir(workspace_root, &projects[index].root_dir);
         match prepared.seed_policy {
             UpdateSeedPolicy::KeepAll => {}
+            UpdateSeedPolicy::KeepAllResolveAll => {
+                unreachable!("update never uses the dedupe seed policy")
+            }
             UpdateSeedPolicy::DropAll { .. } => {
                 seed_policies.insert(importer_id, ImporterUpdateSeedPolicy::DropAll);
             }

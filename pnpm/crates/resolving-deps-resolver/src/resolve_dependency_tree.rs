@@ -727,6 +727,7 @@ struct ChildrenOwnerEntry {
 /// without colliding.
 pub struct WorkspaceTreeCtx {
     packages: Mutex<HashMap<String, ResolvedPackage>>,
+    workspace_package_versions: Mutex<HashSet<(String, String)>>,
     dependencies_tree: Mutex<HashMap<NodeId, DependenciesTreeNode>>,
     all_peer_dep_names: Mutex<HashSet<String>>,
     policy_violations: Mutex<Vec<pacquet_resolving_resolver_base::ResolutionPolicyViolation>>,
@@ -837,6 +838,7 @@ impl Default for WorkspaceTreeCtx {
     fn default() -> Self {
         WorkspaceTreeCtx {
             packages: Mutex::new(HashMap::new()),
+            workspace_package_versions: Mutex::new(HashSet::new()),
             dependencies_tree: Mutex::new(HashMap::new()),
             all_peer_dep_names: Mutex::new(HashSet::new()),
             policy_violations: Mutex::new(Vec::new()),
@@ -1353,18 +1355,28 @@ impl TreeCtx {
         self.workspace.snapshot(direct)
     }
 
-    /// Iterate over every `(name, version)` pair the walk has resolved
-    /// so far. Used by the orchestrator to keep `allPreferredVersions`
-    /// in sync, pushing each resolved version as the dependency is
-    /// resolved.
+    /// Return every registry version resolved so far.
     #[must_use]
     pub fn resolved_versions(&self) -> Vec<(String, String)> {
         lock_recoverable(&self.workspace.packages)
             .values()
             .filter_map(|pkg| {
-                let name_ver = pkg.result.name_ver.as_ref()?;
-                Some((name_ver.name.to_string(), name_ver.suffix.to_string()))
+                pkg.result
+                    .name_ver
+                    .as_ref()
+                    .map(|name_ver| (name_ver.name.to_string(), name_ver.suffix.to_string()))
             })
+            .collect()
+    }
+
+    pub(crate) fn newly_seen_workspace_package_versions(
+        &self,
+        seen: &mut HashSet<(String, String)>,
+    ) -> Vec<(String, String)> {
+        lock_recoverable(&self.workspace.workspace_package_versions)
+            .iter()
+            .filter(|version| seen.insert((*version).clone()))
+            .cloned()
             .collect()
     }
 }
@@ -1796,6 +1808,20 @@ where
                 .unwrap_or_default(),
             resolved_via: result.resolved_via.clone(),
         });
+    }
+
+    if result.name_ver.is_none()
+        && wanted.bare_specifier.as_deref().is_some_and(|specifier| {
+            specifier.starts_with("workspace:") && !specifier.starts_with("workspace:.")
+        })
+        && let Some(manifest) = result.manifest.as_deref()
+        && let (Some(name), Some(version)) = (
+            manifest.get("name").and_then(Value::as_str),
+            manifest.get("version").and_then(Value::as_str),
+        )
+    {
+        lock_recoverable(&ctx.workspace.workspace_package_versions)
+            .insert((name.to_string(), version.to_string()));
     }
 
     let id = build_pkg_id_with_patch_hash(ctx, &result).await?;

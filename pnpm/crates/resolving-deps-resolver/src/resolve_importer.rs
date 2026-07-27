@@ -336,6 +336,7 @@ pub(crate) struct ImporterHoistState {
     parent_pkg_aliases: HashSet<String>,
     all_missing_optional_peers: BTreeMap<String, Vec<String>>,
     all_preferred_versions: PreferredVersions,
+    seen_workspace_package_versions: HashSet<(String, String)>,
     override_bare_specifier: Option<Arc<DependencyOverrider>>,
     /// `auto_install_peers || dedupe_peer_dependents` — upstream's
     /// `hoistPeers`. Both hoist rounds no-op when it is `false`, so a
@@ -441,6 +442,7 @@ impl ImporterHoistState {
             parent_pkg_aliases,
             all_missing_optional_peers: BTreeMap::new(),
             all_preferred_versions,
+            seen_workspace_package_versions: HashSet::new(),
             override_bare_specifier,
             hoist_peers: auto_install_peers || dedupe_peer_dependents,
             auto_install_peers,
@@ -509,7 +511,11 @@ impl ImporterHoistState {
         // `all_preferred_versions` and consulted for the optional hoist
         // after each wave. Refreshed per round so it carries every
         // importer's versions, not just this importer's.
-        update_preferred_versions_with_ctx(&self.ctx, &mut self.all_preferred_versions);
+        update_preferred_versions_with_ctx(
+            &self.ctx,
+            &mut self.all_preferred_versions,
+            &mut self.seen_workspace_package_versions,
+        );
         // The hoist input must not see missing peers declared inside a
         // subtree owned by another importer's shared children context —
         // the owner walk's children report is reused there, so those
@@ -607,7 +613,11 @@ impl ImporterHoistState {
             )
             .await?;
             self.direct.extend(new_direct);
-            update_preferred_versions_with_ctx(&self.ctx, &mut self.all_preferred_versions);
+            update_preferred_versions_with_ctx(
+                &self.ctx,
+                &mut self.all_preferred_versions,
+                &mut self.seen_workspace_package_versions,
+            );
         }
         Ok(())
     }
@@ -685,7 +695,11 @@ impl ImporterHoistState {
         )
         .await?;
         self.direct.extend(new_direct);
-        update_preferred_versions_with_ctx(&self.ctx, &mut self.all_preferred_versions);
+        update_preferred_versions_with_ctx(
+            &self.ctx,
+            &mut self.all_preferred_versions,
+            &mut self.seen_workspace_package_versions,
+        );
         Ok(true)
     }
 
@@ -933,8 +947,16 @@ fn build_workspace_root_deps(
 /// Add every newly-resolved `name@version` from `ctx` to
 /// `preferred` as a plain [`VersionSelectorType::Version`] entry.
 /// Idempotent: only inserts when no entry exists for `(name, version)`.
-fn update_preferred_versions_with_ctx(ctx: &TreeCtx, preferred: &mut PreferredVersions) {
-    for (name, version) in ctx.resolved_versions() {
+fn update_preferred_versions_with_ctx(
+    ctx: &TreeCtx,
+    preferred: &mut PreferredVersions,
+    seen_workspace_package_versions: &mut HashSet<(String, String)>,
+) {
+    for (name, version) in ctx
+        .resolved_versions()
+        .into_iter()
+        .chain(ctx.newly_seen_workspace_package_versions(seen_workspace_package_versions))
+    {
         let bucket = preferred.entry(name).or_default();
         bucket.entry(version).or_insert(VersionSelectorEntry::Plain(VersionSelectorType::Version));
     }
