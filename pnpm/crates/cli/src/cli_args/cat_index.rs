@@ -105,8 +105,8 @@ fn lockfile_store_index_keys(
         let Some(dependency) = find_dependency(importer, &alias_name) else { continue };
         let Some(snapshot_key) = dependency.version.resolved_key(&alias_name) else { continue };
         let metadata_key = snapshot_key.without_peer();
-        let pkg_id = metadata_key.to_string();
-        if !request_matches_dependency(alias, requested_bare, dependency, &pkg_id) {
+        if !request_matches_dependency(alias, requested_bare, dependency, &metadata_key.to_string())
+        {
             continue;
         }
         let Some(metadata) =
@@ -114,7 +114,7 @@ fn lockfile_store_index_keys(
         else {
             continue;
         };
-        for key in metadata_store_index_keys(&pkg_id, metadata) {
+        for key in metadata_store_index_keys(&metadata_key.pkg_id(), metadata) {
             if seen.insert(key.clone()) {
                 keys.push(key);
             }
@@ -154,10 +154,10 @@ fn request_matches_dependency(
     alias: &str,
     requested_bare: Option<&str>,
     dependency: &ResolvedDependencySpec,
-    pkg_id: &str,
+    lockfile_key: &str,
 ) -> bool {
     let Some(requested_bare) = requested_bare else { return true };
-    dependency.specifier == requested_bare || pkg_id == format!("{alias}@{requested_bare}")
+    dependency.specifier == requested_bare || lockfile_key == format!("{alias}@{requested_bare}")
 }
 
 fn metadata_store_index_keys(pkg_id: &str, metadata: &PackageMetadata) -> Vec<String> {

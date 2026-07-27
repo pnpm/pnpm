@@ -1277,7 +1277,7 @@ fn build_one_snapshot<Reporter: self::Reporter>(
         && let Some(integrity) = metadata.resolution.integrity()
     {
         let files_index_file =
-            pacquet_store_dir::store_index_key(&integrity.to_string(), &metadata_key.to_string());
+            pacquet_store_dir::store_index_key(&integrity.to_string(), &metadata_key.pkg_id());
         if let Err(err) =
             pacquet_store_dir::upload(store, &pkg_dir, &files_index_file, cache_key, writer)
         {

@@ -298,7 +298,7 @@ impl InstallPackageBySnapshot<'_> {
         } = self;
 
         // TODO: skip when already exists in store?
-        let package_id = package_key.without_peer().to_string();
+        let package_id = package_key.pkg_id();
         emit_progress_resolved::<Reporter>(&package_id, requester);
 
         // Adapter shared between the `Git` arm below and the
@@ -399,19 +399,16 @@ impl InstallPackageBySnapshot<'_> {
                 // keeps its by-value contract.
                 //
                 // Restricted to registry resolutions: those are the only
-                // ones the background prefetchers populate under a key
-                // this pass also writes — the pnpr `TarballPrefetcher` and
-                // the resolve-time `PrefetchingResolver` both key by
-                // `name@version`, matching the materialization store-index
-                // row. A remote tarball, by contrast, resolves with no
-                // `name_ver`, so the prefetcher skips it; its only
-                // mem-cache entry comes from the resolver's
-                // download-to-resolve, keyed by `name@version`, whereas the
-                // lockfile (and this pass) address it by `name@<url>`.
-                // Reusing that entry would skip writing the `name@<url>`
-                // store-index row a later re-resolve needs to reuse the
-                // warm store, so remote tarballs must take the standalone
-                // path.
+                // ones the background prefetchers populate — the pnpr
+                // `TarballPrefetcher` and the resolve-time
+                // `PrefetchingResolver` both key by `name@version`, and a
+                // remote tarball resolves with no `name_ver`, so they skip
+                // it. Its only mem-cache entry comes from the resolver's
+                // download-to-resolve, and a hit on that entry returns the
+                // extraction without touching the store index. Taking the
+                // standalone path instead keeps this pass reconciling the
+                // row itself, so a later re-resolve finds the warm store
+                // whatever the resolver did or didn't write.
                 let raw_cas_paths = match tarball_mem_cache {
                     Some(mem_cache) if matches!(resolution, LockfileResolution::Registry(_)) => {
                         // `clone()` is cheap (refs + `Arc`s) and lets us
@@ -904,7 +901,7 @@ async fn fetch_binary_resolution_to_cas<Reporter: self::Reporter>(
     requester: &str,
     ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
 ) -> Result<HashMap<String, PathBuf>, InstallPackageBySnapshotError> {
-    let package_id = package_key.without_peer().to_string();
+    let package_id = package_key.pkg_id();
 
     // Synthesize the `package.json` runtime archives (Node.js / Bun /
     // Deno) don't ship, and hand it to the fetcher as `append_manifest`.

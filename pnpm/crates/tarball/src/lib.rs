@@ -2548,8 +2548,11 @@ pub struct FetchTarballForResolution<'a> {
     pub store_dir: &'static StoreDir,
     pub store_index_writer: Option<Arc<StoreIndexWriter>>,
     pub package_url: &'a str,
-    /// Package identity used for scoped auth lookup and the intermediate
-    /// store-index cache key.
+    /// Package identity used for scoped auth lookup and for the
+    /// store-index row this fetch writes. Must be the `pkg_id` the
+    /// install pass derives from the lockfile entry — the bare URL for a
+    /// remote tarball — or the two passes file the same content under
+    /// two rows.
     pub package_id: &'a str,
     pub auth_headers: &'a AuthHeaders,
     pub retry_opts: RetryOpts,
@@ -2620,15 +2623,13 @@ impl FetchTarballForResolution<'_> {
         // `prepare` over it, and both the graph prefetch and the
         // warm-store reuse map skip git-hosted entries.
         if manifest_subdir.is_none() {
-            // Scope the store-index row by the package's canonical
-            // `name@version`, matching what the install pass derives from
-            // the same manifest. Fall back to the URL when the tarball has
-            // no usable `package.json` name (degraded, but keeps the row
-            // addressable).
-            let package_id =
-                manifest_package_id(manifest.as_ref()).unwrap_or_else(|| package_url.to_string());
-
-            let index_key = store_index_key(&integrity.to_string(), &package_id);
+            // Key the row by the caller's `package_id` — the same
+            // `pkg_id` the install pass derives from the lockfile entry.
+            // Deriving a `name@version` from the bundled manifest instead
+            // would file a remote tarball under a key nothing ever reads,
+            // leaving the install pass to write a second row for the same
+            // content.
+            let index_key = store_index_key(&integrity.to_string(), package_id);
             if let Some(writer) = store_index_writer {
                 writer.queue(index_key, pkg_files_idx);
             } else {
@@ -2786,14 +2787,6 @@ fn read_bundled_manifest(
         TarballError::ParseBundledManifest { tarball: tarball_path.to_string(), source }
     })?;
     Ok((normalize_bundled_manifest(&parsed), true))
-}
-
-/// `name@version` from a bundled manifest, when both fields are present.
-fn manifest_package_id(manifest: Option<&serde_json::Value>) -> Option<String> {
-    let manifest = manifest?;
-    let name = manifest.get("name")?.as_str()?;
-    let version = manifest.get("version")?.as_str()?;
-    Some(format!("{name}@{version}"))
 }
 
 /// Run one full zip-archive fetch attempt: hit the network, drain the

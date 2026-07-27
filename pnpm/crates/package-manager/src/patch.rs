@@ -209,7 +209,7 @@ impl WritePackageForPatch<'_> {
         let (tarball_url, integrity) =
             tarball_url_and_integrity(&metadata.resolution, &target.package_key, config)
                 .map_err(WritePackageForPatchError::TarballResolution)?;
-        let package_id = format!("{}@{}", target.alias, target.version);
+        let package_id = target.package_key.pkg_id();
 
         validate_patch_destination(dest)?;
 
