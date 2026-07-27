@@ -25,14 +25,17 @@ use crate::{
 /// Store/network handles [`GitResolver`] needs to read a git dep's
 /// identity out of the package itself during resolution.
 ///
-/// A git dep's specifier names a repo, not a package, so its name lives
-/// only in the package's own `package.json`. pacquet builds the lockfile
-/// before the install/fetch pass runs, so it has to be read here.
+/// A git dep's specifier names a repo, not a package, so its name —
+/// and, for a host archive, its integrity — live only in the package's
+/// own `package.json`. pacquet builds the lockfile before the
+/// install/fetch pass runs, so they have to be read here. Mirrors the
+/// tarball resolver's remote-tarball fetch, which fills the same fields
+/// for the same reason.
 ///
 /// Two shapes, by resolution:
 ///
 /// - a git *host* (`github:` / `gitlab:` / `bitbucket:`) serves an
-///   archive, which is downloaded;
+///   archive, which is downloaded and hashed;
 /// - any other repo (ssh, self-hosted, `file:`) has no archive
 ///   endpoint, so a throwaway checkout is the cheapest read.
 ///
@@ -63,7 +66,7 @@ pub struct GitFetchContext {
 /// install dispatcher) into a single owner.
 ///
 /// When `fetch_context` is `Some`, the package is read during
-/// resolution to fill `manifest`
+/// resolution to fill `manifest` (and `integrity`, for a host archive)
 /// — see [`GitFetchContext`]. `None` (unit tests, and the resolve-only
 /// NAPI entry point) keeps the manifest-less shape.
 pub struct GitResolver<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> {
@@ -122,7 +125,8 @@ impl<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> GitResolver<
         Ok(Some(result))
     }
 
-    /// Fill `manifest` from the package the git dep points at. No-op
+    /// Fill `manifest` — and, for an archive, the resolution's
+    /// `integrity` — from the package the git dep points at. No-op
     /// without a fetch context (unit tests / resolve-only callers).
     async fn read_package_metadata(&self, result: &mut ResolveResult) -> Result<(), ResolveError> {
         let Some(ctx) = self.fetch_context.as_ref() else { return Ok(()) };
@@ -155,6 +159,15 @@ impl<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> GitResolver<
                 .map_err(|err| Box::new(err) as ResolveError)?;
 
                 result.manifest = resolved.manifest.map(Arc::new);
+                if let LockfileResolution::Tarball(tarball) = &mut result.resolution {
+                    // A git host's archive carries no integrity of its
+                    // own, and the install pass refuses a tarball
+                    // resolution without one
+                    // (`tarball_url_and_integrity`). The bytes were
+                    // just hashed to extract them, so record that —
+                    // same field upstream writes for a git dep.
+                    tarball.integrity = Some(resolved.integrity);
+                }
             }
             LockfileResolution::Git(git) => {
                 // No archive endpoint to read, so the working tree is
