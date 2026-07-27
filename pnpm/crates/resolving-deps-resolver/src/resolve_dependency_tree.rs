@@ -1355,13 +1355,10 @@ impl TreeCtx {
         self.workspace.snapshot(direct)
     }
 
-    /// Iterate over every `(name, version)` pair the walk has resolved
-    /// so far. Used by the orchestrator to keep `allPreferredVersions`
-    /// in sync, pushing each resolved version as the dependency is
-    /// resolved.
+    /// Return every registry version resolved so far.
     #[must_use]
     pub fn resolved_versions(&self) -> Vec<(String, String)> {
-        let mut versions: Vec<_> = lock_recoverable(&self.workspace.packages)
+        lock_recoverable(&self.workspace.packages)
             .values()
             .filter_map(|pkg| {
                 pkg.result
@@ -1369,10 +1366,18 @@ impl TreeCtx {
                     .as_ref()
                     .map(|name_ver| (name_ver.name.to_string(), name_ver.suffix.to_string()))
             })
-            .collect();
-        versions
-            .extend(lock_recoverable(&self.workspace.workspace_package_versions).iter().cloned());
-        versions
+            .collect()
+    }
+
+    pub(crate) fn newly_seen_workspace_package_versions(
+        &self,
+        seen: &mut HashSet<(String, String)>,
+    ) -> Vec<(String, String)> {
+        lock_recoverable(&self.workspace.workspace_package_versions)
+            .iter()
+            .filter(|version| seen.insert((*version).clone()))
+            .cloned()
+            .collect()
     }
 }
 
