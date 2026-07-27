@@ -573,8 +573,10 @@ pub fn compute_skipped_snapshots<Reporter: self::Reporter>(
             return Err(Box::new(warn));
         }
 
-        // Required, non-strict: emit a tracing-level warning as the
-        // user-visible signal that an incompatible required dep slipped through.
+        // Required, non-strict: this should emit a
+        // `pnpm:install-check` warn (TODO: add channel to the reporter).
+        // For now the tracing-level warning is the user-visible signal
+        // that an incompatible required dep slipped through.
         tracing::warn!(
             target: "pacquet::install",
             package = %metadata_key,

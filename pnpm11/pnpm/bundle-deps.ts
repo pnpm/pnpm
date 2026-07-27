@@ -2,11 +2,54 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { execSync } from 'node:child_process'
 
-// Create dist/node_modules via pnpm deploy. Handles external runtime
-// deps (node-gyp, v8-compile-cache, @reflink/reflink) that esbuild
-// leaves out of the bundled pnpm.mjs. Workspace settings, patches,
-// and the lockfile are carried over so pnpm.overrides (e.g. CVE fixes)
-// apply.
+// Background
+//
+// The published pnpm package contains a bundled node_modules directory at
+// dist/node_modules.
+//
+//     .
+//     ├── dist
+//     │   ├── node_modules
+//     │   │   ├── node-gyp
+//     │   │   ├── v8-compile-cache
+//     │   │   └── ...
+//     │   └── pnpm.mjs
+//     ├── ...
+//     └── package.json
+//
+// This is used to include certain dependencies like node-gyp out of the box
+// when installing pnpm.
+//
+// Note that most pnpm dependencies are baked into the large pnpm.mjs file by
+// esbuild. This script handles other dependencies the pnpm bundle config
+// declares as "external" and resolved at runtime — node-gyp, v8-compile-cache,
+// and @reflink/reflink (all platform variants, installed via --force).
+//
+// Strategy
+//
+// To create dist/node_modules, we'll run a pnpm deploy and move the results
+// over into the dist dir.
+//
+//     .
+//     ├── temp-deploy
+//     │   ├── ...
+//     │   ├── README.md
+//     │   ├── node_modules    ──────────────┐
+//     │   ├── package.json                  │
+//     │   ├── pnpm-lock.yaml                │
+//     │   └── pnpm-workspace.yaml           │
+//     └── package.json                      │
+//                                           │
+//     .                                     │
+//     ├── dist                              │
+//     │   ├── node_modules     <────────────┘
+//     │   └── pnpm.mjs
+//     ├── ...
+//     └── package.json
+//
+// The pnpm deploy command should reuse workspace settings, patches, and the
+// pnpm-lock.yaml. This is important to ensure settings such as pnpm.overrides
+// are carried over since they might be overrides to fix CVE vulnerabilities.
 
 const WORKSPACE_DIR = path.join(import.meta.dirname, '..', '..')
 const DEPLOY_DIR = path.join(import.meta.dirname, 'temp-deploy')
@@ -14,12 +57,18 @@ const DEPLOY_DIR = path.join(import.meta.dirname, 'temp-deploy')
 const NODE_MODULES_TEMP_DIR = path.join(DEPLOY_DIR, 'node_modules')
 const NODE_MODULES_DEST_DIR = path.join(import.meta.dirname, 'dist/node_modules')
 
+/**
+ * Remove files like CHANGELOG.md, README.md, etc from node_modules to keep the
+ * final distribution smaller.
+ */
 function cleanupNodeModules (dir: string) {
   const nmPrune = path.join(import.meta.dirname, 'node_modules/.bin/nm-prune')
   execSync(`${nmPrune} --force`, { cwd: dir, stdio: 'inherit' })
 
   const pnpmStateFiles = [
-    // Hoisted linker leaves only a small .lock.yaml — not needed in dist.
+    // Since we're installing with --node-linker=hoisted, this directory only
+    // contains a small .lock.yaml file that's not needed in the final
+    // distribution.
     'node_modules/.pnpm',
     'node_modules/.modules.yaml',
     'node_modules/.pnpm-workspace-state-v1.json',
@@ -30,6 +79,8 @@ function cleanupNodeModules (dir: string) {
 }
 
 function createDistNodeModules () {
+  // Remove the target directory to ensure the results of this script are as
+  // deterministic as possible and don't carry over old state.
   fs.rmSync(DEPLOY_DIR, { recursive: true, force: true })
 
   const pnpmDeploy = [
@@ -37,6 +88,8 @@ function createDistNodeModules () {
     '--config.inject-workspace-packages=true',
     '--config.node-linker=hoisted',
     '--ignore-scripts',
+    // --force installs all optional dependencies regardless of platform, so that
+    // all @reflink/reflink-* platform packages end up in dist/node_modules.
     '--force',
     '--filter=pnpm',
     '--prod',
@@ -56,8 +109,14 @@ function createDistNodeModules () {
 
 createDistNodeModules()
 
-// The bundled dist/node_modules already contains every runtime dependency, so
-// the published manifest must not declare dependencies or devDependencies.
-// The .pnpmfile.cjs beforePacking hook strips these fields when packing.
-// The manifest on disk must stay untouched — stripping it here broke every
-// later `pnpm install` mid-release.
+// The bundled dist/node_modules created above already contains every runtime
+// dependency, so the published manifest must not declare dependencies or
+// devDependencies — otherwise pnpm would install them a second time (and the
+// internal-only devDependencies, e.g. @pnpm/test-ipc-server, aren't even
+// published, so the install would fail). The workspace .pnpmfile.cjs
+// beforePacking hook drops these fields when packing (the release-pinned
+// pnpm honors it since pnpm/pnpm#12955 was fixed, and the release workflow
+// asserts the packed manifest carries no dependency fields before the first
+// publish). The manifest on disk must stay untouched: stripping it here made
+// every later `pnpm install` — including the verifyDepsBeforeRun gate's
+// spawned one — remove the pnpm package's own node_modules mid-release.

@@ -14,8 +14,9 @@
 //!   to whatever the caller inherited, so the guard can't leak state
 //!   into unrelated tests or stomp a developer's shell.
 //!
-//! Proper fix is to thread env lookups through dependency injection,
-//! at which point this module goes away. Until then, holding the returned guard is
+//! Proper fix is to thread env lookups through dependency injection
+//! (the same TODO already noted inline on each test), at which point
+//! this module goes away. Until then, holding the returned guard is
 //! enough to keep env-mutating tests correct under `cargo test` and
 //! `cargo nextest run` alike.
 
