@@ -879,7 +879,7 @@ fn error_from_single_node_graph(alias: &str, dep_path: &str) -> DependenciesGrap
         try_dependencies_graph_to_lockfile(single_importer_opts(
             &manifest, &graph, direct, false, false, None, None,
         ))
-        .unwrap_err()
+        .unwrap_err(),
     )
 }
 
