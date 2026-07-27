@@ -247,7 +247,7 @@ fn both_patterns_empty_produces_no_hoist_symlinks() {
 
 /// `shamefullyHoist: true` is the legacy alias for
 /// `publicHoistPattern: ["*"]`, translated in
-/// `WorkspaceSettings::apply_to`.
+/// the final merged config.
 #[test]
 fn shamefully_hoist_legacy_publicly_hoists_everything() {
     let CommandTempCwd { pacquet, pnpm, root, workspace, npmrc_info, .. } =
@@ -259,10 +259,7 @@ fn shamefully_hoist_legacy_publicly_hoists_everything() {
         serde_json::json!({ "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0" }),
     );
     generate_lockfile(pnpm);
-    write_workspace_yaml(
-        &workspace,
-        "shamefullyHoist: true\nhoistPattern: []\npublicHoistPattern:\n  - '*'\n",
-    );
+    write_workspace_yaml(&workspace, "shamefullyHoist: true\n");
 
     pacquet.with_args(["install", "--frozen-lockfile"]).assert().success();
 
