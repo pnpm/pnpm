@@ -1,12 +1,17 @@
 use crate::cli_args::{
     deps_tree::pkg_info::is_unsafe_path_component,
     recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects},
+    sanitize::{sanitize, sanitize_inline},
 };
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Diagnostic, IntoDiagnostic};
+use owo_colors::{OwoColorize, Stream};
 use pacquet_config::Config;
 use pacquet_lockfile::{Lockfile, PackageKey, PkgName, ResolvedDependencyMap};
+use pacquet_package_is_installable::{
+    SupportedArchitectures, WantedPlatformRef, inferred_platform, platform_is_supported,
+};
 use pacquet_package_manager::{
     AllowBuildPolicy, validate_virtual_store_slot_containment, virtual_store_layout_for_lockfile,
 };
@@ -15,7 +20,7 @@ use pacquet_package_manifest::{
     safe_read_package_json_from_dir,
 };
 use serde::Serialize;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap};
 use tabled::{builder::Builder, settings::Style};
 
 #[derive(Debug, Args)]
@@ -102,6 +107,8 @@ pub struct LicenseInfo {
     pub versions: Vec<String>,
     pub paths: Vec<String>,
     pub license: String,
+    #[serde(skip)]
+    belongs_to: BelongsTo,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub author: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -132,9 +139,8 @@ impl LicensesArgs {
             return Ok(());
         };
 
-        let mut importer_ids = Vec::new();
-
-        if recursive {
+        let importer_ids = if recursive {
+            let mut importer_ids = Vec::new();
             let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
             let (projects, _) = discover_workspace_projects(workspace_root)?;
             let selection =
@@ -152,85 +158,21 @@ impl LicensesArgs {
                 };
                 importer_ids.push(id);
             }
+            importer_ids
         } else {
-            let importer_id = if dir == lockfile_dir {
-                ".".to_string()
-            } else {
-                dir.strip_prefix(lockfile_dir)
-                    .ok()
-                    .map(|rel| rel.to_string_lossy().replace('\\', "/"))
-                    .filter(|id| !id.is_empty())
-                    .unwrap_or_else(|| ".".to_string())
-            };
-            importer_ids.push(importer_id);
-        }
+            lockfile.importers.keys().cloned().collect()
+        };
 
         let include = self.dependency_options.include();
-        let mut belongs_to: HashMap<PackageKey, BelongsTo> = HashMap::new();
-        let mut stack: Vec<(PackageKey, BelongsTo)> = Vec::new();
-
-        for id in importer_ids {
-            let Some(importer) = lockfile.importers.get(&id).or_else(|| lockfile.root_project())
-            else {
-                continue;
-            };
-            let mut queue_deps = |deps: Option<&ResolvedDependencyMap>, kind: BelongsTo| {
-                if let Some(deps) = deps {
-                    for (alias, spec) in deps {
-                        if let Some(key) = spec.version.resolved_key(alias) {
-                            stack.push((key, kind));
-                        }
-                    }
-                }
-            };
-
-            if include.dependencies {
-                queue_deps(importer.dependencies.as_ref(), BelongsTo::Prod);
-            }
-            if include.dev_dependencies {
-                queue_deps(importer.dev_dependencies.as_ref(), BelongsTo::Dev);
-            }
-            if include.optional_dependencies {
-                queue_deps(importer.optional_dependencies.as_ref(), BelongsTo::Optional);
-            }
-        }
-
-        let empty_snapshots = HashMap::new();
-        let snapshots = lockfile.snapshots.as_ref().unwrap_or(&empty_snapshots);
-        let mut seen = HashSet::new();
-
-        while let Some((key, kind)) = stack.pop() {
-            if let Some(existing) = belongs_to.get(&key)
-                && *existing <= kind
-            {
-                continue;
-            }
-
-            belongs_to.insert(key.clone(), kind);
-
-            if !seen.insert((key.clone(), kind)) {
-                continue;
-            }
-
-            if let Some(snapshot) = snapshots.get(&key) {
-                let mut queue_children =
-                    |deps: Option<&HashMap<PkgName, pacquet_lockfile::SnapshotDepRef>>| {
-                        if let Some(deps) = deps {
-                            for (name, dep_ref) in deps {
-                                if let Some(child_key) = dep_ref.resolve(name) {
-                                    stack.push((child_key, kind));
-                                }
-                            }
-                        }
-                    };
-
-                queue_children(snapshot.dependencies.as_ref());
-                if include.optional_dependencies {
-                    queue_children(snapshot.optional_dependencies.as_ref());
-                }
-            }
-        }
-
+        let belongs_to = collect_dependencies(
+            &lockfile,
+            importer_ids,
+            include,
+            config.supported_architectures.as_ref(),
+            pacquet_detect_libc::host_platform(),
+            pacquet_detect_libc::host_arch(),
+            pacquet_graph_hasher::host_libc(),
+        );
         let allow_build_policy = AllowBuildPolicy::from_config(config).into_diagnostic()?;
         let project_manifest = safe_read_package_json_from_dir(dir).into_diagnostic()?;
         let manifest_node_version =
@@ -253,7 +195,7 @@ impl LicensesArgs {
 
         let pkgs = lockfile.packages.as_ref();
 
-        for (key, _kind) in belongs_to {
+        for (key, kind) in belongs_to {
             let name = key.name.to_string();
             let mut version = key.suffix.version().to_string();
             if let Some(pkgs) = pkgs
@@ -291,11 +233,13 @@ impl LicensesArgs {
                 versions: Vec::new(),
                 paths: Vec::new(),
                 license,
+                belongs_to: kind,
                 author,
                 homepage,
                 description,
             });
 
+            info.belongs_to = info.belongs_to.min(kind);
             if !info.versions.contains(&version) {
                 info.versions.push(version);
             }
@@ -342,7 +286,8 @@ impl LicensesArgs {
         all_packages.sort_by(|a, b| a.name.cmp(&b.name));
 
         for info in all_packages {
-            let mut row = vec![info.name.clone(), info.license.clone()];
+            let mut row =
+                vec![render_package_name(info), sanitize_inline(&info.license).into_owned()];
             if self.long {
                 let mut details = Vec::new();
                 if let Some(author) = &info.author {
@@ -354,7 +299,7 @@ impl LicensesArgs {
                 if let Some(home) = &info.homepage {
                     details.push(home.clone());
                 }
-                row.push(details.join("\n"));
+                row.push(sanitize(&details.join("\n")).into_owned());
             }
             builder.push_record(row);
         }
@@ -365,6 +310,119 @@ impl LicensesArgs {
 
         Ok(())
     }
+}
+
+fn collect_dependencies(
+    lockfile: &Lockfile,
+    importer_ids: impl IntoIterator<Item = impl AsRef<str>>,
+    include: Include,
+    supported_architectures: Option<&SupportedArchitectures>,
+    current_os: &str,
+    current_cpu: &str,
+    current_libc: &str,
+) -> HashMap<PackageKey, BelongsTo> {
+    let mut belongs_to: HashMap<PackageKey, BelongsTo> = HashMap::new();
+    let mut stack: Vec<(PackageKey, BelongsTo)> = Vec::new();
+
+    for id in importer_ids {
+        let Some(importer) =
+            lockfile.importers.get(id.as_ref()).or_else(|| lockfile.root_project())
+        else {
+            continue;
+        };
+        let mut queue_deps = |deps: Option<&ResolvedDependencyMap>, kind: BelongsTo| {
+            if let Some(deps) = deps {
+                for (alias, spec) in deps {
+                    if let Some(key) = spec.version.resolved_key(alias) {
+                        stack.push((key, kind));
+                    }
+                }
+            }
+        };
+
+        if include.dependencies {
+            queue_deps(importer.dependencies.as_ref(), BelongsTo::Prod);
+        }
+        if include.dev_dependencies {
+            queue_deps(importer.dev_dependencies.as_ref(), BelongsTo::Dev);
+        }
+        if include.optional_dependencies {
+            queue_deps(importer.optional_dependencies.as_ref(), BelongsTo::Optional);
+        }
+    }
+
+    let empty_snapshots = HashMap::new();
+    let snapshots = lockfile.snapshots.as_ref().unwrap_or(&empty_snapshots);
+
+    while let Some((key, kind)) = stack.pop() {
+        if let Some(existing) = belongs_to.get(&key)
+            && *existing <= kind
+        {
+            continue;
+        }
+
+        let snapshot = snapshots.get(&key);
+        let package =
+            lockfile.packages.as_ref().and_then(|packages| packages.get(&key.without_peer()));
+        if snapshot.is_some_and(|snapshot| snapshot.optional)
+            && package.is_some_and(|package| {
+                let declared = WantedPlatformRef {
+                    os: package.os.as_deref(),
+                    cpu: package.cpu.as_deref(),
+                    libc: package.libc.as_deref(),
+                };
+                let inferred =
+                    (declared.os.is_none() || declared.cpu.is_none() || declared.libc.is_none())
+                        .then(|| key.name.to_string())
+                        .and_then(|name| inferred_platform(&name, declared));
+                let wanted = inferred.as_ref().map_or(declared, |platform| WantedPlatformRef {
+                    os: platform.os.as_deref(),
+                    cpu: platform.cpu.as_deref(),
+                    libc: platform.libc.as_deref(),
+                });
+                !platform_is_supported(
+                    wanted,
+                    supported_architectures,
+                    current_os,
+                    current_cpu,
+                    current_libc,
+                )
+            })
+        {
+            continue;
+        }
+
+        belongs_to.insert(key.clone(), kind);
+
+        if let Some(snapshot) = snapshot {
+            let mut queue_children =
+                |deps: Option<&HashMap<PkgName, pacquet_lockfile::SnapshotDepRef>>| {
+                    if let Some(deps) = deps {
+                        for (name, dep_ref) in deps {
+                            if let Some(child_key) = dep_ref.resolve(name) {
+                                stack.push((child_key, kind));
+                            }
+                        }
+                    }
+                };
+
+            queue_children(snapshot.dependencies.as_ref());
+            if include.optional_dependencies {
+                queue_children(snapshot.optional_dependencies.as_ref());
+            }
+        }
+    }
+
+    belongs_to
+}
+
+fn render_package_name(info: &LicenseInfo) -> String {
+    let name = sanitize_inline(&info.name);
+    let suffix = match info.belongs_to {
+        BelongsTo::Prod | BelongsTo::Optional => return name.into_owned(),
+        BelongsTo::Dev => "(dev)",
+    };
+    format!("{} {}", name, suffix.if_supports_color(Stream::Stdout, |text| text.dimmed()))
 }
 
 #[cfg(test)]
