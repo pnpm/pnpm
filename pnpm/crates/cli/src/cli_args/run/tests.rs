@@ -7,11 +7,11 @@ fn specified_scripts_exact_match() {
     let manifest = json!({ "scripts": { "build": "tsc", "test": "jest" } });
     assert_eq!(
         ScriptSelector::new("build").unwrap().select(&manifest, false),
-        vec!["build".to_string()]
+        vec!["build".to_string()],
     );
     assert_eq!(
         ScriptSelector::new("test").unwrap().select(&manifest, false),
-        vec!["test".to_string()]
+        vec!["test".to_string()],
     );
 }
 
@@ -64,7 +64,7 @@ fn specified_scripts_prefers_an_exact_match_over_the_pattern() {
     let manifest = json!({ "scripts": { "/^a/": "echo literal", "ab": "echo matched" } });
     assert_eq!(
         ScriptSelector::new("/^a/").unwrap().select(&manifest, false),
-        vec!["/^a/".to_string()]
+        vec!["/^a/".to_string()],
     );
 }
 
@@ -201,7 +201,7 @@ fn specified_scripts_regexp_unsorted_insertion_order() {
     }});
     assert_eq!(
         ScriptSelector::new("/^build:.*/").unwrap().select(&manifest, true),
-        vec!["build:z".to_string(), "build:a".to_string(), "build:m".to_string()]
+        vec!["build:z".to_string(), "build:a".to_string(), "build:m".to_string()],
     );
 }
 
@@ -214,6 +214,6 @@ fn specified_scripts_regexp_sorted_alphabetical() {
     }});
     assert_eq!(
         ScriptSelector::new("/^build:.*/").unwrap().select(&manifest, false),
-        vec!["build:a".to_string(), "build:m".to_string(), "build:z".to_string()]
+        vec!["build:a".to_string(), "build:m".to_string(), "build:z".to_string()],
     );
 }

@@ -209,7 +209,7 @@ impl RunArgs {
                 if args.is_empty() && main == "npx only-allow pnpm" {
                     continue;
                 }
-                let status = run_stages(&ctx, name, &main, &args)?;
+                let status = run_stages(&ctx, name, &main, args)?;
                 if !status.success() {
                     std::process::exit(status.code().unwrap_or(1));
                 }
@@ -299,7 +299,7 @@ pub(super) struct RunContext<'a> {
     pub(super) config: &'a Config,
     pub(super) extra_env: &'a HashMap<String, String>,
     pub(super) silent: bool,
-    #[allow(dead_code)]
+    #[allow(dead_code, reason = "unused")]
     pub(super) sequential: bool,
 }
 
