@@ -31,6 +31,8 @@ fn create_config(
     cache_dir: &Path,
 ) -> Config {
     Config {
+        save_exact: false,
+        save_prefix: None,
         versioning: Default::default(),
         hoist: false,
         hoist_pattern: None,

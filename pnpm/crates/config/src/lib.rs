@@ -48,6 +48,7 @@ use crate::defaults::{
     default_fetch_retry_mintimeout, default_fetch_timeout, default_hoist_pattern,
     default_modules_cache_max_age, default_modules_dir, default_public_hoist_pattern,
     default_store_dir, default_user_agent, default_virtual_store_dir,
+    find_nearest_package_json_dir,
 };
 pub use workspace_yaml::{
     AllowBuild, AuditSettings, GLOBAL_CONFIG_YAML_FILENAME, LoadWorkspaceYamlError,
@@ -957,7 +958,7 @@ pub struct Config {
 
     /// The base URL of the npm package registry (trailing slash included).
     #[default(_code = "default_registry()")]
-    pub registry: String, // TODO: use Url type (compatible with reqwest)
+    pub registry: String,
 
     /// The default package scope for `pnpm login` and `pnpm adduser`: the
     /// granted token is associated with this scope and the scope-to-registry
@@ -1740,6 +1741,10 @@ pub struct Config {
     /// `undefined`).
     pub save_catalog_name: Option<String>,
 
+    /// Whether `pnpm add` records an exact version (no range operator)
+    /// when saving. The `saveExact` setting; default `false`.
+    pub save_exact: bool,
+
     /// The range operator `pnpm add` prepends to a resolved version
     /// when saving it: `^` (the default), `~`, or `""` for an exact
     /// pin. The `savePrefix` setting, overridden per-invocation by
@@ -2243,19 +2248,11 @@ impl Config {
     where
         Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
     {
-        // Re-anchor the path-valued defaults (`modules_dir`,
-        // `virtual_store_dir`) onto the caller-supplied starting directory.
-        // SmartDefault populates them via [`defaults::default_modules_dir`] /
-        // [`defaults::default_virtual_store_dir`], which both anchor at
-        // `env::current_dir()`. That diverges from `start_dir` whenever the
-        // caller passed a different directory (notably
-        // `pacquet --dir <path>` from elsewhere), so without this fixup
-        // pacquet would load config from `<path>` while still installing
-        // to the process-cwd `node_modules`. Matches pnpm 11, whose
-        // `modulesDir`/`virtualStoreDir` defaults are resolved against
-        // `pnpmConfig.dir`.
-        self.modules_dir = start_dir.join("node_modules");
-        self.virtual_store_dir = start_dir.join("node_modules/.pnpm");
+        // Anchor modules_dir / virtual_store_dir to the nearest package.json,
+        // matching the TypeScript CLI's findClosestPkgJson.
+        let anchor_dir = find_nearest_package_json_dir(start_dir);
+        self.modules_dir = anchor_dir.join("node_modules");
+        self.virtual_store_dir = anchor_dir.join("node_modules/.pnpm");
 
         // Read the project/workspace .npmrc plus trusted user-level sources
         // and apply only the auth/network subset. Everything else is

@@ -34,7 +34,7 @@ pub struct ProjectSnapshot {
     )]
     pub optional_dependencies: Option<ResolvedDependencyMap>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub dependencies_meta: Option<serde_json::Value>, // TODO: DependenciesMeta
+    pub dependencies_meta: Option<serde_json::Value>, // FIXME: replace with a typed DependenciesMeta struct
     #[serde(skip_serializing_if = "Option::is_none")]
     pub publish_directory: Option<String>,
 }
