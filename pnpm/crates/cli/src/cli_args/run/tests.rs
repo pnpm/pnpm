@@ -106,7 +106,7 @@ fn print_commands_groups_lifecycle_and_other() {
     let manifest = json!({
         "scripts": { "test": "jest", "build": "tsc", ".hidden": "secret" },
     });
-    let output = render_project_commands(&manifest);
+    let output = render_project_commands(&manifest, None);
     assert!(output.contains("Lifecycle scripts:"), "lifecycle header:\n{output}");
     assert!(output.contains("  test\n    jest"), "test under lifecycle:\n{output}");
     assert!(output.contains(r#"Commands available via "pnpm run":"#), "other header:\n{output}");
@@ -117,7 +117,7 @@ fn print_commands_groups_lifecycle_and_other() {
 #[test]
 fn print_commands_empty_when_no_scripts() {
     let manifest = json!({ "name": "x" });
-    let output = render_project_commands(&manifest);
+    let output = render_project_commands(&manifest, None);
     assert_eq!(output, "There are no scripts specified.");
 }
 
