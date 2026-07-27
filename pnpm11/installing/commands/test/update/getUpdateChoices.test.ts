@@ -243,24 +243,24 @@ test('getUpdateChoices() names every workspace a collapsed choice came from', ()
   expect(stripVTControlCharacters(dataRow.message)).toContain('web, tooling')
 })
 
-test('getUpdateChoices() strips control characters from labels it renders', () => {
+test('getUpdateChoices() strips control and formatting characters from labels it renders', () => {
   const choices = getUpdateChoices([
     {
-      alias: 'foo',
+      alias: 'foo\u202E',
       belongsTo: 'dependencies' as const,
       current: '1.0.0',
       latestManifest: {
         name: 'foo',
         version: '2.0.0',
-        homepage: 'https://example.test/\u001b[2J\nEVIL',
+        homepage: 'https://example.test/\u001b[2J\u2066\nEVIL',
       },
-      packageName: 'foo',
+      packageName: 'foo\u202E',
       wanted: '1.0.0',
-      workspace: 'web\u001b[31m\nEVIL',
+      workspace: 'web\u001b[31m\u2069\nEVIL',
     },
   ], true)
 
-  const dataRow = choices[0].choices[1] as { message: string }
+  const dataRow = choices[0].choices[1] as { message: string, value: string }
   // Once the escape byte is gone the remainder is inert text, so what
   // matters is that no escape or newline reaches the prompt. The
   // colorized target carries escapes of its own by design, hence the
@@ -268,5 +268,7 @@ test('getUpdateChoices() strips control characters from labels it renders', () =
   const cells = dataRow.message.split('❯')[1]
   expect(cells).not.toContain('\u001b')
   expect(dataRow.message).not.toContain('\n')
+  expect(dataRow.message).not.toMatch(/[\u202E\u2066\u2069]/u)
   expect(dataRow.message).toContain('https://example.test/')
+  expect(dataRow.value).toBe('foo\u202E')
 })

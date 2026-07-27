@@ -146,14 +146,12 @@ function buildPkgChoice (outdatedPkg: UpdateChoiceDependency, workspacesEnabled:
 }
 
 /**
- * Strip control characters from text that goes into a single-line table
- * cell. Package names, workspace labels, and homepages come out of
- * manifests and registry metadata, so an escape sequence there would
- * corrupt the prompt's redraw and a newline would split the row.
+ * Strip control and formatting characters from text that goes into a
+ * single-line table cell.
  */
 function sanitizeCell (text: string): string {
   // eslint-disable-next-line no-control-regex
-  return text.replace(/[\u0000-\u001F\u007F-\u009F]/g, '')
+  return text.replace(/[\u0000-\u001F\u007F-\u009F\u00AD\u0600-\u0605\u061C\u06DD\u070F\u0890\u0891\u08E2\u180E\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u206F\uFEFF\uFFF9-\uFFFB\u{110BD}\u{110CD}\u{13430}-\u{1343F}\u{1BCA0}-\u{1BCA3}\u{1D173}-\u{1D17A}\u{E0001}\u{E0020}-\u{E007F}]/gu, '')
 }
 
 function getPkgUrl (pkg: OutdatedPackage): string {
