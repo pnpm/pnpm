@@ -176,6 +176,8 @@ async function testFixture (fixtureName: string) {
   expect(readProjectLockfile()).toEqual(originalLockfile)
   const modulesFilePath = path.join(project.dir(), 'node_modules/.modules.yaml')
   const originalModulesFile = fs.readFileSync(modulesFilePath, 'utf8')
+  const virtualStoreDir = path.join(project.dir(), 'node_modules/.pnpm')
+  const originalVirtualStoreEntries = fs.readdirSync(virtualStoreDir).sort()
 
   let dedupeCheckError: DedupeCheckIssuesError | undefined
   try {
@@ -191,6 +193,7 @@ async function testFixture (fixtureName: string) {
     // The dedupe check option should never change the lockfile.
     expect(readProjectLockfile()).toEqual(originalLockfile)
     expect(fs.readFileSync(modulesFilePath, 'utf8')).toBe(originalModulesFile)
+    expect(fs.readdirSync(virtualStoreDir).sort()).toEqual(originalVirtualStoreEntries)
   }
 
   if (dedupeCheckError == null) {
