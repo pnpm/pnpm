@@ -521,10 +521,10 @@ pub(super) fn project_requires_lifecycle_scripts(
 ) -> bool {
     let has_lifecycle_script = pacquet_executor::PROJECT_LIFECYCLE_STAGES
         .iter()
-        .any(|stage| matches!(manifest.script(stage, true), Ok(Some(_))));
+        .any(|stage| matches!(manifest.script_if_present(stage), Ok(Some(_))));
     has_lifecycle_script
-        || (matches!(manifest.script("preinstall", true), Ok(None))
-            && matches!(manifest.script("install", true), Ok(None))
+        || (matches!(manifest.script_if_present("preinstall"), Ok(None))
+            && matches!(manifest.script_if_present("install"), Ok(None))
             && project_dir.join("binding.gyp").exists())
 }
 
