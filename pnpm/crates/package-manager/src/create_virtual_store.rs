@@ -1,6 +1,7 @@
 use crate::{
     CasPathsByPkgId, InstallPackageBySnapshot, InstallPackageBySnapshotError, SkippedSnapshots,
     install_package_by_snapshot::{runtime_platform_selector, unverified_fetch_is_allowed},
+    store_index_key_for_resolution,
     store_init::init_store_dir_best_effort,
 };
 use derive_more::{Display, Error};
@@ -21,10 +22,7 @@ use pacquet_reporter::{
     BrokenModulesLog, LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter, StatsLog,
     StatsMessage,
 };
-use pacquet_store_dir::{
-    SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter, git_hosted_store_index_key,
-    pick_store_index_key, store_index_key,
-};
+use pacquet_store_dir::{SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter, store_index_key};
 use pacquet_tarball::{MemCache, PrefetchResult, SharedReportedProgressKeys, prefetch_cas_paths};
 use pipe_trait::Pipe;
 use std::{
@@ -1263,12 +1261,7 @@ fn snapshot_cache_key(
             // `built` tracks `!ignore_scripts` in lock-step with the
             // dispatcher's write key, so the prefetch and the write
             // address the same slot.
-            Ok(Some(pick_store_index_key(
-                t.integrity.as_ref().map(ToString::to_string).as_deref(),
-                t.is_git_hosted(),
-                &pkg_id,
-                !ignore_scripts,
-            )))
+            Ok(store_index_key_for_resolution(&metadata.resolution, &pkg_id, !ignore_scripts))
         }
         LockfileResolution::Registry(r) => {
             Ok(Some(store_index_key(&r.integrity.to_string(), &pkg_id)))
@@ -1296,7 +1289,7 @@ fn snapshot_cache_key(
             // whether the snapshot is already in `index.db`. `built`
             // tracks `!ignore_scripts` to match the dispatcher's
             // write key.
-            Ok(Some(git_hosted_store_index_key(&pkg_id, !ignore_scripts)))
+            Ok(store_index_key_for_resolution(&metadata.resolution, &pkg_id, !ignore_scripts))
         }
         // Runtime artifacts (Node.js / Bun / Deno): the per-archive
         // integrity is the warm-cache key, same shape as the

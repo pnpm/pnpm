@@ -6,7 +6,9 @@ use super::{
 // unconditionally would be an unused import on Windows.
 #[cfg(unix)]
 use super::RebuildOptions;
-use crate::{RequiresBuildBySnapshot, SkippedSnapshots, VirtualStoreLayout};
+use crate::{
+    RequiresBuildBySnapshot, SkippedSnapshots, VirtualStoreLayout, store_index_key_for_resolution,
+};
 use pacquet_config::{Config, PackageImportMethod};
 use pacquet_executor::ScriptsPrependNodePath;
 use pacquet_lockfile::{
@@ -68,6 +70,39 @@ fn parse_key_without_leading_slash() {
     let (name, version) = parse_name_version_from_key("express@4.18.1");
     assert_eq!(name, "express");
     assert_eq!(version, "4.18.1");
+}
+
+#[test]
+fn side_effects_key_for_git_hosted_tarball_matches_warm_lookup() {
+    let integrity = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+    let pkg_id = "https://codeload.github.com/pnpm/pnpm/tar.gz/abcdef";
+    let resolution =
+        pacquet_lockfile::LockfileResolution::Tarball(pacquet_lockfile::TarballResolution {
+            tarball: pkg_id.to_string(),
+            integrity: Some(integrity.parse().expect("parse integrity")),
+            git_hosted: Some(true),
+            path: None,
+        });
+
+    assert_eq!(
+        store_index_key_for_resolution(&resolution, pkg_id, true),
+        Some(pacquet_store_dir::git_hosted_store_index_key(pkg_id, true)),
+    );
+}
+
+#[test]
+fn side_effects_key_for_git_resolution_does_not_require_integrity() {
+    let pkg_id = "git+file:///tmp/repo#abcdef";
+    let resolution = pacquet_lockfile::LockfileResolution::Git(pacquet_lockfile::GitResolution {
+        repo: "file:///tmp/repo".to_string(),
+        commit: "abcdef".to_string(),
+        path: None,
+    });
+
+    assert_eq!(
+        store_index_key_for_resolution(&resolution, pkg_id, true),
+        Some(pacquet_store_dir::git_hosted_store_index_key(pkg_id, true)),
+    );
 }
 
 // Policy-logic tests below drive `AllowBuildPolicy::new` directly with

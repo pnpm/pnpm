@@ -426,6 +426,46 @@ fn run_prepare_script_for_git_hosted_dependencies() {
 }
 
 #[test]
+fn type_git_dependency_reuses_side_effects_on_warm_install() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let repo = GitRepoFixture::init(root.path(), "git-side-effects");
+    let lifecycle_log = root.path().join("git-side-effects-builds.log");
+    let script = format!(
+        r"require('fs').appendFileSync({}, 'built\n')",
+        serde_json::to_string(&lifecycle_log).expect("serialize lifecycle log path"),
+    );
+    repo.write_file(
+        "package.json",
+        &json!({
+            "name": "git-side-effects",
+            "version": "1.0.0",
+            "scripts": { "postinstall": format!("node -e {script:?}") },
+        })
+        .to_string(),
+    );
+    let commit = repo.commit("init");
+    let spec = repo.git_url_at(&commit);
+    write_dependencies(&workspace, &[("git-side-effects", &spec)]);
+    allow_builds(&workspace, &[&format!("git-side-effects@{spec}")]);
+
+    pacquet.with_arg("install").assert().success();
+    let builds_after_cold_install =
+        fs::read_to_string(&lifecycle_log).expect("read cold-install lifecycle log");
+
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    pnpm_at(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+
+    assert_eq!(
+        fs::read_to_string(&lifecycle_log).expect("read warm-install lifecycle log"),
+        builds_after_cold_install,
+        "the warm install must materialize cached side effects without rerunning postinstall",
+    );
+
+    drop((root, npmrc_info));
+}
+
+#[test]
 fn git_dependency_is_built_on_isolated_reinstall() {
     assert_git_dependency_is_built_on_reinstall(None);
 }
