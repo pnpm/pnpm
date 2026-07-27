@@ -276,6 +276,7 @@ pub struct ResolvePeersResult {
     /// the importer's hidden direct-dep set.
     pub resolved_peer_providers_by_alias: BTreeMap<String, NodeId>,
     pub peer_dependency_issues: PeerDependencyIssues,
+    missing_ancestor_pkg_ids: HashMap<String, Vec<Vec<String>>>,
     /// Per resolved package: the union of missing-peer names its
     /// occurrences' children reported in this walk. The hoist loop
     /// persists the owner-context map per package so non-owner importers
@@ -345,6 +346,7 @@ pub fn resolve_peers(tree: &mut ResolvedTree, opts: ResolvePeersOptions) -> Reso
         opts,
         graph: DependenciesGraph::new(),
         issues: PeerDependencyIssues::default(),
+        missing_ancestor_pkg_ids: HashMap::new(),
         node_dep_paths: HashMap::new(),
         node_external_peers: HashMap::new(),
         node_missing_peers: HashMap::new(),
@@ -361,6 +363,23 @@ pub fn resolve_peers(tree: &mut ResolvedTree, opts: ResolvePeersOptions) -> Reso
         current_provider_sources,
     };
     walker.walk()
+}
+
+pub(crate) fn apply_hoist_missing_scope(
+    result: &mut ResolvePeersResult,
+    scope: &HoistMissingScope,
+) {
+    result.peer_dependency_issues.missing.retain(|peer_name, issues| {
+        let ancestor_chains = result.missing_ancestor_pkg_ids.remove(peer_name).unwrap_or_default();
+        *issues = std::mem::take(issues)
+            .into_iter()
+            .zip(ancestor_chains)
+            .filter_map(|(issue, ancestor_pkg_ids)| {
+                (!scope.suppresses(&ancestor_pkg_ids, peer_name)).then_some(issue)
+            })
+            .collect();
+        !issues.is_empty()
+    });
 }
 
 /// The current-provider sources visible while walking `importer`: its
@@ -436,6 +455,7 @@ pub fn resolve_peers_workspace(
         opts,
         graph: DependenciesGraph::new(),
         issues: PeerDependencyIssues::default(),
+        missing_ancestor_pkg_ids: HashMap::new(),
         node_dep_paths: HashMap::new(),
         node_external_peers: HashMap::new(),
         node_missing_peers: HashMap::new(),
@@ -622,6 +642,7 @@ struct Walker<'tree> {
     opts: ResolvePeersOptions,
     graph: DependenciesGraph,
     issues: PeerDependencyIssues,
+    missing_ancestor_pkg_ids: HashMap<String, Vec<Vec<String>>>,
     /// `NodeId → DepPath` once a node has been walked. Lets repeated
     /// visits (an importer-direct dep that's also reached transitively)
     /// reuse the already-computed depPath.
@@ -873,6 +894,7 @@ impl Walker<'_> {
             direct_dependencies_by_alias: direct_by_alias,
             resolved_peer_providers_by_alias,
             peer_dependency_issues: self.issues,
+            missing_ancestor_pkg_ids: self.missing_ancestor_pkg_ids,
             missing_names_by_pkg,
             paths_by_node_id,
         }
@@ -1160,12 +1182,16 @@ impl Walker<'_> {
                     if self.missing_issue_suppressed(&chain_with_self, peer_name) {
                         continue;
                     }
-                    self.issues.missing.entry(peer_name.clone()).or_default().push(MissingPeer {
-                        wanted_range: get_peer_version_range(&info.range),
-                        raw_range: info.range.clone(),
-                        optional: info.optional,
-                        parents: parents_from_chain(parent_chain_names, &pkg_name),
-                    });
+                    self.record_missing_issue(
+                        peer_name,
+                        MissingPeer {
+                            wanted_range: get_peer_version_range(&info.range),
+                            raw_range: info.range.clone(),
+                            optional: info.optional,
+                            parents: parents_from_chain(parent_chain_names, &pkg_name),
+                        },
+                        &chain_with_self,
+                    );
                 }
             }
             self.node_dep_paths.insert(node_id.clone(), dep_path.clone());
@@ -1561,6 +1587,19 @@ impl Walker<'_> {
         scope.suppresses(ancestor_pkg_ids, peer_name)
     }
 
+    fn record_missing_issue(
+        &mut self,
+        peer_name: &str,
+        issue: MissingPeer,
+        ancestor_pkg_ids: &[String],
+    ) {
+        self.issues.missing.entry(peer_name.to_string()).or_default().push(issue);
+        self.missing_ancestor_pkg_ids
+            .entry(peer_name.to_string())
+            .or_default()
+            .push(ancestor_pkg_ids.to_vec());
+    }
+
     #[expect(
         clippy::too_many_arguments,
         reason = "internal walker helper threading per-node context, mirrors the resolve_node parameter set"
@@ -1593,13 +1632,15 @@ impl Walker<'_> {
                     MissingPeerInfo { range: range_for_match.to_string(), optional },
                 );
                 if !self.missing_issue_suppressed(ancestor_pkg_ids, peer_name) {
-                    self.issues.missing.entry(peer_name.to_string()).or_default().push(
+                    self.record_missing_issue(
+                        peer_name,
                         MissingPeer {
                             wanted_range: range_for_satisfies,
                             raw_range: range_for_match.to_string(),
                             optional,
                             parents: parents_from_chain(chain, pkg_name),
                         },
+                        ancestor_pkg_ids,
                     );
                 }
             }

@@ -33,7 +33,10 @@ use crate::{
         ResolveDependencyTreeError, TreeCtx, WantedSpec, WorkspaceTreeCtx, extend_tree,
         importer_direct_wanted_specs, record_changed_direct_deps, unwrap_package_name,
     },
-    resolve_peers::{ResolvePeersOptions, ResolvePeersResult, resolve_peers},
+    resolve_peers::{
+        HoistMissingScope, ResolvePeersOptions, ResolvePeersResult, apply_hoist_missing_scope,
+        resolve_peers,
+    },
     resolved_tree::ResolvedTree,
 };
 use chrono::{DateTime, Utc};
@@ -353,6 +356,12 @@ pub(crate) struct ImporterHoistState {
     modules_dir: Option<std::path::PathBuf>,
 }
 
+pub(crate) struct RequiredRound {
+    snapshot: ResolvedTree,
+    original_node_ids: HashSet<crate::NodeId>,
+    peers_result: ResolvePeersResult,
+}
+
 impl ImporterHoistState {
     /// Resolve the importer's initial direct-dependency wave and set
     /// up the hoist-round state.
@@ -504,6 +513,41 @@ impl ImporterHoistState {
         if !self.hoist_peers {
             return Ok(());
         }
+        self.begin_required_round();
+        self.complete_required_round(resolver, None).await
+    }
+
+    pub(crate) fn prepare_initial_required_round(&mut self) -> Option<RequiredRound> {
+        if !self.hoist_peers {
+            return None;
+        }
+        self.begin_required_round();
+        Some(self.resolve_required_round(None))
+    }
+
+    pub(crate) fn apply_owner_missing_scope(&self, round: &mut RequiredRound) {
+        apply_hoist_missing_scope(
+            &mut round.peers_result,
+            &HoistMissingScope {
+                importer_id: self.importer_id.clone(),
+                first_importer_by_pkg: self.ctx.workspace().first_importer_by_pkg(),
+                first_walk_missing_by_pkg: self.ctx.workspace().first_walk_missing_by_pkg(),
+            },
+        );
+    }
+
+    pub(crate) async fn complete_initial_required_round<Chain>(
+        &mut self,
+        resolver: &Chain,
+        round: RequiredRound,
+    ) -> Result<(), ResolveImporterError>
+    where
+        Chain: Resolver + ?Sized,
+    {
+        self.complete_required_round(resolver, Some(round)).await
+    }
+
+    fn begin_required_round(&mut self) {
         // Both hoists read the run-extended preferred-versions map:
         // every resolved package's version is folded into
         // `all_preferred_versions` and consulted for the optional hoist
@@ -516,26 +560,43 @@ impl ImporterHoistState {
         // peers never reach a non-owner importer's hoist. The final peer
         // pass keeps the unscoped options so warnings stay complete.
         self.all_missing_optional_peers.clear();
+    }
+
+    fn resolve_required_round(
+        &self,
+        hoist_missing_scope: Option<Arc<HoistMissingScope>>,
+    ) -> RequiredRound {
+        let mut snapshot = self.ctx.snapshot(self.direct.clone());
+        let original_node_ids: HashSet<crate::NodeId> =
+            snapshot.dependencies_tree.keys().cloned().collect();
+        let peers_result = {
+            let mut opts = self.peers_opts();
+            opts.hoist_missing_scope = hoist_missing_scope;
+            resolve_peers(&mut snapshot, opts)
+        };
+        self.ctx
+            .workspace()
+            .record_first_walk_missing(&self.importer_id, &peers_result.missing_names_by_pkg);
+        RequiredRound { snapshot, original_node_ids, peers_result }
+    }
+
+    async fn complete_required_round<Chain>(
+        &mut self,
+        resolver: &Chain,
+        mut first_round: Option<RequiredRound>,
+    ) -> Result<(), ResolveImporterError>
+    where
+        Chain: Resolver + ?Sized,
+    {
         loop {
-            let mut snapshot = self.ctx.snapshot(self.direct.clone());
-            let original_node_ids: HashSet<crate::NodeId> =
-                snapshot.dependencies_tree.keys().cloned().collect();
-            let peers_result = {
-                let mut opts = self.peers_opts();
-                // Re-snapshotted per peer pass because auto-hoisting
-                // can extend the tree and move children ownership to a
-                // shallower occurrence.
-                opts.hoist_missing_scope =
-                    Some(Arc::new(crate::resolve_peers::HoistMissingScope {
+            let RequiredRound { snapshot, original_node_ids, peers_result } =
+                first_round.take().unwrap_or_else(|| {
+                    self.resolve_required_round(Some(Arc::new(HoistMissingScope {
                         importer_id: self.importer_id.clone(),
                         first_importer_by_pkg: self.ctx.workspace().first_importer_by_pkg(),
                         first_walk_missing_by_pkg: self.ctx.workspace().first_walk_missing_by_pkg(),
-                    }));
-                resolve_peers(&mut snapshot, opts)
-            };
-            self.ctx
-                .workspace()
-                .record_first_walk_missing(&self.importer_id, &peers_result.missing_names_by_pkg);
+                    })))
+                });
 
             let (missing_required, fresh_optional) = partition_missing_peers(
                 &peers_result.peer_dependency_issues.missing,
