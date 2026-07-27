@@ -44,6 +44,15 @@ fn libc_string_roundtrip() {
 }
 
 #[test]
+fn singleton_libc_is_written_as_a_string() {
+    let metadata: PackageMetadata =
+        serde_saphyr::from_str(&make_metadata("libc: [glibc]\n")).unwrap();
+    let yaml = serde_saphyr::to_string(&metadata).unwrap();
+
+    assert!(yaml.contains("libc: glibc\n"), "{yaml}");
+}
+
+#[test]
 fn bundled_dependencies_from_a_name_list() {
     let manifest = serde_json::json!({ "bundledDependencies": ["a", "b"] });
     assert_eq!(

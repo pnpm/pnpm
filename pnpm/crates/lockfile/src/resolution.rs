@@ -351,9 +351,15 @@ impl LockfileResolution {
         include_tarball_url: bool,
     ) -> LockfileResolution {
         let LockfileResolution::Tarball(tarball) = self else { return self.clone() };
-        let Some(integrity) = tarball.integrity.as_ref() else { return self.clone() };
-
         let git_hosted = tarball.is_git_hosted();
+        let Some(integrity) = tarball.integrity.as_ref() else {
+            if git_hosted && tarball.git_hosted != Some(true) {
+                let mut normalized = tarball.clone();
+                normalized.git_hosted = Some(true);
+                return LockfileResolution::Tarball(normalized);
+            }
+            return self.clone();
+        };
         // A standard registry tarball whose URL can be rebuilt from name+version+
         // registry is written as just `{integrity}` — pnpm derives the URL on
         // demand. Every other tarball must keep its URL or it can no longer be

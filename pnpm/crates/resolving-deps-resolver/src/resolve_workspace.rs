@@ -287,9 +287,21 @@ where
     for state in &mut states {
         state.set_workspace_root_deps(Arc::clone(&root_deps));
     }
+    let mut owner_missing_sets_initialized = false;
     loop {
         for state in &mut states {
             state.run_required_round(resolver).await?;
+        }
+        if !owner_missing_sets_initialized {
+            // A non-owner importer can be visited before the importer that owns
+            // a shared package's children. Refresh every hoist input after all
+            // owners have published their missing-peer sets so foreign
+            // subtrees are filtered against their owner context before optional
+            // peers are added.
+            for state in &mut states {
+                state.run_required_round(resolver).await?;
+            }
+            owner_missing_sets_initialized = true;
         }
         let mut any_hoisted = false;
         for state in &mut states {

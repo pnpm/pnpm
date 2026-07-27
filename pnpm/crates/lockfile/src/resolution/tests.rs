@@ -718,6 +718,21 @@ fn to_lockfile_form_keeps_git_hosted_subdirectory_path() {
     assert_eq!(actual, resolution);
 }
 
+#[test]
+fn to_lockfile_form_records_git_hosted_for_integrityless_archive() {
+    let resolution = LockfileResolution::Tarball(TarballResolution {
+        tarball: format!("https://codeload.github.com/foo/bar/tar.gz/{GIT_COMMIT}"),
+        integrity: None,
+        git_hosted: None,
+        path: None,
+    });
+    let actual = resolution.to_lockfile_form("foo", "1.0.0", "https://registry.npmjs.org/", false);
+    let LockfileResolution::Tarball(actual) = actual else {
+        panic!("expected tarball resolution");
+    };
+    assert_eq!(actual.git_hosted, Some(true));
+}
+
 /// `include_tarball_url` takes the same kept-URL branch, so it must keep
 /// `path` too.
 #[test]

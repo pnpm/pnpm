@@ -16,9 +16,8 @@
 //!   commit, and emits either a `Tarball{gitHosted: true}` or `Git`
 //!   resolution. Given a [`GitFetchContext`], it also reads the
 //!   package's name from its `package.json` — out of the host archive,
-//!   or out of a checkout for a repo that serves no archive — plus the
-//!   archive's integrity. See that type for why resolution is where
-//!   that has to happen.
+//!   or out of a checkout for a repo that serves no archive. See that
+//!   type for why resolution is where that has to happen.
 //!
 //! Out of scope:
 //!

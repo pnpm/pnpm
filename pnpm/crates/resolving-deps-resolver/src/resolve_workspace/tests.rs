@@ -935,6 +935,116 @@ async fn shared_subtree_owner_context_suppresses_later_optional_hoist() {
     );
 }
 
+#[tokio::test]
+async fn shared_subtree_owner_context_is_available_before_optional_hoisting() {
+    let resolver = RecordingResolver {
+        table: HashMap::from([
+            (
+                ("wrapper".to_string(), "1.0.0".to_string()),
+                fake_result(
+                    "wrapper",
+                    "1.0.0",
+                    None,
+                    serde_json::json!({
+                        "name": "wrapper",
+                        "version": "1.0.0",
+                        "dependencies": { "shared": "1.0.0" },
+                    }),
+                ),
+            ),
+            (
+                ("shared".to_string(), "1.0.0".to_string()),
+                fake_result(
+                    "shared",
+                    "1.0.0",
+                    None,
+                    serde_json::json!({
+                        "name": "shared",
+                        "version": "1.0.0",
+                        "dependencies": { "mid": "1.0.0" },
+                    }),
+                ),
+            ),
+            (
+                ("mid".to_string(), "1.0.0".to_string()),
+                fake_result(
+                    "mid",
+                    "1.0.0",
+                    None,
+                    serde_json::json!({
+                        "name": "mid",
+                        "version": "1.0.0",
+                        "peerDependencies": { "opt": "*" },
+                        "peerDependenciesMeta": { "opt": { "optional": true } },
+                    }),
+                ),
+            ),
+            (
+                ("carrier".to_string(), "1.0.0".to_string()),
+                fake_result(
+                    "carrier",
+                    "1.0.0",
+                    None,
+                    serde_json::json!({
+                        "name": "carrier",
+                        "version": "1.0.0",
+                        "dependencies": { "opt": "25.0.0" },
+                    }),
+                ),
+            ),
+            (
+                ("opt".to_string(), "18.0.0".to_string()),
+                fake_result(
+                    "opt",
+                    "18.0.0",
+                    None,
+                    serde_json::json!({ "name": "opt", "version": "18.0.0" }),
+                ),
+            ),
+            (
+                ("opt".to_string(), "25.0.0".to_string()),
+                fake_result(
+                    "opt",
+                    "25.0.0",
+                    None,
+                    serde_json::json!({ "name": "opt", "version": "25.0.0" }),
+                ),
+            ),
+        ]),
+        seen: Mutex::new(HashMap::new()),
+    };
+    let (tmp_nested, nested_manifest) =
+        fake_manifest(serde_json::json!({ "wrapper": "1.0.0", "carrier": "1.0.0" }));
+    let (tmp_owner, owner_manifest) =
+        fake_manifest(serde_json::json!({ "shared": "1.0.0", "opt": "18.0.0" }));
+    let importers = [
+        WorkspaceImporter { id: "nested".to_string(), manifest: &nested_manifest },
+        WorkspaceImporter { id: "owner".to_string(), manifest: &owner_manifest },
+    ];
+    let dirs = [tmp_nested.path(), tmp_owner.path()];
+    let mut opts = workspace_opts(false, false);
+    opts.auto_install_peers = true;
+    let mut next = 0;
+
+    let result = resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
+        let dir = dirs[next].to_path_buf();
+        next += 1;
+        let mut opts = importer_opts(dir, None);
+        opts.auto_install_peers = true;
+        opts
+    })
+    .await
+    .unwrap();
+
+    let nested =
+        result.peers.direct_dependencies_by_importer.get("nested").expect("nested importer");
+    assert_eq!(
+        nested.get("wrapper").map(std::string::ToString::to_string),
+        Some("wrapper@1.0.0".to_string()),
+        "the importer visited before the shared-subtree owner must not hoist the owner's peer",
+    );
+}
+
 /// The reverse of the sharing case above: when the first importer's
 /// walk could NOT satisfy the optional peer either (it only hoisted it
 /// later), the miss stays visible to every importer — each hoists its

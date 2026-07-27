@@ -30,7 +30,8 @@ pub struct PackageMetadata {
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        deserialize_with = "deserialize_string_or_vec"
+        deserialize_with = "deserialize_string_or_vec",
+        serialize_with = "serialize_string_or_vec"
     )]
     pub libc: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -112,6 +113,25 @@ where
         StringOrVec::String(item) => vec![item],
         StringOrVec::Vec(items) => items,
     }))
+}
+
+#[expect(
+    clippy::ref_option,
+    reason = "serde serialize_with requires a reference to the field type"
+)]
+fn serialize_string_or_vec<Value, Ser>(
+    value: &Option<Vec<Value>>,
+    serializer: Ser,
+) -> Result<Ser::Ok, Ser::Error>
+where
+    Value: Serialize,
+    Ser: serde::Serializer,
+{
+    match value.as_deref() {
+        Some([item]) => item.serialize(serializer),
+        Some(items) => items.serialize(serializer),
+        None => serializer.serialize_none(),
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
