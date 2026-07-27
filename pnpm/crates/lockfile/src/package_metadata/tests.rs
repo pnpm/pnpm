@@ -47,9 +47,13 @@ fn libc_string_roundtrip() {
 fn singleton_libc_is_written_as_a_string() {
     let metadata: PackageMetadata =
         serde_saphyr::from_str(&make_metadata("libc: [glibc]\n")).unwrap();
-    let yaml = serde_saphyr::to_string(&metadata).unwrap();
+    let yaml = serialize_yaml::to_string(&metadata).unwrap();
 
-    assert!(yaml.contains("libc: glibc\n"), "{yaml}");
+    assert_eq!(
+        yaml.lines().filter(|line| line.trim_start().starts_with("libc:")).collect::<Vec<_>>(),
+        ["libc: glibc"],
+        "{yaml}",
+    );
 }
 
 #[test]

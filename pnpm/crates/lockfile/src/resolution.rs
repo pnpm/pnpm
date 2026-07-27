@@ -341,7 +341,8 @@ impl LockfileResolution {
     /// `include_tarball_url` is set, when it is a `file:` tarball, when it is
     /// git-hosted, or when it does not match the derived URL (e.g. private
     /// registries with non-standard tarball paths). Non-tarball resolutions and
-    /// integrity-less tarballs pass through unchanged.
+    /// integrity-less tarballs pass through unchanged, except that a recognized
+    /// git-hosted archive is normalized with `git_hosted: Some(true)`.
     #[must_use]
     pub fn to_lockfile_form(
         &self,
