@@ -1016,15 +1016,14 @@ fn workspace_save_specifier(
                 return None;
             }
             let versions = workspace_packages?.get(package_name)?;
-            let resolved_version = pick_matching_local_version_or_null(versions, &parsed);
-            (package_name.to_string(), resolved_version)
+            let resolved_version = pick_matching_local_version_or_null(versions, &parsed)?;
+            (package_name.to_string(), Some(resolved_version))
         };
-    let resolved_version = resolved_version?;
     let workspace_specifier = calc_specifier_for_workspace_dep(
         DeclaredSpecifiers { prev: prev_specifier, bare: explicit_spec },
         Some(package_name),
         &target_name,
-        Some(&resolved_version),
+        resolved_version.as_deref(),
         config.save_workspace_protocol,
         pinned_version,
     );
