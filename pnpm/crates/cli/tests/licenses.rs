@@ -33,6 +33,7 @@ fn licenses_reads_global_store_metadata_with_a_manifest_selected_runtime() {
                 // from the manifest-selected runtime instead of deferring to the host Node.
                 "@pnpm.e2e/for-legacy-node": "1.0.0",
                 "@pnpm.e2e/install-script-example": "1.0.0",
+                "@pnpm.e2e/legacy-license": "1.0.0",
             },
         })
         .to_string(),
@@ -57,18 +58,25 @@ fn licenses_reads_global_store_metadata_with_a_manifest_selected_runtime() {
 
         let licenses: Value = serde_json::from_slice(&output.stdout).expect("parse licenses JSON");
         let packages = licenses["MIT"].as_array().expect("MIT license group");
-        assert_eq!(packages.len(), 1);
-        assert_eq!(packages[0]["name"], "@pnpm.e2e/install-script-example");
-        assert_eq!(packages[0]["versions"], json!(["1.0.0"]));
-        assert!(
-            packages[0]["paths"]
-                .as_array()
-                .expect("package paths")
+        assert_eq!(
+            packages
                 .iter()
-                .all(|path| Path::new(path.as_str().expect("path string")).exists()),
-            "reported package paths should exist: {}",
-            packages[0]["paths"],
+                .map(|package| package["name"].as_str().expect("package name"))
+                .collect::<Vec<_>>(),
+            ["@pnpm.e2e/install-script-example", "@pnpm.e2e/legacy-license"],
         );
+        for package in packages {
+            assert_eq!(package["versions"], json!(["1.0.0"]));
+            assert!(
+                package["paths"]
+                    .as_array()
+                    .expect("package paths")
+                    .iter()
+                    .all(|path| Path::new(path.as_str().expect("path string")).exists()),
+                "reported package paths should exist: {}",
+                package["paths"],
+            );
+        }
     }
 
     drop((root, mock_instance));
