@@ -105,6 +105,7 @@ base64 = { version = "0.22.1" }
 bcrypt = { version = "0.19.1" }
 bytes = { version = "1.11.0" }
 chrono = { version = "0.4.44", default-features = false, features = ["clock"] }
+console = { version = "0.16.3" }
 crossterm = { version = "0.29.0" }
 dashmap = { version = "6.2.1" }
 derive_more = { version = "2.1.1", features = ["full"] }

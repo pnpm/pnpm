@@ -3986,6 +3986,7 @@ dependencies = [
  "chrono",
  "clap",
  "command-extra",
+ "console",
  "derive_more",
  "dialoguer",
  "dunce",

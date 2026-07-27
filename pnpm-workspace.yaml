@@ -72,7 +72,7 @@ versioning:
   # The Rust CLI wrapper and its NAPI addon always release in lockstep at one
   # shared version.
   fixed:
-    - ['pacquet', '@pnpm/napi']
+    - [ 'pacquet', '@pnpm/napi' ]
   # The Rust products release as `X.Y.Z-alpha.N` prereleases (published under the
   # `next` dist-tag) while the TypeScript CLI keeps releasing stable versions on
   # the main lane. `pnpm lane main --filter …` graduates a product to stable.
@@ -152,7 +152,7 @@ catalog:
   '@types/micromatch': ^4.0.10
   # Kept on 22.x to match pnpm's minimum supported Node.js version (>=22.13);
   # newer majors would type APIs that don't exist on the supported floor.
-  '@types/node': ^22.19.19
+  '@types/node': ^22.20.1
   '@types/normalize-package-data': ^2.4.4
   '@types/normalize-path': ^3.0.2
   '@types/npm-registry-fetch': ^8.0.9
@@ -287,7 +287,7 @@ catalog:
   npm-packlist: 10.0.4
   # npm-registry-fetch 20.x requires Node.js ^22.22.2 || ^24.15.0 || >=26.0.0,
   # above pnpm's supported floor of Node.js >=22.13.
-  npm-registry-fetch: ^19.0.0
+  npm-registry-fetch: ^19.1.1
   object-hash: 3.0.0
   open: ^11.0.0
   openpgp: ^6.3.1
@@ -343,6 +343,7 @@ catalog:
   ssri: 13.0.1
   stacktracey: ^2.2.0
   string-length: ^7.0.1
+  string-width: ^8.2.2
   strip-bom: ^5.0.0
   strip-comments-strings: 1.2.0
   symlink-dir: ^10.0.1
@@ -364,7 +365,7 @@ catalog:
   typescript-eslint: ^8.65.0
   # undici 8.x requires Node.js >=22.19.0, above pnpm's supported floor of
   # Node.js >=22.13.
-  undici: ^7.27.2
+  undici: ^7.29.0
   unified: ^11.0.5
   # validate-npm-package-name 8.x requires Node.js ^22.22.2 || ^24.15.0 ||
   # >=26.0.0, above pnpm's supported floor of Node.js >=22.13.

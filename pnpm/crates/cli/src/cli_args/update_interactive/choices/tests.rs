@@ -6,8 +6,9 @@
 //! the user sees: which groups appear, in what order, which packages sit
 //! in each, and that every column lines up.
 
-use super::{ChoiceGroup, printable_width, update_choices};
+use super::{ChoiceGroup, update_choices};
 use crate::cli_args::outdated::OutdatedPackage;
+use console::measure_text_width;
 use node_semver::Version;
 use pacquet_package_manifest::DependencyGroup;
 
@@ -39,6 +40,16 @@ fn pkg(
 /// The package each selectable row of a group updates, in order.
 fn values(group: &ChoiceGroup) -> Vec<&str> {
     group.rows.iter().filter_map(|row| row.value.as_deref()).collect()
+}
+
+/// The terminal column each selectable row's `❯` starts at, in order.
+fn arrow_offsets(group: &ChoiceGroup) -> Vec<usize> {
+    group
+        .rows
+        .iter()
+        .skip(1)
+        .map(|row| measure_text_width(row.label.split('❯').next().expect("row has an arrow")))
+        .collect()
 }
 
 #[test]
@@ -170,13 +181,24 @@ fn columns_line_up_within_a_group() {
 
     let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false);
 
-    let arrow_offsets: Vec<usize> = groups[0]
-        .rows
-        .iter()
-        .skip(1)
-        .map(|row| printable_width(row.label.split('❯').next().expect("row has an arrow")))
-        .collect();
-    assert_eq!(arrow_offsets[0], arrow_offsets[1]);
+    let offsets = arrow_offsets(&groups[0]);
+    assert_eq!(offsets[0], offsets[1]);
+}
+
+/// Padding is counted in terminal columns rather than in `char`s, so a
+/// name made of double-width characters does not push the rest of its row
+/// out of line with its neighbours'.
+#[test]
+fn a_wide_name_does_not_shift_its_row() {
+    let packages = [
+        pkg("中文包名字", "中文包名字", "1.0.0", "2.0.0", DependencyGroup::Prod),
+        pkg("b", "b", "1.0.0", "2.0.0", DependencyGroup::Prod),
+    ];
+
+    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false);
+
+    let offsets = arrow_offsets(&groups[0]);
+    assert_eq!(offsets[0], offsets[1]);
 }
 
 /// Nothing outdated means nothing to choose from.

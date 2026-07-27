@@ -2,6 +2,7 @@ import { stripVTControlCharacters } from 'node:util'
 
 import { expect, test } from '@jest/globals'
 import chalk from 'chalk'
+import stringWidth from 'string-width'
 
 import { getUpdateChoices } from '../../lib/update/getUpdateChoices.js'
 
@@ -176,6 +177,29 @@ test('getUpdateChoices() handles long version strings without wrapping', () => {
   // within the version string, which would break a plain substring match
   // when chalk has colors enabled.
   expect(stripVTControlCharacters(dataRow.message)).toContain('7.0.0-dev.20251214.1')
+})
+
+test('getUpdateChoices() sizes the version columns by their rendered width', () => {
+  const outdated = (alias: string, current: string) => ({
+    alias,
+    belongsTo: 'dependencies' as const,
+    current,
+    latestManifest: { name: alias, version: '2.0.0' },
+    packageName: alias,
+    wanted: current,
+  })
+
+  // A version made of double-width characters occupies twice the columns
+  // its code units suggest. Sizing the column by code units leaves the
+  // cell wider than the column it is laid out in, which wraps the row.
+  const choices = getUpdateChoices([outdated('a', '1.0.0-中文中文中文中文中文'), outdated('b', '1.0.0')], false)
+
+  const rows = choices[0].choices.map((choice) => stripVTControlCharacters((choice as { message: string }).message))
+  for (const row of rows) {
+    expect(row).not.toContain('\n')
+  }
+  const arrowColumns = rows.slice(1).map((row) => stringWidth(row.split('❯')[0]))
+  expect(arrowColumns[0]).toBe(arrowColumns[1])
 })
 
 test('getUpdateChoices() groups GitHub Actions separately', () => {

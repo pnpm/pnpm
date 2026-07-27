@@ -1,10 +1,9 @@
-import { stripVTControlCharacters } from 'node:util'
-
 import { colorizeSemverDiff } from '@pnpm/colorize-semver-diff'
 import type { OutdatedPackage } from '@pnpm/deps.inspection.outdated'
 import { semverDiff } from '@pnpm/semver-diff'
 import { getBorderCharacters, table } from '@zkochan/table'
 import { and, groupBy, isEmpty, pickBy, pluck } from 'ramda'
+import stringWidth from 'string-width'
 
 export interface ChoiceRow {
   name: string
@@ -194,9 +193,18 @@ function alignColumns (rows: string[][]): string[] {
   ).split('\n')
 }
 
+/**
+ * The width the column has to be given so that none of its cells wrap.
+ *
+ * Measured in terminal columns rather than in code units, matching how
+ * `@zkochan/table` lays the cell out: a cell that renders wider than the
+ * width it is given wraps, which splits the row and shifts every choice
+ * after it. `stringWidth` also discards the highlighting escapes
+ * `colorizeSemverDiff` puts in the target column.
+ */
 function getColumnWidth (rows: string[][], columnIndex: number, minWidth: number): number {
   return rows.reduce((max, row) => {
     if (row[columnIndex] == null) return max
-    return Math.max(max, stripVTControlCharacters(row[columnIndex]).length)
+    return Math.max(max, stringWidth(row[columnIndex]))
   }, minWidth)
 }

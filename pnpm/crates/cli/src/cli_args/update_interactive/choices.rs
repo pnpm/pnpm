@@ -8,6 +8,7 @@ use crate::cli_args::{
     outdated::{OutdatedPackage, colorize_target},
     sanitize::sanitize_inline,
 };
+use console::measure_text_width;
 use node_semver::Version;
 use pacquet_package_manifest::DependencyGroup;
 use std::collections::HashMap;
@@ -190,8 +191,9 @@ fn render_rows(choices: &[&Choice<'_>], workspaces_enabled: bool) -> Vec<ChoiceR
         .collect()
 }
 
-/// The width of each column, measured on the printable text so the
-/// colour escapes `colorize_target` embeds do not inflate the padding.
+/// The width of each column, measured in terminal columns so the colour
+/// escapes `colorize_target` embeds do not inflate the padding and a name
+/// made of wide characters is not measured as narrower than it renders.
 fn column_widths(cells: &[Vec<String>]) -> Vec<usize> {
     let column_count = cells.iter().map(Vec::len).max().unwrap_or_default();
     (0..column_count)
@@ -199,7 +201,7 @@ fn column_widths(cells: &[Vec<String>]) -> Vec<usize> {
             cells
                 .iter()
                 .filter_map(|row| row.get(column))
-                .map(|cell| printable_width(cell))
+                .map(|cell| measure_text_width(cell))
                 .max()
                 .unwrap_or_default()
         })
@@ -217,7 +219,7 @@ fn pad_row(row: &[String], widths: &[usize]) -> String {
             line.push(' ');
         }
         let padding =
-            widths.get(index).copied().unwrap_or_default().saturating_sub(printable_width(cell));
+            widths.get(index).copied().unwrap_or_default().saturating_sub(measure_text_width(cell));
         if index == CURRENT_COLUMN {
             line.extend(std::iter::repeat_n(' ', padding));
             line.push_str(cell);
@@ -231,31 +233,6 @@ fn pad_row(row: &[String], widths: &[usize]) -> String {
         }
     }
     line.trim_end().to_string()
-}
-
-/// The column width of `text`, skipping the SGR escapes that colour it.
-///
-/// Only the colouring this module applies through [`colorize_target`]
-/// reaches here — every other cell is stripped of control characters by
-/// [`sanitize_inline`] first — so this handles the `ESC [ … m` sequences
-/// `owo_colors` emits rather than ANSI in general. Width is counted in
-/// characters, which matches column width for the ASCII that package
-/// names and semver versions are made of.
-fn printable_width(text: &str) -> usize {
-    let mut width = 0;
-    let mut chars = text.chars();
-    while let Some(character) = chars.next() {
-        if character == '\u{1b}' {
-            for escape in chars.by_ref() {
-                if escape == 'm' {
-                    break;
-                }
-            }
-            continue;
-        }
-        width += 1;
-    }
-    width
 }
 
 #[cfg(test)]
