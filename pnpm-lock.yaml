@@ -268,7 +268,7 @@ catalogs:
       specifier: ^4.0.10
       version: 4.0.10
     '@types/node':
-      specifier: ^22.20.1
+      specifier: ^22.19.19
       version: 22.20.1
     '@types/normalize-package-data':
       specifier: ^2.4.4
@@ -616,7 +616,7 @@ catalogs:
       specifier: 10.0.4
       version: 10.0.4
     npm-registry-fetch:
-      specifier: ^19.1.1
+      specifier: ^19.0.0
       version: 19.1.1
     object-hash:
       specifier: 3.0.0
@@ -817,7 +817,7 @@ catalogs:
       specifier: ^8.65.0
       version: 8.65.0
     undici:
-      specifier: ^7.29.0
+      specifier: ^7.27.2
       version: 7.29.0
     unified:
       specifier: ^11.0.5
