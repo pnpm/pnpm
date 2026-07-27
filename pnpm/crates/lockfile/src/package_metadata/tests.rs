@@ -1,4 +1,4 @@
-use super::{BundledDependencies, PackageMetadata};
+use super::{BundledDependencies, PackageMetadata, StringOrList};
 use crate::serialize_yaml;
 use text_block_macros::text_block;
 
@@ -17,14 +17,14 @@ fn make_metadata(libc_yaml: &str) -> String {
 fn libc_as_string() {
     let yaml = make_metadata("libc: glibc\n");
     let metadata: PackageMetadata = serde_saphyr::from_str(&yaml).unwrap();
-    assert_eq!(metadata.libc, Some(vec!["glibc".to_string()]));
+    assert_eq!(metadata.libc, Some(StringOrList::String("glibc".to_string())));
 }
 
 #[test]
 fn libc_as_array() {
     let yaml = make_metadata("libc: [glibc]\n");
     let metadata: PackageMetadata = serde_saphyr::from_str(&yaml).unwrap();
-    assert_eq!(metadata.libc, Some(vec!["glibc".to_string()]));
+    assert_eq!(metadata.libc, Some(StringOrList::List(vec!["glibc".to_string()])));
 }
 
 #[test]
@@ -44,16 +44,12 @@ fn libc_string_roundtrip() {
 }
 
 #[test]
-fn singleton_libc_is_written_as_a_string() {
-    let metadata: PackageMetadata =
-        serde_saphyr::from_str(&make_metadata("libc: [glibc]\n")).unwrap();
-    let yaml = serialize_yaml::to_string(&metadata).unwrap();
-
-    assert_eq!(
-        yaml.lines().filter(|line| line.trim_start().starts_with("libc:")).collect::<Vec<_>>(),
-        ["libc: glibc"],
-        "{yaml}",
-    );
+fn libc_shape_is_preserved() {
+    for input in ["libc: glibc\n", "libc: [glibc]\n"] {
+        let metadata: PackageMetadata = serde_saphyr::from_str(&make_metadata(input)).unwrap();
+        let yaml = serialize_yaml::to_string(&metadata).unwrap();
+        assert!(yaml.lines().any(|line| line.trim_start() == input.trim()), "{yaml}");
+    }
 }
 
 #[test]

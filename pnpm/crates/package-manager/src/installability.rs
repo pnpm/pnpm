@@ -895,7 +895,7 @@ fn manifest_from_metadata(
         }),
         cpu: metadata.cpu.clone(),
         os: metadata.os.clone(),
-        libc: metadata.libc.clone(),
+        libc: metadata.libc.as_deref().map(<[String]>::to_vec),
     }
 }
 

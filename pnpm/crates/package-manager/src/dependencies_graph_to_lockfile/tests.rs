@@ -269,7 +269,7 @@ fn string_or_list_metadata_accepts_arrays_and_rejects_other_values() {
     let array_manifest = json!({ "libc": ["glibc", "musl"] });
     assert_eq!(
         read_string_or_list(Some(&array_manifest), "libc"),
-        Some(vec!["glibc".to_string(), "musl".to_string()]),
+        Some(vec!["glibc".to_string(), "musl".to_string()].into()),
     );
 
     let object_manifest = json!({ "libc": { "name": "musl" } });
