@@ -299,6 +299,38 @@ fn traversal_matches_pnpm_graph_walker_ownership() {
 }
 
 #[test]
+fn traversal_includes_alias_collisions_from_every_importer() {
+    let (snapshots, packages) = make_lockfile_data(&[
+        ("shared", "1.0.0", &[("from-one", "from-one", "1.0.0")], false),
+        ("shared", "2.0.0", &[("from-two", "from-two", "1.0.0")], false),
+        ("from-one", "1.0.0", &[], false),
+        ("from-two", "1.0.0", &[], false),
+    ]);
+    let graph = build_hoist_graph(&snapshots, &packages);
+    let direct = IndexMap::from([
+        (".".to_string(), IndexMap::from([("shared".to_string(), key("shared", "1.0.0"))])),
+        (
+            "packages/other".to_string(),
+            IndexMap::from([("shared".to_string(), key("shared", "2.0.0"))]),
+        ),
+    ]);
+    let result = get_hoisted_dependencies(&HoistInputs {
+        graph: &graph,
+        direct_deps_by_importer: &direct,
+        skipped: &HashSet::new(),
+        private_pattern: create_matcher(&pats(["*"])),
+        public_pattern: create_matcher(&[]),
+        hoisted_workspace_packages: None,
+    })
+    .expect("non-empty graph");
+
+    let hoisted_keys: Vec<_> = result.hoisted_dependencies.keys().map(String::as_str).collect();
+    dbg!(&hoisted_keys);
+    assert!(hoisted_keys.contains(&"from-one@1.0.0"));
+    assert!(hoisted_keys.contains(&"from-two@1.0.0"));
+}
+
+#[test]
 fn direct_dep_blocks_same_alias_transitive() {
     let (snapshots, packages) = make_lockfile_data(&[
         ("has-shared", "1.0.0", &[("shared", "shared", "2.0.0")], false),

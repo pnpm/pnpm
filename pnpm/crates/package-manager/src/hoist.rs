@@ -261,10 +261,12 @@ pub fn get_hoisted_dependencies<'a>(input: &'a HoistInputs<'a>) -> Option<HoistR
     }
 
     let mut direct_nodes = Vec::new();
-    for node_id in direct_deps.values() {
-        let Some((graph_key, _)) = input.graph.get_key_value(node_id) else { continue };
-        if visited.insert(graph_key) {
-            direct_nodes.push(graph_key);
+    for importer_deps in input.direct_deps_by_importer.values() {
+        for node_id in importer_deps.values() {
+            let Some((graph_key, _)) = input.graph.get_key_value(node_id) else { continue };
+            if visited.insert(graph_key) {
+                direct_nodes.push(graph_key);
+            }
         }
     }
     entries.push(BfsEntry {
