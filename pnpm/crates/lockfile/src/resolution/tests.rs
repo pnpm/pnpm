@@ -571,7 +571,6 @@ fn serialize_variations_resolution() {
     assert_eq!(received, expected);
 }
 
-
 fn binary_resolution(url: &str) -> LockfileResolution {
     LockfileResolution::Binary(BinaryResolution {
         url: url.to_string(),

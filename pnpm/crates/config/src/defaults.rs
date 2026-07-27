@@ -11,8 +11,9 @@ use std::path::Component;
 fn expand_tilde(path: &str, home_dir: &std::path::Path) -> PathBuf {
     if path == "~" {
         home_dir.to_path_buf()
-    } else if let Some(rest) = path.strip_prefix("~/").or_else(|| path.strip_prefix("~\\")) {
-        home_dir.join(rest)
+    } else if path.starts_with("~/") || path.starts_with("~\\") {
+        let rest = &path[1..];
+        home_dir.join(rest.trim_start_matches(['/', '\\']))
     } else {
         PathBuf::from(path)
     }

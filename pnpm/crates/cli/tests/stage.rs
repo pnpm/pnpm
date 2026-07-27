@@ -392,7 +392,6 @@ fn gzipped_tarball(entries: &[(&str, &str)]) -> Vec<u8> {
     encoder.finish().expect("finish the gzip stream")
 }
 
-
 /// A hosted pnpr on an ephemeral localhost port, backed by a fresh
 /// storage tempdir (returned so it outlives the test).
 fn spawn_hosted_registry() -> (String, tempfile::TempDir) {
