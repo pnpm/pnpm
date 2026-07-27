@@ -75,6 +75,43 @@ fn dedupe_check_does_not_materialize_nor_write_lockfile() {
     drop((root, mock_instance));
 }
 
+#[test]
+fn dedupe_check_keeps_valid_lockfile_pins() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let manifest_path = workspace.join("package.json");
+    let manifest = |version: &str| {
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/dep-of-pkg-with-1-dep": version,
+            },
+        })
+        .to_string()
+    };
+    fs::write(&manifest_path, manifest("100.0.0")).expect("write package.json");
+    pacquet.with_arg("install").assert().success();
+
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
+    fs::write(&manifest_path, manifest("^100.0.0")).expect("rewrite package.json");
+    let lockfile_before = lockfile.replacen("specifier: 100.0.0", "specifier: ^100.0.0", 1);
+    fs::write(&lockfile_path, &lockfile_before).expect("rewrite lockfile specifier");
+
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .with_args(["dedupe", "--check"])
+        .assert()
+        .success();
+
+    let lockfile_after = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
+    assert_eq!(lockfile_before, lockfile_after, "dedupe must preserve a valid existing pin");
+
+    drop((root, mock_instance));
+}
+
 /// pnpm's dedupe points at `pnpm peers check` when the install it runs
 /// leaves peer-dependency issues behind, so the two commands agree.
 #[test]

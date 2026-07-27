@@ -1025,6 +1025,69 @@ async fn shared_subtree_miss_unsatisfied_by_first_importer_still_hoists() {
     }
 }
 
+#[tokio::test]
+async fn local_workspace_package_version_can_satisfy_another_importers_optional_peer() {
+    let mut table = HashMap::new();
+    table.insert(
+        ("needs-opt".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "needs-opt",
+            "1.0.0",
+            None,
+            serde_json::json!({
+                "name": "needs-opt",
+                "version": "1.0.0",
+                "peerDependencies": { "opt": "^1.0.0" },
+                "peerDependenciesMeta": { "opt": { "optional": true } },
+            }),
+        ),
+    );
+    let mut local_opt =
+        fake_result("opt", "1.0.0", None, serde_json::json!({ "name": "opt", "version": "1.0.0" }));
+    local_opt.id = PkgResolutionId::from("link:packages/opt".to_string());
+    local_opt.name_ver = None;
+    local_opt.resolution = LockfileResolution::Directory(DirectoryResolution {
+        directory: "packages/opt".to_string(),
+    });
+    local_opt.resolved_via = "local-filesystem".to_string();
+    table.insert(("opt".to_string(), "workspace:*".to_string()), local_opt);
+    table.insert(
+        ("opt".to_string(), "1.0.0".to_string()),
+        fake_result("opt", "1.0.0", None, serde_json::json!({ "name": "opt", "version": "1.0.0" })),
+    );
+    let resolver = RecordingResolver { table, seen: Mutex::new(HashMap::new()) };
+    let (tmp_root, root_manifest) = fake_manifest(serde_json::json!({ "opt": "workspace:*" }));
+    let (tmp_a, a_manifest) = fake_manifest(serde_json::json!({ "needs-opt": "1.0.0" }));
+    let importers = [
+        WorkspaceImporter { id: ".".to_string(), manifest: &root_manifest },
+        WorkspaceImporter { id: "pkg-a".to_string(), manifest: &a_manifest },
+    ];
+    let dirs = [tmp_root.path(), tmp_a.path()];
+
+    let mut opts = workspace_opts(false, false);
+    opts.auto_install_peers = true;
+    let mut next = 0;
+    let result = resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
+        let dir = dirs[next].to_path_buf();
+        next += 1;
+        let mut opts = importer_opts(dir, None);
+        opts.auto_install_peers = true;
+        opts
+    })
+    .await
+    .unwrap();
+
+    let direct = result.peers.direct_dependencies_by_importer.get("pkg-a").expect("pkg-a");
+    assert_eq!(
+        direct.get("needs-opt").map(std::string::ToString::to_string),
+        Some("needs-opt@1.0.0(opt@1.0.0)".to_string()),
+    );
+    assert_eq!(
+        direct.get("opt").map(std::string::ToString::to_string),
+        Some("opt@1.0.0".to_string()),
+    );
+}
+
 /// Resolver fed from a `(alias, range)` → `ResolveResult` table whose
 /// chain fails for the aliases in `failing`, mimicking a registry
 /// whose packument no longer serves any satisfying version.

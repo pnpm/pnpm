@@ -613,8 +613,11 @@ fn build_package_metadata(
     let os = read_string_list(manifest, "os");
     let libc = read_string_or_list(manifest, "libc");
 
-    let deprecated =
-        manifest.and_then(|m| m.get("deprecated")).and_then(Value::as_str).map(ToString::to_string);
+    let deprecated = manifest
+        .and_then(|m| m.get("deprecated"))
+        .and_then(Value::as_str)
+        .filter(|deprecated| !deprecated.is_empty())
+        .map(ToString::to_string);
 
     let has_bin = manifest_has_bin(manifest);
 

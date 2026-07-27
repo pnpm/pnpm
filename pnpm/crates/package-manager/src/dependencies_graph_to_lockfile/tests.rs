@@ -199,6 +199,33 @@ fn fresh_install_records_a_single_direct_dependency() {
 }
 
 #[test]
+fn empty_deprecation_message_is_not_written_to_the_lockfile() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": { "legacy": "1.0.0" },
+    }));
+    let node = make_node(
+        "legacy",
+        "1.0.0",
+        json!({ "name": "legacy", "version": "1.0.0", "deprecated": "" }),
+        BTreeMap::new(),
+        BTreeMap::new(),
+        HashSet::new(),
+    );
+    let mut graph = DependenciesGraph::new();
+    graph.insert(node.dep_path.clone(), node);
+    let mut direct = BTreeMap::new();
+    direct.insert("legacy".to_string(), DepPath::from("legacy@1.0.0".to_string()));
+
+    let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest, &graph, direct, true, false, None, None,
+    ));
+    let package_key: PackageKey = "legacy@1.0.0".parse().expect("package key");
+    assert_eq!(lockfile.packages.as_ref().expect("packages")[&package_key].deprecated, None);
+}
+
+#[test]
 fn fresh_install_records_string_libc_without_coercing_scalar_bundle_metadata() {
     let (_tmp, manifest) = write_manifest(json!({
         "name": "fixture",
