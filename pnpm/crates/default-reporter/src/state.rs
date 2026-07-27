@@ -457,6 +457,25 @@ impl ReporterState {
         }
     }
 
+    /// pnpm's `reportScope`: how many workspace projects the command
+    /// selected. Silent for a command that doesn't report scope, and for a
+    /// single selected project — where the answer is the directory the
+    /// user is already standing in.
+    fn on_scope(&mut self, log: &ScopeLog) {
+        if !self.reports_scope || log.selected == 1 {
+            return;
+        }
+        let count = match log.total {
+            Some(total) if total == log.selected => format!("all {total}"),
+            Some(total) => format!("{} of {total}", log.selected),
+            None => log.selected.to_string(),
+        };
+        let unit = if log.workspace_prefix.is_some() { "workspace projects" } else { "projects" };
+        let mut slot = std::mem::take(&mut self.scope_slot);
+        self.frame.emit(&mut slot, format!("Scope: {count} {unit}"), false);
+        self.scope_slot = slot;
+    }
+
     fn on_context(&mut self, log: &ContextLog) {
         self.context = Some(log.clone());
         self.maybe_render_context();
