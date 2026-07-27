@@ -3810,7 +3810,7 @@ fn run_dev_preinstall<Reporter: self::Reporter>(
         unsafe_perm: config.unsafe_perm,
         node_gyp_bin: None,
         scripts_prepend_node_path: exec_scripts_prepend_node_path(config),
-        script_shell: None,
+        script_shell: config.script_shell.as_deref().map(Path::new),
         optional: false,
     })
     .map(drop)
@@ -3864,7 +3864,7 @@ fn run_projects_lifecycle_scripts<Reporter: self::Reporter>(
                 unsafe_perm: config.unsafe_perm,
                 node_gyp_bin: None,
                 scripts_prepend_node_path,
-                script_shell: None,
+                script_shell: config.script_shell.as_deref().map(Path::new),
                 optional: false,
             })
             .map_err(InstallError::ProjectLifecycleScript)?;

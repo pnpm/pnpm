@@ -462,6 +462,11 @@ pub struct BuildModules<'a> {
     /// [`RunPostinstallHooks::scripts_prepend_node_path`] for each
     /// spawned lifecycle script. Default [`ScriptsPrependNodePath::Never`].
     pub scripts_prepend_node_path: ScriptsPrependNodePath,
+    /// Mirrors `config.script_shell`. Threaded through to
+    /// [`RunPostinstallHooks::script_shell`], so a workspace that
+    /// configures a shell gets it for build scripts too, not only for
+    /// `pnpm run`. `None` selects the platform default.
+    pub script_shell: Option<&'a Path>,
     pub extra_env: &'a HashMap<String, String>,
     /// Mirrors `config.user_agent`, stamped into each build script's
     /// `npm_config_user_agent`.
@@ -594,6 +599,7 @@ impl BuildModules<'_> {
             store_index_writer,
             patches,
             scripts_prepend_node_path,
+            script_shell,
             extra_env,
             user_agent,
             unsafe_perm,
@@ -759,6 +765,7 @@ impl BuildModules<'_> {
                         extra_env,
                         user_agent,
                         scripts_prepend_node_path,
+                        script_shell,
                         unsafe_perm,
                         frozen_store,
                         ignore_scripts,
@@ -839,6 +846,7 @@ fn build_one_snapshot<Reporter: self::Reporter>(
     extra_env: &HashMap<String, String>,
     user_agent: &str,
     scripts_prepend_node_path: ScriptsPrependNodePath,
+    script_shell: Option<&Path>,
     unsafe_perm: bool,
     frozen_store: bool,
     ignore_scripts: bool,
@@ -1196,7 +1204,7 @@ fn build_one_snapshot<Reporter: self::Reporter>(
             unsafe_perm,
             node_gyp_bin: None,
             scripts_prepend_node_path,
-            script_shell: None,
+            script_shell,
             optional,
         });
 
