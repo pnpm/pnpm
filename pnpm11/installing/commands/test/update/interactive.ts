@@ -63,7 +63,7 @@ const DEFAULT_OPTIONS = {
 }
 
 test('global interactive update handles an empty global directory', async () => {
-  const globalDir = path.resolve('global')
+  const globalDir = path.resolve('empty-global')
 
   await expect(update.handler({
     ...DEFAULT_OPTIONS,
@@ -74,6 +74,41 @@ test('global interactive update handles an empty global directory', async () => 
     interactive: true,
   } as any)).resolves.toBe('No global packages found') // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(mockCheckbox).not.toHaveBeenCalled()
+})
+
+test('global interactive update reads current versions from the global virtual store', async () => {
+  prepare()
+  const globalDir = path.resolve('global')
+  const storeDir = path.resolve('pnpm-store')
+  const options = {
+    ...DEFAULT_OPTIONS,
+    allowBuilds: {},
+    bin: path.resolve('bin'),
+    cacheDir: path.resolve('cache'),
+    dir: process.cwd(),
+    enableGlobalVirtualStore: true,
+    global: true,
+    globalPkgDir: globalDir,
+    pnpmHomeDir: '',
+    storeDir,
+  }
+
+  await add.handler(options as any, ['@pnpm.e2e/multi-version-a@1.0.0']) // eslint-disable-line @typescript-eslint/no-explicit-any
+  await addDistTag({ package: '@pnpm.e2e/multi-version-a', version: '2.1.0', distTag: 'latest' })
+  mockCheckbox.mockResolvedValue([])
+
+  await update.handler({
+    ...options,
+    interactive: true,
+    latest: true,
+  } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+  expect(mockCheckbox).toHaveBeenCalledWith(expect.objectContaining({
+    choices: [{
+      name: '@pnpm.e2e/multi-version-a 1.0.0 → 2.1.0',
+      value: expect.any(String),
+    }],
+  }))
 })
 
 test('interactively update', async () => {
