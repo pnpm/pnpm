@@ -44,8 +44,9 @@ async fn bounds_license_file_reads() {
     tokio::fs::write(dir.path().join("LICENSE"), vec![b'M'; MAX_LICENSE_FILE_SIZE + 1])
         .await
         .unwrap();
+    tokio::fs::write(dir.path().join("LICENCE"), "Apache-2.0").await.unwrap();
 
-    assert_eq!(resolve_license_from_dir(None, dir.path()).await, Some("Unknown".to_string()));
+    assert_eq!(resolve_license_from_dir(None, dir.path()).await, Some("Apache-2.0".to_string()));
 }
 
 #[cfg(unix)]

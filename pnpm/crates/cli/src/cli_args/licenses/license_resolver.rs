@@ -92,14 +92,14 @@ async fn read_first_license_file(dir: &Path) -> Option<Vec<u8>> {
             Ok(_) | Err(_) => continue,
         };
         if metadata.len() > MAX_LICENSE_FILE_SIZE as u64 {
-            return Some(Vec::new());
+            continue;
         }
         let mut contents = Vec::with_capacity(metadata.len() as usize);
         if file.take((MAX_LICENSE_FILE_SIZE + 1) as u64).read_to_end(&mut contents).await.is_err() {
             continue;
         }
         if contents.len() > MAX_LICENSE_FILE_SIZE {
-            contents.clear();
+            continue;
         }
         return Some(contents);
     }
