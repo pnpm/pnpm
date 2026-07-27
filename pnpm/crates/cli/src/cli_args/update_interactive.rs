@@ -19,6 +19,7 @@ use crate::{
     cli_args::{
         outdated::{OutdatedPackage, OutdatedQuery, TargetVersion, collect_outdated_for_importer},
         pipelines::InstallFamilySelection,
+        sanitize::sanitize_inline,
     },
     github_actions,
 };
@@ -93,7 +94,12 @@ pub(crate) async fn select_global_package_groups(
             outdated
                 .iter()
                 .map(|package| {
-                    format!("{} {} → {}", package.alias, package.current, package.target)
+                    format!(
+                        "{} {} → {}",
+                        sanitize_inline(&package.alias),
+                        package.current,
+                        package.target,
+                    )
                 })
                 .collect::<Vec<_>>()
                 .join(", "),

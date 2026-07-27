@@ -26,7 +26,7 @@ import { createVulnerabilityUpdateMatching, installDeps } from '../installDeps.j
 import { parseUpdateParam } from '../recursive.js'
 import { createGlobalPolicyCallbacks } from '../resolutionPolicyManifest.js'
 import { captureUpdateChangesetContext, generateUpdateChangeset } from './generateUpdateChangeset.js'
-import { getUpdateChoices } from './getUpdateChoices.js'
+import { getUpdateChoices, sanitizeUpdateChoiceText } from './getUpdateChoices.js'
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
     'cache-dir',
@@ -254,7 +254,9 @@ async function selectGlobalPackageGroups (
     .map(({ pkg, outdated }) => ({
       name: outdated
         .map(({ alias, current, wanted, latestManifest }) =>
-          `${alias} ${current ?? 'missing'} → ${opts.latest ? latestManifest?.version ?? wanted : wanted}`
+          [alias, current ?? 'missing', '→', opts.latest ? latestManifest?.version ?? wanted : wanted]
+            .map(sanitizeUpdateChoiceText)
+            .join(' ')
         )
         .join(', '),
       value: pkg.hash,
