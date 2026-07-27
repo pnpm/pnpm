@@ -1,7 +1,7 @@
 //! Free functions backing the local-filesystem resolver. They all
-//! funnel into [`resolve_spec`], which handles the tarball integrity /
-//! directory manifest reading once a [`LocalPackageSpec`] has been
-//! chosen.
+//! funnel into [`resolve_spec`], which reads the package's manifest —
+//! out of the archive for a tarball, off disk for a directory — once a
+//! [`LocalPackageSpec`] has been chosen.
 
 use std::path::PathBuf;
 
@@ -9,8 +9,9 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_lockfile::{DirectoryResolution, LockfileResolution, TarballResolution};
 use pacquet_package_manifest::{PackageManifestError, safe_read_package_json_from_dir};
+use pacquet_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
 use pacquet_resolving_resolver_base::{LatestInfo, LatestQuery, PkgResolutionId, ResolveResult};
-use ssri::{Algorithm, Integrity, IntegrityOpts};
+use pacquet_tarball::{LocalTarballMetadata, TarballError, read_local_tarball_metadata};
 
 use crate::parse_bare_specifier::{
     LocalPackageSpec, LocalSpecKind, ParseOptions, PathProtocolNotSupportedError,
@@ -129,8 +130,32 @@ pub enum ResolveLocalError {
         path: String,
     },
 
-    /// Tarball integrity computation failed for a `file:` spec.
-    Integrity(#[error(source)] std::io::Error),
+    /// Reading a `file:` tarball — its bytes, its sha512 integrity, or
+    /// the `package.json` bundled inside it — failed.
+    ReadTarball(#[error(source)] TarballError),
+
+    /// A `file:` tarball bundles a `package.json` that names no package.
+    /// The name is what gives the dep path its `<name>@` prefix, so
+    /// without it the package keys no lockfile entry.
+    #[display("Can't install {specifier}: Missing package name")]
+    #[diagnostic(code(ERR_PNPM_MISSING_PACKAGE_NAME))]
+    MissingPackageName {
+        #[error(not(source))]
+        specifier: String,
+    },
+
+    /// A `file:` tarball bundles a `package.json` whose name isn't a
+    /// valid npm package name. The name becomes both a dep-path segment
+    /// and a `node_modules/<name>` directory, so an invalid one either
+    /// fails to parse back out of the dep path or writes somewhere it
+    /// shouldn't.
+    #[display("Refusing to install {specifier} with the invalid package name {name:?}")]
+    #[diagnostic(code(ERR_PNPM_INVALID_DEPENDENCY_NAME))]
+    InvalidPackageName {
+        #[error(not(source))]
+        specifier: String,
+        name: String,
+    },
 
     /// Reading `<spec.fetchSpec>/package.json` raised something the
     /// resolver doesn't have a specific code for (malformed JSON,
@@ -194,18 +219,40 @@ async fn resolve_spec(
         // A missing tarball file raises the same `ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND`
         // code the directory branch uses for a missing `file:` target,
         // so both kinds of missing `file:` target share one error code.
-        let integrity = match compute_tarball_integrity(&spec.fetch_spec).await {
-            Ok(integrity) => integrity,
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
-                return Err(ResolveLocalError::LinkedPkgDirNotFound {
-                    path: spec.fetch_spec.display().to_string(),
-                });
+        let LocalTarballMetadata { integrity, manifest, has_manifest_entry } =
+            match read_local_tarball_metadata(&spec.fetch_spec).await {
+                Ok(metadata) => metadata,
+                Err(err) if is_missing_tarball(&err) => {
+                    return Err(ResolveLocalError::LinkedPkgDirNotFound {
+                        path: spec.fetch_spec.display().to_string(),
+                    });
+                }
+                Err(err) => return Err(ResolveLocalError::ReadTarball(err)),
+            };
+        // The bundled name prefixes the dep path and names the package's
+        // `node_modules` directory, so it has to be present and valid
+        // before it reaches either. An archive that ships no manifest at
+        // all is a different shape and stays tolerated here.
+        if has_manifest_entry {
+            match bundled_package_name(manifest.as_ref()) {
+                None => {
+                    return Err(ResolveLocalError::MissingPackageName {
+                        specifier: spec.normalized_bare_specifier,
+                    });
+                }
+                Some(name) if !is_valid_old_npm_package_name(name) => {
+                    let name = name.to_string();
+                    return Err(ResolveLocalError::InvalidPackageName {
+                        specifier: spec.normalized_bare_specifier,
+                        name,
+                    });
+                }
+                Some(_) => {}
             }
-            Err(err) => return Err(ResolveLocalError::Integrity(err)),
-        };
+        }
         return Ok(Some(LocalResolveResult {
             id: spec.id.clone(),
-            manifest: None,
+            manifest: manifest.map(std::sync::Arc::new),
             normalized_bare_specifier: Some(spec.normalized_bare_specifier),
             resolution: LockfileResolution::Tarball(TarballResolution {
                 tarball: spec.id.as_str().to_string(),
@@ -325,13 +372,10 @@ fn handle_manifest_read_failure(
     ResolveLocalError::ReadManifest(err)
 }
 
-/// Compute the SSRI integrity hash for a local tarball by reading the
-/// whole file and feeding it to ssri's incremental hasher in one shot.
-/// Tarballs in the `file:` install path are typically a few MB so
-/// buffering the whole file has no measurable cost.
-async fn compute_tarball_integrity(path: &std::path::Path) -> std::io::Result<Integrity> {
-    let bytes = tokio::fs::read(path).await?;
-    let mut opts = IntegrityOpts::new().algorithm(Algorithm::Sha512);
-    opts.input(&bytes);
-    Ok(opts.result())
+fn bundled_package_name(manifest: Option<&serde_json::Value>) -> Option<&str> {
+    manifest?.get("name")?.as_str().filter(|name| !name.is_empty())
+}
+
+fn is_missing_tarball(err: &TarballError) -> bool {
+    matches!(err, TarballError::ReadLocalTarball { source, .. } if source.kind() == std::io::ErrorKind::NotFound)
 }

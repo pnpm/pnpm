@@ -189,6 +189,21 @@ pub enum TarballError {
     #[diagnostic(code(ERR_PNPM_TARBALL_DECODE_GZIP))]
     DecodeGzip(InflateDecodeErrors),
 
+    /// The tarball's own `package.json` is not valid JSON. Only the
+    /// resolve-time read ([`read_local_tarball_metadata`]) raises this:
+    /// there the manifest is the package's sole source of identity, so a
+    /// corrupt one has to stop the install rather than degrade to an
+    /// unnamed package. Matches the code and wording pnpm reports for
+    /// the same tarball.
+    #[from(ignore)]
+    #[display("Failed to add tarball from \"{tarball}\" to store: {source}")]
+    #[diagnostic(code(ERR_PNPM_TARBALL_EXTRACT))]
+    ParseBundledManifest {
+        tarball: String,
+        #[error(source)]
+        source: serde_json::Error,
+    },
+
     #[from(ignore)]
     #[display("Failed to write cafs: {_0}")]
     #[diagnostic(transparent)]
@@ -727,30 +742,7 @@ fn extract_tarball_entries(
         let file_mode = entry.header().mode().map_err(TarballError::ReadTarballEntries)?;
         let file_is_executable = file_mode::is_executable(file_mode);
         let file_size = entry.header().size().map_err(TarballError::ReadTarballEntries)?;
-        let data_offset = usize::try_from(entry.raw_file_position()).map_err(|_| {
-            TarballError::ReadTarballEntries(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "tar entry file offset does not fit in usize",
-            ))
-        })?;
-        let size = usize::try_from(file_size).map_err(|_| {
-            TarballError::ReadTarballEntries(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "tar entry file size does not fit in usize",
-            ))
-        })?;
-        let end = data_offset.checked_add(size).ok_or_else(|| {
-            TarballError::ReadTarballEntries(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "tar entry file offset plus size overflows usize",
-            ))
-        })?;
-        let entry_data = tar_data.get(data_offset..end).ok_or_else(|| {
-            TarballError::ReadTarballEntries(std::io::Error::new(
-                std::io::ErrorKind::UnexpectedEof,
-                "tar entry payload extends beyond archive",
-            ))
-        })?;
+        let entry_data = tar_entry_payload(tar_data, &entry)?;
 
         let entry_path = entry.path().map_err(TarballError::ReadTarballEntries)?;
         // `components().skip(1)` drops the top-level package
@@ -897,6 +889,42 @@ fn extract_tarball_entries(
         side_effects: None,
     };
     Ok((cas_paths, pkg_files_idx))
+}
+
+/// Borrow one tar entry's payload out of the decompressed archive.
+///
+/// The tar reader is seekable over an in-memory buffer, so an entry's
+/// bytes are already there — slicing them costs nothing, where reading
+/// through the entry would copy every payload into a fresh allocation
+/// sized by the archive's own (untrusted) header.
+///
+/// The bounds are all checked: a header whose offset or size doesn't fit
+/// a `usize`, whose sum overflows, or whose range runs past the end of
+/// the archive is rejected rather than truncated.
+fn tar_entry_payload<'a, Reader: std::io::Read>(
+    tar_data: &'a [u8],
+    entry: &tar::Entry<'_, Reader>,
+) -> Result<&'a [u8], TarballError> {
+    let invalid = |message: &str| {
+        TarballError::ReadTarballEntries(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            message.to_string(),
+        ))
+    };
+    let file_size = entry.header().size().map_err(TarballError::ReadTarballEntries)?;
+    let data_offset = usize::try_from(entry.raw_file_position())
+        .map_err(|_| invalid("tar entry file offset does not fit in usize"))?;
+    let size = usize::try_from(file_size)
+        .map_err(|_| invalid("tar entry file size does not fit in usize"))?;
+    let end = data_offset
+        .checked_add(size)
+        .ok_or_else(|| invalid("tar entry file offset plus size overflows usize"))?;
+    tar_data.get(data_offset..end).ok_or_else(|| {
+        TarballError::ReadTarballEntries(std::io::Error::new(
+            std::io::ErrorKind::UnexpectedEof,
+            "tar entry payload extends beyond archive",
+        ))
+    })
 }
 
 /// Walk a zip archive, writing each regular-file entry into the CAFS
@@ -1588,6 +1616,9 @@ fn tarball_error_to_request_retry(err: &TarballError) -> RequestRetryError {
         }
         TarballError::ReadTarballEntries(_) => {
             out.code = Some("ERR_PNPM_TARBALL_TAR".to_string());
+        }
+        TarballError::ParseBundledManifest { .. } => {
+            out.code = Some("ERR_PNPM_TARBALL_EXTRACT".to_string());
         }
         TarballError::ReadLocalTarball { .. } => {
             out.code = Some("ERR_PNPM_TARBALL_FILE".to_string());
@@ -2649,6 +2680,112 @@ async fn read_subdir_manifest(
             Ok(None)
         }
     }
+}
+
+/// Outcome of [`read_local_tarball_metadata`]: the sha512 integrity
+/// computed from the tarball's bytes and the bundled manifest read from
+/// its root `package.json`.
+#[derive(Debug)]
+pub struct LocalTarballMetadata {
+    pub integrity: Integrity,
+    /// `None` when the narrowing kept nothing — the archive has no root
+    /// `package.json`, or one that is not a JSON object, or one whose
+    /// every field was dropped.
+    pub manifest: Option<serde_json::Value>,
+    /// Whether the archive carried a root `package.json` at all,
+    /// regardless of what survived the narrowing.
+    ///
+    /// The two shapes behind a `None` manifest call for opposite
+    /// handling, and only the reader can tell them apart: pnpm installs
+    /// an archive that ships no manifest (synthesizing a name from the
+    /// alias) but refuses one whose manifest names no package
+    /// (`ERR_PNPM_MISSING_PACKAGE_NAME`).
+    pub has_manifest_entry: bool,
+}
+
+/// Read a local tarball's sha512 integrity and bundled manifest during
+/// *resolution*.
+///
+/// A `file:` tarball dependency carries no name, version, or integrity
+/// in its specifier — those live in the archive's own `package.json` —
+/// and pacquet builds the lockfile before the install pass runs, so the
+/// local resolver has to read them here.
+///
+/// Nothing is written to the store, unlike the remote-tarball sibling
+/// [`FetchTarballForResolution`]: the install pass addresses a `file:`
+/// tarball's store-index row by its `<name>@file:<path>` dep path, not
+/// by the `<name>@<version>` a resolve-time extraction could key, so a
+/// row written here would never be read.
+pub async fn read_local_tarball_metadata(
+    path: &Path,
+) -> Result<LocalTarballMetadata, TarballError> {
+    let package_url = format!("file:{}", path.display());
+    // pnpm names the plain filesystem path — not the `file:` URL — when
+    // it reports a bad tarball, so the manifest error quotes the same.
+    let tarball_path = path.display().to_string();
+    let (file, size) = open_local_tarball(path).await?;
+    let buffer = read_local_tarball_buffer(file, path, &package_url, size).await?;
+
+    let _post_download_permit = post_download_semaphore()
+        .acquire()
+        .await
+        .expect("post-download semaphore shouldn't be closed this soon");
+    tokio::task::spawn_blocking(move || {
+        let integrity = verify_tarball_integrity(&buffer, None, package_url)?;
+        let tar_data = decompress_gzip(&buffer, None)?;
+        let (manifest, has_manifest_entry) = read_bundled_manifest(&tar_data, &tarball_path)?;
+        Ok(LocalTarballMetadata { integrity, manifest, has_manifest_entry })
+    })
+    .await
+    .map_err(TarballError::TaskJoin)?
+}
+
+/// Read the root `package.json` out of a decompressed tar stream,
+/// narrowed by [`normalize_bundled_manifest`] so it matches the
+/// manifest an extraction stashes on [`PackageFilesIndex`].
+///
+/// Shares the entry conventions of the manifest capture in
+/// [`extract_tarball_entries`] — top-level component dropped, duplicates
+/// last-entry-wins — but not its error handling: there an unparsable
+/// `package.json` degrades to `None`, because install-side consumers can
+/// re-read it from disk. Here it is the only thing that names the
+/// package, and a package with no name resolves to a dep path no
+/// lockfile key parses, so this raises
+/// [`TarballError::ParseBundledManifest`] instead.
+///
+/// The returned flag reports whether a root `package.json` was present
+/// at all, which a `None` manifest alone can't say — the narrowing also
+/// yields `None` for a manifest that isn't a JSON object, or one whose
+/// every field was dropped. See [`LocalTarballMetadata`] for why the
+/// caller has to tell those apart.
+fn read_bundled_manifest(
+    tar_data: &[u8],
+    tarball_path: &str,
+) -> Result<(Option<serde_json::Value>, bool), TarballError> {
+    let mut archive = Archive::new(Cursor::new(tar_data));
+    let mut payload = None;
+    for entry in archive.entries_with_seek().map_err(TarballError::ReadTarballEntries)? {
+        let entry = entry.map_err(TarballError::ReadTarballEntries)?;
+        if !entry.header().entry_type().is_file() {
+            continue;
+        }
+        let path = entry.path().map_err(TarballError::ReadTarballEntries)?;
+        let mut components = path.components().skip(1);
+        if components.next() != Some(Component::Normal("package.json".as_ref()))
+            || components.next().is_some()
+        {
+            continue;
+        }
+        drop(components);
+        // Only the surviving entry is parsed, so a malformed duplicate
+        // that a later one supersedes can't fail the read.
+        payload = Some(tar_entry_payload(tar_data, &entry)?);
+    }
+    let Some(payload) = payload else { return Ok((None, false)) };
+    let parsed = parse_manifest_bytes(payload).map_err(|source| {
+        TarballError::ParseBundledManifest { tarball: tarball_path.to_string(), source }
+    })?;
+    Ok((normalize_bundled_manifest(&parsed), true))
 }
 
 /// `name@version` from a bundled manifest, when both fields are present.

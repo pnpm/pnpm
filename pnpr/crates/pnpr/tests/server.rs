@@ -1683,14 +1683,13 @@ async fn upstream_5xx_maps_to_bad_gateway() {
 
 #[tokio::test]
 async fn unreachable_upstream_maps_to_service_unavailable() {
-    // Bind a TCP listener and immediately drop it so the port is
-    // (very likely) free; pointing the registry at a port nothing is
-    // listening on exercises the `is_connect()` branch of the status
-    // mapping without depending on DNS.
-    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-    let dead_port = listener.local_addr().unwrap().port();
-    drop(listener);
-    let dead_upstream = format!("http://127.0.0.1:{dead_port}");
+    // Port 0 is never a listening port, so connecting to it is refused
+    // outright — exercising the `is_connect()` branch of the status
+    // mapping without depending on DNS. Probing for a free ephemeral
+    // port instead would race: the suite's mockito servers bind ephemeral
+    // ports throughout the run and can claim the probed one before the
+    // request goes out, turning the refusal into a success.
+    let dead_upstream = "http://127.0.0.1:0".to_string();
 
     let tmp = TempDir::new().unwrap();
     let app = router(config_for(&dead_upstream, tmp.path().to_path_buf()));
