@@ -5,11 +5,10 @@ use crate::{
     LinkVirtualStoreBins, LinkVirtualStoreBinsError, LockfileToHoistedDepGraphOptions,
     SkippedSnapshots, SymlinkDirectDependencies, SymlinkDirectDependenciesError,
     SymlinkPackageError, VersionPolicyError, VirtualStoreLayout, any_installability_constraint,
-    build_direct_deps_by_importer, build_hoist_graph, compute_skipped_snapshots,
-    direct_dep_names_for_importer, get_hoisted_dependencies, link_direct_dep_bins_resolved,
-    link_hoisted_modules, link_root_component_members, link_top_level_bins,
-    lockfile_to_hoisted_dep_graph, symlink_direct_dependencies::importer_root_dir,
-    symlink_hoisted_dependencies,
+    build_direct_deps_by_importer, compute_skipped_snapshots, direct_dep_names_for_importer,
+    get_hoisted_dependencies, link_direct_dep_bins_resolved, link_hoisted_modules,
+    link_root_component_members, link_top_level_bins, lockfile_to_hoisted_dep_graph,
+    symlink_direct_dependencies::importer_root_dir, symlink_hoisted_dependencies,
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -1054,7 +1053,7 @@ where
         // only sees root's direct deps and a non-root importer's
         // direct dep that would land at root via public-hoist stays
         // un-deduped. The full `HoistResult` is also threaded to the
-        // on-disk hoist pass below so the BFS isn't run twice.
+        // on-disk hoist pass below so the traversal isn't run twice.
         // `hoist-workspace-packages`: named non-root projects become
         // hoist candidates whose links point at the project dirs.
         let hoisted_workspace_packages = config
@@ -1278,7 +1277,7 @@ where
         // so no new isolated-hoist results are produced when no
         // `hoistPattern` / `publicHoistPattern` is configured.
         //
-        // The BFS itself ran upthread (`pre_hoist`) so the dedupe
+        // The traversal itself ran upthread (`pre_hoist`) so the dedupe
         // pass in `SymlinkDirectDependencies` could see public-hoist
         // targets; here we consume the same plan to write the
         // symlinks on disk and emit the per-side bin shims.
@@ -1327,7 +1326,7 @@ where
             publicly_hoisted_for_post_build = result.publicly_hoisted_aliases_with_bins;
             result.hoisted_dependencies
         } else {
-            BTreeMap::new()
+            crate::HoistedDependencies::new()
         };
 
         let included = IncludedDependencies {
@@ -1951,7 +1950,7 @@ fn exclude_importer_groups(lockfile: &Lockfile, included: IncludedDependencies) 
 /// runs before the on-disk hoist phase in pacquet's ordering) can
 /// fold publicly-hoisted aliases into root's target map. The on-disk
 /// hoist phase later consumes the same [`crate::HoistResult`] instead of
-/// re-running the BFS.
+/// re-running the traversal.
 pub(crate) struct HoistPlan {
     pub(crate) graph: HashMap<PackageKey, crate::HoistGraphNode>,
     pub(crate) result: crate::HoistResult,
@@ -1971,7 +1970,7 @@ pub(crate) struct HoistPlan {
 pub(crate) fn workspace_packages_for_hoist(
     workspace_root: &Path,
     project_manifests: &[(PathBuf, &pacquet_package_manifest::PackageManifest)],
-) -> std::collections::BTreeMap<String, PathBuf> {
+) -> indexmap::IndexMap<String, PathBuf> {
     project_manifests
         .iter()
         .filter(|(project_dir, _)| project_dir != workspace_root)
@@ -1994,7 +1993,7 @@ pub(crate) fn compute_hoist_plan(
     dependency_groups: &[pacquet_package_manifest::DependencyGroup],
     skipped: &SkippedSnapshots,
     is_hoisted: bool,
-    hoisted_workspace_packages: Option<&std::collections::BTreeMap<String, PathBuf>>,
+    hoisted_workspace_packages: Option<&indexmap::IndexMap<String, PathBuf>>,
 ) -> Option<HoistPlan> {
     if is_hoisted {
         return None;
@@ -2014,12 +2013,16 @@ pub(crate) fn compute_hoist_plan(
     let public_pattern = create_matcher(config.public_hoist_pattern.as_deref().unwrap_or(&[]));
     // Static fast-path: when both compiled matchers come from empty
     // pattern lists (`Some([])`), there's no alias they could match,
-    // so the BFS would visit every node only to drop every child.
+    // so the traversal would visit every node only to drop every child.
     // Skip the graph-build + walk entirely.
     if private_pattern.is_empty() && public_pattern.is_empty() {
         return None;
     }
-    let graph = build_hoist_graph(snaps, pkgs);
+    let graph = crate::build_hoist_graph_with_max_length(
+        snaps,
+        pkgs,
+        config.virtual_store_dir_max_length as usize,
+    );
     // Walk every importer's direct deps so transitives unique to a
     // workspace project still get privately hoisted into the shared
     // `<vs>/node_modules` and contribute to `hoistedDependencies`.
@@ -2029,7 +2032,7 @@ pub(crate) fn compute_hoist_plan(
     // `HoistInputs` takes `&HashSet<PackageKey>`; build it once from
     // the outer `SkippedSnapshots` by cloning the small skip set
     // (typically 0-100 entries). Stored on [`HoistPlan`] so the
-    // later on-disk pass can reuse the exact same set the BFS saw.
+    // later on-disk pass can reuse the exact same set the traversal saw.
     let hoist_skipped: HashSet<PackageKey> = skipped.iter().cloned().collect();
     let result = get_hoisted_dependencies(&crate::HoistInputs {
         graph: &graph,
@@ -2081,7 +2084,7 @@ pub(crate) fn collect_public_hoist_targets(
             if !matches!(kind, pacquet_modules_yaml::HoistKind::Public) {
                 continue;
             }
-            // First-wins: the BFS already chose one source per alias
+            // First-wins: the traversal already chose one source per alias
             // via its `hoisted_aliases` claim. Multiple entries with
             // the same alias would be a hoister bug; preserve the
             // first deterministically.

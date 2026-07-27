@@ -6,7 +6,7 @@
 //! writes emit [`serde_json::to_string_pretty`] output to match pnpm exactly.
 
 use derive_more::{Display, Error, From, Into};
-use indexmap::IndexSet;
+use indexmap::{IndexMap, IndexSet};
 use pacquet_diagnostics::miette::{self, Diagnostic};
 use pacquet_fs::lexical_normalize;
 use pipe_trait::Pipe;
@@ -139,7 +139,7 @@ pub struct Modules {
     /// disambiguated statically; the [`String`] type faithfully represents
     /// that union.
     #[serde(default)]
-    pub hoisted_dependencies: BTreeMap<String, BTreeMap<String, HoistKind>>,
+    pub hoisted_dependencies: IndexMap<String, IndexMap<String, HoistKind>>,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hoist_pattern: Option<Vec<String>>,
