@@ -62,6 +62,20 @@ const DEFAULT_OPTIONS = {
   virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
 }
 
+test('global interactive update handles an empty global directory', async () => {
+  const globalDir = path.resolve('global')
+
+  await expect(update.handler({
+    ...DEFAULT_OPTIONS,
+    bin: path.resolve('bin'),
+    dir: process.cwd(),
+    global: true,
+    globalPkgDir: globalDir,
+    interactive: true,
+  } as any)).resolves.toBe('No global packages found') // eslint-disable-line @typescript-eslint/no-explicit-any
+  expect(mockCheckbox).not.toHaveBeenCalled()
+})
+
 test('interactively update', async () => {
   const project = prepare({
     dependencies: {

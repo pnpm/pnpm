@@ -43,6 +43,90 @@ pub(crate) struct InteractiveUpdateOptions<'a> {
     pub include_github_actions: bool,
 }
 
+pub(crate) async fn select_global_package_groups(
+    base_config: &'static Config,
+    packages: &[String],
+    latest: bool,
+) -> miette::Result<Option<HashSet<String>>> {
+    let global_pkg_dir = base_config.global_pkg_dir.clone().ok_or_else(|| {
+        miette!(code = "ERR_PNPM_NO_GLOBAL_BIN_DIR", "Unable to find the global packages directory")
+    })?;
+    let mut config = base_config.clone();
+    config.workspace_dir = None;
+    config.shared_workspace_lockfile = false;
+    let config = Config::leak(config);
+    let matcher = (!packages.is_empty()).then(|| pacquet_config::matcher::create_matcher(packages));
+    let query = OutdatedQuery {
+        target_version: if latest { TargetVersion::Latest } else { TargetVersion::WithinRange },
+        include_direct: &[DependencyGroup::Prod],
+        match_names: matcher.as_ref(),
+        include_deprecated: false,
+    };
+    let mut labels = Vec::new();
+    let mut hashes = Vec::new();
+    let global_packages = pacquet_global::scan_global_packages(&global_pkg_dir)
+        .map_err(|err| miette!("failed to scan global packages: {err}"))?;
+    if global_packages.is_empty() {
+        println!("No global packages found");
+        return Ok(None);
+    }
+    for pkg in global_packages {
+        let state = crate::State::init(pkg.install_dir.join("package.json"), config, false)
+            .map_err(|err| miette::Report::new(err).wrap_err("initialize global state"))?;
+        let lockfile = state
+            .lockfile
+            .get()
+            .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
+        let outdated = collect_outdated_for_importer(
+            &state.manifest,
+            lockfile,
+            pacquet_lockfile::Lockfile::ROOT_IMPORTER_KEY,
+            config,
+            &state.http_client,
+            &query,
+        )
+        .await?;
+        if outdated.is_empty() {
+            continue;
+        }
+        labels.push(
+            outdated
+                .iter()
+                .map(|package| {
+                    format!("{} {} → {}", package.alias, package.current, package.target)
+                })
+                .collect::<Vec<_>>()
+                .join(", "),
+        );
+        hashes.push(pkg.hash);
+    }
+    if labels.is_empty() {
+        let message = if latest {
+            "All of your dependencies are already up to date"
+        } else {
+            "All of your dependencies are already up to date inside the specified ranges. Use the --latest option to update the ranges in package.json"
+        };
+        println!("{message}");
+        return Ok(None);
+    }
+    let selected_indices = MultiSelect::new()
+        .with_prompt(
+            "Choose which global package groups to update (space to select, enter to confirm)",
+        )
+        .items(&labels)
+        .interact()
+        .into_diagnostic()
+        .map_err(|err| miette!("interactive update selection failed: {err}"))?;
+    let selected = selected_indices
+        .into_iter()
+        .filter_map(|index| hashes.get(index).cloned())
+        .collect::<HashSet<_>>();
+    if selected.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(selected))
+}
+
 /// Gather outdated direct dependencies, prompt the user, and return the
 /// selected package names. `Ok(None)` means "nothing to do" — either no
 /// dependency has an update available or the prompt was answered with an

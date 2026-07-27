@@ -517,6 +517,31 @@ fn global_list_empty() {
     drop(root);
 }
 
+#[cfg(unix)]
+#[test]
+fn global_interactive_update_empty() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let pnpm_home = root.path().join("pnpm-home");
+    fs::create_dir_all(pnpm_home.join("bin")).expect("create global bin dir");
+
+    let output = global_command(&workspace, &pnpm_home)
+        .with_args(["update", "-g", "-i"])
+        .output()
+        .expect("run interactive global update");
+
+    assert!(
+        output.status.success(),
+        "interactive global update should succeed: {}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    assert!(
+        !String::from_utf8_lossy(&output.stderr).contains("not supported yet"),
+        "interactive global update should use the selection path",
+    );
+
+    drop(root);
+}
+
 /// `pacquet add -g pnpm` is rejected — pnpm is managed via `self-update`.
 #[test]
 fn global_add_pnpm_is_rejected() {

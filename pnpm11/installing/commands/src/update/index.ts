@@ -13,6 +13,7 @@ import { findOutdatedGitHubActions, isGitHubActionSelector, normalizeGitHubActio
 import { outdatedDepsOfProjects } from '@pnpm/deps.inspection.outdated'
 import { PnpmError } from '@pnpm/error'
 import { handleGlobalUpdate } from '@pnpm/global.commands'
+import { scanGlobalPackages } from '@pnpm/global.packages'
 import type { UpdateMatchingFunction } from '@pnpm/installing.deps-installer'
 import { globalInfo } from '@pnpm/logger'
 import type { IncludedDependencies, PackageVulnerabilityAudit, ProjectRootDir } from '@pnpm/types'
@@ -200,9 +201,15 @@ export async function handler (
         hint: 'Run "pnpm setup" to create it automatically, or set the global-bin-dir setting, or the PNPM_HOME env variable. The global bin directory should be in the PATH.',
       })
     }
+    const selection = opts.interactive
+      ? await selectGlobalPackageGroups(params, opts)
+      : undefined
+    if (typeof selection === 'string') return selection
+    if (selection?.size === 0) return undefined
     return handleGlobalUpdate({
       ...opts,
       ...createGlobalPolicyCallbacks(opts),
+      selectedPackageHashes: selection,
     }, params, commands ?? {})
   }
   const rebuildHandler = commands?.rebuild
@@ -210,6 +217,58 @@ export async function handler (
     return interactiveUpdate(params, opts, rebuildHandler)
   }
   return update(params, opts, rebuildHandler) as Promise<undefined>
+}
+
+async function selectGlobalPackageGroups (
+  input: string[],
+  opts: UpdateCommandOptions
+): Promise<Set<string> | string> {
+  const globalPackages = scanGlobalPackages(opts.globalPkgDir!)
+  if (globalPackages.length === 0) return 'No global packages found'
+  const outdatedPerGroup = await Promise.all(globalPackages.map(async (pkg) => {
+    const project = {
+      rootDir: pkg.installDir as ProjectRootDir,
+      manifest: await readProjectManifestOnly(pkg.installDir, opts),
+    }
+    const [outdated] = await outdatedDepsOfProjects([project], input, {
+      ...opts,
+      compatible: opts.latest !== true,
+      ignoreDependencies: opts.updateConfig?.ignoreDependencies,
+      include: {
+        dependencies: true,
+        devDependencies: false,
+        optionalDependencies: true,
+      },
+      retry: {
+        factor: opts.fetchRetryFactor,
+        maxTimeout: opts.fetchRetryMaxtimeout,
+        minTimeout: opts.fetchRetryMintimeout,
+        retries: opts.fetchRetries,
+      },
+      timeout: opts.fetchTimeout,
+    })
+    return { pkg, outdated }
+  }))
+  const choices = outdatedPerGroup
+    .filter(({ outdated }) => outdated.length > 0)
+    .map(({ pkg, outdated }) => ({
+      name: outdated
+        .map(({ alias, current, wanted, latestManifest }) =>
+          `${alias} ${current ?? 'missing'} → ${opts.latest ? latestManifest?.version ?? wanted : wanted}`
+        )
+        .join(', '),
+      value: pkg.hash,
+    }))
+  if (choices.length === 0) {
+    return opts.latest
+      ? 'All of your dependencies are already up to date'
+      : 'All of your dependencies are already up to date inside the specified ranges. Use the --latest option to update the ranges in package.json'
+  }
+  return new Set(await checkbox({
+    choices,
+    message: 'Choose which global package groups to update (space to select, enter to confirm)',
+    pageSize: Math.min(choices.length, interactivePromptPageSize()),
+  }))
 }
 
 async function interactiveUpdate (

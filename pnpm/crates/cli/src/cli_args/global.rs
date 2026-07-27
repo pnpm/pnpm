@@ -175,6 +175,7 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
 pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
     base_config: &'static Config,
     params: &[String],
+    selected_hashes: Option<&HashSet<String>>,
     latest: bool,
     range_spec_style: RangeSpecStyle,
     supported_architectures: Option<SupportedArchitectures>,
@@ -189,7 +190,7 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
         println!("No global packages found");
         return Ok(());
     }
-    let to_update: Vec<GlobalPackageInfo> = if params.is_empty() {
+    let mut to_update: Vec<GlobalPackageInfo> = if params.is_empty() {
         all
     } else {
         let filtered: Vec<GlobalPackageInfo> =
@@ -200,6 +201,9 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
         }
         filtered
     };
+    if let Some(selected_hashes) = selected_hashes {
+        to_update.retain(|pkg| selected_hashes.contains(&pkg.hash));
+    }
 
     for pkg in &to_update {
         let selectors: Vec<String> = pkg

@@ -5276,6 +5276,9 @@ importers:
       '@pnpm/global.commands':
         specifier: workspace:*
         version: link:../../global/commands
+      '@pnpm/global.packages':
+        specifier: workspace:*
+        version: link:../../global/packages
       '@pnpm/hooks.pnpmfile':
         specifier: workspace:*
         version: link:../../hooks/pnpmfile
