@@ -43,8 +43,8 @@ pub struct TarballFetchContext {
     /// store content instead of re-downloading. Empty on a first install.
     ///
     /// A remote tarball's `pkg_id` is its normalized bare specifier, so
-    /// [`TarballResolver::reuse_from_warm_store`] can look an entry up
-    /// before the preflight that would reveal a redirect.
+    /// the resolver can look an entry up before the preflight that would
+    /// reveal a redirect.
     pub prior_tarball_entries: Arc<HashMap<String, PriorTarballEntry>>,
 }
 

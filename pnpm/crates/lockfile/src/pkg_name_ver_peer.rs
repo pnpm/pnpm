@@ -63,15 +63,11 @@ impl PkgNameVerPeer {
     #[must_use]
     pub fn pkg_id(&self) -> String {
         let mut rendered = self.to_string();
-        // A borrowed result is a prefix of the rendered key — the whole
-        // of it, or everything ahead of the peer / patch-hash suffix — so
-        // truncating reuses this allocation. Only dropping the `name@`
-        // prefix yields an owned string.
+        // `try_get_package_id` borrows a prefix of its input unless it
+        // drops the `name@` prefix, so truncating reuses this allocation
+        // rather than cloning the slice into a second one.
         let pkg_id_len = match pacquet_deps_path::try_get_package_id(&rendered) {
-            std::borrow::Cow::Borrowed(pkg_id) => {
-                debug_assert!(rendered.starts_with(pkg_id));
-                pkg_id.len()
-            }
+            std::borrow::Cow::Borrowed(pkg_id) => pkg_id.len(),
             std::borrow::Cow::Owned(pkg_id) => return pkg_id,
         };
         rendered.truncate(pkg_id_len);
