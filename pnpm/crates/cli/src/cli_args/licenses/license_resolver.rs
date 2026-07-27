@@ -1,10 +1,8 @@
 use regex::Regex;
-use std::{
-    collections::HashSet,
-    io::{self, ErrorKind},
-    path::Path,
-    sync::OnceLock,
-};
+use std::{collections::HashSet, path::Path, sync::OnceLock};
+use tokio::io::AsyncReadExt;
+
+const MAX_LICENSE_FILE_SIZE: usize = 1024 * 1024;
 
 const LICENSE_FILES: &[&str] = &[
     "LICENSE",
@@ -75,28 +73,47 @@ const LICENSE_NAMES: &[&str] = &[
 pub(super) async fn resolve_license_from_dir(
     manifest_license: Option<String>,
     dir: &Path,
-) -> io::Result<Option<String>> {
-    let Some(license_path) = first_license_path(dir).await? else {
-        return Ok(manifest_license);
+) -> Option<String> {
+    let Some(contents) = read_first_license_file(dir).await else {
+        return manifest_license;
     };
-    let contents = tokio::fs::read(license_path).await?;
-    Ok(Some(
+    Some(
         detect_license_from_text(&String::from_utf8_lossy(&contents))
             .unwrap_or_else(|| "Unknown".to_string()),
-    ))
+    )
 }
 
-async fn first_license_path(dir: &Path) -> io::Result<Option<std::path::PathBuf>> {
+async fn read_first_license_file(dir: &Path) -> Option<Vec<u8>> {
     for name in LICENSE_FILES {
         let path = dir.join(name);
-        match tokio::fs::symlink_metadata(&path).await {
-            Ok(metadata) if metadata.is_file() => return Ok(Some(path)),
-            Ok(_) => {}
-            Err(error) if error.kind() == ErrorKind::NotFound => {}
-            Err(error) => return Err(error),
+        let Ok(file) = open_no_follow(&path).await else { continue };
+        let metadata = match file.metadata().await {
+            Ok(metadata) if metadata.is_file() => metadata,
+            Ok(_) | Err(_) => continue,
+        };
+        if metadata.len() > MAX_LICENSE_FILE_SIZE as u64 {
+            return Some(Vec::new());
         }
+        let mut contents = Vec::with_capacity(metadata.len() as usize);
+        if file.take((MAX_LICENSE_FILE_SIZE + 1) as u64).read_to_end(&mut contents).await.is_err() {
+            continue;
+        }
+        if contents.len() > MAX_LICENSE_FILE_SIZE {
+            contents.clear();
+        }
+        return Some(contents);
     }
-    Ok(None)
+    None
+}
+
+async fn open_no_follow(path: &Path) -> std::io::Result<tokio::fs::File> {
+    let mut options = tokio::fs::OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)]
+    options.custom_flags(libc::O_NOFOLLOW);
+    #[cfg(windows)]
+    options.custom_flags(windows_sys::Win32::Storage::FileSystem::FILE_FLAG_OPEN_REPARSE_POINT);
+    options.open(path).await
 }
 
 fn detect_license_from_text(contents: &str) -> Option<String> {

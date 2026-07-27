@@ -227,7 +227,6 @@ impl LicensesArgs {
                     manifest_license => {
                         license_resolver::resolve_license_from_dir(manifest_license, &pkg_dir)
                             .await
-                            .into_diagnostic()?
                             .unwrap_or_else(|| "Unknown".to_string())
                     }
                 },
