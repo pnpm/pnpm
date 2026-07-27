@@ -154,7 +154,7 @@ impl RunArgs {
         let RunArgs { script, if_present, sequential, .. } = self;
         let Some((script_name, args)) = script.split_first() else {
             let manifest = read_project_manifest_only(dir).map_err(RunError::Manifest)?;
-            println!("{}", render_project_commands(manifest.value()));
+            println!("{}", render_project_commands(manifest.value(), None));
             return Ok(());
         };
         let manifest = match read_project_manifest_only(dir) {
@@ -579,9 +579,8 @@ fn throw_or_filter_hidden_scripts(
 }
 
 /// Render the script listing printed when `pnpm run` is called without a
-/// script name. The workspace-root section is omitted because pacquet's
-/// run has no workspace context yet.
-fn render_project_commands(manifest: &Value) -> String {
+/// script name.
+fn render_project_commands(manifest: &Value, root_manifest: Option<&Value>) -> String {
     let scripts = manifest.get("scripts").and_then(Value::as_object);
     let mut lifecycle = Vec::new();
     let mut other = Vec::new();
@@ -614,6 +613,27 @@ fn render_project_commands(manifest: &Value) -> String {
         }
         write!(output, "Commands available via \"pnpm run\":\n{}", render_commands(&other))
             .unwrap();
+    }
+    let root_scripts = root_manifest
+        .and_then(|manifest| manifest.get("scripts"))
+        .and_then(Value::as_object)
+        .map(|scripts| {
+            scripts
+                .iter()
+                .filter_map(|(name, script)| Some((name.as_str(), script.as_str()?)))
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    if !root_scripts.is_empty() {
+        if !output.is_empty() {
+            output.push_str("\n\n");
+        }
+        write!(
+            output,
+            "Commands of the root workspace project (to run them, use \"pnpm -w run\"):\n{}",
+            render_commands(&root_scripts),
+        )
+        .unwrap();
     }
     output
 }

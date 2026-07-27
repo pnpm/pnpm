@@ -10,7 +10,7 @@
 //! auto-exclusion of the workspace root is applied via
 //! [`AutoExcludeRoot::Enabled`].
 
-use super::{RunArgs, RunContext, ScriptSelector, run_stages};
+use super::{RunArgs, RunContext, ScriptSelector, render_project_commands, run_stages};
 use crate::cli_args::recursive::{
     AutoExcludeRoot, ExecutionStatus, Status, count_failures, discover_workspace_projects,
     get_resumed_package_chunks, select_recursive_projects, sort_filtered_projects,
@@ -79,12 +79,6 @@ pub fn run_recursive(
     dir: &Path,
     emit: fn(&LogEvent),
 ) -> miette::Result<()> {
-    // The script name is optional so single-project `run` can list
-    // scripts; recursive mode has no such "list" behavior, so a missing
-    // script name is a usage error (`ERR_PNPM_SCRIPT_NAME_IS_REQUIRED`).
-    let Some(script_name) = args.script_name() else {
-        return Err(RecursiveRunError::ScriptNameRequired.into());
-    };
     let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
 
     let (projects, patterns) = discover_workspace_projects(workspace_root)?;
@@ -95,6 +89,24 @@ pub fn run_recursive(
         AutoExcludeRoot::Enabled { workspace_patterns: patterns.as_deref() },
     )?;
     let graph = &selection.selected;
+    let Some(script_name) = args.script_name() else {
+        if graph.len() != 1 {
+            return Err(RecursiveRunError::ScriptNameRequired.into());
+        }
+        let project = graph.values().next().expect("graph contains exactly one project");
+        let root_manifest = projects
+            .iter()
+            .find(|candidate| {
+                candidate.root_dir == workspace_root
+                    && candidate.root_dir != project.package.project.root_dir
+            })
+            .map(|project| project.manifest.value());
+        println!(
+            "{}",
+            render_project_commands(project.package.project.manifest.value(), root_manifest),
+        );
+        return Ok(());
+    };
     // Report what the `--filter` selection resolved to before running a
     // single script, so the user can confirm it covers what they meant.
     emit(&LogEvent::Scope(ScopeLog {

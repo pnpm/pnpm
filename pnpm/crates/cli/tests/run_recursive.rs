@@ -1351,7 +1351,13 @@ fn recursive_run_recursion_guard_skips_originating_project() {
 #[test]
 fn recursive_run_without_script_name_errors_with_script_name_is_required() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_workspace(&workspace, &[("project-1", build_writes_marker("project-1"))]);
+    write_workspace(
+        &workspace,
+        &[
+            ("project-1", build_writes_marker("project-1")),
+            ("project-2", build_writes_marker("project-2")),
+        ],
+    );
 
     let output = pacquet.with_arg("-r").with_arg("run").output().expect("spawn pacquet");
     assert!(!output.status.success(), "missing script name in recursive mode must fail");
@@ -1360,6 +1366,56 @@ fn recursive_run_without_script_name_errors_with_script_name_is_required() {
         stderr.contains("ERR_PNPM_SCRIPT_NAME_IS_REQUIRED"),
         "stderr should carry the script-name-required code, got: {stderr}",
     );
+
+    drop(root);
+}
+
+#[test]
+fn filtered_run_without_script_name_lists_selected_and_root_scripts() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "workspace-root",
+            "version": "1.0.0",
+            "scripts": { "root-build": "echo root" },
+        })
+        .to_string(),
+    )
+    .expect("write root package.json");
+    write_workspace(
+        &workspace,
+        &[
+            (
+                "project-1",
+                json!({
+                    "name": "project-1",
+                    "version": "1.0.0",
+                    "scripts": {
+                        "build": "echo project",
+                        "test": "echo tested",
+                    },
+                }),
+            ),
+            ("project-2", build_writes_marker("project-2")),
+        ],
+    );
+
+    let output = pacquet
+        .with_arg("--filter")
+        .with_arg("project-1")
+        .with_arg("run")
+        .output()
+        .expect("spawn pacquet");
+    assert!(output.status.success(), "filtered script listing must succeed");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    eprintln!("STDOUT:\n{stdout}\n");
+    assert!(stdout.contains("Lifecycle scripts:\n  test\n    echo tested"));
+    assert!(stdout.contains("Commands available via \"pnpm run\":\n  build\n    echo project"));
+    assert!(stdout.contains(
+        "Commands of the root workspace project (to run them, use \"pnpm -w run\"):\n  root-build\n    echo root",
+    ));
+    assert!(!stdout.contains("touch ran.txt"), "unselected project scripts must not be listed");
 
     drop(root);
 }
