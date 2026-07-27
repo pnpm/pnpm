@@ -73,12 +73,13 @@ async fn add_routes_scoped_packages_to_configured_scoped_registry() {
         .expect(1)
         .create_async()
         .await;
-    let scoped_packument = scoped_registry
+    // Full metadata races the version endpoint and may be cancelled once the
+    // version response supplies everything resolution needs.
+    let _scoped_packument = scoped_registry
         .mock("GET", "/@private%2Ffoo")
         .with_status(200)
         .with_header("content-type", "application/json")
         .with_body(scoped_package_body(&scoped_registry_url))
-        .expect_at_least(1)
         .create_async()
         .await;
 
@@ -117,7 +118,6 @@ async fn add_routes_scoped_packages_to_configured_scoped_registry() {
     default_latest.assert_async().await;
     default_packument.assert_async().await;
     scoped_latest.assert_async().await;
-    scoped_packument.assert_async().await;
 }
 
 #[tokio::test]
