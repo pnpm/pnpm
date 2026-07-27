@@ -117,11 +117,7 @@ impl RunArgs {
     }
 
     pub fn script_args(&self) -> &[String] {
-        if self.script.is_empty() {
-            &[]
-        } else {
-            &self.script[1..]
-        }
+        if self.script.is_empty() { &[] } else { &self.script[1..] }
     }
 
     /// Execute the subcommand in `dir`; `silent` suppresses the `$ <script>` echo.
