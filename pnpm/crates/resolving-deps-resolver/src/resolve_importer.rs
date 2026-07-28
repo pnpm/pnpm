@@ -804,15 +804,20 @@ fn locked_peer_names(wanted_lockfile: Option<&pacquet_lockfile::Lockfile>) -> Ha
             && let Some(metadata) =
                 lockfile.packages.as_ref().and_then(|packages| packages.get(&key.without_peer()))
         {
-            let missing =
-                snapshot.transitive_peer_dependencies.iter().flatten().collect::<HashSet<_>>();
+            let resolved_names = snapshot
+                .dependencies
+                .iter()
+                .chain(snapshot.optional_dependencies.iter())
+                .flatten()
+                .map(|(name, _)| name.to_string())
+                .collect::<HashSet<_>>();
             names.extend(
                 metadata
                     .peer_dependencies
                     .iter()
                     .flatten()
                     .map(|(name, _)| name)
-                    .filter(|name| !missing.contains(name))
+                    .filter(|name| resolved_names.contains(*name))
                     .cloned(),
             );
         }

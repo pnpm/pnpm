@@ -62,7 +62,7 @@ fn only_peer_suffix_versions_are_treated_as_locked_peer_providers() {
 fn hashed_peer_suffix_uses_package_peer_metadata() {
     use pacquet_lockfile::{
         ComVer, DirectoryResolution, Lockfile, LockfileResolution, LockfileVersion,
-        PackageMetadata, PkgNameVerPeer, SnapshotEntry,
+        PackageMetadata, PkgName, PkgNameVerPeer, PkgVerPeer, SnapshotDepRef, SnapshotEntry,
     };
 
     let package_key = PkgNameVerPeer::from_str("consumer@1.0.0").unwrap();
@@ -103,7 +103,10 @@ fn hashed_peer_suffix_uses_package_peer_metadata() {
         snapshots: Some(HashMap::from([(
             snapshot_key,
             SnapshotEntry {
-                transitive_peer_dependencies: Some(vec!["missing".to_string()]),
+                dependencies: Some(HashMap::from([(
+                    PkgName::parse("peer").unwrap(),
+                    SnapshotDepRef::Plain(PkgVerPeer::from_str("1.0.0").unwrap()),
+                )])),
                 ..SnapshotEntry::default()
             },
         )])),
