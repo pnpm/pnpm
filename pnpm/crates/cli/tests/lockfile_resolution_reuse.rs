@@ -16,6 +16,65 @@ fn pacquet_at(workspace: &Path) -> Command {
     Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
 }
 
+#[test]
+fn compatible_catalog_range_update_reuses_the_locked_peer_snapshot() {
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, npmrc_path, .. } = npmrc_info;
+    let manifest_path = workspace.join("package.json");
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    fs::write(
+        &manifest_path,
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/has-optional-peer-with-peer": "catalog:"
+            }
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    let workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    fs::write(
+        &workspace_yaml_path,
+        format!(
+            "{workspace_yaml}trustLockfile: true\nfetchRetries: 0\nfetchTimeout: 1000\ncatalog:\n  '@pnpm.e2e/has-optional-peer-with-peer': ^1.0.0\n",
+        ),
+    )
+    .expect("write initial catalog");
+    pacquet_at(&workspace).with_arg("install").assert().success();
+
+    let workspace_yaml = fs::read_to_string(&workspace_yaml_path).expect("read initial catalog");
+    fs::write(
+        &workspace_yaml_path,
+        workspace_yaml.replace(
+            "'@pnpm.e2e/has-optional-peer-with-peer': ^1.0.0",
+            "'@pnpm.e2e/has-optional-peer-with-peer': '>=1.0.0 <2'",
+        ),
+    )
+    .expect("update catalog range");
+    let dead_registry = dead_registry_url();
+    let npmrc = fs::read_to_string(&npmrc_path).expect("read .npmrc");
+    let npmrc = npmrc
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("registry="))
+        .collect::<Vec<_>>()
+        .join("\n");
+    fs::write(&npmrc_path, format!("registry={dead_registry}\n{npmrc}\n"))
+        .expect("rewrite .npmrc with a dead registry");
+
+    pacquet_at(&workspace).with_arg("install").assert().success();
+
+    let wanted = pacquet_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+        .expect("load wanted lockfile")
+        .expect("wanted lockfile");
+    let entry = &wanted.catalogs.expect("catalog snapshots")["default"]["@pnpm.e2e/has-optional-peer-with-peer"];
+    assert_eq!(entry.specifier, ">=1.0.0 <2");
+    assert_eq!(entry.version, "1.0.0");
+
+    drop((root, mock_instance));
+}
+
 /// A `registry=` URL on a localhost port with nothing listening, so any
 /// resolution attempt against it fails fast with a connection refusal.
 fn dead_registry_url() -> String {

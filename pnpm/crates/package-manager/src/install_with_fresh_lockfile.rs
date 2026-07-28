@@ -5,6 +5,7 @@ use crate::{
     LinkVirtualStoreBins, LinkVirtualStoreBinsError, PrefetchContext, PrefetchingResolver,
     SkippedSnapshots, SymlinkDirectDependencies, SymlinkDirectDependenciesError,
     VersionPolicyError, VersionsOverrider, VirtualStoreLayout, dependencies_graph_to_lockfile,
+    fast_update_catalogs::{FastCatalogUpdate, try_fast_update_catalogs},
     fast_update_overrides::{FastOverrideOptions, try_fast_update_overrides},
     link_root_component_members,
     store_init::init_store_dir_best_effort,
@@ -1382,6 +1383,18 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             update_reuse_scopes_by_importer.clear();
         }
 
+        let overrides_use_catalogs = config
+            .overrides
+            .as_ref()
+            .is_some_and(|overrides| overrides.values().any(|value| value.starts_with("catalog:")));
+        let catalog_update = wanted_lockfile.map_or(FastCatalogUpdate::Unchanged, |lockfile| {
+            try_fast_update_catalogs(lockfile, &catalogs, overrides_use_catalogs)
+        });
+        let (catalogs_match, fast_catalog_seed) = match catalog_update {
+            FastCatalogUpdate::Unchanged => (true, None),
+            FastCatalogUpdate::Updated(lockfile) => (false, Some(*lockfile)),
+            FastCatalogUpdate::Unsupported => (false, None),
+        };
         let reusable_settings_lockfile = wanted_lockfile
             .filter(|lockfile| lockfile.package_extensions_checksum == package_extensions_checksum);
         let override_settings_match = reusable_settings_lockfile.is_some_and(|lockfile| {
@@ -1389,6 +1402,8 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         });
         let fast_override_seed = if let (Some(lockfile), Some(parsed), Some(resolved)) =
             (reusable_settings_lockfile, parsed_overrides.as_deref(), resolved_overrides.as_ref())
+            && catalogs_match
+            && !overrides_use_catalogs
             && !override_settings_match
             && pnpmfile_hook.is_none()
             && custom_resolvers_raw.is_empty()
@@ -1436,9 +1451,14 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // Exact generic registry overrides may instead use a
         // dependency-shape-verified rewritten seed. Every unsupported
         // override shape falls back to withholding the seed.
-        let lockfile_reuse_seed = fast_override_seed
-            .as_ref()
-            .or_else(|| override_settings_match.then_some(reusable_settings_lockfile).flatten());
+        let fast_catalog_seed = fast_catalog_seed
+            .filter(|_| override_settings_match && reusable_settings_lockfile.is_some());
+        let lockfile_reuse_seed =
+            fast_override_seed.as_ref().or(fast_catalog_seed.as_ref()).or_else(|| {
+                (catalogs_match && override_settings_match)
+                    .then_some(reusable_settings_lockfile)
+                    .flatten()
+            });
         // Reused subtrees never stream their manifests through the
         // versions overrider, so only a resolution with no reuse at all
         // collects the complete declared-range set the convergence

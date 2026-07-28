@@ -13,6 +13,7 @@ mod create_virtual_store;
 mod current_lockfile;
 mod dependencies_graph_to_lockfile;
 mod deps_graph;
+mod fast_update_catalogs;
 mod fast_update_overrides;
 mod graph_sequencer;
 mod hoist;
