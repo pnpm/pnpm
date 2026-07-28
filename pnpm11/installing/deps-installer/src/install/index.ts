@@ -703,10 +703,9 @@ export async function mutateModules (
       !opts.force &&
       !opts.forceFullResolution &&
       !forceResolutionFromHook &&
-      opts.handleResolutionPolicyViolations == null &&
-      opts.hooks.readPackage == null &&
-      opts.hooks.preResolution == null &&
-      opts.hooks.afterAllResolved == null &&
+      !opts.hooks.readPackage?.length &&
+      !opts.hooks.preResolution?.length &&
+      !opts.hooks.afterAllResolved?.length &&
       opts.hooks.customResolvers == null &&
       !ctx.lockfileHadConflicts &&
       ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION &&
@@ -756,9 +755,7 @@ export async function mutateModules (
             workspacePackages: ctx.workspacePackages,
             lockfileDir: opts.lockfileDir,
           }),
-          verifyLockfile: opts.trustLockfile
-            ? undefined
-            : (lockfile) => verifyLockfileResolutions(lockfile, opts.resolutionVerifiers),
+          verifyLockfile: (lockfile) => verifyLockfileResolutions(lockfile, []),
         })
       ) {
         outdatedLockfileSettingName = null

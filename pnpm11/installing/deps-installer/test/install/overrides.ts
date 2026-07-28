@@ -1,12 +1,13 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { expect, test } from '@jest/globals'
+import { expect, jest, test } from '@jest/globals'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { addDependenciesToPackage, type MutatedProject, mutateModules, mutateModulesInSingleProject, type ProjectOptions } from '@pnpm/installing.deps-installer'
 import type { LockfileFile } from '@pnpm/lockfile.types'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
+import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 import type { RequestPackageOptions, StoreController } from '@pnpm/store.controller-types'
 import { addDistTag } from '@pnpm/testing.registry-mock'
 import type { ProjectManifest, ProjectRootDir } from '@pnpm/types'
@@ -61,12 +62,20 @@ test('adding an exact override reuses the lockfile when the new package has the 
 
 test('an exact override update preserves resolver trust policies', async () => {
   prepareEmpty()
+  const reporter = jest.fn()
   const manifest: ProjectManifest = {
     dependencies: {
       '@pnpm.e2e/foobarqar': '1.0.0',
     },
   }
   const options = testDefaults({
+    handleResolutionPolicyViolations: async () => {},
+    hooks: {
+      afterAllResolved: [],
+      preResolution: [],
+      readPackage: [],
+    },
+    reporter,
     trustPolicy: 'no-downgrade',
     trustPolicyExclude: ['@pnpm.e2e/bar'],
   })
@@ -77,6 +86,13 @@ test('an exact override update preserves resolver trust policies', async () => {
     rootDir: process.cwd() as ProjectRootDir,
   }, options)
 
+  reporter.mockClear()
+  const verify = jest.fn<ResolutionVerifier['verify']>(async () => ({ ok: true }))
+  options.resolutionVerifiers = [{
+    canTrustPastCheck: () => false,
+    policy: { test: true },
+    verify,
+  }]
   const requestOptions: RequestPackageOptions[] = []
   const requestedPackages = trackRequestedPackages(
     options.storeController,
@@ -95,6 +111,15 @@ test('an exact override update preserves resolver trust policies', async () => {
   expect(requestedPackages).toStrictEqual(['@pnpm.e2e/bar'])
   expect(requestOptions[0].trustPolicy).toBe('no-downgrade')
   expect(requestOptions[0].trustPolicyExclude?.('@pnpm.e2e/bar')).toBe(true)
+  expect(reporter).not.toHaveBeenCalledWith(expect.objectContaining({
+    name: 'pnpm:stage',
+    stage: 'resolution_started',
+  }))
+  expect(verify).toHaveBeenCalled()
+  expect(verify.mock.calls).not.toContainEqual([
+    expect.anything(),
+    expect.objectContaining({ name: '@pnpm.e2e/bar', version: '100.1.0' }),
+  ])
 })
 
 test('an exact override update reuses the lockfile when the new package has the same dependencies', async () => {
