@@ -1,8 +1,10 @@
 use super::{
     BelongsTo, Config, Include, LicenseInfo, LicensesArgs, LicensesDependencyOptions,
-    collect_dependencies, render_package_name, select_newer_version,
+    collect_dependencies, extract_license_author, extract_license_homepage, render_package_name,
+    select_newer_version,
 };
 use pacquet_lockfile::Lockfile;
+use serde_json::json;
 use tempfile::TempDir;
 
 #[test]
@@ -193,4 +195,33 @@ fn selects_latest_version_classification_with_semver_precedence() {
     assert_eq!(info.selected_version, "10.0.0");
     assert!(!select_newer_version(&mut info, "3.0.0", BelongsTo::Prod));
     assert_eq!(info.belongs_to, BelongsTo::Dev);
+}
+
+#[test]
+fn normalizes_author_for_license_reports() {
+    assert_eq!(
+        extract_license_author(&json!({
+            "author": "The Babel Team <team@babel.dev> (https://babel.dev/team)"
+        })),
+        Some("The Babel Team".to_string()),
+    );
+    assert_eq!(
+        extract_license_author(&json!({ "author": { "name": "The Babel Team" } })),
+        Some("The Babel Team".to_string()),
+    );
+    assert_eq!(extract_license_author(&json!({ "author": "" })), Some(String::new()));
+}
+
+#[test]
+fn normalizes_homepage_for_license_reports() {
+    assert_eq!(
+        extract_license_homepage(&json!({ "homepage": "babel.dev" })),
+        Some("http://babel.dev".to_string()),
+    );
+    assert_eq!(
+        extract_license_homepage(&json!({
+            "repository": "git+https://github.com/babel/babel.git"
+        })),
+        Some("https://github.com/babel/babel#readme".to_string()),
+    );
 }

@@ -7,6 +7,88 @@ use serde_json::{Value, json};
 use std::{fs, path::Path};
 
 #[test]
+fn licenses_normalizes_metadata_and_orders_groups_by_package() {
+    let workspace = tempfile::tempdir().expect("create workspace");
+    fs::write(
+        workspace.path().join("package.json"),
+        json!({
+            "dependencies": {
+                "alpha": "1.0.0",
+                "zeta": "1.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    fs::write(
+        workspace.path().join("pnpm-lock.yaml"),
+        r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      alpha:
+        specifier: 1.0.0
+        version: 1.0.0
+      zeta:
+        specifier: 1.0.0
+        version: 1.0.0
+packages:
+  alpha@1.0.0:
+    resolution: {integrity: sha512-alpha}
+  zeta@1.0.0:
+    resolution: {integrity: sha512-zeta}
+snapshots:
+  alpha@1.0.0: {}
+  zeta@1.0.0: {}
+",
+    )
+    .expect("write lockfile");
+    let virtual_store = workspace.path().join("node_modules/.pnpm");
+    let alpha_dir = virtual_store.join("alpha@1.0.0/node_modules/alpha");
+    let zeta_dir = virtual_store.join("zeta@1.0.0/node_modules/zeta");
+    fs::create_dir_all(&alpha_dir).expect("create alpha directory");
+    fs::create_dir_all(&zeta_dir).expect("create zeta directory");
+    fs::write(
+        alpha_dir.join("package.json"),
+        json!({
+            "name": "alpha",
+            "version": "1.0.0",
+            "license": "Zlib",
+            "author": "Alpha Team <alpha@example.com> (https://example.com/team)",
+            "repository": "github:example/alpha",
+        })
+        .to_string(),
+    )
+    .expect("write alpha manifest");
+    fs::write(
+        zeta_dir.join("package.json"),
+        json!({
+            "name": "zeta",
+            "version": "1.0.0",
+            "license": "MIT",
+        })
+        .to_string(),
+    )
+    .expect("write zeta manifest");
+
+    let output = pacquet_in(workspace.path())
+        .args(["licenses", "list", "--json"])
+        .output()
+        .expect("run licenses");
+    assert!(
+        output.status.success(),
+        "licenses should succeed: {}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+
+    let report: Value = serde_json::from_slice(&output.stdout).expect("parse licenses JSON");
+    assert_eq!(report.as_object().unwrap().keys().collect::<Vec<_>>(), ["Zlib", "MIT"]);
+    assert_eq!(report["Zlib"][0]["author"], "Alpha Team");
+    assert_eq!(report["Zlib"][0]["homepage"], "https://github.com/example/alpha#readme");
+}
+
+#[test]
 fn licenses_reads_global_store_metadata_with_a_manifest_selected_runtime() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
