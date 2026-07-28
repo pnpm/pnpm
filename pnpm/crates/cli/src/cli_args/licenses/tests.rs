@@ -1,7 +1,7 @@
 use super::{
     BelongsTo, Config, Include, LicenseInfo, LicensesArgs, LicensesDependencyOptions,
-    collect_dependencies, extract_license_author, extract_license_homepage, render_package_name,
-    select_newer_version,
+    collect_dependencies, compare_package_names, extract_license_author, extract_license_homepage,
+    render_package_name, select_newer_version,
 };
 use pacquet_lockfile::Lockfile;
 use serde_json::json;
@@ -195,6 +195,40 @@ fn selects_latest_version_classification_with_semver_precedence() {
     assert_eq!(info.selected_version, "10.0.0");
     assert!(!select_newer_version(&mut info, "3.0.0", BelongsTo::Prod));
     assert_eq!(info.belongs_to, BelongsTo::Dev);
+}
+
+#[test]
+fn compares_package_names_like_javascript_locale_compare() {
+    let mut names = [
+        "string-width",
+        "stringify-object",
+        "string_decoder",
+        "a~b",
+        "a/b",
+        "a.b",
+        "a-b",
+        "a_b",
+        "a0b",
+        "aab",
+        "ab",
+    ];
+    names.sort_by(|left, right| compare_package_names(left, right));
+    assert_eq!(
+        names,
+        [
+            "a_b",
+            "a-b",
+            "a.b",
+            "a/b",
+            "a~b",
+            "a0b",
+            "aab",
+            "ab",
+            "string_decoder",
+            "string-width",
+            "stringify-object",
+        ],
+    );
 }
 
 #[test]

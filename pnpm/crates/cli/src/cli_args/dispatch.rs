@@ -71,7 +71,7 @@ impl CliArgs {
             &dir,
             self.command.default_reporter_summary_scope(),
             self.command.reports_scope(self.recursive),
-            matches!(self.command, CliCommand::Dedupe(_)),
+            false,
         );
     }
 

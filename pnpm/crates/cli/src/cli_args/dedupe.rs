@@ -1,4 +1,5 @@
 use std::{
+    collections::HashSet,
     io::Write,
     marker::PhantomData,
     path::{Path, PathBuf},
@@ -17,7 +18,8 @@ use crate::{
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pacquet_lockfile::Lockfile;
+use pacquet_lockfile::{Lockfile, PkgNameVerPeer};
+use pacquet_modules_yaml::{Host, read_modules_manifest};
 use pacquet_package_manager::{
     ImporterDiffKey, Install, LockfileDiff, ProjectMutation, ResolutionObserver,
     ResolvedPackageHint, SnapshotDiff, diff_lockfiles,
@@ -27,6 +29,7 @@ use pacquet_reporter::{
     DedupeCheckLog, GlobalLog, LogEvent, LogLevel, PnpmErrorLog, ProgressLog, ProgressMessage,
     Reporter,
 };
+use pacquet_store_dir::{SharedReadonlyStoreIndex, StoreIndex, store_index_key};
 use serde_json::{Map, Value, json};
 use tempfile::NamedTempFile;
 
@@ -50,6 +53,25 @@ impl DedupeArgs {
     ) -> miette::Result<()> {
         let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
             &state;
+        let lockfile_packages =
+            lockfile.get().into_diagnostic()?.and_then(|lockfile| lockfile.packages.as_ref());
+        let reusable_skipped_package_ids = read_modules_manifest::<Host>(&config.modules_dir)
+            .into_diagnostic()?
+            .into_iter()
+            .flat_map(|modules| modules.skipped)
+            .filter_map(|package_id| {
+                let package_key = package_id.parse::<PkgNameVerPeer>().ok()?.without_peer();
+                let metadata = lockfile_packages?.get(&package_key)?;
+                (metadata.cpu.is_none()
+                    && metadata.os.is_none()
+                    && metadata.libc.is_none()
+                    && !config
+                        .ignored_optional_dependencies
+                        .as_ref()
+                        .is_some_and(|ignored| ignored.contains(&package_key.name.to_string())))
+                .then(|| package_key.pkg_id())
+            })
+            .collect();
 
         Install {
             tarball_mem_cache: std::sync::Arc::clone(tarball_mem_cache),
@@ -87,6 +109,12 @@ impl DedupeArgs {
                     .unwrap_or_else(|| Path::new("."))
                     .display()
                     .to_string(),
+                store_index: if config.frozen_store {
+                    StoreIndex::shared_immutable_in(&config.store_dir)
+                } else {
+                    StoreIndex::shared_readonly_in(&config.store_dir)
+                },
+                reusable_skipped_package_ids,
                 reporter: PhantomData,
             })),
             peer_issues_sink: None,
@@ -143,6 +171,8 @@ enum DedupeError {
 
 struct DedupeResolutionReporter<Reporter> {
     requester: String,
+    store_index: Option<SharedReadonlyStoreIndex>,
+    reusable_skipped_package_ids: HashSet<String>,
     reporter: PhantomData<fn() -> Reporter>,
 }
 
@@ -155,6 +185,25 @@ impl<Reporter: self::Reporter> ResolutionObserver for DedupeResolutionReporter<R
                 requester: self.requester.clone(),
             },
         }));
+        let package_key = store_index_key(hint.integrity, hint.id);
+        let found_in_store = self.reusable_skipped_package_ids.contains(hint.id)
+            || self.store_index.as_ref().is_some_and(|store_index| {
+                store_index
+                    .lock()
+                    .ok()
+                    .and_then(|index| index.get(&package_key).ok())
+                    .flatten()
+                    .is_some()
+            });
+        if found_in_store {
+            Reporter::emit(&LogEvent::Progress(ProgressLog {
+                level: LogLevel::Debug,
+                message: ProgressMessage::FoundInStore {
+                    package_id: hint.id.to_string(),
+                    requester: self.requester.clone(),
+                },
+            }));
+        }
     }
 }
 
@@ -206,9 +255,16 @@ fn render_dedupe_check_issues(diff: &LockfileDiff) -> String {
 }
 
 fn render_dedupe_check_error(diff: &LockfileDiff) -> String {
+    let issues = render_dedupe_check_issues(diff);
+    let recommendation_separator = if issues.ends_with("\n\n") {
+        ""
+    } else if issues.ends_with('\n') {
+        "\n"
+    } else {
+        "\n\n"
+    };
     format!(
-        "[ERR_PNPM_DEDUPE_CHECK_ISSUES] Dedupe --check found changes to the lockfile\n\n{}\nRun pnpm dedupe to apply the changes above.",
-        render_dedupe_check_issues(diff).trim_end(),
+        "[ERR_PNPM_DEDUPE_CHECK_ISSUES] Dedupe --check found changes to the lockfile\n\n{issues}{recommendation_separator}Run pnpm dedupe to apply the changes above.\n",
     )
 }
 
@@ -281,8 +337,6 @@ fn render_snapshot_diff(diff: &SnapshotDiff) -> String {
         .map(|label| TreeNode::with_children(label, Vec::new()))
         .collect();
     render_archy(&TreeNode::with_children(plain(&diff.id), nodes))
-        .trim_end_matches('\n')
-        .to_string()
 }
 
 /// Atomically write `content` to `path` via temp-file + rename, so the write

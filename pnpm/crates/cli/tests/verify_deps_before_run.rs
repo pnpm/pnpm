@@ -90,6 +90,19 @@ fn dedupe_peers_lockfile_regeneration_installs_before_running_the_script() {
         stdout.contains("Lockfile is up to date, resolution step is skipped"),
         "the verifier install must reuse the regenerated lockfile:\n{stdout}",
     );
+    let policy_verdict = stdout
+        .find("Lockfile passes supply-chain policies")
+        .expect("the verifier must report its lockfile policy verdict");
+    let frozen_install = stdout
+        .find("Lockfile is up to date, resolution step is skipped")
+        .expect("the verifier must report the frozen install");
+    let up_to_date = stdout
+        .find("Already up to date")
+        .expect("the verifier must report that no packages changed");
+    assert!(
+        policy_verdict < frozen_install && frozen_install < up_to_date,
+        "the verifier messages must match pnpm's order:\n{stdout}",
+    );
     assert_eq!(
         fs::read_to_string(workspace.join("pnpm-lock.yaml"))
             .expect("read lockfile after verifier install"),

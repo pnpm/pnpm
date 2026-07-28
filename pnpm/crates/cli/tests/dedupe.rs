@@ -190,7 +190,7 @@ fn dedupe_check_reports_the_lockfile_diff() {
     eprintln!("STDOUT:\n{stdout}");
     assert!(stderr.is_empty(), "stderr:\n{stderr}");
     assert!(
-        stdout.contains("Progress: resolved 1, reused 0, downloaded 0, done"),
+        stdout.contains("Progress: resolved 1, reused 0, downloaded 0, added 0, done"),
         "stdout:\n{stdout}",
     );
     assert!(stdout.contains("ERR_PNPM_DEDUPE_CHECK_ISSUES"), "stdout:\n{stdout}");
@@ -207,7 +207,10 @@ fn dedupe_check_reports_the_lockfile_diff() {
         "the added and removed snapshots must be rendered; stdout:\n{stdout}",
     );
     assert!(stdout.contains("Run pnpm dedupe to apply the changes above."), "stdout:\n{stdout}");
-    assert!(stdout.ends_with("Run pnpm dedupe to apply the changes above.\n"), "stdout:\n{stdout}");
+    assert!(
+        stdout.ends_with("Run pnpm dedupe to apply the changes above.\n\n"),
+        "stdout:\n{stdout}",
+    );
 
     let ndjson_output = Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
