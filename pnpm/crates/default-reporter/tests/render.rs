@@ -670,6 +670,51 @@ Lockfile is up to date, resolution step is skipped",
 }
 
 #[test]
+fn append_only_waits_for_a_terminal_lockfile_policy_verdict() {
+    let mut reporter =
+        state_with_options(ReporterOptions { append_only: true, ..ReporterOptions::default() });
+    let pending = reporter.handle(&LogEvent::Pnpm(PnpmLog {
+        level: LogLevel::Info,
+        message: "Lockfile is up to date, resolution step is skipped".to_string(),
+        prefix: CWD.to_string(),
+    }));
+    assert!(matches!(pending, Output::None));
+
+    let started = reporter.handle(&LogEvent::LockfileVerification(LockfileVerificationLog {
+        level: LogLevel::Debug,
+        message: LockfileVerificationMessage::Started { entries: 2, lockfile_path: None },
+    }));
+    match started {
+        Output::Lines(lines) => {
+            assert_eq!(
+                lines,
+                ["? Verifying lockfile against supply-chain policies (2 entries)..."],
+            );
+        }
+        _ => panic!("started verification should emit only its progress line"),
+    }
+
+    let done = reporter.handle(&LogEvent::LockfileVerification(LockfileVerificationLog {
+        level: LogLevel::Debug,
+        message: LockfileVerificationMessage::Done {
+            entries: 2,
+            elapsed_ms: 100,
+            lockfile_path: None,
+        },
+    }));
+    match done {
+        Output::Lines(lines) => assert_eq!(
+            lines,
+            [
+                "✓ Lockfile passes supply-chain policies (2 entries in 100ms)",
+                "Lockfile is up to date, resolution step is skipped",
+            ],
+        ),
+        _ => panic!("completed verification should emit its verdict before the frozen message"),
+    }
+}
+
+#[test]
 fn zero_install_stats_render_already_up_to_date() {
     let mut reporter = state(false);
     let frame = render(

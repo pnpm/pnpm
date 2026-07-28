@@ -13,6 +13,8 @@ fn licenses_normalizes_metadata_and_orders_groups_by_package() {
         workspace.path().join("package.json"),
         json!({
             "dependencies": {
+                "a-b": "1.0.0",
+                "a_b": "1.0.0",
                 "alpha": "1.0.0",
                 "zeta": "1.0.0",
             },
@@ -27,6 +29,12 @@ lockfileVersion: '9.0'
 importers:
   .:
     dependencies:
+      a-b:
+        specifier: 1.0.0
+        version: 1.0.0
+      a_b:
+        specifier: 1.0.0
+        version: 1.0.0
       alpha:
         specifier: 1.0.0
         version: 1.0.0
@@ -34,21 +42,43 @@ importers:
         specifier: 1.0.0
         version: 1.0.0
 packages:
+  a-b@1.0.0:
+    resolution: {integrity: sha512-a-b}
+  a_b@1.0.0:
+    resolution: {integrity: sha512-a_b}
   alpha@1.0.0:
     resolution: {integrity: sha512-alpha}
   zeta@1.0.0:
     resolution: {integrity: sha512-zeta}
 snapshots:
+  a-b@1.0.0: {}
+  a_b@1.0.0: {}
   alpha@1.0.0: {}
   zeta@1.0.0: {}
 ",
     )
     .expect("write lockfile");
     let virtual_store = workspace.path().join("node_modules/.pnpm");
+    let a_dash_b_dir = virtual_store.join("a-b@1.0.0/node_modules/a-b");
+    let a_underscore_b_dir = virtual_store.join("a_b@1.0.0/node_modules/a_b");
     let alpha_dir = virtual_store.join("alpha@1.0.0/node_modules/alpha");
     let zeta_dir = virtual_store.join("zeta@1.0.0/node_modules/zeta");
+    fs::create_dir_all(&a_dash_b_dir).expect("create a-b directory");
+    fs::create_dir_all(&a_underscore_b_dir).expect("create a_b directory");
     fs::create_dir_all(&alpha_dir).expect("create alpha directory");
     fs::create_dir_all(&zeta_dir).expect("create zeta directory");
+    for (directory, name) in [(&a_dash_b_dir, "a-b"), (&a_underscore_b_dir, "a_b")] {
+        fs::write(
+            directory.join("package.json"),
+            json!({
+                "name": name,
+                "version": "1.0.0",
+                "license": "MIT",
+            })
+            .to_string(),
+        )
+        .expect("write collation fixture manifest");
+    }
     fs::write(
         alpha_dir.join("package.json"),
         json!({
@@ -83,9 +113,22 @@ snapshots:
     );
 
     let report: Value = serde_json::from_slice(&output.stdout).expect("parse licenses JSON");
-    assert_eq!(report.as_object().unwrap().keys().collect::<Vec<_>>(), ["Zlib", "MIT"]);
+    assert_eq!(report.as_object().unwrap().keys().collect::<Vec<_>>(), ["MIT", "Zlib"]);
     assert_eq!(report["Zlib"][0]["author"], "Alpha Team");
     assert_eq!(report["Zlib"][0]["homepage"], "https://github.com/example/alpha#readme");
+
+    let output =
+        pacquet_in(workspace.path()).args(["licenses", "list"]).output().expect("run licenses");
+    assert!(
+        output.status.success(),
+        "licenses should succeed: {}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    let table = String::from_utf8(output.stdout).expect("licenses table is UTF-8");
+    assert!(
+        table.find("a_b").expect("a_b row") < table.find("a-b").expect("a-b row"),
+        "table should use JavaScript-compatible package collation:\n{table}",
+    );
 }
 
 #[test]

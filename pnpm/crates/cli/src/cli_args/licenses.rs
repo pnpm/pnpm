@@ -305,7 +305,7 @@ impl LicensesArgs {
 
         let mut all_packages: Vec<&LicenseInfo> =
             results_by_license.values().flat_map(|g| g.values()).collect();
-        all_packages.sort_by(|a, b| a.name.cmp(&b.name));
+        all_packages.sort_by(|a, b| compare_package_names(&a.name, &b.name));
 
         for info in all_packages {
             let mut row =

@@ -428,7 +428,16 @@ impl ReporterState {
             // Debug-only / non-rendered channels in pnpm's default reporter.
             LogEvent::BrokenModules(_) => {}
         }
-        if matches!(event, LogEvent::LockfileVerification(_)) {
+        if matches!(
+            event,
+            LogEvent::LockfileVerification(log)
+                if matches!(
+                    &log.message,
+                    LockfileVerificationMessage::Cached { .. }
+                        | LockfileVerificationMessage::Done { .. }
+                        | LockfileVerificationMessage::Failed { .. }
+                ),
+        ) {
             self.flush_pending_lockfile_message();
         }
         self.finish()
