@@ -150,7 +150,10 @@ async function isRepoPublic (httpsUrl: string, dispatcherOptions: DispatcherOpti
 
 async function accessRepository (repository: string): Promise<boolean> {
   try {
-    await git(['ls-remote', '--exit-code', repository, 'HEAD'], { retries: 0 })
+    await git(['ls-remote', '--exit-code', repository, 'HEAD'], {
+      retries: 0,
+      env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+    })
     return true
   } catch {
     return false

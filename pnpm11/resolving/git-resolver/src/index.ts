@@ -128,7 +128,10 @@ export async function getRepoRefs (repo: string, ref: string | null): Promise<Re
     gitArgs.push(`${ref}^{}`)
   }
   // graceful-git by default retries 10 times, reduce to single retry
-  const result = await git(['ls-remote', ...gitArgs], { retries: 1 })
+  const result = await git(['ls-remote', ...gitArgs], {
+    retries: 1,
+    env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+  })
   const refs: Record<string, string> = {}
   for (const line of result.stdout.split('\n')) {
     const [commit, refName] = line.split('\t')
