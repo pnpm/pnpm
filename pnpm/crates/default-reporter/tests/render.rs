@@ -653,6 +653,11 @@ fn lockfile_policy_verdict_precedes_the_frozen_install_message() {
                 message: "Lockfile is up to date, resolution step is skipped".to_string(),
                 prefix: CWD.to_string(),
             }),
+            LogEvent::Stage(StageLog {
+                level: LogLevel::Debug,
+                prefix: CWD.to_string(),
+                stage: Stage::ImportingDone,
+            }),
             LogEvent::LockfileVerification(LockfileVerificationLog {
                 level: LogLevel::Debug,
                 message: LockfileVerificationMessage::Cached {
@@ -711,6 +716,26 @@ fn append_only_waits_for_a_terminal_lockfile_policy_verdict() {
             ],
         ),
         _ => panic!("completed verification should emit its verdict before the frozen message"),
+    }
+}
+
+#[test]
+fn install_summary_flushes_the_frozen_message_without_a_policy_verdict() {
+    let mut reporter =
+        state_with_options(ReporterOptions { append_only: true, ..ReporterOptions::default() });
+    let pending = reporter.handle(&LogEvent::Pnpm(PnpmLog {
+        level: LogLevel::Info,
+        message: "Lockfile is up to date, resolution step is skipped".to_string(),
+        prefix: CWD.to_string(),
+    }));
+    assert!(matches!(pending, Output::None));
+
+    let summary = reporter.handle(&summary());
+    match summary {
+        Output::Lines(lines) => {
+            assert_eq!(lines, ["Lockfile is up to date, resolution step is skipped"]);
+        }
+        _ => panic!("the install summary should flush the frozen message"),
     }
 }
 

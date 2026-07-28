@@ -391,7 +391,7 @@ impl ReporterState {
     }
 
     pub fn handle(&mut self, event: &LogEvent) -> Output {
-        if !matches!(event, LogEvent::LockfileVerification(_)) {
+        if matches!(event, LogEvent::Stats(_) | LogEvent::Summary(_) | LogEvent::ExecutionTime(_)) {
             self.flush_pending_lockfile_message();
         }
         match event {
