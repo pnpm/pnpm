@@ -1166,7 +1166,6 @@ describe('dedupe', () => {
     expect(Object.keys(lockfile.packages)).toEqual(['@pnpm.e2e/foo@100.0.0', '@pnpm.e2e/foo@100.1.0'])
     expect(lockfile.catalogs.default['@pnpm.e2e/foo'].version).toBe('100.0.0')
 
-    // Perform a dedupe and expect the valid catalog version to be preserved.
     await mutateModules(installProjects(projects), {
       ...options,
       dedupe: true,
