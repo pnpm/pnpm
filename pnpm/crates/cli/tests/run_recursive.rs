@@ -595,12 +595,16 @@ fn filtered_run_prints_the_script_command_unless_silent() {
         .with_current_dir(&workspace)
         .with_arg("--silent")
         .with_arg("--filter")
-        .with_arg("project-1")
+        .with_arg("project-2")
         .with_arg("run")
         .with_arg("build")
         .output()
         .expect("run silent filtered build");
     assert!(output.status.success(), "silent filtered build failed: {output:?}");
+    assert!(
+        workspace.join("project-2").join("ran.txt").is_file(),
+        "silent filtered build must still execute its script: {output:?}",
+    );
     assert!(
         !String::from_utf8_lossy(&output.stderr).contains("$ touch ran.txt"),
         "silent filtered build must omit its script command: {output:?}",
