@@ -2279,7 +2279,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             // `SymlinkDirectDependencies` can fold publicly-hoisted
             // aliases into root's target map — same shape as the
             // frozen-lockfile path. The `HoistResult` is reused for
-            // the on-disk hoist phase below, so the BFS runs once.
+            // the on-disk hoist phase below, so the traversal runs once.
             // `hoist-workspace-packages`: named non-root projects
             // become hoist candidates whose links point at the
             // project dirs (`importer_manifests` is keyed by
@@ -2296,7 +2296,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                             crate::symlink_direct_dependencies::importer_root_dir(lockfile_dir, id),
                         ))
                     })
-                    .collect::<std::collections::BTreeMap<_, _>>()
+                    .collect::<indexmap::IndexMap<_, _>>()
             });
             let pre_hoist = crate::install_frozen_lockfile::compute_hoist_plan(
                 config,

@@ -6672,24 +6672,24 @@ fn filtered_modules_metadata_preserves_only_retained_unselected_entries() {
         ..empty_test_lockfile()
     };
     let previous = Modules {
-        hoisted_dependencies: std::collections::BTreeMap::from([
+        hoisted_dependencies: indexmap::IndexMap::from([
             (
                 retained.to_string(),
-                std::collections::BTreeMap::from([(
+                indexmap::IndexMap::from([(
                     "retained-alias".to_string(),
                     pacquet_modules_yaml::HoistKind::Private,
                 )]),
             ),
             (
                 shared.to_string(),
-                std::collections::BTreeMap::from([(
+                indexmap::IndexMap::from([(
                     "stale-shared-alias".to_string(),
                     pacquet_modules_yaml::HoistKind::Private,
                 )]),
             ),
             (
                 stale_selected.to_string(),
-                std::collections::BTreeMap::from([(
+                indexmap::IndexMap::from([(
                     "stale-selected-alias".to_string(),
                     pacquet_modules_yaml::HoistKind::Private,
                 )]),
@@ -6715,9 +6715,9 @@ fn filtered_modules_metadata_preserves_only_retained_unselected_entries() {
         ..Default::default()
     };
     let mut next = Modules {
-        hoisted_dependencies: std::collections::BTreeMap::from([(
+        hoisted_dependencies: indexmap::IndexMap::from([(
             selected.to_string(),
-            std::collections::BTreeMap::from([(
+            indexmap::IndexMap::from([(
                 "selected-alias".to_string(),
                 pacquet_modules_yaml::HoistKind::Private,
             )]),
