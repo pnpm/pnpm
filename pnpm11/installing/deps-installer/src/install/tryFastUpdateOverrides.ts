@@ -10,8 +10,10 @@ import type { RequestPackageFunction } from '@pnpm/store.controller-types'
 import type {
   DepPath,
   PackageManifest,
+  PackageVersionPolicy,
   ReadPackageHook,
   Registries,
+  TrustPolicy,
 } from '@pnpm/types'
 import { clone, equals } from 'ramda'
 import semver from 'semver'
@@ -33,9 +35,17 @@ interface RewriteContext {
   replacements: Map<DepPath, DepPath>
 }
 
+interface ResolverPolicyOptions {
+  publishedBy?: Date
+  publishedByExclude?: PackageVersionPolicy
+  trustPolicy?: TrustPolicy
+  trustPolicyExclude?: PackageVersionPolicy
+  trustPolicyIgnoreAfter?: number
+}
+
 export async function tryFastUpdateOverrides (
   lockfile: LockfileObject,
-  opts: {
+  opts: ResolverPolicyOptions & {
     lockfileDir: string
     lockfileIncludeTarballUrl?: boolean
     overrides: Record<string, string>
@@ -225,7 +235,7 @@ function allResolvedDependencyMaps (lockfile: LockfileObject): ResolvedDependenc
 async function resolveNewManifests (
   overrides: FastOverride[],
   replacements: Map<DepPath, DepPath>,
-  opts: {
+  opts: ResolverPolicyOptions & {
     lockfileDir: string
     parsedOverrides: VersionOverride[]
     readPackageHook?: ReadPackageHook
@@ -251,7 +261,12 @@ async function resolveNewManifests (
       lockfileDir: opts.lockfileDir,
       preferredVersions: Object.create(null),
       projectDir: opts.lockfileDir,
+      publishedBy: opts.publishedBy,
+      publishedByExclude: opts.publishedByExclude,
       skipFetch: true,
+      trustPolicy: opts.trustPolicy,
+      trustPolicyExclude: opts.trustPolicyExclude,
+      trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
       update: false,
     })
     if (
@@ -271,6 +286,7 @@ async function resolveNewManifests (
       rawManifest.name !== name ||
       rawManifest.version !== newVersion ||
       rawManifest.deprecated != null ||
+      hasInvalidManifestMaps(rawManifest) ||
       hasPeerDependencies(rawManifest) ||
       rawManifest.engines?.runtime != null ||
       rawManifest.bundledDependencies != null ||
@@ -292,6 +308,19 @@ async function resolveNewManifests (
   return new Map(results
     .filter((result) => result != null)
     .map(({ name, ...value }) => [name, value]))
+}
+
+function hasInvalidManifestMaps (manifest: PackageManifest): boolean {
+  return [
+    manifest.dependencies,
+    manifest.optionalDependencies,
+    manifest.peerDependencies,
+    manifest.peerDependenciesMeta,
+    manifest.engines,
+  ].some((value) =>
+    value != null &&
+    (typeof value !== 'object' || Array.isArray(value))
+  )
 }
 
 function hasPeerDependencies (manifest: PackageManifest): boolean {
@@ -328,20 +357,20 @@ function rewritePackages (
     const name = dp.parse(oldDepPath).name!
     const resolved = opts.manifests.get(name)
     if (resolved == null) return null
-    const dependencies = validateAndRewriteDependencies(
-      effectiveDependencies(resolved.manifest),
-      oldSnapshot.dependencies,
-      originalPackages,
-      opts.rewriteContext,
-      newDepPath
-    )
-    const optionalDependencies = validateAndRewriteDependencies(
-      resolved.manifest.optionalDependencies,
-      oldSnapshot.optionalDependencies,
-      originalPackages,
-      opts.rewriteContext,
-      newDepPath
-    )
+    const dependencies = validateAndRewriteDependencies({
+      lockedDependencies: oldSnapshot.dependencies,
+      manifestDependencies: effectiveDependencies(resolved.manifest),
+      packages: originalPackages,
+      parentDepPath: newDepPath,
+      rewriteContext: opts.rewriteContext,
+    })
+    const optionalDependencies = validateAndRewriteDependencies({
+      lockedDependencies: oldSnapshot.optionalDependencies,
+      manifestDependencies: resolved.manifest.optionalDependencies,
+      packages: originalPackages,
+      parentDepPath: newDepPath,
+      rewriteContext: opts.rewriteContext,
+    })
     if (dependencies === null || optionalDependencies === null) return null
 
     const newSnapshot = createPackageSnapshot(oldSnapshot, {
@@ -371,13 +400,14 @@ function effectiveDependencies (manifest: PackageManifest): Record<string, strin
   )
 }
 
-function validateAndRewriteDependencies (
-  manifestDependencies: Record<string, string> | undefined,
-  lockedDependencies: ResolvedDependencies | undefined,
-  packages: Record<DepPath, PackageSnapshot>,
-  rewriteContext: RewriteContext,
+function validateAndRewriteDependencies (opts: {
+  lockedDependencies: ResolvedDependencies | undefined
+  manifestDependencies: Record<string, string> | undefined
+  packages: Record<DepPath, PackageSnapshot>
   parentDepPath: DepPath
-): ResolvedDependencies | undefined | null {
+  rewriteContext: RewriteContext
+}): ResolvedDependencies | undefined | null {
+  const { lockedDependencies, manifestDependencies, packages, parentDepPath, rewriteContext } = opts
   const manifestEntries = Object.entries(manifestDependencies ?? {})
   for (const name of Object.keys(lockedDependencies ?? {})) {
     if (manifestDependencies?.[name] == null && rewriteContext.peerNames.has(name)) return null
@@ -388,7 +418,7 @@ function validateAndRewriteDependencies (
     if (semver.validRange(range) == null) return null
     const lockedReference = lockedDependencies?.[name]
     const reference = lockedReference == null
-      ? findReusableReference(name, range, packages, rewriteContext)
+      ? findReusableReference({ name, packages, range, rewriteContext })
       : rewriteReference(name, lockedReference, rewriteContext)
     if (reference == null) return null
     const depPath = dp.refToRelative(reference, name)
@@ -399,12 +429,13 @@ function validateAndRewriteDependencies (
   return Object.keys(result).length === 0 ? undefined : result
 }
 
-function findReusableReference (
-  name: string,
-  range: string,
-  packages: Record<DepPath, PackageSnapshot>,
+function findReusableReference (opts: {
+  name: string
+  packages: Record<DepPath, PackageSnapshot>
+  range: string
   rewriteContext: RewriteContext
-): string | undefined {
+}): string | undefined {
+  const { name, packages, range, rewriteContext } = opts
   if (
     rewriteContext.changedNames.has(name) ||
     rewriteContext.peerNames.has(name) ||

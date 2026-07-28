@@ -9,6 +9,7 @@ import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
 import { type CatalogResultMatcher, matchCatalogResolveResult, resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { parseOverrides } from '@pnpm/config.parse-overrides'
+import { createPackageVersionPolicyOrThrow, getPublishedByPolicy } from '@pnpm/config.version-policy'
 import {
   LAYOUT_VERSION,
   LOCKFILE_MAJOR_VERSION,
@@ -714,6 +715,7 @@ export async function mutateModules (
       ctx.wantedLockfile.time == null
     if (canTryFastUpdateOverrides) {
       await verifyLockfilePromise
+      const { publishedBy, publishedByExclude } = getPublishedByPolicy(opts)
       if (
         // The helper reports only the first mismatch, so checking with the
         // lockfile's overrides proves overrides were the only stale setting.
@@ -738,6 +740,13 @@ export async function mutateModules (
           readPackageHook: opts.readPackageHook,
           registries: ctx.registries,
           requestPackage: opts.storeController.requestPackage,
+          publishedBy,
+          publishedByExclude,
+          trustPolicy: opts.trustPolicy,
+          trustPolicyExclude: opts.trustPolicyExclude
+            ? createPackageVersionPolicyOrThrow(opts.trustPolicyExclude, 'trustPolicyExclude')
+            : undefined,
+          trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
           isLockfileUpToDate: (lockfile) => allProjectsAreUpToDate(Object.values(ctx.projects), {
             catalogs: opts.catalogs,
             autoInstallPeers: opts.autoInstallPeers,

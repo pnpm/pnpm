@@ -269,19 +269,16 @@ fn is_safe_registry_result(
         && manifest.get("version").and_then(Value::as_str) == Some(version)
         && manifest
             .get("peerDependencies")
-            .and_then(Value::as_object)
-            .is_none_or(serde_json::Map::is_empty)
+            .is_none_or(|value| value.as_object().is_some_and(serde_json::Map::is_empty))
         && manifest
             .get("peerDependenciesMeta")
-            .and_then(Value::as_object)
-            .is_none_or(serde_json::Map::is_empty)
+            .is_none_or(|value| value.as_object().is_some_and(serde_json::Map::is_empty))
         && manifest.get("deprecated").is_none()
         && manifest.get("bundledDependencies").is_none()
         && manifest.get("bundleDependencies").is_none()
-        && manifest
-            .get("engines")
-            .and_then(Value::as_object)
-            .is_none_or(|engines| !engines.contains_key("runtime"))
+        && manifest.get("engines").is_none_or(|value| {
+            value.as_object().is_some_and(|engines| !engines.contains_key("runtime"))
+        })
         && matches!(
             result.resolution,
             LockfileResolution::Tarball(ref tarball)

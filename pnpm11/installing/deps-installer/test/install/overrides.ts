@@ -7,18 +7,22 @@ import { PnpmError } from '@pnpm/error'
 import { addDependenciesToPackage, type MutatedProject, mutateModules, mutateModulesInSingleProject, type ProjectOptions } from '@pnpm/installing.deps-installer'
 import type { LockfileFile } from '@pnpm/lockfile.types'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
-import type { StoreController } from '@pnpm/store.controller-types'
+import type { RequestPackageOptions, StoreController } from '@pnpm/store.controller-types'
 import { addDistTag } from '@pnpm/testing.registry-mock'
 import type { ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { readYamlFileSync } from 'read-yaml-file'
 
 import { testDefaults } from '../utils/index.js'
 
-function trackRequestedPackages (storeController: StoreController): string[] {
+function trackRequestedPackages (
+  storeController: StoreController,
+  onRequest?: (requestOptions: RequestPackageOptions) => void
+): string[] {
   const requestedPackages: string[] = []
   const requestPackage = storeController.requestPackage
   storeController.requestPackage = async (wantedDependency, requestOptions) => {
     requestedPackages.push(wantedDependency.alias!)
+    onRequest?.(requestOptions)
     return requestPackage(wantedDependency, requestOptions)
   }
   return requestedPackages
@@ -53,6 +57,44 @@ test('adding an exact override reuses the lockfile when the new package has the 
   expect(requestedPackages).toStrictEqual(['@pnpm.e2e/bar'])
   const lockfile = project.readLockfile()
   expect(lockfile.snapshots['@pnpm.e2e/foobarqar@1.0.0'].dependencies?.['@pnpm.e2e/bar']).toBe('100.1.0')
+})
+
+test('an exact override update preserves resolver trust policies', async () => {
+  prepareEmpty()
+  const manifest: ProjectManifest = {
+    dependencies: {
+      '@pnpm.e2e/foobarqar': '1.0.0',
+    },
+  }
+  const options = testDefaults({
+    trustPolicy: 'no-downgrade',
+    trustPolicyExclude: ['@pnpm.e2e/bar'],
+  })
+
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, options)
+
+  const requestOptions: RequestPackageOptions[] = []
+  const requestedPackages = trackRequestedPackages(
+    options.storeController,
+    (options) => requestOptions.push(options)
+  )
+  options.overrides = {
+    '@pnpm.e2e/bar': '100.1.0',
+  }
+
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, options)
+
+  expect(requestedPackages).toStrictEqual(['@pnpm.e2e/bar'])
+  expect(requestOptions[0].trustPolicy).toBe('no-downgrade')
+  expect(requestOptions[0].trustPolicyExclude?.('@pnpm.e2e/bar')).toBe(true)
 })
 
 test('an exact override update reuses the lockfile when the new package has the same dependencies', async () => {

@@ -205,6 +205,31 @@ async fn falls_back_when_a_locked_child_does_not_satisfy_the_new_manifest() {
 }
 
 #[tokio::test]
+async fn falls_back_when_registry_metadata_has_invalid_dependency_fields() {
+    for manifest in [
+        json!({
+            "name": "target",
+            "version": "2.0.0",
+            "peerDependencies": ""
+        }),
+        json!({
+            "name": "target",
+            "version": "2.0.0",
+            "peerDependenciesMeta": []
+        }),
+        json!({
+            "name": "target",
+            "version": "2.0.0",
+            "engines": "node"
+        }),
+    ] {
+        let (updated, calls) = update_with_manifest(manifest).await;
+        assert_eq!(calls, 1);
+        assert!(updated.is_none());
+    }
+}
+
+#[tokio::test]
 async fn drops_obsolete_dependency_edges_from_a_replacement() {
     let (updated, calls) = update_with_manifest(json!({
         "name": "target",

@@ -1120,7 +1120,7 @@ async function linkAllModules (
 ): Promise<void> {
   const changes = depNodes.map((depNode) => getChangedChildren(depNode, opts))
   await Promise.all(changes.flatMap(({ depNode, removedAliases }) =>
-    removedAliases.map((alias) => removeObsoleteDependency(depNode.modules, alias))
+    removedAliases.map((alias) => limitLinking(() => removeObsoleteDependency(depNode.modules, alias)))
   ))
   await symlinkAllModules({
     deps: changes.map(({ children, depNode }) => {
@@ -1158,7 +1158,7 @@ function getChangedChildren (
     Object.hasOwn(currentSnapshot.optionalDependencies ?? {}, alias) !== Object.hasOwn(wantedSnapshot.optionalDependencies ?? {}, alias),
   depNode.children) as Record<string, string>
   return {
-    children: isEmpty(changedChildren) ? depNode.children : changedChildren,
+    children: changedChildren,
     depNode,
     removedAliases: Object.keys(currentDependencies).filter((alias) => !Object.hasOwn(wantedDependencies, alias)),
   }
