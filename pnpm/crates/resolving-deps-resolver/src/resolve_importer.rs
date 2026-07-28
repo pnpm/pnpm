@@ -795,21 +795,48 @@ fn locked_peer_names(
     preferred_versions: &PreferredVersions,
     wanted_lockfile: Option<&pacquet_lockfile::Lockfile>,
 ) -> HashSet<String> {
-    let peer_suffixes: Vec<&str> = wanted_lockfile
-        .and_then(|lockfile| lockfile.snapshots.as_ref())
-        .into_iter()
-        .flat_map(|snapshots| snapshots.keys())
-        .map(|key| key.suffix.peer())
-        .filter(|peer| !peer.is_empty())
-        .collect();
-    preferred_versions
-        .keys()
-        .filter(|name| {
-            let marker = format!("({name}@");
-            peer_suffixes.iter().any(|suffix| suffix.contains(&marker))
-        })
-        .cloned()
-        .collect()
+    let Some(lockfile) = wanted_lockfile else {
+        return HashSet::new();
+    };
+    let mut names = HashSet::new();
+    for (key, snapshot) in lockfile.snapshots.iter().flatten() {
+        let peer_suffix = key.suffix.peer();
+        if peer_suffix.is_empty() {
+            continue;
+        }
+        names.extend(
+            preferred_versions
+                .keys()
+                .filter(|name| {
+                    let marker = format!("({name}@");
+                    peer_suffix.contains(&marker)
+                })
+                .cloned(),
+        );
+        if is_hashed_peer_suffix(peer_suffix)
+            && let Some(metadata) =
+                lockfile.packages.as_ref().and_then(|packages| packages.get(&key.without_peer()))
+        {
+            let missing =
+                snapshot.transitive_peer_dependencies.iter().flatten().collect::<HashSet<_>>();
+            names.extend(
+                metadata
+                    .peer_dependencies
+                    .iter()
+                    .flatten()
+                    .map(|(name, _)| name)
+                    .filter(|name| !missing.contains(name))
+                    .cloned(),
+            );
+        }
+    }
+    preferred_versions.keys().filter(|name| names.contains(*name)).cloned().collect()
+}
+
+fn is_hashed_peer_suffix(peer_suffix: &str) -> bool {
+    peer_suffix.rsplit_once('(').and_then(|(_, tail)| tail.strip_suffix(')')).is_some_and(|hash| {
+        hash.len() == 32 && hash.chars().all(|character| character.is_ascii_hexdigit())
+    })
 }
 
 /// Split the missing-peer report into the inputs the inner and outer

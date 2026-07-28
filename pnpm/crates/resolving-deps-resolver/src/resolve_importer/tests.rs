@@ -53,6 +53,71 @@ fn only_peer_suffix_versions_are_treated_as_locked_peer_providers() {
     assert_eq!(locked_peer_names(&preferred, Some(&lockfile)), HashSet::from(["peer".to_string()]));
 }
 
+#[test]
+fn hashed_peer_suffix_uses_package_peer_metadata() {
+    use pacquet_lockfile::{
+        ComVer, DirectoryResolution, Lockfile, LockfileResolution, LockfileVersion,
+        PackageMetadata, PkgNameVerPeer, SnapshotEntry,
+    };
+
+    let selectors = VersionSelectors::from([(
+        "1.0.0".to_string(),
+        VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+            selector_type: VersionSelectorType::Version,
+            weight: EXISTING_VERSION_SELECTOR_WEIGHT,
+        }),
+    )]);
+    let preferred = PreferredVersions::from([
+        ("peer".to_string(), selectors.clone()),
+        ("missing".to_string(), selectors),
+    ]);
+    let package_key = PkgNameVerPeer::from_str("consumer@1.0.0").unwrap();
+    let snapshot_key =
+        PkgNameVerPeer::from_str("consumer@1.0.0(0123456789abcdef0123456789abcdef)").unwrap();
+    let lockfile = Lockfile {
+        lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(9, 0)).unwrap(),
+        settings: None,
+        catalogs: None,
+        overrides: None,
+        package_extensions_checksum: None,
+        pnpmfile_checksum: None,
+        ignored_optional_dependencies: None,
+        patched_dependencies: None,
+        importers: HashMap::new(),
+        packages: Some(HashMap::from([(
+            package_key,
+            PackageMetadata {
+                resolution: LockfileResolution::Directory(DirectoryResolution {
+                    directory: "consumer".to_string(),
+                }),
+                version: None,
+                engines: None,
+                cpu: None,
+                os: None,
+                libc: None,
+                deprecated: None,
+                has_bin: None,
+                prepare: None,
+                bundled_dependencies: None,
+                peer_dependencies: Some(HashMap::from([
+                    ("peer".to_string(), "*".to_string()),
+                    ("missing".to_string(), "*".to_string()),
+                ])),
+                peer_dependencies_meta: None,
+            },
+        )])),
+        snapshots: Some(HashMap::from([(
+            snapshot_key,
+            SnapshotEntry {
+                transitive_peer_dependencies: Some(vec!["missing".to_string()]),
+                ..SnapshotEntry::default()
+            },
+        )])),
+    };
+
+    assert_eq!(locked_peer_names(&preferred, Some(&lockfile)), HashSet::from(["peer".to_string()]));
+}
+
 struct StubResolver {
     table: HashMap<(String, String), ResolveResult>,
     calls: Mutex<Vec<(String, String)>>,
