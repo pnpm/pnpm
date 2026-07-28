@@ -7,6 +7,14 @@ import semver from 'semver'
 import { createGitHostedPkgId } from './createGitHostedPkgId.js'
 import { type HostedPackageSpec, parseBareSpecifier } from './parseBareSpecifier.js'
 
+let gitEnv: NodeJS.ProcessEnv | undefined
+function getGitEnv () {
+  if (process.env.GIT_TERMINAL_PROMPT === '0') return process.env
+  if (gitEnv) return gitEnv
+  gitEnv = { ...process.env, GIT_TERMINAL_PROMPT: '0' }
+  return gitEnv
+}
+
 export { createGitHostedPkgId }
 
 export type { HostedPackageSpec }
@@ -130,7 +138,7 @@ export async function getRepoRefs (repo: string, ref: string | null): Promise<Re
   // graceful-git by default retries 10 times, reduce to single retry
   const result = await git(['ls-remote', ...gitArgs], {
     retries: 1,
-    env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+    env: getGitEnv(),
   })
   const refs: Record<string, string> = {}
   for (const line of result.stdout.split('\n')) {

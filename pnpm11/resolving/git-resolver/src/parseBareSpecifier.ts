@@ -5,6 +5,14 @@ import { type DispatcherOptions, fetchWithDispatcher } from '@pnpm/network.fetch
 import { gracefulGit as git } from 'graceful-git'
 import HostedGit from 'hosted-git-info'
 
+let gitEnv: NodeJS.ProcessEnv | undefined
+function getGitEnv () {
+  if (process.env.GIT_TERMINAL_PROMPT === '0') return process.env
+  if (gitEnv) return gitEnv
+  gitEnv = { ...process.env, GIT_TERMINAL_PROMPT: '0' }
+  return gitEnv
+}
+
 export interface HostedPackageSpec {
   fetchSpec: string
   hosted?: {
@@ -152,7 +160,7 @@ async function accessRepository (repository: string): Promise<boolean> {
   try {
     await git(['ls-remote', '--exit-code', repository, 'HEAD'], {
       retries: 0,
-      env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+      env: getGitEnv(),
     })
     return true
   } catch {
