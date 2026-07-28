@@ -1,4 +1,8 @@
-use std::{collections::HashMap, str::FromStr, sync::Mutex};
+use std::{
+    collections::{HashMap, HashSet},
+    str::FromStr,
+    sync::Mutex,
+};
 
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_resolving_resolver_base::{
@@ -10,8 +14,44 @@ use pretty_assertions::assert_eq;
 
 use crate::{
     DepPath, ResolveDependencyTreeError, resolve_importer,
-    resolve_importer::{ResolveImporterError, ResolveImporterOptions},
+    resolve_importer::{ResolveImporterError, ResolveImporterOptions, locked_peer_names},
 };
+
+#[test]
+fn only_peer_suffix_versions_are_treated_as_locked_peer_providers() {
+    use pacquet_lockfile::{ComVer, Lockfile, LockfileVersion, PkgNameVerPeer, SnapshotEntry};
+
+    let mut selectors = VersionSelectors::new();
+    selectors.insert(
+        "1.0.0".to_string(),
+        VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+            selector_type: VersionSelectorType::Version,
+            weight: EXISTING_VERSION_SELECTOR_WEIGHT,
+        }),
+    );
+    let preferred = PreferredVersions::from([
+        ("peer".to_string(), selectors.clone()),
+        ("unrelated".to_string(), selectors),
+    ]);
+    let lockfile = Lockfile {
+        lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(9, 0)).unwrap(),
+        settings: None,
+        catalogs: None,
+        overrides: None,
+        package_extensions_checksum: None,
+        pnpmfile_checksum: None,
+        ignored_optional_dependencies: None,
+        patched_dependencies: None,
+        importers: HashMap::new(),
+        packages: None,
+        snapshots: Some(HashMap::from([(
+            PkgNameVerPeer::from_str("consumer@1.0.0(peer@1.0.0)").unwrap(),
+            SnapshotEntry::default(),
+        )])),
+    };
+
+    assert_eq!(locked_peer_names(&preferred, Some(&lockfile)), HashSet::from(["peer".to_string()]));
+}
 
 struct StubResolver {
     table: HashMap<(String, String), ResolveResult>,

@@ -229,12 +229,18 @@ pub struct HoistMissingScope {
     /// satisfy stay visible to every importer (and each hoists its
     /// own copy).
     pub first_walk_missing_by_pkg: HashMap<String, std::collections::HashSet<String>>,
+    /// Peers represented by the wanted lockfile must remain eligible
+    /// for importer-local hoisting during lockfile re-resolution.
+    pub locked_peer_names: std::collections::HashSet<String>,
 }
 
 impl HoistMissingScope {
     /// `true` when a miss of `peer_name` declared under the given
     /// ancestor chain is covered by another importer's shared walk.
     fn suppresses(&self, ancestor_pkg_ids: &[String], peer_name: &str) -> bool {
+        if self.locked_peer_names.contains(peer_name) {
+            return false;
+        }
         ancestor_pkg_ids.iter().any(|pkg_id| {
             self.first_importer_by_pkg.get(pkg_id).is_some_and(|owner| {
                 *owner != self.importer_id

@@ -534,6 +534,10 @@ impl ImporterHoistState {
                 importer_id: self.importer_id.clone(),
                 first_importer_by_pkg: self.ctx.workspace().first_importer_by_pkg(),
                 first_walk_missing_by_pkg: self.ctx.workspace().first_walk_missing_by_pkg(),
+                locked_peer_names: locked_peer_names(
+                    &self.all_preferred_versions,
+                    self.ctx.workspace().wanted_lockfile().map(AsRef::as_ref),
+                ),
             },
         );
     }
@@ -601,6 +605,10 @@ impl ImporterHoistState {
                         importer_id: self.importer_id.clone(),
                         first_importer_by_pkg: self.ctx.workspace().first_importer_by_pkg(),
                         first_walk_missing_by_pkg: self.ctx.workspace().first_walk_missing_by_pkg(),
+                        locked_peer_names: locked_peer_names(
+                            &self.all_preferred_versions,
+                            self.ctx.workspace().wanted_lockfile().map(AsRef::as_ref),
+                        ),
                     })))
                 });
 
@@ -781,6 +789,27 @@ impl ImporterHoistState {
         let peers_result = resolve_peers(&mut resolved_tree, peers_opts);
         ResolveImporterResult { resolved_tree, peers_result }
     }
+}
+
+fn locked_peer_names(
+    preferred_versions: &PreferredVersions,
+    wanted_lockfile: Option<&pacquet_lockfile::Lockfile>,
+) -> HashSet<String> {
+    let peer_suffixes: Vec<&str> = wanted_lockfile
+        .and_then(|lockfile| lockfile.snapshots.as_ref())
+        .into_iter()
+        .flat_map(|snapshots| snapshots.keys())
+        .map(|key| key.suffix.peer())
+        .filter(|peer| !peer.is_empty())
+        .collect();
+    preferred_versions
+        .keys()
+        .filter(|name| {
+            let marker = format!("({name}@");
+            peer_suffixes.iter().any(|suffix| suffix.contains(&marker))
+        })
+        .cloned()
+        .collect()
 }
 
 /// Split the missing-peer report into the inputs the inner and outer
