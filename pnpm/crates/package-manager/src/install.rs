@@ -2650,8 +2650,11 @@ async fn check_lockfile_freshness(
         lockfile,
         config,
         catalogs,
-        parsed_overrides_opt.as_deref(),
-        PnpmfileChecksumCheck::Current(pnpmfile_checksum.as_deref()),
+        CheckLockfileSettingsDriftOptions {
+            parsed_overrides: parsed_overrides_opt.as_deref(),
+            pnpmfile_checksum: PnpmfileChecksumCheck::Current(pnpmfile_checksum.as_deref()),
+            dedupe_peers: config.dedupe_peers,
+        },
     )?;
 
     if ignore_manifest_check {
@@ -2707,13 +2710,21 @@ pub(crate) fn parse_config_overrides(
 /// `pnpmfile_checksum` is the one input the config doesn't carry.
 /// callers that can't produce it pass
 /// [`PnpmfileChecksumCheck::Skip`].
+#[derive(Clone, Copy)]
+pub(crate) struct CheckLockfileSettingsDriftOptions<'a> {
+    pub parsed_overrides: Option<&'a [pacquet_config_parse_overrides::VersionOverride]>,
+    pub pnpmfile_checksum: PnpmfileChecksumCheck<'a>,
+    pub dedupe_peers: bool,
+}
+
 pub(crate) fn check_lockfile_settings_drift(
     lockfile: &Lockfile,
     config: &Config,
     catalogs: &Catalogs,
-    parsed_overrides: Option<&[pacquet_config_parse_overrides::VersionOverride]>,
-    pnpmfile_checksum: PnpmfileChecksumCheck<'_>,
+    opts: CheckLockfileSettingsDriftOptions<'_>,
 ) -> Result<(), FreshnessCheckError> {
+    let CheckLockfileSettingsDriftOptions { parsed_overrides, pnpmfile_checksum, dedupe_peers } =
+        opts;
     let overrides_map: Option<std::collections::HashMap<String, String>> =
         parsed_overrides.map(pacquet_config_parse_overrides::create_overrides_map_from_parsed);
     let package_extensions_checksum =
@@ -2733,7 +2744,7 @@ pub(crate) fn check_lockfile_settings_drift(
             ignored_optional_dependencies: config.ignored_optional_dependencies.as_deref(),
             patched_dependencies: patched_dependency_hashes.as_ref(),
             auto_install_peers: config.auto_install_peers,
-            dedupe_peers: config.dedupe_peers,
+            dedupe_peers,
             exclude_links_from_lockfile: config.exclude_links_from_lockfile,
             inject_workspace_packages: config.inject_workspace_packages,
             peers_suffix_max_length: config.peers_suffix_max_length,
