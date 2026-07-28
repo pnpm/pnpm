@@ -5,7 +5,9 @@ use crate::{
     LinkVirtualStoreBins, LinkVirtualStoreBinsError, PrefetchContext, PrefetchingResolver,
     SkippedSnapshots, SymlinkDirectDependencies, SymlinkDirectDependenciesError,
     VersionPolicyError, VersionsOverrider, VirtualStoreLayout, dependencies_graph_to_lockfile,
-    link_root_component_members, store_init::init_store_dir_best_effort,
+    fast_update_overrides::{FastOverrideOptions, try_fast_update_overrides},
+    link_root_component_members,
+    store_init::init_store_dir_best_effort,
 };
 use dashmap::DashMap;
 use derive_more::{Display, Error};
@@ -697,6 +699,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         let minimum_release_age_exclude_override = resolution_observer
             .as_ref()
             .and_then(|observer| observer.minimum_release_age_exclude_override());
+        let can_fast_update_overrides = resolution_observer.is_none();
         let is_hoisted = matches!(node_linker, NodeLinker::Hoisted);
         let extra_node_paths = crate::shim_extra_node_paths(config, node_linker);
         let filtered_isolated =
@@ -1379,17 +1382,63 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             update_reuse_scopes_by_importer.clear();
         }
 
+        let reusable_settings_lockfile = wanted_lockfile
+            .filter(|lockfile| lockfile.package_extensions_checksum == package_extensions_checksum);
+        let override_settings_match = reusable_settings_lockfile.is_some_and(|lockfile| {
+            overrides_match(lockfile.overrides.as_ref(), resolved_overrides.as_ref())
+        });
+        let fast_override_seed = if let (Some(lockfile), Some(parsed), Some(resolved)) =
+            (reusable_settings_lockfile, parsed_overrides.as_deref(), resolved_overrides.as_ref())
+            && !override_settings_match
+            && pnpmfile_hook.is_none()
+            && custom_resolvers_raw.is_empty()
+            && patched_dependencies.is_none()
+            && can_fast_update_overrides
+        {
+            let resolve_options = ResolveOptions {
+                preferred_versions: Arc::clone(&preferred_versions_seed),
+                default_tag: Some("latest".to_string()),
+                published_by,
+                published_by_exclude: published_by_exclude.clone(),
+                trust_policy,
+                trust_policy_exclude: trust_policy_exclude.clone(),
+                trust_policy_ignore_after: config.trust_policy_ignore_after,
+                package_version_guard: package_version_guard.clone(),
+                project_dir: lockfile_dir.to_path_buf(),
+                lockfile_dir: lockfile_dir.to_path_buf(),
+                workspace_packages: workspace_packages.clone(),
+                block_exotic_subdeps: config.block_exotic_subdeps,
+                always_try_workspace_packages: config.link_workspace_packages
+                    != LinkWorkspacePackages::Off,
+                inject_workspace_packages: config.inject_workspace_packages,
+                prefer_workspace_packages: config.prefer_workspace_packages,
+                update_checksums,
+                ..ResolveOptions::default()
+            };
+            try_fast_update_overrides(FastOverrideOptions {
+                lockfile,
+                parsed_overrides: parsed,
+                resolved_overrides: resolved,
+                resolver: &*npm_resolver,
+                resolve_options: &resolve_options,
+                manifest_hook: manifest_hook.as_ref(),
+                registries: &registries,
+                lockfile_include_tarball_url: config.lockfile_include_tarball_url,
+            })
+            .await
+        } else {
+            None
+        };
+
         // Hand the resolver the prior lockfile so it can reuse
         // already-resolved subtrees instead of re-resolving from the
         // registry (see pnpm/plans/LOCKFILE_RESOLUTION_REUSE.md).
-        // Withhold it when packageExtensions or overrides drifted:
-        // both settings rewrite package dependency sets, so the
-        // recorded subtree is stale. pnpm likewise invalidates the
-        // lockfile on these settings changes.
-        let lockfile_reuse_seed = wanted_lockfile.filter(|lockfile| {
-            lockfile.package_extensions_checksum == package_extensions_checksum
-                && overrides_match(lockfile.overrides.as_ref(), resolved_overrides.as_ref())
-        });
+        // Exact generic registry overrides may instead use a
+        // dependency-shape-verified rewritten seed. Every unsupported
+        // override shape falls back to withholding the seed.
+        let lockfile_reuse_seed = fast_override_seed
+            .as_ref()
+            .or_else(|| override_settings_match.then_some(reusable_settings_lockfile).flatten());
         // Reused subtrees never stream their manifests through the
         // versions overrider, so only a resolution with no reuse at all
         // collects the complete declared-range set the convergence
@@ -2106,8 +2155,8 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             config,
             packages: materialization_lockfile.packages.as_ref(),
             snapshots: materialization_lockfile.snapshots.as_ref(),
-            current_snapshots: None,
-            current_packages: None,
+            current_snapshots: current_lockfile.and_then(|lockfile| lockfile.snapshots.as_ref()),
+            current_packages: current_lockfile.and_then(|lockfile| lockfile.packages.as_ref()),
             layout: &layout,
             logged_methods,
             requester,

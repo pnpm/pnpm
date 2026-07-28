@@ -1,6 +1,7 @@
 use super::{
     DependenciesGraphToLockfileError, GraphToLockfileOptions, ImporterLockfileInput,
-    dependencies_graph_to_lockfile as try_dependencies_graph_to_lockfile, read_string_or_list,
+    dependencies_graph_to_lockfile as try_dependencies_graph_to_lockfile, manifest_has_bin,
+    read_string_or_list,
 };
 use indexmap::IndexMap;
 use pacquet_deps_path::DepPath;
@@ -24,6 +25,19 @@ use std::{
 };
 use tempfile::TempDir;
 use text_block_macros::text_block;
+
+#[test]
+fn recognizes_bin_directories_in_package_manifests() {
+    assert_eq!(
+        manifest_has_bin(Some(&json!({
+            "directories": {
+                "bin": "cli"
+            }
+        }))),
+        Some(true),
+    );
+    assert_eq!(manifest_has_bin(Some(&json!({ "directories": { "bin": "" } }))), None);
+}
 
 fn dependencies_graph_to_lockfile(opts: GraphToLockfileOptions<'_>) -> pacquet_lockfile::Lockfile {
     try_dependencies_graph_to_lockfile(opts).expect("convert dependency graph to lockfile")

@@ -30,6 +30,162 @@ fn dead_registry_url() -> String {
 }
 
 #[test]
+fn exact_override_update_reuses_the_locked_children() {
+    let fixture = CommandTempCwd::init().add_mocked_registry();
+    let manifest_path = fixture.workspace.join("package.json");
+    let workspace_yaml_path = fixture.workspace.join("pnpm-workspace.yaml");
+    fs::write(
+        &manifest_path,
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/parent-of-pkg-with-1-dep": "1.0.0"
+            }
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    let workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    fs::write(
+        &workspace_yaml_path,
+        format!("{workspace_yaml}overrides:\n  '@pnpm.e2e/pkg-with-1-dep': 100.0.0\n"),
+    )
+    .expect("write initial override");
+    pacquet_at(&fixture.workspace).with_arg("install").assert().success();
+
+    let before = pacquet_lockfile::Lockfile::load_wanted_from_dir(&fixture.workspace)
+        .expect("load wanted lockfile")
+        .expect("wanted lockfile");
+    let old_key = "@pnpm.e2e/pkg-with-1-dep@100.0.0".parse().expect("old key");
+    let child_name = "@pnpm.e2e/dep-of-pkg-with-1-dep".parse().expect("child name");
+    let old_child = before
+        .snapshots
+        .as_ref()
+        .and_then(|snapshots| snapshots.get(&old_key))
+        .and_then(|snapshot| snapshot.dependencies.as_ref())
+        .and_then(|dependencies| dependencies.get(&child_name))
+        .cloned()
+        .expect("old locked child");
+
+    let workspace_yaml = fs::read_to_string(&workspace_yaml_path).expect("read initial override");
+    fs::write(
+        &workspace_yaml_path,
+        workspace_yaml
+            .replace("'@pnpm.e2e/pkg-with-1-dep': 100.0.0", "'@pnpm.e2e/pkg-with-1-dep': 100.1.0"),
+    )
+    .expect("update exact override");
+    pacquet_at(&fixture.workspace).with_arg("install").assert().success();
+
+    let wanted = pacquet_lockfile::Lockfile::load_wanted_from_dir(&fixture.workspace)
+        .expect("load updated wanted lockfile")
+        .expect("updated wanted lockfile");
+    let current = pacquet_lockfile::Lockfile::load_current_from_virtual_store_dir(
+        &fixture.workspace.join("node_modules/.pnpm"),
+    )
+    .expect("load current lockfile")
+    .expect("current lockfile");
+    let new_key = "@pnpm.e2e/pkg-with-1-dep@100.1.0".parse().expect("new key");
+    for lockfile in [&wanted, &current] {
+        assert_eq!(
+            lockfile
+                .snapshots
+                .as_ref()
+                .and_then(|snapshots| snapshots.get(&new_key))
+                .and_then(|snapshot| snapshot.dependencies.as_ref())
+                .and_then(|dependencies| dependencies.get(&child_name)),
+            Some(&old_child),
+        );
+        assert!(
+            lockfile.snapshots.as_ref().is_some_and(|snapshots| !snapshots.contains_key(&old_key)),
+        );
+    }
+
+    drop(fixture);
+}
+
+#[test]
+fn dependency_removal_override_prunes_the_locked_subtree_without_resolving() {
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, npmrc_path, .. } = npmrc_info;
+    let manifest_path = workspace.join("package.json");
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    fs::write(
+        &manifest_path,
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/pkg-with-good-optional": "1.0.0"
+            }
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    let workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    fs::write(&workspace_yaml_path, format!("{workspace_yaml}trustLockfile: true\n"))
+        .expect("enable trusted lockfile");
+    pacquet_at(&workspace).with_arg("install").assert().success();
+
+    let workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    fs::write(&workspace_yaml_path, format!("{workspace_yaml}overrides:\n  is-positive: '-'\n"))
+        .expect("add dependency removal override");
+    let dead_registry = dead_registry_url();
+    let npmrc = fs::read_to_string(&npmrc_path).expect("read .npmrc");
+    let npmrc = npmrc
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("registry="))
+        .collect::<Vec<_>>()
+        .join("\n");
+    fs::write(&npmrc_path, format!("registry={dead_registry}\n{npmrc}\n"))
+        .expect("rewrite .npmrc with a dead registry");
+
+    pacquet_at(&workspace).with_arg("install").assert().success();
+
+    let wanted = pacquet_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+        .expect("load updated wanted lockfile")
+        .expect("updated wanted lockfile");
+    let current = pacquet_lockfile::Lockfile::load_current_from_virtual_store_dir(
+        &workspace.join("node_modules/.pnpm"),
+    )
+    .expect("load current lockfile")
+    .expect("current lockfile");
+    let parent_key = "@pnpm.e2e/pkg-with-good-optional@1.0.0".parse().expect("parent package key");
+    let removed_key = "is-positive@1.0.0".parse().expect("removed package key");
+    let removed_name = "is-positive".parse().expect("removed package name");
+    for lockfile in [&wanted, &current] {
+        dbg!(&lockfile.snapshots, &lockfile.packages);
+        assert!(
+            lockfile
+                .snapshots
+                .as_ref()
+                .and_then(|snapshots| snapshots.get(&parent_key))
+                .and_then(|snapshot| snapshot.optional_dependencies.as_ref())
+                .is_none_or(|dependencies| !dependencies.contains_key(&removed_name)),
+        );
+        assert!(
+            lockfile
+                .snapshots
+                .as_ref()
+                .is_none_or(|snapshots| !snapshots.contains_key(&removed_key)),
+        );
+        assert!(
+            lockfile.packages.as_ref().is_none_or(|packages| !packages.contains_key(&removed_key)),
+        );
+    }
+    dbg!(&workspace);
+    assert!(
+        !workspace
+            .join(
+                "node_modules/.pnpm/@pnpm.e2e+pkg-with-good-optional@1.0.0/node_modules/is-positive",
+            )
+            .exists(),
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
 fn reuses_unchanged_subtree_without_re_resolving_from_the_registry() {
     let CommandTempCwd { workspace, root, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();

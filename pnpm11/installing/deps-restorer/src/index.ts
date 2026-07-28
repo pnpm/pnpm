@@ -30,10 +30,10 @@ import {
   makeNodeRequireOption,
   runLifecycleHooksConcurrently,
 } from '@pnpm/exec.lifecycle'
-import { symlinkDependency } from '@pnpm/fs.symlink-dependency'
+import { safeJoinModulesDir, symlinkDependency } from '@pnpm/fs.symlink-dependency'
 import { linkDirectDeps, type LinkedDirectDep } from '@pnpm/installing.linking.direct-dep-linker'
 import { hoist, type HoistedWorkspaceProject } from '@pnpm/installing.linking.hoist'
-import { prune } from '@pnpm/installing.linking.modules-cleaner'
+import { prune, removeObsoleteDependency } from '@pnpm/installing.linking.modules-cleaner'
 import type { HoistingLimits } from '@pnpm/installing.linking.real-hoist'
 import {
   type IncludedDependencies,
@@ -175,6 +175,7 @@ export interface HeadlessOptions {
   wantedLockfile?: LockfileObject
   ownLifecycleHooksStdio?: 'inherit' | 'pipe'
   pendingBuilds: string[]
+  relinkChangedDependenciesOnly?: boolean
   resolveSymlinksInInjectedDirs?: boolean
   skipped: Set<DepPath>
   skipRuntimes?: boolean
@@ -457,7 +458,9 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         opts.symlink === false || opts.enableModulesDir === false
           ? Promise.resolve()
           : linkAllModules(depNodes, {
+            currentLockfile: opts.relinkChangedDependenciesOnly ? currentLockfile : undefined,
             optional: opts.include.optionalDependencies,
+            wantedLockfile: filteredLockfile,
           }),
         linkAllPkgs(opts.storeController, depNodes, {
           allowBuild,
@@ -947,6 +950,7 @@ async function getRootPackagesToLink (
 }
 
 const limitLinking = pLimit(16)
+const limitModulesDirReads = pLimit(16)
 
 async function linkAllPkgs (
   storeController: StoreController,
@@ -1106,19 +1110,90 @@ async function linkAllBins (
   )
 }
 
+type ModulesLinkNode = Pick<DependenciesGraphNode, 'children' | 'depPath' | 'optionalDependencies' | 'modules' | 'name'>
+
 async function linkAllModules (
-  depNodes: Array<Pick<DependenciesGraphNode, 'children' | 'optionalDependencies' | 'modules' | 'name'>>,
+  depNodes: ModulesLinkNode[],
   opts: {
+    currentLockfile?: LockfileObject | null
     optional: boolean
+    wantedLockfile: LockfileObject
   }
 ): Promise<void> {
+  const changes = await Promise.all(depNodes.map((depNode) => getChangedChildren(depNode, opts)))
+  await Promise.all(changes.flatMap(({ depNode, removedAliases }) =>
+    removedAliases.map((alias) => limitModulesDirReads(() => removeObsoleteDependency(depNode.modules, alias)))
+  ))
   await symlinkAllModules({
-    deps: depNodes.map((depNode) => ({
-      children: opts.optional
-        ? depNode.children
-        : pickBy((_, childAlias) => !depNode.optionalDependencies.has(childAlias), depNode.children),
-      modules: depNode.modules,
-      name: depNode.name,
-    })),
+    deps: changes.map(({ children, depNode }) => {
+      return {
+        children: opts.optional
+          ? children
+          : pickBy((_, childAlias) => !depNode.optionalDependencies.has(childAlias), children),
+        modules: depNode.modules,
+        name: depNode.name,
+      }
+    }),
   })
+}
+
+async function getChangedChildren (
+  depNode: ModulesLinkNode,
+  opts: {
+    currentLockfile?: LockfileObject | null
+    wantedLockfile: LockfileObject
+  }
+): Promise<{
+  children: Record<string, string>
+  depNode: ModulesLinkNode
+  removedAliases: string[]
+}> {
+  const currentSnapshot = opts.currentLockfile?.packages?.[depNode.depPath]
+  const wantedSnapshot = opts.wantedLockfile.packages?.[depNode.depPath]
+  if (currentSnapshot == null || wantedSnapshot == null) {
+    return { children: depNode.children, depNode, removedAliases: [] }
+  }
+  const currentDependencies = Object.assign(Object.create(null), currentSnapshot.dependencies, currentSnapshot.optionalDependencies) as Record<string, string>
+  const wantedDependencies = Object.assign(Object.create(null), wantedSnapshot.dependencies, wantedSnapshot.optionalDependencies) as Record<string, string>
+  const changedChildren = Object.fromEntries(
+    (await Promise.all(Object.entries(depNode.children).map(async ([alias, childDir]) => {
+      if (
+        currentDependencies[alias] !== wantedDependencies[alias] ||
+        Object.hasOwn(currentSnapshot.optionalDependencies ?? {}, alias) !== Object.hasOwn(wantedSnapshot.optionalDependencies ?? {}, alias) ||
+        !await limitModulesDirReads(() => dependencyLinkMatches(depNode.modules, alias, childDir))
+      ) {
+        return [alias, childDir] as const
+      }
+      return null
+    }))).filter((entry): entry is readonly [string, string] => entry != null)
+  )
+  return {
+    children: changedChildren,
+    depNode,
+    removedAliases: Object.keys(currentDependencies).filter((alias) => !Object.hasOwn(wantedDependencies, alias)),
+  }
+}
+
+async function dependencyLinkMatches (modulesDir: string, alias: string, childDir: string): Promise<boolean> {
+  const [linkTarget, expectedTarget] = await Promise.all([
+    realpathOrNull(safeJoinModulesDir(modulesDir, alias)),
+    realpathOrNull(childDir),
+  ])
+  return linkTarget != null && expectedTarget != null && linkTarget === expectedTarget
+}
+
+async function realpathOrNull (filePath: string): Promise<string | null> {
+  try {
+    return await fs.realpath(filePath)
+  } catch (err: unknown) {
+    if (
+      typeof err === 'object' &&
+      err != null &&
+      'code' in err &&
+      (err.code === 'ENOENT' || err.code === 'ENOTDIR' || err.code === 'ELOOP')
+    ) {
+      return null
+    }
+    throw err
+  }
 }

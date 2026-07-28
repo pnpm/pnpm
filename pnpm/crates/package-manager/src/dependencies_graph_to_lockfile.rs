@@ -688,17 +688,21 @@ fn read_string_or_list(
     }
 }
 
-/// `Some(true)` when the manifest declares a `bin` entry (string or
-/// non-empty object map), recorded as the `hasBin: true` signal; the
-/// field is dropped entirely when absent.
-fn manifest_has_bin(manifest: Option<&Value>) -> Option<bool> {
-    let value = manifest?.get("bin")?;
-    let present = match value {
+/// `Some(true)` when the manifest declares executable files, recorded as
+/// the `hasBin: true` signal; the field is dropped entirely when absent.
+pub(crate) fn manifest_has_bin(manifest: Option<&Value>) -> Option<bool> {
+    let manifest = manifest?;
+    let has_bin = manifest.get("bin").is_some_and(|value| match value {
         Value::String(s) => !s.is_empty(),
         Value::Object(map) => !map.is_empty(),
         _ => false,
-    };
-    present.then_some(true)
+    });
+    let has_bin_directory = manifest
+        .get("directories")
+        .and_then(Value::as_object)
+        .and_then(|directories| directories.get("bin"))
+        .is_some_and(|value| value.as_str().is_some_and(|path| !path.is_empty()));
+    (has_bin || has_bin_directory).then_some(true)
 }
 
 /// Returned `Option`-pair from [`build_peer_dep_blocks`]: the

@@ -6428,6 +6428,9 @@ importers:
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
+      validate-npm-package-name:
+        specifier: 'catalog:'
+        version: 7.0.2
     devDependencies:
       '@pnpm/installing.linking.modules-cleaner':
         specifier: workspace:*
@@ -6438,6 +6441,9 @@ importers:
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.32.0
+      '@types/validate-npm-package-name':
+        specifier: 'catalog:'
+        version: 4.0.2
 
   pnpm11/installing/linking/real-hoist:
     dependencies:

@@ -882,6 +882,12 @@ Rust port notes:
 - The cache cross-stack contract is content-divergent on hash format only — pacquet writes sha256-**hex** where pnpm writes sha256-**base64** (object-hash's default). Each stack reads its own records out of the shared JSONL; cross-stack hits aren't expected and aren't tested.
 - The end-to-end CLI test uses a 100-year `minimumReleaseAge` to sidestep the mocked registry's real-world `time` field. A finer-grained fixture with controlled `time` values lives in the unit tests (`fetch_full_metadata_cached::tests`, `create_npm_resolution_verifier::tests`).
 
+## Exact Override Lockfile Reuse
+
+- [x] `TypeScript repo: pnpm11/installing/deps-installer/test/install/overrides.ts` `adding an exact override reuses the lockfile when the new package has the same dependencies` and `an exact override update reuses the lockfile when the new package has the same dependencies` — the rewrite core is pinned by `fast_update_overrides::tests::rewrites_an_exact_override_when_locked_children_satisfy_the_new_manifest`, including the single replacement-manifest resolve; `pacquet-cli::lockfile_resolution_reuse::exact_override_update_reuses_the_locked_children` covers wanted/current lockfile and materialization integration.
+- [x] `TypeScript repo: pnpm11/installing/deps-installer/test/install/overrides.ts` `an exact override update falls back to resolution when the package dependencies changed` — `fast_update_overrides::tests::falls_back_when_a_locked_child_does_not_satisfy_the_new_manifest`.
+- [x] `TypeScript repo: pnpm11/installing/deps-installer/test/install/overrides.ts` `a dependency removal override prunes the locked subtree without resolution` — the rewrite and peer-safety gates are pinned by `fast_update_overrides::tests::removes_a_dependency_and_its_unreachable_subtree_without_resolving` and `falls_back_when_the_removed_dependency_is_used_as_a_peer`; `pacquet-cli::lockfile_resolution_reuse::dependency_removal_override_prunes_the_locked_subtree_without_resolving` verifies the wanted/current lockfiles and succeeds with the registry unavailable.
+
 ## `optimisticRepeatInstall` + `checkDepsStatus` Pre-Install Shortcut
 
 Tracks pnpm/pnpm#11940. Pacquet's port (`pacquet-package-manager::optimistic_repeat_install`) covers the mtime-vs-`lastValidatedTimestamp` branch of upstream's `checkDepsStatus`. Ported tests live in `optimistic_repeat_install::tests` and the install-level `optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh` end-to-end.
