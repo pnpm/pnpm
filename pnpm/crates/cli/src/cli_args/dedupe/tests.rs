@@ -1,13 +1,14 @@
 use std::{collections::HashSet, marker::PhantomData, sync::Mutex};
 
-use pacquet_package_manager::{LockfileDiff, SnapshotDiff};
+use pacquet_lockfile::PackageMetadata;
+use pacquet_package_manager::{InstallabilityHost, LockfileDiff, SnapshotDiff};
 use pacquet_reporter::{LogEvent, ProgressMessage, Reporter};
 use pacquet_store_dir::{PackageFilesIndex, StoreDir, StoreIndex, store_index_key};
 use tempfile::TempDir;
 
 use super::{
     DedupeResolutionReporter, emit_dedupe_check_error, render_dedupe_check_error,
-    render_dedupe_check_issues,
+    render_dedupe_check_issues, reusable_skipped_package_id,
 };
 
 #[test]
@@ -171,6 +172,32 @@ fn resolution_observer_reports_skipped_packages_as_reused() {
         ),
         "unexpected events: {captured:?}",
     );
+}
+
+#[test]
+fn engine_incompatible_skipped_packages_are_not_reported_as_reused() {
+    let package_key = "engine-constrained@1.0.0".parse().unwrap();
+    let metadata: PackageMetadata = serde_json::from_value(serde_json::json!({
+        "resolution": {
+            "integrity": "sha512-dGVzdA==",
+        },
+        "engines": {
+            "node": "<1",
+        },
+    }))
+    .unwrap();
+    let host = InstallabilityHost {
+        node_version: "22.0.0".to_string(),
+        node_detected: true,
+        os: "linux",
+        cpu: "x64",
+        libc: "glibc",
+        supported_architectures: None,
+        engine_strict: false,
+    };
+
+    let reusable = reusable_skipped_package_id(&package_key, &metadata, &host, None).unwrap();
+    assert!(reusable.is_none());
 }
 
 fn resolved_dep_hint() -> pacquet_package_manager::ResolvedPackageHint<'static> {

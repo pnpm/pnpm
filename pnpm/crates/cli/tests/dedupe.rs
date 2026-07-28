@@ -76,7 +76,7 @@ fn dedupe_check_does_not_materialize_nor_write_lockfile() {
 }
 
 #[test]
-fn dedupe_check_ignores_a_malformed_modules_manifest() {
+fn dedupe_check_rejects_a_malformed_modules_manifest() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
@@ -103,7 +103,7 @@ fn dedupe_check_ignores_a_malformed_modules_manifest() {
         .with_current_dir(&workspace)
         .with_args(["dedupe", "--check"])
         .assert()
-        .success();
+        .failure();
 
     let lockfile_after = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
     assert_eq!(lockfile_before, lockfile_after);

@@ -21,8 +21,9 @@ use miette::{Context, Diagnostic, IntoDiagnostic};
 use pacquet_lockfile::{Lockfile, PkgNameVerPeer};
 use pacquet_modules_yaml::{Host, read_modules_manifest};
 use pacquet_package_manager::{
-    ImporterDiffKey, Install, LockfileDiff, ProjectMutation, ResolutionObserver,
-    ResolvedPackageHint, SnapshotDiff, diff_lockfiles,
+    ImporterDiffKey, Install, InstallabilityHost, LockfileDiff, ProjectMutation,
+    ResolutionObserver, ResolvedPackageHint, SnapshotDiff, diff_lockfiles,
+    package_metadata_is_installable,
 };
 use pacquet_package_manifest::DependencyGroup;
 use pacquet_reporter::{
@@ -55,23 +56,27 @@ impl DedupeArgs {
             &state;
         let lockfile_packages =
             lockfile.get().into_diagnostic()?.and_then(|lockfile| lockfile.packages.as_ref());
-        let reusable_skipped_package_ids = read_modules_manifest::<Host>(&config.modules_dir)
-            .ok()
-            .flatten()
+        let modules_manifest =
+            read_modules_manifest::<Host>(&config.modules_dir).into_diagnostic()?;
+        let mut installability_host =
+            InstallabilityHost::detect_with(config.engine_strict, config.node_version.clone());
+        installability_host.supported_architectures = config.supported_architectures.clone();
+        let reusable_skipped_package_ids = modules_manifest
             .into_iter()
             .flat_map(|modules| modules.skipped)
             .filter_map(|package_id| {
                 let package_key = package_id.parse::<PkgNameVerPeer>().ok()?.without_peer();
                 let metadata = lockfile_packages?.get(&package_key)?;
-                (metadata.cpu.is_none()
-                    && metadata.os.is_none()
-                    && metadata.libc.is_none()
-                    && !config
-                        .ignored_optional_dependencies
-                        .as_ref()
-                        .is_some_and(|ignored| ignored.contains(&package_key.name.to_string())))
-                .then(|| package_key.pkg_id())
+                Some(reusable_skipped_package_id(
+                    &package_key,
+                    metadata,
+                    &installability_host,
+                    config.ignored_optional_dependencies.as_deref(),
+                ))
             })
+            .collect::<miette::Result<Vec<_>>>()?
+            .into_iter()
+            .flatten()
             .collect();
 
         Install {
@@ -192,9 +197,8 @@ impl<Reporter: self::Reporter> ResolutionObserver for DedupeResolutionReporter<R
                 store_index
                     .lock()
                     .ok()
-                    .and_then(|index| index.get(&package_key).ok())
-                    .flatten()
-                    .is_some()
+                    .and_then(|index| index.contains_key(&package_key).ok())
+                    .unwrap_or(false)
             });
         if found_in_store {
             Reporter::emit(&LogEvent::Progress(ProgressLog {
@@ -206,6 +210,22 @@ impl<Reporter: self::Reporter> ResolutionObserver for DedupeResolutionReporter<R
             }));
         }
     }
+}
+
+fn reusable_skipped_package_id(
+    package_key: &PkgNameVerPeer,
+    metadata: &pacquet_lockfile::PackageMetadata,
+    installability_host: &InstallabilityHost,
+    ignored_optional_dependencies: Option<&[String]>,
+) -> miette::Result<Option<String>> {
+    if ignored_optional_dependencies
+        .is_some_and(|ignored| ignored.contains(&package_key.name.to_string()))
+    {
+        return Ok(None);
+    }
+    Ok(package_metadata_is_installable(package_key, metadata, installability_host)
+        .into_diagnostic()?
+        .then(|| package_key.pkg_id()))
 }
 
 fn emit_dedupe_check_error<Reporter: self::Reporter>(diff: &LockfileDiff) {
