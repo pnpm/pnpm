@@ -22,3 +22,16 @@ fn resolve_separates_options_from_the_repository_and_ref() {
         ["ls-remote", "--", "--upload-pack=malicious", "--help", "--help^{}",],
     );
 }
+
+#[test]
+fn passes_git_terminal_prompt_zero() {
+    let cmd = ls_remote_command(None, "some-repo", LsRemoteMode::Probe);
+    let mut has_env = false;
+    for (k, v) in cmd.get_envs() {
+        if k == "GIT_TERMINAL_PROMPT" {
+            assert_eq!(v, Some(std::ffi::OsStr::new("0")));
+            has_env = true;
+        }
+    }
+    assert!(has_env);
+}

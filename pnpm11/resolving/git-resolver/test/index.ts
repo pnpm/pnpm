@@ -22,7 +22,7 @@ beforeEach(() => {
 })
 
 test('resolveFromGit() passes GIT_TERMINAL_PROMPT=0 to prevent interactive credential prompts', async () => {
-  await resolveFromGit({ bareSpecifier: 'zkochan/is-negative#163360a8d3ae6bee9524541043197ff356f8ed99' })
+  await resolveFromGit({ bareSpecifier: 'zkochan/is-negative#master' })
   expect(jest.mocked(git)).toHaveBeenCalledWith(
     expect.any(Array),
     expect.objectContaining({
