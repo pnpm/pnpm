@@ -733,6 +733,7 @@ fn install_summary_flushes_the_frozen_message_without_a_policy_verdict() {
     let summary = reporter.handle(&summary());
     match summary {
         Output::Lines(lines) => {
+            dbg!(&lines);
             assert_eq!(lines, ["Lockfile is up to date, resolution step is skipped"]);
         }
         _ => panic!("the install summary should flush the frozen message"),
