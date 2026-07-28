@@ -1,7 +1,7 @@
 use super::{FastOverrideOptions, try_fast_update_overrides};
 use indexmap::IndexMap;
 use pacquet_config_parse_overrides::{PackageSelector, VersionOverride};
-use pacquet_lockfile::{Lockfile, LockfileResolution, PkgName, TarballResolution};
+use pacquet_lockfile::{Lockfile, LockfileResolution, PkgName, SnapshotEntry, TarballResolution};
 use pacquet_resolving_resolver_base::{
     LatestInfo, LatestQuery, PkgResolutionId, ResolveFuture, ResolveLatestFuture, ResolveOptions,
     ResolveResult, Resolver, WantedDependency,
@@ -194,6 +194,103 @@ async fn falls_back_when_a_locked_child_does_not_satisfy_the_new_manifest() {
     assert!(updated.is_none());
 }
 
+#[tokio::test]
+async fn drops_obsolete_dependency_edges_from_a_replacement() {
+    let (updated, calls) = update_with_manifest(json!({
+        "name": "target",
+        "version": "2.0.0"
+    }))
+    .await;
+    let updated = updated.expect("fast override update");
+    let target = updated
+        .snapshots
+        .as_ref()
+        .and_then(|snapshots| snapshots.get(&"target@2.0.0".parse().unwrap()))
+        .expect("target snapshot");
+
+    assert_eq!(calls, 1);
+    assert!(target.dependencies.is_none());
+    assert!(
+        updated
+            .snapshots
+            .as_ref()
+            .is_some_and(|snapshots| { !snapshots.contains_key(&"child@1.1.0".parse().unwrap()) }),
+    );
+}
+
+#[tokio::test]
+async fn reuses_a_unique_compatible_locked_dependency_added_by_a_replacement() {
+    let mut lockfile = lockfile();
+    let importer = lockfile.importers.get_mut(".").expect("root importer");
+    importer.dependencies.as_mut().expect("dependencies").insert(
+        PkgName::parse("added").unwrap(),
+        serde_json::from_value(json!({
+            "specifier": "1.0.0",
+            "version": "1.0.0"
+        }))
+        .unwrap(),
+    );
+    lockfile.packages.as_mut().expect("packages").insert(
+        "added@1.0.0".parse().unwrap(),
+        serde_json::from_value(json!({
+            "resolution": {
+                "integrity": "sha512-added"
+            }
+        }))
+        .unwrap(),
+    );
+    lockfile
+        .snapshots
+        .as_mut()
+        .expect("snapshots")
+        .insert("added@1.0.0".parse().unwrap(), SnapshotEntry::default());
+    let parsed = parsed_override();
+    let overrides = IndexMap::from([("target".to_string(), "2.0.0".to_string())]);
+    let resolver = StubResolver {
+        calls: AtomicUsize::new(0),
+        manifest: json!({
+            "name": "target",
+            "version": "2.0.0",
+            "dependencies": {
+                "child": "^1.0.0",
+                "added": "^1.0.0"
+            }
+        }),
+    };
+
+    let updated = try_fast_update_overrides(FastOverrideOptions {
+        lockfile: &lockfile,
+        parsed_overrides: &parsed,
+        resolved_overrides: &overrides,
+        resolver: &resolver,
+        resolve_options: &ResolveOptions::default(),
+        manifest_hook: None,
+        registries: &std::collections::HashMap::from([(
+            "default".to_string(),
+            "https://registry.npmjs.org/".to_string(),
+        )]),
+        lockfile_include_tarball_url: false,
+    })
+    .await
+    .expect("fast override update");
+    let target = updated
+        .snapshots
+        .as_ref()
+        .and_then(|snapshots| snapshots.get(&"target@2.0.0".parse().unwrap()))
+        .expect("target snapshot");
+
+    assert_eq!(resolver.calls.load(Ordering::Relaxed), 1);
+    assert_eq!(
+        target
+            .dependencies
+            .as_ref()
+            .and_then(|dependencies| dependencies.get(&PkgName::parse("added").unwrap()))
+            .map(ToString::to_string)
+            .as_deref(),
+        Some("1.0.0"),
+    );
+}
+
 async fn remove_target(lockfile: &Lockfile) -> (Option<Lockfile>, usize) {
     let parsed = vec![VersionOverride {
         selector: "target".to_string(),
@@ -264,4 +361,137 @@ async fn falls_back_when_the_removed_dependency_is_used_as_a_peer() {
 
     assert_eq!(calls, 0);
     assert!(updated.is_none());
+}
+
+#[tokio::test]
+async fn removes_a_dependency_only_from_matching_parent_snapshots() {
+    let mut lockfile = lockfile();
+    lockfile.overrides = None;
+    let parsed = vec![VersionOverride {
+        selector: "parent@^1>target".to_string(),
+        parent_pkg: Some(PackageSelector {
+            name: "parent".to_string(),
+            bare_specifier: Some("^1".to_string()),
+        }),
+        target_pkg: PackageSelector { name: "target".to_string(), bare_specifier: None },
+        new_bare_specifier: "-".to_string(),
+        converge: false,
+    }];
+    let overrides = IndexMap::from([("parent@^1>target".to_string(), "-".to_string())]);
+    let resolver = StubResolver {
+        calls: AtomicUsize::new(0),
+        manifest: json!({
+            "name": "target",
+            "version": "2.0.0"
+        }),
+    };
+
+    let updated = try_fast_update_overrides(FastOverrideOptions {
+        lockfile: &lockfile,
+        parsed_overrides: &parsed,
+        resolved_overrides: &overrides,
+        resolver: &resolver,
+        resolve_options: &ResolveOptions::default(),
+        manifest_hook: None,
+        registries: &std::collections::HashMap::from([(
+            "default".to_string(),
+            "https://registry.npmjs.org/".to_string(),
+        )]),
+        lockfile_include_tarball_url: false,
+    })
+    .await
+    .expect("fast dependency removal");
+    let parent = updated
+        .snapshots
+        .as_ref()
+        .and_then(|snapshots| snapshots.get(&"parent@1.0.0".parse().unwrap()))
+        .expect("parent snapshot");
+
+    assert_eq!(resolver.calls.load(Ordering::Relaxed), 0);
+    assert!(parent.dependencies.is_none());
+}
+
+#[tokio::test]
+async fn applies_exact_replacements_and_dependency_removals_together() {
+    let mut lockfile = lockfile();
+    lockfile.packages.as_mut().expect("packages").insert(
+        "obsolete@1.0.0".parse().unwrap(),
+        serde_json::from_value(json!({
+            "resolution": {
+                "integrity": "sha512-obsolete"
+            }
+        }))
+        .unwrap(),
+    );
+    lockfile
+        .snapshots
+        .as_mut()
+        .expect("snapshots")
+        .insert("obsolete@1.0.0".parse().unwrap(), SnapshotEntry::default());
+    lockfile
+        .snapshots
+        .as_mut()
+        .and_then(|snapshots| snapshots.get_mut(&"parent@1.0.0".parse().unwrap()))
+        .and_then(|parent| parent.dependencies.as_mut())
+        .expect("parent dependencies")
+        .insert(PkgName::parse("obsolete").unwrap(), "1.0.0".parse().unwrap());
+    let parsed = vec![
+        parsed_override().remove(0),
+        VersionOverride {
+            selector: "obsolete".to_string(),
+            parent_pkg: None,
+            target_pkg: PackageSelector { name: "obsolete".to_string(), bare_specifier: None },
+            new_bare_specifier: "-".to_string(),
+            converge: false,
+        },
+    ];
+    let overrides = IndexMap::from([
+        ("target".to_string(), "2.0.0".to_string()),
+        ("obsolete".to_string(), "-".to_string()),
+    ]);
+    let resolver = StubResolver {
+        calls: AtomicUsize::new(0),
+        manifest: json!({
+            "name": "target",
+            "version": "2.0.0",
+            "dependencies": {
+                "child": "^1.0.0"
+            }
+        }),
+    };
+
+    let updated = try_fast_update_overrides(FastOverrideOptions {
+        lockfile: &lockfile,
+        parsed_overrides: &parsed,
+        resolved_overrides: &overrides,
+        resolver: &resolver,
+        resolve_options: &ResolveOptions::default(),
+        manifest_hook: None,
+        registries: &std::collections::HashMap::from([(
+            "default".to_string(),
+            "https://registry.npmjs.org/".to_string(),
+        )]),
+        lockfile_include_tarball_url: false,
+    })
+    .await
+    .expect("fast mixed override update");
+    let parent = updated
+        .snapshots
+        .as_ref()
+        .and_then(|snapshots| snapshots.get(&"parent@1.0.0".parse().unwrap()))
+        .expect("parent snapshot");
+
+    assert_eq!(resolver.calls.load(Ordering::Relaxed), 1);
+    assert_eq!(
+        parent
+            .dependencies
+            .as_ref()
+            .and_then(|dependencies| dependencies.get(&PkgName::parse("target").unwrap()))
+            .map(ToString::to_string)
+            .as_deref(),
+        Some("2.0.0"),
+    );
+    assert!(parent.dependencies.as_ref().is_none_or(|dependencies| {
+        !dependencies.contains_key(&PkgName::parse("obsolete").unwrap())
+    }));
 }

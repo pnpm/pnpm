@@ -1,7 +1,7 @@
 use futures_util::future::join_all;
 use indexmap::IndexMap;
 use node_semver::{Range, Version};
-use pacquet_config_parse_overrides::VersionOverride;
+use pacquet_config_parse_overrides::{PackageSelector, VersionOverride};
 use pacquet_lockfile::{
     BundledDependencies, ImporterDepVersion, Lockfile, LockfileResolution, PackageKey,
     PackageMetadata, PkgName, PkgNameVerPeer, PkgVerPeer, Prefix, ResolvedDependencyMap,
@@ -19,11 +19,12 @@ struct FastOverride {
     name: PkgName,
     new_version: Option<Version>,
     old_version: Option<Version>,
+    parent: Option<PackageSelector>,
 }
 
 struct RewritePlan {
     overrides: Vec<FastOverride>,
-    removed_names: HashSet<PkgName>,
+    peer_names: HashSet<PkgName>,
     replacements: HashMap<PackageKey, PackageKey>,
 }
 
@@ -103,7 +104,6 @@ fn build_rewrite_plan(
     let parsed_by_selector: HashMap<&str, &VersionOverride> =
         parsed_overrides.iter().map(|entry| (entry.selector.as_str(), entry)).collect();
     let mut overrides = Vec::new();
-    let mut removes_dependencies = None;
     for (selector, new_value) in resolved_overrides {
         let old_value = old_overrides.and_then(|old| old.get(selector));
         if old_value == Some(new_value) {
@@ -111,10 +111,9 @@ fn build_rewrite_plan(
         }
         let parsed = parsed_by_selector.get(selector.as_str())?;
         let removes_dependency = new_value == "-";
-        if parsed.parent_pkg.is_some()
-            || parsed.target_pkg.bare_specifier.is_some()
+        if parsed.target_pkg.bare_specifier.is_some()
             || parsed.converge
-            || removes_dependencies.is_some_and(|removes| removes != removes_dependency)
+            || !removes_dependency && parsed.parent_pkg.is_some()
             || parsed_overrides.iter().any(|candidate| {
                 candidate.selector != *selector
                     && candidate.target_pkg.name == parsed.target_pkg.name
@@ -126,7 +125,6 @@ fn build_rewrite_plan(
         if overrides.iter().any(|entry: &FastOverride| entry.name == name) {
             return None;
         }
-        removes_dependencies = Some(removes_dependency);
         let new_version =
             if removes_dependency { None } else { Some(Version::parse(new_value).ok()?) };
         overrides.push(FastOverride {
@@ -137,18 +135,19 @@ fn build_rewrite_plan(
                 (false, Some(value)) => Some(Version::parse(value).ok()?),
                 (false, None) => None,
             },
+            parent: parsed.parent_pkg.clone(),
         });
     }
     if overrides.is_empty() {
         return None;
     }
 
-    let removed_names: HashSet<_> = overrides
+    let peer_names = get_peer_names(lockfile);
+    if overrides
         .iter()
         .filter(|entry| entry.new_version.is_none())
-        .map(|entry| entry.name.clone())
-        .collect();
-    if removed_names.iter().any(|name| is_used_as_peer(lockfile, name)) {
+        .any(|entry| peer_names.contains(&entry.name))
+    {
         return None;
     }
 
@@ -197,30 +196,32 @@ fn build_rewrite_plan(
             return None;
         }
     }
-    Some(RewritePlan { overrides, removed_names, replacements })
+    Some(RewritePlan { overrides, peer_names, replacements })
 }
 
-fn is_used_as_peer(lockfile: &Lockfile, name: &PkgName) -> bool {
-    let name = name.to_string();
-    lockfile.packages.as_ref().is_some_and(|packages| {
-        packages.values().any(|metadata| {
-            metadata
-                .peer_dependencies
-                .as_ref()
-                .is_some_and(|peers| peers.contains_key(name.as_str()))
-                || metadata
-                    .peer_dependencies_meta
-                    .as_ref()
-                    .is_some_and(|peers| peers.contains_key(name.as_str()))
-        })
-    }) || lockfile.snapshots.as_ref().is_some_and(|snapshots| {
-        snapshots.values().any(|snapshot| {
-            snapshot
-                .transitive_peer_dependencies
-                .as_ref()
-                .is_some_and(|peers| peers.iter().any(|peer| peer == &name))
-        })
-    })
+fn get_peer_names(lockfile: &Lockfile) -> HashSet<PkgName> {
+    let mut result = HashSet::new();
+    for metadata in lockfile.packages.as_ref().into_iter().flat_map(|map| map.values()) {
+        for name in metadata.peer_dependencies.as_ref().into_iter().flat_map(|map| map.keys()) {
+            if let Ok(name) = PkgName::parse(name) {
+                result.insert(name);
+            }
+        }
+        for name in metadata.peer_dependencies_meta.as_ref().into_iter().flat_map(|map| map.keys())
+        {
+            if let Ok(name) = PkgName::parse(name) {
+                result.insert(name);
+            }
+        }
+    }
+    for snapshot in lockfile.snapshots.as_ref().into_iter().flat_map(|map| map.values()) {
+        for name in snapshot.transitive_peer_dependencies.iter().flatten() {
+            if let Ok(name) = PkgName::parse(name) {
+                result.insert(name);
+            }
+        }
+    }
+    result
 }
 
 fn all_dependency_keys(lockfile: &Lockfile) -> Vec<(&PkgName, Option<PackageKey>)> {
@@ -302,9 +303,9 @@ fn rewrite_lockfile(
     let original_snapshots = opts.lockfile.snapshots.as_ref()?;
     let mut snapshots = original_snapshots.clone();
     let mut packages = opts.lockfile.packages.clone()?;
-    for snapshot in snapshots.values_mut() {
-        rewrite_snapshot_dependencies(&mut snapshot.dependencies, plan);
-        rewrite_snapshot_dependencies(&mut snapshot.optional_dependencies, plan);
+    for (key, snapshot) in &mut snapshots {
+        rewrite_snapshot_dependencies(&mut snapshot.dependencies, plan, Some(key));
+        rewrite_snapshot_dependencies(&mut snapshot.optional_dependencies, plan, Some(key));
     }
     for (old_key, new_key) in &plan.replacements {
         if old_key == new_key {
@@ -315,11 +316,15 @@ fn rewrite_lockfile(
         let dependencies = validate_dependencies(
             effective_dependencies(&replacement.manifest)?,
             old_snapshot.dependencies.as_ref(),
+            original_snapshots,
+            opts.lockfile.packages.as_ref()?,
             plan,
         )?;
         let optional_dependencies = validate_dependencies(
             manifest_dependency_map(&replacement.manifest, "optionalDependencies")?,
             old_snapshot.optional_dependencies.as_ref(),
+            original_snapshots,
+            opts.lockfile.packages.as_ref()?,
             plan,
         )?;
         let snapshot =
@@ -359,7 +364,7 @@ fn rewrite_importer_dependencies(
     plan: &RewritePlan,
 ) {
     let Some(map) = dependencies else { return };
-    map.retain(|alias, _| !plan.removed_names.contains(alias));
+    map.retain(|alias, _| !should_remove_dependency(alias, None, &plan.overrides));
     for (alias, spec) in map.iter_mut() {
         let Some(old_key) = spec.version.resolved_key(alias) else { continue };
         let Some(new_key) = plan.replacements.get(&old_key) else { continue };
@@ -373,9 +378,10 @@ fn rewrite_importer_dependencies(
 fn rewrite_snapshot_dependencies(
     dependencies: &mut Option<HashMap<PkgName, SnapshotDepRef>>,
     plan: &RewritePlan,
+    parent_key: Option<&PackageKey>,
 ) {
     let Some(map) = dependencies else { return };
-    rewrite_snapshot_dependency_map(map, plan);
+    rewrite_snapshot_dependency_map(map, plan, parent_key);
     if map.is_empty() {
         *dependencies = None;
     }
@@ -384,13 +390,37 @@ fn rewrite_snapshot_dependencies(
 fn rewrite_snapshot_dependency_map(
     dependencies: &mut HashMap<PkgName, SnapshotDepRef>,
     plan: &RewritePlan,
+    parent_key: Option<&PackageKey>,
 ) {
-    dependencies.retain(|alias, _| !plan.removed_names.contains(alias));
+    dependencies.retain(|alias, _| !should_remove_dependency(alias, parent_key, &plan.overrides));
     for (alias, dep_ref) in dependencies {
         let Some(old_key) = dep_ref.resolve(alias) else { continue };
         let Some(new_key) = plan.replacements.get(&old_key) else { continue };
         *dep_ref = SnapshotDepRef::Plain(new_key.suffix.clone());
     }
+}
+
+fn should_remove_dependency(
+    alias: &PkgName,
+    parent_key: Option<&PackageKey>,
+    overrides: &[FastOverride],
+) -> bool {
+    overrides.iter().any(|override_entry| {
+        if override_entry.new_version.is_some() || override_entry.name != *alias {
+            return false;
+        }
+        let Some(parent) = override_entry.parent.as_ref() else { return true };
+        let Some(parent_key) = parent_key else { return false };
+        if parent_key.name.to_string() != parent.name {
+            return false;
+        }
+        match parent.bare_specifier.as_deref() {
+            None => true,
+            Some(range) => parent_key.suffix.version_semver().is_some_and(|version| {
+                Range::parse(range).is_ok_and(|range| range.satisfies(version))
+            }),
+        }
+    })
 }
 
 fn prune_unreachable_packages(lockfile: &mut Lockfile) {
@@ -452,24 +482,75 @@ fn prune_unreachable_packages(lockfile: &mut Lockfile) {
 fn validate_dependencies(
     manifest_dependencies: HashMap<PkgName, String>,
     locked_dependencies: Option<&HashMap<PkgName, SnapshotDepRef>>,
+    snapshots: &HashMap<PackageKey, SnapshotEntry>,
+    packages: &HashMap<PackageKey, PackageMetadata>,
     plan: &RewritePlan,
 ) -> Option<Option<HashMap<PkgName, SnapshotDepRef>>> {
     let locked_dependencies = locked_dependencies.cloned().unwrap_or_default();
-    if manifest_dependencies.len() != locked_dependencies.len()
-        || manifest_dependencies.keys().any(|name| !locked_dependencies.contains_key(name))
-    {
-        return None;
-    }
-    let mut rewritten = locked_dependencies;
-    rewrite_snapshot_dependency_map(&mut rewritten, plan);
-    for (name, range) in manifest_dependencies {
-        let range = Range::parse(&range).ok()?;
-        let key = rewritten.get(&name)?.resolve(&name)?;
-        if !range.satisfies(key.suffix.version_semver()?) {
+    for name in locked_dependencies.keys() {
+        if !manifest_dependencies.contains_key(name) && plan.peer_names.contains(name) {
             return None;
         }
     }
+    let mut rewritten = HashMap::new();
+    for (name, range) in manifest_dependencies {
+        let range = Range::parse(&range).ok()?;
+        let dep_ref = match locked_dependencies.get(&name) {
+            Some(dep_ref) => {
+                let mut dep_ref = dep_ref.clone();
+                if let Some(old_key) = dep_ref.resolve(&name)
+                    && let Some(new_key) = plan.replacements.get(&old_key)
+                {
+                    dep_ref = SnapshotDepRef::Plain(new_key.suffix.clone());
+                }
+                dep_ref
+            }
+            None => find_reusable_dependency(&name, &range, snapshots, packages, plan)?,
+        };
+        let key = dep_ref.resolve(&name)?;
+        if !range.satisfies(key.suffix.version_semver()?) {
+            return None;
+        }
+        rewritten.insert(name, dep_ref);
+    }
     Some((!rewritten.is_empty()).then_some(rewritten))
+}
+
+fn find_reusable_dependency(
+    name: &PkgName,
+    range: &Range,
+    snapshots: &HashMap<PackageKey, SnapshotEntry>,
+    packages: &HashMap<PackageKey, PackageMetadata>,
+    plan: &RewritePlan,
+) -> Option<SnapshotDepRef> {
+    if plan.peer_names.contains(name) || plan.overrides.iter().any(|entry| entry.name == *name) {
+        return None;
+    }
+    let mut candidates = snapshots.iter().filter(|(key, snapshot)| {
+        if key.name != *name
+            || !key.suffix.peer().is_empty()
+            || key.suffix.prefix() != Prefix::None
+            || !key.suffix.version_semver().is_some_and(|version| range.satisfies(version))
+            || snapshot.optional
+            || snapshot.patched == Some(true)
+            || snapshot.id.is_some()
+            || snapshot.transitive_peer_dependencies.is_some()
+        {
+            return false;
+        }
+        packages.get(&key.without_peer()).is_some_and(|metadata| {
+            metadata.peer_dependencies.is_none()
+                && metadata.peer_dependencies_meta.is_none()
+                && (matches!(metadata.resolution, LockfileResolution::Registry(_))
+                    || matches!(
+                        metadata.resolution,
+                        LockfileResolution::Tarball(ref tarball)
+                            if tarball.integrity.is_some() && tarball.git_hosted != Some(true),
+                    ))
+        })
+    });
+    let (key, _) = candidates.next()?;
+    candidates.next().is_none().then(|| SnapshotDepRef::Plain(key.suffix.clone()))
 }
 
 fn effective_dependencies(manifest: &Value) -> Option<HashMap<PkgName, String>> {
