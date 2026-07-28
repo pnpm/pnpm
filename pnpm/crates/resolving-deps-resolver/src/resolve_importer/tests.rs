@@ -12,7 +12,10 @@ use pacquet_resolving_resolver_base::{
 };
 use pretty_assertions::assert_eq;
 
-use super::{ImporterLockedPeerContext, importer_locked_peer_context};
+use super::{
+    ImporterLockedPeerContext, discard_changed_direct_dep_peer_context,
+    importer_locked_peer_context,
+};
 use crate::{
     DepPath, ResolveDependencyTreeError, resolve_importer,
     resolve_importer::{ResolveImporterError, ResolveImporterOptions},
@@ -59,6 +62,27 @@ fn locked_peer_context_is_recorded_by_direct_alias() {
 
     assert_eq!(versions["peer"], HashSet::from(["2.0.0".to_string()]));
     assert_eq!(names_by_alias["consumer"].as_ref(), &HashSet::from(["peer".to_string()]));
+}
+
+#[test]
+fn changed_direct_dependency_discards_prior_peer_context() {
+    use pacquet_lockfile::PkgName;
+    use std::sync::Arc;
+
+    let mut names_by_alias = HashMap::from([
+        ("changed".to_string(), Arc::new(HashSet::from(["old-peer".to_string()]))),
+        ("unchanged".to_string(), Arc::new(HashSet::from(["peer".to_string()]))),
+    ]);
+
+    discard_changed_direct_dep_peer_context(
+        &mut names_by_alias,
+        &HashSet::from([PkgName::parse("changed").unwrap()]),
+    );
+
+    assert_eq!(
+        names_by_alias,
+        HashMap::from([("unchanged".to_string(), Arc::new(HashSet::from(["peer".to_string()])),)]),
+    );
 }
 
 #[test]

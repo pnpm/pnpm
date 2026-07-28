@@ -44,6 +44,7 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::{Range, Version};
 use pacquet_catalogs_types::Catalogs;
+use pacquet_lockfile::PkgName;
 use pacquet_package_manifest::{
     DependencyGroup, PackageManifest, PackageManifestError, safe_read_package_json_from_dir,
 };
@@ -425,14 +426,18 @@ impl ImporterHoistState {
             .with_catalogs(catalogs);
         let ImporterLockedPeerContext {
             versions: locked_peer_versions,
-            names_by_alias: locked_peer_names_by_alias,
+            names_by_alias: mut locked_peer_names_by_alias,
         } = importer_locked_peer_context(
             ctx.workspace().wanted_lockfile().map(AsRef::as_ref),
             importer_id,
         );
         let locked_peer_versions = Arc::new(locked_peer_versions);
         let locked_peer_names = Arc::new(locked_peer_versions.keys().cloned().collect());
-        record_changed_direct_deps(&ctx, importer_id, &initial_wanted);
+        let changed_direct_deps = record_changed_direct_deps(&ctx, importer_id, &initial_wanted);
+        discard_changed_direct_dep_peer_context(
+            &mut locked_peer_names_by_alias,
+            &changed_direct_deps,
+        );
         let wanted_specifier_by_alias: BTreeMap<String, String> = initial_wanted
             .iter()
             .map(|(alias, range, ..)| (alias.clone(), range.clone()))
@@ -805,6 +810,15 @@ impl ImporterHoistState {
         let peers_result = resolve_peers(&mut resolved_tree, peers_opts);
         ResolveImporterResult { resolved_tree, peers_result }
     }
+}
+
+fn discard_changed_direct_dep_peer_context(
+    names_by_alias: &mut HashMap<String, Arc<HashSet<String>>>,
+    changed_direct_deps: &HashSet<PkgName>,
+) {
+    names_by_alias.retain(|alias, _| {
+        alias.parse::<PkgName>().is_ok_and(|name| !changed_direct_deps.contains(&name))
+    });
 }
 
 struct ImporterLockedPeerContext {
