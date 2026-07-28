@@ -192,9 +192,10 @@ importers:
 }
 
 #[test]
-fn rejects_removing_a_snapshot_still_referenced_by_an_importer() {
-    let lockfile = lockfile(
-        r"
+fn rejects_removing_a_snapshot_referenced_by_the_default_catalog() {
+    for specifier in ["catalog:", "catalog:default"] {
+        let lockfile = lockfile(&format!(
+            r"
 lockfileVersion: '9.0'
 catalogs:
   default:
@@ -205,13 +206,15 @@ importers:
   .:
     dependencies:
       foo:
-        specifier: 'catalog:'
+        specifier: '{specifier}'
         version: 1.1.0
 ",
-    );
+        ));
 
-    assert!(matches!(
-        try_fast_update_catalogs(&lockfile, &Catalogs::new(), false),
-        FastCatalogUpdate::Unsupported
-    ));
+        let update = try_fast_update_catalogs(&lockfile, &Catalogs::new(), false);
+        assert!(
+            matches!(update, FastCatalogUpdate::Unsupported),
+            "default catalog reference {specifier} should prevent snapshot removal",
+        );
+    }
 }

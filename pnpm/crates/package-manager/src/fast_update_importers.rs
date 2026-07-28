@@ -11,14 +11,9 @@ pub(crate) fn try_fast_update_importers(
     let mut changed = false;
     for (importer_id, manifest) in manifests {
         let importer = candidate.importers.get_mut(importer_id)?;
-        let mut manifest_specifiers = HashMap::new();
-        for (alias, specifier) in manifest.dependencies([
-            DependencyGroup::Dev,
-            DependencyGroup::Prod,
-            DependencyGroup::Optional,
-        ]) {
-            manifest_specifiers.insert(alias, specifier);
-        }
+        let manifest_specifiers = manifest
+            .dependencies([DependencyGroup::Dev, DependencyGroup::Prod, DependencyGroup::Optional])
+            .collect::<HashMap<_, _>>();
         for (alias, specifier) in manifest_specifiers {
             let alias = PkgName::parse(alias).ok()?;
             let dependency = importer_dependency_mut(importer, &alias)?;
@@ -41,17 +36,13 @@ fn importer_dependency_mut<'a>(
     importer: &'a mut ProjectSnapshot,
     alias: &PkgName,
 ) -> Option<&'a mut ResolvedDependencySpec> {
-    if importer
-        .optional_dependencies
-        .as_ref()
-        .is_some_and(|dependencies| dependencies.contains_key(alias))
-    {
-        return importer.optional_dependencies.as_mut()?.get_mut(alias);
-    }
-    if importer.dependencies.as_ref().is_some_and(|dependencies| dependencies.contains_key(alias)) {
-        return importer.dependencies.as_mut()?.get_mut(alias);
-    }
-    importer.dev_dependencies.as_mut()?.get_mut(alias)
+    [
+        importer.optional_dependencies.as_mut(),
+        importer.dependencies.as_mut(),
+        importer.dev_dependencies.as_mut(),
+    ]
+    .into_iter()
+    .find_map(|group| group.and_then(|dependencies| dependencies.get_mut(alias)))
 }
 
 #[cfg(test)]

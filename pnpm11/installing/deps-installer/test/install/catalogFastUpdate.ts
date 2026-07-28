@@ -188,7 +188,7 @@ test('simultaneous catalog and override changes fall back to resolution', async 
   expect(requestedPackages.length).toBeGreaterThan(0)
 })
 
-test('a catalog snapshot still referenced by an importer is not removed', () => {
+test.each(['catalog:', 'catalog:default'])('a default catalog snapshot referenced as %s is not removed', (specifier) => {
   const lockfile = {
     catalogs: {
       default: {
@@ -201,7 +201,7 @@ test('a catalog snapshot still referenced by an importer is not removed', () => 
     importers: {
       '.': {
         specifiers: {
-          foo: 'catalog:',
+          foo: specifier,
         },
       },
     },
