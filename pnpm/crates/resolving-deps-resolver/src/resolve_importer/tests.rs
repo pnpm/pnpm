@@ -21,18 +21,6 @@ use crate::{
 fn only_peer_suffix_versions_are_treated_as_locked_peer_providers() {
     use pacquet_lockfile::{ComVer, Lockfile, LockfileVersion, PkgNameVerPeer, SnapshotEntry};
 
-    let mut selectors = VersionSelectors::new();
-    selectors.insert(
-        "1.0.0".to_string(),
-        VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
-            selector_type: VersionSelectorType::Version,
-            weight: EXISTING_VERSION_SELECTOR_WEIGHT,
-        }),
-    );
-    let preferred = PreferredVersions::from([
-        ("peer".to_string(), selectors.clone()),
-        ("unrelated".to_string(), selectors),
-    ]);
     let lockfile = Lockfile {
         lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(9, 0)).unwrap(),
         settings: None,
@@ -44,13 +32,30 @@ fn only_peer_suffix_versions_are_treated_as_locked_peer_providers() {
         patched_dependencies: None,
         importers: HashMap::new(),
         packages: None,
-        snapshots: Some(HashMap::from([(
-            PkgNameVerPeer::from_str("consumer@1.0.0(peer@1.0.0)").unwrap(),
-            SnapshotEntry::default(),
-        )])),
+        snapshots: Some(HashMap::from([
+            (
+                PkgNameVerPeer::from_str("consumer@1.0.0(peer@1.0.0)").unwrap(),
+                SnapshotEntry::default(),
+            ),
+            (
+                PkgNameVerPeer::from_str(
+                    "other@1.0.0(@types/node@24.0.0)(provider@1.0.0(nested@2.0.0))",
+                )
+                .unwrap(),
+                SnapshotEntry::default(),
+            ),
+        ])),
     };
 
-    assert_eq!(locked_peer_names(&preferred, Some(&lockfile)), HashSet::from(["peer".to_string()]));
+    assert_eq!(
+        locked_peer_names(Some(&lockfile)),
+        HashSet::from([
+            "@types/node".to_string(),
+            "nested".to_string(),
+            "peer".to_string(),
+            "provider".to_string(),
+        ]),
+    );
 }
 
 #[test]
@@ -60,17 +65,6 @@ fn hashed_peer_suffix_uses_package_peer_metadata() {
         PackageMetadata, PkgNameVerPeer, SnapshotEntry,
     };
 
-    let selectors = VersionSelectors::from([(
-        "1.0.0".to_string(),
-        VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
-            selector_type: VersionSelectorType::Version,
-            weight: EXISTING_VERSION_SELECTOR_WEIGHT,
-        }),
-    )]);
-    let preferred = PreferredVersions::from([
-        ("peer".to_string(), selectors.clone()),
-        ("missing".to_string(), selectors),
-    ]);
     let package_key = PkgNameVerPeer::from_str("consumer@1.0.0").unwrap();
     let snapshot_key =
         PkgNameVerPeer::from_str("consumer@1.0.0(0123456789abcdef0123456789abcdef)").unwrap();
@@ -115,7 +109,7 @@ fn hashed_peer_suffix_uses_package_peer_metadata() {
         )])),
     };
 
-    assert_eq!(locked_peer_names(&preferred, Some(&lockfile)), HashSet::from(["peer".to_string()]));
+    assert_eq!(locked_peer_names(Some(&lockfile)), HashSet::from(["peer".to_string()]));
 }
 
 struct StubResolver {

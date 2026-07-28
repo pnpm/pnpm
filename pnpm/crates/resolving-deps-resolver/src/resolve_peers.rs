@@ -231,7 +231,7 @@ pub struct HoistMissingScope {
     pub first_walk_missing_by_pkg: HashMap<String, std::collections::HashSet<String>>,
     /// Peers represented by the wanted lockfile must remain eligible
     /// for importer-local hoisting during lockfile re-resolution.
-    pub locked_peer_names: std::collections::HashSet<String>,
+    pub locked_peer_names: Arc<std::collections::HashSet<String>>,
 }
 
 impl HoistMissingScope {
