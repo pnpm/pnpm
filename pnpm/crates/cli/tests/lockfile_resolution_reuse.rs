@@ -154,6 +154,7 @@ fn dependency_removal_override_prunes_the_locked_subtree_without_resolving() {
     let removed_key = "is-positive@1.0.0".parse().expect("removed package key");
     let removed_name = "is-positive".parse().expect("removed package name");
     for lockfile in [&wanted, &current] {
+        dbg!(&lockfile.snapshots, &lockfile.packages);
         assert!(
             lockfile
                 .snapshots
@@ -172,6 +173,7 @@ fn dependency_removal_override_prunes_the_locked_subtree_without_resolving() {
             lockfile.packages.as_ref().is_none_or(|packages| !packages.contains_key(&removed_key)),
         );
     }
+    dbg!(&workspace);
     assert!(
         !workspace
             .join(

@@ -665,19 +665,22 @@ export async function mutateModules (
       opts.frozenLockfileIfExists && ctx.existsNonEmptyWantedLockfile
     let outdatedLockfileSettingName = null as ReturnType<typeof getOutdatedLockfileSetting>
     const overridesMap = createOverridesMapFromParsed(opts.parsedOverrides)
+    const lockfileSettings = {
+      autoInstallPeers: opts.autoInstallPeers,
+      catalogs: opts.catalogs,
+      dedupePeers: opts.dedupePeers || undefined,
+      injectWorkspacePackages: opts.injectWorkspacePackages,
+      excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
+      peersSuffixMaxLength: opts.peersSuffixMaxLength,
+      ignoredOptionalDependencies: opts.ignoredOptionalDependencies?.sort(),
+      packageExtensionsChecksum,
+      patchedDependencies,
+      pnpmfileChecksum,
+    }
     if (!opts.ignorePackageManifest) {
       outdatedLockfileSettingName = getOutdatedLockfileSetting(ctx.wantedLockfile, {
-        autoInstallPeers: opts.autoInstallPeers,
-        catalogs: opts.catalogs,
-        dedupePeers: opts.dedupePeers || undefined,
-        injectWorkspacePackages: opts.injectWorkspacePackages,
-        excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
-        peersSuffixMaxLength: opts.peersSuffixMaxLength,
+        ...lockfileSettings,
         overrides: overridesMap,
-        ignoredOptionalDependencies: opts.ignoredOptionalDependencies?.sort(),
-        packageExtensionsChecksum,
-        patchedDependencies,
-        pnpmfileChecksum,
       })
       if (frozenLockfile && outdatedLockfileSettingName != null) {
         throw new LockfileConfigMismatchError(outdatedLockfileSettingName!)
@@ -712,18 +715,11 @@ export async function mutateModules (
     if (canTryFastUpdateOverrides) {
       await verifyLockfilePromise
       if (
+        // The helper reports only the first mismatch, so checking with the
+        // lockfile's overrides proves overrides were the only stale setting.
         getOutdatedLockfileSetting(ctx.wantedLockfile, {
-          autoInstallPeers: opts.autoInstallPeers,
-          catalogs: opts.catalogs,
-          dedupePeers: opts.dedupePeers || undefined,
-          injectWorkspacePackages: opts.injectWorkspacePackages,
-          excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
-          peersSuffixMaxLength: opts.peersSuffixMaxLength,
+          ...lockfileSettings,
           overrides: ctx.wantedLockfile.overrides,
-          ignoredOptionalDependencies: opts.ignoredOptionalDependencies?.sort(),
-          packageExtensionsChecksum,
-          patchedDependencies,
-          pnpmfileChecksum,
         }) == null &&
         await allProjectsAreUpToDate(Object.values(ctx.projects), {
           catalogs: opts.catalogs,

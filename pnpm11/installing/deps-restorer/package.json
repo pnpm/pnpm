@@ -49,7 +49,6 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/exec.lifecycle": "workspace:*",
     "@pnpm/fs.symlink-dependency": "workspace:*",
-    "@pnpm/installing.deps-resolver": "workspace:*",
     "@pnpm/installing.linking.direct-dep-linker": "workspace:*",
     "@pnpm/installing.linking.hoist": "workspace:*",
     "@pnpm/installing.linking.modules-cleaner": "workspace:*",

@@ -9,11 +9,10 @@ import {
 import { calcDepState, type DepsStateCache, findRuntimeNodeVersion } from '@pnpm/deps.graph-hasher'
 import { readModulesDir } from '@pnpm/fs.read-modules-dir'
 import { symlinkDependency } from '@pnpm/fs.symlink-dependency'
-import {
-  type DependenciesGraph,
-  type DependenciesGraphNode,
-  isValidDependencyAlias,
-  type LinkedDependency,
+import type {
+  DependenciesGraph,
+  DependenciesGraphNode,
+  LinkedDependency,
 } from '@pnpm/installing.deps-resolver'
 import type { InstallationResultStats } from '@pnpm/installing.deps-restorer'
 import { linkDirectDeps } from '@pnpm/installing.linking.direct-dep-linker'
@@ -570,7 +569,7 @@ async function linkAllModules (
     optional: boolean
   }
 ): Promise<void> {
-  await Promise.all(depNodes.flatMap((depNode) => (depNode.removedAliases ?? []).map(async (alias) => limitModulesDirReads(async () => removeObsoleteChild(depNode.modules, alias)))))
+  await Promise.all(depNodes.flatMap((depNode) => (depNode.removedAliases ?? []).map(async (alias) => limitModulesDirReads(async () => removeObsoleteDependency(depNode.modules, alias)))))
   await symlinkAllModules({
     deps: depNodes.map((depNode) => {
       return {
@@ -636,11 +635,6 @@ async function getActualChildrenDiff (
   const actualChildrenChanged = removedAliases.length > 0 ||
     Array.from(nextAliases).some((alias) => !currentAliases.has(alias))
   return { actualChildrenChanged, removedAliases }
-}
-
-async function removeObsoleteChild (modulesDir: string, alias: string): Promise<void> {
-  if (!isValidDependencyAlias(alias)) return
-  await removeObsoleteDependency(modulesDir, alias)
 }
 
 function getChildrenPaths (

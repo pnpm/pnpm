@@ -41,7 +41,8 @@
     "@pnpm/store.controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "catalog:",
-    "ramda": "catalog:"
+    "ramda": "catalog:",
+    "validate-npm-package-name": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"
@@ -49,7 +50,8 @@
   "devDependencies": {
     "@pnpm/installing.linking.modules-cleaner": "workspace:*",
     "@pnpm/logger": "workspace:*",
-    "@types/ramda": "catalog:"
+    "@types/ramda": "catalog:",
+    "@types/validate-npm-package-name": "catalog:"
   },
   "engines": {
     "node": ">=22.13"

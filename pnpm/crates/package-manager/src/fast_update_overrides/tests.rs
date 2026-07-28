@@ -120,25 +120,34 @@ fn parsed_override() -> Vec<VersionOverride> {
     }]
 }
 
+async fn try_update(
+    lockfile: &Lockfile,
+    parsed_overrides: &[VersionOverride],
+    resolved_overrides: &IndexMap<String, String>,
+    resolver: &dyn Resolver,
+) -> Option<Lockfile> {
+    let resolve_options = ResolveOptions::default();
+    let registries =
+        HashMap::from([("default".to_string(), "https://registry.npmjs.org/".to_string())]);
+    try_fast_update_overrides(FastOverrideOptions {
+        lockfile,
+        parsed_overrides,
+        resolved_overrides,
+        resolver,
+        resolve_options: &resolve_options,
+        manifest_hook: None,
+        registries: &registries,
+        lockfile_include_tarball_url: false,
+    })
+    .await
+}
+
 async fn update_with_manifest(manifest: serde_json::Value) -> (Option<Lockfile>, usize) {
     let lockfile = lockfile();
     let parsed = parsed_override();
     let overrides = IndexMap::from([("target".to_string(), "2.0.0".to_string())]);
     let resolver = StubResolver { calls: AtomicUsize::new(0), manifest };
-    let result = try_fast_update_overrides(FastOverrideOptions {
-        lockfile: &lockfile,
-        parsed_overrides: &parsed,
-        resolved_overrides: &overrides,
-        resolver: &resolver,
-        resolve_options: &ResolveOptions::default(),
-        manifest_hook: None,
-        registries: &std::collections::HashMap::from([(
-            "default".to_string(),
-            "https://registry.npmjs.org/".to_string(),
-        )]),
-        lockfile_include_tarball_url: false,
-    })
-    .await;
+    let result = try_update(&lockfile, &parsed, &overrides, &resolver).await;
     (result, resolver.calls.load(Ordering::Relaxed))
 }
 
@@ -171,6 +180,7 @@ async fn rewrites_an_exact_override_when_locked_children_satisfy_the_new_manifes
             .as_deref(),
         Some("2.0.0"),
     );
+    dbg!(&updated.snapshots);
     assert!(
         updated
             .snapshots
@@ -210,6 +220,7 @@ async fn drops_obsolete_dependency_edges_from_a_replacement() {
 
     assert_eq!(calls, 1);
     assert!(target.dependencies.is_none());
+    dbg!(&updated.snapshots);
     assert!(
         updated
             .snapshots
@@ -258,21 +269,8 @@ async fn reuses_a_unique_compatible_locked_dependency_added_by_a_replacement() {
         }),
     };
 
-    let updated = try_fast_update_overrides(FastOverrideOptions {
-        lockfile: &lockfile,
-        parsed_overrides: &parsed,
-        resolved_overrides: &overrides,
-        resolver: &resolver,
-        resolve_options: &ResolveOptions::default(),
-        manifest_hook: None,
-        registries: &std::collections::HashMap::from([(
-            "default".to_string(),
-            "https://registry.npmjs.org/".to_string(),
-        )]),
-        lockfile_include_tarball_url: false,
-    })
-    .await
-    .expect("fast override update");
+    let updated =
+        try_update(&lockfile, &parsed, &overrides, &resolver).await.expect("fast override update");
     let target = updated
         .snapshots
         .as_ref()
@@ -307,20 +305,7 @@ async fn remove_target(lockfile: &Lockfile) -> (Option<Lockfile>, usize) {
             "version": "2.0.0"
         }),
     };
-    let result = try_fast_update_overrides(FastOverrideOptions {
-        lockfile,
-        parsed_overrides: &parsed,
-        resolved_overrides: &overrides,
-        resolver: &resolver,
-        resolve_options: &ResolveOptions::default(),
-        manifest_hook: None,
-        registries: &std::collections::HashMap::from([(
-            "default".to_string(),
-            "https://registry.npmjs.org/".to_string(),
-        )]),
-        lockfile_include_tarball_url: false,
-    })
-    .await;
+    let result = try_update(lockfile, &parsed, &overrides, &resolver).await;
     (result, resolver.calls.load(Ordering::Relaxed))
 }
 
@@ -337,6 +322,7 @@ async fn removes_a_dependency_and_its_unreachable_subtree_without_resolving() {
 
     assert_eq!(calls, 0);
     assert!(parent.dependencies.is_none());
+    dbg!(&updated.snapshots, &updated.packages);
     assert!(updated.snapshots.as_ref().is_some_and(|snapshots| {
         !snapshots.contains_key(&"target@1.0.0".parse().unwrap())
             && !snapshots.contains_key(&"child@1.1.0".parse().unwrap())
@@ -386,21 +372,9 @@ async fn removes_a_dependency_only_from_matching_parent_snapshots() {
         }),
     };
 
-    let updated = try_fast_update_overrides(FastOverrideOptions {
-        lockfile: &lockfile,
-        parsed_overrides: &parsed,
-        resolved_overrides: &overrides,
-        resolver: &resolver,
-        resolve_options: &ResolveOptions::default(),
-        manifest_hook: None,
-        registries: &std::collections::HashMap::from([(
-            "default".to_string(),
-            "https://registry.npmjs.org/".to_string(),
-        )]),
-        lockfile_include_tarball_url: false,
-    })
-    .await
-    .expect("fast dependency removal");
+    let updated = try_update(&lockfile, &parsed, &overrides, &resolver)
+        .await
+        .expect("fast dependency removal");
     let parent = updated
         .snapshots
         .as_ref()
@@ -455,26 +429,15 @@ async fn applies_exact_replacements_and_dependency_removals_together() {
             "name": "target",
             "version": "2.0.0",
             "dependencies": {
-                "child": "^1.0.0"
+                "child": "^1.0.0",
+                "obsolete": "^1.0.0"
             }
         }),
     };
 
-    let updated = try_fast_update_overrides(FastOverrideOptions {
-        lockfile: &lockfile,
-        parsed_overrides: &parsed,
-        resolved_overrides: &overrides,
-        resolver: &resolver,
-        resolve_options: &ResolveOptions::default(),
-        manifest_hook: None,
-        registries: &std::collections::HashMap::from([(
-            "default".to_string(),
-            "https://registry.npmjs.org/".to_string(),
-        )]),
-        lockfile_include_tarball_url: false,
-    })
-    .await
-    .expect("fast mixed override update");
+    let updated = try_update(&lockfile, &parsed, &overrides, &resolver)
+        .await
+        .expect("fast mixed override update");
     let parent = updated
         .snapshots
         .as_ref()
@@ -491,7 +454,22 @@ async fn applies_exact_replacements_and_dependency_removals_together() {
             .as_deref(),
         Some("2.0.0"),
     );
+    dbg!(&updated.snapshots);
     assert!(parent.dependencies.as_ref().is_none_or(|dependencies| {
         !dependencies.contains_key(&PkgName::parse("obsolete").unwrap())
     }));
+    let replacement = updated
+        .snapshots
+        .as_ref()
+        .and_then(|snapshots| snapshots.get(&"target@2.0.0".parse().unwrap()))
+        .expect("replacement snapshot");
+    assert!(replacement.dependencies.as_ref().is_none_or(|dependencies| {
+        !dependencies.contains_key(&PkgName::parse("obsolete").unwrap())
+    }));
+    assert!(
+        updated
+            .snapshots
+            .as_ref()
+            .is_some_and(|snapshots| !snapshots.contains_key(&"obsolete@1.0.0".parse().unwrap())),
+    );
 }

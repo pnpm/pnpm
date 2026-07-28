@@ -319,6 +319,7 @@ fn rewrite_lockfile(
             original_snapshots,
             opts.lockfile.packages.as_ref()?,
             plan,
+            new_key,
         )?;
         let optional_dependencies = validate_dependencies(
             manifest_dependency_map(&replacement.manifest, "optionalDependencies")?,
@@ -326,6 +327,7 @@ fn rewrite_lockfile(
             original_snapshots,
             opts.lockfile.packages.as_ref()?,
             plan,
+            new_key,
         )?;
         let snapshot =
             SnapshotEntry { dependencies, optional_dependencies, ..old_snapshot.clone() };
@@ -485,6 +487,7 @@ fn validate_dependencies(
     snapshots: &HashMap<PackageKey, SnapshotEntry>,
     packages: &HashMap<PackageKey, PackageMetadata>,
     plan: &RewritePlan,
+    parent_key: &PackageKey,
 ) -> Option<Option<HashMap<PkgName, SnapshotDepRef>>> {
     let locked_dependencies = locked_dependencies.cloned().unwrap_or_default();
     for name in locked_dependencies.keys() {
@@ -494,6 +497,9 @@ fn validate_dependencies(
     }
     let mut rewritten = HashMap::new();
     for (name, range) in manifest_dependencies {
+        if should_remove_dependency(&name, Some(parent_key), &plan.overrides) {
+            continue;
+        }
         let range = Range::parse(&range).ok()?;
         let dep_ref = match locked_dependencies.get(&name) {
             Some(dep_ref) => {
@@ -588,7 +594,7 @@ fn package_metadata(manifest: &Value, resolution: LockfileResolution) -> Package
             _ => None,
         }),
         deprecated: None,
-        has_bin: manifest_has_bin(manifest).then_some(true),
+        has_bin: crate::dependencies_graph_to_lockfile::manifest_has_bin(Some(manifest)),
         prepare: None,
         bundled_dependencies: BundledDependencies::from_manifest(Some(manifest)),
         peer_dependencies: None,
@@ -610,14 +616,6 @@ fn string_list(manifest: &Value, key: &str) -> Option<Vec<String>> {
     let values: Vec<String> =
         values.iter().filter_map(Value::as_str).map(ToString::to_string).collect();
     (!values.is_empty()).then_some(values)
-}
-
-fn manifest_has_bin(manifest: &Value) -> bool {
-    manifest.get("bin").is_some_and(|bin| match bin {
-        Value::String(path) => !path.is_empty(),
-        Value::Object(entries) => !entries.is_empty(),
-        _ => false,
-    })
 }
 
 #[cfg(test)]

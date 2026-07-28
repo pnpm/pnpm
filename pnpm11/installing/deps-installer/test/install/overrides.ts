@@ -7,11 +7,22 @@ import { PnpmError } from '@pnpm/error'
 import { addDependenciesToPackage, type MutatedProject, mutateModules, mutateModulesInSingleProject, type ProjectOptions } from '@pnpm/installing.deps-installer'
 import type { LockfileFile } from '@pnpm/lockfile.types'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
+import type { StoreController } from '@pnpm/store.controller-types'
 import { addDistTag } from '@pnpm/testing.registry-mock'
 import type { ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { readYamlFileSync } from 'read-yaml-file'
 
 import { testDefaults } from '../utils/index.js'
+
+function trackRequestedPackages (storeController: StoreController): string[] {
+  const requestedPackages: string[] = []
+  const requestPackage = storeController.requestPackage
+  storeController.requestPackage = async (wantedDependency, requestOptions) => {
+    requestedPackages.push(wantedDependency.alias!)
+    return requestPackage(wantedDependency, requestOptions)
+  }
+  return requestedPackages
+}
 
 test('adding an exact override reuses the lockfile when the new package has the same dependencies', async () => {
   const project = prepareEmpty()
@@ -28,12 +39,7 @@ test('adding an exact override reuses the lockfile when the new package has the 
     rootDir: process.cwd() as ProjectRootDir,
   }, options)
 
-  const requestedPackages: string[] = []
-  const requestPackage = options.storeController.requestPackage
-  options.storeController.requestPackage = async (wantedDependency, requestOptions) => {
-    requestedPackages.push(wantedDependency.alias!)
-    return requestPackage(wantedDependency, requestOptions)
-  }
+  const requestedPackages = trackRequestedPackages(options.storeController)
   options.overrides = {
     '@pnpm.e2e/bar': '100.1.0',
   }
@@ -72,12 +78,7 @@ test('an exact override update reuses the lockfile when the new package has the 
   const previousChildResolution = previousLockfile.snapshots['@pnpm.e2e/pkg-with-1-dep@100.0.0']
     .dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']
   expect(previousChildResolution).toBeDefined()
-  const requestedPackages: string[] = []
-  const requestPackage = options.storeController.requestPackage
-  options.storeController.requestPackage = async (wantedDependency, requestOptions) => {
-    requestedPackages.push(wantedDependency.alias!)
-    return requestPackage(wantedDependency, requestOptions)
-  }
+  const requestedPackages = trackRequestedPackages(options.storeController)
   options.overrides = {
     '@pnpm.e2e/pkg-with-1-dep': '100.1.0',
   }
@@ -118,12 +119,7 @@ test('an exact override update falls back to resolution when the package depende
     rootDir: process.cwd() as ProjectRootDir,
   }, options)
 
-  const requestedPackages: string[] = []
-  const requestPackage = options.storeController.requestPackage
-  options.storeController.requestPackage = async (wantedDependency, requestOptions) => {
-    requestedPackages.push(wantedDependency.alias!)
-    return requestPackage(wantedDependency, requestOptions)
-  }
+  const requestedPackages = trackRequestedPackages(options.storeController)
   options.overrides = {
     '@pnpm.e2e/foobarqar': '1.0.1',
   }
@@ -156,12 +152,7 @@ test('a dependency removal override prunes the locked subtree without resolution
     rootDir: process.cwd() as ProjectRootDir,
   }, options)
 
-  const requestedPackages: string[] = []
-  const requestPackage = options.storeController.requestPackage
-  options.storeController.requestPackage = async (wantedDependency, requestOptions) => {
-    requestedPackages.push(wantedDependency.alias!)
-    return requestPackage(wantedDependency, requestOptions)
-  }
+  const requestedPackages = trackRequestedPackages(options.storeController)
   options.overrides = {
     'is-positive': '-',
   }
@@ -202,12 +193,7 @@ test('a parent-scoped dependency removal override only prunes matching edges', a
     rootDir: process.cwd() as ProjectRootDir,
   }, options)
 
-  const requestedPackages: string[] = []
-  const requestPackage = options.storeController.requestPackage
-  options.storeController.requestPackage = async (wantedDependency, requestOptions) => {
-    requestedPackages.push(wantedDependency.alias!)
-    return requestPackage(wantedDependency, requestOptions)
-  }
+  const requestedPackages = trackRequestedPackages(options.storeController)
   options.overrides = {
     '@pnpm.e2e/pkg-with-good-optional@1>is-positive': '-',
   }
@@ -241,12 +227,7 @@ test('exact replacements and dependency removals reuse the lockfile together', a
     rootDir: process.cwd() as ProjectRootDir,
   }, options)
 
-  const requestedPackages: string[] = []
-  const requestPackage = options.storeController.requestPackage
-  options.storeController.requestPackage = async (wantedDependency, requestOptions) => {
-    requestedPackages.push(wantedDependency.alias!)
-    return requestPackage(wantedDependency, requestOptions)
-  }
+  const requestedPackages = trackRequestedPackages(options.storeController)
   options.overrides = {
     '@pnpm.e2e/bar': '100.1.0',
     'is-positive': '-',
@@ -263,6 +244,42 @@ test('exact replacements and dependency removals reuse the lockfile together', a
   expect(lockfile.snapshots['@pnpm.e2e/foobarqar@1.0.0'].dependencies?.['@pnpm.e2e/bar']).toBe('100.1.0')
   expect(lockfile.snapshots['@pnpm.e2e/foobarqar@1.0.0'].dependencies).not.toHaveProperty(['is-positive'])
   expect(lockfile.snapshots).not.toHaveProperty(['is-positive@1.0.0'])
+})
+
+test('a dependency removal also applies to snapshots rebuilt for replacements', async () => {
+  const project = prepareEmpty()
+  const manifest: ProjectManifest = {
+    dependencies: {
+      '@pnpm.e2e/parent-of-foobarqar': '1.0.1',
+    },
+  }
+  const options = testDefaults()
+
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, options)
+
+  const requestedPackages = trackRequestedPackages(options.storeController)
+  options.overrides = {
+    '@pnpm.e2e/foobarqar': '1.0.1',
+    '@pnpm.e2e/qar': '-',
+  }
+
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, options)
+
+  expect(requestedPackages).toStrictEqual(['@pnpm.e2e/foobarqar'])
+  const lockfile = project.readLockfile()
+  expect(lockfile.snapshots['@pnpm.e2e/parent-of-foobarqar@1.0.1'].dependencies)
+    .not.toHaveProperty(['@pnpm.e2e/qar'])
+  expect(lockfile.snapshots['@pnpm.e2e/foobarqar@1.0.1'].dependencies)
+    .not.toHaveProperty(['@pnpm.e2e/qar'])
+  expect(lockfile.snapshots).not.toHaveProperty(['@pnpm.e2e/qar@100.0.0'])
 })
 
 test('an exact override update reuses uniquely compatible locked dependencies and drops obsolete edges', async () => {
@@ -285,12 +302,7 @@ test('an exact override update reuses uniquely compatible locked dependencies an
     rootDir: process.cwd() as ProjectRootDir,
   }, options)
 
-  const requestedPackages: string[] = []
-  const requestPackage = options.storeController.requestPackage
-  options.storeController.requestPackage = async (wantedDependency, requestOptions) => {
-    requestedPackages.push(wantedDependency.alias!)
-    return requestPackage(wantedDependency, requestOptions)
-  }
+  const requestedPackages = trackRequestedPackages(options.storeController)
   options.overrides = {
     '@pnpm.e2e/foobarqar': '1.0.1',
   }

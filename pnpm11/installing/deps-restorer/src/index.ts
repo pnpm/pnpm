@@ -31,7 +31,6 @@ import {
   runLifecycleHooksConcurrently,
 } from '@pnpm/exec.lifecycle'
 import { symlinkDependency } from '@pnpm/fs.symlink-dependency'
-import { isValidDependencyAlias } from '@pnpm/installing.deps-resolver'
 import { linkDirectDeps, type LinkedDirectDep } from '@pnpm/installing.linking.direct-dep-linker'
 import { hoist, type HoistedWorkspaceProject } from '@pnpm/installing.linking.hoist'
 import { prune, removeObsoleteDependency } from '@pnpm/installing.linking.modules-cleaner'
@@ -1121,7 +1120,7 @@ async function linkAllModules (
 ): Promise<void> {
   const changes = depNodes.map((depNode) => getChangedChildren(depNode, opts))
   await Promise.all(changes.flatMap(({ depNode, removedAliases }) =>
-    removedAliases.map((alias) => removeObsoleteChild(depNode.modules, alias))
+    removedAliases.map((alias) => removeObsoleteDependency(depNode.modules, alias))
   ))
   await symlinkAllModules({
     deps: changes.map(({ children, depNode }) => {
@@ -1163,9 +1162,4 @@ function getChangedChildren (
     depNode,
     removedAliases: Object.keys(currentDependencies).filter((alias) => !Object.hasOwn(wantedDependencies, alias)),
   }
-}
-
-async function removeObsoleteChild (modulesDir: string, alias: string): Promise<void> {
-  if (!isValidDependencyAlias(alias)) return
-  await removeObsoleteDependency(modulesDir, alias)
 }

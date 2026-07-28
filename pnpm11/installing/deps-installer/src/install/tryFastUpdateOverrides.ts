@@ -332,13 +332,15 @@ function rewritePackages (
       effectiveDependencies(resolved.manifest),
       oldSnapshot.dependencies,
       originalPackages,
-      opts.rewriteContext
+      opts.rewriteContext,
+      newDepPath
     )
     const optionalDependencies = validateAndRewriteDependencies(
       resolved.manifest.optionalDependencies,
       oldSnapshot.optionalDependencies,
       originalPackages,
-      opts.rewriteContext
+      opts.rewriteContext,
+      newDepPath
     )
     if (dependencies === null || optionalDependencies === null) return null
 
@@ -354,9 +356,8 @@ function rewritePackages (
     if (existingSnapshot == null) {
       packages[newDepPath] = newSnapshot
     } else {
-      const mergedSnapshot = mergeEquivalentSnapshots(existingSnapshot, newSnapshot)
-      if (mergedSnapshot == null) return null
-      packages[newDepPath] = mergedSnapshot
+      if (!equals(existingSnapshot, newSnapshot)) return null
+      packages[newDepPath] = newSnapshot
     }
   }
   return packages
@@ -374,7 +375,8 @@ function validateAndRewriteDependencies (
   manifestDependencies: Record<string, string> | undefined,
   lockedDependencies: ResolvedDependencies | undefined,
   packages: Record<DepPath, PackageSnapshot>,
-  rewriteContext: RewriteContext
+  rewriteContext: RewriteContext,
+  parentDepPath: DepPath
 ): ResolvedDependencies | undefined | null {
   const manifestEntries = Object.entries(manifestDependencies ?? {})
   for (const name of Object.keys(lockedDependencies ?? {})) {
@@ -382,6 +384,7 @@ function validateAndRewriteDependencies (
   }
   const result: ResolvedDependencies = {}
   for (const [name, range] of manifestEntries) {
+    if (shouldRemoveDependency(name, parentDepPath, rewriteContext.removals)) continue
     if (semver.validRange(range) == null) return null
     const lockedReference = lockedDependencies?.[name]
     const reference = lockedReference == null
@@ -470,19 +473,6 @@ function createPackageSnapshot (
     snapshot.hasBin = true
   }
   return snapshot
-}
-
-function mergeEquivalentSnapshots (
-  first: PackageSnapshot,
-  second: PackageSnapshot
-): PackageSnapshot | null {
-  const { optional: firstOptional, ...firstComparable } = first
-  const { optional: secondOptional, ...secondComparable } = second
-  if (!equals(firstComparable, secondComparable)) return null
-  return {
-    ...firstComparable,
-    ...firstOptional === true && secondOptional === true ? { optional: true } : {},
-  }
 }
 
 function rewriteResolvedDependencies (
