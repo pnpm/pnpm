@@ -46,7 +46,12 @@ pub(super) fn test<'a>(
 pub(super) fn run<'a>(ctx: &RunCtx<'a>, args: RunArgs) -> miette::Result<CommandFuture<'a>> {
     let args = with_recursive_run_options(ctx, args);
     if ctx.recursive {
-        args.run_recursive((ctx.config)()?, ctx.dir, reporter_emit(ctx.reporter))?;
+        args.run_recursive(
+            (ctx.config)()?,
+            ctx.dir,
+            reporter_emit(ctx.reporter),
+            matches!(ctx.reporter, ReporterType::Silent),
+        )?;
     } else {
         args.run(ctx.dir, (ctx.config)()?, matches!(ctx.reporter, ReporterType::Silent))?;
     }
@@ -69,7 +74,12 @@ pub(super) fn fallback<'a>(
     };
     let args = with_recursive_run_options(ctx, args);
     if ctx.recursive {
-        args.run_recursive((ctx.config)()?, ctx.dir, reporter_emit(ctx.reporter))?;
+        args.run_recursive(
+            (ctx.config)()?,
+            ctx.dir,
+            reporter_emit(ctx.reporter),
+            matches!(ctx.reporter, ReporterType::Silent),
+        )?;
     } else {
         args.run_fallback(ctx.dir, (ctx.config)()?, matches!(ctx.reporter, ReporterType::Silent))?;
     }
