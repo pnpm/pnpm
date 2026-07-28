@@ -10,6 +10,12 @@ describe('parseIntegrity', () => {
     expect(result.hexDigest).toBe('f7fbba6e0636f890e56fbbf3283e524c6fa3204ae298382d624741d0dc6638326e282c41be5e4254d8820772c5518a2c5a8c0c7f7eda19594a7eb539453e1ed7')
   })
 
+  it('excludes SRI options from the digest', () => {
+    const integrity = 'sha512-9/u6bgY2+JDlb7vzKD5STG+jIErimDgtYkdB0NxmODJuKCxBvl5CVNiCB3LFUYosWowMf37aGVlKfrU5RT4e1w=='
+    expect(parseIntegrity(`${integrity}?r1`)).toEqual(parseIntegrity(integrity))
+    expect(parseIntegrity(`${integrity}?r1?provider-option`)).toEqual(parseIntegrity(integrity))
+  })
+
   it('parses a valid sha256 integrity string', () => {
     // "hello" hashed with sha256, base64 encoded
     const integrity = 'sha256-LPJNul+wow4m6DsqxbninhsWHlwfp0JecwQzYpOLmCQ='

@@ -3,6 +3,8 @@ import { toLockfileResolution } from '@pnpm/lockfile.utils'
 
 const REGISTRY = 'https://registry.npmjs.org/'
 const GIT_TARBALL = 'https://codeload.github.com/foo/bar/tar.gz/0123456789abcdef0123456789abcdef01234567'
+const REVISION_INTEGRITY = `sha512-${'A'.repeat(86)}==?r1`
+const REVISION_TARBALL = `https://registry.npmjs.org/-/tarballs/sha512/${'A'.repeat(86)}`
 
 test('keeps the tarball when lockfileIncludeTarballUrl is true', () => {
   expect(toLockfileResolution(
@@ -34,6 +36,35 @@ test('drops the tarball for standard registry URLs when lockfileIncludeTarballUr
     false
   )).toEqual({
     integrity: 'sha512-AAAA',
+  })
+})
+
+test('drops a validated integrity-addressed registry tarball URL', () => {
+  expect(toLockfileResolution(
+    { name: 'foo', version: '1.0.0' },
+    { integrity: REVISION_INTEGRITY, tarball: REVISION_TARBALL },
+    REGISTRY
+  )).toEqual({
+    integrity: REVISION_INTEGRITY,
+  })
+})
+
+test('keeps an integrity-addressed URL whose registry or digest does not match', () => {
+  expect(toLockfileResolution(
+    { name: 'foo', version: '1.0.0' },
+    { integrity: REVISION_INTEGRITY, tarball: `https://attacker.example/-/tarballs/sha512/${'A'.repeat(86)}` },
+    REGISTRY
+  )).toEqual({
+    integrity: REVISION_INTEGRITY,
+    tarball: `https://attacker.example/-/tarballs/sha512/${'A'.repeat(86)}`,
+  })
+  expect(toLockfileResolution(
+    { name: 'foo', version: '1.0.0' },
+    { integrity: REVISION_INTEGRITY, tarball: `https://registry.npmjs.org/-/tarballs/sha512/${'B'.repeat(86)}` },
+    REGISTRY
+  )).toEqual({
+    integrity: REVISION_INTEGRITY,
+    tarball: `https://registry.npmjs.org/-/tarballs/sha512/${'B'.repeat(86)}`,
   })
 })
 
