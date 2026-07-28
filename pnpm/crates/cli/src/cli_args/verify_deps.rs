@@ -91,12 +91,17 @@ pub(crate) fn verify_deps_before_run(
 /// Re-run the kind of install the workspace state recorded, in-place
 /// and with inherited stdio, the way pnpm's `runDepsStatusCheck` spawns
 /// `pnpm install` through `runPnpmCli`. The spawned install never
-/// re-enters this gate: only `run` / `exec` consult it.
+/// re-enters this gate: only `run` / `exec` consult it. Its up-to-date
+/// shortcuts are bypassed because the pre-run check has already decided
+/// that an install is required.
 #[expect(clippy::exit, reason = "a failed spawned install must preserve the child exit code")]
 fn spawn_install(dir: &Path, install_args: &[String], silent: bool) -> miette::Result<()> {
     let exe = std::env::current_exe().into_diagnostic()?;
     let mut command = Command::new(exe);
-    command.arg("install").args(install_args).current_dir(dir);
+    command
+        .args(["install", "--verify-deps-before-run-install"])
+        .args(install_args)
+        .current_dir(dir);
     if silent {
         command.arg("--reporter=silent");
     }

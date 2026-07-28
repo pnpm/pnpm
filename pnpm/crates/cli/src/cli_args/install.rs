@@ -129,6 +129,11 @@ pub struct InstallArgs {
     #[clap(long = "no-prefer-frozen-lockfile", overrides_with = "prefer_frozen_lockfile")]
     pub no_prefer_frozen_lockfile: bool,
 
+    /// Run the install already requested by `verifyDepsBeforeRun` without
+    /// independently short-circuiting it as up to date.
+    #[clap(long, hide = true)]
+    pub verify_deps_before_run_install: bool,
+
     /// Skip the check that `pnpm-lock.yaml` is up to date with
     /// `package.json` under `--frozen-lockfile`. For callers that just
     /// wrote the lockfile themselves and know the manifest is about to
@@ -257,6 +262,7 @@ impl InstallArgs {
             force: false,
             prefer_frozen_lockfile: false,
             no_prefer_frozen_lockfile: true,
+            verify_deps_before_run_install: false,
             ignore_manifest_check: false,
             no_runtime: false,
             ignore_scripts: false,
@@ -305,6 +311,7 @@ impl InstallArgs {
         if self.effective_frozen_lockfile(config)
             || self.lockfile_only
             || self.force
+            || self.verify_deps_before_run_install
             || self.pnpr_server.is_some()
         {
             return false;
@@ -420,6 +427,7 @@ impl InstallArgs {
             force: _,
             prefer_frozen_lockfile,
             no_prefer_frozen_lockfile,
+            verify_deps_before_run_install,
             ignore_manifest_check,
             no_runtime,
             // The `ignore_scripts` / `offline` / `frozen_store` /
@@ -453,7 +461,9 @@ impl InstallArgs {
         // mutual `overrides_with` collapses both spellings to the
         // last-specified, so at most one is set and the precedence here
         // is straightforward.
-        let prefer_frozen_lockfile = if prefer_frozen_lockfile {
+        let prefer_frozen_lockfile = if verify_deps_before_run_install {
+            Some(false)
+        } else if prefer_frozen_lockfile {
             Some(true)
         } else if no_prefer_frozen_lockfile {
             Some(false)
@@ -551,7 +561,7 @@ impl InstallArgs {
             resolution_observer: None,
             peer_issues_sink: None,
             catalogs_override: None,
-            disable_optimistic_repeat_install: false,
+            disable_optimistic_repeat_install: verify_deps_before_run_install,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
         };

@@ -8,7 +8,10 @@ pub use _utils::*;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_testing_utils::{bin::CommandTempCwd, fs::bump_mtime};
+use pacquet_testing_utils::{
+    bin::{AddMockedRegistry, CommandTempCwd},
+    fs::bump_mtime,
+};
 use serde_json::json;
 use std::{fs, path::Path};
 
@@ -39,6 +42,49 @@ fn default_install_action_installs_before_running_the_script() {
     assert!(workspace.join("node_modules").exists(), "the gate must have spawned an install first");
 
     drop(root);
+}
+
+#[test]
+fn dedupe_peers_lockfile_regeneration_installs_before_running_the_script() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    append_workspace_yaml_key(&workspace, "dedupePeers", true);
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "verify-deps-project",
+            "version": "0.0.0",
+            "dependencies": {
+                "@pnpm.e2e/foo": "100.0.0",
+            },
+            "scripts": {
+                "hello": r#"node -e "require('fs').writeFileSync('marker.txt', '')""#,
+                "postinstall": r#"node -e "require('fs').appendFileSync('postinstall.log', 'x')""#,
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet.with_arg("install").assert().success();
+    assert_eq!(
+        fs::read_to_string(workspace.join("postinstall.log")).expect("read postinstall log"),
+        "x",
+    );
+
+    fs::remove_file(workspace.join("pnpm-lock.yaml")).expect("remove pnpm-lock.yaml");
+    pacquet_in(&workspace).with_args(["install", "--lockfile-only"]).assert().success();
+    bump_mtime(&workspace.join("pnpm-lock.yaml"));
+
+    pacquet_in(&workspace).with_args(["run", "hello"]).assert().success();
+    assert!(workspace.join("marker.txt").exists(), "the script must run after the install");
+    assert_eq!(
+        fs::read_to_string(workspace.join("postinstall.log")).expect("read postinstall log"),
+        "xx",
+    );
+
+    drop((root, mock_instance));
 }
 
 #[cfg(unix)]
