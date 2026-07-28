@@ -59,7 +59,7 @@ fn dedupe_peers_lockfile_regeneration_installs_before_running_the_script() {
                 "@pnpm.e2e/foo": "100.0.0",
             },
             "scripts": {
-                "hello": r#"node -e "require('fs').writeFileSync('marker.txt', '')""#,
+                "hello": r#"node -e "require('fs').appendFileSync('postinstall.log', 'h')""#,
                 "postinstall": r#"node -e "require('fs').appendFileSync('postinstall.log', 'x')""#,
             },
         })
@@ -78,10 +78,15 @@ fn dedupe_peers_lockfile_regeneration_installs_before_running_the_script() {
     bump_mtime(&workspace.join("pnpm-lock.yaml"));
 
     pacquet_in(&workspace).with_args(["run", "hello"]).assert().success();
-    assert!(workspace.join("marker.txt").exists(), "the script must run after the install");
     assert_eq!(
         fs::read_to_string(workspace.join("postinstall.log")).expect("read postinstall log"),
-        "xx",
+        "xxh",
+    );
+
+    pacquet_in(&workspace).with_args(["run", "hello"]).assert().success();
+    assert_eq!(
+        fs::read_to_string(workspace.join("postinstall.log")).expect("read postinstall log"),
+        "xxhh",
     );
 
     drop((root, mock_instance));
