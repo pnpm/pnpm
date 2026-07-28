@@ -461,9 +461,7 @@ impl InstallArgs {
         // mutual `overrides_with` collapses both spellings to the
         // last-specified, so at most one is set and the precedence here
         // is straightforward.
-        let prefer_frozen_lockfile = if verify_deps_before_run_install {
-            Some(false)
-        } else if prefer_frozen_lockfile {
+        let prefer_frozen_lockfile = if prefer_frozen_lockfile {
             Some(true)
         } else if no_prefer_frozen_lockfile {
             Some(false)
