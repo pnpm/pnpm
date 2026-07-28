@@ -83,6 +83,9 @@ pub fn set_reports_scope(reports_scope: bool) {
 }
 
 /// Configure whether dependency progress includes the materialization count.
+///
+/// This must be called before the reporter is initialized. Only the first
+/// configured value is retained.
 pub fn set_hide_added_pkgs_progress(hide_added_pkgs_progress: bool) {
     let _ = HIDE_ADDED_PKGS_PROGRESS.set(hide_added_pkgs_progress);
 }

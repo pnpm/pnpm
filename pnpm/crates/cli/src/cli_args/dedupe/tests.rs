@@ -20,6 +20,7 @@ fn a_resolution_free_rewrite_says_so() {
 #[test]
 fn check_error_matches_pnpm_reporter_format() {
     let report = render_dedupe_check_error(&LockfileDiff::default());
+    eprintln!("REPORT:\n{report}\n");
     assert_eq!(
         report,
         "\

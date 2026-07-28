@@ -805,7 +805,8 @@ pub struct PnpmErrorLog {
     pub message: String,
 }
 
-/// `pnpm dedupe --check` failure payload.
+/// Keeps the structured dedupe diff on the wire while retaining a
+/// terminal-only rendering for the in-process default reporter.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DedupeCheckLog {
