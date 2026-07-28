@@ -48,22 +48,6 @@ test('StoreIndex entries() iterates all SQLite entries', () => {
   }
 })
 
-test('storeIndexKey excludes SRI options from the content address', () => {
-  const integrity = 'sha512-AAAA'
-  expect(storeIndexKey(`${integrity}?r0`, 'foo@1.0.0')).toBe(
-    storeIndexKey(`${integrity}?r2`, 'foo@1.0.0')
-  )
-  expect(storeIndexKey(`${integrity}?r0?provider`, 'foo@1.0.0')).toBe(
-    storeIndexKey(integrity, 'foo@1.0.0')
-  )
-  expect(storeIndexKey('sha256-AAAA?r0  sha512-BBBB?r1', 'foo@1.0.0')).toBe(
-    storeIndexKey('sha256-AAAA  sha512-BBBB', 'foo@1.0.0')
-  )
-  expect(storeIndexKey('https://example.com/foo.tgz?revision=1', 'built')).toBe(
-    'https://example.com/foo.tgz?revision=1\tbuilt'
-  )
-})
-
 // The immutable open only works on a runtime that honors the immutable URI;
 // this is purely a Node-version property, independent of platform.
 const supportsImmutableUri = nodeSupportsImmutableSqliteUri()

@@ -22,37 +22,26 @@ export interface TarballUrlOptions {
   serverType?: RegistryServerType
 }
 
-export interface RevisionAwareIntegrity {
+export interface IntegrityAddress {
   algorithm: 'sha512'
-  contentIntegrity: string
   digest: Buffer
-  revision: string
 }
 
-export function parseRevisionAwareIntegrity (integrity: string): RevisionAwareIntegrity | undefined {
-  const optionSeparator = integrity.indexOf('?')
-  if (optionSeparator === -1 || optionSeparator !== integrity.lastIndexOf('?')) return undefined
-
-  const option = integrity.slice(optionSeparator + 1)
-  if (!isCanonicalRevisionOption(option)) return undefined
-
-  const contentIntegrity = integrity.slice(0, optionSeparator)
-  const algorithmSeparator = contentIntegrity.indexOf('-')
-  if (algorithmSeparator === -1 || contentIntegrity.indexOf('-', algorithmSeparator + 1) !== -1) {
+export function parseIntegrityAddress (integrity: string): IntegrityAddress | undefined {
+  const algorithmSeparator = integrity.indexOf('-')
+  if (algorithmSeparator === -1 || integrity.indexOf('-', algorithmSeparator + 1) !== -1) {
     return undefined
   }
-  const algorithm = contentIntegrity.slice(0, algorithmSeparator)
+  const algorithm = integrity.slice(0, algorithmSeparator)
   if (algorithm !== 'sha512') return undefined
 
-  const encodedDigest = contentIntegrity.slice(algorithmSeparator + 1)
+  const encodedDigest = integrity.slice(algorithmSeparator + 1)
   const digest = Buffer.from(encodedDigest, 'base64')
   if (digest.byteLength !== 64 || digest.toString('base64') !== encodedDigest) return undefined
 
   return {
     algorithm,
-    contentIntegrity,
     digest,
-    revision: option.slice(1),
   }
 }
 
@@ -60,7 +49,7 @@ export function getIntegrityAddressedTarballUrl (
   integrity: string,
   registry: string
 ): string | undefined {
-  const parsed = parseRevisionAwareIntegrity(integrity)
+  const parsed = parseIntegrityAddress(integrity)
   if (parsed == null) return undefined
   return new URL(
     `-/tarballs/${parsed.algorithm}/${parsed.digest.toString('base64url')}`,
@@ -80,6 +69,13 @@ export function isIntegrityAddressedRegistryTarballUrl (
   } catch {
     return false
   }
+}
+
+export function isValidTarballRevision (revision: unknown): revision is number {
+  return typeof revision === 'number' &&
+    Number.isSafeInteger(revision) &&
+    revision > 0
+}
 
 /**
  * Build the canonical tarball URL of an npm package — i.e. the URL pnpm derives
@@ -143,16 +139,6 @@ function effectiveServerType (opts: TarballUrlOptions): RegistryServerType | und
 function normalizeRegistry (registry?: string): string {
   if (!registry) return PUBLIC_NPM_REGISTRY
   return registry.endsWith('/') ? registry : `${registry}/`
-}
-
-function isCanonicalRevisionOption (option: string): boolean {
-  if (option === 'r0') return true
-  if (option.length < 2 || option[0] !== 'r' || option[1] === '0') return false
-  for (let index = 1; index < option.length; index++) {
-    const code = option.charCodeAt(index)
-    if (code < 48 || code > 57) return false
-  }
-  return true
 }
 
 function removeBuildMetadataFromVersion (version: string): string {

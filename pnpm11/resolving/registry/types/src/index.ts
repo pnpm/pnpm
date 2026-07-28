@@ -50,6 +50,7 @@ export interface PackageInRegistry extends PackageManifest {
   }>
   dist: {
     integrity?: string
+    revision?: number
     shasum: string
     tarball: string
     unpackedSize?: number

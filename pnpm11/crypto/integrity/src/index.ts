@@ -13,11 +13,7 @@ export interface ParsedIntegrity {
  * @throws PnpmError if the integrity format is invalid
  */
 export function parseIntegrity (integrity: string): ParsedIntegrity {
-  const optionSeparator = integrity.indexOf('?')
-  const hashExpression = optionSeparator === -1
-    ? integrity
-    : integrity.slice(0, optionSeparator)
-  const match = hashExpression.match(INTEGRITY_REGEX)
+  const match = integrity.match(INTEGRITY_REGEX)
   if (!match) {
     throw new PnpmError('INVALID_INTEGRITY', `Invalid integrity format: expected "algo-base64hash", got "${integrity}"`)
   }

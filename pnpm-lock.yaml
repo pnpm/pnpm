@@ -8905,6 +8905,9 @@ importers:
       '@pnpm/resolving.resolver-base':
         specifier: workspace:*
         version: link:../resolver-base
+      '@pnpm/resolving.tarball-url':
+        specifier: workspace:*
+        version: link:../tarball-url
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../../store/cafs

@@ -4,7 +4,7 @@ import { pkgSnapshotToResolution } from '@pnpm/lockfile.utils'
 
 const GIT_TARBALL = 'https://codeload.github.com/foo/bar/tar.gz/0123456789abcdef0123456789abcdef01234567'
 const LEGACY_GIT_TARBALL = 'https://codeload.github.com/kevva/is-negative/tar.gz/0123456789abcdef0123456789abcdef01234567'
-const REVISION_INTEGRITY = `sha512-${'A'.repeat(86)}==?r2`
+const REVISION_INTEGRITY = `sha512-${'A'.repeat(86)}==`
 
 test('pkgSnapshotToResolution() fails closed on a non-string tarball', () => {
   // A tampered lockfile (YAML) could carry a non-string `tarball` that `new URL()` would
@@ -162,10 +162,11 @@ test('pkgSnapshotToResolution() rejects an alias that only exists on Object.prot
   }
 })
 
-test('pkgSnapshotToResolution() hydrates a revision-aware integrity from the effective registry', () => {
+test('pkgSnapshotToResolution() hydrates a resolution with a revision from the effective registry', () => {
   expect(pkgSnapshotToResolution('@scope/foo@1.0.0', {
     resolution: {
       integrity: REVISION_INTEGRITY,
+      revision: 2,
     },
   }, {
     registriesByScope: {
@@ -174,19 +175,36 @@ test('pkgSnapshotToResolution() hydrates a revision-aware integrity from the eff
     },
   })).toEqual({
     integrity: REVISION_INTEGRITY,
+    revision: 2,
     tarball: `https://registry.example/~main/-/tarballs/sha512/${'A'.repeat(86)}`,
   })
 })
 
-test('pkgSnapshotToResolution() treats unrecognized SRI options as legacy integrity', () => {
+test('pkgSnapshotToResolution() hydrates an integrity-only resolution from the canonical URL', () => {
   expect(pkgSnapshotToResolution('foo@1.0.0', {
     resolution: {
-      integrity: `sha512-${'A'.repeat(86)}==?v1`,
+      integrity: REVISION_INTEGRITY,
     },
   }, {
     registriesByScope: { default: 'https://registry.npmjs.org/' },
   })).toEqual({
-    integrity: `sha512-${'A'.repeat(86)}==?v1`,
+    integrity: REVISION_INTEGRITY,
     tarball: 'https://registry.npmjs.org/foo/-/foo-1.0.0.tgz',
   })
 })
+
+test.each([0, -1, 1.5, '1'])(
+  'pkgSnapshotToResolution() rejects malformed revision %s',
+  (revision) => {
+    expect(() => pkgSnapshotToResolution('foo@1.0.0', {
+      resolution: {
+        integrity: REVISION_INTEGRITY,
+        revision,
+      } as never,
+    }, {
+      registriesByScope: { default: 'https://registry.npmjs.org/' },
+    })).toThrow(expect.objectContaining({
+      code: 'ERR_PNPM_INVALID_TARBALL_REVISION',
+    }))
+  }
+)
