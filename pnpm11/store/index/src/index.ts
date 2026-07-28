@@ -63,7 +63,25 @@ export function packForStorage (data: unknown): Uint8Array {
  * Integrity strings never contain tabs, so this is unambiguous.
  */
 export function storeIndexKey (integrity: string, pkgId: string): string {
-  return `${integrity}\t${pkgId}`
+  return `${contentAddress(integrity)}\t${pkgId}`
+}
+
+function contentAddress (value: string): string {
+  return value
+    .split(/(\s+)/)
+    .map((hash) => {
+      if (
+        !hash.startsWith('sha1-') &&
+        !hash.startsWith('sha256-') &&
+        !hash.startsWith('sha384-') &&
+        !hash.startsWith('sha512-')
+      ) {
+        return hash
+      }
+      const optionSeparator = hash.indexOf('?')
+      return optionSeparator === -1 ? hash : hash.slice(0, optionSeparator)
+    })
+    .join('')
 }
 
 export function gitHostedStoreIndexKey (pkgId: string, opts: { built: boolean }): string {

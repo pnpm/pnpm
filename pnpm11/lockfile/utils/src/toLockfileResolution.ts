@@ -1,6 +1,9 @@
 import type { LockfileResolution } from '@pnpm/lockfile.types'
 import { type GitResolution, isGitHostedTarballUrl, type Resolution, type TarballResolution } from '@pnpm/resolving.resolver-base'
-import { isCanonicalRegistryTarballUrl } from '@pnpm/resolving.tarball-url'
+import {
+  isCanonicalRegistryTarballUrl,
+  isIntegrityAddressedRegistryTarballUrl,
+} from '@pnpm/resolving.tarball-url'
 import type { RegistryServerType } from '@pnpm/types'
 
 export interface ToLockfileResolutionOptions {
@@ -56,7 +59,10 @@ export function toLockfileResolution (
     !lockfileIncludeTarballUrl &&
     !gitHosted &&
     !tarball.startsWith('file:') &&
-    isCanonicalRegistryTarballUrl(tarball, pkg, { registry, serverType })
+    (
+      isCanonicalRegistryTarballUrl(tarball, pkg, { registry, serverType }) ||
+      isIntegrityAddressedRegistryTarballUrl(tarball, resolution['integrity'], registry)
+    )
   ) {
     return { integrity: resolution['integrity'] }
   }

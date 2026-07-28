@@ -4,6 +4,7 @@ import { pkgSnapshotToResolution } from '@pnpm/lockfile.utils'
 
 const GIT_TARBALL = 'https://codeload.github.com/foo/bar/tar.gz/0123456789abcdef0123456789abcdef01234567'
 const LEGACY_GIT_TARBALL = 'https://codeload.github.com/kevva/is-negative/tar.gz/0123456789abcdef0123456789abcdef01234567'
+const REVISION_INTEGRITY = `sha512-${'A'.repeat(86)}==?r2`
 
 test('pkgSnapshotToResolution() fails closed on a non-string tarball', () => {
   // A tampered lockfile (YAML) could carry a non-string `tarball` that `new URL()` would
@@ -159,4 +160,33 @@ test('pkgSnapshotToResolution() rejects an alias that only exists on Object.prot
       expect.objectContaining({ code: 'ERR_PNPM_MISSING_NAMED_REGISTRY' })
     )
   }
+})
+
+test('pkgSnapshotToResolution() hydrates a revision-aware integrity from the effective registry', () => {
+  expect(pkgSnapshotToResolution('@scope/foo@1.0.0', {
+    resolution: {
+      integrity: REVISION_INTEGRITY,
+    },
+  }, {
+    registriesByScope: {
+      default: 'https://registry.npmjs.org/',
+      '@scope': 'https://registry.example/~main',
+    },
+  })).toEqual({
+    integrity: REVISION_INTEGRITY,
+    tarball: `https://registry.example/~main/-/tarballs/sha512/${'A'.repeat(86)}`,
+  })
+})
+
+test('pkgSnapshotToResolution() treats unrecognized SRI options as legacy integrity', () => {
+  expect(pkgSnapshotToResolution('foo@1.0.0', {
+    resolution: {
+      integrity: `sha512-${'A'.repeat(86)}==?v1`,
+    },
+  }, {
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
+  })).toEqual({
+    integrity: `sha512-${'A'.repeat(86)}==?v1`,
+    tarball: 'https://registry.npmjs.org/foo/-/foo-1.0.0.tgz',
+  })
 })

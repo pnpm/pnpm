@@ -1,6 +1,14 @@
 import { describe, expect, test } from '@jest/globals'
 
-import { getNpmTarballUrl, isCanonicalRegistryTarballUrl } from '../src/index.js'
+import {
+  getIntegrityAddressedTarballUrl,
+  getNpmTarballUrl,
+  isCanonicalRegistryTarballUrl,
+  isIntegrityAddressedRegistryTarballUrl,
+  parseRevisionAwareIntegrity,
+} from '../src/index.js'
+
+const SHA512_BASE64 = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=='
 
 describe('getNpmTarballUrl', () => {
   test('create simple URL', () => {
@@ -143,4 +151,57 @@ test('the public npm registry keeps its encoded-path leniency without being decl
   const registry = 'https://registry.npmjs.org/'
   const tarball = 'https://registry.npmjs.org/@babel%2Fcore/-/core-7.0.0.tgz'
   expect(isCanonicalRegistryTarballUrl(tarball, { name: '@babel/core', version: '7.0.0' }, { registry })).toBe(true)
+})
+
+describe('revision-aware integrity tarball URLs', () => {
+  test.each(['r0', 'r1', 'r42'])('parses canonical revision option %s', (revision) => {
+    const integrity = `sha512-${SHA512_BASE64}?${revision}`
+    expect(parseRevisionAwareIntegrity(integrity)).toEqual({
+      algorithm: 'sha512',
+      contentIntegrity: `sha512-${SHA512_BASE64}`,
+      digest: Buffer.alloc(64),
+      revision: revision.slice(1),
+    })
+  })
+
+  test.each([
+    `sha512-${SHA512_BASE64}`,
+    `sha512-${SHA512_BASE64}?`,
+    `sha512-${SHA512_BASE64}?r01`,
+    `sha512-${SHA512_BASE64}?r-1`,
+    `sha512-${SHA512_BASE64}?r${'foo'}`,
+    `sha512-${SHA512_BASE64}?v1`,
+    `sha512-${SHA512_BASE64}?r1?other`,
+    'sha512-AAAA?r1',
+    `sha256-${SHA512_BASE64}?r1`,
+  ])('does not recognize %s', (integrity) => {
+    expect(parseRevisionAwareIntegrity(integrity)).toBeUndefined()
+  })
+
+  test('derives a base64url digest URL relative to a path-prefixed registry', () => {
+    const integrity = `sha512-${SHA512_BASE64}?r2`
+    expect(getIntegrityAddressedTarballUrl(integrity, 'https://registry.example/~main')).toBe(
+      `https://registry.example/~main/-/tarballs/sha512/${'A'.repeat(86)}`
+    )
+  })
+
+  test('validates the complete metadata pair against the configured registry', () => {
+    const integrity = `sha512-${SHA512_BASE64}?r2`
+    const tarball = getIntegrityAddressedTarballUrl(integrity, 'https://registry.example/~main/')!
+    expect(isIntegrityAddressedRegistryTarballUrl(
+      tarball,
+      integrity,
+      'https://registry.example/~main/'
+    )).toBe(true)
+    expect(isIntegrityAddressedRegistryTarballUrl(
+      tarball,
+      integrity,
+      'https://other-registry.example/~main/'
+    )).toBe(false)
+    expect(isIntegrityAddressedRegistryTarballUrl(
+      `${tarball}?token=attacker-controlled`,
+      integrity,
+      'https://registry.example/~main/'
+    )).toBe(false)
+  })
 })

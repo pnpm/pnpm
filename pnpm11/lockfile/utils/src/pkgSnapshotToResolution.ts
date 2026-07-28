@@ -5,7 +5,10 @@ import * as dp from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import type { PackageSnapshot, TarballResolution } from '@pnpm/lockfile.types'
 import type { Resolution } from '@pnpm/resolving.resolver-base'
-import { getNpmTarballUrl } from '@pnpm/resolving.tarball-url'
+import {
+  getIntegrityAddressedTarballUrl,
+  getNpmTarballUrl,
+} from '@pnpm/resolving.tarball-url'
 import type { RegistryContext } from '@pnpm/types'
 
 import { nameVerFromPkgSnapshot } from './nameVerFromPkgSnapshot.js'
@@ -57,7 +60,9 @@ export function pkgSnapshotToResolution (
   }
   let tarball!: string
   if (!resolution.tarball) {
-    tarball = getTarball(registry)
+    tarball = resolution.integrity == null
+      ? getTarball(registry)
+      : getIntegrityAddressedTarballUrl(resolution.integrity, registry) ?? getTarball(registry)
   } else {
     tarball = new url.URL(resolution.tarball,
       registry.endsWith('/') ? registry : `${registry}/`
