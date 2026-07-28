@@ -839,7 +839,7 @@ fn importer_locked_peer_context(
     let Some(importer) = lockfile.importers.get(importer_id) else {
         let mut versions = HashMap::<String, HashSet<String>>::new();
         for (key, _) in lockfile.snapshots.iter().flatten() {
-            for (name, version) in peer_suffix_versions(key.suffix.peer()) {
+            for (name, version) in locked_peer_versions_for_key(lockfile, key) {
                 versions.entry(name).or_default().insert(version);
             }
         }
@@ -852,13 +852,11 @@ fn importer_locked_peer_context(
         DependencyGroup::Optional,
         DependencyGroup::Dev,
     ]) {
-        let Some(peer_suffix) =
-            dependency.version.ver_peer().map(pacquet_lockfile::PkgVerPeer::peer)
-        else {
+        let Some(key) = dependency.version.resolved_key(alias) else {
             continue;
         };
         let mut names = HashSet::new();
-        for (name, version) in peer_suffix_versions(peer_suffix) {
+        for (name, version) in locked_peer_versions_for_key(lockfile, &key) {
             names.insert(name.clone());
             versions.entry(name).or_default().insert(version);
         }
@@ -869,11 +867,54 @@ fn importer_locked_peer_context(
     ImporterLockedPeerContext { versions, names_by_alias }
 }
 
+fn locked_peer_versions_for_key(
+    lockfile: &pacquet_lockfile::Lockfile,
+    key: &pacquet_lockfile::PkgNameVerPeer,
+) -> Vec<(String, String)> {
+    let explicit = peer_suffix_versions(key.suffix.peer()).collect::<Vec<_>>();
+    if !explicit.is_empty() || !is_hashed_peer_suffix(key.suffix.peer()) {
+        return explicit;
+    }
+    let Some(snapshot) = lockfile.snapshots.as_ref().and_then(|snapshots| snapshots.get(key))
+    else {
+        return Vec::new();
+    };
+    let Some(metadata) =
+        lockfile.packages.as_ref().and_then(|packages| packages.get(&key.without_peer()))
+    else {
+        return Vec::new();
+    };
+    let peer_names = metadata
+        .peer_dependencies
+        .iter()
+        .flatten()
+        .filter_map(|(name, _)| name.parse::<PkgName>().ok())
+        .collect::<HashSet<_>>();
+    snapshot
+        .dependencies
+        .iter()
+        .chain(snapshot.optional_dependencies.iter())
+        .flatten()
+        .filter(|(name, _)| peer_names.contains(*name))
+        .filter_map(|(name, reference)| {
+            reference
+                .ver_peer()
+                .map(|version| (name.to_string(), version.without_peer().to_string()))
+        })
+        .collect()
+}
+
 fn peer_suffix_versions(peer_suffix: &str) -> impl Iterator<Item = (String, String)> + '_ {
     peer_suffix.match_indices('(').filter_map(|(start, _)| {
         let segment = peer_suffix[start + 1..].split(['(', ')']).next()?;
         let (name, version) = segment.rsplit_once('@')?;
         (!name.is_empty()).then(|| (name.to_string(), version.to_string()))
+    })
+}
+
+fn is_hashed_peer_suffix(peer_suffix: &str) -> bool {
+    peer_suffix.rsplit_once('(').and_then(|(_, tail)| tail.strip_suffix(')')).is_some_and(|hash| {
+        hash.len() == 32 && hash.chars().all(|character| character.is_ascii_hexdigit())
     })
 }
 

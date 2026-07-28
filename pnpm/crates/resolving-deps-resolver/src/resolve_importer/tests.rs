@@ -180,7 +180,13 @@ fn hashed_peer_suffix_uses_package_peer_metadata() {
         )])),
     };
 
-    assert_eq!(locked_peer_names(Some(&lockfile)), HashSet::from(["peer".to_string()]));
+    let ImporterLockedPeerContext { versions, names_by_alias } =
+        importer_locked_peer_context(Some(&lockfile), "missing-importer");
+    assert_eq!(
+        versions,
+        HashMap::from([("peer".to_string(), HashSet::from(["1.0.0".to_string()]))]),
+    );
+    assert!(names_by_alias.is_empty());
 }
 
 fn locked_peer_names(wanted_lockfile: Option<&pacquet_lockfile::Lockfile>) -> HashSet<String> {
