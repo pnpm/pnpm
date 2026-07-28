@@ -37,6 +37,7 @@ static PACKAGE_VERSION: OnceLock<String> = OnceLock::new();
 static FORCE_APPEND_ONLY: OnceLock<bool> = OnceLock::new();
 static SUMMARY_SCOPE: OnceLock<SummaryScope> = OnceLock::new();
 static REPORTS_SCOPE: OnceLock<bool> = OnceLock::new();
+static HIDE_ADDED_PKGS_PROGRESS: OnceLock<bool> = OnceLock::new();
 
 /// Which prefixes contribute to the packages-diff summary.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -79,6 +80,14 @@ pub fn set_summary_scope(scope: SummaryScope) {
 /// the first event; ignored if already set.
 pub fn set_reports_scope(reports_scope: bool) {
     let _ = REPORTS_SCOPE.set(reports_scope);
+}
+
+/// Configure whether dependency progress includes the materialization count.
+///
+/// This must be called before the reporter is initialized. Only the first
+/// configured value is retained.
+pub fn set_hide_added_pkgs_progress(hide_added_pkgs_progress: bool) {
+    let _ = HIDE_ADDED_PKGS_PROGRESS.set(hide_added_pkgs_progress);
 }
 
 fn cwd() -> String {
@@ -147,6 +156,7 @@ impl Sink {
                 append_only,
                 summary_scope: SUMMARY_SCOPE.get().copied().unwrap_or(SummaryScope::CurrentPrefix),
                 reports_scope: REPORTS_SCOPE.get().copied().unwrap_or(false),
+                hide_added_pkgs_progress: HIDE_ADDED_PKGS_PROGRESS.get().copied().unwrap_or(false),
                 ..state::ReporterOptions::default()
             },
         );

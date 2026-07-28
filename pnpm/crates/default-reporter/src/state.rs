@@ -12,7 +12,7 @@ use std::{
 
 use chrono::{DateTime, Utc};
 use pacquet_reporter::{
-    AddedRoot, ContextLog, DependencyType, DeprecationLog, ExecutionTimeLog,
+    AddedRoot, ContextLog, DedupeCheckLog, DependencyType, DeprecationLog, ExecutionTimeLog,
     FetchingProgressMessage, HookLog, IgnoredScriptsLog, InstallingConfigDepsLog,
     InstallingConfigDepsStatus, LifecycleMessage, LifecycleStdio, LockfileVerificationMessage,
     LogEvent, LogLevel, PackageImportMethod, PackageManifestMessage, ProgressMessage, RemovedRoot,
@@ -412,6 +412,7 @@ impl ReporterState {
             LogEvent::LockfileVerification(log) => self.on_lockfile_verification(&log.message),
             LogEvent::RequestRetry(log) => self.on_request_retry(log),
             LogEvent::Pnpm(log) => self.on_pnpm(log.level, &log.message, &log.prefix),
+            LogEvent::DedupeCheck(log) => self.on_dedupe_check(log),
             // `pnpm:global` shares the "other" log stream with the `pnpm`
             // channel but carries no prefix, so it always renders (the
             // empty-prefix path in `on_pnpm`).
@@ -1139,6 +1140,10 @@ impl ReporterState {
                 }
             }
         }
+    }
+
+    fn on_dedupe_check(&mut self, log: &DedupeCheckLog) {
+        self.push_block(log.rendered.clone());
     }
 
     fn on_execution_time(&mut self, log: &ExecutionTimeLog) {

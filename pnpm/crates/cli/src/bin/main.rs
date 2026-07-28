@@ -1,3 +1,3 @@
-pub fn main() -> miette::Result<()> {
+fn main() -> std::process::ExitCode {
     pacquet_cli::main()
 }
