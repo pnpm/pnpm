@@ -663,6 +663,30 @@ fn cached_check(
     Ok(verdict)
 }
 
+/// Checks lockfile package metadata as an optional dependency on the current host.
+///
+/// Returns `Ok(true)` when the package is compatible, `Ok(false)` for an
+/// unsupported engine or platform, and propagates an invalid configured Node.js
+/// version as [`InstallabilityError::InvalidNodeVersion`].
+pub fn package_metadata_is_installable(
+    metadata_key: &PackageKey,
+    metadata: &PackageMetadata,
+    host: &InstallabilityHost,
+) -> Result<bool, Box<InstallabilityError>> {
+    let manifest = manifest_from_metadata(metadata_key, metadata);
+    let options = InstallabilityOptions {
+        engine_strict: host.engine_strict,
+        optional: true,
+        current_node_version: host.node_version.as_str(),
+        pnpm_version: None,
+        current_os: host.os,
+        current_cpu: host.cpu,
+        current_libc: host.libc,
+        supported_architectures: host.supported_architectures.as_ref(),
+    };
+    Ok(check_installability(&metadata_key.to_string(), &manifest, &options)?.is_none())
+}
+
 /// Edge classification produced by [`walk_lockfile_edges`].
 struct LockfileEdgeReach<'lock> {
     /// Snapshots reachable from any importer through any edge chain,

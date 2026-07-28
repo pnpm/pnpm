@@ -76,6 +76,51 @@ fn dedupe_check_does_not_materialize_nor_write_lockfile() {
 }
 
 #[test]
+fn dedupe_check_rejects_a_malformed_modules_manifest() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/pkg-with-1-dep": "100.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    pacquet.with_arg("install").assert().success();
+
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let lockfile_before = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
+    fs::write(workspace.join("node_modules/.modules.yaml"), "not: [valid")
+        .expect("corrupt modules manifest");
+
+    let output = Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .with_args(["dedupe", "--check"])
+        .output()
+        .expect("run dedupe check");
+    assert!(!output.status.success(), "dedupe check must reject malformed .modules.yaml");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Failed to parse")
+            && stderr.contains("node_modules")
+            && stderr.contains(".modules.yaml")
+            && stderr.contains("<input>:1:6"),
+        "dedupe check must report the malformed modules manifest:\n{stderr}",
+    );
+
+    let lockfile_after = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
+    assert_eq!(lockfile_before, lockfile_after);
+
+    drop((root, mock_instance));
+}
+
+#[test]
 fn dedupe_check_keeps_valid_lockfile_pins() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
@@ -190,7 +235,7 @@ fn dedupe_check_reports_the_lockfile_diff() {
     eprintln!("STDOUT:\n{stdout}");
     assert!(stderr.is_empty(), "stderr:\n{stderr}");
     assert!(
-        stdout.contains("Progress: resolved 1, reused 0, downloaded 0, done"),
+        stdout.contains("Progress: resolved 1, reused 0, downloaded 0, added 0, done"),
         "stdout:\n{stdout}",
     );
     assert!(stdout.contains("ERR_PNPM_DEDUPE_CHECK_ISSUES"), "stdout:\n{stdout}");
@@ -207,7 +252,10 @@ fn dedupe_check_reports_the_lockfile_diff() {
         "the added and removed snapshots must be rendered; stdout:\n{stdout}",
     );
     assert!(stdout.contains("Run pnpm dedupe to apply the changes above."), "stdout:\n{stdout}");
-    assert!(stdout.ends_with("Run pnpm dedupe to apply the changes above.\n"), "stdout:\n{stdout}");
+    assert!(
+        stdout.ends_with("Run pnpm dedupe to apply the changes above.\n\n"),
+        "stdout:\n{stdout}",
+    );
 
     let ndjson_output = Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")

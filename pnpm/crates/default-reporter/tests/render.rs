@@ -12,10 +12,11 @@ use pacquet_default_reporter::{
 use pacquet_reporter::{
     AddedRoot, ContextLog, DependencyType, DeprecationLog, ExecutionTimeLog, FetchingProgressLog,
     FetchingProgressMessage, GlobalLog, HookLog, LifecycleLog, LifecycleMessage, LifecycleStdio,
-    LogEvent, LogLevel, PackageImportMethod, PackageImportMethodLog, PackageManifestLog,
-    PackageManifestMessage, PnpmLog, ProgressLog, ProgressMessage, RootLog, RootMessage, ScopeLog,
-    SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalParent,
-    SkippedOptionalReason, Stage, StageLog, StatsLog, StatsMessage, SummaryLog,
+    LockfileVerificationLog, LockfileVerificationMessage, LogEvent, LogLevel, PackageImportMethod,
+    PackageImportMethodLog, PackageManifestLog, PackageManifestMessage, PnpmLog, ProgressLog,
+    ProgressMessage, RootLog, RootMessage, ScopeLog, SkippedOptionalDependencyLog,
+    SkippedOptionalPackage, SkippedOptionalParent, SkippedOptionalReason, Stage, StageLog,
+    StatsLog, StatsMessage, SummaryLog,
 };
 
 const CWD: &str = "/repo";
@@ -637,6 +638,123 @@ fn already_up_to_date_pnpm_log_renders() {
             message: "Already up to date".to_string(),
             prefix: CWD.to_string(),
         })],
+    );
+    assert_eq!(frame, "Already up to date");
+}
+
+#[test]
+fn lockfile_policy_verdict_precedes_the_frozen_install_message() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![
+            LogEvent::Pnpm(PnpmLog {
+                level: LogLevel::Info,
+                message: "Lockfile is up to date, resolution step is skipped".to_string(),
+                prefix: CWD.to_string(),
+            }),
+            LogEvent::Stage(StageLog {
+                level: LogLevel::Debug,
+                prefix: CWD.to_string(),
+                stage: Stage::ImportingDone,
+            }),
+            LogEvent::LockfileVerification(LockfileVerificationLog {
+                level: LogLevel::Debug,
+                message: LockfileVerificationMessage::Cached {
+                    verified_at: None,
+                    lockfile_path: None,
+                },
+            }),
+        ],
+    );
+    assert_eq!(
+        frame,
+        "✓ Lockfile passes supply-chain policies (previously verified)\n\
+Lockfile is up to date, resolution step is skipped",
+    );
+}
+
+#[test]
+fn append_only_waits_for_a_terminal_lockfile_policy_verdict() {
+    let mut reporter =
+        state_with_options(ReporterOptions { append_only: true, ..ReporterOptions::default() });
+    let pending = reporter.handle(&LogEvent::Pnpm(PnpmLog {
+        level: LogLevel::Info,
+        message: "Lockfile is up to date, resolution step is skipped".to_string(),
+        prefix: CWD.to_string(),
+    }));
+    assert!(matches!(pending, Output::None));
+
+    let started = reporter.handle(&LogEvent::LockfileVerification(LockfileVerificationLog {
+        level: LogLevel::Debug,
+        message: LockfileVerificationMessage::Started { entries: 2, lockfile_path: None },
+    }));
+    match started {
+        Output::Lines(lines) => {
+            assert_eq!(
+                lines,
+                ["? Verifying lockfile against supply-chain policies (2 entries)..."],
+            );
+        }
+        _ => panic!("started verification should emit only its progress line"),
+    }
+
+    let done = reporter.handle(&LogEvent::LockfileVerification(LockfileVerificationLog {
+        level: LogLevel::Debug,
+        message: LockfileVerificationMessage::Done {
+            entries: 2,
+            elapsed_ms: 100,
+            lockfile_path: None,
+        },
+    }));
+    match done {
+        Output::Lines(lines) => assert_eq!(
+            lines,
+            [
+                "✓ Lockfile passes supply-chain policies (2 entries in 100ms)",
+                "Lockfile is up to date, resolution step is skipped",
+            ],
+        ),
+        _ => panic!("completed verification should emit its verdict before the frozen message"),
+    }
+}
+
+#[test]
+fn install_summary_flushes_the_frozen_message_without_a_policy_verdict() {
+    let mut reporter =
+        state_with_options(ReporterOptions { append_only: true, ..ReporterOptions::default() });
+    let pending = reporter.handle(&LogEvent::Pnpm(PnpmLog {
+        level: LogLevel::Info,
+        message: "Lockfile is up to date, resolution step is skipped".to_string(),
+        prefix: CWD.to_string(),
+    }));
+    assert!(matches!(pending, Output::None));
+
+    let summary = reporter.handle(&summary());
+    match summary {
+        Output::Lines(lines) => {
+            dbg!(&lines);
+            assert_eq!(lines, ["Lockfile is up to date, resolution step is skipped"]);
+        }
+        _ => panic!("the install summary should flush the frozen message"),
+    }
+}
+
+#[test]
+fn zero_install_stats_render_already_up_to_date() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![
+            LogEvent::Stats(StatsLog {
+                level: LogLevel::Debug,
+                message: StatsMessage::Added { added: 0, prefix: CWD.to_string() },
+            }),
+            LogEvent::Stats(StatsLog {
+                level: LogLevel::Debug,
+                message: StatsMessage::Removed { removed: 0, prefix: CWD.to_string() },
+            }),
+        ],
     );
     assert_eq!(frame, "Already up to date");
 }

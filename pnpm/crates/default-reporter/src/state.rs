@@ -273,6 +273,7 @@ pub struct ReporterState {
 
     config_deps_slot: BlockSlot,
     lockfile_verification_slot: BlockSlot,
+    pending_lockfile_message: Option<String>,
     exec_slot: BlockSlot,
 
     warnings_counter: usize,
@@ -379,6 +380,7 @@ impl ReporterState {
             big: HashMap::new(),
             config_deps_slot: BlockSlot::default(),
             lockfile_verification_slot: BlockSlot::default(),
+            pending_lockfile_message: None,
             exec_slot: BlockSlot::default(),
             warnings_counter: 0,
             collapsed_warn_slot: BlockSlot::default(),
@@ -389,6 +391,9 @@ impl ReporterState {
     }
 
     pub fn handle(&mut self, event: &LogEvent) -> Output {
+        if matches!(event, LogEvent::Stats(_) | LogEvent::Summary(_) | LogEvent::ExecutionTime(_)) {
+            self.flush_pending_lockfile_message();
+        }
         match event {
             LogEvent::Context(log) => self.on_context(log),
             // Prompt lifetime is handled by `Sink` before state folding.
@@ -422,6 +427,18 @@ impl ReporterState {
             LogEvent::Deprecation(log) => self.on_deprecation(log),
             // Debug-only / non-rendered channels in pnpm's default reporter.
             LogEvent::BrokenModules(_) => {}
+        }
+        if matches!(
+            event,
+            LogEvent::LockfileVerification(log)
+                if matches!(
+                    &log.message,
+                    LockfileVerificationMessage::Cached { .. }
+                        | LockfileVerificationMessage::Done { .. }
+                        | LockfileVerificationMessage::Failed { .. }
+                ),
+        ) {
+            self.flush_pending_lockfile_message();
         }
         self.finish()
     }
@@ -622,8 +639,9 @@ impl ReporterState {
         let added = self.stats_added.take().unwrap_or(0);
         let removed = self.stats_removed.take().unwrap_or(0);
         if added == 0 && removed == 0 {
-            // The "Already up to date" line is emitted by pacquet as a
-            // `pnpm` log; rendering it here too would duplicate it.
+            let mut slot = std::mem::take(&mut self.stats_slot);
+            self.frame.emit(&mut slot, "Already up to date".to_string(), false);
+            self.stats_slot = slot;
             return;
         }
         let mut msg = String::from("Packages:");
@@ -1136,14 +1154,24 @@ impl ReporterState {
             LogLevel::Error => self.push_block(message.to_string()),
             LogLevel::Info => {
                 if prefix.is_empty() || prefix == self.cwd {
-                    self.push_block(message.to_string());
+                    if message == "Lockfile is up to date, resolution step is skipped" {
+                        self.pending_lockfile_message = Some(message.to_string());
+                    } else {
+                        self.push_block(message.to_string());
+                    }
                 }
             }
         }
     }
 
+    fn flush_pending_lockfile_message(&mut self) {
+        if let Some(message) = self.pending_lockfile_message.take() {
+            self.push_block(message);
+        }
+    }
+
     fn on_dedupe_check(&mut self, log: &DedupeCheckLog) {
-        self.push_block(log.rendered.clone());
+        self.push_block(format!("\n{}", log.rendered));
     }
 
     fn on_execution_time(&mut self, log: &ExecutionTimeLog) {

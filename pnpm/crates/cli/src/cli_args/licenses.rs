@@ -24,7 +24,10 @@ use pacquet_package_manifest::{
 };
 use pacquet_resolving_git_resolver::HostedGit;
 use serde::Serialize;
-use std::collections::{BTreeMap, HashMap};
+use std::{
+    cmp::Ordering,
+    collections::{BTreeMap, HashMap},
+};
 use tabled::{builder::Builder, settings::Style};
 
 mod license_resolver;
@@ -211,8 +214,7 @@ impl LicensesArgs {
             })
             .collect::<Vec<_>>();
         dependencies.sort_by(|left, right| {
-            left.2
-                .cmp(&right.2)
+            compare_package_names(&left.2, &right.2)
                 .then_with(|| compare_versions(&left.3, &right.3))
                 .then_with(|| left.0.to_string().cmp(&right.0.to_string()))
                 .then_with(|| left.1.cmp(&right.1))
@@ -271,16 +273,7 @@ impl LicensesArgs {
             }
             if !info.versions.contains(&version) {
                 info.versions.push(version);
-            }
-            if !info.paths.contains(&path_str) {
                 info.paths.push(path_str);
-            }
-        }
-
-        for group in results_by_license.values_mut() {
-            for info in group.values_mut() {
-                info.versions.sort();
-                info.paths.sort();
             }
         }
 
@@ -288,7 +281,7 @@ impl LicensesArgs {
             let mut json_output: IndexMap<String, Vec<&LicenseInfo>> = IndexMap::new();
             for (lic, group) in &results_by_license {
                 let mut infos: Vec<&LicenseInfo> = group.values().collect();
-                infos.sort_by(|a, b| a.name.cmp(&b.name));
+                infos.sort_by(|a, b| compare_package_names(&a.name, &b.name));
                 json_output.insert(lic.clone(), infos);
             }
 
@@ -312,7 +305,7 @@ impl LicensesArgs {
 
         let mut all_packages: Vec<&LicenseInfo> =
             results_by_license.values().flat_map(|g| g.values()).collect();
-        all_packages.sort_by(|a, b| a.name.cmp(&b.name));
+        all_packages.sort_by(|a, b| compare_package_names(&a.name, &b.name));
 
         for info in all_packages {
             let mut row =
@@ -462,6 +455,38 @@ fn compare_versions(left: &str, right: &str) -> std::cmp::Ordering {
     match (node_semver::Version::parse(left), node_semver::Version::parse(right)) {
         (Ok(left), Ok(right)) => left.cmp(&right),
         _ => left.cmp(right),
+    }
+}
+
+fn compare_package_names(left: &str, right: &str) -> Ordering {
+    left.bytes()
+        .map(package_name_collation_weight)
+        .cmp(right.bytes().map(package_name_collation_weight))
+        .then_with(|| {
+            left.bytes()
+                .zip(right.bytes())
+                .find_map(|(left, right)| {
+                    if left == right || !left.eq_ignore_ascii_case(&right) {
+                        None
+                    } else if left.is_ascii_lowercase() {
+                        Some(Ordering::Less)
+                    } else {
+                        Some(Ordering::Greater)
+                    }
+                })
+                .unwrap_or_else(|| left.cmp(right))
+        })
+}
+
+fn package_name_collation_weight(byte: u8) -> u8 {
+    match byte {
+        b'_' => 0,
+        b'-' => 1,
+        b'.' => 2,
+        b'@' => 3,
+        b'/' => 4,
+        b'~' => 5,
+        byte => byte.to_ascii_lowercase().saturating_add(6),
     }
 }
 
