@@ -15,7 +15,11 @@ pub(crate) fn try_fast_update_catalogs(
     overrides_use_catalogs: bool,
 ) -> FastCatalogUpdate {
     let Some(lockfile_catalogs) = lockfile.catalogs.as_ref() else {
-        return FastCatalogUpdate::Unchanged;
+        return if catalogs.is_empty() {
+            FastCatalogUpdate::Unchanged
+        } else {
+            FastCatalogUpdate::Unsupported
+        };
     };
 
     let mut changed = false;
