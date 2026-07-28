@@ -1402,15 +1402,16 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
   it('does not report registry and link: overrides as outdated', async () => {
     const lastValidatedTimestamp = Date.now() - 10_000
     const overrides = { bar: '^2.0.0', baz: 'link:../baz' }
+    const lockfile = { ...currentLockfile, overrides }
     const workspaceState = mockWorkspaceState(lastValidatedTimestamp)
     workspaceState.settings = { ...workspaceState.settings, overrides }
     jest.mocked(loadWorkspaceState).mockReturnValue(workspaceState)
     mockUpToDateSingleProjectStats(lastValidatedTimestamp)
+    jest.mocked(lockfileFs.readCurrentLockfile).mockResolvedValue(lockfile)
+    jest.mocked(lockfileFs.readWantedLockfile).mockResolvedValue(lockfile)
 
     const opts: CheckDepsStatusOptions = {
-      rootProjectManifest: {
-        dependencies: { foo: '^1.0.0' },
-      },
+      rootProjectManifest: {},
       rootProjectManifestDir: '/project',
       pnpmfile: [],
       treatLocalFileDepsAsOutdated: true,
