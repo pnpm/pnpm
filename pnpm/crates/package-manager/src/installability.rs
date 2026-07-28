@@ -663,6 +663,11 @@ fn cached_check(
     Ok(verdict)
 }
 
+/// Checks lockfile package metadata as an optional dependency on the current host.
+///
+/// Returns `Ok(true)` when the package is compatible, `Ok(false)` for an
+/// unsupported engine or platform, and propagates an invalid configured Node.js
+/// version as [`InstallabilityError::InvalidNodeVersion`].
 pub fn package_metadata_is_installable(
     metadata_key: &PackageKey,
     metadata: &PackageMetadata,

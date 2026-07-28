@@ -98,12 +98,20 @@ fn dedupe_check_rejects_a_malformed_modules_manifest() {
     fs::write(workspace.join("node_modules/.modules.yaml"), "not: [valid")
         .expect("corrupt modules manifest");
 
-    Command::cargo_bin("pnpm")
+    let output = Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
         .with_current_dir(&workspace)
         .with_args(["dedupe", "--check"])
-        .assert()
-        .failure();
+        .output()
+        .expect("run dedupe check");
+    assert!(!output.status.success(), "dedupe check must reject malformed .modules.yaml");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Failed to parse")
+            && stderr.contains("workspace/node_modules/.modules.yaml")
+            && stderr.contains("line 1 column 6"),
+        "dedupe check must report the malformed modules manifest:\n{stderr}",
+    );
 
     let lockfile_after = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
     assert_eq!(lockfile_before, lockfile_after);
