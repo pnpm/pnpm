@@ -271,7 +271,7 @@ impl HostedGit {
             && let Some((_, tree_path)) = giturl.split_once("/tree/")
             && let Some(committish) = tree_path.split(['/', '#', '?']).next()
         {
-            hosted.committish = Some(committish.to_string());
+            hosted.committish = Some(percent_decode(committish));
         }
         Some(hosted.docs())
     }

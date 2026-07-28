@@ -211,7 +211,11 @@ impl LicensesArgs {
             })
             .collect::<Vec<_>>();
         dependencies.sort_by(|left, right| {
-            left.2.cmp(&right.2).then_with(|| compare_versions(&left.3, &right.3))
+            left.2
+                .cmp(&right.2)
+                .then_with(|| compare_versions(&left.3, &right.3))
+                .then_with(|| left.0.to_string().cmp(&right.0.to_string()))
+                .then_with(|| left.1.cmp(&right.1))
         });
 
         let mut results_by_license: IndexMap<String, BTreeMap<String, LicenseInfo>> =

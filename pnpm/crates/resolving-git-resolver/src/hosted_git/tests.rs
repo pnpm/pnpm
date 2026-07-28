@@ -122,6 +122,10 @@ fn docs_render() {
         Some("https://github.com/pugjs/pug/tree/master#readme".to_string()),
     );
     assert_eq!(
+        HostedGit::package_docs_url("https://github.com/user/repo/tree/feature%2Ffoo"),
+        Some("https://github.com/user/repo/tree/feature%2Ffoo#readme".to_string()),
+    );
+    assert_eq!(
         HostedGit::package_docs_url("github:user/repo#feature/foo"),
         Some("https://github.com/user/repo/tree/feature%2Ffoo#readme".to_string()),
     );
