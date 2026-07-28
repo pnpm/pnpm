@@ -26,7 +26,7 @@ use crate::{
     dependencies_graph::MissingPeer,
     hoist_peers::{
         DependencyOverrider, HoistPeersOptions, MissingPeerInfo, WorkspaceRootDep,
-        get_hoistable_optional_peers, hoist_peers,
+        get_hoistable_optional_peers_with_locked_versions, hoist_peers,
     },
     parent_pkg_aliases::ParentPkgAliases,
     resolve_dependency_tree::{
@@ -95,7 +95,7 @@ pub struct ResolveImporterOptions {
     /// each newly-resolved `name@version` lands as a plain
     /// [`VersionSelectorType::Version`] entry so the [`hoist_peers`]
     /// (required-peer) picker can reuse a version a sibling already
-    /// brought. The [`get_hoistable_optional_peers`] picker instead
+    /// brought. The [`fn@crate::get_hoistable_optional_peers`] picker instead
     /// reads a snapshot of `allPreferredVersions` taken *before* any
     /// run-resolved version is folded in, so an optional peer is never
     /// hoisted against a deep-tree provider pnpm can't see. Pass the
@@ -340,6 +340,7 @@ pub(crate) struct ImporterHoistState {
     all_missing_optional_peers: BTreeMap<String, Vec<String>>,
     all_preferred_versions: PreferredVersions,
     locked_peer_names: Arc<HashSet<String>>,
+    locked_peer_versions: Arc<HashMap<String, HashSet<String>>>,
     seen_workspace_package_versions: HashSet<(String, String)>,
     override_bare_specifier: Option<Arc<DependencyOverrider>>,
     /// `auto_install_peers || dedupe_peer_dependents` — upstream's
@@ -421,8 +422,11 @@ impl ImporterHoistState {
             .with_patched_dependencies(patched_dependencies)
             .with_resolution_mode(pick_lowest_direct, subdep_published_by)
             .with_catalogs(catalogs);
-        let locked_peer_names =
-            Arc::new(locked_peer_names(ctx.workspace().wanted_lockfile().map(AsRef::as_ref)));
+        let locked_peer_versions = Arc::new(importer_locked_peer_versions(
+            ctx.workspace().wanted_lockfile().map(AsRef::as_ref),
+            importer_id,
+        ));
+        let locked_peer_names = Arc::new(locked_peer_versions.keys().cloned().collect());
         record_changed_direct_deps(&ctx, importer_id, &initial_wanted);
         let wanted_specifier_by_alias: BTreeMap<String, String> = initial_wanted
             .iter()
@@ -455,6 +459,7 @@ impl ImporterHoistState {
             all_missing_optional_peers: BTreeMap::new(),
             all_preferred_versions,
             locked_peer_names,
+            locked_peer_versions,
             seen_workspace_package_versions: HashSet::new(),
             override_bare_specifier,
             hoist_peers: auto_install_peers || dedupe_peer_dependents,
@@ -735,10 +740,11 @@ impl ImporterHoistState {
         }
         let workspace_root_deps: &[WorkspaceRootDep] =
             if self.resolve_peers_from_workspace_root { &self.workspace_root_deps } else { &[] };
-        let hoisted_optional = get_hoistable_optional_peers(
+        let hoisted_optional = get_hoistable_optional_peers_with_locked_versions(
             &self.all_missing_optional_peers,
             &self.all_preferred_versions,
             workspace_root_deps,
+            &self.locked_peer_versions,
         );
         if hoisted_optional.is_empty() {
             return Ok(false);
@@ -789,53 +795,45 @@ impl ImporterHoistState {
     }
 }
 
-fn locked_peer_names(wanted_lockfile: Option<&pacquet_lockfile::Lockfile>) -> HashSet<String> {
+fn importer_locked_peer_versions(
+    wanted_lockfile: Option<&pacquet_lockfile::Lockfile>,
+    importer_id: &str,
+) -> HashMap<String, HashSet<String>> {
     let Some(lockfile) = wanted_lockfile else {
-        return HashSet::new();
+        return HashMap::new();
     };
-    let mut names = HashSet::new();
-    for (key, snapshot) in lockfile.snapshots.iter().flatten() {
-        let peer_suffix = key.suffix.peer();
-        if peer_suffix.is_empty() {
-            continue;
+    let Some(importer) = lockfile.importers.get(importer_id) else {
+        let mut versions = HashMap::<String, HashSet<String>>::new();
+        for (key, _) in lockfile.snapshots.iter().flatten() {
+            for (name, version) in peer_suffix_versions(key.suffix.peer()) {
+                versions.entry(name).or_default().insert(version);
+            }
         }
-        names.extend(peer_suffix_names(peer_suffix));
-        if is_hashed_peer_suffix(peer_suffix)
-            && let Some(metadata) =
-                lockfile.packages.as_ref().and_then(|packages| packages.get(&key.without_peer()))
-        {
-            let resolved_names = snapshot
-                .dependencies
-                .iter()
-                .chain(snapshot.optional_dependencies.iter())
-                .flatten()
-                .map(|(name, _)| name.to_string())
-                .collect::<HashSet<_>>();
-            names.extend(
-                metadata
-                    .peer_dependencies
-                    .iter()
-                    .flatten()
-                    .map(|(name, _)| name)
-                    .filter(|name| resolved_names.contains(*name))
-                    .cloned(),
-            );
+        return versions;
+    };
+    let mut versions = HashMap::<String, HashSet<String>>::new();
+    for (_, dependency) in importer.dependencies_by_groups([
+        DependencyGroup::Prod,
+        DependencyGroup::Optional,
+        DependencyGroup::Dev,
+    ]) {
+        let Some(peer_suffix) =
+            dependency.version.ver_peer().map(pacquet_lockfile::PkgVerPeer::peer)
+        else {
+            continue;
+        };
+        for (name, version) in peer_suffix_versions(peer_suffix) {
+            versions.entry(name).or_default().insert(version);
         }
     }
-    names
+    versions
 }
 
-fn peer_suffix_names(peer_suffix: &str) -> impl Iterator<Item = String> + '_ {
+fn peer_suffix_versions(peer_suffix: &str) -> impl Iterator<Item = (String, String)> + '_ {
     peer_suffix.match_indices('(').filter_map(|(start, _)| {
         let segment = peer_suffix[start + 1..].split(['(', ')']).next()?;
-        let (name, _) = segment.rsplit_once('@')?;
-        (!name.is_empty()).then(|| name.to_string())
-    })
-}
-
-fn is_hashed_peer_suffix(peer_suffix: &str) -> bool {
-    peer_suffix.rsplit_once('(').and_then(|(_, tail)| tail.strip_suffix(')')).is_some_and(|hash| {
-        hash.len() == 32 && hash.chars().all(|character| character.is_ascii_hexdigit())
+        let (name, version) = segment.rsplit_once('@')?;
+        (!name.is_empty()).then(|| (name.to_string(), version.to_string()))
     })
 }
 
@@ -850,7 +848,7 @@ fn is_hashed_peer_suffix(peer_suffix: &str) -> bool {
 ///
 /// Peers whose consumers are *all* optional are returned as the second
 /// component, keyed by peer name with the deduplicated range list the
-/// outer loop's [`get_hoistable_optional_peers`] needs.
+/// outer loop's [`fn@crate::get_hoistable_optional_peers`] needs.
 fn partition_missing_peers(
     missing: &HashMap<String, Vec<MissingPeer>>,
     parent_pkg_aliases: &HashSet<String>,

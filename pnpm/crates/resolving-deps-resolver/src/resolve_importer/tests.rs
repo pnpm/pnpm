@@ -14,7 +14,7 @@ use pretty_assertions::assert_eq;
 
 use crate::{
     DepPath, ResolveDependencyTreeError, resolve_importer,
-    resolve_importer::{ResolveImporterError, ResolveImporterOptions, locked_peer_names},
+    resolve_importer::{ResolveImporterError, ResolveImporterOptions},
 };
 
 #[test]
@@ -113,6 +113,56 @@ fn hashed_peer_suffix_uses_package_peer_metadata() {
     };
 
     assert_eq!(locked_peer_names(Some(&lockfile)), HashSet::from(["peer".to_string()]));
+}
+
+fn locked_peer_names(wanted_lockfile: Option<&pacquet_lockfile::Lockfile>) -> HashSet<String> {
+    let Some(lockfile) = wanted_lockfile else {
+        return HashSet::new();
+    };
+    let mut names = HashSet::new();
+    for (key, snapshot) in lockfile.snapshots.iter().flatten() {
+        let peer_suffix = key.suffix.peer();
+        if peer_suffix.is_empty() {
+            continue;
+        }
+        names.extend(peer_suffix_names(peer_suffix));
+        if is_hashed_peer_suffix(peer_suffix)
+            && let Some(metadata) =
+                lockfile.packages.as_ref().and_then(|packages| packages.get(&key.without_peer()))
+        {
+            let resolved_names = snapshot
+                .dependencies
+                .iter()
+                .chain(snapshot.optional_dependencies.iter())
+                .flatten()
+                .map(|(name, _)| name.to_string())
+                .collect::<HashSet<_>>();
+            names.extend(
+                metadata
+                    .peer_dependencies
+                    .iter()
+                    .flatten()
+                    .map(|(name, _)| name)
+                    .filter(|name| resolved_names.contains(*name))
+                    .cloned(),
+            );
+        }
+    }
+    names
+}
+
+fn peer_suffix_names(peer_suffix: &str) -> impl Iterator<Item = String> + '_ {
+    peer_suffix.match_indices('(').filter_map(|(start, _)| {
+        let segment = peer_suffix[start + 1..].split(['(', ')']).next()?;
+        let (name, _) = segment.rsplit_once('@')?;
+        (!name.is_empty()).then(|| name.to_string())
+    })
+}
+
+fn is_hashed_peer_suffix(peer_suffix: &str) -> bool {
+    peer_suffix.rsplit_once('(').and_then(|(_, tail)| tail.strip_suffix(')')).is_some_and(|hash| {
+        hash.len() == 32 && hash.chars().all(|character| character.is_ascii_hexdigit())
+    })
 }
 
 struct StubResolver {
