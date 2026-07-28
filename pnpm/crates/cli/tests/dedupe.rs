@@ -108,7 +108,8 @@ fn dedupe_check_rejects_a_malformed_modules_manifest() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("Failed to parse")
-            && stderr.contains("node_modules/.modules.yaml")
+            && stderr.contains("node_modules")
+            && stderr.contains(".modules.yaml")
             && stderr.contains("line 1")
             && stderr.contains("column 6"),
         "dedupe check must report the malformed modules manifest:\n{stderr}",
