@@ -79,6 +79,7 @@ pub fn run_recursive(
     config: &Config,
     dir: &Path,
     emit: fn(&LogEvent),
+    silent: bool,
 ) -> miette::Result<()> {
     let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
 
@@ -180,6 +181,7 @@ pub fn run_recursive(
                                 config,
                                 extra_env: &extra_env,
                                 bail,
+                                silent,
                             })
                         })
                         .into_diagnostic()
@@ -223,6 +225,7 @@ pub fn run_recursive(
                     config,
                     extra_env: &extra_env,
                     bail,
+                    silent,
                 })?;
                 has_command += execution.has_command;
                 let failed = execution.status.status == Status::Failure;
@@ -280,11 +283,21 @@ struct RunProjectOptions<'a, 'project> {
     config: &'a Config,
     extra_env: &'a HashMap<String, String>,
     bail: bool,
+    silent: bool,
 }
 
 fn run_project(options: RunProjectOptions<'_, '_>) -> miette::Result<ProjectExecution> {
-    let RunProjectOptions { root, graph, selector, args, init_cwd, config, extra_env, bail } =
-        options;
+    let RunProjectOptions {
+        root,
+        graph,
+        selector,
+        args,
+        init_cwd,
+        config,
+        extra_env,
+        bail,
+        silent,
+    } = options;
     let manifest = &graph[root].package.project.manifest;
     let specified = selector.select(manifest.value());
     if specified.is_empty() {
@@ -322,7 +335,7 @@ fn run_project(options: RunProjectOptions<'_, '_>) -> miette::Result<ProjectExec
             init_cwd,
             config,
             extra_env,
-            silent: true,
+            silent,
             sequential: args.sequential,
         };
         let status = run_stages(&ctx, selected, script, args.script_args())?;

@@ -244,9 +244,10 @@ impl RunArgs {
         config: &Config,
         dir: &Path,
         emit: fn(&LogEvent),
+        silent: bool,
     ) -> miette::Result<()> {
         super::verify_deps::verify_deps_before_run(dir, config, false)?;
-        recursive::run_recursive(self, config, dir, emit)
+        recursive::run_recursive(self, config, dir, emit, silent)
     }
 }
 

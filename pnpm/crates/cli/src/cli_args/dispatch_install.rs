@@ -258,7 +258,12 @@ pub(super) fn install_test<'a>(
 
         let cfg = config()?;
         if recursive {
-            run_args.run_recursive(cfg, dir, reporter_emit(reporter))?;
+            run_args.run_recursive(
+                cfg,
+                dir,
+                reporter_emit(reporter),
+                matches!(reporter, ReporterType::Ndjson | ReporterType::Silent),
+            )?;
         } else {
             run_args.run(dir, cfg, matches!(reporter, ReporterType::Silent))?;
         }
