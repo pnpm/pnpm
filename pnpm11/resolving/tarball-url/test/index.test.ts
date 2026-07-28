@@ -5,7 +5,8 @@ import {
   getNpmTarballUrl,
   isCanonicalRegistryTarballUrl,
   isIntegrityAddressedRegistryTarballUrl,
-  parseRevisionAwareIntegrity,
+  isValidTarballRevision,
+  parseIntegrityAddress,
 } from '../src/index.js'
 
 const SHA512_BASE64 = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=='
@@ -75,40 +76,33 @@ describe('isCanonicalRegistryTarballUrl', () => {
   })
 })
 
-describe('revision-aware integrity tarball URLs', () => {
-  test.each(['r0', 'r1', 'r42'])('parses canonical revision option %s', (revision) => {
-    const integrity = `sha512-${SHA512_BASE64}?${revision}`
-    expect(parseRevisionAwareIntegrity(integrity)).toEqual({
+describe('integrity-addressed tarball URLs', () => {
+  test('parses a complete standard sha512 integrity', () => {
+    const integrity = `sha512-${SHA512_BASE64}`
+    expect(parseIntegrityAddress(integrity)).toEqual({
       algorithm: 'sha512',
-      contentIntegrity: `sha512-${SHA512_BASE64}`,
       digest: Buffer.alloc(64),
-      revision: revision.slice(1),
     })
   })
 
   test.each([
-    `sha512-${SHA512_BASE64}`,
-    `sha512-${SHA512_BASE64}?`,
-    `sha512-${SHA512_BASE64}?r01`,
-    `sha512-${SHA512_BASE64}?r-1`,
-    `sha512-${SHA512_BASE64}?r${'foo'}`,
-    `sha512-${SHA512_BASE64}?v1`,
-    `sha512-${SHA512_BASE64}?r1?other`,
-    'sha512-AAAA?r1',
-    `sha256-${SHA512_BASE64}?r1`,
+    `sha512-${SHA512_BASE64}?r1`,
+    'sha512-AAAA',
+    `sha256-${SHA512_BASE64}`,
+    `${SHA512_BASE64}`,
   ])('does not recognize %s', (integrity) => {
-    expect(parseRevisionAwareIntegrity(integrity)).toBeUndefined()
+    expect(parseIntegrityAddress(integrity)).toBeUndefined()
   })
 
   test('derives a base64url digest URL relative to a path-prefixed registry', () => {
-    const integrity = `sha512-${SHA512_BASE64}?r2`
+    const integrity = `sha512-${SHA512_BASE64}`
     expect(getIntegrityAddressedTarballUrl(integrity, 'https://registry.example/~main')).toBe(
       `https://registry.example/~main/-/tarballs/sha512/${'A'.repeat(86)}`
     )
   })
 
   test('validates the complete metadata pair against the configured registry', () => {
-    const integrity = `sha512-${SHA512_BASE64}?r2`
+    const integrity = `sha512-${SHA512_BASE64}`
     const tarball = getIntegrityAddressedTarballUrl(integrity, 'https://registry.example/~main/')!
     expect(isIntegrityAddressedRegistryTarballUrl(
       tarball,
@@ -126,4 +120,15 @@ describe('revision-aware integrity tarball URLs', () => {
       'https://registry.example/~main/'
     )).toBe(false)
   })
+
+  test.each([1, 42, Number.MAX_SAFE_INTEGER])('accepts positive safe-integer revision %s', (revision) => {
+    expect(isValidTarballRevision(revision)).toBe(true)
+  })
+
+  test.each([undefined, null, 0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1, '1'])(
+    'rejects malformed revision %s',
+    (revision) => {
+      expect(isValidTarballRevision(revision)).toBe(false)
+    }
+  )
 })

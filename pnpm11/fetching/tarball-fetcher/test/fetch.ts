@@ -237,9 +237,9 @@ test('retry when tarball size does not match content-length', async () => {
   expect(result.filesMap).toBeTruthy()
 })
 
-test('verifies a tarball while ignoring its registry revision SRI option', async () => {
+test('verifies a registry replacement tarball from its digest URL', async () => {
   const tarballContent = fs.readFileSync(tarballPath)
-  const integrity = `${ssri.fromData(tarballContent, { algorithms: ['sha512'] })}?r1`
+  const integrity = ssri.fromData(tarballContent, { algorithms: ['sha512'] }).toString()
   const digest = ssri.parse(integrity)['sha512'][0].digest
   const tarball = `${registry}/-/tarballs/sha512/${Buffer.from(digest, 'base64').toString('base64url')}`
   const mockPool = mockAgent.get(registry)
@@ -254,6 +254,7 @@ test('verifies a tarball while ignoring its registry revision SRI option', async
 
   const result = await fetch.remoteTarball(cafs, {
     integrity,
+    revision: 1,
     tarball,
   }, {
     filesIndexFile,

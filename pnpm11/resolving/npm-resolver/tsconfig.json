@@ -74,6 +74,9 @@
     },
     {
       "path": "../resolver-base"
+    },
+    {
+      "path": "../tarball-url"
     }
   ]
 }
