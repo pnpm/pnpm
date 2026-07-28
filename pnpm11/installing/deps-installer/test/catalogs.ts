@@ -1112,7 +1112,7 @@ test('catalogs work when inject-workspace-packages=true', async () => {
 })
 
 describe('dedupe', () => {
-  test('catalogs are deduped when running pnpm dedupe', async () => {
+  test('valid catalog resolutions are preserved when running pnpm dedupe', async () => {
     const { options, projects, readLockfile } = preparePackagesAndReturnObjects([
       {
         name: 'project1',
@@ -1166,7 +1166,7 @@ describe('dedupe', () => {
     expect(Object.keys(lockfile.packages)).toEqual(['@pnpm.e2e/foo@100.0.0', '@pnpm.e2e/foo@100.1.0'])
     expect(lockfile.catalogs.default['@pnpm.e2e/foo'].version).toBe('100.0.0')
 
-    // Perform a dedupe and expect the catalog version to update.
+    // Perform a dedupe and expect the valid catalog version to be preserved.
     await mutateModules(installProjects(projects), {
       ...options,
       dedupe: true,
@@ -1174,8 +1174,8 @@ describe('dedupe', () => {
       catalogs,
     })
     const dedupedLockfile = readLockfile()
-    expect(Object.keys(dedupedLockfile.packages)).toEqual(['@pnpm.e2e/foo@100.1.0'])
-    expect(dedupedLockfile.catalogs.default['@pnpm.e2e/foo'].version).toBe('100.1.0')
+    expect(Object.keys(dedupedLockfile.packages)).toEqual(['@pnpm.e2e/foo@100.0.0', '@pnpm.e2e/foo@100.1.0'])
+    expect(dedupedLockfile.catalogs.default['@pnpm.e2e/foo'].version).toBe('100.0.0')
   })
 })
 
