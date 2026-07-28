@@ -106,6 +106,7 @@ import {
 } from './extendInstallOptions.js'
 import { linkPackages } from './link.js'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues.js'
+import { tryFastUpdateOverrides } from './tryFastUpdateOverrides.js'
 import { validateModules } from './validateModules.js'
 import { verifyLockfileResolutions } from './verifyLockfileResolutions.js'
 import { warnOnStaleConvergenceOverrides } from './warnOnStaleConvergenceOverrides.js'
@@ -662,10 +663,10 @@ export async function mutateModules (
     const patchGroups = patchGroupInput ? groupPatchedDependencies(patchGroupInput) : undefined
     const frozenLockfile = opts.frozenLockfile ||
       opts.frozenLockfileIfExists && ctx.existsNonEmptyWantedLockfile
-    let outdatedLockfileSettings = false
+    let outdatedLockfileSettingName = null as ReturnType<typeof getOutdatedLockfileSetting>
     const overridesMap = createOverridesMapFromParsed(opts.parsedOverrides)
     if (!opts.ignorePackageManifest) {
-      const outdatedLockfileSettingName = getOutdatedLockfileSetting(ctx.wantedLockfile, {
+      outdatedLockfileSettingName = getOutdatedLockfileSetting(ctx.wantedLockfile, {
         autoInstallPeers: opts.autoInstallPeers,
         catalogs: opts.catalogs,
         dedupePeers: opts.dedupePeers || undefined,
@@ -678,13 +679,88 @@ export async function mutateModules (
         patchedDependencies,
         pnpmfileChecksum,
       })
-      outdatedLockfileSettings = outdatedLockfileSettingName != null
-      if (frozenLockfile && outdatedLockfileSettings) {
+      if (frozenLockfile && outdatedLockfileSettingName != null) {
         throw new LockfileConfigMismatchError(outdatedLockfileSettingName!)
       }
     }
     const _isWantedDepBareSpecifierSame = isWantedDepBareSpecifierSame.bind(null, ctx.wantedLockfile.catalogs, opts.catalogs)
     const upToDateLockfileMajorVersion = ctx.wantedLockfile.lockfileVersion.toString().startsWith(`${LOCKFILE_MAJOR_VERSION}.`)
+    const canTryFastUpdateOverrides =
+      outdatedLockfileSettingName === 'overrides' &&
+      installsOnly &&
+      !isCheckOnlyInstall(opts) &&
+      opts.preferFrozenLockfile &&
+      opts.useLockfile &&
+      opts.saveLockfile &&
+      opts.runPacquet == null &&
+      !opts.fixLockfile &&
+      !opts.dedupe &&
+      !opts.updateChecksums &&
+      !opts.force &&
+      !opts.forceFullResolution &&
+      !forceResolutionFromHook &&
+      opts.handleResolutionPolicyViolations == null &&
+      opts.hooks.readPackage == null &&
+      opts.hooks.preResolution == null &&
+      opts.hooks.afterAllResolved == null &&
+      opts.hooks.customResolvers == null &&
+      !ctx.lockfileHadConflicts &&
+      ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION &&
+      !isEmptyLockfile(ctx.wantedLockfile) &&
+      (!opts.pruneLockfileImporters || Object.keys(ctx.wantedLockfile.importers).length === Object.keys(ctx.projects).length) &&
+      ctx.wantedLockfile.time == null
+    if (canTryFastUpdateOverrides) {
+      await verifyLockfilePromise
+      if (
+        getOutdatedLockfileSetting(ctx.wantedLockfile, {
+          autoInstallPeers: opts.autoInstallPeers,
+          catalogs: opts.catalogs,
+          dedupePeers: opts.dedupePeers || undefined,
+          injectWorkspacePackages: opts.injectWorkspacePackages,
+          excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
+          peersSuffixMaxLength: opts.peersSuffixMaxLength,
+          overrides: ctx.wantedLockfile.overrides,
+          ignoredOptionalDependencies: opts.ignoredOptionalDependencies?.sort(),
+          packageExtensionsChecksum,
+          patchedDependencies,
+          pnpmfileChecksum,
+        }) == null &&
+        await allProjectsAreUpToDate(Object.values(ctx.projects), {
+          catalogs: opts.catalogs,
+          autoInstallPeers: opts.autoInstallPeers,
+          excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
+          linkWorkspacePackages: opts.linkWorkspacePackagesDepth >= 0,
+          wantedLockfile: ctx.wantedLockfile,
+          workspacePackages: ctx.workspacePackages,
+          lockfileDir: opts.lockfileDir,
+        }) &&
+        await tryFastUpdateOverrides(ctx.wantedLockfile, {
+          lockfileDir: opts.lockfileDir,
+          lockfileIncludeTarballUrl: opts.lockfileIncludeTarballUrl,
+          overrides: overridesMap,
+          parsedOverrides: opts.parsedOverrides,
+          readPackageHook: opts.readPackageHook,
+          registries: ctx.registries,
+          requestPackage: opts.storeController.requestPackage,
+          isLockfileUpToDate: (lockfile) => allProjectsAreUpToDate(Object.values(ctx.projects), {
+            catalogs: opts.catalogs,
+            autoInstallPeers: opts.autoInstallPeers,
+            excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
+            linkWorkspacePackages: opts.linkWorkspacePackagesDepth >= 0,
+            wantedLockfile: lockfile,
+            workspacePackages: ctx.workspacePackages,
+            lockfileDir: opts.lockfileDir,
+          }),
+          verifyLockfile: opts.trustLockfile
+            ? undefined
+            : (lockfile) => verifyLockfileResolutions(lockfile, opts.resolutionVerifiers),
+        })
+      ) {
+        outdatedLockfileSettingName = null
+        ctx.wantedLockfileIsModified = true
+      }
+    }
+    const outdatedLockfileSettings = outdatedLockfileSettingName != null
     let needsFullResolution = outdatedLockfileSettings ||
       opts.fixLockfile ||
       opts.updateChecksums ||
