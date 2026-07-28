@@ -2,7 +2,10 @@
 //! "what to add to the importer's direct deps" map. Used by the
 //! orchestrator (`resolve_importer`) inside its hoist loop.
 
-use std::{collections::BTreeMap, path::Path};
+use std::{
+    collections::{BTreeMap, HashMap, HashSet},
+    path::Path,
+};
 
 use node_semver::{Range, Version};
 use pacquet_resolving_resolver_base::{
@@ -166,6 +169,20 @@ pub fn get_hoistable_optional_peers(
     all_preferred_versions: &PreferredVersions,
     workspace_root_deps: &[WorkspaceRootDep],
 ) -> BTreeMap<String, String> {
+    get_hoistable_optional_peers_with_locked_versions(
+        all_missing_optional_peers,
+        all_preferred_versions,
+        workspace_root_deps,
+        &HashMap::new(),
+    )
+}
+
+pub(crate) fn get_hoistable_optional_peers_with_locked_versions(
+    all_missing_optional_peers: &BTreeMap<String, Vec<String>>,
+    all_preferred_versions: &PreferredVersions,
+    workspace_root_deps: &[WorkspaceRootDep],
+    locked_peer_versions: &HashMap<String, HashSet<String>>,
+) -> BTreeMap<String, String> {
     let mut optional_dependencies = BTreeMap::new();
     for (peer_name, ranges) in all_missing_optional_peers {
         let Some(selectors) = all_preferred_versions.get(peer_name) else { continue };
@@ -189,6 +206,12 @@ pub fn get_hoistable_optional_peers(
         };
         let mut max_satisfying_version: Option<Version> = None;
         for (version_str, entry) in selectors {
+            if locked_peer_versions
+                .get(peer_name)
+                .is_some_and(|versions| !versions.contains(version_str))
+            {
+                continue;
+            }
             let selector_type = match entry {
                 VersionSelectorEntry::Plain(selector_type) => *selector_type,
                 VersionSelectorEntry::Weighted(weighted) => weighted.selector_type,

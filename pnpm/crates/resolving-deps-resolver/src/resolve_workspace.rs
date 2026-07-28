@@ -316,11 +316,12 @@ where
     for ((importer, state), (project_dir, modules_dir)) in
         importers.iter().zip(states).zip(input_dirs)
     {
-        let (direct, importer_provider_node_ids) = state.into_direct();
+        let (direct, importer_provider_node_ids, importer_optional_node_ids) = state.into_direct();
         hoisted_peer_provider_node_ids.extend(importer_provider_node_ids);
         per_importer_inputs.push(ImporterPeerInput {
             id: importer.id.clone(),
             direct,
+            hoisted_optional_peer_node_ids: importer_optional_node_ids,
             root_dir: project_dir,
             modules_dir,
         });

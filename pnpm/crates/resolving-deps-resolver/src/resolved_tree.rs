@@ -183,6 +183,9 @@ pub struct DependenciesTreeNode {
     /// TODO: the resolver does not compute this yet; only
     /// `resolve_peers` consumes it.
     pub dependency_names_whose_current_provider_must_win: Option<HashSet<String>>,
+    /// Peer names recorded on this direct dependency's wanted-lockfile
+    /// suffix. `None` for transitive or freshly resolved occurrences.
+    pub locked_peer_names: Option<Arc<HashSet<String>>>,
 }
 
 impl DependenciesTreeNode {
@@ -202,6 +205,7 @@ impl DependenciesTreeNode {
             previous_dep_path: None,
             locked_peer_context: None,
             dependency_names_whose_current_provider_must_win: None,
+            locked_peer_names: None,
         }
     }
 }

@@ -968,6 +968,22 @@ impl WorkspaceTreeCtx {
             .collect()
     }
 
+    pub(crate) fn set_direct_locked_peer_names(
+        &self,
+        direct: &[DirectDep],
+        names_by_alias: &HashMap<String, Arc<HashSet<String>>>,
+    ) {
+        let mut tree = lock_recoverable(&self.dependencies_tree);
+        for dep in direct {
+            let Some(names) = names_by_alias.get(&dep.alias) else {
+                continue;
+            };
+            if let Some(node) = tree.get_mut(&dep.node_id) {
+                node.locked_peer_names = Some(Arc::clone(names));
+            }
+        }
+    }
+
     /// Set which dependencies `pacquet update` excludes from reuse. See
     /// [`UpdateReuseScope`].
     #[must_use]
@@ -2518,7 +2534,11 @@ fn level_versions(ctx: &TreeCtx, seeds: &[NodeSeed]) -> BTreeMap<String, Vec<Str
 /// to compare against, so recording them would mark them "changed" on
 /// every install and permanently decline subtree reuse for anything
 /// depending on them.
-pub(crate) fn record_changed_direct_deps(ctx: &TreeCtx, importer_id: &str, wanted: &[WantedSpec]) {
+pub(crate) fn record_changed_direct_deps(
+    ctx: &TreeCtx,
+    importer_id: &str,
+    wanted: &[WantedSpec],
+) -> HashSet<PkgName> {
     let lockfile = ctx.workspace.wanted_lockfile.as_deref();
     let prior = lockfile.and_then(|lockfile| lockfile.importers.get(importer_id));
     let mut changed = lock_recoverable(&ctx.workspace.changed_direct_deps);
@@ -2533,6 +2553,7 @@ pub(crate) fn record_changed_direct_deps(ctx: &TreeCtx, importer_id: &str, wante
             bucket.insert(name);
         }
     }
+    bucket.clone()
 }
 
 /// Whether a `catalog:`-recorded direct dep still resolves to the same

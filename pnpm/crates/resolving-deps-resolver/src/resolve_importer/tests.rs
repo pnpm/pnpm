@@ -12,10 +12,78 @@ use pacquet_resolving_resolver_base::{
 };
 use pretty_assertions::assert_eq;
 
+use super::{
+    ImporterLockedPeerContext, discard_changed_direct_dep_peer_context,
+    importer_locked_peer_context,
+};
 use crate::{
     DepPath, ResolveDependencyTreeError, resolve_importer,
-    resolve_importer::{ResolveImporterError, ResolveImporterOptions, locked_peer_names},
+    resolve_importer::{ResolveImporterError, ResolveImporterOptions},
 };
+
+#[test]
+fn locked_peer_context_is_recorded_by_direct_alias() {
+    use pacquet_lockfile::{
+        ComVer, ImporterDepVersion, Lockfile, LockfileVersion, PkgName, PkgVerPeer,
+        ProjectSnapshot, ResolvedDependencySpec,
+    };
+
+    let consumer = PkgName::parse("consumer").unwrap();
+    let lockfile = Lockfile {
+        lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(9, 0)).unwrap(),
+        importers: HashMap::from([(
+            "app".to_string(),
+            ProjectSnapshot {
+                dependencies: Some(HashMap::from([(
+                    consumer,
+                    ResolvedDependencySpec {
+                        specifier: "1.0.0".to_string(),
+                        version: ImporterDepVersion::Regular(
+                            "1.0.0(peer@2.0.0)".parse::<PkgVerPeer>().unwrap(),
+                        ),
+                    },
+                )])),
+                ..ProjectSnapshot::default()
+            },
+        )]),
+        settings: None,
+        catalogs: None,
+        overrides: None,
+        package_extensions_checksum: None,
+        pnpmfile_checksum: None,
+        ignored_optional_dependencies: None,
+        patched_dependencies: None,
+        packages: None,
+        snapshots: None,
+    };
+
+    let ImporterLockedPeerContext { versions, names_by_alias } =
+        importer_locked_peer_context(Some(&lockfile), "app");
+
+    assert_eq!(versions["peer"], HashSet::from(["2.0.0".to_string()]));
+    assert_eq!(names_by_alias["consumer"].as_ref(), &HashSet::from(["peer".to_string()]));
+}
+
+#[test]
+fn changed_direct_dependency_discards_prior_peer_context() {
+    use pacquet_lockfile::PkgName;
+    use std::sync::Arc;
+
+    let mut names_by_alias = HashMap::from([
+        ("changed".to_string(), Arc::new(HashSet::from(["old-peer".to_string()]))),
+        ("unchanged".to_string(), Arc::new(HashSet::from(["peer".to_string()]))),
+    ]);
+
+    discard_changed_direct_dep_peer_context(
+        &mut names_by_alias,
+        &HashSet::from([PkgName::parse("changed").unwrap()]),
+    );
+
+    assert_eq!(
+        names_by_alias,
+        HashMap::from([("unchanged".to_string(), Arc::new(HashSet::from(["peer".to_string()])),)]),
+    );
+}
 
 #[test]
 fn only_peer_suffix_versions_are_treated_as_locked_peer_providers() {
@@ -112,7 +180,63 @@ fn hashed_peer_suffix_uses_package_peer_metadata() {
         )])),
     };
 
-    assert_eq!(locked_peer_names(Some(&lockfile)), HashSet::from(["peer".to_string()]));
+    let ImporterLockedPeerContext { versions, names_by_alias } =
+        importer_locked_peer_context(Some(&lockfile), "missing-importer");
+    assert_eq!(
+        versions,
+        HashMap::from([("peer".to_string(), HashSet::from(["1.0.0".to_string()]))]),
+    );
+    assert!(names_by_alias.is_empty());
+}
+
+fn locked_peer_names(wanted_lockfile: Option<&pacquet_lockfile::Lockfile>) -> HashSet<String> {
+    let Some(lockfile) = wanted_lockfile else {
+        return HashSet::new();
+    };
+    let mut names = HashSet::new();
+    for (key, snapshot) in lockfile.snapshots.iter().flatten() {
+        let peer_suffix = key.suffix.peer();
+        if peer_suffix.is_empty() {
+            continue;
+        }
+        names.extend(peer_suffix_names(peer_suffix));
+        if is_hashed_peer_suffix(peer_suffix)
+            && let Some(metadata) =
+                lockfile.packages.as_ref().and_then(|packages| packages.get(&key.without_peer()))
+        {
+            let resolved_names = snapshot
+                .dependencies
+                .iter()
+                .chain(snapshot.optional_dependencies.iter())
+                .flatten()
+                .map(|(name, _)| name.to_string())
+                .collect::<HashSet<_>>();
+            names.extend(
+                metadata
+                    .peer_dependencies
+                    .iter()
+                    .flatten()
+                    .map(|(name, _)| name)
+                    .filter(|name| resolved_names.contains(*name))
+                    .cloned(),
+            );
+        }
+    }
+    names
+}
+
+fn peer_suffix_names(peer_suffix: &str) -> impl Iterator<Item = String> + '_ {
+    peer_suffix.match_indices('(').filter_map(|(start, _)| {
+        let segment = peer_suffix[start + 1..].split(['(', ')']).next()?;
+        let (name, _) = segment.rsplit_once('@')?;
+        (!name.is_empty()).then(|| name.to_string())
+    })
+}
+
+fn is_hashed_peer_suffix(peer_suffix: &str) -> bool {
+    peer_suffix.rsplit_once('(').and_then(|(_, tail)| tail.strip_suffix(')')).is_some_and(|hash| {
+        hash.len() == 32 && hash.chars().all(|character| character.is_ascii_hexdigit())
+    })
 }
 
 struct StubResolver {

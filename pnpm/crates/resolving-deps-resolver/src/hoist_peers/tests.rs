@@ -1,7 +1,10 @@
 //! Tests for [`super::hoist_peers`] and
 //! [`super::get_hoistable_optional_peers`].
 
-use std::{collections::BTreeMap, path::Path};
+use std::{
+    collections::{BTreeMap, HashMap, HashSet},
+    path::Path,
+};
 
 use pacquet_resolving_resolver_base::{
     PreferredVersions, VersionSelectorEntry, VersionSelectorType, VersionSelectorWithWeight,
@@ -9,7 +12,8 @@ use pacquet_resolving_resolver_base::{
 use pretty_assertions::assert_eq;
 
 use super::{
-    HoistPeersOptions, MissingPeerInfo, WorkspaceRootDep, get_hoistable_optional_peers, hoist_peers,
+    HoistPeersOptions, MissingPeerInfo, WorkspaceRootDep, get_hoistable_optional_peers,
+    get_hoistable_optional_peers_with_locked_versions, hoist_peers,
 };
 
 fn preferred(entries: &[(&str, &[(&str, VersionSelectorEntry)])]) -> PreferredVersions {
@@ -266,6 +270,24 @@ fn get_hoistable_optional_peers_picks_the_highest_satisfying_version() {
     let mut expected = BTreeMap::new();
     expected.insert("foo".to_string(), "2.1.1".to_string());
     assert_eq!(result, expected);
+}
+
+#[test]
+fn get_hoistable_optional_peers_preserves_the_importers_locked_version() {
+    let missing = BTreeMap::from([("peer".to_string(), vec!["*".to_string()])]);
+    let preferred = PreferredVersions::from([(
+        "peer".to_string(),
+        BTreeMap::from([
+            ("1.0.0".to_string(), VersionSelectorEntry::Plain(VersionSelectorType::Version)),
+            ("2.0.0".to_string(), VersionSelectorEntry::Plain(VersionSelectorType::Version)),
+        ]),
+    )]);
+    let locked = HashMap::from([("peer".to_string(), HashSet::from(["1.0.0".to_string()]))]);
+
+    assert_eq!(
+        get_hoistable_optional_peers_with_locked_versions(&missing, &preferred, &[], &locked,),
+        BTreeMap::from([("peer".to_string(), "1.0.0".to_string())]),
+    );
 }
 
 #[test]
