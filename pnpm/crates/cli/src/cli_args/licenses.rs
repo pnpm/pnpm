@@ -8,6 +8,7 @@ use crate::cli_args::{
 };
 use clap::Args;
 use derive_more::{Display, Error};
+use indexmap::IndexMap;
 use miette::{Diagnostic, IntoDiagnostic};
 use owo_colors::{OwoColorize, Stream};
 use pacquet_config::Config;
@@ -19,9 +20,9 @@ use pacquet_package_manager::{
     AllowBuildPolicy, validate_virtual_store_slot_containment, virtual_store_layout_for_lockfile,
 };
 use pacquet_package_manifest::{
-    extract_author, extract_homepage, extract_license, node_version_from_engines_runtime,
-    safe_read_package_json_from_dir,
+    extract_license, node_version_from_engines_runtime, safe_read_package_json_from_dir,
 };
+use pacquet_resolving_git_resolver::HostedGit;
 use serde::Serialize;
 use std::collections::{BTreeMap, HashMap};
 use tabled::{builder::Builder, settings::Style};
@@ -197,21 +198,30 @@ impl LicensesArgs {
         validate_virtual_store_slot_containment(lockfile.snapshots.as_ref(), &layout)
             .into_diagnostic()?;
 
-        let mut results_by_license: BTreeMap<String, BTreeMap<String, LicenseInfo>> =
-            BTreeMap::new();
-
         let pkgs = lockfile.packages.as_ref();
+        let mut dependencies = belongs_to
+            .into_iter()
+            .map(|(key, kind)| {
+                let name = key.name.to_string();
+                let version = pkgs
+                    .and_then(|packages| packages.get(&key.without_peer()))
+                    .and_then(|meta| meta.version.clone())
+                    .unwrap_or_else(|| key.suffix.version().to_string());
+                (key, kind, name, version)
+            })
+            .collect::<Vec<_>>();
+        dependencies.sort_by(|left, right| {
+            left.2
+                .cmp(&right.2)
+                .then_with(|| compare_versions(&left.3, &right.3))
+                .then_with(|| left.0.to_string().cmp(&right.0.to_string()))
+                .then_with(|| left.1.cmp(&right.1))
+        });
 
-        for (key, kind) in belongs_to {
-            let name = key.name.to_string();
-            let mut version = key.suffix.version().to_string();
-            if let Some(pkgs) = pkgs
-                && let Some(meta) = pkgs.get(&key.without_peer())
-                && let Some(v) = &meta.version
-            {
-                version.clone_from(v);
-            }
+        let mut results_by_license: IndexMap<String, BTreeMap<String, LicenseInfo>> =
+            IndexMap::new();
 
+        for (key, kind, name, version) in dependencies {
             let pkg_dir = layout.slot_dir(&key).join("node_modules").join(&name);
             let manifest = if is_unsafe_path_component(&name) {
                 None
@@ -232,8 +242,8 @@ impl LicensesArgs {
                 },
                 None => "Unknown".to_string(),
             };
-            let author = manifest.as_ref().and_then(extract_author);
-            let homepage = manifest.as_ref().and_then(extract_homepage);
+            let author = manifest.as_ref().and_then(extract_license_author);
+            let homepage = manifest.as_ref().and_then(extract_license_homepage);
             let description = manifest
                 .as_ref()
                 .and_then(|m| m.get("description"))
@@ -275,7 +285,7 @@ impl LicensesArgs {
         }
 
         if self.json {
-            let mut json_output: BTreeMap<String, Vec<&LicenseInfo>> = BTreeMap::new();
+            let mut json_output: IndexMap<String, Vec<&LicenseInfo>> = IndexMap::new();
             for (lic, group) in &results_by_license {
                 let mut infos: Vec<&LicenseInfo> = group.values().collect();
                 infos.sort_by(|a, b| a.name.cmp(&b.name));
@@ -445,9 +455,13 @@ fn collect_dependencies(
 }
 
 fn version_is_newer(candidate: &str, selected: &str) -> bool {
-    match (node_semver::Version::parse(candidate), node_semver::Version::parse(selected)) {
-        (Ok(candidate), Ok(selected)) => candidate > selected,
-        _ => candidate > selected,
+    compare_versions(candidate, selected).is_gt()
+}
+
+fn compare_versions(left: &str, right: &str) -> std::cmp::Ordering {
+    match (node_semver::Version::parse(left), node_semver::Version::parse(right)) {
+        (Ok(left), Ok(right)) => left.cmp(&right),
+        _ => left.cmp(right),
     }
 }
 
@@ -471,6 +485,44 @@ fn render_package_name(info: &LicenseInfo) -> String {
         BelongsTo::Dev => "(dev)",
     };
     format!("{} {}", name, suffix.if_supports_color(Stream::Stdout, |text| text.dimmed()))
+}
+
+fn extract_license_author(manifest: &serde_json::Value) -> Option<String> {
+    match manifest.get("author")? {
+        serde_json::Value::String(author) => {
+            if author.is_empty() {
+                return Some(String::new());
+            }
+            let name_end = author.find(['(', '<']).unwrap_or(author.len());
+            let name = author[..name_end].trim();
+            (!name.is_empty()).then(|| name.to_string())
+        }
+        serde_json::Value::Object(author) => {
+            author.get("name").and_then(serde_json::Value::as_str).map(ToString::to_string)
+        }
+        _ => None,
+    }
+}
+
+fn extract_license_homepage(manifest: &serde_json::Value) -> Option<String> {
+    if let Some(homepage) =
+        manifest.get("homepage").and_then(serde_json::Value::as_str).filter(|url| !url.is_empty())
+    {
+        return Some(if url::Url::parse(homepage).is_ok() {
+            homepage.to_string()
+        } else {
+            format!("http://{homepage}")
+        });
+    }
+
+    let repository = match manifest.get("repository")? {
+        serde_json::Value::String(repository) => repository,
+        serde_json::Value::Object(repository) => {
+            repository.get("url").and_then(serde_json::Value::as_str)?
+        }
+        _ => return None,
+    };
+    HostedGit::package_docs_url(repository)
 }
 
 #[cfg(test)]

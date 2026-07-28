@@ -12,9 +12,7 @@
 //!   form; pacquet uses the override, not the raw template.
 //! - The `gist` host is not implemented. The test suite never
 //!   exercises it and the install path has no gist-shaped store key.
-//! - `browse` / `bugs` / `docs` / `file` / `git` templates are not
-//!   implemented — only `https` / `ssh` / `sshurl` / `tarball` /
-//!   `shortcut` are used by the resolver.
+//! - `browse` / `bugs` / `file` / `git` templates are not implemented.
 
 use pacquet_network::encode_uri_component;
 use std::fmt;
@@ -263,6 +261,41 @@ impl HostedGit {
             out = stripped.to_string();
         }
         Some(out)
+    }
+
+    /// Package documentation URL matching normalize-package-data.
+    #[must_use]
+    pub fn package_docs_url(giturl: &str) -> Option<String> {
+        let mut hosted = Self::from_url(giturl)?;
+        if hosted.host_type == HostedGitType::Github
+            && let Some((_, tree_path)) = giturl.split_once("/tree/")
+            && let Some(committish) = tree_path.split(['/', '#', '?']).next()
+        {
+            hosted.committish = Some(percent_decode(committish));
+        }
+        Some(hosted.docs())
+    }
+
+    fn docs(&self) -> String {
+        if let Some(committish) = &self.committish {
+            let separator = match self.host_type {
+                HostedGitType::Github | HostedGitType::Gitlab => "tree",
+                HostedGitType::Bitbucket => "src",
+            };
+            return format!(
+                "https://{domain}/{user}/{project}/{separator}/{committish}#readme",
+                domain = self.host_type.domain(),
+                user = self.user,
+                project = self.project,
+                committish = encode_uri_component(committish),
+            );
+        }
+        format!(
+            "https://{domain}/{user}/{project}#readme",
+            domain = self.host_type.domain(),
+            user = self.user,
+            project = self.project,
+        )
     }
 
     /// `git@<domain>:<user>/<project>.git[#committish]`. Mirrors
