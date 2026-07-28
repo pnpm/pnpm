@@ -7,9 +7,12 @@ use pacquet_resolving_resolver_base::{
     ResolveResult, Resolver, WantedDependency,
 };
 use serde_json::json;
-use std::sync::{
-    Arc,
-    atomic::{AtomicUsize, Ordering},
+use std::{
+    collections::HashMap,
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
 };
 
 struct StubResolver {
@@ -188,5 +191,77 @@ async fn falls_back_when_a_locked_child_does_not_satisfy_the_new_manifest() {
     .await;
 
     assert_eq!(calls, 1);
+    assert!(updated.is_none());
+}
+
+async fn remove_target(lockfile: &Lockfile) -> (Option<Lockfile>, usize) {
+    let parsed = vec![VersionOverride {
+        selector: "target".to_string(),
+        parent_pkg: None,
+        target_pkg: PackageSelector { name: "target".to_string(), bare_specifier: None },
+        new_bare_specifier: "-".to_string(),
+        converge: false,
+    }];
+    let overrides = IndexMap::from([("target".to_string(), "-".to_string())]);
+    let resolver = StubResolver {
+        calls: AtomicUsize::new(0),
+        manifest: json!({
+            "name": "target",
+            "version": "2.0.0"
+        }),
+    };
+    let result = try_fast_update_overrides(FastOverrideOptions {
+        lockfile,
+        parsed_overrides: &parsed,
+        resolved_overrides: &overrides,
+        resolver: &resolver,
+        resolve_options: &ResolveOptions::default(),
+        manifest_hook: None,
+        registries: &std::collections::HashMap::from([(
+            "default".to_string(),
+            "https://registry.npmjs.org/".to_string(),
+        )]),
+        lockfile_include_tarball_url: false,
+    })
+    .await;
+    (result, resolver.calls.load(Ordering::Relaxed))
+}
+
+#[tokio::test]
+async fn removes_a_dependency_and_its_unreachable_subtree_without_resolving() {
+    let (updated, calls) = remove_target(&lockfile()).await;
+    let updated = updated.expect("fast dependency removal");
+    let parent_key = "parent@1.0.0".parse().expect("parent key");
+    let parent = updated
+        .snapshots
+        .as_ref()
+        .and_then(|snapshots| snapshots.get(&parent_key))
+        .expect("parent snapshot");
+
+    assert_eq!(calls, 0);
+    assert!(parent.dependencies.is_none());
+    assert!(updated.snapshots.as_ref().is_some_and(|snapshots| {
+        !snapshots.contains_key(&"target@1.0.0".parse().unwrap())
+            && !snapshots.contains_key(&"child@1.1.0".parse().unwrap())
+    }));
+    assert!(updated.packages.as_ref().is_some_and(|packages| {
+        !packages.contains_key(&"target@1.0.0".parse().unwrap())
+            && !packages.contains_key(&"child@1.1.0".parse().unwrap())
+    }));
+}
+
+#[tokio::test]
+async fn falls_back_when_the_removed_dependency_is_used_as_a_peer() {
+    let mut lockfile = lockfile();
+    lockfile
+        .packages
+        .as_mut()
+        .and_then(|packages| packages.get_mut(&"parent@1.0.0".parse().unwrap()))
+        .expect("parent metadata")
+        .peer_dependencies = Some(HashMap::from([("target".to_string(), "^1.0.0".to_string())]));
+
+    let (updated, calls) = remove_target(&lockfile).await;
+
+    assert_eq!(calls, 0);
     assert!(updated.is_none());
 }

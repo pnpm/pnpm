@@ -886,6 +886,7 @@ Rust port notes:
 
 - [x] `TypeScript repo: pnpm11/installing/deps-installer/test/install/overrides.ts` `adding an exact override reuses the lockfile when the new package has the same dependencies` and `an exact override update reuses the lockfile when the new package has the same dependencies` — the rewrite core is pinned by `fast_update_overrides::tests::rewrites_an_exact_override_when_locked_children_satisfy_the_new_manifest`, including the single replacement-manifest resolve; `pacquet-cli::lockfile_resolution_reuse::exact_override_update_reuses_the_locked_children` covers wanted/current lockfile and materialization integration.
 - [x] `TypeScript repo: pnpm11/installing/deps-installer/test/install/overrides.ts` `an exact override update falls back to resolution when the package dependencies changed` — `fast_update_overrides::tests::falls_back_when_a_locked_child_does_not_satisfy_the_new_manifest`.
+- [x] `TypeScript repo: pnpm11/installing/deps-installer/test/install/overrides.ts` `a dependency removal override prunes the locked subtree without resolution` — the rewrite and peer-safety gates are pinned by `fast_update_overrides::tests::removes_a_dependency_and_its_unreachable_subtree_without_resolving` and `falls_back_when_the_removed_dependency_is_used_as_a_peer`; `pacquet-cli::lockfile_resolution_reuse::dependency_removal_override_prunes_the_locked_subtree_without_resolving` verifies the wanted/current lockfiles and succeeds with the registry unavailable.
 
 ## `optimisticRepeatInstall` + `checkDepsStatus` Pre-Install Shortcut
 

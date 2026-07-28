@@ -10,16 +10,20 @@ use pacquet_lockfile::{
 use pacquet_resolving_deps_resolver::ManifestHook;
 use pacquet_resolving_resolver_base::{ResolveOptions, ResolveResult, Resolver, WantedDependency};
 use serde_json::Value;
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet, VecDeque},
+    sync::Arc,
+};
 
 struct FastOverride {
     name: PkgName,
-    new_version: Version,
+    new_version: Option<Version>,
     old_version: Option<Version>,
 }
 
 struct RewritePlan {
     overrides: Vec<FastOverride>,
+    removed_names: HashSet<PkgName>,
     replacements: HashMap<PackageKey, PackageKey>,
 }
 
@@ -45,9 +49,11 @@ pub(crate) async fn try_fast_update_overrides(opts: FastOverrideOptions<'_>) -> 
         plan.overrides
             .iter()
             .filter(|override_entry| {
-                plan.replacements
-                    .iter()
-                    .any(|(old, new)| old != new && old.name == override_entry.name)
+                override_entry.new_version.is_some()
+                    && plan
+                        .replacements
+                        .iter()
+                        .any(|(old, new)| old != new && old.name == override_entry.name)
             })
             .map(|override_entry| resolve_override(&opts, override_entry)),
     )
@@ -62,7 +68,7 @@ async fn resolve_override(
     override_entry: &FastOverride,
 ) -> Option<(PkgName, ResolvedOverride)> {
     let name = override_entry.name.to_string();
-    let version = override_entry.new_version.to_string();
+    let version = override_entry.new_version.as_ref()?.to_string();
     let wanted = WantedDependency {
         alias: Some(name.clone()),
         bare_specifier: Some(version.clone()),
@@ -97,15 +103,18 @@ fn build_rewrite_plan(
     let parsed_by_selector: HashMap<&str, &VersionOverride> =
         parsed_overrides.iter().map(|entry| (entry.selector.as_str(), entry)).collect();
     let mut overrides = Vec::new();
+    let mut removes_dependencies = None;
     for (selector, new_value) in resolved_overrides {
         let old_value = old_overrides.and_then(|old| old.get(selector));
         if old_value == Some(new_value) {
             continue;
         }
         let parsed = parsed_by_selector.get(selector.as_str())?;
+        let removes_dependency = new_value == "-";
         if parsed.parent_pkg.is_some()
             || parsed.target_pkg.bare_specifier.is_some()
             || parsed.converge
+            || removes_dependencies.is_some_and(|removes| removes != removes_dependency)
             || parsed_overrides.iter().any(|candidate| {
                 candidate.selector != *selector
                     && candidate.target_pkg.name == parsed.target_pkg.name
@@ -117,12 +126,16 @@ fn build_rewrite_plan(
         if overrides.iter().any(|entry: &FastOverride| entry.name == name) {
             return None;
         }
+        removes_dependencies = Some(removes_dependency);
+        let new_version =
+            if removes_dependency { None } else { Some(Version::parse(new_value).ok()?) };
         overrides.push(FastOverride {
             name,
-            new_version: Version::parse(new_value).ok()?,
-            old_version: match old_value {
-                Some(value) => Some(Version::parse(value).ok()?),
-                None => None,
+            new_version,
+            old_version: match (removes_dependency, old_value) {
+                (true, _) => None,
+                (false, Some(value)) => Some(Version::parse(value).ok()?),
+                (false, None) => None,
             },
         });
     }
@@ -130,8 +143,20 @@ fn build_rewrite_plan(
         return None;
     }
 
-    let by_name: HashMap<&PkgName, &FastOverride> =
-        overrides.iter().map(|entry| (&entry.name, entry)).collect();
+    let removed_names: HashSet<_> = overrides
+        .iter()
+        .filter(|entry| entry.new_version.is_none())
+        .map(|entry| entry.name.clone())
+        .collect();
+    if removed_names.iter().any(|name| is_used_as_peer(lockfile, name)) {
+        return None;
+    }
+
+    let by_name: HashMap<&PkgName, &FastOverride> = overrides
+        .iter()
+        .filter(|entry| entry.new_version.is_some())
+        .map(|entry| (&entry.name, entry))
+        .collect();
     let mut replacements = HashMap::new();
     for (alias, key) in all_dependency_keys(lockfile) {
         let Some(override_entry) = by_name.get(alias) else { continue };
@@ -163,7 +188,8 @@ fn build_rewrite_plan(
         {
             return None;
         }
-        let new_suffix: PkgVerPeer = override_entry.new_version.to_string().parse().ok()?;
+        let new_suffix: PkgVerPeer =
+            override_entry.new_version.as_ref()?.to_string().parse().ok()?;
         replacements.insert(key, PkgNameVerPeer::new(alias.clone(), new_suffix));
     }
     for (alias, key) in all_dependency_keys(lockfile) {
@@ -171,7 +197,30 @@ fn build_rewrite_plan(
             return None;
         }
     }
-    Some(RewritePlan { overrides, replacements })
+    Some(RewritePlan { overrides, removed_names, replacements })
+}
+
+fn is_used_as_peer(lockfile: &Lockfile, name: &PkgName) -> bool {
+    let name = name.to_string();
+    lockfile.packages.as_ref().is_some_and(|packages| {
+        packages.values().any(|metadata| {
+            metadata
+                .peer_dependencies
+                .as_ref()
+                .is_some_and(|peers| peers.contains_key(name.as_str()))
+                || metadata
+                    .peer_dependencies_meta
+                    .as_ref()
+                    .is_some_and(|peers| peers.contains_key(name.as_str()))
+        })
+    }) || lockfile.snapshots.as_ref().is_some_and(|snapshots| {
+        snapshots.values().any(|snapshot| {
+            snapshot
+                .transitive_peer_dependencies
+                .as_ref()
+                .is_some_and(|peers| peers.iter().any(|peer| peer == &name))
+        })
+    })
 }
 
 fn all_dependency_keys(lockfile: &Lockfile) -> Vec<(&PkgName, Option<PackageKey>)> {
@@ -246,16 +295,16 @@ fn rewrite_lockfile(
 ) -> Option<Lockfile> {
     let mut updated = opts.lockfile.clone();
     for importer in updated.importers.values_mut() {
-        rewrite_importer_dependencies(importer.dependencies.as_mut(), plan);
-        rewrite_importer_dependencies(importer.dev_dependencies.as_mut(), plan);
-        rewrite_importer_dependencies(importer.optional_dependencies.as_mut(), plan);
+        rewrite_importer_dependencies(&mut importer.dependencies, plan);
+        rewrite_importer_dependencies(&mut importer.dev_dependencies, plan);
+        rewrite_importer_dependencies(&mut importer.optional_dependencies, plan);
     }
     let original_snapshots = opts.lockfile.snapshots.as_ref()?;
     let mut snapshots = original_snapshots.clone();
     let mut packages = opts.lockfile.packages.clone()?;
     for snapshot in snapshots.values_mut() {
-        rewrite_snapshot_dependencies(snapshot.dependencies.as_mut(), plan);
-        rewrite_snapshot_dependencies(snapshot.optional_dependencies.as_mut(), plan);
+        rewrite_snapshot_dependencies(&mut snapshot.dependencies, plan);
+        rewrite_snapshot_dependencies(&mut snapshot.optional_dependencies, plan);
     }
     for (old_key, new_key) in &plan.replacements {
         if old_key == new_key {
@@ -301,30 +350,102 @@ fn rewrite_lockfile(
     updated.snapshots = Some(snapshots);
     updated.packages = Some(packages);
     updated.overrides = Some(opts.resolved_overrides.clone());
+    prune_unreachable_packages(&mut updated);
     Some(updated)
 }
 
 fn rewrite_importer_dependencies(
-    dependencies: Option<&mut ResolvedDependencyMap>,
+    dependencies: &mut Option<ResolvedDependencyMap>,
     plan: &RewritePlan,
 ) {
-    let Some(dependencies) = dependencies else { return };
-    for (alias, spec) in dependencies {
+    let Some(map) = dependencies else { return };
+    map.retain(|alias, _| !plan.removed_names.contains(alias));
+    for (alias, spec) in map.iter_mut() {
         let Some(old_key) = spec.version.resolved_key(alias) else { continue };
         let Some(new_key) = plan.replacements.get(&old_key) else { continue };
         spec.version = ImporterDepVersion::Regular(new_key.suffix.clone());
     }
+    if map.is_empty() {
+        *dependencies = None;
+    }
 }
 
 fn rewrite_snapshot_dependencies(
-    dependencies: Option<&mut HashMap<PkgName, SnapshotDepRef>>,
+    dependencies: &mut Option<HashMap<PkgName, SnapshotDepRef>>,
     plan: &RewritePlan,
 ) {
-    let Some(dependencies) = dependencies else { return };
+    let Some(map) = dependencies else { return };
+    rewrite_snapshot_dependency_map(map, plan);
+    if map.is_empty() {
+        *dependencies = None;
+    }
+}
+
+fn rewrite_snapshot_dependency_map(
+    dependencies: &mut HashMap<PkgName, SnapshotDepRef>,
+    plan: &RewritePlan,
+) {
+    dependencies.retain(|alias, _| !plan.removed_names.contains(alias));
     for (alias, dep_ref) in dependencies {
         let Some(old_key) = dep_ref.resolve(alias) else { continue };
         let Some(new_key) = plan.replacements.get(&old_key) else { continue };
         *dep_ref = SnapshotDepRef::Plain(new_key.suffix.clone());
+    }
+}
+
+fn prune_unreachable_packages(lockfile: &mut Lockfile) {
+    let reachable = {
+        let Some(snapshots) = lockfile.snapshots.as_ref() else { return };
+        let mut reachable = HashSet::new();
+        let mut queue = VecDeque::new();
+        for importer in lockfile.importers.values() {
+            for dependencies in [
+                importer.dependencies.as_ref(),
+                importer.dev_dependencies.as_ref(),
+                importer.optional_dependencies.as_ref(),
+            ]
+            .into_iter()
+            .flatten()
+            {
+                for (alias, spec) in dependencies {
+                    if let Some(key) = spec.version.resolved_key(alias) {
+                        queue.push_back(key);
+                    }
+                }
+            }
+        }
+        while let Some(key) = queue.pop_front() {
+            if !reachable.insert(key.clone()) {
+                continue;
+            }
+            let Some(snapshot) = snapshots.get(&key) else { continue };
+            for dependencies in
+                [snapshot.dependencies.as_ref(), snapshot.optional_dependencies.as_ref()]
+                    .into_iter()
+                    .flatten()
+            {
+                for (alias, dep_ref) in dependencies {
+                    if let Some(key) = dep_ref.resolve(alias) {
+                        queue.push_back(key);
+                    }
+                }
+            }
+        }
+        reachable
+    };
+    let reachable_metadata: HashSet<_> =
+        reachable.iter().map(PkgNameVerPeer::without_peer).collect();
+    if let Some(snapshots) = lockfile.snapshots.as_mut() {
+        snapshots.retain(|key, _| reachable.contains(key));
+        if snapshots.is_empty() {
+            lockfile.snapshots = None;
+        }
+    }
+    if let Some(packages) = lockfile.packages.as_mut() {
+        packages.retain(|key, _| reachable_metadata.contains(key));
+        if packages.is_empty() {
+            lockfile.packages = None;
+        }
     }
 }
 
@@ -340,7 +461,7 @@ fn validate_dependencies(
         return None;
     }
     let mut rewritten = locked_dependencies;
-    rewrite_snapshot_dependencies(Some(&mut rewritten), plan);
+    rewrite_snapshot_dependency_map(&mut rewritten, plan);
     for (name, range) in manifest_dependencies {
         let range = Range::parse(&range).ok()?;
         let key = rewritten.get(&name)?.resolve(&name)?;

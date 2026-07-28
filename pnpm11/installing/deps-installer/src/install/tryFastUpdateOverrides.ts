@@ -18,12 +18,13 @@ import semver from 'semver'
 
 interface FastOverride {
   name: string
-  newVersion: string
+  newVersion?: string
   oldVersion?: string
 }
 
 interface RewriteContext {
   changedNames: Set<string>
+  removedNames: Set<string>
   replacements: Map<DepPath, DepPath>
 }
 
@@ -44,11 +45,22 @@ export async function tryFastUpdateOverrides (
   const fastOverrides = getFastOverrides(lockfile.overrides ?? {}, opts.overrides, opts.parsedOverrides)
   if (fastOverrides == null) return false
 
+  const removedNames = new Set(
+    fastOverrides
+      .filter(({ newVersion }) => newVersion == null)
+      .map(({ name }) => name)
+  )
+  if ([...removedNames].some((name) => isUsedAsPeer(lockfile, name))) return false
+
   const replacements = collectReplacements(lockfile, fastOverrides)
   if (replacements == null) return false
 
-  const changedNames = new Set(fastOverrides.map(({ name }) => name))
-  const rewriteContext = { changedNames, replacements }
+  const changedNames = new Set(
+    fastOverrides
+      .filter(({ newVersion }) => newVersion != null)
+      .map(({ name }) => name)
+  )
+  const rewriteContext = { changedNames, removedNames, replacements }
   const manifests = await resolveNewManifests(fastOverrides, replacements, opts)
   if (manifests == null) return false
 
@@ -100,17 +112,22 @@ function getFastOverrides (
   const parsedBySelector = new Map(parsedOverrides.map((override) => [override.selector, override]))
   const changedNames = new Set<string>()
   const result: FastOverride[] = []
+  let removesDependencies: boolean | undefined
   for (const selector of changedSelectors) {
     const override = parsedBySelector.get(selector)
-    const newVersion = newOverrides[selector]
+    const newValue = newOverrides[selector]
     const oldVersion = oldOverrides[selector]
+    const removesDependency = newValue === '-'
     if (
       override == null ||
       override.parentPkg != null ||
       override.targetPkg.bareSpecifier != null ||
       override.converge === true ||
-      semver.valid(newVersion) == null ||
-      oldVersion != null && semver.valid(oldVersion) == null ||
+      !removesDependency && (
+        semver.valid(newValue) == null ||
+        oldVersion != null && semver.valid(oldVersion) == null
+      ) ||
+      removesDependencies != null && removesDependencies !== removesDependency ||
       changedNames.has(override.targetPkg.name) ||
       parsedOverrides.some((candidate) =>
         candidate.selector !== selector &&
@@ -119,11 +136,11 @@ function getFastOverrides (
     ) {
       return null
     }
+    removesDependencies = removesDependency
     changedNames.add(override.targetPkg.name)
     result.push({
       name: override.targetPkg.name,
-      newVersion,
-      oldVersion,
+      ...removesDependency ? {} : { newVersion: newValue, oldVersion },
     })
   }
   return result
@@ -138,7 +155,7 @@ function collectReplacements (
   for (const dependencies of allResolvedDependencyMaps(lockfile)) {
     for (const [alias, reference] of Object.entries(dependencies)) {
       const override = overridesByName.get(alias)
-      if (override == null) continue
+      if (override?.newVersion == null) continue
       const oldDepPath = dp.refToRelative(reference, alias)
       if (oldDepPath == null) return null
       const parsed = dp.parse(oldDepPath)
@@ -174,6 +191,14 @@ function collectReplacements (
   return replacements
 }
 
+function isUsedAsPeer (lockfile: LockfileObject, name: string): boolean {
+  return Object.values(lockfile.packages ?? {}).some((snapshot) =>
+    snapshot.peerDependencies?.[name] != null ||
+    snapshot.peerDependenciesMeta?.[name] != null ||
+    snapshot.transitivePeerDependencies?.includes(name) === true
+  )
+}
+
 function allResolvedDependencyMaps (lockfile: LockfileObject): ResolvedDependencies[] {
   const result: ResolvedDependencies[] = []
   for (const importer of Object.values(lockfile.importers)) {
@@ -207,6 +232,7 @@ async function resolveNewManifests (
       .map(([oldDepPath]) => dp.parse(oldDepPath).name!)
   )
   const results = await Promise.all(overrides.map(async ({ name, newVersion }) => {
+    if (newVersion == null) return null
     if (!changedNames.has(name)) return null
     const response = await opts.requestPackage({
       alias: name,
@@ -415,12 +441,15 @@ function rewriteResolvedDependencies (
   rewriteContext: RewriteContext
 ): ResolvedDependencies | undefined {
   if (dependencies == null) return undefined
-  return Object.fromEntries(
-    Object.entries(dependencies).map(([alias, reference]) => [
-      alias,
-      rewriteReference(alias, reference, rewriteContext),
-    ])
+  const rewritten = Object.fromEntries(
+    Object.entries(dependencies)
+      .filter(([alias]) => !rewriteContext.removedNames.has(alias))
+      .map(([alias, reference]) => [
+        alias,
+        rewriteReference(alias, reference, rewriteContext),
+      ])
   )
+  return Object.keys(rewritten).length === 0 ? undefined : rewritten
 }
 
 function rewriteReference (

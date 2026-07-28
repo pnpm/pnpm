@@ -141,6 +141,51 @@ test('an exact override update falls back to resolution when the package depende
   expect(lockfile.snapshots['@pnpm.e2e/foobarqar@1.0.1'].dependencies).not.toHaveProperty(['is-positive'])
 })
 
+test('a dependency removal override prunes the locked subtree without resolution', async () => {
+  const project = prepareEmpty()
+  const manifest: ProjectManifest = {
+    dependencies: {
+      '@pnpm.e2e/pkg-with-good-optional': '1.0.0',
+    },
+  }
+  const options = testDefaults()
+
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, options)
+
+  const requestedPackages: string[] = []
+  const requestPackage = options.storeController.requestPackage
+  options.storeController.requestPackage = async (wantedDependency, requestOptions) => {
+    requestedPackages.push(wantedDependency.alias!)
+    return requestPackage(wantedDependency, requestOptions)
+  }
+  options.overrides = {
+    'is-positive': '-',
+  }
+
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, options)
+
+  expect(requestedPackages).toStrictEqual([])
+  const lockfile = project.readLockfile()
+  expect(lockfile.snapshots['@pnpm.e2e/pkg-with-good-optional@1.0.0'])
+    .not.toHaveProperty(['optionalDependencies', 'is-positive'])
+  expect(lockfile.snapshots).not.toHaveProperty(['is-positive@1.0.0'])
+  expect(lockfile.packages).not.toHaveProperty(['is-positive@1.0.0'])
+  const currentLockfile = project.readCurrentLockfile()
+  expect(currentLockfile.snapshots['@pnpm.e2e/pkg-with-good-optional@1.0.0'])
+    .not.toHaveProperty(['optionalDependencies', 'is-positive'])
+  expect(
+    fs.existsSync('node_modules/.pnpm/@pnpm.e2e+pkg-with-good-optional@1.0.0/node_modules/is-positive')
+  ).toBe(false)
+})
+
 test('versions are replaced with versions specified through overrides option', async () => {
   const project = prepareEmpty()
 

@@ -31,9 +31,10 @@ import {
   runLifecycleHooksConcurrently,
 } from '@pnpm/exec.lifecycle'
 import { symlinkDependency } from '@pnpm/fs.symlink-dependency'
+import { isValidDependencyAlias } from '@pnpm/installing.deps-resolver'
 import { linkDirectDeps, type LinkedDirectDep } from '@pnpm/installing.linking.direct-dep-linker'
 import { hoist, type HoistedWorkspaceProject } from '@pnpm/installing.linking.hoist'
-import { prune } from '@pnpm/installing.linking.modules-cleaner'
+import { prune, removeObsoleteDependency } from '@pnpm/installing.linking.modules-cleaner'
 import type { HoistingLimits } from '@pnpm/installing.linking.real-hoist'
 import {
   type IncludedDependencies,
@@ -1108,17 +1109,22 @@ async function linkAllBins (
   )
 }
 
+type ModulesLinkNode = Pick<DependenciesGraphNode, 'children' | 'depPath' | 'optionalDependencies' | 'modules' | 'name'>
+
 async function linkAllModules (
-  depNodes: Array<Pick<DependenciesGraphNode, 'children' | 'depPath' | 'optionalDependencies' | 'modules' | 'name'>>,
+  depNodes: ModulesLinkNode[],
   opts: {
     currentLockfile?: LockfileObject | null
     optional: boolean
     wantedLockfile: LockfileObject
   }
 ): Promise<void> {
+  const changes = depNodes.map((depNode) => getChangedChildren(depNode, opts))
+  await Promise.all(changes.flatMap(({ depNode, removedAliases }) =>
+    removedAliases.map((alias) => removeObsoleteChild(depNode.modules, alias))
+  ))
   await symlinkAllModules({
-    deps: depNodes.map((depNode) => {
-      const children = getChangedChildren(depNode, opts)
+    deps: changes.map(({ children, depNode }) => {
       return {
         children: opts.optional
           ? children
@@ -1131,20 +1137,35 @@ async function linkAllModules (
 }
 
 function getChangedChildren (
-  depNode: Pick<DependenciesGraphNode, 'children' | 'depPath'>,
+  depNode: ModulesLinkNode,
   opts: {
     currentLockfile?: LockfileObject | null
     wantedLockfile: LockfileObject
   }
-): Record<string, string> {
+): {
+  children: Record<string, string>
+  depNode: ModulesLinkNode
+  removedAliases: string[]
+} {
   const currentSnapshot = opts.currentLockfile?.packages?.[depNode.depPath]
   const wantedSnapshot = opts.wantedLockfile.packages?.[depNode.depPath]
-  if (currentSnapshot == null || wantedSnapshot == null) return depNode.children
+  if (currentSnapshot == null || wantedSnapshot == null) {
+    return { children: depNode.children, depNode, removedAliases: [] }
+  }
   const currentDependencies = Object.assign(Object.create(null), currentSnapshot.dependencies, currentSnapshot.optionalDependencies) as Record<string, string>
   const wantedDependencies = Object.assign(Object.create(null), wantedSnapshot.dependencies, wantedSnapshot.optionalDependencies) as Record<string, string>
   const changedChildren = pickBy((_, alias) =>
     currentDependencies[alias] !== wantedDependencies[alias] ||
     Object.hasOwn(currentSnapshot.optionalDependencies ?? {}, alias) !== Object.hasOwn(wantedSnapshot.optionalDependencies ?? {}, alias),
   depNode.children) as Record<string, string>
-  return isEmpty(changedChildren) ? depNode.children : changedChildren
+  return {
+    children: isEmpty(changedChildren) ? depNode.children : changedChildren,
+    depNode,
+    removedAliases: Object.keys(currentDependencies).filter((alias) => !Object.hasOwn(wantedDependencies, alias)),
+  }
+}
+
+async function removeObsoleteChild (modulesDir: string, alias: string): Promise<void> {
+  if (!isValidDependencyAlias(alias)) return
+  await removeObsoleteDependency(modulesDir, alias)
 }

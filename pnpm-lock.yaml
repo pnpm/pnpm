@@ -6079,6 +6079,9 @@ importers:
       '@pnpm/fs.symlink-dependency':
         specifier: workspace:*
         version: link:../../fs/symlink-dependency
+      '@pnpm/installing.deps-resolver':
+        specifier: workspace:*
+        version: link:../deps-resolver
       '@pnpm/installing.linking.direct-dep-linker':
         specifier: workspace:*
         version: link:../linking/direct-dep-linker

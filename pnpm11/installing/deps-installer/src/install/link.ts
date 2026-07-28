@@ -18,7 +18,7 @@ import {
 import type { InstallationResultStats } from '@pnpm/installing.deps-restorer'
 import { linkDirectDeps } from '@pnpm/installing.linking.direct-dep-linker'
 import { hoist, type HoistedWorkspaceProject } from '@pnpm/installing.linking.hoist'
-import { prune } from '@pnpm/installing.linking.modules-cleaner'
+import { prune, removeObsoleteDependency } from '@pnpm/installing.linking.modules-cleaner'
 import type { IncludedDependencies } from '@pnpm/installing.modules-yaml'
 import {
   filterLockfileByImporters,
@@ -35,7 +35,6 @@ import type {
   SupportedArchitectures,
 } from '@pnpm/types'
 import { symlinkAllModules } from '@pnpm/worker'
-import { rimraf } from '@zkochan/rimraf'
 import pLimit from 'p-limit'
 import { pathExists } from 'path-exists'
 import { difference, equals, isEmpty, pick, pickBy, props } from 'ramda'
@@ -640,12 +639,8 @@ async function getActualChildrenDiff (
 }
 
 async function removeObsoleteChild (modulesDir: string, alias: string): Promise<void> {
-  // Guard against an alias that would escape the modules directory (e.g. `../../x`).
   if (!isValidDependencyAlias(alias)) return
-  await rimraf(path.join(modulesDir, alias))
-  if (alias[0] === '@') {
-    await fs.rmdir(path.join(modulesDir, alias.split('/')[0])).catch(() => {})
-  }
+  await removeObsoleteDependency(modulesDir, alias)
 }
 
 function getChildrenPaths (
