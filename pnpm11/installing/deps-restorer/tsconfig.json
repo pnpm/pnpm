@@ -109,6 +109,9 @@
       "path": "../../workspace/project-manifest-reader"
     },
     {
+      "path": "../deps-resolver"
+    },
+    {
       "path": "../linking/direct-dep-linker"
     },
     {
