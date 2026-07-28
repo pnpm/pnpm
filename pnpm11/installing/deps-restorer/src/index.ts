@@ -457,7 +457,9 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         opts.symlink === false || opts.enableModulesDir === false
           ? Promise.resolve()
           : linkAllModules(depNodes, {
+            currentLockfile,
             optional: opts.include.optionalDependencies,
+            wantedLockfile: filteredLockfile,
           }),
         linkAllPkgs(opts.storeController, depNodes, {
           allowBuild,
@@ -1107,18 +1109,42 @@ async function linkAllBins (
 }
 
 async function linkAllModules (
-  depNodes: Array<Pick<DependenciesGraphNode, 'children' | 'optionalDependencies' | 'modules' | 'name'>>,
+  depNodes: Array<Pick<DependenciesGraphNode, 'children' | 'depPath' | 'optionalDependencies' | 'modules' | 'name'>>,
   opts: {
+    currentLockfile?: LockfileObject | null
     optional: boolean
+    wantedLockfile: LockfileObject
   }
 ): Promise<void> {
   await symlinkAllModules({
-    deps: depNodes.map((depNode) => ({
-      children: opts.optional
-        ? depNode.children
-        : pickBy((_, childAlias) => !depNode.optionalDependencies.has(childAlias), depNode.children),
-      modules: depNode.modules,
-      name: depNode.name,
-    })),
+    deps: depNodes.map((depNode) => {
+      const children = getChangedChildren(depNode, opts)
+      return {
+        children: opts.optional
+          ? children
+          : pickBy((_, childAlias) => !depNode.optionalDependencies.has(childAlias), children),
+        modules: depNode.modules,
+        name: depNode.name,
+      }
+    }),
   })
+}
+
+function getChangedChildren (
+  depNode: Pick<DependenciesGraphNode, 'children' | 'depPath'>,
+  opts: {
+    currentLockfile?: LockfileObject | null
+    wantedLockfile: LockfileObject
+  }
+): Record<string, string> {
+  const currentSnapshot = opts.currentLockfile?.packages?.[depNode.depPath]
+  const wantedSnapshot = opts.wantedLockfile.packages?.[depNode.depPath]
+  if (currentSnapshot == null || wantedSnapshot == null) return depNode.children
+  const currentDependencies = Object.assign(Object.create(null), currentSnapshot.dependencies, currentSnapshot.optionalDependencies) as Record<string, string>
+  const wantedDependencies = Object.assign(Object.create(null), wantedSnapshot.dependencies, wantedSnapshot.optionalDependencies) as Record<string, string>
+  const changedChildren = pickBy((_, alias) =>
+    currentDependencies[alias] !== wantedDependencies[alias] ||
+    Object.hasOwn(currentSnapshot.optionalDependencies ?? {}, alias) !== Object.hasOwn(wantedSnapshot.optionalDependencies ?? {}, alias),
+  depNode.children) as Record<string, string>
+  return isEmpty(changedChildren) ? depNode.children : changedChildren
 }

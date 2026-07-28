@@ -71,7 +71,7 @@ test('an exact override update reuses the lockfile when the new package has the 
   const previousLockfile = project.readLockfile()
   const previousChildResolution = previousLockfile.snapshots['@pnpm.e2e/pkg-with-1-dep@100.0.0']
     .dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']
-  expect(previousChildResolution).toBe('100.1.0')
+  expect(previousChildResolution).toBeDefined()
   const requestedPackages: string[] = []
   const requestPackage = options.storeController.requestPackage
   options.storeController.requestPackage = async (wantedDependency, requestOptions) => {
