@@ -73,12 +73,13 @@ versioning:
   # shared version.
   fixed:
     - ['pacquet', '@pnpm/napi']
-  # The Rust products release as `X.Y.Z-alpha.N` prereleases (published under the
-  # `next` dist-tag) while the TypeScript CLI keeps releasing stable versions on
-  # the main lane. `pnpm lane main --filter …` graduates a product to stable.
+  # The Rust CLI and its NAPI addon release as `X.Y.Z-beta.N` prereleases, while
+  # pnpr remains on `X.Y.Z-alpha.N`. Both are published under the `next` dist-tag
+  # while the TypeScript CLI keeps releasing stable versions on the main lane.
+  # `pnpm lane main --filter …` graduates a product to stable.
   lanes:
-    pacquet: alpha
-    '@pnpm/napi': alpha
+    pacquet: beta
+    '@pnpm/napi': beta
     '@pnpm/pnpr': alpha
 
 allowBuilds:
