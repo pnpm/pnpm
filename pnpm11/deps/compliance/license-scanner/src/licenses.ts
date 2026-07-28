@@ -43,8 +43,8 @@ function getDependenciesFromLicenseNode (
   }
 
   let dependencies: LicensePackage[] = []
-  for (const dependencyName in licenseNode.dependencies) {
-    const dependencyNode = licenseNode.dependencies[dependencyName]
+  for (const dependencyKey in licenseNode.dependencies) {
+    const dependencyNode = licenseNode.dependencies[dependencyKey]
     const dependenciesOfNode = getDependenciesFromLicenseNode(dependencyNode)
 
     dependencies = [
@@ -53,7 +53,7 @@ function getDependenciesFromLicenseNode (
       {
         belongsTo: dependencyNode.dev ? 'devDependencies' : 'dependencies',
         version: dependencyNode.version as string,
-        name: dependencyName,
+        name: dependencyNode.name as string,
         license: dependencyNode.license as string,
         licenseContents: dependencyNode.licenseContents,
         author: dependencyNode.author as string,

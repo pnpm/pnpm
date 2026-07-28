@@ -47,7 +47,6 @@
     "@pnpm/types": "workspace:*",
     "p-limit": "catalog:",
     "path-absolute": "catalog:",
-    "ramda": "catalog:",
     "semver": "catalog:"
   },
   "peerDependencies": {

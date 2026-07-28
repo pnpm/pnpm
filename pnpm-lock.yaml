@@ -3041,9 +3041,6 @@ importers:
       path-absolute:
         specifier: 'catalog:'
         version: 2.0.0
-      ramda:
-        specifier: 'catalog:'
-        version: '@pnpm/ramda@0.28.1'
       semver:
         specifier: 'catalog:'
         version: 7.8.5

@@ -312,4 +312,55 @@ describe('licences', () => {
       },
     ] as LicensePackage[])
   })
+
+  test('findDependencyLicenses lists versions installed under different aliases', async () => {
+    const lockfile: LockfileObject = {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: {
+            prettier: '3.6.2',
+            prettier2: 'prettier@2.8.8',
+          },
+          specifiers: {
+            prettier: '3.6.2',
+            prettier2: 'npm:prettier@2.8.8',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['prettier@2.8.8' as DepPath]: {
+          resolution: {
+            integrity: 'prettier2-integrity',
+          },
+        },
+        ['prettier@3.6.2' as DepPath]: {
+          resolution: {
+            integrity: 'prettier3-integrity',
+          },
+        },
+      },
+    }
+
+    const licensePackages = await findDependencyLicenses({
+      lockfileDir: '/opt/pnpm',
+      manifest: {} as ProjectManifest,
+      virtualStoreDir: '/.pnpm',
+      registries: {} as Registries,
+      wantedLockfile: lockfile,
+      storeDir: tmpStoreDir,
+      virtualStoreDirMaxLength: 120,
+    })
+
+    expect(licensePackages.map(({ name, version }) => ({ name, version }))).toEqual([
+      {
+        name: 'prettier',
+        version: '2.8.8',
+      },
+      {
+        name: 'prettier',
+        version: '3.6.2',
+      },
+    ])
+  })
 })
