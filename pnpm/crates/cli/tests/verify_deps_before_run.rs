@@ -76,8 +76,25 @@ fn dedupe_peers_lockfile_regeneration_installs_before_running_the_script() {
     fs::remove_file(workspace.join("pnpm-lock.yaml")).expect("remove pnpm-lock.yaml");
     pacquet_in(&workspace).with_args(["install", "--lockfile-only"]).assert().success();
     bump_mtime(&workspace.join("pnpm-lock.yaml"));
+    let regenerated_lockfile =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read regenerated lockfile");
 
-    pacquet_in(&workspace).with_args(["run", "hello"]).assert().success();
+    let output = pacquet_in(&workspace)
+        .with_args(["run", "hello"])
+        .output()
+        .expect("run script after lockfile regeneration");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    eprintln!("STDOUT:\n{stdout}\n");
+    assert!(output.status.success(), "the script must run successfully");
+    assert!(
+        stdout.contains("Lockfile is up to date, resolution step is skipped"),
+        "the verifier install must reuse the regenerated lockfile:\n{stdout}",
+    );
+    assert_eq!(
+        fs::read_to_string(workspace.join("pnpm-lock.yaml"))
+            .expect("read lockfile after verifier install"),
+        regenerated_lockfile,
+    );
     assert_eq!(
         fs::read_to_string(workspace.join("postinstall.log")).expect("read postinstall log"),
         "xxh",

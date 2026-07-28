@@ -343,11 +343,11 @@ where
     /// catalog bump drives resolution even under `--no-save`, where the
     /// bumped entry is intentionally not persisted to disk.
     pub catalogs_override: Option<Catalogs>,
-    /// When `true`, the optimistic repeat-install fast path is
-    /// disabled so the full install pipeline always runs. `pacquet
-    /// prune` sets this because the fast path short-circuits before
-    /// the virtual-store sweep, meaning extraneous packages can
-    /// survive a prune when the lockfile hasn't changed.
+    /// When `true`, repeat-install fast paths are disabled so the full
+    /// install pipeline always runs. `pacquet prune` sets this because
+    /// a fast path can short-circuit before the virtual-store sweep,
+    /// meaning extraneous packages can survive a prune when the lockfile
+    /// hasn't changed.
     pub disable_optimistic_repeat_install: bool,
     /// In-process `readPackage` / `afterAllResolved` hooks supplied by an
     /// embedder (the Node API binding) instead of a `.pnpmfile.cjs` on disk.
@@ -1731,6 +1731,7 @@ where
 
         if take_frozen_path
             && !filtered_install
+            && !disable_optimistic_repeat_install
             // `--force` reinstalls everything, so an up-to-date tree
             // must not short-circuit the materialization.
             && !config.force
