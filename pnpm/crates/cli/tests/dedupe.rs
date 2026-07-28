@@ -76,6 +76,42 @@ fn dedupe_check_does_not_materialize_nor_write_lockfile() {
 }
 
 #[test]
+fn dedupe_check_ignores_a_malformed_modules_manifest() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/pkg-with-1-dep": "100.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    pacquet.with_arg("install").assert().success();
+
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let lockfile_before = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
+    fs::write(workspace.join("node_modules/.modules.yaml"), "not: [valid")
+        .expect("corrupt modules manifest");
+
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .with_args(["dedupe", "--check"])
+        .assert()
+        .success();
+
+    let lockfile_after = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
+    assert_eq!(lockfile_before, lockfile_after);
+
+    drop((root, mock_instance));
+}
+
+#[test]
 fn dedupe_check_keeps_valid_lockfile_pins() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();

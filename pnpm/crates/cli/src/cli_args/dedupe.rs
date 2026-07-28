@@ -56,7 +56,8 @@ impl DedupeArgs {
         let lockfile_packages =
             lockfile.get().into_diagnostic()?.and_then(|lockfile| lockfile.packages.as_ref());
         let reusable_skipped_package_ids = read_modules_manifest::<Host>(&config.modules_dir)
-            .into_diagnostic()?
+            .ok()
+            .flatten()
             .into_iter()
             .flat_map(|modules| modules.skipped)
             .filter_map(|package_id| {
