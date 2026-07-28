@@ -1,6 +1,8 @@
 use std::{
     io::Write,
+    marker::PhantomData,
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 use crate::{
@@ -17,10 +19,15 @@ use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pacquet_lockfile::Lockfile;
 use pacquet_package_manager::{
-    ImporterDiffKey, Install, LockfileDiff, ProjectMutation, SnapshotDiff, diff_lockfiles,
+    ImporterDiffKey, Install, LockfileDiff, ProjectMutation, ResolutionObserver,
+    ResolvedPackageHint, SnapshotDiff, diff_lockfiles,
 };
 use pacquet_package_manifest::DependencyGroup;
-use pacquet_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
+use pacquet_reporter::{
+    DedupeCheckLog, GlobalLog, LogEvent, LogLevel, PnpmErrorLog, ProgressLog, ProgressMessage,
+    Reporter,
+};
+use serde_json::{Map, Value, json};
 use tempfile::NamedTempFile;
 
 #[derive(Debug, Args)]
@@ -74,7 +81,14 @@ impl DedupeArgs {
             dry_run: false,
             update_seed_policy: pacquet_package_manager::UpdateSeedPolicy::KeepAllResolveAll,
             auth_override: None,
-            resolution_observer: None,
+            resolution_observer: Some(Arc::new(DedupeResolutionReporter::<Reporter> {
+                requester: lockfile_path
+                    .parent()
+                    .unwrap_or_else(|| Path::new("."))
+                    .display()
+                    .to_string(),
+                reporter: PhantomData,
+            })),
             peer_issues_sink: None,
             catalogs_override: None,
             disable_optimistic_repeat_install: false,
@@ -106,12 +120,12 @@ impl DedupeArgs {
                 guard.disarm();
                 Ok(())
             } else {
-                let report = render_dedupe_check_issues(&diff_lockfiles(
+                let diff = diff_lockfiles(
                     parse_snapshot(existing.as_deref(), lockfile_path).as_ref(),
                     deduped.as_ref(),
                     ImporterDiffKey::Version,
-                ));
-                eprintln!("{report}");
+                );
+                emit_dedupe_check_error::<Reporter>(&diff);
                 Err(DedupeError::CheckIssues.into())
             }
         } else {
@@ -123,11 +137,36 @@ impl DedupeArgs {
 #[derive(Debug, Display, Error, Diagnostic)]
 enum DedupeError {
     #[display("Dedupe --check found changes to the lockfile")]
-    #[diagnostic(
-        code(ERR_PNPM_DEDUPE_CHECK_ISSUES),
-        help("Run `pnpm dedupe` to apply the changes above.")
-    )]
+    #[diagnostic(code(ERR_PNPM_DEDUPE_CHECK_ISSUES))]
     CheckIssues,
+}
+
+struct DedupeResolutionReporter<Reporter> {
+    requester: String,
+    reporter: PhantomData<fn() -> Reporter>,
+}
+
+impl<Reporter: self::Reporter> ResolutionObserver for DedupeResolutionReporter<Reporter> {
+    fn on_resolved(&self, hint: ResolvedPackageHint<'_>) {
+        Reporter::emit(&LogEvent::Progress(ProgressLog {
+            level: LogLevel::Debug,
+            message: ProgressMessage::Resolved {
+                package_id: hint.id.to_string(),
+                requester: self.requester.clone(),
+            },
+        }));
+    }
+}
+
+fn emit_dedupe_check_error<Reporter: self::Reporter>(diff: &LockfileDiff) {
+    let message = "Dedupe --check found changes to the lockfile".to_string();
+    Reporter::emit(&LogEvent::DedupeCheck(DedupeCheckLog {
+        level: LogLevel::Error,
+        message: message.clone(),
+        err: PnpmErrorLog { code: "ERR_PNPM_DEDUPE_CHECK_ISSUES".to_string(), message },
+        dedupe_check_issues: dedupe_check_issues_json(diff),
+        rendered: render_dedupe_check_error(diff),
+    }));
 }
 
 /// Parse one side of the `--check` diff. A snapshot that does not parse —
@@ -164,6 +203,49 @@ fn render_dedupe_check_issues(diff: &LockfileDiff) -> String {
     .flatten()
     .collect::<Vec<_>>()
     .join("\n")
+}
+
+fn render_dedupe_check_error(diff: &LockfileDiff) -> String {
+    format!(
+        "[ERR_PNPM_DEDUPE_CHECK_ISSUES] Dedupe --check found changes to the lockfile\n\n{}\nRun pnpm dedupe to apply the changes above.",
+        render_dedupe_check_issues(diff).trim_end(),
+    )
+}
+
+fn dedupe_check_issues_json(diff: &LockfileDiff) -> Value {
+    json!({
+        "importerIssuesByImporterId": snapshots_changes_json(&diff.importers, &[], &[]),
+        "packageIssuesByDepPath": snapshots_changes_json(
+            &diff.updated_packages,
+            &diff.added_packages,
+            &diff.removed_packages,
+        ),
+    })
+}
+
+fn snapshots_changes_json(updated: &[SnapshotDiff], added: &[String], removed: &[String]) -> Value {
+    let updated = updated
+        .iter()
+        .map(|snapshot| {
+            let changes = snapshot
+                .added
+                .iter()
+                .map(|(alias, next)| (alias.clone(), json!({ "type": "added", "next": next })))
+                .chain(snapshot.removed.iter().map(|(alias, prev)| {
+                    (alias.clone(), json!({ "type": "removed", "prev": prev }))
+                }))
+                .chain(snapshot.updated.iter().map(|(alias, prev, next)| {
+                    (alias.clone(), json!({ "type": "updated", "prev": prev, "next": next }))
+                }))
+                .collect::<Map<_, _>>();
+            (snapshot.id.clone(), Value::Object(changes))
+        })
+        .collect::<Map<_, _>>();
+    json!({
+        "added": added,
+        "removed": removed,
+        "updated": updated,
+    })
 }
 
 fn render_section(

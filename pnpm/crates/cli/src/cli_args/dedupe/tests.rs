@@ -1,6 +1,12 @@
-use pacquet_package_manager::{LockfileDiff, SnapshotDiff};
+use std::{marker::PhantomData, sync::Mutex};
 
-use super::render_dedupe_check_issues;
+use pacquet_package_manager::{LockfileDiff, SnapshotDiff};
+use pacquet_reporter::{LogEvent, ProgressMessage, Reporter};
+
+use super::{
+    DedupeResolutionReporter, emit_dedupe_check_error, render_dedupe_check_error,
+    render_dedupe_check_issues,
+};
 
 #[test]
 fn a_resolution_free_rewrite_says_so() {
@@ -8,6 +14,91 @@ fn a_resolution_free_rewrite_says_so() {
     assert_eq!(
         report,
         "The lockfile would be rewritten, but no dependency resolution would change.",
+    );
+}
+
+#[test]
+fn check_error_matches_pnpm_reporter_format() {
+    let report = render_dedupe_check_error(&LockfileDiff::default());
+    assert_eq!(
+        report,
+        "\
+[ERR_PNPM_DEDUPE_CHECK_ISSUES] Dedupe --check found changes to the lockfile
+
+The lockfile would be rewritten, but no dependency resolution would change.
+Run pnpm dedupe to apply the changes above.",
+    );
+}
+
+#[test]
+fn check_error_emits_the_structured_pnpm_event() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    EVENTS.lock().unwrap().clear();
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().unwrap().push(event.clone());
+        }
+    }
+
+    emit_dedupe_check_error::<RecordingReporter>(&LockfileDiff::default());
+
+    let captured = EVENTS.lock().unwrap();
+    assert!(
+        matches!(
+            captured.as_slice(),
+            [LogEvent::DedupeCheck(log)]
+                if log.err.code == "ERR_PNPM_DEDUPE_CHECK_ISSUES"
+                    && log.dedupe_check_issues["importerIssuesByImporterId"]["updated"]
+                        == serde_json::json!({})
+        ),
+        "unexpected events: {captured:?}",
+    );
+}
+
+#[test]
+fn resolution_observer_emits_resolved_progress() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    EVENTS.lock().unwrap().clear();
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().unwrap().push(event.clone());
+        }
+    }
+
+    let observer = DedupeResolutionReporter::<RecordingReporter> {
+        requester: "/project".to_string(),
+        reporter: PhantomData,
+    };
+    pacquet_package_manager::ResolutionObserver::on_resolved(
+        &observer,
+        pacquet_package_manager::ResolvedPackageHint {
+            id: "dep@2.0.0",
+            name: "dep",
+            version: "2.0.0",
+            integrity: "sha512-test",
+            tarball_url: "https://registry.example/dep/-/dep-2.0.0.tgz",
+            unpacked_size: None,
+            file_count: None,
+            from_registry: true,
+        },
+    );
+
+    let captured = EVENTS.lock().unwrap();
+    assert!(
+        matches!(
+            captured.as_slice(),
+            [LogEvent::Progress(log)]
+                if matches!(
+                    &log.message,
+                    ProgressMessage::Resolved { package_id, requester }
+                        if package_id == "dep@2.0.0" && requester == "/project"
+                )
+        ),
+        "unexpected events: {captured:?}",
     );
 }
 

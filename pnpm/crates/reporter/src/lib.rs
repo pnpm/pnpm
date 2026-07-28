@@ -167,6 +167,14 @@ pub enum LogEvent {
     #[serde(rename = "pnpm")]
     Pnpm(PnpmLog),
 
+    /// The `ERR_PNPM_DEDUPE_CHECK_ISSUES` error (`name: "pnpm"`).
+    ///
+    /// This keeps the structured diff on the wire for NDJSON consumers
+    /// while carrying the terminal rendering used by the in-process default
+    /// reporter.
+    #[serde(rename = "pnpm")]
+    DedupeCheck(DedupeCheckLog),
+
     /// Global-logger message (`name: "pnpm:global"`). Written to a
     /// `bole('pnpm:global')` logger with just a message string — no
     /// `prefix`, unlike [`LogEvent::Pnpm`]. The interactive
@@ -788,6 +796,25 @@ pub struct PnpmLog {
     pub level: LogLevel,
     pub message: String,
     pub prefix: String,
+}
+
+/// The error payload bole serializes under `err`.
+#[derive(Debug, Clone, Serialize)]
+pub struct PnpmErrorLog {
+    pub code: String,
+    pub message: String,
+}
+
+/// `pnpm dedupe --check` failure payload.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DedupeCheckLog {
+    pub level: LogLevel,
+    pub message: String,
+    pub err: PnpmErrorLog,
+    pub dedupe_check_issues: serde_json::Value,
+    #[serde(skip)]
+    pub rendered: String,
 }
 
 /// `pnpm:scope` payload: how many workspace projects the command

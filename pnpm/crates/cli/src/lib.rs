@@ -19,9 +19,9 @@ use flag_relocation::relocate_pre_subcommand_flags;
 use miette::set_panic_hook;
 use pacquet_diagnostics::{enable_tracing_by_env, install_report_handler};
 use state::State;
-use std::{ffi::OsString, future::Future, path::Path};
+use std::{ffi::OsString, future::Future, path::Path, process::ExitCode};
 
-pub fn main() -> miette::Result<()> {
+pub fn main() -> ExitCode {
     enable_tracing_by_env();
     install_report_handler();
     set_panic_hook();
@@ -32,7 +32,19 @@ pub fn main() -> miette::Result<()> {
     // 8 MiB). `block_on_runtime` already moves the command body onto a
     // roomy thread; run the parsing startup that precedes it on one too so
     // the whole path has uniform headroom.
-    run_on_big_stack(run_cli)
+    match run_on_big_stack(run_cli) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            if !is_reported_error(&error) {
+                eprintln!("Error: {error:?}");
+            }
+            ExitCode::FAILURE
+        }
+    }
+}
+
+fn is_reported_error(error: &miette::Report) -> bool {
+    error.code().is_some_and(|code| code.to_string() == "ERR_PNPM_DEDUPE_CHECK_ISSUES")
 }
 
 /// Build the CLI, parse argv, take any early-return fast path, then execute
