@@ -152,7 +152,7 @@ fn build_rewrite_plan(
             || matches!(
                 old_metadata.resolution,
                 LockfileResolution::Tarball(ref tarball)
-                    if tarball.integrity.is_some() && tarball.git_hosted != Some(true)
+                    if tarball.integrity.is_some() && tarball.git_hosted != Some(true),
             );
         if old_snapshot.optional
             || old_snapshot.patched == Some(true)
@@ -235,7 +235,7 @@ fn is_safe_registry_result(
         && matches!(
             result.resolution,
             LockfileResolution::Tarball(ref tarball)
-                if tarball.integrity.is_some() && tarball.git_hosted != Some(true)
+                if tarball.integrity.is_some() && tarball.git_hosted != Some(true),
         )
 }
 
