@@ -606,6 +606,24 @@ fn filtered_run_prints_the_script_command_unless_silent() {
         "silent filtered build must omit its script command: {output:?}",
     );
 
+    let output = Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .with_arg("--reporter=ndjson")
+        .with_arg("--filter")
+        .with_arg("project-1")
+        .with_arg("run")
+        .with_arg("build")
+        .output()
+        .expect("run filtered build with the NDJSON reporter");
+    assert!(output.status.success(), "NDJSON filtered build failed: {output:?}");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!stderr.is_empty(), "NDJSON filtered build must emit reporter records");
+    assert!(
+        stderr.lines().all(|line| serde_json::from_str::<Value>(line).is_ok()),
+        "NDJSON filtered build must contain only JSON records: {stderr}",
+    );
+
     drop(root);
 }
 
