@@ -1226,6 +1226,37 @@ where
         // would hide the change of a real install creating `pnpm-lock.yaml`.
         let existing_wanted_lockfile = lockfile;
         let lockfile = lockfile.or(synthesized_lockfile.as_ref());
+        let fast_updated_lockfile =
+            if !frozen_lockfile && !dry_run && prefer_frozen_lockfile && mutation.is_full_install()
+            {
+                match lockfile.and_then(|lockfile| {
+                    crate::fast_update_importers::try_fast_update_importers(
+                        lockfile,
+                        &manifest_freshness_inputs,
+                    )
+                }) {
+                    Some(candidate)
+                        if check_lockfile_freshness(
+                            &candidate,
+                            &manifest_freshness_inputs,
+                            config,
+                            &catalogs,
+                            pnpmfile_hook.as_ref(),
+                            ignore_manifest_check,
+                            true,
+                        )
+                        .await
+                        .is_ok() =>
+                    {
+                        Some(candidate)
+                    }
+                    _ => None,
+                }
+            } else {
+                None
+            };
+        let lockfile_was_fast_updated = fast_updated_lockfile.is_some();
+        let lockfile = fast_updated_lockfile.as_ref().or(lockfile);
 
         // One per-install packument cache shared with both the
         // lockfile-verifier (below) and the resolver in
@@ -1811,7 +1842,7 @@ where
                 prefix: prefix.clone(),
                 stage: Stage::ImportingDone,
             }));
-            if lockfile_synthesized_from_current && config.lockfile {
+            if (lockfile_synthesized_from_current || lockfile_was_fast_updated) && config.lockfile {
                 wanted_lockfile
                     .save_to_path(&workspace_root.join(Lockfile::FILE_NAME))
                     .map_err(InstallError::SaveWantedLockfile)?;
@@ -2468,11 +2499,11 @@ where
         // handles the common case; this branch covers the rare path where
         // `.modules.yaml` was wiped or inconsistent and the frozen install
         // had to relink.
-        if lockfile_synthesized_from_current
+        if (lockfile_synthesized_from_current || lockfile_was_fast_updated)
             && config.lockfile
-            && let Some(synthesized) = synthesized_lockfile.as_ref()
+            && let Some(updated) = lockfile
         {
-            synthesized
+            updated
                 .save_to_path(&workspace_root.join(Lockfile::FILE_NAME))
                 .map_err(InstallError::SaveWantedLockfile)?;
         }

@@ -13,6 +13,17 @@ export function tryFastUpdateCatalogs (
   if (Object.values(opts.overrides).some((specifier) => parseCatalogProtocol(specifier) != null)) {
     return false
   }
+  if (Object.values(lockfile.importers).some((importer) =>
+    Object.entries(importer.specifiers).some(([alias, specifier]) => {
+      const catalogName = parseCatalogProtocol(specifier)
+      return catalogName != null && (
+        opts.catalogs[catalogName]?.[alias] == null ||
+        lockfile.catalogs?.[catalogName]?.[alias] == null
+      )
+    })
+  )) {
+    return false
+  }
 
   let changed = false
   const catalogs = Object.fromEntries(

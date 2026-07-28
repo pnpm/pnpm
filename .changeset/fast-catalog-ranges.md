@@ -4,4 +4,4 @@
 "pacquet": patch
 ---
 
-Speed up installs after compatible catalog range changes by retaining the locked version without resolving the dependency graph again.
+Speed up installs after compatible catalog or direct dependency range changes by retaining the locked version without resolving the dependency graph again.

@@ -108,6 +108,7 @@ import {
 import { linkPackages } from './link.js'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues.js'
 import { tryFastUpdateCatalogs } from './tryFastUpdateCatalogs.js'
+import { hasChangedProjectSpecifiers, tryFastUpdateImporters } from './tryFastUpdateImporters.js'
 import { tryFastUpdateLockfile } from './tryFastUpdateLockfile.js'
 import { tryFastUpdateOverrides } from './tryFastUpdateOverrides.js'
 import { validateModules } from './validateModules.js'
@@ -692,8 +693,14 @@ export async function mutateModules (
     const _isWantedDepBareSpecifierSame = isWantedDepBareSpecifierSame.bind(null, ctx.wantedLockfile.catalogs, opts.catalogs)
     const upToDateLockfileMajorVersion = ctx.wantedLockfile.lockfileVersion.toString().startsWith(`${LOCKFILE_MAJOR_VERSION}.`)
     let didFastUpdateOverrides = false
+    const contextProjects = Object.values(ctx.projects)
+    const hasChangedSpecifiers = outdatedLockfileSettingName == null &&
+      hasChangedProjectSpecifiers(ctx.wantedLockfile, contextProjects)
     const canTryFastUpdateLockfile =
-      (outdatedLockfileSettingName === 'catalogs' || outdatedLockfileSettingName === 'overrides') &&
+      (outdatedLockfileSettingName === 'catalogs' ||
+        outdatedLockfileSettingName === 'overrides' ||
+        hasChangedSpecifiers) &&
+      !frozenLockfile &&
       installsOnly &&
       !isCheckOnlyInstall(opts) &&
       opts.preferFrozenLockfile &&
@@ -720,15 +727,16 @@ export async function mutateModules (
       await verifyLockfilePromise
       const overridesUseCatalogs = Object.values(opts.overrides)
         .some((specifier) => parseCatalogProtocol(specifier) != null)
+      const lockfileCatalogs = ctx.wantedLockfile.catalogs == null
+        ? {}
+        : Object.fromEntries(Object.entries(ctx.wantedLockfile.catalogs).map(([catalogName, catalog]) => [
+          catalogName,
+          Object.fromEntries(Object.entries(catalog).map(([alias, entry]) => [alias, entry.specifier])),
+        ]))
       const onlyChangedSetting = getOutdatedLockfileSetting(ctx.wantedLockfile, {
         ...lockfileSettings,
-        catalogs: ctx.wantedLockfile.catalogs == null
-          ? {}
-          : Object.fromEntries(Object.entries(ctx.wantedLockfile.catalogs).map(([catalogName, catalog]) => [
-            catalogName,
-            Object.fromEntries(Object.entries(catalog).map(([alias, entry]) => [alias, entry.specifier])),
-          ])),
-        overrides: ctx.wantedLockfile.overrides,
+        catalogs: changedSetting === 'catalogs' ? lockfileCatalogs : opts.catalogs,
+        overrides: changedSetting === 'overrides' ? ctx.wantedLockfile.overrides : overridesMap,
       }) == null
       const isLockfileUpToDate = (lockfile: LockfileObject) => allProjectsAreUpToDate(Object.values(ctx.projects), {
         catalogs: opts.catalogs,
@@ -749,6 +757,9 @@ export async function mutateModules (
                 catalogs: opts.catalogs,
                 overrides: opts.overrides,
               })
+            }
+            if (changedSetting == null) {
+              return tryFastUpdateImporters(candidate, contextProjects)
             }
             const { publishedBy, publishedByExclude } = getPublishedByPolicy(opts)
             return tryFastUpdateOverrides(candidate, {

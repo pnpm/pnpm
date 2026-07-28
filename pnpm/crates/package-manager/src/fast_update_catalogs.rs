@@ -14,6 +14,9 @@ pub(crate) fn try_fast_update_catalogs(
     catalogs: &Catalogs,
     overrides_use_catalogs: bool,
 ) -> FastCatalogUpdate {
+    if !catalog_references_have_snapshots(lockfile, catalogs) {
+        return FastCatalogUpdate::Unsupported;
+    }
     let Some(lockfile_catalogs) = lockfile.catalogs.as_ref() else {
         return if catalogs.is_empty() {
             FastCatalogUpdate::Unchanged
@@ -70,6 +73,33 @@ pub(crate) fn try_fast_update_catalogs(
     let mut candidate = lockfile.clone();
     candidate.catalogs = (!updated_catalogs.is_empty()).then_some(updated_catalogs);
     FastCatalogUpdate::Updated(Box::new(candidate))
+}
+
+fn catalog_references_have_snapshots(lockfile: &Lockfile, catalogs: &Catalogs) -> bool {
+    lockfile.importers.values().all(|importer| {
+        [
+            importer.dependencies.as_ref(),
+            importer.dev_dependencies.as_ref(),
+            importer.optional_dependencies.as_ref(),
+        ]
+        .into_iter()
+        .flatten()
+        .flat_map(|dependencies| dependencies.iter())
+        .all(|(alias, dependency)| {
+            let Some(catalog_name) = dependency.specifier.strip_prefix("catalog:") else {
+                return true;
+            };
+            let catalog_name = if catalog_name.is_empty() { "default" } else { catalog_name };
+            let alias = alias.to_string();
+            catalogs.get(catalog_name).and_then(|catalog| catalog.get(&alias)).is_some()
+                && lockfile
+                    .catalogs
+                    .as_ref()
+                    .and_then(|catalogs| catalogs.get(catalog_name))
+                    .and_then(|catalog| catalog.get(&alias))
+                    .is_some()
+        })
+    })
 }
 
 fn catalog_entry_is_referenced(lockfile: &Lockfile, catalog_name: &str, alias: &str) -> bool {

@@ -3,11 +3,69 @@ import { mutateModulesInSingleProject } from '@pnpm/installing.deps-installer'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { prepareEmpty } from '@pnpm/prepare'
 import type { StoreController } from '@pnpm/store.controller-types'
-import type { ProjectManifest, ProjectRootDir } from '@pnpm/types'
+import type { ProjectId, ProjectManifest, ProjectRootDir } from '@pnpm/types'
 
 import { tryFastUpdateCatalogs } from '../../src/install/tryFastUpdateCatalogs.js'
+import { tryFastUpdateImporters } from '../../src/install/tryFastUpdateImporters.js'
 import { tryFastUpdateLockfile } from '../../src/install/tryFastUpdateLockfile.js'
 import { testDefaults } from '../utils/index.js'
+
+test('a compatible package range update retains the locked peer snapshot without resolution', async () => {
+  const project = prepareEmpty()
+  const manifest: ProjectManifest = {
+    dependencies: {
+      '@pnpm.e2e/has-optional-peer-with-peer': '^1.0.0',
+    },
+  }
+  const options = testDefaults()
+
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, options)
+
+  const requestedPackages = trackRequestedPackages(options.storeController)
+  manifest.dependencies!['@pnpm.e2e/has-optional-peer-with-peer'] = '>=1.0.0 <2'
+
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, options)
+
+  expect(requestedPackages).toStrictEqual([])
+  expect(project.readLockfile().importers['.' as ProjectId].dependencies!['@pnpm.e2e/has-optional-peer-with-peer']).toStrictEqual({
+    specifier: '>=1.0.0 <2',
+    version: '1.0.0',
+  })
+})
+
+test('an incompatible package range update falls back without mutating the lockfile', () => {
+  const lockfile = {
+    importers: {
+      '.': {
+        dependencies: {
+          foo: '1.0.0',
+        },
+        specifiers: {
+          foo: '^1.0.0',
+        },
+      },
+    },
+    lockfileVersion: '9.0',
+  } as LockfileObject
+
+  expect(tryFastUpdateImporters(lockfile, [{
+    id: '.' as ProjectId,
+    manifest: {
+      dependencies: {
+        foo: '^2.0.0',
+      },
+    },
+  }])).toBe(false)
+  expect(lockfile.importers['.' as ProjectId].specifiers.foo).toBe('^1.0.0')
+})
 
 test('a compatible catalog range update retains the locked peer snapshot without resolution', async () => {
   const project = prepareEmpty()
@@ -87,6 +145,49 @@ test('an incompatible catalog range update falls back to resolution', async () =
   expect(requestedPackages).toContain('@pnpm.e2e/foobarqar')
 })
 
+test('simultaneous catalog and override changes fall back to resolution', async () => {
+  prepareEmpty()
+  const manifest: ProjectManifest = {
+    dependencies: {
+      '@pnpm.e2e/parent-of-pkg-with-1-dep': 'catalog:',
+    },
+  }
+  const options = testDefaults({
+    catalogs: {
+      default: {
+        '@pnpm.e2e/parent-of-pkg-with-1-dep': '^1.0.0',
+      },
+    },
+    overrides: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  })
+
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, options)
+
+  const requestedPackages = trackRequestedPackages(options.storeController)
+  options.catalogs = {
+    default: {
+      '@pnpm.e2e/parent-of-pkg-with-1-dep': '>=1 <2',
+    },
+  }
+  options.overrides = {
+    '@pnpm.e2e/pkg-with-1-dep': '100.1.0',
+  }
+
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, options)
+
+  expect(requestedPackages.length).toBeGreaterThan(0)
+})
+
 test('a catalog snapshot still referenced by an importer is not removed', () => {
   const lockfile = {
     catalogs: {
@@ -112,6 +213,36 @@ test('a catalog snapshot still referenced by an importer is not removed', () => 
     overrides: {},
   })).toBe(false)
   expect(lockfile.catalogs).toHaveProperty(['default', 'foo'])
+})
+
+test('a referenced catalog entry missing from the snapshots falls back', () => {
+  const lockfile = {
+    catalogs: {
+      default: {
+        bar: {
+          specifier: '^1.0.0',
+          version: '1.0.0',
+        },
+      },
+    },
+    importers: {
+      '.': {
+        specifiers: {
+          foo: 'catalog:',
+        },
+      },
+    },
+    lockfileVersion: '9.0',
+  } as LockfileObject
+
+  expect(tryFastUpdateCatalogs(lockfile, {
+    catalogs: {
+      default: {
+        foo: '^1.0.0',
+      },
+    },
+    overrides: {},
+  })).toBe(false)
 })
 
 test('an unreferenced stale catalog snapshot is removed', () => {

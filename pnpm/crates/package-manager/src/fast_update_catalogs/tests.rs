@@ -142,6 +142,33 @@ importers:
 }
 
 #[test]
+fn referenced_catalog_entries_require_lockfile_snapshots() {
+    let lockfile = lockfile(
+        r"
+lockfileVersion: '9.0'
+catalogs:
+  default:
+    bar:
+      specifier: ^1
+      version: 1.0.0
+importers:
+  .:
+    dependencies:
+      foo:
+        specifier: 'catalog:'
+        version: 1.0.0
+",
+    );
+    let catalogs =
+        Catalogs::from([("default".to_string(), [("foo".to_string(), "^1".to_string())].into())]);
+
+    assert!(matches!(
+        try_fast_update_catalogs(&lockfile, &catalogs, false),
+        FastCatalogUpdate::Unsupported
+    ));
+}
+
+#[test]
 fn removes_an_unreferenced_stale_snapshot() {
     let lockfile = lockfile(
         r"
