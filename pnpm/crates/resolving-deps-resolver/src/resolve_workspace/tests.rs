@@ -933,6 +933,55 @@ async fn shared_subtree_owner_context_suppresses_later_optional_hoist() {
         Some("shared@1.0.0".to_string()),
         "pkg-a must not hoist opt, but it also must not reuse root's opt provider",
     );
+
+    let (tmp_root, root_manifest) = fake_manifest(
+        serde_json::json!({ "shared": "1.0.0", "opt": "18.0.0", "carrier": "1.0.0" }),
+    );
+    let (tmp_a, a_manifest) = fake_manifest(serde_json::json!({ "shared": "1.0.0" }));
+    let importers = [
+        WorkspaceImporter { id: ".".to_string(), manifest: &root_manifest },
+        WorkspaceImporter { id: "pkg-a".to_string(), manifest: &a_manifest },
+    ];
+    let dirs = [tmp_root.path(), tmp_a.path()];
+    let mut opts = workspace_opts(false, false);
+    opts.auto_install_peers = true;
+    opts.wanted_lockfile = Some(std::sync::Arc::new(pacquet_lockfile::Lockfile {
+        lockfile_version: pacquet_lockfile::LockfileVersion::<9>::try_from(
+            pacquet_lockfile::ComVer::new(9, 0),
+        )
+        .unwrap(),
+        settings: None,
+        catalogs: None,
+        overrides: None,
+        package_extensions_checksum: None,
+        pnpmfile_checksum: None,
+        ignored_optional_dependencies: None,
+        patched_dependencies: None,
+        importers: HashMap::new(),
+        packages: None,
+        snapshots: Some(HashMap::from([(
+            pacquet_lockfile::PkgNameVerPeer::from_str("shared@1.0.0(opt@25.0.0)").unwrap(),
+            pacquet_lockfile::SnapshotEntry::default(),
+        )])),
+    }));
+    let mut next = 0;
+    let result = resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
+        let dir = dirs[next].to_path_buf();
+        next += 1;
+        let mut opts = importer_opts(dir, None);
+        opts.auto_install_peers = true;
+        opts
+    })
+    .await
+    .unwrap();
+
+    let a_direct =
+        result.peers.direct_dependencies_by_importer.get("pkg-a").expect("pkg-a importer");
+    assert_eq!(
+        a_direct.get("shared").map(std::string::ToString::to_string),
+        Some("shared@1.0.0(opt@25.0.0)".to_string()),
+        "a locked peer provider must remain eligible for importer-local hoisting",
+    );
 }
 
 #[tokio::test]
