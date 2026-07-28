@@ -1382,10 +1382,14 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             update_reuse_scopes_by_importer.clear();
         }
 
+        let reusable_settings_lockfile = wanted_lockfile
+            .filter(|lockfile| lockfile.package_extensions_checksum == package_extensions_checksum);
+        let override_settings_match = reusable_settings_lockfile.is_some_and(|lockfile| {
+            overrides_match(lockfile.overrides.as_ref(), resolved_overrides.as_ref())
+        });
         let fast_override_seed = if let (Some(lockfile), Some(parsed), Some(resolved)) =
-            (wanted_lockfile, parsed_overrides.as_deref(), resolved_overrides.as_ref())
-            && lockfile.package_extensions_checksum == package_extensions_checksum
-            && !overrides_match(lockfile.overrides.as_ref(), Some(resolved))
+            (reusable_settings_lockfile, parsed_overrides.as_deref(), resolved_overrides.as_ref())
+            && !override_settings_match
             && pnpmfile_hook.is_none()
             && custom_resolvers_raw.is_empty()
             && patched_dependencies.is_none()
@@ -1432,12 +1436,9 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // Exact generic registry overrides may instead use a
         // dependency-shape-verified rewritten seed. Every unsupported
         // override shape falls back to withholding the seed.
-        let lockfile_reuse_seed = fast_override_seed.as_ref().or_else(|| {
-            wanted_lockfile.filter(|lockfile| {
-                lockfile.package_extensions_checksum == package_extensions_checksum
-                    && overrides_match(lockfile.overrides.as_ref(), resolved_overrides.as_ref())
-            })
-        });
+        let lockfile_reuse_seed = fast_override_seed
+            .as_ref()
+            .or_else(|| override_settings_match.then_some(reusable_settings_lockfile).flatten());
         // Reused subtrees never stream their manifests through the
         // versions overrider, so only a resolution with no reuse at all
         // collects the complete declared-range set the convergence

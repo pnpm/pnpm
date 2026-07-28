@@ -180,7 +180,6 @@ async fn rewrites_an_exact_override_when_locked_children_satisfy_the_new_manifes
             .as_deref(),
         Some("2.0.0"),
     );
-    dbg!(&updated.snapshots);
     assert!(
         updated
             .snapshots
@@ -245,7 +244,6 @@ async fn drops_obsolete_dependency_edges_from_a_replacement() {
 
     assert_eq!(calls, 1);
     assert!(target.dependencies.is_none());
-    dbg!(&updated.snapshots);
     assert!(
         updated
             .snapshots
@@ -347,7 +345,6 @@ async fn removes_a_dependency_and_its_unreachable_subtree_without_resolving() {
 
     assert_eq!(calls, 0);
     assert!(parent.dependencies.is_none());
-    dbg!(&updated.snapshots, &updated.packages);
     assert!(updated.snapshots.as_ref().is_some_and(|snapshots| {
         !snapshots.contains_key(&"target@1.0.0".parse().unwrap())
             && !snapshots.contains_key(&"child@1.1.0".parse().unwrap())
@@ -479,7 +476,6 @@ async fn applies_exact_replacements_and_dependency_removals_together() {
             .as_deref(),
         Some("2.0.0"),
     );
-    dbg!(&updated.snapshots);
     assert!(parent.dependencies.as_ref().is_none_or(|dependencies| {
         !dependencies.contains_key(&PkgName::parse("obsolete").unwrap())
     }));

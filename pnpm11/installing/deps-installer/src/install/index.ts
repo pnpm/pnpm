@@ -689,6 +689,7 @@ export async function mutateModules (
     }
     const _isWantedDepBareSpecifierSame = isWantedDepBareSpecifierSame.bind(null, ctx.wantedLockfile.catalogs, opts.catalogs)
     const upToDateLockfileMajorVersion = ctx.wantedLockfile.lockfileVersion.toString().startsWith(`${LOCKFILE_MAJOR_VERSION}.`)
+    let didFastUpdateOverrides = false
     const canTryFastUpdateOverrides =
       outdatedLockfileSettingName === 'overrides' &&
       installsOnly &&
@@ -760,6 +761,7 @@ export async function mutateModules (
       ) {
         outdatedLockfileSettingName = null
         ctx.wantedLockfileIsModified = true
+        didFastUpdateOverrides = true
       }
     }
     const outdatedLockfileSettings = outdatedLockfileSettingName != null
@@ -793,6 +795,7 @@ export async function mutateModules (
     }
 
     const frozenInstallResult = await tryFrozenInstall({
+      didFastUpdateOverrides,
       frozenLockfile,
       needsFullResolution,
       patchGroups,
@@ -1063,11 +1066,13 @@ export async function mutateModules (
    * not change recorded dependency resolutions.
    */
   async function tryFrozenInstall ({
+    didFastUpdateOverrides,
     frozenLockfile,
     needsFullResolution,
     patchGroups,
     upToDateLockfileMajorVersion,
   }: {
+    didFastUpdateOverrides: boolean
     frozenLockfile: boolean
     needsFullResolution: boolean
     patchGroups?: PatchGroupRecord
@@ -1218,6 +1223,7 @@ Note that in CI environments, this setting is enabled by default.`,
         allProjects: ctx.projects,
         prunedAt: ctx.modulesFile?.prunedAt,
         pruneVirtualStore,
+        relinkChangedDependenciesOnly: didFastUpdateOverrides,
         wantedLockfile: maybeOpts.ignorePackageManifest ? undefined : ctx.wantedLockfile,
         useLockfile: opts.useLockfile && ctx.wantedLockfileIsModified,
         verifyLockfile,

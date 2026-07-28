@@ -175,6 +175,7 @@ export interface HeadlessOptions {
   wantedLockfile?: LockfileObject
   ownLifecycleHooksStdio?: 'inherit' | 'pipe'
   pendingBuilds: string[]
+  relinkChangedDependenciesOnly?: boolean
   resolveSymlinksInInjectedDirs?: boolean
   skipped: Set<DepPath>
   skipRuntimes?: boolean
@@ -457,7 +458,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         opts.symlink === false || opts.enableModulesDir === false
           ? Promise.resolve()
           : linkAllModules(depNodes, {
-            currentLockfile,
+            currentLockfile: opts.relinkChangedDependenciesOnly ? currentLockfile : undefined,
             optional: opts.include.optionalDependencies,
             wantedLockfile: filteredLockfile,
           }),
