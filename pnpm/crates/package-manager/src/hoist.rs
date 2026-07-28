@@ -145,6 +145,20 @@ where
     importers.sort_by(|a, b| a.0.cmp(b.0));
     let dependency_groups: Vec<_> = dependency_groups.into_iter().collect();
     for (importer_id, project_snapshot) in importers {
+        // Package identity follows the direct-linker's caller precedence.
+        let mut resolved_by_alias = HashMap::new();
+        for group in &dependency_groups {
+            if matches!(group, DependencyGroup::Peer) {
+                continue;
+            }
+            let Some(map) = project_snapshot.get_map_by_group(*group) else { continue };
+            for (name, spec) in map {
+                let Some(key) = spec.version.resolved_key(name) else { continue };
+                resolved_by_alias.entry(name.to_string()).or_insert(key);
+            }
+        }
+
+        // Key positions follow pnpm's manifest merge order.
         let mut deps: IndexMap<String, PackageKey> = IndexMap::new();
         for group in [DependencyGroup::Dev, DependencyGroup::Prod, DependencyGroup::Optional] {
             if !dependency_groups.contains(&group) {
@@ -153,15 +167,10 @@ where
             let Some(map) = project_snapshot.get_map_by_group(group) else { continue };
             let mut entries: Vec<_> = map.iter().collect();
             entries.sort_by_cached_key(|entry| entry.0.to_string());
-            for (name, spec) in entries {
-                // Skip `link:` workspace siblings — they don't live
-                // in the snapshot graph and aren't candidates for the
-                // private/public hoist. For aliased deps,
-                // [`ImporterDepVersion::resolved_key`] returns the
-                // alias's own (name, suffix), matching the snapshot
-                // key under which the package lives.
-                let Some(key) = spec.version.resolved_key(name) else { continue };
-                deps.insert(name.to_string(), key);
+            for (name, _) in entries {
+                let alias = name.to_string();
+                let Some(key) = resolved_by_alias.get(&alias) else { continue };
+                deps.entry(alias).or_insert_with(|| key.clone());
             }
         }
         result.insert(importer_id.clone(), deps);

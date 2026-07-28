@@ -602,6 +602,31 @@ fn build_direct_deps_by_importer_collects_from_importers() {
 }
 
 #[test]
+fn build_direct_deps_by_importer_uses_caller_precedence() {
+    let alias = name("shared");
+    let project_snapshot = ProjectSnapshot {
+        dependencies: Some(HashMap::from([(
+            alias.clone(),
+            ResolvedDependencySpec { specifier: "1.0.0".to_string(), version: ver("1.0.0").into() },
+        )])),
+        dev_dependencies: Some(HashMap::from([(
+            alias,
+            ResolvedDependencySpec { specifier: "2.0.0".to_string(), version: ver("2.0.0").into() },
+        )])),
+        ..Default::default()
+    };
+    let importers = HashMap::from([(".".to_string(), project_snapshot)]);
+
+    let prod_first =
+        build_direct_deps_by_importer(&importers, [DependencyGroup::Prod, DependencyGroup::Dev]);
+    let dev_first =
+        build_direct_deps_by_importer(&importers, [DependencyGroup::Dev, DependencyGroup::Prod]);
+
+    assert_eq!(prod_first["."]["shared"], key("shared", "1.0.0"));
+    assert_eq!(dev_first["."]["shared"], key("shared", "2.0.0"));
+}
+
+#[test]
 fn build_hoist_graph_walks_dependencies() {
     let (snapshots, packages) = make_lockfile_data(&[
         ("a", "1.0.0", &[("b", "b", "1.0.0")], true),
