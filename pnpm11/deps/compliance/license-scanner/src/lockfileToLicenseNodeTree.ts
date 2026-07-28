@@ -8,7 +8,6 @@ import {
 } from '@pnpm/lockfile.walker'
 import { StoreIndex } from '@pnpm/store.index'
 import type { DependenciesField, ProjectId, Registries, SupportedArchitectures } from '@pnpm/types'
-import { map as mapValues } from 'ramda'
 
 import { getPkgInfo } from './getPkgInfo.js'
 
@@ -24,7 +23,7 @@ export interface LicenseNode {
   repository?: string
   integrity?: string
   requires?: Record<string, string>
-  dependencies?: { [name: string]: LicenseNode }
+  dependencies?: Record<string, LicenseNode>
   dev: boolean
 }
 
@@ -113,7 +112,7 @@ export async function lockfileToLicenseNode (
       }
 
       // If the package details could be fetched, we consider it part of the tree
-      return [name, dep]
+      return [depPath, dep]
     }))).filter(Boolean) as Array<[string, LicenseNode]>
   )
 
@@ -178,6 +177,9 @@ export async function lockfileToLicenseNodeTree (
   return licenseNodeTree
 }
 
-function toRequires (licenseNodesByDepName: Record<string, LicenseNode>): Record<string, string> {
-  return mapValues((licenseNode) => licenseNode.version!, licenseNodesByDepName)
+function toRequires (licenseNodes: Record<string, LicenseNode>): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(licenseNodes)
+      .map(([key, licenseNode]) => [licenseNode.name ?? key, licenseNode.version!])
+  )
 }
