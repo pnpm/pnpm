@@ -1272,11 +1272,6 @@ function forgetResolutionsOfAllPrevWantedDeps (wantedLockfile: LockfileObject): 
       ({ dependencies: _dependencies, optionalDependencies: _optionalDependencies, ...rest }) => rest,
       wantedLockfile.packages)
   }
-
-  // Also clear the resolutions in catalogs so they're re-resolved and deduped.
-  if ((wantedLockfile.catalogs != null) && !isEmpty(wantedLockfile.catalogs)) {
-    wantedLockfile.catalogs = undefined
-  }
 }
 
 /**
