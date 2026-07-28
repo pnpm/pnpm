@@ -1,4 +1,8 @@
-use std::{collections::HashMap, str::FromStr, sync::Mutex};
+use std::{
+    collections::{HashMap, HashSet},
+    str::FromStr,
+    sync::Mutex,
+};
 
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_resolving_resolver_base::{
@@ -10,8 +14,106 @@ use pretty_assertions::assert_eq;
 
 use crate::{
     DepPath, ResolveDependencyTreeError, resolve_importer,
-    resolve_importer::{ResolveImporterError, ResolveImporterOptions},
+    resolve_importer::{ResolveImporterError, ResolveImporterOptions, locked_peer_names},
 };
+
+#[test]
+fn only_peer_suffix_versions_are_treated_as_locked_peer_providers() {
+    use pacquet_lockfile::{ComVer, Lockfile, LockfileVersion, PkgNameVerPeer, SnapshotEntry};
+
+    let lockfile = Lockfile {
+        lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(9, 0)).unwrap(),
+        settings: None,
+        catalogs: None,
+        overrides: None,
+        package_extensions_checksum: None,
+        pnpmfile_checksum: None,
+        ignored_optional_dependencies: None,
+        patched_dependencies: None,
+        importers: HashMap::new(),
+        packages: None,
+        snapshots: Some(HashMap::from([
+            (
+                PkgNameVerPeer::from_str("consumer@1.0.0(peer@1.0.0)").unwrap(),
+                SnapshotEntry::default(),
+            ),
+            (
+                PkgNameVerPeer::from_str(
+                    "other@1.0.0(@types/node@24.0.0)(provider@1.0.0(nested@2.0.0))",
+                )
+                .unwrap(),
+                SnapshotEntry::default(),
+            ),
+        ])),
+    };
+
+    assert_eq!(
+        locked_peer_names(Some(&lockfile)),
+        HashSet::from([
+            "@types/node".to_string(),
+            "nested".to_string(),
+            "peer".to_string(),
+            "provider".to_string(),
+        ]),
+    );
+}
+
+#[test]
+fn hashed_peer_suffix_uses_package_peer_metadata() {
+    use pacquet_lockfile::{
+        ComVer, DirectoryResolution, Lockfile, LockfileResolution, LockfileVersion,
+        PackageMetadata, PkgName, PkgNameVerPeer, PkgVerPeer, SnapshotDepRef, SnapshotEntry,
+    };
+
+    let package_key = PkgNameVerPeer::from_str("consumer@1.0.0").unwrap();
+    let snapshot_key =
+        PkgNameVerPeer::from_str("consumer@1.0.0(0123456789abcdef0123456789abcdef)").unwrap();
+    let lockfile = Lockfile {
+        lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(9, 0)).unwrap(),
+        settings: None,
+        catalogs: None,
+        overrides: None,
+        package_extensions_checksum: None,
+        pnpmfile_checksum: None,
+        ignored_optional_dependencies: None,
+        patched_dependencies: None,
+        importers: HashMap::new(),
+        packages: Some(HashMap::from([(
+            package_key,
+            PackageMetadata {
+                resolution: LockfileResolution::Directory(DirectoryResolution {
+                    directory: "consumer".to_string(),
+                }),
+                version: None,
+                engines: None,
+                cpu: None,
+                os: None,
+                libc: None,
+                deprecated: None,
+                has_bin: None,
+                prepare: None,
+                bundled_dependencies: None,
+                peer_dependencies: Some(HashMap::from([
+                    ("peer".to_string(), "*".to_string()),
+                    ("missing".to_string(), "*".to_string()),
+                ])),
+                peer_dependencies_meta: None,
+            },
+        )])),
+        snapshots: Some(HashMap::from([(
+            snapshot_key,
+            SnapshotEntry {
+                dependencies: Some(HashMap::from([(
+                    PkgName::parse("peer").unwrap(),
+                    SnapshotDepRef::Plain(PkgVerPeer::from_str("1.0.0").unwrap()),
+                )])),
+                ..SnapshotEntry::default()
+            },
+        )])),
+    };
+
+    assert_eq!(locked_peer_names(Some(&lockfile)), HashSet::from(["peer".to_string()]));
+}
 
 struct StubResolver {
     table: HashMap<(String, String), ResolveResult>,

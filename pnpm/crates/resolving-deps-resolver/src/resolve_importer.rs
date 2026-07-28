@@ -339,6 +339,7 @@ pub(crate) struct ImporterHoistState {
     parent_pkg_aliases: HashSet<String>,
     all_missing_optional_peers: BTreeMap<String, Vec<String>>,
     all_preferred_versions: PreferredVersions,
+    locked_peer_names: Arc<HashSet<String>>,
     seen_workspace_package_versions: HashSet<(String, String)>,
     override_bare_specifier: Option<Arc<DependencyOverrider>>,
     /// `auto_install_peers || dedupe_peer_dependents` — upstream's
@@ -420,6 +421,8 @@ impl ImporterHoistState {
             .with_patched_dependencies(patched_dependencies)
             .with_resolution_mode(pick_lowest_direct, subdep_published_by)
             .with_catalogs(catalogs);
+        let locked_peer_names =
+            Arc::new(locked_peer_names(ctx.workspace().wanted_lockfile().map(AsRef::as_ref)));
         record_changed_direct_deps(&ctx, importer_id, &initial_wanted);
         let wanted_specifier_by_alias: BTreeMap<String, String> = initial_wanted
             .iter()
@@ -451,6 +454,7 @@ impl ImporterHoistState {
             parent_pkg_aliases,
             all_missing_optional_peers: BTreeMap::new(),
             all_preferred_versions,
+            locked_peer_names,
             seen_workspace_package_versions: HashSet::new(),
             override_bare_specifier,
             hoist_peers: auto_install_peers || dedupe_peer_dependents,
@@ -534,6 +538,7 @@ impl ImporterHoistState {
                 importer_id: self.importer_id.clone(),
                 first_importer_by_pkg: self.ctx.workspace().first_importer_by_pkg(),
                 first_walk_missing_by_pkg: self.ctx.workspace().first_walk_missing_by_pkg(),
+                locked_peer_names: Arc::clone(&self.locked_peer_names),
             },
         );
     }
@@ -601,6 +606,7 @@ impl ImporterHoistState {
                         importer_id: self.importer_id.clone(),
                         first_importer_by_pkg: self.ctx.workspace().first_importer_by_pkg(),
                         first_walk_missing_by_pkg: self.ctx.workspace().first_walk_missing_by_pkg(),
+                        locked_peer_names: Arc::clone(&self.locked_peer_names),
                     })))
                 });
 
@@ -781,6 +787,56 @@ impl ImporterHoistState {
         let peers_result = resolve_peers(&mut resolved_tree, peers_opts);
         ResolveImporterResult { resolved_tree, peers_result }
     }
+}
+
+fn locked_peer_names(wanted_lockfile: Option<&pacquet_lockfile::Lockfile>) -> HashSet<String> {
+    let Some(lockfile) = wanted_lockfile else {
+        return HashSet::new();
+    };
+    let mut names = HashSet::new();
+    for (key, snapshot) in lockfile.snapshots.iter().flatten() {
+        let peer_suffix = key.suffix.peer();
+        if peer_suffix.is_empty() {
+            continue;
+        }
+        names.extend(peer_suffix_names(peer_suffix));
+        if is_hashed_peer_suffix(peer_suffix)
+            && let Some(metadata) =
+                lockfile.packages.as_ref().and_then(|packages| packages.get(&key.without_peer()))
+        {
+            let resolved_names = snapshot
+                .dependencies
+                .iter()
+                .chain(snapshot.optional_dependencies.iter())
+                .flatten()
+                .map(|(name, _)| name.to_string())
+                .collect::<HashSet<_>>();
+            names.extend(
+                metadata
+                    .peer_dependencies
+                    .iter()
+                    .flatten()
+                    .map(|(name, _)| name)
+                    .filter(|name| resolved_names.contains(*name))
+                    .cloned(),
+            );
+        }
+    }
+    names
+}
+
+fn peer_suffix_names(peer_suffix: &str) -> impl Iterator<Item = String> + '_ {
+    peer_suffix.match_indices('(').filter_map(|(start, _)| {
+        let segment = peer_suffix[start + 1..].split(['(', ')']).next()?;
+        let (name, _) = segment.rsplit_once('@')?;
+        (!name.is_empty()).then(|| name.to_string())
+    })
+}
+
+fn is_hashed_peer_suffix(peer_suffix: &str) -> bool {
+    peer_suffix.rsplit_once('(').and_then(|(_, tail)| tail.strip_suffix(')')).is_some_and(|hash| {
+        hash.len() == 32 && hash.chars().all(|character| character.is_ascii_hexdigit())
+    })
 }
 
 /// Split the missing-peer report into the inputs the inner and outer
