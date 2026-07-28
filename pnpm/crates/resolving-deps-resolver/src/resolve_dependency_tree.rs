@@ -968,6 +968,22 @@ impl WorkspaceTreeCtx {
             .collect()
     }
 
+    pub(crate) fn set_direct_locked_peer_names(
+        &self,
+        direct: &[DirectDep],
+        names_by_alias: &HashMap<String, Arc<HashSet<String>>>,
+    ) {
+        let mut tree = lock_recoverable(&self.dependencies_tree);
+        for dep in direct {
+            let Some(names) = names_by_alias.get(&dep.alias) else {
+                continue;
+            };
+            if let Some(node) = tree.get_mut(&dep.node_id) {
+                node.locked_peer_names = Some(Arc::clone(names));
+            }
+        }
+    }
+
     /// Set which dependencies `pacquet update` excludes from reuse. See
     /// [`UpdateReuseScope`].
     #[must_use]

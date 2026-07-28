@@ -2,4 +2,4 @@
 "pacquet": patch
 ---
 
-Preserve each importer's locked optional peer versions during `pnpm dedupe`.
+Preserve each direct dependency's locked optional peer context during `pnpm dedupe`.

@@ -1,6 +1,7 @@
 use super::{
-    ImporterPeerInput, NodeRecord, ResolvePeersOptions, Walker, importer_relative_link_dep_path,
-    peer_segment_names, resolve_peers, resolve_peers_workspace, satisfies_with_prereleases,
+    ImporterPeerInput, NodeRecord, ParentRef, ResolvePeersOptions, Walker,
+    importer_relative_link_dep_path, peer_segment_names, resolve_peers, resolve_peers_workspace,
+    satisfies_with_prereleases, scoped_hoisted_optional_parent_refs,
 };
 use crate::{
     dependencies_graph::{DependenciesGraph, PeerDependencyIssues},
@@ -28,6 +29,35 @@ const PATCHED_WORKFLOWS_SDK: &str = concat!(
     "(better-sqlite3@12.8.0)",
     "(express@4.21.2)",
 );
+
+#[test]
+fn locked_direct_dep_only_sees_its_locked_hoisted_optional_peers() {
+    let debug = NodeId::next();
+    let supports_color = NodeId::next();
+    let regular = NodeId::next();
+    let parent = |version: &str, node_id| ParentRef {
+        version: version.to_string(),
+        node_id: Some(node_id),
+        alias: None,
+        depth: 0,
+        occurrence: 0,
+    };
+    let parent_refs = HashMap::from([
+        ("debug".to_string(), parent("4.4.3", debug.clone())),
+        ("supports-color".to_string(), parent("8.1.1", supports_color.clone())),
+        ("regular".to_string(), parent("1.0.0", regular)),
+    ]);
+
+    let scoped = scoped_hoisted_optional_parent_refs(
+        &parent_refs,
+        &HashSet::from(["supports-color".to_string()]),
+        &HashSet::from([debug, supports_color]),
+    );
+
+    assert!(!scoped.contains_key("debug"));
+    assert!(scoped.contains_key("supports-color"));
+    assert!(scoped.contains_key("regular"));
+}
 
 #[test]
 fn importer_relative_self_link_keeps_an_empty_target() {
@@ -1416,6 +1446,7 @@ fn pruned_hoisted_provider_falls_back_in_workspace_pass() {
 
     let importer = ImporterPeerInput {
         id: ".".to_string(),
+        hoisted_optional_peer_node_ids: HashSet::new(),
         direct: vec![
             DirectDep {
                 alias: "consumer".to_string(),
@@ -1481,6 +1512,7 @@ fn workspace_importers_get_distinct_instances_for_different_peer_versions() {
     let importers = [
         ImporterPeerInput {
             id: "project-a".to_string(),
+            hoisted_optional_peer_node_ids: HashSet::new(),
             direct: vec![
                 DirectDep {
                     alias: "consumer".to_string(),
@@ -1498,6 +1530,7 @@ fn workspace_importers_get_distinct_instances_for_different_peer_versions() {
         },
         ImporterPeerInput {
             id: "project-b".to_string(),
+            hoisted_optional_peer_node_ids: HashSet::new(),
             direct: vec![
                 DirectDep {
                     alias: "consumer".to_string(),
@@ -1566,6 +1599,7 @@ fn a_shared_consumer_keeps_the_first_importers_peer_provider_variant() {
     let importers = [
         ImporterPeerInput {
             id: ".".to_string(),
+            hoisted_optional_peer_node_ids: HashSet::new(),
             direct: vec![
                 DirectDep {
                     alias: "plugin".to_string(),
@@ -1588,6 +1622,7 @@ fn a_shared_consumer_keeps_the_first_importers_peer_provider_variant() {
         },
         ImporterPeerInput {
             id: "app".to_string(),
+            hoisted_optional_peer_node_ids: HashSet::new(),
             direct: vec![
                 DirectDep {
                     alias: "plugin".to_string(),
@@ -1701,6 +1736,7 @@ fn linked_peer_provider_uses_root_relative_snapshot_ref_in_workspace_fallback() 
     let consumer = NodeId::next();
     let importer = ImporterPeerInput {
         id: "apps/nested/app".to_string(),
+        hoisted_optional_peer_node_ids: HashSet::new(),
         direct: vec![
             DirectDep {
                 alias: "consumer".to_string(),

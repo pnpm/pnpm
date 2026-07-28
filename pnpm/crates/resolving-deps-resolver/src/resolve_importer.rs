@@ -336,6 +336,7 @@ pub(crate) struct ImporterHoistState {
     /// peer walk resolves them at their tree position instead of the
     /// importer root.
     hoisted_peer_provider_node_ids: HashSet<crate::NodeId>,
+    hoisted_optional_peer_node_ids: HashSet<crate::NodeId>,
     parent_pkg_aliases: HashSet<String>,
     all_missing_optional_peers: BTreeMap<String, Vec<String>>,
     all_preferred_versions: PreferredVersions,
@@ -422,10 +423,14 @@ impl ImporterHoistState {
             .with_patched_dependencies(patched_dependencies)
             .with_resolution_mode(pick_lowest_direct, subdep_published_by)
             .with_catalogs(catalogs);
-        let locked_peer_versions = Arc::new(importer_locked_peer_versions(
+        let ImporterLockedPeerContext {
+            versions: locked_peer_versions,
+            names_by_alias: locked_peer_names_by_alias,
+        } = importer_locked_peer_context(
             ctx.workspace().wanted_lockfile().map(AsRef::as_ref),
             importer_id,
-        ));
+        );
+        let locked_peer_versions = Arc::new(locked_peer_versions);
         let locked_peer_names = Arc::new(locked_peer_versions.keys().cloned().collect());
         record_changed_direct_deps(&ctx, importer_id, &initial_wanted);
         let wanted_specifier_by_alias: BTreeMap<String, String> = initial_wanted
@@ -447,6 +452,7 @@ impl ImporterHoistState {
             &ParentPkgAliases::root(parent_pkg_aliases.clone()),
         )
         .await?;
+        ctx.workspace().set_direct_locked_peer_names(&direct, &locked_peer_names_by_alias);
         parent_pkg_aliases.extend(direct.iter().map(|dep| dep.alias.clone()));
         Ok(ImporterHoistState {
             importer_id: importer_id.to_string(),
@@ -455,6 +461,7 @@ impl ImporterHoistState {
             workspace_root_deps: Arc::default(),
             wanted_specifier_by_alias,
             hoisted_peer_provider_node_ids: HashSet::new(),
+            hoisted_optional_peer_node_ids: HashSet::new(),
             parent_pkg_aliases,
             all_missing_optional_peers: BTreeMap::new(),
             all_preferred_versions,
@@ -505,6 +512,7 @@ impl ImporterHoistState {
             modules_dir: self.modules_dir.clone(),
             hoist_missing_scope: None,
             hoisted_peer_provider_node_ids: self.hoisted_peer_provider_node_ids.clone(),
+            hoisted_optional_peer_node_ids: self.hoisted_optional_peer_node_ids.clone(),
             ..ResolvePeersOptions::default()
         }
     }
@@ -767,6 +775,8 @@ impl ImporterHoistState {
             &ParentPkgAliases::root(self.parent_pkg_aliases.clone()),
         )
         .await?;
+        self.hoisted_optional_peer_node_ids
+            .extend(new_direct.iter().map(|dep| dep.node_id.clone()));
         self.direct.extend(new_direct);
         update_preferred_versions_with_ctx(
             &self.ctx,
@@ -781,8 +791,10 @@ impl ImporterHoistState {
     /// pass would be discarded), together with the `NodeIds` of the peer
     /// providers among them (see
     /// [`ResolvePeersOptions::hoisted_peer_provider_node_ids`]).
-    pub(crate) fn into_direct(self) -> (Vec<DirectDep>, HashSet<crate::NodeId>) {
-        (self.direct, self.hoisted_peer_provider_node_ids)
+    pub(crate) fn into_direct(
+        self,
+    ) -> (Vec<DirectDep>, HashSet<crate::NodeId>, HashSet<crate::NodeId>) {
+        (self.direct, self.hoisted_peer_provider_node_ids, self.hoisted_optional_peer_node_ids)
     }
 
     /// Run the final per-importer peer pass and emit the result. Used
@@ -795,12 +807,20 @@ impl ImporterHoistState {
     }
 }
 
-fn importer_locked_peer_versions(
+struct ImporterLockedPeerContext {
+    versions: HashMap<String, HashSet<String>>,
+    names_by_alias: HashMap<String, Arc<HashSet<String>>>,
+}
+
+fn importer_locked_peer_context(
     wanted_lockfile: Option<&pacquet_lockfile::Lockfile>,
     importer_id: &str,
-) -> HashMap<String, HashSet<String>> {
+) -> ImporterLockedPeerContext {
     let Some(lockfile) = wanted_lockfile else {
-        return HashMap::new();
+        return ImporterLockedPeerContext {
+            versions: HashMap::new(),
+            names_by_alias: HashMap::new(),
+        };
     };
     let Some(importer) = lockfile.importers.get(importer_id) else {
         let mut versions = HashMap::<String, HashSet<String>>::new();
@@ -809,10 +829,11 @@ fn importer_locked_peer_versions(
                 versions.entry(name).or_default().insert(version);
             }
         }
-        return versions;
+        return ImporterLockedPeerContext { versions, names_by_alias: HashMap::new() };
     };
     let mut versions = HashMap::<String, HashSet<String>>::new();
-    for (_, dependency) in importer.dependencies_by_groups([
+    let mut names_by_alias = HashMap::new();
+    for (alias, dependency) in importer.dependencies_by_groups([
         DependencyGroup::Prod,
         DependencyGroup::Optional,
         DependencyGroup::Dev,
@@ -822,11 +843,16 @@ fn importer_locked_peer_versions(
         else {
             continue;
         };
+        let mut names = HashSet::new();
         for (name, version) in peer_suffix_versions(peer_suffix) {
+            names.insert(name.clone());
             versions.entry(name).or_default().insert(version);
         }
+        if !names.is_empty() {
+            names_by_alias.insert(alias.to_string(), Arc::new(names));
+        }
     }
-    versions
+    ImporterLockedPeerContext { versions, names_by_alias }
 }
 
 fn peer_suffix_versions(peer_suffix: &str) -> impl Iterator<Item = (String, String)> + '_ {

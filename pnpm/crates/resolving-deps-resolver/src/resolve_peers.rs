@@ -184,6 +184,11 @@ pub struct ResolvePeersOptions {
     /// resolved them.
     pub hoisted_peer_provider_node_ids: std::collections::HashSet<NodeId>,
 
+    /// Importer-level dependencies installed solely to satisfy optional
+    /// peers. A reused direct dependency only sees these providers when
+    /// its wanted-lockfile peer suffix recorded the same peer name.
+    pub hoisted_optional_peer_node_ids: std::collections::HashSet<NodeId>,
+
     /// Final `NodeId → DepPath` map produced by a previous
     /// peer-resolution pass over the same tree
     /// ([`ResolvePeersResult::paths_by_node_id`]). `Some` activates
@@ -263,6 +268,7 @@ impl Default for ResolvePeersOptions {
             project_dir: None,
             modules_dir: None,
             hoist_missing_scope: None,
+            hoisted_optional_peer_node_ids: std::collections::HashSet::new(),
             hoisted_peer_provider_node_ids: std::collections::HashSet::new(),
             resolved_peer_provider_paths: None,
             collect_paths_by_node_id: false,
@@ -304,6 +310,7 @@ pub struct ResolvePeersResult {
 pub struct ImporterPeerInput {
     pub id: String,
     pub direct: Vec<DirectDep>,
+    pub hoisted_optional_peer_node_ids: std::collections::HashSet<NodeId>,
     pub root_dir: PathBuf,
     /// Absolute path of this importer's `node_modules` directory.
     /// Threaded into [`ResolvePeersOptions::modules_dir`] while this
@@ -499,6 +506,10 @@ pub fn resolve_peers_workspace(
         // the `excludeLinksFromLockfile` link-remap inside
         // `resolve_node` uses the correct importer-scoped target.
         walker.opts.modules_dir.clone_from(&importer.modules_dir);
+        walker
+            .opts
+            .hoisted_optional_peer_node_ids
+            .clone_from(&importer.hoisted_optional_peer_node_ids);
         walker.current_provider_sources = importer_provider_sources(importer, root_importer);
         let importer_parents = if root_importer.is_some_and(|root| root.id != importer.id) {
             let mut refs = root_parents.clone().unwrap_or_default();
@@ -628,6 +639,23 @@ struct ParentRef {
 /// requirement against the alias and `peerDependencies.next` against
 /// the real name.
 type ParentRefs = HashMap<String, ParentRef>;
+
+fn scoped_hoisted_optional_parent_refs(
+    parent_refs: &ParentRefs,
+    locked_peer_names: &HashSet<String>,
+    hoisted_optional_peer_node_ids: &HashSet<NodeId>,
+) -> ParentRefs {
+    parent_refs
+        .iter()
+        .filter(|(name, parent)| {
+            parent.node_id.as_ref().is_none_or(|parent_node_id| {
+                !hoisted_optional_peer_node_ids.contains(parent_node_id)
+                    || locked_peer_names.contains(*name)
+            })
+        })
+        .map(|(name, parent)| (name.clone(), parent.clone()))
+        .collect()
+}
 
 /// One importer whose direct dependencies count as "current" peer
 /// providers for the must-win guard of locked-peer-provider reuse.
@@ -1096,6 +1124,17 @@ impl Walker<'_> {
         let children_map = self.realize_children(&node_id);
         let tree_node = self.tree.dependencies_tree[&node_id].clone();
         let pkg = self.tree.packages[&tree_node.resolved_package_id].clone();
+        let scoped_parent_refs;
+        let parent_parent_refs = if let Some(locked_peer_names) = &tree_node.locked_peer_names {
+            scoped_parent_refs = scoped_hoisted_optional_parent_refs(
+                parent_parent_refs,
+                locked_peer_names,
+                &self.opts.hoisted_optional_peer_node_ids,
+            );
+            &scoped_parent_refs
+        } else {
+            parent_parent_refs
+        };
         let (pkg_name, _pkg_version) = pkg_name_version(&pkg.result);
 
         let mut current_parent_node_ids = parent_node_ids.to_vec();

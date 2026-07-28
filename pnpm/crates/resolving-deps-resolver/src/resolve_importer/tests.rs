@@ -12,10 +12,54 @@ use pacquet_resolving_resolver_base::{
 };
 use pretty_assertions::assert_eq;
 
+use super::{ImporterLockedPeerContext, importer_locked_peer_context};
 use crate::{
     DepPath, ResolveDependencyTreeError, resolve_importer,
     resolve_importer::{ResolveImporterError, ResolveImporterOptions},
 };
+
+#[test]
+fn locked_peer_context_is_recorded_by_direct_alias() {
+    use pacquet_lockfile::{
+        ComVer, ImporterDepVersion, Lockfile, LockfileVersion, PkgName, PkgVerPeer,
+        ProjectSnapshot, ResolvedDependencySpec,
+    };
+
+    let consumer = PkgName::parse("consumer").unwrap();
+    let lockfile = Lockfile {
+        lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(9, 0)).unwrap(),
+        importers: HashMap::from([(
+            "app".to_string(),
+            ProjectSnapshot {
+                dependencies: Some(HashMap::from([(
+                    consumer,
+                    ResolvedDependencySpec {
+                        specifier: "1.0.0".to_string(),
+                        version: ImporterDepVersion::Regular(
+                            "1.0.0(peer@2.0.0)".parse::<PkgVerPeer>().unwrap(),
+                        ),
+                    },
+                )])),
+                ..ProjectSnapshot::default()
+            },
+        )]),
+        settings: None,
+        catalogs: None,
+        overrides: None,
+        package_extensions_checksum: None,
+        pnpmfile_checksum: None,
+        ignored_optional_dependencies: None,
+        patched_dependencies: None,
+        packages: None,
+        snapshots: None,
+    };
+
+    let ImporterLockedPeerContext { versions, names_by_alias } =
+        importer_locked_peer_context(Some(&lockfile), "app");
+
+    assert_eq!(versions["peer"], HashSet::from(["2.0.0".to_string()]));
+    assert_eq!(names_by_alias["consumer"].as_ref(), &HashSet::from(["peer".to_string()]));
+}
 
 #[test]
 fn only_peer_suffix_versions_are_treated_as_locked_peer_providers() {
