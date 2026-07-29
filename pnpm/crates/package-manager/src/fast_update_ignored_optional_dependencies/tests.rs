@@ -106,6 +106,26 @@ importers: {}
 }
 
 #[test]
+fn rejects_adding_an_include_to_exclusion_only_patterns() {
+    let lockfile = lockfile(
+        r"
+lockfileVersion: '9.0'
+ignoredOptionalDependencies:
+  - '!foo'
+importers: {}
+",
+    );
+
+    assert!(
+        try_fast_update_ignored_optional_dependencies(
+            &lockfile,
+            &["!foo".to_string(), "bar".to_string()],
+        )
+        .is_none(),
+    );
+}
+
+#[test]
 fn records_an_added_pattern_even_when_it_matches_no_edge() {
     let lockfile = lockfile(
         r"

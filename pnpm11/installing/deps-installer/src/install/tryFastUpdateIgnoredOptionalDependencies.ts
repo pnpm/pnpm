@@ -13,10 +13,12 @@ export function tryFastUpdateIgnoredOptionalDependencies (
   const previous = new Set(lockfile.ignoredOptionalDependencies ?? [])
   const current = new Set(ignoredOptionalDependencies)
   const addedPatterns = [...current].filter((pattern) => !previous.has(pattern))
+  const previousIgnoresByDefault = previous.size > 0 && [...previous].every((pattern) => pattern.startsWith('!'))
   if (
     previous.size === current.size ||
     [...previous].some((pattern) => !current.has(pattern)) ||
-    addedPatterns.some((pattern) => pattern.startsWith('!'))
+    addedPatterns.some((pattern) => pattern.startsWith('!')) ||
+    previousIgnoresByDefault
   ) {
     return false
   }

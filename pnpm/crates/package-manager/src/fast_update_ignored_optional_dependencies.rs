@@ -15,7 +15,13 @@ pub(crate) fn try_fast_update_ignored_optional_dependencies(
         .collect();
     let current: BTreeSet<_> = ignored_optional_dependencies.iter().cloned().collect();
     let added_exclusion = current.difference(&previous).any(|pattern| pattern.starts_with('!'));
-    if previous == current || !previous.is_subset(&current) || added_exclusion {
+    let previous_ignores_by_default =
+        !previous.is_empty() && previous.iter().all(|pattern| pattern.starts_with('!'));
+    if previous == current
+        || !previous.is_subset(&current)
+        || added_exclusion
+        || previous_ignores_by_default
+    {
         return None;
     }
 
@@ -56,7 +62,7 @@ fn remove_ignored_optional_dependencies<OptionalValue, DependencyValue>(
         .as_ref()
         .into_iter()
         .flatten()
-        .filter(|(name, _)| matcher.matches(&name.to_string()))
+        .filter(|(name, _)| matches_package_name(matcher, name))
         .map(|(name, _)| name.clone())
         .collect();
     if let Some(optional_dependencies) = optional_dependencies.as_mut() {
@@ -72,6 +78,14 @@ fn remove_ignored_optional_dependencies<OptionalValue, DependencyValue>(
         *dependencies = None;
     }
     removed
+}
+
+fn matches_package_name(matcher: &pacquet_config::matcher::Matcher, name: &PkgName) -> bool {
+    if name.scope.is_some() {
+        matcher.matches(&name.to_string())
+    } else {
+        matcher.matches(&name.bare)
+    }
 }
 
 #[cfg(test)]

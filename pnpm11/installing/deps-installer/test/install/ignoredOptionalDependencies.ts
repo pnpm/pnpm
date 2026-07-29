@@ -174,6 +174,16 @@ test('fast update rejects a new exclusion pattern', () => {
   expect(tryFastUpdateIgnoredOptionalDependencies(lockfile, ['*', '!is-positive'])).toBe(false)
 })
 
+test('fast update rejects adding an include to exclusion-only patterns', () => {
+  const lockfile = {
+    ignoredOptionalDependencies: ['!foo'],
+    importers: {},
+    lockfileVersion: '9.0',
+  } as LockfileObject
+
+  expect(tryFastUpdateIgnoredOptionalDependencies(lockfile, ['!foo', 'bar'])).toBe(false)
+})
+
 function trackRequestedPackages (storeController: StoreController): string[] {
   const requestedPackages: string[] = []
   const requestPackage = storeController.requestPackage
