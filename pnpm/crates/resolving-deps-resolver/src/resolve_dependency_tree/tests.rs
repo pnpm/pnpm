@@ -6,8 +6,14 @@ use pacquet_resolving_resolver_base::{
 };
 
 use super::{
-    ResolveDependencyTreeOptions, extract_children, landed_on_prior_entry, resolve_dependency_tree,
+    ResolveDependencyTreeOptions, WorkspaceTreeCtx, extract_children, landed_on_prior_entry,
+    resolve_dependency_tree,
 };
+use crate::{
+    DirectDep, NodeId,
+    resolved_tree::{DependenciesTreeNode, TreeChildren},
+};
+use std::collections::BTreeMap;
 
 #[test]
 fn dependency_engines_runtime_is_walked_as_a_runtime_dependency() {
@@ -39,6 +45,141 @@ fn dependency_engines_runtime_is_walked_as_a_runtime_dependency() {
         extract_children(&result).unwrap(),
         vec![("node".to_string(), "runtime:22.19.0".to_string(), false)],
     );
+}
+
+#[test]
+fn importer_snapshot_excludes_other_importers_occurrence_nodes() {
+    let workspace = WorkspaceTreeCtx::default();
+    let root = NodeId::next();
+    let child = NodeId::next();
+    let unrelated = NodeId::next();
+    workspace.dependencies_tree.lock().unwrap().extend([
+        (
+            root.clone(),
+            DependenciesTreeNode::new(
+                "root@1.0.0".to_string(),
+                TreeChildren::Realized(BTreeMap::from([("child".to_string(), child.clone())])),
+                0,
+                true,
+            ),
+        ),
+        (
+            child.clone(),
+            DependenciesTreeNode::new("child@1.0.0".to_string(), TreeChildren::empty(), 1, true),
+        ),
+        (
+            unrelated.clone(),
+            DependenciesTreeNode::new(
+                "unrelated@1.0.0".to_string(),
+                TreeChildren::empty(),
+                0,
+                true,
+            ),
+        ),
+    ]);
+
+    let snapshot = workspace.snapshot_reachable_from(vec![DirectDep {
+        alias: "root".to_string(),
+        node_id: root.clone(),
+        id: "root@1.0.0".to_string(),
+    }]);
+
+    assert_eq!(snapshot.dependencies_tree.len(), 2);
+    assert!(snapshot.dependencies_tree.contains_key(&root));
+    assert!(snapshot.dependencies_tree.contains_key(&child));
+    assert!(!snapshot.dependencies_tree.contains_key(&unrelated));
+}
+
+#[test]
+fn importer_snapshot_follows_lazy_edges_for_the_package_closure() {
+    use super::lock_recoverable;
+    use crate::resolved_tree::ChildEdge;
+    use std::sync::Arc;
+
+    let workspace = WorkspaceTreeCtx::default();
+    let root = NodeId::next();
+    lock_recoverable(&workspace.dependencies_tree).insert(
+        root.clone(),
+        DependenciesTreeNode::new(
+            "root@1.0.0".to_string(),
+            TreeChildren::Lazy { parent_ids: Arc::new(Vec::new()) },
+            0,
+            true,
+        ),
+    );
+    for pkg_id in ["root@1.0.0", "lazy-child@1.0.0", "foreign@1.0.0"] {
+        lock_recoverable(&workspace.packages).insert(pkg_id.to_string(), snapshot_package(pkg_id));
+    }
+    lock_recoverable(&workspace.children_by_id).insert(
+        "root@1.0.0".to_string(),
+        Arc::new(vec![ChildEdge {
+            alias: "lazy-child".to_string(),
+            pkg_id: "lazy-child@1.0.0".to_string(),
+            optional: false,
+        }]),
+    );
+    lock_recoverable(&workspace.children_by_id)
+        .insert("foreign@1.0.0".to_string(), Arc::new(Vec::new()));
+
+    let snapshot = workspace.snapshot_reachable_from(vec![DirectDep {
+        alias: "root".to_string(),
+        node_id: root,
+        id: "root@1.0.0".to_string(),
+    }]);
+
+    assert!(
+        snapshot.packages.contains_key("lazy-child@1.0.0"),
+        "a package reachable only through a lazy edge must stay in the snapshot",
+    );
+    assert!(snapshot.children_by_id.contains_key("root@1.0.0"));
+    assert!(!snapshot.packages.contains_key("foreign@1.0.0"));
+    assert!(!snapshot.children_by_id.contains_key("foreign@1.0.0"));
+}
+
+#[test]
+fn ownership_rewrite_of_existing_nodes_bumps_children_rewrites() {
+    use super::{TreeCtx, lock_recoverable, make_non_owner_nodes_lazy};
+    use std::sync::Arc;
+
+    let workspace = Arc::new(WorkspaceTreeCtx::default());
+    let ctx = TreeCtx::with_workspace(Arc::clone(&workspace), ResolveOptions::default());
+    let owner = NodeId::next();
+    let other = NodeId::next();
+    lock_recoverable(&workspace.dependencies_tree).extend([
+        (
+            owner.clone(),
+            DependenciesTreeNode::new("pkg@1.0.0".to_string(), TreeChildren::empty(), 0, true),
+        ),
+        (
+            other.clone(),
+            DependenciesTreeNode::new("pkg@1.0.0".to_string(), TreeChildren::empty(), 1, true),
+        ),
+    ]);
+    lock_recoverable(&workspace.node_parent_ids_by_id)
+        .insert(other.clone(), Arc::new(vec!["parent@1.0.0".to_string()]));
+
+    make_non_owner_nodes_lazy(&ctx, "absent@1.0.0", &owner);
+    assert_eq!(workspace.children_rewrites(), 0, "no occurrence rewritten, nothing to invalidate");
+
+    make_non_owner_nodes_lazy(&ctx, "pkg@1.0.0", &owner);
+    assert_eq!(workspace.children_rewrites(), 1);
+    assert!(
+        matches!(
+            lock_recoverable(&workspace.dependencies_tree).get(&other).unwrap().children,
+            TreeChildren::Lazy { .. },
+        ),
+        "the non-owner occurrence flips to lazy",
+    );
+}
+
+fn snapshot_package(pkg_id: &str) -> super::ResolvedPackage {
+    super::ResolvedPackage {
+        id: pkg_id.to_string(),
+        result: std::sync::Arc::new(manifest_result(serde_json::json!({}))),
+        peer_dependencies: BTreeMap::new(),
+        optional: false,
+        is_leaf: false,
+    }
 }
 
 fn manifest_result(manifest: serde_json::Value) -> ResolveResult {

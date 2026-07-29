@@ -35,12 +35,15 @@
 //!    `(pkgIdWithPatchHash, peer-suffix)` combination) and the entry
 //!    point for the install layer.
 //!
-//! 3. **Hoist loop** ([`fn@resolve_importer`]). Runs passes 1–2,
-//!    aggregates missing required and optional peers via
-//!    [`fn@hoist_peers`] / [`fn@get_hoistable_optional_peers`], extends
-//!    the tree with hoisted picks via
-//!    [`extend_tree`], and re-runs the peer pass
-//!    until both pass-1 and pass-2 reach a fixed point.
+//! 3. **Hoist loop** ([`fn@resolve_importer`]). Runs pass 1 plus a
+//!    graph-free discovery variant of pass 2 (one persistent
+//!    discovery engine per workspace resolve, so repeat walks
+//!    short-circuit on already-settled subtrees), aggregates missing
+//!    required and optional peers via [`fn@hoist_peers`] /
+//!    [`fn@get_hoistable_optional_peers`], extends the tree with
+//!    hoisted picks via [`extend_tree`], and re-runs discovery until
+//!    both reach a fixed point. The full pass 2 then runs once per
+//!    install.
 //!
 //! Notable design points:
 //!
