@@ -4,7 +4,7 @@ use crate::{
 };
 use pacquet_diagnostics::miette::Diagnostic;
 use pretty_assertions::assert_eq;
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, fmt::Write, path::Path};
 use tempfile::tempdir;
 use text_block_macros::text_block;
 
@@ -96,6 +96,22 @@ fn env_only_lockfile_loads_as_none() {
     let result = Lockfile::load_current_from_virtual_store_dir(&virtual_store_dir)
         .expect("env-only lockfile should not error");
     assert!(result.is_none(), "expected None for env-only lockfile, got: {result:?}");
+}
+
+#[test]
+fn parses_lockfile_larger_than_default_yaml_node_budget() {
+    const IMPORTER_COUNT: usize = 130_000;
+
+    let mut content = String::from("lockfileVersion: '9.0'\n\nimporters:\n");
+    for index in 0..IMPORTER_COUNT {
+        writeln!(content, "  project-{index}: {{}}").expect("write importer");
+    }
+
+    let lockfile = Lockfile::parse(&content, Path::new(Lockfile::FILE_NAME))
+        .expect("parse large lockfile")
+        .expect("large lockfile should be present");
+
+    assert_eq!(lockfile.importers.len(), IMPORTER_COUNT);
 }
 
 #[test]
