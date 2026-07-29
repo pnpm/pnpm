@@ -36,6 +36,7 @@ fn build_overlay_maps_supported_install_options() {
     options.node_version = Some("18.20.4".to_string());
     options.minimum_release_age = Some(60);
     options.minimum_release_age_exclude = Some(vec!["left-pad".to_string()]);
+    options.trust_lockfile = Some(false);
     options.network_config = Some(NetworkConfigInput {
         ca: Some(serde_json::json!(["cert-a", "cert-b"])),
         cert: Some(serde_json::json!("client-cert")),
@@ -67,6 +68,7 @@ fn build_overlay_maps_supported_install_options() {
     assert_eq!(overlay.node_version, Some("18.20.4".to_string()));
     assert_eq!(overlay.minimum_release_age, Some(60));
     assert_eq!(overlay.minimum_release_age_exclude, Some(vec!["left-pad".to_string()]));
+    assert_eq!(overlay.trust_lockfile, Some(false));
     assert_eq!(overlay.network_concurrency, Some(12));
     assert_eq!(overlay.max_sockets, Some(7));
     assert_eq!(overlay.fetch_retries, Some(4));
@@ -88,6 +90,12 @@ fn build_overlay_maps_supported_install_options() {
     assert_eq!(tls.key, Some("client-key".to_string()));
     assert_eq!(tls.strict_ssl, Some(false));
     assert_eq!(tls.local_address.map(|ip| ip.to_string()), Some("127.0.0.1".to_string()));
+}
+
+#[test]
+fn build_overlay_preserves_the_trust_lockfile_default() {
+    let options = install_options();
+    assert_eq!(build_overlay(&options).expect("overlay").trust_lockfile, None);
 }
 
 #[test]
@@ -247,6 +255,7 @@ fn install_options() -> InstallOptions {
         depth: None,
         include_optional_deps: None,
         ignore_scripts: None,
+        trust_lockfile: None,
         network_concurrency: None,
         fetch_retries: None,
         fetch_retry_factor: None,

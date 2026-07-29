@@ -96,6 +96,9 @@ pub struct InstallOptions {
     pub depth: Option<u32>,
     pub include_optional_deps: Option<bool>,
     pub ignore_scripts: Option<bool>,
+    /// Trust lockfile resolutions without verifying them against current
+    /// registry metadata.
+    pub trust_lockfile: Option<bool>,
     pub network_concurrency: Option<u32>,
     pub fetch_retries: Option<u32>,
     pub fetch_retry_factor: Option<u32>,
@@ -528,6 +531,7 @@ fn build_overlay(options: &InstallOptions) -> napi::Result<ConfigOverlay> {
         allow_builds: options.allow_builds.clone().map(|map| map.into_iter().collect()),
         dangerously_allow_all_builds: options.dangerously_allow_all_builds,
         ignore_scripts: options.ignore_scripts,
+        trust_lockfile: options.trust_lockfile,
         engine_strict: options.engine_strict,
         node_version: options.node_version.clone(),
         minimum_release_age: options.minimum_release_age.map(u64::from),

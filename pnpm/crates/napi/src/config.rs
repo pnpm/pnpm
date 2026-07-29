@@ -99,6 +99,9 @@ pub struct ConfigOverlay {
     pub dangerously_allow_all_builds: Option<bool>,
     /// When `true`, skip all dependency and project lifecycle scripts.
     pub ignore_scripts: Option<bool>,
+    /// When `true`, trust lockfile resolutions without verifying them against
+    /// current registry metadata.
+    pub trust_lockfile: Option<bool>,
     /// `engineStrict` — fail the install when a dependency's `engines` /
     /// platform constraint the host does not satisfy is required.
     pub engine_strict: Option<bool>,
@@ -363,6 +366,9 @@ fn build_config(dir: &Path, overlay: &ConfigOverlay) -> Result<Config, LoadWorks
     }
     if let Some(value) = overlay.ignore_scripts {
         config.ignore_scripts = value;
+    }
+    if let Some(value) = overlay.trust_lockfile {
+        config.trust_lockfile = value;
     }
     if let Some(value) = overlay.engine_strict {
         config.engine_strict = value;
