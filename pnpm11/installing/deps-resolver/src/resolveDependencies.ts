@@ -762,9 +762,7 @@ async function resolveDependenciesOfImporterDependency (
   // workspace. Replacing catalog protocol while resolving importers here before
   // resolving dependencies of packages outside of the workspace/monorepo.
   const originalBareSpecifier = extendedWantedDep.wantedDependency.bareSpecifier
-  const originalPrevSpecifier = 'prevSpecifier' in extendedWantedDep.wantedDependency
-    ? extendedWantedDep.wantedDependency.prevSpecifier
-    : undefined
+  const originalPrevSpecifier = (extendedWantedDep.wantedDependency as WantedDependency & { prevSpecifier?: string }).prevSpecifier
   const catalogSpecifier = originalPrevSpecifier != null &&
     parseCatalogProtocol(originalPrevSpecifier) != null &&
     isExplicitDistTagSpecifier(originalBareSpecifier)
