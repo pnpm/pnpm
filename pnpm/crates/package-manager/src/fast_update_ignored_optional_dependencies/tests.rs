@@ -81,7 +81,7 @@ importers: {}
     );
 
     assert!(
-        try_fast_update_ignored_optional_dependencies(&lockfile, &["bar".to_string()]).is_none()
+        try_fast_update_ignored_optional_dependencies(&lockfile, &["bar".to_string()]).is_none(),
     );
 }
 
@@ -101,7 +101,7 @@ importers: {}
             &lockfile,
             &["*".to_string(), "!is-positive".to_string()],
         )
-        .is_none()
+        .is_none(),
     );
 }
 
@@ -118,6 +118,6 @@ importers: {}
         .expect("setting-only addition should update");
     assert_eq!(
         updated.ignored_optional_dependencies.as_deref(),
-        Some(["unused".to_string()].as_slice())
+        Some(["unused".to_string()].as_slice()),
     );
 }
