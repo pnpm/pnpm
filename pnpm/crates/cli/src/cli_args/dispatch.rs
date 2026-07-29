@@ -72,6 +72,7 @@ impl CliArgs {
             self.command.default_reporter_summary_scope(),
             self.command.reports_scope(self.recursive),
             false,
+            self.recursive,
         );
     }
 

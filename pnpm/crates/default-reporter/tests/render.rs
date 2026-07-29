@@ -685,6 +685,20 @@ fn append_only_waits_for_a_terminal_lockfile_policy_verdict() {
     }));
     assert!(matches!(pending, Output::None));
 
+    let stats = reporter.handle(&LogEvent::Stats(StatsLog {
+        level: LogLevel::Debug,
+        message: StatsMessage::Added { added: 1, prefix: CWD.to_string() },
+    }));
+    match stats {
+        Output::Lines(lines) => {
+            assert!(!lines.iter().any(|line| line.contains("Lockfile is up to date")));
+        }
+        Output::None => {}
+        Output::Frame(_) => {
+            panic!("install stats should not flush the pending frozen-install message");
+        }
+    }
+
     let started = reporter.handle(&LogEvent::LockfileVerification(LockfileVerificationLog {
         level: LogLevel::Debug,
         message: LockfileVerificationMessage::Started { entries: 2, lockfile_path: None },
@@ -988,6 +1002,17 @@ fn direct_deprecation_renders_immediately_with_the_message() {
     let mut reporter = state(false);
     let frame = render(&mut reporter, vec![deprecation("express", "0.14.1", 0, CWD)]);
     assert_eq!(frame, "[WARN] deprecated express@0.14.1: no longer supported");
+}
+
+#[test]
+fn recursive_direct_deprecation_is_zoomed_and_omits_the_message() {
+    let mut reporter =
+        state_with_options(ReporterOptions { is_recursive: true, ..ReporterOptions::default() });
+    let frame = render(&mut reporter, vec![deprecation("express", "0.14.1", 0, CWD)]);
+    assert_eq!(
+        frame,
+        pacquet_default_reporter::format::zoom_out(CWD, CWD, "[WARN] deprecated express@0.14.1",),
+    );
 }
 
 /// Upstream's zoomed variant carries only `deprecated name@version` — the

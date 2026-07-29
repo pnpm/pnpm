@@ -5,7 +5,7 @@
 //! path per log channel.
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     fmt::Write as _,
     path::{Component, Path, PathBuf},
 };
@@ -56,6 +56,8 @@ pub struct ReporterOptions {
     /// lives in the reporter because the `pnpm:scope` event itself is
     /// command-agnostic.
     pub reports_scope: bool,
+    /// Whether direct dependency warnings use workspace-relative prefixes.
+    pub is_recursive: bool,
 }
 
 impl Default for ReporterOptions {
@@ -66,6 +68,7 @@ impl Default for ReporterOptions {
             hide_progress_prefix: false,
             summary_scope: SummaryScope::CurrentPrefix,
             reports_scope: false,
+            is_recursive: false,
         }
     }
 }
@@ -262,6 +265,7 @@ pub struct ReporterState {
     summary_scope: SummaryScope,
 
     reports_scope: bool,
+    is_recursive: bool,
     scope_slot: BlockSlot,
 
     lifecycle: HashMap<String, LifecycleEntry>,
@@ -281,12 +285,6 @@ pub struct ReporterState {
 
     deprecated_subdeps: Vec<DeprecationLog>,
     deprecated_slot: BlockSlot,
-    /// Package ids already reported as a direct-dependency deprecation.
-    /// pnpm reports each deprecated package once, on first resolution;
-    /// pacquet's resolver re-emits a package it later meets at a
-    /// shallower depth, so the "already said this" bookkeeping lives
-    /// here instead.
-    reported_direct_deprecations: HashSet<String>,
 }
 
 const MAX_SHOWN_WARNINGS: usize = 5;
@@ -343,6 +341,7 @@ impl ReporterState {
             hide_progress_prefix,
             summary_scope,
             reports_scope,
+            is_recursive,
         } = options;
         let mut diff = HashMap::new();
         for kind in SUMMARY_ORDER {
@@ -372,6 +371,7 @@ impl ReporterState {
             summary_rendered: false,
             summary_scope,
             reports_scope,
+            is_recursive,
             scope_slot: BlockSlot::default(),
             lifecycle: HashMap::new(),
             lifecycle_slots: HashMap::new(),
@@ -386,12 +386,11 @@ impl ReporterState {
             collapsed_warn_slot: BlockSlot::default(),
             deprecated_subdeps: Vec::new(),
             deprecated_slot: BlockSlot::default(),
-            reported_direct_deprecations: HashSet::new(),
         }
     }
 
     pub fn handle(&mut self, event: &LogEvent) -> Output {
-        if matches!(event, LogEvent::Stats(_) | LogEvent::Summary(_) | LogEvent::ExecutionTime(_)) {
+        if matches!(event, LogEvent::Summary(_) | LogEvent::ExecutionTime(_)) {
             self.flush_pending_lockfile_message();
         }
         match event {
@@ -1212,14 +1211,7 @@ impl ReporterState {
     /// `resolution_done` summary.
     fn on_deprecation(&mut self, log: &DeprecationLog) {
         if log.depth == 0 {
-            // A package that already went out as a subdependency is
-            // really a direct one; drop the pending summary entry so it
-            // isn't counted twice.
-            self.deprecated_subdeps.retain(|pending| pending.pkg_id != log.pkg_id);
-            if !self.reported_direct_deprecations.insert(log.pkg_id.clone()) {
-                return;
-            }
-            if log.prefix.is_empty() || log.prefix == self.cwd {
+            if !self.is_recursive && log.prefix == self.cwd {
                 self.push_block(format!(
                     "{} {} {}@{}: {}",
                     self.colors.warn_label(),
@@ -1240,9 +1232,7 @@ impl ReporterState {
                 );
                 self.push_block(zoom_out(&self.cwd, &log.prefix, &msg));
             }
-        } else if !self.reported_direct_deprecations.contains(&log.pkg_id)
-            && !self.deprecated_subdeps.iter().any(|pending| pending.pkg_id == log.pkg_id)
-        {
+        } else {
             self.deprecated_subdeps.push(log.clone());
         }
     }
@@ -1257,7 +1247,6 @@ impl ReporterState {
             .map(|log| format!("{}@{}", log.pkg_name, log.pkg_version))
             .collect();
         names.sort();
-        names.dedup();
         let count = names.len();
         let msg = format!(
             "{} {} {}",
