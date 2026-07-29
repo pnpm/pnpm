@@ -337,6 +337,7 @@ async fn canonical_snapshot_link_id_is_relative_to_lockfile_root() {
             base_opts: ResolveOptions { project_dir, lockfile_dir, ..ResolveOptions::default() },
             patched_dependencies: None,
             manifest_hook: None,
+            overrides_hook: None,
             pnpmfile_hook: None,
             read_package_log: None,
             auto_install_peers: false,

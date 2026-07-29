@@ -72,6 +72,10 @@ pub struct WorkspaceResolveOptions {
     /// `packageExtensions` here. See [`ManifestHook`].
     pub manifest_hook: Option<ManifestHook>,
 
+    /// Post-pnpmfile manifest hook (overrides). See
+    /// `WorkspaceTreeCtx::overrides_hook` for the ordering contract.
+    pub overrides_hook: Option<ManifestHook>,
+
     /// When `true`, every importer's direct dependencies are resolved
     /// to their lowest satisfying version (`resolutionMode: time-based`
     /// / `lowest-direct`). Threaded onto each
@@ -183,6 +187,7 @@ where
         lockfile_dir,
         peers_suffix_max_length,
         manifest_hook,
+        overrides_hook,
         pnpmfile_hook,
         read_package_log,
         skipped_optional_log,
@@ -200,6 +205,7 @@ where
     let workspace = Arc::new(
         WorkspaceTreeCtx::default()
             .with_manifest_hook(manifest_hook)
+            .with_overrides_hook(overrides_hook)
             .with_wanted_lockfile(wanted_lockfile)
             .with_update_reuse_scope(update_reuse_scope)
             .with_update_reuse_scopes_by_importer(update_reuse_scopes_by_importer)

@@ -172,6 +172,10 @@ pub struct ResolveImporterOptions {
     /// see [`crate::ManifestHook`].
     pub manifest_hook: Option<crate::ManifestHook>,
 
+    /// Post-pnpmfile manifest hook (overrides). See
+    /// `WorkspaceTreeCtx::overrides_hook` for the ordering contract.
+    pub overrides_hook: Option<crate::ManifestHook>,
+
     /// `pnpmfileHook` applied to every resolved manifest. Wraps
     /// `readPackage` from `.pnpmfile.cjs` / `pnpmfile.cjs`.
     pub pnpmfile_hook: Option<Arc<dyn pacquet_hooks::PnpmfileHooks>>,
@@ -204,6 +208,7 @@ impl std::fmt::Debug for ResolveImporterOptions {
             .field("peers_suffix_max_length", &self.peers_suffix_max_length)
             .field("catalog_server", &self.catalog_server)
             .field("manifest_hook", &self.manifest_hook.as_ref().map(|_| "<hook>"))
+            .field("overrides_hook", &self.overrides_hook.as_ref().map(|_| "<hook>"))
             .field("pnpmfile_hook", &self.pnpmfile_hook.as_ref().map(|_| "<hook>"))
             .finish()
     }
@@ -260,6 +265,7 @@ where
     let workspace = Arc::new(
         WorkspaceTreeCtx::default()
             .with_manifest_hook(opts.manifest_hook.clone())
+            .with_overrides_hook(opts.overrides_hook.clone())
             .with_pnpmfile_hook(opts.pnpmfile_hook.clone())
             .with_auto_install_peers(opts.auto_install_peers),
     );
@@ -409,11 +415,12 @@ impl ImporterHoistState {
             modules_dir,
             peers_suffix_max_length,
             catalog_server: _,
-            // `manifest_hook` and `pnpmfile_hook` are workspace-wide; they live
-            // on the shared [`WorkspaceTreeCtx`] and the caller (`resolve_importer`
-            // or `resolve_workspace`) is responsible for setting them there before
+            // The manifest hooks are workspace-wide; they live on the shared
+            // [`WorkspaceTreeCtx`] and the caller (`resolve_importer` or
+            // `resolve_workspace`) is responsible for setting them there before
             // handing the `Arc` to this function.
             manifest_hook: _,
+            overrides_hook: _,
             pnpmfile_hook: _,
         } = opts;
 

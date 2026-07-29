@@ -156,6 +156,7 @@ fn importer_options(importer: &WorkspaceImporter<'_>) -> ResolveImporterOptions 
         peers_suffix_max_length: 1000,
         catalog_server: false,
         manifest_hook: None,
+        overrides_hook: None,
         pnpmfile_hook: None,
     }
 }
@@ -170,6 +171,7 @@ fn workspace_options() -> WorkspaceResolveOptions {
         lockfile_dir: PathBuf::from("/workspace"),
         peers_suffix_max_length: 1000,
         manifest_hook: None,
+        overrides_hook: None,
         pick_lowest_direct: false,
         time_based: false,
         wanted_lockfile: None,

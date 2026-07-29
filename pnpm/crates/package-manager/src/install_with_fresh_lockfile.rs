@@ -1168,10 +1168,12 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                         as ManifestHook)
                 }
             });
-        let manifest_hook = compose_manifest_hooks(
-            compose_manifest_hooks(compat_package_extensions_hook, package_extensions_hook),
-            overrides_hook,
-        );
+        // The resolver applies these around the pnpmfile hook in pnpm's
+        // `createReadPackageHook` order — packageExtensions → readPackage
+        // hooks → overrides — so a hook that replaces the manifest cannot
+        // erase the overrides.
+        let manifest_hook =
+            compose_manifest_hooks(compat_package_extensions_hook, package_extensions_hook);
         let override_bare_specifier: Option<Arc<DependencyOverrider>> =
             versions_overrider.as_ref().and_then(|overrider| {
                 if overrider.is_empty() {
@@ -1430,13 +1432,17 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 update_checksums,
                 ..ResolveOptions::default()
             };
+            // This path has no pnpmfile hook (gated above), so the full
+            // extensions + overrides chain composes back into one hook.
+            let full_manifest_hook =
+                compose_manifest_hooks(manifest_hook.clone(), overrides_hook.clone());
             try_fast_update_overrides(FastOverrideOptions {
                 lockfile,
                 parsed_overrides: parsed,
                 resolved_overrides: resolved,
                 resolver: &*npm_resolver,
                 resolve_options: &resolve_options,
-                manifest_hook: manifest_hook.as_ref(),
+                manifest_hook: full_manifest_hook.as_ref(),
                 registries: &registries,
                 lockfile_include_tarball_url: config.lockfile_include_tarball_url,
             })
@@ -1479,6 +1485,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             lockfile_dir: lockfile_dir.to_path_buf(),
             peers_suffix_max_length,
             manifest_hook: manifest_hook.clone(),
+            overrides_hook: overrides_hook.clone(),
             pnpmfile_hook,
             read_package_log,
             skipped_optional_log: Some(skipped_optional_log_fn::<Reporter>()),
@@ -1566,6 +1573,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                     peers_suffix_max_length,
                     catalog_server: false,
                     manifest_hook: manifest_hook.clone(),
+                    overrides_hook: overrides_hook.clone(),
                     pnpmfile_hook: None,
                 }
             },

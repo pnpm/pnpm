@@ -174,6 +174,9 @@ pub struct ResolveDependencyTreeOptions {
     pub base_opts: ResolveOptions,
     pub patched_dependencies: Option<Arc<PatchGroupRecord>>,
     pub manifest_hook: Option<ManifestHook>,
+    /// Post-pnpmfile [`ManifestHook`] (overrides). See
+    /// `WorkspaceTreeCtx::overrides_hook` for the ordering contract.
+    pub overrides_hook: Option<ManifestHook>,
     pub pnpmfile_hook: Option<Arc<dyn PnpmfileHooks>>,
     /// `context.log(...)` sink for the `pnpmfile_hook`'s `readPackage`
     /// calls. `None` leaves hook logging a no-op. See
@@ -190,6 +193,7 @@ impl std::fmt::Debug for ResolveDependencyTreeOptions {
             .field("base_opts", &self.base_opts)
             .field("patched_dependencies", &self.patched_dependencies)
             .field("manifest_hook", &self.manifest_hook.as_ref().map(|_| "<hook>"))
+            .field("overrides_hook", &self.overrides_hook.as_ref().map(|_| "<hook>"))
             .field("pnpmfile_hook", &self.pnpmfile_hook.as_ref().map(|_| "<hook>"))
             .field("read_package_log", &self.read_package_log.as_ref().map(|_| "<log>"))
             .field("auto_install_peers", &self.auto_install_peers)
@@ -394,6 +398,7 @@ where
     let ctx = TreeCtx::new(opts.base_opts)
         .with_patched_dependencies(opts.patched_dependencies)
         .with_manifest_hook(opts.manifest_hook)
+        .with_overrides_hook(opts.overrides_hook)
         .with_pnpmfile_hook(opts.pnpmfile_hook)
         .with_read_package_log(opts.read_package_log)
         .with_auto_install_peers(opts.auto_install_peers);
@@ -764,6 +769,13 @@ pub struct WorkspaceTreeCtx {
     /// made lockfile-reuse walks quadratic in workspace size.
     nodes_by_pkg_id: Mutex<HashMap<String, Vec<NodeId>>>,
     manifest_hook: Option<ManifestHook>,
+    /// [`ManifestHook`] applied *after* [`Self::pnpmfile_hook`], where
+    /// `manifest_hook` runs before it. pnpm's `createReadPackageHook`
+    /// composes `packageExtensions → readPackage hooks → overrides`, so
+    /// overrides land here: a hook that replaces the manifest (e.g. an
+    /// embedder substituting a workspace project's raw manifest) must not
+    /// erase the overrides.
+    overrides_hook: Option<ManifestHook>,
     /// The previous `pnpm-lock.yaml` the install started from, when one
     /// exists. Consulted by [`resolve_node`] to reuse an already-resolved
     /// dependency + its transitive subtree instead of re-resolving from
@@ -874,6 +886,7 @@ impl Default for WorkspaceTreeCtx {
             node_parent_ids_by_id: Mutex::new(HashMap::new()),
             nodes_by_pkg_id: Mutex::new(HashMap::new()),
             manifest_hook: None,
+            overrides_hook: None,
             wanted_lockfile: None,
             update_reuse_scope: UpdateReuseScope::All,
             update_reuse_scopes_by_importer: BTreeMap::new(),
@@ -996,6 +1009,14 @@ impl WorkspaceTreeCtx {
     #[must_use]
     pub fn with_manifest_hook(mut self, manifest_hook: Option<ManifestHook>) -> Self {
         self.manifest_hook = manifest_hook;
+        self
+    }
+
+    /// Attach the post-pnpmfile [`ManifestHook`] (overrides). See the
+    /// `overrides_hook` field for the ordering contract.
+    #[must_use]
+    pub fn with_overrides_hook(mut self, overrides_hook: Option<ManifestHook>) -> Self {
+        self.overrides_hook = overrides_hook;
         self
     }
 
@@ -1525,6 +1546,17 @@ impl TreeCtx {
         Arc::get_mut(&mut self.workspace)
             .expect("with_manifest_hook called after the workspace ctx was shared via Arc::clone")
             .manifest_hook = manifest_hook;
+        self
+    }
+
+    /// Attach the post-pnpmfile [`ManifestHook`] (overrides) to the
+    /// underlying [`WorkspaceTreeCtx`]; same sole-ownership contract as
+    /// [`Self::with_manifest_hook`].
+    #[must_use]
+    pub fn with_overrides_hook(mut self, overrides_hook: Option<ManifestHook>) -> Self {
+        Arc::get_mut(&mut self.workspace)
+            .expect("with_overrides_hook called after the workspace ctx was shared via Arc::clone")
+            .overrides_hook = overrides_hook;
         self
     }
 
@@ -2563,6 +2595,14 @@ where
             .await
             .map_err(ResolveDependencyTreeError::PnpmfileHook)?;
         result_inner.manifest = Some(updated);
+    }
+
+    // Overrides run last so a pnpmfile hook that replaced the manifest
+    // cannot erase them — see `WorkspaceTreeCtx::overrides_hook`.
+    if let Some(hook) = ctx.workspace.overrides_hook.as_ref()
+        && let Some(manifest) = result_inner.manifest.take()
+    {
+        result_inner.manifest = Some(hook(manifest));
     }
 
     let result = result.expect("Some-guarded above");

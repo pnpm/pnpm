@@ -337,6 +337,7 @@ fn default_opts() -> ResolveImporterOptions {
         peers_suffix_max_length: 1000,
         catalog_server: false,
         manifest_hook: None,
+        overrides_hook: None,
         pnpmfile_hook: None,
     }
 }
