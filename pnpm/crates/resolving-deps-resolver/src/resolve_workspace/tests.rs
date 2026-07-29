@@ -4,8 +4,7 @@
 use std::{
     collections::{BTreeMap, HashMap},
     str::FromStr,
-    sync::Arc,
-    sync::Mutex,
+    sync::{Arc, Mutex},
 };
 
 use chrono::{DateTime, TimeZone, Utc};
