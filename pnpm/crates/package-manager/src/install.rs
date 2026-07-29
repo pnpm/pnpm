@@ -4440,7 +4440,16 @@ pub fn build_workspace_packages_map(
             version,
             pacquet_resolving_resolver_base::WorkspacePackage {
                 root_dir: project.root_dir.clone(),
-                manifest: project.manifest.value().clone(),
+                // The map feeds workspace picks resolved as *dependencies*
+                // (injected instances), so a project that splits its two
+                // views contributes its dependency manifest here — see
+                // `pacquet_workspace::Project::dependency_manifest`.
+                manifest: project
+                    .dependency_manifest
+                    .as_ref()
+                    .unwrap_or(&project.manifest)
+                    .value()
+                    .clone(),
             },
         );
     }

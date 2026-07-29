@@ -10007,3 +10007,33 @@ async fn test_install_resolve_only_ignores_layout_mismatch() {
     // Canary should still exist because dry_run doesn't mutate node_modules
     assert!(canary_path.exists(), "canary was deleted despite dry_run: true");
 }
+
+#[test]
+fn workspace_packages_map_prefers_the_dependency_manifest() {
+    let root_dir = std::path::PathBuf::from("/ws/component");
+    let manifest_path = root_dir.join("package.json");
+    let importer_view = PackageManifest::from_value(
+        manifest_path.clone(),
+        serde_json::json!({ "name": "component", "version": "1.2.3" }),
+    );
+    let dependency_view = PackageManifest::from_value(
+        manifest_path,
+        serde_json::json!({
+            "name": "component",
+            "version": "1.2.3",
+            "dependencies": { "sibling": "workspace:*" },
+        }),
+    );
+    let projects = [pacquet_workspace::Project {
+        root_dir,
+        manifest: importer_view,
+        dependency_manifest: Some(dependency_view),
+    }];
+
+    let map = crate::build_workspace_packages_map(Some(&projects)).expect("map for projects");
+    let package = map.get("component").and_then(|by_version| by_version.get("1.2.3")).unwrap();
+    assert_eq!(
+        package.manifest.get("dependencies"),
+        Some(&serde_json::json!({ "sibling": "workspace:*" })),
+    );
+}
