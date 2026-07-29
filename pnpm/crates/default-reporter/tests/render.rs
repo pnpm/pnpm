@@ -685,6 +685,20 @@ fn append_only_waits_for_a_terminal_lockfile_policy_verdict() {
     }));
     assert!(matches!(pending, Output::None));
 
+    let stats = reporter.handle(&LogEvent::Stats(StatsLog {
+        level: LogLevel::Debug,
+        message: StatsMessage::Added { added: 1, prefix: CWD.to_string() },
+    }));
+    match stats {
+        Output::Lines(lines) => {
+            assert!(!lines.iter().any(|line| line.contains("Lockfile is up to date")));
+        }
+        Output::None => {}
+        Output::Frame(_) => {
+            panic!("install stats should not flush the pending frozen-install message");
+        }
+    }
+
     let started = reporter.handle(&LogEvent::LockfileVerification(LockfileVerificationLog {
         level: LogLevel::Debug,
         message: LockfileVerificationMessage::Started { entries: 2, lockfile_path: None },
