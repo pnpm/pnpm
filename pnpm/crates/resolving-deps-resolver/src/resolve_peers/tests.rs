@@ -2052,6 +2052,36 @@ fn tree_node(pkg_id: &str, children: BTreeMap<String, NodeId>, depth: i32) -> De
     DependenciesTreeNode::new(pkg_id.to_string(), TreeChildren::Realized(children), depth, true)
 }
 
+#[test]
+fn discovery_engine_rebuilds_after_a_children_ownership_rewrite() {
+    use super::PeerHoistDiscovery;
+    use crate::resolve_dependency_tree::WorkspaceTreeCtx;
+
+    let workspace = WorkspaceTreeCtx::default();
+    let mut engine = PeerHoistDiscovery::new();
+    engine.discover(&workspace, &[], ResolvePeersOptions::default());
+
+    // A marker in the persistent caches makes reset-vs-merge observable.
+    engine.caches.pure_pkgs.insert("marker@1.0.0".to_string());
+    // Production rewrites happen inside `extend_tree`, which always
+    // bumps the revision; mirror that pairing.
+    workspace.record_children_rewrite();
+    workspace.bump_revision();
+    engine.discover(&workspace, &[], ResolvePeersOptions::default());
+    assert!(
+        engine.caches.pure_pkgs.is_empty(),
+        "an ownership rewrite must discard walk state derived before it",
+    );
+
+    engine.caches.pure_pkgs.insert("marker@1.0.0".to_string());
+    workspace.bump_revision();
+    engine.discover(&workspace, &[], ResolvePeersOptions::default());
+    assert!(
+        engine.caches.pure_pkgs.contains("marker@1.0.0"),
+        "a rewrite-free revision bump merges instead of rebuilding",
+    );
+}
+
 fn walker_for_tests(tree: &mut ResolvedTree) -> Walker<'_> {
     Walker::new(
         tree,

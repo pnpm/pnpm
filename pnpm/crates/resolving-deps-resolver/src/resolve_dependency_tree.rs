@@ -731,6 +731,13 @@ pub struct WorkspaceTreeCtx {
     /// revision of its last sync to skip re-syncing an unchanged
     /// context.
     revision: std::sync::atomic::AtomicU64,
+    /// Bumped whenever a children-ownership change rewrites an existing
+    /// occurrence node's children in `dependencies_tree` (see
+    /// [`fn@make_non_owner_nodes_lazy`]). Such a rewrite invalidates
+    /// walk state derived from the previous children, so the discovery
+    /// engine rebuilds its view instead of merging when this advanced
+    /// since its last sync.
+    children_rewrites: std::sync::atomic::AtomicU64,
     packages: Mutex<HashMap<String, ResolvedPackage>>,
     /// `(name, version)` of every registry-resolved package, in
     /// insertion order — one entry per `packages` insert whose result
@@ -846,6 +853,7 @@ impl Default for WorkspaceTreeCtx {
     fn default() -> Self {
         WorkspaceTreeCtx {
             revision: std::sync::atomic::AtomicU64::new(0),
+            children_rewrites: std::sync::atomic::AtomicU64::new(0),
             packages: Mutex::new(HashMap::new()),
             resolved_versions_log: Mutex::new(Vec::new()),
             workspace_package_versions: Mutex::new(HashSet::new()),
@@ -929,12 +937,18 @@ impl WorkspaceTreeCtx {
                 pending_node_ids.extend(children.values().cloned());
             }
         }
-        let dependencies_tree: HashMap<_, _> = reachable_node_ids
+        let reachable_dependencies_tree: HashMap<_, _> = reachable_node_ids
             .iter()
             .filter_map(|node_id| {
                 dependencies_tree.get(node_id).cloned().map(|node| (node_id.clone(), node))
             })
             .collect();
+        // Release before taking the next guard so this function never
+        // holds two of the context's locks at once — `snapshot` takes
+        // `packages` before `dependencies_tree`, so overlapping here
+        // would create a reversed acquisition order.
+        drop(dependencies_tree);
+        let dependencies_tree = reachable_dependencies_tree;
 
         let all_children = lock_recoverable(&self.children_by_id);
         let mut pending_pkg_ids: Vec<String> = reachable_pkg_ids.iter().cloned().collect();
@@ -1067,6 +1081,15 @@ impl WorkspaceTreeCtx {
 
     pub(crate) fn bump_revision(&self) {
         self.revision.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// See the `children_rewrites` field doc.
+    pub(crate) fn children_rewrites(&self) -> u64 {
+        self.children_rewrites.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    pub(crate) fn record_children_rewrite(&self) {
+        self.children_rewrites.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     }
 
     /// Fold the context's growth since the last sync into `tree`, the
@@ -2941,6 +2964,7 @@ fn remember_node_parent_ids(ctx: &TreeCtx, node_id: &NodeId, parent_ids: Arc<Vec
 fn make_non_owner_nodes_lazy(ctx: &TreeCtx, pkg_id: &str, owner_node_id: &NodeId) {
     let parent_ids_by_node = lock_recoverable(&ctx.workspace.node_parent_ids_by_id).clone();
     let mut tree = lock_recoverable(&ctx.workspace.dependencies_tree);
+    let mut rewrote_any = false;
     for (node_id, node) in tree.iter_mut() {
         if node_id == owner_node_id || node.resolved_package_id != pkg_id {
             continue;
@@ -2950,6 +2974,10 @@ fn make_non_owner_nodes_lazy(ctx: &TreeCtx, pkg_id: &str, owner_node_id: &NodeId
         };
         node.children =
             crate::resolved_tree::TreeChildren::Lazy { parent_ids: Arc::clone(parent_ids) };
+        rewrote_any = true;
+    }
+    if rewrote_any {
+        ctx.workspace.record_children_rewrite();
     }
 }
 

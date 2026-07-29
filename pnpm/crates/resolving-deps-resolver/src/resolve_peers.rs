@@ -345,6 +345,7 @@ pub(crate) struct PeerHoistDiscovery {
     tree: ResolvedTree,
     caches: PeerDiscoveryCaches,
     synced_revision: Option<u64>,
+    synced_children_rewrites: Option<u64>,
 }
 
 impl PeerHoistDiscovery {
@@ -353,12 +354,20 @@ impl PeerHoistDiscovery {
             tree: ResolvedTree::default(),
             caches: PeerDiscoveryCaches::default(),
             synced_revision: None,
+            synced_children_rewrites: None,
         }
     }
 
     /// Run one discovery pass over `direct` (an importer's current
     /// direct-dep envelopes), refreshing the persistent tree view from
     /// `workspace` first when the context changed since the last pass.
+    ///
+    /// A children-ownership handover that rewrote existing occurrence
+    /// nodes ([`crate::WorkspaceTreeCtx::children_rewrites`]) discards
+    /// the whole view: the retained realized children and the walk
+    /// verdicts derived from them predate the rewrite, and an
+    /// incremental sync cannot tell which of them the rewrite
+    /// invalidated.
     pub(crate) fn discover(
         &mut self,
         workspace: &crate::resolve_dependency_tree::WorkspaceTreeCtx,
@@ -367,12 +376,17 @@ impl PeerHoistDiscovery {
     ) -> PeerDiscoveryResult {
         let revision = workspace.revision();
         if self.synced_revision != Some(revision) {
-            if !workspace.sync_discovery_tree(&mut self.tree) {
+            let children_rewrites = workspace.children_rewrites();
+            let stale = self
+                .synced_children_rewrites
+                .is_some_and(|synced| synced != children_rewrites);
+            if stale || !workspace.sync_discovery_tree(&mut self.tree) {
                 self.tree = ResolvedTree::default();
                 self.caches = PeerDiscoveryCaches::default();
                 let rebuilt = workspace.sync_discovery_tree(&mut self.tree);
                 debug_assert!(rebuilt, "a sync into an empty tree has nothing to conflict with");
             }
+            self.synced_children_rewrites = Some(children_rewrites);
             self.synced_revision = Some(revision);
         }
         let (result, caches) =
@@ -1573,10 +1587,8 @@ impl Walker<'_> {
         self.node_missing_peers_of_children.insert(node_id.clone(), missing_from_children.clone());
 
         if !missing_from_children.is_empty() {
-            let mut merged = match subtree_missing_by_pkg.take() {
-                Some(arc) => Arc::try_unwrap(arc).unwrap_or_else(|shared| (*shared).clone()),
-                None => HashMap::new(),
-            };
+            let mut merged =
+                subtree_missing_by_pkg.take().map(Arc::unwrap_or_clone).unwrap_or_default();
             merged.entry(pkg.id.clone()).or_default().extend(missing_from_children.keys().cloned());
             subtree_missing_by_pkg = Some(Arc::new(merged));
         }
