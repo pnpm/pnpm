@@ -692,6 +692,10 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             prune_orphans,
         } = self;
 
+        // Shared once so the per-edge `ResolveOptions` clones below stay
+        // refcount bumps — see `ResolveOptions::workspace_packages`.
+        let workspace_packages = workspace_packages.map(Arc::new);
+
         // The pnpr override when supplied, else the config's npmrc headers;
         // shared by every registry-touching resolver below.
         let auth_headers = auth_override.unwrap_or_else(|| Arc::clone(&config.auth_headers));

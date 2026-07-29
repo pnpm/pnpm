@@ -266,6 +266,7 @@ fn without_version(meta: &Package, version: &str) -> Package {
         etag: meta.etag.clone(),
         homepage: meta.homepage.clone(),
         mutex: Arc::default(),
+        release_age_upgrade_checked: false,
     }
 }
 
@@ -422,6 +423,7 @@ pub fn filter_pkg_metadata_versions(meta: &Package, mut keep: impl FnMut(&str) -
         etag: meta.etag.clone(),
         homepage: meta.homepage.clone(),
         mutex: std::sync::Arc::clone(&meta.mutex),
+        release_age_upgrade_checked: false,
     }
 }
 

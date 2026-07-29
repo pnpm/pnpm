@@ -477,7 +477,8 @@ async fn workspace_link_results_are_cached_per_importer_project_dir() {
             opts.lockfile_dir = Some(lockfile_dir.clone());
             opts.base_opts.lockfile_dir.clone_from(&lockfile_dir);
             opts.base_opts.always_try_workspace_packages = true;
-            opts.base_opts.workspace_packages = Some(std::collections::BTreeMap::default());
+            opts.base_opts.workspace_packages =
+                Some(std::sync::Arc::new(std::collections::BTreeMap::default()));
             opts
         })
         .await
@@ -524,7 +525,8 @@ async fn canonical_snapshot_link_keeps_direct_links_relative_to_each_importer() 
             opts.lockfile_dir = Some(lockfile_dir.clone());
             opts.base_opts.lockfile_dir.clone_from(&lockfile_dir);
             opts.base_opts.always_try_workspace_packages = true;
-            opts.base_opts.workspace_packages = Some(std::collections::BTreeMap::default());
+            opts.base_opts.workspace_packages =
+                Some(std::sync::Arc::new(std::collections::BTreeMap::default()));
             opts
         })
         .await

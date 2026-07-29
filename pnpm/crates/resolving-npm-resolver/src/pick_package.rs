@@ -623,6 +623,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
                 spec,
                 opts,
                 full_metadata,
+                &cache_key,
                 meta,
             )
             .await?;
@@ -711,9 +712,15 @@ pub async fn pick_package<Cache: PackageMetaCache>(
         }
     };
 
-    let upgrade =
-        maybe_upgrade_abbreviated_meta_for_release_age(ctx, spec, opts, full_metadata, meta)
-            .await?;
+    let upgrade = maybe_upgrade_abbreviated_meta_for_release_age(
+        ctx,
+        spec,
+        opts,
+        full_metadata,
+        &cache_key,
+        meta,
+    )
+    .await?;
     let meta = upgrade.meta;
     if upgrade.upgraded
         && !opts.dry_run
@@ -769,9 +776,15 @@ async fn handle_cache_hit<Cache: PackageMetaCache>(
     pkg_mirror: Option<&Path>,
     cached: CachedPackument,
 ) -> Result<Option<PickPackageResult>, PickPackageError> {
-    let upgrade =
-        maybe_upgrade_abbreviated_meta_for_release_age(ctx, spec, opts, full_metadata, cached.meta)
-            .await?;
+    let upgrade = maybe_upgrade_abbreviated_meta_for_release_age(
+        ctx,
+        spec,
+        opts,
+        full_metadata,
+        cache_key,
+        cached.meta,
+    )
+    .await?;
     let meta = upgrade.meta;
     // The upgrade fetch (re)validated the packument against the registry.
     let registry_verified = cached.registry_verified || upgrade.upgraded;
@@ -1184,6 +1197,7 @@ async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: PackageMetaCache>
     spec: &RegistryPackageSpec,
     opts: &PickPackageOptions<'_>,
     full_metadata: bool,
+    cache_key: &str,
     meta: Arc<Package>,
 ) -> Result<UpgradeOutcome, PickPackageError> {
     if ctx.offline || full_metadata {
@@ -1192,7 +1206,7 @@ async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: PackageMetaCache>
     let Some(cutoff) = opts.published_by else {
         return Ok(UpgradeOutcome { meta, upgraded: false });
     };
-    if meta.time.is_some() {
+    if meta.time.is_some() || meta.release_age_upgrade_checked {
         return Ok(UpgradeOutcome { meta, upgraded: false });
     }
     if let Some(policy) = opts.published_by_exclude
@@ -1211,6 +1225,27 @@ async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: PackageMetaCache>
     {
         return Ok(UpgradeOutcome { meta, upgraded: false });
     }
+    // One upgrade round trip per document per install: coalesce
+    // concurrent callers on a per-key permit (keyed apart from the
+    // packument fetch permit, which the network call site holds while
+    // calling in here) and let everyone after the first reuse the
+    // outcome from the shared cache. Without this, every pick of a
+    // popular package repeated the fetch — a large workspace asked the
+    // registry for the same packument hundreds of times per install.
+    let limit = Arc::clone(
+        ctx.fetch_locker
+            .entry(format!("{cache_key}#release-age-upgrade"))
+            .or_insert_with(|| Arc::new(Semaphore::new(1)))
+            .value(),
+    );
+    let _permit =
+        limit.acquire().await.expect("release-age upgrade semaphore should not be closed");
+    if let Some(cached) = ctx.meta_cache.get(cache_key) {
+        let cached_meta = cached.meta;
+        if cached_meta.time.is_some() || cached_meta.release_age_upgrade_checked {
+            return Ok(UpgradeOutcome { meta: cached_meta, upgraded: false });
+        }
+    }
     let fetch_opts = FetchFullMetadataOptions {
         registry: opts.registry,
         http_client: ctx.http_client,
@@ -1226,10 +1261,20 @@ async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: PackageMetaCache>
         }
         // 304: the full-form representation matched the conditional
         // headers, so the abbreviated meta is still the freshest
-        // signal we have. Keep it and let the downstream picker
-        // fall through to its warn-and-skip path on the missing
-        // `time` map.
-        FetchFullMetadataOutcome::NotModified => Ok(UpgradeOutcome { meta, upgraded: false }),
+        // signal we have. Keep it (the downstream picker falls through
+        // to its warn-and-skip path on the missing `time` map), but
+        // stamp it so no later pick repeats the round trip — the 304
+        // also registry-validated the document, so it may enter the
+        // shared cache as verified.
+        FetchFullMetadataOutcome::NotModified => {
+            let mut stamped = (*meta).clone();
+            stamped.release_age_upgrade_checked = true;
+            let stamped = Arc::new(stamped);
+            if !opts.dry_run {
+                ctx.meta_cache.set(cache_key.to_string(), Arc::clone(&stamped));
+            }
+            Ok(UpgradeOutcome { meta: stamped, upgraded: false })
+        }
     }
 }
 
