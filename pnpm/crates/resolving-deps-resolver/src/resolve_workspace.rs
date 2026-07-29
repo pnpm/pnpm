@@ -251,16 +251,25 @@ where
     // hoist runs, then hoist rounds repeat across all importers until
     // none hoists — a workspace-wide barrier, so an optional-peer pick
     // sees every importer's resolved versions.
-    let mut states = Vec::with_capacity(importers.len());
+    //
+    // The initial waves run concurrently, like the TypeScript resolver's
+    // importer fan-out: the shared context's children-owner claims are
+    // rank-ordered (not arrival-ordered), so the resolved graph is the
+    // same regardless of interleaving, and a large workspace's walks
+    // overlap their resolver and hook waits instead of paying them
+    // importer by importer.
     let mut input_dirs = Vec::with_capacity(importers.len());
-    for (importer_order, (importer, mut importer_opts)) in
-        importers.iter().zip(importer_opts).enumerate()
-    {
-        importer_opts.pick_lowest_direct = pick_lowest_direct;
-        importer_opts.subdep_published_by = subdep_published_by;
-        input_dirs
-            .push((importer_opts.base_opts.project_dir.clone(), importer_opts.modules_dir.clone()));
-        states.push(
+    let init_futures: Vec<_> = importers
+        .iter()
+        .zip(importer_opts)
+        .enumerate()
+        .map(|(importer_order, (importer, mut importer_opts))| {
+            importer_opts.pick_lowest_direct = pick_lowest_direct;
+            importer_opts.subdep_published_by = subdep_published_by;
+            input_dirs.push((
+                importer_opts.base_opts.project_dir.clone(),
+                importer_opts.modules_dir.clone(),
+            ));
             ImporterHoistState::init(
                 resolver,
                 &importer.id,
@@ -270,9 +279,9 @@ where
                 importer_opts,
                 Arc::clone(&workspace),
             )
-            .await?,
-        );
-    }
+        })
+        .collect();
+    let mut states = futures_util::future::try_join_all(init_futures).await?;
     // Computed after the init barrier and shared unchanged: recomputing it
     // per round would let the root's own hoisted peers become candidates for
     // the importers hoisted after it.
