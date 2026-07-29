@@ -7141,6 +7141,9 @@ importers:
       '@pnpm/catalogs.types':
         specifier: workspace:*
         version: link:../../catalogs/types
+      '@pnpm/config.matcher':
+        specifier: workspace:*
+        version: link:../../config/matcher
       '@pnpm/crypto.hash':
         specifier: workspace:*
         version: link:../../crypto/hash

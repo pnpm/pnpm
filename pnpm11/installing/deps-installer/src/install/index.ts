@@ -108,6 +108,7 @@ import {
 import { linkPackages } from './link.js'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues.js'
 import { tryFastUpdateCatalogs } from './tryFastUpdateCatalogs.js'
+import { tryFastUpdateIgnoredOptionalDependencies } from './tryFastUpdateIgnoredOptionalDependencies.js'
 import { hasChangedProjectSpecifiers, tryFastUpdateImporters } from './tryFastUpdateImporters.js'
 import { tryFastUpdateLockfile } from './tryFastUpdateLockfile.js'
 import { tryFastUpdateOverrides } from './tryFastUpdateOverrides.js'
@@ -698,6 +699,7 @@ export async function mutateModules (
       hasChangedProjectSpecifiers(ctx.wantedLockfile, contextProjects)
     const canTryFastUpdateLockfile =
       (outdatedLockfileSettingName === 'catalogs' ||
+        outdatedLockfileSettingName === 'ignoredOptionalDependencies' ||
         outdatedLockfileSettingName === 'overrides' ||
         hasChangedSpecifiers) &&
       !frozenLockfile &&
@@ -736,12 +738,16 @@ export async function mutateModules (
       const onlyChangedSetting = getOutdatedLockfileSetting(ctx.wantedLockfile, {
         ...lockfileSettings,
         catalogs: changedSetting === 'catalogs' ? lockfileCatalogs : opts.catalogs,
+        ignoredOptionalDependencies: changedSetting === 'ignoredOptionalDependencies'
+          ? ctx.wantedLockfile.ignoredOptionalDependencies
+          : lockfileSettings.ignoredOptionalDependencies,
         overrides: changedSetting === 'overrides' ? ctx.wantedLockfile.overrides : overridesMap,
       }) == null
       const isLockfileUpToDate = (lockfile: LockfileObject) => allProjectsAreUpToDate(Object.values(ctx.projects), {
         catalogs: opts.catalogs,
         autoInstallPeers: opts.autoInstallPeers,
         excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
+        ignoredOptionalDependencies: opts.ignoredOptionalDependencies,
         linkWorkspacePackages: opts.linkWorkspacePackagesDepth >= 0,
         wantedLockfile: lockfile,
         workspacePackages: ctx.workspacePackages,
@@ -757,6 +763,9 @@ export async function mutateModules (
                 catalogs: opts.catalogs,
                 overrides: opts.overrides,
               })
+            }
+            if (changedSetting === 'ignoredOptionalDependencies') {
+              return tryFastUpdateIgnoredOptionalDependencies(candidate, opts.ignoredOptionalDependencies)
             }
             if (changedSetting == null) {
               return tryFastUpdateImporters(candidate, contextProjects)
@@ -1163,6 +1172,7 @@ export async function mutateModules (
           catalogs: opts.catalogs,
           autoInstallPeers: opts.autoInstallPeers,
           excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
+          ignoredOptionalDependencies: opts.ignoredOptionalDependencies,
           linkWorkspacePackages: opts.linkWorkspacePackagesDepth >= 0,
           wantedLockfile: ctx.wantedLockfile,
           workspacePackages: ctx.workspacePackages,
@@ -1201,6 +1211,7 @@ Note that in CI environments, this setting is enabled by default.`,
       const _satisfiesPackageManifest = satisfiesPackageManifest.bind(null, {
         autoInstallPeers: opts.autoInstallPeers,
         excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
+        ignoredOptionalDependencies: opts.ignoredOptionalDependencies,
       })
       for (const { id, manifest, rootDir } of Object.values(ctx.projects)) {
         const { satisfies, detailedReason } = _satisfiesPackageManifest(ctx.wantedLockfile.importers[id], manifest)

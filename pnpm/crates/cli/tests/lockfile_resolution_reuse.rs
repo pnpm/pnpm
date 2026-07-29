@@ -309,6 +309,136 @@ fn dependency_removal_override_prunes_the_locked_subtree_without_resolving() {
 }
 
 #[test]
+fn adding_and_removing_an_ignored_optional_dependency_uses_the_safe_path() {
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, npmrc_path, .. } = npmrc_info;
+    let manifest_path = workspace.join("package.json");
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    fs::write(
+        &manifest_path,
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/pkg-with-good-optional": "1.0.0"
+            }
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    let workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    fs::write(&workspace_yaml_path, format!("{workspace_yaml}trustLockfile: true\n"))
+        .expect("enable trusted lockfile");
+    pacquet_at(&workspace).with_arg("install").assert().success();
+
+    let workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    fs::write(
+        &workspace_yaml_path,
+        format!("{workspace_yaml}ignoredOptionalDependencies:\n  - is-positive\n"),
+    )
+    .expect("add ignored optional dependency");
+    let dead_registry = dead_registry_url();
+    let live_npmrc = fs::read_to_string(&npmrc_path).expect("read .npmrc");
+    let dead_npmrc = live_npmrc
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("registry="))
+        .collect::<Vec<_>>()
+        .join("\n");
+    fs::write(&npmrc_path, format!("registry={dead_registry}\n{dead_npmrc}\n"))
+        .expect("rewrite .npmrc with a dead registry");
+
+    let assert = pacquet_at(&workspace).with_arg("install").assert().success();
+    assert!(
+        String::from_utf8_lossy(&assert.get_output().stdout)
+            .contains("Lockfile is up to date, resolution step is skipped"),
+    );
+
+    let wanted = pacquet_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+        .expect("load updated wanted lockfile")
+        .expect("updated wanted lockfile");
+    let current = pacquet_lockfile::Lockfile::load_current_from_virtual_store_dir(
+        &workspace.join("node_modules/.pnpm"),
+    )
+    .expect("load current lockfile")
+    .expect("current lockfile");
+    let parent_key = "@pnpm.e2e/pkg-with-good-optional@1.0.0".parse().expect("parent package key");
+    let removed_key = "is-positive@1.0.0".parse().expect("removed package key");
+    let removed_name = "is-positive".parse().expect("removed package name");
+    for lockfile in [&wanted, &current] {
+        assert_eq!(
+            lockfile.ignored_optional_dependencies.as_deref(),
+            Some(["is-positive".to_string()].as_slice()),
+        );
+        assert!(
+            lockfile
+                .snapshots
+                .as_ref()
+                .and_then(|snapshots| snapshots.get(&parent_key))
+                .and_then(|snapshot| snapshot.optional_dependencies.as_ref())
+                .is_none_or(|dependencies| !dependencies.contains_key(&removed_name)),
+        );
+        assert!(
+            lockfile
+                .snapshots
+                .as_ref()
+                .is_none_or(|snapshots| !snapshots.contains_key(&removed_key)),
+        );
+        assert!(
+            lockfile.packages.as_ref().is_none_or(|packages| !packages.contains_key(&removed_key)),
+        );
+    }
+    assert!(
+        !workspace
+            .join(
+                "node_modules/.pnpm/@pnpm.e2e+pkg-with-good-optional@1.0.0/node_modules/is-positive",
+            )
+            .exists(),
+    );
+
+    fs::write(&npmrc_path, live_npmrc).expect("restore live registry");
+    let workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    fs::write(
+        &workspace_yaml_path,
+        workspace_yaml.replace("ignoredOptionalDependencies:\n  - is-positive\n", ""),
+    )
+    .expect("remove ignored optional dependency");
+    let assert = pacquet_at(&workspace).with_arg("install").assert().success();
+    assert!(
+        !String::from_utf8_lossy(&assert.get_output().stdout)
+            .contains("Lockfile is up to date, resolution step is skipped"),
+    );
+
+    let wanted = pacquet_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+        .expect("load updated wanted lockfile")
+        .expect("updated wanted lockfile");
+    let parent_key = "@pnpm.e2e/pkg-with-good-optional@1.0.0".parse().expect("parent package key");
+    let restored_key = "is-positive@1.0.0".parse().expect("restored package key");
+    let restored_name = "is-positive".parse().expect("restored package name");
+    assert!(
+        wanted
+            .snapshots
+            .as_ref()
+            .and_then(|snapshots| snapshots.get(&parent_key))
+            .and_then(|snapshot| snapshot.optional_dependencies.as_ref())
+            .is_some_and(|dependencies| dependencies.contains_key(&restored_name)),
+    );
+    assert!(
+        wanted.snapshots.as_ref().is_some_and(|snapshots| snapshots.contains_key(&restored_key)),
+    );
+    assert!(
+        workspace
+            .join(
+                "node_modules/.pnpm/@pnpm.e2e+pkg-with-good-optional@1.0.0/node_modules/is-positive",
+            )
+            .exists(),
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
 fn reuses_unchanged_subtree_without_re_resolving_from_the_registry() {
     let CommandTempCwd { workspace, root, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();

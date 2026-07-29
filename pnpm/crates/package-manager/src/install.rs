@@ -70,7 +70,7 @@ pub(crate) use lockfile_freshness::{
     check_lockfile_settings_drift, parse_config_overrides,
 };
 use lockfile_freshness::{
-    FastUpdateImporterLockfileOptions, check_lockfile_freshness, try_fast_update_importer_lockfile,
+    FastUpdateLockfileOptions, check_lockfile_freshness, try_fast_update_lockfile,
 };
 use materialize::{MaterializationInputs, MaterializationOutput, materialize};
 use modules_state::{

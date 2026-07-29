@@ -1,19 +1,18 @@
 use super::{
     ApplyMaterializationInputs, Arc, AtomicU8, ContextLog, DependencyGroup,
-    FastUpdateImporterLockfileOptions, FreshnessCheckError, HashSet, Host,
-    InMemoryPackageMetaCache, IncludedDependencies, Install, InstallError, InstallRunOptions,
-    IsTerminal, Lockfile, LogEvent, LogLevel, MaterializationInputs, MaterializationOutput,
-    OptimisticRepeatInstallCheck, OptimisticRepeatInstallDecision, Path, PnpmLog,
-    PrepareModulesStateInputs, PreparedModulesState, Reporter, ScopeLog, Stage, StageLog,
-    SummaryLog, UpdateSeedPolicy, apply_materialization_result, build_project_manifests_list,
-    build_resolution_verifiers, build_root_importer_project_manifests_list,
-    build_selected_project_manifests_list, check_lockfile_freshness,
-    check_optimistic_repeat_install, configured_or_discovered_workspace_dir,
-    dev_preinstall_already_ran, emit_initial_package_manifest,
-    get_catalogs_from_workspace_manifest, gvs_build_marker_present,
+    FastUpdateLockfileOptions, FreshnessCheckError, HashSet, Host, InMemoryPackageMetaCache,
+    IncludedDependencies, Install, InstallError, InstallRunOptions, IsTerminal, Lockfile, LogEvent,
+    LogLevel, MaterializationInputs, MaterializationOutput, OptimisticRepeatInstallCheck,
+    OptimisticRepeatInstallDecision, Path, PnpmLog, PrepareModulesStateInputs,
+    PreparedModulesState, Reporter, ScopeLog, Stage, StageLog, SummaryLog, UpdateSeedPolicy,
+    apply_materialization_result, build_project_manifests_list, build_resolution_verifiers,
+    build_root_importer_project_manifests_list, build_selected_project_manifests_list,
+    check_lockfile_freshness, check_optimistic_repeat_install,
+    configured_or_discovered_workspace_dir, dev_preinstall_already_ran,
+    emit_initial_package_manifest, get_catalogs_from_workspace_manifest, gvs_build_marker_present,
     gvs_build_markers_may_require_recovery, load_workspace_projects, map_frozen_lockfile_error,
     materialize, prepare_modules_state, run_dev_preinstall, selected_manifest_freshness_inputs,
-    try_fast_update_importer_lockfile, unapproved_recorded_ignored_builds, verify_lockfile_eagerly,
+    try_fast_update_lockfile, unapproved_recorded_ignored_builds, verify_lockfile_eagerly,
 };
 use pacquet_executor::DEV_PREINSTALL_STAGE;
 
@@ -497,10 +496,10 @@ where
         // would hide the change of a real install creating `pnpm-lock.yaml`.
         let existing_wanted_lockfile = lockfile;
         let lockfile = lockfile.or(synthesized_lockfile.as_ref());
-        let can_fast_update_importers =
+        let can_fast_update_lockfile =
             !frozen_lockfile && !dry_run && prefer_frozen_lockfile && mutation.is_full_install();
-        let fast_updated_lockfile = if can_fast_update_importers {
-            try_fast_update_importer_lockfile(FastUpdateImporterLockfileOptions {
+        let fast_updated_lockfile = if can_fast_update_lockfile {
+            try_fast_update_lockfile(FastUpdateLockfileOptions {
                 lockfile,
                 manifests: &manifest_freshness_inputs,
                 config,
