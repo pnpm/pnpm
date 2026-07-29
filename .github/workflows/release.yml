@@ -94,17 +94,13 @@ jobs:
         run: |
           set -eu
           needs_release() {
-            local out
-            # Query from outside the checkout: npm enforces the repository's
-            # devEngines (which pin pnpm) for any command run inside it.
-            if out=$(cd "${RUNNER_TEMP:-/tmp}" && npm view "$1" version 2>&1); then
-              echo false
-            elif echo "$out" | grep -q 'E404'; then
-              echo true
-            else
-              echo "::error::npm view $1 failed: $out"
-              exit 1
-            fi
+            local state
+            state=$(.github/scripts/npm-package-publication-state.sh "$1")
+            case "$state" in
+              published) echo false ;;
+              missing) echo true ;;
+              *) echo "::error::Unexpected npm publication state"; exit 1 ;;
+            esac
           }
 
           TS_VERSION=$(jq -r .version pnpm11/pnpm/package.json)
@@ -814,15 +810,19 @@ jobs:
           for package in pnpm/npm/pacquet-* pnpm/npm/napi.* pnpm/npm/napi pnpm/npm/pnpm-exe pnpm/npm/pnpm; do
             name=$(jq -r '.publishConfig.name // .name' "$package/package.json")
             version=$(jq -r '.version' "$package/package.json")
-            if output=$(cd "$RUNNER_TEMP" && npm view "$name@$version" version 2>&1); then
-              echo "$name@$version is already published; skipping"
-              continue
-            fi
-            if ! grep -q 'E404' <<< "$output"; then
-              echo "::error::npm view $name@$version failed: $output"
-              exit 1
-            fi
-            pnpm publish "$package/" --tag "$TAG" --access public --provenance --no-git-checks
+            state=$(.github/scripts/npm-package-publication-state.sh "$name@$version")
+            case "$state" in
+              published)
+                echo "$name@$version is already published; skipping"
+                ;;
+              missing)
+                pnpm publish "$package/" --tag "$TAG" --access public --provenance --no-git-checks
+                ;;
+              *)
+                echo "::error::Unexpected npm publication state"
+                exit 1
+                ;;
+            esac
           done
 
   github-release-rust:
