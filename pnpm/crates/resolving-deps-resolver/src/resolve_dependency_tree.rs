@@ -1642,11 +1642,14 @@ impl TreeCtx {
         &self,
         seen: &mut HashSet<(String, String)>,
     ) -> Vec<(String, String)> {
-        lock_recoverable(&self.workspace.workspace_package_versions)
-            .iter()
-            .filter(|version| seen.insert((*version).clone()))
-            .cloned()
-            .collect()
+        let fresh: Vec<(String, String)> =
+            lock_recoverable(&self.workspace.workspace_package_versions)
+                .iter()
+                .filter(|version| !seen.contains(*version))
+                .cloned()
+                .collect();
+        seen.extend(fresh.iter().cloned());
+        fresh
     }
 }
 

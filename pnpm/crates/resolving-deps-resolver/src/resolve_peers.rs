@@ -334,7 +334,7 @@ pub(crate) struct PeerDiscoveryCaches {
     node_dep_paths: HashMap<NodeId, DepPath>,
     pure_pkgs: HashSet<String>,
     peers_cache: HashMap<String, Vec<PeersCacheItem>>,
-    parent_pkgs_of_node: HashMap<NodeId, HashMap<String, ParentPkgInfo>>,
+    parent_pkgs_of_node: HashMap<NodeId, Arc<HashMap<String, ParentPkgInfo>>>,
 }
 
 /// Peer-hoist discovery engine: one persistent tree view + walker
@@ -419,7 +419,7 @@ fn discover_peers(
     let mut walker =
         Walker::new(tree, opts, HashMap::new(), current_provider_sources, caches, true);
 
-    let importer_parents = walker.build_importer_parents_from(direct);
+    let importer_parents = Arc::new(walker.build_importer_parents_from(direct));
     let parent_chain_names: Vec<String> = Vec::new();
     let parent_node_ids: Vec<NodeId> = Vec::new();
     let parent_pkg_ids_chain: Vec<String> = Vec::new();
@@ -429,7 +429,9 @@ fn discover_peers(
         .partition(|dep| !walker.opts.hoisted_peer_provider_node_ids.contains(&dep.node_id));
     let mut result = PeerDiscoveryResult::default();
     for dep in &own_direct {
-        walker.parent_pkgs_of_node.insert(dep.node_id.clone(), importer_parent_dep_paths.clone());
+        walker
+            .parent_pkgs_of_node
+            .insert(dep.node_id.clone(), Arc::clone(&importer_parent_dep_paths));
     }
     let fold_output = |result: &mut PeerDiscoveryResult, output: NodeOutput| {
         for (peer_alias, peer_node_id) in output.auto_install_resolved_peers {
@@ -448,6 +450,7 @@ fn discover_peers(
         let output = walker.resolve_node(
             dep.node_id.clone(),
             &importer_parents,
+            &importer_parent_dep_paths,
             &parent_chain_names,
             &parent_node_ids,
             &parent_pkg_ids_chain,
@@ -462,10 +465,13 @@ fn discover_peers(
         if walker.visited_this_call.contains(&dep.node_id) {
             continue;
         }
-        walker.parent_pkgs_of_node.insert(dep.node_id.clone(), importer_parent_dep_paths.clone());
+        walker
+            .parent_pkgs_of_node
+            .insert(dep.node_id.clone(), Arc::clone(&importer_parent_dep_paths));
         let output = walker.resolve_node(
             dep.node_id.clone(),
             &importer_parents,
+            &importer_parent_dep_paths,
             &parent_chain_names,
             &parent_node_ids,
             &parent_pkg_ids_chain,
@@ -660,13 +666,14 @@ pub fn resolve_peers_workspace(
             .hoisted_optional_peer_node_ids
             .clone_from(&importer.hoisted_optional_peer_node_ids);
         walker.current_provider_sources = importer_provider_sources(importer, root_importer);
-        let importer_parents = if root_importer.is_some_and(|root| root.id != importer.id) {
-            let mut refs = root_parents.clone().unwrap_or_default();
-            refs.extend(walker.build_importer_parents_from(&importer.direct));
-            refs
-        } else {
-            walker.build_importer_parents_from(&importer.direct)
-        };
+        let importer_parents =
+            Arc::new(if root_importer.is_some_and(|root| root.id != importer.id) {
+                let mut refs = root_parents.clone().unwrap_or_default();
+                refs.extend(walker.build_importer_parents_from(&importer.direct));
+                refs
+            } else {
+                walker.build_importer_parents_from(&importer.direct)
+            });
         let parent_chain_names: Vec<String> = Vec::new();
         let parent_node_ids: Vec<NodeId> = Vec::new();
         let parent_pkg_ids_chain: Vec<String> = Vec::new();
@@ -678,12 +685,13 @@ pub fn resolve_peers_workspace(
         for dep in &own_direct {
             walker
                 .parent_pkgs_of_node
-                .insert(dep.node_id.clone(), importer_parent_dep_paths.clone());
+                .insert(dep.node_id.clone(), Arc::clone(&importer_parent_dep_paths));
         }
         for dep in &own_direct {
             walker.resolve_node(
                 dep.node_id.clone(),
                 &importer_parents,
+                &importer_parent_dep_paths,
                 &parent_chain_names,
                 &parent_node_ids,
                 &parent_pkg_ids_chain,
@@ -699,10 +707,11 @@ pub fn resolve_peers_workspace(
             }
             walker
                 .parent_pkgs_of_node
-                .insert(dep.node_id.clone(), importer_parent_dep_paths.clone());
+                .insert(dep.node_id.clone(), Arc::clone(&importer_parent_dep_paths));
             walker.resolve_node(
                 dep.node_id.clone(),
                 &importer_parents,
+                &importer_parent_dep_paths,
                 &parent_chain_names,
                 &parent_node_ids,
                 &parent_pkg_ids_chain,
@@ -886,7 +895,7 @@ struct Walker<'tree> {
     /// entry here whose recorded parent context still matches the
     /// current walk's `parent_refs` (or, for `purePkgs` peers, the
     /// presence-and-pkg-id match short-circuit).
-    parent_pkgs_of_node: HashMap<NodeId, HashMap<String, ParentPkgInfo>>,
+    parent_pkgs_of_node: HashMap<NodeId, Arc<HashMap<String, ParentPkgInfo>>>,
     /// Per-`NodeId` snapshot captured at graph-insert time, consumed by
     /// the post-walk [`Walker::build_final_dep_paths`] /
     /// [`Walker::build_final_graph`] pass. See [`NodeRecord`].
@@ -1068,7 +1077,7 @@ struct NodeOutput {
 
 impl Walker<'_> {
     fn walk(mut self) -> ResolvePeersResult {
-        let importer_parents = self.build_importer_parents();
+        let importer_parents = Arc::new(self.build_importer_parents());
         let parent_chain_names: Vec<String> = Vec::new();
         let parent_node_ids: Vec<NodeId> = Vec::new();
         let parent_pkg_ids_chain: Vec<String> = Vec::new();
@@ -1083,12 +1092,14 @@ impl Walker<'_> {
             .iter()
             .partition(|dep| !self.opts.hoisted_peer_provider_node_ids.contains(&dep.node_id));
         for dep in &own_direct {
-            self.parent_pkgs_of_node.insert(dep.node_id.clone(), importer_parent_dep_paths.clone());
+            self.parent_pkgs_of_node
+                .insert(dep.node_id.clone(), Arc::clone(&importer_parent_dep_paths));
         }
         for dep in &own_direct {
             let output = self.resolve_node(
                 dep.node_id.clone(),
                 &importer_parents,
+                &importer_parent_dep_paths,
                 &parent_chain_names,
                 &parent_node_ids,
                 &parent_pkg_ids_chain,
@@ -1105,10 +1116,12 @@ impl Walker<'_> {
             if self.visited_this_call.contains(&dep.node_id) {
                 continue;
             }
-            self.parent_pkgs_of_node.insert(dep.node_id.clone(), importer_parent_dep_paths.clone());
+            self.parent_pkgs_of_node
+                .insert(dep.node_id.clone(), Arc::clone(&importer_parent_dep_paths));
             let output = self.resolve_node(
                 dep.node_id.clone(),
                 &importer_parents,
+                &importer_parent_dep_paths,
                 &parent_chain_names,
                 &parent_node_ids,
                 &parent_pkg_ids_chain,
@@ -1245,7 +1258,8 @@ impl Walker<'_> {
     fn resolve_node(
         &mut self,
         node_id: NodeId,
-        parent_parent_refs: &ParentRefs,
+        parent_parent_refs: &Arc<ParentRefs>,
+        parent_dep_paths: &Arc<HashMap<String, ParentPkgInfo>>,
         parent_chain_names: &[String],
         parent_node_ids: &[NodeId],
         parent_pkg_ids_chain: &[String],
@@ -1351,16 +1365,15 @@ impl Walker<'_> {
         let children_map = self.realize_children(&node_id);
         let tree_node = self.tree.dependencies_tree[&node_id].clone();
         let pkg = self.tree.packages[&tree_node.resolved_package_id].clone();
-        let scoped_parent_refs;
+        let mut refs_changed = tree_node.locked_peer_names.is_some();
         let parent_parent_refs = if let Some(locked_peer_names) = &tree_node.locked_peer_names {
-            scoped_parent_refs = scoped_hoisted_optional_parent_refs(
+            Arc::new(scoped_hoisted_optional_parent_refs(
                 parent_parent_refs,
                 locked_peer_names,
                 &self.opts.hoisted_optional_peer_node_ids,
-            );
-            &scoped_parent_refs
+            ))
         } else {
-            parent_parent_refs
+            Arc::clone(parent_parent_refs)
         };
         let (pkg_name, _pkg_version) = pkg_name_version(&pkg.result);
 
@@ -1372,8 +1385,12 @@ impl Walker<'_> {
         }
 
         // Build the ParentRefs map that descendants of this node see:
-        // parent's view + this node's own peer-relevant children.
-        let mut child_parent_refs = parent_parent_refs.clone();
+        // parent's view + this node's own peer-relevant children. Kept
+        // behind `Arc` copy-on-write: most nodes contribute nothing, so
+        // they pass the parent's map down by refcount instead of cloning
+        // it — the per-node map clones dominated the walker's CPU time on
+        // peer-heavy workspaces.
+        let mut child_parent_refs = parent_parent_refs;
         let mut new_parent_refs = ParentRefs::new();
         for (alias, child_node_id) in &children_map {
             let Some(child_tree) = self.tree.dependencies_tree.get(child_node_id) else { continue };
@@ -1391,35 +1408,58 @@ impl Walker<'_> {
                 child_tree.depth,
             );
         }
-        let mut child_parent_refs_with_new = child_parent_refs.clone();
-        child_parent_refs_with_new.extend(new_parent_refs.clone());
-        for (name, mut new_parent_ref) in new_parent_refs {
-            if let Some(existing) = child_parent_refs.get(&name) {
-                if !self.parent_refs_match(existing, &new_parent_ref)
-                    || self.inherited_parent_pkg_breaks_peer_diamond(
-                        &child_parent_refs_with_new,
-                        existing,
-                        &new_parent_ref,
-                        &children_map,
-                    )
-                {
-                    new_parent_ref.occurrence = existing.occurrence + 1;
-                    child_parent_refs.insert(name, new_parent_ref);
+        if !new_parent_refs.is_empty() {
+            refs_changed = true;
+            let refs = Arc::make_mut(&mut child_parent_refs);
+            // Built only when a name collision actually consults it — the
+            // common no-collision node never pays for the extra map clone.
+            let mut refs_with_new: Option<ParentRefs> = None;
+            for (name, mut new_parent_ref) in new_parent_refs.clone() {
+                if let Some(existing) = refs.get(&name) {
+                    let with_new = refs_with_new.get_or_insert_with(|| {
+                        let mut with_new = refs.clone();
+                        with_new.extend(new_parent_refs.clone());
+                        with_new
+                    });
+                    if !self.parent_refs_match(existing, &new_parent_ref)
+                        || self.inherited_parent_pkg_breaks_peer_diamond(
+                            with_new,
+                            existing,
+                            &new_parent_ref,
+                            &children_map,
+                        )
+                    {
+                        new_parent_ref.occurrence = existing.occurrence + 1;
+                        refs.insert(name, new_parent_ref);
+                    }
+                } else {
+                    refs.insert(name, new_parent_ref);
                 }
-            } else {
-                child_parent_refs.insert(name, new_parent_ref);
             }
         }
 
-        self.apply_locked_peer_context(&tree_node, &pkg, &mut child_parent_refs, parent_node_ids);
+        let locked_pins =
+            self.locked_peer_context_pins(&tree_node, &pkg, &child_parent_refs, parent_node_ids);
+        if !locked_pins.is_empty() {
+            refs_changed = true;
+            let refs = Arc::make_mut(&mut child_parent_refs);
+            for (name, parent_ref) in locked_pins {
+                refs.insert(name, parent_ref);
+            }
+        }
 
         // Record this node's parent context for the descendants'
         // [`peers_cache`] lookups. We compute and store the snapshot
         // before recursing so a cycle re-entry on a child also has
-        // access to its caller's parent context.
-        let parent_dep_paths = self.parent_dep_paths_from_refs(&child_parent_refs);
+        // access to its caller's parent context. Unchanged refs reuse the
+        // caller's snapshot instead of rebuilding an identical map.
+        let parent_dep_paths = if refs_changed {
+            self.parent_dep_paths_from_refs(&child_parent_refs)
+        } else {
+            Arc::clone(parent_dep_paths)
+        };
         for child_node_id in children_map.values() {
-            self.parent_pkgs_of_node.insert(child_node_id.clone(), parent_dep_paths.clone());
+            self.parent_pkgs_of_node.insert(child_node_id.clone(), Arc::clone(&parent_dep_paths));
         }
 
         let mut child_chain_names: Vec<String> = parent_chain_names.to_vec();
@@ -1507,6 +1547,7 @@ impl Walker<'_> {
             let child_output = self.resolve_node(
                 child_node_id.clone(),
                 &child_parent_refs,
+                &parent_dep_paths,
                 &child_chain_names,
                 &current_parent_node_ids,
                 &child_parent_pkg_ids_chain,
@@ -1755,18 +1796,24 @@ impl Walker<'_> {
     /// peer suffix of its own, has not diverged in this pass, is not
     /// overridden by a current provider that must win, and satisfies
     /// the node's current peer range.
-    fn apply_locked_peer_context(
+    /// The pins [`apply_locked_peer_context` upstream] would insert into
+    /// `parent_refs`, computed without mutating it so the caller can keep
+    /// sharing an unchanged map. Each pin reads only its own name's
+    /// current binding, so collecting against the pre-pin map is
+    /// equivalent to inserting while iterating.
+    fn locked_peer_context_pins(
         &self,
         tree_node: &DependenciesTreeNode,
         pkg: &ResolvedPackage,
-        parent_refs: &mut ParentRefs,
+        parent_refs: &ParentRefs,
         parent_node_ids: &[NodeId],
-    ) {
+    ) -> Vec<(String, ParentRef)> {
+        let mut pins = Vec::new();
         let (Some(locked_peer_context), Some(provider_paths)) = (
             tree_node.locked_peer_context.as_ref(),
             self.opts.resolved_peer_provider_paths.as_ref(),
         ) else {
-            return;
+            return pins;
         };
         for (peer_name, previous_dep_path) in locked_peer_context {
             let Some(peer_node_id) = self.node_ids_by_previous_dep_path.get(previous_dep_path)
@@ -1812,7 +1859,7 @@ impl Walker<'_> {
             // Upstream builds the pinned ref through `toPkgByName`,
             // which always starts at occurrence 0; the shadow counter
             // only tracks child-level replacements.
-            parent_refs.insert(
+            pins.push((
                 peer_name.clone(),
                 ParentRef {
                     version: peer_version,
@@ -1821,8 +1868,9 @@ impl Walker<'_> {
                     depth: peer_tree_node.depth,
                     occurrence: 0,
                 },
-            );
+            ));
         }
+        pins
     }
 
     /// The upstream `hasCurrentPeerProviderThatMustWin`: the current
@@ -2705,7 +2753,7 @@ impl Walker<'_> {
     fn parent_dep_paths_from_refs(
         &self,
         parent_refs: &ParentRefs,
-    ) -> HashMap<String, ParentPkgInfo> {
+    ) -> Arc<HashMap<String, ParentPkgInfo>> {
         let mut out = HashMap::new();
         for (name, parent_ref) in parent_refs {
             if !self.tree.all_peer_dep_names.contains(name) {
@@ -2727,7 +2775,10 @@ impl Walker<'_> {
                 },
             );
         }
-        out
+        // Shared, not cloned: the same snapshot is recorded for every
+        // child of a node, and these maps dominated the walker's
+        // allocation churn when cloned per child.
+        Arc::new(out)
     }
 
     /// Look up [`Self::peers_cache`] for a cached resolution of
@@ -2822,7 +2873,7 @@ impl Walker<'_> {
         let max_depth = current_parents.values().map(|info| info.depth).max().unwrap_or(0);
         let peer_deps_not_shadowed = parent_pkgs_have_single_occurrence(cached_parents)
             && parent_pkgs_have_single_occurrence(current_parents);
-        for (name, cached_info) in cached_parents {
+        for (name, cached_info) in cached_parents.iter() {
             let Some(current_info) = current_parents.get(name) else { return false };
             // Version-only match covers `link:` parents only when
             // both recorded contexts are version-only.
