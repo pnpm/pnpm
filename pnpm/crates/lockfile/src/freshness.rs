@@ -276,10 +276,18 @@ pub struct SpecDiff {
     pub added: BTreeMap<String, String>,
     pub removed: BTreeMap<String, String>,
     pub modified: BTreeMap<String, (String, String)>,
+    /// The lockfile importer the diff belongs to, when the caller
+    /// checked a specific importer. Rendered into the message so a
+    /// workspace-wide freshness failure names the project whose
+    /// manifest drifted instead of only the dependency.
+    pub importer_id: Option<String>,
 }
 
 impl std::fmt::Display for SpecDiff {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Some(importer_id) = &self.importer_id {
+            write!(f, "\n* in importers[{importer_id:?}]:")?;
+        }
         // Singular/plural matters here: the diff is rendered into
         // `ERR_PNPM_OUTDATED_LOCKFILE` CI output, which users see
         // and may quote in issues. "1 dependencies were added" reads

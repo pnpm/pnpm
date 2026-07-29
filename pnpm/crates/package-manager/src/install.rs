@@ -2875,7 +2875,18 @@ pub(crate) fn check_importer_satisfies(
         config.auto_install_peers,
         is_ignored_optional,
     )
-    .map_err(FreshnessCheckError::Stale)
+    .map_err(|reason| {
+        // Stamp the importer onto a specifier diff so the workspace-wide
+        // freshness report names the drifted project, not only the dep.
+        let reason = match reason {
+            StalenessReason::SpecifiersDiffer(mut diff) => {
+                diff.importer_id = Some(importer_id.to_string());
+                StalenessReason::SpecifiersDiffer(diff)
+            }
+            other => other,
+        };
+        FreshnessCheckError::Stale(reason)
+    })
 }
 
 fn ignored_optional_dependency_names(
