@@ -757,6 +757,12 @@ pub struct WorkspaceTreeCtx {
     children_by_id: Mutex<HashMap<String, Arc<Vec<crate::resolved_tree::ChildEdge>>>>,
     children_owner_by_id: Mutex<HashMap<String, ChildrenOwnerEntry>>,
     node_parent_ids_by_id: Mutex<HashMap<NodeId, Arc<Vec<String>>>>,
+    /// Reverse index over `dependencies_tree`: every occurrence node
+    /// recorded for a `pkgIdWithPatchHash`. Keeps
+    /// [`fn@make_non_owner_nodes_lazy`] proportional to the package's
+    /// own occurrences — scanning the whole tree per recorded package
+    /// made lockfile-reuse walks quadratic in workspace size.
+    nodes_by_pkg_id: Mutex<HashMap<String, Vec<NodeId>>>,
     manifest_hook: Option<ManifestHook>,
     /// The previous `pnpm-lock.yaml` the install started from, when one
     /// exists. Consulted by [`resolve_node`] to reuse an already-resolved
@@ -866,6 +872,7 @@ impl Default for WorkspaceTreeCtx {
             children_by_id: Mutex::new(HashMap::new()),
             children_owner_by_id: Mutex::new(HashMap::new()),
             node_parent_ids_by_id: Mutex::new(HashMap::new()),
+            nodes_by_pkg_id: Mutex::new(HashMap::new()),
             manifest_hook: None,
             wanted_lockfile: None,
             update_reuse_scope: UpdateReuseScope::All,
@@ -2409,14 +2416,7 @@ where
     // short-circuits them in `resolve_node`.
     let node_depth = if is_link { -1 } else { depth };
     remember_node_parent_ids(ctx, &node_id, Arc::clone(&next_ancestors));
-    lock_recoverable(&ctx.workspace.dependencies_tree)
-        .entry(node_id.clone())
-        .and_modify(|node| {
-            if node.depth > node_depth {
-                node.depth = node_depth;
-            }
-        })
-        .or_insert_with(|| DependenciesTreeNode::new(id.clone(), children, node_depth, true));
+    insert_tree_node(ctx, node_id.clone(), &id, children, node_depth);
     if children_owner.owns_children && is_current_children_owner(ctx, &id, &children_owner.owner) {
         make_non_owner_nodes_lazy(ctx, &id, &node_id);
     }
@@ -2961,20 +2961,61 @@ fn remember_node_parent_ids(ctx: &TreeCtx, node_id: &NodeId, parent_ids: Arc<Vec
     lock_recoverable(&ctx.workspace.node_parent_ids_by_id).insert(node_id.clone(), parent_ids);
 }
 
+/// Record an occurrence node in the shared tree (lowering the depth of
+/// a revisited leaf) and, on first insertion, in the per-package
+/// reverse index [`fn@make_non_owner_nodes_lazy`] flips through.
+fn insert_tree_node(
+    ctx: &TreeCtx,
+    node_id: NodeId,
+    pkg_id: &str,
+    children: crate::resolved_tree::TreeChildren,
+    depth: i32,
+) {
+    let inserted = match lock_recoverable(&ctx.workspace.dependencies_tree).entry(node_id.clone()) {
+        std::collections::hash_map::Entry::Occupied(mut entry) => {
+            if entry.get().depth > depth {
+                entry.get_mut().depth = depth;
+            }
+            false
+        }
+        std::collections::hash_map::Entry::Vacant(entry) => {
+            entry.insert(DependenciesTreeNode::new(pkg_id.to_string(), children, depth, true));
+            true
+        }
+    };
+    if inserted {
+        lock_recoverable(&ctx.workspace.nodes_by_pkg_id)
+            .entry(pkg_id.to_string())
+            .or_default()
+            .push(node_id);
+    }
+}
+
 fn make_non_owner_nodes_lazy(ctx: &TreeCtx, pkg_id: &str, owner_node_id: &NodeId) {
-    let parent_ids_by_node = lock_recoverable(&ctx.workspace.node_parent_ids_by_id).clone();
+    let pkg_nodes = match lock_recoverable(&ctx.workspace.nodes_by_pkg_id).get(pkg_id) {
+        Some(nodes) => nodes.clone(),
+        None => return,
+    };
+    // Collect the parent chains first so the two locks are never held
+    // together.
+    let parent_ids_by_node: Vec<(NodeId, Arc<Vec<String>>)> = {
+        let parent_ids = lock_recoverable(&ctx.workspace.node_parent_ids_by_id);
+        pkg_nodes
+            .into_iter()
+            .filter(|node_id| node_id != owner_node_id)
+            .filter_map(|node_id| {
+                let ids = Arc::clone(parent_ids.get(&node_id)?);
+                Some((node_id, ids))
+            })
+            .collect()
+    };
     let mut tree = lock_recoverable(&ctx.workspace.dependencies_tree);
     let mut rewrote_any = false;
-    for (node_id, node) in tree.iter_mut() {
-        if node_id == owner_node_id || node.resolved_package_id != pkg_id {
-            continue;
+    for (node_id, parent_ids) in parent_ids_by_node {
+        if let Some(node) = tree.get_mut(&node_id) {
+            node.children = crate::resolved_tree::TreeChildren::Lazy { parent_ids };
+            rewrote_any = true;
         }
-        let Some(parent_ids) = parent_ids_by_node.get(node_id) else {
-            continue;
-        };
-        node.children =
-            crate::resolved_tree::TreeChildren::Lazy { parent_ids: Arc::clone(parent_ids) };
-        rewrote_any = true;
     }
     if rewrote_any {
         ctx.workspace.record_children_rewrite();
@@ -3425,14 +3466,7 @@ where
     };
 
     remember_node_parent_ids(ctx, &node_id, Arc::clone(&next_ancestors));
-    lock_recoverable(&ctx.workspace.dependencies_tree)
-        .entry(node_id.clone())
-        .and_modify(|node| {
-            if node.depth > depth {
-                node.depth = depth;
-            }
-        })
-        .or_insert_with(|| DependenciesTreeNode::new(id.clone(), children, depth, true));
+    insert_tree_node(ctx, node_id.clone(), &id, children, depth);
     if children_owner.owns_children && is_current_children_owner(ctx, &id, &children_owner.owner) {
         make_non_owner_nodes_lazy(ctx, &id, &node_id);
     }

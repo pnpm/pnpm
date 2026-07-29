@@ -138,23 +138,15 @@ fn importer_snapshot_follows_lazy_edges_for_the_package_closure() {
 
 #[test]
 fn ownership_rewrite_of_existing_nodes_bumps_children_rewrites() {
-    use super::{TreeCtx, lock_recoverable, make_non_owner_nodes_lazy};
+    use super::{TreeCtx, insert_tree_node, lock_recoverable, make_non_owner_nodes_lazy};
     use std::sync::Arc;
 
     let workspace = Arc::new(WorkspaceTreeCtx::default());
     let ctx = TreeCtx::with_workspace(Arc::clone(&workspace), ResolveOptions::default());
     let owner = NodeId::next();
     let other = NodeId::next();
-    lock_recoverable(&workspace.dependencies_tree).extend([
-        (
-            owner.clone(),
-            DependenciesTreeNode::new("pkg@1.0.0".to_string(), TreeChildren::empty(), 0, true),
-        ),
-        (
-            other.clone(),
-            DependenciesTreeNode::new("pkg@1.0.0".to_string(), TreeChildren::empty(), 1, true),
-        ),
-    ]);
+    insert_tree_node(&ctx, owner.clone(), "pkg@1.0.0", TreeChildren::empty(), 0);
+    insert_tree_node(&ctx, other.clone(), "pkg@1.0.0", TreeChildren::empty(), 1);
     lock_recoverable(&workspace.node_parent_ids_by_id)
         .insert(other.clone(), Arc::new(vec!["parent@1.0.0".to_string()]));
 
