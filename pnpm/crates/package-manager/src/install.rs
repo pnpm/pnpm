@@ -1226,6 +1226,23 @@ where
         // would hide the change of a real install creating `pnpm-lock.yaml`.
         let existing_wanted_lockfile = lockfile;
         let lockfile = lockfile.or(synthesized_lockfile.as_ref());
+        let can_fast_update_importers =
+            !frozen_lockfile && !dry_run && prefer_frozen_lockfile && mutation.is_full_install();
+        let fast_updated_lockfile = if can_fast_update_importers {
+            try_fast_update_importer_lockfile(FastUpdateImporterLockfileOptions {
+                lockfile,
+                manifests: &manifest_freshness_inputs,
+                config,
+                catalogs: &catalogs,
+                pnpmfile_hook: pnpmfile_hook.as_ref(),
+                ignore_manifest_check,
+            })
+            .await
+        } else {
+            None
+        };
+        let lockfile_was_fast_updated = fast_updated_lockfile.is_some();
+        let lockfile = fast_updated_lockfile.as_ref().or(lockfile);
 
         // One per-install packument cache shared with both the
         // lockfile-verifier (below) and the resolver in
@@ -1811,7 +1828,7 @@ where
                 prefix: prefix.clone(),
                 stage: Stage::ImportingDone,
             }));
-            if lockfile_synthesized_from_current && config.lockfile {
+            if (lockfile_synthesized_from_current || lockfile_was_fast_updated) && config.lockfile {
                 wanted_lockfile
                     .save_to_path(&workspace_root.join(Lockfile::FILE_NAME))
                     .map_err(InstallError::SaveWantedLockfile)?;
@@ -2468,11 +2485,12 @@ where
         // handles the common case; this branch covers the rare path where
         // `.modules.yaml` was wiped or inconsistent and the frozen install
         // had to relink.
-        if lockfile_synthesized_from_current
+        if take_frozen_path
+            && (lockfile_synthesized_from_current || lockfile_was_fast_updated)
             && config.lockfile
-            && let Some(synthesized) = synthesized_lockfile.as_ref()
+            && let Some(updated) = lockfile
         {
-            synthesized
+            updated
                 .save_to_path(&workspace_root.join(Lockfile::FILE_NAME))
                 .map_err(InstallError::SaveWantedLockfile)?;
         }
@@ -2603,6 +2621,35 @@ where
 
         Ok(())
     }
+}
+
+struct FastUpdateImporterLockfileOptions<'a, 'manifest> {
+    lockfile: Option<&'a Lockfile>,
+    manifests: &'a [(String, &'manifest PackageManifest)],
+    config: &'a Config,
+    catalogs: &'a Catalogs,
+    pnpmfile_hook: Option<&'a Arc<dyn pacquet_hooks::PnpmfileHooks>>,
+    ignore_manifest_check: bool,
+}
+
+async fn try_fast_update_importer_lockfile(
+    opts: FastUpdateImporterLockfileOptions<'_, '_>,
+) -> Option<Lockfile> {
+    let lockfile = opts.lockfile?;
+    let candidate =
+        crate::fast_update_importers::try_fast_update_importers(lockfile, opts.manifests)?;
+    check_lockfile_freshness(
+        &candidate,
+        opts.manifests,
+        opts.config,
+        opts.catalogs,
+        opts.pnpmfile_hook,
+        opts.ignore_manifest_check,
+        true,
+    )
+    .await
+    .ok()?;
+    Some(candidate)
 }
 
 /// Run every gate the frozen-lockfile dispatch consults before

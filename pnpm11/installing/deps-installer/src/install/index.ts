@@ -107,6 +107,9 @@ import {
 } from './extendInstallOptions.js'
 import { linkPackages } from './link.js'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues.js'
+import { tryFastUpdateCatalogs } from './tryFastUpdateCatalogs.js'
+import { hasChangedProjectSpecifiers, tryFastUpdateImporters } from './tryFastUpdateImporters.js'
+import { tryFastUpdateLockfile } from './tryFastUpdateLockfile.js'
 import { tryFastUpdateOverrides } from './tryFastUpdateOverrides.js'
 import { validateModules } from './validateModules.js'
 import { verifyLockfileResolutions } from './verifyLockfileResolutions.js'
@@ -690,8 +693,14 @@ export async function mutateModules (
     const _isWantedDepBareSpecifierSame = isWantedDepBareSpecifierSame.bind(null, ctx.wantedLockfile.catalogs, opts.catalogs)
     const upToDateLockfileMajorVersion = ctx.wantedLockfile.lockfileVersion.toString().startsWith(`${LOCKFILE_MAJOR_VERSION}.`)
     let didFastUpdateOverrides = false
-    const canTryFastUpdateOverrides =
-      outdatedLockfileSettingName === 'overrides' &&
+    const contextProjects = Object.values(ctx.projects)
+    const hasChangedSpecifiers = outdatedLockfileSettingName == null &&
+      hasChangedProjectSpecifiers(ctx.wantedLockfile, contextProjects)
+    const canTryFastUpdateLockfile =
+      (outdatedLockfileSettingName === 'catalogs' ||
+        outdatedLockfileSettingName === 'overrides' ||
+        hasChangedSpecifiers) &&
+      !frozenLockfile &&
       installsOnly &&
       !isCheckOnlyInstall(opts) &&
       opts.preferFrozenLockfile &&
@@ -713,55 +722,71 @@ export async function mutateModules (
       !isEmptyLockfile(ctx.wantedLockfile) &&
       (!opts.pruneLockfileImporters || Object.keys(ctx.wantedLockfile.importers).length === Object.keys(ctx.projects).length) &&
       ctx.wantedLockfile.time == null
-    if (canTryFastUpdateOverrides) {
+    if (canTryFastUpdateLockfile) {
+      const changedSetting = outdatedLockfileSettingName
       await verifyLockfilePromise
-      const { publishedBy, publishedByExclude } = getPublishedByPolicy(opts)
+      const overridesUseCatalogs = Object.values(opts.overrides)
+        .some((specifier) => parseCatalogProtocol(specifier) != null)
+      const lockfileCatalogs = ctx.wantedLockfile.catalogs == null
+        ? {}
+        : Object.fromEntries(Object.entries(ctx.wantedLockfile.catalogs).map(([catalogName, catalog]) => [
+          catalogName,
+          Object.fromEntries(Object.entries(catalog).map(([alias, entry]) => [alias, entry.specifier])),
+        ]))
+      const onlyChangedSetting = getOutdatedLockfileSetting(ctx.wantedLockfile, {
+        ...lockfileSettings,
+        catalogs: changedSetting === 'catalogs' ? lockfileCatalogs : opts.catalogs,
+        overrides: changedSetting === 'overrides' ? ctx.wantedLockfile.overrides : overridesMap,
+      }) == null
+      const isLockfileUpToDate = (lockfile: LockfileObject) => allProjectsAreUpToDate(Object.values(ctx.projects), {
+        catalogs: opts.catalogs,
+        autoInstallPeers: opts.autoInstallPeers,
+        excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
+        linkWorkspacePackages: opts.linkWorkspacePackagesDepth >= 0,
+        wantedLockfile: lockfile,
+        workspacePackages: ctx.workspacePackages,
+        lockfileDir: opts.lockfileDir,
+      })
       if (
-        // The helper reports only the first mismatch, so checking with the
-        // lockfile's overrides proves overrides were the only stale setting.
-        getOutdatedLockfileSetting(ctx.wantedLockfile, {
-          ...lockfileSettings,
-          overrides: ctx.wantedLockfile.overrides,
-        }) == null &&
-        await allProjectsAreUpToDate(Object.values(ctx.projects), {
-          catalogs: opts.catalogs,
-          autoInstallPeers: opts.autoInstallPeers,
-          excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
-          linkWorkspacePackages: opts.linkWorkspacePackagesDepth >= 0,
-          wantedLockfile: ctx.wantedLockfile,
-          workspacePackages: ctx.workspacePackages,
-          lockfileDir: opts.lockfileDir,
-        }) &&
-        await tryFastUpdateOverrides(ctx.wantedLockfile, {
-          lockfileDir: opts.lockfileDir,
-          lockfileIncludeTarballUrl: opts.lockfileIncludeTarballUrl,
-          overrides: overridesMap,
-          parsedOverrides: opts.parsedOverrides,
-          readPackageHook: opts.readPackageHook,
-          registries: ctx.registries,
-          requestPackage: opts.storeController.requestPackage,
-          publishedBy,
-          publishedByExclude,
-          trustPolicy: opts.trustPolicy,
-          trustPolicyExclude: opts.trustPolicyExclude
-            ? createPackageVersionPolicyOrThrow(opts.trustPolicyExclude, 'trustPolicyExclude')
-            : undefined,
-          trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
-          isLockfileUpToDate: (lockfile) => allProjectsAreUpToDate(Object.values(ctx.projects), {
-            catalogs: opts.catalogs,
-            autoInstallPeers: opts.autoInstallPeers,
-            excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
-            linkWorkspacePackages: opts.linkWorkspacePackagesDepth >= 0,
-            wantedLockfile: lockfile,
-            workspacePackages: ctx.workspacePackages,
-            lockfileDir: opts.lockfileDir,
-          }),
+        onlyChangedSetting &&
+        (changedSetting === 'catalogs' || !overridesUseCatalogs) &&
+        await tryFastUpdateLockfile(ctx.wantedLockfile, {
+          update: async (candidate) => {
+            if (changedSetting === 'catalogs') {
+              return tryFastUpdateCatalogs(candidate, {
+                catalogs: opts.catalogs,
+                overrides: opts.overrides,
+              })
+            }
+            if (changedSetting == null) {
+              return tryFastUpdateImporters(candidate, contextProjects)
+            }
+            const { publishedBy, publishedByExclude } = getPublishedByPolicy(opts)
+            return tryFastUpdateOverrides(candidate, {
+              lockfileDir: opts.lockfileDir,
+              lockfileIncludeTarballUrl: opts.lockfileIncludeTarballUrl,
+              overrides: overridesMap,
+              parsedOverrides: opts.parsedOverrides,
+              readPackageHook: opts.readPackageHook,
+              registries: ctx.registries,
+              requestPackage: opts.storeController.requestPackage,
+              publishedBy,
+              publishedByExclude,
+              trustPolicy: opts.trustPolicy,
+              trustPolicyExclude: opts.trustPolicyExclude
+                ? createPackageVersionPolicyOrThrow(opts.trustPolicyExclude, 'trustPolicyExclude')
+                : undefined,
+              trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
+              isLockfileUpToDate,
+            })
+          },
+          isLockfileUpToDate,
           verifyLockfile: (lockfile) => verifyLockfileResolutions(lockfile, []),
         })
       ) {
         outdatedLockfileSettingName = null
         ctx.wantedLockfileIsModified = true
-        didFastUpdateOverrides = true
+        didFastUpdateOverrides = changedSetting === 'overrides'
       }
     }
     const outdatedLockfileSettings = outdatedLockfileSettingName != null

@@ -101,8 +101,19 @@ fn should_refresh_resolution_forces_re_resolution_past_the_frozen_path() {
     pacquet.with_arg("install").assert().success();
     assert_eq!(installed_version(&workspace), "100.0.0");
 
-    // Second install: manifest and lockfile are unchanged, so without
-    // the hook the install would go frozen and re-resolve nothing.
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/dep-of-pkg-with-1-dep": ">=100.0.0 <101",
+            },
+        })
+        .to_string(),
+    )
+    .expect("update dependency range");
+
+    // Second install: the changed range still accepts the locked version,
+    // so without the hook the install would keep that resolution.
     // `shouldRefreshResolution` returning true must force the
     // fresh-resolve path, where the custom resolver now overrides the
     // pinned version.
@@ -115,6 +126,10 @@ fn should_refresh_resolution_forces_re_resolution_past_the_frozen_path() {
     assert!(
         lockfile.contains("@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0"),
         "lockfile records the refreshed resolution: {lockfile}",
+    );
+    assert!(
+        lockfile.contains("specifier: '>=100.0.0 <101'"),
+        "lockfile records the updated range: {lockfile}",
     );
 
     drop((root, mock_instance)); // cleanup
