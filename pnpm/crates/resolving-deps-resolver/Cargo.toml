@@ -43,3 +43,7 @@ tokio             = { workspace = true, features = ["macros", "rt-multi-thread"]
 
 [lints]
 workspace = true
+
+[[bench]]
+name    = "workspace_full_resolution"
+harness = false

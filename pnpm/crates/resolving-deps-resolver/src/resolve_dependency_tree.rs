@@ -883,6 +883,78 @@ impl WorkspaceTreeCtx {
         }
     }
 
+    /// Snapshot only the part of the occurrence tree reachable from one
+    /// importer's direct dependencies.
+    ///
+    /// A workspace resolve keeps every importer's occurrence nodes in this
+    /// shared context. Hoist discovery runs a peer pass per importer, so
+    /// cloning the whole context for every pass retains
+    /// `importer_count * workspace_node_count` nodes at the initial
+    /// workspace barrier. Large component workspaces turn that into
+    /// quadratic time and multi-gigabyte memory use.
+    ///
+    /// Realized edges provide the occurrence-node closure. Lazy edges are
+    /// materialized by the peer walker from `children_by_id`, so their
+    /// package closure is collected separately and included here too.
+    #[must_use]
+    pub fn snapshot_reachable_from(&self, direct: Vec<DirectDep>) -> ResolvedTree {
+        let dependencies_tree = lock_recoverable(&self.dependencies_tree);
+        let mut reachable_node_ids = HashSet::new();
+        let mut reachable_pkg_ids = HashSet::new();
+        let mut pending_node_ids: Vec<NodeId> =
+            direct.iter().map(|dep| dep.node_id.clone()).collect();
+        while let Some(node_id) = pending_node_ids.pop() {
+            if !reachable_node_ids.insert(node_id.clone()) {
+                continue;
+            }
+            let Some(node) = dependencies_tree.get(&node_id) else {
+                continue;
+            };
+            reachable_pkg_ids.insert(node.resolved_package_id.clone());
+            if let crate::resolved_tree::TreeChildren::Realized(children) = &node.children {
+                pending_node_ids.extend(children.values().cloned());
+            }
+        }
+        let dependencies_tree: HashMap<_, _> = reachable_node_ids
+            .iter()
+            .filter_map(|node_id| {
+                dependencies_tree.get(node_id).cloned().map(|node| (node_id.clone(), node))
+            })
+            .collect();
+
+        let all_children = lock_recoverable(&self.children_by_id);
+        let mut pending_pkg_ids: Vec<String> = reachable_pkg_ids.iter().cloned().collect();
+        let mut children_by_id = HashMap::new();
+        while let Some(pkg_id) = pending_pkg_ids.pop() {
+            let Some(children) = all_children.get(&pkg_id) else {
+                continue;
+            };
+            children_by_id.insert(pkg_id, Arc::clone(children));
+            for child in children.iter() {
+                if reachable_pkg_ids.insert(child.pkg_id.clone()) {
+                    pending_pkg_ids.push(child.pkg_id.clone());
+                }
+            }
+        }
+        drop(all_children);
+
+        let packages = lock_recoverable(&self.packages);
+        let packages = reachable_pkg_ids
+            .into_iter()
+            .filter_map(|pkg_id| packages.get(&pkg_id).cloned().map(|pkg| (pkg_id, pkg)))
+            .collect();
+
+        ResolvedTree {
+            direct,
+            packages,
+            dependencies_tree,
+            all_peer_dep_names: lock_recoverable(&self.all_peer_dep_names).clone(),
+            policy_violations: lock_recoverable(&self.policy_violations).clone(),
+            applied_patches: lock_recoverable(&self.applied_patches).clone(),
+            children_by_id,
+        }
+    }
+
     /// Attach a `readPackageHook` applied to every resolved manifest
     /// before it enters the wanted-dep cache. See [`ManifestHook`] for
     /// the signature.
@@ -1364,6 +1436,12 @@ impl TreeCtx {
     #[must_use]
     pub fn snapshot(&self, direct: Vec<DirectDep>) -> ResolvedTree {
         self.workspace.snapshot(direct)
+    }
+
+    /// Build an importer-scoped snapshot for a peer-hoist pass.
+    #[must_use]
+    pub fn snapshot_reachable_from(&self, direct: Vec<DirectDep>) -> ResolvedTree {
+        self.workspace.snapshot_reachable_from(direct)
     }
 
     /// Return every registry version resolved so far.

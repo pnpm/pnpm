@@ -362,8 +362,10 @@ pub(crate) struct ImporterHoistState {
 }
 
 pub(crate) struct RequiredRound {
-    snapshot: ResolvedTree,
-    original_node_ids: HashSet<crate::NodeId>,
+    /// Peer providers that existed before this pass began. Retaining only
+    /// this compact lookup lets the importer-scoped tree be dropped after
+    /// the peer walk instead of keeping one full tree per workspace importer.
+    provider_pkg_ids: HashMap<crate::NodeId, String>,
     peers_result: ResolvePeersResult,
 }
 
@@ -496,7 +498,7 @@ impl ImporterHoistState {
     ) -> Result<Vec<WorkspaceRootDep>, ResolveImporterError> {
         build_workspace_root_deps(
             &self.direct,
-            &self.ctx.snapshot(self.direct.clone()),
+            &self.ctx.snapshot_reachable_from(self.direct.clone()),
             &self.wanted_specifier_by_alias,
             &self.project_dir,
         )
@@ -595,7 +597,7 @@ impl ImporterHoistState {
         &self,
         hoist_missing_scope: Option<Arc<HoistMissingScope>>,
     ) -> RequiredRound {
-        let mut snapshot = self.ctx.snapshot(self.direct.clone());
+        let mut snapshot = self.ctx.snapshot_reachable_from(self.direct.clone());
         let original_node_ids: HashSet<crate::NodeId> =
             snapshot.dependencies_tree.keys().cloned().collect();
         let peers_result = {
@@ -603,10 +605,19 @@ impl ImporterHoistState {
             opts.hoist_missing_scope = hoist_missing_scope;
             resolve_peers(&mut snapshot, opts)
         };
+        let provider_pkg_ids = peers_result
+            .resolved_peer_providers_by_alias
+            .values()
+            .filter(|node_id| original_node_ids.contains(*node_id))
+            .filter_map(|node_id| {
+                let pkg_id = snapshot.dependencies_tree.get(node_id)?.resolved_package_id.clone();
+                snapshot.packages.contains_key(&pkg_id).then(|| (node_id.clone(), pkg_id))
+            })
+            .collect();
         self.ctx
             .workspace()
             .record_first_walk_missing(&self.importer_id, &peers_result.missing_names_by_pkg);
-        RequiredRound { snapshot, original_node_ids, peers_result }
+        RequiredRound { provider_pkg_ids, peers_result }
     }
 
     async fn complete_required_round<Chain>(
@@ -618,7 +629,7 @@ impl ImporterHoistState {
         Chain: Resolver + ?Sized,
     {
         loop {
-            let RequiredRound { snapshot, original_node_ids, peers_result } =
+            let RequiredRound { provider_pkg_ids, peers_result } =
                 first_round.take().unwrap_or_else(|| {
                     self.resolve_required_round(Some(Arc::new(HoistMissingScope {
                         importer_id: self.importer_id.clone(),
@@ -635,8 +646,7 @@ impl ImporterHoistState {
             );
             self.append_resolved_peer_providers(
                 &peers_result.resolved_peer_providers_by_alias,
-                &snapshot,
-                &original_node_ids,
+                &provider_pkg_ids,
                 &missing_required,
             );
             for (name, ranges) in fresh_optional {
@@ -710,8 +720,7 @@ impl ImporterHoistState {
     fn append_resolved_peer_providers(
         &mut self,
         providers: &BTreeMap<String, crate::NodeId>,
-        snapshot: &ResolvedTree,
-        original_node_ids: &HashSet<crate::NodeId>,
+        provider_pkg_ids: &HashMap<crate::NodeId, String>,
         missing_required: &BTreeMap<String, MissingPeerInfo>,
     ) {
         if !self.auto_install_peers {
@@ -721,17 +730,13 @@ impl ImporterHoistState {
             if self.parent_pkg_aliases.contains(alias) || missing_required.contains_key(alias) {
                 continue;
             }
-            if !original_node_ids.contains(node_id) {
+            let Some(pkg_id) = provider_pkg_ids.get(node_id) else {
                 continue;
-            }
-            let Some(tree_node) = snapshot.dependencies_tree.get(node_id) else { continue };
-            if !snapshot.packages.contains_key(&tree_node.resolved_package_id) {
-                continue;
-            }
+            };
             self.direct.push(DirectDep {
                 alias: alias.clone(),
                 node_id: node_id.clone(),
-                id: tree_node.resolved_package_id.clone(),
+                id: pkg_id.clone(),
             });
             self.hoisted_peer_provider_node_ids.insert(node_id.clone());
             self.parent_pkg_aliases.insert(alias.clone());

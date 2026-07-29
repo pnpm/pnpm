@@ -6,8 +6,14 @@ use pacquet_resolving_resolver_base::{
 };
 
 use super::{
-    ResolveDependencyTreeOptions, extract_children, landed_on_prior_entry, resolve_dependency_tree,
+    ResolveDependencyTreeOptions, WorkspaceTreeCtx, extract_children, landed_on_prior_entry,
+    resolve_dependency_tree,
 };
+use crate::{
+    DirectDep, NodeId,
+    resolved_tree::{DependenciesTreeNode, TreeChildren},
+};
+use std::collections::BTreeMap;
 
 #[test]
 fn dependency_engines_runtime_is_walked_as_a_runtime_dependency() {
@@ -39,6 +45,49 @@ fn dependency_engines_runtime_is_walked_as_a_runtime_dependency() {
         extract_children(&result).unwrap(),
         vec![("node".to_string(), "runtime:22.19.0".to_string(), false)],
     );
+}
+
+#[test]
+fn importer_snapshot_excludes_other_importers_occurrence_nodes() {
+    let workspace = WorkspaceTreeCtx::default();
+    let root = NodeId::next();
+    let child = NodeId::next();
+    let unrelated = NodeId::next();
+    workspace.dependencies_tree.lock().unwrap().extend([
+        (
+            root.clone(),
+            DependenciesTreeNode::new(
+                "root@1.0.0".to_string(),
+                TreeChildren::Realized(BTreeMap::from([("child".to_string(), child.clone())])),
+                0,
+                true,
+            ),
+        ),
+        (
+            child.clone(),
+            DependenciesTreeNode::new("child@1.0.0".to_string(), TreeChildren::empty(), 1, true),
+        ),
+        (
+            unrelated.clone(),
+            DependenciesTreeNode::new(
+                "unrelated@1.0.0".to_string(),
+                TreeChildren::empty(),
+                0,
+                true,
+            ),
+        ),
+    ]);
+
+    let snapshot = workspace.snapshot_reachable_from(vec![DirectDep {
+        alias: "root".to_string(),
+        node_id: root.clone(),
+        id: "root@1.0.0".to_string(),
+    }]);
+
+    assert_eq!(snapshot.dependencies_tree.len(), 2);
+    assert!(snapshot.dependencies_tree.contains_key(&root));
+    assert!(snapshot.dependencies_tree.contains_key(&child));
+    assert!(!snapshot.dependencies_tree.contains_key(&unrelated));
 }
 
 fn manifest_result(manifest: serde_json::Value) -> ResolveResult {
