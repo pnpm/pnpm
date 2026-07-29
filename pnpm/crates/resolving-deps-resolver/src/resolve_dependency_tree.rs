@@ -777,10 +777,6 @@ pub struct WorkspaceTreeCtx {
     /// deprecation check but drops the notification. See
     /// [`DeprecationLogFn`].
     deprecation_log: Option<DeprecationLogFn>,
-    /// Per-package shallowest depth at which a deprecation was emitted.
-    /// Re-emits when the same package appears at a shallower depth so a
-    /// direct dependency is never misclassified as transitive.
-    deprecation_depths: Mutex<HashMap<String, i32>>,
     /// The install's `autoInstallPeers` setting. It widens which of a
     /// resolved package's `dependencies` its own `peerDependencies`
     /// shadow — see [`peer_shadowed_dependencies`].
@@ -858,7 +854,6 @@ impl Default for WorkspaceTreeCtx {
             read_package_log: None,
             skipped_optional_log: None,
             allowed_deprecated_versions: BTreeMap::new(),
-            deprecation_depths: Mutex::new(HashMap::new()),
             deprecation_log: None,
             auto_install_peers: false,
             registries: HashMap::new(),
@@ -1900,7 +1895,7 @@ where
     } else {
         extract_peer_dependencies(&result, &children_owner.peer_shadowed)
     };
-    if let Some(existing) = packages.get_mut(&id) {
+    let package_is_new = if let Some(existing) = packages.get_mut(&id) {
         existing.optional = existing.optional && current_is_optional;
         // A fresh claim can shadow a different set of dependencies than
         // the occurrence that populated the envelope did, which moves
@@ -1909,6 +1904,7 @@ where
             register_peer_dep_names(ctx, &peer_dependencies);
             existing.peer_dependencies = peer_dependencies;
         }
+        false
     } else {
         register_peer_dep_names(ctx, &peer_dependencies);
         packages.insert(
@@ -1921,10 +1917,13 @@ where
                 is_leaf,
             },
         );
-    }
+        true
+    };
     drop(packages);
 
-    emit_deprecation_if_needed(ctx, &result, &id, depth);
+    if package_is_new {
+        emit_deprecation_if_needed(ctx, &result, &id, depth);
+    }
 
     let next_ancestors: Vec<String> =
         ancestor_ids.iter().cloned().chain(std::iter::once(id.clone())).collect();
@@ -3107,10 +3106,11 @@ where
     let is_leaf = child_refs.is_empty() && peer_dependencies.is_empty();
     let node_id = if is_leaf { NodeId::leaf(&id) } else { NodeId::next() };
 
-    {
+    let package_is_new = {
         let mut packages = lock_recoverable(&ctx.workspace.packages);
         if let Some(existing) = packages.get_mut(&id) {
             existing.optional = existing.optional && current_is_optional;
+            false
         } else {
             {
                 let mut all_peers = lock_recoverable(&ctx.workspace.all_peer_dep_names);
@@ -3128,10 +3128,13 @@ where
                     is_leaf,
                 },
             );
+            true
         }
-    }
+    };
 
-    emit_deprecation_if_needed(ctx, &result, &id, depth);
+    if package_is_new {
+        emit_deprecation_if_needed(ctx, &result, &id, depth);
+    }
 
     let next_ancestors: Vec<String> =
         ancestor_ids.iter().cloned().chain(std::iter::once(id.clone())).collect();
@@ -3565,10 +3568,8 @@ fn is_empty_or_absent(value: Option<&Value>) -> bool {
     value.and_then(Value::as_object).is_none_or(serde_json::Map::is_empty)
 }
 
-/// Emits a [`Deprecation`] when the manifest carries a non-empty
-/// `deprecated` field not covered by `allowedDeprecatedVersions`.
-/// Re-emits at a shallower depth so a direct dependency is never
-/// misclassified as transitive.
+/// Emits a [`Deprecation`] when a newly-resolved package's manifest carries
+/// a non-empty `deprecated` field not covered by `allowedDeprecatedVersions`.
 fn emit_deprecation_if_needed(
     ctx: &TreeCtx,
     result: &pacquet_resolving_resolver_base::ResolveResult,
@@ -3586,15 +3587,6 @@ fn emit_deprecation_if_needed(
     };
     if is_deprecation_allowed(&pkg_name, &pkg_version, &ctx.workspace.allowed_deprecated_versions) {
         return;
-    }
-    {
-        let mut depths = lock_recoverable(&ctx.workspace.deprecation_depths);
-        if let Some(prev) = depths.get(id)
-            && depth >= *prev
-        {
-            return;
-        }
-        depths.insert(id.to_string(), depth);
     }
     let Some(log) = ctx.workspace.deprecation_log.as_ref() else {
         return;

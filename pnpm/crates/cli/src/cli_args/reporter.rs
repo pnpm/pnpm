@@ -39,11 +39,13 @@ pub(crate) fn configure_default_reporter(
     summary_scope: SummaryScope,
     reports_scope: bool,
     hide_added_pkgs_progress: bool,
+    is_recursive: bool,
 ) {
     pacquet_default_reporter::set_cwd(dir.to_string_lossy().into_owned());
     pacquet_default_reporter::set_summary_scope(summary_scope);
     pacquet_default_reporter::set_reports_scope(reports_scope);
     pacquet_default_reporter::set_hide_added_pkgs_progress(hide_added_pkgs_progress);
+    pacquet_default_reporter::set_is_recursive(is_recursive);
     if matches!(reporter, ReporterType::AppendOnly) {
         pacquet_default_reporter::force_append_only();
     }

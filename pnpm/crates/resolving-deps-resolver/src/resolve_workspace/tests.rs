@@ -1611,6 +1611,67 @@ async fn deprecated_manifests_notify_the_deprecation_sink_unless_allowed() {
     }
 }
 
+#[tokio::test]
+async fn deprecated_package_is_reported_only_on_its_first_occurrence() {
+    let (_transitive_tmp, transitive_manifest) =
+        fake_manifest(serde_json::json!({ "wrapper": "1.0.0" }));
+    let (_direct_tmp, direct_manifest) = fake_manifest(serde_json::json!({ "old": "1.0.0" }));
+    let importers = [
+        WorkspaceImporter { id: "transitive".to_string(), manifest: &transitive_manifest },
+        WorkspaceImporter { id: "direct".to_string(), manifest: &direct_manifest },
+    ];
+    let resolver = RecordingResolver {
+        table: HashMap::from([
+            (
+                ("wrapper".to_string(), "1.0.0".to_string()),
+                fake_result(
+                    "wrapper",
+                    "1.0.0",
+                    None,
+                    serde_json::json!({
+                        "name": "wrapper",
+                        "version": "1.0.0",
+                        "dependencies": { "old": "1.0.0" },
+                    }),
+                ),
+            ),
+            (
+                ("old".to_string(), "1.0.0".to_string()),
+                fake_result(
+                    "old",
+                    "1.0.0",
+                    None,
+                    serde_json::json!({
+                        "name": "old",
+                        "version": "1.0.0",
+                        "deprecated": "use new instead",
+                    }),
+                ),
+            ),
+        ]),
+        seen: Mutex::new(HashMap::new()),
+    };
+    let notifications = std::sync::Arc::new(Mutex::new(Vec::new()));
+    let sink = std::sync::Arc::clone(&notifications);
+    let mut opts = workspace_opts(false, false);
+    opts.deprecation_log = Some(std::sync::Arc::new(move |deprecation: crate::Deprecation| {
+        sink.lock().unwrap().push(deprecation);
+    }));
+
+    resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
+        importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None)
+    })
+    .await
+    .expect("resolve a deprecated package reached at two depths");
+
+    let notifications = notifications.lock().unwrap();
+    let [deprecation] = notifications.as_slice() else {
+        panic!("expected one deprecation from the first occurrence: {notifications:?}");
+    };
+    assert_eq!(deprecation.depth, 1);
+    assert_eq!(deprecation.prefix, "/repo/transitive");
+}
+
 /// A dependency reused from the wanted lockfile still notifies the
 /// deprecation sink: the synthesized manifest round-trips the
 /// lockfile's `deprecated` metadata precisely so warm installs keep
