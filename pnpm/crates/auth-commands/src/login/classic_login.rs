@@ -21,6 +21,10 @@ use super::{
 /// Prompt for username / password / email and register the user through
 /// `PUT -/user/org.couchdb.user:<name>`, satisfying an OTP challenge if the
 /// registry raises one.
+///
+/// Fails with [`LoginError::NonInteractive`] when either stdin or stdout is
+/// not a terminal: unlike the web-based flow — which only prints a URL and
+/// polls — the credential prompts need one.
 pub(super) async fn classic_login<Sys, Reporter>(
     http_client: &ThrottledClient,
     registry: &str,
@@ -40,6 +44,10 @@ where
         + 'static,
     Reporter: self::Reporter,
 {
+    if !Sys::stdin_is_tty() || !Sys::stdout_is_tty() {
+        return Err(LoginError::NonInteractive);
+    }
+
     let username = read_credential(prompt_line::<Sys>("Username:", Masking::Visible)).await?;
     let password = read_credential(prompt_line::<Sys>("Password:", Masking::Masked)).await?;
     let email =
