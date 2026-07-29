@@ -29,6 +29,10 @@ import type {
 import {
   EXISTING_VERSION_SELECTOR_WEIGHT,
 } from '@pnpm/resolving.resolver-base'
+import {
+  isIntegrityAddressedRegistryTarballUrl,
+  isValidTarballRevision,
+} from '@pnpm/resolving.tarball-url'
 import { storeIndexKey } from '@pnpm/store.index'
 import type {
   DependencyManifest,
@@ -701,10 +705,7 @@ async function resolveNpm (
 
   warnOnceOnHeldBackUpdate(ctx, opts, spec, meta, pickedPackage.version)
   const id = `${pickedPackage.name}@${pickedPackage.version}` as PkgResolutionId
-  const resolution = {
-    integrity: getIntegrity(pickedPackage.dist),
-    tarball: normalizeRegistryUrl(pickedPackage.dist.tarball),
-  }
+  const resolution = createRegistryTarballResolution(pickedPackage.dist, registry)
   let normalizedBareSpecifier: string | undefined
   if (opts.calcSpecifier) {
     normalizedBareSpecifier = spec.normalizedBareSpecifier ?? calcSpecifier({
@@ -862,10 +863,7 @@ async function pickFromSimpleRegistry (
     throw new NoMatchingVersionError({ wantedDependency, packageMeta: meta, registry })
   }
   warnOnceOnHeldBackUpdate(ctx, opts, spec, meta, pickedPackage.version)
-  const resolution = {
-    integrity: getIntegrity(pickedPackage.dist),
-    tarball: normalizeRegistryUrl(pickedPackage.dist.tarball),
-  }
+  const resolution = createRegistryTarballResolution(pickedPackage.dist, registry)
   const publishedAt = meta.time?.[pickedPackage.version]
   return {
     id: `${pickedPackage.name}@${pickedPackage.version}` as PkgResolutionId,
@@ -1185,6 +1183,33 @@ function getIntegrity (dist: {
     throw new PnpmError('INVALID_TARBALL_INTEGRITY', `Tarball "${dist.tarball}" has invalid shasum specified in its metadata: ${dist.shasum}`)
   }
   return integrity.toString()
+}
+
+function createRegistryTarballResolution (
+  dist: PackageInRegistry['dist'],
+  registry: string
+): TarballResolution {
+  const integrity = getIntegrity(dist)
+  const tarball = normalizeRegistryUrl(dist.tarball)
+  if (dist.revision == null) {
+    return { integrity, tarball }
+  }
+  if (!isValidTarballRevision(dist.revision)) {
+    throw new PnpmError('MALFORMED_METADATA',
+      `Tarball "${dist.tarball}" has an invalid revision in its metadata: ${String(dist.revision)}`)
+  }
+  if (
+    integrity == null ||
+    !isIntegrityAddressedRegistryTarballUrl(tarball, integrity, registry)
+  ) {
+    throw new PnpmError('MALFORMED_METADATA',
+      `Tarball "${dist.tarball}" has revision ${dist.revision} but is not addressed by its complete integrity.`)
+  }
+  return {
+    integrity,
+    revision: dist.revision,
+    tarball,
+  }
 }
 
 function createVersionSpec (version: string, pinnedVersion?: PinnedVersion): string {

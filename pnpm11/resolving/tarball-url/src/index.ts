@@ -1,3 +1,60 @@
+import { Buffer } from 'node:buffer'
+
+export interface IntegrityAddress {
+  algorithm: 'sha512'
+  digest: Buffer
+}
+
+export function parseIntegrityAddress (integrity: string): IntegrityAddress | undefined {
+  const algorithmSeparator = integrity.indexOf('-')
+  if (algorithmSeparator === -1 || integrity.indexOf('-', algorithmSeparator + 1) !== -1) {
+    return undefined
+  }
+  const algorithm = integrity.slice(0, algorithmSeparator)
+  if (algorithm !== 'sha512') return undefined
+
+  const encodedDigest = integrity.slice(algorithmSeparator + 1)
+  const digest = Buffer.from(encodedDigest, 'base64')
+  if (digest.byteLength !== 64 || digest.toString('base64') !== encodedDigest) return undefined
+
+  return {
+    algorithm,
+    digest,
+  }
+}
+
+export function getIntegrityAddressedTarballUrl (
+  integrity: string,
+  registry: string
+): string | undefined {
+  const parsed = parseIntegrityAddress(integrity)
+  if (parsed == null) return undefined
+  return new URL(
+    `-/tarballs/${parsed.algorithm}/${parsed.digest.toString('base64url')}`,
+    normalizeRegistry(registry)
+  ).toString()
+}
+
+export function isIntegrityAddressedRegistryTarballUrl (
+  tarball: string,
+  integrity: string,
+  registry: string
+): boolean {
+  const expected = getIntegrityAddressedTarballUrl(integrity, registry)
+  if (expected == null) return false
+  try {
+    return new URL(tarball).toString() === expected
+  } catch {
+    return false
+  }
+}
+
+export function isValidTarballRevision (revision: unknown): revision is number {
+  return typeof revision === 'number' &&
+    Number.isSafeInteger(revision) &&
+    revision > 0
+}
+
 /**
  * Build the canonical tarball URL of an npm package — i.e. the URL pnpm derives
  * from a package's name, version, and registry. Vendored from the

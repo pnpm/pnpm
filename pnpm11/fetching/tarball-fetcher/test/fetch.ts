@@ -237,6 +237,34 @@ test('retry when tarball size does not match content-length', async () => {
   expect(result.filesMap).toBeTruthy()
 })
 
+test('verifies a registry replacement tarball from its digest URL', async () => {
+  const tarballContent = fs.readFileSync(tarballPath)
+  const integrity = ssri.fromData(tarballContent, { algorithms: ['sha512'] }).toString()
+  const digest = ssri.parse(integrity)['sha512'][0].digest
+  const tarball = `${registry}/-/tarballs/sha512/${Buffer.from(digest, 'base64').toString('base64url')}`
+  const mockPool = mockAgent.get(registry)
+  mockPool.intercept({
+    path: new URL(tarball).pathname,
+    method: 'GET',
+  }).reply(200, tarballContent, {
+    headers: { 'Content-Length': tarballSize.toString() },
+  })
+
+  process.chdir(temporaryDirectory())
+
+  const result = await fetch.remoteTarball(cafs, {
+    integrity,
+    revision: 1,
+    tarball,
+  }, {
+    filesIndexFile,
+    lockfileDir: process.cwd(),
+    pkg,
+  })
+
+  expect(result.filesMap).toBeTruthy()
+})
+
 test('fail when integrity check fails two times in a row', async () => {
   const wrongTarball = f.find('babel-helper-hoist-variables-7.0.0-alpha.10.tgz')
   const wrongTarballContent = fs.readFileSync(wrongTarball)
