@@ -900,12 +900,12 @@ impl WorkspaceTreeCtx {
     /// Snapshot only the part of the occurrence tree reachable from one
     /// importer's direct dependencies.
     ///
-    /// A workspace resolve keeps every importer's occurrence nodes in this
-    /// shared context. Hoist discovery runs a peer pass per importer, so
-    /// cloning the whole context for every pass retains
-    /// `importer_count * workspace_node_count` nodes at the initial
-    /// workspace barrier. Large component workspaces turn that into
-    /// quadratic time and multi-gigabyte memory use.
+    /// A workspace resolve keeps every importer's occurrence nodes in
+    /// this shared context, so a full [`Self::snapshot`] taken for one
+    /// importer retains every other importer's nodes too. The
+    /// reachable-only snapshot keeps per-importer consumers (the
+    /// workspace-root hoistable-deps scan) proportional to that
+    /// importer's own subtree.
     ///
     /// Realized edges provide the occurrence-node closure. Lazy edges are
     /// materialized by the peer walker from `children_by_id`, so their
