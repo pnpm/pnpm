@@ -4,6 +4,7 @@
 use std::{
     collections::{BTreeMap, HashMap},
     str::FromStr,
+    sync::Arc,
     sync::Mutex,
 };
 
@@ -175,7 +176,7 @@ fn importer_opts(
         resolve_peers_from_workspace_root: false,
         dedupe_peers: false,
         dedupe_peer_dependents: true,
-        all_preferred_versions: PreferredVersions::new(),
+        all_preferred_versions: Arc::new(PreferredVersions::new()),
         override_bare_specifier: None,
         patched_dependencies: None,
         base_opts: ResolveOptions { published_by, project_dir, ..ResolveOptions::default() },

@@ -1536,9 +1536,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                     resolve_peers_from_workspace_root: config.resolve_peers_from_workspace_root,
                     dedupe_peers: config.dedupe_peers,
                     dedupe_peer_dependents: config.dedupe_peer_dependents,
-                    // The per-importer hoist loop mutates its own copy, so
-                    // clone the shared seed's map here (deref past the `Arc`).
-                    all_preferred_versions: importer_preferred_versions.as_ref().clone(),
+                    all_preferred_versions: Arc::clone(importer_preferred_versions),
                     override_bare_specifier: override_bare_specifier.clone(),
                     patched_dependencies: patched_dependencies.clone(),
                     // `pick_lowest_direct` / `subdep_published_by` are

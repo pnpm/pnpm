@@ -1,7 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
     str::FromStr,
-    sync::Mutex,
+    sync::{Arc, Mutex},
 };
 
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
@@ -324,7 +324,7 @@ fn default_opts() -> ResolveImporterOptions {
         resolve_peers_from_workspace_root: false,
         dedupe_peers: false,
         dedupe_peer_dependents: true,
-        all_preferred_versions: PreferredVersions::new(),
+        all_preferred_versions: Arc::new(PreferredVersions::new()),
         override_bare_specifier: None,
         patched_dependencies: None,
         base_opts: ResolveOptions::default(),
@@ -622,7 +622,9 @@ async fn keeps_locked_optional_peer_over_lower_sibling_version() {
             weight: EXISTING_VERSION_SELECTOR_WEIGHT,
         }),
     );
-    opts.all_preferred_versions.insert("peer-c".to_string(), peer_c_selectors);
+    let mut seeded = PreferredVersions::new();
+    seeded.insert("peer-c".to_string(), peer_c_selectors);
+    opts.all_preferred_versions = Arc::new(seeded);
 
     let result =
         resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts).await.unwrap();
@@ -1738,7 +1740,7 @@ async fn both_hoist_settings_off_leaves_the_optional_peer_missing() {
     let hoisting_off = ResolveImporterOptions {
         auto_install_peers: false,
         dedupe_peer_dependents: false,
-        all_preferred_versions: seeded_preferred_versions(),
+        all_preferred_versions: Arc::new(seeded_preferred_versions()),
         ..default_opts()
     };
     let resolver = StubResolver { table: table.clone(), calls: Mutex::new(Vec::new()) };
@@ -1758,7 +1760,7 @@ async fn both_hoist_settings_off_leaves_the_optional_peer_missing() {
     let dedupe_only = ResolveImporterOptions {
         auto_install_peers: false,
         dedupe_peer_dependents: true,
-        all_preferred_versions: seeded_preferred_versions(),
+        all_preferred_versions: Arc::new(seeded_preferred_versions()),
         ..default_opts()
     };
     let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };

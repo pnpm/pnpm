@@ -51,9 +51,7 @@ use pacquet_package_manifest::{
     DependencyGroup, PackageManifest, PackageManifestError, safe_read_package_json_from_dir,
 };
 use pacquet_patching::PatchGroupRecord;
-use pacquet_resolving_resolver_base::{
-    PreferredVersions, ResolveOptions, Resolver, VersionSelectorEntry, VersionSelectorType,
-};
+use pacquet_resolving_resolver_base::{PreferredVersions, ResolveOptions, Resolver};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     io,
@@ -106,7 +104,7 @@ pub struct ResolveImporterOptions {
     /// `get_preferred_versions_from_lockfile_and_manifests` from the
     /// `lockfile-preferred-versions` crate, or an empty map when no
     /// lockfile + manifest seeding is available.
-    pub all_preferred_versions: PreferredVersions,
+    pub all_preferred_versions: Arc<PreferredVersions>,
 
     /// Applies `overrides` to auto-installed peers. See
     /// [`crate::DependencyOverrider`].
@@ -349,13 +347,13 @@ pub(crate) struct ImporterHoistState {
     hoisted_optional_peer_node_ids: HashSet<crate::NodeId>,
     parent_pkg_aliases: HashSet<String>,
     all_missing_optional_peers: BTreeMap<String, Vec<String>>,
-    all_preferred_versions: PreferredVersions,
-    /// This importer's read position in the workspace's
-    /// resolved-versions log. See [`TreeCtx::resolved_versions_since`].
-    resolved_versions_cursor: usize,
+    /// The lockfile + manifest preferred-versions seed. The hoist
+    /// pickers merge it per lookup with the workspace-wide run fold —
+    /// see [`TreeCtx::preferred_versions_for_names`] — instead of
+    /// maintaining a per-importer copy of the whole run history.
+    preferred_versions_seed: Arc<PreferredVersions>,
     locked_peer_names: Arc<HashSet<String>>,
     locked_peer_versions: Arc<HashMap<String, HashSet<String>>>,
-    seen_workspace_package_versions: HashSet<(String, String)>,
     override_bare_specifier: Option<Arc<DependencyOverrider>>,
     /// `auto_install_peers || dedupe_peer_dependents` — upstream's
     /// `hoistPeers`. Both hoist rounds no-op when it is `false`, so a
@@ -484,11 +482,9 @@ impl ImporterHoistState {
             hoisted_optional_peer_node_ids: HashSet::new(),
             parent_pkg_aliases,
             all_missing_optional_peers: BTreeMap::new(),
-            all_preferred_versions,
-            resolved_versions_cursor: 0,
+            preferred_versions_seed: all_preferred_versions,
             locked_peer_names,
             locked_peer_versions,
-            seen_workspace_package_versions: HashSet::new(),
             override_bare_specifier,
             hoist_peers: auto_install_peers || dedupe_peer_dependents,
             auto_install_peers,
@@ -601,17 +597,6 @@ impl ImporterHoistState {
     }
 
     fn begin_required_round(&mut self) {
-        // Both hoists read the run-extended preferred-versions map:
-        // every resolved package's version is folded into
-        // `all_preferred_versions` and consulted for the optional hoist
-        // after each wave. Refreshed per round so it carries every
-        // importer's versions, not just this importer's.
-        update_preferred_versions_with_ctx(
-            &self.ctx,
-            &mut self.all_preferred_versions,
-            &mut self.resolved_versions_cursor,
-            &mut self.seen_workspace_package_versions,
-        );
         // The hoist input must not see missing peers declared inside a
         // subtree owned by another importer's shared children context —
         // the owner walk's children report is reused there, so those
@@ -699,10 +684,17 @@ impl ImporterHoistState {
 
             let missing_as_pairs: Vec<(String, MissingPeerInfo)> =
                 missing_required.iter().map(|(n, info)| (n.clone(), info.clone())).collect();
+            // Both hoists bias toward the run-extended preferred
+            // versions: the seed buckets for the missing names merged
+            // with every version any importer has resolved so far.
+            let hoist_preferred = self.ctx.preferred_versions_for_names(
+                &self.preferred_versions_seed,
+                missing_as_pairs.iter().map(|(name, _)| name.as_str()),
+            );
             let hoisted = hoist_peers(
                 &HoistPeersOptions {
                     auto_install_peers: self.auto_install_peers,
-                    all_preferred_versions: &self.all_preferred_versions,
+                    all_preferred_versions: &hoist_preferred,
                     workspace_root_deps,
                     override_bare_specifier: self.override_bare_specifier.as_deref(),
                     project_dir: &self.project_dir,
@@ -736,12 +728,6 @@ impl ImporterHoistState {
             )
             .await?;
             self.direct.extend(new_direct);
-            update_preferred_versions_with_ctx(
-                &self.ctx,
-                &mut self.all_preferred_versions,
-                &mut self.resolved_versions_cursor,
-                &mut self.seen_workspace_package_versions,
-            );
         }
         Ok(())
     }
@@ -787,9 +773,13 @@ impl ImporterHoistState {
         }
         let workspace_root_deps: &[WorkspaceRootDep] =
             if self.resolve_peers_from_workspace_root { &self.workspace_root_deps } else { &[] };
+        let hoist_preferred = self.ctx.preferred_versions_for_names(
+            &self.preferred_versions_seed,
+            self.all_missing_optional_peers.keys().map(String::as_str),
+        );
         let hoisted_optional = get_hoistable_optional_peers_with_locked_versions(
             &self.all_missing_optional_peers,
-            &self.all_preferred_versions,
+            &hoist_preferred,
             workspace_root_deps,
             &self.locked_peer_versions,
         );
@@ -817,12 +807,6 @@ impl ImporterHoistState {
         self.hoisted_optional_peer_node_ids
             .extend(new_direct.iter().map(|dep| dep.node_id.clone()));
         self.direct.extend(new_direct);
-        update_preferred_versions_with_ctx(
-            &self.ctx,
-            &mut self.all_preferred_versions,
-            &mut self.resolved_versions_cursor,
-            &mut self.seen_workspace_package_versions,
-        );
         Ok(true)
     }
 
@@ -1173,27 +1157,6 @@ fn build_workspace_root_deps(
         }
     }
     Ok(out)
-}
-
-/// Add every newly-resolved `name@version` from `ctx` to
-/// `preferred` as a plain [`VersionSelectorType::Version`] entry.
-/// Idempotent: only inserts when no entry exists for `(name, version)`.
-/// `resolved_versions_cursor` scopes the fold to versions resolved
-/// since the caller's previous round.
-fn update_preferred_versions_with_ctx(
-    ctx: &TreeCtx,
-    preferred: &mut PreferredVersions,
-    resolved_versions_cursor: &mut usize,
-    seen_workspace_package_versions: &mut HashSet<(String, String)>,
-) {
-    for (name, version) in ctx
-        .resolved_versions_since(resolved_versions_cursor)
-        .into_iter()
-        .chain(ctx.newly_seen_workspace_package_versions(seen_workspace_package_versions))
-    {
-        let bucket = preferred.entry(name).or_default();
-        bucket.entry(version).or_insert(VersionSelectorEntry::Plain(VersionSelectorType::Version));
-    }
 }
 
 #[cfg(test)]

@@ -744,14 +744,15 @@ pub struct WorkspaceTreeCtx {
     /// since its last sync.
     children_rewrites: std::sync::atomic::AtomicU64,
     packages: Mutex<HashMap<String, ResolvedPackage>>,
-    /// `(name, version)` of every registry-resolved package, in
-    /// insertion order — one entry per `packages` insert whose result
-    /// carries a `name_ver`. Lets each importer's preferred-versions
-    /// fold consume only the entries appended since its previous round
-    /// (see [`TreeCtx::resolved_versions_since`]) instead of rescanning
-    /// the whole `packages` map every round.
-    resolved_versions_log: Mutex<Vec<(String, String)>>,
-    workspace_package_versions: Mutex<HashSet<(String, String)>>,
+    /// Every `name → version` this run resolved (one fold per new
+    /// `packages` entry carrying a `name_ver`, plus every workspace
+    /// package version a directory resolution surfaced), shaped as the
+    /// plain [`pacquet_resolving_resolver_base::PreferredVersions`]
+    /// entries the peer-hoist pickers bias toward. Maintained once,
+    /// workspace-wide: importers query the buckets they need through
+    /// [`TreeCtx::preferred_versions_for_names`] instead of each
+    /// replaying the whole run history into a private copy.
+    preferred_versions_from_run: Mutex<pacquet_resolving_resolver_base::PreferredVersions>,
     dependencies_tree: Mutex<HashMap<NodeId, DependenciesTreeNode>>,
     all_peer_dep_names: Mutex<HashSet<String>>,
     policy_violations: Mutex<Vec<pacquet_resolving_resolver_base::ResolutionPolicyViolation>>,
@@ -873,8 +874,9 @@ impl Default for WorkspaceTreeCtx {
             revision: std::sync::atomic::AtomicU64::new(0),
             children_rewrites: std::sync::atomic::AtomicU64::new(0),
             packages: Mutex::new(HashMap::new()),
-            resolved_versions_log: Mutex::new(Vec::new()),
-            workspace_package_versions: Mutex::new(HashSet::new()),
+            preferred_versions_from_run: Mutex::new(
+                pacquet_resolving_resolver_base::PreferredVersions::new(),
+            ),
             dependencies_tree: Mutex::new(HashMap::new()),
             all_peer_dep_names: Mutex::new(HashSet::new()),
             policy_violations: Mutex::new(Vec::new()),
@@ -1093,13 +1095,27 @@ impl WorkspaceTreeCtx {
             .collect()
     }
 
-    /// Append a freshly-inserted package's `(name, version)` to the
-    /// resolved-versions log. Call once per new `packages` entry.
+    /// Fold a freshly-inserted package's `(name, version)` into
+    /// [`Self::preferred_versions_from_run`]. Call once per new
+    /// `packages` entry.
     fn record_resolved_version(&self, result: &pacquet_resolving_resolver_base::ResolveResult) {
         if let Some(name_ver) = result.name_ver.as_ref() {
-            lock_recoverable(&self.resolved_versions_log)
-                .push((name_ver.name.to_string(), name_ver.suffix.to_string()));
+            self.record_run_version(name_ver.name.to_string(), name_ver.suffix.to_string());
         }
+    }
+
+    /// See [`Self::preferred_versions_from_run`]. Seed entries win over
+    /// run entries, and the first fold of a `(name, version)` pair wins
+    /// over later ones — the same `or_insert` semantics the per-importer
+    /// fold applied.
+    fn record_run_version(&self, name: String, version: String) {
+        lock_recoverable(&self.preferred_versions_from_run)
+            .entry(name)
+            .or_default()
+            .entry(version)
+            .or_insert(pacquet_resolving_resolver_base::VersionSelectorEntry::Plain(
+                pacquet_resolving_resolver_base::VersionSelectorType::Version,
+            ));
     }
 
     /// See the `revision` field doc.
@@ -1627,29 +1643,30 @@ impl TreeCtx {
         self.workspace.snapshot_reachable_from(direct)
     }
 
-    /// Return every registry version resolved since the caller's
-    /// previous call, advancing `cursor` past them. A caller starting
-    /// from `0` sees the full workspace-wide history.
-    #[must_use]
-    pub fn resolved_versions_since(&self, cursor: &mut usize) -> Vec<(String, String)> {
-        let log = lock_recoverable(&self.workspace.resolved_versions_log);
-        let fresh = log[*cursor..].to_vec();
-        *cursor = log.len();
-        fresh
-    }
-
-    pub(crate) fn newly_seen_workspace_package_versions(
+    /// The preferred-version buckets for `names`: the caller's seed
+    /// entries merged with every version this run has resolved so far
+    /// (seed entries win per selector). The peer-hoist pickers look up
+    /// only their missing-peer names, so this materializes a handful of
+    /// buckets instead of a per-importer copy of the whole run history.
+    pub(crate) fn preferred_versions_for_names<'name>(
         &self,
-        seen: &mut HashSet<(String, String)>,
-    ) -> Vec<(String, String)> {
-        let fresh: Vec<(String, String)> =
-            lock_recoverable(&self.workspace.workspace_package_versions)
-                .iter()
-                .filter(|version| !seen.contains(*version))
-                .cloned()
-                .collect();
-        seen.extend(fresh.iter().cloned());
-        fresh
+        seed: &pacquet_resolving_resolver_base::PreferredVersions,
+        names: impl Iterator<Item = &'name str>,
+    ) -> pacquet_resolving_resolver_base::PreferredVersions {
+        let run = lock_recoverable(&self.workspace.preferred_versions_from_run);
+        let mut out = pacquet_resolving_resolver_base::PreferredVersions::new();
+        for name in names {
+            let mut bucket = seed.get(name).cloned().unwrap_or_default();
+            if let Some(run_bucket) = run.get(name) {
+                for (selector, entry) in run_bucket {
+                    bucket.entry(selector.clone()).or_insert_with(|| entry.clone());
+                }
+            }
+            if !bucket.is_empty() {
+                out.insert(name.to_string(), bucket);
+            }
+        }
+        out
     }
 }
 
@@ -2093,8 +2110,7 @@ where
             manifest.get("version").and_then(Value::as_str),
         )
     {
-        lock_recoverable(&ctx.workspace.workspace_package_versions)
-            .insert((name.to_string(), version.to_string()));
+        ctx.workspace.record_run_version(name.to_string(), version.to_string());
     }
 
     let id = build_pkg_id_with_patch_hash(ctx, &result).await?;
