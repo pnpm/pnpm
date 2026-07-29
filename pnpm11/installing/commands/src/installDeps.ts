@@ -114,6 +114,8 @@ export type InstallDepsOptions = Pick<Config,
 | 'trustLockfile'
 | 'allowBuilds'
 | 'optional'
+| 'overrides'
+| 'warnUnusedOverrides'
 | 'workspaceConcurrency'
 | 'workspaceDir'
 | 'workspacePackagePatterns'
@@ -183,7 +185,14 @@ export async function installDeps (
   opts: InstallDepsOptions,
   params: string[]
 ): Promise<DryRunInstallResult | undefined> {
-  if (!opts.update && !opts.dedupe && params.length === 0 && opts.optimisticRepeatInstall) {
+  // The optimistic repeat-install shortcut (line below) returns before
+  // `mutateModules` runs, which is where the unused-override warning sweep
+  // lives. Skip the shortcut when overrides are configured and the warning is
+  // enabled, so the sweep gets a chance to fire. The cost is one
+  // `checkDepsStatus` call that the shortcut would have skipped.
+  const hasUnusedOverrideWarningEnabled =
+    opts.warnUnusedOverrides !== false && Object.keys(opts.overrides ?? {}).length > 0
+  if (!opts.update && !opts.dedupe && params.length === 0 && opts.optimisticRepeatInstall && !hasUnusedOverrideWarningEnabled) {
     const { upToDate, wantedLockfileToRestore } = await checkDepsStatus({
       ...opts,
       ignoreFilteredInstallCache: true,

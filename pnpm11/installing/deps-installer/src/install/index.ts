@@ -826,6 +826,20 @@ export async function mutateModules (
       }
     }
 
+    // Pre-short-circuit sweep: emit unused-override warnings + `resolution_done`
+    // BEFORE `tryFrozenInstall` can short-circuit. A cache-reusing install
+    // returns from `tryFrozenInstall` without ever reaching the
+    // post-resolution emit in `_installInContext`, so without this early sweep
+    // the warning would silently never fire.
+    if (opts.warnUnusedOverrides) {
+      emitUnusedOverrideWarnings(
+        ctx.wantedLockfile,
+        opts.parsedOverrides,
+        Object.values(ctx.projects).map((p) => ({ rootDir: p.rootDir, manifest: p.manifest })),
+        ctx.lockfileDir
+      )
+    }
+
     const frozenInstallResult = await tryFrozenInstall({
       didFastUpdateOverrides,
       frozenLockfile,
@@ -995,7 +1009,6 @@ export async function mutateModules (
         preferredSpecs,
         saveCatalogName: opts.saveCatalogName,
         overrides: opts.overrides,
-        onOverrideApplied: (selector) => opts.appliedOverrides.add(selector),
         defaultCatalog: opts.catalogs?.default,
       })
 
@@ -1338,6 +1351,54 @@ async function runUnignoredDependencyBuilds (
 
 function cacheExpired (prunedAt: string, maxAgeInMinutes: number): boolean {
   return ((Date.now() - new Date(prunedAt).valueOf()) / (1000 * 60)) > maxAgeInMinutes
+}
+
+/**
+ * Scan the resolved lockfile for `overrides` entries that matched no
+ * dependency and emit one `pnpm:unused-override` event per dangling selector,
+ * followed by `pnpm:stage { stage: 'resolution_done' }` so the reporter's
+ * buffer flushes. Used on both the pre-`tryFrozenInstall` sweep (so
+ * cache-reusing installs that never reach resolution still warn) and the
+ * post-resolution sweep (so fresh installs that start with an empty lockfile
+ * warn once resolution has materialized one).
+ *
+ * The read-package hook's `onApplied` collector was the original data source,
+ * but it only fires for freshly-resolved subtrees — a cache-reusing install
+ * leaves it incomplete. The resolved lockfile is the source of truth.
+ */
+function emitUnusedOverrideWarnings (
+  lockfile: LockfileObject,
+  parsedOverrides: Array<{ selector: string, converge?: boolean, parentPkg?: { name: string, bareSpecifier?: string }, targetPkg: { name: string, bareSpecifier?: string }, newBareSpecifier?: string }>,
+  projects: Array<{ rootDir: string, manifest: ProjectManifest }>,
+  lockfileDir: string
+): void {
+  if (parsedOverrides.length === 0) return
+  if (isEmpty(lockfile.packages ?? {})) return
+  const projectManifests = projects.map((project) => ({
+    importerId: (path.relative(lockfileDir, project.rootDir) || '.').split(path.sep).join('/'),
+    manifest: project.manifest,
+  }))
+  const applied = findAppliedOverrideSelectorsFromLockfile(lockfile, parsedOverrides, projectManifests)
+  for (const override of parsedOverrides) {
+    // Convergence overrides have their own staleness path; the lockfile scan
+    // doesn't classify them in the same sense as explicit overrides, so
+    // leaving them in this diff would flag every convergence override as
+    // unused.
+    if (override.converge === true) continue
+    if (!applied.has(override.selector)) {
+      unusedOverrideLogger.debug({
+        prefix: lockfileDir,
+        selector: override.selector,
+      })
+    }
+  }
+  // Flush the reporter's buffer(resolutionDone$). On short-circuited installs
+  // no other code emits this stage, so the warnings would otherwise sit in
+  // the buffer indefinitely.
+  stageLogger.debug({
+    prefix: lockfileDir,
+    stage: 'resolution_done',
+  })
 }
 
 function pkgHasDependencies (manifest: ProjectManifest): boolean {
@@ -1793,30 +1854,20 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     }
   }
 
-  // Same gate as the patches verifier (deps-resolver/index.ts): only check
-  // when the whole lockfile was reanalyzed, otherwise the applied-override
-  // set is incomplete (resolution short-circuited against the cache) and we
-  // would warn about overrides that are actually in use. Emitted before the
-  // 'resolution_done' stage so the reporter's buffer(resolutionDone$) captures it.
-  if (
-    opts.warnUnusedOverrides &&
-    opts.parsedOverrides.length &&
-    (forceFullResolution || isEmpty(ctx.wantedLockfile.packages ?? {})) &&
-    Object.keys(ctx.wantedLockfile.importers).length === Object.keys(ctx.projects).length
-  ) {
-    for (const override of opts.parsedOverrides) {
-      // Convergence overrides have their own staleness path
-      // (`convergeDeclaredRanges`); `onApplied` is never called for them,
-      // so leaving them in this diff would flag every applied convergence
-      // override as unused.
-      if (override.converge) continue
-      if (!opts.appliedOverrides.has(override.selector)) {
-        unusedOverrideLogger.debug({
-          prefix: ctx.lockfileDir,
-          selector: override.selector,
-        })
-      }
-    }
+  // Post-resolution sweep: scan the now-resolved lockfile. This covers the
+  // fresh-install case where the pre-`tryFrozenInstall` sweep in
+  // `mutateModules` was a no-op (starting lockfile was empty). On installs
+  // that short-circuit through `tryFrozenInstall`, this code is unreachable,
+  // so there is no double-emit; on installs that run resolution the early
+  // sweep may also have fired, but against a stale pre-resolution lockfile —
+  // re-scanning here picks up the resolved state.
+  if (opts.warnUnusedOverrides) {
+    emitUnusedOverrideWarnings(
+      ctx.wantedLockfile,
+      opts.parsedOverrides,
+      Object.values(ctx.projects).map((p) => ({ rootDir: p.rootDir, manifest: p.manifest })),
+      ctx.lockfileDir
+    )
   }
 
   stageLogger.debug({

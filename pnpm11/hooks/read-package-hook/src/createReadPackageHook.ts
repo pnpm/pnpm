@@ -46,7 +46,6 @@ export function createReadPackageHook (
     lockfileDir,
     overrides,
     convergeDeclaredRanges,
-    onOverrideApplied,
     ignoredOptionalDependencies,
     packageExtensions,
     readPackageHook,
@@ -55,7 +54,6 @@ export function createReadPackageHook (
     lockfileDir: string
     overrides?: Array<VersionOverride | VersionOverrideWithoutRawSelector>
     convergeDeclaredRanges?: CreateVersionsOverriderOptions['convergeDeclaredRanges']
-    onOverrideApplied?: (override: VersionOverride) => void
     ignoredOptionalDependencies?: string[]
     packageExtensions?: Record<string, PackageExtension>
     readPackageHook?: ReadPackageHook[] | ReadPackageHook
@@ -75,7 +73,7 @@ export function createReadPackageHook (
     hooks.push(readPackageHook)
   }
   if (!isEmpty(overrides ?? {})) {
-    hooks.push(createVersionsOverrider(overrides!, lockfileDir, { convergeDeclaredRanges, onApplied: onOverrideApplied }))
+    hooks.push(createVersionsOverrider(overrides!, lockfileDir, { convergeDeclaredRanges }))
   }
   if (ignoredOptionalDependencies && !isEmpty(ignoredOptionalDependencies)) {
     hooks.push(createOptionalDependenciesRemover(ignoredOptionalDependencies))
