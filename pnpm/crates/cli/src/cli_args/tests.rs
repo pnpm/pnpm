@@ -1,11 +1,12 @@
 use super::{
     CliArgs,
     add::AddArgs,
-    cli_command::CliCommand,
+    cli_command::{CliCommand, WorkspaceRootError},
     install::{InstallArgs, resolve_bool_override},
     list::RecursionLimit,
     package_manager::{
         current_source_pnpm_version, package_manager_to_sync, parse_package_manager,
+        read_manifest_json,
     },
 };
 use clap::Parser;
@@ -169,6 +170,31 @@ fn recursive_run_flags_parse_before_fallback_command() {
         matches!(&parsed.command, CliCommand::External(command) if command.as_slice() == [".test"]),
     );
     parsed.validate_command_scoped_global_options().expect("recursive fallback flags are valid");
+}
+
+#[test]
+fn parallel_before_run_is_a_recursive_unsorted_run_option() {
+    let mut parsed = CliArgs::try_parse_from(["pacquet", "--parallel", "run", "build"])
+        .expect("parses --parallel before run");
+    assert!(parsed.parallel);
+    assert!(!parsed.recursive);
+    parsed.validate_command_scoped_global_options().expect("run accepts --parallel");
+    parsed.apply_parallel_run_options();
+    assert!(parsed.recursive);
+    assert!(parsed.no_sort);
+    assert!(
+        matches!(&parsed.command, CliCommand::Run(args) if args.script.as_slice() == ["build"]),
+    );
+}
+
+#[test]
+fn parallel_after_run_script_is_forwarded_to_the_script() {
+    let parsed = CliArgs::try_parse_from(["pacquet", "run", "build", "--parallel"])
+        .expect("parses --parallel as a script argument");
+    assert!(!parsed.parallel);
+    assert!(
+        matches!(&parsed.command, CliCommand::Run(args) if args.script.as_slice() == ["build", "--parallel"]),
+    );
 }
 
 #[test]
@@ -550,9 +576,9 @@ fn package_manager_to_sync_preserves_dev_engine_specifier() {
     )
     .expect("write manifest");
 
-    let package_manager = package_manager_to_sync(&manifest_path, root.path())
-        .expect("read policy")
-        .expect("sync package manager");
+    let manifest = read_manifest_json(&manifest_path).expect("read manifest").expect("manifest");
+    let package_manager =
+        package_manager_to_sync(&manifest, root.path(), None).expect("sync package manager");
 
     assert_eq!(package_manager.specifier, ">=0.0.0");
     assert_eq!(
@@ -584,6 +610,160 @@ fn trust_lockfile_pair_resolves_last_one_wins() {
     assert!(last_off.no_trust_lockfile && !last_off.trust_lockfile, "--no wins when last");
     let last_on = install_args(&["pacquet", "install", "--no-trust-lockfile", "--trust-lockfile"]);
     assert!(last_on.trust_lockfile && !last_on.no_trust_lockfile, "--trust wins when last");
+}
+
+/// Returns the canonicalized root too: a temp dir is a symlink on some
+/// platforms, so a `--dir` redirect would not compare equal otherwise.
+fn workspace_fixture() -> (TempDir, std::path::PathBuf) {
+    let root = TempDir::new().expect("tmp dir");
+    std::fs::write(root.path().join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write workspace manifest");
+    std::fs::create_dir_all(root.path().join("packages/a")).expect("create project dir");
+    let canonical = dunce::canonicalize(root.path()).expect("canonicalize root");
+    (root, canonical)
+}
+
+#[test]
+fn workspace_root_is_global_and_parses_on_either_side_of_the_subcommand() {
+    for argv in [
+        ["pacquet", "--workspace-root", "add", "foo"].as_slice(),
+        ["pacquet", "add", "foo", "--workspace-root"].as_slice(),
+        ["pacquet", "-w", "add", "foo"].as_slice(),
+        ["pacquet", "add", "foo", "-w"].as_slice(),
+    ] {
+        let parsed = CliArgs::try_parse_from(argv).expect("parses global --workspace-root");
+        assert!(parsed.workspace_root, "{argv:?}");
+        assert!(matches!(parsed.command, CliCommand::Add(_)));
+    }
+}
+
+#[test]
+fn workspace_root_points_dir_at_the_workspace_root() {
+    let (root, canonical) = workspace_fixture();
+    let subdir = root.path().join("packages/a");
+
+    let mut args =
+        CliArgs::try_parse_from(["pacquet", "add", "foo", "-w", "-C", &subdir.to_string_lossy()])
+            .expect("parses");
+    args.apply_workspace_root().expect("redirects to the workspace root");
+
+    assert_eq!(args.dir, canonical);
+}
+
+#[test]
+fn workspace_root_leaves_dir_alone_when_not_requested() {
+    let (root, _canonical) = workspace_fixture();
+    let subdir = root.path().join("packages/a");
+
+    let mut args =
+        CliArgs::try_parse_from(["pacquet", "add", "foo", "-C", &subdir.to_string_lossy()])
+            .expect("parses");
+    args.apply_workspace_root().expect("no-op without --workspace-root");
+
+    assert_eq!(args.dir, subdir);
+}
+
+/// Every subcommand declaring `--global`. A new one added without wiring
+/// it into [`CliCommand::is_global`] slips past the conflict check.
+const GLOBAL_SUBCOMMAND_ARGV: [&[&str]; 12] = [
+    &["add", "foo"],
+    &["approve-builds"],
+    &["bin"],
+    &["config", "get", "store-dir"],
+    &["list"],
+    &["ll"],
+    &["outdated"],
+    &["prefix"],
+    &["remove", "foo"],
+    &["root"],
+    &["runtime", "use", "node@20"],
+    &["update"],
+];
+
+#[test]
+fn workspace_root_conflicts_with_global_for_every_subcommand() {
+    let (root, _canonical) = workspace_fixture();
+
+    // Both spellings: pnpm accepts `-g` wherever it accepts `--global`, so a
+    // subcommand declaring only the long form fails in the parser instead of
+    // reaching the conflict check (pnpm/pnpm#13310).
+    for global in ["--global", "-g"] {
+        for subcommand in GLOBAL_SUBCOMMAND_ARGV {
+            let argv = std::iter::once("pacquet")
+                .chain(subcommand.iter().copied())
+                .chain(["-w", global, "-C"])
+                .chain([root.path().to_str().expect("utf-8 tmp dir")]);
+            let mut args = CliArgs::try_parse_from(argv).unwrap_or_else(|error| {
+                panic!("{subcommand:?} should parse with -w {global}: {error}");
+            });
+            let error = args
+                .apply_workspace_root()
+                .expect_err(&format!("{subcommand:?} must reject -w with {global}"));
+
+            // The message carries what `dbg!` would, without 24 lines of it
+            // on the way past.
+            assert!(
+                matches!(error, WorkspaceRootError::GlobalConflict),
+                "{subcommand:?} {global}: {error:?}",
+            );
+        }
+    }
+}
+
+#[test]
+fn workspace_root_is_allowed_for_subcommands_without_global() {
+    let (root, canonical) = workspace_fixture();
+
+    for subcommand in [["install"].as_slice(), ["run", "build"].as_slice(), ["pack"].as_slice()] {
+        // Ahead of the subcommand: `run` forwards everything after the
+        // script name to the script, so a trailing `-w` would be the
+        // script's argument rather than pnpm's.
+        let argv = std::iter::once("pacquet")
+            .chain(["-w", "-C"])
+            .chain([root.path().to_str().expect("utf-8 tmp dir")])
+            .chain(subcommand.iter().copied());
+        let mut args = CliArgs::try_parse_from(argv).expect("parses");
+        args.apply_workspace_root().unwrap_or_else(|error| {
+            panic!("{subcommand:?} should accept -w: {error}");
+        });
+
+        assert_eq!(args.dir, canonical, "{subcommand:?}");
+    }
+}
+
+#[test]
+fn workspace_root_requires_a_workspace() {
+    let outside = TempDir::new().expect("tmp dir");
+
+    let mut args = CliArgs::try_parse_from([
+        "pacquet",
+        "add",
+        "foo",
+        "-w",
+        "-C",
+        &outside.path().to_string_lossy(),
+    ])
+    .expect("parses");
+    let error = args.apply_workspace_root().expect_err("no workspace to redirect to");
+
+    dbg!(&error);
+    assert!(matches!(error, WorkspaceRootError::NotInWorkspace));
+}
+
+/// pnpm's `findWorkspaceDir` falls back to a lexical walk when
+/// `fs.realpath` fails, so erroring here would diverge.
+#[test]
+fn workspace_root_tolerates_a_dir_that_does_not_exist() {
+    let (root, canonical) = workspace_fixture();
+    let missing = canonical.join("packages/does-not-exist");
+
+    let mut args =
+        CliArgs::try_parse_from(["pacquet", "add", "foo", "-w", "-C", &missing.to_string_lossy()])
+            .expect("parses");
+    args.apply_workspace_root().expect("redirects to the workspace root anyway");
+
+    assert_eq!(args.dir, canonical);
+    drop(root); // cleanup
 }
 
 #[test]

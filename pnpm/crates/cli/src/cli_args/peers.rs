@@ -3,7 +3,7 @@ use std::{
     fmt,
 };
 
-use clap::Args;
+use clap::{Args, CommandFactory};
 use miette::{Context, IntoDiagnostic};
 use node_semver::{Range, Version};
 use owo_colors::{OwoColorize, Stream};
@@ -63,16 +63,22 @@ pub struct PeersArgs {
 
     #[clap(long)]
     pub lockfile_only: bool,
+
+    /// Subcommand and arguments. The only subcommand is `check`, which is
+    /// also what a bare `pnpm peers` runs.
+    pub params: Vec<String>,
 }
 
-/// Whether `peers` found any peer dependency issue. The CLI harness maps
-/// [`PeersOutcome::IssuesFound`] to a process exit code of `1`, matching
-/// pnpm; returning the outcome (rather than terminating here) keeps
-/// [`PeersArgs::run`] composable and process termination in one place.
+/// The outcome of `peers`, which the CLI harness maps to a process exit
+/// code: `0` for [`PeersOutcome::NoIssues`] and `1` for the other two,
+/// matching pnpm. Returning the outcome (rather than terminating here)
+/// keeps [`PeersArgs::run`] composable and process termination in one
+/// place.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PeersOutcome {
     NoIssues,
     IssuesFound,
+    UnknownSubcommand,
 }
 
 impl PeersArgs {
@@ -82,6 +88,16 @@ impl PeersArgs {
         dir: &std::path::Path,
         recursive: bool,
     ) -> miette::Result<PeersOutcome> {
+        match self.params.first().map(String::as_str) {
+            Some("check") | None => {}
+            Some(_) => {
+                let mut cmd = crate::cli_args::CliArgs::command();
+                cmd.build();
+                let _ = cmd.find_subcommand_mut("peers").expect("peers subcommand").print_help();
+                return Ok(PeersOutcome::UnknownSubcommand);
+            }
+        }
+
         let lockfile_dir = if config.shared_workspace_lockfile {
             config.workspace_dir.as_deref().unwrap_or(dir)
         } else {
@@ -140,16 +156,38 @@ impl PeersArgs {
     }
 }
 
+/// Whether an install over `lockfile` should point the user at
+/// `pnpm peers check`. Mirrors pnpm's install-time gate: a bad peer, or a
+/// missing peer that at least one parent requires non-optionally, once
+/// `peerDependencyRules` have been applied.
+///
+/// Every importer the lockfile records is checked, since an install writes
+/// them all — no workspace scan needed to name them.
+pub(crate) fn peer_issues_warrant_warning(
+    lockfile: &Lockfile,
+    lockfile_dir: &std::path::Path,
+    rules: &PeerDependencyRules,
+) -> bool {
+    let mut importer_ids: Vec<String> = lockfile.importers.keys().cloned().collect();
+    importer_ids.sort();
+    let issues = filter_peer_issues(
+        check_peer_dependencies_of_importers(lockfile, lockfile_dir, &importer_ids),
+        rules,
+    );
+    issues.values().any(|project_issues| {
+        !project_issues.bad.is_empty()
+            || project_issues
+                .missing
+                .values()
+                .any(|entries| entries.iter().any(|entry| !entry.optional))
+    })
+}
+
 fn check_peer_dependencies_from_lockfile(
     lockfile: &Lockfile,
     lockfile_dir: &std::path::Path,
     project_dirs: &[std::path::PathBuf],
 ) -> IssuesByProjects {
-    let empty_packages = HashMap::new();
-    let empty_snapshots = HashMap::new();
-    let packages = lockfile.packages.as_ref().unwrap_or(&empty_packages);
-    let snapshots = lockfile.snapshots.as_ref().unwrap_or(&empty_snapshots);
-
     let mut importer_ids: Vec<String> = project_dirs
         .iter()
         .map(|project_dir| pacquet_workspace::importer_id_from_root_dir(lockfile_dir, project_dir))
@@ -157,6 +195,18 @@ fn check_peer_dependencies_from_lockfile(
         .collect();
     importer_ids.sort();
     importer_ids.dedup();
+    check_peer_dependencies_of_importers(lockfile, lockfile_dir, &importer_ids)
+}
+
+fn check_peer_dependencies_of_importers(
+    lockfile: &Lockfile,
+    lockfile_dir: &std::path::Path,
+    importer_ids: &[String],
+) -> IssuesByProjects {
+    let empty_packages = HashMap::new();
+    let empty_snapshots = HashMap::new();
+    let packages = lockfile.packages.as_ref().unwrap_or(&empty_packages);
+    let snapshots = lockfile.snapshots.as_ref().unwrap_or(&empty_snapshots);
 
     let mut result: IssuesByProjects = BTreeMap::new();
     // Shared across importers so each package is evaluated once, matching
@@ -164,7 +214,7 @@ fn check_peer_dependencies_from_lockfile(
     // importer's step.
     let mut visited_packages = HashSet::new();
 
-    for importer_id in &importer_ids {
+    for importer_id in importer_ids {
         let mut issues = PeerIssues {
             bad: BTreeMap::new(),
             missing: BTreeMap::new(),

@@ -53,8 +53,10 @@ pub struct GitFetcher<'a> {
     pub node_execpath: Option<&'a Path>,
     pub npm_execpath: Option<&'a Path>,
     pub store_dir: &'a StoreDir,
-    /// Used in log lines; matches the `package_id` the rest of the
-    /// install dispatcher uses (`<name>@<version>(<peer-suffix>)`).
+    /// Used in log lines, and as the resolution id
+    /// [`crate::prepare_package()`] synthesizes its gated dep path from.
+    /// Matches the `package_id` the rest of the install dispatcher uses
+    /// — for a git dep, the bare `git+…#<commit>` id.
     pub package_id: &'a str,
     pub requester: &'a str,
     /// Install-scoped store-index writer. When provided, the fetcher
@@ -118,7 +120,7 @@ impl GitFetcher<'_> {
         let empty_env: HashMap<String, String> = HashMap::new();
         let prepare_opts = PreparePackageOptions {
             allow_build: Box::new(|dep_path| (self.allow_build)(dep_path)),
-            dep_path: self.package_id,
+            pkg_resolution_id: self.package_id,
             ignore_scripts: self.ignore_scripts,
             unsafe_perm: self.unsafe_perm,
             user_agent: self.user_agent,

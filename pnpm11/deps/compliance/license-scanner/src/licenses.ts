@@ -38,34 +38,30 @@ export interface LicensePackage {
 function getDependenciesFromLicenseNode (
   licenseNode: LicenseNode
 ): LicensePackage[] {
-  if (!licenseNode.dependencies) {
-    return []
-  }
-
-  let dependencies: LicensePackage[] = []
-  for (const dependencyName in licenseNode.dependencies) {
-    const dependencyNode = licenseNode.dependencies[dependencyName]
-    const dependenciesOfNode = getDependenciesFromLicenseNode(dependencyNode)
-
-    dependencies = [
-      ...dependencies,
-      ...dependenciesOfNode,
-      {
-        belongsTo: dependencyNode.dev ? 'devDependencies' : 'dependencies',
-        version: dependencyNode.version as string,
-        name: dependencyName,
-        license: dependencyNode.license as string,
-        licenseContents: dependencyNode.licenseContents,
-        author: dependencyNode.author as string,
-        homepage: dependencyNode.homepage as string,
-        description: dependencyNode.description,
-        repository: dependencyNode.repository as string,
-        path: dependencyNode.dir,
-      },
-    ]
-  }
-
+  const dependencies: LicensePackage[] = []
+  appendDependenciesFromLicenseNode(licenseNode, dependencies)
   return dependencies
+}
+
+function appendDependenciesFromLicenseNode (
+  licenseNode: LicenseNode,
+  dependencies: LicensePackage[]
+): void {
+  for (const dependencyNode of Object.values(licenseNode.dependencies ?? {})) {
+    appendDependenciesFromLicenseNode(dependencyNode, dependencies)
+    dependencies.push({
+      belongsTo: dependencyNode.dev ? 'devDependencies' : 'dependencies',
+      version: dependencyNode.version as string,
+      name: dependencyNode.name as string,
+      license: dependencyNode.license as string,
+      licenseContents: dependencyNode.licenseContents,
+      author: dependencyNode.author as string,
+      homepage: dependencyNode.homepage as string,
+      description: dependencyNode.description,
+      repository: dependencyNode.repository as string,
+      path: dependencyNode.dir,
+    })
+  }
 }
 
 export async function findDependencyLicenses (opts: {

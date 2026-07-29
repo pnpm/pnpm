@@ -11,16 +11,19 @@
 use miette::{Context, IntoDiagnostic};
 use pacquet_cmd_shim::{Host as CmdShimHost, PackageBinSource, link_bins_of_packages};
 use pacquet_config::Config;
+use pacquet_fs::DirLock;
 use pacquet_graph_hasher::{detect_node_major, engine_name};
 use pacquet_lockfile::{EnvLockfile, PackageKey};
 use pacquet_package_manager::{AllowBuildPolicy, VirtualStoreLayout};
-use pacquet_reporter::Reporter;
+use pacquet_package_manifest::parse_manifest;
+use pacquet_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pacquet_store_dir::StoreDir;
 use serde_json::Value;
 use std::{
     fs,
     path::{Path, PathBuf},
     sync::Arc,
+    time::Duration,
 };
 
 use crate::{
@@ -51,15 +54,19 @@ pub(crate) async fn install_pnpm_to_store<Reporter: self::Reporter + 'static>(
     fs::create_dir_all(env_root).into_diagnostic().wrap_err_with(|| {
         format!("create the package-manager env directory at {}", env_root.display())
     })?;
-    // Resolve the package-manager closure into the env lockfile (a no-op
-    // when this spec+version is already recorded there).
-    config_deps::sync_package_manager_dependencies(config, env_root, spec, version, false).await?;
-    let env = EnvLockfile::read(env_root)
-        .map_err(miette::Report::new)
-        .wrap_err("read the package-manager env lockfile")?
-        .ok_or_else(|| {
-            miette::miette!("the package-manager env lockfile is missing after resolution")
-        })?;
+    let env = {
+        let _lock = package_manager_env_lock::<Reporter>(config).await?;
+        // Resolve the package-manager closure into the env lockfile (a no-op
+        // when this spec+version is already recorded there).
+        config_deps::sync_package_manager_dependencies(config, env_root, spec, version, false)
+            .await?;
+        EnvLockfile::read(env_root)
+            .map_err(miette::Report::new)
+            .wrap_err("read the package-manager env lockfile")?
+            .ok_or_else(|| {
+                miette::miette!("the package-manager env lockfile is missing after resolution")
+            })?
+    };
     install_pnpm_from_env::<Reporter>(config, &env, version).await
 }
 
@@ -87,8 +94,31 @@ async fn install_pnpm_from_env_with_config<Reporter: self::Reporter + 'static>(
     // then re-derives the slot from the install's own symlink).
     if let Some(slot) = compute_engine_slot(config, env, package_name, version) {
         let pkg_dir = package_dir(&slot, package_name);
-        if pkg_dir.join("package.json").exists() {
-            return link_cached_engine_bins(&slot, package_name, package.links_native_binary);
+        if pkg_dir.join("package.json").exists()
+            && let Ok(bin_dir) =
+                link_cached_engine_bins(&slot, package_name, package.links_native_binary)
+        {
+            return Ok(bin_dir);
+        }
+    }
+
+    // The engine's global-virtual-store slot is shared by every process on
+    // the host, and materializing it is destructive: a slot left carrying
+    // an interrupted-build marker is removed and re-staged. A task runner
+    // that pins `packageManager` spawns many `pnpm run` children at once,
+    // all of which reach this point together on a cold cache; without the
+    // lock, one clears the slot out from under another and the loser dies
+    // looking for a binary that no longer exists.
+    let _lock = engine_install_lock::<Reporter>(config, package_name, version);
+    // The wait may have been for a process that installed the very engine
+    // we want, so ask the cache again before paying for the download.
+    if let Some(slot) = compute_engine_slot(config, env, package_name, version) {
+        let pkg_dir = package_dir(&slot, package_name);
+        if pkg_dir.join("package.json").exists()
+            && let Ok(bin_dir) =
+                link_cached_engine_bins(&slot, package_name, package.links_native_binary)
+        {
+            return Ok(bin_dir);
         }
     }
 
@@ -134,6 +164,58 @@ async fn install_pnpm_from_env_with_config<Reporter: self::Reporter + 'static>(
     }
     link_bins(&pkg_dir, &bin_dir)?;
     Ok(bin_dir)
+}
+
+/// Take the host-wide lock guarding this engine's install, or `None`
+/// when it can't be taken. Losing the lock is not a reason to refuse to
+/// run: the install below is the same one every other process is racing
+/// to perform, so proceeding unserialized is exactly today's behavior.
+fn engine_install_lock<Reporter: self::Reporter>(
+    config: &Config,
+    package_name: &str,
+    version: &str,
+) -> Option<DirLock> {
+    let name = format!("{}@{version}.lock", package_name.replace('/', "+"));
+    let path = config.store_dir.tmp().join("engine-locks").join(name);
+    acquire_install_lock::<Reporter>(&path, "the pnpm engine install")
+}
+
+async fn package_manager_env_lock<Reporter: self::Reporter>(
+    config: &Config,
+) -> miette::Result<Option<DirLock>> {
+    let path = config.store_dir.tmp().join("engine-locks/package-manager-env.lock");
+    tokio::task::spawn_blocking(move || {
+        acquire_install_lock::<Reporter>(&path, "the package-manager environment")
+    })
+    .await
+    .into_diagnostic()
+    .wrap_err("wait for the package-manager environment lock")
+}
+
+fn acquire_install_lock<Reporter: self::Reporter>(path: &Path, subject: &str) -> Option<DirLock> {
+    /// Long enough for a cold install of the engine over a slow link,
+    /// short enough that a wedged host isn't hung on indefinitely.
+    const WAIT: Duration = Duration::from_mins(5);
+    /// Comfortably above `WAIT`, so a process still legitimately
+    /// installing never has its lock stolen by one that gave up waiting.
+    const ABANDONED_AFTER: Duration = Duration::from_mins(30);
+
+    let error = match DirLock::acquire(path.to_path_buf(), WAIT, ABANDONED_AFTER) {
+        Ok(lock) => return lock,
+        Err(error) => error,
+    };
+    // Through the reporter rather than `tracing`, which is only wired to
+    // a subscriber when `TRACE` is set and would drop this on every
+    // ordinary run.
+    Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+        level: LogLevel::Warn,
+        message: format!(
+            "Could not lock {subject} at {}: {error}. Installing without it, which is unsafe if another pnpm is installing concurrently.",
+            path.display(),
+        ),
+        prefix: String::new(),
+    }));
+    None
 }
 
 fn package_manager_engine_config(config: &Config) -> miette::Result<Config> {
@@ -198,6 +280,11 @@ fn compute_engine_slot(
         Some(&env.snapshots),
         Some(&env.packages),
         Some(&policy),
+        // No lockfile directory: this lockfile only ever holds the pnpm
+        // package and its registry dependencies, and the install that
+        // materializes the slot runs from a throwaway directory that
+        // differs on every self-update.
+        None,
     );
     Some(layout.slot_dir(&key))
 }
@@ -228,7 +315,7 @@ fn link_bins(pkg_dir: &Path, bin_dir: &Path) -> miette::Result<()> {
     let text = fs::read_to_string(&manifest_path)
         .into_diagnostic()
         .wrap_err_with(|| format!("read {}", manifest_path.display()))?;
-    let manifest: Value = serde_json::from_str(&text)
+    let manifest: Value = parse_manifest(&text)
         .into_diagnostic()
         .wrap_err_with(|| format!("parse {}", manifest_path.display()))?;
     let source = PackageBinSource::new(pkg_dir.to_path_buf(), Arc::new(manifest));

@@ -7,6 +7,7 @@ use std::{collections::BTreeSet, io::Read};
 use flate2::read::GzDecoder;
 use miette::{Context, IntoDiagnostic};
 use pacquet_pack::sort_paths_en_locale;
+use pacquet_package_manifest::parse_manifest;
 use pacquet_publish::{PackedPkgInfo, PublishSummary, create_publish_summary};
 use pacquet_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
 use serde_json::Value;
@@ -43,7 +44,7 @@ pub(super) fn summarize_tarball(tarball_data: &[u8]) -> miette::Result<PublishSu
                 .into_diagnostic()
                 .wrap_err("read package/package.json from the staged tarball")?;
             manifest =
-                Some(serde_json::from_str(&text).map_err(|_| StageError::TarballManifestNotFound)?);
+                Some(parse_manifest(&text).map_err(|_| StageError::TarballManifestNotFound)?);
         }
     }
 

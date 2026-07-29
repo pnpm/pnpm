@@ -298,14 +298,12 @@ pub fn select_recursive_projects<'a>(
     };
     let all = build_graph(projects, graph_options);
 
-    // The main-dispatch `!{<workspace-root>}` selector for `run` / `exec` drops
-    // the workspace root from an unfiltered or all-exclusion selection. It
-    // routes into the selection pass whose `follow_prod_deps_only` matches: the
+    // Routes into the selection pass whose `follow_prod_deps_only` matches: the
     // prod pass when a `--filter-prod` selector is present, otherwise the
     // regular pass.
-    let root_exclusion = auto_exclude_root.root_exclusion(config, prefix);
+    let root_selector = auto_exclude_root.root_selector(config, prefix);
 
-    if config.filter.is_empty() && config.filter_prod.is_empty() && root_exclusion.is_none() {
+    if config.filter.is_empty() && config.filter_prod.is_empty() && root_selector.is_none() {
         return Ok(RecursiveSelection {
             selected: all,
             all: None,
@@ -346,7 +344,7 @@ pub fn select_recursive_projects<'a>(
     let regular_selected = filter_against(
         &all,
         &config.filter,
-        root_exclusion.as_deref().filter(|_| !root_in_prod),
+        root_selector.as_deref().filter(|_| !root_in_prod),
         false,
         prefix,
         &walk_opts,
@@ -355,7 +353,7 @@ pub fn select_recursive_projects<'a>(
         Some(prod_all) => filter_against(
             prod_all,
             &config.filter_prod,
-            root_exclusion.as_deref().filter(|_| root_in_prod),
+            root_selector.as_deref().filter(|_| root_in_prod),
             true,
             prefix,
             &walk_opts,
@@ -405,24 +403,24 @@ fn build_graph(
 
 /// Apply one group of selectors (regular or `--filter-prod`) against the
 /// already-built `graph` and return the selected project directories, in
-/// selection order. `root_exclusion` is the optional
-/// `!{<workspace-root>}` selector appended to this pass. A pass with no
-/// `filters` and no `root_exclusion` selects nothing.
+/// selection order. `root_selector` is the optional
+/// `{<workspace-root>}` selector appended to this pass. A pass with no
+/// `filters` and no `root_selector` selects nothing.
 fn filter_against<Pkg: BaseProject>(
     graph: &ProjectGraph<Pkg>,
     filters: &[String],
-    root_exclusion: Option<&str>,
+    root_selector: Option<&str>,
     follow_prod_deps_only: bool,
     prefix: &Path,
     walk_opts: &FilterWorkspaceProjectsOptions,
 ) -> miette::Result<Vec<PathBuf>> {
-    if filters.is_empty() && root_exclusion.is_none() {
+    if filters.is_empty() && root_selector.is_none() {
         return Ok(Vec::new());
     }
     let selectors: Vec<ProjectSelector> = filters
         .iter()
         .map(String::as_str)
-        .chain(root_exclusion)
+        .chain(root_selector)
         .map(|filter| {
             let mut selector = parse_project_selector(filter, prefix);
             selector.follow_prod_deps_only = follow_prod_deps_only;
@@ -453,19 +451,23 @@ pub enum AutoExcludeRoot<'a> {
 }
 
 impl AutoExcludeRoot<'_> {
-    /// The `!{<workspace-root>}` selector to append to the `--filter` /
-    /// `--filter-prod` selection, or `None` when the augmentation does not
-    /// apply. [`select_recursive_projects`] routes it into the pass whose
-    /// `follow_prod_deps_only` matches (the prod pass when a `--filter-prod`
-    /// selector is present, else the regular pass).
-    fn root_exclusion(&self, config: &Config, prefix: &Path) -> Option<String> {
+    /// The extra `{<workspace-root>}` selector to append to the
+    /// `--filter` / `--filter-prod` selection, or `None` when no
+    /// augmentation applies. [`select_recursive_projects`] routes it into
+    /// the pass whose `follow_prod_deps_only` matches (the prod pass when
+    /// a `--filter-prod` selector is present, else the regular pass).
+    fn root_selector(&self, config: &Config, prefix: &Path) -> Option<String> {
+        // pnpm pushes this inclusion onto the `--filter` list rather than
+        // replacing it, and for every recursive command — so unlike the
+        // exclusion below it is ungated, and it is additive.
+        if config.workspace_root {
+            return Some(format!("{{{}}}", relative_workspace_dir(config, prefix)));
+        }
         let AutoExcludeRoot::Enabled { workspace_patterns } = self else {
             return None;
         };
         // pnpm additionally suppresses the exclusion under
-        // `--include-workspace-root` and, for `--workspace-root`, pushes
-        // an inclusion `{<root>}` filter instead. pacquet surfaces
-        // neither flag yet, so only this exclusion arm applies.
+        // `--include-workspace-root`, which pacquet does not surface yet.
         // An inclusion selector already pins the selected set, so the
         // root is kept only if it matches one.
         if config
@@ -483,13 +485,18 @@ impl AutoExcludeRoot<'_> {
         if is_root_only_patterns(patterns) {
             return None;
         }
-        let workspace_root = config.workspace_dir.as_deref().unwrap_or(prefix);
-        let relative = pathdiff::diff_paths(workspace_root, prefix)
-            .map(|path| path.to_string_lossy().into_owned())
-            .filter(|path| !path.is_empty())
-            .unwrap_or_else(|| ".".to_string());
-        Some(format!("!{{{relative}}}"))
+        Some(format!("!{{{}}}", relative_workspace_dir(config, prefix)))
     }
+}
+
+/// The workspace root as a path selectors can resolve against `prefix`,
+/// which is where a `{<dir>}` selector is anchored.
+fn relative_workspace_dir(config: &Config, prefix: &Path) -> String {
+    let workspace_root = config.workspace_dir.as_deref().unwrap_or(prefix);
+    pathdiff::diff_paths(workspace_root, prefix)
+        .map(|path| path.to_string_lossy().into_owned())
+        .filter(|path| !path.is_empty())
+        .unwrap_or_else(|| ".".to_string())
 }
 
 /// Whether the workspace enumerates the root project only.

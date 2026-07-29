@@ -12,7 +12,8 @@ use pacquet_hooks::PnpmfileHooks;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest, engines_runtime_dependencies};
 use pacquet_patching::{PatchGroupRecord, PatchKeyConflictError, get_patch_info};
 use pacquet_resolving_resolver_base::{
-    PreferredVersionsOverlay, ResolveError, ResolveOptions, Resolver, WantedDependency,
+    CurrentPkg, NoMatchingVersionError, PreferredVersionsOverlay, RegistryResponseError,
+    ResolveError, ResolveOptions, Resolver, WantedDependency,
 };
 use pipe_trait::Pipe;
 use serde_json::Value;
@@ -39,6 +40,7 @@ use crate::{
         current_pkg_from_lockfile, prior_child_key, reusable_importer_dep, synthesize_reused_result,
     },
     node_id::NodeId,
+    parent_pkg_aliases::{ParentPkgAliases, peer_shadowed_dependencies},
     resolved_tree::{DependenciesTreeNode, DirectDep, PeerDep, ResolvedPackage, ResolvedTree},
 };
 use pacquet_lockfile::{
@@ -57,9 +59,52 @@ pub enum UpdateReuseScope {
     /// Reuse nothing — the whole graph re-resolves. `pacquet update`
     /// with no selectors.
     None,
-    /// Reuse everything except the named packages (matched at any depth).
-    /// `pacquet update <pattern>`.
+    /// Reuse everything except the named packages (matched at any depth
+    /// the update reaches). `pacquet update <pattern>`.
     Except(std::collections::HashSet<String>),
+}
+
+/// How deep `pacquet update` reaches — the `--depth` ceiling. A node
+/// below it keeps its locked resolution even when its name is an update
+/// target, matching pnpm's `currentDepth <= updateDepth` gate.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct UpdateDepth(Option<i32>);
+
+impl UpdateDepth {
+    /// `--depth Infinity`, the default.
+    pub const UNLIMITED: Self = Self(None);
+
+    /// A depth no dependency graph can reach — `usize::MAX`, which the
+    /// CLI uses for the `Infinity` default, among them — is unlimited.
+    #[must_use]
+    pub fn new(depth: usize) -> Self {
+        i32::try_from(depth).map_or(Self::UNLIMITED, |depth| Self(Some(depth)))
+    }
+
+    /// Whether an update reaches a node at `depth`.
+    #[must_use]
+    fn reaches(self, depth: i32) -> bool {
+        self.0.is_none_or(|max_depth| depth <= max_depth)
+    }
+
+    /// The depth to memoise a subtree-reuse answer under. Beyond the
+    /// ceiling no node is an update target, so every deeper level shares
+    /// one answer — and an unlimited update never varies by depth at all.
+    #[must_use]
+    fn memo_bucket(self, depth: i32) -> i32 {
+        match self.0 {
+            None => 0,
+            Some(max_depth) => depth.min(max_depth.saturating_add(1)),
+        }
+    }
+}
+
+/// The `pacquet update` scope a node is judged against: which names the
+/// update targets, and how deep it reaches.
+#[derive(Debug, Clone, Copy)]
+struct UpdateScope<'a> {
+    reuse: &'a UpdateReuseScope,
+    max_depth: UpdateDepth,
 }
 
 /// How the current [`fn@resolve_node`] call may reuse the prior
@@ -228,6 +273,16 @@ pub enum ResolveDependencyTreeError {
     #[display("Failed to resolve dependency: {_0}")]
     Resolve(#[error(not(source))] String),
 
+    /// The registry publishes the package but nothing the request accepts,
+    /// raised with the `ERR_PNPM_NO_MATCHING_VERSION` code.
+    #[diagnostic(transparent)]
+    NoMatchingVersion(#[error(source)] NoMatchingVersionError),
+
+    /// The registry answered the metadata request with a non-2xx status,
+    /// raised with the matching `ERR_PNPM_FETCH_<status>` code.
+    #[diagnostic(transparent)]
+    RegistryResponse(#[error(source)] RegistryResponseError),
+
     /// An optional dependency failed to resolve while the wanted
     /// lockfile still holds a package entry satisfying the wanted
     /// range. Rethrown loudly instead of skipped, because skipping
@@ -357,8 +412,16 @@ where
         wanted.push((name.to_string(), range.to_string(), optional, injected));
     }
     record_changed_direct_deps(&ctx, pacquet_lockfile::Lockfile::ROOT_IMPORTER_KEY, &wanted);
-    let direct =
-        extend_tree(&ctx, resolver, wanted, pacquet_lockfile::Lockfile::ROOT_IMPORTER_KEY).await?;
+    let parent_pkg_aliases =
+        ParentPkgAliases::root(wanted.iter().map(|(alias, ..)| alias.clone()).collect());
+    let direct = extend_tree(
+        &ctx,
+        resolver,
+        wanted,
+        pacquet_lockfile::Lockfile::ROOT_IMPORTER_KEY,
+        &parent_pkg_aliases,
+    )
+    .await?;
     Ok(ctx.into_resolved_tree(direct))
 }
 
@@ -526,7 +589,7 @@ type WantedKey = (
     bool,
 );
 
-type SubtreeReuseKey = (Option<String>, PkgNameVerPeer);
+type SubtreeReuseKey = (Option<String>, PkgNameVerPeer, i32);
 
 /// Whether a wanted dep's resolution is computed relative to the
 /// consuming importer's directory rather than being
@@ -542,6 +605,56 @@ fn project_relative_cache_scope(
         spec.starts_with("link:") || spec.starts_with("file:") || spec.starts_with("workspace:")
     }) || (opts.always_try_workspace_packages && opts.workspace_packages.is_some()))
     .then(|| opts.project_dir.clone())
+}
+
+/// The directory the `file:` dependencies declared by a resolved
+/// package resolve against — pnpm's `parentPkg.rootDir`. A package
+/// copied from a local directory declares them relative to its own
+/// directory; every other resolution has no directory of its own, so
+/// its `file:` children stay on the consuming importer's.
+///
+/// Only `file:`-shaped directory resolutions qualify. They record
+/// their directory relative to the lockfile root (absolute under
+/// `preserveAbsolutePaths`), whereas a `link:`-shaped one records it
+/// relative to the consuming importer (workspace links) or absolute
+/// (the local resolver). Nothing asks for a linked node's directory:
+/// a linked project resolves its own dependencies as a separate
+/// importer, so the walk never descends into one.
+fn declaring_manifest_dir(
+    ctx: &TreeCtx,
+    result: &pacquet_resolving_resolver_base::ResolveResult,
+) -> Option<Arc<Path>> {
+    let pacquet_lockfile::LockfileResolution::Directory(resolution) = &result.resolution else {
+        return None;
+    };
+    if !result.id.as_str().starts_with("file:") {
+        return None;
+    }
+    let directory = Path::new(&resolution.directory);
+    let absolute = if directory.is_absolute() {
+        pacquet_fs::lexical_normalize(directory)
+    } else {
+        pacquet_fs::lexical_normalize(&ctx.lockfile_dir.join(directory))
+    };
+    Some(Arc::from(absolute))
+}
+
+/// Point a `file:` specifier at the directory of the manifest that
+/// declares it ([`declaring_manifest_dir`]) instead of the consuming
+/// importer's. Every other specifier keeps the caller's options.
+fn opts_relative_to_declaring_manifest<'a>(
+    opts: &'a ResolveOptions,
+    wanted: &WantedDependency,
+    parent_dir: Option<&Path>,
+) -> Cow<'a, ResolveOptions> {
+    match parent_dir {
+        Some(parent_dir)
+            if wanted.bare_specifier.as_deref().is_some_and(|spec| spec.starts_with("file:")) =>
+        {
+            Cow::Owned(ResolveOptions { project_dir: parent_dir.to_path_buf(), ..opts.clone() })
+        }
+        _ => Cow::Borrowed(opts),
+    }
 }
 
 /// One spec carried through [`extend_tree`] and the importer-side
@@ -585,6 +698,21 @@ impl ChildrenOwner {
     }
 }
 
+/// What the current children owner of a `pkgIdWithPatchHash` decided
+/// for it. Both halves are per-occurrence inputs the walk has to settle
+/// on one answer for, so they are claimed together, under one lock.
+#[derive(Debug, Clone)]
+struct ChildrenOwnerEntry {
+    owner: ChildrenOwner,
+    /// The owner occurrence's peer-shadowed `dependencies` (see
+    /// [`peer_shadowed_dependencies`]). Which names are shadowed
+    /// depends on the parent scope, which differs per occurrence;
+    /// pnpm lets the first occurrence to resolve decide, which is
+    /// arrival-ordered. The deterministic children owner decides here
+    /// instead, so the same graph always yields the same lockfile.
+    peer_shadowed: Arc<HashSet<String>>,
+}
+
 /// Workspace-shared maps. Every per-importer [`TreeCtx`] in a
 /// multi-importer install holds an `Arc<WorkspaceTreeCtx>` so the
 /// resolver's per-`pkgIdWithPatchHash` dedup (`packages`,
@@ -598,7 +726,27 @@ impl ChildrenOwner {
 /// every importer's walk contributes entries to one combined tree
 /// without colliding.
 pub struct WorkspaceTreeCtx {
+    /// Bumped whenever an [`fn@extend_tree`] call may mutate the shared
+    /// maps. The peer-hoist discovery engine compares it against the
+    /// revision of its last sync to skip re-syncing an unchanged
+    /// context.
+    revision: std::sync::atomic::AtomicU64,
+    /// Bumped whenever a children-ownership change rewrites an existing
+    /// occurrence node's children in `dependencies_tree` (see
+    /// [`fn@make_non_owner_nodes_lazy`]). Such a rewrite invalidates
+    /// walk state derived from the previous children, so the discovery
+    /// engine rebuilds its view instead of merging when this advanced
+    /// since its last sync.
+    children_rewrites: std::sync::atomic::AtomicU64,
     packages: Mutex<HashMap<String, ResolvedPackage>>,
+    /// `(name, version)` of every registry-resolved package, in
+    /// insertion order — one entry per `packages` insert whose result
+    /// carries a `name_ver`. Lets each importer's preferred-versions
+    /// fold consume only the entries appended since its previous round
+    /// (see [`TreeCtx::resolved_versions_since`]) instead of rescanning
+    /// the whole `packages` map every round.
+    resolved_versions_log: Mutex<Vec<(String, String)>>,
+    workspace_package_versions: Mutex<HashSet<(String, String)>>,
     dependencies_tree: Mutex<HashMap<NodeId, DependenciesTreeNode>>,
     all_peer_dep_names: Mutex<HashSet<String>>,
     policy_violations: Mutex<Vec<pacquet_resolving_resolver_base::ResolutionPolicyViolation>>,
@@ -607,7 +755,7 @@ pub struct WorkspaceTreeCtx {
         Mutex<HashMap<WantedKey, Arc<pacquet_resolving_resolver_base::ResolveResult>>>,
     children_specs_by_id: Mutex<HashMap<String, Arc<Vec<ChildSpec>>>>,
     children_by_id: Mutex<HashMap<String, Arc<Vec<crate::resolved_tree::ChildEdge>>>>,
-    children_owner_by_id: Mutex<HashMap<String, ChildrenOwner>>,
+    children_owner_by_id: Mutex<HashMap<String, ChildrenOwnerEntry>>,
     node_parent_ids_by_id: Mutex<HashMap<NodeId, Arc<Vec<String>>>>,
     manifest_hook: Option<ManifestHook>,
     /// The previous `pnpm-lock.yaml` the install started from, when one
@@ -623,6 +771,8 @@ pub struct WorkspaceTreeCtx {
     /// Importer overrides used by filtered workspace updates. IDs absent from
     /// this map keep the workspace default above.
     update_reuse_scopes_by_importer: BTreeMap<String, UpdateReuseScope>,
+    /// `pacquet update --depth`: how deep the suppression above reaches.
+    update_depth: UpdateDepth,
     /// Memoises [`fn@subtree_fully_reusable`] per update scope and snapshot
     /// key. Keep-all importers share one scope; update-active importers use
     /// isolated scopes so one importer's reuse answer cannot leak to another.
@@ -646,15 +796,9 @@ pub struct WorkspaceTreeCtx {
     /// deprecation check but drops the notification. See
     /// [`DeprecationLogFn`].
     deprecation_log: Option<DeprecationLogFn>,
-    /// Per-package shallowest depth at which a deprecation was emitted.
-    /// Re-emits when the same package appears at a shallower depth so a
-    /// direct dependency is never misclassified as transitive.
-    deprecation_depths: Mutex<HashMap<String, i32>>,
-    /// The install's `autoInstallPeers` setting. When `true`,
-    /// [`fn@resolve_node`] drops a resolved package's `dependencies`
-    /// entries that are shadowed by its own `peerDependencies`, so the
-    /// peer edge supplies the package instead. See
-    /// [`omit_peer_shadowed_dependencies`].
+    /// The install's `autoInstallPeers` setting. It widens which of a
+    /// resolved package's `dependencies` its own `peerDependencies`
+    /// shadow — see [`peer_shadowed_dependencies`].
     auto_install_peers: bool,
     /// Resolved registry map (`"default"` + per-scope) used to
     /// materialize a prior `Registry` lockfile resolution back into its
@@ -708,7 +852,11 @@ struct OwnerMissingRecord {
 impl Default for WorkspaceTreeCtx {
     fn default() -> Self {
         WorkspaceTreeCtx {
+            revision: std::sync::atomic::AtomicU64::new(0),
+            children_rewrites: std::sync::atomic::AtomicU64::new(0),
             packages: Mutex::new(HashMap::new()),
+            resolved_versions_log: Mutex::new(Vec::new()),
+            workspace_package_versions: Mutex::new(HashSet::new()),
             dependencies_tree: Mutex::new(HashMap::new()),
             all_peer_dep_names: Mutex::new(HashSet::new()),
             policy_violations: Mutex::new(Vec::new()),
@@ -722,12 +870,12 @@ impl Default for WorkspaceTreeCtx {
             wanted_lockfile: None,
             update_reuse_scope: UpdateReuseScope::All,
             update_reuse_scopes_by_importer: BTreeMap::new(),
+            update_depth: UpdateDepth::UNLIMITED,
             subtree_reusable: Mutex::new(HashMap::new()),
             pnpmfile_hook: None,
             read_package_log: None,
             skipped_optional_log: None,
             allowed_deprecated_versions: BTreeMap::new(),
-            deprecation_depths: Mutex::new(HashMap::new()),
             deprecation_log: None,
             auto_install_peers: false,
             registries: HashMap::new(),
@@ -754,6 +902,84 @@ impl WorkspaceTreeCtx {
             policy_violations: lock_recoverable(&self.policy_violations).clone(),
             applied_patches: lock_recoverable(&self.applied_patches).clone(),
             children_by_id: lock_recoverable(&self.children_by_id).clone(),
+        }
+    }
+
+    /// Snapshot only the part of the occurrence tree reachable from one
+    /// importer's direct dependencies.
+    ///
+    /// A workspace resolve keeps every importer's occurrence nodes in
+    /// this shared context, so a full [`Self::snapshot`] taken for one
+    /// importer retains every other importer's nodes too. The
+    /// reachable-only snapshot keeps per-importer consumers (the
+    /// workspace-root hoistable-deps scan) proportional to that
+    /// importer's own subtree.
+    ///
+    /// Realized edges provide the occurrence-node closure. Lazy edges are
+    /// materialized by the peer walker from `children_by_id`, so their
+    /// package closure is collected separately and included here too.
+    #[must_use]
+    pub fn snapshot_reachable_from(&self, direct: Vec<DirectDep>) -> ResolvedTree {
+        let dependencies_tree = lock_recoverable(&self.dependencies_tree);
+        let mut reachable_node_ids = HashSet::new();
+        let mut reachable_pkg_ids = HashSet::new();
+        let mut pending_node_ids: Vec<NodeId> =
+            direct.iter().map(|dep| dep.node_id.clone()).collect();
+        while let Some(node_id) = pending_node_ids.pop() {
+            if !reachable_node_ids.insert(node_id.clone()) {
+                continue;
+            }
+            let Some(node) = dependencies_tree.get(&node_id) else {
+                continue;
+            };
+            reachable_pkg_ids.insert(node.resolved_package_id.clone());
+            if let crate::resolved_tree::TreeChildren::Realized(children) = &node.children {
+                pending_node_ids.extend(children.values().cloned());
+            }
+        }
+        let reachable_dependencies_tree: HashMap<_, _> = reachable_node_ids
+            .iter()
+            .filter_map(|node_id| {
+                dependencies_tree.get(node_id).cloned().map(|node| (node_id.clone(), node))
+            })
+            .collect();
+        // Release before taking the next guard so this function never
+        // holds two of the context's locks at once — `snapshot` takes
+        // `packages` before `dependencies_tree`, so overlapping here
+        // would create a reversed acquisition order.
+        drop(dependencies_tree);
+        let dependencies_tree = reachable_dependencies_tree;
+
+        let all_children = lock_recoverable(&self.children_by_id);
+        let mut pending_pkg_ids: Vec<String> = reachable_pkg_ids.iter().cloned().collect();
+        let mut children_by_id = HashMap::new();
+        while let Some(pkg_id) = pending_pkg_ids.pop() {
+            let Some(children) = all_children.get(&pkg_id) else {
+                continue;
+            };
+            children_by_id.insert(pkg_id, Arc::clone(children));
+            for child in children.iter() {
+                if reachable_pkg_ids.insert(child.pkg_id.clone()) {
+                    pending_pkg_ids.push(child.pkg_id.clone());
+                }
+            }
+        }
+        drop(all_children);
+
+        let packages = lock_recoverable(&self.packages);
+        let packages = reachable_pkg_ids
+            .into_iter()
+            .filter_map(|pkg_id| packages.get(&pkg_id).cloned().map(|pkg| (pkg_id, pkg)))
+            .collect();
+
+        ResolvedTree {
+            direct,
+            packages,
+            dependencies_tree,
+            all_peer_dep_names: lock_recoverable(&self.all_peer_dep_names).clone(),
+            policy_violations: lock_recoverable(&self.policy_violations).clone(),
+            applied_patches: lock_recoverable(&self.applied_patches).clone(),
+            children_by_id,
         }
     }
 
@@ -799,9 +1025,11 @@ impl WorkspaceTreeCtx {
         importer_id: &str,
         missing_by_pkg: &HashMap<String, HashSet<String>>,
     ) {
-        let owners = lock_recoverable(&self.children_owner_by_id).clone();
+        // Lock order: `children_owner_by_id` before
+        // `first_walk_missing_by_pkg`, the only place both are held.
+        let owners = lock_recoverable(&self.children_owner_by_id);
         let mut record = lock_recoverable(&self.first_walk_missing_by_pkg);
-        for (pkg_id, owner) in &owners {
+        for (pkg_id, ChildrenOwnerEntry { owner, .. }) in owners.iter() {
             if owner.importer_id != importer_id {
                 continue;
             }
@@ -818,7 +1046,7 @@ impl WorkspaceTreeCtx {
             }
         }
         for (pkg_id, names) in missing_by_pkg {
-            if owners.get(pkg_id).is_none_or(|owner| owner.importer_id != importer_id) {
+            if owners.get(pkg_id).is_none_or(|entry| entry.owner.importer_id != importer_id) {
                 record.entry(pkg_id.clone()).or_insert_with(|| OwnerMissingRecord {
                     recorded_by: None,
                     names: names.clone(),
@@ -837,6 +1065,136 @@ impl WorkspaceTreeCtx {
             .collect()
     }
 
+    /// Append a freshly-inserted package's `(name, version)` to the
+    /// resolved-versions log. Call once per new `packages` entry.
+    fn record_resolved_version(&self, result: &pacquet_resolving_resolver_base::ResolveResult) {
+        if let Some(name_ver) = result.name_ver.as_ref() {
+            lock_recoverable(&self.resolved_versions_log)
+                .push((name_ver.name.to_string(), name_ver.suffix.to_string()));
+        }
+    }
+
+    /// See the `revision` field doc.
+    pub(crate) fn revision(&self) -> u64 {
+        self.revision.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    pub(crate) fn bump_revision(&self) {
+        self.revision.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// See the `children_rewrites` field doc.
+    pub(crate) fn children_rewrites(&self) -> u64 {
+        self.children_rewrites.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    pub(crate) fn record_children_rewrite(&self) {
+        self.children_rewrites.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// Fold the context's growth since the last sync into `tree`, the
+    /// peer-hoist discovery engine's persistent view of the workspace.
+    ///
+    /// The shared maps grow monotonically during the hoist rounds, so
+    /// the sync inserts entries `tree` doesn't have yet and lowers node
+    /// depths that shrank. The exceptions are a children-owner change,
+    /// which can rewrite an existing package's recorded child list or
+    /// peer-dependency split: those invalidate walk results already
+    /// derived from the old values, so the sync reports them as
+    /// unmergeable (`false`) and the engine rebuilds its view from
+    /// scratch. A replaced `children_by_id` `Arc` with equal contents
+    /// (an ownership handover that re-recorded the same children) is
+    /// re-pointed without invalidating.
+    pub(crate) fn sync_discovery_tree(&self, tree: &mut ResolvedTree) -> bool {
+        use std::collections::hash_map::Entry;
+        {
+            let children_by_id = lock_recoverable(&self.children_by_id);
+            for (pkg_id, spec) in children_by_id.iter() {
+                match tree.children_by_id.entry(pkg_id.clone()) {
+                    Entry::Vacant(entry) => {
+                        entry.insert(Arc::clone(spec));
+                    }
+                    Entry::Occupied(mut entry) => {
+                        if Arc::ptr_eq(entry.get(), spec) {
+                            continue;
+                        }
+                        if **entry.get() != **spec {
+                            return false;
+                        }
+                        entry.insert(Arc::clone(spec));
+                    }
+                }
+            }
+        }
+        {
+            let packages = lock_recoverable(&self.packages);
+            for (pkg_id, pkg) in packages.iter() {
+                match tree.packages.entry(pkg_id.clone()) {
+                    Entry::Vacant(entry) => {
+                        entry.insert(pkg.clone());
+                    }
+                    Entry::Occupied(entry) => {
+                        if entry.get().peer_dependencies != pkg.peer_dependencies {
+                            return false;
+                        }
+                    }
+                }
+            }
+        }
+        {
+            let dependencies_tree = lock_recoverable(&self.dependencies_tree);
+            for (node_id, node) in dependencies_tree.iter() {
+                match tree.dependencies_tree.entry(node_id.clone()) {
+                    Entry::Vacant(entry) => {
+                        entry.insert(node.clone());
+                    }
+                    Entry::Occupied(mut entry) => {
+                        if entry.get().depth > node.depth {
+                            entry.get_mut().depth = node.depth;
+                        }
+                    }
+                }
+            }
+        }
+        tree.all_peer_dep_names.extend(lock_recoverable(&self.all_peer_dep_names).iter().cloned());
+        true
+    }
+
+    /// `NodeId → pkgIdWithPatchHash` for the given peer-provider nodes,
+    /// keeping only nodes the shared context resolved eagerly (a node
+    /// the peer walker realized lazily has no context entry and is
+    /// dropped, matching the hoist loop's providers-that-existed-before-
+    /// the-pass filter).
+    pub(crate) fn provider_pkg_ids<'node_ids>(
+        &self,
+        node_ids: impl Iterator<Item = &'node_ids NodeId>,
+    ) -> HashMap<NodeId, String> {
+        let dependencies_tree = lock_recoverable(&self.dependencies_tree);
+        let packages = lock_recoverable(&self.packages);
+        node_ids
+            .filter_map(|node_id| {
+                let pkg_id = &dependencies_tree.get(node_id)?.resolved_package_id;
+                packages.contains_key(pkg_id).then(|| (node_id.clone(), pkg_id.clone()))
+            })
+            .collect()
+    }
+
+    pub(crate) fn set_direct_locked_peer_names(
+        &self,
+        direct: &[DirectDep],
+        names_by_alias: &HashMap<String, Arc<HashSet<String>>>,
+    ) {
+        let mut tree = lock_recoverable(&self.dependencies_tree);
+        for dep in direct {
+            let Some(names) = names_by_alias.get(&dep.alias) else {
+                continue;
+            };
+            if let Some(node) = tree.get_mut(&dep.node_id) {
+                node.locked_peer_names = Some(Arc::clone(names));
+            }
+        }
+    }
+
     /// Set which dependencies `pacquet update` excludes from reuse. See
     /// [`UpdateReuseScope`].
     #[must_use]
@@ -851,6 +1209,12 @@ impl WorkspaceTreeCtx {
         scopes: BTreeMap<String, UpdateReuseScope>,
     ) -> Self {
         self.update_reuse_scopes_by_importer = scopes;
+        self
+    }
+
+    #[must_use]
+    pub fn with_update_depth(mut self, update_depth: UpdateDepth) -> Self {
+        self.update_depth = update_depth;
         self
     }
 
@@ -1102,6 +1466,10 @@ impl TreeCtx {
         self.workspace.update_reuse_scope_for(&self.importer_id)
     }
 
+    fn update_scope(&self) -> UpdateScope<'_> {
+        UpdateScope { reuse: self.update_reuse_scope(), max_depth: self.workspace.update_depth }
+    }
+
     fn update_cache_scope(&self) -> Option<String> {
         (!matches!(self.update_reuse_scope(), UpdateReuseScope::All))
             .then(|| self.importer_id.clone())
@@ -1214,18 +1582,31 @@ impl TreeCtx {
         self.workspace.snapshot(direct)
     }
 
-    /// Iterate over every `(name, version)` pair the walk has resolved
-    /// so far. Used by the orchestrator to keep `allPreferredVersions`
-    /// in sync, pushing each resolved version as the dependency is
-    /// resolved.
+    /// Build an importer-scoped snapshot for a peer-hoist pass.
     #[must_use]
-    pub fn resolved_versions(&self) -> Vec<(String, String)> {
-        lock_recoverable(&self.workspace.packages)
-            .values()
-            .filter_map(|pkg| {
-                let name_ver = pkg.result.name_ver.as_ref()?;
-                Some((name_ver.name.to_string(), name_ver.suffix.to_string()))
-            })
+    pub fn snapshot_reachable_from(&self, direct: Vec<DirectDep>) -> ResolvedTree {
+        self.workspace.snapshot_reachable_from(direct)
+    }
+
+    /// Return every registry version resolved since the caller's
+    /// previous call, advancing `cursor` past them. A caller starting
+    /// from `0` sees the full workspace-wide history.
+    #[must_use]
+    pub fn resolved_versions_since(&self, cursor: &mut usize) -> Vec<(String, String)> {
+        let log = lock_recoverable(&self.workspace.resolved_versions_log);
+        let fresh = log[*cursor..].to_vec();
+        *cursor = log.len();
+        fresh
+    }
+
+    pub(crate) fn newly_seen_workspace_package_versions(
+        &self,
+        seen: &mut HashSet<(String, String)>,
+    ) -> Vec<(String, String)> {
+        lock_recoverable(&self.workspace.workspace_package_versions)
+            .iter()
+            .filter(|version| seen.insert((*version).clone()))
+            .cloned()
             .collect()
     }
 }
@@ -1247,10 +1628,12 @@ pub async fn extend_tree<Chain>(
     resolver: &Chain,
     wanted: Vec<WantedSpec>,
     importer_id: &str,
+    parent_pkg_aliases: &Arc<ParentPkgAliases>,
 ) -> Result<Vec<DirectDep>, ResolveDependencyTreeError>
 where
     Chain: Resolver + ?Sized,
 {
+    ctx.workspace.bump_revision();
     // Direct deps reuse via the importer's recorded resolution when a
     // prior lockfile exists; without one the gate is a no-op.
     let reuse = if ctx.workspace.wanted_lockfile.is_some() {
@@ -1285,9 +1668,19 @@ where
                     ..WantedDependency::default()
                 };
                 let base_overlay = ctx.base_opts.preferred_versions_overlay.clone();
-                let seed =
-                    resolve_node_seed(ctx, resolver, wanted, &[], 0, false, reuse, base_overlay)
-                        .await?;
+                let seed = resolve_node_seed(
+                    ctx,
+                    resolver,
+                    wanted,
+                    &[],
+                    0,
+                    false,
+                    reuse,
+                    base_overlay,
+                    None,
+                    parent_pkg_aliases,
+                )
+                .await?;
                 warm_children_resolutions(ctx, resolver, &seed).await;
                 Ok::<NodeSeed, ResolveDependencyTreeError>(seed)
             }
@@ -1304,16 +1697,18 @@ where
         ctx.base_opts.preferred_versions_overlay.clone(),
         direct_versions,
     );
+    let children_pkg_aliases = parent_pkg_aliases.extend(level_aliases(&seeds));
     // Phase 2: walk each direct dep's children with the level overlay.
     let results = seeds
         .into_iter()
         .map(|seed| {
             let overlay = children_overlay.clone();
+            let pkg_aliases = Arc::clone(&children_pkg_aliases);
             async move {
                 match seed {
                     NodeSeed::Done(dep) => Ok(dep),
                     NodeSeed::Pending(pending) => {
-                        walk_node_children(ctx, resolver, *pending, overlay).await
+                        walk_node_children(ctx, resolver, *pending, overlay, pkg_aliases).await
                     }
                 }
             }
@@ -1328,6 +1723,17 @@ where
 /// [`fn@walk_node_children`]. Used where per-level preference folding
 /// does not apply — the lockfile-reuse subtree walk, whose versions
 /// are exact pins.
+///
+/// The node's children resolve in the same `parent_pkg_aliases` scope
+/// as the node itself, without this level's own aliases folded in: a
+/// reused subtree takes its children from the lockfile snapshot rather
+/// than from a manifest, so no shadowed dependency can be dropped
+/// inside it, and the narrower scope only ever means one omission
+/// fewer where an edge falls back to a fresh resolve.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "internal walker helper threading per-node context through the recursion"
+)]
 #[async_recursion]
 async fn resolve_node<Chain>(
     ctx: &TreeCtx,
@@ -1337,6 +1743,7 @@ async fn resolve_node<Chain>(
     depth: i32,
     parent_optional: bool,
     reuse: ReuseSource,
+    parent_pkg_aliases: &Arc<ParentPkgAliases>,
 ) -> Result<Option<DirectDep>, ResolveDependencyTreeError>
 where
     Chain: Resolver + ?Sized,
@@ -1351,12 +1758,21 @@ where
         parent_optional,
         reuse,
         base_overlay.clone(),
+        None,
+        parent_pkg_aliases,
     )
     .await?
     {
         NodeSeed::Done(dep) => Ok(dep),
         NodeSeed::Pending(pending) => {
-            walk_node_children(ctx, resolver, *pending, base_overlay).await
+            walk_node_children(
+                ctx,
+                resolver,
+                *pending,
+                base_overlay,
+                Arc::clone(parent_pkg_aliases),
+            )
+            .await
         }
     }
 }
@@ -1384,6 +1800,8 @@ struct PendingNode {
     /// The deterministic children-ownership claim taken at seed time;
     /// the walk phase re-checks it before recording the children, so
     /// a better-placed occurrence seeded after this one still wins.
+    /// It also carries the peer-shadowed dependency names the walk
+    /// phase filters this package's children by.
     children_owner: ChildrenOwnerClaim,
     depth: i32,
     current_is_optional: bool,
@@ -1411,6 +1829,14 @@ struct PendingNode {
 /// map omits the cycled child. Without this, two nodes for the same id
 /// race each other into `graph.insert`, and an empty-children entry for
 /// the cycled occurrence can overwrite the real one.
+///
+/// `parent_dir` is the directory of the manifest that declares this
+/// edge, when that manifest is a package resolved from a local
+/// directory — see [`declaring_manifest_dir`].
+///
+/// `parent_pkg_aliases` is the scope this edge's level resolves in; it
+/// decides which of the resolved package's `dependencies` its own
+/// `peerDependencies` shadow (see [`peer_shadowed_dependencies`]).
 #[expect(
     clippy::too_many_arguments,
     reason = "internal walker helper threading per-node context through the recursion"
@@ -1425,6 +1851,8 @@ async fn resolve_node_seed<Chain>(
     parent_optional: bool,
     reuse: ReuseSource,
     pick_overlay: Option<Arc<PreferredVersionsOverlay>>,
+    parent_dir: Option<&Path>,
+    parent_pkg_aliases: &Arc<ParentPkgAliases>,
 ) -> Result<NodeSeed, ResolveDependencyTreeError>
 where
     Chain: Resolver + ?Sized,
@@ -1452,7 +1880,7 @@ where
     // would keep the pin, leaving the lockfile non-convergent).
     if reuse.allows_reuse()
         && !node_depends_on_changed_direct_dep(ctx, prior_key.as_ref())
-        && let Some(reused) = try_reuse_node(ctx, &wanted, prior_key.as_ref())
+        && let Some(reused) = try_reuse_node(ctx, &wanted, prior_key.as_ref(), depth)
     {
         return resolve_reused_node(
             ctx,
@@ -1462,6 +1890,7 @@ where
             depth,
             current_is_optional,
             reused,
+            parent_pkg_aliases,
         )
         .await
         .map(NodeSeed::Done);
@@ -1500,6 +1929,8 @@ where
         }
         None => opts,
     };
+    let opts_for_file_dep = opts_relative_to_declaring_manifest(opts, &wanted, parent_dir);
+    let opts = opts_for_file_dep.as_ref();
     // Project-relative resolutions (`link:`/`file:`/`workspace:`) are
     // keyed by the consuming importer so one importer's relative path
     // is never reused by another. See [`WantedKey`]. The prior key
@@ -1534,7 +1965,7 @@ where
             view
         })
         .unwrap_or_default();
-    let update_target = is_update_target(ctx.update_reuse_scope(), &wanted);
+    let update_target = is_update_target(ctx.update_scope(), &wanted, depth);
     let cache_key: WantedKey = (
         wanted.alias.clone(),
         wanted.bare_specifier.clone(),
@@ -1561,6 +1992,8 @@ where
             // keep aborting even for optional edges.
             Err(
                 err @ (ResolveDependencyTreeError::Resolve(_)
+                | ResolveDependencyTreeError::NoMatchingVersion(_)
+                | ResolveDependencyTreeError::RegistryResponse(_)
                 | ResolveDependencyTreeError::SpecNotSupported { .. }),
             ) if wanted.optional.unwrap_or(false) => {
                 if wanted_lockfile_contains_satisfying_entry(
@@ -1608,6 +2041,20 @@ where
         });
     }
 
+    if result.name_ver.is_none()
+        && wanted.bare_specifier.as_deref().is_some_and(|specifier| {
+            specifier.starts_with("workspace:") && !specifier.starts_with("workspace:.")
+        })
+        && let Some(manifest) = result.manifest.as_deref()
+        && let (Some(name), Some(version)) = (
+            manifest.get("name").and_then(Value::as_str),
+            manifest.get("version").and_then(Value::as_str),
+        )
+    {
+        lock_recoverable(&ctx.workspace.workspace_package_versions)
+            .insert((name.to_string(), version.to_string()));
+    }
+
     let id = build_pkg_id_with_patch_hash(ctx, &result).await?;
 
     // Cycle break — see the doc comment above. A direct self-edge and
@@ -1619,19 +2066,15 @@ where
         return Ok(NodeSeed::Done(None));
     }
 
-    let alias = result
-        .alias
-        .clone()
-        .or_else(|| wanted.alias.clone())
-        .or_else(|| result.name_ver.as_ref().map(|nv| nv.name.to_string()))
-        .unwrap_or_else(|| id.clone());
+    let alias = node_alias(&wanted, &result, &id);
 
     // Build (or look up) the ResolvedPackage envelope. The first
     // visitor populates it; later visitors AND-fold the `optional`
     // flag so a single non-optional path flips it back to `false`.
-    // Child traversal is claimed separately below, so a later
-    // deterministically-better occurrence can replace the shared
-    // `children_by_id` entry without rewriting the package envelope.
+    // Child traversal is claimed first, and a later
+    // deterministically-better occurrence replaces the shared
+    // `children_by_id` entry — plus, since the two are two halves of
+    // one manifest reading, the envelope's peer dependencies.
     // Leaves (no deps / optional deps / peers / peerDependenciesMeta)
     // reuse the package id as their `NodeId`, collapsing every parent
     // edge onto one tree node. Non-leaves still get a fresh per-
@@ -1651,18 +2094,39 @@ where
     let is_leaf = is_link || pkg_is_leaf(&result);
     let node_id = if is_leaf { NodeId::leaf(&id) } else { NodeId::next() };
 
+    // The claim is taken while holding the `packages` lock so claims and
+    // envelope writes stay in the same order: an occurrence that lost the
+    // claim in between would otherwise leave its peer set on an envelope
+    // whose children the winning occurrence walked.
     let mut packages = lock_recoverable(&ctx.workspace.packages);
-    if let Some(existing) = packages.get_mut(&id) {
-        existing.optional = existing.optional && current_is_optional;
+    let children_owner = claim_children_owner(
+        ctx,
+        &id,
+        depth,
+        ancestor_ids,
+        peer_shadowed_dependencies(
+            result.manifest.as_deref(),
+            parent_pkg_aliases,
+            ctx.workspace.auto_install_peers,
+        ),
+    );
+    let peer_dependencies = if is_link {
+        BTreeMap::new()
     } else {
-        let peer_dependencies =
-            if is_link { BTreeMap::new() } else { extract_peer_dependencies(&result) };
-        {
-            let mut all_peers = lock_recoverable(&ctx.workspace.all_peer_dep_names);
-            for name in peer_dependencies.keys() {
-                all_peers.insert(name.clone());
-            }
+        extract_peer_dependencies(&result, &children_owner.peer_shadowed)
+    };
+    let package_is_new = if let Some(existing) = packages.get_mut(&id) {
+        existing.optional = existing.optional && current_is_optional;
+        // A fresh claim can shadow a different set of dependencies than
+        // the occurrence that populated the envelope did, which moves
+        // names between the package's children and its peers.
+        if children_owner.owns_children && existing.peer_dependencies != peer_dependencies {
+            register_peer_dep_names(ctx, &peer_dependencies);
+            existing.peer_dependencies = peer_dependencies;
         }
+        false
+    } else {
+        register_peer_dep_names(ctx, &peer_dependencies);
         packages.insert(
             id.clone(),
             ResolvedPackage {
@@ -1673,14 +2137,18 @@ where
                 is_leaf,
             },
         );
-    }
+        true
+    };
+    drop(packages);
 
-    emit_deprecation_if_needed(ctx, &result, &id, depth);
+    if package_is_new {
+        ctx.workspace.record_resolved_version(&result);
+        emit_deprecation_if_needed(ctx, &result, &id, depth);
+    }
 
     let next_ancestors: Vec<String> =
         ancestor_ids.iter().cloned().chain(std::iter::once(id.clone())).collect();
     let next_ancestors = Arc::new(next_ancestors);
-    let children_owner = claim_children_owner(ctx, &id, depth, ancestor_ids);
 
     Ok(NodeSeed::Pending(Box::new(PendingNode {
         result,
@@ -1696,10 +2164,34 @@ where
     })))
 }
 
+/// The name the edge installs under: the key its parent manifest
+/// declares, else the name the resolver resolved it under, else the
+/// resolved package's own name.
+// The manifest key has to come first: an importer entry is only
+// recorded for an alias the manifest declares, so an edge keyed by a
+// resolver alias that differs from its manifest key is dropped from the
+// lockfile importer.
+fn node_alias(
+    wanted: &WantedDependency,
+    result: &pacquet_resolving_resolver_base::ResolveResult,
+    id: &str,
+) -> String {
+    wanted
+        .alias
+        .clone()
+        .filter(|alias| !alias.is_empty())
+        .or_else(|| result.alias.clone())
+        .or_else(|| result.name_ver.as_ref().map(|name_ver| name_ver.name.to_string()))
+        .unwrap_or_else(|| id.to_string())
+}
+
 /// Walk a seeded node's children. `children_overlay` is the preferred-versions
 /// overlay covering this node's own level (built by the caller from
 /// every sibling seed); the grandchildren's overlay layers this
 /// node's resolved children on top, extending the per-level fold.
+/// `children_pkg_aliases` follows the same shape: the caller folds this
+/// node's whole level into the scope, and the grandchildren's scope
+/// layers this node's resolved children on top.
 ///
 /// Only the deterministic children owner walks this package's
 /// manifest children. Other occurrences stay lazy and expand from
@@ -1710,6 +2202,7 @@ async fn walk_node_children<Chain>(
     resolver: &Chain,
     pending: PendingNode,
     children_overlay: Option<Arc<PreferredVersionsOverlay>>,
+    children_pkg_aliases: Arc<ParentPkgAliases>,
 ) -> Result<Option<DirectDep>, ResolveDependencyTreeError>
 where
     Chain: Resolver + ?Sized,
@@ -1750,6 +2243,21 @@ where
                 .or_insert_with(|| Arc::clone(&specs));
             specs
         };
+        // The specs are cached unfiltered because which of them the
+        // package's own `peerDependencies` shadow is a property of the
+        // owner occurrence, not of the manifest.
+        let peer_shadowed = &children_owner.peer_shadowed;
+        let child_specs: Cow<'_, [ChildSpec]> = if peer_shadowed.is_empty() {
+            Cow::Borrowed(child_specs.as_slice())
+        } else {
+            Cow::Owned(
+                child_specs
+                    .iter()
+                    .filter(|(name, _, optional)| *optional || !peer_shadowed.contains(name))
+                    .cloned()
+                    .collect(),
+            )
+        };
         let child_specs =
             if result.resolved_via == "workspace" && result.id.as_str().starts_with("file:") {
                 Cow::Owned(
@@ -1762,7 +2270,7 @@ where
                         .collect::<Result<Vec<_>, _>>()?,
                 )
             } else {
-                Cow::Borrowed(child_specs.as_slice())
+                child_specs
             };
         // An *updated* parent (one that landed on a different version
         // than the lockfile recorded, or a new dep) discards its
@@ -1787,6 +2295,7 @@ where
         let direct_versions = lock_recoverable(&ctx.workspace.direct_dep_versions)
             .get(&ctx.importer_id)
             .map(Arc::clone);
+        let declaring_dir = declaring_manifest_dir(ctx, &result);
         let child_seeds = child_specs
             .iter()
             .map(|(child_name, child_range, child_optional)| {
@@ -1819,6 +2328,8 @@ where
                 }
                 let next_ancestors = Arc::clone(&next_ancestors);
                 let pick_overlay = children_overlay.clone();
+                let declaring_dir = declaring_dir.clone();
+                let parent_pkg_aliases = &children_pkg_aliases;
                 async move {
                     let seed = resolve_node_seed(
                         ctx,
@@ -1829,6 +2340,8 @@ where
                         current_is_optional,
                         ReuseSource::Transitive { key: child_prior },
                         pick_overlay,
+                        declaring_dir.as_deref(),
+                        parent_pkg_aliases,
                     )
                     .await?;
                     warm_children_resolutions(ctx, resolver, &seed).await;
@@ -1841,17 +2354,19 @@ where
             children_overlay.clone(),
             level_versions(ctx, &child_seeds),
         );
+        let grandchild_pkg_aliases = children_pkg_aliases.extend(level_aliases(&child_seeds));
         // Phase 2: walk each child's own children with the extended
         // overlay.
         let child_results = child_seeds
             .into_iter()
             .map(|seed| {
                 let overlay = grandchild_overlay.clone();
+                let pkg_aliases = Arc::clone(&grandchild_pkg_aliases);
                 async move {
                     match seed {
                         NodeSeed::Done(dep) => Ok(dep),
                         NodeSeed::Pending(pending) => {
-                            walk_node_children(ctx, resolver, *pending, overlay).await
+                            walk_node_children(ctx, resolver, *pending, overlay, pkg_aliases).await
                         }
                     }
                 }
@@ -2007,15 +2522,16 @@ where
     } else {
         opts
     };
-    let mut result = resolver
-        .resolve(wanted, opts)
-        .await
-        .map_err(|err: ResolveError| ResolveDependencyTreeError::Resolve(err.to_string()))?;
+    let mut result = resolver.resolve(wanted, opts).await.map_err(map_resolve_error)?;
     let Some(result_inner) = result.as_mut() else {
         return Err(ResolveDependencyTreeError::SpecNotSupported {
             specifier: render_specifier(wanted),
         });
     };
+    if result_inner.manifest.is_none() {
+        result_inner.manifest =
+            Some(Arc::new(fallback_manifest(wanted, opts.current_pkg.as_ref())));
+    }
     // Apply the configured `readPackageHook` (today:
     // `packageExtensions`) to the manifest fragment before
     // anything downstream sees it. The hook clones the inner `Value`
@@ -2049,12 +2565,6 @@ where
         result_inner.manifest = Some(updated);
     }
 
-    if ctx.workspace.auto_install_peers
-        && let Some(manifest) = result_inner.manifest.take()
-    {
-        result_inner.manifest = Some(omit_peer_shadowed_dependencies(manifest));
-    }
-
     let result = result.expect("Some-guarded above");
     // Wrap in `Arc` once so the cache, the per-id
     // `ResolvedPackage` envelope, and the later peer-resolved
@@ -2065,6 +2575,62 @@ where
         .entry(cache_key)
         .or_insert_with(|| Arc::clone(&result));
     Ok(result)
+}
+
+/// Stand in for the manifest a resolver didn't supply (pnpm's
+/// `getManifestFromResponse`).
+///
+/// Every consumer downstream of the resolver chain reads the package's
+/// identity off its manifest — most of all
+/// [`build_pkg_id_with_patch_hash`], which has no name to prefix the dep
+/// path with when there is none, leaving a bare `file:<path>` / URL that
+/// keys no `packages:` row. A package with no `package.json` of its own
+/// (an archive that ships none, a directory pin restored from the
+/// lockfile) still has to install, so it borrows the identity the
+/// lockfile recorded for it, or failing that its alias and `0.0.0` — the
+/// version pnpm writes into `packages:` for such a package.
+fn fallback_manifest(
+    wanted: &WantedDependency,
+    current_pkg: Option<&CurrentPkg>,
+) -> pacquet_resolving_resolver_base::DependencyManifest {
+    if let Some(current) = current_pkg
+        && let Some(name) = current.name.as_deref().filter(|name| !name.is_empty())
+        && let Some(version) = current.version.as_deref().filter(|version| !version.is_empty())
+    {
+        return serde_json::json!({ "name": name, "version": version });
+    }
+    let name = match wanted.alias.as_deref().filter(|alias| !alias.is_empty()) {
+        Some(alias) => alias,
+        // A specifier's last path segment is the closest thing to a name
+        // an unaliased dep carries: `file:./no-manifest-1.0.0.tgz` and
+        // `https://host/no-manifest-1.0.0.tgz` both name the archive.
+        None => wanted
+            .bare_specifier
+            .as_deref()
+            .unwrap_or_default()
+            .rsplit('/')
+            .next()
+            .unwrap_or_default(),
+    };
+    serde_json::json!({ "name": name, "version": "0.0.0" })
+}
+
+/// Wrap a resolver-chain failure, keeping the pnpm error code of the ones
+/// that carry one. The chain hands back a type-erased
+/// [`ResolveError`], which drops the `miette::Diagnostic` facet, so the codes
+/// that are part of pnpm's public contract are recovered by downcast; every
+/// other failure keeps the generic envelope.
+fn map_resolve_error(err: ResolveError) -> ResolveDependencyTreeError {
+    let err = match err.downcast::<NoMatchingVersionError>() {
+        Ok(no_matching_version) => {
+            return ResolveDependencyTreeError::NoMatchingVersion(*no_matching_version);
+        }
+        Err(err) => err,
+    };
+    match err.downcast::<RegistryResponseError>() {
+        Ok(response) => ResolveDependencyTreeError::RegistryResponse(*response),
+        Err(err) => ResolveDependencyTreeError::Resolve(err.to_string()),
+    }
 }
 
 /// Speculatively warm a freshly-seeded node's children resolutions so
@@ -2095,8 +2661,12 @@ where
     }
     let Ok(specs) = extract_children(&pending.result) else { return };
     let opts = ctx.opts_for_depth(pending.depth + 1);
+    let declaring_dir = declaring_manifest_dir(ctx, &pending.result);
     specs
         .iter()
+        .filter(|(name, _, optional)| {
+            *optional || !pending.children_owner.peer_shadowed.contains(name)
+        })
         .map(|(name, range, optional)| {
             let wanted = WantedDependency {
                 alias: Some(name.clone()),
@@ -2104,7 +2674,9 @@ where
                 optional: Some(*optional),
                 ..WantedDependency::default()
             };
+            let opts = opts_relative_to_declaring_manifest(opts, &wanted, declaring_dir.as_deref());
             async move {
+                let opts = opts.as_ref();
                 // Warm through the same per-wanted dedup cache, under
                 // the empty-overlay-view key: when the real pick's
                 // view is empty too (the overwhelmingly common case)
@@ -2125,13 +2697,28 @@ where
                     None,
                     Vec::new(),
                     ctx.update_cache_scope(),
-                    is_update_target(ctx.update_reuse_scope(), &wanted),
+                    is_update_target(ctx.update_scope(), &wanted, pending.depth + 1),
                 );
                 let _ = resolve_wanted_cached(ctx, resolver, &wanted, opts, None, cache_key).await;
             }
         })
         .pipe(future::join_all)
         .await;
+}
+
+/// The install aliases one resolved level contributes to its
+/// children's [`ParentPkgAliases`] scope. An edge the walk dropped (a
+/// cycle re-entry, a skipped optional) contributes nothing, matching
+/// pnpm's fold over the level's resolved addresses.
+fn level_aliases(seeds: &[NodeSeed]) -> HashSet<String> {
+    seeds
+        .iter()
+        .filter_map(|seed| match seed {
+            NodeSeed::Pending(pending) => Some(pending.alias.clone()),
+            NodeSeed::Done(Some(dep)) => Some(dep.alias.clone()),
+            NodeSeed::Done(None) => None,
+        })
+        .collect()
 }
 
 /// The `(name → versions)` additions one resolved level contributes
@@ -2167,7 +2754,11 @@ fn level_versions(ctx: &TreeCtx, seeds: &[NodeSeed]) -> BTreeMap<String, Vec<Str
 /// to compare against, so recording them would mark them "changed" on
 /// every install and permanently decline subtree reuse for anything
 /// depending on them.
-pub(crate) fn record_changed_direct_deps(ctx: &TreeCtx, importer_id: &str, wanted: &[WantedSpec]) {
+pub(crate) fn record_changed_direct_deps(
+    ctx: &TreeCtx,
+    importer_id: &str,
+    wanted: &[WantedSpec],
+) -> HashSet<PkgName> {
     let lockfile = ctx.workspace.wanted_lockfile.as_deref();
     let prior = lockfile.and_then(|lockfile| lockfile.importers.get(importer_id));
     let mut changed = lock_recoverable(&ctx.workspace.changed_direct_deps);
@@ -2182,6 +2773,7 @@ pub(crate) fn record_changed_direct_deps(ctx: &TreeCtx, importer_id: &str, wante
             bucket.insert(name);
         }
     }
+    bucket.clone()
 }
 
 /// Whether a `catalog:`-recorded direct dep still resolves to the same
@@ -2301,13 +2893,21 @@ struct ReusedNode {
 struct ChildrenOwnerClaim {
     owner: ChildrenOwner,
     owns_children: bool,
+    /// The shadowed-dependency set in force for the package id — this
+    /// occurrence's when it won the claim, the standing owner's when it
+    /// lost. See [`ChildrenOwnerEntry::peer_shadowed`].
+    peer_shadowed: Arc<HashSet<String>>,
 }
 
+/// `peer_shadowed` is this occurrence's own set; it is installed as the
+/// package id's set only when the occurrence wins the claim, so the
+/// losing occurrences of a concurrent claim all read back the winner's.
 fn claim_children_owner(
     ctx: &TreeCtx,
     pkg_id: &str,
     depth: i32,
     ancestor_ids: &[String],
+    peer_shadowed: HashSet<String>,
 ) -> ChildrenOwnerClaim {
     let owner = ChildrenOwner {
         update_active: !matches!(ctx.update_reuse_scope(), UpdateReuseScope::All),
@@ -2316,13 +2916,22 @@ fn claim_children_owner(
         parent_path: ancestor_ids.to_vec(),
         importer_id: ctx.importer_id.clone(),
     };
-    let owns_children = {
+    let (owns_children, peer_shadowed) = {
         let mut owners = lock_recoverable(&ctx.workspace.children_owner_by_id);
         match owners.get(pkg_id) {
-            Some(existing) if !owner.wins_over(existing) => false,
+            Some(existing) if !owner.wins_over(&existing.owner) => {
+                (false, Arc::clone(&existing.peer_shadowed))
+            }
             _ => {
-                owners.insert(pkg_id.to_string(), owner.clone());
-                true
+                let peer_shadowed = Arc::new(peer_shadowed);
+                owners.insert(
+                    pkg_id.to_string(),
+                    ChildrenOwnerEntry {
+                        owner: owner.clone(),
+                        peer_shadowed: Arc::clone(&peer_shadowed),
+                    },
+                );
+                (true, peer_shadowed)
             }
         }
     };
@@ -2330,13 +2939,22 @@ fn claim_children_owner(
         lock_recoverable(&ctx.workspace.first_importer_by_pkg)
             .insert(pkg_id.to_string(), owner.importer_id.clone());
     }
-    ChildrenOwnerClaim { owner, owns_children }
+    ChildrenOwnerClaim { owner, owns_children, peer_shadowed }
+}
+
+/// Seed the peer-walker's `parentPkgs` filter with the names a
+/// resolved package declares as peers.
+fn register_peer_dep_names(ctx: &TreeCtx, peer_dependencies: &BTreeMap<String, PeerDep>) {
+    let mut all_peers = lock_recoverable(&ctx.workspace.all_peer_dep_names);
+    for name in peer_dependencies.keys() {
+        all_peers.insert(name.clone());
+    }
 }
 
 fn is_current_children_owner(ctx: &TreeCtx, pkg_id: &str, owner: &ChildrenOwner) -> bool {
     lock_recoverable(&ctx.workspace.children_owner_by_id)
         .get(pkg_id)
-        .is_some_and(|current| current == owner)
+        .is_some_and(|current| current.owner == *owner)
 }
 
 fn remember_node_parent_ids(ctx: &TreeCtx, node_id: &NodeId, parent_ids: Arc<Vec<String>>) {
@@ -2346,6 +2964,7 @@ fn remember_node_parent_ids(ctx: &TreeCtx, node_id: &NodeId, parent_ids: Arc<Vec
 fn make_non_owner_nodes_lazy(ctx: &TreeCtx, pkg_id: &str, owner_node_id: &NodeId) {
     let parent_ids_by_node = lock_recoverable(&ctx.workspace.node_parent_ids_by_id).clone();
     let mut tree = lock_recoverable(&ctx.workspace.dependencies_tree);
+    let mut rewrote_any = false;
     for (node_id, node) in tree.iter_mut() {
         if node_id == owner_node_id || node.resolved_package_id != pkg_id {
             continue;
@@ -2355,6 +2974,10 @@ fn make_non_owner_nodes_lazy(ctx: &TreeCtx, pkg_id: &str, owner_node_id: &NodeId
         };
         node.children =
             crate::resolved_tree::TreeChildren::Lazy { parent_ids: Arc::clone(parent_ids) };
+        rewrote_any = true;
+    }
+    if rewrote_any {
+        ctx.workspace.record_children_rewrite();
     }
 }
 
@@ -2372,23 +2995,30 @@ fn try_reuse_node(
     ctx: &TreeCtx,
     wanted: &WantedDependency,
     prior_key: Option<&PkgNameVerPeer>,
+    depth: i32,
 ) -> Option<ReusedNode> {
     let lockfile = ctx.workspace.wanted_lockfile.as_ref()?;
-    if matches!(ctx.update_reuse_scope(), UpdateReuseScope::None) {
+    let scope = ctx.update_scope();
+    if matches!(scope.reuse, UpdateReuseScope::None) && scope.max_depth.reaches(depth) {
         return None;
     }
     let alias = wanted.alias.as_deref()?;
     let key = prior_key?;
-    if !subtree_fully_reusable(ctx, lockfile, key) {
+    if !subtree_fully_reusable(ctx, lockfile, key, depth) {
         return None;
     }
     let result = synthesize_reused_result(lockfile, key, alias)?;
     Some(ReusedNode { key: key.clone(), result })
 }
 
-/// `true` when `name` is a `pacquet update` target excluded from reuse.
-fn update_excludes(scope: &UpdateReuseScope, name: &str) -> bool {
-    match scope {
+/// `true` when a node named `name` at `depth` is a `pacquet update`
+/// target, and so excluded from reuse. Past the `--depth` ceiling the
+/// update no longer reaches, so every node keeps its locked resolution.
+fn update_excludes(scope: UpdateScope<'_>, name: &str, depth: i32) -> bool {
+    if !scope.max_depth.reaches(depth) {
+        return false;
+    }
+    match scope.reuse {
         UpdateReuseScope::All => false,
         // `None` is handled earlier in `try_reuse_node`; treat it the
         // same here for completeness.
@@ -2472,7 +3102,10 @@ fn pkgs_info_from_ids(
 /// [`fn@real_package_name_of`] it also yields the range and does not
 /// special-case the `npm:<range>` form, so the locked-entry check
 /// matches its TypeScript counterpart byte for byte.
-fn unwrap_package_name<'a>(alias: &'a str, bare_specifier: &'a str) -> (&'a str, &'a str) {
+pub(crate) fn unwrap_package_name<'a>(
+    alias: &'a str,
+    bare_specifier: &'a str,
+) -> (&'a str, &'a str) {
     let Some(rest) = bare_specifier.strip_prefix("npm:") else {
         return (alias, bare_specifier);
     };
@@ -2544,15 +3177,18 @@ fn real_package_name_of(wanted: &WantedDependency) -> Option<Cow<'_, str>> {
 /// picker's held-back-update warning.
 ///
 /// Returns `false` for `All`/`None` scopes (no individually targeted
-/// packages) and for `Except` scopes where the wanted package's real
-/// name is not in the target list. Returns `true` only when the real
-/// name is in the `Except` set.
+/// packages), for a node past the `--depth` ceiling, and for `Except`
+/// scopes where the wanted package's real name is not in the target
+/// list. Returns `true` only when the real name is in the `Except` set.
 #[inline]
-fn is_update_target(scope: &UpdateReuseScope, wanted: &WantedDependency) -> bool {
-    match scope {
+fn is_update_target(scope: UpdateScope<'_>, wanted: &WantedDependency, depth: i32) -> bool {
+    if !scope.max_depth.reaches(depth) {
+        return false;
+    }
+    match scope.reuse {
         UpdateReuseScope::All | UpdateReuseScope::None => false,
         UpdateReuseScope::Except(_) => {
-            real_package_name_of(wanted).is_some_and(|n| update_excludes(scope, n.as_ref()))
+            real_package_name_of(wanted).is_some_and(|n| update_excludes(scope, n.as_ref(), depth))
         }
     }
 }
@@ -2576,8 +3212,10 @@ fn subtree_fully_reusable(
     ctx: &TreeCtx,
     lockfile: &pacquet_lockfile::Lockfile,
     key: &PkgNameVerPeer,
+    depth: i32,
 ) -> bool {
-    let memo_key = (ctx.update_cache_scope(), key.clone());
+    let scope = ctx.update_scope();
+    let memo_key = (ctx.update_cache_scope(), key.clone(), scope.max_depth.memo_bucket(depth));
     if let Some(&cached) = lock_recoverable(&ctx.workspace.subtree_reusable).get(&memo_key) {
         return cached;
     }
@@ -2587,11 +3225,11 @@ fn subtree_fully_reusable(
     lock_recoverable(&ctx.workspace.subtree_reusable).insert(memo_key.clone(), false);
     // A `pacquet update` target anywhere in the subtree forces the whole
     // subtree to re-resolve so the bump's new transitive deps are picked
-    // up — update names match at any depth.
+    // up — update names match at every depth the update reaches.
     let name = key.name.to_string();
-    let reusable = !update_excludes(ctx.update_reuse_scope(), &name)
+    let reusable = !update_excludes(scope, &name, depth)
         && synthesize_reused_result(lockfile, key, &name).is_some()
-        && subtree_children_reusable(ctx, lockfile, key);
+        && subtree_children_reusable(ctx, lockfile, key, depth);
     lock_recoverable(&ctx.workspace.subtree_reusable).insert(memo_key, reusable);
     reusable
 }
@@ -2604,6 +3242,7 @@ fn subtree_children_reusable(
     ctx: &TreeCtx,
     lockfile: &pacquet_lockfile::Lockfile,
     key: &PkgNameVerPeer,
+    depth: i32,
 ) -> bool {
     let Some(snapshot) = lockfile.snapshots.as_ref().and_then(|snaps| snaps.get(key)) else {
         // No snapshot entry → the lockfile doesn't record this node's
@@ -2621,7 +3260,7 @@ fn subtree_children_reusable(
             let Some(child_key) = dep_ref.resolve(child_name) else {
                 return false;
             };
-            if !subtree_fully_reusable(ctx, lockfile, &child_key) {
+            if !subtree_fully_reusable(ctx, lockfile, &child_key, depth + 1) {
                 return false;
             }
         }
@@ -2635,6 +3274,10 @@ fn subtree_children_reusable(
 /// [`fn@resolve_node`], specialized for a node whose subtree
 /// [`fn@try_reuse_node`] already confirmed reusable.
 #[async_recursion]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "internal walker helper threading per-node context through the recursion"
+)]
 async fn resolve_reused_node<Chain>(
     ctx: &TreeCtx,
     resolver: &Chain,
@@ -2643,6 +3286,7 @@ async fn resolve_reused_node<Chain>(
     depth: i32,
     current_is_optional: bool,
     reused: ReusedNode,
+    parent_pkg_aliases: &Arc<ParentPkgAliases>,
 ) -> Result<Option<DirectDep>, ResolveDependencyTreeError>
 where
     Chain: Resolver + ?Sized,
@@ -2668,12 +3312,7 @@ where
         return Ok(None);
     }
 
-    let alias = result
-        .alias
-        .clone()
-        .or_else(|| wanted.alias.clone())
-        .or_else(|| result.name_ver.as_ref().map(|nv| nv.name.to_string()))
-        .unwrap_or_else(|| id.clone());
+    let alias = node_alias(&wanted, &result, &id);
 
     // Leaf classification reads the snapshot graph (the source of truth
     // for a reused node's children), not the synthesized manifest (whose
@@ -2685,15 +3324,19 @@ where
         .as_ref()
         .and_then(|lockfile| lockfile.snapshots.as_ref())
         .and_then(|snaps| snaps.get(&key));
-    let peer_dependencies = extract_peer_dependencies(&result);
+    // A reused node's children come from the snapshot rather than from
+    // a manifest, so no `dependencies` entry of its synthesized
+    // manifest can be peer-shadowed.
+    let peer_dependencies = extract_peer_dependencies(&result, &HashSet::new());
     let child_refs = snapshot_child_refs(snapshot, &peer_dependencies);
     let is_leaf = child_refs.is_empty() && peer_dependencies.is_empty();
     let node_id = if is_leaf { NodeId::leaf(&id) } else { NodeId::next() };
 
-    {
+    let package_is_new = {
         let mut packages = lock_recoverable(&ctx.workspace.packages);
         if let Some(existing) = packages.get_mut(&id) {
             existing.optional = existing.optional && current_is_optional;
+            false
         } else {
             {
                 let mut all_peers = lock_recoverable(&ctx.workspace.all_peer_dep_names);
@@ -2711,15 +3354,19 @@ where
                     is_leaf,
                 },
             );
+            true
         }
-    }
+    };
 
-    emit_deprecation_if_needed(ctx, &result, &id, depth);
+    if package_is_new {
+        ctx.workspace.record_resolved_version(&result);
+        emit_deprecation_if_needed(ctx, &result, &id, depth);
+    }
 
     let next_ancestors: Vec<String> =
         ancestor_ids.iter().cloned().chain(std::iter::once(id.clone())).collect();
     let next_ancestors = Arc::new(next_ancestors);
-    let children_owner = claim_children_owner(ctx, &id, depth, ancestor_ids);
+    let children_owner = claim_children_owner(ctx, &id, depth, ancestor_ids, HashSet::new());
 
     let children = if children_owner.owns_children {
         let child_results = child_refs
@@ -2745,6 +3392,7 @@ where
                         depth + 1,
                         current_is_optional,
                         ReuseSource::Transitive { key: Some(child_key) },
+                        parent_pkg_aliases,
                     )
                     .await
                 }
@@ -2992,25 +3640,52 @@ fn render_specifier(wanted: &WantedDependency) -> String {
 /// `optionalDependencies`. The walker propagates this through
 /// `current_is_optional` so [`ResolvedPackage::optional`] reflects
 /// whether every path to the node went through an optional edge.
+///
+/// Names the manifest bundles are dropped: npm ships them inside the
+/// package's own tarball, so resolving them again would install a
+/// second copy the package never loads.
 fn extract_children(
     result: &pacquet_resolving_resolver_base::ResolveResult,
 ) -> Result<Vec<ChildSpec>, ResolveDependencyTreeError> {
     let Some(manifest) = result.manifest.as_ref() else { return Ok(Vec::new()) };
     let parent = render_parent(result);
+    let bundled = bundled_dependency_names(manifest);
     let mut out = Vec::new();
-    collect_deps(manifest, "dependencies", false, &parent, &mut out)?;
-    collect_deps(manifest, "optionalDependencies", true, &parent, &mut out)?;
+    collect_deps(manifest, "dependencies", false, &parent, &bundled, &mut out)?;
+    collect_deps(manifest, "optionalDependencies", true, &parent, &bundled, &mut out)?;
     for (name, specifier) in engines_runtime_dependencies(manifest, "engines", "dependencies") {
         out.push((name.to_string(), specifier, false));
     }
     Ok(out)
 }
 
+/// The dependency names a manifest declares as bundled, read from
+/// `bundledDependencies` with `bundleDependencies` as the fallback
+/// spelling. `true` stands for "every entry in `dependencies`".
+fn bundled_dependency_names(manifest: &Value) -> HashSet<&str> {
+    let bundled = ["bundledDependencies", "bundleDependencies"]
+        .into_iter()
+        .find_map(|key| manifest.get(key).filter(|value| !value.is_null()));
+    match bundled {
+        Some(Value::Bool(true)) => manifest
+            .get("dependencies")
+            .and_then(Value::as_object)
+            .map(|map| map.keys().map(String::as_str).collect())
+            .unwrap_or_default(),
+        Some(Value::Array(names)) => names.iter().filter_map(Value::as_str).collect(),
+        _ => HashSet::new(),
+    }
+}
+
+/// Dependency names are validated before the bundled filter runs, so a
+/// manifest with an unusable alias is rejected whether or not the
+/// package bundles that alias.
 fn collect_deps(
     manifest: &Value,
     key: &str,
     optional: bool,
     parent: &str,
+    bundled: &HashSet<&str>,
     out: &mut Vec<ChildSpec>,
 ) -> Result<(), ResolveDependencyTreeError> {
     let Some(map) = manifest.get(key).and_then(Value::as_object) else { return Ok(()) };
@@ -3021,6 +3696,9 @@ fn collect_deps(
                     parent: parent.to_string(),
                     alias: name.clone(),
                 });
+            }
+            if bundled.contains(name.as_str()) {
+                continue;
             }
             out.push((name.clone(), range_str.to_string(), optional));
         }
@@ -3040,28 +3718,28 @@ fn render_parent(result: &pacquet_resolving_resolver_base::ResolveResult) -> Str
 /// `peerDependenciesMeta[name].optional` folded onto each entry. The
 /// package's own name plus names also present in `dependencies` or
 /// `optionalDependencies` are skipped because those edges already
-/// supply the same package directly. Under `autoInstallPeers`,
-/// [`omit_peer_shadowed_dependencies`] has already dropped
-/// peer-shadowed names from `dependencies`, so those peers survive
-/// here. A `peerDependenciesMeta` entry without a matching
-/// `peerDependencies` entry only counts when `optional: true` — it is
-/// treated as an optional `"*"` peer exactly like an explicitly
-/// declared one, and non-optional meta-only entries are ignored.
+/// supply the same package directly — except for the `peer_shadowed`
+/// names, whose own-dependency edge the walk drops in favor of the peer
+/// (see [`peer_shadowed_dependencies`]). A `peerDependenciesMeta` entry
+/// without a matching `peerDependencies` entry only counts when
+/// `optional: true` — it is treated as an optional `"*"` peer exactly
+/// like an explicitly declared one, and non-optional meta-only entries
+/// are ignored.
 fn extract_peer_dependencies(
     result: &pacquet_resolving_resolver_base::ResolveResult,
+    peer_shadowed: &HashSet<String>,
 ) -> BTreeMap<String, PeerDep> {
     let Some(manifest) = result.manifest.as_ref() else { return BTreeMap::new() };
     let mut peers: BTreeMap<String, PeerDep> = BTreeMap::new();
 
-    let mut own_deps: HashSet<String> = ["dependencies", "optionalDependencies"]
-        .iter()
-        .flat_map(|key| {
-            manifest
-                .get(*key)
-                .and_then(Value::as_object)
-                .into_iter()
-                .flat_map(|map| map.keys().cloned())
-        })
+    let dep_names = |key| {
+        manifest.get(key).and_then(Value::as_object).into_iter().flat_map(|map| map.keys().cloned())
+    };
+    // Only `dependencies` are shadowed, so an entry that is *also* an
+    // optional dependency still supplies the name itself.
+    let mut own_deps: HashSet<String> = dep_names("dependencies")
+        .filter(|name| !peer_shadowed.contains(name))
+        .chain(dep_names("optionalDependencies"))
         .collect();
     if let Some(name) = manifest.get("name").and_then(Value::as_str) {
         own_deps.insert(name.to_string());
@@ -3098,42 +3776,13 @@ fn extract_peer_dependencies(
     peers
 }
 
-/// Drop a resolved package's `dependencies` entries that are shadowed
-/// by its own `peerDependencies`, so the peer edge (satisfied from an
-/// ancestor or auto-installed at the importer) supplies the package
-/// instead of a nested copy. Only applies under `autoInstallPeers`.
-/// (Without `autoInstallPeers`, only peers resolvable from the parent
-/// scope would be omitted; pacquet's per-package children cache has no
-/// parent context, so that arm is not modeled and the own dependency
-/// keeps winning, which is correct whenever the peer is not in scope.)
-fn omit_peer_shadowed_dependencies(manifest: Arc<Value>) -> Arc<Value> {
-    let shadowed: Vec<String> = {
-        let Some(peers) = manifest.get("peerDependencies").and_then(Value::as_object) else {
-            return manifest;
-        };
-        let Some(deps) = manifest.get("dependencies").and_then(Value::as_object) else {
-            return manifest;
-        };
-        deps.keys().filter(|name| peers.contains_key(*name)).cloned().collect()
-    };
-    if shadowed.is_empty() {
-        return manifest;
-    }
-    let mut updated = (*manifest).clone();
-    if let Some(deps) = updated.get_mut("dependencies").and_then(Value::as_object_mut) {
-        for name in &shadowed {
-            deps.remove(name);
-        }
-    }
-    Arc::new(updated)
-}
-
 /// `true` when the package has no `dependencies`, `optionalDependencies`,
 /// `peerDependencies`, or `peerDependenciesMeta`.
 ///
-/// Conservatively returns `false` when the manifest is missing — a
-/// future visit may reveal children, and collapsing onto a leaf
-/// `NodeId` would lose that information.
+/// Conservatively returns `false` when the manifest is missing —
+/// collapsing onto a leaf `NodeId` would claim knowledge of children
+/// there is none of. Resolutions reaching here always carry one, real
+/// or synthesized by [`fallback_manifest`].
 fn pkg_is_leaf(result: &pacquet_resolving_resolver_base::ResolveResult) -> bool {
     let Some(manifest) = result.manifest.as_ref() else { return false };
     is_empty_or_absent(manifest.get("dependencies"))
@@ -3146,10 +3795,8 @@ fn is_empty_or_absent(value: Option<&Value>) -> bool {
     value.and_then(Value::as_object).is_none_or(serde_json::Map::is_empty)
 }
 
-/// Emits a [`Deprecation`] when the manifest carries a non-empty
-/// `deprecated` field not covered by `allowedDeprecatedVersions`.
-/// Re-emits at a shallower depth so a direct dependency is never
-/// misclassified as transitive.
+/// Emits a [`Deprecation`] when a newly-resolved package's manifest carries
+/// a non-empty `deprecated` field not covered by `allowedDeprecatedVersions`.
 fn emit_deprecation_if_needed(
     ctx: &TreeCtx,
     result: &pacquet_resolving_resolver_base::ResolveResult,
@@ -3167,15 +3814,6 @@ fn emit_deprecation_if_needed(
     };
     if is_deprecation_allowed(&pkg_name, &pkg_version, &ctx.workspace.allowed_deprecated_versions) {
         return;
-    }
-    {
-        let mut depths = lock_recoverable(&ctx.workspace.deprecation_depths);
-        if let Some(prev) = depths.get(id)
-            && depth >= *prev
-        {
-            return;
-        }
-        depths.insert(id.to_string(), depth);
     }
     let Some(log) = ctx.workspace.deprecation_log.as_ref() else {
         return;

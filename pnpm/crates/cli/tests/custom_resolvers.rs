@@ -101,8 +101,19 @@ fn should_refresh_resolution_forces_re_resolution_past_the_frozen_path() {
     pacquet.with_arg("install").assert().success();
     assert_eq!(installed_version(&workspace), "100.0.0");
 
-    // Second install: manifest and lockfile are unchanged, so without
-    // the hook the install would go frozen and re-resolve nothing.
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/dep-of-pkg-with-1-dep": ">=100.0.0 <101",
+            },
+        })
+        .to_string(),
+    )
+    .expect("update dependency range");
+
+    // Second install: the changed range still accepts the locked version,
+    // so without the hook the install would keep that resolution.
     // `shouldRefreshResolution` returning true must force the
     // fresh-resolve path, where the custom resolver now overrides the
     // pinned version.
@@ -115,6 +126,10 @@ fn should_refresh_resolution_forces_re_resolution_past_the_frozen_path() {
     assert!(
         lockfile.contains("@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0"),
         "lockfile records the refreshed resolution: {lockfile}",
+    );
+    assert!(
+        lockfile.contains("specifier: '>=100.0.0 <101'"),
+        "lockfile records the updated range: {lockfile}",
     );
 
     drop((root, mock_instance)); // cleanup
@@ -142,7 +157,11 @@ fn failing_should_refresh_resolution_aborts_the_install() {
 
     let output = pacquet_at(&workspace).with_arg("install").assert().failure();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr).into_owned();
-    assert!(stderr.contains("refresh check crashed"), "stderr: {stderr}");
+    // miette wraps the report at the terminal width, and where the wrap
+    // falls depends on the temp-dir path length in the message, so the
+    // phrase is matched with the wrapping collapsed.
+    let unwrapped = stderr.split_whitespace().collect::<Vec<_>>().join(" ");
+    assert!(unwrapped.contains("refresh check crashed"), "stderr: {stderr}");
 
     drop((root, mock_instance)); // cleanup
 }

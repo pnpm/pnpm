@@ -6,6 +6,7 @@ mod global_bin_check;
 pub mod matcher;
 pub mod naming_cases;
 mod npmrc_auth;
+mod override_version_references;
 pub mod property_path;
 pub mod protected_settings;
 mod store_path;
@@ -37,20 +38,20 @@ use std::{
 pub use crate::defaults::{
     GLOBAL_LAYOUT_VERSION, PNPM_VERSION, available_parallelism, default_config_dir,
     default_git_shallow_hosts, default_peers_suffix_max_length, default_pnpm_home_dir,
-    default_unsafe_perm, default_virtual_store_dir_max_length, default_workspace_concurrency,
-    is_unsafe_perm_posix, resolve_child_concurrency,
+    default_registry, default_unsafe_perm, default_virtual_store_dir_max_length,
+    default_workspace_concurrency, is_unsafe_perm_posix, resolve_child_concurrency,
 };
 use crate::defaults::{
     default_cache_dir, default_child_concurrency, default_enable_global_virtual_store,
     default_fetch_retries, default_fetch_retry_factor, default_fetch_retry_maxtimeout,
     default_fetch_retry_mintimeout, default_fetch_timeout, default_hoist_pattern,
     default_modules_cache_max_age, default_modules_dir, default_public_hoist_pattern,
-    default_registry, default_store_dir, default_user_agent, default_virtual_store_dir,
+    default_store_dir, default_user_agent, default_virtual_store_dir,
 };
 pub use workspace_yaml::{
-    AuditSettings, GLOBAL_CONFIG_YAML_FILENAME, LoadWorkspaceYamlError, PackageExtension,
-    PeerDependencyMeta, PeerDependencyRules, UpdateConfig, UpdateSettings,
-    WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, workspace_root_or,
+    AllowBuild, AuditSettings, GLOBAL_CONFIG_YAML_FILENAME, LoadWorkspaceYamlError,
+    PackageExtension, PeerDependencyMeta, PeerDependencyRules, UpdateConfig, UpdateSettings,
+    WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, decided_allow_builds, workspace_root_or,
 };
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -137,6 +138,18 @@ pub enum PmOnFail {
     Error,
     Warn,
     Ignore,
+}
+
+impl PmOnFail {
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Download => "download",
+            Self::Error => "error",
+            Self::Warn => "warn",
+            Self::Ignore => "ignore",
+        }
+    }
 }
 
 /// What to do when a runtime declared through `devEngines.runtime` or
@@ -429,6 +442,75 @@ impl<'de> serde::Deserialize<'de> for LinkWorkspacePackages {
                     other => Err(DeError::invalid_value(
                         de::Unexpected::Str(other),
                         &r#"true, false, or "deep""#,
+                    )),
+                }
+            }
+        }
+        deserializer.deserialize_any(V)
+    }
+}
+
+/// `saveWorkspaceProtocol`. How a dependency linked to a workspace
+/// package is written back to `package.json`.
+///
+/// The setting is `saveWorkspaceProtocol: boolean | 'rolling'`. Default
+/// is [`SaveWorkspaceProtocol::Rolling`]
+/// (`'save-workspace-protocol': 'rolling'`).
+///
+/// [`SaveWorkspaceProtocol::Off`] only suppresses the `workspace:`
+/// prefix for a dependency that did not already declare one; a
+/// `workspace:` specifier always keeps its protocol, so the two
+/// non-rolling states behave alike wherever the protocol is already
+/// present.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum SaveWorkspaceProtocol {
+    /// `false`.
+    Off,
+    /// `true`. The resolved version is written under the protocol,
+    /// keeping the range operator the dependency already declared
+    /// (`workspace:^1.2.3`).
+    On,
+    /// `"rolling"`. The range operator is written without a version
+    /// (`workspace:*`, `workspace:^`, `workspace:~`), so the entry
+    /// never needs rewriting when the workspace package's version
+    /// changes.
+    #[default]
+    Rolling,
+}
+
+impl serde::Serialize for SaveWorkspaceProtocol {
+    fn serialize<Ser: serde::Serializer>(&self, serializer: Ser) -> Result<Ser::Ok, Ser::Error> {
+        match self {
+            SaveWorkspaceProtocol::Off => serializer.serialize_bool(false),
+            SaveWorkspaceProtocol::On => serializer.serialize_bool(true),
+            SaveWorkspaceProtocol::Rolling => serializer.serialize_str("rolling"),
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for SaveWorkspaceProtocol {
+    fn deserialize<De>(deserializer: De) -> Result<Self, De::Error>
+    where
+        De: serde::Deserializer<'de>,
+    {
+        use serde::de::{self, Visitor};
+        use std::fmt;
+
+        struct V;
+        impl Visitor<'_> for V {
+            type Value = SaveWorkspaceProtocol;
+            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.write_str(r#"a boolean or the string "rolling""#)
+            }
+            fn visit_bool<DeError: de::Error>(self, value: bool) -> Result<Self::Value, DeError> {
+                Ok(if value { SaveWorkspaceProtocol::On } else { SaveWorkspaceProtocol::Off })
+            }
+            fn visit_str<DeError: de::Error>(self, value: &str) -> Result<Self::Value, DeError> {
+                match value {
+                    "rolling" => Ok(SaveWorkspaceProtocol::Rolling),
+                    other => Err(DeError::invalid_value(
+                        de::Unexpected::Str(other),
+                        &r#"true, false, or "rolling""#,
                     )),
                 }
             }
@@ -766,6 +848,16 @@ pub struct Config {
     #[default = true]
     pub prefer_frozen_lockfile: bool,
 
+    /// The `frozenLockfile` setting: `install` neither re-resolves nor
+    /// writes `pnpm-lock.yaml`, and fails when the lockfile is out of
+    /// date with the manifests.
+    ///
+    /// `None` — the default — means "not configured", which the CLI
+    /// distinguishes from an explicit `false` (`--no-frozen-lockfile`)
+    /// so the two can layer over each other in the usual
+    /// CLI-beats-config order.
+    pub frozen_lockfile: Option<bool>,
+
     /// When `true`, `pacquet install` performs a workspace-state
     /// freshness check before any of the install setup runs and
     /// returns immediately ("Already up to date") if nothing has
@@ -968,6 +1060,12 @@ pub struct Config {
     /// [`LinkWorkspacePackages`] for the tri-state semantics.
     /// Default `false` (`'link-workspace-packages': false`).
     pub link_workspace_packages: LinkWorkspacePackages,
+
+    /// `saveWorkspaceProtocol`. How `pacquet update --workspace`
+    /// writes a dependency it links to a workspace package. See
+    /// [`SaveWorkspaceProtocol`].
+    /// Default `"rolling"` (`'save-workspace-protocol': 'rolling'`).
+    pub save_workspace_protocol: SaveWorkspaceProtocol,
 
     /// `injectWorkspacePackages` from `pnpm-workspace.yaml`. When
     /// `true`, workspace-package resolutions materialize as `file:`
@@ -1406,6 +1504,10 @@ pub struct Config {
     /// dependency walk runs. A CLI-only array.
     pub filter_prod: Vec<String>,
 
+    /// `--workspace-root` / `-w`: run the command on the root workspace
+    /// project. CLI-only, like [`Self::filter`].
+    pub workspace_root: bool,
+
     /// `testPattern` from `pnpm-workspace.yaml` /
     /// `PNPM_CONFIG_TEST_PATTERN`, overridable by the `--test-pattern`
     /// CLI flag. Glob patterns naming test files: when a `[<since>]`
@@ -1634,10 +1736,19 @@ pub struct Config {
     /// `catalog:`/`catalog:<name>` to the manifest and inserts the
     /// entry into `pnpm-workspace.yaml` even under
     /// [`CatalogMode::Manual`]. The `saveCatalogName` setting (default
-    /// `undefined`). A CLI-only flag, so pacquet does not read it from
-    /// `pnpm-workspace.yaml`; the effective value is threaded onto the
-    /// `add` command from the CLI.
+    /// `undefined`).
     pub save_catalog_name: Option<String>,
+
+    /// The range operator `pnpm add` prepends to a resolved version
+    /// when saving it: `^` (the default), `~`, or `""` for an exact
+    /// pin. The `savePrefix` setting, overridden per-invocation by
+    /// `--save-prefix` / `--save-exact`.
+    pub save_prefix: Option<String>,
+
+    /// Whether `pnpm add` also records the new dependency in
+    /// `peerDependencies` (and saves it as a dev dependency). The
+    /// `savePeer` setting, equivalent to passing `--save-peer`.
+    pub save_peer: bool,
 
     /// Whether the configured registry returns the per-version `time`
     /// field in its *abbreviated* metadata. When `false` (the default),
@@ -1963,6 +2074,19 @@ impl Config {
         self.public_hoist_pattern = Some(Vec::new());
     }
 
+    /// Apply the legacy `shamefullyHoist` setting to the public hoist pattern.
+    ///
+    /// This runs after all config sources have been merged because an explicit
+    /// `shamefullyHoist` value takes precedence over `publicHoistPattern`
+    /// regardless of which source supplied either setting.
+    fn apply_shamefully_hoist_derivation(&mut self) {
+        match self.explicit_settings.get("shamefullyHoist").and_then(serde_json::Value::as_bool) {
+            Some(true) => self.public_hoist_pattern = Some(vec!["*".to_string()]),
+            Some(false) => self.public_hoist_pattern = None,
+            None => {}
+        }
+    }
+
     /// Restore the smart default store after a higher-precedence config
     /// source explicitly clears `storeDir`.
     pub fn reset_store_dir_to_default<Sys>(&mut self, start_dir: &Path)
@@ -2065,11 +2189,11 @@ impl Config {
         Ok(Some(calc_patch_hashes(resolved)?))
     }
 
-    /// Build the runtime config by layering:
-    /// 1. hard-coded defaults, then
-    /// 2. the supported `.npmrc` subset read from the nearest `.npmrc`
-    ///    (cwd, falling back to home), then
-    /// 3. the nearest `pnpm-workspace.yaml` walking up from cwd.
+    /// Load the merged configuration for a CLI run.
+    ///
+    /// Config sources (low → high precedence): `SmartDefault`, the supported
+    /// `.npmrc` subset (cwd, falling back to home), global `config.yaml`,
+    /// project `pnpm-workspace.yaml`, then `PNPM_CONFIG_*` env.
     ///
     /// Pacquet currently applies `registry`, scoped registry routes,
     /// npm-auth credentials, the
@@ -2081,14 +2205,33 @@ impl Config {
     /// ignored here. Those must come from `pnpm-workspace.yaml` or CLI
     /// flags, matching pnpm 11.
     ///
-    /// The yaml wins over `.npmrc` on any key it sets.
-    ///
     /// Returns [`LoadWorkspaceYamlError`] when an existing
-    /// `pnpm-workspace.yaml` cannot be read or parsed.
-    /// A missing file is not an error.
-    pub fn current<Sys>(
+    /// `pnpm-workspace.yaml` cannot be read or parsed. A missing file is not
+    /// an error.
+    pub fn current<Sys>(self, start_dir: &std::path::Path) -> Result<Self, LoadWorkspaceYamlError>
+    where
+        Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
+    {
+        self.current_inner::<Sys>(start_dir, false)
+    }
+
+    /// Like [`Config::current`], but the project `pnpm-workspace.yaml` does
+    /// not contribute the `minimumReleaseAge` / `trustPolicy` policies — see
+    /// [`WorkspaceSettings::clear_self_update_policy`].
+    pub fn current_for_self_update<Sys>(
+        self,
+        start_dir: &std::path::Path,
+    ) -> Result<Self, LoadWorkspaceYamlError>
+    where
+        Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
+    {
+        self.current_inner::<Sys>(start_dir, true)
+    }
+
+    fn current_inner<Sys>(
         mut self,
         start_dir: &std::path::Path,
+        for_self_update: bool,
     ) -> Result<Self, LoadWorkspaceYamlError>
     where
         Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
@@ -2184,9 +2327,11 @@ impl Config {
         // Build the merge sources in priority order (high → low):
         // project `.npmrc` > `auth.ini` > user-level `.npmrc`. Each is
         // parsed and rescoped independently before being folded together.
-        let parse_trusted_source = |text: String, dir: PathBuf, label: &str| {
+        // The rescope warning names the file it read, so each source
+        // labels itself with the path it was actually loaded from.
+        let parse_trusted_source = |text: String, dir: PathBuf, path: &Path| {
             let mut auth = NpmrcAuth::from_ini::<Sys>(&text, &dir);
-            auth.rescope_unscoped(label);
+            auth.rescope_unscoped(&path.display().to_string());
             auth
         };
         let project_npmrc_dir =
@@ -2210,12 +2355,12 @@ impl Config {
             } else {
                 NpmrcAuth::from_project_ini::<Sys>(&text, project_npmrc_dir)
             };
-            auth.rescope_unscoped("<project>/.npmrc");
+            auth.rescope_unscoped(&project_npmrc_path.display().to_string());
             auth
         });
         let auth_ini_source = global_config_dir.as_deref().and_then(|dir| {
-            read_npmrc_file(&dir.join("auth.ini"))
-                .map(|text| parse_trusted_source(text, dir.to_path_buf(), "auth.ini"))
+            let path = dir.join("auth.ini");
+            read_npmrc_file(&path).map(|text| parse_trusted_source(text, dir.to_path_buf(), &path))
         });
         let user_source = match &user_npmrc_path {
             Some(path) => read_npmrc_file(path).map(|text| {
@@ -2224,10 +2369,11 @@ impl Config {
                 // that's the empty path — i.e. the process cwd — never
                 // the file itself.
                 let dir = path.parent().map(std::path::Path::to_path_buf).unwrap_or_default();
-                parse_trusted_source(text, dir, "<user>/.npmrc")
+                parse_trusted_source(text, dir, path)
             }),
             None => Sys::home_dir().and_then(|dir| {
-                read_npmrc(&dir).map(|text| parse_trusted_source(text, dir, "~/.npmrc"))
+                let path = dir.join(".npmrc");
+                read_npmrc(&dir).map(|text| parse_trusted_source(text, dir, &path))
             }),
         };
 
@@ -2396,6 +2542,12 @@ impl Config {
             if !virtual_store_dir_explicit {
                 self.virtual_store_dir = base_dir.join("node_modules/.pnpm");
             }
+            // The workspace root is structural context (env-lockfile reads/
+            // writes, pin persistence), not a "setting" — set it whenever a
+            // workspace is discovered, even on the `NPM_CONFIG_WORKSPACE_DIR`
+            // path when the yaml file is missing and `apply_to` (which also
+            // writes it) never runs.
+            self.workspace_dir = Some(base_dir.clone());
             if let Some(mut settings) = settings {
                 // `|=` rather than `=` so an `enableGlobalVirtualStore` /
                 // `virtualStoreDir` set in the global `config.yaml` still
@@ -2406,8 +2558,21 @@ impl Config {
                 store_dir_explicit |= settings.store_dir.is_some();
                 settings.substitute_env_untrusted::<Sys>();
                 self.http_proxy_is_explicit |= has_nonempty_string(settings.http_proxy.as_deref());
+                if for_self_update {
+                    settings.clear_self_update_policy();
+                }
                 collect_explicit_settings(&mut self.explicit_settings, &settings);
                 settings.apply_to(&mut self, &base_dir);
+                // `overrides` reaches `Config` only from the workspace
+                // yaml (the global config.yaml is stripped of the key,
+                // and no `PNPM_CONFIG_*` var carries a map), so the
+                // `$dep-name` values it may hold are resolved here,
+                // against the workspace root's manifest.
+                if let Some(overrides) = self.overrides.as_mut() {
+                    crate::override_version_references::resolve_version_references(
+                        overrides, &base_dir,
+                    )?;
+                }
             }
         }
 
@@ -2493,6 +2658,7 @@ impl Config {
             global_virtual_store_dir_explicit,
         );
 
+        self.apply_shamefully_hoist_derivation();
         self.apply_virtual_store_only_derivation();
 
         // Resolve the global install directories:

@@ -1,4 +1,4 @@
-export { formatAuthUrlMessage } from './formatAuthUrlMessage.js'
+export { formatAuthUrlMessage, formatAuthUrlOnlyMessage } from './formatAuthUrlMessage.js'
 export { generateQrCode } from './generateQrCode.js'
 export {
   pollForWebAuthToken,

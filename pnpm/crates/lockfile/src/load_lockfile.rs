@@ -9,6 +9,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
+const DEFAULT_YAML_MAX_EVENTS: usize = 1_000_000;
+const DEFAULT_YAML_MAX_NODES: usize = 250_000;
+
 /// Error when reading lockfile the filesystem.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
@@ -102,22 +105,39 @@ impl Lockfile {
         }
     }
 
+    /// Parse lockfile text that was read from `file_path` — the path is
+    /// only used to name the file in a parse error. Returns `Ok(None)`
+    /// for the same empty-document cases as
+    /// [`Self::load_wanted_from_dir`], so a caller holding an in-memory
+    /// snapshot of the file gets the same value the loader would.
+    pub fn parse(content: &str, file_path: &Path) -> Result<Option<Self>, LoadLockfileError> {
+        let main = extract_main_document(content);
+        if main.trim().is_empty() {
+            return Ok(None);
+        }
+        serde_saphyr::from_str_with_options::<Self>(
+            main,
+            serde_saphyr::options! {
+                budget: serde_saphyr::budget! {
+                    max_events: main.len().max(DEFAULT_YAML_MAX_EVENTS),
+                    max_nodes: main.len().max(DEFAULT_YAML_MAX_NODES),
+                },
+            },
+        )
+        .map(|mut lockfile| {
+            lockfile.reconstruct_missing_directory_resolutions();
+            Some(lockfile)
+        })
+        .map_err(|source| LoadLockfileError::parse_yaml(file_path, &source))
+    }
+
     fn load_from_path(file_path: &Path) -> Result<Option<Self>, LoadLockfileError> {
         let content = match fs::read_to_string(file_path) {
             Ok(content) => content,
             Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
             Err(error) => return error.pipe(LoadLockfileError::ReadFile).pipe(Err),
         };
-        let main = extract_main_document(&content);
-        if main.trim().is_empty() {
-            return Ok(None);
-        }
-        serde_saphyr::from_str::<Self>(main)
-            .map(|mut lockfile| {
-                lockfile.reconstruct_missing_directory_resolutions();
-                Some(lockfile)
-            })
-            .map_err(|source| LoadLockfileError::parse_yaml(file_path, &source))
+        Self::parse(&content, file_path)
     }
 }
 

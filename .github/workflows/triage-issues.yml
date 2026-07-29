@@ -33,12 +33,12 @@ jobs:
       issues: write     # let the agent apply labels and comment
     steps:
       - name: Checkout repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Triage with Oz agent
-        uses: warpdotdev/oz-agent-action@fcbed2c2043c310881424f41757da05d5c9d4047 # v1.0.24
+        uses: warpdotdev/oz-agent-action@851b4af8e23dbc2c9558ab0e240c589b0f59e490 # v1.0.26
         id: triage
         timeout-minutes: 20
         env:

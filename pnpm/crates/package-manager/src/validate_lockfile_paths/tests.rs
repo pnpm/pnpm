@@ -37,7 +37,7 @@ fn rejects_a_global_virtual_store_version_escape() {
 
     let mut snapshots = HashMap::new();
     snapshots.insert(key.clone(), SnapshotEntry::default());
-    let layout = VirtualStoreLayout::new(&config, None, Some(&snapshots), None, None);
+    let layout = VirtualStoreLayout::new(&config, None, Some(&snapshots), None, None, None);
     assert!(
         !pacquet_fs::is_subdir(layout.package_store_dir(), &layout.slot_dir(&key)),
         "the crafted slot must actually escape the store for this test to be meaningful",

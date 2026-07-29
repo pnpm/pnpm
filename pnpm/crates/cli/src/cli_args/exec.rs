@@ -175,10 +175,7 @@ pub(super) fn spawn_in_dir(
     cmd.env_remove("PATH");
     cmd.env_remove("Path");
     cmd.env("PATH", &path);
-    // pnpm's `makeEnv` defaults `npm_config_user_agent` to `'pnpm'`
-    // when no `userAgent` is configured (makeEnv.ts:30). pacquet has
-    // no `userAgent` setting yet, so it always takes that default.
-    cmd.env("npm_config_user_agent", "pnpm");
+    cmd.env("npm_config_user_agent", &config.user_agent);
     // Same recursion-guard stamp as the lifecycle env builder.
     cmd.env(pacquet_executor::VERIFY_DEPS_BEFORE_RUN_ENV, "false");
     if let Some(name) = read_package_name(dir) {

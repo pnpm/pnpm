@@ -1,7 +1,7 @@
 use crate::State;
 use clap::Args;
 use miette::{Context, IntoDiagnostic};
-use pacquet_package_manager::Install;
+use pacquet_package_manager::{Install, ProjectMutation};
 use pacquet_package_manifest::DependencyGroup;
 use pacquet_reporter::Reporter;
 
@@ -76,14 +76,14 @@ impl ImportArgs {
                 skip_runtimes: config.skip_runtimes,
                 trust_lockfile: false,
                 update_checksums: false,
-                is_full_install: false,
+                mutation: ProjectMutation::NoInstall,
                 installs_only: true,
                 resolved_packages,
                 supported_architectures: config.supported_architectures.clone(),
                 node_linker: config.node_linker,
                 lockfile_only: true,
                 dry_run: false,
-                update_seed_policy: pacquet_package_manager::UpdateSeedPolicy::DropAll,
+                update_seed_policy: pacquet_package_manager::UpdateSeedPolicy::drop_all(),
                 auth_override: None,
                 resolution_observer: None,
                 peer_issues_sink: None,

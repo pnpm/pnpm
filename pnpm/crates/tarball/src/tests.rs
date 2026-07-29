@@ -2,10 +2,11 @@ use super::{
     DownloadTarballToStore, FetchTarballForResolution, HttpStatusError,
     MAX_UNTRUSTED_PREALLOC_BYTES, MemCache, NetworkError, PrefetchedCasPaths, RetryOpts,
     SharedReportedProgressKeys, TarballError, VerifyChecksumError, allocate_local_tarball_buffer,
-    allocate_tarball_buffer, apply_append_manifest, bounded_gzip_size_hint, decompress_gzip,
-    download_priority, extract_tarball_entries, extract_zip_entries, fetch_and_extract_with_retry,
-    is_transient_error, local_file_tarball_path, normalize_bundled_manifest, open_local_tarball,
-    prefetch_cas_paths, read_local_tarball_buffer,
+    allocate_tarball_buffer, apply_append_manifest, apply_placeholder_manifest,
+    bounded_gzip_size_hint, decompress_gzip, download_priority, extract_tarball_entries,
+    extract_zip_entries, fetch_and_extract_with_retry, is_transient_error, local_file_tarball_path,
+    normalize_bundled_manifest, open_local_tarball, prefetch_cas_paths, read_local_tarball_buffer,
+    read_local_tarball_metadata,
 };
 use pacquet_network::{AuthHeaders, ThrottledClient, UNPRIORITIZED};
 use pacquet_reporter::SilentReporter;
@@ -207,7 +208,7 @@ async fn packages_under_orgs_should_work() {
         store_index: None,
         store_index_writer: None,
         verify_store_integrity: true,
-        package_integrity: &integrity("sha512-dj7vjIn1Ar8sVXj2yAXiMNCJDmS9MQ9XMlIecX2dIzzhjSHCyKo4DdXjXMs7wKW2kj6yvVRSpuQjOZ3YLrh56w=="),
+        package_integrity: Some(&integrity("sha512-dj7vjIn1Ar8sVXj2yAXiMNCJDmS9MQ9XMlIecX2dIzzhjSHCyKo4DdXjXMs7wKW2kj6yvVRSpuQjOZ3YLrh56w==")),
         package_unpacked_size: Some(16697),
         package_file_count: None,
         package_url: "https://registry.npmjs.org/@fastify/error/-/error-3.3.0.tgz",
@@ -272,7 +273,7 @@ async fn network_fetch_records_progress_key() {
         store_index: None,
         store_index_writer: None,
         verify_store_integrity: true,
-        package_integrity: &pkg_integrity,
+        package_integrity: Some(&pkg_integrity),
         package_unpacked_size: Some(16697),
         package_file_count: None,
         package_url: "https://registry.npmjs.org/@fastify/error/-/error-3.3.0.tgz",
@@ -309,7 +310,7 @@ async fn should_throw_error_on_checksum_mismatch() {
         store_index: None,
         store_index_writer: None,
         verify_store_integrity: true,
-        package_integrity: &integrity("sha512-aaaan1Ar8sVXj2yAXiMNCJDmS9MQ9XMlIecX2dIzzhjSHCyKo4DdXjXMs7wKW2kj6yvVRSpuQjOZ3YLrh56w=="),
+        package_integrity: Some(&integrity("sha512-aaaan1Ar8sVXj2yAXiMNCJDmS9MQ9XMlIecX2dIzzhjSHCyKo4DdXjXMs7wKW2kj6yvVRSpuQjOZ3YLrh56w==")),
         package_unpacked_size: Some(16697),
         package_file_count: None,
         package_url: "https://registry.npmjs.org/@fastify/error/-/error-3.3.0.tgz",
@@ -389,7 +390,7 @@ async fn reuses_cached_cas_paths_when_index_entry_is_live() {
         store_index: StoreIndex::shared_readonly_in(store_path),
         store_index_writer: None,
         verify_store_integrity: true,
-        package_integrity: &pkg_integrity,
+        package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
         package_file_count: None,
         // Any request that reaches the network here would fail the
@@ -461,7 +462,7 @@ async fn reuses_prefetched_cas_paths_when_provided() {
         store_index: None,
         store_index_writer: None,
         verify_store_integrity: true,
-        package_integrity: &pkg_integrity,
+        package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
         package_file_count: None,
         package_url: "http://127.0.0.1:1/unreachable.tgz",
@@ -743,7 +744,7 @@ async fn falls_through_when_cafs_file_missing() {
         store_index: StoreIndex::shared_readonly_in(store_path),
         store_index_writer: None,
         verify_store_integrity: true,
-        package_integrity: &pkg_integrity,
+        package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
         package_file_count: None,
         package_url: "http://127.0.0.1:1/unreachable.tgz",
@@ -805,7 +806,7 @@ async fn falls_through_when_digest_is_malformed() {
         store_index: StoreIndex::shared_readonly_in(store_path),
         store_index_writer: None,
         verify_store_integrity: true,
-        package_integrity: &pkg_integrity,
+        package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
         package_file_count: None,
         package_url: "http://127.0.0.1:1/unreachable.tgz",
@@ -872,7 +873,7 @@ async fn falls_through_when_cafs_path_is_a_directory() {
         store_index: StoreIndex::shared_readonly_in(store_path),
         store_index_writer: None,
         verify_store_integrity: true,
-        package_integrity: &pkg_integrity,
+        package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
         package_file_count: None,
         package_url: "http://127.0.0.1:1/unreachable.tgz",
@@ -949,7 +950,7 @@ async fn falls_through_when_cafs_path_is_a_symlink() {
         store_index: StoreIndex::shared_readonly_in(store_path),
         store_index_writer: None,
         verify_store_integrity: true,
-        package_integrity: &pkg_integrity,
+        package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
         package_file_count: None,
         package_url: "http://127.0.0.1:1/unreachable.tgz",
@@ -1142,6 +1143,36 @@ fn extract_tarball_records_requires_build_from_manifest() {
     drop(tempdir);
 }
 
+/// Published packages ship `package.json` files carrying a UTF-8 BOM.
+/// The bundled manifest and the install-script detection derived from it
+/// must survive one, or the package silently loses its build pass.
+#[test]
+fn extract_tarball_reads_a_manifest_that_starts_with_a_utf8_bom() {
+    let (tempdir, store_path) = tempdir_with_leaked_path();
+
+    let mut tar_bytes = Vec::new();
+    {
+        let mut builder = tar::Builder::new(&mut tar_bytes);
+        let body = b"\xEF\xBB\xBF{\"name\":\"bom\",\"scripts\":{\"install\":\"node-gyp rebuild\"}}";
+        let mut header = tar::Header::new_gnu();
+        header.set_size(body.len() as u64);
+        header.set_mode(0o644);
+        header.set_entry_type(tar::EntryType::Regular);
+        header.set_cksum();
+        builder
+            .append_data(&mut header, "package/package.json", &body[..])
+            .expect("append manifest");
+        builder.finish().expect("finalize tar");
+    }
+
+    let (_cas_paths, pkg_files_idx) =
+        extract_tarball_entries(&tar_bytes, store_path, None).expect("tarball extraction");
+
+    assert_eq!(pkg_files_idx.requires_build, Some(true));
+    assert!(pkg_files_idx.manifest.is_some(), "the bundled manifest must be recorded");
+    drop(tempdir);
+}
+
 /// `RetryOpts::default()` uses pnpm's network-fetch defaults: 2
 /// retries, factor 10, minTimeout 10 s, maxTimeout 60 s. The first
 /// post-failure delay is `minTimeout`; subsequent delays multiply by
@@ -1286,6 +1317,117 @@ async fn read_local_tarball_buffer_rejects_growth_past_checked_size() {
 }
 
 #[tokio::test]
+async fn read_local_tarball_metadata_reads_integrity_and_bundled_manifest() {
+    let local_dir = tempdir().unwrap();
+    let tarball_path = local_dir.path().join("pkg.tgz");
+    std::fs::write(&tarball_path, FASTIFY_ERROR_TARBALL).unwrap();
+
+    let metadata = read_local_tarball_metadata(&tarball_path)
+        .await
+        .expect("read the local tarball's metadata");
+
+    assert_eq!(metadata.integrity.to_string(), FASTIFY_ERROR_INTEGRITY);
+    let manifest = metadata.manifest.expect("bundled manifest");
+    assert_eq!(manifest.get("name").and_then(serde_json::Value::as_str), Some("@fastify/error"));
+    assert_eq!(manifest.get("version").and_then(serde_json::Value::as_str), Some("3.3.0"));
+}
+
+/// The manifest is the package's only source of identity here, so an
+/// unparsable one fails the resolve rather than degrading to `None` —
+/// matching how pnpm rejects the same tarball.
+#[tokio::test]
+async fn read_local_tarball_metadata_rejects_an_unparsable_manifest() {
+    let local_dir = tempdir().unwrap();
+    let tarball_path = local_dir.path().join("pkg.tgz");
+    std::fs::write(&tarball_path, gzipped_tar(&[("package/package.json", b"{ BROKEN")])).unwrap();
+
+    let err = read_local_tarball_metadata(&tarball_path)
+        .await
+        .expect_err("an unparsable bundled manifest must fail the read");
+    match err {
+        TarballError::ParseBundledManifest { tarball, .. } => {
+            assert_eq!(tarball, tarball_path.display().to_string());
+        }
+        other => panic!("expected ParseBundledManifest, got {other:?}"),
+    }
+}
+
+/// Duplicate `package.json` entries are last-entry-wins, matching
+/// `extract_tarball_entries`, so only the surviving one is parsed — the
+/// two reads must agree on which manifest describes the package.
+#[tokio::test]
+async fn read_local_tarball_metadata_lets_a_later_manifest_supersede_a_malformed_one() {
+    let local_dir = tempdir().unwrap();
+    let tarball_path = local_dir.path().join("pkg.tgz");
+    std::fs::write(
+        &tarball_path,
+        gzipped_tar(&[
+            ("package/package.json", b"{ BROKEN"),
+            ("package/package.json", br#"{"name":"dup-pkg","version":"2.0.0"}"#),
+        ]),
+    )
+    .unwrap();
+
+    let metadata = read_local_tarball_metadata(&tarball_path)
+        .await
+        .expect("the surviving manifest parses, so the read succeeds");
+    let manifest = metadata.manifest.expect("bundled manifest");
+    assert_eq!(manifest.get("name").and_then(serde_json::Value::as_str), Some("dup-pkg"));
+}
+
+/// An archive with no `package.json` at all is a different shape from a
+/// corrupt one: pnpm installs it, so the read degrades to `None` instead
+/// of failing.
+#[tokio::test]
+async fn read_local_tarball_metadata_tolerates_an_archive_with_no_manifest() {
+    let local_dir = tempdir().unwrap();
+    let tarball_path = local_dir.path().join("pkg.tgz");
+    std::fs::write(&tarball_path, gzipped_tar(&[("package/README.md", b"hi")])).unwrap();
+
+    let metadata = read_local_tarball_metadata(&tarball_path)
+        .await
+        .expect("an archive without a manifest still reads");
+    assert!(metadata.manifest.is_none(), "got {:?}", metadata.manifest);
+}
+
+fn gzipped_tar(entries: &[(&str, &[u8])]) -> Vec<u8> {
+    use std::io::Write;
+
+    let mut builder = tar::Builder::new(Vec::new());
+    for (path, bytes) in entries {
+        let mut header = tar::Header::new_gnu();
+        header.set_path(path).expect("set tar entry path");
+        header.set_size(bytes.len() as u64);
+        header.set_mode(0o644);
+        header.set_cksum();
+        builder.append(&header, *bytes).expect("append tar entry");
+    }
+    let tar_bytes = builder.into_inner().expect("finish tar");
+
+    let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+    encoder.write_all(&tar_bytes).expect("gzip tar");
+    encoder.finish().expect("finish gzip")
+}
+
+/// The local resolver maps this to `ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND`,
+/// so the error kind has to survive.
+#[tokio::test]
+async fn read_local_tarball_metadata_reports_a_missing_file_as_not_found() {
+    let local_dir = tempdir().unwrap();
+    let tarball_path = local_dir.path().join("missing.tgz");
+
+    let err =
+        read_local_tarball_metadata(&tarball_path).await.expect_err("a missing tarball must fail");
+    match err {
+        TarballError::ReadLocalTarball { path, source } => {
+            assert_eq!(path, tarball_path);
+            assert_eq!(source.kind(), ErrorKind::NotFound);
+        }
+        other => panic!("expected ReadLocalTarball, got {other:?}"),
+    }
+}
+
+#[tokio::test]
 async fn run_without_mem_cache_reads_local_file_tarball() {
     let local_dir = tempdir().unwrap();
     let tarball_path = local_dir.path().join("pkg.tgz");
@@ -1301,7 +1443,7 @@ async fn run_without_mem_cache_reads_local_file_tarball() {
         store_index: None,
         store_index_writer: None,
         verify_store_integrity: true,
-        package_integrity: &package_integrity,
+        package_integrity: Some(&package_integrity),
         package_unpacked_size: Some(16697),
         package_file_count: None,
         package_url: &package_url,
@@ -1321,6 +1463,57 @@ async fn run_without_mem_cache_reads_local_file_tarball() {
     .expect("local tarballs should be read from disk without network access");
 
     assert!(cas_paths.contains_key("package.json"));
+
+    drop((store_dir, local_dir));
+}
+
+/// A resolution that pins no integrity is downloaded unverified, and
+/// the fetch claims no store-index row: the key pnpm addresses such a
+/// package by (`pickStoreIndexKey`'s `pkg_id\tbuilt` fallback) belongs
+/// to the git-hosted prepare pass, which writes the *prepared* file set
+/// there.
+#[tokio::test]
+async fn run_without_mem_cache_fetches_unverified_and_writes_no_index_row() {
+    let local_dir = tempdir().unwrap();
+    let tarball_path = local_dir.path().join("pkg.tgz");
+    std::fs::write(&tarball_path, FASTIFY_ERROR_TARBALL).unwrap();
+
+    let (store_dir, store_path) = tempdir_with_leaked_path();
+    let package_url = format!("file:{}", tarball_path.display());
+    let client = fast_fail_client();
+    let (writer, writer_task) = StoreIndexWriter::spawn(store_path);
+    let cas_paths = DownloadTarballToStore {
+        http_client: &client,
+        store_dir: store_path,
+        store_index: None,
+        store_index_writer: Some(Arc::clone(&writer)),
+        verify_store_integrity: true,
+        package_integrity: None,
+        package_unpacked_size: None,
+        package_file_count: None,
+        package_url: &package_url,
+        package_id: "@fastify/error@3.3.0",
+        requester: "",
+        prefetched_cas_paths: None,
+        verified_files_cache: SharedVerifiedFilesCache::default(),
+        retry_opts: test_retry_opts(),
+        auth_headers: &AuthHeaders::default(),
+        ignore_file_pattern: None,
+        offline: true,
+        progress_reported: None,
+        append_manifest: None,
+    }
+    .run_without_mem_cache::<SilentReporter>()
+    .await
+    .expect("a resolution without an integrity should still be fetched");
+
+    assert!(cas_paths.contains_key("package.json"));
+
+    drop(writer);
+    writer_task.await.expect("writer task").expect("writer flushed");
+    let index = StoreIndex::open_in(store_path).expect("open store index");
+    let keys: Vec<String> = index.keys().expect("read index keys");
+    assert!(keys.is_empty(), "an unverified fetch must claim no index row: {keys:?}");
 
     drop((store_dir, local_dir));
 }
@@ -1464,7 +1657,7 @@ async fn fetch_for_resolution_uses_package_id_for_scoped_auth() {
     let client = ThrottledClient::default();
     let registry_key = format!("{}@scope", pacquet_network::nerf_dart(&server.url()));
     let auth_headers =
-        AuthHeaders::from_creds_map([(registry_key, "Bearer scoped-token".to_owned())], None);
+        AuthHeaders::from_creds_map([(registry_key, "Bearer scoped-token".to_owned())]);
 
     let resolved = FetchTarballForResolution {
         http_client: &client,
@@ -1842,7 +2035,7 @@ fn run_with_mem_cache_does_not_deadlock_on_dashmap_shard_contention() {
                     store_index: None,
                     store_index_writer: None,
                     verify_store_integrity: true,
-                    package_integrity: pkg_integrity,
+                    package_integrity: Some(pkg_integrity),
                     package_unpacked_size: None,
                     package_file_count: None,
                     package_url: url,
@@ -1956,10 +2149,10 @@ async fn fetch_attaches_authorization_header_when_creds_match_tarball_url() {
     let url = format!("{}/pkg.tgz", server.url());
     let client = ThrottledClient::default();
     let pkg_integrity = integrity(FASTIFY_ERROR_INTEGRITY);
-    let auth_headers = AuthHeaders::from_creds_map(
-        [(pacquet_network::nerf_dart(&url), "Bearer test-token".to_owned())],
-        None,
-    );
+    let auth_headers = AuthHeaders::from_creds_map([(
+        pacquet_network::nerf_dart(&url),
+        "Bearer test-token".to_owned(),
+    )]);
 
     let (_integrity, cas_paths, _idx) = fetch_and_extract_with_retry::<SilentReporter>(
         &client,
@@ -2001,7 +2194,7 @@ async fn fetch_attaches_authorization_header_when_scope_creds_match_package_id()
     let pkg_integrity = integrity(FASTIFY_ERROR_INTEGRITY);
     let registry_key = format!("{}@scope", pacquet_network::nerf_dart(&server.url()));
     let auth_headers =
-        AuthHeaders::from_creds_map([(registry_key, "Bearer scoped-token".to_owned())], None);
+        AuthHeaders::from_creds_map([(registry_key, "Bearer scoped-token".to_owned())]);
 
     let (_integrity, cas_paths, _idx) = fetch_and_extract_with_retry::<SilentReporter>(
         &client,
@@ -2054,10 +2247,10 @@ async fn retry_re_attaches_authorization_header_on_each_attempt() {
     let url = format!("{}/pkg.tgz", server.url());
     let client = ThrottledClient::default();
     let pkg_integrity = integrity(FASTIFY_ERROR_INTEGRITY);
-    let auth_headers = AuthHeaders::from_creds_map(
-        [(pacquet_network::nerf_dart(&url), "Bearer test-token".to_owned())],
-        None,
-    );
+    let auth_headers = AuthHeaders::from_creds_map([(
+        pacquet_network::nerf_dart(&url),
+        "Bearer test-token".to_owned(),
+    )]);
 
     let (_integrity, cas_paths, _idx) = fetch_and_extract_with_retry::<SilentReporter>(
         &client,
@@ -2138,7 +2331,7 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
         store_index_writer: None,
         verify_store_integrity: true,
         verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
-        package_integrity: &pkg_integrity,
+        package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
         package_file_count: None,
         package_url: &url,
@@ -2168,7 +2361,7 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
         store_index_writer: None,
         verify_store_integrity: true,
         verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
-        package_integrity: &pkg_integrity,
+        package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
         package_file_count: None,
         package_url: &url,
@@ -2265,7 +2458,7 @@ async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
         store_index_writer: None,
         verify_store_integrity: true,
         verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
-        package_integrity: &pkg_integrity,
+        package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
         package_file_count: None,
         package_url: &url,
@@ -2304,7 +2497,7 @@ async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
         store_index_writer: None,
         verify_store_integrity: true,
         verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
-        package_integrity: &pkg_integrity,
+        package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
         package_file_count: None,
         package_url: &url,
@@ -2387,7 +2580,7 @@ async fn run_with_mem_cache_recovers_from_owning_fetch_error() {
         store_index_writer: None,
         verify_store_integrity: true,
         verified_files_cache: SharedVerifiedFilesCache::default(),
-        package_integrity: pkg_integrity,
+        package_integrity: Some(pkg_integrity),
         package_unpacked_size: None,
         package_file_count: None,
         package_url: url,
@@ -2675,7 +2868,7 @@ async fn found_in_store_event_fires_on_cache_hit() {
         store_index_writer: Some(Arc::clone(&writer)),
         verify_store_integrity: true,
         verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
-        package_integrity: &pkg_integrity,
+        package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
         package_file_count: None,
         package_url: &url,
@@ -2716,7 +2909,7 @@ async fn found_in_store_event_fires_on_cache_hit() {
         store_index_writer: None,
         verify_store_integrity: true,
         verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
-        package_integrity: &pkg_integrity,
+        package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
         package_file_count: None,
         package_url: &url,
@@ -3104,7 +3297,7 @@ async fn offline_mode_skips_network_on_cache_miss() {
         store_index_writer: None,
         verify_store_integrity: true,
         verified_files_cache: SharedVerifiedFilesCache::default(),
-        package_integrity: &pkg_integrity,
+        package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
         package_file_count: None,
         package_url: &url,
@@ -3177,7 +3370,7 @@ async fn offline_mode_still_uses_prefetched_cache() {
         store_index_writer: None,
         verify_store_integrity: true,
         verified_files_cache: SharedVerifiedFilesCache::default(),
-        package_integrity: &pkg_integrity,
+        package_integrity: Some(&pkg_integrity),
         package_unpacked_size: None,
         package_file_count: None,
         package_url: &url,
@@ -3436,4 +3629,42 @@ fn apply_append_manifest_is_a_noop_when_the_archive_ships_a_package_json() {
     assert!(cas_paths.is_empty(), "the real package.json is not overwritten in cas_paths");
     assert_eq!(idx.files["package.json"].digest, "kept", "the row's real file entry is kept");
     assert!(idx.manifest.is_none(), "the archive's manifest handling is left alone");
+}
+
+/// The placeholder is a completion marker, not the package's identity,
+/// so it must not become the row's bundled `manifest` the way
+/// `apply_append_manifest`'s real one does — see
+/// <https://github.com/pnpm/pnpm/issues/13410>.
+#[test]
+fn apply_placeholder_manifest_marks_an_archive_that_ships_no_package_json() {
+    let (_keep, store_path) = tempdir_with_leaked_path();
+    let mut cas_paths = HashMap::new();
+    let mut idx = PackageFilesIndex { algo: "sha512".to_string(), ..Default::default() };
+
+    apply_placeholder_manifest(store_path, &mut cas_paths, &mut idx)
+        .expect("write the placeholder into the CAS");
+
+    assert!(cas_paths.contains_key("package.json"), "cas_paths gains package.json");
+    let file = idx.files.get("package.json").expect("row records the placeholder file");
+    assert!(!file.digest.is_empty(), "the placeholder is content-addressed");
+    let written =
+        std::fs::read_to_string(&cas_paths["package.json"]).expect("read the placeholder");
+    assert!(written.contains("_pnpmPlaceholder"), "got {written}");
+    assert!(idx.manifest.is_none(), "a placeholder is not the package's bundled manifest");
+}
+
+#[test]
+fn apply_placeholder_manifest_is_a_noop_when_a_package_json_is_already_recorded() {
+    let (_keep, store_path) = tempdir_with_leaked_path();
+    let existing =
+        CafsFileInfo { digest: "kept".to_string(), mode: 0o644, size: 3, checked_at: None };
+    let mut idx = PackageFilesIndex { algo: "sha512".to_string(), ..Default::default() };
+    idx.files.insert("package.json".to_string(), existing);
+    let mut cas_paths = HashMap::new();
+
+    apply_placeholder_manifest(store_path, &mut cas_paths, &mut idx)
+        .expect("a no-op still returns Ok");
+
+    assert!(cas_paths.is_empty(), "the real package.json is not overwritten in cas_paths");
+    assert_eq!(idx.files["package.json"].digest, "kept", "the row's real file entry is kept");
 }

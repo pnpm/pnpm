@@ -70,6 +70,14 @@ pub enum VerifyError {
     },
 
     #[display("{count} lockfile entries failed verification:\n{breakdown}")]
+    #[diagnostic(code(ERR_PNPM_MISSING_TARBALL_INTEGRITY), help("{HINT}"))]
+    MissingTarballIntegrity {
+        #[error(not(source))]
+        count: usize,
+        breakdown: String,
+    },
+
+    #[display("{count} lockfile entries failed verification:\n{breakdown}")]
     #[diagnostic(code(ERR_PNPM_RESOLUTION_SHAPE_MISMATCH), help("{HINT}"))]
     ResolutionShapeMismatch {
         #[error(not(source))]
@@ -181,6 +189,9 @@ impl VerifyError {
                 pacquet_resolving_npm_resolver_violation_codes::TRUST_DOWNGRADE => {
                     VerifyError::TrustDowngrade { count, breakdown }
                 }
+                pacquet_resolving_npm_resolver_violation_codes::MISSING_TARBALL_INTEGRITY => {
+                    VerifyError::MissingTarballIntegrity { count, breakdown }
+                }
                 crate::RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE => {
                     VerifyError::ResolutionShapeMismatch { count, breakdown }
                 }
@@ -203,6 +214,8 @@ mod pacquet_resolving_npm_resolver_violation_codes {
     pub const MINIMUM_RELEASE_AGE_VIOLATION: &str = "MINIMUM_RELEASE_AGE_VIOLATION";
     /// Matches `pacquet_resolving_npm_resolver::TRUST_DOWNGRADE_VIOLATION_CODE`.
     pub const TRUST_DOWNGRADE: &str = "TRUST_DOWNGRADE";
+    /// Matches `pacquet_resolving_npm_resolver::MISSING_TARBALL_INTEGRITY_VIOLATION_CODE`.
+    pub const MISSING_TARBALL_INTEGRITY: &str = "MISSING_TARBALL_INTEGRITY";
 }
 
 #[cfg(test)]

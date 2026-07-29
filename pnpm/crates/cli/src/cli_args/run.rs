@@ -6,7 +6,9 @@ use pacquet_config::Config;
 use pacquet_executor::{RunScript, ScriptsPrependNodePath, run_script};
 use pacquet_package_manager::{make_node_package_map_option, package_map_path_for_execution};
 use pacquet_package_manifest::PackageManifest;
+use pacquet_reporter::LogEvent;
 use pacquet_workspace::{ReadProjectManifestOnlyError, read_project_manifest_only};
+use regex::Regex;
 use serde_json::Value;
 use std::{
     collections::HashMap,
@@ -19,13 +21,18 @@ mod recursive;
 
 #[derive(Debug, Args)]
 pub struct RunArgs {
-    /// A pre-defined package script. When omitted, the available scripts
-    /// are listed.
-    pub command: Option<String>,
-
-    /// Arguments passed to the script after the script name.
+    /// A pre-defined package script followed by the arguments passed to
+    /// it. When empty, the available scripts are listed.
+    ///
+    /// One positional rather than a script name plus a separate argument
+    /// list, so parsing stops *at* the script name — pnpm puts `run` in
+    /// `SPECIALLY_ESCAPED_CMDS` to the same effect. Every later token
+    /// reaches the script verbatim, including a `--` separator and
+    /// anything shaped like a pnpm flag. Splitting the two lets clap keep
+    /// parsing past the script name, which swallows both
+    /// (pnpm/pnpm#13295). `exec` / `dlx` / `with` take the same shape.
     #[clap(trailing_var_arg = true, allow_hyphen_values = true)]
-    pub args: Vec<String>,
+    pub script: Vec<String>,
 
     /// Avoid exiting with a non-zero exit code when the script is undefined.
     #[clap(long)]
@@ -53,6 +60,10 @@ pub struct RunArgs {
     /// Sort recursive workspace projects topologically before running.
     #[clap(skip = true)]
     pub sort: bool,
+
+    /// Start scripts in all selected projects concurrently.
+    #[clap(skip = true)]
+    pub parallel: bool,
 
     /// Run the specified scripts one by one.
     #[clap(long, short = 's')]
@@ -88,9 +99,33 @@ pub enum RunError {
     #[display("Missing script start or file server.js")]
     #[diagnostic(code(ERR_PNPM_NO_SCRIPT_OR_SERVER))]
     NoScriptOrServer,
+
+    #[display("RegExp flags are not supported in script command selector")]
+    #[diagnostic(code(ERR_PNPM_UNSUPPORTED_SCRIPT_COMMAND_FORMAT))]
+    UnsupportedScriptCommandFormat,
 }
 
 impl RunArgs {
+    /// Build the positional from a script name and its arguments, for the
+    /// paths that synthesize a `run` rather than parsing one.
+    pub(super) fn script<Args>(name: &str, args: Args) -> Vec<String>
+    where
+        Args: IntoIterator<Item = String>,
+    {
+        std::iter::once(name.to_string()).chain(args).collect()
+    }
+
+    /// The script to run, or `None` when `run` was given no positional and
+    /// should list the available scripts instead.
+    pub(super) fn script_name(&self) -> Option<&str> {
+        self.script.first().map(String::as_str)
+    }
+
+    /// The arguments to forward to the script, verbatim.
+    pub(super) fn script_args(&self) -> &[String] {
+        self.script.get(1..).unwrap_or_default()
+    }
+
     /// Execute the subcommand in `dir`. `silent` suppresses the
     /// `$ <script>` echo (set when the reporter is `silent`).
     ///
@@ -120,10 +155,10 @@ impl RunArgs {
         // directory without a project skips the check instead of
         // spawning a doomed install (see check_deps_status_before_run_at).
         super::verify_deps::verify_deps_before_run(dir, config, silent)?;
-        let RunArgs { command, args, if_present, sequential, .. } = self;
-        let Some(script_name) = command else {
+        let RunArgs { script, if_present, sequential, .. } = self;
+        let Some((script_name, args)) = script.split_first() else {
             let manifest = read_project_manifest_only(dir).map_err(RunError::Manifest)?;
-            println!("{}", render_project_commands(manifest.value()));
+            println!("{}", render_project_commands(manifest.value(), None));
             return Ok(());
         };
         let manifest = match read_project_manifest_only(dir) {
@@ -136,13 +171,13 @@ impl RunArgs {
             Err(err) => return Err(RunError::Manifest(err).into()),
         };
 
-        let mut specified = specified_scripts(manifest.value(), &script_name);
+        let mut specified = ScriptSelector::new(script_name)?.select_with_start(manifest.value());
 
         // Hidden scripts (names starting with `.`) can only be invoked
         // from within another script, detected by an inherited
         // `npm_lifecycle_event`.
         if env::var_os("npm_lifecycle_event").is_none() {
-            specified = throw_or_filter_hidden_scripts(specified, &script_name)?;
+            specified = throw_or_filter_hidden_scripts(specified, script_name)?;
         }
 
         if specified.is_empty() {
@@ -191,7 +226,7 @@ impl RunArgs {
             if args.is_empty() && main == "npx only-allow pnpm" {
                 continue;
             }
-            let status = run_stages(&ctx, name, &main, &args)?;
+            let status = run_stages(&ctx, name, &main, args)?;
             if !status.success() {
                 // A failing script sets the process exit code.
                 // `run_stage` already emitted the `[ELIFECYCLE]` line.
@@ -204,20 +239,26 @@ impl RunArgs {
     /// Execute the subcommand across the `--filter`-selected workspace
     /// projects, in topological order. The recursive counterpart of
     /// [`Self::run`], selected when the global `-r` / `--recursive` flag is set.
-    pub fn run_recursive(&self, config: &Config, dir: &Path) -> miette::Result<()> {
+    pub fn run_recursive(
+        &self,
+        config: &Config,
+        dir: &Path,
+        emit: fn(&LogEvent),
+        silent: bool,
+    ) -> miette::Result<()> {
         super::verify_deps::verify_deps_before_run(dir, config, false)?;
-        recursive::run_recursive(self, config, dir)
+        recursive::run_recursive(self, config, dir, emit, silent)
     }
 }
 
 fn exec_fallback(
-    script_name: String,
-    args: Vec<String>,
+    script_name: &str,
+    args: &[String],
     dir: &Path,
     config: &Config,
 ) -> miette::Result<()> {
     ExecArgs {
-        command: std::iter::once(script_name).chain(args).collect(),
+        command: RunArgs::script(script_name, args.iter().cloned()),
         shell_mode: false,
         resume_from: None,
         report_summary: false,
@@ -391,7 +432,7 @@ pub(super) fn run_stage(
         ),
         node_execpath: None,
         npm_execpath: None,
-        user_agent: Some("pnpm"),
+        user_agent: Some(&ctx.config.user_agent),
         extra_env: ctx.extra_env,
         silent: ctx.silent,
     })
@@ -422,24 +463,102 @@ pub(crate) fn exec_scripts_prepend_node_path(
     }
 }
 
-/// Resolve which script names to run for `name`: the exact-match arm plus
-/// the `start` fallback. The `/regexp/` selector is not supported because
-/// pacquet has no regex dependency.
-fn specified_scripts(manifest: &Value, name: &str) -> Vec<String> {
-    let has_script = manifest
-        .get("scripts")
-        .and_then(Value::as_object)
-        .and_then(|scripts| scripts.get(name))
-        .and_then(Value::as_str)
-        .is_some_and(|script| !script.is_empty());
+/// The `run` positional, resolved once into whichever of pnpm's two
+/// readings it is: a script name, or a `/regexp/` matching several.
+///
+/// Built once per command rather than per project. The recursive runner
+/// applies the same selector across every selected project, so compiling
+/// the pattern there would repeat the work — and would report a rejected
+/// pattern once per project instead of once.
+#[derive(Debug)]
+pub(super) struct ScriptSelector<'a> {
+    name: &'a str,
+    /// `None` when the positional is a plain script name — including a
+    /// regexp literal whose pattern the engine rejects, which pnpm also
+    /// falls back to reading as a name.
+    pattern: Option<Regex>,
+}
 
-    if has_script {
-        return vec![name.to_string()];
+impl<'a> ScriptSelector<'a> {
+    pub(super) fn new(name: &'a str) -> Result<ScriptSelector<'a>, RunError> {
+        Ok(ScriptSelector { name, pattern: try_build_regex_from_command(name)? })
     }
-    if name == "start" {
-        return vec![name.to_string()];
+
+    /// The script names this selector picks out of `manifest`: an exact
+    /// match wins, otherwise every script the pattern matches.
+    pub(super) fn select(&self, manifest: &Value) -> Vec<String> {
+        let scripts = manifest.get("scripts").and_then(Value::as_object);
+        let has_script = scripts
+            .and_then(|scripts| scripts.get(self.name))
+            .and_then(Value::as_str)
+            .is_some_and(|script| !script.is_empty());
+
+        if has_script {
+            return vec![self.name.to_string()];
+        }
+        let (Some(pattern), Some(scripts)) = (self.pattern.as_ref(), scripts) else {
+            return Vec::new();
+        };
+        scripts.keys().filter(|script| pattern.is_match(script)).cloned().collect()
     }
-    Vec::new()
+
+    /// [`Self::select`] plus single-project `run`'s `start` fallback:
+    /// `pnpm start` resolves to `node server.js` even when the manifest
+    /// declares no `start` script. The recursive runner has no such
+    /// fallback.
+    fn select_with_start(&self, manifest: &Value) -> Vec<String> {
+        let specified = self.select(manifest);
+        if !specified.is_empty() {
+            return specified;
+        }
+        if self.name == "start" {
+            return vec![self.name.to_string()];
+        }
+        Vec::new()
+    }
+}
+
+/// Compile a `/pattern/` script selector, as pnpm's
+/// `tryBuildRegExpFromCommand` does. `Ok(None)` means `command` is not a
+/// regexp literal and addresses a script by name; a pattern the engine
+/// rejects also reads as a plain name, so a mistyped selector surfaces as
+/// the usual "missing script" error rather than a parser diagnostic.
+fn try_build_regex_from_command(command: &str) -> Result<Option<Regex>, RunError> {
+    let Some((pattern, flags)) = split_regex_literal(command) else {
+        return Ok(None);
+    };
+    // Flags say nothing useful about which scripts to select, so pnpm
+    // rejects them rather than silently honouring a subset.
+    if !flags.is_empty() {
+        return Err(RunError::UnsupportedScriptCommandFormat);
+    }
+    Ok(Regex::new(pattern).ok())
+}
+
+/// Split `/pattern/flags` into its two parts. `None` when `command` is
+/// not shaped like a regexp literal: pnpm requires a non-empty pattern
+/// whose only `/` characters are backslash-escaped, and flags drawn from
+/// JavaScript's flag set. The closing delimiter is therefore the last
+/// `/` in the string.
+fn split_regex_literal(command: &str) -> Option<(&str, &str)> {
+    let body = command.strip_prefix('/')?;
+    let close = body.rfind('/')?;
+    let (pattern, flags) = body.split_at(close);
+    let flags = &flags[1..];
+    if pattern.is_empty() || !flags.chars().all(|flag| "dgimuvys".contains(flag)) {
+        return None;
+    }
+    let mut chars = pattern.chars();
+    while let Some(char) = chars.next() {
+        match char {
+            '\\' => {
+                chars.next();
+            }
+            '/' => return None,
+            _ => {}
+        }
+    }
+    Some((pattern, flags))
 }
 
 /// Drop hidden scripts (names starting with `.`) or reject an explicit
@@ -465,9 +584,8 @@ fn throw_or_filter_hidden_scripts(
 }
 
 /// Render the script listing printed when `pnpm run` is called without a
-/// script name. The workspace-root section is omitted because pacquet's
-/// run has no workspace context yet.
-fn render_project_commands(manifest: &Value) -> String {
+/// script name.
+fn render_project_commands(manifest: &Value, root_manifest: Option<&Value>) -> String {
     let scripts = manifest.get("scripts").and_then(Value::as_object);
     let mut lifecycle = Vec::new();
     let mut other = Vec::new();
@@ -500,6 +618,27 @@ fn render_project_commands(manifest: &Value) -> String {
         }
         write!(output, "Commands available via \"pnpm run\":\n{}", render_commands(&other))
             .unwrap();
+    }
+    let root_scripts = root_manifest
+        .and_then(|manifest| manifest.get("scripts"))
+        .and_then(Value::as_object)
+        .map(|scripts| {
+            scripts
+                .iter()
+                .filter_map(|(name, script)| Some((name.as_str(), script.as_str()?)))
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    if !root_scripts.is_empty() {
+        if !output.is_empty() {
+            output.push_str("\n\n");
+        }
+        write!(
+            output,
+            "Commands of the root workspace project (to run them, use \"pnpm -w run\"):\n{}",
+            render_commands(&root_scripts),
+        )
+        .unwrap();
     }
     output
 }

@@ -2,7 +2,7 @@ use super::{
     InstallPackageBySnapshotError, archive_filter_for, emit_progress_resolved,
     fetch_directory_resolution, host_platform_selector, local_file_tarball_install_url,
     node_extras_filter, render_variant_targets, runtime_platform_selector,
-    synthesize_runtime_manifest_bytes, tarball_url_and_integrity,
+    synthesize_runtime_manifest_bytes, tarball_url_and_integrity, unverified_fetch_is_allowed,
 };
 use pacquet_config::Config;
 use pacquet_directory_fetcher::DirectoryFetcherError;
@@ -10,6 +10,7 @@ use pacquet_graph_hasher::{host_arch, host_libc, host_platform};
 use pacquet_lockfile::{
     BinaryArchive, BinaryResolution, BinarySpec, DirectoryResolution, LockfileResolution,
     PackageKey, PlatformAssetResolution, PlatformAssetTarget, RegistryResolution,
+    TarballResolution,
 };
 use pacquet_package_is_installable::SupportedArchitectures;
 use pacquet_reporter::{LogEvent, ProgressMessage, Reporter};
@@ -56,10 +57,110 @@ fn registry_resolution_uses_scoped_registry_tarball_base() {
     let resolution = LockfileResolution::Registry(RegistryResolution { integrity });
     let package_key: PackageKey = "@private/foo@1.0.0".parse().expect("parse package key");
 
-    let (tarball_url, _) =
-        tarball_url_and_integrity(&resolution, &package_key, &config).expect("registry tarball");
+    let (tarball_url, _) = tarball_url_and_integrity(&resolution, &package_key, &config)
+        .expect("a registry resolution is always fetchable");
 
     assert_eq!(tarball_url.as_ref(), "https://private.example/npm/@private/foo/-/foo-1.0.0.tgz");
+}
+
+/// The exemption follows the URL, not the lockfile's `gitHosted`
+/// marker — the same call pnpm's `classifyResolution` makes.
+#[test]
+fn only_git_hosted_and_local_tarballs_may_be_fetched_unverified() {
+    assert!(unverified_fetch_is_allowed(
+        "https://codeload.github.com/watson/ci-info/tar.gz/f43f6a1cefff47fb361c88cf4b943fdbcaafe540",
+    ));
+    assert!(unverified_fetch_is_allowed("file:../vendor/pkg.tgz"));
+    assert!(!unverified_fetch_is_allowed("https://example.com/pkg-1.0.0.tgz"));
+    // A git host, but not one of its immutable archive URLs.
+    assert!(!unverified_fetch_is_allowed("https://codeload.github.com/watson/ci-info/tar.gz/main"));
+}
+
+/// A lockfile written before pnpm pinned a hash for git-host archives
+/// records the tarball without an `integrity`. pnpm downloads those
+/// unverified rather than refusing them, so the URL still resolves and
+/// only the integrity comes back empty.
+#[test]
+fn tarball_resolution_without_integrity_resolves_to_an_unverified_download() {
+    let config = Config::new();
+    let tarball = "https://codeload.github.com/watson/ci-info/tar.gz/f43f6a1cefff47fb361c88cf4b943fdbcaafe540";
+    let resolution = LockfileResolution::Tarball(TarballResolution {
+        tarball: tarball.to_string(),
+        integrity: None,
+        git_hosted: Some(true),
+        path: None,
+    });
+    let package_key: PackageKey = format!("ci-info@{tarball}").parse().expect("parse package key");
+
+    let (tarball_url, integrity) = tarball_url_and_integrity(&resolution, &package_key, &config)
+        .expect("a git-host archive is fetchable without an integrity");
+
+    assert_eq!(tarball_url.as_ref(), tarball);
+    assert!(integrity.is_none(), "an integrity-less resolution must not invent one");
+}
+
+/// The bytes of a plain remote tarball are whatever the server hands
+/// back, so a lockfile that pins no hash for one cannot be fetched
+/// from — pnpm's `assertFetchableResolution` refuses it too.
+#[test]
+fn remote_tarball_resolution_without_integrity_is_refused() {
+    let config = Config::new();
+    let tarball = "https://example.com/pkg-from-tarball-1.0.0.tgz";
+    let resolution = LockfileResolution::Tarball(TarballResolution {
+        tarball: tarball.to_string(),
+        integrity: None,
+        git_hosted: None,
+        path: None,
+    });
+    let package_key: PackageKey =
+        format!("pkg-from-tarball@{tarball}").parse().expect("parse package key");
+
+    let err = tarball_url_and_integrity(&resolution, &package_key, &config)
+        .expect_err("a remote tarball without an integrity is not fetchable");
+
+    assert!(
+        matches!(
+            &err,
+            InstallPackageBySnapshotError::MissingTarballIntegrity { package_key: reported }
+                if reported == &package_key.to_string(),
+        ),
+        "expected MissingTarballIntegrity for `{package_key}`, got {err:?}",
+    );
+}
+
+/// An emptied-out `integrity: ''` pins nothing, so it is refused on the
+/// same footing as an absent field — for a registry resolution too,
+/// whose integrity is structurally mandatory but can still be empty.
+#[test]
+fn empty_integrity_is_refused_like_a_missing_one() {
+    let config = Config::new();
+    let empty = "".parse::<ssri::Integrity>().expect("empty integrity parses");
+    let tarball = "https://example.com/pkg-from-tarball-1.0.0.tgz";
+    let cases = [
+        (
+            LockfileResolution::Tarball(TarballResolution {
+                tarball: tarball.to_string(),
+                integrity: Some(empty.clone()),
+                git_hosted: None,
+                path: None,
+            }),
+            format!("pkg-from-tarball@{tarball}"),
+        ),
+        (
+            LockfileResolution::Registry(pacquet_lockfile::RegistryResolution { integrity: empty }),
+            "acme@1.0.0".to_string(),
+        ),
+    ];
+
+    for (resolution, key) in cases {
+        let package_key: PackageKey = key.parse().expect("parse package key");
+        let err = tarball_url_and_integrity(&resolution, &package_key, &config)
+            .expect_err("an empty integrity is not fetchable");
+        assert!(
+            matches!(&err, InstallPackageBySnapshotError::MissingTarballIntegrity { .. }),
+            "expected MissingTarballIntegrity for `{package_key}`, got {err:?}",
+        );
+    }
 }
 
 #[test]

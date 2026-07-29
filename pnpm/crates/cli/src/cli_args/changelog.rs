@@ -4,7 +4,11 @@
 //! already builds a registry client for publish. Mirrors the TypeScript
 //! `releasing/commands/src/publish/previousChangelog.ts`.
 
-use std::{collections::HashSet, io::Read, path::Path};
+use std::{
+    collections::{HashMap, HashSet},
+    io::Read,
+    path::Path,
+};
 
 use flate2::read::GzDecoder;
 use futures_util::StreamExt;
@@ -44,14 +48,14 @@ pub async fn compose_registry_changelog(
     let Some(workspace_dir) = config.workspace_dir.as_deref() else {
         return Ok(None);
     };
-    let Some((name, version)) = read_name_version(project_dir) else {
+    let Some((name, published, version)) = read_name_version(project_dir) else {
         return Ok(None);
     };
     let Some(section) = read_pending_changelog(workspace_dir, &name, &version)? else {
         return Ok(None);
     };
-    let previous = fetch_changelog(config, &name, VersionPick::PreviousTo(&version)).await;
-    Ok(Some(render_changelog(previous.as_deref(), &name, &section).into_bytes()))
+    let previous = fetch_changelog(config, &published, VersionPick::PreviousTo(&version)).await;
+    Ok(Some(render_changelog(previous.as_deref(), &published, &section).into_bytes()))
 }
 
 /// The set of `package@version` keys the registry confirms are published with
@@ -65,6 +69,7 @@ pub async fn compose_registry_changelog(
 pub async fn confirmed_published_versions(
     config: &Config,
     workspace_dir: &Path,
+    published_names: &HashMap<String, String>,
 ) -> miette::Result<HashSet<String>> {
     if changelog_storage(Some(&config.versioning)) != ChangelogStorage::Registry {
         return Ok(HashSet::new());
@@ -72,18 +77,44 @@ pub async fn confirmed_published_versions(
     let checks =
         list_pending_changelogs(workspace_dir)?.into_iter().map(|(name, version)| async move {
             let section = read_pending_changelog(workspace_dir, &name, &version).ok()??;
-            let changelog = fetch_changelog(config, &name, VersionPick::Exact(&version)).await?;
+            // The parked file is keyed by the manifest name, which is what the
+            // ledger joins on; the registry only knows the published one.
+            let probe = published_names.get(&name).map_or(name.as_str(), String::as_str);
+            let changelog = fetch_changelog(config, probe, VersionPick::Exact(&version)).await?;
             changelog.contains(section.trim()).then(|| format!("{name}@{version}"))
         });
     Ok(futures_util::future::join_all(checks).await.into_iter().flatten().collect())
 }
 
+/// Manifest name → published name, for every workspace project that renames
+/// itself with `publishConfig.name`. Projects that publish under their
+/// manifest name are absent, so a lookup miss means "no rename".
+pub fn published_names(projects: &[pacquet_workspace::Project]) -> HashMap<String, String> {
+    let mut renames = HashMap::new();
+    for project in projects {
+        let manifest = project.manifest.value();
+        let (Some(name), Some(published)) =
+            (manifest.get("name").and_then(serde_json::Value::as_str), published_name(manifest))
+        else {
+            continue;
+        };
+        if published != name {
+            renames.insert(name.to_string(), published.to_string());
+        }
+    }
+    renames
+}
+
 /// The releases in `plan` whose current version the registry does not have —
 /// `AssembleReleasePlanOptions::unpublished_dirs`. Probe failures propagate.
-/// Mirrors the TypeScript `resolveUnpublishedDirs`.
+/// A release is keyed by its manifest name, so [`published_names`] translates it
+/// for the probe; without that a renamed project reads as never published and
+/// debuts at its manifest version on every release. Mirrors the TypeScript
+/// `resolveUnpublishedDirs`.
 pub async fn unpublished_release_dirs(
     config: &Config,
     plan: &ReleasePlan,
+    published_names: &HashMap<String, String>,
 ) -> miette::Result<HashSet<String>> {
     // Debug-only test seam, compiled out of release builds: the engine tests
     // advance manifests without publishing, so they force "all published".
@@ -95,10 +126,11 @@ pub async fn unpublished_release_dirs(
     let client = build_registry_client(config)?;
     let checks = plan.releases.iter().map(|release| {
         let client = &client;
+        let probe =
+            published_names.get(&release.name).map_or(release.name.as_str(), String::as_str);
         async move {
             let published =
-                is_version_published(client, config, &release.name, &release.current_version)
-                    .await?;
+                is_version_published(client, config, probe, &release.current_version).await?;
             Ok::<_, miette::Report>((release.dir.clone(), published))
         }
     });
@@ -223,12 +255,24 @@ fn extract_entry(gzipped_tarball: &[u8], entry_name: &str) -> Option<String> {
     None
 }
 
-fn read_name_version(project_dir: &Path) -> Option<(String, String)> {
+/// `(manifest name, published name, version)` of the project at
+/// `project_dir`. The two names differ when the manifest sets
+/// `publishConfig.name`: the workspace — and so the parked section, the
+/// ledger, and every intent — keys on the manifest name, while the registry
+/// only ever sees the published one.
+fn read_name_version(project_dir: &Path) -> Option<(String, String, String)> {
     let manifest =
         pacquet_package_manifest::PackageManifest::from_path(project_dir.join("package.json"))
             .ok()?;
     let value = manifest.value();
     let name = value.get("name")?.as_str()?.to_string();
+    let published = published_name(value).map_or_else(|| name.clone(), ToString::to_string);
     let version = value.get("version")?.as_str()?.to_string();
-    Some((name, version))
+    Some((name, published, version))
+}
+
+/// The name a manifest publishes under, when it renames itself via
+/// `publishConfig.name`. An empty rename is no rename.
+pub fn published_name(manifest: &serde_json::Value) -> Option<&str> {
+    manifest.get("publishConfig")?.get("name")?.as_str().filter(|name| !name.is_empty())
 }

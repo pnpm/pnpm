@@ -50,6 +50,57 @@ async fn calculate_pnpmfile_checksum_is_none_when_no_hooks_exported() {
     assert_eq!(hooks.calculate_pnpmfile_checksum().await, None);
 }
 
+/// No pnpmfile means no checksum, so a lockfile that records one is
+/// drift — the removal itself is what the gate must see.
+#[tokio::test]
+async fn current_pnpmfile_checksum_is_none_without_a_pnpmfile() {
+    assert_eq!(pacquet_hooks::current_pnpmfile_checksum(None, Some("sha256-abc")).await, None);
+}
+
+#[tokio::test]
+async fn current_pnpmfile_checksum_hashes_the_pnpmfile_that_exports_hooks() {
+    let tmp = TempDir::new().expect("temp dir");
+    let src = "module.exports = { hooks: { readPackage: (pkg) => pkg } }\n";
+    std::fs::write(tmp.path().join(".pnpmfile.cjs"), src).expect("write pnpmfile");
+
+    let hooks = finder::load_pnpmfile(tmp.path());
+    assert_eq!(
+        pacquet_hooks::current_pnpmfile_checksum(hooks.as_ref(), None).await,
+        Some(pacquet_crypto_hash::create_hash(src)),
+    );
+}
+
+/// pnpm records no checksum for a pnpmfile that exports no `hooks`
+/// object, so neither may pacquet — otherwise every install in a
+/// project with a resolvers-only pnpmfile would report drift.
+#[tokio::test]
+async fn current_pnpmfile_checksum_is_none_when_the_pnpmfile_exports_no_hooks() {
+    let tmp = TempDir::new().expect("temp dir");
+    std::fs::write(tmp.path().join(".pnpmfile.cjs"), "module.exports = {}\n")
+        .expect("write pnpmfile");
+
+    let hooks = finder::load_pnpmfile(tmp.path());
+    assert_eq!(pacquet_hooks::current_pnpmfile_checksum(hooks.as_ref(), None).await, None);
+}
+
+/// A lockfile that already records a checksum settles the comparison
+/// by hash alone. Pinned with a pnpmfile that exports no hooks —
+/// evaluating it would answer `None` and call an unchanged project
+/// drifted.
+#[tokio::test]
+async fn current_pnpmfile_checksum_trusts_the_hash_when_the_lockfile_records_one() {
+    let tmp = TempDir::new().expect("temp dir");
+    let src = "module.exports = {}\n";
+    std::fs::write(tmp.path().join(".pnpmfile.cjs"), src).expect("write pnpmfile");
+
+    let hooks = finder::load_pnpmfile(tmp.path());
+    let recorded = pacquet_crypto_hash::create_hash(src);
+    assert_eq!(
+        pacquet_hooks::current_pnpmfile_checksum(hooks.as_ref(), Some(&recorded)).await,
+        Some(recorded),
+    );
+}
+
 #[test]
 fn test_find_pnpmfile_none_when_missing() {
     let tmp = TempDir::new().expect("temp dir");

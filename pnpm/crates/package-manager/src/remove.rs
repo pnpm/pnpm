@@ -1,5 +1,5 @@
 use crate::{
-    DIRECT_GROUPS, Install, InstallError, ResolvedPackages, UpdateSeedPolicy,
+    DIRECT_GROUPS, Install, InstallError, ProjectMutation, ResolvedPackages, UpdateSeedPolicy,
     WorkspaceInstallSelection,
     catalog_cleanup::{
         WriteWorkspaceCatalogsError, write_workspace_catalogs, write_workspace_catalogs_selected,
@@ -128,7 +128,7 @@ impl Remove<'_> {
             // `uninstallSome` mutation), so the root project's own
             // lifecycle scripts must not run — they fire only on a full
             // install.
-            is_full_install: false,
+            mutation: ProjectMutation::NoInstall,
             installs_only: false,
             resolved_packages,
             supported_architectures,
@@ -213,7 +213,7 @@ impl Remove<'_> {
             skip_runtimes: config.skip_runtimes,
             trust_lockfile: config.trust_lockfile,
             update_checksums: false,
-            is_full_install: false,
+            mutation: ProjectMutation::NoInstall,
             installs_only: false,
             resolved_packages,
             supported_architectures,

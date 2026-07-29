@@ -11,8 +11,9 @@
 //! callers differ only in
 //! the [`TargetVersion`] they compare against: `update` targets the
 //! version a bump would move to (the `latest` tag under `--latest`,
-//! otherwise the highest in-range version). The choice list is
-//! intentionally flat; the prompt is a `dialoguer` multi-select.
+//! otherwise the highest in-range version). [`choices::update_choices`]
+//! turns that set into the grouped, column-aligned list the prompt — a
+//! `dialoguer` multi-select — renders.
 
 use crate::{
     cli_args::{
@@ -23,6 +24,7 @@ use crate::{
 };
 use dialoguer::MultiSelect;
 use miette::{IntoDiagnostic, miette};
+use owo_colors::{OwoColorize, Stream};
 use pacquet_config::Config;
 use pacquet_lockfile::Lockfile;
 use pacquet_network::ThrottledClient;
@@ -73,7 +75,7 @@ pub(crate) async fn select_packages<Reporter: self::Reporter>(
         )
         .await?;
     }
-    prompt_for_packages(&choices, options.latest)
+    prompt_for_packages(&choices, options.latest, config.workspace_dir.is_some())
 }
 
 pub(crate) async fn select_packages_for_projects<Reporter: self::Reporter>(
@@ -114,7 +116,7 @@ pub(crate) async fn select_packages_for_projects<Reporter: self::Reporter>(
         )
         .await?;
     }
-    prompt_for_packages(&choices, options.latest)
+    prompt_for_packages(&choices, options.latest, true)
 }
 
 async fn append_github_actions<Reporter: self::Reporter>(
@@ -158,6 +160,9 @@ async fn collect_choices(
         )
     }))
     .await;
+    // Keyed by workspace as well, so an entry each project contributed
+    // survives to [`choices::update_choices`] — that is what lets a
+    // collapsed row name every project it covers instead of the first.
     let mut unique = HashSet::new();
     let mut collected = Vec::new();
     for choices in choices {
@@ -167,6 +172,7 @@ async fn collect_choices(
                 choice.package_name.clone(),
                 choice.current.to_string(),
                 choice.target.to_string(),
+                choice.workspace.clone(),
             );
             if unique.insert(key) {
                 collected.push(choice);
@@ -179,6 +185,7 @@ async fn collect_choices(
 fn prompt_for_packages(
     choices: &[OutdatedPackage],
     latest: bool,
+    workspaces_enabled: bool,
 ) -> miette::Result<Option<Vec<String>>> {
     if choices.is_empty() {
         let message = if latest {
@@ -190,17 +197,8 @@ fn prompt_for_packages(
         return Ok(None);
     }
 
-    let labels: Vec<String> = choices
-        .iter()
-        .map(|choice| {
-            let name = if choice.github_action {
-                format!("{} (github action)", choice.alias)
-            } else {
-                choice.alias.clone()
-            };
-            format!("{name} {} ❯ {}", choice.current, choice.target)
-        })
-        .collect();
+    let groups = choices::update_choices(&choices.iter().collect::<Vec<_>>(), workspaces_enabled);
+    let (labels, values) = flatten_groups(&groups);
 
     let selected_indices = MultiSelect::new()
         .with_prompt("Choose which dependencies to update (space to select, enter to confirm)")
@@ -209,14 +207,51 @@ fn prompt_for_packages(
         .into_diagnostic()
         .map_err(|err| miette!("interactive update selection failed: {err}"))?;
 
-    let selected: Vec<String> =
-        selected_indices.into_iter().map(|index| choices[index].alias.clone()).collect();
-
+    let selected = selected_packages(&values, &selected_indices);
     if selected.is_empty() {
         return Ok(None);
     }
     Ok(Some(selected))
 }
+
+/// Flatten the groups into the one item list `dialoguer` takes, paired
+/// with the package each item updates. A group heading and a group's
+/// header row have no package: `dialoguer` cannot mark an item
+/// unselectable the way pnpm's prompt does, so [`selected_packages`]
+/// drops them from the answer instead.
+fn flatten_groups(groups: &[choices::ChoiceGroup]) -> (Vec<String>, Vec<Option<String>>) {
+    let mut labels = Vec::new();
+    let mut values = Vec::new();
+    for group in groups {
+        labels.push(bold(&group.message));
+        values.push(None);
+        for row in &group.rows {
+            labels.push(row.label.clone());
+            values.push(row.value.clone());
+        }
+    }
+    (labels, values)
+}
+
+/// The packages behind `indices`, in the order the user checked them and
+/// without repeats — the same package can be offered by two importers.
+fn selected_packages(values: &[Option<String>], indices: &[usize]) -> Vec<String> {
+    let mut selected = Vec::new();
+    let mut seen = HashSet::new();
+    for &index in indices {
+        let Some(value) = values.get(index).and_then(Option::as_ref) else { continue };
+        if seen.insert(value.as_str()) {
+            selected.push(value.clone());
+        }
+    }
+    selected
+}
+
+fn bold(text: &str) -> String {
+    text.if_supports_color(Stream::Stdout, |t| t.bold()).to_string()
+}
+
+mod choices;
 
 #[cfg(test)]
 mod tests;

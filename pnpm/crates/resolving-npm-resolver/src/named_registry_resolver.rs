@@ -5,8 +5,9 @@
 //! the alias up in the merged named-registries map, and picks the
 //! version against that registry's URL. The result carries
 //! `resolved_via = "named-registry"` and the scoped package name as
-//! the alias so the install layer records the dependency under its
-//! original name.
+//! the alias, so an edge that declares no name of its own is installed
+//! under its original name. An edge declared under a manifest key keeps
+//! that key.
 //!
 //! Authentication piggybacks on the existing per-URL `.npmrc`
 //! mechanism: a `//npm.pkg.github.com/:_authToken=...` entry takes
@@ -28,8 +29,9 @@ use pacquet_resolving_resolver_base::{
 
 use crate::{
     npm_resolver::{
-        BuildResolveResult, PickFromRegistryOptions, PickedFromRegistry, build_resolve_result,
-        pick_from_registry_with_guard,
+        BuildResolveResult, PickFromRegistryOptions, RegistryPick, build_resolve_result,
+        calc_specifier_from, no_matching_version, pick_from_registry_with_guard,
+        swallowed_as_no_latest,
     },
     parse_bare_specifier::{
         NamedRegistryPackageSpec, parse_named_registry_specifier_to_registry_package_spec,
@@ -139,8 +141,11 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
         };
 
         let optional = wanted_dependency.optional.unwrap_or(false);
-        let Some(picked) = self.pick_from_registry(registry, &spec, opts, optional).await? else {
-            return Ok(None);
+        let picked = match self.pick_from_registry(registry, &spec, opts, optional).await? {
+            RegistryPick::Picked(picked) => picked,
+            RegistryPick::NoMatchingVersion(meta) => {
+                return Err(no_matching_version(wanted_dependency, registry, &meta));
+            }
         };
 
         let result = build_resolve_result(BuildResolveResult {
@@ -153,12 +158,20 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
             published_by: opts.published_by,
             published_by_exclude: opts.published_by_exclude.as_ref(),
             picked_manifest_cache: &self.picked_manifest_cache,
-            // A named-registry entry round-trips as
-            // `<alias>:<name>@<range>`, a shape `calc_specifier` does not
-            // build. Reporting an npm-shaped range here would drop the
-            // alias and repoint the dependency at the default registry,
-            // so the entry is left as declared.
-            calc_specifier_from: None,
+            // The entry stays a named-registry dependency, so it
+            // round-trips under the `<alias>:` protocol prefix.
+            calculated_specifier: calc_specifier_from(wanted_dependency, opts, &spec).map(
+                |(bare_specifier, default_pin)| {
+                    crate::calc_prefixed_specifier(
+                        &format!("{registry_name}:"),
+                        &spec.name,
+                        bare_specifier,
+                        wanted_dependency.alias.as_deref(),
+                        &picked.version,
+                        default_pin,
+                    )
+                },
+            ),
         })?;
 
         Ok(Some(result))
@@ -177,7 +190,13 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
         if !query.compatible {
             resolve_opts.update = UpdateBehavior::Latest;
         }
-        let result = self.resolve_impl(&wanted, &resolve_opts).await?;
+        let result = match self.resolve_impl(&wanted, &resolve_opts).await {
+            Ok(result) => result,
+            Err(err) if swallowed_as_no_latest(&err, opts) => {
+                return Ok(Some(LatestInfo { latest_manifest: None }));
+            }
+            Err(err) => return Err(err),
+        };
         let Some(result) = result else {
             return Ok(None);
         };
@@ -197,7 +216,7 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
         spec: &RegistryPackageSpec,
         opts: &ResolveOptions,
         optional: bool,
-    ) -> Result<Option<PickedFromRegistry>, ResolveError> {
+    ) -> Result<RegistryPick, ResolveError> {
         let overlay_selectors =
             crate::preferred_overlay::overlay_merged_selectors(opts, &spec.name);
         let base_selectors =
@@ -233,7 +252,7 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
             },
         )
         .await?;
-        if let Some(picked) = &picked {
+        if let RegistryPick::Picked(picked) = &picked {
             crate::preferred_overlay::warn_once_on_held_back_update(
                 opts,
                 spec,

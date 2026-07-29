@@ -13,9 +13,10 @@ use indexmap::IndexMap;
 use pacquet_catalogs_protocol_parser::parse_catalog_protocol;
 use pacquet_catalogs_types::Catalogs;
 use pacquet_lockfile::{
-    CatalogSnapshots, ComVer, ImporterDepVersion, Lockfile, LockfileResolution, LockfileSettings,
-    LockfileVersion, PackageKey, PackageMetadata, ParseImporterDepVersionError, PeerDependencyMeta,
-    PkgName, PkgNameVerPeer, PkgVerPeer, ProjectSnapshot, ResolvedCatalogEntry,
+    BundledDependencies, CatalogSnapshots, ComVer, ImporterDepVersion, Lockfile,
+    LockfileResolution, LockfileSettings, LockfileVersion, PackageKey, PackageMetadata,
+    ParseImporterDepVersionError, ParsePkgNameSuffixError, ParsePkgVerPeerError,
+    PeerDependencyMeta, PkgName, PkgNameVerPeer, PkgVerPeer, ProjectSnapshot, ResolvedCatalogEntry,
     ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry, VersionPart,
 };
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
@@ -39,6 +40,14 @@ pub struct ImporterLockfileInput<'a> {
     /// `alias → DepPath` for the direct dependencies of this importer,
     /// as emitted by [`pacquet_resolving_deps_resolver::resolve_peers`].
     pub direct_dependencies_by_alias: BTreeMap<String, DepPath>,
+}
+
+/// The install-wide settings [`build_importer`] reads. Both decide
+/// which direct dependencies reach the importer entry, so they travel
+/// together instead of as two adjacent `bool` parameters.
+struct ImporterLockfileFlags {
+    exclude_links_from_lockfile: bool,
+    auto_install_peers: bool,
 }
 
 /// Options threaded into [`dependencies_graph_to_lockfile`].
@@ -114,6 +123,22 @@ pub enum DependenciesGraphToLockfileError {
         #[error(source)]
         source: Box<ParseImporterDepVersionError>,
     },
+
+    /// A resolved package whose depPath parses as no [`PackageKey`], so
+    /// it can key neither `packages:` nor `snapshots:`. Every resolution
+    /// but a `link:` gets a name prefixed onto its depPath — from the
+    /// resolver, or failing that from the manifest the deps-resolver
+    /// synthesizes — so reaching here means a resolver produced a
+    /// nameless depPath. Writing the lockfile anyway would leave the
+    /// importer pointing at a package neither map describes, and the
+    /// install would link a dangling symlink into a virtual-store
+    /// directory nothing created.
+    #[display("Resolved dependency path {dep_path:?} keys no lockfile entry: {source}")]
+    UnkeyedDepPath {
+        dep_path: String,
+        #[error(source)]
+        source: Box<ParsePkgNameSuffixError<ParsePkgVerPeerError>>,
+    },
 }
 
 /// Build a [`Lockfile`] from the resolver's [`DependenciesGraph`] plus
@@ -164,7 +189,14 @@ pub fn dependencies_graph_to_lockfile(
     let mut importers: HashMap<String, ProjectSnapshot> =
         HashMap::with_capacity(importer_inputs.len());
     for (id, input) in &importer_inputs {
-        importers.insert(id.clone(), build_importer(input, graph, exclude_links_from_lockfile)?);
+        importers.insert(
+            id.clone(),
+            build_importer(
+                input,
+                graph,
+                &ImporterLockfileFlags { exclude_links_from_lockfile, auto_install_peers },
+            )?,
+        );
     }
 
     let catalog_snapshots = build_catalog_snapshots(&importers, catalogs);
@@ -252,8 +284,9 @@ fn importer_resolved_version(importer: &ProjectSnapshot, alias: &str) -> Option<
 fn build_importer(
     input: &ImporterLockfileInput<'_>,
     graph: &DependenciesGraph,
-    exclude_links_from_lockfile: bool,
+    flags: &ImporterLockfileFlags,
 ) -> Result<ProjectSnapshot, DependenciesGraphToLockfileError> {
+    let ImporterLockfileFlags { exclude_links_from_lockfile, auto_install_peers } = *flags;
     let manifest = input.manifest;
     let direct = &input.direct_dependencies_by_alias;
 
@@ -275,7 +308,9 @@ fn build_importer(
         // snapshots graph below. Writing them here would carry specifiers
         // the manifest can't satisfy through `satisfies_package_manifest`
         // and force every later install onto the fresh-resolve path.
-        let Some(specifier) = read_manifest_specifier(manifest, alias) else { continue };
+        let Some(specifier) = read_manifest_specifier(manifest, alias, auto_install_peers) else {
+            continue;
+        };
         // Workspace-link nodes don't enter the graph (the resolver
         // short-circuits them at `depth = -1`); resolve the importer
         // version directly from the `link:` depPath instead. Non-link
@@ -349,18 +384,23 @@ fn manifest_alias_to_group(manifest: &PackageManifest) -> HashMap<String, Depend
 }
 
 /// Look up the user-written specifier for `alias` in the manifest's
-/// `optionalDependencies` / `dependencies` / `devDependencies` /
-/// `peerDependencies` maps, in that precedence order. Returns `None` for
-/// a peer-only entry that was auto-installed but isn't recorded as a
-/// direct dep in the manifest — such entries don't go into the
-/// importer's `specifiers` map.
-fn read_manifest_specifier(manifest: &PackageManifest, alias: &str) -> Option<String> {
-    for group in [
-        DependencyGroup::Optional,
-        DependencyGroup::Prod,
-        DependencyGroup::Dev,
-        DependencyGroup::Peer,
-    ] {
+/// `optionalDependencies` / `dependencies` / `devDependencies` maps —
+/// plus `peerDependencies` when `auto_install_peers` materializes those
+/// into the importer's dependencies. Returns `None` for an alias the
+/// manifest doesn't declare in any of those groups, including a peer the
+/// hoist installed while `autoInstallPeers` is off: such entries stay out
+/// of the importer's `specifiers` map and are only reachable through the
+/// snapshots graph.
+fn read_manifest_specifier(
+    manifest: &PackageManifest,
+    alias: &str,
+    auto_install_peers: bool,
+) -> Option<String> {
+    let materialized_peers = auto_install_peers.then_some(DependencyGroup::Peer);
+    for group in [DependencyGroup::Optional, DependencyGroup::Prod, DependencyGroup::Dev]
+        .into_iter()
+        .chain(materialized_peers)
+    {
         let group_key: &str = group.into();
         if let Some(map) = manifest.value().get(group_key).and_then(Value::as_object)
             && let Some(spec) = map.get(alias).and_then(Value::as_str)
@@ -400,31 +440,39 @@ fn importer_dep_version(
     let parsed = dep_path_str.parse::<ImporterDepVersion>()?;
     // An injected workspace dep reaches this point as its full peered
     // dep path, `<name>@file:<path>(peers)` — the bare `file:` strip
-    // above only matches peerless dep paths, and `real_name` is unset
-    // for directory resolutions (they learn their name from the
-    // manifest). pnpm v11 reserves the `<name>@<ref>` alias form for
-    // *renamed* deps and writes the plain `file:<path>(peers)` ref when
-    // the alias equals the package name; a self-aliased ref would
-    // double-prefix every consumer that composes `alias@version` into a
-    // snapshot key (v11 readers, Bit's graph converter).
+    // above only matches peerless dep paths.
     if let ImporterDepVersion::Alias(parsed_alias) = &parsed
-        && match parsed_alias.name.scope.as_deref() {
-            Some(scope) => {
-                alias.strip_prefix('@').and_then(|unscoped| unscoped.split_once('/')).is_some_and(
-                    |(alias_scope, bare)| alias_scope == scope && bare == parsed_alias.name.bare,
-                )
-            }
-            None => alias == parsed_alias.name.bare,
-        }
-        && matches!(parsed_alias.suffix.version(), VersionPart::File(_))
+        && let Some(ver) = self_aliased_file_ver(alias, parsed_alias)
     {
-        let suffix = parsed_alias.suffix.to_string();
+        let suffix = ver.to_string();
         let payload = suffix
             .strip_prefix("file:")
             .expect("a File version part always displays with the file: scheme");
         return Ok(ImporterDepVersion::File(payload.to_string()));
     }
     Ok(parsed)
+}
+
+/// `Some(version)` when `key` names a `file:` package aliased to its own
+/// name. pnpm reserves the `<name>@<ref>` alias form for *renamed* deps
+/// and writes the plain `file:<path>(peers)` ref when the alias equals
+/// the package name; a self-aliased ref would double-prefix every
+/// consumer that composes `alias@version` into a snapshot key (v11
+/// readers, Bit's graph converter).
+///
+/// The dep path is the only place the name is available for these:
+/// [`real_name`] is unset for directory resolutions, which learn their
+/// name from the fetched manifest.
+fn self_aliased_file_ver<'a>(alias: &str, key: &'a PkgNameVerPeer) -> Option<&'a PkgVerPeer> {
+    let aliased_to_own_name = match key.name.scope.as_deref() {
+        Some(scope) => alias
+            .strip_prefix('@')
+            .and_then(|unscoped| unscoped.split_once('/'))
+            .is_some_and(|(alias_scope, bare)| alias_scope == scope && bare == key.name.bare),
+        None => alias == key.name.bare,
+    };
+    (aliased_to_own_name && matches!(key.suffix.version(), VersionPart::File(_)))
+        .then_some(&key.suffix)
 }
 
 /// `Some(real_name)` when the resolver produced a structured name; `None`
@@ -445,10 +493,9 @@ fn real_name(result: &ResolveResult) -> Option<String> {
     // - a git dep with no host archive (`<name>@git+<repo>#<commit>` ->
     //   `version: git+<repo>#<commit>`), the shape every non-host repo
     //   resolves to (ssh, self-hosted, `file:`).
-    // `file:` resolutions are deliberately left to the `None` path so
-    // their importer entries keep pacquet's current prefixed shape —
-    // bringing those in line is separate from
-    // <https://github.com/pnpm/pnpm/issues/12053>.
+    // `file:` resolutions stay on the `None` path: both callers strip
+    // their `<name>@` prefix from the parsed dep path instead, via
+    // [`self_aliased_file_ver`].
     let reads_name_from_manifest = match &result.resolution {
         LockfileResolution::Variations(_) | LockfileResolution::Git(_) => true,
         LockfileResolution::Tarball(tarball) => is_remote_http_tarball(&tarball.tarball),
@@ -491,7 +538,20 @@ fn build_packages_and_snapshots(
     let mut snapshots: HashMap<PackageKey, SnapshotEntry> = HashMap::new();
 
     for node in graph.values() {
-        let Ok(snapshot_key) = node.dep_path.as_str().parse::<PackageKey>() else { continue };
+        let dep_path = node.dep_path.as_str();
+        let snapshot_key = match dep_path.parse::<PackageKey>() {
+            Ok(snapshot_key) => snapshot_key,
+            // A workspace link is the one node with no row of its own —
+            // it resolves as its own importer and pnpm writes it none
+            // either.
+            Err(_) if dep_path.starts_with("link:") => continue,
+            Err(source) => {
+                return Err(DependenciesGraphToLockfileError::UnkeyedDepPath {
+                    dep_path: dep_path.to_string(),
+                    source: Box::new(source),
+                });
+            }
+        };
         let metadata_key = snapshot_key.without_peer();
 
         let snapshot = build_snapshot_entry(node, graph, optional_overrides);
@@ -551,15 +611,17 @@ fn build_package_metadata(
 
     let cpu = read_string_list(manifest, "cpu");
     let os = read_string_list(manifest, "os");
-    let libc = read_string_list(manifest, "libc");
+    let libc = read_string_or_list(manifest, "libc");
 
-    let deprecated =
-        manifest.and_then(|m| m.get("deprecated")).and_then(Value::as_str).map(ToString::to_string);
+    let deprecated = manifest
+        .and_then(|m| m.get("deprecated"))
+        .and_then(Value::as_str)
+        .filter(|deprecated| !deprecated.is_empty())
+        .map(ToString::to_string);
 
     let has_bin = manifest_has_bin(manifest);
 
-    let bundled_dependencies = read_string_list(manifest, "bundledDependencies")
-        .or_else(|| read_string_list(manifest, "bundleDependencies"));
+    let bundled_dependencies = BundledDependencies::from_manifest(manifest);
 
     let (peer_dependencies, peer_dependencies_meta) = build_peer_dep_blocks(node);
 
@@ -597,26 +659,50 @@ fn build_package_metadata(
     }
 }
 
-/// Read a JSON array field off the resolver's manifest fragment and
-/// flatten it into a `Vec<String>`. `None` when the field is missing or
-/// not an array of strings — malformed metadata is silently dropped.
+/// Read a JSON array field off the resolver's manifest fragment and flatten it
+/// into a `Vec<String>`. `None` when the field is missing or has no string
+/// values — malformed metadata is silently dropped.
 fn read_string_list(manifest: Option<&Value>, key: &str) -> Option<Vec<String>> {
-    let arr = manifest?.get(key)?.as_array()?;
-    let out: Vec<String> = arr.iter().filter_map(Value::as_str).map(ToString::to_string).collect();
-    (!out.is_empty()).then_some(out)
+    match manifest?.get(key)? {
+        Value::Array(items) => {
+            let out: Vec<String> =
+                items.iter().filter_map(Value::as_str).map(ToString::to_string).collect();
+            (!out.is_empty()).then_some(out)
+        }
+        _ => None,
+    }
 }
 
-/// `Some(true)` when the manifest declares a `bin` entry (string or
-/// non-empty object map), recorded as the `hasBin: true` signal; the
-/// field is dropped entirely when absent.
-fn manifest_has_bin(manifest: Option<&Value>) -> Option<bool> {
-    let value = manifest?.get("bin")?;
-    let present = match value {
+fn read_string_or_list(
+    manifest: Option<&Value>,
+    key: &str,
+) -> Option<pacquet_lockfile::StringOrList> {
+    match manifest?.get(key)? {
+        Value::String(value) if !value.is_empty() => {
+            Some(pacquet_lockfile::StringOrList::String(value.clone()))
+        }
+        Value::Array(_) => {
+            read_string_list(manifest, key).map(pacquet_lockfile::StringOrList::List)
+        }
+        _ => None,
+    }
+}
+
+/// `Some(true)` when the manifest declares executable files, recorded as
+/// the `hasBin: true` signal; the field is dropped entirely when absent.
+pub(crate) fn manifest_has_bin(manifest: Option<&Value>) -> Option<bool> {
+    let manifest = manifest?;
+    let has_bin = manifest.get("bin").is_some_and(|value| match value {
         Value::String(s) => !s.is_empty(),
         Value::Object(map) => !map.is_empty(),
         _ => false,
-    };
-    present.then_some(true)
+    });
+    let has_bin_directory = manifest
+        .get("directories")
+        .and_then(Value::as_object)
+        .and_then(|directories| directories.get("bin"))
+        .is_some_and(|value| value.as_str().is_some_and(|path| !path.is_empty()));
+    (has_bin || has_bin_directory).then_some(true)
 }
 
 /// Returned `Option`-pair from [`build_peer_dep_blocks`]: the
@@ -830,7 +916,11 @@ fn snapshot_dep_ref(
             return Some(SnapshotDepRef::Plain(parsed));
         }
     }
-    dep_path_str.parse::<PkgNameVerPeer>().ok().map(SnapshotDepRef::Alias)
+    let key = dep_path_str.parse::<PkgNameVerPeer>().ok()?;
+    if let Some(ver) = self_aliased_file_ver(alias, &key) {
+        return Some(SnapshotDepRef::Plain(ver.clone()));
+    }
+    Some(SnapshotDepRef::Alias(key))
 }
 
 #[cfg(test)]

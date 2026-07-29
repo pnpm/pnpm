@@ -51,6 +51,19 @@ fn extracts_manifest_from_non_canonical_entry_path() {
     assert_eq!(manifest["name"], "foo");
 }
 
+/// `pnpm publish <tarball>` must accept a packed manifest carrying a
+/// UTF-8 BOM, the same as one read from a project directory.
+#[test]
+fn extracts_a_manifest_that_starts_with_a_utf8_bom() {
+    let dir = TempDir::new().unwrap();
+    let path = write_tarball(
+        &dir,
+        &[("package/package.json", "\u{feff}{\"name\":\"foo\",\"version\":\"1.0.0\"}")],
+    );
+    let manifest = extract_manifest_from_packed(&path).unwrap();
+    assert_eq!(manifest["name"], "foo");
+}
+
 #[test]
 fn normalize_entry_path_matches_node_path_normalize() {
     use std::path::Path;

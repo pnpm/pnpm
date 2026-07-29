@@ -1,4 +1,8 @@
-use std::{collections::HashMap, str::FromStr, sync::Mutex};
+use std::{
+    collections::{HashMap, HashSet},
+    str::FromStr,
+    sync::Mutex,
+};
 
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_resolving_resolver_base::{
@@ -8,10 +12,232 @@ use pacquet_resolving_resolver_base::{
 };
 use pretty_assertions::assert_eq;
 
+use super::{
+    ImporterLockedPeerContext, discard_changed_direct_dep_peer_context,
+    importer_locked_peer_context,
+};
 use crate::{
     DepPath, ResolveDependencyTreeError, resolve_importer,
     resolve_importer::{ResolveImporterError, ResolveImporterOptions},
 };
+
+#[test]
+fn locked_peer_context_is_recorded_by_direct_alias() {
+    use pacquet_lockfile::{
+        ComVer, ImporterDepVersion, Lockfile, LockfileVersion, PkgName, PkgVerPeer,
+        ProjectSnapshot, ResolvedDependencySpec,
+    };
+
+    let consumer = PkgName::parse("consumer").unwrap();
+    let lockfile = Lockfile {
+        lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(9, 0)).unwrap(),
+        importers: HashMap::from([(
+            "app".to_string(),
+            ProjectSnapshot {
+                dependencies: Some(HashMap::from([(
+                    consumer,
+                    ResolvedDependencySpec {
+                        specifier: "1.0.0".to_string(),
+                        version: ImporterDepVersion::Regular(
+                            "1.0.0(peer@2.0.0)".parse::<PkgVerPeer>().unwrap(),
+                        ),
+                    },
+                )])),
+                ..ProjectSnapshot::default()
+            },
+        )]),
+        settings: None,
+        catalogs: None,
+        overrides: None,
+        package_extensions_checksum: None,
+        pnpmfile_checksum: None,
+        ignored_optional_dependencies: None,
+        patched_dependencies: None,
+        packages: None,
+        snapshots: None,
+    };
+
+    let ImporterLockedPeerContext { versions, names_by_alias } =
+        importer_locked_peer_context(Some(&lockfile), "app");
+
+    assert_eq!(versions["peer"], HashSet::from(["2.0.0".to_string()]));
+    assert_eq!(names_by_alias["consumer"].as_ref(), &HashSet::from(["peer".to_string()]));
+}
+
+#[test]
+fn changed_direct_dependency_discards_prior_peer_context() {
+    use pacquet_lockfile::PkgName;
+    use std::sync::Arc;
+
+    let mut names_by_alias = HashMap::from([
+        ("changed".to_string(), Arc::new(HashSet::from(["old-peer".to_string()]))),
+        ("unchanged".to_string(), Arc::new(HashSet::from(["peer".to_string()]))),
+    ]);
+
+    discard_changed_direct_dep_peer_context(
+        &mut names_by_alias,
+        &HashSet::from([PkgName::parse("changed").unwrap()]),
+    );
+
+    assert_eq!(
+        names_by_alias,
+        HashMap::from([("unchanged".to_string(), Arc::new(HashSet::from(["peer".to_string()])),)]),
+    );
+}
+
+#[test]
+fn only_peer_suffix_versions_are_treated_as_locked_peer_providers() {
+    use pacquet_lockfile::{ComVer, Lockfile, LockfileVersion, PkgNameVerPeer, SnapshotEntry};
+
+    let lockfile = Lockfile {
+        lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(9, 0)).unwrap(),
+        settings: None,
+        catalogs: None,
+        overrides: None,
+        package_extensions_checksum: None,
+        pnpmfile_checksum: None,
+        ignored_optional_dependencies: None,
+        patched_dependencies: None,
+        importers: HashMap::new(),
+        packages: None,
+        snapshots: Some(HashMap::from([
+            (
+                PkgNameVerPeer::from_str("consumer@1.0.0(peer@1.0.0)").unwrap(),
+                SnapshotEntry::default(),
+            ),
+            (
+                PkgNameVerPeer::from_str(
+                    "other@1.0.0(@types/node@24.0.0)(provider@1.0.0(nested@2.0.0))",
+                )
+                .unwrap(),
+                SnapshotEntry::default(),
+            ),
+        ])),
+    };
+
+    assert_eq!(
+        locked_peer_names(Some(&lockfile)),
+        HashSet::from([
+            "@types/node".to_string(),
+            "nested".to_string(),
+            "peer".to_string(),
+            "provider".to_string(),
+        ]),
+    );
+}
+
+#[test]
+fn hashed_peer_suffix_uses_package_peer_metadata() {
+    use pacquet_lockfile::{
+        ComVer, DirectoryResolution, Lockfile, LockfileResolution, LockfileVersion,
+        PackageMetadata, PkgName, PkgNameVerPeer, PkgVerPeer, SnapshotDepRef, SnapshotEntry,
+    };
+
+    let package_key = PkgNameVerPeer::from_str("consumer@1.0.0").unwrap();
+    let snapshot_key =
+        PkgNameVerPeer::from_str("consumer@1.0.0(0123456789abcdef0123456789abcdef)").unwrap();
+    let lockfile = Lockfile {
+        lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(9, 0)).unwrap(),
+        settings: None,
+        catalogs: None,
+        overrides: None,
+        package_extensions_checksum: None,
+        pnpmfile_checksum: None,
+        ignored_optional_dependencies: None,
+        patched_dependencies: None,
+        importers: HashMap::new(),
+        packages: Some(HashMap::from([(
+            package_key,
+            PackageMetadata {
+                resolution: LockfileResolution::Directory(DirectoryResolution {
+                    directory: "consumer".to_string(),
+                }),
+                version: None,
+                engines: None,
+                cpu: None,
+                os: None,
+                libc: None,
+                deprecated: None,
+                has_bin: None,
+                prepare: None,
+                bundled_dependencies: None,
+                peer_dependencies: Some(HashMap::from([
+                    ("peer".to_string(), "*".to_string()),
+                    ("missing".to_string(), "*".to_string()),
+                ])),
+                peer_dependencies_meta: None,
+            },
+        )])),
+        snapshots: Some(HashMap::from([(
+            snapshot_key,
+            SnapshotEntry {
+                dependencies: Some(HashMap::from([(
+                    PkgName::parse("peer").unwrap(),
+                    SnapshotDepRef::Plain(PkgVerPeer::from_str("1.0.0").unwrap()),
+                )])),
+                ..SnapshotEntry::default()
+            },
+        )])),
+    };
+
+    let ImporterLockedPeerContext { versions, names_by_alias } =
+        importer_locked_peer_context(Some(&lockfile), "missing-importer");
+    assert_eq!(
+        versions,
+        HashMap::from([("peer".to_string(), HashSet::from(["1.0.0".to_string()]))]),
+    );
+    assert!(names_by_alias.is_empty());
+}
+
+fn locked_peer_names(wanted_lockfile: Option<&pacquet_lockfile::Lockfile>) -> HashSet<String> {
+    let Some(lockfile) = wanted_lockfile else {
+        return HashSet::new();
+    };
+    let mut names = HashSet::new();
+    for (key, snapshot) in lockfile.snapshots.iter().flatten() {
+        let peer_suffix = key.suffix.peer();
+        if peer_suffix.is_empty() {
+            continue;
+        }
+        names.extend(peer_suffix_names(peer_suffix));
+        if is_hashed_peer_suffix(peer_suffix)
+            && let Some(metadata) =
+                lockfile.packages.as_ref().and_then(|packages| packages.get(&key.without_peer()))
+        {
+            let resolved_names = snapshot
+                .dependencies
+                .iter()
+                .chain(snapshot.optional_dependencies.iter())
+                .flatten()
+                .map(|(name, _)| name.to_string())
+                .collect::<HashSet<_>>();
+            names.extend(
+                metadata
+                    .peer_dependencies
+                    .iter()
+                    .flatten()
+                    .map(|(name, _)| name)
+                    .filter(|name| resolved_names.contains(*name))
+                    .cloned(),
+            );
+        }
+    }
+    names
+}
+
+fn peer_suffix_names(peer_suffix: &str) -> impl Iterator<Item = String> + '_ {
+    peer_suffix.match_indices('(').filter_map(|(start, _)| {
+        let segment = peer_suffix[start + 1..].split(['(', ')']).next()?;
+        let (name, _) = segment.rsplit_once('@')?;
+        (!name.is_empty()).then(|| name.to_string())
+    })
+}
+
+fn is_hashed_peer_suffix(peer_suffix: &str) -> bool {
+    peer_suffix.rsplit_once('(').and_then(|(_, tail)| tail.strip_suffix(')')).is_some_and(|hash| {
+        hash.len() == 32 && hash.chars().all(|character| character.is_ascii_hexdigit())
+    })
+}
 
 struct StubResolver {
     table: HashMap<(String, String), ResolveResult>,
@@ -97,7 +323,9 @@ fn default_opts() -> ResolveImporterOptions {
         auto_install_peers_from_highest_match: false,
         resolve_peers_from_workspace_root: false,
         dedupe_peers: false,
+        dedupe_peer_dependents: true,
         all_preferred_versions: PreferredVersions::new(),
+        override_bare_specifier: None,
         patched_dependencies: None,
         base_opts: ResolveOptions::default(),
         pick_lowest_direct: false,
@@ -1185,9 +1413,7 @@ async fn catalog_misconfiguration_surfaces_pnpm_error_code() {
                 "No catalog entry 'foo' was found for catalog 'default'.",
             );
         }
-        other @ ResolveImporterError::Resolve(_) => {
-            panic!("expected CatalogMisconfiguration, got {other:?}")
-        }
+        other => panic!("expected CatalogMisconfiguration, got {other:?}"),
     }
 }
 
@@ -1471,4 +1697,74 @@ mod resolution_mode {
         assert_eq!(resolver.opts_for("direct"), (true, Some(maximum)));
         assert_eq!(resolver.opts_for("sub"), (false, Some(cutoff)));
     }
+}
+
+/// `hoistPeers` is `autoInstallPeers || dedupePeerDependents`: with both
+/// off, a missing optional peer stays missing even though a preferred
+/// version is in scope, so the packages that declare it keep an
+/// unsuffixed snapshot.
+#[tokio::test]
+async fn both_hoist_settings_off_leaves_the_optional_peer_missing() {
+    let mut table = HashMap::new();
+    table.insert(
+        ("abc".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "abc",
+            "1.0.0",
+            serde_json::json!({
+                "name": "abc",
+                "version": "1.0.0",
+                "peerDependencies": { "peer-c": "^1.0.0" },
+                "peerDependenciesMeta": { "peer-c": { "optional": true } },
+            }),
+        ),
+    );
+    table.insert(
+        ("peer-c".to_string(), "1.0.0".to_string()),
+        fake_result("peer-c", "1.0.0", serde_json::json!({ "name": "peer-c", "version": "1.0.0" })),
+    );
+    let (_tmp, manifest) = fake_manifest(serde_json::json!({ "abc": "1.0.0" }));
+
+    // A sibling importer already resolved the peer, so the optional
+    // hoist would have a version to pick.
+    let seeded_preferred_versions = || {
+        let mut selectors = VersionSelectors::new();
+        selectors
+            .insert("1.0.0".to_string(), VersionSelectorEntry::Plain(VersionSelectorType::Version));
+        PreferredVersions::from([("peer-c".to_string(), selectors)])
+    };
+
+    let hoisting_off = ResolveImporterOptions {
+        auto_install_peers: false,
+        dedupe_peer_dependents: false,
+        all_preferred_versions: seeded_preferred_versions(),
+        ..default_opts()
+    };
+    let resolver = StubResolver { table: table.clone(), calls: Mutex::new(Vec::new()) };
+    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], hoisting_off)
+        .await
+        .unwrap();
+    let direct: Vec<&str> =
+        result.peers_result.direct_dependencies_by_alias.keys().map(String::as_str).collect();
+    assert_eq!(direct, ["abc"]);
+    assert_eq!(
+        result.peers_result.direct_dependencies_by_alias.get("abc"),
+        Some(&DepPath::from("abc@1.0.0".to_string())),
+    );
+
+    // `dedupePeerDependents` alone still hoists it, without
+    // `autoInstallPeers`.
+    let dedupe_only = ResolveImporterOptions {
+        auto_install_peers: false,
+        dedupe_peer_dependents: true,
+        all_preferred_versions: seeded_preferred_versions(),
+        ..default_opts()
+    };
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let result =
+        resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], dedupe_only).await.unwrap();
+    assert_eq!(
+        result.peers_result.direct_dependencies_by_alias.get("abc"),
+        Some(&DepPath::from("abc@1.0.0(peer-c@1.0.0)".to_string())),
+    );
 }

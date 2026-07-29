@@ -56,7 +56,7 @@ import {
   type UpdateDepsMatcher,
 } from './recursive.js'
 import { makeRunPacquet } from './runPacquet.js'
-import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies.js'
+import { toWorkspaceSpecs } from './updateWorkspaceDependencies.js'
 import { verifyPacquetIdentity } from './verifyPacquetIdentity.js'
 
 const OVERWRITE_UPDATE_OPTIONS = {
@@ -357,6 +357,10 @@ export async function installDeps (
   let updateMatch: UpdateDepsMatcher | null
   let updatePackageManifest = opts.updatePackageManifest
   let updateMatching: UpdateMatchingFunction | undefined
+  // `params` is rewritten below into the dependency names it matched, so
+  // remember whether the user named any package. `--workspace` only insists
+  // that a dependency exists in the workspace when it was asked for by name.
+  const userNamedDeps = params.length > 0
   if (opts.update) {
     if (params.length === 0) {
       const ignoreDeps = opts.updateConfig?.ignoreDependencies
@@ -393,11 +397,12 @@ export async function installDeps (
     params = Object.keys(filterDependenciesByType(manifest, includeDirect))
   }
   if (opts.workspace) {
-    if (!params || (params.length === 0)) {
-      params = updateToWorkspacePackagesFromManifest(manifest, includeDirect, workspacePackages)
-    } else {
-      params = createWorkspaceSpecs(params, workspacePackages)
-    }
+    params = toWorkspaceSpecs(params ?? [], {
+      manifest,
+      include: includeDirect,
+      workspacePackages,
+      userNamedDeps,
+    })
   }
   if (params?.length) {
     const mutatedProject = {

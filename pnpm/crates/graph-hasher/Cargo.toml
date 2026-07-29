@@ -12,6 +12,7 @@ repository.workspace  = true
 
 [dependencies]
 base64              = { workspace = true }
+indexmap            = { workspace = true }
 pacquet-detect-libc = { workspace = true }
 serde_json          = { workspace = true }
 sha2                = { workspace = true }

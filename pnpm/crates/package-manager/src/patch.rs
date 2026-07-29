@@ -8,7 +8,7 @@ use node_semver::{Range, Version};
 use pacquet_config::{Config, PackageImportMethod, ScriptsPrependNodePath};
 use pacquet_executor::ScriptsPrependNodePath as ExecScriptsPrependNodePath;
 use pacquet_git_fetcher::{GitFetchOutput, GitFetcherError, GitHostedTarballFetcher};
-use pacquet_lockfile::{Lockfile, LockfileResolution, PackageKey, is_git_hosted_tarball_url};
+use pacquet_lockfile::{Lockfile, LockfileResolution, PackageKey};
 use pacquet_network::ThrottledClient;
 use pacquet_reporter::Reporter;
 use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
@@ -209,7 +209,7 @@ impl WritePackageForPatch<'_> {
         let (tarball_url, integrity) =
             tarball_url_and_integrity(&metadata.resolution, &target.package_key, config)
                 .map_err(WritePackageForPatchError::TarballResolution)?;
-        let package_id = format!("{}@{}", target.alias, target.version);
+        let package_id = target.package_key.pkg_id();
 
         validate_patch_destination(dest)?;
 
@@ -259,7 +259,7 @@ impl WritePackageForPatch<'_> {
                     allow_build: &allow_build_closure,
                     ignore_scripts: config.ignore_scripts,
                     unsafe_perm: config.unsafe_perm,
-                    user_agent: None,
+                    user_agent: Some(&config.user_agent),
                     scripts_prepend_node_path: executor_scripts_prepend_node_path(
                         config.scripts_prepend_node_path,
                     ),
@@ -355,10 +355,8 @@ async fn shutdown_store_index_writer_for_patch(
 
 fn git_tarball_url(resolution: &LockfileResolution) -> Option<String> {
     let LockfileResolution::Tarball(tarball) = resolution else { return None };
-    (tarball.git_hosted == Some(true)
-        || is_git_hosted_tarball_url(&tarball.tarball)
-        || tarball.tarball.starts_with("https://pkg.pr.new/"))
-    .then(|| tarball.tarball.clone())
+    (tarball.is_git_hosted() || tarball.tarball.starts_with("https://pkg.pr.new/"))
+        .then(|| tarball.tarball.clone())
 }
 
 fn executor_scripts_prepend_node_path(

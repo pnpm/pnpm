@@ -5,7 +5,7 @@
 
 use std::collections::HashMap;
 
-use node_semver::Range;
+use node_semver::{Range, Version};
 use pacquet_lockfile::{
     Lockfile, LockfileResolution, PkgName, PkgNameVer, PkgNameVerPeer, ProjectSnapshot,
     ResolvedDependencySpec, SnapshotEntry, TarballResolution, npm_tarball_url,
@@ -14,8 +14,6 @@ use pacquet_lockfile::{
 use pacquet_resolving_parse_wanted_dependency::git_specifiers_are_equivalent;
 use pacquet_resolving_resolver_base::{CurrentPkg, PkgResolutionId, ResolveResult};
 use serde_json::{Map, Value};
-
-use crate::hoist_peers::satisfies_including_prerelease;
 
 /// The `currentPkg` payload for re-resolving `key`'s edge: the prior
 /// lockfile entry shaped into what the resolver expects.
@@ -76,7 +74,7 @@ pub(crate) fn prior_child_key(
         .or_else(|| snapshot.optional_dependencies.as_ref().and_then(|deps| deps.get(&name)))?;
     let key = dep_ref.resolve(&name)?;
     let range = bare_specifier.parse::<Range>().ok()?;
-    let satisfied = satisfies_including_prerelease(&range, key.suffix.version_semver()?);
+    let satisfied = satisfies_with_prereleases(&range, key.suffix.version_semver()?);
     satisfied.then_some(key)
 }
 
@@ -111,7 +109,7 @@ pub(crate) fn reusable_importer_dep(
     }
     let version = spec.version.ver_peer()?.version_semver()?;
     let range = bare_specifier.parse::<Range>().ok()?;
-    if !satisfies_including_prerelease(&range, version) {
+    if !satisfies_with_prereleases(&range, version) {
         return None;
     }
     Some(key)
@@ -129,6 +127,28 @@ fn importer_dep<'a>(
         .and_then(|deps| deps.get(name))
         .or_else(|| importer.optional_dependencies.as_ref().and_then(|deps| deps.get(name)))
         .or_else(|| importer.dev_dependencies.as_ref().and_then(|deps| deps.get(name)))
+}
+
+/// Whether `version` satisfies `range`, keeping a prerelease eligible
+/// for a range that carries none of its own by retrying with the
+/// prerelease tag stripped — the same rule peer binding applies
+/// elsewhere in this crate, and looser than the range semantics the
+/// required-peer picker needs.
+fn satisfies_with_prereleases(range: &Range, version: &Version) -> bool {
+    if range.satisfies(version) {
+        return true;
+    }
+    if !version.is_prerelease() {
+        return false;
+    }
+    let release = Version {
+        major: version.major,
+        minor: version.minor,
+        patch: version.patch,
+        pre_release: Vec::new(),
+        build: Vec::new(),
+    };
+    range.satisfies(&release)
 }
 
 /// Synthesize the [`ResolveResult`] a fresh resolve of `key` would have

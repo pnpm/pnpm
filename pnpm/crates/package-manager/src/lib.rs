@@ -13,7 +13,9 @@ mod create_virtual_store;
 mod current_lockfile;
 mod dependencies_graph_to_lockfile;
 mod deps_graph;
-mod dry_run;
+mod fast_update_catalogs;
+mod fast_update_importers;
+mod fast_update_overrides;
 mod graph_sequencer;
 mod hoist;
 mod hoisted_dep_graph;
@@ -30,6 +32,7 @@ mod link_file;
 mod link_hoisted_modules;
 mod link_manifest_link_deps;
 mod link_root_component_members;
+mod lockfile_diff;
 mod minimum_release_age;
 mod optimistic_repeat_install;
 mod overrides;
@@ -89,6 +92,7 @@ pub use link_file::*;
 pub use link_hoisted_modules::*;
 pub use link_manifest_link_deps::*;
 pub use link_root_component_members::*;
+pub use lockfile_diff::*;
 pub use minimum_release_age::MinimumReleaseAgeError;
 pub use optimistic_repeat_install::*;
 pub use overrides::*;
@@ -129,6 +133,29 @@ pub(crate) const DIRECT_GROUPS: [pacquet_package_manifest::DependencyGroup; 3] =
 ];
 
 pub(crate) const NEEDS_BUILD_MARKER: &str = ".pnpm-needs-build";
+
+pub(crate) fn store_index_key_for_resolution(
+    resolution: &pacquet_lockfile::LockfileResolution,
+    pkg_id: &str,
+    built: bool,
+) -> Option<String> {
+    match resolution {
+        pacquet_lockfile::LockfileResolution::Tarball(tarball) => {
+            Some(pacquet_store_dir::pick_store_index_key(
+                tarball.integrity.as_ref().map(ToString::to_string).as_deref(),
+                tarball.is_git_hosted(),
+                pkg_id,
+                built,
+            ))
+        }
+        pacquet_lockfile::LockfileResolution::Git(_) => {
+            Some(pacquet_store_dir::git_hosted_store_index_key(pkg_id, built))
+        }
+        _ => resolution
+            .integrity()
+            .map(|integrity| pacquet_store_dir::store_index_key(&integrity.to_string(), pkg_id)),
+    }
+}
 
 pub(crate) fn snapshot_has_patch(snapshot_key: &pacquet_lockfile::PackageKey) -> bool {
     pacquet_deps_path::index_of_dep_path_suffix(&snapshot_key.to_string())

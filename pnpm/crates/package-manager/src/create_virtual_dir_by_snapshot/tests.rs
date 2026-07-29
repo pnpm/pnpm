@@ -25,6 +25,12 @@ pub(crate) struct LinkConcurrencyProbe {
     condvar: Condvar,
 }
 
+/// How long the first linker waits for a second one to join it. Only has
+/// to outlast the scheduling latency of a machine running the whole suite
+/// in parallel — the verdict comes from `max_concurrent`, not from the
+/// deadline.
+const OVERLAP_TIMEOUT: Duration = Duration::from_secs(15);
+
 impl LinkConcurrencyProbe {
     pub(crate) fn waiting_for_overlap() -> Self {
         Self { wait_for_overlap: true, ..Self::default() }
@@ -52,7 +58,7 @@ impl LinkConcurrencyProbe {
             let guard = self.mutex.lock().expect("lock link-concurrency probe");
             let _ = self
                 .condvar
-                .wait_timeout_while(guard, Duration::from_secs(2), |()| {
+                .wait_timeout_while(guard, OVERLAP_TIMEOUT, |()| {
                     self.max.load(Ordering::SeqCst) < 2
                 })
                 .expect("wait for overlapping link");

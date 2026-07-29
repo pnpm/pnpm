@@ -214,6 +214,37 @@ async fn should_time_out_when_the_web_auth_poll_never_completes() {
     assert_eq!(err.to_string(), "Web-based authentication timed out before it could be completed");
 }
 
+/// A non-string `loginUrl` is rejected as an invalid response by the same
+/// narrowing that catches a missing field, never reaching the URL checks.
+#[tokio::test]
+async fn should_treat_a_non_string_login_url_as_an_invalid_response() {
+    web_auth_fake!();
+    login_fake!(FakeHost);
+    reset();
+    reset_login();
+
+    let body = json!({
+        "loginUrl": 12345,
+        "doneUrl": "https://example.org/auth/done",
+    })
+    .to_string();
+    let mut server = mockito::Server::new_async().await;
+    server.mock("POST", "/-/v1/login").with_status(200).with_body(body).create_async().await;
+    let registry = server.url();
+    let config_dir = Path::new("/mock/config");
+
+    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
+        .unwrap_err();
+
+    assert!(matches!(err, LoginError::InvalidResponse), "got {err:?}");
+    assert_eq!(
+        err.pipe_ref(miette::Diagnostic::code).map(|code| code.to_string()).as_deref(),
+        Some("ERR_PNPM_LOGIN_INVALID_RESPONSE"),
+    );
+    assert!(infos().is_empty(), "got {:?}", infos());
+}
+
 /// A registry-controlled `loginUrl` carrying a control character is never a
 /// valid URL; the login is rejected as a possible terminal-spoofing attempt
 /// (rather than sanitized and used), and nothing reaches the terminal raw.
@@ -244,4 +275,35 @@ async fn rejects_a_login_url_containing_control_characters() {
         Some("ERR_PNPM_AUTH_COMMANDS_LOGIN_UNSAFE_URL"),
     );
     assert!(infos().iter().all(|message| !message.contains('\u{1b}')), "got {:?}", infos());
+}
+
+/// The `doneUrl` twin of the check above: a control character in the poll URL
+/// is rejected before the URL is used or anything is printed.
+#[tokio::test]
+async fn rejects_a_done_url_containing_control_characters() {
+    web_auth_fake!();
+    login_fake!(FakeHost);
+    reset();
+    reset_login();
+
+    let body = json!({
+        "loginUrl": "https://example.org/auth/login",
+        "doneUrl": "https://example.org/auth/done\r\nspoofed line",
+    })
+    .to_string();
+    let mut server = mockito::Server::new_async().await;
+    server.mock("POST", "/-/v1/login").with_status(200).with_body(body).create_async().await;
+    let registry = server.url();
+    let config_dir = Path::new("/mock/config");
+
+    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
+        .unwrap_err();
+
+    assert!(matches!(err, LoginError::UnsafeLoginUrl), "got {err:?}");
+    assert_eq!(
+        err.pipe_ref(miette::Diagnostic::code).map(|code| code.to_string()).as_deref(),
+        Some("ERR_PNPM_AUTH_COMMANDS_LOGIN_UNSAFE_URL"),
+    );
+    assert!(infos().is_empty(), "got {:?}", infos());
 }

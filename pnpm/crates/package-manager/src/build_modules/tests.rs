@@ -6,7 +6,9 @@ use super::{
 // unconditionally would be an unused import on Windows.
 #[cfg(unix)]
 use super::RebuildOptions;
-use crate::{RequiresBuildBySnapshot, SkippedSnapshots, VirtualStoreLayout};
+use crate::{
+    RequiresBuildBySnapshot, SkippedSnapshots, VirtualStoreLayout, store_index_key_for_resolution,
+};
 use pacquet_config::{Config, PackageImportMethod};
 use pacquet_executor::ScriptsPrependNodePath;
 use pacquet_lockfile::{
@@ -68,6 +70,39 @@ fn parse_key_without_leading_slash() {
     let (name, version) = parse_name_version_from_key("express@4.18.1");
     assert_eq!(name, "express");
     assert_eq!(version, "4.18.1");
+}
+
+#[test]
+fn side_effects_key_for_git_hosted_tarball_matches_warm_lookup() {
+    let integrity = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+    let pkg_id = "https://codeload.github.com/pnpm/pnpm/tar.gz/abcdef";
+    let resolution =
+        pacquet_lockfile::LockfileResolution::Tarball(pacquet_lockfile::TarballResolution {
+            tarball: pkg_id.to_string(),
+            integrity: Some(integrity.parse().expect("parse integrity")),
+            git_hosted: Some(true),
+            path: None,
+        });
+
+    assert_eq!(
+        store_index_key_for_resolution(&resolution, pkg_id, true),
+        Some(pacquet_store_dir::git_hosted_store_index_key(pkg_id, true)),
+    );
+}
+
+#[test]
+fn side_effects_key_for_git_resolution_does_not_require_integrity() {
+    let pkg_id = "git+file:///tmp/repo#abcdef";
+    let resolution = pacquet_lockfile::LockfileResolution::Git(pacquet_lockfile::GitResolution {
+        repo: "file:///tmp/repo".to_string(),
+        commit: "abcdef".to_string(),
+        path: None,
+    });
+
+    assert_eq!(
+        store_index_key_for_resolution(&resolution, pkg_id, true),
+        Some(pacquet_store_dir::git_hosted_store_index_key(pkg_id, true)),
+    );
 }
 
 // Policy-logic tests below drive `AllowBuildPolicy::new` directly with
@@ -356,7 +391,10 @@ fn build_modules_collects_ignored_builds() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+
+        script_shell: None,
         extra_env: &HashMap::new(),
+        user_agent: "pnpm/test",
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -422,7 +460,10 @@ fn ignore_scripts_skips_build_without_collecting_ignored() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+
+        script_shell: None,
         extra_env: &HashMap::new(),
+        user_agent: "pnpm/test",
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -477,7 +518,10 @@ fn cached_requires_build_false_skips_package_dir_probe() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+
+        script_shell: None,
         extra_env: &HashMap::new(),
+        user_agent: "pnpm/test",
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -552,7 +596,10 @@ fn build_modules_collects_ignored_builds_under_concurrency() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+
+        script_shell: None,
         extra_env: &HashMap::new(),
+        user_agent: "pnpm/test",
         unsafe_perm: true,
         child_concurrency: 2,
         skipped: &SkippedSnapshots::default(),
@@ -619,7 +666,10 @@ fn build_modules_excludes_explicit_deny_from_ignored() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+
+        script_shell: None,
         extra_env: &HashMap::new(),
+        user_agent: "pnpm/test",
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -703,7 +753,10 @@ fn do_not_fail_on_optional_dep_with_failing_postinstall() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+
+        script_shell: None,
         extra_env: &HashMap::new(),
+        user_agent: "pnpm/test",
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -864,7 +917,10 @@ fn using_side_effects_cache_skips_rebuild() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+
+        script_shell: None,
         extra_env: &HashMap::new(),
+        user_agent: "pnpm/test",
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -990,7 +1046,10 @@ fn corrupt_side_effects_cache_falls_back_to_rebuild() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+
+        script_shell: None,
         extra_env: &HashMap::new(),
+        user_agent: "pnpm/test",
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -1107,7 +1166,10 @@ fn materialization_failure_on_incomplete_slot_is_fatal() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+
+        script_shell: None,
         extra_env: &HashMap::new(),
+        user_agent: "pnpm/test",
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -1174,7 +1236,10 @@ fn side_effects_cache_disabled_bypasses_the_gate() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+
+        script_shell: None,
         extra_env: &HashMap::new(),
+        user_agent: "pnpm/test",
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -1239,7 +1304,10 @@ fn fail_when_failing_postinstall_is_required() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+
+        script_shell: None,
         extra_env: &HashMap::new(),
+        user_agent: "pnpm/test",
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -1287,7 +1355,7 @@ fn gvs_layout(dir: &Path) -> &'static VirtualStoreLayout {
     config.global_virtual_store_dir = dir.join("store/links");
     config.virtual_store_dir = dir.join("node_modules/.pacquet");
     let config = config.leak();
-    Box::leak(Box::new(VirtualStoreLayout::new(config, None, None, None, None)))
+    Box::leak(Box::new(VirtualStoreLayout::new(config, None, None, None, None, None)))
 }
 
 /// Run [`BuildModules`] over a single patched `is-positive@1.0.0`
@@ -1328,7 +1396,10 @@ fn frozen_backstop_run(
         patches: Some(&patches),
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+
+        script_shell: None,
         extra_env: &HashMap::new(),
+        user_agent: "pnpm/test",
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -1649,7 +1720,10 @@ async fn write_path_populates_side_effects_row() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+
+        script_shell: None,
         extra_env: &HashMap::new(),
+        user_agent: "pnpm/test",
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -1769,7 +1843,10 @@ async fn write_path_disabled_skips_upload() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+
+        script_shell: None,
         extra_env: &HashMap::new(),
+        user_agent: "pnpm/test",
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -1861,7 +1938,10 @@ async fn frozen_store_skips_side_effects_upload() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+
+        script_shell: None,
         extra_env: &HashMap::new(),
+        user_agent: "pnpm/test",
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -2002,7 +2082,10 @@ async fn upload_error_does_not_interrupt_install() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+
+        script_shell: None,
         extra_env: &HashMap::new(),
+        user_agent: "pnpm/test",
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -2257,7 +2340,10 @@ new file mode 100644
         patches: Some(&patches),
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+
+        script_shell: None,
         extra_env: &HashMap::new(),
+        user_agent: "pnpm/test",
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -2370,7 +2456,10 @@ new file mode 100644
         patches: Some(&patches),
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+
+        script_shell: None,
         extra_env: &HashMap::new(),
+        user_agent: "pnpm/test",
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -2455,7 +2544,10 @@ async fn missing_patch_file_path_errors_with_diagnostic() {
         patches: Some(&patches),
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+
+        script_shell: None,
         extra_env: &HashMap::new(),
+        user_agent: "pnpm/test",
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -2562,7 +2654,7 @@ fn pkg_root_for_key_isolated_uses_layout() {
     config.modules_dir = dir.path().join("node_modules");
     config.virtual_store_dir = dir.path().join("node_modules/.pacquet");
     let config = config.leak();
-    let layout = VirtualStoreLayout::new(config, None, None, None, None);
+    let layout = VirtualStoreLayout::new(config, None, None, None, None, None);
 
     let key: PackageKey = "is-positive@1.0.0".parse().expect("parse key");
     let result = super::pkg_root_for_key(&layout, None, &key).expect("isolated lookup hits");
@@ -2587,7 +2679,7 @@ fn pkg_root_for_key_hoisted_uses_override() {
     config.modules_dir = dir.path().join("node_modules");
     config.virtual_store_dir = dir.path().join("node_modules/.pacquet");
     let config = config.leak();
-    let layout = VirtualStoreLayout::new(config, None, None, None, None);
+    let layout = VirtualStoreLayout::new(config, None, None, None, None, None);
 
     let key: PackageKey = "is-positive@1.0.0".parse().expect("parse key");
     let hoisted_dir = PathBuf::from("/repo/node_modules/is-positive");
@@ -2609,7 +2701,7 @@ fn pkg_root_for_key_hoisted_missing_returns_none() {
     config.modules_dir = dir.path().join("node_modules");
     config.virtual_store_dir = dir.path().join("node_modules/.pacquet");
     let config = config.leak();
-    let layout = VirtualStoreLayout::new(config, None, None, None, None);
+    let layout = VirtualStoreLayout::new(config, None, None, None, None, None);
 
     let key: PackageKey = "absent@1.0.0".parse().expect("parse key");
     let map: HashMap<PackageKey, Vec<PathBuf>> = HashMap::new();
@@ -2714,7 +2806,9 @@ fn rebuild_selection_runs_only_selected_scripts() {
         store_index_writer: None,
         patches: None,
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        script_shell: None,
         extra_env: &HashMap::new(),
+        user_agent: "pnpm/test",
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),

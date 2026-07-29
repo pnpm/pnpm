@@ -16,6 +16,22 @@ fn integrity(integrity_str: &str) -> Integrity {
     integrity_str.parse().expect("parse integrity string")
 }
 
+/// An `integrity: ''` entry — what an edited lockfile carries when the hash
+/// is emptied instead of deleted — parses into an SRI with zero hashes. It
+/// pins nothing, so `checkable_integrity` reports it as absent while the raw
+/// accessor still shows what the lockfile said.
+#[test]
+fn empty_integrity_string_is_not_checkable() {
+    let yaml = text_block! {
+        "tarball: https://registry.example/p/-/p-1.0.0.tgz"
+        "integrity: ''"
+    };
+    let received: LockfileResolution = serde_saphyr::from_str(yaml).unwrap();
+    dbg!(&received);
+    assert!(received.integrity().is_some());
+    assert!(received.checkable_integrity().is_none());
+}
+
 /// Render a resolution exactly as it appears under a `packages:` entry, then
 /// dedent the `resolution:` block. Exercises the real write path: the deep key
 /// sort and the single-line-vs-block decision both depend on the `resolution`
@@ -84,6 +100,34 @@ fn deserialize_tarball_resolution_with_git_hosted() {
         path: None,
     });
     assert_eq!(received, expected);
+}
+
+/// The flag is a hint: the fetch dispatch and the store-index key
+/// follow the URL, so a git-host archive URL counts as git-hosted even
+/// when the lockfile says otherwise. A lockfile claiming `false` on
+/// one would otherwise skip the prepare + packlist pass and install the
+/// raw archive.
+#[test]
+fn is_git_hosted_follows_the_url_over_a_contradicting_flag() {
+    let git_hosted_url = format!("https://codeload.github.com/foo/bar/tar.gz/{GIT_COMMIT}");
+
+    for flag in [None, Some(false), Some(true)] {
+        let resolution = TarballResolution {
+            tarball: git_hosted_url.clone(),
+            integrity: None,
+            git_hosted: flag,
+            path: None,
+        };
+        assert!(resolution.is_git_hosted(), "a git-host archive URL is git-hosted, {flag:?}");
+    }
+
+    let plain = TarballResolution {
+        tarball: "https://example.com/pkg-1.0.0.tgz".to_string(),
+        integrity: None,
+        git_hosted: None,
+        path: None,
+    };
+    assert!(!plain.is_git_hosted());
 }
 
 #[test]
@@ -170,6 +214,26 @@ fn is_git_hosted_tarball_url_rejects_false_positives() {
         "https://gitlab.com/api/v4/projects/foo%2Fbar/repository/archive.tar.gz",
     ));
     assert!(!is_git_hosted_tarball_url("https://bitbucket.org/foo/bar/get/main.tar.gz"));
+
+    // Host lookalikes. The authority is compared whole, so neither a
+    // `user@` prefix (where the real host is what follows the `@`) nor a
+    // subdomain of a git provider passes for the provider itself — the
+    // exemption from integrity checking rides on this.
+    assert!(!is_git_hosted_tarball_url(&format!(
+        "https://codeload.github.com@evil.example/foo/bar/tar.gz/{GIT_COMMIT}"
+    )));
+    assert!(!is_git_hosted_tarball_url(&format!(
+        "https://sub.codeload.github.com/foo/bar/tar.gz/{GIT_COMMIT}"
+    )));
+    assert!(!is_git_hosted_tarball_url(&format!(
+        "https://codeload.github.com.evil.example/foo/bar/tar.gz/{GIT_COMMIT}"
+    )));
+    assert!(!is_git_hosted_tarball_url(&format!(
+        "https://gitlab.com@evil.example/api/v4/projects/foo%2Fbar/repository/archive.tar.gz?ref={GIT_COMMIT}"
+    )));
+    assert!(!is_git_hosted_tarball_url(&format!(
+        "https://bitbucket.org@evil.example/foo/bar/get/{GIT_COMMIT}.tar.gz"
+    )));
 }
 
 #[test]

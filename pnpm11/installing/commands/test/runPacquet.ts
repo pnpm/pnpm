@@ -4,7 +4,7 @@ import path from 'node:path'
 import { expect, test } from '@jest/globals'
 import { temporaryDirectory } from 'tempy'
 
-import { makeRunPacquet } from '../lib/runPacquet.js'
+import { DEV_PREINSTALL_ALREADY_RAN_ENV, makePacquetEnv, makeRunPacquet, type MakeRunPacquetOpts } from '../lib/runPacquet.js'
 
 function setupPacquetConfigDep (version: string | undefined, packageName: 'pacquet' | '@pnpm/pacquet' = 'pacquet'): string {
   const lockfileDir = temporaryDirectory()
@@ -55,4 +55,46 @@ test('supportsResolution is false when the pacquet config dependency is absent',
 test('the version is read from the @pnpm/pacquet scoped alias too', () => {
   const lockfileDir = setupPacquetConfigDep('0.11.7', '@pnpm/pacquet')
   expect(makeEngine(lockfileDir, '@pnpm/pacquet').supportsResolution).toBe(true)
+})
+
+const envOpts: MakeRunPacquetOpts = {
+  lockfileDir: '/does-not-need-to-exist',
+  packageName: 'pacquet',
+  argv: { original: [], remain: [] },
+  isInstallCommand: true,
+  virtualStoreDirMaxLength: 120,
+}
+
+// Resolve mode hands pacquet the whole install after pnpm has already run
+// the root `pnpm:devPreinstall`, and is the one delegation shape that
+// passes no flag pacquet could key off instead.
+test(`${DEV_PREINSTALL_ALREADY_RAN_ENV} is set only when delegating a resolving install`, () => {
+  expect(makePacquetEnv(envOpts, { resolve: true })[DEV_PREINSTALL_ALREADY_RAN_ENV]).toBe('true')
+  expect(makePacquetEnv(envOpts)[DEV_PREINSTALL_ALREADY_RAN_ENV]).toBeUndefined()
+  expect(makePacquetEnv(envOpts, { filterResolvedProgress: true })[DEV_PREINSTALL_ALREADY_RAN_ENV]).toBeUndefined()
+})
+
+// An ambient value would otherwise suppress the hook on a frozen
+// delegation, where pnpm relies on pacquet not having run it. The
+// lowercase spelling is a distinct key on POSIX but the same one on
+// Windows, where pacquet would read it as a delegation marker.
+test.each([
+  DEV_PREINSTALL_ALREADY_RAN_ENV,
+  DEV_PREINSTALL_ALREADY_RAN_ENV.toLowerCase(),
+])('an inherited %s never leaks into a non-resolving delegation', (key) => {
+  const previous = process.env[key]
+  process.env[key] = 'true'
+  try {
+    const env = makePacquetEnv(envOpts)
+    const survivor = Object.keys(env).find(
+      (name) => name.toLowerCase() === DEV_PREINSTALL_ALREADY_RAN_ENV.toLowerCase()
+    )
+    expect(survivor).toBeUndefined()
+  } finally {
+    if (previous == null) {
+      delete process.env[key]
+    } else {
+      process.env[key] = previous
+    }
+  }
 })

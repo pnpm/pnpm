@@ -16,7 +16,7 @@ use pacquet_lockfile::{
     TarballResolution, VersionPart,
 };
 use pacquet_package_manager::{
-    ImportIndexedDirOpts, Install, UpdateSeedPolicy, import_indexed_dir,
+    ImportIndexedDirOpts, Install, ProjectMutation, UpdateSeedPolicy, import_indexed_dir,
 };
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
@@ -386,7 +386,7 @@ impl DeployArgs {
             skip_runtimes,
             trust_lockfile,
             update_checksums: false,
-            is_full_install: true,
+            mutation: ProjectMutation::InstallWorkspace,
             installs_only: true,
             resolved_packages,
             supported_architectures,

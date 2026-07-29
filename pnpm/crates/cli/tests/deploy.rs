@@ -269,8 +269,9 @@ fn force_deploy_rejects_out_of_scope_target_without_deleting_it() {
         .expect("run pacquet deploy");
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
+    let flattened = flatten_miette_report(&stderr);
     assert!(
-        stderr.contains("unsafe target") && stderr.contains("outside the workspace"),
+        flattened.contains("unsafe target") && flattened.contains("outside the workspace"),
         "unexpected stderr:\n{stderr}",
     );
     assert_eq!(fs::read_to_string(outside.join("keep.txt")).unwrap(), "keep");
@@ -301,9 +302,10 @@ fn deploy_all_files_rejects_symlink_escape() {
         .expect("run pacquet deploy");
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
+    let flattened = flatten_miette_report(&stderr);
     assert!(
-        stderr.contains("ERR_PNPM_DIRECTORY_FETCHER_PATH_ESCAPE")
-            && stderr.contains("resolves outside"),
+        flattened.contains("ERR_PNPM_DIRECTORY_FETCHER_PATH_ESCAPE")
+            && flattened.contains("resolves outside source directory"),
         "unexpected stderr:\n{stderr}",
     );
     assert!(
@@ -333,8 +335,10 @@ fn deploy_rejects_symlinked_target_parent() {
         .expect("run pacquet deploy");
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
+    let flattened = flatten_miette_report(&stderr);
     assert!(
-        stderr.contains("ERR_PNPM_INVALID_DEPLOY_TARGET") && stderr.contains("contains a symlink"),
+        flattened.contains("ERR_PNPM_INVALID_DEPLOY_TARGET")
+            && flattened.contains("contains a symlink"),
         "unexpected stderr:\n{stderr}",
     );
     assert!(
@@ -362,9 +366,10 @@ fn deploy_rejects_linked_target_parent() {
         .expect("run pacquet deploy");
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
+    let flattened = flatten_miette_report(&stderr);
     assert!(
-        stderr.contains("ERR_PNPM_INVALID_DEPLOY_TARGET")
-            && stderr.contains("contains a symlink or junction"),
+        flattened.contains("ERR_PNPM_INVALID_DEPLOY_TARGET")
+            && flattened.contains("contains a symlink or junction"),
         "unexpected stderr:\n{stderr}",
     );
     assert!(
@@ -494,6 +499,17 @@ fn legacy_deploy_without_lockfile_installs_selected_project_at_root() {
     assert!(!deploy_dir.join("pnpm-lock.yaml").exists());
 
     drop((root, mock_instance));
+}
+
+/// Undo miette's report wrapping so phrase assertions don't depend on
+/// where the temp-path length lands the wrap point: drop the box-gutter
+/// glyphs and collapse the message back onto one line.
+fn flatten_miette_report(stderr: &str) -> String {
+    stderr
+        .split_whitespace()
+        .filter(|token| !matches!(*token, "│" | "×" | "╰─▶"))
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 fn pacquet_cmd(workspace: &Path) -> Command {

@@ -33,20 +33,44 @@ pub struct AddDependencyOptions {
     #[clap(short = 'O', long)]
     save_optional: bool,
     /// Using --save-peer will add one or more packages to peerDependencies and install them as dev dependencies
-    #[clap(long)]
+    #[clap(long, overrides_with = "no_save_peer")]
     save_peer: bool,
+    /// Don't add the packages to peerDependencies, overriding a
+    /// `savePeer: true` setting.
+    #[clap(long = "no-save-peer", overrides_with = "save_peer")]
+    no_save_peer: bool,
 }
 
 impl AddDependencyOptions {
+    /// `--save-peer` / `--no-save-peer` layered over the `savePeer` setting.
+    fn with_save_peer_setting(self, save_peer: bool) -> Self {
+        Self {
+            save_peer: resolve_bool_override(self.save_peer, self.no_save_peer, save_peer),
+            ..self
+        }
+    }
+
     /// Whether to add entry to `"dependencies"`.
     fn save_prod(&self) -> bool {
-        let &AddDependencyOptions { save_prod, save_dev, save_optional, save_peer } = self;
+        let &AddDependencyOptions {
+            save_prod,
+            save_dev,
+            save_optional,
+            save_peer,
+            no_save_peer: _,
+        } = self;
         save_prod || (!save_dev && !save_optional && !save_peer)
     }
 
     /// Whether to add entry to `"devDependencies"`.
     fn save_dev(&self) -> bool {
-        let &AddDependencyOptions { save_prod, save_dev, save_optional, save_peer } = self;
+        let &AddDependencyOptions {
+            save_prod,
+            save_dev,
+            save_optional,
+            save_peer,
+            no_save_peer: _,
+        } = self;
         save_dev || (!save_prod && !save_optional && save_peer)
     }
 
@@ -75,7 +99,13 @@ impl AddDependencyOptions {
     /// (an already-declared dependency is updated in the group it
     /// occupies; a new one lands in `dependencies`).
     fn save_target(&self) -> Option<Vec<DependencyGroup>> {
-        let &AddDependencyOptions { save_prod, save_dev, save_optional, save_peer } = self;
+        let &AddDependencyOptions {
+            save_prod,
+            save_dev,
+            save_optional,
+            save_peer,
+            no_save_peer: _,
+        } = self;
         (save_prod || save_dev || save_optional || save_peer)
             .then(|| self.dependency_groups().collect())
     }
@@ -221,11 +251,9 @@ impl AddArgs {
             .or_else(|| self.save_catalog.then(|| "default".to_string()))
             .or_else(|| state.config.save_catalog_name.clone());
 
-        // Collapse the `--save-exact` / `--save-prefix` flags into the pinned
-        // version that decides the saved range, mirroring pnpm's
-        // `getPinnedVersion`.
-        let pinned_version =
-            PinnedVersion::from_save_options(self.save_exact, self.save_prefix.as_deref());
+        let pinned_version = self.pinned_version(state.config);
+        let dependency_options =
+            self.dependency_options.clone().with_save_peer_setting(state.config.save_peer);
 
         add_packages::<Reporter, _>(
             state,
@@ -234,7 +262,7 @@ impl AddArgs {
             save_catalog_name,
             self.lockfile_only,
             supported_architectures,
-            self.dependency_options.save_target(),
+            dependency_options.save_target(),
         )
         .await
     }
@@ -251,8 +279,12 @@ impl AddArgs {
             .clone()
             .or_else(|| self.save_catalog.then(|| "default".to_string()))
             .or_else(|| state.config.save_catalog_name.clone());
-        let pinned_version =
-            PinnedVersion::from_save_options(self.save_exact, self.save_prefix.as_deref());
+        let pinned_version = self.pinned_version(state.config);
+        let dependency_groups = self
+            .dependency_options
+            .clone()
+            .with_save_peer_setting(state.config.save_peer)
+            .save_target();
         let InstallFamilySelection {
             workspace_root: _,
             mut projects,
@@ -275,7 +307,7 @@ impl AddArgs {
             manifest,
             lockfile,
             lockfile_path: Some(&lockfile_path),
-            dependency_groups: self.dependency_options.save_target(),
+            dependency_groups,
             package_names: &self.package_names,
             pinned_version,
             save_catalog_name,
@@ -314,8 +346,7 @@ impl AddArgs {
         }
         let supported_architectures =
             self.supported_architectures.apply_to(config.supported_architectures.clone());
-        let pinned_version =
-            PinnedVersion::from_save_options(self.save_exact, self.save_prefix.as_deref());
+        let pinned_version = self.pinned_version(config);
         Box::pin(crate::cli_args::global::handle_global_add::<Reporter>(
             config,
             &self.package_names,
@@ -325,6 +356,16 @@ impl AddArgs {
             dir,
         ))
         .await
+    }
+
+    /// The pinned version that decides the saved range: `--save-exact` /
+    /// `--save-prefix` layered over the `savePrefix` setting, mirroring
+    /// pnpm's `getPinnedVersion`.
+    fn pinned_version(&self, config: &Config) -> PinnedVersion {
+        PinnedVersion::from_save_options(
+            self.save_exact,
+            self.save_prefix.as_deref().or(config.save_prefix.as_deref()),
+        )
     }
 }
 

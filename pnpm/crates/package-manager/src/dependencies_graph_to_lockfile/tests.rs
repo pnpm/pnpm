@@ -1,6 +1,7 @@
 use super::{
     DependenciesGraphToLockfileError, GraphToLockfileOptions, ImporterLockfileInput,
-    dependencies_graph_to_lockfile as try_dependencies_graph_to_lockfile,
+    dependencies_graph_to_lockfile as try_dependencies_graph_to_lockfile, manifest_has_bin,
+    read_string_or_list,
 };
 use indexmap::IndexMap;
 use pacquet_deps_path::DepPath;
@@ -23,6 +24,20 @@ use std::{
     sync::Arc,
 };
 use tempfile::TempDir;
+use text_block_macros::text_block;
+
+#[test]
+fn recognizes_bin_directories_in_package_manifests() {
+    assert_eq!(
+        manifest_has_bin(Some(&json!({
+            "directories": {
+                "bin": "cli"
+            }
+        }))),
+        Some(true),
+    );
+    assert_eq!(manifest_has_bin(Some(&json!({ "directories": { "bin": "" } }))), None);
+}
 
 fn dependencies_graph_to_lockfile(opts: GraphToLockfileOptions<'_>) -> pacquet_lockfile::Lockfile {
     try_dependencies_graph_to_lockfile(opts).expect("convert dependency graph to lockfile")
@@ -196,6 +211,157 @@ fn fresh_install_records_a_single_direct_dependency() {
     assert!(snapshot.dependencies.is_none());
     assert!(snapshot.optional_dependencies.is_none());
     assert!(snapshot.transitive_peer_dependencies.is_none());
+}
+
+#[test]
+fn empty_deprecation_message_is_not_written_to_the_lockfile() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": { "legacy": "1.0.0" },
+    }));
+    let node = make_node(
+        "legacy",
+        "1.0.0",
+        json!({ "name": "legacy", "version": "1.0.0", "deprecated": "" }),
+        BTreeMap::new(),
+        BTreeMap::new(),
+        HashSet::new(),
+    );
+    let mut graph = DependenciesGraph::new();
+    graph.insert(node.dep_path.clone(), node);
+    let mut direct = BTreeMap::new();
+    direct.insert("legacy".to_string(), DepPath::from("legacy@1.0.0".to_string()));
+
+    let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest, &graph, direct, true, false, None, None,
+    ));
+    let package_key: PackageKey = "legacy@1.0.0".parse().expect("package key");
+    assert_eq!(lockfile.packages.as_ref().expect("packages")[&package_key].deprecated, None);
+}
+
+#[test]
+fn fresh_install_records_string_libc_without_coercing_scalar_bundle_metadata() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": { "sass-embedded-linux-musl-x64": "1.100.0" },
+    }));
+    let node = make_node(
+        "sass-embedded-linux-musl-x64",
+        "1.100.0",
+        json!({
+            "name": "sass-embedded-linux-musl-x64",
+            "version": "1.100.0",
+            "cpu": ["x64"],
+            "os": ["linux"],
+            "libc": "musl",
+            "bundledDependencies": "not-an-array",
+        }),
+        BTreeMap::new(),
+        BTreeMap::new(),
+        HashSet::new(),
+    );
+    let mut graph = DependenciesGraph::new();
+    graph.insert(node.dep_path.clone(), node);
+    let direct = BTreeMap::from([(
+        "sass-embedded-linux-musl-x64".to_string(),
+        DepPath::from("sass-embedded-linux-musl-x64@1.100.0".to_string()),
+    )]);
+
+    let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest, &graph, direct, false, false, None, None,
+    ));
+
+    let package_key: PackageKey = "sass-embedded-linux-musl-x64@1.100.0".parse().unwrap();
+    let metadata = &lockfile.packages.as_ref().expect("packages")[&package_key];
+    assert_eq!(metadata.libc.as_deref(), Some(["musl".to_string()].as_slice()));
+    assert!(metadata.bundled_dependencies.is_none());
+}
+
+#[test]
+fn string_or_list_metadata_accepts_arrays_and_rejects_other_values() {
+    let array_manifest = json!({ "libc": ["glibc", "musl"] });
+    assert_eq!(
+        read_string_or_list(Some(&array_manifest), "libc"),
+        Some(vec!["glibc".to_string(), "musl".to_string()].into()),
+    );
+
+    let object_manifest = json!({ "libc": { "name": "musl" } });
+    assert_eq!(read_string_or_list(Some(&object_manifest), "libc"), None);
+}
+
+#[test]
+fn generated_lockfile_preserves_libc_manifest_shape() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": {
+            "list-libc": "1.0.0",
+            "scalar-libc": "1.0.0",
+        },
+    }));
+    let mut graph = DependenciesGraph::new();
+    for (name, libc) in [("list-libc", json!(["glibc"])), ("scalar-libc", json!("musl"))] {
+        let node = make_node(
+            name,
+            "1.0.0",
+            json!({ "name": name, "version": "1.0.0", "libc": libc }),
+            BTreeMap::new(),
+            BTreeMap::new(),
+            HashSet::new(),
+        );
+        graph.insert(node.dep_path.clone(), node);
+    }
+    let direct = BTreeMap::from([
+        ("list-libc".to_string(), DepPath::from("list-libc@1.0.0".to_string())),
+        ("scalar-libc".to_string(), DepPath::from("scalar-libc@1.0.0".to_string())),
+    ]);
+
+    let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest, &graph, direct, false, false, None, None,
+    ));
+
+    let yaml = lockfile.to_yaml_string().expect("serialize generated lockfile");
+    let expected = format!(
+        "{}\n",
+        text_block! {
+                "lockfileVersion: '9.0'"
+                ""
+                "settings:"
+                "  autoInstallPeers: false"
+                "  excludeLinksFromLockfile: false"
+                ""
+                "importers:"
+                ""
+                "  .:"
+                "    dependencies:"
+                "      list-libc:"
+                "        specifier: 1.0.0"
+                "        version: 1.0.0"
+                "      scalar-libc:"
+                "        specifier: 1.0.0"
+                "        version: 1.0.0"
+                ""
+                "packages:"
+                ""
+                "  list-libc@1.0.0:"
+                "    resolution: {integrity: sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==}"
+                "    libc: [glibc]"
+                ""
+                "  scalar-libc@1.0.0:"
+                "    resolution: {integrity: sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==}"
+                "    libc: musl"
+                ""
+                "snapshots:"
+                ""
+                "  list-libc@1.0.0: {}"
+                ""
+                "  scalar-libc@1.0.0: {}"
+        },
+    );
+    eprintln!("GENERATED LOCKFILE:\n{yaml}\n");
+    assert_eq!(yaml, expected);
 }
 
 #[test]
@@ -801,18 +967,17 @@ fn non_host_git_dependency_records_bare_git_url_in_importer() {
     );
 }
 
-#[test]
-fn malformed_importer_dependency_path_returns_structured_error() {
+fn error_from_single_node_graph(alias: &str, dep_path: &str) -> DependenciesGraphToLockfileError {
     let (_tmp, manifest) = write_manifest(json!({
         "name": "fixture",
         "version": "1.0.0",
-        "dependencies": { "broken": "^1.0.0" },
+        "dependencies": { alias: "^1.0.0" },
     }));
-    let dep_path = DepPath::from("broken@1.0.0(".to_string());
+    let dep_path = DepPath::from(dep_path.to_string());
     let mut node = make_node(
-        "broken",
+        alias,
         "1.0.0",
-        json!({ "name": "broken", "version": "1.0.0" }),
+        json!({ "name": alias, "version": "1.0.0" }),
         BTreeMap::new(),
         BTreeMap::new(),
         HashSet::new(),
@@ -821,18 +986,40 @@ fn malformed_importer_dependency_path_returns_structured_error() {
 
     let mut graph = DependenciesGraph::new();
     graph.insert(dep_path.clone(), node);
-    let direct = BTreeMap::from([("broken".to_string(), dep_path)]);
+    let direct = BTreeMap::from([(alias.to_string(), dep_path)]);
 
-    let error = dbg!(
+    dbg!(
         try_dependencies_graph_to_lockfile(single_importer_opts(
             &manifest, &graph, direct, false, false, None, None,
         ))
         .unwrap_err(),
-    );
+    )
+}
 
-    let DependenciesGraphToLockfileError::ImporterDependency { alias, dep_path, .. } = error;
+#[test]
+fn malformed_importer_dependency_path_returns_structured_error() {
+    let error = error_from_single_node_graph("broken", "1.0.0(react@17.0.0");
+
+    let DependenciesGraphToLockfileError::ImporterDependency { alias, dep_path, .. } = error else {
+        panic!("expected an importer-dependency error, got {error}");
+    };
     assert_eq!(alias, "broken");
-    assert_eq!(dep_path, "broken@1.0.0(");
+    assert_eq!(dep_path, "1.0.0(react@17.0.0");
+}
+
+/// A resolver that hands back no package name leaves a bare
+/// `file:<path>` depPath, which keys neither `packages:` nor
+/// `snapshots:`. Dropping it would write a lockfile whose importer
+/// points at a package neither map describes — see
+/// <https://github.com/pnpm/pnpm/issues/13410>.
+#[test]
+fn nameless_dep_path_returns_structured_error() {
+    let error = error_from_single_node_graph("no-manifest", "file:no-manifest-1.0.0.tgz");
+
+    let DependenciesGraphToLockfileError::UnkeyedDepPath { dep_path, .. } = error else {
+        panic!("expected an unkeyed-depPath error, got {error}");
+    };
+    assert_eq!(dep_path, "file:no-manifest-1.0.0.tgz");
 }
 
 #[test]
@@ -1409,6 +1596,73 @@ fn workspace_link_child_renders_as_snapshot_link() {
     }
 }
 
+/// Build a fake `DependenciesGraphNode` for a package resolved from a
+/// local directory (`file:<dir>`). The local resolver keys these by
+/// `<name>@file:<dir>` and leaves `name_ver` as `None` — the name lives
+/// in the fetched manifest only.
+fn make_file_node(name: &str, directory: &str) -> DependenciesGraphNode {
+    let id_text = format!("file:{directory}");
+    let dep_path = DepPath::from(format!("{name}@{id_text}"));
+    let resolve_result = ResolveResult {
+        id: PkgResolutionId::from(id_text),
+        name_ver: None,
+        latest: None,
+        published_at: None,
+        manifest: Some(Arc::new(json!({ "name": name, "version": "1.0.0" }))),
+        resolution: LockfileResolution::Directory(DirectoryResolution {
+            directory: directory.to_string(),
+        }),
+        resolved_via: "local-filesystem".to_string(),
+        normalized_bare_specifier: None,
+        alias: None,
+        policy_violation: None,
+    };
+    DependenciesGraphNode {
+        resolved_package_id: dep_path.to_string(),
+        dep_path,
+        resolve_result: Arc::new(resolve_result),
+        children: BTreeMap::new(),
+        optional_children: HashSet::new(),
+        peer_dependencies: BTreeMap::new(),
+        transitive_peer_dependencies: HashSet::new(),
+        resolved_peer_names: HashSet::new(),
+        depth: 1,
+        installable: true,
+        is_pure: true,
+        optional: false,
+    }
+}
+
+#[test]
+fn file_dep_child_renders_as_bare_file_ref() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "app",
+        "version": "1.0.0",
+        "dependencies": { "nested-parent": "file:./parent" },
+    }));
+
+    let child = make_file_node("nested-child", "child");
+    let mut parent = make_file_node("nested-parent", "parent");
+    parent.children.insert("nested-child".to_string(), child.dep_path.clone());
+
+    let mut graph = DependenciesGraph::new();
+    let parent_dep_path = parent.dep_path.clone();
+    graph.insert(parent_dep_path.clone(), parent);
+    graph.insert(child.dep_path.clone(), child);
+
+    let direct = BTreeMap::from([("nested-parent".to_string(), parent_dep_path)]);
+
+    let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest, &graph, direct, false, false, None, None,
+    ));
+
+    let snapshots = lockfile.snapshots.as_ref().expect("snapshots map");
+    let parent_key: PackageKey = "nested-parent@file:parent".parse().unwrap();
+    let deps = snapshots[&parent_key].dependencies.as_ref().expect("nested-parent dependencies");
+    let child_ref = deps.get(&PkgName::parse("nested-child").unwrap()).expect("nested-child child");
+    assert_eq!(dbg!(child_ref).to_string(), "file:child");
+}
+
 #[test]
 fn snapshot_link_uses_lockfile_root_while_importer_link_uses_project_root() {
     let (_tmp, manifest) = write_manifest(json!({
@@ -1961,4 +2215,84 @@ fn same_name_injected_dep_serializes_as_plain_file_ref() {
         matches!(renamed, ImporterDepVersion::Alias(_)),
         "renamed aliases must keep the <name>@<ref> form: {renamed:?}",
     );
+}
+
+/// Regression for <https://github.com/pnpm/pnpm/issues/13325>: a peer
+/// the hoist installed for the importer is a direct dependency of the
+/// resolved tree either way, but it only belongs in the importer's
+/// lockfile entry when `autoInstallPeers` materializes the manifest's
+/// `peerDependencies` into its dependencies.
+#[test]
+fn importer_records_a_peer_only_alias_only_under_auto_install_peers() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": { "consumer": "1.0.0" },
+        "peerDependencies": { "peer": "^1.0.0" },
+        "peerDependenciesMeta": { "peer": { "optional": true } },
+    }));
+    let peer = make_node(
+        "peer",
+        "1.0.0",
+        json!({ "name": "peer", "version": "1.0.0" }),
+        BTreeMap::new(),
+        BTreeMap::new(),
+        HashSet::new(),
+    );
+    let consumer = make_node(
+        "consumer",
+        "1.0.0",
+        json!({
+            "name": "consumer",
+            "version": "1.0.0",
+            "peerDependencies": { "peer": "^1.0.0" },
+            "peerDependenciesMeta": { "peer": { "optional": true } },
+        }),
+        BTreeMap::from([("peer".to_string(), peer.dep_path.clone())]),
+        BTreeMap::from([(
+            "peer".to_string(),
+            PeerDep { version: "^1.0.0".to_string(), optional: true },
+        )]),
+        HashSet::new(),
+    );
+    let mut graph = DependenciesGraph::new();
+    for node in [peer, consumer] {
+        graph.insert(node.dep_path.clone(), node);
+    }
+    let direct = BTreeMap::from([
+        ("consumer".to_string(), DepPath::from("consumer@1.0.0".to_string())),
+        ("peer".to_string(), DepPath::from("peer@1.0.0".to_string())),
+    ]);
+
+    let peer_key = PkgName::parse("peer").unwrap();
+    let without_auto_install = dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest,
+        &graph,
+        direct.clone(),
+        false,
+        false,
+        None,
+        None,
+    ));
+    let importer = without_auto_install.root_project().expect("root importer exists");
+    dbg!(&importer.dependencies);
+    assert!(
+        !importer.dependencies.as_ref().is_some_and(|deps| deps.contains_key(&peer_key)),
+        "a peer-only alias must stay out of the importer entry under `autoInstallPeers: false`",
+    );
+    assert!(
+        !importer.specifiers.as_ref().is_some_and(|specs| specs.contains_key("peer")),
+        "a peer-only alias must stay out of the importer specifiers under `autoInstallPeers: false`",
+    );
+
+    let with_auto_install = dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest, &graph, direct, true, false, None, None,
+    ));
+    let importer = with_auto_install.root_project().expect("root importer exists");
+    let entry = importer
+        .dependencies
+        .as_ref()
+        .and_then(|deps| deps.get(&peer_key))
+        .expect("auto-installed peer entry");
+    assert_eq!(entry.specifier, "^1.0.0");
 }

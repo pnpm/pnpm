@@ -1,7 +1,7 @@
 use crate::{
     AuditConfig, AuditLevel, CatalogMode, Config, HoistingLimits, LinkWorkspacePackages,
     NodeLinker, NodePackageMapType, PackageImportMethod, PmOnFail, ResolutionMode, RuntimeOnFail,
-    ScriptsPrependNodePath, TrustPolicy, VerifyDepsBeforeRun, api::EnvVar,
+    SaveWorkspaceProtocol, ScriptsPrependNodePath, TrustPolicy, VerifyDepsBeforeRun, api::EnvVar,
     npmrc_auth::parse_no_proxy, resolve_child_concurrency,
 };
 use derive_more::{Display, Error};
@@ -33,6 +33,40 @@ where
     De: Deserializer<'de>,
 {
     Option::<Value>::deserialize(deserializer).map(Some)
+}
+
+/// The value of an `allowBuilds` entry.
+///
+/// pnpm scaffolds an entry per ignored build with the placeholder string
+/// `set this to true or false` for the user to edit, so the file it wrote
+/// itself must stay loadable. Only [`AllowBuild::Decided`] entries reach
+/// [`Config::allow_builds`]; an undecided one leaves the package under the
+/// default-deny policy, exactly as pnpm's `createAllowBuildFunction`
+/// (which matches on `true`/`false` and ignores anything else) does.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum AllowBuild {
+    Decided(bool),
+    Undecided(String),
+}
+
+impl AllowBuild {
+    /// The policy this entry resolves to, or `None` while it is still an
+    /// unedited placeholder.
+    #[must_use]
+    pub fn decided(&self) -> Option<bool> {
+        match self {
+            AllowBuild::Decided(allowed) => Some(*allowed),
+            AllowBuild::Undecided(_) => None,
+        }
+    }
+}
+
+/// Reduce a parsed `allowBuilds` map to the entries that drive the build
+/// policy, dropping the ones still awaiting a decision.
+#[must_use]
+pub fn decided_allow_builds(allow_builds: HashMap<String, AllowBuild>) -> HashMap<String, bool> {
+    allow_builds.into_iter().filter_map(|(pkg, value)| Some((pkg, value.decided()?))).collect()
 }
 
 /// Settings readable from `pnpm-workspace.yaml`.
@@ -101,6 +135,10 @@ pub struct WorkspaceSettings {
     pub peers_suffix_max_length: Option<u64>,
     pub lockfile: Option<bool>,
     pub prefer_frozen_lockfile: Option<bool>,
+
+    /// `frozenLockfile` from `pnpm-workspace.yaml`. Unset by default:
+    /// see [`Config::frozen_lockfile`].
+    pub frozen_lockfile: Option<bool>,
     pub deploy_all_files: Option<bool>,
     pub force_legacy_deploy: Option<bool>,
     pub shared_workspace_lockfile: Option<bool>,
@@ -148,6 +186,9 @@ pub struct WorkspaceSettings {
     /// `linkWorkspacePackages` from `pnpm-workspace.yaml`. Tri-state
     /// (`true | false | "deep"`) — see [`LinkWorkspacePackages`].
     pub link_workspace_packages: Option<LinkWorkspacePackages>,
+    /// `saveWorkspaceProtocol` from `pnpm-workspace.yaml`. Tri-state
+    /// (`true | false | "rolling"`) — see [`SaveWorkspaceProtocol`].
+    pub save_workspace_protocol: Option<SaveWorkspaceProtocol>,
     /// `injectWorkspacePackages` from `pnpm-workspace.yaml`. When
     /// `true`, every workspace-resolved dep is materialized as a
     /// `file:` (hard-linked copy) instead of a `link:` symlink. See
@@ -234,13 +275,13 @@ pub struct WorkspaceSettings {
     /// and reinstalls on every invocation.
     pub config_dependencies: Option<BTreeMap<String, ConfigDependency>>,
 
-    /// Map of `name[@version]` → `true` / `false`. Drives pnpm 11's
+    /// Map of `name[@version]` → [`AllowBuild`]. Drives pnpm 11's
     /// default-deny build policy: a package's lifecycle scripts only
     /// run when an entry here resolves to `true`.
     ///
     /// pnpm 10+ moved `allowBuilds` out of `package.json#pnpm` into
     /// `pnpm-workspace.yaml` alongside other install settings.
-    pub allow_builds: Option<HashMap<String, bool>>,
+    pub allow_builds: Option<HashMap<String, AllowBuild>>,
 
     /// Bypass the [`allow_builds`] gate entirely — every package may
     /// run lifecycle scripts. Same `pnpm-workspace.yaml` migration
@@ -477,6 +518,24 @@ pub struct WorkspaceSettings {
     /// [`Config::cleanup_unused_catalogs`]. Default `false`.
     pub cleanup_unused_catalogs: Option<bool>,
 
+    /// `saveCatalogName` from `pnpm-workspace.yaml`. See
+    /// [`Config::save_catalog_name`].
+    ///
+    /// [`Config::save_catalog_name`]: crate::Config::save_catalog_name
+    pub save_catalog_name: Option<String>,
+
+    /// `savePrefix` from `pnpm-workspace.yaml`. See
+    /// [`Config::save_prefix`].
+    ///
+    /// [`Config::save_prefix`]: crate::Config::save_prefix
+    pub save_prefix: Option<String>,
+
+    /// `savePeer` from `pnpm-workspace.yaml`. See
+    /// [`Config::save_peer`]. Default `false`.
+    ///
+    /// [`Config::save_peer`]: crate::Config::save_peer
+    pub save_peer: Option<bool>,
+
     /// `registrySupportsTimeField` from `pnpm-workspace.yaml`. See
     /// [`Config::registry_supports_time_field`].
     ///
@@ -692,6 +751,21 @@ pub enum LoadWorkspaceYamlError {
         )
     )]
     TokenHelperUnsupportedCharacter { character: char },
+    /// The root manifest a `$dep-name` self-reference in `overrides`
+    /// resolves against exists but could not be read or parsed.
+    /// Boxed so the returned `Result` stays small.
+    #[display("Failed to read the root package.json: {source}")]
+    ReadRootManifest {
+        #[error(source)]
+        source: Box<pacquet_package_manifest::PackageManifestError>,
+    },
+    /// An `overrides` value used the `$dep-name` self-reference syntax,
+    /// but the root manifest declares no such direct dependency.
+    #[display(
+        r#"Cannot resolve version {spec} in overrides. The direct dependencies don't have dependency "{dependency_name}"."#
+    )]
+    #[diagnostic(code(ERR_PNPM_CANNOT_RESOLVE_OVERRIDE_VERSION))]
+    CannotResolveOverrideVersion { spec: String, dependency_name: String },
 }
 
 impl WorkspaceSettings {
@@ -719,6 +793,29 @@ impl WorkspaceSettings {
         Ok(Some(settings))
     }
 
+    /// Zero out the release-age and trust policies for `self-update`.
+    ///
+    /// `self-update` replaces the pnpm binary every later install runs
+    /// through, so a repository must not get a say in whether it may be
+    /// replaced. Both policies are dangerous in both directions here: a
+    /// cooldown lowered waives the protection the user configured, raised it
+    /// pins the machine to the installed pnpm — including past a release that
+    /// fixes a vulnerability in it; a trust policy turned off accepts a pnpm
+    /// release whose trust evidence the user meant to reject, turned on blocks
+    /// the update the same way. Unlike a blocked dependency upgrade, those
+    /// decisions follow the user out of the repository. The policies therefore
+    /// come from the built-in defaults, the global `config.yaml`, and
+    /// `PNPM_CONFIG_*` env vars only (plus CLI flags, applied by the caller).
+    pub fn clear_self_update_policy(&mut self) {
+        self.minimum_release_age = None;
+        self.minimum_release_age_exclude = None;
+        self.minimum_release_age_ignore_missing_time = None;
+        self.minimum_release_age_strict = None;
+        self.trust_policy = None;
+        self.trust_policy_exclude = None;
+        self.trust_policy_ignore_after = None;
+    }
+
     /// Zero out fields not permitted in the global `config.yaml`.
     ///
     /// Every field listed here is a key excluded from the global
@@ -740,6 +837,7 @@ impl WorkspaceSettings {
         self.node_linker = None;
         self.symlink = None;
         self.lockfile = None;
+        self.frozen_lockfile = None;
         self.deploy_all_files = None;
         self.force_legacy_deploy = None;
         self.shared_workspace_lockfile = None;
@@ -750,6 +848,7 @@ impl WorkspaceSettings {
         self.exclude_links_from_lockfile = None;
         self.hoist_workspace_packages = None;
         self.link_workspace_packages = None;
+        self.save_workspace_protocol = None;
         self.inject_workspace_packages = None;
         self.dedupe_peer_dependents = None;
         self.dedupe_peers = None;
@@ -772,6 +871,8 @@ impl WorkspaceSettings {
         self.test_pattern = None;
         self.changed_files_ignore_pattern = None;
         self.allow_unused_patches = None;
+        self.save_catalog_name = None;
+        self.save_peer = None;
     }
 
     /// Walk up from `start_dir` looking for a readable `pnpm-workspace.yaml`.
@@ -883,9 +984,8 @@ impl WorkspaceSettings {
 
     /// Apply every set field onto `config`, leaving unset ones untouched.
     ///
-    /// Path-valued fields (`store_dir`, `modules_dir`, `virtual_store_dir`)
-    /// are resolved against `base_dir` if relative — anchored at the
-    /// workspace root where the yaml was found, matching pnpm.
+    /// Path-valued settings are resolved against `base_dir` if relative —
+    /// anchored at the workspace root where the yaml was found, matching pnpm.
     pub fn apply_to(self, config: &mut Config, base_dir: &Path) {
         let http_proxy_is_explicit = config.http_proxy_is_explicit;
         self.apply_proxy_to(&mut config.proxy, http_proxy_is_explicit);
@@ -927,6 +1027,7 @@ impl WorkspaceSettings {
             verify_deps_before_run,
             block_exotic_subdeps,
             link_workspace_packages,
+            save_workspace_protocol,
             inject_workspace_packages,
             prefer_workspace_packages,
             side_effects_cache, side_effects_cache_readonly,
@@ -937,7 +1038,7 @@ impl WorkspaceSettings {
             virtual_store_only, enable_modules_dir,
             git_shallow_hosts,
             test_pattern, changed_files_ignore_pattern,
-            resolution_mode, catalog_mode, cleanup_unused_catalogs,
+            resolution_mode, catalog_mode, cleanup_unused_catalogs, save_peer,
             registry_supports_time_field,
             allowed_deprecated_versions, update_config, peer_dependency_rules,
             enable_pre_post_scripts, dlx_cache_max_age,
@@ -962,6 +1063,16 @@ impl WorkspaceSettings {
                 github_actions: update.github_actions,
                 github_actions_server: update.github_actions_server,
             };
+        }
+
+        if let Some(frozen_lockfile) = self.frozen_lockfile {
+            config.frozen_lockfile = Some(frozen_lockfile);
+        }
+        if let Some(save_catalog_name) = self.save_catalog_name {
+            config.save_catalog_name = Some(save_catalog_name);
+        }
+        if let Some(save_prefix) = self.save_prefix {
+            config.save_prefix = Some(save_prefix);
         }
 
         if let Some(inner) = self.hoist_pattern {
@@ -1026,7 +1137,7 @@ impl WorkspaceSettings {
             config.config_dependencies = Some(v);
         }
         if let Some(v) = self.allow_builds {
-            config.allow_builds = v;
+            config.allow_builds = decided_allow_builds(v);
         }
         if let Some(v) = self.dangerously_allow_all_builds {
             config.dangerously_allow_all_builds = v;
@@ -1082,9 +1193,10 @@ impl WorkspaceSettings {
         if let Some(v) = self.ignored_optional_dependencies {
             config.ignored_optional_dependencies = Some(v);
         }
-        // `$dep-name` self-reference resolution happens elsewhere (the
-        // resolver chain), since it needs the workspace's root manifest
-        // and that isn't in scope here.
+        // `$dep-name` self-references are resolved by
+        // [`crate::override_version_references::resolve_version_references`]
+        // once the cascade knows the workspace root, whose manifest
+        // carries the direct dependencies they point at.
         if let Some(v) = self.overrides {
             config.overrides = (!v.is_empty()).then_some(v);
         }
@@ -1225,7 +1337,7 @@ fn resolve(base: &Path, value: &str) -> PathBuf {
     if candidate.is_absolute() { candidate.to_path_buf() } else { base.join(candidate) }
 }
 
-fn find_workspace_manifest(start: &Path) -> Option<PathBuf> {
+pub(crate) fn find_workspace_manifest(start: &Path) -> Option<PathBuf> {
     let mut cursor = Some(start);
     while let Some(dir) = cursor {
         let candidate = dir.join(WORKSPACE_MANIFEST_FILENAME);

@@ -1,3 +1,5 @@
+mod tolerant;
+
 use derive_more::{Display, Error};
 use diffy::patch_set::{FileOperation, ParseOptions, PatchSet};
 use miette::Diagnostic;
@@ -173,15 +175,15 @@ fn apply_one_file(
                 .patch()
                 .as_text()
                 .ok_or_else(|| failed("binary patch is not supported".to_string()))?;
-            let updated = match diffy::apply(&original, text_patch) {
+            let updated = match tolerant::apply(&original, text_patch) {
                 Ok(updated) => updated,
-                Err(_) if diffy::apply(&original, &text_patch.reverse()).is_ok() => {
+                Err(_) if tolerant::apply(&original, &text_patch.reverse()).is_ok() => {
                     // File is already in the post-patch state — reverse
                     // applies cleanly, so treat as no-op.
                     return Ok(());
                 }
-                Err(source) => {
-                    return Err(failed(format!("apply to {}: {source}", target.display())));
+                Err(message) => {
+                    return Err(failed(format!("apply to {}: {message}", target.display())));
                 }
             };
             // Stage the patched bytes in a sibling temp file, then
@@ -213,8 +215,8 @@ fn apply_one_file(
                 .patch()
                 .as_text()
                 .ok_or_else(|| failed("binary patch is not supported".to_string()))?;
-            let created = diffy::apply("", text_patch)
-                .map_err(|source| failed(format!("create {}: {source}", target.display())))?;
+            let created = tolerant::apply("", text_patch)
+                .map_err(|message| failed(format!("create {}: {message}", target.display())))?;
             // A "new file" patch (`--- /dev/null`) means the target is
             // expected NOT to exist. Refusing to overwrite matches
             // `patch`'s and `git apply`'s behavior — silently clobbering
@@ -270,8 +272,8 @@ fn apply_one_file(
                 .patch()
                 .as_text()
                 .ok_or_else(|| failed("binary patch is not supported".to_string()))?;
-            let after = diffy::apply(&original, text_patch)
-                .map_err(|source| failed(format!("apply to {}: {source}", target.display())))?;
+            let after = tolerant::apply(&original, text_patch)
+                .map_err(|message| failed(format!("apply to {}: {message}", target.display())))?;
             if !after.is_empty() {
                 return Err(failed(format!(
                     "delete patch left {} non-empty after apply ({} bytes remain)",

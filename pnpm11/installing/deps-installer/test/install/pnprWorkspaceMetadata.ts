@@ -127,6 +127,74 @@ test("pnpr forwards every workspace project's name and version", async () => {
   }
 })
 
+test('pnpr returns the resolution policy violations the install command reacts to', async () => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  const manifest: ProjectManifest = { name: 'app', version: '1.2.3' }
+  const options = createOptions(workspaceRoot, rootDir, {
+    allProjects: [{ buildIndex: 0, manifest, rootDir }],
+  })
+
+  const result = await mutateModules([{ mutation: 'install', rootDir }], options)
+
+  expect(result.resolutionPolicyViolations).toStrictEqual([])
+})
+
+test("pnpr forwards the client's whole verification policy, not just the age cutoff", async () => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  const manifest: ProjectManifest = { name: 'app', version: '1.2.3' }
+  const options = createOptions(workspaceRoot, rootDir, {
+    minimumReleaseAge: 1440,
+    minimumReleaseAgeExclude: ['@acme/*'],
+    minimumReleaseAgeIgnoreMissingTime: false,
+    trustPolicy: 'no-downgrade',
+    trustPolicyExclude: ['legacy-pkg'],
+    trustPolicyIgnoreAfter: 43200,
+    trustLockfile: true,
+  })
+
+  await install(manifest, options)
+
+  expect(resolveViaPnprServer).toHaveBeenCalledWith(expect.objectContaining({
+    minimumReleaseAge: 1440,
+    minimumReleaseAgeExclude: ['@acme/*'],
+    minimumReleaseAgeIgnoreMissingTime: false,
+    trustPolicy: 'no-downgrade',
+    trustPolicyExclude: ['legacy-pkg'],
+    trustPolicyIgnoreAfter: 43200,
+    trustLockfile: true,
+  }))
+})
+
+test('pnpr forwards the resolution mode so --frozen-lockfile is not silently ignored', async () => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  const manifest: ProjectManifest = { name: 'app', version: '1.2.3' }
+  const options = createOptions(workspaceRoot, rootDir, {
+    frozenLockfile: true,
+    preferFrozenLockfile: false,
+  })
+
+  await install(manifest, options)
+
+  expect(resolveViaPnprServer).toHaveBeenCalledWith(expect.objectContaining({
+    frozenLockfile: true,
+    preferFrozenLockfile: false,
+  }))
+})
+
+test('pnpr runs under trustPolicy instead of refusing the install', async () => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  const manifest: ProjectManifest = { name: 'app', version: '1.2.3' }
+  const options = createOptions(workspaceRoot, rootDir, { trustPolicy: 'no-downgrade' })
+
+  await expect(install(manifest, options)).resolves.toBeDefined()
+
+  expect(resolveViaPnprServer).toHaveBeenCalledTimes(1)
+})
+
 function createOptions (
   workspaceRoot: string,
   rootDir: ProjectRootDir,

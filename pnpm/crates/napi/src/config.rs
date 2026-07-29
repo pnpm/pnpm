@@ -24,7 +24,7 @@
 //! registries, linker, hoist patterns, overrides, peer/dedupe policy, ...) win.
 
 use std::{
-    collections::{BTreeMap, BTreeSet, hash_map::DefaultHasher},
+    collections::{BTreeMap, BTreeSet, HashMap, hash_map::DefaultHasher},
     fs,
     hash::{Hash, Hasher},
     path::{Path, PathBuf},
@@ -35,9 +35,9 @@ use dashmap::DashMap;
 use indexmap::IndexMap;
 use pacquet_config::{
     Config, GetHomeDir, Host, LinkWorkspacePackages, LoadWorkspaceYamlError, NodeLinker,
-    PackageImportMethod,
+    PackageImportMethod, default_registry,
 };
-use pacquet_network::{AuthHeaders, ProxyConfig, TlsConfig};
+use pacquet_network::{AuthHeaders, ProxyConfig, TlsConfig, nerf_dart, normalize_auth_key};
 use pacquet_store_dir::StoreDir;
 
 /// Host-supplied config values. Every field is optional: `None` keeps the
@@ -99,6 +99,9 @@ pub struct ConfigOverlay {
     pub dangerously_allow_all_builds: Option<bool>,
     /// When `true`, skip all dependency and project lifecycle scripts.
     pub ignore_scripts: Option<bool>,
+    /// When `true`, trust lockfile resolutions without verifying them against
+    /// current registry metadata.
+    pub trust_lockfile: Option<bool>,
     /// `engineStrict` — fail the install when a dependency's `engines` /
     /// platform constraint the host does not satisfy is required.
     pub engine_strict: Option<bool>,
@@ -364,6 +367,9 @@ fn build_config(dir: &Path, overlay: &ConfigOverlay) -> Result<Config, LoadWorks
     if let Some(value) = overlay.ignore_scripts {
         config.ignore_scripts = value;
     }
+    if let Some(value) = overlay.trust_lockfile {
+        config.trust_lockfile = value;
+    }
     if let Some(value) = overlay.engine_strict {
         config.engine_strict = value;
     }
@@ -388,13 +394,55 @@ fn build_config(dir: &Path, overlay: &ConfigOverlay) -> Result<Config, LoadWorks
         }
     }
     if let Some(headers) = &overlay.auth_header_by_uri {
-        let auth_headers = AuthHeaders::from_creds_map(
-            headers.iter().map(|(uri, header)| (uri.clone(), header.clone())),
-            Some(config.registry.as_str()),
-        );
-        config.auth_headers = std::sync::Arc::new(auth_headers);
+        config.auth_headers = std::sync::Arc::new(AuthHeaders::from_map(pin_unkeyed_header(
+            headers,
+            &overlay_default_registry(overlay),
+        )));
     }
     Ok(config)
+}
+
+/// Key the overlay's unkeyed (`""`) `Authorization` header — the host's
+/// default-registry credential — at the registry that same overlay declared,
+/// or at the npmjs default when it declared none. This mirrors the pinning
+/// `.npmrc` credentials get in `NpmrcAuth::rescope_unscoped`: the credential
+/// and the registry it is sent to both come from the host, so a `registry=`
+/// in the repository's `.npmrc` cannot redirect it. A header the host already
+/// keyed at that URI wins, and an unparsable default registry drops the
+/// unkeyed header rather than sending it somewhere unintended.
+fn pin_unkeyed_header(
+    headers: &BTreeMap<String, String>,
+    default_registry: &str,
+) -> HashMap<String, String> {
+    let mut by_uri: HashMap<String, String> = HashMap::new();
+    let mut unkeyed = None;
+    for (uri, header) in headers {
+        if uri.is_empty() {
+            unkeyed = Some(header);
+        } else {
+            // Normalized on the way in, so a host key spelled without the
+            // trailing slash still counts as "already keyed at that URI"
+            // below instead of colliding with the pinned entry later.
+            by_uri.insert(normalize_auth_key(uri.clone()), header.clone());
+        }
+    }
+    let default_uri = nerf_dart(default_registry);
+    if let Some(header) = unkeyed
+        && !default_uri.is_empty()
+    {
+        by_uri.entry(default_uri).or_insert_with(|| header.clone());
+    }
+    by_uri
+}
+
+fn overlay_default_registry(overlay: &ConfigOverlay) -> String {
+    overlay
+        .registries
+        .as_ref()
+        .and_then(|registries| registries.get("default"))
+        .or(overlay.registry.as_ref())
+        .cloned()
+        .unwrap_or_else(default_registry)
 }
 
 #[cfg(test)]

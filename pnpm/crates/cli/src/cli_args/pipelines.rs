@@ -3,7 +3,7 @@ use super::{
     dedupe::{self, DedupeArgs},
     deploy::DeployArgs,
     install::{InstallArgs, resolve_bool_override},
-    package_manager::{PackageManagerToSync, package_manager_to_sync},
+    package_manager::{PackageManagerToSync, package_manager_to_sync, read_manifest_json},
     prune::PruneArgs,
     recursive::{
         AutoExcludeRoot, discover_workspace_projects, select_recursive_projects,
@@ -13,10 +13,18 @@ use super::{
     update::UpdateArgs,
     update_changeset::UpdateChangesetContext,
 };
-use crate::{State, config_deps};
+use crate::{
+    State,
+    cli_args::{
+        legacy_pnpm_field::warn_ignored_pnpm_manifest_fields,
+        override_version_references::warn_deprecated_override_version_references,
+        reporter::{ReporterType, reporter_emit},
+    },
+    config_deps,
+};
 use miette::Context;
 use pacquet_config::Config;
-use pacquet_reporter::Reporter;
+use pacquet_reporter::{LogEvent, LogLevel, Reporter, ScopeLog};
 use std::{
     collections::{BTreeMap, HashSet},
     path::{Path, PathBuf},
@@ -53,7 +61,7 @@ pub(crate) enum InstallFamilyPlan {
     PerProject(Vec<PathBuf>),
 }
 
-fn select_install_family_plan(
+fn select_install_family_plan<Reporter: self::Reporter>(
     cfg: &Config,
     prefix: &Path,
     manifest_path: &Path,
@@ -65,6 +73,19 @@ fn select_install_family_plan(
     else {
         return Ok(InstallFamilyPlan::Single);
     };
+    // Report what the `--filter` / `-r` selection resolved to, so the user
+    // can confirm it before the install acts on it. Emitted once here for
+    // every plan shape below — a `PerProject` plan installs each selected
+    // project separately, and those child installs must not each report
+    // the workspace again. The unnarrowed install reports its own scope
+    // from inside the installer, where the workspace walk it already does
+    // supplies the count.
+    Reporter::emit(&LogEvent::Scope(ScopeLog {
+        level: LogLevel::Debug,
+        selected: selection.selected_dirs.len(),
+        total: Some(selection.projects.len()),
+        workspace_prefix: Some(selection.workspace_root.to_string_lossy().into_owned()),
+    }));
     if !cfg.shared_workspace_lockfile {
         let mut project_dirs: Vec<PathBuf> = selection.selected_dirs.iter().cloned().collect();
         project_dirs.sort();
@@ -199,7 +220,13 @@ impl InstallPipeline {
         }
         config_deps::install_config_deps::<Reporter>(cfg, &config_root, frozen_lockfile).await?;
         config_deps::run_update_config_hooks::<Reporter>(cfg, &config_root).await?;
-        let plan = select_install_family_plan(cfg, &prefix, &manifest_path, recursive_sort, false)?;
+        let plan = select_install_family_plan::<Reporter>(
+            cfg,
+            &prefix,
+            &manifest_path,
+            recursive_sort,
+            false,
+        )?;
         match plan {
             InstallFamilyPlan::PerProject(project_dirs) => {
                 let cfg: &Config = cfg;
@@ -283,7 +310,13 @@ impl AddPipeline {
         let plan = if config_dependencies.is_some() {
             InstallFamilyPlan::Single
         } else {
-            select_install_family_plan(cfg, &prefix, &manifest_path, recursive_sort, true)?
+            select_install_family_plan::<Reporter>(
+                cfg,
+                &prefix,
+                &manifest_path,
+                recursive_sort,
+                true,
+            )?
         };
         match plan {
             InstallFamilyPlan::PerProject(project_dirs) => {
@@ -362,7 +395,13 @@ impl UpdatePipeline {
         }
         config_deps::install_config_deps::<Reporter>(cfg, &config_root, false).await?;
         config_deps::run_update_config_hooks::<Reporter>(cfg, &config_root).await?;
-        let plan = select_install_family_plan(cfg, &prefix, &manifest_path, recursive_sort, false)?;
+        let plan = select_install_family_plan::<Reporter>(
+            cfg,
+            &prefix,
+            &manifest_path,
+            recursive_sort,
+            false,
+        )?;
         // An empty selection has nothing to update, and — like the shared
         // path — must not generate a changeset.
         match &plan {
@@ -458,7 +497,13 @@ impl RemovePipeline {
         }
         config_deps::install_config_deps::<Reporter>(cfg, &config_root, false).await?;
         config_deps::run_update_config_hooks::<Reporter>(cfg, &config_root).await?;
-        let plan = select_install_family_plan(cfg, &prefix, &manifest_path, recursive_sort, false)?;
+        let plan = select_install_family_plan::<Reporter>(
+            cfg,
+            &prefix,
+            &manifest_path,
+            recursive_sort,
+            false,
+        )?;
         match plan {
             InstallFamilyPlan::PerProject(project_dirs) => {
                 // Dedicated per-project lockfiles: remove the packages from
@@ -600,11 +645,19 @@ async fn run_dedicated_lockfile_workspace_install<Reporter: self::Reporter + 'st
 pub(crate) fn derive_config_root_and_package_manager_to_sync(
     cfg: &Config,
     dir_ref: &Path,
+    reporter: ReporterType,
 ) -> miette::Result<(PathBuf, Option<PackageManagerToSync>)> {
     let config_root = cfg.workspace_dir.clone().unwrap_or_else(|| dir_ref.to_path_buf());
-    let package_manager_to_sync =
-        package_manager_to_sync(&config_root.join("package.json"), &config_root)
-            .wrap_err("read package manager policy")?;
+    let root_manifest = read_manifest_json(&config_root.join("package.json"))
+        .wrap_err("read package manager policy")?;
+    // pnpm warns from config-reading, so the notice lands ahead of any
+    // install output. This is the install family's earliest point that
+    // knows the root manifest's directory.
+    warn_ignored_pnpm_manifest_fields(root_manifest.as_ref());
+    warn_deprecated_override_version_references(cfg, reporter_emit(reporter));
+    let package_manager_to_sync = root_manifest
+        .as_ref()
+        .and_then(|manifest| package_manager_to_sync(manifest, &config_root, cfg.pm_on_fail));
     Ok((config_root, package_manager_to_sync))
 }
 

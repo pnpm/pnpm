@@ -1,7 +1,7 @@
 use crate::{
     ImportIndexedDirError, ImportIndexedDirOpts, NEEDS_BUILD_MARKER, SkippedSnapshots,
     build_sequence::build_sequence,
-    import_indexed_dir,
+    import_indexed_dir, store_index_key_for_resolution,
     version_policy::{VersionPolicyError, expand_package_version_specs},
 };
 use derive_more::{Display, Error};
@@ -462,7 +462,15 @@ pub struct BuildModules<'a> {
     /// [`RunPostinstallHooks::scripts_prepend_node_path`] for each
     /// spawned lifecycle script. Default [`ScriptsPrependNodePath::Never`].
     pub scripts_prepend_node_path: ScriptsPrependNodePath,
+    /// Mirrors `config.script_shell`. Threaded through to
+    /// [`RunPostinstallHooks::script_shell`], so a workspace that
+    /// configures a shell gets it for build scripts too, not only for
+    /// `pnpm run`. `None` selects the platform default.
+    pub script_shell: Option<&'a Path>,
     pub extra_env: &'a HashMap<String, String>,
+    /// Mirrors `config.user_agent`, stamped into each build script's
+    /// `npm_config_user_agent`.
+    pub user_agent: &'a str,
     /// Mirrors `config.unsafe_perm`. When `false`, [`pacquet_executor`]
     /// runs each lifecycle script under a per-package TMPDIR set to
     /// `node_modules/.tmp`; when `true`, TMPDIR is left at the
@@ -591,7 +599,9 @@ impl BuildModules<'_> {
             store_index_writer,
             patches,
             scripts_prepend_node_path,
+            script_shell,
             extra_env,
+            user_agent,
             unsafe_perm,
             child_concurrency,
             skipped,
@@ -684,6 +694,21 @@ impl BuildModules<'_> {
         // the point of memoization.
         let deps_state_cache: Mutex<pacquet_graph_hasher::DepsStateCache<PackageKey>> =
             Mutex::new(pacquet_graph_hasher::DepsStateCache::new());
+        // Prime it in lockfile key order before any chunk runs. The
+        // chunk members race for the mutex, and a snapshot inside a
+        // dependency cycle takes the digest of whichever walk reached
+        // it first — so an unprimed cache would hand the same install
+        // a different side-effects-cache key on every run, and every
+        // repeat install would re-run the build it already has cached.
+        if let Some(graph) = &dep_graph {
+            let mut cache_guard =
+                deps_state_cache.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            pacquet_graph_hasher::warm_deps_state_cache(
+                graph,
+                &mut cache_guard,
+                crate::deps_graph::in_lockfile_order(graph).into_iter().map(|(key, _)| key),
+            );
+        }
 
         let chunks = build_sequence(&requires_build_map, patches, snapshots, importers, skipped);
 
@@ -738,7 +763,9 @@ impl BuildModules<'_> {
                         modules_dir,
                         lockfile_dir,
                         extra_env,
+                        user_agent,
                         scripts_prepend_node_path,
+                        script_shell,
                         unsafe_perm,
                         frozen_store,
                         ignore_scripts,
@@ -817,7 +844,9 @@ fn build_one_snapshot<Reporter: self::Reporter>(
     modules_dir: &Path,
     lockfile_dir: &Path,
     extra_env: &HashMap<String, String>,
+    user_agent: &str,
     scripts_prepend_node_path: ScriptsPrependNodePath,
+    script_shell: Option<&Path>,
     unsafe_perm: bool,
     frozen_store: bool,
     ignore_scripts: bool,
@@ -877,10 +906,16 @@ fn build_one_snapshot<Reporter: self::Reporter>(
                 // the end of `BuildModules::run` for the safety
                 // argument (BTreeSet insertion is atomic from the
                 // data-structure's POV).
+                // The patch hash is kept: two copies of a package that
+                // differ only by an applied patch are different builds to
+                // approve, and pnpm's `dedupePackageNamesFromIgnoredBuilds`
+                // reports them apart for the same reason. `dep_path` above
+                // has already lost it, so re-derive from the full key.
+                let ignored_key = get_pkg_id_with_patch_hash(&snapshot_key.to_string()).to_string();
                 ignored_builds
                     .lock()
                     .unwrap_or_else(std::sync::PoisonError::into_inner)
-                    .insert(dep_path);
+                    .insert(ignored_key);
                 should_run_scripts = false;
             }
             Some(true) => {}
@@ -1165,11 +1200,11 @@ fn build_one_snapshot<Reporter: self::Reporter>(
             node_execpath: None,
             npm_execpath: None,
             node_gyp_path: None,
-            user_agent: None,
+            user_agent: Some(user_agent),
             unsafe_perm,
             node_gyp_bin: None,
             scripts_prepend_node_path,
-            script_shell: None,
+            script_shell,
             optional,
         });
 
@@ -1231,10 +1266,8 @@ fn build_one_snapshot<Reporter: self::Reporter>(
     // subsequent installs hit the cache.
     //
     // The other preconditions: cache_key composable (engine + graph
-    // present), `packages` map available for the integrity lookup,
-    // and the metadata row carries an integrity (registry / tarball
-    // resolutions — git / directory have no integrity, so those
-    // aren't cached).
+    // present), `packages` map available for store-index key selection,
+    // and the resolution has a store-backed key.
     //
     // All errors are swallowed with a `tracing::warn!`. A failed
     // upload doesn't fail the install: the next install re-runs the
@@ -1247,20 +1280,20 @@ fn build_one_snapshot<Reporter: self::Reporter>(
         && let Some(cache_key) = cache_key.as_deref()
         && let Some(packages) = packages
         && let Some(metadata) = packages.get(&metadata_key)
-        && let Some(integrity) = metadata.resolution.integrity()
-    {
-        let files_index_file =
-            pacquet_store_dir::store_index_key(&integrity.to_string(), &metadata_key.to_string());
-        if let Err(err) =
+        && let Some(files_index_file) = store_index_key_for_resolution(
+            &metadata.resolution,
+            &metadata_key.pkg_id(),
+            !ignore_scripts,
+        )
+        && let Err(err) =
             pacquet_store_dir::upload(store, &pkg_dir, &files_index_file, cache_key, writer)
-        {
-            tracing::warn!(
-                target: "pacquet::build",
-                ?err,
-                dep_path = %snapshot_key,
-                "side-effects cache upload failed; build proceeds",
-            );
-        }
+    {
+        tracing::warn!(
+            target: "pacquet::build",
+            ?err,
+            dep_path = %snapshot_key,
+            "side-effects cache upload failed; build proceeds",
+        );
     }
 
     Ok(())

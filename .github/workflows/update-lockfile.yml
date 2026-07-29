@@ -28,7 +28,7 @@ jobs:
       HUSKY: 0
     steps:
     - name: Checkout Commit
-      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         # Don't persist the write-scoped token in .git/config. The full install
         # below runs third-party lifecycle scripts from freshly-bumped
@@ -39,12 +39,12 @@ jobs:
     # pnpm/update runs the install itself, so the action's auto-install would
     # be wasted work.
     - name: Install pnpm
-      uses: pnpm/setup@6bfbb82d278149277735183e1ac2cd4353ebfe4f
+      uses: pnpm/setup@6523ce966bcf7a1061ce6401e5c6e0b60466bd31
       with:
         install: false
 
     - name: Update dependencies, Node.js, pnpm, and GitHub Actions
-      uses: pnpm/update@76f98d727df25f56f9bbd38e60ad663fd785d3d4 # v0
+      uses: pnpm/update@76f98d727df25f56f9bbd38e60ad663fd785d3d4 #v0.0.0  v0
       with:
         update-deps: latest
         refresh-lockfile: true

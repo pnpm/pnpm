@@ -300,37 +300,62 @@ fn repo_url_strips_scp_fragment_and_query() {
     );
 }
 
-thread_local! {
-    static OPENED_URLS: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
-}
+// Per-test browser fake recording the URLs `pnpm bugs` opens. Its buffer is
+// fn-local, so each `#[test]` records into its own and concurrent tests never
+// share it. Each test names the `run_bugs_*` helper it drives, so every emitted
+// helper is used and none needs a `dead_code` allow.
+macro_rules! recording_browser {
+    ($($helper:ident),* $(,)?) => {
+        thread_local! {
+            static OPENED_URLS: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+        }
 
-/// [`OpenUrl`] fake standing in for the user's browser; mirrors the mocked
-/// `open` module in the TypeScript tests
-/// (`pnpm11/deps/inspection/commands/test/bugs.ts`).
-struct RecordingBrowser;
+        // [`OpenUrl`] fake standing in for the user's browser; mirrors the
+        // mocked `open` module in the TypeScript tests
+        // (`pnpm11/deps/inspection/commands/test/bugs.ts`).
+        struct RecordingBrowser;
 
-impl OpenUrl for RecordingBrowser {
-    fn open_url(url: &str) -> io::Result<()> {
-        OPENED_URLS.with(|urls| urls.borrow_mut().push(url.to_owned()));
-        Ok(())
-    }
-}
+        impl OpenUrl for RecordingBrowser {
+            fn open_url(url: &str) -> io::Result<()> {
+                OPENED_URLS.with(|urls| urls.borrow_mut().push(url.to_owned()));
+                Ok(())
+            }
+        }
 
-/// Drain the recorded URLs so state cannot leak between tests that
-/// libtest runs on the same thread (e.g. `--test-threads=1`).
-fn opened_urls() -> Vec<String> {
-    OPENED_URLS.with(RefCell::take)
-}
+        fn opened_urls() -> Vec<String> {
+            OPENED_URLS.with(RefCell::take)
+        }
 
-async fn run_bugs_in_project(manifest: &str) -> miette::Result<()> {
-    let dir = tempfile::tempdir().expect("create temp project dir");
-    fs::write(dir.path().join("package.json"), manifest).expect("write package.json");
-    let args = BugsArgs { registry: None, packages: Vec::new() };
-    args.run::<RecordingBrowser>(&Config::default(), dir.path()).await
+        $( recording_browser!(@helper $helper); )*
+    };
+
+    (@helper run_bugs_in_project) => {
+        async fn run_bugs_in_project(manifest: &str) -> miette::Result<()> {
+            let dir = tempfile::tempdir().expect("create temp project dir");
+            fs::write(dir.path().join("package.json"), manifest).expect("write package.json");
+            let args = BugsArgs { registry: None, packages: Vec::new() };
+            args.run::<RecordingBrowser>(&Config::default(), dir.path()).await
+        }
+    };
+    (@helper run_bugs_against_registry) => {
+        async fn run_bugs_against_registry(registry: String, package: &str) -> miette::Result<()> {
+            let config = Config { registry, ..Config::default() };
+            let args = BugsArgs { registry: None, packages: vec![package.to_owned()] };
+            args.run::<RecordingBrowser>(&config, Path::new(".")).await
+        }
+    };
+    (@helper $unknown:ident) => {
+        compile_error!(concat!(
+            "unknown `recording_browser!` helper `",
+            stringify!($unknown),
+            "`; expected one of: run_bugs_in_project, run_bugs_against_registry",
+        ));
+    };
 }
 
 #[tokio::test]
 async fn run_opens_bugs_url_from_local_manifest_bugs_object() {
+    recording_browser!(run_bugs_in_project);
     run_bugs_in_project(
         r#"{"name":"test-pkg","bugs":{"url":"https://github.com/test/pkg/issues"}}"#,
     )
@@ -341,6 +366,7 @@ async fn run_opens_bugs_url_from_local_manifest_bugs_object() {
 
 #[tokio::test]
 async fn run_opens_bugs_url_from_local_manifest_bugs_string() {
+    recording_browser!(run_bugs_in_project);
     run_bugs_in_project(r#"{"name":"test-pkg","bugs":"https://github.com/test/pkg/issues"}"#)
         .await
         .expect("bugs must succeed");
@@ -349,6 +375,7 @@ async fn run_opens_bugs_url_from_local_manifest_bugs_string() {
 
 #[tokio::test]
 async fn run_opens_repository_issues_url_when_bugs_is_missing() {
+    recording_browser!(run_bugs_in_project);
     run_bugs_in_project(r#"{"name":"test-pkg","repository":"https://github.com/test/pkg"}"#)
         .await
         .expect("bugs must succeed");
@@ -357,6 +384,7 @@ async fn run_opens_repository_issues_url_when_bugs_is_missing() {
 
 #[tokio::test]
 async fn run_normalizes_git_plus_https_repository_url_with_dot_git() {
+    recording_browser!(run_bugs_in_project);
     run_bugs_in_project(
         r#"{"name":"test-pkg","repository":{"url":"git+https://github.com/test/pkg.git"}}"#,
     )
@@ -381,14 +409,9 @@ fn version_response(name: &str, extra_fields: serde_json::Value) -> String {
     version.to_string()
 }
 
-async fn run_bugs_against_registry(registry: String, package: &str) -> miette::Result<()> {
-    let config = Config { registry, ..Config::default() };
-    let args = BugsArgs { registry: None, packages: vec![package.to_owned()] };
-    args.run::<RecordingBrowser>(&config, Path::new(".")).await
-}
-
 #[tokio::test]
 async fn run_opens_bugs_url_of_registry_package() {
+    recording_browser!(run_bugs_against_registry);
     let mut server = mockito::Server::new_async().await;
     let body = version_response(
         "is-negative",
@@ -409,6 +432,7 @@ async fn run_opens_bugs_url_of_registry_package() {
 
 #[tokio::test]
 async fn run_opens_repository_issues_url_of_registry_package() {
+    recording_browser!(run_bugs_against_registry);
     let mut server = mockito::Server::new_async().await;
     let body = version_response(
         "test-pkg",
@@ -429,6 +453,7 @@ async fn run_opens_repository_issues_url_of_registry_package() {
 
 #[tokio::test]
 async fn run_encodes_scoped_package_name_in_registry_request() {
+    recording_browser!(run_bugs_against_registry);
     let mut server = mockito::Server::new_async().await;
     let body = version_response(
         "@scope/pkg",

@@ -1,4 +1,6 @@
 use miette::IntoDiagnostic;
+use pacquet_config::PmOnFail;
+use pacquet_package_manifest::parse_manifest;
 use serde_json::Value;
 use std::{fs, io::ErrorKind, path::Path};
 
@@ -23,31 +25,33 @@ pub(crate) struct PackageManagerToSync {
     pub(crate) version: String,
 }
 
+/// The pnpm version to record under the env lockfile's
+/// `packageManagerDependencies`, or `None` when the project doesn't pin pnpm
+/// in a way that persists (see [`should_persist_package_manager_lockfile`]).
+/// `on_fail` is the effective policy — the `pmOnFail` setting when it is set,
+/// which overrides the manifest's own `onFail`.
 pub(crate) fn package_manager_to_sync(
-    manifest_path: &Path,
+    manifest: &Value,
     root_dir: &Path,
-) -> miette::Result<Option<PackageManagerToSync>> {
-    let Some(manifest) = read_manifest_json(manifest_path)? else {
-        return Ok(None);
-    };
-    let Some(pm) = wanted_package_manager(&manifest) else {
-        return Ok(None);
-    };
-    let Some(wanted_version) = pm.version.as_deref() else {
-        return Ok(None);
-    };
+    on_fail: Option<PmOnFail>,
+) -> Option<PackageManagerToSync> {
+    let mut pm = wanted_package_manager(manifest)?;
+    if let Some(on_fail) = on_fail {
+        pm.on_fail = Some(on_fail.as_str().to_string());
+    }
+    let wanted_version = pm.version.as_deref()?;
     if pm.name != "pnpm" || !should_persist_package_manager_lockfile(&pm) {
-        return Ok(None);
+        return None;
     }
     let source_version = current_source_pnpm_version().or_else(|| pnpm_version_from(root_dir));
     if let Some(version) =
         source_version.filter(|version| version_satisfies(version, wanted_version))
     {
-        return Ok(Some(PackageManagerToSync { specifier: wanted_version.to_string(), version }));
+        return Some(PackageManagerToSync { specifier: wanted_version.to_string(), version });
     }
-    Ok(exact_version(wanted_version)
+    exact_version(wanted_version)
         .filter(|version| version_satisfies(version, wanted_version))
-        .map(|version| PackageManagerToSync { specifier: wanted_version.to_string(), version }))
+        .map(|version| PackageManagerToSync { specifier: wanted_version.to_string(), version })
 }
 
 pub(crate) fn read_manifest_json(path: &Path) -> miette::Result<Option<Value>> {
@@ -56,7 +60,7 @@ pub(crate) fn read_manifest_json(path: &Path) -> miette::Result<Option<Value>> {
         Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(error).into_diagnostic(),
     };
-    serde_json::from_str(&content).into_diagnostic().map(Some)
+    parse_manifest(&content).into_diagnostic().map(Some)
 }
 
 pub(crate) fn wanted_package_manager(manifest: &Value) -> Option<WantedPackageManager> {

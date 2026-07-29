@@ -1,6 +1,8 @@
 use crate::{
     CasPathsByPkgId, InstallPackageBySnapshot, InstallPackageBySnapshotError, SkippedSnapshots,
-    install_package_by_snapshot::runtime_platform_selector, store_init::init_store_dir_best_effort,
+    install_package_by_snapshot::{runtime_platform_selector, unverified_fetch_is_allowed},
+    store_index_key_for_resolution,
+    store_init::init_store_dir_best_effort,
 };
 use derive_more::{Display, Error};
 use futures_util::future;
@@ -13,15 +15,14 @@ use pacquet_lockfile::{
     PlatformSelector, SnapshotEntry, select_platform_variant,
 };
 use pacquet_network::ThrottledClient;
-use pacquet_package_manifest::{files_include_install_scripts, manifest_requires_build};
+use pacquet_package_manifest::{
+    files_include_install_scripts, manifest_requires_build, parse_manifest,
+};
 use pacquet_reporter::{
     BrokenModulesLog, LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter, StatsLog,
     StatsMessage,
 };
-use pacquet_store_dir::{
-    SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter, git_hosted_store_index_key,
-    store_index_key,
-};
+use pacquet_store_dir::{SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter, store_index_key};
 use pacquet_tarball::{MemCache, PrefetchResult, SharedReportedProgressKeys, prefetch_cas_paths};
 use pipe_trait::Pipe;
 use std::{
@@ -767,7 +768,7 @@ impl CreateVirtualStore<'_> {
             // hits — the link work just happens later, in
             // `link_hoisted_modules`.
             for (snapshot_key, _, _, cache_key, _) in &warm {
-                let package_id = snapshot_key.without_peer().to_string();
+                let package_id = snapshot_key.pkg_id();
                 emit_warm_snapshot_progress::<Reporter>(
                     &package_id,
                     requester,
@@ -1075,7 +1076,7 @@ fn requires_build_from_cas_paths(cas_paths: &HashMap<String, PathBuf>) -> bool {
     }
     let Some(package_json) = cas_paths.get("package.json") else { return false };
     let Ok(contents) = fs::read_to_string(package_json) else { return false };
-    let Ok(manifest) = serde_json::from_str::<serde_json::Value>(&contents) else {
+    let Ok(manifest) = parse_manifest(&contents) else {
         return false;
     };
     manifest_requires_build(&manifest)
@@ -1154,7 +1155,7 @@ fn link_slots_parallel<Reporter: self::Reporter>(
     let phase_start = std::time::Instant::now();
     let link_work = || {
         slots.par_iter().try_for_each(|slot| {
-            let package_id = slot.snapshot_key.without_peer().to_string();
+            let package_id = slot.snapshot_key.pkg_id();
             if let Some(cache_key) = slot.warm_cache_key {
                 emit_warm_snapshot_progress::<Reporter>(
                     &package_id,
@@ -1214,11 +1215,10 @@ fn link_slots_parallel<Reporter: self::Reporter>(
 
 /// Build the store-index cache key for a snapshot.
 ///
-/// Returns `Err` for any condition the install would fail on anyway
-/// (missing metadata, missing tarball integrity) so the orchestrator
-/// can short-circuit *before* the warm rayon batch runs; otherwise a
-/// malformed lockfile does up to ~6 s of warm-batch linking before the
-/// actual error fires.
+/// Returns `Err` for missing metadata — a condition the install would
+/// fail on anyway — so the orchestrator can short-circuit *before* the
+/// warm rayon batch runs; otherwise a malformed lockfile does up to
+/// ~6 s of warm-batch linking before the actual error fires.
 ///
 /// Shared by the upfront prefetch-keys loop and the warm/cold
 /// partition in [`CreateVirtualStore::run`], so a future change to
@@ -1238,32 +1238,30 @@ fn snapshot_cache_key(
             metadata_key: metadata_key.to_string(),
         }
     })?;
-    let pkg_id = metadata_key.to_string();
+    let pkg_id = metadata_key.pkg_id();
     match &metadata.resolution {
-        LockfileResolution::Tarball(t) if t.git_hosted == Some(true) => {
-            // Git-hosted tarballs land in the CAS via
-            // `pacquet_git_fetcher::GitHostedTarballFetcher` and the
-            // row is written under `gitHostedStoreIndexKey(pkg_id,
-            // built)` rather than the integrity-based key. Use the
-            // same key shape here so the warm prefetch finds the
-            // row on a re-install. `built` tracks `!ignore_scripts`
-            // in lock-step with the dispatcher's write key, so the
-            // prefetch and write address the same slot.
-            Ok(Some(git_hosted_store_index_key(&pkg_id, !ignore_scripts)))
-        }
         LockfileResolution::Tarball(t) => {
-            let integrity = t
-                .integrity
-                .as_ref()
-                .ok_or_else(|| {
-                    CreateVirtualStoreError::InstallPackageBySnapshot(
-                        InstallPackageBySnapshotError::MissingTarballIntegrity {
-                            package_key: snapshot_key.to_string(),
-                        },
-                    )
-                })?
-                .to_string();
-            Ok(Some(store_index_key(&integrity, &pkg_id)))
+            // A tarball with no integrity that isn't one of the shapes
+            // exempt from verification never reaches the store: the
+            // fetch path refuses it. Give it no warm key at all, so a
+            // row already sitting at the shared `pkg_id\tbuilt` key
+            // (written for a git-hosted package of the same id) can't
+            // skip that refusal — pnpm likewise asserts fetchability
+            // before it consults the store.
+            if t.integrity.is_none() && !unverified_fetch_is_allowed(&t.tarball) {
+                return Ok(None);
+            }
+            // Git-hosted tarballs land in the CAS via
+            // `pacquet_git_fetcher::GitHostedTarballFetcher`, which
+            // writes the row under `gitHostedStoreIndexKey(pkg_id,
+            // built)` rather than the integrity-based key — and so
+            // does a tarball with no integrity to key a row by.
+            // `pick_store_index_key` picks the same shape pnpm picks,
+            // so the warm prefetch finds the row on a re-install.
+            // `built` tracks `!ignore_scripts` in lock-step with the
+            // dispatcher's write key, so the prefetch and the write
+            // address the same slot.
+            Ok(store_index_key_for_resolution(&metadata.resolution, &pkg_id, !ignore_scripts))
         }
         LockfileResolution::Registry(r) => {
             Ok(Some(store_index_key(&r.integrity.to_string(), &pkg_id)))
@@ -1291,7 +1289,7 @@ fn snapshot_cache_key(
             // whether the snapshot is already in `index.db`. `built`
             // tracks `!ignore_scripts` to match the dispatcher's
             // write key.
-            Ok(Some(git_hosted_store_index_key(&pkg_id, !ignore_scripts)))
+            Ok(store_index_key_for_resolution(&metadata.resolution, &pkg_id, !ignore_scripts))
         }
         // Runtime artifacts (Node.js / Bun / Deno): the per-archive
         // integrity is the warm-cache key, same shape as the

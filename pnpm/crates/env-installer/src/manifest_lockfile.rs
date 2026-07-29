@@ -1,4 +1,4 @@
-use pacquet_lockfile::{PackageMetadata, PeerDependencyMeta};
+use pacquet_lockfile::{BundledDependencies, PackageMetadata, PeerDependencyMeta, StringOrList};
 use pacquet_resolving_resolver_base::ResolveResult;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -22,15 +22,14 @@ pub(crate) fn package_metadata(
         engines: read_engines(manifest),
         cpu: read_string_list(manifest, "cpu"),
         os: read_string_list(manifest, "os"),
-        libc: read_string_list(manifest, "libc"),
+        libc: read_string_or_list(manifest, "libc"),
         deprecated: manifest
             .and_then(|m| m.get("deprecated"))
             .and_then(Value::as_str)
             .map(ToString::to_string),
         has_bin: manifest_has_bin(manifest),
         prepare: None,
-        bundled_dependencies: read_string_list(manifest, "bundledDependencies")
-            .or_else(|| read_string_list(manifest, "bundleDependencies")),
+        bundled_dependencies: BundledDependencies::from_manifest(manifest),
         peer_dependencies: read_string_map(manifest, "peerDependencies"),
         peer_dependencies_meta: read_peer_dependencies_meta(manifest),
     }
@@ -80,6 +79,14 @@ fn read_string_list(manifest: Option<&Value>, key: &str) -> Option<Vec<String>> 
                 items.iter().filter_map(Value::as_str).map(ToString::to_string).collect();
             (!out.is_empty()).then_some(out)
         }
+        _ => None,
+    }
+}
+
+fn read_string_or_list(manifest: Option<&Value>, key: &str) -> Option<StringOrList> {
+    match manifest?.get(key)? {
+        Value::String(value) if !value.is_empty() => Some(StringOrList::String(value.clone())),
+        Value::Array(_) => read_string_list(manifest, key).map(StringOrList::List),
         _ => None,
     }
 }

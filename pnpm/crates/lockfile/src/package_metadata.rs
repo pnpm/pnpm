@@ -1,6 +1,6 @@
 use crate::LockfileResolution;
-use serde::{Deserialize, Deserializer, Serialize};
-use std::collections::HashMap;
+use serde::{Deserialize, Serialize};
+use std::{collections::HashMap, ops::Deref};
 
 /// Metadata for one resolved package version, as stored in the v9
 /// `packages:` map. This is the per-version data that does not vary by
@@ -27,12 +27,8 @@ pub struct PackageMetadata {
     pub cpu: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub os: Option<Vec<String>>,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "deserialize_string_or_vec"
-    )]
-    pub libc: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub libc: Option<StringOrList>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub deprecated: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -41,7 +37,7 @@ pub struct PackageMetadata {
     pub prepare: Option<bool>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub bundled_dependencies: Option<Vec<String>>,
+    pub bundled_dependencies: Option<BundledDependencies>,
     #[serde(
         skip_serializing_if = "Option::is_none",
         serialize_with = "crate::serialize_yaml::sorted_map_opt"
@@ -54,27 +50,75 @@ pub struct PackageMetadata {
     pub peer_dependencies_meta: Option<HashMap<String, PeerDependencyMeta>>,
 }
 
-// Some packages declare `libc` as a plain string in `package.json`; pnpm writes
-// that string as-is into the lockfile.
-fn deserialize_string_or_vec<'de, Value, Deser>(
-    deserializer: Deser,
-) -> Result<Option<Vec<Value>>, Deser::Error>
-where
-    Value: Deserialize<'de>,
-    Deser: Deserializer<'de>,
-{
-    #[derive(Deserialize)]
-    #[serde(untagged)]
-    enum StringOrVec<Value> {
-        String(Value),
-        Vec(Vec<Value>),
-    }
+/// What a package bundles inside its own tarball, as pnpm records it: the
+/// bundled names, or the boolean form that covers every entry of
+/// `dependencies`. Both manifest spellings (`bundledDependencies` and
+/// `bundleDependencies`) land here under the `bundledDependencies` key.
+///
+/// The presence of the field — whatever its shape — is what tells the
+/// installer to link the bins the tarball ships in its own `node_modules`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum BundledDependencies {
+    Boolean(bool),
+    Names(Vec<String>),
+}
 
-    let opt = Option::<StringOrVec<Value>>::deserialize(deserializer)?;
-    Ok(opt.map(|value| match value {
-        StringOrVec::String(item) => vec![item],
-        StringOrVec::Vec(items) => items,
-    }))
+impl BundledDependencies {
+    /// Read the declaration off a package manifest. Only a list or `true` is
+    /// recorded; anything else (including `false`) falls through to the legacy
+    /// `bundleDependencies` spelling and then to `None`, because a package that
+    /// bundles nothing must not look like one that does.
+    #[must_use]
+    pub fn from_manifest(manifest: Option<&serde_json::Value>) -> Option<Self> {
+        ["bundledDependencies", "bundleDependencies"].into_iter().find_map(|key| {
+            match manifest?.get(key)? {
+                serde_json::Value::Array(items) => Some(BundledDependencies::Names(
+                    items
+                        .iter()
+                        .filter_map(serde_json::Value::as_str)
+                        .map(ToString::to_string)
+                        .collect(),
+                )),
+                serde_json::Value::Bool(true) => Some(BundledDependencies::Boolean(true)),
+                _ => None,
+            }
+        })
+    }
+}
+
+/// A package-manifest field that accepts either one string or a list.
+///
+/// pnpm preserves this distinction in the lockfile, so retaining only the
+/// normalized values is insufficient for byte-identical serialization.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum StringOrList {
+    String(String),
+    List(Vec<String>),
+}
+
+impl Deref for StringOrList {
+    type Target = [String];
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            StringOrList::String(value) => std::slice::from_ref(value),
+            StringOrList::List(values) => values,
+        }
+    }
+}
+
+impl From<Vec<String>> for StringOrList {
+    fn from(values: Vec<String>) -> Self {
+        StringOrList::List(values)
+    }
+}
+
+impl FromIterator<String> for StringOrList {
+    fn from_iter<Values: IntoIterator<Item = String>>(iter: Values) -> Self {
+        StringOrList::List(iter.into_iter().collect())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

@@ -7,7 +7,7 @@ use pacquet_store_dir::STORE_VERSION;
 use pacquet_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     fixtures::{BIG_LOCKFILE, BIG_MANIFEST},
-    fs::{get_all_files, get_all_folders, is_symlink_or_junction},
+    fs::{bump_mtime, get_all_files, get_all_folders, is_symlink_or_junction},
 };
 #[cfg(unix)]
 use pipe_trait::Pipe;
@@ -920,6 +920,7 @@ fn peer_dependency_binds_the_same_when_added_to_an_existing_lockfile() {
         .to_string(),
     )
     .expect("rewrite package.json");
+    bump_mtime(&workspace.join("package.json"));
     new_pacquet_command(&workspace).with_arg("install").assert().success();
 
     let lockfile =
@@ -1004,14 +1005,7 @@ fn install_surfaces_catalog_misconfiguration() {
     let output = pacquet.with_arg("install").assert().failure();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
     eprintln!("stderr={stderr}");
-    // The miette report hard-wraps the message and inserts a leading
-    // `│` on the wrapped line. Strip all whitespace and box-drawing
-    // characters before substring-matching so wrap position can't
-    // make the assertion brittle.
-    let flattened: String = stderr
-        .chars()
-        .filter(|ch| !ch.is_whitespace() && !matches!(ch, '│' | '├' | '╰' | '─' | '▶' | '×'))
-        .collect();
+    let flattened = flatten_report(&stderr);
     assert!(
         flattened.contains(
             "Nocatalogentry'@pnpm.e2e/hello-world-js-bin-parent'wasfoundforcatalog'default'.",
@@ -1021,6 +1015,89 @@ fn install_surfaces_catalog_misconfiguration() {
     assert!(
         stderr.contains("ERR_PNPM_CATALOG_ENTRY_NOT_FOUND_FOR_SPEC"),
         "the catalog error must surface upstream's code, not the resolver chain's: {stderr}",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// A well-formed range that the registry publishes nothing for is
+/// `ERR_PNPM_NO_MATCHING_VERSION`, not the chain's
+/// `ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER` — the specifier is
+/// supported, the version simply doesn't exist (pnpm/pnpm#13319). The
+/// report also names the latest published release and how to list the
+/// rest, the way the TypeScript CLI does.
+#[test]
+fn install_reports_a_missing_version_as_no_matching_version() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    eprintln!("Creating package.json that asks for a version nobody published...");
+    let manifest_path = workspace.join("package.json");
+    let package_json_content = serde_json::json!({
+        "dependencies": {
+            "@pnpm.e2e/hello-world-js-bin-parent": "99.99.99",
+        },
+    });
+    fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
+
+    eprintln!("Executing command...");
+    let output = pacquet.with_arg("install").assert().failure();
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+    eprintln!("stderr={stderr}");
+    let flattened = flatten_report(&stderr);
+    assert!(
+        stderr.contains("ERR_PNPM_NO_MATCHING_VERSION"),
+        "a missing version must not read as an unsupported specifier: {stderr}",
+    );
+    assert!(
+        flattened.contains("Nomatchingversionfoundfor@pnpm.e2e/hello-world-js-bin-parent@99.99.99"),
+        "stderr did not name the dependency that has no matching version: {stderr}",
+    );
+    assert!(
+        flattened.contains(r#"run"pnpmview@pnpm.e2e/hello-world-js-bin-parentversions""#),
+        "stderr did not say how to list the published versions: {stderr}",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// A package the registry has never heard of is `ERR_PNPM_FETCH_404`
+/// with pnpm's "not in the npm registry, or you have no permission"
+/// hint — not a bare HTTP-client message (pnpm/pnpm#13319).
+#[test]
+fn install_reports_an_unknown_package_as_fetch_404() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    eprintln!("Creating package.json that depends on a package nobody published...");
+    let manifest_path = workspace.join("package.json");
+    let package_json_content = serde_json::json!({
+        "dependencies": {
+            "@pnpm.e2e/definitely-not-a-published-package": "1.0.0",
+        },
+    });
+    fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
+
+    eprintln!("Executing command...");
+    let output = pacquet.with_arg("install").assert().failure();
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+    eprintln!("stderr={stderr}");
+    let flattened = flatten_report(&stderr);
+    assert!(
+        stderr.contains("ERR_PNPM_FETCH_404"),
+        "a missing package must surface upstream's fetch code: {stderr}",
+    );
+    assert!(
+        flattened.contains("NotFound-404"),
+        "stderr did not report the registry's status: {stderr}",
+    );
+    assert!(
+        flattened.contains(
+            "@pnpm.e2e/definitely-not-a-published-packageisnotinthenpmregistry,oryouhavenopermissiontofetchit.",
+        ),
+        "stderr did not carry the missing-package hint: {stderr}",
     );
 
     drop((root, mock_instance));
@@ -1347,13 +1424,7 @@ fn frozen_store_with_a_pnpr_server_is_a_config_conflict() {
         .failure();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
     eprintln!("stderr={stderr}");
-    // The miette report hard-wraps the message and inserts box-drawing
-    // characters on wrapped lines; strip whitespace and those glyphs before
-    // substring-matching so wrap position can't make the assertion brittle.
-    let flattened: String = stderr
-        .chars()
-        .filter(|ch| !ch.is_whitespace() && !matches!(ch, '│' | '├' | '╰' | '─' | '▶' | '×'))
-        .collect();
+    let flattened = flatten_report(&stderr);
     assert!(
         flattened.contains("ERR_PNPM_FROZEN_STORE_INCOMPATIBLE_WITH_PNPR"),
         "stderr did not carry the frozen-store/pnpr conflict code: {stderr}",
@@ -1602,4 +1673,246 @@ fn set_dir_modes(path: &std::path::Path, mode: u32) {
         }
     }
     fs::set_permissions(path, fs::Permissions::from_mode(mode)).expect("set directory mode");
+}
+
+/// `frozenLockfile: true` in `pnpm-workspace.yaml` drives the same
+/// headless install `--frozen-lockfile` does, and `--no-frozen-lockfile`
+/// overrides it back off.
+#[test]
+fn frozen_lockfile_setting_drives_the_headless_install() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    if !workspace_yaml.ends_with('\n') {
+        workspace_yaml.push('\n');
+    }
+    workspace_yaml.push_str("frozenLockfile: true\n");
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": { "@pnpm.e2e/hello-world-js-bin": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    let assert = new_pacquet_command(&workspace).with_arg("install").assert().failure();
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    eprintln!("STDERR:\n{stderr}\n");
+    assert!(
+        stderr.contains("Headless installation requires a pnpm-lock.yaml file"),
+        "the setting alone must take the frozen path; got:\n{stderr}",
+    );
+
+    pacquet.with_args(["install", "--no-frozen-lockfile"]).assert().success();
+    assert!(workspace.join("pnpm-lock.yaml").is_file(), "--no-frozen-lockfile must overrule");
+
+    drop((root, mock_instance));
+}
+
+/// pnpm 10 moved the install settings out of `package.json`'s `pnpm`
+/// field into `pnpm-workspace.yaml`, and warns about every migrated key
+/// a manifest still declares so the setting isn't silently dropped.
+/// A repository that hasn't migrated its `pnpm.overrides` would
+/// otherwise see only the downstream symptom.
+///
+/// The message is asserted verbatim, `[WARN]` label included: it is the
+/// same string pnpm's `getConfig` prints with `console.warn`. Config-load
+/// warnings go to stderr, outside the reporter, so a script capturing
+/// stdout never sees them mixed into the command's own output.
+#[test]
+fn migrated_keys_under_the_package_json_pnpm_field_are_reported() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "root",
+            "version": "1.0.0",
+            "private": true,
+            // `app` is not a key pnpm ever owned, so it must not be named.
+            "pnpm": { "overrides": { "is-number": "6.0.0" }, "app": {} },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    let assert = pacquet.with_args(["install", "--lockfile-only"]).assert().success();
+    let stdout = String::from_utf8_lossy(&assert.get_output().stdout).into_owned();
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr).into_owned();
+
+    eprintln!("STDOUT:\n{stdout}\nSTDERR:\n{stderr}");
+    assert!(
+        stderr.contains(
+            "[WARN] The \"pnpm\" field in package.json is no longer read by pnpm. \
+             The following keys were ignored: \"pnpm.overrides\". \
+             See https://pnpm.io/settings for the new home of each setting.",
+        ),
+        "expected the ignored-field warning on stderr; got:\n{stderr}",
+    );
+    assert!(
+        !stdout.contains("no longer read by pnpm"),
+        "the warning must stay out of stdout; got:\n{stdout}",
+    );
+
+    drop(root);
+}
+
+/// The up-to-date fast path finishes `install` before the pipeline that
+/// carries the warning ever runs, so it has to warn on its own: pnpm
+/// warns from config-reading and therefore keeps warning on a repeat
+/// install that has nothing to do.
+#[test]
+fn migrated_keys_are_reported_by_the_up_to_date_fast_path() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "root",
+            "version": "1.0.0",
+            "private": true,
+            "pnpm": { "overrides": { "is-number": "6.0.0" } },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet.with_arg("install").assert().success();
+    let assert = pacquet_in(&workspace).with_arg("install").assert().success();
+    let stdout = String::from_utf8_lossy(&assert.get_output().stdout).into_owned();
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr).into_owned();
+
+    eprintln!("STDOUT:\n{stdout}\nSTDERR:\n{stderr}");
+    assert!(
+        stderr.contains("no longer read by pnpm"),
+        "the fast path must warn too; got:\n{stderr}",
+    );
+    assert!(
+        stdout.contains("Already up to date"),
+        "expected the fast path's own output; got:\n{stdout}",
+    );
+
+    drop(root);
+}
+
+/// Each emit site reads the root manifest on its own, and an editor may
+/// leave a UTF-8 BOM at its head. A reader that trips over one drops the
+/// warning without a trace, so both sites are exercised: the install
+/// pipeline on the first run, the up-to-date fast path on the second.
+#[test]
+fn migrated_keys_are_reported_through_a_utf8_bom() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let manifest = serde_json::json!({
+        "name": "root",
+        "version": "1.0.0",
+        "private": true,
+        "pnpm": { "overrides": { "is-number": "6.0.0" } },
+    });
+    fs::write(workspace.join("package.json"), format!("\u{feff}{manifest}"))
+        .expect("write package.json");
+
+    let assert = pacquet.with_arg("install").assert().success();
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr).into_owned();
+
+    eprintln!("STDERR:\n{stderr}");
+    assert!(
+        stderr.contains("no longer read by pnpm"),
+        "the BOM must not swallow the warning; got:\n{stderr}",
+    );
+
+    let assert = pacquet_in(&workspace).with_arg("install").assert().success();
+    let stdout = String::from_utf8_lossy(&assert.get_output().stdout).into_owned();
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr).into_owned();
+
+    eprintln!("STDOUT:\n{stdout}\nSTDERR:\n{stderr}");
+    assert!(
+        stderr.contains("no longer read by pnpm"),
+        "the fast path reads the manifest on its own; got:\n{stderr}",
+    );
+    assert!(
+        stdout.contains("Already up to date"),
+        "expected the fast path's own output; got:\n{stdout}",
+    );
+
+    drop(root);
+}
+
+/// Both emit sites resolve the root manifest the way pnpm does — the
+/// workspace root when there is one, the current directory otherwise —
+/// so a run from a workspace package names the root's keys and never
+/// the package's own.
+#[test]
+fn migrated_keys_are_read_from_the_workspace_root() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "root",
+            "version": "1.0.0",
+            "private": true,
+            "pnpm": { "overrides": { "is-number": "6.0.0" } },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    let package_dir = workspace.join("packages").join("leaf");
+    fs::create_dir_all(&package_dir).expect("create the workspace package");
+    fs::write(
+        package_dir.join("package.json"),
+        serde_json::json!({
+            "name": "leaf",
+            "version": "1.0.0",
+            "pnpm": { "neverBuiltDependencies": [] },
+        })
+        .to_string(),
+    )
+    .expect("write the workspace package's package.json");
+
+    let assert =
+        pacquet_in(&package_dir).with_args(["install", "--lockfile-only"]).assert().success();
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr).into_owned();
+
+    eprintln!("STDERR:\n{stderr}");
+    assert!(
+        stderr.contains(r#"The following keys were ignored: "pnpm.overrides"."#),
+        "the root manifest's keys must be named; got:\n{stderr}",
+    );
+    assert!(
+        !stderr.contains("neverBuiltDependencies"),
+        "the workspace package's own `pnpm` field is not the root manifest; got:\n{stderr}",
+    );
+
+    drop(root);
+}
+
+/// The warning names only keys pnpm migrated, so a manifest carrying a
+/// `pnpm` field that third-party tooling owns stays quiet.
+#[test]
+fn an_unmigrated_package_json_pnpm_field_is_not_reported() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "root", "version": "1.0.0", "private": true, "pnpm": { "app": {} } })
+            .to_string(),
+    )
+    .expect("write package.json");
+
+    let assert = pacquet.with_args(["install", "--lockfile-only"]).assert().success();
+    let stdout = String::from_utf8_lossy(&assert.get_output().stdout).into_owned();
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr).into_owned();
+
+    eprintln!("STDOUT:\n{stdout}\nSTDERR:\n{stderr}");
+    assert!(
+        !stdout.contains("no longer read by pnpm") && !stderr.contains("no longer read by pnpm"),
+        "must stay quiet; got stdout:\n{stdout}\nstderr:\n{stderr}",
+    );
+
+    drop(root);
 }

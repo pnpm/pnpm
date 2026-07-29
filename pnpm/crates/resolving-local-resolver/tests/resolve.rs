@@ -203,15 +203,112 @@ async fn resolve_directory_specified_using_the_link_protocol() {
     assert_eq!(result.normalized_bare_specifier.as_deref(), Some("link:.."));
 }
 
-/// Build a tiny tarball at `path` and return its sha512 SSRI string.
+/// Build a tarball for `pnpm-local-resolver@0.1.1` at `path` and return
+/// its sha512 SSRI string.
 fn write_tarball(path: &Path) -> String {
-    // Any bytes work — the test asserts the integrity round-trips
-    // through the resolver, not a specific pinned value.
-    let bytes: &[u8] = b"\x1f\x8b\x08\x00fake-tarball-bytes-for-test\n";
-    fs::write(path, bytes).expect("write tarball");
-    let mut opts = ssri::IntegrityOpts::new().algorithm(ssri::Algorithm::Sha512);
-    opts.input(bytes);
-    opts.result().to_string()
+    let bytes = pacquet_testing_utils::fixtures::minimal_tarball("pnpm-local-resolver", "0.1.1");
+    fs::write(path, &bytes).expect("write tarball");
+    pacquet_testing_utils::fixtures::sha512_integrity(&bytes)
+}
+
+/// pnpm refuses a `file:` tarball whose bundled `package.json` names no
+/// package with `ERR_PNPM_MISSING_PACKAGE_NAME`. Without the name the
+/// dep path keys no lockfile entry, so resolving it would install a
+/// dangling symlink off a lockfile that looks complete.
+#[tokio::test]
+async fn fail_when_a_tarball_manifest_names_no_package() {
+    for manifest in [
+        serde_json::json!({}),
+        serde_json::json!({ "name": "" }),
+        serde_json::json!({ "version": "1.0.0" }),
+        serde_json::json!([1, 2]),
+        serde_json::json!(null),
+    ] {
+        let tmp = TempDir::new().expect("tempdir");
+        let test_dir = tmp.path().join("tgz");
+        fs::create_dir_all(&test_dir).expect("create tgz dir");
+        fs::write(
+            test_dir.join("nameless-1.0.0.tgz"),
+            pacquet_testing_utils::fixtures::tarball_with_manifest(&manifest),
+        )
+        .expect("write tarball");
+
+        let wd = WantedLocalDependency {
+            bare_specifier: "file:./nameless-1.0.0.tgz".to_string(),
+            injected: false,
+        };
+        let err = resolve_from_local_scheme(&ctx_default(), &wd, &opts(&test_dir))
+            .await
+            .expect_err(&format!("a nameless manifest must be refused: {manifest}"));
+        match err {
+            ResolveLocalError::MissingPackageName { specifier } => {
+                assert_eq!(specifier, "file:nameless-1.0.0.tgz");
+            }
+            other => panic!("expected MissingPackageName for {manifest}, got {other:?}"),
+        }
+    }
+}
+
+/// The bundled name becomes both a dep-path segment and a
+/// `node_modules/<name>` directory. pnpm refuses an invalid one with
+/// `ERR_PNPM_INVALID_DEPENDENCY_NAME`; letting `evil@name` through here
+/// yields the dep path `evil@name@file:<path>`, which parses back out as
+/// the unrelated package `evil` and links a dangling symlink.
+#[tokio::test]
+async fn fail_when_a_tarball_manifest_name_is_not_a_valid_npm_name() {
+    for name in ["evil@name", " lead-space", "../escape", ".hidden", "node_modules"] {
+        let tmp = TempDir::new().expect("tempdir");
+        let test_dir = tmp.path().join("tgz");
+        fs::create_dir_all(&test_dir).expect("create tgz dir");
+        fs::write(
+            test_dir.join("bad-1.0.0.tgz"),
+            pacquet_testing_utils::fixtures::tarball_with_manifest(
+                &serde_json::json!({ "name": name, "version": "1.0.0" }),
+            ),
+        )
+        .expect("write tarball");
+
+        let wd = WantedLocalDependency {
+            bare_specifier: "file:./bad-1.0.0.tgz".to_string(),
+            injected: false,
+        };
+        let err = resolve_from_local_scheme(&ctx_default(), &wd, &opts(&test_dir))
+            .await
+            .expect_err(&format!("an invalid package name must be refused: {name:?}"));
+        match err {
+            ResolveLocalError::InvalidPackageName { specifier, name: got } => {
+                assert_eq!(specifier, "file:bad-1.0.0.tgz");
+                assert_eq!(got, name);
+            }
+            other => panic!("expected InvalidPackageName for {name:?}, got {other:?}"),
+        }
+    }
+}
+
+/// An archive that ships no `package.json` at all is a different shape:
+/// pnpm installs it, synthesizing a name from the alias, so resolution
+/// must not refuse it here.
+#[tokio::test]
+async fn resolve_tarball_without_a_bundled_manifest() {
+    let tmp = TempDir::new().expect("tempdir");
+    let test_dir = tmp.path().join("tgz");
+    fs::create_dir_all(&test_dir).expect("create tgz dir");
+    fs::write(
+        test_dir.join("no-manifest-1.0.0.tgz"),
+        pacquet_testing_utils::fixtures::tarball_without_manifest(),
+    )
+    .expect("write tarball");
+
+    let wd = WantedLocalDependency {
+        bare_specifier: "file:./no-manifest-1.0.0.tgz".to_string(),
+        injected: false,
+    };
+    let result = resolve_from_local_scheme(&ctx_default(), &wd, &opts(&test_dir))
+        .await
+        .expect("an archive without a manifest still resolves")
+        .expect("claims");
+
+    assert!(result.manifest.is_none(), "got {:?}", result.manifest);
 }
 
 #[tokio::test]
@@ -245,6 +342,14 @@ async fn resolve_file() {
     assert_eq!(tarball, "file:pnpm-local-resolver-0.1.1.tgz");
     assert_eq!(got_integrity.as_ref().expect("integrity").to_string(), integrity);
     assert_eq!(result.resolved_via, "local-filesystem");
+    // The bundled manifest is what gives the dep path its `<name>@`
+    // prefix, so a lockfile key can be parsed out of it.
+    let manifest = result.manifest.as_deref().expect("bundled manifest");
+    assert_eq!(
+        manifest.get("name").and_then(serde_json::Value::as_str),
+        Some("pnpm-local-resolver"),
+    );
+    assert_eq!(manifest.get("version").and_then(serde_json::Value::as_str), Some("0.1.1"));
 }
 
 #[tokio::test]

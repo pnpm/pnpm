@@ -1,8 +1,12 @@
+use std::collections::HashMap;
+
 use pacquet_network::NoProxySetting;
+use pacquet_testing_utils::registry::TestRegistry;
 
 use super::{
-    InstallOptions, NetworkConfigInput, NodeApiProject, ProxyConfigInput, build_overlay,
-    reject_non_object_manifests, reject_unsupported_install_options,
+    EngineMode, InstallOptions, NetworkConfigInput, NodeApiProject, ProxyConfigInput,
+    build_overlay, reject_non_object_manifests, reject_unsupported_install_options,
+    run_install_inner,
 };
 use crate::config::{ConfigOverlay, resolve_config};
 
@@ -32,6 +36,7 @@ fn build_overlay_maps_supported_install_options() {
     options.node_version = Some("18.20.4".to_string());
     options.minimum_release_age = Some(60);
     options.minimum_release_age_exclude = Some(vec!["left-pad".to_string()]);
+    options.trust_lockfile = Some(false);
     options.network_config = Some(NetworkConfigInput {
         ca: Some(serde_json::json!(["cert-a", "cert-b"])),
         cert: Some(serde_json::json!("client-cert")),
@@ -63,6 +68,7 @@ fn build_overlay_maps_supported_install_options() {
     assert_eq!(overlay.node_version, Some("18.20.4".to_string()));
     assert_eq!(overlay.minimum_release_age, Some(60));
     assert_eq!(overlay.minimum_release_age_exclude, Some(vec!["left-pad".to_string()]));
+    assert_eq!(overlay.trust_lockfile, Some(false));
     assert_eq!(overlay.network_concurrency, Some(12));
     assert_eq!(overlay.max_sockets, Some(7));
     assert_eq!(overlay.fetch_retries, Some(4));
@@ -84,6 +90,18 @@ fn build_overlay_maps_supported_install_options() {
     assert_eq!(tls.key, Some("client-key".to_string()));
     assert_eq!(tls.strict_ssl, Some(false));
     assert_eq!(tls.local_address.map(|ip| ip.to_string()), Some("127.0.0.1".to_string()));
+}
+
+#[test]
+fn resolved_config_applies_trust_lockfile() {
+    let dir = tempfile::tempdir().expect("tempdir");
+
+    for (trust_lockfile, expected) in [(Some(false), false), (Some(true), true), (None, false)] {
+        let mut options = install_options();
+        options.trust_lockfile = trust_lockfile;
+        let overlay = build_overlay(&options).expect("overlay");
+        assert_eq!(resolve_config(dir.path(), &overlay).expect("config").trust_lockfile, expected);
+    }
 }
 
 #[test]
@@ -160,6 +178,46 @@ fn newly_supported_install_options_are_accepted() {
     assert_eq!(build_overlay(&options).expect("overlay").max_sockets, Some(20));
 }
 
+#[test]
+fn repeat_install_uses_changed_in_memory_manifest() {
+    let registry = TestRegistry::start();
+    let temp_dir = tempfile::tempdir().expect("tempdir");
+    let project_dir = temp_dir.path().join("project");
+    std::fs::create_dir(&project_dir).expect("create project dir");
+    std::fs::write(project_dir.join("package.json"), "{}\n").expect("write package.json");
+
+    let project_dir_string = project_dir.to_string_lossy().into_owned();
+    let mut options = install_options();
+    options.dir = project_dir_string.clone();
+    options.projects = vec![NodeApiProject {
+        root_dir: project_dir_string,
+        manifest: serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/foo": "100.0.0"
+            }
+        }),
+    }];
+    options.store_dir = Some(temp_dir.path().join("store").to_string_lossy().into_owned());
+    options.registries = Some(HashMap::from([("default".to_string(), registry.url())]));
+
+    run_install_inner(&options, None, EngineMode::Install).expect("first install");
+    assert!(project_dir.join("node_modules/@pnpm.e2e/foo").exists());
+
+    options.projects[0].manifest = serde_json::json!({
+        "dependencies": {
+            "@pnpm.e2e/bar": "100.0.0",
+            "@pnpm.e2e/foo": "100.0.0"
+        }
+    });
+
+    run_install_inner(&options, None, EngineMode::Install).expect("second install");
+    assert!(project_dir.join("node_modules/@pnpm.e2e/bar").exists());
+    assert_eq!(
+        std::fs::read_to_string(project_dir.join("package.json")).expect("read package.json"),
+        "{}\n",
+    );
+}
+
 fn install_options() -> InstallOptions {
     InstallOptions {
         dir: String::new(),
@@ -203,6 +261,7 @@ fn install_options() -> InstallOptions {
         depth: None,
         include_optional_deps: None,
         ignore_scripts: None,
+        trust_lockfile: None,
         network_concurrency: None,
         fetch_retries: None,
         fetch_retry_factor: None,

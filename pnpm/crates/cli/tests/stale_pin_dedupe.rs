@@ -5,7 +5,10 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pacquet_testing_utils::{
+    bin::{AddMockedRegistry, CommandTempCwd},
+    fs::bump_mtime,
+};
 use std::{fs, path::Path, process::Command};
 
 fn pacquet_at(workspace: &Path) -> Command {
@@ -56,6 +59,7 @@ fn refreshes_stale_transitive_pin_to_higher_direct_dep_version() {
     // transitive `^100.0.0`, so both edges must land on 100.1.0 and the
     // stale 100.0.0 must be pruned.
     write_manifest(&manifest_path, "100.1.0");
+    bump_mtime(&manifest_path);
     pacquet_at(&workspace).with_arg("install").assert().success();
 
     let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
@@ -88,6 +92,7 @@ fn refreshes_stale_transitive_pin_for_caret_range_direct_dep() {
     pacquet_at(&workspace).with_arg("install").assert().success();
 
     write_manifest(&manifest_path, "^100.1.0");
+    bump_mtime(&manifest_path);
     pacquet_at(&workspace).with_arg("install").assert().success();
 
     let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
@@ -134,6 +139,7 @@ fn does_not_refresh_an_aliased_transitive_dependency() {
     pacquet_at(&workspace).with_arg("install").assert().success();
 
     write("100.1.0");
+    bump_mtime(&manifest_path);
     pacquet_at(&workspace).with_arg("install").assert().success();
 
     let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");

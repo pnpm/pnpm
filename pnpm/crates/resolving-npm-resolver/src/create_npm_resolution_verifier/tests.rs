@@ -34,6 +34,15 @@ fn registry_resolution() -> LockfileResolution {
     LockfileResolution::Registry(RegistryResolution { integrity: fake_integrity() })
 }
 
+fn tarball_resolution(tarball: &str, integrity: Option<Integrity>) -> LockfileResolution {
+    LockfileResolution::Tarball(TarballResolution {
+        tarball: tarball.to_string(),
+        integrity,
+        git_hosted: None,
+        path: None,
+    })
+}
+
 fn registries_with_default(default: &str) -> HashMap<String, String> {
     let mut map = HashMap::new();
     map.insert("default".to_string(), default.to_string());
@@ -388,15 +397,125 @@ async fn verify_short_circuits_file_tarball_resolution() {
     let mut opts = default_opts("http://nonexistent.example.invalid/");
     opts.minimum_release_age = Some(60 * 24 * 365);
     let verifier = create_npm_resolution_verifier(opts);
-    let resolution = LockfileResolution::Tarball(TarballResolution {
-        tarball: "file:vendor/types__my-cool-lib-v1.0.0.tgz".to_string(),
-        integrity: Some(fake_integrity()),
-        git_hosted: None,
-        path: None,
-    });
+    let resolution =
+        tarball_resolution("file:vendor/types__my-cool-lib-v1.0.0.tgz", Some(fake_integrity()));
     let name: PkgName = "@types/my-cool-lib".parse().expect("parse");
     let result = verifier.verify(&resolution, ctx(&name, "1.0.0")).await;
     assert_eq!(result, ResolutionVerification::Ok);
+}
+
+/// A remote tarball that pins no hash can't be checked against
+/// anything once downloaded, so the verifier refuses it before the
+/// fetch pass ever sees it. The bogus registry URL is a tripwire: the
+/// check is network-free, so no lookup may be attempted.
+#[tokio::test]
+async fn missing_integrity_is_rejected_before_any_metadata_lookup() {
+    let verifier =
+        create_npm_resolution_verifier(default_opts("http://nonexistent.example.invalid/"));
+    let resolution = tarball_resolution("https://registry.example/foo/-/foo-1.0.0.tgz", None);
+    let name: PkgName = "foo".parse().expect("parse");
+    assert!(verifier.might_verify(&resolution, ctx(&name, "1.0.0")));
+    let result = verifier.verify(&resolution, ctx(&name, "1.0.0")).await;
+    assert_eq!(
+        result,
+        ResolutionVerification::Err {
+            code: "MISSING_TARBALL_INTEGRITY",
+            reason: r#"has no "integrity" field, so its downloaded tarball cannot be verified"#
+                .to_string(),
+        },
+    );
+}
+
+/// `integrity: ''` parses into zero hashes, which pins nothing — the
+/// same verdict as an absent field.
+#[tokio::test]
+async fn empty_integrity_counts_as_missing() {
+    let verifier =
+        create_npm_resolution_verifier(default_opts("http://nonexistent.example.invalid/"));
+    let empty = "".parse::<Integrity>().expect("empty integrity parses");
+    let name: PkgName = "foo".parse().expect("parse");
+    for resolution in [
+        tarball_resolution("https://registry.example/foo/-/foo-1.0.0.tgz", Some(empty.clone())),
+        LockfileResolution::Registry(RegistryResolution { integrity: empty }),
+    ] {
+        let result = verifier.verify(&resolution, ctx(&name, "1.0.0")).await;
+        let ResolutionVerification::Err { code, .. } = result else {
+            panic!("expected Err, got {result:?}");
+        };
+        assert_eq!(code, "MISSING_TARBALL_INTEGRITY");
+    }
+}
+
+/// URL-keyed deps carry their spec in the version slot, which skips
+/// the registry policies — but not the missing-integrity check, whose
+/// verdict doesn't depend on the registry's metadata.
+#[tokio::test]
+async fn missing_integrity_is_rejected_on_a_non_semver_version() {
+    let verifier =
+        create_npm_resolution_verifier(default_opts("http://nonexistent.example.invalid/"));
+    let tarball = "https://cdn.example/foo/-/foo-1.0.0.tgz";
+    let resolution = tarball_resolution(tarball, None);
+    let name: PkgName = "foo".parse().expect("parse");
+    let result = verifier.verify(&resolution, ctx(&name, tarball)).await;
+    let ResolutionVerification::Err { code, .. } = result else {
+        panic!("expected Err, got {result:?}");
+    };
+    assert_eq!(code, "MISSING_TARBALL_INTEGRITY");
+}
+
+/// The same URL-keyed entry passes once it pins a hash, without a
+/// registry round-trip (the tripwire registry would fail one).
+#[tokio::test]
+async fn url_keyed_tarball_with_integrity_passes_without_a_lookup() {
+    let verifier =
+        create_npm_resolution_verifier(default_opts("http://nonexistent.example.invalid/"));
+    let tarball = "https://cdn.example/foo/-/foo-1.0.0.tgz";
+    let resolution = tarball_resolution(tarball, Some(fake_integrity()));
+    let name: PkgName = "foo".parse().expect("parse");
+    let result = verifier.verify(&resolution, ctx(&name, tarball)).await;
+    assert_eq!(result, ResolutionVerification::Ok);
+}
+
+/// Git-host archive URLs pin a full commit SHA, and pnpm never
+/// recorded an integrity for them, so they stay exempt — recognized
+/// from the URL even on a lockfile that omits the `gitHosted` marker.
+#[tokio::test]
+async fn git_hosted_archive_url_stays_exempt_without_the_flag() {
+    let verifier =
+        create_npm_resolution_verifier(default_opts("http://nonexistent.example.invalid/"));
+    let tarball = "https://codeload.github.com/kevva/is-negative/tar.gz/0123456789abcdef0123456789abcdef01234567";
+    let resolution = tarball_resolution(tarball, None);
+    let name: PkgName = "is-negative".parse().expect("parse");
+    assert!(!verifier.might_verify(&resolution, ctx(&name, tarball)));
+    let result = verifier.verify(&resolution, ctx(&name, tarball)).await;
+    assert_eq!(result, ResolutionVerification::Ok);
+}
+
+/// The exemption is the URL's, not the flag's: a `gitHosted: true`
+/// marker on an arbitrary URL, or a git-host URL that isn't pinned to
+/// a commit, buys nothing.
+#[tokio::test]
+async fn integrity_is_required_despite_a_git_hosted_claim() {
+    let verifier =
+        create_npm_resolution_verifier(default_opts("http://nonexistent.example.invalid/"));
+    let name: PkgName = "evil".parse().expect("parse");
+    let forged = LockfileResolution::Tarball(TarballResolution {
+        tarball: "https://attacker.example/evil-1.0.0.tgz".to_string(),
+        integrity: None,
+        git_hosted: Some(true),
+        path: None,
+    });
+    let unpinned =
+        tarball_resolution("https://codeload.github.com/kevva/is-negative/tar.gz/main", None);
+    for resolution in [forged, unpinned] {
+        let version = "https+++attacker.example+evil";
+        assert!(verifier.might_verify(&resolution, ctx(&name, version)));
+        let result = verifier.verify(&resolution, ctx(&name, version)).await;
+        let ResolutionVerification::Err { code, .. } = result else {
+            panic!("expected Err, got {result:?}");
+        };
+        assert_eq!(code, "MISSING_TARBALL_INTEGRITY");
+    }
 }
 
 /// A registry entry whose pinned tarball URL is not the artifact the
@@ -824,6 +943,10 @@ fn policy_snapshot_records_all_fields_sorted_and_deduped() {
     let verifier = create_npm_resolution_verifier(opts);
 
     let policy = verifier.policy();
+    // The two unconditional structural rules mark themselves in the
+    // snapshot so a pre-rule cache record fails `can_trust_past_check`.
+    assert_eq!(policy.get("tarballUrlBinding").and_then(serde_json::Value::as_bool), Some(true));
+    assert_eq!(policy.get("integrityRequired").and_then(serde_json::Value::as_bool), Some(true));
     assert_eq!(policy.get("minimumReleaseAge").and_then(serde_json::Value::as_u64), Some(60 * 24));
     let min_age_excludes =
         policy.get("minimumReleaseAgeExclude").and_then(|value| value.as_array()).expect("array");
@@ -853,6 +976,7 @@ fn can_trust_past_check_accepts_looser_min_age() {
 
     let mut cached = serde_json::Map::new();
     cached.insert("tarballUrlBinding".to_string(), true.into());
+    cached.insert("integrityRequired".to_string(), true.into());
     cached.insert("minimumReleaseAge".to_string(), (60 * 24 * 7).into()); // past: 7 days
     cached.insert("minimumReleaseAgeExclude".to_string(), serde_json::Value::Array(vec![]));
     cached.insert("trustPolicy".to_string(), serde_json::Value::Null);
@@ -872,6 +996,26 @@ fn can_trust_past_check_rejects_missing_tarball_url_binding() {
 
     // Otherwise-compatible cached policy, but without the binding marker.
     let mut cached = serde_json::Map::new();
+    cached.insert("integrityRequired".to_string(), true.into());
+    cached.insert("minimumReleaseAge".to_string(), (60 * 24 * 7).into());
+    cached.insert("minimumReleaseAgeExclude".to_string(), serde_json::Value::Array(vec![]));
+    cached.insert("trustPolicy".to_string(), serde_json::Value::Null);
+    cached.insert("trustPolicyExclude".to_string(), serde_json::Value::Array(vec![]));
+    cached.insert("trustPolicyIgnoreAfter".to_string(), serde_json::Value::Null);
+    assert!(!verifier.can_trust_past_check(&cached));
+}
+
+/// Same rule for the missing-integrity check: a record written before
+/// the rule existed can't prove it rejected unverifiable tarballs, so
+/// the lockfile is re-verified rather than trusted.
+#[test]
+fn can_trust_past_check_rejects_missing_integrity_required() {
+    let mut opts = default_opts("https://registry.example/");
+    opts.minimum_release_age = Some(60 * 24);
+    let verifier = create_npm_resolution_verifier(opts);
+
+    let mut cached = serde_json::Map::new();
+    cached.insert("tarballUrlBinding".to_string(), true.into());
     cached.insert("minimumReleaseAge".to_string(), (60 * 24 * 7).into());
     cached.insert("minimumReleaseAgeExclude".to_string(), serde_json::Value::Array(vec![]));
     cached.insert("trustPolicy".to_string(), serde_json::Value::Null);
@@ -891,6 +1035,7 @@ fn can_trust_past_check_rejects_tighter_min_age() {
 
     let mut cached = serde_json::Map::new();
     cached.insert("tarballUrlBinding".to_string(), true.into());
+    cached.insert("integrityRequired".to_string(), true.into());
     cached.insert("minimumReleaseAge".to_string(), (60 * 24).into()); // past: 1 day
     cached.insert("minimumReleaseAgeExclude".to_string(), serde_json::Value::Array(vec![]));
     cached.insert("trustPolicy".to_string(), serde_json::Value::Null);
@@ -913,6 +1058,7 @@ fn can_trust_past_check_rejects_changed_exclude_list() {
 
     let mut cached = serde_json::Map::new();
     cached.insert("tarballUrlBinding".to_string(), true.into());
+    cached.insert("integrityRequired".to_string(), true.into());
     cached.insert("minimumReleaseAge".to_string(), (60 * 24).into());
     cached.insert("minimumReleaseAgeExclude".to_string(), serde_json::Value::Array(vec![]));
     cached.insert("trustPolicy".to_string(), serde_json::Value::Null);
@@ -930,6 +1076,7 @@ fn can_trust_past_check_rejects_changed_trust_policy() {
 
     let mut cached = serde_json::Map::new();
     cached.insert("tarballUrlBinding".to_string(), true.into());
+    cached.insert("integrityRequired".to_string(), true.into());
     cached.insert("minimumReleaseAge".to_string(), 0.into());
     cached.insert("minimumReleaseAgeExclude".to_string(), serde_json::Value::Array(vec![]));
     cached.insert("trustPolicy".to_string(), serde_json::Value::Null);
@@ -949,6 +1096,7 @@ fn can_trust_past_check_rejects_changed_ignore_after() {
 
     let mut cached = serde_json::Map::new();
     cached.insert("tarballUrlBinding".to_string(), true.into());
+    cached.insert("integrityRequired".to_string(), true.into());
     cached.insert("minimumReleaseAge".to_string(), 0.into());
     cached.insert("minimumReleaseAgeExclude".to_string(), serde_json::Value::Array(vec![]));
     cached.insert("trustPolicy".to_string(), serde_json::Value::String("no-downgrade".into()));

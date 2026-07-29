@@ -17,11 +17,11 @@
 
 use crate::{
     resolve_dependency_tree::{
-        ManifestHook, UpdateReuseScope, WorkspaceTreeCtx, importer_direct_wanted_specs,
+        ManifestHook, UpdateDepth, UpdateReuseScope, WorkspaceTreeCtx, importer_direct_wanted_specs,
     },
     resolve_importer::{ImporterHoistState, ResolveImporterError, ResolveImporterOptions},
     resolve_peers::{
-        ImporterPeerInput, ResolvePeersOptions, WorkspaceResolvePeersResult,
+        ImporterPeerInput, PeerHoistDiscovery, ResolvePeersOptions, WorkspaceResolvePeersResult,
         resolve_peers_workspace,
     },
     resolved_tree::ResolvedTree,
@@ -99,6 +99,10 @@ pub struct WorkspaceResolveOptions {
     /// Per-importer update scopes for filtered workspace updates. An importer
     /// absent from this map uses [`Self::update_reuse_scope`].
     pub update_reuse_scopes_by_importer: BTreeMap<String, UpdateReuseScope>,
+    /// `pacquet update --depth`: how deep the update reaches. Nodes
+    /// past the ceiling keep their locked resolutions even when their
+    /// name is an update target.
+    pub update_depth: UpdateDepth,
 
     /// `pnpmfileHook` applied to every resolved manifest before it
     /// enters the wanted-dep cache. Workspace-wide (one hook per
@@ -189,6 +193,7 @@ where
         wanted_lockfile,
         update_reuse_scope,
         update_reuse_scopes_by_importer,
+        update_depth,
         auto_install_peers,
         registries,
     } = opts;
@@ -198,6 +203,7 @@ where
             .with_wanted_lockfile(wanted_lockfile)
             .with_update_reuse_scope(update_reuse_scope)
             .with_update_reuse_scopes_by_importer(update_reuse_scopes_by_importer)
+            .with_update_depth(update_depth)
             .with_pnpmfile_hook(pnpmfile_hook)
             .with_read_package_log(read_package_log)
             .with_skipped_optional_log(skipped_optional_log)
@@ -209,15 +215,16 @@ where
 
     // Build every importer's options up front so the `time-based`
     // pre-pass and the resolve loop see the same per-importer wiring.
-    // `auto_install_peers` is workspace-wide (one setting per install),
-    // so the workspace-level value overrides whatever the per-importer
-    // callback set — the importer hoist loop and the tree walk's shadow
-    // pruning must agree.
+    // `auto_install_peers` and `dedupe_peer_dependents` are
+    // workspace-wide (one setting per install), so the workspace-level
+    // values override whatever the per-importer callback set — the
+    // importer hoist loop and the tree walk's shadow pruning must agree.
     let importer_opts: Vec<ResolveImporterOptions> = importers
         .iter()
         .map(&mut per_importer_options)
         .map(|mut opts| {
             opts.auto_install_peers = auto_install_peers;
+            opts.dedupe_peer_dependents = dedupe_peer_dependents;
             opts
         })
         .collect();
@@ -266,10 +273,50 @@ where
             .await?,
         );
     }
-    loop {
-        for state in &mut states {
-            state.run_required_round(resolver).await?;
+    // Computed after the init barrier and shared unchanged: recomputing it
+    // per round would let the root's own hoisted peers become candidates for
+    // the importers hoisted after it.
+    let root_deps = Arc::new(
+        states
+            .iter()
+            .find(|state| state.importer_id() == pacquet_lockfile::Lockfile::ROOT_IMPORTER_KEY)
+            .map(ImporterHoistState::hoistable_root_deps)
+            .transpose()?
+            .unwrap_or_default(),
+    );
+    for state in &mut states {
+        state.set_workspace_root_deps(Arc::clone(&root_deps));
+    }
+    // One discovery engine serves every hoist round of the workspace:
+    // its persistent tree view + walker caches are what keep the
+    // barrier below linear in workspace size (each importer's pass
+    // short-circuits on the subtree verdicts recorded by the passes
+    // before it).
+    let mut peer_discovery = PeerHoistDiscovery::new();
+    let mut initial_required_rounds: Vec<_> = states
+        .iter_mut()
+        .map(|state| state.prepare_initial_required_round(&mut peer_discovery))
+        .collect();
+    // The context is quiescent between the prepare barrier above and
+    // the completes below, so one snapshot of the owner-scope maps
+    // serves every importer.
+    let first_importer_by_pkg = Arc::new(workspace.first_importer_by_pkg());
+    let first_walk_missing_by_pkg = Arc::new(workspace.first_walk_missing_by_pkg());
+    for (state, round) in states.iter().zip(&mut initial_required_rounds) {
+        if let Some(round) = round {
+            state.apply_owner_missing_scope(
+                round,
+                &first_importer_by_pkg,
+                &first_walk_missing_by_pkg,
+            );
         }
+    }
+    for (state, round) in states.iter_mut().zip(initial_required_rounds) {
+        if let Some(round) = round {
+            state.complete_initial_required_round(resolver, round, &mut peer_discovery).await?;
+        }
+    }
+    loop {
         let mut any_hoisted = false;
         for state in &mut states {
             any_hoisted |= state.hoist_optional_round(resolver).await?;
@@ -277,17 +324,24 @@ where
         if !any_hoisted {
             break;
         }
+        for state in &mut states {
+            state.run_required_round(resolver, &mut peer_discovery).await?;
+        }
     }
+    // Release the engine's tree view before the merged-tree snapshot
+    // below clones the context again, so the two never coexist at peak.
+    drop(peer_discovery);
     let mut per_importer_inputs: Vec<ImporterPeerInput> = Vec::with_capacity(importers.len());
     let mut hoisted_peer_provider_node_ids = std::collections::HashSet::new();
     for ((importer, state), (project_dir, modules_dir)) in
         importers.iter().zip(states).zip(input_dirs)
     {
-        let (direct, importer_provider_node_ids) = state.into_direct();
+        let (direct, importer_provider_node_ids, importer_optional_node_ids) = state.into_direct();
         hoisted_peer_provider_node_ids.extend(importer_provider_node_ids);
         per_importer_inputs.push(ImporterPeerInput {
             id: importer.id.clone(),
             direct,
+            hoisted_optional_peer_node_ids: importer_optional_node_ids,
             root_dir: project_dir,
             modules_dir,
         });

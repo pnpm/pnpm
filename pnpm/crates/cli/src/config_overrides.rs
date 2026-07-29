@@ -1,7 +1,6 @@
-use crate::cli_args::CliArgs;
-use clap::CommandFactory;
 use pacquet_config::{
-    Config, EnvVar, GetCurrentDir, GetHomeDir, LinkProbe, NodeLinker, VerifyDepsBeforeRun,
+    Config, EnvVar, GetCurrentDir, GetHomeDir, LinkProbe, NodeLinker, PmOnFail, RuntimeOnFail,
+    VerifyDepsBeforeRun,
 };
 use pacquet_fs::lexical_normalize;
 use pacquet_store_dir::StoreDir;
@@ -85,6 +84,8 @@ pub struct ConfigOverrides {
     force_legacy_deploy: Option<bool>,
     inject_workspace_packages: Option<bool>,
     node_linker: Option<NodeLinker>,
+    pm_on_fail: Option<PmOnFail>,
+    runtime_on_fail: Option<RuntimeOnFail>,
     shared_workspace_lockfile: Option<bool>,
     verify_deps_before_run: Option<VerifyDepsBeforeRun>,
     https_proxy: Option<String>,
@@ -101,11 +102,11 @@ impl ConfigOverrides {
         Argv: IntoIterator<Item = OsString>,
     {
         let argv = argv.into_iter().collect::<Vec<_>>();
-        let external_command_index = external_command_index(&argv);
+        let passthrough_from = crate::parse_boundary::passthrough_from(&argv);
         let mut overrides = Self::default();
         let mut remaining = Vec::new();
         for (index, arg) in argv.into_iter().enumerate() {
-            if external_command_index.is_some_and(|command_index| index > command_index) {
+            if passthrough_from.is_some_and(|boundary| index >= boundary) {
                 remaining.push(arg);
                 continue;
             }
@@ -151,8 +152,15 @@ impl ConfigOverrides {
             return;
         }
         if key == "node-linker" {
-            self.node_linker =
-                serde_json::from_value(serde_json::Value::String(value.to_string())).ok();
+            self.node_linker = parse_enum(value);
+            return;
+        }
+        if key == "pm-on-fail" {
+            self.pm_on_fail = parse_enum(value);
+            return;
+        }
+        if key == "runtime-on-fail" {
+            self.runtime_on_fail = parse_enum(value);
             return;
         }
         if key == "shared-workspace-lockfile" {
@@ -196,6 +204,12 @@ impl ConfigOverrides {
         if let Some(value) = self.node_linker {
             config.node_linker = value;
         }
+        if let Some(value) = self.pm_on_fail {
+            config.pm_on_fail = Some(value);
+        }
+        if let Some(value) = self.runtime_on_fail {
+            config.runtime_on_fail = Some(value);
+        }
         if let Some(value) = self.shared_workspace_lockfile {
             config.shared_workspace_lockfile = value;
         }
@@ -222,67 +236,6 @@ fn verify_deps_env_is_set() -> bool {
         .any(|name| std::env::var(name).is_ok())
 }
 
-fn external_command_index(argv: &[OsString]) -> Option<usize> {
-    let mut index = 1;
-    while index < argv.len() {
-        let Some(arg) = argv[index].to_str() else {
-            return Some(index);
-        };
-        if arg == "--" {
-            return None;
-        }
-        if arg.starts_with("--config.") {
-            index += 1;
-            continue;
-        }
-        if let Some(width) = global_option_width(arg) {
-            index += width;
-            continue;
-        }
-        if arg.starts_with('-') {
-            index += 1;
-            continue;
-        }
-        return (!is_known_top_level_command(arg)).then_some(index);
-    }
-    None
-}
-
-fn global_option_width(arg: &str) -> Option<usize> {
-    if matches!(arg, "-r" | "-v") {
-        return Some(1);
-    }
-    if matches!(arg, "-C" | "-F") {
-        return Some(2);
-    }
-    if arg.starts_with("-C") || arg.starts_with("-F") {
-        return Some(1);
-    }
-    let name = arg.strip_prefix("--")?;
-    let (name, has_value) = name.split_once('=').map_or((name, false), |(name, _)| (name, true));
-    let consumes_value = matches!(
-        name,
-        "dir"
-            | "filter"
-            | "filter-prod"
-            | "http-proxy"
-            | "https-proxy"
-            | "no-proxy"
-            | "npmrc-auth-file"
-            | "registry"
-            | "reporter"
-            | "store-dir"
-            | "userconfig",
-    );
-    Some(if consumes_value && !has_value { 2 } else { 1 })
-}
-
-fn is_known_top_level_command(name: &str) -> bool {
-    CliArgs::command().get_subcommands().any(|command| {
-        command.get_name() == name || command.get_all_aliases().any(|alias| alias == name)
-    })
-}
-
 enum ConfigToken<'a> {
     WellFormed { key: &'a str, value: &'a str },
     Malformed,
@@ -290,21 +243,36 @@ enum ConfigToken<'a> {
 }
 
 /// Decide whether an argv token belongs to the `--config.<key>=<value>`
-/// family. Everything with a `--config.` prefix is claimed, so a typo
-/// like `--config.foo` never escapes into clap's "unexpected argument"
-/// path; non-prefixed tokens are returned untouched.
+/// family or is one of the [`BARE_SETTING_FLAGS`]. Everything with a
+/// `--config.` prefix is claimed, so a typo like `--config.foo` never
+/// escapes into clap's "unexpected argument" path; every other token is
+/// returned untouched.
 fn classify(arg: &OsStr) -> ConfigToken<'_> {
-    let Some(rest) = arg.to_str().and_then(|arg| arg.strip_prefix("--config.")) else {
+    let Some(arg) = arg.to_str() else {
         return ConfigToken::NotOurs;
     };
-    let Some((key, value)) = rest.split_once('=') else {
-        return ConfigToken::Malformed;
-    };
-    if key.is_empty() {
-        return ConfigToken::Malformed;
+    if let Some(rest) = arg.strip_prefix("--config.") {
+        let Some((key, value)) = rest.split_once('=') else {
+            return ConfigToken::Malformed;
+        };
+        if key.is_empty() {
+            return ConfigToken::Malformed;
+        }
+        return ConfigToken::WellFormed { key, value };
     }
-    ConfigToken::WellFormed { key, value }
+    match arg.strip_prefix("--").and_then(|flag| flag.split_once('=')) {
+        Some((key, value)) if BARE_SETTING_FLAGS.contains(&key) => {
+            ConfigToken::WellFormed { key, value }
+        }
+        _ => ConfigToken::NotOurs,
+    }
 }
+
+/// Settings pnpm's own error hints tell the user to pass as a bare
+/// `--<setting>=<value>` flag. pnpm accepts every setting that way; pacquet
+/// only declares a clap flag for a subset, so these are recognized here to
+/// keep the hints they appear in actionable.
+const BARE_SETTING_FLAGS: [&str; 2] = ["pm-on-fail", "runtime-on-fail"];
 
 fn scoped_registry_key(key: &str) -> Option<&str> {
     key.strip_suffix(":registry")
@@ -327,6 +295,10 @@ pub(crate) fn apply_registry_override(config: &mut Config, registry: &str) {
 
 fn normalize_registry_url(registry: &str) -> String {
     if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") }
+}
+
+fn parse_enum<Value: serde::de::DeserializeOwned>(value: &str) -> Option<Value> {
+    serde_json::from_value(serde_json::Value::String(value.to_string())).ok()
 }
 
 fn parse_bool(value: &str) -> Option<bool> {

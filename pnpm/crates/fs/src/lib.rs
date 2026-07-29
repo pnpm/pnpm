@@ -1,3 +1,4 @@
+mod dir_lock;
 mod ensure_file;
 mod is_subdir;
 mod lexical_normalize;
@@ -5,6 +6,7 @@ mod relative_path;
 mod symlink_dir;
 mod write_atomic;
 
+pub use dir_lock::DirLock;
 pub use ensure_file::*;
 pub use is_subdir::is_subdir;
 pub use lexical_normalize::lexical_normalize;

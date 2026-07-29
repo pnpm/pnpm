@@ -190,6 +190,14 @@ impl ArgTable {
         table
     }
 
+    /// Fold every subcommand's own options into this table, for callers
+    /// that need one arity view over the whole CLI because the command is
+    /// not known yet (the pre-clap passes, via
+    /// [`crate::parse_boundary::passthrough_from`]).
+    pub(crate) fn absorb_subcommands(&mut self, cmd: &Command) {
+        self.absorb(cmd.get_subcommands().flat_map(Command::get_arguments));
+    }
+
     fn absorb<'a, Args: IntoIterator<Item = &'a Arg>>(&mut self, args: Args) {
         for arg in args {
             let consumes_value = matches!(arg.get_action(), ArgAction::Set | ArgAction::Append);

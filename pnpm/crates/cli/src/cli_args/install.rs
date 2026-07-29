@@ -1,20 +1,25 @@
 use crate::{
     State,
     cli_args::{
+        legacy_pnpm_field::warn_ignored_pnpm_manifest_fields_in,
+        override_version_references::warn_deprecated_override_version_references,
         pipelines::InstallFamilySelection, recursive::discover_workspace_projects,
         supported_architectures::SupportedArchitecturesArgs,
     },
 };
 use clap::{Args, ValueEnum};
 use derive_more::{Display, Error};
-use miette::{Context, Diagnostic};
+use miette::{Context, Diagnostic, IntoDiagnostic};
+use pacquet_catalogs_config::get_catalogs_from_workspace_manifest;
+use pacquet_catalogs_types::Catalogs;
 use pacquet_config::NodeLinker;
 use pacquet_lockfile::{Lockfile, LockfileResolution, MaybeLazyLockfile};
 use pacquet_modules_yaml::IncludedDependencies;
 use pacquet_package_manager::{
-    Install, InstallFrozenLockfileError, LockfileVerificationOverride, SkippedSnapshots,
-    TarballPrefetcher, UpToDateFastPathCheck, UpdateSeedPolicy, WorkspaceInstallSelection,
-    install_already_up_to_date, materialization_closure, merge_filtered_wanted_lockfile,
+    Install, InstallFrozenLockfileError, LockfileVerificationOverride, ProjectMutation,
+    SkippedSnapshots, TarballPrefetcher, UpToDateFastPathCheck, UpdateSeedPolicy,
+    WorkspaceInstallSelection, install_already_up_to_date, materialization_closure,
+    merge_filtered_wanted_lockfile,
 };
 use pacquet_package_manifest::DependencyGroup;
 use pacquet_pnpr_client::{
@@ -90,8 +95,13 @@ pub struct InstallArgs {
     pub supported_architectures: SupportedArchitecturesArgs,
 
     /// Don't generate a lockfile, and fail if an update to it is needed.
-    #[clap(long)]
+    #[clap(long, overrides_with = "no_frozen_lockfile")]
     pub frozen_lockfile: bool,
+
+    /// Allow the lockfile to be updated, overriding a `frozenLockfile: true`
+    /// setting.
+    #[clap(long = "no-frozen-lockfile", overrides_with = "frozen_lockfile")]
+    pub no_frozen_lockfile: bool,
 
     /// Only update `pnpm-lock.yaml`. Don't download packages or write
     /// `node_modules`.
@@ -118,6 +128,11 @@ pub struct InstallArgs {
     /// existing lockfile.
     #[clap(long = "no-prefer-frozen-lockfile", overrides_with = "prefer_frozen_lockfile")]
     pub no_prefer_frozen_lockfile: bool,
+
+    /// Run the install already requested by `verifyDepsBeforeRun` without
+    /// independently short-circuiting it as up to date.
+    #[clap(long, hide = true)]
+    pub verify_deps_before_run_install: bool,
 
     /// Skip the check that `pnpm-lock.yaml` is up to date with
     /// `package.json` under `--frozen-lockfile`. For callers that just
@@ -228,8 +243,10 @@ impl InstallArgs {
     /// the install inputs: `patch-commit` / `patch-remove` (which rewrite the
     /// manifest's `patchedDependencies`) and `unlink` (which removes `link:`
     /// overrides from `pnpm-workspace.yaml`). Forces a fresh resolution
-    /// (`preferFrozenLockfile: false`, via `no_prefer_frozen_lockfile`) so the
-    /// changed inputs re-resolve rather than reusing the stale lockfile.
+    /// (`preferFrozenLockfile: false`, via `no_prefer_frozen_lockfile`, and
+    /// `frozenLockfile: false`, via `no_frozen_lockfile`) so the changed
+    /// inputs re-resolve rather than reusing — or failing against — the
+    /// stale lockfile.
     pub(crate) fn for_reresolving_install() -> Self {
         Self {
             dependency_options: InstallDependencyOptions {
@@ -239,11 +256,13 @@ impl InstallArgs {
             },
             supported_architectures: SupportedArchitecturesArgs::default(),
             frozen_lockfile: false,
+            no_frozen_lockfile: true,
             lockfile_only: false,
             dry_run: false,
             force: false,
             prefer_frozen_lockfile: false,
             no_prefer_frozen_lockfile: true,
+            verify_deps_before_run_install: false,
             ignore_manifest_check: false,
             no_runtime: false,
             ignore_scripts: false,
@@ -289,7 +308,12 @@ impl InstallArgs {
         config: &pacquet_config::Config,
         emit: fn(&pacquet_reporter::LogEvent),
     ) -> bool {
-        if self.frozen_lockfile || self.lockfile_only || self.force || self.pnpr_server.is_some() {
+        if self.effective_frozen_lockfile(config)
+            || self.lockfile_only
+            || self.force
+            || self.verify_deps_before_run_install
+            || self.pnpr_server.is_some()
+        {
             return false;
         }
         if config.pnpr_server.is_some() {
@@ -318,7 +342,7 @@ impl InstallArgs {
             return false;
         };
         let node_linker = self.node_linker.map_or(config.node_linker, NodeLinkerArg::into_config);
-        let Some(workspace_root) = install_already_up_to_date(&UpToDateFastPathCheck {
+        let Some(up_to_date) = install_already_up_to_date(&UpToDateFastPathCheck {
             config,
             manifest: &manifest,
             dependency_groups: self.dependency_options.dependency_groups().collect(),
@@ -329,7 +353,25 @@ impl InstallArgs {
         }) else {
             return false;
         };
-        let prefix = workspace_root.to_string_lossy().into_owned();
+        // Emitted from the deciding branch, not next to the config load
+        // above: every `return false` before this point hands the command
+        // to the full install path, which warns from
+        // `derive_config_root_and_package_manager_to_sync`.
+        warn_ignored_pnpm_manifest_fields_in(&config_root);
+        warn_deprecated_override_version_references(config, emit);
+        // The scope covers the same projects the full install path would
+        // report; an up-to-date run says so too rather than going quiet
+        // about what it just decided was current.
+        emit(&pacquet_reporter::LogEvent::Scope(pacquet_reporter::ScopeLog {
+            level: pacquet_reporter::LogLevel::Debug,
+            selected: up_to_date.project_count.unwrap_or(1),
+            total: up_to_date.project_count,
+            workspace_prefix: config
+                .workspace_dir
+                .as_deref()
+                .map(|dir| dir.to_string_lossy().into_owned()),
+        }));
+        let prefix = up_to_date.root.to_string_lossy().into_owned();
         emit(&pacquet_reporter::LogEvent::Pnpm(pacquet_reporter::PnpmLog {
             level: pacquet_reporter::LogLevel::Info,
             message: "Already up to date".to_string(),
@@ -340,6 +382,16 @@ impl InstallArgs {
             prefix,
         }));
         true
+    }
+
+    /// `--frozen-lockfile` / `--no-frozen-lockfile` layered over the
+    /// `frozenLockfile` setting.
+    pub(crate) fn effective_frozen_lockfile(&self, config: &pacquet_config::Config) -> bool {
+        resolve_bool_override(
+            self.frozen_lockfile,
+            self.no_frozen_lockfile,
+            config.frozen_lockfile.unwrap_or(false),
+        )
     }
 
     pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
@@ -361,10 +413,13 @@ impl InstallArgs {
     ) -> miette::Result<()> {
         let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
             &state;
+        let frozen_lockfile = self.effective_frozen_lockfile(config);
         let InstallArgs {
             dependency_options,
             supported_architectures,
-            frozen_lockfile,
+            // Layered over the `frozenLockfile` setting above.
+            frozen_lockfile: _,
+            no_frozen_lockfile: _,
             lockfile_only,
             dry_run,
             // Resolved against config by `apply_install_cli_config` in
@@ -372,6 +427,7 @@ impl InstallArgs {
             force: _,
             prefer_frozen_lockfile,
             no_prefer_frozen_lockfile,
+            verify_deps_before_run_install,
             ignore_manifest_check,
             no_runtime,
             // The `ignore_scripts` / `offline` / `frozen_store` /
@@ -491,10 +547,7 @@ impl InstallArgs {
             skip_runtimes,
             trust_lockfile,
             update_checksums,
-            // `pacquet install` is always a full install (it takes no
-            // package arguments), so the project's own lifecycle
-            // scripts run. `pacquet add` sets this to `false`.
-            is_full_install: true,
+            mutation: ProjectMutation::InstallWorkspace,
             installs_only: true,
             resolved_packages,
             supported_architectures,
@@ -506,7 +559,7 @@ impl InstallArgs {
             resolution_observer: None,
             peer_issues_sink: None,
             catalogs_override: None,
-            disable_optimistic_repeat_install: false,
+            disable_optimistic_repeat_install: verify_deps_before_run_install,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
         };
@@ -739,6 +792,7 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
         // route policy, so they stay out of the request body.
         authorization: state.config.auth_headers.for_url(pnpr_server),
         overrides,
+        catalogs: pnpr_catalogs(state)?,
         lockfile: previous_wanted.clone(),
         frozen_lockfile: link.frozen_lockfile,
         prefer_frozen_lockfile: Some(link.prefer_frozen_lockfile),
@@ -852,7 +906,7 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
             skip_runtimes: link.skip_runtimes,
             trust_lockfile: true,
             update_checksums: false,
-            is_full_install: true,
+            mutation: ProjectMutation::InstallWorkspace,
             installs_only: true,
             resolved_packages: &state.resolved_packages,
             supported_architectures: link.supported_architectures,
@@ -1016,7 +1070,7 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
         // ([pnpm/pnpm#12139](https://github.com/pnpm/pnpm/issues/12139)).
         trust_lockfile: true,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         resolved_packages: &state.resolved_packages,
         supported_architectures: link.supported_architectures,
@@ -1049,6 +1103,26 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
     }
 
     Ok(())
+}
+
+/// The catalogs the pnpr server resolves `catalog:` specifiers against,
+/// picked the same way [`pacquet_package_manager::Install`] picks them:
+/// an `updateConfig` pnpmfile hook's complete set when it produced one,
+/// otherwise the raw workspace-manifest read. `None` when the workspace
+/// defines none, which keeps the field off the request entirely.
+fn pnpr_catalogs(state: &State) -> miette::Result<Option<Catalogs>> {
+    if let Some(catalogs) = state.config.catalogs.clone() {
+        return Ok(Some(catalogs));
+    }
+    let workspace_root = state.config.workspace_dir.as_deref().unwrap_or_else(|| {
+        state.manifest.path().parent().expect("manifest path always has a parent dir")
+    });
+    let workspace_manifest =
+        pacquet_workspace::read_workspace_manifest(workspace_root).into_diagnostic()?;
+    let catalogs = get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())
+        .into_diagnostic()
+        .wrap_err("reading catalogs to forward to the pnpr server")?;
+    Ok((!catalogs.is_empty()).then_some(catalogs))
 }
 
 fn resolve_projects_for_pnpr(

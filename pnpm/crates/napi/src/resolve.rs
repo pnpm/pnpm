@@ -70,7 +70,8 @@ pub struct ResolveDependencyOptions {
     pub offline: Option<bool>,
     pub prefer_offline: Option<bool>,
     /// Pre-computed `Authorization` headers keyed by nerf-darted registry URI
-    /// (`""` for the default registry).
+    /// (`""` for the default registry, pinned to the `registries` passed
+    /// alongside it).
     pub auth_header_by_uri: Option<HashMap<String, String>>,
 }
 

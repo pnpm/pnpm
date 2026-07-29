@@ -64,6 +64,29 @@ fn set_ignore_dependencies(workspace: &Path, names: &[&str]) {
     fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
 }
 
+/// Create a sibling workspace project and register its directory in
+/// `pnpm-workspace.yaml`'s `packages` list.
+fn add_workspace_package(workspace: &Path, name: &str, version: &str) {
+    let project = workspace.join(name);
+    fs::create_dir_all(&project).expect("mkdir workspace project");
+    fs::write(
+        project.join("package.json"),
+        format!(r#"{{ "name": "{name}", "version": "{version}" }}"#),
+    )
+    .expect("write workspace project package.json");
+
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+    if !yaml.ends_with('\n') {
+        yaml.push('\n');
+    }
+    if !yaml.contains("packages:") {
+        yaml.push_str("packages:\n");
+    }
+    writeln!(yaml, "  - '{name}'").unwrap();
+    fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
+}
+
 /// [`append_workspace_yaml_key`] for `dedupePeerDependents: false` — the
 /// setting under which pnpm/pnpm#12456 reproduces on the TypeScript stack.
 fn disable_dedupe_peer_dependents(workspace: &Path) {
@@ -359,24 +382,7 @@ fn update_latest_preserves_workspace_local_path_specifier() {
 
     // A workspace-only sibling package, not published to the mocked
     // registry, referenced by a `workspace:` local path.
-    let sibling = workspace.join("local-dep");
-    fs::create_dir_all(&sibling).expect("mkdir local-dep");
-    fs::write(sibling.join("package.json"), r#"{ "name": "local-dep", "version": "1.0.0" }"#)
-        .expect("write local-dep/package.json");
-
-    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
-    let mut yaml = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
-    // Fail loudly if the harness ever starts writing `packages:` — appending a
-    // second top-level mapping key produces invalid YAML.
-    assert!(
-        !yaml.contains("packages:"),
-        "pnpm-workspace.yaml already has a `packages:` key — update this test",
-    );
-    if !yaml.ends_with('\n') {
-        yaml.push('\n');
-    }
-    yaml.push_str("packages:\n  - 'local-dep'\n");
-    fs::write(&workspace_yaml, yaml).expect("write pnpm-workspace.yaml");
+    add_workspace_package(&workspace, "local-dep", "1.0.0");
 
     write_manifest(&workspace, r#"{ "local-dep": "workspace:./local-dep" }"#);
     pacquet(&workspace, ["install"]).assert().success();
@@ -464,6 +470,40 @@ fn update_depth_zero_unknown_package_errors() {
     assert!(
         stderr.contains("None of the specified packages were found in the dependencies"),
         "stderr did not mention NO_PACKAGE_IN_DEPENDENCIES: {stderr}",
+    );
+
+    drop((root, anchor));
+}
+
+/// `--depth 0` reaches direct dependencies only: a transitive
+/// dependency keeps its locked resolution even though the same update
+/// without the flag bumps it.
+#[test]
+fn update_depth_zero_leaves_transitive_dependencies_locked() {
+    let (root, workspace, anchor) = setup();
+
+    // Pin the transitive dep-of-pkg-with-1-dep at 100.0.0 through a
+    // direct exact entry, then drop it to a pure transitive of
+    // pkg-with-1-dep, whose ^100.0.0 range a fresh resolve answers with
+    // 100.1.0.
+    write_manifest(&workspace, &format!(r#"{{ "{PARENT}": "100.0.0", "{DEP}": "100.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+    write_manifest(&workspace, &format!(r#"{{ "{PARENT}": "100.0.0" }}"#));
+
+    pacquet(&workspace, ["update", "--depth", "0"]).assert().success();
+
+    eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
+    assert!(
+        !virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"),
+        "a depth-0 update should not reach a transitive dependency",
+    );
+
+    pacquet(&workspace, ["update"]).assert().success();
+
+    eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
+    assert!(
+        virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"),
+        "the default unlimited depth should reach the transitive dependency",
     );
 
     drop((root, anchor));
@@ -642,6 +682,166 @@ fn update_latest_with_spec_is_rejected() {
     assert!(
         stderr.contains("Specs are not allowed to be used with --latest"),
         "stderr did not mention the LATEST_WITH_SPEC error: {stderr}",
+    );
+
+    drop((root, anchor));
+}
+
+/// The failing half of a `pacquet update` run: the command must exit
+/// non-zero and its stderr must mention `needle`.
+fn assert_update_fails(workspace: &Path, args: &[&str], needle: &str) {
+    let output = pacquet(workspace, args).output().expect("run pacquet update");
+    assert!(!output.status.success(), "`pacquet {}` should fail", args.join(" "));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains(needle), "stderr did not mention {needle:?}: {stderr}");
+}
+
+/// `--workspace` re-points a dependency that a workspace project
+/// publishes at the local copy. Under the default `rolling`
+/// `saveWorkspaceProtocol`, an exactly-pinned dependency becomes
+/// `workspace:*` — a specifier the sibling's next release does not
+/// invalidate.
+#[test]
+fn update_workspace_links_to_the_local_package() {
+    let (root, workspace, anchor) = setup();
+
+    add_workspace_package(&workspace, "sibling", "2.0.0");
+    write_manifest(&workspace, r#"{ "sibling": "0.0.0" }"#);
+
+    pacquet(&workspace, ["update", "--workspace"]).assert().success();
+
+    assert_eq!(dep_spec(&workspace, "sibling").as_deref(), Some("workspace:*"));
+
+    drop((root, anchor));
+}
+
+/// A caret-ranged dependency keeps its operator when it is linked.
+#[test]
+fn update_workspace_keeps_the_declared_range_operator() {
+    let (root, workspace, anchor) = setup();
+
+    add_workspace_package(&workspace, "sibling", "2.0.0");
+    write_manifest(&workspace, r#"{ "sibling": "^1.0.0" }"#);
+
+    pacquet(&workspace, ["update", "--workspace", "sibling"]).assert().success();
+
+    assert_eq!(dep_spec(&workspace, "sibling").as_deref(), Some("workspace:^"));
+
+    drop((root, anchor));
+}
+
+/// With `saveWorkspaceProtocol: false` the linked version is written out
+/// in full — the protocol itself is kept regardless, since dropping it
+/// would send the dependency back to the registry.
+#[test]
+fn update_workspace_writes_the_version_when_not_rolling() {
+    let (root, workspace, anchor) = setup();
+
+    add_workspace_package(&workspace, "sibling", "2.0.0");
+    append_workspace_yaml_key(&workspace, "saveWorkspaceProtocol", false);
+    write_manifest(&workspace, r#"{ "sibling": "0.0.0" }"#);
+
+    pacquet(&workspace, ["update", "--workspace"]).assert().success();
+
+    assert_eq!(dep_spec(&workspace, "sibling").as_deref(), Some("workspace:2.0.0"));
+
+    drop((root, anchor));
+}
+
+/// A dependency no workspace project publishes is left alone by a
+/// selector-less `--workspace`.
+#[test]
+fn update_workspace_leaves_registry_dependencies_alone() {
+    let (root, workspace, anchor) = setup();
+
+    add_workspace_package(&workspace, "sibling", "2.0.0");
+    write_manifest(&workspace, &format!(r#"{{ "sibling": "0.0.0", "{DEP}": "^100.0.0" }}"#));
+
+    pacquet(&workspace, ["update", "--workspace"]).assert().success();
+
+    assert_eq!(dep_spec(&workspace, "sibling").as_deref(), Some("workspace:*"));
+    assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("^100.0.0"));
+
+    drop((root, anchor));
+}
+
+/// `--workspace` that links nothing is an ordinary selector-less
+/// update, so it stays a *full* install and runs the project's own
+/// lifecycle scripts. Only the dependencies it actually re-points make
+/// the run partial.
+#[test]
+fn update_workspace_that_links_nothing_still_runs_project_scripts() {
+    let (root, workspace, anchor) = setup();
+
+    // A workspace sibling exists, but nothing depends on it, so
+    // `--workspace` has no link target.
+    add_workspace_package(&workspace, "sibling", "2.0.0");
+    fs::write(
+        workspace.join("package.json"),
+        format!(
+            r#"{{ "name": "test-update", "version": "1.0.0",
+                  "scripts": {{ "postinstall": "node -e \"require('fs').writeFileSync('postinstall-ran', '')\"" }},
+                  "dependencies": {{ "{DEP}": "^100.0.0" }} }}"#,
+        ),
+    )
+    .expect("write package.json");
+
+    pacquet(&workspace, ["update", "--workspace"]).assert().success();
+
+    assert!(
+        workspace.join("postinstall-ran").exists(),
+        "a --workspace update with nothing to link should run the project's own scripts",
+    );
+
+    drop((root, anchor));
+}
+
+/// Naming a dependency that no workspace project publishes fails, since
+/// there is nothing to link it to.
+#[test]
+fn update_workspace_rejects_a_dependency_outside_the_workspace() {
+    let (root, workspace, anchor) = setup();
+
+    add_workspace_package(&workspace, "sibling", "2.0.0");
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0" }}"#));
+
+    assert_update_fails(&workspace, &["update", "--workspace", DEP], "not found in the workspace");
+
+    drop((root, anchor));
+}
+
+/// A `--workspace` selector that matches no direct dependency links
+/// nothing — the run falls back to an ordinary update of that selector,
+/// rather than linking every workspace dependency the user never named.
+#[test]
+fn update_workspace_with_an_unmatched_selector_links_nothing() {
+    let (root, workspace, anchor) = setup();
+
+    add_workspace_package(&workspace, "sibling", "2.0.0");
+    append_workspace_yaml_key(&workspace, "linkWorkspacePackages", true);
+    write_manifest(&workspace, r#"{ "sibling": "^2.0.0" }"#);
+    pacquet(&workspace, ["install"]).assert().success();
+
+    pacquet(&workspace, ["update", "--workspace", "@pnpm.e2e/not-a-dependency"]).assert().success();
+
+    assert_eq!(dep_spec(&workspace, "sibling").as_deref(), Some("^2.0.0"));
+
+    drop((root, anchor));
+}
+
+/// `--latest` rewrites ranges from the registry and `--workspace` from
+/// the workspace, so the two cannot both apply.
+#[test]
+fn update_workspace_with_latest_is_rejected() {
+    let (root, workspace, anchor) = setup();
+
+    add_workspace_package(&workspace, "sibling", "2.0.0");
+    write_manifest(&workspace, r#"{ "sibling": "0.0.0" }"#);
+
+    assert_update_fails(
+        &workspace,
+        &["update", "--workspace", "--latest"],
+        "Cannot use --latest with --workspace simultaneously",
     );
 
     drop((root, anchor));

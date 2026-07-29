@@ -174,9 +174,56 @@ fn metadata_authorization_failure_is_reported() {
     let output = install_command(&workspace, root.path()).with_arg("install").output().unwrap();
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("403 Forbidden"), "got {stderr}");
+    assert!(stderr.contains("ERR_PNPM_FETCH_403"), "got {stderr}");
+    assert!(stderr.contains("Forbidden - 403"), "got {stderr}");
+    assert!(
+        stderr.contains("No authorization header was set for the request."),
+        "the report must say which credential, if any, was sent: {stderr}",
+    );
 
     forbidden.assert();
+}
+
+/// A registry configured with inline `user:pass@` basic-auth must not
+/// leak either half into the fetch error, and the report must still name
+/// the credential that was sent — `AuthHeaders` derives a `Basic` header
+/// from that userinfo, so a hint computed against the redacted URL would
+/// claim no header was set.
+#[test]
+fn inline_registry_credentials_are_redacted_but_still_reported() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let authority = registry.url().replace("http://", "");
+    write_project_config(
+        root.path(),
+        &workspace,
+        &format!("http://basicuser:super-secret-password@{authority}"),
+        "",
+    );
+    let missing = registry
+        .mock("GET", "/private-pkg")
+        .with_status(404)
+        .with_body("Not Found")
+        .expect(1)
+        .create();
+    fs::write(workspace.join("package.json"), r#"{"dependencies":{"private-pkg":"1.0.0"}}"#)
+        .expect("write package.json");
+
+    let output = install_command(&workspace, root.path()).with_arg("install").output().unwrap();
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("stderr={stderr}");
+    assert!(stderr.contains("ERR_PNPM_FETCH_404"), "got {stderr}");
+    assert!(
+        !stderr.contains("super-secret-password") && !stderr.contains("basicuser"),
+        "the inline credentials must not reach the terminal: {stderr}",
+    );
+    assert!(
+        stderr.contains("An authorization header was used: Basic "),
+        "the header derived from the inline credentials must still be reported: {stderr}",
+    );
+
+    missing.assert();
 }
 
 #[test]

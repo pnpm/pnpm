@@ -1,4 +1,4 @@
-use super::{DirectByImporter, dedupe_peer_dependents, deduplicate_dep_paths, dep_path_peer_names};
+use super::{DirectByImporter, dedupe_peer_dependents, deduplicate_dep_paths};
 use crate::dependencies_graph::{DependenciesGraph, DependenciesGraphNode};
 use pacquet_deps_path::DepPath;
 use pacquet_lockfile::{DirectoryResolution, LockfileResolution};
@@ -10,26 +10,6 @@ use std::{
 
 fn dp(raw: &str) -> DepPath {
     DepPath::from(raw.to_string())
-}
-
-#[test]
-fn collects_peer_names_after_patch_hash() {
-    let dep_path = dp(concat!(
-        "@medusajs/workflows-sdk@2.13.3",
-        "(patch_hash=248195172cff27c28650c005b6aa0aa3b2f2976f9739544b360b81668f2d8b59)",
-        "(@types/node@20.19.17)",
-        "(better-sqlite3@12.8.0)",
-        "(express@4.21.2)",
-    ));
-
-    assert_eq!(
-        dep_path_peer_names(&dep_path),
-        HashSet::from([
-            "@types/node".to_string(),
-            "better-sqlite3".to_string(),
-            "express".to_string(),
-        ]),
-    );
 }
 
 fn make_node(
@@ -189,8 +169,13 @@ fn does_not_collapse_across_incompatible_peer_versions() {
     assert_eq!(direct["project3"]["foo"], direct["project4"]["foo"]);
 }
 
+/// Every reference to a collapsed variant is rewritten, including a
+/// consumer's child edge whose own peer suffix names the collapsed
+/// variant — pnpm's `deduplicateAll` rewrites `node.children`
+/// unconditionally, and leaving one edge behind keeps the collapsed
+/// variant alive in the lockfile.
 #[test]
-fn direct_dep_collapses_but_parent_edge_keeps_incompatible_peer_variant() {
+fn a_consumers_child_edge_follows_the_collapse() {
     let subset = "foo@1.0.0(bar@1.0.0)";
     let larger = "foo@1.0.0(bar@1.0.0)(baz@1.0.0)";
     let baz = "baz@1.0.0(qux@1.0.0)";
@@ -228,8 +213,8 @@ fn direct_dep_collapses_but_parent_edge_keeps_incompatible_peer_variant() {
 
     assert_eq!(direct["project-subset"]["foo"], dp(larger));
     assert_eq!(direct["project-larger"]["foo"], dp(larger));
-    assert_eq!(graph[&dp(consumer)].children["foo"], dp(subset));
-    assert!(graph.contains_key(&dp(subset)));
+    assert_eq!(graph[&dp(consumer)].children["foo"], dp(larger));
+    assert!(!graph.contains_key(&dp(subset)), "the collapsed variant has no reference left");
     assert!(graph.contains_key(&dp(larger)));
 }
 

@@ -30,9 +30,13 @@ pub fn expand_universal_shorthands(cmd: &Command, mut argv: Vec<OsString>) -> Ve
     let top_level = ArgTable::top_level(cmd);
     let subcommand_union = ArgTable::subcommand_union(cmd);
     let run_owns_short_s = effective_command_is_run(cmd, &argv, &top_level, &subcommand_union);
+    // Expanding past this would hand the script a token it never typed —
+    // `pnpm run build --silent` must forward `--silent`, not
+    // `--reporter=silent`.
+    let passthrough_from = crate::parse_boundary::passthrough_from(&argv).unwrap_or(argv.len());
 
     let mut index = 1;
-    while index < argv.len() {
+    while index < passthrough_from.min(argv.len()) {
         let Some(token) = argv[index].to_str() else {
             index += 1;
             continue;

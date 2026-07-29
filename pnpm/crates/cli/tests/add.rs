@@ -11,12 +11,17 @@ use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     fs::{get_all_folders, get_filenames_in_folder},
+    registry::TestRegistry,
 };
 use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
 #[cfg(unix)]
 use std::fs;
-use std::{ffi::OsStr, path::PathBuf, process::Command};
+use std::{
+    ffi::OsStr,
+    path::{Path, PathBuf},
+    process::Command,
+};
 use tempfile::TempDir;
 
 fn exec_pacquet_in_temp_cwd<Args>(args: Args) -> (TempDir, PathBuf, AddMockedRegistry)
@@ -196,6 +201,149 @@ fn add_accepts_multiple_local_package_selectors() {
             "{package_name} is installed",
         );
     }
+
+    drop(root); // cleanup
+}
+
+/// A one-member workspace whose `fixtures/` packages let a `-w` add use
+/// `file:` specs instead of reaching the registry. Returns the member's
+/// directory.
+fn write_workspace_with_local_fixtures(workspace: &Path) -> PathBuf {
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml = std::fs::read_to_string(&workspace_yaml_path).unwrap_or_default();
+    if !workspace_yaml.is_empty() && !workspace_yaml.ends_with('\n') {
+        workspace_yaml.push('\n');
+    }
+    workspace_yaml.push_str("packages:\n  - 'packages/*'\n");
+    std::fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    for package_name in ["local-a", "local-b"] {
+        let package_dir = workspace.join("fixtures").join(package_name);
+        std::fs::create_dir_all(&package_dir).expect("create local package directory");
+        std::fs::write(
+            package_dir.join("package.json"),
+            serde_json::json!({ "name": package_name, "version": "1.0.0" }).to_string(),
+        )
+        .expect("write local package manifest");
+    }
+
+    let member_dir = workspace.join("packages/a");
+    std::fs::create_dir_all(&member_dir).expect("mkdir packages/a");
+    std::fs::write(
+        member_dir.join("package.json"),
+        serde_json::json!({ "name": "a", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write packages/a/package.json");
+    member_dir
+}
+
+/// End to end rather than a unit test: a relative `--dir` resolves
+/// against the process cwd, which a unit test must not mutate.
+#[test]
+fn add_workspace_root_tolerates_a_dir_that_does_not_exist() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace_with_local_fixtures(&workspace);
+
+    pacquet
+        .with_args([
+            "--dir",
+            "packages/does-not-exist",
+            "add",
+            "-D",
+            "local-a@file:./fixtures/local-a",
+            "-w",
+        ])
+        .assert()
+        .success();
+
+    let root_manifest = workspace
+        .join("package.json")
+        .pipe(PackageManifest::from_path)
+        .expect("read root manifest");
+    assert!(
+        root_manifest.dependencies([DependencyGroup::Dev]).any(|(key, _)| key == "local-a"),
+        "a nonexistent --dir must still redirect the add to the root manifest",
+    );
+
+    drop(root); // cleanup
+}
+
+/// The counterpart to the tolerated nonexistent `--dir` above.
+#[test]
+fn add_workspace_root_rejects_a_dir_that_climbs_out_of_the_workspace() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace_with_local_fixtures(&workspace);
+
+    let output = pacquet
+        .with_args([
+            "--dir",
+            "../../outside-does-not-exist",
+            "add",
+            "-D",
+            "local-a@file:./fixtures/local-a",
+            "-w",
+        ])
+        .assert()
+        .failure();
+
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+    assert!(
+        stderr.contains("ERR_PNPM_NOT_IN_WORKSPACE"),
+        "a --dir pointing outside the workspace must not fall back to it: {stderr}",
+    );
+
+    drop(root); // cleanup
+}
+
+/// `pnpm add -D <pkg> <pkg> -w` run from a workspace subdirectory
+/// (pnpm/pnpm#13031).
+#[test]
+fn add_workspace_root_saves_to_the_root_manifest_from_a_subdir() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let member_dir = write_workspace_with_local_fixtures(&workspace);
+
+    pacquet
+        .with_args([
+            "--dir",
+            "packages/a",
+            "add",
+            "-D",
+            // Relative to the root: a `file:` spec resolves from the
+            // manifest that records it, which `-w` makes the root's.
+            "local-a@file:./fixtures/local-a",
+            "local-b@file:./fixtures/local-b",
+            "-w",
+        ])
+        .assert()
+        .success();
+
+    let root_manifest = workspace
+        .join("package.json")
+        .pipe(PackageManifest::from_path)
+        .expect("read root manifest");
+    for package_name in ["local-a", "local-b"] {
+        assert!(
+            root_manifest.dependencies([DependencyGroup::Dev]).any(|(key, _)| key == package_name),
+            "--workspace-root must save {package_name} to the root manifest",
+        );
+    }
+
+    let member_manifest = member_dir
+        .join("package.json")
+        .pipe(PackageManifest::from_path)
+        .expect("read packages/a manifest");
+    assert_eq!(
+        member_manifest
+            .dependencies([
+                DependencyGroup::Prod,
+                DependencyGroup::Dev,
+                DependencyGroup::Optional,
+                DependencyGroup::Peer,
+            ])
+            .count(),
+        0,
+        "--workspace-root must leave the `--dir` project's manifest untouched",
+    );
 
     drop(root); // cleanup
 }
@@ -878,4 +1026,286 @@ fn add_updates_dependency_in_the_group_it_already_occupies() {
     assert_eq!(group_spec(DependencyGroup::Prod, "@pnpm.e2e/bar"), None);
 
     drop((root, npmrc_info)); // cleanup
+}
+
+/// The `savePrefix` and `savePeer` settings drive `pnpm add` the same
+/// way `--save-prefix` / `--save-peer` do.
+#[test]
+fn save_prefix_and_save_peer_settings_drive_add() {
+    let (root, workspace, mock_instance) = add_with_save_settings(&["add"]);
+
+    let manifest =
+        workspace.join("package.json").pipe(PackageManifest::from_path).expect("read manifest");
+    let peer_spec = manifest
+        .dependencies([DependencyGroup::Peer])
+        .find(|(name, _)| *name == "@pnpm.e2e/hello-world-js-bin")
+        .map(|(_, spec)| spec.to_string());
+    let dev_spec = manifest
+        .dependencies([DependencyGroup::Dev])
+        .find(|(name, _)| *name == "@pnpm.e2e/hello-world-js-bin")
+        .map(|(_, spec)| spec.to_string());
+    eprintln!("PEER: {peer_spec:?}, DEV: {dev_spec:?}");
+    assert_eq!(peer_spec.as_deref(), Some("~1.0.0"), "savePeer must add a peerDependencies entry");
+    assert_eq!(dev_spec.as_deref(), Some("~1.0.0"), "savePeer also saves it as a dev dependency");
+
+    drop((root, mock_instance));
+}
+
+/// `--save-prefix` and `--no-save-peer` overrule the `savePrefix` and
+/// `savePeer` settings, in the usual CLI-beats-config order.
+#[test]
+fn save_flags_overrule_the_save_settings() {
+    let (root, workspace, mock_instance) =
+        add_with_save_settings(&["add", "--save-prefix", "^", "--no-save-peer"]);
+
+    let manifest =
+        workspace.join("package.json").pipe(PackageManifest::from_path).expect("read manifest");
+    let prod_spec = manifest
+        .dependencies([DependencyGroup::Prod])
+        .find(|(name, _)| *name == "@pnpm.e2e/hello-world-js-bin")
+        .map(|(_, spec)| spec.to_string());
+    let peer_spec = manifest
+        .dependencies([DependencyGroup::Peer])
+        .find(|(name, _)| *name == "@pnpm.e2e/hello-world-js-bin")
+        .map(|(_, spec)| spec.to_string());
+    eprintln!("PROD: {prod_spec:?}, PEER: {peer_spec:?}");
+    assert_eq!(prod_spec.as_deref(), Some("^1.0.0"), "--save-prefix must overrule savePrefix");
+    assert_eq!(peer_spec, None, "--no-save-peer must overrule savePeer");
+
+    drop((root, mock_instance));
+}
+
+/// Run `pnpm add @pnpm.e2e/hello-world-js-bin` in a workspace whose
+/// `pnpm-workspace.yaml` sets `savePrefix: '~'` and `savePeer: true`.
+fn add_with_save_settings(args: &[&str]) -> (TempDir, PathBuf, TestRegistry) {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        std::fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    if !workspace_yaml.ends_with('\n') {
+        workspace_yaml.push('\n');
+    }
+    workspace_yaml.push_str("savePrefix: '~'\nsavePeer: true\n");
+    std::fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    pacquet.with_args(args).with_arg("@pnpm.e2e/hello-world-js-bin").assert().success();
+
+    (root, workspace, mock_instance)
+}
+
+/// `saveWorkspaceProtocol` decides what `pnpm add <pkg>@workspace:…`
+/// writes back. The rolling default drops the version so the range
+/// never has to be rewritten when the local package is bumped; `true`
+/// pins the workspace package's *actual* version (not the one the user
+/// typed); `false` still honors an explicit `workspace:` request.
+///
+/// Verified against the TypeScript CLI for every row.
+#[test]
+fn save_workspace_protocol_decides_the_saved_workspace_range() {
+    const LIB: &str = "@pnpm.e2e/ws-lib";
+    let cases = [
+        (None, "workspace:^1.2.3", "1.2.3", true, "workspace:^"),
+        (None, "workspace:^1.2.3", "1.2.3", false, "workspace:^"),
+        (None, "workspace:~1.2.3", "1.2.3", true, "workspace:~"),
+        (None, "workspace:1.2.3", "1.2.3", true, "workspace:*"),
+        (None, "workspace:*", "1.2.3", true, "workspace:*"),
+        (Some("true"), "workspace:^1.2.3", "1.2.3", true, "workspace:^1.2.3"),
+        // The typed `~` loses to the default `^`: the pinned form reads
+        // its operator off the previous entry, and there is none here.
+        (Some("true"), "workspace:~1.2.3", "1.2.3", true, "workspace:^1.2.3"),
+        // The local version wins over the typed range.
+        (Some("true"), "workspace:^1.0.0", "2.5.0", true, "workspace:^2.5.0"),
+        // A range over a prerelease would not match it, so it is exact.
+        (Some("true"), "workspace:^1.0.0", "2.0.0-beta.1", true, "workspace:2.0.0-beta.1"),
+        (Some("false"), "workspace:^1.2.3", "1.2.3", true, "workspace:^1.2.3"),
+    ];
+
+    for (setting, requested, lib_version, link_workspace_packages, expected) in cases {
+        let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+        let protocol_line = setting
+            .map(|setting| format!("saveWorkspaceProtocol: {setting}\n"))
+            .unwrap_or_default();
+        let yaml = format!(
+            "{HERMETIC_STORE_YAML}packages:\n  - packages/*\nlinkWorkspacePackages: {link_workspace_packages}\n{protocol_line}",
+        );
+        std::fs::write(workspace.join("pnpm-workspace.yaml"), yaml).expect("write workspace yaml");
+        write_json(&workspace.join("package.json"), &serde_json::json!({ "name": "root" }));
+        for (dir, manifest) in [
+            ("lib", serde_json::json!({ "name": LIB, "version": lib_version })),
+            ("app", serde_json::json!({ "name": "ws-app", "version": "1.0.0" })),
+        ] {
+            let package_dir = workspace.join("packages").join(dir);
+            std::fs::create_dir_all(&package_dir).expect("create package dir");
+            write_json(&package_dir.join("package.json"), &manifest);
+        }
+
+        let app_dir = workspace.join("packages/app");
+        Command::cargo_bin("pnpm")
+            .expect("find the pnpm binary")
+            .with_current_dir(&app_dir)
+            .with_args(["add", &format!("{LIB}@{requested}"), "--lockfile-only"])
+            .assert()
+            .success();
+
+        let saved = PackageManifest::from_path(app_dir.join("package.json"))
+            .expect("read app manifest")
+            .dependencies([DependencyGroup::Prod])
+            .find(|(name, _)| *name == LIB)
+            .map(|(_, spec)| spec.to_string());
+        eprintln!("setting={setting:?} requested={requested} local={lib_version} -> {saved:?}");
+        assert_eq!(saved.as_deref(), Some(expected));
+
+        drop(root);
+    }
+}
+
+#[test]
+fn a_bare_workspace_add_uses_the_local_package_and_saved_protocol_setting() {
+    const LIB: &str = "@pnpm.e2e/ws-bare";
+    for (setting, expected) in
+        [(None, "workspace:^"), (Some("true"), "workspace:^1.2.3"), (Some("false"), "^1.2.3")]
+    {
+        let (root, app_dir) =
+            workspace_with_lib(setting, &[(LIB, "1.2.3")], "packages/app/package.json");
+        add_in(&app_dir, LIB);
+
+        assert_eq!(saved_spec(&app_dir, LIB).as_deref(), Some(expected));
+        drop(root);
+    }
+}
+
+/// `workspace:<target>@<range>` installs `<target>` under the name the
+/// selector gave, so the saved specifier has to keep naming the target —
+/// dropping it would leave a `workspace:` entry pointing at the install
+/// name, which resolves to nothing.
+///
+/// Verified against the TypeScript CLI.
+#[test]
+fn an_aliased_workspace_add_keeps_naming_its_target() {
+    const TARGET: &str = "@pnpm.e2e/ws-target";
+    for (setting, expected) in [
+        (None, "workspace:@pnpm.e2e/ws-target@^"),
+        (Some("true"), "workspace:@pnpm.e2e/ws-target@^1.2.3"),
+    ] {
+        let (root, app_dir) =
+            workspace_with_lib(setting, &[(TARGET, "1.2.3")], "packages/app/package.json");
+        add_in(&app_dir, &format!("myalias@workspace:{TARGET}@^1.0.0"));
+
+        assert_eq!(saved_spec(&app_dir, "myalias").as_deref(), Some(expected));
+        drop(root);
+    }
+}
+
+/// The pinned form picks the workspace version by semver, not by string
+/// order: a workspace holding both `9.0.0` and `10.0.0` must pin to
+/// `10.0.0`, which sorts *before* `9.0.0` lexicographically.
+///
+/// Verified against the TypeScript CLI.
+#[test]
+fn the_pinned_form_picks_the_highest_workspace_version_by_semver() {
+    const LIB: &str = "@pnpm.e2e/ws-multi";
+    let (root, app_dir) = workspace_with_lib(
+        Some("true"),
+        &[(LIB, "9.0.0"), (LIB, "10.0.0")],
+        "packages/app/package.json",
+    );
+    add_in(&app_dir, &format!("{LIB}@workspace:*"));
+
+    assert_eq!(saved_spec(&app_dir, LIB).as_deref(), Some("workspace:^10.0.0"));
+    drop(root);
+}
+
+/// The setting is readable from `PNPM_CONFIG_SAVE_WORKSPACE_PROTOCOL`
+/// too, not only `pnpm-workspace.yaml` — pnpm exposes every setting
+/// through its env pass.
+#[test]
+fn the_env_var_drives_the_saved_workspace_range() {
+    const LIB: &str = "@pnpm.e2e/ws-env";
+    for (value, expected) in
+        [("true", "workspace:^1.2.3"), ("rolling", "workspace:^"), ("false", "workspace:^1.2.3")]
+    {
+        let (root, app_dir) =
+            workspace_with_lib(None, &[(LIB, "1.2.3")], "packages/app/package.json");
+        Command::cargo_bin("pnpm")
+            .expect("find the pnpm binary")
+            .with_current_dir(&app_dir)
+            .with_args(["add", &format!("{LIB}@workspace:^1.0.0"), "--lockfile-only"])
+            .env("PNPM_CONFIG_SAVE_WORKSPACE_PROTOCOL", value)
+            .assert()
+            .success();
+
+        eprintln!("PNPM_CONFIG_SAVE_WORKSPACE_PROTOCOL={value} -> {:?}", saved_spec(&app_dir, LIB));
+        assert_eq!(saved_spec(&app_dir, LIB).as_deref(), Some(expected));
+        drop(root);
+    }
+}
+
+/// Scaffold a workspace whose `packages/*` hold `libs` (one directory
+/// per entry, so the same name may appear at several versions) plus an
+/// `app` member. Returns the temp root and the app's directory.
+fn workspace_with_lib(
+    save_workspace_protocol: Option<&str>,
+    libs: &[(&str, &str)],
+    app_manifest_path: &str,
+) -> (TempDir, PathBuf) {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let protocol_line = save_workspace_protocol
+        .map(|setting| format!("saveWorkspaceProtocol: {setting}\n"))
+        .unwrap_or_default();
+    std::fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!("{HERMETIC_STORE_YAML}packages:\n  - packages/*\nlinkWorkspacePackages: true\n{protocol_line}"),
+    )
+    .expect("write workspace yaml");
+    write_json(&workspace.join("package.json"), &serde_json::json!({ "name": "root" }));
+    for (index, (name, version)) in libs.iter().enumerate() {
+        let package_dir = workspace.join("packages").join(format!("lib{index}"));
+        std::fs::create_dir_all(&package_dir).expect("create lib dir");
+        write_json(
+            &package_dir.join("package.json"),
+            &serde_json::json!({ "name": name, "version": version }),
+        );
+    }
+    let app_dir = workspace.join(app_manifest_path).parent().expect("app dir").to_path_buf();
+    std::fs::create_dir_all(&app_dir).expect("create app dir");
+    write_json(
+        &app_dir.join("package.json"),
+        &serde_json::json!({ "name": "ws-app", "version": "1.0.0" }),
+    );
+    (root, app_dir)
+}
+
+fn add_in(dir: &Path, selector: &str) {
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(dir)
+        .with_args(["add", selector, "--lockfile-only"])
+        .assert()
+        .success();
+}
+
+fn saved_spec(dir: &Path, name: &str) -> Option<String> {
+    PackageManifest::from_path(dir.join("package.json"))
+        .expect("read manifest")
+        .dependencies([DependencyGroup::Prod])
+        .find(|(dep_name, _)| *dep_name == name)
+        .map(|(_, spec)| spec.to_string())
+}
+
+/// Store and cache directories pinned inside the test's own temp root,
+/// and the global virtual store pinned off.
+///
+/// `CommandTempCwd::add_mocked_registry` writes these for tests that
+/// need a registry. The workspace-protocol tests resolve only local
+/// packages, so they skip the registry — but they still have to pin the
+/// directories, or they race every other test over the developer's real
+/// store.
+const HERMETIC_STORE_YAML: &str =
+    "storeDir: ../pacquet-store\ncacheDir: ../pacquet-cache\nenableGlobalVirtualStore: false\n";
+
+fn write_json(path: &Path, value: &serde_json::Value) {
+    std::fs::write(path, value.to_string()).expect("write manifest");
 }

@@ -1,7 +1,6 @@
 use super::{
-    CreateVirtualStore, CreateVirtualStoreError, InstallPackageBySnapshotError,
-    emit_warm_snapshot_progress, integrity_equal, removed_child_aliases, snapshot_cache_key,
-    snapshot_deps_equal,
+    CreateVirtualStore, emit_warm_snapshot_progress, integrity_equal, removed_child_aliases,
+    snapshot_cache_key, snapshot_deps_equal,
 };
 use crate::install_package_by_snapshot::host_platform_selector;
 use pacquet_lockfile::{
@@ -160,6 +159,7 @@ async fn cold_batch_links_slots_in_parallel() {
         Some(&snapshots),
         Some(&packages),
         Some(&allow_build_policy),
+        None,
     );
     let skipped = SkippedSnapshots::new();
     let logged_methods = AtomicU8::new(0);
@@ -400,7 +400,8 @@ fn git_metadata() -> PackageMetadata {
 fn git_hosted_tarball_metadata() -> PackageMetadata {
     PackageMetadata {
         resolution: LockfileResolution::Tarball(TarballResolution {
-            tarball: "https://codeload.github.com/foo/bar/tar.gz/abc1234".to_string(),
+            tarball: "https://codeload.github.com/foo/bar/tar.gz/f43f6a1cefff47fb361c88cf4b943fdbcaafe540"
+                .to_string(),
             integrity: None,
             git_hosted: Some(true),
             path: None,
@@ -453,26 +454,19 @@ fn snapshot_cache_key_for_git_hosted_tarball_uses_git_hosted_key() {
     );
 }
 
-/// Failing closed at the cache-key site (rather than only at the
-/// install-side guard) is the whole point of the check duplication —
-/// otherwise a malformed lockfile burns the warm rayon batch before
-/// the install path fires the same error.
+/// A plain remote tarball with no `integrity` is refused when the
+/// fetch path reaches it, so it gets no warm key: the git-hosted key
+/// shape `pickStoreIndexKey` would hand it is shared with every
+/// package of the same id, and a row sitting there would materialize
+/// the snapshot without the refusal ever running.
 #[test]
-fn snapshot_cache_key_rejects_tarball_without_integrity() {
+fn snapshot_cache_key_for_a_refused_tarball_is_absent() {
     let pkg = key("foo", "1.0.0");
     let packages = HashMap::from([(pkg.clone(), tarball_metadata_without_integrity())]);
 
-    let err = snapshot_cache_key(&pkg, &packages, false, &host_platform_selector())
-        .expect_err("missing integrity must reject upfront");
-    assert!(
-        matches!(
-            &err,
-            CreateVirtualStoreError::InstallPackageBySnapshot(
-                InstallPackageBySnapshotError::MissingTarballIntegrity { package_key },
-            ) if package_key == &pkg.to_string(),
-        ),
-        "expected MissingTarballIntegrity for `{pkg}`, got {err:?}",
-    );
+    let received = snapshot_cache_key(&pkg, &packages, false, &host_platform_selector())
+        .expect("snapshot_cache_key must not error");
+    assert_eq!(received, None, "a tarball the fetch path refuses must not warm-hit");
 }
 
 fn tarball_metadata_without_integrity() -> PackageMetadata {

@@ -1,20 +1,18 @@
-use std::{collections::HashMap, fs::read_to_string};
+use std::{collections::HashMap, fs::read_to_string, io::Write};
 
 use insta::assert_snapshot;
 use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
 use tempfile::{NamedTempFile, tempdir};
 
-#[cfg(unix)]
-use super::safe_read_package_json_from_dir;
 use super::{
     BundleDependencies, PackageManifest, PackageManifestError, apply_runtime_on_fail_override,
     convert_dependencies_to_engines_runtime, convert_engines_runtime_to_dependencies,
-    node_version_from_engines_runtime,
+    extract_license, node_version_from_engines_runtime, parse_manifest_bytes,
+    safe_read_package_json_from_dir,
 };
 use crate::DependencyGroup;
 use serde_json::json;
-use std::io::Write;
 
 #[cfg(unix)]
 #[test]
@@ -1076,4 +1074,114 @@ fn noop_save_does_not_rewrite_the_file() {
     manifest.add_dependency("zebra", "1.0.0", DependencyGroup::Prod).unwrap();
     manifest.save().unwrap();
     assert_eq!(read_to_string(&path).unwrap(), original);
+}
+
+/// Editors on Windows — and published packages such as Vite's
+/// `utf8-bom-package` fixture — write manifests with a leading UTF-8 BOM.
+/// pnpm decodes them through `strip-bom`, so pacquet must accept them too
+/// instead of failing at line 1 column 1.
+#[test]
+fn from_path_reads_a_manifest_that_starts_with_a_utf8_bom() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("package.json");
+    std::fs::write(&path, "\u{feff}{\n  \"name\": \"fixture\",\n  \"version\": \"1.0.0\"\n}\n")
+        .unwrap();
+
+    let manifest = PackageManifest::from_path(path).unwrap();
+    assert_eq!(manifest.value().get("name").unwrap(), &json!("fixture"));
+    assert_eq!(manifest.value().get("version").unwrap(), &json!("1.0.0"));
+}
+
+/// The BOM belongs to the file, not to the manifest, so reading one never
+/// rewrites the file on its own; the BOM only goes away when a real change
+/// makes the writer emit the manifest afresh, matching what pnpm writes.
+#[test]
+fn saving_a_bom_prefixed_manifest_keeps_the_bom_until_something_changes() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("package.json");
+    let original = "\u{feff}{\n  \"name\": \"fixture\",\n  \"version\": \"1.0.0\"\n}\n";
+    std::fs::write(&path, original).unwrap();
+
+    let mut manifest = PackageManifest::from_path(path.clone()).unwrap();
+    manifest.save().unwrap();
+    assert_eq!(read_to_string(&path).unwrap(), original);
+
+    manifest.add_dependency("fastify", "1.0.0", DependencyGroup::Prod).unwrap();
+    manifest.save().unwrap();
+    let saved = read_to_string(&path).unwrap();
+    eprintln!("SAVED:\n{saved}");
+    assert!(!saved.starts_with('\u{feff}'));
+    assert!(saved.contains(r#""fastify": "1.0.0""#));
+}
+
+#[test]
+fn safe_read_package_json_from_dir_reads_a_manifest_that_starts_with_a_utf8_bom() {
+    let dir = tempdir().unwrap();
+    std::fs::write(dir.path().join("package.json"), "\u{feff}{\"name\":\"fixture\"}").unwrap();
+
+    let manifest = safe_read_package_json_from_dir(dir.path()).unwrap().unwrap();
+    assert_eq!(manifest.get("name").unwrap(), &json!("fixture"));
+}
+
+#[test]
+fn extracts_license_from_modern_and_legacy_manifest_fields() {
+    assert_eq!(extract_license(&json!({ "license": "MIT" })), Some("MIT".to_string()));
+    assert_eq!(
+        extract_license(&json!({ "license": { "type": "Apache-2.0" } })),
+        Some("Apache-2.0".to_string()),
+    );
+    assert_eq!(
+        extract_license(&json!({ "licenses": [{ "type": "MIT" }] })),
+        Some("MIT".to_string()),
+    );
+    assert_eq!(
+        extract_license(&json!({
+            "licenses": [{ "type": "MIT" }, { "name": "Apache-2.0" }]
+        })),
+        Some("(MIT OR Apache-2.0)".to_string()),
+    );
+}
+
+#[test]
+fn modern_license_takes_priority_and_invalid_values_fall_back() {
+    assert_eq!(
+        extract_license(&json!({
+            "license": "BSD-3-Clause",
+            "licenses": [{ "type": "MIT" }]
+        })),
+        Some("BSD-3-Clause".to_string()),
+    );
+    assert_eq!(
+        extract_license(&json!({
+            "license": "",
+            "licenses": [{ "type": "MIT" }]
+        })),
+        Some("MIT".to_string()),
+    );
+    assert_eq!(extract_license(&json!({ "license": 42, "licenses": [] })), None);
+}
+
+/// A BOM is only stripped where a document may legitimately start, so a
+/// stray one in the middle of the manifest stays a parse error.
+#[test]
+fn a_bom_after_the_start_of_the_manifest_is_still_a_parse_error() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("package.json");
+    std::fs::write(&path, "{\u{feff}\"name\":\"fixture\"}").unwrap();
+
+    let Err(err) = PackageManifest::from_path(path.clone()) else {
+        panic!("a stray BOM must not parse")
+    };
+    eprintln!("ERR: {err}");
+    assert!(
+        matches!(&err, PackageManifestError::Parse { path: reported, .. } if reported == &path),
+        "the offending manifest path must be reported, got {err:?}",
+    );
+    assert!(err.to_string().contains(&path.display().to_string()));
+}
+
+#[test]
+fn parse_manifest_bytes_accepts_undecoded_bom_prefixed_bytes() {
+    let manifest = parse_manifest_bytes(b"\xEF\xBB\xBF{\"name\":\"fixture\"}").unwrap();
+    assert_eq!(manifest.get("name").unwrap(), &json!("fixture"));
 }

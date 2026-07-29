@@ -6,6 +6,9 @@
 //! `--frozen-lockfile --lockfile-only` combination still validates the
 //! on-disk lockfile against the manifest and fails when it is stale.
 
+pub mod _utils;
+pub use _utils::append_workspace_yaml_key;
+
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pacquet_testing_utils::{
@@ -101,6 +104,50 @@ fn writes_lockfile_without_downloading_or_linking() {
     assert!(
         workspace.join("node_modules/.pnpm/@pnpm.e2e+pkg-with-1-dep@100.0.0").exists(),
         "a normal install after --lockfile-only must materialize the virtual store",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// A `settings.*` key the lockfile records is part of the frozen
+/// contract too: flipping one after the lockfile was written makes the
+/// recorded resolution unreproducible, so pnpm refuses the install and
+/// names the drifted setting. Pinned end to end because the code and
+/// the quoted name are what CI logs show.
+#[test]
+fn frozen_lockfile_only_rejects_a_drifted_setting() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "is-positive": "1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet.with_args(["install", "--lockfile-only"]).assert().success();
+
+    append_workspace_yaml_key(&workspace, "autoInstallPeers", false);
+
+    let output = pacquet_at(&workspace)
+        .with_args(["install", "--frozen-lockfile", "--lockfile-only"])
+        .output()
+        .expect("spawn pacquet install");
+
+    assert!(
+        !output.status.success(),
+        "a drifted setting must fail the frozen install (stderr: {})",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+    assert!(
+        stderr.contains("ERR_PNPM_LOCKFILE_CONFIG_MISMATCH"),
+        "stderr must name the config-mismatch diagnostic; got:\n{stderr}",
+    );
+    assert!(
+        stderr.contains(r#""settings.autoInstallPeers""#),
+        "stderr must quote the drifted setting; got:\n{stderr}",
     );
 
     drop((root, mock_instance));

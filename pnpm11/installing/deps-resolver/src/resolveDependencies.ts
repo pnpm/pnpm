@@ -1,4 +1,5 @@
 import path from 'node:path'
+import util from 'node:util'
 
 import { type CatalogResolution, type CatalogResolver, matchCatalogResolveResult } from '@pnpm/catalogs.resolver'
 import {
@@ -21,6 +22,7 @@ import {
 import { logger } from '@pnpm/logger'
 import { getPatchInfo, type PatchGroupRecord } from '@pnpm/patching.config'
 import type { PatchInfo } from '@pnpm/patching.types'
+import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { convertEnginesRuntimeToDependencies } from '@pnpm/pkg-manifest.utils'
 import { parseBareSpecifier } from '@pnpm/resolving.npm-resolver'
 import {
@@ -195,6 +197,7 @@ export interface ResolutionContext {
   force: boolean
   preferWorkspacePackages?: boolean
   readPackageHook?: ReadPackageHook
+  overrideBareSpecifier?: (name: string, bareSpecifier: string, dir?: string) => string | undefined
   engineStrict: boolean
   nodeVersion?: string
   pnpmVersion: string
@@ -404,22 +407,28 @@ export async function resolveRootDependencies (
   let workspaceRootDeps: HoistableRootDep[]
   if (ctx.resolvePeersFromWorkspaceRoot) {
     const rootImporterIndex = importers.findIndex(({ options }) => options.parentIds[0] === '.')
-    workspaceRootDeps = getHoistableRootDeps(
+    workspaceRootDeps = await getHoistableRootDeps(
       importers[rootImporterIndex],
       pkgAddressesByImportersWithoutPeers[rootImporterIndex]?.pkgAddresses ?? []
     )
   } else {
     workspaceRootDeps = []
   }
-  const _hoistPeers = hoistPeers.bind(null, {
-    autoInstallPeers: ctx.autoInstallPeers,
-    allPreferredVersions: ctx.allPreferredVersions,
-    workspaceRootDeps,
-  })
   /* eslint-disable no-await-in-loop */
   while (true) {
     const allMissingOptionalPeersByImporters = await Promise.all(pkgAddressesByImportersWithoutPeers.map(async (importerResolutionResult, index) => {
       const { parentPkgAliases, preferredVersions, options } = importers[index]
+      // The importer is the manifest the hoisted peer is added to, so a local
+      // override's `link:`/`file:` target is made relative to its directory,
+      // exactly as it would be for a dependency the importer declares.
+      const _hoistPeers = hoistPeers.bind(null, {
+        autoInstallPeers: ctx.autoInstallPeers,
+        allPreferredVersions: ctx.allPreferredVersions,
+        workspaceRootDeps,
+        overrideBareSpecifier: ctx.overrideBareSpecifier == null
+          ? undefined
+          : (name, range) => ctx.overrideBareSpecifier!(name, range, options.prefix),
+      })
       const allMissingOptionalPeers: Record<string, string[]> = {}
       while (true) {
         for (const pkgAddress of importerResolutionResult.pkgAddresses) {
@@ -477,7 +486,7 @@ export async function resolveRootDependencies (
     await Promise.all(allMissingOptionalPeersByImporters.map(async (allMissingOptionalPeers, index) => {
       const { preferredVersions, parentPkgAliases, options } = importers[index]
       if (Object.keys(allMissingOptionalPeers).length && ctx.allPreferredVersions) {
-        const optionalDependencies = getHoistableOptionalPeers(allMissingOptionalPeers, ctx.allPreferredVersions)
+        const optionalDependencies = getHoistableOptionalPeers(allMissingOptionalPeers, ctx.allPreferredVersions, workspaceRootDeps)
         if (Object.keys(optionalDependencies).length) {
           hasNewMissingPeers = true
           const wantedDependencies = getNonDevWantedDependencies({ optionalDependencies })
@@ -511,16 +520,17 @@ export async function resolveRootDependencies (
  * re-resolving with a lockfile hoists the same version as a fresh install of
  * the same manifest.
  */
-function getHoistableRootDeps (
+async function getHoistableRootDeps (
   rootImporter: ImporterToResolve | undefined,
   rootPkgAddresses: PkgAddressOrLink[]
-): HoistableRootDep[] {
+): Promise<HoistableRootDep[]> {
   const wantedSpecifierByAlias = new Map<string, string>()
   for (const wantedDep of rootImporter?.wantedDependencies ?? []) {
     if (wantedDep.alias && wantedDep.bareSpecifier) {
       wantedSpecifierByAlias.set(wantedDep.alias, wantedDep.bareSpecifier)
     }
   }
+  const rootDir = rootImporter?.options.prefix
   const rootDeps: HoistableRootDep[] = rootPkgAddresses.map((pkgAddress) => ({
     alias: pkgAddress.alias,
     pkgName: pkgAddress.pkg.name,
@@ -535,7 +545,63 @@ function getHoistableRootDeps (
       normalizedBareSpecifier: bareSpecifier,
     })
   }
-  return rootDeps
+  return Promise.all(rootDeps.map(async (rootDep) => {
+    if (rootDep.normalizedBareSpecifier == null || !isProjectRelativeSpecifier(rootDep.normalizedBareSpecifier)) {
+      return rootDep
+    }
+    return pinProjectRelativeDepToItsVersion(rootDep, rootDir)
+  }))
+}
+
+/**
+ * `link:`, `file:`, and the path form of `workspace:` name a directory relative
+ * to the project that declares them, so the root's specifier cannot be hoisted
+ * verbatim — it would reach a different path from the importer the peer is
+ * hoisted into, or nothing. A `workspace:` range is not path-relative: it
+ * selects the same workspace package from every importer, so it needs none of
+ * this.
+ */
+function isProjectRelativeSpecifier (bareSpecifier: string): boolean {
+  return bareSpecifier.startsWith('link:') || bareSpecifier.startsWith('file:') || bareSpecifier.startsWith('workspace:.')
+}
+
+/**
+ * Substitutes the linked package's own version for its path, so the root keeps
+ * the authority over the peer that a registry dependency has, and the peer
+ * resolves to the same package from every importer. The manifest is read from
+ * disk rather than taken from `pkgAddress.pkg`, which a linked dependency
+ * reused from the lockfile does not have — reading it makes a repeat install
+ * hoist what a fresh install of the same manifest hoists. A target with no
+ * manifest to read (a `file:` tarball, a path that does not exist) or no
+ * version in it is not a candidate.
+ */
+async function pinProjectRelativeDepToItsVersion (
+  rootDep: HoistableRootDep,
+  rootDir: string | undefined
+): Promise<HoistableRootDep> {
+  const pathWithoutProtocol = rootDep.normalizedBareSpecifier!.slice(rootDep.normalizedBareSpecifier!.indexOf(':') + 1)
+  const manifest = rootDir == null
+    ? null
+    : await readManifestOfLocalTarget(path.resolve(rootDir, pathWithoutProtocol))
+  if (manifest?.version == null || semver.valid(manifest.version) == null) {
+    return { ...rootDep, normalizedBareSpecifier: undefined }
+  }
+  return {
+    alias: rootDep.alias,
+    pkgName: manifest.name ?? rootDep.pkgName,
+    normalizedBareSpecifier: manifest.version,
+  }
+}
+
+async function readManifestOfLocalTarget (dir: string): Promise<PackageManifest | null> {
+  try {
+    return await safeReadPackageJsonFromDir(dir)
+  } catch (err: unknown) {
+    // A `file:` target is a tarball as often as a directory, and a path
+    // component of a tarball is not a directory to read a manifest from.
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOTDIR') return null
+    throw err
+  }
 }
 
 interface ResolvedDependenciesResult {

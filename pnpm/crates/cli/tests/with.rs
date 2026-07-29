@@ -1,5 +1,6 @@
 //! Ports `pnpm11/pnpm/test/withCommand.test.ts`.
 
+use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use std::{
@@ -236,4 +237,46 @@ fn stdout(output: &Output) -> String {
 
 fn stderr(output: &Output) -> String {
     String::from_utf8_lossy(&output.stderr).into_owned()
+}
+
+/// A task runner that pins `packageManager` spawns many `pnpm run`
+/// children at once, and on a cold cache every one of them installs the
+/// same engine into the same host-wide store slot. They must not clobber
+/// each other's slot mid-install.
+#[test]
+fn concurrent_engine_installs_all_succeed_on_a_cold_cache() {
+    const CONCURRENCY: usize = 7;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_manifest(&workspace, &serde_json::json!({ "name": "project", "version": "1.0.0" }));
+
+    // Every child is spawned before any of them is waited on — that
+    // overlap is the whole point, since a serial run never races.
+    let registry_arg = format!("--config.registry={}", mock_instance.url());
+    let mut children = Vec::with_capacity(CONCURRENCY);
+    for _ in 0..CONCURRENCY {
+        let pacquet = Command::cargo_bin("pnpm").expect("find the pnpm binary");
+        children.push(
+            test_command(pacquet, root.path())
+                .current_dir(&workspace)
+                .args([registry_arg.as_str(), "with", PINNED_PNPM_VERSION, "help"])
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped())
+                .spawn()
+                .expect("spawn a concurrent engine install"),
+        );
+    }
+
+    let mut outputs = Vec::with_capacity(CONCURRENCY);
+    for child in children {
+        outputs.push(child.wait_with_output().expect("wait for a concurrent engine install"));
+    }
+    for output in &outputs {
+        assert_success(output);
+        assert!(stdout(output).contains("Version 9.3.0"), "stdout:\n{}", stdout(output));
+    }
+
+    drop((root, mock_instance));
 }

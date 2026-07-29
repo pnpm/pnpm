@@ -1897,16 +1897,16 @@ mod peers {
         assert_eq!(bad[0].wanted_range, "10.0.0");
     }
 
-    /// A child whose first walk had no manifest (`result.manifest ==
-    /// None` — the shape git / tarball / local resolvers return when
-    /// the registry response carries no manifest body) must keep the
-    /// non-leaf classification the eager walk picked when it's reached
-    /// again through a lazy revisit. Regression for the manifest-less
-    /// divergence between `pkg_is_leaf` and the inferred
-    /// `children_by_id.is_empty()` check the lazy realizer used before
-    /// `ResolvedPackage::is_leaf` was persisted.
+    /// A child that declares only peer dependencies is non-leaf while
+    /// its `children_by_id` entry stays empty — peers are hoisted to the
+    /// importer rather than walked as edges. It must keep the non-leaf
+    /// classification the eager walk picked when it's reached again
+    /// through a lazy revisit. Regression for the divergence between
+    /// `pkg_is_leaf` and the inferred `children_by_id.is_empty()` check
+    /// the lazy realizer used before `ResolvedPackage::is_leaf` was
+    /// persisted.
     #[tokio::test]
-    async fn revisit_with_no_manifest_child_keeps_per_occurrence_node_id() {
+    async fn revisit_with_peer_only_child_keeps_per_occurrence_node_id() {
         use crate::node_id::NodeId;
         let mut table = HashMap::new();
         // Two siblings that both depend on `parent`, so `parent` is
@@ -1947,25 +1947,27 @@ mod peers {
                 serde_json::json!({
                     "name": "parent",
                     "version": "1.0.0",
-                    "dependencies": { "manifestless": "^1.0.0" },
+                    "dependencies": { "peer-only": "^1.0.0" },
                     "peerDependencies": { "peer": "^1.0.0" }
                 }),
             ),
         );
-        // `manifestless` resolves without a manifest body. Without
-        // persistence, the lazy realizer would misclassify this as a
-        // leaf (children_by_id entry is empty AND peer_dependencies
-        // is empty) and collapse the revisit onto `NodeId::Leaf`.
-        let manifestless = {
-            let mut result = fake_result(
-                "manifestless",
+        // `peer-only` declares a peer and nothing else, so its
+        // `children_by_id` entry stays empty. Without persistence, the
+        // lazy realizer would read that emptiness as leaf-ness and
+        // collapse the revisit onto `NodeId::Leaf`.
+        table.insert(
+            ("peer-only".to_string(), "^1.0.0".to_string()),
+            fake_result(
+                "peer-only",
                 "1.0.0",
-                serde_json::json!({ "name": "manifestless", "version": "1.0.0" }),
-            );
-            result.manifest = None;
-            result
-        };
-        table.insert(("manifestless".to_string(), "^1.0.0".to_string()), manifestless);
+                serde_json::json!({
+                    "name": "peer-only",
+                    "version": "1.0.0",
+                    "peerDependencies": { "peer": "^1.0.0" }
+                }),
+            ),
+        );
         table.insert(
             ("peer".to_string(), "^1.0.0".to_string()),
             fake_result("peer", "1.0.0", serde_json::json!({ "name": "peer", "version": "1.0.0" })),
@@ -1994,34 +1996,31 @@ mod peers {
         .unwrap();
 
         // First-walk classification must be non-leaf — `pkg_is_leaf`
-        // returns false when the manifest is None.
+        // counts a declared peer as a child.
         assert!(
-            !tree.packages.get("manifestless@1.0.0").expect("manifestless resolved").is_leaf,
-            "manifest-less packages must keep is_leaf=false (eager walker contract)",
+            !tree.packages.get("peer-only@1.0.0").expect("peer-only resolved").is_leaf,
+            "a package declaring a peer must keep is_leaf=false (eager walker contract)",
         );
 
         resolve_peers(&mut tree, ResolvePeersOptions::default());
 
-        // After lazy realization, every occurrence of `manifestless`
-        // must use a Counter NodeId — the same shape the eager walker
+        // After lazy realization, every occurrence of `peer-only` must
+        // use a Counter NodeId — the same shape the eager walker
         // assigned on first visit. A `Leaf` NodeId here would mean
         // `realize_children` misclassified the package and collapsed
         // distinct occurrences, breaking per-call-site state for any
         // future visitor that descends through it.
-        let manifestless_node_ids: Vec<&NodeId> = tree
+        let peer_only_node_ids: Vec<&NodeId> = tree
             .dependencies_tree
             .iter()
-            .filter(|(_, node)| node.resolved_package_id == "manifestless@1.0.0")
+            .filter(|(_, node)| node.resolved_package_id == "peer-only@1.0.0")
             .map(|(id, _)| id)
             .collect();
-        assert!(
-            !manifestless_node_ids.is_empty(),
-            "expected at least one tree entry for manifestless",
-        );
-        for id in &manifestless_node_ids {
+        assert!(!peer_only_node_ids.is_empty(), "expected at least one tree entry for peer-only");
+        for id in &peer_only_node_ids {
             assert!(
                 matches!(id, NodeId::Counter(_)),
-                "manifest-less child must use Counter NodeId in every occurrence, got {id:?}",
+                "a peer-declaring child must use Counter NodeId in every occurrence, got {id:?}",
             );
         }
     }
@@ -2805,6 +2804,22 @@ mod peer_own_dep_shadowing {
         table
     }
 
+    /// [`parser_table`] plus the higher `types` an importer can hold as
+    /// a direct dependency of its own.
+    fn shadowing_table() -> HashMap<(String, String), pacquet_resolving_resolver_base::ResolveResult>
+    {
+        let mut table = parser_table();
+        table.insert(
+            ("types".to_string(), "^2.0.0".to_string()),
+            fake_result(
+                "types",
+                "2.0.0",
+                serde_json::json!({ "name": "types", "version": "2.0.0" }),
+            ),
+        );
+        table
+    }
+
     #[tokio::test]
     async fn auto_install_peers_keeps_the_peer_and_drops_the_own_dep() {
         let resolver = StubResolver { table: parser_table(), calls: Mutex::new(Vec::new()) };
@@ -2842,6 +2857,69 @@ mod peer_own_dep_shadowing {
             "the peer is dropped when the package supplies the name itself",
         );
         assert!(tree.packages.contains_key("types@1.0.0"), "the own dependency is walked");
+    }
+
+    /// `types` is a direct dependency of the importer, so it is in
+    /// `parser`'s parent scope and the peer edge resolves against it
+    /// instead of `parser` nesting its own copy — pnpm's
+    /// `parentPkgAliases` arm of the omission, which applies with
+    /// `autoInstallPeers` off.
+    #[tokio::test]
+    async fn a_peer_in_the_parent_scope_shadows_the_own_dep() {
+        let resolver = StubResolver { table: shadowing_table(), calls: Mutex::new(Vec::new()) };
+        let (_tmp, manifest) =
+            fake_manifest(serde_json::json!({ "parser": "^1.0.0", "types": "^2.0.0" }));
+
+        let tree =
+            resolve_dependency_tree(&resolver, &manifest, [DependencyGroup::Prod], opts(false))
+                .await
+                .unwrap();
+
+        let parser = tree.packages.get("parser@1.0.0").expect("parser resolved");
+        assert!(
+            parser.peer_dependencies.contains_key("types"),
+            "the peer survives when the parent scope already supplies the name",
+        );
+        assert!(
+            !tree.packages.contains_key("types@1.0.0"),
+            "the shadowed own dependency is not walked as a child",
+        );
+        assert!(tree.packages.contains_key("types@2.0.0"), "the parent's copy is the one resolved");
+    }
+
+    /// The scope accumulates level by level: `types` is the importer's
+    /// direct dependency and `parser` sits two levels below it.
+    #[tokio::test]
+    async fn the_parent_scope_reaches_every_level_below_it() {
+        let mut table = shadowing_table();
+        table.insert(
+            ("wrapper".to_string(), "^1.0.0".to_string()),
+            fake_result(
+                "wrapper",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "wrapper",
+                    "version": "1.0.0",
+                    "dependencies": { "parser": "^1.0.0" },
+                }),
+            ),
+        );
+        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let (_tmp, manifest) =
+            fake_manifest(serde_json::json!({ "wrapper": "^1.0.0", "types": "^2.0.0" }));
+
+        let tree =
+            resolve_dependency_tree(&resolver, &manifest, [DependencyGroup::Prod], opts(false))
+                .await
+                .unwrap();
+
+        let parser = tree.packages.get("parser@1.0.0").expect("parser resolved");
+        assert!(parser.peer_dependencies.contains_key("types"));
+        assert!(!tree.packages.contains_key("types@1.0.0"));
+        assert!(
+            tree.packages.contains_key("types@2.0.0"),
+            "the importer's copy is the one resolved",
+        );
     }
 
     #[tokio::test]

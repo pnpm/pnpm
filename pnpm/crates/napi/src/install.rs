@@ -25,7 +25,9 @@ use napi_derive::napi;
 use pacquet_hooks::PnpmfileHooks;
 use pacquet_lockfile::{LazyLockfile, Lockfile, MaybeLazyLockfile};
 use pacquet_network::{NetworkSettings, NoProxySetting, ProxyConfig, ThrottledClient, TlsConfig};
-use pacquet_package_manager::{Install, RebuildOptions, ResolvedPackages, UpdateSeedPolicy};
+use pacquet_package_manager::{
+    Install, ProjectMutation, RebuildOptions, ResolvedPackages, UpdateSeedPolicy,
+};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_tarball::MemCache;
 use tokio::sync::Mutex;
@@ -94,6 +96,9 @@ pub struct InstallOptions {
     pub depth: Option<u32>,
     pub include_optional_deps: Option<bool>,
     pub ignore_scripts: Option<bool>,
+    /// Trust lockfile resolutions without verifying them against current
+    /// registry metadata.
+    pub trust_lockfile: Option<bool>,
     pub network_concurrency: Option<u32>,
     pub fetch_retries: Option<u32>,
     pub fetch_retry_factor: Option<u32>,
@@ -113,7 +118,9 @@ pub struct InstallOptions {
     /// `peerDependencyRules` — how peer-dependency mismatches are treated.
     pub peer_dependency_rules: Option<PeerDependencyRulesInput>,
     /// Pre-computed `Authorization` header values keyed by nerf-darted registry
-    /// URI (`//host/path/`), plus `""` for the default registry.
+    /// URI (`//host/path/`), plus `""` for the default registry — which the
+    /// engine pins to the `registry` / `registries.default` passed alongside
+    /// it, never to a registry the project's own `.npmrc` names.
     pub auth_header_by_uri: Option<HashMap<String, String>>,
     pub pnpm_home_dir: Option<String>,
 }
@@ -240,6 +247,12 @@ enum EngineMode {
     PeerIssues(pacquet_package_manager::PeerIssuesSink),
 }
 
+impl EngineMode {
+    fn disable_optimistic_repeat_install(&self) -> bool {
+        matches!(self, Self::Install | Self::PeerIssues(_))
+    }
+}
+
 fn run_install_inner(
     options: &InstallOptions,
     pnpmfile_hook: Option<Arc<dyn PnpmfileHooks>>,
@@ -300,7 +313,7 @@ fn run_install_inner(
     // `update: true` re-resolves the whole graph to the highest in-range
     // version — pnpm's `update: true` / `depth: Infinity`. The binding takes no
     // package selectors, so an update always targets every dependency
-    // (`UpdateSeedPolicy::DropAll`); `depth` is only pnpm's direct-vs-any-depth
+    // (`UpdateSeedPolicy::drop_all()`); `depth` is only pnpm's direct-vs-any-depth
     // selector toggle, which has no effect without selectors and is accepted for
     // API compatibility only. Mirrors `pacquet_package_manager::Update`, which
     // forces `prefer_frozen_lockfile: false` and a non-frozen path so the
@@ -342,8 +355,12 @@ fn run_install_inner(
         options.prefer_frozen_lockfile
     };
     let update_seed_policy =
-        if update_requested { UpdateSeedPolicy::DropAll } else { UpdateSeedPolicy::KeepAll };
-    let is_full_install = matches!(mode, EngineMode::Install);
+        if update_requested { UpdateSeedPolicy::drop_all() } else { UpdateSeedPolicy::KeepAll };
+    let mutation = if matches!(mode, EngineMode::Install) {
+        ProjectMutation::InstallWorkspace
+    } else {
+        ProjectMutation::NoInstall
+    };
 
     let runtime =
         tokio::runtime::Builder::new_multi_thread().enable_all().build().map_err(|error| {
@@ -369,7 +386,7 @@ fn run_install_inner(
                 skip_runtimes: false,
                 trust_lockfile: config.trust_lockfile,
                 update_checksums: false,
-                is_full_install,
+                mutation,
                 installs_only: true,
                 supported_architectures: None,
                 node_linker: config.node_linker,
@@ -385,10 +402,12 @@ fn run_install_inner(
                     EngineMode::Install | EngineMode::Rebuild(_) => None,
                 },
                 catalogs_override: None,
-                // The optimistic repeat-install fast path skips
-                // resolution entirely — a peer-issue query must never
-                // short-circuit that way.
-                disable_optimistic_repeat_install: matches!(mode, EngineMode::PeerIssues(_)),
+                // The optimistic repeat-install fast path uses on-disk
+                // manifest mtimes as its freshness signal. NAPI installs use
+                // caller-supplied manifests that can change without touching
+                // package.json, so they must continue to the lockfile
+                // freshness check. Peer-issue queries must always resolve too.
+                disable_optimistic_repeat_install: mode.disable_optimistic_repeat_install(),
                 pnpmfile_hook_override: pnpmfile_hook,
                 workspace_projects_override,
             };
@@ -512,6 +531,7 @@ fn build_overlay(options: &InstallOptions) -> napi::Result<ConfigOverlay> {
         allow_builds: options.allow_builds.clone().map(|map| map.into_iter().collect()),
         dangerously_allow_all_builds: options.dangerously_allow_all_builds,
         ignore_scripts: options.ignore_scripts,
+        trust_lockfile: options.trust_lockfile,
         engine_strict: options.engine_strict,
         node_version: options.node_version.clone(),
         minimum_release_age: options.minimum_release_age.map(u64::from),

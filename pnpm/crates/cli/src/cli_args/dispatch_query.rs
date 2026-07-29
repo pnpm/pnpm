@@ -168,10 +168,10 @@ pub(super) fn peers<'a>(ctx: &RunCtx<'a>, args: PeersArgs) -> miette::Result<Com
     let recursive = ctx.recursive;
     let dir = ctx.dir;
     Ok(Box::pin(async move {
-        if args.run(cfg, dir, recursive)? == PeersOutcome::IssuesFound {
+        if args.run(cfg, dir, recursive)? != PeersOutcome::NoIssues {
             #[expect(
                 clippy::exit,
-                reason = "`peers` exits non-zero when peer issues are found, mirroring pnpm"
+                reason = "`peers` exits non-zero when peer issues are found or the subcommand is unknown, mirroring pnpm"
             )]
             std::process::exit(1);
         }
@@ -583,7 +583,7 @@ pub(super) fn self_update<'a>(
     // Refuse corepack before loading project config, so a broken `.npmrc`
     // / workspace config can't mask the corepack refusal.
     super::self_update::reject_if_corepack()?;
-    let config = (ctx.config)()?;
+    let config = (ctx.config_self_update)()?;
     let dir = ctx.dir;
     macro_rules! run_self_update {
         ($reporter:ty) => {

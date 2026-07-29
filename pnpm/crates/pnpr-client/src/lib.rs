@@ -21,6 +21,7 @@ use std::collections::{BTreeMap, HashSet};
 
 use derive_more::{Display, Error, From};
 use futures_util::StreamExt as _;
+use pacquet_catalogs_types::Catalogs;
 use pacquet_config::TrustPolicy;
 use pacquet_lockfile::Lockfile;
 use pacquet_lockfile_verification::{RenderedViolation, VerifyError};
@@ -54,8 +55,15 @@ pub struct ResolveOptions {
     /// its route policy, so none are placed in the request body.
     pub authorization: Option<String>,
     /// The client's `overrides` (selector -> spec) as raw JSON, applied
-    /// at resolve time server-side.
+    /// at resolve time server-side. Sent unresolved: `catalog:` references
+    /// in them are resolved server-side against [`Self::catalogs`].
     pub overrides: Option<serde_json::Value>,
+    /// The client's workspace catalogs (`catalog:` / `catalogs:` from
+    /// `pnpm-workspace.yaml`). The workspace the server reconstructs from
+    /// this request carries no catalog sections, so without these it
+    /// cannot resolve a `catalog:` specifier in either dependencies or
+    /// overrides ([pnpm/pnpm#13232](https://github.com/pnpm/pnpm/issues/13232)).
+    pub catalogs: Option<Catalogs>,
     /// The client's existing on-disk lockfile, when present. Sent both
     /// as the verification target and the resolution-reuse seed.
     pub lockfile: Option<Lockfile>,
@@ -105,6 +113,7 @@ pub struct ResolveProjectsOptions {
     pub named_registries: DepMap,
     pub authorization: Option<String>,
     pub overrides: Option<serde_json::Value>,
+    pub catalogs: Option<Catalogs>,
     pub lockfile: Option<Lockfile>,
     pub frozen_lockfile: bool,
     pub prefer_frozen_lockfile: Option<bool>,
@@ -133,6 +142,7 @@ impl From<ResolveOptions> for ResolveProjectsOptions {
             named_registries: opts.named_registries,
             authorization: opts.authorization,
             overrides: opts.overrides,
+            catalogs: opts.catalogs,
             lockfile: opts.lockfile,
             frozen_lockfile: opts.frozen_lockfile,
             prefer_frozen_lockfile: opts.prefer_frozen_lockfile,
@@ -427,6 +437,7 @@ impl PnprClient {
             "registry": opts.registry,
             "namedRegistries": opts.named_registries,
             "overrides": opts.overrides,
+            "catalogs": opts.catalogs,
             "lockfile": opts.lockfile,
             "frozenLockfile": opts.frozen_lockfile,
             "preferFrozenLockfile": opts.prefer_frozen_lockfile,

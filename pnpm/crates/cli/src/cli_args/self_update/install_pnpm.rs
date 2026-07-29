@@ -12,7 +12,7 @@ use pacquet_config::{Config, PackageManagerBootstrap};
 use pacquet_global::{clean_orphaned_install_dirs, create_install_dir, find_global_package};
 use pacquet_graph_hasher::{format_global_virtual_store_path, host_arch, host_libc, host_platform};
 use pacquet_package_is_installable::SupportedArchitectures;
-use pacquet_package_manifest::DependencyGroup;
+use pacquet_package_manifest::{DependencyGroup, parse_manifest};
 use pacquet_registry::PinnedVersion;
 use pacquet_reporter::Reporter;
 use serde_json::Value;
@@ -161,7 +161,7 @@ pub(super) fn assert_pnpm_runs(
 pub(super) fn installed_version(install_dir: &Path, package_name: &str) -> Option<String> {
     let pkg_json = package_dir(install_dir, package_name).join("package.json");
     let text = fs::read_to_string(pkg_json).ok()?;
-    let value: Value = serde_json::from_str(&text).ok()?;
+    let value: Value = parse_manifest(&text).ok()?;
     value.get("version").and_then(Value::as_str).map(ToString::to_string)
 }
 
@@ -496,18 +496,63 @@ pub(crate) fn package_dir(install_dir: &Path, package_name: &str) -> PathBuf {
 /// Hard-link `src` to `dest`, replacing any existing file. Marks the
 /// result executable on Unix (a copy/link can lose the bit).
 fn force_link(src: &Path, dest: &Path) -> std::io::Result<()> {
-    match fs::remove_file(dest) {
+    // The engine's global-virtual-store slot is shared by every process
+    // on the host, and each of them re-links the native binary on its way
+    // through. Unlinking a `dest` that is already the wanted inode would
+    // pull the executable out from under a concurrent process running it,
+    // so the already-linked case is left alone, and a `dest` that must
+    // actually change is replaced by a rename rather than an unlink —
+    // a rename swaps the dirent and leaves a running process on the inode
+    // it opened.
+    if same_file::is_same_file(src, dest).unwrap_or(false) {
+        return Ok(());
+    }
+    let file_name = dest.file_name().unwrap_or(dest.as_os_str()).to_string_lossy().into_owned();
+    let staged = dest.with_file_name(format!(".{file_name}.{}.pacquet-tmp", std::process::id()));
+    match fs::remove_file(&staged) {
         Ok(()) => {}
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
         Err(err) => return Err(err),
     }
-    fs::hard_link(src, dest)?;
+    fs::hard_link(src, &staged)?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(dest, fs::Permissions::from_mode(0o755))?;
+        if let Err(err) = fs::set_permissions(&staged, fs::Permissions::from_mode(0o755)) {
+            let _ = fs::remove_file(&staged);
+            return Err(err);
+        }
     }
-    Ok(())
+    swap_into_place(&staged, dest).inspect_err(|_| {
+        let _ = fs::remove_file(&staged);
+    })
+}
+
+/// `rename` `staged` over `dest`, retrying briefly.
+///
+/// Replacing a file another process has open fails on Windows with a
+/// sharing violation, and this destination is an executable several pnpm
+/// processes reach at once — plus whatever an antivirus or search
+/// indexer holds open behind them. Those handles are released in
+/// milliseconds, so a short retry turns a spurious install failure into
+/// a pause. A destination that stays busy still surfaces its error.
+fn swap_into_place(staged: &Path, dest: &Path) -> std::io::Result<()> {
+    /// Ten tries backing off linearly, ~1.1s of sleep in total: long
+    /// enough to outlast a scanner's handle, short enough not to stall a
+    /// command whose destination is genuinely blocked.
+    const ATTEMPTS: usize = 10;
+    const BACKOFF: std::time::Duration = std::time::Duration::from_millis(25);
+
+    for attempt in 1..ATTEMPTS {
+        match fs::rename(staged, dest) {
+            Ok(()) => return Ok(()),
+            // A missing staged file is not contention — nothing will
+            // change on a retry, so fail now with the real error.
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Err(err),
+            Err(_) => std::thread::sleep(BACKOFF * u32::try_from(attempt).unwrap_or(1)),
+        }
+    }
+    fs::rename(staged, dest)
 }
 
 /// Point the Windows wrapper's `bin` field at the `.exe` variants (the
@@ -519,7 +564,7 @@ fn rewrite_windows_bin_field(wrapper_dir: &Path) {
     let Ok(text) = fs::read_to_string(&pkg_json_path) else {
         return;
     };
-    let Ok(mut pkg) = serde_json::from_str::<Value>(&text) else {
+    let Ok(mut pkg) = parse_manifest(&text) else {
         return;
     };
     let Some(bin) = pkg.get_mut("bin").and_then(Value::as_object_mut) else {

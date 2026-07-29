@@ -8,6 +8,7 @@ use super::{
     DirectDepsByImporter, HoistGraphNode, HoistInputs, HoistedDependencies,
     build_direct_deps_by_importer, build_hoist_graph, get_hoisted_dependencies,
 };
+use indexmap::IndexMap;
 use pacquet_config::matcher::create_matcher;
 use pacquet_lockfile::{
     LockfileResolution, PackageKey, PackageMetadata, PkgName, PkgVerPeer, ProjectSnapshot,
@@ -99,17 +100,17 @@ fn make_lockfile_data(
 }
 
 fn root_direct_deps(pairs: &[(&str, &str, &str)]) -> DirectDepsByImporter {
-    let mut deps: HashMap<String, PackageKey> = HashMap::new();
+    let mut deps = IndexMap::new();
     for (alias, n, v) in pairs {
         deps.insert(alias.to_string(), key(n, v));
     }
-    HashMap::from([(".".to_string(), deps)])
+    IndexMap::from([(".".to_string(), deps)])
 }
 
 #[test]
 fn empty_graph_returns_none() {
     let graph: HashMap<PackageKey, HoistGraphNode> = HashMap::new();
-    let direct: DirectDepsByImporter = HashMap::new();
+    let direct = DirectDepsByImporter::new();
     let skipped: HashSet<PackageKey> = HashSet::new();
     let input = HoistInputs {
         graph: &graph,
@@ -258,6 +259,78 @@ fn first_seen_wins_per_alias() {
 }
 
 #[test]
+fn traversal_matches_pnpm_graph_walker_ownership() {
+    let (snapshots, packages) = make_lockfile_data(&[
+        ("a", "1.0.0", &[("x", "x", "1.0.0")], false),
+        ("x", "1.0.0", &[("z", "z", "1.0.0")], false),
+        ("z", "1.0.0", &[("aaa-shared", "aaa-shared", "1.0.0")], false),
+        ("aaa-shared", "1.0.0", &[("choice", "chosen-through-shared", "1.0.0")], false),
+        ("b", "1.0.0", &[("y", "y", "1.0.0")], false),
+        (
+            "y",
+            "1.0.0",
+            &[("aaa-shared", "aaa-shared", "1.0.0"), ("zzz-competitor", "zzz-competitor", "1.0.0")],
+            false,
+        ),
+        ("zzz-competitor", "1.0.0", &[("choice", "chosen-through-competitor", "1.0.0")], false),
+        ("chosen-through-shared", "1.0.0", &[], false),
+        ("chosen-through-competitor", "1.0.0", &[], false),
+    ]);
+    let graph = build_hoist_graph(&snapshots, &packages);
+    let direct = root_direct_deps(&[("a", "a", "1.0.0"), ("b", "b", "1.0.0")]);
+    let result = get_hoisted_dependencies(&HoistInputs {
+        graph: &graph,
+        direct_deps_by_importer: &direct,
+        skipped: &HashSet::new(),
+        private_pattern: create_matcher(&pats(["*"])),
+        public_pattern: create_matcher(&[]),
+        hoisted_workspace_packages: None,
+    })
+    .expect("non-empty graph");
+
+    let choices: Vec<_> = result
+        .hoisted_dependencies
+        .keys()
+        .filter(|key| key.starts_with("chosen-through-"))
+        .map(String::as_str)
+        .collect();
+    dbg!(&choices);
+    assert_eq!(choices, vec!["chosen-through-competitor@1.0.0"]);
+}
+
+#[test]
+fn traversal_includes_alias_collisions_from_every_importer() {
+    let (snapshots, packages) = make_lockfile_data(&[
+        ("shared", "1.0.0", &[("from-one", "from-one", "1.0.0")], false),
+        ("shared", "2.0.0", &[("from-two", "from-two", "1.0.0")], false),
+        ("from-one", "1.0.0", &[], false),
+        ("from-two", "1.0.0", &[], false),
+    ]);
+    let graph = build_hoist_graph(&snapshots, &packages);
+    let direct = IndexMap::from([
+        (".".to_string(), IndexMap::from([("shared".to_string(), key("shared", "1.0.0"))])),
+        (
+            "packages/other".to_string(),
+            IndexMap::from([("shared".to_string(), key("shared", "2.0.0"))]),
+        ),
+    ]);
+    let result = get_hoisted_dependencies(&HoistInputs {
+        graph: &graph,
+        direct_deps_by_importer: &direct,
+        skipped: &HashSet::new(),
+        private_pattern: create_matcher(&pats(["*"])),
+        public_pattern: create_matcher(&[]),
+        hoisted_workspace_packages: None,
+    })
+    .expect("non-empty graph");
+
+    let hoisted_keys: Vec<_> = result.hoisted_dependencies.keys().map(String::as_str).collect();
+    dbg!(&hoisted_keys);
+    assert!(hoisted_keys.contains(&"from-one@1.0.0"));
+    assert!(hoisted_keys.contains(&"from-two@1.0.0"));
+}
+
+#[test]
 fn direct_dep_blocks_same_alias_transitive() {
     let (snapshots, packages) = make_lockfile_data(&[
         ("has-shared", "1.0.0", &[("shared", "shared", "2.0.0")], false),
@@ -351,7 +424,8 @@ fn symlink_skips_dropped_nodes() {
         kept_key.clone(),
         HoistGraphNode {
             name: PkgName::parse("kept").unwrap(),
-            children: HashMap::new(),
+            children: IndexMap::new(),
+            sort_key: "kept@1.0.0".to_string(),
             has_bin: false,
         },
     );
@@ -359,7 +433,8 @@ fn symlink_skips_dropped_nodes() {
         dropped_key.clone(),
         HoistGraphNode {
             name: PkgName::parse("dropped").unwrap(),
-            children: HashMap::new(),
+            children: IndexMap::new(),
+            sort_key: "dropped@1.0.0".to_string(),
             has_bin: false,
         },
     );
@@ -426,7 +501,8 @@ fn symlink_rejects_traversal_node_name() {
         node_key,
         HoistGraphNode {
             name: PkgName::parse("../../escaped").unwrap(),
-            children: HashMap::new(),
+            children: IndexMap::new(),
+            sort_key: "evil@1.0.0".to_string(),
             has_bin: false,
         },
     );
@@ -523,6 +599,31 @@ fn build_direct_deps_by_importer_collects_from_importers() {
     );
     let dot = result.get(".").expect("root importer present");
     assert_eq!(dot.get("a"), Some(&key("a", "1.0.0")));
+}
+
+#[test]
+fn build_direct_deps_by_importer_uses_caller_precedence() {
+    let alias = name("shared");
+    let project_snapshot = ProjectSnapshot {
+        dependencies: Some(HashMap::from([(
+            alias.clone(),
+            ResolvedDependencySpec { specifier: "1.0.0".to_string(), version: ver("1.0.0").into() },
+        )])),
+        dev_dependencies: Some(HashMap::from([(
+            alias,
+            ResolvedDependencySpec { specifier: "2.0.0".to_string(), version: ver("2.0.0").into() },
+        )])),
+        ..Default::default()
+    };
+    let importers = HashMap::from([(".".to_string(), project_snapshot)]);
+
+    let prod_first =
+        build_direct_deps_by_importer(&importers, [DependencyGroup::Prod, DependencyGroup::Dev]);
+    let dev_first =
+        build_direct_deps_by_importer(&importers, [DependencyGroup::Dev, DependencyGroup::Prod]);
+
+    assert_eq!(prod_first["."]["shared"], key("shared", "1.0.0"));
+    assert_eq!(dev_first["."]["shared"], key("shared", "2.0.0"));
 }
 
 #[test]
@@ -717,7 +818,7 @@ fn workspace_packages_hoist_privately_with_lowest_precedence() {
     // Root directly depends on `a` and on the name `taken`.
     let direct = root_direct_deps(&[("a", "a", "1.0.0"), ("taken", "a", "1.0.0")]);
     let skipped = HashSet::new();
-    let workspace_packages = std::collections::BTreeMap::from([
+    let workspace_packages = IndexMap::from([
         // Free name → hoisted to the project dir.
         ("pkg-a".to_string(), std::path::PathBuf::from("/ws/packages/pkg-a")),
         // Name held by a root direct dep → never hoisted.

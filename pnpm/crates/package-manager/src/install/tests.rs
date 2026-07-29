@@ -4,7 +4,7 @@
 )]
 
 use super::{
-    Install, InstallError, UpToDateFastPathCheck, exclude_linked_dependencies,
+    Install, InstallError, ProjectMutation, UpToDateFastPathCheck, exclude_linked_dependencies,
     install_already_up_to_date, load_workspace_projects, order_project_lifecycle_groups,
     project_requires_lifecycle_scripts, should_write_package_map,
 };
@@ -19,7 +19,7 @@ use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_reporter::{
     BrokenModulesLog, ContextLog, HookLog, IgnoredScriptsLog, LockfileVerificationMessage,
     LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, ProgressLog, ProgressMessage,
-    Reporter, SilentReporter, Stage, StageLog, StatsLog, StatsMessage, SummaryLog,
+    Reporter, ScopeLog, SilentReporter, Stage, StageLog, StatsLog, StatsMessage, SummaryLog,
 };
 use pacquet_store_dir::STORE_VERSION;
 use pacquet_testing_utils::{
@@ -303,7 +303,7 @@ async fn should_install_dependencies() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -463,7 +463,7 @@ async fn fresh_install_reports_strict_minimum_release_age_violations_before_writ
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -545,7 +545,7 @@ async fn install_with_drop_all_seed_policy_bumps_dependency_within_range() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -596,14 +596,14 @@ async fn install_with_drop_all_seed_policy_bumps_dependency_within_range() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
         resolved_packages: &Default::default(),
-        update_seed_policy: crate::UpdateSeedPolicy::DropAll,
+        update_seed_policy: crate::UpdateSeedPolicy::drop_all(),
         auth_override: None,
         resolution_observer: None,
         peer_issues_sink: None,
@@ -673,7 +673,7 @@ async fn install_prunes_surplus_virtual_store_dir() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -755,7 +755,7 @@ async fn install_skips_prune_when_virtual_store_escapes_node_modules() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -839,7 +839,7 @@ async fn lockfile_only_routes_scoped_packages_to_configured_scoped_registry() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -899,7 +899,7 @@ async fn should_error_when_frozen_lockfile_is_requested_but_none_exists() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -956,7 +956,7 @@ async fn should_error_when_frozen_lockfile_and_update_checksums_are_both_set() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: true,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -1042,7 +1042,7 @@ async fn frozen_lockfile_flag_overrides_config_lockfile_false() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -1118,7 +1118,7 @@ async fn npm_alias_dependency_installs_under_alias_key() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -1214,7 +1214,7 @@ async fn unversioned_npm_alias_defaults_to_latest() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -1294,7 +1294,7 @@ async fn frozen_lockfile_flag_with_no_lockfile_errors() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -1398,7 +1398,7 @@ async fn install_emits_pnpm_event_sequence() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -1420,20 +1420,23 @@ async fn install_emits_pnpm_event_sequence() {
 
     let captured = EVENTS.lock().unwrap();
 
-    // Event ordering: manifest snapshot, context,
-    // importing_started, the `pnpm:stats` added/removed pair from
-    // `CreateVirtualStore::run`, then `importing_done` once extraction
-    // and symlink linking are complete,
+    // Event ordering: the scope this run covers, manifest snapshot,
+    // context, importing_started, the `pnpm:stats` added/removed pair
+    // from `CreateVirtualStore::run`, then `importing_done` once
+    // extraction and symlink linking are complete,
     // followed by the `pnpm:ignored-scripts` summary that
     // `BuildModules::run` produces, then summary closing the run. The
     // empty snapshot map still triggers the stats emit (`added: 0`,
     // `removed: 0`), matching pnpm's unconditional emit at link time.
     // The empty lockfile produces no ignored builds, so
-    // `ignored-scripts` carries an empty list.
+    // `ignored-scripts` carries an empty list. Outside a workspace the
+    // scope is the single project, which is the payload pnpm reports
+    // for a run it doesn't spread over a workspace.
     assert!(
         matches!(
             captured.as_slice(),
             [
+                LogEvent::Scope(ScopeLog { selected: 1, total: None, .. }),
                 LogEvent::PackageManifest(PackageManifestLog {
                     message: PackageManifestMessage::Initial { .. },
                     ..
@@ -1451,8 +1454,8 @@ async fn install_emits_pnpm_event_sequence() {
     );
 
     // Empty lockfile produces no ignored builds.
-    let LogEvent::IgnoredScripts(IgnoredScriptsLog { package_names, .. }) = &captured[6] else {
-        unreachable!("ignored-scripts at index 6, asserted above");
+    let LogEvent::IgnoredScripts(IgnoredScriptsLog { package_names, .. }) = &captured[7] else {
+        unreachable!("ignored-scripts at index 7, asserted above");
     };
     assert!(package_names.is_empty(), "no builds in empty lockfile: {package_names:?}");
 
@@ -1463,9 +1466,9 @@ async fn install_emits_pnpm_event_sequence() {
     let LogEvent::PackageManifest(PackageManifestLog {
         message: PackageManifestMessage::Initial { prefix: manifest_prefix, initial },
         ..
-    }) = &captured[0]
+    }) = &captured[1]
     else {
-        unreachable!("first event is package-manifest, asserted above");
+        unreachable!("package-manifest follows the scope, asserted above");
     };
     assert_eq!(manifest_prefix, &expected_prefix);
     assert_eq!(initial, manifest.value());
@@ -1480,9 +1483,9 @@ async fn install_emits_pnpm_event_sequence() {
         store_dir: emitted_store_dir,
         virtual_store_dir: emitted_virtual_store_dir,
         ..
-    }) = &captured[1]
+    }) = &captured[2]
     else {
-        unreachable!("second event is context, asserted above");
+        unreachable!("context follows the manifest snapshot, asserted above");
     };
     assert!(!current_lockfile_exists);
     assert_eq!(emitted_store_dir, &store_dir.join(STORE_VERSION).display().to_string());
@@ -1557,7 +1560,7 @@ async fn install_writes_modules_yaml() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -1673,7 +1676,7 @@ async fn install_writes_workspace_state() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -1922,7 +1925,7 @@ async fn install_optional_failing_postinstall_dep_via_registry_mock_succeeds() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -2006,7 +2009,7 @@ async fn auto_install_peers_does_not_cascade_optional_peers() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -2114,7 +2117,7 @@ async fn meta_only_optional_peers_absent_from_the_graph_are_not_installed() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -2216,7 +2219,7 @@ async fn root_dependency_does_not_override_peers_of_self_contained_subtree() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -2359,7 +2362,7 @@ async fn warm_reinstall_skips_snapshot_when_current_lockfile_matches() {
         skip_runtimes: false,
         trust_lockfile: true, // fixture pins a tripwire tarball URL; skip resolution verification so the tarball-URL check doesn't flag it before the path under test
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -2469,7 +2472,7 @@ async fn warm_reinstall_emits_broken_modules_when_dir_is_missing() {
         skip_runtimes: false,
         trust_lockfile: true, // fixture pins a tripwire tarball URL; skip resolution verification so the tarball-URL check doesn't flag it before the path under test
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -2588,7 +2591,7 @@ async fn context_log_reflects_current_lockfile_after_first_install() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -2651,7 +2654,7 @@ async fn context_log_reflects_current_lockfile_after_first_install() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -2756,7 +2759,7 @@ async fn warm_reinstall_reports_added_zero_and_emits_no_imported_events() {
         skip_runtimes: false,
         trust_lockfile: true, // fixture pins a tripwire tarball URL; skip resolution verification so the tarball-URL check doesn't flag it before the path under test
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -2870,7 +2873,7 @@ async fn frozen_lockfile_errors_when_manifest_drifts_from_lockfile() {
         skip_runtimes: false,
         trust_lockfile: true,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         resolved_packages: &Default::default(),
         supported_architectures: None,
@@ -2945,7 +2948,7 @@ async fn ignore_manifest_check_bypasses_manifest_freshness_gate() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         resolved_packages: &Default::default(),
         supported_architectures: None,
@@ -3021,7 +3024,7 @@ async fn frozen_lockfile_errors_when_overrides_drift_from_lockfile() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         resolved_packages: &Default::default(),
         supported_architectures: None,
@@ -3040,12 +3043,10 @@ async fn frozen_lockfile_errors_when_overrides_drift_from_lockfile() {
     .run::<SilentReporter>()
     .await;
 
-    let err = result.expect_err("overrides drift must surface as OutdatedLockfile");
+    let err = result.expect_err("overrides drift must surface as a config mismatch");
     match err {
-        InstallError::OutdatedLockfile {
-            reason: pacquet_lockfile::StalenessReason::OverridesChanged { .. },
-        } => {}
-        other => panic!("expected OutdatedLockfile::OverridesChanged, got {other:?}"),
+        InstallError::LockfileConfigMismatch { setting: "overrides" } => {}
+        other => panic!("expected LockfileConfigMismatch for `overrides`, got {other:?}"),
     }
 
     drop(dir);
@@ -3125,7 +3126,7 @@ async fn frozen_lockfile_applies_overrides_to_manifest_before_freshness_check() 
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         resolved_packages: &Default::default(),
         supported_architectures: None,
@@ -3243,7 +3244,7 @@ async fn frozen_lockfile_resolves_catalog_protocol_in_overrides_before_freshness
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         resolved_packages: &Default::default(),
         supported_architectures: None,
@@ -3317,7 +3318,7 @@ async fn frozen_lockfile_errors_when_lockfile_has_no_root_importer() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         resolved_packages: &Default::default(),
         supported_architectures: None,
@@ -3416,7 +3417,7 @@ async fn frozen_lockfile_under_gvs_registers_project_and_runs_clean() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         resolved_packages: &Default::default(),
         supported_architectures: None,
@@ -3536,7 +3537,7 @@ async fn gvs_persists_global_virtual_store_dir_in_modules_yaml_and_context_log()
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         resolved_packages: &Default::default(),
         supported_architectures: None,
@@ -3661,7 +3662,7 @@ async fn frozen_lockfile_with_gvs_off_skips_project_registry() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         resolved_packages: &Default::default(),
         supported_architectures: None,
@@ -3752,7 +3753,7 @@ async fn frozen_lockfile_under_gvs_registers_workspace_root_only() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         resolved_packages: &Default::default(),
         supported_architectures: None,
@@ -3968,7 +3969,7 @@ async fn frozen_install_preserves_seeded_skipped_across_reinstall() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -4100,7 +4101,7 @@ async fn frozen_install_silently_swallows_unreachable_optional_tarball() {
         // `trust_lockfile` is the opt-out that skips verification entirely.
         trust_lockfile: true,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -4211,7 +4212,7 @@ async fn frozen_install_propagates_non_optional_fetch_failure() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -4325,7 +4326,7 @@ async fn frozen_install_no_optional_drops_optional_only_snapshots() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -4428,7 +4429,7 @@ async fn frozen_install_optional_included_surfaces_missing_metadata() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -4534,7 +4535,7 @@ async fn frozen_install_no_optional_keeps_shared_non_optional_snapshot() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -4640,7 +4641,7 @@ async fn hoisted_node_linker_empty_lockfile_writes_modules_yaml() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::Hoisted,
@@ -4741,7 +4742,7 @@ async fn hoisted_node_linker_does_not_create_virtual_store_root() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::Hoisted,
@@ -4850,7 +4851,7 @@ async fn frozen_lockfile_install_errors_when_no_variant_matches_host() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         resolved_packages: &Default::default(),
@@ -4957,7 +4958,7 @@ async fn frozen_lockfile_install_skips_runtime_when_skip_runtimes_set() {
         skip_runtimes: true,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         resolved_packages: &Default::default(),
@@ -5067,7 +5068,7 @@ async fn install_rejects_invalid_minimum_release_age_exclude_pattern() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -5178,7 +5179,7 @@ async fn frozen_lockfile_gate_rejects_under_huge_minimum_release_age() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -5274,7 +5275,7 @@ async fn fresh_install_writes_pnpm_lock_yaml_with_expected_shape() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -5362,7 +5363,7 @@ async fn fresh_install_uses_final_peer_suffix_for_transitive_pending_peer() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -5446,7 +5447,7 @@ async fn fresh_install_splits_dev_and_prod_dependency_sections() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -5527,7 +5528,7 @@ async fn fresh_install_records_user_written_specifier() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -5606,7 +5607,7 @@ async fn fresh_install_lockfile_round_trips_through_load_save_load() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -5684,7 +5685,7 @@ async fn fresh_install_with_lockfile_disabled_does_not_write_a_lockfile() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -5764,7 +5765,7 @@ async fn fresh_install_also_writes_current_lockfile_under_virtual_store() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -5858,7 +5859,7 @@ async fn prefer_frozen_install_writes_missing_current_lockfile() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -5900,7 +5901,7 @@ async fn prefer_frozen_install_writes_missing_current_lockfile() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -5972,7 +5973,7 @@ async fn fresh_install_with_lockfile_disabled_skips_current_lockfile_too() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -6047,7 +6048,7 @@ async fn fresh_install_marks_optional_snapshots_in_pnpm_lock_yaml() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -6150,7 +6151,7 @@ async fn fresh_install_skips_platform_incompatible_optional_dependency() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -6216,20 +6217,8 @@ async fn fresh_install_skips_platform_incompatible_optional_dependency() {
         std::fs::read_to_string(&current_lockfile_path).expect("read current lockfile");
     let current_lockfile: Lockfile =
         serde_saphyr::from_str(&current_content).expect("parse current lockfile");
-    assert!(
-        current_lockfile
-            .packages
-            .as_ref()
-            .is_some_and(|packages| packages.contains_key(&skipped_key.without_peer())),
-        "platform-incompatible optional dependency metadata must stay in current lockfile",
-    );
-    assert!(
-        !current_lockfile
-            .snapshots
-            .as_ref()
-            .is_some_and(|snapshots| snapshots.contains_key(&skipped_key)),
-        "platform-incompatible optional dependency must not be saved in current lockfile",
-    );
+    // `.modules.yaml.skipped`, asserted above, is what carries the skip.
+    assert_eq!(current_lockfile, lockfile);
 
     drop((dir, mock_instance));
 }
@@ -6274,7 +6263,7 @@ async fn fresh_install_hoisted_node_linker_records_modules_yaml() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::Hoisted,
@@ -6353,7 +6342,7 @@ async fn fresh_install_honors_skip_runtimes() {
         skip_runtimes: true,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -6436,7 +6425,7 @@ async fn prefer_frozen_lockfile_takes_frozen_path_when_lockfile_is_fresh() {
         skip_runtimes: false,
         trust_lockfile: true, // fixture pins a tripwire tarball URL; skip resolution verification so the tarball-URL check doesn't flag it before the path under test
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -6521,7 +6510,7 @@ async fn no_prefer_frozen_lockfile_flag_forces_fresh_resolve() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -6600,7 +6589,7 @@ async fn stale_lockfile_under_no_flag_falls_through_to_fresh_resolve() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -6683,24 +6672,24 @@ fn filtered_modules_metadata_preserves_only_retained_unselected_entries() {
         ..empty_test_lockfile()
     };
     let previous = Modules {
-        hoisted_dependencies: std::collections::BTreeMap::from([
+        hoisted_dependencies: indexmap::IndexMap::from([
             (
                 retained.to_string(),
-                std::collections::BTreeMap::from([(
+                indexmap::IndexMap::from([(
                     "retained-alias".to_string(),
                     pacquet_modules_yaml::HoistKind::Private,
                 )]),
             ),
             (
                 shared.to_string(),
-                std::collections::BTreeMap::from([(
+                indexmap::IndexMap::from([(
                     "stale-shared-alias".to_string(),
                     pacquet_modules_yaml::HoistKind::Private,
                 )]),
             ),
             (
                 stale_selected.to_string(),
-                std::collections::BTreeMap::from([(
+                indexmap::IndexMap::from([(
                     "stale-selected-alias".to_string(),
                     pacquet_modules_yaml::HoistKind::Private,
                 )]),
@@ -6726,9 +6715,9 @@ fn filtered_modules_metadata_preserves_only_retained_unselected_entries() {
         ..Default::default()
     };
     let mut next = Modules {
-        hoisted_dependencies: std::collections::BTreeMap::from([(
+        hoisted_dependencies: indexmap::IndexMap::from([(
             selected.to_string(),
-            std::collections::BTreeMap::from([(
+            indexmap::IndexMap::from([(
                 "selected-alias".to_string(),
                 pacquet_modules_yaml::HoistKind::Private,
             )]),
@@ -7067,7 +7056,11 @@ async fn run_purge_regression_install(
     config.registry = registry;
     config.virtual_store_dir_max_length = virtual_store_dir_max_length;
     let config = config.leak();
-    let is_full_install = dependency_groups.contains(&DependencyGroup::Dev);
+    let mutation = if dependency_groups.contains(&DependencyGroup::Dev) {
+        ProjectMutation::InstallWorkspace
+    } else {
+        ProjectMutation::InstallSome
+    };
     // One client behind both fields, matching the CLI's single-source
     // wiring documented on [`Install::http_client_arc`].
     let http_client_arc: std::sync::Arc<pacquet_network::ThrottledClient> =
@@ -7088,7 +7081,7 @@ async fn run_purge_regression_install(
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install,
+        mutation,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -7296,7 +7289,7 @@ async fn frozen_install_short_circuits_when_modules_and_lockfile_are_consistent(
         skip_runtimes: false,
         trust_lockfile: true,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::Isolated,
@@ -7489,7 +7482,7 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
         // The optimistic short-circuit must beat it.
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::Isolated,
@@ -7601,7 +7594,11 @@ fn sync_fast_path_matches_optimistic_short_circuit() {
         supported_architectures: None,
     };
     let root = install_already_up_to_date(&check);
-    assert_eq!(root.as_deref(), Some(&*project_root), "fresh state must short-circuit");
+    assert_eq!(
+        root.map(|up_to_date| up_to_date.root).as_deref(),
+        Some(&*project_root),
+        "fresh state must short-circuit",
+    );
 
     // Outdate the manifest relative to the recorded timestamp: the
     // fast path must decline and leave the decision to the full
@@ -7617,7 +7614,7 @@ fn sync_fast_path_matches_optimistic_short_circuit() {
     // The manifest content still matches no lockfile (config.lockfile
     // is off and no current lockfile exists), so the content re-check
     // cannot vouch for it either.
-    assert_eq!(install_already_up_to_date(&check), None, "modified manifest must fall through");
+    assert!(install_already_up_to_date(&check).is_none(), "modified manifest must fall through");
 }
 
 #[test]
@@ -7710,7 +7707,10 @@ fn sync_fast_path_reads_the_workspace_root_wanted_lockfile_from_a_member() {
         supported_architectures: None,
     };
 
-    assert_eq!(install_already_up_to_date(&check).as_deref(), Some(&*workspace_root));
+    assert_eq!(
+        install_already_up_to_date(&check).map(|up_to_date| up_to_date.root).as_deref(),
+        Some(&*workspace_root),
+    );
     assert_eq!(std::fs::read_to_string(&wanted_path).expect("reread wanted lockfile"), current);
 
     std::fs::write(project_root.join(Lockfile::FILE_NAME), current).expect("write member lockfile");
@@ -7730,7 +7730,10 @@ fn sync_fast_path_reads_the_workspace_root_wanted_lockfile_from_a_member() {
         supported_architectures: None,
     };
 
-    assert_eq!(install_already_up_to_date(&per_project_check).as_deref(), Some(&*workspace_root));
+    assert_eq!(
+        install_already_up_to_date(&per_project_check).map(|up_to_date| up_to_date.root).as_deref(),
+        Some(&*workspace_root),
+    );
 }
 
 /// `--frozen-lockfile` disables the optimistic short-circuit because
@@ -7849,7 +7852,7 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
         skip_runtimes: false,
         trust_lockfile: true,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::Isolated,
@@ -7887,7 +7890,7 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
 /// `add` / `remove` mutate the manifest in memory and persist it only
 /// after `Install::run` returns, so the on-disk mtimes the optimistic
 /// check reads still describe the pre-mutation project. A partial
-/// install (`is_full_install: false`) must therefore never take the
+/// install (a `mutation` that is not a full install) must therefore never take the
 /// optimistic short-circuit — otherwise a fresh workspace state would
 /// read as "already up to date" and the mutation would never be
 /// resolved or materialized. The dependency-status check runs only
@@ -7943,7 +7946,7 @@ async fn partial_install_disables_optimistic_short_circuit() {
     };
 
     // Seed the same state the optimistic test uses, so the only
-    // difference between the two is `is_full_install`.
+    // difference between the two is the mutation.
     let seed_modules = Modules {
         layout_version: Some(LayoutVersion),
         node_linker: Some(NodeLinker::Isolated),
@@ -8002,7 +8005,7 @@ async fn partial_install_disables_optimistic_short_circuit() {
         trust_lockfile: true,
         update_checksums: false,
         // The only difference vs the optimistic test above.
-        is_full_install: false,
+        mutation: ProjectMutation::InstallSome,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::Isolated,
@@ -8151,7 +8154,7 @@ async fn optimistic_repeat_install_does_not_short_circuit_when_lockfile_missing(
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::Isolated,
@@ -8242,7 +8245,7 @@ async fn optimistic_repeat_install_round_trips_on_single_project_install() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -8306,7 +8309,7 @@ async fn optimistic_repeat_install_round_trips_on_single_project_install() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -8402,7 +8405,7 @@ async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -8474,7 +8477,7 @@ async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -8569,7 +8572,7 @@ async fn install_then_go_offline() -> (tempfile::TempDir, &'static Config, Packa
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -8665,7 +8668,7 @@ async fn optimistic_repeat_install_short_circuits_offline_when_touched_manifest_
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -8753,7 +8756,7 @@ async fn optimistic_repeat_install_restores_missing_lockfile_offline() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -8905,7 +8908,7 @@ async fn fresh_lockfile_only_with_overrides(
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -9017,7 +9020,7 @@ async fn fresh_lockfile_only_with_compatibility_db(
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -9114,7 +9117,7 @@ async fn fresh_install_applies_package_extensions_to_dependency_manifest() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -9218,7 +9221,7 @@ async fn frozen_lockfile_errors_when_package_extensions_drift_from_lockfile() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         resolved_packages: &Default::default(),
         supported_architectures: None,
@@ -9237,17 +9240,83 @@ async fn frozen_lockfile_errors_when_package_extensions_drift_from_lockfile() {
     .run::<SilentReporter>()
     .await;
 
-    let err = result.expect_err("packageExtensions drift must surface as OutdatedLockfile");
+    let err = result.expect_err("packageExtensions drift must surface as a config mismatch");
     match err {
-        InstallError::OutdatedLockfile {
-            reason: pacquet_lockfile::StalenessReason::PackageExtensionsChecksumChanged { .. },
-        } => {}
+        InstallError::LockfileConfigMismatch { setting: "packageExtensionsChecksum" } => {}
         other => {
-            panic!("expected OutdatedLockfile::PackageExtensionsChecksumChanged, got {other:?}")
+            panic!("expected LockfileConfigMismatch for `packageExtensionsChecksum`, got {other:?}")
         }
     }
 
     drop(dir);
+}
+
+#[tokio::test]
+async fn frozen_lockfile_errors_when_pnpmfile_checksum_drifts() {
+    let dir = tempdir().unwrap();
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    std::fs::create_dir_all(&project_root).unwrap();
+    let manifest = PackageManifest::create_if_needed(project_root.join("package.json")).unwrap();
+
+    let mut config = Config::new();
+    config.store_dir = dir.path().join("pacquet-store").into();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = modules_dir.join(".pacquet");
+    let config = config.leak();
+
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "importers:"
+        "  .: {}"
+    })
+    .expect("parse minimal lockfile");
+
+    std::fs::write(
+        project_root.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { readPackage: pkg => pkg } }\n",
+    )
+    .unwrap();
+
+    let result = Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        emit_initial_manifest: true,
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod],
+        frozen_lockfile: true,
+        prefer_frozen_lockfile: None,
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        mutation: ProjectMutation::InstallWorkspace,
+        installs_only: true,
+        resolved_packages: &Default::default(),
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        lockfile_only: false,
+        dry_run: false,
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        auth_override: None,
+        resolution_observer: None,
+        peer_issues_sink: None,
+        catalogs_override: None,
+        disable_optimistic_repeat_install: false,
+        pnpmfile_hook_override: None,
+        workspace_projects_override: None,
+    }
+    .run::<SilentReporter>()
+    .await;
+
+    assert!(matches!(
+        result,
+        Err(InstallError::LockfileConfigMismatch { setting: "pnpmfileChecksum" })
+    ));
 }
 
 /// Runs a fresh install in `root` with `root_deps` as direct prod
@@ -9308,7 +9377,7 @@ async fn install_with_pnpmfile_reporter<Reporter: self::Reporter + 'static>(
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -9753,7 +9822,7 @@ async fn test_install_purges_node_modules_on_layout_mismatch() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::Isolated,
@@ -9795,7 +9864,7 @@ async fn test_install_purges_node_modules_on_layout_mismatch() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::Hoisted,
@@ -9873,7 +9942,7 @@ async fn test_install_resolve_only_ignores_layout_mismatch() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::Isolated,
@@ -9915,7 +9984,7 @@ async fn test_install_resolve_only_ignores_layout_mismatch() {
         skip_runtimes: false,
         trust_lockfile: false,
         update_checksums: false,
-        is_full_install: true,
+        mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::Hoisted,

@@ -390,6 +390,56 @@ test('self-update respects minimumReleaseAge for implicit latest resolution', as
   expect(JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8')).packageManager).toBe('pnpm@9.0.0')
 })
 
+test('self-update refuses an immature version under strict minimumReleaseAge', async () => {
+  const opts = prepare()
+  const now = Date.now()
+  const metadata = createMetadata('9.1.0', opts.registries.default, [], {
+    '9.1.0': new Date(now - 2 * 60 * 60 * 1000).toISOString(),
+  })
+  getMockAgent().get(opts.registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/pnpm', method: 'GET' })
+    .reply(200, metadata)
+
+  // Non-interactive (jest has no TTY), so the confirmation prompt is skipped
+  // and the update fails closed.
+  await expect(selfUpdate.handler({
+    ...opts,
+    minimumReleaseAge: 24 * 60,
+    minimumReleaseAgeStrict: true,
+  }, [])).rejects.toThrow(/within the minimumReleaseAge cutoff/)
+})
+
+test('self-update installs an immature version when minimumReleaseAge is not strict', async () => {
+  const opts = prepare()
+  const now = Date.now()
+  mockRegistryForUpdate(opts.registries.default, '9.1.0', createMetadata('9.1.0', opts.registries.default, [], {
+    '9.1.0': new Date(now - 2 * 60 * 60 * 1000).toISOString(),
+  }))
+
+  const output = await selfUpdate.handler({
+    ...opts,
+    minimumReleaseAge: 24 * 60,
+  }, [])
+
+  expect(output).toContain('9.1.0')
+})
+
+test('self-update fetches pnpm from the trusted package-manager registry, not the project one', async () => {
+  const opts = prepare()
+  const bootstrapRegistry = 'https://bootstrap-registry.test/'
+  mockRegistryForUpdate(bootstrapRegistry, '9.1.0', createMetadata('9.1.0', bootstrapRegistry))
+
+  // `registries` is what a project `.npmrc` / workspace manifest steers; a
+  // request to it would 404 against the mock agent and fail the test.
+  const output = await selfUpdate.handler({
+    ...opts,
+    registries: { default: 'https://project-registry.test/' },
+    packageManagerRegistries: { default: bootstrapRegistry },
+  }, [])
+
+  expect(output).toContain('9.1.0')
+})
+
 test('self-update rejects a trust downgrade under trustPolicy=no-downgrade', async () => {
   const opts = prepare()
   const registry = opts.registries.default

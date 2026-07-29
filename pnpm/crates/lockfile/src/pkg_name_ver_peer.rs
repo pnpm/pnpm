@@ -45,6 +45,34 @@ impl PkgNameVerPeer {
     pub fn without_peer(&self) -> PkgNameVerPeer {
         PkgNameVerPeer::new(self.name.clone(), self.suffix.without_peer())
     }
+
+    /// The package id pnpm addresses this package by outside the
+    /// lockfile: the store-index row key (`store_index_key` /
+    /// `git_hosted_store_index_key` — referenced as plain text because
+    /// `pacquet-lockfile` deliberately does not depend on
+    /// `pacquet-store-dir`), the `packageId` of a `pnpm:progress`
+    /// event, and the resolution id the git fetchers build their
+    /// `allowBuild` dep path from.
+    ///
+    /// For a registry package this is the peer-stripped key itself
+    /// (`name@version`). For a non-registry resolution — a URL tarball,
+    /// a git-host archive, a `type: git` dependency — it is the bare
+    /// resolution id, without the `name@` prefix the lockfile key
+    /// carries. The store index is a contract shared with the
+    /// TypeScript CLI, which keys those rows by the bare id.
+    #[must_use]
+    pub fn pkg_id(&self) -> String {
+        let mut rendered = self.to_string();
+        // `try_get_package_id` borrows a prefix of its input unless it
+        // drops the `name@` prefix, so truncating reuses this allocation
+        // rather than cloning the slice into a second one.
+        let pkg_id_len = match pacquet_deps_path::try_get_package_id(&rendered) {
+            std::borrow::Cow::Borrowed(pkg_id) => pkg_id.len(),
+            std::borrow::Cow::Owned(pkg_id) => return pkg_id,
+        };
+        rendered.truncate(pkg_id_len);
+        rendered
+    }
 }
 
 #[cfg(test)]

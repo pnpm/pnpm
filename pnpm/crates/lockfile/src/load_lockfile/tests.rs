@@ -4,6 +4,7 @@ use crate::{
 };
 use pacquet_diagnostics::miette::Diagnostic;
 use pretty_assertions::assert_eq;
+use std::{collections::BTreeMap, fmt::Write, path::Path};
 use tempfile::tempdir;
 use text_block_macros::text_block;
 
@@ -95,6 +96,22 @@ fn env_only_lockfile_loads_as_none() {
     let result = Lockfile::load_current_from_virtual_store_dir(&virtual_store_dir)
         .expect("env-only lockfile should not error");
     assert!(result.is_none(), "expected None for env-only lockfile, got: {result:?}");
+}
+
+#[test]
+fn parses_lockfile_larger_than_default_yaml_node_budget() {
+    const IMPORTER_COUNT: usize = 130_000;
+
+    let mut content = String::from("lockfileVersion: '9.0'\n\nimporters:\n");
+    for index in 0..IMPORTER_COUNT {
+        writeln!(content, "  project-{index}: {{}}").expect("write importer");
+    }
+
+    let lockfile = Lockfile::parse(&content, Path::new(Lockfile::FILE_NAME))
+        .expect("parse large lockfile")
+        .expect("large lockfile should be present");
+
+    assert_eq!(lockfile.importers.len(), IMPORTER_COUNT);
 }
 
 #[test]
@@ -227,6 +244,45 @@ snapshots:
     assert!(packages.contains_key(&key));
     let snapshots = lockfile.snapshots.as_ref().expect("snapshots present");
     assert!(snapshots.contains_key(&key));
+}
+
+/// Regression test for <https://github.com/pnpm/pnpm/issues/13307>.
+#[test]
+fn parses_pnpm_10_patched_dependencies_entries() {
+    let lockfile_text = text_block! {
+        "lockfileVersion: '9.0'"
+        ""
+        "patchedDependencies:"
+        "  is-odd@3.0.1:"
+        "    hash: 29572dfbe22f7337d5e2aeab404b7e889550d802c26fa7356730522dd98f4593"
+        "    path: patches/is-odd@3.0.1.patch"
+        "  is-positive@1.0.0: 6ceb8d5b9e4d6e2f8fca4d7d3f1e0c1b2a3948576d8e2f0c1a4b5d6e7f8091a2"
+        ""
+        "importers:"
+        ""
+        "  .: {}"
+    };
+    let tmp = write_lockfile(lockfile_text);
+    let virtual_store_dir = tmp.path().join("node_modules").join(".pacquet");
+
+    let lockfile = Lockfile::load_current_from_virtual_store_dir(&virtual_store_dir)
+        .expect("load lockfile with pnpm 10 patchedDependencies")
+        .expect("lockfile should be present");
+
+    let patched = lockfile.patched_dependencies.as_ref().expect("patchedDependencies present");
+    assert_eq!(
+        patched,
+        &BTreeMap::from([
+            (
+                "is-odd@3.0.1".to_string(),
+                "29572dfbe22f7337d5e2aeab404b7e889550d802c26fa7356730522dd98f4593".to_string(),
+            ),
+            (
+                "is-positive@1.0.0".to_string(),
+                "6ceb8d5b9e4d6e2f8fca4d7d3f1e0c1b2a3948576d8e2f0c1a4b5d6e7f8091a2".to_string(),
+            ),
+        ]),
+    );
 }
 
 /// Regression test for <https://github.com/pnpm/pnpm/issues/11775>.

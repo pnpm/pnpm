@@ -56,6 +56,7 @@ use super::{
     run::RunArgs,
     runtime::RuntimeArgs,
     sbom::SbomArgs,
+    script_shortcut::ScriptShortcutArgs,
     search::SearchArgs,
     self_update::SelfUpdateArgs,
     set_script::SetScriptArgs,
@@ -63,7 +64,6 @@ use super::{
     stage::StageArgs,
     star::StarArgs,
     stars::StarsArgs,
-    stop::StopArgs,
     store::StoreCommand,
     team::TeamArgs,
     undeprecate::UndeprecateArgs,
@@ -77,7 +77,10 @@ use super::{
     with::WithArgs,
 };
 use clap::{CommandFactory, Parser, Subcommand, error::ErrorKind};
+use derive_more::{Display, Error};
+use miette::Diagnostic;
 use pacquet_default_reporter::SummaryScope;
+use pipe_trait::Pipe;
 use std::path::PathBuf;
 
 /// Experimental package manager for node.js written in rust.
@@ -178,6 +181,10 @@ pub struct CliArgs {
     #[clap(long = "filter-prod", global = true)]
     pub filter_prod: Vec<String>,
 
+    /// Run the command on the root workspace project.
+    #[clap(short = 'w', long = "workspace-root", global = true)]
+    pub workspace_root: bool,
+
     /// Glob patterns naming test files, used by the `[since]` `--filter`
     /// selector to decide which changes count.
     #[clap(long = "test-pattern", global = true)]
@@ -199,6 +206,11 @@ pub struct CliArgs {
     /// Maximum number of workspace projects to process in parallel.
     #[clap(long = "workspace-concurrency", global = true)]
     pub workspace_concurrency: Option<i32>,
+
+    /// Run scripts in every selected workspace project concurrently,
+    /// disregarding topological sorting.
+    #[clap(long, global = true)]
+    pub parallel: bool,
 
     /// Recursive only: resume execution from the given package.
     #[clap(long = "resume-from", global = true, hide = true)]
@@ -235,6 +247,9 @@ impl CliArgs {
         if self.if_present {
             self.validate_if_present_top_level_option()?;
         }
+        if self.parallel {
+            self.validate_parallel_global_option()?;
+        }
         Ok(())
     }
 
@@ -250,6 +265,49 @@ impl CliArgs {
         if !self.filter.is_empty() || !self.filter_prod.is_empty() {
             self.recursive = true;
         }
+    }
+
+    /// Apply the recursive-run settings represented by pnpm's
+    /// `--parallel` shorthand.
+    pub fn apply_parallel_run_options(&mut self) {
+        if self.parallel {
+            self.recursive = true;
+            self.no_sort = true;
+        }
+    }
+
+    /// Apply `--workspace-root` / `-w`: point `--dir` at the workspace
+    /// root so the command runs on the root project. Call after
+    /// [`Self::promote_recursive_for_filter`] and before anything reads
+    /// `--dir`, matching where pnpm's CLI parser applies it.
+    ///
+    /// The `--dir` resolution mirrors pnpm's `findWorkspaceDir`: real path
+    /// first, because a case-insensitive filesystem otherwise finds the
+    /// root under one spelling and the members under another; then a
+    /// lexical fallback, so an unresolvable `--dir` is not fatal.
+    ///
+    /// The fallback resolves `..` itself rather than leaving the components
+    /// in place. [`pacquet_workspace::find_workspace_dir`] walks ancestors
+    /// lexically, so a `--dir` that climbs out of the workspace and lands
+    /// on a directory that does not exist — `../../elsewhere` — would
+    /// otherwise walk right back up through its own `..` components and
+    /// select the workspace the user pointed away from.
+    pub fn apply_workspace_root(&mut self) -> Result<(), WorkspaceRootError> {
+        if !self.workspace_root {
+            return Ok(());
+        }
+        if self.command.is_global() {
+            return Err(WorkspaceRootError::GlobalConflict);
+        }
+        let dir = dunce::canonicalize(&self.dir)
+            .or_else(|_| std::path::absolute(&self.dir))
+            .unwrap_or_else(|_| self.dir.clone())
+            .pipe_deref(pacquet_fs::lexical_normalize);
+        let workspace_dir = pacquet_workspace::find_workspace_dir(&dir)
+            .map_err(WorkspaceRootError::FindWorkspaceDir)?
+            .ok_or(WorkspaceRootError::NotInWorkspace)?;
+        self.dir = workspace_dir;
+        Ok(())
     }
 
     /// Promote commands marked recursive-by-default by pnpm when they run
@@ -283,8 +341,8 @@ impl CliArgs {
             CliCommand::Run(_)
                 | CliCommand::Exec(_)
                 | CliCommand::External(_)
-                | CliCommand::Test
-                | CliCommand::Start
+                | CliCommand::Test(_)
+                | CliCommand::Start(_)
                 | CliCommand::Stop(_),
         ) {
             return Ok(());
@@ -310,6 +368,35 @@ impl CliArgs {
         }
         self.validate_run_scoped_global_option("--no-bail")
     }
+
+    fn validate_parallel_global_option(&self) -> Result<(), clap::Error> {
+        if matches!(
+            self.command,
+            CliCommand::Run(_)
+                | CliCommand::External(_)
+                | CliCommand::Test(_)
+                | CliCommand::Start(_)
+                | CliCommand::Stop(_),
+        ) {
+            return Ok(());
+        }
+        Err(Self::unexpected_argument_error("--parallel"))
+    }
+}
+
+/// Error type of [`CliArgs::apply_workspace_root`].
+#[derive(Debug, Display, Error, Diagnostic)]
+pub enum WorkspaceRootError {
+    #[display("--workspace-root may not be used with --global")]
+    #[diagnostic(code(ERR_PNPM_OPTIONS_CONFLICT))]
+    GlobalConflict,
+
+    #[display("--workspace-root may only be used inside a workspace")]
+    #[diagnostic(code(ERR_PNPM_NOT_IN_WORKSPACE))]
+    NotInWorkspace,
+
+    #[diagnostic(transparent)]
+    FindWorkspaceDir(#[error(source)] pacquet_workspace::FindWorkspaceDirError),
 }
 
 #[derive(Debug, Subcommand)]
@@ -416,7 +503,7 @@ pub enum CliCommand {
     #[clap(visible_alias = "ss")]
     SetScript(SetScriptArgs),
     /// Runs a package's "test" script, if one was provided.
-    Test,
+    Test(ScriptShortcutArgs),
     /// Runs a defined package script.
     Run(RunArgs),
     /// Run a shell command in the context of a project.
@@ -431,9 +518,9 @@ pub enum CliCommand {
     #[clap(name = "completion-server", hide = true)]
     CompletionServer(CompletionServerArgs),
     /// Runs an arbitrary command specified in the package's start property of its scripts object.
-    Start,
+    Start(ScriptShortcutArgs),
     /// Runs a package's "stop" script, if one was provided.
-    Stop(StopArgs),
+    Stop(ScriptShortcutArgs),
     /// Restarts a package. Runs "stop", "restart", and "start" scripts,
     /// and associated pre- and post- scripts.
     Restart(RestartArgs),
@@ -526,6 +613,25 @@ pub enum CliCommand {
 }
 
 impl CliCommand {
+    /// Whether `--global` was passed. pnpm parses it as one CLI-wide
+    /// option; pacquet declares it per subcommand.
+    fn is_global(&self) -> bool {
+        match self {
+            CliCommand::Add(args) => args.global,
+            CliCommand::ApproveBuilds(args) => args.global,
+            CliCommand::Bin(args) => args.global,
+            CliCommand::Config(args) => args.is_global(),
+            CliCommand::List(args) | CliCommand::Ll(args) => args.global,
+            CliCommand::Outdated(args) => args.global,
+            CliCommand::Prefix(args) => args.global,
+            CliCommand::Remove(args) => args.global,
+            CliCommand::Root(args) => args.global,
+            CliCommand::Runtime(args) => args.global,
+            CliCommand::Update(args) => args.global,
+            _ => false,
+        }
+    }
+
     fn recursive_by_default(&self) -> bool {
         matches!(
             self,
@@ -535,6 +641,27 @@ impl CliCommand {
                 | CliCommand::Peers(_)
                 | CliCommand::Ci(_),
         )
+    }
+
+    /// Whether this run prints the `Scope:` line naming the workspace
+    /// projects it selected. pnpm gates this on two things at once: the
+    /// command must be one of the few that report scope, and the run must
+    /// be workspace-wide — either asked for with `-r` / `--filter`, or
+    /// because the command is workspace-wide by nature (`install`).
+    pub(crate) fn reports_scope(&self, recursive: bool) -> bool {
+        let reports_scope = matches!(
+            self,
+            CliCommand::Install(_)
+                | CliCommand::Link(_)
+                | CliCommand::Prune(_)
+                | CliCommand::Rebuild(_)
+                | CliCommand::Remove(_)
+                | CliCommand::Unlink(_)
+                | CliCommand::Update(_)
+                | CliCommand::Run(_)
+                | CliCommand::Test(_),
+        );
+        reports_scope && (recursive || matches!(self, CliCommand::Install(_)))
     }
 
     pub(crate) fn default_reporter_summary_scope(&self) -> SummaryScope {

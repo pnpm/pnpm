@@ -23,7 +23,7 @@ import type { LatestInfo, LatestQuery, ResolutionPolicyViolation, ResolutionVeri
 import type { StoreIndex } from '@pnpm/store.index'
 import type { RegistryConfig } from '@pnpm/types'
 
-export type { LatestInfo, LatestQuery, ResolutionVerifier, ResolveFunction, ResolveLatestDispatcher }
+export type { LatestInfo, LatestQuery, ResolutionPolicyViolation, ResolutionVerifier, ResolveFunction, ResolveLatestDispatcher }
 
 export type ClientOptions = {
   configByUri: Record<string, RegistryConfig>
@@ -95,8 +95,8 @@ export function createResolver (opts: Omit<ClientOptions, 'storeIndex'>): { reso
 /**
  * Wraps a `ResolveFunction` so any inline policy violation surfaced by
  * the resolver is rethrown as a `PnpmError` instead of being returned on
- * the result. Use this from one-shot callers (dlx, self-update) that
- * have nowhere to defer a violation to — the install command leaves
+ * the result. Use this from one-shot callers (dlx) that have nowhere to
+ * defer a violation to — the install command leaves
  * resolution unwrapped because it aggregates violations across the
  * whole tree before deciding what to do.
  *
@@ -114,7 +114,12 @@ export function makeResolutionStrict (resolve: ResolveFunction): ResolveFunction
   }) as ResolveFunction
 }
 
-function policyViolationToError (violation: ResolutionPolicyViolation): PnpmError {
+/**
+ * Map a resolver policy violation to the user-facing `PnpmError`. Exported for
+ * callers that inspect a violation before deciding what to do with it, so they
+ * still fail with the same error code {@link makeResolutionStrict} produces.
+ */
+export function policyViolationToError (violation: ResolutionPolicyViolation): PnpmError {
   const message = `${violation.name}@${violation.version} ${violation.reason}`
   // Map the per-violation `code` to the user-facing PnpmError code that
   // pre-refactor callers (and `default-reporter`) already recognize.

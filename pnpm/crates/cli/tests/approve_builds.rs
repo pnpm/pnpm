@@ -76,6 +76,96 @@ fn ignored_builds_lists_the_blocked_dependency() {
     drop(harness);
 }
 
+/// pnpm scaffolds an `allowBuilds` entry per ignored build with a
+/// placeholder string. The workspace pnpm left behind must stay usable:
+/// the config still loads, and the undecided package is reported as
+/// automatically — not explicitly — ignored.
+#[test]
+fn allow_builds_placeholder_does_not_block_commands() {
+    let (harness, workspace) = install_with_ignored_build();
+
+    // The install already scaffolded the blocked package; restate it in
+    // the quoted spelling pnpm writes and add a second undecided entry,
+    // both inside the one `allowBuilds` block a YAML document may have.
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let yaml = fs::read_to_string(&yaml_path).expect("read yaml");
+    let (before, _) = yaml.split_once("allowBuilds:").expect("the install scaffolded the block");
+    let mut yaml = before.to_string();
+    writeln!(
+        yaml,
+        "allowBuilds:\n  \"@pnpm.e2e/install-script-example\": set this to true or false\n  \
+         other-pkg: set this to true or false",
+    )
+    .expect("format allowBuilds");
+    fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
+
+    let output = stdout_of(pacquet(&workspace).with_arg("ignored-builds").assert());
+    assert!(
+        output.contains("Automatically ignored builds during installation:"),
+        "output: {output}",
+    );
+    assert!(output.contains("@pnpm.e2e/install-script-example"), "output: {output}");
+    assert!(
+        !output.contains("Explicitly ignored package builds"),
+        "an undecided entry is not an explicit denial: {output}",
+    );
+
+    // Deciding a package replaces its placeholder outright — the whole
+    // value, not the first word of it, which would leave the rest behind
+    // as a plain scalar that reads as undecided all over again.
+    pacquet(&workspace)
+        .with_args(["approve-builds", "@pnpm.e2e/install-script-example"])
+        .assert()
+        .success();
+    let yaml = fs::read_to_string(&yaml_path).expect("read yaml");
+    // Matched whole-line: a value of `true this to true or false` would
+    // satisfy a `contains` on the prefix while still reading as a
+    // string, leaving the package undecided.
+    assert!(
+        yaml.lines().any(|line| line.trim() == r#""@pnpm.e2e/install-script-example": true"#),
+        "the decided entry is replaced cleanly: {yaml}",
+    );
+    // A package the approval didn't name keeps its placeholder, even
+    // though an undecided entry never reaches `Config::allow_builds`.
+    assert!(
+        yaml.contains("other-pkg: set this to true or false"),
+        "an unrelated undecided entry survives: {yaml}",
+    );
+
+    drop(harness);
+}
+
+/// The install that blocks a build leaves the user a line to edit
+/// instead of making them recall the `allowBuilds` shape. The
+/// placeholder is not a decision, so the package stays blocked and a
+/// rerun must neither duplicate the entry nor fail to load the config.
+#[test]
+fn install_scaffolds_an_allow_builds_entry_for_the_blocked_build() {
+    let (harness, workspace) = install_with_ignored_build();
+
+    let yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
+        .expect("read pnpm-workspace.yaml");
+    assert!(
+        yaml.contains(
+            "allowBuilds:\n  '@pnpm.e2e/install-script-example': set this to true or false",
+        ),
+        "yaml: {yaml}",
+    );
+
+    pacquet(&workspace).with_arg("install").assert().success();
+    assert_eq!(
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("reread"),
+        yaml,
+        "a rerun must not rewrite the scaffold",
+    );
+    assert!(
+        !workspace.join(INSTALL_MARKER).exists(),
+        "an undecided placeholder must not allow the build",
+    );
+
+    drop(harness);
+}
+
 #[test]
 fn approve_builds_with_args_runs_the_build() {
     let (harness, workspace) = install_with_ignored_build();
@@ -231,24 +321,41 @@ fn install_two_with_ignored_builds() -> (CommandTempCwd<AddMockedRegistry>, std:
 }
 
 /// The `allowBuilds` map recorded in the workspace manifest.
+/// The *decided* `allowBuilds` entries. An install scaffolds an
+/// undecided placeholder for every build it blocked, which is a prompt to
+/// edit rather than a decision, so it is dropped here exactly as the
+/// config drops it.
 fn allow_builds(workspace: &Path) -> std::collections::BTreeMap<String, bool> {
     #[derive(serde::Deserialize)]
     struct Manifest {
         #[serde(rename = "allowBuilds", default)]
-        allow_builds: std::collections::BTreeMap<String, bool>,
+        allow_builds: std::collections::BTreeMap<String, serde_json::Value>,
     }
     let text = fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read yaml");
-    serde_saphyr::from_str::<Manifest>(&text).expect("parse yaml").allow_builds
+    serde_saphyr::from_str::<Manifest>(&text)
+        .expect("parse yaml")
+        .allow_builds
+        .into_iter()
+        .filter_map(|(name, value)| Some((name, value.as_bool()?)))
+        .collect()
 }
 
-/// Seed an existing `allowBuilds: { name: true }` entry in the manifest.
+/// Seed an existing `allowBuilds: { name: true }` entry in the manifest,
+/// merging into the block the install already scaffolded rather than
+/// starting a second one (which YAML rejects as a duplicate key).
 fn seed_allow_build(workspace: &Path, name: &str) {
+    const BLOCK: &str = "allowBuilds:\n";
     let path = workspace.join("pnpm-workspace.yaml");
     let mut yaml = fs::read_to_string(&path).unwrap_or_default();
-    if !yaml.is_empty() && !yaml.ends_with('\n') {
-        yaml.push('\n');
+    let entry = format!("  '{name}': true\n");
+    if let Some(block_start) = yaml.find(BLOCK) {
+        yaml.insert_str(block_start + BLOCK.len(), &entry);
+    } else {
+        if !yaml.is_empty() && !yaml.ends_with('\n') {
+            yaml.push('\n');
+        }
+        write!(yaml, "{BLOCK}{entry}").expect("format allowBuilds");
     }
-    writeln!(yaml, "allowBuilds:\n  '{name}': true").expect("format allowBuilds");
     fs::write(&path, yaml).expect("write pnpm-workspace.yaml");
 }
 
@@ -345,17 +452,28 @@ fn approve_builds_all_with_args_is_rejected() {
     drop(root);
 }
 
+/// Both spellings reach the same rejection. `-g` used to stop in the
+/// argument parser instead (pnpm/pnpm#13310), which the long form alone
+/// could not have caught.
 #[test]
 fn approve_builds_global_is_rejected() {
-    let CommandTempCwd { workspace, root, .. } = CommandTempCwd::init();
-    fs::write(workspace.join("package.json"), "{}").expect("write package.json");
+    for global in ["--global", "-g"] {
+        let CommandTempCwd { workspace, root, .. } = CommandTempCwd::init();
+        fs::write(workspace.join("package.json"), "{}").expect("write package.json");
 
-    let assert = pacquet(&workspace).with_args(["approve-builds", "--global"]).assert().failure();
-    let stderr = String::from_utf8_lossy(&assert.get_output().stderr).into_owned();
-    assert!(
-        stderr.contains("ERR_PNPM_APPROVE_BUILDS_NOT_SUPPORTED_WITH_GLOBAL"),
-        "stderr: {stderr}",
-    );
+        let assert = pacquet(&workspace).with_args(["approve-builds", global]).assert().failure();
+        let stderr = String::from_utf8_lossy(&assert.get_output().stderr).into_owned();
+        // Code and message both: the code alone would not catch the two
+        // spellings drifting to different user-facing text.
+        assert!(
+            stderr.contains("ERR_PNPM_APPROVE_BUILDS_NOT_SUPPORTED_WITH_GLOBAL"),
+            "{global} stderr: {stderr}",
+        );
+        assert!(
+            stderr.contains(r#""approve-builds" is not supported with global packages"#),
+            "{global} stderr: {stderr}",
+        );
 
-    drop(root);
+        drop(root);
+    }
 }

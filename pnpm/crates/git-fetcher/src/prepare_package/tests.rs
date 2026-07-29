@@ -24,7 +24,7 @@ fn opts<'a>(allow: bool, ignore_scripts: bool) -> PreparePackageOptions<'a> {
     static EMPTY_BIN_PATHS: &[std::path::PathBuf] = &[];
     PreparePackageOptions {
         allow_build: Box::new(move |_dep_path| allow),
-        dep_path: "x@https://example.com/x.tgz",
+        pkg_resolution_id: "https://example.com/x.tgz",
         ignore_scripts,
         unsafe_perm: true,
         user_agent: None,
@@ -41,7 +41,7 @@ fn opts_allow_registry_artifacts_only<'a>() -> PreparePackageOptions<'a> {
     static EMPTY_BIN_PATHS: &[std::path::PathBuf] = &[];
     PreparePackageOptions {
         allow_build: Box::new(move |dep_path| !dep_path.contains("://")),
-        dep_path: "x@https://example.com/x.tgz",
+        pkg_resolution_id: "https://example.com/x.tgz",
         ignore_scripts: false,
         unsafe_perm: true,
         user_agent: None,
@@ -54,11 +54,14 @@ fn opts_allow_registry_artifacts_only<'a>() -> PreparePackageOptions<'a> {
     }
 }
 
-fn opts_allow_dep_path(dep_path: &str) -> PreparePackageOptions<'_> {
+fn opts_allow_dep_path<'a>(
+    dep_path: &'a str,
+    pkg_resolution_id: &'a str,
+) -> PreparePackageOptions<'a> {
     static EMPTY_BIN_PATHS: &[std::path::PathBuf] = &[];
     PreparePackageOptions {
         allow_build: Box::new(move |actual_dep_path| actual_dep_path == dep_path),
-        dep_path,
+        pkg_resolution_id,
         ignore_scripts: false,
         unsafe_perm: true,
         user_agent: None,
@@ -204,10 +207,16 @@ fn prepare_allows_untrusted_manifest_identity_by_dep_path() {
         }),
     );
 
-    let dep_path = "trusted-name@git+https://example.com/org/repo.git#abc123";
-    let result =
-        prepare_package::<SilentReporter>(&opts_allow_dep_path(dep_path), dir.path(), None)
-            .expect("depPath-specific allow should permit prepare");
+    // The policy sees `<manifest name>@<resolution id>` — the key a
+    // lockfile would record — not the bare resolution id.
+    let pkg_resolution_id = "git+https://example.com/org/repo.git#abc123";
+    let dep_path = format!("trusted-name@{pkg_resolution_id}");
+    let result = prepare_package::<SilentReporter>(
+        &opts_allow_dep_path(&dep_path, pkg_resolution_id),
+        dir.path(),
+        None,
+    )
+    .expect("depPath-specific allow should permit prepare");
 
     assert!(result.should_be_built);
     assert!(dir.path().join("built.txt").exists());

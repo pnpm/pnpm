@@ -26,6 +26,7 @@ use serde_json::Value;
 
 use super::PublishArgs;
 use crate::cli_args::{
+    changelog::published_name,
     recursive::{
         AutoExcludeRoot, discover_workspace_projects, select_recursive_projects,
         sort_filtered_projects,
@@ -138,16 +139,18 @@ impl PublishArgs {
     }
 }
 
-/// A package's `(name, version)` when it is eligible to be published, or `None`
-/// when it should be skipped before any registry lookup: an unnamed,
-/// unversioned, or private package is never published recursively.
+/// A package's `(published name, version)` when it is eligible to be published,
+/// or `None` when it should be skipped before any registry lookup: an unnamed,
+/// unversioned, or private package is never published recursively. The name is
+/// the one the registry knows — the `publishConfig.name` rename, when the
+/// project has one — since it is only used to address the registry.
 fn publish_eligible(manifest: &Value) -> Option<(&str, &str)> {
     if manifest.get("private").and_then(Value::as_bool).unwrap_or(false) {
         return None;
     }
     let name = manifest.get("name").and_then(Value::as_str)?;
     let version = manifest.get("version").and_then(Value::as_str)?;
-    Some((name, version))
+    Some((published_name(manifest).unwrap_or(name), version))
 }
 
 /// Whether `name@version` already exists on its target registry. Any failure —
