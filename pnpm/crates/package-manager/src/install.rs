@@ -2485,7 +2485,8 @@ where
         // handles the common case; this branch covers the rare path where
         // `.modules.yaml` was wiped or inconsistent and the frozen install
         // had to relink.
-        if (lockfile_synthesized_from_current || lockfile_was_fast_updated)
+        if take_frozen_path
+            && (lockfile_synthesized_from_current || lockfile_was_fast_updated)
             && config.lockfile
             && let Some(updated) = lockfile
         {

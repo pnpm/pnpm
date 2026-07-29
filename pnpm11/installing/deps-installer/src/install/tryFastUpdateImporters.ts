@@ -24,7 +24,11 @@ export function tryFastUpdateImporters (
   lockfile: LockfileObject,
   projects: Project[]
 ): boolean {
-  let changed = false
+  const updates: Array<{
+    alias: string
+    specifier: string
+    specifiers: Record<string, string>
+  }> = []
   for (const project of projects) {
     const importer = lockfile.importers[project.id]
     if (importer == null) return false
@@ -43,11 +47,17 @@ export function tryFastUpdateImporters (
       ) {
         return false
       }
-      importer.specifiers[alias] = specifier
-      changed = true
+      updates.push({
+        alias,
+        specifier,
+        specifiers: importer.specifiers,
+      })
     }
   }
-  return changed
+  for (const update of updates) {
+    update.specifiers[update.alias] = update.specifier
+  }
+  return updates.length > 0
 }
 
 function getManifestSpecifiers (manifest: ProjectManifest): Record<string, string> {

@@ -46,9 +46,11 @@ test('an incompatible package range update falls back without mutating the lockf
     importers: {
       '.': {
         dependencies: {
+          bar: '1.0.0',
           foo: '1.0.0',
         },
         specifiers: {
+          bar: '^1.0.0',
           foo: '^1.0.0',
         },
       },
@@ -60,11 +62,15 @@ test('an incompatible package range update falls back without mutating the lockf
     id: '.' as ProjectId,
     manifest: {
       dependencies: {
-        foo: '^2.0.0',
+        foo: '>=1.0.0 <2',
+        bar: '^2.0.0',
       },
     },
   }])).toBe(false)
-  expect(lockfile.importers['.' as ProjectId].specifiers.foo).toBe('^1.0.0')
+  expect(lockfile.importers['.' as ProjectId].specifiers).toStrictEqual({
+    bar: '^1.0.0',
+    foo: '^1.0.0',
+  })
 })
 
 test('a compatible catalog range update retains the locked peer snapshot without resolution', async () => {
