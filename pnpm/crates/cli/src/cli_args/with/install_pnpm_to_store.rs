@@ -55,7 +55,7 @@ pub(crate) async fn install_pnpm_to_store<Reporter: self::Reporter + 'static>(
         format!("create the package-manager env directory at {}", env_root.display())
     })?;
     let env = {
-        let _lock = package_manager_env_lock::<Reporter>(config);
+        let _lock = package_manager_env_lock::<Reporter>(config).await?;
         // Resolve the package-manager closure into the env lockfile (a no-op
         // when this spec+version is already recorded there).
         config_deps::sync_package_manager_dependencies(config, env_root, spec, version, false)
@@ -114,8 +114,11 @@ async fn install_pnpm_from_env_with_config<Reporter: self::Reporter + 'static>(
     // we want, so ask the cache again before paying for the download.
     if let Some(slot) = compute_engine_slot(config, env, package_name, version) {
         let pkg_dir = package_dir(&slot, package_name);
-        if pkg_dir.join("package.json").exists() {
-            return link_cached_engine_bins(&slot, package_name, package.links_native_binary);
+        if pkg_dir.join("package.json").exists()
+            && let Ok(bin_dir) =
+                link_cached_engine_bins(&slot, package_name, package.links_native_binary)
+        {
+            return Ok(bin_dir);
         }
     }
 
@@ -177,9 +180,16 @@ fn engine_install_lock<Reporter: self::Reporter>(
     acquire_install_lock::<Reporter>(&path, "the pnpm engine install")
 }
 
-fn package_manager_env_lock<Reporter: self::Reporter>(config: &Config) -> Option<DirLock> {
+async fn package_manager_env_lock<Reporter: self::Reporter>(
+    config: &Config,
+) -> miette::Result<Option<DirLock>> {
     let path = config.store_dir.tmp().join("engine-locks/package-manager-env.lock");
-    acquire_install_lock::<Reporter>(&path, "the package-manager environment")
+    tokio::task::spawn_blocking(move || {
+        acquire_install_lock::<Reporter>(&path, "the package-manager environment")
+    })
+    .await
+    .into_diagnostic()
+    .wrap_err("wait for the package-manager environment lock")
 }
 
 fn acquire_install_lock<Reporter: self::Reporter>(path: &Path, subject: &str) -> Option<DirLock> {
