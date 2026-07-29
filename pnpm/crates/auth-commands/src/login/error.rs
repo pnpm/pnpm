@@ -20,8 +20,8 @@ pub enum LoginError {
     InvalidResponse,
 
     #[display(
-        "The registry returned a login URL containing control characters and was rejected as a \
-         possible terminal-spoofing attempt"
+        "The registry returned an authentication URL containing control characters and was \
+         rejected as a possible terminal-spoofing attempt"
     )]
     #[diagnostic(code(ERR_PNPM_AUTH_COMMANDS_LOGIN_UNSAFE_URL))]
     UnsafeLoginUrl,

@@ -116,8 +116,11 @@ async fn execute_performs_web_login_and_returns_the_success_message() {
 }
 
 /// `execute` propagates `login`'s non-interactive-terminal error when the fake
-/// host reports no TTY, covering the path from the config-dir guard through the
-/// HTTP-client build to the login call.
+/// host reports no TTY and the registry answers the web-login probe with 404,
+/// forcing the classic (prompting) fallback. Covers the path from the
+/// config-dir guard through the HTTP-client build to the login call; the
+/// `unreachable!` prompt impls double as proof the guard fires before any
+/// credential prompt.
 #[tokio::test]
 async fn execute_propagates_the_non_interactive_error_from_login() {
     web_auth_fake!();
@@ -125,11 +128,21 @@ async fn execute_propagates_the_non_interactive_error_from_login() {
     reset();
     set_stdin_tty(false);
 
+    let mut server = mockito::Server::new_async().await;
+    let web_login_probe = server
+        .mock("POST", "/-/v1/login")
+        .with_status(404)
+        .with_body("Not Found")
+        .create_async()
+        .await;
+    let registry = server.url();
+
     let config = Config { config_dir: Some(PathBuf::from("/mock/config")), ..Default::default() };
-    let args = LoginArgs { registry: Some("http://127.0.0.1:9/".to_owned()), scope: None };
+    let args = LoginArgs { registry: Some(registry), scope: None };
 
     let err = args.execute::<FakeHost, RecordingReporter>(&config).await.unwrap_err();
 
+    web_login_probe.assert_async().await;
     assert!(
         err.to_string().contains("requires an interactive terminal"),
         "unexpected error: {err}",
