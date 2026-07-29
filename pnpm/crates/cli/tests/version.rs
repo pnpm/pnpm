@@ -65,7 +65,7 @@ fn version_flag_switches_to_project_package_manager_version() {
 #[test]
 fn version_flag_records_a_pinned_package_manager_it_does_not_need_to_switch_to() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+        CommandTempCwd::init().add_mocked_registry_with_pnpm_version(pacquet_config::PNPM_VERSION);
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     let pinned = pacquet_config::PNPM_VERSION;
     fs::write(
