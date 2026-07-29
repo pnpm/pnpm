@@ -377,9 +377,8 @@ impl PeerHoistDiscovery {
         let revision = workspace.revision();
         if self.synced_revision != Some(revision) {
             let children_rewrites = workspace.children_rewrites();
-            let stale = self
-                .synced_children_rewrites
-                .is_some_and(|synced| synced != children_rewrites);
+            let stale =
+                self.synced_children_rewrites.is_some_and(|synced| synced != children_rewrites);
             if stale || !workspace.sync_discovery_tree(&mut self.tree) {
                 self.tree = ResolvedTree::default();
                 self.caches = PeerDiscoveryCaches::default();
