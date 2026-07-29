@@ -135,6 +135,11 @@ export interface InstallOptions extends SharedEngineOptions {
   includeOptionalDeps?: boolean
   ignoreScripts?: boolean
   /**
+   * Trust lockfile resolutions without verifying them against current registry
+   * metadata.
+   */
+  trustLockfile?: boolean
+  /**
    * Re-resolve the whole dependency graph to the highest in-range version
    * (pnpm's `update: true` / `depth: Infinity`). The binding takes no package
    * selectors, so an update always targets every dependency.
