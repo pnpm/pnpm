@@ -1461,7 +1461,15 @@ where
                             .await
                             .map_err(InstallError::CustomResolverForceResolve)?
                     }
-                    Err(FreshnessCheckError::Stale(_) | FreshnessCheckError::NoImporter { .. }) => {
+                    Err(
+                        error @ (FreshnessCheckError::Stale(_)
+                        | FreshnessCheckError::NoImporter { .. }),
+                    ) => {
+                        tracing::info!(
+                            target: "pacquet::install",
+                            reason = %error,
+                            "lockfile not usable as-is; falling through to a fresh resolve",
+                        );
                         false
                     }
                     Err(

@@ -21,6 +21,7 @@ use std::{
     sync::{Arc, OnceLock},
 };
 
+use indexmap::IndexMap;
 use napi_derive::napi;
 use pacquet_hooks::PnpmfileHooks;
 use pacquet_lockfile::{LazyLockfile, Lockfile, MaybeLazyLockfile};
@@ -68,7 +69,10 @@ pub struct InstallOptions {
     pub hoist_pattern: Option<Vec<String>>,
     pub public_hoist_pattern: Option<Vec<String>>,
     pub external_dependencies: Option<Vec<String>>,
-    pub overrides: Option<HashMap<String, String>>,
+    /// `IndexMap` so the JS object's key order survives into
+    /// `pnpm-lock.yaml#overrides` — a `HashMap` here reordered the
+    /// recorded block at random on every install.
+    pub overrides: Option<IndexMap<String, String>>,
     pub package_import_method: Option<String>,
     pub auto_install_peers: Option<bool>,
     pub exclude_links_from_lockfile: Option<bool>,
@@ -478,7 +482,7 @@ fn build_overlay(options: &InstallOptions) -> napi::Result<ConfigOverlay> {
             .external_dependencies
             .as_ref()
             .map(|items| items.iter().cloned().collect::<BTreeSet<_>>()),
-        overrides: options.overrides.as_ref().map(|map| map.clone().into_iter().collect()),
+        overrides: options.overrides.clone(),
         auto_install_peers: options.auto_install_peers,
         exclude_links_from_lockfile: options.exclude_links_from_lockfile,
         hoist_workspace_packages: options.hoist_workspace_packages,
@@ -755,15 +759,21 @@ fn run_peer_issues_blocking(options: &serde_json::Value) -> napi::Result<serde_j
     })?;
     let str_field =
         |key: &str| obj.get(key).and_then(serde_json::Value::as_str).map(ToString::to_string);
-    let string_map = |key: &str| {
+    // Generic over the target map so `overrides` can collect into the
+    // order-preserving `IndexMap` its field requires (serde_json's
+    // `preserve_order` feature keeps the JS object's key order here).
+    fn string_map<Map: FromIterator<(String, String)>>(
+        obj: &serde_json::Map<String, serde_json::Value>,
+        key: &str,
+    ) -> Option<Map> {
         obj.get(key).and_then(serde_json::Value::as_object).map(|map| {
             map.iter()
                 .filter_map(|(key, value)| {
                     value.as_str().map(|value| (key.clone(), value.to_string()))
                 })
-                .collect::<HashMap<String, String>>()
+                .collect()
         })
-    };
+    }
     let dir = str_field("dir")
         .ok_or_else(|| napi::Error::from_reason("getPeerDependencyIssues: `dir` is required"))?;
     let projects: Vec<NodeApiProject> = obj
@@ -791,9 +801,9 @@ fn run_peer_issues_blocking(options: &serde_json::Value) -> napi::Result<serde_j
         projects,
         store_dir: str_field("storeDir"),
         cache_dir: str_field("cacheDir"),
-        registries: string_map("registries"),
-        auth_header_by_uri: string_map("authHeaderByUri"),
-        overrides: string_map("overrides"),
+        registries: string_map(obj, "registries"),
+        auth_header_by_uri: string_map(obj, "authHeaderByUri"),
+        overrides: string_map(obj, "overrides"),
         // Report every missing peer: with pnpm's default
         // `autoInstallPeers: true` the resolver satisfies the peer
         // itself and the issue never surfaces, but this query's whole

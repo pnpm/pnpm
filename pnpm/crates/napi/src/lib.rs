@@ -48,6 +48,14 @@ pub fn engine_version() -> &'static str {
     pacquet_config::PNPM_VERSION
 }
 
+/// Honor the same `TRACE` env var the pacquet CLI honors: an addon
+/// embedded in a Node host has no `main` of its own, so the subscriber
+/// is installed when the module loads.
+#[napi_derive::module_init]
+fn init_tracing() {
+    pacquet_diagnostics::enable_tracing_by_env();
+}
+
 /// No-op stubs for the napi runtime symbols the `#[napi]` trampolines
 /// reference, defined only for the crate's unit-test binary so it is
 /// self-contained. See the module for the full rationale.

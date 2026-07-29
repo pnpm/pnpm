@@ -125,7 +125,7 @@ flate2 = { version = "1.1.9" }
 gethostname = { version = "1" }
 getrandom = { version = "0.4.2" }
 miette = { version = "7.6.0", features = ["fancy"] }
-napi = { version = "3.10.3", default-features = false, features = ["napi8", "serde-json", "tokio_rt", "async"] }
+napi = { version = "3.10.3", default-features = false, features = ["napi8", "object_indexmap", "serde-json", "tokio_rt", "async"] }
 napi-build = { version = "2.3.2" }
 napi-derive = { version = "3.5.9" }
 num_cpus = { version = "1.17.0" }
