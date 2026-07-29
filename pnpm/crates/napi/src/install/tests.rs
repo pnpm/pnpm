@@ -93,9 +93,15 @@ fn build_overlay_maps_supported_install_options() {
 }
 
 #[test]
-fn build_overlay_preserves_the_trust_lockfile_default() {
-    let options = install_options();
-    assert_eq!(build_overlay(&options).expect("overlay").trust_lockfile, None);
+fn resolved_config_applies_trust_lockfile() {
+    let dir = tempfile::tempdir().expect("tempdir");
+
+    for (trust_lockfile, expected) in [(Some(false), false), (Some(true), true), (None, false)] {
+        let mut options = install_options();
+        options.trust_lockfile = trust_lockfile;
+        let overlay = build_overlay(&options).expect("overlay");
+        assert_eq!(resolve_config(dir.path(), &overlay).expect("config").trust_lockfile, expected);
+    }
 }
 
 #[test]
