@@ -66,6 +66,16 @@ export interface PnpmContext {
   storeDir: string
   wantedLockfile: LockfileObject
   wantedLockfileIsModified: boolean
+  /**
+   * Mutable flag set by the pre-`tryFrozenInstall` unused-override sweep in
+   * `mutateModules` when it emits warnings + `resolution_done`. Read by the
+   * post-resolution sweep in `_installInContext` to avoid double-emitting on
+   * installs that ran resolution after the early sweep already fired. Stays
+   * `false` when the early sweep was a no-op (fresh install with an empty
+   * starting lockfile) or when `tryFrozenInstall` short-circuited (in which
+   * case `_installInContext` is never reached).
+   */
+  unusedOverrideWarningsEmitted: boolean
   workspacePackages: WorkspacePackages
   registries: Registries
 }
@@ -180,6 +190,7 @@ export async function getContext (
     virtualStoreDir,
     virtualStoreDirMaxLength: importersContext.virtualStoreDirMaxLength ?? opts.virtualStoreDirMaxLength,
     workspacePackages: opts.workspacePackages ?? arrayOfWorkspacePackagesToMap(opts.allProjects),
+    unusedOverrideWarningsEmitted: false,
     ...await readLockfiles({
       autoInstallPeers: opts.autoInstallPeers,
       ci: opts.ci,

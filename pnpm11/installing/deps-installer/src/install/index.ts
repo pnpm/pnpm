@@ -828,16 +828,18 @@ export async function mutateModules (
 
     // Pre-short-circuit sweep: emit unused-override warnings + `resolution_done`
     // BEFORE `tryFrozenInstall` can short-circuit. A cache-reusing install
-    // returns from `tryFrozenInstall` without ever reaching the
-    // post-resolution emit in `_installInContext`, so without this early sweep
-    // the warning would silently never fire.
+    // returns from `tryFrozenInstall` without ever reaching the post-resolution
+    // emit in `_installInContext`, so without this early sweep the warning
+    // would silently never fire. Stamps `ctx.unusedOverrideWarningsEmitted`
+    // so the post-resolution sweep can skip when this one already ran.
     if (opts.warnUnusedOverrides) {
-      emitUnusedOverrideWarnings(
+      const emitted = emitUnusedOverrideWarnings(
         ctx.wantedLockfile,
         opts.parsedOverrides,
         Object.values(ctx.projects).map((p) => ({ rootDir: p.rootDir, manifest: p.manifest })),
         ctx.lockfileDir
       )
+      if (emitted) ctx.unusedOverrideWarningsEmitted = true
     }
 
     const frozenInstallResult = await tryFrozenInstall({
@@ -1371,9 +1373,9 @@ function emitUnusedOverrideWarnings (
   parsedOverrides: Array<{ selector: string, converge?: boolean, parentPkg?: { name: string, bareSpecifier?: string }, targetPkg: { name: string, bareSpecifier?: string }, newBareSpecifier?: string }>,
   projects: Array<{ rootDir: string, manifest: ProjectManifest }>,
   lockfileDir: string
-): void {
-  if (parsedOverrides.length === 0) return
-  if (isEmpty(lockfile.packages ?? {})) return
+): boolean {
+  if (parsedOverrides.length === 0) return false
+  if (isEmpty(lockfile.packages ?? {})) return false
   const projectManifests = projects.map((project) => ({
     importerId: (path.relative(lockfileDir, project.rootDir) || '.').split(path.sep).join('/'),
     manifest: project.manifest,
@@ -1399,6 +1401,7 @@ function emitUnusedOverrideWarnings (
     prefix: lockfileDir,
     stage: 'resolution_done',
   })
+  return true
 }
 
 function pkgHasDependencies (manifest: ProjectManifest): boolean {
@@ -1854,16 +1857,15 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     }
   }
 
-  // Post-resolution sweep: scan the now-resolved lockfile. This covers the
-  // fresh-install case where the pre-`tryFrozenInstall` sweep in
-  // `mutateModules` was a no-op (starting lockfile was empty). On installs
-  // that short-circuit through `tryFrozenInstall`, this code is unreachable,
-  // so there is no double-emit; on installs that run resolution the early
-  // sweep may also have fired, but against a stale pre-resolution lockfile —
-  // re-scanning here picks up the resolved state.
-  if (opts.warnUnusedOverrides) {
+  // Post-resolution sweep: scan the freshly-resolved `newLockfile` (returned
+  // by `resolveDependencies` above), not `ctx.wantedLockfile` (which is the
+  // pre-resolution lockfile and may be empty on a fresh install). Skipped when
+  // the pre-short-circuit sweep in `mutateModules` already emitted, so installs
+  // that ran both code paths don't double-emit. On short-circuited installs
+  // (`tryFrozenInstall` returned), this code is unreachable.
+  if (opts.warnUnusedOverrides && !ctx.unusedOverrideWarningsEmitted) {
     emitUnusedOverrideWarnings(
-      ctx.wantedLockfile,
+      newLockfile,
       opts.parsedOverrides,
       Object.values(ctx.projects).map((p) => ({ rootDir: p.rootDir, manifest: p.manifest })),
       ctx.lockfileDir
