@@ -244,6 +244,12 @@ enum EngineMode {
     PeerIssues(pacquet_package_manager::PeerIssuesSink),
 }
 
+impl EngineMode {
+    fn disable_optimistic_repeat_install(&self) -> bool {
+        matches!(self, Self::Install | Self::PeerIssues(_))
+    }
+}
+
 fn run_install_inner(
     options: &InstallOptions,
     pnpmfile_hook: Option<Arc<dyn PnpmfileHooks>>,
@@ -393,10 +399,12 @@ fn run_install_inner(
                     EngineMode::Install | EngineMode::Rebuild(_) => None,
                 },
                 catalogs_override: None,
-                // The optimistic repeat-install fast path skips
-                // resolution entirely — a peer-issue query must never
-                // short-circuit that way.
-                disable_optimistic_repeat_install: matches!(mode, EngineMode::PeerIssues(_)),
+                // The optimistic repeat-install fast path uses on-disk
+                // manifest mtimes as its freshness signal. NAPI installs use
+                // caller-supplied manifests that can change without touching
+                // package.json, so they must continue to the lockfile
+                // freshness check. Peer-issue queries must always resolve too.
+                disable_optimistic_repeat_install: mode.disable_optimistic_repeat_install(),
                 pnpmfile_hook_override: pnpmfile_hook,
                 workspace_projects_override,
             };

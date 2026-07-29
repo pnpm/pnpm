@@ -4615,6 +4615,7 @@ dependencies = [
  "pacquet-resolving-tarball-resolver",
  "pacquet-store-dir",
  "pacquet-tarball",
+ "pacquet-testing-utils",
  "pacquet-workspace",
  "serde",
  "serde_json",

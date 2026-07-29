@@ -1,8 +1,12 @@
+use std::collections::HashMap;
+
 use pacquet_network::NoProxySetting;
+use pacquet_testing_utils::registry::TestRegistry;
 
 use super::{
-    InstallOptions, NetworkConfigInput, NodeApiProject, ProxyConfigInput, build_overlay,
-    reject_non_object_manifests, reject_unsupported_install_options,
+    EngineMode, InstallOptions, NetworkConfigInput, NodeApiProject, ProxyConfigInput,
+    build_overlay, reject_non_object_manifests, reject_unsupported_install_options,
+    run_install_inner,
 };
 use crate::config::{ConfigOverlay, resolve_config};
 
@@ -158,6 +162,46 @@ fn newly_supported_install_options_are_accepted() {
     options.network_config = Some(NetworkConfigInput { max_sockets: Some(20), ..network_config() });
     assert!(reject_unsupported_install_options(&options).is_ok());
     assert_eq!(build_overlay(&options).expect("overlay").max_sockets, Some(20));
+}
+
+#[test]
+fn repeat_install_uses_changed_in_memory_manifest() {
+    let registry = TestRegistry::start();
+    let temp_dir = tempfile::tempdir().expect("tempdir");
+    let project_dir = temp_dir.path().join("project");
+    std::fs::create_dir(&project_dir).expect("create project dir");
+    std::fs::write(project_dir.join("package.json"), "{}\n").expect("write package.json");
+
+    let project_dir_string = project_dir.to_string_lossy().into_owned();
+    let mut options = install_options();
+    options.dir = project_dir_string.clone();
+    options.projects = vec![NodeApiProject {
+        root_dir: project_dir_string,
+        manifest: serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/foo": "100.0.0"
+            }
+        }),
+    }];
+    options.store_dir = Some(temp_dir.path().join("store").to_string_lossy().into_owned());
+    options.registries = Some(HashMap::from([("default".to_string(), registry.url())]));
+
+    run_install_inner(&options, None, EngineMode::Install).expect("first install");
+    assert!(project_dir.join("node_modules/@pnpm.e2e/foo").exists());
+
+    options.projects[0].manifest = serde_json::json!({
+        "dependencies": {
+            "@pnpm.e2e/bar": "100.0.0",
+            "@pnpm.e2e/foo": "100.0.0"
+        }
+    });
+
+    run_install_inner(&options, None, EngineMode::Install).expect("second install");
+    assert!(project_dir.join("node_modules/@pnpm.e2e/bar").exists());
+    assert_eq!(
+        std::fs::read_to_string(project_dir.join("package.json")).expect("read package.json"),
+        "{}\n",
+    );
 }
 
 fn install_options() -> InstallOptions {
