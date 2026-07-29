@@ -1173,7 +1173,7 @@ async fn published_by_upgrade_not_modified_is_remembered_across_picks() {
     let full_mock = server
         .mock("GET", "/acme")
         .match_header("accept", "application/json; q=1.0, */*")
-        .match_header("if-none-match", "\"acme-etag\"")
+        .match_header("if-none-match", r#""acme-etag""#)
         .with_status(304)
         .expect(1)
         .create_async()
@@ -1188,7 +1188,7 @@ async fn published_by_upgrade_not_modified_is_remembered_across_picks() {
     // (no `time`), carrying the mirror's etag as the upgrade validator.
     let mut seeded: pacquet_registry::Package =
         serde_json::from_str(ABBREVIATED_BODY).expect("parse fixture");
-    seeded.etag = Some("\"acme-etag\"".to_string());
+    seeded.etag = Some(r#""acme-etag""#.to_string());
     meta_cache.set(format!("{registry}\u{0}acme"), Arc::new(seeded));
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
