@@ -765,7 +765,9 @@ async function resolveDependenciesOfImporterDependency (
   const originalPrevSpecifier = 'prevSpecifier' in extendedWantedDep.wantedDependency
     ? extendedWantedDep.wantedDependency.prevSpecifier
     : undefined
-  const catalogSpecifier = originalPrevSpecifier != null && parseCatalogProtocol(originalPrevSpecifier) != null
+  const catalogSpecifier = originalPrevSpecifier != null &&
+    parseCatalogProtocol(originalPrevSpecifier) != null &&
+    isExplicitDistTagSpecifier(originalBareSpecifier)
     ? originalPrevSpecifier
     : originalBareSpecifier
   const catalogLookup = matchCatalogResolveResult(ctx.catalogResolver({
@@ -828,6 +830,10 @@ function filterMissingPeersFromPkgAddresses (
       return false
     }, pkgAddress.missingPeers ?? {}),
   }))
+}
+
+function isExplicitDistTagSpecifier (bareSpecifier: string | undefined): boolean {
+  return bareSpecifier != null && !bareSpecifier.includes(':') && semver.validRange(bareSpecifier) == null
 }
 
 function getPublishedByDate (pkgAddresses: PkgAddress[], timeFromLockfile: Record<string, string> = {}): { publishedBy: Date, newTime: Record<string, string> } {

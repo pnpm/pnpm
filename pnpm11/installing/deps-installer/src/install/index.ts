@@ -977,7 +977,8 @@ export async function mutateModules (
           if (
             wantedDep.prevSpecifier != null &&
             parseCatalogProtocol(wantedDep.prevSpecifier) != null &&
-            wantedDep.bareSpecifier !== wantedDep.prevSpecifier
+            wantedDep.bareSpecifier !== wantedDep.prevSpecifier &&
+            isExplicitDistTagSpecifier(wantedDep.bareSpecifier)
           ) continue
           const perDepCatalogName = getPerDepCatalogName(wantedDep, opts.saveCatalogName)
           const catalogBareSpecifier = `catalog:${perDepCatalogName === 'default' ? '' : perDepCatalogName}`
@@ -1418,6 +1419,10 @@ function getPerDepCatalogName (
     }
   }
   return globalSaveCatalogName ?? 'default'
+}
+
+function isExplicitDistTagSpecifier (bareSpecifier: string | undefined): boolean {
+  return bareSpecifier != null && !bareSpecifier.includes(':') && semver.validRange(bareSpecifier) == null
 }
 
 export async function addDependenciesToPackage (
