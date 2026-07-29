@@ -81,7 +81,7 @@ jobs:
       with:
         persist-credentials: false
     - name: Install pnpm
-      uses: pnpm/setup@6bfbb82d278149277735183e1ac2cd4353ebfe4f
+      uses: pnpm/setup@6523ce966bcf7a1061ce6401e5c6e0b60466bd31
     - name: Compile TypeScript
       run: pn compile-only
     - name: Lint

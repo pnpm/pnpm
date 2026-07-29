@@ -201,7 +201,7 @@ jobs:
         with:
           api_token: ${{ secrets.GARNET_API_TOKEN }}
       - name: Install pnpm and Node
-        uses: pnpm/setup@6bfbb82d278149277735183e1ac2cd4353ebfe4f
+        uses: pnpm/setup@6523ce966bcf7a1061ce6401e5c6e0b60466bd31
         with:
           runtime: node@26.5.0
       - name: Build TypeScript executable artifacts
@@ -355,7 +355,7 @@ jobs:
         with:
           api_token: ${{ secrets.GARNET_API_TOKEN }}
       - name: Install pnpm and Node
-        uses: pnpm/setup@6bfbb82d278149277735183e1ac2cd4353ebfe4f
+        uses: pnpm/setup@6523ce966bcf7a1061ce6401e5c6e0b60466bd31
         with:
           runtime: node@26.5.0
       # The publish phase is split into three sequential steps to control which packages
@@ -642,7 +642,7 @@ jobs:
           persist-credentials: false
 
       - name: Install pnpm and Node
-        uses: pnpm/setup@6bfbb82d278149277735183e1ac2cd4353ebfe4f
+        uses: pnpm/setup@6523ce966bcf7a1061ce6401e5c6e0b60466bd31
         with:
           runtime: node@22
           install: false
@@ -754,6 +754,8 @@ jobs:
     runs-on: ubuntu-latest
     environment: release
     permissions:
+      # Required by pnpm/setup to resolve the pnpm 11 GitHub release asset.
+      contents: read
       # Required for npm trusted publishing and provenance attestations via OIDC.
       id-token: write
     needs:
@@ -766,7 +768,7 @@ jobs:
           persist-credentials: false
 
       - name: Install pnpm and Node
-        uses: pnpm/setup@6bfbb82d278149277735183e1ac2cd4353ebfe4f
+        uses: pnpm/setup@6523ce966bcf7a1061ce6401e5c6e0b60466bd31
         with:
           runtime: node@22
           install: false
@@ -808,7 +810,18 @@ jobs:
         env:
           TAG: ${{ needs.plan.outputs.rust_tag }}
         run: |
+          set -euo pipefail
           for package in pnpm/npm/pacquet-* pnpm/npm/napi.* pnpm/npm/napi pnpm/npm/pnpm-exe pnpm/npm/pnpm; do
+            name=$(jq -r '.publishConfig.name // .name' "$package/package.json")
+            version=$(jq -r '.version' "$package/package.json")
+            if output=$(cd "$RUNNER_TEMP" && npm view "$name@$version" version 2>&1); then
+              echo "$name@$version is already published; skipping"
+              continue
+            fi
+            if ! grep -q 'E404' <<< "$output"; then
+              echo "::error::npm view $name@$version failed: $output"
+              exit 1
+            fi
             pnpm publish "$package/" --tag "$TAG" --access public --provenance --no-git-checks
           done
 
@@ -1052,7 +1065,7 @@ jobs:
           persist-credentials: false
 
       - name: Install pnpm and Node
-        uses: pnpm/setup@6bfbb82d278149277735183e1ac2cd4353ebfe4f
+        uses: pnpm/setup@6523ce966bcf7a1061ce6401e5c6e0b60466bd31
         with:
           runtime: node@22
           install: false
@@ -1151,6 +1164,8 @@ jobs:
     runs-on: ubuntu-latest
     environment: release
     permissions:
+      # Required by pnpm/setup to resolve the pnpm 11 GitHub release asset.
+      contents: read
       # Required for npm trusted publishing and provenance attestations via OIDC.
       id-token: write
     needs:
@@ -1163,7 +1178,7 @@ jobs:
           persist-credentials: false
 
       - name: Install pnpm and Node
-        uses: pnpm/setup@6bfbb82d278149277735183e1ac2cd4353ebfe4f
+        uses: pnpm/setup@6523ce966bcf7a1061ce6401e5c6e0b60466bd31
         with:
           runtime: node@22
           install: false
