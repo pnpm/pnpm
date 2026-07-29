@@ -166,4 +166,25 @@ function wrapExports(binding) {
   return wrapped
 }
 
-module.exports = wrapExports(loadBinding())
+// The engine dispatches the readPackage hook through a threadsafe function,
+// which costs roughly one event-loop tick per call — tens of thousands of
+// per-manifest calls serialize a large resolution behind the JS event loop.
+// Synthesize the batch form of the consumer's per-manifest hook so the native
+// side can serve a whole batch per call. The extra argument is ignored by
+// binaries that predate the batch contract, and a batch-aware binary falls
+// back to per-manifest dispatch when the wrapper is older than it.
+function withBatchedReadPackageHook(exports) {
+  const nativeInstall = exports.install
+  if (typeof nativeInstall !== 'function') return exports
+  exports.install = function (options, onLog, readPackageHook, ...rest) {
+    const batchHook = typeof readPackageHook === 'function'
+      ? (manifests, resolvedDirs) => manifests.map(
+        (manifest, i) => readPackageHook(manifest, resolvedDirs[i] == null ? undefined : resolvedDirs[i])
+      )
+      : undefined
+    return nativeInstall.call(this, options, onLog, readPackageHook, batchHook, ...rest)
+  }
+  return exports
+}
+
+module.exports = withBatchedReadPackageHook(wrapExports(loadBinding()))

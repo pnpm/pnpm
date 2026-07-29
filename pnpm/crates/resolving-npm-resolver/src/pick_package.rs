@@ -482,99 +482,14 @@ pub async fn pick_package<Cache: PackageMetaCache>(
         return Ok(result);
     }
 
-    let limit = {
-        let entry = ctx
-            .fetch_locker
-            .entry(cache_key.clone())
-            .or_insert_with(|| Arc::new(Semaphore::new(1)));
-        Arc::clone(entry.value())
-    };
-    let _permit = limit.acquire().await.expect("packument fetch semaphore should not be closed");
-
-    // Re-check in-memory cache after acquiring the permit — the
-    // previous permit holder may have just populated it. Without
-    // this re-check, every duplicate caller would still fall
-    // through to the disk + network path even though they were
-    // waiting precisely for the winner's fetch to complete.
-    if use_mem_cache
-        && let Some(cached) = ctx.meta_cache.get(&cache_key)
-        && let Some(result) = handle_cache_hit(
-            ctx,
-            spec,
-            opts,
-            &picker_opts,
-            full_metadata,
-            use_filtered_full_metadata,
-            &cache_key,
-            pkg_mirror.as_deref(),
-            cached,
-        )
-        .await?
-    {
-        return Ok(result);
-    }
-
+    // Read-only mirror fast paths, tried *before* the per-name fetch
+    // semaphore: a version-pinned pick (or a publishedBy-fresh mirror)
+    // needs no fetch exclusivity, and queueing it behind a concurrent
+    // fetch of the same name serialized large workspace resolutions
+    // behind a handful of slow revalidations. Concurrent same-name
+    // callers may briefly duplicate a disk read; the mem-cache
+    // promotion inside each path keeps that a one-wave cost.
     let mut meta_cached_in_store: Option<Arc<Package>> = None;
-
-    // 2. Offline / pickLowestVersion / preferOffline disk read.
-    if ctx.offline || ctx.prefer_offline || opts.pick_lowest_version {
-        meta_cached_in_store = load_meta_async(pkg_mirror.as_deref()).await.map(Arc::new);
-
-        if ctx.offline {
-            if let Some(meta) = meta_cached_in_store {
-                // maybe_upgrade_abbreviated_meta_for_release_age
-                // short-circuits when offline, so a later cache hit
-                // returns this same meta without any network access.
-                if !opts.dry_run {
-                    ctx.meta_cache.set_unverified(cache_key.clone(), Arc::clone(&meta));
-                }
-                let (meta, picked) =
-                    pick_from_meta(&picker_opts, spec, meta, opts.blocked_versions)?;
-                return Ok(PickPackageResult { meta, picked_package: picked });
-            }
-            return Err(PickPackageError::NoOfflineMeta {
-                spec_name: spec.name.clone(),
-                spec_fetch_spec: spec.fetch_spec.clone(),
-                pkg_mirror: pkg_mirror.unwrap_or_default(),
-            });
-        }
-
-        if let Some(meta) = meta_cached_in_store.take() {
-            let upgrade = maybe_upgrade_abbreviated_meta_for_release_age(
-                ctx,
-                spec,
-                opts,
-                full_metadata,
-                meta,
-            )
-            .await?;
-            let meta = upgrade.meta;
-            if upgrade.upgraded && !opts.dry_run {
-                if let Some(path) = pkg_mirror.as_deref() {
-                    persist_upgraded_to_mirror(path, &meta, use_filtered_full_metadata);
-                }
-                ctx.meta_cache.set(cache_key.clone(), Arc::clone(&meta));
-            }
-            let (picked_meta, picked) =
-                pick_from_meta(&picker_opts, spec, Arc::clone(&meta), opts.blocked_versions)?;
-            if picked.is_some() {
-                // A cache hit re-runs the release-age upgrade check, so
-                // serving this meta from memory can't bypass the upgrade.
-                // The upgrade branch above already cached the registry-
-                // validated document; don't downgrade it to an unverified
-                // marking.
-                if !upgrade.upgraded && !opts.dry_run {
-                    ctx.meta_cache.set_unverified(cache_key.clone(), Arc::clone(&meta));
-                }
-                return Ok(PickPackageResult { meta: picked_meta, picked_package: picked });
-            }
-            // Fall through to fetch when disk had the meta but no
-            // version satisfied the spec — the disk copy may be
-            // stale. Restore the (possibly upgraded) meta for later
-            // paths that reuse the in-store load.
-            meta_cached_in_store = Some(meta);
-        }
-    }
 
     // 3. Version-spec fast path.
     if !opts.include_latest_tag
@@ -642,6 +557,100 @@ pub async fn pick_package<Cache: PackageMetaCache>(
                 ctx.meta_cache.set(cache_key.clone(), Arc::clone(meta));
             }
             return Ok(PickPackageResult { meta: picked_meta, picked_package: Some(picked) });
+        }
+    }
+
+    let limit = {
+        let entry = ctx
+            .fetch_locker
+            .entry(cache_key.clone())
+            .or_insert_with(|| Arc::new(Semaphore::new(1)));
+        Arc::clone(entry.value())
+    };
+    let _permit = limit.acquire().await.expect("packument fetch semaphore should not be closed");
+
+    // Re-check in-memory cache after acquiring the permit — the
+    // previous permit holder may have just populated it. Without
+    // this re-check, every duplicate caller would still fall
+    // through to the disk + network path even though they were
+    // waiting precisely for the winner's fetch to complete.
+    if use_mem_cache
+        && let Some(cached) = ctx.meta_cache.get(&cache_key)
+        && let Some(result) = handle_cache_hit(
+            ctx,
+            spec,
+            opts,
+            &picker_opts,
+            full_metadata,
+            use_filtered_full_metadata,
+            &cache_key,
+            pkg_mirror.as_deref(),
+            cached,
+        )
+        .await?
+    {
+        return Ok(result);
+    }
+
+    // 2. Offline / pickLowestVersion / preferOffline disk read.
+    if ctx.offline || ctx.prefer_offline || opts.pick_lowest_version {
+        if meta_cached_in_store.is_none() {
+            meta_cached_in_store = load_meta_async(pkg_mirror.as_deref()).await.map(Arc::new);
+        }
+
+        if ctx.offline {
+            if let Some(meta) = meta_cached_in_store {
+                // maybe_upgrade_abbreviated_meta_for_release_age
+                // short-circuits when offline, so a later cache hit
+                // returns this same meta without any network access.
+                if !opts.dry_run {
+                    ctx.meta_cache.set_unverified(cache_key.clone(), Arc::clone(&meta));
+                }
+                let (meta, picked) =
+                    pick_from_meta(&picker_opts, spec, meta, opts.blocked_versions)?;
+                return Ok(PickPackageResult { meta, picked_package: picked });
+            }
+            return Err(PickPackageError::NoOfflineMeta {
+                spec_name: spec.name.clone(),
+                spec_fetch_spec: spec.fetch_spec.clone(),
+                pkg_mirror: pkg_mirror.unwrap_or_default(),
+            });
+        }
+
+        if let Some(meta) = meta_cached_in_store.take() {
+            let upgrade = maybe_upgrade_abbreviated_meta_for_release_age(
+                ctx,
+                spec,
+                opts,
+                full_metadata,
+                meta,
+            )
+            .await?;
+            let meta = upgrade.meta;
+            if upgrade.upgraded && !opts.dry_run {
+                if let Some(path) = pkg_mirror.as_deref() {
+                    persist_upgraded_to_mirror(path, &meta, use_filtered_full_metadata);
+                }
+                ctx.meta_cache.set(cache_key.clone(), Arc::clone(&meta));
+            }
+            let (picked_meta, picked) =
+                pick_from_meta(&picker_opts, spec, Arc::clone(&meta), opts.blocked_versions)?;
+            if picked.is_some() {
+                // A cache hit re-runs the release-age upgrade check, so
+                // serving this meta from memory can't bypass the upgrade.
+                // The upgrade branch above already cached the registry-
+                // validated document; don't downgrade it to an unverified
+                // marking.
+                if !upgrade.upgraded && !opts.dry_run {
+                    ctx.meta_cache.set_unverified(cache_key.clone(), Arc::clone(&meta));
+                }
+                return Ok(PickPackageResult { meta: picked_meta, picked_package: picked });
+            }
+            // Fall through to fetch when disk had the meta but no
+            // version satisfied the spec — the disk copy may be
+            // stale. Restore the (possibly upgraded) meta for later
+            // paths that reuse the in-store load.
+            meta_cached_in_store = Some(meta);
         }
     }
 

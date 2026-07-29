@@ -245,6 +245,7 @@ fn install_options() -> InstallOptions {
         virtual_store_dir_max_length: None,
         peers_suffix_max_length: None,
         dedupe_peer_dependents: None,
+        dedupe_peers: None,
         dedupe_direct_deps: None,
         dedupe_injected_deps: None,
         resolve_peers_from_workspace_root: None,

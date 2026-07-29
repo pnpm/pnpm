@@ -125,6 +125,13 @@ export interface InstallOptions extends SharedEngineOptions {
   virtualStoreDirMaxLength?: number
   peersSuffixMaxLength?: number
   dedupePeerDependents?: boolean
+  /**
+   * Render every resolved-peer slot in depPath suffixes as `name@version`
+   * instead of the peer's own depPath (the `dedupePeers` setting). Must match
+   * the value the existing lockfile was generated with, or the install
+   * re-resolves from scratch.
+   */
+  dedupePeers?: boolean
   dedupeDirectDeps?: boolean
   dedupeInjectedDeps?: boolean
   resolvePeersFromWorkspaceRoot?: boolean

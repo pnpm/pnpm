@@ -36,7 +36,7 @@ use tokio::sync::Mutex;
 use crate::{
     config::{ConfigOverlay, resolve_config},
     error::{invalid_manifest_error, to_napi_error, unsupported_option_error},
-    hooks::{HookSink, JsReadPackageHook},
+    hooks::{BatchHookSink, HookSink, JsBatchedReadPackageHook, JsReadPackageHook},
     reporter_bridge::{EngineCallGuard, LogSink, NodeBridgeReporter, begin_stats, take_stats},
 };
 
@@ -84,6 +84,7 @@ pub struct InstallOptions {
     pub virtual_store_dir_max_length: Option<u32>,
     pub peers_suffix_max_length: Option<u32>,
     pub dedupe_peer_dependents: Option<bool>,
+    pub dedupe_peers: Option<bool>,
     pub dedupe_direct_deps: Option<bool>,
     pub dedupe_injected_deps: Option<bool>,
     pub resolve_peers_from_workspace_root: Option<bool>,
@@ -195,6 +196,7 @@ pub async fn install(
     options: InstallOptions,
     on_log: Option<LogSink>,
     read_package_hook: Option<HookSink>,
+    read_package_batch_hook: Option<BatchHookSink>,
 ) -> napi::Result<InstallResult> {
     let _guard = engine_call_lock().lock().await;
     let (tx, rx) = tokio::sync::oneshot::channel();
@@ -204,7 +206,12 @@ pub async fn install(
         // enough to overflow a default stack on some platforms.
         .stack_size(32 * 1024 * 1024)
         .spawn(move || {
-            let _ = tx.send(run_install_blocking(&options, on_log, read_package_hook));
+            let _ = tx.send(run_install_blocking(
+                &options,
+                on_log,
+                read_package_hook,
+                read_package_batch_hook,
+            ));
         })
         .map_err(|error| {
             napi::Error::from_reason(format!("failed to spawn install thread: {error}"))
@@ -216,12 +223,21 @@ fn run_install_blocking(
     options: &InstallOptions,
     on_log: Option<LogSink>,
     read_package_hook: Option<HookSink>,
+    read_package_batch_hook: Option<BatchHookSink>,
 ) -> napi::Result<InstallResult> {
     // Restores the previous sink and clears stats on drop — including on a
     // panic in `run_install_inner`, which unwinds this dedicated thread.
     let _sink_guard = EngineCallGuard::new(on_log);
-    let pnpmfile_hook: Option<Arc<dyn PnpmfileHooks>> = read_package_hook
-        .map(|sink| Arc::new(JsReadPackageHook::new(sink)) as Arc<dyn PnpmfileHooks>);
+    // The batch sink (synthesized by the `@pnpm/napi` wrapper) wins over the
+    // per-manifest sink: one threadsafe call serves a whole batch, where
+    // per-manifest dispatch pays roughly one event-loop tick per call. The
+    // per-manifest sink stays as the fallback for a wrapper that predates
+    // the batch contract.
+    let pnpmfile_hook: Option<Arc<dyn PnpmfileHooks>> = match read_package_batch_hook {
+        Some(batch) => Some(Arc::new(JsBatchedReadPackageHook::new(batch))),
+        None => read_package_hook
+            .map(|sink| Arc::new(JsReadPackageHook::new(sink)) as Arc<dyn PnpmfileHooks>),
+    };
     begin_stats();
     let outcome = run_install_inner(options, pnpmfile_hook, EngineMode::Install);
     let stats = take_stats();
@@ -497,6 +513,7 @@ fn build_overlay(options: &InstallOptions) -> napi::Result<ConfigOverlay> {
         lockfile: (options.enable_modules_dir == Some(false)).then_some(true),
         prefer_frozen_lockfile: options.prefer_frozen_lockfile,
         dedupe_peer_dependents: options.dedupe_peer_dependents,
+        dedupe_peers: options.dedupe_peers,
         dedupe_direct_deps: options.dedupe_direct_deps,
         dedupe_injected_deps: options.dedupe_injected_deps,
         resolve_peers_from_workspace_root: options.resolve_peers_from_workspace_root,
