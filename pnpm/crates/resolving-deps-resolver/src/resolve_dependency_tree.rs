@@ -726,7 +726,19 @@ struct ChildrenOwnerEntry {
 /// every importer's walk contributes entries to one combined tree
 /// without colliding.
 pub struct WorkspaceTreeCtx {
+    /// Bumped whenever an [`fn@extend_tree`] call may mutate the shared
+    /// maps. The peer-hoist discovery engine compares it against the
+    /// revision of its last sync to skip re-syncing an unchanged
+    /// context.
+    revision: std::sync::atomic::AtomicU64,
     packages: Mutex<HashMap<String, ResolvedPackage>>,
+    /// `(name, version)` of every registry-resolved package, in
+    /// insertion order — one entry per `packages` insert whose result
+    /// carries a `name_ver`. Lets each importer's preferred-versions
+    /// fold consume only the entries appended since its previous round
+    /// (see [`TreeCtx::resolved_versions_since`]) instead of rescanning
+    /// the whole `packages` map every round.
+    resolved_versions_log: Mutex<Vec<(String, String)>>,
     workspace_package_versions: Mutex<HashSet<(String, String)>>,
     dependencies_tree: Mutex<HashMap<NodeId, DependenciesTreeNode>>,
     all_peer_dep_names: Mutex<HashSet<String>>,
@@ -833,7 +845,9 @@ struct OwnerMissingRecord {
 impl Default for WorkspaceTreeCtx {
     fn default() -> Self {
         WorkspaceTreeCtx {
+            revision: std::sync::atomic::AtomicU64::new(0),
             packages: Mutex::new(HashMap::new()),
+            resolved_versions_log: Mutex::new(Vec::new()),
             workspace_package_versions: Mutex::new(HashSet::new()),
             dependencies_tree: Mutex::new(HashMap::new()),
             all_peer_dep_names: Mutex::new(HashSet::new()),
@@ -997,9 +1011,11 @@ impl WorkspaceTreeCtx {
         importer_id: &str,
         missing_by_pkg: &HashMap<String, HashSet<String>>,
     ) {
-        let owners = lock_recoverable(&self.children_owner_by_id).clone();
+        // Lock order: `children_owner_by_id` before
+        // `first_walk_missing_by_pkg`, the only place both are held.
+        let owners = lock_recoverable(&self.children_owner_by_id);
         let mut record = lock_recoverable(&self.first_walk_missing_by_pkg);
-        for (pkg_id, ChildrenOwnerEntry { owner, .. }) in &owners {
+        for (pkg_id, ChildrenOwnerEntry { owner, .. }) in owners.iter() {
             if owner.importer_id != importer_id {
                 continue;
             }
@@ -1032,6 +1048,111 @@ impl WorkspaceTreeCtx {
         lock_recoverable(&self.first_walk_missing_by_pkg)
             .iter()
             .map(|(pkg_id, entry)| (pkg_id.clone(), entry.names.clone()))
+            .collect()
+    }
+
+    /// Append a freshly-inserted package's `(name, version)` to the
+    /// resolved-versions log. Call once per new `packages` entry.
+    fn record_resolved_version(&self, result: &pacquet_resolving_resolver_base::ResolveResult) {
+        if let Some(name_ver) = result.name_ver.as_ref() {
+            lock_recoverable(&self.resolved_versions_log)
+                .push((name_ver.name.to_string(), name_ver.suffix.to_string()));
+        }
+    }
+
+    /// See the `revision` field doc.
+    pub(crate) fn revision(&self) -> u64 {
+        self.revision.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    pub(crate) fn bump_revision(&self) {
+        self.revision.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// Fold the context's growth since the last sync into `tree`, the
+    /// peer-hoist discovery engine's persistent view of the workspace.
+    ///
+    /// The shared maps grow monotonically during the hoist rounds, so
+    /// the sync inserts entries `tree` doesn't have yet and lowers node
+    /// depths that shrank. The exceptions are a children-owner change,
+    /// which can rewrite an existing package's recorded child list or
+    /// peer-dependency split: those invalidate walk results already
+    /// derived from the old values, so the sync reports them as
+    /// unmergeable (`false`) and the engine rebuilds its view from
+    /// scratch. A replaced `children_by_id` `Arc` with equal contents
+    /// (an ownership handover that re-recorded the same children) is
+    /// re-pointed without invalidating.
+    pub(crate) fn sync_discovery_tree(&self, tree: &mut ResolvedTree) -> bool {
+        use std::collections::hash_map::Entry;
+        {
+            let children_by_id = lock_recoverable(&self.children_by_id);
+            for (pkg_id, spec) in children_by_id.iter() {
+                match tree.children_by_id.entry(pkg_id.clone()) {
+                    Entry::Vacant(entry) => {
+                        entry.insert(Arc::clone(spec));
+                    }
+                    Entry::Occupied(mut entry) => {
+                        if Arc::ptr_eq(entry.get(), spec) {
+                            continue;
+                        }
+                        if **entry.get() != **spec {
+                            return false;
+                        }
+                        entry.insert(Arc::clone(spec));
+                    }
+                }
+            }
+        }
+        {
+            let packages = lock_recoverable(&self.packages);
+            for (pkg_id, pkg) in packages.iter() {
+                match tree.packages.entry(pkg_id.clone()) {
+                    Entry::Vacant(entry) => {
+                        entry.insert(pkg.clone());
+                    }
+                    Entry::Occupied(entry) => {
+                        if entry.get().peer_dependencies != pkg.peer_dependencies {
+                            return false;
+                        }
+                    }
+                }
+            }
+        }
+        {
+            let dependencies_tree = lock_recoverable(&self.dependencies_tree);
+            for (node_id, node) in dependencies_tree.iter() {
+                match tree.dependencies_tree.entry(node_id.clone()) {
+                    Entry::Vacant(entry) => {
+                        entry.insert(node.clone());
+                    }
+                    Entry::Occupied(mut entry) => {
+                        if entry.get().depth > node.depth {
+                            entry.get_mut().depth = node.depth;
+                        }
+                    }
+                }
+            }
+        }
+        tree.all_peer_dep_names.extend(lock_recoverable(&self.all_peer_dep_names).iter().cloned());
+        true
+    }
+
+    /// `NodeId → pkgIdWithPatchHash` for the given peer-provider nodes,
+    /// keeping only nodes the shared context resolved eagerly (a node
+    /// the peer walker realized lazily has no context entry and is
+    /// dropped, matching the hoist loop's providers-that-existed-before-
+    /// the-pass filter).
+    pub(crate) fn provider_pkg_ids<'node_ids>(
+        &self,
+        node_ids: impl Iterator<Item = &'node_ids NodeId>,
+    ) -> HashMap<NodeId, String> {
+        let dependencies_tree = lock_recoverable(&self.dependencies_tree);
+        let packages = lock_recoverable(&self.packages);
+        node_ids
+            .filter_map(|node_id| {
+                let pkg_id = &dependencies_tree.get(node_id)?.resolved_package_id;
+                packages.contains_key(pkg_id).then(|| (node_id.clone(), pkg_id.clone()))
+            })
             .collect()
     }
 
@@ -1444,18 +1565,15 @@ impl TreeCtx {
         self.workspace.snapshot_reachable_from(direct)
     }
 
-    /// Return every registry version resolved so far.
+    /// Return every registry version resolved since the caller's
+    /// previous call, advancing `cursor` past them. A caller starting
+    /// from `0` sees the full workspace-wide history.
     #[must_use]
-    pub fn resolved_versions(&self) -> Vec<(String, String)> {
-        lock_recoverable(&self.workspace.packages)
-            .values()
-            .filter_map(|pkg| {
-                pkg.result
-                    .name_ver
-                    .as_ref()
-                    .map(|name_ver| (name_ver.name.to_string(), name_ver.suffix.to_string()))
-            })
-            .collect()
+    pub fn resolved_versions_since(&self, cursor: &mut usize) -> Vec<(String, String)> {
+        let log = lock_recoverable(&self.workspace.resolved_versions_log);
+        let fresh = log[*cursor..].to_vec();
+        *cursor = log.len();
+        fresh
     }
 
     pub(crate) fn newly_seen_workspace_package_versions(
@@ -1492,6 +1610,7 @@ pub async fn extend_tree<Chain>(
 where
     Chain: Resolver + ?Sized,
 {
+    ctx.workspace.bump_revision();
     // Direct deps reuse via the importer's recorded resolution when a
     // prior lockfile exists; without one the gate is a no-op.
     let reuse = if ctx.workspace.wanted_lockfile.is_some() {
@@ -2000,6 +2119,7 @@ where
     drop(packages);
 
     if package_is_new {
+        ctx.workspace.record_resolved_version(&result);
         emit_deprecation_if_needed(ctx, &result, &id, depth);
     }
 
@@ -3211,6 +3331,7 @@ where
     };
 
     if package_is_new {
+        ctx.workspace.record_resolved_version(&result);
         emit_deprecation_if_needed(ctx, &result, &id, depth);
     }
 

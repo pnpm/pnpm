@@ -21,7 +21,7 @@ use crate::{
     },
     resolve_importer::{ImporterHoistState, ResolveImporterError, ResolveImporterOptions},
     resolve_peers::{
-        ImporterPeerInput, ResolvePeersOptions, WorkspaceResolvePeersResult,
+        ImporterPeerInput, PeerHoistDiscovery, ResolvePeersOptions, WorkspaceResolvePeersResult,
         resolve_peers_workspace,
     },
     resolved_tree::ResolvedTree,
@@ -287,16 +287,33 @@ where
     for state in &mut states {
         state.set_workspace_root_deps(Arc::clone(&root_deps));
     }
-    let mut initial_required_rounds: Vec<_> =
-        states.iter_mut().map(ImporterHoistState::prepare_initial_required_round).collect();
+    // One discovery engine serves every hoist round of the workspace:
+    // its persistent tree view + walker caches are what keep the
+    // barrier below linear in workspace size (each importer's pass
+    // short-circuits on the subtree verdicts recorded by the passes
+    // before it).
+    let mut peer_discovery = PeerHoistDiscovery::new();
+    let mut initial_required_rounds: Vec<_> = states
+        .iter_mut()
+        .map(|state| state.prepare_initial_required_round(&mut peer_discovery))
+        .collect();
+    // The context is quiescent between the prepare barrier above and
+    // the completes below, so one snapshot of the owner-scope maps
+    // serves every importer.
+    let first_importer_by_pkg = Arc::new(workspace.first_importer_by_pkg());
+    let first_walk_missing_by_pkg = Arc::new(workspace.first_walk_missing_by_pkg());
     for (state, round) in states.iter().zip(&mut initial_required_rounds) {
         if let Some(round) = round {
-            state.apply_owner_missing_scope(round);
+            state.apply_owner_missing_scope(
+                round,
+                &first_importer_by_pkg,
+                &first_walk_missing_by_pkg,
+            );
         }
     }
     for (state, round) in states.iter_mut().zip(initial_required_rounds) {
         if let Some(round) = round {
-            state.complete_initial_required_round(resolver, round).await?;
+            state.complete_initial_required_round(resolver, round, &mut peer_discovery).await?;
         }
     }
     loop {
@@ -308,9 +325,12 @@ where
             break;
         }
         for state in &mut states {
-            state.run_required_round(resolver).await?;
+            state.run_required_round(resolver, &mut peer_discovery).await?;
         }
     }
+    // Release the engine's tree view before the merged-tree snapshot
+    // below clones the context again, so the two never coexist at peak.
+    drop(peer_discovery);
     let mut per_importer_inputs: Vec<ImporterPeerInput> = Vec::with_capacity(importers.len());
     let mut hoisted_peer_provider_node_ids = std::collections::HashSet::new();
     for ((importer, state), (project_dir, modules_dir)) in

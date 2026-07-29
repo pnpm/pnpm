@@ -49,7 +49,7 @@ pub struct ResolvedTree {
 
 /// One entry on [`ResolvedTree::children_by_id`] — the resolved
 /// shape of a package's children list as recorded by the first walk.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ChildEdge {
     /// Install alias in `node_modules` (the manifest key under
     /// `dependencies` / `optionalDependencies`).

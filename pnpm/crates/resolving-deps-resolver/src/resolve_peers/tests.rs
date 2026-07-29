@@ -1,10 +1,9 @@
 use super::{
-    ImporterPeerInput, NodeRecord, ParentRef, ResolvePeersOptions, Walker,
+    ImporterPeerInput, NodeRecord, ParentRef, PeerDiscoveryCaches, ResolvePeersOptions, Walker,
     importer_relative_link_dep_path, peer_segment_names, resolve_peers, resolve_peers_workspace,
     satisfies_with_prereleases, scoped_hoisted_optional_parent_refs,
 };
 use crate::{
-    dependencies_graph::{DependenciesGraph, PeerDependencyIssues},
     node_id::NodeId,
     resolved_tree::{
         DependenciesTreeNode, DirectDep, PeerDep, ResolvedPackage, ResolvedTree, TreeChildren,
@@ -2054,27 +2053,14 @@ fn tree_node(pkg_id: &str, children: BTreeMap<String, NodeId>, depth: i32) -> De
 }
 
 fn walker_for_tests(tree: &mut ResolvedTree) -> Walker<'_> {
-    Walker {
+    Walker::new(
         tree,
-        opts: ResolvePeersOptions::default(),
-        graph: DependenciesGraph::new(),
-        issues: PeerDependencyIssues::default(),
-        missing_ancestor_pkg_ids: HashMap::new(),
-        node_dep_paths: HashMap::new(),
-        node_external_peers: HashMap::new(),
-        node_missing_peers: HashMap::new(),
-        node_missing_peers_of_children: HashMap::new(),
-        resolved_peer_providers_by_alias: BTreeMap::new(),
-        in_progress: HashSet::new(),
-        pending_peer_edges: Vec::new(),
-        pure_pkgs: HashSet::new(),
-        peers_cache: HashMap::new(),
-        parent_pkgs_of_node: HashMap::new(),
-        node_records: HashMap::new(),
-        next_record_order: 0,
-        node_ids_by_previous_dep_path: HashMap::new(),
-        current_provider_sources: Vec::new(),
-    }
+        ResolvePeersOptions::default(),
+        HashMap::new(),
+        Vec::new(),
+        PeerDiscoveryCaches::default(),
+        false,
+    )
 }
 
 fn package(
