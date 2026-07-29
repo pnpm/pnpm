@@ -91,16 +91,13 @@ pub struct ResolveImporterOptions {
     /// the setting separately.
     pub dedupe_peer_dependents: bool,
 
-    /// Seed for the preferred-versions tie-break table. The
-    /// orchestrator extends this in place as packages are walked —
-    /// each newly-resolved `name@version` lands as a plain
-    /// [`VersionSelectorType::Version`] entry so the [`hoist_peers`]
-    /// (required-peer) picker can reuse a version a sibling already
-    /// brought. The [`fn@crate::get_hoistable_optional_peers`] picker instead
-    /// reads a snapshot of `allPreferredVersions` taken *before* any
-    /// run-resolved version is folded in, so an optional peer is never
-    /// hoisted against a deep-tree provider pnpm can't see. Pass the
-    /// result of
+    /// Seed for the preferred-versions tie-break table: the lockfile +
+    /// manifest entries the peer-hoist pickers bias toward, so a
+    /// version a sibling already brought is reused instead of adding a
+    /// second instance. Newly-resolved versions are folded once,
+    /// workspace-wide, on the tree context and merged with these seed
+    /// buckets per lookup (seed entries win) — see
+    /// `TreeCtx::preferred_versions_for_names`. Pass the result of
     /// `get_preferred_versions_from_lockfile_and_manifests` from the
     /// `lockfile-preferred-versions` crate, or an empty map when no
     /// lockfile + manifest seeding is available.
