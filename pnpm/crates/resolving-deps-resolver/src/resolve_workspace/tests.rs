@@ -1669,7 +1669,10 @@ async fn deprecated_package_is_reported_only_on_its_first_occurrence() {
         panic!("expected one deprecation from the first occurrence: {notifications:?}");
     };
     assert_eq!(deprecation.depth, 1);
-    assert_eq!(deprecation.prefix, "/repo/transitive");
+    assert_eq!(
+        deprecation.prefix,
+        std::path::PathBuf::from("/repo").join("transitive").display().to_string(),
+    );
 }
 
 /// A dependency reused from the wanted lockfile still notifies the
