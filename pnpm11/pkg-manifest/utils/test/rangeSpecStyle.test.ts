@@ -17,6 +17,7 @@ test('versionWithRangeSpecStyle()', () => {
   expect(versionWithRangeSpecStyle('1.2.3', 'patch')).toBe('1.2.3')
   expect(versionWithRangeSpecStyle('1.2.3', 'exact')).toBe('=1.2.3')
   expect(versionWithRangeSpecStyle('1.2.3', 'none')).toBe('^1.2.3')
+  expect(() => versionWithRangeSpecStyle('1.2.3', 'bogus' as never)).toThrow("Unknown range spec style: 'bogus'")
 })
 
 test('rangeSpecGranularity() collapses exact to patch', () => {

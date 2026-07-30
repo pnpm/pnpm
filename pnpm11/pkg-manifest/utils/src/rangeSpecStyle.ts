@@ -27,4 +27,6 @@ export function versionWithRangeSpecStyle (version: string, rangeSpecStyle: Rang
     case 'patch': return version
     case 'exact': return `=${version}`
   }
+  // Unreachable for type-checked callers; fail loudly for untyped JS input.
+  throw new Error(`Unknown range spec style: '${String(rangeSpecStyle)}'`)
 }

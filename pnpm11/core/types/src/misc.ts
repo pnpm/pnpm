@@ -70,8 +70,9 @@ export type ProjectId = string & { __brand: 'ProjectId' }
 
 /**
  * The width of the semver range a specifier is saved with: `major` writes
- * `^`, `minor` writes `~`, `patch` writes the bare version, and `none`
- * keeps the widest form (`*`).
+ * `^`, `minor` writes `~`, and `patch` writes the bare version. `none` is
+ * inferred from a `*` specifier and serializes like `major`, except in the
+ * rolling workspace form, which keeps `*`.
  */
 export type RangeSpecGranularity =
   | 'none'
