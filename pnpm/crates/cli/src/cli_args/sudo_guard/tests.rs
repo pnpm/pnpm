@@ -59,15 +59,15 @@ fn config_writes_are_blocked_but_reads_allowed() {
             0,
             Some("alice"),
         )
-        .is_err()
+        .is_err(),
     );
     assert!(
         check_sudo_as(
             &command(&["pnpm", "config", "get", "--global", "store-dir"]),
             0,
-            Some("alice")
+            Some("alice"),
         )
-        .is_ok()
+        .is_ok(),
     );
 }
 
