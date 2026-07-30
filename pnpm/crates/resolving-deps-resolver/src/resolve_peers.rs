@@ -980,7 +980,9 @@ struct ParentPkgInfo {
     occurrence: u32,
 }
 
-/// One cached resolution of a non-pure subtree.
+/// One cached resolution of a non-pure subtree: the part of a walk's
+/// verdict that holds in any compatible parent context, so a revisit —
+/// by the same walk or another importer's — can reuse it.
 ///
 /// `dep_path` is the value [`Walker::resolve_node`] would otherwise
 /// recompute. `resolved_peers` is the external peer set (excluding
@@ -991,6 +993,12 @@ struct ParentPkgInfo {
 /// current parent context *does* provide, the contexts are
 /// incompatible and the item must be rejected. `missing_peers_of_children`
 /// is the subset exposed as the package's children report.
+///
+/// The peer *providers* the walk resolved to are deliberately not part
+/// of the verdict: they belong to the resolving walk's own context —
+/// pnpm's resolver gives a not-new package `resolvedPeers: {}`
+/// (`resolveDependencies.ts`) — so only the walk that first resolved a
+/// subtree promotes its providers to importer level.
 #[derive(Debug)]
 struct PeersCacheItem {
     dep_path: DepPath,
@@ -1002,6 +1010,20 @@ struct PeersCacheItem {
     /// subtree still reports the same per-package missing breakdown a
     /// full walk of it would.
     subtree_missing_by_pkg: SubtreeMissingByPkg,
+}
+
+impl PeersCacheItem {
+    /// The [`NodeOutput`] a cache hit hands the reusing walk; output
+    /// fields the verdict doesn't carry come back empty.
+    fn to_node_output(&self) -> NodeOutput {
+        NodeOutput {
+            dep_path: self.dep_path.clone(),
+            external_resolved_peers: self.resolved_peers.clone(),
+            auto_install_resolved_peers: HashMap::new(),
+            missing_peers: self.missing_peers.clone(),
+            subtree_missing_by_pkg: self.subtree_missing_by_pkg.clone(),
+        }
+    }
 }
 
 /// One `parent → child` edge whose target wasn't walked yet at the
@@ -1474,17 +1496,8 @@ impl Walker<'_> {
         // view) because a node's own children count as parents for
         // its own descendants' peer resolution.
         if let Some(cached) = self.find_hit(&child_parent_refs, &pkg.id) {
-            let dep_path = cached.dep_path.clone();
-            let resolved = cached.resolved_peers.clone();
-            // Providers resolved by the cached walk belong to that walk's
-            // context: a not-new package contributes no resolved peers to
-            // its consumer (pnpm's `resolveDependencies.ts`), so only the
-            // walk that first resolved a subtree promotes providers to
-            // importer level.
-            let auto_install_resolved_peers = HashMap::new();
-            let missing = cached.missing_peers.clone();
+            let output = cached.to_node_output();
             let missing_of_children = cached.missing_peers_of_children.clone();
-            let subtree_missing_by_pkg = cached.subtree_missing_by_pkg.clone();
             // Re-emit the missing-peer issues against the current
             // parent chain so each occurrence of the package shows up
             // in the diagnostic. Without this, the first walk's parent
@@ -1495,7 +1508,7 @@ impl Walker<'_> {
             {
                 let mut chain_with_self = parent_pkg_ids_chain.to_vec();
                 chain_with_self.push(pkg.id.clone());
-                for (peer_name, info) in &missing {
+                for (peer_name, info) in &output.missing_peers {
                     if self.missing_issue_suppressed(&chain_with_self, peer_name) {
                         continue;
                     }
@@ -1511,28 +1524,23 @@ impl Walker<'_> {
                     );
                 }
             }
-            self.node_dep_paths.insert(node_id.clone(), dep_path.clone());
-            self.node_external_peers.insert(node_id.clone(), resolved.clone());
-            self.node_missing_peers.insert(node_id.clone(), missing.clone());
+            self.node_dep_paths.insert(node_id.clone(), output.dep_path.clone());
+            self.node_external_peers
+                .insert(node_id.clone(), output.external_resolved_peers.clone());
+            self.node_missing_peers.insert(node_id.clone(), output.missing_peers.clone());
             self.node_missing_peers_of_children.insert(node_id.clone(), missing_of_children);
             // Same depth tie-break as the `purePkgs` fast path and the
             // non-fast `entry(...).and_modify(...)` write below — a
             // shallower revisit through the cache must still lower the
             // existing graph entry's `depth`.
-            if let Some(node) = self.graph.get_mut(&dep_path)
+            if let Some(node) = self.graph.get_mut(&output.dep_path)
                 && node.depth > tree_node.depth
             {
                 node.depth = tree_node.depth;
             }
             self.in_progress.remove(&node_id);
             self.visited_this_call.insert(node_id);
-            return NodeOutput {
-                dep_path,
-                external_resolved_peers: resolved,
-                auto_install_resolved_peers,
-                missing_peers: missing,
-                subtree_missing_by_pkg,
-            };
+            return output;
         }
 
         // Recurse into children first (post-order). Collect each child's
