@@ -2325,43 +2325,6 @@ fn importer_records_a_peer_only_alias_only_under_auto_install_peers() {
     assert_eq!(entry.specifier, "^1.0.0");
 }
 
-/// Build a graph node for an injected workspace dependency that resolved
-/// to a `file:` dep path (the shape `dedupe_injected_deps` leaves behind
-/// when the injected copy's peer context genuinely diverges). `name_ver`
-/// is left `None` so the package name is read from the manifest, matching
-/// a real directory resolution.
-fn make_injected_file_node(target: &str, manifest: serde_json::Value) -> DependenciesGraphNode {
-    let id_text = format!("file:{target}");
-    let resolve_result = ResolveResult {
-        id: PkgResolutionId::from(id_text.clone()),
-        name_ver: None,
-        latest: None,
-        published_at: None,
-        manifest: Some(std::sync::Arc::new(manifest)),
-        resolution: LockfileResolution::Directory(DirectoryResolution {
-            directory: target.to_string(),
-        }),
-        resolved_via: "workspace".to_string(),
-        normalized_bare_specifier: None,
-        alias: None,
-        policy_violation: None,
-    };
-    DependenciesGraphNode {
-        dep_path: DepPath::from(id_text.clone()),
-        resolved_package_id: id_text,
-        resolve_result: std::sync::Arc::new(resolve_result),
-        children: BTreeMap::new(),
-        optional_children: HashSet::new(),
-        peer_dependencies: BTreeMap::new(),
-        transitive_peer_dependencies: HashSet::new(),
-        resolved_peer_names: HashSet::new(),
-        depth: 0,
-        installable: true,
-        is_pure: true,
-        optional: false,
-    }
-}
-
 /// A single-importer previous lockfile whose `alias` dependency was
 /// recorded as `link:<target>`.
 fn previous_importers_with_link(
@@ -2393,7 +2356,7 @@ fn injected_link_fixture()
         "version": "1.0.0",
         "dependencies": { "n": "workspace:*" },
     }));
-    let file_node = make_injected_file_node("packages/n", json!({ "name": "n", "version": "1.0.0" }));
+    let file_node = make_file_node("n", "packages/n");
     let mut graph = DependenciesGraph::new();
     graph.insert(file_node.dep_path.clone(), file_node.clone());
     let mut direct = BTreeMap::new();
@@ -2604,47 +2567,19 @@ fn injected_workspace_dep_flips_to_file_on_scope_wide_update() {
     );
 }
 
-// Same `pacquet update <name>` targeting as
-// `injected_workspace_dep_flips_to_file_when_update_targets_it`, but the
-// injected node carries a structured `name_ver` (rather than learning its
-// name from the manifest) — exercises the `name_ver` arm of
-// `node_pkg_name` used to match the update scope.
+// `node_pkg_name` (the guard's `update <name>` scope matcher) reads the
+// structured `name_ver` when the resolver produced one and falls back to
+// the fetched manifest's `name` for directory resolutions, whose
+// `name_ver` is unset.
 #[test]
-fn injected_workspace_dep_flips_to_file_when_update_targets_named_node() {
-    let (_tmp, manifest) = write_manifest(json!({
-        "name": "consumer",
-        "version": "1.0.0",
-        "dependencies": { "n": "workspace:*" },
-    }));
-    // A file: injected node whose resolver produced a structured name.
-    let mut file_node = make_file_node("packages/n", json!({ "name": "n", "version": "1.0.0" }));
+fn node_pkg_name_prefers_name_ver_and_falls_back_to_manifest() {
+    let mut node = make_file_node("n", "packages/n");
+    assert_eq!(super::node_pkg_name(&node), Some("n".to_string()));
+
     let resolve_result = ResolveResult {
-        name_ver: Some("n@1.0.0".parse().expect("parse PkgNameVer")),
-        ..(*file_node.resolve_result).clone()
+        name_ver: Some("renamed@1.0.0".parse().expect("parse PkgNameVer")),
+        ..(*node.resolve_result).clone()
     };
-    file_node.resolve_result = std::sync::Arc::new(resolve_result);
-    let mut graph = DependenciesGraph::new();
-    graph.insert(file_node.dep_path.clone(), file_node.clone());
-    let mut direct = BTreeMap::new();
-    direct.insert("n".to_string(), file_node.dep_path);
-
-    let previous = previous_importers_with_link("n", "workspace:*", "../n");
-
-    let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
-        previous_importers: Some(&previous),
-        update_reuse_scope: UpdateReuseScope::Except(HashSet::from(["n".to_string()])),
-        ..single_importer_opts(&manifest, &graph, direct, false, false, None, None)
-    });
-
-    let importer = lockfile.root_project().expect("root importer");
-    let entry = importer
-        .dependencies
-        .as_ref()
-        .and_then(|deps| deps.get(&PkgName::parse("n").unwrap()))
-        .expect("n entry");
-    assert!(
-        matches!(&entry.version, ImporterDepVersion::File(_)),
-        "an update targeting a name_ver-bearing node must keep file:, got {:?}",
-        entry.version,
-    );
+    node.resolve_result = std::sync::Arc::new(resolve_result);
+    assert_eq!(super::node_pkg_name(&node), Some("renamed".to_string()));
 }
