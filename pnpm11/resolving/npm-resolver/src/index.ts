@@ -666,6 +666,7 @@ async function resolveNpm (
     failIfTrustDowngraded(meta, pickedPackage.version, opts)
   }
 
+  const latest = latestAllowedByPolicy(meta, opts)
   const workspacePkgsMatchingName = workspacePackages?.get(pickedPackage.name)
   if (workspacePkgsMatchingName && opts.projectDir) {
     const matchedPkg = workspacePkgsMatchingName.get(pickedPackage.version)
@@ -680,7 +681,7 @@ async function resolveNpm (
           calcSpecifier: opts.calcSpecifier,
           rangeSpecStyle: opts.rangeSpecStyle,
         }),
-        latest: meta['dist-tags'].latest,
+        latest,
       }
     }
     const localVersion = pickMatchingLocalVersionOrNull(workspacePkgsMatchingName, spec)
@@ -695,7 +696,7 @@ async function resolveNpm (
           calcSpecifier: opts.calcSpecifier,
           rangeSpecStyle: opts.rangeSpecStyle,
         }),
-        latest: meta['dist-tags'].latest,
+        latest,
       }
     }
   }
@@ -718,7 +719,7 @@ async function resolveNpm (
   const publishedAt = meta.time?.[pickedPackage.version]
   return {
     id,
-    latest: meta['dist-tags'].latest,
+    latest,
     manifest: pickedPackage,
     resolution,
     resolvedVia: 'npm-registry',
@@ -870,7 +871,7 @@ async function pickFromSimpleRegistry (
   const publishedAt = meta.time?.[pickedPackage.version]
   return {
     id: `${pickedPackage.name}@${pickedPackage.version}` as PkgResolutionId,
-    latest: meta['dist-tags'].latest,
+    latest: latestAllowedByPolicy(meta, opts),
     manifest: pickedPackage,
     resolution,
     publishedAt,
@@ -1130,6 +1131,34 @@ function defaultTagForAlias (alias: string, defaultTag: string): RegistryPackage
     name: alias,
     type: 'tag',
   }
+}
+
+/**
+ * The raw `dist-tags.latest` when the active `minimumReleaseAge` policy would
+ * allow installing it, `undefined` otherwise. The install summary's
+ * "(X is available)" hint must only ever name the actual latest tag, so an
+ * immature latest suppresses the hint instead of being rewritten to an older
+ * mature version. Suppression requires positive evidence of immaturity: a
+ * missing or unparsable timestamp keeps the raw tag, matching
+ * `detectMinReleaseAgeViolation`, which likewise only flags a version it can
+ * date.
+ */
+function latestAllowedByPolicy (
+  meta: PackageMeta,
+  opts: {
+    publishedBy?: Date
+    publishedByExclude?: PackageVersionPolicy
+  }
+): string | undefined {
+  const latest = meta['dist-tags'].latest
+  if (!latest || !opts.publishedBy) return latest
+  const excludeResult = opts.publishedByExclude?.(meta.name)
+  if (excludeResult === true) return latest
+  if (Array.isArray(excludeResult) && excludeResult.includes(latest)) return latest
+  const publishedAt = meta.time?.[latest]
+  if (publishedAt == null) return latest
+  const ts = new Date(publishedAt).getTime()
+  return (Number.isNaN(ts) || ts <= opts.publishedBy.getTime()) ? latest : undefined
 }
 
 /**

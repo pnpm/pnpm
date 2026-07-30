@@ -4180,6 +4180,7 @@ dependencies = [
  "chrono",
  "insta",
  "libc",
+ "node-semver",
  "owo-colors",
  "pacquet-reporter",
  "pretty_assertions",

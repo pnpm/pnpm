@@ -5,7 +5,7 @@ use std::{
 };
 
 use chrono::TimeZone;
-use pacquet_config::TrustPolicy;
+use pacquet_config::{TrustPolicy, version_policy::create_package_version_policy};
 use pacquet_lockfile::LockfileResolution;
 use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use pacquet_resolving_resolver_base::{
@@ -1370,4 +1370,172 @@ async fn non_404_registry_error_not_masked_by_workspace_version_mismatch() {
         !err_msg.contains("inside the workspace"),
         "workspace mismatch must not mask a non-404 registry error, got: {err_msg}",
     );
+}
+
+#[tokio::test]
+async fn latest_is_suppressed_when_published_by_holds_back_raw_latest() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock =
+        server.mock("GET", "/acme").with_status(200).with_body(PACKAGE_BODY).create_async().await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    // PACKAGE_BODY has 1.0.0 (2024-01-10) and 1.1.0 (2024-12-10),
+    // dist-tags.latest = 1.1.0. Cutoff 2024-06-01 leaves 1.1.0 immature:
+    // the hint must not fire rather than name a non-latest version.
+    let published_by = Some(chrono::Utc.with_ymd_and_hms(2024, 6, 1, 0, 0, 0).unwrap());
+    let opts = ResolveOptions { published_by, ..ResolveOptions::default() };
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("^1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
+    assert_eq!(result.name_ver.as_ref().expect("name_ver").suffix.to_string(), "1.0.0");
+    assert!(result.latest.is_none(), "immature dist-tags.latest suppresses the hint");
+    assert!(result.policy_violation.is_none(), "1.0.0 is mature, no violation");
+}
+
+#[tokio::test]
+async fn latest_is_raw_registry_tag_when_it_satisfies_published_by() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock =
+        server.mock("GET", "/acme").with_status(200).with_body(PACKAGE_BODY).create_async().await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    // Cutoff 2025-01-01 is after both versions, so the pinned 1.0.0 install
+    // still advertises the mature 1.1.0.
+    let published_by = Some(chrono::Utc.with_ymd_and_hms(2025, 1, 1, 0, 0, 0).unwrap());
+    let opts = ResolveOptions { published_by, ..ResolveOptions::default() };
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
+    assert_eq!(result.name_ver.as_ref().expect("name_ver").suffix.to_string(), "1.0.0");
+    assert_eq!(result.latest.as_deref(), Some("1.1.0"));
+}
+
+#[tokio::test]
+async fn latest_is_raw_registry_tag_when_published_by_is_none() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock =
+        server.mock("GET", "/acme").with_status(200).with_body(PACKAGE_BODY).create_async().await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("^1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
+    assert_eq!(result.name_ver.as_ref().expect("name_ver").suffix.to_string(), "1.1.0");
+    assert_eq!(result.latest.as_deref(), Some("1.1.0"));
+}
+
+#[tokio::test]
+async fn latest_is_raw_registry_tag_when_published_by_exclude_matches_package() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock =
+        server.mock("GET", "/acme").with_status(200).with_body(PACKAGE_BODY).create_async().await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    // The exclude policy disables the maturity policy for `acme` entirely, so
+    // neither the pick nor the latest hint may be affected by the cutoff.
+    let published_by = Some(chrono::Utc.with_ymd_and_hms(2024, 6, 1, 0, 0, 0).unwrap());
+    let exclude = create_package_version_policy(["acme"]).expect("policy");
+    let opts = ResolveOptions {
+        published_by,
+        published_by_exclude: Some(exclude),
+        ..ResolveOptions::default()
+    };
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("^1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
+    assert_eq!(result.name_ver.as_ref().expect("name_ver").suffix.to_string(), "1.1.0");
+    assert_eq!(result.latest.as_deref(), Some("1.1.0"));
+    assert!(result.policy_violation.is_none(), "excluded package has no violation");
+}
+
+#[tokio::test]
+async fn latest_is_raw_registry_tag_when_published_by_exclude_trusts_that_version() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock =
+        server.mock("GET", "/acme").with_status(200).with_body(PACKAGE_BODY).create_async().await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let published_by = Some(chrono::Utc.with_ymd_and_hms(2024, 6, 1, 0, 0, 0).unwrap());
+    let exclude = create_package_version_policy(["acme@1.1.0"]).expect("policy");
+    let opts = ResolveOptions {
+        published_by,
+        published_by_exclude: Some(exclude),
+        ..ResolveOptions::default()
+    };
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("^1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
+    assert_eq!(result.name_ver.as_ref().expect("name_ver").suffix.to_string(), "1.1.0");
+    assert_eq!(result.latest.as_deref(), Some("1.1.0"));
+}
+
+#[tokio::test]
+async fn latest_is_suppressed_when_all_versions_are_immature_fallback_case() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock =
+        server.mock("GET", "/acme").with_status(200).with_body(PACKAGE_BODY).create_async().await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    // Cutoff 2023-12-01 is before both versions → the pick falls back to the
+    // lowest version; latest stays suppressed because the raw tag is immature.
+    let published_by = Some(chrono::Utc.with_ymd_and_hms(2023, 12, 1, 0, 0, 0).unwrap());
+    let opts = ResolveOptions { published_by, ..ResolveOptions::default() };
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("^1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
+    assert_eq!(result.name_ver.as_ref().expect("name_ver").suffix.to_string(), "1.0.0");
+    assert!(result.latest.is_none(), "immature dist-tags.latest suppresses the hint");
+}
+
+#[tokio::test]
+async fn jsr_specifier_suppresses_latest_when_published_by_holds_back_raw_latest() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/@jsr%2Ffoo__bar")
+        .with_status(200)
+        .with_body(JSR_PACKAGE_BODY)
+        .create_async()
+        .await;
+    let jsr_registry = format!("{}/", server.url());
+    let mut registries = HashMap::new();
+    registries.insert("default".to_string(), "https://registry.npmjs.org/".to_string());
+    registries.insert("@jsr".to_string(), jsr_registry);
+    let (resolver, _tempdir) = build_resolver_with_registries(registries);
+
+    let wanted = WantedDependency {
+        alias: Some("@foo/bar".to_string()),
+        bare_specifier: Some("jsr:@foo/bar@^1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let opts = ResolveOptions {
+        published_by: Some(chrono::Utc.with_ymd_and_hms(2024, 6, 1, 0, 0, 0).unwrap()),
+        ..ResolveOptions::default()
+    };
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
+    assert_eq!(result.name_ver.as_ref().expect("name_ver").suffix.to_string(), "1.0.0");
+    assert!(result.latest.is_none(), "immature dist-tags.latest suppresses the hint");
 }
