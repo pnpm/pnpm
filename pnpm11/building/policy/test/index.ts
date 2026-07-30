@@ -149,6 +149,13 @@ it('should allow git-hosted tarball builds by hashless repository key', () => {
   // even with the slash-bearing key allowlisted. This keeps parity with the Rust matcher.
   expect(allowBuild!(depPath('qux@https://codeload.github.com/org/extra/qux/tar.gz/abc123'))).toBeUndefined()
   expect(allowBuild!(depPath('quux@https://bitbucket.org/org/extra/quux/get/abc123.tar.gz'))).toBeUndefined()
+  // A URL on a claimed download host that does not match that host's tarball pattern is rejected
+  // outright — it must not fall through to the generic GitLab matcher and produce the host's
+  // trusted repo key.
+  expect(allowBuild!(depPath('bar@https://bitbucket.org/org/bar/-/archive/abc123/bar-abc123.tar.gz'))).toBeUndefined()
+  expect(allowBuild!(depPath('foo@https://codeload.github.com/org/foo/-/archive/abc123/foo-abc123.tar.gz'))).toBeUndefined()
+  // A GitLab archive URL without a `<ref>/` segment after the marker is not normalized.
+  expect(allowBuild!(depPath('baz@https://gitlab.com/group/subgroup/baz/-/archive/abc123'))).toBeUndefined()
 })
 
 it('should allow untrusted package identity by source-only depPath', () => {

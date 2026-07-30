@@ -140,42 +140,40 @@ function isGitRepoDepPath (depPath: string): boolean {
   return depPath.startsWith('git+') || depPath.includes('@git+')
 }
 
+function gitHostedTarballRepoKey (pkgIdWithPatchHash: string): string | undefined {
+  const { name, nonSemverVersion } = dp.parse(pkgIdWithPatchHash)
+  if (name == null || nonSemverVersion == null) return undefined
+  const repoUrl = gitHostedTarballRepoUrl(nonSemverVersion)
+  return repoUrl == null ? undefined : `${name}@${repoUrl}`
+}
+
 // Reconstructs the committish-free repository URL from the download URL of a
 // git host that pnpm fetches as a tarball instead of cloning. The patterns
 // mirror the tarball templates in @pnpm/git-resolver (which come from
 // hosted-git-info, except GitLab's, which that package overrides). The host of
 // each known template is anchored so a look-alike download host (e.g.
 // `codeload.github.com.example.com`) cannot be rewritten into an unrelated
-// repo key.
-const GIT_HOSTED_TARBALL_REPO_URL_MATCHERS: Array<(tarballUrl: string) => string | undefined> = [
+// repo key, and each known download host claims its URLs exclusively: a URL on
+// codeload.github.com or bitbucket.org that does not match that host's tarball
+// pattern is rejected rather than falling through to the generic GitLab
+// pattern, so a malformed URL on a known host cannot be rewritten into that
+// host's trusted repo key either.
+function gitHostedTarballRepoUrl (tarballUrl: string): string | undefined {
   // GitHub: https://codeload.github.com/<owner>/<repo>/tar.gz/<committish>
-  makeTarballRepoUrlMatcher(/^https:\/\/codeload\.github\.com\/([^/]+)\/([^/]+)\/tar\.gz\//, (m) => `github.com/${m[1]}/${m[2]}`),
+  if (tarballUrl.startsWith('https://codeload.github.com/')) {
+    const match = /^https:\/\/codeload\.github\.com\/([^/]+)\/([^/]+)\/tar\.gz\//.exec(tarballUrl)
+    return match == null ? undefined : `git+https://github.com/${match[1]}/${match[2]}.git`
+  }
   // Bitbucket: https://bitbucket.org/<owner>/<repo>/get/<committish>.tar.gz
-  makeTarballRepoUrlMatcher(/^https:\/\/bitbucket\.org\/([^/]+)\/([^/]+)\/get\//, (m) => `bitbucket.org/${m[1]}/${m[2]}`),
+  if (tarballUrl.startsWith('https://bitbucket.org/')) {
+    const match = /^https:\/\/bitbucket\.org\/([^/]+)\/([^/]+)\/get\//.exec(tarballUrl)
+    return match == null ? undefined : `git+https://bitbucket.org/${match[1]}/${match[2]}.git`
+  }
   // GitLab (incl. self-hosted): https://<host>/<group…>/<repo>/-/archive/<ref>/…
   // The project path may contain nested groups, so match up to the
   // `/-/archive/<ref>/` marker rather than a fixed number of path segments.
-  makeTarballRepoUrlMatcher(/^https:\/\/([^/]+)\/(.+?)\/-\/archive\/[^/]+\//, (m) => `${m[1]}/${m[2]}`),
-]
-
-function makeTarballRepoUrlMatcher (
-  re: RegExp,
-  toRepoPath: (m: RegExpExecArray) => string
-): (tarballUrl: string) => string | undefined {
-  return (tarballUrl) => {
-    const match = re.exec(tarballUrl)
-    return match == null ? undefined : `git+https://${toRepoPath(match)}.git`
-  }
-}
-
-function gitHostedTarballRepoKey (pkgIdWithPatchHash: string): string | undefined {
-  const { name, nonSemverVersion } = dp.parse(pkgIdWithPatchHash)
-  if (name == null || nonSemverVersion == null) return undefined
-  for (const match of GIT_HOSTED_TARBALL_REPO_URL_MATCHERS) {
-    const repoUrl = match(nonSemverVersion)
-    if (repoUrl != null) return `${name}@${repoUrl}`
-  }
-  return undefined
+  const match = /^https:\/\/([^/]+)\/(.+?)\/-\/archive\/[^/]+\//.exec(tarballUrl)
+  return match == null ? undefined : `git+https://${match[1]}/${match[2]}.git`
 }
 
 function isDepPathAllowBuildKey (pkg: string): boolean {

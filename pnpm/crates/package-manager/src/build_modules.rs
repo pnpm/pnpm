@@ -364,12 +364,25 @@ fn git_hosted_tarball_repo_url(tarball_url: &str) -> Option<String> {
     // so match up to the `/-/archive/<ref>/` marker.
     // `https://<host>/<group...>/<repo>/-/archive/<ref>/<repo>-<ref>.tar.gz`
     if let Some(rest) = tarball_url.strip_prefix("https://") {
-        let (host, rest) = rest.split_once('/')?;
-        let (project, _) = rest.split_once("/-/archive/")?;
-        if host.is_empty() || project.is_empty() {
+        let (host, path) = rest.split_once('/')?;
+        if host.is_empty() {
             return None;
         }
-        return Some(format!("git+https://{host}/{project}.git"));
+        // Take the shortest non-empty project whose marker is followed by a
+        // non-empty `<ref>/` segment, mirroring the lazy `(.+?)` project
+        // capture and the `[^/]+/` ref anchor of the TypeScript matcher.
+        const ARCHIVE_MARKER: &str = "/-/archive/";
+        for (marker_index, _) in path.match_indices(ARCHIVE_MARKER) {
+            let project = &path[..marker_index];
+            let after_marker = &path[marker_index + ARCHIVE_MARKER.len()..];
+            let Some((git_ref, _)) = after_marker.split_once('/') else {
+                continue;
+            };
+            if project.is_empty() || git_ref.is_empty() {
+                continue;
+            }
+            return Some(format!("git+https://{host}/{project}.git"));
+        }
     }
     None
 }

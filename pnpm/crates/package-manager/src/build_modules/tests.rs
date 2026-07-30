@@ -213,6 +213,20 @@ fn explicit_allow_by_git_hosted_tarball_repo_url() {
     // key allowlisted, the multi-segment URL stays unapproved.
     assert_eq!(policy.check("qux@https://codeload.github.com/org/extra/qux/tar.gz/abc123"), None);
     assert_eq!(policy.check("quux@https://bitbucket.org/org/extra/quux/get/abc123.tar.gz"), None);
+    // A URL on a claimed download host that does not match that host's tarball
+    // pattern is rejected outright — it must not fall through to the generic
+    // GitLab matcher and produce the host's trusted repo key.
+    assert_eq!(
+        policy.check("bar@https://bitbucket.org/org/bar/-/archive/abc123/bar-abc123.tar.gz"),
+        None,
+    );
+    assert_eq!(
+        policy.check("foo@https://codeload.github.com/org/foo/-/archive/abc123/foo-abc123.tar.gz"),
+        None,
+    );
+    // A GitLab archive URL without a `<ref>/` segment after the marker is not
+    // normalized.
+    assert_eq!(policy.check("baz@https://gitlab.com/group/subgroup/baz/-/archive/abc123"), None);
 }
 
 #[test]
