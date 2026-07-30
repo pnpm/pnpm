@@ -187,9 +187,7 @@ fn a_deleted_wanted_lockfile_is_regenerated_from_the_current_one() {
 }
 
 /// TS: `a lockfile with duplicate keys is fixed`
-/// (`deps-installer/test/lockfile.ts:1288`). A broken `pnpm-lock.yaml`
-/// is regenerable state: a regular install warns, re-resolves from the
-/// manifests, and rewrites the file instead of failing.
+/// (`deps-installer/test/lockfile.ts:1288`).
 #[test]
 fn a_broken_wanted_lockfile_is_ignored_and_regenerated() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =

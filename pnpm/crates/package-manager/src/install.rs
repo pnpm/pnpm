@@ -1114,12 +1114,8 @@ where
 
         // Past the repeat-install fast path every install flavor needs
         // the wanted lockfile's contents; force the deferred load here.
-        // A wanted lockfile that fails to load is only fatal under
-        // `--frozen-lockfile`. A regular install warns and re-resolves
-        // from the manifests, then rewrites the file — the lockfile is
-        // regenerable state, and failing would leave the user with no
-        // way to install at all (upstream `readLockfiles`' "Ignoring
-        // broken lockfile" arm).
+        // A broken lockfile is regenerable state, so only a frozen
+        // install treats it as fatal (upstream `readLockfiles`).
         let lockfile = match lockfile.get() {
             Ok(lockfile) => lockfile,
             Err(error) if !frozen_lockfile => {
