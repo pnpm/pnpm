@@ -2709,3 +2709,203 @@ async fn importer_sharing_foreign_subtrees_binds_peers_from_workspace_root() {
         Some("mid@1.0.0(peerx@1.0.0)".to_string()),
     );
 }
+
+/// A children-ownership handover whose peer-shadow context is
+/// unchanged must not discard other occurrences' realized subtrees.
+///
+/// `pkg-b`'s lockfile pins `wrapperB → mid2 → leaf2@1.0.0`, so its walk
+/// reuses that subtree. The root importer's required-peer hoist of
+/// `mid2` (for `needyC`) then claims `mid2`'s children ownership at
+/// depth 0 with the same (empty) peer-shadow set. Rewriting the
+/// displaced owner's occurrences to lazy on such a handover would
+/// re-resolve the reused subtree's open ranges — churning the locked
+/// `leaf2@1.0.0` to the registry's newer `1.5.0` even though nothing
+/// about `mid2`'s child resolution context changed.
+#[tokio::test]
+async fn unchanged_shadow_ownership_handover_keeps_reused_subtree() {
+    let mut table = HashMap::default();
+    table.insert(
+        ("wrapperB".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "wrapperB",
+            "1.0.0",
+            None,
+            serde_json::json!({
+                "name": "wrapperB",
+                "version": "1.0.0",
+                "dependencies": { "mid2": "1.0.0" },
+            }),
+        ),
+    );
+    table.insert(
+        ("shared2".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "shared2",
+            "1.0.0",
+            None,
+            serde_json::json!({
+                "name": "shared2",
+                "version": "1.0.0",
+                "dependencies": { "mid2": "1.0.0" },
+            }),
+        ),
+    );
+    table.insert(
+        ("needyC".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "needyC",
+            "1.0.0",
+            None,
+            serde_json::json!({
+                "name": "needyC",
+                "version": "1.0.0",
+                "peerDependencies": { "mid2": "1.0.0" },
+            }),
+        ),
+    );
+    table.insert(
+        ("mid2".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "mid2",
+            "1.0.0",
+            None,
+            serde_json::json!({
+                "name": "mid2",
+                "version": "1.0.0",
+                "dependencies": { "leaf2": "^1.0.0" },
+            }),
+        ),
+    );
+    table.insert(
+        ("leaf2".to_string(), "^1.0.0".to_string()),
+        fake_result(
+            "leaf2",
+            "1.5.0",
+            None,
+            serde_json::json!({ "name": "leaf2", "version": "1.5.0" }),
+        ),
+    );
+    let resolver = RecordingResolver { table, seen: Mutex::new(HashMap::default()) };
+    let (tmp_b, b_manifest) = fake_manifest(serde_json::json!({ "wrapperB": "1.0.0" }));
+    let (tmp_root, root_manifest) =
+        fake_manifest(serde_json::json!({ "shared2": "1.0.0", "needyC": "1.0.0" }));
+    let importers = [
+        WorkspaceImporter { id: "pkg-b".to_string(), manifest: &b_manifest },
+        WorkspaceImporter { id: ".".to_string(), manifest: &root_manifest },
+    ];
+    let dirs = [tmp_b.path(), tmp_root.path()];
+
+    let mut opts = workspace_opts(false, false);
+    opts.auto_install_peers = true;
+    opts.wanted_lockfile = Some(std::sync::Arc::new(reuse_steal_lockfile()));
+    let mut next = 0;
+    let result = resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
+        let dir = dirs[next].to_path_buf();
+        next += 1;
+        let mut opts = importer_opts(dir, None);
+        opts.auto_install_peers = true;
+        opts
+    })
+    .await
+    .unwrap();
+
+    let root_direct = result.peers.direct_dependencies_by_importer.get(".").expect("root importer");
+    assert_eq!(
+        root_direct.get("mid2").map(std::string::ToString::to_string),
+        Some("mid2@1.0.0".to_string()),
+        "needyC's required peer mid2 is hoisted to the root importer",
+    );
+    let mid2 = result
+        .peers
+        .graph
+        .get(&pacquet_deps_path::DepPath::from("mid2@1.0.0".to_string()))
+        .expect("mid2 in graph");
+    assert_eq!(
+        mid2.children.get("leaf2").map(std::string::ToString::to_string),
+        Some("leaf2@1.0.0".to_string()),
+        "the lockfile-reused subtree must survive the ownership handover",
+    );
+}
+fn reuse_steal_lockfile() -> pacquet_lockfile::Lockfile {
+    use pacquet_lockfile::{
+        ComVer, ImporterDepVersion, Lockfile, LockfileVersion, PackageMetadata, PkgName,
+        PkgNameVerPeer, PkgVerPeer, ProjectSnapshot, RegistryResolution, ResolvedDependencySpec,
+        SnapshotDepRef, SnapshotEntry,
+    };
+
+    let metadata = || {
+        PackageMetadata {
+        resolution: LockfileResolution::Registry(RegistryResolution {
+            integrity: "sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg=="
+                .parse()
+                .expect("parse integrity"),
+        }),
+        version: None,
+        engines: None,
+        cpu: None,
+        os: None,
+        libc: None,
+        deprecated: None,
+        has_bin: None,
+        prepare: None,
+        bundled_dependencies: None,
+        peer_dependencies: None,
+        peer_dependencies_meta: None,
+    }
+    };
+    let key = |raw: &str| PkgNameVerPeer::from_str(raw).expect("parse snapshot key");
+    let importers = std::collections::HashMap::from([(
+        "pkg-b".to_string(),
+        ProjectSnapshot {
+            dependencies: Some(std::collections::HashMap::from([(
+                PkgName::parse("wrapperB").unwrap(),
+                ResolvedDependencySpec {
+                    specifier: "1.0.0".to_string(),
+                    version: ImporterDepVersion::Regular("1.0.0".parse::<PkgVerPeer>().unwrap()),
+                },
+            )])),
+            ..ProjectSnapshot::default()
+        },
+    )]);
+    let packages = std::collections::HashMap::from([
+        (key("wrapperB@1.0.0"), metadata()),
+        (key("mid2@1.0.0"), metadata()),
+        (key("leaf2@1.0.0"), metadata()),
+    ]);
+    let snapshots = std::collections::HashMap::from([
+        (
+            key("wrapperB@1.0.0"),
+            SnapshotEntry {
+                dependencies: Some(std::collections::HashMap::from([(
+                    PkgName::parse("mid2").unwrap(),
+                    SnapshotDepRef::Plain("1.0.0".parse::<PkgVerPeer>().unwrap()),
+                )])),
+                ..SnapshotEntry::default()
+            },
+        ),
+        (
+            key("mid2@1.0.0"),
+            SnapshotEntry {
+                dependencies: Some(std::collections::HashMap::from([(
+                    PkgName::parse("leaf2").unwrap(),
+                    SnapshotDepRef::Plain("1.0.0".parse::<PkgVerPeer>().unwrap()),
+                )])),
+                ..SnapshotEntry::default()
+            },
+        ),
+        (key("leaf2@1.0.0"), SnapshotEntry::default()),
+    ]);
+    Lockfile {
+        lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(9, 0)).expect("lockfile v9"),
+        settings: None,
+        catalogs: None,
+        overrides: None,
+        package_extensions_checksum: None,
+        pnpmfile_checksum: None,
+        ignored_optional_dependencies: None,
+        patched_dependencies: None,
+        importers,
+        packages: Some(packages),
+        snapshots: Some(snapshots),
+    }
+}
