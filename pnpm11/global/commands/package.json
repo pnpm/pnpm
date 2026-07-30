@@ -45,6 +45,7 @@
     "@pnpm/global.packages": "workspace:*",
     "@pnpm/installing.deps-installer": "workspace:*",
     "@pnpm/pkg-manifest.reader": "workspace:*",
+    "@pnpm/pkg-manifest.utils": "workspace:*",
     "@pnpm/store.connection-manager": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "catalog:",

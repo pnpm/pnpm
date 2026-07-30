@@ -2684,9 +2684,6 @@ importers:
 
   pnpm11/core/types:
     devDependencies:
-      '@jest/globals':
-        specifier: 'catalog:'
-        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/types':
         specifier: workspace:*
         version: 'link:'
@@ -3890,6 +3887,9 @@ importers:
       '@pnpm/os.env.path-extender':
         specifier: 'catalog:'
         version: 3.0.1
+      '@pnpm/pkg-manifest.utils':
+        specifier: workspace:*
+        version: link:../../../pkg-manifest/utils
       '@pnpm/resolving.npm-resolver':
         specifier: workspace:*
         version: link:../../../resolving/npm-resolver
@@ -4945,6 +4945,9 @@ importers:
       '@pnpm/pkg-manifest.reader':
         specifier: workspace:*
         version: link:../../pkg-manifest/reader
+      '@pnpm/pkg-manifest.utils':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/utils
       '@pnpm/store.connection-manager':
         specifier: workspace:*
         version: link:../../store/connection-manager
@@ -8765,6 +8768,9 @@ importers:
       '@pnpm/fs.graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
+      '@pnpm/pkg-manifest.utils':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/utils
       '@pnpm/resolving.jsr-specifier-parser':
         specifier: workspace:*
         version: link:../jsr-specifier-parser

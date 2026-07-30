@@ -8,8 +8,9 @@ import {
   type ProjectManifest,
   type RangeSpecStyle,
 } from '@pnpm/types'
-import { versionWithRangeSpecStyle } from '@pnpm/types'
 import semver from 'semver'
+
+import { versionWithRangeSpecStyle } from './rangeSpecStyle.js'
 
 export interface PackageSpecObject {
   alias: string

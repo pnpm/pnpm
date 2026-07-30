@@ -83,42 +83,13 @@ export type RangeSpecGranularity =
  * How a resolved version is written back to the manifest. Beyond the
  * granularity values, `exact` selects the same single-version range as `patch`
  * but spells it with an explicit `=` operator, preserving a deliberate
- * `=x.y.z` pin. Collapse the spelling away with `rangeSpecGranularity`
- * when only the range width matters.
+ * `=x.y.z` pin. Collapse the spelling away with `@pnpm/pkg-manifest.utils`'s
+ * `rangeSpecGranularity` when only the range width matters.
  */
 export type RangeSpecStyle = RangeSpecGranularity | 'exact'
 
 /** @deprecated Renamed to {@link RangeSpecStyle}. */
 export type PinnedVersion = RangeSpecStyle
-
-export function rangeSpecGranularity (style: RangeSpecStyle): RangeSpecGranularity {
-  return style === 'exact' ? 'patch' : style
-}
-
-/**
- * Interpret the `save-exact` and `save-prefix` settings into a
- * {@link RangeSpecStyle}. `save-exact` (like the empty `save-prefix`) wins
- * and saves the bare version; a `save-prefix` of `=` saves the version with
- * an explicit `=` operator.
- */
-export function getRangeSpecStyle (opts: { saveExact?: boolean, savePrefix?: string }): RangeSpecStyle {
-  if (opts.saveExact === true || opts.savePrefix === '') return 'patch'
-  switch (opts.savePrefix) {
-    case '=': return 'exact'
-    case '~': return 'minor'
-    default: return 'major'
-  }
-}
-
-export function versionWithRangeSpecStyle (version: string, rangeSpecStyle: RangeSpecStyle): string {
-  switch (rangeSpecStyle) {
-    case 'none':
-    case 'major': return `^${version}`
-    case 'minor': return `~${version}`
-    case 'patch': return version
-    case 'exact': return `=${version}`
-  }
-}
 
 export type IgnoredBuilds = Set<DepPath>
 

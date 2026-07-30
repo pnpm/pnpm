@@ -8,7 +8,7 @@
 "@pnpm/installing.commands": patch
 "@pnpm/global.commands": patch
 "@pnpm/engine.pm.commands": patch
-"@pnpm/pkg-manifest.utils": patch
+"@pnpm/pkg-manifest.utils": minor
 "pnpm": patch
 ---
 

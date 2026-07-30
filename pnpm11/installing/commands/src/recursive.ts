@@ -33,6 +33,7 @@ import {
 } from '@pnpm/installing.deps-installer'
 import { logger } from '@pnpm/logger'
 import { filterDependenciesByType } from '@pnpm/pkg-manifest.utils'
+import { getRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
 import type { PreferredVersions } from '@pnpm/resolving.resolver-base'
 import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
@@ -49,7 +50,6 @@ import type {
   ProjectsGraph,
   RangeSpecStyle,
 } from '@pnpm/types'
-import { getRangeSpecStyle } from '@pnpm/types'
 import { sortProjects } from '@pnpm/workspace.projects-sorter'
 import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writer'
 import { isSubdir } from 'is-subdir'

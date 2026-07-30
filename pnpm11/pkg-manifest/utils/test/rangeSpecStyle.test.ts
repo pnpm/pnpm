@@ -1,5 +1,5 @@
 import { expect, test } from '@jest/globals'
-import { getRangeSpecStyle, rangeSpecGranularity, versionWithRangeSpecStyle } from '@pnpm/types'
+import { getRangeSpecStyle, rangeSpecGranularity, versionWithRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
 
 test('getRangeSpecStyle()', () => {
   expect(getRangeSpecStyle({ saveExact: true })).toBe('patch')

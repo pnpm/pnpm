@@ -8,6 +8,7 @@ import type {
   RetryTimeoutOptions,
 } from '@pnpm/fetching.types'
 import { globalWarn } from '@pnpm/logger'
+import { rangeSpecGranularity, versionWithRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
 import type {
   DirectoryResolution,
@@ -37,7 +38,6 @@ import type {
   Registries,
   TrustPolicy,
 } from '@pnpm/types'
-import { rangeSpecGranularity, versionWithRangeSpecStyle } from '@pnpm/types'
 import {
   readPkgFromCafs,
 } from '@pnpm/worker'

@@ -1,8 +1,8 @@
 import { tryReadProjectManifest } from '@pnpm/cli.utils'
 import { mutateModulesInSingleProject } from '@pnpm/installing.deps-installer'
+import { getRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import type { IgnoredBuilds, IncludedDependencies, ProjectRootDir } from '@pnpm/types'
-import { getRangeSpecStyle } from '@pnpm/types'
 
 export interface ResolutionPolicyViolation {
   name: string
