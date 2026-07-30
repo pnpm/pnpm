@@ -568,6 +568,10 @@ pub async fn pick_package<Cache: PackageMetaCache>(
         Arc::clone(entry.value())
     };
     let _permit = limit.acquire().await.expect("packument fetch semaphore should not be closed");
+    // The pre-permit fast paths may have read the mirror before the
+    // previous permit holder rewrote it; drop that snapshot so every
+    // disk-backed pick below reads the current mirror.
+    meta_cached_in_store = None;
 
     // Re-check in-memory cache after acquiring the permit — the
     // previous permit holder may have just populated it. Without

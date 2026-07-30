@@ -208,6 +208,11 @@ impl PnpmfileHooks for IgnoredDependenciesHook {
 /// payload (and the JS-side synchronous map over it) bounded.
 const MAX_HOOK_BATCH: usize = 256;
 
+/// Capacity of the request queue feeding the batch driver. Bounded so a
+/// stalled JS callback exerts backpressure on the resolver tasks instead
+/// of letting them queue an unbounded number of full manifests in RAM.
+const HOOK_QUEUE_CAPACITY: usize = MAX_HOOK_BATCH * 4;
+
 /// One queued `readPackage` request awaiting a slot in the next batch.
 struct BatchHookRequest {
     manifest: Value,
@@ -224,16 +229,15 @@ struct BatchHookRequest {
 /// lazily on the first call so it lands on the same runtime the install
 /// awaits on.
 pub struct JsBatchedReadPackageHook {
-    tx: tokio::sync::mpsc::UnboundedSender<BatchHookRequest>,
-    driver_seed: std::sync::Mutex<
-        Option<(tokio::sync::mpsc::UnboundedReceiver<BatchHookRequest>, BatchHookSink)>,
-    >,
+    tx: tokio::sync::mpsc::Sender<BatchHookRequest>,
+    driver_seed:
+        std::sync::Mutex<Option<(tokio::sync::mpsc::Receiver<BatchHookRequest>, BatchHookSink)>>,
     driver_started: std::sync::Once,
 }
 
 impl JsBatchedReadPackageHook {
     pub fn new(read_package_batch: BatchHookSink) -> Self {
-        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        let (tx, rx) = tokio::sync::mpsc::channel(HOOK_QUEUE_CAPACITY);
         JsBatchedReadPackageHook {
             tx,
             driver_seed: std::sync::Mutex::new(Some((rx, read_package_batch))),
@@ -255,7 +259,7 @@ impl JsBatchedReadPackageHook {
 }
 
 async fn drive_hook_batches(
-    mut rx: tokio::sync::mpsc::UnboundedReceiver<BatchHookRequest>,
+    mut rx: tokio::sync::mpsc::Receiver<BatchHookRequest>,
     sink: BatchHookSink,
 ) {
     while let Some(first) = rx.recv().await {
@@ -316,6 +320,7 @@ impl PnpmfileHooks for JsBatchedReadPackageHook {
         };
         self.tx
             .send(request)
+            .await
             .map_err(|_| execution_error("readPackage hook driver stopped".to_string()))?;
         match response.await {
             Ok(Ok(transformed)) => Ok(Arc::new(transformed)),
