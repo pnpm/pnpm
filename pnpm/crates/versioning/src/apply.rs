@@ -4,6 +4,8 @@ use std::{
     path::Path,
 };
 
+use serde::Serialize;
+
 use crate::{
     changelog::{compose_changelog_section, prepend_changelog_section},
     error::VersioningError,
@@ -13,7 +15,6 @@ use crate::{
     plan::{ReleasePlan, WorkspaceProject, index_project_refs},
     settings::{ChangelogStorage, VersioningSettings, changelog_storage},
 };
-use serde::Serialize;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]

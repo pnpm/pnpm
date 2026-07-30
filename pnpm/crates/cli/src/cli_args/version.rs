@@ -1,6 +1,6 @@
 use clap::Args;
 use derive_more::{Display, Error};
-use miette::{Context, Diagnostic, IntoDiagnostic};
+use miette::{Context, Diagnostic};
 use node_semver::{Identifier, Version};
 use pacquet_config::Config;
 use pacquet_executor::{RunPostinstallHooks, run_lifecycle_hook};
@@ -72,8 +72,8 @@ pub struct VersionArgs {
     #[clap(long = "tag-version-prefix", default_value = "v")]
     pub tag_version_prefix: String,
 
-    /// Output release details in JSON format.
-    #[clap(long = "json")]
+    /// Show information in JSON format.
+    #[clap(long)]
     pub json: bool,
 }
 
@@ -435,7 +435,7 @@ impl VersionArgs {
         )?;
 
         if self.json {
-            println!("{}", serde_json::to_string_pretty(&applied).into_diagnostic()?);
+            println!("{}", serde_json::to_string_pretty(&applied).expect("serialize applied releases"));
             return Ok(());
         }
 
