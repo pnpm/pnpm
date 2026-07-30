@@ -1511,6 +1511,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             update_depth: update_seed_policy.max_depth(),
             auto_install_peers: config.auto_install_peers,
             registries,
+            parsed_overrides: parsed_overrides.clone().map(Arc::<[_]>::from),
             allowed_deprecated_versions: config.allowed_deprecated_versions.clone(),
             deprecation_log: Some(deprecation_log_fn::<Reporter>()),
         };

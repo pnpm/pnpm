@@ -2,6 +2,7 @@ import path from 'node:path'
 import util from 'node:util'
 
 import { type CatalogResolution, type CatalogResolver, matchCatalogResolveResult } from '@pnpm/catalogs.resolver'
+import type { VersionOverride } from '@pnpm/config.parse-overrides'
 import {
   deprecationLogger,
   progressLogger,
@@ -197,6 +198,7 @@ export interface ResolutionContext {
   force: boolean
   preferWorkspacePackages?: boolean
   readPackageHook?: ReadPackageHook
+  parsedOverrides?: VersionOverride[]
   overrideBareSpecifier?: (name: string, bareSpecifier: string, dir?: string) => string | undefined
   engineStrict: boolean
   nodeVersion?: string
@@ -1983,6 +1985,11 @@ async function resolveDependency (
             'If the version was intentionally removed from the registry, update the dependent package or remove the entries from the lockfile.'
         }
       }
+      const overrideError = toOverrideNoMatchingVersionError(err, wantedDependency, ctx.parsedOverrides)
+      if (overrideError != null) {
+        overrideError.prefix = options.prefix
+        throw overrideError
+      }
       err.package = wantedDependencyDetails
       err.prefix = options.prefix
       err.pkgsStack = getPkgsInfoFromIds(options.parentIds, ctx.resolvedPkgsById)
@@ -2461,4 +2468,43 @@ const NON_EXOTIC_RESOLVED_VIA = new Set([
 
 function isExoticDep (resolvedVia: string): boolean {
   return !NON_EXOTIC_RESOLVED_VIA.has(resolvedVia)
+}
+
+interface RegistryPackageMeta {
+  versions?: Record<string, unknown>
+}
+
+/**
+ * When `ERR_PNPM_NO_MATCHING_VERSION` is caused by a user override whose
+ * `newBareSpecifier` does not exist on the registry, reframe the error around
+ * the override entry itself. The dependency stack that normally accompanies
+ * resolution failures (e.g. "at minimatch@9.0.9") is irrelevant here — the
+ * user wrote the override and needs to know which entry is broken and what
+ * version the registry actually offers for its selector. Returns `null` when
+ * the failure is not override-caused, so the caller falls back to the original
+ * error with its full stack.
+ */
+function toOverrideNoMatchingVersionError (
+  err: { code?: string, packageMeta?: RegistryPackageMeta },
+  wantedDependency: { alias?: string, bareSpecifier?: string },
+  parsedOverrides?: readonly VersionOverride[]
+): PnpmError | null {
+  if (err.code !== 'ERR_PNPM_NO_MATCHING_VERSION') return null
+  const alias = wantedDependency.alias
+  const spec = wantedDependency.bareSpecifier
+  if (!parsedOverrides?.length || !alias || !spec) return null
+  const override = parsedOverrides.find((candidate) =>
+    candidate.targetPkg.name === alias && candidate.newBareSpecifier === spec)
+  if (override == null) return null
+  const selectorRange = override.targetPkg.bareSpecifier
+  const versions = err.packageMeta?.versions ? Object.keys(err.packageMeta.versions) : []
+  const best = selectorRange && versions.length > 0 ? semver.maxSatisfying(versions, selectorRange) : null
+  const hint = best != null
+    ? `The latest release of ${override.targetPkg.name} matching "${selectorRange}" is "${best}".`
+    : undefined
+  return new PnpmError(
+    'NO_MATCHING_VERSION',
+    `Override "${override.selector}": "${override.newBareSpecifier}" targets a version of ${override.targetPkg.name} that does not exist on the registry.`,
+    hint != null ? { hint } : undefined
+  )
 }

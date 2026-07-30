@@ -146,7 +146,7 @@ function formatNoMatchingVersion (err: Error, msg: { packageMeta?: PackageMeta }
   // so we just echo it through without the registry-metadata appendix.
   const meta = msg.packageMeta
   if (!meta) {
-    return { title: err.message }
+    return { title: err.message, body: (err as { hint?: string }).hint }
   }
   const latestVersion = meta['dist-tags'].latest
   let output = `The latest release of ${meta.name} is "${latestVersion}".`

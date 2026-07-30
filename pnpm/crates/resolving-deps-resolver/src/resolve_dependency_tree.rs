@@ -269,6 +269,39 @@ pub struct Deprecation {
 /// [`crate::WorkspaceResolveOptions::deprecation_log`].
 pub type DeprecationLogFn = Arc<dyn Fn(Deprecation) + Send + Sync>;
 
+/// `ERR_PNPM_NO_MATCHING_VERSION` reframed around a user override whose
+/// forced specifier no registry version satisfies. Mirrors the TypeScript
+/// CLI: names the override entry rather than the parent dependency, and
+/// points at the highest version the registry actually offers for the
+/// override selector's range (when that selector carries one).
+#[derive(Debug, Display, Error)]
+#[display(
+    "Override \"{selector}\": \"{new_bare_specifier}\" targets a version of {name} that does not exist on the registry."
+)]
+pub struct OverrideNoMatchingVersionError {
+    name: String,
+    selector: String,
+    new_bare_specifier: String,
+    selector_range: Option<String>,
+    best: Option<String>,
+}
+
+impl Diagnostic for OverrideNoMatchingVersionError {
+    fn code<'a>(&'a self) -> Option<Box<dyn std::fmt::Display + 'a>> {
+        Some(Box::new("ERR_PNPM_NO_MATCHING_VERSION"))
+    }
+
+    fn help<'a>(&'a self) -> Option<Box<dyn std::fmt::Display + 'a>> {
+        match (&self.selector_range, &self.best) {
+            (Some(range), Some(best)) => Some(Box::new(format!(
+                "The latest release of {} matching \"{}\" is \"{}\".",
+                self.name, range, best
+            ))),
+            _ => None,
+        }
+    }
+}
+
 /// Error envelope returned by the tree walker.
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum ResolveDependencyTreeError {
@@ -281,6 +314,17 @@ pub enum ResolveDependencyTreeError {
     /// raised with the `ERR_PNPM_NO_MATCHING_VERSION` code.
     #[diagnostic(transparent)]
     NoMatchingVersion(#[error(source)] NoMatchingVersionError),
+
+    /// Reframed `ERR_PNPM_NO_MATCHING_VERSION` for the override-caused case:
+    /// the user's override forced a specifier no registry version satisfies.
+    /// Names the override entry (and, when the override selector carries a
+    /// range, the highest matching version) instead of the parent dependency
+    /// that happened to depend on it. Boxed so the variant does not bloat the
+    /// enum (and the `Result` Err types that carry it) past
+    /// `clippy::result_large_err`.
+    #[display("{_0}")]
+    #[diagnostic(transparent)]
+    OverrideNoMatchingVersion(#[error(source)] Box<OverrideNoMatchingVersionError>),
 
     /// The registry answered the metadata request with a non-2xx status,
     /// raised with the matching `ERR_PNPM_FETCH_<status>` code.
@@ -825,6 +869,11 @@ pub struct WorkspaceTreeCtx {
     /// point doesn't thread registries (then `currentPkg` is withheld
     /// for `Registry`-shaped entries rather than sent without a URL).
     registries: HashMap<String, String>,
+    /// Parsed `pnpm.overrides`. Used to reframe
+    /// `ERR_PNPM_NO_MATCHING_VERSION` onto the responsible override entry
+    /// when an override forces a version the registry does not serve.
+    /// `None` when no overrides are configured.
+    parsed_overrides: Option<Arc<[pacquet_config_parse_overrides::VersionOverride]>>,
     /// `pkg id → importer id` of the importer whose occurrence owns
     /// that package's shared children context. Ownership is chosen by
     /// update-active status followed by `(depth, importer order, parent path)`:
@@ -901,6 +950,7 @@ impl Default for WorkspaceTreeCtx {
             deprecation_log: None,
             auto_install_peers: false,
             registries: HashMap::new(),
+            parsed_overrides: None,
             first_importer_by_pkg: Mutex::new(HashMap::new()),
             first_walk_missing_by_pkg: Mutex::new(HashMap::new()),
             changed_direct_deps: Mutex::new(HashMap::new()),
@@ -1326,6 +1376,18 @@ impl WorkspaceTreeCtx {
     #[must_use]
     pub fn with_registries(mut self, registries: HashMap<String, String>) -> Self {
         self.registries = registries;
+        self
+    }
+
+    /// Attach parsed `pnpm.overrides`, used to reframe
+    /// `ERR_PNPM_NO_MATCHING_VERSION` onto the responsible override entry
+    /// when an override forces a version the registry does not serve.
+    #[must_use]
+    pub fn with_parsed_overrides(
+        mut self,
+        parsed_overrides: Option<Arc<[pacquet_config_parse_overrides::VersionOverride]>>,
+    ) -> Self {
+        self.parsed_overrides = parsed_overrides;
         self
     }
 
@@ -2573,7 +2635,10 @@ where
     } else {
         opts
     };
-    let mut result = resolver.resolve(wanted, opts).await.map_err(map_resolve_error)?;
+    let mut result = resolver
+        .resolve(wanted, opts)
+        .await
+        .map_err(|err| map_resolve_error(err, wanted, ctx.workspace.parsed_overrides.as_deref()))?;
     let Some(result_inner) = result.as_mut() else {
         return Err(ResolveDependencyTreeError::SpecNotSupported {
             specifier: render_specifier(wanted),
@@ -2678,11 +2743,24 @@ fn fallback_manifest(
 /// that carry one. The chain hands back a type-erased
 /// [`ResolveError`], which drops the `miette::Diagnostic` facet, so the codes
 /// that are part of pnpm's public contract are recovered by downcast; every
-/// other failure keeps the generic envelope.
-fn map_resolve_error(err: ResolveError) -> ResolveDependencyTreeError {
+/// other failure keeps the generic envelope. When the failure is an
+/// override-forced `NoMatchingVersion`, reframe it onto the override entry
+/// (see [`reframe_override_no_matching_version`]).
+fn map_resolve_error(
+    err: ResolveError,
+    wanted: &WantedDependency,
+    overrides: Option<&[pacquet_config_parse_overrides::VersionOverride]>,
+) -> ResolveDependencyTreeError {
     let err = match err.downcast::<NoMatchingVersionError>() {
         Ok(no_matching_version) => {
-            return ResolveDependencyTreeError::NoMatchingVersion(*no_matching_version);
+            return match reframe_override_no_matching_version(
+                wanted,
+                &no_matching_version,
+                overrides,
+            ) {
+                Some(reframed) => reframed,
+                None => ResolveDependencyTreeError::NoMatchingVersion(*no_matching_version),
+            };
         }
         Err(err) => err,
     };
@@ -2690,6 +2768,57 @@ fn map_resolve_error(err: ResolveError) -> ResolveDependencyTreeError {
         Ok(response) => ResolveDependencyTreeError::RegistryResponse(*response),
         Err(err) => ResolveDependencyTreeError::Resolve(err.to_string()),
     }
+}
+
+/// When `ERR_PNPM_NO_MATCHING_VERSION` was forced by a user override — i.e.
+/// the failing `(alias, bare_specifier)` matches an override's
+/// `(target_pkg.name, new_bare_specifier)` — reframe the error around the
+/// override entry. Returns `None` when no override is responsible, so the
+/// caller falls back to the plain typed error.
+fn reframe_override_no_matching_version(
+    wanted: &WantedDependency,
+    specific: &NoMatchingVersionError,
+    overrides: Option<&[pacquet_config_parse_overrides::VersionOverride]>,
+) -> Option<ResolveDependencyTreeError> {
+    let overrides = overrides?;
+    let alias = wanted.alias.as_deref()?;
+    let bare_specifier = wanted.bare_specifier.as_deref()?;
+    let matched = overrides.iter().find(|override_entry| {
+        override_entry.target_pkg.name == alias
+            && override_entry.new_bare_specifier == bare_specifier
+    })?;
+    let selector_range = matched.target_pkg.bare_specifier.clone();
+    let best =
+        selector_range.as_deref().and_then(|range| max_satisfying(&specific.versions, range));
+    Some(ResolveDependencyTreeError::OverrideNoMatchingVersion(Box::new(
+        OverrideNoMatchingVersionError {
+            name: alias.to_string(),
+            selector: matched.selector.clone(),
+            new_bare_specifier: matched.new_bare_specifier.clone(),
+            selector_range,
+            best,
+        },
+    )))
+}
+
+/// Highest version in `versions` that satisfies `range`, or `None` when the
+/// range is invalid or no version matches. Used to point the user from a
+/// broken override at the version the registry actually offers for its
+/// selector.
+fn max_satisfying(versions: &[String], range: &str) -> Option<String> {
+    let parsed_range = node_semver::Range::parse(range).ok()?;
+    let mut best: Option<(node_semver::Version, String)> = None;
+    for version in versions {
+        let Ok(parsed) = node_semver::Version::parse(version) else { continue };
+        if !parsed.satisfies(&parsed_range) {
+            continue;
+        }
+        match &best {
+            Some((current, _)) if current >= &parsed => {}
+            _ => best = Some((parsed, version.clone())),
+        }
+    }
+    best.map(|(_, raw)| raw)
 }
 
 /// Speculatively warm a freshly-seeded node's children resolutions so

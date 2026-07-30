@@ -13,6 +13,7 @@ repository.workspace  = true
 [dependencies]
 pacquet-catalogs-resolver                 = { workspace = true }
 pacquet-catalogs-types                    = { workspace = true }
+pacquet-config-parse-overrides            = { workspace = true }
 pacquet-deps-path                         = { workspace = true }
 pacquet-fs                                = { workspace = true }
 pacquet-hooks                             = { workspace = true }
