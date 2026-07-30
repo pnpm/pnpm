@@ -64,13 +64,20 @@ pub struct ResolvedConfig {
     pub fetch_retry_mintimeout: u32,
     pub fetch_retry_maxtimeout: u32,
     pub fetch_timeout: u32,
-    pub user_agent: String,
+    /// The explicitly configured user agent, when the cascade set one.
+    /// The engine's own computed default is omitted — an embedder that
+    /// passes nothing back to `install` gets that same default.
+    pub user_agent: Option<String>,
     pub engine_strict: bool,
     pub node_version: Option<String>,
     /// `"auto"` / `"hardlink"` / `"copy"` / `"clone"` / `"clone-or-copy"`.
     pub package_import_method: String,
     pub hoist_pattern: Option<Vec<String>>,
     pub public_hoist_pattern: Option<Vec<String>>,
+    /// The legacy `shamefullyHoist` flag; `publicHoistPattern` already
+    /// reflects it, exposed for embedders that branch on the flag itself.
+    pub shamefully_hoist: bool,
+    pub pnpm_home_dir: Option<String>,
 }
 
 #[napi(js_name = "readConfig")]
@@ -139,12 +146,18 @@ fn project_config(config: &pacquet_config::Config) -> ResolvedConfig {
         fetch_retry_mintimeout: u32::try_from(config.fetch_retry_mintimeout).unwrap_or(u32::MAX),
         fetch_retry_maxtimeout: u32::try_from(config.fetch_retry_maxtimeout).unwrap_or(u32::MAX),
         fetch_timeout: u32::try_from(config.fetch_timeout).unwrap_or(u32::MAX),
-        user_agent: config.user_agent.clone(),
+        user_agent: config
+            .explicit_settings
+            .contains_key("userAgent")
+            .then(|| config.user_agent.clone()),
         engine_strict: config.engine_strict,
         node_version: config.node_version.clone(),
         package_import_method: import_method_name(config.package_import_method).to_string(),
         hoist_pattern: config.hoist_pattern.clone(),
         public_hoist_pattern: config.public_hoist_pattern.clone(),
+        shamefully_hoist: config.shamefully_hoist,
+        pnpm_home_dir: pacquet_config::default_pnpm_home_dir::<pacquet_config::Host>()
+            .map(|dir| dir.display().to_string()),
     }
 }
 

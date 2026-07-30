@@ -378,13 +378,24 @@ export interface ResolvedConfig {
   fetchRetryMintimeout: number
   fetchRetryMaxtimeout: number
   fetchTimeout: number
-  userAgent: string
+  /**
+   * The explicitly configured user agent, when the cascade set one. The
+   * engine's own computed default is omitted — an embedder that passes
+   * nothing back to `install` gets that same default.
+   */
+  userAgent?: string
   engineStrict: boolean
   nodeVersion?: string
   /** `"auto"` / `"hardlink"` / `"copy"` / `"clone"` / `"clone-or-copy"`. */
   packageImportMethod: string
   hoistPattern?: string[]
   publicHoistPattern?: string[]
+  /**
+   * The legacy `shamefullyHoist` flag; `publicHoistPattern` already
+   * reflects it, exposed for embedders that branch on the flag itself.
+   */
+  shamefullyHoist: boolean
+  pnpmHomeDir?: string
 }
 
 /**
