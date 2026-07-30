@@ -6,17 +6,10 @@ import { gracefulGit as git } from 'graceful-git'
  * ls-remote invocations must go through this function to keep that guarantee.
  */
 export async function lsRemote (args: string[], opts: { retries: number }): Promise<{ stdout: string }> {
-  return git(['ls-remote', ...args], { retries: opts.retries, env: getGitEnv() })
-}
-
-let gitEnv: NodeJS.ProcessEnv | undefined
-
-// The snapshot is cached because copying process.env on every git invocation
-// is measurably slow.
-function getGitEnv (): NodeJS.ProcessEnv {
-  if (process.env.GIT_TERMINAL_PROMPT === '0') return process.env
-  if (gitEnv == null) {
-    gitEnv = { ...process.env, GIT_TERMINAL_PROMPT: '0' }
-  }
-  return gitEnv
+  return git(['ls-remote', ...args], {
+    retries: opts.retries,
+    // Snapshotted per call so changes to auth/proxy env vars made by a
+    // long-lived host process are picked up.
+    env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+  })
 }
