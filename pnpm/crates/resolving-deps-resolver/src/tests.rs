@@ -2711,6 +2711,64 @@ mod optional_propagation {
             "child reached only via a parent's optionalDependencies edge is optional",
         );
     }
+
+    /// npm merges `optionalDependencies` into `dependencies` at publish
+    /// time, so a registry manifest lists the same child in both maps.
+    #[tokio::test]
+    async fn dep_listed_in_both_manifest_groups_yields_one_optional_edge() {
+        let mut table = HashMap::default();
+        table.insert(
+            ("regular".to_string(), "^1.0.0".to_string()),
+            fake_result(
+                "regular",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "regular",
+                    "version": "1.0.0",
+                    "dependencies": { "plat": "^1.0.0" },
+                    "optionalDependencies": { "plat": "^2.0.0" }
+                }),
+            ),
+        );
+        // Only the `dependencies` range resolves: a merge that kept the
+        // `optionalDependencies` range would miss the table and drop the
+        // edge as an optional resolution failure.
+        table.insert(
+            ("plat".to_string(), "^1.0.0".to_string()),
+            fake_result("plat", "1.0.0", serde_json::json!({ "name": "plat", "version": "1.0.0" })),
+        );
+        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let (_tmp, manifest) =
+            manifest_with_groups(serde_json::json!({ "regular": "^1.0.0" }), serde_json::json!({}));
+
+        let tree = resolve_dependency_tree(
+            &resolver,
+            &manifest,
+            [DependencyGroup::Prod, DependencyGroup::Optional],
+            ResolveDependencyTreeOptions {
+                base_opts: ResolveOptions::default(),
+                patched_dependencies: None,
+                manifest_hook: None,
+                overrides_hook: None,
+                pnpmfile_hook: None,
+                read_package_log: None,
+                auto_install_peers: false,
+            },
+        )
+        .await
+        .unwrap();
+
+        assert!(
+            tree.packages.get("plat@1.0.0").expect("plat resolved").optional,
+            "the merged edge carries optional: true",
+        );
+        let plat_calls =
+            resolver.calls.lock().unwrap().iter().filter(|(alias, _)| alias == "plat").count();
+        assert_eq!(
+            plat_calls, 1,
+            "one merged edge resolves once; a duplicate non-optional edge would resolve again and defeat the optional-edge gates (e.g. the unsupported-platform prefetch skip)",
+        );
+    }
 }
 
 mod importer_wanted_specs {

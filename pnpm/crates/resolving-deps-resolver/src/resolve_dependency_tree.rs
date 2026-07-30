@@ -3748,11 +3748,15 @@ fn render_specifier(wanted: &WantedDependency) -> String {
 /// (via [`extract_peer_dependencies`]) so the peer-resolution stage
 /// can compute the correct depPath suffix once everything is walked.
 ///
-/// Each entry carries an `optional` flag describing which manifest
-/// group it came from — `false` for `dependencies`, `true` for
-/// `optionalDependencies`. The walker propagates this through
+/// Each entry carries an `optional` flag — `true` when the name appears
+/// in `optionalDependencies`. The walker propagates this through
 /// `current_is_optional` so [`ResolvedPackage::optional`] reflects
 /// whether every path to the node went through an optional edge.
+///
+/// A name listed in both maps yields one optional edge with the
+/// `dependencies` range — npm merges `optionalDependencies` into
+/// `dependencies` at publish time, so registry manifests routinely
+/// list the same name in both.
 ///
 /// Names the manifest bundles are dropped: npm ships them inside the
 /// package's own tarball, so resolving them again would install a
@@ -3765,7 +3769,18 @@ fn extract_children(
     let bundled = bundled_dependency_names(manifest);
     let mut out = Vec::new();
     collect_deps(manifest, "dependencies", false, &parent, &bundled, &mut out)?;
-    collect_deps(manifest, "optionalDependencies", true, &parent, &bundled, &mut out)?;
+    let mut optional = Vec::new();
+    collect_deps(manifest, "optionalDependencies", true, &parent, &bundled, &mut optional)?;
+    if !optional.is_empty() {
+        let dependency_positions: HashMap<String, usize> =
+            out.iter().enumerate().map(|(index, (name, ..))| (name.clone(), index)).collect();
+        for spec in optional {
+            match dependency_positions.get(&spec.0) {
+                Some(&index) => out[index].2 = true,
+                None => out.push(spec),
+            }
+        }
+    }
     for (name, specifier) in engines_runtime_dependencies(manifest, "engines", "dependencies") {
         out.push((name.to_string(), specifier, false));
     }
