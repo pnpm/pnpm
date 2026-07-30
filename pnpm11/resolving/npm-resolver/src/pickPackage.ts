@@ -4,14 +4,11 @@ import path from 'node:path'
 import { ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR } from '@pnpm/constants'
 import { createHexHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
-import gfs from '@pnpm/fs.graceful-fs'
 import { globalWarn, logger } from '@pnpm/logger'
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
 import type { TrustPolicy } from '@pnpm/types'
 import getRegistryName from 'encode-registry'
 import pLimit, { type LimitFunction } from 'p-limit'
-import { fastPathTemp as pathTemp } from 'path-temp'
-import { renameOverwrite } from 'rename-overwrite'
 import semver from 'semver'
 
 import { clearMeta, retainsFullMeta } from './clearMeta.js'
@@ -20,6 +17,13 @@ import {
   type FetchMetadataResult,
   notModifiedWithoutCacheError,
 } from './fetch.js'
+import {
+  loadMeta,
+  loadMetaHeaders,
+  prepareIndexedForDisk,
+  prepareJsonForDisk,
+  saveMeta,
+} from './mirror.js'
 import type { RegistryPackageSpec } from './parseBareSpecifier.js'
 import {
   getDominantLockfileVersion,
@@ -29,7 +33,6 @@ import {
   pickStableCachedRangeVersion,
   pickVersionByVersionRange,
 } from './pickPackageFromMeta.js'
-import { dropIncompletePublishTimes } from './publishTimes.js'
 import { toRaw } from './toRaw.js'
 
 export interface PackageMetaCache {
@@ -347,7 +350,7 @@ export async function pickPackage (
 
   return runLimited(pkgMirror, async (limit) => {
     const loadMetaCondensed = async (): Promise<PackageMeta | null> => {
-      const meta = await loadMeta(pkgMirror)
+      const meta = await loadMeta(pkgMirror, { condense: !retainsFullMeta(ctx) })
       return meta == null ? null : condenseMetaForCache(ctx, meta)
     }
     let diskMeta: PackageMeta | null | undefined
@@ -582,7 +585,7 @@ export async function pickPackage (
         if (!isModifiedValid || modifiedDate > opts.publishedBy) {
           // Save the abbreviated metadata to the abbreviated cache before re-fetching full.
           if (!opts.dryRun) {
-            saveMetaBestEffort(pkgMirror, prepareJsonForDisk(resultToSave.meta, resultToSave.etag, resultToSave.jsonText))
+            saveMetaBestEffort(pkgMirror, prepareMirrorForDisk(ctx, resultToSave))
           }
           attemptedReleaseAgeUpgrade = true
           const fullFetchResult = await ctx.fetch(spec.name, {
@@ -602,15 +605,7 @@ export async function pickPackage (
         ctx.releaseAgeUpgradeCheckedPackuments?.add(meta)
       }
       if (!opts.dryRun) {
-        // Mirror the raw registry body, unless the retained form is
-        // deliberately narrower: `filterMetadata` always mirrors the stripped
-        // document, and an upgraded-to-full document mirrors the condensed
-        // form — `time` is all the next install needs from this slot.
-        const writeCondensed = ctx.filterMetadata === true || (resultToSave !== fetched && meta !== resultToSave.meta)
-        const jsonForDisk = writeCondensed
-          ? prepareJsonForDisk(meta, resultToSave.etag)
-          : prepareJsonForDisk(resultToSave.meta, resultToSave.etag, resultToSave.jsonText)
-        saveMetaBestEffort(pkgMirror, jsonForDisk)
+        saveMetaBestEffort(pkgMirror, prepareMirrorForDisk(ctx, resultToSave))
       }
       meta.etag = resultToSave.etag
       // only save meta to cache, when it is fresh
@@ -723,30 +718,40 @@ function upgradeMetaForCache (
   return meta
 }
 
-// A condensing resolver keeps and mirrors the condensed form — the mirror
-// only has to carry `time` into the next install; otherwise the raw response
-// body is written and the unstripped meta is kept.
 function persistUpgradedMeta (
   ctx: { fullMetadata?: boolean, filterMetadata?: boolean },
   pkgMirror: string,
   upgradedFrom: FetchMetadataResult
 ): PackageMeta {
   const metaForCache = condenseMetaForCache(ctx, upgradedFrom.meta)
-  const jsonForDisk = metaForCache === upgradedFrom.meta
-    ? prepareJsonForDisk(upgradedFrom.meta, upgradedFrom.etag, upgradedFrom.jsonText)
-    : prepareJsonForDisk(metaForCache, upgradedFrom.etag)
-  saveMetaBestEffort(pkgMirror, jsonForDisk)
+  saveMetaBestEffort(pkgMirror, prepareMirrorForDisk(ctx, upgradedFrom))
   return metaForCache
+}
+
+/**
+ * How a fetched document is mirrored on disk: a `filterMetadata` resolver
+ * mirrors the `clearMeta`-stripped NDJSON form (that mirror only serves
+ * equally-stripped resolutions), everything else the indexed layout, whose
+ * per-version spans later loads hydrate lazily.
+ */
+function prepareMirrorForDisk (
+  ctx: { fullMetadata?: boolean, filterMetadata?: boolean },
+  result: FetchMetadataResult
+): string | Buffer {
+  if (ctx.filterMetadata === true) {
+    return prepareJsonForDisk(condenseMetaForCache(ctx, result.meta), result.etag)
+  }
+  return prepareIndexedForDisk(result.meta, result.etag)
 }
 
 /**
  * The mirror is an optimization, so a write failure only gets a debug log
  * with the mirror path and the install continues.
  */
-function saveMetaBestEffort (pkgMirror: string, json: string): void {
+function saveMetaBestEffort (pkgMirror: string, content: string | Buffer): void {
   void runLimited(pkgMirror, (limit) => limit(async () => {
     try {
-      await saveMeta(pkgMirror, json)
+      await saveMeta(pkgMirror, content)
     } catch (err: unknown) {
       logger.debug({ message: `Failed to write the package metadata mirror at ${pkgMirror}`, err })
     }
@@ -805,20 +810,7 @@ export function getPkgMirrorPath (cacheDir: string, metaDir: string, registry: s
   return path.join(cacheDir, metaDir, getRegistryName(registry), `${encodePkgName(pkgName)}.jsonl`)
 }
 
-/**
- * Formats metadata for disk storage as two-line NDJSON:
- *   Line 1: cache headers (etag, modified) — small, fast to read
- *   Line 2: the registry metadata JSON
- *
- * The etag lives only in the headers line (`loadMeta` re-attaches it from
- * there), so a `meta` that carries one is serialized without it.
- */
-export function prepareJsonForDisk (meta: PackageMeta, etag: string | undefined, jsonText?: string): string {
-  const modified = meta.modified ?? meta.time?.modified
-  const headers = JSON.stringify({ etag, modified })
-  const body = jsonText ?? JSON.stringify(meta.etag == null ? meta : { ...meta, etag: undefined })
-  return `${headers}\n${body}`
-}
+export { loadMeta, loadMetaHeaders, prepareJsonForDisk, saveMeta } from './mirror.js'
 
 function isMissingTimeError (err: unknown): boolean {
   return (
@@ -852,69 +844,6 @@ async function getFileMtime (filePath: string): Promise<Date | null> {
   } catch {
     return null
   }
-}
-
-interface MetaHeaders {
-  etag?: string
-  modified?: string
-}
-
-/**
- * Reads only the first line of the cached NDJSON metadata file to extract
- * the cache headers (etag, modified). This avoids reading and
- * parsing the full metadata (which can be megabytes for popular packages)
- * when we only need conditional-request headers.
- */
-export async function loadMetaHeaders (pkgMirror: string): Promise<MetaHeaders | null> {
-  let fh: fs.FileHandle | undefined
-  try {
-    fh = await fs.open(pkgMirror, 'r')
-    // The first line (headers JSON) is typically ~100 bytes; 1 KB is plenty.
-    const buf = Buffer.alloc(1024)
-    const { bytesRead } = await fh.read(buf, 0, 1024, 0)
-    if (bytesRead === 0) return null
-    const chunk = buf.toString('utf8', 0, bytesRead)
-    const newlineIdx = chunk.indexOf('\n')
-    if (newlineIdx === -1) return null
-    return JSON.parse(chunk.slice(0, newlineIdx)) as MetaHeaders
-  } catch {
-    return null
-  } finally {
-    await fh?.close()
-  }
-}
-
-/**
- * Reads the full metadata from the cached NDJSON file.
- * Line 1: cache headers (etag, modified)
- * Line 2: registry metadata JSON
- */
-export async function loadMeta (pkgMirror: string): Promise<PackageMeta | null> {
-  try {
-    const data = await gfs.readFile(pkgMirror, 'utf8')
-    const newlineIdx = data.indexOf('\n')
-    if (newlineIdx === -1) return null
-    const headers = JSON.parse(data.slice(0, newlineIdx)) as MetaHeaders
-    const meta = JSON.parse(data.slice(newlineIdx + 1)) as PackageMeta
-    dropIncompletePublishTimes(meta)
-    meta.etag = headers.etag
-    return meta
-  } catch {
-    return null
-  }
-}
-
-const createdDirs = new Set<string>()
-
-export async function saveMeta (pkgMirror: string, json: string): Promise<void> {
-  const dir = path.dirname(pkgMirror)
-  if (!createdDirs.has(dir)) {
-    await fs.mkdir(dir, { recursive: true })
-    createdDirs.add(dir)
-  }
-  const temp = pathTemp(pkgMirror)
-  await gfs.writeFile(temp, json, 'utf8')
-  await renameOverwrite(temp, pkgMirror)
 }
 
 function validatePackageName (pkgName: string) {

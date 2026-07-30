@@ -7,7 +7,8 @@ import {
   type FetchMetadataFromFromRegistryOptions,
   type FetchMetadataResult,
 } from './fetch.js'
-import { getPkgMirrorPath, loadMeta, loadMetaHeaders, prepareJsonForDisk, saveMeta } from './pickPackage.js'
+import { loadMeta, loadMetaHeaders, prepareIndexedForDisk, saveMeta } from './mirror.js'
+import { getPkgMirrorPath } from './pickPackage.js'
 
 export interface FetchMetadataCachedOptions {
   registry: string
@@ -115,7 +116,7 @@ async function fetchMetadataCached (
   // the speedup.
   function persistAndReturn (fetched: FetchMetadataResult): PackageMeta {
     if (pkgMirror != null) {
-      saveMeta(pkgMirror, prepareJsonForDisk(fetched.meta, fetched.etag, fetched.jsonText)).catch(() => {})
+      saveMeta(pkgMirror, prepareIndexedForDisk(fetched.meta, fetched.etag)).catch(() => {})
     }
     return fetched.meta
   }
