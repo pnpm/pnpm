@@ -1078,6 +1078,10 @@ fn save_flags_overrule_the_save_settings() {
 /// Run `pnpm add @pnpm.e2e/hello-world-js-bin` in a workspace whose
 /// `pnpm-workspace.yaml` sets `savePrefix: '~'` and `savePeer: true`.
 fn add_with_save_settings(args: &[&str]) -> (TempDir, PathBuf, TestRegistry) {
+    add_with_settings("savePrefix: '~'\nsavePeer: true\n", args)
+}
+
+fn add_with_settings(settings: &str, args: &[&str]) -> (TempDir, PathBuf, TestRegistry) {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
@@ -1088,12 +1092,29 @@ fn add_with_save_settings(args: &[&str]) -> (TempDir, PathBuf, TestRegistry) {
     if !workspace_yaml.ends_with('\n') {
         workspace_yaml.push('\n');
     }
-    workspace_yaml.push_str("savePrefix: '~'\nsavePeer: true\n");
+    workspace_yaml.push_str(settings);
     std::fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
 
     pacquet.with_args(args).with_arg("@pnpm.e2e/hello-world-js-bin").assert().success();
 
     (root, workspace, mock_instance)
+}
+
+/// The `saveExact` setting drives `pnpm add` without the `--save-exact`
+/// flag, and a `savePrefix` of `=` keeps the explicit operator.
+#[test]
+fn save_exact_and_equals_prefix_settings_drive_add() {
+    let (root, workspace, mock_instance) = add_with_settings("saveExact: true\n", &["add"]);
+    let spec = prod_spec(&workspace, "@pnpm.e2e/hello-world-js-bin");
+    eprintln!("SPEC: {spec}");
+    assert_eq!(spec, "1.0.0", "the saveExact setting must save the bare version");
+    drop((root, mock_instance));
+
+    let (root, workspace, mock_instance) = add_with_settings("savePrefix: '='\n", &["add"]);
+    let spec = prod_spec(&workspace, "@pnpm.e2e/hello-world-js-bin");
+    eprintln!("SPEC: {spec}");
+    assert_eq!(spec, "=1.0.0", "a savePrefix of = must keep the explicit operator");
+    drop((root, mock_instance));
 }
 
 /// `saveWorkspaceProtocol` decides what `pnpm add <pkg>@workspace:…`

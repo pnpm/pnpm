@@ -1,8 +1,6 @@
 use super::infer_range_spec_style;
 use pacquet_registry::RangeSpecStyle;
 
-/// Table covering the pin classifications, including the parse-range
-/// edge cases that derive the same results.
 #[test]
 fn matches_pnpm_infer_range_spec_style() {
     use RangeSpecStyle::{Exact, Major, Minor, None as NoneVariant, Patch};

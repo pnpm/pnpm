@@ -233,7 +233,7 @@ impl UpdateArgs {
                 lockfile_path: Some(&lockfile_path),
                 packages: &package_selectors,
                 latest: self.latest,
-                save_exact: self.save_exact,
+                save_exact: self.save_exact || config.save_exact,
                 save: !self.no_save,
                 include_direct,
                 depth: self.depth.unwrap_or(usize::MAX),
@@ -342,7 +342,7 @@ impl UpdateArgs {
                 lockfile_path: Some(&lockfile_path),
                 packages: &package_selectors,
                 latest: self.latest,
-                save_exact: self.save_exact,
+                save_exact: self.save_exact || config.save_exact,
                 save: !self.no_save,
                 include_direct,
                 depth: self.depth.unwrap_or(usize::MAX),
@@ -388,7 +388,10 @@ impl UpdateArgs {
         }
         let supported_architectures =
             self.supported_architectures.apply_to(config.supported_architectures.clone());
-        let range_spec_style = RangeSpecStyle::from_save_options(self.save_exact, None);
+        let range_spec_style = RangeSpecStyle::from_save_options(
+            self.save_exact || config.save_exact,
+            config.save_prefix.as_deref(),
+        );
         Box::pin(crate::cli_args::global::handle_global_update::<Reporter>(
             config,
             &self.packages,

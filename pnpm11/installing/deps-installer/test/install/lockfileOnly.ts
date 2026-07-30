@@ -27,7 +27,7 @@ test('install with lockfileOnly = true', async () => {
   expect(fs.existsSync(path.join(opts.cacheDir, `${ABBREVIATED_META_DIR}/localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/dep-of-pkg-with-1-dep.jsonl`))).toBeTruthy()
   project.hasNot('@pnpm.e2e/pkg-with-1-dep')
 
-  expect(manifest.dependencies!['@pnpm.e2e/pkg-with-1-dep']).toBeTruthy()
+  expect(manifest.dependencies!['@pnpm.e2e/pkg-with-1-dep']).toBe('100.0.0')
 
   const lockfile = project.readLockfile()
   expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/pkg-with-1-dep']).toBeTruthy()

@@ -359,11 +359,11 @@ impl AddArgs {
     }
 
     /// The style that decides the saved range: `--save-exact` /
-    /// `--save-prefix` layered over the `savePrefix` setting, mirroring
-    /// pnpm's `getRangeSpecStyle`.
+    /// `--save-prefix` layered over the `saveExact` and `savePrefix`
+    /// settings, mirroring pnpm's `getRangeSpecStyle`.
     fn range_spec_style(&self, config: &Config) -> RangeSpecStyle {
         RangeSpecStyle::from_save_options(
-            self.save_exact,
+            self.save_exact || config.save_exact,
             self.save_prefix.as_deref().or(config.save_prefix.as_deref()),
         )
     }

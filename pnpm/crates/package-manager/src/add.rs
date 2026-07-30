@@ -65,7 +65,6 @@ where
     /// How the freshly-resolved version is pinned into the manifest range,
     /// derived from `--save-exact` / `--save-prefix`. See
     /// [`RangeSpecStyle::from_save_options`].
-    // TODO: read `save-exact` / `save-prefix` from `.npmrc`, merge configs, and derive this there.
     pub range_spec_style: RangeSpecStyle,
     /// `--save-catalog-name=<name>` (with `--save-catalog` a shorthand for
     /// `default`), or the `saveCatalogName` config default. When `Some`,
