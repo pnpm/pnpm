@@ -4620,6 +4620,7 @@ dependencies = [
  "pacquet-tarball",
  "pacquet-testing-utils",
  "pacquet-workspace",
+ "pretty_assertions",
  "serde",
  "serde_json",
  "tempfile",
