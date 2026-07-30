@@ -115,6 +115,29 @@ fn parses_lockfile_larger_than_default_yaml_node_budget() {
 }
 
 #[test]
+fn parses_lockfile_larger_than_default_yaml_scalar_byte_budget() {
+    const IMPORTER_COUNT: usize = 1_000_000;
+
+    // Each importer line contributes ~100 bytes of scalar text, pushing the
+    // document past the parser's 64 MiB default scalar budget.
+    let mut content = String::from("lockfileVersion: '9.0'\n\nimporters:\n");
+    for index in 0..IMPORTER_COUNT {
+        writeln!(
+            content,
+            "  padded-project-directory-name/deeply/nested/workspace-component-{index:07}: {{}}",
+        )
+        .expect("write importer");
+    }
+    assert!(content.len() > 64 * 1024 * 1024, "fixture must exceed the default scalar budget");
+
+    let lockfile = Lockfile::parse(&content, Path::new(Lockfile::FILE_NAME))
+        .expect("parse large lockfile")
+        .expect("large lockfile should be present");
+
+    assert_eq!(lockfile.importers.len(), IMPORTER_COUNT);
+}
+
+#[test]
 fn parse_error_does_not_include_lockfile_content() {
     let dir = tempdir().expect("create tempdir");
     let secret = "aws_secret_access_key = marker-secret";
