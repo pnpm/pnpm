@@ -46,10 +46,10 @@ import type {
   DepPath,
   PackageManifest,
   PackageVersionPolicy,
-  SaveRangeStyle,
   PkgIdWithPatchHash,
   ReadPackageHook,
   Registries,
+  SaveRangeStyle,
   SupportedArchitectures,
   TrustPolicy,
 } from '@pnpm/types'

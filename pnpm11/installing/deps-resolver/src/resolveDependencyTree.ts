@@ -10,13 +10,13 @@ import type { StoreController } from '@pnpm/store.controller-types'
 import type {
   AllowBuild,
   AllowedDeprecatedVersions,
-  SaveRangeStyle,
   PkgResolutionId,
   ProjectId,
   ProjectManifest,
   ProjectRootDir,
   ReadPackageHook,
   Registries,
+  SaveRangeStyle,
   SupportedArchitectures,
   TrustPolicy,
 } from '@pnpm/types'

@@ -26,11 +26,11 @@ import {
   type DependencyManifest,
   type DepPath,
   type PeerDependencyIssuesByProjects,
-  type SaveRangeStyle,
   type PkgIdWithPatchHash,
   type ProjectId,
   type ProjectManifest,
   type ProjectRootDir,
+  type SaveRangeStyle,
   type SupportedArchitectures,
 } from '@pnpm/types'
 import { isSubdir } from 'is-subdir'
@@ -66,8 +66,8 @@ export type DependenciesGraphNode = GenericDependenciesGraphNodeWithResolvedChil
 export {
   getWantedDependencies,
   type LinkedDependency,
-  type SaveRangeStyle,
   type ResolvedPackage,
+  type SaveRangeStyle,
   type UpdateMatchingFunction,
   type WantedDependency,
 }

@@ -2,9 +2,9 @@ import type {
   DependencyManifest,
   PackageManifest,
   PackageVersionPolicy,
-  SaveRangeStyle,
   PkgResolutionId,
   ProjectRootDir,
+  SaveRangeStyle,
   SupportedArchitectures,
   TrustPolicy,
 } from '@pnpm/types'
