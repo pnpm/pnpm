@@ -2796,6 +2796,27 @@ mod importer_wanted_specs {
         .unwrap();
         assert_eq!(wanted, vec![("foo".to_string(), "^2.0.0".to_string(), true, false)]);
     }
+
+    /// Matches `filterDependenciesByType` in `@pnpm/pkg-manifest.utils`
+    /// (`{...dev, ...prod, ...optional}`): the regular range wins. The dev
+    /// range winning instead records an importer entry whose resolved
+    /// version can't satisfy the `dependencies` specifier, permanently
+    /// failing the prefer-frozen freshness check.
+    #[test]
+    fn regular_dep_range_wins_over_dev_range_of_same_alias() {
+        let (_tmp, manifest) = manifest_with(serde_json::json!({
+            "dependencies": { "foo": "1.0.0" },
+            "devDependencies": { "foo": "2.0.0" },
+        }));
+        let wanted = importer_direct_wanted_specs(
+            &manifest,
+            ALL_GROUPS,
+            false,
+            &pacquet_catalogs_types::Catalogs::new(),
+        )
+        .unwrap();
+        assert_eq!(wanted, vec![("foo".to_string(), "1.0.0".to_string(), false, false)]);
+    }
 }
 
 mod peer_own_dep_shadowing {
