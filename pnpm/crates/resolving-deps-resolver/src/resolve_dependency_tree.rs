@@ -3753,16 +3753,10 @@ fn render_specifier(wanted: &WantedDependency) -> String {
 /// `current_is_optional` so [`ResolvedPackage::optional`] reflects
 /// whether every path to the node went through an optional edge.
 ///
-/// A name listed in both maps yields **one** optional edge with the
-/// `dependencies` range: npm merges `optionalDependencies` into
-/// `dependencies` at publish time, so registry manifests routinely list
-/// the same name in both. This mirrors the TS resolver's
-/// `{...optionalDependencies, ...dependencies}` merge with the optional
-/// flag taken from `optionalDependencies` membership
-/// (`getNonDevWantedDependencies`). A second non-optional edge for the
-/// same name would defeat every optional-edge gate downstream — most
-/// visibly the platform gate that stops the tarball prefetch of
-/// unsupported-platform optional dependencies.
+/// A name listed in both maps yields one optional edge with the
+/// `dependencies` range — npm merges `optionalDependencies` into
+/// `dependencies` at publish time, so registry manifests routinely
+/// list the same name in both.
 ///
 /// Names the manifest bundles are dropped: npm ships them inside the
 /// package's own tarball, so resolving them again would install a
