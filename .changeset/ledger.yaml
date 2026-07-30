@@ -745,6 +745,11 @@
   dir: pnpm/npm/napi
   intents:
     - pacquet-licenses
+"@pnpm/napi@12.0.0-beta.1":
+  dir: pnpm/npm/napi
+  intents:
+    - fix-napi-in-memory-repeat-install
+    - napi-trust-lockfile
 "@pnpm/network.auth-header@1101.1.4":
   dir: pnpm11/network/auth-header
   intents:
@@ -1412,6 +1417,36 @@ pacquet@12.0.0-beta.0:
     - verifier-rejects-integrity-less-tarballs
     - wise-wolves-report
     - workspace-root-dir-outside-workspace
+pacquet@12.0.0-beta.1:
+  dir: pnpm/npm/pnpm
+  intents:
+    - allow-git-tarball-builds-by-repo-url
+    - dedupe-release-age-upgrade-fetch
+    - fair-warnings-report
+    - faster-peer-resolution
+    - fix-git-resolver-prompt
+    - honor-save-exact-setting
+    - huge-lockfiles-scalar-budget
+    - large-lockfiles-parse
+    - login-non-interactive-web-auth
+    - long-snapshot-keys-explicit
+    - minimum-release-age-latest-bound
+    - napi-hook-free-install
+    - napi-install-engine-perf
+    - napi-overrides-order-stable
+    - napi-trace-env
+    - no-cross-importer-peer-provider-replay
+    - normalize-empty-bundled-dependencies
+    - peer-walker-map-churn
+    - policy-aware-install-summary-latest
+    - preserve-equals-pin-operator
+    - preserve-workspace-link-on-partial-update
+    - prod-spec-wins-over-dev
+    - quiet-policy-order
+    - resolver-overrides-after-hook
+    - save-prefix-equals
+    - shared-preferred-versions-fold
+    - workspace-hoist-discovery-linear
 pnpm@11.13.0:
   dir: pnpm11/pnpm
   intents:
