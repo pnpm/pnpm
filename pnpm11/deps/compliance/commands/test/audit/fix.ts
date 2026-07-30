@@ -7,7 +7,7 @@ import { fixtures } from '@pnpm/test-fixtures'
 import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
 import { readYamlFileSync } from 'read-yaml-file'
 
-import { caretRangeForPatched, createMinimumReleaseAgeExcludes } from '../../src/audit/fix.js'
+import { createMinimumReleaseAgeExcludes, versionRangeForPatched } from '../../src/audit/fix.js'
 import { AUDIT_REGISTRY, AUDIT_REGISTRY_OPTS } from './utils/options.js'
 import * as responses from './utils/responses/index.js'
 
@@ -176,6 +176,29 @@ test('audit --fix uses tilde prefix when savePrefix is ~', async () => {
   expect(manifest.overrides?.['axios@<=0.18.0']).toBe('~0.18.1')
 })
 
+test('audit --fix uses an explicit = operator when savePrefix is =', async () => {
+  const tmp = f.prepare('has-vulnerabilities')
+
+  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    .reply(200, responses.ALL_VULN_RESP)
+
+  const { exitCode, output } = await audit.handler({
+    ...AUDIT_REGISTRY_OPTS,
+    auditLevel: 'moderate',
+    dir: tmp,
+    rootProjectManifestDir: tmp,
+    fix: true,
+    savePrefix: '=',
+  })
+
+  expect(exitCode).toBe(0)
+  expect(output).toMatch(/Run "pnpm install"/)
+
+  const manifest = readYamlFileSync<{ overrides?: Record<string, string> }>(path.join(tmp, 'pnpm-workspace.yaml'))
+  expect(manifest.overrides?.['axios@<=0.18.0']).toBe('=0.18.1')
+})
+
 function advisory (moduleName: string, vulnerableVersions: string, patchedVersions?: string): AuditAdvisory {
   return {
     findings: [],
@@ -241,28 +264,24 @@ describe('createMinimumReleaseAgeExcludes', () => {
   })
 })
 
-describe('caretRangeForPatched', () => {
+describe('versionRangeForPatched', () => {
   test('converts a >= range to a caret range', () => {
-    expect(caretRangeForPatched('>=0.18.1')).toBe('^0.18.1')
+    expect(versionRangeForPatched('>=0.18.1', 'major')).toBe('^0.18.1')
   })
 
   test('picks the minimum version from a complex range', () => {
-    expect(caretRangeForPatched('>=1.0.0 <2.0.0')).toBe('^1.0.0')
+    expect(versionRangeForPatched('>=1.0.0 <2.0.0', 'major')).toBe('^1.0.0')
   })
 
-  test('returns exact version when saveExact is true', () => {
-    expect(caretRangeForPatched('>=0.18.1', true)).toBe('0.18.1')
+  test('returns the bare version for the patch style', () => {
+    expect(versionRangeForPatched('>=0.18.1', 'patch')).toBe('0.18.1')
   })
 
-  test('returns exact version when savePrefix is empty string', () => {
-    expect(caretRangeForPatched('>=0.18.1', undefined, '')).toBe('0.18.1')
+  test('returns a tilde-prefixed version for the minor style', () => {
+    expect(versionRangeForPatched('>=0.18.1', 'minor')).toBe('~0.18.1')
   })
 
-  test('returns tilde-prefixed version when savePrefix is ~', () => {
-    expect(caretRangeForPatched('>=0.18.1', undefined, '~')).toBe('~0.18.1')
-  })
-
-  test('returns caret-prefixed version when saveExact is false and savePrefix is undefined', () => {
-    expect(caretRangeForPatched('>=0.18.1', false)).toBe('^0.18.1')
+  test('returns an =-prefixed version for the exact style', () => {
+    expect(versionRangeForPatched('>=0.18.1', 'exact')).toBe('=0.18.1')
   })
 })

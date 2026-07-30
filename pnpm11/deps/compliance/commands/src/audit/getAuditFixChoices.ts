@@ -1,9 +1,10 @@
 import type { AuditAdvisory, AuditLevelString } from '@pnpm/deps.compliance.audit'
+import type { RangeSpecStyle } from '@pnpm/types'
 import { getBorderCharacters, table } from '@zkochan/table'
 import chalk from 'chalk'
 import { groupBy } from 'ramda'
 
-import { caretRangeForPatched } from './fix.js'
+import { versionRangeForPatched } from './fix.js'
 
 const AUDIT_COLOR: Record<AuditLevelString, (s: string) => string> = {
   info: chalk.dim,
@@ -39,7 +40,7 @@ type AuditChoiceGroup = Array<{
   disabled?: boolean
 }>
 
-export function getAuditFixChoices (advisories: AuditAdvisory[]): AuditChoiceGroup {
+export function getAuditFixChoices (advisories: AuditAdvisory[], rangeSpecStyle: RangeSpecStyle): AuditChoiceGroup {
   if (advisories.length === 0) {
     return []
   }
@@ -77,7 +78,7 @@ export function getAuditFixChoices (advisories: AuditAdvisory[]): AuditChoiceGro
         raw: [
           advisory.module_name,
           advisory.vulnerable_versions,
-          advisory.patched_versions ? caretRangeForPatched(advisory.patched_versions) : '',
+          advisory.patched_versions ? versionRangeForPatched(advisory.patched_versions, rangeSpecStyle) : '',
           advisory.github_advisory_id ?? '',
         ],
         key,

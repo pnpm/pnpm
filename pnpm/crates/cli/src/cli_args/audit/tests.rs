@@ -2,12 +2,12 @@ use super::{
     AuditAdvisory, AuditFinding, AuditMetadata, AuditPathIndex, AuditReport,
     AuditVulnerabilityCounts, BTreeMap, Config, ConfigAuditLevel, Cwe, HashMap, Include,
     InstalledPackages, MAX_PATHS_PER_FINDING, PackageVersionGuard, PackageVersionGuardDecision,
-    PathInfo, Range, RawBulkAdvisory, SnapshotDepRef, VulnerabilityGuard, build_audit_path_index,
-    bulk_response_to_audit_report, caret_range_for_patched, classify_for_update, create_overrides,
+    PathInfo, Range, RangeSpecStyle, RawBulkAdvisory, SnapshotDepRef, VulnerabilityGuard,
+    build_audit_path_index, bulk_response_to_audit_report, classify_for_update, create_overrides,
     filter_advisories_for_fix, filter_ignored_advisories, format_fix_with_update_output,
     lockfile_to_audit_request, minimum_release_age_excludes, normalize_ghsa_id,
     redact_url_userinfo, render_json_report, render_text_report, report_fixed_remaining,
-    sanitize_control_chars, satisfies_safe,
+    sanitize_control_chars, satisfies_safe, version_range_for_patched,
 };
 use pacquet_lockfile::{EnvLockfile, Lockfile, SnapshotEntry, SpecifierAndResolution};
 use std::{collections::HashSet, fmt::Write as _};
@@ -1017,11 +1017,14 @@ fn advisory(id: u64, title: &str, severity: ConfigAuditLevel, ghsa: &str) -> Aud
 }
 
 #[test]
-fn caret_range_for_patched_uses_minimum_with_caret() {
-    assert_eq!(caret_range_for_patched(">=2.0.0"), "^2.0.0");
-    assert_eq!(caret_range_for_patched(">=1.2.3"), "^1.2.3");
+fn version_range_for_patched_uses_minimum_with_range_spec_style() {
+    assert_eq!(version_range_for_patched(">=2.0.0", RangeSpecStyle::Major), "^2.0.0");
+    assert_eq!(version_range_for_patched(">=1.2.3", RangeSpecStyle::Major), "^1.2.3");
+    assert_eq!(version_range_for_patched(">=1.2.3", RangeSpecStyle::Minor), "~1.2.3");
+    assert_eq!(version_range_for_patched(">=1.2.3", RangeSpecStyle::Patch), "1.2.3");
+    assert_eq!(version_range_for_patched(">=1.2.3", RangeSpecStyle::Exact), "=1.2.3");
     // A non-inferred range is passed through unchanged.
-    assert_eq!(caret_range_for_patched("not-a-range"), "not-a-range");
+    assert_eq!(version_range_for_patched("not-a-range", RangeSpecStyle::Major), "not-a-range");
 }
 
 fn fix_advisory(
@@ -1073,7 +1076,7 @@ fn create_overrides_sorts_and_skips_unfixable() {
         ),
     ]);
 
-    let overrides = create_overrides(&advisories);
+    let overrides = create_overrides(&advisories, RangeSpecStyle::Major);
 
     assert_eq!(
         overrides.into_iter().collect::<Vec<_>>(),

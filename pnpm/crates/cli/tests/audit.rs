@@ -691,6 +691,52 @@ fn audit_fix_override_writes_overrides_to_workspace_manifest() {
 }
 
 #[test]
+fn audit_fix_override_respects_save_exact() {
+    let CommandTempCwd { mut pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let mock = audit_mock(
+        &mut registry,
+        &advisory_response("vulnerable", 123, "high", "<2.0.0", "test", "GHSA-test-1111-2222"),
+    )
+    .create();
+    write_audit_workspace(&workspace, &registry.url(), "saveExact: true\n");
+
+    let output = pacquet.arg("audit").arg("--fix").output().expect("run pacquet audit --fix");
+
+    assert_success(&output);
+    let manifest =
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace manifest");
+    assert!(
+        manifest.contains("vulnerable@<2.0.0: 2.0.0"),
+        "manifest should hold the exact-version override:\n{manifest}",
+    );
+    mock.assert();
+}
+
+#[test]
+fn audit_fix_override_respects_save_prefix() {
+    let CommandTempCwd { mut pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let mock = audit_mock(
+        &mut registry,
+        &advisory_response("vulnerable", 123, "high", "<2.0.0", "test", "GHSA-test-1111-2222"),
+    )
+    .create();
+    write_audit_workspace(&workspace, &registry.url(), "savePrefix: '~'\n");
+
+    let output = pacquet.arg("audit").arg("--fix").output().expect("run pacquet audit --fix");
+
+    assert_success(&output);
+    let manifest =
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace manifest");
+    assert!(
+        manifest.contains("vulnerable@<2.0.0: ~2.0.0"),
+        "manifest should hold the tilde-range override:\n{manifest}",
+    );
+    mock.assert();
+}
+
+#[test]
 fn audit_fix_override_writes_minimum_release_age_excludes_when_configured() {
     let CommandTempCwd { mut pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();
