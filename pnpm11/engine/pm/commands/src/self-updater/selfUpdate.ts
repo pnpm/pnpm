@@ -14,7 +14,7 @@ import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { inferRangeSpecStyle, MINIMUM_RELEASE_AGE_VIOLATION_CODE } from '@pnpm/resolving.npm-resolver'
 import { createStoreController, type CreateStoreControllerOptions, shouldFetchFullMetadata } from '@pnpm/store.connection-manager'
-import type { RangeSpecStyle } from '@pnpm/types'
+import { versionWithRangeSpecStyle } from '@pnpm/types'
 import { readProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import { isCI } from 'ci-info'
 import { pick } from 'ramda'
@@ -375,16 +375,6 @@ function updateVersionConstraint (current: string | undefined, newVersion: strin
     return `^${newVersion}`
   }
   return versionWithRangeSpecStyle(newVersion, rangeSpecStyle)
-}
-
-function versionWithRangeSpecStyle (version: string, rangeSpecStyle: RangeSpecStyle): string {
-  switch (rangeSpecStyle) {
-    case 'none':
-    case 'major': return `^${version}`
-    case 'minor': return `~${version}`
-    case 'patch': return version
-    case 'exact': return `=${version}`
-  }
 }
 
 async function readProjectPinnedPnpmVersion (rootProjectManifestDir: string, spec: string | undefined): Promise<string | undefined> {

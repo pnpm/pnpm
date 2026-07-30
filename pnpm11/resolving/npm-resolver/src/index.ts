@@ -37,7 +37,7 @@ import type {
   Registries,
   TrustPolicy,
 } from '@pnpm/types'
-import { rangeSpecGranularity } from '@pnpm/types'
+import { rangeSpecGranularity, versionWithRangeSpecStyle } from '@pnpm/types'
 import {
   readPkgFromCafs,
 } from '@pnpm/worker'
@@ -927,7 +927,7 @@ function calcRange (version: string, wantedDependency: WantedDependency, default
   const rangeSpecStyle = (wantedDependency.prevSpecifier ? inferRangeSpecStyle(wantedDependency.prevSpecifier) : undefined) ??
     (wantedDependency.bareSpecifier ? inferRangeSpecStyle(wantedDependency.bareSpecifier) : undefined) ??
     defaultRangeSpecStyle
-  return createVersionSpec(version, rangeSpecStyle)
+  return versionWithRangeSpecStyle(version, rangeSpecStyle ?? 'major')
 }
 
 function tryResolveFromWorkspace (
@@ -1112,7 +1112,7 @@ function calcSpecifierForWorkspaceDep ({
     return `${prefix}${version}`
   }
   const rangeSpecStyle = (wantedDependency.prevSpecifier ? inferRangeSpecStyle(wantedDependency.prevSpecifier) : undefined) ?? defaultRangeSpecStyle
-  const range = createVersionSpec(version, rangeSpecStyle)
+  const range = versionWithRangeSpecStyle(version, rangeSpecStyle ?? 'major')
   return `${prefix}${range}`
 }
 
@@ -1186,22 +1186,6 @@ function getIntegrity (dist: {
     throw new PnpmError('INVALID_TARBALL_INTEGRITY', `Tarball "${dist.tarball}" has invalid shasum specified in its metadata: ${dist.shasum}`)
   }
   return integrity.toString()
-}
-
-function createVersionSpec (version: string, rangeSpecStyle?: RangeSpecStyle): string {
-  switch (rangeSpecStyle ?? 'major') {
-    case 'none':
-    case 'major':
-      return `^${version}`
-    case 'minor':
-      return `~${version}`
-    case 'patch':
-      return version
-    case 'exact':
-      return `=${version}`
-    default:
-      throw new PnpmError('BAD_PINNED_VERSION', `Cannot pin '${rangeSpecStyle ?? 'undefined'}'`)
-  }
 }
 
 /**

@@ -8,6 +8,7 @@ import {
   type ProjectManifest,
   type RangeSpecStyle,
 } from '@pnpm/types'
+import { versionWithRangeSpecStyle } from '@pnpm/types'
 import semver from 'semver'
 
 export interface PackageSpecObject {
@@ -31,19 +32,7 @@ export function createVersionSpecFromResolvedVersion (resolvedVersion: string, r
   if (!parsed) return null
   if (parsed.prerelease.length) return resolvedVersion
 
-  switch (rangeSpecStyle ?? 'major') {
-    case 'none':
-    case 'major':
-      return `^${resolvedVersion}`
-    case 'minor':
-      return `~${resolvedVersion}`
-    case 'patch':
-      return resolvedVersion
-    case 'exact':
-      return `=${resolvedVersion}`
-    default:
-      return `^${resolvedVersion}`
-  }
+  return versionWithRangeSpecStyle(resolvedVersion, rangeSpecStyle ?? 'major')
 }
 
 export async function updateProjectManifestObject (

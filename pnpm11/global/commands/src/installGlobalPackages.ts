@@ -2,6 +2,7 @@ import { tryReadProjectManifest } from '@pnpm/cli.utils'
 import { mutateModulesInSingleProject } from '@pnpm/installing.deps-installer'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import type { IgnoredBuilds, IncludedDependencies, ProjectRootDir } from '@pnpm/types'
+import { getRangeSpecStyle } from '@pnpm/types'
 
 export interface ResolutionPolicyViolation {
   name: string
@@ -53,7 +54,7 @@ export async function installGlobalPackages (
     storeController: store.ctrl,
     storeDir: store.dir,
   }
-  const rangeSpecStyle = opts.saveExact ? 'patch' : (opts.savePrefix === '~' ? 'minor' : 'major')
+  const rangeSpecStyle = getRangeSpecStyle(opts)
   const { updatedProject, ignoredBuilds, resolutionPolicyViolations } = await mutateModulesInSingleProject(
     {
       allowNew: true,

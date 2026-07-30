@@ -34,6 +34,7 @@ import type {
   ProjectsGraph,
   VulnerabilitySeverity,
 } from '@pnpm/types'
+import { getRangeSpecStyle } from '@pnpm/types'
 import { filterProjectsBySelectorObjects } from '@pnpm/workspace.projects-filter'
 import { createProjectsGraph } from '@pnpm/workspace.projects-graph'
 import { findWorkspaceProjects } from '@pnpm/workspace.projects-reader'
@@ -41,7 +42,6 @@ import { sequenceGraph } from '@pnpm/workspace.projects-sorter'
 import { updateWorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
 import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writer'
 
-import { getRangeSpecStyle } from './getRangeSpecStyle.js'
 import { getSaveType } from './getSaveType.js'
 import { handleIgnoredBuilds } from './handleIgnoredBuilds.js'
 import { setupPolicyHandlers } from './policyHandlers.js'

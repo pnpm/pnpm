@@ -47,14 +47,15 @@ import type {
   ProjectRootDir,
   ProjectRootDirRealPath,
   ProjectsGraph,
+  RangeSpecStyle,
 } from '@pnpm/types'
+import { getRangeSpecStyle } from '@pnpm/types'
 import { sortProjects } from '@pnpm/workspace.projects-sorter'
 import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writer'
 import { isSubdir } from 'is-subdir'
 import pFilter from 'p-filter'
 import pLimit from 'p-limit'
 
-import { getRangeSpecStyle } from './getRangeSpecStyle.js'
 import { getSaveType } from './getSaveType.js'
 import { handleIgnoredBuilds } from './handleIgnoredBuilds.js'
 import { type PolicyViolation, setupPolicyHandlers } from './policyHandlers.js'
@@ -419,7 +420,7 @@ export async function recursive (
           & OptionsFromRootManifest
           & Project
           & Pick<Config, 'bin'>
-          & { rangeSpecStyle: 'major' | 'minor' | 'patch' }
+          & { rangeSpecStyle: RangeSpecStyle }
 
         interface ActionResult {
           updatedCatalogs?: Catalogs

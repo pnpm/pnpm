@@ -126,7 +126,7 @@ pub struct AddArgs {
     /// the default semver range operator.
     #[clap(short = 'E', long = "save-exact")]
     pub save_exact: bool,
-    /// The prefix of the saved version range: `^` (default), `~`, or empty for an exact version.
+    /// The prefix of the saved version range: `^` (default), `~`, `=` for an explicit exact pin, or empty for a bare exact version.
     #[clap(long = "save-prefix", value_name = "prefix")]
     pub save_prefix: Option<String>,
     /// Save the new dependency to the default catalog. Shorthand for `--save-catalog-name=default`.

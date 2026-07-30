@@ -4,6 +4,7 @@ use super::{RangeSpecGranularity, RangeSpecStyle};
 fn from_save_options_matches_pnpm_get_range_spec_style() {
     assert_eq!(RangeSpecStyle::from_save_options(true, None), RangeSpecStyle::Patch);
     assert_eq!(RangeSpecStyle::from_save_options(false, Some("")), RangeSpecStyle::Patch);
+    assert_eq!(RangeSpecStyle::from_save_options(false, Some("=")), RangeSpecStyle::Exact);
     assert_eq!(RangeSpecStyle::from_save_options(false, Some("~")), RangeSpecStyle::Minor);
     assert_eq!(RangeSpecStyle::from_save_options(false, Some("^")), RangeSpecStyle::Major);
 }
@@ -14,6 +15,7 @@ fn from_save_options_default_and_precedence() {
     assert_eq!(RangeSpecStyle::default(), RangeSpecStyle::Major);
     assert_eq!(RangeSpecStyle::from_save_options(true, Some("~")), RangeSpecStyle::Patch);
     assert_eq!(RangeSpecStyle::from_save_options(true, Some("^")), RangeSpecStyle::Patch);
+    assert_eq!(RangeSpecStyle::from_save_options(true, Some("=")), RangeSpecStyle::Patch);
 }
 
 #[test]

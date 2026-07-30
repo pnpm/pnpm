@@ -15,7 +15,8 @@ pub enum RangeSpecStyle {
     /// Save the exact resolved version with no range operator.
     Patch,
     /// Save the exact resolved version with a leading `=` operator,
-    /// preserving an explicit `=` pin from the previous specifier. Selects
+    /// preserving an explicit `=` pin from the previous specifier or a
+    /// `--save-prefix` of `=`. Selects
     /// the same single-version range as [`RangeSpecStyle::Patch`]; only the
     /// written operator differs.
     Exact,
@@ -25,13 +26,19 @@ pub enum RangeSpecStyle {
 
 impl RangeSpecStyle {
     /// Interpret the `--save-exact` and `--save-prefix` flags into a
-    /// [`RangeSpecStyle`].
+    /// [`RangeSpecStyle`]. `--save-exact` (like the empty `--save-prefix`)
+    /// wins and saves the bare version; a `--save-prefix` of `=` saves the
+    /// version with an explicit `=` operator.
     #[must_use]
     pub fn from_save_options(save_exact: bool, save_prefix: Option<&str>) -> Self {
         if save_exact || save_prefix == Some("") {
             return RangeSpecStyle::Patch;
         }
-        if save_prefix == Some("~") { RangeSpecStyle::Minor } else { RangeSpecStyle::Major }
+        match save_prefix {
+            Some("=") => RangeSpecStyle::Exact,
+            Some("~") => RangeSpecStyle::Minor,
+            _ => RangeSpecStyle::Major,
+        }
     }
 
     /// The range operator prepended to the resolved version when serializing
