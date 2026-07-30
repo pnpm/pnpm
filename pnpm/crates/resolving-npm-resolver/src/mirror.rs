@@ -501,6 +501,7 @@ pub fn load_meta(pkg_mirror: &Path) -> Option<Package> {
         etag: headers.etag,
         homepage: index.homepage,
         mutex: Arc::default(),
+        release_age_upgrade_checked: false,
     })
 }
 

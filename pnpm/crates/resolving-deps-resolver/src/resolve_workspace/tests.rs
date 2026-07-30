@@ -4,7 +4,7 @@
 use std::{
     collections::{BTreeMap, HashMap},
     str::FromStr,
-    sync::Mutex,
+    sync::{Arc, Mutex},
 };
 
 use chrono::{DateTime, TimeZone, Utc};
@@ -175,7 +175,7 @@ fn importer_opts(
         resolve_peers_from_workspace_root: false,
         dedupe_peers: false,
         dedupe_peer_dependents: true,
-        all_preferred_versions: PreferredVersions::new(),
+        all_preferred_versions: Arc::new(PreferredVersions::new()),
         override_bare_specifier: None,
         patched_dependencies: None,
         base_opts: ResolveOptions { published_by, project_dir, ..ResolveOptions::default() },
@@ -188,6 +188,7 @@ fn importer_opts(
         peers_suffix_max_length: 1000,
         catalog_server: false,
         manifest_hook: None,
+        overrides_hook: None,
         pnpmfile_hook: None,
     }
 }
@@ -202,6 +203,7 @@ fn workspace_opts(pick_lowest_direct: bool, time_based: bool) -> WorkspaceResolv
         lockfile_dir: std::path::PathBuf::from("/lockfile-dir"),
         peers_suffix_max_length: 1000,
         manifest_hook: None,
+        overrides_hook: None,
         pnpmfile_hook: None,
         read_package_log: None,
         skipped_optional_log: None,
@@ -475,7 +477,8 @@ async fn workspace_link_results_are_cached_per_importer_project_dir() {
             opts.lockfile_dir = Some(lockfile_dir.clone());
             opts.base_opts.lockfile_dir.clone_from(&lockfile_dir);
             opts.base_opts.always_try_workspace_packages = true;
-            opts.base_opts.workspace_packages = Some(std::collections::BTreeMap::default());
+            opts.base_opts.workspace_packages =
+                Some(std::sync::Arc::new(std::collections::BTreeMap::default()));
             opts
         })
         .await
@@ -522,7 +525,8 @@ async fn canonical_snapshot_link_keeps_direct_links_relative_to_each_importer() 
             opts.lockfile_dir = Some(lockfile_dir.clone());
             opts.base_opts.lockfile_dir.clone_from(&lockfile_dir);
             opts.base_opts.always_try_workspace_packages = true;
-            opts.base_opts.workspace_packages = Some(std::collections::BTreeMap::default());
+            opts.base_opts.workspace_packages =
+                Some(std::sync::Arc::new(std::collections::BTreeMap::default()));
             opts
         })
         .await

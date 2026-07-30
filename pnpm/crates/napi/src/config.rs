@@ -72,6 +72,7 @@ pub struct ConfigOverlay {
     pub lockfile: Option<bool>,
     pub prefer_frozen_lockfile: Option<bool>,
     pub dedupe_peer_dependents: Option<bool>,
+    pub dedupe_peers: Option<bool>,
     pub dedupe_direct_deps: Option<bool>,
     pub dedupe_injected_deps: Option<bool>,
     pub resolve_peers_from_workspace_root: Option<bool>,
@@ -317,6 +318,9 @@ fn build_config(dir: &Path, overlay: &ConfigOverlay) -> Result<Config, LoadWorks
     }
     if let Some(value) = overlay.dedupe_peer_dependents {
         config.dedupe_peer_dependents = value;
+    }
+    if let Some(value) = overlay.dedupe_peers {
+        config.dedupe_peers = value;
     }
     if let Some(value) = overlay.dedupe_direct_deps {
         config.dedupe_direct_deps = value;

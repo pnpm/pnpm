@@ -166,7 +166,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
                 lockfile_dir: opts.lockfile_dir.as_path(),
                 registry: &registry,
                 default_tag,
-                workspace_packages: opts.workspace_packages.as_ref(),
+                workspace_packages: opts.workspace_packages.as_deref(),
                 inject_workspace_packages: opts.inject_workspace_packages,
                 saved_specifier: saved_specifier_options(opts),
             };
@@ -554,7 +554,7 @@ fn workspace_fallback_options(opts: &ResolveOptions) -> ResolveFromWorkspaceOpti
         lockfile_dir: opts.lockfile_dir.as_path(),
         registry: UNUSED,
         default_tag: UNUSED,
-        workspace_packages: opts.workspace_packages.as_ref(),
+        workspace_packages: opts.workspace_packages.as_deref(),
         inject_workspace_packages: opts.inject_workspace_packages,
         saved_specifier: saved_specifier_options(opts),
     }

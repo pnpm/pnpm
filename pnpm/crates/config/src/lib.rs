@@ -1257,7 +1257,7 @@ pub struct Config {
     /// Maximum number of concurrent network requests pacquet keeps
     /// in flight during install — the size of the [`pacquet_network`]
     /// semaphore. The `networkConcurrency` setting; the default is the
-    /// `Math.min(64, Math.max(calcMaxWorkers() * 3, 16))` formula,
+    /// `Math.min(96, Math.max(calcMaxWorkers() * 3, 64))` formula,
     /// implemented by [`pacquet_network::default_network_concurrency`].
     #[default(_code = "pacquet_network::default_network_concurrency()")]
     pub network_concurrency: usize,

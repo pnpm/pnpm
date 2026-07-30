@@ -1161,6 +1161,65 @@ async fn published_by_exclude_skips_upgrade_for_abbreviated_meta_without_time() 
     abbrev_mock.assert_async().await;
 }
 
+/// A `304 Not Modified` answer to the release-age upgrade means the registry
+/// holds no fuller form than the abbreviated document, so the outcome must be
+/// remembered for the rest of the install: repeat picks of the same package
+/// must not repeat the upgrade round trip. Registries that ignore the
+/// `Accept` representation answered every upgrade with `304`, and a large
+/// workspace re-asked for the same packument hundreds of times per install.
+#[tokio::test]
+async fn published_by_upgrade_not_modified_is_remembered_across_picks() {
+    let mut server = mockito::Server::new_async().await;
+    let full_mock = server
+        .mock("GET", "/acme")
+        .match_header("accept", "application/json; q=1.0, */*")
+        .match_header("if-none-match", r#""acme-etag""#)
+        .with_status(304)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let cache_dir = TempDir::new().expect("tempdir");
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let meta_cache = InMemoryPackageMetaCache::default();
+    // The document a prior mirror load would have produced: abbreviated
+    // (no `time`), carrying the mirror's etag as the upgrade validator.
+    let mut seeded: pacquet_registry::Package =
+        serde_json::from_str(ABBREVIATED_BODY).expect("parse fixture");
+    seeded.etag = Some(r#""acme-etag""#.to_string());
+    meta_cache.set(format!("{registry}\u{0}acme"), Arc::new(seeded));
+    let fetch_locker = shared_packument_fetch_locker();
+    let ctx = PickPackageContext {
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        meta_cache: &meta_cache,
+        fetch_locker: &fetch_locker,
+        cache_dir: Some(cache_dir.path()),
+        offline: false,
+        prefer_offline: false,
+        // The post-304 document still has no `time`, so let the picker
+        // take its warn-and-skip fallback instead of erroring.
+        ignore_missing_time_field: true,
+        full_metadata: false,
+        filter_metadata: false,
+        retry_opts: RetryOpts::default(),
+    };
+
+    let mut opts = default_opts(&registry);
+    // Cutoff before `modified=2024-12-01`, so the upgrade trigger fires.
+    opts.published_by = Some(parse_cutoff("2023-01-01T00:00:00Z"));
+
+    let _ = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("first pick");
+    let _ = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("second pick");
+    let _ = pick_package(&ctx, &range_spec("acme", "1.0.0"), &opts).await.expect("third pick");
+
+    // Exactly one upgrade attempt — the 304 outcome is stamped into the
+    // shared cache and reused by later picks.
+    full_mock.assert_async().await;
+}
+
 /// Fully excluded packages (`minimumReleaseAgeExclude: ['acme']`) must bypass
 /// the publishedBy file-mtime cache shortcut, otherwise a stale abbreviated
 /// mirror can pin resolution to an old latest forever until the cutoff window

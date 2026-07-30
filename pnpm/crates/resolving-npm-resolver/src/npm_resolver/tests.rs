@@ -829,7 +829,7 @@ fn workspace_resolve_options(packages: WorkspacePackages) -> ResolveOptions {
     ResolveOptions {
         project_dir: Path::new("/repo/packages/consumer").to_path_buf(),
         lockfile_dir: Path::new("/repo").to_path_buf(),
-        workspace_packages: Some(packages),
+        workspace_packages: Some(std::sync::Arc::new(packages)),
         always_try_workspace_packages: true,
         ..ResolveOptions::default()
     }

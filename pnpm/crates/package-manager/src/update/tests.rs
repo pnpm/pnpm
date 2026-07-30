@@ -347,6 +347,7 @@ fn project_with_foo_specifier(root: &std::path::Path, name: &str, specifier: &st
     Project {
         root_dir,
         manifest: PackageManifest::from_path(package_json).expect("read package.json"),
+        dependency_manifest: None,
     }
 }
 
@@ -365,6 +366,7 @@ fn project_without_foo(root: &std::path::Path, name: &str) -> Project {
     Project {
         root_dir,
         manifest: PackageManifest::from_path(package_json).expect("read package.json"),
+        dependency_manifest: None,
     }
 }
 

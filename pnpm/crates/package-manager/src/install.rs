@@ -1461,7 +1461,15 @@ where
                             .await
                             .map_err(InstallError::CustomResolverForceResolve)?
                     }
-                    Err(FreshnessCheckError::Stale(_) | FreshnessCheckError::NoImporter { .. }) => {
+                    Err(
+                        error @ (FreshnessCheckError::Stale(_)
+                        | FreshnessCheckError::NoImporter { .. }),
+                    ) => {
+                        tracing::info!(
+                            target: "pacquet::install",
+                            reason = %error,
+                            "lockfile not usable as-is; falling through to a fresh resolve",
+                        );
                         false
                     }
                     Err(
@@ -2867,7 +2875,18 @@ pub(crate) fn check_importer_satisfies(
         config.auto_install_peers,
         is_ignored_optional,
     )
-    .map_err(FreshnessCheckError::Stale)
+    .map_err(|reason| {
+        // Stamp the importer onto a specifier diff so the workspace-wide
+        // freshness report names the drifted project, not only the dep.
+        let reason = match reason {
+            StalenessReason::SpecifiersDiffer(mut diff) => {
+                diff.importer_id = Some(importer_id.to_string());
+                StalenessReason::SpecifiersDiffer(diff)
+            }
+            other => other,
+        };
+        FreshnessCheckError::Stale(reason)
+    })
 }
 
 fn ignored_optional_dependency_names(
@@ -4421,7 +4440,16 @@ pub fn build_workspace_packages_map(
             version,
             pacquet_resolving_resolver_base::WorkspacePackage {
                 root_dir: project.root_dir.clone(),
-                manifest: project.manifest.value().clone(),
+                // The map feeds workspace picks resolved as *dependencies*
+                // (injected instances), so a project that splits its two
+                // views contributes its dependency manifest here — see
+                // `pacquet_workspace::Project::dependency_manifest`.
+                manifest: project
+                    .dependency_manifest
+                    .as_ref()
+                    .unwrap_or(&project.manifest)
+                    .value()
+                    .clone(),
             },
         );
     }

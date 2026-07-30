@@ -15,6 +15,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 pacquet-config                            = { workspace = true }
+pacquet-diagnostics                       = { workspace = true }
 pacquet-catalogs-types                    = { workspace = true }
 pacquet-engine-runtime-bun-resolver       = { workspace = true }
 pacquet-engine-runtime-deno-resolver      = { workspace = true }
