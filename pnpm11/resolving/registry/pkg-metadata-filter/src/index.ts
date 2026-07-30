@@ -8,7 +8,14 @@ import semver from 'semver'
  * versions map and parses a Date per version, so memoize per packument
  * object; the key carries the cutoff and trusted versions because a shared
  * meta cache can serve one packument to installs with different policies.
+ *
+ * A single install computes one cutoff, so one entry per packument covers
+ * it. The per-packument map is still capped: a long-lived process (store
+ * server, daemon) computes a fresh cutoff per install while a shared meta
+ * cache keeps the packument alive, which would otherwise grow the map and
+ * retain a filtered copy per install indefinitely.
  */
+const MAX_POLICIES_PER_PACKUMENT = 4
 const filteredMetaCache = new WeakMap<PackageMetadataWithTime, Map<string, PackageMetadataWithTime>>()
 
 export function filterPkgMetadataByPublishDate (
@@ -27,6 +34,10 @@ export function filterPkgMetadataByPublishDate (
   let filtered = byPolicy.get(policyKey)
   if (filtered == null) {
     filtered = filterPkgMetadataByPublishDateUncached(pkgDoc, publishedBy, trustedVersions)
+    if (byPolicy.size >= MAX_POLICIES_PER_PACKUMENT) {
+      // Map preserves insertion order, so the first key is the oldest policy.
+      byPolicy.delete(byPolicy.keys().next().value!)
+    }
     byPolicy.set(policyKey, filtered)
   }
   return filtered

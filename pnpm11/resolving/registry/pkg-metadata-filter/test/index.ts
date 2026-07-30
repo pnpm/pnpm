@@ -104,3 +104,38 @@ test('latest fallback does not exceed the original dist-tag target', () => {
   }, cutoff)
   expect(withoutSafeFallback['dist-tags'].latest).toBeUndefined()
 })
+
+test('filtering is memoized per packument and the per-packument policy cache stays bounded', () => {
+  const name = 'memoized-pkg'
+  const doc = {
+    name,
+    versions: {
+      '1.0.0': {
+        name,
+        version: '1.0.0',
+        dist: { tarball: `https://registry.npmjs.org/${name}/-/${name}-1.0.0.tgz`, shasum: '' },
+      },
+    },
+    'dist-tags': {
+      latest: '1.0.0',
+    },
+    time: {
+      '1.0.0': '2020-01-01T00:00:00.000Z',
+    },
+  }
+  const cutoff = new Date('2020-04-01T00:00:00.000Z')
+
+  const first = filterPkgMetadataByPublishDate(doc, cutoff)
+  expect(filterPkgMetadataByPublishDate(doc, cutoff)).toBe(first)
+  // The key is the cutoff's value, not the Date object's identity.
+  expect(filterPkgMetadataByPublishDate(doc, new Date(cutoff.getTime()))).toBe(first)
+  // A different cutoff gets its own slot.
+  expect(filterPkgMetadataByPublishDate(doc, new Date('2020-06-01T00:00:00.000Z'))).not.toBe(first)
+
+  // Exceeding the per-packument cap with distinct cutoffs evicts the oldest
+  // entry instead of growing forever: the original cutoff is recomputed.
+  for (let i = 1; i <= 4; i++) {
+    filterPkgMetadataByPublishDate(doc, new Date(cutoff.getTime() + i * 60_000))
+  }
+  expect(filterPkgMetadataByPublishDate(doc, cutoff)).not.toBe(first)
+})
