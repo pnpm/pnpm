@@ -251,6 +251,7 @@ fn workspace_options() -> WorkspaceResolveOptions {
         deprecation_log: None,
         auto_install_peers: true,
         registries: HashMap::new(),
+        parsed_overrides: None,
     }
 }
 

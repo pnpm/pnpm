@@ -4971,6 +4971,7 @@ dependencies = [
  "node-semver",
  "pacquet-catalogs-resolver",
  "pacquet-catalogs-types",
+ "pacquet-config-parse-overrides",
  "pacquet-deps-path",
  "pacquet-fs",
  "pacquet-hooks",

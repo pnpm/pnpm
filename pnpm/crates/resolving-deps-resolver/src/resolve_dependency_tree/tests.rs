@@ -1,13 +1,13 @@
 use pacquet_lockfile::{DirectoryResolution, LockfileResolution, PkgNameVerPeer};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_resolving_resolver_base::{
-    LatestQuery, PkgResolutionId, ResolveFuture, ResolveLatestFuture, ResolveOptions,
-    ResolveResult, Resolver, WantedDependency,
+    LatestQuery, NoMatchingVersionError, PkgResolutionId, ResolveFuture, ResolveLatestFuture,
+    ResolveOptions, ResolveResult, Resolver, WantedDependency,
 };
 
 use super::{
     ResolveDependencyTreeOptions, WorkspaceTreeCtx, extract_children, landed_on_prior_entry,
-    resolve_dependency_tree,
+    max_satisfying, reframe_override_no_matching_version, resolve_dependency_tree,
 };
 use crate::{
     DirectDep, NodeId,
@@ -870,4 +870,99 @@ mod fallback_manifest {
             serde_json::json!({ "name": "sub", "version": "0.0.0" }),
         );
     }
+}
+
+fn acme_no_match_error(bare_specifier: &str, versions: &[&str]) -> NoMatchingVersionError {
+    NoMatchingVersionError {
+        dep: format!("acme@{bare_specifier}"),
+        registry: "https://example.com/".to_string(),
+        published_versions: String::new(),
+        versions: versions.iter().map(|v| (*v).to_string()).collect(),
+    }
+}
+
+fn override_entry(
+    selector: &str,
+    target_name: &str,
+    target_range: Option<&str>,
+    new_spec: &str,
+) -> pacquet_config_parse_overrides::VersionOverride {
+    pacquet_config_parse_overrides::VersionOverride {
+        selector: selector.to_string(),
+        parent_pkg: None,
+        target_pkg: pacquet_config_parse_overrides::PackageSelector {
+            name: target_name.to_string(),
+            bare_specifier: target_range.map(str::to_string),
+        },
+        new_bare_specifier: new_spec.to_string(),
+        converge: false,
+    }
+}
+
+#[test]
+fn override_reframe_names_the_override_and_latest_matching_version() {
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("^1.5.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let specific = acme_no_match_error("^1.5.0", &["1.0.0", "1.1.0"]);
+    let overrides = vec![override_entry("acme@^1", "acme", Some("^1"), "^1.5.0")];
+
+    let reframed = reframe_override_no_matching_version(&wanted, &specific, Some(&overrides))
+        .expect("a matching override reframes the error");
+
+    assert_eq!(
+        reframed.to_string(),
+        "Override \"acme@^1\": \"^1.5.0\" targets a version of acme that does not exist on the registry."
+    );
+    assert_eq!(
+        miette::Diagnostic::code(&reframed).map(|c| c.to_string()),
+        Some("ERR_PNPM_NO_MATCHING_VERSION".to_string()),
+    );
+    assert_eq!(
+        miette::Diagnostic::help(&reframed).map(|h| h.to_string()),
+        Some("The latest release of acme matching \"^1\" is \"1.1.0\".".to_string()),
+    );
+}
+
+#[test]
+fn override_reframe_omits_help_when_selector_has_no_range() {
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("2.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let specific = acme_no_match_error("2.0.0", &["1.0.0", "1.1.0"]);
+    let overrides = vec![override_entry("acme", "acme", None, "2.0.0")];
+
+    let reframed = reframe_override_no_matching_version(&wanted, &specific, Some(&overrides))
+        .expect("a matching override reframes the error");
+
+    assert_eq!(
+        reframed.to_string(),
+        "Override \"acme\": \"2.0.0\" targets a version of acme that does not exist on the registry."
+    );
+    assert!(miette::Diagnostic::help(&reframed).is_none());
+}
+
+#[test]
+fn override_reframe_returns_none_when_no_override_matches() {
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("^1.5.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let specific = acme_no_match_error("^1.5.0", &["1.0.0", "1.1.0"]);
+    let overrides = vec![override_entry("acme@^1", "acme", Some("^1"), "^3.0.0")];
+
+    assert!(reframe_override_no_matching_version(&wanted, &specific, Some(&overrides)).is_none());
+}
+
+#[test]
+fn max_satisfying_picks_the_highest_version_in_range() {
+    let versions = ["1.0.0".to_string(), "1.1.0".to_string(), "2.0.0".to_string()];
+    assert_eq!(max_satisfying(&versions, "^1"), Some("1.1.0".to_string()));
+    assert_eq!(max_satisfying(&versions, "^2"), Some("2.0.0".to_string()));
+    assert_eq!(max_satisfying(&versions, "^3"), None);
 }
