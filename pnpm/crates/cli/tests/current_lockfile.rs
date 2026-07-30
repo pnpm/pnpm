@@ -204,10 +204,7 @@ fn a_broken_wanted_lockfile_is_ignored_and_regenerated() {
         .to_string(),
     )
     .expect("write package.json");
-    let yaml_path = workspace.join("pnpm-workspace.yaml");
-    let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
-    yaml.push_str("optimisticRepeatInstall: false\n");
-    fs::write(&yaml_path, yaml).expect("disable the optimistic repeat-install shortcut");
+    append_workspace_yaml_key(&workspace, "optimisticRepeatInstall", false);
 
     pacquet.with_arg("install").assert().success();
     let lockfile_path = workspace.join("pnpm-lock.yaml");
