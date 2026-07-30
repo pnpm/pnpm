@@ -1114,7 +1114,23 @@ where
 
         // Past the repeat-install fast path every install flavor needs
         // the wanted lockfile's contents; force the deferred load here.
-        let lockfile = lockfile.get().map_err(InstallError::LoadWantedLockfile)?;
+        // A broken lockfile is regenerable state, so only a frozen
+        // install treats it as fatal (upstream `readLockfiles`).
+        let lockfile = match lockfile.get() {
+            Ok(lockfile) => lockfile,
+            Err(error) if !frozen_lockfile => {
+                Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+                    level: LogLevel::Warn,
+                    message: format!(
+                        "Ignoring broken lockfile at {}: {error}",
+                        workspace_root.display(),
+                    ),
+                    prefix: prefix.clone(),
+                }));
+                None
+            }
+            Err(error) => return Err(InstallError::LoadWantedLockfile(error)),
+        };
 
         // Register the project against the shared store for prune
         // tracking, once per install at the workspace root. Register
