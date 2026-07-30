@@ -251,11 +251,10 @@ fn next_line(level: usize, double_line: bool) -> String {
     line
 }
 
-/// The `state.dump.length > 1024` threshold of js-yaml's explicit-pair
-/// rule: YAML caps a *simple* key at 1024 characters (the `:` must appear
-/// within that lookahead), so a longer rendered key is emitted in explicit
-/// `? <key>` / `: <value>` form. Peer-suffixed snapshot keys in large
-/// workspaces exceed this even with `peersSuffixMaxLength` applied.
+/// A rendered key longer than this (measured in UTF-16 code units,
+/// matching js-yaml's `state.dump.length > 1024`) is emitted as an
+/// explicit `? <key>` / `: <value>` pair: YAML caps a *simple* key at
+/// 1024 characters, so an inline key of that length would not re-parse.
 const EXPLICIT_KEY_THRESHOLD: usize = 1024;
 
 fn write_block_mapping(
@@ -270,7 +269,7 @@ fn write_block_mapping(
             result.push_str(&next_line(level, double_line));
         }
         let rendered_key = write_scalar(key, level + 1, true, true);
-        let explicit_pair = rendered_key.chars().count() > EXPLICIT_KEY_THRESHOLD;
+        let explicit_pair = rendered_key.encode_utf16().count() > EXPLICIT_KEY_THRESHOLD;
         if explicit_pair {
             result.push_str("? ");
             result.push_str(&rendered_key);
