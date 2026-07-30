@@ -1,5 +1,4 @@
-import type { PackageMeta } from '@pnpm/resolving.registry.types'
-import { pick } from 'ramda'
+import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
 
 // The list taken from https://github.com/npm/registry/blob/master/docs/responses/package-metadata.md#abbreviated-version-object
 // with the addition of 'libc'
@@ -52,7 +51,7 @@ export function clearMeta (pkg: PackageMeta): PackageMeta {
   // prototype of the map (js/prototype-polluting-assignment).
   const versions: PackageMeta['versions'] = Object.create(null)
   for (const [version, info] of Object.entries(pkg.versions ?? {})) {
-    versions[version] = pick(ABBREVIATED_VERSION_FIELDS, info)
+    versions[version] = pickAbbreviatedVersionFields(info)
   }
 
   const condensed: PackageMeta = {
@@ -68,6 +67,22 @@ export function clearMeta (pkg: PackageMeta): PackageMeta {
   condensedPackuments.set(pkg, condensed)
   condensedPackuments.set(condensed, condensed)
   return condensed
+}
+
+// Equivalent to ramda's pick(ABBREVIATED_VERSION_FIELDS, info) but without
+// the per-call `in` checks and currying overhead — this runs for every
+// version of every packument an install parses. The `!== undefined` presence
+// check is safe because version objects come from JSON, which can't encode
+// undefined.
+function pickAbbreviatedVersionFields (info: PackageInRegistry): PackageInRegistry {
+  const out: Record<string, unknown> = {}
+  for (const field of ABBREVIATED_VERSION_FIELDS) {
+    const value = info[field as keyof PackageInRegistry]
+    if (value !== undefined) {
+      out[field] = value
+    }
+  }
+  return out as unknown as PackageInRegistry
 }
 
 /**

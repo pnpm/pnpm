@@ -2,7 +2,37 @@ import { globalWarn } from '@pnpm/logger'
 import type { PackageMetadataWithTime } from '@pnpm/resolving.registry.types'
 import semver from 'semver'
 
+/**
+ * A pick runs for every dependency edge, so the same packument is filtered
+ * against the same cutoff many times per install. Filtering allocates a new
+ * versions map and parses a Date per version, so memoize per packument
+ * object; the key carries the cutoff and trusted versions because a shared
+ * meta cache can serve one packument to installs with different policies.
+ */
+const filteredMetaCache = new WeakMap<PackageMetadataWithTime, Map<string, PackageMetadataWithTime>>()
+
 export function filterPkgMetadataByPublishDate (
+  pkgDoc: PackageMetadataWithTime,
+  publishedBy: Date,
+  trustedVersions?: string[]
+): PackageMetadataWithTime {
+  let byPolicy = filteredMetaCache.get(pkgDoc)
+  if (byPolicy == null) {
+    byPolicy = new Map()
+    filteredMetaCache.set(pkgDoc, byPolicy)
+  }
+  const policyKey = trustedVersions == null
+    ? String(publishedBy.getTime())
+    : `${publishedBy.getTime()}\x00${trustedVersions.join('\x00')}`
+  let filtered = byPolicy.get(policyKey)
+  if (filtered == null) {
+    filtered = filterPkgMetadataByPublishDateUncached(pkgDoc, publishedBy, trustedVersions)
+    byPolicy.set(policyKey, filtered)
+  }
+  return filtered
+}
+
+function filterPkgMetadataByPublishDateUncached (
   pkgDoc: PackageMetadataWithTime,
   publishedBy: Date,
   trustedVersions?: string[]
@@ -58,9 +88,15 @@ export function filterPkgMetadataByPublishDate (
         try {
           const candidateIsDeprecated = pkgDoc.versions[candidate].deprecated != null
           const bestVersionIsDeprecated = pkgDoc.versions[bestVersion].deprecated != null
+          // Compare the already-parsed instances: bestVersion always parsed
+          // successfully when it became the best candidate, and reusing the
+          // cached SemVer avoids semver.gt re-parsing both strings.
+          const bestParsed = tryParseSemver(bestVersion)
           if (
-            (semver.gt(candidate, bestVersion, true) && (bestVersionIsDeprecated === candidateIsDeprecated)) ||
-            (bestVersionIsDeprecated && !candidateIsDeprecated)
+            bestParsed != null && (
+              (candidateParsed.compare(bestParsed) > 0 && (bestVersionIsDeprecated === candidateIsDeprecated)) ||
+              (bestVersionIsDeprecated && !candidateIsDeprecated)
+            )
           ) {
             bestVersion = candidate
           }

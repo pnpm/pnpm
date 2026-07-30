@@ -301,7 +301,18 @@ export async function pickPackage (
     }
     let diskMeta: PackageMeta | null | undefined
     if (ctx.offline === true || ctx.preferOffline === true || opts.pickLowestVersion) {
-      diskMeta = await limit(loadMetaCondensed)
+      // Concurrent offline picks of one package all miss the pre-queue
+      // in-memory cache check and queue behind the same limiter, so each
+      // would re-read and re-parse the mirror. Offline entries are always
+      // disk-sourced, so re-checking the cache once inside the queue is
+      // equivalent to having arrived after the first caller cached it.
+      diskMeta = await limit(async () => {
+        if (ctx.offline === true) {
+          const cached = ctx.metaCache.get(cacheKey)
+          if (cached != null) return cached
+        }
+        return loadMetaCondensed()
+      })
 
       if (ctx.offline) {
         if (diskMeta != null) {
