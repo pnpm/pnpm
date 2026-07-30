@@ -2,7 +2,7 @@ import type {
   DependencyManifest,
   PackageManifest,
   PackageVersionPolicy,
-  PinnedVersion,
+  SaveRangeStyle,
   PkgResolutionId,
   ProjectRootDir,
   SupportedArchitectures,
@@ -406,7 +406,7 @@ export interface ResolveOptions {
   updateChecksums?: boolean
   injectWorkspacePackages?: boolean
   calcSpecifier?: boolean
-  pinnedVersion?: PinnedVersion
+  saveRangeStyle?: SaveRangeStyle
   currentPkg?: {
     id: PkgResolutionId
     name?: string

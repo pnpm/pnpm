@@ -739,7 +739,7 @@ test('refetch package to store if it has been modified', async () => {
 // TODO: decide what to do with this case
 test.skip('relink package to project if the dependency is not linked from store', async () => {
   prepareEmpty()
-  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['magic-hook@2.0.0'], testDefaults({ save: true, pinnedVersion: 'patch' }))
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['magic-hook@2.0.0'], testDefaults({ save: true, saveRangeStyle: 'patch' }))
 
   const pkgJsonPath = path.resolve('node_modules', 'magic-hook', 'package.json')
 

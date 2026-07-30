@@ -17,7 +17,7 @@ test('install with lockfileOnly = true', async () => {
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
   const project = prepareEmpty()
 
-  const opts = testDefaults({ lockfileOnly: true, pinnedVersion: 'patch' as const })
+  const opts = testDefaults({ lockfileOnly: true, saveRangeStyle: 'patch' as const })
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], opts)
   const { cafsHasNot } = assertStore(opts.storeDir)
 

@@ -1,17 +1,17 @@
 //! Detect the range operator a specifier already pins to, so an update can
 //! preserve it.
 
-use pacquet_registry::PinnedVersion;
+use pacquet_registry::SaveRangeStyle;
 
 /// Classify the range operator an existing specifier pins to.
 ///
-/// Returns the [`PinnedVersion`] the specifier already uses, or `None` when
+/// Returns the [`SaveRangeStyle`] the specifier already uses, or `None` when
 /// the specifier carries no single recoverable pin (a `catalog:` reference,
 /// a tag, a multi-comparator range, or junk). Callers fall back to the
 /// configured default in that case, trying the previous specifier first,
 /// then the bare specifier, then the default.
 #[must_use]
-pub fn which_version_is_pinned(spec: &str) -> Option<PinnedVersion> {
+pub fn infer_save_range_style(spec: &str) -> Option<SaveRangeStyle> {
     if spec.starts_with("catalog:") {
         return None;
     }
@@ -27,7 +27,7 @@ pub fn which_version_is_pinned(spec: &str) -> Option<PinnedVersion> {
         None => spec,
     };
     if spec == "*" {
-        return Some(PinnedVersion::None);
+        return Some(SaveRangeStyle::None);
     }
 
     let mut comparator = None;
@@ -59,15 +59,15 @@ pub fn which_version_is_pinned(spec: &str) -> Option<PinnedVersion> {
 
     let comparator = comparator?;
     match comparator.operator {
-        Some(Operator::Tilde) => Some(PinnedVersion::Minor),
-        Some(Operator::Caret) => Some(PinnedVersion::Major),
+        Some(Operator::Tilde) => Some(SaveRangeStyle::Minor),
+        Some(Operator::Caret) => Some(SaveRangeStyle::Major),
         Some(Operator::Other) => None,
         // A bare `=` before a full version is an explicit exact pin; a
         // partial `=` pins the same way the plain version it prefixes does.
-        Some(Operator::Eq) if comparator.has_patch => Some(PinnedVersion::Exact),
-        None if comparator.has_patch => Some(PinnedVersion::Patch),
-        Some(Operator::Eq) | None if comparator.has_minor => Some(PinnedVersion::Minor),
-        Some(Operator::Eq) | None if comparator.has_major => Some(PinnedVersion::Major),
+        Some(Operator::Eq) if comparator.has_patch => Some(SaveRangeStyle::Exact),
+        None if comparator.has_patch => Some(SaveRangeStyle::Patch),
+        Some(Operator::Eq) | None if comparator.has_minor => Some(SaveRangeStyle::Minor),
+        Some(Operator::Eq) | None if comparator.has_major => Some(SaveRangeStyle::Major),
         Some(Operator::Eq) | None => None,
     }
 }

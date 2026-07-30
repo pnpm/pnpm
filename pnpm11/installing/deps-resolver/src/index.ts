@@ -26,7 +26,7 @@ import {
   type DependencyManifest,
   type DepPath,
   type PeerDependencyIssuesByProjects,
-  type PinnedVersion,
+  type SaveRangeStyle,
   type PkgIdWithPatchHash,
   type ProjectId,
   type ProjectManifest,
@@ -66,7 +66,7 @@ export type DependenciesGraphNode = GenericDependenciesGraphNodeWithResolvedChil
 export {
   getWantedDependencies,
   type LinkedDependency,
-  type PinnedVersion,
+  type SaveRangeStyle,
   type ResolvedPackage,
   type UpdateMatchingFunction,
   type WantedDependency,
@@ -90,12 +90,12 @@ interface ProjectToLink {
 export interface ImporterToResolve extends Importer<{
   isNew?: boolean
   nodeExecPath?: string
-  pinnedVersion?: PinnedVersion
+  saveRangeStyle?: SaveRangeStyle
   updateSpec?: boolean
   preserveNonSemverVersionSpec?: boolean
 }> {
   peer?: boolean
-  pinnedVersion?: PinnedVersion
+  saveRangeStyle?: SaveRangeStyle
   binsDir: string
   manifest: ProjectManifest
   originalManifest?: ProjectManifest

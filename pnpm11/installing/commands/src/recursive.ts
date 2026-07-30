@@ -54,7 +54,7 @@ import { isSubdir } from 'is-subdir'
 import pFilter from 'p-filter'
 import pLimit from 'p-limit'
 
-import { getPinnedVersion } from './getPinnedVersion.js'
+import { getSaveRangeStyle } from './getSaveRangeStyle.js'
 import { getSaveType } from './getSaveType.js'
 import { handleIgnoredBuilds } from './handleIgnoredBuilds.js'
 import { type PolicyViolation, setupPolicyHandlers } from './policyHandlers.js'
@@ -301,7 +301,7 @@ export async function recursive (
             modulesDir,
             mutation,
             peer: opts.savePeer,
-            pinnedVersion: getPinnedVersion({
+            saveRangeStyle: getSaveRangeStyle({
               saveExact: typeof localConfig.saveExact === 'boolean' ? localConfig.saveExact : opts.saveExact,
               savePrefix: typeof localConfig.savePrefix === 'string' ? localConfig.savePrefix : opts.savePrefix,
             }),
@@ -419,7 +419,7 @@ export async function recursive (
           & OptionsFromRootManifest
           & Project
           & Pick<Config, 'bin'>
-          & { pinnedVersion: 'major' | 'minor' | 'patch' }
+          & { saveRangeStyle: 'major' | 'minor' | 'patch' }
 
         interface ActionResult {
           updatedCatalogs?: Catalogs
@@ -472,7 +472,7 @@ export async function recursive (
             dir: rootDir,
             hooks,
             ignoreScripts: true,
-            pinnedVersion: getPinnedVersion({
+            saveRangeStyle: getSaveRangeStyle({
               saveExact: typeof localConfig.saveExact === 'boolean' ? localConfig.saveExact : opts.saveExact,
               savePrefix: typeof localConfig.savePrefix === 'string' ? localConfig.savePrefix : opts.savePrefix,
             }),

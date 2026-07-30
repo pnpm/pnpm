@@ -13,7 +13,7 @@ use pacquet_global::{clean_orphaned_install_dirs, create_install_dir, find_globa
 use pacquet_graph_hasher::{format_global_virtual_store_path, host_arch, host_libc, host_platform};
 use pacquet_package_is_installable::SupportedArchitectures;
 use pacquet_package_manifest::{DependencyGroup, parse_manifest};
-use pacquet_registry::PinnedVersion;
+use pacquet_registry::SaveRangeStyle;
 use pacquet_reporter::Reporter;
 use serde_json::Value;
 use std::{
@@ -291,7 +291,7 @@ pub(crate) async fn run_install<Reporter: self::Reporter + 'static>(
     add_package::<Reporter, _>(
         state,
         &format!("{package_name}@{version}"),
-        PinnedVersion::Patch,
+        SaveRangeStyle::Patch,
         None,
         false,
         config.supported_architectures.clone(),

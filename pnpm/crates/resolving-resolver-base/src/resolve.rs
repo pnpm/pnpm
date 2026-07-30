@@ -12,7 +12,7 @@ use chrono::{DateTime, Utc};
 use derive_more::{Display, From};
 use pacquet_config::{SaveWorkspaceProtocol, TrustPolicy, version_policy::PackageVersionPolicy};
 use pacquet_lockfile::{LockfileResolution, PkgNameVer};
-use pacquet_registry::PinnedVersion;
+use pacquet_registry::SaveRangeStyle;
 use serde::{Deserialize, Serialize};
 
 use crate::verifier::ResolutionPolicyViolation;
@@ -336,7 +336,7 @@ pub struct ResolveOptions {
     /// A specifier that already carries an operator keeps it (`^` stays
     /// `^`, `~` stays `~`, an exact pin stays exact). `None` leaves the
     /// choice to the resolver's own default.
-    pub pinned_version: Option<PinnedVersion>,
+    pub save_range_style: Option<SaveRangeStyle>,
     /// How [`Self::calc_specifier`] writes a dependency that resolved to
     /// a workspace package. The `saveWorkspaceProtocol` setting.
     pub save_workspace_protocol: SaveWorkspaceProtocol,

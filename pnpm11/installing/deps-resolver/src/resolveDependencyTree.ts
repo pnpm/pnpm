@@ -10,7 +10,7 @@ import type { StoreController } from '@pnpm/store.controller-types'
 import type {
   AllowBuild,
   AllowedDeprecatedVersions,
-  PinnedVersion,
+  SaveRangeStyle,
   PkgResolutionId,
   ProjectId,
   ProjectManifest,
@@ -105,7 +105,7 @@ export interface ImporterToResolveGeneric<WantedDepExtraProps> extends Importer<
   hasRemovedDependencies?: boolean
   preferredVersions?: PreferredVersions
   wantedDependencies: Array<WantedDepExtraProps & WantedDependency & { updateDepth: number }>
-  pinnedVersion?: PinnedVersion
+  saveRangeStyle?: SaveRangeStyle
 }
 
 export interface ResolveDependenciesOptions {
@@ -285,7 +285,7 @@ export async function resolveDependencyTree<T> (
       preferredVersions: importer.preferredVersions ?? {},
       wantedDependencies: importer.wantedDependencies,
       options: resolveOpts,
-      pinnedVersion: importer.pinnedVersion,
+      saveRangeStyle: importer.saveRangeStyle,
     }
   })
   const { pkgAddressesByImporters, time } = await resolveRootDependencies(ctx, resolveArgs)

@@ -24,7 +24,7 @@ use pacquet_global::{
 use pacquet_lockfile::EnvLockfile;
 use pacquet_package_manifest::PackageManifest;
 use pacquet_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
-use pacquet_resolving_npm_resolver::{MINIMUM_RELEASE_AGE_VIOLATION_CODE, which_version_is_pinned};
+use pacquet_resolving_npm_resolver::{MINIMUM_RELEASE_AGE_VIOLATION_CODE, infer_save_range_style};
 use serde_json::Value;
 use std::{collections::HashSet, io::IsTerminal, path::Path};
 
@@ -469,7 +469,7 @@ fn update_version_constraint(current: Option<&str>, new_version: &str) -> String
     if range_satisfies(current, new_version) {
         return current.to_string();
     }
-    match which_version_is_pinned(current) {
+    match infer_save_range_style(current) {
         Some(pinned) => format!("{}{new_version}", pinned.range_prefix()),
         None => format!("^{new_version}"),
     }

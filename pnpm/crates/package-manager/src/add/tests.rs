@@ -7,7 +7,7 @@ use crate::ResolvedPackages;
 use pacquet_config::{Config, LinkWorkspacePackages};
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_registry::PinnedVersion;
+use pacquet_registry::SaveRangeStyle;
 use pacquet_reporter::{LogEvent, LogLevel, Reporter, SilentReporter};
 use pacquet_workspace::Project;
 use serde_json::json;
@@ -31,7 +31,7 @@ fn explicit_npm_specifier_is_not_rewritten_as_a_workspace_dependency() {
             Some("npm:foo@^1.0.0"),
             None,
             &config,
-            PinnedVersion::Major,
+            SaveRangeStyle::Major,
             None,
         ),
         None,
@@ -106,7 +106,7 @@ async fn add_routes_scoped_packages_to_configured_scoped_registry() {
         lockfile_path: None,
         dependency_groups: Some([DependencyGroup::Prod]),
         package_names: &package_names,
-        pinned_version: PinnedVersion::Patch,
+        save_range_style: SaveRangeStyle::Patch,
         save_catalog_name: None,
         supported_architectures: None,
         lockfile_only: true,
@@ -244,7 +244,7 @@ async fn add_resolves_package_selectors_concurrently_and_reports_in_selector_ord
         lockfile_path: None,
         dependency_groups: Some([DependencyGroup::Prod]),
         package_names: &package_names,
-        pinned_version: PinnedVersion::Patch,
+        save_range_style: SaveRangeStyle::Patch,
         save_catalog_name: None,
         supported_architectures: None,
         lockfile_only: true,
@@ -366,7 +366,7 @@ async fn add_reuses_shared_packument_state_for_every_selector_path() {
         lockfile_path: None,
         dependency_groups: Some([DependencyGroup::Prod]),
         package_names: &package_names,
-        pinned_version: PinnedVersion::Patch,
+        save_range_style: SaveRangeStyle::Patch,
         save_catalog_name: None,
         supported_architectures: None,
         lockfile_only: true,
@@ -441,7 +441,7 @@ async fn add_reports_resolution_errors_in_selector_order() {
         lockfile_path: None,
         dependency_groups: Some([DependencyGroup::Prod]),
         package_names: &package_names,
-        pinned_version: PinnedVersion::Patch,
+        save_range_style: SaveRangeStyle::Patch,
         save_catalog_name: None,
         supported_architectures: None,
         lockfile_only: true,
@@ -520,7 +520,7 @@ async fn add_does_not_wait_for_a_slower_later_resolution_after_an_error() {
             lockfile_path: None,
             dependency_groups: Some([DependencyGroup::Prod]),
             package_names: &package_names,
-            pinned_version: PinnedVersion::Patch,
+            save_range_style: SaveRangeStyle::Patch,
             save_catalog_name: None,
             supported_architectures: None,
             lockfile_only: true,
@@ -656,7 +656,7 @@ async fn selected_add_prepares_and_persists_only_selected_projects() {
         None,
         Some(&[DependencyGroup::Prod][..]),
         std::slice::from_ref(&"foo@workspace:*".to_string()),
-        PinnedVersion::Major,
+        SaveRangeStyle::Major,
         None,
     )
     .await
@@ -703,7 +703,7 @@ async fn selected_add_merges_catalog_updates_in_command_order() {
         None,
         Some(&[DependencyGroup::Prod][..]),
         std::slice::from_ref(&"foo".to_string()),
-        PinnedVersion::Major,
+        SaveRangeStyle::Major,
         Some("default"),
     )
     .await

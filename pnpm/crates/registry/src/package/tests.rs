@@ -4,7 +4,7 @@ use node_semver::Version;
 use pretty_assertions::assert_eq;
 
 use super::{AuthHeaders, Package, PackageVersion, ThrottledClient};
-use crate::{PinnedVersion, package_distribution::PackageDistribution};
+use crate::{SaveRangeStyle, package_distribution::PackageDistribution};
 
 #[test]
 pub fn package_version_should_include_peers() {
@@ -50,10 +50,10 @@ pub fn serialized_according_to_params() {
         deprecated: None,
     };
 
-    assert_eq!(version.serialize(PinnedVersion::Patch), "3.2.1");
-    assert_eq!(version.serialize(PinnedVersion::Minor), "~3.2.1");
-    assert_eq!(version.serialize(PinnedVersion::Major), "^3.2.1");
-    assert_eq!(version.serialize(PinnedVersion::None), "^3.2.1");
+    assert_eq!(version.serialize(SaveRangeStyle::Patch), "3.2.1");
+    assert_eq!(version.serialize(SaveRangeStyle::Minor), "~3.2.1");
+    assert_eq!(version.serialize(SaveRangeStyle::Major), "^3.2.1");
+    assert_eq!(version.serialize(SaveRangeStyle::None), "^3.2.1");
 }
 
 #[test]
@@ -72,10 +72,10 @@ pub fn serialize_keeps_prerelease_version_without_prefix() {
         deprecated: None,
     };
 
-    assert_eq!(version.serialize(PinnedVersion::Major), "2.1.0-rc.1");
-    assert_eq!(version.serialize(PinnedVersion::Minor), "2.1.0-rc.1");
-    assert_eq!(version.serialize(PinnedVersion::Patch), "2.1.0-rc.1");
-    assert_eq!(version.serialize(PinnedVersion::None), "2.1.0-rc.1");
+    assert_eq!(version.serialize(SaveRangeStyle::Major), "2.1.0-rc.1");
+    assert_eq!(version.serialize(SaveRangeStyle::Minor), "2.1.0-rc.1");
+    assert_eq!(version.serialize(SaveRangeStyle::Patch), "2.1.0-rc.1");
+    assert_eq!(version.serialize(SaveRangeStyle::None), "2.1.0-rc.1");
 }
 
 #[tokio::test]

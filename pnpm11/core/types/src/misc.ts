@@ -68,12 +68,32 @@ export type DepPath = string & { __brand: 'DepPath' }
 
 export type ProjectId = string & { __brand: 'ProjectId' }
 
-export type PinnedVersion =
+/**
+ * The width of the semver range a specifier is saved with: `major` writes
+ * `^`, `minor` writes `~`, `patch` writes the bare version, and `none`
+ * keeps the widest form (`*`).
+ */
+export type SaveRangeGranularity =
   | 'none'
   | 'patch'
   | 'minor'
   | 'major'
-  | 'exact'
+
+/**
+ * How a resolved version is written back to the manifest. Beyond the
+ * granularities, `exact` selects the same single-version range as `patch`
+ * but spells it with an explicit `=` operator, preserving a deliberate
+ * `=x.y.z` pin. Collapse the spelling away with `saveRangeGranularity`
+ * when only the range width matters.
+ */
+export type SaveRangeStyle = SaveRangeGranularity | 'exact'
+
+/** @deprecated Renamed to {@link SaveRangeStyle}. */
+export type PinnedVersion = SaveRangeStyle
+
+export function saveRangeGranularity (style: SaveRangeStyle): SaveRangeGranularity {
+  return style === 'exact' ? 'patch' : style
+}
 
 export type IgnoredBuilds = Set<DepPath>
 

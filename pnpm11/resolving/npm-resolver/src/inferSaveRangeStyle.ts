@@ -1,7 +1,7 @@
-import type { PinnedVersion } from '@pnpm/types'
+import type { SaveRangeStyle } from '@pnpm/types'
 import { parseRange } from 'semver-utils'
 
-export function whichVersionIsPinned (spec: string): PinnedVersion | undefined {
+export function inferSaveRangeStyle (spec: string): SaveRangeStyle | undefined {
   // A catalog reference carries no version pinning of its own; the pinning is
   // defined by the catalog entry it points to. Bail out so a catalog name that
   // happens to look like a version (e.g. "catalog:express4-21") isn't misread

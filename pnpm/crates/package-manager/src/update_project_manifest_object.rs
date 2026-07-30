@@ -1,6 +1,6 @@
 use node_semver::Version;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
-use pacquet_registry::PinnedVersion;
+use pacquet_registry::SaveRangeStyle;
 use pacquet_resolving_resolver_base::is_valid_peer_range;
 use serde_json::{Map, Value};
 
@@ -30,7 +30,7 @@ pub struct PackageSpecObject {
     pub peer: bool,
     pub bare_specifier: Option<String>,
     pub resolved_version: Option<String>,
-    pub pinned_version: Option<PinnedVersion>,
+    pub save_range_style: Option<SaveRangeStyle>,
     pub save_type: Option<DependencyGroup>,
 }
 
@@ -75,7 +75,7 @@ pub fn update_project_manifest_object(
                 let peer_spec = get_peer_specifier(
                     &spec_str,
                     spec.resolved_version.as_deref(),
-                    spec.pinned_version,
+                    spec.save_range_style,
                 );
                 define_dep_entry(&mut root, "peerDependencies", &spec.alias, &peer_spec)?;
             }
@@ -99,29 +99,29 @@ pub fn update_project_manifest_object(
 fn get_peer_specifier(
     spec: &str,
     resolved_version: Option<&str>,
-    pinned_version: Option<PinnedVersion>,
+    save_range_style: Option<SaveRangeStyle>,
 ) -> String {
     if is_valid_peer_range(spec) {
         return spec.to_string();
     }
     resolved_version
-        .and_then(|version| create_version_spec_from_resolved_version(version, pinned_version))
+        .and_then(|version| create_version_spec_from_resolved_version(version, save_range_style))
         .unwrap_or_else(|| "*".to_string())
 }
 
 /// Build a manifest range from a concrete resolved version and a pin operator:
-/// a prerelease is pinned exactly, otherwise the [`PinnedVersion`] operator
+/// a prerelease is pinned exactly, otherwise the [`SaveRangeStyle`] operator
 /// is prepended.
 /// Returns `None` when `resolved_version` is not valid semver.
 fn create_version_spec_from_resolved_version(
     resolved_version: &str,
-    pinned_version: Option<PinnedVersion>,
+    save_range_style: Option<SaveRangeStyle>,
 ) -> Option<String> {
     let parsed = Version::parse(resolved_version).ok()?;
     if !parsed.pre_release.is_empty() {
         return Some(resolved_version.to_string());
     }
-    let prefix = pinned_version.unwrap_or(PinnedVersion::Major).range_prefix();
+    let prefix = save_range_style.unwrap_or(SaveRangeStyle::Major).range_prefix();
     Some(format!("{prefix}{resolved_version}"))
 }
 

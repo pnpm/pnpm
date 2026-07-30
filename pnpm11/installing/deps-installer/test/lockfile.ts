@@ -399,9 +399,9 @@ test(`subdeps are updated on repeat install if outer ${WANTED_LOCKFILE} does not
 test("recreates lockfile if it doesn't match the dependencies in package.json", async () => {
   const project = prepareEmpty()
 
-  let { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-negative@1.0.0'], testDefaults({ pinnedVersion: 'patch', targetDependenciesField: 'dependencies' }))
-  manifest = (await addDependenciesToPackage(manifest, ['is-positive@1.0.0'], testDefaults({ pinnedVersion: 'patch', targetDependenciesField: 'devDependencies' }))).updatedManifest
-  manifest = (await addDependenciesToPackage(manifest, ['map-obj@1.0.0'], testDefaults({ pinnedVersion: 'patch', targetDependenciesField: 'optionalDependencies' }))).updatedManifest
+  let { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-negative@1.0.0'], testDefaults({ saveRangeStyle: 'patch', targetDependenciesField: 'dependencies' }))
+  manifest = (await addDependenciesToPackage(manifest, ['is-positive@1.0.0'], testDefaults({ saveRangeStyle: 'patch', targetDependenciesField: 'devDependencies' }))).updatedManifest
+  manifest = (await addDependenciesToPackage(manifest, ['map-obj@1.0.0'], testDefaults({ saveRangeStyle: 'patch', targetDependenciesField: 'optionalDependencies' }))).updatedManifest
 
   const lockfile1 = project.readLockfile()
   expect(lockfile1.importers['.'].dependencies?.['is-negative'].version).toBe('1.0.0')

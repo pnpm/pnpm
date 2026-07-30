@@ -37,8 +37,8 @@ import {
   type DependenciesGraph,
   type DependenciesGraphNode,
   getWantedDependencies,
-  type PinnedVersion,
   resolveDependencies,
+  type SaveRangeStyle,
   type UpdateMatchingFunction,
   type WantedDependency,
 } from '@pnpm/installing.deps-resolver'
@@ -151,7 +151,7 @@ export interface InstallSomeDepsMutation extends InstallMutationOptions {
   mutation: 'installSome'
   peer?: boolean
   pruneDirectDependencies?: boolean
-  pinnedVersion?: PinnedVersion
+  saveRangeStyle?: SaveRangeStyle
   targetDependenciesField?: DependenciesField
 }
 
@@ -1447,7 +1447,7 @@ export async function addDependenciesToPackage (
     bin?: string
     allowNew?: boolean
     peer?: boolean
-    pinnedVersion?: 'major' | 'minor' | 'patch'
+    saveRangeStyle?: 'major' | 'minor' | 'patch'
     targetDependenciesField?: DependenciesField
   } & InstallMutationOptions
 ): Promise<InstallResult> {
@@ -1459,7 +1459,7 @@ export async function addDependenciesToPackage (
         dependencySelectors,
         mutation: 'installSome',
         peer: opts.peer,
-        pinnedVersion: opts.pinnedVersion,
+        saveRangeStyle: opts.saveRangeStyle,
         rootDir,
         targetDependenciesField: opts.targetDependenciesField,
         update: opts.update,
@@ -2509,7 +2509,7 @@ interface PnprInstallProject {
   /** Newly added deps from an `installSome` mutation. Empty otherwise. */
   newDeps: PnprNewDep[]
   /** Save-prefix config for `installSome`; applied to deps whose spec defaulted to `'latest'`. */
-  pinnedVersion?: PinnedVersion
+  saveRangeStyle?: SaveRangeStyle
 }
 
 /**
@@ -2563,7 +2563,7 @@ async function preparePnprProjects (
     let manifest: ProjectManifest = clone(t.manifest)
     const newDeps: PnprNewDep[] = []
     const mutation = t.mutation
-    let pinnedVersion: PinnedVersion | undefined
+    let saveRangeStyle: SaveRangeStyle | undefined
     if (mutation?.mutation === 'uninstallSome') {
       manifest = await removeDeps(manifest, mutation.dependencyNames, {
         prefix: mutation.rootDir,
@@ -2571,7 +2571,7 @@ async function preparePnprProjects (
       })
     } else if (mutation?.mutation === 'installSome') {
       manifest = mergeInstallSelectors(manifest, mutation)
-      pinnedVersion = mutation.pinnedVersion
+      saveRangeStyle = mutation.saveRangeStyle
       for (const sel of mutation.dependencySelectors) {
         const parsed = parseWantedDependency(sel)
         if (parsed.alias) {
@@ -2584,7 +2584,7 @@ async function preparePnprProjects (
       manifest,
       mutation: mutation?.mutation ?? 'install',
       newDeps,
-      pinnedVersion,
+      saveRangeStyle,
     }
   }))
 }
@@ -2646,7 +2646,7 @@ function applyResolvedSpecsFromLockfile (
   manifest: ProjectManifest,
   importerSnapshot: ProjectSnapshot | undefined,
   newDeps: PnprNewDep[],
-  pinnedVersion?: PinnedVersion
+  saveRangeStyle?: SaveRangeStyle
 ): ProjectManifest {
   if (!importerSnapshot || newDeps.length === 0) return manifest
   // In-memory ProjectSnapshot stores resolved versions in `dependencies`
@@ -2664,7 +2664,7 @@ function applyResolvedSpecsFromLockfile (
       // writes the user's raw spec (`'latest'`) into the lockfile specifier
       // rather than normalizing to a save-prefix range. Compute the
       // save-prefix spec client-side from the resolved version.
-      const savePrefixSpec = createVersionSpecFromResolvedVersion(resolvedVersion, pinnedVersion)
+      const savePrefixSpec = createVersionSpecFromResolvedVersion(resolvedVersion, saveRangeStyle)
       manifest[field]![dep.alias] = savePrefixSpec ?? resolvedVersion
     }
   }
@@ -2706,7 +2706,7 @@ async function mutateModulesViaPnpr (
         const relative = path.relative(lockfileDir, p.rootDir).split(path.sep).join('/')
         const importerId = (relative || '.') as ProjectId
         const snapshot = result.lockfile?.importers?.[importerId]
-        p.manifest = applyResolvedSpecsFromLockfile(p.manifest, snapshot, p.newDeps, p.pinnedVersion)
+        p.manifest = applyResolvedSpecsFromLockfile(p.manifest, snapshot, p.newDeps, p.saveRangeStyle)
       }
       return { rootDir: p.rootDir, manifest: p.manifest }
     })

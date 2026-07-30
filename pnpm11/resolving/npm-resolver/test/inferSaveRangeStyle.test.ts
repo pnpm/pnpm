@@ -1,6 +1,6 @@
 import { expect, test } from '@jest/globals'
 
-import { whichVersionIsPinned } from '../lib/whichVersionIsPinned.js'
+import { inferSaveRangeStyle } from '../lib/inferSaveRangeStyle.js'
 
 test.each([
   ['^1.0.0', 'major'],
@@ -29,6 +29,6 @@ test.each([
   ['catalog:foo', undefined],
   // A catalog name that parses as a version must not be treated as a pin.
   ['catalog:express4-21', undefined],
-])('whichVersionIsPinned()', (spec, expectedResult) => {
-  expect(whichVersionIsPinned(spec)).toEqual(expectedResult)
+])('inferSaveRangeStyle()', (spec, expectedResult) => {
+  expect(inferSaveRangeStyle(spec)).toEqual(expectedResult)
 })
