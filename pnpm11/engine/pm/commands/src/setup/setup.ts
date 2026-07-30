@@ -176,7 +176,7 @@ export async function handler (
   try {
     const originalHome = process.env.HOME
     try {
-      process.env.HOME = getHomedir()
+      process.env.HOME = getHomedir(process.env, process.platform)
       const report = await addDirToEnvPath(opts.pnpmHomeDir, {
         configSectionName: 'pnpm',
         proxyVarName: 'PNPM_HOME',
