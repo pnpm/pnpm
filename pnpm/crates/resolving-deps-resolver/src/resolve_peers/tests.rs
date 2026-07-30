@@ -479,6 +479,80 @@ fn resolved_peer_providers_from_direct_outputs_are_last_write_wins() {
     assert_eq!(result.resolved_peer_providers_by_alias.get("peer"), Some(&second_peer));
 }
 
+/// A discovery pass that reuses another pass's cached subtree must not
+/// re-report that subtree's resolved peer providers: pnpm's resolver
+/// gives a not-new package `resolvedPeers: {}`, so only the importer
+/// whose walk first resolved a subtree promotes its providers. A
+/// replay would hand one importer's provider (here `peerpkg@2.0.0`,
+/// internal to `mid`) to every later importer that shares the subtree,
+/// shadowing the workspace-root fallback for consumers the sharing
+/// importer resolves itself.
+#[test]
+fn cached_subtree_reuse_reports_no_peer_providers() {
+    let peerx = NodeId::leaf("peerx@1.0.0");
+    let peerpkg = NodeId::leaf("peerpkg@2.0.0");
+    let consumer = NodeId::next();
+    let mid = NodeId::next();
+
+    let mut mid_children = BTreeMap::new();
+    mid_children.insert("peerpkg".to_string(), peerpkg.clone());
+    mid_children.insert("consumer".to_string(), consumer.clone());
+
+    let mut tree = ResolvedTree {
+        direct: vec![
+            DirectDep {
+                alias: "mid".to_string(),
+                node_id: mid.clone(),
+                id: "mid@1.0.0".to_string(),
+            },
+            DirectDep {
+                alias: "peerx".to_string(),
+                node_id: peerx.clone(),
+                id: "peerx@1.0.0".to_string(),
+            },
+        ],
+        packages: HashMap::from([
+            ("peerx@1.0.0".to_string(), package("peerx", "1.0.0", &[], true)),
+            ("peerpkg@2.0.0".to_string(), package("peerpkg", "2.0.0", &[], true)),
+            (
+                "consumer@1.0.0".to_string(),
+                package("consumer", "1.0.0", &[("peerpkg", "*"), ("peerx", "*")], false),
+            ),
+            ("mid@1.0.0".to_string(), package("mid", "1.0.0", &[], false)),
+        ]),
+        dependencies_tree: HashMap::from([
+            (peerx, tree_node("peerx@1.0.0", BTreeMap::new(), 0)),
+            (peerpkg, tree_node("peerpkg@2.0.0", BTreeMap::new(), 1)),
+            (consumer, tree_node("consumer@1.0.0", BTreeMap::new(), 1)),
+            (mid, tree_node("mid@1.0.0", mid_children, 0)),
+        ]),
+        all_peer_dep_names: HashSet::from(["peerpkg".to_string(), "peerx".to_string()]),
+        policy_violations: Vec::new(),
+        applied_patches: HashSet::new(),
+        children_by_id: HashMap::new(),
+    };
+    let direct = tree.direct.clone();
+
+    let (first, caches) = super::discover_peers(
+        &mut tree,
+        &direct,
+        PeerDiscoveryCaches::default(),
+        ResolvePeersOptions::default(),
+    );
+    assert!(
+        first.resolved_peer_providers_by_alias.contains_key("peerpkg"),
+        "the walk that resolves the subtree reports its providers",
+    );
+
+    let (second, _) =
+        super::discover_peers(&mut tree, &direct, caches, ResolvePeersOptions::default());
+    assert_eq!(
+        second.resolved_peer_providers_by_alias.get("peerpkg"),
+        None,
+        "a cached-subtree reuse must not re-report the owner walk's providers",
+    );
+}
+
 #[test]
 fn peer_name_cycle_collapses_provider_suffixes() {
     let loader = NodeId::next();

@@ -2522,3 +2522,170 @@ async fn a_workspace_range_root_dep_is_offered_as_a_peer_provider() {
         result.peers.graph.keys().map(|key| key.as_str().to_string()).collect::<Vec<_>>(),
     );
 }
+
+/// A subtree reused from another importer's walk must not promote the
+/// peer providers that walk resolved: pnpm's resolver gives a not-new
+/// package `resolvedPeers: {}`, so only the importer that first walked
+/// a subtree installs its providers at importer level. Replaying them
+/// would put the owner context's provider version ahead of the
+/// workspace-root fallback for the reusing importer's own consumers.
+///
+/// `pkg-b` reuses two foreign-owned subtrees: `mid` (whose walk
+/// resolved `peerpkg@2.0.0` internally) and `s2wrap` (whose consumer's
+/// miss the owner importer satisfied from its own ancestors, so the
+/// owner scope hides it from pkg-b's hoist). With no visible miss and
+/// no replayed provider, pkg-b's consumer must fall back to the
+/// workspace root's `peerpkg@1.0.0`.
+#[tokio::test]
+async fn reused_subtree_does_not_promote_owner_peer_providers() {
+    let mut table = HashMap::new();
+    table.insert(
+        ("mid".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "mid",
+            "1.0.0",
+            None,
+            serde_json::json!({
+                "name": "mid",
+                "version": "1.0.0",
+                "dependencies": { "peerpkg": "2.0.0", "consumer": "1.0.0" },
+            }),
+        ),
+    );
+    table.insert(
+        ("consumer".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "consumer",
+            "1.0.0",
+            None,
+            serde_json::json!({
+                "name": "consumer",
+                "version": "1.0.0",
+                "peerDependencies": { "peerpkg": "*", "peerx": "*" },
+            }),
+        ),
+    );
+    table.insert(
+        ("holder".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "holder",
+            "1.0.0",
+            None,
+            serde_json::json!({
+                "name": "holder",
+                "version": "1.0.0",
+                "dependencies": { "peerpkg": "2.0.0", "s2wrap": "1.0.0" },
+            }),
+        ),
+    );
+    table.insert(
+        ("s2wrap".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "s2wrap",
+            "1.0.0",
+            None,
+            serde_json::json!({
+                "name": "s2wrap",
+                "version": "1.0.0",
+                "dependencies": { "consumer2": "1.0.0" },
+            }),
+        ),
+    );
+    table.insert(
+        ("consumer2".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "consumer2",
+            "1.0.0",
+            None,
+            serde_json::json!({
+                "name": "consumer2",
+                "version": "1.0.0",
+                "peerDependencies": { "peerpkg": "*" },
+            }),
+        ),
+    );
+    for version in ["1.0.0", "2.0.0"] {
+        table.insert(
+            ("peerpkg".to_string(), version.to_string()),
+            fake_result(
+                "peerpkg",
+                version,
+                None,
+                serde_json::json!({ "name": "peerpkg", "version": version }),
+            ),
+        );
+    }
+    // `peerx` keeps `mid`'s subtree non-pure: `consumer` resolves it
+    // against the importer's own direct dep, so the subtree's verdict
+    // enters the peers cache (pure subtrees bypass it) and pkg-b's
+    // revisit exercises the cache-replay path under test.
+    table.insert(
+        ("peerx".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "peerx",
+            "1.0.0",
+            None,
+            serde_json::json!({ "name": "peerx", "version": "1.0.0" }),
+        ),
+    );
+    let resolver = RecordingResolver { table, seen: Mutex::new(HashMap::new()) };
+    let (tmp_root, root_manifest) = fake_manifest(serde_json::json!({ "peerpkg": "1.0.0" }));
+    let (tmp_a, a_manifest) =
+        fake_manifest(serde_json::json!({ "mid": "1.0.0", "peerx": "1.0.0" }));
+    let (tmp_a2, a2_manifest) = fake_manifest(serde_json::json!({ "holder": "1.0.0" }));
+    let (tmp_b, b_manifest) =
+        fake_manifest(serde_json::json!({ "mid": "1.0.0", "s2wrap": "1.0.0", "peerx": "1.0.0" }));
+    let importers = [
+        WorkspaceImporter { id: ".".to_string(), manifest: &root_manifest },
+        WorkspaceImporter { id: "pkg-a".to_string(), manifest: &a_manifest },
+        WorkspaceImporter { id: "pkg-a2".to_string(), manifest: &a2_manifest },
+        WorkspaceImporter { id: "pkg-b".to_string(), manifest: &b_manifest },
+    ];
+    let dirs = [tmp_root.path(), tmp_a.path(), tmp_a2.path(), tmp_b.path()];
+
+    let mut opts = workspace_opts(false, false);
+    opts.auto_install_peers = true;
+    opts.resolve_peers_from_workspace_root = true;
+    let mut next = 0;
+    let result = resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
+        let dir = dirs[next].to_path_buf();
+        next += 1;
+        let mut opts = importer_opts(dir, None);
+        opts.auto_install_peers = true;
+        opts.resolve_peers_from_workspace_root = true;
+        opts
+    })
+    .await
+    .unwrap();
+
+    // Under pkg-a2, `consumer2` binds to holder's peerpkg@2.0.0.
+    let a2_direct =
+        result.peers.direct_dependencies_by_importer.get("pkg-a2").expect("pkg-a2 importer");
+    assert_eq!(
+        a2_direct.get("holder").map(std::string::ToString::to_string),
+        Some("holder@1.0.0".to_string()),
+        "holder satisfies its subtree's peer internally",
+    );
+    let a_direct =
+        result.peers.direct_dependencies_by_importer.get("pkg-a").expect("pkg-a importer");
+    assert_eq!(
+        a_direct.get("mid").map(std::string::ToString::to_string),
+        Some("mid@1.0.0(peerx@1.0.0)".to_string()),
+        "consumer's peerx resolves against pkg-a's direct dep",
+    );
+
+    // Under pkg-b, `consumer2` has no provider in its own tree: its peer
+    // must fall back to the workspace root's peerpkg@1.0.0, not bind to
+    // the peerpkg@2.0.0 provider a reused subtree's walk resolved.
+    let b_direct =
+        result.peers.direct_dependencies_by_importer.get("pkg-b").expect("pkg-b importer");
+    assert_eq!(
+        b_direct.get("s2wrap").map(std::string::ToString::to_string),
+        Some("s2wrap@1.0.0(peerpkg@1.0.0)".to_string()),
+        "pkg-b's own consumers must not inherit a reused subtree's provider",
+    );
+    assert_eq!(
+        b_direct.get("mid").map(std::string::ToString::to_string),
+        Some("mid@1.0.0(peerx@1.0.0)".to_string()),
+    );
+}
