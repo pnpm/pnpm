@@ -365,7 +365,7 @@ fn build_dep_graph(
         lockfile_dir: &opts.lockfile_dir,
         opts,
         skipped: opts.skipped.clone(),
-        graph: DependenciesGraph::new(),
+        graph: DependenciesGraph::default(),
         pkg_locations_by_dep_path: BTreeMap::new(),
         hoisted_locations: BTreeMap::new(),
         injection_targets_by_dep_path: BTreeMap::new(),

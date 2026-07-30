@@ -23,7 +23,7 @@ const ACCEPTS_DEP_PATH: &str = "accepts@1.3.7";
 #[test]
 fn default_result_is_empty() {
     let actual = LockfileToDepGraphResult::default();
-    assert_eq!(actual.graph, DependenciesGraph::new());
+    assert_eq!(actual.graph, DependenciesGraph::default());
     assert!(actual.direct_dependencies_by_importer_id.is_empty());
     assert!(actual.hierarchy.is_empty());
     assert!(actual.hoisted_locations.is_empty());
@@ -54,7 +54,7 @@ fn graph_node_inserts_by_dir() {
         resolution: sample_resolution(),
     };
 
-    let mut graph = DependenciesGraph::new();
+    let mut graph = DependenciesGraph::default();
     graph.insert(dir.clone(), node.clone());
     assert_eq!(graph.get(&dir), Some(&node));
 }

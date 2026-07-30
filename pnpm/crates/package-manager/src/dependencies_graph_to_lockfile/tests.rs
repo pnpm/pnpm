@@ -391,11 +391,8 @@ fn fresh_install_records_importer_manifest_metadata() {
     let importer = lockfile.root_project().expect("root importer exists");
 
     assert_eq!(
-        importer.dependencies_meta,
-        Some(HashMap::from([(
-            "pkg-a".to_string(),
-            pacquet_lockfile::DependencyMeta { injected: Some(true), patch: None },
-        ),])),
+        serde_json::to_value(importer.dependencies_meta.as_ref()).expect("serialize meta"),
+        json!({"pkg-a": {"injected": true}}),
     );
     assert_eq!(importer.publish_directory.as_deref(), Some("dist"));
 }
@@ -407,7 +404,7 @@ fn dependencies_meta_omitted_when_no_injected_or_patch_entries() {
         "version": "1.0.0",
         "dependenciesMeta": { "pkg-a": {}, "pkg-b": {} },
     }));
-    let graph = DependenciesGraph::new();
+    let graph = DependenciesGraph::default();
 
     let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
         &manifest,
