@@ -1,6 +1,5 @@
-<!-- A maintainer will only start reviewing once the automated code reviewers
-(CodeRabbit and Qodo) have approved and CI is green. Please wait for those to
-pass before expecting human review. -->
+<!-- A maintainer will only start reviewing once CodeRabbit has approved and
+CI is green. Please wait for those to pass before expecting human review. -->
 
 ## Summary
 

@@ -250,8 +250,8 @@ Before you submit your Pull Request (PR) consider the following guidelines:
 
 - In GitHub, send a pull request to `pnpm:main`.
 - Wait for the automated reviewers. A human reviewer will only start the review
-  process once the AI reviewers (CodeRabbit and Qodo) have approved the PR and
-  CI is green, so address their findings first.
+  process once CodeRabbit has approved the PR and CI is green, so address its
+  findings first.
 - If we suggest changes then:
 
   - Make the required updates.
@@ -279,6 +279,9 @@ than any other kind of contribution. Before submitting, make sure that:
 - You ran the relevant tests locally and they pass.
 - The PR does only what it says: no drive-by reformatting, unrelated fixes, or
   invented refactors padding the diff.
+- Agent-written PRs, issues, and comments disclose it with a footer naming the
+  agent and the model, e.g.
+  `Written by an agent (Claude Code, claude-opus-4-7).`
 
 PRs that appear to be unreviewed agent output — duplicating an existing PR,
 failing to compile, or not addressing the referenced issue — may be closed
