@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
 import { temporaryDirectory } from 'tempy'
 
@@ -21,14 +22,14 @@ function fixtureMeta (): PackageMeta {
       '1.0.0': {
         name: 'foo',
         version: '1.0.0',
-        dist: { integrity: 'sha512-aaa', tarball: 'https://registry.example/foo/-/foo-1.0.0.tgz' },
+        dist: { integrity: 'sha512-aaa', shasum: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', tarball: 'https://registry.example/foo/-/foo-1.0.0.tgz' },
         dependencies: { bar: '^1.0.0' },
         description: 'not part of the abbreviated field set',
       } as PackageInRegistry,
       '2.0.0': {
         name: 'foo',
         version: '2.0.0',
-        dist: { integrity: 'sha512-bbb', tarball: 'https://registry.example/foo/-/foo-2.0.0.tgz' },
+        dist: { integrity: 'sha512-bbb', shasum: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', tarball: 'https://registry.example/foo/-/foo-2.0.0.tgz' },
       } as PackageInRegistry,
     },
     time: {
