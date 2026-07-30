@@ -4,6 +4,7 @@ use pacquet_resolving_resolver_base::{
     LatestQuery, PkgResolutionId, ResolveFuture, ResolveLatestFuture, ResolveOptions,
     ResolveResult, Resolver, WantedDependency,
 };
+use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 
 use super::{
     ResolveDependencyTreeOptions, WorkspaceTreeCtx, extract_children, landed_on_prior_entry,
@@ -384,10 +385,7 @@ fn matches_a_name_prefixed_file_id() {
 #[test]
 fn owner_missing_record_is_written_once_per_generation() {
     use super::{ChildrenOwner, ChildrenOwnerEntry, WorkspaceTreeCtx, lock_recoverable};
-    use std::{
-        collections::{HashMap, HashSet},
-        sync::Arc,
-    };
+    use std::sync::Arc;
 
     let ctx = WorkspaceTreeCtx::default();
     let owner = ChildrenOwner {
@@ -399,13 +397,13 @@ fn owner_missing_record_is_written_once_per_generation() {
     };
     let entry = |owner: ChildrenOwner| ChildrenOwnerEntry {
         owner,
-        peer_shadowed: Arc::new(HashSet::new()),
+        peer_shadowed: Arc::new(HashSet::default()),
     };
     lock_recoverable(&ctx.children_owner_by_id)
         .insert("pkg@1.0.0".to_string(), entry(owner.clone()));
 
     let miss = |names: &[&str]| {
-        let mut map: HashMap<String, HashSet<String>> = HashMap::new();
+        let mut map: HashMap<String, HashSet<String>> = HashMap::default();
         map.insert("pkg@1.0.0".to_string(), names.iter().map(|name| (*name).to_string()).collect());
         map
     };
@@ -461,7 +459,7 @@ fn importer_scoped_update_owner_wins_before_discovery_order() {
 }
 
 mod higher_direct_dep_version {
-    use std::collections::HashMap;
+    use rustc_hash::FxHashMap as HashMap;
 
     use node_semver::{Range, Version};
 
@@ -470,7 +468,7 @@ mod higher_direct_dep_version {
     fn direct(name: &str, versions: &[&str]) -> DirectDepVersions {
         let parsed =
             versions.iter().map(|raw| raw.parse::<Version>().expect("parse version")).collect();
-        HashMap::from([(name.to_string(), parsed)])
+        HashMap::from_iter([(name.to_string(), parsed)])
     }
 
     fn ver(raw: &str) -> Version {
@@ -655,7 +653,7 @@ mod real_package_name_of {
 }
 
 mod is_update_target {
-    use std::collections::HashSet;
+    use rustc_hash::FxHashSet as HashSet;
 
     use pacquet_resolving_resolver_base::WantedDependency;
 

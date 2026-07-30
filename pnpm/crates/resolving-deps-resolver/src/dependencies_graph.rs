@@ -1,7 +1,8 @@
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::BTreeMap;
 
 use pacquet_deps_path::DepPath;
 use pacquet_resolving_resolver_base::ResolveResult;
+use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 
 use crate::resolved_tree::PeerDep;
 

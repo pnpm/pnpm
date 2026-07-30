@@ -29,11 +29,7 @@ use crate::{
 use chrono::{DateTime, Duration, Utc};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_resolving_resolver_base::{Resolver, WantedDependency, parse_packument_timestamp};
-use std::{
-    collections::{BTreeMap, HashMap},
-    path::PathBuf,
-    sync::Arc,
-};
+use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 
 /// One importer's input to [`fn@resolve_workspace`].
 pub struct WorkspaceImporter<'a> {
@@ -147,7 +143,7 @@ pub struct WorkspaceResolveOptions {
     /// materializing a prior `Registry` lockfile resolution back into
     /// its tarball URL when building the `currentPkg` payload custom
     /// resolvers receive.
-    pub registries: HashMap<String, String>,
+    pub registries: std::collections::HashMap<String, String>,
 }
 
 /// Result of [`fn@resolve_workspace`]. The combined
@@ -347,7 +343,7 @@ where
     // below clones the context again, so the two never coexist at peak.
     drop(peer_discovery);
     let mut per_importer_inputs: Vec<ImporterPeerInput> = Vec::with_capacity(importers.len());
-    let mut hoisted_peer_provider_node_ids = std::collections::HashSet::new();
+    let mut hoisted_peer_provider_node_ids = std::collections::HashSet::default();
     for ((importer, state), (project_dir, modules_dir)) in
         importers.iter().zip(states).zip(input_dirs)
     {
@@ -395,7 +391,6 @@ where
         resolve_peers_from_workspace_root,
         peer_opts,
     );
-
     Ok(ResolveWorkspaceResult { merged_tree, peers })
 }
 

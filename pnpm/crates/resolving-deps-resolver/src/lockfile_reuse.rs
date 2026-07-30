@@ -3,8 +3,6 @@
 //! resolution + subtree instead of re-resolving from the registry.
 //! See `pnpm/plans/LOCKFILE_RESOLUTION_REUSE.md`.
 
-use std::collections::HashMap;
-
 use node_semver::{Range, Version};
 use pacquet_lockfile::{
     Lockfile, LockfileResolution, PkgName, PkgNameVer, PkgNameVerPeer, ProjectSnapshot,
@@ -20,7 +18,7 @@ use serde_json::{Map, Value};
 pub(crate) fn current_pkg_from_lockfile(
     lockfile: &Lockfile,
     key: &PkgNameVerPeer,
-    registries: &HashMap<String, String>,
+    registries: &std::collections::HashMap<String, String>,
 ) -> Option<CurrentPkg> {
     let metadata_key = key.without_peer();
     let metadata = lockfile.packages.as_ref()?.get(&metadata_key)?;

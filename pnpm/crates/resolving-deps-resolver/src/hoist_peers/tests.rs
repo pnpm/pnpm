@@ -1,10 +1,8 @@
 //! Tests for [`super::hoist_peers`] and
 //! [`super::get_hoistable_optional_peers`].
 
-use std::{
-    collections::{BTreeMap, HashMap, HashSet},
-    path::Path,
-};
+use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use std::{collections::BTreeMap, path::Path};
 
 use pacquet_resolving_resolver_base::{
     PreferredVersions, VersionSelectorEntry, VersionSelectorType, VersionSelectorWithWeight,
@@ -282,7 +280,8 @@ fn get_hoistable_optional_peers_preserves_the_importers_locked_version() {
             ("2.0.0".to_string(), VersionSelectorEntry::Plain(VersionSelectorType::Version)),
         ]),
     )]);
-    let locked = HashMap::from([("peer".to_string(), HashSet::from(["1.0.0".to_string()]))]);
+    let locked =
+        HashMap::from_iter([("peer".to_string(), HashSet::from_iter(["1.0.0".to_string()]))]);
 
     assert_eq!(
         get_hoistable_optional_peers_with_locked_versions(&missing, &preferred, &[], &locked,),

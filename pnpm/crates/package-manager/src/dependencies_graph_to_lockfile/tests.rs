@@ -17,13 +17,10 @@ use pacquet_resolving_deps_resolver::{
     resolve_peers,
 };
 use pacquet_resolving_resolver_base::{PkgResolutionId, ResolveResult};
+use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use serde_json::json;
 use ssri::Integrity;
-use std::{
-    collections::{BTreeMap, HashMap, HashSet},
-    str::FromStr,
-    sync::Arc,
-};
+use std::{collections::BTreeMap, str::FromStr, sync::Arc};
 use tempfile::TempDir;
 use text_block_macros::text_block;
 
@@ -144,10 +141,10 @@ fn make_node_with_optional(
         resolved_package_id: format!("{name}@{version}"),
         resolve_result: std::sync::Arc::new(make_resolve_result(name, version, manifest)),
         children,
-        optional_children: HashSet::new(),
+        optional_children: HashSet::default(),
         peer_dependencies,
         transitive_peer_dependencies,
-        resolved_peer_names: HashSet::new(),
+        resolved_peer_names: HashSet::default(),
         depth: 1,
         installable: true,
         is_pure: true,
@@ -183,10 +180,10 @@ fn fresh_install_records_a_single_direct_dependency() {
         json!({ "name": "react", "version": "17.0.2" }),
         BTreeMap::new(),
         BTreeMap::new(),
-        HashSet::new(),
+        HashSet::default(),
     );
 
-    let mut graph = DependenciesGraph::new();
+    let mut graph = DependenciesGraph::default();
     graph.insert(node.dep_path.clone(), node);
 
     let mut direct = BTreeMap::new();
@@ -230,9 +227,9 @@ fn empty_deprecation_message_is_not_written_to_the_lockfile() {
         json!({ "name": "legacy", "version": "1.0.0", "deprecated": "" }),
         BTreeMap::new(),
         BTreeMap::new(),
-        HashSet::new(),
+        HashSet::default(),
     );
-    let mut graph = DependenciesGraph::new();
+    let mut graph = DependenciesGraph::default();
     graph.insert(node.dep_path.clone(), node);
     let mut direct = BTreeMap::new();
     direct.insert("legacy".to_string(), DepPath::from("legacy@1.0.0".to_string()));
@@ -264,9 +261,9 @@ fn fresh_install_records_string_libc_without_coercing_scalar_bundle_metadata() {
         }),
         BTreeMap::new(),
         BTreeMap::new(),
-        HashSet::new(),
+        HashSet::default(),
     );
-    let mut graph = DependenciesGraph::new();
+    let mut graph = DependenciesGraph::default();
     graph.insert(node.dep_path.clone(), node);
     let direct = BTreeMap::from([(
         "sass-embedded-linux-musl-x64".to_string(),
@@ -305,7 +302,7 @@ fn generated_lockfile_preserves_libc_manifest_shape() {
             "scalar-libc": "1.0.0",
         },
     }));
-    let mut graph = DependenciesGraph::new();
+    let mut graph = DependenciesGraph::default();
     for (name, libc) in [("list-libc", json!(["glibc"])), ("scalar-libc", json!("musl"))] {
         let node = make_node(
             name,
@@ -313,7 +310,7 @@ fn generated_lockfile_preserves_libc_manifest_shape() {
             json!({ "name": name, "version": "1.0.0", "libc": libc }),
             BTreeMap::new(),
             BTreeMap::new(),
-            HashSet::new(),
+            HashSet::default(),
         );
         graph.insert(node.dep_path.clone(), node);
     }
@@ -376,7 +373,7 @@ fn fresh_install_records_importer_manifest_metadata() {
         "dependenciesMeta": { "pkg-a": { "injected": true } },
         "publishConfig": { "directory": "dist" },
     }));
-    let graph = DependenciesGraph::new();
+    let graph = DependenciesGraph::default();
 
     let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
         &manifest,
@@ -399,7 +396,7 @@ fn dedupe_peers_round_trips_through_lockfile_settings() {
         "name": "fixture",
         "version": "1.0.0",
     }));
-    let graph = DependenciesGraph::new();
+    let graph = DependenciesGraph::default();
     let direct = BTreeMap::new();
 
     let mut importers = BTreeMap::new();
@@ -469,7 +466,7 @@ fn overrides_flow_into_lockfile_verbatim_including_convergence_selectors() {
         "name": "fixture",
         "version": "1.0.0",
     }));
-    let graph = DependenciesGraph::new();
+    let graph = DependenciesGraph::default();
 
     let mut overrides = IndexMap::new();
     overrides.insert("foo@^4.0.0".to_string(), "4.0.9".to_string());
@@ -505,9 +502,9 @@ fn patched_dependencies_flow_into_lockfile_and_empty_is_omitted() {
         json!({ "name": "react", "version": "17.0.2" }),
         BTreeMap::new(),
         BTreeMap::new(),
-        HashSet::new(),
+        HashSet::default(),
     );
-    let mut graph = DependenciesGraph::new();
+    let mut graph = DependenciesGraph::default();
     graph.insert(node.dep_path.clone(), node);
     let mut direct = BTreeMap::new();
     direct.insert("react".to_string(), DepPath::from("react@17.0.2".to_string()));
@@ -575,7 +572,7 @@ fn dev_and_optional_direct_deps_split_into_distinct_importer_sections() {
         json!({ "name": "typescript", "version": "5.1.6", "bin": "typescript.js" }),
         BTreeMap::new(),
         BTreeMap::new(),
-        HashSet::new(),
+        HashSet::default(),
     );
     let fsevents = make_node(
         "fsevents",
@@ -583,10 +580,10 @@ fn dev_and_optional_direct_deps_split_into_distinct_importer_sections() {
         json!({ "name": "fsevents", "version": "2.3.2", "os": ["darwin"] }),
         BTreeMap::new(),
         BTreeMap::new(),
-        HashSet::new(),
+        HashSet::default(),
     );
 
-    let mut graph = DependenciesGraph::new();
+    let mut graph = DependenciesGraph::default();
     graph.insert(typescript.dep_path.clone(), typescript);
     graph.insert(fsevents.dep_path.clone(), fsevents);
 
@@ -627,9 +624,9 @@ fn duplicate_manifest_alias_uses_pnpm_dependency_field_precedence() {
         json!({ "name": "duplicated", "version": "1.0.0" }),
         BTreeMap::new(),
         BTreeMap::new(),
-        HashSet::new(),
+        HashSet::default(),
     );
-    let mut graph = DependenciesGraph::new();
+    let mut graph = DependenciesGraph::default();
     graph.insert(duplicated.dep_path.clone(), duplicated);
 
     let mut direct = BTreeMap::new();
@@ -659,9 +656,9 @@ fn aliased_catalog_dependency_records_catalog_snapshot() {
         json!({ "name": "@zkochan/js-yaml", "version": "0.0.11" }),
         BTreeMap::new(),
         BTreeMap::new(),
-        HashSet::new(),
+        HashSet::default(),
     );
-    let mut graph = DependenciesGraph::new();
+    let mut graph = DependenciesGraph::default();
     graph.insert(zkochan_js_yaml.dep_path.clone(), zkochan_js_yaml);
 
     let mut direct = BTreeMap::new();
@@ -738,17 +735,17 @@ fn runtime_dependency_strips_importer_prefix_and_records_package_version() {
         resolved_package_id: "node@runtime:26.3.0".to_string(),
         resolve_result: std::sync::Arc::new(resolve_result),
         children: BTreeMap::new(),
-        optional_children: HashSet::new(),
+        optional_children: HashSet::default(),
         peer_dependencies: BTreeMap::new(),
-        transitive_peer_dependencies: HashSet::new(),
-        resolved_peer_names: HashSet::new(),
+        transitive_peer_dependencies: HashSet::default(),
+        resolved_peer_names: HashSet::default(),
         depth: 1,
         installable: true,
         is_pure: true,
         optional: false,
     };
 
-    let mut graph = DependenciesGraph::new();
+    let mut graph = DependenciesGraph::default();
     graph.insert(dep_path.clone(), node);
 
     let mut direct = BTreeMap::new();
@@ -807,10 +804,10 @@ fn git_hosted_node(alias: &str) -> (DepPath, DependenciesGraphNode) {
         resolved_package_id: dep_path.to_string(),
         resolve_result: Arc::new(resolve_result),
         children: BTreeMap::new(),
-        optional_children: HashSet::new(),
+        optional_children: HashSet::default(),
         peer_dependencies: BTreeMap::new(),
-        transitive_peer_dependencies: HashSet::new(),
-        resolved_peer_names: HashSet::new(),
+        transitive_peer_dependencies: HashSet::default(),
+        resolved_peer_names: HashSet::default(),
         depth: 1,
         installable: true,
         is_pure: true,
@@ -830,7 +827,7 @@ fn git_hosted_dependency_records_bare_tarball_url_in_importer() {
     }));
 
     let (dep_path, node) = git_hosted_node("is-negative");
-    let mut graph = DependenciesGraph::new();
+    let mut graph = DependenciesGraph::default();
     graph.insert(dep_path.clone(), node);
     let direct = BTreeMap::from([("is-negative".to_string(), dep_path)]);
 
@@ -873,7 +870,7 @@ fn aliased_git_hosted_dependency_keeps_package_name_in_importer_ref() {
     }));
 
     let (dep_path, node) = git_hosted_node("renamed");
-    let mut graph = DependenciesGraph::new();
+    let mut graph = DependenciesGraph::default();
     graph.insert(dep_path.clone(), node);
     let direct = BTreeMap::from([("renamed".to_string(), dep_path)]);
 
@@ -941,16 +938,16 @@ fn non_host_git_dependency_records_bare_git_url_in_importer() {
         resolved_package_id: dep_path.to_string(),
         resolve_result: Arc::new(resolve_result),
         children: BTreeMap::new(),
-        optional_children: HashSet::new(),
+        optional_children: HashSet::default(),
         peer_dependencies: BTreeMap::new(),
-        transitive_peer_dependencies: HashSet::new(),
-        resolved_peer_names: HashSet::new(),
+        transitive_peer_dependencies: HashSet::default(),
+        resolved_peer_names: HashSet::default(),
         depth: 1,
         installable: true,
         is_pure: true,
         optional: false,
     };
-    let mut graph = DependenciesGraph::new();
+    let mut graph = DependenciesGraph::default();
     graph.insert(dep_path.clone(), node);
     let direct = BTreeMap::from([("is-negative".to_string(), dep_path)]);
 
@@ -996,11 +993,11 @@ fn error_from_single_node_graph(alias: &str, dep_path: &str) -> DependenciesGrap
         json!({ "name": alias, "version": "1.0.0" }),
         BTreeMap::new(),
         BTreeMap::new(),
-        HashSet::new(),
+        HashSet::default(),
     );
     node.dep_path = dep_path.clone();
 
-    let mut graph = DependenciesGraph::new();
+    let mut graph = DependenciesGraph::default();
     graph.insert(dep_path.clone(), node);
     let direct = BTreeMap::from([(alias.to_string(), dep_path)]);
 
@@ -1055,7 +1052,7 @@ fn peer_suffixed_dep_path_splits_into_distinct_snapshot_and_package_keys() {
         json!({ "name": "react", "version": "17.0.2" }),
         BTreeMap::new(),
         BTreeMap::new(),
-        HashSet::new(),
+        HashSet::default(),
     );
 
     let mut react_dom_children = BTreeMap::new();
@@ -1077,9 +1074,9 @@ fn peer_suffixed_dep_path_splits_into_distinct_snapshot_and_package_keys() {
             }),
         )),
         children: react_dom_children,
-        optional_children: HashSet::new(),
+        optional_children: HashSet::default(),
         peer_dependencies: react_dom_peers,
-        transitive_peer_dependencies: HashSet::new(),
+        transitive_peer_dependencies: HashSet::default(),
         resolved_peer_names: std::iter::once("react".to_string()).collect(),
         depth: 1,
         installable: true,
@@ -1087,7 +1084,7 @@ fn peer_suffixed_dep_path_splits_into_distinct_snapshot_and_package_keys() {
         optional: false,
     };
 
-    let mut graph = DependenciesGraph::new();
+    let mut graph = DependenciesGraph::default();
     graph.insert(react.dep_path.clone(), react);
     graph.insert(react_dom_dep_path.clone(), react_dom);
 
@@ -1132,7 +1129,7 @@ fn snapshot_partitions_optional_children_by_manifest_optional_dependencies() {
         json!({ "name": "inner", "version": "1.0.0" }),
         BTreeMap::new(),
         BTreeMap::new(),
-        HashSet::new(),
+        HashSet::default(),
     );
 
     let mut outer_children = BTreeMap::new();
@@ -1147,10 +1144,10 @@ fn snapshot_partitions_optional_children_by_manifest_optional_dependencies() {
         }),
         outer_children,
         BTreeMap::new(),
-        HashSet::new(),
+        HashSet::default(),
     );
 
-    let mut graph = DependenciesGraph::new();
+    let mut graph = DependenciesGraph::default();
     graph.insert(inner.dep_path.clone(), inner);
     graph.insert(outer.dep_path.clone(), outer);
 
@@ -1191,7 +1188,7 @@ fn snapshot_preserves_optional_child_edges_from_resolved_tree() {
             node_id: outer_node_id.clone(),
             id: outer_id.clone(),
         }],
-        packages: HashMap::from([
+        packages: HashMap::from_iter([
             (
                 outer_id.clone(),
                 ResolvedPackage {
@@ -1221,7 +1218,7 @@ fn snapshot_preserves_optional_child_edges_from_resolved_tree() {
                 },
             ),
         ]),
-        dependencies_tree: HashMap::from([(
+        dependencies_tree: HashMap::from_iter([(
             outer_node_id,
             DependenciesTreeNode::new(
                 outer_id.clone(),
@@ -1230,10 +1227,10 @@ fn snapshot_preserves_optional_child_edges_from_resolved_tree() {
                 true,
             ),
         )]),
-        all_peer_dep_names: HashSet::new(),
+        all_peer_dep_names: HashSet::default(),
         policy_violations: Vec::new(),
-        applied_patches: HashSet::new(),
-        children_by_id: HashMap::from([(
+        applied_patches: HashSet::default(),
+        children_by_id: HashMap::from_iter([(
             outer_id,
             Arc::new(vec![ChildEdge {
                 alias: "inner".to_string(),
@@ -1273,7 +1270,7 @@ fn snapshot_records_transitive_peer_dependencies_sorted() {
         "dependencies": { "outer": "^1.0.0" },
     }));
 
-    let mut transitive: HashSet<String> = HashSet::new();
+    let mut transitive: HashSet<String> = HashSet::default();
     transitive.insert("z-peer".to_string());
     transitive.insert("a-peer".to_string());
     let outer = make_node(
@@ -1284,7 +1281,7 @@ fn snapshot_records_transitive_peer_dependencies_sorted() {
         BTreeMap::new(),
         transitive,
     );
-    let mut graph = DependenciesGraph::new();
+    let mut graph = DependenciesGraph::default();
     graph.insert(outer.dep_path.clone(), outer);
 
     let mut direct = BTreeMap::new();
@@ -1318,7 +1315,7 @@ fn snapshot_optional_flag_round_trips_from_dependencies_graph_node() {
         json!({ "name": "regular", "version": "1.0.0" }),
         BTreeMap::new(),
         BTreeMap::new(),
-        HashSet::new(),
+        HashSet::default(),
     );
     let opt = make_node_with_optional(
         "opt",
@@ -1326,11 +1323,11 @@ fn snapshot_optional_flag_round_trips_from_dependencies_graph_node() {
         json!({ "name": "opt", "version": "1.0.0" }),
         BTreeMap::new(),
         BTreeMap::new(),
-        HashSet::new(),
+        HashSet::default(),
         true,
     );
 
-    let mut graph = DependenciesGraph::new();
+    let mut graph = DependenciesGraph::default();
     graph.insert(regular.dep_path.clone(), regular);
     graph.insert(opt.dep_path.clone(), opt);
 
@@ -1367,7 +1364,7 @@ fn transitive_optional_is_recomputed_for_packages_reachable_via_a_non_optional_p
         json!({ "name": "c", "version": "1.0.0" }),
         BTreeMap::new(),
         BTreeMap::new(),
-        HashSet::new(),
+        HashSet::default(),
         true,
     );
 
@@ -1379,7 +1376,7 @@ fn transitive_optional_is_recomputed_for_packages_reachable_via_a_non_optional_p
         json!({ "name": "a", "version": "1.0.0", "dependencies": { "c": "^1.0.0" } }),
         a_children,
         BTreeMap::new(),
-        HashSet::new(),
+        HashSet::default(),
         false,
     );
 
@@ -1391,11 +1388,11 @@ fn transitive_optional_is_recomputed_for_packages_reachable_via_a_non_optional_p
         json!({ "name": "b", "version": "1.0.0", "dependencies": { "a": "^1.0.0" } }),
         b_children,
         BTreeMap::new(),
-        HashSet::new(),
+        HashSet::default(),
         false,
     );
 
-    let mut graph = DependenciesGraph::new();
+    let mut graph = DependenciesGraph::default();
     graph.insert(node_a.dep_path.clone(), node_a);
     graph.insert(node_b.dep_path.clone(), node_b);
     graph.insert(node_c.dep_path.clone(), node_c);
@@ -1432,7 +1429,7 @@ fn shared_subdep_reached_through_dev_optional_and_prod_paths_is_marked_non_optio
         json!({ "name": "subdep", "version": "1.0.0" }),
         BTreeMap::new(),
         BTreeMap::new(),
-        HashSet::new(),
+        HashSet::default(),
         true,
     );
     let subdep2 = make_node_with_optional(
@@ -1441,7 +1438,7 @@ fn shared_subdep_reached_through_dev_optional_and_prod_paths_is_marked_non_optio
         json!({ "name": "subdep2", "version": "1.0.0" }),
         BTreeMap::new(),
         BTreeMap::new(),
-        HashSet::new(),
+        HashSet::default(),
         true,
     );
 
@@ -1458,7 +1455,7 @@ fn shared_subdep_reached_through_dev_optional_and_prod_paths_is_marked_non_optio
         }),
         parent_children,
         BTreeMap::new(),
-        HashSet::new(),
+        HashSet::default(),
         false,
     );
 
@@ -1474,11 +1471,11 @@ fn shared_subdep_reached_through_dev_optional_and_prod_paths_is_marked_non_optio
         }),
         prod_children,
         BTreeMap::new(),
-        HashSet::new(),
+        HashSet::default(),
         false,
     );
 
-    let mut graph = DependenciesGraph::new();
+    let mut graph = DependenciesGraph::default();
     graph.insert(parent.dep_path.clone(), parent);
     graph.insert(prod_parent.dep_path.clone(), prod_parent);
     graph.insert(subdep.dep_path.clone(), subdep);
@@ -1527,10 +1524,10 @@ fn make_link_node(target: &str, manifest: serde_json::Value) -> DependenciesGrap
         resolved_package_id: id_text,
         resolve_result: std::sync::Arc::new(resolve_result),
         children: BTreeMap::new(),
-        optional_children: HashSet::new(),
+        optional_children: HashSet::default(),
         peer_dependencies: BTreeMap::new(),
-        transitive_peer_dependencies: HashSet::new(),
-        resolved_peer_names: HashSet::new(),
+        transitive_peer_dependencies: HashSet::default(),
+        resolved_peer_names: HashSet::default(),
         depth: 0,
         installable: true,
         is_pure: true,
@@ -1547,7 +1544,7 @@ fn workspace_link_direct_dep_renders_as_importer_link() {
     }));
 
     let link_node = make_link_node("../shared", json!({ "name": "shared", "version": "1.0.0" }));
-    let mut graph = DependenciesGraph::new();
+    let mut graph = DependenciesGraph::default();
     graph.insert(link_node.dep_path.clone(), link_node.clone());
 
     let mut direct = BTreeMap::new();
@@ -1588,10 +1585,10 @@ fn workspace_link_child_renders_as_snapshot_link() {
         json!({ "name": "wrapper", "version": "1.0.0" }),
         wrapper_children,
         BTreeMap::new(),
-        HashSet::new(),
+        HashSet::default(),
     );
 
-    let mut graph = DependenciesGraph::new();
+    let mut graph = DependenciesGraph::default();
     graph.insert(wrapper.dep_path.clone(), wrapper);
     graph.insert(link_node.dep_path.clone(), link_node);
 
@@ -1638,10 +1635,10 @@ fn make_file_node(name: &str, directory: &str) -> DependenciesGraphNode {
         dep_path,
         resolve_result: Arc::new(resolve_result),
         children: BTreeMap::new(),
-        optional_children: HashSet::new(),
+        optional_children: HashSet::default(),
         peer_dependencies: BTreeMap::new(),
-        transitive_peer_dependencies: HashSet::new(),
-        resolved_peer_names: HashSet::new(),
+        transitive_peer_dependencies: HashSet::default(),
+        resolved_peer_names: HashSet::default(),
         depth: 1,
         installable: true,
         is_pure: true,
@@ -1661,7 +1658,7 @@ fn file_dep_child_renders_as_bare_file_ref() {
     let mut parent = make_file_node("nested-parent", "parent");
     parent.children.insert("nested-child".to_string(), child.dep_path.clone());
 
-    let mut graph = DependenciesGraph::new();
+    let mut graph = DependenciesGraph::default();
     let parent_dep_path = parent.dep_path.clone();
     graph.insert(parent_dep_path.clone(), parent);
     graph.insert(child.dep_path.clone(), child);
@@ -1699,7 +1696,7 @@ fn snapshot_link_uses_lockfile_root_while_importer_link_uses_project_root() {
         json!({ "name": "wrapper", "version": "1.0.0" }),
         BTreeMap::from([("shared".to_string(), shared.dep_path.clone())]),
         BTreeMap::new(),
-        HashSet::new(),
+        HashSet::default(),
     );
     let mut consumer = make_node(
         "consumer",
@@ -1714,12 +1711,12 @@ fn snapshot_link_uses_lockfile_root_while_importer_link_uses_project_root() {
             "peer".to_string(),
             PeerDep { version: "*".to_string(), optional: false },
         )]),
-        HashSet::new(),
+        HashSet::default(),
     );
     consumer.dep_path = DepPath::from("consumer@1.0.0(peer@packages+peer)");
     consumer.resolved_peer_names.insert("peer".to_string());
 
-    let mut graph = DependenciesGraph::new();
+    let mut graph = DependenciesGraph::default();
     for node in [shared, peer, wrapper, consumer] {
         graph.insert(node.dep_path.clone(), node);
     }
@@ -1804,9 +1801,9 @@ fn multi_importer_workspace_writes_per_project_lockfile_entries() {
         json!({ "name": "lodash", "version": "4.17.21" }),
         BTreeMap::new(),
         BTreeMap::new(),
-        HashSet::new(),
+        HashSet::default(),
     );
-    let mut graph = DependenciesGraph::new();
+    let mut graph = DependenciesGraph::default();
     graph.insert(lodash.dep_path.clone(), lodash);
 
     let mut a_direct = BTreeMap::new();
@@ -1876,7 +1873,7 @@ fn multi_importer_pruner_marks_shared_dep_non_optional_when_any_importer_reaches
         json!({ "name": "shared", "version": "1.0.0" }),
         BTreeMap::new(),
         BTreeMap::new(),
-        HashSet::new(),
+        HashSet::default(),
         true,
     );
 
@@ -1892,7 +1889,7 @@ fn multi_importer_pruner_marks_shared_dep_non_optional_when_any_importer_reaches
         }),
         prod_only_children,
         BTreeMap::new(),
-        HashSet::new(),
+        HashSet::default(),
         false,
     );
 
@@ -1908,11 +1905,11 @@ fn multi_importer_pruner_marks_shared_dep_non_optional_when_any_importer_reaches
         }),
         opt_only_children,
         BTreeMap::new(),
-        HashSet::new(),
+        HashSet::default(),
         true,
     );
 
-    let mut graph = DependenciesGraph::new();
+    let mut graph = DependenciesGraph::default();
     graph.insert(shared.dep_path.clone(), shared);
     graph.insert(prod_only.dep_path.clone(), prod_only);
     graph.insert(opt_only.dep_path.clone(), opt_only);
@@ -1982,7 +1979,7 @@ fn auto_installed_peer_not_declared_in_manifest_is_skipped_from_pruner_seeds() {
         json!({ "name": "peer-x", "version": "1.0.0" }),
         BTreeMap::new(),
         BTreeMap::new(),
-        HashSet::new(),
+        HashSet::default(),
         true,
     );
 
@@ -1998,11 +1995,11 @@ fn auto_installed_peer_not_declared_in_manifest_is_skipped_from_pruner_seeds() {
         }),
         parent_children,
         BTreeMap::new(),
-        HashSet::new(),
+        HashSet::default(),
         true,
     );
 
-    let mut graph = DependenciesGraph::new();
+    let mut graph = DependenciesGraph::default();
     graph.insert(parent.dep_path.clone(), parent);
     graph.insert(peer_x.dep_path.clone(), peer_x);
 
@@ -2044,10 +2041,10 @@ fn workspace_sibling_link_renders_per_importer_with_link_ref() {
         json!({ "name": "lodash", "version": "4.17.21" }),
         BTreeMap::new(),
         BTreeMap::new(),
-        HashSet::new(),
+        HashSet::default(),
     );
 
-    let mut graph = DependenciesGraph::new();
+    let mut graph = DependenciesGraph::default();
     graph.insert(link_node.dep_path.clone(), link_node.clone());
     graph.insert(lodash.dep_path.clone(), lodash);
 
@@ -2127,10 +2124,10 @@ fn external_link_direct_dep_omitted_from_importer_when_exclude_links_from_lockfi
         json!({ "name": "is-positive", "version": "1.0.0" }),
         BTreeMap::new(),
         BTreeMap::new(),
-        HashSet::new(),
+        HashSet::default(),
     );
 
-    let mut graph = DependenciesGraph::new();
+    let mut graph = DependenciesGraph::default();
     graph.insert(link_node.dep_path.clone(), link_node.clone());
     graph.insert(is_positive.dep_path.clone(), is_positive);
 
@@ -2172,7 +2169,7 @@ fn workspace_link_direct_dep_kept_when_exclude_links_from_lockfile_true() {
     }));
 
     let link_node = make_link_node("../shared", json!({ "name": "shared", "version": "1.0.0" }));
-    let mut graph = DependenciesGraph::new();
+    let mut graph = DependenciesGraph::default();
     graph.insert(link_node.dep_path.clone(), link_node.clone());
 
     let mut direct = BTreeMap::new();
@@ -2221,10 +2218,10 @@ fn same_name_injected_dep_serializes_as_plain_file_ref() {
             policy_violation: None,
         }),
         children: BTreeMap::new(),
-        optional_children: HashSet::new(),
+        optional_children: HashSet::default(),
         peer_dependencies: BTreeMap::new(),
-        transitive_peer_dependencies: HashSet::new(),
-        resolved_peer_names: HashSet::new(),
+        transitive_peer_dependencies: HashSet::default(),
+        resolved_peer_names: HashSet::default(),
         depth: 0,
         installable: true,
         is_pure: false,
@@ -2265,7 +2262,7 @@ fn importer_records_a_peer_only_alias_only_under_auto_install_peers() {
         json!({ "name": "peer", "version": "1.0.0" }),
         BTreeMap::new(),
         BTreeMap::new(),
-        HashSet::new(),
+        HashSet::default(),
     );
     let consumer = make_node(
         "consumer",
@@ -2281,9 +2278,9 @@ fn importer_records_a_peer_only_alias_only_under_auto_install_peers() {
             "peer".to_string(),
             PeerDep { version: "^1.0.0".to_string(), optional: true },
         )]),
-        HashSet::new(),
+        HashSet::default(),
     );
-    let mut graph = DependenciesGraph::new();
+    let mut graph = DependenciesGraph::default();
     for node in [peer, consumer] {
         graph.insert(node.dep_path.clone(), node);
     }
@@ -2331,7 +2328,7 @@ fn previous_importers_with_link(
     alias: &str,
     specifier: &str,
     target: &str,
-) -> HashMap<String, ProjectSnapshot> {
+) -> std::collections::HashMap<String, ProjectSnapshot> {
     let mut deps = ResolvedDependencyMap::new();
     deps.insert(
         PkgName::parse(alias).unwrap(),
@@ -2341,7 +2338,7 @@ fn previous_importers_with_link(
         },
     );
     let snapshot = ProjectSnapshot { dependencies: Some(deps), ..Default::default() };
-    let mut importers = HashMap::new();
+    let mut importers = std::collections::HashMap::new();
     importers.insert(".".to_string(), snapshot);
     importers
 }
@@ -2357,7 +2354,7 @@ fn injected_link_fixture()
         "dependencies": { "n": "workspace:*" },
     }));
     let file_node = make_file_node("n", "packages/n");
-    let mut graph = DependenciesGraph::new();
+    let mut graph = DependenciesGraph::default();
     graph.insert(file_node.dep_path.clone(), file_node.clone());
     let mut direct = BTreeMap::new();
     direct.insert("n".to_string(), file_node.dep_path);
@@ -2425,7 +2422,7 @@ fn injected_workspace_dep_flips_to_file_when_update_targets_it() {
 
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
         previous_importers: Some(&previous),
-        update_reuse_scope: UpdateReuseScope::Except(HashSet::from(["n".to_string()])),
+        update_reuse_scope: UpdateReuseScope::Except(HashSet::from_iter(["n".to_string()])),
         ..single_importer_opts(&manifest, &graph, direct, false, false, None, None)
     });
 
@@ -2482,7 +2479,7 @@ fn injected_workspace_dep_flips_to_file_when_recursive_update_targets_it_per_imp
     // package lives in the per-importer scope for the root importer (".").
     let scopes_by_importer = BTreeMap::from([(
         ".".to_string(),
-        UpdateReuseScope::Except(HashSet::from(["n".to_string()])),
+        UpdateReuseScope::Except(HashSet::from_iter(["n".to_string()])),
     )]);
 
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
@@ -2518,7 +2515,7 @@ fn injected_workspace_dep_keeps_link_when_recursive_update_targets_other_pkg() {
     let previous = previous_importers_with_link("n", "workspace:*", "../n");
     let scopes_by_importer = BTreeMap::from([(
         ".".to_string(),
-        UpdateReuseScope::Except(HashSet::from(["some-other-pkg".to_string()])),
+        UpdateReuseScope::Except(HashSet::from_iter(["some-other-pkg".to_string()])),
     )]);
 
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {

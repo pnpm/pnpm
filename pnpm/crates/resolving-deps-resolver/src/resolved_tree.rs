@@ -1,10 +1,8 @@
 use crate::node_id::NodeId;
 use pacquet_deps_path::DepPath;
 use pacquet_resolving_resolver_base::{ResolutionPolicyViolation, ResolveResult};
-use std::{
-    collections::{BTreeMap, HashMap, HashSet},
-    sync::Arc,
-};
+use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use std::{collections::BTreeMap, sync::Arc};
 
 /// Per-occurrence tree carried by [`ResolvedTree::dependencies_tree`].
 pub type DependenciesTree = HashMap<NodeId, DependenciesTreeNode>;

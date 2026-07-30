@@ -14,8 +14,9 @@
 //! so extending a scope costs one level's aliases rather than a copy of
 //! everything above it; only membership is ever asked of it.
 
+use rustc_hash::FxHashSet as HashSet;
 use serde_json::Value;
-use std::{collections::HashSet, sync::Arc};
+use std::sync::Arc;
 
 /// One level's aliases, chained onto the levels above it.
 #[derive(Debug, Default)]
@@ -65,10 +66,10 @@ pub(crate) fn peer_shadowed_dependencies(
     parent_pkg_aliases: &ParentPkgAliases,
     auto_install_peers: bool,
 ) -> HashSet<String> {
-    let Some(manifest) = manifest else { return HashSet::new() };
+    let Some(manifest) = manifest else { return HashSet::default() };
     let object = |key| manifest.get(key).and_then(Value::as_object);
     let (Some(peers), Some(deps)) = (object("peerDependencies"), object("dependencies")) else {
-        return HashSet::new();
+        return HashSet::default();
     };
     deps.keys()
         .filter(|name| peers.contains_key(*name))

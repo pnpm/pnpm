@@ -3,10 +3,8 @@ use crate::dependencies_graph::{DependenciesGraph, DependenciesGraphNode};
 use pacquet_deps_path::DepPath;
 use pacquet_lockfile::{DirectoryResolution, LockfileResolution};
 use pacquet_resolving_resolver_base::{PkgResolutionId, ResolveResult};
-use std::{
-    collections::{BTreeMap, HashSet},
-    sync::Arc,
-};
+use rustc_hash::FxHashSet as HashSet;
+use std::{collections::BTreeMap, sync::Arc};
 
 fn dp(raw: &str) -> DepPath {
     DepPath::from(raw.to_string())
@@ -36,9 +34,9 @@ fn make_node(
             policy_violation: None,
         }),
         children: children.iter().map(|(alias, child)| (alias.to_string(), dp(child))).collect(),
-        optional_children: HashSet::new(),
+        optional_children: HashSet::default(),
         peer_dependencies: BTreeMap::new(),
-        transitive_peer_dependencies: HashSet::new(),
+        transitive_peer_dependencies: HashSet::default(),
         resolved_peer_names: resolved_peers.iter().map(std::string::ToString::to_string).collect(),
         depth: 0,
         installable: true,
@@ -56,7 +54,7 @@ const QUX_VARIANT: &str = "foo@1.0.0(bar@1.0.0)(qux@1.0.0)";
 /// subset of both larger variants, which are incompatible with each
 /// other, so the collapse target is a real choice.
 fn build_graph() -> DependenciesGraph {
-    let mut graph = DependenciesGraph::new();
+    let mut graph = DependenciesGraph::default();
     for (id, dep_path) in
         [("bar@1.0.0", "bar@1.0.0"), ("baz@1.0.0", "baz@1.0.0"), ("qux@1.0.0", "qux@1.0.0")]
     {
@@ -126,7 +124,7 @@ fn does_not_collapse_across_incompatible_peer_versions() {
     let bar2 = "foo@1.0.0(bar@2.0.0)";
     let bar2_baz = "foo@1.0.0(bar@2.0.0)(baz@2.0.0)";
 
-    let mut graph = DependenciesGraph::new();
+    let mut graph = DependenciesGraph::default();
     for (id, dep_path) in [
         ("bar@1.0.0", "bar@1.0.0"),
         ("bar@2.0.0", "bar@2.0.0"),
@@ -181,7 +179,7 @@ fn a_consumers_child_edge_follows_the_collapse() {
     let baz = "baz@1.0.0(qux@1.0.0)";
     let consumer = "consumer@1.0.0(foo@1.0.0(bar@1.0.0))(bar@1.0.0)";
 
-    let mut graph = DependenciesGraph::new();
+    let mut graph = DependenciesGraph::default();
     for (id, dep_path) in [("bar@1.0.0", "bar@1.0.0"), ("qux@1.0.0", "qux@1.0.0")] {
         graph.insert(dp(dep_path), make_node(id, dep_path, &[], &[]));
     }
