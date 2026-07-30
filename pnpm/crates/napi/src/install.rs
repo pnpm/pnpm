@@ -706,12 +706,13 @@ fn parse_link_workspace_packages(
         .transpose()
 }
 
-fn parse_import_method(value: &str) -> Option<pacquet_config::PackageImportMethod> {
+pub(crate) fn parse_import_method(value: &str) -> Option<pacquet_config::PackageImportMethod> {
     match value {
         "auto" => Some(pacquet_config::PackageImportMethod::Auto),
         "hardlink" => Some(pacquet_config::PackageImportMethod::Hardlink),
         "copy" => Some(pacquet_config::PackageImportMethod::Copy),
         "clone" => Some(pacquet_config::PackageImportMethod::Clone),
+        "clone-or-copy" => Some(pacquet_config::PackageImportMethod::CloneOrCopy),
         _ => None,
     }
 }

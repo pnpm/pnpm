@@ -77,6 +77,9 @@ pub struct ResolvedConfig {
     /// The legacy `shamefullyHoist` flag; `publicHoistPattern` already
     /// reflects it, exposed for embedders that branch on the flag itself.
     pub shamefully_hoist: bool,
+    /// The engine's pnpm home directory (`PNPM_HOME` or the platform
+    /// default) — not a per-project setting. `None` when no home
+    /// directory is resolvable.
     pub pnpm_home_dir: Option<String>,
 }
 

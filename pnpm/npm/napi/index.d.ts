@@ -395,6 +395,10 @@ export interface ResolvedConfig {
    * reflects it, exposed for embedders that branch on the flag itself.
    */
   shamefullyHoist: boolean
+  /**
+   * The engine's pnpm home directory (`PNPM_HOME` or the platform default) —
+   * not a per-project setting. Absent when no home directory is resolvable.
+   */
   pnpmHomeDir?: string
 }
 
