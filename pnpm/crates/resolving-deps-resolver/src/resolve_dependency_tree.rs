@@ -468,10 +468,12 @@ pub(crate) fn importer_injected_dependency_names(manifest: &PackageManifest) -> 
 ///
 /// An alias declared in several groups yields one spec, merged by
 /// spreading the groups in order: `peerDependencies` first (when
-/// `auto_install_peers`), then `dependencies` < `devDependencies` <
+/// `auto_install_peers`), then `devDependencies` < `dependencies` <
 /// `optionalDependencies`, a later group's range replacing an earlier
-/// one — so an importer's own regular dep (e.g. a `workspace:*`
-/// devDependency) wins over its peer range.
+/// one — matching `filterDependenciesByType` in
+/// `@pnpm/pkg-manifest.utils` (`{...dev, ...prod, ...optional}`), so a
+/// regular dep wins over a devDependency of the same alias, and either
+/// wins over its peer range.
 ///
 /// Shared by [`fn@crate::resolve_importer`] (which walks them) and the
 /// `time-based` cutoff pre-pass in [`fn@crate::resolve_workspace`]
@@ -493,7 +495,7 @@ where
         groups.push(DependencyGroup::Peer);
     }
     groups.extend(
-        [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional]
+        [DependencyGroup::Dev, DependencyGroup::Prod, DependencyGroup::Optional]
             .into_iter()
             .filter(|group| included.contains(group)),
     );
