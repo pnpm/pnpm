@@ -53,7 +53,10 @@ function main (): void {
 
 export function parseSelectedProducts (argv: readonly string[]): Set<Product> {
   const selected = new Set<Product>()
-  for (let i = 0; i < argv.length; i++) {
+  // `pnpm run bump -- --release …` forwards the `--` separator to the script,
+  // so a single leading `--` is part of the normal calling convention.
+  const start = argv[0] === '--' ? 1 : 0
+  for (let i = start; i < argv.length; i++) {
     // Fail closed: an unrecognized token (e.g. a `--releases` typo) must not be
     // silently skipped, which would leave the selection empty and release
     // every product. Only "--release <product>" is accepted; no args at all

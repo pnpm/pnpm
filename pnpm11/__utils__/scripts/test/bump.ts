@@ -35,6 +35,16 @@ describe('parseSelectedProducts', () => {
     expect(parseSelectedProducts([])).toEqual(new Set())
   })
 
+  test('skips the leading `--` separator forwarded by `pnpm run bump -- …`', () => {
+    expect(parseSelectedProducts(['--', '--release', 'pnpm', '--release', 'pnpr']))
+      .toEqual(new Set(['pnpm', 'pnpr']))
+    expect(parseSelectedProducts(['--'])).toEqual(new Set())
+  })
+
+  test('rejects a `--` that is not in the leading position', () => {
+    expect(() => parseSelectedProducts(['--release', 'pnpm', '--'])).toThrow(/Unexpected bump argument/)
+  })
+
   test('throws on an unknown product', () => {
     expect(() => parseSelectedProducts(['--release', 'bogus'])).toThrow(/Unknown --release product/)
   })
