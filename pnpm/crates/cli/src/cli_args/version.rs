@@ -437,7 +437,7 @@ impl VersionArgs {
         if self.json {
             println!(
                 "{}",
-                serde_json::to_string_pretty(&applied).expect("serialize applied releases")
+                serde_json::to_string_pretty(&applied).expect("serialize applied releases"),
             );
             return Ok(());
         }
