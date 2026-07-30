@@ -3,16 +3,18 @@ import { PnpmError } from '@pnpm/error'
 export interface CheckSudoOptions {
   cmd: string | null
   cliParams: string[]
-  isGlobal: boolean
+  global?: boolean
+  location?: string
   env?: NodeJS.ProcessEnv
   geteuid?: () => number
 }
 
 /**
  * Refuses to run commands that write to home-directory locations (global
- * installs, `pnpm setup`, `pnpm self-update`) when pnpm is executed through
- * `sudo`. Those commands would target root's home directory, which is never
- * what a user coming from `sudo npm install -g` wants.
+ * installs, global config writes, `pnpm setup`, `pnpm self-update`) when pnpm
+ * is executed through `sudo`. Those commands would target root's home
+ * directory, which is never what a user coming from `sudo npm install -g`
+ * wants.
  */
 export function checkSudo (opts: CheckSudoOptions): void {
   const env = opts.env ?? process.env
@@ -30,13 +32,18 @@ const READ_ONLY_GLOBAL_COMMANDS = new Set([
   'audit', 'bin', 'get', 'la', 'licenses', 'list', 'll', 'ls', 'outdated', 'prefix', 'root', 'why',
 ])
 
-function sudoBlockedOperation ({ cmd, cliParams, isGlobal }: CheckSudoOptions): string | undefined {
+function sudoBlockedOperation ({ cmd, cliParams, global: globalFlag, location }: CheckSudoOptions): string | undefined {
   if (cmd === 'setup' || cmd === 'self-update') return `pnpm ${cmd}`
-  if (!isGlobal || cmd == null) return undefined
-  if (READ_ONLY_GLOBAL_COMMANDS.has(cmd)) return undefined
-  if (cmd === 'config') {
-    if (cliParams[0] === 'set' || cliParams[0] === 'delete') return `pnpm config ${cliParams[0]} --global`
-    return undefined
+  if (cmd === 'config' || cmd === 'set') {
+    const subcommand = cmd === 'set' ? 'set' : cliParams[0]
+    if (subcommand !== 'set' && subcommand !== 'delete') return undefined
+    // Config writes default to the global config file when no `--location`
+    // is given, so gate on the effective scope, not the `--global` flag
+    // alone. Mirrors the scope resolution in the config command handler.
+    const effectiveGlobal = location != null ? location === 'global' : globalFlag !== false
+    return effectiveGlobal ? `pnpm config ${subcommand} --global` : undefined
   }
+  if (globalFlag !== true || cmd == null) return undefined
+  if (READ_ONLY_GLOBAL_COMMANDS.has(cmd)) return undefined
   return `pnpm ${cmd} --global`
 }

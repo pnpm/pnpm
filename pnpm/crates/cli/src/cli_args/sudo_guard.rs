@@ -78,11 +78,14 @@ fn sudo_blocked_operation(command: &CliCommand) -> Option<String> {
         CliCommand::Link(args) if args.package_paths.is_empty() => {
             Some("pnpm link --global".to_string())
         }
+        // Config writes default to the global config file when no
+        // `--location` is given, so gate on the effective scope, not the
+        // `--global` flag alone.
         CliCommand::Config(ConfigArgs { command: ConfigSubcommand::Set(args), .. }) => {
-            global_write(args.flags.global, "config set")
+            global_write(super::config::resolve_global(args.flags), "config set")
         }
         CliCommand::Config(ConfigArgs { command: ConfigSubcommand::Delete(args), .. }) => {
-            global_write(args.flags.global, "config delete")
+            global_write(super::config::resolve_global(args.flags), "config delete")
         }
         _ => None,
     }

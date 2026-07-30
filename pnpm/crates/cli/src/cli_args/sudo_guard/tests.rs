@@ -71,6 +71,42 @@ fn config_writes_are_blocked_but_reads_allowed() {
     );
 }
 
+/// `--location` wins, otherwise config writes default to the global config
+/// file — a bare `sudo pnpm config set` must not slip past the guard.
+#[test]
+fn config_writes_are_gated_on_the_effective_scope() {
+    assert_eq!(
+        sudo_blocked_operation(&command(&["pnpm", "config", "set", "store-dir", "/tmp/store"])),
+        Some("pnpm config set --global".to_string()),
+    );
+    assert_eq!(
+        sudo_blocked_operation(&command(&[
+            "pnpm",
+            "config",
+            "set",
+            "--location=global",
+            "store-dir",
+            "/tmp/store",
+        ])),
+        Some("pnpm config set --global".to_string()),
+    );
+    assert_eq!(
+        sudo_blocked_operation(&command(&[
+            "pnpm",
+            "config",
+            "set",
+            "--location=project",
+            "store-dir",
+            "/tmp/store",
+        ])),
+        None,
+    );
+    assert_eq!(
+        sudo_blocked_operation(&command(&["pnpm", "config", "delete", "store-dir"])),
+        Some("pnpm config delete --global".to_string()),
+    );
+}
+
 #[test]
 fn bare_link_targets_the_global_dir_and_is_blocked() {
     assert_eq!(
