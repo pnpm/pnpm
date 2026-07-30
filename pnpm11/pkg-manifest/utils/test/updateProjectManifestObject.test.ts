@@ -91,7 +91,7 @@ test('peer dependencies honor pinned version when resolved version is available 
       alias: 'foo',
       bareSpecifier: 'https://github.com/hegemonic/taffydb/tarball/master',
       resolvedVersion: '1.4.0',
-      saveRangeStyle: 'minor',
+      rangeSpecStyle: 'minor',
       peer: true,
       saveType: 'devDependencies',
     },
@@ -130,7 +130,7 @@ test('peer dependencies keep prerelease resolved version without prefix', async 
       alias: 'foo',
       bareSpecifier: 'https://github.com/kevva/is-negative',
       resolvedVersion: '2.1.0-rc.1',
-      saveRangeStyle: 'minor',
+      rangeSpecStyle: 'minor',
       peer: true,
       saveType: 'devDependencies',
     },
@@ -173,17 +173,17 @@ test('writes prototype-conflicting aliases as own data properties without pollut
 
 test('peer dependencies respect pinned version "patch" and "none"', async () => {
   const cases = [
-    { saveRangeStyle: 'patch' as const, expected: '3.2.1' },
-    { saveRangeStyle: 'none' as const, expected: '^3.2.1' },
+    { rangeSpecStyle: 'patch' as const, expected: '3.2.1' },
+    { rangeSpecStyle: 'none' as const, expected: '^3.2.1' },
   ]
 
-  await Promise.all(cases.map(async ({ saveRangeStyle, expected }) => {
+  await Promise.all(cases.map(async ({ rangeSpecStyle, expected }) => {
     const manifest = await updateProjectManifestObject('/project', {}, [
       {
         alias: 'foo',
         bareSpecifier: 'https://github.com/kevva/is-negative',
         resolvedVersion: '3.2.1',
-        saveRangeStyle,
+        rangeSpecStyle,
         peer: true,
         saveType: 'devDependencies',
       },

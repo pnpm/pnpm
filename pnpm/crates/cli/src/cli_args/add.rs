@@ -12,7 +12,7 @@ use miette::{Context, Diagnostic, IntoDiagnostic};
 use pacquet_config::Config;
 use pacquet_package_manager::Add;
 use pacquet_package_manifest::DependencyGroup;
-use pacquet_registry::SaveRangeStyle;
+use pacquet_registry::RangeSpecStyle;
 use pacquet_reporter::Reporter;
 use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use pacquet_workspace_manifest_writer::set_allow_builds;
@@ -251,14 +251,14 @@ impl AddArgs {
             .or_else(|| self.save_catalog.then(|| "default".to_string()))
             .or_else(|| state.config.save_catalog_name.clone());
 
-        let save_range_style = self.save_range_style(state.config);
+        let range_spec_style = self.range_spec_style(state.config);
         let dependency_options =
             self.dependency_options.clone().with_save_peer_setting(state.config.save_peer);
 
         add_packages::<Reporter, _>(
             state,
             &self.package_names,
-            save_range_style,
+            range_spec_style,
             save_catalog_name,
             self.lockfile_only,
             supported_architectures,
@@ -279,7 +279,7 @@ impl AddArgs {
             .clone()
             .or_else(|| self.save_catalog.then(|| "default".to_string()))
             .or_else(|| state.config.save_catalog_name.clone());
-        let save_range_style = self.save_range_style(state.config);
+        let range_spec_style = self.range_spec_style(state.config);
         let dependency_groups = self
             .dependency_options
             .clone()
@@ -309,7 +309,7 @@ impl AddArgs {
             lockfile_path: Some(&lockfile_path),
             dependency_groups,
             package_names: &self.package_names,
-            save_range_style,
+            range_spec_style,
             save_catalog_name,
             resolved_packages,
             supported_architectures,
@@ -346,11 +346,11 @@ impl AddArgs {
         }
         let supported_architectures =
             self.supported_architectures.apply_to(config.supported_architectures.clone());
-        let save_range_style = self.save_range_style(config);
+        let range_spec_style = self.range_spec_style(config);
         Box::pin(crate::cli_args::global::handle_global_add::<Reporter>(
             config,
             &self.package_names,
-            save_range_style,
+            range_spec_style,
             supported_architectures,
             &self.allow_build,
             dir,
@@ -360,9 +360,9 @@ impl AddArgs {
 
     /// The style that decides the saved range: `--save-exact` /
     /// `--save-prefix` layered over the `savePrefix` setting, mirroring
-    /// pnpm's `getSaveRangeStyle`.
-    fn save_range_style(&self, config: &Config) -> SaveRangeStyle {
-        SaveRangeStyle::from_save_options(
+    /// pnpm's `getRangeSpecStyle`.
+    fn range_spec_style(&self, config: &Config) -> RangeSpecStyle {
+        RangeSpecStyle::from_save_options(
             self.save_exact,
             self.save_prefix.as_deref().or(config.save_prefix.as_deref()),
         )
@@ -426,7 +426,7 @@ pub enum AllowBuildError {
 pub(crate) async fn add_package<Reporter, DependencyGroupList>(
     state: State,
     package_name: &str,
-    save_range_style: SaveRangeStyle,
+    range_spec_style: RangeSpecStyle,
     save_catalog_name: Option<String>,
     lockfile_only: bool,
     supported_architectures: Option<pacquet_package_is_installable::SupportedArchitectures>,
@@ -440,7 +440,7 @@ where
     Box::pin(add_packages::<Reporter, _>(
         state,
         &package_names,
-        save_range_style,
+        range_spec_style,
         save_catalog_name,
         lockfile_only,
         supported_architectures,
@@ -453,7 +453,7 @@ where
 pub(crate) async fn add_packages<Reporter, DependencyGroupList>(
     mut state: State,
     package_names: &[String],
-    save_range_style: SaveRangeStyle,
+    range_spec_style: RangeSpecStyle,
     save_catalog_name: Option<String>,
     lockfile_only: bool,
     supported_architectures: Option<pacquet_package_is_installable::SupportedArchitectures>,
@@ -479,7 +479,7 @@ where
         lockfile_path: Some(&lockfile_path),
         dependency_groups,
         package_names,
-        save_range_style,
+        range_spec_style,
         save_catalog_name,
         resolved_packages,
         supported_architectures,

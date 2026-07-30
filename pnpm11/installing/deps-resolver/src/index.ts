@@ -30,7 +30,7 @@ import {
   type ProjectId,
   type ProjectManifest,
   type ProjectRootDir,
-  type SaveRangeStyle,
+  type RangeSpecStyle,
   type SupportedArchitectures,
 } from '@pnpm/types'
 import { isSubdir } from 'is-subdir'
@@ -66,8 +66,8 @@ export type DependenciesGraphNode = GenericDependenciesGraphNodeWithResolvedChil
 export {
   getWantedDependencies,
   type LinkedDependency,
+  type RangeSpecStyle,
   type ResolvedPackage,
-  type SaveRangeStyle,
   type UpdateMatchingFunction,
   type WantedDependency,
 }
@@ -90,12 +90,12 @@ interface ProjectToLink {
 export interface ImporterToResolve extends Importer<{
   isNew?: boolean
   nodeExecPath?: string
-  saveRangeStyle?: SaveRangeStyle
+  rangeSpecStyle?: RangeSpecStyle
   updateSpec?: boolean
   preserveNonSemverVersionSpec?: boolean
 }> {
   peer?: boolean
-  saveRangeStyle?: SaveRangeStyle
+  rangeSpecStyle?: RangeSpecStyle
   binsDir: string
   manifest: ProjectManifest
   originalManifest?: ProjectManifest

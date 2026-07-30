@@ -73,7 +73,7 @@ export type ProjectId = string & { __brand: 'ProjectId' }
  * `^`, `minor` writes `~`, `patch` writes the bare version, and `none`
  * keeps the widest form (`*`).
  */
-export type SaveRangeGranularity =
+export type RangeSpecGranularity =
   | 'none'
   | 'patch'
   | 'minor'
@@ -83,15 +83,15 @@ export type SaveRangeGranularity =
  * How a resolved version is written back to the manifest. Beyond the
  * granularity values, `exact` selects the same single-version range as `patch`
  * but spells it with an explicit `=` operator, preserving a deliberate
- * `=x.y.z` pin. Collapse the spelling away with `saveRangeGranularity`
+ * `=x.y.z` pin. Collapse the spelling away with `rangeSpecGranularity`
  * when only the range width matters.
  */
-export type SaveRangeStyle = SaveRangeGranularity | 'exact'
+export type RangeSpecStyle = RangeSpecGranularity | 'exact'
 
-/** @deprecated Renamed to {@link SaveRangeStyle}. */
-export type PinnedVersion = SaveRangeStyle
+/** @deprecated Renamed to {@link RangeSpecStyle}. */
+export type PinnedVersion = RangeSpecStyle
 
-export function saveRangeGranularity (style: SaveRangeStyle): SaveRangeGranularity {
+export function rangeSpecGranularity (style: RangeSpecStyle): RangeSpecGranularity {
   return style === 'exact' ? 'patch' : style
 }
 

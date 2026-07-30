@@ -26,7 +26,7 @@ import type {
   BundledManifest,
   PackageManifest,
   PackageVersionPolicy,
-  SaveRangeStyle,
+  RangeSpecStyle,
   SupportedArchitectures,
   TrustPolicy,
 } from '@pnpm/types'
@@ -155,7 +155,7 @@ export interface RequestPackageOptions {
   onFetchError?: OnFetchError
   injectWorkspacePackages?: boolean
   calcSpecifier?: boolean
-  saveRangeStyle?: SaveRangeStyle
+  rangeSpecStyle?: RangeSpecStyle
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: PackageVersionPolicy
   trustPolicyIgnoreAfter?: number

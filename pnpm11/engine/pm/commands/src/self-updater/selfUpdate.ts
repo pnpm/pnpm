@@ -12,9 +12,9 @@ import { createResolver, policyViolationToError, type ResolutionPolicyViolation 
 import { resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
 import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import { globalInfo, globalWarn } from '@pnpm/logger'
-import { inferSaveRangeStyle, MINIMUM_RELEASE_AGE_VIOLATION_CODE } from '@pnpm/resolving.npm-resolver'
+import { inferRangeSpecStyle, MINIMUM_RELEASE_AGE_VIOLATION_CODE } from '@pnpm/resolving.npm-resolver'
 import { createStoreController, type CreateStoreControllerOptions, shouldFetchFullMetadata } from '@pnpm/store.connection-manager'
-import type { SaveRangeStyle } from '@pnpm/types'
+import type { RangeSpecStyle } from '@pnpm/types'
 import { readProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import { isCI } from 'ci-info'
 import { pick } from 'ramda'
@@ -369,16 +369,16 @@ function updateVersionConstraint (current: string | undefined, newVersion: strin
   // Range that still satisfies the new version — leave it as-is (lockfile handles pinning)
   if (semver.satisfies(newVersion, current, { includePrerelease: true })) return current
   // Determine the pinning style of the current specifier
-  const saveRangeStyle = inferSaveRangeStyle(current)
-  if (saveRangeStyle == null) {
+  const rangeSpecStyle = inferRangeSpecStyle(current)
+  if (rangeSpecStyle == null) {
     // Complex range that can't be updated while preserving its structure — fall back to ^version
     return `^${newVersion}`
   }
-  return versionSpecFromSaveRangeStyle(newVersion, saveRangeStyle)
+  return versionSpecFromRangeSpecStyle(newVersion, rangeSpecStyle)
 }
 
-function versionSpecFromSaveRangeStyle (version: string, saveRangeStyle: SaveRangeStyle): string {
-  switch (saveRangeStyle) {
+function versionSpecFromRangeSpecStyle (version: string, rangeSpecStyle: RangeSpecStyle): string {
+  switch (rangeSpecStyle) {
     case 'none':
     case 'major': return `^${version}`
     case 'minor': return `~${version}`

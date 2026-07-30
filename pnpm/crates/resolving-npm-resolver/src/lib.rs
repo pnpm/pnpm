@@ -22,7 +22,7 @@ mod errors;
 mod fetch_attestation_published_at;
 mod fetch_full_metadata;
 mod fetch_full_metadata_cached;
-mod infer_save_range_style;
+mod infer_range_spec_style;
 mod lookup_context;
 pub mod mirror;
 mod named_registry;
@@ -50,7 +50,7 @@ pub use fetch_full_metadata::{
     FetchFullMetadataOptions, FetchFullMetadataOutcome, fetch_full_metadata,
 };
 pub use fetch_full_metadata_cached::{FetchFullMetadataCachedOptions, fetch_full_metadata_cached};
-pub use infer_save_range_style::infer_save_range_style;
+pub use infer_range_spec_style::infer_range_spec_style;
 pub use mirror::{ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR};
 pub use named_registry::{
     BUILTIN_NAMED_REGISTRIES, MergeNamedRegistriesError, build_named_registry_prefixes,

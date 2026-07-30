@@ -14,9 +14,9 @@ import type {
   ProjectId,
   ProjectManifest,
   ProjectRootDir,
+  RangeSpecStyle,
   ReadPackageHook,
   Registries,
-  SaveRangeStyle,
   SupportedArchitectures,
   TrustPolicy,
 } from '@pnpm/types'
@@ -105,7 +105,7 @@ export interface ImporterToResolveGeneric<WantedDepExtraProps> extends Importer<
   hasRemovedDependencies?: boolean
   preferredVersions?: PreferredVersions
   wantedDependencies: Array<WantedDepExtraProps & WantedDependency & { updateDepth: number }>
-  saveRangeStyle?: SaveRangeStyle
+  rangeSpecStyle?: RangeSpecStyle
 }
 
 export interface ResolveDependenciesOptions {
@@ -285,7 +285,7 @@ export async function resolveDependencyTree<T> (
       preferredVersions: importer.preferredVersions ?? {},
       wantedDependencies: importer.wantedDependencies,
       options: resolveOpts,
-      saveRangeStyle: importer.saveRangeStyle,
+      rangeSpecStyle: importer.rangeSpecStyle,
     }
   })
   const { pkgAddressesByImporters, time } = await resolveRootDependencies(ctx, resolveArgs)

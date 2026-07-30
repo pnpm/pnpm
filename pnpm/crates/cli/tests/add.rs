@@ -748,7 +748,7 @@ fn add_npm_alias_spec_is_kept_verbatim() {
 }
 
 /// A previous specifier that is a non-registry path/URL must not influence
-/// the pin: `infer_save_range_style` scans for a version anywhere in the
+/// the pin: `infer_range_spec_style` scans for a version anywhere in the
 /// spec, so a `file:` tarball path whose only range-like element is an
 /// `x.y.z` classifies as an exact pin. Re-adding over
 /// `file:../deps/100.0.0.tgz` with `@^100.0.0` keeps the caret

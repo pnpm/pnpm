@@ -53,7 +53,7 @@ export async function installGlobalPackages (
     storeController: store.ctrl,
     storeDir: store.dir,
   }
-  const saveRangeStyle = opts.saveExact ? 'patch' : (opts.savePrefix === '~' ? 'minor' : 'major')
+  const rangeSpecStyle = opts.saveExact ? 'patch' : (opts.savePrefix === '~' ? 'minor' : 'major')
   const { updatedProject, ignoredBuilds, resolutionPolicyViolations } = await mutateModulesInSingleProject(
     {
       allowNew: true,
@@ -62,7 +62,7 @@ export async function installGlobalPackages (
       manifest,
       mutation: 'installSome' as const,
       peer: false,
-      saveRangeStyle,
+      rangeSpecStyle,
       rootDir: opts.dir as ProjectRootDir,
       targetDependenciesField: 'dependencies' as const,
     },

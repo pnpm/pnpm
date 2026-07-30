@@ -30,7 +30,7 @@ use node_semver::Version;
 use pacquet_config::{TrustPolicy, version_policy::PackageVersionPolicy};
 use pacquet_lockfile::{LockfileResolution, PkgName, PkgNameVer, TarballResolution};
 use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_and_sanitize};
-use pacquet_registry::{Package, PackageVersion, SaveRangeStyle};
+use pacquet_registry::{Package, PackageVersion, RangeSpecStyle};
 use pacquet_resolving_resolver_base::{
     LatestInfo, LatestQuery, NoMatchingVersionError, PackageVersionGuardDecision,
     RegistryResponseError, RegistryResponseErrorOptions, ResolutionPolicyViolation, ResolveError,
@@ -565,7 +565,7 @@ fn workspace_fallback_options(opts: &ResolveOptions) -> ResolveFromWorkspaceOpti
 fn saved_specifier_options(opts: &ResolveOptions) -> SavedSpecifierOptions {
     SavedSpecifierOptions {
         calc_specifier: opts.calc_specifier,
-        save_range_style: opts.save_range_style,
+        range_spec_style: opts.range_spec_style,
         save_workspace_protocol: opts.save_workspace_protocol,
     }
 }
@@ -865,12 +865,12 @@ pub(crate) fn calc_specifier_from<'a>(
     wanted_dependency: &'a WantedDependency,
     opts: &ResolveOptions,
     spec: &RegistryPackageSpec,
-) -> Option<(&'a str, SaveRangeStyle)> {
+) -> Option<(&'a str, RangeSpecStyle)> {
     if !opts.calc_specifier || spec.normalized_bare_specifier.is_some() {
         return None;
     }
     let bare_specifier = wanted_dependency.bare_specifier.as_deref()?;
-    Some((bare_specifier, opts.save_range_style.unwrap_or(SaveRangeStyle::Major)))
+    Some((bare_specifier, opts.range_spec_style.unwrap_or(RangeSpecStyle::Major)))
 }
 
 /// Resolver-time `trustPolicy='no-downgrade'` check on a fresh pick.

@@ -6,7 +6,7 @@ import {
   type DependenciesField,
   type DependenciesOrPeersField,
   type ProjectManifest,
-  type SaveRangeStyle,
+  type RangeSpecStyle,
 } from '@pnpm/types'
 import semver from 'semver'
 
@@ -15,23 +15,23 @@ export interface PackageSpecObject {
   peer?: boolean
   bareSpecifier?: string
   resolvedVersion?: string
-  saveRangeStyle?: SaveRangeStyle
+  rangeSpecStyle?: RangeSpecStyle
   saveType?: DependenciesField
 }
 
-function getPeerSpecifier (spec: string, resolvedVersion?: string, saveRangeStyle?: SaveRangeStyle): string {
+function getPeerSpecifier (spec: string, resolvedVersion?: string, rangeSpecStyle?: RangeSpecStyle): string {
   if (isValidPeerRange(spec)) return spec
 
-  const rangeFromResolved = resolvedVersion ? createVersionSpecFromResolvedVersion(resolvedVersion, saveRangeStyle) : null
+  const rangeFromResolved = resolvedVersion ? createVersionSpecFromResolvedVersion(resolvedVersion, rangeSpecStyle) : null
   return rangeFromResolved ?? '*'
 }
 
-export function createVersionSpecFromResolvedVersion (resolvedVersion: string, saveRangeStyle?: SaveRangeStyle): string | null {
+export function createVersionSpecFromResolvedVersion (resolvedVersion: string, rangeSpecStyle?: RangeSpecStyle): string | null {
   const parsed = semver.parse(resolvedVersion)
   if (!parsed) return null
   if (parsed.prerelease.length) return resolvedVersion
 
-  switch (saveRangeStyle ?? 'major') {
+  switch (rangeSpecStyle ?? 'major') {
     case 'none':
     case 'major':
       return `^${resolvedVersion}`
@@ -67,7 +67,7 @@ export async function updateProjectManifestObject (
           defineDepEntry(
             packageManifest.peerDependencies,
             packageSpec.alias,
-            getPeerSpecifier(spec, packageSpec.resolvedVersion, packageSpec.saveRangeStyle)
+            getPeerSpecifier(spec, packageSpec.resolvedVersion, packageSpec.rangeSpecStyle)
           )
         }
       }

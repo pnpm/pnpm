@@ -1,6 +1,6 @@
 import { expect, test } from '@jest/globals'
 
-import { inferSaveRangeStyle } from '../lib/inferSaveRangeStyle.js'
+import { inferRangeSpecStyle } from '../lib/inferRangeSpecStyle.js'
 
 test.each([
   ['^1.0.0', 'major'],
@@ -29,6 +29,6 @@ test.each([
   ['catalog:foo', undefined],
   // A catalog name that parses as a version must not be treated as a pin.
   ['catalog:express4-21', undefined],
-])('inferSaveRangeStyle()', (spec, expectedResult) => {
-  expect(inferSaveRangeStyle(spec)).toEqual(expectedResult)
+])('inferRangeSpecStyle()', (spec, expectedResult) => {
+  expect(inferRangeSpecStyle(spec)).toEqual(expectedResult)
 })

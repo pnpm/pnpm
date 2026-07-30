@@ -1,12 +1,12 @@
-use super::infer_save_range_style;
-use pacquet_registry::SaveRangeStyle;
+use super::infer_range_spec_style;
+use pacquet_registry::RangeSpecStyle;
 
 /// Table covering the pin classifications, including the parse-range
 /// edge cases that derive the same results.
 #[test]
-fn matches_pnpm_infer_save_range_style() {
-    use SaveRangeStyle::{Exact, Major, Minor, None as NoneVariant, Patch};
-    let cases: &[(&str, Option<SaveRangeStyle>)] = &[
+fn matches_pnpm_infer_range_spec_style() {
+    use RangeSpecStyle::{Exact, Major, Minor, None as NoneVariant, Patch};
+    let cases: &[(&str, Option<RangeSpecStyle>)] = &[
         ("^1.0.0", Some(Major)),
         ("~1.0.0", Some(Minor)),
         ("1.0.0", Some(Patch)),
@@ -56,6 +56,6 @@ fn matches_pnpm_infer_save_range_style() {
         ("", None),
     ];
     for (spec, expected) in cases {
-        assert_eq!(infer_save_range_style(spec), *expected, "spec: {spec:?}");
+        assert_eq!(infer_range_spec_style(spec), *expected, "spec: {spec:?}");
     }
 }

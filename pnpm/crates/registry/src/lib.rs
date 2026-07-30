@@ -3,14 +3,14 @@ mod package_distribution;
 mod package_tag;
 mod package_version;
 mod package_versions;
-mod save_range_style;
+mod range_spec_style;
 
 pub use package::Package;
 pub use package_distribution::{AttestationsDist, PackageDistribution, ProvenanceMeta};
 pub use package_tag::PackageTag;
 pub use package_version::{Approver, NpmUser, PackageVersion, TrustedPublisher};
 pub use package_versions::PackageVersions;
-pub use save_range_style::{SaveRangeGranularity, SaveRangeStyle};
+pub use range_spec_style::{RangeSpecGranularity, RangeSpecStyle};
 
 use derive_more::{Display, Error, From};
 use miette::Diagnostic;

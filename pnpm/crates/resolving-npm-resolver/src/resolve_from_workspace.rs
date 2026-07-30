@@ -14,7 +14,7 @@ use miette::Diagnostic;
 use node_semver::Version;
 use pacquet_config::SaveWorkspaceProtocol;
 use pacquet_lockfile::{DirectoryResolution, LockfileResolution};
-use pacquet_registry::SaveRangeStyle;
+use pacquet_registry::RangeSpecStyle;
 use pacquet_resolving_resolver_base::{
     PkgResolutionId, ResolveResult, WantedDependency, WorkspacePackage, WorkspacePackages,
     WorkspacePackagesByVersion,
@@ -72,7 +72,7 @@ pub struct SavedSpecifierOptions {
     /// importer's direct dependencies is written to a manifest.
     pub calc_specifier: bool,
     /// Range operator to apply when the dependency declares none.
-    pub save_range_style: Option<SaveRangeStyle>,
+    pub range_spec_style: Option<RangeSpecStyle>,
     /// The `saveWorkspaceProtocol` setting.
     pub save_workspace_protocol: SaveWorkspaceProtocol,
 }
@@ -294,7 +294,7 @@ fn workspace_specifier(
         manifest_field("name")?,
         manifest_field("version"),
         saved_specifier.save_workspace_protocol,
-        saved_specifier.save_range_style.unwrap_or_default(),
+        saved_specifier.range_spec_style.unwrap_or_default(),
     ))
 }
 

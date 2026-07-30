@@ -22,7 +22,7 @@ use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
 use pacquet_lockfile_preferred_versions::get_preferred_versions_from_lockfile_and_manifests;
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
-use pacquet_registry::SaveRangeStyle;
+use pacquet_registry::RangeSpecStyle;
 use pacquet_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
 use pacquet_resolving_deps_resolver::is_valid_dependency_alias;
 use pacquet_resolving_git_resolver::{
@@ -30,7 +30,7 @@ use pacquet_resolving_git_resolver::{
 };
 use pacquet_resolving_npm_resolver::{
     DeclaredSpecifiers, InMemoryPackageMetaCache, PackumentFetchLocker, PickPackageError,
-    PickPackageOptions, calc_specifier_for_workspace_dep, infer_save_range_style,
+    PickPackageOptions, calc_specifier_for_workspace_dep, infer_range_spec_style,
     parse_bare_specifier, pick_matching_local_version_or_null, pick_package,
     pick_registry_for_package, shared_packument_fetch_locker,
 };
@@ -64,9 +64,9 @@ where
     pub package_names: &'a [String],
     /// How the freshly-resolved version is pinned into the manifest range,
     /// derived from `--save-exact` / `--save-prefix`. See
-    /// [`SaveRangeStyle::from_save_options`].
+    /// [`RangeSpecStyle::from_save_options`].
     // TODO: read `save-exact` / `save-prefix` from `.npmrc`, merge configs, and derive this there.
-    pub save_range_style: SaveRangeStyle,
+    pub range_spec_style: RangeSpecStyle,
     /// `--save-catalog-name=<name>` (with `--save-catalog` a shorthand for
     /// `default`), or the `saveCatalogName` config default. When `Some`,
     /// the added dependency is written as `catalog:` / `catalog:<name>`
@@ -174,7 +174,7 @@ where
             lockfile_path,
             dependency_groups,
             package_names,
-            save_range_style,
+            range_spec_style,
             save_catalog_name,
             resolved_packages,
             supported_architectures,
@@ -200,7 +200,7 @@ where
             dependency_groups.as_deref(),
             package_names,
             &latest_picker,
-            save_range_style,
+            range_spec_style,
             save_catalog_name.as_deref(),
             &catalog_ctx.catalogs,
             &catalog_ctx.prefix,
@@ -302,7 +302,7 @@ where
             lockfile_path,
             dependency_groups,
             package_names,
-            save_range_style,
+            range_spec_style,
             save_catalog_name,
             resolved_packages,
             supported_architectures,
@@ -323,7 +323,7 @@ where
             lockfile,
             dependency_groups.as_deref(),
             package_names,
-            save_range_style,
+            range_spec_style,
             save_catalog_name.as_deref(),
         )
         .await?;
@@ -412,7 +412,7 @@ async fn prepare_selected_manifests<Reporter: self::Reporter>(
     lockfile: Option<&Lockfile>,
     dependency_groups: Option<&[DependencyGroup]>,
     package_names: &[String],
-    save_range_style: SaveRangeStyle,
+    range_spec_style: RangeSpecStyle,
     save_catalog_name: Option<&str>,
 ) -> Result<SelectedAddPreparation, AddError> {
     let first_index = *selected_indices.first().expect("selected add requires a project");
@@ -442,7 +442,7 @@ async fn prepare_selected_manifests<Reporter: self::Reporter>(
             dependency_groups,
             package_names,
             &latest_picker,
-            save_range_style,
+            range_spec_style,
             save_catalog_name,
             &catalogs,
             &catalog_ctx.prefix,
@@ -494,7 +494,7 @@ async fn prepare_manifest<'a, Reporter: self::Reporter>(
     dependency_groups: Option<&[DependencyGroup]>,
     package_names: &[String],
     latest_picker: &tokio::sync::OnceCell<LatestPicker<'a>>,
-    save_range_style: SaveRangeStyle,
+    range_spec_style: RangeSpecStyle,
     save_catalog_name: Option<&str>,
     catalogs: &Catalogs,
     prefix: &str,
@@ -513,7 +513,7 @@ async fn prepare_manifest<'a, Reporter: self::Reporter>(
                 http_client,
                 http_client_arc,
                 latest_picker,
-                save_range_style,
+                range_spec_style,
                 save_catalog_name,
                 catalogs,
                 prefix,
@@ -644,7 +644,7 @@ async fn resolve_added_dependency<'a>(
     http_client: &'a ThrottledClient,
     http_client_arc: &std::sync::Arc<ThrottledClient>,
     latest_picker: &tokio::sync::OnceCell<LatestPicker<'a>>,
-    save_range_style: SaveRangeStyle,
+    range_spec_style: RangeSpecStyle,
     save_catalog_name: Option<&str>,
     catalogs: &Catalogs,
     prefix: &str,
@@ -705,7 +705,7 @@ async fn resolve_added_dependency<'a>(
         explicit_spec,
         prev_specifier.as_deref(),
         config,
-        save_range_style,
+        range_spec_style,
         workspace_packages,
     ) {
         workspace_specifier
@@ -725,7 +725,7 @@ async fn resolve_added_dependency<'a>(
                 prev,
                 config,
                 http_client,
-                save_range_style,
+                range_spec_style,
                 lockfile,
                 manifest,
                 meta_cache,
@@ -758,7 +758,7 @@ async fn resolve_added_dependency<'a>(
                         name: package_name.to_string(),
                         error,
                     })?;
-                latest.serialize(save_range_style)
+                latest.serialize(range_spec_style)
             }
         }
     };
@@ -869,7 +869,7 @@ async fn resolve_explicit_registry_spec(
     prev_specifier: Option<&str>,
     config: &Config,
     http_client: &ThrottledClient,
-    save_range_style: SaveRangeStyle,
+    range_spec_style: RangeSpecStyle,
     lockfile: Option<&Lockfile>,
     manifest: &PackageManifest,
     meta_cache: &InMemoryPackageMetaCache,
@@ -935,13 +935,13 @@ async fn resolve_explicit_registry_spec(
     // Specifier-operator precedence: the existing entry's operator wins
     // over the spec's, which wins over the configured default. Only a
     // registry-style previous specifier carries a meaningful operator —
-    // `infer_save_range_style` scans for a version anywhere in the spec, so a
+    // `infer_range_spec_style` scans for a version anywhere in the spec, so a
     // path/URL prev (e.g. `file:../deps/2.0.0.tgz`) would otherwise be misread
     // as a pin. Gate it on `parse_bare_specifier` accepting a non-URL spec.
     let prev_pin = prev_specifier
         .filter(|prev| is_registry_style_specifier(prev, package_name, &registry))
-        .and_then(infer_save_range_style);
-    let pin = prev_pin.or_else(|| infer_save_range_style(spec)).unwrap_or(save_range_style);
+        .and_then(infer_range_spec_style);
+    let pin = prev_pin.or_else(|| infer_range_spec_style(spec)).unwrap_or(range_spec_style);
     Ok(Some(picked.serialize(pin)))
 }
 
@@ -983,7 +983,7 @@ fn workspace_save_specifier(
     explicit_spec: Option<&str>,
     prev_specifier: Option<&str>,
     config: &Config,
-    save_range_style: SaveRangeStyle,
+    range_spec_style: RangeSpecStyle,
     workspace_packages: Option<&WorkspacePackages>,
 ) -> Option<String> {
     let (target_name, resolved_version) =
@@ -1028,7 +1028,7 @@ fn workspace_save_specifier(
         &target_name,
         resolved_version.as_deref(),
         config.save_workspace_protocol,
-        save_range_style,
+        range_spec_style,
     );
     if config.save_workspace_protocol == SaveWorkspaceProtocol::Off
         && !explicit_spec.is_some_and(|specifier| specifier.starts_with("workspace:"))

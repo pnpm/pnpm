@@ -1,6 +1,6 @@
 use crate::{PackageSpecObject, is_workspace_local_path_specifier, update_project_manifest_object};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
-use pacquet_registry::SaveRangeStyle;
+use pacquet_registry::RangeSpecStyle;
 
 /// Catalog metadata for a direct dependency requested through the `catalog:`
 /// protocol.
@@ -50,7 +50,7 @@ pub struct UpdateProjectManifestOptions<'a> {
     /// alongside a `target_dependencies_field` write, where the peer entry
     /// is added inside the `saveType` branch.
     pub peer: bool,
-    pub save_range_style: Option<SaveRangeStyle>,
+    pub range_spec_style: Option<RangeSpecStyle>,
     /// The dependency field the saved deps belong in (pnpm's
     /// `targetDependenciesField`). `None` leaves each dep in whichever field
     /// already declares it.
@@ -91,7 +91,7 @@ pub fn update_project_manifest(
                 opts.preserve_workspace_protocol,
             )),
             resolved_version: resolved.version.clone(),
-            save_range_style: opts.save_range_style,
+            range_spec_style: opts.range_spec_style,
             save_type: opts.target_dependencies_field,
         });
     }
@@ -106,7 +106,7 @@ pub fn update_project_manifest(
                 peer: opts.peer,
                 bare_specifier: None,
                 resolved_version: None,
-                save_range_style: None,
+                range_spec_style: None,
                 save_type: opts.target_dependencies_field,
             });
         }

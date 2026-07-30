@@ -13,7 +13,7 @@ use miette::{Context, Diagnostic};
 use pacquet_config::Config;
 use pacquet_package_manager::{Update, build_workspace_packages_map};
 use pacquet_package_manifest::DependencyGroup;
-use pacquet_registry::SaveRangeStyle;
+use pacquet_registry::RangeSpecStyle;
 use pacquet_reporter::Reporter;
 use std::path::Path;
 
@@ -388,12 +388,12 @@ impl UpdateArgs {
         }
         let supported_architectures =
             self.supported_architectures.apply_to(config.supported_architectures.clone());
-        let save_range_style = SaveRangeStyle::from_save_options(self.save_exact, None);
+        let range_spec_style = RangeSpecStyle::from_save_options(self.save_exact, None);
         Box::pin(crate::cli_args::global::handle_global_update::<Reporter>(
             config,
             &self.packages,
             self.latest,
-            save_range_style,
+            range_spec_style,
             supported_architectures,
         ))
         .await

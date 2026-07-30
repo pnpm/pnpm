@@ -33,11 +33,11 @@ import { storeIndexKey } from '@pnpm/store.index'
 import type {
   DependencyManifest,
   PackageVersionPolicy,
+  RangeSpecStyle,
   Registries,
-  SaveRangeStyle,
   TrustPolicy,
 } from '@pnpm/types'
-import { saveRangeGranularity } from '@pnpm/types'
+import { rangeSpecGranularity } from '@pnpm/types'
 import {
   readPkgFromCafs,
 } from '@pnpm/worker'
@@ -51,7 +51,7 @@ import versionSelectorType from 'version-selector-type'
 
 import { clearMeta, retainsFullMeta } from './clearMeta.js'
 import { fetchMetadataFromFromRegistry, type FetchMetadataFromFromRegistryOptions, RegistryResponseError } from './fetch.js'
-import { inferSaveRangeStyle } from './inferSaveRangeStyle.js'
+import { inferRangeSpecStyle } from './inferRangeSpecStyle.js'
 import { memoizeFetchMetadata } from './memoizeFetchMetadata.js'
 import { normalizeRegistryUrl } from './normalizeRegistryUrl.js'
 import {
@@ -130,7 +130,7 @@ export {
   workspacePrefToNpm,
 }
 export { createNpmResolutionVerifier, type CreateNpmResolutionVerifierOptions } from './createNpmResolutionVerifier.js'
-export { inferSaveRangeStyle } from './inferSaveRangeStyle.js'
+export { inferRangeSpecStyle } from './inferRangeSpecStyle.js'
 export {
   MINIMUM_RELEASE_AGE_VIOLATION_CODE,
   TRUST_DOWNGRADE_VIOLATION_CODE,
@@ -496,7 +496,7 @@ export type ResolveFromNpmOptions = {
   updateChecksums?: boolean
   injectWorkspacePackages?: boolean
   calcSpecifier?: boolean
-  saveRangeStyle?: SaveRangeStyle
+  rangeSpecStyle?: RangeSpecStyle
 } & ({
   projectDir?: string
   workspacePackages?: undefined
@@ -534,7 +534,7 @@ async function resolveNpm (
       update: Boolean(opts.update),
       saveWorkspaceProtocol: ctx.saveWorkspaceProtocol !== false ? ctx.saveWorkspaceProtocol : true,
       calcSpecifier: opts.calcSpecifier,
-      saveRangeStyle: opts.saveRangeStyle,
+      rangeSpecStyle: opts.rangeSpecStyle,
     })
     if (resolvedFromWorkspace != null) {
       return resolvedFromWorkspace
@@ -623,7 +623,7 @@ async function resolveNpm (
           update: false,
           saveWorkspaceProtocol: ctx.saveWorkspaceProtocol,
           calcSpecifier: opts.calcSpecifier,
-          saveRangeStyle: opts.saveRangeStyle,
+          rangeSpecStyle: opts.rangeSpecStyle,
         })
       } catch (workspaceErr) {
         // When the registry doesn't have the package and the workspace has it
@@ -649,7 +649,7 @@ async function resolveNpm (
           update: false,
           saveWorkspaceProtocol: ctx.saveWorkspaceProtocol,
           calcSpecifier: opts.calcSpecifier,
-          saveRangeStyle: opts.saveRangeStyle,
+          rangeSpecStyle: opts.rangeSpecStyle,
         })
       } catch (workspaceErr) {
         // Neither the registry nor the workspace has a matching version; the
@@ -678,7 +678,7 @@ async function resolveNpm (
           hardLinkLocalPackages: opts.injectWorkspacePackages === true || wantedDependency.injected,
           saveWorkspaceProtocol: ctx.saveWorkspaceProtocol,
           calcSpecifier: opts.calcSpecifier,
-          saveRangeStyle: opts.saveRangeStyle,
+          rangeSpecStyle: opts.rangeSpecStyle,
         }),
         latest: meta['dist-tags'].latest,
       }
@@ -693,7 +693,7 @@ async function resolveNpm (
           hardLinkLocalPackages: opts.injectWorkspacePackages === true || wantedDependency.injected,
           saveWorkspaceProtocol: ctx.saveWorkspaceProtocol,
           calcSpecifier: opts.calcSpecifier,
-          saveRangeStyle: opts.saveRangeStyle,
+          rangeSpecStyle: opts.rangeSpecStyle,
         }),
         latest: meta['dist-tags'].latest,
       }
@@ -712,7 +712,7 @@ async function resolveNpm (
       wantedDependency,
       spec,
       version: pickedPackage.version,
-      defaultSaveRangeStyle: opts.saveRangeStyle,
+      defaultRangeSpecStyle: opts.rangeSpecStyle,
     })
   }
   const publishedAt = meta.time?.[pickedPackage.version]
@@ -749,7 +749,7 @@ async function resolveJsr (
   return {
     ...picked,
     normalizedBareSpecifier: opts.calcSpecifier
-      ? calcPrefixedSpecifier('jsr:', spec.jsrPkgName, wantedDependency, picked.manifest.version, opts.saveRangeStyle)
+      ? calcPrefixedSpecifier('jsr:', spec.jsrPkgName, wantedDependency, picked.manifest.version, opts.rangeSpecStyle)
       : undefined,
     resolvedVia: 'jsr-registry',
     alias: spec.jsrPkgName,
@@ -818,7 +818,7 @@ async function resolveFromNamedRegistry (
   return {
     ...picked,
     normalizedBareSpecifier: opts.calcSpecifier
-      ? calcPrefixedSpecifier(`${spec.registryName}:`, spec.name, wantedDependency, picked.manifest.version, opts.saveRangeStyle)
+      ? calcPrefixedSpecifier(`${spec.registryName}:`, spec.name, wantedDependency, picked.manifest.version, opts.rangeSpecStyle)
       : undefined,
     resolvedVia: 'named-registry',
     registryName: spec.registryName,
@@ -894,9 +894,9 @@ function calcPrefixedSpecifier (
   pkgName: string,
   wantedDependency: WantedDependency,
   version: string,
-  defaultSaveRangeStyle?: SaveRangeStyle
+  defaultRangeSpecStyle?: RangeSpecStyle
 ): string {
-  const range = calcRange(version, wantedDependency, defaultSaveRangeStyle)
+  const range = calcRange(version, wantedDependency, defaultRangeSpecStyle)
   if (!wantedDependency.alias || pkgName === wantedDependency.alias) return `${prefix}${range}`
   return `${prefix}${pkgName}@${range}`
 }
@@ -905,29 +905,29 @@ function calcSpecifier ({
   wantedDependency,
   spec,
   version,
-  defaultSaveRangeStyle,
+  defaultRangeSpecStyle,
 }: {
   wantedDependency: WantedDependency
   spec: RegistryPackageSpec
   version: string
-  defaultSaveRangeStyle?: SaveRangeStyle
+  defaultRangeSpecStyle?: RangeSpecStyle
 }): string {
   if (wantedDependency.prevSpecifier === wantedDependency.bareSpecifier && wantedDependency.prevSpecifier && versionSelectorType(wantedDependency.prevSpecifier)?.type === 'tag') {
     return wantedDependency.prevSpecifier
   }
-  const range = calcRange(version, wantedDependency, defaultSaveRangeStyle)
+  const range = calcRange(version, wantedDependency, defaultRangeSpecStyle)
   if (!wantedDependency.alias || spec.name === wantedDependency.alias) return range
   return `npm:${spec.name}@${range}`
 }
 
-function calcRange (version: string, wantedDependency: WantedDependency, defaultSaveRangeStyle?: SaveRangeStyle): string {
+function calcRange (version: string, wantedDependency: WantedDependency, defaultRangeSpecStyle?: RangeSpecStyle): string {
   if (semver.parse(version)?.prerelease.length) {
     return version
   }
-  const saveRangeStyle = (wantedDependency.prevSpecifier ? inferSaveRangeStyle(wantedDependency.prevSpecifier) : undefined) ??
-    (wantedDependency.bareSpecifier ? inferSaveRangeStyle(wantedDependency.bareSpecifier) : undefined) ??
-    defaultSaveRangeStyle
-  return createVersionSpec(version, saveRangeStyle)
+  const rangeSpecStyle = (wantedDependency.prevSpecifier ? inferRangeSpecStyle(wantedDependency.prevSpecifier) : undefined) ??
+    (wantedDependency.bareSpecifier ? inferRangeSpecStyle(wantedDependency.bareSpecifier) : undefined) ??
+    defaultRangeSpecStyle
+  return createVersionSpec(version, rangeSpecStyle)
 }
 
 function tryResolveFromWorkspace (
@@ -942,7 +942,7 @@ function tryResolveFromWorkspace (
     update?: boolean
     saveWorkspaceProtocol?: boolean | 'rolling'
     calcSpecifier?: boolean
-    saveRangeStyle?: SaveRangeStyle
+    rangeSpecStyle?: RangeSpecStyle
   }
 ): WorkspaceResolveResult | null {
   if (!wantedDependency.bareSpecifier?.startsWith('workspace:')) {
@@ -966,7 +966,7 @@ function tryResolveFromWorkspace (
     update: opts.update,
     saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
     calcSpecifier: opts.calcSpecifier,
-    saveRangeStyle: opts.saveRangeStyle,
+    rangeSpecStyle: opts.rangeSpecStyle,
   })
 }
 
@@ -981,7 +981,7 @@ function tryResolveFromWorkspacePackages (
     update?: boolean
     saveWorkspaceProtocol?: boolean | 'rolling'
     calcSpecifier?: boolean
-    saveRangeStyle?: SaveRangeStyle
+    rangeSpecStyle?: RangeSpecStyle
   }
 ): WorkspaceResolveResult {
   const workspacePkgsMatchingName = workspacePackages.get(spec.name)
@@ -1042,7 +1042,7 @@ function resolveFromLocalPackage (
     lockfileDir?: string
     saveWorkspaceProtocol?: boolean | 'rolling'
     calcSpecifier?: boolean
-    saveRangeStyle?: SaveRangeStyle
+    rangeSpecStyle?: RangeSpecStyle
   }
 ): WorkspaceResolveResult {
   let id!: PkgResolutionId
@@ -1062,7 +1062,7 @@ function resolveFromLocalPackage (
       spec,
       saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
       version: localPackage.manifest.version,
-      defaultSaveRangeStyle: opts.saveRangeStyle,
+      defaultRangeSpecStyle: opts.rangeSpecStyle,
     })
   }
   return {
@@ -1082,24 +1082,24 @@ function calcSpecifierForWorkspaceDep ({
   spec,
   saveWorkspaceProtocol,
   version,
-  defaultSaveRangeStyle,
+  defaultRangeSpecStyle,
 }: {
   wantedDependency: WantedDependency
   spec: RegistryPackageSpec
   saveWorkspaceProtocol: boolean | 'rolling' | undefined
   version: string
-  defaultSaveRangeStyle?: SaveRangeStyle
+  defaultRangeSpecStyle?: RangeSpecStyle
 }): string {
   if (!saveWorkspaceProtocol && !wantedDependency.bareSpecifier?.startsWith('workspace:')) {
-    return calcSpecifier({ wantedDependency, spec, version, defaultSaveRangeStyle })
+    return calcSpecifier({ wantedDependency, spec, version, defaultRangeSpecStyle })
   }
   const prefix = (!wantedDependency.alias || spec.name === wantedDependency.alias) ? 'workspace:' : `workspace:${spec.name}@`
   if (saveWorkspaceProtocol === 'rolling') {
     const specifier = wantedDependency.prevSpecifier ?? wantedDependency.bareSpecifier
     if (specifier) {
       if ([`${prefix}*`, `${prefix}^`, `${prefix}~`].includes(specifier)) return specifier
-      const saveRangeStyle = inferSaveRangeStyle(specifier)
-      switch (saveRangeStyle && saveRangeGranularity(saveRangeStyle)) {
+      const rangeSpecStyle = inferRangeSpecStyle(specifier)
+      switch (rangeSpecStyle && rangeSpecGranularity(rangeSpecStyle)) {
         case 'major': return `${prefix}^`
         case 'minor': return `${prefix}~`
         case 'patch':
@@ -1111,8 +1111,8 @@ function calcSpecifierForWorkspaceDep ({
   if (semver.parse(version)?.prerelease.length) {
     return `${prefix}${version}`
   }
-  const saveRangeStyle = (wantedDependency.prevSpecifier ? inferSaveRangeStyle(wantedDependency.prevSpecifier) : undefined) ?? defaultSaveRangeStyle
-  const range = createVersionSpec(version, saveRangeStyle)
+  const rangeSpecStyle = (wantedDependency.prevSpecifier ? inferRangeSpecStyle(wantedDependency.prevSpecifier) : undefined) ?? defaultRangeSpecStyle
+  const range = createVersionSpec(version, rangeSpecStyle)
   return `${prefix}${range}`
 }
 
@@ -1188,8 +1188,8 @@ function getIntegrity (dist: {
   return integrity.toString()
 }
 
-function createVersionSpec (version: string, saveRangeStyle?: SaveRangeStyle): string {
-  switch (saveRangeStyle ?? 'major') {
+function createVersionSpec (version: string, rangeSpecStyle?: RangeSpecStyle): string {
+  switch (rangeSpecStyle ?? 'major') {
     case 'none':
     case 'major':
       return `^${version}`
@@ -1200,7 +1200,7 @@ function createVersionSpec (version: string, saveRangeStyle?: SaveRangeStyle): s
     case 'exact':
       return `=${version}`
     default:
-      throw new PnpmError('BAD_PINNED_VERSION', `Cannot pin '${saveRangeStyle ?? 'undefined'}'`)
+      throw new PnpmError('BAD_PINNED_VERSION', `Cannot pin '${rangeSpecStyle ?? 'undefined'}'`)
   }
 }
 

@@ -1,6 +1,6 @@
 use super::{PackageSpecObject, guess_dependency_type, update_project_manifest_object};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_registry::SaveRangeStyle;
+use pacquet_registry::RangeSpecStyle;
 use serde_json::{Value, json};
 use tempfile::TempDir;
 
@@ -22,14 +22,14 @@ fn apply(manifest: &mut PackageManifest, specs: &[PackageSpecObject]) {
 fn peer_spec(
     bare_specifier: &str,
     resolved_version: Option<&str>,
-    save_range_style: Option<SaveRangeStyle>,
+    range_spec_style: Option<RangeSpecStyle>,
 ) -> PackageSpecObject {
     PackageSpecObject {
         alias: "foo".to_string(),
         peer: true,
         bare_specifier: Some(bare_specifier.to_string()),
         resolved_version: resolved_version.map(ToString::to_string),
-        save_range_style,
+        range_spec_style,
         save_type: Some(DependencyGroup::Dev),
     }
 }
@@ -40,7 +40,7 @@ fn prod_spec(alias: &str, bare_specifier: &str) -> PackageSpecObject {
         peer: false,
         bare_specifier: Some(bare_specifier.to_string()),
         resolved_version: None,
-        save_range_style: None,
+        range_spec_style: None,
         save_type: Some(DependencyGroup::Prod),
     }
 }
@@ -85,14 +85,14 @@ fn peer_dependency_derives_range_from_resolved_version() {
 }
 
 #[test]
-fn peer_dependency_honors_save_range_style() {
+fn peer_dependency_honors_range_spec_style() {
     let (_dir, mut manifest) = manifest_from_json(&json!({}));
     apply(
         &mut manifest,
         &[peer_spec(
             "https://github.com/hegemonic/taffydb/tarball/master",
             Some("1.4.0"),
-            Some(SaveRangeStyle::Minor),
+            Some(RangeSpecStyle::Minor),
         )],
     );
     assert_eq!(manifest.value()["peerDependencies"], json!({ "foo": "~1.4.0" }));
@@ -114,7 +114,7 @@ fn peer_dependency_keeps_prerelease_resolved_version_without_prefix() {
         &[peer_spec(
             "https://github.com/kevva/is-negative",
             Some("2.1.0-rc.1"),
-            Some(SaveRangeStyle::Minor),
+            Some(RangeSpecStyle::Minor),
         )],
     );
     assert_eq!(manifest.value()["peerDependencies"], json!({ "foo": "2.1.0-rc.1" }));
@@ -122,8 +122,8 @@ fn peer_dependency_keeps_prerelease_resolved_version_without_prefix() {
 
 #[test]
 fn peer_dependency_respects_patch_and_none_pins() {
-    for (save_range_style, expected) in
-        [(SaveRangeStyle::Patch, "3.2.1"), (SaveRangeStyle::None, "^3.2.1")]
+    for (range_spec_style, expected) in
+        [(RangeSpecStyle::Patch, "3.2.1"), (RangeSpecStyle::None, "^3.2.1")]
     {
         let (_dir, mut manifest) = manifest_from_json(&json!({}));
         apply(
@@ -131,7 +131,7 @@ fn peer_dependency_respects_patch_and_none_pins() {
             &[peer_spec(
                 "https://github.com/kevva/is-negative",
                 Some("3.2.1"),
-                Some(save_range_style),
+                Some(range_spec_style),
             )],
         );
         assert_eq!(manifest.value()["peerDependencies"], json!({ "foo": expected }));
@@ -198,7 +198,7 @@ fn leaves_the_manifest_untouched_when_a_later_spec_errors() {
         peer: false,
         bare_specifier: Some("2.0.0".to_string()),
         resolved_version: None,
-        save_range_style: None,
+        range_spec_style: None,
         save_type: Some(DependencyGroup::Optional),
     };
     // `foo` would be written first; `bar` then fails on the non-object

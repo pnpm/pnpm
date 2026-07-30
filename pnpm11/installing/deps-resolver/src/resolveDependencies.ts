@@ -47,9 +47,9 @@ import type {
   PackageManifest,
   PackageVersionPolicy,
   PkgIdWithPatchHash,
+  RangeSpecStyle,
   ReadPackageHook,
   Registries,
-  SaveRangeStyle,
   SupportedArchitectures,
   TrustPolicy,
 } from '@pnpm/types'
@@ -365,7 +365,7 @@ interface ResolvedDependenciesOptions {
   prefix: string
   supportedArchitectures?: SupportedArchitectures
   updateToLatest?: boolean
-  saveRangeStyle?: SaveRangeStyle
+  rangeSpecStyle?: RangeSpecStyle
 }
 
 interface PostponedResolutionOpts {
@@ -621,7 +621,7 @@ export interface ImporterToResolve {
   parentPkgAliases: ParentPkgAliases
   wantedDependencies: Array<WantedDependency & { updateDepth?: number }>
   options: ImporterToResolveOptions
-  saveRangeStyle?: SaveRangeStyle
+  rangeSpecStyle?: RangeSpecStyle
 }
 
 interface ResolveDependenciesOfImportersResult {
@@ -785,7 +785,7 @@ async function resolveDependenciesOfImporterDependency (
       ...importer.options,
       parentPkgAliases: importer.parentPkgAliases,
       pickLowestVersion: pickLowestVersion && !importer.updatePackageManifest,
-      saveRangeStyle: importer.saveRangeStyle,
+      rangeSpecStyle: importer.rangeSpecStyle,
       publishedBy: ctx.maximumPublishedBy,
     },
     extendedWantedDep
@@ -1056,7 +1056,7 @@ async function resolveDependenciesOfDependency (
     updateRequested,
     supportedArchitectures: options.supportedArchitectures,
     parentIds: options.parentIds,
-    saveRangeStyle: options.saveRangeStyle,
+    rangeSpecStyle: options.rangeSpecStyle,
   }
 
   // The catalog protocol is normally replaced when resolving the dependencies
@@ -1849,7 +1849,7 @@ interface ResolveDependencyOptions {
    */
   updateRequested: boolean
   supportedArchitectures?: SupportedArchitectures
-  saveRangeStyle?: SaveRangeStyle
+  rangeSpecStyle?: RangeSpecStyle
 }
 
 type ResolveDependencyResult = PkgAddressOrLink | null
@@ -1958,7 +1958,7 @@ async function resolveDependency (
         },
         injectWorkspacePackages: ctx.injectWorkspacePackages,
         calcSpecifier,
-        saveRangeStyle: options.saveRangeStyle,
+        rangeSpecStyle: options.rangeSpecStyle,
       })
     } catch (err: any) { // eslint-disable-line
       const wantedDependencyDetails = {

@@ -41,7 +41,7 @@ import { sequenceGraph } from '@pnpm/workspace.projects-sorter'
 import { updateWorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
 import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writer'
 
-import { getSaveRangeStyle } from './getSaveRangeStyle.js'
+import { getRangeSpecStyle } from './getRangeSpecStyle.js'
 import { getSaveType } from './getSaveType.js'
 import { handleIgnoredBuilds } from './handleIgnoredBuilds.js'
 import { setupPolicyHandlers } from './policyHandlers.js'
@@ -412,7 +412,7 @@ export async function installDeps (
       manifest,
       mutation: 'installSome' as const,
       peer: opts.savePeer,
-      saveRangeStyle: getSaveRangeStyle(opts),
+      rangeSpecStyle: getRangeSpecStyle(opts),
       rootDir: opts.dir as ProjectRootDir,
       targetDependenciesField: getSaveType(opts),
     }

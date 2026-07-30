@@ -1,6 +1,6 @@
 use node_semver::Version;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
-use pacquet_registry::SaveRangeStyle;
+use pacquet_registry::RangeSpecStyle;
 use pacquet_resolving_resolver_base::is_valid_peer_range;
 use serde_json::{Map, Value};
 
@@ -30,7 +30,7 @@ pub struct PackageSpecObject {
     pub peer: bool,
     pub bare_specifier: Option<String>,
     pub resolved_version: Option<String>,
-    pub save_range_style: Option<SaveRangeStyle>,
+    pub range_spec_style: Option<RangeSpecStyle>,
     pub save_type: Option<DependencyGroup>,
 }
 
@@ -75,7 +75,7 @@ pub fn update_project_manifest_object(
                 let peer_spec = get_peer_specifier(
                     &spec_str,
                     spec.resolved_version.as_deref(),
-                    spec.save_range_style,
+                    spec.range_spec_style,
                 );
                 define_dep_entry(&mut root, "peerDependencies", &spec.alias, &peer_spec)?;
             }
@@ -99,29 +99,29 @@ pub fn update_project_manifest_object(
 fn get_peer_specifier(
     spec: &str,
     resolved_version: Option<&str>,
-    save_range_style: Option<SaveRangeStyle>,
+    range_spec_style: Option<RangeSpecStyle>,
 ) -> String {
     if is_valid_peer_range(spec) {
         return spec.to_string();
     }
     resolved_version
-        .and_then(|version| create_version_spec_from_resolved_version(version, save_range_style))
+        .and_then(|version| create_version_spec_from_resolved_version(version, range_spec_style))
         .unwrap_or_else(|| "*".to_string())
 }
 
 /// Build a manifest range from a concrete resolved version and a pin operator:
-/// a prerelease is pinned exactly, otherwise the [`SaveRangeStyle`] operator
+/// a prerelease is pinned exactly, otherwise the [`RangeSpecStyle`] operator
 /// is prepended.
 /// Returns `None` when `resolved_version` is not valid semver.
 fn create_version_spec_from_resolved_version(
     resolved_version: &str,
-    save_range_style: Option<SaveRangeStyle>,
+    range_spec_style: Option<RangeSpecStyle>,
 ) -> Option<String> {
     let parsed = Version::parse(resolved_version).ok()?;
     if !parsed.pre_release.is_empty() {
         return Some(resolved_version.to_string());
     }
-    let prefix = save_range_style.unwrap_or(SaveRangeStyle::Major).range_prefix();
+    let prefix = range_spec_style.unwrap_or(RangeSpecStyle::Major).range_prefix();
     Some(format!("{prefix}{resolved_version}"))
 }
 

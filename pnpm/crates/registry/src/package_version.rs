@@ -5,7 +5,7 @@ use pipe_trait::Pipe;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    NetworkError, PackageTag, RegistryError, SaveRangeStyle,
+    NetworkError, PackageTag, RangeSpecStyle, RegistryError,
     package_distribution::PackageDistribution,
 };
 
@@ -298,11 +298,11 @@ impl PackageVersion {
     }
 
     #[must_use]
-    pub fn serialize(&self, save_range_style: SaveRangeStyle) -> String {
+    pub fn serialize(&self, range_spec_style: RangeSpecStyle) -> String {
         if !self.version.pre_release.is_empty() {
             return self.version.to_string();
         }
-        format!("{0}{1}", save_range_style.range_prefix(), self.version)
+        format!("{0}{1}", range_spec_style.range_prefix(), self.version)
     }
 }
 

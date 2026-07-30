@@ -27,7 +27,7 @@ export async function updateProjectManifest (
       peer: importer.peer,
       bareSpecifier: getBareSpecifierToSave(wantedDep, rdd, opts.preserveWorkspaceProtocol),
       resolvedVersion: rdd.version,
-      saveRangeStyle: importer.saveRangeStyle,
+      rangeSpecStyle: importer.rangeSpecStyle,
       saveType: importer.targetDependenciesField,
     })
   }

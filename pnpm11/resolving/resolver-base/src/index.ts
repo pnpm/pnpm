@@ -4,7 +4,7 @@ import type {
   PackageVersionPolicy,
   PkgResolutionId,
   ProjectRootDir,
-  SaveRangeStyle,
+  RangeSpecStyle,
   SupportedArchitectures,
   TrustPolicy,
 } from '@pnpm/types'
@@ -406,7 +406,7 @@ export interface ResolveOptions {
   updateChecksums?: boolean
   injectWorkspacePackages?: boolean
   calcSpecifier?: boolean
-  saveRangeStyle?: SaveRangeStyle
+  rangeSpecStyle?: RangeSpecStyle
   currentPkg?: {
     id: PkgResolutionId
     name?: string

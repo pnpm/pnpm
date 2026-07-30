@@ -15,7 +15,7 @@ use pacquet_package_is_installable::SupportedArchitectures;
 use pacquet_package_manifest::{
     DependencyGroup, convert_engines_runtime_to_dependencies, parse_manifest,
 };
-use pacquet_registry::SaveRangeStyle;
+use pacquet_registry::RangeSpecStyle;
 use pacquet_reporter::Reporter;
 use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use serde_json::{Value, json};
@@ -324,7 +324,7 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
             state,
             pkg,
             // dlx records the default caret range; the spec is throwaway.
-            SaveRangeStyle::default(),
+            RangeSpecStyle::default(),
             // dlx never catalogs.
             None,
             // dlx must download to run the bin, so never lockfile-only.
