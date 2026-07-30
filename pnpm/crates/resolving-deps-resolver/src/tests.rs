@@ -2725,13 +2725,16 @@ mod optional_propagation {
                 serde_json::json!({
                     "name": "regular",
                     "version": "1.0.0",
-                    "dependencies": { "plat": "1.0.0" },
-                    "optionalDependencies": { "plat": "1.0.0" }
+                    "dependencies": { "plat": "^1.0.0" },
+                    "optionalDependencies": { "plat": "^2.0.0" }
                 }),
             ),
         );
+        // Only the `dependencies` range resolves: a merge that kept the
+        // `optionalDependencies` range would miss the table and drop the
+        // edge as an optional resolution failure.
         table.insert(
-            ("plat".to_string(), "1.0.0".to_string()),
+            ("plat".to_string(), "^1.0.0".to_string()),
             fake_result("plat", "1.0.0", serde_json::json!({ "name": "plat", "version": "1.0.0" })),
         );
         let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };

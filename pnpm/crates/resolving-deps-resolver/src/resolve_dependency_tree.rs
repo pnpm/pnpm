@@ -3771,12 +3771,14 @@ fn extract_children(
     collect_deps(manifest, "dependencies", false, &parent, &bundled, &mut out)?;
     let mut optional = Vec::new();
     collect_deps(manifest, "optionalDependencies", true, &parent, &bundled, &mut optional)?;
-    let dependency_positions: HashMap<String, usize> =
-        out.iter().enumerate().map(|(index, (name, ..))| (name.clone(), index)).collect();
-    for spec in optional {
-        match dependency_positions.get(&spec.0) {
-            Some(&index) => out[index].2 = true,
-            None => out.push(spec),
+    if !optional.is_empty() {
+        let dependency_positions: HashMap<String, usize> =
+            out.iter().enumerate().map(|(index, (name, ..))| (name.clone(), index)).collect();
+        for spec in optional {
+            match dependency_positions.get(&spec.0) {
+                Some(&index) => out[index].2 = true,
+                None => out.push(spec),
+            }
         }
     }
     for (name, specifier) in engines_runtime_dependencies(manifest, "engines", "dependencies") {
