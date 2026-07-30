@@ -82,3 +82,26 @@ fn timestamp_strings_are_quoted() {
     let yaml = to_string(&json!({ "t": "2021-01-01" })).unwrap();
     assert_eq!(yaml, "t: '2021-01-01'\n");
 }
+
+#[test]
+fn key_over_simple_key_limit_renders_as_explicit_pair() {
+    let long_key = "k".repeat(1030);
+    let yaml = to_string(&json!({ &long_key: { "b": "c" } })).unwrap();
+    assert_eq!(yaml, format!("? {long_key}\n: b: c\n"));
+}
+
+#[test]
+fn key_at_simple_key_limit_renders_inline() {
+    let key = "k".repeat(1024);
+    let yaml = to_string(&json!({ &key: { "b": "c" } })).unwrap();
+    assert_eq!(yaml, format!("{key}:\n  b: c\n"));
+}
+
+// The threshold counts UTF-16 code units like js-yaml's `.length`: 513
+// astral characters are 513 Rust chars but 1026 code units.
+#[test]
+fn key_length_is_measured_in_utf16_code_units() {
+    let key = "\u{1F600}".repeat(513);
+    let yaml = to_string(&json!({ &key: { "b": "c" } })).unwrap();
+    assert_eq!(yaml, format!("? {key}\n: b: c\n"));
+}
