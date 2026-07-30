@@ -2523,12 +2523,11 @@ async fn a_workspace_range_root_dep_is_offered_as_a_peer_provider() {
     );
 }
 
-/// Workspace-level outcome lock for the rule tested by
-/// `resolve_peers::tests::cached_subtree_reuse_reports_no_peer_providers`
-/// (which is the regression test — this fixture resolves to the
-/// workspace root through the miss-hoist path with or without the
-/// fix, so it pins the end-to-end binding rather than discriminating
-/// the cache-replay code path).
+/// End-to-end companion of
+/// `resolve_peers::tests::cached_subtree_reuse_reports_no_peer_providers`:
+/// pkg-b reuses two foreign-owned subtrees — `mid`, whose walk resolved
+/// `peerpkg`, and `s2wrap`, whose consumer's miss the owning importer
+/// satisfied from its own ancestors (hiding it from pkg-b's hoist).
 #[tokio::test]
 async fn importer_sharing_foreign_subtrees_binds_peers_from_workspace_root() {
     let mut table = HashMap::new();
@@ -2584,6 +2583,23 @@ async fn importer_sharing_foreign_subtrees_binds_peers_from_workspace_root() {
             }),
         ),
     );
+    // pkg-b reaches `s2wrap` through `bwrap` so both importers see it at
+    // depth 1 and the children-owner claim falls to pkg-a2 (lower
+    // importer order) — a direct depth-0 reference would make pkg-b the
+    // owner and no cross-importer sharing would occur.
+    table.insert(
+        ("bwrap".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "bwrap",
+            "1.0.0",
+            None,
+            serde_json::json!({
+                "name": "bwrap",
+                "version": "1.0.0",
+                "dependencies": { "s2wrap": "1.0.0" },
+            }),
+        ),
+    );
     table.insert(
         ("consumer2".to_string(), "1.0.0".to_string()),
         fake_result(
@@ -2627,7 +2643,7 @@ async fn importer_sharing_foreign_subtrees_binds_peers_from_workspace_root() {
         fake_manifest(serde_json::json!({ "mid": "1.0.0", "peerx": "1.0.0" }));
     let (tmp_a2, a2_manifest) = fake_manifest(serde_json::json!({ "holder": "1.0.0" }));
     let (tmp_b, b_manifest) =
-        fake_manifest(serde_json::json!({ "mid": "1.0.0", "s2wrap": "1.0.0", "peerx": "1.0.0" }));
+        fake_manifest(serde_json::json!({ "mid": "1.0.0", "bwrap": "1.0.0", "peerx": "1.0.0" }));
     let importers = [
         WorkspaceImporter { id: ".".to_string(), manifest: &root_manifest },
         WorkspaceImporter { id: "pkg-a".to_string(), manifest: &a_manifest },
@@ -2673,8 +2689,8 @@ async fn importer_sharing_foreign_subtrees_binds_peers_from_workspace_root() {
     let b_direct =
         result.peers.direct_dependencies_by_importer.get("pkg-b").expect("pkg-b importer");
     assert_eq!(
-        b_direct.get("s2wrap").map(std::string::ToString::to_string),
-        Some("s2wrap@1.0.0(peerpkg@1.0.0)".to_string()),
+        b_direct.get("bwrap").map(std::string::ToString::to_string),
+        Some("bwrap@1.0.0(peerpkg@1.0.0)".to_string()),
         "pkg-b's own consumers must not inherit a reused subtree's provider",
     );
     assert_eq!(

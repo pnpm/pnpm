@@ -480,7 +480,7 @@ fn resolved_peer_providers_from_direct_outputs_are_last_write_wins() {
 }
 
 /// Why a cache hit reports no providers is documented at the
-/// `peersCache` hit in [`Walker::resolve_node`].
+/// `peersCache` hit in `Walker::resolve_node`.
 #[test]
 fn cached_subtree_reuse_reports_no_peer_providers() {
     let peerx = NodeId::leaf("peerx@1.0.0");

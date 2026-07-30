@@ -1476,16 +1476,11 @@ impl Walker<'_> {
         if let Some(cached) = self.find_hit(&child_parent_refs, &pkg.id) {
             let dep_path = cached.dep_path.clone();
             let resolved = cached.resolved_peers.clone();
-            // A cache hit reuses a subtree another context walked, so the
-            // providers that subtree's peers resolved to belong to *that*
-            // context and must not bubble into this one. pnpm's resolver
-            // does the same: a not-new package contributes
-            // `resolvedPeers: {}` to its consumer (resolveDependencies.ts),
-            // so only the walk that first resolved a subtree promotes its
-            // peer providers to importer level. Replaying them here would
-            // install the owner context's provider — possibly a version
-            // this importer's own consumers reject — ahead of the
-            // workspace-root fallback the final pass would otherwise bind.
+            // Providers resolved by the cached walk belong to that walk's
+            // context: a not-new package contributes no resolved peers to
+            // its consumer (pnpm's `resolveDependencies.ts`), so only the
+            // walk that first resolved a subtree promotes providers to
+            // importer level.
             let auto_install_resolved_peers = HashMap::new();
             let missing = cached.missing_peers.clone();
             let missing_of_children = cached.missing_peers_of_children.clone();
