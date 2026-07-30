@@ -82,3 +82,17 @@ fn timestamp_strings_are_quoted() {
     let yaml = to_string(&json!({ "t": "2021-01-01" })).unwrap();
     assert_eq!(yaml, "t: '2021-01-01'\n");
 }
+
+#[test]
+fn key_over_simple_key_limit_renders_as_explicit_pair() {
+    let long_key = "k".repeat(1030);
+    let yaml = to_string(&json!({ &long_key: { "b": "c" } })).unwrap();
+    assert_eq!(yaml, format!("? {long_key}\n: b: c\n"));
+}
+
+#[test]
+fn key_at_simple_key_limit_renders_inline() {
+    let key = "k".repeat(1024);
+    let yaml = to_string(&json!({ &key: { "b": "c" } })).unwrap();
+    assert_eq!(yaml, format!("{key}:\n  b: c\n"));
+}

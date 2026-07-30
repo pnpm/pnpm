@@ -137,6 +137,36 @@ fn parses_lockfile_larger_than_default_yaml_scalar_byte_budget() {
     assert_eq!(lockfile.importers.len(), IMPORTER_COUNT);
 }
 
+/// A snapshot key whose peer suffix pushes it past YAML's 1024-character
+/// simple-key limit must round-trip: emitted in explicit `? <key>` form
+/// and parsed back. An inline key of that length is invalid YAML, so an
+/// emitter regression here makes every subsequent install re-resolve
+/// from scratch after failing to read the lockfile it just wrote.
+#[test]
+fn snapshot_key_over_simple_key_limit_round_trips() {
+    let peers: String = (0..40)
+        .map(|index| format!("(@scope/very-long-peer-dependency-name-{index:02}@33.44.55)"))
+        .collect();
+    let long_key = format!("@scope/pkg@1.0.0{peers}");
+    assert!(long_key.len() > 1024, "fixture key must exceed the simple-key limit");
+
+    let content = format!(
+        "lockfileVersion: '9.0'\n\nimporters:\n\n  .: {{}}\n\nsnapshots:\n\n  ? '{long_key}'\n  : {{}}\n"
+    );
+    let lockfile = Lockfile::parse(&content, Path::new(Lockfile::FILE_NAME))
+        .expect("parse lockfile with explicit long key")
+        .expect("lockfile should be present");
+    let key: PackageKey = long_key.parse().expect("parse long snapshot key");
+    assert!(lockfile.snapshots.as_ref().expect("snapshots").contains_key(&key));
+
+    let emitted = lockfile.to_yaml_string().expect("emit lockfile");
+    assert!(emitted.contains("? '@scope/pkg@1.0.0"), "long key must be emitted in explicit form");
+    let reparsed = Lockfile::parse(&emitted, Path::new(Lockfile::FILE_NAME))
+        .expect("reparse emitted lockfile")
+        .expect("reparsed lockfile should be present");
+    assert_eq!(reparsed, lockfile);
+}
+
 #[test]
 fn parse_error_does_not_include_lockfile_content() {
     let dir = tempdir().expect("create tempdir");
