@@ -1538,10 +1538,6 @@ fn check_settings_returns_drift_when_explicit_peers_suffix_max_length_differs() 
     assert_eq!(err, StalenessReason::PeersSuffixMaxLengthChanged { lockfile: 10, config: 100 });
 }
 
-// ---------------------------------------------------------------------------
-// `pnpmfileChecksum` drift — an added, edited, or removed pnpmfile
-// ---------------------------------------------------------------------------
-
 /// A lockfile written without a pnpmfile, checked by an install that
 /// still has none.
 #[test]

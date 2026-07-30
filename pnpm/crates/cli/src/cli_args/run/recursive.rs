@@ -309,9 +309,7 @@ fn run_project(options: RunProjectOptions<'_, '_>) -> miette::Result<ProjectExec
     let mut execution = ProjectExecution { status: ExecutionStatus::queued(), has_command: 0 };
     let mut project_failed = false;
     for selected in &specified {
-        let Some(script) = manifest.script(selected, true)? else {
-            continue;
-        };
+        let script = manifest.script(selected)?;
         if script.is_empty() || (args.script_args().is_empty() && script == "npx only-allow pnpm") {
             continue;
         }

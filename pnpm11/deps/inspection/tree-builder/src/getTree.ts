@@ -52,8 +52,6 @@ type MaterializationContext =
     ancestors: Set<string>
   }
 
-// Materialization cache types
-
 interface CachedSubtree {
   /** Total number of DependencyNode objects in the subtree (recursive). */
   count: number
@@ -98,8 +96,6 @@ export function getTree (
   }
   return fixCircularRefs(result.nodes, circularAncestors)
 }
-
-// Materialize DependencyNode[] tree from the graph
 
 function materializeCacheKey (nodeId: string, depth: number): string {
   if (depth === Infinity) return nodeId
