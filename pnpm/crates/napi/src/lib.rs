@@ -25,6 +25,7 @@ mod error;
 mod hooks;
 mod install;
 mod pack;
+mod read_config;
 mod reporter_bridge;
 mod resolve;
 mod specifier;
@@ -35,6 +36,7 @@ pub use install::{
 };
 use napi_derive::napi;
 pub use pack::{PackOptions, PackResult, pack};
+pub use read_config::{ReadConfigOptions, ResolvedConfig, ResolvedRegistry, read_config};
 pub use resolve::{
     ResolveDependencyOptions, ResolveDependencyResult, WantedDependencyInput, resolve_dependency,
 };
