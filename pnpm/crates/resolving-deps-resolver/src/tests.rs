@@ -1,4 +1,4 @@
-use std::{collections::HashMap, str::FromStr, sync::Mutex, time::Duration};
+use std::{str::FromStr, sync::Mutex, time::Duration};
 
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_resolving_resolver_base::{
@@ -6,6 +6,7 @@ use pacquet_resolving_resolver_base::{
     Resolver, WantedDependency,
 };
 use pretty_assertions::assert_eq;
+use rustc_hash::FxHashMap as HashMap;
 
 use crate::resolve_dependency_tree::{
     ResolveDependencyTreeError, ResolveDependencyTreeOptions, resolve_dependency_tree,
@@ -120,7 +121,7 @@ fn fake_manifest(root_deps: serde_json::Value) -> (tempfile::TempDir, PackageMan
 
 #[tokio::test]
 async fn walks_dependencies_and_builds_flat_tree() {
-    let mut table = HashMap::new();
+    let mut table = HashMap::default();
     table.insert(
         ("foo".to_string(), "^1.0.0".to_string()),
         fake_result(
@@ -244,7 +245,7 @@ async fn passes_optional_flag_to_the_resolver() {
 
 #[tokio::test]
 async fn shallower_revisit_takes_over_shared_children_context() {
-    let mut table = HashMap::new();
+    let mut table = HashMap::default();
     table.insert(
         ("a".to_string(), "1.0.0".to_string()),
         fake_result(
@@ -324,7 +325,7 @@ async fn shallower_revisit_takes_over_shared_children_context() {
 
 #[tokio::test]
 async fn dedupes_when_the_same_package_appears_in_two_subtrees() {
-    let mut table = HashMap::new();
+    let mut table = HashMap::default();
     table.insert(
         ("a".to_string(), "^1.0.0".to_string()),
         fake_result(
@@ -409,7 +410,7 @@ async fn workspace_link_node_is_short_circuited_in_tree() {
     use pacquet_resolving_resolver_base::PkgResolutionId;
 
     let link_id = "link:../shared";
-    let mut table = HashMap::new();
+    let mut table = HashMap::default();
     table.insert(
         ("shared".to_string(), "workspace:*".to_string()),
         ResolveResult {
@@ -476,7 +477,7 @@ async fn workspace_link_node_is_short_circuited_in_tree() {
 /// dispatcher does.
 #[tokio::test]
 async fn declined_specifier_surfaces_spec_not_supported_error() {
-    let resolver = StubResolver { table: HashMap::new(), calls: Mutex::new(Vec::new()) };
+    let resolver = StubResolver { table: HashMap::default(), calls: Mutex::new(Vec::new()) };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": "git+ssh://example.com" }));
 
     let err = resolve_dependency_tree(
@@ -508,7 +509,7 @@ async fn declined_specifier_surfaces_spec_not_supported_error() {
 /// path. The walker rejects it before any further resolution work.
 #[tokio::test]
 async fn transitive_dep_with_traversal_alias_is_rejected() {
-    let mut table = HashMap::new();
+    let mut table = HashMap::default();
     table.insert(
         ("normal".to_string(), "1.0.0".to_string()),
         fake_result(
@@ -575,7 +576,7 @@ mod block_exotic_subdeps {
 
     #[tokio::test]
     async fn rejects_exotic_transitive_dep() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("foo".to_string(), "^1.0.0".to_string()),
             fake_result(
@@ -629,7 +630,7 @@ mod block_exotic_subdeps {
 
     #[tokio::test]
     async fn allows_exotic_direct_dep() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("is-negative".to_string(), "kevva/is-negative#1.0.0".to_string()),
             git_result(
@@ -667,7 +668,7 @@ mod block_exotic_subdeps {
 
     #[tokio::test]
     async fn allows_registry_subdep() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("foo".to_string(), "^1.0.0".to_string()),
             fake_result(
@@ -710,7 +711,7 @@ mod block_exotic_subdeps {
 
     #[tokio::test]
     async fn allows_exotic_subdep_when_disabled() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("foo".to_string(), "^1.0.0".to_string()),
             fake_result(
@@ -773,7 +774,7 @@ mod peers {
 
     #[tokio::test]
     async fn pure_package_has_dep_path_equal_to_pkg_id() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("foo".to_string(), "^1.0.0".to_string()),
             fake_result("foo", "1.0.0", serde_json::json!({ "name": "foo", "version": "1.0.0" })),
@@ -814,7 +815,7 @@ mod peers {
     /// <https://github.com/pnpm/pnpm/issues/5108>
     #[tokio::test]
     async fn cycle_reentry_does_not_drop_sibling_occurrence_transitive_peers() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         for (name, manifest) in [
             (
                 "p",
@@ -867,7 +868,7 @@ mod peers {
 
     #[tokio::test]
     async fn peer_resolved_against_sibling_at_parent_level() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("react".to_string(), "18.0.0".to_string()),
             fake_result(
@@ -926,7 +927,7 @@ mod peers {
 
     #[tokio::test]
     async fn missing_peer_is_reported() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("react-dom".to_string(), "18.0.0".to_string()),
             fake_result(
@@ -968,7 +969,7 @@ mod peers {
 
     #[tokio::test]
     async fn bad_peer_version_is_reported() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("react".to_string(), "17.0.0".to_string()),
             fake_result(
@@ -1082,7 +1083,7 @@ mod peers {
     /// the byte shape of the peer-id.
     #[tokio::test]
     async fn dedupe_peers_propagates_transitive_peer_to_parent() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("a".to_string(), "1.0.0".to_string()),
             fake_result(
@@ -1155,7 +1156,7 @@ mod peers {
     /// depth tie-break.
     #[tokio::test]
     async fn shallower_pure_pkgs_revisit_lowers_graph_depth() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("a".to_string(), "1.0.0".to_string()),
             fake_result(
@@ -1249,7 +1250,7 @@ mod peers {
     /// resolved `typescript@2.0.0`. Exercises the depPath suffix machinery.
     #[tokio::test]
     async fn peers_own_peer_shared_with_sibling_that_peer_depends_both() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         for version in ["1.0.0", "2.0.0"] {
             table.insert(
                 ("typescript".to_string(), version.to_string()),
@@ -1360,7 +1361,7 @@ mod peers {
     /// <https://github.com/pnpm/pnpm/issues/12266>.
     #[tokio::test]
     async fn ancestor_peer_carries_its_own_suffix() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("a".to_string(), "1.0.0".to_string()),
             fake_result(
@@ -1434,7 +1435,7 @@ mod peers {
     async fn resolve_emotion_fixture(
         opts: ResolvePeersOptions,
     ) -> crate::resolve_peers::ResolvePeersResult {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("react".to_string(), "18.0.0".to_string()),
             fake_result(
@@ -1503,7 +1504,7 @@ mod peers {
     /// into react-dom's slot.
     #[tokio::test]
     async fn peer_edge_is_patched_when_peer_walked_after_consumer() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("react-dom".to_string(), "18.0.0".to_string()),
             fake_result(
@@ -1565,7 +1566,7 @@ mod peers {
     /// peer suffix.
     #[tokio::test]
     async fn cyclic_peer_dependencies_resolve_cleanly() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("foo".to_string(), "1.0.0".to_string()),
             fake_result(
@@ -1673,7 +1674,7 @@ mod peers {
     /// occurrence is still resolved.
     #[tokio::test]
     async fn revisit_resolves_peer_in_one_occurrence_misses_in_other() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("zoo".to_string(), "1.0.0".to_string()),
             fake_result(
@@ -1778,7 +1779,7 @@ mod peers {
     // stub resolver in tests.
     #[tokio::test]
     async fn two_peer_chains_resolve_against_their_own_sibling() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("foo-a".to_string(), "1.0.0".to_string()),
             fake_result(
@@ -1861,7 +1862,7 @@ mod peers {
     /// `PeerDependencyIssue` yet.
     #[tokio::test]
     async fn bad_peer_inside_subtree_records_resolved_from_parent() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("foo".to_string(), "1.0.0".to_string()),
             fake_result(
@@ -1934,7 +1935,7 @@ mod peers {
     #[tokio::test]
     async fn revisit_with_peer_only_child_keeps_per_occurrence_node_id() {
         use crate::node_id::NodeId;
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         // Two siblings that both depend on `parent`, so `parent` is
         // walked once eagerly and revisited via the second sibling
         // (the revisit goes through the lazy children path).
@@ -2062,7 +2063,7 @@ mod peers {
     #[tokio::test]
     async fn pure_revisit_leaves_lazy_children_unrealized() {
         use crate::resolved_tree::TreeChildren;
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("p1".to_string(), "^1.0.0".to_string()),
             fake_result(
@@ -2175,7 +2176,7 @@ mod peers {
         use pacquet_resolving_resolver_base::PkgResolutionId;
 
         let link_id = "link:/abs/external";
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("abc".to_string(), "1.0.0".to_string()),
             fake_result(
@@ -2298,7 +2299,7 @@ mod patched_dependencies {
 
     #[tokio::test]
     async fn appends_patch_hash_to_pkg_id_and_records_applied_key() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("foo".to_string(), "^1.0.0".to_string()),
             fake_result("foo", "1.0.0", serde_json::json!({ "name": "foo", "version": "1.0.0" })),
@@ -2340,7 +2341,7 @@ mod patched_dependencies {
 
     #[tokio::test]
     async fn range_match_applies_patch_and_records_user_key() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("foo".to_string(), "^1.0.0".to_string()),
             fake_result("foo", "1.2.0", serde_json::json!({ "name": "foo", "version": "1.2.0" })),
@@ -2381,7 +2382,7 @@ mod patched_dependencies {
 
     #[tokio::test]
     async fn unused_patch_leaves_ids_and_applied_set_alone() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("foo".to_string(), "^1.0.0".to_string()),
             fake_result("foo", "1.0.0", serde_json::json!({ "name": "foo", "version": "1.0.0" })),
@@ -2415,7 +2416,7 @@ mod patched_dependencies {
 
     #[tokio::test]
     async fn ambiguous_range_match_fails_with_patch_key_conflict() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("foo".to_string(), "^1.0.0".to_string()),
             fake_result("foo", "1.2.0", serde_json::json!({ "name": "foo", "version": "1.2.0" })),
@@ -2496,7 +2497,7 @@ mod optional_propagation {
 
     #[tokio::test]
     async fn direct_optional_dep_seeds_resolved_package_optional_true() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("opt".to_string(), "^1.0.0".to_string()),
             fake_result("opt", "1.0.0", serde_json::json!({ "name": "opt", "version": "1.0.0" })),
@@ -2544,7 +2545,7 @@ mod optional_propagation {
 
     #[tokio::test]
     async fn transitive_dep_under_optional_inherits_optional_true() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("opt".to_string(), "^1.0.0".to_string()),
             fake_result(
@@ -2594,7 +2595,7 @@ mod optional_propagation {
 
     #[tokio::test]
     async fn shared_dep_via_non_optional_and_optional_paths_keeps_optional_false() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("opt".to_string(), "^1.0.0".to_string()),
             fake_result(
@@ -2659,7 +2660,7 @@ mod optional_propagation {
 
     #[tokio::test]
     async fn manifest_level_optional_dependencies_edge_propagates_to_child() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("regular".to_string(), "^1.0.0".to_string()),
             fake_result(
@@ -2838,7 +2839,7 @@ mod peer_own_dep_shadowing {
     }
 
     fn parser_table() -> HashMap<(String, String), pacquet_resolving_resolver_base::ResolveResult> {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("parser".to_string(), "^1.0.0".to_string()),
             fake_result(
@@ -2983,7 +2984,7 @@ mod peer_own_dep_shadowing {
 
     #[tokio::test]
     async fn non_optional_meta_only_entry_is_not_a_peer() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("pkg".to_string(), "^1.0.0".to_string()),
             fake_result(
@@ -3068,7 +3069,7 @@ mod level_preferred_versions {
 
     #[tokio::test]
     async fn child_resolution_prefers_parent_level_sibling_versions() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("parent".to_string(), "1.0.0".to_string()),
             fake_result(
@@ -3103,7 +3104,8 @@ mod level_preferred_versions {
                 ),
             );
         }
-        let resolver = OverlayRecordingResolver { table, seen_overlay: Mutex::new(HashMap::new()) };
+        let resolver =
+            OverlayRecordingResolver { table, seen_overlay: Mutex::new(HashMap::default()) };
         let (_tmp, manifest) = fake_manifest(serde_json::json!({ "parent": "1.0.0" }));
 
         resolve_dependency_tree(
@@ -3138,7 +3140,7 @@ mod level_preferred_versions {
 
     #[tokio::test]
     async fn npm_alias_child_consults_overlay_by_inner_name() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("parent".to_string(), "1.0.0".to_string()),
             fake_result(
@@ -3179,7 +3181,8 @@ mod level_preferred_versions {
                 serde_json::json!({ "name": "pinned", "version": "5.0.0" }),
             ),
         );
-        let resolver = OverlayRecordingResolver { table, seen_overlay: Mutex::new(HashMap::new()) };
+        let resolver =
+            OverlayRecordingResolver { table, seen_overlay: Mutex::new(HashMap::default()) };
         let (_tmp, manifest) = fake_manifest(serde_json::json!({ "parent": "1.0.0" }));
 
         resolve_dependency_tree(
@@ -3221,7 +3224,7 @@ mod cycle_edges {
     /// are restored via the previously-resolved-children merge).
     #[tokio::test]
     async fn cycle_closing_edge_reaches_the_graph() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("a".to_string(), "1.0.0".to_string()),
             fake_result(
@@ -3335,7 +3338,7 @@ async fn read_package_hook_receives_the_directory_of_directory_resolutions() {
     injected.resolution = LockfileResolution::Directory(DirectoryResolution {
         directory: "packages/injected".to_string(),
     });
-    let mut table = HashMap::new();
+    let mut table = HashMap::default();
     table.insert(("injected".to_string(), "file:packages/injected".to_string()), injected);
     table.insert(
         ("regular".to_string(), "^2.0.0".to_string()),
@@ -3425,7 +3428,7 @@ impl pacquet_hooks::PnpmfileHooks for ReplacingHook {
 /// must follow the override.
 #[tokio::test]
 async fn overrides_hook_applies_after_the_pnpmfile_hook() {
-    let mut table = HashMap::new();
+    let mut table = HashMap::default();
     table.insert(
         ("foo".to_string(), "^1.0.0".to_string()),
         fake_result(

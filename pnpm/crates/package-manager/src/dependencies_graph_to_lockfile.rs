@@ -990,8 +990,8 @@ fn walk_subgraph<'g>(
 /// Aliases this node treats as optional — its manifest's
 /// `optionalDependencies` entries plus the names of peers marked
 /// optional by `peerDependenciesMeta`.
-fn optional_children_of(node: &DependenciesGraphNode) -> HashSet<String> {
-    let mut out: HashSet<String> = node.optional_children.clone();
+fn optional_children_of(node: &DependenciesGraphNode) -> rustc_hash::FxHashSet<String> {
+    let mut out: rustc_hash::FxHashSet<String> = node.optional_children.clone();
     if let Some(manifest) = node.resolve_result.manifest.as_ref()
         && let Some(map) = manifest.get("optionalDependencies").and_then(Value::as_object)
     {

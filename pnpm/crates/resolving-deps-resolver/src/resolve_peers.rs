@@ -43,13 +43,15 @@ use crate::{
     },
 };
 use node_semver::{Range, Version};
+
 use pacquet_deps_path::{
     DepPath, PeerId, create_peer_dep_graph_hash, index_of_dep_path_suffix,
     link_path_to_peer_version,
 };
 use pacquet_resolving_resolver_base::{ResolveResult, get_peer_version_range};
+use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
+    collections::{BTreeMap, BTreeSet},
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -182,12 +184,12 @@ pub struct ResolvePeersOptions {
     /// therefore skips these direct entries unless the tree position
     /// was pruned (an ancestor hit the peers cache) and nothing else
     /// resolved them.
-    pub hoisted_peer_provider_node_ids: std::collections::HashSet<NodeId>,
+    pub hoisted_peer_provider_node_ids: HashSet<NodeId>,
 
     /// Importer-level dependencies installed solely to satisfy optional
     /// peers. A reused direct dependency only sees these providers when
     /// its wanted-lockfile peer suffix recorded the same peer name.
-    pub hoisted_optional_peer_node_ids: std::collections::HashSet<NodeId>,
+    pub hoisted_optional_peer_node_ids: HashSet<NodeId>,
 
     /// Final `NodeId → DepPath` map produced by a previous
     /// peer-resolution pass over the same tree
@@ -208,12 +210,12 @@ pub struct ResolvePeersOptions {
     /// Direct-dependency aliases the importer's manifest declares.
     /// Input to the must-win guard: a declared current provider that
     /// has no wanted-lockfile resolution beats a locked one.
-    pub declared_direct_dependencies: std::collections::HashSet<String>,
+    pub declared_direct_dependencies: HashSet<String>,
 
     /// Direct-dependency aliases the user explicitly requested on the
     /// command line (`pnpm add foo`). Input to the must-win guard: an
     /// explicitly requested current provider always beats a locked one.
-    pub explicitly_requested_direct_dependencies: std::collections::HashSet<String>,
+    pub explicitly_requested_direct_dependencies: HashSet<String>,
 }
 
 /// See [`ResolvePeersOptions::hoist_missing_scope`].
@@ -235,10 +237,10 @@ pub struct HoistMissingScope {
     /// filtered it out at walk time. Misses the owner walk could not
     /// satisfy stay visible to every importer (and each hoists its
     /// own copy).
-    pub first_walk_missing_by_pkg: Arc<HashMap<String, std::collections::HashSet<String>>>,
+    pub first_walk_missing_by_pkg: Arc<HashMap<String, HashSet<String>>>,
     /// Peers represented by the wanted lockfile must remain eligible
     /// for importer-local hoisting during lockfile re-resolution.
-    pub locked_peer_names: Arc<std::collections::HashSet<String>>,
+    pub locked_peer_names: Arc<HashSet<String>>,
 }
 
 impl HoistMissingScope {
@@ -270,12 +272,12 @@ impl Default for ResolvePeersOptions {
             project_dir: None,
             modules_dir: None,
             hoist_missing_scope: None,
-            hoisted_optional_peer_node_ids: std::collections::HashSet::new(),
-            hoisted_peer_provider_node_ids: std::collections::HashSet::new(),
+            hoisted_optional_peer_node_ids: HashSet::default(),
+            hoisted_peer_provider_node_ids: HashSet::default(),
             resolved_peer_provider_paths: None,
             collect_paths_by_node_id: false,
-            declared_direct_dependencies: std::collections::HashSet::new(),
-            explicitly_requested_direct_dependencies: std::collections::HashSet::new(),
+            declared_direct_dependencies: HashSet::default(),
+            explicitly_requested_direct_dependencies: HashSet::default(),
         }
     }
 }
@@ -295,7 +297,7 @@ pub struct ResolvePeersResult {
     /// persists the owner-context map per package so non-owner importers
     /// can tell which descendant misses the owner resolver's context
     /// already satisfied. See [`HoistMissingScope`].
-    pub missing_names_by_pkg: HashMap<String, std::collections::HashSet<String>>,
+    pub missing_names_by_pkg: HashMap<String, HashSet<String>>,
     /// Final `DepPath` of every walked node — the upstream
     /// `pathsByNodeId`. Feed it back through
     /// [`ResolvePeersOptions::resolved_peer_provider_paths`] to run a
@@ -315,7 +317,7 @@ pub(crate) struct PeerDiscoveryResult {
     /// issue, consumed by [`fn@apply_hoist_missing_scope`].
     pub(crate) missing_ancestor_pkg_ids: HashMap<String, Vec<Vec<String>>>,
     /// See [`ResolvePeersResult::missing_names_by_pkg`].
-    pub(crate) missing_names_by_pkg: HashMap<String, std::collections::HashSet<String>>,
+    pub(crate) missing_names_by_pkg: HashMap<String, HashSet<String>>,
 }
 
 /// Walker state that stays valid across peer-hoist discovery passes of
@@ -368,10 +370,16 @@ impl PeerHoistDiscovery {
     /// verdicts derived from them predate the rewrite, and an
     /// incremental sync cannot tell which of them the rewrite
     /// invalidated.
+    /// `parents_direct` is the importer's full direct set — it defines
+    /// the importer-level peer providers every walked subtree matches
+    /// against. `walk_direct` is the slice actually walked; a hoist
+    /// round that only added new direct deps passes just the additions
+    /// and merges the result into its previous rounds' output.
     pub(crate) fn discover(
         &mut self,
         workspace: &crate::resolve_dependency_tree::WorkspaceTreeCtx,
-        direct: &[DirectDep],
+        parents_direct: &[DirectDep],
+        walk_direct: &[DirectDep],
         opts: ResolvePeersOptions,
     ) -> PeerDiscoveryResult {
         let revision = workspace.revision();
@@ -388,8 +396,13 @@ impl PeerHoistDiscovery {
             self.synced_children_rewrites = Some(children_rewrites);
             self.synced_revision = Some(revision);
         }
-        let (result, caches) =
-            discover_peers(&mut self.tree, direct, std::mem::take(&mut self.caches), opts);
+        let (result, caches) = discover_peers(
+            &mut self.tree,
+            parents_direct,
+            walk_direct,
+            std::mem::take(&mut self.caches),
+            opts,
+        );
         self.caches = caches;
         result
     }
@@ -402,12 +415,13 @@ impl PeerHoistDiscovery {
 /// per-importer section.
 fn discover_peers(
     tree: &mut ResolvedTree,
-    direct: &[DirectDep],
+    parents_direct: &[DirectDep],
+    walk_direct: &[DirectDep],
     caches: PeerDiscoveryCaches,
     opts: ResolvePeersOptions,
 ) -> (PeerDiscoveryResult, PeerDiscoveryCaches) {
     let current_provider_sources = vec![CurrentProviderSource {
-        direct_node_ids_by_alias: direct
+        direct_node_ids_by_alias: parents_direct
             .iter()
             .map(|dep| (dep.alias.clone(), dep.node_id.clone()))
             .collect(),
@@ -417,14 +431,14 @@ fn discover_peers(
             .clone(),
     }];
     let mut walker =
-        Walker::new(tree, opts, HashMap::new(), current_provider_sources, caches, true);
+        Walker::new(tree, opts, HashMap::default(), current_provider_sources, caches, true);
 
-    let importer_parents = Arc::new(walker.build_importer_parents_from(direct));
+    let importer_parents = Arc::new(walker.build_importer_parents_from(parents_direct));
     let parent_chain_names: Vec<String> = Vec::new();
     let parent_node_ids: Vec<NodeId> = Vec::new();
     let parent_pkg_ids_chain: Vec<String> = Vec::new();
     let importer_parent_dep_paths = walker.parent_dep_paths_from_refs(&importer_parents);
-    let (own_direct, provider_direct): (Vec<&DirectDep>, Vec<&DirectDep>) = direct
+    let (own_direct, provider_direct): (Vec<&DirectDep>, Vec<&DirectDep>) = walk_direct
         .iter()
         .partition(|dep| !walker.opts.hoisted_peer_provider_node_ids.contains(&dep.node_id));
     let mut result = PeerDiscoveryResult::default();
@@ -491,7 +505,7 @@ fn discover_peers(
 pub struct ImporterPeerInput {
     pub id: String,
     pub direct: Vec<DirectDep>,
-    pub hoisted_optional_peer_node_ids: std::collections::HashSet<NodeId>,
+    pub hoisted_optional_peer_node_ids: HashSet<NodeId>,
     pub root_dir: PathBuf,
     /// Absolute path of this importer's `node_modules` directory.
     /// Threaded into [`ResolvePeersOptions::modules_dir`] while this
@@ -578,8 +592,8 @@ fn importer_provider_sources(
             .iter()
             .map(|dep| (dep.alias.clone(), dep.node_id.clone()))
             .collect(),
-        declared_direct_dependencies: std::collections::HashSet::new(),
-        explicitly_requested_direct_dependencies: std::collections::HashSet::new(),
+        declared_direct_dependencies: HashSet::default(),
+        explicitly_requested_direct_dependencies: HashSet::default(),
     };
     let mut sources = vec![source_of(importer)];
     if let Some(root) = root_importer
@@ -597,7 +611,7 @@ fn build_node_ids_by_previous_dep_path(
     tree: &ResolvedTree,
     opts: &ResolvePeersOptions,
 ) -> HashMap<DepPath, NodeId> {
-    let mut map = HashMap::new();
+    let mut map = HashMap::default();
     if opts.resolved_peer_provider_paths.is_none() {
         return map;
     }
@@ -819,8 +833,8 @@ fn scoped_hoisted_optional_parent_refs(
 /// providers for the must-win guard of locked-peer-provider reuse.
 struct CurrentProviderSource {
     direct_node_ids_by_alias: HashMap<String, NodeId>,
-    declared_direct_dependencies: std::collections::HashSet<String>,
-    explicitly_requested_direct_dependencies: std::collections::HashSet<String>,
+    declared_direct_dependencies: HashSet<String>,
+    explicitly_requested_direct_dependencies: HashSet<String>,
 }
 
 #[derive(Clone, Copy)]
@@ -935,25 +949,25 @@ impl<'tree> Walker<'tree> {
         Walker {
             tree,
             opts,
-            graph: DependenciesGraph::new(),
+            graph: DependenciesGraph::default(),
             issues: PeerDependencyIssues::default(),
-            missing_ancestor_pkg_ids: HashMap::new(),
+            missing_ancestor_pkg_ids: HashMap::default(),
             node_dep_paths,
-            node_external_peers: HashMap::new(),
-            node_missing_peers: HashMap::new(),
-            node_missing_peers_of_children: HashMap::new(),
+            node_external_peers: HashMap::default(),
+            node_missing_peers: HashMap::default(),
+            node_missing_peers_of_children: HashMap::default(),
             resolved_peer_providers_by_alias: BTreeMap::new(),
-            in_progress: HashSet::new(),
+            in_progress: HashSet::default(),
             pending_peer_edges: Vec::new(),
             pure_pkgs,
             peers_cache,
             parent_pkgs_of_node,
-            node_records: HashMap::new(),
+            node_records: HashMap::default(),
             next_record_order: 0,
             node_ids_by_previous_dep_path,
             current_provider_sources,
             discovery,
-            visited_this_call: HashSet::new(),
+            visited_this_call: HashSet::default(),
         }
     }
 
@@ -1019,7 +1033,7 @@ impl PeersCacheItem {
         NodeOutput {
             dep_path: self.dep_path.clone(),
             external_resolved_peers: self.resolved_peers.clone(),
-            auto_install_resolved_peers: HashMap::new(),
+            auto_install_resolved_peers: HashMap::default(),
             missing_peers: self.missing_peers.clone(),
             subtree_missing_by_pkg: self.subtree_missing_by_pkg.clone(),
         }
@@ -1169,8 +1183,7 @@ impl Walker<'_> {
         let graph = self.build_final_graph(&final_dep_paths);
         let paths_by_node_id = self.final_paths_by_node_id(&final_dep_paths);
         let resolved_peer_providers_by_alias = self.resolved_peer_providers_by_alias;
-        let mut missing_names_by_pkg: HashMap<String, std::collections::HashSet<String>> =
-            HashMap::new();
+        let mut missing_names_by_pkg: HashMap<String, HashSet<String>> = HashMap::default();
         for (node_id, missing) in &self.node_missing_peers_of_children {
             let Some(tree_node) = self.tree.dependencies_tree.get(node_id) else { continue };
             missing_names_by_pkg
@@ -1196,7 +1209,7 @@ impl Walker<'_> {
         final_dep_paths: &HashMap<NodeId, DepPath>,
     ) -> HashMap<NodeId, DepPath> {
         if !self.opts.collect_paths_by_node_id {
-            return HashMap::new();
+            return HashMap::default();
         }
         self.node_dep_paths
             .keys()
@@ -1258,7 +1271,7 @@ impl Walker<'_> {
     /// [`fn@resolve_peers_workspace`] where each importer's `direct`
     /// lives outside [`ResolvedTree`].
     fn build_importer_parents_from(&self, direct_deps: &[DirectDep]) -> ParentRefs {
-        let mut refs = ParentRefs::new();
+        let mut refs = ParentRefs::default();
         for direct in direct_deps {
             let Some(tree_node) = self.tree.dependencies_tree.get(&direct.node_id) else {
                 continue;
@@ -1300,9 +1313,9 @@ impl Walker<'_> {
         // mirrors the post-`in_progress` clone the rest of the
         // function already does — peer resolution is single-threaded
         // and the clones are cheap.
-        if self.tree.dependencies_tree.contains_key(&node_id) {
-            let tree_node_depth = self.tree.dependencies_tree[&node_id].depth;
-            let pkg_id = self.tree.dependencies_tree[&node_id].resolved_package_id.clone();
+        if let Some(tree_node) = self.tree.dependencies_tree.get(&node_id) {
+            let tree_node_depth = tree_node.depth;
+            let pkg_id = tree_node.resolved_package_id.clone();
             // Workspace-link short-circuit: a node at depth -1 is a
             // workspace link. The linked package's depPath is its
             // `link:<rel-path>` id verbatim — no peer-graph suffix,
@@ -1314,9 +1327,9 @@ impl Walker<'_> {
                 self.visited_this_call.insert(node_id);
                 return NodeOutput {
                     dep_path,
-                    external_resolved_peers: HashMap::new(),
-                    auto_install_resolved_peers: HashMap::new(),
-                    missing_peers: HashMap::new(),
+                    external_resolved_peers: HashMap::default(),
+                    auto_install_resolved_peers: HashMap::default(),
+                    missing_peers: HashMap::default(),
                     subtree_missing_by_pkg: None,
                 };
             }
@@ -1350,9 +1363,9 @@ impl Walker<'_> {
                 }
                 return NodeOutput {
                     dep_path,
-                    external_resolved_peers: HashMap::new(),
-                    auto_install_resolved_peers: HashMap::new(),
-                    missing_peers: HashMap::new(),
+                    external_resolved_peers: HashMap::default(),
+                    auto_install_resolved_peers: HashMap::default(),
+                    missing_peers: HashMap::default(),
                     subtree_missing_by_pkg: None,
                 };
             }
@@ -1370,9 +1383,9 @@ impl Walker<'_> {
             let pkg = &self.tree.packages[&tree_node.resolved_package_id];
             return NodeOutput {
                 dep_path: DepPath::from(pkg.id.clone()),
-                external_resolved_peers: HashMap::new(),
-                auto_install_resolved_peers: HashMap::new(),
-                missing_peers: HashMap::new(),
+                external_resolved_peers: HashMap::default(),
+                auto_install_resolved_peers: HashMap::default(),
+                missing_peers: HashMap::default(),
                 subtree_missing_by_pkg: None,
             };
         }
@@ -1412,7 +1425,7 @@ impl Walker<'_> {
         // it — the per-node map clones dominated the walker's CPU time on
         // peer-heavy workspaces.
         let mut child_parent_refs = parent_parent_refs;
-        let mut new_parent_refs = ParentRefs::new();
+        let mut new_parent_refs = ParentRefs::default();
         for (alias, child_node_id) in &children_map {
             let Some(child_tree) = self.tree.dependencies_tree.get(child_node_id) else { continue };
             let Some(child_pkg) = self.tree.packages.get(&child_tree.resolved_package_id) else {
@@ -1542,16 +1555,15 @@ impl Walker<'_> {
             self.visited_this_call.insert(node_id);
             return output;
         }
-
         // Recurse into children first (post-order). Collect each child's
         // depPath and the external peers / missing peers they propagate
         // up. Children's external peers may overlap with this node's
         // own children (e.g. a child resolved a peer to a sibling of
         // its parent — i.e., this node's child). Those are not external
         // *to this node* — they're internal here — so filter them out.
-        let mut external_from_children: HashMap<String, NodeId> = HashMap::new();
-        let mut auto_install_resolved_peers: HashMap<String, NodeId> = HashMap::new();
-        let mut missing_from_children: HashMap<String, MissingPeerInfo> = HashMap::new();
+        let mut external_from_children: HashMap<String, NodeId> = HashMap::default();
+        let mut auto_install_resolved_peers: HashMap<String, NodeId> = HashMap::default();
+        let mut missing_from_children: HashMap<String, MissingPeerInfo> = HashMap::default();
         let mut child_dep_paths: BTreeMap<String, DepPath> = BTreeMap::new();
         let mut subtree_missing_by_pkg: SubtreeMissingByPkg = None;
         let child_entries = ordered_child_entries(&children_map, &child_parent_refs);
@@ -1582,8 +1594,8 @@ impl Walker<'_> {
 
         // Resolve this node's own peer requirements against the augmented
         // ParentRefs visible at this node, including peer-relevant children.
-        let mut own_resolved_peers: HashMap<String, NodeId> = HashMap::new();
-        let mut own_missing_peers: HashMap<String, MissingPeerInfo> = HashMap::new();
+        let mut own_resolved_peers: HashMap<String, NodeId> = HashMap::default();
+        let mut own_missing_peers: HashMap<String, MissingPeerInfo> = HashMap::default();
         for (peer_name, peer_dep) in &pkg.peer_dependencies {
             self.resolve_one_peer(
                 &pkg_name,
@@ -1711,7 +1723,7 @@ impl Walker<'_> {
 
             // Compute transitive peer set: peers visible in this subtree
             // that are NOT declared in this package's own peerDependencies.
-            let mut transitive_peer_dependencies: HashSet<String> = HashSet::new();
+            let mut transitive_peer_dependencies: HashSet<String> = HashSet::default();
             for peer_alias in all_resolved_peers.keys() {
                 if !pkg.peer_dependencies.contains_key(peer_alias) {
                     transitive_peer_dependencies.insert(peer_alias.clone());
@@ -2146,8 +2158,8 @@ impl Walker<'_> {
     fn build_final_dep_paths(&self) -> HashMap<NodeId, DepPath> {
         let (_, scc_of) = self.peer_sccs();
         let cyclic_peer_names = self.cyclic_peer_names();
-        let mut final_dep_paths: HashMap<NodeId, DepPath> = HashMap::new();
-        let mut visiting = HashSet::new();
+        let mut final_dep_paths: HashMap<NodeId, DepPath> = HashMap::default();
+        let mut visiting = HashSet::default();
         let mut node_ids: Vec<NodeId> = self.node_external_peers.keys().cloned().collect();
         node_ids.sort_by_key(node_id_sort_key);
         for node_id in node_ids {
@@ -2278,11 +2290,11 @@ impl Walker<'_> {
 
         let mut tarjan = PeerNameTarjan {
             graph: &graph,
-            index_of: HashMap::new(),
-            low_of: HashMap::new(),
-            on_stack: HashSet::new(),
+            index_of: HashMap::default(),
+            low_of: HashMap::default(),
+            on_stack: HashSet::default(),
             tarjan_stack: Vec::new(),
-            cyclic: HashSet::new(),
+            cyclic: HashSet::default(),
             next_index: 0,
         };
         for name in graph.keys() {
@@ -2320,12 +2332,12 @@ impl Walker<'_> {
             out
         };
 
-        let mut index_of: HashMap<NodeId, u32> = HashMap::new();
-        let mut low_of: HashMap<NodeId, u32> = HashMap::new();
-        let mut on_stack: HashSet<NodeId> = HashSet::new();
+        let mut index_of: HashMap<NodeId, u32> = HashMap::default();
+        let mut low_of: HashMap<NodeId, u32> = HashMap::default();
+        let mut on_stack: HashSet<NodeId> = HashSet::default();
         let mut tarjan_stack: Vec<NodeId> = Vec::new();
         let mut sccs: Vec<Vec<NodeId>> = Vec::new();
-        let mut scc_of: HashMap<NodeId, usize> = HashMap::new();
+        let mut scc_of: HashMap<NodeId, usize> = HashMap::default();
         let mut next_index: u32 = 0;
 
         // Explicit DFS stack of (node, neighbors, cursor) so deep peer
@@ -2406,7 +2418,7 @@ impl Walker<'_> {
         // carries every walked NodeId, so recompute the `Math.min` depth
         // tie-break here — the inline build threaded it through `self.graph`,
         // which this rebuild discards.
-        let mut min_depth: HashMap<DepPath, i32> = HashMap::new();
+        let mut min_depth: HashMap<DepPath, i32> = HashMap::default();
         for node_id in self.node_dep_paths.keys() {
             let Some(tree_node) = self.tree.dependencies_tree.get(node_id) else { continue };
             let dep_path = self.final_dep_path_of(node_id, final_dep_paths);
@@ -2416,9 +2428,9 @@ impl Walker<'_> {
                 .or_insert(tree_node.depth);
         }
 
-        let mut record_dep_paths: HashMap<NodeId, DepPath> = HashMap::new();
+        let mut record_dep_paths: HashMap<NodeId, DepPath> = HashMap::default();
         let mut transitive_peer_dependencies_by_dep_path: HashMap<DepPath, HashSet<String>> =
-            HashMap::new();
+            HashMap::default();
         for (node_id, record) in &self.node_records {
             let dep_path = self.final_dep_path_of(node_id, final_dep_paths);
             transitive_peer_dependencies_by_dep_path
@@ -2428,8 +2440,8 @@ impl Walker<'_> {
             record_dep_paths.insert(node_id.clone(), dep_path);
         }
 
-        let mut graph = DependenciesGraph::new();
-        let mut graph_order: HashMap<DepPath, u64> = HashMap::new();
+        let mut graph = DependenciesGraph::default();
+        let mut graph_order: HashMap<DepPath, u64> = HashMap::default();
         for (node_id, record) in &self.node_records {
             let dep_path = record_dep_paths[node_id].clone();
             let depth = min_depth.get(&dep_path).copied().unwrap_or(record.depth);
@@ -2702,7 +2714,7 @@ impl Walker<'_> {
         };
         let (parent_pkg_name, _) = pkg_name_version(&parent_pkg.result);
 
-        let mut conflicting_peers = HashSet::new();
+        let mut conflicting_peers = HashSet::default();
         for peer_name in parent_pkg.peer_dependencies.keys() {
             if !self.tree.all_peer_dep_names.contains(peer_name) {
                 continue;
@@ -2765,7 +2777,7 @@ impl Walker<'_> {
         &self,
         parent_refs: &ParentRefs,
     ) -> Arc<HashMap<String, ParentPkgInfo>> {
-        let mut out = HashMap::new();
+        let mut out = HashMap::default();
         for (name, parent_ref) in parent_refs {
             if !self.tree.all_peer_dep_names.contains(name) {
                 continue;

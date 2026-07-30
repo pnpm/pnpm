@@ -311,7 +311,7 @@ fn update_reuse_scopes(
         UpdateSeedPolicy::KeepAllResolveAll => (UpdateReuseScope::None, BTreeMap::new()),
         UpdateSeedPolicy::DropAll { .. } => (UpdateReuseScope::None, BTreeMap::new()),
         UpdateSeedPolicy::DropOnly { names, .. } => {
-            (UpdateReuseScope::Except(names.clone()), BTreeMap::new())
+            (UpdateReuseScope::Except(names.iter().cloned().collect()), BTreeMap::new())
         }
         UpdateSeedPolicy::ByImporter { policies, .. } => (
             UpdateReuseScope::All,
@@ -321,7 +321,7 @@ fn update_reuse_scopes(
                     let scope = match policy {
                         ImporterUpdateSeedPolicy::DropAll => UpdateReuseScope::None,
                         ImporterUpdateSeedPolicy::DropOnly(names) => {
-                            UpdateReuseScope::Except(names.clone())
+                            UpdateReuseScope::Except(names.iter().cloned().collect())
                         }
                     };
                     (importer_id.clone(), scope)
@@ -1616,7 +1616,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         {
             match pacquet_patching::verify_patches(
                 deps,
-                &workspace_result.merged_tree.applied_patches,
+                &workspace_result.merged_tree.applied_patches.iter().cloned().collect(),
                 config.allow_unused_patches,
             ) {
                 Ok(None) => {}

@@ -3,10 +3,8 @@ use crate::dependencies_graph::{DependenciesGraph, DependenciesGraphNode};
 use pacquet_deps_path::DepPath;
 use pacquet_lockfile::{DirectoryResolution, LockfileResolution};
 use pacquet_resolving_resolver_base::{PkgResolutionId, ResolveResult};
-use std::{
-    collections::{BTreeMap, HashSet},
-    path::PathBuf,
-};
+use rustc_hash::FxHashSet as HashSet;
+use std::{collections::BTreeMap, path::PathBuf};
 
 fn make_node(id: &str, children: BTreeMap<String, DepPath>) -> DependenciesGraphNode {
     DependenciesGraphNode {
@@ -27,10 +25,10 @@ fn make_node(id: &str, children: BTreeMap<String, DepPath>) -> DependenciesGraph
             policy_violation: None,
         }),
         children,
-        optional_children: HashSet::new(),
+        optional_children: HashSet::default(),
         peer_dependencies: BTreeMap::new(),
-        transitive_peer_dependencies: HashSet::new(),
-        resolved_peer_names: HashSet::new(),
+        transitive_peer_dependencies: HashSet::default(),
+        resolved_peer_names: HashSet::default(),
         depth: 0,
         installable: true,
         is_pure: true,
@@ -44,7 +42,7 @@ fn rewrites_childless_injected_dep_to_link() {
     let p1_root = lockfile_dir.join("project-1");
     let p2_root = lockfile_dir.join("project-2");
 
-    let mut graph: DependenciesGraph = std::collections::HashMap::new();
+    let mut graph: DependenciesGraph = std::collections::HashMap::default();
     let file_path = DepPath::from("file:project-1".to_string());
     graph.insert(file_path.clone(), make_node("file:project-1", BTreeMap::new()));
 
@@ -73,7 +71,7 @@ fn rewrites_scoped_injected_dep_to_link() {
     let host_root = lockfile_dir.join("fixtures/host");
     let pkg_root = host_root.join("pkg");
 
-    let mut graph: DependenciesGraph = std::collections::HashMap::new();
+    let mut graph: DependenciesGraph = std::collections::HashMap::default();
     let injected = DepPath::from("@test/pkg@file:fixtures/host/pkg".to_string());
     graph.insert(injected.clone(), make_node("@test/pkg@file:fixtures/host/pkg", BTreeMap::new()));
 
@@ -102,7 +100,7 @@ fn leaves_injected_dep_when_children_differ() {
     let lib_v1 = DepPath::from("lib@1.0.0".to_string());
     let lib_v2 = DepPath::from("lib@2.0.0".to_string());
 
-    let mut graph: DependenciesGraph = std::collections::HashMap::new();
+    let mut graph: DependenciesGraph = std::collections::HashMap::default();
     graph.insert(lib_v1.clone(), make_node("lib@1.0.0", BTreeMap::new()));
     graph.insert(lib_v2.clone(), make_node("lib@2.0.0", BTreeMap::new()));
     let injected = DepPath::from("file:project-1".to_string());
@@ -133,7 +131,7 @@ fn rewrites_when_children_subset_of_target_direct_deps() {
 
     let lib = DepPath::from("lib@1.0.0".to_string());
 
-    let mut graph: DependenciesGraph = std::collections::HashMap::new();
+    let mut graph: DependenciesGraph = std::collections::HashMap::default();
     graph.insert(lib.clone(), make_node("lib@1.0.0", BTreeMap::new()));
     let injected = DepPath::from("file:project-1".to_string());
     graph.insert(
@@ -174,7 +172,7 @@ fn rewrites_when_shared_dep_differs_only_by_peer_suffix() {
     let debug_with_peer = DepPath::from("debug@4.4.3(supports-color@8.1.1)".to_string());
     let supports_color = DepPath::from("supports-color@8.1.1".to_string());
 
-    let mut graph: DependenciesGraph = std::collections::HashMap::new();
+    let mut graph: DependenciesGraph = std::collections::HashMap::default();
     graph.insert(supports_color.clone(), make_node("supports-color@8.1.1", BTreeMap::new()));
     graph.insert(debug.clone(), make_node("debug@4.4.3", BTreeMap::new()));
     let mut debug_peer_node = make_node(
@@ -212,7 +210,7 @@ fn rewrites_when_shared_dep_differs_only_by_peer_suffix() {
 #[test]
 fn ignores_non_workspace_file_deps() {
     let lockfile_dir = PathBuf::from("/ws");
-    let mut graph: DependenciesGraph = std::collections::HashMap::new();
+    let mut graph: DependenciesGraph = std::collections::HashMap::default();
     let tarball = DepPath::from("file:vendor/some-tarball.tgz".to_string());
     graph.insert(tarball.clone(), make_node("file:vendor/some-tarball.tgz", BTreeMap::new()));
 

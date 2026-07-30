@@ -14,12 +14,8 @@ use pacquet_lockfile::{
     DirectoryResolution, LockfileResolution, PkgName, PkgNameVer, TarballResolution,
 };
 use pacquet_resolving_resolver_base::{PkgResolutionId, ResolveResult};
-use std::{
-    collections::{BTreeMap, HashMap, HashSet},
-    path::Path,
-    str::FromStr,
-    sync::Arc,
-};
+use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use std::{collections::BTreeMap, path::Path, str::FromStr, sync::Arc};
 
 const PATCHED_WORKFLOWS_SDK: &str = concat!(
     "@medusajs/workflows-sdk@2.13.3",
@@ -41,7 +37,7 @@ fn locked_direct_dep_only_sees_its_locked_hoisted_optional_peers() {
         depth: 0,
         occurrence: 0,
     };
-    let parent_refs = HashMap::from([
+    let parent_refs = HashMap::from_iter([
         ("debug".to_string(), parent("4.4.3", debug.clone())),
         ("supports-color".to_string(), parent("8.1.1", supports_color.clone())),
         ("regular".to_string(), parent("1.0.0", regular)),
@@ -49,8 +45,8 @@ fn locked_direct_dep_only_sees_its_locked_hoisted_optional_peers() {
 
     let scoped = scoped_hoisted_optional_parent_refs(
         &parent_refs,
-        &HashSet::from(["supports-color".to_string()]),
-        &HashSet::from([debug, supports_color]),
+        &HashSet::from_iter(["supports-color".to_string()]),
+        &HashSet::from_iter([debug, supports_color]),
     );
 
     assert!(!scoped.contains_key("debug"));
@@ -146,14 +142,14 @@ fn same_package_child_does_not_shadow_inherited_parent_and_bubbles_by_name() {
                 id: "mid@1.0.0".to_string(),
             },
         ],
-        packages: HashMap::from([
+        packages: HashMap::from_iter([
             ("x@1.0.0".to_string(), package("x", "1.0.0", &[], true)),
             ("x@2.0.0".to_string(), package("x", "2.0.0", &[], true)),
             ("p@1.0.0".to_string(), package("p", "1.0.0", &[("x", "*")], false)),
             ("plugin@1.0.0".to_string(), package("plugin", "1.0.0", &[("p", "*")], false)),
             ("mid@1.0.0".to_string(), package("mid", "1.0.0", &[], false)),
         ]),
-        dependencies_tree: HashMap::from([
+        dependencies_tree: HashMap::from_iter([
             (x1, tree_node("x@1.0.0", BTreeMap::new(), 0)),
             (x2, tree_node("x@2.0.0", BTreeMap::new(), 1)),
             (p_root, tree_node("p@1.0.0", BTreeMap::new(), 0)),
@@ -161,10 +157,10 @@ fn same_package_child_does_not_shadow_inherited_parent_and_bubbles_by_name() {
             (plugin, tree_node("plugin@1.0.0", BTreeMap::new(), 1)),
             (mid, tree_node("mid@1.0.0", mid_children, 0)),
         ]),
-        all_peer_dep_names: HashSet::from(["p".to_string(), "x".to_string()]),
+        all_peer_dep_names: HashSet::from_iter(["p".to_string(), "x".to_string()]),
         policy_violations: Vec::new(),
-        applied_patches: HashSet::new(),
-        children_by_id: HashMap::new(),
+        applied_patches: HashSet::default(),
+        children_by_id: HashMap::default(),
     };
 
     let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
@@ -196,21 +192,21 @@ fn own_peer_is_resolved_from_peer_relevant_child() {
             node_id: consumer.clone(),
             id: "consumer@1.0.0".to_string(),
         }],
-        packages: HashMap::from([
+        packages: HashMap::from_iter([
             ("types@1.0.0".to_string(), package("types", "1.0.0", &[], true)),
             (
                 "consumer@1.0.0".to_string(),
                 package_with_peer_dependencies("consumer", "1.0.0", &[("types", "*", true)], false),
             ),
         ]),
-        dependencies_tree: HashMap::from([
+        dependencies_tree: HashMap::from_iter([
             (types, tree_node("types@1.0.0", BTreeMap::new(), 1)),
             (consumer, tree_node("consumer@1.0.0", consumer_children, 0)),
         ]),
-        all_peer_dep_names: HashSet::from(["types".to_string()]),
+        all_peer_dep_names: HashSet::from_iter(["types".to_string()]),
         policy_violations: Vec::new(),
-        applied_patches: HashSet::new(),
-        children_by_id: HashMap::new(),
+        applied_patches: HashSet::default(),
+        children_by_id: HashMap::default(),
     };
 
     let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
@@ -257,7 +253,7 @@ fn reports_a_conflict_for_an_optional_peer_with_an_incompatible_provider() {
                 id: "peer@2.0.0".to_string(),
             },
         ],
-        packages: HashMap::from([
+        packages: HashMap::from_iter([
             ("peer@2.0.0".to_string(), package("peer", "2.0.0", &[], true)),
             (
                 "consumer@1.0.0".to_string(),
@@ -269,14 +265,14 @@ fn reports_a_conflict_for_an_optional_peer_with_an_incompatible_provider() {
                 ),
             ),
         ]),
-        dependencies_tree: HashMap::from([
+        dependencies_tree: HashMap::from_iter([
             (provider, tree_node("peer@2.0.0", BTreeMap::new(), 0)),
             (consumer, tree_node("consumer@1.0.0", BTreeMap::new(), 0)),
         ]),
-        all_peer_dep_names: HashSet::from(["peer".to_string()]),
+        all_peer_dep_names: HashSet::from_iter(["peer".to_string()]),
         policy_violations: Vec::new(),
-        applied_patches: HashSet::new(),
-        children_by_id: HashMap::new(),
+        applied_patches: HashSet::default(),
+        children_by_id: HashMap::default(),
     };
 
     let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
@@ -300,7 +296,7 @@ fn named_registry_peer_tree(peer_spec: &str) -> (ResolvedTree, DepPath) {
             node_id: consumer.clone(),
             id: "consumer@1.0.0".to_string(),
         }],
-        packages: HashMap::from([
+        packages: HashMap::from_iter([
             ("types@1.0.0".to_string(), package("types", "1.0.0", &[], true)),
             (
                 "consumer@1.0.0".to_string(),
@@ -312,14 +308,14 @@ fn named_registry_peer_tree(peer_spec: &str) -> (ResolvedTree, DepPath) {
                 ),
             ),
         ]),
-        dependencies_tree: HashMap::from([
+        dependencies_tree: HashMap::from_iter([
             (types, tree_node("types@1.0.0", BTreeMap::new(), 1)),
             (consumer, tree_node("consumer@1.0.0", consumer_children, 0)),
         ]),
-        all_peer_dep_names: HashSet::from(["types".to_string()]),
+        all_peer_dep_names: HashSet::from_iter(["types".to_string()]),
         policy_violations: Vec::new(),
-        applied_patches: HashSet::new(),
-        children_by_id: HashMap::new(),
+        applied_patches: HashSet::default(),
+        children_by_id: HashMap::default(),
     };
 
     (tree, DepPath::from("consumer@1.0.0(types@1.0.0)"))
@@ -341,20 +337,20 @@ fn alias_child_resolves_peer_by_real_package_name() {
             node_id: consumer.clone(),
             id: "consumer@1.0.0".to_string(),
         }],
-        packages: HashMap::from([
+        packages: HashMap::from_iter([
             ("consumer@1.0.0".to_string(), package("consumer", "1.0.0", &[], false)),
             ("peer@1.0.0".to_string(), package("peer", "1.0.0", &[], true)),
             ("plugin@1.0.0".to_string(), package("plugin", "1.0.0", &[("peer", "*")], false)),
         ]),
-        dependencies_tree: HashMap::from([
+        dependencies_tree: HashMap::from_iter([
             (provider, tree_node("peer@1.0.0", BTreeMap::new(), 1)),
             (plugin, tree_node("plugin@1.0.0", BTreeMap::new(), 1)),
             (consumer, tree_node("consumer@1.0.0", consumer_children, 0)),
         ]),
-        all_peer_dep_names: HashSet::from(["peer".to_string()]),
+        all_peer_dep_names: HashSet::from_iter(["peer".to_string()]),
         policy_violations: Vec::new(),
-        applied_patches: HashSet::new(),
-        children_by_id: HashMap::new(),
+        applied_patches: HashSet::default(),
+        children_by_id: HashMap::default(),
     };
 
     let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
@@ -396,22 +392,22 @@ fn transitive_pending_peer_uses_provider_final_suffix() {
                 id: "c@1.0.0".to_string(),
             },
         ],
-        packages: HashMap::from([
+        packages: HashMap::from_iter([
             ("a@1.0.0".to_string(), package("a", "1.0.0", &[("c", "*")], false)),
             ("b@1.0.0".to_string(), package("b", "1.0.0", &[("a", "*")], false)),
             ("c@1.0.0".to_string(), package("c", "1.0.0", &[], true)),
             ("x@1.0.0".to_string(), package("x", "1.0.0", &[("b", "*")], false)),
         ]),
-        dependencies_tree: HashMap::from([
+        dependencies_tree: HashMap::from_iter([
             (a_node_id, tree_node("a@1.0.0", a_children, 0)),
             (b_node_id, tree_node("b@1.0.0", BTreeMap::new(), 1)),
             (c_node_id, tree_node("c@1.0.0", BTreeMap::new(), 0)),
             (x_node_id, tree_node("x@1.0.0", BTreeMap::new(), 1)),
         ]),
-        all_peer_dep_names: HashSet::from(["a".to_string(), "b".to_string(), "c".to_string()]),
+        all_peer_dep_names: HashSet::from_iter(["a".to_string(), "b".to_string(), "c".to_string()]),
         policy_violations: Vec::new(),
-        applied_patches: HashSet::new(),
-        children_by_id: HashMap::new(),
+        applied_patches: HashSet::default(),
+        children_by_id: HashMap::default(),
     };
 
     let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
@@ -456,22 +452,22 @@ fn resolved_peer_providers_from_direct_outputs_are_last_write_wins() {
                 id: "second@1.0.0".to_string(),
             },
         ],
-        packages: HashMap::from([
+        packages: HashMap::from_iter([
             ("peer@1.0.0".to_string(), package("peer", "1.0.0", &[], true)),
             ("peer@2.0.0".to_string(), package("peer", "2.0.0", &[], true)),
             ("first@1.0.0".to_string(), package("first", "1.0.0", &[("peer", "*")], false)),
             ("second@1.0.0".to_string(), package("second", "1.0.0", &[("peer", "*")], false)),
         ]),
-        dependencies_tree: HashMap::from([
+        dependencies_tree: HashMap::from_iter([
             (first_peer, tree_node("peer@1.0.0", BTreeMap::new(), 1)),
             (second_peer.clone(), tree_node("peer@2.0.0", BTreeMap::new(), 1)),
             (first, tree_node("first@1.0.0", first_children, 0)),
             (second, tree_node("second@1.0.0", second_children, 0)),
         ]),
-        all_peer_dep_names: HashSet::from(["peer".to_string()]),
+        all_peer_dep_names: HashSet::from_iter(["peer".to_string()]),
         policy_violations: Vec::new(),
-        applied_patches: HashSet::new(),
-        children_by_id: HashMap::new(),
+        applied_patches: HashSet::default(),
+        children_by_id: HashMap::default(),
     };
 
     let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
@@ -504,7 +500,7 @@ fn cached_subtree_reuse_reports_no_peer_providers() {
                 id: "peerx@1.0.0".to_string(),
             },
         ],
-        packages: HashMap::from([
+        packages: HashMap::from_iter([
             ("peerx@1.0.0".to_string(), package("peerx", "1.0.0", &[], true)),
             ("peerpkg@2.0.0".to_string(), package("peerpkg", "2.0.0", &[], true)),
             (
@@ -513,21 +509,22 @@ fn cached_subtree_reuse_reports_no_peer_providers() {
             ),
             ("mid@1.0.0".to_string(), package("mid", "1.0.0", &[], false)),
         ]),
-        dependencies_tree: HashMap::from([
+        dependencies_tree: HashMap::from_iter([
             (peerx, tree_node("peerx@1.0.0", BTreeMap::new(), 0)),
             (peerpkg, tree_node("peerpkg@2.0.0", BTreeMap::new(), 1)),
             (consumer, tree_node("consumer@1.0.0", BTreeMap::new(), 1)),
             (mid, tree_node("mid@1.0.0", mid_children, 0)),
         ]),
-        all_peer_dep_names: HashSet::from(["peerpkg".to_string(), "peerx".to_string()]),
+        all_peer_dep_names: HashSet::from_iter(["peerpkg".to_string(), "peerx".to_string()]),
         policy_violations: Vec::new(),
-        applied_patches: HashSet::new(),
-        children_by_id: HashMap::new(),
+        applied_patches: HashSet::default(),
+        children_by_id: HashMap::default(),
     };
     let direct = tree.direct.clone();
 
     let (first, caches) = super::discover_peers(
         &mut tree,
+        &direct,
         &direct,
         PeerDiscoveryCaches::default(),
         ResolvePeersOptions::default(),
@@ -538,7 +535,7 @@ fn cached_subtree_reuse_reports_no_peer_providers() {
     );
 
     let (second, _) =
-        super::discover_peers(&mut tree, &direct, caches, ResolvePeersOptions::default());
+        super::discover_peers(&mut tree, &direct, &direct, caches, ResolvePeersOptions::default());
     assert_eq!(
         second.resolved_peer_providers_by_alias.get("peerpkg"),
         None,
@@ -570,7 +567,7 @@ fn peer_name_cycle_collapses_provider_suffixes() {
                 id: "webpack@5.0.0".to_string(),
             },
         ],
-        packages: HashMap::from([
+        packages: HashMap::from_iter([
             (
                 "source-map-loader@1.0.0".to_string(),
                 package("source-map-loader", "1.0.0", &[("webpack", "*")], false),
@@ -584,15 +581,15 @@ fn peer_name_cycle_collapses_provider_suffixes() {
                 package("webpack", "5.0.0", &[("webpack-cli", "*")], false),
             ),
         ]),
-        dependencies_tree: HashMap::from([
+        dependencies_tree: HashMap::from_iter([
             (loader, tree_node("source-map-loader@1.0.0", BTreeMap::new(), 0)),
             (webpack_cli, tree_node("webpack-cli@6.0.0", BTreeMap::new(), 0)),
             (webpack, tree_node("webpack@5.0.0", BTreeMap::new(), 0)),
         ]),
-        all_peer_dep_names: HashSet::from(["webpack".to_string(), "webpack-cli".to_string()]),
+        all_peer_dep_names: HashSet::from_iter(["webpack".to_string(), "webpack-cli".to_string()]),
         policy_violations: Vec::new(),
-        applied_patches: HashSet::new(),
-        children_by_id: HashMap::new(),
+        applied_patches: HashSet::default(),
+        children_by_id: HashMap::default(),
     };
 
     let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
@@ -625,7 +622,7 @@ fn missing_names_by_pkg_records_only_children_context_missing_peers() {
             node_id: parent.clone(),
             id: "parent@1.0.0".to_string(),
         }],
-        packages: HashMap::from([
+        packages: HashMap::from_iter([
             (
                 "parent@1.0.0".to_string(),
                 package_with_peer_dependencies(
@@ -645,14 +642,14 @@ fn missing_names_by_pkg_records_only_children_context_missing_peers() {
                 ),
             ),
         ]),
-        dependencies_tree: HashMap::from([
+        dependencies_tree: HashMap::from_iter([
             (parent, tree_node("parent@1.0.0", parent_children, 0)),
             (child, tree_node("child@1.0.0", BTreeMap::new(), 1)),
         ]),
-        all_peer_dep_names: HashSet::from(["own-peer".to_string(), "child-peer".to_string()]),
+        all_peer_dep_names: HashSet::from_iter(["own-peer".to_string(), "child-peer".to_string()]),
         policy_violations: Vec::new(),
-        applied_patches: HashSet::new(),
-        children_by_id: HashMap::new(),
+        applied_patches: HashSet::default(),
+        children_by_id: HashMap::default(),
     };
 
     let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
@@ -678,7 +675,7 @@ fn own_peer_is_resolved_from_aliased_sibling_real_name() {
             node_id: parent.clone(),
             id: "parent@1.0.0".to_string(),
         }],
-        packages: HashMap::from([
+        packages: HashMap::from_iter([
             ("peer-c@2.0.0".to_string(), package("peer-c", "2.0.0", &[], true)),
             (
                 "consumer@1.0.0".to_string(),
@@ -691,15 +688,15 @@ fn own_peer_is_resolved_from_aliased_sibling_real_name() {
             ),
             ("parent@1.0.0".to_string(), package("parent", "1.0.0", &[], false)),
         ]),
-        dependencies_tree: HashMap::from([
+        dependencies_tree: HashMap::from_iter([
             (peer_c, tree_node("peer-c@2.0.0", BTreeMap::new(), 1)),
             (consumer, tree_node("consumer@1.0.0", BTreeMap::new(), 1)),
             (parent, tree_node("parent@1.0.0", parent_children, 0)),
         ]),
-        all_peer_dep_names: HashSet::from(["peer-c".to_string()]),
+        all_peer_dep_names: HashSet::from_iter(["peer-c".to_string()]),
         policy_violations: Vec::new(),
-        applied_patches: HashSet::new(),
-        children_by_id: HashMap::new(),
+        applied_patches: HashSet::default(),
+        children_by_id: HashMap::default(),
     };
 
     let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
@@ -741,20 +738,20 @@ fn importer_parent_refs_skip_direct_deps_irrelevant_by_alias_and_real_name() {
                 id: "unused@1.0.0".to_string(),
             },
         ],
-        packages: HashMap::from([
+        packages: HashMap::from_iter([
             ("alias-real@1.0.0".to_string(), package("alias-real", "1.0.0", &[], true)),
             ("peer-c@2.0.0".to_string(), package("peer-c", "2.0.0", &[], true)),
             ("unused@1.0.0".to_string(), package("unused", "1.0.0", &[], true)),
         ]),
-        dependencies_tree: HashMap::from([
+        dependencies_tree: HashMap::from_iter([
             (alias_relevant, tree_node("alias-real@1.0.0", BTreeMap::new(), 0)),
             (real_name_relevant, tree_node("peer-c@2.0.0", BTreeMap::new(), 0)),
             (irrelevant, tree_node("unused@1.0.0", BTreeMap::new(), 0)),
         ]),
-        all_peer_dep_names: HashSet::from(["alias-peer".to_string(), "peer-c".to_string()]),
+        all_peer_dep_names: HashSet::from_iter(["alias-peer".to_string(), "peer-c".to_string()]),
         policy_violations: Vec::new(),
-        applied_patches: HashSet::new(),
-        children_by_id: HashMap::new(),
+        applied_patches: HashSet::default(),
+        children_by_id: HashMap::default(),
     };
     let walker = walker_for_tests(&mut tree);
 
@@ -794,7 +791,7 @@ fn cached_optional_peer_resolution_does_not_match_later_parent_without_provider(
                 id: "cli@1.0.0".to_string(),
             },
         ],
-        packages: HashMap::from([
+        packages: HashMap::from_iter([
             ("types@1.0.0".to_string(), package("types", "1.0.0", &[], true)),
             (
                 "config@1.0.0".to_string(),
@@ -803,17 +800,17 @@ fn cached_optional_peer_resolution_does_not_match_later_parent_without_provider(
             ("core@1.0.0".to_string(), package("core", "1.0.0", &[], false)),
             ("cli@1.0.0".to_string(), package("cli", "1.0.0", &[], false)),
         ]),
-        dependencies_tree: HashMap::from([
+        dependencies_tree: HashMap::from_iter([
             (types, tree_node("types@1.0.0", BTreeMap::new(), 1)),
             (config_from_core, tree_node("config@1.0.0", BTreeMap::new(), 1)),
             (config_from_cli, tree_node("config@1.0.0", BTreeMap::new(), 1)),
             (core, tree_node("core@1.0.0", core_children, 0)),
             (cli, tree_node("cli@1.0.0", cli_children, 0)),
         ]),
-        all_peer_dep_names: HashSet::from(["types".to_string()]),
+        all_peer_dep_names: HashSet::from_iter(["types".to_string()]),
         policy_violations: Vec::new(),
-        applied_patches: HashSet::new(),
-        children_by_id: HashMap::new(),
+        applied_patches: HashSet::default(),
+        children_by_id: HashMap::default(),
     };
 
     let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
@@ -844,18 +841,18 @@ fn same_leaf_node_under_multiple_aliases_preserves_every_edge() {
             node_id: parent.clone(),
             id: "parent@1.0.0".to_string(),
         }],
-        packages: HashMap::from([
+        packages: HashMap::from_iter([
             ("shared@1.0.0".to_string(), package("shared", "1.0.0", &[], true)),
             ("parent@1.0.0".to_string(), package("parent", "1.0.0", &[], false)),
         ]),
-        dependencies_tree: HashMap::from([
+        dependencies_tree: HashMap::from_iter([
             (shared, tree_node("shared@1.0.0", BTreeMap::new(), 1)),
             (parent, tree_node("parent@1.0.0", parent_children, 0)),
         ]),
-        all_peer_dep_names: HashSet::new(),
+        all_peer_dep_names: HashSet::default(),
         policy_violations: Vec::new(),
-        applied_patches: HashSet::new(),
-        children_by_id: HashMap::new(),
+        applied_patches: HashSet::default(),
+        children_by_id: HashMap::default(),
     };
 
     let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
@@ -895,7 +892,7 @@ fn same_package_child_replaces_inherited_parent_when_peer_diamond_conflicts() {
                 id: "bundle@1.0.0".to_string(),
             },
         ],
-        packages: HashMap::from([
+        packages: HashMap::from_iter([
             ("ts@1.0.0".to_string(), package("ts", "1.0.0", &[], true)),
             ("ts@2.0.0".to_string(), package("ts", "2.0.0", &[], true)),
             ("parser@1.0.0".to_string(), package("parser", "1.0.0", &[("ts", "*")], false)),
@@ -905,7 +902,7 @@ fn same_package_child_replaces_inherited_parent_when_peer_diamond_conflicts() {
             ),
             ("bundle@1.0.0".to_string(), package("bundle", "1.0.0", &[], false)),
         ]),
-        dependencies_tree: HashMap::from([
+        dependencies_tree: HashMap::from_iter([
             (ts1, tree_node("ts@1.0.0", BTreeMap::new(), 1)),
             (ts2, tree_node("ts@2.0.0", BTreeMap::new(), 0)),
             (parser_root, tree_node("parser@1.0.0", BTreeMap::new(), 0)),
@@ -913,10 +910,10 @@ fn same_package_child_replaces_inherited_parent_when_peer_diamond_conflicts() {
             (plugin, tree_node("plugin@1.0.0", BTreeMap::new(), 1)),
             (bundle, tree_node("bundle@1.0.0", bundle_children, 0)),
         ]),
-        all_peer_dep_names: HashSet::from(["parser".to_string(), "ts".to_string()]),
+        all_peer_dep_names: HashSet::from_iter(["parser".to_string(), "ts".to_string()]),
         policy_violations: Vec::new(),
-        applied_patches: HashSet::new(),
-        children_by_id: HashMap::new(),
+        applied_patches: HashSet::default(),
+        children_by_id: HashMap::default(),
     };
 
     let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
@@ -949,15 +946,18 @@ fn previously_resolved_children_prefers_closest_same_package_ancestor() {
 
     let mut tree = ResolvedTree {
         direct: Vec::new(),
-        packages: HashMap::from([("loop@1.0.0".to_string(), package("loop", "1.0.0", &[], false))]),
-        dependencies_tree: HashMap::from([
+        packages: HashMap::from_iter([(
+            "loop@1.0.0".to_string(),
+            package("loop", "1.0.0", &[], false),
+        )]),
+        dependencies_tree: HashMap::from_iter([
             (far_parent.clone(), tree_node("loop@1.0.0", far_children, 0)),
             (close_parent.clone(), tree_node("loop@1.0.0", close_children, 2)),
         ]),
-        all_peer_dep_names: HashSet::new(),
+        all_peer_dep_names: HashSet::default(),
         policy_violations: Vec::new(),
-        applied_patches: HashSet::new(),
-        children_by_id: HashMap::new(),
+        applied_patches: HashSet::default(),
+        children_by_id: HashMap::default(),
     };
     let mut walker = walker_for_tests(&mut tree);
 
@@ -980,21 +980,21 @@ fn final_graph_keeps_first_equal_depth_payload_and_unions_transitive_peers() {
 
     let mut tree = ResolvedTree {
         direct: Vec::new(),
-        packages: HashMap::from([
+        packages: HashMap::from_iter([
             ("same@1.0.0".to_string(), package("same", "1.0.0", &[("peer", "*")], false)),
             ("child-a@1.0.0".to_string(), package("child-a", "1.0.0", &[], true)),
             ("child-b@1.0.0".to_string(), package("child-b", "1.0.0", &[], true)),
         ]),
-        dependencies_tree: HashMap::from([
+        dependencies_tree: HashMap::from_iter([
             (first.clone(), tree_node("same@1.0.0", BTreeMap::new(), 1)),
             (second.clone(), tree_node("same@1.0.0", BTreeMap::new(), 1)),
             (first_child.clone(), tree_node("child-a@1.0.0", BTreeMap::new(), 2)),
             (second_child.clone(), tree_node("child-b@1.0.0", BTreeMap::new(), 2)),
         ]),
-        all_peer_dep_names: HashSet::from(["peer".to_string()]),
+        all_peer_dep_names: HashSet::from_iter(["peer".to_string()]),
         policy_violations: Vec::new(),
-        applied_patches: HashSet::new(),
-        children_by_id: HashMap::new(),
+        applied_patches: HashSet::default(),
+        children_by_id: HashMap::default(),
     };
     let mut walker = walker_for_tests(&mut tree);
     walker.node_dep_paths.insert(first.clone(), final_dep_path.clone());
@@ -1005,8 +1005,8 @@ fn final_graph_keeps_first_equal_depth_payload_and_unions_transitive_peers() {
         second.clone(),
         NodeRecord {
             edges: BTreeMap::from([("peer".to_string(), second_child)]),
-            optional_child_aliases: HashSet::new(),
-            transitive_peer_dependencies: HashSet::from(["debug".to_string()]),
+            optional_child_aliases: HashSet::default(),
+            transitive_peer_dependencies: HashSet::from_iter(["debug".to_string()]),
             depth: 1,
             installable: true,
             is_pure: false,
@@ -1017,8 +1017,8 @@ fn final_graph_keeps_first_equal_depth_payload_and_unions_transitive_peers() {
         first.clone(),
         NodeRecord {
             edges: BTreeMap::from([("peer".to_string(), first_child)]),
-            optional_child_aliases: HashSet::new(),
-            transitive_peer_dependencies: HashSet::new(),
+            optional_child_aliases: HashSet::default(),
+            transitive_peer_dependencies: HashSet::default(),
             depth: 1,
             installable: true,
             is_pure: false,
@@ -1026,7 +1026,7 @@ fn final_graph_keeps_first_equal_depth_payload_and_unions_transitive_peers() {
         },
     );
 
-    let graph = walker.build_final_graph(&HashMap::from([
+    let graph = walker.build_final_graph(&HashMap::from_iter([
         (first, final_dep_path.clone()),
         (second, final_dep_path.clone()),
     ]));
@@ -1052,18 +1052,18 @@ fn final_graph_duplicate_parent_prefers_child_variant_matching_parent_peers() {
 
     let mut tree = ResolvedTree {
         direct: Vec::new(),
-        packages: HashMap::from([(
+        packages: HashMap::from_iter([(
             "consumer@1.0.0".to_string(),
             package("consumer", "1.0.0", &[], false),
         )]),
-        dependencies_tree: HashMap::from([
+        dependencies_tree: HashMap::from_iter([
             (first.clone(), tree_node("consumer@1.0.0", BTreeMap::new(), 1)),
             (second.clone(), tree_node("consumer@1.0.0", BTreeMap::new(), 1)),
         ]),
-        all_peer_dep_names: HashSet::new(),
+        all_peer_dep_names: HashSet::default(),
         policy_violations: Vec::new(),
-        applied_patches: HashSet::new(),
-        children_by_id: HashMap::new(),
+        applied_patches: HashSet::default(),
+        children_by_id: HashMap::default(),
     };
     let mut walker = walker_for_tests(&mut tree);
     walker.node_dep_paths.insert(first.clone(), parent_dep_path.clone());
@@ -1072,8 +1072,8 @@ fn final_graph_duplicate_parent_prefers_child_variant_matching_parent_peers() {
         first.clone(),
         NodeRecord {
             edges: BTreeMap::from([("webpack-cli".to_string(), first_child.clone())]),
-            optional_child_aliases: HashSet::new(),
-            transitive_peer_dependencies: HashSet::new(),
+            optional_child_aliases: HashSet::default(),
+            transitive_peer_dependencies: HashSet::default(),
             depth: 1,
             installable: true,
             is_pure: false,
@@ -1084,8 +1084,8 @@ fn final_graph_duplicate_parent_prefers_child_variant_matching_parent_peers() {
         second.clone(),
         NodeRecord {
             edges: BTreeMap::from([("webpack-cli".to_string(), second_child.clone())]),
-            optional_child_aliases: HashSet::new(),
-            transitive_peer_dependencies: HashSet::new(),
+            optional_child_aliases: HashSet::default(),
+            transitive_peer_dependencies: HashSet::default(),
             depth: 1,
             installable: true,
             is_pure: false,
@@ -1093,7 +1093,7 @@ fn final_graph_duplicate_parent_prefers_child_variant_matching_parent_peers() {
         },
     );
 
-    let graph = walker.build_final_graph(&HashMap::from([
+    let graph = walker.build_final_graph(&HashMap::from_iter([
         (first, parent_dep_path.clone()),
         (second, parent_dep_path.clone()),
         (first_child, analyzer_child_dep_path),
@@ -1121,7 +1121,7 @@ fn final_graph_peer_edge_keeps_the_providers_own_peer_suffix() {
 
     let mut tree = ResolvedTree {
         direct: Vec::new(),
-        packages: HashMap::from([
+        packages: HashMap::from_iter([
             (
                 "webpack-cli@6.0.1".to_string(),
                 package(
@@ -1145,28 +1145,28 @@ fn final_graph_peer_edge_keeps_the_providers_own_peer_suffix() {
                 ),
             ),
         ]),
-        dependencies_tree: HashMap::from([
+        dependencies_tree: HashMap::from_iter([
             (provider_analyzer.clone(), tree_node("webpack-cli@6.0.1", BTreeMap::new(), 0)),
             (provider_bare.clone(), tree_node("webpack-cli@6.0.1", BTreeMap::new(), 0)),
             (consumer.clone(), tree_node("@webpack-cli/serve@3.0.1", BTreeMap::new(), 1)),
         ]),
-        all_peer_dep_names: HashSet::from([
+        all_peer_dep_names: HashSet::from_iter([
             "webpack".to_string(),
             "webpack-cli".to_string(),
             "webpack-dev-server".to_string(),
             "webpack-bundle-analyzer".to_string(),
         ]),
         policy_violations: Vec::new(),
-        applied_patches: HashSet::new(),
-        children_by_id: HashMap::new(),
+        applied_patches: HashSet::default(),
+        children_by_id: HashMap::default(),
     };
     let mut walker = walker_for_tests(&mut tree);
     walker.node_records.insert(
         provider_analyzer.clone(),
         NodeRecord {
             edges: BTreeMap::new(),
-            optional_child_aliases: HashSet::new(),
-            transitive_peer_dependencies: HashSet::new(),
+            optional_child_aliases: HashSet::default(),
+            transitive_peer_dependencies: HashSet::default(),
             depth: 0,
             installable: true,
             is_pure: false,
@@ -1177,8 +1177,8 @@ fn final_graph_peer_edge_keeps_the_providers_own_peer_suffix() {
         provider_bare.clone(),
         NodeRecord {
             edges: BTreeMap::new(),
-            optional_child_aliases: HashSet::new(),
-            transitive_peer_dependencies: HashSet::new(),
+            optional_child_aliases: HashSet::default(),
+            transitive_peer_dependencies: HashSet::default(),
             depth: 0,
             installable: true,
             is_pure: false,
@@ -1189,8 +1189,8 @@ fn final_graph_peer_edge_keeps_the_providers_own_peer_suffix() {
         consumer.clone(),
         NodeRecord {
             edges: BTreeMap::from([("webpack-cli".to_string(), provider_analyzer.clone())]),
-            optional_child_aliases: HashSet::new(),
-            transitive_peer_dependencies: HashSet::new(),
+            optional_child_aliases: HashSet::default(),
+            transitive_peer_dependencies: HashSet::default(),
             depth: 1,
             installable: true,
             is_pure: false,
@@ -1199,7 +1199,7 @@ fn final_graph_peer_edge_keeps_the_providers_own_peer_suffix() {
     );
     walker.node_external_peers.insert(
         provider_analyzer.clone(),
-        HashMap::from([
+        HashMap::from_iter([
             ("webpack-bundle-analyzer".to_string(), NodeId::leaf("webpack-bundle-analyzer@4.10.2")),
             ("webpack-dev-server".to_string(), NodeId::leaf("webpack-dev-server@5.2.2")),
             ("webpack".to_string(), NodeId::leaf("webpack@5.107.2")),
@@ -1207,11 +1207,11 @@ fn final_graph_peer_edge_keeps_the_providers_own_peer_suffix() {
     );
     walker.node_external_peers.insert(
         provider_bare.clone(),
-        HashMap::from([("webpack".to_string(), NodeId::leaf("webpack@5.107.2"))]),
+        HashMap::from_iter([("webpack".to_string(), NodeId::leaf("webpack@5.107.2"))]),
     );
     walker.node_external_peers.insert(
         consumer.clone(),
-        HashMap::from([
+        HashMap::from_iter([
             ("webpack-bundle-analyzer".to_string(), NodeId::leaf("webpack-bundle-analyzer@4.10.2")),
             ("webpack-cli".to_string(), provider_analyzer.clone()),
             ("webpack-dev-server".to_string(), NodeId::leaf("webpack-dev-server@5.2.2")),
@@ -1219,7 +1219,7 @@ fn final_graph_peer_edge_keeps_the_providers_own_peer_suffix() {
         ]),
     );
 
-    let graph = walker.build_final_graph(&HashMap::from([
+    let graph = walker.build_final_graph(&HashMap::from_iter([
         (provider_analyzer, provider_analyzer_dep_path.clone()),
         (provider_bare, provider_bare_dep_path),
         (consumer, consumer_dep_path.clone()),
@@ -1248,7 +1248,7 @@ fn final_graph_peer_edge_keeps_provider_transitive_peer_suffixes() {
 
     let mut tree = ResolvedTree {
         direct: Vec::new(),
-        packages: HashMap::from([
+        packages: HashMap::from_iter([
             (
                 "webpack-dev-server@5.2.2".to_string(),
                 package(
@@ -1272,11 +1272,11 @@ fn final_graph_peer_edge_keeps_provider_transitive_peer_suffixes() {
                 ),
             ),
         ]),
-        dependencies_tree: HashMap::from([
+        dependencies_tree: HashMap::from_iter([
             (provider.clone(), tree_node("webpack-dev-server@5.2.2", BTreeMap::new(), 1)),
             (consumer.clone(), tree_node("webpack-cli@6.0.1", BTreeMap::new(), 0)),
         ]),
-        all_peer_dep_names: HashSet::from([
+        all_peer_dep_names: HashSet::from_iter([
             "bufferutil".to_string(),
             "tslib".to_string(),
             "utf-8-validate".to_string(),
@@ -1286,16 +1286,16 @@ fn final_graph_peer_edge_keeps_provider_transitive_peer_suffixes() {
             "webpack-bundle-analyzer".to_string(),
         ]),
         policy_violations: Vec::new(),
-        applied_patches: HashSet::new(),
-        children_by_id: HashMap::new(),
+        applied_patches: HashSet::default(),
+        children_by_id: HashMap::default(),
     };
     let mut walker = walker_for_tests(&mut tree);
     walker.node_records.insert(
         provider.clone(),
         NodeRecord {
             edges: BTreeMap::new(),
-            optional_child_aliases: HashSet::new(),
-            transitive_peer_dependencies: HashSet::from([
+            optional_child_aliases: HashSet::default(),
+            transitive_peer_dependencies: HashSet::from_iter([
                 "bufferutil".to_string(),
                 "tslib".to_string(),
                 "utf-8-validate".to_string(),
@@ -1310,8 +1310,8 @@ fn final_graph_peer_edge_keeps_provider_transitive_peer_suffixes() {
         consumer.clone(),
         NodeRecord {
             edges: BTreeMap::from([("webpack-dev-server".to_string(), provider.clone())]),
-            optional_child_aliases: HashSet::new(),
-            transitive_peer_dependencies: HashSet::new(),
+            optional_child_aliases: HashSet::default(),
+            transitive_peer_dependencies: HashSet::default(),
             depth: 0,
             installable: true,
             is_pure: false,
@@ -1320,7 +1320,7 @@ fn final_graph_peer_edge_keeps_provider_transitive_peer_suffixes() {
     );
     walker.node_external_peers.insert(
         provider.clone(),
-        HashMap::from([
+        HashMap::from_iter([
             ("bufferutil".to_string(), NodeId::leaf("bufferutil@4.1.0")),
             ("tslib".to_string(), NodeId::leaf("tslib@2.8.1")),
             ("utf-8-validate".to_string(), NodeId::leaf("utf-8-validate@5.0.10")),
@@ -1330,14 +1330,14 @@ fn final_graph_peer_edge_keeps_provider_transitive_peer_suffixes() {
     );
     walker.node_external_peers.insert(
         consumer.clone(),
-        HashMap::from([
+        HashMap::from_iter([
             ("webpack-bundle-analyzer".to_string(), NodeId::leaf("webpack-bundle-analyzer@4.10.2")),
             ("webpack-dev-server".to_string(), provider.clone()),
             ("webpack".to_string(), NodeId::leaf("webpack@5.107.2")),
         ]),
     );
 
-    let graph = walker.build_final_graph(&HashMap::from([
+    let graph = walker.build_final_graph(&HashMap::from_iter([
         (provider, provider_dep_path.clone()),
         (consumer, consumer_dep_path.clone()),
     ]));
@@ -1388,7 +1388,7 @@ fn shared_package_optional_transitive_peer_resolves_deterministically() {
                     id: "mid@1.0.0".to_string(),
                 },
             ],
-            packages: HashMap::from([
+            packages: HashMap::from_iter([
                 ("@babel/core@7.0.0".to_string(), package("@babel/core", "7.0.0", &[], true)),
                 (
                     "styled-jsx@1.0.0".to_string(),
@@ -1402,17 +1402,17 @@ fn shared_package_optional_transitive_peer_resolves_deterministically() {
                 ("app@1.0.0".to_string(), package("app", "1.0.0", &[], false)),
                 ("mid@1.0.0".to_string(), package("mid", "1.0.0", &[], false)),
             ]),
-            dependencies_tree: HashMap::from([
+            dependencies_tree: HashMap::from_iter([
                 (babel, tree_node("@babel/core@7.0.0", BTreeMap::new(), 1)),
                 (styled_shallow, tree_node("styled-jsx@1.0.0", BTreeMap::new(), 1)),
                 (styled_deep, tree_node("styled-jsx@1.0.0", BTreeMap::new(), 2)),
                 (app, tree_node("app@1.0.0", app_children, 0)),
                 (mid, tree_node("mid@1.0.0", mid_children, 1)),
             ]),
-            all_peer_dep_names: HashSet::from(["@babel/core".to_string()]),
+            all_peer_dep_names: HashSet::from_iter(["@babel/core".to_string()]),
             policy_violations: Vec::new(),
-            applied_patches: HashSet::new(),
-            children_by_id: HashMap::new(),
+            applied_patches: HashSet::default(),
+            children_by_id: HashMap::default(),
         }
     }
 
@@ -1469,24 +1469,24 @@ fn pruned_hoisted_provider_falls_back_to_root_resolution() {
                 id: "prov@1.0.0".to_string(),
             },
         ],
-        packages: HashMap::from([
+        packages: HashMap::from_iter([
             ("prov@1.0.0".to_string(), package("prov", "1.0.0", &[], true)),
             ("consumer@1.0.0".to_string(), package("consumer", "1.0.0", &[("prov", "*")], false)),
         ]),
-        dependencies_tree: HashMap::from([
+        dependencies_tree: HashMap::from_iter([
             (prov.clone(), tree_node("prov@1.0.0", BTreeMap::new(), 1)),
             (consumer, tree_node("consumer@1.0.0", BTreeMap::new(), 0)),
         ]),
-        all_peer_dep_names: HashSet::from(["prov".to_string()]),
+        all_peer_dep_names: HashSet::from_iter(["prov".to_string()]),
         policy_violations: Vec::new(),
-        applied_patches: HashSet::new(),
-        children_by_id: HashMap::new(),
+        applied_patches: HashSet::default(),
+        children_by_id: HashMap::default(),
     };
 
     let result = resolve_peers(
         &mut tree,
         ResolvePeersOptions {
-            hoisted_peer_provider_node_ids: HashSet::from([prov]),
+            hoisted_peer_provider_node_ids: HashSet::from_iter([prov]),
             ..ResolvePeersOptions::default()
         },
     );
@@ -1512,7 +1512,7 @@ fn pruned_hoisted_provider_falls_back_in_workspace_pass() {
 
     let importer = ImporterPeerInput {
         id: ".".to_string(),
-        hoisted_optional_peer_node_ids: HashSet::new(),
+        hoisted_optional_peer_node_ids: HashSet::default(),
         direct: vec![
             DirectDep {
                 alias: "consumer".to_string(),
@@ -1530,18 +1530,18 @@ fn pruned_hoisted_provider_falls_back_in_workspace_pass() {
     };
     let mut tree = ResolvedTree {
         direct: Vec::new(),
-        packages: HashMap::from([
+        packages: HashMap::from_iter([
             ("prov@1.0.0".to_string(), package("prov", "1.0.0", &[], true)),
             ("consumer@1.0.0".to_string(), package("consumer", "1.0.0", &[("prov", "*")], false)),
         ]),
-        dependencies_tree: HashMap::from([
+        dependencies_tree: HashMap::from_iter([
             (prov.clone(), tree_node("prov@1.0.0", BTreeMap::new(), 1)),
             (consumer, tree_node("consumer@1.0.0", BTreeMap::new(), 0)),
         ]),
-        all_peer_dep_names: HashSet::from(["prov".to_string()]),
+        all_peer_dep_names: HashSet::from_iter(["prov".to_string()]),
         policy_violations: Vec::new(),
-        applied_patches: HashSet::new(),
-        children_by_id: HashMap::new(),
+        applied_patches: HashSet::default(),
+        children_by_id: HashMap::default(),
     };
 
     let result = resolve_peers_workspace(
@@ -1552,7 +1552,7 @@ fn pruned_hoisted_provider_falls_back_in_workspace_pass() {
         false,
         false,
         ResolvePeersOptions {
-            hoisted_peer_provider_node_ids: HashSet::from([prov]),
+            hoisted_peer_provider_node_ids: HashSet::from_iter([prov]),
             ..ResolvePeersOptions::default()
         },
     );
@@ -1578,7 +1578,7 @@ fn workspace_importers_get_distinct_instances_for_different_peer_versions() {
     let importers = [
         ImporterPeerInput {
             id: "project-a".to_string(),
-            hoisted_optional_peer_node_ids: HashSet::new(),
+            hoisted_optional_peer_node_ids: HashSet::default(),
             direct: vec![
                 DirectDep {
                     alias: "consumer".to_string(),
@@ -1596,7 +1596,7 @@ fn workspace_importers_get_distinct_instances_for_different_peer_versions() {
         },
         ImporterPeerInput {
             id: "project-b".to_string(),
-            hoisted_optional_peer_node_ids: HashSet::new(),
+            hoisted_optional_peer_node_ids: HashSet::default(),
             direct: vec![
                 DirectDep {
                     alias: "consumer".to_string(),
@@ -1615,21 +1615,21 @@ fn workspace_importers_get_distinct_instances_for_different_peer_versions() {
     ];
     let mut tree = ResolvedTree {
         direct: Vec::new(),
-        packages: HashMap::from([
+        packages: HashMap::from_iter([
             ("peer@1.0.0".to_string(), package("peer", "1.0.0", &[], true)),
             ("peer@2.0.0".to_string(), package("peer", "2.0.0", &[], true)),
             ("consumer@1.0.0".to_string(), package("consumer", "1.0.0", &[("peer", "*")], false)),
         ]),
-        dependencies_tree: HashMap::from([
+        dependencies_tree: HashMap::from_iter([
             (peer_v1, tree_node("peer@1.0.0", BTreeMap::new(), 0)),
             (peer_v2, tree_node("peer@2.0.0", BTreeMap::new(), 0)),
             (consumer_v1, tree_node("consumer@1.0.0", BTreeMap::new(), 0)),
             (consumer_v2, tree_node("consumer@1.0.0", BTreeMap::new(), 0)),
         ]),
-        all_peer_dep_names: HashSet::from(["peer".to_string()]),
+        all_peer_dep_names: HashSet::from_iter(["peer".to_string()]),
         policy_violations: Vec::new(),
-        applied_patches: HashSet::new(),
-        children_by_id: HashMap::new(),
+        applied_patches: HashSet::default(),
+        children_by_id: HashMap::default(),
     };
 
     let result = resolve_peers_workspace(
@@ -1665,7 +1665,7 @@ fn a_shared_consumer_keeps_the_first_importers_peer_provider_variant() {
     let importers = [
         ImporterPeerInput {
             id: ".".to_string(),
-            hoisted_optional_peer_node_ids: HashSet::new(),
+            hoisted_optional_peer_node_ids: HashSet::default(),
             direct: vec![
                 DirectDep {
                     alias: "plugin".to_string(),
@@ -1688,7 +1688,7 @@ fn a_shared_consumer_keeps_the_first_importers_peer_provider_variant() {
         },
         ImporterPeerInput {
             id: "app".to_string(),
-            hoisted_optional_peer_node_ids: HashSet::new(),
+            hoisted_optional_peer_node_ids: HashSet::default(),
             direct: vec![
                 DirectDep {
                     alias: "plugin".to_string(),
@@ -1708,7 +1708,7 @@ fn a_shared_consumer_keeps_the_first_importers_peer_provider_variant() {
 
     let mut tree = ResolvedTree {
         direct: Vec::new(),
-        packages: HashMap::from([
+        packages: HashMap::from_iter([
             ("plugin@1.0.0".to_string(), package("plugin", "1.0.0", &[("parser", "*")], false)),
             ("plugin@2.0.0".to_string(), package("plugin", "2.0.0", &[("parser", "*")], false)),
             (
@@ -1718,7 +1718,7 @@ fn a_shared_consumer_keeps_the_first_importers_peer_provider_variant() {
             ("resolver@1.0.0".to_string(), package("resolver", "1.0.0", &[("plugin", "*")], false)),
             ("parser@1.0.0".to_string(), package("parser", "1.0.0", &[], true)),
         ]),
-        dependencies_tree: HashMap::from([
+        dependencies_tree: HashMap::from_iter([
             (
                 plugin_v1,
                 tree_node(
@@ -1741,14 +1741,14 @@ fn a_shared_consumer_keeps_the_first_importers_peer_provider_variant() {
             (resolver_app, tree_node("resolver@1.0.0", BTreeMap::new(), 0)),
             (parser, tree_node("parser@1.0.0", BTreeMap::new(), 0)),
         ]),
-        all_peer_dep_names: HashSet::from([
+        all_peer_dep_names: HashSet::from_iter([
             "plugin".to_string(),
             "resolver".to_string(),
             "parser".to_string(),
         ]),
         policy_violations: Vec::new(),
-        applied_patches: HashSet::new(),
-        children_by_id: HashMap::new(),
+        applied_patches: HashSet::default(),
+        children_by_id: HashMap::default(),
     };
 
     let result = resolve_peers_workspace(
@@ -1779,7 +1779,7 @@ fn a_shared_consumer_keeps_the_first_importers_peer_provider_variant() {
     // Trimming a peer segment off the edge would key it to a variant no
     // importer reaches, leaving an orphan entry in the lockfile —
     // <https://github.com/pnpm/pnpm/issues/13320>.
-    let mut reachable: HashSet<DepPath> = HashSet::new();
+    let mut reachable: HashSet<DepPath> = HashSet::default();
     let mut queue: Vec<DepPath> = result
         .direct_dependencies_by_importer
         .values()
@@ -1802,7 +1802,7 @@ fn linked_peer_provider_uses_root_relative_snapshot_ref_in_workspace_fallback() 
     let consumer = NodeId::next();
     let importer = ImporterPeerInput {
         id: "apps/nested/app".to_string(),
-        hoisted_optional_peer_node_ids: HashSet::new(),
+        hoisted_optional_peer_node_ids: HashSet::default(),
         direct: vec![
             DirectDep {
                 alias: "consumer".to_string(),
@@ -1820,21 +1820,21 @@ fn linked_peer_provider_uses_root_relative_snapshot_ref_in_workspace_fallback() 
     };
     let mut tree = ResolvedTree {
         direct: Vec::new(),
-        packages: HashMap::from([
+        packages: HashMap::from_iter([
             (
                 "link:packages/peer".to_string(),
                 linked_package("peer", "link:packages/peer", "packages/peer"),
             ),
             ("consumer@1.0.0".to_string(), package("consumer", "1.0.0", &[("peer", "*")], false)),
         ]),
-        dependencies_tree: HashMap::from([
+        dependencies_tree: HashMap::from_iter([
             (peer.clone(), tree_node("link:packages/peer", BTreeMap::new(), -1)),
             (consumer, tree_node("consumer@1.0.0", BTreeMap::new(), 0)),
         ]),
-        all_peer_dep_names: HashSet::from(["peer".to_string()]),
+        all_peer_dep_names: HashSet::from_iter(["peer".to_string()]),
         policy_violations: Vec::new(),
-        applied_patches: HashSet::new(),
-        children_by_id: HashMap::new(),
+        applied_patches: HashSet::default(),
+        children_by_id: HashMap::default(),
     };
 
     let result = resolve_peers_workspace(
@@ -1846,7 +1846,7 @@ fn linked_peer_provider_uses_root_relative_snapshot_ref_in_workspace_fallback() 
         false,
         ResolvePeersOptions {
             lockfile_dir: Some(std::path::PathBuf::from("/repo")),
-            hoisted_peer_provider_node_ids: HashSet::from([peer]),
+            hoisted_peer_provider_node_ids: HashSet::from_iter([peer]),
             ..ResolvePeersOptions::default()
         },
     );
@@ -1872,18 +1872,18 @@ fn single_importer_link_is_rendered_relative_to_project_root() {
             node_id: shared.clone(),
             id: "link:packages/shared".to_string(),
         }],
-        packages: HashMap::from([(
+        packages: HashMap::from_iter([(
             "link:packages/shared".to_string(),
             linked_package("shared", "link:packages/shared", "packages/shared"),
         )]),
-        dependencies_tree: HashMap::from([(
+        dependencies_tree: HashMap::from_iter([(
             shared,
             tree_node("link:packages/shared", BTreeMap::new(), -1),
         )]),
-        all_peer_dep_names: HashSet::new(),
+        all_peer_dep_names: HashSet::default(),
         policy_violations: Vec::new(),
-        applied_patches: HashSet::new(),
-        children_by_id: HashMap::new(),
+        applied_patches: HashSet::default(),
+        children_by_id: HashMap::default(),
     };
 
     let result = resolve_peers(
@@ -1930,7 +1930,7 @@ fn pruned_hoisted_providers_with_mutual_peers_resolve() {
                 id: "lib-b@1.0.0".to_string(),
             },
         ],
-        packages: HashMap::from([
+        packages: HashMap::from_iter([
             ("lib-a@1.0.0".to_string(), package("lib-a", "1.0.0", &[("lib-b", "^1.0.0")], true)),
             ("lib-b@1.0.0".to_string(), package("lib-b", "1.0.0", &[("lib-a", "^1.0.0")], true)),
             (
@@ -1938,21 +1938,21 @@ fn pruned_hoisted_providers_with_mutual_peers_resolve() {
                 package("consumer", "1.0.0", &[("lib-a", "^1.0.0"), ("lib-b", "^1.0.0")], false),
             ),
         ]),
-        dependencies_tree: HashMap::from([
+        dependencies_tree: HashMap::from_iter([
             (lib_a.clone(), tree_node("lib-a@1.0.0", BTreeMap::new(), 1)),
             (lib_b.clone(), tree_node("lib-b@1.0.0", BTreeMap::new(), 1)),
             (consumer, tree_node("consumer@1.0.0", BTreeMap::new(), 0)),
         ]),
-        all_peer_dep_names: HashSet::from(["lib-a".to_string(), "lib-b".to_string()]),
+        all_peer_dep_names: HashSet::from_iter(["lib-a".to_string(), "lib-b".to_string()]),
         policy_violations: Vec::new(),
-        applied_patches: HashSet::new(),
-        children_by_id: HashMap::new(),
+        applied_patches: HashSet::default(),
+        children_by_id: HashMap::default(),
     };
 
     let result = resolve_peers(
         &mut tree,
         ResolvePeersOptions {
-            hoisted_peer_provider_node_ids: HashSet::from([lib_a, lib_b]),
+            hoisted_peer_provider_node_ids: HashSet::from_iter([lib_a, lib_b]),
             ..ResolvePeersOptions::default()
         },
     );
@@ -2000,24 +2000,24 @@ fn own_direct_dep_and_pruned_provider_with_mutual_peers_resolve() {
                 id: "plugin@1.0.0".to_string(),
             },
         ],
-        packages: HashMap::from([
+        packages: HashMap::from_iter([
             ("main@1.0.0".to_string(), package("main", "1.0.0", &[("plugin", "^1.0.0")], false)),
             ("plugin@1.0.0".to_string(), package("plugin", "1.0.0", &[("main", "^1.0.0")], true)),
         ]),
-        dependencies_tree: HashMap::from([
+        dependencies_tree: HashMap::from_iter([
             (main, tree_node("main@1.0.0", BTreeMap::new(), 0)),
             (plugin.clone(), tree_node("plugin@1.0.0", BTreeMap::new(), 1)),
         ]),
-        all_peer_dep_names: HashSet::from(["main".to_string(), "plugin".to_string()]),
+        all_peer_dep_names: HashSet::from_iter(["main".to_string(), "plugin".to_string()]),
         policy_violations: Vec::new(),
-        applied_patches: HashSet::new(),
-        children_by_id: HashMap::new(),
+        applied_patches: HashSet::default(),
+        children_by_id: HashMap::default(),
     };
 
     let result = resolve_peers(
         &mut tree,
         ResolvePeersOptions {
-            hoisted_peer_provider_node_ids: HashSet::from([plugin]),
+            hoisted_peer_provider_node_ids: HashSet::from_iter([plugin]),
             ..ResolvePeersOptions::default()
         },
     );
@@ -2064,12 +2064,12 @@ fn peer_cycle_between_own_dep_and_provider_at_tree_position_resolves() {
                 id: "plugin@1.0.0".to_string(),
             },
         ],
-        packages: HashMap::from([
+        packages: HashMap::from_iter([
             ("host@1.0.0".to_string(), package("host", "1.0.0", &[], false)),
             ("main@1.0.0".to_string(), package("main", "1.0.0", &[("plugin", "^1.0.0")], false)),
             ("plugin@1.0.0".to_string(), package("plugin", "1.0.0", &[("main", "^1.0.0")], false)),
         ]),
-        dependencies_tree: HashMap::from([
+        dependencies_tree: HashMap::from_iter([
             (
                 host,
                 tree_node(
@@ -2081,16 +2081,16 @@ fn peer_cycle_between_own_dep_and_provider_at_tree_position_resolves() {
             (main, tree_node("main@1.0.0", BTreeMap::new(), 0)),
             (plugin.clone(), tree_node("plugin@1.0.0", BTreeMap::new(), 1)),
         ]),
-        all_peer_dep_names: HashSet::from(["main".to_string(), "plugin".to_string()]),
+        all_peer_dep_names: HashSet::from_iter(["main".to_string(), "plugin".to_string()]),
         policy_violations: Vec::new(),
-        applied_patches: HashSet::new(),
-        children_by_id: HashMap::new(),
+        applied_patches: HashSet::default(),
+        children_by_id: HashMap::default(),
     };
 
     let result = resolve_peers(
         &mut tree,
         ResolvePeersOptions {
-            hoisted_peer_provider_node_ids: HashSet::from([plugin]),
+            hoisted_peer_provider_node_ids: HashSet::from_iter([plugin]),
             ..ResolvePeersOptions::default()
         },
     );
@@ -2126,7 +2126,7 @@ fn discovery_engine_rebuilds_after_a_children_ownership_rewrite() {
 
     let workspace = WorkspaceTreeCtx::default();
     let mut engine = PeerHoistDiscovery::new();
-    engine.discover(&workspace, &[], ResolvePeersOptions::default());
+    engine.discover(&workspace, &[], &[], ResolvePeersOptions::default());
 
     // A marker in the persistent caches makes reset-vs-merge observable.
     engine.caches.pure_pkgs.insert("marker@1.0.0".to_string());
@@ -2134,7 +2134,7 @@ fn discovery_engine_rebuilds_after_a_children_ownership_rewrite() {
     // bumps the revision; mirror that pairing.
     workspace.record_children_rewrite();
     workspace.bump_revision();
-    engine.discover(&workspace, &[], ResolvePeersOptions::default());
+    engine.discover(&workspace, &[], &[], ResolvePeersOptions::default());
     assert!(
         engine.caches.pure_pkgs.is_empty(),
         "an ownership rewrite must discard walk state derived before it",
@@ -2142,7 +2142,7 @@ fn discovery_engine_rebuilds_after_a_children_ownership_rewrite() {
 
     engine.caches.pure_pkgs.insert("marker@1.0.0".to_string());
     workspace.bump_revision();
-    engine.discover(&workspace, &[], ResolvePeersOptions::default());
+    engine.discover(&workspace, &[], &[], ResolvePeersOptions::default());
     assert!(
         engine.caches.pure_pkgs.contains("marker@1.0.0"),
         "a rewrite-free revision bump merges instead of rebuilding",
@@ -2153,7 +2153,7 @@ fn walker_for_tests(tree: &mut ResolvedTree) -> Walker<'_> {
     Walker::new(
         tree,
         ResolvePeersOptions::default(),
-        HashMap::new(),
+        HashMap::default(),
         Vec::new(),
         PeerDiscoveryCaches::default(),
         false,
@@ -2247,7 +2247,8 @@ mod locked_peer_provider_preferences {
         DepPath, DirectDep, NodeId, ResolvePeersOptions, ResolvedTree, package,
         package_with_peer_dependencies, resolve_peers, tree_node,
     };
-    use std::collections::{BTreeMap, HashMap, HashSet};
+    use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+    use std::collections::BTreeMap;
 
     struct LockedTreeIds {
         current_peer: NodeId,
@@ -2298,7 +2299,7 @@ mod locked_peer_provider_preferences {
                     id: "wrapper@1.0.0".to_string(),
                 },
             ],
-            packages: HashMap::from([
+            packages: HashMap::from_iter([
                 ("peer@1.0.0".to_string(), package("peer", "1.0.0", &[], true)),
                 ("peer@2.0.0".to_string(), package("peer", "2.0.0", &[], true)),
                 ("retainer@1.0.0".to_string(), package("retainer", "1.0.0", &[], false)),
@@ -2313,7 +2314,7 @@ mod locked_peer_provider_preferences {
                     ),
                 ),
             ]),
-            dependencies_tree: HashMap::from([
+            dependencies_tree: HashMap::from_iter([
                 (ids.current_peer.clone(), current_peer_node),
                 (ids.retained_peer.clone(), retained_peer_node),
                 (
@@ -2334,10 +2335,10 @@ mod locked_peer_provider_preferences {
                 ),
                 (ids.consumer.clone(), consumer_node),
             ]),
-            all_peer_dep_names: HashSet::from(["peer".to_string()]),
+            all_peer_dep_names: HashSet::from_iter(["peer".to_string()]),
             policy_violations: Vec::new(),
-            applied_patches: HashSet::new(),
-            children_by_id: HashMap::new(),
+            applied_patches: HashSet::default(),
+            children_by_id: HashMap::default(),
         }
     }
 
