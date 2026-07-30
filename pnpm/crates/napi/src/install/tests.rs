@@ -137,6 +137,10 @@ fn unsupported_install_options_fail_closed() {
     let mut options = install_options();
     options.auth_config = Some([("token".to_string(), "secret".to_string())].into());
     assert!(reject_unsupported_install_options(&options).is_err());
+
+    let mut options = install_options();
+    options.never_built_dependencies = Some(vec!["esbuild".to_string()]);
+    assert!(reject_unsupported_install_options(&options).is_err());
 }
 
 #[test]
@@ -161,35 +165,6 @@ fn non_object_project_manifests_are_rejected() {
         }];
         assert!(reject_non_object_manifests(&projects).is_err());
     }
-}
-
-#[test]
-fn never_built_dependencies_fold_into_allow_builds_as_denials() {
-    let mut options = install_options();
-    options.allow_builds =
-        Some(HashMap::from([("esbuild".to_string(), true), ("core-js".to_string(), true)]));
-    options.never_built_dependencies = Some(vec!["core-js".to_string(), "fsevents".to_string()]);
-    options.dangerously_allow_all_builds = Some(true);
-
-    let overlay = build_overlay(&options).expect("overlay");
-    let allow_builds = overlay.allow_builds.expect("allow_builds");
-    assert_eq!(allow_builds.get("esbuild"), Some(&true));
-    assert_eq!(allow_builds.get("core-js"), Some(&false));
-    assert_eq!(allow_builds.get("fsevents"), Some(&false));
-    // The engine's allow-everything short-circuit runs before the explicit
-    // denials, so a non-empty neverBuiltDependencies must turn it off.
-    assert_eq!(overlay.dangerously_allow_all_builds, Some(false));
-}
-
-#[test]
-fn empty_never_built_dependencies_leave_build_policy_untouched() {
-    let mut options = install_options();
-    options.never_built_dependencies = Some(vec![]);
-    options.dangerously_allow_all_builds = Some(true);
-
-    let overlay = build_overlay(&options).expect("overlay");
-    assert_eq!(overlay.allow_builds, None);
-    assert_eq!(overlay.dangerously_allow_all_builds, Some(true));
 }
 
 #[test]
@@ -333,7 +308,6 @@ fn install_options() -> InstallOptions {
         minimum_release_age: None,
         minimum_release_age_exclude: None,
         never_built_dependencies: None,
-        ignored_dependencies: None,
         update: None,
         depth: None,
         include_optional_deps: None,

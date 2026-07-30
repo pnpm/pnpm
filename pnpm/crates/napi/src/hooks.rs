@@ -1,5 +1,4 @@
-//! `readPackage` hook implementations: JS-backed bridges plus the pure-Rust
-//! [`IgnoredDependenciesHook`] layer.
+//! JS-backed `readPackage` hook.
 //!
 //! Bit transforms every dependency manifest during resolution (it strips
 //! `@teambit/legacy` / `@teambit/harmony` and reshapes workspace-package deps).
@@ -109,98 +108,6 @@ impl PnpmfileHooks for JsReadPackageHook {
 
     async fn filter_log(&self, _log: Value, _ctx: HookContext) -> bool {
         true
-    }
-}
-
-/// [`PnpmfileHooks`] layer that removes the `ignoredDependencies` install
-/// option's package names from every resolved manifest — from
-/// `dependencies` (unless the range is a `link:`, an explicit local
-/// reference that must survive) and from `peerDependencies` — after the
-/// optional inner JS hook has run. With no inner hook this makes the
-/// engine's whole manifest-transform chain pure Rust: no JS round trips.
-pub struct IgnoredDependenciesHook {
-    inner: Option<Arc<dyn PnpmfileHooks>>,
-    ignored_dependencies: Vec<String>,
-}
-
-impl IgnoredDependenciesHook {
-    pub fn new(inner: Option<Arc<dyn PnpmfileHooks>>, ignored_dependencies: Vec<String>) -> Self {
-        IgnoredDependenciesHook { inner, ignored_dependencies }
-    }
-
-    /// `true` when the range keeps the dependency exempt from removal.
-    fn keeps_entry(range: &Value) -> bool {
-        range.as_str().is_some_and(|range| range.starts_with("link:"))
-    }
-
-    fn removes_anything_from(&self, manifest: &Value) -> bool {
-        self.ignored_dependencies.iter().any(|name| {
-            manifest
-                .get("dependencies")
-                .and_then(|deps| deps.get(name))
-                .is_some_and(|range| !Self::keeps_entry(range))
-                || manifest.get("peerDependencies").and_then(|deps| deps.get(name)).is_some()
-        })
-    }
-
-    /// Strip the ignored names, sharing the input `Arc` when nothing matches.
-    fn strip(&self, manifest: ReadPackageResult) -> ReadPackageResult {
-        if !self.removes_anything_from(&manifest) {
-            return manifest;
-        }
-        let mut owned = (*manifest).clone();
-        for name in &self.ignored_dependencies {
-            if let Some(deps) = owned.get_mut("dependencies").and_then(Value::as_object_mut)
-                && deps.get(name).is_some_and(|range| !Self::keeps_entry(range))
-            {
-                deps.remove(name);
-            }
-            if let Some(peers) = owned.get_mut("peerDependencies").and_then(Value::as_object_mut) {
-                peers.remove(name);
-            }
-        }
-        Arc::new(owned)
-    }
-}
-
-#[async_trait]
-impl PnpmfileHooks for IgnoredDependenciesHook {
-    async fn read_package(
-        &self,
-        pkg: Value,
-        ctx: HookContext,
-    ) -> Result<ReadPackageResult, HookError> {
-        let manifest = match &self.inner {
-            Some(inner) => inner.read_package(pkg, ctx).await?,
-            None => Arc::new(pkg),
-        };
-        Ok(self.strip(manifest))
-    }
-
-    async fn after_all_resolved(
-        &self,
-        lockfile: Value,
-        ctx: HookContext,
-    ) -> Result<Value, HookError> {
-        match &self.inner {
-            Some(inner) => inner.after_all_resolved(lockfile, ctx).await,
-            // Null signals "no afterAllResolved hook" — the caller keeps the
-            // resolved lockfile unchanged.
-            None => Ok(Value::Null),
-        }
-    }
-
-    async fn pre_resolution(&self, ctx: PreResolutionHookContext, logger: PreResolutionHookLogger) {
-        if let Some(inner) = &self.inner {
-            inner.pre_resolution(ctx, logger).await;
-        }
-    }
-
-    async fn filter_log(&self, log: Value, ctx: HookContext) -> bool {
-        match &self.inner {
-            Some(inner) => inner.filter_log(log, ctx).await,
-            None => true,
-        }
     }
 }
 
@@ -350,6 +257,3 @@ impl PnpmfileHooks for JsBatchedReadPackageHook {
         true
     }
 }
-
-#[cfg(test)]
-mod tests;

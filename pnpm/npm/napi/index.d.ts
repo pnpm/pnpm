@@ -148,23 +148,6 @@ export interface InstallOptions extends SharedEngineOptions {
   hoistWorkspacePackages?: boolean
   minimumReleaseAge?: number
   minimumReleaseAgeExclude?: string[]
-  /**
-   * Packages whose build scripts must never run. Folded into the allow-builds
-   * policy as explicit denials, so the listed packages are neither built nor
-   * reported in `depsRequiringBuild`. A non-empty list overrides
-   * `dangerouslyAllowAllBuilds` for the whole install — only the explicit
-   * `allowBuilds` entries keep running.
-   */
-  neverBuiltDependencies?: string[]
-  /**
-   * Dependency names removed from every resolved package manifest — from
-   * `dependencies` (unless the range is a `link:`) and `peerDependencies`.
-   * For packages the host environment provides itself, replacing a
-   * `readPackage` hook that deletes them per manifest. Not recorded in the
-   * lockfile: changing the list does not invalidate an existing one, same as
-   * the hook it replaces.
-   */
-  ignoredDependencies?: string[]
   includeOptionalDeps?: boolean
   ignoreScripts?: boolean
   /**

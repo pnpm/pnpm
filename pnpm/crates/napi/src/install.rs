@@ -36,10 +36,7 @@ use tokio::sync::Mutex;
 use crate::{
     config::{ConfigOverlay, resolve_config},
     error::{invalid_manifest_error, to_napi_error, unsupported_option_error},
-    hooks::{
-        BatchHookSink, HookSink, IgnoredDependenciesHook, JsBatchedReadPackageHook,
-        JsReadPackageHook,
-    },
+    hooks::{BatchHookSink, HookSink, JsBatchedReadPackageHook, JsReadPackageHook},
     reporter_bridge::{EngineCallGuard, LogSink, NodeBridgeReporter, begin_stats, take_stats},
 };
 
@@ -106,21 +103,7 @@ pub struct InstallOptions {
     pub engine_strict: Option<bool>,
     pub minimum_release_age: Option<u32>,
     pub minimum_release_age_exclude: Option<Vec<String>>,
-    /// Packages whose build scripts must never run. Folded into the
-    /// allow-builds policy as explicit denials, so the listed packages are
-    /// neither built nor reported in `depsRequiringBuild`. A non-empty list
-    /// overrides `dangerouslyAllowAllBuilds` for the whole install: the
-    /// engine's allow-everything short-circuit would otherwise build the
-    /// listed packages too, so it is turned off and only the explicit
-    /// `allowBuilds` entries keep running.
     pub never_built_dependencies: Option<Vec<String>>,
-    /// Dependency names removed from every resolved package manifest — from
-    /// `dependencies` (unless the range is a `link:`) and `peerDependencies`.
-    /// For packages the host environment provides itself, replacing a
-    /// `readPackage` hook that deletes them per manifest. Not recorded in the
-    /// lockfile: changing the list does not invalidate an existing one, same
-    /// as the hook it replaces.
-    pub ignored_dependencies: Option<Vec<String>>,
     pub update: Option<bool>,
     pub depth: Option<u32>,
     pub include_optional_deps: Option<bool>,
@@ -257,17 +240,10 @@ fn run_install_blocking(
     // per-manifest dispatch pays roughly one event-loop tick per call. The
     // per-manifest sink stays as the fallback for a wrapper that predates
     // the batch contract.
-    let js_hook: Option<Arc<dyn PnpmfileHooks>> = match read_package_batch_hook {
+    let pnpmfile_hook: Option<Arc<dyn PnpmfileHooks>> = match read_package_batch_hook {
         Some(batch) => Some(Arc::new(JsBatchedReadPackageHook::new(batch))),
         None => read_package_hook
             .map(|sink| Arc::new(JsReadPackageHook::new(sink)) as Arc<dyn PnpmfileHooks>),
-    };
-    let ignored_dependencies: Vec<String> =
-        options.ignored_dependencies.clone().unwrap_or_default();
-    let pnpmfile_hook: Option<Arc<dyn PnpmfileHooks>> = if ignored_dependencies.is_empty() {
-        js_hook
-    } else {
-        Some(Arc::new(IgnoredDependenciesHook::new(js_hook, ignored_dependencies)))
     };
     begin_stats();
     let outcome = run_install_inner(options, pnpmfile_hook, EngineMode::Install);
@@ -583,17 +559,8 @@ fn build_overlay(options: &InstallOptions) -> napi::Result<ConfigOverlay> {
             .or_else(|| network_config.and_then(|config| config.user_agent.clone())),
         // Embedders gate builds themselves, so default to report-not-fail.
         strict_dep_builds: Some(options.strict_dep_builds.unwrap_or(false)),
-        allow_builds: fold_never_built_into_allow_builds(
-            options.allow_builds.as_ref(),
-            options.never_built_dependencies.as_deref(),
-        ),
-        // See `InstallOptions::never_built_dependencies`: a non-empty list
-        // must win over the allow-everything short-circuit.
-        dangerously_allow_all_builds: if never_built_is_non_empty(options) {
-            Some(false)
-        } else {
-            options.dangerously_allow_all_builds
-        },
+        allow_builds: options.allow_builds.clone().map(|map| map.into_iter().collect()),
+        dangerously_allow_all_builds: options.dangerously_allow_all_builds,
         ignore_scripts: options.ignore_scripts,
         trust_lockfile: options.trust_lockfile,
         engine_strict: options.engine_strict,
@@ -631,29 +598,10 @@ fn reject_non_object_manifests(projects: &[NodeApiProject]) -> napi::Result<()> 
 
 fn reject_unsupported_install_options(options: &InstallOptions) -> napi::Result<()> {
     reject_non_empty_map(options.auth_config.as_ref(), "authConfig")?;
+    // `neverBuiltDependencies` was replaced by `allowBuilds` in pnpm v12:
+    // hosts fold it into explicit `allowBuilds: false` entries themselves.
+    reject_non_empty_list(options.never_built_dependencies.as_deref(), "neverBuiltDependencies")?;
     Ok(())
-}
-
-fn never_built_is_non_empty(options: &InstallOptions) -> bool {
-    options.never_built_dependencies.as_deref().is_some_and(|names| !names.is_empty())
-}
-
-/// Merge `neverBuiltDependencies` into the allow-builds map as explicit
-/// denials, overriding any conflicting `allowBuilds` entry.
-fn fold_never_built_into_allow_builds(
-    allow_builds: Option<&HashMap<String, bool>>,
-    never_built: Option<&[String]>,
-) -> Option<std::collections::BTreeMap<String, bool>> {
-    let never_built = never_built.unwrap_or_default();
-    if never_built.is_empty() {
-        return allow_builds.map(|map| map.clone().into_iter().collect());
-    }
-    let mut merged: std::collections::BTreeMap<String, bool> =
-        allow_builds.map(|map| map.clone().into_iter().collect()).unwrap_or_default();
-    for name in never_built {
-        merged.insert(name.clone(), false);
-    }
-    Some(merged)
 }
 
 fn reject_non_empty_map<Value>(
@@ -661,6 +609,10 @@ fn reject_non_empty_map<Value>(
     option: &str,
 ) -> napi::Result<()> {
     reject_if(value.is_some_and(|map| !map.is_empty()), option)
+}
+
+fn reject_non_empty_list<Value>(value: Option<&[Value]>, option: &str) -> napi::Result<()> {
+    reject_if(value.is_some_and(|items| !items.is_empty()), option)
 }
 
 fn reject_if(condition: bool, option: &str) -> napi::Result<()> {
