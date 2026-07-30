@@ -479,14 +479,8 @@ fn resolved_peer_providers_from_direct_outputs_are_last_write_wins() {
     assert_eq!(result.resolved_peer_providers_by_alias.get("peer"), Some(&second_peer));
 }
 
-/// A discovery pass that reuses another pass's cached subtree must not
-/// re-report that subtree's resolved peer providers: pnpm's resolver
-/// gives a not-new package `resolvedPeers: {}`, so only the importer
-/// whose walk first resolved a subtree promotes its providers. A
-/// replay would hand one importer's provider (here `peerpkg@2.0.0`,
-/// internal to `mid`) to every later importer that shares the subtree,
-/// shadowing the workspace-root fallback for consumers the sharing
-/// importer resolves itself.
+/// Why a cache hit reports no providers is documented at the
+/// `peersCache` hit in [`Walker::resolve_node`].
 #[test]
 fn cached_subtree_reuse_reports_no_peer_providers() {
     let peerx = NodeId::leaf("peerx@1.0.0");

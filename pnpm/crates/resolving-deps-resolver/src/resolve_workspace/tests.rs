@@ -2523,21 +2523,14 @@ async fn a_workspace_range_root_dep_is_offered_as_a_peer_provider() {
     );
 }
 
-/// A subtree reused from another importer's walk must not promote the
-/// peer providers that walk resolved: pnpm's resolver gives a not-new
-/// package `resolvedPeers: {}`, so only the importer that first walked
-/// a subtree installs its providers at importer level. Replaying them
-/// would put the owner context's provider version ahead of the
-/// workspace-root fallback for the reusing importer's own consumers.
-///
-/// `pkg-b` reuses two foreign-owned subtrees: `mid` (whose walk
-/// resolved `peerpkg@2.0.0` internally) and `s2wrap` (whose consumer's
-/// miss the owner importer satisfied from its own ancestors, so the
-/// owner scope hides it from pkg-b's hoist). With no visible miss and
-/// no replayed provider, pkg-b's consumer must fall back to the
-/// workspace root's `peerpkg@1.0.0`.
+/// Workspace-level outcome lock for the rule tested by
+/// `resolve_peers::tests::cached_subtree_reuse_reports_no_peer_providers`
+/// (which is the regression test — this fixture resolves to the
+/// workspace root through the miss-hoist path with or without the
+/// fix, so it pins the end-to-end binding rather than discriminating
+/// the cache-replay code path).
 #[tokio::test]
-async fn reused_subtree_does_not_promote_owner_peer_providers() {
+async fn importer_sharing_foreign_subtrees_binds_peers_from_workspace_root() {
     let mut table = HashMap::new();
     table.insert(
         ("mid".to_string(), "1.0.0".to_string()),
