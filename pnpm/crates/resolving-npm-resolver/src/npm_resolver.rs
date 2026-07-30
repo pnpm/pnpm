@@ -901,9 +901,6 @@ fn fail_if_trust_downgraded_for_pick(
         .map_err(|err| Box::new(err) as ResolveError)
 }
 
-/// Resolver-time `minimumReleaseAge` check. Returns a violation entry
-/// when the picked version's publish timestamp falls past the policy
-/// cutoff and isn't excluded by name/version.
 /// The raw `dist-tags.latest` when the active `minimumReleaseAge`
 /// policy would allow installing it, `None` otherwise. The install
 /// summary's `(X is available)` hint must only ever name the actual
@@ -938,6 +935,9 @@ fn latest_allowed_by_policy<'a>(
     }
 }
 
+/// Resolver-time `minimumReleaseAge` check. Returns a violation entry
+/// when the picked version's publish timestamp falls past the policy
+/// cutoff and isn't excluded by name/version.
 fn detect_min_release_age_violation(
     name: &PkgName,
     version: &str,

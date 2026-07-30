@@ -1133,21 +1133,6 @@ function defaultTagForAlias (alias: string, defaultTag: string): RegistryPackage
 }
 
 /**
- * Inline minimumReleaseAge detection: returns a violation entry when the
- * picked version's publish timestamp is past the policy cutoff (and
- * isn't covered by `publishedByExclude`). The resolver already has the
- * timestamp in hand, so reporting inline saves the install layer from
- * re-walking the resolved tree and re-fetching the same metadata. The
- * deps-resolver aggregates the per-resolve `policyViolation` fields into
- * a single set the install command reacts to.
- *
- * Returns `undefined` for resolutions outside the policy — no policy
- * active, version excluded by pattern, timestamp missing or malformed,
- * or version mature. Specific-version exclusions (`pkg@1.0.0`) and
- * full-name exclusions (`pkg`) are both honored so an entry already on
- * the user's exclude list isn't re-announced every install.
- */
-/**
  * The raw `dist-tags.latest` when the active `minimumReleaseAge` policy would
  * allow installing it, `undefined` otherwise. The install summary's
  * "(X is available)" hint must only ever name the actual latest tag, so an
@@ -1175,6 +1160,21 @@ function latestAllowedByPolicy (
   return (Number.isNaN(ts) || ts <= opts.publishedBy.getTime()) ? latest : undefined
 }
 
+/**
+ * Inline minimumReleaseAge detection: returns a violation entry when the
+ * picked version's publish timestamp is past the policy cutoff (and
+ * isn't covered by `publishedByExclude`). The resolver already has the
+ * timestamp in hand, so reporting inline saves the install layer from
+ * re-walking the resolved tree and re-fetching the same metadata. The
+ * deps-resolver aggregates the per-resolve `policyViolation` fields into
+ * a single set the install command reacts to.
+ *
+ * Returns `undefined` for resolutions outside the policy — no policy
+ * active, version excluded by pattern, timestamp missing or malformed,
+ * or version mature. Specific-version exclusions (`pkg@1.0.0`) and
+ * full-name exclusions (`pkg`) are both honored so an entry already on
+ * the user's exclude list isn't re-announced every install.
+ */
 function detectMinReleaseAgeViolation (args: {
   name: string
   version: string
