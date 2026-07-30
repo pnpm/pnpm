@@ -17,7 +17,7 @@ fn allowed_for_plain_root_without_sudo() {
 }
 
 #[test]
-fn allowed_when_root_sudoed_to_itself() {
+fn allowed_when_sudo_user_is_root() {
     assert!(check_sudo_as(&command(&["pnpm", "setup"]), 0, Some("root")).is_ok());
 }
 

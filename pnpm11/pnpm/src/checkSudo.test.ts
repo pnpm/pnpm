@@ -18,7 +18,7 @@ test('allowed for plain root without sudo', () => {
   }).not.toThrow()
 })
 
-test('allowed when root sudoed to itself', () => {
+test('allowed when SUDO_USER is root', () => {
   expect(() => {
     checkSudo({ cmd: 'setup', cliParams: [], isGlobal: false, env: { SUDO_USER: 'root' }, geteuid: rootUid })
   }).not.toThrow()
