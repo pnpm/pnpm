@@ -1,5 +1,6 @@
 import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
+import type { VersionOverride } from '@pnpm/config.parse-overrides'
 import { createPackageVersionPolicyOrThrow, getPublishedByPolicy } from '@pnpm/config.version-policy'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { globalWarn } from '@pnpm/logger'
@@ -126,6 +127,7 @@ export interface ResolveDependenciesOptions {
   hooks: {
     readPackage?: ReadPackageHook
   }
+  parsedOverrides?: VersionOverride[]
   overrideBareSpecifier?: (name: string, bareSpecifier: string, dir?: string) => string | undefined
   nodeVersion?: string
   registries: Registries
@@ -210,6 +212,7 @@ export async function resolveDependencyTree<T> (
     pnpmVersion: opts.pnpmVersion,
     preferWorkspacePackages: opts.preferWorkspacePackages,
     readPackageHook: opts.hooks.readPackage,
+    parsedOverrides: opts.parsedOverrides,
     overrideBareSpecifier: opts.overrideBareSpecifier,
     registries: opts.registries,
     namedRegistryPrefixes: Array.from(

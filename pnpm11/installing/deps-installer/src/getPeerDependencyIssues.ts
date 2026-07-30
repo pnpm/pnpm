@@ -81,6 +81,7 @@ export async function getPeerDependencyIssues (
           ignoredOptionalDependencies: opts.ignoredOptionalDependencies,
         }),
       },
+      parsedOverrides: overrides,
       overrideBareSpecifier: createDependencyOverrider(overrides, lockfileDir),
       linkWorkspacePackagesDepth: opts.linkWorkspacePackagesDepth ?? (opts.saveWorkspaceProtocol ? 0 : -1),
       lockfileDir,

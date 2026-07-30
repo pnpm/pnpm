@@ -482,6 +482,34 @@ test('versions are replaced with versions specified through overrides option', a
   )
 })
 
+test('an override that targets a nonexistent version reports the override entry, not the parent dependency', async () => {
+  prepareEmpty()
+
+  const overrides = {
+    '@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0': '999.0.0',
+  }
+  let error: unknown
+  try {
+    await addDependenciesToPackage({},
+      ['@pnpm.e2e/pkg-with-1-dep@100.0.0'],
+      testDefaults({ overrides })
+    )
+  } catch (err) {
+    error = err
+  }
+  const { code, message, hint, pkgsStack } = error as PnpmError
+
+  expect(code).toBe('ERR_PNPM_NO_MATCHING_VERSION')
+  expect(message).toBe(
+    'Override "@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0": "999.0.0" targets a version of @pnpm.e2e/dep-of-pkg-with-1-dep that does not exist on the registry.'
+  )
+  expect(message).not.toContain('while fetching it from')
+  expect(hint).toBe(
+    'The latest release of @pnpm.e2e/dep-of-pkg-with-1-dep matching "^100.0.0" is "100.1.0".'
+  )
+  expect(pkgsStack).toBeUndefined()
+})
+
 test('when adding a new dependency that is present in the overrides, use the spec from the override', async () => {
   prepareEmpty()
 
