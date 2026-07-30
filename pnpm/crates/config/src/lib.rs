@@ -1740,6 +1740,11 @@ pub struct Config {
     /// `--save-prefix` / `--save-exact`.
     pub save_prefix: Option<String>,
 
+    /// Whether `pnpm add` saves the resolved version exactly, with no
+    /// range operator. The `saveExact` setting, equivalent to passing
+    /// `--save-exact`.
+    pub save_exact: bool,
+
     /// Whether `pnpm add` also records the new dependency in
     /// `peerDependencies` (and saves it as a dev dependency). The
     /// `savePeer` setting, equivalent to passing `--save-peer`.

@@ -8,6 +8,7 @@ import type {
   RetryTimeoutOptions,
 } from '@pnpm/fetching.types'
 import { globalWarn } from '@pnpm/logger'
+import { rangeSpecGranularity, versionWithRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
 import type {
   DirectoryResolution,
@@ -33,7 +34,7 @@ import { storeIndexKey } from '@pnpm/store.index'
 import type {
   DependencyManifest,
   PackageVersionPolicy,
-  PinnedVersion,
+  RangeSpecStyle,
   Registries,
   TrustPolicy,
 } from '@pnpm/types'
@@ -50,6 +51,7 @@ import versionSelectorType from 'version-selector-type'
 
 import { clearMeta, retainsFullMeta } from './clearMeta.js'
 import { fetchMetadataFromFromRegistry, type FetchMetadataFromFromRegistryOptions, RegistryResponseError } from './fetch.js'
+import { inferRangeSpecStyle } from './inferRangeSpecStyle.js'
 import { memoizeFetchMetadata } from './memoizeFetchMetadata.js'
 import { normalizeRegistryUrl } from './normalizeRegistryUrl.js'
 import {
@@ -67,7 +69,6 @@ import {
 import { pickPackageFromMeta, pickVersionByVersionRange } from './pickPackageFromMeta.js'
 import { failIfTrustDowngraded } from './trustChecks.js'
 import { MINIMUM_RELEASE_AGE_VIOLATION_CODE } from './violationCodes.js'
-import { whichVersionIsPinned } from './whichVersionIsPinned.js'
 import { workspacePrefToNpm } from './workspacePrefToNpm.js'
 
 export interface NoMatchingVersionErrorOptions {
@@ -129,11 +130,11 @@ export {
   workspacePrefToNpm,
 }
 export { createNpmResolutionVerifier, type CreateNpmResolutionVerifierOptions } from './createNpmResolutionVerifier.js'
+export { inferRangeSpecStyle } from './inferRangeSpecStyle.js'
 export {
   MINIMUM_RELEASE_AGE_VIOLATION_CODE,
   TRUST_DOWNGRADE_VIOLATION_CODE,
 } from './violationCodes.js'
-export { whichVersionIsPinned } from './whichVersionIsPinned.js'
 
 export interface ResolverFactoryOptions {
   cacheDir: string
@@ -495,7 +496,7 @@ export type ResolveFromNpmOptions = {
   updateChecksums?: boolean
   injectWorkspacePackages?: boolean
   calcSpecifier?: boolean
-  pinnedVersion?: PinnedVersion
+  rangeSpecStyle?: RangeSpecStyle
 } & ({
   projectDir?: string
   workspacePackages?: undefined
@@ -533,7 +534,7 @@ async function resolveNpm (
       update: Boolean(opts.update),
       saveWorkspaceProtocol: ctx.saveWorkspaceProtocol !== false ? ctx.saveWorkspaceProtocol : true,
       calcSpecifier: opts.calcSpecifier,
-      pinnedVersion: opts.pinnedVersion,
+      rangeSpecStyle: opts.rangeSpecStyle,
     })
     if (resolvedFromWorkspace != null) {
       return resolvedFromWorkspace
@@ -622,7 +623,7 @@ async function resolveNpm (
           update: false,
           saveWorkspaceProtocol: ctx.saveWorkspaceProtocol,
           calcSpecifier: opts.calcSpecifier,
-          pinnedVersion: opts.pinnedVersion,
+          rangeSpecStyle: opts.rangeSpecStyle,
         })
       } catch (workspaceErr) {
         // When the registry doesn't have the package and the workspace has it
@@ -648,7 +649,7 @@ async function resolveNpm (
           update: false,
           saveWorkspaceProtocol: ctx.saveWorkspaceProtocol,
           calcSpecifier: opts.calcSpecifier,
-          pinnedVersion: opts.pinnedVersion,
+          rangeSpecStyle: opts.rangeSpecStyle,
         })
       } catch (workspaceErr) {
         // Neither the registry nor the workspace has a matching version; the
@@ -677,7 +678,7 @@ async function resolveNpm (
           hardLinkLocalPackages: opts.injectWorkspacePackages === true || wantedDependency.injected,
           saveWorkspaceProtocol: ctx.saveWorkspaceProtocol,
           calcSpecifier: opts.calcSpecifier,
-          pinnedVersion: opts.pinnedVersion,
+          rangeSpecStyle: opts.rangeSpecStyle,
         }),
         latest: meta['dist-tags'].latest,
       }
@@ -692,7 +693,7 @@ async function resolveNpm (
           hardLinkLocalPackages: opts.injectWorkspacePackages === true || wantedDependency.injected,
           saveWorkspaceProtocol: ctx.saveWorkspaceProtocol,
           calcSpecifier: opts.calcSpecifier,
-          pinnedVersion: opts.pinnedVersion,
+          rangeSpecStyle: opts.rangeSpecStyle,
         }),
         latest: meta['dist-tags'].latest,
       }
@@ -711,7 +712,7 @@ async function resolveNpm (
       wantedDependency,
       spec,
       version: pickedPackage.version,
-      defaultPinnedVersion: opts.pinnedVersion,
+      defaultRangeSpecStyle: opts.rangeSpecStyle,
     })
   }
   const publishedAt = meta.time?.[pickedPackage.version]
@@ -748,7 +749,7 @@ async function resolveJsr (
   return {
     ...picked,
     normalizedBareSpecifier: opts.calcSpecifier
-      ? calcPrefixedSpecifier('jsr:', spec.jsrPkgName, wantedDependency, picked.manifest.version, opts.pinnedVersion)
+      ? calcPrefixedSpecifier('jsr:', spec.jsrPkgName, wantedDependency, picked.manifest.version, opts.rangeSpecStyle)
       : undefined,
     resolvedVia: 'jsr-registry',
     alias: spec.jsrPkgName,
@@ -817,7 +818,7 @@ async function resolveFromNamedRegistry (
   return {
     ...picked,
     normalizedBareSpecifier: opts.calcSpecifier
-      ? calcPrefixedSpecifier(`${spec.registryName}:`, spec.name, wantedDependency, picked.manifest.version, opts.pinnedVersion)
+      ? calcPrefixedSpecifier(`${spec.registryName}:`, spec.name, wantedDependency, picked.manifest.version, opts.rangeSpecStyle)
       : undefined,
     resolvedVia: 'named-registry',
     registryName: spec.registryName,
@@ -893,9 +894,9 @@ function calcPrefixedSpecifier (
   pkgName: string,
   wantedDependency: WantedDependency,
   version: string,
-  defaultPinnedVersion?: PinnedVersion
+  defaultRangeSpecStyle?: RangeSpecStyle
 ): string {
-  const range = calcRange(version, wantedDependency, defaultPinnedVersion)
+  const range = calcRange(version, wantedDependency, defaultRangeSpecStyle)
   if (!wantedDependency.alias || pkgName === wantedDependency.alias) return `${prefix}${range}`
   return `${prefix}${pkgName}@${range}`
 }
@@ -904,29 +905,29 @@ function calcSpecifier ({
   wantedDependency,
   spec,
   version,
-  defaultPinnedVersion,
+  defaultRangeSpecStyle,
 }: {
   wantedDependency: WantedDependency
   spec: RegistryPackageSpec
   version: string
-  defaultPinnedVersion?: PinnedVersion
+  defaultRangeSpecStyle?: RangeSpecStyle
 }): string {
   if (wantedDependency.prevSpecifier === wantedDependency.bareSpecifier && wantedDependency.prevSpecifier && versionSelectorType(wantedDependency.prevSpecifier)?.type === 'tag') {
     return wantedDependency.prevSpecifier
   }
-  const range = calcRange(version, wantedDependency, defaultPinnedVersion)
+  const range = calcRange(version, wantedDependency, defaultRangeSpecStyle)
   if (!wantedDependency.alias || spec.name === wantedDependency.alias) return range
   return `npm:${spec.name}@${range}`
 }
 
-function calcRange (version: string, wantedDependency: WantedDependency, defaultPinnedVersion?: PinnedVersion): string {
+function calcRange (version: string, wantedDependency: WantedDependency, defaultRangeSpecStyle?: RangeSpecStyle): string {
   if (semver.parse(version)?.prerelease.length) {
     return version
   }
-  const pinnedVersion = (wantedDependency.prevSpecifier ? whichVersionIsPinned(wantedDependency.prevSpecifier) : undefined) ??
-    (wantedDependency.bareSpecifier ? whichVersionIsPinned(wantedDependency.bareSpecifier) : undefined) ??
-    defaultPinnedVersion
-  return createVersionSpec(version, pinnedVersion)
+  const rangeSpecStyle = (wantedDependency.prevSpecifier ? inferRangeSpecStyle(wantedDependency.prevSpecifier) : undefined) ??
+    (wantedDependency.bareSpecifier ? inferRangeSpecStyle(wantedDependency.bareSpecifier) : undefined) ??
+    defaultRangeSpecStyle
+  return versionWithRangeSpecStyle(version, rangeSpecStyle ?? 'major')
 }
 
 function tryResolveFromWorkspace (
@@ -941,7 +942,7 @@ function tryResolveFromWorkspace (
     update?: boolean
     saveWorkspaceProtocol?: boolean | 'rolling'
     calcSpecifier?: boolean
-    pinnedVersion?: PinnedVersion
+    rangeSpecStyle?: RangeSpecStyle
   }
 ): WorkspaceResolveResult | null {
   if (!wantedDependency.bareSpecifier?.startsWith('workspace:')) {
@@ -965,7 +966,7 @@ function tryResolveFromWorkspace (
     update: opts.update,
     saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
     calcSpecifier: opts.calcSpecifier,
-    pinnedVersion: opts.pinnedVersion,
+    rangeSpecStyle: opts.rangeSpecStyle,
   })
 }
 
@@ -980,7 +981,7 @@ function tryResolveFromWorkspacePackages (
     update?: boolean
     saveWorkspaceProtocol?: boolean | 'rolling'
     calcSpecifier?: boolean
-    pinnedVersion?: PinnedVersion
+    rangeSpecStyle?: RangeSpecStyle
   }
 ): WorkspaceResolveResult {
   const workspacePkgsMatchingName = workspacePackages.get(spec.name)
@@ -1041,7 +1042,7 @@ function resolveFromLocalPackage (
     lockfileDir?: string
     saveWorkspaceProtocol?: boolean | 'rolling'
     calcSpecifier?: boolean
-    pinnedVersion?: PinnedVersion
+    rangeSpecStyle?: RangeSpecStyle
   }
 ): WorkspaceResolveResult {
   let id!: PkgResolutionId
@@ -1061,7 +1062,7 @@ function resolveFromLocalPackage (
       spec,
       saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
       version: localPackage.manifest.version,
-      defaultPinnedVersion: opts.pinnedVersion,
+      defaultRangeSpecStyle: opts.rangeSpecStyle,
     })
   }
   return {
@@ -1081,24 +1082,24 @@ function calcSpecifierForWorkspaceDep ({
   spec,
   saveWorkspaceProtocol,
   version,
-  defaultPinnedVersion,
+  defaultRangeSpecStyle,
 }: {
   wantedDependency: WantedDependency
   spec: RegistryPackageSpec
   saveWorkspaceProtocol: boolean | 'rolling' | undefined
   version: string
-  defaultPinnedVersion?: PinnedVersion
+  defaultRangeSpecStyle?: RangeSpecStyle
 }): string {
   if (!saveWorkspaceProtocol && !wantedDependency.bareSpecifier?.startsWith('workspace:')) {
-    return calcSpecifier({ wantedDependency, spec, version, defaultPinnedVersion })
+    return calcSpecifier({ wantedDependency, spec, version, defaultRangeSpecStyle })
   }
   const prefix = (!wantedDependency.alias || spec.name === wantedDependency.alias) ? 'workspace:' : `workspace:${spec.name}@`
   if (saveWorkspaceProtocol === 'rolling') {
     const specifier = wantedDependency.prevSpecifier ?? wantedDependency.bareSpecifier
     if (specifier) {
       if ([`${prefix}*`, `${prefix}^`, `${prefix}~`].includes(specifier)) return specifier
-      const pinnedVersion = whichVersionIsPinned(specifier)
-      switch (pinnedVersion) {
+      const rangeSpecStyle = inferRangeSpecStyle(specifier)
+      switch (rangeSpecStyle && rangeSpecGranularity(rangeSpecStyle)) {
         case 'major': return `${prefix}^`
         case 'minor': return `${prefix}~`
         case 'patch':
@@ -1110,8 +1111,8 @@ function calcSpecifierForWorkspaceDep ({
   if (semver.parse(version)?.prerelease.length) {
     return `${prefix}${version}`
   }
-  const pinnedVersion = (wantedDependency.prevSpecifier ? whichVersionIsPinned(wantedDependency.prevSpecifier) : undefined) ?? defaultPinnedVersion
-  const range = createVersionSpec(version, pinnedVersion)
+  const rangeSpecStyle = (wantedDependency.prevSpecifier ? inferRangeSpecStyle(wantedDependency.prevSpecifier) : undefined) ?? defaultRangeSpecStyle
+  const range = versionWithRangeSpecStyle(version, rangeSpecStyle ?? 'major')
   return `${prefix}${range}`
 }
 
@@ -1185,20 +1186,6 @@ function getIntegrity (dist: {
     throw new PnpmError('INVALID_TARBALL_INTEGRITY', `Tarball "${dist.tarball}" has invalid shasum specified in its metadata: ${dist.shasum}`)
   }
   return integrity.toString()
-}
-
-function createVersionSpec (version: string, pinnedVersion?: PinnedVersion): string {
-  switch (pinnedVersion ?? 'major') {
-    case 'none':
-    case 'major':
-      return `^${version}`
-    case 'minor':
-      return `~${version}`
-    case 'patch':
-      return version
-    default:
-      throw new PnpmError('BAD_PINNED_VERSION', `Cannot pin '${pinnedVersion ?? 'undefined'}'`)
-  }
 }
 
 /**

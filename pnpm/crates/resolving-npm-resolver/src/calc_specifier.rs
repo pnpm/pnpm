@@ -7,9 +7,9 @@
 //! is written without a range operator.
 
 use node_semver::Range;
-use pacquet_registry::{PackageVersion, PinnedVersion};
+use pacquet_registry::{PackageVersion, RangeSpecStyle};
 
-use crate::which_version_is_pinned::which_version_is_pinned;
+use crate::infer_range_spec_style::infer_range_spec_style;
 
 /// The specifier to write for `picked` when the dependency currently
 /// declares `bare_specifier` under the install name `alias`.
@@ -26,9 +26,9 @@ pub fn calc_specifier(
     bare_specifier: &str,
     alias: Option<&str>,
     picked: &PackageVersion,
-    default_pin: PinnedVersion,
+    default_pin: RangeSpecStyle,
 ) -> String {
-    let range = picked.serialize(which_version_is_pinned(bare_specifier).unwrap_or(default_pin));
+    let range = picked.serialize(infer_range_spec_style(bare_specifier).unwrap_or(default_pin));
     match npm_alias_target(bare_specifier, alias) {
         Some(real_name) => format!("npm:{real_name}@{range}"),
         None => range,
@@ -53,9 +53,9 @@ pub fn calc_prefixed_specifier(
     bare_specifier: &str,
     alias: Option<&str>,
     picked: &PackageVersion,
-    default_pin: PinnedVersion,
+    default_pin: RangeSpecStyle,
 ) -> String {
-    let range = picked.serialize(which_version_is_pinned(bare_specifier).unwrap_or(default_pin));
+    let range = picked.serialize(infer_range_spec_style(bare_specifier).unwrap_or(default_pin));
     match alias {
         Some(alias) if !alias.is_empty() && alias != pkg_name => {
             format!("{prefix}{pkg_name}@{range}")

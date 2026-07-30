@@ -30,7 +30,7 @@ use pacquet_global::{
 };
 use pacquet_package_is_installable::SupportedArchitectures;
 use pacquet_package_manifest::{DependencyGroup, safe_read_package_json_from_dir};
-use pacquet_registry::PinnedVersion;
+use pacquet_registry::RangeSpecStyle;
 use pacquet_reporter::Reporter;
 use pacquet_resolving_parse_wanted_dependency::{
     is_valid_old_npm_package_name, parse_wanted_dependency,
@@ -94,7 +94,7 @@ fn check_bin_dir(global_bin_dir: &Path) -> miette::Result<()> {
 pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
     base_config: &'static Config,
     params: &[String],
-    pinned_version: PinnedVersion,
+    range_spec_style: RangeSpecStyle,
     supported_architectures: Option<SupportedArchitectures>,
     allow_build: &[String],
     cwd: &Path,
@@ -118,7 +118,7 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
             base_config,
             &global_pkg_dir,
             &group,
-            pinned_version,
+            range_spec_style,
             supported_architectures.clone(),
             allow_build,
         ))
@@ -176,7 +176,7 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
     base_config: &'static Config,
     params: &[String],
     latest: bool,
-    pinned_version: PinnedVersion,
+    range_spec_style: RangeSpecStyle,
     supported_architectures: Option<SupportedArchitectures>,
 ) -> miette::Result<()> {
     let (global_pkg_dir, global_bin_dir) = global_dirs(base_config)?;
@@ -211,7 +211,7 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
             base_config,
             &global_pkg_dir,
             &selectors,
-            pinned_version,
+            range_spec_style,
             supported_architectures.clone(),
             // `update -g` takes no `--allow-build`; the build policy comes
             // from the global `allowBuilds` loaded in `run_group_install`.
@@ -308,7 +308,7 @@ async fn run_group_install<Reporter: self::Reporter + 'static>(
     base_config: &Config,
     global_pkg_dir: &Path,
     selectors: &[String],
-    pinned_version: PinnedVersion,
+    range_spec_style: RangeSpecStyle,
     supported_architectures: Option<SupportedArchitectures>,
     allow_build: &[String],
 ) -> miette::Result<(PathBuf, &'static Config)> {
@@ -392,7 +392,7 @@ async fn run_group_install<Reporter: self::Reporter + 'static>(
     add_packages::<Reporter, _>(
         state,
         &selectors,
-        pinned_version,
+        range_spec_style,
         None,
         false,
         config.supported_architectures.clone(),

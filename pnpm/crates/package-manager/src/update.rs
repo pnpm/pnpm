@@ -27,7 +27,7 @@ use pacquet_engine_runtime_node_resolver::NodeResolver;
 use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
-use pacquet_registry::PinnedVersion;
+use pacquet_registry::RangeSpecStyle;
 use pacquet_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
 use pacquet_resolving_default_resolver::DefaultResolver;
 use pacquet_resolving_deps_resolver::UpdateDepth;
@@ -527,7 +527,7 @@ async fn prepare_manifest<Reporter: self::Reporter>(
 ) -> Result<Option<UpdatePreparation>, UpdateError> {
     // `pacquet update` has no `--save-prefix` flag yet, so `save_exact`
     // selects between an exact pin and the default caret range.
-    let pinned_version = PinnedVersion::from_save_options(save_exact, None);
+    let range_spec_style = RangeSpecStyle::from_save_options(save_exact, None);
     let selectors = packages.iter().map(|input| parse_update_param(input)).collect::<Vec<_>>();
     // `--latest` forbids versioned selectors.
     if latest {
@@ -573,7 +573,7 @@ async fn prepare_manifest<Reporter: self::Reporter>(
         config,
         http_client_arc,
         resolution_observer,
-        pinned_version,
+        range_spec_style,
         lockfile_only,
     };
 
@@ -594,7 +594,7 @@ async fn prepare_manifest<Reporter: self::Reporter>(
                 &target,
                 &workspace_packages[&target.name],
                 config.save_workspace_protocol,
-                pinned_version,
+                range_spec_style,
             );
             drop_names.insert(target.name.clone());
             rewrites.push((target.name, target.group, specifier));
@@ -1012,7 +1012,7 @@ fn workspace_specifier(
     target: &WorkspaceLinkTarget,
     versions: &WorkspacePackagesByVersion,
     protocol: SaveWorkspaceProtocol,
-    default_pin: PinnedVersion,
+    default_pin: RangeSpecStyle,
 ) -> String {
     // Nothing satisfies the requested range: keep it, so the install
     // reports it as `NO_MATCHING_VERSION_INSIDE_WORKSPACE` against the
@@ -1138,7 +1138,7 @@ struct LatestRewriteCtx<'a, 'borrow> {
     config: &'a Config,
     http_client_arc: &'borrow Arc<ThrottledClient>,
     resolution_observer: Option<&'borrow Arc<dyn crate::ResolutionObserver>>,
-    pinned_version: PinnedVersion,
+    range_spec_style: RangeSpecStyle,
     lockfile_only: bool,
 }
 
@@ -1182,7 +1182,7 @@ async fn latest_specifier(
         default_tag: Some("latest".to_string()),
         update: UpdateBehavior::Latest,
         calc_specifier: true,
-        pinned_version: Some(ctx.pinned_version),
+        range_spec_style: Some(ctx.range_spec_style),
         published_by: chain.published_by,
         published_by_exclude: chain.published_by_exclude.clone(),
         dry_run: ctx.lockfile_only,

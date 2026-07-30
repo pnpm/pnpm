@@ -1,23 +1,21 @@
-use super::which_version_is_pinned;
-use pacquet_registry::PinnedVersion;
+use super::infer_range_spec_style;
+use pacquet_registry::RangeSpecStyle;
 
-/// Table covering the pin classifications, including the parse-range
-/// edge cases that derive the same results.
 #[test]
-fn matches_pnpm_which_version_is_pinned() {
-    use PinnedVersion::{Major, Minor, None as NoneVariant, Patch};
-    let cases: &[(&str, Option<PinnedVersion>)] = &[
+fn matches_pnpm_infer_range_spec_style() {
+    use RangeSpecStyle::{Exact, Major, Minor, None as NoneVariant, Patch};
+    let cases: &[(&str, Option<RangeSpecStyle>)] = &[
         ("^1.0.0", Some(Major)),
         ("~1.0.0", Some(Minor)),
         ("1.0.0", Some(Patch)),
-        ("=1.0.0", Some(Patch)),
+        ("=1.0.0", Some(Exact)),
         ("=1.0", Some(Minor)),
         ("=1", Some(Major)),
         ("*", Some(NoneVariant)),
         ("workspace:^1.0.0", Some(Major)),
         ("npm:foo@1.0.0", Some(Patch)),
         ("npm:@foo/foo@1.0.0", Some(Patch)),
-        ("npm:foo@=1.0.0", Some(Patch)),
+        ("npm:foo@=1.0.0", Some(Exact)),
         ("npm:foo@^1.0.0", Some(Major)),
         ("npm:@foo/foo@^1.0.0", Some(Major)),
         ("npm:@pnpm.e2e/qar@100.0.0", Some(Patch)),
@@ -43,7 +41,7 @@ fn matches_pnpm_which_version_is_pinned() {
         (">=1.0.0 <2.0.0", None),
         ("1.0.0 || 2.0.0", None),
         ("1.0.0 - 2.0.0", None),
-        ("=1.2.3", Some(Patch)),
+        ("=1.2.3", Some(Exact)),
         ("^=1.2.3", None),
         ("~=1.2.3", None),
         ("~>1.2.3", None),
@@ -56,6 +54,6 @@ fn matches_pnpm_which_version_is_pinned() {
         ("", None),
     ];
     for (spec, expected) in cases {
-        assert_eq!(which_version_is_pinned(spec), *expected, "spec: {spec:?}");
+        assert_eq!(infer_range_spec_style(spec), *expected, "spec: {spec:?}");
     }
 }

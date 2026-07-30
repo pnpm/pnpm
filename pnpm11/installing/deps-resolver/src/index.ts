@@ -26,11 +26,11 @@ import {
   type DependencyManifest,
   type DepPath,
   type PeerDependencyIssuesByProjects,
-  type PinnedVersion,
   type PkgIdWithPatchHash,
   type ProjectId,
   type ProjectManifest,
   type ProjectRootDir,
+  type RangeSpecStyle,
   type SupportedArchitectures,
 } from '@pnpm/types'
 import { isSubdir } from 'is-subdir'
@@ -66,7 +66,7 @@ export type DependenciesGraphNode = GenericDependenciesGraphNodeWithResolvedChil
 export {
   getWantedDependencies,
   type LinkedDependency,
-  type PinnedVersion,
+  type RangeSpecStyle,
   type ResolvedPackage,
   type UpdateMatchingFunction,
   type WantedDependency,
@@ -90,12 +90,12 @@ interface ProjectToLink {
 export interface ImporterToResolve extends Importer<{
   isNew?: boolean
   nodeExecPath?: string
-  pinnedVersion?: PinnedVersion
+  rangeSpecStyle?: RangeSpecStyle
   updateSpec?: boolean
   preserveNonSemverVersionSpec?: boolean
 }> {
   peer?: boolean
-  pinnedVersion?: PinnedVersion
+  rangeSpecStyle?: RangeSpecStyle
   binsDir: string
   manifest: ProjectManifest
   originalManifest?: ProjectManifest

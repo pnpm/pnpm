@@ -527,6 +527,12 @@ pub struct WorkspaceSettings {
     /// [`Config::save_prefix`]: crate::Config::save_prefix
     pub save_prefix: Option<String>,
 
+    /// `saveExact` from `pnpm-workspace.yaml`. See
+    /// [`Config::save_exact`]. Default `false`.
+    ///
+    /// [`Config::save_exact`]: crate::Config::save_exact
+    pub save_exact: Option<bool>,
+
     /// `savePeer` from `pnpm-workspace.yaml`. See
     /// [`Config::save_peer`]. Default `false`.
     ///
@@ -1034,7 +1040,7 @@ impl WorkspaceSettings {
             virtual_store_only, enable_modules_dir,
             git_shallow_hosts,
             test_pattern, changed_files_ignore_pattern,
-            resolution_mode, catalog_mode, cleanup_unused_catalogs, save_peer,
+            resolution_mode, catalog_mode, cleanup_unused_catalogs, save_peer, save_exact,
             registry_supports_time_field,
             allowed_deprecated_versions, update_config, peer_dependency_rules,
             enable_pre_post_scripts, dlx_cache_max_age,

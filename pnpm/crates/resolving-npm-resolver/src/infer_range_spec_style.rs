@@ -1,17 +1,17 @@
 //! Detect the range operator a specifier already pins to, so an update can
 //! preserve it.
 
-use pacquet_registry::PinnedVersion;
+use pacquet_registry::RangeSpecStyle;
 
 /// Classify the range operator an existing specifier pins to.
 ///
-/// Returns the [`PinnedVersion`] the specifier already uses, or `None` when
+/// Returns the [`RangeSpecStyle`] the specifier already uses, or `None` when
 /// the specifier carries no single recoverable pin (a `catalog:` reference,
 /// a tag, a multi-comparator range, or junk). Callers fall back to the
 /// configured default in that case, trying the previous specifier first,
 /// then the bare specifier, then the default.
 #[must_use]
-pub fn which_version_is_pinned(spec: &str) -> Option<PinnedVersion> {
+pub fn infer_range_spec_style(spec: &str) -> Option<RangeSpecStyle> {
     if spec.starts_with("catalog:") {
         return None;
     }
@@ -27,7 +27,7 @@ pub fn which_version_is_pinned(spec: &str) -> Option<PinnedVersion> {
         None => spec,
     };
     if spec == "*" {
-        return Some(PinnedVersion::None);
+        return Some(RangeSpecStyle::None);
     }
 
     let mut comparator = None;
@@ -59,13 +59,15 @@ pub fn which_version_is_pinned(spec: &str) -> Option<PinnedVersion> {
 
     let comparator = comparator?;
     match comparator.operator {
-        Some(Operator::Tilde) => Some(PinnedVersion::Minor),
-        Some(Operator::Caret) => Some(PinnedVersion::Major),
+        Some(Operator::Tilde) => Some(RangeSpecStyle::Minor),
+        Some(Operator::Caret) => Some(RangeSpecStyle::Major),
         Some(Operator::Other) => None,
-        // A bare `=` pins the same way the plain version it prefixes does.
-        Some(Operator::Eq) | None if comparator.has_patch => Some(PinnedVersion::Patch),
-        Some(Operator::Eq) | None if comparator.has_minor => Some(PinnedVersion::Minor),
-        Some(Operator::Eq) | None if comparator.has_major => Some(PinnedVersion::Major),
+        // A bare `=` before a full version is an explicit exact pin; a
+        // partial `=` pins the same way the plain version it prefixes does.
+        Some(Operator::Eq) if comparator.has_patch => Some(RangeSpecStyle::Exact),
+        None if comparator.has_patch => Some(RangeSpecStyle::Patch),
+        Some(Operator::Eq) | None if comparator.has_minor => Some(RangeSpecStyle::Minor),
+        Some(Operator::Eq) | None if comparator.has_major => Some(RangeSpecStyle::Major),
         Some(Operator::Eq) | None => None,
     }
 }
