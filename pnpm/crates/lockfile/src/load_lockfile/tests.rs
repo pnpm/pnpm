@@ -124,7 +124,7 @@ fn parses_lockfile_larger_than_default_yaml_scalar_byte_budget() {
     for index in 0..IMPORTER_COUNT {
         writeln!(
             content,
-            "  padded-project-directory-name/deeply/nested/workspace-component-{index:07}: {{}}"
+            "  padded-project-directory-name/deeply/nested/workspace-component-{index:07}: {{}}",
         )
         .expect("write importer");
     }
