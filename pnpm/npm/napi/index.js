@@ -178,17 +178,21 @@ function withBatchedReadPackageHook(exports) {
   if (typeof nativeInstall !== 'function') return exports
   exports.install = function (options, onLog, readPackageHook, ...rest) {
     const batchHook = typeof readPackageHook === 'function'
-      ? (manifests, resolvedDirs) => manifests.map(
-        (manifest, i) => {
-          const transformed = readPackageHook(manifest, resolvedDirs[i] == null ? undefined : resolvedDirs[i])
+      ? (manifests, resolvedDirs) => {
+        // Guard against a binary that invokes the batch hook without the
+        // dirs array (version skew): treat every entry as a non-directory
+        // resolution rather than throwing.
+        const dirs = Array.isArray(resolvedDirs) ? resolvedDirs : []
+        return manifests.map((manifest, i) => {
+          const transformed = readPackageHook(manifest, dirs[i] == null ? undefined : dirs[i])
           // The engine cannot await the hook: a returned promise would be
           // serialized as an empty manifest and silently corrupt resolution.
           if (transformed && typeof transformed.then === 'function') {
             throw new TypeError('readPackageHook must be synchronous and return the manifest, not a promise')
           }
           return transformed
-        }
-      )
+        })
+      }
       : undefined
     return nativeInstall.call(this, options, onLog, readPackageHook, batchHook, ...rest)
   }
