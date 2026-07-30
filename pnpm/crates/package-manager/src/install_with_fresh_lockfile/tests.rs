@@ -109,7 +109,7 @@ fn importer_scoped_update_custom_refresh_widens_every_importer() {
 
     let scoped = std::collections::BTreeMap::from([(
         "selected".to_string(),
-        UpdateReuseScope::Except(["pkg".to_string()].into_iter().collect()),
+        UpdateReuseScope::Except(std::iter::once("pkg".to_string()).collect()),
     )]);
     assert!(full_resolution_required(
         true,
