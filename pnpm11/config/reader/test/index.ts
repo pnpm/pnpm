@@ -459,7 +459,7 @@ test('.npmrc does not load pnpm settings', async () => {
   // workspace-specific settings are omitted
   expect(config.authConfig['dlx-cache-max-age']).toBeUndefined()
   expect(config.authConfig['dlxCacheMaxAge']).toBeUndefined()
-  expect(config.dlxCacheMaxAge).toBe(24 * 60)
+  expect(config.dlxCacheMaxAge).toBe(24 * 60) // TODO: refactor to make defaultOptions importable
   expect(config.authConfig['trust-policy-exclude']).toBeUndefined()
   expect(config.authConfig['trustPolicyExclude']).toBeUndefined()
   expect(config.trustPolicyExclude).toBeUndefined()
@@ -3758,6 +3758,8 @@ describe('global config.yaml', () => {
       dangerouslyAllowAllBuilds: true,
     })
 
+    // TODO: `getConfigDir`, `getHomeDir`, etc. (from dirs.ts) should allow customizing env or process.
+    // TODO: after that, remove this `describe` wrapper.
     process.env.XDG_CONFIG_HOME = path.resolve('.config')
 
     const { config } = await getConfig({
