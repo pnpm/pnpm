@@ -176,10 +176,10 @@ catalog:
   '@types/zkochan__table': npm:@types/table@6.3.2
   '@typescript-eslint/utils': ^8.65.0
   '@typescript/native-preview': 7.0.0-dev.20260707.2
-  '@yarnpkg/core': 4.9.0
-  '@yarnpkg/extensions': 2.0.6
+  '@yarnpkg/core': 4.9.1
+  '@yarnpkg/extensions': 2.0.7
   '@yarnpkg/lockfile': ^1.1.0
-  '@yarnpkg/nm': 4.1.0
+  '@yarnpkg/nm': 4.1.1
   '@yarnpkg/pnp': ^4.1.7
   '@zkochan/cmd-shim': ^9.0.6
   '@zkochan/retry': ^0.2.0
@@ -275,7 +275,7 @@ catalog:
   mdast-util-to-string: ^4.0.0
   memoize: ^11.0.0
   micromatch: ^4.0.8
-  msgpackr: 2.0.4
+  msgpackr: 2.0.5
   nm-prune: ^5.0.0
   normalize-newline: 5.0.0
   # normalize-package-data 9.x requires Node.js ^22.22.2 || ^24.15.0 || >=26.0.0,

@@ -142,7 +142,7 @@ jobs:
             test_chunk: '1'
             test_chunk_total: '1'
             garnet: true
-          - node: '26.5.0'
+          - node: '26.5.1'
             node_major: '26'
             platform: blacksmith-8vcpu-ubuntu-2404
             platform_label: ubuntu
