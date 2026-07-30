@@ -42,7 +42,7 @@ pub struct ResolvedRegistry {
 pub struct ResolvedConfig {
     pub registries: Vec<ResolvedRegistry>,
     /// Static `Authorization` headers keyed by nerf-darted registry URI
-    /// (`//host[:port]/path/`) — the shape [`crate::install`]'s
+    /// (`//host[:port]/path/`) — the shape [`fn@crate::install`]'s
     /// `authHeaderByUri` accepts.
     pub auth_header_by_uri: HashMap<String, String>,
     pub http_proxy: Option<String>,
@@ -85,7 +85,7 @@ pub struct ResolvedConfig {
 
 #[napi(js_name = "readConfig")]
 pub fn read_config(options: ReadConfigOptions) -> napi::Result<ResolvedConfig> {
-    let dir = std::path::PathBuf::from(&options.dir);
+    let dir = std::path::PathBuf::from(options.dir);
     let config =
         resolve_config(&dir, &ConfigOverlay::default()).map_err(|error| to_napi_error(&error))?;
     Ok(project_config(config))

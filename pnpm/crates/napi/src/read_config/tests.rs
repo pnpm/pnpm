@@ -7,12 +7,15 @@ use pretty_assertions::assert_eq;
 use super::{import_method_name, project_config};
 
 fn config_with_auth(by_scope: AuthHeadersByScope) -> Config {
-    let mut config = Config::default();
-    config.registry = "https://reg.example/npm/".to_string();
-    config.registries =
-        BTreeMap::from([("@scope".to_string(), "https://reg.example/scoped/".to_string())]);
-    config.auth_headers = Arc::new(AuthHeaders::from_by_scope(by_scope));
-    config
+    Config {
+        registry: "https://reg.example/npm/".to_string(),
+        registries: BTreeMap::from([(
+            "@scope".to_string(),
+            "https://reg.example/scoped/".to_string(),
+        )]),
+        auth_headers: Arc::new(AuthHeaders::from_by_scope(by_scope)),
+        ..Config::default()
+    }
 }
 
 #[test]
@@ -64,7 +67,11 @@ fn scope_registry_prefers_its_scope_credential() {
 
     let resolved = project_config(&config);
 
-    let scope = resolved.registries.iter().find(|r| r.name == "@scope").expect("@scope registry");
+    let scope = resolved
+        .registries
+        .iter()
+        .find(|registry| registry.name == "@scope")
+        .expect("@scope registry");
     assert_eq!(scope.auth_header.as_deref(), Some("Bearer scoped-token"));
 
     let mut config = config;
@@ -73,7 +80,11 @@ fn scope_registry_prefers_its_scope_credential() {
         BTreeMap::from([("@".to_string(), "Bearer registry-wide".to_string())]),
     )])));
     let resolved = project_config(&config);
-    let scope = resolved.registries.iter().find(|r| r.name == "@scope").expect("@scope registry");
+    let scope = resolved
+        .registries
+        .iter()
+        .find(|registry| registry.name == "@scope")
+        .expect("@scope registry");
     assert_eq!(scope.auth_header.as_deref(), Some("Bearer registry-wide"));
 }
 
@@ -85,6 +96,7 @@ fn no_proxy_projects_bypass_as_true_and_hosts_as_a_joined_string() {
 
     config.proxy.no_proxy =
         Some(NoProxySetting::List(vec!["a.example".to_string(), "b.example".to_string()]));
+
     assert_eq!(
         project_config(&config).no_proxy,
         Some(serde_json::Value::String("a.example,b.example".to_string())),
@@ -134,10 +146,9 @@ fn read_config_resolves_the_project_npmrc_cascade() {
     )
     .expect("write .npmrc");
 
-    let resolved = super::read_config(super::ReadConfigOptions {
-        dir: dir.path().display().to_string(),
-    })
-    .expect("read config");
+    let resolved =
+        super::read_config(super::ReadConfigOptions { dir: dir.path().display().to_string() })
+            .expect("read config");
 
     let fixture_registry = resolved
         .registries
