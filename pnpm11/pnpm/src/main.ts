@@ -25,6 +25,7 @@ import { isEmpty } from 'ramda'
 import semver from 'semver'
 
 import { checkForUpdates } from './checkForUpdates.js'
+import { checkSudo } from './checkSudo.js'
 import { NOT_IMPLEMENTED_COMMAND_SET, overridableByScriptCommands, pnpmCmds, recursiveByDefaultCommands, skipPackageManagerCheckForCommand } from './cmd/index.js'
 import { formatUnknownOptionsError } from './formatError.js'
 import { getConfig, installConfigDepsAndLoadHooks } from './getConfig.js'
@@ -106,6 +107,7 @@ export async function main (inputArgv: string[]): Promise<void> {
     if (cmd === 'link' && cliParams.length === 0) {
       cliOptions.global = true
     }
+    checkSudo({ cmd, cliParams, isGlobal: cliOptions.global === true })
     ;({ config, context } = await getConfig(cliOptions, {
       excludeReporter: false,
       globalDirShouldAllowWrite,
