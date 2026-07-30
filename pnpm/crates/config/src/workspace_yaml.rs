@@ -569,9 +569,6 @@ pub struct WorkspaceSettings {
     /// `peerDependencyRules` from `pnpm-workspace.yaml`. See
     /// [`PeerDependencyRules`].
     pub peer_dependency_rules: Option<PeerDependencyRules>,
-
-    /// `saveExact` from `.npmrc` / `pnpm-workspace.yaml`.
-    pub save_exact: Option<bool>,
 }
 
 /// `audit` entry: settings that tune `pnpm audit`. Supersedes the
