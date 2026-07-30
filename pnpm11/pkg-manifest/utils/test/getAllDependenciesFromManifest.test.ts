@@ -32,6 +32,19 @@ test('getAllDependenciesFromManifest() ignores peerDependencies by default', () 
   })
 })
 
+test('getAllDependenciesFromManifest() excludes peerDependencies when autoInstallPeers is false', () => {
+  expect(getAllDependenciesFromManifest({
+    devDependencies: {
+      react: '19.0.0',
+    },
+    peerDependencies: {
+      react: '^19.0.0',
+    },
+  }, { autoInstallPeers: false })).toStrictEqual({
+    react: '19.0.0',
+  })
+})
+
 test('getAllDependenciesFromManifest() includes peerDependencies when autoInstallPeers is true', () => {
   expect(getAllDependenciesFromManifest({
     dependencies: {
