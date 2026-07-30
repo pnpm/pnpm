@@ -374,10 +374,10 @@ function updateVersionConstraint (current: string | undefined, newVersion: strin
     // Complex range that can't be updated while preserving its structure — fall back to ^version
     return `^${newVersion}`
   }
-  return versionSpecWithRangeSpecStyle(newVersion, rangeSpecStyle)
+  return versionWithRangeSpecStyle(newVersion, rangeSpecStyle)
 }
 
-function versionSpecWithRangeSpecStyle (version: string, rangeSpecStyle: RangeSpecStyle): string {
+function versionWithRangeSpecStyle (version: string, rangeSpecStyle: RangeSpecStyle): string {
   switch (rangeSpecStyle) {
     case 'none':
     case 'major': return `^${version}`
