@@ -449,7 +449,7 @@ export async function resolveDependencies (
 }
 
 function isExplicitDistTagSpecifier (bareSpecifier: string | undefined): boolean {
-  return bareSpecifier != null && !bareSpecifier.includes(':') && semver.validRange(bareSpecifier) == null
+  return bareSpecifier != null && bareSpecifier !== 'latest' && !bareSpecifier.includes(':') && semver.validRange(bareSpecifier) == null
 }
 
 function treeHasLockedPeerContexts (dependenciesTree: DependenciesTree<ResolvedPackage>): boolean {

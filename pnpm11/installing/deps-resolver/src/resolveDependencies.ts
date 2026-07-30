@@ -831,7 +831,7 @@ function filterMissingPeersFromPkgAddresses (
 }
 
 function isExplicitDistTagSpecifier (bareSpecifier: string | undefined): boolean {
-  return bareSpecifier != null && !bareSpecifier.includes(':') && semver.validRange(bareSpecifier) == null
+  return bareSpecifier != null && bareSpecifier !== 'latest' && !bareSpecifier.includes(':') && semver.validRange(bareSpecifier) == null
 }
 
 function getPublishedByDate (pkgAddresses: PkgAddress[], timeFromLockfile: Record<string, string> = {}): { publishedBy: Date, newTime: Record<string, string> } {

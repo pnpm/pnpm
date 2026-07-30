@@ -1422,7 +1422,7 @@ function getPerDepCatalogName (
 }
 
 function isExplicitDistTagSpecifier (bareSpecifier: string | undefined): boolean {
-  return bareSpecifier != null && !bareSpecifier.includes(':') && semver.validRange(bareSpecifier) == null
+  return bareSpecifier != null && bareSpecifier !== 'latest' && !bareSpecifier.includes(':') && semver.validRange(bareSpecifier) == null
 }
 
 export async function addDependenciesToPackage (
