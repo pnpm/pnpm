@@ -114,3 +114,22 @@ test('loadMetaHeaders reads both layouts', async () => {
   expect(await loadMetaHeaders(indexed)).toStrictEqual({ etag: '"etag-3"', modified: '2021-01-01T00:00:00.000Z' })
   expect(await loadMetaHeaders(ndjson)).toStrictEqual({ etag: '"etag-4"', modified: '2021-01-01T00:00:00.000Z' })
 })
+
+test('a corrupt fragment hydrates to undefined without breaking the rest of the document', async () => {
+  const pkgMirror = path.join(temporaryDirectory(), 'foo.jsonl')
+  const meta = fixtureMeta()
+  const content = prepareIndexedForDisk(meta, undefined)
+  // Corrupt the bytes of the 1.0.0 fragment in place, keeping the file length
+  // and the index spans intact.
+  const fragmentStart = content.indexOf(Buffer.from(JSON.stringify(meta.versions['1.0.0'])))
+  expect(fragmentStart).toBeGreaterThan(-1)
+  content.fill('x', fragmentStart, fragmentStart + 10)
+  fs.mkdirSync(path.dirname(pkgMirror), { recursive: true })
+  fs.writeFileSync(pkgMirror, content)
+
+  const loaded = await loadMeta(pkgMirror)
+  expect(loaded).not.toBeNull()
+  expect(Object.keys(loaded!.versions)).toStrictEqual(['1.0.0', '2.0.0'])
+  expect(loaded!.versions['1.0.0']).toBeUndefined()
+  expect(loaded!.versions['2.0.0']).toStrictEqual(meta.versions['2.0.0'])
+})
