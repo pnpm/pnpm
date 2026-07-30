@@ -680,7 +680,7 @@ async function resolveNpm (
           calcSpecifier: opts.calcSpecifier,
           rangeSpecStyle: opts.rangeSpecStyle,
         }),
-        latest: meta['dist-tags'].latest,
+        latest: latestAllowedByPolicy(meta, opts),
       }
     }
     const localVersion = pickMatchingLocalVersionOrNull(workspacePkgsMatchingName, spec)
@@ -695,7 +695,7 @@ async function resolveNpm (
           calcSpecifier: opts.calcSpecifier,
           rangeSpecStyle: opts.rangeSpecStyle,
         }),
-        latest: meta['dist-tags'].latest,
+        latest: latestAllowedByPolicy(meta, opts),
       }
     }
   }
@@ -718,7 +718,7 @@ async function resolveNpm (
   const publishedAt = meta.time?.[pickedPackage.version]
   return {
     id,
-    latest: meta['dist-tags'].latest,
+    latest: latestAllowedByPolicy(meta, opts),
     manifest: pickedPackage,
     resolution,
     resolvedVia: 'npm-registry',
@@ -870,7 +870,7 @@ async function pickFromSimpleRegistry (
   const publishedAt = meta.time?.[pickedPackage.version]
   return {
     id: `${pickedPackage.name}@${pickedPackage.version}` as PkgResolutionId,
-    latest: meta['dist-tags'].latest,
+    latest: latestAllowedByPolicy(meta, opts),
     manifest: pickedPackage,
     resolution,
     publishedAt,
@@ -1147,6 +1147,34 @@ function defaultTagForAlias (alias: string, defaultTag: string): RegistryPackage
  * full-name exclusions (`pkg`) are both honored so an entry already on
  * the user's exclude list isn't re-announced every install.
  */
+/**
+ * The raw `dist-tags.latest` when the active `minimumReleaseAge` policy would
+ * allow installing it, `undefined` otherwise. The install summary's
+ * "(X is available)" hint must only ever name the actual latest tag, so an
+ * immature latest suppresses the hint instead of being rewritten to an older
+ * mature version. Suppression requires positive evidence of immaturity: a
+ * missing or unparsable timestamp keeps the raw tag, matching
+ * `detectMinReleaseAgeViolation`, which likewise only flags a version it can
+ * date.
+ */
+function latestAllowedByPolicy (
+  meta: PackageMeta,
+  opts: {
+    publishedBy?: Date
+    publishedByExclude?: PackageVersionPolicy
+  }
+): string | undefined {
+  const latest = meta['dist-tags'].latest
+  if (!latest || !opts.publishedBy) return latest
+  const excludeResult = opts.publishedByExclude?.(meta.name)
+  if (excludeResult === true) return latest
+  if (Array.isArray(excludeResult) && excludeResult.includes(latest)) return latest
+  const publishedAt = meta.time?.[latest]
+  if (publishedAt == null) return latest
+  const ts = new Date(publishedAt).getTime()
+  return (Number.isNaN(ts) || ts <= opts.publishedBy.getTime()) ? latest : undefined
+}
+
 function detectMinReleaseAgeViolation (args: {
   name: string
   version: string

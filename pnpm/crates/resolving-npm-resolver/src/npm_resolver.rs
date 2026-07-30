@@ -266,7 +266,12 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
                 opts,
             )
         {
-            result.latest = picked.meta.dist_tag("latest").map(str::to_string);
+            result.latest = latest_allowed_by_policy(
+                &picked.meta,
+                opts.published_by,
+                opts.published_by_exclude.as_ref(),
+            )
+            .map(str::to_string);
             return Ok(Some(result));
         }
 
@@ -844,7 +849,8 @@ pub(crate) fn build_resolve_result(
     Ok(ResolveResult {
         id,
         name_ver: Some(name_ver),
-        latest: meta.dist_tag("latest").map(str::to_string),
+        latest: latest_allowed_by_policy(meta, published_by, published_by_exclude)
+            .map(str::to_string),
         published_at,
         manifest,
         resolution,
@@ -898,6 +904,40 @@ fn fail_if_trust_downgraded_for_pick(
 /// Resolver-time `minimumReleaseAge` check. Returns a violation entry
 /// when the picked version's publish timestamp falls past the policy
 /// cutoff and isn't excluded by name/version.
+/// The raw `dist-tags.latest` when the active `minimumReleaseAge`
+/// policy would allow installing it, `None` otherwise. The install
+/// summary's `(X is available)` hint must only ever name the actual
+/// latest tag, so an immature latest suppresses the hint instead of
+/// being rewritten to an older mature version. Suppression requires
+/// positive evidence of immaturity: a missing or unparsable
+/// timestamp keeps the raw tag, matching
+/// [`detect_min_release_age_violation`], which likewise only flags a
+/// version it can date.
+fn latest_allowed_by_policy<'a>(
+    meta: &'a Package,
+    published_by: Option<DateTime<Utc>>,
+    published_by_exclude: Option<&PackageVersionPolicy>,
+) -> Option<&'a str> {
+    let latest = meta.dist_tag("latest")?;
+    let Some(cutoff) = published_by else { return Some(latest) };
+    if let Some(policy) = published_by_exclude {
+        use pacquet_config::version_policy::PolicyMatch;
+        match policy.matches(&meta.name) {
+            PolicyMatch::AnyVersion => return Some(latest),
+            PolicyMatch::ExactVersions(versions)
+                if versions.iter().any(|exact| exact == latest) =>
+            {
+                return Some(latest);
+            }
+            _ => {}
+        }
+    }
+    match meta.published_at(latest).and_then(parse_packument_timestamp) {
+        Some(published_at) if published_at > cutoff => None,
+        _ => Some(latest),
+    }
+}
+
 fn detect_min_release_age_violation(
     name: &PkgName,
     version: &str,
