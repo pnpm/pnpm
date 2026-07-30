@@ -750,6 +750,10 @@
   intents:
     - fix-napi-in-memory-repeat-install
     - napi-trust-lockfile
+"@pnpm/napi@12.0.0-beta.2":
+  dir: pnpm/npm/napi
+  intents:
+    - napi-read-config
 "@pnpm/network.auth-header@1101.1.4":
   dir: pnpm11/network/auth-header
   intents:
@@ -1447,6 +1451,11 @@ pacquet@12.0.0-beta.1:
     - save-prefix-equals
     - shared-preferred-versions-fold
     - workspace-hoist-discovery-linear
+pacquet@12.0.0-beta.2:
+  dir: pnpm/npm/pnpm
+  intents:
+    - ignore-broken-wanted-lockfile
+    - optional-platform-prefetch
 pnpm@11.13.0:
   dir: pnpm11/pnpm
   intents:
