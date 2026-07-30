@@ -44,7 +44,7 @@ jobs:
         install: false
 
     - name: Update dependencies, Node.js, pnpm, and GitHub Actions
-      uses: pnpm/update@9a256174a439f3447aa0a6b9ca3c971428b1d617 #v0.0.0  v0
+      uses: pnpm/update@fcaa952ef94bad62067a94ac2e5c6234b648e259 #v0.0.0  v0
       with:
         update-deps: latest
         refresh-lockfile: true
