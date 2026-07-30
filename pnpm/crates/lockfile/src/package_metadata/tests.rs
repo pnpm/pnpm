@@ -70,9 +70,9 @@ fn bundled_dependencies_from_the_legacy_spelling() {
     );
 }
 
-// Upstream writes whichever of the two keys holds a list or `true`, preferring
-// `bundledDependencies` — so a `false` under the preferred key does not veto
-// the legacy one.
+// Upstream writes whichever of the two keys holds a nonempty list or `true`,
+// preferring `bundledDependencies` — so a `false` or empty list under the
+// preferred key does not veto the legacy one.
 #[test]
 fn bundled_dependencies_falls_through_a_false_to_the_legacy_spelling() {
     let manifest = serde_json::json!({ "bundledDependencies": false, "bundleDependencies": ["a"] });
@@ -97,16 +97,18 @@ fn bundled_dependencies_false_is_dropped() {
     assert_eq!(BundledDependencies::from_manifest(Some(&manifest)), None);
 }
 
-// pnpm records an empty list verbatim (`Array.isArray([])` passes its gate),
-// and `pnpm install` on a package declaring `"bundledDependencies": []` writes
-// `bundledDependencies: []` into `pnpm-lock.yaml`. Dropping it here would make
-// pacquet's lockfile differ from pnpm's for that package.
 #[test]
-fn bundled_dependencies_keeps_an_empty_list() {
+fn bundled_dependencies_drops_an_empty_list() {
     let manifest = serde_json::json!({ "bundledDependencies": [] });
+    assert_eq!(BundledDependencies::from_manifest(Some(&manifest)), None);
+}
+
+#[test]
+fn bundled_dependencies_falls_through_an_empty_list_to_the_legacy_spelling() {
+    let manifest = serde_json::json!({ "bundledDependencies": [], "bundleDependencies": ["a"] });
     assert_eq!(
         BundledDependencies::from_manifest(Some(&manifest)),
-        Some(BundledDependencies::Names(Vec::new())),
+        Some(BundledDependencies::Names(vec!["a".to_string()])),
     );
 }
 
