@@ -403,6 +403,12 @@ export interface ProcessedInstallOptions extends StrictInstallOptions {
    * those packages; the staleness check reads it after a full resolution.
    */
   convergeDeclaredRanges?: Map<string, Set<string>>
+  /**
+   * Optional sink for the raw selector of every override that matched during
+   * resolution. See `InstallDepsOptions['onAppliedOverride']` — this is the
+   * same option threaded through.
+   */
+  onAppliedOverride?: (selector: string) => void
 }
 
 export function extendOptions (
@@ -431,6 +437,9 @@ export function extendOptions (
     readPackageHook: extendedOpts.hooks?.readPackage,
     overrides: extendedOpts.parsedOverrides,
     convergeDeclaredRanges: extendedOpts.convergeDeclaredRanges,
+    onOverrideApplied: extendedOpts.onAppliedOverride == null
+      ? undefined
+      : (override) => extendedOpts.onAppliedOverride!(override.selector),
     lockfileDir: extendedOpts.lockfileDir,
     packageExtensions: extendedOpts.packageExtensions,
     ignoredOptionalDependencies: extendedOpts.ignoredOptionalDependencies,

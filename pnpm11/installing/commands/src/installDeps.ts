@@ -159,6 +159,19 @@ export type InstallDepsOptions = Pick<Config,
    * passed to this callback should not be mutated.
    */
   lockfileCheck?: (prev: LockfileObject, next: LockfileObject) => void
+  /**
+   * Invoked once per `(manifest × dep group)` that an explicit override
+   * rewrites, with the parsed override entry that matched. Used by the
+   * `pnpm overrides` audit command to collect applied selectors during a
+   * forced full resolution and diff them against the configured set.
+   * Convergence overrides do not fire it.
+   *
+   * The callback only fires for manifests the read-package hook and the
+   * peer-edge overrider actually see. `pnpm install` does not set this — it
+   * detects unused overrides via a lockfile scan instead, because
+   * partial-resolution installs bypass the hook for cached subtrees.
+   */
+  onAppliedOverride?: (selector: string) => void
   update?: boolean
   updateToLatest?: boolean
   updateMatching?: UpdateMatchingFunction

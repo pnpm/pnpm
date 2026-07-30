@@ -27,6 +27,18 @@ export interface CreateVersionsOverriderOptions {
    * convergence override never governs them.
    */
   convergeDeclaredRanges?: Map<string, Set<string>>
+  /**
+   * Invoked once per `(manifest × dep group)` that an explicit override
+   * rewrites, with the override entry that matched. Convergence overrides
+   * do not fire it — they have their own staleness path. The `pnpm overrides`
+   * audit command threads this to a Set collector so it can diff against the
+   * configured selectors and report unused overrides. The callback only fires
+   * for manifests the hook actually reads, so it is authoritative only on a
+   * full re-resolution — `pnpm install` does NOT use it (it uses a lockfile
+   * scan instead, since partial resolution bypasses the hook for cached
+   * subtrees).
+   */
+  onApplied?: (override: VersionOverrideBase) => void
 }
 
 /**
@@ -43,16 +55,23 @@ export type DependencyOverrider = (name: string, bareSpecifier: string, dir?: st
  * `undefined` when no override in the set could ever claim an undeclared
  * dependency, so the resolver skips the per-peer call in the common case of a
  * project with no overrides — or with parent-scoped ones only.
+ *
+ * `onApplied` mirrors the same callback on `createVersionsOverrider` and fires
+ * when an override matches an edge the resolver created on its own (peer
+ * auto-installs). Without this, overrides that only apply to peer edges would
+ * be missing from the collector and incorrectly flagged as unused.
  */
 export function createDependencyOverrider (
   overrides: VersionOverrideWithoutRawSelector[],
-  rootDir: string
+  rootDir: string,
+  opts?: { onApplied?: (override: VersionOverrideBase) => void }
 ): DependencyOverrider | undefined {
   const { genericVersionOverrides, convergeVersions } = splitOverrides(overrides, rootDir)
   if (genericVersionOverrides.length === 0 && convergeVersions.size === 0) return undefined
   return (name, bareSpecifier, dir) => {
     const versionOverride = pickVersionOverride({ versionOverrides: [], genericVersionOverrides }, name, bareSpecifier)
     if (versionOverride) {
+      if (hasRawSelector(versionOverride)) opts?.onApplied?.(versionOverride)
       return versionOverride.newBareSpecifier === '-'
         ? '-'
         : resolveOverriddenBareSpecifier(versionOverride, dir)
@@ -79,7 +98,7 @@ export function createVersionsOverrider (
       )
     })
     overrideDepsOfPkg(
-      { manifest, dir },
+      { manifest, dir, onApplied: opts?.onApplied },
       versionOverridesWithParent,
       genericVersionOverrides,
       {
@@ -153,16 +172,17 @@ type VersionOverrideWithParent = VersionOverride & {
 }
 
 function overrideDepsOfPkg (
-  { manifest, dir }: {
+  { manifest, dir, onApplied }: {
     manifest: PackageManifest
     dir: string | undefined
+    onApplied?: (override: VersionOverrideBase) => void
   },
   versionOverrides: VersionOverrideWithParent[],
   genericVersionOverrides: VersionOverride[],
   convergeOpts: ConvergeOptions
 ): void {
   const { dependencies, optionalDependencies, devDependencies, peerDependencies } = manifest
-  const _overrideDeps = overrideDeps.bind(null, { versionOverrides, genericVersionOverrides, dir, convergeOpts })
+  const _overrideDeps = overrideDeps.bind(null, { versionOverrides, genericVersionOverrides, dir, onApplied, convergeOpts })
   for (const deps of [dependencies, optionalDependencies, devDependencies]) {
     if (deps) {
       _overrideDeps(deps, undefined)
@@ -180,10 +200,11 @@ interface ConvergeOptions {
 }
 
 function overrideDeps (
-  { versionOverrides, genericVersionOverrides, dir, convergeOpts }: {
+  { versionOverrides, genericVersionOverrides, dir, onApplied, convergeOpts }: {
     versionOverrides: VersionOverrideWithParent[]
     genericVersionOverrides: VersionOverride[]
     dir: string | undefined
+    onApplied?: (override: VersionOverrideBase) => void
     convergeOpts: ConvergeOptions
   },
   deps: Dependencies,
@@ -195,6 +216,8 @@ function overrideDeps (
       convergeDep(convergeOpts, { deps, peerDeps }, name, bareSpecifier)
       continue
     }
+
+    if (hasRawSelector(versionOverride)) onApplied?.(versionOverride)
 
     if (versionOverride.newBareSpecifier === '-') {
       if (peerDeps) {
@@ -290,4 +313,8 @@ function resolveLocalOverride ({ specifiedViaRelativePath, absolutePath }: Local
 
 function pickMostSpecificVersionOverride (versionOverrides: VersionOverride[]): VersionOverride | undefined {
   return versionOverrides.sort((a, b) => isIntersectingRange(b.targetPkg.bareSpecifier ?? '', a.targetPkg.bareSpecifier ?? '') ? -1 : 1)[0]
+}
+
+function hasRawSelector (override: VersionOverride): override is VersionOverrideBase & { localTarget?: LocalTarget } {
+  return 'selector' in override
 }

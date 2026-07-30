@@ -16,7 +16,7 @@ import {
   restart,
   run,
 } from '@pnpm/exec.commands'
-import { add, dedupe, fetch, importCommand, install, link, prune, remove, unlink, update } from '@pnpm/installing.commands'
+import { add, dedupe, fetch, importCommand, install, link, overrides, prune, remove, unlink, update } from '@pnpm/installing.commands'
 import { patch, patchCommit, patchRemove } from '@pnpm/patching.commands'
 import { pkg, setScript } from '@pnpm/pkg-manifest.commands'
 import { access, deprecate, distTag, owner, ping, search, star, stars, team, undeprecate, unpublish, unstar, whoami } from '@pnpm/registry-access.commands'
@@ -166,6 +166,7 @@ const commands: CommandDefinition[] = [
   ll,
   licenses,
   outdated,
+  overrides,
   pack,
   packApp,
   patch,

@@ -1762,7 +1762,13 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       hooks: {
         readPackage: opts.readPackageHook,
       },
-      overrideBareSpecifier: createDependencyOverrider(opts.parsedOverrides, opts.lockfileDir),
+      overrideBareSpecifier: createDependencyOverrider(
+        opts.parsedOverrides,
+        opts.lockfileDir,
+        opts.onAppliedOverride == null
+          ? undefined
+          : { onApplied: (override) => opts.onAppliedOverride!(override.selector) }
+      ),
       linkWorkspacePackagesDepth: opts.linkWorkspacePackagesDepth ?? (opts.saveWorkspaceProtocol ? 0 : -1),
       lockfileDir: opts.lockfileDir,
       nodeVersion: opts.nodeVersion,

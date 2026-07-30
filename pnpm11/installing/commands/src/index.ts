@@ -5,9 +5,10 @@ import * as importCommand from './import/index.js'
 import type { InstallCommandOptions } from './install.js'
 import * as install from './install.js'
 import * as link from './link.js'
+import * as overrides from './overrides.js'
 import * as prune from './prune.js'
 import * as remove from './remove.js'
 import * as unlink from './unlink.js'
 import * as update from './update/index.js'
 
-export { add, dedupe, fetch, importCommand, install, type InstallCommandOptions, link, prune, remove, unlink, update }
+export { add, dedupe, fetch, importCommand, install, type InstallCommandOptions, link, overrides, prune, remove, unlink, update }
