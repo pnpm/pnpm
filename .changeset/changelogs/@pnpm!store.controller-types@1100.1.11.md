@@ -1,8 +1,0 @@
-## 1100.1.11
-
-### Patch Changes
-
-- Updated dependencies:
-  - @pnpm/fetching.fetcher-base@1100.2.5
-  - @pnpm/resolving.resolver-base@1100.5.5
-  - @pnpm/types@1101.7.0
