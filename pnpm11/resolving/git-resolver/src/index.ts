@@ -5,15 +5,8 @@ import { gracefulGit as git } from 'graceful-git'
 import semver from 'semver'
 
 import { createGitHostedPkgId } from './createGitHostedPkgId.js'
+import { getGitEnv } from './gitEnv.js'
 import { type HostedPackageSpec, parseBareSpecifier } from './parseBareSpecifier.js'
-
-let gitEnv: NodeJS.ProcessEnv | undefined
-function getGitEnv () {
-  if (process.env.GIT_TERMINAL_PROMPT === '0') return process.env
-  if (gitEnv) return gitEnv
-  gitEnv = { ...process.env, GIT_TERMINAL_PROMPT: '0' }
-  return gitEnv
-}
 
 export { createGitHostedPkgId }
 

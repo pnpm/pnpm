@@ -5,13 +5,7 @@ import { type DispatcherOptions, fetchWithDispatcher } from '@pnpm/network.fetch
 import { gracefulGit as git } from 'graceful-git'
 import HostedGit from 'hosted-git-info'
 
-let gitEnv: NodeJS.ProcessEnv | undefined
-function getGitEnv () {
-  if (process.env.GIT_TERMINAL_PROMPT === '0') return process.env
-  if (gitEnv) return gitEnv
-  gitEnv = { ...process.env, GIT_TERMINAL_PROMPT: '0' }
-  return gitEnv
-}
+import { getGitEnv } from './gitEnv.js'
 
 export interface HostedPackageSpec {
   fetchSpec: string
