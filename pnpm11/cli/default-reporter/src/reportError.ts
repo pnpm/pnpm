@@ -1,4 +1,3 @@
-import type { Config } from '@pnpm/config.reader'
 import type { Log } from '@pnpm/core-loggers'
 import { renderPeerIssues } from '@pnpm/deps.inspection.peers-issues-renderer'
 import type { PnpmError } from '@pnpm/error'
@@ -10,6 +9,7 @@ import { equals } from 'ramda'
 import StackTracey from 'stacktracey'
 
 import { EOL } from './constants.js'
+import type { ReporterPnpmConfig } from './ReporterPnpmConfig.js'
 
 StackTracey.maxColumnWidths = {
   callee: 25,
@@ -20,7 +20,7 @@ StackTracey.maxColumnWidths = {
 const highlight = chalk.yellow
 const colorPath = chalk.gray
 
-export function reportError (logObj: Log, config?: Config): string | null {
+export function reportError (logObj: Log, config?: ReporterPnpmConfig): string | null {
   const errorInfo = getErrorInfo(logObj, config)
   if (!errorInfo) return null
   let output = formatErrorSummary(errorInfo.title, (logObj as LogObjWithPossibleError).err?.code)
@@ -50,7 +50,7 @@ interface ErrorInfo {
   body?: string
 }
 
-function getErrorInfo (logObj: Log, config?: Config): ErrorInfo | null {
+function getErrorInfo (logObj: Log, config?: ReporterPnpmConfig): ErrorInfo | null {
   if ('err' in logObj && logObj.err) {
     const err = logObj.err as (PnpmError & { stack: object })
     switch (err.code) {
@@ -426,7 +426,7 @@ To fix this issue, install the required Node version.`
 function reportAuthError (
   err: Error,
   msg: { hint?: string },
-  config?: Config
+  config?: ReporterPnpmConfig
 ): ErrorInfo {
   const foundSettings = [] as string[]
   for (const [key, value] of Object.entries(config?.authConfig ?? {})) {

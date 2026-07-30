@@ -38,7 +38,6 @@
   },
   "dependencies": {
     "@pnpm/cli.meta": "workspace:*",
-    "@pnpm/config.reader": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/deps.inspection.peers-issues-renderer": "workspace:*",
     "@pnpm/error": "workspace:*",
