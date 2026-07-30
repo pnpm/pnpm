@@ -9,6 +9,7 @@ use super::{
     AddDirToEnvPathOpts, AddingPosition, ConfigFileChangeType, ConfigReport, PathExtenderError,
     PathExtenderReport,
 };
+use pacquet_config::{GetHomeDir, Host};
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -312,8 +313,12 @@ fn replace_section(content: &str, new_section: &str, section: &str) -> String {
     format!("{}{}{}", &content[..begin], new_section, &content[end..])
 }
 
+// Sudo-aware: under `sudo` this resolves the invoking user's home, so
+// setup edits that user's rc file instead of root's. Mirrors the
+// TypeScript setup handler, which overrides HOME with `getHomedir()`
+// around `addDirToEnvPath`.
 fn home_dir() -> Result<PathBuf, PathExtenderError> {
-    home::home_dir().ok_or(PathExtenderError::NoHomeDir)
+    Host::home_dir().ok_or(PathExtenderError::NoHomeDir)
 }
 
 fn zdotdir_or_home() -> Result<PathBuf, PathExtenderError> {

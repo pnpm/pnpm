@@ -20,8 +20,8 @@ export function getHomedir (env: NodeJS.ProcessEnv = process.env, platform: stri
       }
       if (result.status === 0 && result.stdout) {
         const parts = result.stdout.split(':')
-        if (parts.length >= 6) {
-          const homedir = parts[5].trim()
+        const homedir = parts.length >= 6 ? parts[5].trim() : ''
+        if (homedir) {
           sudoHomedirCache.set(cacheKey, homedir)
           return homedir
         }

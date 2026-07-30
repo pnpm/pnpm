@@ -130,39 +130,62 @@ impl EnvVarOs for Host {
 impl GetHomeDir for Host {
     fn home_dir() -> Option<PathBuf> {
         if let Ok(sudo_user_raw) = std::env::var("SUDO_USER") {
-            let sudo_user = sudo_user_raw.trim().to_string();
+            let sudo_user = sudo_user_raw.trim();
             if sudo_user != "root" && !sudo_user.is_empty() {
                 #[cfg(all(unix, not(target_os = "cygwin")))]
-                {
-                    use std::ffi::CString;
-                    if let Ok(c_user) = CString::new(sudo_user) {
-                        // SAFETY: Zero-initializing a libc struct is safe.
-                        let mut pw_buf: libc::passwd = unsafe { std::mem::zeroed() };
-                        let mut buf: Vec<libc::c_char> = vec![0; 4096];
-                        let mut result_ptr = std::ptr::null_mut();
-                        // SAFETY: FFI call with valid pointers and buffer lengths.
-                        let status = unsafe {
-                            libc::getpwnam_r(
-                                c_user.as_ptr(),
-                                &raw mut pw_buf,
-                                buf.as_mut_ptr(),
-                                buf.len(),
-                                &raw mut result_ptr,
-                            )
-                        };
-                        if status == 0 && !result_ptr.is_null() && !pw_buf.pw_dir.is_null() {
-                            // SAFETY: pw_dir is guaranteed to be a valid null-terminated C string.
-                            let pw_dir = unsafe { std::ffi::CStr::from_ptr(pw_buf.pw_dir) };
-                            if let Ok(path) = pw_dir.to_str() {
-                                return Some(PathBuf::from(path));
-                            }
-                        }
-                    }
-                    return None;
-                }
+                // A failed lookup returns None instead of falling back to
+                // root's home, so a broken sudo environment fails fast
+                // rather than silently writing into /root.
+                return sudo_user_home_dir(sudo_user);
             }
         }
         home::home_dir()
+    }
+}
+
+/// Resolves the home directory of `sudo_user` from the passwd database
+/// via the reentrant `getpwnam_r`, growing the record buffer on `ERANGE`
+/// (LDAP/NIS entries can exceed any fixed size).
+#[cfg(all(unix, not(target_os = "cygwin")))]
+fn sudo_user_home_dir(sudo_user: &str) -> Option<PathBuf> {
+    use std::ffi::{CStr, CString, OsStr};
+    use std::os::unix::ffi::OsStrExt;
+
+    const MAX_BUF_LEN: usize = 1 << 20;
+
+    let c_user = CString::new(sudo_user).ok()?;
+    // SAFETY: sysconf is always safe to call.
+    let suggested_len = unsafe { libc::sysconf(libc::_SC_GETPW_R_SIZE_MAX) };
+    let mut buf_len = usize::try_from(suggested_len).ok().filter(|len| *len > 0).unwrap_or(4096);
+    loop {
+        // SAFETY: Zero-initializing a libc struct is safe.
+        let mut pw_buf: libc::passwd = unsafe { std::mem::zeroed() };
+        let mut buf: Vec<libc::c_char> = vec![0; buf_len];
+        let mut result_ptr = std::ptr::null_mut();
+        // SAFETY: FFI call with valid pointers and buffer lengths.
+        let status = unsafe {
+            libc::getpwnam_r(
+                c_user.as_ptr(),
+                &raw mut pw_buf,
+                buf.as_mut_ptr(),
+                buf.len(),
+                &raw mut result_ptr,
+            )
+        };
+        if status == libc::ERANGE {
+            buf_len *= 2;
+            if buf_len > MAX_BUF_LEN {
+                return None;
+            }
+            continue;
+        }
+        if status != 0 || result_ptr.is_null() || pw_buf.pw_dir.is_null() {
+            return None;
+        }
+        // SAFETY: getpwnam_r reported success, so pw_dir points to a
+        // nul-terminated string inside `buf`, which is still alive.
+        let pw_dir = unsafe { CStr::from_ptr(pw_buf.pw_dir) };
+        return Some(PathBuf::from(OsStr::from_bytes(pw_dir.to_bytes())));
     }
 }
 
