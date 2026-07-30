@@ -26,7 +26,6 @@ fn token_timestamp_millis_saturates_before_i64_conversion() {
     assert_eq!(token_timestamp_millis(u64::MAX), i64::MAX / 1000 * 1000);
 }
 
-
 fn ip(addr: &str) -> IpAddr {
     addr.parse().unwrap()
 }
@@ -91,7 +90,6 @@ fn cidr_whitelist_allows_requires_some_entry_to_match() {
     assert!(!cidr_whitelist_allows(&whitelist, SocketAddr::new(ip("203.0.113.1"), 1)));
 }
 
-
 #[test]
 fn is_write_method_flags_only_mutating_methods() {
     assert!(is_write_method(&Method::PUT));
@@ -111,7 +109,6 @@ fn bearer_credentials_extracts_only_bearer_tokens() {
     assert_eq!(bearer_credentials("Basic dXNlcjpwYXNz"), None);
     assert_eq!(bearer_credentials("abc123"), None);
 }
-
 
 const PEER: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(10, 1, 2, 3)), 40000);
 
@@ -337,7 +334,6 @@ fn access_log_uri_redacts_the_logout_token_segment() {
     assert_eq!(redact("/foo/-/foo-1.0.0.tgz"), "/foo/-/foo-1.0.0.tgz");
     assert_eq!(redact("/-/v1/search?text=foo"), "/-/v1/search?text=foo");
 }
-
 
 fn config_with_teams(tmp: &TempDir) -> Config {
     let listen = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);

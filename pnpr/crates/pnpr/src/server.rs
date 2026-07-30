@@ -617,7 +617,6 @@ async fn shutdown_signal() {
     tracing::info!("shutdown signal received");
 }
 
-
 async fn get_packument_unscoped(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
@@ -816,7 +815,6 @@ async fn get_six_segments(
     }
     not_found()
 }
-
 
 /// `PUT /{name}` — publish an unscoped package.
 async fn put_one_segment(
@@ -1091,7 +1089,6 @@ async fn delete_seven_segments(
     not_found()
 }
 
-
 /// Whether `prefix` is a `/~<prefix>/`-style first segment — the only
 /// shape the prefixed account routes serve.
 fn is_tilde_prefix(prefix: &str) -> bool {
@@ -1205,7 +1202,6 @@ async fn delete_token_by_key_prefixed(
     }
     private_no_cache(revoke_token_by_key(&state, &identity, &key).await)
 }
-
 
 async fn serve_packument(
     state: &AppState,
@@ -1804,7 +1800,6 @@ async fn cached_upstream_tarball(
         }
     }
 }
-
 
 /// The concrete origin a `/~<name>/` request resolved to, owned so it can be
 /// held across an `await` without borrowing the config.
@@ -3721,7 +3716,6 @@ where
         .expect("static-shape response always builds")
 }
 
-
 /// The hosted registry whose teams `@{scope}` addresses: the scope routes
 /// through the addressed registry (an explicit `/~<name>/`, or the
 /// path-less default) exactly as a package read in that scope would, then
@@ -3814,7 +3808,6 @@ fn reject_team_mutation(
     }
     error_response(&RegistryError::TeamsConfigManaged { action })
 }
-
 
 /// Resolve the hosted storage namespace a non-publish write (dist-tag,
 /// unpublish, packument update) targets, or the [`Response`] to return. A
