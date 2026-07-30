@@ -666,6 +666,7 @@ async function resolveNpm (
     failIfTrustDowngraded(meta, pickedPackage.version, opts)
   }
 
+  const latest = latestAllowedByPolicy(meta, opts)
   const workspacePkgsMatchingName = workspacePackages?.get(pickedPackage.name)
   if (workspacePkgsMatchingName && opts.projectDir) {
     const matchedPkg = workspacePkgsMatchingName.get(pickedPackage.version)
@@ -680,7 +681,7 @@ async function resolveNpm (
           calcSpecifier: opts.calcSpecifier,
           rangeSpecStyle: opts.rangeSpecStyle,
         }),
-        latest: latestAllowedByPolicy(meta, opts),
+        latest,
       }
     }
     const localVersion = pickMatchingLocalVersionOrNull(workspacePkgsMatchingName, spec)
@@ -695,7 +696,7 @@ async function resolveNpm (
           calcSpecifier: opts.calcSpecifier,
           rangeSpecStyle: opts.rangeSpecStyle,
         }),
-        latest: latestAllowedByPolicy(meta, opts),
+        latest,
       }
     }
   }
@@ -718,7 +719,7 @@ async function resolveNpm (
   const publishedAt = meta.time?.[pickedPackage.version]
   return {
     id,
-    latest: latestAllowedByPolicy(meta, opts),
+    latest,
     manifest: pickedPackage,
     resolution,
     resolvedVia: 'npm-registry',
