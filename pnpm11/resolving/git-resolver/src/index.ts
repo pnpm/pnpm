@@ -1,11 +1,10 @@
 import { PnpmError } from '@pnpm/error'
 import type { DispatcherOptions } from '@pnpm/network.fetch'
 import type { GitResolution, LatestInfo, LatestQuery, PkgResolutionId, ResolveOptions, ResolveResult, TarballResolution } from '@pnpm/resolving.resolver-base'
-import { gracefulGit as git } from 'graceful-git'
 import semver from 'semver'
 
 import { createGitHostedPkgId } from './createGitHostedPkgId.js'
-import { getGitEnv } from './gitEnv.js'
+import { lsRemote } from './lsRemote.js'
 import { type HostedPackageSpec, parseBareSpecifier } from './parseBareSpecifier.js'
 
 export { createGitHostedPkgId }
@@ -129,10 +128,7 @@ export async function getRepoRefs (repo: string, ref: string | null): Promise<Re
     gitArgs.push(`${ref}^{}`)
   }
   // graceful-git by default retries 10 times, reduce to single retry
-  const result = await git(['ls-remote', ...gitArgs], {
-    retries: 1,
-    env: getGitEnv(),
-  })
+  const result = await lsRemote(gitArgs, { retries: 1 })
   const refs: Record<string, string> = {}
   for (const line of result.stdout.split('\n')) {
     const [commit, refName] = line.split('\t')

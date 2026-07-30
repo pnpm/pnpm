@@ -2,10 +2,9 @@
 import urlLib, { URL } from 'node:url'
 
 import { type DispatcherOptions, fetchWithDispatcher } from '@pnpm/network.fetch'
-import { gracefulGit as git } from 'graceful-git'
 import HostedGit from 'hosted-git-info'
 
-import { getGitEnv } from './gitEnv.js'
+import { lsRemote } from './lsRemote.js'
 
 export interface HostedPackageSpec {
   fetchSpec: string
@@ -152,10 +151,7 @@ async function isRepoPublic (httpsUrl: string, dispatcherOptions: DispatcherOpti
 
 async function accessRepository (repository: string): Promise<boolean> {
   try {
-    await git(['ls-remote', '--exit-code', repository, 'HEAD'], {
-      retries: 0,
-      env: getGitEnv(),
-    })
+    await lsRemote(['--exit-code', repository, 'HEAD'], { retries: 0 })
     return true
   } catch {
     return false
