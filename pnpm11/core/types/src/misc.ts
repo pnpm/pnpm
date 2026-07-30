@@ -81,7 +81,7 @@ export type SaveRangeGranularity =
 
 /**
  * How a resolved version is written back to the manifest. Beyond the
- * granularities, `exact` selects the same single-version range as `patch`
+ * granularity values, `exact` selects the same single-version range as `patch`
  * but spells it with an explicit `=` operator, preserving a deliberate
  * `=x.y.z` pin. Collapse the spelling away with `saveRangeGranularity`
  * when only the range width matters.
