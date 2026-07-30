@@ -69,11 +69,21 @@ export function clearMeta (pkg: PackageMeta): PackageMeta {
   return condensed
 }
 
+/**
+ * Marks a document as already condensed, so {@link clearMeta} returns it
+ * unchanged. A lazily-loaded indexed mirror (see `mirror.ts`) condenses each
+ * version manifest as it is hydrated; running `clearMeta` over it would parse
+ * every version just to rebuild what the getters already provide.
+ */
+export function markMetaCondensed (meta: PackageMeta): void {
+  condensedPackuments.set(meta, meta)
+}
+
 // Hand-rolled rather than delegated to a generic field picker because it runs
 // for every version of every packument an install parses. Testing the value
 // for `undefined` is equivalent to testing for the key's presence: version
 // objects come from JSON, which cannot encode undefined.
-function pickAbbreviatedVersionFields (info: PackageInRegistry): PackageInRegistry {
+export function pickAbbreviatedVersionFields (info: PackageInRegistry): PackageInRegistry {
   const picked: Partial<Record<keyof PackageInRegistry, unknown>> = {}
   for (const field of ABBREVIATED_VERSION_FIELDS) {
     const value = info[field]

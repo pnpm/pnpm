@@ -18,6 +18,7 @@ import {
   prepareJsonForDisk,
   saveMeta,
 } from '../src/pickPackage.js'
+import { parseNdjsonMeta } from './utils/index.js'
 
 const REGISTRY = 'https://registry.npmjs.org/'
 
@@ -200,16 +201,13 @@ test('prefer-offline resolution promotes the disk-loaded packument into the in-m
   expect(second.pickedPackage?.version).toBe('1.0.0')
 })
 
-test('the raw response body is written verbatim to the disk mirror', async () => {
+test('the response body is mirrored in the indexed layout', async () => {
   const meta = fooMeta()
-  // A body distinct from the compact JSON.stringify(meta) so we can prove the
-  // mirror is written from the raw response text, not re-serialized.
-  const rawBody = JSON.stringify(meta, null, 2)
   const cacheDir = temporaryDirectory()
   const pkgMirror = getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, REGISTRY, 'foo')
 
   const ctx = {
-    fetch: async () => ({ meta, jsonText: rawBody, etag: undefined }),
+    fetch: async () => ({ meta, jsonText: JSON.stringify(meta), etag: undefined }),
     metaCache: createMetaCache(),
     cacheDir,
   }
@@ -222,8 +220,10 @@ test('the raw response body is written verbatim to the disk mirror', async () =>
 
   // The mirror is written fire-and-forget, so retry until it appears.
   const mirror = await readMirrorWithRetry(pkgMirror, 100)
-  // The body after the headers line is the raw response text, unchanged.
-  expect(mirror?.slice(mirror.indexOf('\n') + 1)).toBe(rawBody)
+  expect(mirror?.startsWith('pacquet-meta-v1 ')).toBe(true)
+  const persisted = parseNdjsonMeta<PackageMeta>(mirror!)
+  expect(persisted.versions['1.0.0']).toStrictEqual(meta.versions['1.0.0'])
+  expect(persisted['dist-tags']).toStrictEqual(meta['dist-tags'])
 })
 
 test('projects sharing one in-flight fetch mirror the fetched body instead of re-serializing it', async () => {
@@ -272,17 +272,16 @@ test('projects sharing one in-flight fetch mirror the fetched body instead of re
   }
 })
 
-test('a full document fetched for an optional dependency is condensed in memory while the mirror keeps the raw body', async () => {
+test('a full document fetched for an optional dependency is condensed in memory while the mirror keeps full version manifests', async () => {
   const meta = fooMeta()
   meta.versions['1.0.0'].libc = ['glibc']
   meta.versions['1.0.0'].scripts = { postinstall: 'node scripts/build.js' }
   ;(meta as PackageMeta & { readme: string }).readme = '# a readme the size of a novel'
   meta.time = { '1.0.0': '2020-01-01T00:00:00.000Z' }
-  const rawBody = JSON.stringify(meta)
   const cacheDir = temporaryDirectory()
 
   const ctx = {
-    fetch: async () => ({ meta, jsonText: rawBody, etag: undefined }),
+    fetch: async () => ({ meta, jsonText: JSON.stringify(meta), etag: undefined }),
     metaCache: createMetaCache(),
     cacheDir,
   }
@@ -295,10 +294,12 @@ test('a full document fetched for an optional dependency is condensed in memory 
   expect((res.meta as PackageMeta & { readme?: string }).readme).toBeUndefined()
   expect(ctx.metaCache.get(getPkgMetaCacheKey(REGISTRY, 'foo', true, false))).toBe(res.meta)
 
-  // The full-metadata mirror still receives the raw response body.
+  // The full-metadata mirror keeps unstripped version manifests.
   const pkgMirror = getPkgMirrorPath(cacheDir, FULL_META_DIR, REGISTRY, 'foo')
   const mirror = await readMirrorWithRetry(pkgMirror, 100)
-  expect(mirror?.slice(mirror.indexOf('\n') + 1)).toBe(rawBody)
+  const persisted = parseNdjsonMeta<PackageMeta>(mirror!)
+  expect(persisted.versions['1.0.0'].scripts).toStrictEqual({ postinstall: 'node scripts/build.js' })
+  expect(persisted.time).toEqual({ '1.0.0': '2020-01-01T00:00:00.000Z' })
 })
 
 test('a mirror holding a full document is condensed when promoted into the in-memory cache', async () => {
