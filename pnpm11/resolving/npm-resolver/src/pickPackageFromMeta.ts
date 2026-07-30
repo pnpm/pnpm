@@ -168,10 +168,18 @@ export function pickVersionByVersionRange ({ meta, versionRange, preferredVersio
   const maxVersion = maxSatisfyingLoose(versions, versionRange)
 
   // if the selected version is deprecated, try to find a non-deprecated one that satisfies the range
-  if (maxVersion && meta.versions[maxVersion].deprecated && versions.length > 1) {
-    const nonDeprecatedVersions = versions.map((version) => meta.versions[version])
-      .filter((versionMeta) => !versionMeta.deprecated)
-      .map((versionMeta) => versionMeta.version)
+  // The optional chain covers a corrupt fragment in a lazily-loaded indexed
+  // mirror, whose manifest hydrates to undefined (see the mirror module):
+  // treated as not deprecated here, and the picker's missing-manifest handling
+  // turns it into a failed pick rather than a crash.
+  if (maxVersion && meta.versions[maxVersion]?.deprecated && versions.length > 1) {
+    // Filter by the range before touching manifests, so a lazily-loaded
+    // packument hydrates only the actual candidates instead of every version.
+    const nonDeprecatedVersions = versions.filter((version) => {
+      if (version === maxVersion || !semverSatisfiesLoose(version, versionRange)) return false
+      const manifest = meta.versions[version]
+      return manifest != null && !manifest.deprecated
+    })
 
     const maxNonDeprecatedVersion = maxSatisfyingLoose(nonDeprecatedVersions, versionRange)
     if (maxNonDeprecatedVersion) return maxNonDeprecatedVersion
