@@ -3,5 +3,5 @@
 ### Patch Changes
 
 - Updated dependencies:
-  - @pnpm/workspace.projects-reader@1101.0.20
-  - @pnpm/workspace.workspace-manifest-reader@1100.1.3
+  - @pnpm/workspace.projects-reader@1101.0.21
+  - @pnpm/workspace.workspace-manifest-reader@1100.1.4
