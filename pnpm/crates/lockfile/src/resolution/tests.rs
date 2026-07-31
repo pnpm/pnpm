@@ -732,22 +732,29 @@ fn to_lockfile_form_keeps_git_hosted_subdirectory_path_when_including_tarball_ur
     assert_eq!(actual, resolution);
 }
 
-/// Percent-encoding is case-insensitive, so a scoped tarball using uppercase
-/// `%2F` is still the canonical URL and must be dropped just like `%2f`.
+/// Percent-encoded scoped package tarball URLs are not considered canonical,
+/// and must be kept verbatim in the lockfile to prevent 404s on registries (like GHES)
+/// that require percent-encoding.
 #[test]
-fn to_lockfile_form_drops_scoped_tarball_with_uppercase_percent_encoding() {
-    let resolution = LockfileResolution::Tarball(TarballResolution {
-        tarball: "https://registry.npmjs.org/@babel%2Fcore/-/core-7.0.0.tgz".to_string(),
-        integrity: Some(integrity(SHA512)),
-        git_hosted: None,
-        path: None,
-    });
-    let actual =
-        resolution.to_lockfile_form("@babel/core", "7.0.0", "https://registry.npmjs.org/", false);
-    assert_eq!(
-        actual,
-        LockfileResolution::Registry(RegistryResolution { integrity: integrity(SHA512) }),
-    );
+fn to_lockfile_form_keeps_scoped_tarball_with_percent_encoding() {
+    for tarball_url in [
+        "https://registry.npmjs.org/@babel%2Fcore/-/core-7.0.0.tgz",
+        "https://registry.npmjs.org/@babel%2fcore/-/core-7.0.0.tgz",
+    ] {
+        let resolution = LockfileResolution::Tarball(TarballResolution {
+            tarball: tarball_url.to_string(),
+            integrity: Some(integrity(SHA512)),
+            git_hosted: None,
+            path: None,
+        });
+        let actual = resolution.to_lockfile_form(
+            "@babel/core",
+            "7.0.0",
+            "https://registry.npmjs.org/",
+            false,
+        );
+        assert_eq!(actual, resolution);
+    }
 }
 
 /// A URL that merely starts with the canonical URL but carries a trailing

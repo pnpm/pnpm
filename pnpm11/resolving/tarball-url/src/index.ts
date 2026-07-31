@@ -38,7 +38,7 @@ export function isCanonicalRegistryTarballUrl (
   registry: string
 ): boolean {
   const expectedTarball = getNpmTarballUrl(pkg.name, pkg.version, { registry })
-  const actualTarball = tarball.replace(/%2f/gi, '/')
+  const actualTarball = tarball
   return removeProtocol(expectedTarball) === removeProtocol(actualTarball)
 }
 
