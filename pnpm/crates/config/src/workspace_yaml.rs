@@ -146,8 +146,6 @@ pub struct WorkspaceSettings {
     pub prefer_offline: Option<bool>,
     pub lockfile_include_tarball_url: Option<bool>,
     pub registry: Option<String>,
-    /// The `scope` default package scope. Consumed by `pnpm login` /
-    /// `pnpm adduser`; see [`Config::scope`](crate::Config::scope).
     pub scope: Option<String>,
     pub registries: Option<BTreeMap<String, String>>,
     pub pnpr_server: Option<String>,
