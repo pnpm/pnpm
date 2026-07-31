@@ -168,9 +168,6 @@ catalogs:
     '@pnpm/config.env-replace':
       specifier: ^4.1.0
       version: 4.1.0
-    '@pnpm/config.nerf-dart':
-      specifier: ^2.0.1
-      version: 2.0.1
     '@pnpm/exec':
       specifier: ^4.0.0
       version: 4.0.0
@@ -207,9 +204,6 @@ catalogs:
     '@pnpm/tgz-fixtures':
       specifier: 0.0.0
       version: 0.0.0
-    '@pnpm/util.lex-comparator':
-      specifier: ^4.0.1
-      version: 4.0.1
     '@reflink/reflink':
       specifier: 0.1.19
       version: 0.1.19
@@ -1395,7 +1389,7 @@ importers:
     dependencies:
       '@inquirer/prompts':
         specifier: 'catalog:'
-        version: 8.5.2(@types/node@26.1.2)
+        version: 8.5.2(@types/node@22.20.1)
       '@pnpm/cli.utils':
         specifier: workspace:*
         version: link:../../cli/utils
@@ -1688,7 +1682,7 @@ importers:
     dependencies:
       '@inquirer/prompts':
         specifier: 'catalog:'
-        version: 8.5.2(@types/node@26.1.2)
+        version: 8.5.2(@types/node@22.20.1)
       '@pnpm/building.after-install':
         specifier: workspace:*
         version: link:../after-install
@@ -1728,12 +1722,12 @@ importers:
       '@pnpm/store.connection-manager':
         specifier: workspace:*
         version: link:../../store/connection-manager
+      '@pnpm/text.ordinal-comparator':
+        specifier: workspace:*
+        version: link:../../text/ordinal-comparator
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
-      '@pnpm/util.lex-comparator':
-        specifier: 'catalog:'
-        version: 4.0.1
       '@pnpm/workspace.projects-sorter':
         specifier: workspace:*
         version: link:../../workspace/projects-sorter
@@ -2137,12 +2131,12 @@ importers:
       '@pnpm/installing.dedupe.types':
         specifier: workspace:*
         version: link:../../installing/dedupe/types
+      '@pnpm/text.ordinal-comparator':
+        specifier: workspace:*
+        version: link:../../text/ordinal-comparator
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
-      '@pnpm/util.lex-comparator':
-        specifier: 'catalog:'
-        version: 4.0.1
       ansi-diff:
         specifier: 'catalog:'
         version: 1.2.0
@@ -2483,9 +2477,9 @@ importers:
       '@pnpm/config.matcher':
         specifier: workspace:*
         version: link:../matcher
-      '@pnpm/config.nerf-dart':
-        specifier: 'catalog:'
-        version: 2.0.1
+      '@pnpm/config.registry-auth-key':
+        specifier: workspace:*
+        version: link:../registry-auth-key
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../core/constants
@@ -2592,6 +2586,15 @@ importers:
       write-yaml-file:
         specifier: 'catalog:'
         version: 6.0.0
+
+  pnpm11/config/registry-auth-key:
+    devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.4.1(supports-color@10.2.2)
+      '@pnpm/config.registry-auth-key':
+        specifier: workspace:*
+        version: 'link:'
 
   pnpm11/config/version-policy:
     dependencies:
@@ -2761,14 +2764,14 @@ importers:
         version: link:../../fetching/types
       openpgp:
         specifier: 'catalog:'
-        version: 6.3.1(@openpgp/web-stream-tools@0.3.1(@types/node@26.1.2)(typescript@6.0.3))
+        version: 6.3.1(@openpgp/web-stream-tools@0.3.1(@types/node@22.20.1)(typescript@6.0.3))
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
         version: 30.4.1(supports-color@10.2.2)
       '@openpgp/web-stream-tools':
         specifier: 'catalog:'
-        version: 0.3.1(@types/node@26.1.2)(typescript@6.0.3)
+        version: 0.3.1(@types/node@22.20.1)(typescript@6.0.3)
       '@pnpm/crypto.shasums-file':
         specifier: workspace:*
         version: 'link:'
@@ -2835,7 +2838,7 @@ importers:
     dependencies:
       '@inquirer/prompts':
         specifier: 'catalog:'
-        version: 8.5.2(@types/node@26.1.2)
+        version: 8.5.2(@types/node@22.20.1)
       '@pnpm/cli.command':
         specifier: workspace:*
         version: link:../../../cli/command
@@ -3431,15 +3434,15 @@ importers:
       '@pnpm/pkg-manifest.reader':
         specifier: workspace:*
         version: link:../../../pkg-manifest/reader
+      '@pnpm/text.ordinal-comparator':
+        specifier: workspace:*
+        version: link:../../../text/ordinal-comparator
       '@pnpm/text.tree-renderer':
         specifier: workspace:*
         version: link:../../../text/tree-renderer
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../../core/types
-      '@pnpm/util.lex-comparator':
-        specifier: 'catalog:'
-        version: 4.0.1
       '@pnpm/workspace.project-manifest-reader':
         specifier: workspace:*
         version: link:../../../workspace/project-manifest-reader
@@ -3639,12 +3642,12 @@ importers:
       '@pnpm/store.index':
         specifier: workspace:*
         version: link:../../../store/index
+      '@pnpm/text.ordinal-comparator':
+        specifier: workspace:*
+        version: link:../../../text/ordinal-comparator
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../../core/types
-      '@pnpm/util.lex-comparator':
-        specifier: 'catalog:'
-        version: 4.0.1
       load-json-file:
         specifier: 'catalog:'
         version: 7.0.1
@@ -3826,7 +3829,7 @@ importers:
     dependencies:
       '@inquirer/prompts':
         specifier: 'catalog:'
-        version: 8.5.2(@types/node@26.1.2)
+        version: 8.5.2(@types/node@22.20.1)
       '@pnpm/bins.linker':
         specifier: workspace:*
         version: link:../../../bins/linker
@@ -3981,12 +3984,12 @@ importers:
       '@pnpm/resolving.resolver-base':
         specifier: workspace:*
         version: link:../../../resolving/resolver-base
+      '@pnpm/text.ordinal-comparator':
+        specifier: workspace:*
+        version: link:../../../text/ordinal-comparator
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../../core/types
-      '@pnpm/util.lex-comparator':
-        specifier: 'catalog:'
-        version: 4.0.1
       '@pnpm/worker':
         specifier: workspace:^
         version: link:../../../worker
@@ -4064,12 +4067,12 @@ importers:
       '@pnpm/resolving.resolver-base':
         specifier: workspace:*
         version: link:../../../resolving/resolver-base
+      '@pnpm/text.ordinal-comparator':
+        specifier: workspace:*
+        version: link:../../../text/ordinal-comparator
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../../core/types
-      '@pnpm/util.lex-comparator':
-        specifier: 'catalog:'
-        version: 4.0.1
       '@pnpm/worker':
         specifier: workspace:^
         version: link:../../../worker
@@ -4150,7 +4153,7 @@ importers:
     dependencies:
       '@inquirer/prompts':
         specifier: 'catalog:'
-        version: 8.5.2(@types/node@26.1.2)
+        version: 8.5.2(@types/node@22.20.1)
       '@pnpm/bins.resolver':
         specifier: workspace:*
         version: link:../../bins/resolver
@@ -4217,12 +4220,12 @@ importers:
       '@pnpm/store.path':
         specifier: workspace:*
         version: link:../../store/path
+      '@pnpm/text.ordinal-comparator':
+        specifier: workspace:*
+        version: link:../../text/ordinal-comparator
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
-      '@pnpm/util.lex-comparator':
-        specifier: 'catalog:'
-        version: 4.0.1
       '@pnpm/workspace.injected-deps-syncer':
         specifier: workspace:*
         version: link:../../workspace/injected-deps-syncer
@@ -4517,9 +4520,9 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
-      '@pnpm/util.lex-comparator':
-        specifier: 'catalog:'
-        version: 4.0.1
+      '@pnpm/text.ordinal-comparator':
+        specifier: workspace:*
+        version: link:../../text/ordinal-comparator
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 4.0.0
@@ -4588,12 +4591,12 @@ importers:
       '@pnpm/store.create-cafs-store':
         specifier: workspace:*
         version: link:../../store/create-cafs-store
+      '@pnpm/text.ordinal-comparator':
+        specifier: workspace:*
+        version: link:../../text/ordinal-comparator
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
-      '@pnpm/util.lex-comparator':
-        specifier: 'catalog:'
-        version: 4.0.1
       tempy:
         specifier: 'catalog:'
         version: 3.0.0
@@ -4710,9 +4713,9 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
-      '@pnpm/util.lex-comparator':
-        specifier: 'catalog:'
-        version: 4.0.1
+      '@pnpm/text.ordinal-comparator':
+        specifier: workspace:*
+        version: link:../../text/ordinal-comparator
       '@types/lodash.throttle':
         specifier: 'catalog:'
         version: 4.1.9
@@ -4948,12 +4951,12 @@ importers:
       '@pnpm/store.connection-manager':
         specifier: workspace:*
         version: link:../../store/connection-manager
+      '@pnpm/text.ordinal-comparator':
+        specifier: workspace:*
+        version: link:../../text/ordinal-comparator
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
-      '@pnpm/util.lex-comparator':
-        specifier: 'catalog:'
-        version: 4.0.1
       is-subdir:
         specifier: 'catalog:'
         version: 2.0.0
@@ -4979,12 +4982,12 @@ importers:
       '@pnpm/pkg-manifest.reader':
         specifier: workspace:*
         version: link:../../pkg-manifest/reader
+      '@pnpm/text.ordinal-comparator':
+        specifier: workspace:*
+        version: link:../../text/ordinal-comparator
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
-      '@pnpm/util.lex-comparator':
-        specifier: 'catalog:'
-        version: 4.0.1
     devDependencies:
       '@pnpm/global.packages':
         specifier: workspace:*
@@ -5181,7 +5184,7 @@ importers:
     dependencies:
       '@inquirer/prompts':
         specifier: 'catalog:'
-        version: 8.5.2(@types/node@26.1.2)
+        version: 8.5.2(@types/node@22.20.1)
       '@pnpm/building.after-install':
         specifier: workspace:*
         version: link:../../building/after-install
@@ -5311,12 +5314,12 @@ importers:
       '@pnpm/store.controller':
         specifier: workspace:*
         version: link:../../store/controller
+      '@pnpm/text.ordinal-comparator':
+        specifier: workspace:*
+        version: link:../../text/ordinal-comparator
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
-      '@pnpm/util.lex-comparator':
-        specifier: 'catalog:'
-        version: 4.0.1
       '@pnpm/workspace.project-manifest-reader':
         specifier: workspace:*
         version: link:../../workspace/project-manifest-reader
@@ -5587,7 +5590,7 @@ importers:
     dependencies:
       '@inquirer/prompts':
         specifier: 'catalog:'
-        version: 8.5.2(@types/node@26.1.2)
+        version: 8.5.2(@types/node@22.20.1)
       '@pnpm/bins.linker':
         specifier: workspace:*
         version: link:../../bins/linker
@@ -5744,12 +5747,12 @@ importers:
       '@pnpm/store.index':
         specifier: workspace:*
         version: link:../../store/index
+      '@pnpm/text.ordinal-comparator':
+        specifier: workspace:*
+        version: link:../../text/ordinal-comparator
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
-      '@pnpm/util.lex-comparator':
-        specifier: 'catalog:'
-        version: 4.0.1
       '@pnpm/worker':
         specifier: workspace:^
         version: link:../../worker
@@ -5967,12 +5970,12 @@ importers:
       '@pnpm/store.controller-types':
         specifier: workspace:*
         version: link:../../store/controller-types
+      '@pnpm/text.ordinal-comparator':
+        specifier: workspace:*
+        version: link:../../text/ordinal-comparator
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
-      '@pnpm/util.lex-comparator':
-        specifier: 'catalog:'
-        version: 4.0.1
       '@pnpm/workspace.spec-parser':
         specifier: workspace:*
         version: link:../../workspace/spec-parser
@@ -6367,12 +6370,12 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../../core/core-loggers
+      '@pnpm/text.ordinal-comparator':
+        specifier: workspace:*
+        version: link:../../../text/ordinal-comparator
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../../core/types
-      '@pnpm/util.lex-comparator':
-        specifier: 'catalog:'
-        version: 4.0.1
       is-subdir:
         specifier: 'catalog:'
         version: 2.0.0
@@ -7252,9 +7255,9 @@ importers:
 
   pnpm11/network/auth-header:
     dependencies:
-      '@pnpm/config.nerf-dart':
-        specifier: 'catalog:'
-        version: 2.0.1
+      '@pnpm/config.registry-auth-key':
+        specifier: workspace:*
+        version: link:../../config/registry-auth-key
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error
@@ -7274,9 +7277,9 @@ importers:
 
   pnpm11/network/fetch:
     dependencies:
-      '@pnpm/config.nerf-dart':
-        specifier: 'catalog:'
-        version: 2.0.1
+      '@pnpm/config.registry-auth-key':
+        specifier: workspace:*
+        version: link:../../config/registry-auth-key
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../core/core-loggers
@@ -7355,9 +7358,9 @@ importers:
 
   pnpm11/object/key-sorting:
     dependencies:
-      '@pnpm/util.lex-comparator':
-        specifier: 'catalog:'
-        version: 4.0.1
+      '@pnpm/text.ordinal-comparator':
+        specifier: workspace:*
+        version: link:../../text/ordinal-comparator
       sort-keys:
         specifier: 'catalog:'
         version: 6.0.1
@@ -7411,7 +7414,7 @@ importers:
     dependencies:
       '@inquirer/prompts':
         specifier: 'catalog:'
-        version: 8.5.2(@types/node@26.1.2)
+        version: 8.5.2(@types/node@22.20.1)
       '@pnpm/cli.utils':
         specifier: workspace:*
         version: link:../../cli/utils
@@ -7844,12 +7847,12 @@ importers:
       '@pnpm/testing.registry-mock':
         specifier: workspace:*
         version: link:../testing/registry-mock
+      '@pnpm/text.ordinal-comparator':
+        specifier: workspace:*
+        version: link:../text/ordinal-comparator
       '@pnpm/types':
         specifier: workspace:*
         version: link:../core/types
-      '@pnpm/util.lex-comparator':
-        specifier: 'catalog:'
-        version: 4.0.1
       '@pnpm/worker':
         specifier: workspace:*
         version: link:../worker
@@ -8138,7 +8141,7 @@ importers:
     dependencies:
       '@inquirer/prompts':
         specifier: 'catalog:'
-        version: 8.5.2(@types/node@26.1.2)
+        version: 8.5.2(@types/node@22.20.1)
       '@pnpm/cli.utils':
         specifier: workspace:*
         version: link:../../cli/utils
@@ -8223,7 +8226,7 @@ importers:
     dependencies:
       '@inquirer/prompts':
         specifier: 'catalog:'
-        version: 8.5.2(@types/node@26.1.2)
+        version: 8.5.2(@types/node@22.20.1)
       '@pnpm/bins.resolver':
         specifier: workspace:*
         version: link:../../bins/resolver
@@ -9118,12 +9121,12 @@ importers:
       '@pnpm/store.path':
         specifier: workspace:*
         version: link:../path
+      '@pnpm/text.ordinal-comparator':
+        specifier: workspace:*
+        version: link:../../text/ordinal-comparator
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
-      '@pnpm/util.lex-comparator':
-        specifier: 'catalog:'
-        version: 4.0.1
       archy:
         specifier: 'catalog:'
         version: 1.0.0
@@ -9552,6 +9555,15 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
+  pnpm11/text/ordinal-comparator:
+    devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.4.1(supports-color@10.2.2)
+      '@pnpm/text.ordinal-comparator':
+        specifier: workspace:*
+        version: 'link:'
+
   pnpm11/text/tree-renderer:
     devDependencies:
       '@jest/globals':
@@ -9595,7 +9607,7 @@ importers:
         version: link:../store/index
       '@rushstack/worker-pool':
         specifier: 'catalog:'
-        version: 0.7.22(@types/node@26.1.2)
+        version: 0.7.22(@types/node@22.20.1)
       is-windows:
         specifier: 'catalog:'
         version: 1.0.2
@@ -9694,12 +9706,12 @@ importers:
       '@pnpm/pkg-manifest.reader':
         specifier: workspace:*
         version: link:../../pkg-manifest/reader
+      '@pnpm/text.ordinal-comparator':
+        specifier: workspace:*
+        version: link:../../text/ordinal-comparator
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
-      '@pnpm/util.lex-comparator':
-        specifier: 'catalog:'
-        version: 4.0.1
       '@pnpm/workspace.projects-reader':
         specifier: workspace:*
         version: link:../projects-reader
@@ -9927,12 +9939,12 @@ importers:
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../core/constants
+      '@pnpm/text.ordinal-comparator':
+        specifier: workspace:*
+        version: link:../../text/ordinal-comparator
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
-      '@pnpm/util.lex-comparator':
-        specifier: 'catalog:'
-        version: 4.0.1
       '@pnpm/workspace.project-manifest-reader':
         specifier: workspace:*
         version: link:../project-manifest-reader
@@ -10089,12 +10101,12 @@ importers:
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../../lockfile/types
+      '@pnpm/text.ordinal-comparator':
+        specifier: workspace:*
+        version: link:../../text/ordinal-comparator
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
-      '@pnpm/util.lex-comparator':
-        specifier: 'catalog:'
-        version: 4.0.1
       '@pnpm/workspace.workspace-manifest-reader':
         specifier: workspace:*
         version: link:../workspace-manifest-reader
@@ -11397,10 +11409,6 @@ packages:
     resolution: {integrity: sha512-03d2l21gAyzGVr9SR6rS5pvCTnZ4HaNdi8jB2Y/UGvszzrNbA+AJVObVw6SulNQ1Eah3SHB9wCezJwtP+jYIcA==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/config.nerf-dart@2.0.1':
-    resolution: {integrity: sha512-4jAXyUB1PyY6eETXojxYrXL2NWtcZVxQx8nHTkJjyy0aEx1quMxlIqwnlh8YZRaXcfiqM6VCIEc+BLZWwQq6yg==}
-    engines: {node: '>=22.13'}
-
   '@pnpm/config@1004.11.0':
     resolution: {integrity: sha512-NuiUOC00Vjfy7oAbj2xBKwlTJysXVLjuT0FoCYtrvhf1z62xKZOWY+uSHUtvjdx7G73JDoShEAYd0tDLxvg1WQ==}
     engines: {node: '>=18.12'}
@@ -11904,10 +11912,6 @@ packages:
   '@pnpm/util.lex-comparator@3.0.2':
     resolution: {integrity: sha512-blFO4Ws97tWv/SNE6N39ZdGmZBrocXnBOfVp0ln4kELmns4pGPZizqyRtR8EjfOLMLstbmNCTReBoDvLz1isVg==}
     engines: {node: '>=18.12'}
-
-  '@pnpm/util.lex-comparator@4.0.1':
-    resolution: {integrity: sha512-EZ3aWU7ThppE3Xgq7/ftxq8J/nit6z8I2/wZbC/acea2Zw7KJ1k/fLkGBgyyVAE37CULFsOSmPl3EjYM18cB2Q==}
-    engines: {node: '>=22.13'}
 
   '@pnpm/which@3.0.1':
     resolution: {integrity: sha512-4ivtS12Oni9axgGefaq+gTPD+7N0VPCFdxFH8izCaWfnxLQblX3iVxba+25ZoagStlzUs8sQg8OMKlCVhyGWTw==}
@@ -17884,48 +17888,48 @@ snapshots:
 
   '@inquirer/ansi@2.0.7': {}
 
-  '@inquirer/checkbox@5.2.1(@types/node@26.1.2)':
+  '@inquirer/checkbox@5.2.1(@types/node@22.20.1)':
     dependencies:
       '@inquirer/ansi': 2.0.7
-      '@inquirer/core': 11.2.1(@types/node@26.1.2)
+      '@inquirer/core': 11.2.1(@types/node@22.20.1)
       '@inquirer/figures': 2.0.7
-      '@inquirer/type': 4.0.7(@types/node@26.1.2)
+      '@inquirer/type': 4.0.7(@types/node@22.20.1)
     optionalDependencies:
-      '@types/node': 26.1.2
+      '@types/node': 22.20.1
 
-  '@inquirer/confirm@6.1.1(@types/node@26.1.2)':
+  '@inquirer/confirm@6.1.1(@types/node@22.20.1)':
     dependencies:
-      '@inquirer/core': 11.2.1(@types/node@26.1.2)
-      '@inquirer/type': 4.0.7(@types/node@26.1.2)
+      '@inquirer/core': 11.2.1(@types/node@22.20.1)
+      '@inquirer/type': 4.0.7(@types/node@22.20.1)
     optionalDependencies:
-      '@types/node': 26.1.2
+      '@types/node': 22.20.1
 
-  '@inquirer/core@11.2.1(@types/node@26.1.2)':
+  '@inquirer/core@11.2.1(@types/node@22.20.1)':
     dependencies:
       '@inquirer/ansi': 2.0.7
       '@inquirer/figures': 2.0.7
-      '@inquirer/type': 4.0.7(@types/node@26.1.2)
+      '@inquirer/type': 4.0.7(@types/node@22.20.1)
       cli-width: 4.1.0
       fast-wrap-ansi: 0.2.2
       mute-stream: 3.0.0
       signal-exit: 4.1.0
     optionalDependencies:
-      '@types/node': 26.1.2
+      '@types/node': 22.20.1
 
-  '@inquirer/editor@5.2.2(@types/node@26.1.2)':
+  '@inquirer/editor@5.2.2(@types/node@22.20.1)':
     dependencies:
-      '@inquirer/core': 11.2.1(@types/node@26.1.2)
-      '@inquirer/external-editor': 3.0.3(@types/node@26.1.2)
-      '@inquirer/type': 4.0.7(@types/node@26.1.2)
+      '@inquirer/core': 11.2.1(@types/node@22.20.1)
+      '@inquirer/external-editor': 3.0.3(@types/node@22.20.1)
+      '@inquirer/type': 4.0.7(@types/node@22.20.1)
     optionalDependencies:
-      '@types/node': 26.1.2
+      '@types/node': 22.20.1
 
-  '@inquirer/expand@5.1.1(@types/node@26.1.2)':
+  '@inquirer/expand@5.1.1(@types/node@22.20.1)':
     dependencies:
-      '@inquirer/core': 11.2.1(@types/node@26.1.2)
-      '@inquirer/type': 4.0.7(@types/node@26.1.2)
+      '@inquirer/core': 11.2.1(@types/node@22.20.1)
+      '@inquirer/type': 4.0.7(@types/node@22.20.1)
     optionalDependencies:
-      '@types/node': 26.1.2
+      '@types/node': 22.20.1
 
   '@inquirer/external-editor@1.0.3(@types/node@22.20.1)':
     dependencies:
@@ -17934,81 +17938,81 @@ snapshots:
     optionalDependencies:
       '@types/node': 22.20.1
 
-  '@inquirer/external-editor@3.0.3(@types/node@26.1.2)':
+  '@inquirer/external-editor@3.0.3(@types/node@22.20.1)':
     dependencies:
       chardet: 2.2.0
       iconv-lite: 0.7.3
     optionalDependencies:
-      '@types/node': 26.1.2
+      '@types/node': 22.20.1
 
   '@inquirer/figures@1.0.15': {}
 
   '@inquirer/figures@2.0.7': {}
 
-  '@inquirer/input@5.1.2(@types/node@26.1.2)':
+  '@inquirer/input@5.1.2(@types/node@22.20.1)':
     dependencies:
-      '@inquirer/core': 11.2.1(@types/node@26.1.2)
-      '@inquirer/type': 4.0.7(@types/node@26.1.2)
+      '@inquirer/core': 11.2.1(@types/node@22.20.1)
+      '@inquirer/type': 4.0.7(@types/node@22.20.1)
     optionalDependencies:
-      '@types/node': 26.1.2
+      '@types/node': 22.20.1
 
-  '@inquirer/number@4.1.1(@types/node@26.1.2)':
+  '@inquirer/number@4.1.1(@types/node@22.20.1)':
     dependencies:
-      '@inquirer/core': 11.2.1(@types/node@26.1.2)
-      '@inquirer/type': 4.0.7(@types/node@26.1.2)
+      '@inquirer/core': 11.2.1(@types/node@22.20.1)
+      '@inquirer/type': 4.0.7(@types/node@22.20.1)
     optionalDependencies:
-      '@types/node': 26.1.2
+      '@types/node': 22.20.1
 
-  '@inquirer/password@5.1.1(@types/node@26.1.2)':
-    dependencies:
-      '@inquirer/ansi': 2.0.7
-      '@inquirer/core': 11.2.1(@types/node@26.1.2)
-      '@inquirer/type': 4.0.7(@types/node@26.1.2)
-    optionalDependencies:
-      '@types/node': 26.1.2
-
-  '@inquirer/prompts@8.5.2(@types/node@26.1.2)':
-    dependencies:
-      '@inquirer/checkbox': 5.2.1(@types/node@26.1.2)
-      '@inquirer/confirm': 6.1.1(@types/node@26.1.2)
-      '@inquirer/editor': 5.2.2(@types/node@26.1.2)
-      '@inquirer/expand': 5.1.1(@types/node@26.1.2)
-      '@inquirer/input': 5.1.2(@types/node@26.1.2)
-      '@inquirer/number': 4.1.1(@types/node@26.1.2)
-      '@inquirer/password': 5.1.1(@types/node@26.1.2)
-      '@inquirer/rawlist': 5.3.1(@types/node@26.1.2)
-      '@inquirer/search': 4.2.1(@types/node@26.1.2)
-      '@inquirer/select': 5.2.1(@types/node@26.1.2)
-    optionalDependencies:
-      '@types/node': 26.1.2
-
-  '@inquirer/rawlist@5.3.1(@types/node@26.1.2)':
-    dependencies:
-      '@inquirer/core': 11.2.1(@types/node@26.1.2)
-      '@inquirer/type': 4.0.7(@types/node@26.1.2)
-    optionalDependencies:
-      '@types/node': 26.1.2
-
-  '@inquirer/search@4.2.1(@types/node@26.1.2)':
-    dependencies:
-      '@inquirer/core': 11.2.1(@types/node@26.1.2)
-      '@inquirer/figures': 2.0.7
-      '@inquirer/type': 4.0.7(@types/node@26.1.2)
-    optionalDependencies:
-      '@types/node': 26.1.2
-
-  '@inquirer/select@5.2.1(@types/node@26.1.2)':
+  '@inquirer/password@5.1.1(@types/node@22.20.1)':
     dependencies:
       '@inquirer/ansi': 2.0.7
-      '@inquirer/core': 11.2.1(@types/node@26.1.2)
-      '@inquirer/figures': 2.0.7
-      '@inquirer/type': 4.0.7(@types/node@26.1.2)
+      '@inquirer/core': 11.2.1(@types/node@22.20.1)
+      '@inquirer/type': 4.0.7(@types/node@22.20.1)
     optionalDependencies:
-      '@types/node': 26.1.2
+      '@types/node': 22.20.1
 
-  '@inquirer/type@4.0.7(@types/node@26.1.2)':
+  '@inquirer/prompts@8.5.2(@types/node@22.20.1)':
+    dependencies:
+      '@inquirer/checkbox': 5.2.1(@types/node@22.20.1)
+      '@inquirer/confirm': 6.1.1(@types/node@22.20.1)
+      '@inquirer/editor': 5.2.2(@types/node@22.20.1)
+      '@inquirer/expand': 5.1.1(@types/node@22.20.1)
+      '@inquirer/input': 5.1.2(@types/node@22.20.1)
+      '@inquirer/number': 4.1.1(@types/node@22.20.1)
+      '@inquirer/password': 5.1.1(@types/node@22.20.1)
+      '@inquirer/rawlist': 5.3.1(@types/node@22.20.1)
+      '@inquirer/search': 4.2.1(@types/node@22.20.1)
+      '@inquirer/select': 5.2.1(@types/node@22.20.1)
     optionalDependencies:
-      '@types/node': 26.1.2
+      '@types/node': 22.20.1
+
+  '@inquirer/rawlist@5.3.1(@types/node@22.20.1)':
+    dependencies:
+      '@inquirer/core': 11.2.1(@types/node@22.20.1)
+      '@inquirer/type': 4.0.7(@types/node@22.20.1)
+    optionalDependencies:
+      '@types/node': 22.20.1
+
+  '@inquirer/search@4.2.1(@types/node@22.20.1)':
+    dependencies:
+      '@inquirer/core': 11.2.1(@types/node@22.20.1)
+      '@inquirer/figures': 2.0.7
+      '@inquirer/type': 4.0.7(@types/node@22.20.1)
+    optionalDependencies:
+      '@types/node': 22.20.1
+
+  '@inquirer/select@5.2.1(@types/node@22.20.1)':
+    dependencies:
+      '@inquirer/ansi': 2.0.7
+      '@inquirer/core': 11.2.1(@types/node@22.20.1)
+      '@inquirer/figures': 2.0.7
+      '@inquirer/type': 4.0.7(@types/node@22.20.1)
+    optionalDependencies:
+      '@types/node': 22.20.1
+
+  '@inquirer/type@4.0.7(@types/node@22.20.1)':
+    optionalDependencies:
+      '@types/node': 22.20.1
 
   '@isaacs/cliui@9.0.0': {}
 
@@ -18029,7 +18033,7 @@ snapshots:
   '@jest/console@30.4.1':
     dependencies:
       '@jest/types': 30.4.1
-      '@types/node': 22.20.1
+      '@types/node': 26.1.2
       chalk: 4.1.2
       jest-message-util: 30.4.1
       jest-util: 30.4.1
@@ -18043,7 +18047,7 @@ snapshots:
       '@jest/test-result': 30.4.1
       '@jest/transform': 30.4.1(@babel/types@7.29.7)(supports-color@10.2.2)
       '@jest/types': 30.4.1
-      '@types/node': 22.20.1
+      '@types/node': 26.1.2
       ansi-escapes: 4.3.2
       chalk: 4.1.2
       ci-info: 4.4.0
@@ -18051,7 +18055,7 @@ snapshots:
       fast-json-stable-stringify: 2.1.0
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
       jest-changed-files: 30.4.1
-      jest-config: 30.4.2(@babel/types@7.29.7)(@types/node@22.20.1)(supports-color@10.2.2)
+      jest-config: 30.4.2(@babel/types@7.29.7)(@types/node@26.1.2)(supports-color@10.2.2)
       jest-haste-map: 30.4.1
       jest-message-util: 30.4.1
       jest-regex-util: 30.4.0
@@ -18078,7 +18082,7 @@ snapshots:
     dependencies:
       '@jest/fake-timers': 30.4.1
       '@jest/types': 30.4.1
-      '@types/node': 22.20.1
+      '@types/node': 26.1.2
       jest-mock: 30.4.1
 
   '@jest/expect-utils@30.4.1':
@@ -18096,7 +18100,7 @@ snapshots:
     dependencies:
       '@jest/types': 30.4.1
       '@sinonjs/fake-timers': 15.4.0
-      '@types/node': 22.20.1
+      '@types/node': 26.1.2
       jest-message-util: 30.4.1
       jest-mock: 30.4.1
       jest-util: 30.4.1
@@ -18114,7 +18118,7 @@ snapshots:
 
   '@jest/pattern@30.4.0':
     dependencies:
-      '@types/node': 22.20.1
+      '@types/node': 26.1.2
       jest-regex-util: 30.4.0
 
   '@jest/reporters@30.4.1(@babel/types@7.29.7)(supports-color@10.2.2)':
@@ -18125,7 +18129,7 @@ snapshots:
       '@jest/transform': 30.4.1(@babel/types@7.29.7)(supports-color@10.2.2)
       '@jest/types': 30.4.1
       '@jridgewell/trace-mapping': 0.3.31
-      '@types/node': 22.20.1
+      '@types/node': 26.1.2
       chalk: 4.1.2
       collect-v8-coverage: 1.0.3
       exit-x: 0.2.2
@@ -18216,7 +18220,7 @@ snapshots:
       '@jest/schemas': 30.4.1
       '@types/istanbul-lib-coverage': 2.0.6
       '@types/istanbul-reports': 3.0.4
-      '@types/node': 22.20.1
+      '@types/node': 26.1.2
       '@types/yargs': 17.0.35
       chalk: 4.1.2
 
@@ -18345,9 +18349,9 @@ snapshots:
 
   '@npmcli/redact@4.0.0': {}
 
-  '@openpgp/web-stream-tools@0.3.1(@types/node@26.1.2)(typescript@6.0.3)':
+  '@openpgp/web-stream-tools@0.3.1(@types/node@22.20.1)(typescript@6.0.3)':
     optionalDependencies:
-      '@types/node': 26.1.2
+      '@types/node': 22.20.1
       typescript: 6.0.3
 
   '@pkgr/core@0.3.6': {}
@@ -18453,8 +18457,6 @@ snapshots:
   '@pnpm/config.env-replace@4.1.0': {}
 
   '@pnpm/config.nerf-dart@1.0.1': {}
-
-  '@pnpm/config.nerf-dart@2.0.1': {}
 
   '@pnpm/config@1004.11.0(@pnpm/logger@1001.0.1)':
     dependencies:
@@ -19431,8 +19433,6 @@ snapshots:
 
   '@pnpm/util.lex-comparator@3.0.2': {}
 
-  '@pnpm/util.lex-comparator@4.0.1': {}
-
   '@pnpm/which@3.0.1':
     dependencies:
       isexe: 2.0.0
@@ -19527,9 +19527,9 @@ snapshots:
     optionalDependencies:
       '@types/node': 22.20.1
 
-  '@rushstack/worker-pool@0.7.22(@types/node@26.1.2)':
+  '@rushstack/worker-pool@0.7.22(@types/node@22.20.1)':
     optionalDependencies:
-      '@types/node': 26.1.2
+      '@types/node': 22.20.1
 
   '@sec-ant/readable-stream@0.4.1': {}
 
@@ -19694,7 +19694,7 @@ snapshots:
 
   '@types/isexe@2.0.4':
     dependencies:
-      '@types/node': 22.20.1
+      '@types/node': 26.1.2
 
   '@types/istanbul-lib-coverage@2.0.6': {}
 
@@ -19828,7 +19828,7 @@ snapshots:
 
   '@types/touch@3.1.5':
     dependencies:
-      '@types/node': 22.20.1
+      '@types/node': 26.1.2
 
   '@types/treeify@1.0.3': {}
 
@@ -22365,7 +22365,7 @@ snapshots:
       '@jest/expect': 30.4.1(supports-color@10.2.2)
       '@jest/test-result': 30.4.1
       '@jest/types': 30.4.1
-      '@types/node': 22.20.1
+      '@types/node': 26.1.2
       chalk: 4.1.2
       co: 4.6.0
       dedent: 1.7.2
@@ -22438,6 +22438,38 @@ snapshots:
       - babel-plugin-macros
       - supports-color
 
+  jest-config@30.4.2(@babel/types@7.29.7)(@types/node@26.1.2)(supports-color@10.2.2):
+    dependencies:
+      '@babel/core': 7.29.7(supports-color@10.2.2)
+      '@jest/get-type': 30.1.0
+      '@jest/pattern': 30.4.0
+      '@jest/test-sequencer': 30.4.1
+      '@jest/types': 30.4.1
+      babel-jest: 30.4.1(@babel/core@7.29.7(supports-color@10.2.2))(@babel/types@7.29.7)(supports-color@10.2.2)
+      chalk: 4.1.2
+      ci-info: 4.4.0
+      deepmerge: 4.3.1
+      glob: 11.1.0
+      graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
+      jest-circus: 30.4.2(@babel/types@7.29.7)(supports-color@10.2.2)
+      jest-docblock: 30.4.0
+      jest-environment-node: 30.4.1
+      jest-regex-util: 30.4.0
+      jest-resolve: 30.4.1
+      jest-runner: 30.4.2(@babel/types@7.29.7)(supports-color@10.2.2)
+      jest-util: 30.4.1
+      jest-validate: 30.4.1
+      parse-json: 5.2.0
+      pretty-format: 30.4.1
+      slash: 3.0.0
+      strip-json-comments: 3.1.1
+    optionalDependencies:
+      '@types/node': 26.1.2
+    transitivePeerDependencies:
+      - '@babel/types'
+      - babel-plugin-macros
+      - supports-color
+
   jest-diff@30.4.1:
     dependencies:
       '@jest/diff-sequences': 30.4.0
@@ -22462,7 +22494,7 @@ snapshots:
       '@jest/environment': 30.4.1
       '@jest/fake-timers': 30.4.1
       '@jest/types': 30.4.1
-      '@types/node': 22.20.1
+      '@types/node': 26.1.2
       jest-mock: 30.4.1
       jest-util: 30.4.1
       jest-validate: 30.4.1
@@ -22488,7 +22520,7 @@ snapshots:
   jest-haste-map@30.4.1:
     dependencies:
       '@jest/types': 30.4.1
-      '@types/node': 22.20.1
+      '@types/node': 26.1.2
       anymatch: 3.1.3
       fb-watchman: 2.0.2
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
@@ -22528,7 +22560,7 @@ snapshots:
   jest-mock@30.4.1:
     dependencies:
       '@jest/types': 30.4.1
-      '@types/node': 22.20.1
+      '@types/node': 26.1.2
       jest-util: 30.4.1
 
   jest-pnp-resolver@1.2.3(jest-resolve@29.7.0):
@@ -22580,7 +22612,7 @@ snapshots:
       '@jest/test-result': 30.4.1
       '@jest/transform': 30.4.1(@babel/types@7.29.7)(supports-color@10.2.2)
       '@jest/types': 30.4.1
-      '@types/node': 22.20.1
+      '@types/node': 26.1.2
       chalk: 4.1.2
       emittery: 0.13.1
       exit-x: 0.2.2
@@ -22610,7 +22642,7 @@ snapshots:
       '@jest/test-result': 30.4.1
       '@jest/transform': 30.4.1(@babel/types@7.29.7)(supports-color@10.2.2)
       '@jest/types': 30.4.1
-      '@types/node': 22.20.1
+      '@types/node': 26.1.2
       chalk: 4.1.2
       cjs-module-lexer: 2.2.0
       collect-v8-coverage: 1.0.3
@@ -22667,7 +22699,7 @@ snapshots:
   jest-util@30.4.1:
     dependencies:
       '@jest/types': 30.4.1
-      '@types/node': 22.20.1
+      '@types/node': 26.1.2
       chalk: 4.1.2
       ci-info: 4.4.0
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
@@ -22695,7 +22727,7 @@ snapshots:
     dependencies:
       '@jest/test-result': 30.4.1
       '@jest/types': 30.4.1
-      '@types/node': 22.20.1
+      '@types/node': 26.1.2
       ansi-escapes: 4.3.2
       chalk: 4.1.2
       emittery: 0.13.1
@@ -22711,7 +22743,7 @@ snapshots:
 
   jest-worker@30.4.1:
     dependencies:
-      '@types/node': 22.20.1
+      '@types/node': 26.1.2
       '@ungap/structured-clone': 1.3.3
       jest-util: 30.4.1
       merge-stream: 2.0.0
@@ -23541,9 +23573,9 @@ snapshots:
       is-docker: 2.2.1
       is-wsl: 2.2.0
 
-  openpgp@6.3.1(@openpgp/web-stream-tools@0.3.1(@types/node@26.1.2)(typescript@6.0.3)):
+  openpgp@6.3.1(@openpgp/web-stream-tools@0.3.1(@types/node@22.20.1)(typescript@6.0.3)):
     optionalDependencies:
-      '@openpgp/web-stream-tools': 0.3.1(@types/node@26.1.2)(typescript@6.0.3)
+      '@openpgp/web-stream-tools': 0.3.1(@types/node@22.20.1)(typescript@6.0.3)
 
   opt-cli@1.5.1:
     dependencies:

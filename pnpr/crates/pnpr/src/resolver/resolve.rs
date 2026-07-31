@@ -227,6 +227,7 @@ pub async fn resolve(
         // single terminal `done` frame carrying the whole lockfile.
         resolution_observer: observer,
         peer_issues_sink: None,
+        deps_requiring_build_sink: None,
         // The reconstructed workspace carries no catalog sections, so the
         // client's catalogs are forwarded here and used to resolve
         // `catalog:` specifiers in dependencies and overrides.

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/store.connection-manager",
-  "version": "1100.3.13",
+  "version": "1100.3.14",
   "description": "Create a pnpm store controller",
   "keywords": [
     "pnpm",

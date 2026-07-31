@@ -187,6 +187,9 @@
       "path": "../../testing/temp-store"
     },
     {
+      "path": "../../text/ordinal-comparator"
+    },
+    {
       "path": "../../worker"
     },
     {

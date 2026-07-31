@@ -27,7 +27,8 @@ use pacquet_hooks::PnpmfileHooks;
 use pacquet_lockfile::{LazyLockfile, Lockfile, MaybeLazyLockfile};
 use pacquet_network::{NetworkSettings, NoProxySetting, ProxyConfig, ThrottledClient, TlsConfig};
 use pacquet_package_manager::{
-    Install, ProjectMutation, RebuildOptions, ResolvedPackages, UpdateSeedPolicy,
+    DepsRequiringBuildSink, Install, ProjectMutation, RebuildOptions, ResolvedPackages,
+    UpdateSeedPolicy,
 };
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_tarball::MemCache;
@@ -123,6 +124,14 @@ pub struct InstallOptions {
     /// blocked packages in `depsRequiringBuild`, matching how embedders (Bit)
     /// gate builds themselves.
     pub strict_dep_builds: Option<bool>,
+    /// Return the dep paths of every package whose files carry install
+    /// scripts, regardless of the allow-build policy, in
+    /// `depsRequiringBuild`. The list is computed only when a fresh
+    /// resolve materializes `node_modules`; an install served from the
+    /// frozen-lockfile path (or `lockfileOnly`) leaves
+    /// `depsRequiringBuild` undefined so the embedder keeps its
+    /// previously recorded list.
+    pub return_list_of_deps_requiring_build: Option<bool>,
     /// Per-package build-script allow-list: `name -> allowed`.
     pub allow_builds: Option<HashMap<String, bool>>,
     /// Allow every dependency's build scripts to run.
@@ -246,26 +255,59 @@ fn run_install_blocking(
             .map(|sink| Arc::new(JsReadPackageHook::new(sink)) as Arc<dyn PnpmfileHooks>),
     };
     begin_stats();
-    let outcome = run_install_inner(options, pnpmfile_hook, EngineMode::Install);
+    let deps_requiring_build_sink = (options.return_list_of_deps_requiring_build == Some(true))
+        .then(DepsRequiringBuildSink::default);
+    let outcome = run_install_inner(
+        options,
+        pnpmfile_hook,
+        EngineMode::Install(deps_requiring_build_sink.as_ref().map(Arc::clone)),
+    );
     let stats = take_stats();
     let store_dir = outcome?;
+    let deps_requiring_build =
+        take_deps_requiring_build(deps_requiring_build_sink.as_ref(), stats.deps_requiring_build);
     Ok(InstallResult {
         stats: InstallStatsResult {
             added: stats.added as f64,
             removed: stats.removed as f64,
             linked_to_root: 0.0,
         },
-        deps_requiring_build: (!stats.deps_requiring_build.is_empty())
-            .then_some(stats.deps_requiring_build),
+        deps_requiring_build,
         store_dir,
     })
 }
 
-/// Which engine operation [`run_install_inner`] performs. Both share the same
-/// `State` / `Install` construction; the mode selects the fresh-resolve
-/// (`install`) versus frozen rebuild path and the two fields that differ.
+/// Take [`InstallResult::deps_requiring_build`] out of the sink the
+/// embedder asked for with `returnListOfDepsRequiringBuild`.
+///
+/// An empty list is a real answer and stays `Some`; a run that computed no
+/// list yields `None`, so the embedder keeps its own record. See
+/// [`DepsRequiringBuildSink`] for which runs compute one.
+///
+/// Without a sink the result carries `ignored_builds`, the blocked builds
+/// accumulated from `pnpm:ignored-scripts` events.
+fn take_deps_requiring_build(
+    sink: Option<&DepsRequiringBuildSink>,
+    ignored_builds: Vec<String>,
+) -> Option<Vec<String>> {
+    match sink {
+        Some(sink) => sink
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .take()
+            .map(|deps| deps.into_iter().collect()),
+        None => (!ignored_builds.is_empty()).then_some(ignored_builds),
+    }
+}
+
+/// Which engine operation [`run_install_inner`] performs. Every mode shares
+/// the same `State` / `Install` construction. The mode selects the
+/// fresh-resolve (`install`) versus frozen rebuild path, and carries the
+/// per-mode payload the engine needs.
 enum EngineMode {
-    Install,
+    /// Plain install, with the out-slot for `returnListOfDepsRequiringBuild`
+    /// when the embedder asked for the list.
+    Install(Option<DepsRequiringBuildSink>),
     Rebuild(RebuildOptions),
     /// Peer-issue query: a `dry_run` fresh resolve that writes nothing
     /// and collects the per-importer peer-dependency issues into the
@@ -276,7 +318,7 @@ enum EngineMode {
 
 impl EngineMode {
     fn disable_optimistic_repeat_install(&self) -> bool {
-        matches!(self, Self::Install | Self::PeerIssues(_))
+        matches!(self, Self::Install(_) | Self::PeerIssues(_))
     }
 }
 
@@ -346,7 +388,7 @@ fn run_install_inner(
     // forces `prefer_frozen_lockfile: false` and a non-frozen path so the
     // re-resolution is not short-circuited by the auto-frozen / repeat-install
     // fast paths.
-    let update_requested = matches!(mode, EngineMode::Install) && options.update == Some(true);
+    let update_requested = matches!(mode, EngineMode::Install(_)) && options.update == Some(true);
 
     // `ignorePackageManifest` maps to pacquet's `ignore_manifest_check`: the
     // per-importer `package.json` ↔ `pnpm-lock.yaml` freshness gate is skipped,
@@ -364,14 +406,14 @@ fn run_install_inner(
     // already-materialized `node_modules`, so it must never take the
     // lockfile-only short-circuit (which would make it silently do nothing) even
     // when the caller reuses install options that disable the modules dir.
-    let lockfile_only = matches!(mode, EngineMode::Install)
+    let lockfile_only = matches!(mode, EngineMode::Install(_))
         && (options.lockfile_only.unwrap_or(false) || options.enable_modules_dir == Some(false));
 
     // A rebuild takes the frozen path against the already-materialized
     // `node_modules`, and re-runs dependency build scripts rather than the
     // root project's own lifecycle scripts.
     let frozen_lockfile = match &mode {
-        EngineMode::Install => !update_requested && options.frozen_lockfile.unwrap_or(false),
+        EngineMode::Install(_) => !update_requested && options.frozen_lockfile.unwrap_or(false),
         EngineMode::Rebuild(_) => true,
         // Peer issues need a full fresh resolve — never frozen.
         EngineMode::PeerIssues(_) => false,
@@ -383,7 +425,7 @@ fn run_install_inner(
     };
     let update_seed_policy =
         if update_requested { UpdateSeedPolicy::drop_all() } else { UpdateSeedPolicy::KeepAll };
-    let mutation = if matches!(mode, EngineMode::Install) {
+    let mutation = if matches!(mode, EngineMode::Install(_)) {
         ProjectMutation::InstallWorkspace
     } else {
         ProjectMutation::NoInstall
@@ -426,7 +468,11 @@ fn run_install_inner(
                 resolution_observer: None,
                 peer_issues_sink: match &mode {
                     EngineMode::PeerIssues(sink) => Some(Arc::clone(sink)),
-                    EngineMode::Install | EngineMode::Rebuild(_) => None,
+                    EngineMode::Install(_) | EngineMode::Rebuild(_) => None,
+                },
+                deps_requiring_build_sink: match &mode {
+                    EngineMode::Install(sink) => sink.as_ref().map(Arc::clone),
+                    EngineMode::Rebuild(_) | EngineMode::PeerIssues(_) => None,
                 },
                 catalogs_override: None,
                 // The optimistic repeat-install fast path uses on-disk
@@ -439,7 +485,7 @@ fn run_install_inner(
                 workspace_projects_override,
             };
             match mode {
-                EngineMode::Install | EngineMode::PeerIssues(_) => {
+                EngineMode::Install(_) | EngineMode::PeerIssues(_) => {
                     install.run::<NodeBridgeReporter>().await
                 }
                 EngineMode::Rebuild(rebuild) => {

@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../config/registry-auth-key"
+    },
+    {
       "path": "../../core/error"
     },
     {

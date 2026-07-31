@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/cli.default-reporter",
-  "version": "1100.3.13",
+  "version": "1100.3.14",
   "description": "The default reporter of pnpm",
   "keywords": [
     "pnpm",
@@ -43,8 +43,8 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/installing.dedupe.issues-renderer": "workspace:*",
     "@pnpm/installing.dedupe.types": "workspace:*",
+    "@pnpm/text.ordinal-comparator": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/util.lex-comparator": "catalog:",
     "ansi-diff": "catalog:",
     "boxen": "catalog:",
     "chalk": "catalog:",

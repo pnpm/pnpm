@@ -4,7 +4,7 @@ import path from 'node:path'
 import { afterEach, expect, jest, test } from '@jest/globals'
 import { fetchFromDir } from '@pnpm/fetching.directory-fetcher'
 import { prepareEmpty } from '@pnpm/prepare'
-import { lexCompare } from '@pnpm/util.lex-comparator'
+import { lexCompare } from '@pnpm/text.ordinal-comparator'
 
 import { applyPatch, DIR, type DirDiff } from '../src/DirPatcher.js'
 

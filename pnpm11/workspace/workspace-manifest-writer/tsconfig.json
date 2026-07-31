@@ -34,6 +34,9 @@
       "path": "../../lockfile/types"
     },
     {
+      "path": "../../text/ordinal-comparator"
+    },
+    {
       "path": "../../yaml/document-sync"
     },
     {

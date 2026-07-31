@@ -1,5 +1,5 @@
 import type { IgnoredScriptsLog } from '@pnpm/core-loggers'
-import { lexCompare } from '@pnpm/util.lex-comparator'
+import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import boxen from 'boxen'
 import * as Rx from 'rxjs'
 import { map } from 'rxjs/operators'

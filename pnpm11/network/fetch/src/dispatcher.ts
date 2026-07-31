@@ -2,7 +2,7 @@ import net from 'node:net'
 import tls from 'node:tls'
 import { URL } from 'node:url'
 
-import { nerfDart } from '@pnpm/config.nerf-dart'
+import { nerfDart } from '@pnpm/config.registry-auth-key'
 import { PnpmError } from '@pnpm/error'
 import type { TlsConfig } from '@pnpm/types'
 import { LRUCache } from 'lru-cache'

@@ -124,6 +124,7 @@ impl DedupeArgs {
                 reporter: PhantomData,
             })),
             peer_issues_sink: None,
+            deps_requiring_build_sink: None,
             catalogs_override: None,
             disable_optimistic_repeat_install: false,
             pnpmfile_hook_override: None,

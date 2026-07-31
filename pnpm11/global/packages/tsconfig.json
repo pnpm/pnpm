@@ -20,6 +20,9 @@
     },
     {
       "path": "../../pkg-manifest/reader"
+    },
+    {
+      "path": "../../text/ordinal-comparator"
     }
   ]
 }

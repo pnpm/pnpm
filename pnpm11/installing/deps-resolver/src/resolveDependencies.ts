@@ -40,6 +40,7 @@ import type {
   PkgRequestFetchResult,
   StoreController,
 } from '@pnpm/store.controller-types'
+import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import type {
   AllowBuild,
   AllowedDeprecatedVersions,
@@ -53,7 +54,6 @@ import type {
   SupportedArchitectures,
   TrustPolicy,
 } from '@pnpm/types'
-import { lexCompare } from '@pnpm/util.lex-comparator'
 import normalizePath from 'normalize-path'
 import pDefer from 'p-defer'
 import { pathExists } from 'path-exists'

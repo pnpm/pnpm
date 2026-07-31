@@ -85,6 +85,9 @@
       "path": "../../testing/command-defaults"
     },
     {
+      "path": "../../text/ordinal-comparator"
+    },
+    {
       "path": "../../workspace/injected-deps-syncer"
     },
     {

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/bins.linker",
-  "version": "1100.0.23",
+  "version": "1100.0.24",
   "description": "Link bins to node_modules/.bin",
   "keywords": [
     "pnpm",

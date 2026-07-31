@@ -79,6 +79,9 @@
       "path": "../../testing/registry-mock"
     },
     {
+      "path": "../../text/ordinal-comparator"
+    },
+    {
       "path": "../../workspace/projects-filter"
     },
     {

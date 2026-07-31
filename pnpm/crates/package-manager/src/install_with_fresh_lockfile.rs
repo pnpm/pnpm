@@ -205,6 +205,9 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     /// Out-channel for the resolve's per-importer peer-dependency
     /// issues. See [`crate::Install::peer_issues_sink`].
     pub peer_issues_sink: Option<crate::PeerIssuesSink>,
+    /// Out-slot for the dep paths of packages requiring a build. See
+    /// [`crate::Install::deps_requiring_build_sink`].
+    pub deps_requiring_build_sink: Option<crate::DepsRequiringBuildSink>,
     /// In-process `readPackage`/`afterAllResolved` hooks supplied by an
     /// embedder instead of a `.pnpmfile.cjs` on disk. `Some` replaces the
     /// disk lookup entirely; `None` (every CLI install) falls back to
@@ -684,6 +687,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             auth_override,
             resolution_observer,
             peer_issues_sink,
+            deps_requiring_build_sink,
             pnpmfile_hook_override,
             real_importer_ids,
             selected_importer_ids,
@@ -2626,6 +2630,19 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 "NODE_OPTIONS".to_string(),
                 crate::make_node_package_map_option(&package_map_path, node_options),
             );
+        }
+
+        // `CreateVirtualStore` keeps skipped snapshots out of this map, so
+        // it holds only what the install put on disk. See
+        // [`crate::DepsRequiringBuildSink`].
+        if let Some(sink) = &deps_requiring_build_sink {
+            let deps_requiring_build = requires_build_by_snapshot
+                .iter()
+                .filter(|(_, requires_build)| **requires_build)
+                .map(|(snapshot_key, _)| snapshot_key.to_string())
+                .collect();
+            *sink.lock().unwrap_or_else(std::sync::PoisonError::into_inner) =
+                Some(deps_requiring_build);
         }
 
         // Run lifecycle scripts, report ignored builds, and re-link
