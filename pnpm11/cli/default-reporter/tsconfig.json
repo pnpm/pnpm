@@ -32,6 +32,9 @@
       "path": "../../installing/dedupe/types"
     },
     {
+      "path": "../../text/ordinal-comparator"
+    },
+    {
       "path": "../meta"
     }
   ]

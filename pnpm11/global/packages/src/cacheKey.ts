@@ -1,5 +1,5 @@
 import { createHexHash } from '@pnpm/crypto.hash'
-import { lexCompare } from '@pnpm/util.lex-comparator'
+import { lexCompare } from '@pnpm/text.ordinal-comparator'
 
 export function createGlobalCacheKey (opts: {
   aliases: string[]

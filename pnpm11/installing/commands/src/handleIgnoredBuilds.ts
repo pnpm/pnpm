@@ -3,8 +3,8 @@ import { writeSettings } from '@pnpm/config.writer'
 import {
   IgnoredBuildsError,
 } from '@pnpm/installing.deps-installer'
+import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import type { IgnoredBuilds } from '@pnpm/types'
-import { lexCompare } from '@pnpm/util.lex-comparator'
 
 export interface HandleIgnoredBuildsOpts {
   allowBuilds?: Record<string, boolean | string>

@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { beforeAll, describe, expect, jest, test } from '@jest/globals'
 import { fixtures } from '@pnpm/test-fixtures'
-import { lexCompare } from '@pnpm/util.lex-comparator'
+import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import { rimrafSync } from '@zkochan/rimraf'
 
 const debug = jest.fn()

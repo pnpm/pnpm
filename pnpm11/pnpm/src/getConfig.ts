@@ -9,8 +9,8 @@ import { requireHooks } from '@pnpm/hooks.pnpmfile'
 import { resolveAndInstallConfigDeps } from '@pnpm/installing.env-installer'
 import { logger } from '@pnpm/logger'
 import { createStoreController } from '@pnpm/store.connection-manager'
+import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import type { ConfigDependencies } from '@pnpm/types'
-import { lexCompare } from '@pnpm/util.lex-comparator'
 
 export async function getConfig (
   cliOptions: CliOptions,

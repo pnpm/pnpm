@@ -85,6 +85,9 @@
       "path": "../../store/controller-types"
     },
     {
+      "path": "../../text/ordinal-comparator"
+    },
+    {
       "path": "../../workspace/spec-parser"
     }
   ]
