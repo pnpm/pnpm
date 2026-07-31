@@ -103,7 +103,7 @@ async function safeRmdir (dir: string): Promise<void> {
 }
 
 function dirsAreEqual (dir1: string, dir2: string): boolean {
-  return path.relative(dir1, dir2) === '.'
+  return path.relative(dir1, dir2) === ''
 }
 
 function getHomedir (): string {

@@ -1,8 +1,16 @@
 import path from 'node:path'
 
-import { expect, jest, test } from '@jest/globals'
+import { beforeEach, expect, jest, test } from '@jest/globals'
 import { STORE_VERSION } from '@pnpm/constants'
-import isWindows from 'is-windows'
+
+const DRIVE_ROOT = path.parse(process.cwd()).root
+const CAN_LINK_HOME_PROJECT = path.join(DRIVE_ROOT, 'can-link-to-homedir')
+const MOUNT_ROOT = path.join(DRIVE_ROOT, 'mnt')
+const MOUNT_PROJECT = path.join(MOUNT_ROOT, 'project')
+const PNPM_HOME_DIR = path.join(DRIVE_ROOT, 'local', 'share', 'pnpm')
+const ROOT_PROJECT = path.join(DRIVE_ROOT, 'src', 'workspace', 'project')
+const SANDBOX_ROOT = path.join(DRIVE_ROOT, 'sandbox')
+const SANDBOX_PROJECT = path.join(SANDBOX_ROOT, 'project')
 
 jest.unstable_mockModule('touch', () => {
   return {
@@ -11,8 +19,9 @@ jest.unstable_mockModule('touch', () => {
 })
 jest.unstable_mockModule('root-link-target', () => {
   const MAPPINGS: Record<string, string> = {
-    '/src/workspace/project/tmp': '/',
-    '/mnt/project/tmp': '/mnt/project',
+    [path.join(MOUNT_PROJECT, 'tmp')]: MOUNT_PROJECT,
+    [path.join(ROOT_PROJECT, 'tmp')]: DRIVE_ROOT,
+    [path.join(SANDBOX_PROJECT, 'tmp')]: SANDBOX_PROJECT,
   }
 
   return {
@@ -52,42 +61,64 @@ const fsMock = {
 }
 jest.unstable_mockModule('fs', () => fsMock)
 jest.unstable_mockModule('node:fs', () => fsMock)
-jest.unstable_mockModule('can-link', () => {
-  const CAN_LINK = new Set([
-    '/can-link-to-homedir/tmp=>/home/user/tmp',
-    '/mnt/project/tmp=>/mnt/tmp/tmp',
-  ])
+const CAN_LINK = new Set([
+  `${path.join(CAN_LINK_HOME_PROJECT, 'tmp')}=>${path.join(PNPM_HOME_DIR, 'tmp', 'tmp')}`,
+  `${path.join(MOUNT_PROJECT, 'tmp')}=>${path.join(MOUNT_ROOT, 'tmp', 'tmp')}`,
+])
+const canLinkMock = jest.fn(function (existingPath: string, newPath: string): boolean {
+  return CAN_LINK.has(`${existingPath}=>${newPath}`)
+})
 
+jest.unstable_mockModule('can-link', () => {
   return {
-    canLink: function (existingPath: string, newPath: string): boolean {
-      return CAN_LINK.has(`${existingPath}=>${newPath}`)
-    },
+    canLink: canLinkMock,
   }
 })
 
 const { getStorePath } = await import('@pnpm/store.path')
 
-const skipOnWindows = isWindows() ? test.skip : test
-
-skipOnWindows('when a link can be created to the homedir', async () => {
-  expect(await getStorePath({
-    pkgRoot: '/can-link-to-homedir',
-    pnpmHomeDir: '/local/share/pnpm',
-  })).toBe(`/local/share/pnpm/store/${STORE_VERSION}`)
+beforeEach(() => {
+  canLinkMock.mockClear()
 })
 
-skipOnWindows('a link can be created to the root of the drive', async () => {
+test('when a link can be created to the homedir', async () => {
   expect(await getStorePath({
-    pkgRoot: '/src/workspace/project',
-    pnpmHomeDir: '/local/share/pnpm',
-  })).toBe(`/.pnpm-store/${STORE_VERSION}`)
+    pkgRoot: CAN_LINK_HOME_PROJECT,
+    pnpmHomeDir: PNPM_HOME_DIR,
+  })).toBe(path.join(PNPM_HOME_DIR, 'store', STORE_VERSION))
+  expect(canLinkMock).toHaveBeenCalledWith(
+    path.join(CAN_LINK_HOME_PROJECT, 'tmp'),
+    path.join(PNPM_HOME_DIR, 'tmp', 'tmp')
+  )
 })
 
-skipOnWindows('a link can be created to the a subdir in the root of the drive', async () => {
+test('a link can be created to the root of the drive', async () => {
   expect(await getStorePath({
-    pkgRoot: '/mnt/project',
-    pnpmHomeDir: '/local/share/pnpm',
-  })).toBe(`/mnt/.pnpm-store/${STORE_VERSION}`)
+    pkgRoot: ROOT_PROJECT,
+    pnpmHomeDir: PNPM_HOME_DIR,
+  })).toBe(path.join(DRIVE_ROOT, '.pnpm-store', STORE_VERSION))
+  expect(canLinkMock).not.toHaveBeenCalledWith(
+    path.join(ROOT_PROJECT, 'tmp'),
+    path.join(DRIVE_ROOT, 'tmp', 'tmp')
+  )
+})
+
+test('a link can be created to the a subdir in the root of the drive', async () => {
+  expect(await getStorePath({
+    pkgRoot: MOUNT_PROJECT,
+    pnpmHomeDir: PNPM_HOME_DIR,
+  })).toBe(path.join(MOUNT_ROOT, '.pnpm-store', STORE_VERSION))
+})
+
+test('the home store is used when only the project directory is linkable', async () => {
+  expect(await getStorePath({
+    pkgRoot: SANDBOX_PROJECT,
+    pnpmHomeDir: PNPM_HOME_DIR,
+  })).toBe(path.join(PNPM_HOME_DIR, 'store', STORE_VERSION))
+  expect(canLinkMock).toHaveBeenCalledWith(
+    path.join(SANDBOX_PROJECT, 'tmp'),
+    path.join(SANDBOX_ROOT, 'tmp', 'tmp')
+  )
 })
 
 test('fail when pnpm home directory is not defined', async () => {
