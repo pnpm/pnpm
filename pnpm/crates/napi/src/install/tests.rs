@@ -206,7 +206,7 @@ fn repeat_install_uses_changed_in_memory_manifest() {
     options.store_dir = Some(temp_dir.path().join("store").to_string_lossy().into_owned());
     options.registries = Some(HashMap::from([("default".to_string(), registry.url())]));
 
-    run_install_inner(&options, None, EngineMode::Install).expect("first install");
+    run_install_inner(&options, None, EngineMode::Install, None).expect("first install");
     assert!(project_dir.join("node_modules/@pnpm.e2e/foo").exists());
 
     options.projects[0].manifest = serde_json::json!({
@@ -216,12 +216,59 @@ fn repeat_install_uses_changed_in_memory_manifest() {
         }
     });
 
-    run_install_inner(&options, None, EngineMode::Install).expect("second install");
+    run_install_inner(&options, None, EngineMode::Install, None).expect("second install");
     assert!(project_dir.join("node_modules/@pnpm.e2e/bar").exists());
     assert_eq!(
         std::fs::read_to_string(project_dir.join("package.json")).expect("read package.json"),
         "{}\n",
     );
+}
+
+/// `returnListOfDepsRequiringBuild` reports every package whose files
+/// carry install scripts — even ones allowed to build — and leaves the
+/// field undefined on a repeat install served from the frozen path, so
+/// an embedder keeps its previously recorded list instead of wiping it.
+#[test]
+fn return_list_of_deps_requiring_build_reports_fresh_resolves_only() {
+    let registry = TestRegistry::start();
+    let temp_dir = tempfile::tempdir().expect("tempdir");
+    let project_dir = temp_dir.path().join("project");
+    std::fs::create_dir(&project_dir).expect("create project dir");
+    std::fs::write(project_dir.join("package.json"), "{}\n").expect("write package.json");
+
+    let project_dir_string = project_dir.to_string_lossy().into_owned();
+    let mut options = install_options();
+    options.dir = project_dir_string.clone();
+    options.projects = vec![NodeApiProject {
+        root_dir: project_dir_string,
+        manifest: serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0"
+            }
+        }),
+        dependency_manifest: None,
+    }];
+    options.store_dir = Some(temp_dir.path().join("store").to_string_lossy().into_owned());
+    options.registries = Some(HashMap::from([("default".to_string(), registry.url())]));
+    options.dangerously_allow_all_builds = Some(true);
+    options.return_list_of_deps_requiring_build = Some(true);
+
+    let sink = pacquet_package_manager::DepsRequiringBuildSink::default();
+    run_install_inner(&options, None, EngineMode::Install, Some(std::sync::Arc::clone(&sink)))
+        .expect("first install");
+    let first = sink.lock().expect("lock sink").take();
+    assert_eq!(
+        first,
+        Some(std::collections::BTreeSet::from([
+            "@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0".to_string()
+        ])),
+    );
+
+    let sink = pacquet_package_manager::DepsRequiringBuildSink::default();
+    run_install_inner(&options, None, EngineMode::Install, Some(std::sync::Arc::clone(&sink)))
+        .expect("second install");
+    let second = sink.lock().expect("lock sink").take();
+    assert_eq!(second, None, "the frozen-path repeat install must not compute the list");
 }
 
 /// The lockfile must record `overrides` in declaration order — the
@@ -255,7 +302,7 @@ fn lockfile_records_overrides_in_declaration_order() {
         ("aaa-unmatched".to_string(), "2.0.0".to_string()),
     ]));
 
-    run_install_inner(&options, None, EngineMode::Install).expect("install");
+    run_install_inner(&options, None, EngineMode::Install, None).expect("install");
 
     let lockfile =
         std::fs::read_to_string(project_dir.join("pnpm-lock.yaml")).expect("read lockfile");
@@ -321,6 +368,7 @@ fn install_options() -> InstallOptions {
         fetch_timeout: None,
         user_agent: None,
         strict_dep_builds: None,
+        return_list_of_deps_requiring_build: None,
         allow_builds: None,
         dangerously_allow_all_builds: None,
         peer_dependency_rules: None,

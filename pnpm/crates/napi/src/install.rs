@@ -123,6 +123,14 @@ pub struct InstallOptions {
     /// blocked packages in `depsRequiringBuild`, matching how embedders (Bit)
     /// gate builds themselves.
     pub strict_dep_builds: Option<bool>,
+    /// Return the dep paths of every package whose files carry install
+    /// scripts, regardless of the allow-build policy, in
+    /// `depsRequiringBuild`. The list is computed only when a fresh
+    /// resolve materializes `node_modules`; an install served from the
+    /// frozen-lockfile path (or `lockfileOnly`) leaves
+    /// `depsRequiringBuild` undefined so the embedder keeps its
+    /// previously recorded list.
+    pub return_list_of_deps_requiring_build: Option<bool>,
     /// Per-package build-script allow-list: `name -> allowed`.
     pub allow_builds: Option<HashMap<String, bool>>,
     /// Allow every dependency's build scripts to run.
@@ -246,17 +254,41 @@ fn run_install_blocking(
             .map(|sink| Arc::new(JsReadPackageHook::new(sink)) as Arc<dyn PnpmfileHooks>),
     };
     begin_stats();
-    let outcome = run_install_inner(options, pnpmfile_hook, EngineMode::Install);
+    // The engine fills the sink only when the fresh-resolve path
+    // materializes `node_modules` (see `DepsRequiringBuildSink`), so a
+    // frozen-path or `lockfileOnly` run yields `None` here and
+    // `depsRequiringBuild` stays undefined for the embedder.
+    let deps_requiring_build_sink = (options.return_list_of_deps_requiring_build == Some(true))
+        .then(pacquet_package_manager::DepsRequiringBuildSink::default);
+    let outcome = run_install_inner(
+        options,
+        pnpmfile_hook,
+        EngineMode::Install,
+        deps_requiring_build_sink.clone(),
+    );
     let stats = take_stats();
     let store_dir = outcome?;
+    let deps_requiring_build = match &deps_requiring_build_sink {
+        // The requested list, even when empty — an empty list is a real
+        // answer ("this tree has no build-needing packages").
+        Some(sink) => sink
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .take()
+            .map(|deps| deps.into_iter().collect()),
+        // Option off: report the blocked builds accumulated from
+        // `pnpm:ignored-scripts` events, matching how embedders that
+        // gate builds themselves consumed this field before the
+        // explicit option existed.
+        None => (!stats.deps_requiring_build.is_empty()).then_some(stats.deps_requiring_build),
+    };
     Ok(InstallResult {
         stats: InstallStatsResult {
             added: stats.added as f64,
             removed: stats.removed as f64,
             linked_to_root: 0.0,
         },
-        deps_requiring_build: (!stats.deps_requiring_build.is_empty())
-            .then_some(stats.deps_requiring_build),
+        deps_requiring_build,
         store_dir,
     })
 }
@@ -284,6 +316,7 @@ fn run_install_inner(
     options: &InstallOptions,
     pnpmfile_hook: Option<Arc<dyn PnpmfileHooks>>,
     mode: EngineMode,
+    deps_requiring_build_sink: Option<pacquet_package_manager::DepsRequiringBuildSink>,
 ) -> napi::Result<String> {
     reject_non_object_manifests(&options.projects)?;
     let dir = PathBuf::from(&options.dir);
@@ -428,6 +461,7 @@ fn run_install_inner(
                     EngineMode::PeerIssues(sink) => Some(Arc::clone(sink)),
                     EngineMode::Install | EngineMode::Rebuild(_) => None,
                 },
+                deps_requiring_build_sink,
                 catalogs_override: None,
                 // The optimistic repeat-install fast path uses on-disk
                 // manifest mtimes as its freshness signal. NAPI installs use
@@ -755,7 +789,7 @@ fn run_rebuild_blocking(
         // project's own deferred scripts is `pnpm rebuild --pending`.
         pending_projects: Vec::new(),
     };
-    let outcome = run_install_inner(options, None, EngineMode::Rebuild(rebuild_options));
+    let outcome = run_install_inner(options, None, EngineMode::Rebuild(rebuild_options), None);
     outcome.map(|_| ())
 }
 
@@ -857,7 +891,7 @@ fn run_peer_issues_blocking(options: &serde_json::Value) -> napi::Result<serde_j
     };
 
     let sink: pacquet_package_manager::PeerIssuesSink = Arc::default();
-    run_install_inner(&install_options, None, EngineMode::PeerIssues(Arc::clone(&sink)))?;
+    run_install_inner(&install_options, None, EngineMode::PeerIssues(Arc::clone(&sink)), None)?;
     let issues_by_importer =
         std::mem::take(&mut *sink.lock().expect("peer-issues sink lock poisoned"));
 
