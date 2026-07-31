@@ -400,11 +400,16 @@ pub fn filter_pkg_metadata_by_publish_date(
 /// Every input the filter's output depends on, in one string: the same
 /// packument is served to installs whose cutoff or trusted versions
 /// differ, and they must not read each other's view.
+///
+/// The cutoff goes in at the precision it is compared at: it comes from
+/// `Utc::now()` and packument timestamps parse to the same resolution,
+/// so a key rounded to the millisecond would let two cutoffs that keep
+/// different versions share one derived packument.
 fn publish_date_policy_key(
     cutoff: chrono::DateTime<chrono::Utc>,
     trusted_versions: Option<&[String]>,
 ) -> String {
-    let mut key = cutoff.timestamp_millis().to_string();
+    let mut key = format!("{}.{}", cutoff.timestamp(), cutoff.timestamp_subsec_nanos());
     for trusted in trusted_versions.unwrap_or_default() {
         key.push('\0');
         key.push_str(trusted);

@@ -541,6 +541,23 @@ fn filter_is_memoized_per_packument_and_stays_bounded() {
 }
 
 #[test]
+fn filter_memo_separates_cutoffs_inside_one_millisecond() {
+    let mut pkg = make_package("acme", &[("1.0.0", None), ("1.1.0", None)], &[("latest", "1.1.0")]);
+    pkg.time = Some(make_time_map(&[
+        ("1.0.0", "2020-01-01T00:00:00.000Z"),
+        ("1.1.0", "2020-04-01T00:00:00.000400Z"),
+    ]));
+
+    let before =
+        filter_pkg_metadata_by_publish_date(&pkg, parse_iso("2020-04-01T00:00:00.000300Z"), None);
+    let after =
+        filter_pkg_metadata_by_publish_date(&pkg, parse_iso("2020-04-01T00:00:00.000500Z"), None);
+
+    assert!(!before.versions.contains_key("1.1.0"), "published after the earlier cutoff");
+    assert!(after.versions.contains_key("1.1.0"), "published before the later cutoff");
+}
+
+#[test]
 fn generic_version_filter_keeps_unbounded_latest_repopulation() {
     let pkg = make_package("acme", &[("1.0.0", None), ("2.0.0", None)], &[("latest", "1.0.0")]);
 
