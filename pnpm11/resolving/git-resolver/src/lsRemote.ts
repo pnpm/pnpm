@@ -5,10 +5,7 @@ import { safeExeca as execa } from 'execa'
  * fails fast on private repos instead of blocking on user input. All
  * ls-remote invocations must go through this function to keep that guarantee.
  *
- * git is spawned directly rather than through graceful-git because
- * graceful-git forwards only `cwd` to the child process, which would drop
- * the `GIT_TERMINAL_PROMPT` override. Failed runs are retried immediately,
- * matching the Rust runner's policy.
+ * Failed runs are retried immediately, matching the Rust runner's policy.
  */
 export async function lsRemote (args: string[], opts: { retries: number }): Promise<{ stdout: string }> {
   let lastErr: unknown
