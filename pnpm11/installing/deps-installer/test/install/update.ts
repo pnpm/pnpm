@@ -403,7 +403,7 @@ test('update without saving skips a requested version that the kept range exclud
     testDefaults()
   )
 
-  await mutateModulesInSingleProject({
+  const { updatedProject } = await mutateModulesInSingleProject({
     dependencySelectors: ['@pnpm.e2e/dep-of-pkg-with-1-dep@101.0.0'],
     allowNew: false,
     manifest,
@@ -413,6 +413,8 @@ test('update without saving skips a requested version that the kept range exclud
     rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults())
 
+  expect(updatedProject.manifest.dependencies).toStrictEqual({ '@pnpm.e2e/dep-of-pkg-with-1-dep': '^100.0.0' })
+
   const lockfile = project.readLockfile()
 
   // 101.0.0 doesn't satisfy the ^100.0.0 the manifest keeps, so the
@@ -421,6 +423,42 @@ test('update without saving skips a requested version that the kept range exclud
   expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toStrictEqual({
     specifier: '^100.0.0',
     version: '100.0.0',
+  })
+
+  // The lockfile still satisfies the manifest.
+  await install(manifest, testDefaults({ frozenLockfile: true }))
+})
+
+test('update without saving passes a dist-tag selector through to resolution', async () => {
+  const project = prepareEmpty()
+
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
+    {},
+    ['@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0'],
+    testDefaults()
+  )
+
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+
+  // A dist-tag can't be judged against the kept range statically, so the
+  // gate lets it through and resolution picks the tagged version.
+  await mutateModulesInSingleProject({
+    dependencySelectors: ['@pnpm.e2e/dep-of-pkg-with-1-dep@latest'],
+    allowNew: false,
+    manifest,
+    mutation: 'installSome',
+    update: true,
+    updatePackageManifest: false,
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults({ updateChecksums: true }))
+
+  const lockfile = project.readLockfile()
+
+  expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toStrictEqual({
+    specifier: '^100.0.0',
+    version: '100.1.0',
   })
 })
 
