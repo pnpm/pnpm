@@ -48,4 +48,21 @@ describe('buildPurl', () => {
     // them from the SBOM entirely.
     expect(fromDefault).not.toBe(fromNamed)
   })
+
+  it('should strip credentials from the repository_url qualifier', () => {
+    const purl = buildPurl({
+      name: 'foo',
+      version: '1.0.0',
+      registryUrl: 'https://some-user:some-token@npm.enterprise.example.com/team-a/?api_key=secret-value',
+    })
+
+    const qualifier = decodeURIComponent(purl.split('?repository_url=')[1])
+    // An SBOM is meant to be published, so neither the userinfo nor a
+    // token-bearing query string may travel with it. The path stays: two
+    // registries can differ only by path.
+    expect(qualifier).toBe('https://npm.enterprise.example.com/team-a/')
+    for (const secret of ['some-user', 'some-token', 'secret-value']) {
+      expect(purl).not.toContain(secret)
+    }
+  })
 })

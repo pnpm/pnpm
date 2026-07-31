@@ -688,12 +688,20 @@ fn build_packages_and_snapshots(
             // A registry-qualified key names its registry; that registry —
             // not the scope-routed default — decides whether the tarball
             // URL is canonical and can be dropped from the entry.
-            let registry = key
-                .suffix
-                .registry_qualified()
-                .and_then(|(registry_name, _)| named_registries.get(registry_name))
-                .map_or(registry, String::as_str);
-            build_package_metadata(node, key, registry, lockfile_include_tarball_url)
+            //
+            // Fail closed on an alias we can't resolve: testing the URL for
+            // canonicality against the *default* registry could drop a URL
+            // that only the named registry can rebuild, leaving a `work:`
+            // entry that no install can fetch. Keeping the URL is always
+            // recoverable, so an unknown alias forces it to be written.
+            let (registry, include_tarball_url) = match key.suffix.registry_qualified() {
+                Some((registry_name, _)) => match named_registries.get(registry_name) {
+                    Some(named_registry) => (named_registry.as_str(), lockfile_include_tarball_url),
+                    None => (registry, true),
+                },
+                None => (registry, lockfile_include_tarball_url),
+            };
+            build_package_metadata(node, key, registry, include_tarball_url)
         });
     }
 

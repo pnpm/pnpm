@@ -31,7 +31,38 @@ export function buildPurl (opts: {
     return `pkg:npm/${encodePurlName(opts.name)}@${encodeURIComponent(opts.version)}?vcs_url=${encodedUrl}`
   }
   if (opts.registryUrl) {
-    return `pkg:npm/${encodePurlName(opts.name)}@${opts.version}?repository_url=${encodeURIComponent(opts.registryUrl)}`
+    const repositoryUrl = sanitizeRegistryUrl(opts.registryUrl)
+    return `pkg:npm/${encodePurlName(opts.name)}@${opts.version}?repository_url=${encodeURIComponent(repositoryUrl)}`
   }
   return `pkg:npm/${encodePurlName(opts.name)}@${opts.version}`
+}
+
+/**
+ * Reduce a registry URL to the parts that identify the registry, dropping
+ * anything that could carry a secret.
+ *
+ * An SBOM is meant to be published, and a `namedRegistries` entry may
+ * legitimately embed credentials — as userinfo
+ * (`https://user:token@npm.example.com/`) or in a query string
+ * (`?api_key=…`). Origin and path are kept because two registries can
+ * differ only by path (`https://npm.example.com/team-a/` vs `/team-b/`),
+ * so trimming to the origin would recreate the very collision this
+ * qualifier exists to prevent.
+ *
+ * A URL that doesn't parse is returned unchanged: it has no userinfo to
+ * strip, and `namedRegistries` values are validated as http(s) URLs when
+ * the resolver is constructed, so this is unreachable in practice.
+ */
+function sanitizeRegistryUrl (url: string): string {
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return url
+  }
+  parsed.username = ''
+  parsed.password = ''
+  parsed.search = ''
+  parsed.hash = ''
+  return parsed.toString()
 }

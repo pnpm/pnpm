@@ -2599,3 +2599,165 @@ fn node_pkg_name_prefers_name_ver_and_falls_back_to_manifest() {
     node.resolve_result = std::sync::Arc::new(resolve_result);
     assert_eq!(super::node_pkg_name(&node), Some("renamed".to_string()));
 }
+
+/// Build a node whose depPath is registry-qualified
+/// (`<name>@<registryName>:<version>`, lockfile format 9.1) and whose
+/// resolution carries `tarball_url`.
+fn make_named_registry_node(
+    name: &str,
+    registry_name: &str,
+    version: &str,
+    tarball_url: &str,
+) -> DependenciesGraphNode {
+    let dep_path = DepPath::from(format!("{name}@{registry_name}:{version}"));
+    let name_ver: PkgNameVer = format!("{name}@{version}").parse().expect("parse PkgNameVer");
+    let resolve_result = ResolveResult {
+        id: PkgResolutionId::from(format!("{name}@{registry_name}:{version}")),
+        name_ver: Some(name_ver),
+        latest: None,
+        published_at: None,
+        manifest: Some(std::sync::Arc::new(json!({ "name": name, "version": version }))),
+        resolution: LockfileResolution::Tarball(TarballResolution {
+            tarball: tarball_url.to_string(),
+            integrity: Some(Integrity::from_str(FAKE_INTEGRITY).expect("parse fake integrity")),
+            git_hosted: None,
+            path: None,
+        }),
+        resolved_via: "named-registry".to_string(),
+        normalized_bare_specifier: None,
+        alias: Some(name.to_string()),
+        policy_violation: None,
+    };
+    DependenciesGraphNode {
+        dep_path,
+        resolved_package_id: format!("{name}@{registry_name}:{version}"),
+        resolve_result: std::sync::Arc::new(resolve_result),
+        children: BTreeMap::new(),
+        optional_children: HashSet::default(),
+        peer_dependencies: BTreeMap::new(),
+        transitive_peer_dependencies: HashSet::default(),
+        resolved_peer_names: HashSet::default(),
+        depth: 1,
+        installable: true,
+        is_pure: true,
+        optional: false,
+    }
+}
+
+fn named_registries_with(
+    registry_name: &str,
+    url: &str,
+) -> std::collections::HashMap<String, String> {
+    let mut map = std::collections::HashMap::new();
+    map.insert(registry_name.to_string(), url.to_string());
+    map
+}
+
+/// A canonical named-registry tarball drops its URL — it is rebuilt from
+/// the alias on read — and its presence stamps the lockfile 9.1.
+#[test]
+fn named_registry_package_stamps_9_1_and_drops_a_canonical_tarball() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": { "foo": "work:1.0.0" },
+    }));
+
+    let node = make_named_registry_node(
+        "foo",
+        "work",
+        "1.0.0",
+        "https://npm.enterprise.example.com/foo/-/foo-1.0.0.tgz",
+    );
+    let mut graph = DependenciesGraph::default();
+    graph.insert(node.dep_path.clone(), node);
+
+    let mut direct = BTreeMap::new();
+    direct.insert("foo".to_string(), DepPath::from("foo@work:1.0.0".to_string()));
+
+    let named_registries = named_registries_with("work", "https://npm.enterprise.example.com/");
+    let mut opts = single_importer_opts(&manifest, &graph, direct, true, false, None, None);
+    opts.named_registries = &named_registries;
+
+    let lockfile = dependencies_graph_to_lockfile(opts);
+
+    assert_eq!(lockfile.lockfile_version.minor, 1);
+
+    let packages = lockfile.packages.as_ref().expect("packages map");
+    let key: PackageKey = "foo@work:1.0.0".parse().unwrap();
+    let metadata = packages.get(&key).expect("registry-qualified entry");
+    assert!(
+        matches!(metadata.resolution, LockfileResolution::Registry(_)),
+        "a canonical named-registry tarball is rebuilt from the alias, so the URL is dropped: {:?}",
+        metadata.resolution,
+    );
+    // The depPath already carries a parseable semver, so no redundant
+    // `version` key is written.
+    assert_eq!(metadata.version, None);
+}
+
+/// A lockfile with no named-registry package stays on 9.0, so projects
+/// that don't use the feature keep a byte-identical lockfile.
+#[test]
+fn a_plain_package_leaves_the_lockfile_on_9_0() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": { "react": "^17.0.2" },
+    }));
+
+    let node = make_node(
+        "react",
+        "17.0.2",
+        json!({ "name": "react", "version": "17.0.2" }),
+        BTreeMap::new(),
+        BTreeMap::new(),
+        HashSet::default(),
+    );
+    let mut graph = DependenciesGraph::default();
+    graph.insert(node.dep_path.clone(), node);
+
+    let mut direct = BTreeMap::new();
+    direct.insert("react".to_string(), DepPath::from("react@17.0.2".to_string()));
+
+    let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest, &graph, direct, true, false, None, None,
+    ));
+
+    assert_eq!(lockfile.lockfile_version.minor, 0);
+}
+
+/// An alias the writer can't resolve must never drop the tarball URL:
+/// testing it against the default registry could classify it as
+/// reconstructible and leave an entry no install can fetch.
+#[test]
+fn an_unresolvable_alias_keeps_the_tarball_url() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": { "foo": "work:1.0.0" },
+    }));
+
+    // Canonical under the *default* registry, which is what makes the
+    // unguarded fallback drop it.
+    let tarball = "https://registry.npmjs.org/foo/-/foo-1.0.0.tgz";
+    let node = make_named_registry_node("foo", "work", "1.0.0", tarball);
+    let mut graph = DependenciesGraph::default();
+    graph.insert(node.dep_path.clone(), node);
+
+    let mut direct = BTreeMap::new();
+    direct.insert("foo".to_string(), DepPath::from("foo@work:1.0.0".to_string()));
+
+    // `work` is deliberately absent from the map.
+    let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest, &graph, direct, true, false, None, None,
+    ));
+
+    let packages = lockfile.packages.as_ref().expect("packages map");
+    let key: PackageKey = "foo@work:1.0.0".parse().unwrap();
+    let metadata = packages.get(&key).expect("registry-qualified entry");
+    match &metadata.resolution {
+        LockfileResolution::Tarball(resolution) => assert_eq!(resolution.tarball, tarball),
+        other => panic!("an unresolvable alias must keep its tarball URL, got {other:?}"),
+    }
+}
