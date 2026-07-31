@@ -98,12 +98,12 @@ fn parses_and_applies_scope_from_yaml() {
 }
 
 #[test]
-fn apply_scope_overrides_npmrc_scope() {
-    // In `Config::current`, `.npmrc` scope is applied before
-    // `pnpm-workspace.yaml`, so yaml wins — mirroring `registry`.
+fn apply_scope_overrides_an_earlier_layer() {
+    // The workspace yaml is applied over the global `config.yaml`, so the
+    // project's scope wins — mirroring `registry`.
     let settings: WorkspaceSettings = serde_saphyr::from_str("scope: '@from-yaml'\n").unwrap();
     let mut config = Config::new();
-    config.scope = Some("@from-npmrc".to_owned());
+    config.scope = Some("@from-global-config".to_owned());
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert_eq!(config.scope.as_deref(), Some("@from-yaml"));
 }

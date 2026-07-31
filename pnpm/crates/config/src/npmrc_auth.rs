@@ -15,7 +15,6 @@ use std::{
 ///
 /// The parser pulls out:
 /// * the top-level `registry=` URL (already supported pre-[#336]),
-/// * the top-level `scope=` default package scope,
 /// * scoped registry routes (`@scope:registry=...`),
 /// * default-registry credentials (`_auth`, `_authToken`,
 ///   `username` + `_password`),
@@ -44,7 +43,6 @@ use std::{
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub(crate) struct NpmrcAuth {
     pub registry: Option<String>,
-    pub scope: Option<String>,
     pub scoped_registries: BTreeMap<String, String>,
     /// Unscoped creds (i.e. `_auth=…`, `_authToken=…`, `username=…` /
     /// `_password=…` without a leading `//host/`), as written. Emptied by
@@ -379,10 +377,6 @@ impl NpmrcAuth {
                 auth.registry = Some(value);
                 continue;
             }
-            if key == "scope" {
-                auth.scope = Some(value);
-                continue;
-            }
             if let Some(scope) = scoped_registry_key(&key) {
                 auth.scoped_registries.insert(scope.to_string(), normalize_registry_url(&value));
                 continue;
@@ -546,8 +540,8 @@ impl NpmrcAuth {
             .map(|raw| parse_no_proxy(&raw));
     }
 
-    /// Phase 1: write the resolved `registry` and `scope` onto `config`
-    /// and emit any `${VAR}`-substitution warnings. Does *not* build
+    /// Phase 1: write the resolved `registry` onto `config` and emit
+    /// any `${VAR}`-substitution warnings. Does *not* build
     /// `auth_headers` yet. Call [`NpmrcAuth::build_auth_headers`]
     /// after every other config layer (notably `pnpm-workspace.yaml`)
     /// has had a chance to override `registry`, so default-registry
@@ -556,9 +550,6 @@ impl NpmrcAuth {
         if let Some(registry) = self.registry.take() {
             config.registry =
                 if registry.ends_with('/') { registry } else { format!("{registry}/") };
-        }
-        if let Some(scope) = self.scope.take() {
-            config.scope = Some(scope);
         }
         config.registries.append(&mut self.scoped_registries);
         for message in std::mem::take(&mut self.warnings) {
@@ -758,7 +749,6 @@ impl NpmrcAuth {
     /// pinned to the right registry before they are combined.
     pub fn merge_under(&mut self, lower: NpmrcAuth) {
         self.registry = self.registry.take().or(lower.registry);
-        self.scope = self.scope.take().or(lower.scope);
         for (scope, registry) in lower.scoped_registries {
             self.scoped_registries.entry(scope).or_insert(registry);
         }
