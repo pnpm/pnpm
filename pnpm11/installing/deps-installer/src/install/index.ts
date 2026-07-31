@@ -976,7 +976,7 @@ export async function mutateModules (
         }
         preferredSpecs = getAllUniqueSpecs(manifests)
       }
-      const wantedDeps = parseWantedDependencies(project.dependencySelectors, {
+      let wantedDeps = parseWantedDependencies(project.dependencySelectors, {
         allowNew: project.allowNew !== false,
         currentBareSpecifiers,
         defaultTag: opts.tag,
@@ -990,6 +990,31 @@ export async function mutateModules (
         overrides: opts.overrides,
         defaultCatalog: opts.catalogs?.default,
       })
+
+      if (project.update && project.updatePackageManifest === false) {
+        wantedDeps = wantedDeps.filter((wantedDep) => {
+          // An update that doesn't save keeps the manifest's specifier, and
+          // the lockfile importer entry has to keep satisfying it — a frozen
+          // install rejects the lockfile otherwise. Only apply the requested
+          // specifier when every version it allows stays inside the kept
+          // range; skip the dependency in this project otherwise.
+          const keptBareSpecifier = wantedDep.alias && currentBareSpecifiers[wantedDep.alias]
+          if (
+            !keptBareSpecifier ||
+            !wantedDep.bareSpecifier ||
+            semver.validRange(wantedDep.bareSpecifier) == null ||
+            semver.validRange(keptBareSpecifier) == null ||
+            semver.subset(wantedDep.bareSpecifier, keptBareSpecifier)
+          ) {
+            return true
+          }
+          logger.warn({
+            message: `Skipping "${wantedDep.alias}@${wantedDep.bareSpecifier}": it doesn't satisfy "${keptBareSpecifier}", which the manifest keeps when updating without saving.`,
+            prefix: project.rootDir,
+          })
+          return false
+        })
+      }
 
       if (opts.catalogMode !== 'manual') {
         for (const wantedDep of wantedDeps) {

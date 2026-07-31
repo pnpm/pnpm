@@ -1296,3 +1296,34 @@ fn update_latest_preserves_local_protocol_dependencies() {
 
     drop((root, anchor));
 }
+
+/// A versioned selector under `--no-save` is skipped when the requested
+/// version falls outside the range the manifest keeps: recording it would
+/// produce a lockfile the next frozen install rejects. Regression test for
+/// <https://github.com/pnpm/pnpm/issues/12764>.
+#[test]
+fn update_no_save_skips_version_outside_kept_range() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+    assert!(virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"));
+
+    pacquet(&workspace, ["update", "--no-save", &format!("{DEP}@101.0.0")]).assert().success();
+
+    // package.json keeps its range, and the dependency stays untouched.
+    assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("^100.0.0"));
+    let lock = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    assert!(
+        lock.contains("specifier: ^100.0.0"),
+        "the lockfile importer entry must keep the manifest's specifier",
+    );
+    assert!(
+        !lock.contains("dep-of-pkg-with-1-dep@101.0.0"),
+        "the out-of-range requested version must not be recorded",
+    );
+    // The lockfile still satisfies the manifest.
+    pacquet(&workspace, ["install", "--frozen-lockfile"]).assert().success();
+
+    drop((root, anchor));
+}

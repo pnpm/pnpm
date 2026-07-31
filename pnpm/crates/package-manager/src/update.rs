@@ -697,18 +697,38 @@ async fn prepare_manifest<Reporter: self::Reporter>(
             }
         } else {
             for (name, group, previous) in &matched_direct {
-                drop_names.insert(name.clone());
                 // The two sources are exclusive: `--latest` rejects versioned
                 // selectors above, so under it no selector carries a version.
                 let rewrite = if latest {
                     latest_specifier(&rewrite_ctx, latest_chain, &mut catalog_ctx, name, previous)
                         .await?
                 } else {
-                    selectors
+                    let requested = selectors
                         .iter()
                         .find(|selector| matcher_one(&selector.pattern).matches(name))
-                        .and_then(|selector| selector.version.clone())
+                        .and_then(|selector| selector.version.clone());
+                    // An update that doesn't save keeps the manifest's
+                    // specifier, and the lockfile importer entry has to keep
+                    // satisfying it — a frozen install rejects the lockfile
+                    // otherwise. Only apply the requested specifier when
+                    // every version it allows stays inside the kept range;
+                    // skip the dependency in this project otherwise.
+                    if !save
+                        && let Some(requested) = requested.as_deref()
+                        && !stays_within_kept_range(requested, previous)
+                    {
+                        tracing::warn!(
+                            target: "pacquet_package_manager::update",
+                            name,
+                            requested,
+                            kept = previous,
+                            r#"Skipping "{name}@{requested}": it doesn't satisfy "{previous}", which the manifest keeps when updating without saving."#,
+                        );
+                        continue;
+                    }
+                    requested
                 };
+                drop_names.insert(name.clone());
                 if let Some(specifier) = rewrite {
                     rewrites.push((name.clone(), *group, specifier));
                 }
@@ -1038,6 +1058,18 @@ fn workspace_specifier(
 fn pick_workspace_version(versions: &WorkspacePackagesByVersion, range: &str) -> Option<String> {
     let range = if node_semver::Range::parse(range).is_ok() { range } else { "*" };
     resolve_workspace_range(range, &versions.keys().cloned().collect::<Vec<_>>())
+}
+
+/// Whether every version the requested specifier allows stays inside the
+/// range the manifest keeps. Specifiers that aren't semver ranges (dist-tags,
+/// `workspace:`, `catalog:`) can't be judged statically and pass through.
+fn stays_within_kept_range(requested: &str, kept: &str) -> bool {
+    let (Ok(requested), Ok(kept)) =
+        (node_semver::Range::parse(requested), node_semver::Range::parse(kept))
+    else {
+        return true;
+    };
+    kept.allows_all(&requested)
 }
 
 /// Compile a single pattern into a matcher. Used to map a matched direct

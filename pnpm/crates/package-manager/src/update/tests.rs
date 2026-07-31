@@ -1,6 +1,6 @@
 use super::{
     is_workspace_local_path_specifier, parse_update_param, persist_selected_manifests,
-    prepare_selected_manifests, selected_project_indices,
+    prepare_selected_manifests, selected_project_indices, stays_within_kept_range,
 };
 use pacquet_config::{CatalogMode, Config};
 use pacquet_network::ThrottledClient;
@@ -158,7 +158,7 @@ async fn selected_update_no_save_mutates_in_memory_without_persisting() {
         &http_client,
         &config,
         None,
-        &["foo@2.0.0".to_string()],
+        &["foo@1.5.0".to_string()],
         false,
         false,
         false,
@@ -182,8 +182,48 @@ async fn selected_update_no_save_mutates_in_memory_without_persisting() {
             .and_then(|catalogs| catalogs.get("default"))
             .and_then(|catalog| catalog.get("foo"))
             .map(String::as_str),
-        Some("2.0.0"),
+        Some("1.5.0"),
     );
+}
+
+#[tokio::test]
+async fn selected_update_no_save_skips_a_selector_outside_the_kept_range() {
+    let dir = tempdir().expect("create tempdir");
+    std::fs::write(dir.path().join("pnpm-workspace.yaml"), "packages:\n  - '*'\n")
+        .expect("write workspace manifest");
+    let mut projects = vec![project_with_foo(dir.path(), "a")];
+    let ordered_dirs = [projects[0].root_dir.clone()];
+    let selected_dirs = ordered_dirs.iter().cloned().collect::<HashSet<_>>();
+    let indices = selected_project_indices(&projects, &ordered_dirs, &selected_dirs);
+    let config = Config::new();
+    let http_client = std::sync::Arc::new(ThrottledClient::default());
+
+    let prepared = prepare_selected_manifests::<SilentReporter>(
+        &mut projects,
+        &indices,
+        dir.path(),
+        &http_client,
+        &config,
+        None,
+        &["foo@2.0.0".to_string()],
+        false,
+        false,
+        false,
+        &[DependencyGroup::Prod],
+        0,
+        None,
+        false,
+        None,
+    )
+    .await
+    .expect("prepare selected manifests");
+
+    // 2.0.0 falls outside the kept ^1.0.0, so the selector is skipped:
+    // the in-memory manifest keeps the declared range and no rewrite is
+    // recorded for resolution.
+    assert_eq!(dependency_specifier(&projects[0].manifest), "^1.0.0");
+    assert!(prepared.persist_indices.is_empty());
+    assert!(prepared.catalogs_override.is_none());
 }
 
 #[tokio::test]
@@ -382,4 +422,25 @@ fn saved_dependency_specifier(manifest: &PackageManifest) -> String {
     let saved =
         PackageManifest::from_path(manifest.path().to_path_buf()).expect("reread package.json");
     dependency_specifier(&saved).to_string()
+}
+
+#[test]
+fn requested_version_outside_the_kept_range_is_rejected() {
+    assert!(!stays_within_kept_range("7.8.5", "^6.0.0"));
+    assert!(!stays_within_kept_range("^7.0.0", "^6.0.0"));
+    // Overlapping is not enough: ">=6" also allows versions above the
+    // kept range, and resolution would pick one of them.
+    assert!(!stays_within_kept_range(">=6", "^6.0.0"));
+}
+
+#[test]
+fn requested_version_inside_the_kept_range_is_applied() {
+    assert!(stays_within_kept_range("6.3.0", "^6.0.0"));
+    assert!(stays_within_kept_range("~6.3.0", "^6.0.0"));
+}
+
+#[test]
+fn non_semver_specifiers_pass_through_the_kept_range_gate() {
+    assert!(stays_within_kept_range("beta", "^6.0.0"));
+    assert!(stays_within_kept_range("6.3.0", "workspace:*"));
 }
