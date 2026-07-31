@@ -406,12 +406,11 @@ export async function pickPackage (
             }
           }
         }
-      } catch {
-        // Swallow fast-path errors (ERR_PNPM_MISSING_TIME from abbreviated
-        // meta, a corrupt fragment behind the exact-version read above) and
-        // fall through to the network fetch, which can upgrade to full
+      } catch (err: unknown) {
+        // Fall through to the network fetch, which can upgrade to full
         // metadata, run the maturity check on real `time` data, and replace
         // a corrupt mirror.
+        if (!isDiskMetaPickError(err)) throw err
       }
     }
     if (opts.publishedBy && opts.publishedByExclude?.(spec.name) !== true) {
@@ -427,8 +426,9 @@ export async function pickPackage (
                 pickedPackage,
               }
             }
-          } catch {
+          } catch (err: unknown) {
             // Same as above — fall through to the network fetch.
+            if (!isDiskMetaPickError(err)) throw err
           }
         }
       }
@@ -769,6 +769,36 @@ function isMissingTimeError (err: unknown): boolean {
     typeof err === 'object' &&
     'code' in err &&
     (err as { code: string }).code === 'ERR_PNPM_MISSING_TIME'
+  )
+}
+
+/**
+ * Errors that mean a pick failed because of the disk-loaded document itself:
+ * abbreviated metadata without `time`, a corrupt lazily-hydrated fragment, an
+ * otherwise malformed document (`pickPackageFromMeta` attributes any
+ * unexpected pick failure to the metadata), or a document whose versions all
+ * fall outside the maturity window (the release-age picker strips
+ * `publishedBy` after filtering, so an emptied document reports no versions).
+ */
+const DISK_META_PICK_ERROR_CODES = new Set([
+  'ERR_PNPM_MISSING_TIME',
+  'ERR_PNPM_MALFORMED_META_FRAGMENT',
+  'ERR_PNPM_MALFORMED_METADATA',
+  'ERR_PNPM_NO_VERSIONS',
+  'ERR_PNPM_UNPUBLISHED_PKG',
+])
+
+/**
+ * Whether the disk fast paths should fall through to the network fetch for
+ * this pick failure — it works from strictly fresher data and rewrites the
+ * mirror. Any other error is unexpected and propagates.
+ */
+function isDiskMetaPickError (err: unknown): boolean {
+  return (
+    err != null &&
+    typeof err === 'object' &&
+    'code' in err &&
+    DISK_META_PICK_ERROR_CODES.has((err as { code: string }).code)
   )
 }
 
