@@ -1,13 +1,29 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
+import util from 'node:util'
 
+import { PnpmError } from '@pnpm/error'
 import gfs from '@pnpm/fs.graceful-fs'
-import { logger } from '@pnpm/logger'
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
 import { fastPathTemp as pathTemp } from 'path-temp'
 import { renameOverwrite } from 'rename-overwrite'
 
 import { markMetaCondensed, pickAbbreviatedVersionFields } from './clearMeta.js'
+
+/**
+ * Reading a lazily-hydrated version manifest throws this when its fragment
+ * bytes are not valid JSON — the index vouched for the span, so the file is
+ * corrupt. Callers treat the whole document like an unreadable mirror (a
+ * cache miss), the same way whole-file corruption reads as `null` from
+ * {@link loadMeta}; corruption discovered lazily must not degrade into
+ * silently missing versions, or a poisoned mirror could keep 304-validating
+ * forever (the etag lives in the intact headers record) and never self-heal.
+ */
+const MALFORMED_FRAGMENT_ERROR_CODE = 'ERR_PNPM_MALFORMED_META_FRAGMENT'
+
+export function isMalformedMirrorFragmentError (err: unknown): boolean {
+  return util.types.isNativeError(err) && 'code' in err && err.code === MALFORMED_FRAGMENT_ERROR_CODE
+}
 
 export interface MetaHeaders {
   etag?: string
@@ -113,7 +129,8 @@ export async function loadMeta (pkgMirror: string, opts?: LoadMetaOptions): Prom
  * filtered view of the document, and mutations of a hydrated manifest (the
  * picker's `name` back-fill, `readPackage` hooks) stick. Returns `null` when
  * a span falls outside the file, so a truncated mirror reads as a cache miss
- * rather than handing out garbage fragments later.
+ * rather than handing out garbage fragments later; a fragment whose bytes
+ * don't parse throws on access (see the malformed-fragment error above).
  */
 function buildLazyVersions (
   pkgMirror: string,
@@ -125,7 +142,7 @@ function buildLazyVersions (
   // A null prototype so a registry-controlled version key named `__proto__`
   // becomes a regular own property (see the same pattern in clearMeta).
   const versions: PackageMeta['versions'] = Object.create(null)
-  const hydrated = new Map<string, PackageInRegistry | undefined>()
+  const hydrated = new Map<string, PackageInRegistry | PnpmError>()
   for (const [version, offset, length] of spans) {
     if (!Number.isSafeInteger(offset) || !Number.isSafeInteger(length) || offset < 0 || length < 0) return null
     const start = fragmentBase + offset
@@ -134,22 +151,19 @@ function buildLazyVersions (
     Object.defineProperty(versions, version, {
       enumerable: true,
       configurable: true,
-      get (): PackageInRegistry | undefined {
-        if (hydrated.has(version)) return hydrated.get(version)
-        let manifest: PackageInRegistry | undefined
-        try {
-          manifest = JSON.parse(data.toString('utf8', start, end)) as PackageInRegistry
-          if (condense) {
-            manifest = pickAbbreviatedVersionFields(manifest)
+      get (): PackageInRegistry {
+        let manifest = hydrated.get(version)
+        if (manifest == null) {
+          try {
+            const parsed = JSON.parse(data.toString('utf8', start, end)) as PackageInRegistry
+            if (parsed == null || typeof parsed !== 'object') throw new Error('a version manifest must be an object')
+            manifest = condense ? pickAbbreviatedVersionFields(parsed) : parsed
+          } catch {
+            manifest = new PnpmError('MALFORMED_META_FRAGMENT', `Failed to parse the manifest of ${version} in the package metadata mirror at ${pkgMirror}`)
           }
-        } catch {
-          // The index vouched for this span, so a parse failure means the
-          // fragment bytes are corrupt. Absent looks like an unpublished
-          // version, which the pickers already handle.
-          logger.debug({ message: `Failed to parse the manifest of ${version} in the package mirror at ${pkgMirror}` })
-          manifest = undefined
+          hydrated.set(version, manifest)
         }
-        hydrated.set(version, manifest)
+        if (manifest instanceof PnpmError) throw manifest
         return manifest
       },
     })
