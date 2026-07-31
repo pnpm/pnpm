@@ -37,6 +37,14 @@ fn write_manifest(workspace: &Path, dependencies: &str) {
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
 }
 
+/// The stamped `lockfileVersion` of the workspace's lockfile.
+fn lockfile_version(workspace: &Path) -> String {
+    let text = fs::read_to_string(workspace.join(Lockfile::FILE_NAME)).expect("read lockfile");
+    let lockfile: Lockfile = serde_saphyr::from_str(&text)
+        .unwrap_or_else(|error| panic!("parse pnpm-lock.yaml: {error}\n{text}"));
+    lockfile.lockfile_version.to_string()
+}
+
 /// The lockfile's recorded `(specifier, version)` for a root dependency.
 fn lockfile_entry(workspace: &Path, alias: &str) -> Option<(String, String)> {
     let text = fs::read_to_string(workspace.join(Lockfile::FILE_NAME)).expect("read lockfile");
@@ -57,8 +65,9 @@ fn install_records_a_plain_named_registry_dependency() {
 
     assert_eq!(
         lockfile_entry(&workspace, "@pnpm.e2e/foo"),
-        Some(("work:1.0.0".to_string(), "1.0.0".to_string())),
+        Some(("work:1.0.0".to_string(), "work:1.0.0".to_string())),
     );
+    assert_eq!(lockfile_version(&workspace), "9.1");
 
     drop((root, anchor));
 }
@@ -74,7 +83,7 @@ fn install_records_an_aliased_named_registry_dependency() {
 
     assert_eq!(
         lockfile_entry(&workspace, "foo-from-work"),
-        Some(("work:@pnpm.e2e/foo@1.0.0".to_string(), "@pnpm.e2e/foo@1.0.0".to_string())),
+        Some(("work:@pnpm.e2e/foo@1.0.0".to_string(), "@pnpm.e2e/foo@work:1.0.0".to_string())),
     );
     assert!(workspace.join("node_modules/foo-from-work/package.json").exists());
 

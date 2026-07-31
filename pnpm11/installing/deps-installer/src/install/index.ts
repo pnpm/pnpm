@@ -14,6 +14,8 @@ import {
   LAYOUT_VERSION,
   LOCKFILE_MAJOR_VERSION,
   LOCKFILE_VERSION,
+  NAMED_REGISTRIES_LOCKFILE_VERSION,
+  SUPPORTED_LOCKFILE_VERSIONS,
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import {
@@ -718,7 +720,7 @@ export async function mutateModules (
       !opts.hooks.afterAllResolved?.length &&
       opts.hooks.customResolvers == null &&
       !ctx.lockfileHadConflicts &&
-      ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION &&
+      SUPPORTED_LOCKFILE_VERSIONS.includes(ctx.wantedLockfile.lockfileVersion) &&
       !isEmptyLockfile(ctx.wantedLockfile) &&
       (!opts.pruneLockfileImporters || Object.keys(ctx.wantedLockfile.importers).length === Object.keys(ctx.projects).length) &&
       ctx.wantedLockfile.time == null
@@ -1128,7 +1130,7 @@ export async function mutateModules (
         opts.preferFrozenLockfile &&
         (!opts.pruneLockfileImporters || Object.keys(ctx.wantedLockfile.importers).length === Object.keys(ctx.projects).length) &&
         !isEmptyLockfile(ctx.wantedLockfile) &&
-        ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION &&
+        SUPPORTED_LOCKFILE_VERSIONS.includes(ctx.wantedLockfile.lockfileVersion) &&
         await allProjectsAreUpToDate(Object.values(ctx.projects), {
           catalogs: opts.catalogs,
           autoInstallPeers: opts.autoInstallPeers,
@@ -1621,7 +1623,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   for (const [pkgName, selectors] of Object.entries(opts.preferredVersions ?? {})) {
     preferredVersions[pkgName] = { ...preferredVersions[pkgName], ...selectors }
   }
-  const forceFullResolution = ctx.wantedLockfile.lockfileVersion !== LOCKFILE_VERSION ||
+  const forceFullResolution = !SUPPORTED_LOCKFILE_VERSIONS.includes(ctx.wantedLockfile.lockfileVersion) ||
     !opts.currentLockfileIsUpToDate ||
     opts.force ||
     opts.needsFullResolution ||
@@ -1700,6 +1702,10 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       preserveWorkspaceProtocol: opts.preserveWorkspaceProtocol,
       registries: ctx.registries,
       namedRegistries: opts.namedRegistries,
+      // Sticky: once a lockfile is on the 9.1 format, keep writing it even
+      // without the opt-in, so mixed-version teams don't ping-pong formats.
+      namedRegistryQualifiedIds: opts.namedRegistriesLockfileFormat === true ||
+        ctx.wantedLockfile.lockfileVersion === NAMED_REGISTRIES_LOCKFILE_VERSION,
       resolutionMode: opts.resolutionMode,
       saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
       storeController: opts.storeController,
@@ -2380,7 +2386,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
           ignoreIncompatible: opts.force || opts.ci === true,
           mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
           useGitBranchLockfile: opts.useGitBranchLockfile,
-          wantedVersions: [LOCKFILE_VERSION],
+          wantedVersions: SUPPORTED_LOCKFILE_VERSIONS,
         })
         if (wantedLockfile == null) {
           throw new PnpmError('PACQUET_LOCKFILE_READ_FAILED', `pacquet did not write a readable ${WANTED_LOCKFILE}`)

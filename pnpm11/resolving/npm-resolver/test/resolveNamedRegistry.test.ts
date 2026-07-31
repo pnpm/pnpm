@@ -376,3 +376,50 @@ test('resolveFromNamedRegistry() suppresses latest when publishedBy holds back t
   })
   expect(resolveResult!.latest).toBeUndefined()
 })
+
+test('resolveFromNamedRegistry() returns a registry-qualified id when namedRegistryQualifiedIds is set', async () => {
+  interceptGhAcmePrivate()
+
+  const { resolveFromNamedRegistry } = createNpmResolver(fetch, () => undefined, {
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registries,
+  })
+
+  const resolveResult = await resolveFromNamedRegistry(
+    { alias: '@acme/private', bareSpecifier: 'gh:^2.0.0' },
+    { namedRegistryQualifiedIds: true }
+  )
+
+  expect(resolveResult).toMatchObject({
+    resolvedVia: 'named-registry',
+    registryName: 'gh',
+    id: '@acme/private@gh:2.1.0',
+    manifest: {
+      name: '@acme/private',
+      version: '2.1.0',
+    },
+  })
+})
+
+test('creating the resolver throws when a named registry alias is a reserved specifier prefix', () => {
+  expect(() => createNpmResolver(fetch, () => undefined, {
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registries,
+    namedRegistries: {
+      file: ENTERPRISE_REGISTRY,
+    },
+  })).toThrow(/reserved dependency specifier prefix/)
+})
+
+test('creating the resolver throws when a named registry alias is malformed', () => {
+  expect(() => createNpmResolver(fetch, () => undefined, {
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registries,
+    namedRegistries: {
+      'bad alias!': ENTERPRISE_REGISTRY,
+    },
+  })).toThrow(/aliases must start with a letter/)
+})

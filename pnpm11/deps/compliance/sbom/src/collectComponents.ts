@@ -37,6 +37,7 @@ export interface CollectSbomComponentsOptions {
   sbomType?: SbomComponentType
   include?: { [dependenciesField in DependenciesField]: boolean }
   registries: Registries
+  namedRegistries?: Record<string, string>
   lockfileDir: string
   includedImporterIds?: ProjectId[]
   lockfileOnly?: boolean
@@ -211,12 +212,12 @@ async function walkStep (
       if (componentsMap.has(purl)) return
 
       const integrity = (pkgSnapshot.resolution as TarballResolution).integrity
-      const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, opts.registries)
+      const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, { registries: opts.registries, namedRegistries: opts.namedRegistries })
       const tarballUrl = (resolution as TarballResolution).tarball ?? gitDownloadUrl(resolution)
 
       let metadata: { license?: string, description?: string, author?: string, homepage?: string, repository?: string, bugsUrl?: string } = {}
       if (metadataOpts) {
-        metadata = await getPkgMetadata(depPath, pkgSnapshot, opts.registries, metadataOpts)
+        metadata = await getPkgMetadata(depPath, pkgSnapshot, { registries: opts.registries, namedRegistries: opts.namedRegistries }, metadataOpts)
       }
 
       const component: SbomComponent = {

@@ -311,6 +311,10 @@ pub struct WorkspaceTreeCtx {
     /// point doesn't thread registries (then `currentPkg` is withheld
     /// for `Registry`-shaped entries rather than sent without a URL).
     pub(super) registries: std::collections::HashMap<String, String>,
+    /// Alias → URL map of named registries (built-ins merged with the
+    /// user's setting), for materializing a prior registry-qualified
+    /// `Registry` lockfile resolution back into its tarball URL.
+    pub(super) named_registries: std::collections::HashMap<String, String>,
     /// `pkg id → importer id` of the importer whose occurrence owns
     /// that package's shared children context. Ownership is chosen by
     /// update-active status followed by `(depth, importer order, parent path)`:
@@ -486,6 +490,7 @@ impl Default for WorkspaceTreeCtx {
             deprecation_log: None,
             auto_install_peers: false,
             registries: std::collections::HashMap::new(),
+            named_registries: std::collections::HashMap::new(),
             first_importer_by_pkg: Mutex::new(SnapshotCell::default()),
             first_walk_missing_by_pkg: Mutex::new(SnapshotCell::default()),
             changed_direct_deps: Mutex::new(HashMap::default()),
@@ -1137,6 +1142,16 @@ impl WorkspaceTreeCtx {
         registries: std::collections::HashMap<String, String>,
     ) -> Self {
         self.registries = registries;
+        self
+    }
+
+    /// Attach the named-registry alias map. See the `named_registries` field.
+    #[must_use]
+    pub fn with_named_registries(
+        mut self,
+        named_registries: std::collections::HashMap<String, String>,
+    ) -> Self {
+        self.named_registries = named_registries;
         self
     }
 

@@ -163,6 +163,15 @@ pub enum InstallPackageBySnapshotError {
     MissingTarballIntegrity { package_key: String },
 
     #[display(
+        "Cannot install package \"{package_key}\": it was resolved from the named registry '{registry_name}:', which is not present in the namedRegistries setting."
+    )]
+    #[diagnostic(
+        code(ERR_PNPM_MISSING_NAMED_REGISTRY),
+        help("Add '{registry_name}' to the namedRegistries setting in pnpm-workspace.yaml.")
+    )]
+    MissingNamedRegistry { package_key: String, registry_name: String },
+
+    #[display(
         "Package `{package_key}` uses a `{resolution_kind}` resolution, which pnpm does not yet support."
     )]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_UNSUPPORTED_RESOLUTION))]
@@ -716,12 +725,32 @@ pub fn tarball_url_and_integrity<'a>(
                     package_key: package_key.to_string(),
                 });
             };
-            let registries: HashMap<String, String> =
-                config.resolved_registries().into_iter().collect();
             let name = package_key.name.to_string();
-            let registry = pick_registry_for_package(&registries, &name, None);
+            // A registry-qualified key (`<name>@<registryName>:<version>`)
+            // reconstructs its tarball from its named registry; everything
+            // else routes by scope.
+            let (registry, version) = if let Some((registry_name, version)) =
+                package_key.suffix.registry_qualified()
+            {
+                let registry = pacquet_resolving_npm_resolver::BUILTIN_NAMED_REGISTRIES
+                    .iter()
+                    .find(|(name, _)| *name == registry_name)
+                    .map(|(_, url)| (*url).to_string())
+                    .pipe(|builtin| config.named_registries.get(registry_name).cloned().or(builtin))
+                    .ok_or_else(|| InstallPackageBySnapshotError::MissingNamedRegistry {
+                        package_key: package_key.to_string(),
+                        registry_name: registry_name.to_string(),
+                    })?;
+                (registry, version.to_string())
+            } else {
+                let registries: HashMap<String, String> =
+                    config.resolved_registries().into_iter().collect();
+                (
+                    pick_registry_for_package(&registries, &name, None),
+                    package_key.suffix.version().to_string(),
+                )
+            };
             let registry = registry.strip_suffix('/').unwrap_or(&registry);
-            let version = package_key.suffix.version();
             let bare_name = package_key.name.bare.as_str();
             let tarball_url = format!("{registry}/{name}/-/{bare_name}-{version}.tgz");
             Ok((Cow::Owned(tarball_url), Some(integrity)))

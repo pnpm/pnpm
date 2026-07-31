@@ -1102,6 +1102,17 @@ pub struct Config {
     /// default `false`.
     pub dedupe_peers: bool,
 
+    /// When `true`, packages resolved from a named registry are keyed
+    /// registry-qualified (`<name>@<registryName>:<version>`) in the
+    /// lockfile — format 9.1, which keeps the same name@version from
+    /// different registries distinct. The `namedRegistriesLockfileFormat`
+    /// setting; pnpm v12 defaults it on (the TypeScript v11 CLI defaults
+    /// it off). Regardless of the setting, a lockfile already on the 9.1
+    /// format keeps it (sticky), so mixed-version teams don't ping-pong
+    /// formats.
+    #[default = true]
+    pub named_registries_lockfile_format: bool,
+
     /// When `true`, a direct dependency of a non-root workspace
     /// project is omitted from that project's `node_modules/` when
     /// the workspace root resolves the same alias to the same target.

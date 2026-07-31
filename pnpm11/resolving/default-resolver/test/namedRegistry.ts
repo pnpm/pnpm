@@ -1,5 +1,4 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import fs from 'node:fs'
 import path from 'node:path'
 
 import { afterEach, beforeEach, expect, test } from '@jest/globals'
@@ -79,30 +78,49 @@ test('createResolver() routes a user-configured named registry alias through the
 })
 
 test.each([
-  ['link:./pkg', 'link'],
-  ['workspace:./pkg', 'workspace'],
-  ['file:./pkg', 'file'],
-])('createResolver() lets the explicit local protocol %s win over a colliding named-registry alias', async (bareSpecifier, alias) => {
-  const projectDir = temporaryDirectory()
-  fs.mkdirSync(path.join(projectDir, 'pkg'))
-  fs.writeFileSync(
-    path.join(projectDir, 'pkg', 'package.json'),
-    JSON.stringify({ name: 'pkg', version: '1.0.0' })
-  )
-
-  const { resolve } = createResolver(fetch, () => undefined, {
+  ['link'],
+  ['workspace'],
+  ['file'],
+  ['runtime'],
+])('createResolver() rejects the reserved named-registry alias %s', (alias) => {
+  expect(() => createResolver(fetch, () => undefined, {
     cacheDir: temporaryDirectory(),
     storeDir: temporaryDirectory(),
     registries,
     namedRegistries: {
       [alias]: ENTERPRISE_REGISTRY,
     },
+  })).toThrow(/reserved dependency specifier prefix/)
+})
+
+test('createResolver() rejects a malformed named-registry alias', () => {
+  expect(() => createResolver(fetch, () => undefined, {
+    cacheDir: temporaryDirectory(),
+    storeDir: temporaryDirectory(),
+    registries,
+    namedRegistries: {
+      'no colons:allowed': ENTERPRISE_REGISTRY,
+    },
+  })).toThrow(/aliases must start with a letter/)
+})
+
+test('createResolver() resolves a registry-qualified id when namedRegistryQualifiedIds is set', async () => {
+  interceptAcmePrivate(ENTERPRISE_REGISTRY)
+
+  const { resolve } = createResolver(fetch, () => undefined, {
+    cacheDir: temporaryDirectory(),
+    storeDir: temporaryDirectory(),
+    registries,
+    namedRegistries: {
+      work: ENTERPRISE_REGISTRY,
+    },
   })
 
   const result = await resolve(
-    { bareSpecifier },
-    { lockfileDir: projectDir, projectDir, preferredVersions: {} }
+    { bareSpecifier: 'work:@acme/private' },
+    { lockfileDir: '/test', projectDir: '/test', preferredVersions: {}, namedRegistryQualifiedIds: true }
   )
 
-  expect(result.resolvedVia).toBe('local-filesystem')
+  expect(result.resolvedVia).toBe('named-registry')
+  expect(result.id).toBe('@acme/private@work:2.1.0')
 })

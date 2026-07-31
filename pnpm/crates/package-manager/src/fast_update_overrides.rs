@@ -163,6 +163,10 @@ fn build_rewrite_plan(
         if key.name != *alias
             || !key.suffix.peer().is_empty()
             || key.suffix.prefix() != Prefix::None
+            // The fast path rebuilds the dep path as `<alias>@<version>`,
+            // which would drop the registry qualifier of a named-registry
+            // package.
+            || key.suffix.registry_qualified().is_some()
             || override_entry
                 .old_version
                 .as_ref()

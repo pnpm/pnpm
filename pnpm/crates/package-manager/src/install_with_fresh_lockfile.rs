@@ -757,6 +757,13 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         let named_registry_aliases: std::collections::HashSet<String> =
             merged_named_registries.keys().cloned().collect();
 
+        // Sticky: once a lockfile is on the 9.1 format, keep writing it even
+        // without the setting, so mixed-version teams don't ping-pong formats.
+        let named_registry_qualified_ids = config.named_registries_lockfile_format
+            || wanted_lockfile
+                .as_ref()
+                .is_some_and(|lockfile| lockfile.lockfile_version.minor >= 1);
+
         // `resolutionMode` / `minimumReleaseAge` derivations. `time_based`
         // and `pick_lowest_direct` steer the deps-resolver's per-depth
         // version pick; `full_metadata` forces the npm resolver to fetch
@@ -953,7 +960,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         let bun_resolver =
             BunResolver::new(Arc::clone(&http_client_arc), Arc::clone(&npm_resolver));
         let named_registry_resolver = NamedRegistryResolver {
-            named_registries: merged_named_registries,
+            named_registries: merged_named_registries.clone(),
             registry_names: named_registry_aliases,
             http_client: Arc::clone(&http_client_arc),
             auth_headers: Arc::clone(&auth_headers),
@@ -1413,6 +1420,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         {
             let resolve_options = ResolveOptions {
                 preferred_versions: Arc::clone(&preferred_versions_seed),
+                named_registry_qualified_ids,
                 default_tag: Some("latest".to_string()),
                 published_by,
                 published_by_exclude: published_by_exclude.clone(),
@@ -1506,6 +1514,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             update_depth: update_seed_policy.max_depth(),
             auto_install_peers: config.auto_install_peers,
             registries,
+            named_registries: merged_named_registries.clone(),
             allowed_deprecated_versions: config.allowed_deprecated_versions.clone(),
             deprecation_log: Some(deprecation_log_fn::<Reporter>()),
         };
@@ -1555,6 +1564,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                     subdep_published_by: published_by,
                     base_opts: ResolveOptions {
                         preferred_versions: Arc::clone(importer_preferred_versions),
+                        named_registry_qualified_ids,
                         default_tag: Some("latest".to_string()),
                         published_by,
                         published_by_exclude: published_by_exclude.clone(),
@@ -3047,6 +3057,14 @@ fn build_fresh_lockfile(
             ImporterLockfileInput { manifest, direct_dependencies_by_alias: direct },
         );
     }
+    // Same merge the resolver chain performs; the config was already
+    // validated at resolver construction, so skip re-validation here.
+    let named_registries: HashMap<String, String> =
+        pacquet_resolving_npm_resolver::BUILTIN_NAMED_REGISTRIES
+            .iter()
+            .map(|(name, url)| ((*name).to_string(), (*url).to_string()))
+            .chain(config.named_registries.iter().map(|(name, url)| (name.clone(), url.clone())))
+            .collect();
     dependencies_graph_to_lockfile(GraphToLockfileOptions {
         importers,
         graph,
@@ -3064,6 +3082,7 @@ fn build_fresh_lockfile(
         pnpmfile_checksum: pnpmfile_checksum.map(str::to_string),
         catalogs,
         registry: &config.registry,
+        named_registries: &named_registries,
         lockfile_include_tarball_url: config.lockfile_include_tarball_url,
         previous_importers,
         update_reuse_scope,

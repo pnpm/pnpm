@@ -18,6 +18,7 @@ import type {
 import {
   nameVerFromPkgSnapshot,
   pkgSnapshotToResolution,
+  type PkgSnapshotToResolutionOptions,
 } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
 import { getPatchInfo, type PatchGroupRecord } from '@pnpm/patching.config'
@@ -202,7 +203,10 @@ export interface ResolutionContext {
   nodeVersion?: string
   pnpmVersion: string
   registries: Registries
+  namedRegistries?: Record<string, string>
   namedRegistryPrefixes: readonly string[]
+  /** See `RequestPackageOptions.namedRegistryQualifiedIds`. */
+  namedRegistryQualifiedIds: boolean
   resolutionMode?: 'highest' | 'time-based' | 'lowest-direct'
   virtualStoreDir: string
   virtualStoreDirMaxLength: number
@@ -642,6 +646,7 @@ async function resolveDependenciesOfImporters (
         prefix: importer.options.prefix,
         proceed: importer.options.proceed || ctx.forceFullResolution,
         registries: ctx.registries,
+        namedRegistries: ctx.namedRegistries,
         resolvedDependencies: importer.options.resolvedDependencies,
       })
       const postponedResolutionsQueue: PostponedResolutionFunction[] = []
@@ -847,6 +852,7 @@ export async function resolveDependencies (
     prefix: options.prefix,
     proceed: options.proceed || ctx.forceFullResolution,
     registries: ctx.registries,
+    namedRegistries: ctx.namedRegistries,
     resolvedDependencies: options.resolvedDependencies,
   })
   const postponedResolutionsQueue: PostponedResolutionFunction[] = []
@@ -1572,6 +1578,7 @@ function getDepsToResolve (
     prefix: string
     proceed: boolean
     registries: Registries
+    namedRegistries?: Record<string, string>
     resolvedDependencies?: ResolvedDependencies
   }
 ): ExtendedWantedDependency[] {
@@ -1631,7 +1638,7 @@ function getDepsToResolve (
         reference = preferredDependencies[wantedDependency.alias]
       }
     }
-    const infoFromLockfile = getInfoFromLockfile(wantedLockfile, options.registries, reference, wantedDependency.alias)
+    const infoFromLockfile = getInfoFromLockfile(wantedLockfile, { registries: options.registries, namedRegistries: options.namedRegistries }, reference, wantedDependency.alias)
     if (
       !proceedAll &&
       (
@@ -1678,11 +1685,22 @@ function referenceSatisfiesWantedSpec (
     })
     return false
   }
-  const { version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-  if (!semver.validRange(wantedDep.bareSpecifier) && Object.values(opts.lockfile.importers).filter(importer => importer.specifiers[wantedDep.alias] === wantedDep.bareSpecifier).length) {
+  const { version, registryName } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+  let bareSpecifier = wantedDep.bareSpecifier
+  if (registryName != null) {
+    // A registry-qualified entry may only satisfy a spec of the same named
+    // registry. A plain semver range means a default/scope-registry dep, which
+    // the qualified entry must never be substituted for.
+    if (!bareSpecifier.startsWith(`${registryName}:`)) return false
+    // Reduce `<registryName>:[<name>@]<range>` to its range for the semver check.
+    const body = bareSpecifier.slice(registryName.length + 1)
+    const versionDelimiter = body.lastIndexOf('@')
+    bareSpecifier = versionDelimiter > 0 ? body.slice(versionDelimiter + 1) : body
+  }
+  if (!semver.validRange(bareSpecifier) && Object.values(opts.lockfile.importers).filter(importer => importer.specifiers[wantedDep.alias] === wantedDep.bareSpecifier).length) {
     return true
   }
-  return semver.satisfies(version, wantedDep.bareSpecifier, true)
+  return semver.satisfies(version, bareSpecifier, true)
 }
 
 function getPinnedNameVer (
@@ -1762,7 +1780,7 @@ type InfoFromLockfile = {
 
 function getInfoFromLockfile (
   lockfile: LockfileObject,
-  registries: Registries,
+  registryOpts: PkgSnapshotToResolutionOptions,
   reference: string | undefined,
   alias: string | undefined
 ): InfoFromLockfile | undefined {
@@ -1795,23 +1813,31 @@ function getInfoFromLockfile (
       }
     }
 
-    const { name, version, nonSemverVersion } = nameVerFromPkgSnapshot(depPath, dependencyLockfile)
+    const { name, version, nonSemverVersion, registryName } = nameVerFromPkgSnapshot(depPath, dependencyLockfile)
     return {
       depPath,
       name,
       version,
       dependencyLockfile,
       lockedPeerContext,
-      pkgId: nonSemverVersion ?? (`${name}@${version}` as PkgResolutionId),
+      pkgId: nonSemverVersion ?? (registryName ? `${name}@${registryName}:${version}` : `${name}@${version}`) as PkgResolutionId,
       // resolution may not exist if lockfile is broken, and an unexpected error will be thrown
       // if resolution does not exist, return undefined so it can be autofixed later
-      resolution: dependencyLockfile.resolution && pkgSnapshotToResolution(depPath, dependencyLockfile, registries),
+      resolution: dependencyLockfile.resolution && pkgSnapshotToResolution(depPath, dependencyLockfile, registryOpts),
     }
   } else {
     const parsed = dp.parse(depPath)
+    let pkgId: string
+    if (parsed.nonSemverVersion != null) {
+      pkgId = parsed.nonSemverVersion
+    } else if (parsed.name && parsed.version) {
+      pkgId = parsed.registryName ? `${parsed.name}@${parsed.registryName}:${parsed.version}` : `${parsed.name}@${parsed.version}`
+    } else {
+      pkgId = depPath
+    }
     return {
       depPath,
-      pkgId: parsed.nonSemverVersion ?? (parsed.name && parsed.version ? `${parsed.name}@${parsed.version}` : depPath) as PkgResolutionId, // Does it make sense to set pkgId when we're not sure?
+      pkgId: pkgId as PkgResolutionId, // Does it make sense to set pkgId when we're not sure?
     }
   }
 }
@@ -1911,7 +1937,7 @@ async function resolveDependency (
 
     try {
       const calcSpecifier = options.currentDepth === 0
-      if (!options.update && currentPkg.version && currentPkg.pkgId?.endsWith(`@${currentPkg.version}`) && !calcSpecifier) {
+      if (!options.update && currentPkg.version && pkgIdPinsVersion(currentPkg.pkgId, currentPkg.version) && !calcSpecifier) {
         wantedDependency.bareSpecifier = replaceVersionInBareSpecifier(wantedDependency.bareSpecifier, currentPkg.version, ctx.namedRegistryPrefixes)
       }
       pkgResponse = await ctx.storeController.requestPackage(wantedDependency, {
@@ -1950,6 +1976,7 @@ async function resolveDependency (
         updateRequested: options.updateRequested,
         updateChecksums: options.updateChecksums,
         workspacePackages: ctx.workspacePackages,
+        namedRegistryQualifiedIds: ctx.namedRegistryQualifiedIds,
         supportedArchitectures: options.supportedArchitectures,
         onFetchError: (err: any) => { // eslint-disable-line
           err.prefix = options.prefix
@@ -2405,6 +2432,15 @@ function getResolvedPackage (
     resolution: options.pkgResponse.body.resolution,
     version: options.pkg.version,
   }
+}
+
+// A pkgId pins the lockfile-resolved version either as plain `name@version`
+// or as the registry-qualified `name@<registryName>:<version>` form.
+function pkgIdPinsVersion (pkgId: PkgResolutionId | undefined, version: string): boolean {
+  if (pkgId == null) return false
+  if (pkgId.endsWith(`@${version}`)) return true
+  const parsed = dp.parse(pkgId)
+  return parsed.registryName != null && parsed.version === version
 }
 
 function peerDependenciesWithoutOwn (pkg: PackageManifest): PeerDependencies {

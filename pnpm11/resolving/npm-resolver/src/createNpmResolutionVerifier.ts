@@ -26,6 +26,7 @@ import { getPkgMetaCacheKey, getPkgMirrorPath, loadMeta, warnMissingTimeFieldOnc
 import { failIfTrustDowngraded } from './trustChecks.js'
 import {
   MINIMUM_RELEASE_AGE_VIOLATION_CODE,
+  MISSING_NAMED_REGISTRY_VIOLATION_CODE,
   MISSING_TARBALL_INTEGRITY_VIOLATION_CODE,
   TARBALL_URL_MISMATCH_VIOLATION_CODE,
   TRUST_DOWNGRADE_VIOLATION_CODE,
@@ -179,7 +180,15 @@ export function createNpmResolutionVerifier (
   const trustPolicy = opts.trustPolicy
   const trustPolicyIgnoreAfter = opts.trustPolicyIgnoreAfter
 
-  const verify: ResolutionVerifier['verify'] = async (resolution, { name, version, nonSemverVersion }) => {
+  // Alias → URL map for routing registry-qualified entries. Kept alongside
+  // the URL-prefix list, which still routes old-format entries by their
+  // recorded tarball URL.
+  const mergedNamedRegistries: Record<string, string> = {
+    ...BUILTIN_NAMED_REGISTRIES,
+    ...(opts.namedRegistries ?? {}),
+  }
+
+  const verify: ResolutionVerifier['verify'] = async (resolution, { name, version, nonSemverVersion, registryName }) => {
     if (!isRegistryTarballResolution(resolution)) return { ok: true }
 
     // Network-free structural checks must run before registry metadata shortcuts.
@@ -216,7 +225,25 @@ export function createNpmResolutionVerifier (
       }
     }
     const tarballUrl = typeof rawTarball === 'string' ? rawTarball : undefined
-    const registry = pickRegistryForVersion(opts.registries, namedRegistryPrefixes, name, tarballUrl)
+    let registry: string
+    if (registryName != null) {
+      // Registry-qualified entries name their registry in the dep path, so
+      // routing does not depend on a recorded tarball URL (canonical URLs
+      // are omitted from the lockfile in the 9.1 format).
+      const namedRegistry = mergedNamedRegistries[registryName]
+      if (!namedRegistry) {
+        // Fail closed: without the registry URL, none of the metadata-backed
+        // checks below can vouch for this entry.
+        return {
+          ok: false,
+          code: MISSING_NAMED_REGISTRY_VIOLATION_CODE,
+          reason: `was resolved from the named registry '${registryName}:', which is not present in the namedRegistries setting`,
+        }
+      }
+      registry = namedRegistry
+    } else {
+      registry = pickRegistryForVersion(opts.registries, namedRegistryPrefixes, name, tarballUrl)
+    }
 
     // A registry entry that pins an explicit tarball URL must point at the
     // artifact the registry's own metadata lists. Otherwise a trusted

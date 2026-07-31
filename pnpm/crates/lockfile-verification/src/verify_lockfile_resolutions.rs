@@ -393,6 +393,7 @@ pub fn verify_lockfile_dependency_names(lockfile: &Lockfile) -> Result<(), Verif
 struct Candidate {
     name: PkgName,
     version: String,
+    registry_name: Option<String>,
     resolution: LockfileResolution,
 }
 
@@ -413,7 +414,16 @@ fn collect_candidates(lockfile: &Lockfile) -> (Vec<Candidate>, Vec<ResolutionPol
     let mut shape_violations = Vec::new();
     for (key, metadata) in packages {
         let name = key.name.clone();
-        let version = key.suffix.version().to_string();
+        // A registry-qualified key (`<name>@<registryName>:<version>`)
+        // contributes its bare semver as the candidate version and the
+        // alias separately, so the verifier can route by registry while
+        // still checking the version against that registry's metadata.
+        let registry_name =
+            key.suffix.registry_qualified().map(|(registry_name, _)| registry_name.to_string());
+        let version = match key.suffix.registry_qualified() {
+            Some((_, version)) => version.to_string(),
+            None => key.suffix.version().to_string(),
+        };
         // A registry-style dep path (`name@semver`, no `runtime:`-style
         // prefix) must be backed by a registry-shaped resolution: the
         // allowBuilds policy derives a trusted package identity from
@@ -421,7 +431,11 @@ fn collect_candidates(lockfile: &Lockfile) -> (Vec<Candidate>, Vec<ResolutionPol
         // holds. The check is offline, so it applies even when no
         // policy verifiers are active.
         if key.suffix.prefix() == pacquet_lockfile::Prefix::None
-            && matches!(key.suffix.version(), pacquet_lockfile::VersionPart::Semver(_))
+            && matches!(
+                key.suffix.version(),
+                pacquet_lockfile::VersionPart::Semver(_)
+                    | pacquet_lockfile::VersionPart::RegistryQualified { .. }
+            )
             && !is_registry_shaped_resolution(&metadata.resolution)
         {
             shape_violations.push(ResolutionPolicyViolation {
@@ -441,10 +455,14 @@ fn collect_candidates(lockfile: &Lockfile) -> (Vec<Candidate>, Vec<ResolutionPol
         // verification for that lockfile entry.
         let resolution_json = serde_json::to_string(&metadata.resolution)
             .expect("LockfileResolution must serialize for candidate dedupe");
-        let key = format!("{name}@{version}@{resolution_json}");
+        let key = format!(
+            "{name}@{version}@{}@{resolution_json}",
+            registry_name.as_deref().unwrap_or_default()
+        );
         deduped.entry(key).or_insert_with(|| Candidate {
             name,
             version,
+            registry_name,
             resolution: metadata.resolution.clone(),
         });
     }
@@ -466,7 +484,11 @@ async fn run_fan_out(
         let verifiers: Vec<Arc<dyn ResolutionVerifier>> = verifiers
             .iter()
             .filter_map(|verifier| {
-                let ctx = VerifyCtx { name: &candidate.name, version: &candidate.version };
+                let ctx = VerifyCtx {
+                    name: &candidate.name,
+                    version: &candidate.version,
+                    registry_name: candidate.registry_name.as_deref(),
+                };
                 verifier.might_verify(&candidate.resolution, ctx).then(|| Arc::clone(verifier))
             })
             .collect();
@@ -519,7 +541,11 @@ async fn evaluate_candidate(
     verifiers: &[Arc<dyn ResolutionVerifier>],
 ) -> Result<Option<ResolutionPolicyViolation>, String> {
     for verifier in verifiers {
-        let ctx = VerifyCtx { name: &candidate.name, version: &candidate.version };
+        let ctx = VerifyCtx {
+            name: &candidate.name,
+            version: &candidate.version,
+            registry_name: candidate.registry_name.as_deref(),
+        };
         match verifier.verify(&candidate.resolution, ctx).await {
             ResolutionVerification::Ok => continue,
             ResolutionVerification::Err { code, reason } => {

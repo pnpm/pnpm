@@ -24,6 +24,7 @@ export interface BaseTreeOpts {
   search?: Finder
   skipped: Set<string>
   registries: Registries
+  namedRegistries?: Record<string, string>
   depTypes: DepTypes
   storeDir?: string
   storeIndex?: StoreIndex

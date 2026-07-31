@@ -150,6 +150,7 @@ export async function getConfig (opts: {
     'deploy-all-files': false,
     'dedupe-peer-dependents': true,
     'dedupe-peers': false,
+    'named-registries-lockfile-format': false,
     'dedupe-direct-deps': false,
     'dedupe-injected-deps': true,
     'disallow-workspace-cycles': false,

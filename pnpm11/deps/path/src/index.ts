@@ -6,6 +6,63 @@ export function isAbsolute (dependencyPath: string): boolean {
   return dependencyPath[0] !== '/'
 }
 
+/**
+ * Version-slot prefixes with a fixed meaning in dep paths, resolution ids, or
+ * dependency specifiers (`foo@file:...`, `node@runtime:...`, `npm:`, ...).
+ * A named-registry alias may not shadow any of them: the registry-qualified
+ * dep path form `<name>@<alias>:<version>` would otherwise be ambiguous.
+ */
+export const RESERVED_VERSION_PREFIXES: ReadonlySet<string> = new Set([
+  'bitbucket',
+  'catalog',
+  'custom',
+  'file',
+  'git',
+  'github',
+  'gitlab',
+  'http',
+  'https',
+  'jsr',
+  'link',
+  'npm',
+  'runtime',
+  'ssh',
+  'workspace',
+])
+
+const REGISTRY_NAME_RE = /^[A-Z][\w.-]*$/i
+
+/**
+ * Whether `name` is syntactically usable as a named-registry alias in a
+ * registry-qualified dep path. Does not check the reserved list —
+ * see `RESERVED_VERSION_PREFIXES` for that.
+ */
+export function isWellFormedRegistryName (name: string): boolean {
+  return REGISTRY_NAME_RE.test(name)
+}
+
+export interface RegistryQualifiedVersion {
+  registryName: string
+  version: string
+}
+
+/**
+ * Parses the version slot of a registry-qualified dep path
+ * (`<registryName>:<version>`, e.g. `work:1.0.0`) — the form used for
+ * packages resolved from a named registry since lockfile format 9.1.
+ * Returns `undefined` for every other version form (plain semver, `file:`,
+ * `runtime:`, git/tarball URLs, ...).
+ */
+export function parseRegistryQualifiedVersion (version: string): RegistryQualifiedVersion | undefined {
+  const colonIndex = version.indexOf(':')
+  if (colonIndex < 1) return undefined
+  const registryName = version.substring(0, colonIndex)
+  if (RESERVED_VERSION_PREFIXES.has(registryName) || !REGISTRY_NAME_RE.test(registryName)) return undefined
+  const qualifiedVersion = version.substring(colonIndex + 1)
+  if (semver.valid(qualifiedVersion) == null) return undefined
+  return { registryName, version: qualifiedVersion }
+}
+
 export function indexOfDepPathSuffix (depPath: string): { peersIndex: number, patchHashIndex: number } {
   if (!depPath.endsWith(')')) return { peersIndex: -1, patchHashIndex: -1 }
   let open = 1
@@ -82,8 +139,8 @@ export function tryGetPackageId (relDepPath: DepPath): PkgId {
   if (pkgId.includes(':')) {
     const newPkgId = pkgId.substring(pkgId.indexOf('@', 1) + 1)
     // TODO: change the format of package ID to always start with the package name.
-    // not only in the case of "runtime:"
-    if (!newPkgId.startsWith('runtime:')) {
+    // not only in the case of "runtime:" and registry-qualified ids
+    if (!newPkgId.startsWith('runtime:') && parseRegistryQualifiedVersion(newPkgId) == null) {
       pkgId = newPkgId
     }
   }
@@ -118,6 +175,8 @@ export interface DependencyPath {
   version?: string
   nonSemverVersion?: PkgResolutionId
   patchHash?: string
+  /** Set for registry-qualified dep paths (`<name>@<registryName>:<version>`); `version` then holds the bare semver part. */
+  registryName?: string
 }
 
 export function parse (dependencyPath: string): DependencyPath {
@@ -157,6 +216,16 @@ export function parse (dependencyPath: string): DependencyPath {
         peerDepGraphHash,
         version,
         patchHash,
+      }
+    }
+    const registryQualified = parseRegistryQualifiedVersion(version)
+    if (registryQualified != null) {
+      return {
+        name,
+        peerDepGraphHash,
+        version: registryQualified.version,
+        patchHash,
+        registryName: registryQualified.registryName,
       }
     }
     return {

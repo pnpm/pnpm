@@ -130,6 +130,8 @@ export interface ResolveDependenciesOptions {
   nodeVersion?: string
   registries: Registries
   namedRegistries?: Record<string, string>
+  /** See `RequestPackageOptions.namedRegistryQualifiedIds`. */
+  namedRegistryQualifiedIds?: boolean
   patchedDependencies?: PatchGroupRecord
   pnpmVersion: string
   preferredVersions?: PreferredVersions
@@ -212,12 +214,14 @@ export async function resolveDependencyTree<T> (
     readPackageHook: opts.hooks.readPackage,
     overrideBareSpecifier: opts.overrideBareSpecifier,
     registries: opts.registries,
+    namedRegistries: opts.namedRegistries,
     namedRegistryPrefixes: Array.from(
       new Set([
         ...Object.keys(BUILTIN_NAMED_REGISTRIES),
         ...Object.keys(opts.namedRegistries ?? {}),
       ])
     ).map((alias) => `${alias}:`),
+    namedRegistryQualifiedIds: opts.namedRegistryQualifiedIds === true,
     resolvedPkgsById: {} as ResolvedPkgsById,
     resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
     resolutionMode: opts.resolutionMode,

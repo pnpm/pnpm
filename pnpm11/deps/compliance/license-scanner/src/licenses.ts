@@ -74,6 +74,7 @@ export async function findDependencyLicenses (opts: {
   virtualStoreDirMaxLength: number
   modulesDir?: string
   registries: Registries
+  namedRegistries?: Record<string, string>
   wantedLockfile: LockfileObject | null
   includedImporterIds?: ProjectId[]
   supportedArchitectures?: SupportedArchitectures
@@ -94,6 +95,7 @@ export async function findDependencyLicenses (opts: {
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     include: opts.include,
     registries: opts.registries,
+    namedRegistries: opts.namedRegistries,
     includedImporterIds: opts.includedImporterIds,
     supportedArchitectures: opts.supportedArchitectures,
     depTypes,

@@ -42,6 +42,28 @@ pub enum MergeNamedRegistriesError {
         alias: String,
         url: String,
     },
+    #[display(
+        "'{alias}' cannot be used as a named registry alias: it is a reserved dependency specifier prefix."
+    )]
+    #[diagnostic(
+        code(ERR_PNPM_RESERVED_NAMED_REGISTRY_NAME),
+        help("Rename the entry in the namedRegistries setting.")
+    )]
+    ReservedAlias {
+        #[error(not(source))]
+        alias: String,
+    },
+    #[display(
+        "'{alias}' cannot be used as a named registry alias: aliases must start with a letter and contain only letters, digits, \".\", \"_\", and \"-\"."
+    )]
+    #[diagnostic(
+        code(ERR_PNPM_RESERVED_NAMED_REGISTRY_NAME),
+        help("Rename the entry in the namedRegistries setting.")
+    )]
+    MalformedAlias {
+        #[error(not(source))]
+        alias: String,
+    },
 }
 
 /// Merge user-supplied named-registry aliases on top of the built-in
@@ -56,6 +78,12 @@ pub fn merge_named_registries(
         .map(|(name, url)| ((*name).to_string(), (*url).to_string()))
         .collect();
     for (alias, url) in user_defined {
+        if pacquet_deps_path::is_reserved_version_prefix(alias) {
+            return Err(MergeNamedRegistriesError::ReservedAlias { alias: alias.clone() });
+        }
+        if !pacquet_deps_path::is_well_formed_registry_name(alias) {
+            return Err(MergeNamedRegistriesError::MalformedAlias { alias: alias.clone() });
+        }
         if !is_valid_http_url(url) {
             return Err(MergeNamedRegistriesError::InvalidUrl {
                 alias: alias.clone(),

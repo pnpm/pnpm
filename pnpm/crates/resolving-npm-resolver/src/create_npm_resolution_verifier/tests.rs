@@ -191,7 +191,7 @@ fn stable_trust_packument(name: &str) -> serde_json::Value {
 /// No-op `ctx` builder that ties the borrowed `name` to the call
 /// site's lifetime.
 fn ctx<'a>(name: &'a PkgName, version: &'a str) -> VerifyCtx<'a> {
-    VerifyCtx { name, version }
+    VerifyCtx { name, version, registry_name: None }
 }
 
 #[tokio::test]

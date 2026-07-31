@@ -40,6 +40,7 @@ export interface LicenseExtractOptions {
   modulesDir?: string
   dir: string
   registries: Registries
+  namedRegistries?: Record<string, string>
   supportedArchitectures?: SupportedArchitectures
   depTypes: DepTypes
 }
@@ -79,6 +80,7 @@ export async function lockfileToLicenseNode (
           depPath,
           snapshot: pkgSnapshot,
           registries: options.registries,
+          namedRegistries: options.namedRegistries,
         },
         {
           storeDir: options.storeDir,
@@ -151,6 +153,7 @@ export async function lockfileToLicenseNodeTree (
           modulesDir: opts.modulesDir,
           dir: opts.dir,
           registries: opts.registries,
+          namedRegistries: opts.namedRegistries,
           supportedArchitectures: opts.supportedArchitectures,
           depTypes,
         })

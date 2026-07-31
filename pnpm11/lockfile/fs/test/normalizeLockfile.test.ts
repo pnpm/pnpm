@@ -1,6 +1,6 @@
 import { expect, test } from '@jest/globals'
-import { LOCKFILE_VERSION } from '@pnpm/constants'
-import type { ProjectId } from '@pnpm/types'
+import { LOCKFILE_VERSION, NAMED_REGISTRIES_LOCKFILE_VERSION } from '@pnpm/constants'
+import type { DepPath, ProjectId } from '@pnpm/types'
 
 import { convertToLockfileFile } from '../lib/lockfileFormatConverters.js'
 
@@ -93,4 +93,43 @@ test('redundant fields are removed from "time"', () => {
       'qar@1.0.0': '2021-02-11T22:54:29.120Z',
     },
   })
+})
+
+test('the lockfile version is stamped 9.1 only when a registry-qualified package key is present', () => {
+  const importers = {
+    ['.' as ProjectId]: {
+      dependencies: {
+        foo: 'work:1.0.0',
+      },
+      specifiers: {
+        foo: 'work:^1.0.0',
+      },
+    },
+  }
+  const withQualifiedKey = convertToLockfileFile({
+    lockfileVersion: LOCKFILE_VERSION,
+    importers,
+    packages: {
+      ['foo@work:1.0.0' as DepPath]: {
+        resolution: { integrity: 'sha512-AAAA' },
+      },
+    },
+  })
+  expect(withQualifiedKey.lockfileVersion).toBe(NAMED_REGISTRIES_LOCKFILE_VERSION)
+
+  const withoutQualifiedKey = convertToLockfileFile({
+    lockfileVersion: NAMED_REGISTRIES_LOCKFILE_VERSION,
+    importers: {
+      ['.' as ProjectId]: {
+        dependencies: { foo: '1.0.0' },
+        specifiers: { foo: '^1.0.0' },
+      },
+    },
+    packages: {
+      ['foo@1.0.0' as DepPath]: {
+        resolution: { integrity: 'sha512-AAAA' },
+      },
+    },
+  })
+  expect(withoutQualifiedKey.lockfileVersion).toBe(LOCKFILE_VERSION)
 })

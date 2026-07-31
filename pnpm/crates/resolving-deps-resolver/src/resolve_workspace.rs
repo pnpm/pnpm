@@ -144,6 +144,9 @@ pub struct WorkspaceResolveOptions {
     /// its tarball URL when building the `currentPkg` payload custom
     /// resolvers receive.
     pub registries: std::collections::HashMap<String, String>,
+    /// Alias → URL map of named registries (built-ins merged with the
+    /// user's setting). See [`WorkspaceResolveOptions::registries`].
+    pub named_registries: std::collections::HashMap<String, String>,
 }
 
 /// Result of [`fn@resolve_workspace`]. The combined
@@ -197,6 +200,7 @@ where
         update_depth,
         auto_install_peers,
         registries,
+        named_registries,
     } = opts;
     let workspace = Arc::new(
         WorkspaceTreeCtx::default()
@@ -212,7 +216,8 @@ where
             .with_allowed_deprecated_versions(allowed_deprecated_versions)
             .with_deprecation_log(deprecation_log)
             .with_auto_install_peers(auto_install_peers)
-            .with_registries(registries),
+            .with_registries(registries)
+            .with_named_registries(named_registries),
     );
 
     // Build every importer's options up front so the `time-based`

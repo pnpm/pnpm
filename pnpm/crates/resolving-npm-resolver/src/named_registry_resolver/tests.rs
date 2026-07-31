@@ -476,3 +476,38 @@ async fn latest_is_suppressed_when_published_by_holds_back_raw_latest() {
     assert_eq!(result.id.as_str(), "@acme/private@2.0.0");
     assert!(result.latest.is_none(), "immature dist-tags.latest suppresses the hint");
 }
+
+/// With `named_registry_qualified_ids` set (the lockfile 9.1 format),
+/// the resolution id is registry-qualified so the same name@version
+/// from different registries stays distinct.
+#[tokio::test]
+async fn resolves_registry_qualified_id_when_enabled() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/@acme%2Fprivate")
+        .with_status(200)
+        .with_body(ACME_PRIVATE_BODY)
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+
+    let mut user = HashMap::new();
+    user.insert("work".to_string(), registry);
+    let (resolver, _tempdir) = build_resolver(user);
+
+    let wanted = WantedDependency {
+        alias: Some("@acme/private".to_string()),
+        bare_specifier: Some("work:^2.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let opts = ResolveOptions { named_registry_qualified_ids: true, ..ResolveOptions::default() };
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
+    assert_eq!(result.resolved_via, "named-registry");
+    assert_eq!(result.id.as_str(), "@acme/private@work:2.1.0");
+    // `name_ver` keeps the bare `name@version` shape for display / peer
+    // resolution.
+    assert_eq!(
+        result.name_ver.as_ref().map(ToString::to_string).as_deref(),
+        Some("@acme/private@2.1.0")
+    );
+}

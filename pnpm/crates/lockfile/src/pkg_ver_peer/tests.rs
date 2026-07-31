@@ -271,3 +271,46 @@ fn serde_round_trip_non_semver() {
     let round_trip: PkgVerPeer = serde_saphyr::from_str(&serialized).expect("deserialize back");
     assert_eq!(round_trip, parsed);
 }
+
+/// Registry-qualified version slots (`<registryName>:<version>`, lockfile
+/// format 9.1) parse into their own variant, expose the alias and bare
+/// semver, and round-trip byte-stable.
+#[test]
+fn parse_registry_qualified_round_trip() {
+    let raw = "work:1.0.0(react@18.0.0)";
+    let parsed: PkgVerPeer = raw.parse().expect("parse registry-qualified");
+    assert_eq!(
+        parsed.version(),
+        &VersionPart::RegistryQualified {
+            registry_name: "work".to_string(),
+            version: "1.0.0".parse().unwrap(),
+        },
+    );
+    // Bare-semver reuse paths must treat the version as opaque…
+    assert_eq!(parsed.version_semver(), None);
+    // …while registry-aware callers read the pair.
+    let (registry_name, version) = parsed.registry_qualified().expect("registry qualified");
+    assert_eq!(registry_name, "work");
+    assert_eq!(version, &"1.0.0".parse::<Version>().unwrap());
+    assert_eq!(parsed.peer(), "(react@18.0.0)");
+    assert_eq!(parsed.to_string(), raw);
+    assert_eq!(parsed.without_peer().to_string(), "work:1.0.0");
+}
+
+/// Reserved prefixes keep their existing meaning: `runtime:` stays a
+/// prefix with a semver slot, `file:` stays a file path.
+#[test]
+fn reserved_prefixes_do_not_parse_as_registry_qualified() {
+    let runtime: PkgVerPeer = "runtime:22.0.0".parse().expect("parse runtime");
+    assert_eq!(runtime.registry_qualified(), None);
+    assert_eq!(runtime.version_semver(), Some(&"22.0.0".parse::<Version>().unwrap()));
+
+    let file: PkgVerPeer = "file:pkg-1.0.0".parse().expect("parse file");
+    assert_eq!(file.registry_qualified(), None);
+    assert_eq!(file.version(), &VersionPart::File("pkg-1.0.0".to_string()));
+
+    // A non-semver remainder is not registry-qualified.
+    let opaque: PkgVerPeer = "work:not-semver".parse().expect("parse opaque");
+    assert_eq!(opaque.registry_qualified(), None);
+    assert_eq!(opaque.version(), &VersionPart::NonSemver("work:not-semver".to_string()));
+}

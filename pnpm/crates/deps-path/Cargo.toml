@@ -11,6 +11,7 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
+node-semver         = { workspace = true }
 pacquet-crypto-hash = { workspace = true }
 
 [lints]

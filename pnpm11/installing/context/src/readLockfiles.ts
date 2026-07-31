@@ -2,6 +2,7 @@ import path from 'node:path'
 
 import {
   LOCKFILE_VERSION,
+  SUPPORTED_LOCKFILE_VERSIONS,
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
@@ -61,7 +62,7 @@ export async function readLockfiles (
   // in frozen-lockfile mode, incompatible lockfiles should still fail.
   const lockfileOpts = {
     ignoreIncompatible: opts.force || (opts.ci === true && !opts.frozenLockfile),
-    wantedVersions: [LOCKFILE_VERSION],
+    wantedVersions: SUPPORTED_LOCKFILE_VERSIONS,
     useGitBranchLockfile: opts.useGitBranchLockfile,
     mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
   }

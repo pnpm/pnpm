@@ -7064,6 +7064,9 @@ importers:
 
   pnpm11/lockfile/utils:
     dependencies:
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../core/constants
       '@pnpm/deps.path':
         specifier: workspace:*
         version: link:../../deps/path
@@ -8759,6 +8762,9 @@ importers:
       '@pnpm/crypto.hash':
         specifier: workspace:*
         version: link:../../crypto/hash
+      '@pnpm/deps.path':
+        specifier: workspace:*
+        version: link:../../deps/path
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error

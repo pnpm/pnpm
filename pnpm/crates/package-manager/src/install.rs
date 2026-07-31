@@ -3669,7 +3669,9 @@ fn injected_source_paths(lockfile: &Lockfile) -> HashSet<String> {
         .chain(lockfile.packages.iter().flat_map(|packages| packages.keys()))
         .filter_map(|key| match key.suffix.version() {
             VersionPart::File(path) => Some(path.strip_prefix("./").unwrap_or(path).to_string()),
-            VersionPart::Semver(_) | VersionPart::NonSemver(_) => None,
+            VersionPart::Semver(_)
+            | VersionPart::NonSemver(_)
+            | VersionPart::RegistryQualified { .. } => None,
         })
         .collect()
 }
