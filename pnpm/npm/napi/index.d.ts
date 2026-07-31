@@ -197,6 +197,15 @@ export interface InstallOptions extends SharedEngineOptions {
    * `InstallResult.depsRequiringBuild` instead.
    */
   strictDepBuilds?: boolean
+  /**
+   * Report in `InstallResult.depsRequiringBuild` the dep path of every
+   * package whose files carry install scripts, regardless of the
+   * allow-build policy. The list is computed only when a fresh resolve
+   * materializes `node_modules`; an install served from the
+   * frozen-lockfile path (or `lockfileOnly`) leaves the field undefined
+   * so the embedder keeps its previously recorded list.
+   */
+  returnListOfDepsRequiringBuild?: boolean
   /** Customizations for how peer-dependency mismatches are treated. */
   peerDependencyRules?: PeerDependencyRules
 }
@@ -214,7 +223,13 @@ export interface InstallResult {
     removed: number
     linkedToRoot: number
   }
-  /** Dep paths whose build scripts were skipped and require approval to run. */
+  /**
+   * With `returnListOfDepsRequiringBuild`: the dep path of every package
+   * whose files carry install scripts, whether or not the scripts were
+   * allowed to run; undefined when the install did not compute the list
+   * (see the option). Without it: the dep paths whose build scripts were
+   * skipped and require approval to run.
+   */
   depsRequiringBuild?: string[]
   /** The resolved content-addressable store directory used by this install. */
   storeDir: string

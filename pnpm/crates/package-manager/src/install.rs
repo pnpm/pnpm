@@ -97,6 +97,18 @@ pub type PeerIssuesSink = Arc<
     >,
 >;
 
+/// Shared out-slot for [`Install::deps_requiring_build_sink`]: the dep
+/// paths of every package this install put on disk whose files carry
+/// install scripts (`requiresBuild`), regardless of the allow-build
+/// policy. A snapshot skipped for installability, an excluded optional,
+/// or a failed optional fetch is not installed and so not reported.
+///
+/// Only a fresh resolve that materializes `node_modules` fills the slot.
+/// The frozen path and `lockfileOnly` runs leave it `None`, mirroring the
+/// TypeScript CLI's `returnListOfDepsRequiringBuild`, which computes the
+/// list from a fresh resolve's fetch results.
+pub type DepsRequiringBuildSink = Arc<std::sync::Mutex<Option<BTreeSet<String>>>>;
+
 pub struct WorkspaceInstallSelection<'a> {
     pub all_projects: &'a [pacquet_workspace::Project],
     pub ordered_groups: &'a [Vec<PathBuf>],
@@ -337,6 +349,11 @@ where
     /// rather than an `--dry-run` preview. Only the fresh path fills
     /// it (the frozen path resolves nothing).
     pub peer_issues_sink: Option<crate::PeerIssuesSink>,
+    /// Out-slot for the dep paths of packages requiring a build. `None`
+    /// for every CLI install; the napi `install` sets one when the
+    /// embedder asks for `returnListOfDepsRequiringBuild`. See
+    /// [`crate::DepsRequiringBuildSink`] for when it is filled.
+    pub deps_requiring_build_sink: Option<crate::DepsRequiringBuildSink>,
     /// In-memory catalogs to resolve against instead of reading
     /// `pnpm-workspace.yaml` from disk. `None` (every plain install) reads
     /// the workspace manifest. `pacquet update` sets this so a `--latest`
@@ -803,6 +820,7 @@ where
             auth_override,
             resolution_observer,
             peer_issues_sink,
+            deps_requiring_build_sink,
             catalogs_override,
             disable_optimistic_repeat_install,
             pnpmfile_hook_override,
@@ -2132,6 +2150,7 @@ where
                 auth_override,
                 resolution_observer,
                 peer_issues_sink: peer_issues_sink.clone(),
+                deps_requiring_build_sink: deps_requiring_build_sink.as_ref().map(Arc::clone),
                 pnpmfile_hook_override: pnpmfile_hook,
                 real_importer_ids: requested_importer_ids.as_ref().map(|_| &real_importer_ids),
                 selected_importer_ids: requested_importer_ids.as_ref(),
