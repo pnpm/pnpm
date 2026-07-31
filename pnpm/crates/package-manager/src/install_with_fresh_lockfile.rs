@@ -2632,16 +2632,13 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             );
         }
 
-        // A skipped snapshot never reaches this map, so the reported list
-        // covers exactly what this install put on disk — matching the TS
-        // engine, which cannot read `requiresBuild` off a package it never
-        // fetched. `CreateVirtualStore` keeps both of its cache-key passes
-        // free of `skipped`, and a cold snapshot whose fetch failed records
-        // the failure instead of a `requiresBuild` entry.
+        // `CreateVirtualStore` keeps skipped snapshots out of this map, so
+        // it holds only what the install put on disk. See
+        // [`crate::DepsRequiringBuildSink`].
         if let Some(sink) = &deps_requiring_build_sink {
             let deps_requiring_build = requires_build_by_snapshot
                 .iter()
-                .filter(|(_snapshot_key, requires_build)| **requires_build)
+                .filter(|(_, requires_build)| **requires_build)
                 .map(|(snapshot_key, _)| snapshot_key.to_string())
                 .collect();
             *sink.lock().unwrap_or_else(std::sync::PoisonError::into_inner) =

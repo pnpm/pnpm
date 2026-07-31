@@ -1,12 +1,16 @@
-use std::collections::{BTreeSet, HashMap};
+use std::{
+    collections::{BTreeSet, HashMap},
+    path::Path,
+    sync::Arc,
+};
 
 use pacquet_network::NoProxySetting;
 use pacquet_testing_utils::registry::TestRegistry;
 
 use super::{
-    EngineMode, InstallOptions, NetworkConfigInput, NodeApiProject, ProxyConfigInput,
-    build_overlay, deps_requiring_build_result, reject_non_object_manifests,
-    reject_unsupported_install_options, run_install_inner,
+    DepsRequiringBuildSink, EngineMode, InstallOptions, NetworkConfigInput, NodeApiProject,
+    ProxyConfigInput, build_overlay, reject_non_object_manifests,
+    reject_unsupported_install_options, run_install_inner, take_deps_requiring_build,
 };
 use crate::{
     config::{ConfigOverlay, resolve_config},
@@ -209,7 +213,7 @@ fn repeat_install_uses_changed_in_memory_manifest() {
     options.store_dir = Some(temp_dir.path().join("store").to_string_lossy().into_owned());
     options.registries = Some(HashMap::from([("default".to_string(), registry.url())]));
 
-    run_install_inner(&options, None, EngineMode::Install, None).expect("first install");
+    run_install_inner(&options, None, EngineMode::Install(None)).expect("first install");
     assert!(project_dir.join("node_modules/@pnpm.e2e/foo").exists());
 
     options.projects[0].manifest = serde_json::json!({
@@ -219,7 +223,7 @@ fn repeat_install_uses_changed_in_memory_manifest() {
         }
     });
 
-    run_install_inner(&options, None, EngineMode::Install, None).expect("second install");
+    run_install_inner(&options, None, EngineMode::Install(None)).expect("second install");
     assert!(project_dir.join("node_modules/@pnpm.e2e/bar").exists());
     assert_eq!(
         std::fs::read_to_string(project_dir.join("package.json")).expect("read package.json"),
@@ -227,26 +231,25 @@ fn repeat_install_uses_changed_in_memory_manifest() {
     );
 }
 
-/// An empty list and an uncomputed one are different answers: the first
-/// says the tree has no build-needing packages, the second says this
-/// install never looked — and an embedder mirroring the field into a
-/// file it owns must keep its own record for the second.
+/// An empty list and an uncomputed one are different answers. The first
+/// says the tree has no build-needing packages; the second says this
+/// install never looked, so an embedder mirroring the field into a file
+/// it owns has to keep its own record.
 #[test]
-fn deps_requiring_build_result_distinguishes_an_empty_list_from_an_uncomputed_one() {
-    let empty = pacquet_package_manager::DepsRequiringBuildSink::default();
+fn take_deps_requiring_build_distinguishes_an_empty_list_from_an_uncomputed_one() {
+    let empty = DepsRequiringBuildSink::default();
     *empty.lock().expect("lock sink") = Some(BTreeSet::new());
-    assert_eq!(deps_requiring_build_result(Some(&empty), Vec::new()), Some(Vec::new()));
+    assert_eq!(take_deps_requiring_build(Some(&empty), Vec::new()), Some(Vec::new()));
 
-    let uncomputed = pacquet_package_manager::DepsRequiringBuildSink::default();
-    assert_eq!(deps_requiring_build_result(Some(&uncomputed), Vec::new()), None);
+    let uncomputed = DepsRequiringBuildSink::default();
+    assert_eq!(take_deps_requiring_build(Some(&uncomputed), Vec::new()), None);
 }
 
-/// The reported list is sorted: the sink is a `BTreeSet`, and the result
-/// preserves that order so a consumer diffing it against a recorded list
-/// sees no spurious churn.
+/// The result preserves the sink's order so a consumer diffing it against
+/// a recorded list sees no spurious churn.
 #[test]
-fn deps_requiring_build_result_reports_the_list_in_sorted_order() {
-    let sink = pacquet_package_manager::DepsRequiringBuildSink::default();
+fn take_deps_requiring_build_reports_the_list_in_sorted_order() {
+    let sink = DepsRequiringBuildSink::default();
     *sink.lock().expect("lock sink") = Some(BTreeSet::from([
         "zzz@1.0.0".to_string(),
         "aaa@1.0.0".to_string(),
@@ -254,25 +257,25 @@ fn deps_requiring_build_result_reports_the_list_in_sorted_order() {
     ]));
 
     assert_eq!(
-        deps_requiring_build_result(Some(&sink), Vec::new()),
+        take_deps_requiring_build(Some(&sink), Vec::new()),
         Some(vec!["aaa@1.0.0".to_string(), "mmm@1.0.0".to_string(), "zzz@1.0.0".to_string()]),
     );
 }
 
-/// Without the option the field keeps its pre-option meaning — the
-/// blocked builds — and stays undefined when nothing was blocked.
+/// Without the option the field carries the blocked builds, and stays
+/// undefined when nothing was blocked.
 #[test]
-fn deps_requiring_build_result_falls_back_to_blocked_builds_without_the_option() {
+fn take_deps_requiring_build_falls_back_to_blocked_builds_without_the_option() {
     assert_eq!(
-        deps_requiring_build_result(None, vec!["blocked@1.0.0".to_string()]),
+        take_deps_requiring_build(None, vec!["blocked@1.0.0".to_string()]),
         Some(vec!["blocked@1.0.0".to_string()]),
     );
-    assert_eq!(deps_requiring_build_result(None, Vec::new()), None);
+    assert_eq!(take_deps_requiring_build(None, Vec::new()), None);
 }
 
 /// `returnListOfDepsRequiringBuild` reports every package whose files
-/// carry install scripts, sorted. `hello-world-js-bin` is pulled in as a
-/// dependency of the postinstall example but carries no install scripts
+/// carry install scripts, sorted. `hello-world-js-bin` arrives as a
+/// dependency of the postinstall example and carries no install scripts
 /// of its own, so it must not appear.
 #[test]
 fn return_list_of_deps_requiring_build_reports_every_script_bearing_package() {
@@ -280,12 +283,12 @@ fn return_list_of_deps_requiring_build_reports_every_script_bearing_package() {
     let mut options = script_deps_install_options(temp_dir.path());
     options.dangerously_allow_all_builds = Some(true);
 
-    let sink = pacquet_package_manager::DepsRequiringBuildSink::default();
-    run_install_inner(&options, None, EngineMode::Install, Some(std::sync::Arc::clone(&sink)))
+    let sink = DepsRequiringBuildSink::default();
+    run_install_inner(&options, None, EngineMode::Install(Some(Arc::clone(&sink))))
         .expect("install");
 
     assert_eq!(
-        deps_requiring_build_result(Some(&sink), Vec::new()),
+        take_deps_requiring_build(Some(&sink), Vec::new()),
         Some(vec![
             "@pnpm.e2e/install-script-example@1.0.0".to_string(),
             "@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0".to_string(),
@@ -293,7 +296,7 @@ fn return_list_of_deps_requiring_build_reports_every_script_bearing_package() {
     );
 }
 
-/// The list is independent of the allow-build policy: a package whose
+/// The list is independent of the allow-build policy. A package whose
 /// scripts the default policy blocks still requires a build, and an
 /// embedder that gates builds itself needs to know about it.
 #[test]
@@ -301,9 +304,9 @@ fn return_list_of_deps_requiring_build_includes_packages_whose_builds_were_block
     let temp_dir = tempfile::tempdir().expect("tempdir");
     let options = script_deps_install_options(temp_dir.path());
 
-    let sink = pacquet_package_manager::DepsRequiringBuildSink::default();
+    let sink = DepsRequiringBuildSink::default();
     begin_stats();
-    run_install_inner(&options, None, EngineMode::Install, Some(std::sync::Arc::clone(&sink)))
+    run_install_inner(&options, None, EngineMode::Install(Some(Arc::clone(&sink))))
         .expect("install");
     let blocked = take_stats().deps_requiring_build;
 
@@ -313,7 +316,7 @@ fn return_list_of_deps_requiring_build_includes_packages_whose_builds_were_block
         "without an allow-build policy both builds must be blocked, else this test proves nothing",
     );
     assert_eq!(
-        deps_requiring_build_result(Some(&sink), Vec::new()),
+        take_deps_requiring_build(Some(&sink), Vec::new()),
         Some(vec![
             "@pnpm.e2e/install-script-example@1.0.0".to_string(),
             "@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0".to_string(),
@@ -330,10 +333,12 @@ fn return_list_of_deps_requiring_build_is_uncomputed_without_a_fresh_materializa
     let mut options = script_deps_install_options(temp_dir.path());
     options.dangerously_allow_all_builds = Some(true);
 
-    let seed = pacquet_package_manager::DepsRequiringBuildSink::default();
-    run_install_inner(&options, None, EngineMode::Install, Some(std::sync::Arc::clone(&seed)))
+    let seed = DepsRequiringBuildSink::default();
+    run_install_inner(&options, None, EngineMode::Install(Some(Arc::clone(&seed))))
         .expect("seed install");
-    assert!(seed.lock().expect("lock sink").is_some(), "the seed install computes the list");
+    let seeded = seed.lock().expect("lock sink").clone();
+    dbg!(&seeded);
+    assert!(seeded.is_some(), "the seed install computes the list");
 
     for (label, mutate) in [
         ("repeat install", (|_: &mut InstallOptions| {}) as fn(&mut InstallOptions)),
@@ -348,12 +353,12 @@ fn return_list_of_deps_requiring_build_is_uncomputed_without_a_fresh_materializa
         options.dangerously_allow_all_builds = Some(true);
         mutate(&mut options);
 
-        let sink = pacquet_package_manager::DepsRequiringBuildSink::default();
-        run_install_inner(&options, None, EngineMode::Install, Some(std::sync::Arc::clone(&sink)))
+        let sink = DepsRequiringBuildSink::default();
+        run_install_inner(&options, None, EngineMode::Install(Some(Arc::clone(&sink))))
             .unwrap_or_else(|error| panic!("{label} install: {error}"));
 
         assert_eq!(
-            deps_requiring_build_result(Some(&sink), Vec::new()),
+            take_deps_requiring_build(Some(&sink), Vec::new()),
             None,
             "{label} must leave the list uncomputed",
         );
@@ -361,7 +366,7 @@ fn return_list_of_deps_requiring_build_is_uncomputed_without_a_fresh_materializa
 }
 
 /// A tree with no script-bearing package has nothing to build, and that
-/// is an answer — the install reports an empty list rather than none, so
+/// is an answer. The install reports an empty list rather than none, so
 /// an embedder replaces its recorded list instead of keeping a stale one.
 #[test]
 fn return_list_of_deps_requiring_build_reports_an_empty_list_for_a_tree_without_build_scripts() {
@@ -372,15 +377,15 @@ fn return_list_of_deps_requiring_build_reports_an_empty_list_for_a_tree_without_
         serde_json::json!({ "dependencies": { "@pnpm.e2e/foo": "100.0.0" } }),
     );
 
-    let sink = pacquet_package_manager::DepsRequiringBuildSink::default();
-    run_install_inner(&options, None, EngineMode::Install, Some(std::sync::Arc::clone(&sink)))
+    let sink = DepsRequiringBuildSink::default();
+    run_install_inner(&options, None, EngineMode::Install(Some(Arc::clone(&sink))))
         .expect("install");
 
-    assert_eq!(deps_requiring_build_result(Some(&sink), Vec::new()), Some(Vec::new()));
+    assert_eq!(take_deps_requiring_build(Some(&sink), Vec::new()), Some(Vec::new()));
 }
 
-/// A script-bearing package this install skips is left out, even when the
-/// shared store already knows it requires a build: the reported list
+/// A script-bearing package this install skips is left out even when the
+/// shared store already knows it requires a build. The reported list
 /// covers what this project installed, not what the store has seen.
 #[test]
 fn return_list_of_deps_requiring_build_excludes_skipped_packages() {
@@ -392,11 +397,11 @@ fn return_list_of_deps_requiring_build_excludes_skipped_packages() {
             "dependencies": { "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0" }
         }),
     );
-    let warmed = pacquet_package_manager::DepsRequiringBuildSink::default();
-    run_install_inner(&warm_store, None, EngineMode::Install, Some(std::sync::Arc::clone(&warmed)))
+    let warmed = DepsRequiringBuildSink::default();
+    run_install_inner(&warm_store, None, EngineMode::Install(Some(Arc::clone(&warmed))))
         .expect("warm the store");
     assert_eq!(
-        deps_requiring_build_result(Some(&warmed), Vec::new()),
+        take_deps_requiring_build(Some(&warmed), Vec::new()),
         Some(vec!["@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0".to_string()]),
         "the store must know this package requires a build, else the skip proves nothing",
     );
@@ -410,17 +415,17 @@ fn return_list_of_deps_requiring_build_excludes_skipped_packages() {
     );
     options.include_optional_deps = Some(false);
 
-    let sink = pacquet_package_manager::DepsRequiringBuildSink::default();
-    run_install_inner(&options, None, EngineMode::Install, Some(std::sync::Arc::clone(&sink)))
+    let sink = DepsRequiringBuildSink::default();
+    run_install_inner(&options, None, EngineMode::Install(Some(Arc::clone(&sink))))
         .expect("install skipping the optional dependency");
 
-    assert_eq!(deps_requiring_build_result(Some(&sink), Vec::new()), Some(Vec::new()));
+    assert_eq!(take_deps_requiring_build(Some(&sink), Vec::new()), Some(Vec::new()));
 }
 
 /// Install options for a project depending on two packages that carry
 /// install scripts, sharing one store across the calls in a test so a
 /// repeat install can hit the frozen path.
-fn script_deps_install_options(temp_dir: &std::path::Path) -> InstallOptions {
+fn script_deps_install_options(temp_dir: &Path) -> InstallOptions {
     install_options_for(
         temp_dir,
         "project",
@@ -437,7 +442,7 @@ fn script_deps_install_options(temp_dir: &std::path::Path) -> InstallOptions {
 /// `returnListOfDepsRequiringBuild` set and the store shared across every
 /// project in the same `temp_dir`.
 fn install_options_for(
-    temp_dir: &std::path::Path,
+    temp_dir: &Path,
     project_name: &str,
     manifest: serde_json::Value,
 ) -> InstallOptions {
@@ -488,7 +493,7 @@ fn lockfile_records_overrides_in_declaration_order() {
         ("aaa-unmatched".to_string(), "2.0.0".to_string()),
     ]));
 
-    run_install_inner(&options, None, EngineMode::Install, None).expect("install");
+    run_install_inner(&options, None, EngineMode::Install(None)).expect("install");
 
     let lockfile =
         std::fs::read_to_string(project_dir.join("pnpm-lock.yaml")).expect("read lockfile");

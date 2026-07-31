@@ -102,11 +102,12 @@ pub type PeerIssuesSink = Arc<
 /// install scripts (`requiresBuild`), regardless of the allow-build
 /// policy. A snapshot skipped for installability, an excluded optional,
 /// or a failed optional fetch is not installed and so not reported.
-/// Stays `None` unless the fresh-resolve path materializes
-/// `node_modules` — the frozen path and `lockfileOnly` runs never fill
-/// it, mirroring the TS engine's `returnListOfDepsRequiringBuild`,
-/// which only computes the list from a fresh resolve's fetch results.
-pub type DepsRequiringBuildSink = Arc<std::sync::Mutex<Option<std::collections::BTreeSet<String>>>>;
+///
+/// Only a fresh resolve that materializes `node_modules` fills the slot.
+/// The frozen path and `lockfileOnly` runs leave it `None`, mirroring the
+/// TypeScript CLI's `returnListOfDepsRequiringBuild`, which computes the
+/// list from a fresh resolve's fetch results.
+pub type DepsRequiringBuildSink = Arc<std::sync::Mutex<Option<BTreeSet<String>>>>;
 
 pub struct WorkspaceInstallSelection<'a> {
     pub all_projects: &'a [pacquet_workspace::Project],
@@ -2149,7 +2150,7 @@ where
                 auth_override,
                 resolution_observer,
                 peer_issues_sink: peer_issues_sink.clone(),
-                deps_requiring_build_sink: deps_requiring_build_sink.clone(),
+                deps_requiring_build_sink: deps_requiring_build_sink.as_ref().map(Arc::clone),
                 pnpmfile_hook_override: pnpmfile_hook,
                 real_importer_ids: requested_importer_ids.as_ref().map(|_| &real_importer_ids),
                 selected_importer_ids: requested_importer_ids.as_ref(),
