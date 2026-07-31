@@ -4,4 +4,4 @@
 "pnpm": patch
 ---
 
-Moved the `lexCompare` and `nerfDart` utilities into this repository. They are now published as `@pnpm/text.ordinal-comparator` and `@pnpm/config.registry-auth-key`, replacing `@pnpm/util.lex-comparator` and `@pnpm/config.nerf-dart`.
+`lexCompare` and `nerfDart` are now published as `@pnpm/text.ordinal-comparator` and `@pnpm/config.registry-auth-key`. Use these instead of `@pnpm/util.lex-comparator` and `@pnpm/config.nerf-dart`.
