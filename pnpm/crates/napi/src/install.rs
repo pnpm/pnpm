@@ -268,20 +268,8 @@ fn run_install_blocking(
     );
     let stats = take_stats();
     let store_dir = outcome?;
-    let deps_requiring_build = match &deps_requiring_build_sink {
-        // The requested list, even when empty — an empty list is a real
-        // answer ("this tree has no build-needing packages").
-        Some(sink) => sink
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .take()
-            .map(|deps| deps.into_iter().collect()),
-        // Option off: report the blocked builds accumulated from
-        // `pnpm:ignored-scripts` events, matching how embedders that
-        // gate builds themselves consumed this field before the
-        // explicit option existed.
-        None => (!stats.deps_requiring_build.is_empty()).then_some(stats.deps_requiring_build),
-    };
+    let deps_requiring_build =
+        deps_requiring_build_result(deps_requiring_build_sink.as_ref(), stats.deps_requiring_build);
     Ok(InstallResult {
         stats: InstallStatsResult {
             added: stats.added as f64,
@@ -291,6 +279,31 @@ fn run_install_blocking(
         deps_requiring_build,
         store_dir,
     })
+}
+
+/// [`InstallResult::deps_requiring_build`] for one install.
+///
+/// A sink is present exactly when the embedder set
+/// `returnListOfDepsRequiringBuild`. It holds `Some` only if the engine
+/// computed the list (see [`pacquet_package_manager::DepsRequiringBuildSink`]);
+/// an empty list is a real answer and stays `Some`, while a run that never
+/// computed one yields `None` so the embedder keeps its own record.
+///
+/// Without a sink the result carries `ignored_builds` — the blocked builds
+/// accumulated from `pnpm:ignored-scripts` events — matching how embedders
+/// that gate builds themselves consumed this field before the option existed.
+fn deps_requiring_build_result(
+    sink: Option<&pacquet_package_manager::DepsRequiringBuildSink>,
+    ignored_builds: Vec<String>,
+) -> Option<Vec<String>> {
+    match sink {
+        Some(sink) => sink
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .take()
+            .map(|deps| deps.into_iter().collect()),
+        None => (!ignored_builds.is_empty()).then_some(ignored_builds),
+    }
 }
 
 /// Which engine operation [`run_install_inner`] performs. Both share the same

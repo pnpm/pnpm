@@ -1,14 +1,17 @@
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 use pacquet_network::NoProxySetting;
 use pacquet_testing_utils::registry::TestRegistry;
 
 use super::{
     EngineMode, InstallOptions, NetworkConfigInput, NodeApiProject, ProxyConfigInput,
-    build_overlay, reject_non_object_manifests, reject_unsupported_install_options,
-    run_install_inner,
+    build_overlay, deps_requiring_build_result, reject_non_object_manifests,
+    reject_unsupported_install_options, run_install_inner,
 };
-use crate::config::{ConfigOverlay, resolve_config};
+use crate::{
+    config::{ConfigOverlay, resolve_config},
+    reporter_bridge::{begin_stats, take_stats},
+};
 
 #[test]
 fn resolve_config_reloads_changed_workspace_yaml() {
@@ -224,16 +227,146 @@ fn repeat_install_uses_changed_in_memory_manifest() {
     );
 }
 
-/// `returnListOfDepsRequiringBuild` reports every package whose files
-/// carry install scripts — even ones allowed to build — and leaves the
-/// field undefined on a repeat install served from the frozen path, so
-/// an embedder keeps its previously recorded list instead of wiping it.
+/// An empty list and an uncomputed one are different answers: the first
+/// says the tree has no build-needing packages, the second says this
+/// install never looked — and an embedder mirroring the field into a
+/// file it owns must keep its own record for the second.
 #[test]
-fn return_list_of_deps_requiring_build_reports_fresh_resolves_only() {
-    let registry = TestRegistry::start();
+fn deps_requiring_build_result_distinguishes_an_empty_list_from_an_uncomputed_one() {
+    let empty = pacquet_package_manager::DepsRequiringBuildSink::default();
+    *empty.lock().expect("lock sink") = Some(BTreeSet::new());
+    assert_eq!(deps_requiring_build_result(Some(&empty), Vec::new()), Some(Vec::new()));
+
+    let uncomputed = pacquet_package_manager::DepsRequiringBuildSink::default();
+    assert_eq!(deps_requiring_build_result(Some(&uncomputed), Vec::new()), None);
+}
+
+/// The reported list is sorted: the sink is a `BTreeSet`, and the result
+/// preserves that order so a consumer diffing it against a recorded list
+/// sees no spurious churn.
+#[test]
+fn deps_requiring_build_result_reports_the_list_in_sorted_order() {
+    let sink = pacquet_package_manager::DepsRequiringBuildSink::default();
+    *sink.lock().expect("lock sink") = Some(BTreeSet::from([
+        "zzz@1.0.0".to_string(),
+        "aaa@1.0.0".to_string(),
+        "mmm@1.0.0".to_string(),
+    ]));
+
+    assert_eq!(
+        deps_requiring_build_result(Some(&sink), Vec::new()),
+        Some(vec!["aaa@1.0.0".to_string(), "mmm@1.0.0".to_string(), "zzz@1.0.0".to_string()]),
+    );
+}
+
+/// Without the option the field keeps its pre-option meaning — the
+/// blocked builds — and stays undefined when nothing was blocked.
+#[test]
+fn deps_requiring_build_result_falls_back_to_blocked_builds_without_the_option() {
+    assert_eq!(
+        deps_requiring_build_result(None, vec!["blocked@1.0.0".to_string()]),
+        Some(vec!["blocked@1.0.0".to_string()]),
+    );
+    assert_eq!(deps_requiring_build_result(None, Vec::new()), None);
+}
+
+/// `returnListOfDepsRequiringBuild` reports every package whose files
+/// carry install scripts, sorted. `hello-world-js-bin` is pulled in as a
+/// dependency of the postinstall example but carries no install scripts
+/// of its own, so it must not appear.
+#[test]
+fn return_list_of_deps_requiring_build_reports_every_script_bearing_package() {
     let temp_dir = tempfile::tempdir().expect("tempdir");
-    let project_dir = temp_dir.path().join("project");
-    std::fs::create_dir(&project_dir).expect("create project dir");
+    let mut options = script_deps_install_options(temp_dir.path());
+    options.dangerously_allow_all_builds = Some(true);
+
+    let sink = pacquet_package_manager::DepsRequiringBuildSink::default();
+    run_install_inner(&options, None, EngineMode::Install, Some(std::sync::Arc::clone(&sink)))
+        .expect("install");
+
+    assert_eq!(
+        deps_requiring_build_result(Some(&sink), Vec::new()),
+        Some(vec![
+            "@pnpm.e2e/install-script-example@1.0.0".to_string(),
+            "@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0".to_string(),
+        ]),
+    );
+}
+
+/// The list is independent of the allow-build policy: a package whose
+/// scripts the default policy blocks still requires a build, and an
+/// embedder that gates builds itself needs to know about it.
+#[test]
+fn return_list_of_deps_requiring_build_includes_packages_whose_builds_were_blocked() {
+    let temp_dir = tempfile::tempdir().expect("tempdir");
+    let options = script_deps_install_options(temp_dir.path());
+
+    let sink = pacquet_package_manager::DepsRequiringBuildSink::default();
+    begin_stats();
+    run_install_inner(&options, None, EngineMode::Install, Some(std::sync::Arc::clone(&sink)))
+        .expect("install");
+    let blocked = take_stats().deps_requiring_build;
+
+    assert_eq!(
+        blocked.len(),
+        2,
+        "without an allow-build policy both builds must be blocked, else this test proves nothing",
+    );
+    assert_eq!(
+        deps_requiring_build_result(Some(&sink), Vec::new()),
+        Some(vec![
+            "@pnpm.e2e/install-script-example@1.0.0".to_string(),
+            "@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0".to_string(),
+        ]),
+    );
+}
+
+/// Only a fresh resolve that materializes `node_modules` computes the
+/// list. A repeat install (served from the frozen path), an explicit
+/// `frozenLockfile`, and a `lockfileOnly` run all leave it uncomputed.
+#[test]
+fn return_list_of_deps_requiring_build_is_uncomputed_without_a_fresh_materialization() {
+    let temp_dir = tempfile::tempdir().expect("tempdir");
+    let mut options = script_deps_install_options(temp_dir.path());
+    options.dangerously_allow_all_builds = Some(true);
+
+    let seed = pacquet_package_manager::DepsRequiringBuildSink::default();
+    run_install_inner(&options, None, EngineMode::Install, Some(std::sync::Arc::clone(&seed)))
+        .expect("seed install");
+    assert!(seed.lock().expect("lock sink").is_some(), "the seed install computes the list");
+
+    for (label, mutate) in [
+        ("repeat install", (|_: &mut InstallOptions| {}) as fn(&mut InstallOptions)),
+        ("frozen lockfile", |options: &mut InstallOptions| {
+            options.frozen_lockfile = Some(true);
+        }),
+        ("lockfile only", |options: &mut InstallOptions| {
+            options.lockfile_only = Some(true);
+        }),
+    ] {
+        let mut options = script_deps_install_options(temp_dir.path());
+        options.dangerously_allow_all_builds = Some(true);
+        mutate(&mut options);
+
+        let sink = pacquet_package_manager::DepsRequiringBuildSink::default();
+        run_install_inner(&options, None, EngineMode::Install, Some(std::sync::Arc::clone(&sink)))
+            .unwrap_or_else(|error| panic!("{label} install: {error}"));
+
+        assert_eq!(
+            deps_requiring_build_result(Some(&sink), Vec::new()),
+            None,
+            "{label} must leave the list uncomputed",
+        );
+    }
+}
+
+/// Install options for a project depending on two packages that carry
+/// install scripts, sharing one store across the calls in a test so a
+/// repeat install can hit the frozen path.
+fn script_deps_install_options(temp_dir: &std::path::Path) -> InstallOptions {
+    let registry = TestRegistry::start();
+    let project_dir = temp_dir.join("project");
+    std::fs::create_dir_all(&project_dir).expect("create project dir");
     std::fs::write(project_dir.join("package.json"), "{}\n").expect("write package.json");
 
     let project_dir_string = project_dir.to_string_lossy().into_owned();
@@ -243,32 +376,16 @@ fn return_list_of_deps_requiring_build_reports_fresh_resolves_only() {
         root_dir: project_dir_string,
         manifest: serde_json::json!({
             "dependencies": {
-                "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0"
+                "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0",
+                "@pnpm.e2e/install-script-example": "1.0.0"
             }
         }),
         dependency_manifest: None,
     }];
-    options.store_dir = Some(temp_dir.path().join("store").to_string_lossy().into_owned());
+    options.store_dir = Some(temp_dir.join("store").to_string_lossy().into_owned());
     options.registries = Some(HashMap::from([("default".to_string(), registry.url())]));
-    options.dangerously_allow_all_builds = Some(true);
     options.return_list_of_deps_requiring_build = Some(true);
-
-    let sink = pacquet_package_manager::DepsRequiringBuildSink::default();
-    run_install_inner(&options, None, EngineMode::Install, Some(std::sync::Arc::clone(&sink)))
-        .expect("first install");
-    let first = sink.lock().expect("lock sink").take();
-    assert_eq!(
-        first,
-        Some(std::collections::BTreeSet::from([
-            "@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0".to_string()
-        ])),
-    );
-
-    let sink = pacquet_package_manager::DepsRequiringBuildSink::default();
-    run_install_inner(&options, None, EngineMode::Install, Some(std::sync::Arc::clone(&sink)))
-        .expect("second install");
-    let second = sink.lock().expect("lock sink").take();
-    assert_eq!(second, None, "the frozen-path repeat install must not compute the list");
+    options
 }
 
 /// The lockfile must record `overrides` in declaration order — the
