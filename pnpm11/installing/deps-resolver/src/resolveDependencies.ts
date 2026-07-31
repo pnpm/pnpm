@@ -2449,21 +2449,29 @@ function getResolvedPackage (
  * cannot collide. Without the qualifier the second resolution silently
  * reuses the first one's tarball, so the dependency that asked for the
  * named registry gets the other registry's bytes. Differing integrity is
- * what proves the two are genuinely different artifacts; the check is
- * limited to named-registry involvement so nothing else can trip it.
+ * The check is limited to named-registry involvement so nothing else can trip
+ * it, and within that it is fail-closed: the two are allowed to share an id
+ * only when something positively proves they are the same artifact — equal
+ * integrity, or failing that an equal tarball URL. Being unable to tell is
+ * treated as a collision, because the alternative is handing one dependency
+ * the other registry's bytes.
  */
 export function detectNamedRegistryCollision (
   resolved: ResolvedPackage,
   pkgResponse: PackageResponse
 ): void {
   if (resolved.resolvedVia !== 'named-registry' && pkgResponse.body.resolvedVia !== 'named-registry') return
-  const existingIntegrity = (resolved.resolution as TarballResolution | undefined)?.integrity
-  const incomingIntegrity = (pkgResponse.body.resolution as TarballResolution | undefined)?.integrity
-  if (
-    typeof existingIntegrity !== 'string' ||
-    typeof incomingIntegrity !== 'string' ||
-    existingIntegrity === incomingIntegrity
-  ) return
+  const existing = resolved.resolution as TarballResolution | undefined
+  const incoming = pkgResponse.body.resolution as TarballResolution | undefined
+  if (typeof existing?.integrity === 'string' && typeof incoming?.integrity === 'string') {
+    if (existing.integrity === incoming.integrity) return
+  } else if (
+    typeof existing?.tarball === 'string' &&
+    typeof incoming?.tarball === 'string' &&
+    existing.tarball === incoming.tarball
+  ) {
+    return
+  }
   throw new PnpmError(
     'NAMED_REGISTRY_PACKAGE_COLLISION',
     `"${resolved.name}@${resolved.version}" is provided by more than one registry, but the lockfile cannot record which registry each dependency came from.`,

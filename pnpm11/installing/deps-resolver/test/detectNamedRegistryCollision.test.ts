@@ -58,11 +58,24 @@ test('two ordinary registry resolutions are left alone', () => {
   }).not.toThrow()
 })
 
-test('a resolution with no integrity yet cannot be judged', () => {
+test('an identical tarball URL still proves the two are one artifact', () => {
+  // No integrity on either side yet, but both point at the same bytes.
+  expect(() => {
+    detectNamedRegistryCollision(
+      { resolvedVia: 'named-registry', resolution: { tarball: 'https://example.com/foo-1.0.0.tgz' } } as unknown as ResolvedPackage,
+      { body: { resolvedVia: 'npm-registry', resolution: { tarball: 'https://example.com/foo-1.0.0.tgz' } } } as unknown as PackageResponse
+    )
+  }).not.toThrow()
+})
+
+test('an identity that cannot be proven is treated as a collision', () => {
+  // Without an integrity or a matching URL there is nothing to show the two
+  // are the same artifact, so reusing one for the other could hand a
+  // dependency the wrong registry's bytes.
   expect(() => {
     detectNamedRegistryCollision(
       resolved({ resolvedVia: 'named-registry', integrity: 'sha512-AAAA' }),
       { body: { resolvedVia: 'npm-registry', resolution: {} } } as unknown as PackageResponse
     )
-  }).not.toThrow()
+  }).toThrow(expect.objectContaining({ code: 'ERR_PNPM_NAMED_REGISTRY_PACKAGE_COLLISION' }))
 })
