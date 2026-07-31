@@ -11,6 +11,7 @@ import type { Catalogs } from '@pnpm/catalogs.types'
 import { parseOverrides } from '@pnpm/config.parse-overrides'
 import { createPackageVersionPolicyOrThrow, getPublishedByPolicy } from '@pnpm/config.version-policy'
 import {
+  BUILTIN_NAMED_REGISTRIES,
   LAYOUT_VERSION,
   LOCKFILE_MAJOR_VERSION,
   LOCKFILE_VERSION,
@@ -796,6 +797,7 @@ export async function mutateModules (
       opts.fixLockfile ||
       opts.updateChecksums ||
       !upToDateLockfileMajorVersion ||
+      namedRegistriesFormatUpgradePending(ctx.wantedLockfile, opts) ||
       opts.forceFullResolution ||
       forceResolutionFromHook
     if (needsFullResolution) {
@@ -2486,6 +2488,31 @@ function getProjectsWithTargetDirs<T extends { id: ProjectId }> (
  * client-side update-flag behavior (`update`/`updateMatching`/`updateToLatest`)
  * yet, so those still go through the normal client-side resolver.
  */
+/**
+ * Whether the install must re-resolve to migrate a lockfile onto format 9.1.
+ *
+ * `namedRegistriesLockfileFormat` only takes effect through resolution, and a
+ * 9.0 lockfile is a supported version, so an otherwise up-to-date project
+ * would take the frozen-like fast path and the setting would appear to do
+ * nothing. The scan is limited to projects that actually declare a
+ * named-registry dependency, so enabling the setting elsewhere costs nothing.
+ */
+function namedRegistriesFormatUpgradePending (
+  wantedLockfile: LockfileObject,
+  opts: { namedRegistriesLockfileFormat?: boolean, namedRegistries?: Record<string, string> }
+): boolean {
+  if (opts.namedRegistriesLockfileFormat !== true) return false
+  if (wantedLockfile.lockfileVersion === NAMED_REGISTRIES_LOCKFILE_VERSION) return false
+  const aliasPrefixes = Object.keys({ ...BUILTIN_NAMED_REGISTRIES, ...opts.namedRegistries })
+    .map((alias) => `${alias}:`)
+  for (const importer of Object.values(wantedLockfile.importers ?? {})) {
+    for (const specifier of Object.values(importer.specifiers ?? {})) {
+      if (aliasPrefixes.some((prefix) => specifier.startsWith(prefix))) return true
+    }
+  }
+  return false
+}
+
 function canUsePnprForMutations (projects: MutatedProject[]): boolean {
   if (projects.length === 0) return false
   return projects.every((p) => {

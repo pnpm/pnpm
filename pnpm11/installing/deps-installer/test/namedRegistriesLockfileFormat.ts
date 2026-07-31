@@ -96,3 +96,19 @@ test('the same package resolved from two registries gets one entry per registry'
     version: '@pnpm.e2e/foo@work:1.0.0',
   })
 })
+
+test('enabling the setting migrates an existing 9.0 lockfile', async () => {
+  prepareEmpty()
+
+  await installFoo({})
+  expect(readLockfile().lockfileVersion).toBe(LOCKFILE_VERSION)
+
+  // The project is otherwise up to date, and 9.0 is still a supported
+  // version, so nothing else would force the re-resolution that applies the
+  // format. Turning the setting on has to be enough on its own.
+  await installFoo({ namedRegistriesLockfileFormat: true })
+
+  const lockfile = readLockfile()
+  expect(lockfile.lockfileVersion).toBe(NAMED_REGISTRIES_LOCKFILE_VERSION)
+  expect(Object.keys(lockfile.packages ?? {})).toContain('@pnpm.e2e/foo@work:1.0.0')
+})

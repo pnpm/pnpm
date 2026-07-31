@@ -82,8 +82,9 @@ pub(crate) fn prior_child_key(
         .or_else(|| snapshot.optional_dependencies.as_ref().and_then(|deps| deps.get(&name)))?;
     let key = dep_ref.resolve(&name)?;
     let satisfied = if let Some((registry_name, version)) = key.suffix.registry_qualified() {
-        let range =
-            reduce_named_registry_spec(registry_name, bare_specifier)?.parse::<Range>().ok()?;
+        let range = reduce_named_registry_spec(registry_name, &key.name, bare_specifier)?
+            .parse::<Range>()
+            .ok()?;
         satisfies_with_prereleases(&range, version)
     } else {
         let range = bare_specifier.parse::<Range>().ok()?;
@@ -93,15 +94,30 @@ pub(crate) fn prior_child_key(
 }
 
 /// Reduce a named-registry specifier (`<registryName>:[<name>@]<range>`) to
-/// its range for a semver check against a registry-qualified lockfile key.
-/// `None` when the specifier does not target the key's named registry — a
-/// qualified entry must never satisfy a spec from another registry.
-fn reduce_named_registry_spec<'a>(registry_name: &str, bare_specifier: &'a str) -> Option<&'a str> {
+/// the range to semver-check against a registry-qualified lockfile key.
+///
+/// `None` whenever the specifier cannot describe `key_name` from
+/// `registry_name`, so the caller falls through to a fresh resolve:
+///
+/// * a different registry — a qualified entry must never satisfy a spec
+///   aimed at another registry;
+/// * a different package — the aliased shape `<registry>:<name>@<range>`
+///   names its package explicitly, and an entry recorded for some other
+///   name is a different dependency even though the manifest alias is
+///   unchanged.
+fn reduce_named_registry_spec<'a>(
+    registry_name: &str,
+    key_name: &PkgName,
+    bare_specifier: &'a str,
+) -> Option<&'a str> {
     let body = bare_specifier.strip_prefix(registry_name)?.strip_prefix(':')?;
-    match body.rfind('@') {
-        Some(index) if index > 0 => Some(&body[index + 1..]),
-        _ => Some(body),
-    }
+    // `@scope/name@range` splits at the last `@`; a bare `range` has none
+    // (or only the leading one of a scope, which never delimits a version).
+    let Some(index) = body.rfind('@').filter(|index| *index > 0) else {
+        return Some(body);
+    };
+    let (spec_name, range) = (&body[..index], &body[index + 1..]);
+    (spec_name == key_name.to_string()).then_some(range)
 }
 
 /// The snapshot key (`snapshots:` / `packages:` map key) the prior
@@ -135,8 +151,9 @@ pub(crate) fn reusable_importer_dep(
     }
     let ver_peer = spec.version.ver_peer()?;
     let satisfied = if let Some((registry_name, version)) = ver_peer.registry_qualified() {
-        let range =
-            reduce_named_registry_spec(registry_name, bare_specifier)?.parse::<Range>().ok()?;
+        let range = reduce_named_registry_spec(registry_name, &key.name, bare_specifier)?
+            .parse::<Range>()
+            .ok()?;
         satisfies_with_prereleases(&range, version)
     } else {
         let range = bare_specifier.parse::<Range>().ok()?;

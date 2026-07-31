@@ -329,3 +329,26 @@ fn prior_child_key_applies_the_satisfies_gate() {
     );
     assert!(super::prior_child_key(&snapshot, "baz", "^1.0.0").is_none(), "unrecorded alias");
 }
+
+#[test]
+fn reduce_named_registry_spec_matches_registry_and_package_name() {
+    let key_name: PkgName = "@scope/old".parse().unwrap();
+
+    // Bare range: the alias carries the package name, nothing to compare.
+    assert_eq!(super::reduce_named_registry_spec("gh", &key_name, "gh:^1.0.0"), Some("^1.0.0"));
+
+    // Aliased shape naming the same package.
+    assert_eq!(
+        super::reduce_named_registry_spec("gh", &key_name, "gh:@scope/old@^1.0.0"),
+        Some("^1.0.0"),
+    );
+
+    // Aliased shape naming a *different* package: reusing the recorded entry
+    // would install `@scope/old` for a dependency that asked for
+    // `@scope/new`.
+    assert_eq!(super::reduce_named_registry_spec("gh", &key_name, "gh:@scope/new@^1.0.0"), None);
+
+    // A spec aimed at another registry never satisfies this key.
+    assert_eq!(super::reduce_named_registry_spec("gh", &key_name, "work:^1.0.0"), None);
+    assert_eq!(super::reduce_named_registry_spec("gh", &key_name, "^1.0.0"), None);
+}
