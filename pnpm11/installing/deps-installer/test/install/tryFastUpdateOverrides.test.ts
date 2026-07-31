@@ -1,4 +1,5 @@
 import { expect, jest, test } from '@jest/globals'
+import { NAMED_REGISTRIES_LOCKFILE_VERSION } from '@pnpm/constants'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import type { RequestPackageFunction } from '@pnpm/store.controller-types'
 import type { DepPath, ProjectId, Registries } from '@pnpm/types'
@@ -13,9 +14,12 @@ const parsedOverrides = [
   { selector: 'foo', newBareSpecifier: '2.0.0', targetPkg: { name: 'foo' } },
 ] as never
 
+// Both fixtures declare 9.1 so the only difference between the two cases is
+// the registry qualifier on the dep path — a 9.0 header could not carry the
+// qualified key in the first place.
 function makeLockfile (depPath: string, ref: string): LockfileObject {
   return {
-    lockfileVersion: '9.0',
+    lockfileVersion: NAMED_REGISTRIES_LOCKFILE_VERSION,
     overrides: { foo: '1.0.0' },
     importers: {
       ['.' as ProjectId]: {
@@ -63,14 +67,15 @@ test('an unqualified dependency path still reaches the resolution step', async (
   // key-shape guard, proving the bail above is caused by the qualifier and
   // not by unrelated fixture details.
   const requestPackage = jest.fn(async () => {
-    throw new Error('stop after the guard')
+    throw new Error('reached the resolution step')
   }) as unknown as RequestPackageFunction
 
-  const applied = await tryFastUpdateOverrides(
+  // The stub's rejection is the assertion: reaching it proves the key-shape
+  // guard let this lockfile through.
+  await expect(tryFastUpdateOverrides(
     makeLockfile('foo@1.0.0', '1.0.0'),
     opts(requestPackage)
-  ).catch(() => false)
+  )).rejects.toThrow('reached the resolution step')
 
-  expect(applied).toBe(false)
   expect(requestPackage).toHaveBeenCalled()
 })
