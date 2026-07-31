@@ -11,9 +11,6 @@
   ],
   "references": [
     {
-      "path": "../../config/reader"
-    },
-    {
       "path": "../../core/core-loggers"
     },
     {
