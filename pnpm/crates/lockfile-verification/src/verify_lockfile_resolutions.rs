@@ -434,7 +434,7 @@ fn collect_candidates(lockfile: &Lockfile) -> (Vec<Candidate>, Vec<ResolutionPol
             && matches!(
                 key.suffix.version(),
                 pacquet_lockfile::VersionPart::Semver(_)
-                    | pacquet_lockfile::VersionPart::RegistryQualified { .. }
+                    | pacquet_lockfile::VersionPart::RegistryQualified { .. },
             )
             && !is_registry_shaped_resolution(&metadata.resolution)
         {
@@ -457,7 +457,7 @@ fn collect_candidates(lockfile: &Lockfile) -> (Vec<Candidate>, Vec<ResolutionPol
             .expect("LockfileResolution must serialize for candidate dedupe");
         let key = format!(
             "{name}@{version}@{}@{resolution_json}",
-            registry_name.as_deref().unwrap_or_default()
+            registry_name.as_deref().unwrap_or_default(),
         );
         deduped.entry(key).or_insert_with(|| Candidate {
             name,

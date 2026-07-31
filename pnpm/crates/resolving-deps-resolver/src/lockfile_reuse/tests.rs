@@ -299,7 +299,7 @@ fn current_pkg_is_none_without_a_packages_entry() {
     let lockfile = empty_lockfile();
     assert!(
         super::current_pkg_from_lockfile(&lockfile, &key, &default_registry(), &HashMap::new())
-            .is_none()
+            .is_none(),
     );
 }
 
@@ -310,7 +310,7 @@ fn current_pkg_is_withheld_for_a_registry_entry_without_a_registry_map() {
     lockfile.packages = Some(HashMap::from([(key.clone(), registry_metadata())]));
     assert!(
         super::current_pkg_from_lockfile(&lockfile, &key, &HashMap::new(), &HashMap::new())
-            .is_none()
+            .is_none(),
     );
 }
 

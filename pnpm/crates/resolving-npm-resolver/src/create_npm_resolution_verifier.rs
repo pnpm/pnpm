@@ -393,7 +393,7 @@ impl NpmResolutionVerifier {
                     return ResolutionVerification::Err {
                         code: MISSING_NAMED_REGISTRY_VIOLATION_CODE,
                         reason: format!(
-                            "was resolved from the named registry '{registry_name}:', which is not present in the namedRegistries setting"
+                            "was resolved from the named registry '{registry_name}:', which is not present in the namedRegistries setting",
                         ),
                     };
                 }

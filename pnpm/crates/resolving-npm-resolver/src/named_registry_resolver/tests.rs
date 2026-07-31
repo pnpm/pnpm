@@ -508,6 +508,6 @@ async fn resolves_registry_qualified_id_when_enabled() {
     // resolution.
     assert_eq!(
         result.name_ver.as_ref().map(ToString::to_string).as_deref(),
-        Some("@acme/private@2.1.0")
+        Some("@acme/private@2.1.0"),
     );
 }

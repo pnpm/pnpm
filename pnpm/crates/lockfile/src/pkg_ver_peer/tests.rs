@@ -286,9 +286,9 @@ fn parse_registry_qualified_round_trip() {
             version: "1.0.0".parse().unwrap(),
         },
     );
-    // Bare-semver reuse paths must treat the version as opaque…
+    // Bare-semver reuse paths must treat the version as opaque...
     assert_eq!(parsed.version_semver(), None);
-    // …while registry-aware callers read the pair.
+    // ...while registry-aware callers read the pair.
     let (registry_name, version) = parsed.registry_qualified().expect("registry qualified");
     assert_eq!(registry_name, "work");
     assert_eq!(version, &"1.0.0".parse::<Version>().unwrap());
