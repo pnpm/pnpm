@@ -17,6 +17,7 @@ import {
   notModifiedWithoutCacheError,
 } from './fetch.js'
 import {
+  isMalformedMirrorFragmentError,
   loadMeta,
   loadMetaHeaders,
   prepareIndexedForDisk,
@@ -287,11 +288,22 @@ export async function pickPackage (
     if (upgrade.upgradedFrom != null) {
       ctx.metaCache.set(cacheKey, metaForCache)
     }
-    const pickedPackage = pickMatchingVersionFinal(pickerOpts, spec, metaForCache)
-    if (pickedPackage != null || ctx.offline === true || !unverifiedDiskPackuments.has(metaForCache)) {
+    let pickedFromCache: PackageInRegistry | null = null
+    let cacheFragmentCorrupt = false
+    try {
+      pickedFromCache = pickMatchingVersionFinal(pickerOpts, spec, metaForCache)
+    } catch (err: unknown) {
+      // A disk-promoted entry with a corrupt fragment: fall through — offline
+      // re-picks below and fails with NO_OFFLINE_META; online revalidates and
+      // the 304 handler refetches past the poisoned mirror.
+      if (!isMalformedMirrorFragmentError(err)) throw err
+      cacheFragmentCorrupt = true
+    }
+    if (!cacheFragmentCorrupt &&
+      (pickedFromCache != null || ctx.offline === true || !unverifiedDiskPackuments.has(metaForCache))) {
       return {
         meta: metaForCache,
-        pickedPackage,
+        pickedPackage: pickedFromCache,
       }
     }
     // Disk-promoted meta that can't satisfy the spec: fall through and
@@ -327,9 +339,18 @@ export async function pickPackage (
 
       if (ctx.offline) {
         if (diskMeta != null) {
+          let pickedPackage: PackageInRegistry | null
+          try {
+            pickedPackage = pickMatchingVersionFinal(pickerOpts, spec, diskMeta)
+          } catch (err: unknown) {
+            // A corrupt fragment makes the mirror as unusable offline as a
+            // missing one, and there is no network to heal it from.
+            if (!isMalformedMirrorFragmentError(err)) throw err
+            throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${toRaw(spec)} in package mirror ${pkgMirror}`)
+          }
           return {
             meta: diskMeta,
-            pickedPackage: pickMatchingVersionFinal(pickerOpts, spec, diskMeta),
+            pickedPackage,
           }
         }
 
@@ -344,7 +365,15 @@ export async function pickPackage (
         if (upgrade.upgradedFrom != null) {
           ctx.metaCache.set(cacheKey, diskMeta)
         }
-        const pickedPackage = pickMatchingVersionFinal(pickerOpts, spec, diskMeta)
+        let pickedPackage: PackageInRegistry | null
+        try {
+          pickedPackage = pickMatchingVersionFinal(pickerOpts, spec, diskMeta)
+        } catch (err: unknown) {
+          // A corrupt fragment: treat like an unusable mirror and let the
+          // network fetch below replace it.
+          if (!isMalformedMirrorFragmentError(err)) throw err
+          pickedPackage = null
+        }
         if (pickedPackage) {
           // A cache hit re-runs maybeUpgradeAbbreviatedMetaForReleaseAge, so
           // serving this meta from memory can't bypass the release-age
@@ -364,10 +393,10 @@ export async function pickPackage (
 
     if (!opts.includeLatestTag && !opts.updateChecksums && spec.type === 'version') {
       diskMeta = diskMeta ?? await limit(loadMetaCondensed)
-      // use the cached meta only if it has the required package version
-      // otherwise it is probably out of date
-      if ((diskMeta?.versions?.[spec.fetchSpec]) != null) {
-        try {
+      try {
+        // use the cached meta only if it has the required package version
+        // otherwise it is probably out of date
+        if ((diskMeta?.versions?.[spec.fetchSpec]) != null) {
           const pickedPackage = pickMatchingVersionFast(pickerOpts, spec, diskMeta)
           if (pickedPackage) {
             cacheDiskLoadedMeta(ctx.metaCache, cacheKey, diskMeta)
@@ -376,12 +405,13 @@ export async function pickPackage (
               pickedPackage,
             }
           }
-        } catch {
-          // Swallow fast-path errors (e.g. ERR_PNPM_MISSING_TIME from
-          // abbreviated meta) and fall through to the network fetch, which
-          // can upgrade to full metadata and run the maturity check on
-          // real `time` data.
         }
+      } catch {
+        // Swallow fast-path errors (ERR_PNPM_MISSING_TIME from abbreviated
+        // meta, a corrupt fragment behind the exact-version read above) and
+        // fall through to the network fetch, which can upgrade to full
+        // metadata, run the maturity check on real `time` data, and replace
+        // a corrupt mirror.
       }
     }
     if (opts.publishedBy && opts.publishedByExclude?.(spec.name) !== true) {
@@ -424,12 +454,24 @@ export async function pickPackage (
 
       // 304: the cached mirror is still current.
       diskMeta = diskMeta ?? await limit(loadMetaCondensed)
-      if (diskMeta != null) return await serveValidatedMeta(diskMeta)
+      if (diskMeta != null) {
+        try {
+          return await serveValidatedMeta(diskMeta)
+        } catch (err: unknown) {
+          // The 304 validated the etag in the intact headers record, but a
+          // version fragment in the local file is corrupt, so the mirror
+          // proves nothing — without this refetch it would keep 304-validating
+          // and never self-heal. Fall through to the cache-bypassing request,
+          // whose persistFreshMeta rewrites the mirror.
+          if (!isMalformedMirrorFragmentError(err)) throw err
+        }
+      }
 
-      // The mirror vanished between the headers read and this read (concurrent
-      // store cleanup, antivirus, ...), so the 304 now validates nothing. Ask
-      // again as a cold cache would, which the registry can only answer with a
-      // body or an error — never another 304.
+      // Either the mirror vanished between the headers read and this read
+      // (concurrent store cleanup, antivirus, ...) or its content turned out
+      // corrupt, so the 304 validates nothing. Ask again as a cold cache
+      // would, which the registry can only answer with a body or an error —
+      // never another 304.
       const refetched = await ctx.fetch(spec.name, {
         authHeaderValue: opts.authHeaderValue,
         cacheBypass: true,
@@ -442,11 +484,20 @@ export async function pickPackage (
       err.spec = spec
       const meta = await loadMetaCondensed() // TODO: add test for this usecase
       if (meta == null) throw err
+      let pickedPackage: PackageInRegistry | null
+      try {
+        pickedPackage = pickMatchingVersionFinal(pickerOpts, spec, meta)
+      } catch (pickErr: unknown) {
+        // A corrupt fragment makes this fallback mirror as useless as a
+        // missing one; surface the original failure.
+        if (!isMalformedMirrorFragmentError(pickErr)) throw pickErr
+        throw err
+      }
       logger.error(err, err)
       logger.debug({ message: `Using cached meta from ${pkgMirror}` })
       return {
         meta,
-        pickedPackage: pickMatchingVersionFinal(pickerOpts, spec, meta),
+        pickedPackage,
       }
     }
 
@@ -472,10 +523,13 @@ export async function pickPackage (
       // bypass the maturity check via the warn-and-skip fallback.
       const upgrade = await maybeUpgradeAbbreviatedMetaForReleaseAge(ctx, spec, opts, cached)
       const meta = upgradeMetaForCache(ctx, upgrade, { pkgMirror, dryRun: opts.dryRun })
+      // Pick before caching: a corrupt-fragment throw must not leave the
+      // poisoned document in the in-memory cache.
+      const pickedPackage = pickMatchingVersionFinal(pickerOpts, spec, meta)
       ctx.metaCache.set(cacheKey, meta)
       return {
         meta,
-        pickedPackage: pickMatchingVersionFinal(pickerOpts, spec, meta),
+        pickedPackage,
       }
     }
 
