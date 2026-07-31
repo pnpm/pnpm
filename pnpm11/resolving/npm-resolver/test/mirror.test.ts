@@ -7,6 +7,7 @@ import { temporaryDirectory } from 'tempy'
 
 import { clearMeta } from '../src/clearMeta.js'
 import {
+  isMalformedMirrorFragmentError,
   loadMeta,
   loadMetaHeaders,
   prepareIndexedForDisk,
@@ -115,7 +116,7 @@ test('loadMetaHeaders reads both layouts', async () => {
   expect(await loadMetaHeaders(ndjson)).toStrictEqual({ etag: '"etag-4"', modified: '2021-01-01T00:00:00.000Z' })
 })
 
-test('a corrupt fragment hydrates to undefined without breaking the rest of the document', async () => {
+test('a corrupt fragment throws on access without breaking the rest of the document', async () => {
   const pkgMirror = path.join(temporaryDirectory(), 'foo.jsonl')
   const meta = fixtureMeta()
   const content = prepareIndexedForDisk(meta, undefined)
@@ -130,6 +131,12 @@ test('a corrupt fragment hydrates to undefined without breaking the rest of the 
   const loaded = await loadMeta(pkgMirror)
   expect(loaded).not.toBeNull()
   expect(Object.keys(loaded!.versions)).toStrictEqual(['1.0.0', '2.0.0'])
-  expect(loaded!.versions['1.0.0']).toBeUndefined()
+  let thrown: unknown
+  try {
+    void loaded!.versions['1.0.0']
+  } catch (err: unknown) {
+    thrown = err
+  }
+  expect(isMalformedMirrorFragmentError(thrown)).toBe(true)
   expect(loaded!.versions['2.0.0']).toStrictEqual(meta.versions['2.0.0'])
 })
