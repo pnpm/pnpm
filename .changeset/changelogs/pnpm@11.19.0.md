@@ -29,8 +29,4 @@
 
 - Preserve a workspace dependency's `link:` entry when a run does not target it — e.g. `pnpm update <other-pkg>` (with or without `--recursive`), or a plain install after a root/catalog dependency change — with `injectWorkspacePackages`, instead of spuriously rewriting it to a peer-suffixed `file:` protocol. See pnpm/pnpm#10433.
 
-- Renamed the `PinnedVersion` type to `RangeSpecStyle` and the `pinnedVersion` option fields to `rangeSpecStyle`: the value selects the operator a specifier is saved with, not a pin. `whichVersionIsPinned` is now `inferRangeSpecStyle`, and the new `rangeSpecGranularity` helper collapses the `exact` spelling to its `patch` range width. `@pnpm/types` keeps `PinnedVersion` as a deprecated alias of `RangeSpecStyle`. The rename itself changes no CLI behavior; the `=`-pin handling is described in its own changesets.
-
-- The default reporter no longer depends on `@pnpm/config.reader` at runtime: it declares its own minimal `ReporterPnpmConfig` type for the config fields it reads. Hosts that embed the reporter no longer pull in the config-reader dependency tree.
-
 - Workspace dependencies declared with a relative path (e.g. `"foo": "workspace:../foo"`) are no longer silently dropped from the workspace projects graph, so `--filter` selection and the topological order of recursive commands take them into account.
