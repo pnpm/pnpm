@@ -28,7 +28,7 @@ describe('buildPurl', () => {
       .toBe('pkg:npm/%40pnpm/lockfile.types@1.0.0')
   })
 
-  test('a named-registry package carries a repository_url qualifier', () => {
+  it('should carry a repository_url qualifier for a named-registry package', () => {
     expect(buildPurl({
       name: 'foo',
       version: '1.0.0',
@@ -36,7 +36,7 @@ describe('buildPurl', () => {
     })).toBe('pkg:npm/foo@1.0.0?repository_url=https%3A%2F%2Fnpm.enterprise.example.com%2F')
   })
 
-  test('the same name and version from two registries get distinct purls', () => {
+  it('should give the same name and version from two registries distinct purls', () => {
     const fromDefault = buildPurl({ name: 'foo', version: '1.0.0' })
     const fromNamed = buildPurl({
       name: 'foo',
