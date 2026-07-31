@@ -1,7 +1,7 @@
 import { packageIsInstallable } from '@pnpm/cli.utils'
 import { logger } from '@pnpm/logger'
-import type { Project, ProjectManifest, SupportedArchitectures } from '@pnpm/types'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
+import type { Project, ProjectManifest, SupportedArchitectures } from '@pnpm/types'
 
 import { findPackages } from './findPackages.js'
 

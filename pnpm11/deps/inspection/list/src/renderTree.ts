@@ -1,9 +1,9 @@
 import path from 'node:path'
 
 import type { DependencyNode } from '@pnpm/deps.inspection.tree-builder'
+import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import { renderTree as renderArchyTree, type TreeNode, type TreeNodeGroup } from '@pnpm/text.tree-renderer'
 import { DEPENDENCIES_FIELDS, type DependenciesField } from '@pnpm/types'
-import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import chalk from 'chalk'
 
 import { getPkgInfo } from './getPkgInfo.js'

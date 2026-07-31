@@ -13,8 +13,8 @@ import type {
   VariationsResolution,
   WantedDependency,
 } from '@pnpm/resolving.resolver-base'
-import type { PkgResolutionId } from '@pnpm/types'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
+import type { PkgResolutionId } from '@pnpm/types'
 
 export interface BunRuntimeResolveResult extends ResolveResult {
   resolution: VariationsResolution
