@@ -44,8 +44,6 @@ use std::{
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub(crate) struct NpmrcAuth {
     pub registry: Option<String>,
-    /// The `scope=` default package scope. Consumed by `pnpm login` /
-    /// `pnpm adduser` to key the granted token to a scope.
     pub scope: Option<String>,
     pub scoped_registries: BTreeMap<String, String>,
     /// Unscoped creds (i.e. `_auth=…`, `_authToken=…`, `username=…` /
