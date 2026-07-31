@@ -135,7 +135,7 @@ jobs:
 
       - name: Install Bencher CLI
         if: hashFiles('benchmark-artifact/bencher-results.json') != ''
-        uses: bencherdev/bencher@d2895af8c867c83b8fe766a6b84d8ccd4df5c315 # v0.6.10
+        uses: bencherdev/bencher@4c83b25441d145ee273adaf74be30f2382e6ba85 # v0.6.11
 
       - name: Upload PR results to Bencher
         # workflow_run runs in the base-repo privilege context, so

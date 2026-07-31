@@ -209,11 +209,15 @@ fn resolved_tarball_url(
 /// prefixed components are rejected by shape, not `is_absolute()`:
 /// on Windows a rooted-but-prefixless `\escape` (or a prefix-only
 /// `C:evil`) is not "absolute" yet still replaces the join base.
-fn is_unsafe_path_component(component: &str) -> bool {
-    component.contains("..")
-        || Path::new(component).components().any(|part| {
-            matches!(part, std::path::Component::RootDir | std::path::Component::Prefix(_))
-        })
+pub(crate) fn is_unsafe_path_component(component: &str) -> bool {
+    Path::new(component).components().any(|part| {
+        matches!(
+            part,
+            std::path::Component::ParentDir
+                | std::path::Component::RootDir
+                | std::path::Component::Prefix(_),
+        )
+    })
 }
 
 /// Filesystem path of a package addressed by `dep_path`. For a local

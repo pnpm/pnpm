@@ -1,6 +1,6 @@
-use super::{FindWorkspaceProjectsOpts, find_workspace_projects};
+use super::{FindWorkspaceProjectsError, FindWorkspaceProjectsOpts, find_workspace_projects};
 use pretty_assertions::assert_eq;
-use std::fs;
+use std::{fs, io::ErrorKind};
 use tempfile::TempDir;
 
 fn make_project(root: &std::path::Path, rel: &str, name: &str) {
@@ -258,4 +258,83 @@ fn empty_patterns_array_enumerates_root_only() {
         .map(|project| project.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
         .collect();
     assert_eq!(names, vec!["root".to_string()]);
+}
+
+/// A pattern whose directory does not exist matches nothing instead of
+/// aborting the enumeration, so a workspace that declares `packages/*`
+/// before creating `packages/` still resolves its root project
+/// (pnpm/pnpm#13296).
+#[test]
+fn missing_pattern_directory_matches_nothing() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+
+    let projects = find_workspace_projects(
+        tmp.path(),
+        &FindWorkspaceProjectsOpts {
+            patterns: Some(vec!["packages/*".to_string(), "apps/**".to_string()]),
+        },
+    )
+    .expect("a missing pattern directory is not an error");
+
+    let names: Vec<String> = projects
+        .iter()
+        .map(|project| project.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
+        .collect();
+    assert_eq!(names, vec!["root".to_string()]);
+}
+
+/// The absorbed kind is `NotFound` only: any other walk failure is real
+/// and must not be mistaken for "no matches", with its `io::ErrorKind`
+/// intact so the decision can be made at all.
+///
+/// A regular file where the pattern expects a directory, rather than a
+/// `0o000` directory — the walk then fails for a reason no privilege level
+/// can bypass, so the fixture holds even when the tests run as root.
+#[test]
+fn non_notfound_walk_failure_still_errors() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    fs::write(tmp.path().join("packages"), "not a directory").unwrap();
+
+    let result = find_workspace_projects(
+        tmp.path(),
+        &FindWorkspaceProjectsOpts { patterns: Some(vec!["packages/*".to_string()]) },
+    );
+
+    // `expect_err` would need `Project: Debug`, which it deliberately is not.
+    let Err(FindWorkspaceProjectsError::Walk { source, .. }) = result else {
+        panic!("a non-NotFound walk failure must surface as Walk, not an empty match");
+    };
+    dbg!(&source);
+    assert_ne!(
+        source.kind(),
+        ErrorKind::NotFound,
+        "the walk error's kind must survive the conversion, or the skip cannot be decided",
+    );
+}
+
+/// Workspaces do contain manifests written with a leading UTF-8 BOM —
+/// Vite ships one as the `utf8-bom-package` fixture — and discovery must
+/// enumerate them rather than failing the whole walk.
+#[test]
+fn discovers_a_project_whose_manifest_starts_with_a_utf8_bom() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    let dir = tmp.path().join("packages/utf8-bom-package");
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join("package.json"), "\u{feff}{\"name\": \"bom\", \"version\": \"1.0.0\"}\n")
+        .unwrap();
+
+    let projects = find_workspace_projects(
+        tmp.path(),
+        &FindWorkspaceProjectsOpts { patterns: Some(vec!["packages/*".to_string()]) },
+    )
+    .unwrap();
+
+    let names: Vec<String> = projects
+        .iter()
+        .map(|project| project.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
+        .collect();
+    assert_eq!(names, vec!["root".to_string(), "bom".to_string()]);
 }

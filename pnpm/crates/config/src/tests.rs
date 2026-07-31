@@ -1,6 +1,6 @@
 use super::{
     Config, EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, LinkProbe, LoadWorkspaceYamlError,
-    NodeLinker, NodePackageMapType, PackageImportMethod, fs,
+    NodeLinker, NodePackageMapType, PackageImportMethod, TrustPolicy, fs,
 };
 use crate::defaults::default_store_dir;
 use pacquet_store_dir::StoreDir;
@@ -1340,6 +1340,156 @@ pub fn user_cert_key_pin_to_its_own_file_registry() {
     assert!(config.tls_by_uri.get("//attacker.example.com/").is_none());
 }
 
+/// A `\n`-escaped inline PEM — the only way to fit a certificate on one
+/// INI line — expands to real newlines whichever spelling declared it,
+/// so rescoping an unscoped `cert`/`key` yields the same bytes as
+/// writing the URL-scoped key by hand.
+#[test]
+pub fn unscoped_inline_pem_escapes_expand_like_the_url_scoped_spelling() {
+    let cert = r"-----BEGIN CERTIFICATE-----\ncertbody\n-----END CERTIFICATE-----";
+    let key = r"-----BEGIN PRIVATE KEY-----\nkeybody\n-----END PRIVATE KEY-----";
+    let auth = tempdir().expect("auth tempdir");
+    let user_file = auth.path().join("user-npmrc");
+    write_file(
+        &user_file,
+        &format!("registry=https://trusted.example.com/\ncert={cert}\nkey={key}\n"),
+    );
+
+    let config = load_with_project_and_user("", user_file);
+
+    let scoped =
+        config.tls_by_uri.get("//trusted.example.com/").expect("cert/key pinned to trusted");
+    assert_eq!(scoped.cert.as_deref(), Some(cert.replace(r"\n", "\n").as_str()));
+    assert_eq!(scoped.key.as_deref(), Some(key.replace(r"\n", "\n").as_str()));
+}
+
+/// A registry override that lands *after* the `.npmrc` files are read —
+/// here `PNPM_CONFIG_REGISTRY`, the in-cascade twin of `--registry` —
+/// does not pull an ambient user-level token along with it. The token
+/// pinned to the npmjs default when the user file was read.
+#[test]
+pub fn late_registry_override_does_not_pull_an_unscoped_user_token_along() {
+    fake_env!(load_with_fake_env);
+    let project = tempdir().expect("project tempdir");
+    let auth = tempdir().expect("auth tempdir");
+    let user_file = auth.path().join("user-npmrc");
+    write_file(&user_file, "_authToken=user-secret\n");
+
+    set_fake_env(&[
+        ("PNPM_CONFIG_NPMRC_AUTH_FILE", user_file.to_str().unwrap()),
+        ("PNPM_CONFIG_REGISTRY", "https://attacker.example.com/"),
+    ]);
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(config.registry, "https://attacker.example.com/");
+    assert_eq!(
+        config.auth_headers.for_url("https://registry.npmjs.org/pkg").as_deref(),
+        Some("Bearer user-secret"),
+    );
+    assert_eq!(config.auth_headers.for_url("https://attacker.example.com/pkg"), None);
+}
+
+/// The rescope warning names the file it read and every key it pinned,
+/// so a user can find and migrate the offending line.
+#[test]
+pub fn unscoped_creds_warn_naming_the_source_file_and_each_key() {
+    let auth = tempdir().expect("auth tempdir");
+    let user_file = auth.path().join("user-npmrc");
+    write_file(&user_file, "_auth=dXNlcjpwYXNz\nusername=alice\n_password=cGFzcw==\n");
+
+    let warnings = capture_warnings(|| drop(load_with_project_and_user("", user_file.clone())));
+
+    let warning = warnings
+        .iter()
+        .find(|warning| warning.contains("Unscoped per-registry settings"))
+        .expect("deprecation warning");
+    for key in ["_auth", "username", "_password"] {
+        assert!(warning.contains(key), "{warning:?} should name {key:?}");
+    }
+    assert!(
+        warning.contains(&user_file.display().to_string()),
+        "{warning:?} should name the source file",
+    );
+}
+
+/// A project `.npmrc`'s own unscoped credentials warn too, named by the
+/// path pnpm read them from.
+#[test]
+pub fn unscoped_creds_in_project_npmrc_warn_naming_that_file() {
+    let auth = tempdir().expect("auth tempdir");
+    let project = tempdir().expect("project tempdir");
+    write_file(&project.path().join(".npmrc"), "registry=https://ws.example.com/\n_authToken=t\n");
+
+    let warnings = capture_warnings(|| {
+        drop(
+            Config { npmrc_auth_file: Some(auth.path().join("user-npmrc")), ..Config::default() }
+                .current::<HostNoHome>(project.path())
+                .expect("load config"),
+        );
+    });
+
+    let warning = warnings
+        .iter()
+        .find(|warning| warning.contains("Unscoped per-registry settings"))
+        .expect("deprecation warning");
+    assert!(
+        warning.contains(&project.path().join(".npmrc").display().to_string()),
+        "{warning:?} should name the project .npmrc",
+    );
+}
+
+/// URL-scoped credentials are already pinned by construction, so they
+/// pass through without a deprecation warning.
+#[test]
+pub fn url_scoped_creds_do_not_warn() {
+    let auth = tempdir().expect("auth tempdir");
+    let user_file = auth.path().join("user-npmrc");
+    write_file(&user_file, "registry=https://example.com/\n//example.com/:_authToken=secret\n");
+
+    let warnings = capture_warnings(|| drop(load_with_project_and_user("", user_file)));
+
+    assert!(
+        !warnings.iter().any(|warning| warning.contains("Unscoped per-registry settings")),
+        "{warnings:?} should not contain a deprecation warning",
+    );
+}
+
+/// `pnpm config get` / `pnpm config list` report the pinned spelling:
+/// the rescope rewrites the raw INI keys alongside the structured
+/// credentials, so no unscoped key survives into the reported config.
+#[test]
+pub fn rescoped_creds_are_reported_under_their_pinned_key() {
+    let auth = tempdir().expect("auth tempdir");
+    let user_file = auth.path().join("user-npmrc");
+    write_file(&user_file, "registry=https://trusted.example.com/\n_authToken=user-secret\n");
+
+    let config = load_with_project_and_user("registry=https://attacker.example.com/\n", user_file);
+
+    assert_eq!(
+        config.raw_auth_config.get("//trusted.example.com/:_authToken").map(String::as_str),
+        Some("user-secret"),
+    );
+    assert!(!config.raw_auth_config.contains_key("_authToken"));
+}
+
+/// An unscoped `tokenHelper` is honored but has no INI-readable spelling
+/// of its own, so the parser never captures it verbatim. It is still
+/// reported under the key it was pinned to, matching a helper written
+/// URL-scoped by hand.
+#[test]
+pub fn rescoped_token_helper_is_reported_under_its_pinned_key() {
+    let auth = tempdir().expect("auth tempdir");
+    let user_file = auth.path().join("user-npmrc");
+    write_file(&user_file, "registry=https://trusted.example.com/\ntokenHelper=/bin/echo\n");
+
+    let config = load_with_project_and_user("", user_file);
+
+    assert_eq!(
+        config.raw_auth_config.get("//trusted.example.com/:tokenHelper").map(String::as_str),
+        Some("/bin/echo"),
+    );
+}
+
 /// `auth.ini` (in the global config dir) with no `registry=` of its
 /// own falls back to the npmjs default for its unscoped creds — it
 /// does not borrow the user file's or workspace's registry.
@@ -2252,6 +2402,168 @@ pub fn pnpm_config_env_var_overrides_workspace_yaml() {
 }
 
 #[test]
+pub fn self_update_config_ignores_a_workspace_manifest_that_raises_the_cutoff() {
+    let tmp = tempdir().unwrap();
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "minimumReleaseAge: 4320\nminimumReleaseAgeStrict: true\n",
+    )
+    .expect("write to pnpm-workspace.yaml");
+
+    let config =
+        Config::new().current_for_self_update::<HostNoHome>(tmp.path()).expect("config loads");
+
+    // A repo that raises the cutoff would pin the machine to the installed
+    // pnpm, including past a release that fixes a vulnerability in it.
+    assert_eq!(config.minimum_release_age, Config::new().minimum_release_age);
+    assert_eq!(config.minimum_release_age_strict, None);
+    assert_eq!(config.workspace_dir.as_deref(), Some(tmp.path()));
+}
+
+#[test]
+pub fn self_update_config_ignores_a_workspace_manifest_that_loosens_the_cutoff() {
+    let tmp = tempdir().unwrap();
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "minimumReleaseAge: 0\nminimumReleaseAgeStrict: false\nminimumReleaseAgeExclude:\n  - pnpm\n",
+    )
+    .expect("write to pnpm-workspace.yaml");
+
+    struct HostWithStrictEnv;
+    impl EnvVar for HostWithStrictEnv {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "PNPM_CONFIG_MINIMUM_RELEASE_AGE_STRICT" => Some("true".to_owned()),
+                _ => safe_host_var(name),
+            }
+        }
+    }
+    impl EnvVarOs for HostWithStrictEnv {
+        fn var_os(_: &str) -> Option<OsString> {
+            None
+        }
+    }
+    impl GetHomeDir for HostWithStrictEnv {
+        fn home_dir() -> Option<PathBuf> {
+            None
+        }
+    }
+    inert_link_probe!(HostWithStrictEnv);
+    host_current_dir!(HostWithStrictEnv);
+
+    let config = Config::new()
+        .current_for_self_update::<HostWithStrictEnv>(tmp.path())
+        .expect("config loads");
+
+    assert_eq!(config.minimum_release_age, Config::new().minimum_release_age);
+    assert_eq!(config.minimum_release_age_strict, Some(true));
+    assert_eq!(config.minimum_release_age_exclude, None);
+}
+
+#[test]
+pub fn self_update_config_ignores_a_workspace_manifest_that_loosens_the_trust_policy() {
+    let tmp = tempdir().unwrap();
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "trustPolicy: off\ntrustPolicyExclude:\n  - pnpm\ntrustPolicyIgnoreAfter: 525600\n",
+    )
+    .expect("write to pnpm-workspace.yaml");
+
+    struct HostWithTrustPolicyEnv;
+    impl EnvVar for HostWithTrustPolicyEnv {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "PNPM_CONFIG_TRUST_POLICY" => Some("no-downgrade".to_owned()),
+                _ => safe_host_var(name),
+            }
+        }
+    }
+    impl EnvVarOs for HostWithTrustPolicyEnv {
+        fn var_os(_: &str) -> Option<OsString> {
+            None
+        }
+    }
+    impl GetHomeDir for HostWithTrustPolicyEnv {
+        fn home_dir() -> Option<PathBuf> {
+            None
+        }
+    }
+    inert_link_probe!(HostWithTrustPolicyEnv);
+    host_current_dir!(HostWithTrustPolicyEnv);
+
+    let config = Config::new()
+        .current_for_self_update::<HostWithTrustPolicyEnv>(tmp.path())
+        .expect("config loads");
+
+    assert_eq!(config.trust_policy, TrustPolicy::NoDowngrade);
+    assert_eq!(config.trust_policy_exclude, None);
+    assert_eq!(config.trust_policy_ignore_after, None);
+}
+
+#[test]
+pub fn self_update_config_keeps_non_policy_workspace_settings() {
+    let tmp = tempdir().unwrap();
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "nodeLinker: hoisted\n")
+        .expect("write to pnpm-workspace.yaml");
+
+    let config =
+        Config::new().current_for_self_update::<HostNoHome>(tmp.path()).expect("config loads");
+
+    assert_eq!(config.node_linker, NodeLinker::Hoisted);
+}
+
+#[test]
+pub fn self_update_config_honors_trusted_release_age_env_override() {
+    let tmp = tempdir().unwrap();
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "minimumReleaseAge: 4320\nminimumReleaseAgeStrict: true\n",
+    )
+    .expect("write to pnpm-workspace.yaml");
+
+    struct HostWithReleaseAgeEnv;
+    impl EnvVar for HostWithReleaseAgeEnv {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "PNPM_CONFIG_MINIMUM_RELEASE_AGE" => Some("0".to_owned()),
+                "PNPM_CONFIG_MINIMUM_RELEASE_AGE_STRICT" => Some("false".to_owned()),
+                _ => safe_host_var(name),
+            }
+        }
+    }
+    impl EnvVarOs for HostWithReleaseAgeEnv {
+        fn var_os(_: &str) -> Option<OsString> {
+            None
+        }
+    }
+    impl GetHomeDir for HostWithReleaseAgeEnv {
+        fn home_dir() -> Option<PathBuf> {
+            None
+        }
+    }
+    inert_link_probe!(HostWithReleaseAgeEnv);
+    host_current_dir!(HostWithReleaseAgeEnv);
+
+    let config = Config::new()
+        .current_for_self_update::<HostWithReleaseAgeEnv>(tmp.path())
+        .expect("config loads");
+
+    assert_eq!(config.minimum_release_age, Some(0));
+    assert_eq!(config.minimum_release_age_strict, Some(false));
+}
+
+#[test]
+pub fn workspace_manifest_still_sets_the_release_age_policy_for_other_commands() {
+    let tmp = tempdir().unwrap();
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "minimumReleaseAge: 4320\n")
+        .expect("write to pnpm-workspace.yaml");
+
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("config loads");
+
+    assert_eq!(config.minimum_release_age, Some(4320));
+}
+
+#[test]
 pub fn patches_dir_reads_from_env_overlay() {
     struct HostWithPatchesDirEnv;
     impl EnvVar for HostWithPatchesDirEnv {
@@ -2318,6 +2630,45 @@ pub fn pnpm_config_hoist_false_clears_hoist_pattern() {
         config.hoist_pattern, None,
         "hoist: false must clear hoist_pattern, even when set via env var",
     );
+}
+
+#[test]
+pub fn shamefully_hoist_derives_the_public_hoist_pattern() {
+    let tmp = tempdir().unwrap();
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "shamefullyHoist: true\npublicHoistPattern:\n  - eslint\n",
+    )
+    .expect("write to pnpm-workspace.yaml");
+
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");
+
+    assert_eq!(config.public_hoist_pattern, Some(vec!["*".to_string()]));
+}
+
+#[test]
+pub fn shamefully_hoist_false_disables_public_hoisting() {
+    let tmp = tempdir().unwrap();
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "shamefullyHoist: false\npublicHoistPattern:\n  - eslint\n",
+    )
+    .expect("write to pnpm-workspace.yaml");
+
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");
+
+    assert_eq!(config.public_hoist_pattern, None);
+}
+
+#[test]
+pub fn unset_shamefully_hoist_preserves_the_public_hoist_pattern() {
+    let tmp = tempdir().unwrap();
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "publicHoistPattern:\n  - eslint\n")
+        .expect("write to pnpm-workspace.yaml");
+
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");
+
+    assert_eq!(config.public_hoist_pattern, Some(vec!["eslint".to_string()]));
 }
 
 #[test]

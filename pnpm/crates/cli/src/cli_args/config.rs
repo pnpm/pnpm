@@ -34,6 +34,19 @@ pub struct ConfigArgs {
     pub command: ConfigSubcommand,
 }
 
+impl ConfigArgs {
+    /// Whether `--global` / `-g` was passed, ignoring the default
+    /// [`resolve_global`] applies when no location flag is given.
+    pub(super) fn is_global(&self) -> bool {
+        match &self.command {
+            ConfigSubcommand::Set(args) => args.flags.global,
+            ConfigSubcommand::Get(args) => args.flags.global,
+            ConfigSubcommand::Delete(args) => args.flags.global,
+            ConfigSubcommand::List(args) => args.flags.global,
+        }
+    }
+}
+
 #[derive(Debug, Subcommand)]
 pub enum ConfigSubcommand {
     /// Set the config key to the value provided.

@@ -29,6 +29,7 @@ fn pkg(name: &str, current: &str, target: &str, group: DependencyGroup) -> Outda
         github_action: false,
         deprecated: None,
         homepage: None,
+        workspace: None,
     }
 }
 

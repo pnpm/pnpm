@@ -426,6 +426,46 @@ fn run_prepare_script_for_git_hosted_dependencies() {
 }
 
 #[test]
+fn type_git_dependency_reuses_side_effects_on_warm_install() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let repo = GitRepoFixture::init(root.path(), "git-side-effects");
+    let lifecycle_log = root.path().join("git-side-effects-builds.log");
+    let script = format!(
+        r"require('fs').appendFileSync({}, 'built\n')",
+        serde_json::to_string(&lifecycle_log).expect("serialize lifecycle log path"),
+    );
+    repo.write_file(
+        "package.json",
+        &json!({
+            "name": "git-side-effects",
+            "version": "1.0.0",
+            "scripts": { "postinstall": format!("node -e {script:?}") },
+        })
+        .to_string(),
+    );
+    let commit = repo.commit("init");
+    let spec = repo.git_url_at(&commit);
+    write_dependencies(&workspace, &[("git-side-effects", &spec)]);
+    allow_builds(&workspace, &[&format!("git-side-effects@{spec}")]);
+
+    pacquet.with_arg("install").assert().success();
+    let builds_after_cold_install =
+        fs::read_to_string(&lifecycle_log).expect("read cold-install lifecycle log");
+
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    pnpm_at(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+
+    assert_eq!(
+        fs::read_to_string(&lifecycle_log).expect("read warm-install lifecycle log"),
+        builds_after_cold_install,
+        "the warm install must materialize cached side effects without rerunning postinstall",
+    );
+
+    drop((root, npmrc_info));
+}
+
+#[test]
 fn git_dependency_is_built_on_isolated_reinstall() {
     assert_git_dependency_is_built_on_reinstall(None);
 }
@@ -601,6 +641,69 @@ fn registry_dependency_can_alias_a_git_dependency_that_provides_a_peer() {
     drop((root, npmrc_info));
 }
 
+/// A git specifier names a repository, not a package, so the name the
+/// peer is matched on lives only in the repo's own manifest — read
+/// during resolution, early enough for the hoist that
+/// `resolvePeersFromWorkspaceRoot` runs
+/// (<https://github.com/pnpm/pnpm/issues/13351>).
+#[test]
+fn an_aliased_git_root_dependency_provides_another_importers_peer() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let repo = GitRepoFixture::init(root.path(), "scoped-peer");
+    repo.write_file("package.json", r#"{"name":"@scoped/peer","version":"1.0.0"}"#);
+    let commit = repo.commit("init");
+    let spec = repo.git_url_at(&commit);
+    write_manifest_value(
+        &workspace,
+        &json!({
+            "name": "root",
+            "version": "1.0.0",
+            "private": true,
+            "dependencies": { "vendored-peer": spec },
+        }),
+    );
+    let app = workspace.join("app");
+    fs::create_dir(&app).expect("create the app project");
+    write_manifest_value(
+        &app,
+        &json!({
+            "name": "app",
+            "version": "1.0.0",
+            "dependencies": { "@having/scoped-peer": "1.0.0" },
+        }),
+    );
+    append_workspace_yaml_key(&workspace, "packages", "[app]");
+
+    pacquet.with_args(["install"]).assert().success();
+
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let lockfile = read_lockfile(&lockfile_path);
+    let git_key = format!("@scoped/peer@{spec}");
+    assert_eq!(importer_version(&lockfile, ".", "vendored-peer"), git_key);
+    assert_eq!(
+        importer_version(&lockfile, "app", "@having/scoped-peer"),
+        format!("1.0.0({git_key})"),
+    );
+    assert_eq!(
+        sole_package(&lockfile, "@scoped/peer").0,
+        git_key,
+        "the peer must be the root's git dep, not a second copy off the registry",
+    );
+
+    // Every install after the first re-resolves with the prior lockfile
+    // in hand, which is the shape a real workspace spends its life in.
+    let first_install = fs::read(&lockfile_path).expect("read the lockfile");
+    pnpm_at(&workspace).with_args(["install", "--no-prefer-frozen-lockfile"]).assert().success();
+    assert_eq!(
+        fs::read(&lockfile_path).expect("reread the lockfile"),
+        first_install,
+        "re-resolving against the recorded lockfile must not move the peer",
+    );
+
+    drop((root, npmrc_info));
+}
+
 // TS: `updating package that has a github-hosted dependency`
 // (`lockfile.ts:600`).
 #[test]
@@ -616,6 +719,71 @@ fn updating_a_registry_package_that_has_a_git_dependency() {
     pnpm_at(&workspace).with_args(["add", "@pnpm.e2e/has-github-dep@latest"]).assert().success();
 
     assert_eq!(read_manifest(&workspace)["dependencies"]["@pnpm.e2e/has-github-dep"], "^2.0.0");
+
+    drop((root, npmrc_info));
+}
+
+/// A git dependency installed under an alias is gated on its *manifest*
+/// name, not the alias: `allowBuilds` has to name `<manifest name>@<spec>`
+/// for `prepare` to run.
+///
+/// The lockfile keys the package the same way, and pnpm's
+/// `preparePackage` builds the identity it checks from the fetched
+/// `package.json` too, so the alias never enters the build policy.
+#[test]
+fn an_aliased_git_dependency_is_gated_on_its_manifest_name() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let repo = GitRepoFixture::init(root.path(), "hi");
+    repo.write_file(
+        "package.json",
+        r#"{"name":"hi","version":"1.0.0","files":["package.json","prepare.txt"],"scripts":{"prepare":"node -e \"require('fs').writeFileSync('prepare.txt', 'prepared')\""}}"#,
+    );
+    let commit = repo.commit("init");
+    let spec = repo.git_url_at(&commit);
+    write_dependencies(&workspace, &[("say-hi", &spec)]);
+    allow_builds(&workspace, &[&format!("hi@{spec}")]);
+
+    pacquet.with_args(["install"]).assert().success();
+
+    let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    assert_eq!(importer_version(&lockfile, ".", "say-hi"), format!("hi@{spec}"));
+    assert!(
+        workspace.join("node_modules/say-hi/prepare.txt").exists(),
+        "the manifest-name allowBuilds entry must let `prepare` run under the alias",
+    );
+
+    drop((root, npmrc_info));
+}
+
+/// The store index is shared with the TypeScript CLI, which keys a git
+/// dependency's row by the bare `git+…#<commit>` resolution id. Keying
+/// it by the lockfile's `<name>@git+…` form instead leaves a store
+/// warmed by one stack cold for the other
+/// ([#13365](https://github.com/pnpm/pnpm/issues/13365)).
+#[test]
+fn a_git_dependency_is_indexed_under_the_bare_resolution_id() {
+    let fixture = CommandTempCwd::init();
+    let (repo, commit) = say_hi_repo(fixture.root.path());
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } = fixture.add_mocked_registry();
+    write_dependencies(&workspace, &[("hi", &repo.git_url_at(&commit))]);
+
+    pacquet.with_args(["install"]).assert().success();
+
+    let store_dir = pacquet_store_dir::StoreDir::from(npmrc_info.store_dir.clone());
+    let keys = pacquet_store_dir::StoreIndex::open_readonly_in(&store_dir)
+        .expect("open the store index")
+        .keys()
+        .expect("read the store index keys");
+    let pkg_id = repo.git_url_at(&commit);
+    assert!(
+        keys.iter().any(|key| key == &format!("{pkg_id}\tbuilt")),
+        "no store-index row keyed by the bare resolution id {pkg_id:?}: {keys:?}",
+    );
+    assert!(
+        !keys.iter().any(|key| key.starts_with("hi@")),
+        "the lockfile-shaped `<name>@<id>` key must not reach the store index: {keys:?}",
+    );
 
     drop((root, npmrc_info));
 }

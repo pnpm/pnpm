@@ -63,6 +63,7 @@ pacquet-workspace-state                   = { workspace = true }
 
 chrono               = { workspace = true }
 clap                 = { workspace = true }
+console              = { workspace = true }
 derive_more          = { workspace = true }
 dialoguer            = { workspace = true }
 dunce                = { workspace = true }
@@ -71,6 +72,7 @@ futures-util         = { workspace = true }
 getrandom            = { workspace = true }
 home                 = { workspace = true }
 indexmap             = { workspace = true }
+is_ci                = { workspace = true }
 node-semver          = { workspace = true }
 miette               = { workspace = true }
 owo-colors.workspace = true
@@ -79,8 +81,10 @@ pathdiff             = { workspace = true }
 pipe-trait           = { workspace = true }
 rayon                = { workspace = true }
 reflink-copy         = { workspace = true }
+regex                = { workspace = true }
 reqwest              = { workspace = true }
 rmp-serde            = { workspace = true }
+same-file            = { workspace = true }
 serde                = { workspace = true }
 serde_json           = { workspace = true }
 tabled               = { workspace = true }
@@ -99,7 +103,11 @@ wax                  = { workspace = true }
 # children (lifecycle scripts and their descendants) to pacquet's. See
 # `src/job_control.rs`.
 [target.'cfg(windows)'.dependencies]
-windows-sys = { workspace = true, features = ["Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
+windows-sys = { workspace = true, features = [
+  "Win32_Storage_FileSystem",
+  "Win32_UI_Shell",
+  "Win32_UI_WindowsAndMessaging",
+] }
 
 [target.'cfg(unix)'.dependencies]
 libc = { workspace = true }

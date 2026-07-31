@@ -1,4 +1,76 @@
-use super::{Frame, PnprClientError, VerifyError, build_verify_error, parse_frame};
+use std::collections::BTreeMap;
+
+use pacquet_config::TrustPolicy;
+use serde_json::json;
+
+use super::{
+    Frame, PnprClient, PnprClientError, ResolveProject, ResolveProjectsOptions, VerifyError,
+    build_verify_error, parse_frame,
+};
+
+/// The request body is the whole contract with the server: a field the
+/// client omits is not defaulted server-side but cleared, so the server
+/// resolves under a policy the user never configured and cannot see
+/// `catalog:` definitions at all. Assert on what actually goes over the
+/// wire rather than on the options struct.
+#[tokio::test]
+async fn the_resolve_request_carries_the_catalogs_and_the_whole_policy() {
+    let mut server = mockito::Server::new_async().await;
+    let resolve_mock = server
+        .mock("POST", "/-/pnpr/v0/resolve")
+        .match_body(mockito::Matcher::PartialJson(json!({
+            "catalogs": { "default": { "acme": "^1.0.0" } },
+            "minimumReleaseAge": 1440,
+            "minimumReleaseAgeExclude": ["@acme/*"],
+            "minimumReleaseAgeIgnoreMissingTime": false,
+            "trustPolicy": "no-downgrade",
+            "trustPolicyExclude": ["legacy-pkg"],
+            "trustPolicyIgnoreAfter": 43200,
+            "trustLockfile": true,
+        })))
+        .with_body("{\"type\":\"done\",\"lockfile\":{\"lockfileVersion\":\"9.0\"}}\n")
+        .create_async()
+        .await;
+
+    let _outcome = PnprClient::new(server.url())
+        .resolve_projects(resolve_projects_options())
+        .await
+        .expect("the resolve succeeds");
+
+    resolve_mock.assert_async().await;
+}
+
+fn resolve_projects_options() -> ResolveProjectsOptions {
+    ResolveProjectsOptions {
+        projects: vec![ResolveProject {
+            dir: ".".to_string(),
+            name: Some("app".to_string()),
+            version: Some("1.0.0".to_string()),
+            dependencies: BTreeMap::from([("acme".to_string(), "catalog:".to_string())]),
+            dev_dependencies: BTreeMap::new(),
+            optional_dependencies: BTreeMap::new(),
+        }],
+        registry: "https://registry.test/".to_string(),
+        named_registries: BTreeMap::new(),
+        authorization: None,
+        overrides: None,
+        catalogs: Some(BTreeMap::from([(
+            "default".to_string(),
+            BTreeMap::from([("acme".to_string(), "^1.0.0".to_string())]),
+        )])),
+        lockfile: None,
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: None,
+        ignore_manifest_check: false,
+        trust_lockfile: true,
+        minimum_release_age: Some(1440),
+        minimum_release_age_exclude: Some(vec!["@acme/*".to_string()]),
+        minimum_release_age_ignore_missing_time: false,
+        trust_policy: TrustPolicy::NoDowngrade,
+        trust_policy_exclude: Some(vec!["legacy-pkg".to_string()]),
+        trust_policy_ignore_after: Some(43200),
+    }
+}
 
 #[test]
 fn a_violations_frame_rebuilds_a_verify_error() {

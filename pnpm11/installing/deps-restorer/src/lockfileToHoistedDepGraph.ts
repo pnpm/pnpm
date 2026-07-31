@@ -55,6 +55,12 @@ export interface LockfileToHoistedDepGraphOptions {
   pnpmVersion: string
   registries: Registries
   patchedDependencies?: PatchGroupRecord
+  /**
+   * The dep paths a non-optional edge reaches, as classified by
+   * `filterLockfileByImportersAndEngine`. Installability is evaluated as
+   * optional for everything outside this set.
+   */
+  requiredDepPaths: Set<DepPath>
   sideEffectsCacheRead: boolean
   skipped: Set<string>
   storeController: StoreController
@@ -199,10 +205,13 @@ async function fetchDeps (
     }
     if (!opts.force &&
       packageIsInstallable(packageId, pkg, {
-        engineStrict: opts.engineStrict,
+        // An incompatibility inside an `optionalDependencies` subtree is
+        // reported, not fatal — see `filterLockfileByImportersAndEngine`,
+        // which classifies these dep paths.
+        engineStrict: opts.engineStrict && pkgSnapshot.optional !== true,
         lockfileDir: opts.lockfileDir,
         nodeVersion: opts.nodeVersion,
-        optional: pkgSnapshot.optional === true,
+        optional: !opts.requiredDepPaths.has(depPath),
         supportedArchitectures: opts.supportedArchitectures,
       }) === false
     ) {

@@ -443,14 +443,11 @@ fn malformed_manifest_propagates_error() {
 
     let err = run_postinstall_hooks::<SilentReporter>(&opts).expect_err("malformed JSON must fail");
     eprintln!("ERR: {err}");
-    assert!(
-        matches!(
-            err,
-            LifecycleScriptError::ReadManifest {
-                source: PackageManifestError::Serialization(_),
-                ..
-            },
-        ),
-        "expected ReadManifest(Serialization), got {err:?}",
-    );
+    let LifecycleScriptError::ReadManifest {
+        source: PackageManifestError::Parse { path, .. }, ..
+    } = &err
+    else {
+        panic!("expected ReadManifest(Parse), got {err:?}")
+    };
+    assert_eq!(path, &pkg_root.join("package.json"));
 }

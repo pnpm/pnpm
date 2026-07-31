@@ -5,11 +5,10 @@ use crate::{
     LinkVirtualStoreBins, LinkVirtualStoreBinsError, LockfileToHoistedDepGraphOptions,
     SkippedSnapshots, SymlinkDirectDependencies, SymlinkDirectDependenciesError,
     SymlinkPackageError, VersionPolicyError, VirtualStoreLayout, any_installability_constraint,
-    build_direct_deps_by_importer, build_hoist_graph, compute_skipped_snapshots,
-    direct_dep_names_for_importer, get_hoisted_dependencies, link_direct_dep_bins_resolved,
-    link_hoisted_modules, link_root_component_members, link_top_level_bins,
-    lockfile_to_hoisted_dep_graph, symlink_direct_dependencies::importer_root_dir,
-    symlink_hoisted_dependencies,
+    build_direct_deps_by_importer, compute_skipped_snapshots, direct_dep_names_for_importer,
+    get_hoisted_dependencies, link_direct_dep_bins_resolved, link_hoisted_modules,
+    link_root_component_members, link_top_level_bins, lockfile_to_hoisted_dep_graph,
+    symlink_direct_dependencies::importer_root_dir, symlink_hoisted_dependencies,
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -516,7 +515,9 @@ pub(crate) fn run_build_phase<Reporter: self::Reporter>(
         store_index_writer: Some(store_index_writer),
         patches: patches.as_ref(),
         scripts_prepend_node_path,
+        script_shell: config.script_shell.as_deref().map(Path::new),
         extra_env,
+        user_agent: &config.user_agent,
         unsafe_perm: config.unsafe_perm,
         child_concurrency: config.child_concurrency,
         skipped,
@@ -923,6 +924,7 @@ where
             snapshots,
             packages,
             Some(&allow_build_policy),
+            Some(workspace_root),
         );
 
         // Reject a lockfile whose dependency names, aliases, or
@@ -1051,7 +1053,7 @@ where
         // only sees root's direct deps and a non-root importer's
         // direct dep that would land at root via public-hoist stays
         // un-deduped. The full `HoistResult` is also threaded to the
-        // on-disk hoist pass below so the BFS isn't run twice.
+        // on-disk hoist pass below so the traversal isn't run twice.
         // `hoist-workspace-packages`: named non-root projects become
         // hoist candidates whose links point at the project dirs.
         let hoisted_workspace_packages = config
@@ -1275,7 +1277,7 @@ where
         // so no new isolated-hoist results are produced when no
         // `hoistPattern` / `publicHoistPattern` is configured.
         //
-        // The BFS itself ran upthread (`pre_hoist`) so the dedupe
+        // The traversal itself ran upthread (`pre_hoist`) so the dedupe
         // pass in `SymlinkDirectDependencies` could see public-hoist
         // targets; here we consume the same plan to write the
         // symlinks on disk and emit the per-side bin shims.
@@ -1324,7 +1326,7 @@ where
             publicly_hoisted_for_post_build = result.publicly_hoisted_aliases_with_bins;
             result.hoisted_dependencies
         } else {
-            BTreeMap::new()
+            crate::HoistedDependencies::new()
         };
 
         let included = IncludedDependencies {
@@ -1818,12 +1820,17 @@ fn link_selected_hoisted_direct_dependencies(
 ) -> Result<(), HoistedLinkerError> {
     let modules_dir_name =
         config.modules_dir.file_name().unwrap_or_else(|| OsStr::new("node_modules"));
+    let root_modules_dir = pacquet_fs::lexical_normalize(&lockfile_dir.join(modules_dir_name));
     for (project_dir, _) in project_manifests {
         let importer_id = pacquet_workspace::importer_id_from_root_dir(lockfile_dir, project_dir);
         let Some(direct_dependencies) = direct_dependencies_by_importer_id.get(&importer_id) else {
             continue;
         };
         let modules_dir = project_dir.join(modules_dir_name);
+        // The workspace root owns the hoisted slot itself, so its own
+        // entries are the real directories rather than links to them.
+        let is_workspace_root = pacquet_fs::lexical_normalize(project_dir)
+            == pacquet_fs::lexical_normalize(lockfile_dir);
         let mut linked_names = Vec::new();
         for (alias, target) in direct_dependencies {
             let link_path =
@@ -1838,6 +1845,62 @@ fn link_selected_hoisted_direct_dependencies(
                         )
                     },
                 )?;
+            // A dependency that won the workspace-root slot is reached by
+            // walking up from the project, exactly as it is under pnpm.
+            // Repeating it inside the project would give a build a second
+            // copy to run lifecycle scripts in. Checked after `link_path`
+            // so an unusable alias still reports itself.
+            if !is_workspace_root
+                && pacquet_fs::lexical_normalize(target)
+                    == pacquet_fs::lexical_normalize(&root_modules_dir.join(alias))
+            {
+                // An install that predates this rule, or one where the
+                // version had lost the slot, leaves a link here. Left in
+                // place it keeps shadowing the root copy, which is the
+                // duplicate this skip exists to avoid. A real directory is
+                // the pruner's to remove, and only ever belongs to a
+                // version that lost the slot.
+                // `is_symlink_or_junction`, not `Path::is_symlink`: on
+                // Windows `symlink_dir` falls back to a junction when it
+                // cannot create a true symlink, and a junction is not a
+                // symlink to the stdlib.
+                let stale_link = match pacquet_fs::is_symlink_or_junction(&link_path) {
+                    Ok(is_link) => is_link,
+                    // Nothing to clean up — the common case, and the one
+                    // `junction::exists` reports as an error rather than
+                    // `Ok(false)`.
+                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
+                    Err(error) => {
+                        return Err(HoistedLinkerError::SymlinkDirectDependencies(
+                            SymlinkDirectDependenciesError::SymlinkPackage {
+                                importer_id: importer_id.clone(),
+                                name: alias.clone(),
+                                source: SymlinkPackageError::SymlinkDir {
+                                    symlink_target: target.clone(),
+                                    symlink_path: link_path.clone(),
+                                    error,
+                                },
+                            },
+                        ));
+                    }
+                };
+                if stale_link {
+                    pacquet_fs::remove_symlink_dir(&link_path).map_err(|error| {
+                        HoistedLinkerError::SymlinkDirectDependencies(
+                            SymlinkDirectDependenciesError::SymlinkPackage {
+                                importer_id: importer_id.clone(),
+                                name: alias.clone(),
+                                source: SymlinkPackageError::SymlinkDir {
+                                    symlink_target: target.clone(),
+                                    symlink_path: link_path.clone(),
+                                    error,
+                                },
+                            },
+                        )
+                    })?;
+                }
+                continue;
+            }
             if pacquet_fs::lexical_normalize(&link_path) == pacquet_fs::lexical_normalize(target) {
                 linked_names.push(alias.clone());
                 continue;
@@ -1887,7 +1950,7 @@ fn exclude_importer_groups(lockfile: &Lockfile, included: IncludedDependencies) 
 /// runs before the on-disk hoist phase in pacquet's ordering) can
 /// fold publicly-hoisted aliases into root's target map. The on-disk
 /// hoist phase later consumes the same [`crate::HoistResult`] instead of
-/// re-running the BFS.
+/// re-running the traversal.
 pub(crate) struct HoistPlan {
     pub(crate) graph: HashMap<PackageKey, crate::HoistGraphNode>,
     pub(crate) result: crate::HoistResult,
@@ -1907,7 +1970,7 @@ pub(crate) struct HoistPlan {
 pub(crate) fn workspace_packages_for_hoist(
     workspace_root: &Path,
     project_manifests: &[(PathBuf, &pacquet_package_manifest::PackageManifest)],
-) -> std::collections::BTreeMap<String, PathBuf> {
+) -> indexmap::IndexMap<String, PathBuf> {
     project_manifests
         .iter()
         .filter(|(project_dir, _)| project_dir != workspace_root)
@@ -1930,7 +1993,7 @@ pub(crate) fn compute_hoist_plan(
     dependency_groups: &[pacquet_package_manifest::DependencyGroup],
     skipped: &SkippedSnapshots,
     is_hoisted: bool,
-    hoisted_workspace_packages: Option<&std::collections::BTreeMap<String, PathBuf>>,
+    hoisted_workspace_packages: Option<&indexmap::IndexMap<String, PathBuf>>,
 ) -> Option<HoistPlan> {
     if is_hoisted {
         return None;
@@ -1950,12 +2013,16 @@ pub(crate) fn compute_hoist_plan(
     let public_pattern = create_matcher(config.public_hoist_pattern.as_deref().unwrap_or(&[]));
     // Static fast-path: when both compiled matchers come from empty
     // pattern lists (`Some([])`), there's no alias they could match,
-    // so the BFS would visit every node only to drop every child.
+    // so the traversal would visit every node only to drop every child.
     // Skip the graph-build + walk entirely.
     if private_pattern.is_empty() && public_pattern.is_empty() {
         return None;
     }
-    let graph = build_hoist_graph(snaps, pkgs);
+    let graph = crate::build_hoist_graph_with_max_length(
+        snaps,
+        pkgs,
+        config.virtual_store_dir_max_length as usize,
+    );
     // Walk every importer's direct deps so transitives unique to a
     // workspace project still get privately hoisted into the shared
     // `<vs>/node_modules` and contribute to `hoistedDependencies`.
@@ -1965,7 +2032,7 @@ pub(crate) fn compute_hoist_plan(
     // `HoistInputs` takes `&HashSet<PackageKey>`; build it once from
     // the outer `SkippedSnapshots` by cloning the small skip set
     // (typically 0-100 entries). Stored on [`HoistPlan`] so the
-    // later on-disk pass can reuse the exact same set the BFS saw.
+    // later on-disk pass can reuse the exact same set the traversal saw.
     let hoist_skipped: HashSet<PackageKey> = skipped.iter().cloned().collect();
     let result = get_hoisted_dependencies(&crate::HoistInputs {
         graph: &graph,
@@ -2017,7 +2084,7 @@ pub(crate) fn collect_public_hoist_targets(
             if !matches!(kind, pacquet_modules_yaml::HoistKind::Public) {
                 continue;
             }
-            // First-wins: the BFS already chose one source per alias
+            // First-wins: the traversal already chose one source per alias
             // via its `hoisted_aliases` claim. Multiple entries with
             // the same alias would be a hoister bug; preserve the
             // first deterministically.

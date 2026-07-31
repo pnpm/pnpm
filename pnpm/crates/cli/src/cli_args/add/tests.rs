@@ -51,7 +51,8 @@ fn dependency_options_to_dependency_groups() {
             save_prod: false,
             save_dev: false,
             save_optional: false,
-            save_peer: false
+            save_peer: false,
+            no_save_peer: false,
         }),
         [Prod],
     );
@@ -61,7 +62,8 @@ fn dependency_options_to_dependency_groups() {
             save_prod: true,
             save_dev: false,
             save_optional: false,
-            save_peer: false
+            save_peer: false,
+            no_save_peer: false,
         }),
         [Prod],
     );
@@ -71,7 +73,8 @@ fn dependency_options_to_dependency_groups() {
             save_prod: false,
             save_dev: true,
             save_optional: false,
-            save_peer: false
+            save_peer: false,
+            no_save_peer: false,
         }),
         [Dev],
     );
@@ -81,7 +84,8 @@ fn dependency_options_to_dependency_groups() {
             save_prod: false,
             save_dev: false,
             save_optional: true,
-            save_peer: false
+            save_peer: false,
+            no_save_peer: false,
         }),
         [Optional],
     );
@@ -91,7 +95,8 @@ fn dependency_options_to_dependency_groups() {
             save_prod: false,
             save_dev: false,
             save_optional: false,
-            save_peer: true
+            save_peer: true,
+            no_save_peer: false,
         }),
         [Dev, Peer],
     );
@@ -101,7 +106,8 @@ fn dependency_options_to_dependency_groups() {
             save_prod: true,
             save_dev: false,
             save_optional: false,
-            save_peer: true
+            save_peer: true,
+            no_save_peer: false,
         }),
         [Prod, Peer],
     );
@@ -111,7 +117,8 @@ fn dependency_options_to_dependency_groups() {
             save_prod: false,
             save_dev: true,
             save_optional: false,
-            save_peer: true
+            save_peer: true,
+            no_save_peer: false,
         }),
         [Dev, Peer],
     );
@@ -121,7 +128,8 @@ fn dependency_options_to_dependency_groups() {
             save_prod: false,
             save_dev: false,
             save_optional: true,
-            save_peer: true
+            save_peer: true,
+            no_save_peer: false,
         }),
         [Optional, Peer],
     );

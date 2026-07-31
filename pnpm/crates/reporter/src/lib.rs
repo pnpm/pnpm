@@ -36,6 +36,14 @@ pub enum LogEvent {
     #[serde(rename = "pnpm:stage")]
     Stage(StageLog),
 
+    /// How many workspace projects the command runs over (`pnpm:scope`).
+    /// Emitted once per run, before the command's own output. The
+    /// default reporter renders it as the `Scope:` line for the commands
+    /// pnpm reports scope for, and stays silent when a single project is
+    /// selected.
+    #[serde(rename = "pnpm:scope")]
+    Scope(ScopeLog),
+
     /// Brackets an interactive terminal prompt (`pnpm:prompt`). The default
     /// reporter holds live redraws between `start` and `end` so they cannot
     /// overwrite the question while it is waiting for input.
@@ -158,6 +166,14 @@ pub enum LogEvent {
     /// into the "other" log stream.
     #[serde(rename = "pnpm")]
     Pnpm(PnpmLog),
+
+    /// The `ERR_PNPM_DEDUPE_CHECK_ISSUES` error (`name: "pnpm"`).
+    ///
+    /// This keeps the structured diff on the wire for NDJSON consumers
+    /// while carrying the terminal rendering used by the in-process default
+    /// reporter.
+    #[serde(rename = "pnpm")]
+    DedupeCheck(DedupeCheckLog),
 
     /// Global-logger message (`name: "pnpm:global"`). Written to a
     /// `bole('pnpm:global')` logger with just a message string — no
@@ -780,6 +796,45 @@ pub struct PnpmLog {
     pub level: LogLevel,
     pub message: String,
     pub prefix: String,
+}
+
+/// The error payload bole serializes under `err`.
+#[derive(Debug, Clone, Serialize)]
+pub struct PnpmErrorLog {
+    pub code: String,
+    pub message: String,
+}
+
+/// Keeps the structured dedupe diff on the wire while retaining a
+/// terminal-only rendering for the in-process default reporter.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DedupeCheckLog {
+    pub level: LogLevel,
+    pub message: String,
+    pub err: PnpmErrorLog,
+    pub dedupe_check_issues: serde_json::Value,
+    #[serde(skip)]
+    pub rendered: String,
+}
+
+/// `pnpm:scope` payload: how many workspace projects the command
+/// selected, out of how many the workspace has.
+///
+/// `total` accompanies a workspace-wide run — including a `--filter` that
+/// narrowed it to one project — and is absent from the single-project
+/// shape a command targeting only the project it was run in reports.
+/// `workspace_prefix` is absent outside a workspace, which is what makes
+/// the reporter say "projects" rather than "workspace projects". Both are
+/// the shapes pnpm's `ScopeMessage` distinguishes.
+#[derive(Debug, Clone, Serialize)]
+pub struct ScopeLog {
+    pub level: LogLevel,
+    pub selected: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total: Option<usize>,
+    #[serde(rename = "workspacePrefix", skip_serializing_if = "Option::is_none")]
+    pub workspace_prefix: Option<String>,
 }
 
 /// Global-channel (`name: "pnpm:global"`) payload. Carries only a

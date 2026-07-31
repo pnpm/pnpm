@@ -64,7 +64,7 @@ jobs:
       with:
         api_token: ${{ secrets.GARNET_API_TOKEN }}
     - name: Install pnpm and Node
-      uses: pnpm/setup@6bfbb82d278149277735183e1ac2cd4353ebfe4f
+      uses: pnpm/setup@6523ce966bcf7a1061ce6401e5c6e0b60466bd31
       with:
         runtime: node@${{ inputs.node }}
     - name: Verify Node version

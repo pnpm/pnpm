@@ -16,6 +16,7 @@ use pacquet_modules_yaml::{
     DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH, Host, IncludedDependencies, Modules,
     read_modules_manifest,
 };
+use pacquet_package_manifest::parse_manifest_bytes;
 
 use super::{
     DependencyNode, TreeNodeId,
@@ -458,7 +459,7 @@ fn resolve_link_target(link: &Path) -> Option<PathBuf> {
 
 fn read_package_version(pkg_dir: &Path) -> Option<String> {
     let bytes = std::fs::read(pkg_dir.join("package.json")).ok()?;
-    let manifest: serde_json::Value = serde_json::from_slice(&bytes).ok()?;
+    let manifest = parse_manifest_bytes(&bytes).ok()?;
     manifest.get("version").and_then(serde_json::Value::as_str).map(str::to_string)
 }
 
@@ -476,7 +477,7 @@ pub(crate) fn read_project_manifest(project_dir: &Path) -> ProjectManifestSummar
     let Ok(bytes) = std::fs::read(project_dir.join("package.json")) else {
         return ProjectManifestSummary::default();
     };
-    let Ok(manifest) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
+    let Ok(manifest) = parse_manifest_bytes(&bytes) else {
         return ProjectManifestSummary::default();
     };
     ProjectManifestSummary {

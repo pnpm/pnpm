@@ -94,17 +94,13 @@ jobs:
         run: |
           set -eu
           needs_release() {
-            local out
-            # Query from outside the checkout: npm enforces the repository's
-            # devEngines (which pin pnpm) for any command run inside it.
-            if out=$(cd "${RUNNER_TEMP:-/tmp}" && npm view "$1" version 2>&1); then
-              echo false
-            elif echo "$out" | grep -q 'E404'; then
-              echo true
-            else
-              echo "::error::npm view $1 failed: $out"
-              exit 1
-            fi
+            local state
+            state=$(.github/scripts/npm-package-publication-state.sh "$1")
+            case "$state" in
+              published) echo false ;;
+              missing) echo true ;;
+              *) echo "::error::Unexpected npm publication state"; exit 1 ;;
+            esac
           }
 
           TS_VERSION=$(jq -r .version pnpm11/pnpm/package.json)
@@ -201,9 +197,9 @@ jobs:
         with:
           api_token: ${{ secrets.GARNET_API_TOKEN }}
       - name: Install pnpm and Node
-        uses: pnpm/setup@6bfbb82d278149277735183e1ac2cd4353ebfe4f
+        uses: pnpm/setup@6523ce966bcf7a1061ce6401e5c6e0b60466bd31
         with:
-          runtime: node@26.5.0
+          runtime: node@26.5.1
       - name: Build TypeScript executable artifacts
         run: pn --filter=@pnpm/exe run build-artifacts
 
@@ -355,9 +351,9 @@ jobs:
         with:
           api_token: ${{ secrets.GARNET_API_TOKEN }}
       - name: Install pnpm and Node
-        uses: pnpm/setup@6bfbb82d278149277735183e1ac2cd4353ebfe4f
+        uses: pnpm/setup@6523ce966bcf7a1061ce6401e5c6e0b60466bd31
         with:
-          runtime: node@26.5.0
+          runtime: node@26.5.1
       # The publish phase is split into three sequential steps to control which packages
       # use trusted publishing (OIDC) vs. a static token. `pnpm publish` currently bails
       # out of OIDC as soon as a static `_authToken` is configured, so the only way to
@@ -495,7 +491,7 @@ jobs:
           persist-credentials: false
 
       - name: Install cross
-        uses: taiki-e/install-action@7572810d7dd469b651bb7793945692cf78da5dd7 # v2.85.0
+        uses: taiki-e/install-action@6a1bd70eaac3c8bdf093356838d7ee09fda951cf # v2.85.5
         with:
           tool: cross
 
@@ -642,7 +638,7 @@ jobs:
           persist-credentials: false
 
       - name: Install pnpm and Node
-        uses: pnpm/setup@6bfbb82d278149277735183e1ac2cd4353ebfe4f
+        uses: pnpm/setup@6523ce966bcf7a1061ce6401e5c6e0b60466bd31
         with:
           runtime: node@22
           install: false
@@ -754,6 +750,8 @@ jobs:
     runs-on: ubuntu-latest
     environment: release
     permissions:
+      # Required by pnpm/setup to resolve the pnpm 11 GitHub release asset.
+      contents: read
       # Required for npm trusted publishing and provenance attestations via OIDC.
       id-token: write
     needs:
@@ -766,7 +764,7 @@ jobs:
           persist-credentials: false
 
       - name: Install pnpm and Node
-        uses: pnpm/setup@6bfbb82d278149277735183e1ac2cd4353ebfe4f
+        uses: pnpm/setup@6523ce966bcf7a1061ce6401e5c6e0b60466bd31
         with:
           runtime: node@22
           install: false
@@ -808,8 +806,23 @@ jobs:
         env:
           TAG: ${{ needs.plan.outputs.rust_tag }}
         run: |
+          set -euo pipefail
           for package in pnpm/npm/pacquet-* pnpm/npm/napi.* pnpm/npm/napi pnpm/npm/pnpm-exe pnpm/npm/pnpm; do
-            pnpm publish "$package/" --tag "$TAG" --access public --provenance --no-git-checks
+            name=$(jq -r '.publishConfig.name // .name' "$package/package.json")
+            version=$(jq -r '.version' "$package/package.json")
+            state=$(.github/scripts/npm-package-publication-state.sh "$name@$version")
+            case "$state" in
+              published)
+                echo "$name@$version is already published; skipping"
+                ;;
+              missing)
+                pnpm publish "$package/" --tag "$TAG" --access public --provenance --no-git-checks
+                ;;
+              *)
+                echo "::error::Unexpected npm publication state"
+                exit 1
+                ;;
+            esac
           done
 
   github-release-rust:
@@ -938,7 +951,7 @@ jobs:
           persist-credentials: false
 
       - name: Install cross
-        uses: taiki-e/install-action@7572810d7dd469b651bb7793945692cf78da5dd7 # v2.85.0
+        uses: taiki-e/install-action@6a1bd70eaac3c8bdf093356838d7ee09fda951cf # v2.85.5
         with:
           tool: cross
 
@@ -1052,7 +1065,7 @@ jobs:
           persist-credentials: false
 
       - name: Install pnpm and Node
-        uses: pnpm/setup@6bfbb82d278149277735183e1ac2cd4353ebfe4f
+        uses: pnpm/setup@6523ce966bcf7a1061ce6401e5c6e0b60466bd31
         with:
           runtime: node@22
           install: false
@@ -1151,6 +1164,8 @@ jobs:
     runs-on: ubuntu-latest
     environment: release
     permissions:
+      # Required by pnpm/setup to resolve the pnpm 11 GitHub release asset.
+      contents: read
       # Required for npm trusted publishing and provenance attestations via OIDC.
       id-token: write
     needs:
@@ -1163,7 +1178,7 @@ jobs:
           persist-credentials: false
 
       - name: Install pnpm and Node
-        uses: pnpm/setup@6bfbb82d278149277735183e1ac2cd4353ebfe4f
+        uses: pnpm/setup@6523ce966bcf7a1061ce6401e5c6e0b60466bd31
         with:
           runtime: node@22
           install: false
@@ -1278,7 +1293,7 @@ jobs:
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
 
       - name: Login to GHCR
-        uses: docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7 # v4.5.1
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}

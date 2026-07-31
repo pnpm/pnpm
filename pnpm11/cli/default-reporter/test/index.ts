@@ -3,7 +3,6 @@ import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
 import { toOutput$ } from '@pnpm/cli.default-reporter'
-import type { Config, ConfigContext } from '@pnpm/config.reader'
 import {
   deprecationLogger,
   hookLogger,
@@ -26,6 +25,7 @@ import { firstValueFrom } from 'rxjs'
 import { map, skip, take } from 'rxjs/operators'
 
 import { formatWarn } from '../src/reporterForClient/utils/formatWarn.js'
+import type { ReporterPnpmConfig } from '../src/ReporterPnpmConfig.js'
 
 const formatErrorCode = (code: string) => chalk.bgRed.red('[') + chalk.bgRed.black(code) + chalk.bgRed.red(']')
 const formatError = (code: string, message: string) => {
@@ -44,7 +44,7 @@ test('prints summary (of current package only)', async () => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      config: { dir: prefix } as Config & ConfigContext,
+      config: { dir: prefix } as ReporterPnpmConfig,
     },
     streamParser: createStreamParser(),
   })
@@ -236,7 +236,7 @@ test('prints summary without the filtered out entries', async () => {
       argv: ['install'],
       config: {
         dir: prefix,
-      } as Config & ConfigContext,
+      } as ReporterPnpmConfig,
     },
     streamParser: createStreamParser(),
     filterPkgsDiff: (diff) => diff.name !== 'bar',
@@ -300,12 +300,55 @@ ${ADD} qar ${versionColor('2.0.0')}
 `)
 })
 
+test('does not print "(X is available)" when latest equals the installed version (policy-aware latest)', async () => {
+  // When minimumReleaseAge holds back the registry's raw latest, the resolver
+  // returns the policy-aware latest as `latest`. If that equals the picked
+  // version, the install summary must not advertise an upgrade.
+  const prefix = '/home/jane/project'
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: { dir: prefix } as ReporterPnpmConfig,
+    },
+    streamParser: createStreamParser(),
+  })
+
+  rootLogger.debug({
+    added: {
+      dependencyType: 'prod',
+      id: 'registry.npmjs.org/foo/3.9.5',
+      latest: '3.9.5',
+      name: 'foo',
+      realName: 'foo',
+      version: '3.9.5',
+    },
+    prefix,
+  })
+  packageManifestLogger.debug({
+    prefix,
+    updated: {
+      dependencies: {
+        foo: '^3.0.0',
+      },
+    },
+  })
+  summaryLogger.debug({ prefix })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(EOL + `\
+${h1('dependencies:')}
+${ADD} foo ${versionColor('3.9.5')}
+`)
+})
+
 test('does not print deprecation message when log level is set to error', async () => {
   const prefix = '/home/jane/project'
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      config: { dir: prefix } as Config & ConfigContext,
+      config: { dir: prefix } as ReporterPnpmConfig,
     },
     reportingOptions: {
       logLevel: 'error',
@@ -363,7 +406,7 @@ test('prints summary for global installation', async () => {
       config: {
         dir: prefix,
         global: true,
-      } as Config & ConfigContext,
+      } as ReporterPnpmConfig,
     },
     streamParser: createStreamParser(),
   })
@@ -420,7 +463,7 @@ test('prints added peer dependency', async () => {
       argv: ['install'],
       config: {
         dir: prefix,
-      } as Config & ConfigContext,
+      } as ReporterPnpmConfig,
     },
     streamParser: createStreamParser(),
   })
@@ -461,7 +504,7 @@ test('prints summary correctly when the same package is specified both in option
       argv: ['install'],
       config: {
         dir: prefix,
-      } as Config & ConfigContext,
+      } as ReporterPnpmConfig,
     },
     streamParser: createStreamParser(),
   })
@@ -523,7 +566,7 @@ test('in the installation summary report which dependency types are skipped', as
         production: true,
         dev: false,
         optional: false,
-      } as Config & ConfigContext,
+      } as ReporterPnpmConfig,
       env: {
         NODE_ENV: 'production',
       },
@@ -584,7 +627,7 @@ ${h1('devDependencies:')} skipped
 
 test('prints summary when some packages fail', async () => {
   const output$ = toOutput$({
-    context: { argv: ['run'], config: { recursive: true } as Config & ConfigContext },
+    context: { argv: ['run'], config: { recursive: true } as ReporterPnpmConfig },
     streamParser: createStreamParser(),
   })
 
@@ -823,7 +866,7 @@ test('prints added/removed stats and warnings during recursive installation', as
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      config: { dir: rootPrefix, recursive: true } as Config & ConfigContext,
+      config: { dir: rootPrefix, recursive: true } as ReporterPnpmConfig,
     },
     streamParser: createStreamParser(),
   })
@@ -882,7 +925,7 @@ test('recursive installation: prints only the added stats if nothing was removed
   const output$ = toOutput$({
     context: {
       argv: ['recursive'],
-      config: { dir: '/home/jane/repo' } as Config & ConfigContext,
+      config: { dir: '/home/jane/repo' } as ReporterPnpmConfig,
     },
     reportingOptions: { outputMaxWidth: 60 },
     streamParser: createStreamParser(),
@@ -901,7 +944,7 @@ test('recursive installation: prints only the removed stats if nothing was added
   const output$ = toOutput$({
     context: {
       argv: ['recursive'],
-      config: { dir: '/home/jane/repo' } as Config & ConfigContext,
+      config: { dir: '/home/jane/repo' } as ReporterPnpmConfig,
     },
     reportingOptions: { outputMaxWidth: 60 },
     streamParser: createStreamParser(),
@@ -920,7 +963,7 @@ test('recursive installation: prints at least one remove sign when removed !== 0
   const output$ = toOutput$({
     context: {
       argv: ['recursive'],
-      config: { dir: '/home/jane/repo' } as Config & ConfigContext,
+      config: { dir: '/home/jane/repo' } as ReporterPnpmConfig,
     },
     reportingOptions: { outputMaxWidth: 62 },
     streamParser: createStreamParser(),
@@ -939,7 +982,7 @@ test('recursive installation: prints at least one add sign when added !== 0', as
   const output$ = toOutput$({
     context: {
       argv: ['recursive'],
-      config: { dir: '/home/jane/repo' } as Config & ConfigContext,
+      config: { dir: '/home/jane/repo' } as ReporterPnpmConfig,
     },
     reportingOptions: { outputMaxWidth: 62 },
     streamParser: createStreamParser(),
@@ -958,7 +1001,7 @@ test('recursive uninstall: prints removed packages number', async () => {
   const output$ = toOutput$({
     context: {
       argv: ['remove'],
-      config: { dir: '/home/jane/repo', recursive: true } as Config & ConfigContext,
+      config: { dir: '/home/jane/repo', recursive: true } as ReporterPnpmConfig,
     },
     reportingOptions: { outputMaxWidth: 62 },
     streamParser: createStreamParser(),
@@ -976,7 +1019,7 @@ test('install: print hook message', async () => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      config: { dir: '/home/jane/repo' } as Config & ConfigContext,
+      config: { dir: '/home/jane/repo' } as ReporterPnpmConfig,
     },
     streamParser: createStreamParser(),
   })
@@ -998,7 +1041,7 @@ test('recursive: print hook message', async () => {
   const output$ = toOutput$({
     context: {
       argv: ['recursive'],
-      config: { dir: '/home/jane/repo' } as Config & ConfigContext,
+      config: { dir: '/home/jane/repo' } as ReporterPnpmConfig,
     },
     streamParser: createStreamParser(),
   })
@@ -1021,7 +1064,7 @@ test('prints skipped optional dependency info message', async () => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      config: { dir: prefix } as Config & ConfigContext,
+      config: { dir: prefix } as ReporterPnpmConfig,
     },
     streamParser: createStreamParser(),
   })
@@ -1050,7 +1093,7 @@ test('logLevel=default', async () => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      config: { dir: prefix } as Config & ConfigContext,
+      config: { dir: prefix } as ReporterPnpmConfig,
     },
     streamParser: createStreamParser(),
   })
@@ -1073,7 +1116,7 @@ test('logLevel=warn', async () => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      config: { dir: prefix } as Config & ConfigContext,
+      config: { dir: prefix } as ReporterPnpmConfig,
     },
     reportingOptions: {
       logLevel: 'warn',
@@ -1098,7 +1141,7 @@ test('logLevel=error', async () => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      config: { dir: prefix } as Config & ConfigContext,
+      config: { dir: prefix } as ReporterPnpmConfig,
     },
     reportingOptions: {
       logLevel: 'error',
@@ -1122,7 +1165,7 @@ test('warnings are collapsed', async () => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      config: { dir: prefix } as Config & ConfigContext,
+      config: { dir: prefix } as ReporterPnpmConfig,
     },
     reportingOptions: {
       logLevel: 'warn',
@@ -1154,7 +1197,7 @@ test('warnings are not collapsed when append-only is true', async () => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      config: { dir: prefix } as Config & ConfigContext,
+      config: { dir: prefix } as ReporterPnpmConfig,
     },
     reportingOptions: {
       appendOnly: true,

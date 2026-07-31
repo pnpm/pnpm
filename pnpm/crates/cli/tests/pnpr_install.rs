@@ -17,6 +17,7 @@ use pacquet_testing_utils::{
 };
 use pnpr::TokenBackend;
 use std::{
+    fmt::Write as _,
     fs,
     net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream},
     path::Path,
@@ -384,6 +385,37 @@ fn assert_standard_workspace_pnpr_from(project: Option<&str>) {
     );
     assert!(workspace_has_link(&workspace, "app", WORKSPACE_HELLO));
     assert!(workspace_has_link(&workspace, "lib", WORKSPACE_PARENT));
+
+    drop((root, mock_instance));
+}
+
+/// The workspace the server reconstructs from a resolve request has no
+/// catalog sections of its own, so an unsent catalog leaves every
+/// `catalog:` specifier unresolvable
+/// ([pnpm/pnpm#13232](https://github.com/pnpm/pnpm/issues/13232)).
+#[test]
+fn workspace_install_via_pnpr_resolves_catalog_references() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
+    configure_workspace(&workspace);
+    let path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&path).expect("read pnpm-workspace.yaml");
+    writeln!(yaml, "catalog:\n  '{WORKSPACE_HELLO}': 1.0.0").expect("append the catalog");
+    fs::write(&path, yaml).expect("write pnpm-workspace.yaml");
+    write_workspace_project(&workspace, "app", "app", (WORKSPACE_HELLO, "catalog:"));
+    let (pnpr_url, token) = start_pnpr(&mock_instance.url());
+    configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
+
+    pacquet_at(&workspace)
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_args(["install", "--pnpr-server", &pnpr_url])
+        .assert()
+        .success();
+
+    let wanted = read_workspace_lockfile(&workspace);
+    assert_eq!(workspace_importer_version(&wanted, "packages/app", WORKSPACE_HELLO), "1.0.0");
+    assert!(workspace_has_link(&workspace, "app", WORKSPACE_HELLO));
 
     drop((root, mock_instance));
 }

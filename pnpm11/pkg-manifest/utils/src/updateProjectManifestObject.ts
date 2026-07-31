@@ -5,43 +5,35 @@ import {
   DEPENDENCIES_OR_PEER_FIELDS,
   type DependenciesField,
   type DependenciesOrPeersField,
-  type PinnedVersion,
   type ProjectManifest,
+  type RangeSpecStyle,
 } from '@pnpm/types'
 import semver from 'semver'
+
+import { versionWithRangeSpecStyle } from './rangeSpecStyle.js'
 
 export interface PackageSpecObject {
   alias: string
   peer?: boolean
   bareSpecifier?: string
   resolvedVersion?: string
-  pinnedVersion?: PinnedVersion
+  rangeSpecStyle?: RangeSpecStyle
   saveType?: DependenciesField
 }
 
-function getPeerSpecifier (spec: string, resolvedVersion?: string, pinnedVersion?: PinnedVersion): string {
+function getPeerSpecifier (spec: string, resolvedVersion?: string, rangeSpecStyle?: RangeSpecStyle): string {
   if (isValidPeerRange(spec)) return spec
 
-  const rangeFromResolved = resolvedVersion ? createVersionSpecFromResolvedVersion(resolvedVersion, pinnedVersion) : null
+  const rangeFromResolved = resolvedVersion ? createVersionSpecFromResolvedVersion(resolvedVersion, rangeSpecStyle) : null
   return rangeFromResolved ?? '*'
 }
 
-export function createVersionSpecFromResolvedVersion (resolvedVersion: string, pinnedVersion?: PinnedVersion): string | null {
+export function createVersionSpecFromResolvedVersion (resolvedVersion: string, rangeSpecStyle?: RangeSpecStyle): string | null {
   const parsed = semver.parse(resolvedVersion)
   if (!parsed) return null
   if (parsed.prerelease.length) return resolvedVersion
 
-  switch (pinnedVersion ?? 'major') {
-    case 'none':
-    case 'major':
-      return `^${resolvedVersion}`
-    case 'minor':
-      return `~${resolvedVersion}`
-    case 'patch':
-      return resolvedVersion
-    default:
-      return `^${resolvedVersion}`
-  }
+  return versionWithRangeSpecStyle(resolvedVersion, rangeSpecStyle ?? 'major')
 }
 
 export async function updateProjectManifestObject (
@@ -65,7 +57,7 @@ export async function updateProjectManifestObject (
           defineDepEntry(
             packageManifest.peerDependencies,
             packageSpec.alias,
-            getPeerSpecifier(spec, packageSpec.resolvedVersion, packageSpec.pinnedVersion)
+            getPeerSpecifier(spec, packageSpec.resolvedVersion, packageSpec.rangeSpecStyle)
           )
         }
       }

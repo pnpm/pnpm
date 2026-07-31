@@ -41,7 +41,11 @@ pub type AllowBuildRef<'a> = &'a (dyn Fn(&str) -> bool + Send + Sync);
 /// Caller-supplied context for [`prepare_package`].
 pub struct PreparePackageOptions<'a> {
     pub allow_build: AllowBuildFn<'a>,
-    pub dep_path: &'a str,
+    /// The package's resolution id — the bare `git+…#<commit>` or
+    /// archive URL. The gated dep path is synthesized from it and the
+    /// fetched manifest's name, so the policy sees the same
+    /// `<name>@<id>` key a lockfile would record.
+    pub pkg_resolution_id: &'a str,
     pub ignore_scripts: bool,
     pub unsafe_perm: bool,
     pub user_agent: Option<&'a str>,
@@ -91,11 +95,14 @@ pub fn prepare_package<Reporter: self::Reporter>(
 
     // `allowBuild` check before any spawn. A dep path that isn't
     // allowed throws ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED. The manifest comes
-    // from the fetched artifact itself, so its name and version only
-    // feed the error message; the dep path is the gated identity.
+    // from the fetched artifact itself, so its version only feeds the
+    // error message; the synthesized dep path is the gated identity.
+    // Resolution ids of git and tarball artifacts are never
+    // semver-shaped, so the policy derives an untrusted package
+    // identity from it and name-only rules can't approve the build.
     let name = manifest.get("name").and_then(Value::as_str).unwrap_or("");
     let version = manifest.get("version").and_then(Value::as_str).unwrap_or("");
-    if !(opts.allow_build)(opts.dep_path) {
+    if !(opts.allow_build)(&format!("{name}@{}", opts.pkg_resolution_id)) {
         return Err(PreparePackageError::NotAllowed {
             name: name.to_string(),
             version: version.to_string(),

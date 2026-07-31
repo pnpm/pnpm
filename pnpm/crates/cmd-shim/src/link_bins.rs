@@ -11,6 +11,7 @@ use crate::{
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use pacquet_package_manifest::parse_manifest_bytes;
 use rayon::prelude::*;
 use serde_json::Value;
 use std::{
@@ -275,7 +276,7 @@ fn read_package<Sys: FsReadFile>(
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(LinkBinsError::ReadManifest { path: manifest_path, error }),
     };
-    let manifest: Value = serde_json::from_slice(&bytes)
+    let manifest: Value = parse_manifest_bytes(&bytes)
         .map_err(|error| LinkBinsError::ParseManifest { path: manifest_path, error })?;
     Ok(Some(PackageBinSource::new(location.to_path_buf(), Arc::new(manifest))))
 }

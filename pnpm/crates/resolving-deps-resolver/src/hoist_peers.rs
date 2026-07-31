@@ -2,12 +2,15 @@
 //! "what to add to the importer's direct deps" map. Used by the
 //! orchestrator (`resolve_importer`) inside its hoist loop.
 
-use std::collections::BTreeMap;
+use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use std::{collections::BTreeMap, path::Path};
 
 use node_semver::{Range, Version};
 use pacquet_resolving_resolver_base::{
     PreferredVersions, VersionSelectorEntry, VersionSelectorType, get_peer_version_range,
 };
+
+use crate::include_prerelease_range::IncludePrereleaseRange;
 
 /// One workspace-root dep the loop can satisfy a peer with.
 #[derive(Debug, Clone)]
@@ -30,12 +33,26 @@ pub struct MissingPeerInfo {
     pub range: String,
 }
 
+/// Applies `overrides` to a peer nobody declares as a dependency.
+/// Such a peer has no manifest for the override hook to rewrite, so
+/// without this it would resolve against its declared peer range and
+/// silently produce the second copy the override exists to prevent.
+/// Returns the overriding specifier, `"-"` when the override drops the
+/// peer, or `None` when no override claims it. The path is the directory
+/// of the importer the peer is hoisted into — the manifest that would
+/// have declared the dependency — which a `link:` / `file:` override
+/// target is made relative to.
+pub type DependencyOverrider = dyn Fn(&str, &str, &Path) -> Option<String> + Send + Sync;
+
 /// Options for [`hoist_peers`].
-#[derive(Debug)]
 pub struct HoistPeersOptions<'a> {
     pub auto_install_peers: bool,
     pub all_preferred_versions: &'a PreferredVersions,
     pub workspace_root_deps: &'a [WorkspaceRootDep],
+    pub override_bare_specifier: Option<&'a DependencyOverrider>,
+    /// Directory of the importer the peers are hoisted into. Only read
+    /// to resolve a local override target; see [`DependencyOverrider`].
+    pub project_dir: &'a Path,
 }
 
 /// Pick a specifier for each missing required peer. Returns a map of
@@ -50,23 +67,27 @@ pub fn hoist_peers(
     for (peer_name, info) in missing_required_peers {
         let range = &info.range;
 
-        if let Some(dep) =
-            opts.workspace_root_deps.iter().find(|root_dep| &root_dep.alias == peer_name)
-            && let Some(spec) = &dep.normalized_bare_specifier
+        let root_bare_specifier = find_workspace_root_dep(opts.workspace_root_deps, peer_name)
+            .and_then(|dep| dep.normalized_bare_specifier.as_ref());
+        // An override redirects a hoist; it must never create one, or
+        // disabling auto-install-peers would still install a peer nobody
+        // depends on. Only the workspace root's own dependency hoists a
+        // peer that auto-install-peers is not asking for, so that is the
+        // one hoist an override still governs here; the deduplication
+        // below installs nothing new either way.
+        let overrider = (opts.auto_install_peers || root_bare_specifier.is_some())
+            .then_some(opts.override_bare_specifier)
+            .flatten();
+        if let Some(overridden) =
+            overrider.and_then(|overrider| overrider(peer_name, range, opts.project_dir))
         {
-            dependencies.insert(peer_name.clone(), spec.clone());
+            if overridden != "-" {
+                dependencies.insert(peer_name.clone(), overridden);
+            }
             continue;
         }
 
-        let mut by_pkg_name: Vec<&WorkspaceRootDep> = opts
-            .workspace_root_deps
-            .iter()
-            .filter(|root_dep| &root_dep.pkg_name == peer_name)
-            .collect();
-        by_pkg_name.sort_by(|a, b| a.alias.cmp(&b.alias));
-        if let Some(dep) = by_pkg_name.first()
-            && let Some(spec) = &dep.normalized_bare_specifier
-        {
+        if let Some(spec) = root_bare_specifier {
             dependencies.insert(peer_name.clone(), spec.clone());
             continue;
         }
@@ -133,8 +154,8 @@ pub fn hoist_peers(
 }
 
 /// Pick an installable version for each missing optional peer, but only
-/// when at least one preferred version satisfies *every* recorded range.
-/// Returns `peer_name → version`.
+/// when at least one preferred version satisfies *every* recorded range
+/// under strict semver. Returns `peer_name → version`.
 ///
 /// Version selectors may be plain entries produced while resolving or
 /// weighted entries seeded from the wanted lockfile. Both are eligible
@@ -144,12 +165,51 @@ pub fn hoist_peers(
 pub fn get_hoistable_optional_peers(
     all_missing_optional_peers: &BTreeMap<String, Vec<String>>,
     all_preferred_versions: &PreferredVersions,
+    workspace_root_deps: &[WorkspaceRootDep],
+) -> BTreeMap<String, String> {
+    get_hoistable_optional_peers_with_locked_versions(
+        all_missing_optional_peers,
+        all_preferred_versions,
+        workspace_root_deps,
+        &HashMap::default(),
+    )
+}
+
+pub(crate) fn get_hoistable_optional_peers_with_locked_versions(
+    all_missing_optional_peers: &BTreeMap<String, Vec<String>>,
+    all_preferred_versions: &PreferredVersions,
+    workspace_root_deps: &[WorkspaceRootDep],
+    locked_peer_versions: &HashMap<String, HashSet<String>>,
 ) -> BTreeMap<String, String> {
     let mut optional_dependencies = BTreeMap::new();
     for (peer_name, ranges) in all_missing_optional_peers {
         let Some(selectors) = all_preferred_versions.get(peer_name) else { continue };
+        // The workspace root's own specifier bounds the candidates the
+        // same way it short-circuits `hoist_peers` above. Maximizing over
+        // every version in the graph instead lets one importer's newer
+        // resolution be hoisted into a sibling that declares nothing,
+        // adding a second instance of a package the root already pins. A
+        // scheme specifier bounds them through the version body
+        // `get_peer_version_range` extracts; one with no version body
+        // yields `*` and leaves them unbounded.
+        let root_range = find_workspace_root_dep(workspace_root_deps, peer_name)
+            .and_then(|dep| dep.normalized_bare_specifier.as_deref())
+            .and_then(|spec| get_peer_version_range(spec).parse::<Range>().ok());
+        // An unparsable range is satisfied by nothing, so bailing on the
+        // peer matches failing the check per candidate.
+        let Ok(parsed_ranges) =
+            ranges.iter().map(|range| range.parse::<Range>()).collect::<Result<Vec<_>, _>>()
+        else {
+            continue;
+        };
         let mut max_satisfying_version: Option<Version> = None;
         for (version_str, entry) in selectors {
+            if locked_peer_versions
+                .get(peer_name)
+                .is_some_and(|versions| !versions.contains(version_str))
+            {
+                continue;
+            }
             let selector_type = match entry {
                 VersionSelectorEntry::Plain(selector_type) => *selector_type,
                 VersionSelectorEntry::Weighted(weighted) => weighted.selector_type,
@@ -158,11 +218,14 @@ pub fn get_hoistable_optional_peers(
                 continue;
             }
             let Ok(version) = version_str.parse::<Version>() else { continue };
-            if !ranges.iter().all(|range| {
-                range
-                    .parse::<Range>()
-                    .is_ok_and(|parsed| satisfies_including_prerelease(&parsed, &version))
-            }) {
+            if root_range.as_ref().is_some_and(|range| !range.satisfies(&version)) {
+                continue;
+            }
+            // Strict, unlike the required-peer picker above: an optional
+            // peer nobody declared is installed only to deduplicate, so a
+            // prerelease its range rejects is not worth splitting a
+            // package family over.
+            if !parsed_ranges.iter().all(|parsed| parsed.satisfies(&version)) {
                 continue;
             }
             if max_satisfying_version.as_ref().is_none_or(|cur| version > *cur) {
@@ -176,14 +239,34 @@ pub fn get_hoistable_optional_peers(
     optional_dependencies
 }
 
-/// Highest version from `versions` that satisfies `range`, including
-/// prereleases. Returns `None` if no candidate satisfies.
+/// The root dependency that provides `peer_name`: an alias match wins
+/// over a package-name match (an `npm:` alias can install the same
+/// package under a different slot), and among package-name matches the
+/// lexicographically first alias wins so the pick is stable. Only a
+/// dependency that has a normalized specifier is a candidate — the
+/// callers have nothing to install or bound the peer with otherwise.
+fn find_workspace_root_dep<'a>(
+    workspace_root_deps: &'a [WorkspaceRootDep],
+    peer_name: &str,
+) -> Option<&'a WorkspaceRootDep> {
+    let candidates =
+        || workspace_root_deps.iter().filter(|dep| dep.normalized_bare_specifier.is_some());
+    candidates().find(|root_dep| root_dep.alias == peer_name).or_else(|| {
+        candidates()
+            .filter(|root_dep| root_dep.pkg_name == peer_name)
+            .min_by(|a, b| a.alias.cmp(&b.alias))
+    })
+}
+
+/// Highest version from `versions` that satisfies `range` under npm's
+/// `includePrerelease` semantics. Returns `None` if no candidate
+/// satisfies.
 fn max_satisfying<'a>(versions: &'a [&'a str], range: &str) -> Option<&'a str> {
-    let parsed_range = range.parse::<Range>().ok()?;
+    let parsed_range = IncludePrereleaseRange::parse(range);
     let mut best: Option<(&str, Version)> = None;
     for spec in versions {
         let Ok(parsed_version) = spec.parse::<Version>() else { continue };
-        if !satisfies_including_prerelease(&parsed_range, &parsed_version) {
+        if !parsed_range.satisfies(&parsed_version) {
             continue;
         }
         if best.as_ref().is_none_or(|(_, cur)| parsed_version > *cur) {
@@ -191,29 +274,6 @@ fn max_satisfying<'a>(versions: &'a [&'a str], range: &str) -> Option<&'a str> {
         }
     }
     best.map(|(spec, _)| spec)
-}
-
-/// Check whether `version` satisfies `range`, accepting prereleases
-/// even when the range carries none of its own. The default
-/// `Range::satisfies` skips prereleases in that case (matching strict
-/// semver semantics); the retry with the prerelease tag stripped
-/// recovers those candidates. Matches the `satisfies_with_prereleases`
-/// pattern in the `resolve_peers` module.
-pub(crate) fn satisfies_including_prerelease(range: &Range, version: &Version) -> bool {
-    if range.satisfies(version) {
-        return true;
-    }
-    if version.pre_release.is_empty() {
-        return false;
-    }
-    let base = Version {
-        major: version.major,
-        minor: version.minor,
-        patch: version.patch,
-        pre_release: Vec::new(),
-        build: Vec::new(),
-    };
-    range.satisfies(&base)
 }
 
 /// Highest version overall from `versions` (the `*` range). Returns

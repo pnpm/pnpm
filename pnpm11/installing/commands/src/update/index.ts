@@ -286,7 +286,7 @@ async function interactiveUpdate (
           // that lays out a single choice during selection. After submission
           // @inquirer/prompts comma-joins each choice's `short`, which without
           // this defaults to `name` and dumps the whole table back to stdout.
-          short: choice.value,
+          short: choice.short,
         })
       }
     }

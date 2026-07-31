@@ -27,7 +27,7 @@
 
 use crate::{
     CatalogMode, Config, LinkWorkspacePackages, NodeLinker, NodePackageMapType, ResolutionMode,
-    ScriptsPrependNodePath, VerifyDepsBeforeRun,
+    SaveWorkspaceProtocol, ScriptsPrependNodePath, VerifyDepsBeforeRun,
 };
 use std::collections::BTreeSet;
 
@@ -82,8 +82,6 @@ const NOT_PORTED: &[&str] = &[
     "pending",
     "recursive-install",
     "reverse",
-    "save-peer",
-    "save-workspace-protocol",
     "shell-emulator",
     "skip-manifest-obfuscation",
     "sort",
@@ -133,6 +131,8 @@ fn mapped_rows(cfg: &Config) -> Vec<(&'static str, Scalar)> {
         ("verify-store-integrity", Bool(cfg.verify_store_integrity)),
         // `boolean | 'deep'` upstream; the default is `false`.
         ("link-workspace-packages", link_workspace_packages_scalar(cfg.link_workspace_packages)),
+        // `boolean | 'rolling'` upstream; the default is `'rolling'`.
+        ("save-workspace-protocol", save_workspace_protocol_scalar(cfg.save_workspace_protocol)),
         // `boolean | 'install' | 'warn' | 'error' | 'prompt'` upstream;
         // the default is `'install'`.
         ("verify-deps-before-run", verify_deps_before_run_scalar(cfg.verify_deps_before_run)),
@@ -147,6 +147,7 @@ fn mapped_rows(cfg: &Config) -> Vec<(&'static str, Scalar)> {
         ("resolution-mode", resolution_mode_scalar(cfg.resolution_mode)),
         ("catalog-mode", catalog_mode_scalar(cfg.catalog_mode)),
         ("save-catalog-name", save_catalog_name_scalar(cfg.save_catalog_name.as_deref())),
+        ("save-peer", Bool(cfg.save_peer)),
         ("fetch-retries", Int(i64::from(cfg.fetch_retries))),
         ("fetch-retry-factor", Int(i64::from(cfg.fetch_retry_factor))),
         ("fetch-retry-maxtimeout", Int(cfg.fetch_retry_maxtimeout as i64)),
@@ -227,6 +228,14 @@ fn link_workspace_packages_scalar(value: LinkWorkspacePackages) -> Scalar {
         LinkWorkspacePackages::Off => Scalar::Bool(false),
         LinkWorkspacePackages::DirectOnly => Scalar::Bool(true),
         LinkWorkspacePackages::Deep => s("deep"),
+    }
+}
+
+fn save_workspace_protocol_scalar(value: SaveWorkspaceProtocol) -> Scalar {
+    match value {
+        SaveWorkspaceProtocol::Off => Scalar::Bool(false),
+        SaveWorkspaceProtocol::On => Scalar::Bool(true),
+        SaveWorkspaceProtocol::Rolling => s("rolling"),
     }
 }
 

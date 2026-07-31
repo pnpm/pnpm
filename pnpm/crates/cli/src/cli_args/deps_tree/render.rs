@@ -8,6 +8,7 @@ use std::{
 };
 
 use owo_colors::{OwoColorize, Stream};
+use pacquet_package_manifest::parse_manifest_bytes;
 
 use crate::cli_args::sanitize::sanitize;
 
@@ -172,7 +173,7 @@ pub(crate) struct LongPkgInfo {
 pub(crate) fn read_long_pkg_info(pkg_dir: &Path) -> LongPkgInfo {
     let manifest: Option<serde_json::Value> = std::fs::read(pkg_dir.join("package.json"))
         .ok()
-        .and_then(|bytes| serde_json::from_slice(&bytes).ok());
+        .and_then(|bytes| parse_manifest_bytes(&bytes).ok());
     let Some(manifest) = manifest else {
         return LongPkgInfo {
             description: Some("[Could not find additional info about this dependency]".to_string()),
@@ -227,4 +228,13 @@ pub(crate) fn blue(text: &str) -> String {
 
 pub(crate) fn red(text: &str) -> String {
     sanitize(text).if_supports_color(Stream::Stdout, |t| t.red()).to_string()
+}
+
+pub(crate) fn green(text: &str) -> String {
+    sanitize(text).if_supports_color(Stream::Stdout, |t| t.green()).to_string()
+}
+
+pub(crate) fn blue_bright_underline(text: &str) -> String {
+    let style = owo_colors::Style::new().bright_blue().underline();
+    sanitize(text).if_supports_color(Stream::Stdout, |t| t.style(style)).to_string()
 }

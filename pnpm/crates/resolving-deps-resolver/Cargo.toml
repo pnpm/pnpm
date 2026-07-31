@@ -11,6 +11,7 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
+rustc-hash                                = { workspace = true }
 pacquet-catalogs-resolver                 = { workspace = true }
 pacquet-catalogs-types                    = { workspace = true }
 pacquet-deps-path                         = { workspace = true }
@@ -43,3 +44,7 @@ tokio             = { workspace = true, features = ["macros", "rt-multi-thread"]
 
 [lints]
 workspace = true
+
+[[bench]]
+name    = "workspace_full_resolution"
+harness = false

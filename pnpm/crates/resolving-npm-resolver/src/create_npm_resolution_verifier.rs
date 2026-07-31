@@ -3,10 +3,11 @@
 //! The factory takes the install-time policy (cutoff time, exclude
 //! patterns, trust policy, named registries) and returns a verifier.
 //! The verifier inspects each npm-registry-resolved lockfile entry: it
-//! always binds the recorded tarball URL to the artifact the registry's
-//! metadata lists (an anti-tamper check independent of any policy), and
-//! additionally applies the `minimumReleaseAge` and/or
-//! `trustPolicy='no-downgrade'` checks when those are configured.
+//! always requires a tarball hash and binds the recorded tarball URL to
+//! the artifact the registry's metadata lists (anti-tamper checks
+//! independent of any policy), and additionally applies the
+//! `minimumReleaseAge` and/or `trustPolicy='no-downgrade'` checks when
+//! those are configured.
 //! Violations surface through [`ResolutionVerification::Err`].
 //!
 //! The publish-timestamp lookup walks a 4-layer fallback chain
@@ -22,7 +23,7 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 use pacquet_config::{TrustPolicy, version_policy::PackageVersionPolicy};
-use pacquet_lockfile::{LockfileResolution, PkgName};
+use pacquet_lockfile::{LockfileResolution, PkgName, is_git_hosted_tarball_url};
 use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_url_credentials};
 use pacquet_registry::{Approver, NpmUser, Package, PackageDistribution, PackageVersion};
 use pacquet_resolving_resolver_base::{
@@ -40,8 +41,8 @@ use crate::{
     pick_package::PackageMetaCache,
     trust_checks::fail_if_trust_downgraded,
     violation_codes::{
-        MINIMUM_RELEASE_AGE_VIOLATION_CODE, TARBALL_URL_MISMATCH_VIOLATION_CODE,
-        TRUST_DOWNGRADE_VIOLATION_CODE,
+        MINIMUM_RELEASE_AGE_VIOLATION_CODE, MISSING_TARBALL_INTEGRITY_VIOLATION_CODE,
+        TARBALL_URL_MISMATCH_VIOLATION_CODE, TRUST_DOWNGRADE_VIOLATION_CODE,
     },
 };
 
@@ -183,11 +184,11 @@ impl std::fmt::Debug for NpmResolutionVerifier {
     }
 }
 
-/// Builds the [`NpmResolutionVerifier`]. It always binds each entry's
-/// recorded tarball URL to the artifact the registry's metadata lists (an
-/// anti-tamper check independent of any policy), and additionally applies
-/// the `minimum_release_age` / `trust_policy='no-downgrade'` checks when
-/// those are configured.
+/// Builds the [`NpmResolutionVerifier`]. It always requires a tarball
+/// hash and binds each entry's recorded tarball URL to the artifact the
+/// registry's metadata lists (anti-tamper checks independent of any
+/// policy), and additionally applies the `minimum_release_age` /
+/// `trust_policy='no-downgrade'` checks when those are configured.
 pub fn create_npm_resolution_verifier(
     opts: CreateNpmResolutionVerifierOptions,
 ) -> NpmResolutionVerifier {
@@ -252,7 +253,7 @@ impl ResolutionVerifier for NpmResolutionVerifier {
         let Some(tarball_url) = npm_registry_tarball(resolution) else {
             return false;
         };
-        if tarball_url.is_some() {
+        if tarball_url.is_some() || resolution.checkable_integrity().is_none() {
             return true;
         }
         self.age_check_active()
@@ -278,6 +279,12 @@ impl ResolutionVerifier for NpmResolutionVerifier {
         // that didn't record it (e.g. written before this rule existed)
         // can't be trusted to have enforced it, so force a re-check.
         if cached_policy.get("tarballUrlBinding").and_then(JsonValue::as_bool) != Some(true) {
+            return false;
+        }
+
+        // The missing-integrity check is also unconditional; a cached run
+        // without the flag cannot prove it rejected unverifiable tarballs.
+        if cached_policy.get("integrityRequired").and_then(JsonValue::as_bool) != Some(true) {
             return false;
         }
 
@@ -342,6 +349,19 @@ impl NpmResolutionVerifier {
         let Some(tarball_url) = npm_registry_tarball(resolution) else {
             return ResolutionVerification::Ok;
         };
+
+        // Network-free structural check, so it runs before the registry
+        // metadata shortcuts below. An entry that pins no hash cannot be
+        // verified against anything once fetched, whatever its version
+        // shape — a URL-keyed dep is refused here too.
+        if resolution.checkable_integrity().is_none() {
+            return ResolutionVerification::Err {
+                code: MISSING_TARBALL_INTEGRITY_VIOLATION_CODE,
+                reason: r#"has no "integrity" field, so its downloaded tarball cannot be verified"#
+                    .to_string(),
+            };
+        }
+
         if node_semver::Version::parse(ctx.version).is_err() {
             return ResolutionVerification::Ok;
         }
@@ -876,8 +896,12 @@ fn npm_registry_tarball(resolution: &LockfileResolution) -> Option<Option<&str>>
         LockfileResolution::Tarball(t) => {
             // Git-hosted tarballs (codeload / gitlab / bitbucket) are
             // not subject to the release-age policy and don't have a
-            // packument lookup; skip them.
-            if t.git_hosted.unwrap_or(false) {
+            // packument lookup; skip them. The exemption is decided from
+            // the URL alone, never from the recorded `gitHosted` flag: the
+            // flag is lockfile input, so a tampered entry could otherwise
+            // set it on an attacker-hosted URL and buy itself the same
+            // exemption.
+            if is_git_hosted_tarball_url(&t.tarball) {
                 return None;
             }
             if let Ok(parsed) = reqwest::Url::parse(&t.tarball) {
@@ -938,6 +962,8 @@ fn build_policy_snapshot(
     // Marks runs that enforced the (unconditional) tarball-URL binding so
     // `can_trust_past_check` rejects pre-rule cache records and re-verifies.
     map.insert("tarballUrlBinding".to_string(), JsonValue::Bool(true));
+    // Same cache identity rule for the missing-integrity structural check.
+    map.insert("integrityRequired".to_string(), JsonValue::Bool(true));
     map.insert("minimumReleaseAge".to_string(), JsonValue::from(minimum_release_age));
     map.insert(
         "minimumReleaseAgeExclude".to_string(),
@@ -1000,6 +1026,7 @@ fn project_trust_meta(meta: &Package) -> Package {
         // bounded by the trust-evidence footprint (see the fn doc).
         homepage: None,
         mutex: std::sync::Arc::new(std::sync::Mutex::new(0)),
+        release_age_upgrade_checked: false,
     }
 }
 

@@ -1,6 +1,6 @@
-use pacquet_registry::{PackageVersion, PinnedVersion};
+use pacquet_registry::{PackageVersion, RangeSpecStyle};
 
-use super::calc_specifier;
+use super::{calc_prefixed_specifier, calc_specifier};
 
 fn picked(version: &str) -> PackageVersion {
     serde_json::from_value(serde_json::json!({
@@ -17,7 +17,7 @@ fn keeps_the_range_operator_the_dependency_already_declared() {
         [("^1.0.0", "^4.2.0"), ("~1.0.0", "~4.2.0"), ("1.0.0", "4.2.0"), ("*", "^4.2.0")]
     {
         assert_eq!(
-            calc_specifier(bare_specifier, Some("foo"), &picked("4.2.0"), PinnedVersion::Major),
+            calc_specifier(bare_specifier, Some("foo"), &picked("4.2.0"), RangeSpecStyle::Major),
             expected,
             "specifier for {bare_specifier}",
         );
@@ -27,9 +27,9 @@ fn keeps_the_range_operator_the_dependency_already_declared() {
 #[test]
 fn falls_back_to_the_default_pin_when_none_is_declared() {
     for (default_pin, expected) in [
-        (PinnedVersion::Major, "^4.2.0"),
-        (PinnedVersion::Minor, "~4.2.0"),
-        (PinnedVersion::Patch, "4.2.0"),
+        (RangeSpecStyle::Major, "^4.2.0"),
+        (RangeSpecStyle::Minor, "~4.2.0"),
+        (RangeSpecStyle::Patch, "4.2.0"),
     ] {
         assert_eq!(
             calc_specifier("latest", Some("foo"), &picked("4.2.0"), default_pin),
@@ -42,7 +42,7 @@ fn falls_back_to_the_default_pin_when_none_is_declared() {
 #[test]
 fn rewraps_an_npm_alias_around_the_new_range() {
     assert_eq!(
-        calc_specifier("npm:bar@^1.0.0", Some("foo"), &picked("4.2.0"), PinnedVersion::Major),
+        calc_specifier("npm:bar@^1.0.0", Some("foo"), &picked("4.2.0"), RangeSpecStyle::Major),
         "npm:bar@^4.2.0",
     );
     assert_eq!(
@@ -50,7 +50,7 @@ fn rewraps_an_npm_alias_around_the_new_range() {
             "npm:@types/table@6.0.0",
             Some("@types/zkochan__table"),
             &picked("7.0.0"),
-            PinnedVersion::Major,
+            RangeSpecStyle::Major,
         ),
         "npm:@types/table@7.0.0",
     );
@@ -60,7 +60,7 @@ fn rewraps_an_npm_alias_around_the_new_range() {
 fn an_alias_that_names_the_install_name_round_trips_as_a_bare_range() {
     for bare_specifier in ["npm:^1.0.0", "npm:foo@^1.0.0"] {
         assert_eq!(
-            calc_specifier(bare_specifier, Some("foo"), &picked("4.2.0"), PinnedVersion::Major),
+            calc_specifier(bare_specifier, Some("foo"), &picked("4.2.0"), RangeSpecStyle::Major),
             "^4.2.0",
             "specifier for {bare_specifier}",
         );
@@ -72,7 +72,57 @@ fn an_alias_that_names_the_install_name_round_trips_as_a_bare_range() {
 #[test]
 fn a_prerelease_pick_is_written_exactly() {
     assert_eq!(
-        calc_specifier("^1.0.0", Some("foo"), &picked("5.0.0-rc.1"), PinnedVersion::Major),
+        calc_specifier("^1.0.0", Some("foo"), &picked("5.0.0-rc.1"), RangeSpecStyle::Major),
         "5.0.0-rc.1",
+    );
+}
+
+#[test]
+fn a_prefixed_specifier_keeps_its_protocol_and_the_declared_range_operator() {
+    for (bare_specifier, expected) in
+        [("jsr:^1.0.0", "jsr:^4.2.0"), ("jsr:~1.0.0", "jsr:~4.2.0"), ("jsr:1.0.0", "jsr:4.2.0")]
+    {
+        assert_eq!(
+            calc_prefixed_specifier(
+                "jsr:",
+                "@pnpm-e2e/foo",
+                bare_specifier,
+                Some("@pnpm-e2e/foo"),
+                &picked("4.2.0"),
+                RangeSpecStyle::Major,
+            ),
+            expected,
+            "specifier for {bare_specifier}",
+        );
+    }
+}
+
+#[test]
+fn an_aliased_prefixed_specifier_keeps_naming_the_package_it_resolves_through() {
+    assert_eq!(
+        calc_prefixed_specifier(
+            "jsr:",
+            "@pnpm-e2e/foo",
+            "jsr:@pnpm-e2e/foo@1.0.0",
+            Some("foo-from-jsr"),
+            &picked("4.2.0"),
+            RangeSpecStyle::Major,
+        ),
+        "jsr:@pnpm-e2e/foo@4.2.0",
+    );
+}
+
+#[test]
+fn an_unaliased_prefixed_specifier_carries_the_range_alone() {
+    assert_eq!(
+        calc_prefixed_specifier(
+            "jsr:",
+            "@pnpm-e2e/foo",
+            "jsr:latest",
+            None,
+            &picked("4.2.0"),
+            RangeSpecStyle::Minor,
+        ),
+        "jsr:~4.2.0",
     );
 }

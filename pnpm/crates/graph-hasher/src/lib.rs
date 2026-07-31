@@ -16,7 +16,9 @@ mod engine_name;
 mod global_virtual_store_path;
 mod object_hasher;
 
-pub use dep_state::{CalcDepStateOptions, DepsGraphNode, DepsStateCache, calc_dep_state};
+pub use dep_state::{
+    CalcDepStateOptions, DepsGraphNode, DepsStateCache, calc_dep_state, warm_deps_state_cache,
+};
 pub use engine_name::{
     detect_node_major, detect_node_version, engine_name, host_arch, host_libc, host_platform,
 };

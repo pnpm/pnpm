@@ -171,39 +171,27 @@ impl AuthHeaders {
     /// pairs. Caller is responsible for nerf-darting and for choosing
     /// the right scheme (`Bearer ...` or `Basic ...`).
     ///
-    /// The `default_registry_url` argument is a full registry URL
-    /// (e.g. `"https://registry.npmjs.org/"`, scheme included) that
-    /// the constructor nerf-darts internally to derive the key for the
-    /// empty-string ("default") credentials slot. Falls back to
-    /// `"//registry.npmjs.org/"` when `None`. Passing an
-    /// already-nerf-darted `//host/.../` here would re-nerf-dart it to
-    /// the empty string, silently masking default creds — pass the
-    /// raw URL.
-    pub fn from_creds_map<Iter>(headers: Iter, default_registry_url: Option<&str>) -> Self
+    /// There is no "default registry" slot: a credential is only ever
+    /// honored at the URI it is keyed under. Callers pin an unscoped
+    /// credential to the registry its own source declared before it gets
+    /// here (see `NpmrcAuth::rescope_unscoped`), so the resolved default
+    /// registry — which repository-controlled config can move — never
+    /// decides where a credential is sent. An entry with an empty URI is
+    /// dropped.
+    pub fn from_creds_map<Iter>(headers: Iter) -> Self
     where
         Iter: IntoIterator<Item = (String, String)>,
     {
-        let registry_default_key =
-            default_registry_url.map_or_else(|| "//registry.npmjs.org/".into(), nerf_dart);
-        let mut by_uri = HashMap::new();
-        let mut default_header: Option<String> = None;
-        // Two-phase build: per-URI entries land first, then the
-        // default-registry creds unconditionally overwrite the slot at
-        // `registry_default_key`.
-        // Without the two-phase split, both entries would race through a
-        // single HashMap insert and the winner would depend on
-        // non-deterministic iteration order.
-        for (raw_uri, header_value) in headers {
-            if raw_uri.is_empty() {
-                default_header = Some(header_value);
-            } else {
-                by_uri.insert(normalize_auth_key(raw_uri), header_value);
-            }
-        }
-        if let Some(header) = default_header {
-            by_uri.insert(registry_default_key, header);
-        }
-        Self::from_map(by_uri)
+        Self::from_map(
+            headers
+                .into_iter()
+                .filter(|(uri, _)| !uri.is_empty())
+                // Normalize before collecting: two spellings of one URI
+                // (`//reg.com` and `//reg.com/`) must collapse here rather
+                // than survive as distinct keys and race in [`Self::from_map`].
+                .map(|(uri, header)| (normalize_auth_key(uri), header))
+                .collect(),
+        )
     }
 
     /// Build an [`AuthHeaders`] directly from an already-keyed map.
@@ -566,7 +554,11 @@ impl AuthHeaders {
     }
 }
 
-fn normalize_auth_key(mut uri: String) -> String {
+/// Canonicalize an auth-map key to the trailing-slash form the lookup
+/// compares against, so `//reg.com` and `//reg.com/` cannot coexist as
+/// two entries for one registry.
+#[must_use]
+pub fn normalize_auth_key(mut uri: String) -> String {
     if !uri.is_empty() && !uri.ends_with('/') {
         uri.push('/');
     }
@@ -740,6 +732,31 @@ pub fn base64_encode(input: &str) -> String {
         _ => {}
     }
     out
+}
+
+/// Mask an `Authorization` header value for display in an error message.
+/// The scheme survives so the reader can tell a `Bearer` token from `Basic`
+/// credentials, and a token long enough to be recognized by its owner keeps
+/// its first four characters; everything else becomes `[hidden]`.
+///
+/// Control characters are dropped first: the value comes from an untrusted
+/// `.npmrc` / environment variable and the masked result is printed to the
+/// terminal, so a token carrying raw escapes could otherwise inject terminal
+/// output through the characters masking leaves behind.
+#[must_use]
+pub fn hide_auth_information(auth_header_value: &str) -> String {
+    let sanitized: String =
+        auth_header_value.chars().filter(|character| !character.is_control()).collect();
+    let mut parts = sanitized.split(' ');
+    let auth_type = parts.next().unwrap_or_default();
+    let Some(token) = parts.next() else {
+        return "[hidden]".to_string();
+    };
+    if token.chars().count() < 20 {
+        return format!("{auth_type} [hidden]");
+    }
+    let prefix: String = token.chars().take(4).collect();
+    format!("{auth_type} {prefix}[hidden]")
 }
 
 /// Strip `user:pass@` (or `user@`) that appears right after a URL scheme in

@@ -81,6 +81,81 @@ fn run_passes_extra_arguments_to_the_script() {
     drop(root);
 }
 
+/// `pnpm run <script> -- <args>` forwards the separator, so an argument
+/// shaped like an option of the script's own program reaches the script
+/// instead of being claimed by it (pnpm/pnpm#13295). Asserts what the
+/// script received rather than the echoed command line, and mirrors the
+/// TypeScript counterpart in `pnpm11/pnpm/test/run.ts` ("run: pass the
+/// args to the command that is specified in the build script"), down to
+/// only the main stage seeing the arguments.
+#[test]
+fn run_forwards_the_separator_and_option_shaped_arguments() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    // A recorder file rather than an inlined `node -e` program, so no
+    // path has to survive quoting into a JS string literal on either
+    // platform. Same approach as the TypeScript test.
+    fs::write(
+        workspace.join("recordArgs.js"),
+        "require('fs').writeFileSync('args.json', \
+JSON.stringify(require('./args.json').concat([process.argv.slice(2)])), 'utf8')",
+    )
+    .expect("write recordArgs.js");
+    fs::write(workspace.join("args.json"), "[]").expect("seed args.json");
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "test",
+            "version": "0.0.0",
+            "scripts": {
+                "prefoo": "node recordArgs",
+                "foo": "node recordArgs",
+                "postfoo": "node recordArgs",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet
+        .with_args([
+            "--config.enable-pre-post-scripts",
+            "run",
+            "foo",
+            // A pnpm-settings-shaped token before the separator: the
+            // pre-clap config pass must leave it for the script too
+            // (pnpm/pnpm#13302), which `--other=1` alone would not catch.
+            "--config.foo=bar",
+            "arg",
+            "--",
+            "--other=1",
+            "-s",
+            "--if-present",
+        ])
+        .assert()
+        .success();
+
+    let recorded: Vec<Vec<String>> =
+        serde_json::from_str(&fs::read_to_string(workspace.join("args.json")).expect("read args"))
+            .expect("parse args.json");
+    assert_eq!(
+        recorded,
+        vec![
+            Vec::<String>::new(),
+            vec![
+                "--config.foo=bar".to_string(),
+                "arg".to_string(),
+                "--".to_string(),
+                "--other=1".to_string(),
+                "-s".to_string(),
+                "--if-present".to_string(),
+            ],
+            Vec::<String>::new(),
+        ],
+    );
+
+    drop(root);
+}
+
 /// Without `--if-present`, calling a script that does not exist fails
 /// with pnpm's `NO_SCRIPT` error.
 #[test]
@@ -295,6 +370,48 @@ fn run_preserves_embedded_quotes_in_script() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(output.status.success(), "the script must exit 0, got: {output:?}");
     assert!(stdout.contains("verbatim-ok"), "embedded quotes must survive; stdout: {stdout:?}");
+
+    drop(root);
+}
+
+#[test]
+fn run_preserves_parent_tmpdir() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let alternate_tmpdir = workspace.join("project-tmp");
+    fs::create_dir(&alternate_tmpdir).expect("create alternate temp dir");
+    fs::write(
+        workspace.join("show-tmp.js"),
+        "require('fs').writeFileSync('tmpdir.json', JSON.stringify({ \
+env: process.env.TMPDIR, os: require('os').tmpdir() }))",
+    )
+    .expect("write show-tmp.js");
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "test",
+            "version": "0.0.0",
+            "scripts": { "show-tmp": "node show-tmp.js" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet
+        .with_env("TMPDIR", &alternate_tmpdir)
+        .with_arg("run")
+        .with_arg("show-tmp")
+        .assert()
+        .success();
+
+    let recorded: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(workspace.join("tmpdir.json")).expect("read tmpdir.json"),
+    )
+    .expect("parse tmpdir.json");
+    let expected_tmpdir = alternate_tmpdir.to_string_lossy();
+    assert_eq!(recorded["env"], expected_tmpdir.as_ref());
+    if cfg!(not(windows)) {
+        assert_eq!(recorded["os"], expected_tmpdir.as_ref());
+    }
 
     drop(root);
 }
@@ -659,6 +776,99 @@ fn run_start_fallback_uses_dir_for_server_js_probe() {
     let written = fs::read_to_string(&marker).expect("read marker");
     let project = fs::canonicalize(project).expect("canonicalize project");
     assert_eq!(written, format!("{}\nserver.js", project.display()));
+
+    drop(root);
+}
+
+/// `pnpm test` / `start` / `stop` name no command in pnpm — they reach
+/// `run` through the `pnpm <script>` fallback, so every token after the
+/// command name is the script's, a `--` separator and anything shaped
+/// like a pnpm flag included.
+#[cfg(unix)]
+#[test]
+fn script_shortcuts_forward_every_argument_to_the_script() {
+    for (command, arguments, expected) in [
+        ("test", &["--flag", "value"][..], "--flag value"),
+        ("test", &["--", "--flag"][..], "-- --flag"),
+        // `--if-present` and `-s` are pnpm's own flags on other commands;
+        // for a shortcut they belong to the script.
+        ("start", &["--if-present"][..], "--if-present"),
+        ("stop", &["-s"][..], "-s"),
+        ("stop", &["--", "--flag", "x"][..], "-- --flag x"),
+    ] {
+        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+        let marker = workspace.join("args.txt");
+        write_executable(
+            &workspace.join("record-args"),
+            &format!("#!/bin/sh\nprintf '%s' \"$*\" > \"{}\"\n", marker.display()),
+        );
+        let manifest = json!({
+            "name": "test",
+            "version": "0.0.0",
+            "scripts": { command: "./record-args" },
+        })
+        .to_string();
+        fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+
+        pacquet.with_arg(command).with_args(arguments).assert().success();
+
+        let written = fs::read_to_string(&marker).expect("read marker");
+        assert_eq!(written, expected, "command: {command} {arguments:?}");
+
+        drop(root);
+    }
+}
+
+/// A `/pattern/` positional selects every matching script rather than
+/// naming one, through both `pnpm run <selector>` and the bare
+/// `pnpm <selector>` fallback.
+#[cfg(unix)]
+#[test]
+fn run_executes_every_script_matching_a_regexp_selector() {
+    for prefix in [&["run"][..], &[][..]] {
+        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+        let manifest = json!({
+            "name": "test",
+            "version": "0.0.0",
+            "scripts": {
+                "typecheck:one": format!(r#"touch "{}""#, workspace.join("one.txt").display()),
+                "typecheck:two": format!(r#"touch "{}""#, workspace.join("two.txt").display()),
+                "build": format!(r#"touch "{}""#, workspace.join("build.txt").display()),
+            },
+        })
+        .to_string();
+        fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+
+        pacquet.with_args(prefix).with_arg("/^typecheck:.+/").assert().success();
+
+        assert!(workspace.join("one.txt").exists(), "prefix: {prefix:?}");
+        assert!(workspace.join("two.txt").exists(), "prefix: {prefix:?}");
+        assert!(!workspace.join("build.txt").exists(), "prefix: {prefix:?}");
+
+        drop(root);
+    }
+}
+
+/// Flags on a selector say nothing about which scripts to pick, so pnpm
+/// rejects them instead of honouring a subset.
+#[cfg(unix)]
+#[test]
+fn run_rejects_regexp_flags_in_a_selector() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let manifest = json!({
+        "name": "test",
+        "version": "0.0.0",
+        "scripts": { "build": "true" },
+    })
+    .to_string();
+    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+
+    let output = pacquet.with_args(["run", "/^BUILD/i"]).assert().failure();
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr).into_owned();
+    assert!(
+        stderr.contains("ERR_PNPM_UNSUPPORTED_SCRIPT_COMMAND_FORMAT"),
+        "should reject the flags:\n{stderr}",
+    );
 
     drop(root);
 }

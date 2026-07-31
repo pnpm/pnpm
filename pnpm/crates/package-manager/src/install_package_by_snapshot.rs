@@ -13,7 +13,8 @@ use pacquet_graph_hasher::{host_arch, host_libc, host_platform};
 use pacquet_hooks::custom_fetcher_adapter::CustomFetcherPicker;
 use pacquet_lockfile::{
     BinaryArchive, BinaryResolution, BinarySpec, DirectoryResolution, LockfileResolution,
-    PackageKey, PackageMetadata, PlatformSelector, SnapshotEntry, select_platform_variant,
+    PackageKey, PackageMetadata, PlatformSelector, SnapshotEntry, is_git_hosted_tarball_url,
+    select_platform_variant,
 };
 use pacquet_network::ThrottledClient;
 use pacquet_reporter::{LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter};
@@ -144,10 +145,21 @@ pub enum InstallPackageBySnapshotError {
     #[diagnostic(transparent)]
     CreateVirtualDir(#[error(source)] CreateVirtualDirError),
 
+    /// A plain remote tarball the lockfile pins no `integrity` for.
+    /// Message and code mirror the TypeScript
+    /// `assertFetchableResolution` in
+    /// `pnpm11/installing/package-requester/src/packageRequester.ts`.
+    /// See `unverified_fetch_is_allowed` for the shapes that are
+    /// exempt.
     #[display(
-        "Package `{package_key}` has a tarball resolution without an `integrity` field; pnpm cannot verify the download and refuses to install it."
+        "Cannot fetch package \"{package_key}\" from the lockfile: it has no \"integrity\" field, so the downloaded tarball cannot be verified. Run a fresh install to repair the lockfile."
     )]
-    #[diagnostic(code(ERR_PNPM_MISSING_TARBALL_INTEGRITY))]
+    #[diagnostic(
+        code(ERR_PNPM_MISSING_TARBALL_INTEGRITY),
+        help(
+            "Re-resolving the entry is what records the missing hash: run `pnpm clean --lockfile` and then `pnpm install`."
+        )
+    )]
     MissingTarballIntegrity { package_key: String },
 
     #[display(
@@ -286,7 +298,7 @@ impl InstallPackageBySnapshot<'_> {
         } = self;
 
         // TODO: skip when already exists in store?
-        let package_id = package_key.without_peer().to_string();
+        let package_id = package_key.pkg_id();
         emit_progress_resolved::<Reporter>(&package_id, requester);
 
         // Adapter shared between the `Git` arm below and the
@@ -387,19 +399,16 @@ impl InstallPackageBySnapshot<'_> {
                 // keeps its by-value contract.
                 //
                 // Restricted to registry resolutions: those are the only
-                // ones the background prefetchers populate under a key
-                // this pass also writes — the pnpr `TarballPrefetcher` and
-                // the resolve-time `PrefetchingResolver` both key by
-                // `name@version`, matching the materialization store-index
-                // row. A remote tarball, by contrast, resolves with no
-                // `name_ver`, so the prefetcher skips it; its only
-                // mem-cache entry comes from the resolver's
-                // download-to-resolve, keyed by `name@version`, whereas the
-                // lockfile (and this pass) address it by `name@<url>`.
-                // Reusing that entry would skip writing the `name@<url>`
-                // store-index row a later re-resolve needs to reuse the
-                // warm store, so remote tarballs must take the standalone
-                // path.
+                // ones the background prefetchers populate — the pnpr
+                // `TarballPrefetcher` and the resolve-time
+                // `PrefetchingResolver` both key by `name@version`, and a
+                // remote tarball resolves with no `name_ver`, so they skip
+                // it. Its only mem-cache entry comes from the resolver's
+                // download-to-resolve, and a hit on that entry returns the
+                // extraction without touching the store index. Taking the
+                // standalone path instead keeps this pass reconciling the
+                // row itself, so a later re-resolve finds the warm store
+                // whatever the resolver did or didn't write.
                 let raw_cas_paths = match tarball_mem_cache {
                     Some(mem_cache) if matches!(resolution, LockfileResolution::Registry(_)) => {
                         // `clone()` is cheap (refs + `Arc`s) and lets us
@@ -425,7 +434,7 @@ impl InstallPackageBySnapshot<'_> {
                 // endpoint doesn't run `prepare`/`prepublish*` and
                 // the file set typically needs packlist filtering.
                 if let LockfileResolution::Tarball(t) = resolution
-                    && t.git_hosted == Some(true)
+                    && t.is_git_hosted()
                 {
                     // `built` tracks `!ignore_scripts`, in lock-step
                     // with the key shape `snapshot_cache_key` produces —
@@ -441,7 +450,7 @@ impl InstallPackageBySnapshot<'_> {
                         allow_build: &allow_build_closure,
                         ignore_scripts: config.ignore_scripts,
                         unsafe_perm: config.unsafe_perm,
-                        user_agent: None,
+                        user_agent: Some(&config.user_agent),
                         scripts_prepend_node_path,
                         script_shell: None,
                         node_execpath: None,
@@ -574,7 +583,7 @@ impl InstallPackageBySnapshot<'_> {
                     allow_build: &allow_build_closure,
                     ignore_scripts: config.ignore_scripts,
                     unsafe_perm: config.unsafe_perm,
-                    user_agent: None,
+                    user_agent: Some(&config.user_agent),
                     scripts_prepend_node_path,
                     script_shell: None,
                     node_execpath: None,
@@ -673,6 +682,14 @@ fn local_file_tarball_install_url<'a>(
 /// client — both sides must derive byte-identical URLs so the client's
 /// prefetch mem-cache keys line up.
 ///
+/// The integrity is `None` only for the shapes
+/// `unverified_fetch_is_allowed` exempts — every other resolution whose
+/// recorded integrity pins nothing (absent, or the empty SRI string an
+/// edited lockfile can carry) is refused here rather than fetched
+/// unchecked. See
+/// [`pacquet_tarball::DownloadTarballToStore::package_integrity`] for
+/// what an unverified fetch does.
+///
 /// # Panics
 ///
 /// On directory / git / binary / variations resolutions — callers gate
@@ -681,17 +698,24 @@ pub fn tarball_url_and_integrity<'a>(
     resolution: &'a LockfileResolution,
     package_key: &PackageKey,
     config: &'a Config,
-) -> Result<(Cow<'a, str>, &'a ssri::Integrity), InstallPackageBySnapshotError> {
+) -> Result<(Cow<'a, str>, Option<&'a ssri::Integrity>), InstallPackageBySnapshotError> {
     match resolution {
         LockfileResolution::Tarball(tarball_resolution) => {
-            let integrity = tarball_resolution.integrity.as_ref().ok_or_else(|| {
-                InstallPackageBySnapshotError::MissingTarballIntegrity {
+            let tarball_url = tarball_resolution.tarball.as_str();
+            let integrity = resolution.checkable_integrity();
+            if integrity.is_none() && !unverified_fetch_is_allowed(tarball_url) {
+                return Err(InstallPackageBySnapshotError::MissingTarballIntegrity {
                     package_key: package_key.to_string(),
-                }
-            })?;
-            Ok((tarball_resolution.tarball.as_str().pipe(Cow::Borrowed), integrity))
+                });
+            }
+            Ok((tarball_url.pipe(Cow::Borrowed), integrity))
         }
-        LockfileResolution::Registry(registry_resolution) => {
+        LockfileResolution::Registry(_) => {
+            let Some(integrity) = resolution.checkable_integrity() else {
+                return Err(InstallPackageBySnapshotError::MissingTarballIntegrity {
+                    package_key: package_key.to_string(),
+                });
+            };
             let registries: HashMap<String, String> =
                 config.resolved_registries().into_iter().collect();
             let name = package_key.name.to_string();
@@ -700,13 +724,11 @@ pub fn tarball_url_and_integrity<'a>(
             let version = package_key.suffix.version();
             let bare_name = package_key.name.bare.as_str();
             let tarball_url = format!("{registry}/{name}/-/{bare_name}-{version}.tgz");
-            Ok((Cow::Owned(tarball_url), &registry_resolution.integrity))
+            Ok((Cow::Owned(tarball_url), Some(integrity)))
         }
         // Caller (`run`) only invokes this helper for the tarball /
         // registry arms; git, directory, binary, variations, and
-        // custom resolutions never reach here. Return an
-        // unreachable-style error so a future caller that forgets to
-        // gate gets a clear panic in debug.
+        // custom resolutions never reach here.
         LockfileResolution::Directory(_)
         | LockfileResolution::Git(_)
         | LockfileResolution::Binary(_)
@@ -715,6 +737,24 @@ pub fn tarball_url_and_integrity<'a>(
             unreachable!("tarball_url_and_integrity called with non-tarball resolution");
         }
     }
+}
+
+/// Whether a tarball resolution that records no `integrity` may still
+/// be fetched.
+///
+/// pnpm exempts the two shapes it never recorded a hash for, keyed off
+/// the URL the way `classifyResolution` does — a lockfile's own
+/// `gitHosted` marker is only a hint:
+///
+/// - a git-host archive URL, which pins a full commit SHA (older pnpm
+///   versions wrote these without an `integrity`), and
+/// - a `file:` tarball, which is local to the project.
+///
+/// Every other remote tarball must carry one, so bytes fetched over
+/// the network for a package the lockfile claims to pin stay
+/// verifiable.
+pub(crate) fn unverified_fetch_is_allowed(tarball_url: &str) -> bool {
+    tarball_url.starts_with("file:") || is_git_hosted_tarball_url(tarball_url)
 }
 
 /// Build the host's [`PlatformSelector`] for runtime-variant
@@ -861,7 +901,7 @@ async fn fetch_binary_resolution_to_cas<Reporter: self::Reporter>(
     requester: &str,
     ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
 ) -> Result<HashMap<String, PathBuf>, InstallPackageBySnapshotError> {
-    let package_id = package_key.without_peer().to_string();
+    let package_id = package_key.pkg_id();
 
     // Synthesize the `package.json` runtime archives (Node.js / Bun /
     // Deno) don't ship, and hand it to the fetcher as `append_manifest`.
@@ -881,7 +921,7 @@ async fn fetch_binary_resolution_to_cas<Reporter: self::Reporter>(
             store_index_writer: store_index_writer.cloned(),
             verify_store_integrity: config.verify_store_integrity,
             verified_files_cache: Arc::clone(verified_files_cache),
-            package_integrity: &binary.integrity,
+            package_integrity: Some(&binary.integrity),
             package_unpacked_size: None,
             package_file_count: None,
             package_url: &binary.url,

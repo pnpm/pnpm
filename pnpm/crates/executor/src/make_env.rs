@@ -1,3 +1,4 @@
+use crate::lifecycle::DEV_PREINSTALL_ALREADY_RAN_ENV;
 use serde_json::Value;
 use std::{
     collections::HashMap,
@@ -53,19 +54,29 @@ pub struct EnvBuild {
 /// `parent_env` is taken by value so the production caller can pass
 /// `env::vars().collect()` and tests can pass a controlled fixture
 /// without racing on the global process env.
+#[must_use]
 pub fn build_env(
     opts: &EnvOptions<'_>,
     manifest: &Value,
     parent_env: HashMap<String, String>,
 ) -> EnvBuild {
+    build_env_for_platform(opts, manifest, parent_env, cfg!(windows))
+}
+
+fn build_env_for_platform(
+    opts: &EnvOptions<'_>,
+    manifest: &Value,
+    parent_env: HashMap<String, String>,
+    is_windows: bool,
+) -> EnvBuild {
     // 1. Start from the parent env, stripping `npm_package_*` (we
     //    regenerate them below) and the `(npm|pnpm)_config_*` auth
     //    keys, plus the per-call stamps we re-derive (`NODE`,
-    //    `TMPDIR`, `INIT_CWD`, `PNPM_SCRIPT_SRC_DIR`). User-defined
+    //    `INIT_CWD`, `PNPM_SCRIPT_SRC_DIR`). User-defined
     //    `npm_config_*` such as `npm_config_platform_arch` are
     //    preserved. `pnpm_*` keys such as `PNPM_HOME` are intentionally
     //    NOT in the filter.
-    let mut env = filter_parent_env(parent_env);
+    let mut env = filter_parent_env(parent_env, is_windows);
 
     // 2. `npm_package_*` recursive stamp. Top-level keeps only
     //    name/version/config/engines/bin; recursion below those
@@ -111,7 +122,15 @@ pub fn build_env(
     //    PNPM_SCRIPT_SRC_DIR, npm_config_user_agent }` — the reserved
     //    keys overwrite anything `extra_env` set. A non-reserved key
     //    still takes effect.
+    //    `extra_env` is also the one route by which
+    //    [`DEV_PREINSTALL_ALREADY_RAN_ENV`] could re-enter after
+    //    [`filter_parent_env`] dropped it, so it is refused here — under
+    //    the same casing rule that filter uses, since on Windows a
+    //    differently-cased entry names the same variable.
     for (k, v) in opts.extra_env {
+        if is_dev_preinstall_marker(k, is_windows) {
+            continue;
+        }
         env.insert(k.clone(), v.clone());
     }
 
@@ -134,6 +153,11 @@ pub fn build_env(
         None
     } else {
         let dir = opts.pkg_root.join("node_modules").join(".tmp");
+        // Windows treats differently cased spellings as one variable,
+        // so remove them before inserting the authoritative override.
+        if is_windows {
+            env.retain(|key, _| !key.eq_ignore_ascii_case("TMPDIR"));
+        }
         env.insert("TMPDIR".into(), dir.to_string_lossy().into_owned());
         Some(dir)
     };
@@ -145,10 +169,8 @@ pub fn build_env(
     EnvBuild { env, tmpdir }
 }
 
-/// Keep PATH (handled by the caller) and every key that is not an
-/// `npm_package_*` stamp, a `(npm|pnpm)_config_*` auth key, or one of
-/// the per-call stamps we re-derive (NODE / TMPDIR / `INIT_CWD` /
-/// `PNPM_SCRIPT_SRC_DIR`).
+/// Keep PATH (handled by the caller) and every key [`is_stamping_key`]
+/// does not claim.
 ///
 /// On Windows the comparison is case-insensitive because Rust's
 /// `Command::env` treats env keys case-insensitively on that
@@ -157,15 +179,18 @@ pub fn build_env(
 /// an unpredictable winner.
 ///
 /// [`Command::env`]: https://doc.rust-lang.org/std/process/struct.Command.html#method.env
-fn filter_parent_env(env: HashMap<String, String>) -> HashMap<String, String> {
-    env.into_iter().filter(|(k, _)| !is_stamping_key(k, cfg!(windows))).collect()
+fn filter_parent_env(env: HashMap<String, String>, is_windows: bool) -> HashMap<String, String> {
+    env.into_iter().filter(|(k, _)| !is_stamping_key(k, is_windows)).collect()
 }
 
-/// Whether `key` is one that [`build_env`] re-derives and so must be
-/// dropped from the inherited parent env: an `npm_package_*` stamp, a
-/// `(npm|pnpm)_config_*` auth credential, or a per-call stamp (`NODE`,
-/// `TMPDIR`, `INIT_CWD`, `PNPM_SCRIPT_SRC_DIR`). Stripping the auth
-/// credentials keeps them out of dependency lifecycle scripts.
+/// Whether `key` must be dropped from the inherited parent env: an
+/// `npm_package_*` stamp, a `(npm|pnpm)_config_*` auth credential, a
+/// per-call stamp [`build_env`] re-derives (`NODE`, `INIT_CWD`,
+/// `PNPM_SCRIPT_SRC_DIR`), or
+/// [`DEV_PREINSTALL_ALREADY_RAN_ENV`]. Stripping the auth credentials
+/// keeps them out of dependency lifecycle scripts; stripping the
+/// delegation marker keeps it scoped to the install that received it,
+/// so a nested install started by a script still runs its own hook.
 ///
 /// `is_windows` toggles case-insensitive matching so test code can
 /// drive both branches without `#[cfg(windows)]` gating the test
@@ -180,12 +205,22 @@ fn is_stamping_key(key: &str, is_windows: bool) -> bool {
     {
         return true;
     }
+    const DROPPED: [&str; 4] =
+        ["NODE", "INIT_CWD", "PNPM_SCRIPT_SRC_DIR", DEV_PREINSTALL_ALREADY_RAN_ENV];
     if is_windows {
-        return ["NODE", "TMPDIR", "INIT_CWD", "PNPM_SCRIPT_SRC_DIR"]
-            .iter()
-            .any(|name| key.eq_ignore_ascii_case(name));
+        return DROPPED.iter().any(|name| key.eq_ignore_ascii_case(name));
     }
-    matches!(key, "NODE" | "TMPDIR" | "INIT_CWD" | "PNPM_SCRIPT_SRC_DIR")
+    DROPPED.contains(&key)
+}
+
+/// Whether `key` names [`DEV_PREINSTALL_ALREADY_RAN_ENV`], under the
+/// same casing rule [`is_stamping_key`] applies: on Windows every
+/// spelling is the same variable, so every spelling must be dropped.
+fn is_dev_preinstall_marker(key: &str, is_windows: bool) -> bool {
+    if is_windows {
+        return key.eq_ignore_ascii_case(DEV_PREINSTALL_ALREADY_RAN_ENV);
+    }
+    key == DEV_PREINSTALL_ALREADY_RAN_ENV
 }
 
 /// Return the slice of `key` after `prefix` when `key` starts with it

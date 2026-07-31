@@ -13,10 +13,12 @@ use crate::suffix_index::index_of_dep_path_suffix;
 ///    `runtime:` engine entries — those carry their name in the
 ///    pkgId by design.
 ///
-/// The result is a borrowed slice of `dep_path` when neither transform
-/// applies, or an owned [`String`] when the second transform (name
-/// prefix strip) runs. Callers that always need ownership can
-/// `.to_string()`.
+/// The result is a borrowed slice of `dep_path` when the second
+/// transform doesn't run, or an owned [`String`] when it does. A
+/// borrowed result is always a *prefix* of `dep_path` — the whole of it,
+/// or everything ahead of the suffix — so a caller holding an owned
+/// input can truncate it in place instead of re-allocating. Callers that
+/// always need ownership can `.to_string()`.
 #[must_use]
 pub fn try_get_package_id(dep_path: &str) -> std::borrow::Cow<'_, str> {
     let suffix_index = index_of_dep_path_suffix(dep_path);

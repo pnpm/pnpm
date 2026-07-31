@@ -11,6 +11,7 @@ import pFilter from 'p-filter'
 import { pick } from 'ramda'
 import { writeJsonFile } from 'write-json-file'
 
+import { publishedName } from '../publishedNames.js'
 import { batchPublishPackages } from './batchPublish.js'
 import { publish } from './publish.js'
 import type { PublishPackedPkgOptions, PublishSummary } from './publishPackedPkg.js'
@@ -94,7 +95,7 @@ export async function recursivePublish (
       lockfileDir: opts.lockfileDir ?? pkg.rootDir,
       registries: opts.registries,
       resolve,
-    }, pkg.manifest.name, pkg.manifest.version))
+    }, publishedName(pkg.manifest)!, pkg.manifest.version))
   })
   const publishedPkgDirs = new Set<ProjectRootDir>(pkgsToPublish.map(({ rootDir }) => rootDir))
   const publishedPackages: RecursivePublishedPackage[] = []
@@ -135,7 +136,9 @@ export async function recursivePublish (
         for (const pkgDir of chunk) {
           if (!publishedPkgDirs.has(pkgDir)) continue
           const pkg = opts.selectedProjectsGraph[pkgDir].package
-          const registry = pkg.manifest.publishConfig?.registry ?? pickRegistryForPackage(opts.registries, pkg.manifest.name!)
+          // The registry is picked by scope, so a `publishConfig.name` that
+          // moves the package to another scope has to route by the new one.
+          const registry = pkg.manifest.publishConfig?.registry ?? pickRegistryForPackage(opts.registries, publishedName(pkg.manifest)!)
           // eslint-disable-next-line no-await-in-loop
           const publishResult = await publish({
             ...opts,

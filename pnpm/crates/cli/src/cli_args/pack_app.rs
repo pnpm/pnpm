@@ -33,6 +33,7 @@ use pacquet_engine_runtime_node_resolver::{
     get_node_mirror, parse_node_specifier, resolve_node_version,
 };
 use pacquet_network::{NetworkSettings, ThrottledClient};
+use pacquet_package_manifest::parse_manifest;
 use serde_json::Value;
 
 /// Minimum Node.js version that supports `node --build-sea`.
@@ -788,11 +789,10 @@ fn read_project_app_config(dir: &Path) -> Result<ReadProjectAppConfigResult, Pac
     let Ok(raw) = fs::read_to_string(&manifest_path) else {
         return Ok(ReadProjectAppConfigResult::default());
     };
-    let manifest: Value =
-        serde_json::from_str(&raw).map_err(|err| PackAppError::InvalidPackageJson {
-            path: manifest_path.display().to_string(),
-            message: err.to_string(),
-        })?;
+    let manifest: Value = parse_manifest(&raw).map_err(|err| PackAppError::InvalidPackageJson {
+        path: manifest_path.display().to_string(),
+        message: err.to_string(),
+    })?;
     let Some(manifest) = manifest.as_object() else {
         return Ok(ReadProjectAppConfigResult::default());
     };

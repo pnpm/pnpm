@@ -480,6 +480,155 @@ describe('peer dependency is resolved from the root of the workspace even if the
       expect(lockfile.importers.pkg?.dependencies?.['ajv-keywords'].version).toBe('1.5.0(ajv@4.10.0)')
     }
   })
+  test('the package in the root is linked with the link: protocol', async () => {
+    fs.mkdirSync('ajv-local')
+    fs.writeFileSync('ajv-local/package.json', JSON.stringify({ name: 'ajv', version: '4.10.0' }))
+    const allProjects: ProjectOptions[] = [
+      {
+        buildIndex: 0,
+        manifest: {
+          name: 'root',
+          version: '1.0.0',
+
+          dependencies: {
+            ajv: 'link:ajv-local',
+          },
+        },
+        rootDir: process.cwd() as ProjectRootDir,
+      },
+      ...nonRootProjects,
+    ]
+    await mutateModules(mutatedProjects, testDefaults({ allProjects, resolvePeersFromWorkspaceRoot: true }))
+
+    const lockfile = projects.root.readLockfile()
+    // The linked package's own version, not the newer one pkg2 brought, and not
+    // the root's path — which would reach pkg/ajv-local, a directory that does
+    // not exist.
+    expect(lockfile.importers.pkg?.dependencies?.['ajv-keywords'].version).toBe('1.5.0(ajv@4.10.0)')
+  })
+  test('the package in the root is linked to a directory whose manifest has no version', async () => {
+    fs.mkdirSync('ajv-local')
+    fs.writeFileSync('ajv-local/package.json', JSON.stringify({ name: 'ajv' }))
+    const allProjects: ProjectOptions[] = [
+      {
+        buildIndex: 0,
+        manifest: {
+          name: 'root',
+          version: '1.0.0',
+
+          dependencies: {
+            ajv: 'link:ajv-local',
+          },
+        },
+        rootDir: process.cwd() as ProjectRootDir,
+      },
+      ...nonRootProjects,
+    ]
+    await mutateModules(mutatedProjects, testDefaults({ allProjects, resolvePeersFromWorkspaceRoot: true }))
+
+    const lockfile = projects.root.readLockfile()
+    expect(lockfile.importers.pkg?.dependencies?.['ajv-keywords'].version).toBe('1.5.0(ajv@5.0.0)')
+  })
+  test('the package in the root is linked to a directory that has no manifest to read a version from', async () => {
+    const allProjects: ProjectOptions[] = [
+      {
+        buildIndex: 0,
+        manifest: {
+          name: 'root',
+          version: '1.0.0',
+
+          dependencies: {
+            ajv: 'link:ajv-local',
+          },
+        },
+        rootDir: process.cwd() as ProjectRootDir,
+      },
+      ...nonRootProjects,
+    ]
+    await mutateModules(mutatedProjects, testDefaults({ allProjects, resolvePeersFromWorkspaceRoot: true }))
+
+    const lockfile = projects.root.readLockfile()
+    expect(lockfile.importers.pkg?.dependencies?.['ajv-keywords'].version).toBe('1.5.0(ajv@5.0.0)')
+  })
+})
+
+test('peer dependency is resolved from a workspace: range in the workspace root project', async () => {
+  const projects = preparePackages([
+    {
+      location: '.',
+      package: { name: 'root' },
+    },
+    {
+      location: 'ajv',
+      package: { name: 'ajv', version: '4.10.0' },
+    },
+    {
+      location: 'pkg',
+      package: {},
+    },
+    {
+      location: 'pkg2',
+      package: {},
+    },
+  ])
+  const allProjects: ProjectOptions[] = [
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'root',
+        version: '1.0.0',
+
+        dependencies: {
+          ajv: 'workspace:^4.10.0',
+        },
+      },
+      rootDir: process.cwd() as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'ajv',
+        version: '4.10.0',
+      },
+      rootDir: path.resolve('ajv') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'pkg',
+        version: '1.0.0',
+
+        dependencies: {
+          'ajv-keywords': '1.5.0',
+        },
+      },
+      rootDir: path.resolve('pkg') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'pkg2',
+        version: '1.0.0',
+
+        dependencies: {
+          ajv: '5.0.0',
+        },
+      },
+      rootDir: path.resolve('pkg2') as ProjectRootDir,
+    },
+  ]
+  const reporter = jest.fn()
+  await mutateModules(allProjects.map(({ rootDir }) => ({
+    mutation: 'install' as const,
+    rootDir,
+  })), testDefaults({ allProjects, reporter, resolvePeersFromWorkspaceRoot: true }))
+
+  expect(reporter).not.toHaveBeenCalledWith(expect.objectContaining({
+    name: 'pnpm:peer-dependency-issues',
+  }))
+
+  const lockfile = projects.root.readLockfile()
+  expect(lockfile.importers.pkg?.dependencies?.['ajv-keywords'].version).toBe('1.5.0(ajv@ajv)')
 })
 
 test('warning is reported when cannot resolve peer dependency for non-top-level dependency', async () => {
@@ -1534,6 +1683,104 @@ test('deduplicate packages that have peers, when adding new dependency in a work
   expect(depPaths).toHaveLength(8)
   expect(depPaths).toContain(`@pnpm.e2e/abc@1.0.0${createPeerDepGraphHash([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`)
   expect(depPaths).toContain(`@pnpm.e2e/abc-parent-with-ab@1.0.0${createPeerDepGraphHash([{ name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`)
+})
+
+test('an optional peer declared by a workspace project is not added to its own importer, when auto-install-peers is off', async () => {
+  // Regression test for https://github.com/pnpm/pnpm/issues/13325
+  // project-1 declares @pnpm.e2e/peer-c only as an optional peer, and a sibling
+  // project resolves that very version. The optional peer may be deduplicated
+  // into the peer context of project-1's dependency, but it must not become a
+  // direct dependency of project-1 itself.
+  await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/peer-c', version: '1.0.0', distTag: 'latest' })
+
+  const manifest1 = {
+    name: 'project-1',
+    dependencies: {
+      '@pnpm.e2e/abc-optional-peers': '1.0.0',
+    },
+    peerDependencies: {
+      '@pnpm.e2e/peer-c': '^1.0.0',
+    },
+    peerDependenciesMeta: {
+      '@pnpm.e2e/peer-c': { optional: true },
+    },
+  }
+  const manifest2 = {
+    name: 'project-2',
+    dependencies: {
+      '@pnpm.e2e/peer-c': '1.0.0',
+    },
+  }
+  preparePackages([
+    { location: 'project-1', package: manifest1 },
+    { location: 'project-2', package: manifest2 },
+  ])
+
+  const importers: MutatedProject[] = [
+    { mutation: 'install', rootDir: path.resolve('project-1') as ProjectRootDir },
+    { mutation: 'install', rootDir: path.resolve('project-2') as ProjectRootDir },
+  ]
+  const allProjects = [
+    { buildIndex: 0, manifest: manifest1, rootDir: path.resolve('project-1') as ProjectRootDir },
+    { buildIndex: 0, manifest: manifest2, rootDir: path.resolve('project-2') as ProjectRootDir },
+  ]
+  await mutateModules(importers, testDefaults({ allProjects, autoInstallPeers: false }))
+
+  const lockfile = readYamlFileSync<LockfileFile>(path.resolve(WANTED_LOCKFILE))
+  expect(lockfile.importers!['project-1'].dependencies).not.toHaveProperty(['@pnpm.e2e/peer-c'])
+  expect(fs.existsSync(path.resolve('project-1/node_modules/@pnpm.e2e/peer-c'))).toBeFalsy()
+  // The optional peer is still deduplicated into the dependent's peer context.
+  // pacquet writes the identical entry; its counterpart is
+  // `optional_peer_stays_out_of_the_importer_without_auto_install_peers` in
+  // pnpm/crates/cli/tests/workspace_install.rs.
+  expect(lockfile.importers!['project-1'].dependencies!['@pnpm.e2e/abc-optional-peers'].version)
+    .toBe('1.0.0(@pnpm.e2e/peer-c@1.0.0)')
+})
+
+test('no peer is hoisted when auto-install-peers and dedupe-peer-dependents are both off', async () => {
+  // Peers are hoisted for either setting, so with both off the sibling's
+  // @pnpm.e2e/peer-c is left alone and the dependent keeps a snapshot with
+  // no peer suffix. pacquet's counterpart is
+  // `no_peer_is_hoisted_when_auto_install_peers_and_dedupe_peer_dependents_are_off`
+  // in pnpm/crates/cli/tests/workspace_install.rs.
+  await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/peer-c', version: '1.0.0', distTag: 'latest' })
+
+  const manifest1 = {
+    name: 'project-1',
+    dependencies: {
+      '@pnpm.e2e/abc-optional-peers': '1.0.0',
+    },
+  }
+  const manifest2 = {
+    name: 'project-2',
+    dependencies: {
+      '@pnpm.e2e/peer-c': '1.0.0',
+    },
+  }
+  preparePackages([
+    { location: 'project-1', package: manifest1 },
+    { location: 'project-2', package: manifest2 },
+  ])
+
+  const importers: MutatedProject[] = [
+    { mutation: 'install', rootDir: path.resolve('project-1') as ProjectRootDir },
+    { mutation: 'install', rootDir: path.resolve('project-2') as ProjectRootDir },
+  ]
+  const allProjects = [
+    { buildIndex: 0, manifest: manifest1, rootDir: path.resolve('project-1') as ProjectRootDir },
+    { buildIndex: 0, manifest: manifest2, rootDir: path.resolve('project-2') as ProjectRootDir },
+  ]
+  await mutateModules(importers, testDefaults({
+    allProjects,
+    autoInstallPeers: false,
+    dedupePeerDependents: false,
+  }))
+
+  const lockfile = readYamlFileSync<LockfileFile>(path.resolve(WANTED_LOCKFILE))
+  expect(lockfile.importers!['project-1'].dependencies!['@pnpm.e2e/abc-optional-peers'].version).toBe('1.0.0')
+  expect(fs.existsSync(path.resolve('project-1/node_modules/@pnpm.e2e/peer-c'))).toBeFalsy()
 })
 
 test('resolve peer dependencies from aliased subdependencies if they are dependencies of a parent package', async () => {

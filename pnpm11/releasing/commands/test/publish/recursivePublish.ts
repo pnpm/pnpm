@@ -171,6 +171,42 @@ test('print info when no packages are published', async () => {
   }))
 })
 
+test('a package renamed by publishConfig.name is probed under the name the registry knows', async () => {
+  preparePackages([
+    // The workspace name is unknown to the registry; the published name is
+    // is-positive@1.0.0, which is already there — so nothing is published.
+    {
+      name: 'workspace-only-name',
+      version: '1.0.0',
+
+      publishConfig: { name: 'is-positive' },
+      scripts: {
+        prepublishOnly: 'exit 1',
+      },
+    },
+  ])
+
+  const reporter = jest.fn()
+  streamParser.on('data', reporter)
+
+  await publish.handler({
+    ...DEFAULT_OPTS,
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+    configByUri: CONFIG_BY_URI,
+    dir: process.cwd(),
+    dryRun: true,
+    recursive: true,
+  }, [])
+
+  streamParser.removeListener('data', reporter)
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+    level: 'info',
+    message: 'There are no new packages that should be published',
+    name: 'pnpm',
+    prefix: process.cwd(),
+  }))
+})
+
 test('packages are released even if their current version is published, when force=true', async () => {
   preparePackages([
     // This version is already in the registry

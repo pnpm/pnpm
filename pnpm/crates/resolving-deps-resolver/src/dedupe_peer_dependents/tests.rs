@@ -1,35 +1,13 @@
-use super::{DirectByImporter, dedupe_peer_dependents, deduplicate_dep_paths, dep_path_peer_names};
+use super::{DirectByImporter, dedupe_peer_dependents, deduplicate_dep_paths};
 use crate::dependencies_graph::{DependenciesGraph, DependenciesGraphNode};
 use pacquet_deps_path::DepPath;
 use pacquet_lockfile::{DirectoryResolution, LockfileResolution};
 use pacquet_resolving_resolver_base::{PkgResolutionId, ResolveResult};
-use std::{
-    collections::{BTreeMap, HashSet},
-    sync::Arc,
-};
+use rustc_hash::FxHashSet as HashSet;
+use std::{collections::BTreeMap, sync::Arc};
 
 fn dp(raw: &str) -> DepPath {
     DepPath::from(raw.to_string())
-}
-
-#[test]
-fn collects_peer_names_after_patch_hash() {
-    let dep_path = dp(concat!(
-        "@medusajs/workflows-sdk@2.13.3",
-        "(patch_hash=248195172cff27c28650c005b6aa0aa3b2f2976f9739544b360b81668f2d8b59)",
-        "(@types/node@20.19.17)",
-        "(better-sqlite3@12.8.0)",
-        "(express@4.21.2)",
-    ));
-
-    assert_eq!(
-        dep_path_peer_names(&dep_path),
-        HashSet::from([
-            "@types/node".to_string(),
-            "better-sqlite3".to_string(),
-            "express".to_string(),
-        ]),
-    );
 }
 
 fn make_node(
@@ -56,9 +34,9 @@ fn make_node(
             policy_violation: None,
         }),
         children: children.iter().map(|(alias, child)| (alias.to_string(), dp(child))).collect(),
-        optional_children: HashSet::new(),
+        optional_children: HashSet::default(),
         peer_dependencies: BTreeMap::new(),
-        transitive_peer_dependencies: HashSet::new(),
+        transitive_peer_dependencies: HashSet::default(),
         resolved_peer_names: resolved_peers.iter().map(std::string::ToString::to_string).collect(),
         depth: 0,
         installable: true,
@@ -76,7 +54,7 @@ const QUX_VARIANT: &str = "foo@1.0.0(bar@1.0.0)(qux@1.0.0)";
 /// subset of both larger variants, which are incompatible with each
 /// other, so the collapse target is a real choice.
 fn build_graph() -> DependenciesGraph {
-    let mut graph = DependenciesGraph::new();
+    let mut graph = DependenciesGraph::default();
     for (id, dep_path) in
         [("bar@1.0.0", "bar@1.0.0"), ("baz@1.0.0", "baz@1.0.0"), ("qux@1.0.0", "qux@1.0.0")]
     {
@@ -146,7 +124,7 @@ fn does_not_collapse_across_incompatible_peer_versions() {
     let bar2 = "foo@1.0.0(bar@2.0.0)";
     let bar2_baz = "foo@1.0.0(bar@2.0.0)(baz@2.0.0)";
 
-    let mut graph = DependenciesGraph::new();
+    let mut graph = DependenciesGraph::default();
     for (id, dep_path) in [
         ("bar@1.0.0", "bar@1.0.0"),
         ("bar@2.0.0", "bar@2.0.0"),
@@ -189,14 +167,19 @@ fn does_not_collapse_across_incompatible_peer_versions() {
     assert_eq!(direct["project3"]["foo"], direct["project4"]["foo"]);
 }
 
+/// Every reference to a collapsed variant is rewritten, including a
+/// consumer's child edge whose own peer suffix names the collapsed
+/// variant — pnpm's `deduplicateAll` rewrites `node.children`
+/// unconditionally, and leaving one edge behind keeps the collapsed
+/// variant alive in the lockfile.
 #[test]
-fn direct_dep_collapses_but_parent_edge_keeps_incompatible_peer_variant() {
+fn a_consumers_child_edge_follows_the_collapse() {
     let subset = "foo@1.0.0(bar@1.0.0)";
     let larger = "foo@1.0.0(bar@1.0.0)(baz@1.0.0)";
     let baz = "baz@1.0.0(qux@1.0.0)";
     let consumer = "consumer@1.0.0(foo@1.0.0(bar@1.0.0))(bar@1.0.0)";
 
-    let mut graph = DependenciesGraph::new();
+    let mut graph = DependenciesGraph::default();
     for (id, dep_path) in [("bar@1.0.0", "bar@1.0.0"), ("qux@1.0.0", "qux@1.0.0")] {
         graph.insert(dp(dep_path), make_node(id, dep_path, &[], &[]));
     }
@@ -228,8 +211,8 @@ fn direct_dep_collapses_but_parent_edge_keeps_incompatible_peer_variant() {
 
     assert_eq!(direct["project-subset"]["foo"], dp(larger));
     assert_eq!(direct["project-larger"]["foo"], dp(larger));
-    assert_eq!(graph[&dp(consumer)].children["foo"], dp(subset));
-    assert!(graph.contains_key(&dp(subset)));
+    assert_eq!(graph[&dp(consumer)].children["foo"], dp(larger));
+    assert!(!graph.contains_key(&dp(subset)), "the collapsed variant has no reference left");
     assert!(graph.contains_key(&dp(larger)));
 }
 

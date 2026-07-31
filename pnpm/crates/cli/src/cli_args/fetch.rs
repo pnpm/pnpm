@@ -1,7 +1,7 @@
 use crate::State;
 use clap::Args;
 use miette::Context;
-use pacquet_package_manager::Install;
+use pacquet_package_manager::{Install, ProjectMutation};
 use pacquet_package_manifest::DependencyGroup;
 use pacquet_reporter::Reporter;
 
@@ -59,7 +59,7 @@ impl FetchArgs {
             skip_runtimes: fetch_config.skip_runtimes,
             trust_lockfile: fetch_config.trust_lockfile,
             update_checksums: false,
-            is_full_install: false,
+            mutation: ProjectMutation::NoInstall,
             installs_only: true,
             resolved_packages,
             supported_architectures: fetch_config.supported_architectures.clone(),

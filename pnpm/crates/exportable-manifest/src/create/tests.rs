@@ -190,6 +190,23 @@ fn publish_config_whitelisted_keys_are_hoisted() {
 }
 
 #[test]
+fn publish_config_name_renames_the_published_package() {
+    let dir = tempdir().unwrap();
+    let catalogs = empty_catalogs();
+    let out = build(
+        dir.path(),
+        &json!({
+            "name": "pacquet",
+            "version": "1.0.0",
+            "publishConfig": { "name": "pnpm" },
+        }),
+        &default_opts(&catalogs),
+    );
+    assert_eq!(out["name"], json!("pnpm"));
+    assert_eq!(out.get("publishConfig"), None);
+}
+
+#[test]
 fn publish_config_is_removed_when_emptied() {
     let dir = tempdir().unwrap();
     let catalogs = empty_catalogs();

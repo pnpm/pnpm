@@ -29,10 +29,11 @@ use chrono::{DateTime, Utc};
 use node_semver::Version;
 use pacquet_config::{TrustPolicy, version_policy::PackageVersionPolicy};
 use pacquet_lockfile::{LockfileResolution, PkgName, PkgNameVer, TarballResolution};
-use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
-use pacquet_registry::{Package, PackageVersion, PinnedVersion};
+use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_and_sanitize};
+use pacquet_registry::{Package, PackageVersion, RangeSpecStyle};
 use pacquet_resolving_resolver_base::{
-    LatestInfo, LatestQuery, PackageVersionGuardDecision, ResolutionPolicyViolation, ResolveError,
+    LatestInfo, LatestQuery, NoMatchingVersionError, PackageVersionGuardDecision,
+    RegistryResponseError, RegistryResponseErrorOptions, ResolutionPolicyViolation, ResolveError,
     ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, UpdateBehavior,
     WantedDependency, WorkspacePackages, parse_packument_timestamp,
 };
@@ -41,10 +42,13 @@ use crate::{
     errors::{AllVersionsBlockedError, GuardRepickLimitError},
     named_registry::pick_registry_for_package,
     parse_bare_specifier::{parse_bare_specifier, parse_jsr_specifier_to_registry_package_spec},
-    pick_package::{PackageMetaCache, PickPackageContext, PickPackageOptions, pick_package},
+    pick_package::{
+        PackageMetaCache, PickPackageContext, PickPackageError, PickPackageOptions, pick_package,
+    },
     pick_package_from_meta::{RegistryPackageSpec, RegistryPackageSpecType},
+    registry_url::to_registry_url,
     resolve_from_workspace::{
-        ResolveFromWorkspaceError, ResolveFromWorkspaceOptions,
+        ResolveFromWorkspaceError, ResolveFromWorkspaceOptions, SavedSpecifierOptions,
         pick_matching_local_version_or_null, resolve_from_local_package,
         try_resolve_from_workspace, try_resolve_from_workspace_packages,
     },
@@ -162,8 +166,9 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
                 lockfile_dir: opts.lockfile_dir.as_path(),
                 registry: &registry,
                 default_tag,
-                workspace_packages: opts.workspace_packages.as_ref(),
+                workspace_packages: opts.workspace_packages.as_deref(),
                 inject_workspace_packages: opts.inject_workspace_packages,
+                saved_specifier: saved_specifier_options(opts),
             };
             return try_resolve_from_workspace(wanted_dependency, &ws_opts)
                 .map_err(|err| Box::new(err) as ResolveError);
@@ -213,8 +218,8 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
 
         let pick_result = self.pick_from_registry(&registry, &spec, opts, optional).await;
         let picked = match pick_result {
-            Ok(Some(picked)) => picked,
-            Ok(None) => {
+            Ok(RegistryPick::Picked(picked)) => picked,
+            Ok(RegistryPick::NoMatchingVersion(meta)) => {
                 return match workspace_packages_active.map(|workspace_packages| {
                     try_workspace_fallback(workspace_packages, &spec, wanted_dependency, opts)
                 }) {
@@ -228,7 +233,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
                             ..
                         },
                     )) => Err(Box::new(ws_err)),
-                    _ => Ok(None),
+                    _ => Err(no_matching_version(wanted_dependency, &registry, &meta)),
                 };
             }
             Err(err) => {
@@ -261,7 +266,12 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
                 opts,
             )
         {
-            result.latest = picked.meta.dist_tag("latest").map(str::to_string);
+            result.latest = latest_allowed_by_policy(
+                &picked.meta,
+                opts.published_by,
+                opts.published_by_exclude.as_ref(),
+            )
+            .map(str::to_string);
             return Ok(Some(result));
         }
 
@@ -275,7 +285,16 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             published_by: opts.published_by,
             published_by_exclude: opts.published_by_exclude.as_ref(),
             picked_manifest_cache: &self.picked_manifest_cache,
-            calc_specifier_from: calc_specifier_from(wanted_dependency, opts),
+            calculated_specifier: calc_specifier_from(wanted_dependency, opts, &spec).map(
+                |(bare_specifier, default_pin)| {
+                    crate::calc_specifier(
+                        bare_specifier,
+                        wanted_dependency.alias.as_deref(),
+                        &picked.version,
+                        default_pin,
+                    )
+                },
+            ),
         })?;
 
         Ok(Some(result))
@@ -284,8 +303,11 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
     /// JSR counterpart to the npm path: runs the JSR-specifier parser,
     /// picks against the `@jsr` registry, then stamps
     /// `resolved_via = "jsr-registry"` and
-    /// `alias = spec.jsr_pkg_name` on the result so the install layer
-    /// records the dependency under its JSR-style name.
+    /// `alias = spec.jsr_pkg_name` on the result, so an edge that
+    /// declares no name of its own (`pnpm add jsr:@pnpm-e2e/bar`) is
+    /// installed under its JSR-style name rather than the folded
+    /// `@jsr/…` one. An edge declared under a manifest key keeps that
+    /// key.
     async fn resolve_jsr_impl(
         &self,
         wanted_dependency: &WantedDependency,
@@ -306,10 +328,12 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         let registry = self.registries.get("@jsr").map_or(DEFAULT_JSR_REGISTRY, String::as_str);
 
         let optional = wanted_dependency.optional.unwrap_or(false);
-        let Some(picked) =
-            self.pick_from_registry(registry, &jsr_spec.spec, opts, optional).await?
-        else {
-            return Ok(None);
+        let picked = match self.pick_from_registry(registry, &jsr_spec.spec, opts, optional).await?
+        {
+            RegistryPick::Picked(picked) => picked,
+            RegistryPick::NoMatchingVersion(meta) => {
+                return Err(no_matching_version(wanted_dependency, registry, &meta));
+            }
         };
 
         let result = build_resolve_result(BuildResolveResult {
@@ -322,27 +346,35 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             published_by: opts.published_by,
             published_by_exclude: opts.published_by_exclude.as_ref(),
             picked_manifest_cache: &self.picked_manifest_cache,
-            // A `jsr:` entry round-trips as `jsr:@scope/name@<range>`, a
-            // shape `calc_specifier` does not build. Reporting an
-            // npm-shaped range here would rewrite the manifest into a
-            // registry dependency, so the entry is left as declared.
-            calc_specifier_from: None,
+            // The entry stays a JSR dependency, so it round-trips under
+            // the `jsr:` protocol rather than as the npm-shaped range
+            // `calc_specifier` would build.
+            calculated_specifier: calc_specifier_from(wanted_dependency, opts, &jsr_spec.spec).map(
+                |(bare_specifier, default_pin)| {
+                    crate::calc_prefixed_specifier(
+                        "jsr:",
+                        &jsr_spec.jsr_pkg_name,
+                        bare_specifier,
+                        wanted_dependency.alias.as_deref(),
+                        &picked.version,
+                        default_pin,
+                    )
+                },
+            ),
         })?;
 
         Ok(Some(result))
     }
 
     /// Common picker invocation shared by [`Self::resolve_impl`] and
-    /// [`Self::resolve_jsr_impl`]. Returns `Ok(None)` when the picker
-    /// finds no matching version so each caller can fold that into
-    /// its own `Ok(None)` short-circuit.
+    /// [`Self::resolve_jsr_impl`].
     async fn pick_from_registry(
         &self,
         registry: &str,
         spec: &RegistryPackageSpec,
         opts: &ResolveOptions,
         optional: bool,
-    ) -> Result<Option<PickedFromRegistry>, ResolveError> {
+    ) -> Result<RegistryPick, ResolveError> {
         let overlay_selectors =
             crate::preferred_overlay::overlay_merged_selectors(opts, &spec.name);
         let base_selectors =
@@ -378,7 +410,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             },
         )
         .await?;
-        if let Some(picked) = &picked {
+        if let RegistryPick::Picked(picked) = &picked {
             crate::preferred_overlay::warn_once_on_held_back_update(
                 opts,
                 spec,
@@ -412,7 +444,13 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         if !query.compatible {
             resolve_opts.update = UpdateBehavior::Latest;
         }
-        let result = self.resolve_impl(&wanted, &resolve_opts).await?;
+        let result = match self.resolve_impl(&wanted, &resolve_opts).await {
+            Ok(result) => result,
+            Err(err) if swallowed_as_no_latest(&err, opts) => {
+                return Ok(Some(LatestInfo { latest_manifest: None }));
+            }
+            Err(err) => return Err(err),
+        };
         let Some(result) = result else {
             return Ok(None);
         };
@@ -425,6 +463,30 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         }
         Ok(Some(LatestInfo { latest_manifest: result.manifest }))
     }
+}
+
+/// Whether a latest-version lookup should report "no latest" instead of
+/// failing. `minimumReleaseAge` filters the packument before the pick, so
+/// every published version can be too young to match — a policy outcome the
+/// caller renders as "nothing to update to", not an error.
+pub(crate) fn swallowed_as_no_latest(err: &ResolveError, opts: &ResolveOptions) -> bool {
+    opts.published_by.is_some() && err.is::<NoMatchingVersionError>()
+}
+
+/// The `ERR_PNPM_NO_MATCHING_VERSION` error for a registry that publishes the
+/// package but nothing the request accepts.
+pub(crate) fn no_matching_version(
+    wanted_dependency: &WantedDependency,
+    registry: &str,
+    meta: &Package,
+) -> ResolveError {
+    let dep = match wanted_dependency.alias.as_deref() {
+        Some(alias) => {
+            format!("{alias}@{}", wanted_dependency.bare_specifier.as_deref().unwrap_or_default())
+        }
+        None => wanted_dependency.bare_specifier.clone().unwrap_or_default(),
+    };
+    Box::new(NoMatchingVersionError::new(dep, redact_and_sanitize(registry), meta))
 }
 
 /// Registry pick was unavailable (no matching version or fetch
@@ -465,6 +527,7 @@ fn try_workspace_shadow(
             hard_link,
             project_dir,
             lockfile_dir,
+            saved_specifier_options(opts),
         ));
     }
 
@@ -481,6 +544,7 @@ fn try_workspace_shadow(
         hard_link,
         project_dir,
         lockfile_dir,
+        saved_specifier_options(opts),
     ))
 }
 
@@ -495,8 +559,19 @@ fn workspace_fallback_options(opts: &ResolveOptions) -> ResolveFromWorkspaceOpti
         lockfile_dir: opts.lockfile_dir.as_path(),
         registry: UNUSED,
         default_tag: UNUSED,
-        workspace_packages: opts.workspace_packages.as_ref(),
+        workspace_packages: opts.workspace_packages.as_deref(),
         inject_workspace_packages: opts.inject_workspace_packages,
+        saved_specifier: saved_specifier_options(opts),
+    }
+}
+
+/// Project the specifier-writing knobs out of [`ResolveOptions`] for the
+/// workspace entry point, which carries its own options struct.
+fn saved_specifier_options(opts: &ResolveOptions) -> SavedSpecifierOptions {
+    SavedSpecifierOptions {
+        calc_specifier: opts.calc_specifier,
+        range_spec_style: opts.range_spec_style,
+        save_workspace_protocol: opts.save_workspace_protocol,
     }
 }
 
@@ -517,6 +592,15 @@ fn default_tag_spec(alias: &str, default_tag: &str) -> RegistryPackageSpec {
 pub(crate) struct PickedFromRegistry {
     pub(crate) meta: std::sync::Arc<Package>,
     pub(crate) version: std::sync::Arc<PackageVersion>,
+}
+
+/// Outcome of a registry pick.
+pub(crate) enum RegistryPick {
+    Picked(PickedFromRegistry),
+    /// The registry served the packument but no published version satisfied
+    /// the request. The packument comes along because
+    /// [`NoMatchingVersionError`] reports what *is* published.
+    NoMatchingVersion(std::sync::Arc<Package>),
 }
 
 pub(crate) struct PickFromRegistryOptions<'a> {
@@ -542,7 +626,7 @@ const GUARD_REPICK_LIMIT: usize = 1000;
 pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
     ctx: &PickPackageContext<'_, Cache>,
     opts: PickFromRegistryOptions<'_>,
-) -> Result<Option<PickedFromRegistry>, ResolveError> {
+) -> Result<RegistryPick, ResolveError> {
     let mut blocked_versions = std::collections::HashSet::new();
     let mut last_rejection: Option<String> = None;
     loop {
@@ -560,27 +644,32 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
         };
         let pick_result = pick_package(ctx, opts.spec, &pick_opts)
             .await
-            .map_err(|err| Box::new(err) as ResolveError)?;
+            .map_err(|err| map_pick_error(ctx, &opts, err))?;
 
         let Some(version) = pick_result.picked_package else {
             // No candidate left. With no prior guard rejection this is the
-            // ordinary "no matching version" outcome the resolver folds into
-            // Ok(None); once the guard has rejected every match, surface that
-            // as a distinct error instead of letting it read as an
-            // unsupported spec downstream.
+            // ordinary "no matching version" outcome; once the guard has
+            // rejected every match, surface that as a distinct error rather
+            // than blaming the range the user wrote.
             return match last_rejection {
                 Some(reason) => Err(all_versions_blocked(opts.spec, reason)),
-                None => Ok(None),
+                None => Ok(RegistryPick::NoMatchingVersion(pick_result.meta)),
             };
         };
         let Some(guard) = opts.package_version_guard else {
-            return Ok(Some(PickedFromRegistry { meta: pick_result.meta, version }));
+            return Ok(RegistryPick::Picked(PickedFromRegistry {
+                meta: pick_result.meta,
+                version,
+            }));
         };
 
         let version_str = version.version.to_string();
         match guard.check(&opts.spec.name, &version_str).await? {
             PackageVersionGuardDecision::Allow => {
-                return Ok(Some(PickedFromRegistry { meta: pick_result.meta, version }));
+                return Ok(RegistryPick::Picked(PickedFromRegistry {
+                    meta: pick_result.meta,
+                    version,
+                }));
             }
             PackageVersionGuardDecision::Reject { reason } => {
                 tracing::debug!(
@@ -645,6 +734,34 @@ fn all_versions_blocked(spec: &RegistryPackageSpec, reason: String) -> ResolveEr
     Box::new(AllVersionsBlockedError { name: spec.name.clone(), reason })
 }
 
+/// Box a picker failure for the resolver chain, restating a non-2xx registry
+/// answer as [`RegistryResponseError`]. Without that the transport-level
+/// message ("HTTP status client error (404 Not Found) for url ...") is all the
+/// user sees: no `ERR_PNPM_FETCH_404`, and no hint that a 404 from a private
+/// registry is often really an authorization failure.
+fn map_pick_error<Cache: PackageMetaCache>(
+    ctx: &PickPackageContext<'_, Cache>,
+    opts: &PickFromRegistryOptions<'_>,
+    error: PickPackageError,
+) -> ResolveError {
+    let Some(status) = registry_response_status(&error) else {
+        return Box::new(error);
+    };
+    let url = to_registry_url(opts.registry, &opts.spec.name);
+    // Look the credential up with the URL the fetch itself used. An inline
+    // `user:pass@` is exactly what `AuthHeaders` turns into a Basic header, so
+    // redacting before the lookup would report "no authorization header was
+    // set" for the registries that most certainly carry one.
+    let auth_header_value = ctx.auth_headers.for_url_with_package(&url, Some(&opts.spec.name));
+    Box::new(RegistryResponseError::new(RegistryResponseErrorOptions {
+        url: &redact_and_sanitize(&url),
+        status: status.as_u16(),
+        status_text: status.canonical_reason().unwrap_or_default(),
+        pkg_name: &opts.spec.name,
+        auth_header_value: auth_header_value.as_deref(),
+    }))
+}
+
 /// Input bundle for [`build_resolve_result`]. Grouped so the
 /// 9-field signature stays a struct literal at the (3) call sites
 /// instead of a positional argument list that clippy flags as
@@ -660,16 +777,13 @@ pub(crate) struct BuildResolveResult<'a> {
     pub published_by: Option<DateTime<Utc>>,
     pub published_by_exclude: Option<&'a PackageVersionPolicy>,
     pub picked_manifest_cache: &'a crate::PickedManifestCache,
-    /// The dependency's current specifier, when the caller asked for a
-    /// manifest-ready one back (`ResolveOptions::calc_specifier`), paired
-    /// with the pin to apply if it declares no range operator.
-    pub calc_specifier_from: Option<(&'a str, PinnedVersion)>,
+    /// The manifest-ready specifier for `picked`, rendered in whichever
+    /// shape the caller's protocol round-trips through, or `None` when
+    /// the caller did not ask for one
+    /// (`ResolveOptions::calc_specifier`).
+    pub calculated_specifier: Option<String>,
 }
 
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "destructures BuildResolveResult and consumes its fields by value downstream"
-)]
 pub(crate) fn build_resolve_result(
     args: BuildResolveResult<'_>,
 ) -> Result<ResolveResult, ResolveError> {
@@ -683,7 +797,7 @@ pub(crate) fn build_resolve_result(
         published_by,
         published_by_exclude,
         picked_manifest_cache,
-        calc_specifier_from,
+        calculated_specifier,
     } = args;
     let pkg_name =
         PkgName::parse(picked.name.as_str()).map_err(|err| Box::new(err) as ResolveError)?;
@@ -735,33 +849,34 @@ pub(crate) fn build_resolve_result(
     Ok(ResolveResult {
         id,
         name_ver: Some(name_ver),
-        latest: meta.dist_tag("latest").map(str::to_string),
+        latest: latest_allowed_by_policy(meta, published_by, published_by_exclude)
+            .map(str::to_string),
         published_at,
         manifest,
         resolution,
         resolved_via: resolved_via.to_string(),
-        normalized_bare_specifier: spec.normalized_bare_specifier.clone().or_else(|| {
-            calc_specifier_from.map(|(bare_specifier, default_pin)| {
-                crate::calc_specifier(bare_specifier, alias, picked, default_pin)
-            })
-        }),
+        normalized_bare_specifier: spec.normalized_bare_specifier.clone().or(calculated_specifier),
         alias: alias.map(str::to_string),
         policy_violation,
     })
 }
 
-/// The `(specifier, pin)` pair [`build_resolve_result`] needs to compute a
-/// manifest-ready specifier, or `None` when the caller did not ask for one.
+/// The `(specifier, pin)` pair a manifest-ready specifier is computed
+/// from, or `None` when there is nothing to compute: the caller did not
+/// ask for one (`ResolveOptions::calc_specifier`), or `spec` already
+/// carries the text the entry has to keep — a registry-host tarball URL,
+/// which [`build_resolve_result`] prefers over anything computed here.
 /// Caret is the fallback pin, matching pnpm's default save prefix.
-fn calc_specifier_from<'a>(
+pub(crate) fn calc_specifier_from<'a>(
     wanted_dependency: &'a WantedDependency,
     opts: &ResolveOptions,
-) -> Option<(&'a str, PinnedVersion)> {
-    if !opts.calc_specifier {
+    spec: &RegistryPackageSpec,
+) -> Option<(&'a str, RangeSpecStyle)> {
+    if !opts.calc_specifier || spec.normalized_bare_specifier.is_some() {
         return None;
     }
     let bare_specifier = wanted_dependency.bare_specifier.as_deref()?;
-    Some((bare_specifier, opts.pinned_version.unwrap_or(PinnedVersion::Major)))
+    Some((bare_specifier, opts.range_spec_style.unwrap_or(RangeSpecStyle::Major)))
 }
 
 /// Resolver-time `trustPolicy='no-downgrade'` check on a fresh pick.
@@ -784,6 +899,40 @@ fn fail_if_trust_downgraded_for_pick(
     };
     fail_if_trust_downgraded(&picked.meta, &picked.version.version.to_string(), &trust_opts)
         .map_err(|err| Box::new(err) as ResolveError)
+}
+
+/// The raw `dist-tags.latest` when the active `minimumReleaseAge`
+/// policy would allow installing it, `None` otherwise. The install
+/// summary's `(X is available)` hint must only ever name the actual
+/// latest tag, so an immature latest suppresses the hint instead of
+/// being rewritten to an older mature version. Suppression requires
+/// positive evidence of immaturity: a missing or unparsable
+/// timestamp keeps the raw tag, matching
+/// [`detect_min_release_age_violation`], which likewise only flags a
+/// version it can date.
+fn latest_allowed_by_policy<'a>(
+    meta: &'a Package,
+    published_by: Option<DateTime<Utc>>,
+    published_by_exclude: Option<&PackageVersionPolicy>,
+) -> Option<&'a str> {
+    let latest = meta.dist_tag("latest")?;
+    let Some(cutoff) = published_by else { return Some(latest) };
+    if let Some(policy) = published_by_exclude {
+        use pacquet_config::version_policy::PolicyMatch;
+        match policy.matches(&meta.name) {
+            PolicyMatch::AnyVersion => return Some(latest),
+            PolicyMatch::ExactVersions(versions)
+                if versions.iter().any(|exact| exact == latest) =>
+            {
+                return Some(latest);
+            }
+            _ => {}
+        }
+    }
+    match meta.published_at(latest).and_then(parse_packument_timestamp) {
+        Some(published_at) if published_at > cutoff => None,
+        _ => Some(latest),
+    }
 }
 
 /// Resolver-time `minimumReleaseAge` check. Returns a violation entry
@@ -827,18 +976,30 @@ fn detect_min_release_age_violation(
     })
 }
 
-/// Whether any error in the source chain is a reqwest `404 Not Found`.
+/// Whether the registry answered "no such package" for this pick.
 fn is_not_found_error(err: &(dyn std::error::Error + 'static)) -> bool {
+    registry_response_status(err) == Some(reqwest::StatusCode::NOT_FOUND)
+}
+
+/// The HTTP status a registry answered with, recovered from anywhere in the
+/// error chain. Both shapes occur: the picker's raw `reqwest` failure, and the
+/// [`RegistryResponseError`] [`map_pick_error`] restates it as.
+fn registry_response_status(
+    err: &(dyn std::error::Error + 'static),
+) -> Option<reqwest::StatusCode> {
     let mut current = Some(err);
     while let Some(err) = current {
+        if let Some(response_err) = err.downcast_ref::<RegistryResponseError>() {
+            return reqwest::StatusCode::from_u16(response_err.status).ok();
+        }
         if let Some(reqwest_err) = err.downcast_ref::<reqwest::Error>()
-            && reqwest_err.status() == Some(reqwest::StatusCode::NOT_FOUND)
+            && let Some(status) = reqwest_err.status()
         {
-            return true;
+            return Some(status);
         }
         current = err.source();
     }
-    false
+    None
 }
 
 #[cfg(test)]

@@ -26,13 +26,13 @@ impl RestartArgs {
 
         for script_name in ["stop", "restart", "start"] {
             RunArgs {
-                command: Some(script_name.to_string()),
-                args: args.clone(),
+                script: RunArgs::script(script_name, args.clone()),
                 if_present,
                 resume_from: None,
                 report_summary: false,
                 no_bail: false,
                 sort: true,
+                parallel: false,
                 sequential: false,
             }
             .run(dir, config, silent)?;

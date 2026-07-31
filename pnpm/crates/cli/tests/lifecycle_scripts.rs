@@ -1441,6 +1441,66 @@ mod project_scripts {
         drop((root, mock_instance));
     }
 
+    /// `npm_config_user_agent` carries the configured user agent in every
+    /// script context. Guards such as n8n's `preinstall` compare its
+    /// leading `name/version` token against `pnpm`, so a missing or
+    /// truncated value makes them reject the install.
+    #[test]
+    fn stamps_the_configured_user_agent_on_install_scripts_run_and_exec() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        // The body as a bare JS expression, so it can be passed either
+        // through a shell (a script body) or straight to `node -e`.
+        let record_user_agent_js = |file: &str| {
+            format!(
+                "require('fs').writeFileSync('{file}',process.env.npm_config_user_agent||'<unset>')",
+            )
+        };
+        let record_user_agent = |file: &str| format!(r#"node -e "{}""#, record_user_agent_js(file));
+        let manifest = serde_json::json!({
+            "name": "project-reading-the-user-agent",
+            "version": "1.0.0",
+            "scripts": {
+                "preinstall": record_user_agent("preinstall-ua.txt"),
+                "show-ua": record_user_agent("run-ua.txt"),
+            },
+        });
+        fs::write(workspace.join("package.json"), manifest.to_string())
+            .expect("write package.json");
+
+        pacquet.with_arg("install").assert().success();
+        for args in [
+            vec!["run".to_string(), "show-ua".to_string()],
+            // `exec` builds its child's environment separately from the
+            // lifecycle executor, so it needs its own coverage.
+            vec![
+                "exec".to_string(),
+                "node".to_string(),
+                "-e".to_string(),
+                record_user_agent_js("exec-ua.txt"),
+            ],
+        ] {
+            Command::cargo_bin("pnpm")
+                .expect("find the pnpm binary")
+                .with_current_dir(&workspace)
+                .with_args(args)
+                .assert()
+                .success();
+        }
+
+        for file in ["preinstall-ua.txt", "run-ua.txt", "exec-ua.txt"] {
+            let user_agent = fs::read_to_string(workspace.join(file))
+                .unwrap_or_else(|error| panic!("read {file}: {error}"));
+            let (name, rest) = user_agent.split_once('/').unwrap_or((&user_agent, ""));
+            assert_eq!(name, "pnpm", "{file}: {user_agent}");
+            assert!(!rest.is_empty(), "{file} carries a version: {user_agent}");
+        }
+
+        drop((root, mock_instance));
+    }
+
     #[test]
     fn runs_project_lifecycle_scripts_on_frozen_install() {
         let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -1679,6 +1739,619 @@ mod project_scripts {
         assert!(
             !workspace.join("order.txt").exists(),
             "no project lifecycle script should run under --ignore-scripts",
+        );
+
+        drop((root, mock_instance));
+    }
+
+    /// `pacquet update --latest` with no selectors rewrites every direct
+    /// dependency's spec, which makes it pnpm's `installSome` — a partial
+    /// mutation that does not run the project's own lifecycle scripts,
+    /// unlike a bare `pacquet update`.
+    #[test]
+    fn latest_update_without_selectors_does_not_run_project_lifecycle_scripts() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        let package_json = serde_json::json!({
+            "name": "project-updating-to-latest",
+            "version": "1.0.0",
+            "dependencies": { "@pnpm.e2e/dep-of-pkg-with-1-dep": "^100.0.0" },
+            "scripts": {
+                "preinstall": append_order_script("preinstall"),
+                "install": append_order_script("install"),
+                "postinstall": append_order_script("postinstall"),
+                "prepare": append_order_script("prepare"),
+            },
+        });
+        fs::write(workspace.join("package.json"), package_json.to_string())
+            .expect("write package.json");
+
+        Command::cargo_bin("pnpm")
+            .expect("find the pnpm binary")
+            .with_current_dir(&workspace)
+            .with_arg("install")
+            .assert()
+            .success();
+        fs::remove_file(workspace.join("order.txt")).expect("clear the install's order.txt");
+
+        pacquet.with_args(["update", "--latest"]).assert().success();
+
+        assert!(
+            !workspace.join("order.txt").exists(),
+            "`update --latest` must not run the project's own lifecycle scripts",
+        );
+
+        drop((root, mock_instance));
+    }
+
+    /// `pnpm:devPreinstall` is the root project's chance to prepare state
+    /// that resolution and linking then consume, so it runs on its own
+    /// schedule: before every other stage, only for the root, and only
+    /// when scripts are not suppressed.
+    mod dev_preinstall {
+        use super::{append_order_script, project_with_lifecycle_scripts};
+        use assert_cmd::prelude::*;
+        use command_extra::CommandExtra;
+        use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+        use std::{fs, process::Command};
+
+        fn project_with_dev_preinstall() -> serde_json::Value {
+            let mut manifest = project_with_lifecycle_scripts();
+            manifest["scripts"]["pnpm:devPreinstall"] =
+                append_order_script("pnpm:devPreinstall").into();
+            manifest
+        }
+
+        const EXPECTED_ORDER: [&str; 7] = [
+            "pnpm:devPreinstall",
+            "preinstall",
+            "install",
+            "postinstall",
+            "preprepare",
+            "prepare",
+            "postprepare",
+        ];
+
+        #[test]
+        fn runs_before_the_projects_own_lifecycle_scripts() {
+            let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+                CommandTempCwd::init().add_mocked_registry();
+            let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+            fs::write(workspace.join("package.json"), project_with_dev_preinstall().to_string())
+                .expect("write package.json");
+
+            pacquet.with_arg("install").assert().success();
+
+            let order = fs::read_to_string(workspace.join("order.txt")).expect("read order.txt");
+            let stages: Vec<&str> = order.lines().collect();
+            assert_eq!(stages, EXPECTED_ORDER);
+
+            drop((root, mock_instance));
+        }
+
+        #[test]
+        fn runs_on_a_frozen_install() {
+            let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+                CommandTempCwd::init().add_mocked_registry();
+            let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+            fs::write(workspace.join("package.json"), project_with_dev_preinstall().to_string())
+                .expect("write package.json");
+
+            pacquet.with_arg("install").assert().success();
+            fs::remove_file(workspace.join("order.txt")).expect("clear order.txt between installs");
+
+            Command::cargo_bin("pnpm")
+                .expect("find the pnpm binary")
+                .with_current_dir(&workspace)
+                .with_args(["install", "--frozen-lockfile"])
+                .assert()
+                .success();
+
+            let order = fs::read_to_string(workspace.join("order.txt")).expect("read order.txt");
+            let stages: Vec<&str> = order.lines().collect();
+            assert_eq!(stages, EXPECTED_ORDER);
+
+            drop((root, mock_instance));
+        }
+
+        #[test]
+        fn is_skipped_under_ignore_scripts() {
+            let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+                CommandTempCwd::init().add_mocked_registry();
+            let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+            fs::write(workspace.join("package.json"), project_with_dev_preinstall().to_string())
+                .expect("write package.json");
+
+            pacquet.with_args(["install", "--ignore-scripts"]).assert().success();
+
+            assert!(
+                !workspace.join("order.txt").exists(),
+                "pnpm:devPreinstall must not run under --ignore-scripts",
+            );
+
+            drop((root, mock_instance));
+        }
+
+        /// The TypeScript CLI sets this when it delegates a resolving
+        /// install, having already run the hook itself. That handover
+        /// carries no flag of its own, so without the marker the script
+        /// would run once on each side of it.
+        #[test]
+        fn is_skipped_when_the_delegating_cli_already_ran_it() {
+            let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+                CommandTempCwd::init().add_mocked_registry();
+            let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+            fs::write(workspace.join("package.json"), project_with_dev_preinstall().to_string())
+                .expect("write package.json");
+
+            pacquet
+                .with_env("PNPM_INTERNAL_DEV_PREINSTALL_ALREADY_RAN", "true")
+                .with_arg("install")
+                .assert()
+                .success();
+
+            let order = fs::read_to_string(workspace.join("order.txt")).expect("read order.txt");
+            let stages: Vec<&str> = order.lines().collect();
+            assert_eq!(stages, &EXPECTED_ORDER[1..], "only pnpm:devPreinstall should be skipped");
+
+            drop((root, mock_instance));
+        }
+
+        /// Only the exact `true` the delegating CLI writes suppresses the
+        /// hook, so a stray assignment cannot silently reintroduce the
+        /// bug this marker exists to avoid.
+        #[test]
+        fn an_empty_delegation_marker_does_not_suppress_it() {
+            let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+                CommandTempCwd::init().add_mocked_registry();
+            let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+            fs::write(workspace.join("package.json"), project_with_dev_preinstall().to_string())
+                .expect("write package.json");
+
+            pacquet
+                .with_env("PNPM_INTERNAL_DEV_PREINSTALL_ALREADY_RAN", "")
+                .with_arg("install")
+                .assert()
+                .success();
+
+            let order = fs::read_to_string(workspace.join("order.txt")).expect("read order.txt");
+            let stages: Vec<&str> = order.lines().collect();
+            assert_eq!(stages, EXPECTED_ORDER);
+
+            drop((root, mock_instance));
+        }
+
+        /// An install that materializes nothing has nothing for the hook
+        /// to prepare. pnpm reaches the same outcome by having
+        /// `--lockfile-only` imply `ignoreScripts`.
+        #[test]
+        fn is_skipped_by_lockfile_only() {
+            let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+                CommandTempCwd::init().add_mocked_registry();
+            let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+            fs::write(workspace.join("package.json"), project_with_dev_preinstall().to_string())
+                .expect("write package.json");
+
+            pacquet.with_args(["install", "--lockfile-only"]).assert().success();
+
+            assert!(
+                !workspace.join("order.txt").exists(),
+                "pnpm:devPreinstall must not run under --lockfile-only",
+            );
+
+            drop((root, mock_instance));
+        }
+
+        /// The bin a workspace package publishes may not exist until the
+        /// root's `pnpm:devPreinstall` writes it — next.js generates a
+        /// placeholder `next` bin that way. Running the hook after linking
+        /// (or not at all) leaves every dependent's shim pointing at a file
+        /// that isn't there.
+        #[test]
+        fn prepares_a_workspace_bin_before_it_is_linked() {
+            let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+                CommandTempCwd::init().add_mocked_registry();
+            let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+            let yaml_path = workspace.join("pnpm-workspace.yaml");
+            let yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+            fs::write(&yaml_path, format!("{}\npackages:\n  - 'packages/*'\n", yaml.trim_end()))
+                .expect("write pnpm-workspace.yaml");
+
+            let root_manifest = serde_json::json!({
+                "name": "workspace-root",
+                "version": "1.0.0",
+                "scripts": {
+                    "pnpm:devPreinstall": r#"node -e "const fs=require('fs');fs.mkdirSync('packages/tool/dist',{recursive:true});fs.writeFileSync('packages/tool/dist/tool.js','')""#,
+                },
+            });
+            fs::write(workspace.join("package.json"), root_manifest.to_string())
+                .expect("write the root package.json");
+
+            for (name, manifest) in [
+                ("tool", serde_json::json!({ "bin": { "tool": "dist/tool.js" } })),
+                ("app", serde_json::json!({ "dependencies": { "tool": "workspace:*" } })),
+            ] {
+                let dir = workspace.join("packages").join(name);
+                fs::create_dir_all(&dir).expect("create the member dir");
+                let mut manifest = manifest;
+                manifest["name"] = name.into();
+                manifest["version"] = "1.0.0".into();
+                fs::write(dir.join("package.json"), manifest.to_string())
+                    .expect("write the member package.json");
+            }
+
+            pacquet.with_arg("install").assert().success();
+
+            let linked_bin_target = workspace
+                .join("packages")
+                .join("app")
+                .join("node_modules")
+                .join("tool")
+                .join("dist")
+                .join("tool.js");
+            assert!(
+                linked_bin_target.exists(),
+                "the shim in app's node_modules/.bin points at {}, which pnpm:devPreinstall should have created before linking",
+                linked_bin_target.display(),
+            );
+
+            drop((root, mock_instance));
+        }
+
+        /// pnpm reads the hook from the root project's manifest only, so a
+        /// member that defines one is ignored.
+        #[test]
+        fn runs_only_for_the_workspace_root() {
+            let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+                CommandTempCwd::init().add_mocked_registry();
+            let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+            let yaml_path = workspace.join("pnpm-workspace.yaml");
+            let yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+            fs::write(&yaml_path, format!("{}\npackages:\n  - 'packages/*'\n", yaml.trim_end()))
+                .expect("write pnpm-workspace.yaml");
+
+            let manifest_with_hook = |name: &str| {
+                serde_json::json!({
+                    "name": name,
+                    "version": "1.0.0",
+                    "scripts": { "pnpm:devPreinstall": append_order_script(name) },
+                })
+                .to_string()
+            };
+            fs::write(workspace.join("package.json"), manifest_with_hook("root"))
+                .expect("write the root package.json");
+            let member_dir = workspace.join("packages").join("member");
+            fs::create_dir_all(&member_dir).expect("create the member dir");
+            fs::write(member_dir.join("package.json"), manifest_with_hook("member"))
+                .expect("write the member package.json");
+
+            pacquet.with_arg("install").assert().success();
+
+            let order = fs::read_to_string(workspace.join("order.txt")).expect("read order.txt");
+            assert_eq!(order.lines().collect::<Vec<&str>>(), ["root"]);
+            assert!(
+                !member_dir.join("order.txt").exists(),
+                "a member's pnpm:devPreinstall must not run",
+            );
+
+            drop((root, mock_instance));
+        }
+    }
+}
+
+/// Which *workspace* projects run their own lifecycle scripts, which
+/// pnpm decides from the mutated-importer list its command layer builds:
+/// the projects the command was pointed at, plus the workspace root,
+/// which its recursive dispatch pushes in as a full install whenever the
+/// selection leaves it out.
+mod project_scripts_in_a_workspace {
+    use assert_cmd::prelude::*;
+    use command_extra::CommandExtra;
+    use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+    use std::{ffi::OsStr, fs, path::Path, process::Command};
+    use tempfile::TempDir;
+
+    /// Published at 100.0.0, 100.1.0, and 101.0.0.
+    const DEP: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";
+
+    fn project_manifest(name: &str) -> String {
+        serde_json::json!({
+            "name": name,
+            "version": "1.0.0",
+            "dependencies": { DEP: "^100.0.0" },
+            "scripts": {
+                "postinstall": format!(
+                    r#"node -e "require('fs').writeFileSync('ran-postinstall.txt','{name}')""#,
+                ),
+            },
+        })
+        .to_string()
+    }
+
+    /// A workspace whose root and `packages/*` members all carry a
+    /// `postinstall` that stamps `ran-postinstall.txt` in their own
+    /// directory. Returns it already installed, with every stamp the
+    /// install left behind removed, so a later assertion sees only what
+    /// the command under test ran.
+    fn installed_workspace(members: &[&str]) -> (TempDir, std::path::PathBuf, AddMockedRegistry) {
+        let CommandTempCwd { root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+
+        let yaml_path = workspace.join("pnpm-workspace.yaml");
+        let yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+        fs::write(&yaml_path, format!("{}\npackages:\n  - 'packages/*'\n", yaml.trim_end()))
+            .expect("write pnpm-workspace.yaml");
+        fs::write(workspace.join("package.json"), project_manifest("root"))
+            .expect("write the root package.json");
+        for member in members {
+            let dir = workspace.join("packages").join(member);
+            fs::create_dir_all(&dir).expect("create the member dir");
+            fs::write(dir.join("package.json"), project_manifest(member))
+                .expect("write the member package.json");
+        }
+
+        pacquet(&workspace, ["install"]).assert().success();
+        clear_stamps(&workspace, members);
+
+        (root, workspace, npmrc_info)
+    }
+
+    fn pacquet(cwd: &Path, args: impl IntoIterator<Item = impl AsRef<OsStr>>) -> Command {
+        Command::cargo_bin("pnpm")
+            .expect("find the pnpm binary")
+            .with_current_dir(cwd)
+            .with_args(args)
+    }
+
+    fn stamp_path(workspace: &Path, project: &str) -> std::path::PathBuf {
+        let dir = if project == "root" {
+            workspace.to_path_buf()
+        } else {
+            workspace.join("packages").join(project)
+        };
+        dir.join("ran-postinstall.txt")
+    }
+
+    fn clear_stamps(workspace: &Path, members: &[&str]) {
+        for project in std::iter::once(&"root").chain(members) {
+            let path = stamp_path(workspace, project);
+            if path.exists() {
+                fs::remove_file(path).expect("clear a postinstall stamp");
+            }
+        }
+    }
+
+    #[track_caller]
+    fn assert_ran(workspace: &Path, expected: &[&str], all: &[&str]) {
+        let ran: Vec<&str> =
+            all.iter().copied().filter(|project| stamp_path(workspace, project).exists()).collect();
+        assert_eq!(ran, expected, "projects whose own postinstall ran");
+    }
+
+    /// A targeted `update <selector>` is pnpm's `installSome`: the project
+    /// it was run in does not run its own lifecycle scripts. The workspace
+    /// root still does — the selection left it out, so it is mutated as a
+    /// plain full install, and here root plus the lone member is the whole
+    /// workspace, which is what puts the partial mutation under the
+    /// `mutation === 'install'` filter.
+    #[test]
+    fn targeted_update_in_the_only_member_runs_only_the_workspace_root_scripts() {
+        let (root, workspace, anchor) = installed_workspace(&["a"]);
+
+        pacquet(&workspace.join("packages").join("a"), ["update", DEP]).assert().success();
+
+        assert_ran(&workspace, &["root"], &["root", "a"]);
+
+        drop((root, anchor));
+    }
+
+    /// Once a member the command never touched is left over, the mutated
+    /// set covers only part of the workspace — the case pnpm materializes
+    /// the rest of the workspace for, and where every mutated project runs
+    /// its own scripts whatever its mutation. The targeted member runs
+    /// them too; only the untouched member stays silent.
+    #[test]
+    fn targeted_update_in_a_larger_workspace_runs_the_mutated_projects_scripts() {
+        let (root, workspace, anchor) = installed_workspace(&["a", "b"]);
+
+        pacquet(&workspace.join("packages").join("a"), ["update", DEP]).assert().success();
+
+        assert_ran(&workspace, &["root", "a"], &["root", "a", "b"]);
+
+        drop((root, anchor));
+    }
+
+    /// A selector-less `update` is a full install of the project it was
+    /// run in, so that project runs its own scripts — and so does the
+    /// unselected workspace root. The workspace members the command never
+    /// touched stay silent.
+    #[test]
+    fn bare_update_in_a_member_runs_that_member_and_the_workspace_root() {
+        let (root, workspace, anchor) = installed_workspace(&["a", "b"]);
+
+        pacquet(&workspace.join("packages").join("a"), ["update"]).assert().success();
+
+        assert_ran(&workspace, &["root", "a"], &["root", "a", "b"]);
+
+        drop((root, anchor));
+    }
+
+    /// Run at the workspace root, an update mutates the root alone: the
+    /// members are materialized from the lockfile but run no scripts.
+    #[test]
+    fn update_at_the_workspace_root_runs_only_the_root_scripts() {
+        let (root, workspace, anchor) = installed_workspace(&["a", "b"]);
+
+        pacquet(&workspace, ["update"]).assert().success();
+
+        assert_ran(&workspace, &["root"], &["root", "a", "b"]);
+
+        drop((root, anchor));
+    }
+
+    /// `-r` mutates every project, so nothing is left for the workspace
+    /// root to be pushed in for — and a targeted update makes all of those
+    /// mutations partial. No project runs its own scripts.
+    #[test]
+    fn recursive_targeted_update_runs_no_project_scripts() {
+        let (root, workspace, anchor) = installed_workspace(&["a", "b"]);
+
+        pacquet(&workspace, ["-r", "update", DEP]).assert().success();
+
+        assert_ran(&workspace, &[], &["root", "a", "b"]);
+
+        drop((root, anchor));
+    }
+
+    /// A recursive selector-less update installs every project in full,
+    /// so every project runs its own scripts.
+    #[test]
+    fn recursive_bare_update_runs_every_project_scripts() {
+        let (root, workspace, anchor) = installed_workspace(&["a", "b"]);
+
+        pacquet(&workspace, ["-r", "update"]).assert().success();
+
+        assert_ran(&workspace, &["root", "a", "b"], &["root", "a", "b"]);
+
+        drop((root, anchor));
+    }
+
+    /// `add` is `installSome` like a targeted update, and follows the same
+    /// rule: in a workspace it leaves the rest of the members untouched
+    /// while the root — mutated as a full install — runs its scripts. The
+    /// member the `add` ran in runs its own scripts too, because the
+    /// mutated set covers only part of the workspace.
+    #[test]
+    fn add_in_a_member_runs_that_member_and_the_workspace_root() {
+        let (root, workspace, anchor) = installed_workspace(&["a", "b"]);
+
+        pacquet(&workspace.join("packages").join("a"), ["add", "@pnpm.e2e/foo"]).assert().success();
+
+        assert_ran(&workspace, &["root", "a"], &["root", "a", "b"]);
+
+        drop((root, anchor));
+    }
+
+    /// `remove` is pnpm's `uninstallSome`, which runs no project's own
+    /// lifecycle scripts anywhere in the workspace.
+    #[test]
+    fn remove_in_a_member_runs_no_project_scripts() {
+        let (root, workspace, anchor) = installed_workspace(&["a", "b"]);
+
+        pacquet(&workspace.join("packages").join("a"), ["remove", DEP]).assert().success();
+
+        assert_ran(&workspace, &[], &["root", "a", "b"]);
+
+        drop((root, anchor));
+    }
+}
+
+/// `scriptShell` selects the shell every lifecycle script is spawned
+/// under, not only the one `pnpm run` uses. Unix-only: the probe is a
+/// shell shim, and `select_shell` rejects `.cmd`/`.bat` shims on
+/// Windows anyway.
+#[cfg(unix)]
+mod script_shell {
+    use super::workspace_yaml::{allow_builds, append_workspace_yaml_key};
+    use assert_cmd::prelude::*;
+    use command_extra::CommandExtra;
+    use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+    use std::{fs, os::unix::fs::PermissionsExt, path::Path};
+
+    /// Install a shell shim that appends each script it is asked to run
+    /// to a log beside itself, then hands the script to the real
+    /// `/bin/sh`, and point `scriptShell` at it. Every spawn that honors
+    /// the setting shows up in the log; every spawn that ignores it
+    /// silently does not.
+    ///
+    /// The shim derives the log path from its own location rather than
+    /// having it interpolated in, so nothing from the temp directory's
+    /// name is ever parsed as shell source.
+    fn install_probe_shell(workspace: &Path) -> std::path::PathBuf {
+        let log = workspace.join("shell-invocations.txt");
+        let shim = workspace.join("probe-shell.sh");
+        fs::write(
+            &shim,
+            "#!/bin/sh\nprintf '%s\\n' \"$2\" >> \"$(dirname \"$0\")/shell-invocations.txt\"\nexec /bin/sh -c \"$2\"\n",
+        )
+        .expect("write the probe shell");
+        fs::set_permissions(&shim, fs::Permissions::from_mode(0o755))
+            .expect("make the probe shell executable");
+        append_workspace_yaml_key(workspace, "scriptShell", shim.display());
+        log
+    }
+
+    fn logged_scripts(log: &Path) -> Vec<String> {
+        fs::read_to_string(log)
+            .expect("read the probe shell's log")
+            .lines()
+            .map(str::to_string)
+            .collect()
+    }
+
+    #[test]
+    fn runs_the_projects_own_scripts_and_dev_preinstall_under_it() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        let package_json = serde_json::json!({
+            "name": "project-with-a-configured-shell",
+            "version": "1.0.0",
+            "scripts": {
+                "pnpm:devPreinstall": "echo dev-preinstall-marker",
+                "postinstall": "echo postinstall-marker",
+            },
+        });
+        fs::write(workspace.join("package.json"), package_json.to_string())
+            .expect("write package.json");
+        let log = install_probe_shell(&workspace);
+
+        pacquet.with_arg("install").assert().success();
+
+        let scripts = logged_scripts(&log);
+        assert!(
+            scripts.iter().any(|script| script.contains("dev-preinstall-marker")),
+            "pnpm:devPreinstall should run under the configured shell, got {scripts:?}",
+        );
+        assert!(
+            scripts.iter().any(|script| script.contains("postinstall-marker")),
+            "the project's postinstall should run under the configured shell, got {scripts:?}",
+        );
+
+        drop((root, mock_instance));
+    }
+
+    #[test]
+    fn runs_dependency_build_scripts_under_it() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        let package_json = serde_json::json!({
+            "dependencies": { "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0" },
+        });
+        fs::write(workspace.join("package.json"), package_json.to_string())
+            .expect("write package.json");
+        allow_builds(&workspace, &[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)]);
+        let log = install_probe_shell(&workspace);
+
+        pacquet.with_arg("install").assert().success();
+
+        let scripts = logged_scripts(&log);
+        assert!(
+            scripts.iter().any(|script| script.contains("generated-by-preinstall")),
+            "a dependency's build scripts should run under the configured shell, got {scripts:?}",
         );
 
         drop((root, mock_instance));

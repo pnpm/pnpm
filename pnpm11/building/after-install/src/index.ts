@@ -378,9 +378,12 @@ async function _rebuild (
     for (const { hash, pkgMeta } of iterateHashedGraphNodes(
       depGraph,
       iteratePkgMeta(ctx.currentLockfile, depGraph),
-      _allowBuild,
-      opts.supportedArchitectures,
-      nodeVersion
+      {
+        allowBuild: _allowBuild,
+        supportedArchitectures: opts.supportedArchitectures,
+        nodeVersion,
+        lockfileDir: opts.lockfileDir,
+      }
     )) {
       const preferredGvsDir = path.join(globalVirtualStoreDir, hash)
       gvsDirByDepPath.set(pkgMeta.depPath, fs.existsSync(preferredGvsDir)

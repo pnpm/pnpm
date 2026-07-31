@@ -1,4 +1,3 @@
-import type { Config, ConfigContext } from '@pnpm/config.reader'
 import type * as logs from '@pnpm/core-loggers'
 import type { LogLevel, StreamParser } from '@pnpm/logger'
 import createDiffer from 'ansi-diff'
@@ -10,6 +9,7 @@ import { mergeOutputs } from './mergeOutputs.js'
 import { reporterForClient } from './reporterForClient/index.js'
 import type { FilterPkgsDiff } from './reporterForClient/reportSummary.js'
 import { formatWarn } from './reporterForClient/utils/formatWarn.js'
+import type { ReporterPnpmConfig } from './ReporterPnpmConfig.js'
 
 export { formatWarn }
 
@@ -38,7 +38,7 @@ export function initDefaultReporter (
     }
     context: {
       argv: string[]
-      config?: Config & ConfigContext
+      config?: ReporterPnpmConfig
       env?: NodeJS.ProcessEnv
       process?: NodeJS.Process
     }
@@ -139,7 +139,7 @@ export function toOutput$ (
     }
     context: {
       argv: string[]
-      config?: Config & ConfigContext
+      config?: ReporterPnpmConfig
       env?: NodeJS.ProcessEnv
       process?: NodeJS.Process
     }

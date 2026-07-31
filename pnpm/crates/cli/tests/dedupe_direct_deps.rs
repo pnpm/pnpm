@@ -587,12 +587,9 @@ fn dedupes_direct_dep_against_publicly_hoisted_root_dep() {
     drop((root, mock_instance));
 }
 
-/// With `publicHoistPattern: ['*']` (the explicit form of
-/// `shamefullyHoist: true` — pacquet doesn't bridge the legacy flag to
-/// the pattern, see [`hoist::shamefully_hoist_legacy_publicly_hoists_everything`]),
-/// every transitive lands at the workspace root's `node_modules/`. A
-/// non-root importer's direct dep that also lands at root via hoist
-/// gets deduped from the importer.
+/// With `shamefullyHoist: true`, every transitive lands at the workspace
+/// root's `node_modules/`. A non-root importer's direct dep that also lands
+/// at root via hoist gets deduped from the importer.
 ///
 /// Runs through pacquet's fresh-install path (single `pacquet install`,
 /// no `--frozen-lockfile`), exercising the hoist pass that fresh
@@ -624,9 +621,7 @@ fn dedupe_under_shamefully_hoist() {
     workspace_yaml.push_str(
         "packages:\n  - 'packages/*'\n\
          dedupeDirectDeps: true\n\
-         shamefullyHoist: true\n\
-         hoistPattern: []\n\
-         publicHoistPattern:\n  - '*'\n",
+         shamefullyHoist: true\n",
     );
     fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
 

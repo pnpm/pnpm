@@ -5,15 +5,15 @@ use pretty_assertions::assert_eq;
 use serde_json::Value;
 
 use crate::{
-    AddedRoot, BrokenModulesLog, ContextLog, DependencyType, DeprecationLog, Envelope,
-    FetchingProgressLog, FetchingProgressMessage, GetHostName, GlobalLog, HookLog, Host,
+    AddedRoot, BrokenModulesLog, ContextLog, DedupeCheckLog, DependencyType, DeprecationLog,
+    Envelope, FetchingProgressLog, FetchingProgressMessage, GetHostName, GlobalLog, HookLog, Host,
     IgnoredScriptsLog, LifecycleLog, LifecycleMessage, LifecycleStdio, LockfileVerificationLog,
     LockfileVerificationMessage, LogEvent, LogLevel, PackageImportMethod, PackageImportMethodLog,
-    PackageManifestLog, PackageManifestMessage, PnpmLog, ProgressLog, ProgressMessage,
-    PromptAction, PromptLog, RemovedRoot, Reporter, RequestRetryError, RequestRetryLog, RootLog,
-    RootMessage, SilentReporter, SkippedOptionalDependencyLog, SkippedOptionalPackage,
-    SkippedOptionalParent, SkippedOptionalReason, Stage, StageLog, StatsLog, StatsMessage,
-    SummaryLog,
+    PackageManifestLog, PackageManifestMessage, PnpmErrorLog, PnpmLog, ProgressLog,
+    ProgressMessage, PromptAction, PromptLog, RemovedRoot, Reporter, RequestRetryError,
+    RequestRetryLog, RootLog, RootMessage, SilentReporter, SkippedOptionalDependencyLog,
+    SkippedOptionalPackage, SkippedOptionalParent, SkippedOptionalReason, Stage, StageLog,
+    StatsLog, StatsMessage, SummaryLog,
 };
 
 #[test]
@@ -135,6 +135,43 @@ fn pnpm_event_matches_pnpm_wire_shape() {
     assert_eq!(json["level"], "info");
     assert_eq!(json["message"], "Lockfile is up to date, resolution step is skipped");
     assert_eq!(json["prefix"], "/some/project");
+}
+
+#[test]
+fn dedupe_check_event_matches_pnpm_wire_shape() {
+    let event = LogEvent::DedupeCheck(DedupeCheckLog {
+        level: LogLevel::Error,
+        message: "Dedupe --check found changes to the lockfile".to_string(),
+        err: PnpmErrorLog {
+            code: "ERR_PNPM_DEDUPE_CHECK_ISSUES".to_string(),
+            message: "Dedupe --check found changes to the lockfile".to_string(),
+        },
+        dedupe_check_issues: serde_json::json!({
+            "importerIssuesByImporterId": {
+                "added": [],
+                "removed": [],
+                "updated": {},
+            },
+            "packageIssuesByDepPath": {
+                "added": ["dep@2.0.0"],
+                "removed": ["dep@1.0.0"],
+                "updated": {},
+            },
+        }),
+        rendered: "terminal-only rendering".to_string(),
+    });
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
+    let json: Value = envelope
+        .pipe_ref(serde_json::to_string)
+        .expect("serialize envelope")
+        .pipe_as_ref(serde_json::from_str)
+        .expect("parse JSON");
+
+    assert_eq!(json["name"], "pnpm");
+    assert_eq!(json["level"], "error");
+    assert_eq!(json["err"]["code"], "ERR_PNPM_DEDUPE_CHECK_ISSUES");
+    assert_eq!(json["dedupeCheckIssues"]["packageIssuesByDepPath"]["added"][0], "dep@2.0.0");
+    assert!(json.get("rendered").is_none(), "terminal rendering must stay off the wire: {json:?}");
 }
 
 /// Global-channel (`name: "pnpm:global"`) log carries the

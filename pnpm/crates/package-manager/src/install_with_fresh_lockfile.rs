@@ -5,7 +5,10 @@ use crate::{
     LinkVirtualStoreBins, LinkVirtualStoreBinsError, PrefetchContext, PrefetchingResolver,
     SkippedSnapshots, SymlinkDirectDependencies, SymlinkDirectDependenciesError,
     VersionPolicyError, VersionsOverrider, VirtualStoreLayout, dependencies_graph_to_lockfile,
-    link_root_component_members, store_init::init_store_dir_best_effort,
+    fast_update_catalogs::{FastCatalogUpdate, try_fast_update_catalogs},
+    fast_update_overrides::{FastOverrideOptions, try_fast_update_overrides},
+    link_root_component_members,
+    store_init::init_store_dir_best_effort,
 };
 use dashmap::DashMap;
 use derive_more::{Display, Error};
@@ -29,7 +32,8 @@ use pacquet_reporter::{
 };
 use pacquet_resolving_default_resolver::DefaultResolver;
 use pacquet_resolving_deps_resolver::{
-    ManifestHook, ResolveDependencyTreeError, ResolveImporterError, ResolveImporterOptions,
+    DependencyOverrider, ManifestHook, ResolveDependencyTreeError, ResolveImporterError,
+    ResolveImporterOptions, UpdateDepth,
 };
 use pacquet_resolving_git_resolver::{GitFetchContext, GitResolver, RealGitProbe, RealGitRunner};
 use pacquet_resolving_local_resolver::{
@@ -40,7 +44,7 @@ use pacquet_resolving_npm_resolver::{
     merge_named_registries, shared_packument_fetch_locker, shared_picked_manifest_cache,
 };
 use pacquet_resolving_resolver_base::{ResolveOptions, Resolver};
-use pacquet_resolving_tarball_resolver::{TarballFetchContext, TarballResolver};
+use pacquet_resolving_tarball_resolver::{PriorTarballEntry, TarballFetchContext, TarballResolver};
 use pacquet_store_dir::{SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter, store_index_key};
 use pacquet_tarball::{MemCache, SharedReportedProgressKeys};
 use std::{
@@ -182,7 +186,7 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     pub can_prompt: bool,
     /// A full workspace install versus a partial one (`pacquet add` and the
     /// package installs built on it — `dlx`, global add, the engine install).
-    /// See [`crate::Install::is_full_install`]. Gates the `--no-optional`
+    /// See [`crate::ProjectMutation::is_full_install`]. Gates the `--no-optional`
     /// exclusion: only a full install's `dependency_groups` carries that
     /// intent, so a partial run must not drop transitive optionals.
     pub is_full_install: bool,
@@ -235,19 +239,57 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
 ///
 /// `KeepAll` is the install/add default (every pin seeds the table, so
 /// unrelated entries keep their resolutions on a rewrite).
+///
+/// Every withholding variant carries the update's `--depth` ceiling,
+/// which bounds how deep the re-resolution reaches: a node past it keeps
+/// its locked resolution even when its name is a target. See
+/// [`UpdateDepth`].
 #[derive(Debug, Default, Clone)]
 pub enum UpdateSeedPolicy {
     /// Seed every lockfile pin. `pacquet install` / `pacquet add`.
     #[default]
     KeepAll,
+    /// Seed every lockfile pin but re-resolve every dependency edge.
+    /// `pacquet dedupe` uses this to preserve valid pins while rebuilding
+    /// the graph around the fewest compatible versions.
+    KeepAllResolveAll,
     /// Withhold every lockfile pin. `pacquet update` with no package
     /// selectors — the whole graph re-resolves to highest-in-range.
-    DropAll,
+    DropAll {
+        max_depth: UpdateDepth,
+    },
     /// Withhold only the named packages' pins. `pacquet update <pattern>`
-    /// — matched names (at any depth) re-resolve while everything else
-    /// keeps its pin. Keyed by package name (scope included).
-    DropOnly(std::collections::HashSet<String>),
-    ByImporter(BTreeMap<String, ImporterUpdateSeedPolicy>),
+    /// — matched names re-resolve while everything else keeps its pin.
+    /// Keyed by package name (scope included).
+    DropOnly {
+        names: std::collections::HashSet<String>,
+        max_depth: UpdateDepth,
+    },
+    ByImporter {
+        policies: BTreeMap<String, ImporterUpdateSeedPolicy>,
+        max_depth: UpdateDepth,
+    },
+}
+
+impl UpdateSeedPolicy {
+    /// Withhold every pin at every depth — the re-resolve `pacquet
+    /// dedupe` / `pacquet import` and the napi install perform, none of
+    /// which expose a `--depth`.
+    #[must_use]
+    pub fn drop_all() -> Self {
+        UpdateSeedPolicy::DropAll { max_depth: UpdateDepth::UNLIMITED }
+    }
+
+    fn max_depth(&self) -> UpdateDepth {
+        match self {
+            UpdateSeedPolicy::KeepAll | UpdateSeedPolicy::KeepAllResolveAll => {
+                UpdateDepth::UNLIMITED
+            }
+            UpdateSeedPolicy::DropAll { max_depth }
+            | UpdateSeedPolicy::DropOnly { max_depth, .. }
+            | UpdateSeedPolicy::ByImporter { max_depth, .. } => *max_depth,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -266,11 +308,12 @@ fn update_reuse_scopes(
 
     match policy {
         UpdateSeedPolicy::KeepAll => (UpdateReuseScope::All, BTreeMap::new()),
-        UpdateSeedPolicy::DropAll => (UpdateReuseScope::None, BTreeMap::new()),
-        UpdateSeedPolicy::DropOnly(names) => {
-            (UpdateReuseScope::Except(names.clone()), BTreeMap::new())
+        UpdateSeedPolicy::KeepAllResolveAll => (UpdateReuseScope::None, BTreeMap::new()),
+        UpdateSeedPolicy::DropAll { .. } => (UpdateReuseScope::None, BTreeMap::new()),
+        UpdateSeedPolicy::DropOnly { names, .. } => {
+            (UpdateReuseScope::Except(names.iter().cloned().collect()), BTreeMap::new())
         }
-        UpdateSeedPolicy::ByImporter(policies) => (
+        UpdateSeedPolicy::ByImporter { policies, .. } => (
             UpdateReuseScope::All,
             policies
                 .iter()
@@ -278,7 +321,7 @@ fn update_reuse_scopes(
                     let scope = match policy {
                         ImporterUpdateSeedPolicy::DropAll => UpdateReuseScope::None,
                         ImporterUpdateSeedPolicy::DropOnly(names) => {
-                            UpdateReuseScope::Except(names.clone())
+                            UpdateReuseScope::Except(names.iter().cloned().collect())
                         }
                     };
                     (importer_id.clone(), scope)
@@ -382,6 +425,13 @@ pub enum InstallWithFreshLockfileError {
     #[display("Failed to resolve dependency tree: {_0}")]
     #[diagnostic(transparent)]
     ResolveDependencyTree(#[error(source)] ResolveDependencyTreeError),
+
+    /// Surfaces a failure to read the manifest of a workspace-root
+    /// `link:` / `file:` dependency, whose version stands in for the peer
+    /// it may satisfy under `resolvePeersFromWorkspaceRoot`.
+    #[display("Failed to read the manifest of a workspace root dependency: {_0}")]
+    #[diagnostic(transparent)]
+    RootDepManifest(#[error(source)] pacquet_package_manifest::PackageManifestError),
 
     #[display("Failed to build lockfile from resolved dependency graph: {_0}")]
     #[diagnostic(code(pacquet_package_manager::dependencies_graph_to_lockfile))]
@@ -642,6 +692,10 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             prune_orphans,
         } = self;
 
+        // Shared once so the per-edge `ResolveOptions` clones below stay
+        // refcount bumps — see `ResolveOptions::workspace_packages`.
+        let workspace_packages = workspace_packages.map(Arc::new);
+
         // The pnpr override when supplied, else the config's npmrc headers;
         // shared by every registry-touching resolver below.
         let auth_headers = auth_override.unwrap_or_else(|| Arc::clone(&config.auth_headers));
@@ -650,6 +704,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         let minimum_release_age_exclude_override = resolution_observer
             .as_ref()
             .and_then(|observer| observer.minimum_release_age_exclude_override());
+        let can_fast_update_overrides = resolution_observer.is_none();
         let is_hoisted = matches!(node_linker, NodeLinker::Hoisted);
         let extra_node_paths = crate::shim_extra_node_paths(config, node_linker);
         let filtered_isolated =
@@ -826,14 +881,20 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // the materializing and `--lockfile-only` paths: the lockfile
         // needs the integrity regardless of whether `node_modules` is
         // built.
-        // Map every remote-tarball URL the prior lockfile recorded (with an
+        // Map every remote tarball the prior lockfile recorded (with an
         // integrity) to its `<integrity>\t<pkg_id>` store-index key, keyed
         // exactly as `snapshot_cache_key` / the install pass address the row.
         // The `TarballResolver` uses it to reuse a warm store entry instead
         // of re-downloading on re-resolution. Git-hosted tarballs are skipped
         // (they key by `gitHostedStoreIndexKey`, not the integrity) and just
         // re-fetch as before. Empty on a first install.
-        let prior_tarball_entries: HashMap<String, (ssri::Integrity, String)> = wanted_lockfile
+        //
+        // The map is keyed by `pkg_id` — the bare specifier — rather than
+        // `resolution.tarball`, because that is what the resolver looks a
+        // dependency up by. The two differ once an immutable response has
+        // redirected: the lockfile then records the post-redirect URL while
+        // the id stays the specifier the manifest asked for.
+        let prior_tarball_entries: HashMap<String, PriorTarballEntry> = wanted_lockfile
             .and_then(|lockfile| lockfile.packages.as_ref())
             .map(|packages| {
                 packages
@@ -841,9 +902,16 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                     .filter_map(|(key, metadata)| match &metadata.resolution {
                         LockfileResolution::Tarball(t) if t.git_hosted != Some(true) => {
                             let integrity = t.integrity.clone()?;
-                            let cache_key =
-                                store_index_key(&integrity.to_string(), &key.to_string());
-                            Some((t.tarball.clone(), (integrity, cache_key)))
+                            let pkg_id = key.pkg_id();
+                            let store_index_key = store_index_key(&integrity.to_string(), &pkg_id);
+                            Some((
+                                pkg_id,
+                                PriorTarballEntry {
+                                    integrity,
+                                    store_index_key,
+                                    tarball_url: t.tarball.clone(),
+                                },
+                            ))
                         }
                         _ => None,
                     })
@@ -1104,10 +1172,23 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                         as ManifestHook)
                 }
             });
-        let manifest_hook = compose_manifest_hooks(
-            compose_manifest_hooks(compat_package_extensions_hook, package_extensions_hook),
-            overrides_hook,
-        );
+        // The resolver applies these around the pnpmfile hook in pnpm's
+        // `createReadPackageHook` order — packageExtensions → readPackage
+        // hooks → overrides — so a hook that replaces the manifest cannot
+        // erase the overrides.
+        let manifest_hook =
+            compose_manifest_hooks(compat_package_extensions_hook, package_extensions_hook);
+        let override_bare_specifier: Option<Arc<DependencyOverrider>> =
+            versions_overrider.as_ref().and_then(|overrider| {
+                if overrider.is_empty() {
+                    None
+                } else {
+                    let overrider = Arc::clone(overrider);
+                    Some(Arc::new(move |name: &str, range: &str, pkg_dir: &Path| {
+                        overrider.override_for_undeclared_dependency(name, range, pkg_dir)
+                    }) as Arc<DependencyOverrider>)
+                }
+            });
 
         // Seed `allPreferredVersions` from every importer's manifest +
         // the wanted lockfile's snapshots (when an existing one is
@@ -1125,19 +1206,21 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // else keeps its pin. Manifest preferences remain workspace-wide.
         let lockfile_snapshots = wanted_lockfile.and_then(|lockfile| lockfile.snapshots.as_ref());
         let all_preferred_versions = match &update_seed_policy {
-            UpdateSeedPolicy::KeepAll | UpdateSeedPolicy::ByImporter(_) => {
+            UpdateSeedPolicy::KeepAll
+            | UpdateSeedPolicy::KeepAllResolveAll
+            | UpdateSeedPolicy::ByImporter { .. } => {
                 pacquet_lockfile_preferred_versions::get_preferred_versions_from_lockfile_and_manifests(
                     lockfile_snapshots,
                     manifests_for_preferred.as_slice(),
                 )
             }
-            UpdateSeedPolicy::DropAll => {
+            UpdateSeedPolicy::DropAll { .. } => {
                 pacquet_lockfile_preferred_versions::get_preferred_versions_from_lockfile_and_manifests(
                     None,
                     manifests_for_preferred.as_slice(),
                 )
             }
-            UpdateSeedPolicy::DropOnly(names) => {
+            UpdateSeedPolicy::DropOnly { names, .. } => {
                 let excluded_names = names
                     .iter()
                     .filter_map(|name| pacquet_lockfile::PkgName::parse(name.as_str()).ok())
@@ -1155,7 +1238,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // with a refcount bump rather than deep-cloning the map.
         let preferred_versions_seed = Arc::new(all_preferred_versions);
         let mut preferred_versions_seeds_by_importer = BTreeMap::new();
-        if let UpdateSeedPolicy::ByImporter(policies) = &update_seed_policy {
+        if let UpdateSeedPolicy::ByImporter { policies, .. } = &update_seed_policy {
             let mut drop_all_seed = None;
             let mut drop_only_seeds = HashMap::new();
             for (importer_id, policy) in policies {
@@ -1306,17 +1389,96 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             update_reuse_scopes_by_importer.clear();
         }
 
+        let overrides_use_catalogs = config
+            .overrides
+            .as_ref()
+            .is_some_and(|overrides| overrides.values().any(|value| value.starts_with("catalog:")));
+        let catalog_update = wanted_lockfile.map_or(FastCatalogUpdate::Unchanged, |lockfile| {
+            try_fast_update_catalogs(lockfile, &catalogs, overrides_use_catalogs)
+        });
+        let (catalogs_match, fast_catalog_seed) = match catalog_update {
+            FastCatalogUpdate::Unchanged => (true, None),
+            FastCatalogUpdate::Updated(lockfile) => (false, Some(*lockfile)),
+            FastCatalogUpdate::Unsupported => (false, None),
+        };
+        let reusable_settings_lockfile = wanted_lockfile
+            .filter(|lockfile| lockfile.package_extensions_checksum == package_extensions_checksum);
+        let override_settings_match = reusable_settings_lockfile.is_some_and(|lockfile| {
+            overrides_match(lockfile.overrides.as_ref(), resolved_overrides.as_ref())
+        });
+        let fast_override_seed = if let (Some(lockfile), Some(parsed), Some(resolved)) =
+            (reusable_settings_lockfile, parsed_overrides.as_deref(), resolved_overrides.as_ref())
+            && catalogs_match
+            && !overrides_use_catalogs
+            && !override_settings_match
+            && pnpmfile_hook.is_none()
+            && custom_resolvers_raw.is_empty()
+            && patched_dependencies.is_none()
+            && can_fast_update_overrides
+        {
+            let resolve_options = ResolveOptions {
+                preferred_versions: Arc::clone(&preferred_versions_seed),
+                default_tag: Some("latest".to_string()),
+                published_by,
+                published_by_exclude: published_by_exclude.clone(),
+                trust_policy,
+                trust_policy_exclude: trust_policy_exclude.clone(),
+                trust_policy_ignore_after: config.trust_policy_ignore_after,
+                package_version_guard: package_version_guard.clone(),
+                project_dir: lockfile_dir.to_path_buf(),
+                lockfile_dir: lockfile_dir.to_path_buf(),
+                workspace_packages: workspace_packages.clone(),
+                block_exotic_subdeps: config.block_exotic_subdeps,
+                always_try_workspace_packages: config.link_workspace_packages
+                    != LinkWorkspacePackages::Off,
+                inject_workspace_packages: config.inject_workspace_packages,
+                prefer_workspace_packages: config.prefer_workspace_packages,
+                update_checksums,
+                ..ResolveOptions::default()
+            };
+            // This path has no pnpmfile hook (gated above), so the full
+            // extensions + overrides chain composes back into one hook.
+            let full_manifest_hook =
+                compose_manifest_hooks(manifest_hook.clone(), overrides_hook.clone());
+            try_fast_update_overrides(FastOverrideOptions {
+                lockfile,
+                parsed_overrides: parsed,
+                resolved_overrides: resolved,
+                resolver: &*npm_resolver,
+                resolve_options: &resolve_options,
+                manifest_hook: full_manifest_hook.as_ref(),
+                registries: &registries,
+                lockfile_include_tarball_url: config.lockfile_include_tarball_url,
+            })
+            .await
+        } else {
+            None
+        };
+
+        // Captured for the pnpm/pnpm#10433 guard in the fresh-lockfile
+        // builder (`build_importer`): it needs the previous run's importer
+        // entries and this run's final update scope, but `update_reuse_scope`
+        // is moved into the resolver options below and `wanted_lockfile` is
+        // later shadowed by the freshly built lockfile.
+        let guard_previous_importers: Option<&HashMap<String, pacquet_lockfile::ProjectSnapshot>> =
+            wanted_lockfile.map(|lockfile| &lockfile.importers);
+        let guard_update_reuse_scope = update_reuse_scope.clone();
+        let guard_update_reuse_scopes_by_importer = update_reuse_scopes_by_importer.clone();
+
         // Hand the resolver the prior lockfile so it can reuse
         // already-resolved subtrees instead of re-resolving from the
         // registry (see pnpm/plans/LOCKFILE_RESOLUTION_REUSE.md).
-        // Withhold it when packageExtensions or overrides drifted:
-        // both settings rewrite package dependency sets, so the
-        // recorded subtree is stale. pnpm likewise invalidates the
-        // lockfile on these settings changes.
-        let lockfile_reuse_seed = wanted_lockfile.filter(|lockfile| {
-            lockfile.package_extensions_checksum == package_extensions_checksum
-                && overrides_match(lockfile.overrides.as_ref(), resolved_overrides.as_ref())
-        });
+        // Exact generic registry overrides may instead use a
+        // dependency-shape-verified rewritten seed. Every unsupported
+        // override shape falls back to withholding the seed.
+        let fast_catalog_seed = fast_catalog_seed
+            .filter(|_| override_settings_match && reusable_settings_lockfile.is_some());
+        let lockfile_reuse_seed =
+            fast_override_seed.as_ref().or(fast_catalog_seed.as_ref()).or_else(|| {
+                (catalogs_match && override_settings_match)
+                    .then_some(reusable_settings_lockfile)
+                    .flatten()
+            });
         // Reused subtrees never stream their manifests through the
         // versions overrider, so only a resolution with no reuse at all
         // collects the complete declared-range set the convergence
@@ -1337,6 +1499,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             lockfile_dir: lockfile_dir.to_path_buf(),
             peers_suffix_max_length,
             manifest_hook: manifest_hook.clone(),
+            overrides_hook: overrides_hook.clone(),
             pnpmfile_hook,
             read_package_log,
             skipped_optional_log: Some(skipped_optional_log_fn::<Reporter>()),
@@ -1345,6 +1508,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             wanted_lockfile: lockfile_reuse_seed.cloned().map(Arc::new),
             update_reuse_scope,
             update_reuse_scopes_by_importer,
+            update_depth: update_seed_policy.max_depth(),
             auto_install_peers: config.auto_install_peers,
             registries,
             allowed_deprecated_versions: config.allowed_deprecated_versions.clone(),
@@ -1381,9 +1545,9 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                         .auto_install_peers_from_highest_match,
                     resolve_peers_from_workspace_root: config.resolve_peers_from_workspace_root,
                     dedupe_peers: config.dedupe_peers,
-                    // The per-importer hoist loop mutates its own copy, so
-                    // clone the shared seed's map here (deref past the `Arc`).
-                    all_preferred_versions: importer_preferred_versions.as_ref().clone(),
+                    dedupe_peer_dependents: config.dedupe_peer_dependents,
+                    all_preferred_versions: Arc::clone(importer_preferred_versions),
+                    override_bare_specifier: override_bare_specifier.clone(),
                     patched_dependencies: patched_dependencies.clone(),
                     // `pick_lowest_direct` / `subdep_published_by` are
                     // authoritative from `resolve_workspace` (it computes
@@ -1421,13 +1585,19 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                     peers_suffix_max_length,
                     catalog_server: false,
                     manifest_hook: manifest_hook.clone(),
+                    overrides_hook: overrides_hook.clone(),
                     pnpmfile_hook: None,
                 }
             },
         )
         .await
-        .map_err(|ResolveImporterError::Resolve(err)| {
-            InstallWithFreshLockfileError::ResolveDependencyTree(err)
+        .map_err(|err| match err {
+            ResolveImporterError::Resolve(err) => {
+                InstallWithFreshLockfileError::ResolveDependencyTree(err)
+            }
+            ResolveImporterError::RootDepManifest(err) => {
+                InstallWithFreshLockfileError::RootDepManifest(err)
+            }
         })?;
         crate::minimum_release_age::handle_minimum_release_age_violations::<Reporter>(
             config,
@@ -1446,7 +1616,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         {
             match pacquet_patching::verify_patches(
                 deps,
-                &workspace_result.merged_tree.applied_patches,
+                &workspace_result.merged_tree.applied_patches.iter().cloned().collect(),
                 config.allow_unused_patches,
             ) {
                 Ok(None) => {}
@@ -1582,6 +1752,9 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 catalogs: &catalogs,
                 pnpmfile_checksum: pnpmfile_checksum.as_deref(),
                 patched_dependency_hashes: patched_dependency_hashes.as_ref(),
+                previous_importers: guard_previous_importers,
+                update_reuse_scope: guard_update_reuse_scope.clone(),
+                update_reuse_scopes_by_importer: guard_update_reuse_scopes_by_importer.clone(),
             })
             .map_err(|error| {
                 InstallWithFreshLockfileError::DependenciesGraphToLockfile(Box::new(error))
@@ -1746,6 +1919,9 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             catalogs: &catalogs,
             pnpmfile_checksum: pnpmfile_checksum.as_deref(),
             patched_dependency_hashes: patched_dependency_hashes.as_ref(),
+            previous_importers: guard_previous_importers,
+            update_reuse_scope: guard_update_reuse_scope.clone(),
+            update_reuse_scopes_by_importer: guard_update_reuse_scopes_by_importer.clone(),
         })
         .map_err(|error| {
             InstallWithFreshLockfileError::DependenciesGraphToLockfile(Box::new(error))
@@ -1888,6 +2064,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             initial_materialization_lockfile.snapshots.as_ref(),
             initial_materialization_lockfile.packages.as_ref(),
             Some(&allow_build_policy),
+            Some(lockfile_dir),
         );
         if config.enable_global_virtual_store {
             tracing::info!(
@@ -2024,8 +2201,8 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             config,
             packages: materialization_lockfile.packages.as_ref(),
             snapshots: materialization_lockfile.snapshots.as_ref(),
-            current_snapshots: None,
-            current_packages: None,
+            current_snapshots: current_lockfile.and_then(|lockfile| lockfile.snapshots.as_ref()),
+            current_packages: current_lockfile.and_then(|lockfile| lockfile.packages.as_ref()),
             layout: &layout,
             logged_methods,
             requester,
@@ -2197,7 +2374,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             // `SymlinkDirectDependencies` can fold publicly-hoisted
             // aliases into root's target map — same shape as the
             // frozen-lockfile path. The `HoistResult` is reused for
-            // the on-disk hoist phase below, so the BFS runs once.
+            // the on-disk hoist phase below, so the traversal runs once.
             // `hoist-workspace-packages`: named non-root projects
             // become hoist candidates whose links point at the
             // project dirs (`importer_manifests` is keyed by
@@ -2214,7 +2391,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                             crate::symlink_direct_dependencies::importer_root_dir(lockfile_dir, id),
                         ))
                     })
-                    .collect::<std::collections::BTreeMap<_, _>>()
+                    .collect::<indexmap::IndexMap<_, _>>()
             });
             let pre_hoist = crate::install_frozen_lockfile::compute_hoist_plan(
                 config,
@@ -2591,10 +2768,9 @@ fn is_partial_workspace_selection(
 /// install.
 ///
 /// Skips nodes whose resolver result isn't a non-git-hosted tarball
-/// with an `integrity` and a resolvable `name@version` (from `name_ver`
-/// or, for remote-tarball direct deps, the fetched manifest):
-/// git-hosted tarballs and directory / git / binary resolutions use a
-/// different key shape (`pkg_id`-only) and route through the cold path.
+/// with an `integrity`: git-hosted tarballs and directory / git /
+/// binary resolutions use a different key shape (`pkg_id`-only) and
+/// route through the cold path.
 fn collect_prefetch_cache_keys_from_graph(
     graph: &pacquet_resolving_deps_resolver::DependenciesGraph,
 ) -> Vec<String> {
@@ -2610,18 +2786,12 @@ fn collect_prefetch_cache_keys_from_graph(
                 return None;
             }
             let integrity = tarball.integrity.as_ref()?.to_string();
-            // `name_ver` when the resolver produced one (npm registry);
-            // otherwise the manifest's `name@version` — remote-tarball
-            // direct deps learn both from `package.json`, and the
-            // resolve-time fetch keyed the store-index row the same way.
-            let pkg_id = if let Some(name_ver) = node.resolve_result.name_ver.as_ref() {
-                format!("{}@{}", name_ver.name, name_ver.suffix)
-            } else {
-                let manifest = node.resolve_result.manifest.as_deref()?;
-                let name = manifest.get("name")?.as_str()?;
-                let version = manifest.get("version")?.as_str()?;
-                format!("{name}@{version}")
-            };
+            // The node's dep path carries the same `name@<id>` shape the
+            // lockfile records, so stripping it yields the `pkg_id` the
+            // install pass and the resolve-time fetch address the row by
+            // — `name@version` for a registry package, the bare URL for a
+            // remote tarball.
+            let pkg_id = pacquet_deps_path::try_get_package_id(node.dep_path.as_str());
             Some(pacquet_store_dir::store_index_key(&integrity, &pkg_id))
         })
         .collect();
@@ -2832,6 +3002,18 @@ struct FreshLockfileBuildOptions<'a> {
     catalogs: &'a pacquet_catalogs_types::Catalogs,
     pnpmfile_checksum: Option<&'a str>,
     patched_dependency_hashes: Option<&'a BTreeMap<String, String>>,
+    /// The previous run's lockfile importer entries, threaded into the
+    /// pnpm/pnpm#10433 guard so an untouched workspace dependency keeps
+    /// its prior `link:` entry. `None` on a first install.
+    previous_importers: Option<&'a HashMap<String, pacquet_lockfile::ProjectSnapshot>>,
+    /// How this install reuses the prior resolution (from the `pacquet
+    /// update` seed policy), also consumed by the pnpm/pnpm#10433 guard.
+    update_reuse_scope: pacquet_resolving_deps_resolver::UpdateReuseScope,
+    /// Per-importer update scopes (the `ByImporter` policy of a recursive
+    /// update), so the guard honors `pacquet update <name> --recursive`
+    /// targeting per importer rather than the workspace-wide default.
+    update_reuse_scopes_by_importer:
+        BTreeMap<String, pacquet_resolving_deps_resolver::UpdateReuseScope>,
 }
 
 fn build_fresh_lockfile(
@@ -2846,6 +3028,9 @@ fn build_fresh_lockfile(
         catalogs,
         pnpmfile_checksum,
         patched_dependency_hashes,
+        previous_importers,
+        update_reuse_scope,
+        update_reuse_scopes_by_importer,
     } = opts;
     let mut importers = BTreeMap::new();
     for (id, manifest) in importer_manifests {
@@ -2873,6 +3058,9 @@ fn build_fresh_lockfile(
         catalogs,
         registry: &config.registry,
         lockfile_include_tarball_url: config.lockfile_include_tarball_url,
+        previous_importers,
+        update_reuse_scope,
+        update_reuse_scopes_by_importer,
     })
 }
 

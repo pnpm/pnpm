@@ -164,3 +164,34 @@ test('resolveFromJsr() returns the immature pick with policyViolation when publi
     },
   })
 })
+
+test('resolveFromJsr() suppresses latest when publishedBy holds back the raw tag', async () => {
+  // jsr-rus-greet has 0.0.1 (16:08), 0.0.2 (16:13), 0.0.3 (16:31); dist-tags.latest = 0.0.3.
+  // publishedBy between 0.0.2 and 0.0.3 leaves 0.0.3 immature, so the JSR path
+  // (pickFromSimpleRegistry) must suppress latest rather than surface a tag the
+  // policy would refuse to install.
+  const slash = '%2F'
+  const defaultPool = getMockAgent().get(registries.default.replace(/\/$/, ''))
+  defaultPool.intercept({ path: `/@jsr${slash}rus__greet`, method: 'GET' }).reply(404, {})
+  const jsrPool = getMockAgent().get(registries['@jsr'].replace(/\/$/, ''))
+  jsrPool.intercept({ path: `/@jsr${slash}rus__greet`, method: 'GET' }).reply(200, jsrRusGreetMeta)
+
+  const cacheDir = temporaryDirectory()
+  const { resolveFromJsr } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    filterMetadata: true,
+    fullMetadata: true,
+    registries,
+  })
+  const result = await resolveFromJsr(
+    { alias: '@rus/greet', bareSpecifier: 'jsr:0.0.2' },
+    { publishedBy: new Date('2024-11-16T16:20:00.000Z') }
+  )
+
+  expect(result).toMatchObject({
+    resolvedVia: 'jsr-registry',
+    id: '@jsr/rus__greet@0.0.2',
+  })
+  expect(result!.latest).toBeUndefined()
+})

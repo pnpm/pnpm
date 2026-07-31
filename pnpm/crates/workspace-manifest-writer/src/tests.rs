@@ -344,6 +344,47 @@ fn allow_builds_no_op_when_unchanged_keeps_file() {
     assert_eq!(out.as_deref(), Some(original));
 }
 
+/// Run `scaffold_allow_builds` against `original` (when `Some`) and
+/// return the resulting file contents (or `None` when no file exists
+/// afterward).
+fn run_scaffold_allow_builds(original: Option<&str>, names: &[&str]) -> Option<String> {
+    let dir = TempDir::new().expect("temp dir");
+    let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
+    if let Some(text) = original {
+        fs::write(&path, text).expect("seed manifest");
+    }
+    crate::scaffold_allow_builds(dir.path(), names.iter().copied()).expect("update succeeds");
+    fs::read_to_string(&path).ok()
+}
+
+#[test]
+fn scaffold_allow_builds_creates_block_when_absent() {
+    let out = run_scaffold_allow_builds(Some("packages: []\n"), &["es5-ext"]);
+    assert_eq!(
+        out.as_deref(),
+        Some("packages: []\nallowBuilds:\n  es5-ext: set this to true or false\n"),
+    );
+}
+
+#[test]
+fn scaffold_allow_builds_leaves_a_decided_entry_alone() {
+    let original = "allowBuilds:\n  esbuild: false\n";
+    let out = run_scaffold_allow_builds(Some(original), &["esbuild", "es5-ext"]);
+    assert_eq!(
+        out.as_deref(),
+        Some("allowBuilds:\n  es5-ext: set this to true or false\n  esbuild: false\n"),
+    );
+}
+
+/// Every install that keeps ignoring the same build re-runs the scaffold;
+/// the second one must not rewrite the file (and bump its mtime).
+#[test]
+fn scaffold_allow_builds_no_op_when_already_scaffolded_keeps_file() {
+    let original = "allowBuilds:\n  es5-ext: set this to true or false\n";
+    let out = run_scaffold_allow_builds(Some(original), &["es5-ext"]);
+    assert_eq!(out.as_deref(), Some(original));
+}
+
 #[test]
 fn allow_builds_preserves_other_keys_and_comments() {
     let original = "# top comment\nstoreDir: ../store\n";
@@ -937,6 +978,40 @@ fn minimum_release_age_excludes_rejects_control_characters() {
     assert!(matches!(err, crate::UpdateWorkspaceManifestError::InvalidControlCharacter { .. }));
 }
 
+/// `saveCatalogName` is unconstrained — it comes from
+/// `pnpm-workspace.yaml`, `PNPM_CONFIG_SAVE_CATALOG_NAME`, or
+/// `--save-catalog-name`. A newline in it renders as a YAML block scalar
+/// that the splice would write into the middle of the `catalogs:`
+/// header; U+2028 / U+2029 are subtler, folding the scalar so the name
+/// parses back with the folding indentation embedded in it.
+#[test]
+fn add_catalogs_rejects_control_characters() {
+    let original = "packages:\n  - pkgs/*\n";
+    let dir = TempDir::new().expect("temp dir");
+    let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
+    fs::write(&path, original).expect("seed manifest");
+
+    for updated in [
+        catalogs(&[("shared\n  injected: oops", &[("foo", "^1.0.0")])]),
+        catalogs(&[("shared", &[("foo\nbar", "^1.0.0")])]),
+        catalogs(&[("shared", &[("foo", "^1.0.0\nbaz: qux")])]),
+        catalogs(&[("sha\u{2028}red", &[("foo", "^1.0.0")])]),
+        catalogs(&[("sha\u{2029}red", &[("foo", "^1.0.0")])]),
+    ] {
+        let err = update_workspace_manifest(
+            dir.path(),
+            &UpdateWorkspaceManifestOptions {
+                updated_catalogs: Some(&updated),
+                ..Default::default()
+            },
+        )
+        .expect_err("must reject a line-break character");
+
+        assert!(matches!(err, crate::UpdateWorkspaceManifestError::InvalidControlCharacter { .. }));
+        assert_eq!(fs::read_to_string(&path).expect("manifest kept"), original);
+    }
+}
+
 #[test]
 fn set_overrides_rejects_control_characters() {
     let dir = TempDir::new().expect("temp dir");
@@ -1234,4 +1309,68 @@ mod remove_unused_catalogs {
             ),
         );
     }
+}
+
+/// pnpm scaffolds undecided entries with a multi-word plain scalar.
+/// Deciding one replaces the whole value: ending it at the first
+/// whitespace would leave `true this to true or false` behind, which
+/// YAML reads as a string, so the package would stay undecided.
+#[test]
+fn allow_builds_replaces_a_multi_word_placeholder_value() {
+    let out = run_allow_builds(
+        Some("allowBuilds:\n  esbuild: set this to true or false\n"),
+        &[("esbuild", true)],
+    );
+    assert_eq!(out.as_deref(), Some("allowBuilds:\n  esbuild: true\n"));
+}
+
+/// A comment after the value is the one thing that must survive the
+/// replacement, which is why the value span stops at ` #`.
+#[test]
+fn allow_builds_keeps_a_trailing_comment() {
+    let out =
+        run_allow_builds(Some("allowBuilds:\n  esbuild: false # why\n"), &[("esbuild", true)]);
+    assert_eq!(out.as_deref(), Some("allowBuilds:\n  esbuild: true # why\n"));
+}
+
+/// A `#` inside a quoted value is part of the value, not a comment, so
+/// the replacement must not preserve it as one.
+#[test]
+fn allow_builds_replaces_a_quoted_value_containing_a_hash() {
+    let out = run_allow_builds(Some("allowBuilds:\n  esbuild: \"a # b\"\n"), &[("esbuild", false)]);
+    assert_eq!(out.as_deref(), Some("allowBuilds:\n  esbuild: false\n"));
+}
+
+/// A quote only delimits a scalar when it opens the value, so an
+/// apostrophe inside a plain scalar is a character, not an unterminated
+/// quoted string that would swallow a following comment.
+#[test]
+fn allow_builds_replaces_a_plain_value_containing_a_quote() {
+    let out = run_allow_builds(
+        Some("allowBuilds:\n  esbuild: don't know yet # decide later\n"),
+        &[("esbuild", true)],
+    );
+    assert_eq!(out.as_deref(), Some("allowBuilds:\n  esbuild: true # decide later\n"));
+}
+
+/// An escaped quote does not end a double-quoted scalar, so a `#` after
+/// it is still inside the value.
+#[test]
+fn allow_builds_replaces_a_value_with_an_escaped_quote() {
+    let out = run_allow_builds(
+        Some("allowBuilds:\n  esbuild: \"a \\\" # b\" # real\n"),
+        &[("esbuild", false)],
+    );
+    assert_eq!(out.as_deref(), Some("allowBuilds:\n  esbuild: false # real\n"));
+}
+
+/// A doubled quote is the single-quoted style's escape, so it does not
+/// end the scalar either.
+#[test]
+fn allow_builds_replaces_a_value_with_a_doubled_single_quote() {
+    let out = run_allow_builds(
+        Some("allowBuilds:\n  esbuild: 'it''s # fine' # real\n"),
+        &[("esbuild", true)],
+    );
+    assert_eq!(out.as_deref(), Some("allowBuilds:\n  esbuild: true # real\n"));
 }

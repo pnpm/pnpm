@@ -5,6 +5,8 @@ mod config_overrides;
 mod flag_relocation;
 mod github_actions;
 mod job_control;
+mod leading_separator;
+mod parse_boundary;
 mod shorthands;
 mod state;
 mod with_current;
@@ -15,12 +17,13 @@ use cli_args::CliArgs;
 use config_overrides::ConfigOverrides;
 use flag_relocation::relocate_pre_subcommand_flags;
 use miette::set_panic_hook;
-use pacquet_diagnostics::enable_tracing_by_env;
+use pacquet_diagnostics::{enable_tracing_by_env, install_report_handler};
 use state::State;
-use std::{ffi::OsString, future::Future, path::Path};
+use std::{ffi::OsString, future::Future, path::Path, process::ExitCode};
 
-pub fn main() -> miette::Result<()> {
+pub fn main() -> ExitCode {
     enable_tracing_by_env();
+    install_report_handler();
     set_panic_hook();
     // The synchronous startup in `run_cli` — building the negation-augmented
     // clap command (a recursive walk over every subcommand), relocating
@@ -29,7 +32,19 @@ pub fn main() -> miette::Result<()> {
     // 8 MiB). `block_on_runtime` already moves the command body onto a
     // roomy thread; run the parsing startup that precedes it on one too so
     // the whole path has uniform headroom.
-    run_on_big_stack(run_cli)
+    match run_on_big_stack(run_cli) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            if !is_reported_error(&error) {
+                eprintln!("Error: {error:?}");
+            }
+            ExitCode::FAILURE
+        }
+    }
+}
+
+fn is_reported_error(error: &miette::Report) -> bool {
+    error.code().is_some_and(|code| code.to_string() == "ERR_PNPM_DEDUPE_CHECK_ISSUES")
 }
 
 /// Build the CLI, parse argv, take any early-return fast path, then execute
@@ -64,6 +79,9 @@ fn run_cli() -> miette::Result<()> {
     // options written before the subcommand to after it so clap agrees.
     // See `flag_relocation`.
     let argv = relocate_pre_subcommand_flags(&command, argv);
+    // A command whose arguments begin at a `--` would otherwise lose it to
+    // clap's escape handling. See `leading_separator`.
+    let argv = leading_separator::preserve_leading_separator(argv);
     let mut args = match command
         .try_get_matches_from(argv.clone())
         .and_then(|matches| CliArgs::from_arg_matches(&matches))
@@ -71,13 +89,13 @@ fn run_cli() -> miette::Result<()> {
         Ok(args) => args,
         // pnpm prints the bare version, not clap's "pnpm <version>" rendering.
         Err(err) if err.kind() == clap::error::ErrorKind::DisplayVersion => {
-            if let Some(plan) = cli_args::switch_cli_version::switch_plan_for_version_flag(
-                &argv,
-                &config_overrides,
-            )? && block_on_runtime(
-                "pacquet-switch",
-                cli_args::switch_cli_version::execute_switch(plan, &child_argv),
-            )? {
+            if let Some(plan) =
+                cli_args::pre_command::pre_command_plan_for_version_flag(&argv, &config_overrides)?
+                && block_on_runtime(
+                    "pacquet-pre-command",
+                    cli_args::pre_command::execute_plan(plan, &child_argv),
+                )?
+            {
                 return Ok(());
             }
             println!("{}", pacquet_config::PNPM_VERSION);
@@ -88,12 +106,15 @@ fn run_cli() -> miette::Result<()> {
     if let Err(err) = args.validate_command_scoped_global_options() {
         err.exit();
     }
+    args.apply_parallel_run_options();
     args.promote_recursive_for_filter();
+    args.apply_workspace_root()?;
     args.promote_recursive_by_default();
-    if let Some(plan) = cli_args::switch_cli_version::switch_plan(&args, &config_overrides)?
+    args.configure_reporter();
+    if let Some(plan) = cli_args::pre_command::pre_command_plan(&args, &config_overrides)?
         && block_on_runtime(
-            "pacquet-switch",
-            cli_args::switch_cli_version::execute_switch(plan, &child_argv),
+            "pacquet-pre-command",
+            cli_args::pre_command::execute_plan(plan, &child_argv),
         )?
     {
         return Ok(());

@@ -30,6 +30,15 @@ export interface NodeApiProject {
   rootDir: string
   /** In-memory manifest; the engine never reads package.json from disk for listed projects. */
   manifest: PackageManifest
+  /**
+   * Manifest used when this project is resolved as a *dependency* of another
+   * importer (an injected workspace instance) instead of `manifest`. Lets a
+   * host pre-transform its importer manifests (e.g. strip workspace-sibling
+   * deps it links itself) while dependency instances keep the raw graph —
+   * without a `readPackage` hook round trip. Omit when both views are the
+   * same.
+   */
+  dependencyManifest?: PackageManifest
 }
 
 export interface ProxyConfig {
@@ -85,6 +94,9 @@ export interface SharedEngineOptions {
    * URI (`//host/path/`), plus `''` for the default registry — e.g.
    * `{ '': 'Bearer abc', '//npm.example.com/': 'Basic <base64(user:pass)>' }`. The
    * host resolves these from its `authConfig`; the engine applies them as-is.
+   * The `''` entry is pinned to the `registry` / `registries.default` passed
+   * alongside it (npmjs when neither is given), so a `registry=` in the
+   * project's own `.npmrc` cannot redirect that credential to another host.
    */
   authHeaderByUri?: Record<string, string>
   proxyConfig?: ProxyConfig
@@ -122,6 +134,13 @@ export interface InstallOptions extends SharedEngineOptions {
   virtualStoreDirMaxLength?: number
   peersSuffixMaxLength?: number
   dedupePeerDependents?: boolean
+  /**
+   * Render every resolved-peer slot in depPath suffixes as `name@version`
+   * instead of the peer's own depPath (the `dedupePeers` setting). Must match
+   * the value the existing lockfile was generated with, or the install
+   * re-resolves from scratch.
+   */
+  dedupePeers?: boolean
   dedupeDirectDeps?: boolean
   dedupeInjectedDeps?: boolean
   resolvePeersFromWorkspaceRoot?: boolean
@@ -131,6 +150,11 @@ export interface InstallOptions extends SharedEngineOptions {
   minimumReleaseAgeExclude?: string[]
   includeOptionalDeps?: boolean
   ignoreScripts?: boolean
+  /**
+   * Trust lockfile resolutions without verifying them against current registry
+   * metadata.
+   */
+  trustLockfile?: boolean
   /**
    * Re-resolve the whole dependency graph to the highest in-range version
    * (pnpm's `update: true` / `depth: Infinity`). The binding takes no package
@@ -304,6 +328,86 @@ export interface ParsedBareSpecifier {
 
 /** Parses/validates a dependency specifier. Returns null for unparsable input. */
 export function parseBareSpecifier(spec: string, alias?: string): ParsedBareSpecifier | null
+
+export interface ReadConfigOptions {
+  /**
+   * Directory whose config cascade to resolve — its `.npmrc`, the enclosing
+   * workspace's `pnpm-workspace.yaml` and `.npmrc`, the user and global
+   * config files, and `npm_config_*` environment variables.
+   */
+  dir: string
+}
+
+/** One configured registry: the `default` entry plus one per `@scope`. */
+export interface ResolvedRegistry {
+  /** `"default"` or the package scope (`"@teambit"`). */
+  name: string
+  url: string
+  /**
+   * Ready-to-send `Authorization` header for this registry, when the config
+   * carries a static credential for it. `tokenHelper` credentials are not
+   * executed here and yield no header.
+   */
+  authHeader?: string
+}
+
+export interface ResolvedConfig {
+  registries: ResolvedRegistry[]
+  /**
+   * Static `Authorization` headers keyed by nerf-darted registry URI
+   * (`//host[:port]/path/`) — the shape `install`'s `authHeaderByUri`
+   * accepts.
+   */
+  authHeaderByUri: Record<string, string>
+  httpProxy?: string
+  httpsProxy?: string
+  /** `true` (bypass every proxy) or a comma-separated host list. */
+  noProxy?: boolean | string
+  /** PEM-encoded CA certificates (`ca` / `cafile` already merged). */
+  ca?: string[]
+  cert?: string
+  key?: string
+  strictSsl?: boolean
+  storeDir: string
+  cacheDir: string
+  virtualStoreDirMaxLength: number
+  networkConcurrency: number
+  maxSockets?: number
+  fetchRetries: number
+  fetchRetryFactor: number
+  fetchRetryMintimeout: number
+  fetchRetryMaxtimeout: number
+  fetchTimeout: number
+  /**
+   * The explicitly configured user agent, when the cascade set one. The
+   * engine's own computed default is omitted — an embedder that passes
+   * nothing back to `install` gets that same default.
+   */
+  userAgent?: string
+  engineStrict: boolean
+  nodeVersion?: string
+  /** `"auto"` / `"hardlink"` / `"copy"` / `"clone"` / `"clone-or-copy"`. */
+  packageImportMethod: string
+  hoistPattern?: string[]
+  publicHoistPattern?: string[]
+  /**
+   * The legacy `shamefullyHoist` flag; `publicHoistPattern` already
+   * reflects it, exposed for embedders that branch on the flag itself.
+   */
+  shamefullyHoist: boolean
+  /**
+   * The engine's pnpm home directory (`PNPM_HOME` or the platform default) —
+   * not a per-project setting. Absent when no home directory is resolvable.
+   */
+  pnpmHomeDir?: string
+}
+
+/**
+ * Resolve the configuration the engine's own installs use — registries,
+ * credentials, proxy, TLS, and network settings from the `.npmrc` cascade —
+ * so the embedder needs no JavaScript config reader.
+ */
+export function readConfig(options: ReadConfigOptions): ResolvedConfig
 
 /** Version of the underlying Rust engine (pacquet). */
 export function engineVersion(): string

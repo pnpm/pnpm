@@ -15,6 +15,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 pacquet-config                            = { workspace = true }
+pacquet-diagnostics                       = { workspace = true }
 pacquet-catalogs-types                    = { workspace = true }
 pacquet-engine-runtime-bun-resolver       = { workspace = true }
 pacquet-engine-runtime-deno-resolver      = { workspace = true }
@@ -53,7 +54,9 @@ tokio       = { workspace = true }
 napi-build = { workspace = true }
 
 [dev-dependencies]
-tempfile = { workspace = true }
+pretty_assertions     = { workspace = true }
+pacquet-testing-utils = { workspace = true }
+tempfile              = { workspace = true }
 
 [lints]
 workspace = true

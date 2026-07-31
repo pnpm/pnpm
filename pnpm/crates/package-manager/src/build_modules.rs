@@ -1,7 +1,7 @@
 use crate::{
     ImportIndexedDirError, ImportIndexedDirOpts, NEEDS_BUILD_MARKER, SkippedSnapshots,
     build_sequence::build_sequence,
-    import_indexed_dir,
+    import_indexed_dir, store_index_key_for_resolution,
     version_policy::{VersionPolicyError, expand_package_version_specs},
 };
 use derive_more::{Display, Error};
@@ -20,6 +20,7 @@ use pacquet_reporter::{
 };
 use rayon::prelude::*;
 use std::{
+    borrow::Cow,
     collections::{BTreeSet, HashMap, HashSet},
     path::{Path, PathBuf},
     sync::Mutex,
@@ -217,6 +218,7 @@ impl AllowBuildPolicy {
             return Some(false);
         }
         let git_repo_key = git_repo_allow_build_key_from_dep_path(&normalized_dep_path);
+        let git_repo_key = git_repo_key.as_deref();
         if let Some(git_repo_key) = git_repo_key
             && self.disallowed_git_repos.contains(git_repo_key)
         {
@@ -300,18 +302,89 @@ fn is_git_repo_allow_build_key(spec: &str) -> bool {
     !spec.contains('#') && is_git_repo_dep_path(spec)
 }
 
-fn git_repo_allow_build_key_from_dep_path(dep_path: &str) -> Option<&str> {
-    if !is_git_repo_dep_path(dep_path) {
-        return None;
+fn git_repo_allow_build_key_from_dep_path(dep_path: &str) -> Option<Cow<'_, str>> {
+    if is_git_repo_dep_path(dep_path) {
+        return Some(match dep_path.find('#') {
+            Some(ref_start) => Cow::Borrowed(&dep_path[..ref_start]),
+            None => Cow::Borrowed(dep_path),
+        });
     }
-    Some(match dep_path.find('#') {
-        Some(ref_start) => &dep_path[..ref_start],
-        None => dep_path,
-    })
+    // Packages installed from a git host as a downloaded tarball (e.g. the
+    // `github:` shortcut, which pnpm fetches from codeload.github.com rather
+    // than cloning) have a depPath built from the tarball URL, not a `git+`
+    // clone URL, so the check above misses them. Normalize the tarball URL back
+    // to the same `git+https://<host>/<repo>.git` repo key that a clone of the
+    // same repository would produce, so a single hashless `allowBuilds` entry
+    // approves the package however pnpm happened to fetch it.
+    git_hosted_tarball_repo_key(dep_path).map(Cow::Owned)
 }
 
 fn is_git_repo_dep_path(dep_path: &str) -> bool {
     dep_path.starts_with("git+") || dep_path.contains("@git+")
+}
+
+/// Rebuilds the `<name>@git+https://<host>/<repo>.git` repo key for a git-host
+/// tarball depPath (mirrors the TypeScript `gitHostedTarballRepoKey`).
+fn git_hosted_tarball_repo_key(dep_path: &str) -> Option<String> {
+    let (name, version) = parse_dep_path_name_version(dep_path)?;
+    let repo_url = git_hosted_tarball_repo_url(version)?;
+    Some(format!("{name}@{repo_url}"))
+}
+
+/// The committish-free repository URL for a git host that pnpm downloads as a
+/// tarball instead of cloning. The patterns mirror the tarball templates in
+/// `@pnpm/git-resolver` (from hosted-git-info, except GitLab's override). Each
+/// known host is anchored so a look-alike download host (e.g.
+/// `codeload.github.com.example.com`) cannot be rewritten into an unrelated key.
+fn git_hosted_tarball_repo_url(tarball_url: &str) -> Option<String> {
+    // GitHub: `https://codeload.github.com/<owner>/<repo>/tar.gz/<committish>`
+    if let Some(rest) = tarball_url.strip_prefix("https://codeload.github.com/") {
+        let (owner, rest) = rest.split_once('/')?;
+        let (repo, _) = rest.split_once("/tar.gz/")?;
+        // `owner` and `repo` are each a single path segment, matching the
+        // `[^/]+` anchors in the TypeScript matcher so both stacks normalize
+        // identically. `owner` cannot contain a slash (it is the first
+        // `split_once('/')` half), but `repo` can, so reject that here.
+        if owner.is_empty() || repo.is_empty() || repo.contains('/') {
+            return None;
+        }
+        return Some(format!("git+https://github.com/{owner}/{repo}.git"));
+    }
+    // Bitbucket: `https://bitbucket.org/<owner>/<repo>/get/<committish>.tar.gz`
+    if let Some(rest) = tarball_url.strip_prefix("https://bitbucket.org/") {
+        let (owner, rest) = rest.split_once('/')?;
+        let (repo, _) = rest.split_once("/get/")?;
+        // Single-segment `repo`, as in the GitHub branch above.
+        if owner.is_empty() || repo.is_empty() || repo.contains('/') {
+            return None;
+        }
+        return Some(format!("git+https://bitbucket.org/{owner}/{repo}.git"));
+    }
+    // GitLab (incl. self-hosted): the project path may contain nested groups,
+    // so match up to the `/-/archive/<ref>/` marker.
+    // `https://<host>/<group...>/<repo>/-/archive/<ref>/<repo>-<ref>.tar.gz`
+    if let Some(rest) = tarball_url.strip_prefix("https://") {
+        let (host, path) = rest.split_once('/')?;
+        if host.is_empty() {
+            return None;
+        }
+        // Take the shortest non-empty project whose marker is followed by a
+        // non-empty `<ref>/` segment, mirroring the lazy `(.+?)` project
+        // capture and the `[^/]+/` ref anchor of the TypeScript matcher.
+        const ARCHIVE_MARKER: &str = "/-/archive/";
+        for (marker_index, _) in path.match_indices(ARCHIVE_MARKER) {
+            let project = &path[..marker_index];
+            let after_marker = &path[marker_index + ARCHIVE_MARKER.len()..];
+            let Some((git_ref, _)) = after_marker.split_once('/') else {
+                continue;
+            };
+            if project.is_empty() || git_ref.is_empty() {
+                continue;
+            }
+            return Some(format!("git+https://{host}/{project}.git"));
+        }
+    }
+    None
 }
 
 fn is_dep_path_allow_build_key(spec: &str) -> bool {
@@ -462,7 +535,15 @@ pub struct BuildModules<'a> {
     /// [`RunPostinstallHooks::scripts_prepend_node_path`] for each
     /// spawned lifecycle script. Default [`ScriptsPrependNodePath::Never`].
     pub scripts_prepend_node_path: ScriptsPrependNodePath,
+    /// Mirrors `config.script_shell`. Threaded through to
+    /// [`RunPostinstallHooks::script_shell`], so a workspace that
+    /// configures a shell gets it for build scripts too, not only for
+    /// `pnpm run`. `None` selects the platform default.
+    pub script_shell: Option<&'a Path>,
     pub extra_env: &'a HashMap<String, String>,
+    /// Mirrors `config.user_agent`, stamped into each build script's
+    /// `npm_config_user_agent`.
+    pub user_agent: &'a str,
     /// Mirrors `config.unsafe_perm`. When `false`, [`pacquet_executor`]
     /// runs each lifecycle script under a per-package TMPDIR set to
     /// `node_modules/.tmp`; when `true`, TMPDIR is left at the
@@ -591,7 +672,9 @@ impl BuildModules<'_> {
             store_index_writer,
             patches,
             scripts_prepend_node_path,
+            script_shell,
             extra_env,
+            user_agent,
             unsafe_perm,
             child_concurrency,
             skipped,
@@ -684,6 +767,21 @@ impl BuildModules<'_> {
         // the point of memoization.
         let deps_state_cache: Mutex<pacquet_graph_hasher::DepsStateCache<PackageKey>> =
             Mutex::new(pacquet_graph_hasher::DepsStateCache::new());
+        // Prime it in lockfile key order before any chunk runs. The
+        // chunk members race for the mutex, and a snapshot inside a
+        // dependency cycle takes the digest of whichever walk reached
+        // it first — so an unprimed cache would hand the same install
+        // a different side-effects-cache key on every run, and every
+        // repeat install would re-run the build it already has cached.
+        if let Some(graph) = &dep_graph {
+            let mut cache_guard =
+                deps_state_cache.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            pacquet_graph_hasher::warm_deps_state_cache(
+                graph,
+                &mut cache_guard,
+                crate::deps_graph::in_lockfile_order(graph).into_iter().map(|(key, _)| key),
+            );
+        }
 
         let chunks = build_sequence(&requires_build_map, patches, snapshots, importers, skipped);
 
@@ -738,7 +836,9 @@ impl BuildModules<'_> {
                         modules_dir,
                         lockfile_dir,
                         extra_env,
+                        user_agent,
                         scripts_prepend_node_path,
+                        script_shell,
                         unsafe_perm,
                         frozen_store,
                         ignore_scripts,
@@ -817,7 +917,9 @@ fn build_one_snapshot<Reporter: self::Reporter>(
     modules_dir: &Path,
     lockfile_dir: &Path,
     extra_env: &HashMap<String, String>,
+    user_agent: &str,
     scripts_prepend_node_path: ScriptsPrependNodePath,
+    script_shell: Option<&Path>,
     unsafe_perm: bool,
     frozen_store: bool,
     ignore_scripts: bool,
@@ -877,10 +979,16 @@ fn build_one_snapshot<Reporter: self::Reporter>(
                 // the end of `BuildModules::run` for the safety
                 // argument (BTreeSet insertion is atomic from the
                 // data-structure's POV).
+                // The patch hash is kept: two copies of a package that
+                // differ only by an applied patch are different builds to
+                // approve, and pnpm's `dedupePackageNamesFromIgnoredBuilds`
+                // reports them apart for the same reason. `dep_path` above
+                // has already lost it, so re-derive from the full key.
+                let ignored_key = get_pkg_id_with_patch_hash(&snapshot_key.to_string()).to_string();
                 ignored_builds
                     .lock()
                     .unwrap_or_else(std::sync::PoisonError::into_inner)
-                    .insert(dep_path);
+                    .insert(ignored_key);
                 should_run_scripts = false;
             }
             Some(true) => {}
@@ -1165,11 +1273,11 @@ fn build_one_snapshot<Reporter: self::Reporter>(
             node_execpath: None,
             npm_execpath: None,
             node_gyp_path: None,
-            user_agent: None,
+            user_agent: Some(user_agent),
             unsafe_perm,
             node_gyp_bin: None,
             scripts_prepend_node_path,
-            script_shell: None,
+            script_shell,
             optional,
         });
 
@@ -1231,10 +1339,8 @@ fn build_one_snapshot<Reporter: self::Reporter>(
     // subsequent installs hit the cache.
     //
     // The other preconditions: cache_key composable (engine + graph
-    // present), `packages` map available for the integrity lookup,
-    // and the metadata row carries an integrity (registry / tarball
-    // resolutions — git / directory have no integrity, so those
-    // aren't cached).
+    // present), `packages` map available for store-index key selection,
+    // and the resolution has a store-backed key.
     //
     // All errors are swallowed with a `tracing::warn!`. A failed
     // upload doesn't fail the install: the next install re-runs the
@@ -1247,20 +1353,20 @@ fn build_one_snapshot<Reporter: self::Reporter>(
         && let Some(cache_key) = cache_key.as_deref()
         && let Some(packages) = packages
         && let Some(metadata) = packages.get(&metadata_key)
-        && let Some(integrity) = metadata.resolution.integrity()
-    {
-        let files_index_file =
-            pacquet_store_dir::store_index_key(&integrity.to_string(), &metadata_key.to_string());
-        if let Err(err) =
+        && let Some(files_index_file) = store_index_key_for_resolution(
+            &metadata.resolution,
+            &metadata_key.pkg_id(),
+            !ignore_scripts,
+        )
+        && let Err(err) =
             pacquet_store_dir::upload(store, &pkg_dir, &files_index_file, cache_key, writer)
-        {
-            tracing::warn!(
-                target: "pacquet::build",
-                ?err,
-                dep_path = %snapshot_key,
-                "side-effects cache upload failed; build proceeds",
-            );
-        }
+    {
+        tracing::warn!(
+            target: "pacquet::build",
+            ?err,
+            dep_path = %snapshot_key,
+            "side-effects cache upload failed; build proceeds",
+        );
     }
 
     Ok(())

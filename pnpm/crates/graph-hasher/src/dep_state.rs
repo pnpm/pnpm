@@ -1,4 +1,5 @@
 use crate::object_hasher::hash_object;
+use indexmap::IndexMap;
 use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
 
@@ -18,12 +19,21 @@ use std::collections::{HashMap, HashSet};
 /// `snapshots[].dependencies` + `optionalDependencies` flattened,
 /// with each value resolved to the snapshot key it points at.
 ///
+/// The map is insertion-ordered because iteration order is part of the
+/// hash contract: a node reached while one of its own ancestors is
+/// mid-walk hashes with its children truncated, so inside a dependency
+/// cycle the digest a node settles on depends on the order its parents
+/// were visited in. Upstream's node holds a plain JS object built by
+/// spreading `dependencies` then `optionalDependencies`, so callers must
+/// insert in that same order (each section in lockfile key order) for
+/// the digests to match.
+///
 /// Owns its strings so a caller building the graph from a lockfile
 /// doesn't have to keep a separate `String` arena alive for the
 /// duration of the hash walk.
 pub struct DepsGraphNode<Key> {
     pub full_pkg_id: String,
-    pub children: HashMap<String, Key>,
+    pub children: IndexMap<String, Key>,
 }
 
 /// Memoized per-depPath state cache: the result of `hash_object` for
@@ -81,6 +91,20 @@ where
 /// contribution becomes `""` (the "node not in graph" guard returns
 /// the empty string).
 ///
+/// **Visit order is part of the digest.** A node reached while one of
+/// its own ancestors is mid-walk hashes with its children truncated,
+/// and that truncated digest is what lands in `cache` until the
+/// outermost visit overwrites it — so inside a dependency cycle the
+/// digest a node ends up with depends on which node the walk entered
+/// the cycle from. Upstream is deterministic because JS objects
+/// iterate in insertion order; pacquet reproduces that by keeping
+/// [`DepsGraphNode::children`] insertion-ordered and by having callers
+/// drive the per-snapshot walks in lockfile key order (see
+/// [`crate::warm_deps_state_cache`]). Feeding this walk a
+/// `HashMap`-ordered graph instead would give the same lockfile a
+/// different global-virtual-store slot on every run, and each install
+/// would re-import whatever landed on a fresh slot path.
+///
 /// Exposed at `pub(crate)` so the global-virtual-store path hasher
 /// (`crate::global_virtual_store_path`) can share the same recursion
 /// and cache — both [`calc_dep_state`] and `calc_graph_node_hash` are
@@ -121,6 +145,35 @@ where
     cache.get(dep_path).expect("just inserted").clone()
 }
 
+/// Populate `cache` by walking `keys` in order, so that later lookups
+/// see the same digests no matter what order — or from how many
+/// threads — the callers ask for them.
+///
+/// [`calc_dep_state`] and [`crate::calc_graph_node_hash`] both memoize
+/// into a shared install-scoped cache, and for cyclic subgraphs the
+/// digest they store depends on the entry point that reached the node
+/// first (see [`DepsGraphNode::children`] for why). Callers that would
+/// otherwise enter the graph in an unordered — or concurrent — sequence
+/// prime the cache through here first, passing the snapshot keys in
+/// lockfile order.
+pub fn warm_deps_state_cache<'a, Key>(
+    graph: &HashMap<Key, DepsGraphNode<Key>>,
+    cache: &mut DepsStateCache<Key>,
+    keys: impl IntoIterator<Item = &'a Key>,
+) where
+    Key: 'a + Clone + Eq + std::hash::Hash,
+{
+    // One `parents` set for the whole warm-up: each walk leaves it empty
+    // again, and a key that is already memoized needs no walk at all.
+    let mut parents = HashSet::new();
+    for key in keys {
+        if cache.contains_key(key) {
+            continue;
+        }
+        calc_dep_graph_hash(graph, cache, &mut parents, key);
+    }
+}
+
 /// Recursive helper used by [`crate::calc_graph_node_hash`] to decide
 /// whether a snapshot's engine string should contribute to its global-
 /// virtual-store hash.
@@ -143,7 +196,11 @@ where
 /// `false` *without* caching. The "false in this particular cycle
 /// rotation" answer isn't the canonical one — a sibling visit might
 /// still find a builder upstream, and caching `false` here would
-/// poison the next visit at the same key.
+/// poison the next visit at the same key. A `false` *derived* from
+/// such a hit is still cached though, so — as in
+/// [`calc_dep_graph_hash`] — the answer a cycle member settles on
+/// depends on visit order, and the caller has to supply a
+/// deterministic one.
 ///
 /// `cache` is install-scoped and threaded across every snapshot
 /// visited inside one [`crate::calc_graph_node_hash`] walk. `parents`

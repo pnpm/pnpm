@@ -11,17 +11,17 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-pacquet-lockfile                = { workspace = true }
-pacquet-package-manifest        = { workspace = true }
-pacquet-resolving-resolver-base = { workspace = true }
+pacquet-lockfile                          = { workspace = true }
+pacquet-package-manifest                  = { workspace = true }
+pacquet-resolving-parse-wanted-dependency = { workspace = true }
+pacquet-resolving-resolver-base           = { workspace = true }
+pacquet-tarball                           = { workspace = true }
 
 derive_more = { workspace = true }
 home        = { workspace = true }
 miette      = { workspace = true }
 pathdiff    = { workspace = true }
 serde_json  = { workspace = true }
-ssri        = { workspace = true }
-tokio       = { workspace = true, features = ["fs", "io-util", "rt"] }
 tracing     = { workspace = true }
 
 [dev-dependencies]

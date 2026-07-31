@@ -4,10 +4,17 @@ use pacquet_resolving_resolver_base::{
     LatestQuery, PkgResolutionId, ResolveFuture, ResolveLatestFuture, ResolveOptions,
     ResolveResult, Resolver, WantedDependency,
 };
+use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 
 use super::{
-    ResolveDependencyTreeOptions, extract_children, landed_on_prior_entry, resolve_dependency_tree,
+    ResolveDependencyTreeOptions, WorkspaceTreeCtx, extract_children, landed_on_prior_entry,
+    resolve_dependency_tree,
 };
+use crate::{
+    DirectDep, NodeId,
+    resolved_tree::{DependenciesTreeNode, TreeChildren},
+};
+use std::collections::BTreeMap;
 
 #[test]
 fn dependency_engines_runtime_is_walked_as_a_runtime_dependency() {
@@ -38,6 +45,215 @@ fn dependency_engines_runtime_is_walked_as_a_runtime_dependency() {
     assert_eq!(
         extract_children(&result).unwrap(),
         vec![("node".to_string(), "runtime:22.19.0".to_string(), false)],
+    );
+}
+
+#[test]
+fn importer_snapshot_excludes_other_importers_occurrence_nodes() {
+    let workspace = WorkspaceTreeCtx::default();
+    let root = NodeId::next();
+    let child = NodeId::next();
+    let unrelated = NodeId::next();
+    workspace.dependencies_tree.lock().unwrap().extend([
+        (
+            root.clone(),
+            DependenciesTreeNode::new(
+                "root@1.0.0".to_string(),
+                TreeChildren::Realized(BTreeMap::from([("child".to_string(), child.clone())])),
+                0,
+                true,
+            ),
+        ),
+        (
+            child.clone(),
+            DependenciesTreeNode::new("child@1.0.0".to_string(), TreeChildren::empty(), 1, true),
+        ),
+        (
+            unrelated.clone(),
+            DependenciesTreeNode::new(
+                "unrelated@1.0.0".to_string(),
+                TreeChildren::empty(),
+                0,
+                true,
+            ),
+        ),
+    ]);
+
+    let snapshot = workspace.snapshot_reachable_from(vec![DirectDep {
+        alias: "root".to_string(),
+        node_id: root.clone(),
+        id: "root@1.0.0".to_string(),
+    }]);
+
+    assert_eq!(snapshot.dependencies_tree.len(), 2);
+    assert!(snapshot.dependencies_tree.contains_key(&root));
+    assert!(snapshot.dependencies_tree.contains_key(&child));
+    assert!(!snapshot.dependencies_tree.contains_key(&unrelated));
+}
+
+#[test]
+fn importer_snapshot_follows_lazy_edges_for_the_package_closure() {
+    use super::lock_recoverable;
+    use crate::resolved_tree::ChildEdge;
+    use std::sync::Arc;
+
+    let workspace = WorkspaceTreeCtx::default();
+    let root = NodeId::next();
+    lock_recoverable(&workspace.dependencies_tree).insert(
+        root.clone(),
+        DependenciesTreeNode::new(
+            "root@1.0.0".to_string(),
+            TreeChildren::Lazy { parent_ids: Arc::new(Vec::new()) },
+            0,
+            true,
+        ),
+    );
+    for pkg_id in ["root@1.0.0", "lazy-child@1.0.0", "foreign@1.0.0"] {
+        lock_recoverable(&workspace.packages).insert(pkg_id.to_string(), snapshot_package(pkg_id));
+    }
+    lock_recoverable(&workspace.children_by_id).insert(
+        "root@1.0.0".to_string(),
+        Arc::new(vec![ChildEdge {
+            alias: "lazy-child".to_string(),
+            pkg_id: "lazy-child@1.0.0".to_string(),
+            optional: false,
+        }]),
+    );
+    lock_recoverable(&workspace.children_by_id)
+        .insert("foreign@1.0.0".to_string(), Arc::new(Vec::new()));
+
+    let snapshot = workspace.snapshot_reachable_from(vec![DirectDep {
+        alias: "root".to_string(),
+        node_id: root,
+        id: "root@1.0.0".to_string(),
+    }]);
+
+    assert!(
+        snapshot.packages.contains_key("lazy-child@1.0.0"),
+        "a package reachable only through a lazy edge must stay in the snapshot",
+    );
+    assert!(snapshot.children_by_id.contains_key("root@1.0.0"));
+    assert!(!snapshot.packages.contains_key("foreign@1.0.0"));
+    assert!(!snapshot.children_by_id.contains_key("foreign@1.0.0"));
+}
+
+#[test]
+fn ownership_rewrite_of_existing_nodes_bumps_children_rewrites() {
+    use super::{TreeCtx, insert_tree_node, lock_recoverable, make_non_owner_nodes_lazy};
+    use std::sync::Arc;
+
+    let workspace = Arc::new(WorkspaceTreeCtx::default());
+    let ctx = TreeCtx::with_workspace(Arc::clone(&workspace), ResolveOptions::default());
+    let owner = NodeId::next();
+    let other = NodeId::next();
+    insert_tree_node(&ctx, owner.clone(), "pkg@1.0.0", TreeChildren::empty(), 0);
+    insert_tree_node(&ctx, other.clone(), "pkg@1.0.0", TreeChildren::empty(), 1);
+    lock_recoverable(&workspace.node_parent_ids_by_id)
+        .insert(other.clone(), Arc::new(vec!["parent@1.0.0".to_string()]));
+
+    make_non_owner_nodes_lazy(&ctx, "absent@1.0.0", &owner);
+    assert_eq!(workspace.children_rewrites(), 0, "no occurrence rewritten, nothing to invalidate");
+
+    make_non_owner_nodes_lazy(&ctx, "pkg@1.0.0", &owner);
+    assert_eq!(workspace.children_rewrites(), 1);
+    assert!(
+        matches!(
+            lock_recoverable(&workspace.dependencies_tree).get(&other).unwrap().children,
+            TreeChildren::Lazy { .. },
+        ),
+        "the non-owner occurrence flips to lazy",
+    );
+}
+
+fn snapshot_package(pkg_id: &str) -> super::ResolvedPackage {
+    super::ResolvedPackage {
+        id: pkg_id.to_string(),
+        result: std::sync::Arc::new(manifest_result(serde_json::json!({}))),
+        peer_dependencies: BTreeMap::new(),
+        optional: false,
+        is_leaf: false,
+    }
+}
+
+fn manifest_result(manifest: serde_json::Value) -> ResolveResult {
+    ResolveResult {
+        id: PkgResolutionId::from("parent@1.0.0"),
+        name_ver: None,
+        latest: None,
+        published_at: None,
+        manifest: Some(std::sync::Arc::new(manifest)),
+        resolution: LockfileResolution::Directory(DirectoryResolution {
+            directory: "parent".to_string(),
+        }),
+        resolved_via: "npm-registry".to_string(),
+        normalized_bare_specifier: None,
+        alias: Some("parent".to_string()),
+        policy_violation: None,
+    }
+}
+
+// Regression test for pnpm/pnpm#13334: npm ships bundled dependencies
+// inside the package's own tarball, so they must not be resolved as
+// edges of their own.
+#[test]
+fn bundled_dependencies_are_not_walked() {
+    let result = manifest_result(serde_json::json!({
+        "name": "parent",
+        "version": "1.0.0",
+        "dependencies": { "bundled-dep": "^1.0.0", "regular-dep": "^2.0.0" },
+        "optionalDependencies": { "bundled-optional": "^3.0.0" },
+        "bundledDependencies": ["bundled-dep", "bundled-optional"],
+    }));
+    assert_eq!(
+        extract_children(&result).unwrap(),
+        vec![("regular-dep".to_string(), "^2.0.0".to_string(), false)],
+    );
+}
+
+#[test]
+fn bundle_dependencies_spelling_is_honored() {
+    let result = manifest_result(serde_json::json!({
+        "name": "parent",
+        "version": "1.0.0",
+        "dependencies": { "bundled-dep": "^1.0.0", "regular-dep": "^2.0.0" },
+        "bundleDependencies": ["bundled-dep"],
+    }));
+    assert_eq!(
+        extract_children(&result).unwrap(),
+        vec![("regular-dep".to_string(), "^2.0.0".to_string(), false)],
+    );
+}
+
+#[test]
+fn bundled_dependencies_true_bundles_every_dependency() {
+    let result = manifest_result(serde_json::json!({
+        "name": "parent",
+        "version": "1.0.0",
+        "dependencies": { "one": "^1.0.0", "two": "^2.0.0" },
+        "optionalDependencies": { "three": "^3.0.0" },
+        "bundledDependencies": true,
+    }));
+    assert_eq!(
+        extract_children(&result).unwrap(),
+        vec![("three".to_string(), "^3.0.0".to_string(), true)],
+    );
+}
+
+// `bundledDependencies: true` names the `dependencies` keys, and upstream
+// filters the merged `{...optionalDependencies, ...dependencies}` map, so an
+// alias listed in both groups is dropped from both.
+#[test]
+fn bundled_dependencies_true_also_drops_the_optional_duplicate() {
+    let result = manifest_result(serde_json::json!({
+        "name": "parent",
+        "version": "1.0.0",
+        "dependencies": { "both": "^1.0.0" },
+        "optionalDependencies": { "both": "^1.0.0", "optional-only": "^3.0.0" },
+        "bundledDependencies": true,
+    }));
+    assert_eq!(
+        extract_children(&result).unwrap(),
+        vec![("optional-only".to_string(), "^3.0.0".to_string(), true)],
     );
 }
 
@@ -122,6 +338,7 @@ async fn canonical_snapshot_link_id_is_relative_to_lockfile_root() {
             base_opts: ResolveOptions { project_dir, lockfile_dir, ..ResolveOptions::default() },
             patched_dependencies: None,
             manifest_hook: None,
+            overrides_hook: None,
             pnpmfile_hook: None,
             read_package_log: None,
             auto_install_peers: false,
@@ -167,8 +384,8 @@ fn matches_a_name_prefixed_file_id() {
 
 #[test]
 fn owner_missing_record_is_written_once_per_generation() {
-    use super::{ChildrenOwner, WorkspaceTreeCtx, lock_recoverable};
-    use std::collections::{HashMap, HashSet};
+    use super::{ChildrenOwner, ChildrenOwnerEntry, WorkspaceTreeCtx, lock_recoverable};
+    use std::sync::Arc;
 
     let ctx = WorkspaceTreeCtx::default();
     let owner = ChildrenOwner {
@@ -178,10 +395,15 @@ fn owner_missing_record_is_written_once_per_generation() {
         parent_path: vec!["root-dep@1.0.0".to_string()],
         importer_id: ".".to_string(),
     };
-    lock_recoverable(&ctx.children_owner_by_id).insert("pkg@1.0.0".to_string(), owner.clone());
+    let entry = |owner: ChildrenOwner| ChildrenOwnerEntry {
+        owner,
+        peer_shadowed: Arc::new(HashSet::default()),
+    };
+    lock_recoverable(&ctx.children_owner_by_id)
+        .insert("pkg@1.0.0".to_string(), entry(owner.clone()));
 
     let miss = |names: &[&str]| {
-        let mut map: HashMap<String, HashSet<String>> = HashMap::new();
+        let mut map: HashMap<String, HashSet<String>> = HashMap::default();
         map.insert("pkg@1.0.0".to_string(), names.iter().map(|name| (*name).to_string()).collect());
         map
     };
@@ -204,7 +426,7 @@ fn owner_missing_record_is_written_once_per_generation() {
     );
 
     let new_owner = ChildrenOwner { depth: 0, ..owner };
-    lock_recoverable(&ctx.children_owner_by_id).insert("pkg@1.0.0".to_string(), new_owner);
+    lock_recoverable(&ctx.children_owner_by_id).insert("pkg@1.0.0".to_string(), entry(new_owner));
     ctx.record_first_walk_missing(".", &miss(&[]));
     assert_eq!(
         ctx.first_walk_missing_by_pkg().get("pkg@1.0.0").map(HashSet::len),
@@ -237,7 +459,7 @@ fn importer_scoped_update_owner_wins_before_discovery_order() {
 }
 
 mod higher_direct_dep_version {
-    use std::collections::HashMap;
+    use rustc_hash::FxHashMap as HashMap;
 
     use node_semver::{Range, Version};
 
@@ -246,7 +468,7 @@ mod higher_direct_dep_version {
     fn direct(name: &str, versions: &[&str]) -> DirectDepVersions {
         let parsed =
             versions.iter().map(|raw| raw.parse::<Version>().expect("parse version")).collect();
-        HashMap::from([(name.to_string(), parsed)])
+        HashMap::from_iter([(name.to_string(), parsed)])
     }
 
     fn ver(raw: &str) -> Version {
@@ -431,11 +653,11 @@ mod real_package_name_of {
 }
 
 mod is_update_target {
-    use std::collections::HashSet;
+    use rustc_hash::FxHashSet as HashSet;
 
     use pacquet_resolving_resolver_base::WantedDependency;
 
-    use super::super::{UpdateReuseScope, is_update_target};
+    use super::super::{UpdateDepth, UpdateReuseScope, UpdateScope, is_update_target};
 
     fn wanted_with(alias: Option<&str>, bare_specifier: Option<&str>) -> WantedDependency {
         WantedDependency {
@@ -449,12 +671,19 @@ mod is_update_target {
         UpdateReuseScope::Except(names.iter().map(|s| (*s).to_string()).collect::<HashSet<_>>())
     }
 
+    /// The scope of a `--depth Infinity` update — the default, under
+    /// which every node is judged by name alone.
+    fn unlimited(reuse: &UpdateReuseScope) -> UpdateScope<'_> {
+        UpdateScope { reuse, max_depth: UpdateDepth::UNLIMITED }
+    }
+
     #[test]
     fn returns_false_for_all_scope() {
         // `All` = install/add default: no package is targeted for update.
         assert!(!is_update_target(
-            &UpdateReuseScope::All,
+            unlimited(&UpdateReuseScope::All),
             &wanted_with(Some("foo"), Some("^1.0.0")),
+            0,
         ));
     }
 
@@ -462,8 +691,9 @@ mod is_update_target {
     fn returns_false_for_none_scope() {
         // `None` is the "no reuse" sentinel; same outcome as `All` here.
         assert!(!is_update_target(
-            &UpdateReuseScope::None,
+            unlimited(&UpdateReuseScope::None),
             &wanted_with(Some("foo"), Some("^1.0.0")),
+            0,
         ));
     }
 
@@ -471,13 +701,21 @@ mod is_update_target {
     fn returns_true_for_except_scope_when_targeted() {
         // `foo` is in the user's update target list → this resolution
         // carries `update_requested`.
-        assert!(is_update_target(&except(&["foo"]), &wanted_with(Some("foo"), Some("^1.0.0")),));
+        assert!(is_update_target(
+            unlimited(&except(&["foo"])),
+            &wanted_with(Some("foo"), Some("^1.0.0")),
+            0,
+        ));
     }
 
     #[test]
     fn returns_false_for_except_scope_when_not_targeted() {
         // `foo` is not in the user's update target list.
-        assert!(!is_update_target(&except(&["bar"]), &wanted_with(Some("foo"), Some("^1.0.0")),));
+        assert!(!is_update_target(
+            unlimited(&except(&["bar"])),
+            &wanted_with(Some("foo"), Some("^1.0.0")),
+            0,
+        ));
     }
 
     #[test]
@@ -485,14 +723,46 @@ mod is_update_target {
         // The user updates `bar`, but the importer installed it under
         // alias `foo` via `foo@npm:bar@^4`. The real name `bar` is in
         // the target list, so the aliased dep counts as a target.
-        assert!(is_update_target(&except(&["bar"]), &wanted_with(Some("foo"), Some("npm:bar@^4"))));
+        assert!(is_update_target(
+            unlimited(&except(&["bar"])),
+            &wanted_with(Some("foo"), Some("npm:bar@^4")),
+            0,
+        ));
     }
 
     #[test]
     fn returns_false_when_real_name_is_unrecoverable() {
         // Alias missing AND no bare_specifier pattern that yields a name.
         // Defensive: "not a targeted update" since we can't match.
-        assert!(!is_update_target(&except(&["foo"]), &wanted_with(None, None),));
+        assert!(!is_update_target(unlimited(&except(&["foo"])), &wanted_with(None, None), 0));
+    }
+
+    #[test]
+    fn depth_zero_targets_direct_dependencies_only() {
+        let reuse = except(&["foo"]);
+        let scope = UpdateScope { reuse: &reuse, max_depth: UpdateDepth::new(0) };
+        let wanted = wanted_with(Some("foo"), Some("^1.0.0"));
+
+        assert!(is_update_target(scope, &wanted, 0));
+        assert!(!is_update_target(scope, &wanted, 1));
+    }
+
+    #[test]
+    fn a_finite_depth_reaches_every_level_up_to_it() {
+        let reuse = except(&["foo"]);
+        let scope = UpdateScope { reuse: &reuse, max_depth: UpdateDepth::new(2) };
+        let wanted = wanted_with(Some("foo"), Some("^1.0.0"));
+
+        assert!(is_update_target(scope, &wanted, 2));
+        assert!(!is_update_target(scope, &wanted, 3));
+    }
+
+    #[test]
+    fn a_depth_no_graph_can_reach_is_unlimited() {
+        let reuse = except(&["foo"]);
+        let scope = UpdateScope { reuse: &reuse, max_depth: UpdateDepth::new(usize::MAX) };
+
+        assert!(is_update_target(scope, &wanted_with(Some("foo"), Some("^1.0.0")), i32::MAX));
     }
 }
 
@@ -527,4 +797,75 @@ fn deprecated_pkg_name_ver_falls_back_to_the_manifest() {
         super::deprecated_pkg_name_ver(&result(serde_json::json!({ "name": "git-pkg" }))),
         None,
     );
+}
+
+/// A resolver that hands back no manifest still has to give the package
+/// an identity — see <https://github.com/pnpm/pnpm/issues/13410>.
+mod fallback_manifest {
+    use pacquet_lockfile::{DirectoryResolution, LockfileResolution};
+    use pacquet_resolving_resolver_base::{CurrentPkg, PkgResolutionId, WantedDependency};
+
+    fn wanted(alias: Option<&str>, bare_specifier: Option<&str>) -> WantedDependency {
+        WantedDependency {
+            alias: alias.map(str::to_string),
+            bare_specifier: bare_specifier.map(str::to_string),
+            ..WantedDependency::default()
+        }
+    }
+
+    fn current_pkg(name: Option<&str>, version: Option<&str>) -> CurrentPkg {
+        CurrentPkg {
+            id: PkgResolutionId::from("file:sub"),
+            name: name.map(str::to_string),
+            version: version.map(str::to_string),
+            resolution: LockfileResolution::Directory(DirectoryResolution {
+                directory: "sub".to_string(),
+            }),
+            published_at: None,
+        }
+    }
+
+    #[test]
+    fn the_alias_names_the_package() {
+        assert_eq!(
+            super::super::fallback_manifest(
+                &wanted(Some("no-manifest"), Some("file:./no-manifest-1.0.0.tgz")),
+                None,
+            ),
+            serde_json::json!({ "name": "no-manifest", "version": "0.0.0" }),
+        );
+    }
+
+    #[test]
+    fn an_unaliased_dep_is_named_by_its_specifier_s_last_segment() {
+        assert_eq!(
+            super::super::fallback_manifest(
+                &wanted(None, Some("https://example.com/no-manifest-1.0.0.tgz")),
+                None,
+            ),
+            serde_json::json!({ "name": "no-manifest-1.0.0.tgz", "version": "0.0.0" }),
+        );
+    }
+
+    #[test]
+    fn the_lockfile_s_pin_wins_over_the_alias() {
+        assert_eq!(
+            super::super::fallback_manifest(
+                &wanted(Some("sub"), Some("file:./sub")),
+                Some(&current_pkg(Some("sub"), Some("2.0.0"))),
+            ),
+            serde_json::json!({ "name": "sub", "version": "2.0.0" }),
+        );
+    }
+
+    #[test]
+    fn a_half_recorded_pin_falls_through_to_the_alias() {
+        assert_eq!(
+            super::super::fallback_manifest(
+                &wanted(Some("sub"), Some("file:./sub")),
+                Some(&current_pkg(Some("sub"), None)),
+            ),
+            serde_json::json!({ "name": "sub", "version": "0.0.0" }),
+        );
+    }
 }

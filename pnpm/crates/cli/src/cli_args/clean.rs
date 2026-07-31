@@ -53,13 +53,13 @@ impl CleanArgs {
             && !script.is_empty()
         {
             return RunArgs {
-                command: Some(command_name.to_string()),
-                args: Vec::new(),
+                script: RunArgs::script(command_name, []),
                 if_present: false,
                 resume_from: None,
                 report_summary: false,
                 no_bail: false,
                 sort: true,
+                parallel: false,
                 sequential: false,
             }
             .run(ctx.dir, config, matches!(ctx.reporter, ReporterType::Silent));

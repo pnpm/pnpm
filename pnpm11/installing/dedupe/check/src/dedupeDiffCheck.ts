@@ -105,6 +105,9 @@ function diffSnapshots<TSnapshot> (
 
   const added = (Object.keys(next) as DepPath[]).filter(id => prev[id] == null)
 
+  added.sort()
+  removed.sort()
+
   return { added, removed, updated }
 }
 

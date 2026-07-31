@@ -67,9 +67,9 @@ jobs:
         echo "Checked out PR #$PR_NUMBER at $(git rev-parse --short HEAD)"
 
     - name: Install pnpm and Node
-      uses: pnpm/setup@6bfbb82d278149277735183e1ac2cd4353ebfe4f
+      uses: pnpm/setup@6523ce966bcf7a1061ce6401e5c6e0b60466bd31
       with:
-        runtime: node@26.5.0
+        runtime: node@26.5.1
 
     - name: Install Rust Toolchain
       uses: ./.github/actions/rustup
@@ -94,7 +94,7 @@ jobs:
 
     - name: Install Bencher CLI
       if: steps.bench.outputs.bench_dir != ''
-      uses: bencherdev/bencher@d2895af8c867c83b8fe766a6b84d8ccd4df5c315 # v0.6.10
+      uses: bencherdev/bencher@4c83b25441d145ee273adaf74be30f2382e6ba85 # v0.6.11
 
     - name: Upload results to Bencher
       if: steps.bench.outputs.bench_dir != ''

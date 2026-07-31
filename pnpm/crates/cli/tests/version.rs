@@ -1,4 +1,5 @@
 use command_extra::CommandExtra;
+use pacquet_lockfile::EnvLockfile;
 use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use pretty_assertions::assert_eq;
 use std::{
@@ -53,6 +54,44 @@ fn version_flag_switches_to_project_package_manager_version() {
     dbg!(&output);
     assert!(output.status.success(), "pacquet --version should succeed");
     assert_eq!(String::from_utf8_lossy(&output.stdout), "9.3.0\n");
+
+    drop((root, mock_instance));
+}
+
+/// `--version` runs the pre-command checks — that is what lets it switch to
+/// the pinned pnpm above. A pin the running pnpm already satisfies has nothing
+/// to switch to, but it is still recorded, so the entry does not depend on
+/// which command the project saw first.
+#[test]
+fn version_flag_records_a_pinned_package_manager_it_does_not_need_to_switch_to() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let pinned = pacquet_config::PNPM_VERSION;
+    fs::write(
+        workspace.join("package.json"),
+        format!(r#"{{"devEngines":{{"packageManager":{{"name":"pnpm","version":"{pinned}"}}}}}}"#),
+    )
+    .expect("write package.json");
+
+    let output = test_command(pacquet, root.path())
+        .env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .args(["--version"])
+        .output()
+        .expect("run pacquet --version");
+    dbg!(&output);
+    assert!(output.status.success(), "pacquet --version should succeed");
+    assert_eq!(String::from_utf8_lossy(&output.stdout), format!("{pinned}\n"));
+
+    let env_lockfile = EnvLockfile::read(&workspace)
+        .expect("read the written env lockfile")
+        .expect("the env lockfile should have been written");
+    let recorded = env_lockfile.importers[EnvLockfile::ROOT_IMPORTER_KEY]
+        .package_manager_dependencies
+        .as_ref()
+        .expect("packageManagerDependencies should be recorded");
+    assert_eq!(recorded["pnpm"].specifier, pinned);
+    assert_eq!(recorded["pnpm"].version, pinned);
 
     drop((root, mock_instance));
 }

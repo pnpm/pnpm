@@ -13,8 +13,8 @@
 
 use crate::{
     AuditLevel, CatalogMode, HoistingLimits, NodeLinker, NodePackageMapType, PackageImportMethod,
-    PmOnFail, ResolutionMode, RuntimeOnFail, ScriptsPrependNodePath, TrustPolicy,
-    VerifyDepsBeforeRun, WorkspaceSettings, api::EnvVar,
+    PmOnFail, ResolutionMode, RuntimeOnFail, SaveWorkspaceProtocol, ScriptsPrependNodePath,
+    TrustPolicy, VerifyDepsBeforeRun, WorkspaceSettings, api::EnvVar,
 };
 use serde::de::DeserializeOwned;
 
@@ -24,6 +24,19 @@ fn read_env<Sys: EnvVar>(suffix: &str) -> Option<String> {
     let upper = format!("PNPM_CONFIG_{suffix}");
     let lower = format!("pnpm_config_{}", suffix.to_lowercase());
     Sys::var(&upper).or_else(|| Sys::var(&lower)).filter(|value| !value.is_empty())
+}
+
+/// Read an env var by suffix, keeping an empty value as `Some("")`.
+///
+/// For nearly every setting an empty env var is indistinguishable from
+/// an unset one, which is why [`read_env`] drops it. `savePrefix` is the
+/// exception: `""` is the value that selects an exact version pin, and
+/// pnpm's own env pass only skips a variable that is absent, never one
+/// that is empty.
+fn read_env_allow_empty<Sys: EnvVar>(suffix: &str) -> Option<String> {
+    let upper = format!("PNPM_CONFIG_{suffix}");
+    let lower = format!("pnpm_config_{}", suffix.to_lowercase());
+    Sys::var(&upper).or_else(|| Sys::var(&lower))
 }
 
 /// Parse `value` as JSON. Returns `None` on parse failure so the
@@ -135,6 +148,7 @@ impl WorkspaceSettings {
         json_field!(peers_suffix_max_length, "PEERS_SUFFIX_MAX_LENGTH");
         json_field!(lockfile, "LOCKFILE");
         json_field!(prefer_frozen_lockfile, "PREFER_FROZEN_LOCKFILE");
+        json_field!(frozen_lockfile, "FROZEN_LOCKFILE");
         json_field!(deploy_all_files, "DEPLOY_ALL_FILES");
         json_field!(force_legacy_deploy, "FORCE_LEGACY_DEPLOY");
         json_field!(shared_workspace_lockfile, "SHARED_WORKSPACE_LOCKFILE");
@@ -237,6 +251,13 @@ impl WorkspaceSettings {
         json_field!(trust_policy_ignore_after, "TRUST_POLICY_IGNORE_AFTER");
         enum_field!(resolution_mode, "RESOLUTION_MODE", ResolutionMode);
         enum_field!(catalog_mode, "CATALOG_MODE", CatalogMode);
+        string_field!(save_catalog_name, "SAVE_CATALOG_NAME");
+        if let Some(save_prefix) = read_env_allow_empty::<Sys>("SAVE_PREFIX") {
+            settings.save_prefix = Some(save_prefix);
+        }
+        json_field!(save_exact, "SAVE_EXACT");
+        json_field!(save_peer, "SAVE_PEER");
+        enum_field!(save_workspace_protocol, "SAVE_WORKSPACE_PROTOCOL", SaveWorkspaceProtocol);
         json_field!(registry_supports_time_field, "REGISTRY_SUPPORTS_TIME_FIELD");
         json_field!(allowed_deprecated_versions, "ALLOWED_DEPRECATED_VERSIONS");
         json_field!(update_config, "UPDATE_CONFIG");

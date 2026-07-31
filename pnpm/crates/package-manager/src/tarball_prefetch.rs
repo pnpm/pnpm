@@ -119,7 +119,7 @@ pub(crate) fn spawn_tarball_download(download: TarballDownload) {
             store_index_writer,
             verify_store_integrity,
             verified_files_cache,
-            package_integrity: &integrity,
+            package_integrity: Some(&integrity),
             package_unpacked_size,
             package_file_count,
             package_url: &package_url,
@@ -300,9 +300,10 @@ impl TarballPrefetcher {
             }
             let (tarball_url, integrity) =
                 tarball_url_and_integrity(&metadata.resolution, package_key, config)
-                    .expect("registry resolutions always carry an integrity");
-            let package_id = package_key.without_peer().to_string();
-            let integrity = integrity.to_string();
+                    .expect("registry resolutions are always fetchable");
+            let package_id = package_key.pkg_id();
+            let integrity =
+                integrity.expect("registry resolutions always carry an integrity").to_string();
             pending.push(PendingPrefetch {
                 store_key: store_index_key(&integrity, &package_id),
                 package_id,

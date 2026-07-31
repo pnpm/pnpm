@@ -12,7 +12,7 @@ use miette::{Context, Diagnostic, IntoDiagnostic};
 use pacquet_config::Config;
 use pacquet_package_manager::Add;
 use pacquet_package_manifest::DependencyGroup;
-use pacquet_registry::PinnedVersion;
+use pacquet_registry::RangeSpecStyle;
 use pacquet_reporter::Reporter;
 use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use pacquet_workspace_manifest_writer::set_allow_builds;
@@ -33,20 +33,44 @@ pub struct AddDependencyOptions {
     #[clap(short = 'O', long)]
     save_optional: bool,
     /// Using --save-peer will add one or more packages to peerDependencies and install them as dev dependencies
-    #[clap(long)]
+    #[clap(long, overrides_with = "no_save_peer")]
     save_peer: bool,
+    /// Don't add the packages to peerDependencies, overriding a
+    /// `savePeer: true` setting.
+    #[clap(long = "no-save-peer", overrides_with = "save_peer")]
+    no_save_peer: bool,
 }
 
 impl AddDependencyOptions {
+    /// `--save-peer` / `--no-save-peer` layered over the `savePeer` setting.
+    fn with_save_peer_setting(self, save_peer: bool) -> Self {
+        Self {
+            save_peer: resolve_bool_override(self.save_peer, self.no_save_peer, save_peer),
+            ..self
+        }
+    }
+
     /// Whether to add entry to `"dependencies"`.
     fn save_prod(&self) -> bool {
-        let &AddDependencyOptions { save_prod, save_dev, save_optional, save_peer } = self;
+        let &AddDependencyOptions {
+            save_prod,
+            save_dev,
+            save_optional,
+            save_peer,
+            no_save_peer: _,
+        } = self;
         save_prod || (!save_dev && !save_optional && !save_peer)
     }
 
     /// Whether to add entry to `"devDependencies"`.
     fn save_dev(&self) -> bool {
-        let &AddDependencyOptions { save_prod, save_dev, save_optional, save_peer } = self;
+        let &AddDependencyOptions {
+            save_prod,
+            save_dev,
+            save_optional,
+            save_peer,
+            no_save_peer: _,
+        } = self;
         save_dev || (!save_prod && !save_optional && save_peer)
     }
 
@@ -75,7 +99,13 @@ impl AddDependencyOptions {
     /// (an already-declared dependency is updated in the group it
     /// occupies; a new one lands in `dependencies`).
     fn save_target(&self) -> Option<Vec<DependencyGroup>> {
-        let &AddDependencyOptions { save_prod, save_dev, save_optional, save_peer } = self;
+        let &AddDependencyOptions {
+            save_prod,
+            save_dev,
+            save_optional,
+            save_peer,
+            no_save_peer: _,
+        } = self;
         (save_prod || save_dev || save_optional || save_peer)
             .then(|| self.dependency_groups().collect())
     }
@@ -96,7 +126,7 @@ pub struct AddArgs {
     /// the default semver range operator.
     #[clap(short = 'E', long = "save-exact")]
     pub save_exact: bool,
-    /// The prefix of the saved version range: `^` (default), `~`, or empty for an exact version.
+    /// The prefix of the saved version range: `^` (default), `~`, `=` for an explicit exact pin, or empty for a bare exact version.
     #[clap(long = "save-prefix", value_name = "prefix")]
     pub save_prefix: Option<String>,
     /// Save the new dependency to the default catalog. Shorthand for `--save-catalog-name=default`.
@@ -221,20 +251,18 @@ impl AddArgs {
             .or_else(|| self.save_catalog.then(|| "default".to_string()))
             .or_else(|| state.config.save_catalog_name.clone());
 
-        // Collapse the `--save-exact` / `--save-prefix` flags into the pinned
-        // version that decides the saved range, mirroring pnpm's
-        // `getPinnedVersion`.
-        let pinned_version =
-            PinnedVersion::from_save_options(self.save_exact, self.save_prefix.as_deref());
+        let range_spec_style = self.range_spec_style(state.config);
+        let dependency_options =
+            self.dependency_options.clone().with_save_peer_setting(state.config.save_peer);
 
         add_packages::<Reporter, _>(
             state,
             &self.package_names,
-            pinned_version,
+            range_spec_style,
             save_catalog_name,
             self.lockfile_only,
             supported_architectures,
-            self.dependency_options.save_target(),
+            dependency_options.save_target(),
         )
         .await
     }
@@ -251,8 +279,12 @@ impl AddArgs {
             .clone()
             .or_else(|| self.save_catalog.then(|| "default".to_string()))
             .or_else(|| state.config.save_catalog_name.clone());
-        let pinned_version =
-            PinnedVersion::from_save_options(self.save_exact, self.save_prefix.as_deref());
+        let range_spec_style = self.range_spec_style(state.config);
+        let dependency_groups = self
+            .dependency_options
+            .clone()
+            .with_save_peer_setting(state.config.save_peer)
+            .save_target();
         let InstallFamilySelection {
             workspace_root: _,
             mut projects,
@@ -275,9 +307,9 @@ impl AddArgs {
             manifest,
             lockfile,
             lockfile_path: Some(&lockfile_path),
-            dependency_groups: self.dependency_options.save_target(),
+            dependency_groups,
             package_names: &self.package_names,
-            pinned_version,
+            range_spec_style,
             save_catalog_name,
             resolved_packages,
             supported_architectures,
@@ -314,17 +346,26 @@ impl AddArgs {
         }
         let supported_architectures =
             self.supported_architectures.apply_to(config.supported_architectures.clone());
-        let pinned_version =
-            PinnedVersion::from_save_options(self.save_exact, self.save_prefix.as_deref());
+        let range_spec_style = self.range_spec_style(config);
         Box::pin(crate::cli_args::global::handle_global_add::<Reporter>(
             config,
             &self.package_names,
-            pinned_version,
+            range_spec_style,
             supported_architectures,
             &self.allow_build,
             dir,
         ))
         .await
+    }
+
+    /// The style that decides the saved range: `--save-exact` /
+    /// `--save-prefix` layered over the `saveExact` and `savePrefix`
+    /// settings, mirroring pnpm's `getRangeSpecStyle`.
+    fn range_spec_style(&self, config: &Config) -> RangeSpecStyle {
+        RangeSpecStyle::from_save_options(
+            self.save_exact || config.save_exact,
+            self.save_prefix.as_deref().or(config.save_prefix.as_deref()),
+        )
     }
 }
 
@@ -385,7 +426,7 @@ pub enum AllowBuildError {
 pub(crate) async fn add_package<Reporter, DependencyGroupList>(
     state: State,
     package_name: &str,
-    pinned_version: PinnedVersion,
+    range_spec_style: RangeSpecStyle,
     save_catalog_name: Option<String>,
     lockfile_only: bool,
     supported_architectures: Option<pacquet_package_is_installable::SupportedArchitectures>,
@@ -399,7 +440,7 @@ where
     Box::pin(add_packages::<Reporter, _>(
         state,
         &package_names,
-        pinned_version,
+        range_spec_style,
         save_catalog_name,
         lockfile_only,
         supported_architectures,
@@ -412,7 +453,7 @@ where
 pub(crate) async fn add_packages<Reporter, DependencyGroupList>(
     mut state: State,
     package_names: &[String],
-    pinned_version: PinnedVersion,
+    range_spec_style: RangeSpecStyle,
     save_catalog_name: Option<String>,
     lockfile_only: bool,
     supported_architectures: Option<pacquet_package_is_installable::SupportedArchitectures>,
@@ -438,7 +479,7 @@ where
         lockfile_path: Some(&lockfile_path),
         dependency_groups,
         package_names,
-        pinned_version,
+        range_spec_style,
         save_catalog_name,
         resolved_packages,
         supported_architectures,

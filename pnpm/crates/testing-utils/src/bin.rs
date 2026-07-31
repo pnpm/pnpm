@@ -2,7 +2,7 @@ use crate::registry::TestRegistry;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use std::{fs, path::PathBuf, process::Command};
-use tempfile::{TempDir, tempdir};
+use tempfile::TempDir;
 use text_block_macros::text_block_fnl;
 
 /// Assets for an integration test involving spawning `pacquet` and/or `pnpm` as
@@ -25,7 +25,14 @@ impl CommandTempCwd<()> {
     /// and a `pnpm` command with current dir set to the `workspace` sub-directory.
     #[must_use]
     pub fn init() -> Self {
-        let root = tempdir().expect("create temporary directory");
+        // A prefix that names the owner: these trees hold a per-test store
+        // and are the bulk of what an interrupted run abandons, and a sweep
+        // can only safely delete what it can attribute (`.tmp*`, tempfile's
+        // default, belongs to every crate that uses it).
+        let root = tempfile::Builder::new()
+            .prefix("pacquet-test-")
+            .tempdir()
+            .expect("create temporary directory");
         let workspace = root.path().join("workspace");
         fs::create_dir(&workspace).expect("create temporary workspace for the commands");
         let pacquet =

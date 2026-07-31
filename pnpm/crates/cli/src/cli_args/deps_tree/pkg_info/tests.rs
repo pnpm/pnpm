@@ -127,6 +127,7 @@ fn unsafe_path_components_are_detected_by_shape() {
     assert!(super::is_unsafe_path_component("../../escape"));
     assert!(super::is_unsafe_path_component("/etc"));
     assert!(!super::is_unsafe_path_component("lodash"));
+    assert!(!super::is_unsafe_path_component("foo..bar"));
     assert!(!super::is_unsafe_path_component("@scope/pkg"));
     // Rooted-but-prefixless and prefix-only components replace the
     // join base on Windows without being `is_absolute()`.

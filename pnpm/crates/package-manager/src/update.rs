@@ -1,7 +1,7 @@
 use crate::{
     CatalogDecision, CatalogModeDep, CatalogVersionMismatchError, DIRECT_GROUPS,
-    ImporterUpdateSeedPolicy, Install, InstallError, ResolvedPackages, UpdateSeedPolicy,
-    WorkspaceInstallSelection,
+    ImporterUpdateSeedPolicy, Install, InstallError, ProjectMutation, ResolvedPackages,
+    UpdateSeedPolicy, WorkspaceInstallSelection,
     catalog_cleanup::{
         WriteWorkspaceCatalogsError, write_workspace_catalogs, write_workspace_catalogs_selected,
     },
@@ -18,7 +18,8 @@ use pacquet_catalogs_config::{
 use pacquet_catalogs_protocol_parser::parse_catalog_protocol;
 use pacquet_catalogs_types::Catalogs;
 use pacquet_config::{
-    CatalogMode, Config, matcher::create_matcher, version_policy::PackageVersionPolicy,
+    CatalogMode, Config, SaveWorkspaceProtocol, matcher::create_matcher,
+    version_policy::PackageVersionPolicy,
 };
 use pacquet_engine_runtime_bun_resolver::BunResolver;
 use pacquet_engine_runtime_deno_resolver::DenoResolver;
@@ -26,15 +27,20 @@ use pacquet_engine_runtime_node_resolver::NodeResolver;
 use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
-use pacquet_registry::PinnedVersion;
+use pacquet_registry::RangeSpecStyle;
 use pacquet_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
 use pacquet_resolving_default_resolver::DefaultResolver;
+use pacquet_resolving_deps_resolver::UpdateDepth;
 use pacquet_resolving_npm_resolver::{
-    InMemoryPackageMetaCache, NpmResolver, merge_named_registries, shared_packument_fetch_locker,
-    shared_picked_manifest_cache,
+    DeclaredSpecifiers, InMemoryPackageMetaCache, NpmResolver, calc_specifier_for_workspace_dep,
+    merge_named_registries, shared_packument_fetch_locker, shared_picked_manifest_cache,
 };
-use pacquet_resolving_resolver_base::{ResolveOptions, Resolver, UpdateBehavior, WantedDependency};
+use pacquet_resolving_resolver_base::{
+    ResolveOptions, Resolver, UpdateBehavior, WantedDependency, WorkspacePackages,
+    WorkspacePackagesByVersion,
+};
 use pacquet_tarball::MemCache;
+use pacquet_workspace_range_resolver::resolve_workspace_range;
 use std::{
     collections::{BTreeMap, HashSet},
     path::{Path, PathBuf},
@@ -57,6 +63,11 @@ use std::{
 ///   the dependency already pinned (`^` stays `^`, `~` stays `~`, an exact
 ///   pin stays exact) and falling back to the configured default
 ///   otherwise. The follow-up install then resolves the new range.
+/// * **`--workspace`** ([`Update::workspace_packages`]): each matched
+///   direct dependency that a workspace project publishes is re-pointed
+///   at the local copy through the `workspace:` protocol, with
+///   `saveWorkspaceProtocol` deciding whether the linked version is
+///   written out or only its range operator.
 ///
 /// Selector handling:
 /// bare-name selectors (`foo`, `@scope/bar-*`) with `depth > 0` and no
@@ -99,10 +110,17 @@ pub struct Update<'a> {
     /// dependency set is always all three groups (the `node_modules`
     /// layout is unchanged); this only narrows the update scope.
     pub include_direct: Vec<DependencyGroup>,
-    /// `--depth`. Only its `> 0` predicate is consulted (the `depth > 0`
-    /// gate on the name matcher); `usize::MAX` stands in for the
-    /// `Infinity` default.
+    /// `--depth`: how deep into the dependency graph the update reaches.
+    /// A node below the ceiling keeps its locked resolution even when its
+    /// name is a target, so `0` updates direct dependencies only.
+    /// `usize::MAX` stands in for the `Infinity` default.
     pub depth: usize,
+    /// `--workspace`: what the workspace projects publish, as built by
+    /// [`crate::build_workspace_packages_map`]. `Some` turns the update
+    /// into a workspace-link update — the matched direct dependencies
+    /// are re-pointed at the workspace copies through the `workspace:`
+    /// protocol instead of the registry. `None` is a plain update.
+    pub workspace_packages: Option<&'a WorkspacePackages>,
     /// CLI-merged `supportedArchitectures`, forwarded to the install.
     pub supported_architectures: Option<pacquet_package_is_installable::SupportedArchitectures>,
     /// `--lockfile-only`: re-resolve and rewrite `pnpm-lock.yaml` without
@@ -131,6 +149,12 @@ pub enum UpdateError {
     #[display("None of the specified packages were found in the dependencies.")]
     #[diagnostic(code(ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES))]
     NoPackageInDependencies,
+
+    /// A `--workspace` selector named a dependency that no workspace
+    /// project publishes.
+    #[display(r#""{_0}" not found in the workspace"#)]
+    #[diagnostic(code(ERR_PNPM_WORKSPACE_PACKAGE_NOT_FOUND))]
+    WorkspacePackageNotFound(#[error(not(source))] String),
 
     /// A resolver failed while computing the specifier `--latest` should
     /// write for a direct dependency.
@@ -210,6 +234,22 @@ fn parse_update_param(input: &str) -> ParsedSelector {
     }
 }
 
+/// pnpm's mutation for an update: a full install of the projects it was
+/// pointed at when the user named nothing, and `installSome` once the
+/// update targets specific dependencies — either by selector or through
+/// `--latest`, which expands to every direct dependency's spec.
+///
+/// `--workspace` does not enter into it: pnpm picks the mutation from the
+/// selectors the user passed, so a selector-less workspace-link update
+/// stays a full install.
+fn update_mutation(packages: &[String], latest: bool) -> ProjectMutation {
+    if packages.is_empty() && !latest {
+        ProjectMutation::InstallSelected
+    } else {
+        ProjectMutation::InstallSome
+    }
+}
+
 impl Update<'_> {
     pub async fn run<Reporter: self::Reporter + 'static>(self) -> Result<(), UpdateError> {
         let Update {
@@ -227,6 +267,7 @@ impl Update<'_> {
             save,
             include_direct,
             depth,
+            workspace_packages,
             supported_architectures,
             lockfile_only,
             resolution_observer,
@@ -247,6 +288,7 @@ impl Update<'_> {
             save,
             &include_direct,
             depth,
+            workspace_packages,
             None,
             &mut latest_chain,
             lockfile_only,
@@ -296,10 +338,7 @@ impl Update<'_> {
             skip_runtimes: config.skip_runtimes,
             trust_lockfile: config.trust_lockfile,
             update_checksums: false,
-            // A targeted `pacquet update <pkg>` is a partial install
-            // (pnpm's `installSome`); a bare `pacquet update` is a full
-            // install that runs the project's own lifecycle scripts.
-            is_full_install: packages.is_empty(),
+            mutation: update_mutation(packages, latest),
             installs_only: true,
             resolved_packages,
             supported_architectures,
@@ -349,6 +388,7 @@ impl Update<'_> {
             save,
             include_direct,
             depth,
+            workspace_packages,
             supported_architectures,
             lockfile_only,
             resolution_observer,
@@ -377,6 +417,7 @@ impl Update<'_> {
             save,
             &include_direct,
             depth,
+            workspace_packages,
             lockfile_only,
             resolution_observer.as_ref(),
         )
@@ -412,14 +453,17 @@ impl Update<'_> {
             skip_runtimes: config.skip_runtimes,
             trust_lockfile: config.trust_lockfile,
             update_checksums: false,
-            is_full_install: packages.is_empty(),
+            mutation: update_mutation(packages, latest),
             installs_only: true,
             resolved_packages,
             supported_architectures,
             node_linker: config.node_linker,
             lockfile_only,
             dry_run: false,
-            update_seed_policy: UpdateSeedPolicy::ByImporter(prepared.seed_policies),
+            update_seed_policy: UpdateSeedPolicy::ByImporter {
+                policies: prepared.seed_policies,
+                max_depth: UpdateDepth::new(depth),
+            },
             auth_override: None,
             resolution_observer,
             peer_issues_sink: None,
@@ -475,6 +519,7 @@ async fn prepare_manifest<Reporter: self::Reporter>(
     save: bool,
     include_direct: &[DependencyGroup],
     depth: usize,
+    workspace_packages: Option<&WorkspacePackages>,
     catalogs_seed: Option<&Catalogs>,
     latest_chain: &mut Option<LatestResolverChain>,
     lockfile_only: bool,
@@ -482,7 +527,7 @@ async fn prepare_manifest<Reporter: self::Reporter>(
 ) -> Result<Option<UpdatePreparation>, UpdateError> {
     // `pacquet update` has no `--save-prefix` flag yet, so `save_exact`
     // selects between an exact pin and the default caret range.
-    let pinned_version = PinnedVersion::from_save_options(save_exact, None);
+    let range_spec_style = RangeSpecStyle::from_save_options(save_exact, None);
     let selectors = packages.iter().map(|input| parse_update_param(input)).collect::<Vec<_>>();
     // `--latest` forbids versioned selectors.
     if latest {
@@ -516,6 +561,7 @@ async fn prepare_manifest<Reporter: self::Reporter>(
         .transpose()?;
     let mut drop_names = HashSet::new();
     let mut rewrites = Vec::new();
+    let max_depth = UpdateDepth::new(depth);
     // Bare-name selectors with depth update matching names at any depth.
     let use_name_matcher = !selectors.is_empty()
         && selectors.iter().all(|selector| selector.version.is_none())
@@ -527,11 +573,34 @@ async fn prepare_manifest<Reporter: self::Reporter>(
         config,
         http_client_arc,
         resolution_observer,
-        pinned_version,
+        range_spec_style,
         lockfile_only,
     };
 
-    let seed_policy = if selectors.is_empty() {
+    // `--workspace` with nothing to link falls through to the ordinary
+    // branches below: a selector that matched no direct dependency still
+    // updates that name deeper in the graph, and an empty selector list
+    // still updates every direct dependency.
+    let workspace_targets = workspace_packages
+        .map(|packages| workspace_link_targets(&selectors, &direct, packages, config))
+        .transpose()?
+        .unwrap_or_default();
+
+    let seed_policy = if let Some(workspace_packages) =
+        workspace_packages.filter(|_| !workspace_targets.is_empty())
+    {
+        for target in workspace_targets {
+            let specifier = workspace_specifier(
+                &target,
+                &workspace_packages[&target.name],
+                config.save_workspace_protocol,
+                range_spec_style,
+            );
+            drop_names.insert(target.name.clone());
+            rewrites.push((target.name, target.group, specifier));
+        }
+        UpdateSeedPolicy::DropOnly { names: drop_names, max_depth }
+    } else if selectors.is_empty() {
         // `updateConfig.ignoreDependencies` applies only when no selector was
         // supplied and remains scoped by the included direct groups.
         let ignore_patterns =
@@ -554,7 +623,7 @@ async fn prepare_manifest<Reporter: self::Reporter>(
         }
         if updates_all_groups && ignore_patterns.is_empty() {
             // A bare, ungated update re-resolves the whole graph.
-            UpdateSeedPolicy::DropAll
+            UpdateSeedPolicy::DropAll { max_depth }
         } else {
             if updates_all_groups
                 && !(latest && drop_names.is_empty())
@@ -567,7 +636,7 @@ async fn prepare_manifest<Reporter: self::Reporter>(
                     }
                 }
             }
-            UpdateSeedPolicy::DropOnly(drop_names)
+            UpdateSeedPolicy::DropOnly { names: drop_names, max_depth }
         }
     } else if use_name_matcher {
         let patterns =
@@ -587,7 +656,7 @@ async fn prepare_manifest<Reporter: self::Reporter>(
                 }
             }
         }
-        UpdateSeedPolicy::DropOnly(drop_names)
+        UpdateSeedPolicy::DropOnly { names: drop_names, max_depth }
     } else {
         let patterns =
             selectors.iter().map(|selector| selector.pattern.clone()).collect::<Vec<_>>();
@@ -643,7 +712,7 @@ async fn prepare_manifest<Reporter: self::Reporter>(
                 }
             }
         }
-        UpdateSeedPolicy::DropOnly(drop_names)
+        UpdateSeedPolicy::DropOnly { names: drop_names, max_depth }
     };
 
     // Reconcile only manifest rewrites. Existing `catalog:` references retain
@@ -745,6 +814,7 @@ async fn prepare_selected_manifests<Reporter: self::Reporter>(
     save: bool,
     include_direct: &[DependencyGroup],
     depth: usize,
+    workspace_packages: Option<&WorkspacePackages>,
     lockfile_only: bool,
     resolution_observer: Option<&Arc<dyn crate::ResolutionObserver>>,
 ) -> Result<SelectedUpdatePreparation, UpdateError> {
@@ -770,6 +840,7 @@ async fn prepare_selected_manifests<Reporter: self::Reporter>(
             save,
             include_direct,
             depth,
+            workspace_packages,
             catalogs_override.as_ref(),
             &mut latest_chain,
             lockfile_only,
@@ -784,13 +855,16 @@ async fn prepare_selected_manifests<Reporter: self::Reporter>(
             pacquet_workspace::importer_id_from_root_dir(workspace_root, &projects[index].root_dir);
         match prepared.seed_policy {
             UpdateSeedPolicy::KeepAll => {}
-            UpdateSeedPolicy::DropAll => {
+            UpdateSeedPolicy::KeepAllResolveAll => {
+                unreachable!("update never uses the dedupe seed policy")
+            }
+            UpdateSeedPolicy::DropAll { .. } => {
                 seed_policies.insert(importer_id, ImporterUpdateSeedPolicy::DropAll);
             }
-            UpdateSeedPolicy::DropOnly(names) => {
+            UpdateSeedPolicy::DropOnly { names, .. } => {
                 seed_policies.insert(importer_id, ImporterUpdateSeedPolicy::DropOnly(names));
             }
-            UpdateSeedPolicy::ByImporter(_) => {
+            UpdateSeedPolicy::ByImporter { .. } => {
                 unreachable!("per-manifest preparation never produces importer policies")
             }
         }
@@ -849,6 +923,119 @@ fn persist_manifest<Reporter: self::Reporter>(
         message: PackageManifestMessage::Updated { prefix, updated },
     }));
     Ok(())
+}
+
+/// One direct dependency `--workspace` re-points at the workspace copy
+/// of the same name.
+struct WorkspaceLinkTarget {
+    name: String,
+    group: DependencyGroup,
+    /// The specifier the manifest declares today, which decides the range
+    /// operator the rewritten `workspace:` specifier keeps.
+    declared: String,
+    /// The range the selector asked for (`*` for a bare `foo`), which the
+    /// workspace version has to satisfy.
+    wanted_range: String,
+}
+
+/// The direct dependencies `--workspace` re-points, in manifest order.
+///
+/// With no selectors every direct dependency that a workspace project
+/// publishes is linked (minus `updateConfig.ignoreDependencies`); the
+/// rest keep their registry specifiers. With selectors, each *matched*
+/// direct dependency must be a workspace package — naming one that isn't
+/// is the failure the `--workspace` help text advertises.
+fn workspace_link_targets(
+    selectors: &[ParsedSelector],
+    direct: &[(String, DependencyGroup, String)],
+    workspace_packages: &WorkspacePackages,
+    config: &Config,
+) -> Result<Vec<WorkspaceLinkTarget>, UpdateError> {
+    let mut targets = Vec::new();
+    if selectors.is_empty() {
+        let ignore_patterns =
+            config.update_config.ignore_dependencies.as_deref().unwrap_or_default();
+        let ignore_matcher = (!ignore_patterns.is_empty()).then(|| create_matcher(ignore_patterns));
+        for (name, group, declared) in direct {
+            let ignored =
+                ignore_matcher.as_ref().is_some_and(|matcher| matcher.matches(name.as_str()));
+            if ignored || !workspace_packages.contains_key(name) {
+                continue;
+            }
+            targets.push(WorkspaceLinkTarget {
+                name: name.clone(),
+                group: *group,
+                declared: declared.clone(),
+                wanted_range: "*".to_string(),
+            });
+        }
+        return Ok(targets);
+    }
+
+    let patterns = selectors.iter().map(|selector| selector.pattern.clone()).collect::<Vec<_>>();
+    let matcher = create_matcher(&patterns);
+    // Per-selector matchers, compiled once, map a matched dependency back
+    // to the selector that claimed it — and so to the version it asked for.
+    let claims = selectors
+        .iter()
+        .map(|selector| (matcher_one(&selector.pattern), selector.version.as_deref()))
+        .collect::<Vec<_>>();
+    for (name, group, declared) in direct {
+        if !matcher.matches(name.as_str()) {
+            continue;
+        }
+        if !workspace_packages.contains_key(name) {
+            return Err(UpdateError::WorkspacePackageNotFound(name.clone()));
+        }
+        let wanted = claims
+            .iter()
+            .find(|(matcher, _)| matcher.matches(name))
+            .and_then(|(_, version)| *version)
+            .unwrap_or("*");
+        targets.push(WorkspaceLinkTarget {
+            name: name.clone(),
+            group: *group,
+            declared: declared.clone(),
+            wanted_range: wanted.strip_prefix("workspace:").unwrap_or(wanted).to_string(),
+        });
+    }
+    Ok(targets)
+}
+
+/// The `workspace:` specifier `--workspace` writes for a linked
+/// dependency.
+///
+/// `--workspace` is an explicit request for the protocol, so unlike
+/// `pnpm add` this never declines on [`SaveWorkspaceProtocol::Off`] —
+/// the setting only chooses the shape.
+fn workspace_specifier(
+    target: &WorkspaceLinkTarget,
+    versions: &WorkspacePackagesByVersion,
+    protocol: SaveWorkspaceProtocol,
+    default_pin: RangeSpecStyle,
+) -> String {
+    // Nothing satisfies the requested range: keep it, so the install
+    // reports it as `NO_MATCHING_VERSION_INSIDE_WORKSPACE` against the
+    // range the user asked for.
+    let Some(version) = pick_workspace_version(versions, &target.wanted_range) else {
+        return format!("workspace:{}", target.wanted_range);
+    };
+    calc_specifier_for_workspace_dep(
+        DeclaredSpecifiers { prev: Some(&target.declared), bare: None },
+        None,
+        &target.name,
+        Some(&version),
+        protocol,
+        default_pin,
+    )
+}
+
+/// The workspace version a `workspace:<range>` specifier would resolve
+/// to. A range that isn't semver is a dist-tag, which the workspace
+/// answers with its highest version.
+fn pick_workspace_version(versions: &WorkspacePackagesByVersion, range: &str) -> Option<String> {
+    let range = if node_semver::Range::parse(range).is_ok() { range } else { "*" };
+    resolve_workspace_range(range, &versions.keys().cloned().collect::<Vec<_>>())
 }
 
 /// Compile a single pattern into a matcher. Used to map a matched direct
@@ -951,7 +1138,7 @@ struct LatestRewriteCtx<'a, 'borrow> {
     config: &'a Config,
     http_client_arc: &'borrow Arc<ThrottledClient>,
     resolution_observer: Option<&'borrow Arc<dyn crate::ResolutionObserver>>,
-    pinned_version: PinnedVersion,
+    range_spec_style: RangeSpecStyle,
     lockfile_only: bool,
 }
 
@@ -995,7 +1182,7 @@ async fn latest_specifier(
         default_tag: Some("latest".to_string()),
         update: UpdateBehavior::Latest,
         calc_specifier: true,
-        pinned_version: Some(ctx.pinned_version),
+        range_spec_style: Some(ctx.range_spec_style),
         published_by: chain.published_by,
         published_by_exclude: chain.published_by_exclude.clone(),
         dry_run: ctx.lockfile_only,

@@ -182,7 +182,7 @@ async fn materialize<Reporter: self::Reporter>(
         store_index_writer: None,
         verify_store_integrity: opts.verify_store_integrity,
         verified_files_cache: SharedVerifiedFilesCache::default(),
-        package_integrity: integrity,
+        package_integrity: Some(integrity),
         package_unpacked_size: None,
         package_file_count: None,
         package_url: tarball,
@@ -450,7 +450,7 @@ fn read_optional_subdeps(
             tarball,
             os: pkg.os.clone(),
             cpu: pkg.cpu.clone(),
-            libc: pkg.libc.clone(),
+            libc: pkg.libc.as_deref().map(<[String]>::to_vec),
         });
     }
     Ok(subdeps)

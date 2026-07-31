@@ -19,8 +19,9 @@
 //! workspace edge; with `dedupeInjectedDeps: false`, an injected
 //! workspace dep whose children don't subset still trips the writer.
 
+use rustc_hash::FxHashSet as HashSet;
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::BTreeMap,
     path::{Path, PathBuf},
 };
 
@@ -129,16 +130,17 @@ fn child_matches_target(
 /// The resolver's `pkg.id` for a `file:<path>` workspace pick is
 /// emitted as `<name>@file:<path>` once the manifest name is in scope
 /// (see `build_pkg_id_with_patch_hash`) and as the bare `file:<path>`
-/// before that — accept both shapes.
+/// before that — accept both shapes. Splitting on the whole `@file:`
+/// separator rather than on `@` alone keeps scoped names
+/// (`@scope/name@file:<path>`) matching, whose leading `@` would
+/// otherwise be taken for the separator.
 fn injected_workspace_target(
     node: &crate::dependencies_graph::DependenciesGraphNode,
     workspace_project_ids: &HashSet<String>,
 ) -> Option<String> {
     let raw = node.resolved_package_id.as_str();
-    let path = raw.strip_prefix("file:").or_else(|| {
-        let after_at = raw.split_once('@').map(|(_, rest)| rest)?;
-        after_at.strip_prefix("file:")
-    })?;
+    let path =
+        raw.strip_prefix("file:").or_else(|| raw.split_once("@file:").map(|(_, path)| path))?;
     workspace_project_ids.contains(path).then(|| path.to_string())
 }
 
@@ -196,7 +198,7 @@ pub(crate) fn prune_unreachable(
     graph: &mut DependenciesGraph,
     direct_by_importer: &DirectByImporter,
 ) {
-    let mut reachable: HashSet<DepPath> = HashSet::new();
+    let mut reachable: HashSet<DepPath> = HashSet::default();
     let mut stack: Vec<DepPath> =
         direct_by_importer.values().flat_map(|direct| direct.values().cloned()).collect();
     while let Some(dep_path) = stack.pop() {

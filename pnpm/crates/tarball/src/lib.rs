@@ -12,7 +12,9 @@ use miette::Diagnostic;
 use pacquet_fs::file_mode;
 pub use pacquet_network::RetryOpts;
 use pacquet_network::{AuthHeaders, ThrottledClient, UNPRIORITIZED};
-use pacquet_package_manifest::{files_include_install_scripts, manifest_requires_build};
+use pacquet_package_manifest::{
+    files_include_install_scripts, manifest_requires_build, parse_manifest_bytes,
+};
 use pacquet_reporter::{
     FetchingProgressLog, FetchingProgressMessage, LogEvent, LogLevel, ProgressLog, ProgressMessage,
     Reporter, RequestRetryError, RequestRetryLog,
@@ -186,6 +188,21 @@ pub enum TarballError {
     #[display("Failed to decode gzip: {_0}")]
     #[diagnostic(code(ERR_PNPM_TARBALL_DECODE_GZIP))]
     DecodeGzip(InflateDecodeErrors),
+
+    /// The tarball's own `package.json` is not valid JSON. Only the
+    /// resolve-time read ([`read_local_tarball_metadata`]) raises this:
+    /// there the manifest is the package's sole source of identity, so a
+    /// corrupt one has to stop the install rather than degrade to an
+    /// unnamed package. Matches the code and wording pnpm reports for
+    /// the same tarball.
+    #[from(ignore)]
+    #[display("Failed to add tarball from \"{tarball}\" to store: {source}")]
+    #[diagnostic(code(ERR_PNPM_TARBALL_EXTRACT))]
+    ParseBundledManifest {
+        tarball: String,
+        #[error(source)]
+        source: serde_json::Error,
+    },
 
     #[from(ignore)]
     #[display("Failed to write cafs: {_0}")]
@@ -618,41 +635,22 @@ fn write_cas_entry(
 
 /// Fold a synthesized `package.json` (pnpm's `appendManifest`) into a
 /// freshly extracted archive's CAFS output. Runtime archives (Node.js /
-/// Bun / Deno) carry no `package.json`, so the bytes are written to the
-/// content-addressed store and recorded in both `cas_paths` (this
-/// install's slot) and the persisted `pkg_files_idx` — its `files` map
-/// *and* its bundled `manifest`. Baking the manifest into the store-index
-/// row is what lets a later warm materialization land a `package.json`
-/// slot and lets the warm-batch bin linker find the runtime's bin without
-/// a disk round-trip.
+/// Bun / Deno) carry no `package.json` of their own, so the caller
+/// supplies one, and it also becomes the store-index row's bundled
+/// `manifest` — which is what lets the warm-batch bin linker find the
+/// runtime's bin without a disk round-trip.
 ///
-/// A no-op when the archive already carries a `package.json` (matches
-/// pnpm's `manifest == null` guard), so ordinary npm tarballs are
-/// untouched.
+/// See [`write_synthesized_package_json`] for what reaching the store
+/// entails and when the write is skipped.
 fn apply_append_manifest(
     store_dir: &StoreDir,
     manifest_bytes: &[u8],
     cas_paths: &mut HashMap<String, PathBuf>,
     pkg_files_idx: &mut PackageFilesIndex,
 ) -> Result<(), TarballError> {
-    if pkg_files_idx.files.contains_key("package.json") {
+    if !write_synthesized_package_json(store_dir, manifest_bytes, cas_paths, pkg_files_idx)? {
         return Ok(());
     }
-    let (cas_path, file_hash) =
-        store_dir.write_cas_file(manifest_bytes, false).map_err(TarballError::WriteCasFile)?;
-    let checked_at =
-        UNIX_EPOCH.elapsed().ok().and_then(|elapsed| u64::try_from(elapsed.as_millis()).ok());
-    let info = CafsFileInfo {
-        digest: format!("{file_hash:x}"),
-        // A synthesized manifest is a plain, non-executable data file;
-        // `0o644` is the same canonical mode `add_files_from_dir` reports
-        // for a non-executable entry (and pnpm's Windows-host default).
-        mode: 0o644,
-        size: manifest_bytes.len() as u64,
-        checked_at,
-    };
-    cas_paths.insert("package.json".to_string(), cas_path);
-    pkg_files_idx.files.insert("package.json".to_string(), info);
     // Surface the synthesized manifest as the row's bundled manifest so
     // the warm-batch bin linker reads the bin here instead of stat-ing the
     // slot. Only when the archive supplied none, mirroring pnpm's guard.
@@ -662,6 +660,67 @@ fn apply_append_manifest(
         pkg_files_idx.manifest = normalize_bundled_manifest(&parsed);
     }
     Ok(())
+}
+
+/// Give an archive that ships no `package.json` of its own the
+/// placeholder one pnpm writes, so every extracted package has one and
+/// materialization can treat it as the slot's completion marker.
+///
+/// The placeholder is a marker, not a manifest: its `_pnpmPlaceholder`
+/// field is how a reader tells it apart from a real one, and the
+/// store-index row's bundled `manifest` stays empty so nothing mistakes
+/// it for the package's identity.
+///
+/// See [`write_synthesized_package_json`] for what reaching the store
+/// entails and when the write is skipped — a real `package.json`,
+/// including one [`apply_append_manifest`] just synthesized, always
+/// takes precedence.
+fn apply_placeholder_manifest(
+    store_dir: &StoreDir,
+    cas_paths: &mut HashMap<String, PathBuf>,
+    pkg_files_idx: &mut PackageFilesIndex,
+) -> Result<(), TarballError> {
+    write_synthesized_package_json(store_dir, PLACEHOLDER_PACKAGE_JSON, cas_paths, pkg_files_idx)?;
+    Ok(())
+}
+
+/// The `package.json` pnpm writes for a package that genuinely has none.
+/// The `_pnpmPlaceholder` field tells a manifest reader to ignore it.
+const PLACEHOLDER_PACKAGE_JSON: &[u8] = br#"{"_pnpmPlaceholder":"This file was generated by pnpm. The original package did not contain a package.json."}"#;
+
+/// Write `bytes` into the content-addressed store as the archive's
+/// `package.json`, recording it in both `cas_paths` (this install's
+/// slot) and the persisted `pkg_files_idx`. Baking the file into the
+/// store-index row is what lets a later warm materialization land a
+/// `package.json` slot without re-extracting.
+///
+/// Returns whether anything was written — `false` when the archive
+/// already carries a `package.json`, which always wins.
+fn write_synthesized_package_json(
+    store_dir: &StoreDir,
+    bytes: &[u8],
+    cas_paths: &mut HashMap<String, PathBuf>,
+    pkg_files_idx: &mut PackageFilesIndex,
+) -> Result<bool, TarballError> {
+    if pkg_files_idx.files.contains_key("package.json") {
+        return Ok(false);
+    }
+    let (cas_path, file_hash) =
+        store_dir.write_cas_file(bytes, false).map_err(TarballError::WriteCasFile)?;
+    let checked_at =
+        UNIX_EPOCH.elapsed().ok().and_then(|elapsed| u64::try_from(elapsed.as_millis()).ok());
+    let info = CafsFileInfo {
+        digest: format!("{file_hash:x}"),
+        // A synthesized manifest is a plain, non-executable data file;
+        // `0o644` is the same canonical mode `add_files_from_dir` reports
+        // for a non-executable entry (and pnpm's Windows-host default).
+        mode: 0o644,
+        size: bytes.len() as u64,
+        checked_at,
+    };
+    cas_paths.insert("package.json".to_string(), cas_path);
+    pkg_files_idx.files.insert("package.json".to_string(), info);
+    Ok(true)
 }
 
 /// Walk decompressed tar bytes, writing each regular-file entry into
@@ -725,30 +784,7 @@ fn extract_tarball_entries(
         let file_mode = entry.header().mode().map_err(TarballError::ReadTarballEntries)?;
         let file_is_executable = file_mode::is_executable(file_mode);
         let file_size = entry.header().size().map_err(TarballError::ReadTarballEntries)?;
-        let data_offset = usize::try_from(entry.raw_file_position()).map_err(|_| {
-            TarballError::ReadTarballEntries(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "tar entry file offset does not fit in usize",
-            ))
-        })?;
-        let size = usize::try_from(file_size).map_err(|_| {
-            TarballError::ReadTarballEntries(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "tar entry file size does not fit in usize",
-            ))
-        })?;
-        let end = data_offset.checked_add(size).ok_or_else(|| {
-            TarballError::ReadTarballEntries(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "tar entry file offset plus size overflows usize",
-            ))
-        })?;
-        let entry_data = tar_data.get(data_offset..end).ok_or_else(|| {
-            TarballError::ReadTarballEntries(std::io::Error::new(
-                std::io::ErrorKind::UnexpectedEof,
-                "tar entry payload extends beyond archive",
-            ))
-        })?;
+        let entry_data = tar_entry_payload(tar_data, &entry)?;
 
         let entry_path = entry.path().map_err(TarballError::ReadTarballEntries)?;
         // `components().skip(1)` drops the top-level package
@@ -824,7 +860,7 @@ fn extract_tarball_entries(
         // publisher's fault and downstream code can fall back to
         // disk reads).
         if cleaned_entry_path == "package.json" {
-            match serde_json::from_slice::<serde_json::Value>(entry_data) {
+            match parse_manifest_bytes(entry_data) {
                 Ok(parsed) => {
                     manifest_build_scripts = manifest_requires_build(&parsed);
                     manifest = normalize_bundled_manifest(&parsed);
@@ -895,6 +931,42 @@ fn extract_tarball_entries(
         side_effects: None,
     };
     Ok((cas_paths, pkg_files_idx))
+}
+
+/// Borrow one tar entry's payload out of the decompressed archive.
+///
+/// The tar reader is seekable over an in-memory buffer, so an entry's
+/// bytes are already there — slicing them costs nothing, where reading
+/// through the entry would copy every payload into a fresh allocation
+/// sized by the archive's own (untrusted) header.
+///
+/// The bounds are all checked: a header whose offset or size doesn't fit
+/// a `usize`, whose sum overflows, or whose range runs past the end of
+/// the archive is rejected rather than truncated.
+fn tar_entry_payload<'a, Reader: std::io::Read>(
+    tar_data: &'a [u8],
+    entry: &tar::Entry<'_, Reader>,
+) -> Result<&'a [u8], TarballError> {
+    let invalid = |message: &str| {
+        TarballError::ReadTarballEntries(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            message.to_string(),
+        ))
+    };
+    let file_size = entry.header().size().map_err(TarballError::ReadTarballEntries)?;
+    let data_offset = usize::try_from(entry.raw_file_position())
+        .map_err(|_| invalid("tar entry file offset does not fit in usize"))?;
+    let size = usize::try_from(file_size)
+        .map_err(|_| invalid("tar entry file size does not fit in usize"))?;
+    let end = data_offset
+        .checked_add(size)
+        .ok_or_else(|| invalid("tar entry file offset plus size overflows usize"))?;
+    tar_data.get(data_offset..end).ok_or_else(|| {
+        TarballError::ReadTarballEntries(std::io::Error::new(
+            std::io::ErrorKind::UnexpectedEof,
+            "tar entry payload extends beyond archive",
+        ))
+    })
 }
 
 /// Walk a zip archive, writing each regular-file entry into the CAFS
@@ -1448,7 +1520,24 @@ pub struct DownloadTarballToStore<'a> {
     /// `Arc<DashSet<PathBuf>>` at install bootstrap and pass the same
     /// handle to every [`DownloadTarballToStore`].
     pub verified_files_cache: SharedVerifiedFilesCache,
-    pub package_integrity: &'a Integrity,
+    /// Expected hash of the tarball bytes. `None` for a lockfile entry
+    /// that records no `integrity` — the shape pnpm wrote for
+    /// git-host archives before it started pinning their hash. pnpm
+    /// downloads those without verifying (`getExpectedIntegrity`
+    /// returns `undefined` and the fetch proceeds), so pacquet does
+    /// too.
+    ///
+    /// An unverified fetch also neither reads nor writes an `index.db`
+    /// row, because the key pnpm addresses such a package by
+    /// (`pickStoreIndexKey`'s `pkg_id\tbuilt` fallback) is the one
+    /// `GitHostedTarballFetcher` writes the *prepared* file set to
+    /// after it runs `prepare` + packlist over this download. Claiming
+    /// that key here would leave the raw archive in the row whenever
+    /// the prepare pass failed. The git-hosted post-pass writes it
+    /// instead, so re-installs of the shape this arises from stay
+    /// warm; a plain remote tarball with no integrity re-downloads
+    /// each install.
+    pub package_integrity: Option<&'a Integrity>,
     pub package_unpacked_size: Option<usize>,
     /// `dist.fileCount` when the registry published one. Combined with
     /// `package_unpacked_size` into the download's queueing priority —
@@ -1459,7 +1548,7 @@ pub struct DownloadTarballToStore<'a> {
     pub package_url: &'a str,
     /// Stable identifier for the package, e.g. `"{name}@{version}"`. Paired
     /// with `package_integrity` to form the `SQLite` index key per pnpm v11's
-    /// `storeIndexKey`.
+    /// `storeIndexKey`, when there is an integrity to pair it with.
     pub package_id: &'a str,
     /// URL-keyed `Authorization` header lookup, built from the parsed
     /// `.npmrc` creds. Resolved per request so a tarball served from a
@@ -1569,6 +1658,9 @@ fn tarball_error_to_request_retry(err: &TarballError) -> RequestRetryError {
         }
         TarballError::ReadTarballEntries(_) => {
             out.code = Some("ERR_PNPM_TARBALL_TAR".to_string());
+        }
+        TarballError::ParseBundledManifest { .. } => {
+            out.code = Some("ERR_PNPM_TARBALL_EXTRACT".to_string());
         }
         TarballError::ReadLocalTarball { .. } => {
             out.code = Some("ERR_PNPM_TARBALL_FILE".to_string());
@@ -2128,9 +2220,8 @@ impl<'a> DownloadTarballToStore<'a> {
             requester,
             ..
         } = &self;
-        let cache_key = store_index_key(&package_integrity.to_string(), package_id);
-        let progress_key =
-            self.progress_reported.as_ref().map(|reported| (reported, cache_key.as_str()));
+        let cache_key = store_index_cache_key(package_integrity, package_id);
+        let progress_key = self.progress_reported.as_ref().zip(cache_key.as_deref());
 
         // Warm-cache fast path: when [`prefetch_cas_paths`] already
         // batched the `(integrity, pkg_id)` row in at install start,
@@ -2150,7 +2241,8 @@ impl<'a> DownloadTarballToStore<'a> {
         // normal path does with the result of
         // [`Self::run_without_mem_cache`].
         if let Some(prefetched) = prefetched_cas_paths
-            && let Some(cas_paths) = prefetched.get(&cache_key)
+            && let Some(cache_key) = cache_key.as_deref()
+            && let Some(cas_paths) = prefetched.get(cache_key)
         {
             tracing::info!(
                 target: "pacquet::download",
@@ -2329,9 +2421,8 @@ impl<'a> DownloadTarballToStore<'a> {
         // The lookup is best-effort. A missing `index.db`, a missing row,
         // an undecodable entry, or any CAFS file that has gone missing
         // from disk all fall through to the download path below.
-        let cache_key = store_index_key(&package_integrity.to_string(), package_id);
-        let progress_key =
-            self.progress_reported.as_ref().map(|reported| (reported, cache_key.as_str()));
+        let cache_key = store_index_cache_key(package_integrity, package_id);
+        let progress_key = self.progress_reported.as_ref().zip(cache_key.as_deref());
         // Hot path on warm installs: the install-scoped `prefetch_cas_paths`
         // task already ran one batched SELECT + integrity-check pass for
         // every (integrity, pkg_id) the lockfile mentions. If our key is
@@ -2352,7 +2443,8 @@ impl<'a> DownloadTarballToStore<'a> {
         // require a wider refactor of `DownloadTarballToStore`'s
         // return type.
         if let Some(prefetched) = prefetched_cas_paths
-            && let Some(cas_paths) = prefetched.get(&cache_key)
+            && let Some(cache_key) = cache_key.as_deref()
+            && let Some(cas_paths) = prefetched.get(cache_key)
         {
             tracing::info!(
                 target: "pacquet::download",
@@ -2363,14 +2455,15 @@ impl<'a> DownloadTarballToStore<'a> {
             emit_progress_found_in_store::<Reporter>(package_id, requester, progress_key);
             return Ok((**cas_paths).clone());
         }
-        if let Some(cas_paths) = load_cached_cas_paths(
-            store_index,
-            store_dir,
-            cache_key.clone(),
-            verify_store_integrity,
-            verified_files_cache,
-        )
-        .await
+        if let Some(cache_key) = cache_key.clone()
+            && let Some(cas_paths) = load_cached_cas_paths(
+                store_index,
+                store_dir,
+                cache_key,
+                verify_store_integrity,
+                verified_files_cache,
+            )
+            .await
         {
             tracing::info!(target: "pacquet::download", ?package_url, ?package_id, "Reusing cached CAFS entry — skipping download");
             emit_progress_found_in_store::<Reporter>(package_id, requester, progress_key);
@@ -2411,7 +2504,7 @@ impl<'a> DownloadTarballToStore<'a> {
             fetch_and_extract_with_retry::<Reporter>(
                 http_client,
                 package_url,
-                Some(package_integrity),
+                package_integrity,
                 package_unpacked_size,
                 download_priority(package_unpacked_size, package_file_count),
                 package_id,
@@ -2429,6 +2522,7 @@ impl<'a> DownloadTarballToStore<'a> {
         if let Some(manifest_bytes) = append_manifest {
             apply_append_manifest(store_dir, manifest_bytes, &mut cas_paths, &mut pkg_files_idx)?;
         }
+        apply_placeholder_manifest(store_dir, &mut cas_paths, &mut pkg_files_idx)?;
 
         // Hand the per-tarball files index off to the shared writer task
         // from <https://github.com/pnpm/pacquet/pull/265> *after* the retry loop returns, so transient failures
@@ -2439,19 +2533,34 @@ impl<'a> DownloadTarballToStore<'a> {
         // writer failed to open or the caller handed us none — the row
         // is dropped with a `warn!` and the next install misses on this
         // cache key, matching the read path's stance.
-        let index_key = cache_key;
-        if let Some(writer) = store_index_writer {
-            writer.queue(index_key, pkg_files_idx);
-        } else {
-            tracing::warn!(
+        match (cache_key, store_index_writer) {
+            (Some(index_key), Some(writer)) => writer.queue(index_key, pkg_files_idx),
+            (Some(index_key), None) => tracing::warn!(
                 target: "pacquet::download",
                 ?index_key,
                 "no shared store-index writer; skipping index row for this tarball",
-            );
+            ),
+            (None, _) => tracing::debug!(
+                target: "pacquet::download",
+                ?package_url,
+                ?package_id,
+                "resolution carries no integrity; skipping index row for this tarball",
+            ),
         }
 
         Ok(cas_paths)
     }
+}
+
+/// Store-index key a tarball fetch reads and writes its
+/// [`PackageFilesIndex`] row at, or `None` when the resolution carries
+/// no integrity to address the row by. See
+/// [`DownloadTarballToStore::package_integrity`].
+fn store_index_cache_key(
+    package_integrity: Option<&Integrity>,
+    package_id: &str,
+) -> Option<String> {
+    package_integrity.map(|integrity| store_index_key(&integrity.to_string(), package_id))
 }
 
 /// Outcome of [`FetchTarballForResolution::run`]: the sha512 integrity
@@ -2482,8 +2591,11 @@ pub struct FetchTarballForResolution<'a> {
     pub store_dir: &'static StoreDir,
     pub store_index_writer: Option<Arc<StoreIndexWriter>>,
     pub package_url: &'a str,
-    /// Package identity used for scoped auth lookup and the intermediate
-    /// store-index cache key.
+    /// Package identity used for scoped auth lookup and for the
+    /// store-index row this fetch writes. Must be the `pkg_id` the
+    /// install pass derives from the lockfile entry — the bare URL for a
+    /// remote tarball — or the two passes file the same content under
+    /// two rows.
     pub package_id: &'a str,
     pub auth_headers: &'a AuthHeaders,
     pub retry_opts: RetryOpts,
@@ -2521,21 +2633,23 @@ impl FetchTarballForResolution<'_> {
         // Resolve-time tarball fetches compute integrity from bytes and
         // gate the dependency walk, so they use the same priority class as
         // packument requests instead of queuing behind sized downloads.
-        let (integrity, cas_paths, pkg_files_idx) = fetch_and_extract_with_retry::<Reporter>(
-            http_client,
-            package_url,
-            None,
-            None,
-            UNPRIORITIZED,
-            package_id,
-            package_url,
-            store_dir,
-            retry_opts,
-            auth_headers,
-            None,
-            None,
-        )
-        .await?;
+        let (integrity, mut cas_paths, mut pkg_files_idx) =
+            fetch_and_extract_with_retry::<Reporter>(
+                http_client,
+                package_url,
+                None,
+                None,
+                UNPRIORITIZED,
+                package_id,
+                package_url,
+                store_dir,
+                retry_opts,
+                auth_headers,
+                None,
+                None,
+            )
+            .await?;
+        apply_placeholder_manifest(store_dir, &mut cas_paths, &mut pkg_files_idx)?;
 
         let manifest = match manifest_subdir {
             Some(subdir) => read_subdir_manifest(&cas_paths, subdir).await?,
@@ -2554,15 +2668,13 @@ impl FetchTarballForResolution<'_> {
         // `prepare` over it, and both the graph prefetch and the
         // warm-store reuse map skip git-hosted entries.
         if manifest_subdir.is_none() {
-            // Scope the store-index row by the package's canonical
-            // `name@version`, matching what the install pass derives from
-            // the same manifest. Fall back to the URL when the tarball has
-            // no usable `package.json` name (degraded, but keeps the row
-            // addressable).
-            let package_id =
-                manifest_package_id(manifest.as_ref()).unwrap_or_else(|| package_url.to_string());
-
-            let index_key = store_index_key(&integrity.to_string(), &package_id);
+            // Key the row by the caller's `package_id` — the same
+            // `pkg_id` the install pass derives from the lockfile entry.
+            // Deriving a `name@version` from the bundled manifest instead
+            // would file a remote tarball under a key nothing ever reads,
+            // leaving the install pass to write a second row for the same
+            // content.
+            let index_key = store_index_key(&integrity.to_string(), package_id);
             if let Some(writer) = store_index_writer {
                 writer.queue(index_key, pkg_files_idx);
             } else {
@@ -2603,7 +2715,7 @@ async fn read_subdir_manifest(
     let bytes = tokio::fs::read(cas_path)
         .await
         .map_err(|source| TarballError::ReadLocalTarball { path: cas_path.clone(), source })?;
-    match serde_json::from_slice::<serde_json::Value>(&bytes) {
+    match parse_manifest_bytes(&bytes) {
         Ok(parsed) => Ok(normalize_bundled_manifest(&parsed)),
         Err(error) => {
             tracing::debug!(
@@ -2616,12 +2728,110 @@ async fn read_subdir_manifest(
     }
 }
 
-/// `name@version` from a bundled manifest, when both fields are present.
-fn manifest_package_id(manifest: Option<&serde_json::Value>) -> Option<String> {
-    let manifest = manifest?;
-    let name = manifest.get("name")?.as_str()?;
-    let version = manifest.get("version")?.as_str()?;
-    Some(format!("{name}@{version}"))
+/// Outcome of [`read_local_tarball_metadata`]: the sha512 integrity
+/// computed from the tarball's bytes and the bundled manifest read from
+/// its root `package.json`.
+#[derive(Debug)]
+pub struct LocalTarballMetadata {
+    pub integrity: Integrity,
+    /// `None` when the narrowing kept nothing — the archive has no root
+    /// `package.json`, or one that is not a JSON object, or one whose
+    /// every field was dropped.
+    pub manifest: Option<serde_json::Value>,
+    /// Whether the archive carried a root `package.json` at all,
+    /// regardless of what survived the narrowing.
+    ///
+    /// The two shapes behind a `None` manifest call for opposite
+    /// handling, and only the reader can tell them apart: pnpm installs
+    /// an archive that ships no manifest (synthesizing a name from the
+    /// alias) but refuses one whose manifest names no package
+    /// (`ERR_PNPM_MISSING_PACKAGE_NAME`).
+    pub has_manifest_entry: bool,
+}
+
+/// Read a local tarball's sha512 integrity and bundled manifest during
+/// *resolution*.
+///
+/// A `file:` tarball dependency carries no name, version, or integrity
+/// in its specifier — those live in the archive's own `package.json` —
+/// and pacquet builds the lockfile before the install pass runs, so the
+/// local resolver has to read them here.
+///
+/// Nothing is written to the store, unlike the remote-tarball sibling
+/// [`FetchTarballForResolution`]: the install pass addresses a `file:`
+/// tarball's store-index row by its `<name>@file:<path>` dep path, not
+/// by the `<name>@<version>` a resolve-time extraction could key, so a
+/// row written here would never be read.
+pub async fn read_local_tarball_metadata(
+    path: &Path,
+) -> Result<LocalTarballMetadata, TarballError> {
+    let package_url = format!("file:{}", path.display());
+    // pnpm names the plain filesystem path — not the `file:` URL — when
+    // it reports a bad tarball, so the manifest error quotes the same.
+    let tarball_path = path.display().to_string();
+    let (file, size) = open_local_tarball(path).await?;
+    let buffer = read_local_tarball_buffer(file, path, &package_url, size).await?;
+
+    let _post_download_permit = post_download_semaphore()
+        .acquire()
+        .await
+        .expect("post-download semaphore shouldn't be closed this soon");
+    tokio::task::spawn_blocking(move || {
+        let integrity = verify_tarball_integrity(&buffer, None, package_url)?;
+        let tar_data = decompress_gzip(&buffer, None)?;
+        let (manifest, has_manifest_entry) = read_bundled_manifest(&tar_data, &tarball_path)?;
+        Ok(LocalTarballMetadata { integrity, manifest, has_manifest_entry })
+    })
+    .await
+    .map_err(TarballError::TaskJoin)?
+}
+
+/// Read the root `package.json` out of a decompressed tar stream,
+/// narrowed by [`normalize_bundled_manifest`] so it matches the
+/// manifest an extraction stashes on [`PackageFilesIndex`].
+///
+/// Shares the entry conventions of the manifest capture in
+/// [`extract_tarball_entries`] — top-level component dropped, duplicates
+/// last-entry-wins — but not its error handling: there an unparsable
+/// `package.json` degrades to `None`, because install-side consumers can
+/// re-read it from disk. Here it is the only thing that names the
+/// package, and a package with no name resolves to a dep path no
+/// lockfile key parses, so this raises
+/// [`TarballError::ParseBundledManifest`] instead.
+///
+/// The returned flag reports whether a root `package.json` was present
+/// at all, which a `None` manifest alone can't say — the narrowing also
+/// yields `None` for a manifest that isn't a JSON object, or one whose
+/// every field was dropped. See [`LocalTarballMetadata`] for why the
+/// caller has to tell those apart.
+fn read_bundled_manifest(
+    tar_data: &[u8],
+    tarball_path: &str,
+) -> Result<(Option<serde_json::Value>, bool), TarballError> {
+    let mut archive = Archive::new(Cursor::new(tar_data));
+    let mut payload = None;
+    for entry in archive.entries_with_seek().map_err(TarballError::ReadTarballEntries)? {
+        let entry = entry.map_err(TarballError::ReadTarballEntries)?;
+        if !entry.header().entry_type().is_file() {
+            continue;
+        }
+        let path = entry.path().map_err(TarballError::ReadTarballEntries)?;
+        let mut components = path.components().skip(1);
+        if components.next() != Some(Component::Normal("package.json".as_ref()))
+            || components.next().is_some()
+        {
+            continue;
+        }
+        drop(components);
+        // Only the surviving entry is parsed, so a malformed duplicate
+        // that a later one supersedes can't fail the read.
+        payload = Some(tar_entry_payload(tar_data, &entry)?);
+    }
+    let Some(payload) = payload else { return Ok((None, false)) };
+    let parsed = parse_manifest_bytes(payload).map_err(|source| {
+        TarballError::ParseBundledManifest { tarball: tarball_path.to_string(), source }
+    })?;
+    Ok((normalize_bundled_manifest(&parsed), true))
 }
 
 /// Run one full zip-archive fetch attempt: hit the network, drain the
@@ -3020,6 +3230,7 @@ impl DownloadZipArchiveToStore<'_> {
         if let Some(manifest_bytes) = append_manifest {
             apply_append_manifest(store_dir, manifest_bytes, &mut cas_paths, &mut pkg_files_idx)?;
         }
+        apply_placeholder_manifest(store_dir, &mut cas_paths, &mut pkg_files_idx)?;
 
         let index_key = store_index_key(&package_integrity.to_string(), package_id);
         if let Some(writer) = store_index_writer {

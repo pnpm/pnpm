@@ -1,12 +1,13 @@
 use super::{
     Add, AddError, node_runtime_version_spec, normalized_save_specifier,
     persist_selected_manifests, prepare_selected_manifests, selected_project_indices,
+    workspace_save_specifier,
 };
 use crate::ResolvedPackages;
-use pacquet_config::Config;
+use pacquet_config::{Config, LinkWorkspacePackages};
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_registry::PinnedVersion;
+use pacquet_registry::RangeSpecStyle;
 use pacquet_reporter::{LogEvent, LogLevel, Reporter, SilentReporter};
 use pacquet_workspace::Project;
 use serde_json::json;
@@ -18,6 +19,24 @@ use std::{
 use tempfile::tempdir;
 
 const SCOPED_TEST_INTEGRITY: &str = "sha512-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa==";
+
+#[test]
+fn explicit_npm_specifier_is_not_rewritten_as_a_workspace_dependency() {
+    let mut config = Config::new();
+    config.link_workspace_packages = LinkWorkspacePackages::DirectOnly;
+
+    assert_eq!(
+        workspace_save_specifier(
+            "foo",
+            Some("npm:foo@^1.0.0"),
+            None,
+            &config,
+            RangeSpecStyle::Major,
+            None,
+        ),
+        None,
+    );
+}
 
 #[tokio::test]
 async fn add_routes_scoped_packages_to_configured_scoped_registry() {
@@ -54,12 +73,13 @@ async fn add_routes_scoped_packages_to_configured_scoped_registry() {
         .expect(1)
         .create_async()
         .await;
-    let scoped_packument = scoped_registry
+    // Full metadata races the version endpoint and may be cancelled once the
+    // version response supplies everything resolution needs.
+    let _scoped_packument = scoped_registry
         .mock("GET", "/@private%2Ffoo")
         .with_status(200)
         .with_header("content-type", "application/json")
         .with_body(scoped_package_body(&scoped_registry_url))
-        .expect_at_least(1)
         .create_async()
         .await;
 
@@ -86,7 +106,7 @@ async fn add_routes_scoped_packages_to_configured_scoped_registry() {
         lockfile_path: None,
         dependency_groups: Some([DependencyGroup::Prod]),
         package_names: &package_names,
-        pinned_version: PinnedVersion::Patch,
+        range_spec_style: RangeSpecStyle::Patch,
         save_catalog_name: None,
         supported_architectures: None,
         lockfile_only: true,
@@ -98,7 +118,6 @@ async fn add_routes_scoped_packages_to_configured_scoped_registry() {
     default_latest.assert_async().await;
     default_packument.assert_async().await;
     scoped_latest.assert_async().await;
-    scoped_packument.assert_async().await;
 }
 
 #[tokio::test]
@@ -118,7 +137,16 @@ async fn add_resolves_package_selectors_concurrently_and_reports_in_selector_ord
         active: usize,
         max_active: usize,
         started: usize,
+        /// Set once a handler gave up waiting for its peers. Later
+        /// handlers then skip the wait, so a genuine loss of concurrency
+        /// costs one timeout instead of one per selector.
+        barrier_expired: bool,
     }
+
+    // Bounds the barrier so a lost overlap fails instead of hanging.
+    // Sized to outlast the scheduling latency of a machine running the
+    // whole suite in parallel, since expiry is itself a failure.
+    const OVERLAP_BARRIER_TIMEOUT: Duration = Duration::from_secs(15);
 
     let dir = tempdir().unwrap();
     let project_root = dir.path().join("project");
@@ -165,11 +193,19 @@ async fn add_resolves_package_selectors_concurrently_and_reports_in_selector_ord
                 requests.started += 1;
                 requests.max_active = requests.max_active.max(requests.active);
                 ready.notify_all();
-                let (mut requests, _) = ready
-                    .wait_timeout_while(requests, Duration::from_secs(2), |requests| {
-                        requests.started < packages.len()
+                let (mut requests, wait) = ready
+                    .wait_timeout_while(requests, OVERLAP_BARRIER_TIMEOUT, |requests| {
+                        requests.started < packages.len() && !requests.barrier_expired
                     })
                     .unwrap();
+                // `wait_timeout_while` re-checks the predicate before it
+                // reports a timeout, so `timed_out()` means the peers were
+                // still missing when the budget ran out — never that the
+                // last one arrived on the deadline.
+                if wait.timed_out() {
+                    requests.barrier_expired = true;
+                    ready.notify_all();
+                }
                 drop(requests);
                 std::thread::sleep(Duration::from_millis(response_delay_ms));
                 requests = lock.lock().unwrap();
@@ -186,7 +222,6 @@ async fn add_resolves_package_selectors_concurrently_and_reports_in_selector_ord
             .with_status(200)
             .with_header("content-type", "application/json")
             .with_body(package_body(&package_name, &registry_url))
-            .expect_at_least(1)
             .create_async()
             .await;
 
@@ -209,7 +244,7 @@ async fn add_resolves_package_selectors_concurrently_and_reports_in_selector_ord
         lockfile_path: None,
         dependency_groups: Some([DependencyGroup::Prod]),
         package_names: &package_names,
-        pinned_version: PinnedVersion::Patch,
+        range_spec_style: RangeSpecStyle::Patch,
         save_catalog_name: None,
         supported_architectures: None,
         lockfile_only: true,
@@ -220,6 +255,10 @@ async fn add_resolves_package_selectors_concurrently_and_reports_in_selector_ord
 
     {
         let requests = request_state.0.lock().unwrap();
+        assert!(
+            !requests.barrier_expired,
+            "the selectors' latest requests never overlapped within {OVERLAP_BARRIER_TIMEOUT:?}",
+        );
         assert_eq!(
             requests.max_active,
             packages.len(),
@@ -251,9 +290,8 @@ async fn add_resolves_package_selectors_concurrently_and_reports_in_selector_ord
         );
     }
 
-    for (latest, packument) in mocks {
+    for (latest, _packument) in mocks {
         latest.assert_async().await;
-        packument.assert_async().await;
     }
     drop(servers);
 }
@@ -328,7 +366,7 @@ async fn add_reuses_shared_packument_state_for_every_selector_path() {
         lockfile_path: None,
         dependency_groups: Some([DependencyGroup::Prod]),
         package_names: &package_names,
-        pinned_version: PinnedVersion::Patch,
+        range_spec_style: RangeSpecStyle::Patch,
         save_catalog_name: None,
         supported_architectures: None,
         lockfile_only: true,
@@ -403,7 +441,7 @@ async fn add_reports_resolution_errors_in_selector_order() {
         lockfile_path: None,
         dependency_groups: Some([DependencyGroup::Prod]),
         package_names: &package_names,
-        pinned_version: PinnedVersion::Patch,
+        range_spec_style: RangeSpecStyle::Patch,
         save_catalog_name: None,
         supported_architectures: None,
         lockfile_only: true,
@@ -432,7 +470,11 @@ async fn add_does_not_wait_for_a_slower_later_resolution_after_an_error() {
     let mut manifest = PackageManifest::create_if_needed(project_root.join("package.json"))
         .expect("create manifest");
 
-    let packages = [("first", "a", 100), ("second", "b", 3_000)];
+    // The gap between the two delays is what the deadline below reads:
+    // the failing selector must return well inside it while the slower
+    // peer is still sleeping, with enough slack that a loaded machine
+    // cannot push the fast path past the deadline.
+    let packages = [("first", "a", 100), ("second", "b", 20_000)];
     let mut config = Config::new();
     config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir;
@@ -466,7 +508,7 @@ async fn add_does_not_wait_for_a_slower_later_resolution_after_an_error() {
     let http_client = ThrottledClient::default();
     let resolved_packages = ResolvedPackages::default();
     let result = tokio::time::timeout(
-        Duration::from_secs(2),
+        Duration::from_secs(5),
         Add {
             tarball_mem_cache: Arc::default(),
             resolved_packages: &resolved_packages,
@@ -478,7 +520,7 @@ async fn add_does_not_wait_for_a_slower_later_resolution_after_an_error() {
             lockfile_path: None,
             dependency_groups: Some([DependencyGroup::Prod]),
             package_names: &package_names,
-            pinned_version: PinnedVersion::Patch,
+            range_spec_style: RangeSpecStyle::Patch,
             save_catalog_name: None,
             supported_architectures: None,
             lockfile_only: true,
@@ -614,7 +656,7 @@ async fn selected_add_prepares_and_persists_only_selected_projects() {
         None,
         Some(&[DependencyGroup::Prod][..]),
         std::slice::from_ref(&"foo@workspace:*".to_string()),
-        PinnedVersion::Major,
+        RangeSpecStyle::Major,
         None,
     )
     .await
@@ -661,7 +703,7 @@ async fn selected_add_merges_catalog_updates_in_command_order() {
         None,
         Some(&[DependencyGroup::Prod][..]),
         std::slice::from_ref(&"foo".to_string()),
-        PinnedVersion::Major,
+        RangeSpecStyle::Major,
         Some("default"),
     )
     .await
@@ -696,6 +738,7 @@ fn empty_project(root: &std::path::Path, name: &str) -> Project {
     Project {
         root_dir,
         manifest: PackageManifest::from_path(package_json).expect("read package.json"),
+        dependency_manifest: None,
     }
 }
 
@@ -704,7 +747,7 @@ fn project_with_foo(root: &std::path::Path, name: &str, specifier: &str) -> Proj
     let mut manifest = project.manifest;
     manifest.add_dependency("foo", specifier, DependencyGroup::Prod).expect("add foo dependency");
     manifest.save().expect("save package.json");
-    Project { root_dir: project.root_dir, manifest }
+    Project { root_dir: project.root_dir, manifest, dependency_manifest: None }
 }
 
 fn dependency_specifier<'a>(manifest: &'a PackageManifest, name: &str) -> Option<&'a str> {

@@ -1,8 +1,9 @@
 import path from 'node:path'
 
-import { expect, test } from '@jest/globals'
+import { describe, expect, test } from '@jest/globals'
+import { parseOverrides } from '@pnpm/config.parse-overrides'
 
-import { createVersionsOverrider } from '../src/createVersionsOverrider.js'
+import { createDependencyOverrider, createVersionsOverrider } from '../src/createVersionsOverrider.js'
 
 test('createVersionsOverrider() matches sub-ranges', () => {
   const overrider = createVersionsOverrider([
@@ -904,4 +905,39 @@ test('createVersionsOverrider() collects declared ranges of convergence-governed
   expect(convergeDeclaredRanges).toStrictEqual(new Map([
     ['foo', new Set(['^4.0.5', '^3.0.0'])],
   ]))
+})
+
+describe('createDependencyOverrider()', () => {
+  test('resolves a generic override for a dependency that has no manifest', () => {
+    const overrideDependency = createDependencyOverrider(parseOverrides({
+      react: 'npm:react@19.2.0',
+      'zoo@^1': '1.0.0',
+    }), process.cwd())!
+    expect(overrideDependency('react', '^18.0.0')).toBe('npm:react@19.2.0')
+    expect(overrideDependency('zoo', '^1.5.0')).toBe('1.0.0')
+    expect(overrideDependency('zoo', '^2.0.0')).toBeUndefined()
+    expect(overrideDependency('qar', '^1.0.0')).toBeUndefined()
+  })
+
+  test('is not created for a set that cannot claim an undeclared dependency', () => {
+    expect(createDependencyOverrider([], process.cwd())).toBeUndefined()
+    expect(createDependencyOverrider(parseOverrides({
+      'foo>react': '19.2.0',
+    }), process.cwd())).toBeUndefined()
+  })
+
+  test('resolves a local override relative to the directory of the package that gets the dependency', () => {
+    const overrideDependency = createDependencyOverrider(parseOverrides({
+      qar: 'link:../qar',
+    }), process.cwd())!
+    expect(overrideDependency('qar', '^1.0.0', path.resolve('pkg'))).toBe('link:../../qar')
+  })
+
+  test('applies a convergence override only when it satisfies the range', () => {
+    const overrideDependency = createDependencyOverrider(parseOverrides({
+      'react@': '18.3.1',
+    }), process.cwd())!
+    expect(overrideDependency('react', '^18.0.0')).toBe('18.3.1')
+    expect(overrideDependency('react', '^19.0.0')).toBeUndefined()
+  })
 })

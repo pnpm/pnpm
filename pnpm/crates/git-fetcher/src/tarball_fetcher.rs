@@ -68,7 +68,8 @@ pub struct GitHostedTarballFetcher<'a> {
     pub node_execpath: Option<&'a Path>,
     pub npm_execpath: Option<&'a Path>,
     pub store_dir: &'a StoreDir,
-    /// Used in log lines.
+    /// Used in log lines; see the matching field on
+    /// [`crate::GitFetcher`] for its other role.
     pub package_id: &'a str,
     pub requester: &'a str,
     /// Install-scoped store-index writer; see the matching field on
@@ -104,7 +105,7 @@ impl GitHostedTarballFetcher<'_> {
         let empty_env: HashMap<String, String> = HashMap::new();
         let prepare_opts = PreparePackageOptions {
             allow_build: Box::new(|dep_path| (self.allow_build)(dep_path)),
-            dep_path: self.package_id,
+            pkg_resolution_id: self.package_id,
             ignore_scripts: self.ignore_scripts,
             unsafe_perm: self.unsafe_perm,
             user_agent: self.user_agent,

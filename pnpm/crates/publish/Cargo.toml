@@ -16,6 +16,7 @@ pacquet-executor                          = { workspace = true }
 pacquet-network                           = { workspace = true }
 pacquet-network-web-auth                  = { workspace = true }
 pacquet-pack                              = { workspace = true }
+pacquet-package-manifest                  = { workspace = true }
 pacquet-reporter                          = { workspace = true }
 pacquet-resolving-parse-wanted-dependency = { workspace = true }
 

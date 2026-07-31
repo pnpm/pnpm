@@ -1,6 +1,6 @@
 use super::{
-    AuthHeaders, DEFAULT_REGISTRY_SCOPE, UpstreamRouteHook, base64_encode, nerf_dart,
-    redact_and_sanitize, redact_url_credentials,
+    AuthHeaders, DEFAULT_REGISTRY_SCOPE, UpstreamRouteHook, base64_encode, hide_auth_information,
+    nerf_dart, redact_and_sanitize, redact_url_credentials,
 };
 use crate::TokenHelperOutput;
 use pretty_assertions::assert_eq;
@@ -233,10 +233,32 @@ fn redact_and_sanitize_strips_credentials_and_control_chars() {
     assert_eq!(redact_and_sanitize("https://user:pass\r@host/x"), "https://host/x");
 }
 
+#[test]
+fn hide_auth_information_keeps_the_scheme_and_masks_the_credential() {
+    // A token long enough to recognize keeps four characters.
+    assert_eq!(hide_auth_information("Bearer npm_0123456789abcdefghij"), "Bearer npm_[hidden]");
+    // A short token could be guessed from a prefix, so none of it survives.
+    assert_eq!(hide_auth_information("Bearer short-token"), "Bearer [hidden]");
+    assert_eq!(hide_auth_information("Basic Zm9vOmJhcg=="), "Basic [hidden]");
+    // No scheme to report — the whole value is a credential.
+    assert_eq!(hide_auth_information("bare-token"), "[hidden]");
+}
+
+#[test]
+fn hide_auth_information_strips_control_characters() {
+    // The masked value is printed to the terminal, so escapes carried by an
+    // untrusted `.npmrc` token must not survive masking.
+    let masked = hide_auth_information("Bea\u{1b}[31mrer \u{1b}[0m0123456789abcdefghijk\r\n");
+    dbg!(&masked);
+    assert!(
+        !masked.chars().any(char::is_control),
+        "no control character may reach the terminal: {masked:?}",
+    );
+}
+
 fn build(entries: &[(&str, &str)]) -> AuthHeaders {
     AuthHeaders::from_creds_map(
         entries.iter().map(|(uri, value)| ((*uri).to_string(), (*value).to_string())),
-        None,
     )
 }
 
@@ -467,20 +489,23 @@ fn basic_auth_in_url_wins_over_package_scope_auth() {
     assert_eq!(header, format!("Basic {}", base64_encode("user:secret")));
 }
 
+/// A credential with no URI has no registry it was authored for, so it
+/// is dropped rather than attached to whichever registry the config
+/// happens to resolve to — repository config can move that registry.
 #[test]
-fn default_registry_creds_apply_to_npmjs_when_unspecified() {
-    let headers = AuthHeaders::from_creds_map(
-        [(String::new(), "Bearer default-token".to_owned())],
-        Some("https://registry.npmjs.org/"),
-    );
-    assert_eq!(
-        headers.for_url("https://registry.npmjs.org/").as_deref(),
-        Some("Bearer default-token"),
-    );
-    assert_eq!(
-        headers.for_url("https://registry.npmjs.org/foo/-/foo-1.0.0.tgz").as_deref(),
-        Some("Bearer default-token"),
-    );
+fn unkeyed_creds_are_dropped_rather_than_bound_to_the_default_registry() {
+    let headers = build(&[("", "Bearer default-token"), ("//reg.com/", "Bearer scoped-token")]);
+    assert_eq!(headers.for_url("https://registry.npmjs.org/"), None);
+    assert_eq!(headers.for_url("https://reg.com/pkg").as_deref(), Some("Bearer scoped-token"));
+}
+
+/// Keys are canonicalized as they are collected, so a caller's
+/// trailing-slash-less spelling reaches the same slot as the canonical
+/// one instead of surviving as a second entry that races with it.
+#[test]
+fn a_key_without_its_trailing_slash_lands_on_the_canonical_uri() {
+    let headers = build(&[("//reg.com", "Bearer token")]);
+    assert_eq!(headers.for_url("https://reg.com/pkg").as_deref(), Some("Bearer token"));
 }
 
 #[test]
@@ -509,28 +534,6 @@ fn registry_with_pathname_matches_with_explicit_port() {
 #[test]
 fn returns_none_for_unmatched_url_in_empty_map() {
     assert_eq!(AuthHeaders::default().for_url("http://reg.com"), None);
-}
-
-/// `from_creds_map` processes per-URI entries first, then unconditionally
-/// overwrites the default-registry slot with the default-creds header.
-/// When a `.npmrc` carries both `_authToken=A` (default) and
-/// `//registry.npmjs.org/:_authToken=B` (per-URI for the default
-/// registry), the *default* (A) must win on the default registry.
-/// Without the two-phase build in `from_creds_map`, pacquet's `HashMap`
-/// iteration would let either value win non-deterministically.
-#[test]
-fn default_creds_win_over_per_uri_on_default_registry() {
-    let headers = AuthHeaders::from_creds_map(
-        [
-            ("//registry.npmjs.org/".to_owned(), "Bearer per-uri".to_owned()),
-            (String::new(), "Bearer default".to_owned()),
-        ],
-        Some("https://registry.npmjs.org/"),
-    );
-    assert_eq!(
-        headers.for_url("https://registry.npmjs.org/foo").as_deref(),
-        Some("Bearer default"),
-    );
 }
 
 /// Specifically exercises the trailing-slash-append branch in

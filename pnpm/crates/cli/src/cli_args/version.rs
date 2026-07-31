@@ -18,7 +18,7 @@ use std::{
 
 use crate::cli_args::{
     change::{render_release_plan, to_engine_projects},
-    changelog::{confirmed_published_versions, unpublished_release_dirs},
+    changelog::{self, confirmed_published_versions, unpublished_release_dirs},
     recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects},
 };
 
@@ -360,6 +360,7 @@ impl VersionArgs {
         let ledger = read_ledger(&workspace_dir)?;
         let (projects, _) = discover_workspace_projects(&workspace_dir)?;
         let engine_projects = to_engine_projects(&projects);
+        let published_names = changelog::published_names(&projects);
 
         let filter = if config.filter.is_empty() {
             None
@@ -387,7 +388,8 @@ impl VersionArgs {
                 },
             )
         };
-        let unpublished_dirs = unpublished_release_dirs(config, &assemble(HashSet::new())?).await?;
+        let unpublished_dirs =
+            unpublished_release_dirs(config, &assemble(HashSet::new())?, &published_names).await?;
         let plan = assemble(unpublished_dirs)?;
 
         if plan.releases.is_empty() {
@@ -398,7 +400,8 @@ impl VersionArgs {
             // this scope" is no reason to delete prose belonging to packages
             // outside the filter.
             if !self.dry_run && !is_filtered {
-                let confirmed = confirmed_published_versions(config, &workspace_dir).await?;
+                let confirmed =
+                    confirmed_published_versions(config, &workspace_dir, &published_names).await?;
                 apply_release_plan(
                     &plan,
                     &workspace_dir,
@@ -416,7 +419,8 @@ impl VersionArgs {
             return Ok(());
         }
 
-        let confirmed = confirmed_published_versions(config, &workspace_dir).await?;
+        let confirmed =
+            confirmed_published_versions(config, &workspace_dir, &published_names).await?;
         let applied = apply_release_plan(
             &plan,
             &workspace_dir,

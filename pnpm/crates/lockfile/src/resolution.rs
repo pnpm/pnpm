@@ -30,6 +30,20 @@ pub struct TarballResolution {
     pub path: Option<String>,
 }
 
+impl TarballResolution {
+    /// Whether the tarball is a git-provider archive, and so needs the
+    /// prepare + packlist pass and the git-hosted store-index key.
+    ///
+    /// The recorded flag is a hint: pnpm's `classifyResolution` decides
+    /// from the URL alone, so an archive URL from a known git host
+    /// counts even when the lockfile omits the field (entries written
+    /// before it existed) or contradicts it.
+    #[must_use]
+    pub fn is_git_hosted(&self) -> bool {
+        self.git_hosted == Some(true) || is_git_hosted_tarball_url(&self.tarball)
+    }
+}
+
 /// For standard package specification, with package name and version range.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
@@ -310,6 +324,15 @@ impl LockfileResolution {
         }
     }
 
+    /// [`Self::integrity`] narrowed to an integrity that can actually
+    /// check downloaded bytes. An `integrity: ''` entry parses into zero
+    /// hashes, which pins nothing — pnpm treats that as no integrity at
+    /// all, and [`Integrity::check`] would panic on it.
+    #[must_use]
+    pub fn checkable_integrity(&self) -> Option<&'_ Integrity> {
+        self.integrity().filter(|integrity| !integrity.hashes.is_empty())
+    }
+
     /// Convert an in-memory resolution into the form written to the lockfile.
     ///
     /// For a registry tarball whose URL is reconstructible from `name`,
@@ -330,8 +353,7 @@ impl LockfileResolution {
         let LockfileResolution::Tarball(tarball) = self else { return self.clone() };
         let Some(integrity) = tarball.integrity.as_ref() else { return self.clone() };
 
-        let git_hosted =
-            tarball.git_hosted == Some(true) || is_git_hosted_tarball_url(&tarball.tarball);
+        let git_hosted = tarball.is_git_hosted();
         // A standard registry tarball whose URL can be rebuilt from name+version+
         // registry is written as just `{integrity}` — pnpm derives the URL on
         // demand. Every other tarball must keep its URL or it can no longer be

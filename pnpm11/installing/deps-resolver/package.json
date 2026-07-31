@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.deps-resolver",
-  "version": "1100.3.3",
+  "version": "1100.4.0",
   "description": "Resolves dependency graph of a package",
   "keywords": [
     "pnpm",

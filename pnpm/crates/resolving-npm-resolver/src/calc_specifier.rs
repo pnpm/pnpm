@@ -7,9 +7,9 @@
 //! is written without a range operator.
 
 use node_semver::Range;
-use pacquet_registry::{PackageVersion, PinnedVersion};
+use pacquet_registry::{PackageVersion, RangeSpecStyle};
 
-use crate::which_version_is_pinned::which_version_is_pinned;
+use crate::infer_range_spec_style::infer_range_spec_style;
 
 /// The specifier to write for `picked` when the dependency currently
 /// declares `bare_specifier` under the install name `alias`.
@@ -26,12 +26,41 @@ pub fn calc_specifier(
     bare_specifier: &str,
     alias: Option<&str>,
     picked: &PackageVersion,
-    default_pin: PinnedVersion,
+    default_pin: RangeSpecStyle,
 ) -> String {
-    let range = picked.serialize(which_version_is_pinned(bare_specifier).unwrap_or(default_pin));
+    let range = picked.serialize(infer_range_spec_style(bare_specifier).unwrap_or(default_pin));
     match npm_alias_target(bare_specifier, alias) {
         Some(real_name) => format!("npm:{real_name}@{range}"),
         None => range,
+    }
+}
+
+/// The specifier to write for `picked` when the dependency is declared
+/// through a protocol prefix that is not `npm:` — `jsr:` for a JSR
+/// package, or a named registry's alias.
+///
+/// Keeps the declared range operator the same way [`calc_specifier`]
+/// does, but renders the result back under `prefix` so the entry keeps
+/// resolving through the same protocol. An aliased dependency names
+/// `pkg_name` inside the specifier; one installed under the package's
+/// own name carries the range alone.
+///
+/// Mirrors the TypeScript resolver's `calcPrefixedSpecifier`.
+#[must_use]
+pub fn calc_prefixed_specifier(
+    prefix: &str,
+    pkg_name: &str,
+    bare_specifier: &str,
+    alias: Option<&str>,
+    picked: &PackageVersion,
+    default_pin: RangeSpecStyle,
+) -> String {
+    let range = picked.serialize(infer_range_spec_style(bare_specifier).unwrap_or(default_pin));
+    match alias {
+        Some(alias) if !alias.is_empty() && alias != pkg_name => {
+            format!("{prefix}{pkg_name}@{range}")
+        }
+        _ => format!("{prefix}{range}"),
     }
 }
 

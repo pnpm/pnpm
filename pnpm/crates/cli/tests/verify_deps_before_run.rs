@@ -8,7 +8,10 @@ pub use _utils::*;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_testing_utils::bin::CommandTempCwd;
+use pacquet_testing_utils::{
+    bin::{AddMockedRegistry, CommandTempCwd},
+    fs::bump_mtime,
+};
 use serde_json::json;
 use std::{fs, path::Path};
 
@@ -39,6 +42,84 @@ fn default_install_action_installs_before_running_the_script() {
     assert!(workspace.join("node_modules").exists(), "the gate must have spawned an install first");
 
     drop(root);
+}
+
+#[test]
+fn dedupe_peers_lockfile_regeneration_installs_before_running_the_script() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    append_workspace_yaml_key(&workspace, "dedupePeers", true);
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "verify-deps-project",
+            "version": "0.0.0",
+            "dependencies": {
+                "@pnpm.e2e/foo": "100.0.0",
+            },
+            "scripts": {
+                "hello": r#"node -e "require('fs').appendFileSync('postinstall.log', 'h')""#,
+                "postinstall": r#"node -e "require('fs').appendFileSync('postinstall.log', 'x')""#,
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet.with_arg("install").assert().success();
+    assert_eq!(
+        fs::read_to_string(workspace.join("postinstall.log")).expect("read postinstall log"),
+        "x",
+    );
+
+    fs::remove_file(workspace.join("pnpm-lock.yaml")).expect("remove pnpm-lock.yaml");
+    pacquet_in(&workspace).with_args(["install", "--lockfile-only"]).assert().success();
+    bump_mtime(&workspace.join("pnpm-lock.yaml"));
+    let regenerated_lockfile =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read regenerated lockfile");
+
+    let output = pacquet_in(&workspace)
+        .with_args(["run", "hello"])
+        .output()
+        .expect("run script after lockfile regeneration");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    eprintln!("STDOUT:\n{stdout}\n");
+    assert!(output.status.success(), "the script must run successfully");
+    assert!(
+        stdout.contains("Lockfile is up to date, resolution step is skipped"),
+        "the verifier install must reuse the regenerated lockfile:\n{stdout}",
+    );
+    let policy_verdict = stdout
+        .find("Lockfile passes supply-chain policies")
+        .expect("the verifier must report its lockfile policy verdict");
+    let frozen_install = stdout
+        .find("Lockfile is up to date, resolution step is skipped")
+        .expect("the verifier must report the frozen install");
+    let up_to_date = stdout
+        .find("Already up to date")
+        .expect("the verifier must report that no packages changed");
+    assert!(
+        policy_verdict < frozen_install && frozen_install < up_to_date,
+        "the verifier messages must match pnpm's order:\n{stdout}",
+    );
+    assert_eq!(
+        fs::read_to_string(workspace.join("pnpm-lock.yaml"))
+            .expect("read lockfile after verifier install"),
+        regenerated_lockfile,
+    );
+    assert_eq!(
+        fs::read_to_string(workspace.join("postinstall.log")).expect("read postinstall log"),
+        "xxh",
+    );
+
+    pacquet_in(&workspace).with_args(["run", "hello"]).assert().success();
+    assert_eq!(
+        fs::read_to_string(workspace.join("postinstall.log")).expect("read postinstall log"),
+        "xxhh",
+    );
+
+    drop((root, mock_instance));
 }
 
 #[cfg(unix)]
@@ -109,6 +190,7 @@ fn error_action_follows_the_dependency_state() {
     std::thread::sleep(std::time::Duration::from_millis(10));
     fs::write(workspace.join("package.json"), manifest.to_string())
         .expect("write modified package.json");
+    bump_mtime(&workspace.join("package.json"));
     let output = pacquet_in(&workspace)
         .with_args(["--config.verify-deps-before-run=error", "run", "hello"])
         .output()

@@ -16,11 +16,13 @@
 //!   npm-resolved lockfile entry the install loads.
 
 mod calc_specifier;
+mod calc_specifier_for_workspace_dep;
 mod create_npm_resolution_verifier;
 mod errors;
 mod fetch_attestation_published_at;
 mod fetch_full_metadata;
 mod fetch_full_metadata_cached;
+mod infer_range_spec_style;
 mod lookup_context;
 pub mod mirror;
 mod named_registry;
@@ -34,10 +36,10 @@ mod registry_url;
 mod resolve_from_workspace;
 mod trust_checks;
 mod violation_codes;
-mod which_version_is_pinned;
 mod workspace_pref_to_npm;
 
-pub use calc_specifier::calc_specifier;
+pub use calc_specifier::{calc_prefixed_specifier, calc_specifier};
+pub use calc_specifier_for_workspace_dep::{DeclaredSpecifiers, calc_specifier_for_workspace_dep};
 pub use create_npm_resolution_verifier::{
     CreateNpmResolutionVerifierOptions, DistStats, NpmResolutionVerifier, ObservedDistStats,
     create_npm_resolution_verifier, observed_dist_stats_sink,
@@ -48,6 +50,7 @@ pub use fetch_full_metadata::{
     FetchFullMetadataOptions, FetchFullMetadataOutcome, fetch_full_metadata,
 };
 pub use fetch_full_metadata_cached::{FetchFullMetadataCachedOptions, fetch_full_metadata_cached};
+pub use infer_range_spec_style::infer_range_spec_style;
 pub use mirror::{ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR};
 pub use named_registry::{
     BUILTIN_NAMED_REGISTRIES, MergeNamedRegistriesError, build_named_registry_prefixes,
@@ -74,11 +77,11 @@ pub use pick_package_from_meta::{
 };
 pub use registry_url::to_registry_url;
 pub use resolve_from_workspace::{
-    ResolveFromWorkspaceError, ResolveFromWorkspaceOptions, try_resolve_from_workspace,
+    ResolveFromWorkspaceError, ResolveFromWorkspaceOptions, pick_matching_local_version_or_null,
+    try_resolve_from_workspace,
 };
 pub use trust_checks::{
     TrustCheckOptions, TrustEvidence, TrustViolation, fail_if_trust_downgraded, get_trust_evidence,
 };
 pub use violation_codes::{MINIMUM_RELEASE_AGE_VIOLATION_CODE, TRUST_DOWNGRADE_VIOLATION_CODE};
-pub use which_version_is_pinned::which_version_is_pinned;
 pub use workspace_pref_to_npm::{InvalidWorkspaceSpecError, workspace_pref_to_npm};

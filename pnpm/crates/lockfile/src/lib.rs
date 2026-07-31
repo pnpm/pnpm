@@ -45,8 +45,8 @@ pub use snapshot_entry::*;
 pub use yaml_documents::*;
 
 use indexmap::IndexMap;
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use serde::{Deserialize, Deserializer, Serialize};
+use std::collections::{BTreeMap, HashMap};
 
 /// Package key used by the `packages:` and `snapshots:` maps in a v9 lockfile.
 ///
@@ -147,9 +147,14 @@ pub struct Lockfile {
     /// `pnpmfileChecksum` and `importers` in the root-key order.
     /// A [`BTreeMap`] so the entries serialize sorted by key.
     ///
-    /// [`BTreeMap`]: std::collections::BTreeMap
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub patched_dependencies: Option<std::collections::BTreeMap<String, String>>,
+    /// Loading also accepts the `{hash, path}` shape pnpm 10 wrote,
+    /// collapsing it to the hash.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_patched_dependencies"
+    )]
+    pub patched_dependencies: Option<BTreeMap<String, String>>,
 
     #[serde(
         default,
@@ -266,4 +271,34 @@ fn is_local_tarball_path(path: &str) -> bool {
         lower.len() >= bytes.len() && lower[lower.len() - bytes.len()..].eq_ignore_ascii_case(bytes)
     };
     ends_with_ci(".tgz") || ends_with_ci(".tar.gz") || ends_with_ci(".tar")
+}
+
+/// Accepts both shapes a lockfile can carry for a `patchedDependencies`
+/// entry: the bare patch-file hash pnpm writes today, and the
+/// `{hash, path}` mapping pnpm 10 wrote. The mapping collapses to its
+/// hash — the path is redundant, since patch paths come from the
+/// project's `patchedDependencies` config — so a lockfile committed by
+/// pnpm 10 installs unchanged and normalizes the next time it is saved.
+fn deserialize_patched_dependencies<'de, Deser>(
+    deserializer: Deser,
+) -> Result<Option<BTreeMap<String, String>>, Deser::Error>
+where
+    Deser: Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum PatchEntry {
+        Hash(String),
+        HashAndPath { hash: String },
+    }
+
+    let entries = Option::<BTreeMap<String, PatchEntry>>::deserialize(deserializer)?;
+    Ok(entries.map(|entries| {
+        entries
+            .into_iter()
+            .map(|(key, entry)| match entry {
+                PatchEntry::Hash(hash) | PatchEntry::HashAndPath { hash } => (key, hash),
+            })
+            .collect()
+    }))
 }

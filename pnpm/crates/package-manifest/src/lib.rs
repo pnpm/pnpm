@@ -18,6 +18,15 @@ pub enum PackageManifestError {
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANIFEST_SERIALIZATION_ERROR))]
     Serialization(serde_json::Error), // TODO: remove derive(From), split this variant
 
+    #[from(ignore)] // TODO: remove this after derive(From) has been removed
+    #[display("Failed to parse {}: {source}", path.display())]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANIFEST_SERIALIZATION_ERROR))]
+    Parse {
+        path: PathBuf,
+        #[error(source)]
+        source: serde_json::Error,
+    },
+
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANIFEST_IO_ERROR))]
     Io(std::io::Error), // TODO: remove derive(From), split this variant
 
@@ -149,8 +158,10 @@ impl PackageManifest {
     }
 
     fn read_from_file(path: PathBuf) -> Result<PackageManifest, PackageManifestError> {
-        let contents = fs::read_to_string(&path)?;
-        let mut value: Value = serde_json::from_str(&contents)?;
+        let file_contents = fs::read_to_string(&path)?;
+        let contents = strip_utf8_bom(&file_contents);
+        let mut value: Value = parse_manifest(contents)
+            .map_err(|source| PackageManifestError::Parse { path: path.clone(), source })?;
         let mut on_disk = value.clone();
         normalize_dependency_fields(&mut on_disk);
         convert_engines_runtime_to_dependencies(&mut value, "devEngines", "devDependencies");
@@ -159,7 +170,7 @@ impl PackageManifest {
             path,
             value,
             insert_final_newline: contents.ends_with('\n'),
-            indent: detect_indent(&contents).to_string(),
+            indent: detect_indent(contents).to_string(),
             on_disk: Some(on_disk),
         })
     }
@@ -835,7 +846,28 @@ pub fn safe_read_package_json_from_dir(dir: &Path) -> Result<Option<Value>, Pack
         Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(None),
         Err(err) => return Err(PackageManifestError::Io(err)),
     };
-    serde_json::from_str(&text).map(Some).map_err(PackageManifestError::Serialization)
+    parse_manifest(&text).map(Some).map_err(|source| PackageManifestError::Parse { path, source })
+}
+
+/// Parse the contents of a `package.json`.
+///
+/// A leading UTF-8 byte order mark is dropped before parsing: editors
+/// and publishers do write manifests with one (npm ships such packages),
+/// `serde_json` rejects it, and pnpm decodes every manifest through
+/// `strip-bom`/`TextDecoder`, which drop it. Route every manifest parse
+/// through here so both stacks accept the same files.
+pub fn parse_manifest(contents: &str) -> serde_json::Result<Value> {
+    serde_json::from_str(strip_utf8_bom(contents))
+}
+
+/// [`parse_manifest`] for manifest bytes that have not been decoded yet,
+/// such as an entry read straight out of a tarball.
+pub fn parse_manifest_bytes(bytes: &[u8]) -> serde_json::Result<Value> {
+    serde_json::from_slice(bytes.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(bytes))
+}
+
+fn strip_utf8_bom(contents: &str) -> &str {
+    contents.strip_prefix('\u{feff}').unwrap_or(contents)
 }
 
 /// Decide whether a package directory needs a build pass.
@@ -898,4 +930,45 @@ pub fn extract_author(manifest: &serde_json::Value) -> Option<String> {
 /// Extracts the homepage field from a manifest.
 pub fn extract_homepage(manifest: &serde_json::Value) -> Option<String> {
     manifest.get("homepage").and_then(|v| v.as_str()).map(ToString::to_string)
+}
+
+/// Extracts the license from either the modern `license` field or the legacy
+/// `licenses` field.
+pub fn extract_license(manifest: &serde_json::Value) -> Option<String> {
+    manifest
+        .get("license")
+        .and_then(extract_license_field)
+        .or_else(|| manifest.get("licenses").and_then(extract_license_field))
+}
+
+fn extract_license_field(field: &serde_json::Value) -> Option<String> {
+    if let Some(license) = field.as_str() {
+        return (!license.is_empty()).then(|| license.to_string());
+    }
+    if let Some(entries) = field.as_array() {
+        let licenses: Vec<&str> = entries.iter().filter_map(extract_license_type).collect();
+        return match licenses.as_slice() {
+            [] => None,
+            [license] => Some((*license).to_string()),
+            licenses => Some(format!("({})", licenses.join(" OR "))),
+        };
+    }
+    extract_license_type(field).map(ToString::to_string)
+}
+
+fn extract_license_type(entry: &serde_json::Value) -> Option<&str> {
+    entry.as_str().filter(|license| !license.is_empty()).or_else(|| {
+        entry.as_object().and_then(|entry| {
+            entry
+                .get("type")
+                .and_then(serde_json::Value::as_str)
+                .filter(|license| !license.is_empty())
+                .or_else(|| {
+                    entry
+                        .get("name")
+                        .and_then(serde_json::Value::as_str)
+                        .filter(|license| !license.is_empty())
+                })
+        })
+    })
 }

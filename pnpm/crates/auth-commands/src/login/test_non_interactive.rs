@@ -1,4 +1,6 @@
-//! `login` test: the non-interactive-terminal guard.
+//! `login` test: the non-interactive-terminal guard on the classic
+//! (username / password) fallback. The web-based flow has no such guard; its
+//! non-TTY path is covered in `test_web_login`.
 
 use std::{
     cell::RefCell,
@@ -17,19 +19,28 @@ use super::{
 };
 
 #[tokio::test]
-async fn should_throw_in_non_interactive_terminal() {
+async fn should_throw_in_non_interactive_terminal_when_web_login_is_unsupported() {
     web_auth_fake!(FakeHost, RecordingReporter, set_stdin_tty);
     login_fake!(FakeHost);
     reset();
     reset_login();
     set_stdin_tty(false);
 
+    let mut server = mockito::Server::new_async().await;
+    let login_mock = server
+        .mock("POST", "/-/v1/login")
+        .with_status(404)
+        .with_body("Not Found")
+        .create_async()
+        .await;
+    let registry = server.url();
     let config_dir = Path::new("/mock/config");
-    let err =
-        login::<FakeHost, RecordingReporter>(&client(), opts("https://example.org", config_dir))
-            .await
-            .unwrap_err();
 
+    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
+        .unwrap_err();
+
+    login_mock.assert_async().await;
     assert!(matches!(err, LoginError::NonInteractive), "got {err:?}");
     assert_eq!(err.to_string(), "The login command requires an interactive terminal");
     assert_eq!(

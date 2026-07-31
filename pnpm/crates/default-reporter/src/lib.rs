@@ -36,6 +36,9 @@ static CWD: OnceLock<String> = OnceLock::new();
 static PACKAGE_VERSION: OnceLock<String> = OnceLock::new();
 static FORCE_APPEND_ONLY: OnceLock<bool> = OnceLock::new();
 static SUMMARY_SCOPE: OnceLock<SummaryScope> = OnceLock::new();
+static REPORTS_SCOPE: OnceLock<bool> = OnceLock::new();
+static HIDE_ADDED_PKGS_PROGRESS: OnceLock<bool> = OnceLock::new();
+static IS_RECURSIVE: OnceLock<bool> = OnceLock::new();
 
 /// Which prefixes contribute to the packages-diff summary.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -71,6 +74,29 @@ pub fn force_append_only() {
 /// Configure which prefixes contribute to the packages-diff summary.
 pub fn set_summary_scope(scope: SummaryScope) {
     let _ = SUMMARY_SCOPE.set(scope);
+}
+
+/// Declare that the running command reports the workspace scope it
+/// selected — pnpm's `COMMANDS_THAT_REPORT_SCOPE` gate. Call once before
+/// the first event; ignored if already set.
+pub fn set_reports_scope(reports_scope: bool) {
+    let _ = REPORTS_SCOPE.set(reports_scope);
+}
+
+/// Configure whether dependency progress includes the materialization count.
+///
+/// This must be called before the reporter is initialized. Only the first
+/// configured value is retained.
+pub fn set_hide_added_pkgs_progress(hide_added_pkgs_progress: bool) {
+    let _ = HIDE_ADDED_PKGS_PROGRESS.set(hide_added_pkgs_progress);
+}
+
+/// Configure whether the running command operates recursively.
+///
+/// This must be called before the reporter is initialized. Only the first
+/// configured value is retained.
+pub fn set_is_recursive(is_recursive: bool) {
+    let _ = IS_RECURSIVE.set(is_recursive);
 }
 
 fn cwd() -> String {
@@ -131,12 +157,18 @@ impl Sink {
         // pnpm's `outputMaxWidth`: `columns - 2` on a TTY, else 80.
         let width = if is_tty { columns.saturating_sub(2) } else { 80 };
         let colors = Colors { enabled: is_tty && std::env::var_os("NO_COLOR").is_none() };
-        let state = ReporterState::new_with_summary_scope(
+        let state = ReporterState::new_with_options(
             cwd(),
             width,
             colors,
-            append_only,
-            SUMMARY_SCOPE.get().copied().unwrap_or(SummaryScope::CurrentPrefix),
+            state::ReporterOptions {
+                append_only,
+                summary_scope: SUMMARY_SCOPE.get().copied().unwrap_or(SummaryScope::CurrentPrefix),
+                reports_scope: REPORTS_SCOPE.get().copied().unwrap_or(false),
+                hide_added_pkgs_progress: HIDE_ADDED_PKGS_PROGRESS.get().copied().unwrap_or(false),
+                is_recursive: IS_RECURSIVE.get().copied().unwrap_or(false),
+                ..state::ReporterOptions::default()
+            },
         );
         let diff = diff::Diff::new(columns);
         let throttle =

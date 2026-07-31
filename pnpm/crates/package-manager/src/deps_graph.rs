@@ -8,8 +8,11 @@
 //! derivation plus children-link wiring from `SnapshotEntry.dependencies`
 //! + `optional_dependencies`.
 
+use indexmap::IndexMap;
 use pacquet_graph_hasher::{DepsGraphNode, HashEncoding, hash_object_with_encoding};
-use pacquet_lockfile::{LockfileResolution, PackageKey, PackageMetadata, SnapshotEntry};
+use pacquet_lockfile::{
+    LockfileResolution, PackageKey, PackageMetadata, PkgName, SnapshotDepRef, SnapshotEntry,
+};
 use std::collections::HashMap;
 
 /// Build a `DepsGraph<PackageKey>` from a v9 lockfile's `snapshots`
@@ -117,23 +120,53 @@ fn full_pkg_id_for(pkg_key: &PackageKey, resolution: &LockfileResolution) -> Str
 /// Flatten `SnapshotEntry`'s `dependencies` + `optional_dependencies`
 /// into an `alias → PackageKey` map, using pacquet's already-typed
 /// `SnapshotDepRef`.
-fn build_children(snapshot: &SnapshotEntry) -> HashMap<String, PackageKey> {
-    let mut children = HashMap::new();
-    let dep_entries = snapshot
-        .dependencies
+///
+/// The result is ordered like upstream's
+/// `{...dependencies, ...optionalDependencies}` object: each section in
+/// lockfile key order, an alias in both sections keeping its position
+/// from `dependencies` while taking its value from
+/// `optionalDependencies`. Both sections are sorted on disk, so sorting
+/// them here restores the order the graph hasher's digests are defined
+/// in (see [`pacquet_graph_hasher::DepsGraphNode::children`]).
+pub(crate) fn build_children(snapshot: &SnapshotEntry) -> IndexMap<String, PackageKey> {
+    let mut children = IndexMap::new();
+    extend_children(&mut children, snapshot.dependencies.as_ref());
+    extend_children(&mut children, snapshot.optional_dependencies.as_ref());
+    children
+}
+
+fn extend_children(
+    children: &mut IndexMap<String, PackageKey>,
+    deps: Option<&HashMap<PkgName, SnapshotDepRef>>,
+) {
+    let Some(deps) = deps else { return };
+    let mut section: Vec<(String, PackageKey)> = deps
         .iter()
-        .flat_map(|m| m.iter())
-        .chain(snapshot.optional_dependencies.iter().flat_map(|m| m.iter()));
-    for (alias, dep_ref) in dep_entries {
         // `SnapshotDepRef::resolve` returns the `PkgNameVerPeer`
         // (= `PackageKey`) the alias points at in the `snapshots:`
         // map. `link:` deps don't have a snapshot key — skip them.
-        let Some(resolved) = dep_ref.resolve(alias) else {
-            continue;
-        };
-        children.insert(alias.to_string(), resolved);
-    }
-    children
+        .filter_map(|(alias, dep_ref)| Some((alias.to_string(), dep_ref.resolve(alias)?)))
+        .collect();
+    section.sort_unstable_by(|(left, _), (right, _)| left.cmp(right));
+    children.extend(section);
+}
+
+/// A snapshot map's entries in lockfile key order.
+///
+/// Pacquet parses the lockfile into `HashMap`s, so iterating one
+/// directly hands the graph hasher a different entry-point order on
+/// every run — and the digests it computes for cyclic subgraphs depend
+/// on that order (see
+/// [`pacquet_graph_hasher::DepsGraphNode::children`]). Sorting by the
+/// rendered snapshot key reproduces how pnpm writes — and therefore
+/// iterates — the `snapshots:` section.
+pub(crate) fn in_lockfile_order<Value>(
+    snapshots: &HashMap<PackageKey, Value>,
+) -> Vec<(&PackageKey, &Value)> {
+    let mut entries: Vec<(String, &PackageKey, &Value)> =
+        snapshots.iter().map(|(key, value)| (key.to_string(), key, value)).collect();
+    entries.sort_unstable_by(|(left, ..), (right, ..)| left.cmp(right));
+    entries.into_iter().map(|(_, key, value)| (key, value)).collect()
 }
 
 #[cfg(test)]

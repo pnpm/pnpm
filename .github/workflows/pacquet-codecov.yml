@@ -27,6 +27,21 @@ jobs:
   coverage:
     name: Code Coverage
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    # Build the instrumented artifacts with line-tables-only debug info, as
+    # `Rust CI / Test` does. Coverage regions live in the binary's own
+    # `__llvm_covmap`/`__llvm_covfun` sections, so llvm-cov needs no DWARF at
+    # all, while the full `--all-targets` debug build of the whole workspace
+    # (~70 crates plus heavy C deps like aws-lc-sys, ring, libsql-ffi and
+    # tree-sitter) is what pushes target/ over the runner's free disk. Line
+    # tables keep panic backtraces file:line-accurate. Set here in CI rather
+    # than in Cargo.toml so a local `just codecov` keeps full debug info.
+    env:
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_DEBUG: line-tables-only
+    # A coverage run compiles the workspace from cold and then runs every
+    # test; the healthy runtime is ~8 minutes. Without this a wedged job
+    # would sit on the default 360-minute limit.
+    timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -34,16 +49,28 @@ jobs:
           submodules: true # Pull submodules for `cargo coverage`
           persist-credentials: false
 
+      # The instrumented build holds a full set of debug artifacts in
+      # target/llvm-cov-target, on top of a profraw file per test process and
+      # the merged profdata. That no longer fits in the runner's free disk:
+      # the job dies with "No space left on device" — often while the runner
+      # itself is writing its diagnostic log, so the failure lands with no
+      # step output at all. Drop the preinstalled toolchains this job never
+      # uses (~25 GB) before compiling anything.
+      - name: Free up runner disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
       - name: Install Rust Toolchain
         uses: ./.github/actions/rustup
 
       - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@7572810d7dd469b651bb7793945692cf78da5dd7 # v2.85.0
+        uses: taiki-e/install-action@6a1bd70eaac3c8bdf093356838d7ee09fda951cf # v2.85.5
         with:
           tool: cargo-llvm-cov
 
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@7572810d7dd469b651bb7793945692cf78da5dd7 # v2.85.0
+        uses: taiki-e/install-action@6a1bd70eaac3c8bdf093356838d7ee09fda951cf # v2.85.5
         with:
           tool: cargo-nextest
 
@@ -51,7 +78,7 @@ jobs:
         run: rustup component add llvm-tools-preview
 
       - name: Install pnpm (for compatibility check)
-        uses: pnpm/setup@6bfbb82d278149277735183e1ac2cd4353ebfe4f
+        uses: pnpm/setup@6523ce966bcf7a1061ce6401e5c6e0b60466bd31
         with:
           install: false
 
@@ -66,7 +93,7 @@ jobs:
         continue-on-error: true
 
       - name: Install just
-        uses: taiki-e/install-action@7572810d7dd469b651bb7793945692cf78da5dd7 # v2.85.0
+        uses: taiki-e/install-action@6a1bd70eaac3c8bdf093356838d7ee09fda951cf # v2.85.5
         with:
           tool: just
 
@@ -81,6 +108,10 @@ jobs:
           unset XDG_DATA_HOME
 
           cargo codecov --lcov --output-path lcov.info
+
+      - name: Report disk usage
+        if: always()
+        run: df -h /
 
       - name: Upload Artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

@@ -25,12 +25,12 @@ use crate::{
 /// Store/network handles [`GitResolver`] needs to read a git dep's
 /// identity out of the package itself during resolution.
 ///
-/// A git dep's specifier names a repo, not a package, so its name —
-/// and, for a host archive, its integrity — live only in the package's
-/// own `package.json`. pacquet builds the lockfile before the
-/// install/fetch pass runs, so they have to be read here. Mirrors the
-/// tarball resolver's remote-tarball fetch, which fills the same fields
-/// for the same reason.
+/// A git dep's specifier names a repo, not a package, so its package name
+/// lives only in the package's own `package.json`. For a host archive,
+/// integrity is computed from the fetched bytes and stored on the resolution.
+/// pacquet builds the lockfile before the install/fetch pass runs, so both
+/// fields have to be filled here. Mirrors the tarball resolver's
+/// remote-tarball fetch, which fills the same fields for the same reason.
 ///
 /// Two shapes, by resolution:
 ///
@@ -125,9 +125,9 @@ impl<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> GitResolver<
         Ok(Some(result))
     }
 
-    /// Fill `manifest` — and, for an archive, the resolution's
-    /// `integrity` — from the package the git dep points at. No-op
-    /// without a fetch context (unit tests / resolve-only callers).
+    /// Fill `manifest` from the package the git dep points at and compute an
+    /// archive resolution's `integrity` from its fetched bytes. No-op without
+    /// a fetch context (unit tests / resolve-only callers).
     async fn read_package_metadata(&self, result: &mut ResolveResult) -> Result<(), ResolveError> {
         let Some(ctx) = self.fetch_context.as_ref() else { return Ok(()) };
         match &result.resolution {

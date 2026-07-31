@@ -1,4 +1,4 @@
-use std::{collections::HashMap, str::FromStr, sync::Mutex, time::Duration};
+use std::{str::FromStr, sync::Mutex, time::Duration};
 
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_resolving_resolver_base::{
@@ -6,6 +6,7 @@ use pacquet_resolving_resolver_base::{
     Resolver, WantedDependency,
 };
 use pretty_assertions::assert_eq;
+use rustc_hash::FxHashMap as HashMap;
 
 use crate::resolve_dependency_tree::{
     ResolveDependencyTreeError, ResolveDependencyTreeOptions, resolve_dependency_tree,
@@ -120,7 +121,7 @@ fn fake_manifest(root_deps: serde_json::Value) -> (tempfile::TempDir, PackageMan
 
 #[tokio::test]
 async fn walks_dependencies_and_builds_flat_tree() {
-    let mut table = HashMap::new();
+    let mut table = HashMap::default();
     table.insert(
         ("foo".to_string(), "^1.0.0".to_string()),
         fake_result(
@@ -155,6 +156,7 @@ async fn walks_dependencies_and_builds_flat_tree() {
             base_opts: ResolveOptions::default(),
             patched_dependencies: None,
             manifest_hook: None,
+            overrides_hook: None,
             pnpmfile_hook: None,
             read_package_log: None,
             auto_install_peers: false,
@@ -229,6 +231,7 @@ async fn passes_optional_flag_to_the_resolver() {
             base_opts: ResolveOptions::default(),
             patched_dependencies: None,
             manifest_hook: None,
+            overrides_hook: None,
             pnpmfile_hook: None,
             read_package_log: None,
             auto_install_peers: false,
@@ -242,7 +245,7 @@ async fn passes_optional_flag_to_the_resolver() {
 
 #[tokio::test]
 async fn shallower_revisit_takes_over_shared_children_context() {
-    let mut table = HashMap::new();
+    let mut table = HashMap::default();
     table.insert(
         ("a".to_string(), "1.0.0".to_string()),
         fake_result(
@@ -305,6 +308,7 @@ async fn shallower_revisit_takes_over_shared_children_context() {
             base_opts: ResolveOptions::default(),
             patched_dependencies: None,
             manifest_hook: None,
+            overrides_hook: None,
             pnpmfile_hook: None,
             read_package_log: None,
             auto_install_peers: false,
@@ -321,7 +325,7 @@ async fn shallower_revisit_takes_over_shared_children_context() {
 
 #[tokio::test]
 async fn dedupes_when_the_same_package_appears_in_two_subtrees() {
-    let mut table = HashMap::new();
+    let mut table = HashMap::default();
     table.insert(
         ("a".to_string(), "^1.0.0".to_string()),
         fake_result(
@@ -368,6 +372,7 @@ async fn dedupes_when_the_same_package_appears_in_two_subtrees() {
             base_opts: ResolveOptions::default(),
             patched_dependencies: None,
             manifest_hook: None,
+            overrides_hook: None,
             pnpmfile_hook: None,
             read_package_log: None,
             auto_install_peers: false,
@@ -405,7 +410,7 @@ async fn workspace_link_node_is_short_circuited_in_tree() {
     use pacquet_resolving_resolver_base::PkgResolutionId;
 
     let link_id = "link:../shared";
-    let mut table = HashMap::new();
+    let mut table = HashMap::default();
     table.insert(
         ("shared".to_string(), "workspace:*".to_string()),
         ResolveResult {
@@ -439,6 +444,7 @@ async fn workspace_link_node_is_short_circuited_in_tree() {
             base_opts: ResolveOptions::default(),
             patched_dependencies: None,
             manifest_hook: None,
+            overrides_hook: None,
             pnpmfile_hook: None,
             read_package_log: None,
             auto_install_peers: false,
@@ -471,7 +477,7 @@ async fn workspace_link_node_is_short_circuited_in_tree() {
 /// dispatcher does.
 #[tokio::test]
 async fn declined_specifier_surfaces_spec_not_supported_error() {
-    let resolver = StubResolver { table: HashMap::new(), calls: Mutex::new(Vec::new()) };
+    let resolver = StubResolver { table: HashMap::default(), calls: Mutex::new(Vec::new()) };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": "git+ssh://example.com" }));
 
     let err = resolve_dependency_tree(
@@ -482,6 +488,7 @@ async fn declined_specifier_surfaces_spec_not_supported_error() {
             base_opts: ResolveOptions::default(),
             patched_dependencies: None,
             manifest_hook: None,
+            overrides_hook: None,
             pnpmfile_hook: None,
             read_package_log: None,
             auto_install_peers: false,
@@ -502,7 +509,7 @@ async fn declined_specifier_surfaces_spec_not_supported_error() {
 /// path. The walker rejects it before any further resolution work.
 #[tokio::test]
 async fn transitive_dep_with_traversal_alias_is_rejected() {
-    let mut table = HashMap::new();
+    let mut table = HashMap::default();
     table.insert(
         ("normal".to_string(), "1.0.0".to_string()),
         fake_result(
@@ -526,6 +533,7 @@ async fn transitive_dep_with_traversal_alias_is_rejected() {
             base_opts: ResolveOptions::default(),
             patched_dependencies: None,
             manifest_hook: None,
+            overrides_hook: None,
             pnpmfile_hook: None,
             read_package_log: None,
             auto_install_peers: false,
@@ -568,7 +576,7 @@ mod block_exotic_subdeps {
 
     #[tokio::test]
     async fn rejects_exotic_transitive_dep() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("foo".to_string(), "^1.0.0".to_string()),
             fake_result(
@@ -603,6 +611,7 @@ mod block_exotic_subdeps {
                 },
                 patched_dependencies: None,
                 manifest_hook: None,
+                overrides_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
                 auto_install_peers: false,
@@ -621,7 +630,7 @@ mod block_exotic_subdeps {
 
     #[tokio::test]
     async fn allows_exotic_direct_dep() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("is-negative".to_string(), "kevva/is-negative#1.0.0".to_string()),
             git_result(
@@ -645,6 +654,7 @@ mod block_exotic_subdeps {
                 },
                 patched_dependencies: None,
                 manifest_hook: None,
+                overrides_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
                 auto_install_peers: false,
@@ -658,7 +668,7 @@ mod block_exotic_subdeps {
 
     #[tokio::test]
     async fn allows_registry_subdep() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("foo".to_string(), "^1.0.0".to_string()),
             fake_result(
@@ -689,6 +699,7 @@ mod block_exotic_subdeps {
                 },
                 patched_dependencies: None,
                 manifest_hook: None,
+                overrides_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
                 auto_install_peers: false,
@@ -700,7 +711,7 @@ mod block_exotic_subdeps {
 
     #[tokio::test]
     async fn allows_exotic_subdep_when_disabled() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("foo".to_string(), "^1.0.0".to_string()),
             fake_result(
@@ -735,6 +746,7 @@ mod block_exotic_subdeps {
                 },
                 patched_dependencies: None,
                 manifest_hook: None,
+                overrides_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
                 auto_install_peers: false,
@@ -762,7 +774,7 @@ mod peers {
 
     #[tokio::test]
     async fn pure_package_has_dep_path_equal_to_pkg_id() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("foo".to_string(), "^1.0.0".to_string()),
             fake_result("foo", "1.0.0", serde_json::json!({ "name": "foo", "version": "1.0.0" })),
@@ -777,6 +789,7 @@ mod peers {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
                 manifest_hook: None,
+                overrides_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
                 auto_install_peers: false,
@@ -802,7 +815,7 @@ mod peers {
     /// <https://github.com/pnpm/pnpm/issues/5108>
     #[tokio::test]
     async fn cycle_reentry_does_not_drop_sibling_occurrence_transitive_peers() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         for (name, manifest) in [
             (
                 "p",
@@ -832,6 +845,7 @@ mod peers {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
                 manifest_hook: None,
+                overrides_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
                 auto_install_peers: false,
@@ -854,7 +868,7 @@ mod peers {
 
     #[tokio::test]
     async fn peer_resolved_against_sibling_at_parent_level() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("react".to_string(), "18.0.0".to_string()),
             fake_result(
@@ -886,6 +900,7 @@ mod peers {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
                 manifest_hook: None,
+                overrides_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
                 auto_install_peers: false,
@@ -912,7 +927,7 @@ mod peers {
 
     #[tokio::test]
     async fn missing_peer_is_reported() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("react-dom".to_string(), "18.0.0".to_string()),
             fake_result(
@@ -935,6 +950,7 @@ mod peers {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
                 manifest_hook: None,
+                overrides_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
                 auto_install_peers: false,
@@ -953,7 +969,7 @@ mod peers {
 
     #[tokio::test]
     async fn bad_peer_version_is_reported() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("react".to_string(), "17.0.0".to_string()),
             fake_result(
@@ -985,6 +1001,7 @@ mod peers {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
                 manifest_hook: None,
+                overrides_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
                 auto_install_peers: false,
@@ -1066,7 +1083,7 @@ mod peers {
     /// the byte shape of the peer-id.
     #[tokio::test]
     async fn dedupe_peers_propagates_transitive_peer_to_parent() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("a".to_string(), "1.0.0".to_string()),
             fake_result(
@@ -1105,6 +1122,7 @@ mod peers {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
                 manifest_hook: None,
+                overrides_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
                 auto_install_peers: false,
@@ -1138,7 +1156,7 @@ mod peers {
     /// depth tie-break.
     #[tokio::test]
     async fn shallower_pure_pkgs_revisit_lowers_graph_depth() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("a".to_string(), "1.0.0".to_string()),
             fake_result(
@@ -1208,6 +1226,7 @@ mod peers {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
                 manifest_hook: None,
+                overrides_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
                 auto_install_peers: false,
@@ -1231,7 +1250,7 @@ mod peers {
     /// resolved `typescript@2.0.0`. Exercises the depPath suffix machinery.
     #[tokio::test]
     async fn peers_own_peer_shared_with_sibling_that_peer_depends_both() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         for version in ["1.0.0", "2.0.0"] {
             table.insert(
                 ("typescript".to_string(), version.to_string()),
@@ -1305,6 +1324,7 @@ mod peers {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
                 manifest_hook: None,
+                overrides_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
                 auto_install_peers: false,
@@ -1341,7 +1361,7 @@ mod peers {
     /// <https://github.com/pnpm/pnpm/issues/12266>.
     #[tokio::test]
     async fn ancestor_peer_carries_its_own_suffix() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("a".to_string(), "1.0.0".to_string()),
             fake_result(
@@ -1381,6 +1401,7 @@ mod peers {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
                 manifest_hook: None,
+                overrides_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
                 auto_install_peers: false,
@@ -1414,7 +1435,7 @@ mod peers {
     async fn resolve_emotion_fixture(
         opts: ResolvePeersOptions,
     ) -> crate::resolve_peers::ResolvePeersResult {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("react".to_string(), "18.0.0".to_string()),
             fake_result(
@@ -1464,6 +1485,7 @@ mod peers {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
                 manifest_hook: None,
+                overrides_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
                 auto_install_peers: false,
@@ -1482,7 +1504,7 @@ mod peers {
     /// into react-dom's slot.
     #[tokio::test]
     async fn peer_edge_is_patched_when_peer_walked_after_consumer() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("react-dom".to_string(), "18.0.0".to_string()),
             fake_result(
@@ -1515,6 +1537,7 @@ mod peers {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
                 manifest_hook: None,
+                overrides_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
                 auto_install_peers: false,
@@ -1543,7 +1566,7 @@ mod peers {
     /// peer suffix.
     #[tokio::test]
     async fn cyclic_peer_dependencies_resolve_cleanly() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("foo".to_string(), "1.0.0".to_string()),
             fake_result(
@@ -1613,6 +1636,7 @@ mod peers {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
                 manifest_hook: None,
+                overrides_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
                 auto_install_peers: false,
@@ -1650,7 +1674,7 @@ mod peers {
     /// occurrence is still resolved.
     #[tokio::test]
     async fn revisit_resolves_peer_in_one_occurrence_misses_in_other() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("zoo".to_string(), "1.0.0".to_string()),
             fake_result(
@@ -1705,6 +1729,7 @@ mod peers {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
                 manifest_hook: None,
+                overrides_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
                 auto_install_peers: false,
@@ -1754,7 +1779,7 @@ mod peers {
     // stub resolver in tests.
     #[tokio::test]
     async fn two_peer_chains_resolve_against_their_own_sibling() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("foo-a".to_string(), "1.0.0".to_string()),
             fake_result(
@@ -1809,6 +1834,7 @@ mod peers {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
                 manifest_hook: None,
+                overrides_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
                 auto_install_peers: false,
@@ -1836,7 +1862,7 @@ mod peers {
     /// `PeerDependencyIssue` yet.
     #[tokio::test]
     async fn bad_peer_inside_subtree_records_resolved_from_parent() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("foo".to_string(), "1.0.0".to_string()),
             fake_result(
@@ -1876,6 +1902,7 @@ mod peers {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
                 manifest_hook: None,
+                overrides_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
                 auto_install_peers: false,
@@ -1897,18 +1924,18 @@ mod peers {
         assert_eq!(bad[0].wanted_range, "10.0.0");
     }
 
-    /// A child whose first walk had no manifest (`result.manifest ==
-    /// None` — the shape git / tarball / local resolvers return when
-    /// the registry response carries no manifest body) must keep the
-    /// non-leaf classification the eager walk picked when it's reached
-    /// again through a lazy revisit. Regression for the manifest-less
-    /// divergence between `pkg_is_leaf` and the inferred
-    /// `children_by_id.is_empty()` check the lazy realizer used before
-    /// `ResolvedPackage::is_leaf` was persisted.
+    /// A child that declares only peer dependencies is non-leaf while
+    /// its `children_by_id` entry stays empty — peers are hoisted to the
+    /// importer rather than walked as edges. It must keep the non-leaf
+    /// classification the eager walk picked when it's reached again
+    /// through a lazy revisit. Regression for the divergence between
+    /// `pkg_is_leaf` and the inferred `children_by_id.is_empty()` check
+    /// the lazy realizer used before `ResolvedPackage::is_leaf` was
+    /// persisted.
     #[tokio::test]
-    async fn revisit_with_no_manifest_child_keeps_per_occurrence_node_id() {
+    async fn revisit_with_peer_only_child_keeps_per_occurrence_node_id() {
         use crate::node_id::NodeId;
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         // Two siblings that both depend on `parent`, so `parent` is
         // walked once eagerly and revisited via the second sibling
         // (the revisit goes through the lazy children path).
@@ -1947,25 +1974,27 @@ mod peers {
                 serde_json::json!({
                     "name": "parent",
                     "version": "1.0.0",
-                    "dependencies": { "manifestless": "^1.0.0" },
+                    "dependencies": { "peer-only": "^1.0.0" },
                     "peerDependencies": { "peer": "^1.0.0" }
                 }),
             ),
         );
-        // `manifestless` resolves without a manifest body. Without
-        // persistence, the lazy realizer would misclassify this as a
-        // leaf (children_by_id entry is empty AND peer_dependencies
-        // is empty) and collapse the revisit onto `NodeId::Leaf`.
-        let manifestless = {
-            let mut result = fake_result(
-                "manifestless",
+        // `peer-only` declares a peer and nothing else, so its
+        // `children_by_id` entry stays empty. Without persistence, the
+        // lazy realizer would read that emptiness as leaf-ness and
+        // collapse the revisit onto `NodeId::Leaf`.
+        table.insert(
+            ("peer-only".to_string(), "^1.0.0".to_string()),
+            fake_result(
+                "peer-only",
                 "1.0.0",
-                serde_json::json!({ "name": "manifestless", "version": "1.0.0" }),
-            );
-            result.manifest = None;
-            result
-        };
-        table.insert(("manifestless".to_string(), "^1.0.0".to_string()), manifestless);
+                serde_json::json!({
+                    "name": "peer-only",
+                    "version": "1.0.0",
+                    "peerDependencies": { "peer": "^1.0.0" }
+                }),
+            ),
+        );
         table.insert(
             ("peer".to_string(), "^1.0.0".to_string()),
             fake_result("peer", "1.0.0", serde_json::json!({ "name": "peer", "version": "1.0.0" })),
@@ -1985,6 +2014,7 @@ mod peers {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
                 manifest_hook: None,
+                overrides_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
                 auto_install_peers: false,
@@ -1994,34 +2024,31 @@ mod peers {
         .unwrap();
 
         // First-walk classification must be non-leaf — `pkg_is_leaf`
-        // returns false when the manifest is None.
+        // counts a declared peer as a child.
         assert!(
-            !tree.packages.get("manifestless@1.0.0").expect("manifestless resolved").is_leaf,
-            "manifest-less packages must keep is_leaf=false (eager walker contract)",
+            !tree.packages.get("peer-only@1.0.0").expect("peer-only resolved").is_leaf,
+            "a package declaring a peer must keep is_leaf=false (eager walker contract)",
         );
 
         resolve_peers(&mut tree, ResolvePeersOptions::default());
 
-        // After lazy realization, every occurrence of `manifestless`
-        // must use a Counter NodeId — the same shape the eager walker
+        // After lazy realization, every occurrence of `peer-only` must
+        // use a Counter NodeId — the same shape the eager walker
         // assigned on first visit. A `Leaf` NodeId here would mean
         // `realize_children` misclassified the package and collapsed
         // distinct occurrences, breaking per-call-site state for any
         // future visitor that descends through it.
-        let manifestless_node_ids: Vec<&NodeId> = tree
+        let peer_only_node_ids: Vec<&NodeId> = tree
             .dependencies_tree
             .iter()
-            .filter(|(_, node)| node.resolved_package_id == "manifestless@1.0.0")
+            .filter(|(_, node)| node.resolved_package_id == "peer-only@1.0.0")
             .map(|(id, _)| id)
             .collect();
-        assert!(
-            !manifestless_node_ids.is_empty(),
-            "expected at least one tree entry for manifestless",
-        );
-        for id in &manifestless_node_ids {
+        assert!(!peer_only_node_ids.is_empty(), "expected at least one tree entry for peer-only");
+        for id in &peer_only_node_ids {
             assert!(
                 matches!(id, NodeId::Counter(_)),
-                "manifest-less child must use Counter NodeId in every occurrence, got {id:?}",
+                "a peer-declaring child must use Counter NodeId in every occurrence, got {id:?}",
             );
         }
     }
@@ -2036,7 +2063,7 @@ mod peers {
     #[tokio::test]
     async fn pure_revisit_leaves_lazy_children_unrealized() {
         use crate::resolved_tree::TreeChildren;
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("p1".to_string(), "^1.0.0".to_string()),
             fake_result(
@@ -2095,6 +2122,7 @@ mod peers {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
                 manifest_hook: None,
+                overrides_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
                 auto_install_peers: false,
@@ -2148,7 +2176,7 @@ mod peers {
         use pacquet_resolving_resolver_base::PkgResolutionId;
 
         let link_id = "link:/abs/external";
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("abc".to_string(), "1.0.0".to_string()),
             fake_result(
@@ -2197,6 +2225,7 @@ mod peers {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
                 manifest_hook: None,
+                overrides_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
                 auto_install_peers: false,
@@ -2270,7 +2299,7 @@ mod patched_dependencies {
 
     #[tokio::test]
     async fn appends_patch_hash_to_pkg_id_and_records_applied_key() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("foo".to_string(), "^1.0.0".to_string()),
             fake_result("foo", "1.0.0", serde_json::json!({ "name": "foo", "version": "1.0.0" })),
@@ -2289,6 +2318,7 @@ mod patched_dependencies {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: Some(Arc::new(groups)),
                 manifest_hook: None,
+                overrides_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
                 auto_install_peers: false,
@@ -2311,7 +2341,7 @@ mod patched_dependencies {
 
     #[tokio::test]
     async fn range_match_applies_patch_and_records_user_key() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("foo".to_string(), "^1.0.0".to_string()),
             fake_result("foo", "1.2.0", serde_json::json!({ "name": "foo", "version": "1.2.0" })),
@@ -2337,6 +2367,7 @@ mod patched_dependencies {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: Some(Arc::new(groups)),
                 manifest_hook: None,
+                overrides_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
                 auto_install_peers: false,
@@ -2351,7 +2382,7 @@ mod patched_dependencies {
 
     #[tokio::test]
     async fn unused_patch_leaves_ids_and_applied_set_alone() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("foo".to_string(), "^1.0.0".to_string()),
             fake_result("foo", "1.0.0", serde_json::json!({ "name": "foo", "version": "1.0.0" })),
@@ -2370,6 +2401,7 @@ mod patched_dependencies {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: Some(Arc::new(groups)),
                 manifest_hook: None,
+                overrides_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
                 auto_install_peers: false,
@@ -2384,7 +2416,7 @@ mod patched_dependencies {
 
     #[tokio::test]
     async fn ambiguous_range_match_fails_with_patch_key_conflict() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("foo".to_string(), "^1.0.0".to_string()),
             fake_result("foo", "1.2.0", serde_json::json!({ "name": "foo", "version": "1.2.0" })),
@@ -2420,6 +2452,7 @@ mod patched_dependencies {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: Some(Arc::new(groups)),
                 manifest_hook: None,
+                overrides_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
                 auto_install_peers: false,
@@ -2464,7 +2497,7 @@ mod optional_propagation {
 
     #[tokio::test]
     async fn direct_optional_dep_seeds_resolved_package_optional_true() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("opt".to_string(), "^1.0.0".to_string()),
             fake_result("opt", "1.0.0", serde_json::json!({ "name": "opt", "version": "1.0.0" })),
@@ -2491,6 +2524,7 @@ mod optional_propagation {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
                 manifest_hook: None,
+                overrides_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
                 auto_install_peers: false,
@@ -2511,7 +2545,7 @@ mod optional_propagation {
 
     #[tokio::test]
     async fn transitive_dep_under_optional_inherits_optional_true() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("opt".to_string(), "^1.0.0".to_string()),
             fake_result(
@@ -2544,6 +2578,7 @@ mod optional_propagation {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
                 manifest_hook: None,
+                overrides_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
                 auto_install_peers: false,
@@ -2560,7 +2595,7 @@ mod optional_propagation {
 
     #[tokio::test]
     async fn shared_dep_via_non_optional_and_optional_paths_keeps_optional_false() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("opt".to_string(), "^1.0.0".to_string()),
             fake_result(
@@ -2607,6 +2642,7 @@ mod optional_propagation {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
                 manifest_hook: None,
+                overrides_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
                 auto_install_peers: false,
@@ -2624,7 +2660,7 @@ mod optional_propagation {
 
     #[tokio::test]
     async fn manifest_level_optional_dependencies_edge_propagates_to_child() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("regular".to_string(), "^1.0.0".to_string()),
             fake_result(
@@ -2657,6 +2693,7 @@ mod optional_propagation {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
                 manifest_hook: None,
+                overrides_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
                 auto_install_peers: false,
@@ -2672,6 +2709,64 @@ mod optional_propagation {
         assert!(
             tree.packages.get("transitive@1.0.0").expect("transitive resolved").optional,
             "child reached only via a parent's optionalDependencies edge is optional",
+        );
+    }
+
+    /// npm merges `optionalDependencies` into `dependencies` at publish
+    /// time, so a registry manifest lists the same child in both maps.
+    #[tokio::test]
+    async fn dep_listed_in_both_manifest_groups_yields_one_optional_edge() {
+        let mut table = HashMap::default();
+        table.insert(
+            ("regular".to_string(), "^1.0.0".to_string()),
+            fake_result(
+                "regular",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "regular",
+                    "version": "1.0.0",
+                    "dependencies": { "plat": "^1.0.0" },
+                    "optionalDependencies": { "plat": "^2.0.0" }
+                }),
+            ),
+        );
+        // Only the `dependencies` range resolves: a merge that kept the
+        // `optionalDependencies` range would miss the table and drop the
+        // edge as an optional resolution failure.
+        table.insert(
+            ("plat".to_string(), "^1.0.0".to_string()),
+            fake_result("plat", "1.0.0", serde_json::json!({ "name": "plat", "version": "1.0.0" })),
+        );
+        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let (_tmp, manifest) =
+            manifest_with_groups(serde_json::json!({ "regular": "^1.0.0" }), serde_json::json!({}));
+
+        let tree = resolve_dependency_tree(
+            &resolver,
+            &manifest,
+            [DependencyGroup::Prod, DependencyGroup::Optional],
+            ResolveDependencyTreeOptions {
+                base_opts: ResolveOptions::default(),
+                patched_dependencies: None,
+                manifest_hook: None,
+                overrides_hook: None,
+                pnpmfile_hook: None,
+                read_package_log: None,
+                auto_install_peers: false,
+            },
+        )
+        .await
+        .unwrap();
+
+        assert!(
+            tree.packages.get("plat@1.0.0").expect("plat resolved").optional,
+            "the merged edge carries optional: true",
+        );
+        let plat_calls =
+            resolver.calls.lock().unwrap().iter().filter(|(alias, _)| alias == "plat").count();
+        assert_eq!(
+            plat_calls, 1,
+            "one merged edge resolves once; a duplicate non-optional edge would resolve again and defeat the optional-edge gates (e.g. the unsupported-platform prefetch skip)",
         );
     }
 }
@@ -2760,6 +2855,27 @@ mod importer_wanted_specs {
         .unwrap();
         assert_eq!(wanted, vec![("foo".to_string(), "^2.0.0".to_string(), true, false)]);
     }
+
+    /// Matches `filterDependenciesByType` in `@pnpm/pkg-manifest.utils`
+    /// (`{...dev, ...prod, ...optional}`): the regular range wins. The dev
+    /// range winning instead records an importer entry whose resolved
+    /// version can't satisfy the `dependencies` specifier, permanently
+    /// failing the prefer-frozen freshness check.
+    #[test]
+    fn regular_dep_range_wins_over_dev_range_of_same_alias() {
+        let (_tmp, manifest) = manifest_with(serde_json::json!({
+            "dependencies": { "foo": "1.0.0" },
+            "devDependencies": { "foo": "2.0.0" },
+        }));
+        let wanted = importer_direct_wanted_specs(
+            &manifest,
+            ALL_GROUPS,
+            false,
+            &pacquet_catalogs_types::Catalogs::new(),
+        )
+        .unwrap();
+        assert_eq!(wanted, vec![("foo".to_string(), "1.0.0".to_string(), false, false)]);
+    }
 }
 
 mod peer_own_dep_shadowing {
@@ -2773,6 +2889,7 @@ mod peer_own_dep_shadowing {
             base_opts: ResolveOptions::default(),
             patched_dependencies: None,
             manifest_hook: None,
+            overrides_hook: None,
             pnpmfile_hook: None,
             read_package_log: None,
             auto_install_peers,
@@ -2780,7 +2897,7 @@ mod peer_own_dep_shadowing {
     }
 
     fn parser_table() -> HashMap<(String, String), pacquet_resolving_resolver_base::ResolveResult> {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("parser".to_string(), "^1.0.0".to_string()),
             fake_result(
@@ -2800,6 +2917,22 @@ mod peer_own_dep_shadowing {
                 "types",
                 "1.0.0",
                 serde_json::json!({ "name": "types", "version": "1.0.0" }),
+            ),
+        );
+        table
+    }
+
+    /// [`parser_table`] plus the higher `types` an importer can hold as
+    /// a direct dependency of its own.
+    fn shadowing_table() -> HashMap<(String, String), pacquet_resolving_resolver_base::ResolveResult>
+    {
+        let mut table = parser_table();
+        table.insert(
+            ("types".to_string(), "^2.0.0".to_string()),
+            fake_result(
+                "types",
+                "2.0.0",
+                serde_json::json!({ "name": "types", "version": "2.0.0" }),
             ),
         );
         table
@@ -2844,9 +2977,72 @@ mod peer_own_dep_shadowing {
         assert!(tree.packages.contains_key("types@1.0.0"), "the own dependency is walked");
     }
 
+    /// `types` is a direct dependency of the importer, so it is in
+    /// `parser`'s parent scope and the peer edge resolves against it
+    /// instead of `parser` nesting its own copy — pnpm's
+    /// `parentPkgAliases` arm of the omission, which applies with
+    /// `autoInstallPeers` off.
+    #[tokio::test]
+    async fn a_peer_in_the_parent_scope_shadows_the_own_dep() {
+        let resolver = StubResolver { table: shadowing_table(), calls: Mutex::new(Vec::new()) };
+        let (_tmp, manifest) =
+            fake_manifest(serde_json::json!({ "parser": "^1.0.0", "types": "^2.0.0" }));
+
+        let tree =
+            resolve_dependency_tree(&resolver, &manifest, [DependencyGroup::Prod], opts(false))
+                .await
+                .unwrap();
+
+        let parser = tree.packages.get("parser@1.0.0").expect("parser resolved");
+        assert!(
+            parser.peer_dependencies.contains_key("types"),
+            "the peer survives when the parent scope already supplies the name",
+        );
+        assert!(
+            !tree.packages.contains_key("types@1.0.0"),
+            "the shadowed own dependency is not walked as a child",
+        );
+        assert!(tree.packages.contains_key("types@2.0.0"), "the parent's copy is the one resolved");
+    }
+
+    /// The scope accumulates level by level: `types` is the importer's
+    /// direct dependency and `parser` sits two levels below it.
+    #[tokio::test]
+    async fn the_parent_scope_reaches_every_level_below_it() {
+        let mut table = shadowing_table();
+        table.insert(
+            ("wrapper".to_string(), "^1.0.0".to_string()),
+            fake_result(
+                "wrapper",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "wrapper",
+                    "version": "1.0.0",
+                    "dependencies": { "parser": "^1.0.0" },
+                }),
+            ),
+        );
+        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let (_tmp, manifest) =
+            fake_manifest(serde_json::json!({ "wrapper": "^1.0.0", "types": "^2.0.0" }));
+
+        let tree =
+            resolve_dependency_tree(&resolver, &manifest, [DependencyGroup::Prod], opts(false))
+                .await
+                .unwrap();
+
+        let parser = tree.packages.get("parser@1.0.0").expect("parser resolved");
+        assert!(parser.peer_dependencies.contains_key("types"));
+        assert!(!tree.packages.contains_key("types@1.0.0"));
+        assert!(
+            tree.packages.contains_key("types@2.0.0"),
+            "the importer's copy is the one resolved",
+        );
+    }
+
     #[tokio::test]
     async fn non_optional_meta_only_entry_is_not_a_peer() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("pkg".to_string(), "^1.0.0".to_string()),
             fake_result(
@@ -2931,7 +3127,7 @@ mod level_preferred_versions {
 
     #[tokio::test]
     async fn child_resolution_prefers_parent_level_sibling_versions() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("parent".to_string(), "1.0.0".to_string()),
             fake_result(
@@ -2966,7 +3162,8 @@ mod level_preferred_versions {
                 ),
             );
         }
-        let resolver = OverlayRecordingResolver { table, seen_overlay: Mutex::new(HashMap::new()) };
+        let resolver =
+            OverlayRecordingResolver { table, seen_overlay: Mutex::new(HashMap::default()) };
         let (_tmp, manifest) = fake_manifest(serde_json::json!({ "parent": "1.0.0" }));
 
         resolve_dependency_tree(
@@ -2977,6 +3174,7 @@ mod level_preferred_versions {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
                 manifest_hook: None,
+                overrides_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
                 auto_install_peers: false,
@@ -3000,7 +3198,7 @@ mod level_preferred_versions {
 
     #[tokio::test]
     async fn npm_alias_child_consults_overlay_by_inner_name() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("parent".to_string(), "1.0.0".to_string()),
             fake_result(
@@ -3041,7 +3239,8 @@ mod level_preferred_versions {
                 serde_json::json!({ "name": "pinned", "version": "5.0.0" }),
             ),
         );
-        let resolver = OverlayRecordingResolver { table, seen_overlay: Mutex::new(HashMap::new()) };
+        let resolver =
+            OverlayRecordingResolver { table, seen_overlay: Mutex::new(HashMap::default()) };
         let (_tmp, manifest) = fake_manifest(serde_json::json!({ "parent": "1.0.0" }));
 
         resolve_dependency_tree(
@@ -3052,6 +3251,7 @@ mod level_preferred_versions {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
                 manifest_hook: None,
+                overrides_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
                 auto_install_peers: false,
@@ -3082,7 +3282,7 @@ mod cycle_edges {
     /// are restored via the previously-resolved-children merge).
     #[tokio::test]
     async fn cycle_closing_edge_reaches_the_graph() {
-        let mut table = HashMap::new();
+        let mut table = HashMap::default();
         table.insert(
             ("a".to_string(), "1.0.0".to_string()),
             fake_result(
@@ -3118,6 +3318,7 @@ mod cycle_edges {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
                 manifest_hook: None,
+                overrides_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
                 auto_install_peers: false,
@@ -3195,7 +3396,7 @@ async fn read_package_hook_receives_the_directory_of_directory_resolutions() {
     injected.resolution = LockfileResolution::Directory(DirectoryResolution {
         directory: "packages/injected".to_string(),
     });
-    let mut table = HashMap::new();
+    let mut table = HashMap::default();
     table.insert(("injected".to_string(), "file:packages/injected".to_string()), injected);
     table.insert(
         ("regular".to_string(), "^2.0.0".to_string()),
@@ -3221,6 +3422,7 @@ async fn read_package_hook_receives_the_directory_of_directory_resolutions() {
             base_opts: ResolveOptions::default(),
             patched_dependencies: None,
             manifest_hook: None,
+            overrides_hook: None,
             pnpmfile_hook: Some(std::sync::Arc::new(hooks)),
             read_package_log: None,
             auto_install_peers: false,
@@ -3237,5 +3439,111 @@ async fn read_package_hook_receives_the_directory_of_directory_resolutions() {
             ("injected".to_string(), Some("packages/injected".to_string())),
             ("regular".to_string(), None),
         ],
+    );
+}
+
+/// [`pacquet_hooks::PnpmfileHooks`] stub whose `readPackage` replaces every
+/// manifest wholesale, the way an embedder substitutes a workspace project's
+/// raw manifest.
+struct ReplacingHook {
+    replacement: serde_json::Value,
+}
+
+#[async_trait::async_trait]
+impl pacquet_hooks::PnpmfileHooks for ReplacingHook {
+    async fn read_package(
+        &self,
+        _pkg: serde_json::Value,
+        _ctx: pacquet_hooks::HookContext,
+    ) -> Result<pacquet_hooks::ReadPackageResult, pacquet_hooks::HookError> {
+        Ok(std::sync::Arc::new(self.replacement.clone()))
+    }
+
+    async fn after_all_resolved(
+        &self,
+        _lockfile: serde_json::Value,
+        _ctx: pacquet_hooks::HookContext,
+    ) -> Result<serde_json::Value, pacquet_hooks::HookError> {
+        Ok(serde_json::Value::Null)
+    }
+
+    async fn pre_resolution(
+        &self,
+        _ctx: pacquet_hooks::PreResolutionHookContext,
+        _logger: pacquet_hooks::PreResolutionHookLogger,
+    ) {
+    }
+
+    async fn filter_log(&self, _log: serde_json::Value, _ctx: pacquet_hooks::HookContext) -> bool {
+        true
+    }
+}
+
+/// pnpm's `createReadPackageHook` order is packageExtensions → readPackage
+/// hooks → overrides: a pnpmfile hook that replaces the manifest must not
+/// erase the overrides. Here the hook replaces foo's manifest (bar pinned to
+/// ^2.0.0) and the overrides hook rewrites bar to ^3.0.0 — the resolved edge
+/// must follow the override.
+#[tokio::test]
+async fn overrides_hook_applies_after_the_pnpmfile_hook() {
+    let mut table = HashMap::default();
+    table.insert(
+        ("foo".to_string(), "^1.0.0".to_string()),
+        fake_result(
+            "foo",
+            "1.2.0",
+            serde_json::json!({
+                "name": "foo",
+                "version": "1.2.0",
+                "dependencies": { "bar": "^1.0.0" }
+            }),
+        ),
+    );
+    table.insert(
+        ("bar".to_string(), "^3.0.0".to_string()),
+        fake_result("bar", "3.1.0", serde_json::json!({ "name": "bar", "version": "3.1.0" })),
+    );
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": "^1.0.0" }));
+
+    let replacing_hook = ReplacingHook {
+        replacement: serde_json::json!({
+            "name": "foo",
+            "version": "1.2.0",
+            "dependencies": { "bar": "^2.0.0" }
+        }),
+    };
+    let overrides_hook: crate::ManifestHook = std::sync::Arc::new(|manifest| {
+        let mut owned = (*manifest).clone();
+        if let Some(deps) = owned.get_mut("dependencies").and_then(serde_json::Value::as_object_mut)
+            && deps.contains_key("bar")
+        {
+            deps.insert("bar".to_string(), serde_json::Value::String("^3.0.0".to_string()));
+        }
+        std::sync::Arc::new(owned)
+    });
+
+    let tree = resolve_dependency_tree(
+        &resolver,
+        &manifest,
+        [DependencyGroup::Prod],
+        ResolveDependencyTreeOptions {
+            base_opts: ResolveOptions::default(),
+            patched_dependencies: None,
+            manifest_hook: None,
+            overrides_hook: Some(overrides_hook),
+            pnpmfile_hook: Some(std::sync::Arc::new(replacing_hook)),
+            read_package_log: None,
+            auto_install_peers: false,
+        },
+    )
+    .await
+    .unwrap();
+
+    assert!(tree.packages.contains_key("bar@3.1.0"), "override must win over the hook");
+    let calls = resolver.calls.lock().unwrap().clone();
+    assert!(
+        calls.contains(&("bar".to_string(), "^3.0.0".to_string())),
+        "bar must be resolved with the overridden range, got: {calls:?}",
     );
 }

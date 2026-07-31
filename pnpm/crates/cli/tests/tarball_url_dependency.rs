@@ -223,3 +223,210 @@ fn remote_tarball_reresolves_from_warm_store_without_refetch() {
 
     drop((root, mock_instance));
 }
+
+/// A `packages:` entry whose tarball resolution records no
+/// `integrity` is refused for a plain remote tarball: the bytes come
+/// off the network and nothing in the lockfile pins them. pnpm fails
+/// the same entry closed
+/// ([#13308](https://github.com/pnpm/pnpm/issues/13308)).
+///
+/// The refusal comes from the lockfile-verification gate, which batches
+/// every offending entry into one error before anything is fetched —
+/// not from the per-entry fetch-path backstop
+/// (`tarball_url_and_integrity`), which only speaks up for entries that
+/// reach a fetch without having passed the gate
+/// ([#13364](https://github.com/pnpm/pnpm/issues/13364)). The
+/// zero-request expectation on the re-armed tarball mocks is what pins
+/// "before anything is fetched": a refusal that only came from the fetch
+/// path would have downloaded the bytes first.
+///
+/// Git-host archive URLs are the exemption — they are what older pnpm
+/// versions wrote without an `integrity` — and that shape is covered
+/// by `unverified_fetch_is_allowed`'s unit tests, since no local
+/// server can answer for a git host.
+#[test]
+fn frozen_install_refuses_a_remote_tarball_without_integrity() {
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let tarball_path = "/pkg-from-tarball-1.0.0.tgz";
+    let mut tarball_server = mockito::Server::new();
+    let head_mock = tarball_server.mock("HEAD", tarball_path).with_status(200).create();
+    let get_mock = tarball_server
+        .mock("GET", tarball_path)
+        .with_status(200)
+        .with_body(minimal_tarball("pkg-from-tarball", "1.0.0"))
+        .create();
+    let tarball_url = format!("{}{tarball_path}", tarball_server.url());
+    let package_key = format!("pkg-from-tarball@{tarball_url}");
+    let manifest_path = workspace.join("package.json");
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+
+    fs::write(
+        &manifest_path,
+        serde_json::json!({ "dependencies": { "pkg-from-tarball": &tarball_url } }).to_string(),
+    )
+    .expect("write package.json");
+    pacquet_at(&workspace).with_arg("install").assert().success();
+
+    let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
+    let integrity = package_integrity(&lockfile, &package_key).unwrap_or_else(|| {
+        panic!("the fresh install must record an integrity for the tarball dep:\n{lockfile}")
+    });
+    let stripped = lockfile.replace(&format!("integrity: {integrity}, "), "");
+    assert!(
+        package_integrity(&stripped, &package_key).is_none(),
+        "the fixture must end up without an integrity:\n{stripped}",
+    );
+    fs::write(&lockfile_path, &stripped).expect("write pnpm-lock.yaml");
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+
+    // Re-arm the same endpoints with a zero-request expectation, so the
+    // frozen install below has to fail *before* fetching: the mocks still
+    // answer, and answering is what the assertion catches.
+    drop((head_mock, get_mock));
+    let head_mock = tarball_server.mock("HEAD", tarball_path).with_status(200).expect(0).create();
+    let get_mock = tarball_server
+        .mock("GET", tarball_path)
+        .with_status(200)
+        .with_body(minimal_tarball("pkg-from-tarball", "1.0.0"))
+        .expect(0)
+        .create();
+
+    let output = pacquet_at(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .failure()
+        .get_output()
+        .clone();
+    let stderr = String::from_utf8(output.stderr).expect("stderr is UTF-8");
+    // miette wraps the rendered message to the terminal width, so the
+    // sentences are matched against a single-spaced rendering.
+    let unwrapped = stderr.split_whitespace().collect::<Vec<_>>().join(" ");
+    assert!(
+        unwrapped.contains("ERR_PNPM_MISSING_TARBALL_INTEGRITY")
+            && unwrapped.contains("1 lockfile entries failed verification")
+            && unwrapped.contains(
+                r#"has no "integrity" field, so its downloaded tarball cannot be verified"#
+            )
+            && unwrapped.contains(r#"run "pnpm clean --lockfile""#),
+        "the verification gate must name the error code, the entry, and the way out; got:\n{stderr}",
+    );
+    head_mock.assert();
+    get_mock.assert();
+
+    drop((root, mock_instance, tarball_server));
+}
+
+/// A remote tarball lands in the store index under exactly one row, keyed
+/// by the bare URL — the `pkgId` the TypeScript CLI writes, so a store
+/// warmed by one stack stays warm for the other
+/// ([#13365](https://github.com/pnpm/pnpm/issues/13365)).
+///
+/// One row, not two: the resolve-time fetch and the install pass address
+/// the same key, so a tarball costs one index entry and one extraction.
+#[test]
+fn a_remote_tarball_is_indexed_once_under_the_bare_url() {
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let store_dir = pacquet_store_dir::StoreDir::from(npmrc_info.store_dir.clone());
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let tarball_path = "/pkg-from-tarball-1.0.0.tgz";
+    let mut tarball_server = mockito::Server::new();
+    let head_mock = tarball_server.mock("HEAD", tarball_path).with_status(200).create();
+    let get_mock = tarball_server
+        .mock("GET", tarball_path)
+        .with_status(200)
+        .with_body(minimal_tarball("pkg-from-tarball", "1.0.0"))
+        .create();
+    let tarball_url = format!("{}{tarball_path}", tarball_server.url());
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "pkg-from-tarball": &tarball_url } }).to_string(),
+    )
+    .expect("write package.json");
+    pacquet_at(&workspace).with_arg("install").assert().success();
+
+    let keys = pacquet_store_dir::StoreIndex::open_readonly_in(&store_dir)
+        .expect("open the store index")
+        .keys()
+        .expect("read the store index keys");
+    let rows: Vec<&String> =
+        keys.iter().filter(|key| key.contains("pkg-from-tarball")).collect::<Vec<_>>();
+    assert_eq!(rows.len(), 1, "one tarball dependency must occupy one store-index row: {keys:?}");
+    assert!(
+        rows[0].ends_with(&format!("\t{tarball_url}")),
+        "the store-index row must be keyed by the bare tarball URL: {:?}",
+        rows[0],
+    );
+
+    drop((head_mock, get_mock, root, mock_instance, tarball_server));
+}
+
+/// A tarball whose host answers the preflight with an immutable redirect
+/// is still reused from a warm store on re-resolution.
+///
+/// The lockfile records the *post-redirect* URL in `resolution.tarball`
+/// while the entry's `pkg_id` — its key, and the store-index row it
+/// lands at — stays the bare specifier the manifest asked for. A
+/// re-resolve looks the warm entry up by that specifier, before any
+/// preflight has revealed the redirect, so both sides have to agree on
+/// it. The proof is the same as
+/// [`remote_tarball_reresolves_from_warm_store_without_refetch`]: tear
+/// the host down, then re-resolve.
+#[test]
+fn remote_tarball_behind_an_immutable_redirect_reuses_the_warm_store() {
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let requested_path = "/pkg-from-tarball.tgz";
+    let canonical_path = "/cdn/pkg-from-tarball-1.0.0.tgz";
+    let mut tarball_server = mockito::Server::new();
+    let canonical_url = format!("{}{canonical_path}", tarball_server.url());
+    let redirect_mock = tarball_server
+        .mock("HEAD", requested_path)
+        .with_status(302)
+        .with_header("location", &canonical_url)
+        .create();
+    let head_mock = tarball_server
+        .mock("HEAD", canonical_path)
+        .with_status(200)
+        .with_header("cache-control", "immutable")
+        .create();
+    let get_mock = tarball_server
+        .mock("GET", canonical_path)
+        .with_status(200)
+        .with_body(minimal_tarball("pkg-from-tarball", "1.0.0"))
+        .create();
+    let requested_url = format!("{}{requested_path}", tarball_server.url());
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "pkg-from-tarball": &requested_url } }).to_string(),
+    )
+    .expect("write package.json");
+    pacquet_at(&workspace).with_arg("install").assert().success();
+
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read the lockfile");
+    assert!(
+        lockfile.contains(&canonical_url),
+        "the lockfile must record the post-redirect URL:\n{lockfile}",
+    );
+    let package_key = format!("pkg-from-tarball@{requested_url}");
+    package_integrity(&lockfile, &package_key).unwrap_or_else(|| {
+        panic!("the entry must be keyed by the requested URL and carry an integrity:\n{lockfile}")
+    });
+
+    drop((redirect_mock, head_mock, get_mock, tarball_server));
+
+    pacquet_at(&workspace).with_arg("update").assert().success();
+
+    let after = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read the lockfile");
+    assert_eq!(after, lockfile, "a warm re-resolve must not rewrite the entry");
+
+    drop((root, mock_instance));
+}

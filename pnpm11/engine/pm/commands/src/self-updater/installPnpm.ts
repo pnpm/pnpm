@@ -185,7 +185,10 @@ function findPnpmGvsPath (
   const graph = lockfileToDepGraph(lockfile)
   const pkgMetaIterator = iteratePkgMeta(lockfile, graph)
   const allowBuild = createAllowBuildFunction({ allowBuilds })
-  for (const { hash, pkgMeta } of iterateHashedGraphNodes(graph, pkgMetaIterator, allowBuild)) {
+  // No `lockfileDir`: this lockfile only ever holds the pnpm package and its
+  // registry dependencies, and the install that materializes the slot runs from
+  // a throwaway directory that differs on every self-update.
+  for (const { hash, pkgMeta } of iterateHashedGraphNodes(graph, pkgMetaIterator, { allowBuild })) {
     if (pkgMeta.name === pkgName) {
       return path.join(globalVirtualStoreDir, hash)
     }

@@ -27,8 +27,32 @@ pub struct LockfileSettingsCheck<'a> {
     pub package_extensions_checksum: Option<&'a str>,
     pub ignored_optional_dependencies: Option<&'a [String]>,
     pub patched_dependencies: Option<&'a BTreeMap<String, String>>,
+    pub auto_install_peers: bool,
+    pub dedupe_peers: bool,
+    pub exclude_links_from_lockfile: bool,
     pub inject_workspace_packages: bool,
     pub peers_suffix_max_length: u64,
+    pub pnpmfile_checksum: PnpmfileChecksumCheck<'a>,
+}
+
+/// What [`check_lockfile_settings`] compares the lockfile's
+/// `pnpmfileChecksum` against.
+///
+/// The value is not a plain config read: pnpm records a checksum only
+/// when a loaded pnpmfile exports a `hooks` object, so computing it can
+/// mean evaluating the pnpmfile. Callers that already know the
+/// pnpmfiles are unchanged — or that have no pnpmfile to speak of —
+/// say so with [`PnpmfileChecksumCheck::Skip`] instead of inventing a
+/// value, since passing `Current(None)` would fail every install in a
+/// project whose lockfile legitimately records one.
+#[derive(Clone, Copy)]
+pub enum PnpmfileChecksumCheck<'a> {
+    /// The checksum the current install would record: the hash of the
+    /// pnpmfiles that export hooks, `None` when none do.
+    Current(Option<&'a str>),
+
+    /// Leave `pnpmfileChecksum` uncompared.
+    Skip,
 }
 
 /// Why an importer's lockfile entry doesn't satisfy the on-disk
@@ -156,6 +180,91 @@ pub enum StalenessReason {
         lockfile: BTreeMap<String, String>,
         config: BTreeMap<String, String>,
     },
+
+    /// The lockfile's `settings.autoInstallPeers` differs from the
+    /// current install's `Config::auto_install_peers`. Only checked when
+    /// the lockfile records a `settings` block, which is the only place
+    /// the value it was written under is preserved.
+    #[display(
+        "`autoInstallPeers` in the lockfile ({lockfile}) doesn't match the current config ({config})"
+    )]
+    AutoInstallPeersChanged { lockfile: bool, config: bool },
+
+    /// The lockfile's `settings.dedupePeers` differs from the current
+    /// install's `Config::dedupe_peers`. The key is written only while
+    /// the setting is on, so both sides normalize to a boolean and an
+    /// absent key equals `false`.
+    #[display(
+        "`dedupePeers` in the lockfile ({lockfile}) doesn't match the current config ({config})"
+    )]
+    DedupePeersChanged { lockfile: bool, config: bool },
+
+    /// The lockfile's `settings.excludeLinksFromLockfile` differs from
+    /// the current install's `Config::exclude_links_from_lockfile`. The
+    /// setting decides whether `link:` deps are recorded at all, so a
+    /// flip invalidates every importer snapshot. Like
+    /// [`Self::AutoInstallPeersChanged`], only checked when the lockfile
+    /// records a `settings` block.
+    #[display(
+        "`excludeLinksFromLockfile` in the lockfile ({lockfile}) doesn't match the current config ({config})"
+    )]
+    ExcludeLinksFromLockfileChanged { lockfile: bool, config: bool },
+
+    /// The lockfile's `pnpmfileChecksum` doesn't match the checksum the
+    /// current install would record: a pnpmfile was added, edited, or
+    /// removed since the lockfile was written, so the manifests the
+    /// recorded resolution was built from are no longer the ones this
+    /// install would see. Both values are the prefixed `sha256-…`
+    /// strings, absent when no pnpmfile exports hooks.
+    #[display(
+        "`pnpmfileChecksum` in the lockfile ({lockfile:?}) doesn't match the current pnpmfile ({config:?})"
+    )]
+    PnpmfileChecksumChanged { lockfile: Option<String>, config: Option<String> },
+}
+
+impl StalenessReason {
+    /// The name of the drifted setting, or `None` when the drift is
+    /// between the lockfile and `package.json` rather than between the
+    /// lockfile and the configuration.
+    ///
+    /// pnpm reports the two classes differently: settings drift is an
+    /// `ERR_PNPM_LOCKFILE_CONFIG_MISMATCH` naming the field, manifest
+    /// drift an `ERR_PNPM_OUTDATED_LOCKFILE` spelling out the diff. The
+    /// names returned here are the ones pnpm's
+    /// `getOutdatedLockfileSetting` reports, so an error message quotes
+    /// the same field either stack produced it.
+    #[must_use]
+    pub fn setting_name(&self) -> Option<&'static str> {
+        match self {
+            StalenessReason::CatalogsChanged { .. } => Some("catalogs"),
+            StalenessReason::OverridesChanged { .. } => Some("overrides"),
+            StalenessReason::PackageExtensionsChecksumChanged { .. } => {
+                Some("packageExtensionsChecksum")
+            }
+            StalenessReason::IgnoredOptionalDependenciesChanged { .. } => {
+                Some("ignoredOptionalDependencies")
+            }
+            StalenessReason::PatchedDependenciesChanged { .. } => Some("patchedDependencies"),
+            StalenessReason::AutoInstallPeersChanged { .. } => Some("settings.autoInstallPeers"),
+            StalenessReason::DedupePeersChanged { .. } => Some("settings.dedupePeers"),
+            StalenessReason::ExcludeLinksFromLockfileChanged { .. } => {
+                Some("settings.excludeLinksFromLockfile")
+            }
+            StalenessReason::PeersSuffixMaxLengthChanged { .. } => {
+                Some("settings.peersSuffixMaxLength")
+            }
+            StalenessReason::PnpmfileChecksumChanged { .. } => Some("pnpmfileChecksum"),
+            StalenessReason::InjectWorkspacePackagesChanged { .. } => {
+                Some("settings.injectWorkspacePackages")
+            }
+            StalenessReason::NoImporter { .. }
+            | StalenessReason::SpecifiersDiffer(_)
+            | StalenessReason::PublishDirectoryMismatch { .. }
+            | StalenessReason::DependenciesMetaMismatch { .. }
+            | StalenessReason::DepSpecifierMismatch { .. }
+            | StalenessReason::ResolutionDoesNotSatisfy { .. } => None,
+        }
+    }
 }
 
 /// Per-bucket diff against the manifest's flat union of deps.
@@ -167,10 +276,18 @@ pub struct SpecDiff {
     pub added: BTreeMap<String, String>,
     pub removed: BTreeMap<String, String>,
     pub modified: BTreeMap<String, (String, String)>,
+    /// The lockfile importer the diff belongs to, when the caller
+    /// checked a specific importer. Rendered into the message so a
+    /// workspace-wide freshness failure names the project whose
+    /// manifest drifted instead of only the dependency.
+    pub importer_id: Option<String>,
 }
 
 impl std::fmt::Display for SpecDiff {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Some(importer_id) = &self.importer_id {
+            write!(f, "\n* in importers[{importer_id:?}]:")?;
+        }
         // Singular/plural matters here: the diff is rendered into
         // `ERR_PNPM_OUTDATED_LOCKFILE` CI output, which users see
         // and may quote in issues. "1 dependencies were added" reads
@@ -233,46 +350,21 @@ impl SpecDiff {
 }
 
 /// Verify that lockfile-level settings the install pipeline reads
-/// from `pnpm-workspace.yaml` haven't drifted since the lockfile
-/// was written. Today this covers `catalogs`, `overrides`,
-/// `packageExtensionsChecksum`, `ignoredOptionalDependencies`,
-/// `patchedDependencies`, and the relevant `settings.*` keys (umbrella
-/// [#434] slice 7); the variants below will grow as more settings land
-/// (`pnpmfileChecksum`, etc.).
+/// from `pnpm-workspace.yaml` haven't drifted since the lockfile was
+/// written: `catalogs`, `overrides`, `packageExtensionsChecksum`,
+/// `ignoredOptionalDependencies`, `patchedDependencies`,
+/// `pnpmfileChecksum`, and the relevant `settings.*` keys (umbrella
+/// [#434] slice 7).
 ///
 /// Drift in any of these settings would otherwise require a full
 /// resolution; pacquet has no resolver, so the matching action is to
-/// abort the frozen install with `OutdatedLockfile`. The check ordering
-/// is deterministic so the *first* drifted field is reported — which
-/// matters for tests and for CI logs that quote the reason verbatim.
+/// abort the frozen install with `OutdatedLockfile`. The fields are
+/// compared in the order pnpm's `getOutdatedLockfileSetting` compares
+/// them, because only the *first* drifted field is reported and both
+/// stacks must name the same one.
 ///
 /// [#434]: https://github.com/pnpm/pacquet/issues/434
 pub fn check_lockfile_settings(
-    lockfile: &Lockfile,
-    overrides: Option<&HashMap<String, String>>,
-    package_extensions_checksum: Option<&str>,
-    ignored_optional_dependencies: Option<&[String]>,
-    patched_dependencies: Option<&BTreeMap<String, String>>,
-    inject_workspace_packages: bool,
-    peers_suffix_max_length: u64,
-) -> Result<(), StalenessReason> {
-    check_lockfile_settings_with_catalogs(
-        lockfile,
-        LockfileSettingsCheck {
-            catalogs: &Catalogs::new(),
-            overrides,
-            package_extensions_checksum,
-            ignored_optional_dependencies,
-            patched_dependencies,
-            inject_workspace_packages,
-            peers_suffix_max_length,
-        },
-    )
-}
-
-/// Catalog-aware variant of [`check_lockfile_settings`] used by install paths
-/// that have already loaded `pnpm-workspace.yaml`.
-pub fn check_lockfile_settings_with_catalogs(
     lockfile: &Lockfile,
     check: LockfileSettingsCheck<'_>,
 ) -> Result<(), StalenessReason> {
@@ -282,8 +374,12 @@ pub fn check_lockfile_settings_with_catalogs(
         package_extensions_checksum,
         ignored_optional_dependencies,
         patched_dependencies,
+        auto_install_peers,
+        dedupe_peers,
+        exclude_links_from_lockfile,
         inject_workspace_packages,
         peers_suffix_max_length,
+        pnpmfile_checksum,
     } = check;
 
     if !all_catalogs_are_up_to_date(catalogs, lockfile.catalogs.as_ref()) {
@@ -340,12 +436,33 @@ pub fn check_lockfile_settings_with_catalogs(
         });
     }
 
-    let lockfile_inject =
-        lockfile.settings.as_ref().is_some_and(|settings| settings.inject_workspace_packages);
-    if lockfile_inject != inject_workspace_packages {
-        return Err(StalenessReason::InjectWorkspacePackagesChanged {
-            lockfile: lockfile_inject,
-            config: inject_workspace_packages,
+    // A lockfile with no `settings` block records nothing about the
+    // setting it was written under, so there is nothing to compare —
+    // pnpm's `lockfile.settings?.autoInstallPeers != null` guard.
+    if let Some(settings) = lockfile.settings.as_ref()
+        && settings.auto_install_peers != auto_install_peers
+    {
+        return Err(StalenessReason::AutoInstallPeersChanged {
+            lockfile: settings.auto_install_peers,
+            config: auto_install_peers,
+        });
+    }
+
+    let lockfile_dedupe_peers =
+        lockfile.settings.as_ref().and_then(|settings| settings.dedupe_peers).unwrap_or(false);
+    if lockfile_dedupe_peers != dedupe_peers {
+        return Err(StalenessReason::DedupePeersChanged {
+            lockfile: lockfile_dedupe_peers,
+            config: dedupe_peers,
+        });
+    }
+
+    if let Some(settings) = lockfile.settings.as_ref()
+        && settings.exclude_links_from_lockfile != exclude_links_from_lockfile
+    {
+        return Err(StalenessReason::ExcludeLinksFromLockfileChanged {
+            lockfile: settings.exclude_links_from_lockfile,
+            config: exclude_links_from_lockfile,
         });
     }
 
@@ -358,6 +475,24 @@ pub fn check_lockfile_settings_with_catalogs(
         return Err(StalenessReason::PeersSuffixMaxLengthChanged {
             lockfile: lockfile_peers_suffix_max_length,
             config: peers_suffix_max_length,
+        });
+    }
+
+    if let PnpmfileChecksumCheck::Current(pnpmfile_checksum) = pnpmfile_checksum
+        && lockfile.pnpmfile_checksum.as_deref() != pnpmfile_checksum
+    {
+        return Err(StalenessReason::PnpmfileChecksumChanged {
+            lockfile: lockfile.pnpmfile_checksum.clone(),
+            config: pnpmfile_checksum.map(str::to_string),
+        });
+    }
+
+    let lockfile_inject =
+        lockfile.settings.as_ref().is_some_and(|settings| settings.inject_workspace_packages);
+    if lockfile_inject != inject_workspace_packages {
+        return Err(StalenessReason::InjectWorkspacePackagesChanged {
+            lockfile: lockfile_inject,
+            config: inject_workspace_packages,
         });
     }
 

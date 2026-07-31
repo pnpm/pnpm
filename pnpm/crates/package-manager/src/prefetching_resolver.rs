@@ -324,7 +324,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
                 store_index_writer,
                 verify_store_integrity,
                 verified_files_cache,
-                package_integrity: &integrity,
+                package_integrity: Some(&integrity),
                 package_unpacked_size,
                 package_file_count,
                 package_url: &package_url,

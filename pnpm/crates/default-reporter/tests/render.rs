@@ -12,10 +12,11 @@ use pacquet_default_reporter::{
 use pacquet_reporter::{
     AddedRoot, ContextLog, DependencyType, DeprecationLog, ExecutionTimeLog, FetchingProgressLog,
     FetchingProgressMessage, GlobalLog, HookLog, LifecycleLog, LifecycleMessage, LifecycleStdio,
-    LogEvent, LogLevel, PackageImportMethod, PackageImportMethodLog, PackageManifestLog,
-    PackageManifestMessage, PnpmLog, ProgressLog, ProgressMessage, RootLog, RootMessage,
-    SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalParent,
-    SkippedOptionalReason, Stage, StageLog, StatsLog, StatsMessage, SummaryLog,
+    LockfileVerificationLog, LockfileVerificationMessage, LogEvent, LogLevel, PackageImportMethod,
+    PackageImportMethodLog, PackageManifestLog, PackageManifestMessage, PnpmLog, ProgressLog,
+    ProgressMessage, RootLog, RootMessage, ScopeLog, SkippedOptionalDependencyLog,
+    SkippedOptionalPackage, SkippedOptionalParent, SkippedOptionalReason, Stage, StageLog,
+    StatsLog, StatsMessage, SummaryLog,
 };
 
 const CWD: &str = "/repo";
@@ -114,6 +115,16 @@ fn added_root(name: &str, version: &str, dt: DependencyType) -> LogEvent {
 }
 
 fn added_root_at(prefix: &str, name: &str, version: &str, dt: DependencyType) -> LogEvent {
+    added_root_with_latest_at(prefix, name, version, None, dt)
+}
+
+fn added_root_with_latest_at(
+    prefix: &str,
+    name: &str,
+    version: &str,
+    latest: Option<&str>,
+    dt: DependencyType,
+) -> LogEvent {
     LogEvent::Root(RootLog {
         level: LogLevel::Debug,
         message: RootMessage::Added {
@@ -124,7 +135,7 @@ fn added_root_at(prefix: &str, name: &str, version: &str, dt: DependencyType) ->
                 version: Some(version.to_string()),
                 dependency_type: Some(dt),
                 id: None,
-                latest: None,
+                latest: latest.map(str::to_string),
                 linked_from: None,
             },
         },
@@ -465,6 +476,64 @@ fn summary_groups_by_dependency_type_in_order() {
 }
 
 #[test]
+fn summary_prints_is_available_when_latest_is_newer_than_version() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![
+            added_root_with_latest_at(CWD, "foo", "1.0.0", Some("2.0.0"), DependencyType::Prod),
+            summary(),
+        ],
+    );
+    assert_eq!(frame, "\ndependencies:\n+ foo 1.0.0 (2.0.0 is available)\n");
+}
+
+#[test]
+fn summary_omits_is_available_when_latest_equals_version() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![
+            added_root_with_latest_at(CWD, "foo", "3.9.5", Some("3.9.5"), DependencyType::Prod),
+            summary(),
+        ],
+    );
+    assert_eq!(frame, "\ndependencies:\n+ foo 3.9.5\n");
+}
+
+#[test]
+fn summary_omits_is_available_when_latest_is_older_than_version() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![
+            added_root_with_latest_at(CWD, "foo", "2.0.0", Some("1.0.0"), DependencyType::Prod),
+            summary(),
+        ],
+    );
+    assert_eq!(frame, "\ndependencies:\n+ foo 2.0.0\n");
+}
+
+#[test]
+fn summary_omits_is_available_when_latest_is_not_semver() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![
+            added_root_with_latest_at(
+                CWD,
+                "foo",
+                "1.0.0",
+                Some("not-a-version"),
+                DependencyType::Prod,
+            ),
+            summary(),
+        ],
+    );
+    assert_eq!(frame, "\ndependencies:\n+ foo 1.0.0\n");
+}
+
+#[test]
 fn summary_ignores_root_events_outside_current_prefix() {
     let mut reporter = state(false);
     let frame = render(
@@ -637,6 +706,137 @@ fn already_up_to_date_pnpm_log_renders() {
             message: "Already up to date".to_string(),
             prefix: CWD.to_string(),
         })],
+    );
+    assert_eq!(frame, "Already up to date");
+}
+
+#[test]
+fn lockfile_policy_verdict_precedes_the_frozen_install_message() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![
+            LogEvent::Pnpm(PnpmLog {
+                level: LogLevel::Info,
+                message: "Lockfile is up to date, resolution step is skipped".to_string(),
+                prefix: CWD.to_string(),
+            }),
+            LogEvent::Stage(StageLog {
+                level: LogLevel::Debug,
+                prefix: CWD.to_string(),
+                stage: Stage::ImportingDone,
+            }),
+            LogEvent::LockfileVerification(LockfileVerificationLog {
+                level: LogLevel::Debug,
+                message: LockfileVerificationMessage::Cached {
+                    verified_at: None,
+                    lockfile_path: None,
+                },
+            }),
+        ],
+    );
+    assert_eq!(
+        frame,
+        "✓ Lockfile passes supply-chain policies (previously verified)\n\
+Lockfile is up to date, resolution step is skipped",
+    );
+}
+
+#[test]
+fn append_only_waits_for_a_terminal_lockfile_policy_verdict() {
+    let mut reporter =
+        state_with_options(ReporterOptions { append_only: true, ..ReporterOptions::default() });
+    let pending = reporter.handle(&LogEvent::Pnpm(PnpmLog {
+        level: LogLevel::Info,
+        message: "Lockfile is up to date, resolution step is skipped".to_string(),
+        prefix: CWD.to_string(),
+    }));
+    assert!(matches!(pending, Output::None));
+
+    let stats = reporter.handle(&LogEvent::Stats(StatsLog {
+        level: LogLevel::Debug,
+        message: StatsMessage::Added { added: 1, prefix: CWD.to_string() },
+    }));
+    match stats {
+        Output::Lines(lines) => {
+            assert!(!lines.iter().any(|line| line.contains("Lockfile is up to date")));
+        }
+        Output::None => {}
+        Output::Frame(_) => {
+            panic!("install stats should not flush the pending frozen-install message");
+        }
+    }
+
+    let started = reporter.handle(&LogEvent::LockfileVerification(LockfileVerificationLog {
+        level: LogLevel::Debug,
+        message: LockfileVerificationMessage::Started { entries: 2, lockfile_path: None },
+    }));
+    match started {
+        Output::Lines(lines) => {
+            assert_eq!(
+                lines,
+                ["? Verifying lockfile against supply-chain policies (2 entries)..."],
+            );
+        }
+        _ => panic!("started verification should emit only its progress line"),
+    }
+
+    let done = reporter.handle(&LogEvent::LockfileVerification(LockfileVerificationLog {
+        level: LogLevel::Debug,
+        message: LockfileVerificationMessage::Done {
+            entries: 2,
+            elapsed_ms: 100,
+            lockfile_path: None,
+        },
+    }));
+    match done {
+        Output::Lines(lines) => assert_eq!(
+            lines,
+            [
+                "✓ Lockfile passes supply-chain policies (2 entries in 100ms)",
+                "Lockfile is up to date, resolution step is skipped",
+            ],
+        ),
+        _ => panic!("completed verification should emit its verdict before the frozen message"),
+    }
+}
+
+#[test]
+fn install_summary_flushes_the_frozen_message_without_a_policy_verdict() {
+    let mut reporter =
+        state_with_options(ReporterOptions { append_only: true, ..ReporterOptions::default() });
+    let pending = reporter.handle(&LogEvent::Pnpm(PnpmLog {
+        level: LogLevel::Info,
+        message: "Lockfile is up to date, resolution step is skipped".to_string(),
+        prefix: CWD.to_string(),
+    }));
+    assert!(matches!(pending, Output::None));
+
+    let summary = reporter.handle(&summary());
+    match summary {
+        Output::Lines(lines) => {
+            dbg!(&lines);
+            assert_eq!(lines, ["Lockfile is up to date, resolution step is skipped"]);
+        }
+        _ => panic!("the install summary should flush the frozen message"),
+    }
+}
+
+#[test]
+fn zero_install_stats_render_already_up_to_date() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![
+            LogEvent::Stats(StatsLog {
+                level: LogLevel::Debug,
+                message: StatsMessage::Added { added: 0, prefix: CWD.to_string() },
+            }),
+            LogEvent::Stats(StatsLog {
+                level: LogLevel::Debug,
+                message: StatsMessage::Removed { removed: 0, prefix: CWD.to_string() },
+            }),
+        ],
     );
     assert_eq!(frame, "Already up to date");
 }
@@ -872,6 +1072,17 @@ fn direct_deprecation_renders_immediately_with_the_message() {
     assert_eq!(frame, "[WARN] deprecated express@0.14.1: no longer supported");
 }
 
+#[test]
+fn recursive_direct_deprecation_is_zoomed_and_omits_the_message() {
+    let mut reporter =
+        state_with_options(ReporterOptions { is_recursive: true, ..ReporterOptions::default() });
+    let frame = render(&mut reporter, vec![deprecation("express", "0.14.1", 0, CWD)]);
+    assert_eq!(
+        frame,
+        pacquet_default_reporter::format::zoom_out(CWD, CWD, "[WARN] deprecated express@0.14.1",),
+    );
+}
+
 /// Upstream's zoomed variant carries only `deprecated name@version` — the
 /// deprecation text is dropped.
 #[test]
@@ -903,4 +1114,59 @@ fn transitive_deprecations_flush_as_a_summary_at_resolution_done() {
 
     let frame = render(&mut reporter, vec![resolution_done()]);
     assert_eq!(frame, "[WARN] 2 deprecated subdependencies found: request@2.88.2, uuid@3.4.0");
+}
+
+fn scope(selected: usize, total: Option<usize>, workspace_prefix: Option<&str>) -> LogEvent {
+    LogEvent::Scope(ScopeLog {
+        level: LogLevel::Debug,
+        selected,
+        total,
+        workspace_prefix: workspace_prefix.map(ToString::to_string),
+    })
+}
+
+fn scope_reporting_state() -> ReporterState {
+    state_with_options(ReporterOptions { reports_scope: true, ..ReporterOptions::default() })
+}
+
+#[test]
+fn reports_an_unnarrowed_workspace_scope() {
+    let mut reporter = scope_reporting_state();
+    assert_eq!(
+        render(&mut reporter, vec![scope(3, Some(3), Some(CWD))]),
+        "Scope: all 3 workspace projects",
+    );
+}
+
+#[test]
+fn reports_a_narrowed_workspace_scope() {
+    let mut reporter = scope_reporting_state();
+    assert_eq!(
+        render(&mut reporter, vec![scope(2, Some(3), Some(CWD))]),
+        "Scope: 2 of 3 workspace projects",
+    );
+}
+
+/// Outside a workspace there are no "workspace projects" to count, which
+/// is the shape pnpm renders without the qualifier.
+#[test]
+fn reports_a_scope_without_a_workspace_prefix_as_plain_projects() {
+    let mut reporter = scope_reporting_state();
+    assert_eq!(render(&mut reporter, vec![scope(2, None, None)]), "Scope: 2 projects");
+}
+
+/// A single selected project is the directory the user is standing in, so
+/// pnpm says nothing — even for a command that reports scope.
+#[test]
+fn stays_silent_for_a_single_selected_project() {
+    let mut reporter = scope_reporting_state();
+    assert!(render(&mut reporter, vec![scope(1, Some(3), Some(CWD))]).is_empty());
+}
+
+/// The event fires for every command; only the ones in pnpm's
+/// `COMMANDS_THAT_REPORT_SCOPE` render it.
+#[test]
+fn stays_silent_for_a_command_that_does_not_report_scope() {
+    let mut reporter = state(false);
+    assert!(render(&mut reporter, vec![scope(3, Some(3), Some(CWD))]).is_empty());
 }

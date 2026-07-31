@@ -84,16 +84,18 @@ function generateNativePackage(target) {
   fs.chmodSync(binaryTarget, 0o755);
 }
 
-// Rewrite the committed `pacquet` manifest into the publishable `pnpm` one:
-// the published name, no `private` flag, and the full set of
-// `@pnpm/exe.<target>` optional dependencies. Other fields are preserved.
+// Rewrite the committed `pacquet` manifest into the publishable one: no
+// `private` flag, and the full set of `@pnpm/exe.<target>` optional
+// dependencies. Other fields are preserved. The published name is not set
+// here — the manifest declares it as `publishConfig.name`, which `pnpm pack`
+// hoists, so the parked changelog section and the ledger keep addressing this
+// project by its workspace name.
 function patchPnpmWrapperManifest() {
   const nativePackages = TARGETS.map((target) => [
     nativePackageName(target),
     rootManifest.version,
   ]);
 
-  rootManifest["name"] = "pnpm";
   delete rootManifest["private"];
   rootManifest["optionalDependencies"] = Object.fromEntries(nativePackages);
 
@@ -116,11 +118,19 @@ function generateExeWrapper() {
   }
 
   const baseManifest = JSON.parse(fs.readFileSync(MANIFEST_PATH, "utf-8"));
+  // The wrapper states its own name outright, so it must not inherit the base
+  // manifest's `publishConfig.name` rename — that would publish it as `pnpm`.
+  const { name: _renamedTo, ...publishConfig } = baseManifest.publishConfig ?? {};
   const exeManifest = {
     ...baseManifest,
     name: EXE_WRAPPER_NAME,
     repository: { ...baseManifest.repository, directory: `pnpm/npm/${EXE_WRAPPER_DIR}` },
   };
+  if (Object.keys(publishConfig).length > 0) {
+    exeManifest.publishConfig = publishConfig;
+  } else {
+    delete exeManifest.publishConfig;
+  }
   console.log(`Create wrapper ${exeRoot}`);
   fs.writeFileSync(resolve(exeRoot, "package.json"), JSON.stringify(exeManifest));
 }

@@ -303,7 +303,8 @@ pub(crate) fn check_optimistic_repeat_install_ignoring(
     // than just the modified ones.
     let projects_to_check: Vec<&ManifestStat<'_>> =
         if lockfile_modified { manifest_stats.iter().collect() } else { modified };
-    match modified_manifests_match_lockfile(check, &state, &projects_to_check) {
+    match modified_manifests_match_lockfile(check, &state, &projects_to_check, config.dedupe_peers)
+    {
         Ok(loaded_current) => {
             if let Err(reason) = regenerate_wanted_lockfile_if_missing(check, loaded_current) {
                 return Decision::Skipped { reason };
@@ -647,6 +648,7 @@ fn modified_manifests_match_lockfile(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
     modified: &[&ManifestStat<'_>],
+    dedupe_peers: bool,
 ) -> Result<Option<Lockfile>, &'static str> {
     let &OptimisticRepeatInstallCheck {
         workspace_root,
@@ -731,7 +733,16 @@ fn modified_manifests_match_lockfile(
         wanted,
         config,
         catalogs,
-        parsed_overrides.as_deref(),
+        crate::install::CheckLockfileSettingsDriftOptions {
+            parsed_overrides: parsed_overrides.as_deref(),
+            // `pnpmfileChecksum` needs no comparison here: reaching this
+            // point means `pnpmfiles_modified_since` already proved the
+            // pnpmfile list and contents are what the install that wrote
+            // this lockfile saw. Computing the checksum instead would cost
+            // a Node worker on the path that exists to avoid starting one.
+            pnpmfile_checksum: pacquet_lockfile::PnpmfileChecksumCheck::Skip,
+            dedupe_peers,
+        },
     ) {
         tracing::debug!(target: "pacquet::install", %error, "repeat-install content check: lockfile settings drift");
         return Err("a lockfile setting drifted from the current configuration");
@@ -1793,7 +1804,10 @@ pub fn check_deps_status_before_run(
 
     let projects_to_check: Vec<&ManifestStat<'_>> =
         if lockfile_modified { manifest_stats.iter().collect() } else { modified };
-    match modified_manifests_match_lockfile(check, state, &projects_to_check) {
+    // The TypeScript run/exec handler does not forward `dedupePeers`
+    // into `checkDepsStatus`, so its pre-run lockfile check uses the
+    // false default even when the workspace setting is true.
+    match modified_manifests_match_lockfile(check, state, &projects_to_check, false) {
         Ok(_) => {
             if let Err(reason) = missing_wanted_lockfile_stand_in_ok(check) {
                 return outdated(reason);

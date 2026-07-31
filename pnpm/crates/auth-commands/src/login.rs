@@ -120,6 +120,10 @@ impl<Sys> LoginHost for Sys where
 /// username / password / email login when the registry answers the web-login
 /// probe with HTTP 404 or 405. Either path may satisfy a two-factor challenge
 /// before returning.
+///
+/// The web-based flow runs without an interactive terminal — it prints the
+/// authentication URL and polls the registry until the browser approval
+/// completes. Only the classic flow's credential prompts require a TTY.
 pub async fn login<Sys, Reporter>(
     http_client: &ThrottledClient,
     opts: LoginOptions<'_>,
@@ -129,10 +133,6 @@ where
     Reporter: self::Reporter,
 {
     let registry = normalize_registry_url(opts.registry.unwrap_or(DEFAULT_REGISTRY));
-
-    if !Sys::stdin_is_tty() || !Sys::stdout_is_tty() {
-        return Err(LoginError::NonInteractive);
-    }
 
     let fetch_options = WebAuthFetchOptions {
         timeout: Some(opts.fetch_timeout),

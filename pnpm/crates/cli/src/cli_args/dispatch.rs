@@ -9,7 +9,6 @@ use crate::{
 };
 use miette::{Context, IntoDiagnostic};
 use pacquet_config::{Config, Host, default_pnpm_home_dir};
-use pacquet_default_reporter::SummaryScope;
 use pacquet_network_web_auth::OtpNonInteractiveError;
 use pacquet_reporter::{ExecutionTimeLog, LogEvent, LogLevel};
 use std::{future::Future, path::Path, pin::Pin};
@@ -37,6 +36,7 @@ pub(crate) struct RunCtx<'a> {
     pub(crate) recursive_report_summary: bool,
     pub(crate) recursive_no_bail: bool,
     pub(crate) recursive_sort: bool,
+    pub(crate) recursive_parallel: bool,
     /// The top-level `--if-present` spelling (`pnpm --if-present test`);
     /// merged with the flag the script subcommands declare themselves.
     pub(crate) if_present: bool,
@@ -45,10 +45,37 @@ pub(crate) struct RunCtx<'a> {
     /// `--dir`, so a `-g` install can't inherit the caller project's
     /// `.npmrc` network / TLS / registry settings.
     pub(crate) global_config: &'a (dyn Fn() -> miette::Result<&'static mut Config> + Sync),
+    /// Like [`Self::config`] but loaded through
+    /// [`Config::current_for_self_update`], so a repo-controlled
+    /// `pnpm-workspace.yaml` can only tighten the release-age policy that
+    /// governs the pnpm download.
+    pub(crate) config_self_update: &'a (dyn Fn() -> miette::Result<&'static mut Config> + Sync),
     pub(crate) state: &'a (dyn Fn(bool) -> miette::Result<State> + Sync),
 }
 
 impl CliArgs {
+    /// Seed the process-global default-reporter state from the parsed
+    /// arguments. The entry point calls this before the pre-command
+    /// checks, which are the first thing that can emit — the state is set
+    /// once, so whoever emits first must already see the real values.
+    /// [`Self::run`] and the install fast path call it again so a direct
+    /// in-process caller is configured too; the repeat calls are no-ops.
+    ///
+    /// A `--dir` that cannot be canonicalized is left as given: the same
+    /// path fails with a proper diagnostic in [`Self::run`], and the
+    /// reporter only uses it to shorten the paths it prints.
+    pub fn configure_reporter(&self) {
+        let dir = dunce::canonicalize(&self.dir).unwrap_or_else(|_| self.dir.clone());
+        configure_default_reporter(
+            self.reporter,
+            &dir,
+            self.command.default_reporter_summary_scope(),
+            self.command.reports_scope(self.recursive),
+            false,
+            self.recursive,
+        );
+    }
+
     pub fn run_completion_if_requested(&self) -> miette::Result<bool> {
         match &self.command {
             CliCommand::Completion(args) => {
@@ -104,7 +131,7 @@ impl CliArgs {
         {
             return false;
         }
-        configure_default_reporter(self.reporter, &dir, SummaryScope::CurrentPrefix);
+        self.configure_reporter();
         let emit = reporter_emit(self.reporter);
         let finished = install_args.finished_via_up_to_date_fast_path(&dir, &config, emit);
         if finished {
@@ -129,6 +156,7 @@ impl CliArgs {
         if self.run_completion_if_requested()? {
             return Ok(());
         }
+        self.configure_reporter();
 
         // `version` short-circuits in `main`, never reaching dispatch.
         let CliArgs {
@@ -144,6 +172,7 @@ impl CliArgs {
             reporter,
             filter,
             filter_prod,
+            workspace_root,
             test_pattern,
             changed_files_ignore_pattern,
             version: _,
@@ -152,6 +181,7 @@ impl CliArgs {
             sort: _,
             no_sort,
             workspace_concurrency,
+            parallel,
             resume_from,
             report_summary,
             no_bail,
@@ -169,10 +199,6 @@ impl CliArgs {
         let dir = dunce::canonicalize(&dir)
             .into_diagnostic()
             .wrap_err_with(|| format!("canonicalizing the `--dir` argument: {}", dir.display()))?;
-        // The default reporter renders paths relative to the install root and
-        // its `Done in ...` footer over the whole command; seed both before any
-        // event can fire.
-        configure_default_reporter(reporter, &dir, command.default_reporter_summary_scope());
         let started_at = now_millis();
         let is_install_family = matches!(
             &command,
@@ -210,46 +236,53 @@ impl CliArgs {
         // explicitly so the dependency-injection plumbing is visible at the
         // call site. See
         // [pnpm/pacquet#339](https://github.com/pnpm/pacquet/issues/339).
+        // CLI flags are applied on top of whatever `Config::current*` loaded —
+        // they are trusted input and finalize every config variant below,
+        // including `self-update`'s.
+        let finalize_config =
+            |mut cfg: Config, anchor: &Path| -> miette::Result<&'static mut Config> {
+                config_overrides.apply(&mut cfg);
+                cfg.apply_proxy_cli_overrides(
+                    https_proxy.as_deref(),
+                    http_proxy.as_deref(),
+                    no_proxy.as_deref(),
+                );
+                if let Some(registry) = registry.as_deref() {
+                    apply_registry_override(&mut cfg, registry);
+                }
+                if let Some(store_dir) = store_dir.as_deref() {
+                    apply_store_dir_override::<Host>(&mut cfg, store_dir, anchor)?;
+                }
+                // `--recursive` / `--filter` / `--filter-prod` /
+                // `--workspace-root` are CLI-only upstream (not `.npmrc` /
+                // yaml keys), so the global flags are threaded in here.
+                // Mirrors pnpm's `Config.recursive` / `.filter` /
+                // `.filterProd` / `.workspaceRoot`.
+                cfg.recursive = recursive;
+                cfg.filter.clone_from(&filter);
+                cfg.filter_prod.clone_from(&filter_prod);
+                cfg.workspace_root = workspace_root;
+                // Unlike the CLI-only selectors above, these two are
+                // genuine config keys — the flag overrides yaml / env
+                // only when actually given.
+                if !test_pattern.is_empty() {
+                    cfg.test_pattern.clone_from(&test_pattern);
+                }
+                if !changed_files_ignore_pattern.is_empty() {
+                    cfg.changed_files_ignore_pattern.clone_from(&changed_files_ignore_pattern);
+                }
+                if let Some(workspace_concurrency) = workspace_concurrency {
+                    cfg.workspace_concurrency =
+                        pacquet_config::resolve_child_concurrency(Some(workspace_concurrency));
+                }
+                Ok(Config::leak(cfg))
+            };
         let load_config = |anchor: &Path| -> miette::Result<&'static mut Config> {
             Config { npmrc_auth_file: npmrc_auth_file.clone(), ..Config::default() }
                 .current::<Host>(anchor)
                 .map_err(miette::Report::new)
                 .wrap_err("load configuration")
-                .and_then(|mut cfg| {
-                    config_overrides.apply(&mut cfg);
-                    cfg.apply_proxy_cli_overrides(
-                        https_proxy.as_deref(),
-                        http_proxy.as_deref(),
-                        no_proxy.as_deref(),
-                    );
-                    if let Some(registry) = registry.as_deref() {
-                        apply_registry_override(&mut cfg, registry);
-                    }
-                    if let Some(store_dir) = store_dir.as_deref() {
-                        apply_store_dir_override::<Host>(&mut cfg, store_dir, anchor)?;
-                    }
-                    // `--recursive` / `--filter` / `--filter-prod` are
-                    // CLI-only upstream (not `.npmrc` / yaml keys), so the
-                    // global flags are threaded in here. Mirrors pnpm's
-                    // `Config.recursive` / `.filter` / `.filterProd`.
-                    cfg.recursive = recursive;
-                    cfg.filter.clone_from(&filter);
-                    cfg.filter_prod.clone_from(&filter_prod);
-                    // Unlike the CLI-only selectors above, these two are
-                    // genuine config keys — the flag overrides yaml / env
-                    // only when actually given.
-                    if !test_pattern.is_empty() {
-                        cfg.test_pattern.clone_from(&test_pattern);
-                    }
-                    if !changed_files_ignore_pattern.is_empty() {
-                        cfg.changed_files_ignore_pattern.clone_from(&changed_files_ignore_pattern);
-                    }
-                    if let Some(workspace_concurrency) = workspace_concurrency {
-                        cfg.workspace_concurrency =
-                            pacquet_config::resolve_child_concurrency(Some(workspace_concurrency));
-                    }
-                    Ok(Config::leak(cfg))
-                })
+                .and_then(|cfg| finalize_config(cfg, anchor))
         };
         // Resolve `.npmrc` / `pnpm-workspace.yaml` from the canonicalized
         // `--dir` rather than the process cwd, matching pnpm 11 (which
@@ -266,6 +299,13 @@ impl CliArgs {
         let pnpm_home_dir = default_pnpm_home_dir::<Host>();
         let global_config_anchor = pnpm_home_dir.as_deref().unwrap_or(&dir);
         let global_config = || load_config(global_config_anchor);
+        let config_self_update = || -> miette::Result<&'static mut Config> {
+            Config { npmrc_auth_file: npmrc_auth_file.clone(), ..Config::default() }
+                .current_for_self_update::<Host>(&dir)
+                .map_err(miette::Report::new)
+                .wrap_err("load configuration")
+                .and_then(|cfg| finalize_config(cfg, &dir))
+        };
         // `require_lockfile` is the "this subcommand cannot run without a
         // lockfile loaded" signal, used by `State::init` to override
         // `config.lockfile=false`. Only `install --frozen-lockfile` needs
@@ -287,9 +327,11 @@ impl CliArgs {
             recursive_report_summary: report_summary,
             recursive_no_bail: no_bail,
             recursive_sort: !no_sort,
+            recursive_parallel: parallel,
             if_present,
             config: &config,
             global_config: &global_config,
+            config_self_update: &config_self_update,
             state: &state,
         };
         match route(command, &ctx) {
@@ -378,13 +420,13 @@ fn route<'a>(command: CliCommand, ctx: &RunCtx<'a>) -> miette::Result<CommandFut
         CliCommand::PatchRemove(args) => dispatch_install::patch_remove(ctx, args),
         CliCommand::Peers(args) => dispatch_query::peers(ctx, args),
         CliCommand::SetScript(args) => dispatch_script::set_script(ctx, args),
-        CliCommand::Test => dispatch_script::test(ctx),
+        CliCommand::Test(args) => dispatch_script::test(ctx, args),
         CliCommand::Run(args) => dispatch_script::run(ctx, args),
         CliCommand::External(command) => dispatch_script::fallback(ctx, command),
         CliCommand::Exec(args) => dispatch_script::exec(ctx, args),
         CliCommand::Dlx(args) => dispatch_install::dlx(ctx, args),
         CliCommand::Create(args) => dispatch_install::create(ctx, args),
-        CliCommand::Start => dispatch_script::start(ctx),
+        CliCommand::Start(args) => dispatch_script::start(ctx, args),
         CliCommand::Stop(args) => dispatch_script::stop(ctx, args),
         CliCommand::Restart(args) => dispatch_script::restart(ctx, args),
         CliCommand::FindHash(args) => dispatch_query::find_hash(ctx, args),
