@@ -2573,7 +2573,10 @@ impl Walker<'_> {
     ///    [self_pkg_id]` for cycle break on its own descendants.
     /// 4. Flip this node's `children` field to `Realized` so a
     ///    later visitor reuses the map.
-    fn realize_children(&mut self, node_id: &NodeId) -> (BTreeMap<String, NodeId>, Option<UndoRealize>) {
+    fn realize_children(
+        &mut self,
+        node_id: &NodeId,
+    ) -> (BTreeMap<String, NodeId>, Option<UndoRealize>) {
         // Snapshot the bits we need; we'll mutate `self.tree` below
         // and can't hold a borrow on the entry across the mutation.
         let (parent_ids, pkg_id, depth) = {

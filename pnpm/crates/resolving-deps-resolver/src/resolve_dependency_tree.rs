@@ -2289,7 +2289,9 @@ where
         // map: a linked node has no children of its own here.
         crate::resolved_tree::TreeChildren::Realized(BTreeMap::new())
     } else if !children_owner.owns_children {
-        crate::resolved_tree::TreeChildren::Lazy { parent_ids: ancestors_without_self(&next_ancestors) }
+        crate::resolved_tree::TreeChildren::Lazy {
+            parent_ids: ancestors_without_self(&next_ancestors),
+        }
     } else {
         // Look up cached children specs first; only walk the manifest on
         // a miss. The cache value is held by `Arc` so revisits clone the
@@ -2459,7 +2461,9 @@ where
             lock_recoverable(&ctx.workspace.children_by_id).insert(id.clone(), Arc::new(by_id));
             crate::resolved_tree::TreeChildren::Realized(realized)
         } else {
-            crate::resolved_tree::TreeChildren::Lazy { parent_ids: ancestors_without_self(&next_ancestors) }
+            crate::resolved_tree::TreeChildren::Lazy {
+                parent_ids: ancestors_without_self(&next_ancestors),
+            }
         }
     };
 
@@ -2498,8 +2502,10 @@ where
 /// chain clones dominated the peer walker's memory on large graphs.
 ///
 /// [`TreeChildren::Lazy`]: crate::resolved_tree::TreeChildren::Lazy
-/// [`realize_children`]: crate::resolve_peers
-pub(crate) fn ancestors_without_self(chain: &std::sync::Arc<Vec<String>>) -> std::sync::Arc<Vec<String>> {
+/// [`realize_children`]: mod@crate::resolve_peers
+pub(crate) fn ancestors_without_self(
+    chain: &std::sync::Arc<Vec<String>>,
+) -> std::sync::Arc<Vec<String>> {
     std::sync::Arc::new(chain[..chain.len().saturating_sub(1)].to_vec())
 }
 
@@ -3547,10 +3553,14 @@ where
             lock_recoverable(&ctx.workspace.children_by_id).insert(id.clone(), Arc::new(by_id));
             crate::resolved_tree::TreeChildren::Realized(realized)
         } else {
-            crate::resolved_tree::TreeChildren::Lazy { parent_ids: ancestors_without_self(&next_ancestors) }
+            crate::resolved_tree::TreeChildren::Lazy {
+                parent_ids: ancestors_without_self(&next_ancestors),
+            }
         }
     } else {
-        crate::resolved_tree::TreeChildren::Lazy { parent_ids: ancestors_without_self(&next_ancestors) }
+        crate::resolved_tree::TreeChildren::Lazy {
+            parent_ids: ancestors_without_self(&next_ancestors),
+        }
     };
 
     remember_node_parent_ids(ctx, &node_id, ancestors_without_self(&next_ancestors));
