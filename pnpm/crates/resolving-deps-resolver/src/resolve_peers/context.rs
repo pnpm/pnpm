@@ -9,7 +9,7 @@ use crate::{
     resolved_tree::{ResolvedPackage, TreeChildren},
 };
 use node_semver::{Range, Version};
-use pacquet_deps_path::{DepPath, index_of_dep_path_suffix};
+use pacquet_deps_path::{DepPath, PeerId, index_of_dep_path_suffix};
 use pacquet_resolving_resolver_base::ResolveResult;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{
@@ -447,6 +447,33 @@ pub(super) fn pkg_name_version(result: &ResolveResult) -> (String, String) {
     }
     let fallback_name = result.alias.clone().unwrap_or_else(|| result.id.as_str().to_string());
     (fallback_name, result.id.as_str().to_string())
+}
+
+/// The `name@version` identity a peer contributes to a depPath's peer suffix.
+///
+/// A package resolved from a named registry keeps its `<registryName>:` in the
+/// version slot. Dropping it would let the same name and version served by two
+/// registries render one suffix, so two variants of the dependent, each bound
+/// to a different peer artifact, would collapse onto a single depPath.
+///
+/// Separate from [`pkg_name_version`] on purpose: that version also feeds
+/// semver comparisons, which a qualified string would break.
+pub(super) fn peer_id_pair(result: &ResolveResult) -> PeerId {
+    let (name, version) = pkg_name_version(result);
+    let Some(registry_name) = named_registry_of(result) else {
+        return PeerId::Pair { name, version };
+    };
+    PeerId::Pair { name, version: format!("{registry_name}:{version}") }
+}
+
+/// The named-registry alias of a registry-qualified resolution id
+/// (`<name>@<registryName>:<version>`), if it is one.
+fn named_registry_of(result: &ResolveResult) -> Option<&str> {
+    let id = result.id.as_str();
+    let at = id.get(1..)?.find('@')? + 1;
+    let (registry_name, _) =
+        pacquet_deps_path::parse_registry_qualified_version(id.get(at + 1..)?)?;
+    Some(registry_name)
 }
 
 /// Build the `parents` chain attached to a peer issue. Records just

@@ -112,3 +112,33 @@ test('enabling the setting migrates an existing 9.0 lockfile', async () => {
   expect(lockfile.lockfileVersion).toBe(NAMED_REGISTRIES_LOCKFILE_VERSION)
   expect(Object.keys(lockfile.packages ?? {})).toContain('@pnpm.e2e/foo@work:1.0.0')
 })
+
+test.each([
+  ['dedupePeers off', false],
+  ['dedupePeers on', true],
+])('a named-registry peer keeps its registry in the peer suffix (%s)', async (_label, dedupePeers) => {
+  prepareEmpty()
+
+  await install({
+    dependencies: {
+      '@pnpm.e2e/abc': '1.0.0',
+      '@pnpm.e2e/peer-a': 'work:1.0.0',
+      '@pnpm.e2e/peer-b': '1.0.0',
+      '@pnpm.e2e/peer-c': '1.0.0',
+    },
+  }, testDefaults({
+    namedRegistries,
+    namedRegistriesLockfileFormat: true,
+    dedupePeers,
+  }, { namedRegistries }))
+
+  const snapshotKeys = Object.keys(readLockfile().snapshots ?? {})
+  const abcKey = snapshotKeys.find((key) => key.startsWith('@pnpm.e2e/abc@'))
+
+  // Under `dedupePeers` the suffix is rendered as `name@version` rather than
+  // the peer's whole depPath. That version still has to carry the registry:
+  // without it, the same name and version from two registries yield one
+  // suffix, so two variants of `abc` bound to different peer artifacts would
+  // collapse onto a single depPath.
+  expect(abcKey).toContain('@pnpm.e2e/peer-a@work:1.0.0')
+})

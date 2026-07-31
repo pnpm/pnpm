@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import * as dp from '@pnpm/deps.path'
 import { createPeerDepGraphHash, depPathToFilename, parseDepPath, type PeerId } from '@pnpm/deps.path'
 import { getPeerVersionRange } from '@pnpm/deps.peer-range'
 import { safeJoinModulesDir } from '@pnpm/fs.symlink-dependency'
@@ -9,6 +10,7 @@ import type {
   PeerDependencyIssues,
   PeerDependencyIssuesByProjects,
   PkgIdWithPatchHash,
+  PkgResolutionId,
   ProjectRootDir,
 } from '@pnpm/types'
 import * as semverUtils from '@yarnpkg/core/semverUtils'
@@ -783,7 +785,8 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
       ...await Promise.all(pendingPeerNodes
         .map(async (pendingPeer) => {
           if (cyclicPeerAliases.has(pendingPeer.alias)) {
-            const { name, version } = ctx.dependenciesTree.get(pendingPeer.nodeId)?.resolvedPackage as T
+            const resolvedPeer = ctx.dependenciesTree.get(pendingPeer.nodeId)?.resolvedPackage as T
+            const { name, version } = peerIdOfResolvedPackage(resolvedPeer)
             const id = `${name}@${version}`
             ctx.cycleBrokenNodeIds.add(pendingPeer.nodeId)
             ctx.pathsByNodeIdPromises.get(pendingPeer.nodeId)?.resolve(id as DepPath)
@@ -792,7 +795,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
           if (ctx.dedupePeers) {
             const peerNode = ctx.dependenciesTree.get(pendingPeer.nodeId)
             if (peerNode) {
-              return { name: peerNode.resolvedPackage.name, version: peerNode.resolvedPackage.version }
+              return peerIdOfResolvedPackage(peerNode.resolvedPackage)
             }
           }
           let awaitedPeerNodeIds = ctx.awaitedPeerNodeIdsByNodeId.get(nodeId)
@@ -1293,6 +1296,30 @@ function getLocationFromParentNodeIds<T> (
   }
 }
 
+/**
+ * The `name@version` identity a peer contributes to a dep path's peer suffix.
+ *
+ * A package resolved from a named registry keeps its `<registryName>:` in the
+ * version slot. Dropping it would let the same name and version from two
+ * registries produce one suffix, so two variants of the dependent — each
+ * bound to a different peer artifact — would collapse onto a single depPath.
+ */
+function peerIdOfResolvedPackage (
+  resolvedPackage: { name: string, version: string, id?: PkgResolutionId }
+): { name: string, version: string } {
+  // Importer and link nodes carry no resolution id and can never be
+  // registry-qualified.
+  const registryName = resolvedPackage.id == null
+    ? undefined
+    : dp.parse(resolvedPackage.id).registryName
+  return {
+    name: resolvedPackage.name,
+    version: registryName == null
+      ? resolvedPackage.version
+      : `${registryName}:${resolvedPackage.version}`,
+  }
+}
+
 function peerNodeIdToPeerId<T extends PartialResolvedPackage> (
   alias: string,
   peerNodeId: NodeId,
@@ -1312,7 +1339,7 @@ function peerNodeIdToPeerId<T extends PartialResolvedPackage> (
     // This eliminates nested peer suffixes like (foo@1.0.0(bar@2.0.0)).
     const peerNode = ctx.dependenciesTree.get(peerNodeId)
     if (peerNode) {
-      return { name: peerNode.resolvedPackage.name, version: peerNode.resolvedPackage.version }
+      return peerIdOfResolvedPackage(peerNode.resolvedPackage)
     }
   }
   return ctx.pathsByNodeId.get(peerNodeId)
