@@ -23,7 +23,7 @@ export const WORKSPACE_MANIFEST_FILENAME = 'pnpm-workspace.yaml'
 /**
  * Named-registry aliases that work without any configuration. User entries in
  * the `namedRegistries` setting are merged on top and may override these
- * (e.g. GHES users can repoint `gh` at their enterprise host).
+ * (e.g. GHES users can point `gh` at their own enterprise host).
  */
 export const BUILTIN_NAMED_REGISTRIES: Readonly<Record<string, string>> = Object.freeze({
   gh: 'https://npm.pkg.github.com/',
