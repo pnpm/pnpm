@@ -37,6 +37,9 @@
       "path": "../../crypto/hash"
     },
     {
+      "path": "../../deps/path"
+    },
+    {
       "path": "../../fetching/types"
     },
     {
