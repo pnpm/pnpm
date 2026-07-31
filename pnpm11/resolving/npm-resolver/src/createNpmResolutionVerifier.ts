@@ -1,6 +1,6 @@
 import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
-import { FULL_META_DIR } from '@pnpm/constants'
+import { FULL_META_DIR, resolveNamedRegistries } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import type { GetAuthHeader } from '@pnpm/fetching.types'
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
@@ -20,7 +20,6 @@ import {
   type FetchFullMetadataCachedOptions,
 } from './fetchFullMetadataCached.js'
 import { normalizeRegistryUrl } from './normalizeRegistryUrl.js'
-import { BUILTIN_NAMED_REGISTRIES } from './parseBareSpecifier.js'
 import type { PackageMetaCache } from './pickPackage.js'
 import { getPkgMetaCacheKey, getPkgMirrorPath, loadMeta, warnMissingTimeFieldOnce } from './pickPackage.js'
 import { failIfTrustDowngraded } from './trustChecks.js'
@@ -139,10 +138,7 @@ export function createNpmResolutionVerifier (
   // user-defined ones so the verifier recognizes the same set of named
   // registries the resolver does; otherwise a package resolved via `gh:`
   // would land in the lockfile with a tarball URL the verifier can't route.
-  const namedRegistryPrefixes = Object.values({
-    ...BUILTIN_NAMED_REGISTRIES,
-    ...(opts.namedRegistries ?? {}),
-  })
+  const namedRegistryPrefixes = Object.values(resolveNamedRegistries(opts.namedRegistries))
     .map((url) => {
       const parsed = tryParseUrl(url)
       if (!parsed) return null
@@ -183,10 +179,7 @@ export function createNpmResolutionVerifier (
   // Alias → URL map for routing registry-qualified entries. Kept alongside
   // the URL-prefix list, which still routes old-format entries by their
   // recorded tarball URL.
-  const mergedNamedRegistries: Record<string, string> = {
-    ...BUILTIN_NAMED_REGISTRIES,
-    ...(opts.namedRegistries ?? {}),
-  }
+  const mergedNamedRegistries = resolveNamedRegistries(opts.namedRegistries)
 
   const verify: ResolutionVerifier['verify'] = async (resolution, { name, version, nonSemverVersion, registryName }) => {
     if (!isRegistryTarballResolution(resolution)) return { ok: true }

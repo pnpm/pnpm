@@ -11,11 +11,11 @@ import type { Catalogs } from '@pnpm/catalogs.types'
 import { parseOverrides } from '@pnpm/config.parse-overrides'
 import { createPackageVersionPolicyOrThrow, getPublishedByPolicy } from '@pnpm/config.version-policy'
 import {
-  BUILTIN_NAMED_REGISTRIES,
   LAYOUT_VERSION,
   LOCKFILE_MAJOR_VERSION,
   LOCKFILE_VERSION,
   NAMED_REGISTRIES_LOCKFILE_VERSION,
+  resolveNamedRegistries,
   SUPPORTED_LOCKFILE_VERSIONS,
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
@@ -2503,7 +2503,7 @@ function namedRegistriesFormatUpgradePending (
 ): boolean {
   if (opts.namedRegistriesLockfileFormat !== true) return false
   if (wantedLockfile.lockfileVersion === NAMED_REGISTRIES_LOCKFILE_VERSION) return false
-  const aliasPrefixes = Object.keys({ ...BUILTIN_NAMED_REGISTRIES, ...opts.namedRegistries })
+  const aliasPrefixes = Object.keys(resolveNamedRegistries(opts.namedRegistries))
     .map((alias) => `${alias}:`)
   for (const importer of Object.values(wantedLockfile.importers ?? {})) {
     for (const specifier of Object.values(importer.specifiers ?? {})) {

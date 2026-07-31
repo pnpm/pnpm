@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { BUILTIN_NAMED_REGISTRIES } from '@pnpm/constants'
+import { resolveNamedRegistries } from '@pnpm/constants'
 import { DepType, type DepTypes, detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import type { LockfileObject, TarballResolution } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot, pkgSnapshotToResolution } from '@pnpm/lockfile.utils'
@@ -212,7 +212,7 @@ async function walkStep (
         nonSemverVersion: nonSemverVersion ?? undefined,
         registryUrl: registryName == null
           ? undefined
-          : { ...BUILTIN_NAMED_REGISTRIES, ...opts.namedRegistries }[registryName],
+          : resolveNamedRegistries(opts.namedRegistries)[registryName],
       })
 
       relationships.push({ from: parentPurl, to: purl })

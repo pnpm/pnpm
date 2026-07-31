@@ -557,3 +557,28 @@ test('accepts valid scoped and unscoped dependency aliases', async () => {
   } as unknown as LockfileObject
   await expect(verifyLockfileResolutions(lockfile, [])).resolves.toBeUndefined()
 })
+
+test('registry-qualified entries are verified separately, each with its own registry name', async () => {
+  // Same name, version, and resolution — only the registry differs. Deduping
+  // on anything less than the full identity would verify one and skip the
+  // other entirely.
+  const lockfile = makeLockfile({
+    'foo@1.0.0': { resolution: tarballResolution() },
+    'foo@work:1.0.0': { resolution: tarballResolution() },
+    'foo@gh:1.0.0': { resolution: tarballResolution() },
+  })
+
+  const seen: Array<{ name: string, version: string, registryName?: string }> = []
+  const recordingVerifier = wrap(async (_resolution, ctx) => {
+    seen.push({ name: ctx.name, version: ctx.version, registryName: ctx.registryName })
+    return { ok: true }
+  })
+
+  await expect(verifyLockfileResolutions(lockfile, [recordingVerifier])).resolves.toBeUndefined()
+
+  expect(seen).toHaveLength(3)
+  // Every candidate reports the bare semver plus its own alias.
+  expect(seen.every((entry) => entry.name === 'foo' && entry.version === '1.0.0')).toBe(true)
+  expect(new Set(seen.map((entry) => entry.registryName)))
+    .toStrictEqual(new Set([undefined, 'work', 'gh']))
+})

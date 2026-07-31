@@ -1,6 +1,6 @@
 import url from 'node:url'
 
-import { BUILTIN_NAMED_REGISTRIES } from '@pnpm/constants'
+import { resolveNamedRegistries } from '@pnpm/constants'
 import * as dp from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import type { PackageSnapshot, TarballResolution } from '@pnpm/lockfile.types'
@@ -49,7 +49,7 @@ export function pkgSnapshotToResolution (
   const { name, version, registryName } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
   let registry: string = ''
   if (registryName != null) {
-    registry = { ...BUILTIN_NAMED_REGISTRIES, ...opts.namedRegistries }[registryName]
+    registry = resolveNamedRegistries(opts.namedRegistries)[registryName]
     if (!registry) {
       throw new PnpmError('MISSING_NAMED_REGISTRY',
         `Cannot install package "${depPath}": it was resolved from the named registry '${registryName}:', which is not present in the namedRegistries setting.`,

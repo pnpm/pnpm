@@ -410,7 +410,7 @@ test('creating the resolver throws when a named registry alias is a reserved spe
     namedRegistries: {
       file: ENTERPRISE_REGISTRY,
     },
-  })).toThrow(/reserved dependency specifier prefix/)
+  })).toThrow(expect.objectContaining({ code: 'ERR_PNPM_RESERVED_NAMED_REGISTRY_NAME' }))
 })
 
 test('creating the resolver throws when a named registry alias is malformed', () => {
@@ -421,5 +421,5 @@ test('creating the resolver throws when a named registry alias is malformed', ()
     namedRegistries: {
       'bad alias!': ENTERPRISE_REGISTRY,
     },
-  })).toThrow(/aliases must start with a letter/)
+  })).toThrow(expect.objectContaining({ code: 'ERR_PNPM_RESERVED_NAMED_REGISTRY_NAME' }))
 })

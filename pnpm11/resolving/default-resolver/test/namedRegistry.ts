@@ -90,7 +90,7 @@ test.each([
     namedRegistries: {
       [alias]: ENTERPRISE_REGISTRY,
     },
-  })).toThrow(/reserved dependency specifier prefix/)
+  })).toThrow(expect.objectContaining({ code: 'ERR_PNPM_RESERVED_NAMED_REGISTRY_NAME' }))
 })
 
 test('createResolver() rejects a malformed named-registry alias', () => {
@@ -101,7 +101,7 @@ test('createResolver() rejects a malformed named-registry alias', () => {
     namedRegistries: {
       'no colons:allowed': ENTERPRISE_REGISTRY,
     },
-  })).toThrow(/aliases must start with a letter/)
+  })).toThrow(expect.objectContaining({ code: 'ERR_PNPM_RESERVED_NAMED_REGISTRY_NAME' }))
 })
 
 test('createResolver() resolves a registry-qualified id when namedRegistryQualifiedIds is set', async () => {

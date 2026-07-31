@@ -142,3 +142,20 @@ test('pkgSnapshotToResolution() fails when a registry-qualified snapshot names a
     expect.objectContaining({ code: 'ERR_PNPM_MISSING_NAMED_REGISTRY' })
   )
 })
+
+test('pkgSnapshotToResolution() rejects an alias that only exists on Object.prototype', () => {
+  // `constructor` matches the alias grammar and would resolve to a truthy
+  // inherited function on a plain object literal, sailing past the
+  // fail-closed check and reaching the tarball builder as a non-string.
+  for (const inherited of ['constructor', 'toString', 'valueOf']) {
+    expect(() => pkgSnapshotToResolution(`foo@${inherited}:1.0.0`, {
+      resolution: {
+        integrity: 'sha512-AAAA',
+      },
+    }, {
+      registries: { default: 'https://registry.npmjs.org/' },
+    })).toThrow(
+      expect.objectContaining({ code: 'ERR_PNPM_MISSING_NAMED_REGISTRY' })
+    )
+  }
+})

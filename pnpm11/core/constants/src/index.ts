@@ -29,6 +29,20 @@ export const BUILTIN_NAMED_REGISTRIES: Readonly<Record<string, string>> = Object
   gh: 'https://npm.pkg.github.com/',
 })
 
+/**
+ * The built-in named registries with the user's `namedRegistries` merged on
+ * top, as a null-prototype record.
+ *
+ * The prototype matters: alias names come out of the lockfile's dep paths, so
+ * a crafted `foo@constructor:1.0.0` would otherwise look up
+ * `Object.prototype.constructor` — a truthy function — and sail past every
+ * `if (!registry)` guard that is there to fail closed on an unknown alias.
+ * Always resolve an alias through this, never through a plain object literal.
+ */
+export function resolveNamedRegistries (userDefined?: Record<string, string>): Record<string, string> {
+  return Object.assign(Object.create(null) as Record<string, string>, BUILTIN_NAMED_REGISTRIES, userDefined)
+}
+
 // This file contains meta information
 // about all the packages published by the same name, not just the manifest
 // of one package/version
