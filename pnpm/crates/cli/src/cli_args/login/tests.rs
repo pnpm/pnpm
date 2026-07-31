@@ -109,8 +109,6 @@ fn resolves_configured_registry_scope_and_fetch_settings() {
     assert_eq!(options.fetch_timeout, config.fetch_timeout);
 }
 
-/// Without `--scope`, the resolved `config.scope` (from `.npmrc` /
-/// `pnpm-workspace.yaml`) is used, so a configured default scope keys the token.
 #[test]
 fn falls_back_to_the_configured_scope_when_the_flag_is_absent() {
     let config = Config { scope: Some("@my-org".to_owned()), ..Default::default() };
@@ -121,7 +119,6 @@ fn falls_back_to_the_configured_scope_when_the_flag_is_absent() {
     assert_eq!(options.scope, Some("@my-org"));
 }
 
-/// `--scope` wins over the configured `config.scope`.
 #[test]
 fn scope_flag_overrides_the_configured_scope() {
     let config = Config { scope: Some("@from-config".to_owned()), ..Default::default() };
@@ -132,7 +129,6 @@ fn scope_flag_overrides_the_configured_scope() {
     assert_eq!(options.scope, Some("@from-flag"));
 }
 
-/// With neither the flag nor a configured scope, no scope is passed through.
 #[test]
 fn no_scope_when_neither_flag_nor_config_is_set() {
     let config = Config::default();
@@ -143,8 +139,8 @@ fn no_scope_when_neither_flag_nor_config_is_set() {
     assert_eq!(options.scope, None);
 }
 
-/// Serve the web-login handshake and return the mock registry's URL. The token
-/// poll is served by the fake fetch the caller scripts.
+/// Serves only the handshake; the caller must script the fake fetch that
+/// answers the token poll.
 async fn web_login_server(server: &mut mockito::Server) -> String {
     server
         .mock("POST", "/-/v1/login")
@@ -155,17 +151,14 @@ async fn web_login_server(server: &mut mockito::Server) -> String {
     server.url()
 }
 
-/// The `auth.ini` text `execute` wrote, and the path it wrote it to.
 fn last_auth_ini(writes: &[(PathBuf, String)]) -> (&Path, &str) {
     let (path, text) = writes.last().expect("login must write auth.ini");
     (path.as_path(), text.as_str())
 }
 
-/// A scope that reached `login` from config rather than `--scope` must produce
-/// the same persisted effect as the flag: the token keyed under the scope, plus
-/// the scope-to-registry mapping. Covers the whole path — `.npmrc` /
-/// `pnpm-workspace.yaml` / `PNPM_CONFIG_SCOPE` land in [`Config::scope`], which
-/// the adapter feeds to `login`, which writes `auth.ini`.
+/// Pins the composition the option-level tests above and the write-path tests
+/// in `pacquet-auth-commands` each cover only half of: [`Config::scope`] —
+/// wherever it came from — reaching `auth.ini` through the adapter.
 #[tokio::test]
 async fn a_config_scope_persists_the_scoped_token_and_registry_mapping() {
     web_auth_fake!();
@@ -203,8 +196,6 @@ async fn a_config_scope_persists_the_scoped_token_and_registry_mapping() {
     );
 }
 
-/// `--scope` beats a configured scope all the way to disk: `auth.ini` is keyed
-/// to the flag's scope, and the configured one appears nowhere.
 #[tokio::test]
 async fn the_scope_flag_beats_a_config_scope_in_the_persisted_auth_ini() {
     web_auth_fake!();

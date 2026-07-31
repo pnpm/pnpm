@@ -84,8 +84,6 @@ impl LoginArgs {
             // `--registry` wins; otherwise the resolved registry, which already
             // folds in `.npmrc` and the npmjs default.
             registry: self.registry.as_deref().or(Some(config.registry.as_str())),
-            // `--scope` wins; otherwise the resolved `scope`, which folds in the
-            // `.npmrc` / `pnpm-workspace.yaml` `scope` option.
             scope: self.scope.as_deref().or(config.scope.as_deref()),
             config_dir,
             fetch_retries: config.fetch_retries,
