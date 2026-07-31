@@ -3,7 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { envReplaceLossy } from '@pnpm/config.env-replace'
-import { nerfDart } from '@pnpm/config.nerf-dart'
+import { nerfDart } from '@pnpm/config.registry-auth-key'
 import { PnpmError } from '@pnpm/error'
 import normalizeRegistryUrl from 'normalize-registry-url'
 import { readIniFileSync } from 'read-ini-file'

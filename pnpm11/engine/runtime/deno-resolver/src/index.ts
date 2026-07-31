@@ -13,7 +13,7 @@ import type {
   WantedDependency,
 } from '@pnpm/resolving.resolver-base'
 import type { PkgResolutionId } from '@pnpm/types'
-import { lexCompare } from '@pnpm/util.lex-comparator'
+import { lexCompare } from '@pnpm/text.ordinal-comparator'
 
 const ASSET_REGEX = /^deno-(?<cpu>aarch64|x86_64)-(?<os>apple-darwin|unknown-linux-gnu|pc-windows-msvc)\.zip\.sha256sum$/
 const OS_MAP = {

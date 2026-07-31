@@ -165,6 +165,9 @@
       "path": "../testing/registry-mock"
     },
     {
+      "path": "../text/ordinal-comparator"
+    },
+    {
       "path": "../worker"
     },
     {

@@ -55,6 +55,9 @@
       "path": "../../store/connection-manager"
     },
     {
+      "path": "../../text/ordinal-comparator"
+    },
+    {
       "path": "../packages"
     }
   ]

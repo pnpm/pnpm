@@ -3,7 +3,7 @@ import path from 'node:path'
 import util from 'node:util'
 
 import type { Project, ProjectRootDir, ProjectRootDirRealPath } from '@pnpm/types'
-import { lexCompare } from '@pnpm/util.lex-comparator'
+import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import { readExactProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import pFilter from 'p-filter'
 import { glob } from 'tinyglobby'

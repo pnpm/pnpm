@@ -1,6 +1,6 @@
 import { getPeerVersionRange } from '@pnpm/deps.peer-range'
 import type { PreferredVersions } from '@pnpm/resolving.resolver-base'
-import { lexCompare } from '@pnpm/util.lex-comparator'
+import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import semver from 'semver'
 
 /** One workspace-root dependency that a missing peer can be satisfied with. */

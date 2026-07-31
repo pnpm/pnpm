@@ -14,7 +14,7 @@ import type {
   WantedDependency,
 } from '@pnpm/resolving.resolver-base'
 import type { PkgResolutionId } from '@pnpm/types'
-import { lexCompare } from '@pnpm/util.lex-comparator'
+import { lexCompare } from '@pnpm/text.ordinal-comparator'
 
 export interface BunRuntimeResolveResult extends ResolveResult {
   resolution: VariationsResolution

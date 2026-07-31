@@ -118,7 +118,6 @@ catalog:
   '@pnpm/byline': ^1.0.0
   '@pnpm/colorize-semver-diff': ^2.0.0
   '@pnpm/config.env-replace': ^4.1.0
-  '@pnpm/config.nerf-dart': ^2.0.1
   '@pnpm/exec': ^4.0.0
   '@pnpm/log.group': 4.0.1
   '@pnpm/logger': '^1100.0.0'
@@ -131,7 +130,6 @@ catalog:
   '@pnpm/semver-diff': ^2.0.0
   '@pnpm/tabtab': ^0.5.4
   '@pnpm/tgz-fixtures': 0.0.0
-  '@pnpm/util.lex-comparator': ^4.0.1
   '@reflink/reflink': 0.1.19
   '@rushstack/worker-pool': 0.7.22
   '@stylistic/eslint-plugin': ^5.10.0

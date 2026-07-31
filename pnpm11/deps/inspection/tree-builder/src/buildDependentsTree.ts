@@ -11,7 +11,7 @@ import {
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { StoreIndex } from '@pnpm/store.index'
 import type { DependenciesField, DependencyManifest, Finder, Registries } from '@pnpm/types'
-import { lexCompare } from '@pnpm/util.lex-comparator'
+import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import { realpathMissing } from 'realpath-missing'
 import semver from 'semver'
 

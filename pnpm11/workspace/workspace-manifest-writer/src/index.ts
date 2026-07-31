@@ -10,7 +10,7 @@ import type { ResolvedCatalogEntry } from '@pnpm/lockfile.types'
 import type {
   Project,
 } from '@pnpm/types'
-import { lexCompare } from '@pnpm/util.lex-comparator'
+import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import { validateWorkspaceManifest, type WorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { patchDocument } from '@pnpm/yaml.document-sync'
 import { equals } from 'ramda'

@@ -4,7 +4,7 @@ import {
   IgnoredBuildsError,
 } from '@pnpm/installing.deps-installer'
 import type { IgnoredBuilds } from '@pnpm/types'
-import { lexCompare } from '@pnpm/util.lex-comparator'
+import { lexCompare } from '@pnpm/text.ordinal-comparator'
 
 export interface HandleIgnoredBuildsOpts {
   allowBuilds?: Record<string, boolean | string>

@@ -36,8 +36,8 @@
     "@pnpm/fetching.directory-fetcher": "workspace:*",
     "@pnpm/installing.modules-yaml": "workspace:*",
     "@pnpm/pkg-manifest.reader": "workspace:*",
+    "@pnpm/text.ordinal-comparator": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/util.lex-comparator": "catalog:",
     "@pnpm/workspace.projects-reader": "workspace:*",
     "@types/normalize-path": "catalog:",
     "normalize-path": "catalog:"
