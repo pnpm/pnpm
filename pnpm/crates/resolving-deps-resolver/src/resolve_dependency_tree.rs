@@ -2289,7 +2289,7 @@ where
         // map: a linked node has no children of its own here.
         crate::resolved_tree::TreeChildren::Realized(BTreeMap::new())
     } else if !children_owner.owns_children {
-        crate::resolved_tree::TreeChildren::Lazy { parent_ids: Arc::clone(&next_ancestors) }
+        crate::resolved_tree::TreeChildren::Lazy { parent_ids: ancestors_without_self(&next_ancestors) }
     } else {
         // Look up cached children specs first; only walk the manifest on
         // a miss. The cache value is held by `Arc` so revisits clone the
@@ -2459,7 +2459,7 @@ where
             lock_recoverable(&ctx.workspace.children_by_id).insert(id.clone(), Arc::new(by_id));
             crate::resolved_tree::TreeChildren::Realized(realized)
         } else {
-            crate::resolved_tree::TreeChildren::Lazy { parent_ids: Arc::clone(&next_ancestors) }
+            crate::resolved_tree::TreeChildren::Lazy { parent_ids: ancestors_without_self(&next_ancestors) }
         }
     };
 
@@ -2472,7 +2472,7 @@ where
     // Linked nodes carry `depth = -1` so the peer-resolution pass
     // short-circuits them in `resolve_node`.
     let node_depth = if is_link { -1 } else { depth };
-    remember_node_parent_ids(ctx, &node_id, Arc::clone(&next_ancestors));
+    remember_node_parent_ids(ctx, &node_id, ancestors_without_self(&next_ancestors));
     insert_tree_node(ctx, node_id.clone(), &id, children, node_depth);
     if children_owner.owns_children
         && !children_owner.children_context_unchanged
@@ -2491,6 +2491,18 @@ where
 /// previously-resolved-children merge restoring the pruned edge on the
 /// repeated node); only the repeat of the full `parent … child`
 /// sequence is dropped.
+/// A node's ancestor chain without the node itself. [`TreeChildren::Lazy`]
+/// stores this shape (rather than the chain including the node) so
+/// [`realize_children`] can rebuild the full chain once per realize call
+/// and share one `Arc` across every child it inserts — the per-child
+/// chain clones dominated the peer walker's memory on large graphs.
+///
+/// [`TreeChildren::Lazy`]: crate::resolved_tree::TreeChildren::Lazy
+/// [`realize_children`]: crate::resolve_peers
+pub(crate) fn ancestors_without_self(chain: &std::sync::Arc<Vec<String>>) -> std::sync::Arc<Vec<String>> {
+    std::sync::Arc::new(chain[..chain.len().saturating_sub(1)].to_vec())
+}
+
 pub(crate) fn parent_ids_contain_sequence(
     pkg_ids: &[String],
     pkg_id1: &str,
@@ -3535,13 +3547,13 @@ where
             lock_recoverable(&ctx.workspace.children_by_id).insert(id.clone(), Arc::new(by_id));
             crate::resolved_tree::TreeChildren::Realized(realized)
         } else {
-            crate::resolved_tree::TreeChildren::Lazy { parent_ids: Arc::clone(&next_ancestors) }
+            crate::resolved_tree::TreeChildren::Lazy { parent_ids: ancestors_without_self(&next_ancestors) }
         }
     } else {
-        crate::resolved_tree::TreeChildren::Lazy { parent_ids: Arc::clone(&next_ancestors) }
+        crate::resolved_tree::TreeChildren::Lazy { parent_ids: ancestors_without_self(&next_ancestors) }
     };
 
-    remember_node_parent_ids(ctx, &node_id, Arc::clone(&next_ancestors));
+    remember_node_parent_ids(ctx, &node_id, ancestors_without_self(&next_ancestors));
     insert_tree_node(ctx, node_id.clone(), &id, children, depth);
     if children_owner.owns_children
         && !children_owner.children_context_unchanged

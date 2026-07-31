@@ -50,6 +50,7 @@ use pacquet_deps_path::{
 };
 use pacquet_resolving_resolver_base::{ResolveResult, get_peer_version_range};
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+
 use std::{
     collections::{BTreeMap, BTreeSet},
     path::{Path, PathBuf},
@@ -843,6 +844,18 @@ struct FinalPeerContext<'a> {
     cyclic_peer_names: &'a HashSet<String>,
 }
 
+/// State needed to revert a [`Walker::realize_children`] call whose
+/// visit was then served from the peers cache: the freshly inserted
+/// child tree nodes and the `Lazy` parent-ids the node's `children`
+/// field held before the call. Realizing ~20 children per visit for
+/// the ~97% of visits that short-circuit through `purePkgs` /
+/// `peersCache` dominated the walker's memory (millions of
+/// never-walked tree nodes, each carrying an owned ancestor-id chain).
+struct UndoRealize {
+    newly_inserted: Vec<NodeId>,
+    prev_parent_ids: Arc<Vec<String>>,
+}
+
 struct Walker<'tree> {
     tree: &'tree mut ResolvedTree,
     opts: ResolvePeersOptions,
@@ -1396,7 +1409,7 @@ impl Walker<'_> {
         // over it doesn't hold a borrow on `self.tree`, so the
         // recursion below can mutate the tree (realising
         // grandchildren) freely.
-        let children_map = self.realize_children(&node_id);
+        let (children_map, realize_undo) = self.realize_children(&node_id);
         let tree_node = self.tree.dependencies_tree[&node_id].clone();
         let pkg = self.tree.packages[&tree_node.resolved_package_id].clone();
         let mut refs_changed = tree_node.locked_peer_names.is_some();
@@ -1511,6 +1524,20 @@ impl Walker<'_> {
         if let Some(cached) = self.find_hit(&child_parent_refs, &pkg.id) {
             let output = cached.to_node_output();
             let missing_of_children = cached.missing_peers_of_children.clone();
+            // This visit is served from the cache, so the children
+            // realized above will never be walked. Drop the fresh
+            // tree nodes and restore the `Lazy` state so cache-served
+            // occurrences don't retain their (never-visited) subtree
+            // expansion — see [`UndoRealize`].
+            if let Some(undo) = realize_undo {
+                for child_id in &undo.newly_inserted {
+                    self.tree.dependencies_tree.remove(child_id);
+                    self.parent_pkgs_of_node.remove(child_id);
+                }
+                if let Some(node) = self.tree.dependencies_tree.get_mut(&node_id) {
+                    node.children = TreeChildren::Lazy { parent_ids: undo.prev_parent_ids };
+                }
+            }
             // Re-emit the missing-peer issues against the current
             // parent chain so each occurrence of the package shows up
             // in the diagnostic. Without this, the first walk's parent
@@ -2546,13 +2573,13 @@ impl Walker<'_> {
     ///    [self_pkg_id]` for cycle break on its own descendants.
     /// 4. Flip this node's `children` field to `Realized` so a
     ///    later visitor reuses the map.
-    fn realize_children(&mut self, node_id: &NodeId) -> BTreeMap<String, NodeId> {
+    fn realize_children(&mut self, node_id: &NodeId) -> (BTreeMap<String, NodeId>, Option<UndoRealize>) {
         // Snapshot the bits we need; we'll mutate `self.tree` below
         // and can't hold a borrow on the entry across the mutation.
         let (parent_ids, pkg_id, depth) = {
             let node = &self.tree.dependencies_tree[node_id];
             match &node.children {
-                TreeChildren::Realized(map) => return map.clone(),
+                TreeChildren::Realized(map) => return (map.clone(), None),
                 TreeChildren::Lazy { parent_ids } => {
                     (Arc::clone(parent_ids), node.resolved_package_id.clone(), node.depth)
                 }
@@ -2566,12 +2593,22 @@ impl Walker<'_> {
         };
         let child_depth = depth + 1;
         let mut realized: BTreeMap<String, NodeId> = BTreeMap::new();
+        let mut newly_inserted: Vec<NodeId> = Vec::new();
+        // `parent_ids` excludes this node itself; rebuild the full
+        // chain once and share the `Arc` across every child inserted
+        // below — see `ancestors_without_self`.
+        let full_chain = {
+            let mut chain = Vec::with_capacity(parent_ids.len() + 1);
+            chain.extend(parent_ids.iter().cloned());
+            chain.push(pkg_id.clone());
+            Arc::new(chain)
+        };
         for edge in children_spec.iter() {
             // Same cycle gate as the eager walk: keep the first
             // re-entry, drop a direct self-edge or a second lap.
             if pkg_id == edge.pkg_id
                 || crate::resolve_dependency_tree::parent_ids_contain_sequence(
-                    &parent_ids,
+                    &full_chain,
                     &pkg_id,
                     &edge.pkg_id,
                 )
@@ -2586,27 +2623,23 @@ impl Walker<'_> {
             // later visit can still observe per-call-site state.
             let is_leaf = self.tree.packages.get(&edge.pkg_id).is_some_and(|pkg| pkg.is_leaf);
             let child_node_id = if is_leaf { NodeId::leaf(&edge.pkg_id) } else { NodeId::next() };
-            let child_parent_ids = {
-                let mut next_ids = (*parent_ids).clone();
-                next_ids.push(edge.pkg_id.clone());
-                Arc::new(next_ids)
-            };
-            self.tree
-                .dependencies_tree
-                .entry(child_node_id.clone())
-                .and_modify(|n| {
-                    if n.depth > child_depth {
-                        n.depth = child_depth;
-                    }
-                })
-                .or_insert_with(|| {
+            let child_parent_ids = Arc::clone(&full_chain);
+            if let Some(n) = self.tree.dependencies_tree.get_mut(&child_node_id) {
+                if n.depth > child_depth {
+                    n.depth = child_depth;
+                }
+            } else {
+                self.tree.dependencies_tree.insert(
+                    child_node_id.clone(),
                     DependenciesTreeNode::new(
                         edge.pkg_id.clone(),
                         TreeChildren::Lazy { parent_ids: child_parent_ids },
                         child_depth,
                         true,
-                    )
-                });
+                    ),
+                );
+                newly_inserted.push(child_node_id.clone());
+            }
             realized.insert(edge.alias.clone(), child_node_id);
         }
         // Replace this node's `Lazy` with `Realized` so future
@@ -2614,7 +2647,7 @@ impl Walker<'_> {
         if let Some(node) = self.tree.dependencies_tree.get_mut(node_id) {
             node.children = TreeChildren::Realized(realized.clone());
         }
-        realized
+        (realized, Some(UndoRealize { newly_inserted, prev_parent_ids: parent_ids }))
     }
 
     fn previously_resolved_children(
@@ -2634,7 +2667,7 @@ impl Walker<'_> {
                 .get(parent_node_id)
                 .is_some_and(|node| node.resolved_package_id == current_pkg_id);
             if same_pkg {
-                for (alias, child_node_id) in self.realize_children(parent_node_id) {
+                for (alias, child_node_id) in self.realize_children(parent_node_id).0 {
                     children.entry(alias).or_insert(child_node_id);
                 }
             }

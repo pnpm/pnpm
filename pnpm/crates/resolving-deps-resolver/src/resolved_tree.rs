@@ -225,7 +225,10 @@ pub enum TreeChildren {
     Realized(BTreeMap<String, NodeId>),
     /// Children are known by spec only. `parent_ids` is the chain of
     /// `pkgIdWithPatchHash` ancestors this occurrence reached the
-    /// node through, threaded so the peer resolver's tree builder can
+    /// node through — excluding the node itself, which the reader
+    /// appends from `resolved_package_id` (so one chain `Arc` is
+    /// shared across every sibling instead of cloned per child) —
+    /// threaded so the peer resolver's tree builder can
     /// apply the parent-ids-contain-sequence cycle-break
     /// per-occurrence. Without it, a revisit's subtree would
     /// silently include cycle edges that the first walk correctly
