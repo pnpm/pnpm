@@ -14,6 +14,7 @@ import type {
   LockfileObject,
   PackageSnapshot,
   ResolvedDependencies,
+  TarballResolution,
 } from '@pnpm/lockfile.types'
 import {
   nameVerFromPkgSnapshot,
@@ -310,6 +311,8 @@ export interface ResolvedPackage {
   id: PkgResolutionId
   isLeaf: boolean
   resolution: Resolution
+  /** Which resolver produced this package; see `detectNamedRegistryCollision`. */
+  resolvedVia?: string
   prod: boolean
   dev: boolean
   optional: boolean
@@ -2249,6 +2252,7 @@ async function resolveDependency (
         optional: currentIsOptional,
       })
     } else {
+      detectNamedRegistryCollision(ctx.resolvedPkgsById[pkgResponse.body.id], pkgResponse)
       ctx.resolvedPkgsById[pkgResponse.body.id].prod = ctx.resolvedPkgsById[pkgResponse.body.id].prod || !wantedDependency.dev && !wantedDependency.optional
       ctx.resolvedPkgsById[pkgResponse.body.id].dev = ctx.resolvedPkgsById[pkgResponse.body.id].dev || wantedDependency.dev
       ctx.resolvedPkgsById[pkgResponse.body.id].optional = ctx.resolvedPkgsById[pkgResponse.body.id].optional && currentIsOptional
@@ -2430,8 +2434,43 @@ function getResolvedPackage (
     prepare: options.prepare,
     prod: !options.wantedDependency.dev && !options.wantedDependency.optional,
     resolution: options.pkgResponse.body.resolution,
+    resolvedVia: options.pkgResponse.body.resolvedVia,
     version: options.pkg.version,
   }
+}
+
+/**
+ * Throw when two different artifacts have collapsed onto one resolution id
+ * because a named registry served a `name@version` another registry already
+ * provided.
+ *
+ * Only reachable while the lockfile 9.1 format is off: with it on, a
+ * named-registry package is keyed `<name>@<registryName>:<version>` and
+ * cannot collide. Without the qualifier the second resolution silently
+ * reuses the first one's tarball, so the dependency that asked for the
+ * named registry gets the other registry's bytes. Differing integrity is
+ * what proves the two are genuinely different artifacts; the check is
+ * limited to named-registry involvement so nothing else can trip it.
+ */
+export function detectNamedRegistryCollision (
+  resolved: ResolvedPackage,
+  pkgResponse: PackageResponse
+): void {
+  if (resolved.resolvedVia !== 'named-registry' && pkgResponse.body.resolvedVia !== 'named-registry') return
+  const existingIntegrity = (resolved.resolution as TarballResolution | undefined)?.integrity
+  const incomingIntegrity = (pkgResponse.body.resolution as TarballResolution | undefined)?.integrity
+  if (
+    typeof existingIntegrity !== 'string' ||
+    typeof incomingIntegrity !== 'string' ||
+    existingIntegrity === incomingIntegrity
+  ) return
+  throw new PnpmError(
+    'NAMED_REGISTRY_PACKAGE_COLLISION',
+    `"${resolved.name}@${resolved.version}" is provided by more than one registry, but the lockfile cannot record which registry each dependency came from.`,
+    {
+      hint: 'Set "namedRegistriesLockfileFormat: true" in pnpm-workspace.yaml. That upgrades the lockfile to format 9.1, which keys each package by the registry it came from and lets the same name and version coexist. Without it, one of the two would silently be installed from the wrong registry.',
+    }
+  )
 }
 
 // A pkgId pins the lockfile-resolved version either as plain `name@version`
