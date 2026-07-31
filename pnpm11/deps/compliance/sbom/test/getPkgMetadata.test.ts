@@ -9,9 +9,11 @@ import type { DepPath } from '@pnpm/types'
 
 import { bugsUrlFromField, getPkgMetadata } from '../lib/getPkgMetadata.js'
 
-const DEFAULT_REGISTRIES = {
-  default: 'https://registry.npmjs.org/',
-  '@jsr': 'https://npm.jsr.io/',
+const DEFAULT_REGISTRY_OPTS = {
+  registries: {
+    default: 'https://registry.npmjs.org/',
+    '@jsr': 'https://npm.jsr.io/',
+  },
 }
 
 function writeCafsFile (storeDir: string, digest: string, content: string): void {
@@ -64,7 +66,7 @@ describe('getPkgMetadata', () => {
     const result = await getPkgMetadata(
       pkgId as DepPath,
       { resolution: { integrity } },
-      DEFAULT_REGISTRIES,
+      DEFAULT_REGISTRY_OPTS,
       defaultOpts()
     )
 
@@ -105,7 +107,7 @@ describe('getPkgMetadata', () => {
           commit: '2fca6157fcca165438e0f9495cf0e5a4e6f71349',
         },
       },
-      DEFAULT_REGISTRIES,
+      DEFAULT_REGISTRY_OPTS,
       defaultOpts()
     )
 
@@ -126,7 +128,7 @@ describe('getPkgMetadata', () => {
           commit: 'deadbeef',
         },
       },
-      DEFAULT_REGISTRIES,
+      DEFAULT_REGISTRY_OPTS,
       defaultOpts()
     )
 
