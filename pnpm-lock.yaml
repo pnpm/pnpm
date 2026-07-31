@@ -482,9 +482,6 @@ catalogs:
     graceful-fs:
       specifier: ^4.2.11
       version: 4.2.11
-    graceful-git:
-      specifier: ^5.0.0
-      version: 5.0.0
     graph-cycles:
       specifier: 3.0.0
       version: 3.0.0
@@ -8700,9 +8697,9 @@ importers:
       '@pnpm/resolving.resolver-base':
         specifier: workspace:*
         version: link:../resolver-base
-      graceful-git:
+      execa:
         specifier: 'catalog:'
-        version: 5.0.0
+        version: safe-execa@0.3.0
       hosted-git-info:
         specifier: 'catalog:'
         version: '@pnpm/hosted-git-info@1.0.0'
@@ -14140,10 +14137,6 @@ packages:
   graceful-git@4.0.0:
     resolution: {integrity: sha512-zK/rCH/I0DMKpPBLCElXGI7za3EnXeQFdiK6CTP02Tt1N1L+bMLghZY7cXozlx9M2bx4Q0zrY9ADYP3eI8haIw==}
     engines: {node: '>=18.12'}
-
-  graceful-git@5.0.0:
-    resolution: {integrity: sha512-cmogaKKsYEW06+FriOqkhewEGf9YdMfpK/iSqtW02/GcXhSlsjNrSq1VqrM2zbMfWw0Og+lh5knLd730THxv/A==}
-    engines: {node: '>=22.13'}
 
   graceful-readlink@1.0.1:
     resolution: {integrity: sha512-8tLu60LgxF6XpdbK8OW3FA+IfTNBn1ZHGHKF4KQbEeSkajYw5PlYJcKluntgegDPTg8UkHjpet1T82vk6TQ68w==}
@@ -21937,11 +21930,6 @@ snapshots:
     dependencies:
       retry: 0.13.1
       safe-execa: 0.1.4
-
-  graceful-git@5.0.0:
-    dependencies:
-      retry: 0.13.1
-      safe-execa: 0.3.0
 
   graceful-readlink@1.0.1: {}
 

@@ -3,8 +3,8 @@ import { expect, jest, test } from '@jest/globals'
 jest.unstable_mockModule('@pnpm/network.fetch', () => ({
   fetchWithDispatcher: jest.fn(async () => ({ ok: true })),
 }))
-jest.unstable_mockModule('graceful-git', () => ({
-  gracefulGit: jest.fn(async () => ({ stdout: '' })),
+jest.unstable_mockModule('execa', () => ({
+  safeExeca: jest.fn(async () => ({ stdout: '' })),
 }))
 const { parseBareSpecifier } = await import('../lib/parseBareSpecifier.js')
 
