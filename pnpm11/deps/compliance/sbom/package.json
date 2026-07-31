@@ -37,6 +37,7 @@
     "@cyclonedx/cyclonedx-library": "catalog:",
     "@pnpm/constants": "workspace:*",
     "@pnpm/deps.compliance.license-resolver": "workspace:*",
+    "@pnpm/error": "workspace:*",
     "@pnpm/lockfile.detect-dep-types": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",

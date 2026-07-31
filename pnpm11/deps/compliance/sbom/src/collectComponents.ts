@@ -1,6 +1,7 @@
 import path from 'node:path'
 
 import { resolveNamedRegistries } from '@pnpm/constants'
+import { PnpmError } from '@pnpm/error'
 import { DepType, type DepTypes, detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import type { LockfileObject, TarballResolution } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot, pkgSnapshotToResolution } from '@pnpm/lockfile.utils'
@@ -206,13 +207,26 @@ async function walkStep (
 
       if (!name || !version) return
 
+      // Resolve the alias before the purl is built. An unknown alias would
+      // otherwise yield an unqualified purl that collides with the same
+      // package from the default registry, and the `componentsMap.has(purl)`
+      // shortcut below would drop this component before
+      // `pkgSnapshotToResolution` ever got to reject it — silently omitting an
+      // artifact from a compliance document.
+      const registryUrl = registryName == null
+        ? undefined
+        : resolveNamedRegistries(opts.namedRegistries)[registryName]
+      if (registryName != null && registryUrl == null) {
+        throw new PnpmError('MISSING_NAMED_REGISTRY',
+          `Cannot describe package "${depPath}": it was resolved from the named registry '${registryName}:', which is not present in the namedRegistries setting.`,
+          { hint: `Add '${registryName}' to the namedRegistries setting in pnpm-workspace.yaml.` })
+      }
+
       const purl = buildPurl({
         name,
         version,
         nonSemverVersion: nonSemverVersion ?? undefined,
-        registryUrl: registryName == null
-          ? undefined
-          : resolveNamedRegistries(opts.namedRegistries)[registryName],
+        registryUrl,
       })
 
       relationships.push({ from: parentPurl, to: purl })

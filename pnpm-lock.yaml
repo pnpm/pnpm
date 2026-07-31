@@ -3078,6 +3078,9 @@ importers:
       '@pnpm/deps.compliance.license-resolver':
         specifier: workspace:*
         version: link:../license-resolver
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../../core/error
       '@pnpm/lockfile.detect-dep-types':
         specifier: workspace:*
         version: link:../../../lockfile/detect-dep-types
