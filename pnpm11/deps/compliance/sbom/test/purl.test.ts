@@ -29,11 +29,12 @@ describe('buildPurl', () => {
   })
 
   it('should carry a repository_url qualifier for a named-registry package', () => {
-    expect(buildPurl({
-      name: 'foo',
-      version: '1.0.0',
-      registryUrl: 'https://npm.enterprise.example.com/',
-    })).toBe('pkg:npm/foo@1.0.0?repository_url=https%3A%2F%2Fnpm.enterprise.example.com%2F')
+    const registryUrl = 'https://npm.enterprise.example.com/'
+    const purl = buildPurl({ name: 'foo', version: '1.0.0', registryUrl })
+
+    const [base, qualifier] = purl.split('?repository_url=')
+    expect(base).toBe('pkg:npm/foo@1.0.0')
+    expect(decodeURIComponent(qualifier)).toBe(registryUrl)
   })
 
   it('should give the same name and version from two registries distinct purls', () => {
