@@ -360,28 +360,97 @@ fn return_list_of_deps_requiring_build_is_uncomputed_without_a_fresh_materializa
     }
 }
 
+/// A tree with no script-bearing package has nothing to build, and that
+/// is an answer — the install reports an empty list rather than none, so
+/// an embedder replaces its recorded list instead of keeping a stale one.
+#[test]
+fn return_list_of_deps_requiring_build_reports_an_empty_list_for_a_tree_without_build_scripts() {
+    let temp_dir = tempfile::tempdir().expect("tempdir");
+    let options = install_options_for(
+        temp_dir.path(),
+        "project",
+        serde_json::json!({ "dependencies": { "@pnpm.e2e/foo": "100.0.0" } }),
+    );
+
+    let sink = pacquet_package_manager::DepsRequiringBuildSink::default();
+    run_install_inner(&options, None, EngineMode::Install, Some(std::sync::Arc::clone(&sink)))
+        .expect("install");
+
+    assert_eq!(deps_requiring_build_result(Some(&sink), Vec::new()), Some(Vec::new()));
+}
+
+/// A script-bearing package this install skips is left out, even when the
+/// shared store already knows it requires a build: the reported list
+/// covers what this project installed, not what the store has seen.
+#[test]
+fn return_list_of_deps_requiring_build_excludes_skipped_packages() {
+    let temp_dir = tempfile::tempdir().expect("tempdir");
+    let warm_store = install_options_for(
+        temp_dir.path(),
+        "warm-store",
+        serde_json::json!({
+            "dependencies": { "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0" }
+        }),
+    );
+    let warmed = pacquet_package_manager::DepsRequiringBuildSink::default();
+    run_install_inner(&warm_store, None, EngineMode::Install, Some(std::sync::Arc::clone(&warmed)))
+        .expect("warm the store");
+    assert_eq!(
+        deps_requiring_build_result(Some(&warmed), Vec::new()),
+        Some(vec!["@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0".to_string()]),
+        "the store must know this package requires a build, else the skip proves nothing",
+    );
+
+    let mut options = install_options_for(
+        temp_dir.path(),
+        "skipping",
+        serde_json::json!({
+            "optionalDependencies": { "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0" }
+        }),
+    );
+    options.include_optional_deps = Some(false);
+
+    let sink = pacquet_package_manager::DepsRequiringBuildSink::default();
+    run_install_inner(&options, None, EngineMode::Install, Some(std::sync::Arc::clone(&sink)))
+        .expect("install skipping the optional dependency");
+
+    assert_eq!(deps_requiring_build_result(Some(&sink), Vec::new()), Some(Vec::new()));
+}
+
 /// Install options for a project depending on two packages that carry
 /// install scripts, sharing one store across the calls in a test so a
 /// repeat install can hit the frozen path.
 fn script_deps_install_options(temp_dir: &std::path::Path) -> InstallOptions {
+    install_options_for(
+        temp_dir,
+        "project",
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0",
+                "@pnpm.e2e/install-script-example": "1.0.0"
+            }
+        }),
+    )
+}
+
+/// Install options for one project under `temp_dir`, with
+/// `returnListOfDepsRequiringBuild` set and the store shared across every
+/// project in the same `temp_dir`.
+fn install_options_for(
+    temp_dir: &std::path::Path,
+    project_name: &str,
+    manifest: serde_json::Value,
+) -> InstallOptions {
     let registry = TestRegistry::start();
-    let project_dir = temp_dir.join("project");
+    let project_dir = temp_dir.join(project_name);
     std::fs::create_dir_all(&project_dir).expect("create project dir");
     std::fs::write(project_dir.join("package.json"), "{}\n").expect("write package.json");
 
     let project_dir_string = project_dir.to_string_lossy().into_owned();
     let mut options = install_options();
     options.dir = project_dir_string.clone();
-    options.projects = vec![NodeApiProject {
-        root_dir: project_dir_string,
-        manifest: serde_json::json!({
-            "dependencies": {
-                "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0",
-                "@pnpm.e2e/install-script-example": "1.0.0"
-            }
-        }),
-        dependency_manifest: None,
-    }];
+    options.projects =
+        vec![NodeApiProject { root_dir: project_dir_string, manifest, dependency_manifest: None }];
     options.store_dir = Some(temp_dir.join("store").to_string_lossy().into_owned());
     options.registries = Some(HashMap::from([("default".to_string(), registry.url())]));
     options.return_list_of_deps_requiring_build = Some(true);

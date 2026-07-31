@@ -98,8 +98,10 @@ pub type PeerIssuesSink = Arc<
 >;
 
 /// Shared out-slot for [`Install::deps_requiring_build_sink`]: the dep
-/// paths of every non-skipped package whose files carry install
-/// scripts (`requiresBuild`), regardless of the allow-build policy.
+/// paths of every package this install put on disk whose files carry
+/// install scripts (`requiresBuild`), regardless of the allow-build
+/// policy. A snapshot skipped for installability, an excluded optional,
+/// or a failed optional fetch is not installed and so not reported.
 /// Stays `None` unless the fresh-resolve path materializes
 /// `node_modules` — the frozen path and `lockfileOnly` runs never fill
 /// it, mirroring the TS engine's `returnListOfDepsRequiringBuild`,
