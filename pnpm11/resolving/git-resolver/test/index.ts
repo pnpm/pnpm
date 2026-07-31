@@ -13,6 +13,7 @@ jest.unstable_mockModule('execa', () => ({
 const { fetchWithDispatcher } = await import('@pnpm/network.fetch')
 const { safeExeca: execa } = await import('execa')
 const { createGitResolver } = await import('@pnpm/resolving.git-resolver')
+const { lsRemote } = await import('../lib/lsRemote.js')
 
 const resolveFromGit = createGitResolver({})
 
@@ -284,8 +285,8 @@ test('resolveFromGit() with commit from non-github repo', async () => {
 // TODO: make it pass on CI servers
 test.skip('resolveFromGit() with commit from non-github repo with no commit', async () => {
   const localPath = path.resolve('..', '..')
-  const result = await git(['rev-parse', 'origin/master'], { retries: 0 })
-  const hash: string = result.stdout.trim()
+  const result = await execa('git', ['rev-parse', 'origin/master'])
+  const hash = (result.stdout as string).trim()
   const resolveResult = await resolveFromGit({ bareSpecifier: `git+file://${localPath}` })
   expect(resolveResult).toStrictEqual({
     id: `git+file://${localPath}#${hash}`,
@@ -320,7 +321,7 @@ test.skip('resolveFromGit() bitbucket with commit', async () => {
 // Stopped working. Environmental issue.
 test.skip('resolveFromGit() bitbucket with no commit', async () => {
   const resolveResult = await resolveFromGit({ bareSpecifier: 'bitbucket:pnpmjs/git-resolver' })
-  const result = await git(['ls-remote', '--refs', 'https://bitbucket.org/pnpmjs/git-resolver.git', 'master'], { retries: 0 })
+  const result = await lsRemote(['--refs', 'https://bitbucket.org/pnpmjs/git-resolver.git', 'master'], { retries: 0 })
   const hash: string = result.stdout.trim().split('\t')[0]
   expect(resolveResult).toStrictEqual({
     id: `https://bitbucket.org/pnpmjs/git-resolver/get/${hash}.tar.gz`,
@@ -335,7 +336,7 @@ test.skip('resolveFromGit() bitbucket with no commit', async () => {
 // Stopped working. Environmental issue.
 test.skip('resolveFromGit() bitbucket with branch', async () => {
   const resolveResult = await resolveFromGit({ bareSpecifier: 'bitbucket:pnpmjs/git-resolver#master' })
-  const result = await git(['ls-remote', '--refs', 'https://bitbucket.org/pnpmjs/git-resolver.git', 'master'], { retries: 0 })
+  const result = await lsRemote(['--refs', 'https://bitbucket.org/pnpmjs/git-resolver.git', 'master'], { retries: 0 })
   const hash: string = result.stdout.trim().split('\t')[0]
   expect(resolveResult).toStrictEqual({
     id: `https://bitbucket.org/pnpmjs/git-resolver/get/${hash}.tar.gz`,
@@ -413,7 +414,7 @@ test.skip('resolveFromGit() gitlab with commit', async () => {
 // This test stopped working. Probably an environmental issue.
 test.skip('resolveFromGit() gitlab with no commit', async () => {
   const resolveResult = await resolveFromGit({ bareSpecifier: 'gitlab:pnpm/git-resolver' })
-  const result = await git(['ls-remote', '--refs', 'https://gitlab.com/pnpm/git-resolver.git', 'master'], { retries: 0 })
+  const result = await lsRemote(['--refs', 'https://gitlab.com/pnpm/git-resolver.git', 'master'], { retries: 0 })
   const hash: string = result.stdout.trim().split('\t')[0]
   expect(resolveResult).toStrictEqual({
     id: `https://gitlab.com/api/v4/projects/pnpm%2Fgit-resolver/repository/archive.tar.gz?ref=${hash}`,
@@ -428,7 +429,7 @@ test.skip('resolveFromGit() gitlab with no commit', async () => {
 // This test stopped working. Probably an environmental issue.
 test.skip('resolveFromGit() gitlab with branch', async () => {
   const resolveResult = await resolveFromGit({ bareSpecifier: 'gitlab:pnpm/git-resolver#master' })
-  const result = await git(['ls-remote', '--refs', 'https://gitlab.com/pnpm/git-resolver.git', 'master'], { retries: 0 })
+  const result = await lsRemote(['--refs', 'https://gitlab.com/pnpm/git-resolver.git', 'master'], { retries: 0 })
   const hash: string = result.stdout.trim().split('\t')[0]
   expect(resolveResult).toStrictEqual({
     id: `https://gitlab.com/api/v4/projects/pnpm%2Fgit-resolver/repository/archive.tar.gz?ref=${hash}`,
@@ -696,13 +697,13 @@ cba04669e621b85fbdb33371604de1a2898e68e9\trefs/tags/v0.0.39',
 })
 
 function mockGit (run: (args: string[]) => Promise<{ stdout: string }>): void {
-  jest.mocked(execa).mockImplementation(async (file: string, args: string[], opts: { env?: Record<string, string> }) => {
+  jest.mocked(execa).mockImplementation(((file: string, args?: readonly string[], opts?: { env?: NodeJS.ProcessEnv }) => {
     // Every git invocation has to disable the terminal credential prompt,
     // otherwise a repository that needs credentials blocks the command.
     expect(file).toBe('git')
-    expect(opts.env?.GIT_TERMINAL_PROMPT).toBe('0')
-    return run(args)
-  })
+    expect(opts?.env?.GIT_TERMINAL_PROMPT).toBe('0')
+    return run(args ? [...args] : [])
+  }) as any) // eslint-disable-line @typescript-eslint/no-explicit-any
 }
 
 function mockFetchAsPublic (): void {
