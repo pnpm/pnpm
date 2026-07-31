@@ -423,8 +423,8 @@ fn is_canonical_registry_tarball_url(
     registry: &str,
 ) -> bool {
     let expected = npm_tarball_url(name, version, registry);
-    let actual = tarball.replace("%2f", "/").replace("%2F", "/");
-    remove_protocol(&expected) == remove_protocol(&actual)
+    let actual = tarball;
+    remove_protocol(&expected) == remove_protocol(actual)
 }
 
 /// Default-vs-scope routing for an npm package.
