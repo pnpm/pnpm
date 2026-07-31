@@ -27,4 +27,24 @@ describe('buildPurl', () => {
     expect(buildPurl({ name: '@pnpm/lockfile.types', version: '1.0.0' }))
       .toBe('pkg:npm/%40pnpm/lockfile.types@1.0.0')
   })
+
+  test('a named-registry package carries a repository_url qualifier', () => {
+    expect(buildPurl({
+      name: 'foo',
+      version: '1.0.0',
+      registryUrl: 'https://npm.enterprise.example.com/',
+    })).toBe('pkg:npm/foo@1.0.0?repository_url=https%3A%2F%2Fnpm.enterprise.example.com%2F')
+  })
+
+  test('the same name and version from two registries get distinct purls', () => {
+    const fromDefault = buildPurl({ name: 'foo', version: '1.0.0' })
+    const fromNamed = buildPurl({
+      name: 'foo',
+      version: '1.0.0',
+      registryUrl: 'https://npm.enterprise.example.com/',
+    })
+    // These two are different artifacts; collapsing them would drop one of
+    // them from the SBOM entirely.
+    expect(fromDefault).not.toBe(fromNamed)
+  })
 })

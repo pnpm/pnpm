@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import { BUILTIN_NAMED_REGISTRIES } from '@pnpm/constants'
 import { DepType, type DepTypes, detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import type { LockfileObject, TarballResolution } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot, pkgSnapshotToResolution } from '@pnpm/lockfile.utils'
@@ -201,11 +202,18 @@ async function walkStep (
   await Promise.all(
     step.dependencies.map(async (dep) => {
       const { depPath, pkgSnapshot, next } = dep
-      const { name, version, nonSemverVersion } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+      const { name, version, nonSemverVersion, registryName } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
 
       if (!name || !version) return
 
-      const purl = buildPurl({ name, version, nonSemverVersion: nonSemverVersion ?? undefined })
+      const purl = buildPurl({
+        name,
+        version,
+        nonSemverVersion: nonSemverVersion ?? undefined,
+        registryUrl: registryName == null
+          ? undefined
+          : { ...BUILTIN_NAMED_REGISTRIES, ...opts.namedRegistries }[registryName],
+      })
 
       relationships.push({ from: parentPurl, to: purl })
 

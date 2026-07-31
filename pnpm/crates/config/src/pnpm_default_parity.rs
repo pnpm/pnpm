@@ -90,6 +90,30 @@ const NOT_PORTED: &[&str] = &[
     "workspace-prefix",
 ];
 
+/// Settings both stacks implement but deliberately default differently,
+/// with the reason each divergence is intended. Entries here are exempt
+/// from the value comparison in
+/// [`pacquet_defaults_match_pnpm_cli_defaults`] but still count as
+/// classified, so the "pnpm added a setting" guard keeps its teeth.
+///
+/// Keep this list as close to empty as the rollout allows: a divergent
+/// default means the two CLIs behave differently out of the box, which
+/// is exactly what the rest of this module exists to prevent. Add a row
+/// only for a staged rollout whose end state is convergence, and delete
+/// it once both stacks agree.
+fn divergent_rows(cfg: &Config) -> Vec<(&'static str, Scalar, &'static str)> {
+    use Scalar::Bool;
+    vec![(
+        "named-registries-lockfile-format",
+        Bool(cfg.named_registries_lockfile_format),
+        "Lockfile format 9.1 ships opt-in on the v11 TypeScript CLI and on by \
+         default here (v12). Both stacks read 9.1 unconditionally, and a lockfile \
+         already on 9.1 keeps the format on either CLI, so the divergence only \
+         affects which stack introduces the format first. Remove this row when \
+         the TypeScript CLI defaults it on too.",
+    )]
+}
+
 /// `(pnpm key, pacquet default rendered as a [`Scalar`])` for every
 /// setting pacquet implements with a comparable literal default. The
 /// test asserts each pacquet value equals the value pnpm's source
@@ -381,6 +405,28 @@ fn pacquet_defaults_match_pnpm_cli_defaults() {
     }
 }
 
+/// A row in [`divergent_rows`] must describe a divergence that is still
+/// real. Once the two stacks agree on a default, the row is stale and the
+/// setting belongs in [`mapped_rows`] under the strict comparison.
+#[test]
+fn intentional_divergences_still_diverge() {
+    let block = read_pnpm_default_options();
+    let cfg = Config::default();
+
+    for (key, pacquet_value, reason) in divergent_rows(&cfg) {
+        let raw = pnpm_raw_value(&block, key).unwrap_or_else(|| {
+            panic!("pnpm `defaultOptions` has no entry for divergent key {key:?}")
+        });
+        let pnpm_value = parse_scalar(raw, key);
+        assert_ne!(
+            pacquet_value, pnpm_value,
+            "default for {key:?} no longer diverges from pnpm (both {pacquet_value:?}), \
+             so the `divergent_rows` entry is stale — move it into `mapped_rows`. \
+             Recorded reason: {reason}",
+        );
+    }
+}
+
 #[test]
 fn every_pnpm_default_is_classified() {
     let block = read_pnpm_default_options();
@@ -393,31 +439,32 @@ fn every_pnpm_default_is_classified() {
         NON_LITERAL.iter().map(std::string::ToString::to_string).collect();
     let not_ported: BTreeSet<String> =
         NOT_PORTED.iter().map(std::string::ToString::to_string).collect();
+    let divergent: BTreeSet<String> =
+        divergent_rows(&cfg).into_iter().map(|(key, _, _)| key.to_string()).collect();
 
-    // The three buckets must be disjoint — a key can't be both mapped
-    // and skipped.
+    // The buckets must be disjoint — a key can't be both mapped and
+    // skipped.
     for (a, b, label) in [
         (&mapped, &non_literal, "mapped ∩ non-literal"),
         (&mapped, &not_ported, "mapped ∩ not-ported"),
+        (&mapped, &divergent, "mapped ∩ divergent"),
         (&non_literal, &not_ported, "non-literal ∩ not-ported"),
+        (&non_literal, &divergent, "non-literal ∩ divergent"),
+        (&not_ported, &divergent, "not-ported ∩ divergent"),
     ] {
         let overlap: Vec<_> = a.intersection(b).collect();
         assert!(overlap.is_empty(), "keys classified twice ({label}): {overlap:?}");
     }
 
-    let classified: BTreeSet<String> = mapped
-        .union(&non_literal)
-        .cloned()
-        .collect::<BTreeSet<_>>()
-        .union(&not_ported)
-        .cloned()
-        .collect();
+    let classified: BTreeSet<String> =
+        [&mapped, &non_literal, &not_ported, &divergent].into_iter().flatten().cloned().collect();
 
     let unclassified: Vec<_> = pnpm_keys.difference(&classified).collect();
     assert!(
         unclassified.is_empty(),
         "pnpm added settings pacquet hasn't classified: {unclassified:?}. \
-         Port each (add a mapped row) or record it in NON_LITERAL / NOT_PORTED.",
+         Port each (add a mapped row) or record it in NON_LITERAL / NOT_PORTED / \
+         `divergent_rows`.",
     );
 
     let stale: Vec<_> = classified.difference(&pnpm_keys).collect();
