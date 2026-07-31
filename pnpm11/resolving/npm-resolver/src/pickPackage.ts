@@ -301,16 +301,15 @@ export async function pickPackage (
     }
     let diskMeta: PackageMeta | null | undefined
     if (ctx.offline === true || ctx.preferOffline === true || opts.pickLowestVersion) {
-      // Concurrent offline picks of one package all miss the pre-queue
-      // in-memory cache check and queue behind the same limiter, so each
-      // would re-read and re-parse the mirror. Offline entries are always
-      // disk-sourced, so re-checking the cache once inside the queue is
-      // equivalent to having arrived after the first caller cached it. The
-      // promotion also happens inside the queue: promoting only after
-      // `await limit()` would race with the next dequeued task's cache
-      // check. (maybeUpgradeAbbreviatedMetaForReleaseAge short-circuits
-      // when offline, so a later in-memory cache hit returns this same
-      // meta without any network access.)
+      // Concurrent offline picks of one package all miss the pre-queue cache
+      // check and queue behind this limiter, so the check is repeated inside
+      // the queue and the promotion happens before the limiter releases —
+      // otherwise every queued pick re-reads and re-parses the mirror. Serving
+      // a queued pick from the cache is equivalent to it having arrived after
+      // the first caller cached it: offline entries are always disk-sourced
+      // and maybeUpgradeAbbreviatedMetaForReleaseAge short-circuits when
+      // offline, so an in-memory hit returns this same meta with no network
+      // access.
       diskMeta = await limit(async () => {
         if (ctx.offline !== true) return loadMetaCondensed()
         const cached = ctx.metaCache.get(cacheKey)

@@ -69,20 +69,19 @@ export function clearMeta (pkg: PackageMeta): PackageMeta {
   return condensed
 }
 
-// Equivalent to ramda's pick(ABBREVIATED_VERSION_FIELDS, info) but without
-// the per-call `in` checks and currying overhead — this runs for every
-// version of every packument an install parses. The `!== undefined` presence
-// check is safe because version objects come from JSON, which can't encode
-// undefined.
+// Hand-rolled rather than delegated to a generic field picker because it runs
+// for every version of every packument an install parses. Testing the value
+// for `undefined` is equivalent to testing for the key's presence: version
+// objects come from JSON, which cannot encode undefined.
 function pickAbbreviatedVersionFields (info: PackageInRegistry): PackageInRegistry {
-  const out: Record<string, unknown> = {}
+  const picked: Partial<Record<keyof PackageInRegistry, unknown>> = {}
   for (const field of ABBREVIATED_VERSION_FIELDS) {
-    const value = info[field as keyof PackageInRegistry]
+    const value = info[field]
     if (value !== undefined) {
-      out[field] = value
+      picked[field] = value
     }
   }
-  return out as unknown as PackageInRegistry
+  return picked as PackageInRegistry
 }
 
 /**

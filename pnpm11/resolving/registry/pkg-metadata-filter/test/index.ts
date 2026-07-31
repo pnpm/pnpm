@@ -139,3 +139,35 @@ test('filtering is memoized per packument and the per-packument policy cache sta
   }
   expect(filterPkgMetadataByPublishDate(doc, cutoff)).not.toBe(first)
 })
+
+test('a version or dist-tag named __proto__ stays an own key of the filtered metadata', () => {
+  // Parsed from JSON, the way a registry response is: an object literal would
+  // apply `__proto__` as the prototype instead of keeping it as a key.
+  const doc = JSON.parse(`{
+    "name": "proto-pkg",
+    "versions": {
+      "__proto__": {
+        "name": "proto-pkg",
+        "version": "1.0.0",
+        "polluted": true,
+        "dist": { "tarball": "https://registry.npmjs.org/proto-pkg/-/proto-pkg-1.0.0.tgz", "shasum": "" }
+      },
+      "1.0.0": {
+        "name": "proto-pkg",
+        "version": "1.0.0",
+        "dist": { "tarball": "https://registry.npmjs.org/proto-pkg/-/proto-pkg-1.0.0.tgz", "shasum": "" }
+      }
+    },
+    "dist-tags": { "latest": "1.0.0", "__proto__": "1.0.0" },
+    "time": { "__proto__": "2020-01-01T00:00:00.000Z", "1.0.0": "2020-01-01T00:00:00.000Z" }
+  }`)
+
+  const filtered = filterPkgMetadataByPublishDate(doc, new Date('2020-04-01T00:00:00.000Z'))
+
+  expect(Object.keys(filtered.versions)).toContain('__proto__')
+  expect(Object.keys(filtered['dist-tags'])).toContain('__proto__')
+  // Assigning `__proto__` to a plain object would have made the malicious
+  // version manifest the prototype of the map, exposing its fields as
+  // versions.
+  expect('polluted' in filtered.versions).toBe(false)
+})
