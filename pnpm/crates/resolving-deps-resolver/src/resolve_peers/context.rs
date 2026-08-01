@@ -427,13 +427,6 @@ pub(super) fn remap_link_node_id(
     Some(NodeId::leaf(&format!("link:{rel}")))
 }
 
-pub(super) fn node_id_sort_key(node_id: &NodeId) -> String {
-    match node_id {
-        NodeId::Counter(value) => format!("0:{value:020}"),
-        NodeId::Leaf(value) => format!("1:{value}"),
-    }
-}
-
 /// Pull `(name, version)` out of a `ResolveResult` the peer-resolution
 /// stage can hash and compare on.
 ///

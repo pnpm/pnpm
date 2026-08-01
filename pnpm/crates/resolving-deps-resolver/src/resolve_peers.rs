@@ -43,9 +43,7 @@ use crate::{
     node_id::NodeId,
     resolved_tree::{DirectDep, ResolvedTree},
 };
-use context::{
-    CurrentProviderSource, SharedChain, importer_relative_link_dep_path, node_id_sort_key,
-};
+use context::{CurrentProviderSource, SharedChain, importer_relative_link_dep_path};
 use discovery::PeerDiscoveryCaches;
 pub(crate) use discovery::{PeerDiscoveryResult, PeerHoistDiscovery, apply_hoist_missing_scope};
 use pacquet_deps_path::DepPath;
@@ -510,7 +508,7 @@ fn build_node_ids_by_previous_dep_path(
         return map;
     }
     let mut node_ids: Vec<&NodeId> = tree.dependencies_tree.keys().collect();
-    node_ids.sort_by_key(|node_id| node_id_sort_key(node_id));
+    node_ids.sort();
     for node_id in node_ids {
         if let Some(previous) = tree.dependencies_tree[node_id].previous_dep_path.as_ref()
             && !map.contains_key(previous)
