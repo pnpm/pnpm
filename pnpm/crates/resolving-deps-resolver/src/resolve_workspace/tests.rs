@@ -1261,8 +1261,9 @@ async fn local_workspace_package_version_can_satisfy_another_importers_optional_
     );
 }
 
-/// An arrival-ordered candidate set would let the transient walk's pin
-/// satisfy `host`'s optional peer whenever that walk went first.
+/// The pin satisfies `host`'s optional peer range and the owner's
+/// pick does not, so this picker installs nothing only if unreachable
+/// candidates are filtered out.
 #[tokio::test]
 async fn transiently_walked_subtree_versions_do_not_bias_optional_peer_hoists() {
     let host_manifest = serde_json::json!({
@@ -1289,9 +1290,9 @@ async fn transiently_walked_subtree_versions_do_not_bias_optional_peer_hoists() 
 }
 
 /// The required-peer picker dedupes onto the highest satisfying
-/// candidate, so here the transient pin — higher than, and equally
-/// satisfying as, the owner's pick — is exactly what an arrival-ordered
-/// candidate set would hoist.
+/// candidate, so the pin is higher than (and as satisfying as) the
+/// owner's pick — the arrangement where unreachable-candidate
+/// filtering is observable through this picker.
 #[tokio::test]
 async fn transiently_walked_subtree_versions_do_not_bias_required_peer_hoists() {
     let host_manifest = serde_json::json!({
