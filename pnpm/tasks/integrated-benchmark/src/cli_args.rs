@@ -281,6 +281,8 @@ impl BenchmarkScenario {
     pub fn prewarm_install_args(self) -> Option<&'static [&'static str]> {
         match self {
             BenchmarkScenario::IsolatedFreshResolveHotCacheOffline => Some(&["install"]),
+            // This resolution-only fixture has no fetchable tarballs, so its
+            // metadata prewarm must not proceed to fetching or linking.
             BenchmarkScenario::IsolatedPeerHeavyResolveHotCacheOffline => {
                 Some(&["install", "--lockfile-only"])
             }
