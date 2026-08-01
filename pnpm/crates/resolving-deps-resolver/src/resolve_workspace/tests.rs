@@ -1261,12 +1261,8 @@ async fn local_workspace_package_version_can_satisfy_another_importers_optional_
     );
 }
 
-/// The transiently-resolved `dep@1.0.0` must not be offered to the
-/// *optional*-peer hoist: no reachable version satisfies `host`'s
-/// optional `^1.0.0` peer, so nothing is installed and `host` stays
-/// unsuffixed. An arrival-ordered candidate set would install the pin
-/// (and suffix `host`) only in runs where the transient walk went
-/// first.
+/// An arrival-ordered candidate set would let the transient walk's pin
+/// satisfy `host`'s optional peer whenever that walk went first.
 #[tokio::test]
 async fn transiently_walked_subtree_versions_do_not_bias_optional_peer_hoists() {
     let host_manifest = serde_json::json!({
@@ -1292,12 +1288,10 @@ async fn transiently_walked_subtree_versions_do_not_bias_optional_peer_hoists() 
     assert_eq!(graph_versions_of(&result, "dep"), ["2.0.0"]);
 }
 
-/// The same interleaving through the *required*-peer picker: the
-/// transient walk resolves the locked `dep@1.9.0`, the owner's fresh
-/// walk lands on `1.5.0`, and both satisfy `host`'s required `^1.0.0`
-/// peer — so an arrival-ordered candidate set would hoist the higher
-/// but unreachable `1.9.0` whenever the transient walk went first. The
-/// hoist must install the reachable `1.5.0`.
+/// The required-peer picker dedupes onto the highest satisfying
+/// candidate, so here the transient pin — higher than, and equally
+/// satisfying as, the owner's pick — is exactly what an arrival-ordered
+/// candidate set would hoist.
 #[tokio::test]
 async fn transiently_walked_subtree_versions_do_not_bias_required_peer_hoists() {
     let host_manifest = serde_json::json!({
