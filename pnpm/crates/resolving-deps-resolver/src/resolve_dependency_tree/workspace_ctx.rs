@@ -774,10 +774,9 @@ impl WorkspaceTreeCtx {
     /// The sync visits the keys written since `cursor` rather than every
     /// entry of the shared maps, which is what keeps a hoist round
     /// proportional to what the round changed instead of to the size of
-    /// the workspace. A view rebuilt from scratch passes a default
-    /// cursor and so replays every write. On `false` the cursor is left
-    /// where it was: the caller discards the view, and the fresh one
-    /// starts from the beginning of the log.
+    /// the workspace. On `false` the cursor is left where it was: the
+    /// caller discards the view and builds a fresh one with
+    /// [`Self::rebuild_discovery_tree`].
     pub(crate) fn sync_discovery_tree(
         &self,
         tree: &mut ResolvedTree,
@@ -862,9 +861,42 @@ impl WorkspaceTreeCtx {
         true
     }
 
+    /// Fill an empty `tree` from the shared maps, and return the cursor
+    /// the view carries from there on.
+    ///
+    /// Replaying the whole write log would reach the same view, but a
+    /// scan copies each key once instead of once into the log snapshot
+    /// and once into the view. The cursor is read *before* the scan, so
+    /// a write that lands mid-scan is either picked up here and replayed
+    /// harmlessly by the next sync, or missed here and applied by it.
+    pub(crate) fn rebuild_discovery_tree(&self, tree: &mut ResolvedTree) -> SyncCursor {
+        let cursor = {
+            let log = lock_recoverable(&self.sync_log);
+            SyncCursor {
+                packages: log.packages.len(),
+                children_by_id: log.children_by_id.len(),
+                dependencies_tree: log.dependencies_tree.len(),
+                peer_dep_names: log.peer_dep_names.len(),
+            }
+        };
+        for (pkg_id, spec) in lock_recoverable(&self.children_by_id).iter() {
+            tree.children_by_id.entry(pkg_id.clone()).or_insert_with(|| Arc::clone(spec));
+        }
+        for (pkg_id, pkg) in lock_recoverable(&self.packages).iter() {
+            tree.packages.entry(pkg_id.clone()).or_insert_with(|| pkg.clone());
+        }
+        for (node_id, node) in lock_recoverable(&self.dependencies_tree).iter() {
+            tree.dependencies_tree.entry(node_id.clone()).or_insert_with(|| node.clone());
+        }
+        tree.all_peer_dep_names.extend(lock_recoverable(&self.all_peer_dep_names).iter().cloned());
+        cursor
+    }
+
     /// The keys written to one of [`SyncLog`]'s slots between two cursor
     /// positions, copied out so the sync can take the map's own lock
-    /// without holding the log's.
+    /// without holding the log's. The range is what one hoist round
+    /// wrote; a from-scratch view goes through
+    /// [`Self::rebuild_discovery_tree`] instead of replaying the log.
     fn written_since<Key: Clone>(
         &self,
         from: usize,
