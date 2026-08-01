@@ -321,9 +321,10 @@ git worktree add ../<dir-name> -b <branch-name> origin/main
 ```
 
 A `post-checkout` hook (`.husky/reject-worktree-rebind.mjs`) enforces
-this for agent sessions: the first hook-active checkout (or commit)
-binds the worktree to its branch, and later branch switches in that
-worktree are rejected. Returning to the bound branch is always allowed.
+this for agent sessions: a checkout or commit binds the worktree to its
+branch (a first-observed *switch* binds to the branch it left, so even
+that switch is checked), and branch switches away from the bound branch
+are rejected. Returning to the bound branch is always allowed.
 A human who genuinely wants to rebind a worktree can re-run the
 checkout with `PNPM_ALLOW_WORKTREE_REBIND=1`.
 
