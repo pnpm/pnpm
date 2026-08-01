@@ -26,12 +26,12 @@ fn scoped_meta_dir_private_namespaces_by_descriptor() {
     let scope = MetadataCacheScope::Private { descriptor_id: "abc123".to_string() };
     assert_eq!(
         scoped_meta_dir(&scope, ABBREVIATED_META_DIR),
-        "v11/metadata-private/abc123/metadata",
+        "v12/metadata-private/abc123/metadata",
     );
-    assert_eq!(scoped_meta_dir(&scope, FULL_META_DIR), "v11/metadata-private/abc123/metadata-full");
+    assert_eq!(scoped_meta_dir(&scope, FULL_META_DIR), "v12/metadata-private/abc123/metadata-full");
     assert_eq!(
         scoped_meta_dir(&scope, FULL_FILTERED_META_DIR),
-        "v11/metadata-private/abc123/metadata-full-filtered",
+        "v12/metadata-private/abc123/metadata-full-filtered",
     );
     // Distinct descriptors never share a directory.
     let other = MetadataCacheScope::Private { descriptor_id: "def456".to_string() };
@@ -84,16 +84,16 @@ fn get_pkg_mirror_path_composes_full_path() {
     let dir = PathBuf::from("/cache");
     let got = get_pkg_mirror_path(&dir, FULL_META_DIR, "https://registry.npmjs.org/", "lodash")
         .expect("compose");
-    assert_eq!(got, PathBuf::from("/cache/v11/metadata-full/registry.npmjs.org/lodash.jsonl"));
+    assert_eq!(got, PathBuf::from("/cache/v12/metadata-full/registry.npmjs.org/lodash.jsonl"));
 }
 
 /// Constants match upstream's `core/constants/src/index.ts` slugs.
 /// Any drift would silently fork the cache layout from pnpm's.
 #[test]
 fn constants_match_upstream() {
-    assert_eq!(FULL_META_DIR, "v11/metadata-full");
-    assert_eq!(FULL_FILTERED_META_DIR, "v11/metadata-full-filtered");
-    assert_eq!(ABBREVIATED_META_DIR, "v11/metadata");
+    assert_eq!(FULL_META_DIR, "v12/metadata-full");
+    assert_eq!(FULL_FILTERED_META_DIR, "v12/metadata-full-filtered");
+    assert_eq!(ABBREVIATED_META_DIR, "v12/metadata");
 }
 
 /// Build a minimal `Package` fixture for the round-trip tests.

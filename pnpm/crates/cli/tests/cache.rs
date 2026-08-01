@@ -7,7 +7,7 @@ use std::fs;
 fn should_list_registries() {
     let cwd = CommandTempCwd::init().add_mocked_registry();
 
-    let cache_dir = cwd.npmrc_info.cache_dir.join("v11").join("metadata");
+    let cache_dir = cwd.npmrc_info.cache_dir.join("v12").join("metadata");
     fs::create_dir_all(cache_dir.join("registry.npmjs.org")).unwrap();
     fs::create_dir_all(cache_dir.join("registry.yarnpkg.com")).unwrap();
 
@@ -30,7 +30,7 @@ fn should_list_registries() {
 fn should_list_packages() {
     let cwd = CommandTempCwd::init().add_mocked_registry();
 
-    let cache_dir = cwd.npmrc_info.cache_dir.join("v11").join("metadata");
+    let cache_dir = cwd.npmrc_info.cache_dir.join("v12").join("metadata");
     let url_str = cwd.npmrc_info.mock_instance.url();
     let registry_name =
         pacquet_resolving_npm_resolver::mirror::get_registry_name(&url_str).unwrap();
@@ -57,7 +57,7 @@ fn should_list_packages() {
 fn should_list_only_files_not_directories() {
     let cwd = CommandTempCwd::init().add_mocked_registry();
 
-    let cache_dir = cwd.npmrc_info.cache_dir.join("v11").join("metadata");
+    let cache_dir = cwd.npmrc_info.cache_dir.join("v12").join("metadata");
     let url_str = cwd.npmrc_info.mock_instance.url();
     let registry_name =
         pacquet_resolving_npm_resolver::mirror::get_registry_name(&url_str).unwrap();
@@ -92,7 +92,7 @@ fn should_list_only_files_not_directories() {
 fn should_delete_packages() {
     let cwd = CommandTempCwd::init().add_mocked_registry();
 
-    let cache_dir = cwd.npmrc_info.cache_dir.join("v11").join("metadata");
+    let cache_dir = cwd.npmrc_info.cache_dir.join("v12").join("metadata");
     let url_str = cwd.npmrc_info.mock_instance.url();
     let registry_name =
         pacquet_resolving_npm_resolver::mirror::get_registry_name(&url_str).unwrap();
@@ -149,7 +149,7 @@ fn should_delete_packages_from_all_metadata_dirs() {
 #[test]
 fn should_view_package_cache() {
     let cwd = CommandTempCwd::init().add_mocked_registry();
-    let cache_dir = cwd.npmrc_info.cache_dir.join("v11").join("metadata");
+    let cache_dir = cwd.npmrc_info.cache_dir.join("v12").join("metadata");
     let url_str = cwd.npmrc_info.mock_instance.url();
     let registry_name =
         pacquet_resolving_npm_resolver::mirror::get_registry_name(&url_str).unwrap();
@@ -195,7 +195,7 @@ fn should_view_package_cache() {
 #[test]
 fn should_omit_a_package_whose_cache_file_is_damaged() {
     let cwd = CommandTempCwd::init().add_mocked_registry();
-    let cache_dir = cwd.npmrc_info.cache_dir.join("v11").join("metadata");
+    let cache_dir = cwd.npmrc_info.cache_dir.join("v12").join("metadata");
     let url_str = cwd.npmrc_info.mock_instance.url();
     let registry_name =
         pacquet_resolving_npm_resolver::mirror::get_registry_name(&url_str).unwrap();
@@ -264,7 +264,7 @@ fn import_populates_metadata_cache() {
 
     let registry_name =
         pacquet_resolving_npm_resolver::mirror::get_registry_name(&mock_instance.url()).unwrap();
-    let cache_metadata_dir = cache_dir.join("v11").join("metadata").join(&registry_name);
+    let cache_metadata_dir = cache_dir.join("v12").join("metadata").join(&registry_name);
 
     assert!(cache_metadata_dir.exists(), "metadata cache directory must exist");
     assert!(
