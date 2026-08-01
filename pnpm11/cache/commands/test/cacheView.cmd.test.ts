@@ -1,7 +1,9 @@
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { beforeEach, describe, expect, test } from '@jest/globals'
 import { cache } from '@pnpm/cache.commands'
+import { ABBREVIATED_META_DIR } from '@pnpm/constants'
 import { prepare } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { rimrafSync } from '@zkochan/rimraf'
@@ -91,6 +93,28 @@ describe('cache view', () => {
         ],
       },
     })
+  })
+
+  // A damaged file is what the resolver refuses to read, so listing the
+  // versions around the damage would report a cache no install will use.
+  test('omits a package whose cache file is damaged', async () => {
+    const mirror = path.join(cacheDir, ABBREVIATED_META_DIR, 'registry.npmjs.org', 'is-negative.jsonl')
+    const bytes = fs.readFileSync(mirror)
+    const at = bytes.indexOf(Buffer.from('"integrity"'))
+    expect(at).toBeGreaterThan(-1)
+    // Same byte count, so the index spans still address the fragment, but
+    // its own bytes no longer parse.
+    bytes.fill('x', at, at + 11)
+    fs.writeFileSync(mirror, bytes)
+
+    const result = await cache.handler({
+      cacheDir,
+      cliOptions: {},
+      pnpmHomeDir: process.cwd(),
+      storeDir,
+    }, ['view', 'is-negative'])
+
+    expect(JSON.parse(result!)['registry.npmjs.org']).toBeUndefined()
   })
 
   test('lists all metadata for requested package should specify a package name', async () => {

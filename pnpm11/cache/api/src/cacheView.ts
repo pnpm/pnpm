@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import type { PackageMeta } from '@pnpm/resolving.npm-resolver'
+import { loadMeta } from '@pnpm/resolving.npm-resolver'
 import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import getRegistryName from 'encode-registry'
 import { glob } from 'tinyglobby'
@@ -19,26 +19,18 @@ export async function cacheView (opts: { cacheDir: string, storeDir: string, reg
     cwd: opts.cacheDir,
     expandDirectories: false,
   })).sort()
+  const cachedMetaFiles = await Promise.all(metaFilePaths.map(async (filePath) => {
+    const fullPath = path.join(opts.cacheDir, filePath)
+    // Every version is read below, so hydrate up front: the loader then
+    // reports a damaged mirror as a miss instead of throwing partway
+    // through, and the entry is skipped like an unreadable file.
+    const meta = await loadMeta(fullPath, { hydrateEagerly: true })
+    return { filePath, meta, mtime: statMtime(fullPath) }
+  }))
   const metaFilesByPath: Record<string, CachedVersions> = {}
   const storeIndex = new StoreIndex(opts.storeDir)
   try {
-    for (const filePath of metaFilePaths) {
-      let metaObject: PackageMeta | null
-      const fullPath = path.join(opts.cacheDir, filePath)
-      let mtime: Date | undefined
-      try {
-        const raw = fs.readFileSync(fullPath, 'utf8')
-        mtime = fs.statSync(fullPath).mtime
-        const newlineIdx = raw.indexOf('\n')
-        if (newlineIdx !== -1) {
-          // NDJSON format: line 1 = headers, line 2 = metadata
-          metaObject = JSON.parse(raw.slice(newlineIdx + 1)) as PackageMeta
-        } else {
-          metaObject = JSON.parse(raw) as PackageMeta
-        }
-      } catch {
-        continue
-      }
+    for (const { filePath, meta: metaObject, mtime } of cachedMetaFiles) {
       if (!metaObject) continue
       const cachedVersions: string[] = []
       const nonCachedVersions: string[] = []
@@ -66,4 +58,12 @@ export async function cacheView (opts: { cacheDir: string, storeDir: string, reg
     storeIndex.close()
   }
   return JSON.stringify(metaFilesByPath, null, 2)
+}
+
+function statMtime (filePath: string): Date | undefined {
+  try {
+    return fs.statSync(filePath).mtime
+  } catch {
+    return undefined
+  }
 }
