@@ -202,6 +202,50 @@ fn phase_summary_reports_partition_and_means() {
     }
 }
 
+fn peer_heavy_diagnostics(pacquet: (f64, f64), pnpm: (f64, f64)) -> super::BenchmarkDiagnostics {
+    let target = |id: &str, (mean, min): (f64, f64)| super::BenchmarkTargetDiagnostics {
+        id: id.to_string(),
+        hyperfine_mean_seconds: Some(mean),
+        hyperfine_min_seconds: Some(min),
+        phase_summary: super::PhaseSummary::default(),
+        phase_events: vec![],
+    };
+    super::BenchmarkDiagnostics {
+        targets: vec![target("pacquet@HEAD", pacquet), target("pnpm@HEAD", pnpm)],
+        pnpr_direct_ratios: vec![],
+    }
+}
+
+/// On a shared runner one contended sample drags a target's mean well past its
+/// uncontended runs, so the gate reads each engine's fastest run instead. These
+/// timings clear the floor on the minimum and fall under it on the mean.
+#[test]
+fn peer_heavy_gate_reads_the_fastest_run_not_the_mean() {
+    let diagnostics = peer_heavy_diagnostics((2.5, 1.5), (2.9, 2.8));
+
+    let mean_speedup = 2.9 / 2.5;
+    assert!(
+        mean_speedup < super::PACQUET_PNPM_SPEEDUP_MIN,
+        "fixture must fail on the mean: {mean_speedup} >= {}",
+        super::PACQUET_PNPM_SPEEDUP_MIN,
+    );
+
+    let verdict = super::check_peer_heavy_speedup(&diagnostics);
+    dbg!(&verdict);
+    assert!(verdict.is_ok(), "gate must clear the floor on the fastest runs");
+}
+
+/// A genuine blowup lands below the floor on every sample, so the gate must
+/// still reject it.
+#[test]
+fn peer_heavy_gate_rejects_a_regression_on_every_sample() {
+    let diagnostics = peer_heavy_diagnostics((3.1, 3.0), (2.9, 2.8));
+
+    let message = super::check_peer_heavy_speedup(&diagnostics)
+        .expect_err("a sub-floor speedup must fail the gate");
+    assert!(message.contains("faster than pnpm@HEAD"), "{message}");
+}
+
 #[test]
 fn pnpr_direct_ratios_pair_matching_revisions() {
     let commands = HashMap::from([
@@ -211,15 +255,26 @@ fn pnpr_direct_ratios_pair_matching_revisions() {
                 command: "pacquet@HEAD".to_string(),
                 command_name: None,
                 mean: 10.0,
+                min: 10.0,
             },
         ),
         (
             "pnpr@HEAD".to_string(),
-            HyperfineCommand { command: "pnpr@HEAD".to_string(), command_name: None, mean: 8.0 },
+            HyperfineCommand {
+                command: "pnpr@HEAD".to_string(),
+                command_name: None,
+                mean: 8.0,
+                min: 8.0,
+            },
         ),
         (
             "pnpr@main".to_string(),
-            HyperfineCommand { command: "pnpr@main".to_string(), command_name: None, mean: 9.0 },
+            HyperfineCommand {
+                command: "pnpr@main".to_string(),
+                command_name: None,
+                mean: 9.0,
+                min: 9.0,
+            },
         ),
     ]);
 
@@ -288,6 +343,7 @@ fn diagnostics_markdown_includes_create_virtual_store_line_item() {
             targets: vec![super::BenchmarkTargetDiagnostics {
                 id: "pnpr@HEAD".to_string(),
                 hyperfine_mean_seconds: Some(7.5),
+                hyperfine_min_seconds: Some(7.5),
                 phase_summary: super::PhaseSummary {
                     partition: Some(super::PartitionMetric {
                         warm: 12,
@@ -317,6 +373,7 @@ fn diagnostics_markdown_notes_fresh_install_cold_store_tarball_baseline_shift() 
             targets: vec![super::BenchmarkTargetDiagnostics {
                 id: "pnpr@main".to_string(),
                 hyperfine_mean_seconds: Some(1.0),
+                hyperfine_min_seconds: Some(1.0),
                 phase_summary: super::PhaseSummary::default(),
                 phase_events: vec![],
             }],
@@ -337,6 +394,7 @@ fn diagnostics_markdown_omits_baseline_note_after_pnpr_main_is_instrumented() {
             targets: vec![super::BenchmarkTargetDiagnostics {
                 id: "pnpr@main".to_string(),
                 hyperfine_mean_seconds: Some(1.0),
+                hyperfine_min_seconds: Some(1.0),
                 phase_summary: super::PhaseSummary {
                     partition: Some(super::PartitionMetric {
                         warm: 0,
