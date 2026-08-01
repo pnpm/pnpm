@@ -359,7 +359,7 @@ fn a_view_synced_wave_by_wave_matches_one_built_from_scratch() {
     assert!(workspace.sync_discovery_tree(&mut carried, &mut carried_cursor));
 
     let mut from_scratch = crate::resolved_tree::ResolvedTree::default();
-    workspace.rebuild_discovery_tree(&mut from_scratch);
+    workspace.rebuild_discovery_tree(&mut from_scratch, &mut super::SyncCursor::default());
 
     let depths = |tree: &crate::resolved_tree::ResolvedTree| -> BTreeMap<String, i32> {
         tree.dependencies_tree

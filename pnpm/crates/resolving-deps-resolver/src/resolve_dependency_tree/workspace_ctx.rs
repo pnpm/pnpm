@@ -861,16 +861,16 @@ impl WorkspaceTreeCtx {
         true
     }
 
-    /// Fill an empty `tree` from the shared maps, and return the cursor
-    /// the view carries from there on.
+    /// Fill an empty `tree` from the shared maps, and set `cursor` to
+    /// where the refilled view picks the write log up.
     ///
     /// Replaying the whole write log would reach the same view, but a
     /// scan copies each key once instead of once into the log snapshot
     /// and once into the view. The cursor is read *before* the scan, so
     /// a write that lands mid-scan is either picked up here and replayed
     /// harmlessly by the next sync, or missed here and applied by it.
-    pub(crate) fn rebuild_discovery_tree(&self, tree: &mut ResolvedTree) -> SyncCursor {
-        let cursor = {
+    pub(crate) fn rebuild_discovery_tree(&self, tree: &mut ResolvedTree, cursor: &mut SyncCursor) {
+        *cursor = {
             let log = lock_recoverable(&self.sync_log);
             SyncCursor {
                 packages: log.packages.len(),
@@ -889,7 +889,6 @@ impl WorkspaceTreeCtx {
             tree.dependencies_tree.entry(node_id.clone()).or_insert_with(|| node.clone());
         }
         tree.all_peer_dep_names.extend(lock_recoverable(&self.all_peer_dep_names).iter().cloned());
-        cursor
     }
 
     /// The keys written to one of [`SyncLog`]'s slots between two cursor

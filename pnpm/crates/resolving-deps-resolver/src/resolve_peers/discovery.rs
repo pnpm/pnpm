@@ -74,7 +74,7 @@ impl PeerHoistDiscovery {
             if stale || !workspace.sync_discovery_tree(&mut self.tree, &mut self.cursor) {
                 self.tree = ResolvedTree::default();
                 self.caches = PeerDiscoveryCaches::default();
-                self.cursor = workspace.rebuild_discovery_tree(&mut self.tree);
+                workspace.rebuild_discovery_tree(&mut self.tree, &mut self.cursor);
             }
             self.synced_children_rewrites = Some(children_rewrites);
             self.synced_revision = Some(revision);
