@@ -1048,37 +1048,28 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // download's `pnpm:progress` emits route through the same
         // reporter the install pass uses. See
         // `prefetching_resolver.rs` for the full design rationale.
-        //
-        // Skipped entirely under `--lockfile-only`: that path writes only
-        // `pnpm-lock.yaml` and must not touch the store, so resolution
-        // runs through the bare chain with no background download. This is
-        // the `dryRun: opts.lockfileOnly` path.
-        let resolver: Box<dyn Resolver> = if lockfile_only || filtered_isolated {
-            inner_resolver
-        } else {
-            Box::new(PrefetchingResolver::<Reporter>::new(
-                inner_resolver,
-                PrefetchContext {
-                    http_client: &http_client_arc,
-                    mem_cache: &tarball_mem_cache,
-                    store_index: store_index_ref,
-                    store_index_writer: Some(&store_index_writer),
-                    verified_files_cache: &verified_files_cache,
-                    config,
-                    requester,
-                    supported_architectures,
-                    progress_reported: &progress_reported,
-                },
-            ))
-        };
+        let resolver: Box<dyn Resolver> = Box::new(PrefetchingResolver::<Reporter>::new(
+            inner_resolver,
+            PrefetchContext {
+                http_client: &http_client_arc,
+                mem_cache: &tarball_mem_cache,
+                store_index: store_index_ref,
+                store_index_writer: Some(&store_index_writer),
+                verified_files_cache: &verified_files_cache,
+                config,
+                requester,
+                supported_architectures,
+                progress_reported: &progress_reported,
+                prefetch_downloads: !lockfile_only && !filtered_isolated,
+            },
+        ));
 
         // The pnpr server resolves `--lockfile-only` and reports each
         // resolved tarball to the client as it lands, so the client can
         // fetch in parallel with the server's resolution. Wrap the chain
-        // last so the observer sees every resolve regardless of whether
-        // the prefetcher above is in play (it isn't under
-        // `--lockfile-only`, which is the pnpr resolve path). A no-op for
-        // every local install (`resolution_observer` is `None`).
+        // last so the observer sees each resolve as the wrapper above
+        // leaves it, integrity included. A no-op for every local install
+        // (`resolution_observer` is `None`).
         let resolver: Box<dyn Resolver> = match resolution_observer {
             Some(observer) => Box::new(crate::ObservingResolver::new(resolver, observer)),
             None => resolver,
@@ -1741,11 +1732,10 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         };
 
         // `--lockfile-only`: the graph is resolved, so build and write
-        // `pnpm-lock.yaml` and return before any materialization. No
-        // tarball was prefetched (the resolver ran without the
-        // `PrefetchingResolver` wrapper), so the store is untouched and
-        // there is no `node_modules`, `.modules.yaml`, or current
-        // lockfile — a lockfile-only resolve pass.
+        // `pnpm-lock.yaml` and return before any materialization. Nothing
+        // was prefetched, and there is no `node_modules`,
+        // `.modules.yaml`, or current lockfile — a lockfile-only resolve
+        // pass.
         if lockfile_only {
             let freshly_resolved = build_fresh_lockfile(FreshLockfileBuildOptions {
                 config,
