@@ -599,6 +599,11 @@ where
         .await?;
     let direct: Vec<DirectDep> = results.into_iter().flatten().collect();
     ctx.workspace.record_preferred_version_roots(direct.iter().map(|dep| dep.id.as_str()));
+    // Second bump, after every write of this wave (including the roots
+    // above) has landed: a `run_preferred_versions` read racing with
+    // this call could bind the entry bump's revision to a partial
+    // closure, and without a completion bump it would never refresh.
+    ctx.workspace.bump_revision();
     Ok(direct)
 }
 
