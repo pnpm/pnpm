@@ -5,8 +5,9 @@ pub mod _utils;
 use _utils::append_workspace_yaml_key;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
+use pacquet_lockfile::{Lockfile, PackageKey, PkgName, SnapshotDepRef};
 use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fs, path::Path};
+use std::{fs, path::Path, str::FromStr};
 
 /// The setting only keeps the machine-dependent path of an *external*
 /// link out of the lockfile. A workspace-internal link resolving a peer
@@ -14,41 +15,46 @@ use std::{fs, path::Path};
 /// snapshot edge must come out exactly as they do with the setting off.
 #[test]
 fn workspace_internal_link_peer_is_unaffected_by_exclude_links_from_lockfile() {
-    let with_setting = install_workspace_with_linked_peer(true);
+    let mut with_setting = install_workspace_with_linked_peer(true);
     let without_setting = install_workspace_with_linked_peer(false);
 
-    let snapshot_key = concat!(
+    let snapshot_key = PackageKey::from_str(concat!(
         "@pnpm.e2e/abc@1.0.0",
         "(@pnpm.e2e/peer-a@packages+peer-a)",
         "(@pnpm.e2e/peer-b@1.0.0)",
         "(@pnpm.e2e/peer-c@1.0.0)",
-    );
+    ))
+    .expect("parse the expected snapshot key");
+    let peer_name = PkgName::parse("@pnpm.e2e/peer-a").expect("parse the peer name");
     for (lockfile, exclude_links) in [(&with_setting, true), (&without_setting, false)] {
-        assert!(
-            lockfile.contains(snapshot_key),
-            "the workspace link must keep its own path in the peer suffix with \
-             excludeLinksFromLockfile: {exclude_links}\n{lockfile}",
-        );
-        assert!(
-            !lockfile.contains("node_modules+peer-a"),
+        let snapshots = lockfile.snapshots.as_ref().expect("the lockfile has snapshots");
+        dbg!(snapshots.keys().collect::<Vec<_>>());
+        let snapshot = snapshots.get(&snapshot_key).unwrap_or_else(|| {
+            panic!(
+                "the workspace link must keep its own path in the peer suffix with \
+                 excludeLinksFromLockfile: {exclude_links}",
+            )
+        });
+        assert_eq!(
+            snapshot.dependencies.as_ref().and_then(|deps| deps.get(&peer_name)),
+            Some(&SnapshotDepRef::Link("packages/peer-a".to_string())),
             "the workspace link must not be remapped to the importer's node_modules with \
-             excludeLinksFromLockfile: {exclude_links}\n{lockfile}",
+             excludeLinksFromLockfile: {exclude_links}",
         );
     }
-    let with_setting_normalized =
-        with_setting.replace("excludeLinksFromLockfile: true", "excludeLinksFromLockfile: false");
-    eprintln!("WITH SETTING:\n{with_setting_normalized}\n");
-    eprintln!("WITHOUT SETTING:\n{without_setting}\n");
-    assert_eq!(
-        with_setting_normalized, without_setting,
-        "only the recorded setting itself may differ",
-    );
+
+    // Structural rather than textual: the invariant is that the setting
+    // changes nothing else, not that the two files serialize identically.
+    let settings = with_setting.settings.as_mut().expect("the lockfile records its settings");
+    settings.exclude_links_from_lockfile = false;
+    dbg!(&with_setting, &without_setting);
+    assert_eq!(with_setting, without_setting, "only the recorded setting itself may differ");
 }
 
 /// Workspace whose `packages/app` depends on a registry package with
 /// peer dependencies, one of which is provided by the sibling workspace
 /// package `packages/peer-a`. Returns the resulting `pnpm-lock.yaml`.
-fn install_workspace_with_linked_peer(exclude_links_from_lockfile: bool) -> String {
+fn install_workspace_with_linked_peer(exclude_links_from_lockfile: bool) -> Lockfile {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
@@ -83,8 +89,8 @@ fn install_workspace_with_linked_peer(exclude_links_from_lockfile: bool) -> Stri
     );
 
     pacquet.with_arg("install").with_arg("--lockfile-only").assert().success();
-    let lockfile =
-        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    let text = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    let lockfile = serde_saphyr::from_str(&text).expect("parse pnpm-lock.yaml");
 
     drop((root, mock_instance));
     lockfile
