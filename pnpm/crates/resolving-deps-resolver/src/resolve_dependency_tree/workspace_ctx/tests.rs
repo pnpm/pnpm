@@ -372,6 +372,7 @@ fn a_view_synced_wave_by_wave_matches_one_built_from_scratch() {
     };
     dbg!(depths(&carried), depths(&from_scratch));
     assert_eq!(depths(&carried), depths(&from_scratch));
+    assert_eq!(depths(&carried), BTreeMap::from([(root.to_string(), -1), (child.to_string(), 3)]));
     assert_eq!(
         carried.packages.keys().collect::<BTreeSet<_>>(),
         from_scratch.packages.keys().collect::<BTreeSet<_>>(),
