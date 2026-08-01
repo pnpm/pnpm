@@ -5,6 +5,7 @@
 use crate::{
     dependencies_graph::PeerDependencyIssues,
     node_id::NodeId,
+    resolve_dependency_tree::SyncCursor,
     resolve_peers::{
         HoistMissingScope, ResolvePeersOptions,
         cache::{PeerProviderChildren, PeersCacheItem},
@@ -27,6 +28,9 @@ pub(crate) struct PeerHoistDiscovery {
     caches: PeerDiscoveryCaches,
     synced_revision: Option<u64>,
     synced_children_rewrites: Option<u64>,
+    /// How much of the workspace context's write log [`Self::tree`] has
+    /// absorbed. Reset with the view.
+    cursor: SyncCursor,
 }
 
 impl PeerHoistDiscovery {
@@ -36,6 +40,7 @@ impl PeerHoistDiscovery {
             caches: PeerDiscoveryCaches::default(),
             synced_revision: None,
             synced_children_rewrites: None,
+            cursor: SyncCursor::default(),
         }
     }
 
@@ -66,11 +71,10 @@ impl PeerHoistDiscovery {
             let children_rewrites = workspace.children_rewrites();
             let stale =
                 self.synced_children_rewrites.is_some_and(|synced| synced != children_rewrites);
-            if stale || !workspace.sync_discovery_tree(&mut self.tree) {
+            if stale || !workspace.sync_discovery_tree(&mut self.tree, &mut self.cursor) {
                 self.tree = ResolvedTree::default();
                 self.caches = PeerDiscoveryCaches::default();
-                let rebuilt = workspace.sync_discovery_tree(&mut self.tree);
-                debug_assert!(rebuilt, "a sync into an empty tree has nothing to conflict with");
+                workspace.rebuild_discovery_tree(&mut self.tree, &mut self.cursor);
             }
             self.synced_children_rewrites = Some(children_rewrites);
             self.synced_revision = Some(revision);

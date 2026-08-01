@@ -35,6 +35,7 @@ pub use workspace_ctx::WorkspaceTreeCtx;
 
 pub(crate) use catalogs::resolve_catalog_specifiers;
 pub(crate) use reuse::{record_changed_direct_deps, unwrap_package_name};
+pub(crate) use workspace_ctx::SyncCursor;
 
 use reuse::{ReuseSource, record_direct_dep_versions};
 use walk::{

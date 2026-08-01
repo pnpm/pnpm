@@ -8,11 +8,17 @@
 //! - peer hoisting enabled, which runs the importer peer-discovery barrier;
 //! - no wanted lockfile, so the whole graph is resolved.
 //!
-//! Two scenarios run back to back: the plain graph above, and a peer-heavy
+//! Three scenarios run back to back. The plain graph above; a peer-heavy
 //! variant where every graph package peer-depends on a set of framework
 //! packages the importers provide directly (the react/graphql shape of a Bit
-//! workspace). The second exercises the peer walker's per-node parent-context
-//! bookkeeping, which the first never grows beyond empty maps.
+//! workspace), which exercises the peer walker's per-node parent-context
+//! bookkeeping that the first never grows beyond empty maps; and a
+//! hoist-heavy variant where those peers are missing and the importers'
+//! direct sets differ, so the auto-install-peers loop actually runs — several
+//! hoist rounds per importer, each extending the tree and forcing the
+//! discovery engine to refresh its view. Timings from the first two say
+//! nothing about that loop: with every peer provided up front it converges in
+//! one round.
 //!
 //! Run once (the benchmark intentionally has no statistical harness because a
 //! regressed run can take minutes and several GiB):
@@ -49,6 +55,23 @@ const CHILDREN_PER_PACKAGE: usize = 4;
 /// of them directly; every graph package peer-depends on a rotating subset.
 const FRAMEWORK_COUNT: usize = 30;
 const PEERS_PER_PACKAGE: usize = 8;
+/// How many of the layer-0 roots each importer declares in the
+/// hoist-heavy scenario, rotated per importer so the importers' forests
+/// differ instead of every one resolving the same direct set.
+const ROOTS_PER_IMPORTER: usize = 6;
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Shape {
+    /// No peers anywhere.
+    Plain,
+    /// Every package peer-depends on framework packages the importers
+    /// declare directly, so nothing is ever missing.
+    PeersProvided,
+    /// The same peers, but no importer declares the frameworks: each one
+    /// has to hoist them itself, so the hoist loop runs several rounds
+    /// with tree extensions in between.
+    PeersHoisted,
+}
 
 struct GraphResolver {
     packages: HashMap<String, ResolveResult>,
@@ -104,7 +127,8 @@ fn dependencies_for_package(layer: usize, index: usize) -> serde_json::Value {
     serde_json::Value::Object(dependencies)
 }
 
-fn graph_resolver(with_peers: bool) -> GraphResolver {
+fn graph_resolver(shape: Shape) -> GraphResolver {
+    let with_peers = shape != Shape::Plain;
     let mut packages: HashMap<String, ResolveResult> = (0..LAYER_COUNT)
         .flat_map(|layer| {
             (0..PACKAGES_PER_LAYER).map(move |index| {
@@ -179,11 +203,17 @@ fn graph_resolver(with_peers: bool) -> GraphResolver {
     GraphResolver { packages }
 }
 
-fn importer_manifest(index: usize, with_peers: bool) -> PackageManifest {
-    let mut dependencies: serde_json::Map<String, serde_json::Value> = (0..PACKAGES_PER_LAYER)
+fn importer_manifest(index: usize, shape: Shape) -> PackageManifest {
+    let roots: Vec<usize> = if shape == Shape::PeersHoisted {
+        (0..ROOTS_PER_IMPORTER).map(|offset| (index + offset) % PACKAGES_PER_LAYER).collect()
+    } else {
+        (0..PACKAGES_PER_LAYER).collect()
+    };
+    let mut dependencies: serde_json::Map<String, serde_json::Value> = roots
+        .into_iter()
         .map(|root| (package_name(0, root), serde_json::Value::String("1.0.0".to_string())))
         .collect();
-    if with_peers {
+    if shape == Shape::PeersProvided {
         for framework in 0..FRAMEWORK_COUNT {
             dependencies
                 .insert(framework_name(framework), serde_json::Value::String("1.0.0".to_string()));
@@ -254,9 +284,9 @@ fn workspace_options() -> WorkspaceResolveOptions {
     }
 }
 
-fn run_scenario(runtime: &tokio::runtime::Runtime, label: &str, with_peers: bool) {
+fn run_scenario(runtime: &tokio::runtime::Runtime, label: &str, shape: Shape) {
     let manifests: Vec<_> =
-        (0..IMPORTER_COUNT).map(|index| importer_manifest(index, with_peers)).collect();
+        (0..IMPORTER_COUNT).map(|index| importer_manifest(index, shape)).collect();
     let importer_ids: Vec<_> =
         (0..IMPORTER_COUNT).map(|index| format!("components/component-{index:03}")).collect();
     let importers: Vec<_> = importer_ids
@@ -264,7 +294,7 @@ fn run_scenario(runtime: &tokio::runtime::Runtime, label: &str, with_peers: bool
         .zip(&manifests)
         .map(|(id, manifest)| WorkspaceImporter { id: id.clone(), manifest })
         .collect();
-    let resolver = graph_resolver(with_peers);
+    let resolver = graph_resolver(shape);
 
     let started = Instant::now();
     let result = runtime
@@ -291,6 +321,7 @@ fn main() {
         .enable_all()
         .build()
         .expect("create benchmark runtime");
-    run_scenario(&runtime, "full workspace resolution", false);
-    run_scenario(&runtime, "peer-heavy workspace resolution", true);
+    run_scenario(&runtime, "full workspace resolution", Shape::Plain);
+    run_scenario(&runtime, "peer-heavy workspace resolution", Shape::PeersProvided);
+    run_scenario(&runtime, "hoist-heavy workspace resolution", Shape::PeersHoisted);
 }
