@@ -22,8 +22,12 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 
+// Child stderr is piped (not inherited) so an expected failure — a
+// detached HEAD, an unresolvable `@{-1}` — doesn't splash `fatal:`
+// noise into every checkout; the messages this script prints carry
+// the signal instead.
 const git = (...args) =>
-  execFileSync('git', args, { encoding: 'utf8' }).trim()
+  execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()
 
 // Single-quote a value for a copy/paste-safe POSIX shell command.
 const shellQuote = (value) => `'${value.replaceAll("'", String.raw`'\''`)}'`
@@ -60,10 +64,33 @@ try {
   process.exit(1)
 }
 
+const isAgent = Boolean(process.env.CLAUDECODE)
+const overridden = process.env.PNPM_ALLOW_WORKTREE_REBIND === '1'
+
 const markerPath = join(gitDir, 'agent-bound-branch')
 let bound = existsSync(markerPath) ? readFileSync(markerPath, 'utf8').trim() : null
 if (bound === null) {
   bound = initialBinding(branch)
+  if (bound === null) {
+    // A first-observed switch whose origin the checkout history cannot
+    // name would otherwise bind to its own destination — the exact
+    // rebind this guard exists to reject. Fail closed for agents and
+    // leave the worktree unbound.
+    console.error(
+      [
+        `error: This worktree has no recorded branch binding, and the checkout history does not name the branch this switch to \`${branch}\` came from.`,
+        '',
+        'One worktree works on one branch for its whole life. Switch back to the',
+        "branch this worktree was on. If it is legitimately this worktree's own",
+        'branch, record the binding with:',
+        '',
+        '  node .husky/reject-worktree-rebind.mjs --bind-only',
+        '',
+        'A human can instead re-run the checkout with PNPM_ALLOW_WORKTREE_REBIND=1.',
+      ].join('\n')
+    )
+    process.exit(1)
+  }
   writeFileSync(markerPath, `${bound}\n`)
 }
 
@@ -71,8 +98,6 @@ if (bound === branch || bindOnly) {
   process.exit(0)
 }
 
-const isAgent = Boolean(process.env.CLAUDECODE)
-const overridden = process.env.PNPM_ALLOW_WORKTREE_REBIND === '1'
 if (!isAgent || overridden) {
   writeFileSync(markerPath, `${branch}\n`)
   process.exit(0)
@@ -95,23 +120,39 @@ console.error(
 )
 process.exit(1)
 
-// The branch a first-observed checkout binds the worktree to: the
-// branch the worktree was on before the switch, so the switch itself
-// still gets checked. The worktree's own creation (old ref is the null
-// SHA) and a checkout history that names no prior branch bind to the
-// branch just checked out.
+// The branch a first-observed checkout binds the worktree to: the most
+// recent branch named as a checkout source in the worktree's HEAD
+// reflog, so the switch itself still gets checked. Reflog subjects are
+// read directly — `@{-N}` cannot name a since-deleted branch — and
+// detached sources (a rebase or bisect in progress at the time) are
+// skipped in favor of the branch they detached from. A same-branch
+// re-checkout binds to itself through its own reflog entry; comparing
+// the hook's old/new SHAs cannot stand in for that, because `switch
+// -c` from the bound branch also moves nothing. The worktree's own
+// creation (old ref is the null SHA) and a `--bind-only` call bind to
+// the branch just checked out. `null` means a checkout happened whose
+// history cannot name any source branch (reflog disabled, expired, or
+// detached throughout), so agent sessions must not trust the
+// destination.
 function initialBinding (currentBranch) {
   const oldRef = bindOnly ? null : process.argv[2]
   if (!oldRef || /^0+$/.test(oldRef)) {
     return currentBranch
   }
+  let subjects
   try {
-    const previous = git('rev-parse', '--symbolic-full-name', '@{-1}')
-    if (previous.startsWith('refs/heads/')) {
-      return previous.slice('refs/heads/'.length)
-    }
+    subjects = git('log', '-g', '--format=%gs', 'HEAD')
   } catch {
-    // No prior checkout recorded; fall through.
+    subjects = ''
   }
-  return currentBranch
+  // The newest entry is the checkout that fired this hook; its source
+  // is where the worktree stood before.
+  for (const line of subjects.split('\n')) {
+    const source = /^checkout: moving from (\S+) to /.exec(line)?.[1]
+    if (!source || /^[0-9a-f]{40}$/.test(source)) {
+      continue
+    }
+    return source
+  }
+  return isAgent && !overridden ? null : currentBranch
 }
