@@ -1541,9 +1541,8 @@ async fn jsr_specifier_suppresses_latest_when_published_by_holds_back_raw_latest
     assert!(result.latest.is_none(), "immature dist-tags.latest suppresses the hint");
 }
 
-/// A packument whose `dist` carries only the legacy `shasum`, as
-/// registries predating subresource integrity serve — the shape behind
-/// <https://github.com/pnpm/pnpm/issues/13547>.
+/// A packument whose `dist` carries only the legacy `shasum`, the shape
+/// behind <https://github.com/pnpm/pnpm/issues/13547>.
 fn shasum_only_package_body(shasum: &str) -> String {
     json!({
         "name": "acme",

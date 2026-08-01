@@ -373,9 +373,9 @@ fn lockfile_only_updates_importers_when_a_project_is_added() {
 }
 
 /// A registry version that pins nothing — neither `dist.integrity` nor
-/// the legacy `dist.shasum` — leaves the lockfile no hash to record, so
-/// the resolver has to download that tarball and compute one even under
-/// `--lockfile-only` (<https://github.com/pnpm/pnpm/issues/13547>).
+/// `dist.shasum` — must be hashed even under `--lockfile-only`, or the
+/// lockfile it writes cannot be installed
+/// (<https://github.com/pnpm/pnpm/issues/13547>).
 #[test]
 fn computes_the_integrity_of_an_unpinned_tarball() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
@@ -422,9 +422,6 @@ fn computes_the_integrity_of_an_unpinned_tarball() {
     packument_mock.assert();
     tarball_mock.assert();
 
-    // The lockfile the resolve pass wrote is the whole point: it has to
-    // be installable as-is, which is what
-    // <https://github.com/pnpm/pnpm/issues/13547> reported it wasn't.
     pacquet_at(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
     assert!(
         workspace.join("node_modules/unpinned/package.json").exists(),
@@ -434,11 +431,9 @@ fn computes_the_integrity_of_an_unpinned_tarball() {
     drop(root);
 }
 
-/// `.npmrc` + `pnpm-workspace.yaml` pointing at `registry`, with the
-/// store and cache under the test's own temp root. The
-/// [`AddMockedRegistry`] helper writes the same pair, but only for the
-/// shared pnpr fixture registry — a hand-built packument needs its own
-/// server.
+/// `.npmrc` + `pnpm-workspace.yaml` for a registry the test hosts
+/// itself. [`AddMockedRegistry`] writes the same pair, but only ever for
+/// the shared pnpr fixture registry.
 fn write_registry_workspace(workspace: &Path, registry: &str) {
     fs::write(workspace.join(".npmrc"), format!("registry={registry}/\n")).expect("write .npmrc");
     fs::write(

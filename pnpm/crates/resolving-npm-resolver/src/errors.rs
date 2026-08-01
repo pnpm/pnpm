@@ -173,8 +173,7 @@ pub struct GuardRepickLimitError {
 /// from it.
 ///
 /// Both fields are quoted registry metadata, so [`Self::new`] redacts
-/// and sanitizes them for the same reason [`FetchMetadataError`] does:
-/// the message reaches the terminal, CI logs, and reporters.
+/// and sanitizes them — see [`FetchMetadataError`] for why.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[display(r#"Tarball "{tarball}" has invalid shasum specified in its metadata: {shasum}"#)]
 #[diagnostic(code(ERR_PNPM_INVALID_TARBALL_INTEGRITY))]

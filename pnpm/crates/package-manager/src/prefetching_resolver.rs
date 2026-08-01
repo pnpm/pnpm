@@ -22,12 +22,10 @@
 //! prefetch is still in flight). Errors are surfaced to the install
 //! path as `TarballError::SiblingFetchFailed`.
 //!
-//! The wrapper carries a second, non-optional job: completing the
-//! integrity of a resolution that has none
-//! ([`PrefetchingResolver::populate_missing_integrity`]). Background
-//! prefetching is a pure optimization a run may switch off
-//! ([`PrefetchContext::prefetch_downloads`]); integrity completion is
-//! not, because the lockfile the run writes is invalid without it.
+//! That prefetch is speculative, and a run may switch it off
+//! ([`PrefetchContext::prefetch_downloads`]). Hashing a resolution
+//! that carries no integrity is not speculative — the lockfile records
+//! that hash — so it runs either way.
 
 use crate::{
     install_package_from_registry::{extract_tarball, manifest_file_count, manifest_unpacked_size},
@@ -77,13 +75,9 @@ pub struct PrefetchContext<'a> {
     /// consults the set so prefetch progress is visible immediately
     /// without being counted again.
     pub progress_reported: &'a SharedReportedProgressKeys,
-    /// Whether a resolved tarball is downloaded in the background.
-    /// `false` for a run whose install pass will never ask for those
-    /// bytes — `--lockfile-only`, or a filtered workspace selection
-    /// that materializes only part of the graph — so the store isn't
-    /// filled with tarballs nobody installs. Integrity completion is
-    /// unaffected: an integrity-less tarball is still downloaded, since
-    /// its hash is what the lockfile records.
+    /// Whether a resolved tarball is prefetched. `false` for a run
+    /// whose install pass will never ask for those bytes, so the store
+    /// isn't filled with tarballs nobody installs.
     pub prefetch_downloads: bool,
 }
 

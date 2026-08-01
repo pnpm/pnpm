@@ -308,8 +308,6 @@ async fn keeps_prefetch_for_required_manifest() {
     assert!(!resolver.should_skip_prefetch(&wanted, &result));
 }
 
-/// A resolution the registry pinned itself: the wrapper has no hash to
-/// compute, so only the background download is left to (not) do.
 fn integrity_pinned_result(tarball_url: &str) -> ResolveResult {
     let mut result =
         result_with_manifest("pinned", json!({ "name": "pinned", "version": "1.0.0" }));
@@ -322,10 +320,7 @@ fn integrity_pinned_result(tarball_url: &str) -> ResolveResult {
     result
 }
 
-/// <https://github.com/pnpm/pnpm/issues/13547>: a resolution the
-/// registry left unpinned still gets its integrity computed when
-/// background prefetching is off, because the lockfile records that
-/// hash.
+/// <https://github.com/pnpm/pnpm/issues/13547>
 #[tokio::test]
 async fn populates_integrity_with_prefetching_off() {
     let dir = tempdir().unwrap();
@@ -360,9 +355,6 @@ async fn populates_integrity_with_prefetching_off() {
     get_mock.assert_async().await;
 }
 
-/// The other half of the split: with prefetching off, a resolution that
-/// already carries an integrity is never downloaded — `--lockfile-only`
-/// must not pull the whole graph into the store.
 #[tokio::test]
 async fn skips_the_background_download_with_prefetching_off() {
     let dir = tempdir().unwrap();

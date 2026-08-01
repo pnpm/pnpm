@@ -1048,14 +1048,6 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // download's `pnpm:progress` emits route through the same
         // reporter the install pass uses. See
         // `prefetching_resolver.rs` for the full design rationale.
-        //
-        // The wrapper stays in the chain even when the background
-        // download is off, because it also completes the integrity of a
-        // registry version whose metadata carries none — the lockfile
-        // records that hash, so `--lockfile-only` needs it as much as a
-        // materializing install does. Matches pnpm, which fetches a
-        // resolution needing fetch-derived data even under
-        // `dryRun: opts.lockfileOnly`.
         let resolver: Box<dyn Resolver> = Box::new(PrefetchingResolver::<Reporter>::new(
             inner_resolver,
             PrefetchContext {
@@ -1075,10 +1067,8 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // The pnpr server resolves `--lockfile-only` and reports each
         // resolved tarball to the client as it lands, so the client can
         // fetch in parallel with the server's resolution. Wrap the chain
-        // last so the observer sees every resolve after the wrapper above
-        // has completed a missing integrity, whether or not that wrapper
-        // is also prefetching (it isn't under `--lockfile-only`, which is
-        // the pnpr resolve path). A no-op for every local install
+        // last so the observer sees each resolve as the wrapper above
+        // leaves it, integrity included. A no-op for every local install
         // (`resolution_observer` is `None`).
         let resolver: Box<dyn Resolver> = match resolution_observer {
             Some(observer) => Box::new(crate::ObservingResolver::new(resolver, observer)),
@@ -1743,10 +1733,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
 
         // `--lockfile-only`: the graph is resolved, so build and write
         // `pnpm-lock.yaml` and return before any materialization. Nothing
-        // was prefetched (the `PrefetchingResolver` ran with
-        // `prefetch_downloads: false`), so the only tarballs that reached
-        // the store are the ones whose integrity the lockfile could not
-        // be written without, and there is no `node_modules`,
+        // was prefetched, and there is no `node_modules`,
         // `.modules.yaml`, or current lockfile — a lockfile-only resolve
         // pass.
         if lockfile_only {

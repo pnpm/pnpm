@@ -864,12 +864,10 @@ pub(crate) fn build_resolve_result(
 
 /// The integrity a registry version's `dist` pins its tarball with.
 ///
-/// A registry that predates subresource integrity publishes only the
-/// legacy `dist.shasum` hex digest; it still pins the bytes, so it is
-/// promoted to the equivalent `sha1-` SRI string rather than dropped.
-/// `None` when the version pins nothing at all — the tarball's hash is
-/// then learned by downloading it (see
-/// `PrefetchingResolver::populate_missing_integrity`).
+/// A registry predating subresource integrity publishes only the legacy
+/// `dist.shasum` hex digest, which pins the bytes just as well, so it is
+/// promoted to its `sha1-` SRI form. `None` when the version pins
+/// nothing at all.
 fn dist_integrity(dist: &PackageDistribution) -> Result<Option<Integrity>, ResolveError> {
     if let Some(integrity) = &dist.integrity {
         return Ok(Some(integrity.clone()));
