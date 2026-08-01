@@ -49,9 +49,15 @@ if (gitDir === gitCommonDir) {
 let branch
 try {
   branch = git('symbolic-ref', '--quiet', '--short', 'HEAD')
-} catch {
-  // Detached HEAD (rebase, bisect, CI checkout) is not a rebind.
-  process.exit(0)
+} catch (error) {
+  // `--quiet` exits 1 on a detached HEAD (rebase, bisect, CI
+  // checkout), which is not a rebind. Anything else is an unexpected
+  // failure the guard must not silently fail open on.
+  if (error?.status === 1) {
+    process.exit(0)
+  }
+  console.error(`reject-worktree-rebind: cannot read HEAD: ${error?.message ?? error}`)
+  process.exit(1)
 }
 
 const markerPath = join(gitDir, 'agent-bound-branch')
@@ -66,7 +72,7 @@ if (bound === branch || bindOnly) {
 }
 
 const isAgent = Boolean(process.env.CLAUDECODE)
-const overridden = Boolean(process.env.PNPM_ALLOW_WORKTREE_REBIND)
+const overridden = process.env.PNPM_ALLOW_WORKTREE_REBIND === '1'
 if (!isAgent || overridden) {
   writeFileSync(markerPath, `${branch}\n`)
   process.exit(0)
