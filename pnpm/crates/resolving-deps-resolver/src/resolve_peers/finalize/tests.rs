@@ -10,7 +10,10 @@ use crate::{
 };
 use pacquet_deps_path::DepPath;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
 
 #[test]
 fn final_graph_keeps_first_equal_depth_payload_and_unions_transitive_peers() {
@@ -150,6 +153,9 @@ fn final_graph_peer_edge_keeps_the_providers_own_peer_suffix() {
     let provider_analyzer = NodeId::next();
     let provider_bare = NodeId::next();
     let consumer = NodeId::next();
+    // A shallower `find_hit` revisit: short-circuited before a `NodeRecord`
+    // was created, so only `node_dep_paths` carries its depth.
+    let consumer_revisit = NodeId::next();
 
     let provider_analyzer_dep_path = DepPath::from(
         "webpack-cli@6.0.1(webpack-bundle-analyzer@4.10.2)(webpack-dev-server@5.2.2)(webpack@5.107.2)",
@@ -191,6 +197,7 @@ fn final_graph_peer_edge_keeps_the_providers_own_peer_suffix() {
             (provider_analyzer.clone(), tree_node("webpack-cli@6.0.1", BTreeMap::new(), 0)),
             (provider_bare.clone(), tree_node("webpack-cli@6.0.1", BTreeMap::new(), 0)),
             (consumer.clone(), tree_node("@webpack-cli/serve@3.0.1", BTreeMap::new(), 1)),
+            (consumer_revisit.clone(), tree_node("@webpack-cli/serve@3.0.1", BTreeMap::new(), 0)),
         ]),
         all_peer_dep_names: HashSet::from_iter([
             "webpack".to_string(),
@@ -203,6 +210,10 @@ fn final_graph_peer_edge_keeps_the_providers_own_peer_suffix() {
         children_by_id: HashMap::default(),
     };
     let mut walker = walker_for_tests(&mut tree);
+    walker.node_dep_paths.insert(provider_analyzer.clone(), provider_analyzer_dep_path.clone());
+    walker.node_dep_paths.insert(provider_bare.clone(), provider_bare_dep_path.clone());
+    walker.node_dep_paths.insert(consumer.clone(), consumer_dep_path.clone());
+    walker.node_dep_paths.insert(consumer_revisit.clone(), consumer_dep_path.clone());
     walker.node_records.insert(
         provider_analyzer.clone(),
         NodeRecord {
@@ -265,19 +276,28 @@ fn final_graph_peer_edge_keeps_the_providers_own_peer_suffix() {
         (provider_analyzer, provider_analyzer_dep_path.clone()),
         (provider_bare, provider_bare_dep_path),
         (consumer, consumer_dep_path.clone()),
+        (consumer_revisit, consumer_dep_path.clone()),
     ]));
 
     assert_eq!(
         graph[&consumer_dep_path].children.get("webpack-cli"),
         Some(&provider_analyzer_dep_path),
     );
-    assert!(!graph.contains_key(&trimmed_dep_path), "no variant is fabricated for the edge");
+    assert_eq!(graph[&consumer_dep_path].depth, 0);
+    assert!(
+        !graph.contains_key(&trimmed_dep_path),
+        "no variant is fabricated for the edge; final graph keys: {:#?}",
+        graph.keys().collect::<BTreeSet<_>>(),
+    );
 }
 
 #[test]
 fn final_graph_peer_edge_keeps_provider_transitive_peer_suffixes() {
     let provider = NodeId::next();
     let consumer = NodeId::next();
+    // A shallower `find_hit` revisit: short-circuited before a `NodeRecord`
+    // was created, so only `node_dep_paths` carries its depth.
+    let provider_revisit = NodeId::next();
 
     let provider_dep_path = DepPath::from(
         "webpack-dev-server@5.2.2(bufferutil@4.1.0)(tslib@2.8.1)(utf-8-validate@5.0.10)(webpack-cli@6.0.1)(webpack@5.107.2)",
@@ -316,6 +336,7 @@ fn final_graph_peer_edge_keeps_provider_transitive_peer_suffixes() {
         ]),
         dependencies_tree: HashMap::from_iter([
             (provider.clone(), tree_node("webpack-dev-server@5.2.2", BTreeMap::new(), 1)),
+            (provider_revisit.clone(), tree_node("webpack-dev-server@5.2.2", BTreeMap::new(), 0)),
             (consumer.clone(), tree_node("webpack-cli@6.0.1", BTreeMap::new(), 0)),
         ]),
         all_peer_dep_names: HashSet::from_iter([
@@ -332,6 +353,9 @@ fn final_graph_peer_edge_keeps_provider_transitive_peer_suffixes() {
         children_by_id: HashMap::default(),
     };
     let mut walker = walker_for_tests(&mut tree);
+    walker.node_dep_paths.insert(provider.clone(), provider_dep_path.clone());
+    walker.node_dep_paths.insert(provider_revisit.clone(), provider_dep_path.clone());
+    walker.node_dep_paths.insert(consumer.clone(), consumer_dep_path.clone());
     walker.node_records.insert(
         provider.clone(),
         NodeRecord {
@@ -381,6 +405,7 @@ fn final_graph_peer_edge_keeps_provider_transitive_peer_suffixes() {
 
     let graph = walker.build_final_graph(&HashMap::from_iter([
         (provider, provider_dep_path.clone()),
+        (provider_revisit, provider_dep_path.clone()),
         (consumer, consumer_dep_path.clone()),
     ]));
 
@@ -388,5 +413,10 @@ fn final_graph_peer_edge_keeps_provider_transitive_peer_suffixes() {
         graph[&consumer_dep_path].children.get("webpack-dev-server"),
         Some(&provider_dep_path),
     );
-    assert!(!graph.contains_key(&trimmed_provider_dep_path));
+    assert_eq!(graph[&provider_dep_path].depth, 0);
+    assert!(
+        !graph.contains_key(&trimmed_provider_dep_path),
+        "no trimmed provider variant is fabricated; final graph keys: {:#?}",
+        graph.keys().collect::<BTreeSet<_>>(),
+    );
 }
