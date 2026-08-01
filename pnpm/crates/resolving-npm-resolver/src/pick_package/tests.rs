@@ -1901,7 +1901,7 @@ async fn private_scope_writes_descriptor_namespaced_mirror() {
 
     let scoped = get_pkg_mirror_path(
         cache_dir.path(),
-        "v11/metadata-private/deadbeef/metadata",
+        "v12/metadata-private/deadbeef/metadata",
         &registry,
         "acme",
     )
@@ -1927,7 +1927,7 @@ async fn private_scope_fails_closed_on_401_without_disk_fallback() {
     // serve from.
     persist_meta_to_mirror(
         cache_dir.path(),
-        "v11/metadata-private/deadbeef/metadata",
+        "v12/metadata-private/deadbeef/metadata",
         &registry,
         &preloaded,
     )
@@ -2024,7 +2024,7 @@ async fn offline_over_a_damaged_mirror_fragment_errors() {
 
     let cache_dir = TempDir::new().expect("tempdir");
     let registry = format!("{}/", server.url());
-    let preloaded: pacquet_registry::Package =
+    let preloaded: pnpm_registry::Package =
         serde_json::from_str(PACKAGE_BODY).expect("parse packument");
     persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &preloaded)
         .expect("warm mirror");
@@ -2082,7 +2082,7 @@ async fn a_damaged_fragment_behind_a_304_is_replaced_by_a_bypassing_refetch() {
 
     let cache_dir = TempDir::new().expect("tempdir");
     let registry = format!("{}/", server.url());
-    let mut preloaded: pacquet_registry::Package =
+    let mut preloaded: pnpm_registry::Package =
         serde_json::from_str(PACKAGE_BODY).expect("parse packument");
     preloaded.etag = Some(r#"W/"cached""#.to_string());
     persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &preloaded)

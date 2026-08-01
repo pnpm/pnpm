@@ -250,7 +250,7 @@ impl VersionSlot {
             return;
         }
         tracing::debug!(
-            target: "pacquet_registry",
+            target: "pnpm_registry",
             version,
             "metadata mirror fragment is damaged; the mirror will be treated as unreadable",
         );

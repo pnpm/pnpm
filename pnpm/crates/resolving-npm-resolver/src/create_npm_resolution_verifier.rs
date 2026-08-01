@@ -123,7 +123,7 @@ pub struct CreateNpmResolutionVerifierOptions {
     pub auth_headers: Arc<AuthHeaders>,
     /// Root of pnpm's on-disk metadata mirror. When set, the verifier
     /// reads conditional headers from
-    /// `<cache_dir>/v11/metadata-full/<registry>/<pkg>.jsonl` and
+    /// `<cache_dir>/v12/metadata-full/<registry>/<pkg>.jsonl` and
     /// writes 200 responses back; when `None`, every fetch is
     /// unconditional.
     pub cache_dir: Option<PathBuf>,
@@ -737,7 +737,7 @@ impl NpmResolutionVerifier {
     ///    cold cache; the full-meta fallback below is hundreds of KB
     ///    bigger per package.
     /// 2. **On-disk full-meta mirror.** If a previous verification
-    ///    populated `<cache_dir>/v11/metadata-full/.../<name>.jsonl`,
+    ///    populated `<cache_dir>/v12/metadata-full/.../<name>.jsonl`,
     ///    take the per-version timestamp from there with no network.
     /// 3. **Npm attestation endpoint.** Small payload, just this
     ///    version's Sigstore-anchored timestamp. Wins on cold cache

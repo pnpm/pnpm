@@ -774,7 +774,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
                 };
                 if let Some(disk) = disk_fallback {
                     tracing::debug!(
-                        target: "pacquet_resolving_npm_resolver::pick_package",
+                        target: "pnpm_resolving_npm_resolver::pick_package",
                         ?error,
                         pkg_name = %spec.name,
                         "metadata fetch failed; falling back to on-disk mirror",
