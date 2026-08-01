@@ -71,6 +71,14 @@ async fn main() {
     };
     let registry_public_url = registry.trim_end_matches('/').to_string();
 
+    if !build_only && scenario.is_some_and(cli_args::BenchmarkScenario::uses_peer_heavy_fixture) {
+        assert!(
+            matches!(registry_mode, RegistryMode::Verdaccio),
+            "the peer-heavy benchmark requires --registry=verdaccio",
+        );
+        work_env::seed_peer_heavy_registry(pacquet_registry_mock::runtime_storage());
+    }
+
     let verdaccio = if build_only {
         None
     } else {

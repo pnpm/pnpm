@@ -32,12 +32,24 @@ const PREWARM_SCRIPT: &str = "prewarm.bash";
 const BENCHMARK_DIAGNOSTICS_JSON: &str = "BENCHMARK_DIAGNOSTICS.json";
 const BENCHMARK_DIAGNOSTICS_MD: &str = "BENCHMARK_DIAGNOSTICS.md";
 const PNPR_DIRECT_RATIO_MAX: f64 = 1.05;
+const PACQUET_PNPM_SPEEDUP_MIN: f64 = 10.0;
 const PNPR_SERVER_REGISTRY_ENV: &str = "PACQUET_BENCHMARK_PNPR_SERVER_REGISTRY";
 const PNPR_TARBALL_REWRITE_FROM_ENV: &str = "PACQUET_BENCHMARK_PNPR_TARBALL_REWRITE_FROM";
 const PNPR_BENCHMARK_USERNAME: &str = "pnpr-benchmark";
 const PNPR_BENCHMARK_PASSWORD: &str = "password123";
 const PNPR_BENCHMARK_HTPASSWD: &str =
     "pnpr-benchmark:$2y$04$MpoezfOJSlhn9S4iiOJihue1IMZTZfYclKbajdz.Dt2pvAoBLNAay\n";
+const PEER_HEAVY_DEPTH: usize = 5;
+const PEER_HEAVY_WIDTH: usize = 80;
+const PEER_HEAVY_PROVIDER: &str = "@pnpmtest/peer-benchmark-provider";
+const PEER_HEAVY_VERSION: &str = "1.0.0";
+const PEER_HEAVY_INTEGRITY: &str = "sha512-z6pI0F3yfz8Zl3R0+g1pwMbdY12h7Osj5UYSTh6Rcpd7UtO7nxeIzf+7gPDOAH4mgxi7BXaTyBDS0hBFgZVssQ==";
+const PNPM_BUNDLE_PATHS: [&str; 4] = [
+    "pnpm11/pnpm/dist/pnpm.mjs",
+    "pnpm11/pnpm/dist/pnpm.cjs",
+    "pnpm/dist/pnpm.mjs",
+    "pnpm/dist/pnpm.cjs",
+];
 
 #[derive(Debug)]
 pub struct WorkEnv {
@@ -236,13 +248,8 @@ impl WorkEnv {
                 // so the existence check sees the bundle produced by
                 // `pnpm run compile-only`, not the empty tree visible
                 // during `init()`.
-                let candidates = [
-                    "./pnpm-source/pnpm11/pnpm/dist/pnpm.mjs",
-                    "./pnpm-source/pnpm11/pnpm/dist/pnpm.cjs",
-                    "./pnpm-source/pnpm/dist/pnpm.mjs",
-                    "./pnpm-source/pnpm/dist/pnpm.cjs",
-                ]
-                .join(" ");
+                let candidates =
+                    PNPM_BUNDLE_PATHS.map(|path| format!("./pnpm-source/{path}")).join(" ");
                 format!(
                     r#"node "$(for f in {candidates}; do if [ -f "$f" ]; then echo "$f"; break; fi; done)""#,
                 )
@@ -256,12 +263,12 @@ impl WorkEnv {
         eprintln!("Initializing...");
         // The proxy-cache populator only runs against a local
         // verdaccio/virtual registry to warm its on-disk cache. With
-        // `--registry=npm`, no proxy exists, so skip writing the
-        // INIT_PROXY_CACHE bench dir entirely — its files (npmrc,
-        // workspace, install script, saved-pristine copies) would be
-        // unreferenced overhead.
+        // `--registry=npm`, no proxy exists. The peer-heavy fixture is
+        // already seeded into hosted storage, so it needs no population
+        // pass either.
         let populate_proxy_cache =
-            matches!(self.registry_mode, RegistryMode::Verdaccio | RegistryMode::Virtual);
+            matches!(self.registry_mode, RegistryMode::Verdaccio | RegistryMode::Virtual)
+                && !scenario.uses_peer_heavy_fixture();
         let id_list = self
             .target_ids()
             .chain(populate_proxy_cache.then_some(WorkEnv::INIT_PROXY_CACHE))
@@ -271,7 +278,7 @@ impl WorkEnv {
             let dir = self.bench_dir(id);
             let registry = self.registry_for(id, direct_registry, revision_mocks);
             fs::create_dir_all(&dir).expect("create directory for the revision");
-            create_package_json(&dir, self.fixture_dir.as_deref());
+            create_package_json(&dir, self.fixture_dir.as_deref(), scenario);
             create_pnpm_workspace(&dir, self.fixture_dir.as_deref(), registry, scenario);
             create_install_script(&dir, scenario, &WorkEnv::install_command(id), id);
             create_npmrc(&dir, registry, scenario);
@@ -477,11 +484,17 @@ impl WorkEnv {
     }
 
     fn build_pnpm(&self, revision: &str) {
+        let revision_repo = self.pnpm_source_dir(revision);
+        if self.reuse_prebuilt_binaries
+            && PNPM_BUNDLE_PATHS.iter().any(|path| revision_repo.join(path).is_file())
+        {
+            eprintln!("Revision: {revision:?} (pnpm) — reusing prebuilt bundle");
+            return;
+        }
+
         eprintln!("Revision: {revision:?} (pnpm)");
 
         let repository = self.pnpm_repository();
-        let revision_repo = self.pnpm_source_dir(revision);
-
         let commit = WorkEnv::resolve_revision(repository, revision);
         eprintln!("Resolved {revision:?} to {commit}");
 
@@ -634,6 +647,19 @@ impl WorkEnv {
             .arg(self.root().join("BENCHMARK_REPORT.md"));
 
         executor("hyperfine")(&mut command);
+        if scenario.uses_peer_heavy_fixture() {
+            eprintln!("Verifying peer-heavy lockfile parity...");
+            Command::new("bash")
+                .current_dir(self.root())
+                .arg("-c")
+                .arg(&cleanup_command)
+                .pipe_mut(executor("lockfile comparison cleanup"));
+            for id in self.target_ids() {
+                Command::new("bash")
+                    .arg(self.script_path(id))
+                    .pipe_mut(executor("lockfile comparison install"));
+            }
+        }
         self.write_benchmark_diagnostics();
     }
 
@@ -1075,8 +1101,30 @@ impl WorkEnv {
 
     fn verify_benchmark_diagnostics(&self) {
         let diagnostics = read_benchmark_diagnostics(&self.root().join(BENCHMARK_DIAGNOSTICS_JSON));
+        self.verify_peer_heavy_lockfiles();
         self.verify_fresh_pnpr_cold_batch(&diagnostics);
         self.verify_pnpr_direct_ratios(&diagnostics);
+        self.verify_peer_heavy_pacquet_pnpm_ratio(&diagnostics);
+    }
+
+    fn verify_peer_heavy_lockfiles(&self) {
+        if self.scenario != Some(BenchmarkScenario::IsolatedPeerHeavyResolveHotCacheOffline) {
+            return;
+        }
+        let mut lockfiles = self.target_ids().map(|id| {
+            let path = self.bench_dir(id).join("pnpm-lock.yaml");
+            let contents =
+                fs::read(&path).unwrap_or_else(|error| panic!("read {path:?} for {id}: {error}"));
+            (id.to_string(), contents)
+        });
+        let (reference_id, reference) =
+            lockfiles.next().expect("peer-heavy benchmark has at least one target");
+        for (target_id, lockfile) in lockfiles {
+            assert!(
+                lockfile == reference,
+                "peer-heavy lockfile from {target_id} differs from {reference_id}",
+            );
+        }
     }
 
     fn verify_fresh_pnpr_cold_batch(&self, diagnostics: &BenchmarkDiagnostics) {
@@ -1127,6 +1175,30 @@ impl WorkEnv {
                 ratio.pacquet_mean_seconds,
             );
         }
+    }
+
+    fn verify_peer_heavy_pacquet_pnpm_ratio(&self, diagnostics: &BenchmarkDiagnostics) {
+        if self.scenario != Some(BenchmarkScenario::IsolatedPeerHeavyResolveHotCacheOffline)
+            || !self
+                .targets
+                .iter()
+                .any(|target| target.kind == TargetKind::Pnpm && target.rev == "HEAD")
+            || !self
+                .targets
+                .iter()
+                .any(|target| target.kind == TargetKind::Pacquet && target.rev == "HEAD")
+        {
+            return;
+        }
+        let pacquet = benchmark_target_mean(diagnostics, "pacquet@HEAD");
+        let pnpm = benchmark_target_mean(diagnostics, "pnpm@HEAD");
+        let speedup = pnpm / pacquet;
+        assert!(
+            speedup >= PACQUET_PNPM_SPEEDUP_MIN,
+            "pacquet@HEAD was only {speedup:.2}x faster than pnpm@HEAD on the peer-heavy DAG; \
+             required at least {PACQUET_PNPM_SPEEDUP_MIN:.2}x \
+             (pacquet {pacquet:.3}s, pnpm {pnpm:.3}s)",
+        );
     }
 }
 
@@ -1331,6 +1403,15 @@ fn non_trivial_cold_batch(cold: u64, total: u64) -> bool {
 
 fn requires_fresh_pnpr_cold_batch_metrics(target_id: &str) -> bool {
     target_id == "pnpr@HEAD"
+}
+
+fn benchmark_target_mean(diagnostics: &BenchmarkDiagnostics, target_id: &str) -> f64 {
+    diagnostics
+        .targets
+        .iter()
+        .find(|target| target.id == target_id)
+        .and_then(|target| target.hyperfine_mean_seconds)
+        .unwrap_or_else(|| panic!("benchmark report has no mean for required target {target_id}"))
 }
 
 fn render_diagnostics_markdown(
@@ -1603,8 +1684,12 @@ where
     parts.join(" && ")
 }
 
-fn create_package_json(dst_dir: &Path, src_dir: Option<&Path>) {
+fn create_package_json(dst_dir: &Path, src_dir: Option<&Path>, scenario: BenchmarkScenario) {
     let dst = dst_dir.join("package.json");
+    if scenario.uses_peer_heavy_fixture() {
+        fs::write(dst, peer_heavy_root_manifest()).expect("write peer-heavy package.json");
+        return;
+    }
     if let Some(src_dir) = src_dir {
         let src = src_dir.join("package.json");
         assert!(src.is_file(), "{src:?} must be a file");
@@ -1613,6 +1698,104 @@ fn create_package_json(dst_dir: &Path, src_dir: Option<&Path>) {
     } else {
         fs::write(dst, PACKAGE_JSON).expect("write package.json for the revision");
     }
+}
+
+fn peer_heavy_root_manifest() -> String {
+    let mut dependencies = serde_json::Map::new();
+    dependencies
+        .insert(PEER_HEAVY_PROVIDER.to_string(), Value::String(PEER_HEAVY_VERSION.to_string()));
+    for index in 0..PEER_HEAVY_WIDTH {
+        dependencies.insert(
+            peer_heavy_package_name(0, index),
+            Value::String(PEER_HEAVY_VERSION.to_string()),
+        );
+    }
+    serde_json::to_string_pretty(&serde_json::json!({
+        "name": "peer-heavy-benchmark-root",
+        "version": "0.0.0",
+        "private": true,
+        "dependencies": dependencies,
+    }))
+    .expect("serialize peer-heavy root manifest")
+}
+
+pub(crate) fn seed_peer_heavy_registry(storage_root: &Path) {
+    write_peer_heavy_packument(storage_root, PEER_HEAVY_PROVIDER, &serde_json::Map::new(), false);
+    for level in 0..PEER_HEAVY_DEPTH {
+        let dependencies = if level + 1 == PEER_HEAVY_DEPTH {
+            serde_json::Map::new()
+        } else {
+            (0..PEER_HEAVY_WIDTH)
+                .map(|index| {
+                    (
+                        peer_heavy_package_name(level + 1, index),
+                        Value::String(PEER_HEAVY_VERSION.to_string()),
+                    )
+                })
+                .collect()
+        };
+        for index in 0..PEER_HEAVY_WIDTH {
+            write_peer_heavy_packument(
+                storage_root,
+                &peer_heavy_package_name(level, index),
+                &dependencies,
+                true,
+            );
+        }
+    }
+}
+
+fn write_peer_heavy_packument(
+    storage_root: &Path,
+    name: &str,
+    dependencies: &serde_json::Map<String, Value>,
+    has_peer: bool,
+) {
+    let mut manifest = serde_json::json!({
+        "name": name,
+        "version": PEER_HEAVY_VERSION,
+        "dependencies": dependencies,
+        "dist": {
+            "tarball": format!(
+                "http://example.test/{name}/-/{}-{PEER_HEAVY_VERSION}.tgz",
+                name.rsplit('/').next().expect("package name has a final segment"),
+            ),
+            "integrity": PEER_HEAVY_INTEGRITY,
+        },
+    });
+    if has_peer {
+        let peer_dependencies = serde_json::Map::from_iter([(
+            PEER_HEAVY_PROVIDER.to_string(),
+            Value::String(PEER_HEAVY_VERSION.to_string()),
+        )]);
+        manifest
+            .as_object_mut()
+            .expect("package manifest is an object")
+            .insert("peerDependencies".to_string(), Value::Object(peer_dependencies));
+    }
+    let versions = serde_json::Map::from_iter([(PEER_HEAVY_VERSION.to_string(), manifest)]);
+    let time = serde_json::Map::from_iter([
+        ("created".to_string(), Value::String("2020-01-01T00:00:00.000Z".to_string())),
+        ("modified".to_string(), Value::String("2020-01-01T00:00:00.000Z".to_string())),
+        (PEER_HEAVY_VERSION.to_string(), Value::String("2020-01-01T00:00:00.000Z".to_string())),
+    ]);
+    let packument = serde_json::json!({
+        "name": name,
+        "dist-tags": { "latest": PEER_HEAVY_VERSION },
+        "versions": versions,
+        "time": time,
+    });
+    let package_dir = storage_root.join(name);
+    fs::create_dir_all(&package_dir).expect("create peer-heavy registry package directory");
+    fs::write(
+        package_dir.join("package.json"),
+        serde_json::to_vec(&packument).expect("serialize peer-heavy packument"),
+    )
+    .expect("write peer-heavy packument");
+}
+
+fn peer_heavy_package_name(level: usize, index: usize) -> String {
+    format!("@pnpmtest/peer-benchmark-level-{level}-{index:02}")
 }
 
 /// Save pristine copies of `package.json` and (when present)
@@ -1675,6 +1858,7 @@ fn create_pnpm_workspace(
     scenario: BenchmarkScenario,
 ) {
     let dst = dst_dir.join("pnpm-workspace.yaml");
+    let src_dir = if scenario.uses_peer_heavy_fixture() { None } else { src_dir };
     let mut manifest = if let Some(src_dir) = src_dir {
         let src = src_dir.join("pnpm-workspace.yaml");
         if src.is_file() {
@@ -1707,14 +1891,12 @@ fn create_pnpm_workspace(
     if manifest.cache_dir.is_none() {
         manifest.cache_dir = Some("./cache-dir".to_string());
     }
-    // Pin `packages: ['.']` when the fixture didn't set it. Without this
-    // the fresh-resolve install path's project walker
+    // Pin `packages: ['.']` when the fixture didn't set one.
+    // Without this the fresh-resolve install path's project walker
     // (`find_workspace_projects`) defaults to `[".", "**"]` and recurses
     // into the per-revision `<bench_dir>/pacquet/` clone of pnpm/pnpm,
     // tripping on the intentionally malformed test fixture at
     // `workspace/project-manifest-reader/__fixtures__/invalid-package-json/package.json`.
-    // The benchmark's installs are always single-project, so restricting
-    // to the root is the right scope regardless of fixture.
     if manifest.packages.is_none() {
         manifest.packages = Some(vec![".".to_string()]);
     }

@@ -230,6 +230,12 @@ pub enum BenchmarkScenario {
     /// runs first.
     #[value(name = "isolated-linker.fresh-resolve.hot-cache.offline")]
     IsolatedFreshResolveHotCacheOffline,
+    /// Bit-style peer-heavy dependency DAG whose shared subgraphs expand into
+    /// many peer-resolution occurrences. Like the regular fresh-resolve
+    /// scenario, the timed command resolves offline from a hot metadata mirror
+    /// with no lockfile or linking, isolating peer discovery and resolution.
+    #[value(name = "isolated-linker.peer-heavy-resolve.hot-cache.offline")]
+    IsolatedPeerHeavyResolveHotCacheOffline,
     /// Frozen lockfile, hot cache + hot store, `enableGlobalVirtualStore: true` with a pre-warmed GVS.
     #[value(name = "gvs-linker.fresh-restore.hot-cache.hot-store")]
     GvsFreshRestoreHotCacheHotStore,
@@ -259,7 +265,8 @@ impl BenchmarkScenario {
                 &["install", "--frozen-lockfile"]
             }
             BenchmarkScenario::IsolatedFreshAddDepHotCacheHotStore => &["add", "is-odd"],
-            BenchmarkScenario::IsolatedFreshResolveHotCacheOffline => {
+            BenchmarkScenario::IsolatedFreshResolveHotCacheOffline
+            | BenchmarkScenario::IsolatedPeerHeavyResolveHotCacheOffline => {
                 &["install", "--offline", "--lockfile-only"]
             }
         }
@@ -274,6 +281,9 @@ impl BenchmarkScenario {
     pub fn prewarm_install_args(self) -> Option<&'static [&'static str]> {
         match self {
             BenchmarkScenario::IsolatedFreshResolveHotCacheOffline => Some(&["install"]),
+            BenchmarkScenario::IsolatedPeerHeavyResolveHotCacheOffline => {
+                Some(&["install", "--lockfile-only"])
+            }
             _ => None,
         }
     }
@@ -296,6 +306,7 @@ impl BenchmarkScenario {
             | BenchmarkScenario::IsolatedFreshRestoreHotCacheHotStore
             | BenchmarkScenario::IsolatedFreshAddDepHotCacheHotStore
             | BenchmarkScenario::IsolatedFreshResolveHotCacheOffline
+            | BenchmarkScenario::IsolatedPeerHeavyResolveHotCacheOffline
             | BenchmarkScenario::GvsFreshRestoreHotCacheHotStore => true,
         }
     }
@@ -307,8 +318,7 @@ impl BenchmarkScenario {
     /// the online pre-warm pass skip resolution, leaving the metadata
     /// mirror cold for the measured offline runs.
     pub fn seeds_lockfile(self) -> bool {
-        self.lockfile_enabled()
-            && !matches!(self, BenchmarkScenario::IsolatedFreshResolveHotCacheOffline)
+        self.lockfile_enabled() && !self.is_offline_fresh_resolve()
     }
 
     /// The `pnpm-lock.yaml` contents to seed during init, when
@@ -378,7 +388,8 @@ impl BenchmarkScenario {
             // date"), and the timed runs would measure a no-op. The warm
             // `cache-dir` / `store-dir` the pre-warm populated are the
             // scenario's contract and survive.
-            BenchmarkScenario::IsolatedFreshResolveHotCacheOffline => {
+            BenchmarkScenario::IsolatedFreshResolveHotCacheOffline
+            | BenchmarkScenario::IsolatedPeerHeavyResolveHotCacheOffline => {
                 Cleanup { remove: &["node_modules", "pnpm-lock.yaml"], restore: &[] }
             }
         }
@@ -407,6 +418,22 @@ impl BenchmarkScenario {
     /// `…cold-store.cold-pnpr` variant); selects the cold-mock spawn.
     pub fn cold_pnpr_cache(self) -> bool {
         matches!(self, BenchmarkScenario::IsolatedFreshRestoreColdCacheColdStoreColdPnpr)
+    }
+
+    /// Whether to use the generated shared-subgraph fixture that guards
+    /// peer-heavy resolution.
+    pub fn uses_peer_heavy_fixture(self) -> bool {
+        matches!(self, BenchmarkScenario::IsolatedPeerHeavyResolveHotCacheOffline)
+    }
+
+    /// Whether the measured command needs an online pre-warm followed by an
+    /// offline, lockfile-only fresh resolve.
+    fn is_offline_fresh_resolve(self) -> bool {
+        matches!(
+            self,
+            BenchmarkScenario::IsolatedFreshResolveHotCacheOffline
+                | BenchmarkScenario::IsolatedPeerHeavyResolveHotCacheOffline,
+        )
     }
 }
 
