@@ -37,6 +37,7 @@ const PNPR_DIRECT_RATIO_MAX: f64 = 1.05;
 // The TypeScript resolver's own hot-cache cost moves independently — offline
 // resolution of this fixture dropped from ~34s to ~3s in pnpm/pnpm#13504 — and
 // a floor tracking that headroom would fail on every TypeScript perf win.
+// Compared on each target's fastest run: see [`benchmark_target_min`].
 const PACQUET_PNPM_SPEEDUP_MIN: f64 = 1.25;
 const PNPR_SERVER_REGISTRY_ENV: &str = "PACQUET_BENCHMARK_PNPR_SERVER_REGISTRY";
 const PNPR_TARBALL_REWRITE_FROM_ENV: &str = "PACQUET_BENCHMARK_PNPR_TARBALL_REWRITE_FROM";
@@ -1092,6 +1093,7 @@ impl WorkEnv {
                 BenchmarkTargetDiagnostics {
                     id,
                     hyperfine_mean_seconds: command.map(|command| command.mean),
+                    hyperfine_min_seconds: command.map(|command| command.min),
                     phase_summary: summarize_phase_events(&phase_events),
                     phase_events,
                 }
@@ -1195,8 +1197,8 @@ impl WorkEnv {
         {
             return;
         }
-        let pacquet = benchmark_target_mean(diagnostics, "pacquet@HEAD");
-        let pnpm = benchmark_target_mean(diagnostics, "pnpm@HEAD");
+        let pacquet = benchmark_target_min(diagnostics, "pacquet@HEAD");
+        let pnpm = benchmark_target_min(diagnostics, "pnpm@HEAD");
         let speedup = pnpm / pacquet;
         assert!(
             speedup >= PACQUET_PNPM_SPEEDUP_MIN,
@@ -1218,6 +1220,7 @@ struct HyperfineCommand {
     #[serde(default)]
     command_name: Option<String>,
     mean: f64,
+    min: f64,
 }
 
 impl HyperfineCommand {
@@ -1236,6 +1239,7 @@ struct BenchmarkDiagnostics {
 struct BenchmarkTargetDiagnostics {
     id: String,
     hyperfine_mean_seconds: Option<f64>,
+    hyperfine_min_seconds: Option<f64>,
     phase_summary: PhaseSummary,
     phase_events: Vec<PhaseEvent>,
 }
@@ -1410,13 +1414,19 @@ fn requires_fresh_pnpr_cold_batch_metrics(target_id: &str) -> bool {
     target_id == "pnpr@HEAD"
 }
 
-fn benchmark_target_mean(diagnostics: &BenchmarkDiagnostics, target_id: &str) -> f64 {
+/// The fastest of a target's timed runs.
+///
+/// Contention on a shared runner only ever *adds* time, so the minimum is the
+/// sample least perturbed by a noisy neighbour and the most stable basis for a
+/// cross-engine comparison. This is the same statistic the workflow reports to
+/// Bencher, for the same reason.
+fn benchmark_target_min(diagnostics: &BenchmarkDiagnostics, target_id: &str) -> f64 {
     diagnostics
         .targets
         .iter()
         .find(|target| target.id == target_id)
-        .and_then(|target| target.hyperfine_mean_seconds)
-        .unwrap_or_else(|| panic!("benchmark report has no mean for required target {target_id}"))
+        .and_then(|target| target.hyperfine_min_seconds)
+        .unwrap_or_else(|| panic!("benchmark report has no min for required target {target_id}"))
 }
 
 fn render_diagnostics_markdown(
@@ -1432,16 +1442,17 @@ fn render_diagnostics_markdown(
         );
     }
     out.push_str(
-        "| Target | hyperfine mean | warm | cold | skipped | CreateVirtualStore mean | link warm mean | link cold mean |\n",
+        "| Target | hyperfine mean | hyperfine min | warm | cold | skipped | CreateVirtualStore mean | link warm mean | link cold mean |\n",
     );
-    out.push_str("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |\n");
+    out.push_str("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |\n");
     for target in &diagnostics.targets {
         let partition = target.phase_summary.partition.as_ref();
         let _ = writeln!(
             out,
-            "| {} | {} | {} | {} | {} | {} | {} | {} |",
+            "| {} | {} | {} | {} | {} | {} | {} | {} | {} |",
             target.id,
             format_seconds(target.hyperfine_mean_seconds),
+            format_seconds(target.hyperfine_min_seconds),
             format_u64(partition.map(|metric| metric.warm)),
             format_u64(partition.map(|metric| metric.cold)),
             format_u64(partition.map(|metric| metric.skipped)),

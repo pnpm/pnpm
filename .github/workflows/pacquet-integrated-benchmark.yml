@@ -357,19 +357,40 @@ jobs:
           cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESOLVE_HOT_CACHE_OFFLINE.json
 
       - name: 'Benchmark: Isolated linker: peer-heavy resolve, hot cache, offline'
+        id: peer_heavy
         shell: bash
         # Bit-style dependency DAG whose shared subgraphs expand into many
         # peer-resolution occurrences. The online lockfile-only pass primes
         # each target's metadata mirror; timed runs remove the generated
         # lockfile and resolve offline, isolating peer discovery and resolution.
-        # Three measured runs are enough because the pre-fix regression is
-        # multi-second and deterministic, while keeping the added CI cost
-        # bounded across current Rust, main Rust, and TypeScript pnpm.
-        timeout-minutes: 25
+        #
+        # This fixture's run-to-run spread is wide — a local 15-run pass
+        # measured a ~15% coefficient of variation on an idle machine, with the
+        # slow samples scattered through the sequence rather than clustered at
+        # the start, so the noise is contention rather than a cold cache and
+        # extra warmups would not help. What helps is more samples: the guard
+        # and the reported metric both read the *fastest* run, so nine runs
+        # give that minimum a good chance of landing on an uncontended one.
+        #
+        # The cross-engine ratio assertion inside the harness is a gate, not a
+        # measurement, and it must not cost us the measurement: a failure here
+        # would abort the job before the Bencher upload and drop *every*
+        # scenario's data point for the run (which is why this benchmark has
+        # almost no history — the two main pushes after it was added both
+        # failed on the since-recalibrated 10x floor). Record the verdict and
+        # re-raise it after the upload instead.
+        continue-on-error: true
+        timeout-minutes: 30
         run: |
-          just integrated-benchmark --reuse-prebuilt-binaries --scenario=isolated-linker.peer-heavy-resolve.hot-cache.offline --runs=3 --registry=verdaccio --pnpr-latency-ms=${PNPR_LATENCY_MS} --registry-latency-ms=${REGISTRY_LATENCY_MS} --registry-bandwidth-mbps=${REGISTRY_BANDWIDTH_MBPS} $PEER_HEAVY_BENCHMARK_TARGETS
-          cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_ISOLATED_PEER_HEAVY_RESOLVE_HOT_CACHE_OFFLINE.md
-          cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_ISOLATED_PEER_HEAVY_RESOLVE_HOT_CACHE_OFFLINE.json
+          status=0
+          just integrated-benchmark --reuse-prebuilt-binaries --scenario=isolated-linker.peer-heavy-resolve.hot-cache.offline --runs=9 --registry=verdaccio --pnpr-latency-ms=${PNPR_LATENCY_MS} --registry-latency-ms=${REGISTRY_LATENCY_MS} --registry-bandwidth-mbps=${REGISTRY_BANDWIDTH_MBPS} $PEER_HEAVY_BENCHMARK_TARGETS || status=$?
+          # hyperfine exports both reports before the harness asserts, so a
+          # failed gate still leaves a full measurement to publish. A failure
+          # before hyperfine leaves nothing, and the Bencher build step's jq
+          # then fails the job on the missing input — which is what we want.
+          cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_ISOLATED_PEER_HEAVY_RESOLVE_HOT_CACHE_OFFLINE.md || true
+          cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_ISOLATED_PEER_HEAVY_RESOLVE_HOT_CACHE_OFFLINE.json || true
+          exit $status
 
       - name: 'Benchmark: Isolated linker: fresh restore, cold cache + cold store + cold pnpr'
         shell: bash
@@ -687,3 +708,13 @@ jobs:
           }
           upload pacquet bench-work-env/bencher-results.json
           upload pnpr bench-work-env/bencher-results-pnpr.json
+
+      - name: Re-raise the peer-heavy gate
+        # Deferred from the peer-heavy step so its cross-engine assertion
+        # cannot abort the job before the run's data points are published.
+        # Runs even when an earlier step failed, so the gate is never skipped.
+        if: always() && steps.peer_heavy.outcome == 'failure'
+        shell: bash
+        run: |
+          echo "::error::The peer-heavy benchmark step failed; see its log for the assertion or build error."
+          exit 1

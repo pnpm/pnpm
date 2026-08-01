@@ -202,6 +202,40 @@ fn phase_summary_reports_partition_and_means() {
     }
 }
 
+/// The peer-heavy guard compares each engine's fastest run, not its mean. On a
+/// shared runner one contended sample can drag the mean under the floor while
+/// every uncontended sample clears it comfortably — pnpm/pnpm#13551's CI saw a
+/// 2.83s outlier lift the pacquet mean to 2.15s against a 1.54s fastest run.
+#[test]
+fn peer_heavy_ratio_reads_the_fastest_run_not_the_mean() {
+    let diagnostics = super::BenchmarkDiagnostics {
+        targets: vec![
+            super::BenchmarkTargetDiagnostics {
+                id: "pacquet@HEAD".to_string(),
+                hyperfine_mean_seconds: Some(2.5),
+                hyperfine_min_seconds: Some(1.5),
+                phase_summary: super::PhaseSummary::default(),
+                phase_events: vec![],
+            },
+            super::BenchmarkTargetDiagnostics {
+                id: "pnpm@HEAD".to_string(),
+                hyperfine_mean_seconds: Some(2.9),
+                hyperfine_min_seconds: Some(2.8),
+                phase_summary: super::PhaseSummary::default(),
+                phase_events: vec![],
+            },
+        ],
+        pnpr_direct_ratios: vec![],
+    };
+
+    let speedup = super::benchmark_target_min(&diagnostics, "pnpm@HEAD")
+        / super::benchmark_target_min(&diagnostics, "pacquet@HEAD");
+    let mean_speedup = 2.9 / 2.5;
+    dbg!(speedup, mean_speedup, super::PACQUET_PNPM_SPEEDUP_MIN);
+    assert!(speedup >= super::PACQUET_PNPM_SPEEDUP_MIN);
+    assert!(mean_speedup < super::PACQUET_PNPM_SPEEDUP_MIN);
+}
+
 #[test]
 fn pnpr_direct_ratios_pair_matching_revisions() {
     let commands = HashMap::from([
@@ -211,15 +245,26 @@ fn pnpr_direct_ratios_pair_matching_revisions() {
                 command: "pacquet@HEAD".to_string(),
                 command_name: None,
                 mean: 10.0,
+                min: 10.0,
             },
         ),
         (
             "pnpr@HEAD".to_string(),
-            HyperfineCommand { command: "pnpr@HEAD".to_string(), command_name: None, mean: 8.0 },
+            HyperfineCommand {
+                command: "pnpr@HEAD".to_string(),
+                command_name: None,
+                mean: 8.0,
+                min: 8.0,
+            },
         ),
         (
             "pnpr@main".to_string(),
-            HyperfineCommand { command: "pnpr@main".to_string(), command_name: None, mean: 9.0 },
+            HyperfineCommand {
+                command: "pnpr@main".to_string(),
+                command_name: None,
+                mean: 9.0,
+                min: 9.0,
+            },
         ),
     ]);
 
@@ -288,6 +333,7 @@ fn diagnostics_markdown_includes_create_virtual_store_line_item() {
             targets: vec![super::BenchmarkTargetDiagnostics {
                 id: "pnpr@HEAD".to_string(),
                 hyperfine_mean_seconds: Some(7.5),
+                hyperfine_min_seconds: Some(7.5),
                 phase_summary: super::PhaseSummary {
                     partition: Some(super::PartitionMetric {
                         warm: 12,
@@ -317,6 +363,7 @@ fn diagnostics_markdown_notes_fresh_install_cold_store_tarball_baseline_shift() 
             targets: vec![super::BenchmarkTargetDiagnostics {
                 id: "pnpr@main".to_string(),
                 hyperfine_mean_seconds: Some(1.0),
+                hyperfine_min_seconds: Some(1.0),
                 phase_summary: super::PhaseSummary::default(),
                 phase_events: vec![],
             }],
@@ -337,6 +384,7 @@ fn diagnostics_markdown_omits_baseline_note_after_pnpr_main_is_instrumented() {
             targets: vec![super::BenchmarkTargetDiagnostics {
                 id: "pnpr@main".to_string(),
                 hyperfine_mean_seconds: Some(1.0),
+                hyperfine_min_seconds: Some(1.0),
                 phase_summary: super::PhaseSummary {
                     partition: Some(super::PartitionMetric {
                         warm: 0,
