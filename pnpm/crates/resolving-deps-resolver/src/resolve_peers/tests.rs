@@ -1,7 +1,8 @@
 use super::{
-    ImporterPeerInput, NodeRecord, ParentRef, PeerDiscoveryCaches, ResolvePeersOptions, Walker,
-    importer_relative_link_dep_path, peer_segment_names, resolve_peers, resolve_peers_workspace,
-    satisfies_with_prereleases, scoped_hoisted_optional_parent_refs,
+    ImporterPeerInput, NodeOutput, NodeRecord, ParentRef, PeerDiscoveryCaches, ResolvePeersOptions,
+    Walker, importer_relative_link_dep_path, peer_segment_names, resolve_peers,
+    resolve_peers_workspace, satisfies_with_prereleases, scoped_hoisted_optional_parent_refs,
+    should_retain_materialized_node,
 };
 use crate::{
     node_id::NodeId,
@@ -24,6 +25,30 @@ const PATCHED_WORKFLOWS_SDK: &str = concat!(
     "(better-sqlite3@12.8.0)",
     "(express@4.21.2)",
 );
+
+#[test]
+fn materialized_nodes_referenced_by_peer_outputs_are_retained() {
+    let referenced = NodeId::next();
+    let unreferenced = NodeId::next();
+    let output = NodeOutput {
+        dep_path: DepPath::from("consumer@1.0.0"),
+        external_resolved_peers: Arc::new(HashMap::from_iter([(
+            "peer".to_string(),
+            referenced.clone(),
+        )])),
+        auto_install_resolved_peers: HashMap::default(),
+        missing_peers: Arc::new(HashMap::default()),
+        subtree_missing_by_pkg: None,
+    };
+
+    assert!(should_retain_materialized_node(&HashSet::default(), Some(&output), &referenced));
+    assert!(!should_retain_materialized_node(&HashSet::default(), Some(&output), &unreferenced,));
+    assert!(should_retain_materialized_node(
+        &HashSet::from_iter([unreferenced.clone()]),
+        None,
+        &unreferenced,
+    ));
+}
 
 #[test]
 fn locked_direct_dep_only_sees_its_locked_hoisted_optional_peers() {

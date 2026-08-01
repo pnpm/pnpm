@@ -572,11 +572,6 @@ pub fn percent_encode_path(text: &str) -> String {
 ///
 /// What this does *not* model yet:
 ///
-/// * Per-importer roots in the multi-level output shape upstream
-///   produces for workspaces. [`hoist`] does attach every non-root
-///   importer as a `Workspace`-kind child of the virtual `.` root,
-///   and package conflict roots are hoisted recursively, but workspace
-///   importers still don't get independent hoisting contexts.
 /// * `ExternalSoftLink` descendants — pacquet creates soft-links
 ///   only as zero-children placeholders, so upstream's
 ///   "only-hoist-when-all-descendants-hoist" rule has nothing to
@@ -587,18 +582,14 @@ pub fn percent_encode_path(text: &str) -> String {
 ///
 /// [upstream]: https://github.com/yarnpkg/berry/blob/4287909fa6a0a1ec976a55776bff606864b31990/packages/yarnpkg-nm/sources/hoist.ts#L329
 fn nm_hoist(tree: &HoisterTree, opts: &HoistOpts) -> HoisterResult {
-    // Compute the root locator from the input tree, where each
-    // node carries a single unambiguous `reference`. The result
-    // graph collects references into a `BTreeSet` (one
-    // `HoisterResult` can absorb several `HoisterTree` nodes with
-    // the same ident), so deriving the locator from a result
-    // node would mean picking an arbitrary entry from the set;
-    // doing it here keeps the lookup well-defined.
-    let root_locator = format!("{}@{}", tree.ident_name, tree.reference);
-    let mut memo: HashMap<*const HoisterTree, Rc<HoisterResult>> = HashMap::new();
-    let root = convert(tree, &mut memo);
-    hoist_into_root(&root, &root_locator, opts);
-    hoist_nested_roots(&root, opts);
+    let mut context = ConvertContext::default();
+    let root = convert(tree, &mut context);
+    let root_locator = context
+        .locator_by_result
+        .get(&Rc::as_ptr(&root))
+        .expect("every converted result has its input locator");
+    hoist_into_root(&root, root_locator, opts);
+    hoist_nested_roots(&root, opts, &context.locator_by_result);
     // Returning an owned `HoisterResult` (rather than
     // `Rc<HoisterResult>`) keeps the wrapper's post-hoist
     // `external_dependencies` filter from mutating the shared graph.
@@ -608,7 +599,11 @@ fn nm_hoist(tree: &HoisterTree, opts: &HoistOpts) -> HoisterResult {
     (*root).clone()
 }
 
-fn hoist_nested_roots(root: &Rc<HoisterResult>, opts: &HoistOpts) {
+fn hoist_nested_roots(
+    root: &Rc<HoisterResult>,
+    opts: &HoistOpts,
+    locator_by_result: &HashMap<*const HoisterResult, String>,
+) {
     let mut visited = HashSet::from([Rc::as_ptr(root)]);
     let mut pending: Vec<Rc<HoisterResult>> =
         root.dependencies.borrow().iter().map(|child| Rc::clone(&child.0)).collect();
@@ -616,9 +611,10 @@ fn hoist_nested_roots(root: &Rc<HoisterResult>, opts: &HoistOpts) {
         if !visited.insert(Rc::as_ptr(&node)) {
             continue;
         }
-        let reference = node.references.borrow().iter().next().cloned().unwrap_or_default();
-        let locator = format!("{}@{reference}", node.ident_name);
-        hoist_into_root(&node, &locator, opts);
+        let locator = locator_by_result
+            .get(&Rc::as_ptr(&node))
+            .expect("every converted result has its input locator");
+        hoist_into_root(&node, locator, opts);
         pending.extend(node.dependencies.borrow().iter().map(|child| Rc::clone(&child.0)));
     }
 }
@@ -1139,12 +1135,15 @@ fn would_shadow_peer(
     false
 }
 
-fn convert(
-    tree: &HoisterTree,
-    memo: &mut HashMap<*const HoisterTree, Rc<HoisterResult>>,
-) -> Rc<HoisterResult> {
+#[derive(Default)]
+struct ConvertContext {
+    result_by_tree: HashMap<*const HoisterTree, Rc<HoisterResult>>,
+    locator_by_result: HashMap<*const HoisterResult, String>,
+}
+
+fn convert(tree: &HoisterTree, context: &mut ConvertContext) -> Rc<HoisterResult> {
     let ptr = std::ptr::from_ref::<HoisterTree>(tree);
-    if let Some(existing) = memo.get(&ptr) {
+    if let Some(existing) = context.result_by_tree.get(&ptr) {
         return Rc::clone(existing);
     }
     // Stash a node with empty `dependencies`, then recurse and
@@ -1161,7 +1160,10 @@ fn convert(
         peer_names: tree.peer_names.clone(),
         dependencies: RefCell::new(IndexSet::new()),
     });
-    memo.insert(ptr, Rc::clone(&node));
+    context.result_by_tree.insert(ptr, Rc::clone(&node));
+    context
+        .locator_by_result
+        .insert(Rc::as_ptr(&node), format!("{}@{}", tree.ident_name, tree.reference));
 
     // Collect the children before recursing so we can drop the
     // `Ref<'_, IndexSet<...>>` borrow on `tree.dependencies`. The
@@ -1173,7 +1175,7 @@ fn convert(
         tree.dependencies.borrow().iter().cloned().collect();
     let mut children: IndexSet<RcByPtr<HoisterResult>> = IndexSet::new();
     for child in to_convert {
-        children.insert(RcByPtr(convert(&child.0, memo)));
+        children.insert(RcByPtr(convert(&child.0, context)));
     }
     *node.dependencies.borrow_mut() = children;
     node

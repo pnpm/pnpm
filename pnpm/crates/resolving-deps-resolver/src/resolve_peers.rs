@@ -127,6 +127,8 @@ fn pkg_name_version(result: &ResolveResult) -> (String, String) {
     (fallback_name, result.id.as_str().to_string())
 }
 
+/// Compares the package-name component returned by [`pkg_name_version`]
+/// without allocating its owned fallback tuple.
 fn package_name_matches(result: &ResolveResult, expected: &str) -> bool {
     let Some(name_ver) = result.name_ver.as_ref() else {
         return result.alias.as_deref().unwrap_or(result.id.as_str()) == expected;
@@ -941,6 +943,9 @@ struct UndoRealize {
     prev_parent_ids: AncestorIds,
 }
 
+/// Combines preview and final-materialization undo logs for the same node.
+/// Both logs restore the same pre-realization ancestor chain; previewing
+/// does not change the node's lazy parent state.
 fn merge_realize_undo(
     first: Option<UndoRealize>,
     second: Option<UndoRealize>,
@@ -3252,14 +3257,7 @@ impl Walker<'_> {
     ) {
         let Some(undo) = undo else { return };
         for child_id in &undo.newly_inserted {
-            let output_references_child = output.is_some_and(|output| {
-                output.external_resolved_peers.values().any(|node_id| node_id == child_id)
-                    || output
-                        .auto_install_resolved_peers
-                        .values()
-                        .any(|node_id| node_id == child_id)
-            });
-            if self.retained_peer_node_ids.contains(child_id) || output_references_child {
+            if should_retain_materialized_node(&self.retained_peer_node_ids, output, child_id) {
                 continue;
             }
             self.tree.dependencies_tree.remove(child_id);
@@ -3361,7 +3359,13 @@ impl Walker<'_> {
                     parent_node_ids,
                     parent_pkg_ids,
                 );
-                if !self.parent_pkgs_of_node.contains_key(&node_id) {
+                if !self.parent_pkgs_of_node.contains_key(&node_id)
+                    && !should_retain_materialized_node(
+                        &self.retained_peer_node_ids,
+                        Some(&output),
+                        &node_id,
+                    )
+                {
                     self.tree.dependencies_tree.remove(&node_id);
                     self.node_dep_paths.remove(&node_id);
                     self.visited_this_call.remove(&node_id);
@@ -3567,6 +3571,21 @@ impl Walker<'_> {
         }
         true
     }
+}
+
+fn should_retain_materialized_node(
+    retained_peer_node_ids: &HashSet<NodeId>,
+    output: Option<&NodeOutput>,
+    node_id: &NodeId,
+) -> bool {
+    retained_peer_node_ids.contains(node_id)
+        || output.is_some_and(|output| {
+            output.external_resolved_peers.values().any(|resolved_id| resolved_id == node_id)
+                || output
+                    .auto_install_resolved_peers
+                    .values()
+                    .any(|resolved_id| resolved_id == node_id)
+        })
 }
 
 /// Whether every entry in `parents` has `occurrence == 0`.
