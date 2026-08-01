@@ -5,30 +5,17 @@ use super::{super::test_support::manifest_result, extract_children};
 
 #[test]
 fn dependency_engines_runtime_is_walked_as_a_runtime_dependency() {
-    let result = ResolveResult {
-        id: PkgResolutionId::from("parent@1.0.0"),
-        name_ver: None,
-        latest: None,
-        published_at: None,
-        manifest: Some(std::sync::Arc::new(serde_json::json!({
-            "name": "parent",
-            "version": "1.0.0",
-            "engines": {
-                "runtime": {
-                    "name": "node",
-                    "version": "22.19.0",
-                    "onFail": "download",
-                },
+    let result = manifest_result(serde_json::json!({
+        "name": "parent",
+        "version": "1.0.0",
+        "engines": {
+            "runtime": {
+                "name": "node",
+                "version": "22.19.0",
+                "onFail": "download",
             },
-        }))),
-        resolution: LockfileResolution::Directory(DirectoryResolution {
-            directory: "parent".to_string(),
-        }),
-        resolved_via: "npm-registry".to_string(),
-        normalized_bare_specifier: None,
-        alias: Some("parent".to_string()),
-        policy_violation: None,
-    };
+        },
+    }));
     assert_eq!(
         extract_children(&result).unwrap(),
         vec![("node".to_string(), "runtime:22.19.0".to_string(), false)],
