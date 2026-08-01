@@ -1261,93 +1261,23 @@ async fn local_workspace_package_version_can_satisfy_another_importers_optional_
     );
 }
 
-/// Regression test for
-/// <https://github.com/pnpm/pnpm/issues/13567>: forces the adversarial
-/// interleaving of the concurrent init waves.
-///
-/// Both importers depend on `shared@1.0.0`, whose children context is
-/// deterministically owned by the root importer (same depth, lower
-/// importer order). Delaying the root's `shared` resolution lets
-/// `pkg-b` reuse its locked `shared` subtree first — a transient walk
-/// that resolves the pinned `dep@1.0.0` before losing the children
-/// context to the root, whose fresh walk resolves `dep@^1.0.0` to
-/// `2.0.0` instead. `dep@1.0.0` is then unreachable, so it must not be
-/// offered to the optional-peer hoist: an arrival-ordered candidate set
-/// would install it (and suffix `host`) only in runs where the
-/// transient walk happened to go first.
+/// The pin satisfies `host`'s optional peer range and the owner's
+/// pick does not, so this picker installs nothing only if unreachable
+/// candidates are filtered out.
 #[tokio::test]
 async fn transiently_walked_subtree_versions_do_not_bias_optional_peer_hoists() {
-    let (_tmp_root, root_manifest) =
-        fake_manifest(serde_json::json!({ "shared": "1.0.0", "host": "1.0.0" }));
-    let (_tmp_b, b_manifest) = fake_manifest(serde_json::json!({ "shared": "1.0.0" }));
-    let importers = [
-        WorkspaceImporter { id: ".".to_string(), manifest: &root_manifest },
-        WorkspaceImporter { id: "pkg-b".to_string(), manifest: &b_manifest },
-    ];
-    let resolver = SlowAliasResolver {
-        table: HashMap::from_iter([
-            (
-                ("shared".to_string(), "1.0.0".to_string()),
-                fake_result(
-                    "shared",
-                    "1.0.0",
-                    None,
-                    serde_json::json!({
-                        "name": "shared",
-                        "version": "1.0.0",
-                        "dependencies": { "dep": "^1.0.0" },
-                    }),
-                ),
-            ),
-            (
-                ("dep".to_string(), "^1.0.0".to_string()),
-                fake_result(
-                    "dep",
-                    "2.0.0",
-                    None,
-                    serde_json::json!({ "name": "dep", "version": "2.0.0" }),
-                ),
-            ),
-            (
-                ("dep".to_string(), "1.0.0".to_string()),
-                fake_result(
-                    "dep",
-                    "1.0.0",
-                    None,
-                    serde_json::json!({ "name": "dep", "version": "1.0.0" }),
-                ),
-            ),
-            (
-                ("host".to_string(), "1.0.0".to_string()),
-                fake_result(
-                    "host",
-                    "1.0.0",
-                    None,
-                    serde_json::json!({
-                        "name": "host",
-                        "version": "1.0.0",
-                        "peerDependencies": { "dep": "^1.0.0" },
-                        "peerDependenciesMeta": { "dep": { "optional": true } },
-                    }),
-                ),
-            ),
-        ]),
-        slow: ("shared".to_string(), "1.0.0".to_string()),
-    };
-    let mut opts = workspace_opts(false, false);
-    opts.auto_install_peers = true;
-    opts.wanted_lockfile = Some(Arc::new(reuse_graph_lockfile(
-        "pkg-b",
-        &[("shared", "1.0.0", "1.0.0")],
-        &[("shared@1.0.0", &[("dep", "1.0.0")]), ("dep@1.0.0", &[])],
-        &[],
-    )));
-    let result =
-        resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
-            importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None)
-        })
-        .await
-        .expect("resolve workspace under the adversarial interleaving");
+    let host_manifest = serde_json::json!({
+        "name": "host",
+        "version": "1.0.0",
+        "peerDependencies": { "dep": "^1.0.0" },
+        "peerDependenciesMeta": { "dep": { "optional": true } },
+    });
+    let result = resolve_with_transient_shared_walk(
+        host_manifest,
+        "1.0.0",
+        &[("^1.0.0", "2.0.0"), ("1.0.0", "1.0.0")],
+    )
+    .await;
 
     let direct = result.peers.direct_dependencies_by_importer.get(".").expect("root importer");
     assert_eq!(
@@ -1357,6 +1287,109 @@ async fn transiently_walked_subtree_versions_do_not_bias_optional_peer_hoists() 
     );
     assert_eq!(direct.get("dep"), None, "no optional-peer hoist may install dep");
     assert_eq!(graph_versions_of(&result, "dep"), ["2.0.0"]);
+}
+
+/// The required-peer picker dedupes onto the highest satisfying
+/// candidate, so the pin is higher than (and as satisfying as) the
+/// owner's pick — the arrangement where unreachable-candidate
+/// filtering is observable through this picker.
+#[tokio::test]
+async fn transiently_walked_subtree_versions_do_not_bias_required_peer_hoists() {
+    let host_manifest = serde_json::json!({
+        "name": "host",
+        "version": "1.0.0",
+        "peerDependencies": { "dep": "^1.0.0" },
+    });
+    let result = resolve_with_transient_shared_walk(
+        host_manifest,
+        "1.9.0",
+        &[("^1.0.0", "1.5.0"), ("1.5.0", "1.5.0"), ("1.9.0", "1.9.0")],
+    )
+    .await;
+
+    let direct = result.peers.direct_dependencies_by_importer.get(".").expect("root importer");
+    assert_eq!(
+        direct.get("host").map(std::string::ToString::to_string),
+        Some("host@1.0.0(dep@1.5.0)".to_string()),
+        "the required-peer hoist must dedupe onto the reachable version",
+    );
+    assert_eq!(
+        direct.get("dep").map(std::string::ToString::to_string),
+        Some("dep@1.5.0".to_string()),
+    );
+    assert_eq!(graph_versions_of(&result, "dep"), ["1.5.0"]);
+}
+
+/// Drive [`fn@resolve_workspace`] through the adversarial interleaving
+/// of <https://github.com/pnpm/pnpm/issues/13567>.
+///
+/// Both importers depend on `shared@1.0.0`, whose children context is
+/// deterministically owned by the root importer (same depth, lower
+/// importer order). Delaying the root's `shared` resolution lets
+/// `pkg-b` reuse its locked `shared` subtree first — a transient walk
+/// that resolves the pinned `dep@<pinned_dep_version>` before losing
+/// the children context to the root, whose fresh walk resolves
+/// `dep@^1.0.0` to whatever `dep_results` maps it to. The pinned
+/// version is then unreachable, so the peer-hoist pickers deciding
+/// `host`'s missing `dep` peer must never see it; each caller asserts
+/// that for its peer shape.
+async fn resolve_with_transient_shared_walk(
+    host_manifest: serde_json::Value,
+    pinned_dep_version: &str,
+    dep_results: &[(&str, &str)],
+) -> super::ResolveWorkspaceResult {
+    let (_tmp_root, root_manifest) =
+        fake_manifest(serde_json::json!({ "shared": "1.0.0", "host": "1.0.0" }));
+    let (_tmp_b, b_manifest) = fake_manifest(serde_json::json!({ "shared": "1.0.0" }));
+    let importers = [
+        WorkspaceImporter { id: ".".to_string(), manifest: &root_manifest },
+        WorkspaceImporter { id: "pkg-b".to_string(), manifest: &b_manifest },
+    ];
+    let mut table = HashMap::from_iter([
+        (
+            ("shared".to_string(), "1.0.0".to_string()),
+            fake_result(
+                "shared",
+                "1.0.0",
+                None,
+                serde_json::json!({
+                    "name": "shared",
+                    "version": "1.0.0",
+                    "dependencies": { "dep": "^1.0.0" },
+                }),
+            ),
+        ),
+        (
+            ("host".to_string(), "1.0.0".to_string()),
+            fake_result("host", "1.0.0", None, host_manifest),
+        ),
+    ]);
+    for (wanted, version) in dep_results {
+        table.insert(
+            ("dep".to_string(), (*wanted).to_string()),
+            fake_result(
+                "dep",
+                version,
+                None,
+                serde_json::json!({ "name": "dep", "version": version }),
+            ),
+        );
+    }
+    let resolver = SlowAliasResolver { table, slow: ("shared".to_string(), "1.0.0".to_string()) };
+    let pinned_dep_key = format!("dep@{pinned_dep_version}");
+    let mut opts = workspace_opts(false, false);
+    opts.auto_install_peers = true;
+    opts.wanted_lockfile = Some(Arc::new(reuse_graph_lockfile(
+        "pkg-b",
+        &[("shared", "1.0.0", "1.0.0")],
+        &[("shared@1.0.0", &[("dep", pinned_dep_version)]), (&pinned_dep_key, &[])],
+        &[],
+    )));
+    resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
+        importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None)
+    })
+    .await
+    .expect("resolve workspace under the adversarial interleaving")
 }
 
 /// [`RecordingResolver`] with one artificially slow entry: its resolve
