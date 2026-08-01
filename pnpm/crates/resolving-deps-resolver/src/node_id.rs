@@ -13,8 +13,13 @@ use std::sync::{
 /// Leaves share a single tree node across every parent that references
 /// them.
 ///
+/// The derived ordering — counters before leaves, counters by their
+/// numeric value, leaves by package id — is what the peer-resolution
+/// passes sort by to keep their output independent of hash iteration
+/// order.
+///
 /// [`DependenciesTree`]: super::resolved_tree::DependenciesTree
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum NodeId {
     /// Fresh per-occurrence counter value. Allocated by [`NodeId::next`].
     Counter(u64),
@@ -47,3 +52,6 @@ impl std::fmt::Display for NodeId {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

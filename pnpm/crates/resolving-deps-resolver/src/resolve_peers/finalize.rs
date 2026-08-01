@@ -8,10 +8,7 @@ use crate::{
     dependencies_graph::{DependenciesGraph, DependenciesGraphNode},
     node_id::NodeId,
     resolve_peers::{
-        context::{
-            SharedChain, link_node_id_as_dep_path, node_id_sort_key, peer_segment_names,
-            pkg_name_version,
-        },
+        context::{SharedChain, link_node_id_as_dep_path, peer_segment_names, pkg_name_version},
         walker::{MissingPeerInfo, Walker},
     },
     resolved_tree::ResolvedPackage,
@@ -245,7 +242,7 @@ impl Walker<'_> {
         let mut final_dep_paths: HashMap<NodeId, DepPath> = HashMap::default();
         let mut visiting = HashSet::default();
         let mut node_ids: Vec<NodeId> = self.node_external_peers.keys().cloned().collect();
-        node_ids.sort_by_key(node_id_sort_key);
+        node_ids.sort();
         for node_id in node_ids {
             self.final_dep_path_for_node(
                 &node_id,
@@ -482,7 +479,7 @@ impl Walker<'_> {
             .filter(|(_, peers)| !peers.is_empty())
             .map(|(node_id, _)| node_id.clone())
             .collect();
-        participants.sort_by_key(node_id_sort_key);
+        participants.sort();
         participants.dedup();
         let participant_set: HashSet<NodeId> = participants.iter().cloned().collect();
         let neighbors = |node_id: &NodeId| -> Vec<NodeId> {
@@ -494,7 +491,7 @@ impl Walker<'_> {
                 .filter(|peer| participant_set.contains(*peer))
                 .cloned()
                 .collect();
-            out.sort_by_key(node_id_sort_key);
+            out.sort();
             out
         };
 
