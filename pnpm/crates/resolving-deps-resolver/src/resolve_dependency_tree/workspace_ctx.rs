@@ -347,8 +347,8 @@ struct SyncLog {
 }
 
 /// How much of a [`SyncLog`] a [`ResolvedTree`] view has already
-/// absorbed. A view built from scratch starts at [`Self::default`] and
-/// replays the whole log, which visits every key ever written.
+/// absorbed. [`WorkspaceTreeCtx::rebuild_discovery_tree`] sets it for a
+/// view built from scratch.
 #[derive(Debug, Default, Clone, Copy)]
 pub(crate) struct SyncCursor {
     packages: usize,
