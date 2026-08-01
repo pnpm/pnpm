@@ -5,8 +5,7 @@
 
 use crate::{
     dependencies_graph::{
-        DependenciesGraph, DependenciesGraphNode, MissingPeer, ParentPackageRef,
-        PeerDependencyIssue, PeerDependencyIssues,
+        DependenciesGraph, MissingPeer, ParentPackageRef, PeerDependencyIssue, PeerDependencyIssues,
     },
     node_id::NodeId,
     resolve_peers::{
@@ -22,7 +21,7 @@ use crate::{
             scoped_hoisted_optional_parent_refs,
         },
         discovery::PeerDiscoveryCaches,
-        finalize::{NodeRecord, PendingPeerEdge},
+        finalize::{NodeRecord, PendingPeerEdge, WalkedNode},
     },
     resolved_tree::{ChildEdge, DirectDep, PeerDep, ResolvedPackage, ResolvedTree, TreeChildren},
 };
@@ -107,7 +106,7 @@ pub(super) struct Walker<'tree> {
     /// the post-walk [`Walker::build_final_dep_paths`] /
     /// [`Walker::build_final_graph`] pass. See [`NodeRecord`].
     pub(super) node_records: HashMap<NodeId, NodeRecord>,
-    next_record_order: u64,
+    pub(super) next_record_order: u64,
     /// Reverse index over the tree nodes' `previous_dep_path`, built
     /// only when [`ResolvePeersOptions::resolved_peer_provider_paths`]
     /// is set. The upstream `nodeIdsByPreviousDepPath`.
@@ -323,6 +322,46 @@ impl ChildOutputs {
         self.missing_peers
             .extend(missing_peers.iter().map(|(name, info)| (name.clone(), info.clone())));
     }
+}
+
+/// The [`ParentRefs`] view a node hands down to its descendants,
+/// as [`Walker::build_child_parent_refs`] computes it.
+struct ChildParentRefs {
+    refs: Arc<ParentRefs>,
+    /// Only what this node itself contributed: its peer-relevant
+    /// children.
+    own: ParentRefs,
+    /// Whether `refs` says anything the caller's map didn't. `false`
+    /// lets the caller pass its own parent-context snapshot down
+    /// instead of rebuilding an identical one.
+    changed: bool,
+}
+
+/// The peers of one node, as [`Walker::resolve_node_peers`] resolves
+/// them, and the depPath the combined set renders to.
+struct NodePeers {
+    /// The node's own `peerDependencies`, resolved.
+    own_resolved: HashMap<String, NodeId>,
+    /// The above folded with what the subtree resolved against
+    /// ancestors, minus the node's own name — the set `dep_path`'s
+    /// suffix renders.
+    all_resolved: HashMap<String, NodeId>,
+    all_missing: HashMap<String, MissingPeerInfo>,
+    dep_path: DepPath,
+}
+
+struct NodePeersContext<'a> {
+    pkg: &'a ResolvedPackage,
+    pkg_name: &'a str,
+    /// The augmented refs visible at this node, including its own
+    /// peer-relevant children.
+    parent_refs: &'a ParentRefs,
+    chain_names: &'a SharedChain<String>,
+    ancestor_pkg_ids: &'a SharedChain<String>,
+    /// Taken by value: it is the base the combined resolved-peer map is
+    /// built on, so folding into it costs no extra map.
+    external_from_children: HashMap<String, NodeId>,
+    missing_from_children: &'a HashMap<String, MissingPeerInfo>,
 }
 
 impl Walker<'_> {
@@ -577,78 +616,19 @@ impl Walker<'_> {
         };
         let pkg = self.owned_package(&pkg_id);
         let (provider_children, preview_undo) = self.preview_peer_provider_children(node_id);
-        let mut refs_changed = locked_peer_names.is_some();
-        let parent_parent_refs = if let Some(locked_peer_names) = &locked_peer_names {
-            Arc::new(scoped_hoisted_optional_parent_refs(
-                parent_parent_refs,
-                locked_peer_names,
-                &self.opts.hoisted_optional_peer_node_ids,
-            ))
-        } else {
-            Arc::clone(parent_parent_refs)
-        };
         let (pkg_name, _pkg_version) = pkg_name_version(&pkg.result);
-
-        // Build the ParentRefs map that descendants of this node see:
-        // parent's view + this node's own peer-relevant children. Kept
-        // behind `Arc` copy-on-write: most nodes contribute nothing, so
-        // they pass the parent's map down by refcount instead of cloning
-        // it — the per-node map clones dominated the walker's CPU time on
-        // peer-heavy workspaces.
-        let mut child_parent_refs = parent_parent_refs;
-        let mut new_parent_refs = ParentRefs::default();
-        for (alias, child_node_id) in &provider_children {
-            let Some(child_tree) = self.tree.dependencies_tree.get(child_node_id) else { continue };
-            let Some(child_pkg) = self.tree.packages.get(&child_tree.resolved_package_id) else {
-                continue;
-            };
-            insert_parent_ref(
-                &mut new_parent_refs,
-                alias,
-                child_node_id.clone(),
-                child_pkg,
-                child_tree.depth,
-            );
-        }
-        if !new_parent_refs.is_empty() {
-            refs_changed = true;
-            let refs = Arc::make_mut(&mut child_parent_refs);
-            // Built only when a name collision actually consults it — the
-            // common no-collision node never pays for the extra map clone.
-            let mut refs_with_new: Option<ParentRefs> = None;
-            for (name, mut new_parent_ref) in new_parent_refs.clone() {
-                if let Some(existing) = refs.get(&name) {
-                    let with_new = refs_with_new.get_or_insert_with(|| {
-                        let mut with_new = refs.clone();
-                        with_new.extend(new_parent_refs.clone());
-                        with_new
-                    });
-                    if !self.parent_refs_match(existing, &new_parent_ref)
-                        || self.inherited_parent_pkg_breaks_peer_diamond(
-                            with_new,
-                            existing,
-                            &new_parent_ref,
-                            node_id,
-                        )
-                    {
-                        new_parent_ref.occurrence = existing.occurrence + 1;
-                        refs.insert(name, new_parent_ref);
-                    }
-                } else {
-                    refs.insert(name, new_parent_ref);
-                }
-            }
-        }
-
-        let locked_pins =
-            self.locked_peer_context_pins(node_id, &pkg, &child_parent_refs, parent_node_ids);
-        if !locked_pins.is_empty() {
-            refs_changed = true;
-            let refs = Arc::make_mut(&mut child_parent_refs);
-            for (name, parent_ref) in locked_pins {
-                refs.insert(name, parent_ref);
-            }
-        }
+        let ChildParentRefs {
+            refs: child_parent_refs,
+            own: new_parent_refs,
+            changed: refs_changed,
+        } = self.build_child_parent_refs(
+            node_id,
+            &pkg,
+            parent_parent_refs,
+            locked_peer_names.as_deref(),
+            &provider_children,
+            parent_node_ids,
+        );
 
         // Record this node's parent context for the descendants'
         // [`peers_cache`] lookups. We compute and store the snapshot
@@ -788,53 +768,25 @@ impl Walker<'_> {
             mut missing_summaries,
         } = child_outputs;
 
-        // Resolve this node's own peer requirements against the augmented
-        // ParentRefs visible at this node, including peer-relevant children.
-        let mut own_resolved_peers: HashMap<String, NodeId> = HashMap::default();
-        let mut own_missing_peers: HashMap<String, MissingPeerInfo> = HashMap::default();
-        for (peer_name, peer_dep) in &pkg.peer_dependencies {
-            self.resolve_one_peer(
-                &pkg_name,
-                peer_name,
-                peer_dep,
-                &child_parent_refs,
-                &child_chain_names,
-                parent_pkg_ids_chain,
-                &mut own_resolved_peers,
-                &mut own_missing_peers,
-            );
-            if let Some(peer_node_id) = own_resolved_peers.get(peer_name) {
-                auto_install_resolved_peers.insert(peer_name.clone(), peer_node_id.clone());
-            }
-        }
-
-        // Combine all resolved peers (this node's own + descendants').
-        // Filter out the node's own name (a package doesn't peer-depend
-        // on itself).
-        let mut all_resolved_peers = external_from_children;
-        for (peer_alias, peer_node_id) in &own_resolved_peers {
-            all_resolved_peers.insert(peer_alias.clone(), peer_node_id.clone());
-        }
-        all_resolved_peers.remove(&pkg_name);
-
-        // Same for missing peers (children + own).
-        let mut all_missing_peers = missing_from_children.clone();
-        for (peer_alias, info) in &own_missing_peers {
-            all_missing_peers.insert(peer_alias.clone(), info.clone());
-        }
-
-        // Construct the depPath. Empty resolved-peers ⇒ pure node:
-        // depPath = pkgIdWithPatchHash.
-        let dep_path = if all_resolved_peers.is_empty() {
-            DepPath::from(pkg.id.clone())
-        } else {
-            let peer_ids: Vec<PeerId> = all_resolved_peers
+        let NodePeers {
+            own_resolved: own_resolved_peers,
+            all_resolved: all_resolved_peers,
+            all_missing: all_missing_peers,
+            dep_path,
+        } = self.resolve_node_peers(NodePeersContext {
+            pkg: &pkg,
+            pkg_name: &pkg_name,
+            parent_refs: &child_parent_refs,
+            chain_names: &child_chain_names,
+            ancestor_pkg_ids: parent_pkg_ids_chain,
+            external_from_children,
+            missing_from_children: &missing_from_children,
+        });
+        auto_install_resolved_peers.extend(
+            own_resolved_peers
                 .iter()
-                .map(|(peer_alias, peer_node_id)| self.build_peer_id(peer_alias, peer_node_id))
-                .collect();
-            let suffix = create_peer_dep_graph_hash(&peer_ids, self.opts.peers_suffix_max_length);
-            DepPath::from(format!("{}{}", pkg.id, suffix))
-        };
+                .map(|(peer_name, peer_node_id)| (peer_name.clone(), peer_node_id.clone())),
+        );
 
         // Register the depPath ↔ NodeId mapping and per-node
         // propagated state before inserting into the graph (so any
@@ -895,105 +847,21 @@ impl Walker<'_> {
         }
 
         if !self.discovery {
-            // The children's depPath edges become this node's graph children.
-            // Resolved peers become extra edges, aliased by peer name. If a
-            // peer's depPath isn't known yet — typically a later sibling
-            // direct dep — defer the edge to the post-walk patch pass; the
-            // install layer drives off `graph_children`, so skipping the
-            // edge entirely would leave the peer un-symlinked in the
-            // parent's slot.
-            let mut graph_children = BTreeMap::new();
-            for (alias, child_node_id) in
-                self.previously_resolved_children(parent_node_ids, parent_pkg_ids_chain, &pkg.id)
-            {
-                self.add_graph_child_or_pending(
-                    &mut graph_children,
-                    &dep_path,
-                    alias,
-                    child_node_id,
-                );
-            }
-            for (alias, child_dep_path) in child_dep_paths {
-                graph_children.insert(alias, child_dep_path);
-            }
-            for (peer_alias, peer_node_id) in all_resolved_peers.iter() {
-                self.add_graph_child_or_pending(
-                    &mut graph_children,
-                    &dep_path,
-                    peer_alias.clone(),
-                    peer_node_id.clone(),
-                );
-            }
-
-            // Compute transitive peer set: peers visible in this subtree
-            // that are NOT declared in this package's own peerDependencies.
-            let mut transitive_peer_dependencies: HashSet<String> = HashSet::default();
-            for peer_alias in all_resolved_peers.keys() {
-                if !pkg.peer_dependencies.contains_key(peer_alias) {
-                    transitive_peer_dependencies.insert(peer_alias.clone());
-                }
-            }
-            for peer_alias in all_missing_peers.keys() {
-                if !pkg.peer_dependencies.contains_key(peer_alias) {
-                    transitive_peer_dependencies.insert(peer_alias.clone());
-                }
-            }
-
-            // Capture this node's NodeId-level edges + metadata for the
-            // post-walk [`Walker::build_final_dep_paths`] rebuild. Edges are
-            // the node's regular children overlaid with its *own* resolved
-            // peers — this node's own peer resolution, not the descendants'
-            // peers bubbled up for the suffix. A peer a descendant resolved
-            // (e.g. `debug`'s optional `supports-color`) is symlinked at the
-            // descendant that declares it, so it must not appear in this
-            // node's dependencies. Carries NodeIds so the rebuild can
-            // resolve each to its corrected final depPath.
-            let mut record_edges =
-                self.previously_resolved_children(parent_node_ids, parent_pkg_ids_chain, &pkg.id);
-            record_edges.extend(children_map.clone());
-            for (peer_alias, peer_node_id) in &own_resolved_peers {
-                record_edges.insert(peer_alias.clone(), peer_node_id.clone());
-            }
-            let optional_child_aliases = self.optional_child_aliases(&pkg.id, &record_edges);
-            let record_order = self.next_record_order;
-            self.next_record_order += 1;
-            self.node_records.insert(
-                node_id.clone(),
-                NodeRecord {
-                    edges: record_edges,
-                    optional_child_aliases: optional_child_aliases.clone(),
-                    transitive_peer_dependencies: transitive_peer_dependencies.clone(),
-                    depth: tree_node_depth,
-                    installable: tree_node_installable,
-                    is_pure,
-                    order: record_order,
-                },
-            );
-
-            // Multiple visits with the same depPath collapse onto the same
-            // graph entry. On a conflict, keep the entry with the smallest
-            // `depth` so install order matches.
-            self.graph
-                .entry(dep_path.clone())
-                .and_modify(|node| {
-                    if node.depth > tree_node_depth {
-                        node.depth = tree_node_depth;
-                    }
-                })
-                .or_insert(DependenciesGraphNode {
-                    dep_path: dep_path.clone(),
-                    resolved_package_id: pkg.id.clone(),
-                    resolve_result: Arc::clone(&pkg.result),
-                    children: graph_children,
-                    optional_children: optional_child_aliases,
-                    peer_dependencies: pkg.peer_dependencies.clone(),
-                    transitive_peer_dependencies,
-                    resolved_peer_names: all_resolved_peers.keys().cloned().collect(),
-                    depth: tree_node_depth,
-                    installable: tree_node_installable,
-                    is_pure,
-                    optional: pkg.optional,
-                });
+            self.record_walked_node(WalkedNode {
+                node_id,
+                pkg: &pkg,
+                dep_path: &dep_path,
+                parent_node_ids,
+                parent_pkg_ids_chain,
+                children: &children_map,
+                child_dep_paths,
+                all_resolved_peers: &all_resolved_peers,
+                all_missing_peers: &all_missing_peers,
+                own_resolved_peers: &own_resolved_peers,
+                depth: tree_node_depth,
+                installable: tree_node_installable,
+                is_pure,
+            });
         }
 
         self.in_progress.remove(node_id);
@@ -1020,6 +888,148 @@ impl Walker<'_> {
             self.undo_realize(node_id, realize_undo, Some(&output));
         }
         output
+    }
+
+    /// Build the [`ParentRefs`] map that descendants of this node see:
+    /// the parent's view (scoped down when the node's locked peer names
+    /// exclude hoisted optional providers), plus the node's own
+    /// peer-relevant children, plus the pins the wanted lockfile locked
+    /// in. Kept behind `Arc` copy-on-write: most nodes contribute
+    /// nothing, so they pass the parent's map down by refcount instead
+    /// of cloning it — the per-node map clones dominated the walker's
+    /// CPU time on peer-heavy workspaces.
+    fn build_child_parent_refs(
+        &self,
+        node_id: &NodeId,
+        pkg: &ResolvedPackage,
+        parent_parent_refs: &Arc<ParentRefs>,
+        locked_peer_names: Option<&HashSet<String>>,
+        provider_children: &BTreeMap<String, NodeId>,
+        parent_node_ids: &SharedChain<NodeId>,
+    ) -> ChildParentRefs {
+        let mut refs_changed = locked_peer_names.is_some();
+        let mut child_parent_refs = if let Some(locked_peer_names) = locked_peer_names {
+            Arc::new(scoped_hoisted_optional_parent_refs(
+                parent_parent_refs,
+                locked_peer_names,
+                &self.opts.hoisted_optional_peer_node_ids,
+            ))
+        } else {
+            Arc::clone(parent_parent_refs)
+        };
+
+        let mut new_parent_refs = ParentRefs::default();
+        for (alias, child_node_id) in provider_children {
+            let Some(child_tree) = self.tree.dependencies_tree.get(child_node_id) else { continue };
+            let Some(child_pkg) = self.tree.packages.get(&child_tree.resolved_package_id) else {
+                continue;
+            };
+            insert_parent_ref(
+                &mut new_parent_refs,
+                alias,
+                child_node_id.clone(),
+                child_pkg,
+                child_tree.depth,
+            );
+        }
+        if !new_parent_refs.is_empty() {
+            refs_changed = true;
+            let refs = Arc::make_mut(&mut child_parent_refs);
+            // Built only when a name collision actually consults it — the
+            // common no-collision node never pays for the extra map clone.
+            let mut refs_with_new: Option<ParentRefs> = None;
+            for (name, mut new_parent_ref) in new_parent_refs.clone() {
+                if let Some(existing) = refs.get(&name) {
+                    let with_new = refs_with_new.get_or_insert_with(|| {
+                        let mut with_new = refs.clone();
+                        with_new.extend(new_parent_refs.clone());
+                        with_new
+                    });
+                    if !self.parent_refs_match(existing, &new_parent_ref)
+                        || self.inherited_parent_pkg_breaks_peer_diamond(
+                            with_new,
+                            existing,
+                            &new_parent_ref,
+                            node_id,
+                        )
+                    {
+                        new_parent_ref.occurrence = existing.occurrence + 1;
+                        refs.insert(name, new_parent_ref);
+                    }
+                } else {
+                    refs.insert(name, new_parent_ref);
+                }
+            }
+        }
+
+        let locked_pins =
+            self.locked_peer_context_pins(node_id, pkg, &child_parent_refs, parent_node_ids);
+        if !locked_pins.is_empty() {
+            refs_changed = true;
+            let refs = Arc::make_mut(&mut child_parent_refs);
+            for (name, parent_ref) in locked_pins {
+                refs.insert(name, parent_ref);
+            }
+        }
+
+        ChildParentRefs { refs: child_parent_refs, own: new_parent_refs, changed: refs_changed }
+    }
+
+    /// Resolve this node's own peer requirements against the augmented
+    /// [`ParentRefs`] visible at it, fold the result with what its
+    /// children reported, and render the depPath. Empty resolved-peers
+    /// ⇒ pure node: depPath = `pkgIdWithPatchHash`.
+    fn resolve_node_peers(&mut self, context: NodePeersContext<'_>) -> NodePeers {
+        let NodePeersContext {
+            pkg,
+            pkg_name,
+            parent_refs,
+            chain_names,
+            ancestor_pkg_ids,
+            external_from_children,
+            missing_from_children,
+        } = context;
+
+        let mut own_resolved: HashMap<String, NodeId> = HashMap::default();
+        let mut own_missing: HashMap<String, MissingPeerInfo> = HashMap::default();
+        for (peer_name, peer_dep) in &pkg.peer_dependencies {
+            self.resolve_one_peer(
+                pkg_name,
+                peer_name,
+                peer_dep,
+                parent_refs,
+                chain_names,
+                ancestor_pkg_ids,
+                &mut own_resolved,
+                &mut own_missing,
+            );
+        }
+
+        // A package doesn't peer-depend on itself, so its own name never
+        // enters its suffix.
+        let mut all_resolved = external_from_children;
+        for (peer_alias, peer_node_id) in &own_resolved {
+            all_resolved.insert(peer_alias.clone(), peer_node_id.clone());
+        }
+        all_resolved.remove(pkg_name);
+
+        let mut all_missing = missing_from_children.clone();
+        for (peer_alias, info) in &own_missing {
+            all_missing.insert(peer_alias.clone(), info.clone());
+        }
+
+        let dep_path = if all_resolved.is_empty() {
+            DepPath::from(pkg.id.clone())
+        } else {
+            let peer_ids: Vec<PeerId> = all_resolved
+                .iter()
+                .map(|(peer_alias, peer_node_id)| self.build_peer_id(peer_alias, peer_node_id))
+                .collect();
+            let suffix = create_peer_dep_graph_hash(&peer_ids, self.opts.peers_suffix_max_length);
+            DepPath::from(format!("{}{}", pkg.id, suffix))
+        };
+
+        NodePeers { own_resolved, all_resolved, all_missing, dep_path }
     }
 
     /// The upstream locked-peer-provider reuse block

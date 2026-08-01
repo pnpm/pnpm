@@ -416,12 +416,10 @@ impl Walker<'_> {
         parent_refs: &ParentRefs,
         pkg_id: &str,
     ) -> DeferredChildResolution {
-        if self
-            .pure_pkgs
-            .get(pkg_id)
-            .is_some_and(|_| self.tree.packages[pkg_id].peer_dependencies.is_empty())
+        if let Some(dep_path) = self.pure_pkgs.get(pkg_id)
+            && self.tree.packages[pkg_id].peer_dependencies.is_empty()
         {
-            return DeferredChildResolution::Pure(self.pure_pkgs[pkg_id].clone());
+            return DeferredChildResolution::Pure(dep_path.clone());
         }
         if let Some(cached) = self
             .find_fast_hit_for_lazy(parent_ids, parent_refs, pkg_id)

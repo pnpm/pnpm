@@ -1,17 +1,20 @@
-//! The post-walk passes: pending-edge repair, SCC-based cycle
-//! detection, the final depPath recomputation that gives every resolved
-//! peer its full suffix, and the [`DependenciesGraph`] built from the
-//! per-node records keyed by those depPaths.
+//! The graph-entry capture each walked node performs, and the post-walk
+//! passes it feeds: pending-edge repair, SCC-based cycle detection, the
+//! final depPath recomputation that gives every resolved peer its full
+//! suffix, and the [`DependenciesGraph`] built from the per-node records
+//! keyed by those depPaths.
 
 use crate::{
     dependencies_graph::{DependenciesGraph, DependenciesGraphNode},
     node_id::NodeId,
     resolve_peers::{
         context::{
-            link_node_id_as_dep_path, node_id_sort_key, peer_segment_names, pkg_name_version,
+            SharedChain, link_node_id_as_dep_path, node_id_sort_key, peer_segment_names,
+            pkg_name_version,
         },
-        walker::Walker,
+        walker::{MissingPeerInfo, Walker},
     },
+    resolved_tree::ResolvedPackage,
 };
 use pacquet_deps_path::{DepPath, PeerId, create_peer_dep_graph_hash, link_path_to_peer_version};
 use pacquet_resolving_resolver_base::ResolveResult;
@@ -45,6 +48,30 @@ pub(super) struct NodeRecord {
     pub(super) order: u64,
 }
 
+/// One walked node's contribution to the graph, as
+/// [`Walker::record_walked_node`] receives it: the node's identity, the
+/// depPath the walk gave it, and the edge and peer sets its graph entry
+/// and [`NodeRecord`] are built from.
+pub(super) struct WalkedNode<'a> {
+    pub(super) node_id: &'a NodeId,
+    pub(super) pkg: &'a ResolvedPackage,
+    pub(super) dep_path: &'a DepPath,
+    pub(super) parent_node_ids: &'a SharedChain<NodeId>,
+    pub(super) parent_pkg_ids_chain: &'a SharedChain<String>,
+    /// This node's realized `alias → NodeId` children.
+    pub(super) children: &'a BTreeMap<String, NodeId>,
+    /// The depPaths those same children resolved to.
+    pub(super) child_dep_paths: BTreeMap<String, DepPath>,
+    /// Every peer resolved anywhere in this node's subtree.
+    pub(super) all_resolved_peers: &'a HashMap<String, NodeId>,
+    pub(super) all_missing_peers: &'a HashMap<String, MissingPeerInfo>,
+    /// The subset of the above this node declares itself.
+    pub(super) own_resolved_peers: &'a HashMap<String, NodeId>,
+    pub(super) depth: i32,
+    pub(super) installable: bool,
+    pub(super) is_pure: bool,
+}
+
 /// One `parent → child` edge whose target wasn't walked yet at the
 /// time the parent's `graph_children` was built. Patched up by
 /// [`Walker::patch_pending_peer_edges`] after the main walk completes.
@@ -61,6 +88,123 @@ struct FinalPeerContext<'a> {
 }
 
 impl Walker<'_> {
+    /// Record one walked node: its entry in the provisional
+    /// depPath-keyed graph, and the [`NodeRecord`] the post-walk rebuild
+    /// consumes. A discovery pass runs neither of the passes that read
+    /// these, so it never calls this.
+    pub(super) fn record_walked_node(&mut self, node: WalkedNode<'_>) {
+        let WalkedNode {
+            node_id,
+            pkg,
+            dep_path,
+            parent_node_ids,
+            parent_pkg_ids_chain,
+            children,
+            child_dep_paths,
+            all_resolved_peers,
+            all_missing_peers,
+            own_resolved_peers,
+            depth,
+            installable,
+            is_pure,
+        } = node;
+
+        // The children's depPath edges become this node's graph children.
+        // Resolved peers become extra edges, aliased by peer name. If a
+        // peer's depPath isn't known yet — typically a later sibling
+        // direct dep — defer the edge to the post-walk patch pass; the
+        // install layer drives off `graph_children`, so skipping the
+        // edge entirely would leave the peer un-symlinked in the
+        // parent's slot.
+        let mut graph_children = BTreeMap::new();
+        for (alias, child_node_id) in
+            self.previously_resolved_children(parent_node_ids, parent_pkg_ids_chain, &pkg.id)
+        {
+            self.add_graph_child_or_pending(&mut graph_children, dep_path, alias, child_node_id);
+        }
+        for (alias, child_dep_path) in child_dep_paths {
+            graph_children.insert(alias, child_dep_path);
+        }
+        for (peer_alias, peer_node_id) in all_resolved_peers {
+            self.add_graph_child_or_pending(
+                &mut graph_children,
+                dep_path,
+                peer_alias.clone(),
+                peer_node_id.clone(),
+            );
+        }
+
+        // Compute transitive peer set: peers visible in this subtree
+        // that are NOT declared in this package's own peerDependencies.
+        let mut transitive_peer_dependencies: HashSet<String> = HashSet::default();
+        for peer_alias in all_resolved_peers.keys() {
+            if !pkg.peer_dependencies.contains_key(peer_alias) {
+                transitive_peer_dependencies.insert(peer_alias.clone());
+            }
+        }
+        for peer_alias in all_missing_peers.keys() {
+            if !pkg.peer_dependencies.contains_key(peer_alias) {
+                transitive_peer_dependencies.insert(peer_alias.clone());
+            }
+        }
+
+        // Capture this node's NodeId-level edges + metadata for the
+        // post-walk [`Walker::build_final_dep_paths`] rebuild. Edges are
+        // the node's regular children overlaid with its *own* resolved
+        // peers — this node's own peer resolution, not the descendants'
+        // peers bubbled up for the suffix. A peer a descendant resolved
+        // (e.g. `debug`'s optional `supports-color`) is symlinked at the
+        // descendant that declares it, so it must not appear in this
+        // node's dependencies. Carries NodeIds so the rebuild can
+        // resolve each to its corrected final depPath.
+        let mut record_edges =
+            self.previously_resolved_children(parent_node_ids, parent_pkg_ids_chain, &pkg.id);
+        record_edges.extend(children.clone());
+        for (peer_alias, peer_node_id) in own_resolved_peers {
+            record_edges.insert(peer_alias.clone(), peer_node_id.clone());
+        }
+        let optional_child_aliases = self.optional_child_aliases(&pkg.id, &record_edges);
+        let record_order = self.next_record_order;
+        self.next_record_order += 1;
+        self.node_records.insert(
+            node_id.clone(),
+            NodeRecord {
+                edges: record_edges,
+                optional_child_aliases: optional_child_aliases.clone(),
+                transitive_peer_dependencies: transitive_peer_dependencies.clone(),
+                depth,
+                installable,
+                is_pure,
+                order: record_order,
+            },
+        );
+
+        // Multiple visits with the same depPath collapse onto the same
+        // graph entry. On a conflict, keep the entry with the smallest
+        // `depth` so install order matches.
+        self.graph
+            .entry(dep_path.clone())
+            .and_modify(|node| {
+                if node.depth > depth {
+                    node.depth = depth;
+                }
+            })
+            .or_insert(DependenciesGraphNode {
+                dep_path: dep_path.clone(),
+                resolved_package_id: pkg.id.clone(),
+                resolve_result: Arc::clone(&pkg.result),
+                children: graph_children,
+                optional_children: optional_child_aliases,
+                peer_dependencies: pkg.peer_dependencies.clone(),
+                transitive_peer_dependencies,
+                resolved_peer_names: all_resolved_peers.keys().cloned().collect(),
+                depth,
+                installable,
+                is_pure,
+                optional: pkg.optional,
+            });
+    }
+
     /// Fill in `graph_children` edges that were skipped during the main
     /// walk because the peer target's `DepPath` hadn't been computed
     /// yet. Each direct dep's subtree is fully walked by the time
