@@ -37,7 +37,7 @@ const PNPR_DIRECT_RATIO_MAX: f64 = 1.05;
 // The TypeScript resolver's own hot-cache cost moves independently — offline
 // resolution of this fixture dropped from ~34s to ~3s in pnpm/pnpm#13504 — and
 // a floor tracking that headroom would fail on every TypeScript perf win.
-// Compared on each target's fastest run: see [`benchmark_target_min`].
+// Compared on each target's fastest run: see `benchmark_target_min`.
 const PACQUET_PNPM_SPEEDUP_MIN: f64 = 1.25;
 const PNPR_SERVER_REGISTRY_ENV: &str = "PACQUET_BENCHMARK_PNPR_SERVER_REGISTRY";
 const PNPR_TARBALL_REWRITE_FROM_ENV: &str = "PACQUET_BENCHMARK_PNPR_TARBALL_REWRITE_FROM";

@@ -224,8 +224,11 @@ fn peer_heavy_gate_reads_the_fastest_run_not_the_mean() {
     let diagnostics = peer_heavy_diagnostics((2.5, 1.5), (2.9, 2.8));
 
     let mean_speedup = 2.9 / 2.5;
-    dbg!(mean_speedup, super::PACQUET_PNPM_SPEEDUP_MIN);
-    assert!(mean_speedup < super::PACQUET_PNPM_SPEEDUP_MIN, "fixture must fail on the mean");
+    assert!(
+        mean_speedup < super::PACQUET_PNPM_SPEEDUP_MIN,
+        "fixture must fail on the mean: {mean_speedup} >= {}",
+        super::PACQUET_PNPM_SPEEDUP_MIN,
+    );
 
     let verdict = super::check_peer_heavy_speedup(&diagnostics);
     dbg!(&verdict);
@@ -238,9 +241,8 @@ fn peer_heavy_gate_reads_the_fastest_run_not_the_mean() {
 fn peer_heavy_gate_rejects_a_regression_on_every_sample() {
     let diagnostics = peer_heavy_diagnostics((3.1, 3.0), (2.9, 2.8));
 
-    let verdict = super::check_peer_heavy_speedup(&diagnostics);
-    dbg!(&verdict);
-    let message = verdict.expect_err("a sub-floor speedup must fail the gate");
+    let message = super::check_peer_heavy_speedup(&diagnostics)
+        .expect_err("a sub-floor speedup must fail the gate");
     assert!(message.contains("faster than pnpm@HEAD"), "{message}");
 }
 
