@@ -1,13 +1,16 @@
 //! Unit tests for the peer-resolution context helpers.
 
 use super::{
-    ParentRef, importer_relative_link_dep_path, peer_segment_names, satisfies_with_prereleases,
-    scoped_hoisted_optional_parent_refs,
+    ParentRef, importer_relative_link_dep_path, peer_segment_names, remap_link_node_id,
+    satisfies_with_prereleases, scoped_hoisted_optional_parent_refs,
 };
-use crate::node_id::NodeId;
+use crate::{
+    node_id::NodeId,
+    resolve_peers::{ResolvePeersOptions, test_support::linked_package},
+};
 use pacquet_deps_path::DepPath;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 const PATCHED_WORKFLOWS_SDK: &str = concat!(
     "@medusajs/workflows-sdk@2.13.3",
@@ -74,6 +77,53 @@ fn importer_relative_link_normalizes_the_project_dir() {
             expected,
             "unexpected link target for project dir {project_dir:?}",
         );
+    }
+}
+
+/// A workspace link records its `directory` relative to the importer,
+/// so the containment check has to resolve it against `project_dir`
+/// first — comparing the relative form with `lockfile_dir` never
+/// matches and remaps links that are already stable across machines.
+#[test]
+fn workspace_internal_link_is_not_remapped() {
+    for directory in ["../lib", "/ws/packages/lib"] {
+        let dep = linked_package("lib", "link:packages/lib", directory);
+        assert_eq!(
+            remap_link_node_id(&exclude_links_opts(), "lib", &dep.result),
+            None,
+            "unexpected remap of internal link target {directory:?}",
+        );
+    }
+}
+
+#[test]
+fn external_link_is_remapped_to_the_importers_modules_dir() {
+    for directory in ["../../../outside/lib", "/outside/lib"] {
+        let dep = linked_package("lib", "link:../../../outside/lib", directory);
+        assert_eq!(
+            remap_link_node_id(&exclude_links_opts(), "lib", &dep.result),
+            Some(NodeId::leaf("link:packages/app/node_modules/lib")),
+            "unexpected remap of external link target {directory:?}",
+        );
+    }
+}
+
+/// An injected workspace dependency is a real package in the graph
+/// rather than a link, and records its `directory` relative to
+/// `lockfile_dir`.
+#[test]
+fn injected_workspace_dep_is_not_remapped() {
+    let dep = linked_package("lib", "file:../outside/lib", "../outside/lib");
+    assert_eq!(remap_link_node_id(&exclude_links_opts(), "lib", &dep.result), None);
+}
+
+fn exclude_links_opts() -> ResolvePeersOptions {
+    ResolvePeersOptions {
+        exclude_links_from_lockfile: true,
+        lockfile_dir: Some(PathBuf::from("/ws")),
+        project_dir: Some(PathBuf::from("/ws/packages/app")),
+        modules_dir: Some(PathBuf::from("/ws/packages/app/node_modules")),
+        ..ResolvePeersOptions::default()
     }
 }
 

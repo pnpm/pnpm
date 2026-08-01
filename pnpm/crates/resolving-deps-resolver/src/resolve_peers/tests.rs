@@ -1276,6 +1276,73 @@ fn linked_peer_provider_uses_root_relative_snapshot_ref_in_workspace_fallback() 
     assert_eq!(consumer.children.get("peer"), Some(&DepPath::from("link:packages/peer")));
 }
 
+/// `excludeLinksFromLockfile` only remaps links that point outside the
+/// workspace. Each importer's own root has to reach the remap for that
+/// to hold in the multi-importer walk, since a workspace link's target
+/// is recorded relative to the importer that declares it.
+#[test]
+fn workspace_internal_link_peer_keeps_its_node_id_when_exclude_links_on() {
+    let peer = NodeId::leaf("link:packages/peer");
+    let consumer = NodeId::next();
+    let importer = ImporterPeerInput {
+        id: "apps/app".to_string(),
+        hoisted_optional_peer_node_ids: HashSet::default(),
+        direct: vec![
+            DirectDep {
+                alias: "consumer".to_string(),
+                node_id: consumer.clone(),
+                id: "consumer@1.0.0".to_string(),
+            },
+            DirectDep {
+                alias: "peer".to_string(),
+                node_id: peer.clone(),
+                id: "link:packages/peer".to_string(),
+            },
+        ],
+        root_dir: std::path::PathBuf::from("/repo/apps/app"),
+        modules_dir: Some(std::path::PathBuf::from("/repo/apps/app/node_modules")),
+    };
+    let mut tree = ResolvedTree {
+        direct: Vec::new(),
+        packages: HashMap::from_iter([
+            (
+                "link:packages/peer".to_string(),
+                linked_package("peer", "link:packages/peer", "../../packages/peer"),
+            ),
+            ("consumer@1.0.0".to_string(), package("consumer", "1.0.0", &[("peer", "*")], false)),
+        ]),
+        dependencies_tree: HashMap::from_iter([
+            (peer, tree_node("link:packages/peer", BTreeMap::new(), -1)),
+            (consumer, tree_node("consumer@1.0.0", BTreeMap::new(), 0)),
+        ]),
+        all_peer_dep_names: HashSet::from_iter(["peer".to_string()]),
+        policy_violations: Vec::new(),
+        applied_patches: HashSet::default(),
+        children_by_id: HashMap::default(),
+    };
+
+    let result = resolve_peers_workspace(
+        &mut tree,
+        &[importer],
+        std::path::Path::new("/repo"),
+        false,
+        false,
+        false,
+        ResolvePeersOptions {
+            exclude_links_from_lockfile: true,
+            lockfile_dir: Some(std::path::PathBuf::from("/repo")),
+            ..ResolvePeersOptions::default()
+        },
+    );
+
+    let consumer_dep_path = &result.direct_dependencies_by_importer["apps/app"]["consumer"];
+    assert_eq!(consumer_dep_path.as_str(), "consumer@1.0.0(peer@packages+peer)");
+    assert_eq!(
+        result.graph[consumer_dep_path].children.get("peer"),
+        Some(&DepPath::from("link:packages/peer")),
+    );
+}
+
 #[test]
 fn single_importer_link_is_rendered_relative_to_project_root() {
     let shared = NodeId::leaf("link:packages/shared");

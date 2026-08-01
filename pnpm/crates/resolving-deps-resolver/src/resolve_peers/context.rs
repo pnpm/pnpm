@@ -12,7 +12,10 @@ use node_semver::{Range, Version};
 use pacquet_deps_path::{DepPath, index_of_dep_path_suffix};
 use pacquet_resolving_resolver_base::ResolveResult;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
-use std::{path::Path, sync::Arc};
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 /// Per-name entry in the propagating [`ParentRefs`] map.
 #[derive(Debug, Clone)]
@@ -382,7 +385,9 @@ pub(super) fn importer_relative_link_dep_path(
 ///
 /// Returns `None` when:
 ///
-/// - the dep isn't a `link:` directory resolution;
+/// - the dep isn't a `link:` directory resolution — an injected
+///   (`file:`) one is a real package in the graph and keeps its own
+///   node id;
 /// - the setting is off or the lockfile / modules dirs are missing;
 /// - the link target lives under `lockfile_dir` (workspace-internal
 ///   link — already stable across machines, no remap needed).
@@ -403,8 +408,17 @@ pub(super) fn remap_link_node_id(
         pacquet_lockfile::LockfileResolution::Directory(dir) => &dir.directory,
         _ => return None,
     };
-    let link_target = std::path::Path::new(directory);
-    if pacquet_fs::is_subdir(lockfile_dir, link_target) {
+    if !result.id.as_str().starts_with("link:") {
+        return None;
+    }
+    // A workspace link records its directory relative to the importer
+    // (the local resolver's is absolute), so it has to be resolved
+    // against `project_dir` before the lexical containment check.
+    let link_target = match opts.project_dir.as_deref() {
+        Some(project_dir) => project_dir.join(directory),
+        None => PathBuf::from(directory),
+    };
+    if pacquet_fs::is_subdir(lockfile_dir, &link_target) {
         return None;
     }
     let target = modules_dir.join(alias);
