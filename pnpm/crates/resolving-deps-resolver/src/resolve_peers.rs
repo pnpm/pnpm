@@ -129,6 +129,8 @@ fn pkg_name_version(result: &ResolveResult) -> (String, String) {
 
 /// Compares the package-name component returned by [`pkg_name_version`]
 /// without allocating its owned fallback tuple.
+///
+/// Must remain equivalent to `pkg_name_version(result).0 == expected`.
 fn package_name_matches(result: &ResolveResult, expected: &str) -> bool {
     let Some(name_ver) = result.name_ver.as_ref() else {
         return result.alias.as_deref().unwrap_or(result.id.as_str()) == expected;
