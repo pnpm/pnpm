@@ -688,12 +688,12 @@ The provider implements each trait independently, so adding a domain to an exist
 
 Reusing a DI fake across tests is optional — most tests read clearest with the fake declared inline in the `#[test]` body (principle 3). When a fake *is* shared across a whole module, a module-local `macro_rules!` that expands the fn-local state at the top of each test body saves repeating the same `thread_local!` / `static` block and capability `impl`s in every test. `login_fake!` in `crates/auth-commands/src/login/support.rs` is the reference implementation; `poll_fake!`, `browser_fake!`, `fake_env!`, `recording_reporter!`, and `recording_browser!` across the test suites follow the same shape.
 
-The rule bites only in that shared case, and only for helpers that not every test drives: do **not** emit them all and silence the unused ones with `#[allow(dead_code)]`. That suppression is noise, and it can mask a helper that has become genuinely dead. Declare each optional helper's existence through a named macro argument instead — emit the always-used core (the state block, the capability `impl`s, `reset`) unconditionally, and generate each optional helper only when a test names it. The entry arm takes the helper names as a variadic list and forwards each to an internal `(@helper $name)` arm; each test invokes the macro naming exactly the helpers it drives, so every emitted function is used:
+The rule bites only in that shared case, and only for items that not every test drives: do **not** emit them all and silence the unused ones with `#[allow(dead_code)]`. That suppression is noise, and it can mask an item that has become genuinely dead. Declare each optional item's existence through a named macro argument instead — emit only the always-used core (such as the state block and `reset`) unconditionally, and generate each optional item only when a test names it. What counts as optional is fake-specific: a `set_*` or query helper, a reporter, or even a capability-impl provider that some tests don't drive — `web_auth_fake!` gates its `FakeHost` this way. The entry arm takes the item names as a variadic list and forwards each to an internal `(@helper $name)` arm; each test invokes the macro naming exactly the items it drives, so every emitted item is used:
 
 ```rust
 macro_rules! poll_fake {
     ($($helper:ident),* $(,)?) => {
-        // always emitted: fn-local state, capability impls, reset()
+        // this fake's always-used core: fn-local state, capability impls, reset()
         $( poll_fake!(@helper $helper); )*
     };
     (@helper set_sleep_behavior) => { /* fn set_sleep_behavior(...) { ... } */ };
