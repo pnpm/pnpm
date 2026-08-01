@@ -46,6 +46,9 @@
       "path": "../../network/fetch"
     },
     {
+      "path": "../../pkg-manifest/utils"
+    },
+    {
       "path": "../../store/cafs"
     },
     {

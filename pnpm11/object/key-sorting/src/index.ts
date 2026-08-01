@@ -1,4 +1,4 @@
-import { lexCompare } from '@pnpm/util.lex-comparator'
+import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import _sortKeys from 'sort-keys'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

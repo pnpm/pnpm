@@ -2,10 +2,8 @@
 //! "what to add to the importer's direct deps" map. Used by the
 //! orchestrator (`resolve_importer`) inside its hoist loop.
 
-use std::{
-    collections::{BTreeMap, HashMap, HashSet},
-    path::Path,
-};
+use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use std::{collections::BTreeMap, path::Path};
 
 use node_semver::{Range, Version};
 use pacquet_resolving_resolver_base::{
@@ -173,7 +171,7 @@ pub fn get_hoistable_optional_peers(
         all_missing_optional_peers,
         all_preferred_versions,
         workspace_root_deps,
-        &HashMap::new(),
+        &HashMap::default(),
     )
 }
 

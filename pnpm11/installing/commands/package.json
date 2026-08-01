@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.commands",
-  "version": "1100.12.1",
+  "version": "1100.12.2",
   "description": "Commands for installation",
   "keywords": [
     "pnpm",
@@ -76,8 +76,8 @@
     "@pnpm/semver-diff": "catalog:",
     "@pnpm/store.connection-manager": "workspace:*",
     "@pnpm/store.controller": "workspace:*",
+    "@pnpm/text.ordinal-comparator": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/util.lex-comparator": "catalog:",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "@pnpm/workspace.project-manifest-writer": "workspace:*",
     "@pnpm/workspace.projects-filter": "workspace:*",

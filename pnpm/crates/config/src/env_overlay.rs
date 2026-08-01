@@ -256,6 +256,7 @@ impl WorkspaceSettings {
         if let Some(save_prefix) = read_env_allow_empty::<Sys>("SAVE_PREFIX") {
             settings.save_prefix = Some(save_prefix);
         }
+        json_field!(save_exact, "SAVE_EXACT");
         json_field!(save_peer, "SAVE_PEER");
         enum_field!(save_workspace_protocol, "SAVE_WORKSPACE_PROTOCOL", SaveWorkspaceProtocol);
         json_field!(registry_supports_time_field, "REGISTRY_SUPPORTS_TIME_FIELD");

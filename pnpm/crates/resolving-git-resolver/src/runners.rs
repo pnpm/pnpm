@@ -156,6 +156,7 @@ fn ls_remote_command(bin: Option<&PathBuf>, repo: &str, mode: LsRemoteMode<'_>) 
         Some(bin) => Command::new(bin),
         None => Command::new("git"),
     };
+    cmd.env("GIT_TERMINAL_PROMPT", "0");
     cmd.arg("ls-remote");
     if matches!(mode, LsRemoteMode::Probe) {
         cmd.arg("--exit-code");

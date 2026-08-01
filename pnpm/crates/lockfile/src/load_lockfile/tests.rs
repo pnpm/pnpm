@@ -115,6 +115,57 @@ fn parses_lockfile_larger_than_default_yaml_node_budget() {
 }
 
 #[test]
+fn parses_lockfile_larger_than_default_yaml_scalar_byte_budget() {
+    const IMPORTER_COUNT: usize = 1_000_000;
+
+    // Each importer line contributes ~100 bytes of scalar text, pushing the
+    // document past the parser's 64 MiB default scalar budget.
+    let mut content = String::from("lockfileVersion: '9.0'\n\nimporters:\n");
+    for index in 0..IMPORTER_COUNT {
+        writeln!(
+            content,
+            "  padded-project-directory-name/deeply/nested/workspace-component-{index:07}: {{}}",
+        )
+        .expect("write importer");
+    }
+    assert!(content.len() > 64 * 1024 * 1024, "fixture must exceed the default scalar budget");
+
+    let lockfile = Lockfile::parse(&content, Path::new(Lockfile::FILE_NAME))
+        .expect("parse large lockfile")
+        .expect("large lockfile should be present");
+
+    assert_eq!(lockfile.importers.len(), IMPORTER_COUNT);
+}
+
+// A regression here makes every subsequent install re-resolve from
+// scratch after failing to read the lockfile it just wrote.
+#[test]
+fn snapshot_key_over_simple_key_limit_round_trips() {
+    let long_key = (0..40).fold(String::from("@scope/pkg@1.0.0"), |mut key, index| {
+        write!(key, "(@scope/very-long-peer-dependency-name-{index:02}@33.44.55)")
+            .expect("write peer suffix");
+        key
+    });
+    assert!(long_key.len() > 1024, "fixture key must exceed the simple-key limit");
+
+    let content = format!(
+        "lockfileVersion: '9.0'\n\nimporters:\n\n  .: {{}}\n\nsnapshots:\n\n  ? '{long_key}'\n  : {{}}\n",
+    );
+    let lockfile = Lockfile::parse(&content, Path::new(Lockfile::FILE_NAME))
+        .expect("parse lockfile with explicit long key")
+        .expect("lockfile should be present");
+    let key: PackageKey = long_key.parse().expect("parse long snapshot key");
+    assert!(lockfile.snapshots.as_ref().expect("snapshots").contains_key(&key));
+
+    let emitted = lockfile.to_yaml_string().expect("emit lockfile");
+    assert!(emitted.contains("? '@scope/pkg@1.0.0"), "long key must be emitted in explicit form");
+    let reparsed = Lockfile::parse(&emitted, Path::new(Lockfile::FILE_NAME))
+        .expect("reparse emitted lockfile")
+        .expect("reparsed lockfile should be present");
+    assert_eq!(reparsed, lockfile);
+}
+
+#[test]
 fn parse_error_does_not_include_lockfile_content() {
     let dir = tempdir().expect("create tempdir");
     let secret = "aws_secret_access_key = marker-secret";

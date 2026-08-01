@@ -1,6 +1,6 @@
 use super::{DeclaredSpecifiers, calc_specifier_for_workspace_dep};
 use pacquet_config::SaveWorkspaceProtocol;
-use pacquet_registry::PinnedVersion;
+use pacquet_registry::RangeSpecStyle;
 use pretty_assertions::assert_eq;
 
 /// `calc_specifier_for_workspace_dep` for a non-aliased dependency on
@@ -12,7 +12,7 @@ fn fresh(bare: &str, protocol: SaveWorkspaceProtocol) -> String {
         "my-lib",
         Some("1.2.3"),
         protocol,
-        PinnedVersion::Major,
+        RangeSpecStyle::Major,
     )
 }
 
@@ -42,6 +42,7 @@ fn rolling_applies_to_a_bare_semver_request() {
     assert_eq!(fresh("^1.0.0", Rolling), "workspace:^");
     assert_eq!(fresh("~1.0.0", Rolling), "workspace:~");
     assert_eq!(fresh("1.0.0", Rolling), "workspace:*");
+    assert_eq!(fresh("=1.0.0", Rolling), "workspace:*");
 }
 
 /// A tag or an unrecoverable range has no operator to carry over, so it
@@ -57,7 +58,7 @@ fn rolling_falls_back_to_caret() {
             "my-lib",
             Some("1.2.3"),
             Rolling,
-            PinnedVersion::Major,
+            RangeSpecStyle::Major,
         ),
         "workspace:^",
     );
@@ -75,7 +76,7 @@ fn rolling_prefers_the_previous_specifier() {
             "my-lib",
             Some("1.2.3"),
             SaveWorkspaceProtocol::Rolling,
-            PinnedVersion::Major,
+            RangeSpecStyle::Major,
         ),
         "workspace:~",
     );
@@ -92,7 +93,7 @@ fn pinned_writes_the_resolved_version_with_the_default_operator() {
             "my-lib",
             Some("1.2.3"),
             On,
-            PinnedVersion::Patch,
+            RangeSpecStyle::Patch,
         ),
         "workspace:1.2.3",
     );
@@ -110,7 +111,7 @@ fn pinned_takes_its_operator_from_the_previous_specifier() {
             "my-lib",
             Some("1.2.3"),
             SaveWorkspaceProtocol::On,
-            PinnedVersion::Major,
+            RangeSpecStyle::Major,
         ),
         "workspace:~1.2.3",
     );
@@ -127,7 +128,7 @@ fn pinned_writes_a_prerelease_exactly() {
             "my-lib",
             Some("2.0.0-beta.1"),
             SaveWorkspaceProtocol::On,
-            PinnedVersion::Major,
+            RangeSpecStyle::Major,
         ),
         "workspace:2.0.0-beta.1",
     );
@@ -154,7 +155,7 @@ fn an_alias_names_its_target_inside_the_protocol() {
             "my-lib",
             Some("1.2.3"),
             protocol,
-            PinnedVersion::Major,
+            RangeSpecStyle::Major,
         )
     };
     assert_eq!(specifier(SaveWorkspaceProtocol::Rolling), "workspace:my-lib@^");
@@ -172,7 +173,7 @@ fn a_missing_version_falls_back_to_the_rolling_shape() {
             "my-lib",
             None,
             protocol,
-            PinnedVersion::Major,
+            RangeSpecStyle::Major,
         )
     };
     assert_eq!(specifier(SaveWorkspaceProtocol::Rolling), "workspace:^");

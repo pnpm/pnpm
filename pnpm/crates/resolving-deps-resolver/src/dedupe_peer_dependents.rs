@@ -18,7 +18,8 @@
 //! equal size would otherwise collapse into whichever happened to be
 //! visited first, producing machine-dependent lockfiles.
 
-use std::collections::{BTreeMap, HashMap, HashSet};
+use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use std::collections::BTreeMap;
 
 use pacquet_deps_path::DepPath;
 
@@ -125,7 +126,7 @@ fn deduplicate_dep_paths(
             .then_with(|| dep_path1.cmp(dep_path2))
     };
 
-    let mut dep_paths_map: HashMap<DepPath, DepPath> = HashMap::new();
+    let mut dep_paths_map: HashMap<DepPath, DepPath> = HashMap::default();
     let mut remaining_duplicates: Vec<Vec<DepPath>> = Vec::new();
 
     for dep_paths in duplicates {

@@ -25,7 +25,9 @@ use dashmap::DashMap;
 use pacquet_config::{TrustPolicy, version_policy::PackageVersionPolicy};
 use pacquet_lockfile::{LockfileResolution, PkgName, is_git_hosted_tarball_url};
 use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_url_credentials};
-use pacquet_registry::{Approver, NpmUser, Package, PackageDistribution, PackageVersion};
+use pacquet_registry::{
+    Approver, DerivedPackuments, NpmUser, Package, PackageDistribution, PackageVersion,
+};
 use pacquet_resolving_resolver_base::{
     ResolutionVerification, ResolutionVerifier, VerifyCtx, VerifyFuture, parse_packument_timestamp,
 };
@@ -1026,6 +1028,8 @@ fn project_trust_meta(meta: &Package) -> Package {
         // bounded by the trust-evidence footprint (see the fn doc).
         homepage: None,
         mutex: std::sync::Arc::new(std::sync::Mutex::new(0)),
+        release_age_upgrade_checked: false,
+        derived: DerivedPackuments::default(),
     }
 }
 

@@ -122,21 +122,9 @@ jobs:
     with:
       os: blacksmith-8vcpu-windows-2025
 
-  test-smoke:
-    name: TS CI / Test / ubuntu
-    needs: [compile-and-lint, build-pnpr-linux]
-    uses: ./.github/workflows/test.yml
-    with:
-      node: '24.0.0'
-      node_major: '24'
-      platform: blacksmith-8vcpu-ubuntu-2404
-      garnet: true
-    secrets:
-      GARNET_API_TOKEN: ${{ secrets.GARNET_API_TOKEN }}
-
   test:
     name: TS CI / Test / ${{ matrix.platform_label }}
-    needs: test-smoke
+    needs: [compile-and-lint, build-pnpr-linux]
     strategy:
       fail-fast: false
       matrix:
@@ -147,7 +135,14 @@ jobs:
             platform_label: ubuntu
             test_chunk: '1'
             test_chunk_total: '1'
-          - node: '26.5.0'
+          - node: '24.0.0'
+            node_major: '24'
+            platform: blacksmith-8vcpu-ubuntu-2404
+            platform_label: ubuntu
+            test_chunk: '1'
+            test_chunk_total: '1'
+            garnet: true
+          - node: '26.5.1'
             node_major: '26'
             platform: blacksmith-8vcpu-ubuntu-2404
             platform_label: ubuntu
@@ -160,10 +155,10 @@ jobs:
       platform: ${{ matrix.platform }}
       test_chunk: ${{ matrix.test_chunk }}
       test_chunk_total: ${{ matrix.test_chunk_total }}
+      garnet: ${{ matrix.garnet == true }}
+    secrets:
+      GARNET_API_TOKEN: ${{ secrets.GARNET_API_TOKEN }}
 
-  # Windows is the slowest platform. Gate it only on compile-and-lint so its
-  # shards run in parallel with the ubuntu smoke job, instead of waiting for
-  # the smoke job like the other Node.js versions do.
   test-windows:
     name: TS CI / Test / ${{ matrix.platform_label }}
     needs: [compile-and-lint, build-pnpr-windows]
@@ -213,7 +208,6 @@ jobs:
       - compile-and-lint
       - build-pnpr-linux
       - build-pnpr-windows
-      - test-smoke
       - test
       - test-windows
     runs-on: blacksmith-4vcpu-ubuntu-2404

@@ -270,6 +270,9 @@ test('ignoreMissingTimeField=true skips maturity check when full metadata has no
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.id).toBe('is-positive@3.1.0')
+  // No `time` field means no positive evidence latest is immature, so the raw
+  // tag survives — matching the pick, which skipped the maturity check too.
+  expect(resolveResult!.latest).toBe('3.1.0')
 })
 
 test('ignoreMissingTimeField=true still upgrades abbreviated→full when time is missing', async () => {
@@ -584,4 +587,141 @@ test('excluded packages bypass the mtime cache shortcut and refresh stale metada
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.id).toBe('is-positive@3.1.0')
+})
+
+test('latest is suppressed when publishedBy holds back the registry latest', async () => {
+  // is-positive-full has 1.0.0 (2015-06-02), 2.0.0 (2015-06-17), 3.0.0
+  // (2015-07-10), 3.1.0 (2016-01-11); dist-tags.latest = 3.1.0. publishedBy
+  // 2015-10-01 leaves 3.1.0 immature, so the '(X is available)' hint must not
+  // fire: latest only ever names the actual latest tag, and here the policy
+  // itself would refuse to install it.
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveMeta)
+
+  const cacheDir = temporaryDirectory()
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    filterMetadata: true,
+    fullMetadata: true,
+    registries,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.0.0' }, {
+    publishedBy: new Date('2015-10-01T00:00:00.000Z'),
+  })
+
+  expect(resolveResult!.id).toBe('is-positive@3.0.0')
+  expect(resolveResult!.latest).toBeUndefined()
+})
+
+test('latest is the raw registry tag when it satisfies publishedBy', async () => {
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveMeta)
+
+  const cacheDir = temporaryDirectory()
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    filterMetadata: true,
+    fullMetadata: true,
+    registries,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '3.0.0' }, {
+    publishedBy: new Date('2016-02-01T00:00:00.000Z'),
+  })
+
+  expect(resolveResult!.id).toBe('is-positive@3.0.0')
+  expect(resolveResult!.latest).toBe('3.1.0')
+})
+
+test('latest is the raw registry tag when publishedBy is not set', async () => {
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveMeta)
+
+  const cacheDir = temporaryDirectory()
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    filterMetadata: true,
+    fullMetadata: true,
+    registries,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.0.0' }, {})
+
+  expect(resolveResult!.id).toBe('is-positive@3.1.0')
+  expect(resolveResult!.latest).toBe('3.1.0')
+})
+
+test('latest is the raw registry tag when publishedByExclude fully excludes the package', async () => {
+  // The exclude policy returns true for is-positive, so the maturity policy
+  // does not apply to it at all: neither the pick nor the latest hint may be
+  // affected by the cutoff.
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveMeta)
+
+  const cacheDir = temporaryDirectory()
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    filterMetadata: true,
+    fullMetadata: true,
+    registries,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.0.0' }, {
+    publishedBy: new Date('2015-10-01T00:00:00.000Z'),
+    publishedByExclude: (pkgName) => pkgName === 'is-positive',
+  })
+
+  expect(resolveResult!.id).toBe('is-positive@3.1.0')
+  expect(resolveResult!.latest).toBe('3.1.0')
+})
+
+test('latest is the raw registry tag when publishedByExclude trusts that exact version', async () => {
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveMeta)
+
+  const cacheDir = temporaryDirectory()
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    filterMetadata: true,
+    fullMetadata: true,
+    registries,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.0.0' }, {
+    publishedBy: new Date('2015-10-01T00:00:00.000Z'),
+    publishedByExclude: (pkgName) => pkgName === 'is-positive' ? ['3.1.0'] : false,
+  })
+
+  expect(resolveResult!.id).toBe('is-positive@3.1.0')
+  expect(resolveResult!.latest).toBe('3.1.0')
+})
+
+test('latest is suppressed when all versions are immature (fallback case)', async () => {
+  // publishedBy 2015-06-01 is before every is-positive version → the pick
+  // falls back to the lowest version; latest stays undefined because the raw
+  // tag (3.1.0) is immature too.
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveMeta)
+
+  const cacheDir = temporaryDirectory()
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    filterMetadata: true,
+    fullMetadata: true,
+    registries,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^1.0.0' }, {
+    publishedBy: new Date('2015-06-01T00:00:00.000Z'),
+  })
+
+  expect(resolveResult!.id).toBe('is-positive@1.0.0')
+  expect(resolveResult!.latest).toBeUndefined()
 })

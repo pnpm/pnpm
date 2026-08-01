@@ -4,7 +4,7 @@ import path from 'node:path'
 import { afterAll, beforeEach, expect, jest, test } from '@jest/globals'
 import { createCafsStore } from '@pnpm/store.create-cafs-store'
 import { StoreIndex } from '@pnpm/store.index'
-import { lexCompare } from '@pnpm/util.lex-comparator'
+import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import { temporaryDirectory } from 'tempy'
 
 {

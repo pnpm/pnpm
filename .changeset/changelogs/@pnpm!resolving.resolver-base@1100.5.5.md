@@ -1,6 +1,0 @@
-## 1100.5.5
-
-### Patch Changes
-
-- Updated dependencies:
-  - @pnpm/types@1101.7.0

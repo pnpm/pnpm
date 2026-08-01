@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/engine.pm.commands",
-  "version": "1101.3.0",
+  "version": "1101.3.1",
   "description": "pnpm commands for self-updating and setting up pnpm",
   "keywords": [
     "pnpm",
@@ -51,6 +51,7 @@
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/network.auth-header": "workspace:*",
     "@pnpm/os.env.path-extender": "catalog:",
+    "@pnpm/pkg-manifest.utils": "workspace:*",
     "@pnpm/resolving.npm-resolver": "workspace:*",
     "@pnpm/shell.path": "workspace:*",
     "@pnpm/store.connection-manager": "workspace:*",

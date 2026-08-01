@@ -19,8 +19,9 @@
 //! workspace edge; with `dedupeInjectedDeps: false`, an injected
 //! workspace dep whose children don't subset still trips the writer.
 
+use rustc_hash::FxHashSet as HashSet;
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::BTreeMap,
     path::{Path, PathBuf},
 };
 
@@ -197,7 +198,7 @@ pub(crate) fn prune_unreachable(
     graph: &mut DependenciesGraph,
     direct_by_importer: &DirectByImporter,
 ) {
-    let mut reachable: HashSet<DepPath> = HashSet::new();
+    let mut reachable: HashSet<DepPath> = HashSet::default();
     let mut stack: Vec<DepPath> =
         direct_by_importer.values().flat_map(|direct| direct.values().cloned()).collect();
     while let Some(dep_path) = stack.pop() {

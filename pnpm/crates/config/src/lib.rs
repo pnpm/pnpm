@@ -1262,7 +1262,7 @@ pub struct Config {
     /// Maximum number of concurrent network requests pacquet keeps
     /// in flight during install — the size of the [`pacquet_network`]
     /// semaphore. The `networkConcurrency` setting; the default is the
-    /// `Math.min(64, Math.max(calcMaxWorkers() * 3, 16))` formula,
+    /// `Math.min(96, Math.max(calcMaxWorkers() * 3, 64))` formula,
     /// implemented by [`pacquet_network::default_network_concurrency`].
     #[default(_code = "pacquet_network::default_network_concurrency()")]
     pub network_concurrency: usize,
@@ -1744,6 +1744,11 @@ pub struct Config {
     /// pin. The `savePrefix` setting, overridden per-invocation by
     /// `--save-prefix` / `--save-exact`.
     pub save_prefix: Option<String>,
+
+    /// Whether `pnpm add` saves the resolved version exactly, with no
+    /// range operator. The `saveExact` setting, equivalent to passing
+    /// `--save-exact`.
+    pub save_exact: bool,
 
     /// Whether `pnpm add` also records the new dependency in
     /// `peerDependencies` (and saves it as a dev dependency). The

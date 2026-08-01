@@ -24,9 +24,9 @@ fn config_with_extensions(entries: &[(&str, &[(&str, &str)])]) -> Box<Config> {
 
 #[test]
 fn full_workspace_selection_keeps_resolution_prefetch_enabled() {
-    let real = std::collections::HashSet::from(["a".to_string(), "b".to_string()]);
+    let real = std::collections::HashSet::from_iter(["a".to_string(), "b".to_string()]);
     let all_selected = real.clone();
-    let partial = std::collections::HashSet::from(["a".to_string()]);
+    let partial = std::collections::HashSet::from_iter(["a".to_string()]);
 
     assert!(!is_partial_workspace_selection(Some(&real), Some(&all_selected)));
     assert!(is_partial_workspace_selection(Some(&real), Some(&partial)));
@@ -109,7 +109,7 @@ fn importer_scoped_update_custom_refresh_widens_every_importer() {
 
     let scoped = std::collections::BTreeMap::from([(
         "selected".to_string(),
-        UpdateReuseScope::Except(std::collections::HashSet::from(["pkg".to_string()])),
+        UpdateReuseScope::Except(std::iter::once("pkg".to_string()).collect()),
     )]);
     assert!(full_resolution_required(
         true,

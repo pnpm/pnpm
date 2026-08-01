@@ -15,9 +15,9 @@
 //! `workspace:` themselves.
 
 use pacquet_config::SaveWorkspaceProtocol;
-use pacquet_registry::PinnedVersion;
+use pacquet_registry::{RangeSpecGranularity, RangeSpecStyle};
 
-use crate::which_version_is_pinned::which_version_is_pinned;
+use crate::infer_range_spec_style::infer_range_spec_style;
 
 /// What the dependency currently declares: the entry already in the
 /// manifest, and the specifier the user typed.
@@ -45,7 +45,7 @@ pub fn calc_specifier_for_workspace_dep(
     resolved_name: &str,
     resolved_version: Option<&str>,
     save_workspace_protocol: SaveWorkspaceProtocol,
-    default_pin: PinnedVersion,
+    default_pin: RangeSpecStyle,
 ) -> String {
     // An aliased dependency has to name its target inside the protocol
     // (`workspace:<real name>@<range>`), otherwise the entry would point
@@ -66,7 +66,7 @@ pub fn calc_specifier_for_workspace_dep(
     if is_prerelease(resolved_version) {
         return format!("{prefix}{resolved_version}");
     }
-    let pin = declared.prev.and_then(which_version_is_pinned).unwrap_or(default_pin);
+    let pin = declared.prev.and_then(infer_range_spec_style).unwrap_or(default_pin);
     format!("{prefix}{}{resolved_version}", pin.range_prefix())
 }
 
@@ -79,12 +79,12 @@ fn rolling_specifier(prefix: &str, declared: DeclaredSpecifiers<'_>) -> String {
     if ["*", "^", "~"].iter().any(|suffix| specifier == format!("{prefix}{suffix}")) {
         return specifier.to_string();
     }
-    let suffix = match which_version_is_pinned(specifier) {
-        Some(PinnedVersion::Minor) => "~",
-        Some(PinnedVersion::Patch | PinnedVersion::None) => "*",
+    let suffix = match infer_range_spec_style(specifier).map(RangeSpecStyle::granularity) {
+        Some(RangeSpecGranularity::Minor) => "~",
+        Some(RangeSpecGranularity::Patch | RangeSpecGranularity::None) => "*",
         // A specifier with no recoverable pin (a tag, a multi-comparator
         // range) rolls to `^`, matching pnpm's fallback.
-        Some(PinnedVersion::Major) | None => "^",
+        Some(RangeSpecGranularity::Major) | None => "^",
     };
     format!("{prefix}{suffix}")
 }

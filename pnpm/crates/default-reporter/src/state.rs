@@ -855,8 +855,13 @@ impl ReporterState {
         if let Some(version) = &pkg.version {
             result.push(' ');
             result.push_str(&self.colors.grey(version));
+            // Only advertise an upgrade when latest is strictly newer than
+            // the installed version. A bare `!=` would also fire when the
+            // user has pinned a newer version than the registry's latest
+            // tag (e.g. a beta), wrongly suggesting a downgrade.
             if let Some(latest) = &pkg.latest
                 && latest != version
+                && is_strictly_newer(latest, version)
             {
                 result.push(' ');
                 result.push_str(&self.colors.grey(&format!("({latest} is available)")));
@@ -1386,6 +1391,13 @@ fn cached_verdict(verified_at: Option<&str>, now: DateTime<Utc>) -> String {
             format!("verified {} ago", pretty_ms_compact(elapsed_ms.unsigned_abs().into()))
         }
         None => "previously verified".to_string(),
+    }
+}
+
+fn is_strictly_newer(latest: &str, version: &str) -> bool {
+    match (node_semver::Version::parse(latest), node_semver::Version::parse(version)) {
+        (Ok(l), Ok(v)) => l > v,
+        _ => false,
     }
 }
 

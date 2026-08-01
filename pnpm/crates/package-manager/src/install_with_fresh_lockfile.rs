@@ -205,6 +205,9 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     /// Out-channel for the resolve's per-importer peer-dependency
     /// issues. See [`crate::Install::peer_issues_sink`].
     pub peer_issues_sink: Option<crate::PeerIssuesSink>,
+    /// Out-slot for the dep paths of packages requiring a build. See
+    /// [`crate::Install::deps_requiring_build_sink`].
+    pub deps_requiring_build_sink: Option<crate::DepsRequiringBuildSink>,
     /// In-process `readPackage`/`afterAllResolved` hooks supplied by an
     /// embedder instead of a `.pnpmfile.cjs` on disk. `Some` replaces the
     /// disk lookup entirely; `None` (every CLI install) falls back to
@@ -311,7 +314,7 @@ fn update_reuse_scopes(
         UpdateSeedPolicy::KeepAllResolveAll => (UpdateReuseScope::None, BTreeMap::new()),
         UpdateSeedPolicy::DropAll { .. } => (UpdateReuseScope::None, BTreeMap::new()),
         UpdateSeedPolicy::DropOnly { names, .. } => {
-            (UpdateReuseScope::Except(names.clone()), BTreeMap::new())
+            (UpdateReuseScope::Except(names.iter().cloned().collect()), BTreeMap::new())
         }
         UpdateSeedPolicy::ByImporter { policies, .. } => (
             UpdateReuseScope::All,
@@ -321,7 +324,7 @@ fn update_reuse_scopes(
                     let scope = match policy {
                         ImporterUpdateSeedPolicy::DropAll => UpdateReuseScope::None,
                         ImporterUpdateSeedPolicy::DropOnly(names) => {
-                            UpdateReuseScope::Except(names.clone())
+                            UpdateReuseScope::Except(names.iter().cloned().collect())
                         }
                     };
                     (importer_id.clone(), scope)
@@ -684,6 +687,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             auth_override,
             resolution_observer,
             peer_issues_sink,
+            deps_requiring_build_sink,
             pnpmfile_hook_override,
             real_importer_ids,
             selected_importer_ids,
@@ -691,6 +695,10 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             prior_hoisted_dependencies,
             prune_orphans,
         } = self;
+
+        // Shared once so the per-edge `ResolveOptions` clones below stay
+        // refcount bumps — see `ResolveOptions::workspace_packages`.
+        let workspace_packages = workspace_packages.map(Arc::new);
 
         // The pnpr override when supplied, else the config's npmrc headers;
         // shared by every registry-touching resolver below.
@@ -1040,37 +1048,28 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // download's `pnpm:progress` emits route through the same
         // reporter the install pass uses. See
         // `prefetching_resolver.rs` for the full design rationale.
-        //
-        // Skipped entirely under `--lockfile-only`: that path writes only
-        // `pnpm-lock.yaml` and must not touch the store, so resolution
-        // runs through the bare chain with no background download. This is
-        // the `dryRun: opts.lockfileOnly` path.
-        let resolver: Box<dyn Resolver> = if lockfile_only || filtered_isolated {
-            inner_resolver
-        } else {
-            Box::new(PrefetchingResolver::<Reporter>::new(
-                inner_resolver,
-                PrefetchContext {
-                    http_client: &http_client_arc,
-                    mem_cache: &tarball_mem_cache,
-                    store_index: store_index_ref,
-                    store_index_writer: Some(&store_index_writer),
-                    verified_files_cache: &verified_files_cache,
-                    config,
-                    requester,
-                    supported_architectures,
-                    progress_reported: &progress_reported,
-                },
-            ))
-        };
+        let resolver: Box<dyn Resolver> = Box::new(PrefetchingResolver::<Reporter>::new(
+            inner_resolver,
+            PrefetchContext {
+                http_client: &http_client_arc,
+                mem_cache: &tarball_mem_cache,
+                store_index: store_index_ref,
+                store_index_writer: Some(&store_index_writer),
+                verified_files_cache: &verified_files_cache,
+                config,
+                requester,
+                supported_architectures,
+                progress_reported: &progress_reported,
+                prefetch_downloads: !lockfile_only && !filtered_isolated,
+            },
+        ));
 
         // The pnpr server resolves `--lockfile-only` and reports each
         // resolved tarball to the client as it lands, so the client can
         // fetch in parallel with the server's resolution. Wrap the chain
-        // last so the observer sees every resolve regardless of whether
-        // the prefetcher above is in play (it isn't under
-        // `--lockfile-only`, which is the pnpr resolve path). A no-op for
-        // every local install (`resolution_observer` is `None`).
+        // last so the observer sees each resolve as the wrapper above
+        // leaves it, integrity included. A no-op for every local install
+        // (`resolution_observer` is `None`).
         let resolver: Box<dyn Resolver> = match resolution_observer {
             Some(observer) => Box::new(crate::ObservingResolver::new(resolver, observer)),
             None => resolver,
@@ -1168,10 +1167,12 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                         as ManifestHook)
                 }
             });
-        let manifest_hook = compose_manifest_hooks(
-            compose_manifest_hooks(compat_package_extensions_hook, package_extensions_hook),
-            overrides_hook,
-        );
+        // The resolver applies these around the pnpmfile hook in pnpm's
+        // `createReadPackageHook` order — packageExtensions → readPackage
+        // hooks → overrides — so a hook that replaces the manifest cannot
+        // erase the overrides.
+        let manifest_hook =
+            compose_manifest_hooks(compat_package_extensions_hook, package_extensions_hook);
         let override_bare_specifier: Option<Arc<DependencyOverrider>> =
             versions_overrider.as_ref().and_then(|overrider| {
                 if overrider.is_empty() {
@@ -1430,13 +1431,17 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 update_checksums,
                 ..ResolveOptions::default()
             };
+            // This path has no pnpmfile hook (gated above), so the full
+            // extensions + overrides chain composes back into one hook.
+            let full_manifest_hook =
+                compose_manifest_hooks(manifest_hook.clone(), overrides_hook.clone());
             try_fast_update_overrides(FastOverrideOptions {
                 lockfile,
                 parsed_overrides: parsed,
                 resolved_overrides: resolved,
                 resolver: &*npm_resolver,
                 resolve_options: &resolve_options,
-                manifest_hook: manifest_hook.as_ref(),
+                manifest_hook: full_manifest_hook.as_ref(),
                 registries: &registries,
                 lockfile_include_tarball_url: config.lockfile_include_tarball_url,
             })
@@ -1444,6 +1449,16 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         } else {
             None
         };
+
+        // Captured for the pnpm/pnpm#10433 guard in the fresh-lockfile
+        // builder (`build_importer`): it needs the previous run's importer
+        // entries and this run's final update scope, but `update_reuse_scope`
+        // is moved into the resolver options below and `wanted_lockfile` is
+        // later shadowed by the freshly built lockfile.
+        let guard_previous_importers: Option<&HashMap<String, pacquet_lockfile::ProjectSnapshot>> =
+            wanted_lockfile.map(|lockfile| &lockfile.importers);
+        let guard_update_reuse_scope = update_reuse_scope.clone();
+        let guard_update_reuse_scopes_by_importer = update_reuse_scopes_by_importer.clone();
 
         // Hand the resolver the prior lockfile so it can reuse
         // already-resolved subtrees instead of re-resolving from the
@@ -1479,6 +1494,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             lockfile_dir: lockfile_dir.to_path_buf(),
             peers_suffix_max_length,
             manifest_hook: manifest_hook.clone(),
+            overrides_hook: overrides_hook.clone(),
             pnpmfile_hook,
             read_package_log,
             skipped_optional_log: Some(skipped_optional_log_fn::<Reporter>()),
@@ -1525,9 +1541,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                     resolve_peers_from_workspace_root: config.resolve_peers_from_workspace_root,
                     dedupe_peers: config.dedupe_peers,
                     dedupe_peer_dependents: config.dedupe_peer_dependents,
-                    // The per-importer hoist loop mutates its own copy, so
-                    // clone the shared seed's map here (deref past the `Arc`).
-                    all_preferred_versions: importer_preferred_versions.as_ref().clone(),
+                    all_preferred_versions: Arc::clone(importer_preferred_versions),
                     override_bare_specifier: override_bare_specifier.clone(),
                     patched_dependencies: patched_dependencies.clone(),
                     // `pick_lowest_direct` / `subdep_published_by` are
@@ -1566,6 +1580,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                     peers_suffix_max_length,
                     catalog_server: false,
                     manifest_hook: manifest_hook.clone(),
+                    overrides_hook: overrides_hook.clone(),
                     pnpmfile_hook: None,
                 }
             },
@@ -1596,7 +1611,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         {
             match pacquet_patching::verify_patches(
                 deps,
-                &workspace_result.merged_tree.applied_patches,
+                &workspace_result.merged_tree.applied_patches.iter().cloned().collect(),
                 config.allow_unused_patches,
             ) {
                 Ok(None) => {}
@@ -1717,11 +1732,10 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         };
 
         // `--lockfile-only`: the graph is resolved, so build and write
-        // `pnpm-lock.yaml` and return before any materialization. No
-        // tarball was prefetched (the resolver ran without the
-        // `PrefetchingResolver` wrapper), so the store is untouched and
-        // there is no `node_modules`, `.modules.yaml`, or current
-        // lockfile — a lockfile-only resolve pass.
+        // `pnpm-lock.yaml` and return before any materialization. Nothing
+        // was prefetched, and there is no `node_modules`,
+        // `.modules.yaml`, or current lockfile — a lockfile-only resolve
+        // pass.
         if lockfile_only {
             let freshly_resolved = build_fresh_lockfile(FreshLockfileBuildOptions {
                 config,
@@ -1732,6 +1746,9 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 catalogs: &catalogs,
                 pnpmfile_checksum: pnpmfile_checksum.as_deref(),
                 patched_dependency_hashes: patched_dependency_hashes.as_ref(),
+                previous_importers: guard_previous_importers,
+                update_reuse_scope: guard_update_reuse_scope.clone(),
+                update_reuse_scopes_by_importer: guard_update_reuse_scopes_by_importer.clone(),
             })
             .map_err(|error| {
                 InstallWithFreshLockfileError::DependenciesGraphToLockfile(Box::new(error))
@@ -1896,6 +1913,9 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             catalogs: &catalogs,
             pnpmfile_checksum: pnpmfile_checksum.as_deref(),
             patched_dependency_hashes: patched_dependency_hashes.as_ref(),
+            previous_importers: guard_previous_importers,
+            update_reuse_scope: guard_update_reuse_scope.clone(),
+            update_reuse_scopes_by_importer: guard_update_reuse_scopes_by_importer.clone(),
         })
         .map_err(|error| {
             InstallWithFreshLockfileError::DependenciesGraphToLockfile(Box::new(error))
@@ -2602,6 +2622,19 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             );
         }
 
+        // `CreateVirtualStore` keeps skipped snapshots out of this map, so
+        // it holds only what the install put on disk. See
+        // [`crate::DepsRequiringBuildSink`].
+        if let Some(sink) = &deps_requiring_build_sink {
+            let deps_requiring_build = requires_build_by_snapshot
+                .iter()
+                .filter(|(_, requires_build)| **requires_build)
+                .map(|(snapshot_key, _)| snapshot_key.to_string())
+                .collect();
+            *sink.lock().unwrap_or_else(std::sync::PoisonError::into_inner) =
+                Some(deps_requiring_build);
+        }
+
         // Run lifecycle scripts, report ignored builds, and re-link
         // top-level bins — the same build phase the frozen path runs, so
         // `pacquet add esbuild` reports the blocked `esbuild` build (and
@@ -2976,6 +3009,18 @@ struct FreshLockfileBuildOptions<'a> {
     catalogs: &'a pacquet_catalogs_types::Catalogs,
     pnpmfile_checksum: Option<&'a str>,
     patched_dependency_hashes: Option<&'a BTreeMap<String, String>>,
+    /// The previous run's lockfile importer entries, threaded into the
+    /// pnpm/pnpm#10433 guard so an untouched workspace dependency keeps
+    /// its prior `link:` entry. `None` on a first install.
+    previous_importers: Option<&'a HashMap<String, pacquet_lockfile::ProjectSnapshot>>,
+    /// How this install reuses the prior resolution (from the `pacquet
+    /// update` seed policy), also consumed by the pnpm/pnpm#10433 guard.
+    update_reuse_scope: pacquet_resolving_deps_resolver::UpdateReuseScope,
+    /// Per-importer update scopes (the `ByImporter` policy of a recursive
+    /// update), so the guard honors `pacquet update <name> --recursive`
+    /// targeting per importer rather than the workspace-wide default.
+    update_reuse_scopes_by_importer:
+        BTreeMap<String, pacquet_resolving_deps_resolver::UpdateReuseScope>,
 }
 
 fn build_fresh_lockfile(
@@ -2990,6 +3035,9 @@ fn build_fresh_lockfile(
         catalogs,
         pnpmfile_checksum,
         patched_dependency_hashes,
+        previous_importers,
+        update_reuse_scope,
+        update_reuse_scopes_by_importer,
     } = opts;
     let mut importers = BTreeMap::new();
     for (id, manifest) in importer_manifests {
@@ -3017,6 +3065,9 @@ fn build_fresh_lockfile(
         catalogs,
         registry: &config.registry,
         lockfile_include_tarball_url: config.lockfile_include_tarball_url,
+        previous_importers,
+        update_reuse_scope,
+        update_reuse_scopes_by_importer,
     })
 }
 

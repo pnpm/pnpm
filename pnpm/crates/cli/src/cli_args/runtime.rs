@@ -7,7 +7,7 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_config::Config;
 use pacquet_package_manifest::{DependencyGroup, is_runtime_alias};
-use pacquet_registry::PinnedVersion;
+use pacquet_registry::RangeSpecStyle;
 use pacquet_reporter::Reporter;
 use std::path::Path;
 
@@ -80,7 +80,7 @@ impl RuntimeArgs {
         add_package::<Reporter, _>(
             state,
             &request.package_name,
-            PinnedVersion::Major,
+            RangeSpecStyle::Major,
             None,
             false,
             None,
@@ -105,7 +105,7 @@ impl RuntimeArgs {
         Box::pin(handle_global_add::<Reporter>(
             config,
             std::slice::from_ref(&request.package_name),
-            PinnedVersion::Major,
+            RangeSpecStyle::Major,
             config.supported_architectures.clone(),
             // `pnpm runtime` installs a runtime, not user packages; it has
             // no `--allow-build`.

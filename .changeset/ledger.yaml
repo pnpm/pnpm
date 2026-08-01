@@ -11,6 +11,10 @@
   intents:
     - republish-all-lib-packages
     - web-auth-qr-code-fallback
+"@pnpm/auth.commands@1100.3.0":
+  dir: pnpm11/auth/commands
+  intents:
+    - login-non-interactive-web-auth
 "@pnpm/bins.linker@1100.0.22":
   dir: pnpm11/bins/linker
   intents:
@@ -51,6 +55,10 @@
   dir: pnpm11/building/policy
   intents:
     - republish-all-lib-packages
+"@pnpm/building.policy@1100.0.17":
+  dir: pnpm11/building/policy
+  intents:
+    - allow-git-tarball-builds-by-repo-url
 "@pnpm/cache.api@1100.0.33":
   dir: pnpm11/cache/api
   intents:
@@ -95,6 +103,10 @@
   dir: pnpm11/cli/default-reporter
   intents:
     - republish-all-lib-packages
+"@pnpm/cli.default-reporter@1100.3.14":
+  dir: pnpm11/cli/default-reporter
+  intents:
+    - reporter-own-config-type
 "@pnpm/cli.default-reporter@1100.3.8":
   dir: pnpm11/cli/default-reporter
   intents:
@@ -352,6 +364,11 @@
     - gvs-local-directory-deps
     - pnpm-setup-github-actions
     - self-update-release-age
+"@pnpm/engine.pm.commands@1101.3.1":
+  dir: pnpm11/engine/pm/commands
+  intents:
+    - preserve-equals-pin-operator
+    - rename-pinned-version-to-range-spec-style
 "@pnpm/engine.runtime.bun-resolver@1102.0.11":
   dir: pnpm11/engine/runtime/bun-resolver
   intents:
@@ -494,6 +511,11 @@
   dir: pnpm11/global/commands
   intents:
     - republish-all-lib-packages
+"@pnpm/global.commands@1100.0.42":
+  dir: pnpm11/global/commands
+  intents:
+    - rename-pinned-version-to-range-spec-style
+    - save-prefix-equals
 "@pnpm/global.packages@1100.0.13":
   dir: pnpm11/global/packages
   intents:
@@ -553,6 +575,11 @@
     - interactive-update-workspace-labels
     - run-the-dev-preinstall-hook
     - update-workspace-only-links-named-deps
+"@pnpm/installing.commands@1100.12.2":
+  dir: pnpm11/installing/commands
+  intents:
+    - rename-pinned-version-to-range-spec-style
+    - save-prefix-equals
 "@pnpm/installing.context@1100.0.28":
   dir: pnpm11/installing/context
   intents:
@@ -601,6 +628,10 @@
     - quiet-catalogs-dedupe
     - restore-package-import-method-log
     - tidy-donkeys-check
+"@pnpm/installing.deps-installer@1103.0.0":
+  dir: pnpm11/installing/deps-installer
+  intents:
+    - rename-pinned-version-to-range-spec-style
 "@pnpm/installing.deps-resolver@1100.2.11":
   dir: pnpm11/installing/deps-resolver
   intents:
@@ -625,6 +656,12 @@
     - optional-peer-hoist-respects-workspace-root
     - overrides-reach-auto-installed-peers
     - peer-hoist-skips-project-relative-root-deps
+"@pnpm/installing.deps-resolver@1101.0.0":
+  dir: pnpm11/installing/deps-resolver
+  intents:
+    - normalize-empty-bundled-dependencies
+    - preserve-workspace-link-on-partial-update
+    - rename-pinned-version-to-range-spec-style
 "@pnpm/installing.deps-restorer@1102.1.10":
   dir: pnpm11/installing/deps-restorer
   intents:
@@ -745,6 +782,15 @@
   dir: pnpm/npm/napi
   intents:
     - pacquet-licenses
+"@pnpm/napi@12.0.0-beta.1":
+  dir: pnpm/npm/napi
+  intents:
+    - fix-napi-in-memory-repeat-install
+    - napi-trust-lockfile
+"@pnpm/napi@12.0.0-beta.2":
+  dir: pnpm/npm/napi
+  intents:
+    - napi-read-config
 "@pnpm/network.auth-header@1101.1.4":
   dir: pnpm11/network/auth-header
   intents:
@@ -767,6 +813,10 @@
     - harden-web-auth-poll-body
     - republish-all-lib-packages
     - web-auth-qr-code-fallback
+"@pnpm/network.web-auth@1101.4.0":
+  dir: pnpm11/network/web-auth
+  intents:
+    - login-non-interactive-web-auth
 "@pnpm/object.key-sorting@1100.0.2":
   dir: pnpm11/object/key-sorting
   intents:
@@ -811,6 +861,12 @@
   dir: pnpm11/pkg-manifest/utils
   intents:
     - republish-all-lib-packages
+"@pnpm/pkg-manifest.utils@1100.3.0":
+  dir: pnpm11/pkg-manifest/utils
+  intents:
+    - preserve-equals-pin-operator
+    - rename-pinned-version-to-range-spec-style
+    - save-prefix-equals
 "@pnpm/pnpr.client@1.3.5":
   dir: pnpr/client
   intents:
@@ -938,6 +994,10 @@
   intents:
     - github-actions-server-setting
     - republish-all-lib-packages
+"@pnpm/resolving.git-resolver@1100.1.14":
+  dir: pnpm11/resolving/git-resolver
+  intents:
+    - fix-git-resolver-prompt
 "@pnpm/resolving.jsr-specifier-parser@1100.0.3":
   dir: pnpm11/resolving/jsr-specifier-parser
   intents:
@@ -964,6 +1024,12 @@
   dir: pnpm11/resolving/npm-resolver
   intents:
     - republish-all-lib-packages
+"@pnpm/resolving.npm-resolver@1103.0.0":
+  dir: pnpm11/resolving/npm-resolver
+  intents:
+    - policy-aware-install-summary-latest
+    - preserve-equals-pin-operator
+    - rename-pinned-version-to-range-spec-style
 "@pnpm/resolving.parse-wanted-dependency@1100.0.2":
   dir: pnpm11/resolving/parse-wanted-dependency
   intents:
@@ -972,6 +1038,10 @@
   dir: pnpm11/resolving/registry/pkg-metadata-filter
   intents:
     - republish-all-lib-packages
+"@pnpm/resolving.registry.pkg-metadata-filter@1100.0.14":
+  dir: pnpm11/resolving/registry/pkg-metadata-filter
+  intents:
+    - minimum-release-age-latest-bound
 "@pnpm/resolving.registry.types@1100.1.6":
   dir: pnpm11/resolving/registry/types
   intents:
@@ -980,6 +1050,10 @@
   dir: pnpm11/resolving/resolver-base
   intents:
     - republish-all-lib-packages
+"@pnpm/resolving.resolver-base@1101.0.0":
+  dir: pnpm11/resolving/resolver-base
+  intents:
+    - rename-pinned-version-to-range-spec-style
 "@pnpm/resolving.tarball-resolver@1100.1.9":
   dir: pnpm11/resolving/tarball-resolver
   intents:
@@ -1016,6 +1090,10 @@
   dir: pnpm11/store/controller-types
   intents:
     - republish-all-lib-packages
+"@pnpm/store.controller-types@1101.0.0":
+  dir: pnpm11/store/controller-types
+  intents:
+    - rename-pinned-version-to-range-spec-style
 "@pnpm/store.controller@1102.0.8":
   dir: pnpm11/store/controller
   intents:
@@ -1076,6 +1154,11 @@
   intents:
     - interactive-update-github-actions-opt-in
     - publish-config-name
+"@pnpm/types@1101.8.0":
+  dir: pnpm11/core/types
+  intents:
+    - preserve-equals-pin-operator
+    - rename-pinned-version-to-range-spec-style
 "@pnpm/worker@1100.2.7":
   dir: pnpm11/worker
   intents:
@@ -1104,6 +1187,10 @@
   dir: pnpm11/workspace/projects-graph
   intents:
     - republish-all-lib-packages
+"@pnpm/workspace.projects-graph@1100.0.30":
+  dir: pnpm11/workspace/projects-graph
+  intents:
+    - workspace-relative-path-deps-resolved
 "@pnpm/workspace.projects-reader@1101.0.19":
   dir: pnpm11/workspace/projects-reader
   intents:
@@ -1412,6 +1499,41 @@ pacquet@12.0.0-beta.0:
     - verifier-rejects-integrity-less-tarballs
     - wise-wolves-report
     - workspace-root-dir-outside-workspace
+pacquet@12.0.0-beta.1:
+  dir: pnpm/npm/pnpm
+  intents:
+    - allow-git-tarball-builds-by-repo-url
+    - dedupe-release-age-upgrade-fetch
+    - fair-warnings-report
+    - faster-peer-resolution
+    - fix-git-resolver-prompt
+    - honor-save-exact-setting
+    - huge-lockfiles-scalar-budget
+    - large-lockfiles-parse
+    - login-non-interactive-web-auth
+    - long-snapshot-keys-explicit
+    - minimum-release-age-latest-bound
+    - napi-hook-free-install
+    - napi-install-engine-perf
+    - napi-overrides-order-stable
+    - napi-trace-env
+    - no-cross-importer-peer-provider-replay
+    - normalize-empty-bundled-dependencies
+    - peer-walker-map-churn
+    - policy-aware-install-summary-latest
+    - preserve-equals-pin-operator
+    - preserve-workspace-link-on-partial-update
+    - prod-spec-wins-over-dev
+    - quiet-policy-order
+    - resolver-overrides-after-hook
+    - save-prefix-equals
+    - shared-preferred-versions-fold
+    - workspace-hoist-discovery-linear
+pacquet@12.0.0-beta.2:
+  dir: pnpm/npm/pnpm
+  intents:
+    - ignore-broken-wanted-lockfile
+    - optional-platform-prefetch
 pnpm@11.13.0:
   dir: pnpm11/pnpm
   intents:
@@ -1520,3 +1642,18 @@ pnpm@11.18.0:
     - self-update-release-age
     - tidy-donkeys-check
     - update-workspace-only-links-named-deps
+pnpm@11.19.0:
+  dir: pnpm11/pnpm
+  intents:
+    - allow-git-tarball-builds-by-repo-url
+    - fix-git-resolver-prompt
+    - login-non-interactive-web-auth
+    - minimum-release-age-latest-bound
+    - normalize-empty-bundled-dependencies
+    - policy-aware-install-summary-latest
+    - preserve-equals-pin-operator
+    - preserve-workspace-link-on-partial-update
+    - rename-pinned-version-to-range-spec-style
+    - reporter-own-config-type
+    - save-prefix-equals
+    - workspace-relative-path-deps-resolved

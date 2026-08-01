@@ -2,9 +2,9 @@ import type {
   DependencyManifest,
   PackageManifest,
   PackageVersionPolicy,
-  PinnedVersion,
   PkgResolutionId,
   ProjectRootDir,
+  RangeSpecStyle,
   SupportedArchitectures,
   TrustPolicy,
 } from '@pnpm/types'
@@ -406,7 +406,7 @@ export interface ResolveOptions {
   updateChecksums?: boolean
   injectWorkspacePackages?: boolean
   calcSpecifier?: boolean
-  pinnedVersion?: PinnedVersion
+  rangeSpecStyle?: RangeSpecStyle
   currentPkg?: {
     id: PkgResolutionId
     name?: string

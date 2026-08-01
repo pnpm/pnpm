@@ -161,7 +161,7 @@ fn last_auth_ini(writes: &[(PathBuf, String)]) -> (&Path, &str) {
 /// wherever it came from — reaching `auth.ini` through the adapter.
 #[tokio::test]
 async fn a_config_scope_persists_the_scoped_token_and_registry_mapping() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter, set_fetch);
     login_host_fake!(FakeHost, auth_ini_writes);
     reset();
     set_fetch(Box::new(|| Ok(ok_token("config-scope-token"))));
@@ -198,7 +198,7 @@ async fn a_config_scope_persists_the_scoped_token_and_registry_mapping() {
 
 #[tokio::test]
 async fn the_scope_flag_beats_a_config_scope_in_the_persisted_auth_ini() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter, set_fetch);
     login_host_fake!(FakeHost, auth_ini_writes);
     reset();
     set_fetch(Box::new(|| Ok(ok_token("flag-scope-token"))));
@@ -235,7 +235,7 @@ async fn the_scope_flag_beats_a_config_scope_in_the_persisted_auth_ini() {
 /// real HTTP client to `mockito`; the token poll is served by the fake fetch.
 #[tokio::test]
 async fn execute_performs_web_login_and_returns_the_success_message() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter, set_fetch);
     login_host_fake!(FakeHost);
     reset();
     set_fetch(Box::new(|| Ok(ok_token("web-token"))));
@@ -260,7 +260,7 @@ async fn execute_performs_web_login_and_returns_the_success_message() {
 /// credential prompt.
 #[tokio::test]
 async fn execute_propagates_the_non_interactive_error_from_login() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter, set_stdin_tty);
     login_host_fake!(FakeHost);
     reset();
     set_stdin_tty(false);

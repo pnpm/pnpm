@@ -29,11 +29,7 @@ use crate::{
 use chrono::{DateTime, Duration, Utc};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_resolving_resolver_base::{Resolver, WantedDependency, parse_packument_timestamp};
-use std::{
-    collections::{BTreeMap, HashMap},
-    path::PathBuf,
-    sync::Arc,
-};
+use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 
 /// One importer's input to [`fn@resolve_workspace`].
 pub struct WorkspaceImporter<'a> {
@@ -71,6 +67,10 @@ pub struct WorkspaceResolveOptions {
     /// install); the install layer typically threads
     /// `packageExtensions` here. See [`ManifestHook`].
     pub manifest_hook: Option<ManifestHook>,
+
+    /// Post-pnpmfile manifest hook (overrides). See
+    /// `WorkspaceTreeCtx::overrides_hook` for the ordering contract.
+    pub overrides_hook: Option<ManifestHook>,
 
     /// When `true`, every importer's direct dependencies are resolved
     /// to their lowest satisfying version (`resolutionMode: time-based`
@@ -143,7 +143,7 @@ pub struct WorkspaceResolveOptions {
     /// materializing a prior `Registry` lockfile resolution back into
     /// its tarball URL when building the `currentPkg` payload custom
     /// resolvers receive.
-    pub registries: HashMap<String, String>,
+    pub registries: std::collections::HashMap<String, String>,
 }
 
 /// Result of [`fn@resolve_workspace`]. The combined
@@ -183,6 +183,7 @@ where
         lockfile_dir,
         peers_suffix_max_length,
         manifest_hook,
+        overrides_hook,
         pnpmfile_hook,
         read_package_log,
         skipped_optional_log,
@@ -200,6 +201,7 @@ where
     let workspace = Arc::new(
         WorkspaceTreeCtx::default()
             .with_manifest_hook(manifest_hook)
+            .with_overrides_hook(overrides_hook)
             .with_wanted_lockfile(wanted_lockfile)
             .with_update_reuse_scope(update_reuse_scope)
             .with_update_reuse_scopes_by_importer(update_reuse_scopes_by_importer)
@@ -251,16 +253,25 @@ where
     // hoist runs, then hoist rounds repeat across all importers until
     // none hoists — a workspace-wide barrier, so an optional-peer pick
     // sees every importer's resolved versions.
-    let mut states = Vec::with_capacity(importers.len());
+    //
+    // The initial waves run concurrently, like the TypeScript resolver's
+    // importer fan-out: the shared context's children-owner claims are
+    // rank-ordered (not arrival-ordered), so the resolved graph is the
+    // same regardless of interleaving, and a large workspace's walks
+    // overlap their resolver and hook waits instead of paying them
+    // importer by importer.
     let mut input_dirs = Vec::with_capacity(importers.len());
-    for (importer_order, (importer, mut importer_opts)) in
-        importers.iter().zip(importer_opts).enumerate()
-    {
-        importer_opts.pick_lowest_direct = pick_lowest_direct;
-        importer_opts.subdep_published_by = subdep_published_by;
-        input_dirs
-            .push((importer_opts.base_opts.project_dir.clone(), importer_opts.modules_dir.clone()));
-        states.push(
+    let init_futures: Vec<_> = importers
+        .iter()
+        .zip(importer_opts)
+        .enumerate()
+        .map(|(importer_order, (importer, mut importer_opts))| {
+            importer_opts.pick_lowest_direct = pick_lowest_direct;
+            importer_opts.subdep_published_by = subdep_published_by;
+            input_dirs.push((
+                importer_opts.base_opts.project_dir.clone(),
+                importer_opts.modules_dir.clone(),
+            ));
             ImporterHoistState::init(
                 resolver,
                 &importer.id,
@@ -270,9 +281,9 @@ where
                 importer_opts,
                 Arc::clone(&workspace),
             )
-            .await?,
-        );
-    }
+        })
+        .collect();
+    let mut states = futures_util::future::try_join_all(init_futures).await?;
     // Computed after the init barrier and shared unchanged: recomputing it
     // per round would let the root's own hoisted peers become candidates for
     // the importers hoisted after it.
@@ -332,7 +343,7 @@ where
     // below clones the context again, so the two never coexist at peak.
     drop(peer_discovery);
     let mut per_importer_inputs: Vec<ImporterPeerInput> = Vec::with_capacity(importers.len());
-    let mut hoisted_peer_provider_node_ids = std::collections::HashSet::new();
+    let mut hoisted_peer_provider_node_ids = std::collections::HashSet::default();
     for ((importer, state), (project_dir, modules_dir)) in
         importers.iter().zip(states).zip(input_dirs)
     {
@@ -380,7 +391,6 @@ where
         resolve_peers_from_workspace_root,
         peer_opts,
     );
-
     Ok(ResolveWorkspaceResult { merged_tree, peers })
 }
 

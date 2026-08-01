@@ -124,40 +124,13 @@ function parseModifiedDate (modified: string | undefined): Date | null {
   return date
 }
 
-const semverRangeCache = new Map<string, semver.Range | null>()
-
-// This is a performance optimization; working with string-ish semver
-// causes lots of allocations and repeated work, but caching the Range
-// and ensuring we give it a SemVer instance greatly speeds things up.
-function semverSatisfiesLoose (version: string, range: string): boolean {
-  let semverRange = semverRangeCache.get(range)
-  if (semverRange === undefined) {
-    try {
-      semverRange = new semver.Range(range, true)
-    } catch {
-      semverRange = null
-    }
-    semverRangeCache.set(range, semverRange)
-  }
-
-  if (semverRange) {
-    try {
-      return semverRange.test(new semver.SemVer(version, true))
-    } catch {
-      return false
-    }
-  }
-
-  return false
-}
-
 export function pickLowestVersionByVersionRange (
   { meta, versionRange, preferredVersionSelectors }: PickVersionByVersionRangeOptions
 ): string | null {
   if (preferredVersionSelectors != null && Object.keys(preferredVersionSelectors).length > 0) {
     const prioritizedPreferredVersions = prioritizePreferredVersions(meta, versionRange, preferredVersionSelectors)
     for (const preferredVersions of prioritizedPreferredVersions) {
-      const preferredVersion = semver.minSatisfying(preferredVersions, versionRange, true)
+      const preferredVersion = minSatisfyingLoose(preferredVersions, versionRange)
       if (preferredVersion) {
         return preferredVersion
       }
@@ -166,7 +139,7 @@ export function pickLowestVersionByVersionRange (
   if (versionRange === '*') {
     return Object.keys(meta.versions).sort(semver.compare)[0]
   }
-  return semver.minSatisfying(Object.keys(meta.versions), versionRange, true)
+  return minSatisfyingLoose(Object.keys(meta.versions), versionRange)
 }
 
 export function pickVersionByVersionRange ({ meta, versionRange, preferredVersionSelectors }: PickVersionByVersionRangeOptions): string | null {
@@ -178,7 +151,7 @@ export function pickVersionByVersionRange ({ meta, versionRange, preferredVersio
       if (preferredVersions.includes(latest) && semverSatisfiesLoose(latest, versionRange)) {
         return latest
       }
-      const preferredVersion = semver.maxSatisfying(preferredVersions, versionRange, true)
+      const preferredVersion = maxSatisfyingLoose(preferredVersions, versionRange)
       if (preferredVersion) {
         return preferredVersion
       }
@@ -192,7 +165,7 @@ export function pickVersionByVersionRange ({ meta, versionRange, preferredVersio
     return latest
   }
 
-  const maxVersion = semver.maxSatisfying(versions, versionRange, true)
+  const maxVersion = maxSatisfyingLoose(versions, versionRange)
 
   // if the selected version is deprecated, try to find a non-deprecated one that satisfies the range
   if (maxVersion && meta.versions[maxVersion].deprecated && versions.length > 1) {
@@ -200,7 +173,7 @@ export function pickVersionByVersionRange ({ meta, versionRange, preferredVersio
       .filter((versionMeta) => !versionMeta.deprecated)
       .map((versionMeta) => versionMeta.version)
 
-    const maxNonDeprecatedVersion = semver.maxSatisfying(nonDeprecatedVersions, versionRange, true)
+    const maxNonDeprecatedVersion = maxSatisfyingLoose(nonDeprecatedVersions, versionRange)
     if (maxNonDeprecatedVersion) return maxNonDeprecatedVersion
   }
   return maxVersion
@@ -275,3 +248,79 @@ class PreferredVersionsPrioritizer {
       .map((weight) => versionsByWeight[parseInt(weight, 10)])
   }
 }
+
+function semverSatisfiesLoose (version: string, range: string): boolean {
+  const semverRange = parseRangeLoose(range)
+  if (semverRange == null) return false
+  const parsedVersion = parseSemverLoose(version)
+  return parsedVersion != null && semverRange.test(parsedVersion)
+}
+
+// semver's own maxSatisfying/minSatisfying re-parse the range and every
+// version string on each call, which dominates resolution time on large
+// packuments; these reuse the parse caches instead.
+function maxSatisfyingLoose (versions: string[], range: string): string | null {
+  return findSatisfyingLoose(versions, range, (candidate, best) => candidate.compare(best) > 0)
+}
+
+function minSatisfyingLoose (versions: string[], range: string): string | null {
+  return findSatisfyingLoose(versions, range, (candidate, best) => candidate.compare(best) < 0)
+}
+
+function findSatisfyingLoose (
+  versions: string[],
+  range: string,
+  isBetter: (candidate: semver.SemVer, best: semver.SemVer) => boolean
+): string | null {
+  const semverRange = parseRangeLoose(range)
+  if (semverRange == null) return null
+  let bestVersion: string | null = null
+  let bestParsed: semver.SemVer | null = null
+  for (const version of versions) {
+    const parsed = parseSemverLoose(version)
+    if (parsed == null || !semverRange.test(parsed)) continue
+    if (bestParsed == null || isBetter(parsed, bestParsed)) {
+      bestVersion = version
+      bestParsed = parsed
+    }
+  }
+  return bestVersion
+}
+
+function parseRangeLoose (range: string): semver.Range | null {
+  let semverRange = semverRangeCache.get(range)
+  if (semverRange === undefined) {
+    try {
+      semverRange = new semver.Range(range, true)
+    } catch {
+      semverRange = null
+    }
+    if (semverRangeCache.size >= SEMVER_CACHE_MAX_SIZE) semverRangeCache.clear()
+    semverRangeCache.set(range, semverRange)
+  }
+  return semverRange
+}
+
+function parseSemverLoose (version: string): semver.SemVer | null {
+  let parsed = semverInstanceCache.get(version)
+  if (parsed === undefined) {
+    try {
+      parsed = new semver.SemVer(version, true)
+    } catch {
+      parsed = null
+    }
+    if (semverInstanceCache.size >= SEMVER_CACHE_MAX_SIZE) semverInstanceCache.clear()
+    semverInstanceCache.set(version, parsed)
+  }
+  return parsed
+}
+
+// Working with string-ish semver causes lots of allocations and repeated
+// work, and a dependency graph tests the same ranges and versions over and
+// over, so both parses are cached. Parse failures are cached as null, so a
+// malformed version string is never re-parsed either. The caches are dropped
+// wholesale once they grow past this size, so a long-lived process (daemon,
+// store server) can't retain them without bound.
+const SEMVER_CACHE_MAX_SIZE = 50_000
+const semverRangeCache = new Map<string, semver.Range | null>()
+const semverInstanceCache = new Map<string, semver.SemVer | null>()

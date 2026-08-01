@@ -186,6 +186,70 @@ fn a_deleted_wanted_lockfile_is_regenerated_from_the_current_one() {
     drop((root, mock_instance));
 }
 
+/// TS: `a lockfile with duplicate keys is fixed`
+/// (`deps-installer/test/lockfile.ts:1288`).
+#[test]
+fn a_broken_wanted_lockfile_is_ignored_and_regenerated() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": { "@pnpm.e2e/dep-of-pkg-with-1-dep": "100.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    append_workspace_yaml_key(&workspace, "optimisticRepeatInstall", false);
+
+    pacquet.with_arg("install").assert().success();
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
+    fs::write(&lockfile_path, format!("{lockfile}\nlockfileVersion: '9.0'\n"))
+        .expect("duplicate a top-level key");
+
+    let output = rerun(&workspace)
+        .with_args(["--reporter=ndjson", "install"])
+        .output()
+        .expect("run install with the broken wanted lockfile");
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+    assert!(output.status.success(), "install must ignore the broken wanted lockfile:\n{combined}");
+    let canonical_workspace = dunce::canonicalize(&workspace).expect("canonicalize workspace");
+    assert!(
+        combined
+            .lines()
+            .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+            .any(|event| {
+                event["name"] == "pnpm"
+                    && event["level"] == "warn"
+                    && event["prefix"] == canonical_workspace.to_string_lossy().as_ref()
+                    && event["message"]
+                        .as_str()
+                        .is_some_and(|message| message.starts_with("Ignoring broken lockfile at "))
+            }),
+        "expected pnpm warning for the ignored wanted lockfile; got:\n{combined}",
+    );
+
+    let lockfile = read_lockfile(&lockfile_path);
+    assert!(
+        importer_has_group_dependency(
+            &lockfile,
+            pacquet_lockfile::Lockfile::ROOT_IMPORTER_KEY,
+            "dependencies",
+            "@pnpm.e2e/dep-of-pkg-with-1-dep",
+        ),
+        "the regenerated lockfile must record the dependency again",
+    );
+
+    drop((root, mock_instance));
+}
+
 /// TS: `a lockfile with duplicate keys causes an exception, when
 /// frozenLockfile is true` (`deps-installer/test/lockfile.ts:1324`). A
 /// duplicated mapping key is a broken file, not a mergeable one, and a

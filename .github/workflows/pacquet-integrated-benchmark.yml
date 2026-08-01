@@ -72,7 +72,7 @@ jobs:
       # workflow_dispatch from a non-main branch), compare HEAD against
       # main so the report shows the relative shift.
       #
-      # Every scenario runs both tools: `pacquet@<rev>` (direct install)
+      # Every regular scenario runs both tools: `pacquet@<rev>` (direct install)
       # and `pnpr@<rev>` (the same client through the pnpr install
       # accelerator, against a warm long-running server). The cold-store
       # scenarios wipe the *client* store between iterations while the
@@ -80,6 +80,15 @@ jobs:
       # the realistic CI case. Running both tools in one hyperfine
       # invocation also yields the pnpr-vs-direct ratio per scenario.
       BENCHMARK_TARGETS: ${{ github.ref_name == 'main' && 'pacquet@HEAD pnpr@HEAD' || 'pacquet@HEAD pacquet@main pnpr@HEAD pnpr@main' }}
+      # The peer-heavy resolver case compares the PR against both main and the
+      # TypeScript CLI. It does not include pnpr because the timed offline
+      # command exercises client-side peer resolution rather than server or
+      # tarball performance.
+      PEER_HEAVY_BENCHMARK_TARGETS: ${{ github.ref_name == 'main' && 'pacquet@HEAD pnpm@HEAD' || 'pacquet@HEAD pacquet@main pnpm@HEAD' }}
+      # Precompile the union once. The regular and peer-heavy target lists
+      # overlap on pacquet, so spelling out the distinct targets avoids
+      # cloning/building the same revision twice.
+      BENCHMARK_BUILD_TARGETS: ${{ github.ref_name == 'main' && 'pacquet@HEAD pnpr@HEAD pnpm@HEAD' || 'pacquet@HEAD pacquet@main pnpr@HEAD pnpr@main pnpm@HEAD' }}
       # Network emulation so both install strategies cross the link they
       # would in production instead of free loopback (~GB/s, ~0 RTT), which
       # would hide every download cost.
@@ -244,7 +253,7 @@ jobs:
           packages: hyperfine@1.18.0
 
       - name: Install just
-        uses: taiki-e/install-action@41049aa56687c35e0afa74eed4f09cec4f9afabf # v2.85.2
+        uses: taiki-e/install-action@6a1bd70eaac3c8bdf093356838d7ee09fda951cf # v2.85.5
         with:
           tool: just
 
@@ -256,13 +265,14 @@ jobs:
 
       - name: Precompile benchmark revisions
         shell: bash
-        # Builds the superset of targets (pacquet + pnpr revisions). A
-        # `pnpr@<rev>` target builds both the `pacquet` client and the
+        # Builds the superset of targets (pacquet + pnpr revisions and the
+        # TypeScript pnpm bundle). A pnpr target builds both the `pacquet`
+        # client and the
         # `pnpr` server from its clone, so this also produces the server
         # binaries the boot step needs. More builds than the pacquet-only
         # bench, hence the larger timeout.
         timeout-minutes: 50
-        run: just integrated-benchmark --reuse-prebuilt-binaries --build-only $BENCHMARK_TARGETS
+        run: just integrated-benchmark --reuse-prebuilt-binaries --build-only $BENCHMARK_BUILD_TARGETS
 
       - name: 'Benchmark: Isolated linker: fresh restore, cold cache + cold store'
         shell: bash
@@ -346,6 +356,21 @@ jobs:
           cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESOLVE_HOT_CACHE_OFFLINE.md
           cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESOLVE_HOT_CACHE_OFFLINE.json
 
+      - name: 'Benchmark: Isolated linker: peer-heavy resolve, hot cache, offline'
+        shell: bash
+        # Bit-style dependency DAG whose shared subgraphs expand into many
+        # peer-resolution occurrences. The online lockfile-only pass primes
+        # each target's metadata mirror; timed runs remove the generated
+        # lockfile and resolve offline, isolating peer discovery and resolution.
+        # Three measured runs are enough because the pre-fix regression is
+        # multi-second and deterministic, while keeping the added CI cost
+        # bounded across current Rust, main Rust, and TypeScript pnpm.
+        timeout-minutes: 25
+        run: |
+          just integrated-benchmark --reuse-prebuilt-binaries --scenario=isolated-linker.peer-heavy-resolve.hot-cache.offline --runs=3 --registry=verdaccio --pnpr-latency-ms=${PNPR_LATENCY_MS} --registry-latency-ms=${REGISTRY_LATENCY_MS} --registry-bandwidth-mbps=${REGISTRY_BANDWIDTH_MBPS} $PEER_HEAVY_BENCHMARK_TARGETS
+          cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_ISOLATED_PEER_HEAVY_RESOLVE_HOT_CACHE_OFFLINE.md
+          cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_ISOLATED_PEER_HEAVY_RESOLVE_HOT_CACHE_OFFLINE.json
+
       - name: 'Benchmark: Isolated linker: fresh restore, cold cache + cold store + cold pnpr'
         shell: bash
         # The only scenario with a cold pnpr-side cache: the per-revision mock
@@ -414,7 +439,7 @@ jobs:
             echo
             echo "**Commit:** [\`${SHA:0:12}\`](${{ github.server_url }}/${{ github.repository }}/commit/$SHA)"
             echo
-            echo 'Each scenario reports direct installs and pnpr installs. Bencher consumes pacquet@HEAD and pnpr@HEAD.'
+            echo 'Regular scenarios report direct and pnpr installs. The peer-heavy resolver scenario compares current Rust, main Rust, and TypeScript pnpm. Bencher consumes pacquet@HEAD and pnpr@HEAD.'
             echo
             echo 'The tables below show mean ± σ; Bencher thresholds on the **minimum** latency, which is far less perturbed by shared-runner contention (noise only adds time).'
             echo
@@ -490,6 +515,18 @@ jobs:
             echo
             echo '</details>'
             echo
+            echo '### Scenario: Isolated linker: peer-heavy resolve, hot cache, offline'
+            echo
+            cat bench-work-env/BENCHMARK_REPORT_ISOLATED_PEER_HEAVY_RESOLVE_HOT_CACHE_OFFLINE.md
+            echo
+            echo '<details><summary>BENCHMARK_REPORT.json</summary>'
+            echo
+            echo '```json'
+            jq 'del(.results[].exit_codes)' bench-work-env/BENCHMARK_REPORT_ISOLATED_PEER_HEAVY_RESOLVE_HOT_CACHE_OFFLINE.json
+            echo '```'
+            echo
+            echo '</details>'
+            echo
             echo '### Scenario: Isolated linker: fresh restore, cold cache + cold store + cold pnpr'
             echo
             cat bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE_COLD_PNPR.md
@@ -506,9 +543,9 @@ jobs:
       - name: Build Bencher-shaped report
         # Convert the scenario JSONs into a Bencher Metric Format (BMF) file
         # per testbed, keeping only the chosen target's result from each
-        # scenario and naming each benchmark after the scenario. Both tools run
-        # every scenario, so the `pacquet` testbed gets `pacquet@HEAD` and the
-        # `pnpr` testbed gets `pnpr@HEAD`, each across the same scenario set.
+        # scenario and naming each benchmark after the scenario. Regular
+        # scenarios contribute both testbeds; the client-only peer-heavy case
+        # contributes only `pacquet@HEAD`.
         #
         # We report each scenario's *minimum* latency as the metric value, so
         # Bencher's threshold tracks the min rather than the mean. On a shared
@@ -519,8 +556,10 @@ jobs:
         # and swung ~30% between runs, tripping a spurious alert on a control
         # run whose HEAD and main binaries were byte-identical). Because the
         # minimum only needs one uncontended run, hyperfine's default sampling
-        # suffices — no extra warmup or runs. The human-readable comment still
-        # reports mean ± σ; only the alerting signal moves to the min.
+        # suffices for regular scenarios. The peer-heavy case uses three runs
+        # to keep its cross-engine comparison bounded. The human-readable
+        # comment still reports mean ± σ; only the alerting signal moves to the
+        # min.
         #
         # BMF rather than the `shell_hyperfine` adapter with a doctored `mean`:
         # this reports the min honestly as the value instead of relabelling it.
@@ -560,6 +599,7 @@ jobs:
             'ISOLATED_FRESH_INSTALL_HOT_CACHE_HOT_STORE:isolated-linker.fresh-install.hot-cache.hot-store' \
             'ISOLATED_FRESH_INSTALL_COLD_CACHE_HOT_STORE:isolated-linker.fresh-install.cold-cache.hot-store' \
             'ISOLATED_FRESH_RESOLVE_HOT_CACHE_OFFLINE:isolated-linker.fresh-resolve.hot-cache.offline' \
+            'ISOLATED_PEER_HEAVY_RESOLVE_HOT_CACHE_OFFLINE:isolated-linker.peer-heavy-resolve.hot-cache.offline' \
             'ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE_COLD_PNPR:isolated-linker.fresh-restore.cold-cache.cold-store.cold-pnpr'
 
           build_bencher_file bench-work-env/bencher-results-pnpr.json pnpr@HEAD \

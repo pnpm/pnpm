@@ -251,6 +251,12 @@ fn next_line(level: usize, double_line: bool) -> String {
     line
 }
 
+/// A rendered key longer than this (measured in UTF-16 code units,
+/// matching js-yaml's `state.dump.length > 1024`) is emitted as an
+/// explicit `? <key>` / `: <value>` pair: YAML caps a *simple* key at
+/// 1024 characters, so an inline key of that length would not re-parse.
+const EXPLICIT_KEY_THRESHOLD: usize = 1024;
+
 fn write_block_mapping(
     map: &serde_json::Map<String, Value>,
     level: usize,
@@ -262,8 +268,16 @@ fn write_block_mapping(
         if !compact || !result.is_empty() {
             result.push_str(&next_line(level, double_line));
         }
-        result.push_str(&write_scalar(key, level + 1, true, true));
-        let rendered = render(value, level + 1, true, false, Some(key), false);
+        let rendered_key = write_scalar(key, level + 1, true, true);
+        let explicit_pair = rendered_key.encode_utf16().count() > EXPLICIT_KEY_THRESHOLD;
+        if explicit_pair {
+            result.push_str("? ");
+            result.push_str(&rendered_key);
+            result.push_str(&next_line(level, false));
+        } else {
+            result.push_str(&rendered_key);
+        }
+        let rendered = render(value, level + 1, true, explicit_pair, Some(key), false);
         result.push(':');
         if !rendered.starts_with('\n') {
             result.push(' ');

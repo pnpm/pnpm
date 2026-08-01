@@ -1,10 +1,11 @@
 //! `resolutionMode: time-based` cutoff tests for
 //! [`fn@super::resolve_workspace`].
 
+use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::BTreeMap,
     str::FromStr,
-    sync::Mutex,
+    sync::{Arc, Mutex},
 };
 
 use chrono::{DateTime, TimeZone, Utc};
@@ -175,7 +176,7 @@ fn importer_opts(
         resolve_peers_from_workspace_root: false,
         dedupe_peers: false,
         dedupe_peer_dependents: true,
-        all_preferred_versions: PreferredVersions::new(),
+        all_preferred_versions: Arc::new(PreferredVersions::new()),
         override_bare_specifier: None,
         patched_dependencies: None,
         base_opts: ResolveOptions { published_by, project_dir, ..ResolveOptions::default() },
@@ -188,6 +189,7 @@ fn importer_opts(
         peers_suffix_max_length: 1000,
         catalog_server: false,
         manifest_hook: None,
+        overrides_hook: None,
         pnpmfile_hook: None,
     }
 }
@@ -202,6 +204,7 @@ fn workspace_opts(pick_lowest_direct: bool, time_based: bool) -> WorkspaceResolv
         lockfile_dir: std::path::PathBuf::from("/lockfile-dir"),
         peers_suffix_max_length: 1000,
         manifest_hook: None,
+        overrides_hook: None,
         pnpmfile_hook: None,
         read_package_log: None,
         skipped_optional_log: None,
@@ -214,7 +217,7 @@ fn workspace_opts(pick_lowest_direct: bool, time_based: bool) -> WorkspaceResolv
         update_reuse_scopes_by_importer: BTreeMap::new(),
         update_depth: crate::UpdateDepth::UNLIMITED,
         auto_install_peers: false,
-        registries: HashMap::new(),
+        registries: std::collections::HashMap::new(),
     }
 }
 
@@ -237,7 +240,7 @@ fn importer_scoped_update_lockfile(
     let importers = importer_ids
         .iter()
         .map(|importer_id| {
-            let dependencies = HashMap::from([(
+            let dependencies = std::collections::HashMap::from([(
                 direct_name.clone(),
                 ResolvedDependencySpec {
                     specifier: direct_specifier.to_string(),
@@ -270,8 +273,9 @@ fn importer_scoped_update_lockfile(
         peer_dependencies_meta: None,
     }
     };
-    let mut packages = HashMap::from([(direct_key.clone(), metadata())]);
-    let mut snapshots = HashMap::from([(direct_key.clone(), SnapshotEntry::default())]);
+    let mut packages = std::collections::HashMap::from([(direct_key.clone(), metadata())]);
+    let mut snapshots =
+        std::collections::HashMap::from([(direct_key.clone(), SnapshotEntry::default())]);
     if let Some((child_name, child_version)) = transitive {
         let child_name = PkgName::parse(child_name).expect("parse child package name");
         let child_version = child_version.parse::<PkgVerPeer>().expect("parse child version");
@@ -281,7 +285,7 @@ fn importer_scoped_update_lockfile(
         snapshots.insert(
             direct_key,
             SnapshotEntry {
-                dependencies: Some(HashMap::from([(
+                dependencies: Some(std::collections::HashMap::from([(
                     child_name,
                     SnapshotDepRef::Plain(child_version),
                 )])),
@@ -312,14 +316,16 @@ async fn resolve_importer_scoped_update_direct(
         fake_manifest(serde_json::json!({ "pkg": "^100.0.0" }));
     let (_unselected_tmp, unselected_manifest) =
         fake_manifest(serde_json::json!({ "pkg": "^100.0.0" }));
-    let manifests =
-        HashMap::from([("selected", &selected_manifest), ("unselected", &unselected_manifest)]);
+    let manifests = HashMap::from_iter([
+        ("selected", &selected_manifest),
+        ("unselected", &unselected_manifest),
+    ]);
     let importers = order
         .iter()
         .map(|id| WorkspaceImporter { id: (*id).to_string(), manifest: manifests[id] })
         .collect::<Vec<_>>();
     let resolver = RecordingResolver {
-        table: HashMap::from([(
+        table: HashMap::from_iter([(
             ("pkg".to_string(), "^100.0.0".to_string()),
             fake_result(
                 "pkg",
@@ -328,7 +334,7 @@ async fn resolve_importer_scoped_update_direct(
                 serde_json::json!({ "name": "pkg", "version": "100.1.0" }),
             ),
         )]),
-        seen: Mutex::new(HashMap::new()),
+        seen: Mutex::new(HashMap::default()),
     };
     let mut opts = workspace_opts(false, false);
     opts.wanted_lockfile = Some(std::sync::Arc::new(importer_scoped_update_lockfile(
@@ -359,7 +365,9 @@ async fn importer_scoped_update_drop_only_is_order_independent() {
     for order in [["selected", "unselected"], ["unselected", "selected"]] {
         let direct = resolve_importer_scoped_update_direct(
             order,
-            crate::UpdateReuseScope::Except(std::collections::HashSet::from(["pkg".to_string()])),
+            crate::UpdateReuseScope::Except(std::collections::HashSet::from_iter([
+                "pkg".to_string()
+            ])),
         )
         .await;
         assert_eq!(direct["selected"], "pkg@100.1.0");
@@ -384,14 +392,16 @@ async fn importer_scoped_update_route_owns_shared_parent_children_in_either_orde
             fake_manifest(serde_json::json!({ "parent": "^1.0.0" }));
         let (_unselected_tmp, unselected_manifest) =
             fake_manifest(serde_json::json!({ "parent": "^1.0.0" }));
-        let manifests =
-            HashMap::from([("selected", &selected_manifest), ("unselected", &unselected_manifest)]);
+        let manifests = HashMap::from_iter([
+            ("selected", &selected_manifest),
+            ("unselected", &unselected_manifest),
+        ]);
         let importers = order
             .iter()
             .map(|id| WorkspaceImporter { id: (*id).to_string(), manifest: manifests[id] })
             .collect::<Vec<_>>();
         let resolver = RecordingResolver {
-            table: HashMap::from([
+            table: HashMap::from_iter([
                 (
                     ("parent".to_string(), "^1.0.0".to_string()),
                     fake_result(
@@ -415,7 +425,7 @@ async fn importer_scoped_update_route_owns_shared_parent_children_in_either_orde
                     ),
                 ),
             ]),
-            seen: Mutex::new(HashMap::new()),
+            seen: Mutex::new(HashMap::default()),
         };
         let mut opts = workspace_opts(false, false);
         opts.wanted_lockfile = Some(std::sync::Arc::new(importer_scoped_update_lockfile(
@@ -427,7 +437,9 @@ async fn importer_scoped_update_route_owns_shared_parent_children_in_either_orde
         )));
         opts.update_reuse_scopes_by_importer = BTreeMap::from([(
             "selected".to_string(),
-            crate::UpdateReuseScope::Except(std::collections::HashSet::from(["pkg".to_string()])),
+            crate::UpdateReuseScope::Except(std::collections::HashSet::from_iter([
+                "pkg".to_string()
+            ])),
         )]);
         let result =
             resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
@@ -475,7 +487,8 @@ async fn workspace_link_results_are_cached_per_importer_project_dir() {
             opts.lockfile_dir = Some(lockfile_dir.clone());
             opts.base_opts.lockfile_dir.clone_from(&lockfile_dir);
             opts.base_opts.always_try_workspace_packages = true;
-            opts.base_opts.workspace_packages = Some(std::collections::BTreeMap::default());
+            opts.base_opts.workspace_packages =
+                Some(std::sync::Arc::new(std::collections::BTreeMap::default()));
             opts
         })
         .await
@@ -522,7 +535,8 @@ async fn canonical_snapshot_link_keeps_direct_links_relative_to_each_importer() 
             opts.lockfile_dir = Some(lockfile_dir.clone());
             opts.base_opts.lockfile_dir.clone_from(&lockfile_dir);
             opts.base_opts.always_try_workspace_packages = true;
-            opts.base_opts.workspace_packages = Some(std::collections::BTreeMap::default());
+            opts.base_opts.workspace_packages =
+                Some(std::sync::Arc::new(std::collections::BTreeMap::default()));
             opts
         })
         .await
@@ -548,7 +562,7 @@ async fn catalogs_work_in_injected_workspace_packages() {
     let (_project1_tmp, project1) = fake_manifest(serde_json::json!({ "project2": "workspace:*" }));
     let (_project2_tmp, project2) = fake_manifest(serde_json::json!({ "is-positive": "catalog:" }));
     let resolver = RecordingResolver {
-        table: HashMap::from([
+        table: HashMap::from_iter([
             (
                 ("project2".to_string(), "workspace:*".to_string()),
                 ResolveResult {
@@ -580,7 +594,7 @@ async fn catalogs_work_in_injected_workspace_packages() {
                 ),
             ),
         ]),
-        seen: Mutex::new(HashMap::new()),
+        seen: Mutex::new(HashMap::default()),
     };
     let importers = [
         WorkspaceImporter { id: "packages/project1".to_string(), manifest: &project1 },
@@ -628,7 +642,7 @@ async fn workspace_root_direct_deps_resolve_child_importer_peers() {
         "rollup": "^4.0.0",
         "plugin": "^1.0.0",
     }));
-    let mut table = HashMap::new();
+    let mut table = HashMap::default();
     table.insert(
         ("typescript".to_string(), "~5.9.3".to_string()),
         fake_result(
@@ -672,7 +686,7 @@ async fn workspace_root_direct_deps_resolve_child_importer_peers() {
             }),
         ),
     );
-    let resolver = RecordingResolver { table, seen: Mutex::new(HashMap::new()) };
+    let resolver = RecordingResolver { table, seen: Mutex::new(HashMap::default()) };
     let importers = vec![
         WorkspaceImporter { id: ".".to_string(), manifest: &root_manifest },
         WorkspaceImporter { id: "packages/app".to_string(), manifest: &app_manifest },
@@ -700,7 +714,7 @@ async fn workspace_root_direct_deps_resolve_child_importer_peers() {
 
 #[tokio::test]
 async fn time_based_cutoff_is_newest_direct_publish_plus_one_hour() {
-    let mut table = HashMap::new();
+    let mut table = HashMap::default();
     table.insert(
         ("a".to_string(), "^1.0.0".to_string()),
         fake_result(
@@ -723,7 +737,7 @@ async fn time_based_cutoff_is_newest_direct_publish_plus_one_hour() {
         ("sub".to_string(), "^2.0.0".to_string()),
         fake_result("sub", "2.0.0", None, serde_json::json!({ "name": "sub", "version": "2.0.0" })),
     );
-    let resolver = RecordingResolver { table, seen: Mutex::new(HashMap::new()) };
+    let resolver = RecordingResolver { table, seen: Mutex::new(HashMap::default()) };
     let (tmp, manifest) = fake_manifest(serde_json::json!({ "a": "^1.0.0", "b": "^1.0.0" }));
     let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
 
@@ -754,7 +768,7 @@ async fn time_based_cutoff_is_newest_direct_publish_plus_one_hour() {
 #[tokio::test]
 async fn time_based_cutoff_is_clamped_by_minimum_release_age() {
     let maximum = Utc.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap();
-    let mut table = HashMap::new();
+    let mut table = HashMap::default();
     table.insert(
         ("a".to_string(), "^1.0.0".to_string()),
         fake_result(
@@ -768,7 +782,7 @@ async fn time_based_cutoff_is_clamped_by_minimum_release_age() {
         ("sub".to_string(), "^2.0.0".to_string()),
         fake_result("sub", "2.0.0", None, serde_json::json!({ "name": "sub", "version": "2.0.0" })),
     );
-    let resolver = RecordingResolver { table, seen: Mutex::new(HashMap::new()) };
+    let resolver = RecordingResolver { table, seen: Mutex::new(HashMap::default()) };
     let (tmp, manifest) = fake_manifest(serde_json::json!({ "a": "^1.0.0" }));
     let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
 
@@ -796,7 +810,7 @@ async fn time_based_cutoff_is_clamped_by_minimum_release_age() {
 
 #[tokio::test]
 async fn lowest_direct_applies_no_publish_cutoff() {
-    let mut table = HashMap::new();
+    let mut table = HashMap::default();
     table.insert(
         ("a".to_string(), "^1.0.0".to_string()),
         fake_result(
@@ -810,7 +824,7 @@ async fn lowest_direct_applies_no_publish_cutoff() {
         ("sub".to_string(), "^2.0.0".to_string()),
         fake_result("sub", "2.0.0", None, serde_json::json!({ "name": "sub", "version": "2.0.0" })),
     );
-    let resolver = RecordingResolver { table, seen: Mutex::new(HashMap::new()) };
+    let resolver = RecordingResolver { table, seen: Mutex::new(HashMap::default()) };
     let (tmp, manifest) = fake_manifest(serde_json::json!({ "a": "^1.0.0" }));
     let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
 
@@ -841,7 +855,7 @@ async fn lowest_direct_applies_no_publish_cutoff() {
 /// variant.
 #[tokio::test]
 async fn shared_subtree_owner_context_suppresses_later_optional_hoist() {
-    let mut table = HashMap::new();
+    let mut table = HashMap::default();
     table.insert(
         ("shared".to_string(), "1.0.0".to_string()),
         fake_result(
@@ -897,7 +911,7 @@ async fn shared_subtree_owner_context_suppresses_later_optional_hoist() {
             }),
         ),
     );
-    let resolver = RecordingResolver { table, seen: Mutex::new(HashMap::new()) };
+    let resolver = RecordingResolver { table, seen: Mutex::new(HashMap::default()) };
     let (tmp_root, root_manifest) = fake_manifest(
         serde_json::json!({ "shared": "1.0.0", "opt": "18.0.0", "carrier": "1.0.0" }),
     );
@@ -957,9 +971,9 @@ async fn shared_subtree_owner_context_suppresses_later_optional_hoist() {
         pnpmfile_checksum: None,
         ignored_optional_dependencies: None,
         patched_dependencies: None,
-        importers: HashMap::new(),
+        importers: std::collections::HashMap::new(),
         packages: None,
-        snapshots: Some(HashMap::from([(
+        snapshots: Some(std::collections::HashMap::from([(
             pacquet_lockfile::PkgNameVerPeer::from_str("shared@1.0.0(opt@25.0.0)").unwrap(),
             pacquet_lockfile::SnapshotEntry::default(),
         )])),
@@ -987,7 +1001,7 @@ async fn shared_subtree_owner_context_suppresses_later_optional_hoist() {
 #[tokio::test]
 async fn shared_subtree_owner_context_is_available_before_optional_hoisting() {
     let resolver = RecordingResolver {
-        table: HashMap::from([
+        table: HashMap::from_iter([
             (
                 ("wrapper".to_string(), "1.0.0".to_string()),
                 fake_result(
@@ -1060,7 +1074,7 @@ async fn shared_subtree_owner_context_is_available_before_optional_hoisting() {
                 ),
             ),
         ]),
-        seen: Mutex::new(HashMap::new()),
+        seen: Mutex::new(HashMap::default()),
     };
     let (tmp_nested, nested_manifest) =
         fake_manifest(serde_json::json!({ "wrapper": "1.0.0", "carrier": "1.0.0" }));
@@ -1102,7 +1116,7 @@ async fn shared_subtree_owner_context_is_available_before_optional_hoisting() {
 /// importers that share `@yarnpkg/*` chains with the root).
 #[tokio::test]
 async fn shared_subtree_miss_unsatisfied_by_first_importer_still_hoists() {
-    let mut table = HashMap::new();
+    let mut table = HashMap::default();
     table.insert(
         ("top".to_string(), "1.0.0".to_string()),
         fake_result(
@@ -1152,7 +1166,7 @@ async fn shared_subtree_miss_unsatisfied_by_first_importer_still_hoists() {
             serde_json::json!({ "name": "opt", "version": "25.0.0" }),
         ),
     );
-    let resolver = RecordingResolver { table, seen: Mutex::new(HashMap::new()) };
+    let resolver = RecordingResolver { table, seen: Mutex::new(HashMap::default()) };
     let (tmp_root, root_manifest) = fake_manifest(serde_json::json!({ "top": "1.0.0" }));
     let (tmp_a, a_manifest) = fake_manifest(serde_json::json!({ "top": "1.0.0" }));
     let importers = [
@@ -1186,7 +1200,7 @@ async fn shared_subtree_miss_unsatisfied_by_first_importer_still_hoists() {
 
 #[tokio::test]
 async fn local_workspace_package_version_can_satisfy_another_importers_optional_peer() {
-    let mut table = HashMap::new();
+    let mut table = HashMap::default();
     table.insert(
         ("needs-opt".to_string(), "1.0.0".to_string()),
         fake_result(
@@ -1214,7 +1228,7 @@ async fn local_workspace_package_version_can_satisfy_another_importers_optional_
         ("opt".to_string(), "1.0.0".to_string()),
         fake_result("opt", "1.0.0", None, serde_json::json!({ "name": "opt", "version": "1.0.0" })),
     );
-    let resolver = RecordingResolver { table, seen: Mutex::new(HashMap::new()) };
+    let resolver = RecordingResolver { table, seen: Mutex::new(HashMap::default()) };
     let (tmp_root, root_manifest) = fake_manifest(serde_json::json!({ "opt": "workspace:*" }));
     let (tmp_a, a_manifest) = fake_manifest(serde_json::json!({ "needs-opt": "1.0.0" }));
     let importers = [
@@ -1252,7 +1266,7 @@ async fn local_workspace_package_version_can_satisfy_another_importers_optional_
 /// whose packument no longer serves any satisfying version.
 struct FailingAliasResolver {
     table: HashMap<(String, String), ResolveResult>,
-    failing: std::collections::HashSet<String>,
+    failing: HashSet<String>,
     failure: FailureShape,
 }
 
@@ -1333,7 +1347,7 @@ fn optional_failure_fixture(
     std::fs::write(&path, serde_json::to_string(&json).unwrap()).expect("write package.json");
     let manifest = PackageManifest::from_path(path).expect("parse package.json");
     let resolver = FailingAliasResolver {
-        table: HashMap::from([(
+        table: HashMap::from_iter([(
             ("kept".to_string(), "^1.0.0".to_string()),
             fake_result(
                 "kept",
@@ -1342,7 +1356,7 @@ fn optional_failure_fixture(
                 serde_json::json!({ "name": "kept", "version": "1.0.0" }),
             ),
         )]),
-        failing: std::collections::HashSet::from(["broken".to_string()]),
+        failing: std::collections::HashSet::from_iter(["broken".to_string()]),
         failure,
     };
     (tmp, manifest, resolver)
@@ -1382,8 +1396,8 @@ fn lockfile_with_package(key: &str) -> pacquet_lockfile::Lockfile {
         pnpmfile_checksum: None,
         ignored_optional_dependencies: None,
         patched_dependencies: None,
-        importers: HashMap::new(),
-        packages: Some(HashMap::from([(key, metadata)])),
+        importers: std::collections::HashMap::new(),
+        packages: Some(std::collections::HashMap::from([(key, metadata)])),
         snapshots: None,
     }
 }
@@ -1558,7 +1572,7 @@ async fn deprecated_manifests_notify_the_deprecation_sink_unless_allowed() {
         let (_tmp, manifest) = fake_manifest(serde_json::json!({ "old": "^1.0.0" }));
         let importers = [WorkspaceImporter { id: "root".to_string(), manifest: &manifest }];
         let resolver = RecordingResolver {
-            table: HashMap::from([(
+            table: HashMap::from_iter([(
                 ("old".to_string(), "^1.0.0".to_string()),
                 fake_result(
                     "old",
@@ -1571,7 +1585,7 @@ async fn deprecated_manifests_notify_the_deprecation_sink_unless_allowed() {
                     }),
                 ),
             )]),
-            seen: Mutex::new(HashMap::new()),
+            seen: Mutex::new(HashMap::default()),
         };
         let notifications = std::sync::Arc::new(Mutex::new(Vec::new()));
         let sink = std::sync::Arc::clone(&notifications);
@@ -1621,7 +1635,7 @@ async fn deprecated_package_is_reported_only_on_its_first_occurrence() {
         WorkspaceImporter { id: "direct".to_string(), manifest: &direct_manifest },
     ];
     let resolver = RecordingResolver {
-        table: HashMap::from([
+        table: HashMap::from_iter([
             (
                 ("wrapper".to_string(), "1.0.0".to_string()),
                 fake_result(
@@ -1649,7 +1663,7 @@ async fn deprecated_package_is_reported_only_on_its_first_occurrence() {
                 ),
             ),
         ]),
-        seen: Mutex::new(HashMap::new()),
+        seen: Mutex::new(HashMap::default()),
     };
     let notifications = std::sync::Arc::new(Mutex::new(Vec::new()));
     let sink = std::sync::Arc::clone(&notifications);
@@ -1683,7 +1697,8 @@ async fn deprecated_package_is_reported_only_on_its_first_occurrence() {
 async fn reused_lockfile_entries_still_notify_the_deprecation_sink() {
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "old": "^1.0.0" }));
     let importers = [WorkspaceImporter { id: "root".to_string(), manifest: &manifest }];
-    let resolver = RecordingResolver { table: HashMap::new(), seen: Mutex::new(HashMap::new()) };
+    let resolver =
+        RecordingResolver { table: HashMap::default(), seen: Mutex::new(HashMap::default()) };
     let mut lockfile = importer_scoped_update_lockfile(&["root"], "old", "^1.0.0", "1.2.0", None);
     lockfile
         .packages
@@ -1746,7 +1761,7 @@ fn reuse_graph_lockfile(
             )
         })
         .collect();
-    let importers = HashMap::from([(
+    let importers = std::collections::HashMap::from([(
         importer_id.to_string(),
         ProjectSnapshot { dependencies: Some(dependencies), ..ProjectSnapshot::default() },
     )]);
@@ -1770,8 +1785,8 @@ fn reuse_graph_lockfile(
         peer_dependencies_meta: None,
     }
     };
-    let mut packages = HashMap::new();
-    let mut snapshots = HashMap::new();
+    let mut packages = std::collections::HashMap::new();
+    let mut snapshots = std::collections::HashMap::new();
     for (key, children) in graph {
         let key = key.parse::<PkgNameVerPeer>().expect("parse graph key");
         packages.insert(key.clone(), metadata());
@@ -1845,7 +1860,7 @@ async fn unchanged_catalog_dep_keeps_dependent_subtree_pins() {
         fake_manifest(serde_json::json!({ "tool": "catalog:", "parent": "^1.0.0" }));
     let importers = [WorkspaceImporter { id: "proj".to_string(), manifest: &manifest }];
     let resolver = RecordingResolver {
-        table: HashMap::from([
+        table: HashMap::from_iter([
             (
                 ("tool".to_string(), "^1.0.0".to_string()),
                 fake_result(
@@ -1878,7 +1893,7 @@ async fn unchanged_catalog_dep_keeps_dependent_subtree_pins() {
                 ),
             ),
         ]),
-        seen: Mutex::new(HashMap::new()),
+        seen: Mutex::new(HashMap::default()),
     };
     let mut opts = workspace_opts(false, false);
     opts.wanted_lockfile = Some(std::sync::Arc::new(reuse_graph_lockfile(
@@ -1913,7 +1928,7 @@ async fn catalog_range_bump_refreshes_dependent_pins() {
         fake_manifest(serde_json::json!({ "tool": "catalog:", "parent": "^1.0.0" }));
     let importers = [WorkspaceImporter { id: "proj".to_string(), manifest: &manifest }];
     let resolver = RecordingResolver {
-        table: HashMap::from([
+        table: HashMap::from_iter([
             (
                 ("tool".to_string(), "^2.0.0".to_string()),
                 fake_result(
@@ -1955,7 +1970,7 @@ async fn catalog_range_bump_refreshes_dependent_pins() {
                 ),
             ),
         ]),
-        seen: Mutex::new(HashMap::new()),
+        seen: Mutex::new(HashMap::default()),
     };
     let mut opts = workspace_opts(false, false);
     opts.wanted_lockfile = Some(std::sync::Arc::new(reuse_graph_lockfile(
@@ -1991,7 +2006,7 @@ async fn fresh_resolved_parent_on_recorded_version_reuses_child_subtrees() {
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "app": "^1.0.0" }));
     let importers = [WorkspaceImporter { id: "proj".to_string(), manifest: &manifest }];
     let resolver = RecordingResolver {
-        table: HashMap::from([
+        table: HashMap::from_iter([
             (
                 ("app".to_string(), "^1.0.0".to_string()),
                 fake_result(
@@ -2054,7 +2069,7 @@ async fn fresh_resolved_parent_on_recorded_version_reuses_child_subtrees() {
                 ),
             ),
         ]),
-        seen: Mutex::new(HashMap::new()),
+        seen: Mutex::new(HashMap::default()),
     };
     let mut opts = workspace_opts(false, false);
     opts.wanted_lockfile = Some(std::sync::Arc::new(reuse_graph_lockfile(
@@ -2093,7 +2108,7 @@ async fn non_root_importer_hoists_the_root_importers_peer_provider() {
         WorkspaceImporter { id: "app-b".to_string(), manifest: &app_manifest },
     ];
     let resolver = RecordingResolver {
-        table: HashMap::from([
+        table: HashMap::from_iter([
             (
                 ("react".to_string(), "19.2.0".to_string()),
                 fake_result(
@@ -2126,7 +2141,7 @@ async fn non_root_importer_hoists_the_root_importers_peer_provider() {
                 ),
             ),
         ]),
-        seen: Mutex::new(HashMap::new()),
+        seen: Mutex::new(HashMap::default()),
     };
     let mut opts = workspace_opts(false, false);
     opts.auto_install_peers = true;
@@ -2168,7 +2183,7 @@ async fn root_dep_named_only_by_its_manifest_still_provides_the_peer() {
     unnamed.id = pacquet_resolving_resolver_base::PkgResolutionId::from(TARBALL.to_string());
     unnamed.alias = Some("aliased".to_string());
     let resolver = RecordingResolver {
-        table: HashMap::from([
+        table: HashMap::from_iter([
             (("aliased".to_string(), TARBALL.to_string()), unnamed.clone()),
             (("real-peer".to_string(), TARBALL.to_string()), unnamed),
             (
@@ -2194,7 +2209,7 @@ async fn root_dep_named_only_by_its_manifest_still_provides_the_peer() {
                 ),
             ),
         ]),
-        seen: Mutex::new(HashMap::new()),
+        seen: Mutex::new(HashMap::default()),
     };
     let mut opts = workspace_opts(false, false);
     opts.auto_install_peers = true;
@@ -2279,7 +2294,7 @@ async fn project_relative_root_dep_is_not_a_provider(local: &str, manifest: Mani
     unnamed.normalized_bare_specifier = Some(local.to_string());
     unnamed.id = pacquet_resolving_resolver_base::PkgResolutionId::from(local.to_string());
     let resolver = RecordingResolver {
-        table: HashMap::from([
+        table: HashMap::from_iter([
             (("real-peer".to_string(), local.to_string()), unnamed),
             (
                 ("real-peer".to_string(), "^1.0.0".to_string()),
@@ -2304,7 +2319,7 @@ async fn project_relative_root_dep_is_not_a_provider(local: &str, manifest: Mani
                 ),
             ),
         ]),
-        seen: Mutex::new(HashMap::new()),
+        seen: Mutex::new(HashMap::default()),
     };
     let mut opts = workspace_opts(false, false);
     opts.auto_install_peers = true;
@@ -2381,7 +2396,7 @@ async fn link_root_dep_peer_provider(linked_version: Option<&str>, expected: &st
     linked.normalized_bare_specifier = Some("link:vendor/real-peer".to_string());
     linked.id = pacquet_resolving_resolver_base::PkgResolutionId::from("link:vendor/real-peer");
     let resolver = RecordingResolver {
-        table: HashMap::from([
+        table: HashMap::from_iter([
             (("real-peer".to_string(), "link:vendor/real-peer".to_string()), linked),
             (
                 ("real-peer".to_string(), "1.2.3".to_string()),
@@ -2415,7 +2430,7 @@ async fn link_root_dep_peer_provider(linked_version: Option<&str>, expected: &st
                 ),
             ),
         ]),
-        seen: Mutex::new(HashMap::new()),
+        seen: Mutex::new(HashMap::default()),
     };
     let mut opts = workspace_opts(false, false);
     opts.auto_install_peers = true;
@@ -2466,7 +2481,7 @@ async fn a_workspace_range_root_dep_is_offered_as_a_peer_provider() {
     });
     linked.resolved_via = "workspace".to_string();
     let resolver = RecordingResolver {
-        table: HashMap::from([
+        table: HashMap::from_iter([
             (("real-peer".to_string(), WORKSPACE_RANGE.to_string()), linked),
             (
                 ("real-peer".to_string(), "^1.0.0".to_string()),
@@ -2491,7 +2506,7 @@ async fn a_workspace_range_root_dep_is_offered_as_a_peer_provider() {
                 ),
             ),
         ]),
-        seen: Mutex::new(HashMap::new()),
+        seen: Mutex::new(HashMap::default()),
     };
     let mut opts = workspace_opts(false, false);
     opts.auto_install_peers = true;
@@ -2517,4 +2532,380 @@ async fn a_workspace_range_root_dep_is_offered_as_a_peer_provider() {
         "no second copy off the registry: {:?}",
         result.peers.graph.keys().map(|key| key.as_str().to_string()).collect::<Vec<_>>(),
     );
+}
+
+/// End-to-end companion of
+/// `resolve_peers::tests::cached_subtree_reuse_reports_no_peer_providers`:
+/// pkg-b reuses two foreign-owned subtrees — `mid`, whose walk resolved
+/// `peerpkg`, and `s2wrap`, whose consumer's miss the owning importer
+/// satisfied from its own ancestors (hiding it from pkg-b's hoist).
+#[tokio::test]
+async fn importer_sharing_foreign_subtrees_binds_peers_from_workspace_root() {
+    let mut table = HashMap::default();
+    table.insert(
+        ("mid".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "mid",
+            "1.0.0",
+            None,
+            serde_json::json!({
+                "name": "mid",
+                "version": "1.0.0",
+                "dependencies": { "peerpkg": "2.0.0", "consumer": "1.0.0" },
+            }),
+        ),
+    );
+    table.insert(
+        ("consumer".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "consumer",
+            "1.0.0",
+            None,
+            serde_json::json!({
+                "name": "consumer",
+                "version": "1.0.0",
+                "peerDependencies": { "peerpkg": "*", "peerx": "*" },
+            }),
+        ),
+    );
+    table.insert(
+        ("holder".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "holder",
+            "1.0.0",
+            None,
+            serde_json::json!({
+                "name": "holder",
+                "version": "1.0.0",
+                "dependencies": { "peerpkg": "2.0.0", "s2wrap": "1.0.0" },
+            }),
+        ),
+    );
+    table.insert(
+        ("s2wrap".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "s2wrap",
+            "1.0.0",
+            None,
+            serde_json::json!({
+                "name": "s2wrap",
+                "version": "1.0.0",
+                "dependencies": { "consumer2": "1.0.0" },
+            }),
+        ),
+    );
+    // pkg-b reaches `s2wrap` through `bwrap` so both importers see it at
+    // depth 1 and the children-owner claim falls to pkg-a2 (lower
+    // importer order) — a direct depth-0 reference would make pkg-b the
+    // owner and no cross-importer sharing would occur.
+    table.insert(
+        ("bwrap".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "bwrap",
+            "1.0.0",
+            None,
+            serde_json::json!({
+                "name": "bwrap",
+                "version": "1.0.0",
+                "dependencies": { "s2wrap": "1.0.0" },
+            }),
+        ),
+    );
+    table.insert(
+        ("consumer2".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "consumer2",
+            "1.0.0",
+            None,
+            serde_json::json!({
+                "name": "consumer2",
+                "version": "1.0.0",
+                "peerDependencies": { "peerpkg": "*" },
+            }),
+        ),
+    );
+    for version in ["1.0.0", "2.0.0"] {
+        table.insert(
+            ("peerpkg".to_string(), version.to_string()),
+            fake_result(
+                "peerpkg",
+                version,
+                None,
+                serde_json::json!({ "name": "peerpkg", "version": version }),
+            ),
+        );
+    }
+    // `peerx` keeps `mid`'s subtree non-pure: `consumer` resolves it
+    // against the importer's own direct dep, so the subtree's verdict
+    // enters the peers cache (pure subtrees bypass it) and pkg-b's
+    // revisit exercises the cache-replay path under test.
+    table.insert(
+        ("peerx".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "peerx",
+            "1.0.0",
+            None,
+            serde_json::json!({ "name": "peerx", "version": "1.0.0" }),
+        ),
+    );
+    let resolver = RecordingResolver { table, seen: Mutex::new(HashMap::default()) };
+    let (tmp_root, root_manifest) = fake_manifest(serde_json::json!({ "peerpkg": "1.0.0" }));
+    let (tmp_a, a_manifest) =
+        fake_manifest(serde_json::json!({ "mid": "1.0.0", "peerx": "1.0.0" }));
+    let (tmp_a2, a2_manifest) = fake_manifest(serde_json::json!({ "holder": "1.0.0" }));
+    let (tmp_b, b_manifest) =
+        fake_manifest(serde_json::json!({ "mid": "1.0.0", "bwrap": "1.0.0", "peerx": "1.0.0" }));
+    let importers = [
+        WorkspaceImporter { id: ".".to_string(), manifest: &root_manifest },
+        WorkspaceImporter { id: "pkg-a".to_string(), manifest: &a_manifest },
+        WorkspaceImporter { id: "pkg-a2".to_string(), manifest: &a2_manifest },
+        WorkspaceImporter { id: "pkg-b".to_string(), manifest: &b_manifest },
+    ];
+    let dirs = [tmp_root.path(), tmp_a.path(), tmp_a2.path(), tmp_b.path()];
+
+    let mut opts = workspace_opts(false, false);
+    opts.auto_install_peers = true;
+    opts.resolve_peers_from_workspace_root = true;
+    let mut next = 0;
+    let result = resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
+        let dir = dirs[next].to_path_buf();
+        next += 1;
+        let mut opts = importer_opts(dir, None);
+        opts.auto_install_peers = true;
+        opts.resolve_peers_from_workspace_root = true;
+        opts
+    })
+    .await
+    .unwrap();
+
+    // Under pkg-a2, `consumer2` binds to holder's peerpkg@2.0.0.
+    let a2_direct =
+        result.peers.direct_dependencies_by_importer.get("pkg-a2").expect("pkg-a2 importer");
+    assert_eq!(
+        a2_direct.get("holder").map(std::string::ToString::to_string),
+        Some("holder@1.0.0".to_string()),
+        "holder satisfies its subtree's peer internally",
+    );
+    let a_direct =
+        result.peers.direct_dependencies_by_importer.get("pkg-a").expect("pkg-a importer");
+    assert_eq!(
+        a_direct.get("mid").map(std::string::ToString::to_string),
+        Some("mid@1.0.0(peerx@1.0.0)".to_string()),
+        "consumer's peerx resolves against pkg-a's direct dep",
+    );
+
+    // Under pkg-b, `consumer2` has no provider in its own tree: its peer
+    // must fall back to the workspace root's peerpkg@1.0.0, not bind to
+    // the peerpkg@2.0.0 provider a reused subtree's walk resolved.
+    let b_direct =
+        result.peers.direct_dependencies_by_importer.get("pkg-b").expect("pkg-b importer");
+    assert_eq!(
+        b_direct.get("bwrap").map(std::string::ToString::to_string),
+        Some("bwrap@1.0.0(peerpkg@1.0.0)".to_string()),
+        "pkg-b's own consumers must not inherit a reused subtree's provider",
+    );
+    assert_eq!(
+        b_direct.get("mid").map(std::string::ToString::to_string),
+        Some("mid@1.0.0(peerx@1.0.0)".to_string()),
+    );
+}
+
+/// A children-ownership handover whose peer-shadow context is
+/// unchanged must not discard other occurrences' realized subtrees.
+///
+/// `pkg-b`'s lockfile pins `wrapperB → mid2 → leaf2@1.0.0`, so its walk
+/// reuses that subtree. The root importer's required-peer hoist of
+/// `mid2` (for `needyC`) then claims `mid2`'s children ownership at
+/// depth 0 with the same (empty) peer-shadow set. Rewriting the
+/// displaced owner's occurrences to lazy on such a handover would
+/// re-resolve the reused subtree's open ranges — churning the locked
+/// `leaf2@1.0.0` to the registry's newer `1.5.0` even though nothing
+/// about `mid2`'s child resolution context changed.
+#[tokio::test]
+async fn unchanged_shadow_ownership_handover_keeps_reused_subtree() {
+    let mut table = HashMap::default();
+    table.insert(
+        ("wrapperB".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "wrapperB",
+            "1.0.0",
+            None,
+            serde_json::json!({
+                "name": "wrapperB",
+                "version": "1.0.0",
+                "dependencies": { "mid2": "1.0.0" },
+            }),
+        ),
+    );
+    table.insert(
+        ("shared2".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "shared2",
+            "1.0.0",
+            None,
+            serde_json::json!({
+                "name": "shared2",
+                "version": "1.0.0",
+                "dependencies": { "mid2": "1.0.0" },
+            }),
+        ),
+    );
+    table.insert(
+        ("needyC".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "needyC",
+            "1.0.0",
+            None,
+            serde_json::json!({
+                "name": "needyC",
+                "version": "1.0.0",
+                "peerDependencies": { "mid2": "1.0.0" },
+            }),
+        ),
+    );
+    table.insert(
+        ("mid2".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "mid2",
+            "1.0.0",
+            None,
+            serde_json::json!({
+                "name": "mid2",
+                "version": "1.0.0",
+                "dependencies": { "leaf2": "^1.0.0" },
+            }),
+        ),
+    );
+    table.insert(
+        ("leaf2".to_string(), "^1.0.0".to_string()),
+        fake_result(
+            "leaf2",
+            "1.5.0",
+            None,
+            serde_json::json!({ "name": "leaf2", "version": "1.5.0" }),
+        ),
+    );
+    let resolver = RecordingResolver { table, seen: Mutex::new(HashMap::default()) };
+    let (tmp_b, b_manifest) = fake_manifest(serde_json::json!({ "wrapperB": "1.0.0" }));
+    let (tmp_root, root_manifest) =
+        fake_manifest(serde_json::json!({ "shared2": "1.0.0", "needyC": "1.0.0" }));
+    let importers = [
+        WorkspaceImporter { id: "pkg-b".to_string(), manifest: &b_manifest },
+        WorkspaceImporter { id: ".".to_string(), manifest: &root_manifest },
+    ];
+    let dirs = [tmp_b.path(), tmp_root.path()];
+
+    let mut opts = workspace_opts(false, false);
+    opts.auto_install_peers = true;
+    opts.wanted_lockfile = Some(std::sync::Arc::new(reuse_steal_lockfile()));
+    let mut next = 0;
+    let result = resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
+        let dir = dirs[next].to_path_buf();
+        next += 1;
+        let mut opts = importer_opts(dir, None);
+        opts.auto_install_peers = true;
+        opts
+    })
+    .await
+    .unwrap();
+
+    let root_direct = result.peers.direct_dependencies_by_importer.get(".").expect("root importer");
+    assert_eq!(
+        root_direct.get("mid2").map(std::string::ToString::to_string),
+        Some("mid2@1.0.0".to_string()),
+        "needyC's required peer mid2 is hoisted to the root importer",
+    );
+    let mid2 = result
+        .peers
+        .graph
+        .get(&pacquet_deps_path::DepPath::from("mid2@1.0.0".to_string()))
+        .expect("mid2 in graph");
+    assert_eq!(
+        mid2.children.get("leaf2").map(std::string::ToString::to_string),
+        Some("leaf2@1.0.0".to_string()),
+        "the lockfile-reused subtree must survive the ownership handover",
+    );
+}
+fn reuse_steal_lockfile() -> pacquet_lockfile::Lockfile {
+    use pacquet_lockfile::{
+        ComVer, ImporterDepVersion, Lockfile, LockfileVersion, PackageMetadata, PkgName,
+        PkgNameVerPeer, PkgVerPeer, ProjectSnapshot, RegistryResolution, ResolvedDependencySpec,
+        SnapshotDepRef, SnapshotEntry,
+    };
+
+    let metadata = || {
+        PackageMetadata {
+        resolution: LockfileResolution::Registry(RegistryResolution {
+            integrity: "sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg=="
+                .parse()
+                .expect("parse integrity"),
+        }),
+        version: None,
+        engines: None,
+        cpu: None,
+        os: None,
+        libc: None,
+        deprecated: None,
+        has_bin: None,
+        prepare: None,
+        bundled_dependencies: None,
+        peer_dependencies: None,
+        peer_dependencies_meta: None,
+    }
+    };
+    let key = |raw: &str| PkgNameVerPeer::from_str(raw).expect("parse snapshot key");
+    let importers = std::collections::HashMap::from([(
+        "pkg-b".to_string(),
+        ProjectSnapshot {
+            dependencies: Some(std::collections::HashMap::from([(
+                PkgName::parse("wrapperB").unwrap(),
+                ResolvedDependencySpec {
+                    specifier: "1.0.0".to_string(),
+                    version: ImporterDepVersion::Regular("1.0.0".parse::<PkgVerPeer>().unwrap()),
+                },
+            )])),
+            ..ProjectSnapshot::default()
+        },
+    )]);
+    let packages = std::collections::HashMap::from([
+        (key("wrapperB@1.0.0"), metadata()),
+        (key("mid2@1.0.0"), metadata()),
+        (key("leaf2@1.0.0"), metadata()),
+    ]);
+    let snapshots = std::collections::HashMap::from([
+        (
+            key("wrapperB@1.0.0"),
+            SnapshotEntry {
+                dependencies: Some(std::collections::HashMap::from([(
+                    PkgName::parse("mid2").unwrap(),
+                    SnapshotDepRef::Plain("1.0.0".parse::<PkgVerPeer>().unwrap()),
+                )])),
+                ..SnapshotEntry::default()
+            },
+        ),
+        (
+            key("mid2@1.0.0"),
+            SnapshotEntry {
+                dependencies: Some(std::collections::HashMap::from([(
+                    PkgName::parse("leaf2").unwrap(),
+                    SnapshotDepRef::Plain("1.0.0".parse::<PkgVerPeer>().unwrap()),
+                )])),
+                ..SnapshotEntry::default()
+            },
+        ),
+        (key("leaf2@1.0.0"), SnapshotEntry::default()),
+    ]);
+    Lockfile {
+        lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(9, 0)).expect("lockfile v9"),
+        settings: None,
+        catalogs: None,
+        overrides: None,
+        package_extensions_checksum: None,
+        pnpmfile_checksum: None,
+        ignored_optional_dependencies: None,
+        patched_dependencies: None,
+        importers,
+        packages: Some(packages),
+        snapshots: Some(snapshots),
+    }
 }

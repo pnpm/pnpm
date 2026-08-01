@@ -188,6 +188,7 @@ fn project_with_dependencies(root: &std::path::Path, name: &str, dependencies: &
     Project {
         root_dir,
         manifest: PackageManifest::from_path(package_json).expect("read package.json"),
+        dependency_manifest: None,
     }
 }
 

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.deps-resolver",
-  "version": "1100.4.0",
+  "version": "1101.0.0",
   "description": "Resolves dependency graph of a package",
   "keywords": [
     "pnpm",
@@ -55,8 +55,8 @@
     "@pnpm/resolving.npm-resolver": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/store.controller-types": "workspace:*",
+    "@pnpm/text.ordinal-comparator": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/util.lex-comparator": "catalog:",
     "@pnpm/workspace.spec-parser": "workspace:*",
     "@yarnpkg/core": "catalog:",
     "graph-cycles": "catalog:",

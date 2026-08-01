@@ -1,14 +1,21 @@
-use std::collections::HashMap;
+use std::{
+    collections::{BTreeSet, HashMap},
+    path::Path,
+    sync::Arc,
+};
 
 use pacquet_network::NoProxySetting;
 use pacquet_testing_utils::registry::TestRegistry;
 
 use super::{
-    EngineMode, InstallOptions, NetworkConfigInput, NodeApiProject, ProxyConfigInput,
-    build_overlay, reject_non_object_manifests, reject_unsupported_install_options,
-    run_install_inner,
+    DepsRequiringBuildSink, EngineMode, InstallOptions, NetworkConfigInput, NodeApiProject,
+    ProxyConfigInput, build_overlay, reject_non_object_manifests,
+    reject_unsupported_install_options, run_install_inner, take_deps_requiring_build,
 };
-use crate::config::{ConfigOverlay, resolve_config};
+use crate::{
+    config::{ConfigOverlay, resolve_config},
+    reporter_bridge::{begin_stats, take_stats},
+};
 
 #[test]
 fn resolve_config_reloads_changed_workspace_yaml() {
@@ -148,6 +155,7 @@ fn non_object_project_manifests_are_rejected() {
     let ok = vec![NodeApiProject {
         root_dir: "/a".to_string(),
         manifest: serde_json::json!({ "name": "x" }),
+        dependency_manifest: None,
     }];
     assert!(reject_non_object_manifests(&ok).is_ok());
 
@@ -157,7 +165,11 @@ fn non_object_project_manifests_are_rejected() {
         serde_json::json!(42),
         serde_json::json!(null),
     ] {
-        let projects = vec![NodeApiProject { root_dir: "/a".to_string(), manifest: bad }];
+        let projects = vec![NodeApiProject {
+            root_dir: "/a".to_string(),
+            manifest: bad,
+            dependency_manifest: None,
+        }];
         assert!(reject_non_object_manifests(&projects).is_err());
     }
 }
@@ -196,11 +208,12 @@ fn repeat_install_uses_changed_in_memory_manifest() {
                 "@pnpm.e2e/foo": "100.0.0"
             }
         }),
+        dependency_manifest: None,
     }];
     options.store_dir = Some(temp_dir.path().join("store").to_string_lossy().into_owned());
     options.registries = Some(HashMap::from([("default".to_string(), registry.url())]));
 
-    run_install_inner(&options, None, EngineMode::Install).expect("first install");
+    run_install_inner(&options, None, EngineMode::Install(None)).expect("first install");
     assert!(project_dir.join("node_modules/@pnpm.e2e/foo").exists());
 
     options.projects[0].manifest = serde_json::json!({
@@ -210,7 +223,7 @@ fn repeat_install_uses_changed_in_memory_manifest() {
         }
     });
 
-    run_install_inner(&options, None, EngineMode::Install).expect("second install");
+    run_install_inner(&options, None, EngineMode::Install(None)).expect("second install");
     assert!(project_dir.join("node_modules/@pnpm.e2e/bar").exists());
     assert_eq!(
         std::fs::read_to_string(project_dir.join("package.json")).expect("read package.json"),
@@ -218,10 +231,285 @@ fn repeat_install_uses_changed_in_memory_manifest() {
     );
 }
 
+/// An empty list and an uncomputed one are different answers. The first
+/// says the tree has no build-needing packages; the second says this
+/// install never looked, so an embedder mirroring the field into a file
+/// it owns has to keep its own record.
+#[test]
+fn take_deps_requiring_build_distinguishes_an_empty_list_from_an_uncomputed_one() {
+    let empty = DepsRequiringBuildSink::default();
+    *empty.lock().expect("lock sink") = Some(BTreeSet::new());
+    assert_eq!(take_deps_requiring_build(Some(&empty), Vec::new()), Some(Vec::new()));
+
+    let uncomputed = DepsRequiringBuildSink::default();
+    assert_eq!(take_deps_requiring_build(Some(&uncomputed), Vec::new()), None);
+}
+
+/// The result preserves the sink's order so a consumer diffing it against
+/// a recorded list sees no spurious churn.
+#[test]
+fn take_deps_requiring_build_reports_the_list_in_sorted_order() {
+    let sink = DepsRequiringBuildSink::default();
+    *sink.lock().expect("lock sink") = Some(BTreeSet::from([
+        "zzz@1.0.0".to_string(),
+        "aaa@1.0.0".to_string(),
+        "mmm@1.0.0".to_string(),
+    ]));
+
+    assert_eq!(
+        take_deps_requiring_build(Some(&sink), Vec::new()),
+        Some(vec!["aaa@1.0.0".to_string(), "mmm@1.0.0".to_string(), "zzz@1.0.0".to_string()]),
+    );
+}
+
+/// Without the option the field carries the blocked builds, and stays
+/// undefined when nothing was blocked.
+#[test]
+fn take_deps_requiring_build_falls_back_to_blocked_builds_without_the_option() {
+    assert_eq!(
+        take_deps_requiring_build(None, vec!["blocked@1.0.0".to_string()]),
+        Some(vec!["blocked@1.0.0".to_string()]),
+    );
+    assert_eq!(take_deps_requiring_build(None, Vec::new()), None);
+}
+
+/// `returnListOfDepsRequiringBuild` reports every package whose files
+/// carry install scripts, sorted. `hello-world-js-bin` arrives as a
+/// dependency of the postinstall example and carries no install scripts
+/// of its own, so it must not appear.
+#[test]
+fn return_list_of_deps_requiring_build_reports_every_script_bearing_package() {
+    let temp_dir = tempfile::tempdir().expect("tempdir");
+    let mut options = script_deps_install_options(temp_dir.path());
+    options.dangerously_allow_all_builds = Some(true);
+
+    let sink = DepsRequiringBuildSink::default();
+    run_install_inner(&options, None, EngineMode::Install(Some(Arc::clone(&sink))))
+        .expect("install");
+
+    assert_eq!(
+        take_deps_requiring_build(Some(&sink), Vec::new()),
+        Some(vec![
+            "@pnpm.e2e/install-script-example@1.0.0".to_string(),
+            "@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0".to_string(),
+        ]),
+    );
+}
+
+/// The list is independent of the allow-build policy. A package whose
+/// scripts the default policy blocks still requires a build, and an
+/// embedder that gates builds itself needs to know about it.
+#[test]
+fn return_list_of_deps_requiring_build_includes_packages_whose_builds_were_blocked() {
+    let temp_dir = tempfile::tempdir().expect("tempdir");
+    let options = script_deps_install_options(temp_dir.path());
+
+    let sink = DepsRequiringBuildSink::default();
+    begin_stats();
+    run_install_inner(&options, None, EngineMode::Install(Some(Arc::clone(&sink))))
+        .expect("install");
+    let blocked = take_stats().deps_requiring_build;
+
+    assert_eq!(
+        blocked.len(),
+        2,
+        "without an allow-build policy both builds must be blocked, else this test proves nothing",
+    );
+    assert_eq!(
+        take_deps_requiring_build(Some(&sink), Vec::new()),
+        Some(vec![
+            "@pnpm.e2e/install-script-example@1.0.0".to_string(),
+            "@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0".to_string(),
+        ]),
+    );
+}
+
+/// Only a fresh resolve that materializes `node_modules` computes the
+/// list. A repeat install (served from the frozen path), an explicit
+/// `frozenLockfile`, and a `lockfileOnly` run all leave it uncomputed.
+#[test]
+fn return_list_of_deps_requiring_build_is_uncomputed_without_a_fresh_materialization() {
+    let temp_dir = tempfile::tempdir().expect("tempdir");
+    let mut options = script_deps_install_options(temp_dir.path());
+    options.dangerously_allow_all_builds = Some(true);
+
+    let seed = DepsRequiringBuildSink::default();
+    run_install_inner(&options, None, EngineMode::Install(Some(Arc::clone(&seed))))
+        .expect("seed install");
+    let seeded = seed.lock().expect("lock sink").clone();
+    dbg!(&seeded);
+    assert!(seeded.is_some(), "the seed install computes the list");
+
+    for (label, mutate) in [
+        ("repeat install", (|_: &mut InstallOptions| {}) as fn(&mut InstallOptions)),
+        ("frozen lockfile", |options: &mut InstallOptions| {
+            options.frozen_lockfile = Some(true);
+        }),
+        ("lockfile only", |options: &mut InstallOptions| {
+            options.lockfile_only = Some(true);
+        }),
+    ] {
+        let mut options = script_deps_install_options(temp_dir.path());
+        options.dangerously_allow_all_builds = Some(true);
+        mutate(&mut options);
+
+        let sink = DepsRequiringBuildSink::default();
+        run_install_inner(&options, None, EngineMode::Install(Some(Arc::clone(&sink))))
+            .unwrap_or_else(|error| panic!("{label} install: {error}"));
+
+        assert_eq!(
+            take_deps_requiring_build(Some(&sink), Vec::new()),
+            None,
+            "{label} must leave the list uncomputed",
+        );
+    }
+}
+
+/// A tree with no script-bearing package has nothing to build, and that
+/// is an answer. The install reports an empty list rather than none, so
+/// an embedder replaces its recorded list instead of keeping a stale one.
+#[test]
+fn return_list_of_deps_requiring_build_reports_an_empty_list_for_a_tree_without_build_scripts() {
+    let temp_dir = tempfile::tempdir().expect("tempdir");
+    let options = install_options_for(
+        temp_dir.path(),
+        "project",
+        serde_json::json!({ "dependencies": { "@pnpm.e2e/foo": "100.0.0" } }),
+    );
+
+    let sink = DepsRequiringBuildSink::default();
+    run_install_inner(&options, None, EngineMode::Install(Some(Arc::clone(&sink))))
+        .expect("install");
+
+    assert_eq!(take_deps_requiring_build(Some(&sink), Vec::new()), Some(Vec::new()));
+}
+
+/// A script-bearing package this install skips is left out even when the
+/// shared store already knows it requires a build. The reported list
+/// covers what this project installed, not what the store has seen.
+#[test]
+fn return_list_of_deps_requiring_build_excludes_skipped_packages() {
+    let temp_dir = tempfile::tempdir().expect("tempdir");
+    let warm_store = install_options_for(
+        temp_dir.path(),
+        "warm-store",
+        serde_json::json!({
+            "dependencies": { "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0" }
+        }),
+    );
+    let warmed = DepsRequiringBuildSink::default();
+    run_install_inner(&warm_store, None, EngineMode::Install(Some(Arc::clone(&warmed))))
+        .expect("warm the store");
+    assert_eq!(
+        take_deps_requiring_build(Some(&warmed), Vec::new()),
+        Some(vec!["@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0".to_string()]),
+        "the store must know this package requires a build, else the skip proves nothing",
+    );
+
+    let mut options = install_options_for(
+        temp_dir.path(),
+        "skipping",
+        serde_json::json!({
+            "optionalDependencies": { "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0" }
+        }),
+    );
+    options.include_optional_deps = Some(false);
+
+    let sink = DepsRequiringBuildSink::default();
+    run_install_inner(&options, None, EngineMode::Install(Some(Arc::clone(&sink))))
+        .expect("install skipping the optional dependency");
+
+    assert_eq!(take_deps_requiring_build(Some(&sink), Vec::new()), Some(Vec::new()));
+}
+
+/// Install options for a project depending on two packages that carry
+/// install scripts, sharing one store across the calls in a test so a
+/// repeat install can hit the frozen path.
+fn script_deps_install_options(temp_dir: &Path) -> InstallOptions {
+    install_options_for(
+        temp_dir,
+        "project",
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0",
+                "@pnpm.e2e/install-script-example": "1.0.0"
+            }
+        }),
+    )
+}
+
+/// Install options for one project under `temp_dir`, with
+/// `returnListOfDepsRequiringBuild` set and the store shared across every
+/// project in the same `temp_dir`.
+fn install_options_for(
+    temp_dir: &Path,
+    project_name: &str,
+    manifest: serde_json::Value,
+) -> InstallOptions {
+    let registry = TestRegistry::start();
+    let project_dir = temp_dir.join(project_name);
+    std::fs::create_dir_all(&project_dir).expect("create project dir");
+    std::fs::write(project_dir.join("package.json"), "{}\n").expect("write package.json");
+
+    let project_dir_string = project_dir.to_string_lossy().into_owned();
+    let mut options = install_options();
+    options.dir = project_dir_string.clone();
+    options.projects =
+        vec![NodeApiProject { root_dir: project_dir_string, manifest, dependency_manifest: None }];
+    options.store_dir = Some(temp_dir.join("store").to_string_lossy().into_owned());
+    options.registries = Some(HashMap::from([("default".to_string(), registry.url())]));
+    options.return_list_of_deps_requiring_build = Some(true);
+    options
+}
+
+/// The lockfile must record `overrides` in declaration order — the
+/// napi boundary carries them through an `IndexMap`, and a `HashMap`
+/// regression would rewrite the block in a random order on every
+/// install (a sorted map would flip the non-lexicographic order below).
+#[test]
+fn lockfile_records_overrides_in_declaration_order() {
+    let registry = TestRegistry::start();
+    let temp_dir = tempfile::tempdir().expect("tempdir");
+    let project_dir = temp_dir.path().join("project");
+    std::fs::create_dir(&project_dir).expect("create project dir");
+    std::fs::write(project_dir.join("package.json"), "{}\n").expect("write package.json");
+
+    let project_dir_string = project_dir.to_string_lossy().into_owned();
+    let mut options = install_options();
+    options.dir = project_dir_string.clone();
+    options.projects = vec![NodeApiProject {
+        root_dir: project_dir_string,
+        manifest: serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/foo": "100.0.0"
+            }
+        }),
+        dependency_manifest: None,
+    }];
+    options.store_dir = Some(temp_dir.path().join("store").to_string_lossy().into_owned());
+    options.registries = Some(HashMap::from([("default".to_string(), registry.url())]));
+    options.overrides = Some(indexmap::IndexMap::from_iter([
+        ("zzz-unmatched".to_string(), "1.0.0".to_string()),
+        ("aaa-unmatched".to_string(), "2.0.0".to_string()),
+    ]));
+
+    run_install_inner(&options, None, EngineMode::Install(None)).expect("install");
+
+    let lockfile =
+        std::fs::read_to_string(project_dir.join("pnpm-lock.yaml")).expect("read lockfile");
+    let zzz = lockfile.find("zzz-unmatched").expect("zzz override recorded");
+    let aaa = lockfile.find("aaa-unmatched").expect("aaa override recorded");
+    assert!(zzz < aaa, "overrides must keep declaration order (zzz before aaa), got:\n{lockfile}");
+}
+
 fn install_options() -> InstallOptions {
     InstallOptions {
         dir: String::new(),
-        projects: vec![NodeApiProject { root_dir: String::new(), manifest: serde_json::json!({}) }],
+        projects: vec![NodeApiProject {
+            root_dir: String::new(),
+            manifest: serde_json::json!({}),
+            dependency_manifest: None,
+        }],
         store_dir: None,
         cache_dir: None,
         registries: None,
@@ -245,6 +533,7 @@ fn install_options() -> InstallOptions {
         virtual_store_dir_max_length: None,
         peers_suffix_max_length: None,
         dedupe_peer_dependents: None,
+        dedupe_peers: None,
         dedupe_direct_deps: None,
         dedupe_injected_deps: None,
         resolve_peers_from_workspace_root: None,
@@ -270,6 +559,7 @@ fn install_options() -> InstallOptions {
         fetch_timeout: None,
         user_agent: None,
         strict_dep_builds: None,
+        return_list_of_deps_requiring_build: None,
         allow_builds: None,
         dangerously_allow_all_builds: None,
         peer_dependency_rules: None,

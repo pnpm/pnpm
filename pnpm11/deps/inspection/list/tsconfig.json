@@ -22,6 +22,9 @@
       "path": "../../../pkg-manifest/reader"
     },
     {
+      "path": "../../../text/ordinal-comparator"
+    },
+    {
       "path": "../../../text/tree-renderer"
     },
     {

@@ -12,7 +12,7 @@ use chrono::{DateTime, Utc};
 use derive_more::{Display, From};
 use pacquet_config::{SaveWorkspaceProtocol, TrustPolicy, version_policy::PackageVersionPolicy};
 use pacquet_lockfile::{LockfileResolution, PkgNameVer};
-use pacquet_registry::PinnedVersion;
+use pacquet_registry::RangeSpecStyle;
 use serde::{Deserialize, Serialize};
 
 use crate::verifier::ResolutionPolicyViolation;
@@ -298,7 +298,13 @@ pub struct ResolveOptions {
     /// [`PreferredVersionsOverlay`]. `None` outside the walk (importer
     /// direct deps resolve against [`Self::preferred_versions`] only).
     pub preferred_versions_overlay: Option<Arc<PreferredVersionsOverlay>>,
-    pub workspace_packages: Option<WorkspacePackages>,
+    /// Behind [`Arc`] for the same reason as
+    /// [`Self::preferred_versions`]: the tree walker clones
+    /// [`ResolveOptions`] per adjusted resolve and every workspace
+    /// package carries its full manifest, so a by-value map turned each
+    /// clone into a deep copy of every project manifest in the
+    /// workspace.
+    pub workspace_packages: Option<Arc<WorkspacePackages>>,
     pub default_tag: Option<String>,
     pub pick_lowest_version: bool,
     pub prefer_workspace_packages: bool,
@@ -330,7 +336,7 @@ pub struct ResolveOptions {
     /// A specifier that already carries an operator keeps it (`^` stays
     /// `^`, `~` stays `~`, an exact pin stays exact). `None` leaves the
     /// choice to the resolver's own default.
-    pub pinned_version: Option<PinnedVersion>,
+    pub range_spec_style: Option<RangeSpecStyle>,
     /// How [`Self::calc_specifier`] writes a dependency that resolved to
     /// a workspace package. The `saveWorkspaceProtocol` setting.
     pub save_workspace_protocol: SaveWorkspaceProtocol,

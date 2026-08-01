@@ -40,20 +40,20 @@ import type {
   PkgRequestFetchResult,
   StoreController,
 } from '@pnpm/store.controller-types'
+import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import type {
   AllowBuild,
   AllowedDeprecatedVersions,
   DepPath,
   PackageManifest,
   PackageVersionPolicy,
-  PinnedVersion,
   PkgIdWithPatchHash,
+  RangeSpecStyle,
   ReadPackageHook,
   Registries,
   SupportedArchitectures,
   TrustPolicy,
 } from '@pnpm/types'
-import { lexCompare } from '@pnpm/util.lex-comparator'
 import normalizePath from 'normalize-path'
 import pDefer from 'p-defer'
 import { pathExists } from 'path-exists'
@@ -365,7 +365,7 @@ interface ResolvedDependenciesOptions {
   prefix: string
   supportedArchitectures?: SupportedArchitectures
   updateToLatest?: boolean
-  pinnedVersion?: PinnedVersion
+  rangeSpecStyle?: RangeSpecStyle
 }
 
 interface PostponedResolutionOpts {
@@ -621,7 +621,7 @@ export interface ImporterToResolve {
   parentPkgAliases: ParentPkgAliases
   wantedDependencies: Array<WantedDependency & { updateDepth?: number }>
   options: ImporterToResolveOptions
-  pinnedVersion?: PinnedVersion
+  rangeSpecStyle?: RangeSpecStyle
 }
 
 interface ResolveDependenciesOfImportersResult {
@@ -785,7 +785,7 @@ async function resolveDependenciesOfImporterDependency (
       ...importer.options,
       parentPkgAliases: importer.parentPkgAliases,
       pickLowestVersion: pickLowestVersion && !importer.updatePackageManifest,
-      pinnedVersion: importer.pinnedVersion,
+      rangeSpecStyle: importer.rangeSpecStyle,
       publishedBy: ctx.maximumPublishedBy,
     },
     extendedWantedDep
@@ -1056,7 +1056,7 @@ async function resolveDependenciesOfDependency (
     updateRequested,
     supportedArchitectures: options.supportedArchitectures,
     parentIds: options.parentIds,
-    pinnedVersion: options.pinnedVersion,
+    rangeSpecStyle: options.rangeSpecStyle,
   }
 
   // The catalog protocol is normally replaced when resolving the dependencies
@@ -1849,7 +1849,7 @@ interface ResolveDependencyOptions {
    */
   updateRequested: boolean
   supportedArchitectures?: SupportedArchitectures
-  pinnedVersion?: PinnedVersion
+  rangeSpecStyle?: RangeSpecStyle
 }
 
 type ResolveDependencyResult = PkgAddressOrLink | null
@@ -1958,7 +1958,7 @@ async function resolveDependency (
         },
         injectWorkspacePackages: ctx.injectWorkspacePackages,
         calcSpecifier,
-        pinnedVersion: options.pinnedVersion,
+        rangeSpecStyle: options.rangeSpecStyle,
       })
     } catch (err: any) { // eslint-disable-line
       const wantedDependencyDetails = {

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/config.writer",
-  "version": "1100.0.19",
+  "version": "1100.0.20",
   "description": "Functions for updating the configuration settings",
   "keywords": [
     "pnpm",

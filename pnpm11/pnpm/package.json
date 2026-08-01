@@ -1,6 +1,6 @@
 {
   "name": "pnpm",
-  "version": "11.18.0",
+  "version": "11.19.0",
   "description": "Fast, disk space efficient package manager",
   "keywords": [
     "pnpm",
@@ -132,7 +132,7 @@
     "@pnpm/test-ipc-server": "workspace:*",
     "@pnpm/testing.registry-mock": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/util.lex-comparator": "catalog:",
+    "@pnpm/text.ordinal-comparator": "workspace:*",
     "@pnpm/worker": "workspace:*",
     "@pnpm/workspace.commands": "workspace:*",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",

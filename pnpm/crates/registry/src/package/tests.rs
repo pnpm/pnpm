@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use node_semver::Version;
 use pretty_assertions::assert_eq;
 
-use super::{AuthHeaders, Package, PackageVersion, ThrottledClient};
-use crate::{PinnedVersion, package_distribution::PackageDistribution};
+use super::{AuthHeaders, DerivedPackuments, Package, PackageVersion, ThrottledClient};
+use crate::{RangeSpecStyle, package_distribution::PackageDistribution};
 
 #[test]
 pub fn package_version_should_include_peers() {
@@ -50,10 +50,10 @@ pub fn serialized_according_to_params() {
         deprecated: None,
     };
 
-    assert_eq!(version.serialize(PinnedVersion::Patch), "3.2.1");
-    assert_eq!(version.serialize(PinnedVersion::Minor), "~3.2.1");
-    assert_eq!(version.serialize(PinnedVersion::Major), "^3.2.1");
-    assert_eq!(version.serialize(PinnedVersion::None), "^3.2.1");
+    assert_eq!(version.serialize(RangeSpecStyle::Patch), "3.2.1");
+    assert_eq!(version.serialize(RangeSpecStyle::Minor), "~3.2.1");
+    assert_eq!(version.serialize(RangeSpecStyle::Major), "^3.2.1");
+    assert_eq!(version.serialize(RangeSpecStyle::None), "^3.2.1");
 }
 
 #[test]
@@ -72,10 +72,10 @@ pub fn serialize_keeps_prerelease_version_without_prefix() {
         deprecated: None,
     };
 
-    assert_eq!(version.serialize(PinnedVersion::Major), "2.1.0-rc.1");
-    assert_eq!(version.serialize(PinnedVersion::Minor), "2.1.0-rc.1");
-    assert_eq!(version.serialize(PinnedVersion::Patch), "2.1.0-rc.1");
-    assert_eq!(version.serialize(PinnedVersion::None), "2.1.0-rc.1");
+    assert_eq!(version.serialize(RangeSpecStyle::Major), "2.1.0-rc.1");
+    assert_eq!(version.serialize(RangeSpecStyle::Minor), "2.1.0-rc.1");
+    assert_eq!(version.serialize(RangeSpecStyle::Patch), "2.1.0-rc.1");
+    assert_eq!(version.serialize(RangeSpecStyle::None), "2.1.0-rc.1");
 }
 
 #[tokio::test]
@@ -139,6 +139,8 @@ fn package_with_versions(name: &str, versions: &[&str], latest: &str) -> Package
         etag: None,
         homepage: None,
         mutex: std::sync::Arc::default(),
+        release_age_upgrade_checked: false,
+        derived: DerivedPackuments::default(),
     }
 }
 

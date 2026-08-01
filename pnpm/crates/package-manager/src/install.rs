@@ -97,6 +97,18 @@ pub type PeerIssuesSink = Arc<
     >,
 >;
 
+/// Shared out-slot for [`Install::deps_requiring_build_sink`]: the dep
+/// paths of every package this install put on disk whose files carry
+/// install scripts (`requiresBuild`), regardless of the allow-build
+/// policy. A snapshot skipped for installability, an excluded optional,
+/// or a failed optional fetch is not installed and so not reported.
+///
+/// Only a fresh resolve that materializes `node_modules` fills the slot.
+/// The frozen path and `lockfileOnly` runs leave it `None`, mirroring the
+/// TypeScript CLI's `returnListOfDepsRequiringBuild`, which computes the
+/// list from a fresh resolve's fetch results.
+pub type DepsRequiringBuildSink = Arc<std::sync::Mutex<Option<BTreeSet<String>>>>;
+
 pub struct WorkspaceInstallSelection<'a> {
     pub all_projects: &'a [pacquet_workspace::Project],
     pub ordered_groups: &'a [Vec<PathBuf>],
@@ -337,6 +349,11 @@ where
     /// rather than an `--dry-run` preview. Only the fresh path fills
     /// it (the frozen path resolves nothing).
     pub peer_issues_sink: Option<crate::PeerIssuesSink>,
+    /// Out-slot for the dep paths of packages requiring a build. `None`
+    /// for every CLI install; the napi `install` sets one when the
+    /// embedder asks for `returnListOfDepsRequiringBuild`. See
+    /// [`crate::DepsRequiringBuildSink`] for when it is filled.
+    pub deps_requiring_build_sink: Option<crate::DepsRequiringBuildSink>,
     /// In-memory catalogs to resolve against instead of reading
     /// `pnpm-workspace.yaml` from disk. `None` (every plain install) reads
     /// the workspace manifest. `pacquet update` sets this so a `--latest`
@@ -803,6 +820,7 @@ where
             auth_override,
             resolution_observer,
             peer_issues_sink,
+            deps_requiring_build_sink,
             catalogs_override,
             disable_optimistic_repeat_install,
             pnpmfile_hook_override,
@@ -1114,7 +1132,23 @@ where
 
         // Past the repeat-install fast path every install flavor needs
         // the wanted lockfile's contents; force the deferred load here.
-        let lockfile = lockfile.get().map_err(InstallError::LoadWantedLockfile)?;
+        // A broken lockfile is regenerable state, so only a frozen
+        // install treats it as fatal (upstream `readLockfiles`).
+        let lockfile = match lockfile.get() {
+            Ok(lockfile) => lockfile,
+            Err(error) if !frozen_lockfile => {
+                Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+                    level: LogLevel::Warn,
+                    message: format!(
+                        "Ignoring broken lockfile at {}: {error}",
+                        workspace_root.display(),
+                    ),
+                    prefix: prefix.clone(),
+                }));
+                None
+            }
+            Err(error) => return Err(InstallError::LoadWantedLockfile(error)),
+        };
 
         // Register the project against the shared store for prune
         // tracking, once per install at the workspace root. Register
@@ -1461,7 +1495,15 @@ where
                             .await
                             .map_err(InstallError::CustomResolverForceResolve)?
                     }
-                    Err(FreshnessCheckError::Stale(_) | FreshnessCheckError::NoImporter { .. }) => {
+                    Err(
+                        error @ (FreshnessCheckError::Stale(_)
+                        | FreshnessCheckError::NoImporter { .. }),
+                    ) => {
+                        tracing::info!(
+                            target: "pacquet::install",
+                            reason = %error,
+                            "lockfile not usable as-is; falling through to a fresh resolve",
+                        );
                         false
                     }
                     Err(
@@ -2108,6 +2150,7 @@ where
                 auth_override,
                 resolution_observer,
                 peer_issues_sink: peer_issues_sink.clone(),
+                deps_requiring_build_sink: deps_requiring_build_sink.as_ref().map(Arc::clone),
                 pnpmfile_hook_override: pnpmfile_hook,
                 real_importer_ids: requested_importer_ids.as_ref().map(|_| &real_importer_ids),
                 selected_importer_ids: requested_importer_ids.as_ref(),
@@ -2867,7 +2910,18 @@ pub(crate) fn check_importer_satisfies(
         config.auto_install_peers,
         is_ignored_optional,
     )
-    .map_err(FreshnessCheckError::Stale)
+    .map_err(|reason| {
+        // Stamp the importer onto a specifier diff so the workspace-wide
+        // freshness report names the drifted project, not only the dep.
+        let reason = match reason {
+            StalenessReason::SpecifiersDiffer(mut diff) => {
+                diff.importer_id = Some(importer_id.to_string());
+                StalenessReason::SpecifiersDiffer(diff)
+            }
+            other => other,
+        };
+        FreshnessCheckError::Stale(reason)
+    })
 }
 
 fn ignored_optional_dependency_names(
@@ -4421,7 +4475,16 @@ pub fn build_workspace_packages_map(
             version,
             pacquet_resolving_resolver_base::WorkspacePackage {
                 root_dir: project.root_dir.clone(),
-                manifest: project.manifest.value().clone(),
+                // The map feeds workspace picks resolved as *dependencies*
+                // (injected instances), so a project that splits its two
+                // views contributes its dependency manifest here — see
+                // `pacquet_workspace::Project::dependency_manifest`.
+                manifest: project
+                    .dependency_manifest
+                    .as_ref()
+                    .unwrap_or(&project.manifest)
+                    .value()
+                    .clone(),
             },
         );
     }

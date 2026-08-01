@@ -20,7 +20,7 @@ use super::{
 
 #[tokio::test]
 async fn should_throw_in_non_interactive_terminal_when_web_login_is_unsupported() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter, set_stdin_tty);
     login_fake!(FakeHost);
     reset();
     reset_login();

@@ -1,10 +1,8 @@
 use crate::node_id::NodeId;
 use pacquet_deps_path::DepPath;
 use pacquet_resolving_resolver_base::{ResolutionPolicyViolation, ResolveResult};
-use std::{
-    collections::{BTreeMap, HashMap, HashSet},
-    sync::Arc,
-};
+use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use std::{collections::BTreeMap, sync::Arc};
 
 /// Per-occurrence tree carried by [`ResolvedTree::dependencies_tree`].
 pub type DependenciesTree = HashMap<NodeId, DependenciesTreeNode>;
@@ -61,6 +59,60 @@ pub struct ChildEdge {
     /// realisation so the [`ResolvedPackage::optional`] AND-fold
     /// stays consistent with the eager-walk path.
     pub optional: bool,
+}
+
+/// Ancestor package ids for a lazy occurrence. The dependency walk keeps its
+/// already-built contiguous vector as the base, while peer discovery appends
+/// shallow vectors of shared string storage instead of copying every package
+/// id for each context-sensitive revisit.
+#[derive(Debug, Default, Clone)]
+pub struct AncestorIds {
+    base: Arc<Vec<String>>,
+    appended: Arc<Vec<Arc<str>>>,
+}
+
+impl AncestorIds {
+    #[must_use]
+    pub fn pushed(&self, id: String) -> Self {
+        let mut appended = Vec::with_capacity(self.appended.len() + 1);
+        appended.extend(self.appended.iter().cloned());
+        appended.push(Arc::from(id));
+        Self { base: Arc::clone(&self.base), appended: Arc::new(appended) }
+    }
+
+    #[must_use]
+    pub fn forms_cycle(&self, pkg_id: &str, child_pkg_id: &str) -> bool {
+        if pkg_id == child_pkg_id {
+            return true;
+        }
+
+        if let Some(pkg_index) = self.base.iter().position(|ancestor| ancestor == pkg_id) {
+            if self
+                .base
+                .iter()
+                .rposition(|ancestor| ancestor == child_pkg_id)
+                .is_some_and(|child_index| pkg_index < child_index)
+            {
+                return true;
+            }
+            return self.appended.iter().any(|ancestor| ancestor.as_ref() == child_pkg_id);
+        }
+
+        let oldest_pkg_index =
+            self.appended.iter().position(|ancestor| ancestor.as_ref() == pkg_id);
+        let newest_child_index =
+            self.appended.iter().rposition(|ancestor| ancestor.as_ref() == child_pkg_id);
+        matches!(
+            (oldest_pkg_index, newest_child_index),
+            (Some(pkg_index), Some(child_index)) if pkg_index < child_index,
+        )
+    }
+}
+
+impl From<Arc<Vec<String>>> for AncestorIds {
+    fn from(base: Arc<Vec<String>>) -> Self {
+        Self { base, appended: Arc::new(Vec::new()) }
+    }
 }
 
 /// One edge in the resolved tree: the local install name (`alias`) and
@@ -227,13 +279,15 @@ pub enum TreeChildren {
     Realized(BTreeMap<String, NodeId>),
     /// Children are known by spec only. `parent_ids` is the chain of
     /// `pkgIdWithPatchHash` ancestors this occurrence reached the
-    /// node through, threaded so the peer resolver's tree builder can
+    /// node through, excluding the node itself. The reader appends the
+    /// node from `resolved_package_id`, which lets all siblings share one
+    /// chain allocation. The chain is threaded so the peer resolver can
     /// apply the parent-ids-contain-sequence cycle-break
     /// per-occurrence. Without it, a revisit's subtree would
     /// silently include cycle edges that the first walk correctly
     /// rejected, or omit valid edges the first walk's ancestor
     /// chain happened to exclude.
-    Lazy { parent_ids: Arc<Vec<String>> },
+    Lazy { parent_ids: AncestorIds },
 }
 
 impl TreeChildren {
@@ -261,3 +315,6 @@ impl TreeChildren {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

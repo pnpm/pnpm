@@ -21,12 +21,14 @@ use std::{
     sync::{Arc, OnceLock},
 };
 
+use indexmap::IndexMap;
 use napi_derive::napi;
 use pacquet_hooks::PnpmfileHooks;
 use pacquet_lockfile::{LazyLockfile, Lockfile, MaybeLazyLockfile};
 use pacquet_network::{NetworkSettings, NoProxySetting, ProxyConfig, ThrottledClient, TlsConfig};
 use pacquet_package_manager::{
-    Install, ProjectMutation, RebuildOptions, ResolvedPackages, UpdateSeedPolicy,
+    DepsRequiringBuildSink, Install, ProjectMutation, RebuildOptions, ResolvedPackages,
+    UpdateSeedPolicy,
 };
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_tarball::MemCache;
@@ -35,7 +37,7 @@ use tokio::sync::Mutex;
 use crate::{
     config::{ConfigOverlay, resolve_config},
     error::{invalid_manifest_error, to_napi_error, unsupported_option_error},
-    hooks::{HookSink, JsReadPackageHook},
+    hooks::{BatchHookSink, HookSink, JsBatchedReadPackageHook, JsReadPackageHook},
     reporter_bridge::{EngineCallGuard, LogSink, NodeBridgeReporter, begin_stats, take_stats},
 };
 
@@ -44,6 +46,13 @@ use crate::{
 pub struct NodeApiProject {
     pub root_dir: String,
     pub manifest: serde_json::Value,
+    /// Manifest used when this project is resolved as a *dependency* of
+    /// another importer (an injected workspace instance) instead of
+    /// `manifest`. Lets an embedder pre-transform its importer manifests
+    /// (e.g. strip workspace-sibling deps it links itself) while dependency
+    /// instances keep the raw graph — without a `readPackage` hook round
+    /// trip. Omit it when both views are the same.
+    pub dependency_manifest: Option<serde_json::Value>,
 }
 
 /// Options for [`install`]. Mirrors [`InstallOptions`] in `index.d.ts`; only the
@@ -68,7 +77,10 @@ pub struct InstallOptions {
     pub hoist_pattern: Option<Vec<String>>,
     pub public_hoist_pattern: Option<Vec<String>>,
     pub external_dependencies: Option<Vec<String>>,
-    pub overrides: Option<HashMap<String, String>>,
+    /// `IndexMap` so the JS object's key order survives into
+    /// `pnpm-lock.yaml#overrides` — a `HashMap` here reordered the
+    /// recorded block at random on every install.
+    pub overrides: Option<IndexMap<String, String>>,
     pub package_import_method: Option<String>,
     pub auto_install_peers: Option<bool>,
     pub exclude_links_from_lockfile: Option<bool>,
@@ -80,6 +92,7 @@ pub struct InstallOptions {
     pub virtual_store_dir_max_length: Option<u32>,
     pub peers_suffix_max_length: Option<u32>,
     pub dedupe_peer_dependents: Option<bool>,
+    pub dedupe_peers: Option<bool>,
     pub dedupe_direct_deps: Option<bool>,
     pub dedupe_injected_deps: Option<bool>,
     pub resolve_peers_from_workspace_root: Option<bool>,
@@ -111,6 +124,14 @@ pub struct InstallOptions {
     /// blocked packages in `depsRequiringBuild`, matching how embedders (Bit)
     /// gate builds themselves.
     pub strict_dep_builds: Option<bool>,
+    /// Return the dep paths of every package whose files carry install
+    /// scripts, regardless of the allow-build policy, in
+    /// `depsRequiringBuild`. The list is computed only when a fresh
+    /// resolve materializes `node_modules`; an install served from the
+    /// frozen-lockfile path (or `lockfileOnly`) leaves
+    /// `depsRequiringBuild` undefined so the embedder keeps its
+    /// previously recorded list.
+    pub return_list_of_deps_requiring_build: Option<bool>,
     /// Per-package build-script allow-list: `name -> allowed`.
     pub allow_builds: Option<HashMap<String, bool>>,
     /// Allow every dependency's build scripts to run.
@@ -191,6 +212,7 @@ pub async fn install(
     options: InstallOptions,
     on_log: Option<LogSink>,
     read_package_hook: Option<HookSink>,
+    read_package_batch_hook: Option<BatchHookSink>,
 ) -> napi::Result<InstallResult> {
     let _guard = engine_call_lock().lock().await;
     let (tx, rx) = tokio::sync::oneshot::channel();
@@ -200,7 +222,12 @@ pub async fn install(
         // enough to overflow a default stack on some platforms.
         .stack_size(32 * 1024 * 1024)
         .spawn(move || {
-            let _ = tx.send(run_install_blocking(&options, on_log, read_package_hook));
+            let _ = tx.send(run_install_blocking(
+                &options,
+                on_log,
+                read_package_hook,
+                read_package_batch_hook,
+            ));
         })
         .map_err(|error| {
             napi::Error::from_reason(format!("failed to spawn install thread: {error}"))
@@ -212,33 +239,75 @@ fn run_install_blocking(
     options: &InstallOptions,
     on_log: Option<LogSink>,
     read_package_hook: Option<HookSink>,
+    read_package_batch_hook: Option<BatchHookSink>,
 ) -> napi::Result<InstallResult> {
     // Restores the previous sink and clears stats on drop — including on a
     // panic in `run_install_inner`, which unwinds this dedicated thread.
     let _sink_guard = EngineCallGuard::new(on_log);
-    let pnpmfile_hook: Option<Arc<dyn PnpmfileHooks>> = read_package_hook
-        .map(|sink| Arc::new(JsReadPackageHook::new(sink)) as Arc<dyn PnpmfileHooks>);
+    // The batch sink (synthesized by the `@pnpm/napi` wrapper) wins over the
+    // per-manifest sink: one threadsafe call serves a whole batch, where
+    // per-manifest dispatch pays roughly one event-loop tick per call. The
+    // per-manifest sink stays as the fallback for a wrapper that predates
+    // the batch contract.
+    let pnpmfile_hook: Option<Arc<dyn PnpmfileHooks>> = match read_package_batch_hook {
+        Some(batch) => Some(Arc::new(JsBatchedReadPackageHook::new(batch))),
+        None => read_package_hook
+            .map(|sink| Arc::new(JsReadPackageHook::new(sink)) as Arc<dyn PnpmfileHooks>),
+    };
     begin_stats();
-    let outcome = run_install_inner(options, pnpmfile_hook, EngineMode::Install);
+    let deps_requiring_build_sink = (options.return_list_of_deps_requiring_build == Some(true))
+        .then(DepsRequiringBuildSink::default);
+    let outcome = run_install_inner(
+        options,
+        pnpmfile_hook,
+        EngineMode::Install(deps_requiring_build_sink.as_ref().map(Arc::clone)),
+    );
     let stats = take_stats();
     let store_dir = outcome?;
+    let deps_requiring_build =
+        take_deps_requiring_build(deps_requiring_build_sink.as_ref(), stats.deps_requiring_build);
     Ok(InstallResult {
         stats: InstallStatsResult {
             added: stats.added as f64,
             removed: stats.removed as f64,
             linked_to_root: 0.0,
         },
-        deps_requiring_build: (!stats.deps_requiring_build.is_empty())
-            .then_some(stats.deps_requiring_build),
+        deps_requiring_build,
         store_dir,
     })
 }
 
-/// Which engine operation [`run_install_inner`] performs. Both share the same
-/// `State` / `Install` construction; the mode selects the fresh-resolve
-/// (`install`) versus frozen rebuild path and the two fields that differ.
+/// Take [`InstallResult::deps_requiring_build`] out of the sink the
+/// embedder asked for with `returnListOfDepsRequiringBuild`.
+///
+/// An empty list is a real answer and stays `Some`; a run that computed no
+/// list yields `None`, so the embedder keeps its own record. See
+/// [`DepsRequiringBuildSink`] for which runs compute one.
+///
+/// Without a sink the result carries `ignored_builds`, the blocked builds
+/// accumulated from `pnpm:ignored-scripts` events.
+fn take_deps_requiring_build(
+    sink: Option<&DepsRequiringBuildSink>,
+    ignored_builds: Vec<String>,
+) -> Option<Vec<String>> {
+    match sink {
+        Some(sink) => sink
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .take()
+            .map(|deps| deps.into_iter().collect()),
+        None => (!ignored_builds.is_empty()).then_some(ignored_builds),
+    }
+}
+
+/// Which engine operation [`run_install_inner`] performs. Every mode shares
+/// the same `State` / `Install` construction. The mode selects the
+/// fresh-resolve (`install`) versus frozen rebuild path, and carries the
+/// per-mode payload the engine needs.
 enum EngineMode {
-    Install,
+    /// Plain install, with the out-slot for `returnListOfDepsRequiringBuild`
+    /// when the embedder asked for the list.
+    Install(Option<DepsRequiringBuildSink>),
     Rebuild(RebuildOptions),
     /// Peer-issue query: a `dry_run` fresh resolve that writes nothing
     /// and collects the per-importer peer-dependency issues into the
@@ -249,7 +318,7 @@ enum EngineMode {
 
 impl EngineMode {
     fn disable_optimistic_repeat_install(&self) -> bool {
-        matches!(self, Self::Install | Self::PeerIssues(_))
+        matches!(self, Self::Install(_) | Self::PeerIssues(_))
     }
 }
 
@@ -319,7 +388,7 @@ fn run_install_inner(
     // forces `prefer_frozen_lockfile: false` and a non-frozen path so the
     // re-resolution is not short-circuited by the auto-frozen / repeat-install
     // fast paths.
-    let update_requested = matches!(mode, EngineMode::Install) && options.update == Some(true);
+    let update_requested = matches!(mode, EngineMode::Install(_)) && options.update == Some(true);
 
     // `ignorePackageManifest` maps to pacquet's `ignore_manifest_check`: the
     // per-importer `package.json` ↔ `pnpm-lock.yaml` freshness gate is skipped,
@@ -337,14 +406,14 @@ fn run_install_inner(
     // already-materialized `node_modules`, so it must never take the
     // lockfile-only short-circuit (which would make it silently do nothing) even
     // when the caller reuses install options that disable the modules dir.
-    let lockfile_only = matches!(mode, EngineMode::Install)
+    let lockfile_only = matches!(mode, EngineMode::Install(_))
         && (options.lockfile_only.unwrap_or(false) || options.enable_modules_dir == Some(false));
 
     // A rebuild takes the frozen path against the already-materialized
     // `node_modules`, and re-runs dependency build scripts rather than the
     // root project's own lifecycle scripts.
     let frozen_lockfile = match &mode {
-        EngineMode::Install => !update_requested && options.frozen_lockfile.unwrap_or(false),
+        EngineMode::Install(_) => !update_requested && options.frozen_lockfile.unwrap_or(false),
         EngineMode::Rebuild(_) => true,
         // Peer issues need a full fresh resolve — never frozen.
         EngineMode::PeerIssues(_) => false,
@@ -356,7 +425,7 @@ fn run_install_inner(
     };
     let update_seed_policy =
         if update_requested { UpdateSeedPolicy::drop_all() } else { UpdateSeedPolicy::KeepAll };
-    let mutation = if matches!(mode, EngineMode::Install) {
+    let mutation = if matches!(mode, EngineMode::Install(_)) {
         ProjectMutation::InstallWorkspace
     } else {
         ProjectMutation::NoInstall
@@ -399,7 +468,11 @@ fn run_install_inner(
                 resolution_observer: None,
                 peer_issues_sink: match &mode {
                     EngineMode::PeerIssues(sink) => Some(Arc::clone(sink)),
-                    EngineMode::Install | EngineMode::Rebuild(_) => None,
+                    EngineMode::Install(_) | EngineMode::Rebuild(_) => None,
+                },
+                deps_requiring_build_sink: match &mode {
+                    EngineMode::Install(sink) => sink.as_ref().map(Arc::clone),
+                    EngineMode::Rebuild(_) | EngineMode::PeerIssues(_) => None,
                 },
                 catalogs_override: None,
                 // The optimistic repeat-install fast path uses on-disk
@@ -412,7 +485,7 @@ fn run_install_inner(
                 workspace_projects_override,
             };
             match mode {
-                EngineMode::Install | EngineMode::PeerIssues(_) => {
+                EngineMode::Install(_) | EngineMode::PeerIssues(_) => {
                     install.run::<NodeBridgeReporter>().await
                 }
                 EngineMode::Rebuild(rebuild) => {
@@ -444,11 +517,14 @@ fn build_workspace_projects_override(
             .iter()
             .map(|project| {
                 let root_dir = PathBuf::from(&project.root_dir);
-                let manifest = PackageManifest::from_value(
-                    root_dir.join("package.json"),
-                    project.manifest.clone(),
-                );
-                pacquet_workspace::Project { root_dir, manifest }
+                let manifest_path = root_dir.join("package.json");
+                let manifest =
+                    PackageManifest::from_value(manifest_path.clone(), project.manifest.clone());
+                let dependency_manifest = project
+                    .dependency_manifest
+                    .as_ref()
+                    .map(|value| PackageManifest::from_value(manifest_path.clone(), value.clone()));
+                pacquet_workspace::Project { root_dir, manifest, dependency_manifest }
             })
             .collect(),
     )
@@ -478,7 +554,7 @@ fn build_overlay(options: &InstallOptions) -> napi::Result<ConfigOverlay> {
             .external_dependencies
             .as_ref()
             .map(|items| items.iter().cloned().collect::<BTreeSet<_>>()),
-        overrides: options.overrides.as_ref().map(|map| map.clone().into_iter().collect()),
+        overrides: options.overrides.clone(),
         auto_install_peers: options.auto_install_peers,
         exclude_links_from_lockfile: options.exclude_links_from_lockfile,
         hoist_workspace_packages: options.hoist_workspace_packages,
@@ -493,6 +569,7 @@ fn build_overlay(options: &InstallOptions) -> napi::Result<ConfigOverlay> {
         lockfile: (options.enable_modules_dir == Some(false)).then_some(true),
         prefer_frozen_lockfile: options.prefer_frozen_lockfile,
         dedupe_peer_dependents: options.dedupe_peer_dependents,
+        dedupe_peers: options.dedupe_peers,
         dedupe_direct_deps: options.dedupe_direct_deps,
         dedupe_injected_deps: options.dedupe_injected_deps,
         resolve_peers_from_workspace_root: options.resolve_peers_from_workspace_root,
@@ -556,7 +633,9 @@ fn build_overlay(options: &InstallOptions) -> napi::Result<ConfigOverlay> {
 /// lockfile writing off missing data — so fail closed with a clear error here.
 fn reject_non_object_manifests(projects: &[NodeApiProject]) -> napi::Result<()> {
     for project in projects {
-        if !project.manifest.is_object() {
+        if !project.manifest.is_object()
+            || project.dependency_manifest.as_ref().is_some_and(|value| !value.is_object())
+        {
             return Err(invalid_manifest_error(&project.root_dir));
         }
     }
@@ -565,6 +644,8 @@ fn reject_non_object_manifests(projects: &[NodeApiProject]) -> napi::Result<()> 
 
 fn reject_unsupported_install_options(options: &InstallOptions) -> napi::Result<()> {
     reject_non_empty_map(options.auth_config.as_ref(), "authConfig")?;
+    // `neverBuiltDependencies` was replaced by `allowBuilds` in pnpm v12:
+    // hosts fold it into explicit `allowBuilds: false` entries themselves.
     reject_non_empty_list(options.never_built_dependencies.as_deref(), "neverBuiltDependencies")?;
     Ok(())
 }
@@ -671,12 +752,13 @@ fn parse_link_workspace_packages(
         .transpose()
 }
 
-fn parse_import_method(value: &str) -> Option<pacquet_config::PackageImportMethod> {
+pub(crate) fn parse_import_method(value: &str) -> Option<pacquet_config::PackageImportMethod> {
     match value {
         "auto" => Some(pacquet_config::PackageImportMethod::Auto),
         "hardlink" => Some(pacquet_config::PackageImportMethod::Hardlink),
         "copy" => Some(pacquet_config::PackageImportMethod::Copy),
         "clone" => Some(pacquet_config::PackageImportMethod::Clone),
+        "clone-or-copy" => Some(pacquet_config::PackageImportMethod::CloneOrCopy),
         _ => None,
     }
 }
@@ -755,15 +837,21 @@ fn run_peer_issues_blocking(options: &serde_json::Value) -> napi::Result<serde_j
     })?;
     let str_field =
         |key: &str| obj.get(key).and_then(serde_json::Value::as_str).map(ToString::to_string);
-    let string_map = |key: &str| {
+    // Generic over the target map so `overrides` can collect into the
+    // order-preserving `IndexMap` its field requires (serde_json's
+    // `preserve_order` feature keeps the JS object's key order here).
+    fn string_map<Map: FromIterator<(String, String)>>(
+        obj: &serde_json::Map<String, serde_json::Value>,
+        key: &str,
+    ) -> Option<Map> {
         obj.get(key).and_then(serde_json::Value::as_object).map(|map| {
             map.iter()
                 .filter_map(|(key, value)| {
                     value.as_str().map(|value| (key.clone(), value.to_string()))
                 })
-                .collect::<HashMap<String, String>>()
+                .collect()
         })
-    };
+    }
     let dir = str_field("dir")
         .ok_or_else(|| napi::Error::from_reason("getPeerDependencyIssues: `dir` is required"))?;
     let projects: Vec<NodeApiProject> = obj
@@ -780,6 +868,7 @@ fn run_peer_issues_blocking(options: &serde_json::Value) -> napi::Result<serde_j
                             .get("manifest")
                             .cloned()
                             .unwrap_or_else(|| serde_json::json!({})),
+                        dependency_manifest: entry.get("dependencyManifest").cloned(),
                     })
                 })
                 .collect()
@@ -791,9 +880,9 @@ fn run_peer_issues_blocking(options: &serde_json::Value) -> napi::Result<serde_j
         projects,
         store_dir: str_field("storeDir"),
         cache_dir: str_field("cacheDir"),
-        registries: string_map("registries"),
-        auth_header_by_uri: string_map("authHeaderByUri"),
-        overrides: string_map("overrides"),
+        registries: string_map(obj, "registries"),
+        auth_header_by_uri: string_map(obj, "authHeaderByUri"),
+        overrides: string_map(obj, "overrides"),
         // Report every missing peer: with pnpm's default
         // `autoInstallPeers: true` the resolver satisfies the peer
         // itself and the issue never surfaces, but this query's whole
