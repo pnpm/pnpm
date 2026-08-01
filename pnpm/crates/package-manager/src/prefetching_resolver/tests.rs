@@ -110,6 +110,14 @@ fn resolver_with_inner(
     dir: &Path,
     inner: Box<dyn Resolver>,
 ) -> PrefetchingResolver<SilentReporter> {
+    resolver_with_prefetch(dir, inner, true)
+}
+
+fn resolver_with_prefetch(
+    dir: &Path,
+    inner: Box<dyn Resolver>,
+    prefetch_downloads: bool,
+) -> PrefetchingResolver<SilentReporter> {
     let mut config = Config::new();
     config.store_dir = dir.join("store").into();
     config.cache_dir = dir.join("cache");
@@ -129,6 +137,7 @@ fn resolver_with_inner(
             requester: "/project",
             supported_architectures: None,
             progress_reported: &SharedReportedProgressKeys::default(),
+            prefetch_downloads,
         },
     )
 }
@@ -297,4 +306,96 @@ async fn keeps_prefetch_for_required_manifest() {
     );
 
     assert!(!resolver.should_skip_prefetch(&wanted, &result));
+}
+
+/// A resolution the registry pinned itself: the wrapper has no hash to
+/// compute, so only the background download is left to (not) do.
+fn integrity_pinned_result(tarball_url: &str) -> ResolveResult {
+    let mut result =
+        result_with_manifest("pinned", json!({ "name": "pinned", "version": "1.0.0" }));
+    result.resolution = LockfileResolution::Tarball(TarballResolution {
+        integrity: Some("sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==".parse().unwrap()),
+        tarball: tarball_url.to_string(),
+        git_hosted: None,
+        path: None,
+    });
+    result
+}
+
+/// <https://github.com/pnpm/pnpm/issues/13547>: a resolution the
+/// registry left unpinned still gets its integrity computed when
+/// background prefetching is off, because the lockfile records that
+/// hash.
+#[tokio::test]
+async fn populates_integrity_with_prefetching_off() {
+    let dir = tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let tarball_path = "/unpinned-1.0.0.tgz";
+    let get_mock = server
+        .mock("GET", tarball_path)
+        .with_status(200)
+        .with_body(minimal_tarball("unpinned", "1.0.0"))
+        .expect(1)
+        .create_async()
+        .await;
+    let mut result = result_with_manifest("unpinned", json!({}));
+    result.resolution = LockfileResolution::Tarball(TarballResolution {
+        integrity: None,
+        tarball: format!("{}{tarball_path}", server.url()),
+        git_hosted: None,
+        path: None,
+    });
+    let resolver = resolver_with_prefetch(dir.path(), Box::new(FixedResolver { result }), false);
+
+    let resolved = resolver
+        .resolve(&WantedDependency::default(), &ResolveOptions::default())
+        .await
+        .expect("resolve succeeds")
+        .expect("resolver returns a result");
+
+    let LockfileResolution::Tarball(tarball) = resolved.resolution else {
+        panic!("expected tarball resolution");
+    };
+    assert!(tarball.integrity.is_some(), "an unpinned tarball still needs its integrity");
+    get_mock.assert_async().await;
+}
+
+/// The other half of the split: with prefetching off, a resolution that
+/// already carries an integrity is never downloaded — `--lockfile-only`
+/// must not pull the whole graph into the store.
+#[tokio::test]
+async fn skips_the_background_download_with_prefetching_off() {
+    let dir = tempdir().unwrap();
+    let tarball_url = "https://registry.example/pinned-1.0.0.tgz";
+    let resolver = resolver_with_prefetch(
+        dir.path(),
+        Box::new(FixedResolver { result: integrity_pinned_result(tarball_url) }),
+        false,
+    );
+
+    resolver
+        .resolve(&WantedDependency::default(), &ResolveOptions::default())
+        .await
+        .expect("resolve succeeds")
+        .expect("resolver returns a result");
+
+    assert!(resolver.ctx.spawned_urls.is_empty(), "no download may be claimed");
+}
+
+#[tokio::test]
+async fn claims_the_background_download_with_prefetching_on() {
+    let dir = tempdir().unwrap();
+    let tarball_url = "https://registry.example/pinned-1.0.0.tgz";
+    let resolver = resolver_with_inner(
+        dir.path(),
+        Box::new(FixedResolver { result: integrity_pinned_result(tarball_url) }),
+    );
+
+    resolver
+        .resolve(&WantedDependency::default(), &ResolveOptions::default())
+        .await
+        .expect("resolve succeeds")
+        .expect("resolver returns a result");
+
+    assert!(resolver.ctx.spawned_urls.contains(tarball_url), "the download must be claimed");
 }

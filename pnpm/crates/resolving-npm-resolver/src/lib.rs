@@ -44,7 +44,7 @@ pub use create_npm_resolution_verifier::{
     CreateNpmResolutionVerifierOptions, DistStats, NpmResolutionVerifier, ObservedDistStats,
     create_npm_resolution_verifier, observed_dist_stats_sink,
 };
-pub use errors::FetchMetadataError;
+pub use errors::{FetchMetadataError, InvalidTarballIntegrityError};
 pub use fetch_attestation_published_at::{FetchAttestationOptions, fetch_attestation_published_at};
 pub use fetch_full_metadata::{
     FetchFullMetadataOptions, FetchFullMetadataOutcome, fetch_full_metadata,

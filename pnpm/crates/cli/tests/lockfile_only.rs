@@ -13,6 +13,7 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pacquet_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
+    fixtures::minimal_tarball,
     fs::get_all_files,
 };
 use std::{fs, path::Path, process::Command};
@@ -369,4 +370,80 @@ fn lockfile_only_updates_importers_when_a_project_is_added() {
     );
 
     drop((root, mock_instance));
+}
+
+/// A registry version that pins nothing — neither `dist.integrity` nor
+/// the legacy `dist.shasum` — leaves the lockfile no hash to record, so
+/// the resolver has to download that tarball and compute one even under
+/// `--lockfile-only` (<https://github.com/pnpm/pnpm/issues/13547>).
+#[test]
+fn computes_the_integrity_of_an_unpinned_tarball() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let tarball_path = "/unpinned/-/unpinned-1.0.0.tgz";
+    let packument = serde_json::json!({
+        "name": "unpinned",
+        "dist-tags": { "latest": "1.0.0" },
+        "modified": "2020-01-15T12:00:00.000Z",
+        "time": { "1.0.0": "2020-01-10T08:30:00.000Z" },
+        "versions": {
+            "1.0.0": {
+                "name": "unpinned",
+                "version": "1.0.0",
+                "dist": { "tarball": format!("{}{tarball_path}", registry.url()) },
+            },
+        },
+    });
+    let packument_mock =
+        registry.mock("GET", "/unpinned").with_body(packument.to_string()).create();
+    let tarball_mock = registry
+        .mock("GET", tarball_path)
+        .with_body(minimal_tarball("unpinned", "1.0.0"))
+        .expect_at_least(1)
+        .create();
+    write_registry_workspace(&workspace, &registry.url());
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "unpinned": "1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet_at(&workspace).with_args(["install", "--lockfile-only"]).assert().success();
+
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+    assert!(
+        lockfile.contains("resolution: {integrity: sha512-"),
+        "the unpinned tarball's integrity must be computed and recorded:\n{lockfile}",
+    );
+    assert!(
+        !workspace.join("node_modules").exists(),
+        "node_modules must not be created by --lockfile-only",
+    );
+    packument_mock.assert();
+    tarball_mock.assert();
+
+    // The lockfile the resolve pass wrote is the whole point: it has to
+    // be installable as-is, which is what
+    // <https://github.com/pnpm/pnpm/issues/13547> reported it wasn't.
+    pacquet_at(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    assert!(
+        workspace.join("node_modules/unpinned/package.json").exists(),
+        "the frozen install must materialize the unpinned dependency",
+    );
+
+    drop(root);
+}
+
+/// `.npmrc` + `pnpm-workspace.yaml` pointing at `registry`, with the
+/// store and cache under the test's own temp root. The
+/// [`AddMockedRegistry`] helper writes the same pair, but only for the
+/// shared pnpr fixture registry — a hand-built packument needs its own
+/// server.
+fn write_registry_workspace(workspace: &Path, registry: &str) {
+    fs::write(workspace.join(".npmrc"), format!("registry={registry}/\n")).expect("write .npmrc");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "storeDir: ../pacquet-store\ncacheDir: ../pacquet-cache\nenableGlobalVirtualStore: false\n",
+    )
+    .expect("write pnpm-workspace.yaml");
 }

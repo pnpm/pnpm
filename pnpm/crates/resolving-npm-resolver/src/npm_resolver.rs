@@ -30,16 +30,17 @@ use node_semver::Version;
 use pacquet_config::{TrustPolicy, version_policy::PackageVersionPolicy};
 use pacquet_lockfile::{LockfileResolution, PkgName, PkgNameVer, TarballResolution};
 use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_and_sanitize};
-use pacquet_registry::{Package, PackageVersion, RangeSpecStyle};
+use pacquet_registry::{Package, PackageDistribution, PackageVersion, RangeSpecStyle};
 use pacquet_resolving_resolver_base::{
     LatestInfo, LatestQuery, NoMatchingVersionError, PackageVersionGuardDecision,
     RegistryResponseError, RegistryResponseErrorOptions, ResolutionPolicyViolation, ResolveError,
     ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, UpdateBehavior,
     WantedDependency, WorkspacePackages, parse_packument_timestamp,
 };
+use ssri::{Algorithm, Integrity};
 
 use crate::{
-    errors::{AllVersionsBlockedError, GuardRepickLimitError},
+    errors::{AllVersionsBlockedError, GuardRepickLimitError, InvalidTarballIntegrityError},
     named_registry::pick_registry_for_package,
     parse_bare_specifier::{parse_bare_specifier, parse_jsr_specifier_to_registry_package_spec},
     pick_package::{
@@ -814,7 +815,7 @@ pub(crate) fn build_resolve_result(
     // the URL the install path needs.
     let resolution = LockfileResolution::Tarball(TarballResolution {
         tarball: picked.dist.tarball.clone(),
-        integrity: picked.dist.integrity.clone(),
+        integrity: dist_integrity(&picked.dist)?,
         git_hosted: None,
         path: None,
     });
@@ -858,6 +859,29 @@ pub(crate) fn build_resolve_result(
         normalized_bare_specifier: spec.normalized_bare_specifier.clone().or(calculated_specifier),
         alias: alias.map(str::to_string),
         policy_violation,
+    })
+}
+
+/// The integrity a registry version's `dist` pins its tarball with.
+///
+/// A registry that predates subresource integrity publishes only the
+/// legacy `dist.shasum` hex digest; it still pins the bytes, so it is
+/// promoted to the equivalent `sha1-` SRI string rather than dropped.
+/// `None` when the version pins nothing at all — the tarball's hash is
+/// then learned by downloading it (see
+/// `PrefetchingResolver::populate_missing_integrity`).
+fn dist_integrity(dist: &PackageDistribution) -> Result<Option<Integrity>, ResolveError> {
+    if let Some(integrity) = &dist.integrity {
+        return Ok(Some(integrity.clone()));
+    }
+    let Some(shasum) = dist.shasum.as_deref().filter(|shasum| !shasum.is_empty()) else {
+        return Ok(None);
+    };
+    Integrity::from_hex(shasum, Algorithm::Sha1).map(Some).map_err(|_| {
+        Box::new(InvalidTarballIntegrityError {
+            tarball: dist.tarball.clone(),
+            shasum: shasum.to_string(),
+        }) as ResolveError
     })
 }
 

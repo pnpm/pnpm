@@ -18,6 +18,7 @@ use serde_json::json;
 use tempfile::TempDir;
 
 use crate::{
+    errors::InvalidTarballIntegrityError,
     npm_resolver::NpmResolver,
     pick_package::{
         InMemoryPackageMetaCache, shared_packument_fetch_locker, shared_picked_manifest_cache,
@@ -1538,4 +1539,75 @@ async fn jsr_specifier_suppresses_latest_when_published_by_holds_back_raw_latest
     let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
     assert_eq!(result.name_ver.as_ref().expect("name_ver").suffix.to_string(), "1.0.0");
     assert!(result.latest.is_none(), "immature dist-tags.latest suppresses the hint");
+}
+
+/// A packument whose `dist` carries only the legacy `shasum`, as
+/// registries predating subresource integrity serve — the shape behind
+/// <https://github.com/pnpm/pnpm/issues/13547>.
+fn shasum_only_package_body(shasum: &str) -> String {
+    json!({
+        "name": "acme",
+        "dist-tags": { "latest": "1.0.0" },
+        "modified": "2025-01-15T12:00:00.000Z",
+        "versions": {
+            "1.0.0": {
+                "name": "acme",
+                "version": "1.0.0",
+                "dist": {
+                    "shasum": shasum,
+                    "tarball": "https://registry/acme-1.0.0.tgz",
+                },
+            },
+        },
+    })
+    .to_string()
+}
+
+#[tokio::test]
+async fn shasum_only_metadata_resolves_to_a_sha1_integrity() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(shasum_only_package_body("e21bf1d18b7ce29d1cd45f6d8e0e8bcd0a4ca8ba"))
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let wanted =
+        WantedDependency { alias: Some("acme".to_string()), ..WantedDependency::default() };
+    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
+
+    let LockfileResolution::Tarball(tarball) = &result.resolution else {
+        panic!("expected a tarball resolution, got {:?}", result.resolution);
+    };
+    assert_eq!(
+        tarball.integrity.as_ref().map(ToString::to_string).as_deref(),
+        Some("sha1-4hvx0Yt84p0c1F9tjg6LzQpMqLo="),
+    );
+}
+
+#[tokio::test]
+async fn unparsable_shasum_fails_the_resolve() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(shasum_only_package_body("not-a-hex-digest"))
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let wanted =
+        WantedDependency { alias: Some("acme".to_string()), ..WantedDependency::default() };
+    let error = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .expect_err("an unusable shasum must fail the resolve");
+
+    let error = error.downcast_ref::<InvalidTarballIntegrityError>().expect("integrity error");
+    assert_eq!(error.shasum, "not-a-hex-digest");
+    assert_eq!(error.tarball, "https://registry/acme-1.0.0.tgz");
 }

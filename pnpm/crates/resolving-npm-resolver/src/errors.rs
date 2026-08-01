@@ -167,5 +167,17 @@ pub struct GuardRepickLimitError {
     pub reason: String,
 }
 
+/// Raised when a registry version carries no `dist.integrity` and its
+/// `dist.shasum` is not a hex digest, so no SRI string can be derived
+/// from it.
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display(r#"Tarball "{tarball}" has invalid shasum specified in its metadata: {shasum}"#)]
+#[diagnostic(code(ERR_PNPM_INVALID_TARBALL_INTEGRITY))]
+pub struct InvalidTarballIntegrityError {
+    #[error(not(source))]
+    pub tarball: String,
+    pub shasum: String,
+}
+
 #[cfg(test)]
 mod tests;
