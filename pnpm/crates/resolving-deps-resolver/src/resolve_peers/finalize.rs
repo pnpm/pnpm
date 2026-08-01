@@ -109,6 +109,12 @@ impl Walker<'_> {
             is_pure,
         } = node;
 
+        // Seeds both the node's record edges and its graph children, so
+        // it is computed once: a second call would rescan the ancestor
+        // chain and re-realize every matching occurrence's children.
+        let mut record_edges =
+            self.previously_resolved_children(parent_node_ids, parent_pkg_ids_chain, &pkg.id);
+
         // The children's depPath edges become this node's graph children.
         // Resolved peers become extra edges, aliased by peer name. If a
         // peer's depPath isn't known yet — typically a later sibling
@@ -117,10 +123,13 @@ impl Walker<'_> {
         // edge entirely would leave the peer un-symlinked in the
         // parent's slot.
         let mut graph_children = BTreeMap::new();
-        for (alias, child_node_id) in
-            self.previously_resolved_children(parent_node_ids, parent_pkg_ids_chain, &pkg.id)
-        {
-            self.add_graph_child_or_pending(&mut graph_children, dep_path, alias, child_node_id);
+        for (alias, child_node_id) in &record_edges {
+            self.add_graph_child_or_pending(
+                &mut graph_children,
+                dep_path,
+                alias.clone(),
+                child_node_id.clone(),
+            );
         }
         for (alias, child_dep_path) in child_dep_paths {
             graph_children.insert(alias, child_dep_path);
@@ -148,17 +157,13 @@ impl Walker<'_> {
             }
         }
 
-        // Capture this node's NodeId-level edges + metadata for the
-        // post-walk [`Walker::build_final_dep_paths`] rebuild. Edges are
-        // the node's regular children overlaid with its *own* resolved
-        // peers — this node's own peer resolution, not the descendants'
-        // peers bubbled up for the suffix. A peer a descendant resolved
-        // (e.g. `debug`'s optional `supports-color`) is symlinked at the
-        // descendant that declares it, so it must not appear in this
-        // node's dependencies. Carries NodeIds so the rebuild can
-        // resolve each to its corrected final depPath.
-        let mut record_edges =
-            self.previously_resolved_children(parent_node_ids, parent_pkg_ids_chain, &pkg.id);
+        // Finish this node's NodeId-level edges for the post-walk
+        // [`Walker::build_final_dep_paths`] rebuild: its regular children
+        // overlaid with its *own* resolved peers — this node's own peer
+        // resolution, not the descendants' peers bubbled up for the
+        // suffix. A peer a descendant resolved (e.g. `debug`'s optional
+        // `supports-color`) is symlinked at the descendant that declares
+        // it, so it must not appear in this node's dependencies.
         record_edges.extend(children.clone());
         for (peer_alias, peer_node_id) in own_resolved_peers {
             record_edges.insert(peer_alias.clone(), peer_node_id.clone());
