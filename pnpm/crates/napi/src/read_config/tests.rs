@@ -170,3 +170,21 @@ fn read_config_resolves_the_project_npmrc_cascade() {
     assert!(!resolved.store_dir.is_empty());
     assert!(!resolved.cache_dir.is_empty());
 }
+
+/// A `pnpm-workspace.yaml` setting must surface both as its resolved
+/// value and as an entry in `explicit_settings`, while an unset sibling
+/// (whose projected value is an engine default) stays off that list.
+#[test]
+fn read_config_reports_explicitly_set_workspace_settings() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    std::fs::write(dir.path().join("pnpm-workspace.yaml"), "fetchRetries: 7\n")
+        .expect("write pnpm-workspace.yaml");
+
+    let resolved =
+        super::read_config(super::ReadConfigOptions { dir: dir.path().display().to_string() })
+            .expect("read config");
+
+    assert_eq!(resolved.fetch_retries, 7);
+    assert!(resolved.explicit_settings.contains(&"fetchRetries".to_string()));
+    assert!(!resolved.explicit_settings.contains(&"fetchTimeout".to_string()));
+}

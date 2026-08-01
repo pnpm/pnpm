@@ -415,6 +415,13 @@ export interface ResolvedConfig {
    * not a per-project setting. Absent when no home directory is resolvable.
    */
   pnpmHomeDir?: string
+  /**
+   * The camelCase names of settings the cascade set explicitly
+   * (`pnpm-workspace.yaml`, the global config, `pnpm_config_*` env vars).
+   * Every other projected value is an engine default; an embedder that
+   * layers this config over its own must forward only the explicit ones.
+   */
+  explicitSettings: string[]
 }
 
 /**

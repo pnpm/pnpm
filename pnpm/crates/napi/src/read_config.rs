@@ -81,6 +81,12 @@ pub struct ResolvedConfig {
     /// default) — not a per-project setting. `None` when no home
     /// directory is resolvable.
     pub pnpm_home_dir: Option<String>,
+    /// The camelCase names of settings the cascade set explicitly
+    /// (`pnpm-workspace.yaml`, the global config, `pnpm_config_*` env
+    /// vars). Every other projected value is an engine default; an
+    /// embedder that layers this config over its own must forward only
+    /// the explicit ones.
+    pub explicit_settings: Vec<String>,
 }
 
 #[napi(js_name = "readConfig")]
@@ -161,6 +167,7 @@ fn project_config(config: &pacquet_config::Config) -> ResolvedConfig {
         shamefully_hoist: config.shamefully_hoist,
         pnpm_home_dir: pacquet_config::default_pnpm_home_dir::<pacquet_config::Host>()
             .map(|dir| dir.display().to_string()),
+        explicit_settings: config.explicit_settings.keys().cloned().collect(),
     }
 }
 
