@@ -2298,7 +2298,7 @@ fn test_remap_link_node_id_containment() {
         alias: Some("lib".to_string()),
         policy_violation: None,
     };
-    assert_eq!(remap_link_node_id(&opts, "lib", &result_internal_rel), None,);
+    assert_eq!(remap_link_node_id(&opts, "lib", &result_internal_rel), None);
 
     // Case 2: Relative link target outside workspace (lockfile_dir)
     // e.g. from /ws/packages/app, "../../../external" resolves to /external
@@ -2339,7 +2339,7 @@ fn test_remap_link_node_id_containment() {
         alias: Some("lib".to_string()),
         policy_violation: None,
     };
-    assert_eq!(remap_link_node_id(&opts, "lib", &result_internal_abs), None,);
+    assert_eq!(remap_link_node_id(&opts, "lib", &result_internal_abs), None);
 
     // Case 4: Absolute link target outside workspace (lockfile_dir)
     // e.g. "/external" is outside /ws
@@ -2366,7 +2366,7 @@ fn test_remap_link_node_id_containment() {
     // Case 5: exclude_links_from_lockfile is false
     // It must return None regardless of where it is.
     opts.exclude_links_from_lockfile = false;
-    assert_eq!(remap_link_node_id(&opts, "external", &result_external_abs), None,);
+    assert_eq!(remap_link_node_id(&opts, "external", &result_external_abs), None);
 }
 
 /// Ported from upstream `resolvePeers.ts`'s `locked peer provider
