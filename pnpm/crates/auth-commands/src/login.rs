@@ -60,9 +60,8 @@ use web_login::{WebLoginFlowError, web_login};
 pub struct LoginOptions<'a> {
     /// The `--registry` value; `None` falls back to [`DEFAULT_REGISTRY`].
     pub registry: Option<&'a str>,
-    /// The resolved scope — `--scope` when given, otherwise the `scope`
-    /// setting. When set, the token is keyed to the scope and a
-    /// scope-to-registry mapping is recorded.
+    /// The scope to key the token to; a scope-to-registry mapping is
+    /// recorded alongside it. `None` records an unscoped token.
     pub scope: Option<&'a str>,
     /// pnpm's `configDir`; `auth.ini` lives at `<config_dir>/auth.ini`.
     pub config_dir: &'a Path,
