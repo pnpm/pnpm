@@ -791,6 +791,11 @@
   dir: pnpm/npm/napi
   intents:
     - napi-read-config
+"@pnpm/napi@12.0.0-beta.3":
+  dir: pnpm/npm/napi
+  intents:
+    - napi-explicit-settings
+    - tidy-moons-repeat
 "@pnpm/network.auth-header@1101.1.4":
   dir: pnpm11/network/auth-header
   intents:
@@ -1534,6 +1539,13 @@ pacquet@12.0.0-beta.2:
   intents:
     - ignore-broken-wanted-lockfile
     - optional-platform-prefetch
+pacquet@12.0.0-beta.3:
+  dir: pnpm/npm/pnpm
+  intents:
+    - exclude-links-keeps-workspace-internal-links
+    - lockfile-only-records-tarball-integrity
+    - perf-resolver-caches
+    - quick-plums-hoist
 pnpm@11.13.0:
   dir: pnpm11/pnpm
   intents:
