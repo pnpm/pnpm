@@ -1022,9 +1022,6 @@ impl Walker<'_> {
         output
     }
 
-    /// `true` when a missing-peer issue for `peer_name` under the
-    /// given ancestor chain must not be emitted for the hoist input.
-    /// See [`ResolvePeersOptions::hoist_missing_scope`].
     /// The upstream locked-peer-provider reuse block
     /// (`resolvePeers.ts:594`): for each `peer name → provider DepPath`
     /// the wanted lockfile recorded on this node, re-pin the provider
@@ -1164,6 +1161,9 @@ impl Walker<'_> {
         false
     }
 
+    /// `true` when a missing-peer issue for `peer_name` under the
+    /// given ancestor chain must not be emitted for the hoist input.
+    /// See [`ResolvePeersOptions::hoist_missing_scope`].
     pub(super) fn missing_issue_suppressed(
         &self,
         ancestor_pkg_ids: &SharedChain<String>,
