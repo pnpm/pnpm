@@ -1,0 +1,963 @@
+//! The workspace-shared half of the walk: [`WorkspaceTreeCtx`], the
+//! per-`pkgIdWithPatchHash` dedup maps every importer's walk
+//! contributes to, and the children-ownership bookkeeping that settles
+//! which occurrence of a package records its children.
+
+use chrono::{DateTime, Utc};
+use pacquet_hooks::PnpmfileHooks;
+use pacquet_lockfile::{PkgName, PkgNameVerPeer};
+use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use std::{
+    collections::BTreeMap,
+    path::PathBuf,
+    sync::{Arc, Mutex},
+};
+
+use crate::{
+    node_id::NodeId,
+    resolved_tree::{
+        AncestorIds, DependenciesTreeNode, DirectDep, PeerDep, ResolvedPackage, ResolvedTree,
+    },
+};
+
+use super::{
+    DeprecationLogFn, ManifestHook, SkippedOptionalLogFn, UpdateDepth, UpdateReuseScope,
+    lock_recoverable, tree_ctx::TreeCtx,
+};
+
+/// Cache key for [`WorkspaceTreeCtx`]'s `resolved_by_wanted` map.
+///
+/// The npm-shaped slice pacquet exposes today calls
+/// [`Resolver::resolve`] with four [`WantedDependency`] fields
+/// populated — `alias`, `bare_specifier`, `optional`, and `injected` (see
+/// the `WantedDependency` literals in [`extend_tree`] and the recursive
+/// arm of [`fn@resolve_node`]). Anything else stays at `Default::default()`,
+/// so a tuple over those four fields uniquely identifies a wanted
+/// dep across revisits.
+///
+/// `optional` is part of the key because the npm resolver's
+/// `pick_package` toggles between the abbreviated and full packument
+/// based on `wanted.optional` — caching by `(alias, bare_specifier)`
+/// alone would let an optional caller satisfy itself with a
+/// non-optional caller's abbreviated result, losing the
+/// `libc`/`cpu`/`os` filter inputs that mode supplies.
+///
+/// `injected` is part of the key because the workspace branch of the
+/// npm resolver returns a `file:<path>` resolution when the dep is
+/// injected and a `link:<path>` resolution otherwise (see
+/// `resolve_from_local_package`). Two importers asking for the same
+/// workspace dep with different `dependenciesMeta[*].injected` flags
+/// must take different cache slots.
+///
+/// `pick_lowest_version` and `published_by` are part of the key because
+/// `resolutionMode` makes the version pick depend on them: under
+/// `time-based` / `lowest-direct` a direct dependency is resolved
+/// lowest while a transitive one is resolved highest, and under
+/// `time-based` transitive deps carry a publish-date cutoff a direct
+/// dep does not. The same wanted spec (`react@^18`) can therefore
+/// resolve to a different version as a direct vs. transitive dep, so
+/// the two occurrences must take different cache slots. In `highest`
+/// mode (the default) every occurrence shares the same pair, so the
+/// dedup is unchanged.
+///
+/// `project_dir` is part of the key for any specifier that can produce
+/// a project-relative resolution. This includes explicit local
+/// specifiers (`link:` / `file:` / `workspace:`) and normal semver
+/// specifiers in workspace mode, because `linkWorkspacePackages` can
+/// replace the registry pick with a workspace package. A non-injected
+/// workspace dep resolves through `resolve_from_local_package` to a
+/// `link:<path>` whose `<path>` is computed *relative to the
+/// consuming importer's directory*. Without `project_dir` in the key,
+/// the first importer to resolve `(@scope/lib, ^1.0.0)` would
+/// seed the workspace-wide cache with its own relative path and every
+/// other importer would reuse it verbatim — e.g. a root resolving to
+/// `link:packages/lib` would hand `packages/app` the same string,
+/// which from `packages/app` points at the non-existent
+/// `packages/app/packages/lib`.
+///
+/// The final two fields isolate importers with active update policies
+/// and record whether this wanted dependency is an explicit update target.
+/// Ordinary keep-all importers use no importer scope and retain the existing
+/// cross-importer cache sharing.
+///
+/// [`Resolver::resolve`]: pacquet_resolving_resolver_base::Resolver::resolve
+/// [`WantedDependency`]: pacquet_resolving_resolver_base::WantedDependency
+/// [`extend_tree`]: super::extend_tree
+/// [`fn@resolve_node`]: super::walk::resolve_node
+pub(super) type WantedKey = (
+    Option<String>,
+    Option<String>,
+    Option<bool>,
+    Option<bool>,
+    bool,
+    Option<DateTime<Utc>>,
+    Option<PathBuf>,
+    Option<PkgNameVerPeer>,
+    Vec<(String, Vec<String>)>,
+    Option<String>,
+    bool,
+);
+
+type SubtreeReuseKey = (Option<String>, PkgNameVerPeer, i32);
+
+/// An importer's resolved direct-dependency versions, keyed by package
+/// name. See [`WorkspaceTreeCtx::direct_dep_versions`].
+pub(super) type DirectDepVersions = HashMap<String, Vec<node_semver::Version>>;
+
+/// One entry in [`WorkspaceTreeCtx`]'s `children_specs_by_id` map —
+/// `(child_alias, child_range, child_optional)` triples extracted from
+/// a resolved package's manifest's `dependencies` plus
+/// `optionalDependencies` sections.
+pub(super) type ChildSpec = (String, String, bool);
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct ChildrenOwner {
+    update_active: bool,
+    depth: i32,
+    pub(super) importer_order: usize,
+    parent_path: Vec<String>,
+    pub(super) importer_id: String,
+}
+
+impl ChildrenOwner {
+    fn wins_over(&self, other: &Self) -> bool {
+        if self.update_active != other.update_active {
+            return self.update_active;
+        }
+        (&self.depth, &self.importer_order, &self.parent_path)
+            < (&other.depth, &other.importer_order, &other.parent_path)
+    }
+}
+
+/// What the current children owner of a `pkgIdWithPatchHash` decided
+/// for it. Both halves are per-occurrence inputs the walk has to settle
+/// on one answer for, so they are claimed together, under one lock.
+#[derive(Debug, Clone)]
+struct ChildrenOwnerEntry {
+    pub(super) owner: ChildrenOwner,
+    /// The owner occurrence's peer-shadowed `dependencies` (see
+    /// [`peer_shadowed_dependencies`]). Which names are shadowed
+    /// depends on the parent scope, which differs per occurrence;
+    /// pnpm lets the first occurrence to resolve decide, which is
+    /// arrival-ordered. The deterministic children owner decides here
+    /// instead, so the same graph always yields the same lockfile.
+    ///
+    /// [`peer_shadowed_dependencies`]: crate::parent_pkg_aliases::peer_shadowed_dependencies
+    pub(super) peer_shadowed: Arc<HashSet<String>>,
+}
+
+/// Workspace-shared maps. Every per-importer [`TreeCtx`] in a
+/// multi-importer install holds an `Arc<WorkspaceTreeCtx>` so the
+/// resolver's per-`pkgIdWithPatchHash` dedup (`packages`,
+/// `children_specs_by_id`, `children_by_id`, `resolved_by_wanted`) and
+/// the peer-walker's seed sets (`all_peer_dep_names`,
+/// `applied_patches`, `policy_violations`) carry across importers. One
+/// shared context is handed to every importer's hoist loop.
+///
+/// `dependencies_tree` (`NodeId → DependenciesTreeNode`) is keyed by
+/// per-occurrence `NodeIds`, which are unique even across importers, so
+/// every importer's walk contributes entries to one combined tree
+/// without colliding.
+pub struct WorkspaceTreeCtx {
+    /// Bumped whenever an [`fn@extend_tree`] call may mutate the shared
+    /// maps. The peer-hoist discovery engine compares it against the
+    /// revision of its last sync to skip re-syncing an unchanged
+    /// context.
+    ///
+    /// [`fn@extend_tree`]: super::extend_tree
+    revision: std::sync::atomic::AtomicU64,
+    /// Bumped whenever a children-ownership change rewrites an existing
+    /// occurrence node's children in `dependencies_tree` (see
+    /// [`fn@make_non_owner_nodes_lazy`]). Such a rewrite invalidates
+    /// walk state derived from the previous children, so the discovery
+    /// engine rebuilds its view instead of merging when this advanced
+    /// since its last sync.
+    children_rewrites: std::sync::atomic::AtomicU64,
+    pub(super) packages: Mutex<HashMap<String, ResolvedPackage>>,
+    /// Every `name → version` this run resolved (one fold per new
+    /// `packages` entry carrying a `name_ver`, plus every workspace
+    /// package version a directory resolution surfaced), shaped as the
+    /// plain [`pacquet_resolving_resolver_base::PreferredVersions`]
+    /// entries the peer-hoist pickers bias toward. Maintained once,
+    /// workspace-wide: importers query the buckets they need through
+    /// [`TreeCtx::preferred_versions_for_names`] instead of each
+    /// replaying the whole run history into a private copy.
+    pub(super) preferred_versions_from_run:
+        Mutex<pacquet_resolving_resolver_base::PreferredVersions>,
+    dependencies_tree: Mutex<HashMap<NodeId, DependenciesTreeNode>>,
+    pub(super) all_peer_dep_names: Mutex<HashSet<String>>,
+    pub(super) policy_violations:
+        Mutex<Vec<pacquet_resolving_resolver_base::ResolutionPolicyViolation>>,
+    pub(super) applied_patches: Mutex<HashSet<String>>,
+    pub(super) resolved_by_wanted:
+        Mutex<HashMap<WantedKey, Arc<pacquet_resolving_resolver_base::ResolveResult>>>,
+    pub(super) children_specs_by_id: Mutex<HashMap<String, Arc<Vec<ChildSpec>>>>,
+    pub(super) children_by_id: Mutex<HashMap<String, Arc<Vec<crate::resolved_tree::ChildEdge>>>>,
+    children_owner_by_id: Mutex<HashMap<String, ChildrenOwnerEntry>>,
+    node_parent_ids_by_id: Mutex<HashMap<NodeId, Arc<Vec<String>>>>,
+    /// Reverse index over `dependencies_tree`: every occurrence node
+    /// recorded for a `pkgIdWithPatchHash`. Keeps
+    /// [`fn@make_non_owner_nodes_lazy`] proportional to the package's
+    /// own occurrences — scanning the whole tree per recorded package
+    /// made lockfile-reuse walks quadratic in workspace size.
+    nodes_by_pkg_id: Mutex<HashMap<String, Vec<NodeId>>>,
+    pub(super) manifest_hook: Option<ManifestHook>,
+    /// [`ManifestHook`] applied *after* [`Self::pnpmfile_hook`], where
+    /// `manifest_hook` runs before it. pnpm's `createReadPackageHook`
+    /// composes `packageExtensions → readPackage hooks → overrides`, so
+    /// overrides land here: a hook that replaces the manifest (e.g. an
+    /// embedder substituting a workspace project's raw manifest) must not
+    /// erase the overrides.
+    pub(super) overrides_hook: Option<ManifestHook>,
+    /// The previous `pnpm-lock.yaml` the install started from, when one
+    /// exists. Consulted by [`resolve_node`] to reuse an already-resolved
+    /// dependency + its transitive subtree instead of re-resolving from
+    /// the registry (see `pnpm/plans/LOCKFILE_RESOLUTION_REUSE.md`).
+    /// `None` on a first install or when reuse is disabled.
+    ///
+    /// [`resolve_node`]: super::walk::resolve_node
+    pub(super) wanted_lockfile: Option<Arc<pacquet_lockfile::Lockfile>>,
+    /// Lockfile-reuse suppression for `pacquet update`. `update`
+    /// re-resolves its target deps to highest-in-range, so a reused
+    /// resolution would defeat the bump. See [`UpdateReuseScope`].
+    pub(super) update_reuse_scope: UpdateReuseScope,
+    /// Importer overrides used by filtered workspace updates. IDs absent from
+    /// this map keep the workspace default above.
+    update_reuse_scopes_by_importer: BTreeMap<String, UpdateReuseScope>,
+    /// `pacquet update --depth`: how deep the suppression above reaches.
+    pub(super) update_depth: UpdateDepth,
+    /// Memoises `reuse::subtree_fully_reusable` per update scope and snapshot
+    /// key. Keep-all importers share one scope; update-active importers use
+    /// isolated scopes so one importer's reuse answer cannot leak to another.
+    /// `true` means the package and its entire transitive subtree can be
+    /// synthesized from the prior lockfile.
+    pub(super) subtree_reusable: Mutex<HashMap<SubtreeReuseKey, bool>>,
+    pub(super) pnpmfile_hook: Option<Arc<dyn PnpmfileHooks>>,
+    /// `context.log(...)` sink for the `pnpmfile_hook`'s `readPackage`
+    /// calls, pre-bound to the install's reporter, project prefix, and
+    /// pnpmfile path. `None` leaves hook logging a no-op. See
+    /// [`WorkspaceTreeCtx::with_read_package_log`].
+    pub(super) read_package_log: Option<pacquet_hooks::LogFn>,
+    /// Sink for skipped-optional-dependency notifications. `None`
+    /// keeps the skip behavior but drops the notification. See
+    /// [`SkippedOptionalLogFn`].
+    pub(super) skipped_optional_log: Option<SkippedOptionalLogFn>,
+    /// The `pnpm.allowedDeprecatedVersions` map. See
+    /// [`crate::WorkspaceResolveOptions::allowed_deprecated_versions`].
+    pub(super) allowed_deprecated_versions: BTreeMap<String, String>,
+    /// Sink for deprecation notifications. `None` keeps the
+    /// deprecation check but drops the notification. See
+    /// [`DeprecationLogFn`].
+    pub(super) deprecation_log: Option<DeprecationLogFn>,
+    /// The install's `autoInstallPeers` setting. It widens which of a
+    /// resolved package's `dependencies` its own `peerDependencies`
+    /// shadow — see [`peer_shadowed_dependencies`].
+    ///
+    /// [`peer_shadowed_dependencies`]: crate::parent_pkg_aliases::peer_shadowed_dependencies
+    pub(super) auto_install_peers: bool,
+    /// Resolved registry map (`"default"` + per-scope) used to
+    /// materialize a prior `Registry` lockfile resolution back into its
+    /// tarball URL for the `currentPkg` payload. Empty when the entry
+    /// point doesn't thread registries (then `currentPkg` is withheld
+    /// for `Registry`-shaped entries rather than sent without a URL).
+    pub(super) registries: std::collections::HashMap<String, String>,
+    /// `pkg id → importer id` of the importer whose occurrence owns
+    /// that package's shared children context. Ownership is chosen by
+    /// update-active status followed by `(depth, importer order, parent path)`:
+    /// a package's subtree is recorded once per id, and a non-owner occurrence
+    /// reuses the owner occurrence's children and missing-peer report. Consumed via
+    /// [`crate::HoistMissingScope`].
+    first_importer_by_pkg: Mutex<HashMap<String, String>>,
+    /// Per package: the missing-peer names reported by the *initial*
+    /// peer walk of the current children-owner generation, plus the
+    /// owner that recorded them (`None` while only a non-owner's
+    /// provisional walk has been seen). The record is written once per
+    /// generation: later hoist waves of the same owner never refresh it,
+    /// so a peer the owner only satisfied by hoisting stays visible to
+    /// every other importer's hoist. Consumed via
+    /// [`crate::HoistMissingScope`].
+    first_walk_missing_by_pkg: Mutex<HashMap<String, OwnerMissingRecord>>,
+    /// Per importer: direct-dep aliases whose manifest specifier differs
+    /// from the prior lockfile (new deps included). Gates the stale-pin
+    /// refresh's reuse-decline; only a changed direct dep can re-resolve
+    /// away from a transitive occurrence's pin. Keyed by importer: this
+    /// crate resolves importers sequentially (no workspace-wide
+    /// directs-before-transitives barrier), so a shared map would refresh
+    /// one importer's edges from another's direct deps order-dependently.
+    /// (pnpm has that barrier and so converges cross-importer; pacquet
+    /// stays per-importer to stay deterministic.)
+    pub(super) changed_direct_deps: Mutex<HashMap<String, HashSet<PkgName>>>,
+    /// Per importer: the parsed resolved versions of its direct
+    /// dependencies, recorded once the direct-dep level finishes resolving.
+    /// The direct-dep versions folded into the children's
+    /// `preferredVersions`; consulted by [`fn@higher_direct_dep_version`].
+    /// `Arc` so the hot child walk snapshots the importer's map with one
+    /// lock + refcount bump instead of locking per edge.
+    ///
+    /// [`fn@higher_direct_dep_version`]: super::reuse::higher_direct_dep_version
+    pub(super) direct_dep_versions: Mutex<HashMap<String, Arc<DirectDepVersions>>>,
+}
+
+/// One [`WorkspaceTreeCtx::first_walk_missing_by_pkg`] entry: the
+/// missing-peer names plus the owner generation that recorded them
+/// (`None` for a non-owner's provisional report).
+struct OwnerMissingRecord {
+    recorded_by: Option<ChildrenOwner>,
+    names: HashSet<String>,
+}
+
+impl Default for WorkspaceTreeCtx {
+    fn default() -> Self {
+        WorkspaceTreeCtx {
+            revision: std::sync::atomic::AtomicU64::new(0),
+            children_rewrites: std::sync::atomic::AtomicU64::new(0),
+            packages: Mutex::new(HashMap::default()),
+            preferred_versions_from_run: Mutex::new(
+                pacquet_resolving_resolver_base::PreferredVersions::new(),
+            ),
+            dependencies_tree: Mutex::new(HashMap::default()),
+            all_peer_dep_names: Mutex::new(HashSet::default()),
+            policy_violations: Mutex::new(Vec::new()),
+            applied_patches: Mutex::new(HashSet::default()),
+            resolved_by_wanted: Mutex::new(HashMap::default()),
+            children_specs_by_id: Mutex::new(HashMap::default()),
+            children_by_id: Mutex::new(HashMap::default()),
+            children_owner_by_id: Mutex::new(HashMap::default()),
+            node_parent_ids_by_id: Mutex::new(HashMap::default()),
+            nodes_by_pkg_id: Mutex::new(HashMap::default()),
+            manifest_hook: None,
+            overrides_hook: None,
+            wanted_lockfile: None,
+            update_reuse_scope: UpdateReuseScope::All,
+            update_reuse_scopes_by_importer: BTreeMap::new(),
+            update_depth: UpdateDepth::UNLIMITED,
+            subtree_reusable: Mutex::new(HashMap::default()),
+            pnpmfile_hook: None,
+            read_package_log: None,
+            skipped_optional_log: None,
+            allowed_deprecated_versions: BTreeMap::new(),
+            deprecation_log: None,
+            auto_install_peers: false,
+            registries: std::collections::HashMap::new(),
+            first_importer_by_pkg: Mutex::new(HashMap::default()),
+            first_walk_missing_by_pkg: Mutex::new(HashMap::default()),
+            changed_direct_deps: Mutex::new(HashMap::default()),
+            direct_dep_versions: Mutex::new(HashMap::default()),
+        }
+    }
+}
+
+impl WorkspaceTreeCtx {
+    /// Snapshot the workspace context into a [`ResolvedTree`] without
+    /// consuming `self`. `direct` carries the combined direct-dep
+    /// envelopes the caller built up across importers; multi-importer
+    /// orchestration usually leaves this empty and threads per-importer
+    /// direct deps separately into [`fn@crate::resolve_peers_workspace`].
+    pub fn snapshot(&self, direct: Vec<DirectDep>) -> ResolvedTree {
+        ResolvedTree {
+            direct,
+            packages: lock_recoverable(&self.packages).clone(),
+            dependencies_tree: lock_recoverable(&self.dependencies_tree).clone(),
+            all_peer_dep_names: lock_recoverable(&self.all_peer_dep_names).clone(),
+            policy_violations: lock_recoverable(&self.policy_violations).clone(),
+            applied_patches: lock_recoverable(&self.applied_patches).clone(),
+            children_by_id: lock_recoverable(&self.children_by_id).clone(),
+        }
+    }
+
+    /// Snapshot only the part of the occurrence tree reachable from one
+    /// importer's direct dependencies.
+    ///
+    /// A workspace resolve keeps every importer's occurrence nodes in
+    /// this shared context, so a full [`Self::snapshot`] taken for one
+    /// importer retains every other importer's nodes too. The
+    /// reachable-only snapshot keeps per-importer consumers (the
+    /// workspace-root hoistable-deps scan) proportional to that
+    /// importer's own subtree.
+    ///
+    /// Realized edges provide the occurrence-node closure. Lazy edges are
+    /// materialized by the peer walker from `children_by_id`, so their
+    /// package closure is collected separately and included here too.
+    #[must_use]
+    pub fn snapshot_reachable_from(&self, direct: Vec<DirectDep>) -> ResolvedTree {
+        let dependencies_tree = lock_recoverable(&self.dependencies_tree);
+        let mut reachable_node_ids = HashSet::default();
+        let mut reachable_pkg_ids = HashSet::default();
+        let mut pending_node_ids: Vec<NodeId> =
+            direct.iter().map(|dep| dep.node_id.clone()).collect();
+        while let Some(node_id) = pending_node_ids.pop() {
+            if !reachable_node_ids.insert(node_id.clone()) {
+                continue;
+            }
+            let Some(node) = dependencies_tree.get(&node_id) else {
+                continue;
+            };
+            reachable_pkg_ids.insert(node.resolved_package_id.clone());
+            if let crate::resolved_tree::TreeChildren::Realized(children) = &node.children {
+                pending_node_ids.extend(children.values().cloned());
+            }
+        }
+        let reachable_dependencies_tree: HashMap<_, _> = reachable_node_ids
+            .iter()
+            .filter_map(|node_id| {
+                dependencies_tree.get(node_id).cloned().map(|node| (node_id.clone(), node))
+            })
+            .collect();
+        // Release before taking the next guard so this function never
+        // holds two of the context's locks at once — `snapshot` takes
+        // `packages` before `dependencies_tree`, so overlapping here
+        // would create a reversed acquisition order.
+        drop(dependencies_tree);
+        let dependencies_tree = reachable_dependencies_tree;
+
+        let all_children = lock_recoverable(&self.children_by_id);
+        let mut pending_pkg_ids: Vec<String> = reachable_pkg_ids.iter().cloned().collect();
+        let mut children_by_id = HashMap::default();
+        while let Some(pkg_id) = pending_pkg_ids.pop() {
+            let Some(children) = all_children.get(&pkg_id) else {
+                continue;
+            };
+            children_by_id.insert(pkg_id, Arc::clone(children));
+            for child in children.iter() {
+                if reachable_pkg_ids.insert(child.pkg_id.clone()) {
+                    pending_pkg_ids.push(child.pkg_id.clone());
+                }
+            }
+        }
+        drop(all_children);
+
+        let packages = lock_recoverable(&self.packages);
+        let packages = reachable_pkg_ids
+            .into_iter()
+            .filter_map(|pkg_id| packages.get(&pkg_id).cloned().map(|pkg| (pkg_id, pkg)))
+            .collect();
+
+        ResolvedTree {
+            direct,
+            packages,
+            dependencies_tree,
+            all_peer_dep_names: lock_recoverable(&self.all_peer_dep_names).clone(),
+            policy_violations: lock_recoverable(&self.policy_violations).clone(),
+            applied_patches: lock_recoverable(&self.applied_patches).clone(),
+            children_by_id,
+        }
+    }
+
+    /// Attach a `readPackageHook` applied to every resolved manifest
+    /// before it enters the wanted-dep cache. See [`ManifestHook`] for
+    /// the signature.
+    #[must_use]
+    pub fn with_manifest_hook(mut self, manifest_hook: Option<ManifestHook>) -> Self {
+        self.manifest_hook = manifest_hook;
+        self
+    }
+
+    /// Attach the post-pnpmfile [`ManifestHook`] (overrides). See the
+    /// `overrides_hook` field for the ordering contract.
+    #[must_use]
+    pub fn with_overrides_hook(mut self, overrides_hook: Option<ManifestHook>) -> Self {
+        self.overrides_hook = overrides_hook;
+        self
+    }
+
+    /// Attach the prior `pnpm-lock.yaml` so `resolve_node` can reuse
+    /// already-resolved dependencies instead of re-resolving them. See
+    /// the `wanted_lockfile` field.
+    #[must_use]
+    pub fn with_wanted_lockfile(
+        mut self,
+        wanted_lockfile: Option<Arc<pacquet_lockfile::Lockfile>>,
+    ) -> Self {
+        self.wanted_lockfile = wanted_lockfile;
+        self
+    }
+
+    /// The prior `pnpm-lock.yaml` to reuse resolutions from, if any.
+    pub fn wanted_lockfile(&self) -> Option<&Arc<pacquet_lockfile::Lockfile>> {
+        self.wanted_lockfile.as_ref()
+    }
+
+    /// Snapshot of `pkg id → children-owner importer id`. See the field doc.
+    #[must_use]
+    pub fn first_importer_by_pkg(&self) -> HashMap<String, String> {
+        lock_recoverable(&self.first_importer_by_pkg).clone()
+    }
+
+    /// Record a walk's per-package missing-peer names. The owning
+    /// importer's report is written once per ownership generation —
+    /// its own later hoist waves never refresh it — and replaces any
+    /// provisional report a non-owner's earlier walk left behind. See
+    /// the `first_walk_missing_by_pkg` field doc.
+    pub fn record_first_walk_missing(
+        &self,
+        importer_id: &str,
+        missing_by_pkg: &HashMap<String, HashSet<String>>,
+    ) {
+        // Lock order: `children_owner_by_id` before
+        // `first_walk_missing_by_pkg`, the only place both are held.
+        let owners = lock_recoverable(&self.children_owner_by_id);
+        let mut record = lock_recoverable(&self.first_walk_missing_by_pkg);
+        for (pkg_id, ChildrenOwnerEntry { owner, .. }) in owners.iter() {
+            if owner.importer_id != importer_id {
+                continue;
+            }
+            let recorded_by_current_owner =
+                record.get(pkg_id).is_some_and(|entry| entry.recorded_by.as_ref() == Some(owner));
+            if !recorded_by_current_owner {
+                record.insert(
+                    pkg_id.clone(),
+                    OwnerMissingRecord {
+                        recorded_by: Some(owner.clone()),
+                        names: missing_by_pkg.get(pkg_id).cloned().unwrap_or_default(),
+                    },
+                );
+            }
+        }
+        for (pkg_id, names) in missing_by_pkg {
+            if owners.get(pkg_id).is_none_or(|entry| entry.owner.importer_id != importer_id) {
+                record.entry(pkg_id.clone()).or_insert_with(|| OwnerMissingRecord {
+                    recorded_by: None,
+                    names: names.clone(),
+                });
+            }
+        }
+    }
+
+    /// Snapshot of the per-package owner-context missing-peer names.
+    /// See the `first_walk_missing_by_pkg` field doc.
+    #[must_use]
+    pub fn first_walk_missing_by_pkg(&self) -> HashMap<String, HashSet<String>> {
+        lock_recoverable(&self.first_walk_missing_by_pkg)
+            .iter()
+            .map(|(pkg_id, entry)| (pkg_id.clone(), entry.names.clone()))
+            .collect()
+    }
+
+    /// Fold a freshly-inserted package's `(name, version)` into
+    /// [`Self::preferred_versions_from_run`]. Call once per new
+    /// `packages` entry.
+    pub(super) fn record_resolved_version(
+        &self,
+        result: &pacquet_resolving_resolver_base::ResolveResult,
+    ) {
+        if let Some(name_ver) = result.name_ver.as_ref() {
+            self.record_run_version(name_ver.name.to_string(), name_ver.suffix.to_string());
+        }
+    }
+
+    /// See [`Self::preferred_versions_from_run`]. Seed entries win over
+    /// run entries, and the first fold of a `(name, version)` pair wins
+    /// over later ones — the same `or_insert` semantics the per-importer
+    /// fold applied.
+    pub(super) fn record_run_version(&self, name: String, version: String) {
+        lock_recoverable(&self.preferred_versions_from_run)
+            .entry(name)
+            .or_default()
+            .entry(version)
+            .or_insert(pacquet_resolving_resolver_base::VersionSelectorEntry::Plain(
+                pacquet_resolving_resolver_base::VersionSelectorType::Version,
+            ));
+    }
+
+    /// See the `revision` field doc.
+    pub(crate) fn revision(&self) -> u64 {
+        self.revision.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    pub(crate) fn bump_revision(&self) {
+        self.revision.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// See the `children_rewrites` field doc.
+    pub(crate) fn children_rewrites(&self) -> u64 {
+        self.children_rewrites.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    pub(crate) fn record_children_rewrite(&self) {
+        self.children_rewrites.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// Fold the context's growth since the last sync into `tree`, the
+    /// peer-hoist discovery engine's persistent view of the workspace.
+    ///
+    /// The shared maps grow monotonically during the hoist rounds, so
+    /// the sync inserts entries `tree` doesn't have yet and lowers node
+    /// depths that shrank. The exceptions are a children-owner change,
+    /// which can rewrite an existing package's recorded child list or
+    /// peer-dependency split: those invalidate walk results already
+    /// derived from the old values, so the sync reports them as
+    /// unmergeable (`false`) and the engine rebuilds its view from
+    /// scratch. A replaced `children_by_id` `Arc` with equal contents
+    /// (an ownership handover that re-recorded the same children) is
+    /// re-pointed without invalidating.
+    pub(crate) fn sync_discovery_tree(&self, tree: &mut ResolvedTree) -> bool {
+        use std::collections::hash_map::Entry;
+        {
+            let children_by_id = lock_recoverable(&self.children_by_id);
+            for (pkg_id, spec) in children_by_id.iter() {
+                match tree.children_by_id.entry(pkg_id.clone()) {
+                    Entry::Vacant(entry) => {
+                        entry.insert(Arc::clone(spec));
+                    }
+                    Entry::Occupied(mut entry) => {
+                        if Arc::ptr_eq(entry.get(), spec) {
+                            continue;
+                        }
+                        if **entry.get() != **spec {
+                            return false;
+                        }
+                        entry.insert(Arc::clone(spec));
+                    }
+                }
+            }
+        }
+        {
+            let packages = lock_recoverable(&self.packages);
+            for (pkg_id, pkg) in packages.iter() {
+                match tree.packages.entry(pkg_id.clone()) {
+                    Entry::Vacant(entry) => {
+                        entry.insert(pkg.clone());
+                    }
+                    Entry::Occupied(entry) => {
+                        if entry.get().peer_dependencies != pkg.peer_dependencies {
+                            return false;
+                        }
+                    }
+                }
+            }
+        }
+        {
+            let dependencies_tree = lock_recoverable(&self.dependencies_tree);
+            for (node_id, node) in dependencies_tree.iter() {
+                match tree.dependencies_tree.entry(node_id.clone()) {
+                    Entry::Vacant(entry) => {
+                        entry.insert(node.clone());
+                    }
+                    Entry::Occupied(mut entry) => {
+                        if entry.get().depth > node.depth {
+                            entry.get_mut().depth = node.depth;
+                        }
+                    }
+                }
+            }
+        }
+        tree.all_peer_dep_names.extend(lock_recoverable(&self.all_peer_dep_names).iter().cloned());
+        true
+    }
+
+    /// `NodeId → pkgIdWithPatchHash` for the given peer-provider nodes,
+    /// keeping only nodes the shared context resolved eagerly (a node
+    /// the peer walker realized lazily has no context entry and is
+    /// dropped, matching the hoist loop's providers-that-existed-before-
+    /// the-pass filter).
+    pub(crate) fn provider_pkg_ids<'node_ids>(
+        &self,
+        node_ids: impl Iterator<Item = &'node_ids NodeId>,
+    ) -> HashMap<NodeId, String> {
+        let dependencies_tree = lock_recoverable(&self.dependencies_tree);
+        let packages = lock_recoverable(&self.packages);
+        node_ids
+            .filter_map(|node_id| {
+                let pkg_id = &dependencies_tree.get(node_id)?.resolved_package_id;
+                packages.contains_key(pkg_id).then(|| (node_id.clone(), pkg_id.clone()))
+            })
+            .collect()
+    }
+
+    pub(crate) fn set_direct_locked_peer_names(
+        &self,
+        direct: &[DirectDep],
+        names_by_alias: &HashMap<String, Arc<HashSet<String>>>,
+    ) {
+        let mut tree = lock_recoverable(&self.dependencies_tree);
+        for dep in direct {
+            let Some(names) = names_by_alias.get(&dep.alias) else {
+                continue;
+            };
+            if let Some(node) = tree.get_mut(&dep.node_id) {
+                node.locked_peer_names = Some(Arc::clone(names));
+            }
+        }
+    }
+
+    /// Set which dependencies `pacquet update` excludes from reuse. See
+    /// [`UpdateReuseScope`].
+    #[must_use]
+    pub fn with_update_reuse_scope(mut self, scope: UpdateReuseScope) -> Self {
+        self.update_reuse_scope = scope;
+        self
+    }
+
+    #[must_use]
+    pub fn with_update_reuse_scopes_by_importer(
+        mut self,
+        scopes: BTreeMap<String, UpdateReuseScope>,
+    ) -> Self {
+        self.update_reuse_scopes_by_importer = scopes;
+        self
+    }
+
+    #[must_use]
+    pub fn with_update_depth(mut self, update_depth: UpdateDepth) -> Self {
+        self.update_depth = update_depth;
+        self
+    }
+
+    pub(super) fn update_reuse_scope_for(&self, importer_id: &str) -> &UpdateReuseScope {
+        if matches!(self.update_reuse_scope, UpdateReuseScope::None) {
+            return &self.update_reuse_scope;
+        }
+        self.update_reuse_scopes_by_importer.get(importer_id).unwrap_or(&self.update_reuse_scope)
+    }
+
+    #[must_use]
+    pub fn with_pnpmfile_hook(mut self, pnpmfile_hook: Option<Arc<dyn PnpmfileHooks>>) -> Self {
+        self.pnpmfile_hook = pnpmfile_hook;
+        self
+    }
+
+    /// Attach the `context.log(...)` sink the `pnpmfile_hook`'s
+    /// `readPackage` calls forward to. The install layer pre-binds the
+    /// reporter, project prefix, and pnpmfile path into the closure so the
+    /// resolver stays reporter-agnostic.
+    #[must_use]
+    pub fn with_read_package_log(mut self, read_package_log: Option<pacquet_hooks::LogFn>) -> Self {
+        self.read_package_log = read_package_log;
+        self
+    }
+
+    /// Attach the sink skipped-optional-dependency notifications are
+    /// forwarded to. See [`SkippedOptionalLogFn`].
+    #[must_use]
+    pub fn with_skipped_optional_log(
+        mut self,
+        skipped_optional_log: Option<SkippedOptionalLogFn>,
+    ) -> Self {
+        self.skipped_optional_log = skipped_optional_log;
+        self
+    }
+
+    /// Attach the `pnpm.allowedDeprecatedVersions` map. See
+    /// [`crate::WorkspaceResolveOptions::allowed_deprecated_versions`].
+    #[must_use]
+    pub fn with_allowed_deprecated_versions(
+        mut self,
+        allowed_deprecated_versions: BTreeMap<String, String>,
+    ) -> Self {
+        self.allowed_deprecated_versions = allowed_deprecated_versions;
+        self
+    }
+
+    /// Attach the sink deprecation notifications are forwarded to.
+    /// See [`DeprecationLogFn`].
+    #[must_use]
+    pub fn with_deprecation_log(mut self, deprecation_log: Option<DeprecationLogFn>) -> Self {
+        self.deprecation_log = deprecation_log;
+        self
+    }
+
+    /// Set the install's `autoInstallPeers` flag. See the field doc.
+    #[must_use]
+    pub fn with_auto_install_peers(mut self, auto_install_peers: bool) -> Self {
+        self.auto_install_peers = auto_install_peers;
+        self
+    }
+
+    /// Attach the resolved registry map. See the `registries` field.
+    #[must_use]
+    pub fn with_registries(
+        mut self,
+        registries: std::collections::HashMap<String, String>,
+    ) -> Self {
+        self.registries = registries;
+        self
+    }
+
+    /// Take ownership of `self` and emit the final [`ResolvedTree`].
+    /// Pacquet's single-importer path consumes the context via
+    /// [`TreeCtx::into_resolved_tree`], which routes through here once
+    /// the last `Arc<WorkspaceTreeCtx>` reference is the [`TreeCtx`]'s
+    /// own.
+    pub fn into_resolved_tree(self, direct: Vec<DirectDep>) -> ResolvedTree {
+        ResolvedTree {
+            direct,
+            packages: self.packages.into_inner().unwrap_or_else(std::sync::PoisonError::into_inner),
+            dependencies_tree: self
+                .dependencies_tree
+                .into_inner()
+                .unwrap_or_else(std::sync::PoisonError::into_inner),
+            all_peer_dep_names: self
+                .all_peer_dep_names
+                .into_inner()
+                .unwrap_or_else(std::sync::PoisonError::into_inner),
+            policy_violations: self
+                .policy_violations
+                .into_inner()
+                .unwrap_or_else(std::sync::PoisonError::into_inner),
+            applied_patches: self
+                .applied_patches
+                .into_inner()
+                .unwrap_or_else(std::sync::PoisonError::into_inner),
+            children_by_id: self
+                .children_by_id
+                .into_inner()
+                .unwrap_or_else(std::sync::PoisonError::into_inner),
+        }
+    }
+}
+
+pub(super) struct ChildrenOwnerClaim {
+    pub(super) owner: ChildrenOwner,
+    pub(super) owns_children: bool,
+    /// The shadowed-dependency set in force for the package id — this
+    /// occurrence's when it won the claim, the standing owner's when it
+    /// lost. See [`ChildrenOwnerEntry::peer_shadowed`].
+    pub(super) peer_shadowed: Arc<HashSet<String>>,
+    /// A winning claim displaced an owner whose shadowed-dependency set
+    /// equals this occurrence's. Children resolve identically under
+    /// both, so the other occurrences' realized children stay valid and
+    /// the winner skips the lazy-flip (and the engine-invalidating
+    /// rewrite signal) it would otherwise broadcast.
+    pub(super) children_context_unchanged: bool,
+}
+
+/// `peer_shadowed` is this occurrence's own set; it is installed as the
+/// package id's set only when the occurrence wins the claim, so the
+/// losing occurrences of a concurrent claim all read back the winner's.
+pub(super) fn claim_children_owner(
+    ctx: &TreeCtx,
+    pkg_id: &str,
+    depth: i32,
+    ancestor_ids: &[String],
+    peer_shadowed: HashSet<String>,
+) -> ChildrenOwnerClaim {
+    let owner = ChildrenOwner {
+        update_active: !matches!(ctx.update_reuse_scope(), UpdateReuseScope::All),
+        depth,
+        importer_order: ctx.importer_order,
+        parent_path: ancestor_ids.to_vec(),
+        importer_id: ctx.importer_id.clone(),
+    };
+    let (owns_children, peer_shadowed, children_context_unchanged) = {
+        let mut owners = lock_recoverable(&ctx.workspace.children_owner_by_id);
+        match owners.get(pkg_id) {
+            Some(existing) if !owner.wins_over(&existing.owner) => {
+                (false, Arc::clone(&existing.peer_shadowed), false)
+            }
+            existing => {
+                let children_context_unchanged =
+                    existing.is_some_and(|entry| *entry.peer_shadowed == peer_shadowed);
+                let peer_shadowed = Arc::new(peer_shadowed);
+                owners.insert(
+                    pkg_id.to_string(),
+                    ChildrenOwnerEntry {
+                        owner: owner.clone(),
+                        peer_shadowed: Arc::clone(&peer_shadowed),
+                    },
+                );
+                (true, peer_shadowed, children_context_unchanged)
+            }
+        }
+    };
+    if owns_children {
+        lock_recoverable(&ctx.workspace.first_importer_by_pkg)
+            .insert(pkg_id.to_string(), owner.importer_id.clone());
+    }
+    ChildrenOwnerClaim { owner, owns_children, peer_shadowed, children_context_unchanged }
+}
+
+/// Seed the peer-walker's `parentPkgs` filter with the names a
+/// resolved package declares as peers.
+pub(super) fn register_peer_dep_names(
+    ctx: &TreeCtx,
+    peer_dependencies: &BTreeMap<String, PeerDep>,
+) {
+    let mut all_peers = lock_recoverable(&ctx.workspace.all_peer_dep_names);
+    for name in peer_dependencies.keys() {
+        all_peers.insert(name.clone());
+    }
+}
+
+pub(super) fn is_current_children_owner(
+    ctx: &TreeCtx,
+    pkg_id: &str,
+    owner: &ChildrenOwner,
+) -> bool {
+    lock_recoverable(&ctx.workspace.children_owner_by_id)
+        .get(pkg_id)
+        .is_some_and(|current| current.owner == *owner)
+}
+
+pub(super) fn remember_node_parent_ids(
+    ctx: &TreeCtx,
+    node_id: &NodeId,
+    parent_ids: Arc<Vec<String>>,
+) {
+    lock_recoverable(&ctx.workspace.node_parent_ids_by_id).insert(node_id.clone(), parent_ids);
+}
+
+/// Record an occurrence node in the shared tree (lowering the depth of
+/// a revisited leaf) and, on first insertion, in the per-package
+/// reverse index [`fn@make_non_owner_nodes_lazy`] flips through.
+pub(super) fn insert_tree_node(
+    ctx: &TreeCtx,
+    node_id: NodeId,
+    pkg_id: &str,
+    children: crate::resolved_tree::TreeChildren,
+    depth: i32,
+) {
+    let inserted = match lock_recoverable(&ctx.workspace.dependencies_tree).entry(node_id.clone()) {
+        std::collections::hash_map::Entry::Occupied(mut entry) => {
+            if entry.get().depth > depth {
+                entry.get_mut().depth = depth;
+            }
+            false
+        }
+        std::collections::hash_map::Entry::Vacant(entry) => {
+            entry.insert(DependenciesTreeNode::new(pkg_id.to_string(), children, depth, true));
+            true
+        }
+    };
+    if inserted {
+        lock_recoverable(&ctx.workspace.nodes_by_pkg_id)
+            .entry(pkg_id.to_string())
+            .or_default()
+            .push(node_id);
+    }
+}
+
+pub(super) fn make_non_owner_nodes_lazy(ctx: &TreeCtx, pkg_id: &str, owner_node_id: &NodeId) {
+    let pkg_nodes = match lock_recoverable(&ctx.workspace.nodes_by_pkg_id).get(pkg_id) {
+        Some(nodes) => nodes.clone(),
+        None => return,
+    };
+    // Collect the parent chains first so the two locks are never held
+    // together.
+    let parent_ids_by_node: Vec<(NodeId, Arc<Vec<String>>)> = {
+        let parent_ids = lock_recoverable(&ctx.workspace.node_parent_ids_by_id);
+        pkg_nodes
+            .into_iter()
+            .filter(|node_id| node_id != owner_node_id)
+            .filter_map(|node_id| {
+                let ids = Arc::clone(parent_ids.get(&node_id)?);
+                Some((node_id, ids))
+            })
+            .collect()
+    };
+    let mut tree = lock_recoverable(&ctx.workspace.dependencies_tree);
+    let mut rewrote_any = false;
+    for (node_id, parent_ids) in parent_ids_by_node {
+        if let Some(node) = tree.get_mut(&node_id) {
+            node.children = crate::resolved_tree::TreeChildren::Lazy {
+                parent_ids: AncestorIds::from(parent_ids),
+            };
+            rewrote_any = true;
+        }
+    }
+    if rewrote_any {
+        ctx.workspace.record_children_rewrite();
+    }
+}
+
+#[cfg(test)]
+mod tests;
