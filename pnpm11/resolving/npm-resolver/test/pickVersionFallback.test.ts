@@ -5,7 +5,7 @@ import { pickVersionByVersionRange } from '../src/pickPackageFromMeta.js'
 
 // Builds a meta whose versions hydrate through getters, like a lazily-loaded
 // indexed mirror does, recording which versions were hydrated. A null manifest
-// input models a corrupt fragment (hydrates to undefined).
+// input models a version key the document lists without a manifest.
 function lazyMeta (manifests: Record<string, PackageInRegistry | null>): { meta: PackageMeta, hydrated: string[] } {
   const hydrated: string[] = []
   const versions: PackageMeta['versions'] = Object.create(null)
@@ -40,19 +40,18 @@ test('the deprecated fallback hydrates only versions that satisfy the range', ()
   expect(hydrated).not.toContain('1.0.0')
 })
 
-test('a corrupt manifest of the max satisfying version fails the pick instead of crashing', () => {
+test('a missing manifest on the max satisfying version fails the pick instead of crashing', () => {
   const { meta } = lazyMeta({
     '1.0.0': manifest('1.0.0'),
     '2.0.0': null,
   })
 
-  // The version is still chosen (its manifest hydrates to undefined, which the
-  // picker's missing-manifest handling turns into a failed pick downstream);
-  // the deprecated check must not crash on the missing manifest.
+  // The version is still chosen (the picker's missing-manifest handling turns
+  // it into a failed pick downstream); the deprecated check must not crash.
   expect(pickVersionByVersionRange({ meta, versionRange: '>=1.0.0' })).toBe('2.0.0')
 })
 
-test('a corrupt manifest is not offered as the non-deprecated alternative', () => {
+test('a missing manifest is not offered as the non-deprecated alternative', () => {
   const { meta } = lazyMeta({
     '2.0.0': null,
     '2.0.1': manifest('2.0.1', 'use 3.x'),
