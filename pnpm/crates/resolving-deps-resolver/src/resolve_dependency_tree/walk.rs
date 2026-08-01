@@ -453,10 +453,12 @@ where
         if children_owner.owns_children && existing.peer_dependencies != peer_dependencies {
             register_peer_dep_names(ctx, &peer_dependencies);
             existing.peer_dependencies = peer_dependencies;
+            ctx.workspace.record_package_write(&id);
         }
         false
     } else {
         register_peer_dep_names(ctx, &peer_dependencies);
+        ctx.workspace.record_package_write(&id);
         packages.insert(
             id.clone(),
             ResolvedPackage {
@@ -726,6 +728,7 @@ where
                 realized.insert(dep.alias, dep.node_id);
             }
             lock_recoverable(&ctx.workspace.children_by_id).insert(id.clone(), Arc::new(by_id));
+            ctx.workspace.record_children_by_id_write(&id);
             crate::resolved_tree::TreeChildren::Realized(realized)
         } else {
             crate::resolved_tree::TreeChildren::Lazy {

@@ -23,6 +23,20 @@ use std::{collections::BTreeMap, sync::Arc};
 /// the per-round full snapshot + full
 /// [`resolve_peers`](fn@super::resolve_peers) walk that made
 /// multi-importer hoist discovery quadratic in workspace size.
+pub(crate) mod counters {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    macro_rules! ctrs { ($($n:ident),*$(,)?) => {
+        $(pub static $n: AtomicU64 = AtomicU64::new(0);)*
+        pub fn dump(label: &str) {
+            eprintln!("[disco {}]", label);
+            $(eprintln!("  {:26} {}", stringify!($n), $n.swap(0, Ordering::Relaxed));)*
+        }
+    }}
+    ctrs!(CALLS, REBUILDS, SYNCS, SYNC_NS, WALK_NS, FULL_WALK_DEPS, INCR_WALK_DEPS, WALKS_EMPTY, FULL_FIRST, FULL_REWRITE, INCR_WALKS, FULL_FIRST_NS, FULL_REWRITE_NS, INCR_NS);
+    pub fn inc(c: &AtomicU64) { c.fetch_add(1, Ordering::Relaxed); }
+    pub fn add(c: &AtomicU64, v: u64) { c.fetch_add(v, Ordering::Relaxed); }
+}
+
 pub(crate) struct PeerHoistDiscovery {
     tree: ResolvedTree,
     caches: PeerDiscoveryCaches,
@@ -81,6 +95,13 @@ impl PeerHoistDiscovery {
             self.synced_children_rewrites = Some(children_rewrites);
             self.synced_revision = Some(revision);
         }
+        counters::add(&counters::SYNC_NS, __s.elapsed().as_nanos() as u64);
+        if walk_direct.len() == parents_direct.len() {
+            counters::add(&counters::FULL_WALK_DEPS, walk_direct.len() as u64);
+        } else {
+            counters::add(&counters::INCR_WALK_DEPS, walk_direct.len() as u64);
+        }
+        let __w = std::time::Instant::now();
         let (result, caches) = discover_peers(
             &mut self.tree,
             parents_direct,
@@ -88,6 +109,7 @@ impl PeerHoistDiscovery {
             std::mem::take(&mut self.caches),
             opts,
         );
+        counters::add(&counters::WALK_NS, __w.elapsed().as_nanos() as u64);
         self.caches = caches;
         result
     }

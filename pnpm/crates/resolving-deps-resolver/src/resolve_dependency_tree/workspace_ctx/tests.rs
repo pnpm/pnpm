@@ -1,6 +1,9 @@
 use pacquet_resolving_resolver_base::ResolveOptions;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
 
 use super::{
     super::{lock_recoverable, test_support::manifest_result},
@@ -332,4 +335,113 @@ fn bucket_versions(
     name: &str,
 ) -> Vec<String> {
     versions.get(name).map(|bucket| bucket.keys().cloned().collect()).unwrap_or_default()
+}
+
+/// The discovery engine keeps one view across every hoist round, so a
+/// view carried through several waves of writes has to end up where a
+/// view built after the last wave would.
+#[test]
+fn a_view_synced_wave_by_wave_matches_one_built_from_scratch() {
+    let workspace = WorkspaceTreeCtx::default();
+    let root = NodeId::next();
+    let child = NodeId::next();
+    let mut carried = crate::resolved_tree::ResolvedTree::default();
+    let mut carried_cursor = super::SyncCursor::default();
+
+    record_package(&workspace, "root@1.0.0", &["peer-a"]);
+    record_tree_node(&workspace, &root, "root@1.0.0", 0);
+    assert!(workspace.sync_discovery_tree(&mut carried, &mut carried_cursor));
+
+    record_package(&workspace, "child@1.0.0", &["peer-b"]);
+    record_tree_node(&workspace, &child, "child@1.0.0", 3);
+    // A shallower revisit of a node the first wave already recorded.
+    record_tree_node(&workspace, &root, "root@1.0.0", -1);
+    assert!(workspace.sync_discovery_tree(&mut carried, &mut carried_cursor));
+
+    let mut from_scratch = crate::resolved_tree::ResolvedTree::default();
+    assert!(
+        workspace.sync_discovery_tree(&mut from_scratch, &mut super::SyncCursor::default()),
+        "a sync into an empty view has nothing to conflict with",
+    );
+
+    let depths = |tree: &crate::resolved_tree::ResolvedTree| -> BTreeMap<String, i32> {
+        tree.dependencies_tree
+            .iter()
+            .map(|(node_id, node)| (node_id.to_string(), node.depth))
+            .collect()
+    };
+    dbg!(depths(&carried), depths(&from_scratch));
+    assert_eq!(depths(&carried), depths(&from_scratch));
+    assert_eq!(
+        carried.packages.keys().collect::<BTreeSet<_>>(),
+        from_scratch.packages.keys().collect::<BTreeSet<_>>(),
+    );
+    assert_eq!(
+        carried.all_peer_dep_names.iter().collect::<BTreeSet<_>>(),
+        from_scratch.all_peer_dep_names.iter().collect::<BTreeSet<_>>(),
+    );
+}
+
+/// A children-owner handover can re-split a package into children and
+/// peers. The walk verdicts a carried view already produced were derived
+/// from the old split, so the sync has to report the view unmergeable
+/// rather than fold the new one in.
+#[test]
+fn a_changed_peer_dependency_split_makes_the_view_unmergeable() {
+    let workspace = WorkspaceTreeCtx::default();
+    let mut carried = crate::resolved_tree::ResolvedTree::default();
+    let mut cursor = super::SyncCursor::default();
+
+    record_package(&workspace, "pkg@1.0.0", &["peer-a"]);
+    assert!(workspace.sync_discovery_tree(&mut carried, &mut cursor));
+
+    record_package(&workspace, "pkg@1.0.0", &["peer-a", "peer-b"]);
+    assert!(!workspace.sync_discovery_tree(&mut carried, &mut cursor));
+}
+
+fn record_package(workspace: &WorkspaceTreeCtx, pkg_id: &str, peer_names: &[&str]) {
+    use super::super::lock_recoverable;
+    let peer_dependencies = peer_names
+        .iter()
+        .map(|name| {
+            (
+                (*name).to_string(),
+                crate::resolved_tree::PeerDep { version: "*".to_string(), optional: false },
+            )
+        })
+        .collect();
+    lock_recoverable(&workspace.packages).insert(
+        pkg_id.to_string(),
+        super::ResolvedPackage { peer_dependencies, ..snapshot_package(pkg_id) },
+    );
+    let mut all_peers = lock_recoverable(&workspace.all_peer_dep_names);
+    for name in peer_names {
+        if all_peers.insert((*name).to_string()) {
+            workspace.record_peer_dep_name(name);
+        }
+    }
+    drop(all_peers);
+    workspace.record_package_write(pkg_id);
+}
+
+fn record_tree_node(workspace: &WorkspaceTreeCtx, node_id: &NodeId, pkg_id: &str, depth: i32) {
+    use super::super::lock_recoverable;
+    let mut tree = lock_recoverable(&workspace.dependencies_tree);
+    match tree.entry(node_id.clone()) {
+        std::collections::hash_map::Entry::Occupied(mut entry) => {
+            if entry.get().depth > depth {
+                entry.get_mut().depth = depth;
+            }
+        }
+        std::collections::hash_map::Entry::Vacant(entry) => {
+            entry.insert(DependenciesTreeNode::new(
+                pkg_id.to_string(),
+                TreeChildren::empty(),
+                depth,
+                true,
+            ));
+        }
+    }
+    drop(tree);
+    workspace.record_tree_node_write(node_id);
 }

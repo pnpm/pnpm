@@ -573,9 +573,12 @@ where
             {
                 let mut all_peers = lock_recoverable(&ctx.workspace.all_peer_dep_names);
                 for name in peer_dependencies.keys() {
-                    all_peers.insert(name.clone());
+                    if all_peers.insert(name.clone()) {
+                        ctx.workspace.record_peer_dep_name(name);
+                    }
                 }
             }
+            ctx.workspace.record_package_write(&id);
             packages.insert(
                 id.clone(),
                 ResolvedPackage {
@@ -647,6 +650,7 @@ where
                 realized.insert(dep.alias, dep.node_id);
             }
             lock_recoverable(&ctx.workspace.children_by_id).insert(id.clone(), Arc::new(by_id));
+            ctx.workspace.record_children_by_id_write(&id);
             crate::resolved_tree::TreeChildren::Realized(realized)
         } else {
             crate::resolved_tree::TreeChildren::Lazy {
