@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 /// Branded depPath string.
 ///
 /// A depPath is a `string` brand — it's never validated at the
@@ -11,7 +13,7 @@
 /// suffix scanning, filename escaping) can speak in depPath terms
 /// without forcing a back-dependency from `deps-path` to the resolver.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DepPath(String);
+pub struct DepPath(Arc<str>);
 
 impl DepPath {
     /// Borrow the underlying depPath string.
@@ -29,12 +31,12 @@ impl std::fmt::Display for DepPath {
 
 impl From<String> for DepPath {
     fn from(value: String) -> DepPath {
-        DepPath(value)
+        DepPath(Arc::from(value))
     }
 }
 
 impl From<&str> for DepPath {
     fn from(value: &str) -> DepPath {
-        DepPath(value.to_string())
+        DepPath(Arc::from(value))
     }
 }

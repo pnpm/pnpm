@@ -103,7 +103,7 @@ fn importer_snapshot_follows_lazy_edges_for_the_package_closure() {
         root.clone(),
         DependenciesTreeNode::new(
             "root@1.0.0".to_string(),
-            TreeChildren::Lazy { parent_ids: Arc::new(Vec::new()) },
+            TreeChildren::Lazy { parent_ids: Arc::new(Vec::new()).into() },
             0,
             true,
         ),

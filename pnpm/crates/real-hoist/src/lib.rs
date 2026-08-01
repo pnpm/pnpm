@@ -572,12 +572,11 @@ pub fn percent_encode_path(text: &str) -> String {
 ///
 /// What this does *not* model yet:
 ///
-/// * Per-importer roots and the multi-level output shape upstream
+/// * Per-importer roots in the multi-level output shape upstream
 ///   produces for workspaces. [`hoist`] does attach every non-root
-///   importer as a `Workspace`-kind child of the virtual `.` root
-///   when [`HoistOpts::hoist_workspace_packages`] is enabled, but the
-///   algorithm still hoists into that single `.` root rather than
-///   giving each importer its own hoisting root.
+///   importer as a `Workspace`-kind child of the virtual `.` root,
+///   and package conflict roots are hoisted recursively, but workspace
+///   importers still don't get independent hoisting contexts.
 /// * `ExternalSoftLink` descendants — pacquet creates soft-links
 ///   only as zero-children placeholders, so upstream's
 ///   "only-hoist-when-all-descendants-hoist" rule has nothing to
@@ -599,6 +598,7 @@ fn nm_hoist(tree: &HoisterTree, opts: &HoistOpts) -> HoisterResult {
     let mut memo: HashMap<*const HoisterTree, Rc<HoisterResult>> = HashMap::new();
     let root = convert(tree, &mut memo);
     hoist_into_root(&root, &root_locator, opts);
+    hoist_nested_roots(&root, opts);
     // Returning an owned `HoisterResult` (rather than
     // `Rc<HoisterResult>`) keeps the wrapper's post-hoist
     // `external_dependencies` filter from mutating the shared graph.
@@ -606,6 +606,21 @@ fn nm_hoist(tree: &HoisterTree, opts: &HoistOpts) -> HoisterResult {
     // the subtree children remain shared via the cloned `RcByPtr`
     // values, so deep deps stay deduplicated.
     (*root).clone()
+}
+
+fn hoist_nested_roots(root: &Rc<HoisterResult>, opts: &HoistOpts) {
+    let mut visited = HashSet::from([Rc::as_ptr(root)]);
+    let mut pending: Vec<Rc<HoisterResult>> =
+        root.dependencies.borrow().iter().map(|child| Rc::clone(&child.0)).collect();
+    while let Some(node) = pending.pop() {
+        if !visited.insert(Rc::as_ptr(&node)) {
+            continue;
+        }
+        let reference = node.references.borrow().iter().next().cloned().unwrap_or_default();
+        let locator = format!("{}@{reference}", node.ident_name);
+        hoist_into_root(&node, &locator, opts);
+        pending.extend(node.dependencies.borrow().iter().map(|child| Rc::clone(&child.0)));
+    }
 }
 
 /// Outcome of the per-child hoist decision at the root.

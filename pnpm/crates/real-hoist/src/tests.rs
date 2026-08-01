@@ -206,6 +206,7 @@ fn version_conflict_keeps_loser_at_parent() {
     let mut root_deps = ResolvedDependencyMap::new();
     root_deps.insert(pkg_name("a"), resolved_dep("1.0.0"));
     root_deps.insert(pkg_name("c"), resolved_dep("1.0.0"));
+    root_deps.insert(pkg_name("d"), resolved_dep("1.0.0"));
     importers.insert(
         Lockfile::ROOT_IMPORTER_KEY.to_string(),
         ProjectSnapshot { dependencies: Some(root_deps), ..ProjectSnapshot::default() },
@@ -225,7 +226,14 @@ fn version_conflict_keeps_loser_at_parent() {
         SnapshotEntry { dependencies: Some(c_deps), ..SnapshotEntry::default() },
     );
     snapshots.insert(dep_key("b", "1.0.0"), SnapshotEntry::default());
-    snapshots.insert(dep_key("b", "2.0.0"), SnapshotEntry::default());
+    let mut b_two_deps = HashMap::new();
+    b_two_deps.insert(pkg_name("d"), SnapshotDepRef::Plain(ver_peer("2.0.0")));
+    snapshots.insert(
+        dep_key("b", "2.0.0"),
+        SnapshotEntry { dependencies: Some(b_two_deps), ..SnapshotEntry::default() },
+    );
+    snapshots.insert(dep_key("d", "1.0.0"), SnapshotEntry::default());
+    snapshots.insert(dep_key("d", "2.0.0"), SnapshotEntry::default());
 
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
@@ -245,17 +253,21 @@ fn version_conflict_keeps_loser_at_parent() {
     let root_children = result.dependencies.borrow();
     let mut names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
     names.sort_unstable();
-    assert_eq!(names, ["a", "b", "c"], "root has a, c, and one b");
+    assert_eq!(names, ["a", "b", "c", "d"], "root keeps its direct d and one b");
     let b_at_root = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "b").unwrap().0);
     let b_refs = b_at_root.references.borrow();
     assert!(b_refs.contains("b@1.0.0"), "first DFS visitor wins root slot: {b_refs:?}");
     assert_eq!(b_refs.len(), 1, "no other reference accumulated yet: {b_refs:?}");
     let dep_c = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "c").unwrap().0);
     let c_kids = dep_c.dependencies.borrow();
-    assert_eq!(c_kids.len(), 1, "c kept its conflicting b@2");
-    let b_under_c_refs = c_kids[0].0.references.borrow();
+    assert_eq!(c_kids.len(), 2, "c kept b@2 and hoisted its conflicting d@2");
+    let b_under_c = Rc::clone(&c_kids.iter().find(|dep| dep.0.name == "b").unwrap().0);
+    let b_under_c_refs = b_under_c.references.borrow();
     assert!(b_under_c_refs.contains("b@2.0.0"), "loser stays under c: {b_under_c_refs:?}");
     assert_eq!(b_under_c_refs.len(), 1);
+    assert!(b_under_c.dependencies.borrow().is_empty(), "b's descendants hoist to nested root c");
+    let d_under_c_refs = c_kids.iter().find(|dep| dep.0.name == "d").unwrap().0.references.borrow();
+    assert!(d_under_c_refs.contains("d@2.0.0"), "d@2 stays below the root's d@1 conflict");
 }
 
 /// The most-depended-on version of a shared name wins the root

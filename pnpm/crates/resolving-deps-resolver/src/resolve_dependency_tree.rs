@@ -42,7 +42,9 @@ use crate::{
     },
     node_id::NodeId,
     parent_pkg_aliases::{ParentPkgAliases, peer_shadowed_dependencies},
-    resolved_tree::{DependenciesTreeNode, DirectDep, PeerDep, ResolvedPackage, ResolvedTree},
+    resolved_tree::{
+        AncestorIds, DependenciesTreeNode, DirectDep, PeerDep, ResolvedPackage, ResolvedTree,
+    },
 };
 use pacquet_lockfile::{
     PkgName, PkgNameVerPeer, ProjectSnapshot, ResolvedDependencyMap, SnapshotDepRef, SnapshotEntry,
@@ -1711,10 +1713,12 @@ where
     // preferred-versions overlay (a per-level fold; the direct deps
     // themselves resolve against the importer's static preferred map
     // only).
+    let root_ancestors = Arc::new(Vec::new());
     let seeds = wanted
         .into_iter()
         .map(|(name, range, optional, injected)| {
             let reuse = reuse.clone();
+            let root_ancestors = Arc::clone(&root_ancestors);
             async move {
                 // `injected: Some(true)` only when the importer manifest's
                 // `dependenciesMeta[name].injected = true` opted this dep
@@ -1737,7 +1741,7 @@ where
                     ctx,
                     resolver,
                     wanted,
-                    &[],
+                    &root_ancestors,
                     0,
                     false,
                     reuse,
@@ -1804,7 +1808,7 @@ async fn resolve_node<Chain>(
     ctx: &TreeCtx,
     resolver: &Chain,
     wanted: WantedDependency,
-    ancestor_ids: &[String],
+    ancestor_ids: &Arc<Vec<String>>,
     depth: i32,
     parent_optional: bool,
     reuse: ReuseSource,
@@ -1861,6 +1865,7 @@ struct PendingNode {
     alias: String,
     node_id: NodeId,
     is_link: bool,
+    parent_ancestors: Arc<Vec<String>>,
     next_ancestors: Arc<Vec<String>>,
     /// The deterministic children-ownership claim taken at seed time;
     /// the walk phase re-checks it before recording the children, so
@@ -1911,7 +1916,7 @@ async fn resolve_node_seed<Chain>(
     ctx: &TreeCtx,
     resolver: &Chain,
     wanted: WantedDependency,
-    ancestor_ids: &[String],
+    ancestor_ids: &Arc<Vec<String>>,
     depth: i32,
     parent_optional: bool,
     reuse: ReuseSource,
@@ -2220,6 +2225,7 @@ where
         alias,
         node_id,
         is_link,
+        parent_ancestors: Arc::clone(ancestor_ids),
         next_ancestors,
         children_owner,
         depth,
@@ -2277,6 +2283,7 @@ where
         alias,
         node_id,
         is_link,
+        parent_ancestors,
         next_ancestors,
         children_owner,
         depth,
@@ -2289,7 +2296,9 @@ where
         // map: a linked node has no children of its own here.
         crate::resolved_tree::TreeChildren::Realized(BTreeMap::new())
     } else if !children_owner.owns_children {
-        crate::resolved_tree::TreeChildren::Lazy { parent_ids: Arc::clone(&next_ancestors) }
+        crate::resolved_tree::TreeChildren::Lazy {
+            parent_ids: AncestorIds::from(Arc::clone(&parent_ancestors)),
+        }
     } else {
         // Look up cached children specs first; only walk the manifest on
         // a miss. The cache value is held by `Arc` so revisits clone the
@@ -2459,7 +2468,9 @@ where
             lock_recoverable(&ctx.workspace.children_by_id).insert(id.clone(), Arc::new(by_id));
             crate::resolved_tree::TreeChildren::Realized(realized)
         } else {
-            crate::resolved_tree::TreeChildren::Lazy { parent_ids: Arc::clone(&next_ancestors) }
+            crate::resolved_tree::TreeChildren::Lazy {
+                parent_ids: AncestorIds::from(Arc::clone(&parent_ancestors)),
+            }
         }
     };
 
@@ -2472,7 +2483,7 @@ where
     // Linked nodes carry `depth = -1` so the peer-resolution pass
     // short-circuits them in `resolve_node`.
     let node_depth = if is_link { -1 } else { depth };
-    remember_node_parent_ids(ctx, &node_id, Arc::clone(&next_ancestors));
+    remember_node_parent_ids(ctx, &node_id, parent_ancestors);
     insert_tree_node(ctx, node_id.clone(), &id, children, node_depth);
     if children_owner.owns_children
         && !children_owner.children_context_unchanged
@@ -2487,10 +2498,8 @@ where
 /// Whether the `parent → child` edge closes a dependency cycle's
 /// *second* lap. The first re-entry of a cycle is kept (so the
 /// cycle-closing dependency edge appears in the tree and the lockfile
-/// snapshot, with [`fn@crate::resolve_peers`]'s
-/// previously-resolved-children merge restoring the pruned edge on the
-/// repeated node); only the repeat of the full `parent … child`
-/// sequence is dropped.
+/// snapshot); only the repeat of the full `parent … child` sequence is
+/// dropped.
 pub(crate) fn parent_ids_contain_sequence(
     pkg_ids: &[String],
     pkg_id1: &str,
@@ -3089,7 +3098,9 @@ fn make_non_owner_nodes_lazy(ctx: &TreeCtx, pkg_id: &str, owner_node_id: &NodeId
     let mut rewrote_any = false;
     for (node_id, parent_ids) in parent_ids_by_node {
         if let Some(node) = tree.get_mut(&node_id) {
-            node.children = crate::resolved_tree::TreeChildren::Lazy { parent_ids };
+            node.children = crate::resolved_tree::TreeChildren::Lazy {
+                parent_ids: AncestorIds::from(parent_ids),
+            };
             rewrote_any = true;
         }
     }
@@ -3399,7 +3410,7 @@ async fn resolve_reused_node<Chain>(
     ctx: &TreeCtx,
     resolver: &Chain,
     wanted: WantedDependency,
-    ancestor_ids: &[String],
+    ancestor_ids: &Arc<Vec<String>>,
     depth: i32,
     current_is_optional: bool,
     reused: ReusedNode,
@@ -3535,13 +3546,17 @@ where
             lock_recoverable(&ctx.workspace.children_by_id).insert(id.clone(), Arc::new(by_id));
             crate::resolved_tree::TreeChildren::Realized(realized)
         } else {
-            crate::resolved_tree::TreeChildren::Lazy { parent_ids: Arc::clone(&next_ancestors) }
+            crate::resolved_tree::TreeChildren::Lazy {
+                parent_ids: AncestorIds::from(Arc::clone(ancestor_ids)),
+            }
         }
     } else {
-        crate::resolved_tree::TreeChildren::Lazy { parent_ids: Arc::clone(&next_ancestors) }
+        crate::resolved_tree::TreeChildren::Lazy {
+            parent_ids: AncestorIds::from(Arc::clone(ancestor_ids)),
+        }
     };
 
-    remember_node_parent_ids(ctx, &node_id, Arc::clone(&next_ancestors));
+    remember_node_parent_ids(ctx, &node_id, Arc::clone(ancestor_ids));
     insert_tree_node(ctx, node_id.clone(), &id, children, depth);
     if children_owner.owns_children
         && !children_owner.children_context_unchanged

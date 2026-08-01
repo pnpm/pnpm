@@ -109,8 +109,8 @@ pub use resolve_workspace::{
     ResolveWorkspaceResult, WorkspaceImporter, WorkspaceResolveOptions, resolve_workspace,
 };
 pub use resolved_tree::{
-    ChildEdge, DependenciesTree, DependenciesTreeNode, DirectDep, PeerDep, ResolvedPackage,
-    ResolvedTree, TreeChildren,
+    AncestorIds, ChildEdge, DependenciesTree, DependenciesTreeNode, DirectDep, PeerDep,
+    ResolvedPackage, ResolvedTree, TreeChildren,
 };
 pub use validate_dependency_alias::is_valid_dependency_alias;
 
