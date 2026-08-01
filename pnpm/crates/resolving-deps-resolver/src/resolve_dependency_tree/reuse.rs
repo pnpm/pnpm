@@ -591,7 +591,6 @@ where
     };
 
     if package_is_new {
-        ctx.workspace.record_resolved_version(&result);
         emit_deprecation_if_needed(ctx, &result, &id, depth);
     }
 

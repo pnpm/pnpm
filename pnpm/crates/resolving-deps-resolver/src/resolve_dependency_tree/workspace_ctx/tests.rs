@@ -1,8 +1,11 @@
 use pacquet_resolving_resolver_base::ResolveOptions;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::Arc};
 
-use super::{super::test_support::manifest_result, WorkspaceTreeCtx};
+use super::{
+    super::{lock_recoverable, test_support::manifest_result},
+    WorkspaceTreeCtx,
+};
 use crate::{
     DirectDep, NodeId,
     resolved_tree::{DependenciesTreeNode, TreeChildren},
@@ -211,4 +214,122 @@ fn snapshot_package(pkg_id: &str) -> super::ResolvedPackage {
         optional: false,
         is_leaf: false,
     }
+}
+
+#[test]
+fn run_preferred_versions_cover_only_packages_reachable_from_recorded_roots() {
+    let workspace = WorkspaceTreeCtx::default();
+    for (name, version) in [("root", "1.0.0"), ("child", "2.0.0"), ("stray", "9.9.9")] {
+        insert_named_package(&workspace, name, version);
+    }
+    insert_child_edge(&workspace, "root@1.0.0", "child", "child@2.0.0");
+    workspace.record_preferred_version_roots(std::iter::once("root@1.0.0"));
+    workspace.bump_revision();
+
+    let cache = workspace.run_preferred_versions();
+    assert_eq!(bucket_versions(&cache.versions, "root"), ["1.0.0"]);
+    assert_eq!(bucket_versions(&cache.versions, "child"), ["2.0.0"]);
+    assert!(
+        !cache.versions.contains_key("stray"),
+        "a resolved but unreachable package must not become a pick candidate",
+    );
+}
+
+#[test]
+fn run_preferred_versions_grow_with_new_roots_and_rebuild_on_children_rewrites() {
+    let workspace = WorkspaceTreeCtx::default();
+    for (name, version) in [("root", "1.0.0"), ("child", "2.0.0"), ("late", "3.0.0")] {
+        insert_named_package(&workspace, name, version);
+    }
+    insert_child_edge(&workspace, "root@1.0.0", "child", "child@2.0.0");
+    workspace.record_preferred_version_roots(std::iter::once("root@1.0.0"));
+    workspace.bump_revision();
+    assert!(workspace.run_preferred_versions().versions.contains_key("child"));
+
+    workspace.record_preferred_version_roots(std::iter::once("late@3.0.0"));
+    workspace.bump_revision();
+    assert_eq!(bucket_versions(&workspace.run_preferred_versions().versions, "late"), ["3.0.0"]);
+
+    // A children-ownership rewrite can drop edges, so the closure is
+    // rebuilt rather than grown.
+    lock_recoverable(&workspace.children_by_id).insert("root@1.0.0".to_string(), Arc::new(vec![]));
+    workspace.record_children_rewrite();
+    workspace.bump_revision();
+    let cache = workspace.run_preferred_versions();
+    assert!(!cache.versions.contains_key("child"), "the rewritten-away child must drop out");
+    assert_eq!(bucket_versions(&cache.versions, "root"), ["1.0.0"]);
+    assert_eq!(bucket_versions(&cache.versions, "late"), ["3.0.0"]);
+}
+
+#[test]
+fn run_preferred_versions_fold_workspace_manifest_identities_once_reachable() {
+    let workspace = WorkspaceTreeCtx::default();
+    lock_recoverable(&workspace.packages)
+        .insert("link:packages/opt".to_string(), snapshot_package("link:packages/opt"));
+    workspace.record_workspace_manifest_identity("link:packages/opt", "opt", "1.0.0");
+    insert_named_package(&workspace, "root", "1.0.0");
+    workspace.record_preferred_version_roots(std::iter::once("root@1.0.0"));
+    workspace.bump_revision();
+    assert!(
+        !workspace.run_preferred_versions().versions.contains_key("opt"),
+        "an unreachable workspace project's version must not become a pick candidate",
+    );
+
+    insert_child_edge(&workspace, "root@1.0.0", "opt", "link:packages/opt");
+    workspace.record_children_rewrite();
+    workspace.bump_revision();
+    assert_eq!(bucket_versions(&workspace.run_preferred_versions().versions, "opt"), ["1.0.0"]);
+}
+
+#[test]
+fn run_preferred_versions_pick_up_an_identity_recorded_after_the_first_visit() {
+    let workspace = WorkspaceTreeCtx::default();
+    insert_named_package(&workspace, "root", "1.0.0");
+    lock_recoverable(&workspace.packages)
+        .insert("link:packages/opt".to_string(), snapshot_package("link:packages/opt"));
+    insert_child_edge(&workspace, "root@1.0.0", "opt", "link:packages/opt");
+    workspace.record_preferred_version_roots(std::iter::once("root@1.0.0"));
+    workspace.bump_revision();
+    assert!(!workspace.run_preferred_versions().versions.contains_key("opt"));
+
+    workspace.record_workspace_manifest_identity("link:packages/opt", "opt", "1.0.0");
+    workspace.bump_revision();
+    assert_eq!(bucket_versions(&workspace.run_preferred_versions().versions, "opt"), ["1.0.0"]);
+}
+
+fn insert_named_package(workspace: &WorkspaceTreeCtx, name: &str, version: &str) {
+    let name_ver = pacquet_lockfile::PkgNameVer::new(
+        pacquet_lockfile::PkgName::parse(name).expect("parse package name"),
+        version.parse::<node_semver::Version>().expect("parse package version"),
+    );
+    let mut result = manifest_result(serde_json::json!({}));
+    result.id = (&name_ver).into();
+    result.name_ver = Some(name_ver);
+    let pkg_id = format!("{name}@{version}");
+    let package = super::ResolvedPackage {
+        id: pkg_id.clone(),
+        result: std::sync::Arc::new(result),
+        peer_dependencies: BTreeMap::new(),
+        optional: false,
+        is_leaf: false,
+    };
+    lock_recoverable(&workspace.packages).insert(pkg_id, package);
+}
+
+fn insert_child_edge(workspace: &WorkspaceTreeCtx, parent_id: &str, alias: &str, child_id: &str) {
+    lock_recoverable(&workspace.children_by_id).insert(
+        parent_id.to_string(),
+        Arc::new(vec![crate::resolved_tree::ChildEdge {
+            alias: alias.to_string(),
+            pkg_id: child_id.to_string(),
+            optional: false,
+        }]),
+    );
+}
+
+fn bucket_versions(
+    versions: &pacquet_resolving_resolver_base::PreferredVersions,
+    name: &str,
+) -> Vec<String> {
+    versions.get(name).map(|bucket| bucket.keys().cloned().collect()).unwrap_or_default()
 }
