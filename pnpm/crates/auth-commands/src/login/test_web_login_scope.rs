@@ -20,7 +20,7 @@ use super::{
 
 #[tokio::test]
 async fn should_persist_a_scoped_auth_token_and_scope_registry_mapping() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter, set_fetch);
     login_fake!(FakeHost, login_writes);
     reset();
     reset_login();
@@ -52,7 +52,7 @@ async fn should_persist_a_scoped_auth_token_and_scope_registry_mapping() {
 
 #[tokio::test]
 async fn should_persist_scoped_auth_tokens_under_path_registries() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter, set_fetch);
     login_fake!(FakeHost, login_writes);
     reset();
     reset_login();
@@ -84,7 +84,7 @@ async fn should_persist_scoped_auth_tokens_under_path_registries() {
 
 #[tokio::test]
 async fn should_accept_scope_with_a_leading_at_and_not_double_prefix() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter, set_fetch);
     login_fake!(FakeHost, login_writes);
     reset();
     reset_login();
@@ -114,7 +114,7 @@ async fn should_accept_scope_with_a_leading_at_and_not_double_prefix() {
 
 #[tokio::test]
 async fn should_not_write_a_scope_mapping_when_scope_is_omitted() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter, set_fetch);
     login_fake!(FakeHost, login_writes);
     reset();
     reset_login();
@@ -146,7 +146,7 @@ async fn should_not_write_a_scope_mapping_when_scope_is_omitted() {
 /// `normalize_scope`'s empty-scope guard.
 #[tokio::test]
 async fn should_treat_a_bare_at_scope_as_no_scope() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter, set_fetch);
     login_fake!(FakeHost, login_writes);
     reset();
     reset_login();
