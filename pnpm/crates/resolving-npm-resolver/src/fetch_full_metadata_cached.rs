@@ -77,6 +77,30 @@ pub async fn fetch_full_metadata_cached(
     pkg_name: &str,
     opts: &FetchFullMetadataCachedOptions<'_>,
 ) -> Result<Package, FetchMetadataError> {
+    fetch_metadata_cached(pkg_name, opts, false).await
+}
+
+/// [`fetch_full_metadata_cached`] with the conditional-request cache
+/// deliberately skipped: no validator is sent and the mirror is never
+/// read, so the registry can only answer with a body, which is then
+/// written over the mirror.
+///
+/// For replacing a mirror whose fragments turned out to be damaged. A
+/// conditional request cannot do that — the etag lives in the intact
+/// headers record, so the registry keeps answering `304` and the
+/// damaged file survives every install.
+pub(crate) async fn fetch_full_metadata_bypassing_cache(
+    pkg_name: &str,
+    opts: &FetchFullMetadataCachedOptions<'_>,
+) -> Result<Package, FetchMetadataError> {
+    fetch_metadata_cached(pkg_name, opts, true).await
+}
+
+async fn fetch_metadata_cached(
+    pkg_name: &str,
+    opts: &FetchFullMetadataCachedOptions<'_>,
+    bypass_cache: bool,
+) -> Result<Package, FetchMetadataError> {
     let base_meta_dir = if opts.full_metadata {
         if opts.filter_metadata { FULL_FILTERED_META_DIR } else { FULL_META_DIR }
     } else {
@@ -123,10 +147,11 @@ pub async fn fetch_full_metadata_cached(
         });
     }
 
-    let cache_headers = load_meta_headers_async(mirror_path.as_deref()).await;
+    let cache_headers =
+        if bypass_cache { None } else { load_meta_headers_async(mirror_path.as_deref()).await };
     let accept = if opts.full_metadata { ACCEPT_FULL_DOC } else { ACCEPT_ABBREVIATED_DOC };
     let should_filter_metadata = opts.full_metadata && opts.filter_metadata;
-    let cache_bypass = AtomicBool::new(false);
+    let cache_bypass = AtomicBool::new(bypass_cache);
 
     // A body retry re-enters this closure from the top, so the bypass has to
     // outlive the attempt that discovered the loss: re-validating against a

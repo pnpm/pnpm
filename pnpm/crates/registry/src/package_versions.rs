@@ -11,16 +11,27 @@
 //! asks for the typed form, and the hydrated manifest is cached per
 //! slot so repeated lookups parse once.
 //!
-//! A fragment that fails to decode behaves as if the version were
-//! absent from the packument (with a `tracing::warn`), mirroring the
-//! tolerance of JavaScript package managers, which never validate
-//! version entries they don't pick.
+//! A registry-served fragment that fails to decode behaves as if the
+//! version were absent from the packument (with a `tracing::warn`),
+//! mirroring the tolerance of JavaScript package managers, which never
+//! validate version entries they don't pick. A fragment read out of an
+//! indexed on-disk mirror is different: the index vouched for the span,
+//! so a decode failure means the local file is damaged rather than that
+//! the version is missing. Those are recorded in
+//! [`PackageVersions::has_corrupt_mirror_fragment`], which the resolver
+//! reads to treat the whole mirror as unreadable — silently resolving a
+//! different version off damaged local data would be worse than the
+//! refetch, and the etag lives in the intact headers record, so nothing
+//! else would ever repair the file.
 
 use std::{
     borrow::Cow,
     collections::HashMap,
     fs::File,
-    sync::{Arc, OnceLock},
+    sync::{
+        Arc, OnceLock,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -40,6 +51,9 @@ struct DeprecatedProbe {
 #[derive(Debug, Default, Clone)]
 pub struct PackageVersions {
     slots: Vec<(String, VersionSlot)>,
+    /// Shared with every clone and filtered view, so corruption stays
+    /// visible through whichever handle the resolver ends up holding.
+    corrupt_mirror_fragment: Arc<AtomicBool>,
 }
 
 #[derive(Debug)]
@@ -143,6 +157,13 @@ impl FragmentSource {
             FragmentSource::None => None,
         }
     }
+
+    /// Whether the fragment comes from an indexed on-disk mirror,
+    /// where a decode failure means a damaged file rather than a
+    /// version the registry served badly.
+    fn is_mirror_span(&self) -> bool {
+        matches!(self, FragmentSource::FileSpan { .. })
+    }
 }
 
 /// Fill `buf` from `file` at the absolute `offset`. The handle's read
@@ -196,10 +217,17 @@ impl VersionSlot {
         }
     }
 
-    fn hydrate(&self, version: &str) -> Option<Arc<PackageVersion>> {
+    fn hydrate(
+        &self,
+        version: &str,
+        corrupt_mirror_fragment: &AtomicBool,
+    ) -> Option<Arc<PackageVersion>> {
         self.parsed
             .get_or_init(|| {
-                let json = self.source.json()?;
+                let Some(json) = self.source.json() else {
+                    self.report_undecodable(version, corrupt_mirror_fragment);
+                    return None;
+                };
                 match serde_json::from_str::<PackageVersion>(&json) {
                     Ok(parsed) => Some(Arc::new(parsed)),
                     Err(error) => {
@@ -209,11 +237,24 @@ impl VersionSlot {
                             version,
                             "skipping registry version with an undecodable manifest",
                         );
+                        self.report_undecodable(version, corrupt_mirror_fragment);
                         None
                     }
                 }
             })
             .clone()
+    }
+
+    fn report_undecodable(&self, version: &str, corrupt_mirror_fragment: &AtomicBool) {
+        if !self.source.is_mirror_span() {
+            return;
+        }
+        tracing::debug!(
+            target: "pacquet_registry",
+            version,
+            "metadata mirror fragment is damaged; the mirror will be treated as unreadable",
+        );
+        corrupt_mirror_fragment.store(true, Ordering::Relaxed);
     }
 }
 
@@ -223,7 +264,16 @@ impl PackageVersions {
     /// fragment fails to decode.
     #[must_use]
     pub fn get(&self, version: &str) -> Option<Arc<PackageVersion>> {
-        self.slot(version)?.hydrate(version)
+        self.slot(version)?.hydrate(version, &self.corrupt_mirror_fragment)
+    }
+
+    /// Whether hydrating any version so far read a damaged fragment of
+    /// an indexed on-disk mirror. Lazy, like the hydration it reports
+    /// on: a corrupt fragment nobody touched goes unnoticed, exactly as
+    /// its version going unpicked means nothing was resolved from it.
+    #[must_use]
+    pub fn has_corrupt_mirror_fragment(&self) -> bool {
+        self.corrupt_mirror_fragment.load(Ordering::Relaxed)
     }
 
     /// Whether the packument lists `version`. Never hydrates.
@@ -249,11 +299,18 @@ impl PackageVersions {
         if let Some(parsed) = slot.parsed.get() {
             return parsed.as_ref().is_some_and(|manifest| manifest.deprecated.is_some());
         }
-        let Some(json) = slot.source.json() else { return false };
+        let Some(json) = slot.source.json() else {
+            slot.report_undecodable(version, &self.corrupt_mirror_fragment);
+            return false;
+        };
         if !json.contains(r#""deprecated""#) {
             return false;
         }
-        serde_json::from_str::<DeprecatedProbe>(&json).is_ok_and(|probe| probe.deprecated.is_some())
+        let Ok(probe) = serde_json::from_str::<DeprecatedProbe>(&json) else {
+            slot.report_undecodable(version, &self.corrupt_mirror_fragment);
+            return false;
+        };
+        probe.deprecated.is_some()
     }
 
     /// Version strings in lexical order. Never hydrates.
@@ -276,7 +333,9 @@ impl PackageVersions {
     /// representation, so this belongs only on cold paths (the trust
     /// verifier's history scan, tests).
     pub fn iter(&self) -> impl Iterator<Item = (&String, Arc<PackageVersion>)> {
-        self.slots.iter().filter_map(|(version, slot)| Some((version, slot.hydrate(version)?)))
+        self.slots.iter().filter_map(|(version, slot)| {
+            Some((version, slot.hydrate(version, &self.corrupt_mirror_fragment)?))
+        })
     }
 
     /// Filtered copy keeping only the versions `keep` accepts. Slots
@@ -292,6 +351,7 @@ impl PackageVersions {
                 .filter(|(version, _)| keep(version))
                 .map(|(version, slot)| (version.clone(), slot.clone()))
                 .collect(),
+            corrupt_mirror_fragment: Arc::clone(&self.corrupt_mirror_fragment),
         }
     }
 
@@ -305,7 +365,7 @@ impl PackageVersions {
         if !slots.is_sorted_by(|left, right| left.0 <= right.0) {
             slots.sort_unstable_by(|left, right| left.0.cmp(&right.0));
         }
-        PackageVersions { slots }
+        PackageVersions { slots, corrupt_mirror_fragment: Arc::default() }
     }
 }
 
