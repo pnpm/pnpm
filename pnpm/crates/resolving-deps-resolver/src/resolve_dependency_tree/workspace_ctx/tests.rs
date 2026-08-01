@@ -2,7 +2,10 @@ use pacquet_resolving_resolver_base::ResolveOptions;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{collections::BTreeMap, sync::Arc};
 
-use super::{super::lock_recoverable, super::test_support::manifest_result, WorkspaceTreeCtx};
+use super::{
+    super::{lock_recoverable, test_support::manifest_result},
+    WorkspaceTreeCtx,
+};
 use crate::{
     DirectDep, NodeId,
     resolved_tree::{DependenciesTreeNode, TreeChildren},
