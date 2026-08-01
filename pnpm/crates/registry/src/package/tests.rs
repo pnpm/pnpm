@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use node_semver::Version;
 use pretty_assertions::assert_eq;
 
-use super::{AuthHeaders, Package, PackageVersion, ThrottledClient};
+use super::{AuthHeaders, DerivedPackuments, Package, PackageVersion, ThrottledClient};
 use crate::{RangeSpecStyle, package_distribution::PackageDistribution};
 
 #[test]
@@ -140,6 +140,7 @@ fn package_with_versions(name: &str, versions: &[&str], latest: &str) -> Package
         homepage: None,
         mutex: std::sync::Arc::default(),
         release_age_upgrade_checked: false,
+        derived: DerivedPackuments::default(),
     }
 }
 

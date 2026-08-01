@@ -1,9 +1,9 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use chrono::{DateTime, Utc};
 use node_semver::Version;
 use pacquet_config::version_policy::create_package_version_policy;
-use pacquet_registry::{Package, PackageDistribution, PackageVersion};
+use pacquet_registry::{DerivedPackuments, Package, PackageDistribution, PackageVersion};
 use pacquet_resolving_resolver_base::{
     VersionSelectorEntry, VersionSelectorType, VersionSelectorWithWeight, VersionSelectors,
 };
@@ -59,6 +59,7 @@ fn make_package(
         homepage: None,
         mutex: std::sync::Arc::default(),
         release_age_upgrade_checked: false,
+        derived: DerivedPackuments::default(),
     }
 }
 
@@ -514,6 +515,46 @@ fn filter_latest_fallback_does_not_exceed_original_tag_target() {
     let filtered = filter_pkg_metadata_by_publish_date(&pkg_without_safe_fallback, cutoff, None);
 
     assert_eq!(filtered.dist_tag("latest"), None);
+}
+
+#[test]
+fn filter_is_memoized_per_packument_and_stays_bounded() {
+    let mut pkg = make_package("acme", &[("1.0.0", None)], &[("latest", "1.0.0")]);
+    pkg.time = Some(make_time_map(&[("1.0.0", "2020-01-01T00:00:00.000Z")]));
+    let cutoff = parse_iso("2020-04-01T00:00:00.000Z");
+
+    let first = filter_pkg_metadata_by_publish_date(&pkg, cutoff, None);
+    let second = filter_pkg_metadata_by_publish_date(&pkg, cutoff, None);
+    assert!(Arc::ptr_eq(&first, &second), "same policy reuses the derived packument");
+
+    let trusted = filter_pkg_metadata_by_publish_date(&pkg, cutoff, Some(&["9.9.9".to_string()]));
+    assert!(!Arc::ptr_eq(&first, &trusted), "trusted versions are part of the policy");
+
+    // Distinct cutoffs past the cap evict the oldest entry, so the
+    // original policy is derived again instead of growing the memo.
+    for minutes in 1..=4 {
+        let other = cutoff + chrono::Duration::minutes(minutes);
+        let _ = filter_pkg_metadata_by_publish_date(&pkg, other, None);
+    }
+    let after_eviction = filter_pkg_metadata_by_publish_date(&pkg, cutoff, None);
+    assert!(!Arc::ptr_eq(&first, &after_eviction), "the memo is bounded");
+}
+
+#[test]
+fn filter_memo_separates_cutoffs_inside_one_millisecond() {
+    let mut pkg = make_package("acme", &[("1.0.0", None), ("1.1.0", None)], &[("latest", "1.1.0")]);
+    pkg.time = Some(make_time_map(&[
+        ("1.0.0", "2020-01-01T00:00:00.000Z"),
+        ("1.1.0", "2020-04-01T00:00:00.000400Z"),
+    ]));
+
+    let before =
+        filter_pkg_metadata_by_publish_date(&pkg, parse_iso("2020-04-01T00:00:00.000300Z"), None);
+    let after =
+        filter_pkg_metadata_by_publish_date(&pkg, parse_iso("2020-04-01T00:00:00.000500Z"), None);
+
+    assert!(!before.versions.contains_key("1.1.0"), "published after the earlier cutoff");
+    assert!(after.versions.contains_key("1.1.0"), "published before the later cutoff");
 }
 
 #[test]

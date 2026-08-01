@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use chrono::{TimeDelta, Utc};
 use miette::Diagnostic;
-use pacquet_registry::{Package, PackageDistribution, PackageVersion};
+use pacquet_registry::{DerivedPackuments, Package, PackageDistribution, PackageVersion};
 
 use super::{
     NoMatchingVersionError, RegistryResponseError, RegistryResponseErrorOptions, stringify_date,
@@ -43,6 +43,7 @@ fn make_package(name: &str, versions: &[&str], dist_tags: &[(&str, &str)]) -> Pa
         homepage: None,
         mutex: std::sync::Arc::default(),
         release_age_upgrade_checked: false,
+        derived: DerivedPackuments::default(),
     }
 }
 

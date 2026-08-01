@@ -58,7 +58,7 @@ use std::{
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_network::MetadataCacheScope;
-use pacquet_registry::{Package, PackageVersions};
+use pacquet_registry::{DerivedPackuments, Package, PackageVersions};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
@@ -502,6 +502,7 @@ pub fn load_meta(pkg_mirror: &Path) -> Option<Package> {
         homepage: index.homepage,
         mutex: Arc::default(),
         release_age_upgrade_checked: false,
+        derived: DerivedPackuments::default(),
     })
 }
 

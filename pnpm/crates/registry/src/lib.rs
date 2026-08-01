@@ -5,7 +5,7 @@ mod package_version;
 mod package_versions;
 mod range_spec_style;
 
-pub use package::Package;
+pub use package::{DerivedPackuments, Package};
 pub use package_distribution::{AttestationsDist, PackageDistribution, ProvenanceMeta};
 pub use package_tag::PackageTag;
 pub use package_version::{Approver, NpmUser, PackageVersion, TrustedPublisher};

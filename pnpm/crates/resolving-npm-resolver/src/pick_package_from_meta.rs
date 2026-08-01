@@ -34,7 +34,7 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::{Range, Version};
 use pacquet_config::version_policy::{PackageVersionPolicy, PolicyMatch};
-use pacquet_registry::{Package, PackageVersion, PackageVersions};
+use pacquet_registry::{DerivedPackuments, Package, PackageVersion, PackageVersions};
 use pacquet_resolving_resolver_base::{
     VersionSelectorEntry, VersionSelectorType, VersionSelectors, parse_packument_timestamp,
 };
@@ -153,9 +153,9 @@ where
     PickFn: Fn(&PickVersionByVersionRangeOptions<'_>) -> Option<String>,
 {
     // "Owned-after-filter" shape: when publishedBy is active and a
-    // maturity filter applies, swap `meta` for a filtered clone —
+    // maturity filter applies, swap `meta` for the filtered view —
     // otherwise borrow the input through.
-    let filtered;
+    let filtered: Arc<Package>;
     let meta_ref: &Package = match opts.published_by {
         Some(cutoff) => {
             let exclude_result = opts
@@ -169,7 +169,7 @@ where
                     _ => None,
                 };
                 filtered = filter_pkg_metadata_by_publish_date(meta, cutoff, trusted);
-                &filtered
+                filtered.as_ref()
             } else {
                 // Abbreviated metadata has no per-version `time`. The
                 // missing-time error signals the orchestrator, which
@@ -267,6 +267,7 @@ fn without_version(meta: &Package, version: &str) -> Package {
         homepage: meta.homepage.clone(),
         mutex: Arc::default(),
         release_age_upgrade_checked: false,
+        derived: DerivedPackuments::default(),
     }
 }
 
@@ -375,12 +376,48 @@ pub fn pick_lowest_version_by_version_range(
 /// `latest`, matching prerelease/release status, and preferring
 /// non-deprecated versions when both are present).
 ///
+/// The result is memoized on `meta` (see [`DerivedPackuments`]) and
+/// shared between callers, so it is handed back behind an [`Arc`]:
+/// every caller of one cutoff and trusted-version list gets the same
+/// document, whose version manifests are the ones `meta` holds.
+///
 /// Panics if `meta.time` is `None` — the caller (the publishedBy
 /// branch in [`pick_package_from_meta`]) only invokes this with full
 /// metadata. The abbreviated-metadata path takes the `meta.modified`
 /// shortcut above and never reaches this function.
 #[must_use]
 pub fn filter_pkg_metadata_by_publish_date(
+    meta: &Package,
+    cutoff: chrono::DateTime<chrono::Utc>,
+    trusted_versions: Option<&[String]>,
+) -> Arc<Package> {
+    let policy_key = publish_date_policy_key(cutoff, trusted_versions);
+    meta.derived.get_or_derive(&policy_key, || {
+        filter_pkg_metadata_by_publish_date_uncached(meta, cutoff, trusted_versions)
+    })
+}
+
+/// Every input the filter's output depends on, in one string: the same
+/// packument is served to installs whose cutoff or trusted versions
+/// differ, and they must not read each other's view.
+///
+/// The cutoff goes in at the precision it is compared at: it comes from
+/// `Utc::now()` and packument timestamps parse to the same resolution,
+/// so a key rounded to the millisecond would let two cutoffs that keep
+/// different versions share one derived packument.
+fn publish_date_policy_key(
+    cutoff: chrono::DateTime<chrono::Utc>,
+    trusted_versions: Option<&[String]>,
+) -> String {
+    let mut key = format!("{}.{}", cutoff.timestamp(), cutoff.timestamp_subsec_nanos());
+    for trusted in trusted_versions.unwrap_or_default() {
+        key.push('\0');
+        key.push_str(trusted);
+    }
+    key
+}
+
+fn filter_pkg_metadata_by_publish_date_uncached(
     meta: &Package,
     cutoff: chrono::DateTime<chrono::Utc>,
     trusted_versions: Option<&[String]>,
@@ -437,6 +474,7 @@ fn filter_pkg_metadata_versions_with_latest_bound(
         homepage: meta.homepage.clone(),
         mutex: std::sync::Arc::clone(&meta.mutex),
         release_age_upgrade_checked: false,
+        derived: DerivedPackuments::default(),
     }
 }
 
