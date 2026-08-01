@@ -1,9 +1,12 @@
 //! End-to-end coverage for the `excludeLinksFromLockfile` setting.
 
+pub mod _utils;
+
+use _utils::append_workspace_yaml_key;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fmt::Write as _, fs, path::Path};
+use std::{fs, path::Path};
 
 /// The setting only keeps the machine-dependent path of an *external*
 /// link out of the lockfile. A workspace-internal link resolving a peer
@@ -53,16 +56,8 @@ fn install_workspace_with_linked_peer(exclude_links_from_lockfile: bool) -> Stri
     )
     .expect("write root package.json");
 
-    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
-    let mut workspace_yaml =
-        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
-    if !workspace_yaml.ends_with('\n') {
-        workspace_yaml.push('\n');
-    }
-    workspace_yaml.push_str("packages:\n  - 'packages/*'\n");
-    writeln!(workspace_yaml, "excludeLinksFromLockfile: {exclude_links_from_lockfile}")
-        .expect("append the setting to pnpm-workspace.yaml");
-    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+    append_workspace_yaml_key(&workspace, "packages", "['packages/*']");
+    append_workspace_yaml_key(&workspace, "excludeLinksFromLockfile", exclude_links_from_lockfile);
 
     write_project(
         &workspace,
