@@ -27,6 +27,8 @@ use super::{
 /// protocols, whose resolved path `resolve_from_local_package` derives
 /// from `project_dir`. Such resolutions must not be shared across
 /// importers in [`WantedKey`].
+///
+/// [`WantedKey`]: super::workspace_ctx::WantedKey
 pub(super) fn project_relative_cache_scope(
     wanted: &WantedDependency,
     opts: &ResolveOptions,

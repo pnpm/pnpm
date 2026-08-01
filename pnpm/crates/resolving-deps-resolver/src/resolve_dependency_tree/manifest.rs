@@ -117,6 +117,10 @@ pub(super) async fn build_pkg_id_with_patch_hash(
 /// Names the manifest bundles are dropped: npm ships them inside the
 /// package's own tarball, so resolving them again would install a
 /// second copy the package never loads.
+///
+/// [`extend_tree`]: super::extend_tree
+/// [`ResolvedPackage::peer_dependencies`]: crate::ResolvedPackage::peer_dependencies
+/// [`ResolvedPackage::optional`]: crate::ResolvedPackage::optional
 pub(super) fn extract_children(
     result: &pacquet_resolving_resolver_base::ResolveResult,
 ) -> Result<Vec<ChildSpec>, ResolveDependencyTreeError> {
@@ -209,6 +213,8 @@ fn render_parent(result: &pacquet_resolving_resolver_base::ResolveResult) -> Str
 /// `optional: true` — it is treated as an optional `"*"` peer exactly
 /// like an explicitly declared one, and non-optional meta-only entries
 /// are ignored.
+///
+/// [`peer_shadowed_dependencies`]: crate::parent_pkg_aliases::peer_shadowed_dependencies
 pub(super) fn extract_peer_dependencies(
     result: &pacquet_resolving_resolver_base::ResolveResult,
     peer_shadowed: &HashSet<String>,
@@ -266,7 +272,7 @@ pub(super) fn extract_peer_dependencies(
 /// Conservatively returns `false` when the manifest is missing —
 /// collapsing onto a leaf `NodeId` would claim knowledge of children
 /// there is none of. Resolutions reaching here always carry one, real
-/// or synthesized by [`fallback_manifest`].
+/// or synthesized by `walk::fallback_manifest`.
 pub(super) fn pkg_is_leaf(result: &pacquet_resolving_resolver_base::ResolveResult) -> bool {
     let Some(manifest) = result.manifest.as_ref() else { return false };
     is_empty_or_absent(manifest.get("dependencies"))

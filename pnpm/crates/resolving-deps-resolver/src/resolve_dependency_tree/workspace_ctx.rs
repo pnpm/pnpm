@@ -79,6 +79,11 @@ use super::{
 /// and record whether this wanted dependency is an explicit update target.
 /// Ordinary keep-all importers use no importer scope and retain the existing
 /// cross-importer cache sharing.
+///
+/// [`Resolver::resolve`]: pacquet_resolving_resolver_base::Resolver::resolve
+/// [`WantedDependency`]: pacquet_resolving_resolver_base::WantedDependency
+/// [`extend_tree`]: super::extend_tree
+/// [`fn@resolve_node`]: super::walk::resolve_node
 pub(super) type WantedKey = (
     Option<String>,
     Option<String>,
@@ -136,6 +141,8 @@ struct ChildrenOwnerEntry {
     /// pnpm lets the first occurrence to resolve decide, which is
     /// arrival-ordered. The deterministic children owner decides here
     /// instead, so the same graph always yields the same lockfile.
+    ///
+    /// [`peer_shadowed_dependencies`]: crate::parent_pkg_aliases::peer_shadowed_dependencies
     pub(super) peer_shadowed: Arc<HashSet<String>>,
 }
 
@@ -156,6 +163,8 @@ pub struct WorkspaceTreeCtx {
     /// maps. The peer-hoist discovery engine compares it against the
     /// revision of its last sync to skip re-syncing an unchanged
     /// context.
+    ///
+    /// [`fn@extend_tree`]: super::extend_tree
     revision: std::sync::atomic::AtomicU64,
     /// Bumped whenever a children-ownership change rewrites an existing
     /// occurrence node's children in `dependencies_tree` (see
@@ -205,6 +214,8 @@ pub struct WorkspaceTreeCtx {
     /// dependency + its transitive subtree instead of re-resolving from
     /// the registry (see `pnpm/plans/LOCKFILE_RESOLUTION_REUSE.md`).
     /// `None` on a first install or when reuse is disabled.
+    ///
+    /// [`resolve_node`]: super::walk::resolve_node
     pub(super) wanted_lockfile: Option<Arc<pacquet_lockfile::Lockfile>>,
     /// Lockfile-reuse suppression for `pacquet update`. `update`
     /// re-resolves its target deps to highest-in-range, so a reused
@@ -215,7 +226,7 @@ pub struct WorkspaceTreeCtx {
     update_reuse_scopes_by_importer: BTreeMap<String, UpdateReuseScope>,
     /// `pacquet update --depth`: how deep the suppression above reaches.
     pub(super) update_depth: UpdateDepth,
-    /// Memoises [`fn@subtree_fully_reusable`] per update scope and snapshot
+    /// Memoises `reuse::subtree_fully_reusable` per update scope and snapshot
     /// key. Keep-all importers share one scope; update-active importers use
     /// isolated scopes so one importer's reuse answer cannot leak to another.
     /// `true` means the package and its entire transitive subtree can be
@@ -241,6 +252,8 @@ pub struct WorkspaceTreeCtx {
     /// The install's `autoInstallPeers` setting. It widens which of a
     /// resolved package's `dependencies` its own `peerDependencies`
     /// shadow — see [`peer_shadowed_dependencies`].
+    ///
+    /// [`peer_shadowed_dependencies`]: crate::parent_pkg_aliases::peer_shadowed_dependencies
     pub(super) auto_install_peers: bool,
     /// Resolved registry map (`"default"` + per-scope) used to
     /// materialize a prior `Registry` lockfile resolution back into its
@@ -280,6 +293,8 @@ pub struct WorkspaceTreeCtx {
     /// `preferredVersions`; consulted by [`fn@higher_direct_dep_version`].
     /// `Arc` so the hot child walk snapshots the importer's map with one
     /// lock + refcount bump instead of locking per edge.
+    ///
+    /// [`fn@higher_direct_dep_version`]: super::reuse::higher_direct_dep_version
     pub(super) direct_dep_versions: Mutex<HashMap<String, Arc<DirectDepVersions>>>,
 }
 

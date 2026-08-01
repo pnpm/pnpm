@@ -111,6 +111,8 @@ impl ReuseSource {
 /// to compare against, so recording them would mark them "changed" on
 /// every install and permanently decline subtree reuse for anything
 /// depending on them.
+///
+/// [`WorkspaceTreeCtx::changed_direct_deps`]: super::WorkspaceTreeCtx::changed_direct_deps
 pub(crate) fn record_changed_direct_deps(
     ctx: &TreeCtx,
     importer_id: &str,
@@ -144,6 +146,8 @@ pub(crate) fn record_changed_direct_deps(
 /// re-resolve (and drift) every subtree depending on one. The edge is
 /// unchanged when the lockfile's `catalogs:` snapshot recorded the same
 /// range for this alias.
+///
+/// [`fn@resolve_catalog_specifiers`]: super::resolve_catalog_specifiers
 fn catalog_specifier_unchanged(
     lockfile: Option<&pacquet_lockfile::Lockfile>,
     recorded: &str,
@@ -174,6 +178,8 @@ fn importer_dep_specifier<'a>(importer: &'a ProjectSnapshot, alias: &str) -> Opt
 
 /// Store the importer's resolved (parsed) direct-dep versions for the
 /// per-edge stale-pin refresh. See [`WorkspaceTreeCtx::direct_dep_versions`].
+///
+/// [`WorkspaceTreeCtx::direct_dep_versions`]: super::WorkspaceTreeCtx::direct_dep_versions
 pub(super) fn record_direct_dep_versions(
     ctx: &TreeCtx,
     importer_id: &str,
@@ -194,6 +200,8 @@ pub(super) fn record_direct_dep_versions(
 
 /// True when `snapshot` depends on one of this importer's changed direct
 /// deps (see [`WorkspaceTreeCtx::changed_direct_deps`]).
+///
+/// [`WorkspaceTreeCtx::changed_direct_deps`]: super::WorkspaceTreeCtx::changed_direct_deps
 fn reused_parent_has_changed_direct_child(ctx: &TreeCtx, snapshot: &SnapshotEntry) -> bool {
     // Copy the (small) changed set out and drop the lock before scanning.
     let importer_changed = {
@@ -226,6 +234,8 @@ pub(super) fn node_depends_on_changed_direct_dep(
 /// direct deps (the deterministic, resolved-before-the-walk signal).
 /// `direct_versions` is the importer's snapshot, taken once per walk by
 /// [`fn@walk_node_children`].
+///
+/// [`fn@walk_node_children`]: super::walk::walk_node_children
 pub(super) fn higher_direct_dep_version(
     direct_versions: Option<&DirectDepVersions>,
     name: &str,
@@ -370,7 +380,7 @@ pub(crate) fn unwrap_package_name<'a>(
 /// the local install name `foo`. For a jsr dep (`foo@jsr:@bar/baz@^1`
 /// or just `jsr:@bar/baz`), this is the folded npm registry name
 /// (`@jsr/bar__baz`) that the picker and lockfile snapshots key on.
-/// [`overlay_lookup_names`] builds its candidate set from this name.
+/// `walk::overlay_lookup_names` builds its candidate set from this name.
 ///
 /// Returns `None` when no name can be recovered (no alias, malformed
 /// npm-alias target, unparsable jsr specifier). The caller treats
@@ -459,6 +469,8 @@ pub(super) fn is_update_target(
 /// `false` (e.g. an update-excluded target reachable only through the
 /// cycle), wrongly reusing it. SCC-aware reuse of acyclic-equivalent
 /// cycles is possible but not worth the complexity for an uncommon case.
+///
+/// [`WorkspaceTreeCtx::subtree_reusable`]: super::WorkspaceTreeCtx::subtree_reusable
 fn subtree_fully_reusable(
     ctx: &TreeCtx,
     lockfile: &pacquet_lockfile::Lockfile,
