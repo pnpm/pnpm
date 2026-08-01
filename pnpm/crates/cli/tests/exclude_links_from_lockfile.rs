@@ -35,9 +35,12 @@ fn workspace_internal_link_peer_is_unaffected_by_exclude_links_from_lockfile() {
              excludeLinksFromLockfile: {exclude_links}\n{lockfile}",
         );
     }
+    let with_setting_normalized =
+        with_setting.replace("excludeLinksFromLockfile: true", "excludeLinksFromLockfile: false");
+    eprintln!("WITH SETTING:\n{with_setting_normalized}\n");
+    eprintln!("WITHOUT SETTING:\n{without_setting}\n");
     assert_eq!(
-        with_setting.replace("excludeLinksFromLockfile: true", "excludeLinksFromLockfile: false"),
-        without_setting,
+        with_setting_normalized, without_setting,
         "only the recorded setting itself may differ",
     );
 }
