@@ -32,7 +32,12 @@ const PREWARM_SCRIPT: &str = "prewarm.bash";
 const BENCHMARK_DIAGNOSTICS_JSON: &str = "BENCHMARK_DIAGNOSTICS.json";
 const BENCHMARK_DIAGNOSTICS_MD: &str = "BENCHMARK_DIAGNOSTICS.md";
 const PNPR_DIRECT_RATIO_MAX: f64 = 1.05;
-const PACQUET_PNPM_SPEEDUP_MIN: f64 = 10.0;
+// A pacquet peer-resolution blowup lands *below* 1x on this DAG, so the floor
+// only has to clear measurement noise, not encode how far ahead pacquet is.
+// The TypeScript resolver's own hot-cache cost moves independently — offline
+// resolution of this fixture dropped from ~34s to ~3s in pnpm/pnpm#13504 — and
+// a floor tracking that headroom would fail on every TypeScript perf win.
+const PACQUET_PNPM_SPEEDUP_MIN: f64 = 1.25;
 const PNPR_SERVER_REGISTRY_ENV: &str = "PACQUET_BENCHMARK_PNPR_SERVER_REGISTRY";
 const PNPR_TARBALL_REWRITE_FROM_ENV: &str = "PACQUET_BENCHMARK_PNPR_TARBALL_REWRITE_FROM";
 const PNPR_BENCHMARK_USERNAME: &str = "pnpr-benchmark";
