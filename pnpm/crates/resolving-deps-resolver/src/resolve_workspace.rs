@@ -256,10 +256,12 @@ where
     //
     // The initial waves run concurrently, like the TypeScript resolver's
     // importer fan-out: the shared context's children-owner claims are
-    // rank-ordered (not arrival-ordered), so the resolved graph is the
-    // same regardless of interleaving, and a large workspace's walks
-    // overlap their resolver and hook waits instead of paying them
-    // importer by importer.
+    // rank-ordered (not arrival-ordered) and the peer-hoist pickers'
+    // preferred-version candidates are derived from the settled
+    // reachable tree (see `WorkspaceTreeCtx::run_preferred_versions`),
+    // so the resolved graph is the same regardless of interleaving, and
+    // a large workspace's walks overlap their resolver and hook waits
+    // instead of paying them importer by importer.
     let mut input_dirs = Vec::with_capacity(importers.len());
     let init_futures: Vec<_> = importers
         .iter()

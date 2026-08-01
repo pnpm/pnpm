@@ -10,7 +10,7 @@ use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{
     collections::BTreeMap,
     path::PathBuf,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, MutexGuard},
 };
 
 use crate::{
@@ -174,16 +174,20 @@ pub struct WorkspaceTreeCtx {
     /// since its last sync.
     children_rewrites: std::sync::atomic::AtomicU64,
     pub(super) packages: Mutex<HashMap<String, ResolvedPackage>>,
-    /// Every `name → version` this run resolved (one fold per new
-    /// `packages` entry carrying a `name_ver`, plus every workspace
-    /// package version a directory resolution surfaced), shaped as the
-    /// plain [`pacquet_resolving_resolver_base::PreferredVersions`]
-    /// entries the peer-hoist pickers bias toward. Maintained once,
-    /// workspace-wide: importers query the buckets they need through
-    /// [`TreeCtx::preferred_versions_for_names`] instead of each
-    /// replaying the whole run history into a private copy.
-    pub(super) preferred_versions_from_run:
-        Mutex<pacquet_resolving_resolver_base::PreferredVersions>,
+    /// `pkgIdWithPatchHash` of every importer-level direct dependency
+    /// recorded so far (initial waves plus hoisted peers), across all
+    /// importers. These are the roots [`Self::run_preferred_versions`]
+    /// derives the run-resolved preferred versions from.
+    preferred_version_roots: Mutex<HashSet<String>>,
+    /// `pkgIdWithPatchHash → (name, version)` for packages whose
+    /// resolution carries no `name_ver` but was wanted through a
+    /// non-path `workspace:` specifier — the workspace-project versions
+    /// [`Self::run_preferred_versions`] folds for such packages. Keyed
+    /// by package id so the fold stays reachability-gated.
+    workspace_manifest_identities: Mutex<HashMap<String, (String, String)>>,
+    /// Memoised result of [`Self::run_preferred_versions`], keyed by the
+    /// `(revision, children_rewrites)` pair it was computed at.
+    run_versions_cache: Mutex<RunVersionsCache>,
     dependencies_tree: Mutex<HashMap<NodeId, DependenciesTreeNode>>,
     pub(super) all_peer_dep_names: Mutex<HashSet<String>>,
     pub(super) policy_violations:
@@ -306,15 +310,38 @@ struct OwnerMissingRecord {
     names: HashSet<String>,
 }
 
+/// State behind [`WorkspaceTreeCtx::run_preferred_versions`]: the
+/// package ids already traversed and the `name → version` entries
+/// their identities folded into, valid as of the recorded
+/// `(revision, children_rewrites)` pair.
+pub(super) struct RunVersionsCache {
+    revision: u64,
+    children_rewrites: u64,
+    visited: HashSet<String>,
+    /// Visited packages that carry no `name_ver` and whose
+    /// workspace-manifest identity hasn't been recorded yet. Re-checked
+    /// on every refresh: the identity is recorded per `workspace:` edge,
+    /// and a later wave can add such an edge to an already-visited
+    /// package.
+    awaiting_identity: HashSet<String>,
+    pub(super) versions: pacquet_resolving_resolver_base::PreferredVersions,
+}
+
 impl Default for WorkspaceTreeCtx {
     fn default() -> Self {
         WorkspaceTreeCtx {
             revision: std::sync::atomic::AtomicU64::new(0),
             children_rewrites: std::sync::atomic::AtomicU64::new(0),
             packages: Mutex::new(HashMap::default()),
-            preferred_versions_from_run: Mutex::new(
-                pacquet_resolving_resolver_base::PreferredVersions::new(),
-            ),
+            preferred_version_roots: Mutex::new(HashSet::default()),
+            workspace_manifest_identities: Mutex::new(HashMap::default()),
+            run_versions_cache: Mutex::new(RunVersionsCache {
+                revision: 0,
+                children_rewrites: 0,
+                visited: HashSet::default(),
+                awaiting_identity: HashSet::default(),
+                versions: pacquet_resolving_resolver_base::PreferredVersions::new(),
+            }),
             dependencies_tree: Mutex::new(HashMap::default()),
             all_peer_dep_names: Mutex::new(HashSet::default()),
             policy_violations: Mutex::new(Vec::new()),
@@ -533,30 +560,123 @@ impl WorkspaceTreeCtx {
             .collect()
     }
 
-    /// Fold a freshly-inserted package's `(name, version)` into
-    /// [`Self::preferred_versions_from_run`]. Call once per new
-    /// `packages` entry.
-    pub(super) fn record_resolved_version(
+    /// Record importer-level direct-dependency package ids as roots for
+    /// [`Self::run_preferred_versions`]. Called by [`fn@extend_tree`]
+    /// after each importer-level wave resolves.
+    ///
+    /// [`fn@extend_tree`]: super::extend_tree
+    pub(super) fn record_preferred_version_roots<'id>(
         &self,
-        result: &pacquet_resolving_resolver_base::ResolveResult,
+        pkg_ids: impl Iterator<Item = &'id str>,
     ) {
-        if let Some(name_ver) = result.name_ver.as_ref() {
-            self.record_run_version(name_ver.name.to_string(), name_ver.suffix.to_string());
+        let mut roots = lock_recoverable(&self.preferred_version_roots);
+        for pkg_id in pkg_ids {
+            if !roots.contains(pkg_id) {
+                roots.insert(pkg_id.to_string());
+            }
         }
     }
 
-    /// See [`Self::preferred_versions_from_run`]. Seed entries win over
-    /// run entries, and the first fold of a `(name, version)` pair wins
-    /// over later ones — the same `or_insert` semantics the per-importer
-    /// fold applied.
-    pub(super) fn record_run_version(&self, name: String, version: String) {
-        lock_recoverable(&self.preferred_versions_from_run)
-            .entry(name)
-            .or_default()
-            .entry(version)
-            .or_insert(pacquet_resolving_resolver_base::VersionSelectorEntry::Plain(
-                pacquet_resolving_resolver_base::VersionSelectorType::Version,
-            ));
+    /// The `name → version` entries of every package reachable from any
+    /// importer's recorded direct dependencies, shaped as the plain
+    /// [`pacquet_resolving_resolver_base::PreferredVersions`] entries the
+    /// peer-hoist pickers bias toward.
+    ///
+    /// Derived from the settled tree — the recorded roots plus the
+    /// children edges the deterministic children owners recorded — not
+    /// from resolution arrival order. Concurrent importer waves can
+    /// transiently walk (and resolve versions inside) a subtree whose
+    /// children ownership a better-placed occurrence later takes over;
+    /// whether such a walk happens at all depends on thread
+    /// interleaving, so an arrival-ordered fold gives the pickers
+    /// run-to-run varying candidates and reshuffles peer bindings on
+    /// every install. The reachable closure is interleaving-independent
+    /// because both the roots and the surviving children records are.
+    ///
+    /// The closure is cached and extended incrementally: shared-map
+    /// growth (`revision`) only ever hangs new subtrees under new
+    /// roots, so previously visited packages keep their entries; a
+    /// children-ownership rewrite (`children_rewrites`) can restructure
+    /// existing subtrees, so it rebuilds the closure from scratch.
+    pub(super) fn run_preferred_versions(&self) -> MutexGuard<'_, RunVersionsCache> {
+        let revision = self.revision();
+        let children_rewrites = self.children_rewrites();
+        let mut cache = lock_recoverable(&self.run_versions_cache);
+        if cache.revision == revision && cache.children_rewrites == children_rewrites {
+            return cache;
+        }
+        if cache.children_rewrites != children_rewrites {
+            cache.visited.clear();
+            cache.awaiting_identity.clear();
+            cache.versions.clear();
+        }
+        let mut queue: Vec<String> = lock_recoverable(&self.preferred_version_roots)
+            .iter()
+            .filter(|pkg_id| !cache.visited.contains(*pkg_id))
+            .cloned()
+            .collect();
+        // The three shared maps below are taken one after the other, so
+        // this function never holds two of the context's locks at once.
+        let mut newly_visited: Vec<String> = Vec::new();
+        {
+            let children_by_id = lock_recoverable(&self.children_by_id);
+            while let Some(pkg_id) = queue.pop() {
+                if !cache.visited.insert(pkg_id.clone()) {
+                    continue;
+                }
+                if let Some(children) = children_by_id.get(&pkg_id) {
+                    for child in children.iter() {
+                        if !cache.visited.contains(&child.pkg_id) {
+                            queue.push(child.pkg_id.clone());
+                        }
+                    }
+                }
+                newly_visited.push(pkg_id);
+            }
+        }
+        {
+            let packages = lock_recoverable(&self.packages);
+            for pkg_id in newly_visited {
+                match packages.get(&pkg_id).and_then(|pkg| pkg.result.name_ver.as_ref()) {
+                    Some(name_ver) => fold_version(
+                        &mut cache.versions,
+                        name_ver.name.to_string(),
+                        name_ver.suffix.to_string(),
+                    ),
+                    None => {
+                        cache.awaiting_identity.insert(pkg_id);
+                    }
+                }
+            }
+        }
+        let identities = lock_recoverable(&self.workspace_manifest_identities);
+        let RunVersionsCache { awaiting_identity, versions, .. } = &mut *cache;
+        awaiting_identity.retain(|pkg_id| match identities.get(pkg_id) {
+            Some((name, version)) => {
+                fold_version(versions, name.clone(), version.clone());
+                false
+            }
+            None => true,
+        });
+        drop(identities);
+        cache.revision = revision;
+        cache.children_rewrites = children_rewrites;
+        cache
+    }
+
+    /// Record the manifest identity of a `name_ver`-less package wanted
+    /// through a non-path `workspace:` specifier, for
+    /// [`Self::run_preferred_versions`] to fold once the package is
+    /// reachable.
+    pub(super) fn record_workspace_manifest_identity(
+        &self,
+        pkg_id: &str,
+        name: &str,
+        version: &str,
+    ) {
+        lock_recoverable(&self.workspace_manifest_identities)
+            .entry(pkg_id.to_string())
+            .or_insert_with(|| (name.to_string(), version.to_string()));
     }
 
     /// See the `revision` field doc.
@@ -804,6 +924,20 @@ impl WorkspaceTreeCtx {
                 .unwrap_or_else(std::sync::PoisonError::into_inner),
         }
     }
+}
+
+/// Fold one `name → version` pair into `versions` as a plain
+/// `version` selector; the first fold of a pair wins over later ones.
+fn fold_version(
+    versions: &mut pacquet_resolving_resolver_base::PreferredVersions,
+    name: String,
+    version: String,
+) {
+    versions.entry(name).or_default().entry(version).or_insert(
+        pacquet_resolving_resolver_base::VersionSelectorEntry::Plain(
+            pacquet_resolving_resolver_base::VersionSelectorType::Version,
+        ),
+    );
 }
 
 pub(super) struct ChildrenOwnerClaim {

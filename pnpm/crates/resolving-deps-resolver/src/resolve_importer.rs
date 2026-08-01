@@ -95,9 +95,9 @@ pub struct ResolveImporterOptions {
     /// Seed for the preferred-versions tie-break table: the lockfile +
     /// manifest entries the peer-hoist pickers bias toward, so a
     /// version a sibling already brought is reused instead of adding a
-    /// second instance. Newly-resolved versions are folded once,
-    /// workspace-wide, on the tree context and merged with these seed
-    /// buckets per lookup (seed entries win) — see
+    /// second instance. Versions resolved into the settled tree are
+    /// derived once, workspace-wide, on the tree context and merged
+    /// with these seed buckets per lookup (seed entries win) — see
     /// `TreeCtx::preferred_versions_for_names`. Pass the result of
     /// `get_preferred_versions_from_lockfile_and_manifests` from the
     /// `lockfile-preferred-versions` crate, or an empty map when no
@@ -349,8 +349,8 @@ pub(crate) struct ImporterHoistState {
     /// extended its direct set, or a workspace children-ownership
     /// rewrite restructured shared subtrees. A round that broke off
     /// with unhoistable misses is *not* converged — another importer's
-    /// resolutions can extend the preferred-versions fold and make
-    /// those misses hoistable, so it must re-discover every round.
+    /// resolutions can extend the run-resolved preferred versions and
+    /// make those misses hoistable, so it must re-discover every round.
     discovery_converged: bool,
     /// [`crate::WorkspaceTreeCtx::children_rewrites`] at the moment
     /// [`Self::discovery_converged`] was set.
@@ -373,8 +373,9 @@ pub(crate) struct ImporterHoistState {
     parent_pkg_aliases: HashSet<String>,
     all_missing_optional_peers: BTreeMap<String, Vec<String>>,
     /// The lockfile + manifest preferred-versions seed. The hoist
-    /// pickers merge it per lookup with the workspace-wide run fold —
-    /// see [`TreeCtx::preferred_versions_for_names`] — instead of
+    /// pickers merge it per lookup with the workspace-wide
+    /// run-resolved versions — see
+    /// [`TreeCtx::preferred_versions_for_names`] — instead of
     /// maintaining a per-importer copy of the whole run history.
     preferred_versions_seed: Arc<PreferredVersions>,
     locked_peer_names: Arc<HashSet<String>>,
@@ -750,9 +751,9 @@ impl ImporterHoistState {
 
             let missing_as_pairs: Vec<(String, MissingPeerInfo)> =
                 missing_required.iter().map(|(n, info)| (n.clone(), info.clone())).collect();
-            // Both hoists bias toward the run-extended preferred
+            // Both hoists bias toward the run-resolved preferred
             // versions: the seed buckets for the missing names merged
-            // with every version any importer has resolved so far.
+            // with every version resolved into the settled tree so far.
             let hoist_preferred = self.ctx.preferred_versions_for_names(
                 &self.preferred_versions_seed,
                 missing_as_pairs.iter().map(|(name, _)| name.as_str()),

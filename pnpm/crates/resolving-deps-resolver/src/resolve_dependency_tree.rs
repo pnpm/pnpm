@@ -597,7 +597,9 @@ where
         })
         .pipe(future::try_join_all)
         .await?;
-    Ok(results.into_iter().flatten().collect())
+    let direct: Vec<DirectDep> = results.into_iter().flatten().collect();
+    ctx.workspace.record_preferred_version_roots(direct.iter().map(|dep| dep.id.as_str()));
+    Ok(direct)
 }
 
 #[cfg(test)]

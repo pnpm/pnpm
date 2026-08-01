@@ -372,6 +372,8 @@ where
         });
     }
 
+    let id = build_pkg_id_with_patch_hash(ctx, &result).await?;
+
     if result.name_ver.is_none()
         && wanted.bare_specifier.as_deref().is_some_and(|specifier| {
             specifier.starts_with("workspace:") && !specifier.starts_with("workspace:.")
@@ -382,10 +384,8 @@ where
             manifest.get("version").and_then(Value::as_str),
         )
     {
-        ctx.workspace.record_run_version(name.to_string(), version.to_string());
+        ctx.workspace.record_workspace_manifest_identity(&id, name, version);
     }
-
-    let id = build_pkg_id_with_patch_hash(ctx, &result).await?;
 
     // Cycle break — see the doc comment above. A direct self-edge and
     // the second lap of a longer cycle are dropped; the first re-entry
@@ -472,7 +472,6 @@ where
     drop(packages);
 
     if package_is_new {
-        ctx.workspace.record_resolved_version(&result);
         emit_deprecation_if_needed(ctx, &result, &id, depth);
     }
 
