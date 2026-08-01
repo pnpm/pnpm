@@ -312,7 +312,7 @@ async fn private_scope_verifier_ignores_public_mirror_and_writes_private_mirror(
 
     let private_path = get_pkg_mirror_path(
         cache.path(),
-        "v11/metadata-private/private-scope/metadata",
+        "v12/metadata-private/private-scope/metadata",
         &registry,
         "acme",
     )

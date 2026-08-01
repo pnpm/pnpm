@@ -31,18 +31,21 @@ export interface MetaHeaders {
 }
 
 /**
- * Magic + format version of the indexed mirror layout, shared with the Rust
- * stack (`pnpm/crates/resolving-npm-resolver/src/mirror.rs`). The file starts
- * with `pacquet-meta-v1 <headersLen> <indexLen>\n`, followed by the headers
- * JSON record, the index JSON record, and the concatenated per-version JSON
+ * Identifies the indexed mirror layout, shared with the Rust stack
+ * (`pnpm/crates/resolving-npm-resolver/src/mirror.rs`). The file starts with
+ * `pnpm-meta-v1 <headersLen> <indexLen>\n`, followed by the headers JSON
+ * record, the index JSON record, and the concatenated per-version JSON
  * fragments the index's `versions` spans point into. Loading such a file only
  * parses the two records; a version's manifest is parsed on first access.
  *
- * Files without the magic line are the two-line NDJSON layout (headers JSON,
- * newline, packument JSON), which loads eagerly. Both stacks read both
- * layouts, so mirrors written by either CLI version stay usable.
+ * A file whose first line isn't this is the two-line NDJSON layout (headers
+ * JSON, newline, packument JSON), which loads eagerly — that is how a
+ * `filterMetadata` document is still written. Reading an unrecognized line as
+ * a cache miss is a backstop, not the compatibility story: a format change
+ * bumps the cache directory (see `ABBREVIATED_META_DIR`) so a pnpm version
+ * that predates it never opens these files at all.
  */
-const MIRROR_MAGIC = 'pacquet-meta-v1'
+const MIRROR_FORMAT_ID = 'pnpm-meta-v1'
 
 interface MirrorIndex {
   name: string
@@ -58,10 +61,10 @@ interface MirrorIndex {
   versions: Array<[version: string, offset: number, length: number]>
 }
 
-/** Parse the `pacquet-meta-v1 <headersLen> <indexLen>` line; `null` for anything else. */
-function parseMirrorMagic (line: string): { headersLen: number, indexLen: number } | null {
-  if (!line.startsWith(`${MIRROR_MAGIC} `)) return null
-  const [headersLen, indexLen, extra] = line.slice(MIRROR_MAGIC.length + 1).split(' ')
+/** Parse the `pnpm-meta-v1 <headersLen> <indexLen>` line; `null` for anything else. */
+function parseFormatLine (line: string): { headersLen: number, indexLen: number } | null {
+  if (!line.startsWith(`${MIRROR_FORMAT_ID} `)) return null
+  const [headersLen, indexLen, extra] = line.slice(MIRROR_FORMAT_ID.length + 1).split(' ')
   if (extra != null) return null
   const parsedHeadersLen = Number.parseInt(headersLen, 10)
   const parsedIndexLen = Number.parseInt(indexLen, 10)
@@ -104,16 +107,16 @@ export async function loadMeta (pkgMirror: string, opts?: LoadMetaOptions): Prom
     const newlineIdx = data.indexOf(10)
     if (newlineIdx === -1) return null
     const firstLine = data.toString('utf8', 0, newlineIdx)
-    const magic = parseMirrorMagic(firstLine)
-    if (magic == null) {
+    const format = parseFormatLine(firstLine)
+    if (format == null) {
       const headers = JSON.parse(firstLine) as MetaHeaders
       const meta = JSON.parse(data.toString('utf8', newlineIdx + 1)) as PackageMeta
       meta.etag = headers.etag
       return meta
     }
     const headersStart = newlineIdx + 1
-    const indexStart = headersStart + magic.headersLen
-    const fragmentBase = indexStart + magic.indexLen
+    const indexStart = headersStart + format.headersLen
+    const fragmentBase = indexStart + format.indexLen
     if (fragmentBase > data.length) return null
     const headers = JSON.parse(data.toString('utf8', headersStart, indexStart)) as MetaHeaders
     const index = JSON.parse(data.toString('utf8', indexStart, fragmentBase)) as MirrorIndex
@@ -202,23 +205,23 @@ export async function loadMetaHeaders (pkgMirror: string): Promise<MetaHeaders |
   let fh: fs.FileHandle | undefined
   try {
     fh = await fs.open(pkgMirror, 'r')
-    // Magic line plus headers record is ~100 bytes; 1 KB is plenty.
+    // Format line plus headers record is ~100 bytes; 1 KB is plenty.
     const buf = Buffer.alloc(1024)
     const { bytesRead } = await fh.read(buf, 0, 1024, 0)
     if (bytesRead === 0) return null
     const newlineIdx = buf.subarray(0, bytesRead).indexOf(10)
     if (newlineIdx === -1) return null
     const firstLine = buf.toString('utf8', 0, newlineIdx)
-    const magic = parseMirrorMagic(firstLine)
-    if (magic == null) {
+    const format = parseFormatLine(firstLine)
+    if (format == null) {
       return JSON.parse(firstLine) as MetaHeaders
     }
     // The headers record is an etag plus a timestamp. Bound the declared
     // length before allocating from it, so a corrupt or hostile mirror can't
     // turn a cache read into an arbitrarily large allocation.
-    if (magic.headersLen > MAX_HEADERS_LEN) return null
+    if (format.headersLen > MAX_HEADERS_LEN) return null
     const headersStart = newlineIdx + 1
-    const headersEnd = headersStart + magic.headersLen
+    const headersEnd = headersStart + format.headersLen
     if (headersEnd <= bytesRead) {
       return JSON.parse(buf.toString('utf8', headersStart, headersEnd)) as MetaHeaders
     }
@@ -240,7 +243,7 @@ export async function loadMetaHeaders (pkgMirror: string): Promise<MetaHeaders |
  * The etag lives only in the headers line (`loadMeta` re-attaches it from
  * there), so a `meta` that carries one is serialized without it. This layout
  * is kept for `filterMetadata` documents; everything else is mirrored in the
- * indexed layout (see {@link MIRROR_MAGIC}).
+ * indexed layout (see {@link MIRROR_FORMAT_ID}).
  */
 export function prepareJsonForDisk (meta: PackageMeta, etag: string | undefined): string {
   const modified = meta.modified ?? meta.time?.modified
@@ -250,7 +253,7 @@ export function prepareJsonForDisk (meta: PackageMeta, etag: string | undefined)
 }
 
 /**
- * Serializes metadata in the indexed mirror layout (see {@link MIRROR_MAGIC}).
+ * Serializes metadata in the indexed mirror layout (see {@link MIRROR_FORMAT_ID}).
  * Reading `meta.versions` here materializes a lazily-loaded document; the
  * documents that reach the mirror writers come from network fetches, which
  * are always eager.
@@ -282,7 +285,7 @@ export function prepareIndexedForDisk (meta: PackageMeta, etag: string | undefin
   }
   const indexJson = JSON.stringify(index)
   const lead = Buffer.from(
-    `${MIRROR_MAGIC} ${Buffer.byteLength(headers)} ${Buffer.byteLength(indexJson)}\n${headers}${indexJson}`,
+    `${MIRROR_FORMAT_ID} ${Buffer.byteLength(headers)} ${Buffer.byteLength(indexJson)}\n${headers}${indexJson}`,
     'utf8'
   )
   return Buffer.concat([lead, ...fragments])

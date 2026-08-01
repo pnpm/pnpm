@@ -375,7 +375,7 @@ test('the response body is mirrored in the indexed layout', async () => {
 
   // The mirror is written fire-and-forget, so retry until it appears.
   const mirror = await readMirrorWithRetry(pkgMirror, 100)
-  expect(mirror?.startsWith('pacquet-meta-v1 ')).toBe(true)
+  expect(mirror?.startsWith('pnpm-meta-v1 ')).toBe(true)
   const persisted = parseNdjsonMeta<PackageMeta>(mirror!)
   expect(persisted.versions['1.0.0']).toStrictEqual(meta.versions['1.0.0'])
   expect(persisted['dist-tags']).toStrictEqual(meta['dist-tags'])

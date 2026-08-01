@@ -1,8 +1,8 @@
 //! Cache-aware metadata fetcher.
 //!
 //! When a cache directory is configured, the fetcher consults a
-//! shared mirror under `<cache_dir>/v11/metadata-full/` (full) or
-//! `<cache_dir>/v11/metadata/` (abbreviated), keyed by
+//! shared mirror under `<cache_dir>/v12/metadata-full/` (full) or
+//! `<cache_dir>/v12/metadata/` (abbreviated), keyed by
 //! `full_metadata`. It issues a conditional GET against the upstream
 //! registry, and either reads the cached body (304) or writes the
 //! new body back (2xx). Without a cache directory it falls through
@@ -49,7 +49,7 @@ pub struct FetchFullMetadataCachedOptions<'a> {
     pub http_client: &'a ThrottledClient,
     pub auth_headers: &'a AuthHeaders,
     /// When `Some`, the fetcher consults the on-disk mirror under
-    /// the matching `<cache_dir>/v11/metadata...` subdirectory.
+    /// the matching `<cache_dir>/v12/metadata...` subdirectory.
     /// When `None`, the fetcher short-circuits to an unconditional
     /// GET.
     pub cache_dir: Option<&'a Path>,

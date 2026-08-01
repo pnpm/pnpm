@@ -10,7 +10,7 @@ use std::{
 fn should_list_registries() {
     let cwd = CommandTempCwd::init().add_mocked_registry();
 
-    let cache_dir = cwd.npmrc_info.cache_dir.join("v11").join("metadata");
+    let cache_dir = cwd.npmrc_info.cache_dir.join("v12").join("metadata");
     fs::create_dir_all(cache_dir.join("registry.npmjs.org")).unwrap();
     fs::create_dir_all(cache_dir.join("registry.yarnpkg.com")).unwrap();
 
@@ -33,7 +33,7 @@ fn should_list_registries() {
 fn should_list_packages() {
     let cwd = CommandTempCwd::init().add_mocked_registry();
 
-    let cache_dir = cwd.npmrc_info.cache_dir.join("v11").join("metadata");
+    let cache_dir = cwd.npmrc_info.cache_dir.join("v12").join("metadata");
     let url_str = cwd.npmrc_info.mock_instance.url();
     let registry_name = pnpm_resolving_npm_resolver::mirror::get_registry_name(&url_str).unwrap();
     fs::create_dir_all(cache_dir.join(&registry_name)).unwrap();
@@ -59,7 +59,7 @@ fn should_list_packages() {
 fn should_list_only_files_not_directories() {
     let cwd = CommandTempCwd::init().add_mocked_registry();
 
-    let cache_dir = cwd.npmrc_info.cache_dir.join("v11").join("metadata");
+    let cache_dir = cwd.npmrc_info.cache_dir.join("v12").join("metadata");
     let url_str = cwd.npmrc_info.mock_instance.url();
     let registry_name = pnpm_resolving_npm_resolver::mirror::get_registry_name(&url_str).unwrap();
     fs::create_dir_all(cache_dir.join(&registry_name)).unwrap();
@@ -93,7 +93,7 @@ fn should_list_only_files_not_directories() {
 fn should_delete_packages() {
     let cwd = CommandTempCwd::init().add_mocked_registry();
 
-    let cache_dir = cwd.npmrc_info.cache_dir.join("v11").join("metadata");
+    let cache_dir = cwd.npmrc_info.cache_dir.join("v12").join("metadata");
     let url_str = cwd.npmrc_info.mock_instance.url();
     let registry_name = pnpm_resolving_npm_resolver::mirror::get_registry_name(&url_str).unwrap();
     fs::create_dir_all(cache_dir.join(&registry_name)).unwrap();
@@ -148,7 +148,7 @@ fn should_delete_packages_from_all_metadata_dirs() {
 #[test]
 fn should_view_package_cache() {
     let cwd = CommandTempCwd::init().add_mocked_registry();
-    let cache_dir = cwd.npmrc_info.cache_dir.join("v11").join("metadata");
+    let cache_dir = cwd.npmrc_info.cache_dir.join("v12").join("metadata");
     let url_str = cwd.npmrc_info.mock_instance.url();
     let registry_name = pnpm_resolving_npm_resolver::mirror::get_registry_name(&url_str).unwrap();
     fs::create_dir_all(cache_dir.join(&registry_name)).unwrap();
@@ -193,13 +193,12 @@ fn should_view_package_cache() {
 #[test]
 fn should_omit_a_package_whose_cache_file_is_damaged() {
     let cwd = CommandTempCwd::init().add_mocked_registry();
-    let cache_dir = cwd.npmrc_info.cache_dir.join("v11").join("metadata");
+    let cache_dir = cwd.npmrc_info.cache_dir.join("v12").join("metadata");
     let url_str = cwd.npmrc_info.mock_instance.url();
-    let registry_name =
-        pacquet_resolving_npm_resolver::mirror::get_registry_name(&url_str).unwrap();
+    let registry_name = pnpm_resolving_npm_resolver::mirror::get_registry_name(&url_str).unwrap();
     fs::create_dir_all(cache_dir.join(&registry_name)).unwrap();
 
-    let meta: pacquet_registry::Package = serde_json::from_str(
+    let meta: pnpm_registry::Package = serde_json::from_str(
         r#"{
             "name": "is-positive",
             "dist-tags": {"latest": "1.0.0"},
@@ -214,7 +213,7 @@ fn should_omit_a_package_whose_cache_file_is_damaged() {
     )
     .unwrap();
     let mirror = cache_dir.join(&registry_name).join("is-positive.jsonl");
-    pacquet_resolving_npm_resolver::mirror::save_meta_indexed(&mirror, &meta, None).unwrap();
+    pnpm_resolving_npm_resolver::mirror::save_meta_indexed(&mirror, &meta, None).unwrap();
 
     // An unescaped quote inside the integrity string: the same number of
     // bytes, so the index spans still address this fragment, but its own
@@ -262,7 +261,7 @@ fn import_populates_metadata_cache() {
 
     let registry_name =
         pnpm_resolving_npm_resolver::mirror::get_registry_name(&mock_instance.url()).unwrap();
-    let cache_metadata_dir = cache_dir.join("v11").join("metadata").join(&registry_name);
+    let cache_metadata_dir = cache_dir.join("v12").join("metadata").join(&registry_name);
 
     assert!(cache_metadata_dir.exists(), "metadata cache directory must exist");
     assert!(

@@ -2159,7 +2159,7 @@ async fn private_scope_writes_descriptor_namespaced_mirror() {
 
     let scoped = get_pkg_mirror_path(
         cache_dir.path(),
-        "v11/metadata-private/deadbeef/metadata",
+        "v12/metadata-private/deadbeef/metadata",
         &registry,
         "acme",
     )
@@ -2185,7 +2185,7 @@ async fn private_scope_fails_closed_on_401_without_disk_fallback() {
     // serve from.
     persist_meta_to_mirror(
         cache_dir.path(),
-        "v11/metadata-private/deadbeef/metadata",
+        "v12/metadata-private/deadbeef/metadata",
         &registry,
         &preloaded,
     )

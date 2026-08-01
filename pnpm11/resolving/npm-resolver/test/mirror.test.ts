@@ -117,7 +117,7 @@ test('the index record carries the package-level homepage the Rust stack reads',
 test('an indexed mirror declaring an absurd headers length reads as a cache miss', async () => {
   const pkgMirror = path.join(temporaryDirectory(), 'foo.jsonl')
   fs.mkdirSync(path.dirname(pkgMirror), { recursive: true })
-  fs.writeFileSync(pkgMirror, `pacquet-meta-v1 ${Number.MAX_SAFE_INTEGER} 0\n{}`)
+  fs.writeFileSync(pkgMirror, `pnpm-meta-v1 ${Number.MAX_SAFE_INTEGER} 0\n{}`)
 
   expect(await loadMetaHeaders(pkgMirror)).toBeNull()
   expect(await loadMeta(pkgMirror)).toBeNull()
