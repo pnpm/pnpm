@@ -923,9 +923,7 @@ where
 /// [`build_pkg_id_with_patch_hash`], which has no name to prefix the dep
 /// path with when there is none, leaving a bare `file:<path>` / URL that
 /// keys no `packages:` row. A package with no `package.json` of its own
-/// (an archive that ships none, a directory pin restored from the
-/// lockfile) still has to install, so it borrows the identity the
-/// lockfile recorded for it, or failing that its alias and `0.0.0` — the
+/// still has to install, so it borrows an identity; `0.0.0` is the
 /// version pnpm writes into `packages:` for such a package.
 fn fallback_manifest(
     wanted: &WantedDependency,

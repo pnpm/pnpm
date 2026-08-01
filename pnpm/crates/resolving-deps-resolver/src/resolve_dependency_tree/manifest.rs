@@ -109,14 +109,12 @@ pub(super) async fn build_pkg_id_with_patch_hash(
 /// `current_is_optional` so [`ResolvedPackage::optional`] reflects
 /// whether every path to the node went through an optional edge.
 ///
-/// A name listed in both maps yields one optional edge with the
-/// `dependencies` range — npm merges `optionalDependencies` into
-/// `dependencies` at publish time, so registry manifests routinely
-/// list the same name in both.
+/// npm merges `optionalDependencies` into `dependencies` at publish
+/// time, so registry manifests routinely list the same name in both.
 ///
-/// Names the manifest bundles are dropped: npm ships them inside the
-/// package's own tarball, so resolving them again would install a
-/// second copy the package never loads.
+/// Bundled names are dropped: npm ships them inside the package's own
+/// tarball, so resolving them again would install a second copy the
+/// package never loads.
 ///
 /// [`extend_tree`]: super::extend_tree
 /// [`ResolvedPackage::peer_dependencies`]: crate::ResolvedPackage::peer_dependencies

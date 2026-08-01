@@ -87,10 +87,7 @@ fn bundled_dependencies_true_also_drops_the_optional_duplicate() {
     );
 }
 
-/// With `name_ver` unset (git / tarball / local resolutions), the
-/// deprecation payload's name and version come from the manifest, and a
-/// manifest missing either field suppresses the warning instead of
-/// emitting a malformed `name@` payload.
+/// Suppressing the warning beats emitting a malformed `name@` payload.
 #[test]
 fn deprecated_pkg_name_ver_falls_back_to_the_manifest() {
     let result = |manifest: serde_json::Value| ResolveResult {

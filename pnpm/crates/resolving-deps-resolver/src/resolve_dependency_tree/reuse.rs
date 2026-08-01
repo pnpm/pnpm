@@ -241,9 +241,6 @@ pub(super) fn higher_direct_dep_version(
     direct_versions?
         .get(name)?
         .iter()
-        // Plain semver satisfaction (not prerelease-inclusive): a
-        // prerelease direct dep only refreshes an edge whose range admits
-        // prereleases.
         .filter(|&version| version > pinned && range.satisfies(version))
         .max()
         .cloned()
@@ -368,35 +365,22 @@ pub(crate) fn unwrap_package_name<'a>(
     }
 }
 
-/// Resolve the *real* package name a [`WantedDependency`] targets —
-/// i.e. the name update targeting matches against, not the local
-/// install alias. For a plain dep (`foo@^1`) or a workspace dep, this is just
-/// `wanted.alias`. For an npm-alias dep (`foo@npm:bar@^4`), this is
-/// `bar` — parsed out of `bare_specifier` because `wanted.alias` keeps
-/// the local install name `foo`. For a jsr dep (`foo@jsr:@bar/baz@^1`
-/// or just `jsr:@bar/baz`), this is the folded npm registry name
-/// (`@jsr/bar__baz`) that the picker and lockfile snapshots key on.
-/// `walk::overlay_lookup_names` builds its candidate set from this name.
+/// Resolve the *real* package name a [`WantedDependency`] targets — the
+/// name update targeting matches against, not the local install alias,
+/// which an `npm:` alias or a `jsr:` specifier can differ from. The
+/// picker and the lockfile snapshots key on this name.
+/// `walk::overlay_lookup_names` builds its candidate set from it.
 ///
-/// Returns `None` when no name can be recovered (no alias, malformed
-/// npm-alias target, unparsable jsr specifier). The caller treats
-/// `None` as "not a targeted update" since update targets are keyed
-/// by package name.
+/// `None` when no name can be recovered; the caller reads that as "not
+/// a targeted update", since update targets are keyed by package name.
 pub(super) fn real_package_name_of(wanted: &WantedDependency) -> Option<Cow<'_, str>> {
     let bare = wanted.bare_specifier.as_deref()?;
     if let Some(rest) = bare.strip_prefix("npm:") {
-        // `npm:<range>` form: the body is a semver range, not a name,
-        // so the install alias IS the real package name.
         let alias_keeps_name = wanted
             .alias
             .as_deref()
             .is_some_and(|alias| !alias.is_empty() && rest.parse::<node_semver::Range>().is_ok());
         if !alias_keeps_name {
-            // `npm:<name>@<range>` or `npm:<name>`: parse the real name
-            // out of `bare_specifier` because `wanted.alias` keeps the
-            // local install name. Split at the last `@` to separate the
-            // real name from the version range. When there is no `@`,
-            // the whole `rest` is the name (default-tag form `npm:bar`).
             let last_at =
                 rest.bytes().enumerate().rev().find_map(|(i, b)| (b == b'@').then_some(i));
             let name = match last_at {
@@ -407,10 +391,6 @@ pub(super) fn real_package_name_of(wanted: &WantedDependency) -> Option<Cow<'_, 
         }
     }
     if bare.starts_with("jsr:") {
-        // An unparsable `jsr:` specifier carries no recoverable real
-        // name — return `None` rather than falling back to the install
-        // alias, which could accidentally match an update target and
-        // mark the broken dep as a targeted update.
         let spec = pacquet_resolving_jsr_specifier_parser::parse_jsr_specifier(
             bare,
             wanted.alias.as_deref(),
@@ -419,8 +399,6 @@ pub(super) fn real_package_name_of(wanted: &WantedDependency) -> Option<Cow<'_, 
         .flatten()?;
         return Some(Cow::Owned(spec.npm_pkg_name));
     }
-    // Plain dep, workspace dep, or `npm:<range>` form: the install
-    // alias is the real name.
     wanted.alias.as_deref().map(Cow::Borrowed)
 }
 
@@ -428,11 +406,6 @@ pub(super) fn real_package_name_of(wanted: &WantedDependency) -> Option<Cow<'_, 
 /// given the install's [`UpdateReuseScope`]. Feeds the per-resolve
 /// `ResolveOptions::update_requested` flag, which gates the npm
 /// picker's held-back-update warning.
-///
-/// Returns `false` for `All`/`None` scopes (no individually targeted
-/// packages), for a node past the `--depth` ceiling, and for `Except`
-/// scopes where the wanted package's real name is not in the target
-/// list. Returns `true` only when the real name is in the `Except` set.
 #[inline]
 pub(super) fn is_update_target(
     scope: UpdateScope<'_>,
