@@ -381,7 +381,7 @@ test('the response body is mirrored in the indexed layout', async () => {
   expect(persisted['dist-tags']).toStrictEqual(meta['dist-tags'])
 })
 
-test('projects sharing one in-flight fetch mirror the fetched body instead of re-serializing it', async () => {
+test('projects sharing one in-flight fetch encode the mirror once instead of per project', async () => {
   const meta = fooMeta()
   const rawBody = JSON.stringify(meta)
   const cacheDir = temporaryDirectory()
@@ -417,11 +417,13 @@ test('projects sharing one in-flight fetch mirror the fetched body instead of re
     ))
     expect(picks.every((pick) => pick.pickedPackage?.version === '1.0.0')).toBe(true)
     expect(fetches).toBe(1)
-    // Re-serializing per project is what exhausted the heap: the body reaches
-    // tens of MB for a popular package, and every project holds its own copy
-    // until the mirror write limiter drains.
-    const serializations = stringifySpy.mock.calls.filter(([value]) => value === meta).length
-    expect(serializations).toBe(0)
+    // Encoding per project is what exhausted the heap: the body reaches tens
+    // of MB for a popular package, and every project holds its own copy until
+    // the mirror write limiter drains.
+    const versionSerializations = stringifySpy.mock.calls
+      .filter(([value]) => value === meta || value === meta.versions['1.0.0'])
+      .length
+    expect(versionSerializations).toBe(1)
   } finally {
     stringifySpy.mockRestore()
   }

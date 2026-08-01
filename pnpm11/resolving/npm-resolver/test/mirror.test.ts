@@ -105,6 +105,24 @@ test('a truncated indexed mirror reads as a cache miss', async () => {
   expect(await loadMeta(pkgMirror)).toBeNull()
 })
 
+test('the index record carries the package-level homepage the Rust stack reads', async () => {
+  const pkgMirror = path.join(temporaryDirectory(), 'foo.jsonl')
+  const meta = { ...fixtureMeta(), homepage: 'https://example.com/foo' }
+  await saveMeta(pkgMirror, prepareIndexedForDisk(meta, undefined))
+
+  const written = fs.readFileSync(pkgMirror, 'utf8')
+  expect(written).toContain('"homepage":"https://example.com/foo"')
+})
+
+test('an indexed mirror declaring an absurd headers length reads as a cache miss', async () => {
+  const pkgMirror = path.join(temporaryDirectory(), 'foo.jsonl')
+  fs.mkdirSync(path.dirname(pkgMirror), { recursive: true })
+  fs.writeFileSync(pkgMirror, `pacquet-meta-v1 ${Number.MAX_SAFE_INTEGER} 0\n{}`)
+
+  expect(await loadMetaHeaders(pkgMirror)).toBeNull()
+  expect(await loadMeta(pkgMirror)).toBeNull()
+})
+
 test('loadMetaHeaders reads both layouts', async () => {
   const dir = temporaryDirectory()
   const indexed = path.join(dir, 'indexed.jsonl')
@@ -116,17 +134,21 @@ test('loadMetaHeaders reads both layouts', async () => {
   expect(await loadMetaHeaders(ndjson)).toStrictEqual({ etag: '"etag-4"', modified: '2021-01-01T00:00:00.000Z' })
 })
 
+test('an eager load reads a corrupt fragment as a cache miss', async () => {
+  const pkgMirror = path.join(temporaryDirectory(), 'foo.jsonl')
+  const meta = fixtureMeta()
+  const content = corruptFragmentOf(meta, '1.0.0')
+  fs.mkdirSync(path.dirname(pkgMirror), { recursive: true })
+  fs.writeFileSync(pkgMirror, content)
+
+  expect(await loadMeta(pkgMirror, { hydrateEagerly: true })).toBeNull()
+})
+
 test('a corrupt fragment throws on access without breaking the rest of the document', async () => {
   const pkgMirror = path.join(temporaryDirectory(), 'foo.jsonl')
   const meta = fixtureMeta()
-  const content = prepareIndexedForDisk(meta, undefined)
-  // Corrupt the bytes of the 1.0.0 fragment in place, keeping the file length
-  // and the index spans intact.
-  const fragmentStart = content.indexOf(Buffer.from(JSON.stringify(meta.versions['1.0.0'])))
-  expect(fragmentStart).toBeGreaterThan(-1)
-  content.fill('x', fragmentStart, fragmentStart + 10)
   fs.mkdirSync(path.dirname(pkgMirror), { recursive: true })
-  fs.writeFileSync(pkgMirror, content)
+  fs.writeFileSync(pkgMirror, corruptFragmentOf(meta, '1.0.0'))
 
   const loaded = await loadMeta(pkgMirror)
   expect(loaded).not.toBeNull()
@@ -140,3 +162,14 @@ test('a corrupt fragment throws on access without breaking the rest of the docum
   expect(isMalformedMirrorFragmentError(thrown)).toBe(true)
   expect(loaded!.versions['2.0.0']).toStrictEqual(meta.versions['2.0.0'])
 })
+
+// Serializes `meta` and overwrites the leading bytes of one version's fragment
+// in place, so the file length and the index spans stay intact and only the
+// fragment's own bytes fail to parse.
+function corruptFragmentOf (meta: PackageMeta, version: string): Buffer {
+  const content = prepareIndexedForDisk(meta, undefined)
+  const fragmentStart = content.indexOf(Buffer.from(JSON.stringify(meta.versions[version])))
+  if (fragmentStart === -1) throw new Error(`fragment of ${version} not found in the serialized mirror`)
+  content.fill('x', fragmentStart, fragmentStart + 10)
+  return content
+}

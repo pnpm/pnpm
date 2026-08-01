@@ -1,5 +1,6 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
+import util from 'node:util'
 
 import { ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR } from '@pnpm/constants'
 import { createHexHash } from '@pnpm/crypto.hash'
@@ -783,6 +784,16 @@ function persistUpgradedMeta (
 }
 
 /**
+ * Every project of a workspace that joins one in-flight fetch mirrors the
+ * result, so the encoded form is memoized on the result object: encoding it
+ * per project would hold as many copies of a body reaching tens of MB as
+ * there are projects. Keyed on the result rather than its `meta` so the copy
+ * is released with the shared body it stands in for — `memoizeFetchMetadata`
+ * drops the result once the request settles.
+ */
+const encodedMirrors = new WeakMap<FetchMetadataResult, { filtered?: string, indexed?: Buffer }>()
+
+/**
  * How a fetched document is mirrored on disk: a `filterMetadata` resolver
  * mirrors the `clearMeta`-stripped NDJSON form (that mirror only serves
  * equally-stripped resolutions), everything else the indexed layout, whose
@@ -792,10 +803,15 @@ function prepareMirrorForDisk (
   ctx: { fullMetadata?: boolean, filterMetadata?: boolean },
   result: FetchMetadataResult
 ): string | Buffer {
-  if (ctx.filterMetadata === true) {
-    return prepareJsonForDisk(condenseMetaForCache(ctx, result.meta), result.etag)
+  let encoded = encodedMirrors.get(result)
+  if (encoded == null) {
+    encoded = {}
+    encodedMirrors.set(result, encoded)
   }
-  return prepareIndexedForDisk(result.meta, result.etag)
+  if (ctx.filterMetadata === true) {
+    return encoded.filtered ??= prepareJsonForDisk(condenseMetaForCache(ctx, result.meta), result.etag)
+  }
+  return encoded.indexed ??= prepareIndexedForDisk(result.meta, result.etag)
 }
 
 /**
@@ -898,10 +914,10 @@ const DISK_META_PICK_ERROR_CODES = new Set([
  */
 function isDiskMetaPickError (err: unknown): boolean {
   return (
-    err != null &&
-    typeof err === 'object' &&
+    util.types.isNativeError(err) &&
     'code' in err &&
-    DISK_META_PICK_ERROR_CODES.has((err as { code: string }).code)
+    typeof err.code === 'string' &&
+    DISK_META_PICK_ERROR_CODES.has(err.code)
   )
 }
 

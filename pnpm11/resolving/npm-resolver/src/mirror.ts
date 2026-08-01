@@ -48,6 +48,13 @@ interface MirrorIndex {
   name: string
   distTags?: Record<string, string>
   time?: PackageMeta['time']
+  /**
+   * Not part of `PackageMeta`, so nothing on this side reads it back — it is
+   * carried through because the Rust stack's `outdated --long` reads it out
+   * of the shared mirror, and rewriting the file without it would blank that
+   * column until the next full response.
+   */
+  homepage?: string
   versions: Array<[version: string, offset: number, length: number]>
 }
 
@@ -70,6 +77,13 @@ export interface LoadMetaOptions {
    * condenses the whole document itself.
    */
   condense?: boolean
+  /**
+   * Parse every fragment before returning, so a corrupt one reads as a cache
+   * miss here instead of throwing at the caller's first access. For callers
+   * that read across all versions anyway and have no fall-through path of
+   * their own, unlike the resolver (see the malformed-fragment error above).
+   */
+  hydrateEagerly?: boolean
 }
 
 /**
@@ -105,6 +119,11 @@ export async function loadMeta (pkgMirror: string, opts?: LoadMetaOptions): Prom
     const index = JSON.parse(data.toString('utf8', indexStart, fragmentBase)) as MirrorIndex
     const versions = buildLazyVersions(pkgMirror, data, fragmentBase, index.versions, opts?.condense === true)
     if (versions == null) return null
+    if (opts?.hydrateEagerly === true) {
+      for (const version in versions) {
+        void versions[version]
+      }
+    }
     const meta: PackageMeta = {
       name: index.name,
       'dist-tags': index.distTags ?? {},
@@ -171,6 +190,9 @@ function buildLazyVersions (
   return versions
 }
 
+/** Matches the bound the Rust stack's `read_mirror_headers` applies. */
+const MAX_HEADERS_LEN = 64 * 1024
+
 /**
  * Reads only the leading records of a mirror file to extract the cache
  * headers (etag, modified) for conditional requests. This avoids reading and
@@ -191,6 +213,10 @@ export async function loadMetaHeaders (pkgMirror: string): Promise<MetaHeaders |
     if (magic == null) {
       return JSON.parse(firstLine) as MetaHeaders
     }
+    // The headers record is an etag plus a timestamp. Bound the declared
+    // length before allocating from it, so a corrupt or hostile mirror can't
+    // turn a cache read into an arbitrarily large allocation.
+    if (magic.headersLen > MAX_HEADERS_LEN) return null
     const headersStart = newlineIdx + 1
     const headersEnd = headersStart + magic.headersLen
     if (headersEnd <= bytesRead) {
@@ -216,10 +242,10 @@ export async function loadMetaHeaders (pkgMirror: string): Promise<MetaHeaders |
  * is kept for `filterMetadata` documents; everything else is mirrored in the
  * indexed layout (see {@link MIRROR_MAGIC}).
  */
-export function prepareJsonForDisk (meta: PackageMeta, etag: string | undefined, jsonText?: string): string {
+export function prepareJsonForDisk (meta: PackageMeta, etag: string | undefined): string {
   const modified = meta.modified ?? meta.time?.modified
   const headers = JSON.stringify({ etag, modified })
-  const body = jsonText ?? JSON.stringify(meta.etag == null ? meta : { ...meta, etag: undefined })
+  const body = JSON.stringify(meta.etag == null ? meta : { ...meta, etag: undefined })
   return `${headers}\n${body}`
 }
 
@@ -249,6 +275,10 @@ export function prepareIndexedForDisk (meta: PackageMeta, etag: string | undefin
   }
   if (meta.time != null) {
     index.time = meta.time
+  }
+  const { homepage } = meta as PackageMeta & { homepage?: string }
+  if (typeof homepage === 'string') {
+    index.homepage = homepage
   }
   const indexJson = JSON.stringify(index)
   const lead = Buffer.from(
