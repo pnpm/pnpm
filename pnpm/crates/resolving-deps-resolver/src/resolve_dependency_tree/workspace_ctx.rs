@@ -615,8 +615,13 @@ impl WorkspaceTreeCtx {
             .filter(|pkg_id| !cache.visited.contains(*pkg_id))
             .cloned()
             .collect();
-        // The three shared maps below are taken one after the other, so
-        // this function never holds two of the context's locks at once.
+        // Lock discipline: `run_versions_cache` is locked only by this
+        // function, so holding it across the refresh cannot form an
+        // acquisition cycle; the context's shared maps (roots,
+        // `children_by_id`, `packages`, identities) are each taken on
+        // their own, never two at a time. Contention is also not a
+        // concern: refreshes run at the quiescent points between hoist
+        // waves, not while walks hold the shared maps hot.
         let mut newly_visited: Vec<String> = Vec::new();
         {
             let children_by_id = lock_recoverable(&self.children_by_id);
