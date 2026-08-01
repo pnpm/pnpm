@@ -28,11 +28,17 @@ fn read_env<Sys: EnvVar>(suffix: &str) -> Option<String> {
 
 /// Read an env var by suffix, keeping an empty value as `Some("")`.
 ///
-/// For nearly every setting an empty env var is indistinguishable from
-/// an unset one, which is why [`read_env`] drops it. `savePrefix` is the
-/// exception: `""` is the value that selects an exact version pin, and
 /// pnpm's own env pass only skips a variable that is absent, never one
-/// that is empty.
+/// that is empty, so an empty value clobbers lower-priority layers. For
+/// nearly every setting that is indistinguishable from leaving it unset,
+/// which is why [`read_env`] drops it. Two settings are exceptions, where
+/// `""` is observably different from unset:
+///
+/// - `savePrefix`: `""` is the value that selects an exact version pin.
+/// - `scope`: `""` must override a scope from `pnpm-workspace.yaml` or the
+///   global `config.yaml` so that `PNPM_CONFIG_SCOPE=` yields an unscoped
+///   `pnpm login`. Dropping it would let the lower layer's scope leak
+///   through, diverging from the TypeScript CLI.
 fn read_env_allow_empty<Sys: EnvVar>(suffix: &str) -> Option<String> {
     let upper = format!("PNPM_CONFIG_{suffix}");
     let lower = format!("pnpm_config_{}", suffix.to_lowercase());
@@ -156,7 +162,13 @@ impl WorkspaceSettings {
         json_field!(prefer_offline, "PREFER_OFFLINE");
         json_field!(lockfile_include_tarball_url, "LOCKFILE_INCLUDE_TARBALL_URL");
         string_field!(registry, "REGISTRY");
-        string_field!(scope, "SCOPE");
+        // Unlike its `string_field!` neighbors, `scope` keeps an empty value
+        // (see [`read_env_allow_empty`]): `PNPM_CONFIG_SCOPE=` must clobber a
+        // scope from a lower-priority layer, matching the TypeScript CLI's env
+        // pass.
+        if let Some(scope) = read_env_allow_empty::<Sys>("SCOPE") {
+            settings.scope = Some(scope);
+        }
         string_field!(pnpr_server, "PNPR_SERVER");
         string_field!(https_proxy, "HTTPS_PROXY");
         string_field!(http_proxy, "HTTP_PROXY");

@@ -159,6 +159,23 @@ fn scope_parses_from_env() {
     );
 }
 
+/// `scope`, like `savePrefix`, is an exception to
+/// [`empty_env_var_is_treated_as_unset`]: `PNPM_CONFIG_SCOPE=` must reach the
+/// config as `Some("")`, not `None`, so it clobbers a scope set by a
+/// lower-priority layer and yields an unscoped `pnpm login` — matching the
+/// TypeScript CLI, whose env pass keeps the empty value.
+#[test]
+fn empty_scope_env_var_survives_to_clobber_lower_layers() {
+    struct EnvEmptyScope;
+    impl EnvVar for EnvEmptyScope {
+        fn var(name: &str) -> Option<String> {
+            (name == "PNPM_CONFIG_SCOPE").then(String::new)
+        }
+    }
+    let settings = WorkspaceSettings::from_pnpm_config_env::<EnvEmptyScope>();
+    assert_eq!(settings.scope.as_deref(), Some(""));
+}
+
 #[test]
 fn tri_array_env_var_parses_arrays_and_rejects_null() {
     assert_eq!(parse_tri_array(r#"["a","b"]"#), Some(Some(vec!["a".to_owned(), "b".to_owned()])));
