@@ -56,6 +56,14 @@ macro_rules! login_host_fake {
             INI_WRITES.with(|writes| writes.borrow().clone())
         }
     };
+
+    (@helper $unknown:ident) => {
+        compile_error!(concat!(
+            "unknown `login_host_fake!` helper `",
+            stringify!($unknown),
+            "`; expected one of: auth_ini_writes",
+        ));
+    };
 }
 
 /// `Config::default()` leaves `config_dir` as `None`; `run` must reject that

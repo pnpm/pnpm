@@ -71,9 +71,7 @@ fn preserves_existing_trailing_slash() {
 
 /// pnpm keeps only auth/registry keys when reading an `.npmrc`
 /// (`isNpmrcReadableKey`), and `scope` is not among them, so a `scope=` line
-/// there is dropped rather than becoming the default login scope. The setting
-/// is honored from `pnpm-workspace.yaml`, the global `config.yaml`, and
-/// `PNPM_CONFIG_SCOPE` instead.
+/// there is dropped rather than becoming the default login scope.
 #[test]
 fn scope_is_ignored_in_npmrc() {
     let mut config = Config::new();

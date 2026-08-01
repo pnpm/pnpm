@@ -1776,9 +1776,8 @@ pub fn pnpm_workspace_yaml_registry_overrides_npmrc_registry() {
 }
 
 #[test]
-pub fn pnpm_workspace_yaml_scope_is_honored_over_an_npmrc_scope() {
+pub fn pnpm_workspace_yaml_supplies_the_login_scope() {
     let tmp = tempdir().unwrap();
-    fs::write(tmp.path().join(".npmrc"), "scope=@from-npmrc\n").expect("write to .npmrc");
     fs::write(tmp.path().join("pnpm-workspace.yaml"), "scope: '@from-yaml'\n")
         .expect("write to pnpm-workspace.yaml");
     let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");

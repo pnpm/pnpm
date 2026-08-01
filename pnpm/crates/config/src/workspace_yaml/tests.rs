@@ -97,6 +97,17 @@ fn parses_and_applies_scope_from_yaml() {
     assert_eq!(config.scope.as_deref(), Some("@my-org"));
 }
 
+/// `scope` is a valid key in the global `config.yaml` (pnpm's
+/// `isConfigFileKey` accepts it), so it must survive the workspace-only
+/// stripping that runs on that file.
+#[test]
+fn scope_survives_workspace_only_field_clearing() {
+    let mut settings: WorkspaceSettings =
+        serde_saphyr::from_str("scope: '@from-global'\n").unwrap();
+    settings.clear_workspace_only_fields();
+    assert_eq!(settings.scope.as_deref(), Some("@from-global"));
+}
+
 #[test]
 fn apply_scope_overrides_an_earlier_layer() {
     // The workspace yaml is applied over the global `config.yaml`, so the

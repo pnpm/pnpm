@@ -60,7 +60,8 @@ use web_login::{WebLoginFlowError, web_login};
 pub struct LoginOptions<'a> {
     /// The `--registry` value; `None` falls back to [`DEFAULT_REGISTRY`].
     pub registry: Option<&'a str>,
-    /// The `--scope` value; when set, the token is keyed to the scope and a
+    /// The resolved scope — `--scope` when given, otherwise the `scope`
+    /// setting. When set, the token is keyed to the scope and a
     /// scope-to-registry mapping is recorded.
     pub scope: Option<&'a str>,
     /// pnpm's `configDir`; `auth.ini` lives at `<config_dir>/auth.ini`.
@@ -177,7 +178,7 @@ where
     Ok(format!("Logged in on {}", redact_and_sanitize(&registry)))
 }
 
-/// Normalize a `--scope` value the way pnpm does: trim it, treat an empty
+/// Normalize a scope value the way pnpm does: trim it, treat an empty
 /// string or a bare `@` as "no scope", and prefix a missing leading `@`.
 fn normalize_scope(scope: Option<&str>) -> Option<String> {
     let trimmed = scope?.trim();
