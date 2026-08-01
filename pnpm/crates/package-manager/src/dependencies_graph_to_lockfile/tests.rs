@@ -2601,7 +2601,7 @@ fn node_pkg_name_prefers_name_ver_and_falls_back_to_manifest() {
 }
 
 /// Build a node whose depPath is registry-qualified
-/// (`<name>@<registryName>:<version>`, lockfile format 9.1) and whose
+/// (`<name>@<registryName>:<version>`, lockfile format 12.0) and whose
 /// resolution carries `tarball_url`.
 fn make_named_registry_node(
     name: &str,
@@ -2654,9 +2654,9 @@ fn named_registries_with(
 }
 
 /// A canonical named-registry tarball drops its URL — it is rebuilt from
-/// the alias on read — and its presence stamps the lockfile 9.1.
+/// the alias on read — and its presence stamps lockfile format 12.0.
 #[test]
-fn named_registry_package_stamps_9_1_and_drops_a_canonical_tarball() {
+fn named_registry_package_stamps_12_0_and_drops_a_canonical_tarball() {
     let (_tmp, manifest) = write_manifest(json!({
         "name": "fixture",
         "version": "1.0.0",
@@ -2681,7 +2681,8 @@ fn named_registry_package_stamps_9_1_and_drops_a_canonical_tarball() {
 
     let lockfile = dependencies_graph_to_lockfile(opts);
 
-    assert_eq!(lockfile.lockfile_version.minor, 1);
+    assert_eq!(lockfile.lockfile_version.major, 12);
+    assert_eq!(lockfile.lockfile_version.minor, 0);
 
     let packages = lockfile.packages.as_ref().expect("packages map");
     let key: PackageKey = "foo@work:1.0.0".parse().unwrap();

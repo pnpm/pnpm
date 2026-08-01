@@ -158,7 +158,7 @@ export interface RequestPackageOptions {
   rangeSpecStyle?: RangeSpecStyle
   /**
    * Resolve named-registry packages to registry-qualified resolution ids
-   * (`<name>@<registryName>:<version>`) — the lockfile 9.1 format that keeps
+   * (`<name>@<registryName>:<version>`) — the lockfile 12.0 format that keeps
    * the same name@version from different registries distinct.
    */
   namedRegistryQualifiedIds?: boolean

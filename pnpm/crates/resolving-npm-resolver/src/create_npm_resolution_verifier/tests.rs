@@ -974,15 +974,24 @@ fn can_trust_past_check_accepts_looser_min_age() {
     opts.minimum_release_age = Some(60 * 24); // today: 1 day
     let verifier = create_npm_resolution_verifier(opts);
 
-    let mut cached = serde_json::Map::new();
-    cached.insert("tarballUrlBinding".to_string(), true.into());
-    cached.insert("integrityRequired".to_string(), true.into());
+    let mut cached = verifier.policy().clone();
     cached.insert("minimumReleaseAge".to_string(), (60 * 24 * 7).into()); // past: 7 days
     cached.insert("minimumReleaseAgeExclude".to_string(), serde_json::Value::Array(vec![]));
     cached.insert("trustPolicy".to_string(), serde_json::Value::Null);
     cached.insert("trustPolicyExclude".to_string(), serde_json::Value::Array(vec![]));
     cached.insert("trustPolicyIgnoreAfter".to_string(), serde_json::Value::Null);
     assert!(verifier.can_trust_past_check(&cached));
+}
+
+#[test]
+fn can_trust_past_check_rejects_changed_named_registry_mapping() {
+    let verifier = create_npm_resolution_verifier(default_opts("https://registry.example/"));
+    let cached = verifier.policy().clone();
+    let mut changed_opts = default_opts("https://registry.example/");
+    changed_opts.named_registries.insert("work".to_string(), "https://other.example/".to_string());
+    let changed = create_npm_resolution_verifier(changed_opts);
+
+    assert!(!changed.can_trust_past_check(&cached));
 }
 
 /// A cache record that predates the tarball-URL binding rule (no

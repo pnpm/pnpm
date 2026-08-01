@@ -831,7 +831,7 @@ async function resolveFromNamedRegistry (
   return {
     ...picked,
     // The registry-qualified id keeps the same name@version resolved from
-    // different registries distinct in the lockfile (format 9.1). The plain
+    // different registries distinct in the lockfile (format 12.0). The plain
     // name@version id is kept for lockfiles that stay on format 9.0.
     id: opts.namedRegistryQualifiedIds
       ? `${picked.manifest.name}@${spec.registryName}:${picked.manifest.version}` as PkgResolutionId

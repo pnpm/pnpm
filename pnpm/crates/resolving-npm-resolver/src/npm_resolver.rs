@@ -779,7 +779,7 @@ pub(crate) struct BuildResolveResult<'a> {
     pub registry: &'a str,
     /// `Some(alias)` when the caller resolves from a named registry and
     /// registry-qualified ids are enabled — the minted id then becomes
-    /// `<name>@<alias>:<version>` (lockfile format 9.1).
+    /// `<name>@<alias>:<version>` (lockfile format 12.0).
     pub registry_name: Option<&'a str>,
     pub published_by: Option<DateTime<Utc>>,
     pub published_by_exclude: Option<&'a PackageVersionPolicy>,

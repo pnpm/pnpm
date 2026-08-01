@@ -273,7 +273,7 @@ fn serde_round_trip_non_semver() {
 }
 
 /// Registry-qualified version slots (`<registryName>:<version>`, lockfile
-/// format 9.1) parse into their own variant, expose the alias and bare
+/// format 12.0) parse into their own variant, expose the alias and bare
 /// semver, and round-trip byte-stable.
 #[test]
 fn parse_registry_qualified_round_trip() {

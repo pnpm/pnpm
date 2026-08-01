@@ -1981,7 +1981,9 @@ where
                 .collect::<Vec<_>>();
             let Lockfile { lockfile_version, importers, packages, snapshots, .. } =
                 materialization_lockfile;
-            assert_eq!(lockfile_version.major, 9); // compatibility check already happens at serde, but this still helps preventing programmer mistakes.
+            let lockfile_major = lockfile_version.major;
+            let supported_lockfile_major = matches!(lockfile_major, 9 | 12);
+            debug_assert!(supported_lockfile_major);
 
             let mut frozen_verification_override = lockfile_verification_override;
             if requested_importer_ids.is_some() {

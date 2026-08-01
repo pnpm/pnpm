@@ -477,7 +477,7 @@ async fn latest_is_suppressed_when_published_by_holds_back_raw_latest() {
     assert!(result.latest.is_none(), "immature dist-tags.latest suppresses the hint");
 }
 
-/// With `named_registry_qualified_ids` set (the lockfile 9.1 format),
+/// With `named_registry_qualified_ids` set (the lockfile 12.0 format),
 /// the resolution id is registry-qualified so the same name@version
 /// from different registries stays distinct.
 #[tokio::test]

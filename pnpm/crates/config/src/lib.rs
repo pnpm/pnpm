@@ -1104,10 +1104,10 @@ pub struct Config {
 
     /// When `true`, packages resolved from a named registry are keyed
     /// registry-qualified (`<name>@<registryName>:<version>`) in the
-    /// lockfile — format 9.1, which keeps the same name@version from
+    /// lockfile — format 12.0, which keeps the same name@version from
     /// different registries distinct. The `namedRegistriesLockfileFormat`
     /// setting; pnpm v12 defaults it on (the TypeScript v11 CLI defaults
-    /// it off). Regardless of the setting, a lockfile already on the 9.1
+    /// it off). Regardless of the setting, a lockfile already on the 12.0
     /// format keeps it (sticky), so mixed-version teams don't ping-pong
     /// formats.
     #[default = true]

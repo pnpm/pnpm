@@ -18,7 +18,11 @@
 //! [`PublishedAtLookupContext`] so verifying many pinned versions of
 //! the same package costs at most one fetch per layer.
 
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashMap},
+    path::PathBuf,
+    sync::Arc,
+};
 
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
@@ -33,6 +37,7 @@ use pacquet_resolving_resolver_base::{
 };
 use pipe_trait::Pipe;
 use serde_json::Value as JsonValue;
+use sha2::{Digest, Sha256};
 use tokio::sync::OnceCell;
 
 use crate::{
@@ -229,6 +234,7 @@ pub fn create_npm_resolution_verifier(
 
     let sorted_min_age_excludes = sorted_unique(&opts.minimum_release_age_exclude_patterns);
     let sorted_trust_excludes = sorted_unique(&opts.trust_policy_exclude_patterns);
+    let named_registries_routing = named_registries_routing_digest(&named_registries_by_alias);
 
     let policy_snapshot = build_policy_snapshot(
         opts.minimum_release_age.unwrap_or(0),
@@ -236,6 +242,7 @@ pub fn create_npm_resolution_verifier(
         opts.trust_policy,
         &sorted_trust_excludes,
         opts.trust_policy_ignore_after,
+        &named_registries_routing,
     );
 
     NpmResolutionVerifier {
@@ -300,6 +307,12 @@ impl ResolutionVerifier for NpmResolutionVerifier {
         // The missing-integrity check is also unconditional; a cached run
         // without the flag cannot prove it rejected unverifiable tarballs.
         if cached_policy.get("integrityRequired").and_then(JsonValue::as_bool) != Some(true) {
+            return false;
+        }
+
+        if cached_policy.get("namedRegistriesRouting")
+            != self.policy_snapshot.get("namedRegistriesRouting")
+        {
             return false;
         }
 
@@ -383,7 +396,7 @@ impl NpmResolutionVerifier {
 
         // Registry-qualified entries name their registry in the dep path,
         // so routing does not depend on a recorded tarball URL (canonical
-        // URLs are omitted from the lockfile in the 9.1 format). Fail
+        // URLs are omitted from the lockfile in the 12.0 format). Fail
         // closed on an unknown alias: none of the metadata-backed checks
         // below could vouch for the entry without its registry URL.
         let named_registry = match ctx.registry_name {
@@ -986,12 +999,22 @@ fn sorted_unique(values: &[String]) -> Vec<String> {
     deduped
 }
 
+fn named_registries_routing_digest(named_registries: &HashMap<String, String>) -> String {
+    let sorted: BTreeMap<&str, &str> = named_registries
+        .iter()
+        .map(|(alias, registry)| (alias.as_str(), registry.as_str()))
+        .collect();
+    let encoded = serde_json::to_vec(&sorted).expect("named registry mappings are serializable");
+    format!("{:x}", Sha256::digest(encoded))
+}
+
 fn build_policy_snapshot(
     minimum_release_age: u64,
     sorted_min_age_excludes: &[String],
     trust_policy: Option<TrustPolicy>,
     sorted_trust_excludes: &[String],
     trust_policy_ignore_after: Option<u64>,
+    named_registries_routing: &str,
 ) -> serde_json::Map<String, JsonValue> {
     let mut map = serde_json::Map::new();
     // Marks runs that enforced the (unconditional) tarball-URL binding so
@@ -999,6 +1022,10 @@ fn build_policy_snapshot(
     map.insert("tarballUrlBinding".to_string(), JsonValue::Bool(true));
     // Same cache identity rule for the missing-integrity structural check.
     map.insert("integrityRequired".to_string(), JsonValue::Bool(true));
+    map.insert(
+        "namedRegistriesRouting".to_string(),
+        JsonValue::String(named_registries_routing.to_string()),
+    );
     map.insert("minimumReleaseAge".to_string(), JsonValue::from(minimum_release_age));
     map.insert(
         "minimumReleaseAgeExclude".to_string(),

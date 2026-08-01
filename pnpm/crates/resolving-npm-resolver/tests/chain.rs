@@ -4,7 +4,7 @@
 //! A named-registry alias that would shadow an explicit local-scheme
 //! protocol (`link:` / `workspace:` / `file:`) or any other reserved
 //! specifier prefix is rejected at resolver construction — since the
-//! lockfile 9.1 format writes `<name>@<alias>:<version>` keys, such an
+//! lockfile 12.0 format writes `<name>@<alias>:<version>` keys, such an
 //! alias would make the version slot ambiguous.
 
 use std::collections::HashMap;

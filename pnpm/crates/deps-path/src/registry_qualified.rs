@@ -40,7 +40,7 @@ pub fn is_well_formed_registry_name(name: &str) -> bool {
 
 /// Parse the version slot of a registry-qualified dep path
 /// (`<registryName>:<version>`, e.g. `work:1.0.0`) — the form used for
-/// packages resolved from a named registry since lockfile format 9.1.
+/// packages resolved from a named registry since lockfile format 12.0.
 /// Returns `None` for every other version form (plain semver, `file:`,
 /// `runtime:`, git/tarball URLs, ...).
 #[must_use]

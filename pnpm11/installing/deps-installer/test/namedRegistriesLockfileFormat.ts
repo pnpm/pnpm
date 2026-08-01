@@ -26,7 +26,7 @@ function installFoo (opts: { namedRegistriesLockfileFormat?: boolean }): Promise
   }, { namedRegistries }))
 }
 
-test('a named-registry dependency is keyed registry-qualified and stamps lockfile 9.1', async () => {
+test('a named-registry dependency is keyed registry-qualified and stamps lockfile 12.0', async () => {
   prepareEmpty()
 
   await installFoo({ namedRegistriesLockfileFormat: true })
@@ -47,7 +47,7 @@ test('a named-registry dependency is keyed registry-qualified and stamps lockfil
   })
 })
 
-test('the 9.1 format is opt-in: without the setting the legacy key is written', async () => {
+test('the 12.0 format is opt-in: without the setting the legacy key is written', async () => {
   prepareEmpty()
 
   await installFoo({})
@@ -57,7 +57,18 @@ test('the 9.1 format is opt-in: without the setting the legacy key is written', 
   expect(Object.keys(lockfile.packages ?? {})).toContain('@pnpm.e2e/foo@1.0.0')
 })
 
-test('a lockfile already on 9.1 keeps the format even when the setting is off', async () => {
+test('opting in stamps 12.0 even when the graph has no named-registry package', async () => {
+  prepareEmpty()
+
+  await install({}, testDefaults({
+    namedRegistries,
+    namedRegistriesLockfileFormat: true,
+  }, { namedRegistries }))
+
+  expect(readLockfile().lockfileVersion).toBe(NAMED_REGISTRIES_LOCKFILE_VERSION)
+})
+
+test('a lockfile already on 12.0 keeps the format even when the setting is off', async () => {
   prepareEmpty()
 
   await installFoo({ namedRegistriesLockfileFormat: true })
@@ -87,7 +98,7 @@ test('the same package resolved from two registries gets one entry per registry'
 
   const lockfile = readLockfile()
   const packageKeys = Object.keys(lockfile.packages ?? {})
-  // Before format 9.1 these two collapsed onto a single `@pnpm.e2e/foo@1.0.0`
+  // Before format 12.0 these two collapsed onto a single `@pnpm.e2e/foo@1.0.0`
   // entry and one of the two consumers silently got the other's tarball.
   expect(packageKeys).toContain('@pnpm.e2e/foo@1.0.0')
   expect(packageKeys).toContain('@pnpm.e2e/foo@work:1.0.0')

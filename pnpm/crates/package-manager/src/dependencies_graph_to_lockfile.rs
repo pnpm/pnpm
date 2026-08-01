@@ -250,14 +250,14 @@ pub fn dependencies_graph_to_lockfile(
 
     let catalog_snapshots = build_catalog_snapshots(&importers, catalogs);
 
-    // The 9.1 version is stamped only when a registry-qualified package key
-    // is actually present, so lockfiles that don't use named registries stay
-    // readable by clients that predate the format.
-    let lockfile_minor =
-        u16::from(packages.keys().any(|key| key.suffix.registry_qualified().is_some()));
+    let lockfile_version = if packages.keys().any(|key| key.suffix.registry_qualified().is_some()) {
+        ComVer::new(12, 0)
+    } else {
+        ComVer::new(9, 0)
+    };
     Ok(Lockfile {
-        lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(9, lockfile_minor))
-            .expect("lockfileVersion 9.x is always compatible with MAJOR=9"),
+        lockfile_version: LockfileVersion::<9>::try_from(lockfile_version)
+            .expect("the generated lockfile version is supported"),
         settings: Some(LockfileSettings {
             auto_install_peers,
             dedupe_peers: dedupe_peers.then_some(true),

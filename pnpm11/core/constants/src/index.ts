@@ -3,11 +3,10 @@ export const LOCKFILE_MAJOR_VERSION = '9'
 export const LOCKFILE_VERSION = `${LOCKFILE_MAJOR_VERSION}.0`
 /**
  * The lockfile format that records named-registry packages under
- * registry-qualified keys (`<name>@<registryName>:<version>`). Stamped only
- * when the lockfile actually contains such a package, so lockfiles that don't
- * use named registries stay on LOCKFILE_VERSION byte for byte.
+ * registry-qualified keys (`<name>@<registryName>:<version>`). pnpm 11 writes
+ * it in opt-in or sticky mode; pnpm 12 writes it by default.
  */
-export const NAMED_REGISTRIES_LOCKFILE_VERSION = `${LOCKFILE_MAJOR_VERSION}.1`
+export const NAMED_REGISTRIES_LOCKFILE_VERSION = '12.0'
 export const SUPPORTED_LOCKFILE_VERSIONS = [LOCKFILE_VERSION, NAMED_REGISTRIES_LOCKFILE_VERSION]
 
 export const MANIFEST_BASE_NAMES = ['package.json', 'package.json5', 'package.yaml'] as const
@@ -52,4 +51,3 @@ export function resolveNamedRegistries (userDefined?: Record<string, string>): R
 export const ABBREVIATED_META_DIR = 'v11/metadata'
 export const FULL_META_DIR = 'v11/metadata-full'
 export const FULL_FILTERED_META_DIR = 'v11/metadata-full-filtered'
-

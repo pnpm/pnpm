@@ -12,10 +12,8 @@ import { parseOverrides } from '@pnpm/config.parse-overrides'
 import { createPackageVersionPolicyOrThrow, getPublishedByPolicy } from '@pnpm/config.version-policy'
 import {
   LAYOUT_VERSION,
-  LOCKFILE_MAJOR_VERSION,
   LOCKFILE_VERSION,
   NAMED_REGISTRIES_LOCKFILE_VERSION,
-  resolveNamedRegistries,
   SUPPORTED_LOCKFILE_VERSIONS,
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
@@ -694,7 +692,7 @@ export async function mutateModules (
       }
     }
     const _isWantedDepBareSpecifierSame = isWantedDepBareSpecifierSame.bind(null, ctx.wantedLockfile.catalogs, opts.catalogs)
-    const upToDateLockfileMajorVersion = ctx.wantedLockfile.lockfileVersion.toString().startsWith(`${LOCKFILE_MAJOR_VERSION}.`)
+    const supportedLockfileVersion = SUPPORTED_LOCKFILE_VERSIONS.includes(ctx.wantedLockfile.lockfileVersion)
     let didFastUpdateOverrides = false
     const contextProjects = Object.values(ctx.projects)
     const hasChangedSpecifiers = outdatedLockfileSettingName == null &&
@@ -796,7 +794,7 @@ export async function mutateModules (
     let needsFullResolution = outdatedLockfileSettings ||
       opts.fixLockfile ||
       opts.updateChecksums ||
-      !upToDateLockfileMajorVersion ||
+      !supportedLockfileVersion ||
       namedRegistriesFormatUpgradePending(ctx.wantedLockfile, opts) ||
       opts.forceFullResolution ||
       forceResolutionFromHook
@@ -828,7 +826,7 @@ export async function mutateModules (
       frozenLockfile,
       needsFullResolution,
       patchGroups,
-      upToDateLockfileMajorVersion,
+      supportedLockfileVersion,
     })
     if (frozenInstallResult !== null) {
       if ('needsFullResolution' in frozenInstallResult) {
@@ -1099,13 +1097,13 @@ export async function mutateModules (
     frozenLockfile,
     needsFullResolution,
     patchGroups,
-    upToDateLockfileMajorVersion,
+    supportedLockfileVersion,
   }: {
     didFastUpdateOverrides: boolean
     frozenLockfile: boolean
     needsFullResolution: boolean
     patchGroups?: PatchGroupRecord
-    upToDateLockfileMajorVersion: boolean
+    supportedLockfileVersion: boolean
   }): Promise<InnerInstallResult | { needsFullResolution: boolean } | null> {
     const isFrozenInstallPossible =
       // A frozen install is never possible when any of these are true:
@@ -1259,7 +1257,7 @@ Note that in CI environments, this setting is enabled by default.`,
       })
       if (
         opts.useLockfile && opts.saveLockfile && opts.mergeGitBranchLockfiles ||
-        !upToDateLockfileMajorVersion && !opts.frozenLockfile
+        !supportedLockfileVersion && !opts.frozenLockfile
       ) {
         const currentLockfileDir = path.join(ctx.rootModulesDir, '.pnpm')
         await writeLockfiles({
@@ -1704,7 +1702,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       preserveWorkspaceProtocol: opts.preserveWorkspaceProtocol,
       registries: ctx.registries,
       namedRegistries: opts.namedRegistries,
-      // Sticky: once a lockfile is on the 9.1 format, keep writing it even
+      // Sticky: once a lockfile is on the 12.0 format, keep writing it even
       // without the opt-in, so mixed-version teams don't ping-pong formats.
       namedRegistryQualifiedIds: opts.namedRegistriesLockfileFormat === true ||
         ctx.wantedLockfile.lockfileVersion === NAMED_REGISTRIES_LOCKFILE_VERSION,
@@ -1816,8 +1814,16 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     ? await pipeWith(async (f, res) => f(await res), opts.hooks.afterAllResolved as any)(newLockfile) as LockfileObject // eslint-disable-line
     : newLockfile
 
+  if (opts.namedRegistriesLockfileFormat === true ||
+    ctx.wantedLockfile.lockfileVersion === NAMED_REGISTRIES_LOCKFILE_VERSION) {
+    newLockfile.lockfileVersion = NAMED_REGISTRIES_LOCKFILE_VERSION
+  }
+
   if (opts.updateLockfileMinorVersion) {
-    newLockfile.lockfileVersion = LOCKFILE_VERSION
+    newLockfile.lockfileVersion = opts.namedRegistriesLockfileFormat === true ||
+      ctx.wantedLockfile.lockfileVersion === NAMED_REGISTRIES_LOCKFILE_VERSION
+      ? NAMED_REGISTRIES_LOCKFILE_VERSION
+      : LOCKFILE_VERSION
   }
 
   const depsStateCache: DepsStateCache = {}
@@ -2481,6 +2487,14 @@ function getProjectsWithTargetDirs<T extends { id: ProjectId }> (
   return extendProjectsWithTargetDirs(projects, injectionTargetsByDepPath)
 }
 
+function namedRegistriesFormatUpgradePending (
+  wantedLockfile: LockfileObject,
+  opts: { namedRegistriesLockfileFormat?: boolean }
+): boolean {
+  return opts.namedRegistriesLockfileFormat === true &&
+    wantedLockfile.lockfileVersion !== NAMED_REGISTRIES_LOCKFILE_VERSION
+}
+
 /**
  * Whether the pnpr server path can handle this batch of mutations. The pnpr server flow
  * supports installing the manifest as-is (`install`), adding new deps
@@ -2488,31 +2502,6 @@ function getProjectsWithTargetDirs<T extends { id: ProjectId }> (
  * client-side update-flag behavior (`update`/`updateMatching`/`updateToLatest`)
  * yet, so those still go through the normal client-side resolver.
  */
-/**
- * Whether the install must re-resolve to migrate a lockfile onto format 9.1.
- *
- * `namedRegistriesLockfileFormat` only takes effect through resolution, and a
- * 9.0 lockfile is a supported version, so an otherwise up-to-date project
- * would take the frozen-like fast path and the setting would appear to do
- * nothing. The scan is limited to projects that actually declare a
- * named-registry dependency, so enabling the setting elsewhere costs nothing.
- */
-function namedRegistriesFormatUpgradePending (
-  wantedLockfile: LockfileObject,
-  opts: { namedRegistriesLockfileFormat?: boolean, namedRegistries?: Record<string, string> }
-): boolean {
-  if (opts.namedRegistriesLockfileFormat !== true) return false
-  if (wantedLockfile.lockfileVersion === NAMED_REGISTRIES_LOCKFILE_VERSION) return false
-  const aliasPrefixes = Object.keys(resolveNamedRegistries(opts.namedRegistries))
-    .map((alias) => `${alias}:`)
-  for (const importer of Object.values(wantedLockfile.importers ?? {})) {
-    for (const specifier of Object.values(importer.specifiers ?? {})) {
-      if (aliasPrefixes.some((prefix) => specifier.startsWith(prefix))) return true
-    }
-  }
-  return false
-}
-
 function canUsePnprForMutations (projects: MutatedProject[]): boolean {
   if (projects.length === 0) return false
   return projects.every((p) => {

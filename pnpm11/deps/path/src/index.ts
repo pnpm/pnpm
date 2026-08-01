@@ -49,7 +49,7 @@ export interface RegistryQualifiedVersion {
 /**
  * Parses the version slot of a registry-qualified dep path
  * (`<registryName>:<version>`, e.g. `work:1.0.0`) — the form used for
- * packages resolved from a named registry since lockfile format 9.1.
+ * packages resolved from a named registry since lockfile format 12.0.
  * Returns `undefined` for every other version form (plain semver, `file:`,
  * `runtime:`, git/tarball URLs, ...).
  */

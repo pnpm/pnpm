@@ -566,8 +566,8 @@ test('registry-qualified entries are verified separately, each with its own regi
   // Same name, version, and resolution — only the registry differs. Deduping
   // on anything less than the full identity would verify one and skip the
   // other entirely.
-  // Registry-qualified keys only exist in 9.1, so the fixture has to declare
-  // that version rather than being a 9.0/9.1 hybrid.
+  // Registry-qualified keys only exist in 12.0, so the fixture has to declare
+  // that version rather than being a 9.0/12.0 hybrid.
   const lockfile = makeLockfile({
     'foo@1.0.0': { resolution: tarballResolution() },
     'foo@work:1.0.0': { resolution: tarballResolution() },

@@ -8,7 +8,10 @@ use crate::{
     dependencies_graph::{DependenciesGraph, DependenciesGraphNode},
     node_id::NodeId,
     resolve_peers::{
-        context::{SharedChain, link_node_id_as_dep_path, peer_id_pair, peer_segment_names},
+        context::{
+            SharedChain, link_node_id_as_dep_path, peer_id_pair, peer_segment_names,
+            pkg_name_version,
+        },
         walker::{MissingPeerInfo, Walker},
     },
     resolved_tree::ResolvedPackage,

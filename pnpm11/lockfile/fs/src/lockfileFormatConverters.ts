@@ -49,10 +49,8 @@ export function convertToLockfileFile (lockfile: LockfileObject): LockfileFile {
     ...lockfile,
     snapshots,
     packages,
-    // The 9.1 version is stamped only when a registry-qualified package key
-    // is actually present, so lockfiles that don't use named registries stay
-    // readable by clients that predate the format.
-    lockfileVersion: Object.keys(packages).some((pkgId) => parse(pkgId).registryName != null)
+    lockfileVersion: lockfile.lockfileVersion === NAMED_REGISTRIES_LOCKFILE_VERSION ||
+      Object.keys(packages).some((pkgId) => parse(pkgId).registryName != null)
       ? NAMED_REGISTRIES_LOCKFILE_VERSION
       : LOCKFILE_VERSION,
     importers: mapValues(lockfile.importers, convertProjectSnapshotToInlineSpecifiersFormat),

@@ -13,7 +13,7 @@ pub enum VersionPart {
     File(String),
     /// `<registryName>:<version>` — a package resolved from a named
     /// registry, keyed registry-qualified so the same name@version from
-    /// different registries stays distinct (lockfile format 9.1).
+    /// different registries stays distinct (lockfile format 12.0).
     RegistryQualified {
         registry_name: String,
         version: Version,

@@ -2444,7 +2444,7 @@ function getResolvedPackage (
  * because a named registry served a `name@version` another registry already
  * provided.
  *
- * Only reachable while the lockfile 9.1 format is off: with it on, a
+ * Only reachable while the lockfile 12.0 format is off: with it on, a
  * named-registry package is keyed `<name>@<registryName>:<version>` and
  * cannot collide. Without the qualifier the second resolution silently
  * reuses the first one's tarball, so the dependency that asked for the
@@ -2476,7 +2476,7 @@ export function detectNamedRegistryCollision (
     'NAMED_REGISTRY_PACKAGE_COLLISION',
     `"${resolved.name}@${resolved.version}" is provided by more than one registry, but the lockfile cannot record which registry each dependency came from.`,
     {
-      hint: 'Set "namedRegistriesLockfileFormat: true" in pnpm-workspace.yaml. That upgrades the lockfile to format 9.1, which keys each package by the registry it came from and lets the same name and version coexist. Without it, one of the two would silently be installed from the wrong registry.',
+      hint: 'Set "namedRegistriesLockfileFormat: true" in pnpm-workspace.yaml. That upgrades the lockfile to format 12.0, which keys each package by the registry it came from and lets the same name and version coexist. Without it, one of the two would silently be installed from the wrong registry.',
     }
   )
 }

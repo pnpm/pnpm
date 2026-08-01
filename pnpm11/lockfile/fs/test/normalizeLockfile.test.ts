@@ -95,7 +95,7 @@ test('redundant fields are removed from "time"', () => {
   })
 })
 
-test('the lockfile version is stamped 9.1 only when a registry-qualified package key is present', () => {
+test('a registry-qualified package key stamps 12.0 and an existing 12.0 version is sticky', () => {
   const importers = {
     ['.' as ProjectId]: {
       dependencies: {
@@ -131,5 +131,5 @@ test('the lockfile version is stamped 9.1 only when a registry-qualified package
       },
     },
   })
-  expect(withoutQualifiedKey.lockfileVersion).toBe(LOCKFILE_VERSION)
+  expect(withoutQualifiedKey.lockfileVersion).toBe(NAMED_REGISTRIES_LOCKFILE_VERSION)
 })

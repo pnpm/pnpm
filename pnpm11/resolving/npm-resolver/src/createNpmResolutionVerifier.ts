@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto'
+
 import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
 import { FULL_META_DIR, resolveNamedRegistries } from '@pnpm/constants'
@@ -222,7 +224,7 @@ export function createNpmResolutionVerifier (
     if (registryName != null) {
       // Registry-qualified entries name their registry in the dep path, so
       // routing does not depend on a recorded tarball URL (canonical URLs
-      // are omitted from the lockfile in the 9.1 format).
+      // are omitted from the lockfile in the 12.0 format).
       const namedRegistry = mergedNamedRegistries[registryName]
       if (!namedRegistry) {
         // Fail closed: without the registry URL, none of the metadata-backed
@@ -281,6 +283,12 @@ export function createNpmResolutionVerifier (
   // stays trusted after its exclude entry has been pulled.
   const sortedMinAgeExcludes = [...new Set(opts.minimumReleaseAgeExclude ?? [])].sort()
   const sortedTrustExcludes = [...new Set(opts.trustPolicyExclude ?? [])].sort()
+  const sortedNamedRegistries = Object.fromEntries(
+    Object.entries(mergedNamedRegistries).sort(([aliasA], [aliasB]) => aliasA.localeCompare(aliasB))
+  )
+  const namedRegistriesRouting = createHash('sha256')
+    .update(JSON.stringify(sortedNamedRegistries))
+    .digest('hex')
   return {
     verify,
     policy: {
@@ -292,6 +300,7 @@ export function createNpmResolutionVerifier (
       tarballUrlBinding: true,
       // Same cache identity rule for the missing-integrity structural check.
       integrityRequired: true,
+      namedRegistriesRouting,
       minimumReleaseAge,
       minimumReleaseAgeExclude: sortedMinAgeExcludes,
       trustPolicy: trustPolicy ?? null,
@@ -306,6 +315,8 @@ export function createNpmResolutionVerifier (
       // The missing-integrity check is also unconditional; older cache records
       // without the flag cannot prove they rejected unverifiable tarballs.
       if (cached.integrityRequired !== true) return false
+
+      if (cached.namedRegistriesRouting !== namedRegistriesRouting) return false
 
       // Maturity: a previously cached run under a larger cutoff
       // (stricter window) is trustworthy under a smaller current one —
