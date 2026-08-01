@@ -202,38 +202,46 @@ fn phase_summary_reports_partition_and_means() {
     }
 }
 
-/// The peer-heavy guard compares each engine's fastest run, not its mean. On a
-/// shared runner one contended sample can drag the mean under the floor while
-/// every uncontended sample clears it comfortably — pnpm/pnpm#13551's CI saw a
-/// 2.83s outlier lift the pacquet mean to 2.15s against a 1.54s fastest run.
-#[test]
-fn peer_heavy_ratio_reads_the_fastest_run_not_the_mean() {
-    let diagnostics = super::BenchmarkDiagnostics {
-        targets: vec![
-            super::BenchmarkTargetDiagnostics {
-                id: "pacquet@HEAD".to_string(),
-                hyperfine_mean_seconds: Some(2.5),
-                hyperfine_min_seconds: Some(1.5),
-                phase_summary: super::PhaseSummary::default(),
-                phase_events: vec![],
-            },
-            super::BenchmarkTargetDiagnostics {
-                id: "pnpm@HEAD".to_string(),
-                hyperfine_mean_seconds: Some(2.9),
-                hyperfine_min_seconds: Some(2.8),
-                phase_summary: super::PhaseSummary::default(),
-                phase_events: vec![],
-            },
-        ],
-        pnpr_direct_ratios: vec![],
+fn peer_heavy_diagnostics(pacquet: (f64, f64), pnpm: (f64, f64)) -> super::BenchmarkDiagnostics {
+    let target = |id: &str, (mean, min): (f64, f64)| super::BenchmarkTargetDiagnostics {
+        id: id.to_string(),
+        hyperfine_mean_seconds: Some(mean),
+        hyperfine_min_seconds: Some(min),
+        phase_summary: super::PhaseSummary::default(),
+        phase_events: vec![],
     };
+    super::BenchmarkDiagnostics {
+        targets: vec![target("pacquet@HEAD", pacquet), target("pnpm@HEAD", pnpm)],
+        pnpr_direct_ratios: vec![],
+    }
+}
 
-    let speedup = super::benchmark_target_min(&diagnostics, "pnpm@HEAD")
-        / super::benchmark_target_min(&diagnostics, "pacquet@HEAD");
+/// On a shared runner one contended sample drags a target's mean well past its
+/// uncontended runs, so the gate reads each engine's fastest run instead. These
+/// timings clear the floor on the minimum and fall under it on the mean.
+#[test]
+fn peer_heavy_gate_reads_the_fastest_run_not_the_mean() {
+    let diagnostics = peer_heavy_diagnostics((2.5, 1.5), (2.9, 2.8));
+
     let mean_speedup = 2.9 / 2.5;
-    dbg!(speedup, mean_speedup, super::PACQUET_PNPM_SPEEDUP_MIN);
-    assert!(speedup >= super::PACQUET_PNPM_SPEEDUP_MIN);
-    assert!(mean_speedup < super::PACQUET_PNPM_SPEEDUP_MIN);
+    dbg!(mean_speedup, super::PACQUET_PNPM_SPEEDUP_MIN);
+    assert!(mean_speedup < super::PACQUET_PNPM_SPEEDUP_MIN, "fixture must fail on the mean");
+
+    let verdict = super::check_peer_heavy_speedup(&diagnostics);
+    dbg!(&verdict);
+    assert!(verdict.is_ok(), "gate must clear the floor on the fastest runs");
+}
+
+/// A genuine blowup lands below the floor on every sample, so the gate must
+/// still reject it.
+#[test]
+fn peer_heavy_gate_rejects_a_regression_on_every_sample() {
+    let diagnostics = peer_heavy_diagnostics((3.1, 3.0), (2.9, 2.8));
+
+    let verdict = super::check_peer_heavy_speedup(&diagnostics);
+    dbg!(&verdict);
+    let message = verdict.expect_err("a sub-floor speedup must fail the gate");
+    assert!(message.contains("faster than pnpm@HEAD"), "{message}");
 }
 
 #[test]

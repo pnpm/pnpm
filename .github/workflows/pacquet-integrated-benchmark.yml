@@ -373,12 +373,10 @@ jobs:
         # give that minimum a good chance of landing on an uncontended one.
         #
         # The cross-engine ratio assertion inside the harness is a gate, not a
-        # measurement, and it must not cost us the measurement: a failure here
-        # would abort the job before the Bencher upload and drop *every*
-        # scenario's data point for the run (which is why this benchmark has
-        # almost no history — the two main pushes after it was added both
-        # failed on the since-recalibrated 10x floor). Record the verdict and
-        # re-raise it after the upload instead.
+        # measurement, and it must not cost us the measurement: failing inside
+        # the job aborts it before the Bencher upload, which drops *every*
+        # scenario's data point for the run, not just this one's. Record the
+        # verdict here and re-raise it after the upload instead.
         continue-on-error: true
         timeout-minutes: 30
         run: |
@@ -415,7 +413,10 @@ jobs:
       # per-revision pnpr server logs so the real install error reaches the CI
       # log for diagnosis.
       - name: Dump benchmark install output on failure
-        if: failure()
+        # `steps.peer_heavy` swallows its own failure so the upload can run, so
+        # `failure()` alone would skip these logs for the one scenario whose
+        # gate is deferred.
+        if: failure() || steps.peer_heavy.outcome == 'failure'
         shell: bash
         run: |
           shopt -s nullglob
@@ -577,8 +578,8 @@ jobs:
         # and swung ~30% between runs, tripping a spurious alert on a control
         # run whose HEAD and main binaries were byte-identical). Because the
         # minimum only needs one uncontended run, hyperfine's default sampling
-        # suffices for regular scenarios. The peer-heavy case uses three runs
-        # to keep its cross-engine comparison bounded. The human-readable
+        # suffices for regular scenarios. The peer-heavy case is noisier and
+        # fixes its own count instead. The human-readable
         # comment still reports mean ± σ; only the alerting signal moves to the
         # min.
         #

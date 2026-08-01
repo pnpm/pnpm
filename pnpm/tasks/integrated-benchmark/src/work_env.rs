@@ -1197,16 +1197,29 @@ impl WorkEnv {
         {
             return;
         }
-        let pacquet = benchmark_target_min(diagnostics, "pacquet@HEAD");
-        let pnpm = benchmark_target_min(diagnostics, "pnpm@HEAD");
-        let speedup = pnpm / pacquet;
-        assert!(
-            speedup >= PACQUET_PNPM_SPEEDUP_MIN,
+        if let Err(message) = check_peer_heavy_speedup(diagnostics) {
+            panic!("{message}");
+        }
+    }
+}
+
+/// How much faster pacquet resolved the peer-heavy DAG than the TypeScript CLI,
+/// or the gate's failure message when that is under
+/// [`PACQUET_PNPM_SPEEDUP_MIN`].
+///
+/// Both sides are each target's fastest run: see [`benchmark_target_min`].
+fn check_peer_heavy_speedup(diagnostics: &BenchmarkDiagnostics) -> Result<f64, String> {
+    let pacquet = benchmark_target_min(diagnostics, "pacquet@HEAD");
+    let pnpm = benchmark_target_min(diagnostics, "pnpm@HEAD");
+    let speedup = pnpm / pacquet;
+    if speedup < PACQUET_PNPM_SPEEDUP_MIN {
+        return Err(format!(
             "pacquet@HEAD was only {speedup:.2}x faster than pnpm@HEAD on the peer-heavy DAG; \
              required at least {PACQUET_PNPM_SPEEDUP_MIN:.2}x \
              (pacquet {pacquet:.3}s, pnpm {pnpm:.3}s)",
-        );
+        ));
     }
+    Ok(speedup)
 }
 
 #[derive(Debug, Deserialize)]
