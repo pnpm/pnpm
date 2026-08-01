@@ -190,6 +190,58 @@ fn should_view_package_cache() {
     assert!(info.get("cachedAt").is_some());
 }
 
+/// A damaged file is what the resolver refuses to read, so `cache view`
+/// must not report the versions around the damage as cached.
+#[test]
+fn should_omit_a_package_whose_cache_file_is_damaged() {
+    let cwd = CommandTempCwd::init().add_mocked_registry();
+    let cache_dir = cwd.npmrc_info.cache_dir.join("v11").join("metadata");
+    let url_str = cwd.npmrc_info.mock_instance.url();
+    let registry_name =
+        pacquet_resolving_npm_resolver::mirror::get_registry_name(&url_str).unwrap();
+    fs::create_dir_all(cache_dir.join(&registry_name)).unwrap();
+
+    let meta: pacquet_registry::Package = serde_json::from_str(
+        r#"{
+            "name": "is-positive",
+            "dist-tags": {"latest": "1.0.0"},
+            "versions": {
+                "1.0.0": {
+                    "name": "is-positive",
+                    "version": "1.0.0",
+                    "dist": {"integrity": "sha512-BBBBBBBBBBBB", "tarball": "https://r/is-positive-1.0.0.tgz"}
+                }
+            }
+        }"#,
+    )
+    .unwrap();
+    let mirror = cache_dir.join(&registry_name).join("is-positive.jsonl");
+    pacquet_resolving_npm_resolver::mirror::save_meta_indexed(&mirror, &meta, None).unwrap();
+
+    // An unescaped quote inside the integrity string: the same number of
+    // bytes, so the index spans still address this fragment, but its own
+    // bytes no longer parse.
+    let mut bytes = fs::read(&mirror).unwrap();
+    let marker = b"sha512-BBBB";
+    let at = bytes.windows(marker.len()).position(|window| window == marker).unwrap();
+    bytes[at + 3] = b'"';
+    fs::write(&mirror, &bytes).unwrap();
+
+    let output = cwd
+        .pacquet
+        .with_args(["cache", "view", "is-positive"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let stdout = String::from_utf8(output).unwrap();
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let key = registry_name.replace('+', ":");
+    assert!(json.get(&key).is_none(), "damaged cache file should be omitted, got {stdout}");
+}
+
 #[test]
 fn import_populates_metadata_cache() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
