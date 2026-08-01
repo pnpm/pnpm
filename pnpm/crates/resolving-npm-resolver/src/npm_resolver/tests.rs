@@ -1611,3 +1611,41 @@ async fn unparsable_shasum_fails_the_resolve() {
     assert_eq!(error.shasum, "not-a-hex-digest");
     assert_eq!(error.tarball, "https://registry/acme-1.0.0.tgz");
 }
+
+#[tokio::test]
+async fn invalid_shasum_error_redacts_registry_metadata() {
+    let mut server = mockito::Server::new_async().await;
+    let body = json!({
+        "name": "acme",
+        "dist-tags": { "latest": "1.0.0" },
+        "modified": "2025-01-15T12:00:00.000Z",
+        "versions": {
+            "1.0.0": {
+                "name": "acme",
+                "version": "1.0.0",
+                "dist": {
+                    "shasum": "not\u{7}-a-hex-digest",
+                    "tarball": "https://user:hunter2@registry/acme-1.0.0.tgz",
+                },
+            },
+        },
+    })
+    .to_string();
+    let _mock = server.mock("GET", "/acme").with_status(200).with_body(body).create_async().await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let wanted =
+        WantedDependency { alias: Some("acme".to_string()), ..WantedDependency::default() };
+    let error = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .expect_err("an unusable shasum must fail the resolve")
+        .to_string();
+
+    assert!(!error.contains("hunter2"), "inline credentials must not reach the message: {error}");
+    assert!(
+        !error.chars().any(char::is_control),
+        "control characters must not reach the message: {error:?}",
+    );
+}

@@ -878,10 +878,7 @@ fn dist_integrity(dist: &PackageDistribution) -> Result<Option<Integrity>, Resol
         return Ok(None);
     };
     Integrity::from_hex(shasum, Algorithm::Sha1).map(Some).map_err(|_| {
-        Box::new(InvalidTarballIntegrityError {
-            tarball: dist.tarball.clone(),
-            shasum: shasum.to_string(),
-        }) as ResolveError
+        Box::new(InvalidTarballIntegrityError::new(&dist.tarball, shasum)) as ResolveError
     })
 }
 
