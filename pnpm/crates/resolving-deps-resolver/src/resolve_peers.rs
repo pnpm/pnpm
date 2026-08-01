@@ -85,6 +85,9 @@ pub struct ResolvePeersOptions {
 
     /// Absolute root of the importer whose direct dependency map is
     /// being rendered. Snapshot graph edges remain lockfile-root-relative.
+    /// Also the base a `link:` dependency's importer-relative target is
+    /// resolved against before the `excludeLinksFromLockfile` remap
+    /// tests it for containment in [`lockfile_dir`](Self::lockfile_dir).
     pub project_dir: Option<std::path::PathBuf>,
 
     /// Absolute path of the importer's `node_modules` directory. Used
@@ -249,6 +252,10 @@ pub struct ImporterPeerInput {
     pub id: String,
     pub direct: Vec<DirectDep>,
     pub hoisted_optional_peer_node_ids: HashSet<NodeId>,
+    /// Absolute root of this importer. Threaded into
+    /// [`ResolvePeersOptions::project_dir`] while this importer is being
+    /// walked, and used to render its direct `link:` deps relative to
+    /// itself.
     pub root_dir: PathBuf,
     /// Absolute path of this importer's `node_modules` directory.
     /// Threaded into [`ResolvePeersOptions::modules_dir`] while this
@@ -339,17 +346,20 @@ pub fn resolve_peers_workspace(
         .then(|| importers.iter().find(|importer| importer.id == "."))
         .flatten();
     let root_parents = root_importer.map(|importer| {
-        let previous_modules_dir = walker.opts.modules_dir.clone();
+        let previous_dirs = (walker.opts.project_dir.clone(), walker.opts.modules_dir.clone());
+        walker.opts.project_dir = Some(importer.root_dir.clone());
         walker.opts.modules_dir.clone_from(&importer.modules_dir);
         let parents = walker.build_importer_parents_from(&importer.direct);
-        walker.opts.modules_dir = previous_modules_dir;
+        (walker.opts.project_dir, walker.opts.modules_dir) = previous_dirs;
         parents
     });
     for importer in importers {
         importer_root_dirs.insert(importer.id.clone(), importer.root_dir.clone());
-        // Swap the per-importer `modules_dir` in before the walk so
-        // the `excludeLinksFromLockfile` link-remap inside
-        // `resolve_node` uses the correct importer-scoped target.
+        // Swap the per-importer `project_dir` / `modules_dir` in before
+        // the walk so the `excludeLinksFromLockfile` link-remap inside
+        // `resolve_node` resolves link targets against the right
+        // importer and encodes the correct importer-scoped target.
+        walker.opts.project_dir = Some(importer.root_dir.clone());
         walker.opts.modules_dir.clone_from(&importer.modules_dir);
         walker
             .opts
