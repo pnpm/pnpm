@@ -42,9 +42,9 @@ use super::{
         project_relative_cache_scope,
     },
     workspace_ctx::{
-        ChildSpec, ChildrenOwnerClaim, WantedKey, claim_children_owner, insert_tree_node,
-        is_current_children_owner, make_non_owner_nodes_lazy, register_peer_dep_names,
-        remember_node_parent_ids,
+        ChildSpec, ChildrenOwnerClaim, WantedKey, claim_children_owner, has_recorded_children,
+        insert_tree_node, is_current_children_owner, make_non_owner_nodes_lazy,
+        register_peer_dep_names, remember_node_parent_ids,
     },
 };
 
@@ -439,6 +439,7 @@ where
             parent_pkg_aliases,
             ctx.workspace.auto_install_peers,
         ),
+        prior_key.as_ref(),
     );
     let peer_dependencies = if is_link {
         BTreeMap::new()
@@ -558,6 +559,22 @@ where
         // map: a linked node has no children of its own here.
         crate::resolved_tree::TreeChildren::Realized(BTreeMap::new())
     } else if !children_owner.owns_children {
+        crate::resolved_tree::TreeChildren::Lazy {
+            parent_ids: AncestorIds::from(Arc::clone(&parent_ancestors)),
+        }
+    } else if children_owner.recorded_children_reusable
+        && !resolves_children_through_catalogs(&result)
+        && has_recorded_children(ctx, &id)
+    {
+        // A winning claim only means this occurrence outranks the one
+        // that recorded the children — not that the children differ.
+        // Concurrent occurrences of the same package take turns
+        // outranking each other, and each turn used to re-walk the whole
+        // subtree and leave its occurrence nodes behind, which is what
+        // made a peer-carrying chain expand exponentially with depth
+        // (https://github.com/pnpm/pnpm/issues/13574). Expand from the
+        // recorded children instead, exactly as a losing occurrence
+        // does.
         crate::resolved_tree::TreeChildren::Lazy {
             parent_ids: AncestorIds::from(Arc::clone(&parent_ancestors)),
         }
@@ -1045,6 +1062,17 @@ pub(super) async fn warm_children_resolutions<Chain>(
         })
         .pipe(future::join_all)
         .await;
+}
+
+/// Whether this package's child specifiers pass through the importer's
+/// catalogs, which makes them a property of the resolving importer
+/// rather than of the package id — the one input a
+/// [`ChildrenOwnerClaim::recorded_children_reusable`] winner cannot
+/// assume it shares with the occurrence that recorded them.
+fn resolves_children_through_catalogs(
+    result: &pacquet_resolving_resolver_base::ResolveResult,
+) -> bool {
+    result.resolved_via == "workspace" && result.id.as_str().starts_with("file:")
 }
 
 /// The install aliases one resolved level contributes to its

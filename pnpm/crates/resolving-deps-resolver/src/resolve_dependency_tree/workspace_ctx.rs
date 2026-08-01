@@ -135,6 +135,12 @@ impl ChildrenOwner {
 #[derive(Debug, Clone)]
 struct ChildrenOwnerEntry {
     pub(super) owner: ChildrenOwner,
+    /// The owner occurrence's prior-lockfile key, which decides whether
+    /// its children came from the recorded snapshot or from a fresh
+    /// resolve. Two occurrences with different keys can resolve the same
+    /// package's children to different versions, so a later winner can
+    /// only reuse recorded children when its own key matches.
+    pub(super) prior_key: Option<PkgNameVerPeer>,
     /// The owner occurrence's peer-shadowed `dependencies` (see
     /// [`peer_shadowed_dependencies`]). Which names are shadowed
     /// depends on the parent scope, which differs per occurrence;
@@ -1096,6 +1102,19 @@ pub(super) struct ChildrenOwnerClaim {
     /// the winner skips the lazy-flip (and the engine-invalidating
     /// rewrite signal) it would otherwise broadcast.
     pub(super) children_context_unchanged: bool,
+    /// The displaced owner resolved this package's children under
+    /// conditions this occurrence would reproduce exactly: the same
+    /// shadowed-dependency set *and* the same update policy. Walking
+    /// them again would rebuild identical edges and leave a second
+    /// occurrence subtree behind, so the winner can reuse the recorded
+    /// children instead — see [`fn@super::walk::walk_node_children`].
+    ///
+    /// The update policy and the prior-lockfile key are part of the
+    /// test alongside the shadowed set: an update-active occurrence
+    /// re-resolves what a keep-all one reused, and an occurrence
+    /// pinned by a different snapshot key resolves different children
+    /// — inheriting either would change the resolved graph.
+    pub(super) recorded_children_reusable: bool,
 }
 
 /// `peer_shadowed` is this occurrence's own set; it is installed as the
@@ -1107,6 +1126,7 @@ pub(super) fn claim_children_owner(
     depth: i32,
     ancestor_ids: &[String],
     peer_shadowed: HashSet<String>,
+    prior_key: Option<&PkgNameVerPeer>,
 ) -> ChildrenOwnerClaim {
     let owner = ChildrenOwner {
         update_active: !matches!(ctx.update_reuse_scope(), UpdateReuseScope::All),
@@ -1115,24 +1135,29 @@ pub(super) fn claim_children_owner(
         parent_path: ancestor_ids.to_vec(),
         importer_id: ctx.importer_id.clone(),
     };
-    let (owns_children, peer_shadowed, children_context_unchanged) = {
+    let (owns_children, peer_shadowed, children_context_unchanged, same_resolution_context) = {
         let mut owners = lock_recoverable(&ctx.workspace.children_owner_by_id);
         match owners.get(pkg_id) {
             Some(existing) if !owner.wins_over(&existing.owner) => {
-                (false, Arc::clone(&existing.peer_shadowed), false)
+                (false, Arc::clone(&existing.peer_shadowed), false, false)
             }
             existing => {
                 let children_context_unchanged =
                     existing.is_some_and(|entry| *entry.peer_shadowed == peer_shadowed);
+                let same_resolution_context = existing.is_some_and(|entry| {
+                    entry.owner.update_active == owner.update_active
+                        && entry.prior_key.as_ref() == prior_key
+                });
                 let peer_shadowed = Arc::new(peer_shadowed);
                 owners.insert(
                     pkg_id.to_string(),
                     ChildrenOwnerEntry {
                         owner: owner.clone(),
+                        prior_key: prior_key.cloned(),
                         peer_shadowed: Arc::clone(&peer_shadowed),
                     },
                 );
-                (true, peer_shadowed, children_context_unchanged)
+                (true, peer_shadowed, children_context_unchanged, same_resolution_context)
             }
         }
     };
@@ -1140,7 +1165,21 @@ pub(super) fn claim_children_owner(
         lock_recoverable(&ctx.workspace.first_importer_by_pkg)
             .insert(pkg_id.to_string(), owner.importer_id.clone());
     }
-    ChildrenOwnerClaim { owner, owns_children, peer_shadowed, children_context_unchanged }
+    ChildrenOwnerClaim {
+        owner,
+        owns_children,
+        peer_shadowed,
+        children_context_unchanged,
+        recorded_children_reusable: children_context_unchanged && same_resolution_context,
+    }
+}
+
+/// Whether the walk already recorded this package's children, i.e.
+/// whether a [`ChildrenOwnerClaim::recorded_children_reusable`] winner
+/// has something to reuse. `false` while the previous owner is still
+/// walking them.
+pub(super) fn has_recorded_children(ctx: &TreeCtx, pkg_id: &str) -> bool {
+    lock_recoverable(&ctx.workspace.children_by_id).contains_key(pkg_id)
 }
 
 /// Seed the peer-walker's `parentPkgs` filter with the names a

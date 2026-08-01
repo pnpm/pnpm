@@ -147,6 +147,7 @@ fn owner_missing_record_is_written_once_per_generation() {
         importer_id: ".".to_string(),
     };
     let entry = |owner: ChildrenOwner| ChildrenOwnerEntry {
+        prior_key: None,
         owner,
         peer_shadowed: Arc::new(HashSet::default()),
     };
