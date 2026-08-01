@@ -3,10 +3,6 @@
 //! a whole subtree is reproducible from the snapshot graph, and the
 //! snapshot-driven walk a reused node's children take
 //! ([`fn@resolve_reused_node`]).
-//!
-//! The importer direct-dep bookkeeping the gates read lives here too:
-//! which specifiers changed since the prior lockfile, and which
-//! versions the direct deps resolved to.
 
 use async_recursion::async_recursion;
 use futures_util::future;

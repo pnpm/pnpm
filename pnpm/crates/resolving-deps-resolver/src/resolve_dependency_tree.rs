@@ -1,15 +1,3 @@
-//! Walks a project's dependency graph, resolving every edge and
-//! recording one occurrence node per edge.
-//!
-//! This file is the facade: the entry points
-//! ([`fn@resolve_dependency_tree`], [`extend_tree`]) plus the options,
-//! errors, and notification payloads they carry. The walk itself is
-//! split across [`workspace_ctx`] (the workspace-shared dedup maps and
-//! children ownership), [`tree_ctx`] (the per-importer context),
-//! [`walk`] (the fresh-resolve walk), [`reuse`] (prior-lockfile reuse),
-//! [`manifest`] (what the walk reads off a resolved package), and
-//! [`catalogs`].
-
 use derive_more::{Display, Error};
 use futures_util::future;
 use miette::Diagnostic;
