@@ -1,6 +1,6 @@
 use super::{
     ImporterPeerInput, NodeOutput, NodeRecord, ParentRef, PeerDiscoveryCaches, ResolvePeersOptions,
-    Walker, importer_relative_link_dep_path, peer_segment_names, resolve_peers,
+    Walker, importer_relative_link_dep_path, peer_segment_names, remap_link_node_id, resolve_peers,
     resolve_peers_workspace, satisfies_with_prereleases, scoped_hoisted_optional_parent_refs,
     should_retain_materialized_node,
 };
@@ -2261,6 +2261,112 @@ fn resolve_result(name: &str, version: &str) -> ResolveResult {
         alias: Some(name.to_string()),
         policy_violation: None,
     }
+}
+
+#[test]
+fn test_remap_link_node_id_containment() {
+    use std::path::PathBuf;
+
+    let lockfile_dir = PathBuf::from("/ws");
+    let modules_dir = lockfile_dir.join("packages/app/node_modules");
+    let project_dir = lockfile_dir.join("packages/app");
+
+    let mut opts = ResolvePeersOptions {
+        peers_suffix_max_length: 1000,
+        dedupe_peers: false,
+        exclude_links_from_lockfile: true,
+        lockfile_dir: Some(lockfile_dir),
+        project_dir: Some(project_dir),
+        modules_dir: Some(modules_dir),
+        ..ResolvePeersOptions::default()
+    };
+
+    // Case 1: Relative link target inside workspace (lockfile_dir)
+    // e.g. from /ws/packages/app, "../lib" resolves to /ws/packages/lib
+    // Since it is inside /ws, it must return None.
+    let result_internal_rel = ResolveResult {
+        id: PkgResolutionId::from("link:../lib"),
+        name_ver: None,
+        latest: None,
+        published_at: None,
+        manifest: None,
+        resolution: LockfileResolution::Directory(DirectoryResolution {
+            directory: "../lib".to_string(),
+        }),
+        resolved_via: "workspace".to_string(),
+        normalized_bare_specifier: None,
+        alias: Some("lib".to_string()),
+        policy_violation: None,
+    };
+    assert_eq!(remap_link_node_id(&opts, "lib", &result_internal_rel), None,);
+
+    // Case 2: Relative link target outside workspace (lockfile_dir)
+    // e.g. from /ws/packages/app, "../../../external" resolves to /external
+    // Since it is outside /ws, it must return Some(NodeId::leaf("link:..."))
+    let result_external_rel = ResolveResult {
+        id: PkgResolutionId::from("link:../../../external"),
+        name_ver: None,
+        latest: None,
+        published_at: None,
+        manifest: None,
+        resolution: LockfileResolution::Directory(DirectoryResolution {
+            directory: "../../../external".to_string(),
+        }),
+        resolved_via: "workspace".to_string(),
+        normalized_bare_specifier: None,
+        alias: Some("external".to_string()),
+        policy_violation: None,
+    };
+    assert_eq!(
+        remap_link_node_id(&opts, "external", &result_external_rel),
+        Some(NodeId::leaf("link:packages/app/node_modules/external")),
+    );
+
+    // Case 3: Absolute link target inside workspace (lockfile_dir)
+    // e.g. "/ws/packages/lib" is inside /ws
+    // It must return None.
+    let result_internal_abs = ResolveResult {
+        id: PkgResolutionId::from("link:/ws/packages/lib"),
+        name_ver: None,
+        latest: None,
+        published_at: None,
+        manifest: None,
+        resolution: LockfileResolution::Directory(DirectoryResolution {
+            directory: "/ws/packages/lib".to_string(),
+        }),
+        resolved_via: "workspace".to_string(),
+        normalized_bare_specifier: None,
+        alias: Some("lib".to_string()),
+        policy_violation: None,
+    };
+    assert_eq!(remap_link_node_id(&opts, "lib", &result_internal_abs), None,);
+
+    // Case 4: Absolute link target outside workspace (lockfile_dir)
+    // e.g. "/external" is outside /ws
+    // It must return Some(NodeId::leaf("link:..."))
+    let result_external_abs = ResolveResult {
+        id: PkgResolutionId::from("link:/external"),
+        name_ver: None,
+        latest: None,
+        published_at: None,
+        manifest: None,
+        resolution: LockfileResolution::Directory(DirectoryResolution {
+            directory: "/external".to_string(),
+        }),
+        resolved_via: "workspace".to_string(),
+        normalized_bare_specifier: None,
+        alias: Some("external".to_string()),
+        policy_violation: None,
+    };
+    assert_eq!(
+        remap_link_node_id(&opts, "external", &result_external_abs),
+        Some(NodeId::leaf("link:packages/app/node_modules/external")),
+    );
+
+    // Case 5: exclude_links_from_lockfile is false
+    // It must return None regardless of where it is.
+    opts.exclude_links_from_lockfile = false;
+    assert_eq!(remap_link_node_id(&opts, "external", &result_external_abs), None,);
 }
 
 /// Ported from upstream `resolvePeers.ts`'s `locked peer provider

@@ -3867,7 +3867,14 @@ fn remap_link_node_id(
         _ => return None,
     };
     let link_target = std::path::Path::new(directory);
-    if pacquet_fs::is_subdir(lockfile_dir, link_target) {
+    let absolute_target = if link_target.is_absolute() {
+        std::borrow::Cow::Borrowed(link_target)
+    } else if let Some(project_dir) = &opts.project_dir {
+        std::borrow::Cow::Owned(project_dir.join(link_target))
+    } else {
+        std::borrow::Cow::Borrowed(link_target)
+    };
+    if pacquet_fs::is_subdir(lockfile_dir, &absolute_target) {
         return None;
     }
     let target = modules_dir.join(alias);
