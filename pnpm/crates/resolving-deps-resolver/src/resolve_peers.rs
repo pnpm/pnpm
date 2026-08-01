@@ -127,25 +127,6 @@ fn pkg_name_version(result: &ResolveResult) -> (String, String) {
     (fallback_name, result.id.as_str().to_string())
 }
 
-/// Compares the package-name component returned by [`pkg_name_version`]
-/// without allocating its owned fallback tuple.
-///
-/// Must remain equivalent to `pkg_name_version(result).0 == expected`.
-fn package_name_matches(result: &ResolveResult, expected: &str) -> bool {
-    let Some(name_ver) = result.name_ver.as_ref() else {
-        return result.alias.as_deref().unwrap_or(result.id.as_str()) == expected;
-    };
-    match name_ver.name.scope.as_deref() {
-        None => name_ver.name.bare == expected,
-        Some(scope) => expected
-            .strip_prefix('@')
-            .and_then(|name| name.split_once('/'))
-            .is_some_and(|(expected_scope, expected_bare)| {
-                expected_scope == scope && expected_bare == name_ver.name.bare
-            }),
-    }
-}
-
 /// Options threaded into [`fn@resolve_peers`].
 #[derive(Debug, Clone)]
 pub struct ResolvePeersOptions {
@@ -362,6 +343,8 @@ pub(crate) struct PeerDiscoveryCaches {
     peers_cache: HashMap<String, Vec<PeersCacheItem>>,
     parent_pkgs_of_node: HashMap<NodeId, Arc<HashMap<String, ParentPkgInfo>>>,
     retained_peer_node_ids: HashSet<NodeId>,
+    peer_provider_children_by_pkg_id: HashMap<String, PeerProviderChildren>,
+    peer_provider_index_peer_names: HashSet<String>,
 }
 
 /// Peer-hoist discovery engine: one persistent tree view + walker
@@ -934,6 +917,12 @@ struct CurrentProviderSource {
     explicitly_requested_direct_dependencies: HashSet<String>,
 }
 
+#[derive(Debug, Default)]
+struct PeerProviderChildren {
+    relevant_edge_indices: Vec<usize>,
+    edge_indices_by_name: HashMap<String, Vec<usize>>,
+}
+
 #[derive(Clone, Copy)]
 struct FinalPeerContext<'a> {
     scc_of: &'a HashMap<NodeId, usize>,
@@ -1053,6 +1042,8 @@ struct Walker<'tree> {
     /// fallback keeps its per-call meaning.
     visited_this_call: HashSet<NodeId>,
     packages_by_id: HashMap<String, Arc<ResolvedPackage>>,
+    peer_provider_children_by_pkg_id: HashMap<String, PeerProviderChildren>,
+    peer_provider_index_peer_names: HashSet<String>,
     empty_resolved_peers: Arc<HashMap<String, NodeId>>,
     empty_missing_peers: Arc<HashMap<String, MissingPeerInfo>>,
 }
@@ -1072,7 +1063,40 @@ impl<'tree> Walker<'tree> {
             peers_cache,
             parent_pkgs_of_node,
             retained_peer_node_ids,
+            mut peer_provider_children_by_pkg_id,
+            mut peer_provider_index_peer_names,
         } = caches;
+        if peer_provider_index_peer_names != tree.all_peer_dep_names {
+            peer_provider_children_by_pkg_id.clear();
+            peer_provider_index_peer_names.clone_from(&tree.all_peer_dep_names);
+        }
+        for (pkg_id, children) in &tree.children_by_id {
+            if peer_provider_children_by_pkg_id.contains_key(pkg_id) {
+                continue;
+            }
+            let mut providers = PeerProviderChildren::default();
+            for (edge_index, edge) in children.iter().enumerate() {
+                let Some(pkg) = tree.packages.get(&edge.pkg_id) else { continue };
+                let real_name = pkg_name_version(&pkg.result).0;
+                let alias_is_peer = tree.all_peer_dep_names.contains(&edge.alias);
+                let real_name_is_peer = tree.all_peer_dep_names.contains(&real_name);
+                if !alias_is_peer && !real_name_is_peer {
+                    continue;
+                }
+                providers.relevant_edge_indices.push(edge_index);
+                if alias_is_peer {
+                    providers
+                        .edge_indices_by_name
+                        .entry(edge.alias.clone())
+                        .or_default()
+                        .push(edge_index);
+                }
+                if real_name_is_peer && real_name != edge.alias {
+                    providers.edge_indices_by_name.entry(real_name).or_default().push(edge_index);
+                }
+            }
+            peer_provider_children_by_pkg_id.insert(pkg_id.clone(), providers);
+        }
         Walker {
             tree,
             opts,
@@ -1097,6 +1121,8 @@ impl<'tree> Walker<'tree> {
             discovery,
             visited_this_call: HashSet::default(),
             packages_by_id: HashMap::default(),
+            peer_provider_children_by_pkg_id,
+            peer_provider_index_peer_names,
             empty_resolved_peers: Arc::new(HashMap::default()),
             empty_missing_peers: Arc::new(HashMap::default()),
         }
@@ -1109,6 +1135,8 @@ impl<'tree> Walker<'tree> {
             peers_cache: self.peers_cache,
             parent_pkgs_of_node: self.parent_pkgs_of_node,
             retained_peer_node_ids: self.retained_peer_node_ids,
+            peer_provider_children_by_pkg_id: self.peer_provider_children_by_pkg_id,
+            peer_provider_index_peer_names: self.peer_provider_index_peer_names,
         }
     }
 }
@@ -1657,9 +1685,6 @@ impl Walker<'_> {
             let Some(child_pkg) = self.tree.packages.get(&child_tree.resolved_package_id) else {
                 continue;
             };
-            if !self.is_peer_relevant(alias, child_pkg) {
-                continue;
-            }
             insert_parent_ref(
                 &mut new_parent_refs,
                 alias,
@@ -2896,15 +2921,17 @@ impl Walker<'_> {
             }
         };
         let children = self.tree.children_by_id.get(&pkg_id).cloned().unwrap_or_default();
+        let provider_edge_indices = self
+            .peer_provider_children_by_pkg_id
+            .get(&pkg_id)
+            .map_or(&[][..], |providers| providers.relevant_edge_indices.as_slice());
         let full_chain = parent_ids.pushed(pkg_id.clone());
         let mut providers = BTreeMap::new();
         let mut newly_inserted = Vec::new();
-        for edge in children.iter() {
+        for &edge_index in provider_edge_indices {
+            let edge = &children[edge_index];
             let Some(pkg) = self.tree.packages.get(&edge.pkg_id) else { continue };
-            if !self.is_peer_relevant(&edge.alias, pkg)
-                || pkg_id == edge.pkg_id
-                || full_chain.forms_cycle(&pkg_id, &edge.pkg_id)
-            {
+            if pkg_id == edge.pkg_id || full_chain.forms_cycle(&pkg_id, &edge.pkg_id) {
                 continue;
             }
             let child_node_id =
@@ -3436,14 +3463,18 @@ impl Walker<'_> {
         let Some(children) = self.tree.children_by_id.get(pkg_id) else {
             return inherited.map_or(FastProvider::Missing, FastProvider::Inherited);
         };
+        let Some(edge_indices) = self
+            .peer_provider_children_by_pkg_id
+            .get(pkg_id)
+            .and_then(|providers| providers.edge_indices_by_name.get(name))
+        else {
+            return inherited.map_or(FastProvider::Missing, FastProvider::Inherited);
+        };
 
         let mut child_pkg_id = None;
-        for edge in children.iter() {
+        for &edge_index in edge_indices {
+            let edge = &children[edge_index];
             if parent_ids.forms_cycle(pkg_id, &edge.pkg_id) {
-                continue;
-            }
-            let Some(pkg) = self.tree.packages.get(&edge.pkg_id) else { continue };
-            if edge.alias != name && !package_name_matches(&pkg.result, name) {
                 continue;
             }
             if child_pkg_id.is_some() {
