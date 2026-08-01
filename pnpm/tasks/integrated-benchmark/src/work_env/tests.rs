@@ -1,8 +1,10 @@
 use super::{
-    BenchId, BenchmarkScenario, HyperfineCommand, PhaseEvent, WorkEnv, collect_pnpr_direct_ratios,
-    create_install_script, non_trivial_cold_batch, pnpr_auth_config_key,
-    pnpr_benchmark_config_yaml, read_phase_events, render_diagnostics_markdown,
-    requires_fresh_pnpr_cold_batch_metrics, summarize_phase_events,
+    BenchId, BenchmarkScenario, HyperfineCommand, PEER_HEAVY_DEPTH, PEER_HEAVY_PROVIDER,
+    PEER_HEAVY_WIDTH, PhaseEvent, WorkEnv, collect_pnpr_direct_ratios, create_install_script,
+    create_package_json, create_pnpm_workspace, non_trivial_cold_batch, peer_heavy_package_name,
+    pnpr_auth_config_key, pnpr_benchmark_config_yaml, read_phase_events,
+    render_diagnostics_markdown, requires_fresh_pnpr_cold_batch_metrics, seed_peer_heavy_registry,
+    summarize_phase_events,
 };
 use std::{collections::HashMap, fs};
 
@@ -43,6 +45,76 @@ fn online_scenario_writes_no_prewarm_script() {
     let _ = fs::remove_dir_all(&dir);
 
     assert!(!has_prewarm);
+}
+
+#[test]
+fn peer_heavy_scenario_generates_shared_subgraph_root() {
+    let dir = std::env::temp_dir()
+        .join(format!("pacquet-integrated-benchmark-peer-heavy-workspace-{}", std::process::id()));
+    fs::create_dir_all(&dir).expect("create peer-heavy workspace test dir");
+
+    create_package_json(&dir, None, BenchmarkScenario::IsolatedPeerHeavyResolveHotCacheOffline);
+    create_pnpm_workspace(
+        &dir,
+        None,
+        "http://localhost:4873/",
+        BenchmarkScenario::IsolatedPeerHeavyResolveHotCacheOffline,
+    );
+    create_install_script(
+        &dir,
+        BenchmarkScenario::IsolatedPeerHeavyResolveHotCacheOffline,
+        "pnpm",
+        BenchId::PnpmRevision("HEAD"),
+    );
+
+    let manifest: serde_json::Value = serde_json::from_slice(
+        &fs::read(dir.join("package.json")).expect("read generated package manifest"),
+    )
+    .expect("parse generated package manifest");
+    let workspace =
+        fs::read_to_string(dir.join("pnpm-workspace.yaml")).expect("read generated workspace");
+    let prewarm = fs::read_to_string(dir.join("prewarm.bash")).expect("read prewarm script");
+    let registry = dir.join("registry");
+    seed_peer_heavy_registry(&registry);
+    let first_packument: serde_json::Value = serde_json::from_slice(
+        &fs::read(registry.join(peer_heavy_package_name(0, 0)).join("package.json"))
+            .expect("read first peer-heavy packument"),
+    )
+    .expect("parse first peer-heavy packument");
+    let leaf_packument: serde_json::Value = serde_json::from_slice(
+        &fs::read(
+            registry.join(peer_heavy_package_name(PEER_HEAVY_DEPTH - 1, 0)).join("package.json"),
+        )
+        .expect("read leaf peer-heavy packument"),
+    )
+    .expect("parse leaf peer-heavy packument");
+    let registry_package_count =
+        fs::read_dir(registry.join("@pnpmtest")).expect("read peer-heavy registry scope").count();
+    let _ = fs::remove_dir_all(&dir);
+
+    let dependencies = manifest["dependencies"].as_object().expect("generated dependencies");
+    assert_eq!(dependencies.len(), PEER_HEAVY_WIDTH + 1);
+    assert_eq!(dependencies[PEER_HEAVY_PROVIDER], "1.0.0");
+    assert!(workspace.contains("packages:") && workspace.contains("- '.'"));
+    assert!(prewarm.ends_with("exec pnpm install --lockfile-only\n"), "prewarm = {prewarm}");
+    assert_eq!(registry_package_count, PEER_HEAVY_DEPTH * PEER_HEAVY_WIDTH + 1);
+    assert_eq!(
+        first_packument["versions"]["1.0.0"]["dependencies"]
+            .as_object()
+            .expect("first-layer dependencies")
+            .len(),
+        PEER_HEAVY_WIDTH,
+    );
+    assert_eq!(
+        first_packument["versions"]["1.0.0"]["peerDependencies"][PEER_HEAVY_PROVIDER],
+        "1.0.0",
+    );
+    assert!(
+        leaf_packument["versions"]["1.0.0"]["dependencies"]
+            .as_object()
+            .expect("leaf dependencies")
+            .is_empty(),
+    );
 }
 
 #[test]

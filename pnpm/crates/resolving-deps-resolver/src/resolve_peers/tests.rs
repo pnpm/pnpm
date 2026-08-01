@@ -1,7 +1,8 @@
 use super::{
-    ImporterPeerInput, NodeRecord, ParentRef, PeerDiscoveryCaches, ResolvePeersOptions, Walker,
-    importer_relative_link_dep_path, peer_segment_names, resolve_peers, resolve_peers_workspace,
-    satisfies_with_prereleases, scoped_hoisted_optional_parent_refs,
+    ImporterPeerInput, NodeOutput, NodeRecord, ParentRef, PeerDiscoveryCaches, ResolvePeersOptions,
+    Walker, importer_relative_link_dep_path, peer_segment_names, resolve_peers,
+    resolve_peers_workspace, satisfies_with_prereleases, scoped_hoisted_optional_parent_refs,
+    should_retain_materialized_node,
 };
 use crate::{
     node_id::NodeId,
@@ -24,6 +25,30 @@ const PATCHED_WORKFLOWS_SDK: &str = concat!(
     "(better-sqlite3@12.8.0)",
     "(express@4.21.2)",
 );
+
+#[test]
+fn materialized_nodes_referenced_by_peer_outputs_are_retained() {
+    let referenced = NodeId::next();
+    let unreferenced = NodeId::next();
+    let output = NodeOutput {
+        dep_path: DepPath::from("consumer@1.0.0"),
+        external_resolved_peers: Arc::new(HashMap::from_iter([(
+            "peer".to_string(),
+            referenced.clone(),
+        )])),
+        auto_install_resolved_peers: HashMap::default(),
+        missing_peers: Arc::new(HashMap::default()),
+        subtree_missing_by_pkg: None,
+    };
+
+    assert!(should_retain_materialized_node(&HashSet::default(), Some(&output), &referenced));
+    assert!(!should_retain_materialized_node(&HashSet::default(), Some(&output), &unreferenced,));
+    assert!(should_retain_materialized_node(
+        &HashSet::from_iter([unreferenced.clone()]),
+        None,
+        &unreferenced,
+    ));
+}
 
 #[test]
 fn locked_direct_dep_only_sees_its_locked_hoisted_optional_peers() {
@@ -961,11 +986,10 @@ fn previously_resolved_children_prefers_closest_same_package_ancestor() {
     };
     let mut walker = walker_for_tests(&mut tree);
 
-    let children = walker.previously_resolved_children(
-        &[far_parent, close_parent],
-        &["loop@1.0.0".to_string()],
-        "loop@1.0.0",
-    );
+    let parent_node_ids = super::SharedChain::default().pushed(far_parent).pushed(close_parent);
+    let parent_pkg_ids = super::SharedChain::default().pushed("loop@1.0.0".to_string());
+    let children =
+        walker.previously_resolved_children(&parent_node_ids, &parent_pkg_ids, "loop@1.0.0");
 
     assert_eq!(children.get("shared"), Some(&close_child));
 }
@@ -1199,24 +1223,24 @@ fn final_graph_peer_edge_keeps_the_providers_own_peer_suffix() {
     );
     walker.node_external_peers.insert(
         provider_analyzer.clone(),
-        HashMap::from_iter([
+        Arc::new(HashMap::from_iter([
             ("webpack-bundle-analyzer".to_string(), NodeId::leaf("webpack-bundle-analyzer@4.10.2")),
             ("webpack-dev-server".to_string(), NodeId::leaf("webpack-dev-server@5.2.2")),
             ("webpack".to_string(), NodeId::leaf("webpack@5.107.2")),
-        ]),
+        ])),
     );
     walker.node_external_peers.insert(
         provider_bare.clone(),
-        HashMap::from_iter([("webpack".to_string(), NodeId::leaf("webpack@5.107.2"))]),
+        Arc::new(HashMap::from_iter([("webpack".to_string(), NodeId::leaf("webpack@5.107.2"))])),
     );
     walker.node_external_peers.insert(
         consumer.clone(),
-        HashMap::from_iter([
+        Arc::new(HashMap::from_iter([
             ("webpack-bundle-analyzer".to_string(), NodeId::leaf("webpack-bundle-analyzer@4.10.2")),
             ("webpack-cli".to_string(), provider_analyzer.clone()),
             ("webpack-dev-server".to_string(), NodeId::leaf("webpack-dev-server@5.2.2")),
             ("webpack".to_string(), NodeId::leaf("webpack@5.107.2")),
-        ]),
+        ])),
     );
 
     let graph = walker.build_final_graph(&HashMap::from_iter([
@@ -1320,21 +1344,21 @@ fn final_graph_peer_edge_keeps_provider_transitive_peer_suffixes() {
     );
     walker.node_external_peers.insert(
         provider.clone(),
-        HashMap::from_iter([
+        Arc::new(HashMap::from_iter([
             ("bufferutil".to_string(), NodeId::leaf("bufferutil@4.1.0")),
             ("tslib".to_string(), NodeId::leaf("tslib@2.8.1")),
             ("utf-8-validate".to_string(), NodeId::leaf("utf-8-validate@5.0.10")),
             ("webpack-cli".to_string(), consumer.clone()),
             ("webpack".to_string(), NodeId::leaf("webpack@5.107.2")),
-        ]),
+        ])),
     );
     walker.node_external_peers.insert(
         consumer.clone(),
-        HashMap::from_iter([
+        Arc::new(HashMap::from_iter([
             ("webpack-bundle-analyzer".to_string(), NodeId::leaf("webpack-bundle-analyzer@4.10.2")),
             ("webpack-dev-server".to_string(), provider.clone()),
             ("webpack".to_string(), NodeId::leaf("webpack@5.107.2")),
-        ]),
+        ])),
     );
 
     let graph = walker.build_final_graph(&HashMap::from_iter([
@@ -2129,7 +2153,7 @@ fn discovery_engine_rebuilds_after_a_children_ownership_rewrite() {
     engine.discover(&workspace, &[], &[], ResolvePeersOptions::default());
 
     // A marker in the persistent caches makes reset-vs-merge observable.
-    engine.caches.pure_pkgs.insert("marker@1.0.0".to_string());
+    engine.caches.pure_pkgs.insert("marker@1.0.0".to_string(), DepPath::from("marker@1.0.0"));
     // Production rewrites happen inside `extend_tree`, which always
     // bumps the revision; mirror that pairing.
     workspace.record_children_rewrite();
@@ -2140,11 +2164,11 @@ fn discovery_engine_rebuilds_after_a_children_ownership_rewrite() {
         "an ownership rewrite must discard walk state derived before it",
     );
 
-    engine.caches.pure_pkgs.insert("marker@1.0.0".to_string());
+    engine.caches.pure_pkgs.insert("marker@1.0.0".to_string(), DepPath::from("marker@1.0.0"));
     workspace.bump_revision();
     engine.discover(&workspace, &[], &[], ResolvePeersOptions::default());
     assert!(
-        engine.caches.pure_pkgs.contains("marker@1.0.0"),
+        engine.caches.pure_pkgs.contains_key("marker@1.0.0"),
         "a rewrite-free revision bump merges instead of rebuilding",
     );
 }

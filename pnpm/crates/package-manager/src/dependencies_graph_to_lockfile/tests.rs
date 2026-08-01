@@ -1222,7 +1222,7 @@ fn snapshot_preserves_optional_child_edges_from_resolved_tree() {
             outer_node_id,
             DependenciesTreeNode::new(
                 outer_id.clone(),
-                TreeChildren::Lazy { parent_ids: Arc::new(Vec::new()) },
+                TreeChildren::Lazy { parent_ids: Arc::new(Vec::new()).into() },
                 0,
                 true,
             ),
