@@ -632,10 +632,11 @@ test('rebuild refuses a lockfile depPath name that escapes the virtual store', a
     pending: false,
     registries: modulesManifest!.registries!,
     storeDir,
-    // The advisory's stated escalation to code execution. Without it the
-    // build policy would block the script anyway and the test could not
-    // tell a contained join from a merely unapproved one.
-    dangerouslyAllowAllBuilds: true,
+    // Approve the build, so that what stops the script is the contained
+    // join and not the build policy. The key has to carry the version:
+    // a bare `../../../escaped` is read as a depPath allow-build key and
+    // then never matches the depPath it came from.
+    allowBuilds: { '../../../escaped@1.0.0': true },
   }, [])).rejects.toThrow(expect.objectContaining({ code: 'ERR_PNPM_INVALID_DEPENDENCY_NAME' }))
 
   expect(fs.existsSync(marker)).toBeFalsy()
