@@ -585,3 +585,40 @@ test('rebuilds in the global virtual store when the approval was granted after t
 
   expect(fs.existsSync(path.join(pkgInGvs, 'generated-by-postinstall.js'))).toBeTruthy()
 })
+
+// GHSA-c59q-g84q-2gj5: a traversal depPath key must not point the build
+// at a directory outside the virtual store.
+test('rebuild refuses a lockfile depPath name that escapes the virtual store', async () => {
+  const project = prepare()
+  const cacheDir = path.resolve('cache')
+  const storeDir = path.resolve('store')
+
+  await execa('node', [
+    pnpmBin,
+    'add',
+    '--save-dev',
+    '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
+    '--config.enableGlobalVirtualStore=false',
+    `--registry=${REGISTRY}`,
+    `--store-dir=${storeDir}`,
+    '--ignore-scripts',
+    `--cache-dir=${cacheDir}`,
+  ])
+
+  const currentLockfilePath = path.resolve('node_modules/.pnpm/lock.yaml')
+  fs.writeFileSync(currentLockfilePath, fs.readFileSync(currentLockfilePath, 'utf8')
+    .replaceAll('@pnpm.e2e/pre-and-postinstall-scripts-example', '../../../escaped'))
+
+  const modulesManifest = project.readModulesManifest()
+  await expect(rebuild.handler({
+    ...DEFAULT_OPTS,
+    cacheDir,
+    dir: process.cwd(),
+    pending: false,
+    registries: modulesManifest!.registries!,
+    storeDir,
+    allowBuilds: { '../../../escaped': true },
+  }, [])).rejects.toThrow(expect.objectContaining({ code: 'ERR_PNPM_INVALID_DEPENDENCY_NAME' }))
+
+  expect(fs.existsSync(path.resolve('../../../escaped'))).toBeFalsy()
+})
