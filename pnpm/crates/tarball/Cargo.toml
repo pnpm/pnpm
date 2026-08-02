@@ -22,7 +22,6 @@ dashmap      = { workspace = true }
 derive_more  = { workspace = true }
 futures-util = { workspace = true }
 miette       = { workspace = true }
-num_cpus     = { workspace = true }
 pipe-trait   = { workspace = true }
 rayon        = { workspace = true }
 reqwest      = { workspace = true }

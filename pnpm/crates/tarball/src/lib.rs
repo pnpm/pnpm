@@ -51,15 +51,31 @@ const MAX_UNTRUSTED_PREALLOC_BYTES: usize = 64 * 1024 * 1024;
 /// fires hundreds of these at once on a 1352-snapshot install, which
 /// thrashes small CI runners. Past "Download completed" a 2-CPU GitHub
 /// Actions runner wedged between decompress-close and `Checksum verified`
-/// on [#269] until the step timeout. `num_cpus * 2` (floor 4) keeps enough
-/// work in flight to overlap per-file FS writes with SHA on another task
-/// without oversubscribing the cores.
+/// on [#269] until the step timeout. `parallelism * 2` (floor 4) keeps
+/// enough work in flight to overlap per-file FS writes with SHA on another
+/// task without oversubscribing the cores.
+///
+/// Each permit holds the buffered tarball plus its inflate output in RAM
+/// (the eager reservation alone reaches [`MAX_UNTRUSTED_PREALLOC_BYTES`]),
+/// so this cap is a memory bound as much as a CPU one. That is why it is
+/// derived from [`std::thread::available_parallelism`] rather than
+/// `num_cpus::get()`: `num_cpus` reports the host's logical CPU count and
+/// ignores cgroup CPU quotas, so a 2-CPU container on a 36-core host would
+/// size the fan-out — and the peak RSS — for 36 cores it will never get
+/// scheduled onto, and get OOM-killed for it. Matches the convention
+/// `crates/cli` and `crates/network` already use.
 ///
 /// [#269]: https://github.com/pnpm/pacquet/pull/269
 fn post_download_semaphore() -> &'static Semaphore {
     static SEM: LazyLock<Semaphore> =
-        LazyLock::new(|| Semaphore::new(num_cpus::get().saturating_mul(2).max(4)));
+        LazyLock::new(|| Semaphore::new(cpu_parallelism().saturating_mul(2).max(4)));
     &SEM
+}
+
+/// Logical CPUs this process may actually be scheduled onto, honouring
+/// cgroup / CPU-quota limits in containers and CI runners.
+fn cpu_parallelism() -> usize {
+    std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get)
 }
 
 /// Dedicated rayon pool for the per-file CAS-write phase of extraction
@@ -77,12 +93,15 @@ fn post_download_semaphore() -> &'static Semaphore {
 ///
 /// Sized to the core count: the work is CPU-bound (SHA-512 + CAFS
 /// write), so more threads than cores only adds scheduling contention.
+/// The count comes from [`cpu_parallelism`], so a CPU-quota-limited
+/// container gets threads for the cores it can actually use rather than
+/// for the host's full core count.
 /// Returns `None` if the pool can't be built, in which case the caller
 /// falls back to the global pool.
 fn cas_write_pool() -> Option<&'static rayon::ThreadPool> {
     static POOL: LazyLock<Option<rayon::ThreadPool>> = LazyLock::new(|| {
         rayon::ThreadPoolBuilder::new()
-            .num_threads(num_cpus::get().max(1))
+            .num_threads(cpu_parallelism())
             .thread_name(|index| format!("cas-write-{index}"))
             .build()
             .map_err(|error| {
@@ -2004,7 +2023,7 @@ async fn fetch_and_extract_once<Reporter: self::Reporter>(
     // flate2 decompresses faster than the network delivers, so
     // buffered-but-not-yet-decompressing tarballs stay close to zero.
     // Gating body buffering with `post_download_semaphore` (the
-    // smaller `num_cpus * 2` cap) instead would pin `network_concurrency`
+    // smaller `parallelism * 2` cap) instead would pin `network_concurrency`
     // permits waiting for it and collapse fetch concurrency down to
     // `post_download` — that's the regression `perf(tarball)` (a43ca32)
     // fixed; don't reintroduce it.
