@@ -50,6 +50,20 @@ fn absent_when_the_wrapper_dir_is_empty() {
     assert_eq!(bundled_node_gyp_bin_in(exe_dir.path()), None);
 }
 
+/// Only the wrapper this platform's `PATH` resolution will actually
+/// look for counts: a payload carrying just the other platform's twin
+/// resolves nothing here.
+#[test]
+fn absent_when_only_the_other_platforms_wrapper_was_shipped() {
+    let exe_dir = tempfile::tempdir().unwrap();
+    let bin_dir = exe_dir.path().join("dist").join("node-gyp-bin");
+    fs::create_dir_all(&bin_dir).unwrap();
+    let other = if cfg!(windows) { "node-gyp" } else { "node-gyp.cmd" };
+    fs::write(bin_dir.join(other), "").unwrap();
+
+    assert_eq!(bundled_node_gyp_bin_in(exe_dir.path()), None);
+}
+
 /// A directory named `node-gyp` inside the wrapper dir is not a wrapper.
 #[test]
 fn absent_when_the_wrapper_is_a_directory() {

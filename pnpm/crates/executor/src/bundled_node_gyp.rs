@@ -10,10 +10,11 @@ const DIST_DIR: &str = "dist";
 /// Wrapper directory prepended to a lifecycle script's `PATH`.
 const NODE_GYP_BIN_DIR: &str = "node-gyp-bin";
 
-/// The wrapper whose presence proves the payload was shipped. The
-/// `.cmd` twin sits beside it, but `PATH` resolution on Windows finds
-/// that on its own, so only one probe is needed.
-const NODE_GYP_WRAPPER: &str = "node-gyp";
+/// The wrapper whose presence proves the payload was shipped. Probed
+/// per platform because that is what `PATH` resolution will look for:
+/// finding the POSIX script says nothing about whether the `.cmd` twin
+/// a Windows script needs was shipped alongside it.
+const NODE_GYP_WRAPPER: &str = if cfg!(windows) { "node-gyp.cmd" } else { "node-gyp" };
 
 /// Locate the `node-gyp` wrapper directory shipped beside the running
 /// executable, for prepending to a lifecycle script's `PATH`.
