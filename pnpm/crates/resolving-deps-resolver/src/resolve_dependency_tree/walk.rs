@@ -552,7 +552,9 @@ where
         current_is_optional,
         prior_key,
     } = pending;
-    let children_context = RecordedChildrenContext {
+    // Built on demand: a linked node and a losing occurrence never
+    // reach either the reuse test or the recording.
+    let children_context = || RecordedChildrenContext {
         peer_shadowed: Arc::clone(&children_owner.peer_shadowed),
         prior_key: prior_key.clone(),
         update_active: !matches!(ctx.update_reuse_scope(), super::UpdateReuseScope::All),
@@ -567,7 +569,7 @@ where
             parent_ids: AncestorIds::from(Arc::clone(&parent_ancestors)),
         }
     } else if !resolves_children_through_catalogs(&result)
-        && recorded_children_match(ctx, &id, &children_context)
+        && recorded_children_match(ctx, &id, &children_context())
     {
         // A winning claim means this occurrence outranks the one that
         // recorded the children, not that the children differ.
@@ -745,8 +747,13 @@ where
                 });
                 realized.insert(dep.alias, dep.node_id);
             }
-            record_children(ctx, &id, by_id, children_context.clone());
-            crate::resolved_tree::TreeChildren::Realized(realized)
+            if record_children(ctx, &id, &children_owner.owner, by_id, children_context()) {
+                crate::resolved_tree::TreeChildren::Realized(realized)
+            } else {
+                crate::resolved_tree::TreeChildren::Lazy {
+                    parent_ids: AncestorIds::from(Arc::clone(&parent_ancestors)),
+                }
+            }
         } else {
             crate::resolved_tree::TreeChildren::Lazy {
                 parent_ids: AncestorIds::from(Arc::clone(&parent_ancestors)),

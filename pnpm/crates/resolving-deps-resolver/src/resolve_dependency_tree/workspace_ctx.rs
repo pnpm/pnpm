@@ -1216,17 +1216,31 @@ pub(super) fn recorded_children_match(
         .is_some_and(|recorded| recorded.context.produces_same_children_as(context))
 }
 
-/// Record a package's children together with the context that
-/// produced them.
+/// Publish a package's children together with the context that
+/// produced them, and report whether they were published.
+///
+/// The ownership check happens under the same lock as the write: a
+/// claim that landed while this walk ran has its own children to
+/// publish, and an older walk finishing afterwards would otherwise
+/// overwrite them. A walk whose ownership lapsed keeps its node lazy
+/// and expands from whatever the standing owner recorded.
 pub(super) fn record_children(
     ctx: &TreeCtx,
     pkg_id: &str,
+    owner: &ChildrenOwner,
     edges: Vec<crate::resolved_tree::ChildEdge>,
     context: RecordedChildrenContext,
-) {
-    lock_recoverable(&ctx.workspace.children_by_id)
-        .insert(pkg_id.to_string(), RecordedChildren { edges: Arc::new(edges), context });
+) -> bool {
+    {
+        let owners = lock_recoverable(&ctx.workspace.children_owner_by_id);
+        if owners.get(pkg_id).is_none_or(|entry| entry.owner != *owner) {
+            return false;
+        }
+        lock_recoverable(&ctx.workspace.children_by_id)
+            .insert(pkg_id.to_string(), RecordedChildren { edges: Arc::new(edges), context });
+    }
     ctx.workspace.record_children_by_id_write(pkg_id);
+    true
 }
 
 /// Seed the peer-walker's `parentPkgs` filter with the names a

@@ -650,9 +650,10 @@ where
                 });
                 realized.insert(dep.alias, dep.node_id);
             }
-            record_children(
+            let published = record_children(
                 ctx,
                 &id,
+                &children_owner.owner,
                 by_id,
                 RecordedChildrenContext {
                     peer_shadowed: Arc::clone(&children_owner.peer_shadowed),
@@ -660,7 +661,13 @@ where
                     update_active: !matches!(ctx.update_reuse_scope(), UpdateReuseScope::All),
                 },
             );
-            crate::resolved_tree::TreeChildren::Realized(realized)
+            if published {
+                crate::resolved_tree::TreeChildren::Realized(realized)
+            } else {
+                crate::resolved_tree::TreeChildren::Lazy {
+                    parent_ids: AncestorIds::from(Arc::clone(ancestor_ids)),
+                }
+            }
         } else {
             crate::resolved_tree::TreeChildren::Lazy {
                 parent_ids: AncestorIds::from(Arc::clone(ancestor_ids)),
