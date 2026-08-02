@@ -66,10 +66,33 @@ test('a malformed user URL is dropped rather than poisoning the prefix list', ()
 })
 
 test('alias lookup is prototype-free so a crafted alias cannot resolve', () => {
-  const { byAlias } = createKnownRegistries(normalizeNamedRegistries())
+  const { byName } = createKnownRegistries(normalizeNamedRegistries())
 
   // A dep path of `foo@constructor:1.0.0` must not find a truthy value and
   // sail past the guards that fail closed on an unknown alias.
-  expect(byAlias.constructor).toBeUndefined()
-  expect(byAlias.toString).toBeUndefined()
+  expect(byName.constructor).toBeUndefined()
+  expect(byName.toString).toBeUndefined()
+})
+
+test('equal-length prefixes are ordered lexicographically, not by hash order', () => {
+  // The two built-ins are themselves the same length, so a length-only sort
+  // leaves their order to object-key iteration. Two more same-length URLs
+  // make the tie-break explicit rather than incidental.
+  const { tarballPrefixes } = createKnownRegistries(normalizeNamedRegistries({
+    b: 'https://npm.example/bbb/',
+    a: 'https://npm.example/aaa/',
+  }))
+
+  const sameLength = tarballPrefixes.filter((prefix) => prefix.startsWith('https://npm.example/'))
+  expect(sameLength).toStrictEqual(['https://npm.example/aaa/', 'https://npm.example/bbb/'])
+})
+
+test('one instance is shared per alias map, so per-package callers do not rebuild it', () => {
+  const namedRegistries = normalizeNamedRegistries({ work: 'https://npm.enterprise.example/' })
+
+  expect(createKnownRegistries(namedRegistries)).toBe(createKnownRegistries(namedRegistries))
+  // The no-aliases case is the common one and has to hit the cache too, which
+  // it only does because normalizeNamedRegistries returns a shared default.
+  expect(createKnownRegistries(normalizeNamedRegistries()))
+    .toBe(createKnownRegistries(normalizeNamedRegistries()))
 })

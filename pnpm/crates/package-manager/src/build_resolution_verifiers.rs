@@ -117,7 +117,7 @@ pub fn build_resolution_verifiers(
                 .map(|(name, url)| (name.clone(), url.clone()))
                 .collect(),
         )
-        .into_by_alias(),
+        .into_by_name(),
         http_client,
         auth_headers: auth_override.unwrap_or_else(|| Arc::clone(&config.auth_headers)),
         cache_dir: Some(config.cache_dir.clone()),

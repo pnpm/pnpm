@@ -50,7 +50,7 @@ export function pkgSnapshotToResolution (
   const { name, version, registryName } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
   let registry: string = ''
   if (registryName != null) {
-    registry = createKnownRegistries(opts.namedRegistries ?? normalizeNamedRegistries()).byAlias[registryName]
+    registry = createKnownRegistries(opts.namedRegistries ?? normalizeNamedRegistries()).byName[registryName]
     if (!registry) {
       throw new PnpmError('MISSING_NAMED_REGISTRY',
         `Cannot install package "${depPath}": it was resolved from the named registry '${registryName}:', which is not present in the namedRegistries setting.`,

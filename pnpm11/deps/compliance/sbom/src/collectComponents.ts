@@ -216,7 +216,7 @@ async function walkStep (
       // artifact from a compliance document.
       const registryUrl = registryName == null
         ? undefined
-        : createKnownRegistries(opts.namedRegistries ?? normalizeNamedRegistries()).byAlias[registryName]
+        : createKnownRegistries(opts.namedRegistries ?? normalizeNamedRegistries()).byName[registryName]
       if (registryName != null && registryUrl == null) {
         throw new PnpmError('MISSING_NAMED_REGISTRY',
           `Cannot describe package "${depPath}": it was resolved from the named registry '${registryName}:', which is not present in the namedRegistries setting.`,

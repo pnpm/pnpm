@@ -100,14 +100,14 @@ pub fn merge_named_registries(
             });
         }
     }
-    Ok(KnownRegistries::new(user_defined).into_by_alias())
+    Ok(KnownRegistries::new(user_defined).into_by_name())
 }
 
 fn is_valid_http_url(url: &str) -> bool {
     Url::parse(url).is_ok_and(|parsed| matches!(parsed.scheme(), "http" | "https"))
 }
 
-/// Every registry pnpm can route to by alias, and the two ways that
+/// Every registry pnpm can route to by name, and the two ways that
 /// set is consulted.
 ///
 /// Built once from [`BUILTIN_NAMED_REGISTRIES`] plus the user's
@@ -117,12 +117,12 @@ fn is_valid_http_url(url: &str) -> bool {
 /// the other.
 #[derive(Debug, Clone)]
 pub struct KnownRegistries {
-    by_alias: HashMap<String, String>,
+    by_name: HashMap<String, String>,
     tarball_prefixes: Vec<String>,
 }
 
 impl KnownRegistries {
-    /// Merge the built-in aliases with the user's `namedRegistries`, user
+    /// Merge the built-in registries with the user's `namedRegistries`, user
     /// winning on collision, and derive both views.
     ///
     /// This is the only place the two are combined. [`merge_named_registries`]
@@ -130,22 +130,22 @@ impl KnownRegistries {
     /// has already validated can take the merge infallibly.
     #[must_use]
     pub fn new(named_registries: &HashMap<String, String>) -> Self {
-        let mut by_alias: HashMap<String, String> = BUILTIN_NAMED_REGISTRIES
+        let mut by_name: HashMap<String, String> = BUILTIN_NAMED_REGISTRIES
             .iter()
             .map(|(name, url)| ((*name).to_string(), (*url).to_string()))
             .collect();
         for (alias, url) in named_registries {
-            by_alias.insert(alias.clone(), url.clone());
+            by_name.insert(alias.clone(), url.clone());
         }
-        let tarball_prefixes = build_tarball_prefixes(&by_alias);
-        Self { by_alias, tarball_prefixes }
+        let tarball_prefixes = build_tarball_prefixes(&by_name);
+        Self { by_name, tarball_prefixes }
     }
 
-    /// Alias to registry URL, for an entry that names its registry in
+    /// Registry name to URL, for an entry that names its registry in
     /// the dep path.
     #[must_use]
-    pub fn by_alias(&self) -> &HashMap<String, String> {
-        &self.by_alias
+    pub fn by_name(&self) -> &HashMap<String, String> {
+        &self.by_name
     }
 
     /// The URL prefixes a recorded tarball URL is matched against to
@@ -161,8 +161,8 @@ impl KnownRegistries {
     }
 
     #[must_use]
-    pub fn into_by_alias(self) -> HashMap<String, String> {
-        self.by_alias
+    pub fn into_by_name(self) -> HashMap<String, String> {
+        self.by_name
     }
 }
 
@@ -175,8 +175,8 @@ impl KnownRegistries {
 /// leaves their relative order to `HashMap` iteration, which differs
 /// between runs and makes the list — and anything asserting on it —
 /// unstable.
-fn build_tarball_prefixes(by_alias: &HashMap<String, String>) -> Vec<String> {
-    let mut prefixes: Vec<String> = by_alias
+fn build_tarball_prefixes(by_name: &HashMap<String, String>) -> Vec<String> {
+    let mut prefixes: Vec<String> = by_name
         .values()
         .filter_map(|url| Url::parse(url).ok())
         .map(|parsed| {

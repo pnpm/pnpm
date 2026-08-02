@@ -24,29 +24,29 @@ function getScope (pkgName: string, bareSpecifier?: string): string | null {
 }
 
 /**
- * Every registry pnpm can route to by alias, and the two ways that set is
- * consulted. Build it once per install and pass it down, so alias lookup and
- * reverse routing can never disagree about which registries exist.
+ * Every registry pnpm can route to by name, and the two ways that set is
+ * consulted. Built once per registry map, so name lookup and reverse routing
+ * can never disagree about which registries exist.
  */
 export interface KnownRegistries {
   /**
-   * Alias → registry URL, as a null-prototype record.
+   * Registry name → registry URL, as a null-prototype record.
    *
-   * The prototype matters: alias names come out of the lockfile's dep paths,
+   * The prototype matters: registry names come out of the lockfile's dep paths,
    * so a crafted `foo@constructor:1.0.0` would otherwise look up
    * `Object.prototype.constructor` — a truthy function — and sail past every
-   * `if (!registry)` guard that is there to fail closed on an unknown alias.
-   * Always resolve an alias through this, never through a plain object literal.
+   * `if (!registry)` guard that is there to fail closed on an unknown name.
+   * Always resolve a name through this, never through a plain object literal.
    */
-  readonly byAlias: Record<string, string>
+  readonly byName: Record<string, string>
   /**
    * The URL prefixes a recorded tarball URL is matched against to decide
    * which registry to verify an entry with, longest first so the deepest
    * match wins.
    *
-   * This is why adding an entry to a built-in alias is not a
+   * This is why adding a built-in registry is not a
    * local change: it also decides where verification traffic goes for
-   * lockfile entries that name no alias at all. Every prefix ends in `/` so
+   * lockfile entries that name no registry at all. Every prefix ends in `/` so
    * matching cannot be fooled by a same-host-different-suffix sibling
    * (`https://npm.pkg.github.com-evil/`).
    */
@@ -54,33 +54,47 @@ export interface KnownRegistries {
 }
 
 /**
- * Derive both views from an already-complete alias map.
+ * One instance per registry map, cached on the map itself.
+ *
+ * Callers sit in per-package loops — the dep-graph builders, the SBOM walk,
+ * the license scanner — and thread `namedRegistries` down rather than a built
+ * instance. Keying the cache on the map keeps "one set per install" true
+ * without every one of those call sites having to remember to hoist, which is
+ * the kind of thing that silently regresses. The map comes from
+ * `normalizeNamedRegistries` and is not mutated afterwards.
  *
  * The built-ins are merged in by `normalizeNamedRegistries` at the boundary,
  * which is why `NamedRegistries` is required here rather than a raw record:
  * a map that never passed through it does not typecheck.
  *
- * `tarballPrefixes` is computed on first access: the alias lookup runs per
+ * `tarballPrefixes` is computed on first access: the name lookup runs per
  * package, while prefix matching runs only when an entry carries a recorded
  * tarball URL.
  */
 export function createKnownRegistries (namedRegistries: NamedRegistries): KnownRegistries {
-  const byAlias: Record<string, string> = Object.assign(
+  const cached = knownRegistriesCache.get(namedRegistries)
+  if (cached) return cached
+
+  const byName: Record<string, string> = Object.assign(
     Object.create(null) as Record<string, string>,
     namedRegistries
   )
   let tarballPrefixes: readonly string[] | undefined
-  return {
-    byAlias,
+  const knownRegistries: KnownRegistries = {
+    byName,
     get tarballPrefixes (): readonly string[] {
-      tarballPrefixes ??= buildTarballPrefixes(byAlias)
+      tarballPrefixes ??= buildTarballPrefixes(byName)
       return tarballPrefixes
     },
   }
+  knownRegistriesCache.set(namedRegistries, knownRegistries)
+  return knownRegistries
 }
 
-function buildTarballPrefixes (byAlias: Record<string, string>): readonly string[] {
-  return Object.values(byAlias)
+const knownRegistriesCache = new WeakMap<NamedRegistries, KnownRegistries>()
+
+function buildTarballPrefixes (byName: Record<string, string>): readonly string[] {
+  return Object.values(byName)
     .map((url) => {
       let parsed: URL
       try {

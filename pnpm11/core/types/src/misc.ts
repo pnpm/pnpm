@@ -20,7 +20,7 @@ export interface Registries {
 }
 
 /**
- * Registry aliases a dependency specifier can name (`work:foo`), with the
+ * Registry names a dependency specifier can select (`work:foo`), with the
  * built-ins guaranteed present.
  *
  * The required keys are the enforcement: a raw `namedRegistries` straight out
@@ -36,7 +36,7 @@ export interface Registries {
 export interface NamedRegistries {
   gh: string
   npmjs: string
-  [alias: string]: string
+  [name: string]: string
 }
 
 /** Parsed value of `_auth` of each registry in the rc file. */

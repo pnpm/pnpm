@@ -169,7 +169,7 @@ pub struct NpmResolutionVerifier {
     /// Alias → URL map (built-ins merged with the user's setting) for
     /// routing registry-qualified lockfile keys, which carry no tarball
     /// URL for the prefix list to match.
-    named_registries_by_alias: HashMap<String, String>,
+    named_registries_by_name: HashMap<String, String>,
     http_client: Arc<ThrottledClient>,
     auth_headers: Arc<AuthHeaders>,
     cache_dir: Option<PathBuf>,
@@ -223,17 +223,17 @@ pub fn create_npm_resolution_verifier(
         None
     };
 
-    // One set drives both ways a registry is chosen here: `by_alias` routes
+    // One set drives both ways a registry is chosen here: `by_name` routes
     // an entry that names its registry in the dep path, and the prefixes
     // route one that only carries a recorded tarball URL. Sharing the set is
     // what keeps the two from drifting apart.
     let known_registries = KnownRegistries::new(&opts.named_registries);
     let named_registry_prefixes = known_registries.tarball_prefixes().to_vec();
-    let named_registries_by_alias = known_registries.into_by_alias();
+    let named_registries_by_name = known_registries.into_by_name();
 
     let sorted_min_age_excludes = sorted_unique(&opts.minimum_release_age_exclude_patterns);
     let sorted_trust_excludes = sorted_unique(&opts.trust_policy_exclude_patterns);
-    let named_registries_routing = named_registries_routing_digest(&named_registries_by_alias);
+    let named_registries_routing = named_registries_routing_digest(&named_registries_by_name);
 
     let policy_snapshot = build_policy_snapshot(
         opts.minimum_release_age.unwrap_or(0),
@@ -256,7 +256,7 @@ pub fn create_npm_resolution_verifier(
         sorted_trust_excludes,
         registries: opts.registries,
         named_registry_prefixes,
-        named_registries_by_alias,
+        named_registries_by_name,
         http_client: opts.http_client,
         auth_headers: opts.auth_headers,
         cache_dir: opts.cache_dir,
@@ -399,7 +399,7 @@ impl NpmResolutionVerifier {
         // closed on an unknown alias: none of the metadata-backed checks
         // below could vouch for the entry without its registry URL.
         let named_registry = match ctx.registry_name {
-            Some(registry_name) => match self.named_registries_by_alias.get(registry_name) {
+            Some(registry_name) => match self.named_registries_by_name.get(registry_name) {
                 Some(url) => Some(url.clone()),
                 None => {
                     return ResolutionVerification::Err {

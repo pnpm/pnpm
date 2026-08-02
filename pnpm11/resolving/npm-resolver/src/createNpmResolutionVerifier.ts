@@ -133,7 +133,7 @@ export function createNpmResolutionVerifier (
     ? createExcludePolicy(opts.trustPolicyExclude, 'trustPolicyExclude')
     : undefined
 
-  // One set drives both ways a registry is chosen here: `byAlias` routes an
+  // One set drives both ways a registry is chosen here: `byName` routes an
   // entry that names its registry in the dep path, and `tarballPrefixes`
   // routes one that only carries a recorded tarball URL. Sharing the set is
   // what keeps the verifier recognizing exactly the registries the resolver
@@ -167,7 +167,7 @@ export function createNpmResolutionVerifier (
   const trustPolicy = opts.trustPolicy
   const trustPolicyIgnoreAfter = opts.trustPolicyIgnoreAfter
 
-  const mergedNamedRegistries = knownRegistries.byAlias
+  const mergedNamedRegistries = knownRegistries.byName
 
   const verify: ResolutionVerifier['verify'] = async (resolution, { name, version, nonSemverVersion, registryName }) => {
     if (!isRegistryTarballResolution(resolution)) return { ok: true }
