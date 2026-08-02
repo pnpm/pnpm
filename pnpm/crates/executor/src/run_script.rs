@@ -98,7 +98,7 @@ pub fn run_script(opts: &RunScript<'_>) -> Result<ExitStatus, RunScriptError> {
     let path_env = extend_path(
         opts.pkg_root,
         original_path.as_ref(),
-        None,
+        crate::bundled_node_gyp_bin(),
         opts.extra_bin_paths,
         opts.scripts_prepend_node_path,
         opts.node_execpath,

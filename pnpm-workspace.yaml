@@ -275,6 +275,9 @@ catalog:
   micromatch: ^4.0.8
   msgpackr: 2.0.5
   nm-prune: ^5.0.0
+  # node-gyp 13 (with its nopt 10 and which 7 dependencies) requires Node.js
+  # ^22.22.2 || ^24.15.0 || >=26.0.0, above pnpm's supported floor of >=22.13.
+  node-gyp: ^12.3.0
   normalize-newline: 5.0.0
   # normalize-package-data 9.x requires Node.js ^22.22.2 || ^24.15.0 || >=26.0.0,
   # above pnpm's supported floor of Node.js >=22.13.
@@ -555,11 +558,9 @@ trustPolicyIgnoreAfter: 10080 # 1 week
 # Dependencies deliberately held back, which `pnpm update --latest` (run by the
 # update-lockfile workflow) would otherwise bump. Most of them are packages
 # whose newer versions require a Node.js version above pnpm's supported floor
-# (>=22.13); the comment at each catalog entry above records the reason. node-gyp
-# is not in the catalog: it is declared directly in pnpm11/pnpm/package.json, and
-# node-gyp 13 (with its nopt 10 and which 7 dependencies) requires Node.js
-# ^22.22.2 || ^24.15.0 || >=26.0.0. typescript is held on 6.x because
-# typescript-eslint does not support the TypeScript 7.0 API yet.
+# (>=22.13); the comment at each catalog entry above records the reason.
+# typescript is held on 6.x because typescript-eslint does not support the
+# TypeScript 7.0 API yet.
 update:
   ignoreDeps:
     - '@babel/core'

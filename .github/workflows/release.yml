@@ -667,6 +667,12 @@ jobs:
             mv extract/pnpm "${archive%.tar.gz}"
           done
 
+      - name: Bundle node-gyp
+        # Produces the dist/ payload both wrappers ship, so install scripts
+        # that shell out to node-gyp build out of the box. Must run before the
+        # packages are generated: the `@pnpm/exe` wrapper copies dist/ too.
+        run: pnpm --filter=pacquet run bundle-node-gyp
+
       - name: Generate npm packages
         # Rewrites the committed private `pacquet` wrapper into the publishable
         # `pnpm` manifest and generates the per-platform packages.
@@ -787,6 +793,9 @@ jobs:
             tar -xzf "$archive" -C extract
             mv extract/pnpm "${archive%.tar.gz}"
           done
+
+      - name: Bundle node-gyp
+        run: pnpm --filter=pacquet run bundle-node-gyp
 
       - name: Generate npm packages
         run: |
