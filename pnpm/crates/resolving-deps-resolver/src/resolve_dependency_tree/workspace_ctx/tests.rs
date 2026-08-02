@@ -190,6 +190,43 @@ fn owner_missing_record_is_written_once_per_generation() {
 }
 
 #[test]
+fn owner_scope_snapshots_are_shared_until_a_write_changes_the_map() {
+    use super::super::lock_recoverable;
+    use super::{ChildrenOwner, ChildrenOwnerEntry, WorkspaceTreeCtx};
+    use crate::resolve_peers::MissingNames;
+    use std::sync::Arc;
+
+    let ctx = WorkspaceTreeCtx::default();
+    let owner = ChildrenOwner {
+        update_active: false,
+        depth: 0,
+        importer_order: 0,
+        parent_path: Vec::new(),
+        importer_id: ".".to_string(),
+    };
+    lock_recoverable(&ctx.children_owner_by_id).insert(
+        "pkg@1.0.0".to_string(),
+        ChildrenOwnerEntry { owner, peer_shadowed: Arc::new(HashSet::default()) },
+    );
+
+    let peers: HashSet<String> = HashSet::from_iter(["peer".to_string()]);
+    let missing = HashMap::from_iter([("pkg@1.0.0", MissingNames::One(&peers))]);
+
+    let before = ctx.first_walk_missing_by_pkg();
+    ctx.record_first_walk_missing(".", &missing);
+    let after_write = ctx.first_walk_missing_by_pkg();
+    assert!(!Arc::ptr_eq(&before, &after_write), "a write must invalidate the shared snapshot");
+    assert!(before.is_empty(), "an issued snapshot keeps what it was built from");
+    assert_eq!(after_write.get("pkg@1.0.0"), Some(&peers));
+
+    ctx.record_first_walk_missing(".", &missing);
+    assert!(
+        Arc::ptr_eq(&after_write, &ctx.first_walk_missing_by_pkg()),
+        "a re-record that changes nothing must reuse the snapshot",
+    );
+}
+
+#[test]
 fn importer_scoped_update_owner_wins_before_discovery_order() {
     use super::ChildrenOwner;
 

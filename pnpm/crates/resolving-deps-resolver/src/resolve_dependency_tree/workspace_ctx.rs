@@ -326,8 +326,7 @@ pub struct WorkspaceTreeCtx {
     /// so a peer the owner only satisfied by hoisting stays visible to
     /// every other importer's hoist. Consumed via
     /// [`crate::HoistMissingScope`].
-    first_walk_missing_by_pkg:
-        Mutex<SnapshotCell<HashMap<String, OwnerMissingRecord>, HashMap<String, HashSet<String>>>>,
+    first_walk_missing_by_pkg: Mutex<FirstWalkMissingCell>,
     /// Per importer: direct-dep aliases whose manifest specifier differs
     /// from the prior lockfile (new deps included). Gates the stale-pin
     /// refresh's reuse-decline; only a changed direct dep can re-resolve
@@ -349,6 +348,13 @@ pub struct WorkspaceTreeCtx {
     pub(super) direct_dep_versions: Mutex<HashMap<String, Arc<DirectDepVersions>>>,
 }
 
+/// The per-package missing-peer names
+/// [`WorkspaceTreeCtx::first_walk_missing_by_pkg`] projects out of its
+/// [`OwnerMissingRecord`] entries.
+type FirstWalkMissing = HashMap<String, HashSet<String>>;
+
+type FirstWalkMissingCell = SnapshotCell<HashMap<String, OwnerMissingRecord>, FirstWalkMissing>;
+
 /// One [`WorkspaceTreeCtx::first_walk_missing_by_pkg`] entry: the
 /// missing-peer names plus the owner generation that recorded them
 /// (`None` for a non-owner's provisional report).
@@ -366,23 +372,23 @@ struct OwnerMissingRecord {
 /// Writers reach the map through [`Self::map_mut`], which drops the
 /// snapshot; a writer that finds nothing to change must keep to
 /// [`Self::map`] so the cache survives.
-struct SnapshotCell<M, S> {
-    map: M,
-    snapshot: Option<Arc<S>>,
+struct SnapshotCell<Map, Snapshot> {
+    map: Map,
+    snapshot: Option<Arc<Snapshot>>,
 }
 
-impl<M: Default, S> Default for SnapshotCell<M, S> {
+impl<Map: Default, Snapshot> Default for SnapshotCell<Map, Snapshot> {
     fn default() -> Self {
-        SnapshotCell { map: M::default(), snapshot: None }
+        SnapshotCell { map: Map::default(), snapshot: None }
     }
 }
 
-impl<M, S> SnapshotCell<M, S> {
-    fn map(&self) -> &M {
+impl<Map, Snapshot> SnapshotCell<Map, Snapshot> {
+    fn map(&self) -> &Map {
         &self.map
     }
 
-    fn map_mut(&mut self) -> &mut M {
+    fn map_mut(&mut self) -> &mut Map {
         self.snapshot = None;
         &mut self.map
     }
@@ -390,7 +396,7 @@ impl<M, S> SnapshotCell<M, S> {
     /// The current snapshot, projected through `project` when a write
     /// invalidated the last one. Snapshots already handed out keep the
     /// contents they were built from.
-    fn snapshot(&mut self, project: impl FnOnce(&M) -> S) -> Arc<S> {
+    fn snapshot(&mut self, project: impl FnOnce(&Map) -> Snapshot) -> Arc<Snapshot> {
         Arc::clone(self.snapshot.get_or_insert_with(|| Arc::new(project(&self.map))))
     }
 }
@@ -679,7 +685,7 @@ impl WorkspaceTreeCtx {
     /// Snapshot of the per-package owner-context missing-peer names.
     /// See the `first_walk_missing_by_pkg` field doc.
     #[must_use]
-    pub fn first_walk_missing_by_pkg(&self) -> Arc<HashMap<String, HashSet<String>>> {
+    pub fn first_walk_missing_by_pkg(&self) -> Arc<FirstWalkMissing> {
         lock_recoverable(&self.first_walk_missing_by_pkg).snapshot(|record| {
             record.iter().map(|(pkg_id, entry)| (pkg_id.clone(), entry.names.clone())).collect()
         })

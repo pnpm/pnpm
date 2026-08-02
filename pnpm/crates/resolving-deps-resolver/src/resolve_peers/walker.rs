@@ -1392,9 +1392,9 @@ impl<'a> MissingNames<'a> {
 /// from the summaries rather than copying every descendant's names into
 /// an owned map: one of these is built per importer per hoist round, so
 /// a copy would make each round cost the whole workspace.
-pub(crate) fn index_missing_names<'a>(
-    roots: &'a [Arc<MissingSummary>],
-) -> HashMap<&'a str, MissingNames<'a>> {
+pub(crate) fn index_missing_names(
+    roots: &[Arc<MissingSummary>],
+) -> HashMap<&str, MissingNames<'_>> {
     let mut index: HashMap<&str, MissingNames<'_>> = HashMap::default();
     let mut seen: HashSet<usize> = HashSet::default();
     let mut pending: Vec<&Arc<MissingSummary>> = roots.iter().collect();
@@ -1412,3 +1412,6 @@ pub(crate) fn index_missing_names<'a>(
     }
     index
 }
+
+#[cfg(test)]
+mod tests;
