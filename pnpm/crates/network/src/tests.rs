@@ -770,6 +770,29 @@ fn for_installs_falls_back_to_bundled_roots_without_a_system_trust_store() {
     )
     .expect("bundled Mozilla roots stand in for the missing system trust store");
 
+    // A configured `ca` is itself enough to keep the platform verifier
+    // constructible, so a user with custom roots never reaches the
+    // fallback — their roots cannot be displaced by it.
+    let ca =
+        std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/test-ca.pem"))
+            .expect("read test ca fixture");
+    assert!(
+        reqwest::Client::builder()
+            .add_root_certificate(
+                reqwest::Certificate::from_pem(ca.as_bytes()).expect("parse test ca fixture")
+            )
+            .build()
+            .is_ok(),
+        "a custom CA root keeps the platform verifier constructible",
+    );
+    ThrottledClient::for_installs(
+        &ProxyConfig::default(),
+        &TlsConfig { ca: vec![ca], ..TlsConfig::default() },
+        &PerRegistryTls::default(),
+        &NetworkSettings::default(),
+    )
+    .expect("a configured ca builds without a system trust store");
+
     let _ = std::fs::remove_file(&empty_bundle);
 }
 

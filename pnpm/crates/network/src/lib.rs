@@ -432,9 +432,9 @@ impl ThrottledClient {
         let build_client = |effective_tls: &TlsConfig| -> Result<Client, ForInstallsError> {
             match make_builder(effective_tls, TrustRoots::Platform)?.build() {
                 Ok(client) => Ok(client),
-                Err(platform_error) => make_builder(effective_tls, TrustRoots::Bundled)?
+                Err(platform) => make_builder(effective_tls, TrustRoots::Bundled)?
                     .build()
-                    .map_err(|_| ForInstallsError::ClientBuild(platform_error)),
+                    .map_err(|bundled| ForInstallsError::ClientBuild { platform, bundled }),
             }
         };
 
@@ -872,11 +872,16 @@ pub enum ForInstallsError {
     ZeroNetworkConcurrency,
 
     /// reqwest rejected the assembled client configuration, with both
-    /// the platform trust store and the bundled Mozilla roots.
-    /// Carries the platform-verifier attempt's error — the one that
-    /// describes the environment.
-    #[display("Failed to build the HTTP client")]
-    ClientBuild(#[error(source)] reqwest::Error),
+    /// the platform trust store and the bundled Mozilla roots. The
+    /// platform attempt is the source (it is the one that describes
+    /// the environment); the retry's own failure is spelled out too,
+    /// since the two can differ.
+    #[display("Failed to build the HTTP client (retry with bundled CA roots: {bundled})")]
+    ClientBuild {
+        #[error(source)]
+        platform: reqwest::Error,
+        bundled: reqwest::Error,
+    },
 }
 
 impl From<ProxyError> for ForInstallsError {
