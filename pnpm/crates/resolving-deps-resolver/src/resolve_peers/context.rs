@@ -499,11 +499,21 @@ pub(super) fn remap_link_node_id(
 /// peer propagation for non-npm packages without panicking on
 /// `name_ver = None`.
 pub(super) fn pkg_name_version(result: &ResolveResult) -> (String, String) {
+    let version = result
+        .name_ver
+        .as_ref()
+        .map_or_else(|| result.id.as_str().to_string(), |name_ver| name_ver.suffix.to_string());
+    (pkg_name(result), version)
+}
+
+/// The name half of [`fn@pkg_name_version`], for callers that would
+/// discard the version. `PkgName` holds scope and bare name separately,
+/// so rendering either half allocates.
+pub(super) fn pkg_name(result: &ResolveResult) -> String {
     if let Some(name_ver) = result.name_ver.as_ref() {
-        return (name_ver.name.to_string(), name_ver.suffix.to_string());
+        return name_ver.name.to_string();
     }
-    let fallback_name = result.alias.clone().unwrap_or_else(|| result.id.as_str().to_string());
-    (fallback_name, result.id.as_str().to_string())
+    result.alias.clone().unwrap_or_else(|| result.id.as_str().to_string())
 }
 
 /// The `name@version` identity a peer contributes to a depPath's peer suffix.

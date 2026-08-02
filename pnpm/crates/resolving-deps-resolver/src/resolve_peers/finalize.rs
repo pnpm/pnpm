@@ -9,7 +9,7 @@ use crate::{
     node_id::NodeId,
     resolve_peers::{
         context::{
-            SharedChain, link_node_id_as_dep_path, peer_id_pair, peer_segment_names,
+            SharedChain, link_node_id_as_dep_path, peer_id_pair, peer_segment_names, pkg_name,
             pkg_name_version,
         },
         walker::{MissingPeerInfo, Walker},
@@ -391,10 +391,9 @@ impl Walker<'_> {
                 continue;
             }
             let pkg_id = self.tree.dependencies_tree[node_id].resolved_package_id.as_str();
-            if !name_of_pkg.contains_key(pkg_id) {
-                let pkg = &self.tree.packages[pkg_id];
-                name_of_pkg.insert(pkg_id, pkg_name_version(&pkg.result).0);
-            }
+            name_of_pkg
+                .entry(pkg_id)
+                .or_insert_with(|| pkg_name(&self.tree.packages[pkg_id].result));
         }
 
         let mut graph: BTreeMap<&str, BTreeSet<&str>> = BTreeMap::new();
