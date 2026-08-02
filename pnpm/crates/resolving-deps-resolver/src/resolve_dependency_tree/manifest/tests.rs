@@ -22,6 +22,35 @@ fn dependency_engines_runtime_is_walked_as_a_runtime_dependency() {
     );
 }
 
+#[test]
+fn child_order_does_not_depend_on_manifest_property_order() {
+    let forward = manifest_result(
+        serde_json::from_str(
+            r#"{
+            "name": "parent",
+            "version": "1.0.0",
+            "dependencies": { "alpha": "1.0.0", "zulu": "2.0.0" }
+        }"#,
+        )
+        .unwrap(),
+    );
+    let reverse = manifest_result(
+        serde_json::from_str(
+            r#"{
+            "name": "parent",
+            "version": "1.0.0",
+            "dependencies": { "zulu": "2.0.0", "alpha": "1.0.0" }
+        }"#,
+        )
+        .unwrap(),
+    );
+
+    let forward_children = extract_children(&forward).unwrap();
+    let reverse_children = extract_children(&reverse).unwrap();
+    dbg!(&forward_children, &reverse_children);
+    assert_eq!(forward_children, reverse_children);
+}
+
 // Regression test for pnpm/pnpm#13334: npm ships bundled dependencies
 // inside the package's own tarball, so they must not be resolved as
 // edges of their own.
