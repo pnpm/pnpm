@@ -298,8 +298,8 @@ where
         .collect();
     let mut states = Vec::with_capacity(init_waves.len());
     for wave in init_waves {
-        // Boxed so the enclosing install future doesn't grow by a whole
-        // wave's frame; `try_join_all` used to heap-allocate them.
+        // Boxed to keep the enclosing install future small: inlining a
+        // wave's frame into it trips the workspace's large-future lint.
         states.push(Box::pin(wave).await?);
     }
     // Computed after the init barrier and shared unchanged: recomputing it
