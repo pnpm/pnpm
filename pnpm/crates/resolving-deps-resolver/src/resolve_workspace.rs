@@ -268,29 +268,27 @@ where
     // a large workspace's walks overlap their resolver and hook waits
     // instead of paying them importer by importer.
     let mut input_dirs = Vec::with_capacity(importers.len());
-    let init_futures: Vec<_> = importers
-        .iter()
-        .zip(importer_opts)
-        .enumerate()
-        .map(|(importer_order, (importer, mut importer_opts))| {
-            importer_opts.pick_lowest_direct = pick_lowest_direct;
-            importer_opts.subdep_published_by = subdep_published_by;
-            input_dirs.push((
-                importer_opts.base_opts.project_dir.clone(),
-                importer_opts.modules_dir.clone(),
-            ));
-            ImporterHoistState::init(
-                resolver,
-                &importer.id,
-                importer_order,
-                importer.manifest,
-                dependency_groups.iter().copied(),
-                importer_opts,
-                Arc::clone(&workspace),
-            )
-        })
-        .collect();
-    let mut states = futures_util::future::try_join_all(init_futures).await?;
+    let mut states = Vec::with_capacity(importers.len());
+    for (importer_order, (importer, mut importer_opts)) in
+        importers.iter().zip(importer_opts).enumerate()
+    {
+        importer_opts.pick_lowest_direct = pick_lowest_direct;
+        importer_opts.subdep_published_by = subdep_published_by;
+        input_dirs
+            .push((importer_opts.base_opts.project_dir.clone(), importer_opts.modules_dir.clone()));
+        // Boxed to keep the enclosing install future small: inlining a
+        // wave's frame into it trips the workspace's large-future lint.
+        let wave = Box::pin(ImporterHoistState::init(
+            resolver,
+            &importer.id,
+            importer_order,
+            importer.manifest,
+            dependency_groups.iter().copied(),
+            importer_opts,
+            Arc::clone(&workspace),
+        ));
+        states.push(wave.await?);
+    }
     // Computed after the init barrier and shared unchanged: recomputing it
     // per round would let the root's own hoisted peers become candidates for
     // the importers hoisted after it.
