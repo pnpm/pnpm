@@ -583,7 +583,9 @@ async fn tarball_url_default_port_and_scheme_difference_is_a_match() {
     let registry = format!("{}/", server.url());
     // The served metadata lists the artifact on a different host with an
     // explicit default port and the http scheme; the lockfile pins the
-    // canonical https/no-port form of the same URL.
+    // canonical https/no-port form of the same URL. The host is deliberately
+    // not a built-in named registry: one of those would route the metadata
+    // fetch to that registry instead of this mock.
     let packument = serde_json::json!({
         "name": "aged-pkg",
         "dist-tags": { "latest": "1.0.0" },
@@ -595,7 +597,7 @@ async fn tarball_url_default_port_and_scheme_difference_is_a_match() {
                 "dist": {
                     "integrity": FAKE_INTEGRITY,
                     "shasum": "0000000000000000000000000000000000000000",
-                    "tarball": "http://registry.npmjs.org:80/aged-pkg/-/aged-pkg-1.0.0.tgz",
+                    "tarball": "http://cdn.example.test:80/aged-pkg/-/aged-pkg-1.0.0.tgz",
                 }
             }
         }
@@ -609,7 +611,7 @@ async fn tarball_url_default_port_and_scheme_difference_is_a_match() {
     let opts = default_opts(&registry);
     let verifier = create_npm_resolution_verifier(opts);
     let resolution = LockfileResolution::Tarball(TarballResolution {
-        tarball: "https://registry.npmjs.org/aged-pkg/-/aged-pkg-1.0.0.tgz".to_string(),
+        tarball: "https://cdn.example.test/aged-pkg/-/aged-pkg-1.0.0.tgz".to_string(),
         integrity: Some(fake_integrity()),
         git_hosted: None,
         path: None,

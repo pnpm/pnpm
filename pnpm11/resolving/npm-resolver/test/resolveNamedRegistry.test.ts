@@ -85,6 +85,60 @@ test('resolveFromNamedRegistry() resolves a scoped package published to GitHub P
   })
 })
 
+test('resolveFromNamedRegistry() reaches the public registry through the built-in npmjs: alias when the default registry is elsewhere', async () => {
+  // The point of the alias: `registry` is an internal proxy here, so nothing
+  // else in the project would reach npmjs. `npm:` cannot do this — it is the
+  // alias protocol and resolves through whatever `registry` points at.
+  const pool = getMockAgent().get('https://registry.npmjs.org')
+  pool.intercept({ path: '/@acme%2Fprivate', method: 'GET' }).reply(200, ghAcmePrivateMeta)
+
+  const { resolveFromNamedRegistry } = createNpmResolver(fetch, () => undefined, {
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registries: {
+      default: ENTERPRISE_REGISTRY,
+      '@jsr': 'https://npm.jsr.io/',
+    } satisfies Registries,
+  })
+
+  const resolveResult = await resolveFromNamedRegistry(
+    { alias: '@acme/private', bareSpecifier: 'npmjs:^2.0.0' },
+    {}
+  )
+
+  expect(resolveResult).toMatchObject({
+    resolvedVia: 'named-registry',
+    registryName: 'npmjs',
+    id: '@acme/private@npmjs:2.1.0',
+  })
+})
+
+test('resolveFromNamedRegistry() lets a proxying org repoint the built-in npmjs alias', async () => {
+  interceptGhAcmePrivate(ENTERPRISE_REGISTRY)
+
+  const { resolveFromNamedRegistry } = createNpmResolver(fetch, () => undefined, {
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registries,
+    // Same escape hatch GHES users have for `gh`: an org that mirrors npmjs
+    // points `npmjs` at the mirror so nothing reaches the public host.
+    namedRegistries: {
+      npmjs: ENTERPRISE_REGISTRY,
+    },
+  })
+
+  const resolveResult = await resolveFromNamedRegistry(
+    { alias: '@acme/private', bareSpecifier: 'npmjs:^2.0.0' },
+    {}
+  )
+
+  expect(resolveResult).toMatchObject({
+    resolvedVia: 'named-registry',
+    registryName: 'npmjs',
+    id: '@acme/private@npmjs:2.1.0',
+  })
+})
+
 test('resolveFromNamedRegistry() preserves the scoped package name when the alias is a different name', async () => {
   interceptGhAcmePrivate()
 
