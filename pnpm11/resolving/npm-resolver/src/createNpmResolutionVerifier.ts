@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 
 import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
-import { FULL_META_DIR, createKnownRegistries } from '@pnpm/constants'
+import { createKnownRegistries, FULL_META_DIR } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import type { GetAuthHeader } from '@pnpm/fetching.types'
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
