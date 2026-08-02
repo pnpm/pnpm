@@ -24,8 +24,9 @@ use reqwest::Url;
 /// reserved for the alias protocol (`npm:<name>@<range>`), which
 /// resolves through the default registry.
 ///
-/// These URLs are also the prefixes [`build_named_registry_prefixes`]
-/// matches a recorded tarball URL against, so an org that proxies
+/// These URLs are also the prefixes
+/// [`KnownRegistries::tarball_prefixes`] matches a recorded tarball URL
+/// against, so an org that proxies
 /// npmjs should point `npmjs` at their proxy to keep verification
 /// going there rather than to the public host.
 pub const BUILTIN_NAMED_REGISTRIES: &[(&str, &str)] =
