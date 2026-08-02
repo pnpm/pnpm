@@ -58,11 +58,25 @@ function deployNodeGyp () {
   for (const stateFile of ['node_modules/.pnpm', 'node_modules/.modules.yaml']) {
     fs.rmSync(path.join(DEPLOY_DIR, stateFile), { recursive: true, force: true })
   }
+  // nm-prune keeps source maps, and a dependency's are dead weight in every
+  // distribution channel — they outnumber the code they map in `tar`.
+  removeSourceMaps(path.join(DEPLOY_DIR, 'node_modules'))
 
   fs.rmSync(DIST_DIR, { recursive: true, force: true })
   fs.mkdirSync(DIST_DIR, { recursive: true })
   fs.renameSync(path.join(DEPLOY_DIR, 'node_modules'), path.join(DIST_DIR, 'node_modules'))
   fs.rmSync(DEPLOY_DIR, { recursive: true, force: true })
+}
+
+function removeSourceMaps (dir) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const fullPath = path.join(dir, entry.name)
+    if (entry.isDirectory()) {
+      removeSourceMaps(fullPath)
+    } else if (entry.name.endsWith('.map')) {
+      fs.rmSync(fullPath)
+    }
+  }
 }
 
 function copyNodeGypBin () {

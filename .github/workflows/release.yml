@@ -441,8 +441,49 @@ jobs:
           if (actual !== expected) throw new Error('GitHub draft release body does not match RELEASE.md')
           NODE
 
-  build-rust:
+  build-node-gyp-payload:
+    name: Bundle node-gyp
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     needs: plan
+    if: needs.plan.outputs.rust == 'true' && !inputs.verify_ts_release
+    permissions:
+      contents: read
+    # Every channel ships the same node-gyp, so it is resolved once here rather
+    # than per target: the tree is platform-independent, and one build is the
+    # only way the GitHub archives and the npm packages are guaranteed to carry
+    # identical bytes. Kept out of build-rust deliberately — that job produces
+    # the attested binaries and holds no npm dependency graph.
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install pnpm and Node
+        uses: pnpm/setup@6523ce966bcf7a1061ce6401e5c6e0b60466bd31
+        with:
+          runtime: node@22
+
+      - name: Bundle node-gyp
+        run: pnpm --filter=pacquet run bundle-node-gyp
+
+      - name: Archive payload
+        # Archived rather than uploaded as a directory, for the same reason the
+        # binaries are: actions/upload-artifact drops the executable bit, and
+        # the node-gyp wrappers have to stay executable
+        # (https://github.com/actions/upload-artifact#permission-loss).
+        run: tar czf node-gyp-payload.tar.gz -C pnpm/npm/pnpm dist
+
+      - name: Upload payload
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          if-no-files-found: error
+          name: node-gyp-payload
+          path: node-gyp-payload.tar.gz
+
+  build-rust:
+    needs:
+      - plan
+      - build-node-gyp-payload
     if: needs.plan.outputs.rust == 'true' && !inputs.verify_ts_release
     permissions:
       contents: read
@@ -583,29 +624,41 @@ jobs:
           esac
           cp "$source" "pnpm-napi.${{ matrix.code-target }}.node"
 
+      - name: Download node-gyp payload
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: node-gyp-payload
+          # Kept out of the workspace root so it can't be swept up by the
+          # `*.tar.gz` glob the Upload Binary step publishes.
+          path: node-gyp-payload
+
       # The binary is archived to fix permission loss
       # (https://github.com/actions/upload-artifact#permission-loss) and ships
       # under its final name: `pnpm-<target>` archives with a plain `pnpm`
-      # binary at the root — the layout the v11 releases use and get.pnpm.io's
-      # install scripts expect — so the github-release-rust job can upload them
-      # to the GitHub release byte-for-byte as attested here.
+      # binary at the root beside a `dist/` holding node-gyp — the layout the
+      # v11 releases use, that get.pnpm.io's install scripts expect, and that
+      # the binary resolves node-gyp from at `<exe dir>/dist/node-gyp-bin` — so
+      # the github-release-rust job can upload them to the GitHub release
+      # byte-for-byte as attested here.
       - name: Archive Binary
         if: runner.os == 'Windows'
         shell: bash
         run: |
           mv target/${{ matrix.target }}/release/pnpm.exe pnpm.exe
-          7z a pnpm-${{ matrix.code-target }}.zip pnpm.exe
+          tar xzf node-gyp-payload/node-gyp-payload.tar.gz
+          7z a pnpm-${{ matrix.code-target }}.zip pnpm.exe dist
 
       - name: Archive Binary
         if: runner.os != 'Windows'
-        # The binary is staged in a scratch directory because the repo root
+        # Everything is staged in a scratch directory because the repo root
         # already has a `pnpm/` directory (the Rust sub-project) — renaming the
         # binary to `pnpm` in place would move it *into* that directory and tar
         # up the whole source tree instead.
         run: |
           mkdir stage
           mv target/${{ matrix.target }}/release/pnpm stage/pnpm
-          tar czf pnpm-${{ matrix.code-target }}.tar.gz -C stage pnpm
+          tar xzf node-gyp-payload/node-gyp-payload.tar.gz -C stage
+          tar czf pnpm-${{ matrix.code-target }}.tar.gz -C stage pnpm dist
 
       - name: Attest build provenance
         uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
@@ -667,11 +720,19 @@ jobs:
             mv extract/pnpm "${archive%.tar.gz}"
           done
 
-      - name: Bundle node-gyp
-        # Produces the dist/ payload both wrappers ship, so install scripts
-        # that shell out to node-gyp build out of the box. Must run before the
-        # packages are generated: the `@pnpm/exe` wrapper copies dist/ too.
-        run: pnpm --filter=pacquet run bundle-node-gyp
+      - name: Restore node-gyp payload
+        # The dist/ payload both wrappers ship, so install scripts that shell
+        # out to node-gyp build out of the box. Taken from the artifact rather
+        # than rebuilt, so the npm packages and the GitHub release archives
+        # carry the same bytes. Must land before the packages are generated:
+        # the `@pnpm/exe` wrapper copies dist/ too.
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: node-gyp-payload
+          path: node-gyp-payload
+
+      - name: Unpack node-gyp payload
+        run: tar xzf node-gyp-payload/node-gyp-payload.tar.gz -C pnpm/npm/pnpm
 
       - name: Generate npm packages
         # Rewrites the committed private `pacquet` wrapper into the publishable
@@ -794,8 +855,14 @@ jobs:
             mv extract/pnpm "${archive%.tar.gz}"
           done
 
-      - name: Bundle node-gyp
-        run: pnpm --filter=pacquet run bundle-node-gyp
+      - name: Restore node-gyp payload
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: node-gyp-payload
+          path: node-gyp-payload
+
+      - name: Unpack node-gyp payload
+        run: tar xzf node-gyp-payload/node-gyp-payload.tar.gz -C pnpm/npm/pnpm
 
       - name: Generate npm packages
         run: |
