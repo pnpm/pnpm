@@ -82,6 +82,16 @@ fn a_canonical_short_inside_an_attached_value_is_not_the_option() {
     );
 }
 
+/// A cluster ending in a value-taking short takes the next token as its
+/// value, so a directory that spells an alias is not read as one.
+#[test]
+fn a_cluster_s_separate_value_is_not_read_as_an_option() {
+    assert_eq!(
+        drop_aliases(&["pnpm", "-rC", "--prefix", "install"]),
+        ["pnpm", "-rC", "--prefix", "install"],
+    );
+}
+
 /// Only pnpm's own tokens are considered: a script's `--prefix` is the
 /// script's, and so is an option value that happens to spell one.
 #[test]

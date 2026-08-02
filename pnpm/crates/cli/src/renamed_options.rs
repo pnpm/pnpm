@@ -67,13 +67,8 @@ pub fn drop_shadowed_aliases(cmd: &Command, argv: Vec<OsString>) -> Vec<OsString
             }
             index += width;
         } else if let Some(rest) = token.strip_prefix('-').filter(|rest| !rest.is_empty()) {
-            let short = rest.chars().next().expect("checked non-empty");
-            let is_bare_short = rest.chars().count() == 1;
-            mark_canonical_shorts(rest, &arity, &mut canonical_seen);
-            index += token_width(
-                arity.short_consumes_value(short).unwrap_or(false) && is_bare_short,
-                false,
-            );
+            let consumes_next = scan_short_cluster(rest, &arity, &mut canonical_seen);
+            index += token_width(consumes_next, false);
         } else {
             index += 1;
         }
@@ -94,24 +89,29 @@ pub fn drop_shadowed_aliases(cmd: &Command, argv: Vec<OsString>) -> Vec<OsString
     argv
 }
 
-/// Record the canonical short options a `-abc` cluster names. The chars are
-/// read left to right and stop at the first option that takes a value,
-/// since everything past it is that value rather than more options.
-fn mark_canonical_shorts(
+/// Record the canonical short options a `-abc` cluster names, and report
+/// whether the cluster takes the next argv token as its value.
+///
+/// The chars are read left to right up to the first option that takes a
+/// value, since everything past it is that value rather than more options —
+/// attached when the cluster continues, the next token when it ends there.
+fn scan_short_cluster(
     cluster: &str,
     arity: &ArgTable,
     canonical_seen: &mut [bool; RENAMED_OPTIONS.len()],
-) {
-    for short in cluster.chars() {
+) -> bool {
+    let mut chars = cluster.chars();
+    while let Some(short) = chars.next() {
         for (option_index, option) in RENAMED_OPTIONS.iter().enumerate() {
             if option.canonical_short == Some(short) {
                 canonical_seen[option_index] = true;
             }
         }
         if arity.short_consumes_value(short).unwrap_or(false) {
-            break;
+            return chars.next().is_none();
         }
     }
+    false
 }
 
 #[cfg(test)]
