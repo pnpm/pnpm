@@ -600,8 +600,7 @@ where
     let next_ancestors: Vec<String> =
         ancestor_ids.iter().cloned().chain(std::iter::once(id.clone())).collect();
     let next_ancestors = Arc::new(next_ancestors);
-    let children_owner =
-        claim_children_owner(ctx, &id, depth, ancestor_ids, HashSet::default(), Some(&key));
+    let children_owner = claim_children_owner(ctx, &id, depth, ancestor_ids, HashSet::default());
 
     let children = if children_owner.owns_children {
         let child_results = child_refs

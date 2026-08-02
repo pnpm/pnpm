@@ -135,12 +135,6 @@ impl ChildrenOwner {
 #[derive(Debug, Clone)]
 struct ChildrenOwnerEntry {
     pub(super) owner: ChildrenOwner,
-    /// The owner occurrence's prior-lockfile key, which decides whether
-    /// its children came from the recorded snapshot or from a fresh
-    /// resolve. Two occurrences with different keys can resolve the same
-    /// package's children to different versions, so a later winner can
-    /// only reuse recorded children when its own key matches.
-    pub(super) prior_key: Option<PkgNameVerPeer>,
     /// The owner occurrence's peer-shadowed `dependencies` (see
     /// [`peer_shadowed_dependencies`]). Which names are shadowed
     /// depends on the parent scope, which differs per occurrence;
@@ -1157,7 +1151,6 @@ pub(super) fn claim_children_owner(
     depth: i32,
     ancestor_ids: &[String],
     peer_shadowed: HashSet<String>,
-    prior_key: Option<&PkgNameVerPeer>,
 ) -> ChildrenOwnerClaim {
     let owner = ChildrenOwner {
         update_active: !matches!(ctx.update_reuse_scope(), UpdateReuseScope::All),
@@ -1180,7 +1173,6 @@ pub(super) fn claim_children_owner(
                     pkg_id.to_string(),
                     ChildrenOwnerEntry {
                         owner: owner.clone(),
-                        prior_key: prior_key.cloned(),
                         peer_shadowed: Arc::clone(&peer_shadowed),
                     },
                 );

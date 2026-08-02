@@ -440,7 +440,6 @@ where
             parent_pkg_aliases,
             ctx.workspace.auto_install_peers,
         ),
-        prior_key.as_ref(),
     );
     let peer_dependencies = if is_link {
         BTreeMap::new()
