@@ -4645,6 +4645,7 @@ dependencies = [
  "reqwest",
  "tokio",
  "tracing",
+ "webpki-root-certs",
 ]
 
 [[package]]

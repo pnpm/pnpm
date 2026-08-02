@@ -739,6 +739,40 @@ fn node_extra_ca_certs_is_loaded_and_failures_are_non_fatal() {
     // `env` restores NODE_EXTRA_CA_CERTS on drop.
 }
 
+// `SSL_CERT_FILE` alone switches `rustls-native-certs` to env-only
+// loading, so pointing it at an empty file is a portable stand-in for a
+// machine whose system trust store holds nothing — the nixpkgs sandbox
+// of pnpm/pnpm#13588. Only the Linux/BSD platform verifier reads that
+// variable; the Apple and Windows ones go to the OS keychain.
+#[cfg(all(unix, not(target_vendor = "apple")))]
+#[test]
+fn for_installs_falls_back_to_bundled_roots_without_a_system_trust_store() {
+    let env = EnvGuard::snapshot(["SSL_CERT_FILE", "SSL_CERT_DIR", "NODE_EXTRA_CA_CERTS"]);
+    let empty_bundle =
+        std::env::temp_dir().join(format!("pacquet-empty-ca-{}.pem", std::process::id()));
+    std::fs::write(&empty_bundle, b"").expect("write empty ca bundle");
+    env.set("SSL_CERT_FILE", &empty_bundle);
+    env.set("SSL_CERT_DIR", &empty_bundle);
+    // An extra root of any kind keeps the platform verifier alive, so
+    // the fallback would go untested with the developer's own value.
+    env.set("NODE_EXTRA_CA_CERTS", "");
+
+    assert!(
+        reqwest::Client::builder().build().is_err(),
+        "precondition: the platform verifier must fail without a system trust store",
+    );
+
+    ThrottledClient::for_installs(
+        &ProxyConfig::default(),
+        &TlsConfig::default(),
+        &PerRegistryTls::default(),
+        &NetworkSettings::default(),
+    )
+    .expect("bundled Mozilla roots stand in for the missing system trust store");
+
+    let _ = std::fs::remove_file(&empty_bundle);
+}
+
 #[test]
 fn for_installs_local_address_pinned() {
     use std::net::Ipv4Addr;

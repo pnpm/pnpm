@@ -36,7 +36,7 @@ use std::{
     collections::HashMap,
     num::NonZeroUsize,
     ops::Deref,
-    sync::{Arc, Mutex},
+    sync::{Arc, LazyLock, Mutex},
     time::Duration,
 };
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
@@ -329,6 +329,9 @@ impl ThrottledClient {
     ///   as Node's `rejectUnauthorized=false` short-circuit.
     /// * **`local_address`.** Pinned via
     ///   `reqwest::ClientBuilder::local_address`.
+    /// * **Trust store.** The platform's, falling back to the Mozilla
+    ///   roots bundled into the binary when the platform verifier
+    ///   cannot be constructed (a system with no trust store at all).
     ///
     /// Returns [`ProxyError::InvalidProxy`] when either configured
     /// proxy URL fails to parse even after the auto-`http://` prefix
@@ -401,7 +404,9 @@ impl ThrottledClient {
         // bundle per call would re-read and re-parse it N times.
         let extra_ca_certs = load_node_extra_ca_certs();
 
-        let build_client = |effective_tls: &TlsConfig| -> Result<Client, ForInstallsError> {
+        let make_builder = |effective_tls: &TlsConfig,
+                            trust_roots: TrustRoots|
+         -> Result<reqwest::ClientBuilder, ForInstallsError> {
             let mut builder = default_client_builder(settings);
             if let Some(url) = https.clone() {
                 builder = builder.proxy(build_scheme_proxy(url, "https", Arc::clone(&no_proxy)));
@@ -415,10 +420,22 @@ impl ThrottledClient {
                 builder = builder.add_root_certificate(cert.clone());
             }
             builder = apply_tls(builder, effective_tls)?;
+            if trust_roots == TrustRoots::Bundled {
+                builder = builder.tls_certs_only(bundled_root_certs().iter().cloned());
+            }
             if let Some(guard) = redirect_guard {
                 builder = builder.redirect(allowlist_redirect_policy(Arc::clone(guard)));
             }
-            Ok(builder.build().expect("build reqwest client with default timeouts and proxy"))
+            Ok(builder)
+        };
+
+        let build_client = |effective_tls: &TlsConfig| -> Result<Client, ForInstallsError> {
+            match make_builder(effective_tls, TrustRoots::Platform)?.build() {
+                Ok(client) => Ok(client),
+                Err(platform_error) => make_builder(effective_tls, TrustRoots::Bundled)?
+                    .build()
+                    .map_err(|_| ForInstallsError::ClientBuild(platform_error)),
+            }
         };
 
         let default_client = build_client(tls)?;
@@ -648,6 +665,42 @@ fn default_client_builder(settings: &NetworkSettings) -> reqwest::ClientBuilder 
     configure_dns(builder)
 }
 
+/// Which trust anchors a client built by
+/// [`ThrottledClient::for_installs`] verifies registry certificates
+/// against.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TrustRoots {
+    /// The OS trust store, via reqwest's `rustls-platform-verifier`
+    /// backend. Picks up corporate / MITM roots an administrator
+    /// installed system-wide, which the bundled set cannot.
+    Platform,
+
+    /// The Mozilla root set compiled into the binary. Used only when
+    /// the platform verifier cannot be constructed at all — on a
+    /// machine with no system trust store, `rustls-platform-verifier`
+    /// fails the client build outright rather than degrading, and
+    /// pnpm-on-Node keeps working there because Node ships the same
+    /// bundled roots. Falling back restores that parity; it is never
+    /// preferred over the platform store, so a user who deliberately
+    /// distrusts a Mozilla root system-wide keeps that decision as
+    /// long as their store loads at all.
+    Bundled,
+}
+
+/// The Mozilla CA root set compiled into the binary, in reqwest's
+/// [`Certificate`] form. Parsed once — `for_installs` builds one
+/// client per per-registry override, and the fallback path is taken
+/// by every one of them on a system without a trust store.
+fn bundled_root_certs() -> &'static [Certificate] {
+    static CERTS: LazyLock<Vec<Certificate>> = LazyLock::new(|| {
+        webpki_root_certs::TLS_SERVER_ROOT_CERTS
+            .iter()
+            .map(|der| Certificate::from_der(der).expect("bundled Mozilla root is valid DER"))
+            .collect()
+    });
+    &CERTS
+}
+
 /// Load the PEM bundle named by `NODE_EXTRA_CA_CERTS` as extra trust
 /// roots, to be added to every client `for_installs` builds.
 ///
@@ -671,7 +724,7 @@ fn default_client_builder(settings: &NetworkSettings) -> reqwest::ClientBuilder 
 ///
 /// The resulting certs are additive and lowest-priority: layered under
 /// the `.npmrc` `ca` / `cafile` roots that [`apply_tls`] adds afterward
-/// and under the built-in webpki roots (ordering is immaterial — the
+/// and under the platform trust store (ordering is immaterial — the
 /// rustls root store is a union). A missing, unreadable, or malformed
 /// file yields an empty list, matching pnpm's silent treatment of a
 /// missing `cafile` rather than failing the client build.
@@ -817,6 +870,13 @@ pub enum ForInstallsError {
     /// fails fast rather than deadlock.
     #[display("networkConcurrency must be at least 1")]
     ZeroNetworkConcurrency,
+
+    /// reqwest rejected the assembled client configuration, with both
+    /// the platform trust store and the bundled Mozilla roots.
+    /// Carries the platform-verifier attempt's error — the one that
+    /// describes the environment.
+    #[display("Failed to build the HTTP client")]
+    ClientBuild(#[error(source)] reqwest::Error),
 }
 
 impl From<ProxyError> for ForInstallsError {

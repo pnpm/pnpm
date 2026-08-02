@@ -15,13 +15,21 @@
 //! material, silently ignores a missing `cafile`, and consults no
 //! environment variables. Pacquet mirrors each of those choices.
 //!
-//! One deliberate exception sits *outside* this struct: pacquet honors
-//! the `NODE_EXTRA_CA_CERTS` environment variable as an additional
-//! trust root (see `load_node_extra_ca_certs` in `lib.rs`). pnpm-on-
-//! Node already trusts that bundle implicitly via Node's TLS runtime,
-//! so a native port must read it explicitly to preserve real-world
-//! parity. It is applied at the client-builder layer, never folded
-//! into this `.npmrc`-only [`TlsConfig`].
+//! Two deliberate exceptions sit *outside* this struct, both applied
+//! at the client-builder layer and never folded into this
+//! `.npmrc`-only [`TlsConfig`]:
+//!
+//! * pacquet honors the `NODE_EXTRA_CA_CERTS` environment variable as
+//!   an additional trust root (see `load_node_extra_ca_certs` in
+//!   `lib.rs`). pnpm-on-Node already trusts that bundle implicitly via
+//!   Node's TLS runtime, so a native port must read it explicitly to
+//!   preserve real-world parity.
+//! * The default trust store is the platform's, but pacquet falls back
+//!   to the Mozilla roots bundled into the binary when the platform
+//!   verifier cannot be built at all (see `TrustRoots` in `lib.rs`).
+//!   Node ships those same roots, so the fallback keeps installs
+//!   working on a machine with no system trust store, exactly as
+//!   pnpm-on-Node does.
 
 use crate::auth::nerf_dart;
 use std::{collections::HashMap, net::IpAddr};
