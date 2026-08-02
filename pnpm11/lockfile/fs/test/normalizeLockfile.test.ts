@@ -1,5 +1,5 @@
 import { expect, test } from '@jest/globals'
-import { LOCKFILE_VERSION, LOCKFILE_VERSION_V12 } from '@pnpm/constants'
+import { LOCKFILE_VERSION } from '@pnpm/constants'
 import type { DepPath, ProjectId } from '@pnpm/types'
 
 import { convertToLockfileFile } from '../lib/lockfileFormatConverters.js'
@@ -95,41 +95,24 @@ test('redundant fields are removed from "time"', () => {
   })
 })
 
-test('a registry-qualified package key stamps 12.0 and an existing 12.0 version is sticky', () => {
-  const importers = {
-    ['.' as ProjectId]: {
-      dependencies: {
-        foo: 'work:1.0.0',
-      },
-      specifiers: {
-        foo: 'work:^1.0.0',
-      },
-    },
-  }
+test('a registry-qualified package key leaves the lockfile version alone', () => {
   const withQualifiedKey = convertToLockfileFile({
     lockfileVersion: LOCKFILE_VERSION,
-    importers,
+    importers: {
+      ['.' as ProjectId]: {
+        dependencies: { foo: 'work:1.0.0' },
+        specifiers: { foo: 'work:^1.0.0' },
+      },
+    },
     packages: {
       ['foo@work:1.0.0' as DepPath]: {
         resolution: { integrity: 'sha512-AAAA' },
       },
     },
   })
-  expect(withQualifiedKey.lockfileVersion).toBe(LOCKFILE_VERSION_V12)
 
-  const withoutQualifiedKey = convertToLockfileFile({
-    lockfileVersion: LOCKFILE_VERSION_V12,
-    importers: {
-      ['.' as ProjectId]: {
-        dependencies: { foo: '1.0.0' },
-        specifiers: { foo: '^1.0.0' },
-      },
-    },
-    packages: {
-      ['foo@1.0.0' as DepPath]: {
-        resolution: { integrity: 'sha512-AAAA' },
-      },
-    },
-  })
-  expect(withoutQualifiedKey.lockfileVersion).toBe(LOCKFILE_VERSION_V12)
+  // The key is additive, so it must not move the format: readers gate on the
+  // major, and anything outside 9.x is rejected outright by an older pnpm.
+  expect(withQualifiedKey.lockfileVersion).toBe(LOCKFILE_VERSION)
+  expect(Object.keys(withQualifiedKey.packages ?? {})).toStrictEqual(['foo@work:1.0.0'])
 })

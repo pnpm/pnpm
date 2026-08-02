@@ -19,7 +19,6 @@ export const pnpmTypes = {
   'deploy-all-files': Boolean,
   'dedupe-peer-dependents': Boolean,
   'dedupe-peers': Boolean,
-  'use-lockfile-v12': Boolean,
   'dedupe-direct-deps': Boolean,
   'dedupe-injected-deps': Boolean,
   dev: [null, true],

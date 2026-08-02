@@ -250,11 +250,7 @@ pub fn dependencies_graph_to_lockfile(
 
     let catalog_snapshots = build_catalog_snapshots(&importers, catalogs);
 
-    let lockfile_version = if packages.keys().any(|key| key.suffix.registry_qualified().is_some()) {
-        ComVer::new(12, 0)
-    } else {
-        ComVer::new(9, 0)
-    };
+    let lockfile_version = ComVer::new(9, 0);
     Ok(Lockfile {
         lockfile_version: LockfileVersion::<9>::try_from(lockfile_version)
             .expect("the generated lockfile version is supported"),

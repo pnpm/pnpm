@@ -322,7 +322,6 @@ export type InstallCommandOptions = Pick<Config,
 | 'dedupeDirectDeps'
 | 'dedupePeerDependents'
 | 'dedupePeers'
-| 'useLockfileV12'
 | 'deployAllFiles'
 | 'depth'
 | 'dev'

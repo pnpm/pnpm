@@ -123,7 +123,6 @@ export interface StrictInstallOptions {
   unsafePerm: boolean
   registries: Registries
   namedRegistries?: Record<string, string>
-  useLockfileV12?: boolean
   tag: string
   overrides: Record<string, string>
   ownLifecycleHooksStdio: 'inherit' | 'pipe'

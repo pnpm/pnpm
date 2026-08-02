@@ -130,8 +130,6 @@ export interface ResolveDependenciesOptions {
   nodeVersion?: string
   registries: Registries
   namedRegistries?: Record<string, string>
-  /** See `RequestPackageOptions.namedRegistryQualifiedIds`. */
-  namedRegistryQualifiedIds?: boolean
   patchedDependencies?: PatchGroupRecord
   pnpmVersion: string
   preferredVersions?: PreferredVersions
@@ -221,7 +219,6 @@ export async function resolveDependencyTree<T> (
         ...Object.keys(opts.namedRegistries ?? {}),
       ])
     ).map((alias) => `${alias}:`),
-    namedRegistryQualifiedIds: opts.namedRegistryQualifiedIds === true,
     resolvedPkgsById: {} as ResolvedPkgsById,
     resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
     resolutionMode: opts.resolutionMode,

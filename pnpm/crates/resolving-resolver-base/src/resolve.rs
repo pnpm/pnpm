@@ -353,7 +353,6 @@ pub struct ResolveOptions {
     /// that keeps the same name@version from different registries
     /// distinct. Mirrors the TypeScript
     /// `RequestPackageOptions.namedRegistryQualifiedIds`.
-    pub named_registry_qualified_ids: bool,
     /// `trustPolicy='no-downgrade'` gate. When `Some(NoDowngrade)`, the
     /// npm resolver rejects a freshly picked version whose trust
     /// evidence is weaker than an earlier-published version's — the

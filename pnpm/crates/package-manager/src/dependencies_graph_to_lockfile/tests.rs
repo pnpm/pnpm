@@ -2656,7 +2656,7 @@ fn named_registries_with(
 /// A canonical named-registry tarball drops its URL — it is rebuilt from
 /// the alias on read — and its presence stamps lockfile format 12.0.
 #[test]
-fn named_registry_package_stamps_12_0_and_drops_a_canonical_tarball() {
+fn named_registry_package_keeps_the_format_and_drops_a_canonical_tarball() {
     let (_tmp, manifest) = write_manifest(json!({
         "name": "fixture",
         "version": "1.0.0",
@@ -2681,7 +2681,8 @@ fn named_registry_package_stamps_12_0_and_drops_a_canonical_tarball() {
 
     let lockfile = dependencies_graph_to_lockfile(opts);
 
-    assert_eq!(lockfile.lockfile_version.major, 12);
+    // The registry-qualified key is additive, so it must not move the format.
+    assert_eq!(lockfile.lockfile_version.major, 9);
     assert_eq!(lockfile.lockfile_version.minor, 0);
 
     let packages = lockfile.packages.as_ref().expect("packages map");

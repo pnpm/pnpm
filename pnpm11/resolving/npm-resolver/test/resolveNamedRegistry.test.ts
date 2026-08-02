@@ -61,7 +61,7 @@ test('resolveFromNamedRegistry() resolves a scoped package published to GitHub P
   expect(resolveResult).toMatchObject({
     resolvedVia: 'named-registry',
     registryName: 'gh',
-    id: '@acme/private@2.1.0',
+    id: '@acme/private@gh:2.1.0',
     latest: '2.1.0',
     manifest: {
       name: '@acme/private',
@@ -102,7 +102,7 @@ test('resolveFromNamedRegistry() preserves the scoped package name when the alia
   expect(resolveResult).toMatchObject({
     resolvedVia: 'named-registry',
     registryName: 'gh',
-    id: '@acme/private@1.0.0',
+    id: '@acme/private@gh:1.0.0',
     manifest: {
       name: '@acme/private',
       version: '1.0.0',
@@ -143,7 +143,7 @@ test('resolveFromNamedRegistry() looks up the auth header by the named registry 
   expect(resolveResult).toMatchObject({
     resolvedVia: 'named-registry',
     registryName: 'gh',
-    id: '@acme/private@2.0.0',
+    id: '@acme/private@gh:2.0.0',
   })
 })
 
@@ -169,7 +169,7 @@ test('resolveFromNamedRegistry() honours a user-defined named registry from conf
   expect(resolveResult).toMatchObject({
     resolvedVia: 'named-registry',
     registryName: 'work',
-    id: '@acme/private@2.1.0',
+    id: '@acme/private@work:2.1.0',
     normalizedBareSpecifier: 'work:^2.1.0',
   })
 })
@@ -195,7 +195,7 @@ test('resolveFromNamedRegistry() allows user config to override the built-in gh 
   expect(resolveResult).toMatchObject({
     resolvedVia: 'named-registry',
     registryName: 'gh',
-    id: '@acme/private@2.1.0',
+    id: '@acme/private@gh:2.1.0',
   })
 })
 
@@ -295,7 +295,7 @@ test('the same package name served by two registries does not collide in the in-
   // Resolving from the gh registry first populates the shared in-memory cache.
   const ghResult = await resolveFromNamedRegistry({ alias: '@acme/private', bareSpecifier: 'gh:2.0.0' }, {})
   expect(ghResult).toMatchObject({
-    id: '@acme/private@2.0.0',
+    id: '@acme/private@gh:2.0.0',
     resolution: {
       tarball: 'https://npm.pkg.github.com/download/@acme/private/2.0.0/acme-private-2.0.0.tgz',
     },
@@ -307,7 +307,7 @@ test('the same package name served by two registries does not collide in the in-
   // cache key omitted the registry).
   const workResult = await resolveFromNamedRegistry({ alias: '@acme/private', bareSpecifier: 'work:2.0.0' }, {})
   expect(workResult).toMatchObject({
-    id: '@acme/private@2.0.0',
+    id: '@acme/private@work:2.0.0',
     resolution: {
       tarball: 'https://npm.enterprise.example.com/download/@acme/private/2.0.0/acme-private-2.0.0.tgz',
     },
@@ -346,7 +346,7 @@ test('resolveFromNamedRegistry() preserves vulnerability-avoidance range selecto
     }
   )
 
-  expect(resolveResult).toMatchObject({ id: '@acme/private@2.0.0' })
+  expect(resolveResult).toMatchObject({ id: '@acme/private@gh:2.0.0' })
 })
 
 test('resolveFromNamedRegistry() suppresses latest when publishedBy holds back the raw tag', async () => {
@@ -372,12 +372,12 @@ test('resolveFromNamedRegistry() suppresses latest when publishedBy holds back t
 
   expect(resolveResult).toMatchObject({
     resolvedVia: 'named-registry',
-    id: '@acme/private@2.0.0',
+    id: '@acme/private@gh:2.0.0',
   })
   expect(resolveResult!.latest).toBeUndefined()
 })
 
-test('resolveFromNamedRegistry() returns a registry-qualified id when namedRegistryQualifiedIds is set', async () => {
+test('resolveFromNamedRegistry() qualifies the id with the registry alias', async () => {
   interceptGhAcmePrivate()
 
   const { resolveFromNamedRegistry } = createNpmResolver(fetch, () => undefined, {
@@ -388,7 +388,7 @@ test('resolveFromNamedRegistry() returns a registry-qualified id when namedRegis
 
   const resolveResult = await resolveFromNamedRegistry(
     { alias: '@acme/private', bareSpecifier: 'gh:^2.0.0' },
-    { namedRegistryQualifiedIds: true }
+    {}
   )
 
   expect(resolveResult).toMatchObject({

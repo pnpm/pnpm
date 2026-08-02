@@ -53,7 +53,7 @@ test('createResolver() routes <alias>:@scope/pkg through the named-registry reso
   )
 
   expect(result.resolvedVia).toBe('named-registry')
-  expect(result.id).toBe('@acme/private@2.1.0')
+  expect(result.id).toBe('@acme/private@gh:2.1.0')
 })
 
 test('createResolver() routes a user-configured named registry alias through the named-registry resolver', async () => {
@@ -74,7 +74,7 @@ test('createResolver() routes a user-configured named registry alias through the
   )
 
   expect(result.resolvedVia).toBe('named-registry')
-  expect(result.id).toBe('@acme/private@2.1.0')
+  expect(result.id).toBe('@acme/private@work:2.1.0')
 })
 
 test.each([
@@ -104,7 +104,7 @@ test('createResolver() rejects a malformed named-registry alias', () => {
   })).toThrow(expect.objectContaining({ code: 'ERR_PNPM_RESERVED_NAMED_REGISTRY_NAME' }))
 })
 
-test('createResolver() resolves a registry-qualified id when namedRegistryQualifiedIds is set', async () => {
+test('createResolver() qualifies a named-registry id with the registry alias', async () => {
   interceptAcmePrivate(ENTERPRISE_REGISTRY)
 
   const { resolve } = createResolver(fetch, () => undefined, {
@@ -118,7 +118,7 @@ test('createResolver() resolves a registry-qualified id when namedRegistryQualif
 
   const result = await resolve(
     { bareSpecifier: 'work:@acme/private' },
-    { lockfileDir: '/test', projectDir: '/test', preferredVersions: {}, namedRegistryQualifiedIds: true }
+    { lockfileDir: '/test', projectDir: '/test', preferredVersions: {} }
   )
 
   expect(result.resolvedVia).toBe('named-registry')

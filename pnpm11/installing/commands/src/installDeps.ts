@@ -73,7 +73,6 @@ export type InstallDepsOptions = Pick<Config,
 | 'cleanupUnusedCatalogs'
 | 'dedupePeerDependents'
 | 'dedupePeers'
-| 'useLockfileV12'
 | 'depth'
 | 'dev'
 | 'enableGlobalVirtualStore'

@@ -757,13 +757,6 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         let named_registry_aliases: std::collections::HashSet<String> =
             merged_named_registries.keys().cloned().collect();
 
-        // Sticky: once a lockfile is on the 12.0 format, keep writing it even
-        // without the setting, so mixed-version teams don't ping-pong formats.
-        let named_registry_qualified_ids = config.use_lockfile_v12
-            || wanted_lockfile
-                .as_ref()
-                .is_some_and(|lockfile| lockfile.lockfile_version.major == 12);
-
         // `resolutionMode` / `minimumReleaseAge` derivations. `time_based`
         // and `pick_lowest_direct` steer the deps-resolver's per-depth
         // version pick; `full_metadata` forces the npm resolver to fetch
@@ -1420,7 +1413,6 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         {
             let resolve_options = ResolveOptions {
                 preferred_versions: Arc::clone(&preferred_versions_seed),
-                named_registry_qualified_ids,
                 default_tag: Some("latest".to_string()),
                 published_by,
                 published_by_exclude: published_by_exclude.clone(),
@@ -1564,7 +1556,6 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                     subdep_published_by: published_by,
                     base_opts: ResolveOptions {
                         preferred_versions: Arc::clone(importer_preferred_versions),
-                        named_registry_qualified_ids,
                         default_tag: Some("latest".to_string()),
                         published_by,
                         published_by_exclude: published_by_exclude.clone(),
@@ -1756,7 +1747,6 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 catalogs: &catalogs,
                 pnpmfile_checksum: pnpmfile_checksum.as_deref(),
                 patched_dependency_hashes: patched_dependency_hashes.as_ref(),
-                named_registry_qualified_ids,
                 previous_importers: guard_previous_importers,
                 update_reuse_scope: guard_update_reuse_scope.clone(),
                 update_reuse_scopes_by_importer: guard_update_reuse_scopes_by_importer.clone(),
@@ -1924,7 +1914,6 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             catalogs: &catalogs,
             pnpmfile_checksum: pnpmfile_checksum.as_deref(),
             patched_dependency_hashes: patched_dependency_hashes.as_ref(),
-            named_registry_qualified_ids,
             previous_importers: guard_previous_importers,
             update_reuse_scope: guard_update_reuse_scope.clone(),
             update_reuse_scopes_by_importer: guard_update_reuse_scopes_by_importer.clone(),
@@ -3021,7 +3010,6 @@ struct FreshLockfileBuildOptions<'a> {
     catalogs: &'a pacquet_catalogs_types::Catalogs,
     pnpmfile_checksum: Option<&'a str>,
     patched_dependency_hashes: Option<&'a BTreeMap<String, String>>,
-    named_registry_qualified_ids: bool,
     /// The previous run's lockfile importer entries, threaded into the
     /// pnpm/pnpm#10433 guard so an untouched workspace dependency keeps
     /// its prior `link:` entry. `None` on a first install.
@@ -3048,7 +3036,6 @@ fn build_fresh_lockfile(
         catalogs,
         pnpmfile_checksum,
         patched_dependency_hashes,
-        named_registry_qualified_ids,
         previous_importers,
         update_reuse_scope,
         update_reuse_scopes_by_importer,
@@ -3069,7 +3056,7 @@ fn build_fresh_lockfile(
             .map(|(name, url)| ((*name).to_string(), (*url).to_string()))
             .chain(config.named_registries.iter().map(|(name, url)| (name.clone(), url.clone())))
             .collect();
-    let mut lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
+    let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
         importers,
         graph,
         auto_install_peers: config.auto_install_peers,
@@ -3092,11 +3079,6 @@ fn build_fresh_lockfile(
         update_reuse_scope,
         update_reuse_scopes_by_importer,
     })?;
-    if named_registry_qualified_ids {
-        lockfile.lockfile_version =
-            pacquet_lockfile::LockfileVersion::<9>::try_from(pacquet_lockfile::ComVer::new(12, 0))
-                .expect("lockfileVersion 12.0 is supported");
-    }
     Ok(lockfile)
 }
 

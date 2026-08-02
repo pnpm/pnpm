@@ -411,8 +411,6 @@ export interface ResolveOptions {
   injectWorkspacePackages?: boolean
   calcSpecifier?: boolean
   rangeSpecStyle?: RangeSpecStyle
-  /** See `RequestPackageOptions.namedRegistryQualifiedIds`. */
-  namedRegistryQualifiedIds?: boolean
   currentPkg?: {
     id: PkgResolutionId
     name?: string

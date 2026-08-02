@@ -241,7 +241,6 @@ export interface Config extends OptionsFromRootManifest {
   allowBuilds?: Record<string, boolean | string>
   dedupePeerDependents?: boolean
   dedupePeers?: boolean
-  useLockfileV12?: boolean
   patchesDir?: string
   ignoreWorkspace?: boolean
   ignoreWorkspaceCycles?: boolean

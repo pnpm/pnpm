@@ -206,8 +206,6 @@ export interface ResolutionContext {
   registries: Registries
   namedRegistries?: Record<string, string>
   namedRegistryPrefixes: readonly string[]
-  /** See `RequestPackageOptions.namedRegistryQualifiedIds`. */
-  namedRegistryQualifiedIds: boolean
   resolutionMode?: 'highest' | 'time-based' | 'lowest-direct'
   virtualStoreDir: string
   virtualStoreDirMaxLength: number
@@ -1979,7 +1977,6 @@ async function resolveDependency (
         updateRequested: options.updateRequested,
         updateChecksums: options.updateChecksums,
         workspacePackages: ctx.workspacePackages,
-        namedRegistryQualifiedIds: ctx.namedRegistryQualifiedIds,
         supportedArchitectures: options.supportedArchitectures,
         onFetchError: (err: any) => { // eslint-disable-line
           err.prefix = options.prefix
@@ -2474,9 +2471,9 @@ export function detectNamedRegistryCollision (
   }
   throw new PnpmError(
     'NAMED_REGISTRY_PACKAGE_COLLISION',
-    `"${resolved.name}@${resolved.version}" is provided by more than one registry, but the lockfile cannot record which registry each dependency came from.`,
+    `"${resolved.name}@${resolved.version}" resolved to two different artifacts under one identity.`,
     {
-      hint: 'Set "useLockfileV12: true" in pnpm-workspace.yaml. That upgrades the lockfile to format 12.0, which keys each package by the registry it came from and lets the same name and version coexist. Without it, one of the two would silently be installed from the wrong registry.',
+      hint: 'A registry served different content for the same package name and version. Continuing would hand one dependency the other artifact\'s bytes, so the install stops here.',
     }
   )
 }

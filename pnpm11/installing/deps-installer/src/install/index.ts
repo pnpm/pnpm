@@ -12,9 +12,8 @@ import { parseOverrides } from '@pnpm/config.parse-overrides'
 import { createPackageVersionPolicyOrThrow, getPublishedByPolicy } from '@pnpm/config.version-policy'
 import {
   LAYOUT_VERSION,
+  LOCKFILE_MAJOR_VERSION,
   LOCKFILE_VERSION,
-  LOCKFILE_VERSION_V12,
-  SUPPORTED_LOCKFILE_VERSIONS,
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import {
@@ -692,7 +691,7 @@ export async function mutateModules (
       }
     }
     const _isWantedDepBareSpecifierSame = isWantedDepBareSpecifierSame.bind(null, ctx.wantedLockfile.catalogs, opts.catalogs)
-    const supportedLockfileVersion = SUPPORTED_LOCKFILE_VERSIONS.includes(ctx.wantedLockfile.lockfileVersion)
+    const upToDateLockfileMajorVersion = ctx.wantedLockfile.lockfileVersion.toString().startsWith(`${LOCKFILE_MAJOR_VERSION}.`)
     let didFastUpdateOverrides = false
     const contextProjects = Object.values(ctx.projects)
     const hasChangedSpecifiers = outdatedLockfileSettingName == null &&
@@ -719,7 +718,7 @@ export async function mutateModules (
       !opts.hooks.afterAllResolved?.length &&
       opts.hooks.customResolvers == null &&
       !ctx.lockfileHadConflicts &&
-      SUPPORTED_LOCKFILE_VERSIONS.includes(ctx.wantedLockfile.lockfileVersion) &&
+      ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION &&
       !isEmptyLockfile(ctx.wantedLockfile) &&
       (!opts.pruneLockfileImporters || Object.keys(ctx.wantedLockfile.importers).length === Object.keys(ctx.projects).length) &&
       ctx.wantedLockfile.time == null
@@ -794,8 +793,7 @@ export async function mutateModules (
     let needsFullResolution = outdatedLockfileSettings ||
       opts.fixLockfile ||
       opts.updateChecksums ||
-      !supportedLockfileVersion ||
-      lockfileV12UpgradePending(ctx.wantedLockfile, opts) ||
+      !upToDateLockfileMajorVersion ||
       opts.forceFullResolution ||
       forceResolutionFromHook
     if (needsFullResolution) {
@@ -826,7 +824,7 @@ export async function mutateModules (
       frozenLockfile,
       needsFullResolution,
       patchGroups,
-      supportedLockfileVersion,
+      upToDateLockfileMajorVersion,
     })
     if (frozenInstallResult !== null) {
       if ('needsFullResolution' in frozenInstallResult) {
@@ -1097,13 +1095,13 @@ export async function mutateModules (
     frozenLockfile,
     needsFullResolution,
     patchGroups,
-    supportedLockfileVersion,
+    upToDateLockfileMajorVersion,
   }: {
     didFastUpdateOverrides: boolean
     frozenLockfile: boolean
     needsFullResolution: boolean
     patchGroups?: PatchGroupRecord
-    supportedLockfileVersion: boolean
+    upToDateLockfileMajorVersion: boolean
   }): Promise<InnerInstallResult | { needsFullResolution: boolean } | null> {
     const isFrozenInstallPossible =
       // A frozen install is never possible when any of these are true:
@@ -1130,7 +1128,7 @@ export async function mutateModules (
         opts.preferFrozenLockfile &&
         (!opts.pruneLockfileImporters || Object.keys(ctx.wantedLockfile.importers).length === Object.keys(ctx.projects).length) &&
         !isEmptyLockfile(ctx.wantedLockfile) &&
-        SUPPORTED_LOCKFILE_VERSIONS.includes(ctx.wantedLockfile.lockfileVersion) &&
+        ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION &&
         await allProjectsAreUpToDate(Object.values(ctx.projects), {
           catalogs: opts.catalogs,
           autoInstallPeers: opts.autoInstallPeers,
@@ -1257,7 +1255,7 @@ Note that in CI environments, this setting is enabled by default.`,
       })
       if (
         opts.useLockfile && opts.saveLockfile && opts.mergeGitBranchLockfiles ||
-        !supportedLockfileVersion && !opts.frozenLockfile
+        !upToDateLockfileMajorVersion && !opts.frozenLockfile
       ) {
         const currentLockfileDir = path.join(ctx.rootModulesDir, '.pnpm')
         await writeLockfiles({
@@ -1623,7 +1621,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   for (const [pkgName, selectors] of Object.entries(opts.preferredVersions ?? {})) {
     preferredVersions[pkgName] = { ...preferredVersions[pkgName], ...selectors }
   }
-  const forceFullResolution = !SUPPORTED_LOCKFILE_VERSIONS.includes(ctx.wantedLockfile.lockfileVersion) ||
+  const forceFullResolution = ctx.wantedLockfile.lockfileVersion !== LOCKFILE_VERSION ||
     !opts.currentLockfileIsUpToDate ||
     opts.force ||
     opts.needsFullResolution ||
@@ -1702,10 +1700,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       preserveWorkspaceProtocol: opts.preserveWorkspaceProtocol,
       registries: ctx.registries,
       namedRegistries: opts.namedRegistries,
-      // Sticky: once a lockfile is on the 12.0 format, keep writing it even
-      // without the opt-in, so mixed-version teams don't ping-pong formats.
-      namedRegistryQualifiedIds: opts.useLockfileV12 === true ||
-        ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION_V12,
       resolutionMode: opts.resolutionMode,
       saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
       storeController: opts.storeController,
@@ -1814,16 +1808,8 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     ? await pipeWith(async (f, res) => f(await res), opts.hooks.afterAllResolved as any)(newLockfile) as LockfileObject // eslint-disable-line
     : newLockfile
 
-  if (opts.useLockfileV12 === true ||
-    ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION_V12) {
-    newLockfile.lockfileVersion = LOCKFILE_VERSION_V12
-  }
-
   if (opts.updateLockfileMinorVersion) {
-    newLockfile.lockfileVersion = opts.useLockfileV12 === true ||
-      ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION_V12
-      ? LOCKFILE_VERSION_V12
-      : LOCKFILE_VERSION
+    newLockfile.lockfileVersion = LOCKFILE_VERSION
   }
 
   const depsStateCache: DepsStateCache = {}
@@ -2394,7 +2380,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
           ignoreIncompatible: opts.force || opts.ci === true,
           mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
           useGitBranchLockfile: opts.useGitBranchLockfile,
-          wantedVersions: SUPPORTED_LOCKFILE_VERSIONS,
+          wantedVersions: [LOCKFILE_VERSION],
         })
         if (wantedLockfile == null) {
           throw new PnpmError('PACQUET_LOCKFILE_READ_FAILED', `pacquet did not write a readable ${WANTED_LOCKFILE}`)
@@ -2485,14 +2471,6 @@ function getProjectsWithTargetDirs<T extends { id: ProjectId }> (
     }
   }
   return extendProjectsWithTargetDirs(projects, injectionTargetsByDepPath)
-}
-
-function lockfileV12UpgradePending (
-  wantedLockfile: LockfileObject,
-  opts: { useLockfileV12?: boolean }
-): boolean {
-  return opts.useLockfileV12 === true &&
-    wantedLockfile.lockfileVersion !== LOCKFILE_VERSION_V12
 }
 
 /**

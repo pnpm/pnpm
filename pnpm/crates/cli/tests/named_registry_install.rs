@@ -67,39 +67,28 @@ fn install_records_a_plain_named_registry_dependency() {
         lockfile_entry(&workspace, "@pnpm.e2e/foo"),
         Some(("work:1.0.0".to_string(), "work:1.0.0".to_string())),
     );
-    assert_eq!(lockfile_version(&workspace), "12.0");
+    // Registry-qualified keys are additive, so recording one must not move
+    // the lockfile format: an older pnpm reading this file gates on the major
+    // and would reject anything outside 9.x outright.
+    assert_eq!(lockfile_version(&workspace), "9.0");
 
     drop((root, anchor));
 }
 
+/// A lockfile carrying registry-qualified keys has to replay through a
+/// frozen install, which reads the keys back rather than re-resolving them.
 #[test]
-fn default_format_stamps_12_without_a_named_registry_dependency() {
+fn frozen_install_replays_a_registry_qualified_lockfile() {
     let (root, workspace, anchor) = setup();
 
-    write_manifest(&workspace, r"{}");
-    pacquet(&workspace, ["install"]).assert().success();
-
-    assert_eq!(lockfile_version(&workspace), "12.0");
-
-    drop((root, anchor));
-}
-
-#[test]
-fn frozen_install_accepts_the_previous_format_without_migrating_it() {
-    let (root, workspace, anchor) = setup();
-    append_workspace_yaml_key(&workspace, "useLockfileV12", "false");
     write_manifest(&workspace, r#"{ "@pnpm.e2e/foo": "work:1.0.0" }"#);
     pacquet(&workspace, ["install"]).assert().success();
 
-    let workspace_manifest_path = workspace.join("pnpm-workspace.yaml");
-    let previous_workspace_manifest =
-        fs::read_to_string(&workspace_manifest_path).expect("read pnpm-workspace.yaml");
-    let workspace_manifest =
-        previous_workspace_manifest.replace("useLockfileV12: false", "useLockfileV12: true");
-    assert_ne!(workspace_manifest, previous_workspace_manifest);
-    fs::write(workspace_manifest_path, workspace_manifest).expect("write pnpm-workspace.yaml");
-
     pacquet(&workspace, ["install", "--frozen-lockfile"]).assert().success();
+    assert_eq!(
+        lockfile_entry(&workspace, "@pnpm.e2e/foo"),
+        Some(("work:1.0.0".to_string(), "work:1.0.0".to_string())),
+    );
     assert_eq!(lockfile_version(&workspace), "9.0");
 
     drop((root, anchor));

@@ -3,7 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { expect, jest, test } from '@jest/globals'
-import { LOCKFILE_VERSION, LOCKFILE_VERSION_V12 } from '@pnpm/constants'
+import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { lockfileVerificationLogger } from '@pnpm/core-loggers'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
@@ -572,7 +572,7 @@ test('registry-qualified entries are verified separately, each with its own regi
     'foo@1.0.0': { resolution: tarballResolution() },
     'foo@work:1.0.0': { resolution: tarballResolution() },
     'foo@gh:1.0.0': { resolution: tarballResolution() },
-  }, LOCKFILE_VERSION_V12)
+  }, LOCKFILE_VERSION)
 
   const seen: Array<{ name: string, version: string, registryName?: string }> = []
   const recordingVerifier = wrap(async (_resolution, ctx) => {

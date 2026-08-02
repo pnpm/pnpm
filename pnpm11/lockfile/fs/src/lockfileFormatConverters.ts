@@ -1,4 +1,4 @@
-import { LOCKFILE_VERSION, LOCKFILE_VERSION_V12 } from '@pnpm/constants'
+import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { parse, refToRelative, removeSuffix } from '@pnpm/deps.path'
 import type {
   LockfileFile,
@@ -49,10 +49,7 @@ export function convertToLockfileFile (lockfile: LockfileObject): LockfileFile {
     ...lockfile,
     snapshots,
     packages,
-    lockfileVersion: lockfile.lockfileVersion === LOCKFILE_VERSION_V12 ||
-      Object.keys(packages).some((pkgId) => parse(pkgId).registryName != null)
-      ? LOCKFILE_VERSION_V12
-      : LOCKFILE_VERSION,
+    lockfileVersion: LOCKFILE_VERSION,
     importers: mapValues(lockfile.importers, convertProjectSnapshotToInlineSpecifiersFormat),
   }
   if (newLockfile.settings?.peersSuffixMaxLength === 1000) {

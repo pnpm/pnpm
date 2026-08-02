@@ -156,12 +156,6 @@ export interface RequestPackageOptions {
   injectWorkspacePackages?: boolean
   calcSpecifier?: boolean
   rangeSpecStyle?: RangeSpecStyle
-  /**
-   * Resolve named-registry packages to registry-qualified resolution ids
-   * (`<name>@<registryName>:<version>`) — the lockfile 12.0 format that keeps
-   * the same name@version from different registries distinct.
-   */
-  namedRegistryQualifiedIds?: boolean
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: PackageVersionPolicy
   trustPolicyIgnoreAfter?: number

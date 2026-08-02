@@ -1,13 +1,6 @@
 export const WANTED_LOCKFILE = 'pnpm-lock.yaml'
 export const LOCKFILE_MAJOR_VERSION = '9'
 export const LOCKFILE_VERSION = `${LOCKFILE_MAJOR_VERSION}.0`
-/**
- * The lockfile format that records named-registry packages under
- * registry-qualified keys (`<name>@<registryName>:<version>`). pnpm 11 writes
- * it in opt-in or sticky mode; pnpm 12 writes it by default.
- */
-export const LOCKFILE_VERSION_V12 = '12.0'
-export const SUPPORTED_LOCKFILE_VERSIONS = [LOCKFILE_VERSION, LOCKFILE_VERSION_V12]
 
 export const MANIFEST_BASE_NAMES = ['package.json', 'package.json5', 'package.yaml'] as const
 

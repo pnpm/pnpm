@@ -205,7 +205,6 @@ fn pnpm_reads_pacquet_written_rows() {
         },
     });
     fs::write(manifest_path, package_json_content.to_string()).expect("write to package.json");
-    append_workspace_yaml_key(&workspace, "useLockfileV12", "false");
 
     eprintln!("pacquet install (populates store with msgpackr records)...");
     pacquet.with_arg("install").assert().success();

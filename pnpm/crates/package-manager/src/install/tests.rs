@@ -5349,7 +5349,7 @@ async fn fresh_install_writes_pnpm_lock_yaml_with_expected_shape() {
     let content = std::fs::read_to_string(&lockfile_path).expect("read lockfile");
     let lockfile: Lockfile = serde_saphyr::from_str(&content).expect("parse fresh lockfile");
 
-    assert_eq!(lockfile.lockfile_version.major, 12);
+    assert_eq!(lockfile.lockfile_version.major, 9);
     let importer = lockfile.root_project().expect("root importer recorded");
     let deps = importer.dependencies.as_ref().expect("dependencies map");
     let hello_key: pacquet_lockfile::PkgName =
@@ -5848,7 +5848,7 @@ async fn fresh_install_also_writes_current_lockfile_under_virtual_store() {
     let content = std::fs::read_to_string(&current_lockfile_path).expect("read current lockfile");
     let current_lockfile: Lockfile =
         serde_saphyr::from_str(&content).expect("parse current lockfile");
-    assert_eq!(current_lockfile.lockfile_version.major, 12);
+    assert_eq!(current_lockfile.lockfile_version.major, 9);
     let importer = current_lockfile.root_project().expect("root importer");
     let key = pacquet_lockfile::PkgName::parse("@pnpm.e2e/hello-world-js-bin").unwrap();
     assert!(

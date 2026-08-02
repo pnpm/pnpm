@@ -66,7 +66,6 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'configDependencies'
 | 'dedupePeerDependents'
 | 'dedupePeers'
-| 'useLockfileV12'
 | 'depth'
 | 'dryRun'
 | 'globalPnpmfile'

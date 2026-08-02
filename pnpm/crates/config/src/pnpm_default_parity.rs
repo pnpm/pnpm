@@ -101,17 +101,8 @@ const NOT_PORTED: &[&str] = &[
 /// is exactly what the rest of this module exists to prevent. Add a row
 /// only for a staged rollout whose end state is convergence, and delete
 /// it once both stacks agree.
-fn divergent_rows(cfg: &Config) -> Vec<(&'static str, Scalar, &'static str)> {
-    use Scalar::Bool;
-    vec![(
-        "use-lockfile-v12",
-        Bool(cfg.use_lockfile_v12),
-        "Lockfile format 12.0 ships opt-in on the v11 TypeScript CLI and on by \
-         default here (v12). Both stacks read 12.0 unconditionally, and a lockfile \
-         already on 12.0 keeps the format on either CLI, so the divergence only \
-         affects which stack introduces the format first. Remove this row when \
-         the TypeScript CLI defaults it on too.",
-    )]
+fn divergent_rows(_cfg: &Config) -> Vec<(&'static str, Scalar, &'static str)> {
+    Vec::new()
 }
 
 /// `(pnpm key, pacquet default rendered as a [`Scalar`])` for every

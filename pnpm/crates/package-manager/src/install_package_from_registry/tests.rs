@@ -87,7 +87,6 @@ fn create_config(
         external_dependencies: Default::default(),
         dedupe_peer_dependents: false,
         dedupe_peers: false,
-        use_lockfile_v12: true,
         dedupe_direct_deps: true,
         dedupe_injected_deps: false,
         strict_peer_dependencies: false,
