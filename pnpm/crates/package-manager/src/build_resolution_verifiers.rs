@@ -106,10 +106,12 @@ pub fn build_resolution_verifiers(
         trust_policy_exclude_patterns: config.trust_policy_exclude.clone().unwrap_or_default(),
         trust_policy_ignore_after: config.trust_policy_ignore_after,
         registries,
-        // Built-ins are merged in here rather than inside the verifier, so the
-        // verifier's two views of the set cannot disagree with the resolver's.
-        // Validation already ran at config load; an invalid alias cannot reach
-        // this point, so the merge is taken infallibly.
+        // Merged here rather than inside the verifier so its name lookup and
+        // its tarball-prefix routing cannot disagree about which registries
+        // exist. Taken infallibly: every install entry point runs the same
+        // user map through `merge_named_registries` before verification is
+        // reachable, so a malformed URL or reserved name has already aborted
+        // the install.
         named_registries: KnownRegistries::new(
             &config
                 .named_registries
