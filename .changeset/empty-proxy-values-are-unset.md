@@ -2,4 +2,4 @@
 "pacquet": patch
 ---
 
-Empty `http-proxy`, `https-proxy`, or `proxy` values — from the `.npmrc`, the CLI, or the `HTTP_PROXY` / `HTTPS_PROXY` / `PROXY` environment variables — are now treated as "no proxy", matching the TypeScript pnpm CLI. Previously pnpm failed with `ERR_PNPM_INVALID_PROXY` when one of these was set to an empty string, e.g. a shell exporting `HTTP_PROXY=` to disable a proxy [#13533](https://github.com/pnpm/pnpm/issues/13533).
+An empty `http-proxy`, `https-proxy`, `proxy`, or `no-proxy` value — from the `.npmrc`, `pnpm-workspace.yaml`, the CLI, or the `HTTP_PROXY` / `HTTPS_PROXY` / `PROXY` / `NO_PROXY` environment variables — no longer fails the install with `ERR_PNPM_INVALID_PROXY`. Empty settings are treated as unset, so a shell exporting `HTTP_PROXY=` disables the proxy, and an empty setting in a config file or on the command line lets the next source in the cascade apply [#13533](https://github.com/pnpm/pnpm/issues/13533).

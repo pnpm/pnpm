@@ -680,6 +680,52 @@ fn cascade_http_proxy_env_fallback_chain_proxy_var() {
 }
 
 #[test]
+fn cascade_empty_npmrc_proxy_keys_fall_through_to_env() {
+    static_env!(
+        AllProxyEnvs,
+        &[
+            ("HTTPS_PROXY", "http://https-env.example:8080"),
+            ("HTTP_PROXY", "http://http-env.example:8080"),
+            ("NO_PROXY", "skip.example"),
+        ]
+    );
+    let auth =
+        NpmrcAuth::from_ini::<NoEnv>("https-proxy=\nhttp-proxy=\nno-proxy=\n", Path::new(""));
+    let mut config = Config::new();
+    auth.apply_to::<AllProxyEnvs>(&mut config);
+    assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://https-env.example:8080"));
+    assert_eq!(config.proxy.http_proxy.as_deref(), Some("http://https-env.example:8080"));
+    assert_eq!(config.proxy.no_proxy, Some(NoProxySetting::List(vec!["skip.example".to_string()])));
+}
+
+#[test]
+fn cascade_empty_https_proxy_key_falls_through_to_legacy_proxy_key() {
+    let auth = NpmrcAuth::from_ini::<NoEnv>(
+        "https-proxy=\nproxy=http://legacy.example:8080\n",
+        Path::new(""),
+    );
+    let mut config = Config::new();
+    auth.apply_to::<NoEnv>(&mut config);
+    assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://legacy.example:8080"));
+}
+
+/// An empty env var still shadows the lower-priority env vars below it,
+/// leaving no proxy — the TypeScript CLI resolves `HTTPS_PROXY=` the same
+/// way, and the empty value is dropped when the client is built.
+#[test]
+fn cascade_empty_https_proxy_env_shadows_http_proxy_env() {
+    static_env!(
+        EmptyHttpsEnv,
+        &[("HTTPS_PROXY", ""), ("HTTP_PROXY", "http://http-env.example:8080")]
+    );
+    let auth = NpmrcAuth::default();
+    let mut config = Config::new();
+    auth.apply_to::<EmptyHttpsEnv>(&mut config);
+    assert_eq!(config.proxy.https_proxy.as_deref(), Some(""));
+    assert_eq!(config.proxy.http_proxy.as_deref(), Some(""));
+}
+
+#[test]
 fn cascade_env_var_lowercase_lookup() {
     static_env!(LowercaseEnv, &[("https_proxy", "http://lower.example:8080")]);
     let auth = NpmrcAuth::default();

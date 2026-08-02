@@ -1273,15 +1273,25 @@ impl WorkspaceSettings {
         proxy_config: &mut pacquet_network::ProxyConfig,
         http_proxy_is_explicit: bool,
     ) {
-        if let Some(value) = self.https_proxy.as_ref().or(self.proxy.as_ref()) {
-            proxy_config.https_proxy = Some(value.clone());
+        // Empty values are skipped so a lower-priority source still applies —
+        // see the empty-value contract on `ProxyConfig`.
+        let https_proxy = self.https_proxy.as_deref().filter(|value| !value.is_empty());
+        let http_proxy = self.http_proxy.as_deref().filter(|value| !value.is_empty());
+        let legacy_proxy = self.proxy.as_deref().filter(|value| !value.is_empty());
+        if let Some(value) = https_proxy.or(legacy_proxy) {
+            proxy_config.https_proxy = Some(value.to_string());
         }
-        if let Some(value) = &self.http_proxy {
-            proxy_config.http_proxy = Some(value.clone());
-        } else if (self.https_proxy.is_some() || self.proxy.is_some()) && !http_proxy_is_explicit {
+        if let Some(value) = http_proxy {
+            proxy_config.http_proxy = Some(value.to_string());
+        } else if (https_proxy.is_some() || legacy_proxy.is_some()) && !http_proxy_is_explicit {
             proxy_config.http_proxy.clone_from(&proxy_config.https_proxy);
         }
-        if let Some(value) = self.no_proxy.as_ref().or(self.noproxy.as_ref()) {
+        let no_proxy = self
+            .no_proxy
+            .as_ref()
+            .or(self.noproxy.as_ref())
+            .filter(|value| value.as_str() != Some(""));
+        if let Some(value) = no_proxy {
             proxy_config.no_proxy = match value {
                 serde_json::Value::Bool(true) => Some(pacquet_network::NoProxySetting::Bypass),
                 serde_json::Value::Bool(false) | serde_json::Value::Null => None,

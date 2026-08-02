@@ -1875,13 +1875,18 @@ impl Config {
 
     /// Overlays proxy options after file and environment settings have been
     /// resolved. An HTTPS proxy also serves HTTP unless a lower-priority source
-    /// explicitly configured the HTTP proxy.
+    /// explicitly configured the HTTP proxy. An empty flag value leaves the
+    /// resolved proxy alone — see the empty-value contract on
+    /// [`pacquet_network::ProxyConfig`].
     pub fn apply_proxy_cli_overrides(
         &mut self,
         https_proxy: Option<&str>,
         http_proxy: Option<&str>,
         no_proxy: Option<&str>,
     ) {
+        let https_proxy = https_proxy.filter(|value| !value.is_empty());
+        let http_proxy = http_proxy.filter(|value| !value.is_empty());
+        let no_proxy = no_proxy.filter(|value| !value.is_empty());
         for (proxy, http_proxy_is_explicit) in [
             (&mut self.proxy, self.http_proxy_is_explicit),
             (

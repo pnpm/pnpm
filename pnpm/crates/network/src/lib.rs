@@ -396,9 +396,7 @@ impl ThrottledClient {
         if settings.network_concurrency == 0 {
             return Err(ForInstallsError::ZeroNetworkConcurrency);
         }
-        // Empty values are treated as unset, matching the TypeScript CLI
-        // (pnpm/pnpm#13533): a shell that exports `HTTP_PROXY=` must not
-        // fail the install.
+        // See the empty-value contract on `ProxyConfig`.
         let https = proxy
             .https_proxy
             .as_deref()

@@ -1299,6 +1299,52 @@ pub fn cli_https_proxy_precedes_standard_http_proxy_environment_fallback() {
     assert_eq!(config.package_manager_bootstrap.proxy, config.proxy);
 }
 
+#[test]
+pub fn empty_cli_proxy_flags_preserve_the_resolved_proxy() {
+    fake_env!(load_with_fake_env);
+    let project = tempdir().expect("project tempdir");
+    write_file(
+        &project.path().join(".npmrc"),
+        "https-proxy=http://npmrc-proxy.example.com:8443\nno-proxy=skip.example\n",
+    );
+    set_fake_env(&[]);
+
+    let mut config = load_with_fake_env(project.path());
+    config.apply_proxy_cli_overrides(Some(""), Some(""), Some(""));
+
+    assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://npmrc-proxy.example.com:8443"));
+    assert_eq!(config.proxy.http_proxy.as_deref(), Some("http://npmrc-proxy.example.com:8443"));
+    assert_eq!(
+        config.proxy.no_proxy,
+        Some(pacquet_network::NoProxySetting::List(vec!["skip.example".to_string()])),
+    );
+}
+
+#[test]
+pub fn empty_global_config_yaml_proxy_settings_preserve_project_npmrc() {
+    fake_env!(load_with_fake_env);
+    let project = tempdir().expect("project tempdir");
+    write_file(
+        &project.path().join(".npmrc"),
+        "https-proxy=http://npmrc-proxy.example.com:8443\nno-proxy=skip.example\n",
+    );
+    let xdg = tempdir().expect("config tempdir");
+    let config_dir = xdg.path().join("pnpm");
+    fs::create_dir_all(&config_dir).expect("create global config dir");
+    fs::write(config_dir.join("config.yaml"), "httpsProxy: \"\"\nhttpProxy: \"\"\nnoProxy: \"\"\n")
+        .expect("write global config.yaml");
+
+    set_fake_env(&[("XDG_CONFIG_HOME", xdg.path().to_str().unwrap())]);
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://npmrc-proxy.example.com:8443"));
+    assert_eq!(config.proxy.http_proxy.as_deref(), Some("http://npmrc-proxy.example.com:8443"));
+    assert_eq!(
+        config.proxy.no_proxy,
+        Some(pacquet_network::NoProxySetting::List(vec!["skip.example".to_string()])),
+    );
+}
+
 /// Explicitly URL-scoped credentials pass through unchanged — they
 /// are never rescoped, so they stay on exactly the registry the user
 /// wrote, regardless of a workspace registry override.

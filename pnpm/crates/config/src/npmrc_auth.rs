@@ -508,7 +508,8 @@ impl NpmrcAuth {
     /// `proxy=` key feeds the `httpsProxy` slot only (the http side
     /// falls back to the resolved `httpsProxy` before consulting env).
     /// `noProxy` accepts the literal token `true` to mean "bypass every
-    /// proxy".
+    /// proxy". An empty `.npmrc` value is not a win — see the empty-value
+    /// contract on [`pacquet_network::ProxyConfig`].
     ///
     /// Generic over [`EnvVar`] so cascade tests can drive every branch
     /// without mutating the process environment (no `EnvGuard` global
@@ -525,17 +526,20 @@ impl NpmrcAuth {
         config.proxy.https_proxy = self
             .https_proxy
             .take()
+            .filter(|value| !value.is_empty())
             .or_else(|| self.legacy_proxy.clone())
             .or_else(|| env_pair::<Sys>("HTTPS_PROXY", "https_proxy"));
         config.proxy.http_proxy = self
             .http_proxy
             .take()
+            .filter(|value| !value.is_empty())
             .or_else(|| config.proxy.https_proxy.clone())
             .or_else(|| env_pair::<Sys>("HTTP_PROXY", "http_proxy"))
             .or_else(|| env_pair::<Sys>("PROXY", "proxy"));
         config.proxy.no_proxy = self
             .no_proxy
             .take()
+            .filter(|value| !value.is_empty())
             .or_else(|| env_pair::<Sys>("NO_PROXY", "no_proxy"))
             .map(|raw| parse_no_proxy(&raw));
     }
