@@ -983,14 +983,22 @@ fn can_trust_past_check_accepts_looser_min_age() {
     assert!(verifier.can_trust_past_check(&cached));
 }
 
+/// Repointing an alias is the change that matters: the alias set is
+/// identical, so a digest over alias names alone would still trust the
+/// cached policy and reuse resolutions fetched from the old host.
 #[test]
 fn can_trust_past_check_rejects_changed_named_registry_mapping() {
-    let verifier = create_npm_resolution_verifier(default_opts("https://registry.example/"));
+    let mut opts = default_opts("https://registry.example/");
+    opts.named_registries.insert("work".to_string(), "https://registry.work.example/".to_string());
+    let verifier = create_npm_resolution_verifier(opts);
     let cached = verifier.policy().clone();
     let mut changed_opts = default_opts("https://registry.example/");
     changed_opts.named_registries.insert("work".to_string(), "https://other.example/".to_string());
     let changed = create_npm_resolution_verifier(changed_opts);
 
+    // Pins that the rejection below comes from the URL change and not from
+    // something incidental to how the policy is built.
+    assert!(verifier.can_trust_past_check(&cached));
     assert!(!changed.can_trust_past_check(&cached));
 }
 
