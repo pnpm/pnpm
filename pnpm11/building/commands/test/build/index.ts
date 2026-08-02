@@ -609,6 +609,21 @@ test('rebuild refuses a lockfile depPath name that escapes the virtual store', a
   fs.writeFileSync(currentLockfilePath, fs.readFileSync(currentLockfilePath, 'utf8')
     .replaceAll('@pnpm.e2e/pre-and-postinstall-scripts-example', '../../../escaped'))
 
+  // The traversal resolves out of `node_modules/.pnpm/<slot>/node_modules` to
+  // `node_modules/escaped`. Plant a package there whose postinstall writes a
+  // marker, so the test fails loudly if the build ever runs outside the
+  // virtual store rather than only if a directory happens to be created.
+  const escapedPkgDir = path.resolve('node_modules/escaped')
+  const marker = path.resolve('pwned.txt')
+  fs.mkdirSync(escapedPkgDir, { recursive: true })
+  fs.writeFileSync(path.join(escapedPkgDir, 'package.json'), JSON.stringify({
+    name: 'escaped',
+    version: '1.0.0',
+    scripts: { postinstall: 'node write-marker.cjs' },
+  }))
+  fs.writeFileSync(path.join(escapedPkgDir, 'write-marker.cjs'),
+    `require('fs').writeFileSync(${JSON.stringify(marker)}, 'pwned')`)
+
   const modulesManifest = project.readModulesManifest()
   await expect(rebuild.handler({
     ...DEFAULT_OPTS,
@@ -617,8 +632,11 @@ test('rebuild refuses a lockfile depPath name that escapes the virtual store', a
     pending: false,
     registries: modulesManifest!.registries!,
     storeDir,
-    allowBuilds: { '../../../escaped': true },
+    // The advisory's stated escalation to code execution. Without it the
+    // build policy would block the script anyway and the test could not
+    // tell a contained join from a merely unapproved one.
+    dangerouslyAllowAllBuilds: true,
   }, [])).rejects.toThrow(expect.objectContaining({ code: 'ERR_PNPM_INVALID_DEPENDENCY_NAME' }))
 
-  expect(fs.existsSync(path.resolve('../../../escaped'))).toBeFalsy()
+  expect(fs.existsSync(marker)).toBeFalsy()
 })
