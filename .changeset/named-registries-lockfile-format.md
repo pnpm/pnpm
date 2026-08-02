@@ -22,9 +22,19 @@
 "pacquet": minor
 ---
 
+**Semi-breaking**, for projects that use `namedRegistries`. See "If you use named registries" below.
+
 Packages resolved from a named registry are now recorded in the lockfile under registry-qualified keys (`<name>@<registryName>:<version>`, e.g. `foo@work:1.0.0`). This makes it possible to install the same package name — even the same version — from different registries in one project. They previously collided on a single `name@version` entry, so whichever resolved first decided the tarball both consumers got.
 
 The lockfile format version is unchanged. Registry-qualified keys appear only for packages resolved from a named registry, so a project that does not use `namedRegistries` sees no difference, and older pnpm versions keep reading the file.
+
+### If you use named registries
+
+Your next non-frozen install re-keys those entries, which shows up as a lockfile diff. Commit it.
+
+Everyone working on the project should be on this version or newer before you do. An older pnpm reads the re-keyed lockfile fine — frozen installs are unaffected — but it does not produce registry-qualified keys itself, so any install that updates the lockfile writes those entries back to the old shape, and the next install on a current pnpm re-qualifies them. The result is a lockfile that flips back and forth. Because the lockfile format version is deliberately unchanged, pnpm cannot detect this and warn you about it.
+
+There is no setting to keep the old behavior: the old shape is the bug being fixed, and leaving it available would leave the wrong-tarball collision in place.
 
 Tarball URLs that follow the standard registry layout are no longer written to the lockfile for named-registry packages; they are recomputed from the `namedRegistries` setting on demand.
 
