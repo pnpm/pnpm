@@ -594,6 +594,9 @@ catalogs:
     nm-prune:
       specifier: ^5.0.0
       version: 5.0.0
+    node-gyp:
+      specifier: ^12.3.0
+      version: 12.4.0
     normalize-newline:
       specifier: 5.0.0
       version: 5.0.0
@@ -1042,7 +1045,15 @@ importers:
 
   pnpm/npm/napi: {}
 
-  pnpm/npm/pnpm: {}
+  pnpm/npm/pnpm:
+    dependencies:
+      node-gyp:
+        specifier: 'catalog:'
+        version: 12.4.0
+    devDependencies:
+      nm-prune:
+        specifier: 'catalog:'
+        version: 5.0.0
 
   pnpm/tasks/registry-mock:
     devDependencies:
@@ -7679,7 +7690,7 @@ importers:
         specifier: 'catalog:'
         version: 0.1.19
       node-gyp:
-        specifier: ^12.3.0
+        specifier: 'catalog:'
         version: 12.4.0
       v8-compile-cache:
         specifier: 2.4.0

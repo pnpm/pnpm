@@ -385,7 +385,7 @@ fn run_publish_scripts<Reporter: self::Reporter>(
         node_gyp_path: None,
         user_agent: Some(&config.user_agent),
         unsafe_perm: true,
-        node_gyp_bin: None,
+        node_gyp_bin: pacquet_executor::bundled_node_gyp_bin(),
         scripts_prepend_node_path: ScriptsPrependNodePath::default(),
         script_shell: None,
         optional: false,

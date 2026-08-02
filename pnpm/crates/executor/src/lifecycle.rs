@@ -83,9 +83,11 @@ pub struct RunPostinstallHooks<'a> {
     /// the package manager. When `None`, `std::env::current_exe()`
     /// is used.
     pub npm_execpath: Option<&'a Path>,
-    /// Bundled `node-gyp` wrapper path written into
-    /// `npm_config_node_gyp`. Pacquet does not ship one yet, so
-    /// callers pass `None`.
+    /// `node-gyp` entry point written into `npm_config_node_gyp`.
+    /// `None` leaves the variable unset, which is what pnpm does: the
+    /// wrapper found through [`node_gyp_bin`](Self::node_gyp_bin) reads
+    /// this variable and falls back to the shipped copy when it is
+    /// unset, so setting it here would override a user's own choice.
     pub node_gyp_path: Option<&'a Path>,
     /// Value written into `npm_config_user_agent`. Caller-supplied
     /// (typically `"pnpm/<version>"`); `None` skips the stamp.
@@ -96,8 +98,10 @@ pub struct RunPostinstallHooks<'a> {
     /// surface the privilege drop, so callers currently pass
     /// `true` everywhere.
     pub unsafe_perm: bool,
-    /// Bundled `node-gyp` shim directory prepended to `PATH`. Pacquet
-    /// does not ship one yet; callers pass `None`.
+    /// Directory holding the shipped `node-gyp` wrapper, prepended to
+    /// `PATH` so install scripts that shell out to `node-gyp` resolve
+    /// it. Supplied by [`crate::bundled_node_gyp_bin`]; `None` when
+    /// nothing was shipped beside the executable.
     pub node_gyp_bin: Option<&'a Path>,
     /// Tri-state from `scriptsPrependNodePath` config. `Never` is the
     /// safe default; `Always` appends `dirname(node)` to `PATH`.

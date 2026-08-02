@@ -1,9 +1,11 @@
+mod bundled_node_gyp;
 mod extend_path;
 mod lifecycle;
 mod make_env;
 mod run_script;
 mod shell;
 
+pub use bundled_node_gyp::bundled_node_gyp_bin;
 pub use extend_path::{ScriptsPrependNodePath, extend_path};
 pub use lifecycle::{
     DEV_PREINSTALL_ALREADY_RAN_ENV, DEV_PREINSTALL_STAGE, LifecycleScriptError,

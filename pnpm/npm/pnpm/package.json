@@ -2,7 +2,14 @@
   "name": "pacquet",
   "private": true,
   "publishConfig": {
-    "name": "pnpm"
+    "name": "pnpm",
+    "executableFiles": [
+      "./dist/node-gyp-bin/node-gyp",
+      "./dist/node-gyp-bin/node-gyp.cmd",
+      "./dist/node_modules/node-gyp/bin/node-gyp.js",
+      "./dist/node_modules/node-gyp/gyp/gyp_main.py",
+      "./dist/node_modules/node-gyp/gyp/gyp"
+    ]
   },
   "version": "12.0.0-beta.3",
   "description": "Fast, disk space efficient package manager",
@@ -27,7 +34,8 @@
   },
   "type": "module",
   "scripts": {
-    "preinstall": "node install.js"
+    "preinstall": "node install.js",
+    "bundle-node-gyp": "node scripts/bundle-node-gyp.mjs"
   },
   "engines": {
     "node": ">=18.*"
@@ -37,6 +45,13 @@
     "pn",
     "pnpx",
     "pnx",
-    "install.js"
-  ]
+    "install.js",
+    "dist/"
+  ],
+  "dependencies": {
+    "node-gyp": "catalog:"
+  },
+  "devDependencies": {
+    "nm-prune": "catalog:"
+  }
 }

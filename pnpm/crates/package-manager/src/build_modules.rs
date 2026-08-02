@@ -1275,7 +1275,7 @@ fn build_one_snapshot<Reporter: self::Reporter>(
             node_gyp_path: None,
             user_agent: Some(user_agent),
             unsafe_perm,
-            node_gyp_bin: None,
+            node_gyp_bin: pacquet_executor::bundled_node_gyp_bin(),
             scripts_prepend_node_path,
             script_shell,
             optional,

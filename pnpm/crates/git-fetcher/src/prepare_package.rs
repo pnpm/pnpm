@@ -124,7 +124,7 @@ pub fn prepare_package<Reporter: self::Reporter>(
         node_gyp_path: None,
         user_agent: opts.user_agent,
         unsafe_perm: opts.unsafe_perm,
-        node_gyp_bin: None,
+        node_gyp_bin: pacquet_executor::bundled_node_gyp_bin(),
         scripts_prepend_node_path: opts.scripts_prepend_node_path,
         script_shell: opts.script_shell,
         optional: false,
