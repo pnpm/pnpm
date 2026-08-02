@@ -262,7 +262,8 @@ fn prepare_selected_manifests<Reporter: self::Reporter>(
     save_type: Option<DependencyGroup>,
 ) {
     for &index in selected_indices {
-        let package_names = expand_remove_patterns(&projects[index].manifest, package_names, save_type);
+        let package_names =
+            expand_remove_patterns(&projects[index].manifest, package_names, save_type);
         prepare_manifest::<Reporter>(&mut projects[index].manifest, &package_names, save_type);
     }
 }
@@ -324,10 +325,7 @@ fn expand_remove_patterns(
     package_names: &[String],
     save_type: Option<DependencyGroup>,
 ) -> Vec<String> {
-    if !package_names
-        .iter()
-        .any(|name| name.contains('*') || name.starts_with('!'))
-    {
+    if !package_names.iter().any(|name| name.contains('*') || name.starts_with('!')) {
         return package_names.to_vec();
     }
     let matcher = pacquet_config::matcher::create_matcher(package_names);
