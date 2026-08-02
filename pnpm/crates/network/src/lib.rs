@@ -396,8 +396,21 @@ impl ThrottledClient {
         if settings.network_concurrency == 0 {
             return Err(ForInstallsError::ZeroNetworkConcurrency);
         }
-        let https = proxy.https_proxy.as_deref().map(parse_proxy_url).transpose()?;
-        let http = proxy.http_proxy.as_deref().map(parse_proxy_url).transpose()?;
+        // Empty values are treated as unset, matching the TypeScript CLI
+        // (pnpm/pnpm#13533): a shell that exports `HTTP_PROXY=` must not
+        // fail the install.
+        let https = proxy
+            .https_proxy
+            .as_deref()
+            .filter(|value| !value.is_empty())
+            .map(parse_proxy_url)
+            .transpose()?;
+        let http = proxy
+            .http_proxy
+            .as_deref()
+            .filter(|value| !value.is_empty())
+            .map(parse_proxy_url)
+            .transpose()?;
         let no_proxy = Arc::new(NoProxyMatcher::from(proxy.no_proxy.as_ref()));
         // Read once here, not inside `build_client`: `for_installs`
         // builds one client per per-registry override, so loading the
