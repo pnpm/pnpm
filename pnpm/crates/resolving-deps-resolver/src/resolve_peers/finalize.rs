@@ -381,40 +381,39 @@ impl Walker<'_> {
     }
 
     fn cyclic_peer_names(&self) -> HashSet<String> {
-        // The graph is over package *names*, of which a workspace has
-        // orders of magnitude fewer than the occurrences contributing to
-        // it, so the name each occurrence's package renders to is derived
-        // once per package rather than once per occurrence.
-        let mut name_of_pkg: HashMap<&str, String> = HashMap::default();
+        // Collect by package id, which every occurrence already carries,
+        // and render names when folding the result: the graph is over
+        // package *names*, of which a workspace has far fewer than the
+        // occurrences contributing to them, and rendering one costs an
+        // allocation (`PkgName` holds scope and bare name separately).
+        // Two package ids can share a name — different versions of one
+        // package — so the fold unions their edges.
+        let mut edges_of_pkg: HashMap<&str, BTreeSet<&str>> = HashMap::default();
         for (node_id, peers) in &self.node_external_peers {
             if peers.is_empty() {
                 continue;
             }
             let pkg_id = self.tree.dependencies_tree[node_id].resolved_package_id.as_str();
-            name_of_pkg
-                .entry(pkg_id)
-                .or_insert_with(|| pkg_name(&self.tree.packages[pkg_id].result));
-        }
-
-        let mut graph: BTreeMap<&str, BTreeSet<&str>> = BTreeMap::new();
-        for (node_id, peers) in &self.node_external_peers {
-            if peers.is_empty() {
-                continue;
-            }
-            let pkg_id = self.tree.dependencies_tree[node_id].resolved_package_id.as_str();
-            let edges = graph.entry(name_of_pkg[pkg_id].as_str()).or_default();
+            let edges = edges_of_pkg.entry(pkg_id).or_default();
             for peer_alias in peers.keys() {
                 edges.insert(peer_alias.as_str());
             }
         }
+
+        let mut graph: BTreeMap<String, BTreeSet<&str>> = BTreeMap::new();
+        for (pkg_id, edges) in edges_of_pkg {
+            graph.entry(pkg_name(&self.tree.packages[pkg_id].result)).or_default().extend(edges);
+        }
         let peer_names: Vec<&str> =
             graph.values().flat_map(|edges| edges.iter().copied()).collect();
         for peer_name in peer_names {
-            graph.entry(peer_name).or_default();
+            if !graph.contains_key(peer_name) {
+                graph.insert(peer_name.to_string(), BTreeSet::default());
+            }
         }
 
         struct PeerNameTarjan<'a> {
-            graph: &'a BTreeMap<&'a str, BTreeSet<&'a str>>,
+            graph: &'a BTreeMap<String, BTreeSet<&'a str>>,
             index_of: HashMap<&'a str, u32>,
             low_of: HashMap<&'a str, u32>,
             on_stack: HashSet<&'a str>,
@@ -457,7 +456,7 @@ impl Walker<'_> {
                         }
                     }
                     let self_loop = component.first().is_some_and(|member| {
-                        self.graph.get(member).is_some_and(|edges| edges.contains(member))
+                        self.graph.get(*member).is_some_and(|edges| edges.contains(member))
                     });
                     if component.len() > 1 || self_loop {
                         self.cyclic.extend(component.into_iter().map(str::to_owned));
@@ -476,7 +475,7 @@ impl Walker<'_> {
             next_index: 0,
         };
         for name in graph.keys() {
-            if !tarjan.index_of.contains_key(name) {
+            if !tarjan.index_of.contains_key(name.as_str()) {
                 tarjan.strongconnect(name);
             }
         }
