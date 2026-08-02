@@ -259,48 +259,35 @@ where
     // none hoists — a workspace-wide barrier, so an optional-peer pick
     // sees every importer's resolved versions.
     //
-    // The waves run one importer at a time. Interleaving them leaves the
-    // resolved package set and every package's children identical — those
-    // are settled by rank, not arrival — but not the *occurrence* nodes:
-    // importers race for a package's children-ownership claim, and a
-    // walk that holds the claim only transiently still leaves its
-    // occurrence nodes behind. Occurrence identity feeds peer-variant
-    // computation, so the count varying between runs (58,972 to 60,664
-    // on a 114-importer workspace) is enough to flip a peer binding and
-    // emit a different lockfile for the same input.
-    //
-    // Resolving one importer at a time also measures faster wherever it
-    // was tried, because the races cost redundant subtree walks: that
-    // workspace resolves in ~9.3s against ~10.3s, and a cold install
-    // over a 50ms link in 2.64s against 2.72s.
+    // The initial waves run concurrently, like the TypeScript resolver's
+    // importer fan-out: the shared context's children-owner claims are
+    // rank-ordered (not arrival-ordered) and the peer-hoist pickers'
+    // preferred-version candidates are derived from the settled
+    // reachable tree (see `WorkspaceTreeCtx::run_preferred_versions`),
+    // so the resolved graph is the same regardless of interleaving, and
+    // a large workspace's walks overlap their resolver and hook waits
+    // instead of paying them importer by importer.
     let mut input_dirs = Vec::with_capacity(importers.len());
-    let init_waves: Vec<_> = importers
-        .iter()
-        .zip(importer_opts)
-        .enumerate()
-        .map(|(importer_order, (importer, mut importer_opts))| {
-            importer_opts.pick_lowest_direct = pick_lowest_direct;
-            importer_opts.subdep_published_by = subdep_published_by;
-            input_dirs.push((
-                importer_opts.base_opts.project_dir.clone(),
-                importer_opts.modules_dir.clone(),
-            ));
-            ImporterHoistState::init(
-                resolver,
-                &importer.id,
-                importer_order,
-                importer.manifest,
-                dependency_groups.iter().copied(),
-                importer_opts,
-                Arc::clone(&workspace),
-            )
-        })
-        .collect();
-    let mut states = Vec::with_capacity(init_waves.len());
-    for wave in init_waves {
+    let mut states = Vec::with_capacity(importers.len());
+    for (importer_order, (importer, mut importer_opts)) in
+        importers.iter().zip(importer_opts).enumerate()
+    {
+        importer_opts.pick_lowest_direct = pick_lowest_direct;
+        importer_opts.subdep_published_by = subdep_published_by;
+        input_dirs
+            .push((importer_opts.base_opts.project_dir.clone(), importer_opts.modules_dir.clone()));
         // Boxed to keep the enclosing install future small: inlining a
         // wave's frame into it trips the workspace's large-future lint.
-        states.push(Box::pin(wave).await?);
+        let wave = Box::pin(ImporterHoistState::init(
+            resolver,
+            &importer.id,
+            importer_order,
+            importer.manifest,
+            dependency_groups.iter().copied(),
+            importer_opts,
+            Arc::clone(&workspace),
+        ));
+        states.push(wave.await?);
     }
     // Computed after the init barrier and shared unchanged: recomputing it
     // per round would let the root's own hoisted peers become candidates for

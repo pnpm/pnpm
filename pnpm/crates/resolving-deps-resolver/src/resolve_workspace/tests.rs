@@ -3105,8 +3105,9 @@ impl Resolver for OverlapRecordingResolver {
         opts: &'a ResolveOptions,
     ) -> ResolveFuture<'a> {
         let project_dir = opts.project_dir.clone();
-        let alias = wanted.alias.clone().unwrap_or_default();
+        let alias = wanted.alias.clone();
         Box::pin(async move {
+            let Some(alias) = alias else { return Ok(None) };
             {
                 let mut in_flight = self.in_flight.lock().unwrap();
                 in_flight.insert(project_dir.clone());
@@ -3159,9 +3160,8 @@ impl Resolver for OverlapRecordingResolver {
 /// the resolved packages and their children identical but not the
 /// occurrence nodes: importers race for a package's children-ownership
 /// claim, and a transient holder still leaves its occurrences behind.
-/// Occurrence identity feeds peer-variant computation, so the count
-/// varying between runs was enough to emit a different lockfile for the
-/// same input (pnpm/pnpm#13567).
+/// Occurrence identity feeds peer-variant computation, so a count that
+/// depends on the interleaving is a lockfile that depends on it too.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn importer_waves_do_not_overlap() {
     let (_a_tmp, a_manifest) = fake_manifest(serde_json::json!({ "shared": "^1.0.0" }));
