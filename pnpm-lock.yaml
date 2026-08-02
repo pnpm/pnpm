@@ -3098,9 +3098,6 @@ importers:
       '@pnpm/config.normalize-registries':
         specifier: workspace:*
         version: link:../../../config/normalize-registries
-      '@pnpm/config.pick-registry-for-package':
-        specifier: workspace:*
-        version: link:../../../config/pick-registry-for-package
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../../core/constants
@@ -5945,9 +5942,6 @@ importers:
       '@pnpm/config.normalize-registries':
         specifier: workspace:*
         version: link:../../config/normalize-registries
-      '@pnpm/config.pick-registry-for-package':
-        specifier: workspace:*
-        version: link:../../config/pick-registry-for-package
       '@pnpm/config.version-policy':
         specifier: workspace:*
         version: link:../../config/version-policy
@@ -7108,9 +7102,6 @@ importers:
       '@pnpm/config.normalize-registries':
         specifier: workspace:*
         version: link:../../config/normalize-registries
-      '@pnpm/config.pick-registry-for-package':
-        specifier: workspace:*
-        version: link:../../config/pick-registry-for-package
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../core/constants

@@ -1,4 +1,3 @@
-
 import type { Registries } from './misc.js'
 import type { VersioningSettings } from './versioning.js'
 
