@@ -381,42 +381,56 @@ impl Walker<'_> {
     }
 
     fn cyclic_peer_names(&self) -> HashSet<String> {
-        let mut graph: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+        // The graph is over package *names*, of which a workspace has
+        // orders of magnitude fewer than the occurrences contributing to
+        // it, so the name each occurrence's package renders to is derived
+        // once per package rather than once per occurrence.
+        let mut name_of_pkg: HashMap<&str, String> = HashMap::default();
         for (node_id, peers) in &self.node_external_peers {
             if peers.is_empty() {
                 continue;
             }
-            let tree_node = &self.tree.dependencies_tree[node_id];
-            let pkg = &self.tree.packages[&tree_node.resolved_package_id];
-            let (name, _) = pkg_name_version(&pkg.result);
-            let edges = graph.entry(name).or_default();
-            for peer_alias in peers.keys() {
-                edges.insert(peer_alias.clone());
+            let pkg_id = self.tree.dependencies_tree[node_id].resolved_package_id.as_str();
+            if !name_of_pkg.contains_key(pkg_id) {
+                let pkg = &self.tree.packages[pkg_id];
+                name_of_pkg.insert(pkg_id, pkg_name_version(&pkg.result).0);
             }
         }
-        let peer_names: Vec<String> =
-            graph.values().flat_map(|edges| edges.iter().cloned()).collect();
+
+        let mut graph: BTreeMap<&str, BTreeSet<&str>> = BTreeMap::new();
+        for (node_id, peers) in &self.node_external_peers {
+            if peers.is_empty() {
+                continue;
+            }
+            let pkg_id = self.tree.dependencies_tree[node_id].resolved_package_id.as_str();
+            let edges = graph.entry(name_of_pkg[pkg_id].as_str()).or_default();
+            for peer_alias in peers.keys() {
+                edges.insert(peer_alias.as_str());
+            }
+        }
+        let peer_names: Vec<&str> =
+            graph.values().flat_map(|edges| edges.iter().copied()).collect();
         for peer_name in peer_names {
             graph.entry(peer_name).or_default();
         }
 
         struct PeerNameTarjan<'a> {
-            graph: &'a BTreeMap<String, BTreeSet<String>>,
-            index_of: HashMap<String, u32>,
-            low_of: HashMap<String, u32>,
-            on_stack: HashSet<String>,
-            tarjan_stack: Vec<String>,
+            graph: &'a BTreeMap<&'a str, BTreeSet<&'a str>>,
+            index_of: HashMap<&'a str, u32>,
+            low_of: HashMap<&'a str, u32>,
+            on_stack: HashSet<&'a str>,
+            tarjan_stack: Vec<&'a str>,
             cyclic: HashSet<String>,
             next_index: u32,
         }
 
-        impl PeerNameTarjan<'_> {
-            fn strongconnect(&mut self, name: &str) {
-                self.index_of.insert(name.to_string(), self.next_index);
-                self.low_of.insert(name.to_string(), self.next_index);
+        impl<'a> PeerNameTarjan<'a> {
+            fn strongconnect(&mut self, name: &'a str) {
+                self.index_of.insert(name, self.next_index);
+                self.low_of.insert(name, self.next_index);
                 self.next_index += 1;
-                self.on_stack.insert(name.to_string());
-                self.tarjan_stack.push(name.to_string());
+                self.on_stack.insert(name);
+                self.tarjan_stack.push(name);
 
                 if let Some(neighbors) = self.graph.get(name) {
                     for child in neighbors {
@@ -424,11 +438,11 @@ impl Walker<'_> {
                             self.strongconnect(child);
                             let name_low = self.low_of[name];
                             let child_low = self.low_of[child];
-                            self.low_of.insert(name.to_string(), name_low.min(child_low));
+                            self.low_of.insert(name, name_low.min(child_low));
                         } else if self.on_stack.contains(child) {
                             let name_low = self.low_of[name];
                             let child_index = self.index_of[child];
-                            self.low_of.insert(name.to_string(), name_low.min(child_index));
+                            self.low_of.insert(name, name_low.min(child_index));
                         }
                     }
                 }
@@ -447,7 +461,7 @@ impl Walker<'_> {
                         self.graph.get(member).is_some_and(|edges| edges.contains(member))
                     });
                     if component.len() > 1 || self_loop {
-                        self.cyclic.extend(component);
+                        self.cyclic.extend(component.into_iter().map(str::to_owned));
                     }
                 }
             }
