@@ -72,6 +72,20 @@ fn version_argv_reads_dir_auth_file_and_command_forms() {
             npmrc_auth_file: None,
             command: Some("install"),
         },
+        Case {
+            name: "store directory value is not mistaken for the command",
+            argv: &["pnpm", "--store", "/tmp/store", "--prefix", "/tmp/scanned", "--version"],
+            dir: "/tmp/scanned",
+            npmrc_auth_file: None,
+            command: None,
+        },
+        Case {
+            name: "canonical store directory value is not mistaken for the command",
+            argv: &["pnpm", "--store-dir", "/tmp/store", "--dir", "/tmp/scanned", "--version"],
+            dir: "/tmp/scanned",
+            npmrc_auth_file: None,
+            command: None,
+        },
     ];
 
     for case in cases {

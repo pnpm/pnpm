@@ -563,11 +563,11 @@ scripts:
 }
 
 /// npm's `--prefix` is accepted as a spelling of `--dir`
-/// (<https://github.com/pnpm/pnpm/issues/13583>). Only the pre-subcommand
-/// position is exercised: everything after the script name is the
-/// script's own command line.
+/// (<https://github.com/pnpm/pnpm/issues/13583>) — ahead of the
+/// subcommand, where pnpm's own options live. Past the script name the
+/// same token is the script's, so the script records what it received.
 #[test]
-fn prefix_is_accepted_as_dir() {
+fn prefix_selects_the_dir_before_the_subcommand_and_is_the_script_s_after_it() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     let project = workspace.join("project");
     fs::create_dir_all(&project).expect("create project dir");
@@ -577,8 +577,10 @@ fn prefix_is_accepted_as_dir() {
         json!({
             "name": "project",
             "version": "0.0.0",
+            // The `--` keeps node from claiming a forwarded `--prefix` as
+            // one of its own options.
             "scripts": {
-                "test": r#"node -e "require('fs').writeFileSync(process.env.MARKER_PATH, 'ran')""#,
+                "test": r#"node -e "require('fs').writeFileSync(process.env.MARKER_PATH, process.argv.slice(1).join(' '))" --"#,
             },
         })
         .to_string(),
@@ -591,9 +593,11 @@ fn prefix_is_accepted_as_dir() {
         .with_arg(&project)
         .with_arg("run")
         .with_arg("test")
+        .with_arg("--prefix")
+        .with_arg("forwarded")
         .assert()
         .success();
-    assert_eq!(fs::read_to_string(&marker).expect("read marker"), "ran");
+    assert_eq!(fs::read_to_string(&marker).expect("read marker"), "--prefix forwarded");
 
     drop(root);
 }

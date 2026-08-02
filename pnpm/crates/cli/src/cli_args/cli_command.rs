@@ -111,17 +111,12 @@ pub struct CliArgs {
 
     /// Set working directory. Accepted anywhere on the command line,
     /// before or after the subcommand, like every other rc-option.
-    // `--prefix` is npm's spelling of the same option; pnpm renames it to
-    // `--dir` before parsing (`RENAMED_OPTIONS` in `parseCliArgs.ts`) and
-    // keeps it out of the help output.
     #[clap(short = 'C', long, alias = "prefix", default_value = ".", global = true)]
     pub dir: PathBuf,
 
     /// Directory in which the package store is created. Relative paths
     /// are resolved from the workspace root, or from `--dir` outside a
     /// workspace.
-    // `--store` is npm's spelling, renamed to `--store-dir` by the same
-    // `RENAMED_OPTIONS` table that maps `--prefix` onto `--dir`.
     #[clap(
         long = "store-dir",
         alias = "store",
