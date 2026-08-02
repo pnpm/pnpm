@@ -27,7 +27,6 @@ use super::{
     },
 };
 use crate::{config_deps, config_overrides::ConfigOverrides, flag_relocation::ArgTable};
-use clap::CommandFactory;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pacquet_config::{Config, Host, PNPM_VERSION, PmOnFail};
@@ -834,7 +833,7 @@ impl SwitchInput {
     }
 
     fn from_version_argv(argv: &[OsString]) -> Self {
-        let global_options = ArgTable::top_level(&CliArgs::command());
+        let global_options = ArgTable::top_level(super::grammar());
         let mut input = Self { dir: PathBuf::from("."), npmrc_auth_file: None, command: None };
         let mut index = 1;
         while index < argv.len() {

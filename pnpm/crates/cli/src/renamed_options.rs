@@ -69,11 +69,7 @@ pub fn drop_shadowed_aliases(cmd: &Command, argv: Vec<OsString>) -> Vec<OsString
         } else if let Some(rest) = token.strip_prefix('-').filter(|rest| !rest.is_empty()) {
             let short = rest.chars().next().expect("checked non-empty");
             let is_bare_short = rest.chars().count() == 1;
-            for (option_index, option) in RENAMED_OPTIONS.iter().enumerate() {
-                if option.canonical_short.is_some_and(|canonical| rest.contains(canonical)) {
-                    canonical_seen[option_index] = true;
-                }
-            }
+            mark_canonical_shorts(rest, &arity, &mut canonical_seen);
             index += token_width(
                 arity.short_consumes_value(short).unwrap_or(false) && is_bare_short,
                 false,
@@ -96,6 +92,26 @@ pub fn drop_shadowed_aliases(cmd: &Command, argv: Vec<OsString>) -> Vec<OsString
         argv.drain(index..(index + width).min(argv.len()));
     }
     argv
+}
+
+/// Record the canonical short options a `-abc` cluster names. The chars are
+/// read left to right and stop at the first option that takes a value,
+/// since everything past it is that value rather than more options.
+fn mark_canonical_shorts(
+    cluster: &str,
+    arity: &ArgTable,
+    canonical_seen: &mut [bool; RENAMED_OPTIONS.len()],
+) {
+    for short in cluster.chars() {
+        for (option_index, option) in RENAMED_OPTIONS.iter().enumerate() {
+            if option.canonical_short == Some(short) {
+                canonical_seen[option_index] = true;
+            }
+        }
+        if arity.short_consumes_value(short).unwrap_or(false) {
+            break;
+        }
+    }
 }
 
 #[cfg(test)]

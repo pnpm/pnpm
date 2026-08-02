@@ -60,6 +60,28 @@ fn the_canonical_spelling_wins_over_the_alias_in_either_order() {
     }
 }
 
+/// A canonical short option counts only where a short option can appear:
+/// the `C` inside a `--filter` pattern attached to `-F` is part of that
+/// pattern, not a `--dir`.
+#[test]
+fn a_canonical_short_inside_an_attached_value_is_not_the_option() {
+    assert_eq!(
+        drop_aliases(&["pnpm", "-FpkgC", "--prefix", "here", "install"]),
+        ["pnpm", "-FpkgC", "--prefix", "here", "install"],
+    );
+    assert_eq!(parse(&["pnpm", "-FpkgC", "--prefix", "here", "install"]).dir, Path::new("here"));
+    // Up to that point the cluster's own options are read: `-r` takes no
+    // value, so the `-C` behind it is an option and shadows the alias.
+    assert_eq!(
+        drop_aliases(&["pnpm", "-rCcanonical", "--prefix", "here", "install"]),
+        ["pnpm", "-rCcanonical", "install"],
+    );
+    assert_eq!(
+        parse(&["pnpm", "-rCcanonical", "--prefix", "here", "install"]).dir,
+        Path::new("canonical"),
+    );
+}
+
 /// Only pnpm's own tokens are considered: a script's `--prefix` is the
 /// script's, and so is an option value that happens to spell one.
 #[test]
