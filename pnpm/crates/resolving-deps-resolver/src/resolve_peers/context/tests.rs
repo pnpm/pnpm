@@ -1,8 +1,8 @@
 //! Unit tests for the peer-resolution context helpers.
 
 use super::{
-    ParentRef, importer_relative_link_dep_path, peer_segment_names, remap_link_node_id,
-    satisfies_with_prereleases, scoped_hoisted_optional_parent_refs,
+    ChainSuffixMemo, ParentRef, SharedChain, importer_relative_link_dep_path, peer_segment_names,
+    remap_link_node_id, satisfies_with_prereleases, scoped_hoisted_optional_parent_refs,
 };
 use crate::{
     node_id::NodeId,
@@ -154,4 +154,100 @@ fn satisfies_accepts_prerelease_against_non_prerelease_range() {
     assert!(satisfies_with_prereleases("18.0.0-rc.1", "^18.0.0"));
     assert!(satisfies_with_prereleases("1.2.3-beta.0", "^1.2.0"));
     assert!(!satisfies_with_prereleases("19.0.0-rc.1", "^18.0.0"));
+}
+
+/// Strong count of a chain's tip link, for asserting who holds it.
+fn link_strong_count(chain: &SharedChain<String>) -> usize {
+    chain.0.as_ref().map_or(0, std::sync::Arc::strong_count)
+}
+
+/// Build `root -> ... -> tip` and return the chain at the tip.
+fn chain_of(values: &[&str]) -> SharedChain<String> {
+    values.iter().fold(SharedChain::default(), |chain, value| chain.pushed((*value).to_string()))
+}
+
+#[test]
+fn memoized_any_matches_the_unmemoized_answer() {
+    let shared = chain_of(&["root", "middle"]);
+    let with_match = shared.pushed("needle".to_string());
+    let without_match = shared.pushed("other".to_string());
+
+    let mut memo = ChainSuffixMemo::default();
+    assert!(with_match.any_memoized(&mut memo, |value| value == "needle"));
+    assert!(!without_match.any_memoized(&mut memo, |value| value == "needle"));
+
+    let mut fresh = ChainSuffixMemo::default();
+    assert_eq!(
+        with_match.any_memoized(&mut fresh, |value| value == "needle"),
+        with_match.iter().any(|value| value == "needle"),
+    );
+}
+
+#[test]
+fn a_match_in_a_shared_suffix_answers_every_chain_built_on_it() {
+    let shared = chain_of(&["root", "needle"]);
+    let branches: Vec<_> =
+        ["a", "b", "c"].iter().map(|tip| shared.pushed((*tip).to_string())).collect();
+
+    let mut memo = ChainSuffixMemo::default();
+    let mut visits = 0;
+    for branch in &branches {
+        assert!(branch.any_memoized(&mut memo, |value| {
+            visits += 1;
+            value == "needle"
+        }));
+    }
+
+    assert_eq!(
+        visits, 2,
+        "the two shared links answer once, and a suffix that already matched \
+         spares every branch's own tip",
+    );
+}
+
+#[test]
+fn an_unmatched_shared_suffix_is_still_evaluated_only_once() {
+    let shared = chain_of(&["root", "plain"]);
+    let branches: Vec<_> =
+        ["a", "b", "c"].iter().map(|tip| shared.pushed((*tip).to_string())).collect();
+
+    let mut memo = ChainSuffixMemo::default();
+    let mut visits = 0;
+    for branch in &branches {
+        assert!(!branch.any_memoized(&mut memo, |value| {
+            visits += 1;
+            value == "needle"
+        }));
+    }
+
+    assert_eq!(visits, 5, "two shared links once, plus each branch's own tip");
+}
+
+#[test]
+fn suffixes_evaluated_under_one_predicate_are_not_reused_for_another() {
+    let chain = chain_of(&["root", "needle"]);
+
+    let mut memo = ChainSuffixMemo::default();
+    assert!(chain.any_memoized(&mut memo, |value| value == "needle"));
+
+    let mut other = ChainSuffixMemo::default();
+    assert!(!chain.any_memoized(&mut other, |value| value == "absent"));
+}
+
+#[test]
+fn a_memo_keeps_the_links_it_keyed_on_alive() {
+    let mut memo = ChainSuffixMemo::default();
+    let root = chain_of(&["root"]);
+
+    let held_by = {
+        let temporary = root.pushed("temporary".to_string());
+        assert!(temporary.any_memoized(&mut memo, |value| value == "temporary"));
+        link_strong_count(&temporary)
+    };
+
+    // The chain that produced the entry is gone, but the memo's own
+    // reference keeps its link — and therefore its address — reserved,
+    // so nothing else can be allocated there and inherit the answer.
+    assert_eq!(held_by, 2, "the memo holds a reference alongside the caller's");
+    assert!(!chain_of(&["root", "other"]).any_memoized(&mut memo, |value| value == "temporary"));
 }

@@ -9,7 +9,7 @@ use crate::{
     resolve_peers::{
         HoistMissingScope, ResolvePeersOptions,
         cache::{PeerProviderChildren, PeersCacheItem},
-        context::{CurrentProviderSource, ParentPkgInfo, SharedChain},
+        context::{ChainSuffixMemo, CurrentProviderSource, ParentPkgInfo, SharedChain},
         walker::{MissingSummary, NodeOutput, Walker},
     },
     resolved_tree::{DirectDep, ResolvedTree},
@@ -233,11 +233,14 @@ pub(crate) fn apply_hoist_missing_scope(
 ) {
     result.peer_dependency_issues.missing.retain(|peer_name, issues| {
         let ancestor_chains = result.missing_ancestor_pkg_ids.remove(peer_name).unwrap_or_default();
+        // The issues reported for one peer come from occurrences spread
+        // through the tree, whose ancestor chains share long suffixes.
+        let mut memo = ChainSuffixMemo::default();
         *issues = std::mem::take(issues)
             .into_iter()
-            .zip(ancestor_chains)
+            .zip(ancestor_chains.iter())
             .filter_map(|(issue, ancestor_pkg_ids)| {
-                (!scope.suppresses_iter(ancestor_pkg_ids.iter(), peer_name)).then_some(issue)
+                (!scope.suppresses_chain(ancestor_pkg_ids, peer_name, &mut memo)).then_some(issue)
             })
             .collect();
         !issues.is_empty()
