@@ -527,7 +527,7 @@ impl NpmrcAuth {
             .https_proxy
             .take()
             .filter(|value| !value.is_empty())
-            .or_else(|| self.legacy_proxy.clone())
+            .or_else(|| self.legacy_proxy.clone().filter(|value| !value.is_empty()))
             .or_else(|| env_pair::<Sys>("HTTPS_PROXY", "https_proxy"));
         config.proxy.http_proxy = self
             .http_proxy

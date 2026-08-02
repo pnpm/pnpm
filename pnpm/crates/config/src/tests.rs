@@ -1321,6 +1321,52 @@ pub fn empty_cli_proxy_flags_preserve_the_resolved_proxy() {
 }
 
 #[test]
+pub fn empty_workspace_yaml_proxy_settings_preserve_project_npmrc() {
+    fake_env!(load_with_fake_env);
+    let project = tempdir().expect("project tempdir");
+    write_file(
+        &project.path().join(".npmrc"),
+        "https-proxy=http://npmrc-proxy.example.com:8443\nno-proxy=skip.example\n",
+    );
+    fs::write(
+        project.path().join("pnpm-workspace.yaml"),
+        "httpsProxy: \"\"\nhttpProxy: \"\"\nproxy: \"\"\nnoProxy: \"\"\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    set_fake_env(&[]);
+
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://npmrc-proxy.example.com:8443"));
+    assert_eq!(config.proxy.http_proxy.as_deref(), Some("http://npmrc-proxy.example.com:8443"));
+    assert_eq!(
+        config.proxy.no_proxy,
+        Some(pacquet_network::NoProxySetting::List(vec!["skip.example".to_string()])),
+    );
+}
+
+/// The two `noProxy` spellings are separate yaml keys, so an empty
+/// primary must not consume the alias's turn.
+#[test]
+pub fn empty_workspace_yaml_no_proxy_falls_through_to_its_alias() {
+    fake_env!(load_with_fake_env);
+    let project = tempdir().expect("project tempdir");
+    fs::write(
+        project.path().join("pnpm-workspace.yaml"),
+        "noProxy: \"\"\nnoproxy: alias.example\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    set_fake_env(&[]);
+
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(
+        config.proxy.no_proxy,
+        Some(pacquet_network::NoProxySetting::List(vec!["alias.example".to_string()])),
+    );
+}
+
+#[test]
 pub fn empty_global_config_yaml_proxy_settings_preserve_project_npmrc() {
     fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");

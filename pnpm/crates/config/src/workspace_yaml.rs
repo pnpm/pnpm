@@ -1286,11 +1286,8 @@ impl WorkspaceSettings {
         } else if (https_proxy.is_some() || legacy_proxy.is_some()) && !http_proxy_is_explicit {
             proxy_config.http_proxy.clone_from(&proxy_config.https_proxy);
         }
-        let no_proxy = self
-            .no_proxy
-            .as_ref()
-            .or(self.noproxy.as_ref())
-            .filter(|value| value.as_str() != Some(""));
+        let no_proxy = non_empty_no_proxy(self.no_proxy.as_ref())
+            .or_else(|| non_empty_no_proxy(self.noproxy.as_ref()));
         if let Some(value) = no_proxy {
             proxy_config.no_proxy = match value {
                 serde_json::Value::Bool(true) => Some(pacquet_network::NoProxySetting::Bypass),
@@ -1300,6 +1297,10 @@ impl WorkspaceSettings {
             };
         }
     }
+}
+
+fn non_empty_no_proxy(value: Option<&serde_json::Value>) -> Option<&serde_json::Value> {
+    value.filter(|value| value.as_str() != Some(""))
 }
 
 fn has_env_placeholder(value: &str) -> bool {

@@ -699,6 +699,15 @@ fn cascade_empty_npmrc_proxy_keys_fall_through_to_env() {
 }
 
 #[test]
+fn cascade_empty_legacy_proxy_key_falls_through_to_env() {
+    static_env!(HttpsEnv, &[("HTTPS_PROXY", "http://https-env.example:8080")]);
+    let auth = NpmrcAuth::from_ini::<NoEnv>("proxy=\n", Path::new(""));
+    let mut config = Config::new();
+    auth.apply_to::<HttpsEnv>(&mut config);
+    assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://https-env.example:8080"));
+}
+
+#[test]
 fn cascade_empty_https_proxy_key_falls_through_to_legacy_proxy_key() {
     let auth = NpmrcAuth::from_ini::<NoEnv>(
         "https-proxy=\nproxy=http://legacy.example:8080\n",

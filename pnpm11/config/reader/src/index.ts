@@ -682,7 +682,7 @@ export async function getConfig (opts: {
     }
   }
   if (!pnpmConfig.httpsProxy) {
-    pnpmConfig.httpsProxy = pnpmConfig.proxy ?? getProcessEnv('https_proxy')
+    pnpmConfig.httpsProxy = getProxyValue(pnpmConfig.proxy, getProcessEnv('https_proxy'))
   }
   if (!pnpmConfig.httpProxy) {
     pnpmConfig.httpProxy = pnpmConfig.httpsProxy ?? getProcessEnv('http_proxy') ?? getProcessEnv('proxy')
