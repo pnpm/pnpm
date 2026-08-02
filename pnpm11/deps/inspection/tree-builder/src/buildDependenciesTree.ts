@@ -14,7 +14,6 @@ import {
 } from '@pnpm/lockfile.fs'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { StoreIndex } from '@pnpm/store.index'
-import type { NamedRegistries } from '@pnpm/types'
 import { DEPENDENCIES_FIELDS, type DependenciesField, type Finder, type Registries } from '@pnpm/types'
 import normalizePath from 'normalize-path'
 import pLimit from 'p-limit'
@@ -43,7 +42,7 @@ export async function buildDependenciesTree (
     excludePeerDependencies?: boolean
     include?: { [dependenciesField in DependenciesField]: boolean }
     registries?: Registries
-    namedRegistries?: NamedRegistries
+    namedRegistries?: Record<string, string>
     onlyProjects?: boolean
     search?: Finder
     showDedupedSearchMatches?: boolean

@@ -7,7 +7,7 @@ import { type PackageSnapshot, pkgSnapshotToResolution } from '@pnpm/lockfile.ut
 import { readPackageJson } from '@pnpm/pkg-manifest.reader'
 import type { StoreIndex } from '@pnpm/store.index'
 import { readPackageFileMap } from '@pnpm/store.pkg-finder'
-import type { NamedRegistries, PackageManifest, Registries } from '@pnpm/types'
+import type { PackageManifest, Registries } from '@pnpm/types'
 import pLimit from 'p-limit'
 import { pathAbsolute } from 'path-absolute'
 
@@ -26,7 +26,7 @@ export interface PackageInfo {
   depPath: string
   snapshot: PackageSnapshot
   registries: Registries
-  namedRegistries?: NamedRegistries
+  namedRegistries?: Record<string, string>
 }
 
 export interface GetPackageInfoOptions {

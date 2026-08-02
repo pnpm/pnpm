@@ -3,7 +3,6 @@ import type { Hooks } from '@pnpm/hooks.pnpmfile'
 import type {
   EngineDependency,
   Finder,
-  NamedRegistries,
   Project,
   ProjectManifest,
   ProjectRootDir,
@@ -255,12 +254,12 @@ export interface Config extends OptionsFromRootManifest {
   packageManagerRegistries?: Registries
   packageManagerNetworkConfig?: PackageManagerNetworkConfig
   /**
-   * Built-ins merged in by the reader, so consumers can index this directly
-   * instead of re-merging them at every lookup. Optional only because a
-   * hand-built `Config` (tests, embedders) may omit it; the boundary that
-   * turns a `Config` into install options fills it in.
+   * As the user wrote it. Built-ins are filled in by
+   * `normalizeNamedRegistries` where a lookup happens, not here — this value
+   * is also forwarded to a pnpr server, which must only be asked about
+   * registries the project actually declares.
    */
-  namedRegistries?: NamedRegistries
+  namedRegistries?: Record<string, string>
   configByUri: Record<string, RegistryConfig>
   ignoreWorkspaceRootCheck: boolean
   workspaceRoot: boolean

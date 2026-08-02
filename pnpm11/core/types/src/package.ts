@@ -1,4 +1,3 @@
-import type { NamedRegistries } from '@pnpm/types'
 
 import type { Registries } from './misc.js'
 import type { VersioningSettings } from './versioning.js'
@@ -234,7 +233,7 @@ export interface UpdateSettings {
 export interface PnpmSettings {
   npmrcAuthFile?: string
   registries?: Registries
-  namedRegistries?: NamedRegistries
+  namedRegistries?: Record<string, string>
   configDependencies?: ConfigDependencies
   allowBuilds?: Record<string, boolean | string>
   overrides?: Record<string, string>

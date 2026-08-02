@@ -7,7 +7,7 @@ import {
 } from '@pnpm/lockfile.pruner'
 import { toLockfileResolution } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
-import type { DepPath, NamedRegistries, Registries } from '@pnpm/types'
+import type { DepPath, Registries } from '@pnpm/types'
 import type { KeyValuePair } from 'ramda'
 import { partition } from 'ramda'
 
@@ -21,12 +21,12 @@ export function updateLockfile (
     lockfile: LockfileObject
     prefix: string
     registries: Registries
-    namedRegistries?: NamedRegistries
+    namedRegistries?: Record<string, string>
     lockfileIncludeTarballUrl?: boolean
   }
 ): LockfileObject {
   lockfile.packages = lockfile.packages ?? {}
-  const mergedNamedRegistries = namedRegistries ?? normalizeNamedRegistries()
+  const mergedNamedRegistries = normalizeNamedRegistries(namedRegistries)
   for (const [depPath, depNode] of Object.entries(dependenciesGraph)) {
     const [updatedOptionalDeps, updatedDeps] = partition(
       (child) => depNode.optionalDependencies.has(child.alias) || depNode.peerDependencies[child.alias]?.optional === true,

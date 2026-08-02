@@ -3856,10 +3856,7 @@ describe('global config.yaml', () => {
 
     expect(config.registries.default).toBe('https://trusted.example.com/npm/')
     expect(config.registries['@scope']).toBe('https://trusted.example.com/scope/')
-    // Spread because the map is null-prototype, which toStrictEqual checks.
-    expect({ ...config.namedRegistries }).toStrictEqual({
-      gh: 'https://npm.pkg.github.com/',
-      npmjs: 'https://registry.npmjs.org/',
+    expect(config.namedRegistries).toStrictEqual({
       work: 'https://trusted.example.com/work/',
     })
     expect(warnings.find((w) => w.includes('global config file'))).toBeUndefined()

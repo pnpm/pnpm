@@ -37,7 +37,6 @@
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/config.env-replace": "catalog:",
     "@pnpm/config.matcher": "workspace:*",
-    "@pnpm/config.normalize-registries": "workspace:*",
     "@pnpm/config.registry-auth-key": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/error": "workspace:*",

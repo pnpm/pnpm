@@ -6,7 +6,7 @@ import { PnpmError } from '@pnpm/error'
 import type { PackageSnapshot, TarballResolution } from '@pnpm/lockfile.types'
 import type { Resolution } from '@pnpm/resolving.resolver-base'
 import { getNpmTarballUrl } from '@pnpm/resolving.tarball-url'
-import type { NamedRegistries, Registries } from '@pnpm/types'
+import type { Registries } from '@pnpm/types'
 
 import { nameVerFromPkgSnapshot } from './nameVerFromPkgSnapshot.js'
 
@@ -16,7 +16,7 @@ export interface PkgSnapshotToResolutionOptions {
    * User-configured named registries (`namedRegistries` setting). Built-in
    * aliases are merged in here, so callers pass the setting verbatim.
    */
-  namedRegistries?: NamedRegistries
+  namedRegistries?: Record<string, string>
 }
 
 export function pkgSnapshotToResolution (
@@ -49,7 +49,7 @@ export function pkgSnapshotToResolution (
   const { name, version, registryName } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
   let registry: string = ''
   if (registryName != null) {
-    registry = (opts.namedRegistries ?? normalizeNamedRegistries())[registryName]
+    registry = normalizeNamedRegistries(opts.namedRegistries)[registryName]
     if (!registry) {
       throw new PnpmError('MISSING_NAMED_REGISTRY',
         `Cannot install package "${depPath}": it was resolved from the named registry '${registryName}:', which is not present in the namedRegistries setting.`,

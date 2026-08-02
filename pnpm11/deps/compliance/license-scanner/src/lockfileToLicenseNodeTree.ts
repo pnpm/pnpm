@@ -7,7 +7,7 @@ import {
   type LockfileWalkerStep,
 } from '@pnpm/lockfile.walker'
 import { StoreIndex } from '@pnpm/store.index'
-import type { DependenciesField, NamedRegistries, ProjectId, Registries, SupportedArchitectures } from '@pnpm/types'
+import type { DependenciesField, ProjectId, Registries, SupportedArchitectures } from '@pnpm/types'
 
 import { getPkgInfo } from './getPkgInfo.js'
 
@@ -42,7 +42,7 @@ export interface LicenseExtractOptions {
   modulesDir?: string
   dir: string
   registries: Registries
-  namedRegistries?: NamedRegistries
+  namedRegistries?: Record<string, string>
   supportedArchitectures?: SupportedArchitectures
   depTypes: DepTypes
 }

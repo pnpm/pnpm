@@ -12,7 +12,7 @@ import {
   type Resolution,
   type ResolutionVerifier,
 } from '@pnpm/resolving.resolver-base'
-import type { NamedRegistries, PackageVersionPolicy, Registries, TrustPolicy } from '@pnpm/types'
+import type { PackageVersionPolicy, Registries, TrustPolicy } from '@pnpm/types'
 import semver from 'semver'
 
 import type { FetchMetadataFromFromRegistryOptions } from './fetch.js'
@@ -79,7 +79,7 @@ export interface CreateNpmResolutionVerifierOptions {
    * these registry base URLs, route the manifest fetch there instead of the
    * scope-derived default.
    */
-  namedRegistries?: NamedRegistries
+  namedRegistries?: Record<string, string>
   /**
    * Cache-aware full-metadata fetcher. Decoupled from the resolver pipeline
    * so abbreviated metadata and `peekManifestFromStore` fast paths cannot
@@ -133,7 +133,7 @@ export function createNpmResolutionVerifier (
     ? createExcludePolicy(opts.trustPolicyExclude, 'trustPolicyExclude')
     : undefined
 
-  const mergedNamedRegistries = opts.namedRegistries ?? normalizeNamedRegistries()
+  const mergedNamedRegistries = normalizeNamedRegistries(opts.namedRegistries)
   const namedRegistryPrefixes = namedRegistryTarballPrefixes(mergedNamedRegistries)
 
   // Per-install dedup of every network/disk fetch the verifier issues.

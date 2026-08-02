@@ -2497,9 +2497,6 @@ importers:
       '@pnpm/config.matcher':
         specifier: workspace:*
         version: link:../matcher
-      '@pnpm/config.normalize-registries':
-        specifier: workspace:*
-        version: link:../normalize-registries
       '@pnpm/config.registry-auth-key':
         specifier: workspace:*
         version: link:../registry-auth-key
