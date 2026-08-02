@@ -1,32 +1,25 @@
-//! Regression benchmark for the large multi-importer full-resolution path.
+//! Multi-importer workspace resolution: the peer-hoist loop and the
+//! importer barrier around it.
 //!
-//! This models the Bit workspace that exposed the regression:
+//! Two sizes of the same fixture — a layered dependency graph shared by
+//! many importers, peer hoisting enabled, no wanted lockfile — so the
+//! whole graph resolves:
 //!
-//! - 331 component importers;
-//! - a shared 5,000-package layered dependency graph;
-//! - 20 direct roots per importer;
-//! - peer hoisting enabled, which runs the importer peer-discovery barrier;
-//! - no wanted lockfile, so the whole graph is resolved.
+//! - [`Size::Ci`] is what the criterion group measures on every PR. It is
+//!   sized so a run costs a fraction of a second while still spreading
+//!   enough importers over enough packages to expose per-importer work
+//!   that scales with the workspace.
+//! - [`Size::Full`] is a large real workspace's scale: 331 importers over
+//!   5,000 packages. It is too slow and too memory-hungry for a
+//!   statistical harness — a regressed run can take minutes and several
+//!   GiB — so `--full-workspace-resolution` runs each shape once and
+//!   prints its timing instead.
 //!
-//! Three scenarios run back to back. The plain graph above; a peer-heavy
-//! variant where every graph package peer-depends on a set of framework
-//! packages the importers provide directly (the react/graphql shape of a Bit
-//! workspace), which exercises the peer walker's per-node parent-context
-//! bookkeeping that the first never grows beyond empty maps; and a
-//! hoist-heavy variant where those peers are missing and the importers'
-//! direct sets differ, so the auto-install-peers loop actually runs — several
-//! hoist rounds per importer, each extending the tree and forcing the
-//! discovery engine to refresh its view. Timings from the first two say
-//! nothing about that loop: with every peer provided up front it converges in
-//! one round.
-//!
-//! Run once (the benchmark intentionally has no statistical harness because a
-//! regressed run can take minutes and several GiB):
-//!
-//! ```text
-//! cargo bench -p pacquet-resolving-deps-resolver --bench workspace_full_resolution
-//! ```
+//! The [`Shape::PeersHoisted`] shape is the one that runs the hoist loop.
+//! The other two say nothing about it: with every peer provided up front
+//! the loop converges in one round.
 
+use criterion::Criterion;
 use std::{
     collections::{BTreeMap, HashMap},
     hint::black_box,
@@ -47,8 +40,6 @@ use pacquet_resolving_resolver_base::{
     ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, WantedDependency,
 };
 
-const IMPORTER_COUNT: usize = 331;
-const LAYER_COUNT: usize = 250;
 const PACKAGES_PER_LAYER: usize = 20;
 const CHILDREN_PER_PACKAGE: usize = 4;
 /// Framework packages the peer-heavy scenario adds: importers depend on all
@@ -59,6 +50,30 @@ const PEERS_PER_PACKAGE: usize = 8;
 /// hoist-heavy scenario, rotated per importer so the importers' forests
 /// differ instead of every one resolving the same direct set.
 const ROOTS_PER_IMPORTER: usize = 6;
+
+/// How large a workspace the fixture models. The per-importer work the
+/// hoist loop does scales with both factors, so both shrink for CI.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Size {
+    Ci,
+    Full,
+}
+
+impl Size {
+    fn importer_count(self) -> usize {
+        match self {
+            Size::Ci => 120,
+            Size::Full => 331,
+        }
+    }
+
+    fn layer_count(self) -> usize {
+        match self {
+            Size::Ci => 60,
+            Size::Full => 250,
+        }
+    }
+}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Shape {
@@ -114,8 +129,8 @@ fn framework_peers_for_package(layer: usize, index: usize) -> serde_json::Value 
     serde_json::Value::Object(peers)
 }
 
-fn dependencies_for_package(layer: usize, index: usize) -> serde_json::Value {
-    if layer + 1 == LAYER_COUNT {
+fn dependencies_for_package(layer: usize, index: usize, size: Size) -> serde_json::Value {
+    if layer + 1 == size.layer_count() {
         return serde_json::Value::Object(serde_json::Map::new());
     }
     let dependencies = (0..CHILDREN_PER_PACKAGE)
@@ -127,9 +142,9 @@ fn dependencies_for_package(layer: usize, index: usize) -> serde_json::Value {
     serde_json::Value::Object(dependencies)
 }
 
-fn graph_resolver(shape: Shape) -> GraphResolver {
+fn graph_resolver(shape: Shape, size: Size) -> GraphResolver {
     let with_peers = shape != Shape::Plain;
-    let mut packages: HashMap<String, ResolveResult> = (0..LAYER_COUNT)
+    let mut packages: HashMap<String, ResolveResult> = (0..size.layer_count())
         .flat_map(|layer| {
             (0..PACKAGES_PER_LAYER).map(move |index| {
                 let name = package_name(layer, index);
@@ -141,7 +156,7 @@ fn graph_resolver(shape: Shape) -> GraphResolver {
                 let mut manifest = serde_json::json!({
                     "name": name,
                     "version": "1.0.0",
-                    "dependencies": dependencies_for_package(layer, index),
+                    "dependencies": dependencies_for_package(layer, index, size),
                 });
                 if with_peers {
                     manifest["peerDependencies"] = framework_peers_for_package(layer, index);
@@ -284,44 +299,98 @@ fn workspace_options() -> WorkspaceResolveOptions {
     }
 }
 
-fn run_scenario(runtime: &tokio::runtime::Runtime, label: &str, shape: Shape) {
-    let manifests: Vec<_> =
-        (0..IMPORTER_COUNT).map(|index| importer_manifest(index, shape)).collect();
-    let importer_ids: Vec<_> =
-        (0..IMPORTER_COUNT).map(|index| format!("components/component-{index:03}")).collect();
-    let importers: Vec<_> = importer_ids
-        .iter()
-        .zip(&manifests)
-        .map(|(id, manifest)| WorkspaceImporter { id: id.clone(), manifest })
-        .collect();
-    let resolver = graph_resolver(shape);
-
-    let started = Instant::now();
-    let result = runtime
+/// One resolve of the whole workspace. Everything before the resolve is
+/// fixture construction, which the caller hoists out of the timed region.
+fn resolve_once(
+    runtime: &tokio::runtime::Runtime,
+    importers: &[WorkspaceImporter<'_>],
+    resolver: &GraphResolver,
+) -> usize {
+    runtime
         .block_on(resolve_workspace(
-            &resolver,
-            &importers,
+            resolver,
+            importers,
             &[DependencyGroup::Prod],
             workspace_options(),
             importer_options,
         ))
-        .expect("benchmark workspace resolves");
-    let elapsed = started.elapsed();
-    black_box(&result);
-
-    println!(
-        "{label}: {IMPORTER_COUNT} importers, {} packages, {} graph nodes in {elapsed:.2?}",
-        resolver.packages.len(),
-        result.peers.graph.len(),
-    );
+        .expect("benchmark workspace resolves")
+        .peers
+        .graph
+        .len()
 }
 
-fn main() {
+struct Workspace {
+    manifests: Vec<PackageManifest>,
+    ids: Vec<String>,
+    resolver: GraphResolver,
+}
+
+impl Workspace {
+    fn new(shape: Shape, size: Size) -> Self {
+        Workspace {
+            manifests: (0..size.importer_count())
+                .map(|index| importer_manifest(index, shape))
+                .collect(),
+            ids: (0..size.importer_count())
+                .map(|index| format!("components/component-{index:03}"))
+                .collect(),
+            resolver: graph_resolver(shape, size),
+        }
+    }
+
+    fn importers(&self) -> Vec<WorkspaceImporter<'_>> {
+        self.ids
+            .iter()
+            .zip(&self.manifests)
+            .map(|(id, manifest)| WorkspaceImporter { id: id.clone(), manifest })
+            .collect()
+    }
+}
+
+/// The CI-gated measurement. Only the hoist-heavy shape is benched: it is
+/// the one whose cost the peer-hoist loop dominates, and the other two
+/// shapes would spend the budget re-measuring the plain tree walk that
+/// every other scenario already covers.
+pub fn bench_workspace_resolution(criterion: &mut Criterion) {
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
         .expect("create benchmark runtime");
-    run_scenario(&runtime, "full workspace resolution", Shape::Plain);
-    run_scenario(&runtime, "peer-heavy workspace resolution", Shape::PeersProvided);
-    run_scenario(&runtime, "hoist-heavy workspace resolution", Shape::PeersHoisted);
+    let workspace = Workspace::new(Shape::PeersHoisted, Size::Ci);
+    let importers = workspace.importers();
+
+    let mut group = criterion.benchmark_group("workspace_resolution");
+    // A resolve costs a large fraction of a second, so criterion's default
+    // 100 samples would put this one group in the minutes.
+    group.sample_size(10);
+    group.bench_function("hoist_heavy", |bencher| {
+        bencher.iter(|| black_box(resolve_once(&runtime, &importers, &workspace.resolver)));
+    });
+    group.finish();
+}
+
+/// Run each shape once at [`Size::Full`] and print its timing. See the
+/// module docs for why this size has no statistical harness.
+pub fn run_full_workspace_resolution() {
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .expect("create benchmark runtime");
+    for (label, shape) in [
+        ("full workspace resolution", Shape::Plain),
+        ("peer-heavy workspace resolution", Shape::PeersProvided),
+        ("hoist-heavy workspace resolution", Shape::PeersHoisted),
+    ] {
+        let workspace = Workspace::new(shape, Size::Full);
+        let importers = workspace.importers();
+        let started = Instant::now();
+        let nodes = resolve_once(&runtime, &importers, &workspace.resolver);
+        let elapsed = started.elapsed();
+        println!(
+            "{label}: {} importers, {} packages, {nodes} graph nodes in {elapsed:.2?}",
+            Size::Full.importer_count(),
+            workspace.resolver.packages.len(),
+        );
+    }
 }
