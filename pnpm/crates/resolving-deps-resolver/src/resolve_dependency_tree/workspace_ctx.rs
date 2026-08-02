@@ -155,21 +155,6 @@ pub(super) struct RecordedChildren {
     context: RecordedChildrenContext,
 }
 
-#[cfg(test)]
-impl RecordedChildren {
-    /// A recording whose context these tests do not vary.
-    pub(super) fn for_tests(edges: Vec<crate::resolved_tree::ChildEdge>) -> Self {
-        RecordedChildren {
-            edges: Arc::new(edges),
-            context: RecordedChildrenContext {
-                peer_shadowed: Arc::default(),
-                prior_key: None,
-                update_active: false,
-            },
-        }
-    }
-}
-
 /// What a recorded `children_by_id` entry was resolved under. A later
 /// occurrence may expand from that entry instead of walking the
 /// package's manifest again only when its own context equals this one:

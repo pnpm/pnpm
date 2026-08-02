@@ -1,6 +1,9 @@
 use pacquet_resolving_resolver_base::ResolveOptions;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
 
 use super::{
     super::{lock_recoverable, test_support::manifest_result},
@@ -443,5 +446,12 @@ fn record_tree_node(workspace: &WorkspaceTreeCtx, node_id: &NodeId, pkg_id: &str
 
 /// Children recorded by a walk whose context these tests do not vary.
 fn recorded(edges: Vec<crate::resolved_tree::ChildEdge>) -> super::RecordedChildren {
-    super::RecordedChildren::for_tests(edges)
+    super::RecordedChildren {
+        edges: Arc::new(edges),
+        context: super::RecordedChildrenContext {
+            peer_shadowed: Arc::default(),
+            prior_key: None,
+            update_active: false,
+        },
+    }
 }
