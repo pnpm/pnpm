@@ -64,6 +64,10 @@ pub struct ResolutionPolicyViolation {
 pub struct VerifyCtx<'a> {
     pub name: &'a PkgName,
     pub version: &'a str,
+    /// Named-registry alias of a registry-qualified lockfile key
+    /// (`<name>@<registryName>:<version>`), so registry-policing
+    /// verifiers route their metadata lookups to that named registry.
+    pub registry_name: Option<&'a str>,
 }
 
 /// Boxed-future return type for [`ResolutionVerifier::verify`].

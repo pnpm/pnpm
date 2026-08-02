@@ -17,8 +17,8 @@ use crate::{
         context::{
             CurrentProviderSource, ParentPkgInfo, ParentRef, ParentRefs, SharedChain,
             importer_relative_link_dep_path, insert_parent_ref, link_node_id_as_dep_path,
-            parents_from_chain, pkg_name_version, remap_link_node_id, satisfies_with_prereleases,
-            scoped_hoisted_optional_parent_refs,
+            parents_from_chain, peer_id_pair, pkg_name_version, remap_link_node_id,
+            satisfies_with_prereleases, scoped_hoisted_optional_parent_refs,
         },
         discovery::PeerDiscoveryCaches,
         finalize::{NodeRecord, PendingPeerEdge, WalkedNode},
@@ -1301,16 +1301,14 @@ impl Walker<'_> {
             && let Some(tree_node) = self.tree.dependencies_tree.get(peer_node_id)
             && let Some(pkg) = self.tree.packages.get(&tree_node.resolved_package_id)
         {
-            let (name, version) = pkg_name_version(&pkg.result);
-            return PeerId::Pair { name, version };
+            return peer_id_pair(&pkg.result);
         }
         if let Some(dep_path) = self.node_dep_paths.get(peer_node_id) {
             return PeerId::DepPath(dep_path.clone());
         }
         let tree_node = &self.tree.dependencies_tree[peer_node_id];
         let pkg = &self.tree.packages[&tree_node.resolved_package_id];
-        let (name, version) = pkg_name_version(&pkg.result);
-        PeerId::Pair { name, version }
+        peer_id_pair(&pkg.result)
     }
 
     /// Resolve `node_id` to the depPath computed during the main walk.

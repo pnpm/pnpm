@@ -85,9 +85,7 @@ export function parseJsrSpecifierToRegistryPackageSpec (
   }
 }
 
-export const BUILTIN_NAMED_REGISTRIES: Readonly<Record<string, string>> = Object.freeze({
-  gh: 'https://npm.pkg.github.com/',
-})
+export { BUILTIN_NAMED_REGISTRIES } from '@pnpm/constants'
 
 export interface NamedRegistryPackageSpec extends RegistryPackageSpec {
   registryName: string

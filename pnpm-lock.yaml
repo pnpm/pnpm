@@ -3083,9 +3083,15 @@ importers:
       '@cyclonedx/cyclonedx-library':
         specifier: 'catalog:'
         version: 10.1.0(ajv@8.20.0)(spdx-expression-parse@4.0.0)
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../../core/constants
       '@pnpm/deps.compliance.license-resolver':
         specifier: workspace:*
         version: link:../license-resolver
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../../core/error
       '@pnpm/lockfile.detect-dep-types':
         specifier: workspace:*
         version: link:../../../lockfile/detect-dep-types
@@ -7075,6 +7081,9 @@ importers:
 
   pnpm11/lockfile/utils:
     dependencies:
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../core/constants
       '@pnpm/deps.path':
         specifier: workspace:*
         version: link:../../deps/path
@@ -8770,6 +8779,9 @@ importers:
       '@pnpm/crypto.hash':
         specifier: workspace:*
         version: link:../../crypto/hash
+      '@pnpm/deps.path':
+        specifier: workspace:*
+        version: link:../../deps/path
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error

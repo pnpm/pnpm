@@ -14,6 +14,8 @@ import { getPkgInfo } from './getPkgInfo.js'
 export interface LicenseNode {
   name?: string
   version?: string
+  /** Named-registry alias when the package came from one; see `LicensePackage.registryName`. */
+  registryName?: string
   license: string
   licenseContents?: string
   dir: string
@@ -40,6 +42,7 @@ export interface LicenseExtractOptions {
   modulesDir?: string
   dir: string
   registries: Registries
+  namedRegistries?: Record<string, string>
   supportedArchitectures?: SupportedArchitectures
   depTypes: DepTypes
 }
@@ -51,7 +54,7 @@ export async function lockfileToLicenseNode (
   const dependencies: Record<string, LicenseNode> = Object.fromEntries(
     (await Promise.all(step.dependencies.map(async (dependency): Promise<[string, LicenseNode] | null> => {
       const { depPath, pkgSnapshot, next } = dependency
-      const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+      const { name, version, registryName } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
 
       const packageInstallable = packageIsInstallable(pkgSnapshot.id ?? depPath, {
         name,
@@ -79,6 +82,7 @@ export async function lockfileToLicenseNode (
           depPath,
           snapshot: pkgSnapshot,
           registries: options.registries,
+          namedRegistries: options.namedRegistries,
         },
         {
           storeDir: options.storeDir,
@@ -94,6 +98,7 @@ export async function lockfileToLicenseNode (
 
       const dep: LicenseNode = {
         name,
+        registryName,
         dev: options.depTypes[depPath] === DepType.DevOnly,
         integrity: (pkgSnapshot.resolution as TarballResolution).integrity,
         version,
@@ -151,6 +156,7 @@ export async function lockfileToLicenseNodeTree (
           modulesDir: opts.modulesDir,
           dir: opts.dir,
           registries: opts.registries,
+          namedRegistries: opts.namedRegistries,
           supportedArchitectures: opts.supportedArchitectures,
           depTypes,
         })

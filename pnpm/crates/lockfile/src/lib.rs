@@ -48,7 +48,7 @@ use indexmap::IndexMap;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::{BTreeMap, HashMap};
 
-/// Package key used by the `packages:` and `snapshots:` maps in a v9 lockfile.
+/// Package key used by the `packages:` and `snapshots:` maps.
 ///
 /// Example: `react-dom@17.0.2(react@17.0.2)`.
 pub type PackageKey = PkgNameVerPeer;
@@ -86,7 +86,7 @@ pub struct LockfileSettings {
     pub peers_suffix_max_length: Option<u64>,
 }
 
-/// A pnpm v9 lockfile.
+/// A pnpm lockfile using a supported wire format.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Lockfile {

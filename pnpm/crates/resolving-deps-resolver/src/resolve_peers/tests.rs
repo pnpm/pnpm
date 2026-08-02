@@ -1,14 +1,18 @@
 use super::{
-    ImporterPeerInput, ResolvePeersOptions, resolve_peers, resolve_peers_workspace,
+    ImporterPeerInput, ResolvePeersOptions,
+    context::peer_id_pair,
+    resolve_peers, resolve_peers_workspace,
     test_support::{
-        linked_package, package, package_with_peer_dependencies, tree_node, walker_for_tests,
+        linked_package, package, package_with_peer_dependencies, resolve_result, tree_node,
+        walker_for_tests,
     },
 };
 use crate::{
     node_id::NodeId,
     resolved_tree::{DirectDep, ResolvedTree},
 };
-use pacquet_deps_path::DepPath;
+use pacquet_deps_path::{DepPath, PeerId};
+use pacquet_resolving_resolver_base::PkgResolutionId;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::collections::BTreeMap;
 
@@ -1761,4 +1765,26 @@ mod locked_peer_provider_preferences {
             preferred.graph.keys().collect::<Vec<_>>(),
         );
     }
+}
+
+#[test]
+fn peer_id_pair_keeps_the_named_registry() {
+    let mut result = resolve_result("foo", "1.0.0");
+    result.id = PkgResolutionId::from("foo@work:1.0.0".to_string());
+    result.resolved_via = "named-registry".to_string();
+
+    let PeerId::Pair { name, version } = peer_id_pair(&result) else {
+        panic!("expected a name/version pair");
+    };
+    assert_eq!(name, "foo");
+    assert_eq!(version, "work:1.0.0");
+}
+
+#[test]
+fn peer_id_pair_leaves_an_ordinary_registry_package_bare() {
+    let PeerId::Pair { name, version } = peer_id_pair(&resolve_result("foo", "1.0.0")) else {
+        panic!("expected a name/version pair");
+    };
+    assert_eq!(name, "foo");
+    assert_eq!(version, "1.0.0");
 }

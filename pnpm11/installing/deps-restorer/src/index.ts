@@ -165,6 +165,7 @@ export interface HeadlessOptions {
   unsafePerm: boolean
   userAgent: string
   registries: Registries
+  namedRegistries?: Record<string, string>
   reporter?: ReporterFunction
   packageManager: {
     name: string

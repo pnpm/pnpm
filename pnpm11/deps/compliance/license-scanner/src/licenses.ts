@@ -20,6 +20,13 @@ export interface LicensePackage {
   belongsTo: DependenciesField
   version: string
   name: string
+  /**
+   * Named-registry alias the package was resolved from (lockfile format
+   * 9.1), or `undefined` for the default/scope registry. Part of the
+   * package's identity: the same name and version served by two
+   * registries are two distinct artifacts with their own licenses.
+   */
+  registryName?: string
   license: string
   licenseContents?: string
   author?: string
@@ -53,6 +60,7 @@ function appendDependenciesFromLicenseNode (
       belongsTo: dependencyNode.dev ? 'devDependencies' : 'dependencies',
       version: dependencyNode.version as string,
       name: dependencyNode.name as string,
+      registryName: dependencyNode.registryName,
       license: dependencyNode.license as string,
       licenseContents: dependencyNode.licenseContents,
       author: dependencyNode.author as string,
@@ -74,6 +82,7 @@ export async function findDependencyLicenses (opts: {
   virtualStoreDirMaxLength: number
   modulesDir?: string
   registries: Registries
+  namedRegistries?: Record<string, string>
   wantedLockfile: LockfileObject | null
   includedImporterIds?: ProjectId[]
   supportedArchitectures?: SupportedArchitectures
@@ -94,12 +103,13 @@ export async function findDependencyLicenses (opts: {
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     include: opts.include,
     registries: opts.registries,
+    namedRegistries: opts.namedRegistries,
     includedImporterIds: opts.includedImporterIds,
     supportedArchitectures: opts.supportedArchitectures,
     depTypes,
   })
 
-  // map: name@ver -> LicensePackage
+  // map: name@ver (qualified by named registry, when any) -> LicensePackage
   const licensePackages = new Map<string, LicensePackage>()
 
   for (const dependencyName in licenseNodeTree.dependencies) {
@@ -107,7 +117,12 @@ export async function findDependencyLicenses (opts: {
     const dependenciesOfNode = getDependenciesFromLicenseNode(licenseNode)
 
     for (const dependencyNode of dependenciesOfNode) {
-      const mapKey = `${dependencyNode.name}@${dependencyNode.version}`
+      // The registry is part of the identity: the same name and version
+      // served by two registries are different artifacts and may carry
+      // different licenses, so they must not collapse onto one entry.
+      const mapKey = dependencyNode.registryName == null
+        ? `${dependencyNode.name}@${dependencyNode.version}`
+        : `${dependencyNode.name}@${dependencyNode.registryName}:${dependencyNode.version}`
       const existingVersion = licensePackages.get(mapKey)?.version
       if (existingVersion === undefined) {
         licensePackages.set(mapKey, dependencyNode)

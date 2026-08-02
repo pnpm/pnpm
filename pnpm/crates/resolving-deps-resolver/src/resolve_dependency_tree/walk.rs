@@ -249,7 +249,12 @@ where
     // exists for a freshly resolving edge.
     let current_pkg = prior_key.as_ref().and_then(|key| {
         let lockfile = ctx.workspace.wanted_lockfile.as_ref()?;
-        current_pkg_from_lockfile(lockfile, key, &ctx.workspace.registries)
+        current_pkg_from_lockfile(
+            lockfile,
+            key,
+            &ctx.workspace.registries,
+            &ctx.workspace.named_registries,
+        )
     });
     let opts_with_current_pkg;
     let opts = match current_pkg {

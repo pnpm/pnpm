@@ -27,4 +27,42 @@ describe('buildPurl', () => {
     expect(buildPurl({ name: '@pnpm/lockfile.types', version: '1.0.0' }))
       .toBe('pkg:npm/%40pnpm/lockfile.types@1.0.0')
   })
+
+  it('should carry a repository_url qualifier for a named-registry package', () => {
+    const registryUrl = 'https://npm.enterprise.example.com/'
+    const purl = buildPurl({ name: 'foo', version: '1.0.0', registryUrl })
+
+    const [base, qualifier] = purl.split('?repository_url=')
+    expect(base).toBe('pkg:npm/foo@1.0.0')
+    expect(decodeURIComponent(qualifier)).toBe(registryUrl)
+  })
+
+  it('should give the same name and version from two registries distinct purls', () => {
+    const fromDefault = buildPurl({ name: 'foo', version: '1.0.0' })
+    const fromNamed = buildPurl({
+      name: 'foo',
+      version: '1.0.0',
+      registryUrl: 'https://npm.enterprise.example.com/',
+    })
+    // These two are different artifacts; collapsing them would drop one of
+    // them from the SBOM entirely.
+    expect(fromDefault).not.toBe(fromNamed)
+  })
+
+  it('should strip credentials from the repository_url qualifier', () => {
+    const purl = buildPurl({
+      name: 'foo',
+      version: '1.0.0',
+      registryUrl: 'https://some-user:some-token@npm.enterprise.example.com/team-a/?api_key=secret-value',
+    })
+
+    const qualifier = decodeURIComponent(purl.split('?repository_url=')[1])
+    // An SBOM is meant to be published, so neither the userinfo nor a
+    // token-bearing query string may travel with it. The path stays: two
+    // registries can differ only by path.
+    expect(qualifier).toBe('https://npm.enterprise.example.com/team-a/')
+    for (const secret of ['some-user', 'some-token', 'secret-value']) {
+      expect(purl).not.toContain(secret)
+    }
+  })
 })

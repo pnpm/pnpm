@@ -37,7 +37,9 @@ pub fn try_get_package_id(dep_path: &str) -> std::borrow::Cow<'_, str> {
         return std::borrow::Cow::Borrowed(trimmed);
     };
     let new_pkg_id = &trimmed[at_idx + 1..];
-    if new_pkg_id.starts_with("runtime:") {
+    if new_pkg_id.starts_with("runtime:")
+        || crate::parse_registry_qualified_version(new_pkg_id).is_some()
+    {
         return std::borrow::Cow::Borrowed(trimmed);
     }
     std::borrow::Cow::Owned(new_pkg_id.to_string())

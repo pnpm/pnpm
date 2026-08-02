@@ -18,6 +18,9 @@ use pacquet_resolving_deps_resolver::{
 };
 use pacquet_resolving_resolver_base::{PkgResolutionId, ResolveResult};
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+
+static EMPTY_NAMED_REGISTRIES: std::sync::LazyLock<std::collections::HashMap<String, String>> =
+    std::sync::LazyLock::new(std::collections::HashMap::new);
 use serde_json::json;
 use ssri::Integrity;
 use std::{collections::BTreeMap, str::FromStr, sync::Arc};
@@ -62,6 +65,7 @@ fn single_importer_opts<'a>(
         ImporterLockfileInput { manifest, direct_dependencies_by_alias: direct },
     );
     GraphToLockfileOptions {
+        named_registries: &EMPTY_NAMED_REGISTRIES,
         importers,
         graph,
         auto_install_peers,
@@ -405,6 +409,7 @@ fn dedupe_peers_round_trips_through_lockfile_settings() {
         ImporterLockfileInput { manifest: &manifest, direct_dependencies_by_alias: direct.clone() },
     );
     let on = dependencies_graph_to_lockfile(GraphToLockfileOptions {
+        named_registries: &EMPTY_NAMED_REGISTRIES,
         importers,
         graph: &graph,
         auto_install_peers: false,
@@ -435,6 +440,7 @@ fn dedupe_peers_round_trips_through_lockfile_settings() {
         ImporterLockfileInput { manifest: &manifest, direct_dependencies_by_alias: direct },
     );
     let off = dependencies_graph_to_lockfile(GraphToLockfileOptions {
+        named_registries: &EMPTY_NAMED_REGISTRIES,
         importers,
         graph: &graph,
         auto_install_peers: false,
@@ -519,6 +525,7 @@ fn patched_dependencies_flow_into_lockfile_and_empty_is_omitted() {
             },
         );
         dependencies_graph_to_lockfile(GraphToLockfileOptions {
+            named_registries: &EMPTY_NAMED_REGISTRIES,
             importers,
             graph: &graph,
             auto_install_peers: false,
@@ -676,6 +683,7 @@ fn aliased_catalog_dependency_records_catalog_snapshot() {
         ImporterLockfileInput { manifest: &manifest, direct_dependencies_by_alias: direct },
     );
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
+        named_registries: &EMPTY_NAMED_REGISTRIES,
         importers,
         graph: &graph,
         auto_install_peers: false,
@@ -1732,6 +1740,7 @@ fn snapshot_link_uses_lockfile_root_while_importer_link_uses_project_root() {
     )]);
 
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
+        named_registries: &EMPTY_NAMED_REGISTRIES,
         importers,
         graph: &graph,
         auto_install_peers: false,
@@ -1822,6 +1831,7 @@ fn multi_importer_workspace_writes_per_project_lockfile_entries() {
     );
 
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
+        named_registries: &EMPTY_NAMED_REGISTRIES,
         importers,
         graph: &graph,
         auto_install_peers: false,
@@ -1930,6 +1940,7 @@ fn multi_importer_pruner_marks_shared_dep_non_optional_when_any_importer_reaches
     );
 
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
+        named_registries: &EMPTY_NAMED_REGISTRIES,
         importers,
         graph: &graph,
         auto_install_peers: false,
@@ -2064,6 +2075,7 @@ fn workspace_sibling_link_renders_per_importer_with_link_ref() {
     );
 
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
+        named_registries: &EMPTY_NAMED_REGISTRIES,
         importers,
         graph: &graph,
         auto_install_peers: false,
@@ -2370,6 +2382,7 @@ fn injected_workspace_dep_keeps_prior_link_on_untargeted_install() {
     let previous = previous_importers_with_link("n", "workspace:*", "../n");
 
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
+        named_registries: &EMPTY_NAMED_REGISTRIES,
         previous_importers: Some(&previous),
         update_reuse_scope: UpdateReuseScope::All,
         ..single_importer_opts(&manifest, &graph, direct, false, false, None, None)
@@ -2394,6 +2407,7 @@ fn injected_workspace_dep_renders_file_without_prior_link() {
     let (_tmp, manifest, graph, direct) = injected_link_fixture();
 
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
+        named_registries: &EMPTY_NAMED_REGISTRIES,
         previous_importers: None,
         update_reuse_scope: UpdateReuseScope::All,
         ..single_importer_opts(&manifest, &graph, direct, false, false, None, None)
@@ -2421,6 +2435,7 @@ fn injected_workspace_dep_flips_to_file_when_update_targets_it() {
     let previous = previous_importers_with_link("n", "workspace:*", "../n");
 
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
+        named_registries: &EMPTY_NAMED_REGISTRIES,
         previous_importers: Some(&previous),
         update_reuse_scope: UpdateReuseScope::Except(HashSet::from_iter(["n".to_string()])),
         ..single_importer_opts(&manifest, &graph, direct, false, false, None, None)
@@ -2449,6 +2464,7 @@ fn injected_workspace_dep_flips_to_file_when_specifier_changed() {
     let previous = previous_importers_with_link("n", "workspace:^1.0.0", "../n");
 
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
+        named_registries: &EMPTY_NAMED_REGISTRIES,
         previous_importers: Some(&previous),
         update_reuse_scope: UpdateReuseScope::All,
         ..single_importer_opts(&manifest, &graph, direct, false, false, None, None)
@@ -2483,6 +2499,7 @@ fn injected_workspace_dep_flips_to_file_when_recursive_update_targets_it_per_imp
     )]);
 
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
+        named_registries: &EMPTY_NAMED_REGISTRIES,
         previous_importers: Some(&previous),
         update_reuse_scope: UpdateReuseScope::All,
         update_reuse_scopes_by_importer: scopes_by_importer,
@@ -2519,6 +2536,7 @@ fn injected_workspace_dep_keeps_link_when_recursive_update_targets_other_pkg() {
     )]);
 
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
+        named_registries: &EMPTY_NAMED_REGISTRIES,
         previous_importers: Some(&previous),
         update_reuse_scope: UpdateReuseScope::All,
         update_reuse_scopes_by_importer: scopes_by_importer,
@@ -2546,6 +2564,7 @@ fn injected_workspace_dep_flips_to_file_on_scope_wide_update() {
     let previous = previous_importers_with_link("n", "workspace:*", "../n");
 
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
+        named_registries: &EMPTY_NAMED_REGISTRIES,
         previous_importers: Some(&previous),
         update_reuse_scope: UpdateReuseScope::None,
         ..single_importer_opts(&manifest, &graph, direct, false, false, None, None)
@@ -2579,4 +2598,168 @@ fn node_pkg_name_prefers_name_ver_and_falls_back_to_manifest() {
     };
     node.resolve_result = std::sync::Arc::new(resolve_result);
     assert_eq!(super::node_pkg_name(&node), Some("renamed".to_string()));
+}
+
+/// Build a node whose depPath is registry-qualified
+/// (`<name>@<registryName>:<version>`, lockfile format 12.0) and whose
+/// resolution carries `tarball_url`.
+fn make_named_registry_node(
+    name: &str,
+    registry_name: &str,
+    version: &str,
+    tarball_url: &str,
+) -> DependenciesGraphNode {
+    let dep_path = DepPath::from(format!("{name}@{registry_name}:{version}"));
+    let name_ver: PkgNameVer = format!("{name}@{version}").parse().expect("parse PkgNameVer");
+    let resolve_result = ResolveResult {
+        id: PkgResolutionId::from(format!("{name}@{registry_name}:{version}")),
+        name_ver: Some(name_ver),
+        latest: None,
+        published_at: None,
+        manifest: Some(std::sync::Arc::new(json!({ "name": name, "version": version }))),
+        resolution: LockfileResolution::Tarball(TarballResolution {
+            tarball: tarball_url.to_string(),
+            integrity: Some(Integrity::from_str(FAKE_INTEGRITY).expect("parse fake integrity")),
+            git_hosted: None,
+            path: None,
+        }),
+        resolved_via: "named-registry".to_string(),
+        normalized_bare_specifier: None,
+        alias: Some(name.to_string()),
+        policy_violation: None,
+    };
+    DependenciesGraphNode {
+        dep_path,
+        resolved_package_id: format!("{name}@{registry_name}:{version}"),
+        resolve_result: std::sync::Arc::new(resolve_result),
+        children: BTreeMap::new(),
+        optional_children: HashSet::default(),
+        peer_dependencies: BTreeMap::new(),
+        transitive_peer_dependencies: HashSet::default(),
+        resolved_peer_names: HashSet::default(),
+        depth: 1,
+        installable: true,
+        is_pure: true,
+        optional: false,
+    }
+}
+
+fn named_registries_with(
+    registry_name: &str,
+    url: &str,
+) -> std::collections::HashMap<String, String> {
+    let mut map = std::collections::HashMap::new();
+    map.insert(registry_name.to_string(), url.to_string());
+    map
+}
+
+/// A canonical named-registry tarball drops its URL — it is rebuilt from
+/// the alias on read — and its presence stamps lockfile format 12.0.
+#[test]
+fn named_registry_package_keeps_the_format_and_drops_a_canonical_tarball() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": { "foo": "work:1.0.0" },
+    }));
+
+    let node = make_named_registry_node(
+        "foo",
+        "work",
+        "1.0.0",
+        "https://npm.enterprise.example.com/foo/-/foo-1.0.0.tgz",
+    );
+    let mut graph = DependenciesGraph::default();
+    graph.insert(node.dep_path.clone(), node);
+
+    let mut direct = BTreeMap::new();
+    direct.insert("foo".to_string(), DepPath::from("foo@work:1.0.0".to_string()));
+
+    let named_registries = named_registries_with("work", "https://npm.enterprise.example.com/");
+    let mut opts = single_importer_opts(&manifest, &graph, direct, true, false, None, None);
+    opts.named_registries = &named_registries;
+
+    let lockfile = dependencies_graph_to_lockfile(opts);
+
+    // The registry-qualified key is additive, so it must not move the format.
+    assert_eq!(lockfile.lockfile_version.major, 9);
+    assert_eq!(lockfile.lockfile_version.minor, 0);
+
+    let packages = lockfile.packages.as_ref().expect("packages map");
+    let key: PackageKey = "foo@work:1.0.0".parse().unwrap();
+    let metadata = packages.get(&key).expect("registry-qualified entry");
+    assert!(
+        matches!(metadata.resolution, LockfileResolution::Registry(_)),
+        "a canonical named-registry tarball is rebuilt from the alias, so the URL is dropped: {:?}",
+        metadata.resolution,
+    );
+    // The depPath already carries a parseable semver, so no redundant
+    // `version` key is written.
+    assert_eq!(metadata.version, None);
+}
+
+/// A lockfile with no named-registry package stays on 9.0, so projects
+/// that don't use the feature keep a byte-identical lockfile.
+#[test]
+fn a_plain_package_leaves_the_lockfile_on_9_0() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": { "react": "^17.0.2" },
+    }));
+
+    let node = make_node(
+        "react",
+        "17.0.2",
+        json!({ "name": "react", "version": "17.0.2" }),
+        BTreeMap::new(),
+        BTreeMap::new(),
+        HashSet::default(),
+    );
+    let mut graph = DependenciesGraph::default();
+    graph.insert(node.dep_path.clone(), node);
+
+    let mut direct = BTreeMap::new();
+    direct.insert("react".to_string(), DepPath::from("react@17.0.2".to_string()));
+
+    let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest, &graph, direct, true, false, None, None,
+    ));
+
+    assert_eq!(lockfile.lockfile_version.minor, 0);
+}
+
+/// An alias the writer can't resolve must never drop the tarball URL:
+/// testing it against the default registry could classify it as
+/// reconstructible and leave an entry no install can fetch.
+#[test]
+fn an_unresolvable_alias_keeps_the_tarball_url() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": { "foo": "work:1.0.0" },
+    }));
+
+    // Canonical under the *default* registry, which is what makes the
+    // unguarded fallback drop it.
+    let tarball = "https://registry.npmjs.org/foo/-/foo-1.0.0.tgz";
+    let node = make_named_registry_node("foo", "work", "1.0.0", tarball);
+    let mut graph = DependenciesGraph::default();
+    graph.insert(node.dep_path.clone(), node);
+
+    let mut direct = BTreeMap::new();
+    direct.insert("foo".to_string(), DepPath::from("foo@work:1.0.0".to_string()));
+
+    // `work` is deliberately absent from the map.
+    let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest, &graph, direct, true, false, None, None,
+    ));
+
+    let packages = lockfile.packages.as_ref().expect("packages map");
+    let key: PackageKey = "foo@work:1.0.0".parse().unwrap();
+    let metadata = packages.get(&key).expect("registry-qualified entry");
+    match &metadata.resolution {
+        LockfileResolution::Tarball(resolution) => assert_eq!(resolution.tarball, tarball),
+        other => panic!("an unresolvable alias must keep its tarball URL, got {other:?}"),
+    }
 }

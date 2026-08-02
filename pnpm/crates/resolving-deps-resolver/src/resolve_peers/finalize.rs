@@ -8,7 +8,10 @@ use crate::{
     dependencies_graph::{DependenciesGraph, DependenciesGraphNode},
     node_id::NodeId,
     resolve_peers::{
-        context::{SharedChain, link_node_id_as_dep_path, peer_segment_names, pkg_name_version},
+        context::{
+            SharedChain, link_node_id_as_dep_path, peer_id_pair, peer_segment_names,
+            pkg_name_version,
+        },
         walker::{MissingPeerInfo, Walker},
     },
     resolved_tree::ResolvedPackage,
@@ -336,8 +339,7 @@ impl Walker<'_> {
         let pair = || {
             let tree_node = &self.tree.dependencies_tree[peer_node_id];
             let pkg = &self.tree.packages[&tree_node.resolved_package_id];
-            let (name, version) = pkg_name_version(&pkg.result);
-            PeerId::Pair { name, version }
+            peer_id_pair(&pkg.result)
         };
         if self.opts.dedupe_peers && self.tree.dependencies_tree.contains_key(peer_node_id) {
             return pair();

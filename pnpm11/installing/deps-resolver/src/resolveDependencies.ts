@@ -14,10 +14,12 @@ import type {
   LockfileObject,
   PackageSnapshot,
   ResolvedDependencies,
+  TarballResolution,
 } from '@pnpm/lockfile.types'
 import {
   nameVerFromPkgSnapshot,
   pkgSnapshotToResolution,
+  type PkgSnapshotToResolutionOptions,
 } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
 import { getPatchInfo, type PatchGroupRecord } from '@pnpm/patching.config'
@@ -202,6 +204,7 @@ export interface ResolutionContext {
   nodeVersion?: string
   pnpmVersion: string
   registries: Registries
+  namedRegistries?: Record<string, string>
   namedRegistryPrefixes: readonly string[]
   resolutionMode?: 'highest' | 'time-based' | 'lowest-direct'
   virtualStoreDir: string
@@ -306,6 +309,8 @@ export interface ResolvedPackage {
   id: PkgResolutionId
   isLeaf: boolean
   resolution: Resolution
+  /** Which resolver produced this package; see `detectNamedRegistryCollision`. */
+  resolvedVia?: string
   prod: boolean
   dev: boolean
   optional: boolean
@@ -642,6 +647,7 @@ async function resolveDependenciesOfImporters (
         prefix: importer.options.prefix,
         proceed: importer.options.proceed || ctx.forceFullResolution,
         registries: ctx.registries,
+        namedRegistries: ctx.namedRegistries,
         resolvedDependencies: importer.options.resolvedDependencies,
       })
       const postponedResolutionsQueue: PostponedResolutionFunction[] = []
@@ -847,6 +853,7 @@ export async function resolveDependencies (
     prefix: options.prefix,
     proceed: options.proceed || ctx.forceFullResolution,
     registries: ctx.registries,
+    namedRegistries: ctx.namedRegistries,
     resolvedDependencies: options.resolvedDependencies,
   })
   const postponedResolutionsQueue: PostponedResolutionFunction[] = []
@@ -1572,6 +1579,7 @@ function getDepsToResolve (
     prefix: string
     proceed: boolean
     registries: Registries
+    namedRegistries?: Record<string, string>
     resolvedDependencies?: ResolvedDependencies
   }
 ): ExtendedWantedDependency[] {
@@ -1631,7 +1639,7 @@ function getDepsToResolve (
         reference = preferredDependencies[wantedDependency.alias]
       }
     }
-    const infoFromLockfile = getInfoFromLockfile(wantedLockfile, options.registries, reference, wantedDependency.alias)
+    const infoFromLockfile = getInfoFromLockfile(wantedLockfile, { registries: options.registries, namedRegistries: options.namedRegistries }, reference, wantedDependency.alias)
     if (
       !proceedAll &&
       (
@@ -1678,11 +1686,22 @@ function referenceSatisfiesWantedSpec (
     })
     return false
   }
-  const { version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-  if (!semver.validRange(wantedDep.bareSpecifier) && Object.values(opts.lockfile.importers).filter(importer => importer.specifiers[wantedDep.alias] === wantedDep.bareSpecifier).length) {
+  const { version, registryName } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+  let bareSpecifier = wantedDep.bareSpecifier
+  if (registryName != null) {
+    // A registry-qualified entry may only satisfy a spec of the same named
+    // registry. A plain semver range means a default/scope-registry dep, which
+    // the qualified entry must never be substituted for.
+    if (!bareSpecifier.startsWith(`${registryName}:`)) return false
+    // Reduce `<registryName>:[<name>@]<range>` to its range for the semver check.
+    const body = bareSpecifier.slice(registryName.length + 1)
+    const versionDelimiter = body.lastIndexOf('@')
+    bareSpecifier = versionDelimiter > 0 ? body.slice(versionDelimiter + 1) : body
+  }
+  if (!semver.validRange(bareSpecifier) && Object.values(opts.lockfile.importers).filter(importer => importer.specifiers[wantedDep.alias] === wantedDep.bareSpecifier).length) {
     return true
   }
-  return semver.satisfies(version, wantedDep.bareSpecifier, true)
+  return semver.satisfies(version, bareSpecifier, true)
 }
 
 function getPinnedNameVer (
@@ -1762,7 +1781,7 @@ type InfoFromLockfile = {
 
 function getInfoFromLockfile (
   lockfile: LockfileObject,
-  registries: Registries,
+  registryOpts: PkgSnapshotToResolutionOptions,
   reference: string | undefined,
   alias: string | undefined
 ): InfoFromLockfile | undefined {
@@ -1795,23 +1814,31 @@ function getInfoFromLockfile (
       }
     }
 
-    const { name, version, nonSemverVersion } = nameVerFromPkgSnapshot(depPath, dependencyLockfile)
+    const { name, version, nonSemverVersion, registryName } = nameVerFromPkgSnapshot(depPath, dependencyLockfile)
     return {
       depPath,
       name,
       version,
       dependencyLockfile,
       lockedPeerContext,
-      pkgId: nonSemverVersion ?? (`${name}@${version}` as PkgResolutionId),
+      pkgId: nonSemverVersion ?? (registryName ? `${name}@${registryName}:${version}` : `${name}@${version}`) as PkgResolutionId,
       // resolution may not exist if lockfile is broken, and an unexpected error will be thrown
       // if resolution does not exist, return undefined so it can be autofixed later
-      resolution: dependencyLockfile.resolution && pkgSnapshotToResolution(depPath, dependencyLockfile, registries),
+      resolution: dependencyLockfile.resolution && pkgSnapshotToResolution(depPath, dependencyLockfile, registryOpts),
     }
   } else {
     const parsed = dp.parse(depPath)
+    let pkgId: string
+    if (parsed.nonSemverVersion != null) {
+      pkgId = parsed.nonSemverVersion
+    } else if (parsed.name && parsed.version) {
+      pkgId = parsed.registryName ? `${parsed.name}@${parsed.registryName}:${parsed.version}` : `${parsed.name}@${parsed.version}`
+    } else {
+      pkgId = depPath
+    }
     return {
       depPath,
-      pkgId: parsed.nonSemverVersion ?? (parsed.name && parsed.version ? `${parsed.name}@${parsed.version}` : depPath) as PkgResolutionId, // Does it make sense to set pkgId when we're not sure?
+      pkgId: pkgId as PkgResolutionId, // Does it make sense to set pkgId when we're not sure?
     }
   }
 }
@@ -1911,7 +1938,7 @@ async function resolveDependency (
 
     try {
       const calcSpecifier = options.currentDepth === 0
-      if (!options.update && currentPkg.version && currentPkg.pkgId?.endsWith(`@${currentPkg.version}`) && !calcSpecifier) {
+      if (!options.update && currentPkg.version && pkgIdPinsVersion(currentPkg.pkgId, currentPkg.version) && !calcSpecifier) {
         wantedDependency.bareSpecifier = replaceVersionInBareSpecifier(wantedDependency.bareSpecifier, currentPkg.version, ctx.namedRegistryPrefixes)
       }
       pkgResponse = await ctx.storeController.requestPackage(wantedDependency, {
@@ -2222,6 +2249,7 @@ async function resolveDependency (
         optional: currentIsOptional,
       })
     } else {
+      detectNamedRegistryCollision(ctx.resolvedPkgsById[pkgResponse.body.id], pkgResponse)
       ctx.resolvedPkgsById[pkgResponse.body.id].prod = ctx.resolvedPkgsById[pkgResponse.body.id].prod || !wantedDependency.dev && !wantedDependency.optional
       ctx.resolvedPkgsById[pkgResponse.body.id].dev = ctx.resolvedPkgsById[pkgResponse.body.id].dev || wantedDependency.dev
       ctx.resolvedPkgsById[pkgResponse.body.id].optional = ctx.resolvedPkgsById[pkgResponse.body.id].optional && currentIsOptional
@@ -2403,8 +2431,60 @@ function getResolvedPackage (
     prepare: options.prepare,
     prod: !options.wantedDependency.dev && !options.wantedDependency.optional,
     resolution: options.pkgResponse.body.resolution,
+    resolvedVia: options.pkgResponse.body.resolvedVia,
     version: options.pkg.version,
   }
+}
+
+/**
+ * Throw when two different artifacts have collapsed onto one resolution id
+ * because a named registry served a `name@version` another registry already
+ * provided.
+ *
+ * Only reachable while the lockfile 12.0 format is off: with it on, a
+ * named-registry package is keyed `<name>@<registryName>:<version>` and
+ * cannot collide. Without the qualifier the second resolution silently
+ * reuses the first one's tarball, so the dependency that asked for the
+ * named registry gets the other registry's bytes. Differing integrity is
+ * The check is limited to named-registry involvement so nothing else can trip
+ * it, and within that it is fail-closed: the two are allowed to share an id
+ * only when something positively proves they are the same artifact — equal
+ * integrity, or failing that an equal tarball URL. Being unable to tell is
+ * treated as a collision, because the alternative is handing one dependency
+ * the other registry's bytes.
+ */
+export function detectNamedRegistryCollision (
+  resolved: ResolvedPackage,
+  pkgResponse: PackageResponse
+): void {
+  if (resolved.resolvedVia !== 'named-registry' && pkgResponse.body.resolvedVia !== 'named-registry') return
+  const existing = resolved.resolution as TarballResolution | undefined
+  const incoming = pkgResponse.body.resolution as TarballResolution | undefined
+  if (typeof existing?.integrity === 'string' && typeof incoming?.integrity === 'string') {
+    if (existing.integrity === incoming.integrity) return
+  } else if (
+    typeof existing?.tarball === 'string' &&
+    typeof incoming?.tarball === 'string' &&
+    existing.tarball === incoming.tarball
+  ) {
+    return
+  }
+  throw new PnpmError(
+    'NAMED_REGISTRY_PACKAGE_COLLISION',
+    `"${resolved.name}@${resolved.version}" resolved to two different artifacts under one identity.`,
+    {
+      hint: 'A registry served different content for the same package name and version. Continuing would hand one dependency the other artifact\'s bytes, so the install stops here.',
+    }
+  )
+}
+
+// A pkgId pins the lockfile-resolved version either as plain `name@version`
+// or as the registry-qualified `name@<registryName>:<version>` form.
+function pkgIdPinsVersion (pkgId: PkgResolutionId | undefined, version: string): boolean {
+  if (pkgId == null) return false
+  if (pkgId.endsWith(`@${version}`)) return true
+  const parsed = dp.parse(pkgId)
+  return parsed.registryName != null && parsed.version === version
 }
 
 function peerDependenciesWithoutOwn (pkg: PackageManifest): PeerDependencies {

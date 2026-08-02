@@ -212,6 +212,7 @@ export async function resolveDependencyTree<T> (
     readPackageHook: opts.hooks.readPackage,
     overrideBareSpecifier: opts.overrideBareSpecifier,
     registries: opts.registries,
+    namedRegistries: opts.namedRegistries,
     namedRegistryPrefixes: Array.from(
       new Set([
         ...Object.keys(BUILTIN_NAMED_REGISTRIES),

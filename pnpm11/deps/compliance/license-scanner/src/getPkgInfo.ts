@@ -26,6 +26,7 @@ export interface PackageInfo {
   depPath: string
   snapshot: PackageSnapshot
   registries: Registries
+  namedRegistries?: Record<string, string>
 }
 
 export interface GetPackageInfoOptions {
@@ -55,7 +56,7 @@ export async function getPkgInfo (
   const packageResolution = pkgSnapshotToResolution(
     pkg.depPath,
     pkg.snapshot,
-    pkg.registries
+    { registries: pkg.registries, namedRegistries: pkg.namedRegistries }
   )
 
   let files: Map<string, string>

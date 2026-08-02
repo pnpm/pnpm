@@ -1,6 +1,7 @@
 import path from 'node:path'
 
 import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
+import { isWellFormedRegistryName, RESERVED_VERSION_PREFIXES } from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import type {
   FetchFromRegistry,
@@ -769,6 +770,15 @@ function mergeNamedRegistries (userDefined?: Record<string, string>): Record<str
   const merged: Record<string, string> = { ...BUILTIN_NAMED_REGISTRIES }
   if (!userDefined) return merged
   for (const [alias, url] of Object.entries(userDefined)) {
+    if (RESERVED_VERSION_PREFIXES.has(alias) || !isWellFormedRegistryName(alias)) {
+      throw new PnpmError(
+        'RESERVED_NAMED_REGISTRY_NAME',
+        RESERVED_VERSION_PREFIXES.has(alias)
+          ? `'${alias}' cannot be used as a named registry alias: it is a reserved dependency specifier prefix.`
+          : `'${alias}' cannot be used as a named registry alias: aliases must start with a letter and contain only letters, digits, ".", "_", and "-".`,
+        { hint: 'Rename the entry in the namedRegistries setting.' }
+      )
+    }
     if (typeof url !== 'string' || !isValidHttpUrl(url)) {
       throw new PnpmError(
         'INVALID_NAMED_REGISTRY_URL',
@@ -818,6 +828,11 @@ async function resolveFromNamedRegistry (
   const picked = await pickFromSimpleRegistry(ctx, wantedDependency, opts, spec, registry)
   return {
     ...picked,
+    // Qualifying the id with the registry alias is what keeps the same
+    // name@version resolved from two registries distinct in the lockfile.
+    // Without it they collapse onto one entry and whichever resolved first
+    // decides the tarball both consumers get.
+    id: `${picked.manifest.name}@${spec.registryName}:${picked.manifest.version}` as PkgResolutionId,
     normalizedBareSpecifier: opts.calcSpecifier
       ? calcPrefixedSpecifier(`${spec.registryName}:`, spec.name, wantedDependency, picked.manifest.version, opts.rangeSpecStyle)
       : undefined,

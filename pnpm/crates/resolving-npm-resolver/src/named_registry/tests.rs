@@ -116,6 +116,28 @@ fn merge_includes_builtin_when_user_empty() {
     assert_eq!(merged.get("gh").map(String::as_str), Some("https://npm.pkg.github.com/"));
 }
 
+/// `npmjs` reaches the public registry even when `registry` points at
+/// an internal proxy. The `npm` prefix cannot: it is reserved for the
+/// alias protocol and routes through the default registry.
+#[test]
+fn merge_includes_builtin_npmjs() {
+    let merged = merge_named_registries(&HashMap::new()).unwrap();
+    assert_eq!(merged.get("npmjs").map(String::as_str), Some("https://registry.npmjs.org/"));
+}
+
+/// A proxying org overrides `npmjs` so a recorded npmjs tarball URL
+/// keeps verifying against their proxy instead of the public host.
+#[test]
+fn merge_user_overrides_builtin_npmjs() {
+    let mut user = HashMap::new();
+    user.insert("npmjs".to_string(), "https://npm.proxy.example/".to_string());
+    let merged = merge_named_registries(&user).unwrap();
+    assert_eq!(merged.get("npmjs").map(String::as_str), Some("https://npm.proxy.example/"));
+    let prefixes = build_named_registry_prefixes(&user);
+    assert!(prefixes.iter().any(|prefix| prefix == "https://npm.proxy.example/"));
+    assert!(!prefixes.iter().any(|prefix| prefix == "https://registry.npmjs.org/"));
+}
+
 #[test]
 fn merge_user_overrides_builtin_gh() {
     let mut user = HashMap::new();
@@ -137,7 +159,9 @@ fn merge_rejects_non_http_scheme() {
     let mut user = HashMap::new();
     user.insert("work".to_string(), "ftp://npm.work.example.com/".to_string());
     let err = merge_named_registries(&user).expect_err("ftp scheme must error");
-    let MergeNamedRegistriesError::InvalidUrl { alias, url } = err;
+    let MergeNamedRegistriesError::InvalidUrl { alias, url } = err else {
+        panic!("expected InvalidUrl, got {err:?}");
+    };
     assert_eq!(alias, "work");
     assert_eq!(url, "ftp://npm.work.example.com/");
 }
@@ -155,4 +179,20 @@ fn tarball_under_unrelated_prefix_does_not_match() {
         Some("https://npm.pkg.github.com-evil/foo-1.0.0.tgz"),
     );
     assert_eq!(picked, "https://registry.npmjs.org/");
+}
+
+#[test]
+fn merge_rejects_reserved_alias() {
+    let mut user = HashMap::new();
+    user.insert("file".to_string(), "https://npm.work.example.com/".to_string());
+    let err = merge_named_registries(&user).expect_err("reserved alias must error");
+    assert!(matches!(err, MergeNamedRegistriesError::ReservedAlias { .. }), "got {err:?}");
+}
+
+#[test]
+fn merge_rejects_malformed_alias() {
+    let mut user = HashMap::new();
+    user.insert("bad alias!".to_string(), "https://npm.work.example.com/".to_string());
+    let err = merge_named_registries(&user).expect_err("malformed alias must error");
+    assert!(matches!(err, MergeNamedRegistriesError::MalformedAlias { .. }), "got {err:?}");
 }

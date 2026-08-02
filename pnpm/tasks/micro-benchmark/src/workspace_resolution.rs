@@ -274,6 +274,7 @@ fn importer_options(importer: &WorkspaceImporter<'_>) -> ResolveImporterOptions 
 
 fn workspace_options() -> WorkspaceResolveOptions {
     WorkspaceResolveOptions {
+        named_registries: HashMap::new(),
         dedupe_peers: true,
         dedupe_injected_deps: true,
         dedupe_peer_dependents: true,

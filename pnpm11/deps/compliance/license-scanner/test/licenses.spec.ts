@@ -363,4 +363,51 @@ describe('licences', () => {
       },
     ])
   })
+
+  test('findDependencyLicenses keeps the same version from two registries apart', async () => {
+    const lockfile: LockfileObject = {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: {
+            foo: '1.0.0',
+            'foo-from-work': 'foo@work:1.0.0',
+          },
+          specifiers: {
+            foo: '^1.0.0',
+            'foo-from-work': 'work:foo@^1.0.0',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['foo@1.0.0' as DepPath]: {
+          resolution: {
+            integrity: 'foo-from-npmjs-integrity',
+          },
+        },
+        ['foo@work:1.0.0' as DepPath]: {
+          resolution: {
+            integrity: 'foo-from-work-integrity',
+          },
+        },
+      },
+    }
+
+    const licensePackages = await findDependencyLicenses({
+      lockfileDir: '/opt/pnpm',
+      manifest: {} as ProjectManifest,
+      virtualStoreDir: '/.pnpm',
+      registries: {} as Registries,
+      namedRegistries: { work: 'https://npm.enterprise.example.com/' },
+      wantedLockfile: lockfile,
+      storeDir: tmpStoreDir,
+      virtualStoreDirMaxLength: 120,
+    })
+
+    // Two distinct artifacts with their own licenses. Keying the dedupe map
+    // on a bare `name@version` collapsed them and dropped one entirely.
+    expect(licensePackages).toHaveLength(2)
+    expect(new Set(licensePackages.map((pkg) => pkg.registryName))).toStrictEqual(new Set([undefined, 'work']))
+    expect(new Set(licensePackages.map((pkg) => pkg.name))).toStrictEqual(new Set(['foo']))
+  })
 })

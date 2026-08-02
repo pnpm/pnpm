@@ -12,6 +12,7 @@ repository.workspace  = true
 
 [dependencies]
 pacquet-config                            = { workspace = true }
+pacquet-deps-path                         = { workspace = true }
 pacquet-lockfile                          = { workspace = true }
 pacquet-network                           = { workspace = true }
 pacquet-registry                          = { workspace = true }
