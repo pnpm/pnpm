@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 
 import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
-import { FULL_META_DIR, resolveNamedRegistries } from '@pnpm/constants'
+import { FULL_META_DIR, createKnownRegistries } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import type { GetAuthHeader } from '@pnpm/fetching.types'
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
@@ -132,26 +132,14 @@ export function createNpmResolutionVerifier (
     ? createExcludePolicy(opts.trustPolicyExclude, 'trustPolicyExclude')
     : undefined
 
-  // Pre-normalize named-registry URLs and sort by length so two registries
-  // that share a hostname but differ by path (e.g. `https://npm/team-a/` vs
-  // `https://npm/team-b/`) route to the longest matching prefix — matching
-  // only `origin` would silently send lookups to the wrong one. Built-in
-  // aliases (`gh:` → npm.pkg.github.com, etc.) are merged in alongside the
-  // user-defined ones so the verifier recognizes the same set of named
-  // registries the resolver does; otherwise a package resolved via `gh:`
-  // would land in the lockfile with a tarball URL the verifier can't route.
-  const namedRegistryPrefixes = Object.values(resolveNamedRegistries(opts.namedRegistries))
-    .map((url) => {
-      const parsed = tryParseUrl(url)
-      if (!parsed) return null
-      // Ensure trailing slash so prefix matching against tarball URLs (which
-      // always include the package path under the registry root) does not
-      // accidentally match a sibling registry whose URL shares a prefix string.
-      const pathname = parsed.pathname.endsWith('/') ? parsed.pathname : `${parsed.pathname}/`
-      return `${parsed.origin}${pathname}`
-    })
-    .filter((value): value is string => value != null)
-    .sort((a, b) => b.length - a.length)
+  // One set drives both ways a registry is chosen here: `byAlias` routes an
+  // entry that names its registry in the dep path, and `tarballPrefixes`
+  // routes one that only carries a recorded tarball URL. Sharing the set is
+  // what keeps the verifier recognizing exactly the registries the resolver
+  // does — otherwise a package resolved via `gh:` would land in the lockfile
+  // with a tarball URL the verifier could not route.
+  const knownRegistries = createKnownRegistries(opts.namedRegistries)
+  const namedRegistryPrefixes = knownRegistries.tarballPrefixes
 
   // Per-install dedup of every network/disk fetch the verifier issues.
   // The maturity check uses the layered `fetchPublishedAt` lookup; the
@@ -178,10 +166,7 @@ export function createNpmResolutionVerifier (
   const trustPolicy = opts.trustPolicy
   const trustPolicyIgnoreAfter = opts.trustPolicyIgnoreAfter
 
-  // Alias → URL map for routing registry-qualified entries. Kept alongside
-  // the URL-prefix list, which still routes old-format entries by their
-  // recorded tarball URL.
-  const mergedNamedRegistries = resolveNamedRegistries(opts.namedRegistries)
+  const mergedNamedRegistries = knownRegistries.byAlias
 
   const verify: ResolutionVerifier['verify'] = async (resolution, { name, version, nonSemverVersion, registryName }) => {
     if (!isRegistryTarballResolution(resolution)) return { ok: true }
@@ -944,7 +929,7 @@ function fetchFullMetaTime (
 
 function pickRegistryForVersion (
   registries: Registries,
-  namedRegistryPrefixes: string[],
+  namedRegistryPrefixes: readonly string[],
   name: string,
   tarballUrl: string | undefined
 ): string {

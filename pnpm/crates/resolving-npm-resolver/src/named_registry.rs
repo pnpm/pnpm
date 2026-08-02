@@ -85,10 +85,6 @@ pub enum MergeNamedRegistriesError {
 pub fn merge_named_registries(
     user_defined: &HashMap<String, String>,
 ) -> Result<HashMap<String, String>, MergeNamedRegistriesError> {
-    let mut merged: HashMap<String, String> = BUILTIN_NAMED_REGISTRIES
-        .iter()
-        .map(|(name, url)| ((*name).to_string(), (*url).to_string()))
-        .collect();
     for (alias, url) in user_defined {
         if pacquet_deps_path::is_reserved_version_prefix(alias) {
             return Err(MergeNamedRegistriesError::ReservedAlias { alias: alias.clone() });
@@ -102,39 +98,80 @@ pub fn merge_named_registries(
                 url: url.clone(),
             });
         }
-        merged.insert(alias.clone(), url.clone());
     }
-    Ok(merged)
+    Ok(KnownRegistries::new(user_defined).into_by_alias())
 }
 
 fn is_valid_http_url(url: &str) -> bool {
     Url::parse(url).is_ok_and(|parsed| matches!(parsed.scheme(), "http" | "https"))
 }
 
-/// Build the sorted-by-length list of registry URL prefixes the
-/// verifier matches a tarball URL against.
+/// Every registry pnpm can route to by alias, and the two ways that
+/// set is consulted.
 ///
-/// Merges [`BUILTIN_NAMED_REGISTRIES`] with the user-supplied
-/// `named_registries` (later wins on the same key). Each prefix carries
-/// a trailing slash so prefix
-/// matching can't be fooled by a same-host-different-suffix sibling,
-/// and the output is sorted longest-first so the deepest matching
-/// prefix wins.
-#[must_use]
-pub fn build_named_registry_prefixes(named_registries: &HashMap<String, String>) -> Vec<String> {
-    let mut merged: HashMap<&str, String> = HashMap::new();
-    for (name, url) in BUILTIN_NAMED_REGISTRIES {
-        merged.insert(name, (*url).to_string());
-    }
-    for (name, url) in named_registries {
-        // `to_string()` on `&String` triggers a clippy lint elsewhere
-        // in the codebase; `clone` is the idiomatic equivalent.
-        merged.insert(name.as_str(), url.clone());
+/// Built once from [`BUILTIN_NAMED_REGISTRIES`] plus the user's
+/// `namedRegistries` (user wins on collision, so a GHES user can point
+/// `gh` at their enterprise host). Holding both views together is the
+/// point: a change to either input cannot alter one consumer without
+/// the other.
+#[derive(Debug, Clone)]
+pub struct KnownRegistries {
+    by_alias: HashMap<String, String>,
+    tarball_prefixes: Vec<String>,
+}
+
+impl KnownRegistries {
+    #[must_use]
+    pub fn new(named_registries: &HashMap<String, String>) -> Self {
+        let mut by_alias: HashMap<String, String> = BUILTIN_NAMED_REGISTRIES
+            .iter()
+            .map(|(name, url)| ((*name).to_string(), (*url).to_string()))
+            .collect();
+        for (alias, url) in named_registries {
+            by_alias.insert(alias.clone(), url.clone());
+        }
+        let tarball_prefixes = build_tarball_prefixes(&by_alias);
+        Self { by_alias, tarball_prefixes }
     }
 
-    let mut prefixes: Vec<String> = merged
-        .into_values()
-        .filter_map(|url| Url::parse(&url).ok())
+    /// Alias to registry URL, for an entry that names its registry in
+    /// the dep path.
+    #[must_use]
+    pub fn by_alias(&self) -> &HashMap<String, String> {
+        &self.by_alias
+    }
+
+    /// The URL prefixes a recorded tarball URL is matched against to
+    /// decide which registry to verify an entry with, longest first so
+    /// the deepest match wins.
+    ///
+    /// This is why adding an entry to [`BUILTIN_NAMED_REGISTRIES`] is
+    /// not a local change: it also decides where verification traffic
+    /// goes for lockfile entries that name no alias at all.
+    #[must_use]
+    pub fn tarball_prefixes(&self) -> &[String] {
+        &self.tarball_prefixes
+    }
+
+    #[must_use]
+    pub fn into_by_alias(self) -> HashMap<String, String> {
+        self.by_alias
+    }
+}
+
+/// Each prefix carries a trailing slash so matching can't be fooled by
+/// a same-host-different-suffix sibling, and the output is sorted
+/// longest-first so the deepest matching prefix wins. A URL that does
+/// not parse is dropped rather than poisoning the list.
+///
+/// Equal-length prefixes tie-break lexicographically: length alone
+/// leaves their relative order to `HashMap` iteration, which differs
+/// between runs and makes the list — and anything asserting on it —
+/// unstable.
+fn build_tarball_prefixes(by_alias: &HashMap<String, String>) -> Vec<String> {
+    let mut prefixes: Vec<String> = by_alias
+        .values()
+        .filter_map(|url| Url::parse(url).ok())
         .map(|parsed| {
             let mut pathname = parsed.path().to_string();
             if !pathname.ends_with('/') {
@@ -143,7 +180,7 @@ pub fn build_named_registry_prefixes(named_registries: &HashMap<String, String>)
             format!("{}{}", parsed.origin().ascii_serialization(), pathname)
         })
         .collect();
-    prefixes.sort_by_key(|prefix| std::cmp::Reverse(prefix.len()));
+    prefixes.sort_by(|a, b| b.len().cmp(&a.len()).then_with(|| a.cmp(b)));
     prefixes
 }
 

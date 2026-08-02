@@ -1,4 +1,4 @@
-import { resolveNamedRegistries } from '@pnpm/constants'
+import { createKnownRegistries } from '@pnpm/constants'
 import * as dp from '@pnpm/deps.path'
 import {
   type LockfileObject,
@@ -26,7 +26,7 @@ export function updateLockfile (
   }
 ): LockfileObject {
   lockfile.packages = lockfile.packages ?? {}
-  const mergedNamedRegistries = resolveNamedRegistries(namedRegistries)
+  const mergedNamedRegistries = createKnownRegistries(namedRegistries).byAlias
   for (const [depPath, depNode] of Object.entries(dependenciesGraph)) {
     const [updatedOptionalDeps, updatedDeps] = partition(
       (child) => depNode.optionalDependencies.has(child.alias) || depNode.peerDependencies[child.alias]?.optional === true,
