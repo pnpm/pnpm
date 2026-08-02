@@ -66,7 +66,15 @@ function filterPkgMetadataByPublishDateUncached (
     if (!Object.hasOwn(pkgDoc.versions, version)) continue
     const timeStr = pkgDoc.time[version]
     if ((timeStr && new Date(timeStr) <= publishedBy) || trustedVersions?.includes(version)) {
-      versionsWithinDate[version] = pkgDoc.versions[version]
+      // Copy the property descriptor, not the value: a lazily-loaded packument
+      // (see npm-resolver's mirror module) backs each version with a getter
+      // that parses its manifest on first access, and reading the value here
+      // would parse every in-date version of every packument up front.
+      Object.defineProperty(
+        versionsWithinDate,
+        version,
+        Object.getOwnPropertyDescriptor(pkgDoc.versions, version)!
+      )
     }
   }
 
@@ -88,7 +96,9 @@ function filterPkgMetadataByPublishDateUncached (
   for (const tag in allDistTags) {
     if (!Object.hasOwn(allDistTags, tag)) continue
     const distTagVersion = allDistTags[tag]
-    if (versionsWithinDate[distTagVersion]) {
+    // `in`, not a value read: presence is all that matters, and reading the
+    // value would hydrate a lazily-loaded manifest for nothing.
+    if (distTagVersion in versionsWithinDate) {
       distTagsWithinDate[tag] = distTagVersion
       continue
     }

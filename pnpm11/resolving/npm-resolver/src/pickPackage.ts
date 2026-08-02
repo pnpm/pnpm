@@ -1,16 +1,14 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
+import util from 'node:util'
 
 import { ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR } from '@pnpm/constants'
 import { createHexHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
-import gfs from '@pnpm/fs.graceful-fs'
 import { globalWarn, logger } from '@pnpm/logger'
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
 import getRegistryName from 'encode-registry'
 import pLimit, { type LimitFunction } from 'p-limit'
-import { fastPathTemp as pathTemp } from 'path-temp'
-import { renameOverwrite } from 'rename-overwrite'
 import semver from 'semver'
 
 import { clearMeta, retainsFullMeta } from './clearMeta.js'
@@ -19,6 +17,14 @@ import {
   type FetchMetadataResult,
   notModifiedWithoutCacheError,
 } from './fetch.js'
+import {
+  isMalformedMirrorFragmentError,
+  loadMeta,
+  loadMetaHeaders,
+  prepareIndexedForDisk,
+  prepareJsonForDisk,
+  saveMeta,
+} from './mirror.js'
 import type { RegistryPackageSpec } from './parseBareSpecifier.js'
 import {
   pickLowestVersionByVersionRange,
@@ -283,11 +289,22 @@ export async function pickPackage (
     if (upgrade.upgradedFrom != null) {
       ctx.metaCache.set(cacheKey, metaForCache)
     }
-    const pickedPackage = pickMatchingVersionFinal(pickerOpts, spec, metaForCache)
-    if (pickedPackage != null || ctx.offline === true || !unverifiedDiskPackuments.has(metaForCache)) {
+    let pickedFromCache: PackageInRegistry | null = null
+    let cacheFragmentCorrupt = false
+    try {
+      pickedFromCache = pickMatchingVersionFinal(pickerOpts, spec, metaForCache)
+    } catch (err: unknown) {
+      // A disk-promoted entry with a corrupt fragment: fall through — offline
+      // re-picks below and fails with NO_OFFLINE_META; online revalidates and
+      // the 304 handler refetches past the poisoned mirror.
+      if (!isMalformedMirrorFragmentError(err)) throw err
+      cacheFragmentCorrupt = true
+    }
+    if (!cacheFragmentCorrupt &&
+      (pickedFromCache != null || ctx.offline === true || !unverifiedDiskPackuments.has(metaForCache))) {
       return {
         meta: metaForCache,
-        pickedPackage,
+        pickedPackage: pickedFromCache,
       }
     }
     // Disk-promoted meta that can't satisfy the spec: fall through and
@@ -296,7 +313,7 @@ export async function pickPackage (
 
   return runLimited(pkgMirror, async (limit) => {
     const loadMetaCondensed = async (): Promise<PackageMeta | null> => {
-      const meta = await loadMeta(pkgMirror)
+      const meta = await loadMeta(pkgMirror, { condense: !retainsFullMeta(ctx) })
       return meta == null ? null : condenseMetaForCache(ctx, meta)
     }
     let diskMeta: PackageMeta | null | undefined
@@ -323,9 +340,18 @@ export async function pickPackage (
 
       if (ctx.offline) {
         if (diskMeta != null) {
+          let pickedPackage: PackageInRegistry | null
+          try {
+            pickedPackage = pickMatchingVersionFinal(pickerOpts, spec, diskMeta)
+          } catch (err: unknown) {
+            // A corrupt fragment makes the mirror as unusable offline as a
+            // missing one, and there is no network to heal it from.
+            if (!isMalformedMirrorFragmentError(err)) throw err
+            throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${toRaw(spec)} in package mirror ${pkgMirror}`)
+          }
           return {
             meta: diskMeta,
-            pickedPackage: pickMatchingVersionFinal(pickerOpts, spec, diskMeta),
+            pickedPackage,
           }
         }
 
@@ -340,7 +366,15 @@ export async function pickPackage (
         if (upgrade.upgradedFrom != null) {
           ctx.metaCache.set(cacheKey, diskMeta)
         }
-        const pickedPackage = pickMatchingVersionFinal(pickerOpts, spec, diskMeta)
+        let pickedPackage: PackageInRegistry | null
+        try {
+          pickedPackage = pickMatchingVersionFinal(pickerOpts, spec, diskMeta)
+        } catch (err: unknown) {
+          // A corrupt fragment: treat like an unusable mirror and let the
+          // network fetch below replace it.
+          if (!isMalformedMirrorFragmentError(err)) throw err
+          pickedPackage = null
+        }
         if (pickedPackage) {
           // A cache hit re-runs maybeUpgradeAbbreviatedMetaForReleaseAge, so
           // serving this meta from memory can't bypass the release-age
@@ -360,10 +394,10 @@ export async function pickPackage (
 
     if (!opts.includeLatestTag && !opts.updateChecksums && spec.type === 'version') {
       diskMeta = diskMeta ?? await limit(loadMetaCondensed)
-      // use the cached meta only if it has the required package version
-      // otherwise it is probably out of date
-      if ((diskMeta?.versions?.[spec.fetchSpec]) != null) {
-        try {
+      try {
+        // use the cached meta only if it has the required package version
+        // otherwise it is probably out of date
+        if ((diskMeta?.versions?.[spec.fetchSpec]) != null) {
           const pickedPackage = pickMatchingVersionFast(pickerOpts, spec, diskMeta)
           if (pickedPackage) {
             cacheDiskLoadedMeta(ctx.metaCache, cacheKey, diskMeta)
@@ -372,12 +406,12 @@ export async function pickPackage (
               pickedPackage,
             }
           }
-        } catch {
-          // Swallow fast-path errors (e.g. ERR_PNPM_MISSING_TIME from
-          // abbreviated meta) and fall through to the network fetch, which
-          // can upgrade to full metadata and run the maturity check on
-          // real `time` data.
         }
+      } catch (err: unknown) {
+        // Fall through to the network fetch, which can upgrade to full
+        // metadata, run the maturity check on real `time` data, and replace
+        // a corrupt mirror.
+        if (!isDiskMetaPickError(err)) throw err
       }
     }
     if (opts.publishedBy && opts.publishedByExclude?.(spec.name) !== true) {
@@ -393,8 +427,9 @@ export async function pickPackage (
                 pickedPackage,
               }
             }
-          } catch {
+          } catch (err: unknown) {
             // Same as above — fall through to the network fetch.
+            if (!isDiskMetaPickError(err)) throw err
           }
         }
       }
@@ -420,12 +455,24 @@ export async function pickPackage (
 
       // 304: the cached mirror is still current.
       diskMeta = diskMeta ?? await limit(loadMetaCondensed)
-      if (diskMeta != null) return await serveValidatedMeta(diskMeta)
+      if (diskMeta != null) {
+        try {
+          return await serveValidatedMeta(diskMeta)
+        } catch (err: unknown) {
+          // The 304 validated the etag in the intact headers record, but a
+          // version fragment in the local file is corrupt, so the mirror
+          // proves nothing — without this refetch it would keep 304-validating
+          // and never self-heal. Fall through to the cache-bypassing request,
+          // whose persistFreshMeta rewrites the mirror.
+          if (!isMalformedMirrorFragmentError(err)) throw err
+        }
+      }
 
-      // The mirror vanished between the headers read and this read (concurrent
-      // store cleanup, antivirus, ...), so the 304 now validates nothing. Ask
-      // again as a cold cache would, which the registry can only answer with a
-      // body or an error — never another 304.
+      // Either the mirror vanished between the headers read and this read
+      // (concurrent store cleanup, antivirus, ...) or its content turned out
+      // corrupt, so the 304 validates nothing. Ask again as a cold cache
+      // would, which the registry can only answer with a body or an error —
+      // never another 304.
       const refetched = await ctx.fetch(spec.name, {
         authHeaderValue: opts.authHeaderValue,
         cacheBypass: true,
@@ -438,11 +485,20 @@ export async function pickPackage (
       err.spec = spec
       const meta = await loadMetaCondensed() // TODO: add test for this usecase
       if (meta == null) throw err
+      let pickedPackage: PackageInRegistry | null
+      try {
+        pickedPackage = pickMatchingVersionFinal(pickerOpts, spec, meta)
+      } catch (pickErr: unknown) {
+        // A corrupt fragment makes this fallback mirror as useless as a
+        // missing one; surface the original failure.
+        if (!isMalformedMirrorFragmentError(pickErr)) throw pickErr
+        throw err
+      }
       logger.error(err, err)
       logger.debug({ message: `Using cached meta from ${pkgMirror}` })
       return {
         meta,
-        pickedPackage: pickMatchingVersionFinal(pickerOpts, spec, meta),
+        pickedPackage,
       }
     }
 
@@ -468,10 +524,13 @@ export async function pickPackage (
       // bypass the maturity check via the warn-and-skip fallback.
       const upgrade = await maybeUpgradeAbbreviatedMetaForReleaseAge(ctx, spec, opts, cached)
       const meta = upgradeMetaForCache(ctx, upgrade, { pkgMirror, dryRun: opts.dryRun })
+      // Pick before caching: a corrupt-fragment throw must not leave the
+      // poisoned document in the in-memory cache.
+      const pickedPackage = pickMatchingVersionFinal(pickerOpts, spec, meta)
       ctx.metaCache.set(cacheKey, meta)
       return {
         meta,
-        pickedPackage: pickMatchingVersionFinal(pickerOpts, spec, meta),
+        pickedPackage,
       }
     }
 
@@ -502,7 +561,7 @@ export async function pickPackage (
         if (!isModifiedValid || modifiedDate > opts.publishedBy) {
           // Save the abbreviated metadata to the abbreviated cache before re-fetching full.
           if (!opts.dryRun) {
-            saveMetaBestEffort(pkgMirror, prepareJsonForDisk(resultToSave.meta, resultToSave.etag, resultToSave.jsonText))
+            saveMetaBestEffort(pkgMirror, prepareMirrorForDisk(ctx, resultToSave))
           }
           const fullFetchResult = await ctx.fetch(spec.name, {
             authHeaderValue: opts.authHeaderValue,
@@ -518,15 +577,7 @@ export async function pickPackage (
 
       meta = condenseMetaForCache(ctx, meta)
       if (!opts.dryRun) {
-        // Mirror the raw registry body, unless the retained form is
-        // deliberately narrower: `filterMetadata` always mirrors the stripped
-        // document, and an upgraded-to-full document mirrors the condensed
-        // form — `time` is all the next install needs from this slot.
-        const writeCondensed = ctx.filterMetadata === true || (resultToSave !== fetched && meta !== resultToSave.meta)
-        const jsonForDisk = writeCondensed
-          ? prepareJsonForDisk(meta, resultToSave.etag)
-          : prepareJsonForDisk(resultToSave.meta, resultToSave.etag, resultToSave.jsonText)
-        saveMetaBestEffort(pkgMirror, jsonForDisk)
+        saveMetaBestEffort(pkgMirror, prepareMirrorForDisk(ctx, resultToSave))
       }
       meta.etag = resultToSave.etag
       // only save meta to cache, when it is fresh
@@ -619,30 +670,55 @@ function upgradeMetaForCache (
   return persistUpgradedMeta(ctx, opts.pkgMirror, upgrade.upgradedFrom)
 }
 
-// A condensing resolver keeps and mirrors the condensed form — the mirror
-// only has to carry `time` into the next install; otherwise the raw response
-// body is written and the unstripped meta is kept.
 function persistUpgradedMeta (
   ctx: { fullMetadata?: boolean, filterMetadata?: boolean },
   pkgMirror: string,
   upgradedFrom: FetchMetadataResult
 ): PackageMeta {
   const metaForCache = condenseMetaForCache(ctx, upgradedFrom.meta)
-  const jsonForDisk = metaForCache === upgradedFrom.meta
-    ? prepareJsonForDisk(upgradedFrom.meta, upgradedFrom.etag, upgradedFrom.jsonText)
-    : prepareJsonForDisk(metaForCache, upgradedFrom.etag)
-  saveMetaBestEffort(pkgMirror, jsonForDisk)
+  saveMetaBestEffort(pkgMirror, prepareMirrorForDisk(ctx, upgradedFrom))
   return metaForCache
+}
+
+/**
+ * Every project of a workspace that joins one in-flight fetch mirrors the
+ * result, so the encoded form is memoized on the result object: encoding it
+ * per project would hold as many copies of a body reaching tens of MB as
+ * there are projects. Keyed on the result rather than its `meta` so the copy
+ * is released with the shared body it stands in for — `memoizeFetchMetadata`
+ * drops the result once the request settles.
+ */
+const encodedMirrors = new WeakMap<FetchMetadataResult, { filtered?: string, indexed?: Buffer }>()
+
+/**
+ * How a fetched document is mirrored on disk: a `filterMetadata` resolver
+ * mirrors the `clearMeta`-stripped NDJSON form (that mirror only serves
+ * equally-stripped resolutions), everything else the indexed layout, whose
+ * per-version spans later loads hydrate lazily.
+ */
+function prepareMirrorForDisk (
+  ctx: { fullMetadata?: boolean, filterMetadata?: boolean },
+  result: FetchMetadataResult
+): string | Buffer {
+  let encoded = encodedMirrors.get(result)
+  if (encoded == null) {
+    encoded = {}
+    encodedMirrors.set(result, encoded)
+  }
+  if (ctx.filterMetadata === true) {
+    return encoded.filtered ??= prepareJsonForDisk(condenseMetaForCache(ctx, result.meta), result.etag)
+  }
+  return encoded.indexed ??= prepareIndexedForDisk(result.meta, result.etag)
 }
 
 /**
  * The mirror is an optimization, so a write failure only gets a debug log
  * with the mirror path and the install continues.
  */
-function saveMetaBestEffort (pkgMirror: string, json: string): void {
+function saveMetaBestEffort (pkgMirror: string, content: string | Buffer): void {
   void runLimited(pkgMirror, (limit) => limit(async () => {
     try {
-      await saveMeta(pkgMirror, json)
+      await saveMeta(pkgMirror, content)
     } catch (err: unknown) {
       logger.debug({ message: `Failed to write the package metadata mirror at ${pkgMirror}`, err })
     }
@@ -701,20 +777,7 @@ export function getPkgMirrorPath (cacheDir: string, metaDir: string, registry: s
   return path.join(cacheDir, metaDir, getRegistryName(registry), `${encodePkgName(pkgName)}.jsonl`)
 }
 
-/**
- * Formats metadata for disk storage as two-line NDJSON:
- *   Line 1: cache headers (etag, modified) — small, fast to read
- *   Line 2: the registry metadata JSON
- *
- * The etag lives only in the headers line (`loadMeta` re-attaches it from
- * there), so a `meta` that carries one is serialized without it.
- */
-export function prepareJsonForDisk (meta: PackageMeta, etag: string | undefined, jsonText?: string): string {
-  const modified = meta.modified ?? meta.time?.modified
-  const headers = JSON.stringify({ etag, modified })
-  const body = jsonText ?? JSON.stringify(meta.etag == null ? meta : { ...meta, etag: undefined })
-  return `${headers}\n${body}`
-}
+export { loadMeta, loadMetaHeaders, prepareJsonForDisk, saveMeta } from './mirror.js'
 
 function isMissingTimeError (err: unknown): boolean {
   return (
@@ -722,6 +785,36 @@ function isMissingTimeError (err: unknown): boolean {
     typeof err === 'object' &&
     'code' in err &&
     (err as { code: string }).code === 'ERR_PNPM_MISSING_TIME'
+  )
+}
+
+/**
+ * Errors that mean a pick failed because of the disk-loaded document itself:
+ * abbreviated metadata without `time`, a corrupt lazily-hydrated fragment, an
+ * otherwise malformed document (`pickPackageFromMeta` attributes any
+ * unexpected pick failure to the metadata), or a document whose versions all
+ * fall outside the maturity window (the release-age picker strips
+ * `publishedBy` after filtering, so an emptied document reports no versions).
+ */
+const DISK_META_PICK_ERROR_CODES = new Set([
+  'ERR_PNPM_MISSING_TIME',
+  'ERR_PNPM_MALFORMED_META_FRAGMENT',
+  'ERR_PNPM_MALFORMED_METADATA',
+  'ERR_PNPM_NO_VERSIONS',
+  'ERR_PNPM_UNPUBLISHED_PKG',
+])
+
+/**
+ * Whether the disk fast paths should fall through to the network fetch for
+ * this pick failure — it works from strictly fresher data and rewrites the
+ * mirror. Any other error is unexpected and propagates.
+ */
+function isDiskMetaPickError (err: unknown): boolean {
+  return (
+    util.types.isNativeError(err) &&
+    'code' in err &&
+    typeof err.code === 'string' &&
+    DISK_META_PICK_ERROR_CODES.has(err.code)
   )
 }
 
@@ -748,68 +841,6 @@ async function getFileMtime (filePath: string): Promise<Date | null> {
   } catch {
     return null
   }
-}
-
-interface MetaHeaders {
-  etag?: string
-  modified?: string
-}
-
-/**
- * Reads only the first line of the cached NDJSON metadata file to extract
- * the cache headers (etag, modified). This avoids reading and
- * parsing the full metadata (which can be megabytes for popular packages)
- * when we only need conditional-request headers.
- */
-export async function loadMetaHeaders (pkgMirror: string): Promise<MetaHeaders | null> {
-  let fh: fs.FileHandle | undefined
-  try {
-    fh = await fs.open(pkgMirror, 'r')
-    // The first line (headers JSON) is typically ~100 bytes; 1 KB is plenty.
-    const buf = Buffer.alloc(1024)
-    const { bytesRead } = await fh.read(buf, 0, 1024, 0)
-    if (bytesRead === 0) return null
-    const chunk = buf.toString('utf8', 0, bytesRead)
-    const newlineIdx = chunk.indexOf('\n')
-    if (newlineIdx === -1) return null
-    return JSON.parse(chunk.slice(0, newlineIdx)) as MetaHeaders
-  } catch {
-    return null
-  } finally {
-    await fh?.close()
-  }
-}
-
-/**
- * Reads the full metadata from the cached NDJSON file.
- * Line 1: cache headers (etag, modified)
- * Line 2: registry metadata JSON
- */
-export async function loadMeta (pkgMirror: string): Promise<PackageMeta | null> {
-  try {
-    const data = await gfs.readFile(pkgMirror, 'utf8')
-    const newlineIdx = data.indexOf('\n')
-    if (newlineIdx === -1) return null
-    const headers = JSON.parse(data.slice(0, newlineIdx)) as MetaHeaders
-    const meta = JSON.parse(data.slice(newlineIdx + 1)) as PackageMeta
-    meta.etag = headers.etag
-    return meta
-  } catch {
-    return null
-  }
-}
-
-const createdDirs = new Set<string>()
-
-export async function saveMeta (pkgMirror: string, json: string): Promise<void> {
-  const dir = path.dirname(pkgMirror)
-  if (!createdDirs.has(dir)) {
-    await fs.mkdir(dir, { recursive: true })
-    createdDirs.add(dir)
-  }
-  const temp = pathTemp(pkgMirror)
-  await gfs.writeFile(temp, json, 'utf8')
-  await renameOverwrite(temp, pkgMirror)
 }
 
 function validatePackageName (pkgName: string) {

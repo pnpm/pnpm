@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use crate::{Package, PackageVersion};
 
@@ -44,6 +44,60 @@ fn undecodable_fragment_behaves_as_absent() {
     assert!(package.versions.get("9.9.9").is_none());
     assert!(package.versions.get("1.0.0").is_some());
     assert_eq!(package.versions.iter().count(), 1);
+    assert!(!package.versions.has_corrupt_mirror_fragment());
+}
+
+/// A mirror-backed packument whose valid fragment sits before a
+/// damaged one, plus the two spans that address them.
+fn mirror_versions() -> crate::PackageVersions {
+    const VALID: &str = r#"{"name": "foo", "version": "1.0.0", "dist": {"integrity": "sha512-a", "tarball": "https://r/foo-1.0.0.tgz"}}"#;
+    const DAMAGED: &str = "{not json at all}";
+    let buffer = Arc::new(format!("{VALID}{DAMAGED}").into_bytes());
+    let valid_len = u32::try_from(VALID.len()).unwrap();
+    crate::PackageVersions::from_buffer_spans(
+        &buffer,
+        [
+            ("1.0.0".to_string(), 0, valid_len),
+            ("2.0.0".to_string(), u64::from(valid_len), u32::try_from(DAMAGED.len()).unwrap()),
+        ],
+    )
+}
+
+#[test]
+fn a_damaged_mirror_fragment_is_reported_once_hydrated() {
+    let versions = mirror_versions();
+
+    assert!(versions.get("1.0.0").is_some());
+    assert!(!versions.has_corrupt_mirror_fragment());
+
+    assert!(versions.get("2.0.0").is_none());
+    assert!(versions.has_corrupt_mirror_fragment());
+}
+
+/// The publish-date filter hands out a filtered view of the same
+/// fragments, so damage found through either handle has to be visible
+/// from the one the resolver checks.
+#[test]
+fn a_filtered_view_shares_the_damage_report() {
+    let versions = mirror_versions();
+    let filtered = versions.filtered(|version| version == "2.0.0");
+
+    assert!(filtered.get("2.0.0").is_none());
+    assert!(filtered.has_corrupt_mirror_fragment());
+    assert!(versions.has_corrupt_mirror_fragment());
+}
+
+#[test]
+fn probing_a_damaged_mirror_fragment_for_deprecation_reports_it() {
+    const DAMAGED: &str = r#"{"deprecated": "use 2.x",,}"#;
+    let buffer = Arc::new(DAMAGED.as_bytes().to_vec());
+    let versions = crate::PackageVersions::from_buffer_spans(
+        &buffer,
+        [("1.0.0".to_string(), 0, u32::try_from(DAMAGED.len()).unwrap())],
+    );
+
+    assert!(!versions.is_deprecated("1.0.0"));
+    assert!(versions.has_corrupt_mirror_fragment());
 }
 
 #[test]
