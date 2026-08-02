@@ -23,19 +23,16 @@ use pacquet_config::{
 };
 use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_resolving_npm_resolver::{
-    CreateNpmResolutionVerifierOptions, ObservedDistStats, PackageMetaCache,
-    create_npm_resolution_verifier, merge_named_registries,
+    CreateNpmResolutionVerifierOptions, MergeNamedRegistriesError, ObservedDistStats,
+    PackageMetaCache, create_npm_resolution_verifier, merge_named_registries,
 };
 use pacquet_resolving_resolver_base::ResolutionVerifier;
 
 use crate::retry_config::retry_opts_from_config;
 
-/// Error from [`build_resolution_verifiers`]. Today the only thing
-/// that can fail is `create_package_version_policy` rejecting an
-/// invalid `minimumReleaseAgeExclude` / `trustPolicyExclude`
-/// pattern. Wraps the inner error so the install command can route
-/// the diagnostic code (`ERR_PNPM_INVALID_VERSION_UNION`,
-/// `ERR_PNPM_NAME_PATTERN_IN_VERSION_UNION`) without re-wrapping.
+/// Error from [`build_resolution_verifiers`]. Wraps the inner error so
+/// the install command can route the diagnostic code without
+/// re-wrapping.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum BuildVerifiersError {
@@ -45,6 +42,18 @@ pub enum BuildVerifiersError {
     InvalidMinimumReleaseAgeExclude {
         #[error(source)]
         source: VersionPolicyError,
+    },
+
+    /// `namedRegistries` had a reserved name or an unusable URL.
+    ///
+    /// Surfaced here because verifiers are built before the resolver
+    /// chain that also validates this, and on the frozen path that
+    /// chain never runs at all.
+    #[display("{source}")]
+    #[diagnostic(transparent)]
+    InvalidNamedRegistries {
+        #[error(source)]
+        source: MergeNamedRegistriesError,
     },
 
     /// `trustPolicyExclude` had an invalid pattern.
@@ -90,6 +99,15 @@ pub fn build_resolution_verifiers(
 
     let registries: HashMap<String, String> = config.resolved_registries().into_iter().collect();
 
+    // Merged here, not inside the verifier, so its name lookup and its
+    // tarball-prefix routing see the same set. Validated here too: this runs
+    // before the resolver chain that also validates, and on the frozen path
+    // that chain never runs.
+    let named_registries = merge_named_registries(
+        &config.named_registries.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
+    )
+    .map_err(|source| BuildVerifiersError::InvalidNamedRegistries { source })?;
+
     let opts = CreateNpmResolutionVerifierOptions {
         minimum_release_age: config.resolved_minimum_release_age(),
         minimum_release_age_exclude: min_age_exclude,
@@ -106,14 +124,7 @@ pub fn build_resolution_verifiers(
         trust_policy_exclude_patterns: config.trust_policy_exclude.clone().unwrap_or_default(),
         trust_policy_ignore_after: config.trust_policy_ignore_after,
         registries,
-        // Merged here, not inside the verifier, so its name lookup and its
-        // tarball-prefix routing see the same set. Infallible because every
-        // install entry point already ran this map through
-        // `merge_named_registries` before verification is reachable.
-        named_registries: merge_named_registries(
-            &config.named_registries.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
-        )
-        .expect("named registries were validated at install setup"),
+        named_registries,
         http_client,
         auth_headers: auth_override.unwrap_or_else(|| Arc::clone(&config.auth_headers)),
         cache_dir: Some(config.cache_dir.clone()),
@@ -146,5 +157,38 @@ impl BuildVerifiersError {
 
     fn invalid_trust_policy_exclude(source: VersionPolicyError) -> Self {
         BuildVerifiersError::InvalidTrustPolicyExclude { source }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use pacquet_config::Config;
+    use pacquet_network::ThrottledClient;
+
+    use super::{BuildVerifiersError, build_resolution_verifiers};
+
+    /// Verifiers are built before the resolver chain that also validates
+    /// `namedRegistries`, and on the frozen path that chain never runs, so a
+    /// bad name has to surface here as a diagnostic rather than a panic.
+    #[test]
+    fn reserved_named_registry_is_an_error_not_a_panic() {
+        let mut config = Config::default();
+        config.named_registries.insert("workspace".to_string(), "https://npm.example/".to_string());
+
+        let result = build_resolution_verifiers(
+            &config,
+            Arc::new(ThrottledClient::default()),
+            None,
+            None,
+            None,
+        );
+
+        assert!(
+            matches!(result, Err(BuildVerifiersError::InvalidNamedRegistries { .. })),
+            "expected a diagnostic, got {:?}",
+            result.map(|verifiers| verifiers.len()),
+        );
     }
 }
