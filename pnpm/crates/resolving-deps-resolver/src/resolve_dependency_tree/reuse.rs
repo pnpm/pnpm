@@ -29,8 +29,9 @@ use super::{
     tree_ctx::TreeCtx,
     walk::{node_alias, parent_ids_contain_sequence, resolve_node},
     workspace_ctx::{
-        DirectDepVersions, claim_children_owner, insert_tree_node, is_current_children_owner,
-        make_non_owner_nodes_lazy, remember_node_parent_ids,
+        DirectDepVersions, RecordedChildrenContext, claim_children_owner, insert_tree_node,
+        is_current_children_owner, make_non_owner_nodes_lazy, record_children,
+        remember_node_parent_ids,
     },
 };
 
@@ -649,9 +650,24 @@ where
                 });
                 realized.insert(dep.alias, dep.node_id);
             }
-            lock_recoverable(&ctx.workspace.children_by_id).insert(id.clone(), Arc::new(by_id));
-            ctx.workspace.record_children_by_id_write(&id);
-            crate::resolved_tree::TreeChildren::Realized(realized)
+            let published = record_children(
+                ctx,
+                &id,
+                &children_owner.owner,
+                by_id,
+                RecordedChildrenContext {
+                    peer_shadowed: Arc::clone(&children_owner.peer_shadowed),
+                    prior_key: Some(key.clone()),
+                    update_active: !matches!(ctx.update_reuse_scope(), UpdateReuseScope::All),
+                },
+            );
+            if published {
+                crate::resolved_tree::TreeChildren::Realized(realized)
+            } else {
+                crate::resolved_tree::TreeChildren::Lazy {
+                    parent_ids: AncestorIds::from(Arc::clone(ancestor_ids)),
+                }
+            }
         } else {
             crate::resolved_tree::TreeChildren::Lazy {
                 parent_ids: AncestorIds::from(Arc::clone(ancestor_ids)),

@@ -42,9 +42,9 @@ use super::{
         project_relative_cache_scope,
     },
     workspace_ctx::{
-        ChildSpec, ChildrenOwnerClaim, WantedKey, claim_children_owner, insert_tree_node,
-        is_current_children_owner, make_non_owner_nodes_lazy, register_peer_dep_names,
-        remember_node_parent_ids,
+        ChildSpec, ChildrenOwnerClaim, RecordedChildrenContext, WantedKey, claim_children_owner,
+        insert_tree_node, is_current_children_owner, make_non_owner_nodes_lazy, record_children,
+        recorded_children_match, register_peer_dep_names, remember_node_parent_ids,
     },
 };
 
@@ -552,12 +552,32 @@ where
         current_is_optional,
         prior_key,
     } = pending;
+    // Built on demand: a linked node and a losing occurrence never
+    // reach either the reuse test or the recording.
+    let children_context = || RecordedChildrenContext {
+        peer_shadowed: Arc::clone(&children_owner.peer_shadowed),
+        prior_key: prior_key.clone(),
+        update_active: !matches!(ctx.update_reuse_scope(), super::UpdateReuseScope::All),
+    };
     let children = if is_link {
         // Linked nodes don't walk their manifest's deps — see the
         // `is_link` comment block above. They get an empty `Realized`
         // map: a linked node has no children of its own here.
         crate::resolved_tree::TreeChildren::Realized(BTreeMap::new())
     } else if !children_owner.owns_children {
+        crate::resolved_tree::TreeChildren::Lazy {
+            parent_ids: AncestorIds::from(Arc::clone(&parent_ancestors)),
+        }
+    } else if !resolves_children_through_catalogs(&result)
+        && recorded_children_match(ctx, &id, &children_context())
+    {
+        // A winning claim means this occurrence outranks the one that
+        // recorded the children, not that the children differ.
+        // Occurrences of one package race for the claim, so walking on
+        // every win costs a redundant subtree walk and a second set of
+        // occurrence nodes per race — enough, down a peer-carrying
+        // chain, to expand exponentially with its depth
+        // (https://github.com/pnpm/pnpm/issues/13574).
         crate::resolved_tree::TreeChildren::Lazy {
             parent_ids: AncestorIds::from(Arc::clone(&parent_ancestors)),
         }
@@ -727,9 +747,13 @@ where
                 });
                 realized.insert(dep.alias, dep.node_id);
             }
-            lock_recoverable(&ctx.workspace.children_by_id).insert(id.clone(), Arc::new(by_id));
-            ctx.workspace.record_children_by_id_write(&id);
-            crate::resolved_tree::TreeChildren::Realized(realized)
+            if record_children(ctx, &id, &children_owner.owner, by_id, children_context()) {
+                crate::resolved_tree::TreeChildren::Realized(realized)
+            } else {
+                crate::resolved_tree::TreeChildren::Lazy {
+                    parent_ids: AncestorIds::from(Arc::clone(&parent_ancestors)),
+                }
+            }
         } else {
             crate::resolved_tree::TreeChildren::Lazy {
                 parent_ids: AncestorIds::from(Arc::clone(&parent_ancestors)),
@@ -1045,6 +1069,17 @@ pub(super) async fn warm_children_resolutions<Chain>(
         })
         .pipe(future::join_all)
         .await;
+}
+
+/// Whether this package's child specifiers pass through the importer's
+/// catalogs, which makes them a property of the resolving importer
+/// rather than of the package id — the one input
+/// [`fn@recorded_children_match`] cannot compare, since the recorded
+/// context does not carry the catalogs the recording importer used.
+fn resolves_children_through_catalogs(
+    result: &pacquet_resolving_resolver_base::ResolveResult,
+) -> bool {
+    result.resolved_via == "workspace" && result.id.as_str().starts_with("file:")
 }
 
 /// The install aliases one resolved level contributes to its
