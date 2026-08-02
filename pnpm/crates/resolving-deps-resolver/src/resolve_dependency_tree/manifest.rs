@@ -142,6 +142,7 @@ pub(super) fn extract_children(
     for (name, specifier) in engines_runtime_dependencies(manifest, "engines", "dependencies") {
         out.push((name.to_string(), specifier, false));
     }
+    out.sort_unstable();
     Ok(out)
 }
 
