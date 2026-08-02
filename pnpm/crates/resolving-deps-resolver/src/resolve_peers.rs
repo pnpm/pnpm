@@ -54,6 +54,7 @@ use std::{
     sync::Arc,
 };
 use walker::Walker;
+pub(crate) use walker::{MissingNames, index_missing_names};
 
 /// Options threaded into [`fn@resolve_peers`].
 #[derive(Debug, Clone)]

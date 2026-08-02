@@ -136,6 +136,7 @@ fn ownership_rewrite_of_existing_nodes_bumps_children_rewrites() {
 fn owner_missing_record_is_written_once_per_generation() {
     use super::super::lock_recoverable;
     use super::{ChildrenOwner, ChildrenOwnerEntry, WorkspaceTreeCtx};
+    use crate::resolve_peers::MissingNames;
     use std::sync::Arc;
 
     let ctx = WorkspaceTreeCtx::default();
@@ -153,23 +154,25 @@ fn owner_missing_record_is_written_once_per_generation() {
     lock_recoverable(&ctx.children_owner_by_id)
         .insert("pkg@1.0.0".to_string(), entry(owner.clone()));
 
-    let miss = |names: &[&str]| {
-        let mut map: HashMap<String, HashSet<String>> = HashMap::default();
-        map.insert("pkg@1.0.0".to_string(), names.iter().map(|name| (*name).to_string()).collect());
-        map
+    let names = |names: &[&str]| -> HashSet<String> {
+        names.iter().map(|name| (*name).to_string()).collect()
     };
+    fn miss(names: &HashSet<String>) -> HashMap<&str, MissingNames<'_>> {
+        HashMap::from_iter([("pkg@1.0.0", MissingNames::One(names))])
+    }
 
-    ctx.record_first_walk_missing("pkg-a", &miss(&["peer"]));
-    assert_eq!(
-        ctx.first_walk_missing_by_pkg().get("pkg@1.0.0"),
-        Some(&miss(&["peer"]).remove("pkg@1.0.0").unwrap()),
-    );
+    let one_peer = names(&["peer"]);
+    let two_peers = names(&["peer", "other-peer"]);
+    let none = names(&[]);
 
-    ctx.record_first_walk_missing(".", &miss(&["peer", "other-peer"]));
+    ctx.record_first_walk_missing("pkg-a", &miss(&one_peer));
+    assert_eq!(ctx.first_walk_missing_by_pkg().get("pkg@1.0.0"), Some(&one_peer));
+
+    ctx.record_first_walk_missing(".", &miss(&two_peers));
     let recorded = ctx.first_walk_missing_by_pkg();
     assert_eq!(recorded.get("pkg@1.0.0").map(HashSet::len), Some(2));
 
-    ctx.record_first_walk_missing(".", &miss(&[]));
+    ctx.record_first_walk_missing(".", &miss(&none));
     let recorded = ctx.first_walk_missing_by_pkg();
     assert!(
         recorded.get("pkg@1.0.0").is_some_and(|names| names.contains("peer")),
@@ -178,7 +181,7 @@ fn owner_missing_record_is_written_once_per_generation() {
 
     let new_owner = ChildrenOwner { depth: 0, ..owner };
     lock_recoverable(&ctx.children_owner_by_id).insert("pkg@1.0.0".to_string(), entry(new_owner));
-    ctx.record_first_walk_missing(".", &miss(&[]));
+    ctx.record_first_walk_missing(".", &miss(&none));
     assert_eq!(
         ctx.first_walk_missing_by_pkg().get("pkg@1.0.0").map(HashSet::len),
         Some(0),

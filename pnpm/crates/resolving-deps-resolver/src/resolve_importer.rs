@@ -37,7 +37,7 @@ use crate::{
     },
     resolve_peers::{
         HoistMissingScope, PeerDiscoveryResult, PeerHoistDiscovery, ResolvePeersOptions,
-        ResolvePeersResult, apply_hoist_missing_scope, resolve_peers,
+        ResolvePeersResult, apply_hoist_missing_scope, index_missing_names, resolve_peers,
     },
     resolved_tree::ResolvedTree,
 };
@@ -674,9 +674,10 @@ impl ImporterHoistState {
             .ctx
             .workspace()
             .provider_pkg_ids(discovery.resolved_peer_providers_by_alias.values());
-        self.ctx
-            .workspace()
-            .record_first_walk_missing(&self.importer_id, &discovery.missing_names_by_pkg);
+        self.ctx.workspace().record_first_walk_missing(
+            &self.importer_id,
+            &index_missing_names(&discovery.missing_summaries),
+        );
         RequiredRound { provider_pkg_ids, discovery, walk_was_full }
     }
 
@@ -696,10 +697,7 @@ impl ImporterHoistState {
                     Some(Arc::new(HoistMissingScope {
                         importer_id: self.importer_id.clone(),
                         first_importer_by_pkg: self.ctx.workspace().first_importer_by_pkg(),
-                        first_walk_missing_by_pkg: self
-                            .ctx
-                            .workspace()
-                            .first_walk_missing_by_pkg(),
+                        first_walk_missing_by_pkg: self.ctx.workspace().first_walk_missing_by_pkg(),
                         locked_peer_names: Arc::clone(&self.locked_peer_names),
                     })),
                     peer_discovery,

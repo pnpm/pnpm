@@ -15,6 +15,7 @@ use std::{
 
 use crate::{
     node_id::NodeId,
+    resolve_peers::MissingNames,
     resolved_tree::{
         AncestorIds, DependenciesTreeNode, DirectDep, PeerDep, ResolvedPackage, ResolvedTree,
     },
@@ -631,10 +632,10 @@ impl WorkspaceTreeCtx {
     /// its own later hoist waves never refresh it — and replaces any
     /// provisional report a non-owner's earlier walk left behind. See
     /// the `first_walk_missing_by_pkg` field doc.
-    pub fn record_first_walk_missing(
+    pub(crate) fn record_first_walk_missing(
         &self,
         importer_id: &str,
-        missing_by_pkg: &HashMap<String, HashSet<String>>,
+        missing_by_pkg: &HashMap<&str, MissingNames<'_>>,
     ) {
         // Lock order: `children_owner_by_id` before
         // `first_walk_missing_by_pkg`, the only place both are held.
@@ -649,23 +650,27 @@ impl WorkspaceTreeCtx {
                 .get(pkg_id)
                 .is_some_and(|entry| entry.recorded_by.as_ref() == Some(owner));
             if !recorded_by_current_owner {
+                let names = missing_by_pkg
+                    .get(pkg_id.as_str())
+                    .map(|names| names.iter().map(str::to_owned).collect())
+                    .unwrap_or_default();
                 record.map_mut().insert(
                     pkg_id.clone(),
-                    OwnerMissingRecord {
-                        recorded_by: Some(owner.clone()),
-                        names: missing_by_pkg.get(pkg_id).cloned().unwrap_or_default(),
-                    },
+                    OwnerMissingRecord { recorded_by: Some(owner.clone()), names },
                 );
             }
         }
         for (pkg_id, names) in missing_by_pkg {
-            if record.map().contains_key(pkg_id) {
+            if record.map().contains_key(*pkg_id) {
                 continue;
             }
-            if owners.get(pkg_id).is_none_or(|entry| entry.owner.importer_id != importer_id) {
+            if owners.get(*pkg_id).is_none_or(|entry| entry.owner.importer_id != importer_id) {
                 record.map_mut().insert(
-                    pkg_id.clone(),
-                    OwnerMissingRecord { recorded_by: None, names: names.clone() },
+                    (*pkg_id).to_owned(),
+                    OwnerMissingRecord {
+                        recorded_by: None,
+                        names: names.iter().map(str::to_owned).collect(),
+                    },
                 );
             }
         }
