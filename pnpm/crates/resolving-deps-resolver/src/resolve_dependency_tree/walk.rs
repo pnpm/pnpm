@@ -42,9 +42,10 @@ use super::{
         project_relative_cache_scope,
     },
     workspace_ctx::{
-        ChildSpec, ChildrenOwnerClaim, WantedKey, claim_children_owner, has_recorded_children,
+        ChildSpec, ChildrenOwnerClaim, RecordedChildrenContext, WantedKey, claim_children_owner,
         insert_tree_node, is_current_children_owner, make_non_owner_nodes_lazy,
-        register_peer_dep_names, remember_node_parent_ids,
+        record_children_context, recorded_children_match, register_peer_dep_names,
+        remember_node_parent_ids,
     },
 };
 
@@ -553,6 +554,11 @@ where
         current_is_optional,
         prior_key,
     } = pending;
+    let children_context = RecordedChildrenContext {
+        peer_shadowed: Arc::clone(&children_owner.peer_shadowed),
+        prior_key: prior_key.clone(),
+        update_active: !matches!(ctx.update_reuse_scope(), super::UpdateReuseScope::All),
+    };
     let children = if is_link {
         // Linked nodes don't walk their manifest's deps — see the
         // `is_link` comment block above. They get an empty `Realized`
@@ -562,9 +568,8 @@ where
         crate::resolved_tree::TreeChildren::Lazy {
             parent_ids: AncestorIds::from(Arc::clone(&parent_ancestors)),
         }
-    } else if children_owner.recorded_children_reusable
-        && !resolves_children_through_catalogs(&result)
-        && has_recorded_children(ctx, &id)
+    } else if !resolves_children_through_catalogs(&result)
+        && recorded_children_match(ctx, &id, &children_context)
     {
         // A winning claim only means this occurrence outranks the one
         // that recorded the children — not that the children differ.
@@ -745,6 +750,7 @@ where
                 realized.insert(dep.alias, dep.node_id);
             }
             lock_recoverable(&ctx.workspace.children_by_id).insert(id.clone(), Arc::new(by_id));
+            record_children_context(ctx, &id, children_context.clone());
             ctx.workspace.record_children_by_id_write(&id);
             crate::resolved_tree::TreeChildren::Realized(realized)
         } else {

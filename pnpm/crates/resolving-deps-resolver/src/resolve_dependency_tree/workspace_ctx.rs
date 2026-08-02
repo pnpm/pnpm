@@ -152,6 +152,41 @@ struct ChildrenOwnerEntry {
     pub(super) peer_shadowed: Arc<HashSet<String>>,
 }
 
+/// What a recorded `children_by_id` entry was resolved under. A later
+/// occurrence may expand from that entry instead of walking the
+/// package's manifest again only when its own context equals this one:
+/// each field can change which children the walk produces.
+#[derive(Debug, Clone)]
+pub(super) struct RecordedChildrenContext {
+    /// Dependencies the package's own `peerDependencies` shadow, which
+    /// the walk drops from its children.
+    pub(super) peer_shadowed: Arc<HashSet<String>>,
+    /// The prior-lockfile key whose snapshot pinned the children, if the
+    /// walk reused one.
+    pub(super) prior_key: Option<PkgNameVerPeer>,
+    /// Whether the resolving importer had an active update policy, which
+    /// re-resolves what a keep-all importer reuses.
+    pub(super) update_active: bool,
+}
+
+impl RecordedChildrenContext {
+    /// Two contexts produce the same children.
+    ///
+    /// The preferred-versions overlay is deliberately not part of the
+    /// test. `children_by_id` records one child list per package id,
+    /// and every occurrence that does not own the children already
+    /// expands from it whatever its own overlay says — the overlay
+    /// only ever decides which occurrence's versions get *recorded*.
+    /// Requiring identical overlays here would mean requiring identical
+    /// parents, which never holds for the occurrences that race, and
+    /// measurably reinstates the expansion this test exists to prevent.
+    pub(super) fn produces_same_children_as(&self, other: &Self) -> bool {
+        self.peer_shadowed == other.peer_shadowed
+            && self.prior_key == other.prior_key
+            && self.update_active == other.update_active
+    }
+}
+
 /// Workspace-shared maps. Every per-importer [`TreeCtx`] in a
 /// multi-importer install holds an `Arc<WorkspaceTreeCtx>` so the
 /// resolver's per-`pkgIdWithPatchHash` dedup (`packages`,
@@ -203,6 +238,9 @@ pub struct WorkspaceTreeCtx {
         Mutex<HashMap<WantedKey, Arc<pacquet_resolving_resolver_base::ResolveResult>>>,
     pub(super) children_specs_by_id: Mutex<HashMap<String, Arc<Vec<ChildSpec>>>>,
     pub(super) children_by_id: Mutex<HashMap<String, Arc<Vec<crate::resolved_tree::ChildEdge>>>>,
+    /// The context each `children_by_id` entry was recorded under. See
+    /// [`RecordedChildrenContext`].
+    children_context_by_id: Mutex<HashMap<String, RecordedChildrenContext>>,
     children_owner_by_id: Mutex<HashMap<String, ChildrenOwnerEntry>>,
     node_parent_ids_by_id: Mutex<HashMap<NodeId, Arc<Vec<String>>>>,
     /// Reverse index over `dependencies_tree`: every occurrence node
@@ -385,6 +423,7 @@ impl Default for WorkspaceTreeCtx {
             resolved_by_wanted: Mutex::new(HashMap::default()),
             children_specs_by_id: Mutex::new(HashMap::default()),
             children_by_id: Mutex::new(HashMap::default()),
+            children_context_by_id: Mutex::new(HashMap::default()),
             children_owner_by_id: Mutex::new(HashMap::default()),
             node_parent_ids_by_id: Mutex::new(HashMap::default()),
             nodes_by_pkg_id: Mutex::new(HashMap::default()),
@@ -1097,24 +1136,16 @@ pub(super) struct ChildrenOwnerClaim {
     /// lost. See [`ChildrenOwnerEntry::peer_shadowed`].
     pub(super) peer_shadowed: Arc<HashSet<String>>,
     /// A winning claim displaced an owner whose shadowed-dependency set
-    /// equals this occurrence's. Children resolve identically under
-    /// both, so the other occurrences' realized children stay valid and
-    /// the winner skips the lazy-flip (and the engine-invalidating
-    /// rewrite signal) it would otherwise broadcast.
-    pub(super) children_context_unchanged: bool,
-    /// The displaced owner resolved this package's children under
-    /// conditions this occurrence would reproduce exactly: the same
-    /// shadowed-dependency set *and* the same update policy. Walking
-    /// them again would rebuild identical edges and leave a second
-    /// occurrence subtree behind, so the winner can reuse the recorded
-    /// children instead — see [`fn@super::walk::walk_node_children`].
+    /// equals this occurrence's, so the other occurrences' realized
+    /// children — including a subtree reused from the prior lockfile —
+    /// stay valid and the winner skips the lazy-flip (and the
+    /// engine-invalidating rewrite signal) it would otherwise broadcast.
     ///
-    /// The update policy and the prior-lockfile key are part of the
-    /// test alongside the shadowed set: an update-active occurrence
-    /// re-resolves what a keep-all one reused, and an occurrence
-    /// pinned by a different snapshot key resolves different children
-    /// — inheriting either would change the resolved graph.
-    pub(super) recorded_children_reusable: bool,
+    /// This is a narrower question than whether the *recorded* children
+    /// can be reused instead of walked; that one is
+    /// [`fn@recorded_children_match`], which compares the full
+    /// resolution context.
+    pub(super) children_context_unchanged: bool,
 }
 
 /// `peer_shadowed` is this occurrence's own set; it is installed as the
@@ -1135,19 +1166,15 @@ pub(super) fn claim_children_owner(
         parent_path: ancestor_ids.to_vec(),
         importer_id: ctx.importer_id.clone(),
     };
-    let (owns_children, peer_shadowed, children_context_unchanged, same_resolution_context) = {
+    let (owns_children, peer_shadowed, children_context_unchanged) = {
         let mut owners = lock_recoverable(&ctx.workspace.children_owner_by_id);
         match owners.get(pkg_id) {
             Some(existing) if !owner.wins_over(&existing.owner) => {
-                (false, Arc::clone(&existing.peer_shadowed), false, false)
+                (false, Arc::clone(&existing.peer_shadowed), false)
             }
             existing => {
                 let children_context_unchanged =
                     existing.is_some_and(|entry| *entry.peer_shadowed == peer_shadowed);
-                let same_resolution_context = existing.is_some_and(|entry| {
-                    entry.owner.update_active == owner.update_active
-                        && entry.prior_key.as_ref() == prior_key
-                });
                 let peer_shadowed = Arc::new(peer_shadowed);
                 owners.insert(
                     pkg_id.to_string(),
@@ -1157,7 +1184,7 @@ pub(super) fn claim_children_owner(
                         peer_shadowed: Arc::clone(&peer_shadowed),
                     },
                 );
-                (true, peer_shadowed, children_context_unchanged, same_resolution_context)
+                (true, peer_shadowed, children_context_unchanged)
             }
         }
     };
@@ -1165,21 +1192,32 @@ pub(super) fn claim_children_owner(
         lock_recoverable(&ctx.workspace.first_importer_by_pkg)
             .insert(pkg_id.to_string(), owner.importer_id.clone());
     }
-    ChildrenOwnerClaim {
-        owner,
-        owns_children,
-        peer_shadowed,
-        children_context_unchanged,
-        recorded_children_reusable: children_context_unchanged && same_resolution_context,
-    }
+    ChildrenOwnerClaim { owner, owns_children, peer_shadowed, children_context_unchanged }
 }
 
-/// Whether the walk already recorded this package's children, i.e.
-/// whether a [`ChildrenOwnerClaim::recorded_children_reusable`] winner
-/// has something to reuse. `false` while the previous owner is still
-/// walking them.
-pub(super) fn has_recorded_children(ctx: &TreeCtx, pkg_id: &str) -> bool {
-    lock_recoverable(&ctx.workspace.children_by_id).contains_key(pkg_id)
+/// Whether this package's recorded children were resolved under
+/// `context`, and can therefore be expanded from instead of walked
+/// again. `false` while no walk has recorded them yet, and `false`
+/// when the recording walk ran under a different context — the owner
+/// that recorded them need not be the owner standing now.
+pub(super) fn recorded_children_match(
+    ctx: &TreeCtx,
+    pkg_id: &str,
+    context: &RecordedChildrenContext,
+) -> bool {
+    lock_recoverable(&ctx.workspace.children_context_by_id)
+        .get(pkg_id)
+        .is_some_and(|recorded| recorded.produces_same_children_as(context))
+}
+
+/// Record the context a `children_by_id` entry was produced under.
+/// Called with every write to that map, so the two never disagree.
+pub(super) fn record_children_context(
+    ctx: &TreeCtx,
+    pkg_id: &str,
+    context: RecordedChildrenContext,
+) {
+    lock_recoverable(&ctx.workspace.children_context_by_id).insert(pkg_id.to_string(), context);
 }
 
 /// Seed the peer-walker's `parentPkgs` filter with the names a
