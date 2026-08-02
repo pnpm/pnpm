@@ -562,6 +562,46 @@ scripts:
     drop(root);
 }
 
+/// npm's `--prefix` is accepted as a spelling of `--dir`
+/// (<https://github.com/pnpm/pnpm/issues/13583>) — ahead of the
+/// subcommand, where pnpm's own options live. Past the script name the
+/// same token is the script's, so the script records what it received.
+#[test]
+fn prefix_selects_the_dir_before_the_subcommand_and_is_the_script_s_after_it() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let project = workspace.join("project");
+    fs::create_dir_all(&project).expect("create project dir");
+    let marker = workspace.join("ran.txt");
+    fs::write(
+        project.join("package.json"),
+        json!({
+            "name": "project",
+            "version": "0.0.0",
+            // The `--` keeps node from claiming a forwarded `--prefix` as
+            // one of its own options.
+            "scripts": {
+                "test": r#"node -e "require('fs').writeFileSync(process.env.MARKER_PATH, process.argv.slice(1).join(' '))" --"#,
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet
+        .with_env("MARKER_PATH", marker.to_string_lossy().as_ref())
+        .with_arg("--prefix")
+        .with_arg(&project)
+        .with_arg("run")
+        .with_arg("test")
+        .with_arg("--prefix")
+        .with_arg("forwarded")
+        .assert()
+        .success();
+    assert_eq!(fs::read_to_string(&marker).expect("read marker"), "--prefix forwarded");
+
+    drop(root);
+}
+
 #[cfg(unix)]
 #[test]
 fn top_level_fallback_runs_local_bin_when_script_is_missing() {

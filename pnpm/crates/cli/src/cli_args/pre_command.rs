@@ -26,7 +26,7 @@ use super::{
         spawn_pnpm,
     },
 };
-use crate::{config_deps, config_overrides::ConfigOverrides};
+use crate::{config_deps, config_overrides::ConfigOverrides, flag_relocation::ArgTable};
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pacquet_config::{Config, Host, PNPM_VERSION, PmOnFail};
@@ -833,6 +833,7 @@ impl SwitchInput {
     }
 
     fn from_version_argv(argv: &[OsString]) -> Self {
+        let global_options = ArgTable::top_level(super::grammar());
         let mut input = Self { dir: PathBuf::from("."), npmrc_auth_file: None, command: None };
         let mut index = 1;
         while index < argv.len() {
@@ -855,7 +856,9 @@ impl SwitchInput {
                 continue;
             }
             if let Some((value, width)) =
-                long_value(token, "dir", argv.get(index + 1).map(OsString::as_os_str))
+                long_value(token, "dir", argv.get(index + 1).map(OsString::as_os_str)).or_else(
+                    || long_value(token, "prefix", argv.get(index + 1).map(OsString::as_os_str)),
+                )
             {
                 input.dir = PathBuf::from(value);
                 index += width;
@@ -875,7 +878,7 @@ impl SwitchInput {
                 index += width;
                 continue;
             }
-            index += if value_taking_global_option(token) { 2 } else { 1 };
+            index += if consumes_next_token(token, &global_options) { 2 } else { 1 };
         }
         input
     }
@@ -992,20 +995,19 @@ fn long_value<'a>(
         .map(|value| (value, 1))
 }
 
-fn value_taking_global_option(token: &str) -> bool {
-    if matches!(token, "-F") {
-        return true;
+/// Whether an option token takes the following argv token as its value, so
+/// the scan steps over it instead of mistaking it for the command name.
+/// Read from the clap grammar rather than a list of names, so an option (or
+/// alias) added to [`CliArgs`] is accounted for here without a second edit.
+fn consumes_next_token(token: &str, global_options: &ArgTable) -> bool {
+    if let Some(name) = token.strip_prefix("--") {
+        return !name.contains('=') && global_options.long_consumes_value(name).unwrap_or(false);
     }
-    if token.starts_with("-F") {
-        return false;
-    }
-    let Some(name) = token.strip_prefix("--") else {
+    let Some(rest) = token.strip_prefix('-').filter(|rest| !rest.is_empty()) else {
         return false;
     };
-    if name.contains('=') {
-        return false;
-    }
-    matches!(name, "filter" | "filter-prod" | "npmrc-auth-file" | "reporter" | "userconfig")
+    let short = rest.chars().next().expect("checked non-empty");
+    rest.chars().count() == 1 && global_options.short_consumes_value(short).unwrap_or(false)
 }
 
 #[cfg(test)]

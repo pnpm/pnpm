@@ -7,6 +7,7 @@ mod github_actions;
 mod job_control;
 mod leading_separator;
 mod parse_boundary;
+mod renamed_options;
 mod shorthands;
 mod state;
 mod with_current;
@@ -75,6 +76,10 @@ fn run_cli() -> miette::Result<()> {
     // `--reporter=silent`) over argv before parsing; mirror that so they
     // work with every command. See `shorthands`.
     let argv = shorthands::expand_universal_shorthands(&command, argv);
+    // npm's spellings of two of pnpm's options (`--prefix`, `--store`) are
+    // hidden clap aliases; pnpm additionally lets the canonical spelling win
+    // when a command line uses both. See `renamed_options`.
+    let argv = renamed_options::drop_shadowed_aliases(&command, argv);
     // pnpm's option parser is position-independent; move subcommand
     // options written before the subcommand to after it so clap agrees.
     // See `flag_relocation`.
