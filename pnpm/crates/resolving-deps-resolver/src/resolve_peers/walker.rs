@@ -16,10 +16,9 @@ use crate::{
         },
         context::{
             ChainSuffixMemo, CurrentProviderSource, ParentPkgInfo, ParentRef, ParentRefs,
-            SharedChain,
-            importer_relative_link_dep_path, insert_parent_ref, link_node_id_as_dep_path,
-            parents_from_chain, pkg_name_version, remap_link_node_id, satisfies_with_prereleases,
-            scoped_hoisted_optional_parent_refs,
+            SharedChain, importer_relative_link_dep_path, insert_parent_ref,
+            link_node_id_as_dep_path, parents_from_chain, pkg_name_version, remap_link_node_id,
+            satisfies_with_prereleases, scoped_hoisted_optional_parent_refs,
         },
         discovery::PeerDiscoveryCaches,
         finalize::{NodeRecord, PendingPeerEdge, WalkedNode},
