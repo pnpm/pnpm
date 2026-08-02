@@ -19,7 +19,7 @@ import { pick, without } from 'ramda'
 import { renderHelp } from 'render-help'
 
 import { getSaveType } from './getSaveType.js'
-import { recursive } from './recursive.js'
+import { createMatcher, matchDependencies, recursive } from './recursive.js'
 
 class RemoveMissingDepsError extends PnpmError {
   constructor (
@@ -216,7 +216,8 @@ export async function handler (
       ? getAllDependenciesFromManifest(currentManifest)
       : currentManifest[targetDependenciesField] ?? {}
   )
-  const nonMatchedDependencies = without(availableDependencies, params)
+  const dependencyNames = expandRemovePatterns(params, currentManifest, include)
+  const nonMatchedDependencies = without(availableDependencies, dependencyNames)
   if (nonMatchedDependencies.length !== 0) {
     throw new RemoveMissingDepsError({
       availableDependencies,
@@ -227,7 +228,7 @@ export async function handler (
   const mutationResult = await mutateModulesInSingleProject(
     {
       binsDir: opts.bin,
-      dependencyNames: params,
+      dependencyNames,
       manifest: currentManifest,
       mutation: 'uninstallSome',
       rootDir: opts.dir as ProjectRootDir,
@@ -254,4 +255,17 @@ export async function handler (
     cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
     allProjects: updatedProjects,
   })
+}
+
+function expandRemovePatterns (
+  params: string[],
+  manifest: Project['manifest'],
+  include: {
+    dependencies: boolean
+    devDependencies: boolean
+    optionalDependencies: boolean
+  }
+): string[] {
+  if (!params.some(param => param.includes('*') || param.startsWith('!'))) return params
+  return matchDependencies(createMatcher(params), manifest, include)
 }

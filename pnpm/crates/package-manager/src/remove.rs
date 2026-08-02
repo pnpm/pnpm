@@ -98,8 +98,9 @@ impl Remove<'_> {
             lockfile_only,
         } = self;
 
-        validate_removable(manifest, package_names, save_type).map_err(RemoveError::Validation)?;
-        prepare_manifest::<Reporter>(manifest, package_names, save_type);
+        let package_names = expand_remove_patterns(manifest, package_names, save_type);
+        validate_removable(manifest, &package_names, save_type).map_err(RemoveError::Validation)?;
+        prepare_manifest::<Reporter>(manifest, &package_names, save_type);
 
         Install {
             tarball_mem_cache,
@@ -261,7 +262,8 @@ fn prepare_selected_manifests<Reporter: self::Reporter>(
     save_type: Option<DependencyGroup>,
 ) {
     for &index in selected_indices {
-        prepare_manifest::<Reporter>(&mut projects[index].manifest, package_names, save_type);
+        let package_names = expand_remove_patterns(&projects[index].manifest, package_names, save_type);
+        prepare_manifest::<Reporter>(&mut projects[index].manifest, &package_names, save_type);
     }
 }
 
@@ -315,6 +317,22 @@ fn validate_removable(
         return Ok(());
     }
     Err(cannot_remove_missing_deps(&available_dependencies, &non_matched_dependencies, save_type))
+}
+
+fn expand_remove_patterns(
+    manifest: &PackageManifest,
+    package_names: &[String],
+    save_type: Option<DependencyGroup>,
+) -> Vec<String> {
+    if !package_names.iter().any(|name| name.contains('*') || name.starts_with('!')) {
+        return package_names.to_vec();
+    }
+    let matcher = pacquet_config::matcher::create_matcher(package_names);
+    manifest
+        .available_dependency_names(save_type)
+        .into_iter()
+        .filter(|name| matcher.matches(name))
+        .collect()
 }
 
 /// Build the `ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS` error, with its

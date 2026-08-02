@@ -1,3 +1,5 @@
+import fs from 'node:fs'
+
 import { expect, test } from '@jest/globals'
 import type { PnpmError } from '@pnpm/error'
 import { remove } from '@pnpm/installing.commands'
@@ -79,6 +81,28 @@ test('remove should fail if the project has no dependencies at all', async () =>
     expect(err.code).toBe('ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
     expect(err.message).toBe("Cannot remove 'express': project has no 'optionalDependencies'")
   }
+})
+
+test('remove expands dependency glob patterns', async () => {
+  prepare({
+    dependencies: {
+      '@eslint/js': '1.0.0',
+      eslint: '1.0.0',
+      'eslint-plugin-import': '1.0.0',
+      vite: '1.0.0',
+    },
+  })
+
+  await remove.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  }, ['eslint', 'eslint-*'])
+
+  const manifest = JSON.parse(fs.readFileSync('package.json', 'utf8'))
+  expect(manifest.dependencies).toStrictEqual({
+    '@eslint/js': '1.0.0',
+    vite: '1.0.0',
+  })
 })
 
 test('remove should fail if the project does not have one of the removed dependencies', async () => {

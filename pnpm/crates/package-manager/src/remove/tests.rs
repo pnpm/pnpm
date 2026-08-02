@@ -2,7 +2,7 @@
 //! errors before any install runs, exercising [`validate_removable`].
 
 use super::{
-    RemoveValidationError, persist_selected_manifests, prepare_selected_manifests,
+    RemoveValidationError, expand_remove_patterns, persist_selected_manifests, prepare_selected_manifests,
     selected_project_indices, validate_removable, validate_selected_remove,
 };
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
@@ -109,6 +109,23 @@ fn remove_should_fail_if_the_project_does_not_have_one_of_the_removed_dependenci
                     .to_string(),
             ),
         ),
+    );
+}
+
+#[test]
+fn remove_expands_dependency_glob_patterns() {
+    let (manifest, _dir) = manifest(json!({
+        "dependencies": {
+            "@eslint/js": "1.0.0",
+            "eslint": "1.0.0",
+            "eslint-plugin-import": "1.0.0",
+            "vite": "1.0.0"
+        },
+    }));
+
+    assert_eq!(
+        expand_remove_patterns(&manifest, &strings(&["eslint", "eslint-*"]), None),
+        strings(&["eslint", "eslint-plugin-import"]),
     );
 }
 
