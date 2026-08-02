@@ -1,4 +1,5 @@
 import { describe, expect, it } from '@jest/globals'
+import { normalizeNamedRegistries } from '@pnpm/config.normalize-registries'
 import { collectSbomComponents } from '@pnpm/deps.compliance.sbom'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import type { DepPath, ProjectId, Registries } from '@pnpm/types'
@@ -37,7 +38,7 @@ function collect (alias: string, namedRegistries?: Record<string, string>) {
     rootName: 'root',
     rootVersion: '1.0.0',
     registries,
-    namedRegistries,
+    namedRegistries: normalizeNamedRegistries(namedRegistries),
     lockfileDir: '/test',
     lockfileOnly: true,
   })

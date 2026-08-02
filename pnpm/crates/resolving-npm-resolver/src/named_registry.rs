@@ -24,8 +24,9 @@ use reqwest::Url;
 /// reserved for the alias protocol (`npm:<name>@<range>`), which
 /// resolves through the default registry.
 ///
-/// These URLs are also the prefixes [`build_named_registry_prefixes`]
-/// matches a recorded tarball URL against, so an org that proxies
+/// These URLs are also the prefixes
+/// [`named_registry_tarball_prefixes`] matches a recorded tarball URL
+/// against, so an org that proxies
 /// npmjs should point `npmjs` at their proxy to keep verification
 /// going there rather than to the public host.
 pub const BUILTIN_NAMED_REGISTRIES: &[(&str, &str)] =
@@ -85,10 +86,6 @@ pub enum MergeNamedRegistriesError {
 pub fn merge_named_registries(
     user_defined: &HashMap<String, String>,
 ) -> Result<HashMap<String, String>, MergeNamedRegistriesError> {
-    let mut merged: HashMap<String, String> = BUILTIN_NAMED_REGISTRIES
-        .iter()
-        .map(|(name, url)| ((*name).to_string(), (*url).to_string()))
-        .collect();
     for (alias, url) in user_defined {
         if pacquet_deps_path::is_reserved_version_prefix(alias) {
             return Err(MergeNamedRegistriesError::ReservedAlias { alias: alias.clone() });
@@ -102,7 +99,13 @@ pub fn merge_named_registries(
                 url: url.clone(),
             });
         }
-        merged.insert(alias.clone(), url.clone());
+    }
+    let mut merged: HashMap<String, String> = BUILTIN_NAMED_REGISTRIES
+        .iter()
+        .map(|(name, url)| ((*name).to_string(), (*url).to_string()))
+        .collect();
+    for (name, url) in user_defined {
+        merged.insert(name.clone(), url.clone());
     }
     Ok(merged)
 }
@@ -111,30 +114,14 @@ fn is_valid_http_url(url: &str) -> bool {
     Url::parse(url).is_ok_and(|parsed| matches!(parsed.scheme(), "http" | "https"))
 }
 
-/// Build the sorted-by-length list of registry URL prefixes the
-/// verifier matches a tarball URL against.
-///
-/// Merges [`BUILTIN_NAMED_REGISTRIES`] with the user-supplied
-/// `named_registries` (later wins on the same key). Each prefix carries
-/// a trailing slash so prefix
-/// matching can't be fooled by a same-host-different-suffix sibling,
-/// and the output is sorted longest-first so the deepest matching
-/// prefix wins.
+/// Trailing slash so `https://npm.pkg.github.com-evil/` cannot match.
+/// Equal lengths tie-break lexicographically, since length alone leaves
+/// the order to `HashMap` iteration.
 #[must_use]
-pub fn build_named_registry_prefixes(named_registries: &HashMap<String, String>) -> Vec<String> {
-    let mut merged: HashMap<&str, String> = HashMap::new();
-    for (name, url) in BUILTIN_NAMED_REGISTRIES {
-        merged.insert(name, (*url).to_string());
-    }
-    for (name, url) in named_registries {
-        // `to_string()` on `&String` triggers a clippy lint elsewhere
-        // in the codebase; `clone` is the idiomatic equivalent.
-        merged.insert(name.as_str(), url.clone());
-    }
-
-    let mut prefixes: Vec<String> = merged
-        .into_values()
-        .filter_map(|url| Url::parse(&url).ok())
+pub fn named_registry_tarball_prefixes(named_registries: &HashMap<String, String>) -> Vec<String> {
+    let mut prefixes: Vec<String> = named_registries
+        .values()
+        .filter_map(|url| Url::parse(url).ok())
         .map(|parsed| {
             let mut pathname = parsed.path().to_string();
             if !pathname.ends_with('/') {
@@ -143,7 +130,7 @@ pub fn build_named_registry_prefixes(named_registries: &HashMap<String, String>)
             format!("{}{}", parsed.origin().ascii_serialization(), pathname)
         })
         .collect();
-    prefixes.sort_by_key(|prefix| std::cmp::Reverse(prefix.len()));
+    prefixes.sort_by(|a, b| b.len().cmp(&a.len()).then_with(|| a.cmp(b)));
     prefixes
 }
 

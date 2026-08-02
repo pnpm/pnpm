@@ -3,6 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { afterAll, describe, expect, jest, test } from '@jest/globals'
+import { normalizeNamedRegistries } from '@pnpm/config.normalize-registries'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import type { DepPath, ProjectId, ProjectManifest, Registries } from '@pnpm/types'
@@ -398,7 +399,7 @@ describe('licences', () => {
       manifest: {} as ProjectManifest,
       virtualStoreDir: '/.pnpm',
       registries: {} as Registries,
-      namedRegistries: { work: 'https://npm.enterprise.example.com/' },
+      namedRegistries: normalizeNamedRegistries({ work: 'https://npm.enterprise.example.com/' }),
       wantedLockfile: lockfile,
       storeDir: tmpStoreDir,
       virtualStoreDirMaxLength: 120,

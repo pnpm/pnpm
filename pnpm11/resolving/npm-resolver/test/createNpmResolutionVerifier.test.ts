@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, expect, test } from '@jest/globals'
+import { normalizeNamedRegistries } from '@pnpm/config.normalize-registries'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import { createNpmResolutionVerifier } from '@pnpm/resolving.npm-resolver'
 import type { Resolution } from '@pnpm/resolving.resolver-base'
@@ -568,10 +569,10 @@ test('createNpmResolutionVerifier() canTrustPastCheck rejects when the trust-exc
 
 test('createNpmResolutionVerifier() canTrustPastCheck rejects a changed named-registry mapping', () => {
   const verifier = createNpmResolutionVerifier(makeVerifierOpts({
-    namedRegistries: { work: 'https://registry.example.test' },
+    namedRegistries: normalizeNamedRegistries({ work: 'https://registry.example.test' }),
   }))
   const changedVerifier = createNpmResolutionVerifier(makeVerifierOpts({
-    namedRegistries: { work: 'https://other.example.test' },
+    namedRegistries: normalizeNamedRegistries({ work: 'https://other.example.test' }),
   }))
 
   expect(verifier.canTrustPastCheck(verifier.policy)).toBe(true)

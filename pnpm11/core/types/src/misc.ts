@@ -19,6 +19,18 @@ export interface Registries {
   [scope: string]: string
 }
 
+/**
+ * The required keys are the enforcement: a raw `namedRegistries` from user
+ * config does not satisfy this type, so it cannot reach a consumer without
+ * passing through `normalizeNamedRegistries`. Widening it is how adding a
+ * built-in gets acknowledged.
+ */
+export interface NamedRegistries {
+  gh: string
+  npmjs: string
+  [name: string]: string
+}
+
 /** Parsed value of `_auth` of each registry in the rc file. */
 export interface BasicAuth {
   username: string
