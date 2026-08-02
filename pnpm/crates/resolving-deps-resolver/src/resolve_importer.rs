@@ -695,12 +695,11 @@ impl ImporterHoistState {
                 None => self.resolve_required_round(
                     Some(Arc::new(HoistMissingScope {
                         importer_id: self.importer_id.clone(),
-                        first_importer_by_pkg: Arc::new(
-                            self.ctx.workspace().first_importer_by_pkg(),
-                        ),
-                        first_walk_missing_by_pkg: Arc::new(
-                            self.ctx.workspace().first_walk_missing_by_pkg(),
-                        ),
+                        first_importer_by_pkg: self.ctx.workspace().first_importer_by_pkg(),
+                        first_walk_missing_by_pkg: self
+                            .ctx
+                            .workspace()
+                            .first_walk_missing_by_pkg(),
                         locked_peer_names: Arc::clone(&self.locked_peer_names),
                     })),
                     peer_discovery,
