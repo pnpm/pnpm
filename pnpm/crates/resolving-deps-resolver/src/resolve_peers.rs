@@ -43,7 +43,9 @@ use crate::{
     node_id::NodeId,
     resolved_tree::{DirectDep, ResolvedTree},
 };
-use context::{CurrentProviderSource, SharedChain, importer_relative_link_dep_path};
+use context::{
+    ChainSuffixMemo, CurrentProviderSource, SharedChain, importer_relative_link_dep_path,
+};
 use discovery::PeerDiscoveryCaches;
 pub(crate) use discovery::{PeerDiscoveryResult, PeerHoistDiscovery, apply_hoist_missing_scope};
 use pacquet_deps_path::DepPath;
@@ -199,22 +201,27 @@ pub struct HoistMissingScope {
 impl HoistMissingScope {
     /// `true` when a miss of `peer_name` declared under the given
     /// ancestor chain is covered by another importer's shared walk.
-    fn suppresses_iter<'a>(
+    fn suppresses_chain(
         &self,
-        ancestor_pkg_ids: impl Iterator<Item = &'a String>,
+        ancestor_pkg_ids: &SharedChain<String>,
         peer_name: &str,
+        memo: &mut ChainSuffixMemo,
     ) -> bool {
         if self.locked_peer_names.contains(peer_name) {
             return false;
         }
-        ancestor_pkg_ids.into_iter().any(|pkg_id| {
-            self.first_importer_by_pkg.get(pkg_id).is_some_and(|owner| {
-                *owner != self.importer_id
-                    && self
-                        .first_walk_missing_by_pkg
-                        .get(pkg_id)
-                        .is_some_and(|missing| !missing.contains(peer_name))
-            })
+        ancestor_pkg_ids.any_memoized(memo, |pkg_id| self.covers(pkg_id, peer_name))
+    }
+
+    /// Whether another importer's shared walk of `pkg_id` already
+    /// reported on `peer_name` — and found it satisfied.
+    fn covers(&self, pkg_id: &str, peer_name: &str) -> bool {
+        self.first_importer_by_pkg.get(pkg_id).is_some_and(|owner| {
+            *owner != self.importer_id
+                && self
+                    .first_walk_missing_by_pkg
+                    .get(pkg_id)
+                    .is_some_and(|missing| !missing.contains(peer_name))
         })
     }
 }

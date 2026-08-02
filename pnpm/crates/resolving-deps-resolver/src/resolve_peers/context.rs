@@ -92,6 +92,50 @@ impl<Element: PartialEq> SharedChain<Element> {
     }
 }
 
+/// Memo for [`SharedChain::any_memoized`], keyed by link identity: the
+/// answer for a link covers that link and everything above it, so it
+/// holds for every chain that shares the suffix. One memo is valid for
+/// one predicate.
+pub(super) type ChainSuffixMemo = HashMap<usize, bool>;
+
+impl<Element> SharedChain<Element> {
+    /// Whether any element from here to the root satisfies `predicate`,
+    /// answering from `memo` for suffixes already evaluated. Chains built
+    /// by pushing onto a common ancestor share those suffixes, so a
+    /// repeated query over a family of chains costs each link once
+    /// instead of once per chain.
+    ///
+    /// `predicate` must be pure: it is called on the links this call is
+    /// first to reach, in root-to-tip order, and skipped entirely for
+    /// suffixes the memo already answers.
+    pub(super) fn any_memoized(
+        &self,
+        memo: &mut ChainSuffixMemo,
+        mut predicate: impl FnMut(&Element) -> bool,
+    ) -> bool {
+        let mut unmemoized = Vec::new();
+        let mut cursor = self.0.as_ref();
+        let mut satisfied = false;
+        while let Some(link) = cursor {
+            if let Some(&answer) = memo.get(&link_key(link)) {
+                satisfied = answer;
+                break;
+            }
+            unmemoized.push(link);
+            cursor = link.parent.as_ref();
+        }
+        for link in unmemoized.into_iter().rev() {
+            satisfied = satisfied || predicate(&link.value);
+            memo.insert(link_key(link), satisfied);
+        }
+        satisfied
+    }
+}
+
+fn link_key<Element>(link: &Arc<SharedChainLink<Element>>) -> usize {
+    Arc::as_ptr(link) as usize
+}
+
 impl<Element: Clone> SharedChain<Element> {
     fn to_root_vec(&self) -> Vec<Element> {
         let mut values: Vec<Element> = self.iter().cloned().collect();
