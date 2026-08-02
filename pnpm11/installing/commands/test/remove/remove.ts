@@ -1,4 +1,4 @@
-import fs from 'node:fs'
+import { readFile } from 'node:fs/promises'
 
 import { expect, test } from '@jest/globals'
 import type { PnpmError } from '@pnpm/error'
@@ -86,22 +86,19 @@ test('remove should fail if the project has no dependencies at all', async () =>
 test('remove expands dependency glob patterns', async () => {
   prepare({
     dependencies: {
-      '@eslint/js': '1.0.0',
-      eslint: '1.0.0',
-      'eslint-plugin-import': '1.0.0',
-      vite: '1.0.0',
+      'is-negative': '1.0.0',
+      'is-positive': '1.0.0',
     },
   })
 
   await remove.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
-  }, ['eslint', 'eslint-*'])
+  }, ['is-neg*'])
 
-  const manifest = JSON.parse(fs.readFileSync('package.json', 'utf8'))
+  const manifest = JSON.parse(await readFile('package.json', 'utf8'))
   expect(manifest.dependencies).toStrictEqual({
-    '@eslint/js': '1.0.0',
-    vite: '1.0.0',
+    'is-positive': '1.0.0',
   })
 })
 

@@ -216,7 +216,16 @@ export async function handler (
       ? getAllDependenciesFromManifest(currentManifest)
       : currentManifest[targetDependenciesField] ?? {}
   )
-  const dependencyNames = expandRemovePatterns(params, currentManifest, include)
+  const hasRemovePatterns = params.some(param => param.includes('*') || param.startsWith('!'))
+  const removePatternInclude = targetDependenciesField === undefined
+    ? include
+    : {
+      dependencies: targetDependenciesField === 'dependencies',
+      devDependencies: targetDependenciesField === 'devDependencies',
+      optionalDependencies: targetDependenciesField === 'optionalDependencies',
+    }
+  const dependencyNames = expandRemovePatterns(params, currentManifest, removePatternInclude)
+  if (hasRemovePatterns && dependencyNames.length === 0) return
   const nonMatchedDependencies = without(availableDependencies, dependencyNames)
   if (nonMatchedDependencies.length !== 0) {
     throw new RemoveMissingDepsError({

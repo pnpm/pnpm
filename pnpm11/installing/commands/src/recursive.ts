@@ -267,7 +267,14 @@ export async function recursive (
       const modulesDir = localConfig.modulesDir ?? opts.modulesDir
       let currentInput = [...params]
       if (updateMatch != null) {
-        currentInput = matchDependencies(updateMatch, manifest, includeDirect)
+        const matchInclude = cmdFullName === 'remove' && targetDependenciesField != null
+          ? {
+            dependencies: targetDependenciesField === 'dependencies',
+            devDependencies: targetDependenciesField === 'devDependencies',
+            optionalDependencies: targetDependenciesField === 'optionalDependencies',
+          }
+          : includeDirect
+        currentInput = matchDependencies(updateMatch, manifest, matchInclude)
         if ((currentInput.length === 0) && cmdFullName === 'update' && (typeof opts.depth === 'undefined' || opts.depth <= 0)) {
           installOpts.pruneLockfileImporters = false
           return
