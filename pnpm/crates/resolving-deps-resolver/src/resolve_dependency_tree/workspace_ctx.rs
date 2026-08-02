@@ -15,6 +15,7 @@ use std::{
 
 use crate::{
     node_id::NodeId,
+    resolve_peers::MissingNames,
     resolved_tree::{
         AncestorIds, DependenciesTreeNode, DirectDep, PeerDep, ResolvedPackage, ResolvedTree,
     },
@@ -316,7 +317,7 @@ pub struct WorkspaceTreeCtx {
     /// a package's subtree is recorded once per id, and a non-owner occurrence
     /// reuses the owner occurrence's children and missing-peer report. Consumed via
     /// [`crate::HoistMissingScope`].
-    first_importer_by_pkg: Mutex<HashMap<String, String>>,
+    first_importer_by_pkg: Mutex<SnapshotCell<HashMap<String, String>, HashMap<String, String>>>,
     /// Per package: the missing-peer names reported by the *initial*
     /// peer walk of the current children-owner generation, plus the
     /// owner that recorded them (`None` while only a non-owner's
@@ -325,7 +326,7 @@ pub struct WorkspaceTreeCtx {
     /// so a peer the owner only satisfied by hoisting stays visible to
     /// every other importer's hoist. Consumed via
     /// [`crate::HoistMissingScope`].
-    first_walk_missing_by_pkg: Mutex<HashMap<String, OwnerMissingRecord>>,
+    first_walk_missing_by_pkg: Mutex<FirstWalkMissingCell>,
     /// Per importer: direct-dep aliases whose manifest specifier differs
     /// from the prior lockfile (new deps included). Gates the stale-pin
     /// refresh's reuse-decline; only a changed direct dep can re-resolve
@@ -347,12 +348,57 @@ pub struct WorkspaceTreeCtx {
     pub(super) direct_dep_versions: Mutex<HashMap<String, Arc<DirectDepVersions>>>,
 }
 
+/// The per-package missing-peer names
+/// [`WorkspaceTreeCtx::first_walk_missing_by_pkg`] projects out of its
+/// [`OwnerMissingRecord`] entries.
+type FirstWalkMissing = HashMap<String, HashSet<String>>;
+
+type FirstWalkMissingCell = SnapshotCell<HashMap<String, OwnerMissingRecord>, FirstWalkMissing>;
+
 /// One [`WorkspaceTreeCtx::first_walk_missing_by_pkg`] entry: the
 /// missing-peer names plus the owner generation that recorded them
 /// (`None` for a non-owner's provisional report).
 struct OwnerMissingRecord {
     recorded_by: Option<ChildrenOwner>,
     names: HashSet<String>,
+}
+
+/// A map whose readers want a whole-map snapshot rather than a lookup,
+/// paired with the last snapshot handed out. Every hoist round of every
+/// importer takes one of these, so rebuilding per read is quadratic in
+/// workspace size — the cached `Arc` collapses a round of reads that
+/// changed nothing into one projection.
+///
+/// Writers reach the map through [`Self::map_mut`], which drops the
+/// snapshot; a writer that finds nothing to change must keep to
+/// [`Self::map`] so the cache survives.
+struct SnapshotCell<Map, Snapshot> {
+    map: Map,
+    snapshot: Option<Arc<Snapshot>>,
+}
+
+impl<Map: Default, Snapshot> Default for SnapshotCell<Map, Snapshot> {
+    fn default() -> Self {
+        SnapshotCell { map: Map::default(), snapshot: None }
+    }
+}
+
+impl<Map, Snapshot> SnapshotCell<Map, Snapshot> {
+    fn map(&self) -> &Map {
+        &self.map
+    }
+
+    fn map_mut(&mut self) -> &mut Map {
+        self.snapshot = None;
+        &mut self.map
+    }
+
+    /// The current snapshot, projected through `project` when a write
+    /// invalidated the last one. Snapshots already handed out keep the
+    /// contents they were built from.
+    fn snapshot(&mut self, project: impl FnOnce(&Map) -> Snapshot) -> Arc<Snapshot> {
+        Arc::clone(self.snapshot.get_or_insert_with(|| Arc::new(project(&self.map))))
+    }
 }
 
 /// State behind [`WorkspaceTreeCtx::run_preferred_versions`]: the
@@ -440,8 +486,8 @@ impl Default for WorkspaceTreeCtx {
             deprecation_log: None,
             auto_install_peers: false,
             registries: std::collections::HashMap::new(),
-            first_importer_by_pkg: Mutex::new(HashMap::default()),
-            first_walk_missing_by_pkg: Mutex::new(HashMap::default()),
+            first_importer_by_pkg: Mutex::new(SnapshotCell::default()),
+            first_walk_missing_by_pkg: Mutex::new(SnapshotCell::default()),
             changed_direct_deps: Mutex::new(HashMap::default()),
             direct_dep_versions: Mutex::new(HashMap::default()),
         }
@@ -583,8 +629,8 @@ impl WorkspaceTreeCtx {
 
     /// Snapshot of `pkg id → children-owner importer id`. See the field doc.
     #[must_use]
-    pub fn first_importer_by_pkg(&self) -> HashMap<String, String> {
-        lock_recoverable(&self.first_importer_by_pkg).clone()
+    pub fn first_importer_by_pkg(&self) -> Arc<HashMap<String, String>> {
+        lock_recoverable(&self.first_importer_by_pkg).snapshot(Clone::clone)
     }
 
     /// Record a walk's per-package missing-peer names. The owning
@@ -592,10 +638,10 @@ impl WorkspaceTreeCtx {
     /// its own later hoist waves never refresh it — and replaces any
     /// provisional report a non-owner's earlier walk left behind. See
     /// the `first_walk_missing_by_pkg` field doc.
-    pub fn record_first_walk_missing(
+    pub(crate) fn record_first_walk_missing(
         &self,
         importer_id: &str,
-        missing_by_pkg: &HashMap<String, HashSet<String>>,
+        missing_by_pkg: &HashMap<&str, MissingNames<'_>>,
     ) {
         // Lock order: `children_owner_by_id` before
         // `first_walk_missing_by_pkg`, the only place both are held.
@@ -605,24 +651,33 @@ impl WorkspaceTreeCtx {
             if owner.importer_id != importer_id {
                 continue;
             }
-            let recorded_by_current_owner =
-                record.get(pkg_id).is_some_and(|entry| entry.recorded_by.as_ref() == Some(owner));
+            let recorded_by_current_owner = record
+                .map()
+                .get(pkg_id)
+                .is_some_and(|entry| entry.recorded_by.as_ref() == Some(owner));
             if !recorded_by_current_owner {
-                record.insert(
+                let names = missing_by_pkg
+                    .get(pkg_id.as_str())
+                    .map(|names| names.iter().map(str::to_owned).collect())
+                    .unwrap_or_default();
+                record.map_mut().insert(
                     pkg_id.clone(),
-                    OwnerMissingRecord {
-                        recorded_by: Some(owner.clone()),
-                        names: missing_by_pkg.get(pkg_id).cloned().unwrap_or_default(),
-                    },
+                    OwnerMissingRecord { recorded_by: Some(owner.clone()), names },
                 );
             }
         }
         for (pkg_id, names) in missing_by_pkg {
-            if owners.get(pkg_id).is_none_or(|entry| entry.owner.importer_id != importer_id) {
-                record.entry(pkg_id.clone()).or_insert_with(|| OwnerMissingRecord {
-                    recorded_by: None,
-                    names: names.clone(),
-                });
+            if record.map().contains_key(*pkg_id) {
+                continue;
+            }
+            if owners.get(*pkg_id).is_none_or(|entry| entry.owner.importer_id != importer_id) {
+                record.map_mut().insert(
+                    (*pkg_id).to_owned(),
+                    OwnerMissingRecord {
+                        recorded_by: None,
+                        names: names.iter().map(str::to_owned).collect(),
+                    },
+                );
             }
         }
     }
@@ -630,11 +685,10 @@ impl WorkspaceTreeCtx {
     /// Snapshot of the per-package owner-context missing-peer names.
     /// See the `first_walk_missing_by_pkg` field doc.
     #[must_use]
-    pub fn first_walk_missing_by_pkg(&self) -> HashMap<String, HashSet<String>> {
-        lock_recoverable(&self.first_walk_missing_by_pkg)
-            .iter()
-            .map(|(pkg_id, entry)| (pkg_id.clone(), entry.names.clone()))
-            .collect()
+    pub fn first_walk_missing_by_pkg(&self) -> Arc<FirstWalkMissing> {
+        lock_recoverable(&self.first_walk_missing_by_pkg).snapshot(|record| {
+            record.iter().map(|(pkg_id, entry)| (pkg_id.clone(), entry.names.clone())).collect()
+        })
     }
 
     /// Record importer-level direct-dependency package ids as roots for
@@ -1195,8 +1249,10 @@ pub(super) fn claim_children_owner(
         }
     };
     if owns_children {
-        lock_recoverable(&ctx.workspace.first_importer_by_pkg)
-            .insert(pkg_id.to_string(), owner.importer_id.clone());
+        let mut first_importer = lock_recoverable(&ctx.workspace.first_importer_by_pkg);
+        if first_importer.map().get(pkg_id) != Some(&owner.importer_id) {
+            first_importer.map_mut().insert(pkg_id.to_string(), owner.importer_id.clone());
+        }
     }
     ChildrenOwnerClaim { owner, owns_children, peer_shadowed, children_context_unchanged }
 }

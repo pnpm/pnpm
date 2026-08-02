@@ -260,7 +260,7 @@ pub(super) struct MissingPeerInfo {
 /// are shared with their parents instead of repeatedly copying every
 /// descendant's package map into each ancestor and cache entry.
 #[derive(Debug)]
-pub(super) struct MissingSummary {
+pub(crate) struct MissingSummary {
     own: Option<(String, HashSet<String>)>,
     children: Vec<Arc<MissingSummary>>,
 }
@@ -1361,20 +1361,57 @@ impl Walker<'_> {
     }
 }
 
-pub(super) fn merge_missing_summary(
-    target: &mut HashMap<String, HashSet<String>>,
-    seen: &mut HashSet<usize>,
-    summary: SubtreeMissingByPkg,
-) {
-    let Some(summary) = summary else { return };
-    let mut pending = vec![summary];
+/// The missing-peer names reported for one package by a walk. A
+/// package's occurrences can appear in several subtree summaries, whose
+/// reports are read as their union.
+pub(crate) enum MissingNames<'a> {
+    One(&'a HashSet<String>),
+    Union(Vec<&'a HashSet<String>>),
+}
+
+impl<'a> MissingNames<'a> {
+    fn add(&mut self, names: &'a HashSet<String>) {
+        match self {
+            MissingNames::One(first) => *self = MissingNames::Union(vec![first, names]),
+            MissingNames::Union(all) => all.push(names),
+        }
+    }
+
+    pub(crate) fn iter(&self) -> impl Iterator<Item = &str> {
+        let (one, union) = match self {
+            MissingNames::One(names) => (Some(*names), None),
+            MissingNames::Union(all) => (None, Some(all)),
+        };
+        one.into_iter()
+            .chain(union.into_iter().flatten().copied())
+            .flat_map(|names| names.iter().map(String::as_str))
+    }
+}
+
+/// Index the per-package missing-peer names `roots` reported, borrowing
+/// from the summaries rather than copying every descendant's names into
+/// an owned map: one of these is built per importer per hoist round, so
+/// a copy would make each round cost the whole workspace.
+pub(crate) fn index_missing_names(
+    roots: &[Arc<MissingSummary>],
+) -> HashMap<&str, MissingNames<'_>> {
+    let mut index: HashMap<&str, MissingNames<'_>> = HashMap::default();
+    let mut seen: HashSet<usize> = HashSet::default();
+    let mut pending: Vec<&Arc<MissingSummary>> = roots.iter().collect();
     while let Some(summary) = pending.pop() {
-        if !seen.insert(Arc::as_ptr(&summary) as usize) {
+        if !seen.insert(Arc::as_ptr(summary) as usize) {
             continue;
         }
         if let Some((pkg_id, names)) = &summary.own {
-            target.entry(pkg_id.clone()).or_default().extend(names.iter().cloned());
+            index
+                .entry(pkg_id.as_str())
+                .and_modify(|entry| entry.add(names))
+                .or_insert(MissingNames::One(names));
         }
-        pending.extend(summary.children.iter().cloned());
+        pending.extend(summary.children.iter());
     }
+    index
 }
+
+#[cfg(test)]
+mod tests;

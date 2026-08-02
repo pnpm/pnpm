@@ -10,7 +10,7 @@ use crate::{
         HoistMissingScope, ResolvePeersOptions,
         cache::{PeerProviderChildren, PeersCacheItem},
         context::{CurrentProviderSource, ParentPkgInfo, SharedChain},
-        walker::{NodeOutput, Walker, merge_missing_summary},
+        walker::{MissingSummary, NodeOutput, Walker},
     },
     resolved_tree::{DirectDep, ResolvedTree},
 };
@@ -126,8 +126,13 @@ pub(crate) struct PeerDiscoveryResult {
     /// Ancestor `pkgIdWithPatchHash` chains recorded per missing-peer
     /// issue, consumed by [`fn@apply_hoist_missing_scope`].
     missing_ancestor_pkg_ids: HashMap<String, Vec<SharedChain<String>>>,
-    /// See [`ResolvePeersResult::missing_names_by_pkg`](super::ResolvePeersResult::missing_names_by_pkg).
-    pub(crate) missing_names_by_pkg: HashMap<String, HashSet<String>>,
+    /// The pass's subtree missing-peer summaries, one per walked direct
+    /// dep. Read through
+    /// [`index_missing_names`](fn@crate::resolve_peers::index_missing_names)
+    /// for the per-package view
+    /// [`ResolvePeersResult::missing_names_by_pkg`](super::ResolvePeersResult::missing_names_by_pkg)
+    /// materializes.
+    pub(crate) missing_summaries: Vec<Arc<MissingSummary>>,
 }
 
 /// Walk `direct` in discovery mode: peer matching, caches, and issue
@@ -173,16 +178,15 @@ fn discover_peers(
             &importer_parent_dep_paths,
         );
     }
-    let mut seen_missing_summaries = HashSet::default();
-    let mut fold_output = |result: &mut PeerDiscoveryResult, output: NodeOutput| {
+    let fold_output = |result: &mut PeerDiscoveryResult, output: NodeOutput| {
         for (peer_alias, peer_node_id) in output.auto_install_resolved_peers {
             result.resolved_peer_providers_by_alias.insert(peer_alias, peer_node_id);
         }
-        merge_missing_summary(
-            &mut result.missing_names_by_pkg,
-            &mut seen_missing_summaries,
-            output.subtree_missing_by_pkg,
-        );
+        if let Some(summary) = output.subtree_missing_by_pkg
+            && !result.missing_summaries.iter().any(|seen| Arc::ptr_eq(seen, &summary))
+        {
+            result.missing_summaries.push(summary);
+        }
     };
     for dep in &own_direct {
         let output = walker.resolve_node(

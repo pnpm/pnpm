@@ -313,8 +313,8 @@ where
     // The context is quiescent between the prepare barrier above and
     // the completes below, so one snapshot of the owner-scope maps
     // serves every importer.
-    let first_importer_by_pkg = Arc::new(workspace.first_importer_by_pkg());
-    let first_walk_missing_by_pkg = Arc::new(workspace.first_walk_missing_by_pkg());
+    let first_importer_by_pkg = workspace.first_importer_by_pkg();
+    let first_walk_missing_by_pkg = workspace.first_walk_missing_by_pkg();
     for (state, round) in states.iter().zip(&mut initial_required_rounds) {
         if let Some(round) = round {
             state.apply_owner_missing_scope(

@@ -136,6 +136,7 @@ fn ownership_rewrite_of_existing_nodes_bumps_children_rewrites() {
 fn owner_missing_record_is_written_once_per_generation() {
     use super::super::lock_recoverable;
     use super::{ChildrenOwner, ChildrenOwnerEntry, WorkspaceTreeCtx};
+    use crate::resolve_peers::MissingNames;
     use std::sync::Arc;
 
     let ctx = WorkspaceTreeCtx::default();
@@ -153,23 +154,25 @@ fn owner_missing_record_is_written_once_per_generation() {
     lock_recoverable(&ctx.children_owner_by_id)
         .insert("pkg@1.0.0".to_string(), entry(owner.clone()));
 
-    let miss = |names: &[&str]| {
-        let mut map: HashMap<String, HashSet<String>> = HashMap::default();
-        map.insert("pkg@1.0.0".to_string(), names.iter().map(|name| (*name).to_string()).collect());
-        map
+    let names = |names: &[&str]| -> HashSet<String> {
+        names.iter().map(|name| (*name).to_string()).collect()
     };
+    fn miss(names: &HashSet<String>) -> HashMap<&str, MissingNames<'_>> {
+        HashMap::from_iter([("pkg@1.0.0", MissingNames::One(names))])
+    }
 
-    ctx.record_first_walk_missing("pkg-a", &miss(&["peer"]));
-    assert_eq!(
-        ctx.first_walk_missing_by_pkg().get("pkg@1.0.0"),
-        Some(&miss(&["peer"]).remove("pkg@1.0.0").unwrap()),
-    );
+    let one_peer = names(&["peer"]);
+    let two_peers = names(&["peer", "other-peer"]);
+    let none = names(&[]);
 
-    ctx.record_first_walk_missing(".", &miss(&["peer", "other-peer"]));
+    ctx.record_first_walk_missing("pkg-a", &miss(&one_peer));
+    assert_eq!(ctx.first_walk_missing_by_pkg().get("pkg@1.0.0"), Some(&one_peer));
+
+    ctx.record_first_walk_missing(".", &miss(&two_peers));
     let recorded = ctx.first_walk_missing_by_pkg();
     assert_eq!(recorded.get("pkg@1.0.0").map(HashSet::len), Some(2));
 
-    ctx.record_first_walk_missing(".", &miss(&[]));
+    ctx.record_first_walk_missing(".", &miss(&none));
     let recorded = ctx.first_walk_missing_by_pkg();
     assert!(
         recorded.get("pkg@1.0.0").is_some_and(|names| names.contains("peer")),
@@ -178,11 +181,48 @@ fn owner_missing_record_is_written_once_per_generation() {
 
     let new_owner = ChildrenOwner { depth: 0, ..owner };
     lock_recoverable(&ctx.children_owner_by_id).insert("pkg@1.0.0".to_string(), entry(new_owner));
-    ctx.record_first_walk_missing(".", &miss(&[]));
+    ctx.record_first_walk_missing(".", &miss(&none));
     assert_eq!(
         ctx.first_walk_missing_by_pkg().get("pkg@1.0.0").map(HashSet::len),
         Some(0),
         "a new ownership generation records afresh",
+    );
+}
+
+#[test]
+fn owner_scope_snapshots_are_shared_until_a_write_changes_the_map() {
+    use super::super::lock_recoverable;
+    use super::{ChildrenOwner, ChildrenOwnerEntry, WorkspaceTreeCtx};
+    use crate::resolve_peers::MissingNames;
+    use std::sync::Arc;
+
+    let ctx = WorkspaceTreeCtx::default();
+    let owner = ChildrenOwner {
+        update_active: false,
+        depth: 0,
+        importer_order: 0,
+        parent_path: Vec::new(),
+        importer_id: ".".to_string(),
+    };
+    lock_recoverable(&ctx.children_owner_by_id).insert(
+        "pkg@1.0.0".to_string(),
+        ChildrenOwnerEntry { owner, peer_shadowed: Arc::new(HashSet::default()) },
+    );
+
+    let peers: HashSet<String> = HashSet::from_iter(["peer".to_string()]);
+    let missing = HashMap::from_iter([("pkg@1.0.0", MissingNames::One(&peers))]);
+
+    let before = ctx.first_walk_missing_by_pkg();
+    ctx.record_first_walk_missing(".", &missing);
+    let after_write = ctx.first_walk_missing_by_pkg();
+    assert!(!Arc::ptr_eq(&before, &after_write), "a write must invalidate the shared snapshot");
+    assert!(before.is_empty(), "an issued snapshot keeps what it was built from");
+    assert_eq!(after_write.get("pkg@1.0.0"), Some(&peers));
+
+    ctx.record_first_walk_missing(".", &missing);
+    assert!(
+        Arc::ptr_eq(&after_write, &ctx.first_walk_missing_by_pkg()),
+        "a re-record that changes nothing must reuse the snapshot",
     );
 }
 
