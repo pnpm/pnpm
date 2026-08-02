@@ -1,6 +1,6 @@
 import url from 'node:url'
 
-import { createKnownRegistries } from '@pnpm/constants'
+import { createKnownRegistries } from '@pnpm/config.pick-registry-for-package'
 import * as dp from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import type { PackageSnapshot, TarballResolution } from '@pnpm/lockfile.types'

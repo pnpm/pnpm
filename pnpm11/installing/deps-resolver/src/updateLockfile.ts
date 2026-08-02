@@ -1,4 +1,4 @@
-import { createKnownRegistries } from '@pnpm/constants'
+import { createKnownRegistries } from '@pnpm/config.pick-registry-for-package'
 import * as dp from '@pnpm/deps.path'
 import {
   type LockfileObject,

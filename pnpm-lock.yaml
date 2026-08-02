@@ -2463,6 +2463,9 @@ importers:
 
   pnpm11/config/pick-registry-for-package:
     dependencies:
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../core/constants
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
@@ -3083,6 +3086,9 @@ importers:
       '@cyclonedx/cyclonedx-library':
         specifier: 'catalog:'
         version: 10.1.0(ajv@8.20.0)(spdx-expression-parse@4.0.0)
+      '@pnpm/config.pick-registry-for-package':
+        specifier: workspace:*
+        version: link:../../../config/pick-registry-for-package
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../../core/constants
@@ -5924,6 +5930,9 @@ importers:
       '@pnpm/catalogs.types':
         specifier: workspace:*
         version: link:../../catalogs/types
+      '@pnpm/config.pick-registry-for-package':
+        specifier: workspace:*
+        version: link:../../config/pick-registry-for-package
       '@pnpm/config.version-policy':
         specifier: workspace:*
         version: link:../../config/version-policy
@@ -7081,6 +7090,9 @@ importers:
 
   pnpm11/lockfile/utils:
     dependencies:
+      '@pnpm/config.pick-registry-for-package':
+        specifier: workspace:*
+        version: link:../../config/pick-registry-for-package
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../core/constants

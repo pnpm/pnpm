@@ -1,5 +1,6 @@
 ---
 "@pnpm/constants": major
+"@pnpm/config.pick-registry-for-package": minor
 "@pnpm/deps.compliance.sbom": patch
 "@pnpm/installing.deps-resolver": patch
 "@pnpm/lockfile.utils": patch

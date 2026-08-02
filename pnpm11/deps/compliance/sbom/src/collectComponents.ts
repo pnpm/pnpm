@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { createKnownRegistries } from '@pnpm/constants'
+import { createKnownRegistries } from '@pnpm/config.pick-registry-for-package'
 import { PnpmError } from '@pnpm/error'
 import { DepType, type DepTypes, detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import type { LockfileObject, TarballResolution } from '@pnpm/lockfile.types'

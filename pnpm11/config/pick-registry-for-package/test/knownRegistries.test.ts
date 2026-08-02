@@ -1,5 +1,6 @@
 import { expect, test } from '@jest/globals'
-import { BUILTIN_NAMED_REGISTRIES, createKnownRegistries } from '@pnpm/constants'
+import { createKnownRegistries } from '@pnpm/config.pick-registry-for-package'
+import { BUILTIN_NAMED_REGISTRIES } from '@pnpm/constants'
 
 /**
  * The reverse-routing prefix list decides which registry pnpm verifies a
