@@ -259,16 +259,22 @@ where
     // none hoists — a workspace-wide barrier, so an optional-peer pick
     // sees every importer's resolved versions.
     //
-    // The initial waves run concurrently, like the TypeScript resolver's
-    // importer fan-out: the shared context's children-owner claims are
-    // rank-ordered (not arrival-ordered) and the peer-hoist pickers'
-    // preferred-version candidates are derived from the settled
-    // reachable tree (see `WorkspaceTreeCtx::run_preferred_versions`),
-    // so the resolved graph is the same regardless of interleaving, and
-    // a large workspace's walks overlap their resolver and hook waits
-    // instead of paying them importer by importer.
+    // The waves run one importer at a time. Interleaving them leaves the
+    // resolved package set and every package's children identical — those
+    // are settled by rank, not arrival — but not the *occurrence* nodes:
+    // importers race for a package's children-ownership claim, and a
+    // walk that holds the claim only transiently still leaves its
+    // occurrence nodes behind. Occurrence identity feeds peer-variant
+    // computation, so the count varying between runs (58,972 to 60,664
+    // on a 114-importer workspace) is enough to flip a peer binding and
+    // emit a different lockfile for the same input.
+    //
+    // Resolving one importer at a time also measures faster wherever it
+    // was tried, because the races cost redundant subtree walks: that
+    // workspace resolves in ~9.3s against ~10.3s, and a cold install
+    // over a 50ms link in 2.64s against 2.72s.
     let mut input_dirs = Vec::with_capacity(importers.len());
-    let init_futures: Vec<_> = importers
+    let init_waves: Vec<_> = importers
         .iter()
         .zip(importer_opts)
         .enumerate()
@@ -290,7 +296,12 @@ where
             )
         })
         .collect();
-    let mut states = futures_util::future::try_join_all(init_futures).await?;
+    let mut states = Vec::with_capacity(init_waves.len());
+    for wave in init_waves {
+        // Boxed so the enclosing install future doesn't grow by a whole
+        // wave's frame; `try_join_all` used to heap-allocate them.
+        states.push(Box::pin(wave).await?);
+    }
     // Computed after the init barrier and shared unchanged: recomputing it
     // per round would let the root's own hoisted peers become candidates for
     // the importers hoisted after it.
