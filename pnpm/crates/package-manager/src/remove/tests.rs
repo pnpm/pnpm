@@ -2,8 +2,9 @@
 //! errors before any install runs, exercising [`validate_removable`].
 
 use super::{
-    RemoveValidationError, expand_remove_patterns, persist_selected_manifests, prepare_selected_manifests,
-    selected_project_indices, validate_removable, validate_selected_remove,
+    RemoveValidationError, expand_remove_patterns, persist_selected_manifests,
+    prepare_selected_manifests, selected_project_indices, validate_removable,
+    validate_selected_remove,
 };
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_reporter::SilentReporter;

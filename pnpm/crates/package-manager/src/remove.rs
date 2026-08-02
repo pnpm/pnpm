@@ -324,7 +324,10 @@ fn expand_remove_patterns(
     package_names: &[String],
     save_type: Option<DependencyGroup>,
 ) -> Vec<String> {
-    if !package_names.iter().any(|name| name.contains('*') || name.starts_with('!')) {
+    if !package_names
+        .iter()
+        .any(|name| name.contains('*') || name.starts_with('!'))
+    {
         return package_names.to_vec();
     }
     let matcher = pacquet_config::matcher::create_matcher(package_names);
