@@ -3078,3 +3078,116 @@ fn reuse_steal_lockfile() -> pacquet_lockfile::Lockfile {
         snapshots: Some(snapshots),
     }
 }
+
+/// Resolver that yields inside every resolution, so the runtime is free
+/// to interleave whatever is in flight, and records the importers whose
+/// resolutions overlapped while it did.
+struct OverlapRecordingResolver {
+    /// Project dirs currently inside `resolve`, and every set of two or
+    /// more that were ever in flight together.
+    in_flight: Mutex<HashSet<std::path::PathBuf>>,
+    overlaps: Mutex<Vec<Vec<std::path::PathBuf>>>,
+}
+
+impl OverlapRecordingResolver {
+    fn new() -> Self {
+        OverlapRecordingResolver {
+            in_flight: Mutex::new(HashSet::default()),
+            overlaps: Mutex::new(Vec::new()),
+        }
+    }
+}
+
+impl Resolver for OverlapRecordingResolver {
+    fn resolve<'a>(
+        &'a self,
+        wanted: &'a WantedDependency,
+        opts: &'a ResolveOptions,
+    ) -> ResolveFuture<'a> {
+        let project_dir = opts.project_dir.clone();
+        let alias = wanted.alias.clone().unwrap_or_default();
+        Box::pin(async move {
+            {
+                let mut in_flight = self.in_flight.lock().unwrap();
+                in_flight.insert(project_dir.clone());
+                if in_flight.len() > 1 {
+                    let mut overlapping: Vec<_> = in_flight.iter().cloned().collect();
+                    overlapping.sort();
+                    self.overlaps.lock().unwrap().push(overlapping);
+                }
+            }
+            // Give every other in-flight resolution a chance to run.
+            for _ in 0..4 {
+                tokio::task::yield_now().await;
+            }
+            self.in_flight.lock().unwrap().remove(&project_dir);
+
+            let name_ver = pacquet_lockfile::PkgNameVer::new(
+                pacquet_lockfile::PkgName::parse(&alias).expect("alias parses as a package name"),
+                node_semver::Version::from_str("1.0.0").expect("version parses"),
+            );
+            Ok::<_, ResolveError>(Some(ResolveResult {
+                id: PkgResolutionId::from(&name_ver),
+                name_ver: Some(name_ver),
+                latest: Some("1.0.0".to_string()),
+                published_at: None,
+                manifest: Some(Arc::new(serde_json::json!({
+                    "name": alias,
+                    "version": "1.0.0",
+                }))),
+                resolution: LockfileResolution::Directory(DirectoryResolution {
+                    directory: format!("/repo/{alias}"),
+                }),
+                resolved_via: "npm-registry".to_string(),
+                normalized_bare_specifier: None,
+                alias: Some(alias),
+                policy_violation: None,
+            }))
+        })
+    }
+
+    fn resolve_latest<'a>(
+        &'a self,
+        _query: &'a LatestQuery,
+        _opts: &'a ResolveOptions,
+    ) -> ResolveLatestFuture<'a> {
+        Box::pin(async { Ok(None) })
+    }
+}
+
+/// Importers' initial waves must not overlap. Interleaving them leaves
+/// the resolved packages and their children identical but not the
+/// occurrence nodes: importers race for a package's children-ownership
+/// claim, and a transient holder still leaves its occurrences behind.
+/// Occurrence identity feeds peer-variant computation, so the count
+/// varying between runs was enough to emit a different lockfile for the
+/// same input (pnpm/pnpm#13567).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn importer_waves_do_not_overlap() {
+    let (_a_tmp, a_manifest) = fake_manifest(serde_json::json!({ "shared": "^1.0.0" }));
+    let (_b_tmp, b_manifest) = fake_manifest(serde_json::json!({ "shared": "^1.0.0" }));
+    let (_c_tmp, c_manifest) = fake_manifest(serde_json::json!({ "shared": "^1.0.0" }));
+    let resolver = OverlapRecordingResolver::new();
+    let importers = vec![
+        WorkspaceImporter { id: "packages/a".to_string(), manifest: &a_manifest },
+        WorkspaceImporter { id: "packages/b".to_string(), manifest: &b_manifest },
+        WorkspaceImporter { id: "packages/c".to_string(), manifest: &c_manifest },
+    ];
+
+    resolve_workspace(
+        &resolver,
+        &importers,
+        &[DependencyGroup::Prod],
+        workspace_opts(false, false),
+        |importer| importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None),
+    )
+    .await
+    .expect("resolve workspace");
+
+    let overlaps = resolver.overlaps.lock().unwrap();
+    assert!(
+        overlaps.is_empty(),
+        "importers resolved concurrently: {:?}",
+        overlaps.first().expect("checked non-empty"),
+    );
+}
