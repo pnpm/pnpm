@@ -20,18 +20,10 @@ export interface Registries {
 }
 
 /**
- * Registry names a dependency specifier can select (`work:foo`), with the
- * built-ins guaranteed present.
- *
- * The required keys are the enforcement: a raw `namedRegistries` straight out
- * of the user's config does not satisfy this type, so it cannot reach a
- * consumer without passing through `normalizeNamedRegistries` first. Without
- * that, forgetting to fill in the built-ins somewhere would silently stop
- * `gh:` and `npmjs:` from resolving on that code path.
- *
- * Adding a built-in means widening this type, which is deliberate: it is the
- * same acknowledgement the reverse-routing prefix test asks for, since these
- * URLs also decide where verification traffic goes.
+ * The required keys are the enforcement: a raw `namedRegistries` from user
+ * config does not satisfy this type, so it cannot reach a consumer without
+ * passing through `normalizeNamedRegistries`. Widening it is how adding a
+ * built-in gets acknowledged.
  */
 export interface NamedRegistries {
   gh: string

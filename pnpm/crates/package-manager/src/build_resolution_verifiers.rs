@@ -23,8 +23,8 @@ use pacquet_config::{
 };
 use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_resolving_npm_resolver::{
-    CreateNpmResolutionVerifierOptions, KnownRegistries, ObservedDistStats, PackageMetaCache,
-    create_npm_resolution_verifier,
+    CreateNpmResolutionVerifierOptions, ObservedDistStats, PackageMetaCache,
+    create_npm_resolution_verifier, merge_named_registries,
 };
 use pacquet_resolving_resolver_base::ResolutionVerifier;
 
@@ -106,20 +106,14 @@ pub fn build_resolution_verifiers(
         trust_policy_exclude_patterns: config.trust_policy_exclude.clone().unwrap_or_default(),
         trust_policy_ignore_after: config.trust_policy_ignore_after,
         registries,
-        // Merged here rather than inside the verifier so its name lookup and
-        // its tarball-prefix routing cannot disagree about which registries
-        // exist. Taken infallibly: every install entry point runs the same
-        // user map through `merge_named_registries` before verification is
-        // reachable, so a malformed URL or reserved name has already aborted
-        // the install.
-        named_registries: KnownRegistries::new(
-            &config
-                .named_registries
-                .iter()
-                .map(|(name, url)| (name.clone(), url.clone()))
-                .collect(),
+        // Merged here, not inside the verifier, so its name lookup and its
+        // tarball-prefix routing see the same set. Infallible because every
+        // install entry point already ran this map through
+        // `merge_named_registries` before verification is reachable.
+        named_registries: merge_named_registries(
+            &config.named_registries.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
         )
-        .into_by_name(),
+        .expect("named registries were validated at install setup"),
         http_client,
         auth_headers: auth_override.unwrap_or_else(|| Arc::clone(&config.auth_headers)),
         cache_dir: Some(config.cache_dir.clone()),

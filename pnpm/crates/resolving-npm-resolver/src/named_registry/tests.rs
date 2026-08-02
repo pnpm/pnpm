@@ -3,46 +3,42 @@ use std::collections::HashMap;
 use pretty_assertions::assert_eq;
 
 use super::{
-    KnownRegistries, MergeNamedRegistriesError, merge_named_registries, pick_registry_for_package,
-    pick_registry_for_version,
+    MergeNamedRegistriesError, merge_named_registries, named_registry_tarball_prefixes,
+    pick_registry_for_package, pick_registry_for_version,
 };
 
 fn registries(entries: &[(&str, &str)]) -> HashMap<String, String> {
     entries.iter().map(|(k, v)| ((*k).to_string(), (*v).to_string())).collect()
 }
 
-/// The reverse-routing prefix list decides which registry pnpm
-/// verifies a lockfile entry against when that entry carries a
-/// recorded tarball URL — including entries that name no alias. Adding
-/// a built-in alias therefore redirects verification traffic for
-/// anyone whose lockfile records a URL under it, whether or not they
-/// use the alias.
-///
-/// This assertion exists so that consequence has to be acknowledged: a
-/// new built-in cannot land without updating this list. Its TypeScript
-/// counterpart is `test/knownRegistries.test.ts`; the two must agree,
-/// because the set also feeds the cached-policy routing digest that
-/// decides when each stack re-verifies.
+/// A new built-in redirects verification traffic; this makes that
+/// explicit. Must agree with the TypeScript `knownRegistries.test.ts`.
 #[test]
 fn default_reverse_routing_prefixes_are_exactly_the_builtins() {
     assert_eq!(
-        KnownRegistries::new(&HashMap::new()).tarball_prefixes(),
+        named_registry_tarball_prefixes(&merge_named_registries(&HashMap::new()).unwrap()),
         ["https://npm.pkg.github.com/", "https://registry.npmjs.org/"],
     );
 }
 
+/// `merge_named_registries` rejects such a URL, so this only fires if a
+/// caller skips it. Defense in depth: an unusable prefix must not shadow a
+/// working one.
 #[test]
-fn malformed_user_url_is_dropped_rather_than_poisoning_the_prefix_list() {
-    let mut user = HashMap::new();
-    user.insert("broken".to_string(), "not a url".to_string());
-    let with_broken = KnownRegistries::new(&user).tarball_prefixes().to_vec();
-    let default = KnownRegistries::new(&HashMap::new()).tarball_prefixes().to_vec();
-    assert_eq!(with_broken, default);
+fn malformed_url_is_dropped_rather_than_poisoning_the_prefix_list() {
+    let mut unvalidated = merge_named_registries(&HashMap::new()).unwrap();
+    unvalidated.insert("broken".to_string(), "not a url".to_string());
+
+    assert_eq!(
+        named_registry_tarball_prefixes(&unvalidated),
+        named_registry_tarball_prefixes(&merge_named_registries(&HashMap::new()).unwrap()),
+    );
 }
 
 #[test]
 fn build_prefixes_includes_gh_builtin() {
-    let prefixes = KnownRegistries::new(&HashMap::new()).tarball_prefixes().to_vec();
+    let prefixes =
+        named_registry_tarball_prefixes(&merge_named_registries(&HashMap::new()).unwrap());
     assert!(prefixes.iter().any(|prefix| prefix == "https://npm.pkg.github.com/"));
 }
 
@@ -50,7 +46,7 @@ fn build_prefixes_includes_gh_builtin() {
 fn build_prefixes_overrides_builtin_on_same_key() {
     let mut named = HashMap::new();
     named.insert("gh".to_string(), "https://internal/gh/".to_string());
-    let prefixes = KnownRegistries::new(&named).tarball_prefixes().to_vec();
+    let prefixes = named_registry_tarball_prefixes(&merge_named_registries(&named).unwrap());
     assert!(prefixes.iter().any(|prefix| prefix == "https://internal/gh/"));
     assert!(!prefixes.iter().any(|prefix| prefix == "https://npm.pkg.github.com/"));
 }
@@ -60,7 +56,7 @@ fn build_prefixes_sorts_longest_first() {
     let mut named = HashMap::new();
     named.insert("a".to_string(), "https://npm.example/team-a".to_string());
     named.insert("b".to_string(), "https://npm.example/team-a/sub".to_string());
-    let prefixes = KnownRegistries::new(&named).tarball_prefixes().to_vec();
+    let prefixes = named_registry_tarball_prefixes(&merge_named_registries(&named).unwrap());
     assert!(
         prefixes[0].starts_with("https://npm.example/team-a/sub"),
         "longest prefix first, got {prefixes:?}",
@@ -69,7 +65,8 @@ fn build_prefixes_sorts_longest_first() {
 
 #[test]
 fn tarball_under_named_registry_wins_over_scope_routing() {
-    let prefixes = KnownRegistries::new(&HashMap::new()).tarball_prefixes().to_vec();
+    let prefixes =
+        named_registry_tarball_prefixes(&merge_named_registries(&HashMap::new()).unwrap());
     let regs = registries(&[("default", "https://registry.npmjs.org/")]);
     let picked = pick_registry_for_version(
         &regs,
@@ -86,7 +83,8 @@ fn falls_back_to_scope_routing_without_tarball() {
         ("default", "https://registry.npmjs.org/"),
         ("@private", "https://internal/registry/"),
     ]);
-    let prefixes = KnownRegistries::new(&HashMap::new()).tarball_prefixes().to_vec();
+    let prefixes =
+        named_registry_tarball_prefixes(&merge_named_registries(&HashMap::new()).unwrap());
 
     let scoped = pick_registry_for_version(&regs, &prefixes, "@private/foo", None);
     assert_eq!(scoped, "https://internal/registry/");
@@ -145,24 +143,19 @@ fn merge_includes_builtin_when_user_empty() {
     assert_eq!(merged.get("gh").map(String::as_str), Some("https://npm.pkg.github.com/"));
 }
 
-/// `npmjs` reaches the public registry even when `registry` points at
-/// an internal proxy. The `npm` prefix cannot: it is reserved for the
-/// alias protocol and routes through the default registry.
 #[test]
 fn merge_includes_builtin_npmjs() {
     let merged = merge_named_registries(&HashMap::new()).unwrap();
     assert_eq!(merged.get("npmjs").map(String::as_str), Some("https://registry.npmjs.org/"));
 }
 
-/// A proxying org overrides `npmjs` so a recorded npmjs tarball URL
-/// keeps verifying against their proxy instead of the public host.
 #[test]
 fn merge_user_overrides_builtin_npmjs() {
     let mut user = HashMap::new();
     user.insert("npmjs".to_string(), "https://npm.proxy.example/".to_string());
     let merged = merge_named_registries(&user).unwrap();
     assert_eq!(merged.get("npmjs").map(String::as_str), Some("https://npm.proxy.example/"));
-    let prefixes = KnownRegistries::new(&user).tarball_prefixes().to_vec();
+    let prefixes = named_registry_tarball_prefixes(&merge_named_registries(&user).unwrap());
     assert!(prefixes.iter().any(|prefix| prefix == "https://npm.proxy.example/"));
     assert!(!prefixes.iter().any(|prefix| prefix == "https://registry.npmjs.org/"));
 }
@@ -199,7 +192,8 @@ fn merge_rejects_non_http_scheme() {
 /// `https://npm.pkg.github.com-evil/` reject correctly.
 #[test]
 fn tarball_under_unrelated_prefix_does_not_match() {
-    let prefixes = KnownRegistries::new(&HashMap::new()).tarball_prefixes().to_vec();
+    let prefixes =
+        named_registry_tarball_prefixes(&merge_named_registries(&HashMap::new()).unwrap());
     let regs = registries(&[("default", "https://registry.npmjs.org/")]);
     let picked = pick_registry_for_version(
         &regs,

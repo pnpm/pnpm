@@ -1,7 +1,6 @@
 import path from 'node:path'
 
 import { normalizeNamedRegistries } from '@pnpm/config.normalize-registries'
-import { createKnownRegistries } from '@pnpm/config.pick-registry-for-package'
 import { PnpmError } from '@pnpm/error'
 import { DepType, type DepTypes, detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import type { LockfileObject, TarballResolution } from '@pnpm/lockfile.types'
@@ -216,7 +215,7 @@ async function walkStep (
       // artifact from a compliance document.
       const registryUrl = registryName == null
         ? undefined
-        : createKnownRegistries(opts.namedRegistries ?? normalizeNamedRegistries()).byName[registryName]
+        : (opts.namedRegistries ?? normalizeNamedRegistries())[registryName]
       if (registryName != null && registryUrl == null) {
         throw new PnpmError('MISSING_NAMED_REGISTRY',
           `Cannot describe package "${depPath}": it was resolved from the named registry '${registryName}:', which is not present in the namedRegistries setting.`,

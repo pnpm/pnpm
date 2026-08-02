@@ -18,31 +18,23 @@ export function normalizeRegistries (registries?: Record<string, string>): Regis
 }
 
 /**
- * Fill in the built-in registries so downstream code can index the result
- * directly instead of re-merging them at every lookup.
+ * User entries win on collision, so a GHES user can point `gh` at their
+ * enterprise host. URLs are deliberately not normalized the way
+ * `normalizeRegistries` normalizes `registries`: the name and URL are recorded
+ * in lockfile dep paths, so rewriting one changes what a lockfile resolves to.
  *
- * The user's entries win on collision, which is what lets a GHES user point
- * `gh` at their enterprise host, or an org that mirrors npmjs point `npmjs`
- * at their mirror.
- *
- * URLs are not normalized here the way `normalizeRegistries` normalizes
- * `registries`: the name is recorded in the lockfile's dep paths, and the URL
- * it maps to is compared against recorded tarball URLs, so rewriting it would
- * change what an existing lockfile resolves to.
+ * Null-prototype because names come out of those dep paths: a crafted
+ * `foo@constructor:1.0.0` must not resolve to `Object.prototype.constructor`
+ * and slip past the `if (!registry)` guards that fail closed on unknown names.
  */
 export function normalizeNamedRegistries (namedRegistries?: Record<string, string>): NamedRegistries {
   if (namedRegistries == null) return DEFAULT_NAMED_REGISTRIES
-  return {
-    ...BUILTIN_NAMED_REGISTRIES,
-    ...namedRegistries,
-  } as NamedRegistries
+  return Object.assign(
+    Object.create(null) as NamedRegistries,
+    BUILTIN_NAMED_REGISTRIES,
+    namedRegistries
+  )
 }
 
-/**
- * The result for a project that configures no registries of its own.
- *
- * Shared rather than rebuilt per call, mirroring `DEFAULT_REGISTRIES`: callers
- * in per-package loops key a cache on this object's identity, so handing back
- * a fresh copy each time would defeat it on the common path.
- */
-const DEFAULT_NAMED_REGISTRIES = { ...BUILTIN_NAMED_REGISTRIES } as NamedRegistries
+/** Shared, like `DEFAULT_REGISTRIES`, so per-package callers can cache on its identity. */
+const DEFAULT_NAMED_REGISTRIES = normalizeNamedRegistries({})

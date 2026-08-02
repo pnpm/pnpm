@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 
 import { normalizeNamedRegistries } from '@pnpm/config.normalize-registries'
-import { createKnownRegistries, pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
+import { namedRegistryTarballPrefixes, pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
 import { FULL_META_DIR } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
@@ -133,14 +133,8 @@ export function createNpmResolutionVerifier (
     ? createExcludePolicy(opts.trustPolicyExclude, 'trustPolicyExclude')
     : undefined
 
-  // One set drives both ways a registry is chosen here: `byName` routes an
-  // entry that names its registry in the dep path, and `tarballPrefixes`
-  // routes one that only carries a recorded tarball URL. Sharing the set is
-  // what keeps the verifier recognizing exactly the registries the resolver
-  // does — otherwise a package resolved via `gh:` would land in the lockfile
-  // with a tarball URL the verifier could not route.
-  const knownRegistries = createKnownRegistries(opts.namedRegistries ?? normalizeNamedRegistries())
-  const namedRegistryPrefixes = knownRegistries.tarballPrefixes
+  const mergedNamedRegistries = opts.namedRegistries ?? normalizeNamedRegistries()
+  const namedRegistryPrefixes = namedRegistryTarballPrefixes(mergedNamedRegistries)
 
   // Per-install dedup of every network/disk fetch the verifier issues.
   // The maturity check uses the layered `fetchPublishedAt` lookup; the
@@ -167,7 +161,6 @@ export function createNpmResolutionVerifier (
   const trustPolicy = opts.trustPolicy
   const trustPolicyIgnoreAfter = opts.trustPolicyIgnoreAfter
 
-  const mergedNamedRegistries = knownRegistries.byName
 
   const verify: ResolutionVerifier['verify'] = async (resolution, { name, version, nonSemverVersion, registryName }) => {
     if (!isRegistryTarballResolution(resolution)) return { ok: true }

@@ -44,7 +44,7 @@ use crate::{
     FetchAttestationOptions, FetchFullMetadataCachedOptions, TrustCheckOptions, TrustViolation,
     fetch_attestation_published_at, fetch_full_metadata_cached,
     lookup_context::{PublishedAtLookupContext, PublishedAtTimeMap, package_key, version_key},
-    named_registry::{KnownRegistries, pick_registry_for_package},
+    named_registry::{named_registry_tarball_prefixes, pick_registry_for_package},
     pick_package::PackageMetaCache,
     trust_checks::fail_if_trust_downgraded,
     violation_codes::{
@@ -223,13 +223,8 @@ pub fn create_npm_resolution_verifier(
         None
     };
 
-    // One set drives both ways a registry is chosen here: `by_name` routes
-    // an entry that names its registry in the dep path, and the prefixes
-    // route one that only carries a recorded tarball URL. Sharing the set is
-    // what keeps the two from drifting apart.
-    let known_registries = KnownRegistries::new(&opts.named_registries);
-    let named_registry_prefixes = known_registries.tarball_prefixes().to_vec();
-    let named_registries_by_name = known_registries.into_by_name();
+    let named_registry_prefixes = named_registry_tarball_prefixes(&opts.named_registries);
+    let named_registries_by_name = opts.named_registries.clone();
 
     let sorted_min_age_excludes = sorted_unique(&opts.minimum_release_age_exclude_patterns);
     let sorted_trust_excludes = sorted_unique(&opts.trust_policy_exclude_patterns);
