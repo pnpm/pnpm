@@ -455,3 +455,66 @@ fn recorded(edges: Vec<crate::resolved_tree::ChildEdge>) -> super::RecordedChild
         },
     }
 }
+
+/// Reuse is offered against what the recording walk resolved under, so
+/// each field of the recorded context has to be able to withhold it.
+#[test]
+fn recorded_children_match_only_under_the_recording_context() {
+    use super::super::{UpdateReuseScope, tree_ctx::TreeCtx};
+    use super::{
+        RecordedChildrenContext, claim_children_owner, record_children, recorded_children_match,
+    };
+    use std::sync::Arc;
+
+    let workspace = Arc::new(WorkspaceTreeCtx::default());
+    let ctx = TreeCtx::with_workspace(Arc::clone(&workspace), ResolveOptions::default());
+    let claim = claim_children_owner(&ctx, "pkg@1.0.0", 1, &[], HashSet::default());
+    let context = || RecordedChildrenContext {
+        peer_shadowed: Arc::default(),
+        prior_key: None,
+        update_active: false,
+    };
+    assert!(!recorded_children_match(&ctx, "pkg@1.0.0", &context()), "nothing recorded yet");
+    assert!(record_children(&ctx, "pkg@1.0.0", &claim.owner, Vec::new(), context()));
+
+    assert!(recorded_children_match(&ctx, "pkg@1.0.0", &context()));
+    let shadowed = RecordedChildrenContext {
+        peer_shadowed: Arc::new(HashSet::from_iter(["peer".to_string()])),
+        ..context()
+    };
+    assert!(!recorded_children_match(&ctx, "pkg@1.0.0", &shadowed), "a different shadow set");
+    let updating = RecordedChildrenContext { update_active: true, ..context() };
+    assert!(!recorded_children_match(&ctx, "pkg@1.0.0", &updating), "a different update policy");
+    let pinned = RecordedChildrenContext {
+        prior_key: Some("pkg@1.0.0".parse().expect("parse snapshot key")),
+        ..context()
+    };
+    assert!(!recorded_children_match(&ctx, "pkg@1.0.0", &pinned), "a different snapshot key");
+    assert!(matches!(ctx.update_reuse_scope(), UpdateReuseScope::All));
+}
+
+/// A walk that lost the claim while it ran must not overwrite the
+/// children the occurrence that outranked it published.
+#[test]
+fn children_are_published_only_by_the_standing_owner() {
+    use super::super::tree_ctx::TreeCtx;
+    use super::{RecordedChildrenContext, claim_children_owner, record_children};
+    use std::sync::Arc;
+
+    let workspace = Arc::new(WorkspaceTreeCtx::default());
+    let ctx = TreeCtx::with_workspace(Arc::clone(&workspace), ResolveOptions::default());
+    let context = || RecordedChildrenContext {
+        peer_shadowed: Arc::default(),
+        prior_key: None,
+        update_active: false,
+    };
+    let deep = claim_children_owner(&ctx, "pkg@1.0.0", 5, &[], HashSet::default());
+    let shallow = claim_children_owner(&ctx, "pkg@1.0.0", 0, &[], HashSet::default());
+    assert!(deep.owns_children && shallow.owns_children, "each claim won when it was taken");
+
+    assert!(
+        !record_children(&ctx, "pkg@1.0.0", &deep.owner, Vec::new(), context()),
+        "the deeper walk lost the claim before it published",
+    );
+    assert!(record_children(&ctx, "pkg@1.0.0", &shallow.owner, Vec::new(), context()));
+}
