@@ -21,7 +21,7 @@
 // pnpm11/pnpm/bundle-deps.ts, and both read the node-gyp version from the
 // `node-gyp` catalog entry, so the two stacks ship the same node-gyp.
 
-import { execSync } from 'node:child_process'
+import { execFileSync } from 'node:child_process'
 import console from 'node:console'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -41,8 +41,7 @@ function deployNodeGyp () {
 
   // Reuses the workspace lockfile, patches, and overrides — overrides in
   // particular may be pinning a subdependency away from a CVE.
-  const pnpmDeploy = [
-    'pnpm',
+  execFileSync('pnpm', [
     '--config.inject-workspace-packages=true',
     '--config.node-linker=hoisted',
     '--ignore-scripts',
@@ -50,11 +49,10 @@ function deployNodeGyp () {
     '--prod',
     'deploy',
     DEPLOY_DIR,
-  ].join(' ')
-  execSync(pnpmDeploy, { cwd: REPO_ROOT, stdio: 'inherit' })
+  ], { cwd: REPO_ROOT, stdio: 'inherit' })
 
   const nmPrune = path.join(PNPM_ROOT, 'node_modules', '.bin', 'nm-prune')
-  execSync(`${nmPrune} --force`, { cwd: DEPLOY_DIR, stdio: 'inherit' })
+  execFileSync(nmPrune, ['--force'], { cwd: DEPLOY_DIR, stdio: 'inherit' })
   for (const stateFile of ['node_modules/.pnpm', 'node_modules/.modules.yaml']) {
     fs.rmSync(path.join(DEPLOY_DIR, stateFile), { recursive: true, force: true })
   }

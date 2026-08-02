@@ -614,7 +614,7 @@ fn run_scripts_if_present<Reporter: self::Reporter>(
         node_gyp_path: None,
         user_agent: Some(&opts.user_agent),
         unsafe_perm: opts.unsafe_perm,
-        node_gyp_bin: None,
+        node_gyp_bin: pacquet_executor::bundled_node_gyp_bin(),
         scripts_prepend_node_path: ScriptsPrependNodePath::default(),
         script_shell: None,
         optional: false,
