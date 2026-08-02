@@ -562,6 +562,42 @@ scripts:
     drop(root);
 }
 
+/// npm's `--prefix` is accepted as a spelling of `--dir`
+/// (<https://github.com/pnpm/pnpm/issues/13583>). Only the pre-subcommand
+/// position is exercised: everything after the script name is the
+/// script's own command line.
+#[test]
+fn prefix_is_accepted_as_dir() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let project = workspace.join("project");
+    fs::create_dir_all(&project).expect("create project dir");
+    let marker = workspace.join("ran.txt");
+    fs::write(
+        project.join("package.json"),
+        json!({
+            "name": "project",
+            "version": "0.0.0",
+            "scripts": {
+                "test": r#"node -e "require('fs').writeFileSync(process.env.MARKER_PATH, 'ran')""#,
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet
+        .with_env("MARKER_PATH", marker.to_string_lossy().as_ref())
+        .with_arg("--prefix")
+        .with_arg(&project)
+        .with_arg("run")
+        .with_arg("test")
+        .assert()
+        .success();
+    assert_eq!(fs::read_to_string(&marker).expect("read marker"), "ran");
+
+    drop(root);
+}
+
 #[cfg(unix)]
 #[test]
 fn top_level_fallback_runs_local_bin_when_script_is_missing() {

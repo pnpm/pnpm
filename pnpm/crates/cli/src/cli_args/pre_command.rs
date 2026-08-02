@@ -855,7 +855,9 @@ impl SwitchInput {
                 continue;
             }
             if let Some((value, width)) =
-                long_value(token, "dir", argv.get(index + 1).map(OsString::as_os_str))
+                long_value(token, "dir", argv.get(index + 1).map(OsString::as_os_str)).or_else(
+                    || long_value(token, "prefix", argv.get(index + 1).map(OsString::as_os_str)),
+                )
             {
                 input.dir = PathBuf::from(value);
                 index += width;

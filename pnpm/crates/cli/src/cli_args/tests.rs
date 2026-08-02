@@ -46,6 +46,18 @@ fn dir_is_global_and_parses_on_either_side_of_the_subcommand() {
 }
 
 #[test]
+fn prefix_is_an_alias_of_dir() {
+    for argv in [
+        ["pacquet", "--prefix", "project", "run", "test"].as_slice(),
+        ["pacquet", "--prefix=project", "run", "test"].as_slice(),
+        ["pacquet", "install", "--prefix", "project"].as_slice(),
+    ] {
+        let parsed = CliArgs::try_parse_from(argv).expect("parses --prefix");
+        assert_eq!(parsed.dir, std::path::PathBuf::from("project"));
+    }
+}
+
+#[test]
 fn registry_is_a_universal_global_option() {
     for argv in [
         ["pacquet", "--registry=https://r.test/", "add", "foo"].as_slice(),
@@ -71,6 +83,17 @@ fn store_dir_is_global_and_parses_on_either_side_of_the_subcommand() {
         ["pacquet", "install", "--store-dir=custom-store"].as_slice(),
     ] {
         let parsed = CliArgs::try_parse_from(argv).expect("parses global --store-dir");
+        assert_eq!(parsed.store_dir.as_deref(), Some(Path::new("custom-store")));
+    }
+}
+
+#[test]
+fn store_is_an_alias_of_store_dir() {
+    for argv in [
+        ["pacquet", "--store", "custom-store", "install"].as_slice(),
+        ["pacquet", "install", "--store=custom-store"].as_slice(),
+    ] {
+        let parsed = CliArgs::try_parse_from(argv).expect("parses --store");
         assert_eq!(parsed.store_dir.as_deref(), Some(Path::new("custom-store")));
     }
 }

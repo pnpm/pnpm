@@ -45,6 +45,20 @@ fn version_argv_reads_dir_auth_file_and_command_forms() {
             command: None,
         },
         Case {
+            name: "prefix alias of dir",
+            argv: &["pnpm", "--prefix", "/tmp/prefix-dir", "--version"],
+            dir: "/tmp/prefix-dir",
+            npmrc_auth_file: None,
+            command: None,
+        },
+        Case {
+            name: "equals prefix alias of dir",
+            argv: &["pnpm", "--prefix=/tmp/equals-prefix", "--version"],
+            dir: "/tmp/equals-prefix",
+            npmrc_auth_file: None,
+            command: None,
+        },
+        Case {
             name: "separator stops command detection",
             argv: &["pnpm", "--dir=/tmp/separator", "--", "run"],
             dir: "/tmp/separator",
