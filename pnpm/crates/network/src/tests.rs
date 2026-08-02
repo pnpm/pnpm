@@ -257,6 +257,25 @@ fn for_installs_with_valid_proxy_url_builds() {
 }
 
 #[test]
+fn for_installs_with_empty_proxy_urls_treats_them_as_unset() {
+    // A shell that exports `HTTP_PROXY=` (empty) must not fail the
+    // install; the TypeScript CLI skips empty proxy values (truthiness),
+    // so pacquet must too (pnpm/pnpm#13533).
+    let proxy = ProxyConfig {
+        https_proxy: Some(String::new()),
+        http_proxy: Some(String::new()),
+        no_proxy: None,
+    };
+    ThrottledClient::for_installs(
+        &proxy,
+        &TlsConfig::default(),
+        &PerRegistryTls::default(),
+        &NetworkSettings::default(),
+    )
+    .expect("empty proxy values are treated as unset");
+}
+
+#[test]
 fn for_installs_with_invalid_proxy_url_errors() {
     let proxy =
         ProxyConfig { https_proxy: Some("://nonsense".into()), http_proxy: None, no_proxy: None };
