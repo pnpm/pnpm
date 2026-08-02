@@ -125,7 +125,7 @@ fn merge_includes_builtin_npmjs() {
     assert_eq!(merged.get("npmjs").map(String::as_str), Some("https://registry.npmjs.org/"));
 }
 
-/// A proxying org repoints `npmjs` so a recorded npmjs tarball URL
+/// A proxying org overrides `npmjs` so a recorded npmjs tarball URL
 /// keeps verifying against their proxy instead of the public host.
 #[test]
 fn merge_user_overrides_builtin_npmjs() {

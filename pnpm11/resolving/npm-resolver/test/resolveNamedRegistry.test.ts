@@ -89,8 +89,9 @@ test('resolveFromNamedRegistry() reaches the public registry through the built-i
   // The point of the alias: `registry` is an internal proxy here, so nothing
   // else in the project would reach npmjs. `npm:` cannot do this — it is the
   // alias protocol and resolves through whatever `registry` points at.
+  const slash = '%2F'
   const pool = getMockAgent().get('https://registry.npmjs.org')
-  pool.intercept({ path: '/@acme%2Fprivate', method: 'GET' }).reply(200, ghAcmePrivateMeta)
+  pool.intercept({ path: `/@acme${slash}private`, method: 'GET' }).reply(200, ghAcmePrivateMeta)
 
   const { resolveFromNamedRegistry } = createNpmResolver(fetch, () => undefined, {
     storeDir: temporaryDirectory(),
@@ -113,7 +114,7 @@ test('resolveFromNamedRegistry() reaches the public registry through the built-i
   })
 })
 
-test('resolveFromNamedRegistry() lets a proxying org repoint the built-in npmjs alias', async () => {
+test('resolveFromNamedRegistry() lets a proxying org override the built-in npmjs alias', async () => {
   interceptGhAcmePrivate(ENTERPRISE_REGISTRY)
 
   const { resolveFromNamedRegistry } = createNpmResolver(fetch, () => undefined, {
