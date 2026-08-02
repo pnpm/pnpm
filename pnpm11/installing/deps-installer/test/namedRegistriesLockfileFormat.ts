@@ -98,8 +98,8 @@ test('the same package resolved from two registries gets one entry per registry'
 
   const lockfile = readLockfile()
   const packageKeys = Object.keys(lockfile.packages ?? {})
-  // Before format 12.0 these two collapsed onto a single `@pnpm.e2e/foo@1.0.0`
-  // entry and one of the two consumers silently got the other's tarball.
+  // Default and named registry resolutions for the same package and version
+  // require separate lockfile entries.
   expect(packageKeys).toContain('@pnpm.e2e/foo@1.0.0')
   expect(packageKeys).toContain('@pnpm.e2e/foo@work:1.0.0')
   expect(lockfile.importers?.['.']?.dependencies?.['foo-from-work']).toStrictEqual({
