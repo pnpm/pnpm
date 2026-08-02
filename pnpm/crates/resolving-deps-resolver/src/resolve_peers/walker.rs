@@ -15,10 +15,10 @@ use crate::{
             merge_realize_undo,
         },
         context::{
-            ChainSuffixMemo, CurrentProviderSource, ParentPkgInfo, ParentRef, ParentRefs,
-            SharedChain, importer_relative_link_dep_path, insert_parent_ref,
-            link_node_id_as_dep_path, parents_from_chain, pkg_name_version, remap_link_node_id,
-            satisfies_with_prereleases, scoped_hoisted_optional_parent_refs,
+            CurrentProviderSource, ParentPkgInfo, ParentRef, ParentRefs, SharedChain,
+            importer_relative_link_dep_path, insert_parent_ref, link_node_id_as_dep_path,
+            parents_from_chain, pkg_name_version, remap_link_node_id, satisfies_with_prereleases,
+            scoped_hoisted_optional_parent_refs,
         },
         discovery::PeerDiscoveryCaches,
         finalize::{NodeRecord, PendingPeerEdge, WalkedNode},
@@ -130,11 +130,6 @@ pub(super) struct Walker<'tree> {
     peer_provider_index_peer_names: HashSet<String>,
     pub(super) empty_resolved_peers: Arc<HashMap<String, NodeId>>,
     pub(super) empty_missing_peers: Arc<HashMap<String, MissingPeerInfo>>,
-    /// Per peer name, the suffix verdicts
-    /// [`Self::missing_issue_suppressed`] has already computed against
-    /// this walk's [`ResolvePeersOptions::hoist_missing_scope`]. The
-    /// scope is fixed for the walk, so the answers stay valid for it.
-    missing_scope_memo: HashMap<String, ChainSuffixMemo>,
 }
 
 impl<'tree> Walker<'tree> {
@@ -214,7 +209,6 @@ impl<'tree> Walker<'tree> {
             peer_provider_index_peer_names,
             empty_resolved_peers: Arc::new(HashMap::default()),
             empty_missing_peers: Arc::new(HashMap::default()),
-            missing_scope_memo: HashMap::default(),
         }
     }
 
@@ -1181,13 +1175,12 @@ impl Walker<'_> {
     /// given ancestor chain must not be emitted for the hoist input.
     /// See [`ResolvePeersOptions::hoist_missing_scope`].
     pub(super) fn missing_issue_suppressed(
-        &mut self,
+        &self,
         ancestor_pkg_ids: &SharedChain<String>,
         peer_name: &str,
     ) -> bool {
-        let Some(scope) = self.opts.hoist_missing_scope.clone() else { return false };
-        let memo = self.missing_scope_memo.entry(peer_name.to_string()).or_default();
-        scope.suppresses_chain(ancestor_pkg_ids, peer_name, memo)
+        let Some(scope) = self.opts.hoist_missing_scope.as_ref() else { return false };
+        scope.suppresses_iter(ancestor_pkg_ids.iter(), peer_name)
     }
 
     pub(super) fn record_missing_issue(

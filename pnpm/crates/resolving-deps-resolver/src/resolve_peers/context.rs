@@ -92,11 +92,24 @@ impl<Element: PartialEq> SharedChain<Element> {
     }
 }
 
-/// Memo for [`SharedChain::any_memoized`], keyed by link identity: the
+/// Memo for [`SharedChain::any_memoized`], keyed by link address: the
 /// answer for a link covers that link and everything above it, so it
 /// holds for every chain that shares the suffix. One memo is valid for
 /// one predicate.
-pub(super) type ChainSuffixMemo = HashMap<usize, bool>;
+///
+/// Each entry keeps the link it is keyed on alive. Addresses are only
+/// unique among live allocations, so a dropped link could otherwise
+/// hand its address — and its answer — to whatever was allocated there
+/// next.
+pub(super) struct ChainSuffixMemo<Element> {
+    answers: HashMap<usize, (Arc<SharedChainLink<Element>>, bool)>,
+}
+
+impl<Element> Default for ChainSuffixMemo<Element> {
+    fn default() -> Self {
+        ChainSuffixMemo { answers: HashMap::default() }
+    }
+}
 
 impl<Element> SharedChain<Element> {
     /// Whether any element from here to the root satisfies `predicate`,
@@ -110,14 +123,14 @@ impl<Element> SharedChain<Element> {
     /// suffixes the memo already answers.
     pub(super) fn any_memoized(
         &self,
-        memo: &mut ChainSuffixMemo,
+        memo: &mut ChainSuffixMemo<Element>,
         mut predicate: impl FnMut(&Element) -> bool,
     ) -> bool {
         let mut unmemoized = Vec::new();
         let mut cursor = self.0.as_ref();
         let mut satisfied = false;
         while let Some(link) = cursor {
-            if let Some(&answer) = memo.get(&link_key(link)) {
+            if let Some(&(_, answer)) = memo.answers.get(&link_key(link)) {
                 satisfied = answer;
                 break;
             }
@@ -126,7 +139,7 @@ impl<Element> SharedChain<Element> {
         }
         for link in unmemoized.into_iter().rev() {
             satisfied = satisfied || predicate(&link.value);
-            memo.insert(link_key(link), satisfied);
+            memo.answers.insert(link_key(link), (Arc::clone(link), satisfied));
         }
         satisfied
     }

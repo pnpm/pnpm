@@ -238,9 +238,9 @@ pub(crate) fn apply_hoist_missing_scope(
         let mut memo = ChainSuffixMemo::default();
         *issues = std::mem::take(issues)
             .into_iter()
-            .zip(ancestor_chains)
+            .zip(ancestor_chains.iter())
             .filter_map(|(issue, ancestor_pkg_ids)| {
-                (!scope.suppresses_chain(&ancestor_pkg_ids, peer_name, &mut memo)).then_some(issue)
+                (!scope.suppresses_chain(ancestor_pkg_ids, peer_name, &mut memo)).then_some(issue)
             })
             .collect();
         !issues.is_empty()

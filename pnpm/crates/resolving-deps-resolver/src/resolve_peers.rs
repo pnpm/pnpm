@@ -205,12 +205,25 @@ impl HoistMissingScope {
         &self,
         ancestor_pkg_ids: &SharedChain<String>,
         peer_name: &str,
-        memo: &mut ChainSuffixMemo,
+        memo: &mut ChainSuffixMemo<String>,
     ) -> bool {
         if self.locked_peer_names.contains(peer_name) {
             return false;
         }
         ancestor_pkg_ids.any_memoized(memo, |pkg_id| self.covers(pkg_id, peer_name))
+    }
+
+    /// The unmemoized form, for callers that cannot keep every queried
+    /// chain alive (see [`SharedChain::any_memoized`]).
+    fn suppresses_iter<'a>(
+        &self,
+        ancestor_pkg_ids: impl Iterator<Item = &'a String>,
+        peer_name: &str,
+    ) -> bool {
+        if self.locked_peer_names.contains(peer_name) {
+            return false;
+        }
+        ancestor_pkg_ids.into_iter().any(|pkg_id| self.covers(pkg_id, peer_name))
     }
 
     /// Whether another importer's shared walk of `pkg_id` already

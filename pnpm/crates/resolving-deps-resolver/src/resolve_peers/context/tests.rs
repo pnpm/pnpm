@@ -156,6 +156,11 @@ fn satisfies_accepts_prerelease_against_non_prerelease_range() {
     assert!(!satisfies_with_prereleases("19.0.0-rc.1", "^18.0.0"));
 }
 
+/// Strong count of a chain's tip link, for asserting who holds it.
+fn link_strong_count(chain: &SharedChain<String>) -> usize {
+    chain.0.as_ref().map_or(0, std::sync::Arc::strong_count)
+}
+
 /// Build `root -> ... -> tip` and return the chain at the tip.
 fn chain_of(values: &[&str]) -> SharedChain<String> {
     values.iter().fold(SharedChain::default(), |chain, value| chain.pushed((*value).to_string()))
@@ -227,4 +232,22 @@ fn suffixes_evaluated_under_one_predicate_are_not_reused_for_another() {
 
     let mut other = ChainSuffixMemo::default();
     assert!(!chain.any_memoized(&mut other, |value| value == "absent"));
+}
+
+#[test]
+fn a_memo_keeps_the_links_it_keyed_on_alive() {
+    let mut memo = ChainSuffixMemo::default();
+    let root = chain_of(&["root"]);
+
+    let held_by = {
+        let temporary = root.pushed("temporary".to_string());
+        assert!(temporary.any_memoized(&mut memo, |value| value == "temporary"));
+        link_strong_count(&temporary)
+    };
+
+    // The chain that produced the entry is gone, but the memo's own
+    // reference keeps its link — and therefore its address — reserved,
+    // so nothing else can be allocated there and inherit the answer.
+    assert_eq!(held_by, 2, "the memo holds a reference alongside the caller's");
+    assert!(!chain_of(&["root", "other"]).any_memoized(&mut memo, |value| value == "temporary"));
 }
