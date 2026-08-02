@@ -1,5 +1,5 @@
 import { expect, jest, test } from '@jest/globals'
-import { NAMED_REGISTRIES_LOCKFILE_VERSION } from '@pnpm/constants'
+import { LOCKFILE_VERSION_V12 } from '@pnpm/constants'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import type { RequestPackageFunction } from '@pnpm/store.controller-types'
 import type { DepPath, ProjectId, Registries } from '@pnpm/types'
@@ -19,7 +19,7 @@ const parsedOverrides = [
 // qualified key in the first place.
 function makeLockfile (depPath: string, ref: string): LockfileObject {
   return {
-    lockfileVersion: NAMED_REGISTRIES_LOCKFILE_VERSION,
+    lockfileVersion: LOCKFILE_VERSION_V12,
     overrides: { foo: '1.0.0' },
     importers: {
       ['.' as ProjectId]: {

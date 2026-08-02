@@ -87,15 +87,15 @@ fn default_format_stamps_12_without_a_named_registry_dependency() {
 #[test]
 fn frozen_install_accepts_the_previous_format_without_migrating_it() {
     let (root, workspace, anchor) = setup();
-    append_workspace_yaml_key(&workspace, "namedRegistriesLockfileFormat", "false");
+    append_workspace_yaml_key(&workspace, "useLockfileV12", "false");
     write_manifest(&workspace, r#"{ "@pnpm.e2e/foo": "work:1.0.0" }"#);
     pacquet(&workspace, ["install"]).assert().success();
 
     let workspace_manifest_path = workspace.join("pnpm-workspace.yaml");
     let previous_workspace_manifest =
         fs::read_to_string(&workspace_manifest_path).expect("read pnpm-workspace.yaml");
-    let workspace_manifest = previous_workspace_manifest
-        .replace("namedRegistriesLockfileFormat: false", "namedRegistriesLockfileFormat: true");
+    let workspace_manifest =
+        previous_workspace_manifest.replace("useLockfileV12: false", "useLockfileV12: true");
     assert_ne!(workspace_manifest, previous_workspace_manifest);
     fs::write(workspace_manifest_path, workspace_manifest).expect("write pnpm-workspace.yaml");
 

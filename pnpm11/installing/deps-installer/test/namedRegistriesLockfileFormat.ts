@@ -1,5 +1,5 @@
 import { expect, test } from '@jest/globals'
-import { LOCKFILE_VERSION, NAMED_REGISTRIES_LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
+import { LOCKFILE_VERSION, LOCKFILE_VERSION_V12, WANTED_LOCKFILE } from '@pnpm/constants'
 import { install } from '@pnpm/installing.deps-installer'
 import type { LockfileFile } from '@pnpm/lockfile.types'
 import { prepareEmpty } from '@pnpm/prepare'
@@ -15,7 +15,7 @@ function readLockfile (): LockfileFile {
   return readYamlFileSync<LockfileFile>(WANTED_LOCKFILE)
 }
 
-function installFoo (opts: { namedRegistriesLockfileFormat?: boolean }): Promise<unknown> {
+function installFoo (opts: { useLockfileV12?: boolean }): Promise<unknown> {
   return install({
     dependencies: {
       '@pnpm.e2e/foo': 'work:1.0.0',
@@ -29,10 +29,10 @@ function installFoo (opts: { namedRegistriesLockfileFormat?: boolean }): Promise
 test('a named-registry dependency is keyed registry-qualified and stamps lockfile 12.0', async () => {
   prepareEmpty()
 
-  await installFoo({ namedRegistriesLockfileFormat: true })
+  await installFoo({ useLockfileV12: true })
 
   const lockfile = readLockfile()
-  expect(lockfile.lockfileVersion).toBe(NAMED_REGISTRIES_LOCKFILE_VERSION)
+  expect(lockfile.lockfileVersion).toBe(LOCKFILE_VERSION_V12)
   expect(lockfile.importers?.['.']?.dependencies?.['@pnpm.e2e/foo']).toStrictEqual({
     specifier: 'work:1.0.0',
     version: 'work:1.0.0',
@@ -62,24 +62,24 @@ test('opting in stamps 12.0 even when the graph has no named-registry package', 
 
   await install({}, testDefaults({
     namedRegistries,
-    namedRegistriesLockfileFormat: true,
+    useLockfileV12: true,
   }, { namedRegistries }))
 
-  expect(readLockfile().lockfileVersion).toBe(NAMED_REGISTRIES_LOCKFILE_VERSION)
+  expect(readLockfile().lockfileVersion).toBe(LOCKFILE_VERSION_V12)
 })
 
 test('a lockfile already on 12.0 keeps the format even when the setting is off', async () => {
   prepareEmpty()
 
-  await installFoo({ namedRegistriesLockfileFormat: true })
-  expect(readLockfile().lockfileVersion).toBe(NAMED_REGISTRIES_LOCKFILE_VERSION)
+  await installFoo({ useLockfileV12: true })
+  expect(readLockfile().lockfileVersion).toBe(LOCKFILE_VERSION_V12)
 
   // A teammate on a client that defaults the setting off must not rewrite the
   // lockfile back to the legacy shape.
   await installFoo({})
 
   const lockfile = readLockfile()
-  expect(lockfile.lockfileVersion).toBe(NAMED_REGISTRIES_LOCKFILE_VERSION)
+  expect(lockfile.lockfileVersion).toBe(LOCKFILE_VERSION_V12)
   expect(Object.keys(lockfile.packages ?? {})).toContain('@pnpm.e2e/foo@work:1.0.0')
 })
 
@@ -93,7 +93,7 @@ test('the same package resolved from two registries gets one entry per registry'
     },
   }, testDefaults({
     namedRegistries,
-    namedRegistriesLockfileFormat: true,
+    useLockfileV12: true,
   }, { namedRegistries }))
 
   const lockfile = readLockfile()
@@ -117,10 +117,10 @@ test('enabling the setting migrates an existing 9.0 lockfile', async () => {
   // The project is otherwise up to date, and 9.0 is still a supported
   // version, so nothing else would force the re-resolution that applies the
   // format. Turning the setting on has to be enough on its own.
-  await installFoo({ namedRegistriesLockfileFormat: true })
+  await installFoo({ useLockfileV12: true })
 
   const lockfile = readLockfile()
-  expect(lockfile.lockfileVersion).toBe(NAMED_REGISTRIES_LOCKFILE_VERSION)
+  expect(lockfile.lockfileVersion).toBe(LOCKFILE_VERSION_V12)
   expect(Object.keys(lockfile.packages ?? {})).toContain('@pnpm.e2e/foo@work:1.0.0')
 })
 
@@ -139,7 +139,7 @@ test.each([
     },
   }, testDefaults({
     namedRegistries,
-    namedRegistriesLockfileFormat: true,
+    useLockfileV12: true,
     dedupePeers,
   }, { namedRegistries }))
 

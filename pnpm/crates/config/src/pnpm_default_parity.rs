@@ -104,8 +104,8 @@ const NOT_PORTED: &[&str] = &[
 fn divergent_rows(cfg: &Config) -> Vec<(&'static str, Scalar, &'static str)> {
     use Scalar::Bool;
     vec![(
-        "named-registries-lockfile-format",
-        Bool(cfg.named_registries_lockfile_format),
+        "use-lockfile-v12",
+        Bool(cfg.use_lockfile_v12),
         "Lockfile format 12.0 ships opt-in on the v11 TypeScript CLI and on by \
          default here (v12). Both stacks read 12.0 unconditionally, and a lockfile \
          already on 12.0 keeps the format on either CLI, so the divergence only \
@@ -310,8 +310,11 @@ fn pnpm_keys(block: &str) -> BTreeSet<String> {
             // Keys are kebab-case identifiers; anything with a space or
             // quote left over is a value fragment from a multi-line
             // literal, not a key.
-            (!key.is_empty() && key.chars().all(|ch| ch.is_ascii_lowercase() || ch == '-'))
-                .then(|| key.to_string())
+            (!key.is_empty()
+                && key
+                    .chars()
+                    .all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit() || ch == '-'))
+            .then(|| key.to_string())
         })
         .collect()
 }

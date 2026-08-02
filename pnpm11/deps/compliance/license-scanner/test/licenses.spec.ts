@@ -3,7 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { afterAll, describe, expect, jest, test } from '@jest/globals'
-import { LOCKFILE_VERSION, NAMED_REGISTRIES_LOCKFILE_VERSION } from '@pnpm/constants'
+import { LOCKFILE_VERSION, LOCKFILE_VERSION_V12 } from '@pnpm/constants'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import type { DepPath, ProjectId, ProjectManifest, Registries } from '@pnpm/types'
 
@@ -378,7 +378,7 @@ describe('licences', () => {
           },
         },
       },
-      lockfileVersion: NAMED_REGISTRIES_LOCKFILE_VERSION,
+      lockfileVersion: LOCKFILE_VERSION_V12,
       packages: {
         ['foo@1.0.0' as DepPath]: {
           resolution: {

@@ -2476,7 +2476,7 @@ export function detectNamedRegistryCollision (
     'NAMED_REGISTRY_PACKAGE_COLLISION',
     `"${resolved.name}@${resolved.version}" is provided by more than one registry, but the lockfile cannot record which registry each dependency came from.`,
     {
-      hint: 'Set "namedRegistriesLockfileFormat: true" in pnpm-workspace.yaml. That upgrades the lockfile to format 12.0, which keys each package by the registry it came from and lets the same name and version coexist. Without it, one of the two would silently be installed from the wrong registry.',
+      hint: 'Set "useLockfileV12: true" in pnpm-workspace.yaml. That upgrades the lockfile to format 12.0, which keys each package by the registry it came from and lets the same name and version coexist. Without it, one of the two would silently be installed from the wrong registry.',
     }
   )
 }

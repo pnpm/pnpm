@@ -203,7 +203,7 @@ pub struct WorkspaceSettings {
     pub external_dependencies: Option<BTreeSet<String>>,
     pub dedupe_peer_dependents: Option<bool>,
     pub dedupe_peers: Option<bool>,
-    pub named_registries_lockfile_format: Option<bool>,
+    pub use_lockfile_v12: Option<bool>,
     pub dedupe_direct_deps: Option<bool>,
     pub prefer_workspace_packages: Option<bool>,
     pub dedupe_injected_deps: Option<bool>,
@@ -856,7 +856,7 @@ impl WorkspaceSettings {
         self.inject_workspace_packages = None;
         self.dedupe_peer_dependents = None;
         self.dedupe_peers = None;
-        self.named_registries_lockfile_format = None;
+        self.use_lockfile_v12 = None;
         self.dedupe_direct_deps = None;
         self.prefer_workspace_packages = None;
         self.dedupe_injected_deps = None;
@@ -1025,7 +1025,7 @@ impl WorkspaceSettings {
             hoist_workspace_packages,
             extend_node_path,
             hoisting_limits, external_dependencies,
-            dedupe_peer_dependents, dedupe_peers, named_registries_lockfile_format,
+            dedupe_peer_dependents, dedupe_peers, use_lockfile_v12,
             dedupe_direct_deps, dedupe_injected_deps,
             strict_peer_dependencies, ignore_compatibility_db,
             resolve_peers_from_workspace_root, verify_store_integrity, frozen_store,

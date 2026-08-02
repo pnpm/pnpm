@@ -1,5 +1,5 @@
 import { expect, test } from '@jest/globals'
-import { LOCKFILE_VERSION, NAMED_REGISTRIES_LOCKFILE_VERSION } from '@pnpm/constants'
+import { LOCKFILE_VERSION, LOCKFILE_VERSION_V12 } from '@pnpm/constants'
 import type { DepPath, ProjectId } from '@pnpm/types'
 
 import { convertToLockfileFile } from '../lib/lockfileFormatConverters.js'
@@ -115,10 +115,10 @@ test('a registry-qualified package key stamps 12.0 and an existing 12.0 version 
       },
     },
   })
-  expect(withQualifiedKey.lockfileVersion).toBe(NAMED_REGISTRIES_LOCKFILE_VERSION)
+  expect(withQualifiedKey.lockfileVersion).toBe(LOCKFILE_VERSION_V12)
 
   const withoutQualifiedKey = convertToLockfileFile({
-    lockfileVersion: NAMED_REGISTRIES_LOCKFILE_VERSION,
+    lockfileVersion: LOCKFILE_VERSION_V12,
     importers: {
       ['.' as ProjectId]: {
         dependencies: { foo: '1.0.0' },
@@ -131,5 +131,5 @@ test('a registry-qualified package key stamps 12.0 and an existing 12.0 version 
       },
     },
   })
-  expect(withoutQualifiedKey.lockfileVersion).toBe(NAMED_REGISTRIES_LOCKFILE_VERSION)
+  expect(withoutQualifiedKey.lockfileVersion).toBe(LOCKFILE_VERSION_V12)
 })

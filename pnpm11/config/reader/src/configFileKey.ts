@@ -101,7 +101,7 @@ export const excludedPnpmKeys = [
   'deploy-all-files',
   'dedupe-peer-dependents',
   'dedupe-peers',
-  'named-registries-lockfile-format',
+  'use-lockfile-v12',
   'dedupe-direct-deps',
   'dedupe-injected-deps',
   'dev',

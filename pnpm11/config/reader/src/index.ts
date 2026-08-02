@@ -81,7 +81,7 @@ export { type ConfigFileKey, isConfigFileKey } from './configFileKey.js'
 export { isIniConfigKey, isNpmrcReadableKey } from './localConfig.js'
 
 type CamelToKebabCase<S extends string> = S extends `${infer T}${infer U}`
-  ? `${T extends Capitalize<T> ? '-' : ''}${Lowercase<T>}${CamelToKebabCase<U>}`
+  ? `${T extends Lowercase<T> ? '' : '-'}${Lowercase<T>}${CamelToKebabCase<U>}`
   : S
 
 type KebabCaseConfig = {
@@ -150,7 +150,7 @@ export async function getConfig (opts: {
     'deploy-all-files': false,
     'dedupe-peer-dependents': true,
     'dedupe-peers': false,
-    'named-registries-lockfile-format': false,
+    'use-lockfile-v12': false,
     'dedupe-direct-deps': false,
     'dedupe-injected-deps': true,
     'disallow-workspace-cycles': false,

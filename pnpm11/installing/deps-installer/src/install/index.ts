@@ -13,7 +13,7 @@ import { createPackageVersionPolicyOrThrow, getPublishedByPolicy } from '@pnpm/c
 import {
   LAYOUT_VERSION,
   LOCKFILE_VERSION,
-  NAMED_REGISTRIES_LOCKFILE_VERSION,
+  LOCKFILE_VERSION_V12,
   SUPPORTED_LOCKFILE_VERSIONS,
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
@@ -795,7 +795,7 @@ export async function mutateModules (
       opts.fixLockfile ||
       opts.updateChecksums ||
       !supportedLockfileVersion ||
-      namedRegistriesFormatUpgradePending(ctx.wantedLockfile, opts) ||
+      lockfileV12UpgradePending(ctx.wantedLockfile, opts) ||
       opts.forceFullResolution ||
       forceResolutionFromHook
     if (needsFullResolution) {
@@ -1704,8 +1704,8 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       namedRegistries: opts.namedRegistries,
       // Sticky: once a lockfile is on the 12.0 format, keep writing it even
       // without the opt-in, so mixed-version teams don't ping-pong formats.
-      namedRegistryQualifiedIds: opts.namedRegistriesLockfileFormat === true ||
-        ctx.wantedLockfile.lockfileVersion === NAMED_REGISTRIES_LOCKFILE_VERSION,
+      namedRegistryQualifiedIds: opts.useLockfileV12 === true ||
+        ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION_V12,
       resolutionMode: opts.resolutionMode,
       saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
       storeController: opts.storeController,
@@ -1814,15 +1814,15 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     ? await pipeWith(async (f, res) => f(await res), opts.hooks.afterAllResolved as any)(newLockfile) as LockfileObject // eslint-disable-line
     : newLockfile
 
-  if (opts.namedRegistriesLockfileFormat === true ||
-    ctx.wantedLockfile.lockfileVersion === NAMED_REGISTRIES_LOCKFILE_VERSION) {
-    newLockfile.lockfileVersion = NAMED_REGISTRIES_LOCKFILE_VERSION
+  if (opts.useLockfileV12 === true ||
+    ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION_V12) {
+    newLockfile.lockfileVersion = LOCKFILE_VERSION_V12
   }
 
   if (opts.updateLockfileMinorVersion) {
-    newLockfile.lockfileVersion = opts.namedRegistriesLockfileFormat === true ||
-      ctx.wantedLockfile.lockfileVersion === NAMED_REGISTRIES_LOCKFILE_VERSION
-      ? NAMED_REGISTRIES_LOCKFILE_VERSION
+    newLockfile.lockfileVersion = opts.useLockfileV12 === true ||
+      ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION_V12
+      ? LOCKFILE_VERSION_V12
       : LOCKFILE_VERSION
   }
 
@@ -2487,12 +2487,12 @@ function getProjectsWithTargetDirs<T extends { id: ProjectId }> (
   return extendProjectsWithTargetDirs(projects, injectionTargetsByDepPath)
 }
 
-function namedRegistriesFormatUpgradePending (
+function lockfileV12UpgradePending (
   wantedLockfile: LockfileObject,
-  opts: { namedRegistriesLockfileFormat?: boolean }
+  opts: { useLockfileV12?: boolean }
 ): boolean {
-  return opts.namedRegistriesLockfileFormat === true &&
-    wantedLockfile.lockfileVersion !== NAMED_REGISTRIES_LOCKFILE_VERSION
+  return opts.useLockfileV12 === true &&
+    wantedLockfile.lockfileVersion !== LOCKFILE_VERSION_V12
 }
 
 /**

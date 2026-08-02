@@ -759,7 +759,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
 
         // Sticky: once a lockfile is on the 12.0 format, keep writing it even
         // without the setting, so mixed-version teams don't ping-pong formats.
-        let named_registry_qualified_ids = config.named_registries_lockfile_format
+        let named_registry_qualified_ids = config.use_lockfile_v12
             || wanted_lockfile
                 .as_ref()
                 .is_some_and(|lockfile| lockfile.lockfile_version.major == 12);

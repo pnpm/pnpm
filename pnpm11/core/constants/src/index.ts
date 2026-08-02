@@ -6,8 +6,8 @@ export const LOCKFILE_VERSION = `${LOCKFILE_MAJOR_VERSION}.0`
  * registry-qualified keys (`<name>@<registryName>:<version>`). pnpm 11 writes
  * it in opt-in or sticky mode; pnpm 12 writes it by default.
  */
-export const NAMED_REGISTRIES_LOCKFILE_VERSION = '12.0'
-export const SUPPORTED_LOCKFILE_VERSIONS = [LOCKFILE_VERSION, NAMED_REGISTRIES_LOCKFILE_VERSION]
+export const LOCKFILE_VERSION_V12 = '12.0'
+export const SUPPORTED_LOCKFILE_VERSIONS = [LOCKFILE_VERSION, LOCKFILE_VERSION_V12]
 
 export const MANIFEST_BASE_NAMES = ['package.json', 'package.json5', 'package.yaml'] as const
 
