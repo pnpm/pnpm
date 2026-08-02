@@ -146,6 +146,30 @@ struct ChildrenOwnerEntry {
     pub(super) peer_shadowed: Arc<HashSet<String>>,
 }
 
+/// A package's recorded children together with what they were resolved
+/// under. The two travel in one entry so a reader that accepts the
+/// context cannot then expand edges another walk recorded.
+#[derive(Debug, Clone)]
+pub(super) struct RecordedChildren {
+    pub(super) edges: Arc<Vec<crate::resolved_tree::ChildEdge>>,
+    context: RecordedChildrenContext,
+}
+
+#[cfg(test)]
+impl RecordedChildren {
+    /// A recording whose context these tests do not vary.
+    pub(super) fn for_tests(edges: Vec<crate::resolved_tree::ChildEdge>) -> Self {
+        RecordedChildren {
+            edges: Arc::new(edges),
+            context: RecordedChildrenContext {
+                peer_shadowed: Arc::default(),
+                prior_key: None,
+                update_active: false,
+            },
+        }
+    }
+}
+
 /// What a recorded `children_by_id` entry was resolved under. A later
 /// occurrence may expand from that entry instead of walking the
 /// package's manifest again only when its own context equals this one:
@@ -172,8 +196,7 @@ impl RecordedChildrenContext {
     /// expands from it whatever its own overlay says — the overlay
     /// only ever decides which occurrence's versions get *recorded*.
     /// Requiring identical overlays here would mean requiring identical
-    /// parents, which never holds for the occurrences that race, and
-    /// measurably reinstates the expansion this test exists to prevent.
+    /// parents, which the occurrences that race never have.
     pub(super) fn produces_same_children_as(&self, other: &Self) -> bool {
         self.peer_shadowed == other.peer_shadowed
             && self.prior_key == other.prior_key
@@ -231,10 +254,7 @@ pub struct WorkspaceTreeCtx {
     pub(super) resolved_by_wanted:
         Mutex<HashMap<WantedKey, Arc<pacquet_resolving_resolver_base::ResolveResult>>>,
     pub(super) children_specs_by_id: Mutex<HashMap<String, Arc<Vec<ChildSpec>>>>,
-    pub(super) children_by_id: Mutex<HashMap<String, Arc<Vec<crate::resolved_tree::ChildEdge>>>>,
-    /// The context each `children_by_id` entry was recorded under. See
-    /// [`RecordedChildrenContext`].
-    children_context_by_id: Mutex<HashMap<String, RecordedChildrenContext>>,
+    pub(super) children_by_id: Mutex<HashMap<String, RecordedChildren>>,
     children_owner_by_id: Mutex<HashMap<String, ChildrenOwnerEntry>>,
     node_parent_ids_by_id: Mutex<HashMap<NodeId, Arc<Vec<String>>>>,
     /// Reverse index over `dependencies_tree`: every occurrence node
@@ -417,7 +437,6 @@ impl Default for WorkspaceTreeCtx {
             resolved_by_wanted: Mutex::new(HashMap::default()),
             children_specs_by_id: Mutex::new(HashMap::default()),
             children_by_id: Mutex::new(HashMap::default()),
-            children_context_by_id: Mutex::new(HashMap::default()),
             children_owner_by_id: Mutex::new(HashMap::default()),
             node_parent_ids_by_id: Mutex::new(HashMap::default()),
             nodes_by_pkg_id: Mutex::new(HashMap::default()),
@@ -458,7 +477,10 @@ impl WorkspaceTreeCtx {
             all_peer_dep_names: lock_recoverable(&self.all_peer_dep_names).clone(),
             policy_violations: lock_recoverable(&self.policy_violations).clone(),
             applied_patches: lock_recoverable(&self.applied_patches).clone(),
-            children_by_id: lock_recoverable(&self.children_by_id).clone(),
+            children_by_id: lock_recoverable(&self.children_by_id)
+                .iter()
+                .map(|(pkg_id, recorded)| (pkg_id.clone(), Arc::clone(&recorded.edges)))
+                .collect(),
         }
     }
 
@@ -514,8 +536,8 @@ impl WorkspaceTreeCtx {
             let Some(children) = all_children.get(&pkg_id) else {
                 continue;
             };
-            children_by_id.insert(pkg_id, Arc::clone(children));
-            for child in children.iter() {
+            children_by_id.insert(pkg_id, Arc::clone(&children.edges));
+            for child in children.edges.iter() {
                 if reachable_pkg_ids.insert(child.pkg_id.clone()) {
                     pending_pkg_ids.push(child.pkg_id.clone());
                 }
@@ -700,7 +722,7 @@ impl WorkspaceTreeCtx {
                     continue;
                 }
                 if let Some(children) = children_by_id.get(&pkg_id) {
-                    for child in children.iter() {
+                    for child in children.edges.iter() {
                         if !cache.visited.contains(&child.pkg_id) {
                             queue.push(child.pkg_id.clone());
                         }
@@ -837,7 +859,9 @@ impl WorkspaceTreeCtx {
             });
             let children_by_id = lock_recoverable(&self.children_by_id);
             for pkg_id in &written {
-                let Some(spec) = children_by_id.get(pkg_id) else { continue };
+                let Some(spec) = children_by_id.get(pkg_id).map(|recorded| &recorded.edges) else {
+                    continue;
+                };
                 match tree.children_by_id.entry(pkg_id.clone()) {
                     Entry::Vacant(entry) => {
                         entry.insert(Arc::clone(spec));
@@ -918,8 +942,10 @@ impl WorkspaceTreeCtx {
                 peer_dep_names: log.peer_dep_names.len(),
             }
         };
-        for (pkg_id, spec) in lock_recoverable(&self.children_by_id).iter() {
-            tree.children_by_id.entry(pkg_id.clone()).or_insert_with(|| Arc::clone(spec));
+        for (pkg_id, recorded) in lock_recoverable(&self.children_by_id).iter() {
+            tree.children_by_id
+                .entry(pkg_id.clone())
+                .or_insert_with(|| Arc::clone(&recorded.edges));
         }
         for (pkg_id, pkg) in lock_recoverable(&self.packages).iter() {
             tree.packages.entry(pkg_id.clone()).or_insert_with(|| pkg.clone());
@@ -1103,7 +1129,10 @@ impl WorkspaceTreeCtx {
             children_by_id: self
                 .children_by_id
                 .into_inner()
-                .unwrap_or_else(std::sync::PoisonError::into_inner),
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .into_iter()
+                .map(|(pkg_id, recorded)| (pkg_id, recorded.edges))
+                .collect(),
         }
     }
 }
@@ -1189,27 +1218,30 @@ pub(super) fn claim_children_owner(
 
 /// Whether this package's recorded children were resolved under
 /// `context`, and can therefore be expanded from instead of walked
-/// again. `false` while no walk has recorded them yet, and `false`
-/// when the recording walk ran under a different context — the owner
-/// that recorded them need not be the owner standing now.
+/// again. The walk that recorded them need not be the one owning the
+/// children now, which is why the comparison is against the recorded
+/// context rather than against the standing claim.
 pub(super) fn recorded_children_match(
     ctx: &TreeCtx,
     pkg_id: &str,
     context: &RecordedChildrenContext,
 ) -> bool {
-    lock_recoverable(&ctx.workspace.children_context_by_id)
+    lock_recoverable(&ctx.workspace.children_by_id)
         .get(pkg_id)
-        .is_some_and(|recorded| recorded.produces_same_children_as(context))
+        .is_some_and(|recorded| recorded.context.produces_same_children_as(context))
 }
 
-/// Record the context a `children_by_id` entry was produced under.
-/// Called with every write to that map, so the two never disagree.
-pub(super) fn record_children_context(
+/// Record a package's children together with the context that
+/// produced them.
+pub(super) fn record_children(
     ctx: &TreeCtx,
     pkg_id: &str,
+    edges: Vec<crate::resolved_tree::ChildEdge>,
     context: RecordedChildrenContext,
 ) {
-    lock_recoverable(&ctx.workspace.children_context_by_id).insert(pkg_id.to_string(), context);
+    lock_recoverable(&ctx.workspace.children_by_id)
+        .insert(pkg_id.to_string(), RecordedChildren { edges: Arc::new(edges), context });
+    ctx.workspace.record_children_by_id_write(pkg_id);
 }
 
 /// Seed the peer-walker's `parentPkgs` filter with the names a

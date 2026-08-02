@@ -43,9 +43,8 @@ use super::{
     },
     workspace_ctx::{
         ChildSpec, ChildrenOwnerClaim, RecordedChildrenContext, WantedKey, claim_children_owner,
-        insert_tree_node, is_current_children_owner, make_non_owner_nodes_lazy,
-        record_children_context, recorded_children_match, register_peer_dep_names,
-        remember_node_parent_ids,
+        insert_tree_node, is_current_children_owner, make_non_owner_nodes_lazy, record_children,
+        recorded_children_match, register_peer_dep_names, remember_node_parent_ids,
     },
 };
 
@@ -570,15 +569,13 @@ where
     } else if !resolves_children_through_catalogs(&result)
         && recorded_children_match(ctx, &id, &children_context)
     {
-        // A winning claim only means this occurrence outranks the one
-        // that recorded the children — not that the children differ.
-        // Concurrent occurrences of the same package take turns
-        // outranking each other, and each turn used to re-walk the whole
-        // subtree and leave its occurrence nodes behind, which is what
-        // made a peer-carrying chain expand exponentially with depth
-        // (https://github.com/pnpm/pnpm/issues/13574). Expand from the
-        // recorded children instead, exactly as a losing occurrence
-        // does.
+        // A winning claim means this occurrence outranks the one that
+        // recorded the children, not that the children differ.
+        // Occurrences of one package race for the claim, so walking on
+        // every win costs a redundant subtree walk and a second set of
+        // occurrence nodes per race — enough, down a peer-carrying
+        // chain, to expand exponentially with its depth
+        // (https://github.com/pnpm/pnpm/issues/13574).
         crate::resolved_tree::TreeChildren::Lazy {
             parent_ids: AncestorIds::from(Arc::clone(&parent_ancestors)),
         }
@@ -748,9 +745,7 @@ where
                 });
                 realized.insert(dep.alias, dep.node_id);
             }
-            lock_recoverable(&ctx.workspace.children_by_id).insert(id.clone(), Arc::new(by_id));
-            record_children_context(ctx, &id, children_context.clone());
-            ctx.workspace.record_children_by_id_write(&id);
+            record_children(ctx, &id, by_id, children_context.clone());
             crate::resolved_tree::TreeChildren::Realized(realized)
         } else {
             crate::resolved_tree::TreeChildren::Lazy {
@@ -1071,9 +1066,9 @@ pub(super) async fn warm_children_resolutions<Chain>(
 
 /// Whether this package's child specifiers pass through the importer's
 /// catalogs, which makes them a property of the resolving importer
-/// rather than of the package id — the one input a
-/// [`ChildrenOwnerClaim::recorded_children_reusable`] winner cannot
-/// assume it shares with the occurrence that recorded them.
+/// rather than of the package id — the one input
+/// [`fn@recorded_children_match`] cannot compare, since the recorded
+/// context does not carry the catalogs the recording importer used.
 fn resolves_children_through_catalogs(
     result: &pacquet_resolving_resolver_base::ResolveResult,
 ) -> bool {

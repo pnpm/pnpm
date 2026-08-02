@@ -1,9 +1,6 @@
 use pacquet_resolving_resolver_base::ResolveOptions;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    sync::Arc,
-};
+use std::collections::{BTreeMap, BTreeSet};
 
 use super::{
     super::{lock_recoverable, test_support::manifest_result},
@@ -79,14 +76,14 @@ fn importer_snapshot_follows_lazy_edges_for_the_package_closure() {
     }
     lock_recoverable(&workspace.children_by_id).insert(
         "root@1.0.0".to_string(),
-        Arc::new(vec![ChildEdge {
+        recorded(vec![ChildEdge {
             alias: "lazy-child".to_string(),
             pkg_id: "lazy-child@1.0.0".to_string(),
             optional: false,
         }]),
     );
     lock_recoverable(&workspace.children_by_id)
-        .insert("foreign@1.0.0".to_string(), Arc::new(Vec::new()));
+        .insert("foreign@1.0.0".to_string(), recorded(Vec::new()));
 
     let snapshot = workspace.snapshot_reachable_from(vec![DirectDep {
         alias: "root".to_string(),
@@ -255,7 +252,7 @@ fn run_preferred_versions_grow_with_new_roots_and_rebuild_on_children_rewrites()
 
     // A children-ownership rewrite can drop edges, so the closure is
     // rebuilt rather than grown.
-    lock_recoverable(&workspace.children_by_id).insert("root@1.0.0".to_string(), Arc::new(vec![]));
+    lock_recoverable(&workspace.children_by_id).insert("root@1.0.0".to_string(), recorded(vec![]));
     workspace.record_children_rewrite();
     workspace.bump_revision();
     let cache = workspace.run_preferred_versions();
@@ -322,7 +319,7 @@ fn insert_named_package(workspace: &WorkspaceTreeCtx, name: &str, version: &str)
 fn insert_child_edge(workspace: &WorkspaceTreeCtx, parent_id: &str, alias: &str, child_id: &str) {
     lock_recoverable(&workspace.children_by_id).insert(
         parent_id.to_string(),
-        Arc::new(vec![crate::resolved_tree::ChildEdge {
+        recorded(vec![crate::resolved_tree::ChildEdge {
             alias: alias.to_string(),
             pkg_id: child_id.to_string(),
             optional: false,
@@ -442,4 +439,9 @@ fn record_tree_node(workspace: &WorkspaceTreeCtx, node_id: &NodeId, pkg_id: &str
     }
     drop(tree);
     workspace.record_tree_node_write(node_id);
+}
+
+/// Children recorded by a walk whose context these tests do not vary.
+fn recorded(edges: Vec<crate::resolved_tree::ChildEdge>) -> super::RecordedChildren {
+    super::RecordedChildren::for_tests(edges)
 }
