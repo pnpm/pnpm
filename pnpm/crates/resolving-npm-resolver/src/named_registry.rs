@@ -122,6 +122,12 @@ pub struct KnownRegistries {
 }
 
 impl KnownRegistries {
+    /// Merge the built-in aliases with the user's `namedRegistries`, user
+    /// winning on collision, and derive both views.
+    ///
+    /// This is the only place the two are combined. [`merge_named_registries`]
+    /// validates the user's entries and then delegates here, so a caller that
+    /// has already validated can take the merge infallibly.
     #[must_use]
     pub fn new(named_registries: &HashMap<String, String>) -> Self {
         let mut by_alias: HashMap<String, String> = BUILTIN_NAMED_REGISTRIES

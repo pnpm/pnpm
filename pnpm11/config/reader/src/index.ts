@@ -5,6 +5,7 @@ import { stripVTControlCharacters } from 'node:util'
 
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { createMatcher } from '@pnpm/config.matcher'
+import { normalizeNamedRegistries } from '@pnpm/config.normalize-registries'
 import { GLOBAL_CONFIG_YAML_FILENAME, GLOBAL_LAYOUT_VERSION } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { getCurrentBranch } from '@pnpm/network.git-utils'
@@ -354,6 +355,9 @@ export async function getConfig (opts: {
     }
   }
   pnpmConfig.registries = { ...registriesFromNpmrc }
+  // Fill in the built-in aliases here, next to where `registries` gets its
+  // defaults, so no consumer has to re-merge them at lookup time.
+  pnpmConfig.namedRegistries = normalizeNamedRegistries(pnpmConfig.namedRegistries)
   if (explicitlySetKeys.has('registry') && typeof pnpmConfig.registry === 'string') {
     pnpmConfig.registries.default = normalizeRegistryUrl(pnpmConfig.registry)
   }

@@ -1,6 +1,7 @@
 import path from 'node:path'
 
 import { afterEach, beforeEach, expect, test } from '@jest/globals'
+import { normalizeNamedRegistries } from '@pnpm/config.normalize-registries'
 import { ABBREVIATED_META_DIR } from '@pnpm/constants'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import { createNpmResolver } from '@pnpm/resolving.npm-resolver'
@@ -123,9 +124,9 @@ test('resolveFromNamedRegistry() lets a proxying org override the built-in npmjs
     registries,
     // Same escape hatch GHES users have for `gh`: an org that mirrors npmjs
     // points `npmjs` at the mirror so nothing reaches the public host.
-    namedRegistries: {
+    namedRegistries: normalizeNamedRegistries({
       npmjs: ENTERPRISE_REGISTRY,
-    },
+    }),
   })
 
   const resolveResult = await resolveFromNamedRegistry(
@@ -209,9 +210,9 @@ test('resolveFromNamedRegistry() honours a user-defined named registry from conf
     storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     registries,
-    namedRegistries: {
+    namedRegistries: normalizeNamedRegistries({
       work: ENTERPRISE_REGISTRY,
-    },
+    }),
   })
 
   // `work:` is a user-defined alias — parsing and the URL lookup come from
@@ -237,9 +238,9 @@ test('resolveFromNamedRegistry() allows user config to override the built-in gh 
     cacheDir: temporaryDirectory(),
     registries,
     // A GHES user points `gh` at their enterprise host; the built-in default is shadowed.
-    namedRegistries: {
+    namedRegistries: normalizeNamedRegistries({
       gh: ENTERPRISE_REGISTRY,
-    },
+    }),
   })
 
   const resolveResult = await resolveFromNamedRegistry(
@@ -260,14 +261,14 @@ test('creating the resolver throws when a user-defined registry URL is malformed
     storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     registries,
-    namedRegistries: { work: 'npm.work.example.com' },
+    namedRegistries: normalizeNamedRegistries({ work: 'npm.work.example.com' }),
   })).toThrow(expect.objectContaining({ code: 'ERR_PNPM_INVALID_NAMED_REGISTRY_URL' }))
 
   expect(() => createNpmResolver(fetch, () => undefined, {
     storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     registries,
-    namedRegistries: { work: 'ftp://npm.work.example.com/' },
+    namedRegistries: normalizeNamedRegistries({ work: 'ftp://npm.work.example.com/' }),
   })).toThrow(expect.objectContaining({ code: 'ERR_PNPM_INVALID_NAMED_REGISTRY_URL' }))
 })
 
@@ -344,7 +345,7 @@ test('the same package name served by two registries does not collide in the in-
     storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     registries,
-    namedRegistries: { work: ENTERPRISE_REGISTRY },
+    namedRegistries: normalizeNamedRegistries({ work: ENTERPRISE_REGISTRY }),
   })
 
   // Resolving from the gh registry first populates the shared in-memory cache.
@@ -462,9 +463,9 @@ test('creating the resolver throws when a named registry alias is a reserved spe
     storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     registries,
-    namedRegistries: {
+    namedRegistries: normalizeNamedRegistries({
       file: ENTERPRISE_REGISTRY,
-    },
+    }),
   })).toThrow(expect.objectContaining({ code: 'ERR_PNPM_RESERVED_NAMED_REGISTRY_NAME' }))
 })
 
@@ -473,8 +474,8 @@ test('creating the resolver throws when a named registry alias is malformed', ()
     storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     registries,
-    namedRegistries: {
+    namedRegistries: normalizeNamedRegistries({
       'bad alias!': ENTERPRISE_REGISTRY,
-    },
+    }),
   })).toThrow(expect.objectContaining({ code: 'ERR_PNPM_RESERVED_NAMED_REGISTRY_NAME' }))
 })

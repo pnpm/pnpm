@@ -11,7 +11,7 @@ import {
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { StoreIndex } from '@pnpm/store.index'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
-import type { DependenciesField, DependencyManifest, Finder, Registries } from '@pnpm/types'
+import type { DependenciesField, DependencyManifest, Finder, NamedRegistries, Registries } from '@pnpm/types'
 import { realpathMissing } from 'realpath-missing'
 import semver from 'semver'
 
@@ -80,7 +80,7 @@ export async function buildDependentsTree (
     include?: { [field in DependenciesField]?: boolean }
     modulesDir?: string
     registries?: Registries
-    namedRegistries?: Record<string, string>
+    namedRegistries?: NamedRegistries
     finders?: Finder[]
     importerInfoMap: Map<string, ImporterInfo>
     lockfile: LockfileObject
@@ -254,7 +254,7 @@ function resolvePackageNodes (
     virtualStoreDirMaxLength: number
     modulesDir: string
     registries: Registries
-    namedRegistries?: Record<string, string>
+    namedRegistries?: NamedRegistries
     wantedPackages: PackageSnapshots
     storeDir?: string
     storeIndex?: StoreIndex

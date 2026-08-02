@@ -3856,7 +3856,11 @@ describe('global config.yaml', () => {
 
     expect(config.registries.default).toBe('https://trusted.example.com/npm/')
     expect(config.registries['@scope']).toBe('https://trusted.example.com/scope/')
+    // The reader fills in the built-in aliases, so downstream code can index
+    // this map directly instead of re-merging them at every lookup.
     expect(config.namedRegistries).toStrictEqual({
+      gh: 'https://npm.pkg.github.com/',
+      npmjs: 'https://registry.npmjs.org/',
       work: 'https://trusted.example.com/work/',
     })
     expect(warnings.find((w) => w.includes('global config file'))).toBeUndefined()

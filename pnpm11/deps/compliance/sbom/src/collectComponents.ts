@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import { normalizeNamedRegistries } from '@pnpm/config.normalize-registries'
 import { createKnownRegistries } from '@pnpm/config.pick-registry-for-package'
 import { PnpmError } from '@pnpm/error'
 import { DepType, type DepTypes, detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
@@ -11,7 +12,7 @@ import {
 } from '@pnpm/lockfile.walker'
 import type { Resolution } from '@pnpm/resolving.resolver-base'
 import { StoreIndex } from '@pnpm/store.index'
-import type { DependenciesField, ProjectId, Registries } from '@pnpm/types'
+import type { DependenciesField, NamedRegistries, ProjectId, Registries } from '@pnpm/types'
 import pLimit from 'p-limit'
 
 import { getPkgMetadata, type GetPkgMetadataOptions } from './getPkgMetadata.js'
@@ -39,7 +40,7 @@ export interface CollectSbomComponentsOptions {
   sbomType?: SbomComponentType
   include?: { [dependenciesField in DependenciesField]: boolean }
   registries: Registries
-  namedRegistries?: Record<string, string>
+  namedRegistries?: NamedRegistries
   lockfileDir: string
   includedImporterIds?: ProjectId[]
   lockfileOnly?: boolean
@@ -215,7 +216,7 @@ async function walkStep (
       // artifact from a compliance document.
       const registryUrl = registryName == null
         ? undefined
-        : createKnownRegistries(opts.namedRegistries).byAlias[registryName]
+        : createKnownRegistries(opts.namedRegistries ?? normalizeNamedRegistries()).byAlias[registryName]
       if (registryName != null && registryUrl == null) {
         throw new PnpmError('MISSING_NAMED_REGISTRY',
           `Cannot describe package "${depPath}": it was resolved from the named registry '${registryName}:', which is not present in the namedRegistries setting.`,

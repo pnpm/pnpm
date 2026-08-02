@@ -49,6 +49,7 @@
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
+    "@pnpm/config.normalize-registries": "workspace:*",
     "@pnpm/fetching.fetcher-base": "workspace:*",
     "@pnpm/fetching.tarball-fetcher": "workspace:*",
     "@pnpm/network.fetch": "workspace:*",

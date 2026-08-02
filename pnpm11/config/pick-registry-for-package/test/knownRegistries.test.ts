@@ -1,4 +1,5 @@
 import { expect, test } from '@jest/globals'
+import { normalizeNamedRegistries } from '@pnpm/config.normalize-registries'
 import { createKnownRegistries } from '@pnpm/config.pick-registry-for-package'
 import { BUILTIN_NAMED_REGISTRIES } from '@pnpm/constants'
 
@@ -13,20 +14,20 @@ import { BUILTIN_NAMED_REGISTRIES } from '@pnpm/constants'
  * built-in cannot land without updating this list.
  */
 test('the default reverse-routing prefixes are exactly the built-in registries', () => {
-  expect(createKnownRegistries().tarballPrefixes).toStrictEqual([
+  expect(createKnownRegistries(normalizeNamedRegistries()).tarballPrefixes).toStrictEqual([
     'https://npm.pkg.github.com/',
     'https://registry.npmjs.org/',
   ])
 })
 
 test('every built-in alias contributes a prefix', () => {
-  const { tarballPrefixes } = createKnownRegistries()
+  const { tarballPrefixes } = createKnownRegistries(normalizeNamedRegistries())
 
   expect(tarballPrefixes).toHaveLength(Object.keys(BUILTIN_NAMED_REGISTRIES).length)
 })
 
 test('a user mapping replaces the built-in prefix it overrides', () => {
-  const { tarballPrefixes } = createKnownRegistries({ npmjs: 'https://npm.internal.example/' })
+  const { tarballPrefixes } = createKnownRegistries(normalizeNamedRegistries({ npmjs: 'https://npm.internal.example/' }))
 
   // The point of the override for a proxying org: nothing routes to the
   // public host any more.
@@ -35,10 +36,10 @@ test('a user mapping replaces the built-in prefix it overrides', () => {
 })
 
 test('prefixes are ordered longest first so the deepest match wins', () => {
-  const { tarballPrefixes } = createKnownRegistries({
+  const { tarballPrefixes } = createKnownRegistries(normalizeNamedRegistries({
     team: 'https://npm.example/team',
     teamSub: 'https://npm.example/team/sub',
-  })
+  }))
 
   const lengths = tarballPrefixes.map((prefix) => prefix.length)
   expect(lengths).toStrictEqual([...lengths].sort((a, b) => b - a))
@@ -51,7 +52,7 @@ test('prefixes are ordered longest first so the deepest match wins', () => {
  * `npm.pkg.github.com-evil` would match the GitHub Packages prefix.
  */
 test('every prefix ends in a slash', () => {
-  const { tarballPrefixes } = createKnownRegistries({ noSlash: 'https://npm.example/team' })
+  const { tarballPrefixes } = createKnownRegistries(normalizeNamedRegistries({ noSlash: 'https://npm.example/team' }))
 
   for (const prefix of tarballPrefixes) {
     expect(prefix.endsWith('/')).toBe(true)
@@ -59,13 +60,13 @@ test('every prefix ends in a slash', () => {
 })
 
 test('a malformed user URL is dropped rather than poisoning the prefix list', () => {
-  const { tarballPrefixes } = createKnownRegistries({ broken: 'not a url' })
+  const { tarballPrefixes } = createKnownRegistries(normalizeNamedRegistries({ broken: 'not a url' }))
 
-  expect(tarballPrefixes).toStrictEqual([...createKnownRegistries().tarballPrefixes])
+  expect(tarballPrefixes).toStrictEqual([...createKnownRegistries(normalizeNamedRegistries()).tarballPrefixes])
 })
 
 test('alias lookup is prototype-free so a crafted alias cannot resolve', () => {
-  const { byAlias } = createKnownRegistries()
+  const { byAlias } = createKnownRegistries(normalizeNamedRegistries())
 
   // A dep path of `foo@constructor:1.0.0` must not find a truthy value and
   // sail past the guards that fail closed on an unknown alias.

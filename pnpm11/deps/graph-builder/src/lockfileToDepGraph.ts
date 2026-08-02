@@ -22,6 +22,7 @@ import type {
   PkgRequestFetchResult,
   StoreController,
 } from '@pnpm/store.controller-types'
+import type { NamedRegistries } from '@pnpm/types'
 import type {
   AllowBuild,
   DepPath,
@@ -84,7 +85,7 @@ export interface LockfileToDepGraphOptions {
   pnpmVersion: string
   patchedDependencies?: PatchGroupRecord
   registries: Registries
-  namedRegistries?: Record<string, string>
+  namedRegistries?: NamedRegistries
   /**
    * The dep paths a non-optional edge reaches, as classified by
    * `filterLockfileByImportersAndEngine`. Installability is evaluated as

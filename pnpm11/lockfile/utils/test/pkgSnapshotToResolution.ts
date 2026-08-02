@@ -1,4 +1,5 @@
 import { expect, test } from '@jest/globals'
+import { normalizeNamedRegistries } from '@pnpm/config.normalize-registries'
 import { pkgSnapshotToResolution } from '@pnpm/lockfile.utils'
 
 const GIT_TARBALL = 'https://codeload.github.com/foo/bar/tar.gz/0123456789abcdef0123456789abcdef01234567'
@@ -111,7 +112,7 @@ test('pkgSnapshotToResolution() reconstructs the tarball of a registry-qualified
     },
   }, {
     registries: { default: 'https://registry.npmjs.org/' },
-    namedRegistries: { work: 'https://npm.enterprise.example.com/' },
+    namedRegistries: normalizeNamedRegistries({ work: 'https://npm.enterprise.example.com/' }),
   })).toEqual({
     integrity: 'sha512-AAAA',
     tarball: 'https://npm.enterprise.example.com/foo/-/foo-1.0.0.tgz',

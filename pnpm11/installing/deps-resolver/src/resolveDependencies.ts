@@ -43,6 +43,7 @@ import type {
   StoreController,
 } from '@pnpm/store.controller-types'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
+import type { NamedRegistries } from '@pnpm/types'
 import type {
   AllowBuild,
   AllowedDeprecatedVersions,
@@ -204,7 +205,7 @@ export interface ResolutionContext {
   nodeVersion?: string
   pnpmVersion: string
   registries: Registries
-  namedRegistries?: Record<string, string>
+  namedRegistries?: NamedRegistries
   namedRegistryPrefixes: readonly string[]
   resolutionMode?: 'highest' | 'time-based' | 'lowest-direct'
   virtualStoreDir: string
@@ -1579,7 +1580,7 @@ function getDepsToResolve (
     prefix: string
     proceed: boolean
     registries: Registries
-    namedRegistries?: Record<string, string>
+    namedRegistries?: NamedRegistries
     resolvedDependencies?: ResolvedDependencies
   }
 ): ExtendedWantedDependency[] {

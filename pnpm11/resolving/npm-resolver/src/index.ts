@@ -32,6 +32,7 @@ import {
   EXISTING_VERSION_SELECTOR_WEIGHT,
 } from '@pnpm/resolving.resolver-base'
 import { storeIndexKey } from '@pnpm/store.index'
+import type { NamedRegistries } from '@pnpm/types'
 import type {
   DependencyManifest,
   PackageVersionPolicy,
@@ -148,7 +149,7 @@ export interface ResolverFactoryOptions {
   retry?: RetryTimeoutOptions
   timeout?: number
   registries: Registries
-  namedRegistries?: Record<string, string>
+  namedRegistries?: NamedRegistries
   saveWorkspaceProtocol?: boolean | 'rolling'
   preserveAbsolutePaths?: boolean
   ignoreMissingTimeField?: boolean

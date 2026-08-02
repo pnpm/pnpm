@@ -13,7 +13,7 @@ import {
 } from '@pnpm/lockfile.utils'
 import { readPackageJsonFromDirSync } from '@pnpm/pkg-manifest.reader'
 import type { StoreIndex } from '@pnpm/store.index'
-import type { DependencyManifest, Registries } from '@pnpm/types'
+import type { DependencyManifest, NamedRegistries, Registries } from '@pnpm/types'
 import normalizePath from 'normalize-path'
 
 import { readManifestFromCafs } from './readManifestFromCafs.js'
@@ -25,7 +25,7 @@ export interface GetPkgInfoOpts {
   readonly currentPackages: PackageSnapshots
   readonly peers?: Set<string>
   readonly registries: Registries
-  readonly namedRegistries?: Record<string, string>
+  readonly namedRegistries?: NamedRegistries
   readonly skipped: Set<string>
   readonly storeDir?: string
   readonly storeIndex?: StoreIndex

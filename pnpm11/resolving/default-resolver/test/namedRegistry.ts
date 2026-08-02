@@ -2,6 +2,7 @@
 import path from 'node:path'
 
 import { afterEach, beforeEach, expect, test } from '@jest/globals'
+import { normalizeNamedRegistries } from '@pnpm/config.normalize-registries'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import { createResolver } from '@pnpm/resolving.default-resolver'
 import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
@@ -63,9 +64,9 @@ test('createResolver() routes a user-configured named registry alias through the
     cacheDir: temporaryDirectory(),
     storeDir: temporaryDirectory(),
     registries,
-    namedRegistries: {
+    namedRegistries: normalizeNamedRegistries({
       work: ENTERPRISE_REGISTRY,
-    },
+    }),
   })
 
   const result = await resolve(
@@ -87,9 +88,9 @@ test.each([
     cacheDir: temporaryDirectory(),
     storeDir: temporaryDirectory(),
     registries,
-    namedRegistries: {
+    namedRegistries: normalizeNamedRegistries({
       [alias]: ENTERPRISE_REGISTRY,
-    },
+    }),
   })).toThrow(expect.objectContaining({ code: 'ERR_PNPM_RESERVED_NAMED_REGISTRY_NAME' }))
 })
 
@@ -98,9 +99,9 @@ test('createResolver() rejects a malformed named-registry alias', () => {
     cacheDir: temporaryDirectory(),
     storeDir: temporaryDirectory(),
     registries,
-    namedRegistries: {
+    namedRegistries: normalizeNamedRegistries({
       'no colons:allowed': ENTERPRISE_REGISTRY,
-    },
+    }),
   })).toThrow(expect.objectContaining({ code: 'ERR_PNPM_RESERVED_NAMED_REGISTRY_NAME' }))
 })
 
@@ -111,9 +112,9 @@ test('createResolver() qualifies a named-registry id with the registry alias', a
     cacheDir: temporaryDirectory(),
     storeDir: temporaryDirectory(),
     registries,
-    namedRegistries: {
+    namedRegistries: normalizeNamedRegistries({
       work: ENTERPRISE_REGISTRY,
-    },
+    }),
   })
 
   const result = await resolve(

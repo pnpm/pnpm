@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 
+import { normalizeNamedRegistries } from '@pnpm/config.normalize-registries'
 import { createKnownRegistries, pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
 import { FULL_META_DIR } from '@pnpm/constants'
@@ -11,7 +12,7 @@ import {
   type Resolution,
   type ResolutionVerifier,
 } from '@pnpm/resolving.resolver-base'
-import type { PackageVersionPolicy, Registries, TrustPolicy } from '@pnpm/types'
+import type { NamedRegistries, PackageVersionPolicy, Registries, TrustPolicy } from '@pnpm/types'
 import semver from 'semver'
 
 import type { FetchMetadataFromFromRegistryOptions } from './fetch.js'
@@ -78,7 +79,7 @@ export interface CreateNpmResolutionVerifierOptions {
    * these registry base URLs, route the manifest fetch there instead of the
    * scope-derived default.
    */
-  namedRegistries?: Record<string, string>
+  namedRegistries?: NamedRegistries
   /**
    * Cache-aware full-metadata fetcher. Decoupled from the resolver pipeline
    * so abbreviated metadata and `peekManifestFromStore` fast paths cannot
@@ -138,7 +139,7 @@ export function createNpmResolutionVerifier (
   // what keeps the verifier recognizing exactly the registries the resolver
   // does — otherwise a package resolved via `gh:` would land in the lockfile
   // with a tarball URL the verifier could not route.
-  const knownRegistries = createKnownRegistries(opts.namedRegistries)
+  const knownRegistries = createKnownRegistries(opts.namedRegistries ?? normalizeNamedRegistries())
   const namedRegistryPrefixes = knownRegistries.tarballPrefixes
 
   // Per-install dedup of every network/disk fetch the verifier issues.

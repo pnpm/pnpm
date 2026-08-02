@@ -52,6 +52,9 @@
       "path": "../matcher"
     },
     {
+      "path": "../normalize-registries"
+    },
+    {
       "path": "../registry-auth-key"
     }
   ]

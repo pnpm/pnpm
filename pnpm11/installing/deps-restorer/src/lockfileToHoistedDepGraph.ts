@@ -28,7 +28,7 @@ import type {
   FetchPackageToStoreFunction,
   StoreController,
 } from '@pnpm/store.controller-types'
-import type { AllowBuild, DepPath, ProjectId, Registries, SupportedArchitectures } from '@pnpm/types'
+import type { AllowBuild, DepPath, NamedRegistries, ProjectId, Registries, SupportedArchitectures } from '@pnpm/types'
 import { pathAbsolute } from 'path-absolute'
 import { pathExists } from 'path-exists'
 
@@ -54,7 +54,7 @@ export interface LockfileToHoistedDepGraphOptions {
   nodeVersion: string
   pnpmVersion: string
   registries: Registries
-  namedRegistries?: Record<string, string>
+  namedRegistries?: NamedRegistries
   patchedDependencies?: PatchGroupRecord
   /**
    * The dep paths a non-optional edge reaches, as classified by

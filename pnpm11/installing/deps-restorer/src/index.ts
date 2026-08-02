@@ -67,6 +67,7 @@ import type {
   PackageFilesResponse,
   StoreController,
 } from '@pnpm/store.controller-types'
+import type { NamedRegistries } from '@pnpm/types'
 import {
   type AllowBuild,
   DEPENDENCIES_FIELDS,
@@ -165,7 +166,7 @@ export interface HeadlessOptions {
   unsafePerm: boolean
   userAgent: string
   registries: Registries
-  namedRegistries?: Record<string, string>
+  namedRegistries?: NamedRegistries
   reporter?: ReporterFunction
   packageManager: {
     name: string

@@ -31,12 +31,13 @@
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
-    "@pnpm/constants": "workspace:*",
     "@pnpm/types": "workspace:*"
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
-    "@pnpm/config.pick-registry-for-package": "workspace:*"
+    "@pnpm/config.normalize-registries": "workspace:*",
+    "@pnpm/config.pick-registry-for-package": "workspace:*",
+    "@pnpm/constants": "workspace:*"
   },
   "engines": {
     "node": ">=22.13"

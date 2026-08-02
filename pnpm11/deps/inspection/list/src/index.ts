@@ -2,7 +2,7 @@ import path from 'node:path'
 
 import { buildDependenciesTree, buildDependentsTree, createPackagesSearcher, type DependenciesTree, type DependencyNode, type ImporterInfo } from '@pnpm/deps.inspection.tree-builder'
 import { readCurrentLockfile, readWantedLockfile } from '@pnpm/lockfile.fs'
-import type { DependenciesField, Finder, Registries } from '@pnpm/types'
+import type { DependenciesField, Finder, NamedRegistries, Registries } from '@pnpm/types'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 
 import { renderDependentsJson, renderDependentsParseable, renderDependentsTree } from './renderDependentsTree.js'
@@ -76,7 +76,7 @@ export async function searchForPackages (
     include?: { [dependenciesField in DependenciesField]: boolean }
     onlyProjects?: boolean
     registries?: Registries
-    namedRegistries?: Record<string, string>
+    namedRegistries?: NamedRegistries
     modulesDir?: string
     virtualStoreDirMaxLength: number
     finders?: Finder[]
@@ -126,7 +126,7 @@ export async function listForPackages (
     onlyProjects?: boolean
     reportAs?: 'parseable' | 'tree' | 'json'
     registries?: Registries
-    namedRegistries?: Record<string, string>
+    namedRegistries?: NamedRegistries
     modulesDir?: string
     virtualStoreDirMaxLength: number
     finders?: Finder[]
@@ -161,7 +161,7 @@ export async function list (
     onlyProjects?: boolean
     reportAs?: 'parseable' | 'tree' | 'json'
     registries?: Registries
-    namedRegistries?: Record<string, string>
+    namedRegistries?: NamedRegistries
     showExtraneous?: boolean
     modulesDir?: string
     virtualStoreDirMaxLength: number
@@ -242,7 +242,7 @@ export async function whyForPackages (
     include?: { [dependenciesField in DependenciesField]: boolean }
     long?: boolean
     registries?: Registries
-    namedRegistries?: Record<string, string>
+    namedRegistries?: NamedRegistries
     reportAs?: 'parseable' | 'tree' | 'json'
     modulesDir?: string
     finders?: Finder[]

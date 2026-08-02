@@ -1,6 +1,7 @@
 import { PnpmError } from '@pnpm/error'
 import { detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
+import type { NamedRegistries } from '@pnpm/types'
 import type {
   DependenciesField,
   IncludedDependencies,
@@ -82,7 +83,7 @@ export async function findDependencyLicenses (opts: {
   virtualStoreDirMaxLength: number
   modulesDir?: string
   registries: Registries
-  namedRegistries?: Record<string, string>
+  namedRegistries?: NamedRegistries
   wantedLockfile: LockfileObject | null
   includedImporterIds?: ProjectId[]
   supportedArchitectures?: SupportedArchitectures

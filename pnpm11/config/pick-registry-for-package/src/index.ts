@@ -1,5 +1,4 @@
-import { BUILTIN_NAMED_REGISTRIES } from '@pnpm/constants'
-import type { Registries } from '@pnpm/types'
+import type { NamedRegistries, Registries } from '@pnpm/types'
 
 export function pickRegistryForPackage (registries: Registries, packageName: string, bareSpecifier?: string): string {
   const scope = getScope(packageName, bareSpecifier)
@@ -26,9 +25,8 @@ function getScope (pkgName: string, bareSpecifier?: string): string | null {
 
 /**
  * Every registry pnpm can route to by alias, and the two ways that set is
- * consulted. Build it once per install and pass it down: the set is the
- * single place the built-ins and the user's `namedRegistries` are combined,
- * so a change to either cannot alter one consumer without the other.
+ * consulted. Build it once per install and pass it down, so alias lookup and
+ * reverse routing can never disagree about which registries exist.
  */
 export interface KnownRegistries {
   /**
@@ -46,7 +44,7 @@ export interface KnownRegistries {
    * which registry to verify an entry with, longest first so the deepest
    * match wins.
    *
-   * This is why adding an entry to {@link BUILTIN_NAMED_REGISTRIES} is not a
+   * This is why adding an entry to a built-in alias is not a
    * local change: it also decides where verification traffic goes for
    * lockfile entries that name no alias at all. Every prefix ends in `/` so
    * matching cannot be fooled by a same-host-different-suffix sibling
@@ -56,17 +54,19 @@ export interface KnownRegistries {
 }
 
 /**
- * Combine the built-in aliases with the user's `namedRegistries` (user wins
- * on collision, so a GHES user can point `gh` at their enterprise host).
+ * Derive both views from an already-complete alias map.
+ *
+ * The built-ins are merged in by `normalizeNamedRegistries` at the boundary,
+ * which is why `NamedRegistries` is required here rather than a raw record:
+ * a map that never passed through it does not typecheck.
  *
  * `tarballPrefixes` is computed on first access: the alias lookup runs per
  * package, while prefix matching runs only when an entry carries a recorded
  * tarball URL.
  */
-export function createKnownRegistries (namedRegistries?: Record<string, string>): KnownRegistries {
+export function createKnownRegistries (namedRegistries: NamedRegistries): KnownRegistries {
   const byAlias: Record<string, string> = Object.assign(
     Object.create(null) as Record<string, string>,
-    BUILTIN_NAMED_REGISTRIES,
     namedRegistries
   )
   let tarballPrefixes: readonly string[] | undefined

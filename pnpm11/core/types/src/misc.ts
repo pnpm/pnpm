@@ -19,6 +19,26 @@ export interface Registries {
   [scope: string]: string
 }
 
+/**
+ * Registry aliases a dependency specifier can name (`work:foo`), with the
+ * built-ins guaranteed present.
+ *
+ * The required keys are the enforcement: a raw `namedRegistries` straight out
+ * of the user's config does not satisfy this type, so it cannot reach a
+ * consumer without passing through `normalizeNamedRegistries` first. Without
+ * that, forgetting to fill in the built-ins somewhere would silently stop
+ * `gh:` and `npmjs:` from resolving on that code path.
+ *
+ * Adding a built-in means widening this type, which is deliberate: it is the
+ * same acknowledgement the reverse-routing prefix test asks for, since these
+ * URLs also decide where verification traffic goes.
+ */
+export interface NamedRegistries {
+  gh: string
+  npmjs: string
+  [alias: string]: string
+}
+
 /** Parsed value of `_auth` of each registry in the rc file. */
 export interface BasicAuth {
   username: string

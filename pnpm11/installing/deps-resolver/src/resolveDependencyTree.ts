@@ -7,6 +7,7 @@ import type { PatchGroupRecord } from '@pnpm/patching.config'
 import { BUILTIN_NAMED_REGISTRIES } from '@pnpm/resolving.npm-resolver'
 import type { PreferredVersions, Resolution, ResolutionPolicyViolation, WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import type { StoreController } from '@pnpm/store.controller-types'
+import type { NamedRegistries } from '@pnpm/types'
 import type {
   AllowBuild,
   AllowedDeprecatedVersions,
@@ -129,7 +130,7 @@ export interface ResolveDependenciesOptions {
   overrideBareSpecifier?: (name: string, bareSpecifier: string, dir?: string) => string | undefined
   nodeVersion?: string
   registries: Registries
-  namedRegistries?: Record<string, string>
+  namedRegistries?: NamedRegistries
   patchedDependencies?: PatchGroupRecord
   pnpmVersion: string
   preferredVersions?: PreferredVersions

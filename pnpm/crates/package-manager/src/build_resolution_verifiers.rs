@@ -23,7 +23,7 @@ use pacquet_config::{
 };
 use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_resolving_npm_resolver::{
-    CreateNpmResolutionVerifierOptions, ObservedDistStats, PackageMetaCache,
+    CreateNpmResolutionVerifierOptions, KnownRegistries, ObservedDistStats, PackageMetaCache,
     create_npm_resolution_verifier,
 };
 use pacquet_resolving_resolver_base::ResolutionVerifier;
@@ -106,15 +106,18 @@ pub fn build_resolution_verifiers(
         trust_policy_exclude_patterns: config.trust_policy_exclude.clone().unwrap_or_default(),
         trust_policy_ignore_after: config.trust_policy_ignore_after,
         registries,
-        // User-defined aliases from `pnpm-workspace.yaml#namedRegistries`.
-        // Built-in aliases are merged in by
-        // [`pacquet_resolving_npm_resolver::build_named_registry_prefixes()`]
-        // inside the verifier, so the user map is forwarded verbatim.
-        named_registries: config
-            .named_registries
-            .iter()
-            .map(|(name, url)| (name.clone(), url.clone()))
-            .collect(),
+        // Built-ins are merged in here rather than inside the verifier, so the
+        // verifier's two views of the set cannot disagree with the resolver's.
+        // Validation already ran at config load; an invalid alias cannot reach
+        // this point, so the merge is taken infallibly.
+        named_registries: KnownRegistries::new(
+            &config
+                .named_registries
+                .iter()
+                .map(|(name, url)| (name.clone(), url.clone()))
+                .collect(),
+        )
+        .into_by_alias(),
         http_client,
         auth_headers: auth_override.unwrap_or_else(|| Arc::clone(&config.auth_headers)),
         cache_dir: Some(config.cache_dir.clone()),

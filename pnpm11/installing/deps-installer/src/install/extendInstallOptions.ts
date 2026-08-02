@@ -13,6 +13,7 @@ import type { IncludedDependencies } from '@pnpm/installing.modules-yaml'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import type { ResolutionPolicyViolation, ResolutionVerifier, WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import type { StoreController } from '@pnpm/store.controller-types'
+import type { NamedRegistries } from '@pnpm/types'
 import type {
   AllowedDeprecatedVersions,
   PackageExtension,
@@ -122,7 +123,7 @@ export interface StrictInstallOptions {
   userAgent: string
   unsafePerm: boolean
   registries: Registries
-  namedRegistries?: Record<string, string>
+  namedRegistries?: NamedRegistries
   tag: string
   overrides: Record<string, string>
   ownLifecycleHooksStdio: 'inherit' | 'pipe'
