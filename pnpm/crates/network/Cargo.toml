@@ -11,12 +11,13 @@ license.workspace    = true
 repository.workspace = true
 
 [dependencies]
-derive_more = { workspace = true }
-miette      = { workspace = true }
-pipe-trait  = { workspace = true }
-reqwest     = { workspace = true }
-tokio       = { workspace = true, features = ["time"] }
-tracing     = { workspace = true }
+derive_more       = { workspace = true }
+miette            = { workspace = true }
+pipe-trait        = { workspace = true }
+reqwest           = { workspace = true }
+tokio             = { workspace = true, features = ["time"] }
+tracing           = { workspace = true }
+webpki-root-certs = { workspace = true }
 
 [dev-dependencies]
 mockito               = { workspace = true }
