@@ -125,3 +125,31 @@ test('getOptionsFromPnpmSettings() rejects non-object overrides values', () => {
     message: 'The overrides field should be an object, but got array',
   }))
 })
+
+test('getOptionsFromPnpmSettings() accepts nodeDownloadMirrors with string values', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    nodeDownloadMirrors: {
+      release: 'https://mirror.example.com/release/',
+    },
+  })).not.toThrow()
+})
+
+test('getOptionsFromPnpmSettings() rejects non-string nodeDownloadMirrors values', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    nodeDownloadMirrors: {
+      release: 42,
+    } as unknown as Record<string, string>,
+  })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_SETTING',
+    message: 'The value of nodeDownloadMirrors.release should be a string, but got number',
+  }))
+})
+
+test('getOptionsFromPnpmSettings() rejects non-object nodeDownloadMirrors', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    nodeDownloadMirrors: [] as unknown as Record<string, string>,
+  })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_SETTING',
+    message: 'The "nodeDownloadMirrors" setting should be an object, but got array',
+  }))
+})

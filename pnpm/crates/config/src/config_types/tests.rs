@@ -45,6 +45,7 @@ fn config_file_keys() {
     assert!(is_config_file_key("store-dir"));
     assert!(is_config_file_key("fetch-timeout"));
     assert!(is_config_file_key("cache-dir"));
+    assert!(is_config_file_key("node-download-mirrors"));
     // npm-compatible, not excluded
     assert!(is_config_file_key("fetch-retries"));
     assert!(is_config_file_key("registry"));
