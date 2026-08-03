@@ -14,6 +14,13 @@ interface State {
 const UPDATE_CHECK_FREQUENCY = 24 * 60 * 60 * 1000 // 1 day
 
 export async function checkForUpdates (config: Config): Promise<void> {
+  // Defense in depth: callers should skip when disabled, but honor the setting
+  // here too so a forgotten call site cannot ignore `updateNotifier: false`
+  // (https://github.com/pnpm/pnpm/issues/12731).
+  if (config.updateNotifier === false) {
+    return
+  }
+
   const stateFile = path.join(config.stateDir, 'pnpm-state.json')
   let state: State | undefined
   try {
