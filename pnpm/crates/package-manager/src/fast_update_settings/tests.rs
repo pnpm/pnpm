@@ -90,7 +90,7 @@ snapshots:
 
     assert!(
         try_fast_update_settings(&lockfile, &settings, &[(PathBuf::from("/project"), &manifest)])
-            .is_none()
+            .is_none(),
     );
 }
 
@@ -121,7 +121,7 @@ snapshots:
 
     assert!(
         try_fast_update_settings(&lockfile, &settings, &[(PathBuf::from("/project"), &manifest)])
-            .is_none()
+            .is_none(),
     );
 }
 
@@ -139,7 +139,7 @@ fn rejects_a_peer_setting_when_a_project_declares_peer_dependencies() {
             &settings,
             &[(PathBuf::from("/project"), &manifest)],
         )
-        .is_none()
+        .is_none(),
     );
 }
 
@@ -154,7 +154,7 @@ fn rejects_exclude_links_when_a_project_depends_on_a_directory() {
             &settings,
             &[(PathBuf::from("/project"), &manifest)],
         )
-        .is_none()
+        .is_none(),
     );
 }
 
@@ -179,7 +179,7 @@ importers:
 
     assert!(
         try_fast_update_settings(&lockfile, &settings, &[(PathBuf::from("/project"), &manifest)])
-            .is_none()
+            .is_none(),
     );
 }
 
@@ -198,7 +198,7 @@ fn records_exclude_links_when_the_only_workspace_dependency_uses_the_workspace_p
             &settings,
             &[(PathBuf::from("/project"), &root), (PathBuf::from("/project/bar"), &sibling)],
         )
-        .is_some()
+        .is_some(),
     );
 }
 
@@ -215,7 +215,7 @@ fn rejects_exclude_links_when_a_workspace_project_is_depended_on_by_range() {
             &settings,
             &[(PathBuf::from("/project"), &root), (PathBuf::from("/project/bar"), &sibling)],
         )
-        .is_none()
+        .is_none(),
     );
 }
 
@@ -234,7 +234,7 @@ fn rejects_inject_workspace_packages_when_a_workspace_project_is_depended_on() {
             &settings,
             &[(PathBuf::from("/project"), &root), (PathBuf::from("/project/bar"), &sibling)],
         )
-        .is_none()
+        .is_none(),
     );
 }
 
@@ -252,7 +252,7 @@ fn rejects_inject_workspace_packages_when_a_dependency_is_already_injected() {
             &settings,
             &[(PathBuf::from("/project"), &manifest)],
         )
-        .is_none()
+        .is_none(),
     );
 }
 
@@ -271,7 +271,7 @@ fn rejects_a_group_of_changed_settings_when_one_of_them_is_unsafe() {
             &settings,
             &[(PathBuf::from("/project"), &manifest)],
         )
-        .is_none()
+        .is_none(),
     );
 }
 
@@ -285,6 +285,6 @@ fn reports_no_update_when_the_settings_match() {
             &recorded_settings(),
             &[(PathBuf::from("/project"), &manifest)],
         )
-        .is_none()
+        .is_none(),
     );
 }
