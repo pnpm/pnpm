@@ -2,7 +2,6 @@ import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
-import { PnpmError } from '@pnpm/error'
 import { fetchFromDir, type FetchFromDirOptions } from '@pnpm/fetching.directory-fetcher'
 
 export const DIR: unique symbol = Symbol('Path is a directory')
@@ -156,9 +155,10 @@ export async function extendFilesMap ({ filesMap, filesStats }: ExtendFilesMapOp
       addInodeAndAncestors(relativePath, stats.ino)
     } else if (stats.isDirectory()) {
       addInodeAndAncestors(relativePath, DIR)
-    } else {
-      throw new PnpmError('UNSUPPORTED_INODE_TYPE', `Filesystem inode at ${realPath} is neither a file, a directory, or a symbolic link`)
     }
+    // Skip FIFOs, sockets, and device nodes (e.g. 1Password `.env` pipes).
+    // Throwing here aborted syncInjectedDepsAfterScripts and left injected
+    // deps stale — see https://github.com/pnpm/pnpm/issues/13550.
   }))
 
   return result

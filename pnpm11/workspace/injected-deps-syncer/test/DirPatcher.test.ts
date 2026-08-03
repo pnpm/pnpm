@@ -220,3 +220,28 @@ test('multiple patchers', async () => {
   expect(Array.from(targetFetchResultAfter2.filesMap.keys()).sort(lexCompare)).toStrictEqual(expected)
   expect(Array.from(targetFetchResultAfter3.filesMap.keys()).sort(lexCompare)).toStrictEqual(expected)
 })
+
+test('extendFilesMap skips FIFO / unsupported inode types', async () => {
+  prepareEmpty()
+  createDir('source')
+  createFile('source/keep.txt', 'ok')
+  const fifoPath = path.resolve('source', 'pipe.env')
+  try {
+    fs.mkfifoSync(fifoPath)
+  } catch (err) {
+    // Windows and some CI images lack mkfifo — skip rather than fail.
+    if ((err as NodeJS.ErrnoException).code === 'ENOSYS' || (err as NodeJS.ErrnoException).code === 'EPERM' || process.platform === 'win32') {
+      return
+    }
+    throw err
+  }
+
+  const { extendFilesMap } = await import('../src/DirPatcher.js')
+  const filesMap = new Map<string, string>([
+    ['keep.txt', path.resolve('source/keep.txt')],
+    ['pipe.env', fifoPath],
+  ])
+  const inodeMap = await extendFilesMap({ filesMap })
+  expect(inodeMap['keep.txt']).toEqual(expect.any(Number))
+  expect(inodeMap['pipe.env']).toBeUndefined()
+})
