@@ -87,7 +87,7 @@ export async function applyPatch (optimizedDirPatch: DirDiff, sourceDir: string,
     if (value === DIR) {
       await fs.promises.mkdir(targetPath, { recursive: true })
     } else if (value === UNSUPPORTED) {
-      // Source-side special inodes are intentionally not materialised on the target.
+      // Source-side special inodes are intentionally not materialized on the target.
     } else if (typeof value === 'number') {
       fs.mkdirSync(path.dirname(targetPath), { recursive: true })
       await fs.promises.link(sourcePath, targetPath)
