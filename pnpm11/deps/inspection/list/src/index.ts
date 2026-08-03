@@ -246,6 +246,7 @@ export async function whyForPackages (
     reportAs?: 'parseable' | 'tree' | 'json'
     modulesDir?: string
     finders?: Finder[]
+    excludePeerDependencies?: boolean
   }
 ): Promise<string> {
   const reportAs = opts.reportAs ?? 'tree'
@@ -280,6 +281,7 @@ export async function whyForPackages (
     registries: opts.registries,
     namedRegistries: opts.namedRegistries,
     finders: opts.finders,
+    excludePeerDependencies: opts.excludePeerDependencies,
     importerInfoMap,
     lockfile,
   })
