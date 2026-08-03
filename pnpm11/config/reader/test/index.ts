@@ -1487,8 +1487,10 @@ test('expands ${ENV} placeholders inside global config.yaml _auth authToken valu
   })
   const originalXdg = process.env.XDG_CONFIG_HOME
   const originalYamlToken = process.env.YAML_AUTH_TOKEN
-  process.env.XDG_CONFIG_HOME = path.resolve('.config')
-  process.env.YAML_AUTH_TOKEN = 'yaml-resolved'
+  const configHome = path.resolve('.config')
+  process.env.XDG_CONFIG_HOME = configHome
+  // Ensure expansion comes from getConfig's env, not process.env.
+  delete process.env.YAML_AUTH_TOKEN
 
   try {
     const { config } = await getConfig({
@@ -1496,7 +1498,7 @@ test('expands ${ENV} placeholders inside global config.yaml _auth authToken valu
       env: {
         ...env,
         YAML_AUTH_TOKEN: 'yaml-resolved',
-        XDG_CONFIG_HOME: path.resolve('.config'),
+        XDG_CONFIG_HOME: configHome,
       },
       packageManager: { name: 'pnpm', version: '1.0.0' },
     })
