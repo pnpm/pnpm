@@ -5,13 +5,16 @@ import util from 'node:util'
 import { fetchFromDir, type FetchFromDirOptions } from '@pnpm/fetching.directory-fetcher'
 
 export const DIR: unique symbol = Symbol('Path is a directory')
+/** FIFO, socket, device node, etc. — tracked so targets can be cleaned up, never hardlinked. */
+export const UNSUPPORTED: unique symbol = Symbol('Unsupported inode type')
 
 // symbols and numbers are used instead of discriminated union because
 // it's faster and simpler to compare primitives than to deep compare objects
 export type File = number // representing the file's inode, which is sufficient for hardlinks
 export type Dir = typeof DIR
+export type Unsupported = typeof UNSUPPORTED
 
-export type Value = File | Dir
+export type Value = File | Dir | Unsupported
 export type InodeMap = Record<string, Value>
 
 export interface DiffItemBase {
@@ -83,6 +86,8 @@ export async function applyPatch (optimizedDirPatch: DirDiff, sourceDir: string,
   async function addRecursive (sourcePath: string, targetPath: string, value: Value): Promise<void> {
     if (value === DIR) {
       await fs.promises.mkdir(targetPath, { recursive: true })
+    } else if (value === UNSUPPORTED) {
+      // Source-side special inodes are intentionally not materialised on the target.
     } else if (typeof value === 'number') {
       fs.mkdirSync(path.dirname(targetPath), { recursive: true })
       await fs.promises.link(sourcePath, targetPath)
@@ -155,10 +160,14 @@ export async function extendFilesMap ({ filesMap, filesStats }: ExtendFilesMapOp
       addInodeAndAncestors(relativePath, stats.ino)
     } else if (stats.isDirectory()) {
       addInodeAndAncestors(relativePath, DIR)
+    } else {
+      // FIFOs, sockets, and device nodes (e.g. 1Password `.env` pipes).
+      // Record as UNSUPPORTED so a target-side special can be removed/replaced;
+      // applyPatch never hardlinks these from the source.
+      // Throwing here aborted syncInjectedDepsAfterScripts and left injected
+      // deps stale — see https://github.com/pnpm/pnpm/issues/13550.
+      addInodeAndAncestors(relativePath, UNSUPPORTED)
     }
-    // Skip FIFOs, sockets, and device nodes (e.g. 1Password `.env` pipes).
-    // Throwing here aborted syncInjectedDepsAfterScripts and left injected
-    // deps stale — see https://github.com/pnpm/pnpm/issues/13550.
   }))
 
   return result

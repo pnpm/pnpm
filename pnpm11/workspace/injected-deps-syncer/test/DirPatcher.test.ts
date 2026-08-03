@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -6,7 +7,7 @@ import { fetchFromDir } from '@pnpm/fetching.directory-fetcher'
 import { prepareEmpty } from '@pnpm/prepare'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 
-import { DirPatcher } from '../src/DirPatcher.js'
+import { DirPatcher, UNSUPPORTED } from '../src/DirPatcher.js'
 
 const originalRm = fs.promises.rm
 const originalMkdir = fs.promises.mkdir
@@ -221,19 +222,19 @@ test('multiple patchers', async () => {
   expect(Array.from(targetFetchResultAfter3.filesMap.keys()).sort(lexCompare)).toStrictEqual(expected)
 })
 
-test('extendFilesMap skips FIFO / unsupported inode types', async () => {
+test('extendFilesMap records FIFO / unsupported inode types as UNSUPPORTED', async () => {
   prepareEmpty()
   createDir('source')
   createFile('source/keep.txt', 'ok')
   const fifoPath = path.resolve('source', 'pipe.env')
+  if (process.platform === 'win32') {
+    return
+  }
   try {
-    fs.mkfifoSync(fifoPath)
-  } catch (err) {
-    // Windows and some CI images lack mkfifo — skip rather than fail.
-    if ((err as NodeJS.ErrnoException).code === 'ENOSYS' || (err as NodeJS.ErrnoException).code === 'EPERM' || process.platform === 'win32') {
-      return
-    }
-    throw err
+    execFileSync('mkfifo', [fifoPath], { stdio: 'ignore' })
+  } catch {
+    // Some CI images lack mkfifo — skip rather than fail.
+    return
   }
 
   const { extendFilesMap } = await import('../src/DirPatcher.js')
@@ -243,5 +244,5 @@ test('extendFilesMap skips FIFO / unsupported inode types', async () => {
   ])
   const inodeMap = await extendFilesMap({ filesMap })
   expect(inodeMap['keep.txt']).toEqual(expect.any(Number))
-  expect(inodeMap['pipe.env']).toBeUndefined()
+  expect(inodeMap['pipe.env']).toBe(UNSUPPORTED)
 })
