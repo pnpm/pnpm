@@ -14,11 +14,6 @@ use super::LoginArgs;
 /// `FakeHost` so it satisfies `LoginHost`. The web-login path these tests drive
 /// never prompts for credentials, so the two prompt impls are unreachable;
 /// `auth.ini` reads return empty and writes are recorded in fn-local state.
-///
-/// Naming `auth_ini_writes` as an extra argument emits the accessor for those
-/// recorded writes, so a scenario that only needs the resolved
-/// [`LoginOptions`](pacquet_auth_commands::login::LoginOptions) doesn't carry an
-/// unused helper. Mirrors `login_fake!` in `pacquet-auth-commands`.
 macro_rules! login_host_fake {
     ($fake:ident $(, $helper:ident)* $(,)?) => {
         thread_local! {
