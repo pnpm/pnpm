@@ -55,7 +55,7 @@ use pacquet_catalogs_resolver::{CatalogResolutionResult, WantedDependency, resol
 use pacquet_catalogs_types::Catalogs;
 use pacquet_config::{Config, LinkWorkspacePackages, NodeLinker};
 use pacquet_lockfile::{ImporterDepVersion, Lockfile, MaybeLazyLockfile, ProjectSnapshot};
-use pacquet_modules_yaml::IncludedDependencies;
+use pacquet_modules_yaml::{Host, IncludedDependencies};
 use pacquet_package_is_installable::SupportedArchitectures;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_workspace_state::{
@@ -322,7 +322,7 @@ pub(crate) fn check_optimistic_repeat_install_ignoring(
                 // `filtered_install` forward: clearing it would claim every
                 // importer is materialized when a filtered install left the
                 // unselected ones untouched.
-                let new_state = crate::install::build_workspace_state(
+                let new_state = crate::install::build_workspace_state::<Host>(
                     workspace_root,
                     config,
                     node_linker,
@@ -1813,7 +1813,7 @@ pub fn check_deps_status_before_run(
                 return outdated(reason);
             }
             if is_workspace_install {
-                let mut new_state = crate::install::build_workspace_state(
+                let mut new_state = crate::install::build_workspace_state::<Host>(
                     workspace_root,
                     config,
                     node_linker,

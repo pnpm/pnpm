@@ -41,7 +41,7 @@ use pacquet_resolving_npm_resolver::InMemoryPackageMetaCache;
 use pacquet_resolving_resolver_base::ResolutionVerifier;
 use pacquet_tarball::MemCache;
 use pacquet_workspace_state::{
-    ProjectEntry, UpdateWorkspaceStateError, WorkspaceState, now_millis, update_workspace_state,
+    ProjectEntry, UpdateWorkspaceStateError, WorkspaceState, update_workspace_state,
 };
 use rayon::prelude::*;
 use std::{
@@ -1877,7 +1877,7 @@ where
             }
             update_workspace_state(
                 &workspace_root,
-                &build_workspace_state(
+                &build_workspace_state::<Host>(
                     &workspace_root,
                     config,
                     node_linker,
@@ -2613,7 +2613,7 @@ where
         // install.
         update_workspace_state(
             &workspace_root,
-            &build_workspace_state(
+            &build_workspace_state::<Host>(
                 &workspace_root,
                 config,
                 node_linker,
@@ -4534,7 +4534,7 @@ fn build_projects_map(
     clippy::too_many_arguments,
     reason = "the workspace-state writer records the install run's resolved inputs"
 )]
-pub(crate) fn build_workspace_state(
+pub(crate) fn build_workspace_state<Sys: pacquet_modules_yaml::Clock>(
     workspace_root: &Path,
     config: &Config,
     node_linker: NodeLinker,
@@ -4550,19 +4550,19 @@ pub(crate) fn build_workspace_state(
         // compares this timestamp against file mtimes, so the two must be
         // on the same clock: on a runner whose wall clock runs ahead of
         // the filesystem's mtime clock (observed ~2 ms on some CI
-        // microVMs), a `now_millis()` baseline can sit above the mtime of
+        // microVMs), a wall-clock baseline can sit above the mtime of
         // a manifest/pnpmfile edited moments later, hiding the edit and
         // wrongly keeping the fast path. The lockfile's own mtime shares
         // the filesystem clock with every file the check compares, so no
         // skew is possible. Mirrors pnpm's `checkDepsStatus`, whose
         // single-project path keys off the wanted lockfile's mtime. Fall
-        // back to the wall clock only when no lockfile was written.
+        // back to the clock only when no lockfile was written.
         last_validated_timestamp: crate::optimistic_repeat_install::validation_baseline_ms(
             workspace_root,
             config,
             project_manifests,
         )
-        .unwrap_or_else(now_millis),
+        .unwrap_or_else(|| pacquet_workspace_state::millis_since_epoch(Sys::now())),
         projects: build_projects_map(project_manifests),
         pnpmfiles: crate::optimistic_repeat_install::current_pnpmfiles(workspace_root),
         filtered_install,

@@ -1,4 +1,9 @@
-use std::{fs, io, path::Path};
+use pacquet_workspace_state::load_workspace_state;
+use std::{
+    fs, io,
+    path::Path,
+    time::{Duration, SystemTime},
+};
 use walkdir::WalkDir;
 
 #[must_use]
@@ -61,17 +66,92 @@ pub fn is_path_executable(path: &Path) -> bool {
     mode & 0b001_001_001 != 0
 }
 
-/// Push `path`'s mtime 2 seconds into the future so the optimistic-repeat
-/// install fast path sees a manifest rewrite. The kernel stamps mtimes from
-/// a coarse clock that can lag the fine-grained clock the workspace state's
-/// `lastValidatedTimestamp` is taken from by a few milliseconds — a manifest
-/// rewritten immediately after an install can sort as "unmodified" and the
-/// next install no-ops. Call this after any post-install manifest rewrite.
-pub fn bump_mtime(path: &Path) {
-    let future = std::time::SystemTime::now() + std::time::Duration::from_secs(2);
+/// The gap that separates two mtimes on every filesystem the tests run on.
+///
+/// A full second, because the coarsest supported filesystems (HFS+, ext4
+/// with 128-byte inodes, some CI runner disks) keep no sub-second component
+/// at all, and the freshness check treats such an mtime as covering its
+/// whole second.
+pub const MTIME_STEP_MS: i64 = 1_000;
+
+/// Milliseconds since the Unix epoch of `path`'s mtime, matching how the
+/// workspace state records `lastValidatedTimestamp`.
+#[must_use]
+pub fn mtime_ms(path: &Path) -> i64 {
+    let modified = fs::metadata(path)
+        .and_then(|metadata| metadata.modified())
+        .unwrap_or_else(|error| panic!("stat {path:?}: {error}"));
+    modified.duration_since(SystemTime::UNIX_EPOCH).map_or_else(
+        |error| panic!("mtime of {path:?} predates the Unix epoch: {error}"),
+        |elapsed| i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX),
+    )
+}
+
+/// Set `path`'s mtime to `ms` milliseconds since the Unix epoch.
+///
+/// A filesystem that keeps only whole-second mtimes rounds the stored value
+/// down, so callers must leave at least [`MTIME_STEP_MS`] of headroom rather
+/// than assume the exact value survives.
+pub fn set_mtime_ms(path: &Path, ms: i64) {
+    let ms = u64::try_from(ms).expect("an mtime at or after the Unix epoch");
+    let modified = SystemTime::UNIX_EPOCH + Duration::from_millis(ms);
     fs::OpenOptions::new()
         .write(true)
         .open(path)
-        .and_then(|file| file.set_times(fs::FileTimes::new().set_modified(future)))
-        .expect("bump mtime past lastValidatedTimestamp");
+        .and_then(|file| file.set_times(fs::FileTimes::new().set_modified(modified)))
+        .unwrap_or_else(|error| panic!("set the mtime of {path:?}: {error}"));
+}
+
+/// Backdate everything currently under `root` and return the
+/// `lastValidatedTimestamp` a test should record for it. Files that already
+/// exist then read as validated, and anything written afterwards reads as
+/// modified, with no sleeping in between.
+///
+/// Both gaps are [`MTIME_STEP_MS`] wide. The returned value is derived from
+/// the newest mtime in the tree rather than from `SystemTime::now`, so it
+/// shares a clock with every file the freshness check compares it against.
+#[must_use]
+pub fn validate_existing_files(root: &Path) -> i64 {
+    // Only regular files: the freshness check stats manifests, lockfiles,
+    // patches, and pnpmfiles, and `set_times` cannot open a directory.
+    let files: Vec<_> = WalkDir::new(root)
+        .into_iter()
+        .map(|entry| entry.expect("access entry"))
+        .filter(|entry| entry.file_type().is_file())
+        .map(walkdir::DirEntry::into_path)
+        .collect();
+    let latest = files
+        .iter()
+        .map(|path| mtime_ms(path))
+        .max()
+        .unwrap_or_else(|| panic!("no file to date the validation from under {root:?}"));
+    for path in &files {
+        set_mtime_ms(path, latest - 2 * MTIME_STEP_MS);
+    }
+    latest - MTIME_STEP_MS
+}
+
+/// Push `path`'s mtime past the `lastValidatedTimestamp` the last install
+/// recorded, so the optimistic-repeat-install fast path sees the rewrite
+/// instead of short-circuiting. Call this after any post-install manifest or
+/// lockfile rewrite.
+///
+/// The new mtime is derived from the recorded timestamp rather than from
+/// `SystemTime::now`, because the two clocks are independent. A wall-clock
+/// offset can land below a baseline that an earlier bump already pushed into
+/// the future, and the kernel stamps mtimes from a coarse clock that lags the
+/// fine-grained one. Without a recorded state to beat (no install has run
+/// yet), the file's own mtime is the baseline.
+pub fn bump_mtime(path: &Path) {
+    let baseline = recorded_validation_timestamp(path).unwrap_or(i64::MIN);
+    set_mtime_ms(path, baseline.max(mtime_ms(path)) + MTIME_STEP_MS);
+}
+
+/// `lastValidatedTimestamp` of the workspace state governing `path`, found
+/// by walking up from its directory. `None` when no install has written one.
+fn recorded_validation_timestamp(path: &Path) -> Option<i64> {
+    path.ancestors()
+        .skip(1)
+        .find_map(|dir| load_workspace_state(dir).expect("read the workspace state"))
+        .map(|state| state.last_validated_timestamp)
 }

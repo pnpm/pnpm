@@ -9,7 +9,10 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pacquet_testing_utils::{
+    bin::{AddMockedRegistry, CommandTempCwd},
+    fs::bump_mtime,
+};
 use std::{fs, net::TcpListener, path::Path, process::Command};
 
 fn pacquet_at(workspace: &Path) -> Command {
@@ -405,12 +408,7 @@ fn a_reused_tree_is_structurally_identical_to_a_fresh_resolve() {
     .expect("write the reuse scenario's initial manifest");
     pacquet_at(&reused.workspace).with_arg("install").assert().success();
     fs::write(&reused_manifest, &both).expect("add the second dep to the reuse scenario");
-    let future = std::time::SystemTime::now() + std::time::Duration::from_secs(2);
-    std::fs::OpenOptions::new()
-        .write(true)
-        .open(&reused_manifest)
-        .and_then(|file| file.set_times(std::fs::FileTimes::new().set_modified(future)))
-        .expect("bump manifest mtime");
+    bump_mtime(&reused_manifest);
     pacquet_at(&reused.workspace).with_arg("install").assert().success();
     let reused_lockfile =
         fs::read_to_string(reused.workspace.join("pnpm-lock.yaml")).expect("read reused lockfile");
@@ -525,12 +523,7 @@ fn an_edge_denied_reuse_keeps_the_subtree_instead_of_reading_the_synthesized_reu
     // pkg-a's (already-walked) edge reused it.
     fs::write(&pkg_b_manifest_path, pkg_b_manifest("100.1.0"))
         .expect("bump dep-of-pkg-with-1-dep in pkg-b");
-    let future = std::time::SystemTime::now() + std::time::Duration::from_secs(2);
-    fs::OpenOptions::new()
-        .write(true)
-        .open(&pkg_b_manifest_path)
-        .and_then(|file| file.set_times(std::fs::FileTimes::new().set_modified(future)))
-        .expect("bump manifest mtime");
+    bump_mtime(&pkg_b_manifest_path);
     pacquet_at(workspace).with_arg("install").assert().success();
 
     let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml after bump");

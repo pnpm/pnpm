@@ -267,7 +267,15 @@ pub enum LoadWorkspaceStateError {
 /// 2038-pre-292277026596 range is the only one that matters.
 #[must_use]
 pub fn now_millis() -> i64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |duration| duration.as_millis() as i64)
+    millis_since_epoch(SystemTime::now())
+}
+
+/// Milliseconds since the Unix epoch of `time`, in the same units as
+/// [`now_millis`]. Lets a caller that reads the clock through a
+/// dependency-injection seam produce the value the state file records.
+#[must_use]
+pub fn millis_since_epoch(time: SystemTime) -> i64 {
+    time.duration_since(UNIX_EPOCH).map_or(0, |duration| duration.as_millis() as i64)
 }
 
 #[cfg(test)]
