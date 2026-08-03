@@ -407,7 +407,14 @@ export async function recursive (
         const { manifest, writeProjectManifest } = manifestsByPath[rootDir]
         let currentInput = [...params]
         if (updateMatch != null) {
-          currentInput = matchDependencies(updateMatch, manifest, includeDirect)
+          const matchInclude = cmdFullName === 'remove' && targetDependenciesField != null
+            ? {
+              dependencies: targetDependenciesField === 'dependencies',
+              devDependencies: targetDependenciesField === 'devDependencies',
+              optionalDependencies: targetDependenciesField === 'optionalDependencies',
+            }
+            : includeDirect
+          currentInput = matchDependencies(updateMatch, manifest, matchInclude)
           if (currentInput.length === 0) return
         }
         if (updateToLatest && (!params || (params.length === 0))) {

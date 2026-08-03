@@ -3,7 +3,8 @@ import { readFile } from 'node:fs/promises'
 import { expect, test } from '@jest/globals'
 import type { PnpmError } from '@pnpm/error'
 import { remove } from '@pnpm/installing.commands'
-import { prepare } from '@pnpm/prepare'
+import { prepare, preparePackages } from '@pnpm/prepare'
+import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 
 import { DEFAULT_OPTS } from '../utils/index.js'
 
@@ -98,6 +99,39 @@ test('remove expands dependency glob patterns', async () => {
 
   const manifest = JSON.parse(await readFile('package.json', 'utf8'))
   expect(manifest.dependencies).toStrictEqual({
+    'is-positive': '1.0.0',
+  })
+})
+
+test('recursive remove with dependency glob patterns respects the selected dependency field', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+      devDependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+
+  await remove.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    recursive: true,
+    saveProd: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  }, ['is-*'])
+
+  const manifest = JSON.parse(await readFile('project-1/package.json', 'utf8'))
+  expect(manifest.dependencies).toBeUndefined()
+  expect(manifest.devDependencies).toStrictEqual({
     'is-positive': '1.0.0',
   })
 })
