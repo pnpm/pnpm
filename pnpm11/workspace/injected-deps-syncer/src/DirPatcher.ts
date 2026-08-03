@@ -106,12 +106,6 @@ export async function applyPatch (optimizedDirPatch: DirDiff, sourceDir: string,
     }
   }
 
-  const adding = Promise.all(optimizedDirPatch.added.map(async item => {
-    const sourcePath = path.join(sourceDir, item.path)
-    const targetPath = path.join(targetDir, item.path)
-    await addRecursive(sourcePath, targetPath, item.newValue)
-  }))
-
   const removing = Promise.all(optimizedDirPatch.removed.map(async item => {
     const targetPath = path.join(targetDir, item.path)
     await removeRecursive(targetPath)
@@ -125,7 +119,14 @@ export async function applyPatch (optimizedDirPatch: DirDiff, sourceDir: string,
     await addRecursive(sourcePath, targetPath, item.newValue)
   }))
 
-  await Promise.all([adding, removing, modifying])
+  // Finish removals/replacements before adds so a parent modified from a
+  // special inode (or file) into a directory cannot rm children linked by adds.
+  await Promise.all([removing, modifying])
+  await Promise.all(optimizedDirPatch.added.map(async item => {
+    const sourcePath = path.join(sourceDir, item.path)
+    const targetPath = path.join(targetDir, item.path)
+    await addRecursive(sourcePath, targetPath, item.newValue)
+  }))
 }
 
 export type ExtendFilesMapStats = Pick<fs.Stats, 'ino' | 'isFile' | 'isDirectory'>
@@ -162,10 +163,8 @@ export async function extendFilesMap ({ filesMap, filesStats }: ExtendFilesMapOp
       addInodeAndAncestors(relativePath, DIR)
     } else {
       // FIFOs, sockets, and device nodes (e.g. 1Password `.env` pipes).
-      // Record as UNSUPPORTED so a target-side special can be removed/replaced;
-      // applyPatch never hardlinks these from the source.
-      // Throwing here aborted syncInjectedDepsAfterScripts and left injected
-      // deps stale — see https://github.com/pnpm/pnpm/issues/13550.
+      // Keep them in the diff so target-side specials can be removed or replaced;
+      // applyPatch never materializes them from the source.
       addInodeAndAncestors(relativePath, UNSUPPORTED)
     }
   }))
