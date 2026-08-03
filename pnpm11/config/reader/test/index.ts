@@ -1485,19 +1485,35 @@ test('expands ${ENV} placeholders inside global config.yaml _auth authToken valu
       },
     },
   })
+  const originalXdg = process.env.XDG_CONFIG_HOME
+  const originalYamlToken = process.env.YAML_AUTH_TOKEN
   process.env.XDG_CONFIG_HOME = path.resolve('.config')
   process.env.YAML_AUTH_TOKEN = 'yaml-resolved'
 
-  const { config } = await getConfig({
-    cliOptions: {},
-    env: {
-      ...env,
-      YAML_AUTH_TOKEN: 'yaml-resolved',
-    },
-    packageManager: { name: 'pnpm', version: '1.0.0' },
-  })
+  try {
+    const { config } = await getConfig({
+      cliOptions: {},
+      env: {
+        ...env,
+        YAML_AUTH_TOKEN: 'yaml-resolved',
+        XDG_CONFIG_HOME: path.resolve('.config'),
+      },
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+    })
 
-  expect(config.authConfig['//yaml-auth.example/:_authToken']).toBe('yaml-resolved')
+    expect(config.authConfig['//yaml-auth.example/:_authToken']).toBe('yaml-resolved')
+  } finally {
+    if (originalXdg === undefined) {
+      delete process.env.XDG_CONFIG_HOME
+    } else {
+      process.env.XDG_CONFIG_HOME = originalXdg
+    }
+    if (originalYamlToken === undefined) {
+      delete process.env.YAML_AUTH_TOKEN
+    } else {
+      process.env.YAML_AUTH_TOKEN = originalYamlToken
+    }
+  }
 })
 
 test('pnpm_config__auth normalizes registry URL keys before keying auth', async () => {
