@@ -17,7 +17,7 @@ import {
   run,
 } from '@pnpm/exec.commands'
 import { add, dedupe, fetch, importCommand, install, link, prune, remove, unlink, update } from '@pnpm/installing.commands'
-import { patch, patchCommit, patchRemove } from '@pnpm/patching.commands'
+import { edit, patch, patchCommit, patchRemove } from '@pnpm/patching.commands'
 import { pkg, setScript } from '@pnpm/pkg-manifest.commands'
 import { access, deprecate, distTag, owner, ping, search, star, stars, team, undeprecate, unpublish, unstar, whoami } from '@pnpm/registry-access.commands'
 import { change, deploy, lane, pack, packApp, publish, stage, version } from '@pnpm/releasing.commands'
@@ -168,6 +168,7 @@ const commands: CommandDefinition[] = [
   outdated,
   pack,
   packApp,
+  edit,
   patch,
   patchCommit,
   patchRemove,
