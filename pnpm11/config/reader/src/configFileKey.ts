@@ -43,6 +43,7 @@ export const pnpmConfigFileKeys = [
   'minimum-release-age-ignore-missing-time',
   'minimum-release-age-strict',
   'network-concurrency',
+  'node-download-mirrors',
   'node-experimental-package-map',
   'node-package-map-type',
   'noproxy',
