@@ -98,3 +98,23 @@ test('check for updates when last update check happened two days ago', async () 
   expect(state.lastUpdateCheck).toBeDefined()
   expect(state.lastUpdateCheck).not.toEqual(initialLastUpdateCheck)
 })
+
+test('does not check for updates when updateNotifier is false', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+  await checkForUpdates({
+    ...config,
+    stateDir: process.cwd(),
+    updateNotifier: false,
+  })
+
+  expect(updateCheckLogger.debug).not.toHaveBeenCalled()
+  expect(() => loadJsonFileSync('pnpm-state.json')).toThrow()
+})
