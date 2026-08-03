@@ -162,10 +162,8 @@ impl WorkspaceSettings {
         json_field!(prefer_offline, "PREFER_OFFLINE");
         json_field!(lockfile_include_tarball_url, "LOCKFILE_INCLUDE_TARBALL_URL");
         string_field!(registry, "REGISTRY");
-        // Unlike its `string_field!` neighbors, `scope` keeps an empty value
-        // (see [`read_env_allow_empty`]): `PNPM_CONFIG_SCOPE=` must clobber a
-        // scope from a lower-priority layer, matching the TypeScript CLI's env
-        // pass.
+        // Unlike its `string_field!` neighbors, `scope` keeps an empty value;
+        // see [`read_env_allow_empty`] for why.
         if let Some(scope) = read_env_allow_empty::<Sys>("SCOPE") {
             settings.scope = Some(scope);
         }
