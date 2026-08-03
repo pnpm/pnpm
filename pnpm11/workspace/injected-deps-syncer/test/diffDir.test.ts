@@ -1,6 +1,6 @@
 import { expect, test } from '@jest/globals'
 
-import { diffDir, DIR, UNSUPPORTED, type DirDiff, type InodeMap } from '../src/DirPatcher.js'
+import { diffDir, DIR, type DirDiff, type InodeMap, UNSUPPORTED } from '../src/DirPatcher.js'
 
 test('produces a diff', () => {
   const unchangedParts = {
