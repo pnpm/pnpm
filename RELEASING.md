@@ -26,30 +26,44 @@ See [#13578](https://github.com/pnpm/pnpm/issues/13578).
 
    ```bash
    git fetch origin
-   git checkout <merge-commit-sha>
+   SHA=<merge-commit-sha>          # the commit the release PR merged as
+   git checkout "$SHA"
 
-   # Tag only the products whose version actually changed this release.
-   git tag -s "v$(jq -r .version pnpm11/pnpm/package.json)" -m "v$(jq -r .version pnpm11/pnpm/package.json)"
-   git tag -s "v$(jq -r .version pnpm/npm/pnpm/package.json)" -m "v$(jq -r .version pnpm/npm/pnpm/package.json)"
-   git tag -s "pnpr@$(jq -r .version pnpr/npm/pnpr/package.json)" -m "pnpr@$(jq -r .version pnpr/npm/pnpr/package.json)"
+   # Read each version from the manifest at that exact commit, and tag that
+   # commit explicitly. Always pass the target commit: a bare `git tag -s <name>`
+   # signs whatever HEAD happens to be, which is how a version tag ends up
+   # naming code that was never reviewed as part of this release.
+   tags=(
+     "v$(git show "$SHA:pnpm11/pnpm/package.json" | jq -r .version)"
+     "v$(git show "$SHA:pnpm/npm/pnpm/package.json" | jq -r .version)"
+     "pnpr@$(git show "$SHA:pnpr/npm/pnpr/package.json" | jq -r .version)"
+   )
+
+   # Keep only the products whose version actually changed this release —
+   # drop the rest from the array before tagging.
+   for tag in "${tags[@]}"; do
+     git tag -s "$tag" -m "$tag" "$SHA"
+   done
    ```
 
    `-s` is what makes the tag verifiable; a lightweight tag (plain `git tag
    <name>`) has no object to carry a signature, and `git verify-tag` fails on it
    with `cannot verify a non-tag object of type commit`.
 
-4. Verify before pushing — this is the check that would have caught the
-   regression in #13578:
+4. Verify **every** tag you just created before pushing — a multi-product
+   release must not leave one of its tags unchecked, and a pnpr-only release
+   has no `v<version>` tag at all. `release.yml` rejects an unsigned tag
+   anyway, but catching it here saves a failed run:
 
    ```bash
-   git verify-tag v<version>
+   for tag in "${tags[@]}"; do git verify-tag "$tag"; done
    ```
 
 5. Push. Each tag push starts a `release.yml` run for the product it names, and
    several tags pushed together release in parallel:
 
    ```bash
-   git push origin v<version> [pnpr@<version> ...]
+   git push origin "${tags[@]}"
    ```
 
 ## Reruns and partial releases
@@ -63,21 +77,31 @@ When a run fails and the fix is a code change, commit the fix, move the tag to
 the new commit and push it again:
 
 ```bash
-git push origin :refs/tags/v<version>          # drop the remote tag
-git tag -d v<version>
-git tag -s v<version> -m "v<version>"          # re-sign at the fixed commit
-git push origin v<version>
+TAG=v<version>        # or pnpr@<version> — use the tag of the product that failed
+FIXED=<sha-of-the-fix-commit>
+
+git push origin ":refs/tags/$TAG"     # drop the remote tag
+git tag -d "$TAG"
+git tag -s "$TAG" -m "$TAG" "$FIXED"  # re-sign, at the fixed commit explicitly
+git verify-tag "$TAG"
+git push origin "$TAG"
 ```
 
+Pass `$FIXED` rather than letting `git tag -s` default to `HEAD`: the tag is
+what `release.yml` builds and publishes from, so a tag that accidentally names
+the wrong commit ships unreviewed code under a released version number.
+
 Re-creating the tag this way changes the ref, which fires a `push` event and
-starts a fresh run. Note the tag must be re-signed — `git tag -f` without `-s`
-would quietly replace a signed tag with an unsigned one and reintroduce
-[#13578](https://github.com/pnpm/pnpm/issues/13578).
+starts a fresh run. The tag must be re-signed — `git tag -f` without `-s` would
+quietly replace a signed tag with an unsigned one, which `release.yml` now
+rejects outright.
 
 Pushing a tag that is *already* on the remote unchanged is a different matter:
 it is a no-op, fires no event, and starts no run. To rerun the same commit
-without moving the tag, re-run the failed run from the Actions UI or use the
-`workflow_dispatch` trigger.
+without moving the tag, re-run the failed run from the Actions UI, or dispatch
+the workflow **against the release tag itself** — `validate-release-ref`
+rejects a dispatch from a branch, so dispatching from the default branch
+publishes nothing.
 
 Either way, because the gate package is published last, a run that failed
 partway leaves the gate unpublished, so the plan job picks the product up
