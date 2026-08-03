@@ -2,8 +2,10 @@
 # Resolves merge conflicts for a GitHub PR by rebasing onto the latest base branch.
 #
 # Usage:
-#   ./shell/resolve-pr-conflicts.sh <PR_NUMBER>            # full run
-#   ./shell/resolve-pr-conflicts.sh <PR_NUMBER> --continue  # finish after manual resolution
+#   ./shell/resolve-pr-conflicts.sh <PR_NUMBER>                 # full run
+#   ./shell/resolve-pr-conflicts.sh <PR_NUMBER> --continue       # finish after manual resolution
+#   ./shell/resolve-pr-conflicts.sh <PR_NUMBER> --continue --no-push
+#   ./shell/resolve-pr-conflicts.sh <PR_NUMBER> --no-push        # resolve locally without force-push
 #
 # Prerequisites:
 # - gh CLI authenticated with access to pnpm/pnpm
@@ -16,13 +18,34 @@
 # 3. Rebases the current branch onto it
 # 4. Auto-resolves pnpm-lock.yaml conflicts via lockfile-only install
 # 5. For other conflicts, exits with the list of files needing manual resolution
-# 6. After manual resolution, call with --continue to finish (rebase continue + push + verify)
+# 6. After manual resolution, call with --continue to finish (rebase continue + optional push + verify)
 
 set -euo pipefail
 
-PR_NUMBER="${1:?Usage: $0 <PR_NUMBER> [--continue]}"
-CONTINUE_MODE="${2:-}"
+PR_NUMBER="${1:?Usage: $0 <PR_NUMBER> [--continue] [--no-push]}"
+shift || true
+
+CONTINUE_MODE=0
+NO_PUSH=0
+for arg in "$@"; do
+  case "$arg" in
+    --continue) CONTINUE_MODE=1 ;;
+    --no-push) NO_PUSH=1 ;;
+    *)
+      echo "Unknown argument: $arg"
+      echo "Usage: $0 <PR_NUMBER> [--continue] [--no-push]"
+      exit 1
+      ;;
+  esac
+done
+
 REPO="pnpm/pnpm"
+
+in_rebase () {
+  git rev-parse --git-path rebase-merge >/dev/null 2>&1 && [ -d "$(git rev-parse --git-path rebase-merge)" ] && return 0
+  git rev-parse --git-path rebase-apply >/dev/null 2>&1 && [ -d "$(git rev-parse --git-path rebase-apply)" ] && return 0
+  return 1
+}
 
 # Verify origin points to pnpm/pnpm (strict match for HTTPS or SSH)
 ORIGIN_URL=$(git remote get-url origin 2>/dev/null || echo "")
@@ -38,9 +61,19 @@ echo "Fetching PR #${PR_NUMBER} metadata..."
 HEAD_OWNER=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json headRepositoryOwner --jq .headRepositoryOwner.login)
 HEAD_BRANCH=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json headRefName --jq .headRefName)
 
-# Ensure we're on the PR branch (do this before determining push remote so gh can set up fork remotes)
+# --continue must run before any checkout: during a paused rebase HEAD is
+# detached, so the branch check would call `gh pr checkout` and wipe staged
+# conflict resolutions (https://github.com/pnpm/pnpm/issues/13106).
+if [ "$CONTINUE_MODE" -eq 1 ]; then
+  if ! in_rebase; then
+    echo "ERROR: --continue requires an in-progress rebase (rebase-merge / rebase-apply)."
+    exit 1
+  fi
+fi
+
+# Ensure we're on the PR branch (skip while a rebase is already in progress)
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
-if [ "$CURRENT_BRANCH" != "$HEAD_BRANCH" ]; then
+if ! in_rebase && [ "$CURRENT_BRANCH" != "$HEAD_BRANCH" ]; then
   echo "Not on PR branch ($CURRENT_BRANCH != $HEAD_BRANCH). Checking out via gh..."
   gh pr checkout "$PR_NUMBER"
   CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
@@ -71,8 +104,28 @@ regenerate_lockfile() {
   git add pnpm-lock.yaml
 }
 
-# --continue mode: finish a previously paused rebase, then push
-if [ "$CONTINUE_MODE" = "--continue" ]; then
+push_and_verify() {
+  if [ "$NO_PUSH" -eq 1 ]; then
+    echo "Skipping push (--no-push). Rebase finished locally on $HEAD_BRANCH."
+    return 0
+  fi
+  echo "Force-pushing to $REMOTE/$HEAD_BRANCH..."
+  git push "$REMOTE" "HEAD:$HEAD_BRANCH" --force-with-lease
+
+  echo "Waiting for GitHub to update mergeability..."
+  sleep 10
+  MERGEABLE=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json mergeable --jq .mergeable)
+  MERGE_STATE=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json mergeStateStatus --jq .mergeStateStatus)
+  echo "PR status: mergeable=$MERGEABLE mergeStateStatus=$MERGE_STATE"
+  if [ "$MERGEABLE" = "MERGEABLE" ]; then
+    echo "Conflicts resolved successfully!"
+  else
+    echo "WARNING: GitHub still reports conflicts. Main may have moved again — re-run this script."
+  fi
+}
+
+# --continue mode: finish a previously paused rebase, then optionally push
+if [ "$CONTINUE_MODE" -eq 1 ]; then
   echo "Continuing rebase..."
 
   # Regenerate lockfile if it was among the conflicted files
@@ -88,14 +141,7 @@ if [ "$CONTINUE_MODE" = "--continue" ]; then
     exit 1
   fi
 
-  echo "Force-pushing to $REMOTE/$HEAD_BRANCH..."
-  git push "$REMOTE" "HEAD:$HEAD_BRANCH" --force-with-lease
-
-  echo "Waiting for GitHub to update mergeability..."
-  sleep 10
-  MERGEABLE=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json mergeable --jq .mergeable)
-  echo "PR mergeable: $MERGEABLE"
-  [ "$MERGEABLE" = "MERGEABLE" ] && echo "Conflicts resolved successfully!" || echo "WARNING: GitHub still reports conflicts. Re-run this script."
+  push_and_verify
   exit 0
 fi
 
@@ -152,6 +198,8 @@ else
     echo ""
     echo "After resolving, stage the files with 'git add' and run:"
     echo "  $0 $PR_NUMBER --continue"
+    echo "Or resolve without pushing:"
+    echo "  $0 $PR_NUMBER --continue --no-push"
     exit 1
   fi
 
@@ -166,19 +214,4 @@ else
   fi
 fi
 
-# Force push
-echo "Force-pushing to $REMOTE/$HEAD_BRANCH..."
-git push "$REMOTE" "HEAD:$HEAD_BRANCH" --force-with-lease
-
-# Verify
-echo "Waiting for GitHub to update mergeability..."
-sleep 10
-MERGEABLE=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json mergeable --jq .mergeable)
-MERGE_STATE=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json mergeStateStatus --jq .mergeStateStatus)
-echo "PR status: mergeable=$MERGEABLE mergeStateStatus=$MERGE_STATE"
-
-if [ "$MERGEABLE" = "MERGEABLE" ]; then
-  echo "Conflicts resolved successfully!"
-else
-  echo "WARNING: GitHub still reports conflicts. Main may have moved again — re-run this script."
-fi
+push_and_verify
