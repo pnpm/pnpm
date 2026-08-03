@@ -28,7 +28,8 @@ on:
         type: boolean
         default: false
 
-# A release PR that bumps several products auto-tags each one (tag-release.yml),
+# A release PR that bumps several products is tagged per product by hand, with
+# a signed annotated tag pushed from a maintainer's machine (see RELEASING.md),
 # so several version tags can land together and start a run apiece. Each run
 # releases only the product its tag names (see the plan job), so simultaneous
 # runs publish disjoint packages and may proceed in parallel. The group is
