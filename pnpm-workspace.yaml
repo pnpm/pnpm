@@ -163,7 +163,7 @@ catalog:
   '@types/qrcode-terminal': ^0.12.2
   '@types/ramda': 0.32.0
   '@types/retry': ^0.12.5
-  '@types/semver': 7.7.1
+  '@types/semver': 7.8.0
   '@types/ssri': ^7.1.5
   '@types/tar-stream': ^3.1.4
   '@types/touch': ^3.1.5
