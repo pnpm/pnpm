@@ -52,9 +52,23 @@ See [#13578](https://github.com/pnpm/pnpm/issues/13578).
    git push origin v<version> [pnpr@<version> ...]
    ```
 
-`release.yml` gates the actual publish on what npm reports as unpublished, so
-re-pushing or re-running a tag resumes a partial release and skips a complete
-one.
+## Reruns and partial releases
+
+`release.yml`'s plan job asks npm whether each product's *gate* package is
+already published — the one that product's publish job publishes last (`pnpm`
+for both CLIs, `@pnpm/pnpr` for pnpr) — and skips the product entirely if it
+is. A release that ran to completion is therefore a no-op on rerun.
+
+Recovering a *partial* release is not a matter of pushing the tag again.
+Pushing a tag already present on the remote is a no-op that fires no `push`
+event, so it starts no run. Instead re-run the failed run from the Actions UI,
+or use the `workflow_dispatch` trigger.
+
+Because the gate package is published last, a run that failed partway leaves
+the gate unpublished, so the plan job will pick the product up again. But the
+packages that did publish before the failure are immutable on npm and cannot be
+republished — read the failed run's logs to see how far it got before retrying,
+rather than assuming the rerun starts from a clean slate.
 
 ## Signing setup
 
