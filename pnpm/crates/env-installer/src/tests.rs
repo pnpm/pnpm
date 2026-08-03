@@ -268,16 +268,16 @@ async fn resolves_package_manager_dependencies_graph() {
     let resolver = FixtureResolver::new()
         .package(serde_json::json!({
             "name": "pnpm",
-            "version": "100.0.0",
+            "version": "11.0.0",
             "bin": "bin/pnpm.cjs",
             "engines": { "node": ">=22.0.0" },
         }))
         .package(serde_json::json!({
             "name": "@pnpm/exe",
-            "version": "100.0.0",
+            "version": "11.0.0",
             "bin": { "pnpm": "bin/pnpm.cjs" },
             "dependencies": { "detect-libc": "2.0.0" },
-            "optionalDependencies": { "@pnpm/linuxstatic-x64": "100.0.0" },
+            "optionalDependencies": { "@pnpm/linuxstatic-x64": "11.0.0" },
         }))
         .package(serde_json::json!({
             "name": "detect-libc",
@@ -286,15 +286,15 @@ async fn resolves_package_manager_dependencies_graph() {
         }))
         .package(serde_json::json!({
             "name": "@pnpm/linuxstatic-x64",
-            "version": "100.0.0",
+            "version": "11.0.0",
             "cpu": ["x64"],
             "os": ["linux"],
             "libc": "musl",
         }));
 
     resolve_package_manager_integrities(
-        "^100.0.0",
-        "100.0.0",
+        "^11.0.0",
+        "11.0.0",
         &resolver,
         &options(&harness, root.path(), false),
     )
@@ -306,15 +306,15 @@ async fn resolves_package_manager_dependencies_graph() {
         .package_manager_dependencies
         .as_ref()
         .expect("package manager deps recorded");
-    assert_eq!(pm_deps["pnpm"].specifier, "^100.0.0");
-    assert_eq!(pm_deps["pnpm"].version, "100.0.0");
-    assert_eq!(pm_deps["@pnpm/exe"].specifier, "^100.0.0");
-    assert_eq!(pm_deps["@pnpm/exe"].version, "100.0.0");
+    assert_eq!(pm_deps["pnpm"].specifier, "^11.0.0");
+    assert_eq!(pm_deps["pnpm"].version, "11.0.0");
+    assert_eq!(pm_deps["@pnpm/exe"].specifier, "^11.0.0");
+    assert_eq!(pm_deps["@pnpm/exe"].version, "11.0.0");
 
-    let pnpm_key: PackageKey = "pnpm@100.0.0".parse().unwrap();
-    let exe_key: PackageKey = "@pnpm/exe@100.0.0".parse().unwrap();
+    let pnpm_key: PackageKey = "pnpm@11.0.0".parse().unwrap();
+    let exe_key: PackageKey = "@pnpm/exe@11.0.0".parse().unwrap();
     let libc_key: PackageKey = "detect-libc@2.0.0".parse().unwrap();
-    let platform_key: PackageKey = "@pnpm/linuxstatic-x64@100.0.0".parse().unwrap();
+    let platform_key: PackageKey = "@pnpm/linuxstatic-x64@11.0.0".parse().unwrap();
 
     assert_eq!(env.packages[&pnpm_key].has_bin, Some(true));
     assert_eq!(env.packages[&pnpm_key].engines.as_ref().unwrap()["node"], ">=22.0.0");
@@ -329,12 +329,12 @@ async fn resolves_package_manager_dependencies_graph() {
     assert_eq!(detect_libc_ref, "2.0.0");
     assert_eq!(
         exe_snapshot.optional_dependencies.as_ref().unwrap()[&platform_name].to_string(),
-        "100.0.0",
+        "11.0.0",
     );
     assert!(env.snapshots[&platform_key].optional);
     assert!(!env.snapshots[&libc_key].optional);
-    assert!(is_package_manager_resolved(&env, "^100.0.0", "100.0.0"));
-    assert!(!is_package_manager_resolved(&env, "~100.0.0", "100.0.0"));
+    assert!(is_package_manager_resolved(&env, "^11.0.0", "11.0.0"));
+    assert!(!is_package_manager_resolved(&env, "~11.0.0", "11.0.0"));
 
     let mut env_with_extra_pm_dep = env.clone();
     env_with_extra_pm_dep
@@ -348,7 +348,57 @@ async fn resolves_package_manager_dependencies_graph() {
             "yarn".to_string(),
             SpecifierAndResolution { specifier: "1.0.0".to_string(), version: "1.0.0".to_string() },
         );
-    assert!(!is_package_manager_resolved(&env_with_extra_pm_dep, "^100.0.0", "100.0.0",));
+    assert!(!is_package_manager_resolved(&env_with_extra_pm_dep, "^11.0.0", "11.0.0",));
+}
+
+#[tokio::test]
+async fn resolves_package_manager_dependencies_without_exe_from_v12() {
+    let harness = harness();
+    let root = TempDir::new().unwrap();
+    let resolver = FixtureResolver::new()
+        .package(serde_json::json!({
+            "name": "pnpm",
+            "version": "12.0.0",
+            "bin": { "pnpm": "pnpm" },
+            "optionalDependencies": { "@pnpm/exe.linux-x64": "12.0.0" },
+        }))
+        .package(serde_json::json!({
+            "name": "@pnpm/exe.linux-x64",
+            "version": "12.0.0",
+            "cpu": ["x64"],
+            "os": ["linux"],
+        }));
+
+    resolve_package_manager_integrities(
+        "^12.0.0",
+        "12.0.0",
+        &resolver,
+        &options(&harness, root.path(), false),
+    )
+    .await
+    .unwrap();
+
+    let env = EnvLockfile::read(root.path()).unwrap().expect("env lockfile written");
+    let pm_deps = env.importers[EnvLockfile::ROOT_IMPORTER_KEY]
+        .package_manager_dependencies
+        .as_ref()
+        .expect("package manager deps recorded");
+    assert_eq!(pm_deps.len(), 1);
+    assert_eq!(pm_deps["pnpm"].specifier, "^12.0.0");
+    assert_eq!(pm_deps["pnpm"].version, "12.0.0");
+    assert!(!pm_deps.contains_key("@pnpm/exe"));
+
+    let pnpm_key: PackageKey = "pnpm@12.0.0".parse().unwrap();
+    let platform_key: PackageKey = "@pnpm/exe.linux-x64@12.0.0".parse().unwrap();
+    assert!(env.packages.contains_key(&pnpm_key));
+    assert!(env.packages.contains_key(&platform_key));
+    let platform_name = "@pnpm/exe.linux-x64".parse().unwrap();
+    assert_eq!(
+        env.snapshots[&pnpm_key].optional_dependencies.as_ref().unwrap()[&platform_name]
+            .to_string(),
+        "12.0.0",
+    );
+    assert!(is_package_manager_resolved(&env, "^12.0.0", "12.0.0"));
 }
 
 #[tokio::test]

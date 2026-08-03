@@ -21,13 +21,13 @@ use p256::{
 };
 use pacquet_config::Config;
 use pacquet_graph_hasher::{host_arch, host_libc, host_platform};
-use pacquet_lockfile::{EnvLockfile, PackageKey, SnapshotDepRef};
+use pacquet_lockfile::{EnvLockfile, PackageKey, SnapshotDepRef, SpecifierAndResolution};
 use pacquet_network::{
     NetworkSettings, RetryOpts, ThrottledClient, encode_package_name, redact_url_credentials,
     send_with_retry,
 };
 use serde::Deserialize;
-use std::time::Duration;
+use std::{collections::BTreeMap, time::Duration};
 
 use super::{
     SelfUpdateError,
@@ -117,9 +117,9 @@ pub(crate) async fn verify_pnpm_engine_identity(
 }
 
 /// Collect the engine components to verify from the env lockfile: `pnpm`,
-/// `@pnpm/exe`, and the host's `@pnpm/exe` platform binary (an optional
-/// dependency of `@pnpm/exe`). Errors if a present component carries no
-/// integrity.
+/// `@pnpm/exe`, and the host's platform binary (an optional dependency of
+/// the native wrapper, see [`native_engine_wrapper`]). Errors if a present
+/// component carries no integrity.
 fn collect_engine_components(
     env: &EnvLockfile,
     config: &Config,
@@ -139,14 +139,13 @@ fn collect_engine_components(
         }
     }
 
-    // The bytes actually executed are the host's `@pnpm/exe` platform
-    // binary, listed as an optional dependency of `@pnpm/exe`. Since this
-    // is the native code self-update will run, a missing snapshot, missing
-    // optional deps, or no host candidate fails closed rather than letting
-    // verification pass on `pnpm`/`@pnpm/exe` alone.
-    if let Some(exe) = pm_deps.get("@pnpm/exe") {
-        let exe_version = &exe.version;
-        let snapshot_label = format!("@pnpm/exe@{exe_version}");
+    // The bytes actually executed are the host's platform binary, listed as
+    // an optional dependency of the native wrapper. Since this is the native
+    // code self-update will run, a missing snapshot, missing optional deps,
+    // or no host candidate fails closed rather than letting verification pass
+    // on the wrappers alone.
+    if let Some((wrapper_name, wrapper_version)) = native_engine_wrapper(pm_deps) {
+        let snapshot_label = format!("{wrapper_name}@{wrapper_version}");
         let snapshot_key = snapshot_label.parse::<PackageKey>().map_err(|_| {
             SelfUpdateError::EngineIdentityUnverifiable {
                 message: format!(
@@ -188,6 +187,22 @@ fn collect_engine_components(
     }
 
     Ok(to_verify)
+}
+
+/// The engine package whose optional dependencies carry the host's native
+/// binary: `@pnpm/exe` when the lockfile pins it, otherwise `pnpm` itself
+/// for `>=12`, where the unscoped package is the native executable. `None`
+/// when the lockfile pins only a JS-only `pnpm` (`<6.17.1`), which has no
+/// platform binaries.
+fn native_engine_wrapper(
+    pm_deps: &BTreeMap<String, SpecifierAndResolution>,
+) -> Option<(&str, &str)> {
+    if let Some(exe) = pm_deps.get("@pnpm/exe") {
+        return Some(("@pnpm/exe", &exe.version));
+    }
+    let pnpm = pm_deps.get("pnpm")?;
+    let version = node_semver::Version::parse(&pnpm.version).ok()?;
+    (version.major >= 12).then_some(("pnpm", pnpm.version.as_str()))
 }
 
 /// Build the [`EngineComponent`] for `name@version`, reading its integrity

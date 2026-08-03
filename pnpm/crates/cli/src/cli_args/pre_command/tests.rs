@@ -552,24 +552,16 @@ importers:
   .:
     configDependencies: {{}}
     packageManagerDependencies:
-      '@pnpm/exe':
-        specifier: '{specifier}'
-        version: {version}
       pnpm:
         specifier: '{specifier}'
         version: {version}
 
 packages:
 
-  '@pnpm/exe@{version}':
-    resolution: {{integrity: sha512-di6YvqPO/2jvih6kCJ8r0ySzQNjQWrBXPEfqEHtrmwOamuNALnfASwhFBwEtMjWmaA8QG7TqAg2qEvAe+8cBkQ==}}
-
   pnpm@{version}:
     resolution: {{integrity: sha512-QVocwll0cx51RVwUaDcb50xapft2IbUNQFbSIkUWCfEUEvI/1gLmFp8eBgRmZB95hZfhvpYaEGiINqZ7FlaUmQ==}}
 
 snapshots:
-
-  '@pnpm/exe@{version}': {{}}
 
   pnpm@{version}: {{}}
 ---

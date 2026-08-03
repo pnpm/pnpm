@@ -1,12 +1,18 @@
+import { parseRegistryQualifiedVersion } from '@pnpm/deps.path'
 import { convertToLockfileFile, createEnvLockfile, readEnvLockfile } from '@pnpm/lockfile.fs'
 import { pruneSharedLockfile } from '@pnpm/lockfile.pruner'
-import type { EnvLockfile } from '@pnpm/lockfile.types'
+import type { EnvLockfile, LockfileObject } from '@pnpm/lockfile.types'
 import type { StoreController } from '@pnpm/store.controller'
 import type { DepPath, ProjectId, Registries } from '@pnpm/types'
+import semver from 'semver'
 
 import { convertToLockfileEnvObject } from './pruneEnvLockfile.js'
 import { resolveManifestDependencies } from './resolveManifestDependencies.js'
 import { writeVerifiedEnvLockfile } from './writeVerifiedEnvLockfile.js'
+
+const PACKAGE_MANAGER_DEPS_WITH_EXE = ['pnpm', '@pnpm/exe'] as const
+const PACKAGE_MANAGER_DEPS_PNPM_ONLY = ['pnpm'] as const
+const PNPM_EXE_INTRODUCED = '6.17.1'
 
 export interface ResolvePackageManagerIntegritiesOpts {
   envLockfile?: EnvLockfile
@@ -33,17 +39,38 @@ export function isPackageManagerResolved (
   if (!envLockfile) return false
 
   const pmDeps = envLockfile.importers['.'].packageManagerDependencies
-  return pmDeps != null &&
-    pmDeps['pnpm']?.version === pnpmVersion &&
-    pmDeps['@pnpm/exe']?.version === pnpmVersion
+  if (pmDeps == null) return false
+  const wantedDeps = packageManagerDeps(pnpmVersion)
+  return Object.keys(pmDeps).length === wantedDeps.length &&
+    wantedDeps.every((name) => pmDeps[name]?.version === pnpmVersion)
 }
 
 /**
- * Resolves integrity checksums for `pnpm`, `@pnpm/exe`, and their dependencies
- * by calling resolveManifestDependencies. When `opts.save` is true (the
- * default) the results are written to the `packageManagerDependencies`
- * section of `pnpm-lock.yaml`; when false, resolution happens purely in
- * memory and the returned `EnvLockfile` is never persisted to disk.
+ * The packages the env lockfile pins for `pnpmVersion`.
+ *
+ * `>=6.17.1 <12` publishes the JS `pnpm` and the native `@pnpm/exe` as two
+ * packages, and both are pinned, because the pin is shared and teammates may
+ * run either one. Every other version publishes `pnpm` alone: as the JS CLI
+ * below 6.17.1, and as the native executable itself from 12.
+ */
+function packageManagerDeps (pnpmVersion: string): readonly string[] {
+  const parsed = semver.parse(pnpmVersion, { loose: true })
+  if (parsed == null) return PACKAGE_MANAGER_DEPS_WITH_EXE
+  if (parsed.major >= 12) return PACKAGE_MANAGER_DEPS_PNPM_ONLY
+  // Prereleases of a version that has `@pnpm/exe` ship it too, so compare on
+  // the release triple alone.
+  return semver.gte(`${parsed.major}.${parsed.minor}.${parsed.patch}`, PNPM_EXE_INTRODUCED)
+    ? PACKAGE_MANAGER_DEPS_WITH_EXE
+    : PACKAGE_MANAGER_DEPS_PNPM_ONLY
+}
+
+/**
+ * Resolves integrity checksums for the pnpm packages of the wanted version
+ * (see {@link packageManagerDeps}) and their dependencies by calling
+ * resolveManifestDependencies. When `opts.save` is true (the default) the
+ * results are written to the `packageManagerDependencies` section of
+ * `pnpm-lock.yaml`; when false, resolution happens purely in memory and the
+ * returned `EnvLockfile` is never persisted to disk.
  */
 export async function resolvePackageManagerIntegrities (
   pnpmVersion: string,
@@ -56,20 +83,7 @@ export async function resolvePackageManagerIntegrities (
     return envLockfile
   }
 
-  const lockfile = await resolveManifestDependencies(
-    {
-      dependencies: {
-        'pnpm': pnpmVersion,
-        '@pnpm/exe': pnpmVersion,
-      },
-    },
-    {
-      dir: opts.rootDir,
-      registries: opts.registries,
-      storeController: opts.storeController,
-      storeDir: opts.storeDir,
-    }
-  )
+  const lockfile = await resolveWantedPnpmPackages(pnpmVersion, opts)
 
   if (lockfile.packages) {
     // Build packageManagerDependencies from the resolved lockfile importers
@@ -98,4 +112,38 @@ export async function resolvePackageManagerIntegrities (
     }
   }
   return envLockfile
+}
+
+/**
+ * Resolves the pnpm packages wanted by `spec`, which may also be a range or a
+ * dist-tag. A spec that is not an exact version is resolved through `pnpm`
+ * alone first, because which packages are wanted (see
+ * {@link packageManagerDeps}) is only known once the version is known.
+ */
+async function resolveWantedPnpmPackages (
+  spec: string,
+  opts: ResolvePackageManagerIntegritiesOpts
+): Promise<LockfileObject> {
+  const resolveOpts = {
+    dir: opts.rootDir,
+    registries: opts.registries,
+    storeController: opts.storeController,
+    storeDir: opts.storeDir,
+  }
+  if (semver.valid(spec) != null) {
+    return resolveManifestDependencies({ dependencies: wantedDependencies(spec, spec) }, resolveOpts)
+  }
+  const lockfile = await resolveManifestDependencies({ dependencies: { pnpm: spec } }, resolveOpts)
+  const ref = lockfile.importers['.' as ProjectId]?.dependencies?.['pnpm']
+  // A pnpm resolved from a named registry is referenced as `<registry>:<version>`.
+  const resolvedVersion = ref == null ? undefined : parseRegistryQualifiedVersion(ref)?.version ?? ref
+  if (resolvedVersion == null || !packageManagerDeps(resolvedVersion).includes('@pnpm/exe')) {
+    return lockfile
+  }
+  return resolveManifestDependencies({ dependencies: wantedDependencies(resolvedVersion, spec) }, resolveOpts)
+}
+
+/** The dependency map to resolve `spec` through, for a pnpm of `pnpmVersion`. */
+function wantedDependencies (pnpmVersion: string, spec: string): Record<string, string> {
+  return Object.fromEntries(packageManagerDeps(pnpmVersion).map((name) => [name, spec]))
 }

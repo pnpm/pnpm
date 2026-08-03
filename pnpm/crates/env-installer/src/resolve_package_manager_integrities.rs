@@ -14,7 +14,7 @@ use pacquet_resolving_resolver_base::{ResolveOptions, ResolveResult, Resolver, W
 use std::{collections::HashMap, path::PathBuf};
 
 const PACKAGE_MANAGER_DEPS_WITH_EXE: [&str; 2] = ["pnpm", "@pnpm/exe"];
-const PACKAGE_MANAGER_DEPS_JS_ONLY: [&str; 1] = ["pnpm"];
+const PACKAGE_MANAGER_DEPS_PNPM_ONLY: [&str; 1] = ["pnpm"];
 const PNPM_EXE_INTRODUCED: (u64, u64, u64) = (6, 17, 1);
 
 pub async fn resolve_package_manager_integrities(
@@ -142,19 +142,24 @@ fn is_package_manager_resolved_with_deps(
         })
 }
 
+/// The packages the env lockfile pins for `pnpm_version`.
+///
+/// `>=6.17.1 <12` publishes the JS `pnpm` and the native `@pnpm/exe` as two
+/// packages, and both are pinned, because the pin is shared and teammates
+/// may run either one. Every other version publishes `pnpm` alone: as the JS
+/// CLI below 6.17.1, and as the native executable itself from 12.
 fn package_manager_deps(pnpm_version: &str) -> &'static [&'static str] {
-    if pnpm_exe_package_exists(pnpm_version) {
+    let Some(version) = node_semver::Version::parse(pnpm_version).ok() else {
+        return &PACKAGE_MANAGER_DEPS_WITH_EXE;
+    };
+    if version.major >= 12 {
+        return &PACKAGE_MANAGER_DEPS_PNPM_ONLY;
+    }
+    if (version.major, version.minor, version.patch) >= PNPM_EXE_INTRODUCED {
         &PACKAGE_MANAGER_DEPS_WITH_EXE
     } else {
-        &PACKAGE_MANAGER_DEPS_JS_ONLY
+        &PACKAGE_MANAGER_DEPS_PNPM_ONLY
     }
-}
-
-fn pnpm_exe_package_exists(pnpm_version: &str) -> bool {
-    let Some(version) = node_semver::Version::parse(pnpm_version).ok() else {
-        return true;
-    };
-    (version.major, version.minor, version.patch) >= PNPM_EXE_INTRODUCED
 }
 
 fn package_manager_entry_exists(env_lockfile: &EnvLockfile, name: &str, version: &str) -> bool {
