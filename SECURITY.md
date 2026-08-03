@@ -49,6 +49,17 @@ In particular:
   CI jobs, restrict write access to trusted identities via filesystem
   permissions.
 
+- **Running a repository's code means trusting that repository.** `pnpm run`,
+  `pnpm exec`, and `pnpm dlx` execute code the repository chooses, so
+  configuration that only influences those commands — `nodeOptions`, script
+  bodies, `.bin` entries — is not a boundary we can defend. What we do defend is
+  the weaker act of *installing* from an untrusted repository: a `pnpm install`
+  must not send your credentials to a host the repository picked, and must not
+  run dependency build scripts you did not allow. This is why environment
+  variable expansion in repository-controlled configuration is restricted for
+  request destinations (`registry`, `proxy`, `pnprServer`) and auth values, and
+  not for settings that merely shape a command you asked pnpm to run.
+
 The following are examples of reports we consider **out of scope**:
 
 - Tampering with store, lockfile, `node_modules`, or config files that the
@@ -56,7 +67,15 @@ The following are examples of reports we consider **out of scope**:
 - Bypassing store integrity checks given pre-existing write access to the store.
 - Attacks that require the user to run pnpm with a maliciously crafted local
   project or environment that they did not obtain from a trusted source.
+- Repository-controlled configuration that changes what `pnpm run`, `pnpm exec`,
+  or `pnpm dlx` executes, since those commands run repository-controlled code by
+  definition.
+- Behavior that matches npm and Yarn and that we would have to diverge from the
+  ecosystem to change. Report it upstream first; if they treat it as a
+  vulnerability, we will follow.
 
 If you believe a report falls outside these assumptions — for example, a way to
 bypass a trust boundary that pnpm *does* enforce — please include the exact
-privilege the attacker starts with and how pnpm escalates it.
+privilege the attacker starts with and how pnpm escalates it. When the report is
+about a hardening measure that does not cover some setting, state what the
+attacker gains from that gap beyond what they could already do without it.
