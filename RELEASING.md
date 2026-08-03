@@ -90,6 +90,23 @@ Moving a tag is only safe while the release is still failing. Once a release
 has completed and been announced, the tag is what downstream packagers verify
 and pin, so it must never be moved.
 
+## How the signature is enforced
+
+The signed-tag rule is not a convention. `release.yml`'s `verify-release-tag`
+job imports the public keys committed under `.github/release-keys/` into a
+throwaway keyring and runs `git verify-tag` on the pushed tag. Every publish
+path descends from `plan`, and `plan` descends from that job, so a tag that is
+lightweight, annotated but unsigned, or signed by any key outside that
+directory cannot reach a publish step.
+
+This matters because removing the workflow that used to create tags stops CI
+from *making* unsigned tags, but on its own would not stop a compromised
+workflow or a token with tag scope from pushing one and triggering a release.
+
+To add or rotate a maintainer, commit their armored public key to
+`.github/release-keys/` in a reviewed PR. That directory is the release trust
+root: anyone whose key lands there can cut a release.
+
 ## Signing setup
 
 A maintainer cutting releases needs a PGP key configured for git and registered
