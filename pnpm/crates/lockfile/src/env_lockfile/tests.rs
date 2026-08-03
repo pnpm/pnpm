@@ -70,6 +70,19 @@ fn reads_non_numeric_lockfile_version() {
 }
 
 #[test]
+fn reads_a_crlf_combined_lockfile() {
+    let dir = TempDir::new().unwrap();
+    let env = sample_env_lockfile();
+    env.write(dir.path()).unwrap();
+    let path = dir.path().join(Lockfile::FILE_NAME);
+    let crlf = std::fs::read_to_string(&path).unwrap().replace('\n', "\r\n");
+    std::fs::write(&path, crlf).unwrap();
+
+    let read_back = EnvLockfile::read(dir.path()).unwrap().expect("env document present");
+    assert_eq!(read_back, env);
+}
+
+#[test]
 fn write_preserves_existing_main_document() {
     let dir = TempDir::new().unwrap();
     let main = "lockfileVersion: '9.0'\n\nimporters:\n\n  .:\n    dependencies:\n      is-odd:\n        specifier: 1.0.0\n        version: 1.0.0\n";
