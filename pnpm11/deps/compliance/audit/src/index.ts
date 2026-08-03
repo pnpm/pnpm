@@ -189,18 +189,18 @@ function normalizeAdvisory (adv: BulkAdvisory, moduleName: string, findings: Aud
 }
 
 function inferPatchedVersions (vulnerableRange: string): string | undefined {
-  // Matches `<X.Y.Z` or `<= X.Y.Z` (with optional whitespace after the operator)
-  // at the end of the range, optionally preceded by other comparators like
-  // `>=0.8.1 <0.28.0`. Returns undefined if the range doesn't have a
-  // recognizable upper bound — callers must not confuse that with "no fix".
+  // Matches exclusive upper bound `<X.Y.Z` at the end of the range (optionally
+  // preceded by other comparators like `>=0.8.1 <0.28.0`). That form names the
+  // first fixed version explicitly.
+  //
+  // Do NOT invent a patch from `<=X.Y.Z` via semver.inc: when no same-line fix
+  // exists (common for "all versions through X are vulnerable"), that invented
+  // version becomes a caret override like `^X.Y.(Z+1)` that cannot install
+  // (see https://github.com/pnpm/pnpm/issues/12651). Callers treat undefined
+  // as "no known patched range" and skip auto-fix.
   const trimmed = vulnerableRange.trim()
   const ltMatch = trimmed.match(/(?:^|\s)<\s*(\d+\.\d+\.\d[\w\-.+]*)\s*$/)
   if (ltMatch) return `>=${ltMatch[1]}`
-  const lteMatch = trimmed.match(/(?:^|\s)<=\s*(\d+\.\d+\.\d[\w\-.+]*)\s*$/)
-  if (lteMatch) {
-    const next = semver.inc(lteMatch[1], 'patch')
-    if (next) return `>=${next}`
-  }
   return undefined
 }
 

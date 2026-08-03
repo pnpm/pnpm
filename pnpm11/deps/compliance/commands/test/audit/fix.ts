@@ -42,13 +42,16 @@ test('overrides are added for vulnerable dependencies', async () => {
   expect(output).toContain('entries were added to minimumReleaseAgeExclude')
 
   const manifest = readYamlFileSync<{ overrides?: Record<string, string>, minimumReleaseAgeExclude?: string[] }>(path.join(tmp, 'pnpm-workspace.yaml'))
-  expect(manifest.overrides?.['axios@<=0.18.0']).toBe('^0.18.1')
+  // Inclusive `<=0.18.0` must not invent `^0.18.1` (see #12651). Exclusive
+  // upper bounds still produce overrides.
+  expect(manifest.overrides?.['axios@<=0.18.0']).toBeFalsy()
+  expect(manifest.overrides?.['axios@<0.21.2']).toBe('^0.21.2')
   expect(manifest.overrides?.['sync-exec@>=0.0.0']).toBeFalsy()
 
-  // minimumReleaseAgeExclude should combine versions per module
+  // minimumReleaseAgeExclude should combine versions per module from inferred patches
   const axiosExclude = manifest.minimumReleaseAgeExclude?.find((e) => e.startsWith('axios@'))
   expect(axiosExclude).toBeDefined()
-  expect(axiosExclude).toContain('0.18.1')
+  expect(axiosExclude).not.toContain('0.18.1')
   expect(axiosExclude).toContain('0.21.1')
   expect(axiosExclude).toContain('0.21.2')
 })

@@ -757,4 +757,45 @@ describe('audit', () => {
       await teardownMockAgent()
     }
   })
+
+  test('does not invent a patched version from an inclusive <= vulnerable range', async () => {
+    const registry = 'http://registry.registry/'
+    const getAuthHeader = () => undefined
+    await setupMockAgent()
+    getMockAgent().get('http://registry.registry')
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, {
+        mjml: [
+          {
+            id: 99,
+            url: 'https://github.com/advisories/GHSA-45h5-66jx-r2wf',
+            title: 'mjml is bad',
+            severity: 'high',
+            vulnerable_versions: '<=4.18.0',
+          },
+        ],
+      })
+
+    try {
+      const result = await audit(
+        {
+          importers: {
+            ['.' as ProjectId]: {
+              dependencies: { mjml: '4.18.0' },
+              specifiers: { mjml: '4.18.0' },
+            },
+          },
+          lockfileVersion: LOCKFILE_VERSION,
+          packages: {
+            ['mjml@4.18.0' as DepPath]: { resolution: { integrity: 'mjml-integrity' } },
+          },
+        },
+        getAuthHeader,
+        { registry, retry: { retries: 0 } }
+      )
+      expect(result.advisories['99'].patched_versions).toBeUndefined()
+    } finally {
+      await teardownMockAgent()
+    }
+  })
 })
