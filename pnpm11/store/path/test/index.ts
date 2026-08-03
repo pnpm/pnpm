@@ -13,6 +13,7 @@ jest.unstable_mockModule('root-link-target', () => {
   const MAPPINGS: Record<string, string> = {
     '/src/workspace/project/tmp': '/',
     '/mnt/project/tmp': '/mnt/project',
+    '/mnt/project-only/tmp': '/mnt/project-only',
   }
 
   return {
@@ -56,6 +57,7 @@ jest.unstable_mockModule('can-link', () => {
   const CAN_LINK = new Set([
     '/can-link-to-homedir/tmp=>/home/user/tmp',
     '/mnt/project/tmp=>/mnt/tmp/tmp',
+    '/mnt/project-only/tmp=>/mnt/project-only/tmp/tmp',
   ])
 
   return {
@@ -88,6 +90,13 @@ skipOnWindows('a link can be created to the a subdir in the root of the drive', 
     pkgRoot: '/mnt/project',
     pnpmHomeDir: '/local/share/pnpm',
   })).toBe(`/mnt/.pnpm-store/${STORE_VERSION}`)
+})
+
+skipOnWindows('store is placed in the home directory if project root is the mountpoint and parent directory is not linkable', async () => {
+  expect(await getStorePath({
+    pkgRoot: '/mnt/project-only',
+    pnpmHomeDir: '/local/share/pnpm',
+  })).toBe(`/local/share/pnpm/store/${STORE_VERSION}`)
 })
 
 test('fail when pnpm home directory is not defined', async () => {
