@@ -1,3 +1,4 @@
+import { parseRegistryQualifiedVersion } from '@pnpm/deps.path'
 import { convertToLockfileFile, createEnvLockfile, readEnvLockfile } from '@pnpm/lockfile.fs'
 import { pruneSharedLockfile } from '@pnpm/lockfile.pruner'
 import type { EnvLockfile, LockfileObject } from '@pnpm/lockfile.types'
@@ -47,11 +48,10 @@ export function isPackageManagerResolved (
 /**
  * The packages the env lockfile pins for `pnpmVersion`.
  *
- * Both the JS `pnpm` and the native `@pnpm/exe` are pinned for the majors that
- * publish the two separately, because the pin is shared and teammates may run
- * either one. Outside that range only `pnpm` exists: before 6.17.1 `@pnpm/exe`
- * was not published yet, and from v12 the unscoped `pnpm` is itself the native
- * executable.
+ * `>=6.17.1 <12` publishes the JS `pnpm` and the native `@pnpm/exe` as two
+ * packages, and both are pinned, because the pin is shared and teammates may
+ * run either one. Every other version publishes `pnpm` alone: as the JS CLI
+ * below 6.17.1, and as the native executable itself from 12.
  */
 function packageManagerDeps (pnpmVersion: string): readonly string[] {
   const parsed = semver.parse(pnpmVersion, { loose: true })
@@ -115,10 +115,10 @@ export async function resolvePackageManagerIntegrities (
 }
 
 /**
- * Resolves the pnpm packages wanted by `spec`, which may be a range or a
- * dist-tag. `pnpm` alone is resolved first because which packages are wanted
- * (see {@link packageManagerDeps}) is only known once the spec has been
- * resolved to an exact version.
+ * Resolves the pnpm packages wanted by `spec`, which may also be a range or a
+ * dist-tag. A spec that is not an exact version is resolved through `pnpm`
+ * alone first, because which packages are wanted (see
+ * {@link packageManagerDeps}) is only known once the version is known.
  */
 async function resolveWantedPnpmPackages (
   spec: string,
@@ -130,18 +130,20 @@ async function resolveWantedPnpmPackages (
     storeController: opts.storeController,
     storeDir: opts.storeDir,
   }
+  if (semver.valid(spec) != null) {
+    return resolveManifestDependencies({ dependencies: wantedDependencies(spec, spec) }, resolveOpts)
+  }
   const lockfile = await resolveManifestDependencies({ dependencies: { pnpm: spec } }, resolveOpts)
-  const resolvedVersion = lockfile.importers['.' as ProjectId]?.dependencies?.['pnpm']
+  const ref = lockfile.importers['.' as ProjectId]?.dependencies?.['pnpm']
+  // A pnpm resolved from a named registry is referenced as `<registry>:<version>`.
+  const resolvedVersion = ref == null ? undefined : parseRegistryQualifiedVersion(ref)?.version ?? ref
   if (resolvedVersion == null || !packageManagerDeps(resolvedVersion).includes('@pnpm/exe')) {
     return lockfile
   }
-  return resolveManifestDependencies(
-    {
-      dependencies: {
-        'pnpm': spec,
-        '@pnpm/exe': spec,
-      },
-    },
-    resolveOpts
-  )
+  return resolveManifestDependencies({ dependencies: wantedDependencies(resolvedVersion, spec) }, resolveOpts)
+}
+
+/** The dependency map to resolve `spec` through, for a pnpm of `pnpmVersion`. */
+function wantedDependencies (pnpmVersion: string, spec: string): Record<string, string> {
+  return Object.fromEntries(packageManagerDeps(pnpmVersion).map((name) => [name, spec]))
 }

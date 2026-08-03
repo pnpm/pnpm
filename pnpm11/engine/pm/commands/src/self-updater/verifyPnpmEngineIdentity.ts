@@ -105,23 +105,35 @@ function collectEnginePackagesToVerify (envLockfile: EnvLockfile, registries: Re
   }
 
   // The bytes actually executed are the host's platform binary, listed as an
-  // optional dependency of the native wrapper.
+  // optional dependency of the native wrapper. Since this is the native code
+  // that will run, a missing snapshot, missing optional deps, or no host
+  // candidate fails closed rather than letting verification pass on the
+  // wrappers alone.
   const wrapper = nativeEngineWrapper(pmDeps)
   if (wrapper != null) {
-    const optionalDeps = envLockfile.snapshots[`${wrapper.name}@${wrapper.version}`]?.optionalDependencies ?? {}
+    const label = `${wrapper.name}@${wrapper.version}`
+    const optionalDeps = envLockfile.snapshots[label]?.optionalDependencies
+    if (optionalDeps == null) {
+      throw new PnpmError(
+        'PNPM_ENGINE_IDENTITY_UNVERIFIABLE',
+        `Cannot verify the identity of ${label}: its platform binaries are missing from pnpm-lock.yaml.`
+      )
+    }
     const libcFamily = familySync()
     const candidateNames = [
       `@pnpm/${exePlatformPkgDirName(process.platform, process.arch, libcFamily)}`,
       `@pnpm/${exePlatformPkgDirNameNext(process.platform, process.arch, libcFamily)}`,
     ]
-    for (const platformName of candidateNames) {
-      const platformVersion = optionalDeps[platformName]
-      if (platformVersion == null) continue
-      // The first candidate present in the lockfile is the binary the install
-      // will link and execute, so it is the one that must be verifiable.
-      toVerify.push(engineComponentToVerify(envLockfile, registries, { name: platformName, version: platformVersion }))
-      break
+    // The first candidate present in the lockfile is the binary the install
+    // will link and execute, so it is the one that must be verifiable.
+    const platformName = candidateNames.find((name) => optionalDeps[name] != null)
+    if (platformName == null) {
+      throw new PnpmError(
+        'PNPM_ENGINE_IDENTITY_UNVERIFIABLE',
+        `Cannot verify the identity of the @pnpm/exe.${process.platform}-${process.arch} native binary: it is missing from pnpm-lock.yaml.`
+      )
     }
+    toVerify.push(engineComponentToVerify(envLockfile, registries, { name: platformName, version: optionalDeps[platformName] }))
   }
 
   return toVerify
@@ -129,9 +141,10 @@ function collectEnginePackagesToVerify (envLockfile: EnvLockfile, registries: Re
 
 /**
  * The engine package whose optional dependencies carry the host's native
- * binary: `@pnpm/exe` for the majors that publish it, and the unscoped `pnpm`
- * from v12, which is itself the native executable. Returns `undefined` for the
- * JS-only `pnpm` of the majors that predate `@pnpm/exe`.
+ * binary: `@pnpm/exe` when the lockfile pins it, otherwise `pnpm` itself for
+ * `>=12`, where the unscoped package is the native executable. `undefined`
+ * when the lockfile pins only a JS-only `pnpm` (`<6.17.1`), which has no
+ * platform binaries.
  */
 function nativeEngineWrapper (pmDeps: Record<string, { version: string }>): { name: string, version: string } | undefined {
   const exeVersion = pmDeps['@pnpm/exe']?.version

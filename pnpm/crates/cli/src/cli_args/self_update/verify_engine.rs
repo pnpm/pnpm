@@ -190,9 +190,10 @@ fn collect_engine_components(
 }
 
 /// The engine package whose optional dependencies carry the host's native
-/// binary: `@pnpm/exe` for the majors that publish it, and the unscoped
-/// `pnpm` from v12, which is itself the native executable. `None` for the
-/// JS-only `pnpm` of the majors that predate `@pnpm/exe`.
+/// binary: `@pnpm/exe` when the lockfile pins it, otherwise `pnpm` itself
+/// for `>=12`, where the unscoped package is the native executable. `None`
+/// when the lockfile pins only a JS-only `pnpm` (`<6.17.1`), which has no
+/// platform binaries.
 fn native_engine_wrapper(
     pm_deps: &BTreeMap<String, SpecifierAndResolution>,
 ) -> Option<(&str, &str)> {

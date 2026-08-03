@@ -144,11 +144,10 @@ fn is_package_manager_resolved_with_deps(
 
 /// The packages the env lockfile pins for `pnpm_version`.
 ///
-/// Both the JS `pnpm` and the native `@pnpm/exe` are pinned for the majors
-/// that publish the two separately, because the pin is shared and teammates
-/// may run either one. Outside that range only `pnpm` exists: before 6.17.1
-/// `@pnpm/exe` was not published yet, and from v12 the unscoped `pnpm` is
-/// itself the native executable.
+/// `>=6.17.1 <12` publishes the JS `pnpm` and the native `@pnpm/exe` as two
+/// packages, and both are pinned, because the pin is shared and teammates
+/// may run either one. Every other version publishes `pnpm` alone: as the JS
+/// CLI below 6.17.1, and as the native executable itself from 12.
 fn package_manager_deps(pnpm_version: &str) -> &'static [&'static str] {
     let Some(version) = node_semver::Version::parse(pnpm_version).ok() else {
         return &PACKAGE_MANAGER_DEPS_WITH_EXE;
