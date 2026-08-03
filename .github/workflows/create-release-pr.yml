@@ -216,7 +216,7 @@ jobs:
             --title "chore(release): ${VERSION}" \
             --body "Automated release PR created by the create-release-pr workflow.
 
-        Releasing \`${TARGET}\`: ${VERSION}. Merging this PR consumes the pending changesets and records them in the committed \`.changeset/ledger.yaml\`, then auto-tags each released product (tag-release.yml) to run the release workflow." \
+        Releasing \`${TARGET}\`: ${VERSION}. Merging this PR consumes the pending changesets and records them in the committed \`.changeset/ledger.yaml\`. Afterwards a maintainer pushes a signed tag per released product to run the release workflow — see RELEASING.md." \
             --base "$TARGET" \
             --head "$BRANCH"
         fi

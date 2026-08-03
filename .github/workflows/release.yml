@@ -28,7 +28,8 @@ on:
         type: boolean
         default: false
 
-# A release PR that bumps several products auto-tags each one (tag-release.yml),
+# A release PR that bumps several products is tagged per product by hand, with
+# a signed annotated tag pushed from a maintainer's machine (see RELEASING.md),
 # so several version tags can land together and start a run apiece. Each run
 # releases only the product its tag names (see the plan job), so simultaneous
 # runs publish disjoint packages and may proceed in parallel. The group is
@@ -59,9 +60,80 @@ jobs:
               ;;
           esac
 
+  # The release trust root: a tag reaches a publish job only if it carries a
+  # signature from a key committed under .github/release-keys. Every publish path
+  # descends from `plan`, and `plan` descends from this job.
+  #
+  # This guards against an unsigned tag, not against an actor who can push an
+  # arbitrary one. A tag push runs the workflow file and checks out the tree from
+  # the pushed tag, so a tag supplies both this job and the keys it trusts.
+  # Restricting who may create `v*` and `pnpr@*` tags is a repository ruleset
+  # concern that no workflow can enforce for itself.
+  verify-release-tag:
+    name: Verify the release tag is maintainer-signed
+    needs: validate-release-ref
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # A tag push checks out the commit; the tag *object* carrying the
+          # signature is a separate object that only comes down with the tag
+          # refs, so verification would have nothing to read without this.
+          fetch-tags: true
+          persist-credentials: false
+
+      - name: Verify the tag signature
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          # The verify_ts_release dispatch runs from a branch to inspect
+          # artifacts and never publishes, so there is no tag to verify. This is
+          # a step-level exit rather than a job-level `if` on purpose: a skipped
+          # job skips everything that `needs` it, which would take `plan` and
+          # the whole dispatch path down with it.
+          case "${GITHUB_REF}" in
+            refs/tags/*) ;;
+            *)
+              echo "$GITHUB_REF is not a tag; nothing to verify and nothing will publish."
+              exit 0
+              ;;
+          esac
+
+          # An isolated keyring, so verification can only ever succeed against a
+          # key committed to this repository — never one that happens to be on
+          # the runner.
+          GNUPGHOME="$(mktemp -d)"
+          export GNUPGHOME
+          chmod 700 "$GNUPGHOME"
+          trap 'rm -rf "$GNUPGHOME"' EXIT
+
+          shopt -s nullglob
+          keys=(.github/release-keys/*.asc)
+          if [ ${#keys[@]} -eq 0 ]; then
+            echo "::error::No release keys committed under .github/release-keys"
+            exit 1
+          fi
+          gpg --batch --quiet --import "${keys[@]}"
+
+          # No separate check that the tag is annotated: verify-tag already fails
+          # on a lightweight tag, having no object to read a signature from.
+          if ! git verify-tag "$TAG"; then
+            echo "::error::$TAG is not signed by a key in .github/release-keys. Release tags must be signed by a maintainer — see RELEASING.md."
+            exit 1
+          fi
+
+          echo "$TAG carries a valid maintainer signature."
+
   plan:
     name: Plan (which products need publishing)
-    needs: validate-release-ref
+    needs:
+      - validate-release-ref
+      - verify-release-tag
     runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: read
