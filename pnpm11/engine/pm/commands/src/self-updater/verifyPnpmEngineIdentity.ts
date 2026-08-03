@@ -12,6 +12,7 @@ import type { EnvLockfile } from '@pnpm/lockfile.types'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import type { Registries, RegistryConfig } from '@pnpm/types'
 import { familySync } from 'detect-libc'
+import semver from 'semver'
 
 import { exePlatformPkgDirName, exePlatformPkgDirNameNext } from './installPnpm.js'
 
@@ -103,11 +104,11 @@ function collectEnginePackagesToVerify (envLockfile: EnvLockfile, registries: Re
     toVerify.push(engineComponentToVerify(envLockfile, registries, { name, version }))
   }
 
-  // The bytes actually executed are the host's `@pnpm/exe` platform binary,
-  // listed as an optional dependency of `@pnpm/exe`.
-  const exeVersion = pmDeps['@pnpm/exe']?.version
-  if (exeVersion != null) {
-    const optionalDeps = envLockfile.snapshots[`@pnpm/exe@${exeVersion}`]?.optionalDependencies ?? {}
+  // The bytes actually executed are the host's platform binary, listed as an
+  // optional dependency of the native wrapper.
+  const wrapper = nativeEngineWrapper(pmDeps)
+  if (wrapper != null) {
+    const optionalDeps = envLockfile.snapshots[`${wrapper.name}@${wrapper.version}`]?.optionalDependencies ?? {}
     const libcFamily = familySync()
     const candidateNames = [
       `@pnpm/${exePlatformPkgDirName(process.platform, process.arch, libcFamily)}`,
@@ -124,6 +125,21 @@ function collectEnginePackagesToVerify (envLockfile: EnvLockfile, registries: Re
   }
 
   return toVerify
+}
+
+/**
+ * The engine package whose optional dependencies carry the host's native
+ * binary: `@pnpm/exe` for the majors that publish it, and the unscoped `pnpm`
+ * from v12, which is itself the native executable. Returns `undefined` for the
+ * JS-only `pnpm` of the majors that predate `@pnpm/exe`.
+ */
+function nativeEngineWrapper (pmDeps: Record<string, { version: string }>): { name: string, version: string } | undefined {
+  const exeVersion = pmDeps['@pnpm/exe']?.version
+  if (exeVersion != null) return { name: '@pnpm/exe', version: exeVersion }
+  const pnpmVersion = pmDeps['pnpm']?.version
+  if (pnpmVersion == null) return undefined
+  const parsed = semver.parse(pnpmVersion, { loose: true })
+  return parsed != null && parsed.major >= 12 ? { name: 'pnpm', version: pnpmVersion } : undefined
 }
 
 function engineComponentToVerify (

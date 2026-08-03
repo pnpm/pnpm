@@ -1,10 +1,11 @@
 use super::{
-    EngineComponent, NpmSigningKey, PackageSignature, plain_version, signature_validates_against,
-    verify_one,
+    EngineComponent, NpmSigningKey, PackageSignature, native_engine_wrapper, plain_version,
+    signature_validates_against, verify_one,
 };
 use base64::Engine as _;
 use p256::ecdsa::SigningKey;
-use pacquet_lockfile::SnapshotDepRef;
+use pacquet_lockfile::{SnapshotDepRef, SpecifierAndResolution};
+use std::collections::BTreeMap;
 
 fn signing_key() -> SigningKey {
     SigningKey::from_slice(&[0x42; 32]).expect("valid P-256 scalar")
@@ -111,4 +112,30 @@ fn plain_version_reads_only_plain_references() {
 
     let link = SnapshotDepRef::Link("packages/x".to_string());
     assert_eq!(plain_version(&link), None);
+}
+
+fn pm_deps(entries: &[(&str, &str)]) -> BTreeMap<String, SpecifierAndResolution> {
+    entries
+        .iter()
+        .map(|(name, version)| {
+            (
+                (*name).to_string(),
+                SpecifierAndResolution {
+                    specifier: (*version).to_string(),
+                    version: (*version).to_string(),
+                },
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn native_engine_wrapper_follows_the_package_that_ships_the_binary() {
+    assert_eq!(
+        native_engine_wrapper(&pm_deps(&[("pnpm", "11.0.0"), ("@pnpm/exe", "11.0.0")])),
+        Some(("@pnpm/exe", "11.0.0")),
+    );
+    assert_eq!(native_engine_wrapper(&pm_deps(&[("pnpm", "12.0.0")])), Some(("pnpm", "12.0.0")));
+    assert_eq!(native_engine_wrapper(&pm_deps(&[("pnpm", "6.16.0")])), None);
+    assert_eq!(native_engine_wrapper(&pm_deps(&[])), None);
 }

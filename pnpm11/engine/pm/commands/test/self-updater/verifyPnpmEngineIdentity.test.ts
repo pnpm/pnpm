@@ -5,13 +5,14 @@ import type { EnvLockfile } from '@pnpm/lockfile.types'
 import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
 import { familySync } from 'detect-libc'
 
-const { exePlatformPkgDirName, verifyPnpmEngineIdentity } = await import('@pnpm/engine.pm.commands')
+const { exePlatformPkgDirName, exePlatformPkgDirNameNext, verifyPnpmEngineIdentity } = await import('@pnpm/engine.pm.commands')
 
 const REGISTRY = 'https://registry.example.test/'
 const PNPM_INTEGRITY = 'sha512-pnpm-integrity'
 const EXE_INTEGRITY = 'sha512-exe-integrity'
 const PLATFORM_INTEGRITY = 'sha512-platform-integrity'
 const PLATFORM_PKG_NAME = `@pnpm/${exePlatformPkgDirName(process.platform, process.arch, familySync())}`
+const PLATFORM_PKG_NAME_NEXT = `@pnpm/${exePlatformPkgDirNameNext(process.platform, process.arch, familySync())}`
 
 beforeEach(async () => {
   await setupMockAgent()
@@ -100,7 +101,37 @@ describe('verifyPnpmEngineIdentity', () => {
 
     await expect(verifyPnpmEngineIdentity(lockfile, '9.1.0', optsTrusting(key))).resolves.toBeUndefined()
   })
+
+  test('verifies the platform binary of the unscoped pnpm, which is the native wrapper from v12', async () => {
+    const key = createSigningKey()
+    mockPackument('pnpm', PNPM_INTEGRITY, [{ keyid: key.keyid, sig: key.sign('pnpm@12.0.0', PNPM_INTEGRITY) }], '12.0.0')
+    mockPackument(PLATFORM_PKG_NAME_NEXT, PLATFORM_INTEGRITY, [{ keyid: key.keyid, sig: key.sign(`${PLATFORM_PKG_NAME_NEXT}@12.0.0`, 'sha512-genuine-platform') }], '12.0.0')
+
+    await expect(verifyPnpmEngineIdentity(envLockfileV12(), '12.0.0', optsTrusting(key))).rejects.toThrow(/Refusing to run pnpm/)
+  })
 })
+
+/** An env lockfile of a v12 engine, whose only package-manager dependency is the native `pnpm`. */
+function envLockfileV12 (): EnvLockfile {
+  return {
+    lockfileVersion: '9.0',
+    importers: {
+      '.': {
+        configDependencies: {},
+        packageManagerDependencies: {
+          pnpm: { specifier: '12.0.0', version: '12.0.0' },
+        },
+      },
+    },
+    packages: {
+      'pnpm@12.0.0': { resolution: { integrity: PNPM_INTEGRITY } },
+      [`${PLATFORM_PKG_NAME_NEXT}@12.0.0`]: { resolution: { integrity: PLATFORM_INTEGRITY } },
+    },
+    snapshots: {
+      'pnpm@12.0.0': { optionalDependencies: { [PLATFORM_PKG_NAME_NEXT]: '12.0.0' } },
+    },
+  } as unknown as EnvLockfile
+}
 
 function optsTrusting (key: ReturnType<typeof createSigningKey>) {
   return {
@@ -132,15 +163,15 @@ function envLockfile (): EnvLockfile {
   } as unknown as EnvLockfile
 }
 
-function mockPackument (name: string, integrity: string, signatures: unknown): void {
+function mockPackument (name: string, integrity: string, signatures: unknown, version: string = '9.1.0'): void {
   const encodedPath = name[0] === '@' ? `/${name.replace(/\//g, '%2F')}` : `/${name}`
   getMockAgent().get(REGISTRY.replace(/\/$/, ''))
     .intercept({ path: encodedPath, method: 'GET' })
     .reply(200, {
       name,
-      time: { '9.1.0': '2024-01-01T00:00:00.000Z' },
+      time: { [version]: '2024-01-01T00:00:00.000Z' },
       versions: {
-        '9.1.0': { name, version: '9.1.0', dist: { integrity, signatures, tarball: `${REGISTRY}${name}/-/x-9.1.0.tgz` } },
+        [version]: { name, version, dist: { integrity, signatures, tarball: `${REGISTRY}${name}/-/x-${version}.tgz` } },
       },
     }).persist()
 }
