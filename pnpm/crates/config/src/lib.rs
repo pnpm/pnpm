@@ -1889,10 +1889,9 @@ impl Config {
     /// [`pacquet_network::ProxyConfig`].
     ///
     /// Only the empty string reads as unset here. A flag carries its value
-    /// verbatim, so it has none of the scalar typing that turns a `false` /
-    /// `null` in an `.npmrc` or yaml into a non-string
-    /// ([`crate::npmrc_auth::unset_proxy_value`]); on the command line those
-    /// are ordinary hostnames.
+    /// verbatim, so it has none of the scalar typing that turns a `false` or
+    /// `null` in an `.npmrc` or yaml into a non-string; on the command line
+    /// those are ordinary hostnames.
     pub fn apply_proxy_cli_overrides(
         &mut self,
         https_proxy: Option<&str>,
