@@ -167,6 +167,7 @@ fn create_config(
         auth_tokens_by_uri: Default::default(),
         proxy: Default::default(),
         http_proxy_is_explicit: false,
+        https_proxy_is_explicit: false,
         tls: Default::default(),
         tls_by_uri: Default::default(),
         package_manager_bootstrap: Default::default(),

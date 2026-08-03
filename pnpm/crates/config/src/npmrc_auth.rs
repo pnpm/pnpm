@@ -508,8 +508,8 @@ impl NpmrcAuth {
     /// `proxy=` key feeds the `httpsProxy` slot only (the http side
     /// falls back to the resolved `httpsProxy` before consulting env).
     /// `noProxy` accepts the literal token `true` to mean "bypass every
-    /// proxy". An empty `.npmrc` value is not a win — see the empty-value
-    /// contract on [`pacquet_network::ProxyConfig`].
+    /// proxy". Unset and disabling values are described on
+    /// [`unset_proxy_value`] and [`PROXY_DISABLED`].
     ///
     /// Generic over [`EnvVar`] so cascade tests can drive every branch
     /// without mutating the process environment (no `EnvGuard` global
@@ -523,23 +523,32 @@ impl NpmrcAuth {
             Sys::var(upper).or_else(|| Sys::var(lower))
         }
 
-        config.proxy.https_proxy = self
-            .https_proxy
-            .take()
-            .filter(|value| !value.is_empty())
-            .or_else(|| self.legacy_proxy.clone().filter(|value| !value.is_empty()))
-            .or_else(|| env_pair::<Sys>("HTTPS_PROXY", "https_proxy"));
-        config.proxy.http_proxy = self
-            .http_proxy
-            .take()
-            .filter(|value| !value.is_empty())
-            .or_else(|| config.proxy.https_proxy.clone())
-            .or_else(|| env_pair::<Sys>("HTTP_PROXY", "http_proxy"))
-            .or_else(|| env_pair::<Sys>("PROXY", "proxy"));
+        let legacy_proxy =
+            self.legacy_proxy.take().filter(|value| !unset_legacy_proxy_value(value));
+        let https = match self.https_proxy.take().filter(|value| !unset_proxy_value(value)) {
+            Some(url) => ResolvedProxy::Url(url),
+            None => match legacy_proxy {
+                Some(value) if value == PROXY_DISABLED => ResolvedProxy::Disabled,
+                Some(url) => ResolvedProxy::Url(url),
+                None => env_pair::<Sys>("HTTPS_PROXY", "https_proxy").into(),
+            },
+        };
+        let http = match self.http_proxy.take().filter(|value| !unset_proxy_value(value)) {
+            Some(url) => ResolvedProxy::Url(url),
+            None => match &https {
+                ResolvedProxy::Url(url) => ResolvedProxy::Url(url.clone()),
+                ResolvedProxy::Disabled => ResolvedProxy::Disabled,
+                ResolvedProxy::Unset => env_pair::<Sys>("HTTP_PROXY", "http_proxy")
+                    .or_else(|| env_pair::<Sys>("PROXY", "proxy"))
+                    .into(),
+            },
+        };
+        config.proxy.https_proxy = https.into_url();
+        config.proxy.http_proxy = http.into_url();
         config.proxy.no_proxy = self
             .no_proxy
             .take()
-            .filter(|value| !value.is_empty())
+            .filter(|value| !unset_proxy_value(value))
             .or_else(|| env_pair::<Sys>("NO_PROXY", "no_proxy"))
             .map(|raw| parse_no_proxy(&raw));
     }
@@ -930,6 +939,55 @@ fn load_cafile(path: &Path) -> Vec<String> {
         .filter(|chunk| !chunk.trim().is_empty())
         .map(|chunk| format!("{}{}", chunk.trim_start(), delimiter))
         .collect()
+}
+
+/// The `proxy=` value that turns proxying off.
+///
+/// Unlike an unset value it does not fall through: pnpm stores it as a
+/// falsy value that every later arm of the cascade reads instead of
+/// consulting the environment. Only the legacy `proxy` key has this form —
+/// `https-proxy` / `http-proxy` are tested for truthiness, so a `false`
+/// there reads as unset ([`unset_proxy_value`]).
+pub(crate) const PROXY_DISABLED: &str = "false";
+
+/// Whether a proxy setting reads as "not configured", so the next source
+/// in the cascade applies.
+///
+/// pnpm's INI and YAML scalars carry the unset forms as the literal
+/// lowercase tokens, so a capitalised `False` stays a hostname.
+pub(crate) fn unset_proxy_value(value: &str) -> bool {
+    matches!(value, "" | "false" | "null")
+}
+
+/// [`unset_proxy_value`] for the legacy `proxy` key, where `false` is a
+/// value in its own right ([`PROXY_DISABLED`]) rather than an absence.
+pub(crate) fn unset_legacy_proxy_value(value: &str) -> bool {
+    value.is_empty() || value == "null"
+}
+
+/// One arm of the proxy cascade, resolved.
+///
+/// [`Self::Disabled`] and [`Self::Unset`] both end as "no proxy", but only
+/// `Disabled` stops the cascade — see [`PROXY_DISABLED`].
+enum ResolvedProxy {
+    Url(String),
+    Disabled,
+    Unset,
+}
+
+impl ResolvedProxy {
+    fn into_url(self) -> Option<String> {
+        match self {
+            Self::Url(url) => Some(url),
+            Self::Disabled | Self::Unset => None,
+        }
+    }
+}
+
+impl From<Option<String>> for ResolvedProxy {
+    fn from(value: Option<String>) -> Self {
+        value.map_or(Self::Unset, Self::Url)
+    }
 }
 
 /// Parse the raw `no-proxy` value into [`NoProxySetting`].

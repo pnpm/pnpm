@@ -679,6 +679,83 @@ fn cascade_http_proxy_env_fallback_chain_proxy_var() {
     assert_eq!(config.proxy.https_proxy, None);
 }
 
+/// `false` and `null` read as "not configured" on every key except the
+/// legacy `proxy` one, so the environment still applies.
+#[test]
+fn cascade_disabling_tokens_on_the_scheme_keys_fall_through_to_env() {
+    static_env!(
+        AllProxyEnvs,
+        &[
+            ("HTTPS_PROXY", "http://https-env.example:8080"),
+            ("HTTP_PROXY", "http://http-env.example:8080"),
+            ("NO_PROXY", "skip.example"),
+        ]
+    );
+    for ini in ["https-proxy=false\nhttp-proxy=false\nno-proxy=false\n", "https-proxy=null\n"] {
+        let auth = NpmrcAuth::from_ini::<NoEnv>(ini, Path::new(""));
+        let mut config = Config::new();
+        auth.apply_to::<AllProxyEnvs>(&mut config);
+        assert_eq!(
+            config.proxy.https_proxy.as_deref(),
+            Some("http://https-env.example:8080"),
+            "ini={ini:?}",
+        );
+    }
+}
+
+#[test]
+fn cascade_legacy_proxy_false_disables_proxying_instead_of_falling_through() {
+    static_env!(
+        AllProxyEnvs,
+        &[
+            ("HTTPS_PROXY", "http://https-env.example:8080"),
+            ("HTTP_PROXY", "http://http-env.example:8080"),
+            ("PROXY", "http://bare-env.example:8080"),
+        ]
+    );
+    let auth = NpmrcAuth::from_ini::<NoEnv>("proxy=false\n", Path::new(""));
+    let mut config = Config::new();
+    auth.apply_to::<AllProxyEnvs>(&mut config);
+    assert_eq!(config.proxy.https_proxy, None);
+    assert_eq!(config.proxy.http_proxy, None);
+}
+
+#[test]
+fn cascade_legacy_proxy_null_falls_through_to_env() {
+    static_env!(HttpsEnv, &[("HTTPS_PROXY", "http://https-env.example:8080")]);
+    let auth = NpmrcAuth::from_ini::<NoEnv>("proxy=null\n", Path::new(""));
+    let mut config = Config::new();
+    auth.apply_to::<HttpsEnv>(&mut config);
+    assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://https-env.example:8080"));
+}
+
+#[test]
+fn cascade_https_proxy_key_wins_over_a_disabling_legacy_proxy() {
+    let auth = NpmrcAuth::from_ini::<NoEnv>(
+        "proxy=false\nhttps-proxy=http://https.example:8080\n",
+        Path::new(""),
+    );
+    let mut config = Config::new();
+    auth.apply_to::<NoEnv>(&mut config);
+    assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://https.example:8080"));
+    assert_eq!(config.proxy.http_proxy.as_deref(), Some("http://https.example:8080"));
+}
+
+/// Only the lowercase tokens are special — pnpm's INI scalars produce
+/// `false` / `null` verbatim, so any other spelling is a hostname.
+#[test]
+fn cascade_capitalised_disabling_tokens_are_proxy_hosts() {
+    static_env!(HttpsEnv, &[("HTTPS_PROXY", "http://https-env.example:8080")]);
+    for (ini, expected) in
+        [("proxy=False\n", "False"), ("proxy=NULL\n", "NULL"), ("https-proxy=False\n", "False")]
+    {
+        let auth = NpmrcAuth::from_ini::<NoEnv>(ini, Path::new(""));
+        let mut config = Config::new();
+        auth.apply_to::<HttpsEnv>(&mut config);
+        assert_eq!(config.proxy.https_proxy.as_deref(), Some(expected), "ini={ini:?}");
+    }
+}
+
 #[test]
 fn cascade_empty_npmrc_proxy_keys_fall_through_to_env() {
     static_env!(

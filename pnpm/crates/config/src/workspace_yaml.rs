@@ -1,8 +1,10 @@
 use crate::{
     AuditConfig, AuditLevel, CatalogMode, Config, HoistingLimits, LinkWorkspacePackages,
     NodeLinker, NodePackageMapType, PackageImportMethod, PmOnFail, ResolutionMode, RuntimeOnFail,
-    SaveWorkspaceProtocol, ScriptsPrependNodePath, TrustPolicy, VerifyDepsBeforeRun, api::EnvVar,
-    npmrc_auth::parse_no_proxy, resolve_child_concurrency,
+    SaveWorkspaceProtocol, ScriptsPrependNodePath, TrustPolicy, VerifyDepsBeforeRun,
+    api::EnvVar,
+    npmrc_auth::{PROXY_DISABLED, parse_no_proxy, unset_legacy_proxy_value, unset_proxy_value},
+    resolve_child_concurrency,
 };
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
@@ -990,7 +992,11 @@ impl WorkspaceSettings {
     /// anchored at the workspace root where the yaml was found, matching pnpm.
     pub fn apply_to(self, config: &mut Config, base_dir: &Path) {
         let http_proxy_is_explicit = config.http_proxy_is_explicit;
-        self.apply_proxy_to(&mut config.proxy, http_proxy_is_explicit);
+        self.apply_proxy_to(
+            &mut config.proxy,
+            &mut config.https_proxy_is_explicit,
+            http_proxy_is_explicit,
+        );
 
         // Captured before the `apply!` macro and audit if-lets below move
         // these out of `self`; consumed after, to warn on the redundant
@@ -1268,17 +1274,26 @@ impl WorkspaceSettings {
         }
     }
 
+    /// Layer this file's proxy settings onto an already-resolved
+    /// [`pacquet_network::ProxyConfig`]. Unset and disabling values follow
+    /// [`unset_proxy_value`] and [`PROXY_DISABLED`].
     pub(crate) fn apply_proxy_to(
         &self,
         proxy_config: &mut pacquet_network::ProxyConfig,
+        https_proxy_is_explicit: &mut bool,
         http_proxy_is_explicit: bool,
     ) {
-        // Empty values are skipped so a lower-priority source still applies —
-        // see the empty-value contract on `ProxyConfig`.
-        let https_proxy = self.https_proxy.as_deref().filter(|value| !value.is_empty());
-        let http_proxy = self.http_proxy.as_deref().filter(|value| !value.is_empty());
-        let legacy_proxy = self.proxy.as_deref().filter(|value| !value.is_empty());
-        if let Some(value) = https_proxy.or(legacy_proxy) {
+        let https_proxy = self.https_proxy.as_deref().filter(|value| !unset_proxy_value(value));
+        let http_proxy = self.http_proxy.as_deref().filter(|value| !unset_proxy_value(value));
+        let legacy_proxy = self.proxy.as_deref().filter(|value| !unset_legacy_proxy_value(value));
+        if let Some(value) = https_proxy {
+            proxy_config.https_proxy = Some(value.to_string());
+            *https_proxy_is_explicit = true;
+        } else if legacy_proxy == Some(PROXY_DISABLED) {
+            if !*https_proxy_is_explicit {
+                proxy_config.https_proxy = None;
+            }
+        } else if let Some(value) = legacy_proxy {
             proxy_config.https_proxy = Some(value.to_string());
         }
         if let Some(value) = http_proxy {
@@ -1286,12 +1301,11 @@ impl WorkspaceSettings {
         } else if (https_proxy.is_some() || legacy_proxy.is_some()) && !http_proxy_is_explicit {
             proxy_config.http_proxy.clone_from(&proxy_config.https_proxy);
         }
-        let no_proxy = non_empty_no_proxy(self.no_proxy.as_ref())
-            .or_else(|| non_empty_no_proxy(self.noproxy.as_ref()));
+        let no_proxy = configured_no_proxy(self.no_proxy.as_ref())
+            .or_else(|| configured_no_proxy(self.noproxy.as_ref()));
         if let Some(value) = no_proxy {
             proxy_config.no_proxy = match value {
                 serde_json::Value::Bool(true) => Some(pacquet_network::NoProxySetting::Bypass),
-                serde_json::Value::Bool(false) | serde_json::Value::Null => None,
                 serde_json::Value::String(value) => Some(parse_no_proxy(value)),
                 _ => None,
             };
@@ -1299,8 +1313,15 @@ impl WorkspaceSettings {
     }
 }
 
-fn non_empty_no_proxy(value: Option<&serde_json::Value>) -> Option<&serde_json::Value> {
-    value.filter(|value| value.as_str() != Some(""))
+/// A `noProxy` yaml value that is actually configured, i.e. not one of
+/// the forms [`unset_proxy_value`] covers. `false` and `null` arrive as
+/// yaml scalars rather than strings, so they are matched separately.
+fn configured_no_proxy(value: Option<&serde_json::Value>) -> Option<&serde_json::Value> {
+    value.filter(|value| match value {
+        serde_json::Value::Bool(false) | serde_json::Value::Null => false,
+        serde_json::Value::String(value) => !unset_proxy_value(value),
+        _ => true,
+    })
 }
 
 fn has_env_placeholder(value: &str) -> bool {

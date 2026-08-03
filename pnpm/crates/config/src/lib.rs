@@ -987,6 +987,11 @@ pub struct Config {
     /// rather than falling back to the resolved HTTPS proxy.
     pub http_proxy_is_explicit: bool,
 
+    /// Whether `https_proxy` came from an `https-proxy` setting rather
+    /// than the legacy `proxy` key or the environment. A later
+    /// `proxy=false` layer clears only the latter two.
+    pub https_proxy_is_explicit: bool,
+
     /// Resolved TLS + `local-address` configuration — `ca`, `cafile`,
     /// `cert`, `key`, `strict-ssl`, `local-address` from `.npmrc`. The
     /// type lives in `pacquet-network` for the same reason as
@@ -1851,6 +1856,10 @@ pub struct PackageManagerBootstrap {
     /// Whether `proxy.http_proxy` came from a non-empty trusted
     /// `http-proxy` setting rather than the HTTPS-proxy fallback.
     pub http_proxy_is_explicit: bool,
+    /// Whether `proxy.https_proxy` came from a trusted `https-proxy`
+    /// setting rather than the legacy `proxy` key or the environment. A
+    /// later `proxy=false` layer clears only the latter two.
+    pub https_proxy_is_explicit: bool,
     pub tls: pacquet_network::TlsConfig,
     pub tls_by_uri: pacquet_network::PerRegistryTls,
     pub auth_headers: std::sync::Arc<pacquet_network::AuthHeaders>,
@@ -1878,6 +1887,12 @@ impl Config {
     /// explicitly configured the HTTP proxy. An empty flag value leaves the
     /// resolved proxy alone — see the empty-value contract on
     /// [`pacquet_network::ProxyConfig`].
+    ///
+    /// Only the empty string reads as unset here. A flag carries its value
+    /// verbatim, so it has none of the scalar typing that turns a `false` /
+    /// `null` in an `.npmrc` or yaml into a non-string
+    /// ([`crate::npmrc_auth::unset_proxy_value`]); on the command line those
+    /// are ordinary hostnames.
     pub fn apply_proxy_cli_overrides(
         &mut self,
         https_proxy: Option<&str>,
@@ -1887,6 +1902,10 @@ impl Config {
         let https_proxy = https_proxy.filter(|value| !value.is_empty());
         let http_proxy = http_proxy.filter(|value| !value.is_empty());
         let no_proxy = no_proxy.filter(|value| !value.is_empty());
+        if https_proxy.is_some() {
+            self.https_proxy_is_explicit = true;
+            self.package_manager_bootstrap.https_proxy_is_explicit = true;
+        }
         for (proxy, http_proxy_is_explicit) in [
             (&mut self.proxy, self.http_proxy_is_explicit),
             (
@@ -2428,6 +2447,10 @@ impl Config {
             npmrc_auth.merge_under(lower);
         }
         self.http_proxy_is_explicit = has_nonempty_string(npmrc_auth.http_proxy.as_deref());
+        self.https_proxy_is_explicit = npmrc_auth
+            .https_proxy
+            .as_deref()
+            .is_some_and(|value| !crate::npmrc_auth::unset_proxy_value(value));
         // Retain the merged raw `.npmrc` / `auth.ini` config keys for
         // `pnpm config get` / `pnpm config list` before the structured fields
         // are consumed below.
@@ -2450,8 +2473,12 @@ impl Config {
             self.package_manager_bootstrap.http_proxy_is_explicit |=
                 has_nonempty_string(global_settings.http_proxy.as_deref());
             let http_proxy_is_explicit = self.package_manager_bootstrap.http_proxy_is_explicit;
-            global_settings
-                .apply_proxy_to(&mut self.package_manager_bootstrap.proxy, http_proxy_is_explicit);
+            let bootstrap = &mut self.package_manager_bootstrap;
+            global_settings.apply_proxy_to(
+                &mut bootstrap.proxy,
+                &mut bootstrap.https_proxy_is_explicit,
+                http_proxy_is_explicit,
+            );
         }
 
         npmrc_auth.apply_registry_and_warn(&mut self);
@@ -2614,8 +2641,10 @@ impl Config {
         collect_explicit_settings(&mut self.explicit_settings, &env_settings);
         let bootstrap_http_proxy_is_explicit =
             self.package_manager_bootstrap.http_proxy_is_explicit;
+        let bootstrap = &mut self.package_manager_bootstrap;
         env_settings.apply_proxy_to(
-            &mut self.package_manager_bootstrap.proxy,
+            &mut bootstrap.proxy,
+            &mut bootstrap.https_proxy_is_explicit,
             bootstrap_http_proxy_is_explicit,
         );
         let saved_workspace_dir = self.workspace_dir.clone();
@@ -2743,6 +2772,10 @@ fn build_package_manager_bootstrap<Sys: EnvVar>(
     // drop the duplicates this second pass would log.
     trusted_auth.warnings.clear();
     let http_proxy_is_explicit = has_nonempty_string(trusted_auth.http_proxy.as_deref());
+    let https_proxy_is_explicit = trusted_auth
+        .https_proxy
+        .as_deref()
+        .is_some_and(|value| !crate::npmrc_auth::unset_proxy_value(value));
     let mut config = Config::default();
     trusted_auth.apply_registry_and_warn(&mut config);
     trusted_auth.apply_json_env_registries(&mut config);
@@ -2754,6 +2787,7 @@ fn build_package_manager_bootstrap<Sys: EnvVar>(
         registries: config.registries,
         proxy: config.proxy,
         http_proxy_is_explicit,
+        https_proxy_is_explicit,
         tls: config.tls,
         tls_by_uri: config.tls_by_uri,
         auth_headers: config.auth_headers,
