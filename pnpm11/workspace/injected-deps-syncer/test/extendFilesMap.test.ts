@@ -4,7 +4,7 @@ import path from 'node:path'
 import { afterEach, expect, jest, test } from '@jest/globals'
 import { prepareEmpty } from '@pnpm/prepare'
 
-import { DIR, type ExtendFilesMapStats, extendFilesMap, type InodeMap, UNSUPPORTED } from '../src/DirPatcher.js'
+import { DIR, extendFilesMap, type ExtendFilesMapStats, type InodeMap, UNSUPPORTED } from '../src/DirPatcher.js'
 
 const originalStat = fs.promises.stat
 
