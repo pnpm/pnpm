@@ -60,13 +60,15 @@ jobs:
               ;;
           esac
 
-  # Removing the workflow that auto-created tags stops CI from making unsigned
-  # ones, but nothing would stop a compromised workflow or a token with tag
-  # scope from pushing a `v*.*.*` tag and triggering a publish. This job is what
-  # makes the signed-tag rule enforced rather than merely documented: every
-  # publish path descends from `plan`, and `plan` descends from here, so a tag
-  # that is lightweight, unsigned, or signed by a key outside
-  # .github/release-keys cannot reach any publish job.
+  # The release trust root: a tag reaches a publish job only if it carries a
+  # signature from a key committed under .github/release-keys. Every publish path
+  # descends from `plan`, and `plan` descends from this job.
+  #
+  # This guards against an unsigned tag, not against an actor who can push an
+  # arbitrary one. A tag push runs the workflow file and checks out the tree from
+  # the pushed tag, so a tag supplies both this job and the keys it trusts.
+  # Restricting who may create `v*` and `pnpr@*` tags is a repository ruleset
+  # concern that no workflow can enforce for itself.
   verify-release-tag:
     name: Verify the release tag is maintainer-signed
     needs: validate-release-ref
@@ -118,10 +120,8 @@ jobs:
           fi
           gpg --batch --quiet --import "${keys[@]}"
 
-          # `git verify-tag` fails closed on every case that matters: a
-          # lightweight tag has no object to verify, an annotated tag carries no
-          # signature, and a signature from any key outside the keyring above
-          # has no public key to check against.
+          # No separate check that the tag is annotated: verify-tag already fails
+          # on a lightweight tag, having no object to read a signature from.
           if ! git verify-tag "$TAG"; then
             echo "::error::$TAG is not signed by a key in .github/release-keys. Release tags must be signed by a maintainer — see RELEASING.md."
             exit 1
