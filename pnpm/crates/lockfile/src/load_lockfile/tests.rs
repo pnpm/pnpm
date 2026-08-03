@@ -87,6 +87,29 @@ fn parses_main_document_from_combined_yaml() {
     assert_eq!(combined_loaded, main_only_loaded);
 }
 
+/// Regression test for <https://github.com/pnpm/pnpm/issues/13606>: a
+/// combined lockfile checked out with CRLF line endings was handed to
+/// serde whole, failing as "multiple YAML documents detected" and
+/// making every install re-resolve from the registry.
+#[test]
+fn parses_main_document_from_crlf_combined_yaml() {
+    let combined = format!("---\n{ENV_DOC}\n---\n{MAIN_DOC}").replace('\n', "\r\n");
+    let tmp = write_lockfile(&combined);
+    let virtual_store_dir = tmp.path().join("node_modules").join(".pacquet");
+
+    let crlf_loaded = Lockfile::load_current_from_virtual_store_dir(&virtual_store_dir)
+        .expect("load CRLF combined lockfile")
+        .expect("CRLF combined lockfile should be present");
+
+    let tmp_main = write_lockfile(MAIN_DOC);
+    let main_only_dir = tmp_main.path().join("node_modules").join(".pacquet");
+    let main_only_loaded = Lockfile::load_current_from_virtual_store_dir(&main_only_dir)
+        .expect("load main-only lockfile")
+        .expect("main-only lockfile should be present");
+
+    assert_eq!(crlf_loaded, main_only_loaded);
+}
+
 #[test]
 fn env_only_lockfile_loads_as_none() {
     let env_only = format!("---\n{ENV_DOC}\n");
