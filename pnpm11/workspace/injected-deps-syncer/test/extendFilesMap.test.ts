@@ -4,7 +4,7 @@ import path from 'node:path'
 import { afterEach, expect, jest, test } from '@jest/globals'
 import { prepareEmpty } from '@pnpm/prepare'
 
-import { DIR, extendFilesMap, type ExtendFilesMapStats, type InodeMap } from '../src/DirPatcher.js'
+import { DIR, extendFilesMap, type ExtendFilesMapStats, type InodeMap, UNSUPPORTED } from '../src/DirPatcher.js'
 
 const originalStat = fs.promises.stat
 
@@ -99,4 +99,29 @@ test('with provided stats', async () => {
   } as InodeMap)
 
   expect(statMethod).not.toHaveBeenCalled()
+})
+
+test('unsupported inode types are recorded as UNSUPPORTED', async () => {
+  const filesMap = new Map<string, string>([
+    ['keep.txt', '/tmp/keep.txt'],
+    ['pipe.env', '/tmp/pipe.env'],
+  ])
+  const filesStats: Record<string, ExtendFilesMapStats> = {
+    'keep.txt': {
+      ino: 42,
+      isDirectory: () => false,
+      isFile: () => true,
+    },
+    'pipe.env': {
+      ino: 43,
+      isDirectory: () => false,
+      isFile: () => false,
+    },
+  }
+
+  expect(await extendFilesMap({ filesMap, filesStats })).toStrictEqual({
+    '.': DIR,
+    'keep.txt': 42,
+    'pipe.env': UNSUPPORTED,
+  } as InodeMap)
 })

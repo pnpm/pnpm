@@ -2,17 +2,19 @@ import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
-import { PnpmError } from '@pnpm/error'
 import { fetchFromDir, type FetchFromDirOptions } from '@pnpm/fetching.directory-fetcher'
 
 export const DIR: unique symbol = Symbol('Path is a directory')
+/** FIFO, socket, device node, etc. — tracked so targets can be cleaned up, never hardlinked. */
+export const UNSUPPORTED: unique symbol = Symbol('Unsupported inode type')
 
 // symbols and numbers are used instead of discriminated union because
 // it's faster and simpler to compare primitives than to deep compare objects
 export type File = number // representing the file's inode, which is sufficient for hardlinks
 export type Dir = typeof DIR
+export type Unsupported = typeof UNSUPPORTED
 
-export type Value = File | Dir
+export type Value = File | Dir | Unsupported
 export type InodeMap = Record<string, Value>
 
 export interface DiffItemBase {
@@ -84,6 +86,8 @@ export async function applyPatch (optimizedDirPatch: DirDiff, sourceDir: string,
   async function addRecursive (sourcePath: string, targetPath: string, value: Value): Promise<void> {
     if (value === DIR) {
       await fs.promises.mkdir(targetPath, { recursive: true })
+    } else if (value === UNSUPPORTED) {
+      // Source-side special inodes are intentionally not materialized on the target.
     } else if (typeof value === 'number') {
       fs.mkdirSync(path.dirname(targetPath), { recursive: true })
       await fs.promises.link(sourcePath, targetPath)
@@ -102,12 +106,6 @@ export async function applyPatch (optimizedDirPatch: DirDiff, sourceDir: string,
     }
   }
 
-  const adding = Promise.all(optimizedDirPatch.added.map(async item => {
-    const sourcePath = path.join(sourceDir, item.path)
-    const targetPath = path.join(targetDir, item.path)
-    await addRecursive(sourcePath, targetPath, item.newValue)
-  }))
-
   const removing = Promise.all(optimizedDirPatch.removed.map(async item => {
     const targetPath = path.join(targetDir, item.path)
     await removeRecursive(targetPath)
@@ -121,7 +119,14 @@ export async function applyPatch (optimizedDirPatch: DirDiff, sourceDir: string,
     await addRecursive(sourcePath, targetPath, item.newValue)
   }))
 
-  await Promise.all([adding, removing, modifying])
+  // Finish removals/replacements before adds so a parent modified from a
+  // special inode (or file) into a directory cannot rm children linked by adds.
+  await Promise.all([removing, modifying])
+  await Promise.all(optimizedDirPatch.added.map(async item => {
+    const sourcePath = path.join(sourceDir, item.path)
+    const targetPath = path.join(targetDir, item.path)
+    await addRecursive(sourcePath, targetPath, item.newValue)
+  }))
 }
 
 export type ExtendFilesMapStats = Pick<fs.Stats, 'ino' | 'isFile' | 'isDirectory'>
@@ -157,7 +162,10 @@ export async function extendFilesMap ({ filesMap, filesStats }: ExtendFilesMapOp
     } else if (stats.isDirectory()) {
       addInodeAndAncestors(relativePath, DIR)
     } else {
-      throw new PnpmError('UNSUPPORTED_INODE_TYPE', `Filesystem inode at ${realPath} is neither a file, a directory, or a symbolic link`)
+      // FIFOs, sockets, and device nodes (e.g. 1Password `.env` pipes).
+      // Keep them in the diff so target-side specials can be removed or replaced;
+      // applyPatch never materializes them from the source.
+      addInodeAndAncestors(relativePath, UNSUPPORTED)
     }
   }))
 

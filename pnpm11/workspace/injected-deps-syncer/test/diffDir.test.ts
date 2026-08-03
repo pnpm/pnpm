@@ -1,6 +1,6 @@
 import { expect, test } from '@jest/globals'
 
-import { diffDir, DIR, type DirDiff, type InodeMap } from '../src/DirPatcher.js'
+import { diffDir, DIR, type DirDiff, type InodeMap, UNSUPPORTED } from '../src/DirPatcher.js'
 
 test('produces a diff', () => {
   const unchangedParts = {
@@ -109,4 +109,20 @@ test('produces a diff', () => {
   const receivedDiff = diffDir(oldIndex, newIndex)
 
   expect(receivedDiff).toStrictEqual(expectedDiff)
+})
+
+test('replacing an unsupported inode with a file is a modification', () => {
+  const oldIndex: InodeMap = {
+    '.': DIR,
+    'pipe.env': UNSUPPORTED,
+  }
+  const newIndex: InodeMap = {
+    '.': DIR,
+    'pipe.env': 99,
+  }
+  expect(diffDir(oldIndex, newIndex)).toStrictEqual({
+    added: [],
+    removed: [],
+    modified: [{ path: 'pipe.env', oldValue: UNSUPPORTED, newValue: 99 }],
+  } satisfies DirDiff)
 })

@@ -202,6 +202,7 @@
     "millis",
     "minioadmin",
     "mintimeout",
+    "mkfifo",
     "mmap",
     "monorepolint",
     "montudor",
