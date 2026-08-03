@@ -49,16 +49,27 @@ In particular:
   CI jobs, restrict write access to trusted identities via filesystem
   permissions.
 
-- **Running a repository's code means trusting that repository.** `pnpm run`,
-  `pnpm exec`, and `pnpm dlx` execute code the repository chooses, so
-  configuration that only influences those commands — `nodeOptions`, script
-  bodies, `.bin` entries — is not a boundary we can defend. What we do defend is
-  the weaker act of *installing* from an untrusted repository: a `pnpm install`
-  must not send your credentials to a host the repository picked, and must not
-  run dependency build scripts you did not allow. This is why environment
-  variable expansion in repository-controlled configuration is restricted for
-  request destinations (`registry`, `proxy`, `pnprServer`) and auth values, and
-  not for settings that merely shape a command you asked pnpm to run.
+- **Running pnpm inside a repository means trusting that repository.** This is
+  not limited to `pnpm run`, `pnpm exec`, and `pnpm dlx`, which execute whatever
+  the repository specifies. A plain `pnpm install` also runs the project's own
+  `preinstall`, `install`, `postinstall`, and `prepare` scripts by default;
+  `--ignore-scripts` is what suppresses them. The build approval prompt
+  (`onlyBuiltDependencies` / `allowBuilds`) gates **dependencies'** build
+  scripts, not the scripts of the project you are installing.
+
+  A report therefore does not describe a privilege escalation merely because an
+  untrusted repository can influence what pnpm executes — in that starting
+  position, code execution is already available to the attacker by design.
+
+- **Some restrictions are hardening, not boundaries.** Environment variable
+  expansion in repository-controlled configuration is suppressed for request
+  destinations (`registry`, `proxy`, `pnprServer`) and for auth values. That
+  narrows silent credential exfiltration — the case that survives
+  `--ignore-scripts`, and the case where a one-line config diff draws less
+  review than a new `postinstall` script would. It is deliberately not a
+  general-purpose sandbox, and a setting outside its coverage is not a
+  vulnerability on that basis alone. What matters is what the gap grants an
+  attacker beyond what the repository could already do without it.
 
 The following are examples of reports we consider **out of scope**:
 
