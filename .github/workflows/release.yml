@@ -271,7 +271,7 @@ jobs:
       - name: Install pnpm and Node
         uses: pnpm/setup@6523ce966bcf7a1061ce6401e5c6e0b60466bd31
         with:
-          runtime: node@26.5.1
+          runtime: node@26.6.0
       - name: Build TypeScript executable artifacts
         run: pn --filter=@pnpm/exe run build-artifacts
 
@@ -425,7 +425,7 @@ jobs:
       - name: Install pnpm and Node
         uses: pnpm/setup@6523ce966bcf7a1061ce6401e5c6e0b60466bd31
         with:
-          runtime: node@26.5.1
+          runtime: node@26.6.0
       # The publish phase is split into three sequential steps to control which packages
       # use trusted publishing (OIDC) vs. a static token. `pnpm publish` currently bails
       # out of OIDC as soon as a static `_authToken` is configured, so the only way to
@@ -604,7 +604,7 @@ jobs:
           persist-credentials: false
 
       - name: Install cross
-        uses: taiki-e/install-action@6a1bd70eaac3c8bdf093356838d7ee09fda951cf # v2.85.5
+        uses: taiki-e/install-action@67729d5c413db75907f0ad1e39bb04b9c868ff60 # v2.85.7
         with:
           tool: cross
 
@@ -1099,7 +1099,7 @@ jobs:
           persist-credentials: false
 
       - name: Install cross
-        uses: taiki-e/install-action@6a1bd70eaac3c8bdf093356838d7ee09fda951cf # v2.85.5
+        uses: taiki-e/install-action@67729d5c413db75907f0ad1e39bb04b9c868ff60 # v2.85.7
         with:
           tool: cross
 
