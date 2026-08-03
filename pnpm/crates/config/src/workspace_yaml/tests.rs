@@ -109,14 +109,27 @@ fn scope_survives_workspace_only_field_clearing() {
 }
 
 #[test]
+fn clear_repo_scope_drops_a_scope_and_leaves_the_rest_alone() {
+    let mut settings: WorkspaceSettings =
+        serde_saphyr::from_str("scope: '@from-repo'\nregistry: https://reg.example/\n").unwrap();
+    settings.clear_repo_scope();
+    assert_eq!(settings.scope, None);
+    assert_eq!(settings.registry.as_deref(), Some("https://reg.example/"));
+
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(config.scope, None);
+}
+
+#[test]
 fn apply_scope_overrides_an_earlier_layer() {
-    // The workspace yaml is applied over the global `config.yaml`, so the
-    // project's scope wins — mirroring `registry`.
-    let settings: WorkspaceSettings = serde_saphyr::from_str("scope: '@from-yaml'\n").unwrap();
+    // `PNPM_CONFIG_SCOPE` reaches `apply_to` through the same settings type,
+    // and is applied over the global `config.yaml`, so the env value wins.
+    let settings: WorkspaceSettings = serde_saphyr::from_str("scope: '@from-env'\n").unwrap();
     let mut config = Config::new();
     config.scope = Some("@from-global-config".to_owned());
     settings.apply_to(&mut config, Path::new("/irrelevant"));
-    assert_eq!(config.scope.as_deref(), Some("@from-yaml"));
+    assert_eq!(config.scope.as_deref(), Some("@from-env"));
 }
 
 #[test]

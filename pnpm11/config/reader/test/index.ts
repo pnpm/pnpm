@@ -1126,6 +1126,104 @@ test('pnpm-workspace.yaml request destinations do not expand env variables', asy
   expect(JSON.stringify(config)).not.toContain('secret')
 })
 
+// `pnpm login` turns `scope` into a `@scope:registry` route in the global
+// auth.ini, which outranks ~/.npmrc in every project on the machine — so a
+// repo-committed file must not be able to choose it.
+// https://github.com/pnpm/pnpm/issues/13557
+describe('the scope setting is honored from trusted sources only', () => {
+  const scopeWarning = expect.stringContaining('The "scope" setting in')
+
+  test('a pnpm-workspace.yaml scope is ignored and warned about', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', { scope: '@acme' })
+
+    const { config, warnings } = await getConfig({
+      cliOptions: {},
+      env,
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.scope).toBeUndefined()
+    expect(warnings).toContainEqual(scopeWarning)
+  })
+
+  test('a project .npmrc scope reaches no config at all', async () => {
+    prepareEmpty()
+
+    fs.writeFileSync('.npmrc', 'scope=@acme\n', 'utf8')
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      env,
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.scope).toBeUndefined()
+  })
+
+  test('--scope overrides a pnpm-workspace.yaml scope', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', { scope: '@acme' })
+
+    const { config } = await getConfig({
+      cliOptions: { scope: '@from-cli' },
+      env,
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.scope).toBe('@from-cli')
+  })
+
+  test('a global config.yaml scope survives a pnpm-workspace.yaml scope', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', { scope: '@acme' })
+
+    const { config } = await getConfigWithGlobalYaml(
+      { scope: '@from-global-config' },
+      { workspaceDir: process.cwd() }
+    )
+
+    expect(config.scope).toBe('@from-global-config')
+  })
+
+  test('PNPM_CONFIG_SCOPE overrides a pnpm-workspace.yaml scope', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', { scope: '@acme' })
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      env: { ...env, PNPM_CONFIG_SCOPE: '@from-env' },
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.scope).toBe('@from-env')
+  })
+
+  test('a pnpm-workspace.yaml without a scope emits no warning', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', { packages: ['.'] })
+
+    const { config, warnings } = await getConfig({
+      cliOptions: { scope: '@from-cli' },
+      env,
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.scope).toBe('@from-cli')
+    expect(warnings).not.toContainEqual(scopeWarning)
+  })
+})
+
 test('package manager bootstrap registries ignore project workspace registries', async () => {
   prepareEmpty()
 

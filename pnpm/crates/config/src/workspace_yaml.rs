@@ -148,6 +148,10 @@ pub struct WorkspaceSettings {
     pub prefer_offline: Option<bool>,
     pub lockfile_include_tarball_url: Option<bool>,
     pub registry: Option<String>,
+    /// Only the global `config.yaml` and `PNPM_CONFIG_*` reach
+    /// [`Config::scope`] through this field — a project
+    /// `pnpm-workspace.yaml` has it cleared by
+    /// [`Self::clear_repo_scope`].
     pub scope: Option<String>,
     pub registries: Option<BTreeMap<String, String>>,
     pub pnpr_server: Option<String>,
@@ -710,6 +714,10 @@ pub const WORKSPACE_MANIFEST_FILENAME: &str = "pnpm-workspace.yaml";
 /// Basename of pnpm's global config file inside `<configDir>`.
 pub const GLOBAL_CONFIG_YAML_FILENAME: &str = "config.yaml";
 
+/// Emitted by [`WorkspaceSettings::clear_repo_scope`]; worded identically in
+/// the TypeScript CLI's config reader.
+const IGNORED_SCOPE_WARNING: &str = r#"The "scope" setting in pnpm-workspace.yaml was ignored. "pnpm login" records it as a scope-to-registry route in the global auth.ini, which then applies to every project on the machine, so it is only read from --scope, the PNPM_CONFIG_SCOPE environment variable, and the global config file."#;
+
 /// Error when reading `pnpm-workspace.yaml`.
 ///
 /// `ENOENT` is treated as "no manifest" and every other failure
@@ -820,6 +828,23 @@ impl WorkspaceSettings {
         self.trust_policy = None;
         self.trust_policy_exclude = None;
         self.trust_policy_ignore_after = None;
+    }
+
+    /// Zero out the `scope` a project `pnpm-workspace.yaml` supplied, warning
+    /// that it was ignored.
+    ///
+    /// `pnpm login` turns `scope` into a `@scope:registry` route that it writes
+    /// into the machine-global `auth.ini` — a file no repository can write to,
+    /// that outranks the user's own `~/.npmrc`, and that keeps redirecting that
+    /// scope in every unrelated project from then on. A repo-committed file
+    /// must not be able to plant one, so `scope` comes from the global
+    /// `config.yaml` and `PNPM_CONFIG_SCOPE` only (plus `--scope`, applied by
+    /// the caller).
+    /// See <https://github.com/pnpm/pnpm/issues/13557>
+    pub fn clear_repo_scope(&mut self) {
+        if self.scope.take().is_some() {
+            tracing::warn!(target: "pacquet::config", "{IGNORED_SCOPE_WARNING}");
+        }
     }
 
     /// Zero out fields not permitted in the global `config.yaml`.

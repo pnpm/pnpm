@@ -136,6 +136,12 @@ export interface Config extends OptionsFromRootManifest {
   nodeDownloadMirrors?: Record<string, string>
   offline?: boolean
   registry?: string
+  /**
+   * The package scope `pnpm login` / `pnpm adduser` associates the granted
+   * token with, and records a registry route for. Repo-controlled config
+   * cannot set it — see `REPO_MANIFEST_SKIPPED_SETTINGS`.
+   */
+  scope?: string
   optional?: boolean
   unsafePerm?: boolean
   loglevel?: 'silent' | 'error' | 'warn' | 'info' | 'debug'

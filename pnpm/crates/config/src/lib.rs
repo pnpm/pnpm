@@ -962,6 +962,9 @@ pub struct Config {
     /// The default package scope for `pnpm login` and `pnpm adduser`: the
     /// granted token is associated with this scope and the scope-to-registry
     /// mapping is recorded. Overridden by `--scope`.
+    ///
+    /// Repo-controlled config cannot set it — see
+    /// [`WorkspaceSettings::clear_repo_scope`].
     pub scope: Option<String>,
 
     /// Scoped registry routes keyed by `@scope`, populated from
@@ -2558,6 +2561,7 @@ impl Config {
                 global_virtual_store_dir_explicit |= settings.global_virtual_store_dir.is_some();
                 store_dir_explicit |= settings.store_dir.is_some();
                 settings.substitute_env_untrusted::<Sys>();
+                settings.clear_repo_scope();
                 if for_self_update {
                     settings.clear_self_update_policy();
                 }

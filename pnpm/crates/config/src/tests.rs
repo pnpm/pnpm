@@ -1963,13 +1963,49 @@ pub fn pnpm_workspace_yaml_registry_overrides_npmrc_registry() {
     assert_eq!(config.registry, "https://from-yaml.test/");
 }
 
+// `pnpm login` turns `scope` into a `@scope:registry` route in the global
+// `auth.ini`, which outranks the user's `~/.npmrc` in every project on the
+// machine — so a repo-committed file must not be able to choose it.
+// See <https://github.com/pnpm/pnpm/issues/13557>.
 #[test]
-pub fn pnpm_workspace_yaml_supplies_the_login_scope() {
+pub fn pnpm_workspace_yaml_cannot_supply_the_login_scope() {
     let tmp = tempdir().unwrap();
     fs::write(tmp.path().join("pnpm-workspace.yaml"), "scope: '@from-yaml'\n")
         .expect("write to pnpm-workspace.yaml");
     let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
-    assert_eq!(config.scope.as_deref(), Some("@from-yaml"));
+    assert_eq!(config.scope, None);
+}
+
+#[test]
+pub fn global_config_yaml_supplies_the_login_scope_over_workspace_yaml() {
+    fake_env!(load_with_fake_env);
+    let xdg = tempdir().expect("xdg tempdir");
+    let config_dir = xdg.path().join("pnpm");
+    fs::create_dir_all(&config_dir).expect("create config dir");
+    fs::write(config_dir.join("config.yaml"), "scope: '@from-global-config'\n")
+        .expect("write global config.yaml");
+
+    let project = tempdir().expect("project tempdir");
+    fs::write(project.path().join("pnpm-workspace.yaml"), "scope: '@from-yaml'\n")
+        .expect("write pnpm-workspace.yaml");
+    set_fake_env(&[("XDG_CONFIG_HOME", xdg.path().to_str().unwrap())]);
+
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(config.scope.as_deref(), Some("@from-global-config"));
+}
+
+#[test]
+pub fn pnpm_config_scope_env_var_overrides_the_login_scope_in_workspace_yaml() {
+    fake_env!(load_with_fake_env);
+    let project = tempdir().expect("project tempdir");
+    fs::write(project.path().join("pnpm-workspace.yaml"), "scope: '@from-yaml'\n")
+        .expect("write pnpm-workspace.yaml");
+    set_fake_env(&[("PNPM_CONFIG_SCOPE", "@from-env")]);
+
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(config.scope.as_deref(), Some("@from-env"));
 }
 
 #[test]
