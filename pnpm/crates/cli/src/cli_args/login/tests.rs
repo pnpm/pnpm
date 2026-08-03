@@ -145,12 +145,8 @@ fn no_scope_when_neither_flag_nor_config_is_set() {
 /// Serves only the handshake; the caller must script the fake fetch that
 /// answers the token poll.
 async fn web_login_server(server: &mut mockito::Server) -> String {
-    server
-        .mock("POST", "/-/v1/login")
-        .with_status(200)
-        .with_body(serde_json::json!({"loginUrl": "https://example.org/auth/login", "doneUrl": "https://example.org/auth/done"}).to_string())
-        .create_async()
-        .await;
+    let body = serde_json::json!({"loginUrl": "https://example.org/auth/login", "doneUrl": "https://example.org/auth/done"}).to_string();
+    server.mock("POST", "/-/v1/login").with_status(200).with_body(body).create_async().await;
     server.url()
 }
 
