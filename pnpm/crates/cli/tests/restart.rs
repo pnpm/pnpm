@@ -113,11 +113,14 @@ fn restart_with_if_present_skips_missing_scripts() {
 fn restart_passes_args_to_scripts() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     let log_file = workspace.join("log.txt");
+    // The log path travels as a script argument, not inside the JS source:
+    // interpolated there, a Windows path's backslashes would be swallowed as
+    // string escapes. The forwarded restart argument lands after it.
     let append_arg_node = |name: &str| {
         format!(
-            r#"node -e "require('fs').appendFileSync('{}', '{} ' + process.argv[1] + '\n')""#,
-            log_file.display(),
+            r#"node -e "require('fs').appendFileSync(process.argv[1], '{} ' + process.argv[2] + '\n')" "{}""#,
             name,
+            log_file.display(),
         )
     };
     let manifest = json!({
