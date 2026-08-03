@@ -1299,8 +1299,11 @@ pub fn cli_https_proxy_precedes_standard_http_proxy_environment_fallback() {
     assert_eq!(config.package_manager_bootstrap.proxy, config.proxy);
 }
 
+/// A flag names its key even when the value reads as unset, so the
+/// `.npmrc` below it cannot win the key back — the cascade falls through
+/// to the other keys and the environment, and here to neither.
 #[test]
-pub fn empty_cli_proxy_flags_preserve_the_resolved_proxy() {
+pub fn empty_cli_proxy_flags_mask_the_project_npmrc() {
     fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");
     write_file(
@@ -1312,16 +1315,28 @@ pub fn empty_cli_proxy_flags_preserve_the_resolved_proxy() {
     let mut config = load_with_fake_env(project.path());
     config.apply_proxy_cli_overrides(Some(""), Some(""), Some(""));
 
-    assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://npmrc-proxy.example.com:8443"));
-    assert_eq!(config.proxy.http_proxy.as_deref(), Some("http://npmrc-proxy.example.com:8443"));
-    assert_eq!(
-        config.proxy.no_proxy,
-        Some(pacquet_network::NoProxySetting::List(vec!["skip.example".to_string()])),
-    );
+    assert_eq!(config.proxy.https_proxy, None);
+    assert_eq!(config.proxy.http_proxy, None);
+    assert_eq!(config.proxy.no_proxy, None);
 }
 
 #[test]
-pub fn empty_workspace_yaml_proxy_settings_preserve_project_npmrc() {
+pub fn empty_cli_proxy_flags_fall_through_to_the_environment() {
+    fake_env!(load_with_fake_env);
+    let project = tempdir().expect("project tempdir");
+    write_file(&project.path().join(".npmrc"), "https-proxy=http://npmrc-proxy.example.com:8443\n");
+    set_fake_env(&[("HTTPS_PROXY", "http://env-proxy.example.com:8080")]);
+
+    let mut config = load_with_fake_env(project.path());
+    config.apply_proxy_cli_overrides(Some(""), None, None);
+
+    assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://env-proxy.example.com:8080"));
+}
+
+/// A yaml key set to an unset-reading value still masks the `.npmrc`
+/// below it, so nothing is left for the cascade to fall through to.
+#[test]
+pub fn empty_workspace_yaml_proxy_settings_mask_the_project_npmrc() {
     fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");
     write_file(
@@ -1337,12 +1352,9 @@ pub fn empty_workspace_yaml_proxy_settings_preserve_project_npmrc() {
 
     let config = load_with_fake_env(project.path());
 
-    assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://npmrc-proxy.example.com:8443"));
-    assert_eq!(config.proxy.http_proxy.as_deref(), Some("http://npmrc-proxy.example.com:8443"));
-    assert_eq!(
-        config.proxy.no_proxy,
-        Some(pacquet_network::NoProxySetting::List(vec!["skip.example".to_string()])),
-    );
+    assert_eq!(config.proxy.https_proxy, None);
+    assert_eq!(config.proxy.http_proxy, None);
+    assert_eq!(config.proxy.no_proxy, None);
 }
 
 /// The two `noProxy` spellings are separate yaml keys, so an empty
@@ -1409,7 +1421,7 @@ pub fn workspace_yaml_proxy_false_overrides_an_npmrc_legacy_proxy() {
 }
 
 #[test]
-pub fn workspace_yaml_scheme_proxy_keys_set_to_false_preserve_project_npmrc() {
+pub fn workspace_yaml_scheme_proxy_keys_set_to_false_mask_the_project_npmrc() {
     fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");
     write_file(
@@ -1421,15 +1433,16 @@ pub fn workspace_yaml_scheme_proxy_keys_set_to_false_preserve_project_npmrc() {
         "httpsProxy: false\nhttpProxy: false\nnoProxy: false\n",
     )
     .expect("write pnpm-workspace.yaml");
-    set_fake_env(&[]);
+    set_fake_env(&[("NO_PROXY", "env.example")]);
 
     let config = load_with_fake_env(project.path());
 
-    assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://npmrc-proxy.example.com:8443"));
-    assert_eq!(config.proxy.http_proxy.as_deref(), Some("http://npmrc-proxy.example.com:8443"));
+    assert_eq!(config.proxy.https_proxy, None);
+    assert_eq!(config.proxy.http_proxy, None);
     assert_eq!(
         config.proxy.no_proxy,
-        Some(pacquet_network::NoProxySetting::List(vec!["skip.example".to_string()])),
+        Some(pacquet_network::NoProxySetting::List(vec!["env.example".to_string()])),
+        "a masked key still falls through to the environment",
     );
 }
 
@@ -1453,7 +1466,7 @@ pub fn empty_workspace_yaml_no_proxy_falls_through_to_its_alias() {
 }
 
 #[test]
-pub fn empty_global_config_yaml_proxy_settings_preserve_project_npmrc() {
+pub fn empty_global_config_yaml_proxy_settings_mask_the_project_npmrc() {
     fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");
     write_file(
@@ -1469,12 +1482,9 @@ pub fn empty_global_config_yaml_proxy_settings_preserve_project_npmrc() {
     set_fake_env(&[("XDG_CONFIG_HOME", xdg.path().to_str().unwrap())]);
     let config = load_with_fake_env(project.path());
 
-    assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://npmrc-proxy.example.com:8443"));
-    assert_eq!(config.proxy.http_proxy.as_deref(), Some("http://npmrc-proxy.example.com:8443"));
-    assert_eq!(
-        config.proxy.no_proxy,
-        Some(pacquet_network::NoProxySetting::List(vec!["skip.example".to_string()])),
-    );
+    assert_eq!(config.proxy.https_proxy, None);
+    assert_eq!(config.proxy.http_proxy, None);
+    assert_eq!(config.proxy.no_proxy, None);
 }
 
 /// Explicitly URL-scoped credentials pass through unchanged — they

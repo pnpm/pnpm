@@ -1,4 +1,4 @@
-use crate::{Config, api::EnvVar, workspace_yaml::LoadWorkspaceYamlError};
+use crate::{Config, api::EnvVar, proxy_keys::ProxyValue, workspace_yaml::LoadWorkspaceYamlError};
 use indexmap::IndexMap;
 use pacquet_env_replace::env_replace_lossy;
 use pacquet_network::{
@@ -503,13 +503,12 @@ impl NpmrcAuth {
         config.tls_by_uri = PerRegistryTls::from_map(std::mem::take(&mut self.tls_by_uri));
     }
 
-    /// Resolve the `(https_proxy, http_proxy, no_proxy)` triple on
-    /// `config.proxy`. `.npmrc` always wins over env vars; the legacy
-    /// `proxy=` key feeds the `httpsProxy` slot only (the http side
-    /// falls back to the resolved `httpsProxy` before consulting env).
-    /// `noProxy` accepts the literal token `true` to mean "bypass every
-    /// proxy". Unset and disabling values are described on
-    /// [`unset_proxy_value`] and [`PROXY_DISABLED`].
+    /// Fold this `.npmrc` layer's proxy keys into `config.proxy_keys`,
+    /// capture the environment fallbacks, and resolve the cascade.
+    ///
+    /// Later layers overwrite the keys they set and re-resolve — see the
+    /// [`crate::proxy_keys`] module docs for why a key, once named, is
+    /// never won back by a lower-priority layer.
     ///
     /// Generic over [`EnvVar`] so cascade tests can drive every branch
     /// without mutating the process environment (no `EnvGuard` global
@@ -523,34 +522,26 @@ impl NpmrcAuth {
             Sys::var(upper).or_else(|| Sys::var(lower))
         }
 
-        let legacy_proxy =
-            self.legacy_proxy.take().filter(|value| !unset_legacy_proxy_value(value));
-        let https = match self.https_proxy.take().filter(|value| !unset_proxy_value(value)) {
-            Some(url) => ResolvedProxy::Url(url),
-            None => match legacy_proxy {
-                Some(value) if value == PROXY_DISABLED => ResolvedProxy::Disabled,
-                Some(url) => ResolvedProxy::Url(url),
-                None => env_pair::<Sys>("HTTPS_PROXY", "https_proxy").into(),
-            },
+        let keys = &mut config.proxy_keys;
+        for (key, raw) in [
+            (&mut keys.https_proxy, self.https_proxy.take()),
+            (&mut keys.http_proxy, self.http_proxy.take()),
+            (&mut keys.no_proxy, self.no_proxy.take()),
+        ] {
+            if let Some(raw) = raw {
+                *key = ProxyValue::from_config(&raw);
+            }
+        }
+        if let Some(raw) = self.legacy_proxy.take() {
+            keys.legacy_proxy = ProxyValue::legacy_from_config(&raw);
+        }
+        keys.env = crate::proxy_keys::ProxyEnv {
+            https_proxy: env_pair::<Sys>("HTTPS_PROXY", "https_proxy"),
+            http_proxy: env_pair::<Sys>("HTTP_PROXY", "http_proxy"),
+            proxy: env_pair::<Sys>("PROXY", "proxy"),
+            no_proxy: env_pair::<Sys>("NO_PROXY", "no_proxy"),
         };
-        let http = match self.http_proxy.take().filter(|value| !unset_proxy_value(value)) {
-            Some(url) => ResolvedProxy::Url(url),
-            None => match &https {
-                ResolvedProxy::Url(url) => ResolvedProxy::Url(url.clone()),
-                ResolvedProxy::Disabled => ResolvedProxy::Disabled,
-                ResolvedProxy::Unset => env_pair::<Sys>("HTTP_PROXY", "http_proxy")
-                    .or_else(|| env_pair::<Sys>("PROXY", "proxy"))
-                    .into(),
-            },
-        };
-        config.proxy.https_proxy = https.into_url();
-        config.proxy.http_proxy = http.into_url();
-        config.proxy.no_proxy = self
-            .no_proxy
-            .take()
-            .filter(|value| !unset_proxy_value(value))
-            .or_else(|| env_pair::<Sys>("NO_PROXY", "no_proxy"))
-            .map(|raw| parse_no_proxy(&raw));
+        config.proxy = config.proxy_keys.resolve();
     }
 
     /// Phase 1: write the resolved `registry` onto `config` and emit
@@ -939,55 +930,6 @@ fn load_cafile(path: &Path) -> Vec<String> {
         .filter(|chunk| !chunk.trim().is_empty())
         .map(|chunk| format!("{}{}", chunk.trim_start(), delimiter))
         .collect()
-}
-
-/// The `proxy=` value that turns proxying off.
-///
-/// Unlike an unset value it does not fall through: pnpm stores it as a
-/// falsy value that every later arm of the cascade reads instead of
-/// consulting the environment. Only the legacy `proxy` key has this form —
-/// `https-proxy` / `http-proxy` are tested for truthiness, so a `false`
-/// there reads as unset ([`unset_proxy_value`]).
-pub(crate) const PROXY_DISABLED: &str = "false";
-
-/// Whether a proxy setting reads as "not configured", so the next source
-/// in the cascade applies.
-///
-/// pnpm's INI and YAML scalars carry the unset forms as the literal
-/// lowercase tokens, so a capitalised `False` stays a hostname.
-pub(crate) fn unset_proxy_value(value: &str) -> bool {
-    matches!(value, "" | "false" | "null")
-}
-
-/// [`unset_proxy_value`] for the legacy `proxy` key, where `false` is a
-/// value in its own right ([`PROXY_DISABLED`]) rather than an absence.
-pub(crate) fn unset_legacy_proxy_value(value: &str) -> bool {
-    value.is_empty() || value == "null"
-}
-
-/// One arm of the proxy cascade, resolved.
-///
-/// [`Self::Disabled`] and [`Self::Unset`] both end as "no proxy", but only
-/// `Disabled` stops the cascade — see [`PROXY_DISABLED`].
-enum ResolvedProxy {
-    Url(String),
-    Disabled,
-    Unset,
-}
-
-impl ResolvedProxy {
-    fn into_url(self) -> Option<String> {
-        match self {
-            Self::Url(url) => Some(url),
-            Self::Disabled | Self::Unset => None,
-        }
-    }
-}
-
-impl From<Option<String>> for ResolvedProxy {
-    fn from(value: Option<String>) -> Self {
-        value.map_or(Self::Unset, Self::Url)
-    }
 }
 
 /// Parse the raw `no-proxy` value into [`NoProxySetting`].
