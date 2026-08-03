@@ -1,8 +1,10 @@
 use crate::{
     AuditConfig, AuditLevel, CatalogMode, Config, HoistingLimits, LinkWorkspacePackages,
     NodeLinker, NodePackageMapType, PackageImportMethod, PmOnFail, ResolutionMode, RuntimeOnFail,
-    SaveWorkspaceProtocol, ScriptsPrependNodePath, TrustPolicy, VerifyDepsBeforeRun, api::EnvVar,
-    npmrc_auth::parse_no_proxy, resolve_child_concurrency,
+    SaveWorkspaceProtocol, ScriptsPrependNodePath, TrustPolicy, VerifyDepsBeforeRun,
+    api::EnvVar,
+    proxy_keys::{ProxyKeys, ProxyValue},
+    resolve_child_concurrency,
 };
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
@@ -989,8 +991,7 @@ impl WorkspaceSettings {
     /// Path-valued settings are resolved against `base_dir` if relative —
     /// anchored at the workspace root where the yaml was found, matching pnpm.
     pub fn apply_to(self, config: &mut Config, base_dir: &Path) {
-        let http_proxy_is_explicit = config.http_proxy_is_explicit;
-        self.apply_proxy_to(&mut config.proxy, http_proxy_is_explicit);
+        self.apply_proxy_to(&mut config.proxy, &mut config.proxy_keys);
 
         // Captured before the `apply!` macro and audit if-lets below move
         // these out of `self`; consumed after, to warn on the redundant
@@ -1268,27 +1269,47 @@ impl WorkspaceSettings {
         }
     }
 
+    /// Overlay this file's proxy keys onto the merged view and re-resolve.
+    ///
+    /// A key named here occupies it even when the value reads as unset —
+    /// see the [`crate::proxy_keys`] module docs.
     pub(crate) fn apply_proxy_to(
         &self,
         proxy_config: &mut pacquet_network::ProxyConfig,
-        http_proxy_is_explicit: bool,
+        keys: &mut ProxyKeys,
     ) {
-        if let Some(value) = self.https_proxy.as_ref().or(self.proxy.as_ref()) {
-            proxy_config.https_proxy = Some(value.clone());
+        for (key, raw) in [
+            (&mut keys.https_proxy, self.https_proxy.as_deref()),
+            (&mut keys.http_proxy, self.http_proxy.as_deref()),
+        ] {
+            if let Some(raw) = raw {
+                *key = ProxyValue::from_config(raw);
+            }
         }
-        if let Some(value) = &self.http_proxy {
-            proxy_config.http_proxy = Some(value.clone());
-        } else if (self.https_proxy.is_some() || self.proxy.is_some()) && !http_proxy_is_explicit {
-            proxy_config.http_proxy.clone_from(&proxy_config.https_proxy);
+        if let Some(raw) = self.proxy.as_deref() {
+            keys.legacy_proxy = ProxyValue::legacy_from_config(raw);
         }
-        if let Some(value) = self.no_proxy.as_ref().or(self.noproxy.as_ref()) {
-            proxy_config.no_proxy = match value {
-                serde_json::Value::Bool(true) => Some(pacquet_network::NoProxySetting::Bypass),
-                serde_json::Value::Bool(false) | serde_json::Value::Null => None,
-                serde_json::Value::String(value) => Some(parse_no_proxy(value)),
-                _ => None,
-            };
+        for (key, raw) in [
+            (&mut keys.no_proxy, self.no_proxy.as_ref()),
+            (&mut keys.noproxy, self.noproxy.as_ref()),
+        ] {
+            if let Some(raw) = raw {
+                *key = ProxyValue::from_config(&no_proxy_scalar(raw));
+            }
         }
+        *proxy_config = keys.resolve();
+    }
+}
+
+/// Flatten a `noProxy` yaml scalar into the raw string form the `.npmrc`
+/// spelling of the key would carry. `true` becomes the literal token the
+/// `no-proxy` parser reads as "bypass every proxy"; anything that is
+/// neither a string nor `true` becomes a token that reads as unset.
+fn no_proxy_scalar(value: &serde_json::Value) -> String {
+    match value {
+        serde_json::Value::Bool(true) => "true".to_string(),
+        serde_json::Value::String(value) => value.clone(),
+        _ => "null".to_string(),
     }
 }
 

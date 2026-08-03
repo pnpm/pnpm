@@ -682,7 +682,10 @@ export async function getConfig (opts: {
     }
   }
   if (!pnpmConfig.httpsProxy) {
-    pnpmConfig.httpsProxy = pnpmConfig.proxy ?? getProcessEnv('https_proxy')
+    // An empty `proxy=` is unset, so it must not suppress the environment
+    // fallback. `false` and `null` keep their meaning: proxying is off.
+    const legacyProxy = pnpmConfig.proxy === '' ? undefined : pnpmConfig.proxy
+    pnpmConfig.httpsProxy = legacyProxy ?? getProcessEnv('https_proxy')
   }
   if (!pnpmConfig.httpProxy) {
     pnpmConfig.httpProxy = pnpmConfig.httpsProxy ?? getProcessEnv('http_proxy') ?? getProcessEnv('proxy')

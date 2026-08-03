@@ -1,4 +1,4 @@
-use crate::{Config, api::EnvVar, workspace_yaml::LoadWorkspaceYamlError};
+use crate::{Config, api::EnvVar, proxy_keys::ProxyValue, workspace_yaml::LoadWorkspaceYamlError};
 use indexmap::IndexMap;
 use pacquet_env_replace::env_replace_lossy;
 use pacquet_network::{
@@ -503,12 +503,12 @@ impl NpmrcAuth {
         config.tls_by_uri = PerRegistryTls::from_map(std::mem::take(&mut self.tls_by_uri));
     }
 
-    /// Resolve the `(https_proxy, http_proxy, no_proxy)` triple on
-    /// `config.proxy`. `.npmrc` always wins over env vars; the legacy
-    /// `proxy=` key feeds the `httpsProxy` slot only (the http side
-    /// falls back to the resolved `httpsProxy` before consulting env).
-    /// `noProxy` accepts the literal token `true` to mean "bypass every
-    /// proxy".
+    /// Fold this `.npmrc` layer's proxy keys into `config.proxy_keys`,
+    /// capture the environment fallbacks, and resolve the cascade.
+    ///
+    /// Later layers overwrite the keys they set and re-resolve — see the
+    /// [`crate::proxy_keys`] module docs for why a key, once named, is
+    /// never won back by a lower-priority layer.
     ///
     /// Generic over [`EnvVar`] so cascade tests can drive every branch
     /// without mutating the process environment (no `EnvGuard` global
@@ -522,22 +522,26 @@ impl NpmrcAuth {
             Sys::var(upper).or_else(|| Sys::var(lower))
         }
 
-        config.proxy.https_proxy = self
-            .https_proxy
-            .take()
-            .or_else(|| self.legacy_proxy.clone())
-            .or_else(|| env_pair::<Sys>("HTTPS_PROXY", "https_proxy"));
-        config.proxy.http_proxy = self
-            .http_proxy
-            .take()
-            .or_else(|| config.proxy.https_proxy.clone())
-            .or_else(|| env_pair::<Sys>("HTTP_PROXY", "http_proxy"))
-            .or_else(|| env_pair::<Sys>("PROXY", "proxy"));
-        config.proxy.no_proxy = self
-            .no_proxy
-            .take()
-            .or_else(|| env_pair::<Sys>("NO_PROXY", "no_proxy"))
-            .map(|raw| parse_no_proxy(&raw));
+        let keys = &mut config.proxy_keys;
+        for (key, raw) in [
+            (&mut keys.https_proxy, self.https_proxy.take()),
+            (&mut keys.http_proxy, self.http_proxy.take()),
+            (&mut keys.no_proxy, self.no_proxy.take()),
+        ] {
+            if let Some(raw) = raw {
+                *key = ProxyValue::from_config(&raw);
+            }
+        }
+        if let Some(raw) = self.legacy_proxy.take() {
+            keys.legacy_proxy = ProxyValue::legacy_from_config(&raw);
+        }
+        keys.env = crate::proxy_keys::ProxyEnv {
+            https_proxy: env_pair::<Sys>("HTTPS_PROXY", "https_proxy"),
+            http_proxy: env_pair::<Sys>("HTTP_PROXY", "http_proxy"),
+            proxy: env_pair::<Sys>("PROXY", "proxy"),
+            no_proxy: env_pair::<Sys>("NO_PROXY", "no_proxy"),
+        };
+        config.proxy = config.proxy_keys.resolve();
     }
 
     /// Phase 1: write the resolved `registry` onto `config` and emit

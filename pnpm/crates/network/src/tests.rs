@@ -257,19 +257,40 @@ fn for_installs_with_valid_proxy_url_builds() {
 }
 
 #[test]
-fn for_installs_with_invalid_proxy_url_errors() {
-    let proxy =
-        ProxyConfig { https_proxy: Some("://nonsense".into()), http_proxy: None, no_proxy: None };
-    let err = ThrottledClient::for_installs(
+fn for_installs_with_empty_proxy_urls_treats_them_as_unset() {
+    // pnpm/pnpm#13533: exporting `HTTP_PROXY=` disables the proxy, so an
+    // empty value must not reach `parse_proxy_url`.
+    let proxy = ProxyConfig {
+        https_proxy: Some(String::new()),
+        http_proxy: Some(String::new()),
+        no_proxy: None,
+    };
+    ThrottledClient::for_installs(
         &proxy,
         &TlsConfig::default(),
         &PerRegistryTls::default(),
         &NetworkSettings::default(),
     )
-    .expect_err("must error");
-    eprintln!("err={err:?}");
-    let is_invalid = matches!(err, ForInstallsError::Proxy(ProxyError::InvalidProxy { .. }));
-    assert!(is_invalid, "err={err:?}: expected ForInstallsError::Proxy(InvalidProxy)");
+    .expect("empty proxy values are treated as unset");
+}
+
+#[test]
+fn for_installs_with_invalid_proxy_url_errors() {
+    for proxy in [
+        ProxyConfig { https_proxy: Some("://nonsense".into()), http_proxy: None, no_proxy: None },
+        ProxyConfig { https_proxy: None, http_proxy: Some("://nonsense".into()), no_proxy: None },
+    ] {
+        let err = ThrottledClient::for_installs(
+            &proxy,
+            &TlsConfig::default(),
+            &PerRegistryTls::default(),
+            &NetworkSettings::default(),
+        )
+        .expect_err("must error");
+        eprintln!("proxy={proxy:?} err={err:?}");
+        let is_invalid = matches!(err, ForInstallsError::Proxy(ProxyError::InvalidProxy { .. }));
+        assert!(is_invalid, "err={err:?}: expected ForInstallsError::Proxy(InvalidProxy)");
+    }
 }
 
 #[test]
