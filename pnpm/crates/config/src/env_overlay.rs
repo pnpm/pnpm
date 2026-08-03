@@ -30,9 +30,9 @@ fn read_env<Sys: EnvVar>(suffix: &str) -> Option<String> {
 ///
 /// pnpm's own env pass only skips a variable that is absent, never one
 /// that is empty, so an empty value clobbers lower-priority layers. For
-/// nearly every setting that is indistinguishable from leaving it unset,
-/// which is why [`read_env`] drops it. Two settings are exceptions, where
-/// `""` is observably different from unset:
+/// nearly every setting an empty value is indistinguishable from an unset
+/// one, which is why [`read_env`] drops it. Two settings are exceptions,
+/// where `""` is observably different from unset:
 ///
 /// - `savePrefix`: `""` is the value that selects an exact version pin.
 /// - `scope`: `""` must override a scope from `pnpm-workspace.yaml` or the
