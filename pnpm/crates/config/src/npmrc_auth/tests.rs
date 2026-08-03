@@ -69,6 +69,16 @@ fn preserves_existing_trailing_slash() {
     assert_eq!(config.registry, "https://r.example/");
 }
 
+/// pnpm keeps only auth/registry keys when reading an `.npmrc`
+/// (`isNpmrcReadableKey`), and `scope` is not among them, so a `scope=` line
+/// there is dropped rather than becoming the default login scope.
+#[test]
+fn scope_is_ignored_in_npmrc() {
+    let mut config = Config::new();
+    NpmrcAuth::from_ini::<NoEnv>("scope=@my-org\n", Path::new("")).apply_to::<NoEnv>(&mut config);
+    assert_eq!(config.scope, None);
+}
+
 #[test]
 fn parses_scoped_registry_and_applies() {
     let auth = NpmrcAuth::from_ini::<NoEnv>(

@@ -148,6 +148,7 @@ pub struct WorkspaceSettings {
     pub prefer_offline: Option<bool>,
     pub lockfile_include_tarball_url: Option<bool>,
     pub registry: Option<String>,
+    pub scope: Option<String>,
     pub registries: Option<BTreeMap<String, String>>,
     pub pnpr_server: Option<String>,
     pub https_proxy: Option<String>,
@@ -974,6 +975,7 @@ impl WorkspaceSettings {
     }
 
     fn substitute_env_scalars<Sys: EnvVar>(&mut self) {
+        substitute_optional_string::<Sys>(&mut self.scope);
         substitute_optional_string::<Sys>(&mut self.store_dir);
         substitute_optional_string::<Sys>(&mut self.modules_dir);
         substitute_optional_string::<Sys>(&mut self.virtual_store_dir);
@@ -1117,6 +1119,9 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.registry {
             config.registry = normalize_registry_url(&v);
+        }
+        if let Some(v) = self.scope {
+            config.scope = Some(v);
         }
         if let Some(v) = self.pnpr_server {
             config.pnpr_server = Some(v);

@@ -87,6 +87,39 @@ registry: https://reg.example
 }
 
 #[test]
+fn parses_and_applies_scope_from_yaml() {
+    let settings: WorkspaceSettings = serde_saphyr::from_str("scope: '@my-org'\n").unwrap();
+    assert_eq!(settings.scope.as_deref(), Some("@my-org"));
+
+    let mut config = Config::new();
+    assert_eq!(config.scope, None);
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(config.scope.as_deref(), Some("@my-org"));
+}
+
+/// `scope` is a valid key in the global `config.yaml` (pnpm's
+/// `isConfigFileKey` accepts it), so it must survive the workspace-only
+/// stripping that runs on that file.
+#[test]
+fn scope_survives_workspace_only_field_clearing() {
+    let mut settings: WorkspaceSettings =
+        serde_saphyr::from_str("scope: '@from-global'\n").unwrap();
+    settings.clear_workspace_only_fields();
+    assert_eq!(settings.scope.as_deref(), Some("@from-global"));
+}
+
+#[test]
+fn apply_scope_overrides_an_earlier_layer() {
+    // The workspace yaml is applied over the global `config.yaml`, so the
+    // project's scope wins — mirroring `registry`.
+    let settings: WorkspaceSettings = serde_saphyr::from_str("scope: '@from-yaml'\n").unwrap();
+    let mut config = Config::new();
+    config.scope = Some("@from-global-config".to_owned());
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(config.scope.as_deref(), Some("@from-yaml"));
+}
+
+#[test]
 fn apply_resolves_relative_paths_against_base_dir() {
     let yaml = "storeDir: ../shared-store\n";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();

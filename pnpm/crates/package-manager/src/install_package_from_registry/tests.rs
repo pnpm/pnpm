@@ -72,6 +72,7 @@ fn create_config(
         prefer_offline: false,
         lockfile_include_tarball_url: false,
         registry: "https://registry.npmjs.com/".to_string(),
+        scope: None,
         registries: Default::default(),
         pnpr_server: None,
         named_registries: Default::default(),

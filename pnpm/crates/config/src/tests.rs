@@ -1964,6 +1964,25 @@ pub fn pnpm_workspace_yaml_registry_overrides_npmrc_registry() {
 }
 
 #[test]
+pub fn pnpm_workspace_yaml_supplies_the_login_scope() {
+    let tmp = tempdir().unwrap();
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "scope: '@from-yaml'\n")
+        .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert_eq!(config.scope.as_deref(), Some("@from-yaml"));
+}
+
+#[test]
+pub fn npmrc_scope_alone_never_reaches_the_config() {
+    // pnpm's `.npmrc` reader keeps only auth/registry keys, so this is the one
+    // config source that must *not* supply the login scope.
+    let tmp = tempdir().unwrap();
+    fs::write(tmp.path().join(".npmrc"), "scope=@from-npmrc\n").expect("write to .npmrc");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("config loads");
+    assert_eq!(config.scope, None);
+}
+
+#[test]
 pub fn pnpm_workspace_yaml_found_by_walking_up() {
     let tmp = tempdir().unwrap();
     let nested = tmp.path().join("packages/inner");
