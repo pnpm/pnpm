@@ -130,8 +130,8 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
   // runners that silently drop env vars whose names contain `/`, `:`, or
   // `.` — GitHub Actions, bash, zsh; see pnpm/pnpm#12314) and the `_auth`
   // key of the global pnpm config yaml. The env var wins on conflict.
-  const envJsonAuth = readJsonAuthEnv(env)
-  const globalConfigJsonAuth = readGlobalConfigAuth(opts.globalConfigAuth)
+  const envJsonAuth = readJsonAuthEnv(env, warnings)
+  const globalConfigJsonAuth = readGlobalConfigAuth(opts.globalConfigAuth, env, warnings)
   const jsonAuth: JsonAuthResult = {
     auth: { ...globalConfigJsonAuth.auth, ...envJsonAuth.auth },
     registries: { ...globalConfigJsonAuth.registries, ...envJsonAuth.registries },
@@ -239,7 +239,7 @@ function readUrlScopedEnvConfig (env: Record<string, string | undefined>): Recor
   return { ...npmScoped, ...pnpmScoped }
 }
 
-function readJsonAuthEnv (env: Record<string, string | undefined>): JsonAuthResult {
+function readJsonAuthEnv (env: Record<string, string | undefined>, warnings: string[]): JsonAuthResult {
   const value = readJsonAuthEnvValue(env)
   if (value == null) return { auth: {}, registries: {} }
 
@@ -249,7 +249,7 @@ function readJsonAuthEnv (env: Record<string, string | undefined>): JsonAuthResu
   } catch (err: unknown) {
     throw new PnpmError('INVALID_AUTH_SETTING', `Failed to parse pnpm_config__auth as JSON: ${err instanceof Error ? err.message : String(err)}`)
   }
-  return parseJsonAuth(parsed, 'pnpm_config__auth')
+  return parseJsonAuth(parsed, 'pnpm_config__auth', env, warnings)
 }
 
 /**
@@ -261,7 +261,12 @@ function readJsonAuthEnv (env: Record<string, string | undefined>): JsonAuthResu
  * typo should fail fast rather than silently drop auth. `source` names the
  * origin in errors; raw URL keys are never echoed — they can embed secrets.
  */
-function parseJsonAuth (parsed: unknown, source: string): JsonAuthResult {
+function parseJsonAuth (
+  parsed: unknown,
+  source: string,
+  env: Record<string, string | undefined>,
+  warnings: string[]
+): JsonAuthResult {
   if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
     throw new PnpmError('INVALID_AUTH_SETTING', `${source} must be a JSON object`)
   }
@@ -280,7 +285,7 @@ function parseJsonAuth (parsed: unknown, source: string): JsonAuthResult {
       if (rawCreds === null || typeof rawCreds !== 'object' || Array.isArray(rawCreds)) {
         throw new PnpmError('INVALID_AUTH_SETTING', `${source}[${registry.label}][${JSON.stringify(scope)}] must be an auth object`)
       }
-      const token = jsonAuthToken(rawCreds as Record<string, unknown>, registry, scope, source)
+      const token = jsonAuthToken(rawCreds as Record<string, unknown>, registry, scope, source, env, warnings)
       auth[`${registry.nerfed}:${scope === '@' ? '' : `${scope}:`}_authToken`] = token
       // Infer a registry route from the same entry (see JsonAuthResult.registries).
       // Last write wins on a duplicate scope, matching yaml/CLI.
@@ -291,9 +296,13 @@ function parseJsonAuth (parsed: unknown, source: string): JsonAuthResult {
 }
 
 /** Parse `_auth` from the global pnpm config yaml (already a parsed object). */
-function readGlobalConfigAuth (globalConfigAuth: unknown): JsonAuthResult {
+function readGlobalConfigAuth (
+  globalConfigAuth: unknown,
+  env: Record<string, string | undefined>,
+  warnings: string[]
+): JsonAuthResult {
   if (globalConfigAuth == null) return { auth: {}, registries: {} }
-  return parseJsonAuth(globalConfigAuth, '_auth')
+  return parseJsonAuth(globalConfigAuth, '_auth', env, warnings)
 }
 
 interface JsonAuthRegistry {
@@ -356,7 +365,9 @@ function jsonAuthToken (
   creds: Record<string, unknown>,
   registry: JsonAuthRegistry,
   scope: string,
-  source: string
+  source: string,
+  env: Record<string, string | undefined>,
+  warnings: string[]
 ): string {
   for (const field of Object.keys(creds)) {
     if (field !== 'authToken') {
@@ -367,7 +378,9 @@ function jsonAuthToken (
   if (typeof token !== 'string') {
     throw new PnpmError('INVALID_AUTH_SETTING', `${source}[${registry.label}][${JSON.stringify(scope)}]: "authToken" must be a string`)
   }
-  return token
+  // Trusted sources only (global config.yaml / pnpm_config__auth). Expand
+  // `${ENV}` the same way .npmrc auth values do — see #12828.
+  return substituteEnv(token, env, warnings)
 }
 
 // Per-registry rc keys that, when written without a `//host/` prefix, fall

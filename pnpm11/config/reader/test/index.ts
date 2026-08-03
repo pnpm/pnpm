@@ -1454,6 +1454,52 @@ test('reads a host-keyed default auth token from pnpm_config__auth', async () =>
   expect(config.authConfig['//json-test.example/:_authToken']).toBe('json-token')
 })
 
+test('expands ${ENV} placeholders inside pnpm_config__auth authToken values', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      MY_REGISTRY_TOKEN: 'resolved-secret',
+      pnpm_config__auth: JSON.stringify({
+        'https://json-test.example': {
+          '@': { authToken: '${MY_REGISTRY_TOKEN}' },
+        },
+      }),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  expect(config.authConfig['//json-test.example/:_authToken']).toBe('resolved-secret')
+})
+
+test('expands ${ENV} placeholders inside global config.yaml _auth authToken values', async () => {
+  prepareEmpty()
+
+  fs.mkdirSync('.config/pnpm', { recursive: true })
+  writeYamlFileSync('.config/pnpm/config.yaml', {
+    _auth: {
+      'https://yaml-auth.example/': {
+        '@': { authToken: '${YAML_AUTH_TOKEN}' },
+      },
+    },
+  })
+  process.env.XDG_CONFIG_HOME = path.resolve('.config')
+  process.env.YAML_AUTH_TOKEN = 'yaml-resolved'
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      YAML_AUTH_TOKEN: 'yaml-resolved',
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  expect(config.authConfig['//yaml-auth.example/:_authToken']).toBe('yaml-resolved')
+})
+
 test('pnpm_config__auth normalizes registry URL keys before keying auth', async () => {
   prepareEmpty()
 
