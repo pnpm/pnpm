@@ -502,6 +502,7 @@ where
             try_fast_update_lockfile(FastUpdateLockfileOptions {
                 lockfile,
                 manifests: &manifest_freshness_inputs,
+                project_manifests: &project_manifests,
                 config,
                 catalogs: &catalogs,
                 pnpmfile_hook: pnpmfile_hook.as_ref(),
