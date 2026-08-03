@@ -35,6 +35,10 @@
   dir: pnpm11/building/after-install
   intents:
     - gvs-local-directory-deps
+"@pnpm/building.after-install@1102.0.15":
+  dir: pnpm11/building/after-install
+  intents:
+    - rebuild-depath-name-traversal
 "@pnpm/building.commands@1100.1.17":
   dir: pnpm11/building/commands
   intents:
@@ -139,6 +143,10 @@
   dir: pnpm11/config/normalize-registries
   intents:
     - republish-all-lib-packages
+"@pnpm/config.normalize-registries@1100.1.0":
+  dir: pnpm11/config/normalize-registries
+  intents:
+    - known-registries-single-owner
 "@pnpm/config.package-is-installable@1100.0.16":
   dir: pnpm11/config/package-is-installable
   intents:
@@ -159,6 +167,10 @@
   dir: pnpm11/config/pick-registry-for-package
   intents:
     - republish-all-lib-packages
+"@pnpm/config.pick-registry-for-package@1100.1.0":
+  dir: pnpm11/config/pick-registry-for-package
+  intents:
+    - known-registries-single-owner
 "@pnpm/config.reader@1101.12.0":
   dir: pnpm11/config/reader
   intents:
@@ -178,6 +190,16 @@
   dir: pnpm11/config/reader
   intents:
     - self-update-release-age
+"@pnpm/config.reader@1101.16.0":
+  dir: pnpm11/config/reader
+  intents:
+    - empty-proxy-values-are-unset
+    - known-registries-single-owner
+    - named-registries-lockfile-format
+"@pnpm/config.registry-auth-key@1100.0.0":
+  dir: pnpm11/config/registry-auth-key
+  intents:
+    - inline-string-and-npmrc-key-utils
 "@pnpm/config.version-policy@1100.1.9":
   dir: pnpm11/config/version-policy
   intents:
@@ -190,6 +212,11 @@
   dir: pnpm11/core/constants
   intents:
     - republish-all-lib-packages
+"@pnpm/constants@1101.0.0":
+  dir: pnpm11/core/constants
+  intents:
+    - known-registries-single-owner
+    - named-registries-lockfile-format
 "@pnpm/core-loggers@1100.2.3":
   dir: pnpm11/core/core-loggers
   intents:
@@ -226,6 +253,10 @@
   dir: pnpm11/deps/compliance/commands
   intents:
     - republish-all-lib-packages
+"@pnpm/deps.compliance.commands@1101.6.0":
+  dir: pnpm11/deps/compliance/commands
+  intents:
+    - named-registries-lockfile-format
 "@pnpm/deps.compliance.license-resolver@1100.0.1":
   dir: pnpm11/deps/compliance/license-resolver
   intents:
@@ -238,10 +269,19 @@
   dir: pnpm11/deps/compliance/license-scanner
   intents:
     - brave-pandas-list
+"@pnpm/deps.compliance.license-scanner@1100.1.0":
+  dir: pnpm11/deps/compliance/license-scanner
+  intents:
+    - named-registries-lockfile-format
 "@pnpm/deps.compliance.sbom@1100.3.8":
   dir: pnpm11/deps/compliance/sbom
   intents:
     - republish-all-lib-packages
+"@pnpm/deps.compliance.sbom@1100.4.0":
+  dir: pnpm11/deps/compliance/sbom
+  intents:
+    - known-registries-single-owner
+    - named-registries-lockfile-format
 "@pnpm/deps.github-actions@1100.1.0":
   dir: pnpm11/deps/github-actions
   intents:
@@ -260,6 +300,10 @@
   intents:
     - gvs-local-directory-deps
     - headless-edge-aware-engine-strict
+"@pnpm/deps.graph-builder@1100.2.0":
+  dir: pnpm11/deps/graph-builder
+  intents:
+    - named-registries-lockfile-format
 "@pnpm/deps.graph-hasher@1100.2.12":
   dir: pnpm11/deps/graph-hasher
   intents:
@@ -289,6 +333,10 @@
   dir: pnpm11/deps/inspection/list
   intents:
     - republish-all-lib-packages
+"@pnpm/deps.inspection.list@1100.1.0":
+  dir: pnpm11/deps/inspection/list
+  intents:
+    - named-registries-lockfile-format
 "@pnpm/deps.inspection.outdated@1100.1.20":
   dir: pnpm11/deps/inspection/outdated
   intents:
@@ -318,10 +366,18 @@
   dir: pnpm11/deps/inspection/tree-builder
   intents:
     - republish-all-lib-packages
+"@pnpm/deps.inspection.tree-builder@1100.1.0":
+  dir: pnpm11/deps/inspection/tree-builder
+  intents:
+    - named-registries-lockfile-format
 "@pnpm/deps.path@1100.0.11":
   dir: pnpm11/deps/path
   intents:
     - republish-all-lib-packages
+"@pnpm/deps.path@1100.1.0":
+  dir: pnpm11/deps/path
+  intents:
+    - named-registries-lockfile-format
 "@pnpm/deps.peer-range@1100.1.0":
   dir: pnpm11/deps/peer-range
   intents:
@@ -369,6 +425,10 @@
   intents:
     - preserve-equals-pin-operator
     - rename-pinned-version-to-range-spec-style
+"@pnpm/engine.pm.commands@1101.3.2":
+  dir: pnpm11/engine/pm/commands
+  intents:
+    - env-lockfile-skips-pnpm-exe-from-v12
 "@pnpm/engine.runtime.bun-resolver@1102.0.11":
   dir: pnpm11/engine/runtime/bun-resolver
   intents:
@@ -580,10 +640,18 @@
   intents:
     - rename-pinned-version-to-range-spec-style
     - save-prefix-equals
+"@pnpm/installing.commands@1100.13.0":
+  dir: pnpm11/installing/commands
+  intents:
+    - named-registries-lockfile-format
 "@pnpm/installing.context@1100.0.28":
   dir: pnpm11/installing/context
   intents:
     - republish-all-lib-packages
+"@pnpm/installing.context@1100.1.0":
+  dir: pnpm11/installing/context
+  intents:
+    - named-registries-lockfile-format
 "@pnpm/installing.dedupe.check@1100.1.5":
   dir: pnpm11/installing/dedupe/check
   intents:
@@ -632,6 +700,10 @@
   dir: pnpm11/installing/deps-installer
   intents:
     - rename-pinned-version-to-range-spec-style
+"@pnpm/installing.deps-installer@1103.1.0":
+  dir: pnpm11/installing/deps-installer
+  intents:
+    - named-registries-lockfile-format
 "@pnpm/installing.deps-resolver@1100.2.11":
   dir: pnpm11/installing/deps-resolver
   intents:
@@ -662,6 +734,11 @@
     - normalize-empty-bundled-dependencies
     - preserve-workspace-link-on-partial-update
     - rename-pinned-version-to-range-spec-style
+"@pnpm/installing.deps-resolver@1101.1.0":
+  dir: pnpm11/installing/deps-resolver
+  intents:
+    - known-registries-single-owner
+    - named-registries-lockfile-format
 "@pnpm/installing.deps-restorer@1102.1.10":
   dir: pnpm11/installing/deps-restorer
   intents:
@@ -672,10 +749,18 @@
     - fast-exact-overrides
     - headless-edge-aware-engine-strict
     - restore-package-import-method-log
+"@pnpm/installing.deps-restorer@1102.3.0":
+  dir: pnpm11/installing/deps-restorer
+  intents:
+    - named-registries-lockfile-format
 "@pnpm/installing.env-installer@1102.0.12":
   dir: pnpm11/installing/env-installer
   intents:
     - republish-all-lib-packages
+"@pnpm/installing.env-installer@1102.0.15":
+  dir: pnpm11/installing/env-installer
+  intents:
+    - env-lockfile-skips-pnpm-exe-from-v12
 "@pnpm/installing.linking.direct-dep-linker@1100.0.14":
   dir: pnpm11/installing/linking/direct-dep-linker
   intents:
@@ -729,6 +814,10 @@
   dir: pnpm11/lockfile/fs
   intents:
     - republish-all-lib-packages
+"@pnpm/lockfile.fs@1100.2.0":
+  dir: pnpm11/lockfile/fs
+  intents:
+    - named-registries-lockfile-format
 "@pnpm/lockfile.make-dedicated-lockfile@1100.0.30":
   dir: pnpm11/lockfile/make-dedicated-lockfile
   intents:
@@ -761,6 +850,11 @@
   dir: pnpm11/lockfile/utils
   intents:
     - republish-all-lib-packages
+"@pnpm/lockfile.utils@1101.0.0":
+  dir: pnpm11/lockfile/utils
+  intents:
+    - known-registries-single-owner
+    - named-registries-lockfile-format
 "@pnpm/lockfile.verification@1100.0.26":
   dir: pnpm11/lockfile/verification
   intents:
@@ -1035,6 +1129,12 @@
     - policy-aware-install-summary-latest
     - preserve-equals-pin-operator
     - rename-pinned-version-to-range-spec-style
+"@pnpm/resolving.npm-resolver@1103.1.0":
+  dir: pnpm11/resolving/npm-resolver
+  intents:
+    - known-registries-single-owner
+    - named-registries-lockfile-format
+    - perf-resolver-caches
 "@pnpm/resolving.parse-wanted-dependency@1100.0.2":
   dir: pnpm11/resolving/parse-wanted-dependency
   intents:
@@ -1047,6 +1147,10 @@
   dir: pnpm11/resolving/registry/pkg-metadata-filter
   intents:
     - minimum-release-age-latest-bound
+"@pnpm/resolving.registry.pkg-metadata-filter@1100.0.15":
+  dir: pnpm11/resolving/registry/pkg-metadata-filter
+  intents:
+    - perf-resolver-caches
 "@pnpm/resolving.registry.types@1100.1.6":
   dir: pnpm11/resolving/registry/types
   intents:
@@ -1059,6 +1163,10 @@
   dir: pnpm11/resolving/resolver-base
   intents:
     - rename-pinned-version-to-range-spec-style
+"@pnpm/resolving.resolver-base@1101.1.0":
+  dir: pnpm11/resolving/resolver-base
+  intents:
+    - named-registries-lockfile-format
 "@pnpm/resolving.tarball-resolver@1100.1.9":
   dir: pnpm11/resolving/tarball-resolver
   intents:
@@ -1099,6 +1207,10 @@
   dir: pnpm11/store/controller-types
   intents:
     - rename-pinned-version-to-range-spec-style
+"@pnpm/store.controller-types@1101.1.0":
+  dir: pnpm11/store/controller-types
+  intents:
+    - named-registries-lockfile-format
 "@pnpm/store.controller@1102.0.8":
   dir: pnpm11/store/controller
   intents:
@@ -1135,6 +1247,10 @@
   dir: pnpm11/text/naming-cases
   intents:
     - republish-all-lib-packages
+"@pnpm/text.ordinal-comparator@1100.0.0":
+  dir: pnpm11/text/ordinal-comparator
+  intents:
+    - inline-string-and-npmrc-key-utils
 "@pnpm/text.tree-renderer@1100.0.1":
   dir: pnpm11/text/tree-renderer
   intents:
@@ -1164,6 +1280,10 @@
   intents:
     - preserve-equals-pin-operator
     - rename-pinned-version-to-range-spec-style
+"@pnpm/types@1101.9.0":
+  dir: pnpm11/core/types
+  intents:
+    - known-registries-single-owner
 "@pnpm/worker@1100.2.7":
   dir: pnpm11/worker
   intents:
@@ -1546,6 +1666,26 @@ pacquet@12.0.0-beta.3:
     - lockfile-only-records-tarball-integrity
     - perf-resolver-caches
     - quick-plums-hoist
+pacquet@12.0.0-beta.4:
+  dir: pnpm/npm/pnpm
+  intents:
+    - amortize-hoist-round-workspace-scans
+    - bounded-peer-chain-resolution
+    - deterministic-peer-hoist-candidates
+    - deterministic-workspace-resolution
+    - empty-proxy-values-are-unset
+    - env-lockfile-skips-pnpm-exe-from-v12
+    - faster-peer-dep-path-finalization
+    - friendly-spiders-smile
+    - hoist-scope-suffix-memo
+    - incremental-discovery-tree-sync
+    - install-without-system-ca-certificates
+    - known-registries-single-owner
+    - named-registries-lockfile-format
+    - pacquet-login-scope-setting
+    - peer-cycle-graph-name-once
+    - prefix-alias-of-dir
+    - ship-node-gyp-with-the-rust-cli
 pnpm@11.13.0:
   dir: pnpm11/pnpm
   intents:
@@ -1669,3 +1809,13 @@ pnpm@11.19.0:
     - reporter-own-config-type
     - save-prefix-equals
     - workspace-relative-path-deps-resolved
+pnpm@11.20.0:
+  dir: pnpm11/pnpm
+  intents:
+    - empty-proxy-values-are-unset
+    - env-lockfile-skips-pnpm-exe-from-v12
+    - inline-string-and-npmrc-key-utils
+    - known-registries-single-owner
+    - named-registries-lockfile-format
+    - perf-resolver-caches
+    - rebuild-depath-name-traversal
