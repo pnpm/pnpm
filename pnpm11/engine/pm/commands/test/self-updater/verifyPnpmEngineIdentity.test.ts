@@ -114,7 +114,7 @@ describe('verifyPnpmEngineIdentity', () => {
   test('throws when no platform binary in the lockfile matches the host', async () => {
     const key = createSigningKey()
     const lockfile = envLockfile()
-    ;(lockfile.snapshots as Record<string, unknown>)['@pnpm/exe@9.1.0'] = { optionalDependencies: { '@pnpm/exe.someos-somearch': '9.1.0' } }
+    ;(lockfile.snapshots as Record<string, unknown>)['@pnpm/exe@9.1.0'] = { optionalDependencies: { '@pnpm/exe.aix-mips': '9.1.0' } }
 
     await expect(verifyPnpmEngineIdentity(lockfile, '9.1.0', optsTrusting(key))).rejects.toThrow(/native binary: it is missing/)
   })
