@@ -30,6 +30,7 @@
     "compile": "tsgo --build && pn lint --fix"
   },
   "dependencies": {
+    "@pnpm/constants": "workspace:*",
     "@pnpm/types": "workspace:*",
     "normalize-registry-url": "catalog:",
     "ramda": "catalog:"

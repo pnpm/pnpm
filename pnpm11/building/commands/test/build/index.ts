@@ -585,3 +585,59 @@ test('rebuilds in the global virtual store when the approval was granted after t
 
   expect(fs.existsSync(path.join(pkgInGvs, 'generated-by-postinstall.js'))).toBeTruthy()
 })
+
+// GHSA-c59q-g84q-2gj5: a traversal depPath key must not point the build
+// at a directory outside the virtual store.
+test('rebuild refuses a lockfile depPath name that escapes the virtual store', async () => {
+  const project = prepare()
+  const cacheDir = path.resolve('cache')
+  const storeDir = path.resolve('store')
+
+  await execa('node', [
+    pnpmBin,
+    'add',
+    '--save-dev',
+    '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
+    '--config.enableGlobalVirtualStore=false',
+    `--registry=${REGISTRY}`,
+    `--store-dir=${storeDir}`,
+    '--ignore-scripts',
+    `--cache-dir=${cacheDir}`,
+  ])
+
+  const currentLockfilePath = path.resolve('node_modules/.pnpm/lock.yaml')
+  fs.writeFileSync(currentLockfilePath, fs.readFileSync(currentLockfilePath, 'utf8')
+    .replaceAll('@pnpm.e2e/pre-and-postinstall-scripts-example', '../../../escaped'))
+
+  // The traversal resolves out of `node_modules/.pnpm/<slot>/node_modules` to
+  // `node_modules/escaped`. Plant a package there whose postinstall writes a
+  // marker, so the test fails loudly if the build ever runs outside the
+  // virtual store rather than only if a directory happens to be created.
+  const escapedPkgDir = path.resolve('node_modules/escaped')
+  const marker = path.resolve('pwned.txt')
+  fs.mkdirSync(escapedPkgDir, { recursive: true })
+  fs.writeFileSync(path.join(escapedPkgDir, 'package.json'), JSON.stringify({
+    name: 'escaped',
+    version: '1.0.0',
+    scripts: { postinstall: 'node write-marker.cjs' },
+  }))
+  fs.writeFileSync(path.join(escapedPkgDir, 'write-marker.cjs'),
+    `require('fs').writeFileSync(${JSON.stringify(marker)}, 'pwned')`)
+
+  const modulesManifest = project.readModulesManifest()
+  await expect(rebuild.handler({
+    ...DEFAULT_OPTS,
+    cacheDir,
+    dir: process.cwd(),
+    pending: false,
+    registries: modulesManifest!.registries!,
+    storeDir,
+    // Approve the build, so that what stops the script is the contained
+    // join and not the build policy. The key has to carry the version:
+    // a bare `../../../escaped` is read as a depPath allow-build key and
+    // then never matches the depPath it came from.
+    allowBuilds: { '../../../escaped@1.0.0': true },
+  }, [])).rejects.toThrow(expect.objectContaining({ code: 'ERR_PNPM_INVALID_DEPENDENCY_NAME' }))
+
+  expect(fs.existsSync(marker)).toBeFalsy()
+})

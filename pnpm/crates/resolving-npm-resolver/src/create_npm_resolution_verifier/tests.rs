@@ -191,7 +191,7 @@ fn stable_trust_packument(name: &str) -> serde_json::Value {
 /// No-op `ctx` builder that ties the borrowed `name` to the call
 /// site's lifetime.
 fn ctx<'a>(name: &'a PkgName, version: &'a str) -> VerifyCtx<'a> {
-    VerifyCtx { name, version }
+    VerifyCtx { name, version, registry_name: None }
 }
 
 #[tokio::test]
@@ -583,7 +583,9 @@ async fn tarball_url_default_port_and_scheme_difference_is_a_match() {
     let registry = format!("{}/", server.url());
     // The served metadata lists the artifact on a different host with an
     // explicit default port and the http scheme; the lockfile pins the
-    // canonical https/no-port form of the same URL.
+    // canonical https/no-port form of the same URL. The host is deliberately
+    // not a built-in named registry: one of those would route the metadata
+    // fetch to that registry instead of this mock.
     let packument = serde_json::json!({
         "name": "aged-pkg",
         "dist-tags": { "latest": "1.0.0" },
@@ -595,7 +597,7 @@ async fn tarball_url_default_port_and_scheme_difference_is_a_match() {
                 "dist": {
                     "integrity": FAKE_INTEGRITY,
                     "shasum": "0000000000000000000000000000000000000000",
-                    "tarball": "http://registry.npmjs.org:80/aged-pkg/-/aged-pkg-1.0.0.tgz",
+                    "tarball": "http://cdn.example.test:80/aged-pkg/-/aged-pkg-1.0.0.tgz",
                 }
             }
         }
@@ -609,7 +611,7 @@ async fn tarball_url_default_port_and_scheme_difference_is_a_match() {
     let opts = default_opts(&registry);
     let verifier = create_npm_resolution_verifier(opts);
     let resolution = LockfileResolution::Tarball(TarballResolution {
-        tarball: "https://registry.npmjs.org/aged-pkg/-/aged-pkg-1.0.0.tgz".to_string(),
+        tarball: "https://cdn.example.test/aged-pkg/-/aged-pkg-1.0.0.tgz".to_string(),
         integrity: Some(fake_integrity()),
         git_hosted: None,
         path: None,
@@ -974,15 +976,32 @@ fn can_trust_past_check_accepts_looser_min_age() {
     opts.minimum_release_age = Some(60 * 24); // today: 1 day
     let verifier = create_npm_resolution_verifier(opts);
 
-    let mut cached = serde_json::Map::new();
-    cached.insert("tarballUrlBinding".to_string(), true.into());
-    cached.insert("integrityRequired".to_string(), true.into());
+    let mut cached = verifier.policy().clone();
     cached.insert("minimumReleaseAge".to_string(), (60 * 24 * 7).into()); // past: 7 days
     cached.insert("minimumReleaseAgeExclude".to_string(), serde_json::Value::Array(vec![]));
     cached.insert("trustPolicy".to_string(), serde_json::Value::Null);
     cached.insert("trustPolicyExclude".to_string(), serde_json::Value::Array(vec![]));
     cached.insert("trustPolicyIgnoreAfter".to_string(), serde_json::Value::Null);
     assert!(verifier.can_trust_past_check(&cached));
+}
+
+/// Repointing an alias is the change that matters: the alias set is
+/// identical, so a digest over alias names alone would still trust the
+/// cached policy and reuse resolutions fetched from the old host.
+#[test]
+fn can_trust_past_check_rejects_changed_named_registry_mapping() {
+    let mut opts = default_opts("https://registry.example/");
+    opts.named_registries.insert("work".to_string(), "https://registry.work.example/".to_string());
+    let verifier = create_npm_resolution_verifier(opts);
+    let cached = verifier.policy().clone();
+    let mut changed_opts = default_opts("https://registry.example/");
+    changed_opts.named_registries.insert("work".to_string(), "https://other.example/".to_string());
+    let changed = create_npm_resolution_verifier(changed_opts);
+
+    // Pins that the rejection below comes from the URL change and not from
+    // something incidental to how the policy is built.
+    assert!(verifier.can_trust_past_check(&cached));
+    assert!(!changed.can_trust_past_check(&cached));
 }
 
 /// A cache record that predates the tarball-URL binding rule (no

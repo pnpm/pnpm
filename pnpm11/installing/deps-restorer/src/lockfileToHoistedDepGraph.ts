@@ -54,6 +54,7 @@ export interface LockfileToHoistedDepGraphOptions {
   nodeVersion: string
   pnpmVersion: string
   registries: Registries
+  namedRegistries?: Record<string, string>
   patchedDependencies?: PatchGroupRecord
   /**
    * The dep paths a non-optional edge reaches, as classified by
@@ -230,7 +231,7 @@ async function fetchDeps (
 
     const dir = safeJoinModulesDir(modules, dep.name)
     const depLocation = path.relative(opts.lockfileDir, dir)
-    const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, opts.registries)
+    const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, { registries: opts.registries, namedRegistries: opts.namedRegistries })
     let fetchResponse!: ReturnType<FetchPackageToStoreFunction>
     // We check for the existence of the package inside node_modules.
     // It will only be missing if the user manually removed it.

@@ -45,6 +45,20 @@ fn version_argv_reads_dir_auth_file_and_command_forms() {
             command: None,
         },
         Case {
+            name: "prefix alias of dir",
+            argv: &["pnpm", "--prefix", "/tmp/prefix-dir", "--version"],
+            dir: "/tmp/prefix-dir",
+            npmrc_auth_file: None,
+            command: None,
+        },
+        Case {
+            name: "equals prefix alias of dir",
+            argv: &["pnpm", "--prefix=/tmp/equals-prefix", "--version"],
+            dir: "/tmp/equals-prefix",
+            npmrc_auth_file: None,
+            command: None,
+        },
+        Case {
             name: "separator stops command detection",
             argv: &["pnpm", "--dir=/tmp/separator", "--", "run"],
             dir: "/tmp/separator",
@@ -57,6 +71,20 @@ fn version_argv_reads_dir_auth_file_and_command_forms() {
             dir: ".",
             npmrc_auth_file: None,
             command: Some("install"),
+        },
+        Case {
+            name: "store directory value is not mistaken for the command",
+            argv: &["pnpm", "--store", "/tmp/store", "--prefix", "/tmp/scanned", "--version"],
+            dir: "/tmp/scanned",
+            npmrc_auth_file: None,
+            command: None,
+        },
+        Case {
+            name: "canonical store directory value is not mistaken for the command",
+            argv: &["pnpm", "--store-dir", "/tmp/store", "--dir", "/tmp/scanned", "--version"],
+            dir: "/tmp/scanned",
+            npmrc_auth_file: None,
+            command: None,
         },
     ];
 

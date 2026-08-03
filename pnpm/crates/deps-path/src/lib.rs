@@ -15,6 +15,7 @@ mod dep_path_to_filename;
 mod is_runtime_dep_path;
 mod link_path_to_peer_version;
 mod peer_id;
+mod registry_qualified;
 mod suffix_index;
 mod try_get_package_id;
 
@@ -24,6 +25,10 @@ pub use dep_path_to_filename::dep_path_to_filename;
 pub use is_runtime_dep_path::is_runtime_dep_path;
 pub use link_path_to_peer_version::link_path_to_peer_version;
 pub use peer_id::PeerId;
+pub use registry_qualified::{
+    RESERVED_VERSION_PREFIXES, is_reserved_version_prefix, is_well_formed_registry_name,
+    parse_registry_qualified_version,
+};
 pub use suffix_index::{
     DepPathSuffixIndex, get_pkg_id_with_patch_hash, index_of_dep_path_suffix, remove_suffix,
 };

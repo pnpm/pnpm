@@ -184,6 +184,7 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 tokio              = { version = "1", features = ["rt", "rt-multi-thread", "macros", "fs", "io-util", "net", "signal", "sync"] }
 url                = { version = "2.5.8" }
 walkdir            = { version = "2.5.0" }
+webpki-root-certs  = { version = "1.0.7" }
 windows-sys        = { version = "0.61", features = ["Win32_Foundation", "Win32_System_JobObjects", "Win32_System_Threading"] }
 yaml_serde         = { version = "0.10.4" }
 yamlpatch          = { version = "1.25.2" }

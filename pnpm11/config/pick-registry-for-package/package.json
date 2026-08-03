@@ -35,7 +35,9 @@
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
-    "@pnpm/config.pick-registry-for-package": "workspace:*"
+    "@pnpm/config.normalize-registries": "workspace:*",
+    "@pnpm/config.pick-registry-for-package": "workspace:*",
+    "@pnpm/constants": "workspace:*"
   },
   "engines": {
     "node": ">=22.13"

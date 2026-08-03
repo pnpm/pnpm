@@ -107,6 +107,11 @@ pub struct GraphToLockfileOptions<'a> {
     /// package's tarball URL is reconstructible (and so droppable from the
     /// lockfile in favor of bare `{integrity}`).
     pub registry: &'a str,
+    /// Alias → URL map of named registries (built-ins merged with the
+    /// user's setting). Registry-qualified package keys route their
+    /// tarball-reconstructibility check through this map instead of the
+    /// default registry.
+    pub named_registries: &'a HashMap<String, String>,
     /// When `true`, registry tarball URLs are kept in the lockfile even when
     /// reconstructible (the `lockfileIncludeTarballUrl` setting).
     pub lockfile_include_tarball_url: bool,
@@ -200,6 +205,7 @@ pub fn dependencies_graph_to_lockfile(
         pnpmfile_checksum,
         catalogs,
         registry,
+        named_registries,
         lockfile_include_tarball_url,
         previous_importers,
         update_reuse_scope,
@@ -211,6 +217,7 @@ pub fn dependencies_graph_to_lockfile(
         graph,
         &optional_overrides,
         registry,
+        named_registries,
         lockfile_include_tarball_url,
     )?;
 
@@ -243,9 +250,10 @@ pub fn dependencies_graph_to_lockfile(
 
     let catalog_snapshots = build_catalog_snapshots(&importers, catalogs);
 
+    let lockfile_version = ComVer::new(9, 0);
     Ok(Lockfile {
-        lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(9, 0))
-            .expect("lockfileVersion 9.0 is always compatible with MAJOR=9"),
+        lockfile_version: LockfileVersion::<9>::try_from(lockfile_version)
+            .expect("the generated lockfile version is supported"),
         settings: Some(LockfileSettings {
             auto_install_peers,
             dedupe_peers: dedupe_peers.then_some(true),
@@ -646,6 +654,7 @@ fn build_packages_and_snapshots(
     graph: &DependenciesGraph,
     optional_overrides: &HashMap<DepPath, bool>,
     registry: &str,
+    named_registries: &HashMap<String, String>,
     lockfile_include_tarball_url: bool,
 ) -> Result<PackagesAndSnapshots, DependenciesGraphToLockfileError> {
     let mut packages: HashMap<PackageKey, PackageMetadata> = HashMap::new();
@@ -672,7 +681,23 @@ fn build_packages_and_snapshots(
         snapshots.insert(snapshot_key, snapshot);
 
         packages.entry(metadata_key).or_insert_with_key(|key| {
-            build_package_metadata(node, key, registry, lockfile_include_tarball_url)
+            // A registry-qualified key names its registry; that registry —
+            // not the scope-routed default — decides whether the tarball
+            // URL is canonical and can be dropped from the entry.
+            //
+            // Fail closed on an alias we can't resolve: testing the URL for
+            // canonicality against the *default* registry could drop a URL
+            // that only the named registry can rebuild, leaving a `work:`
+            // entry that no install can fetch. Keeping the URL is always
+            // recoverable, so an unknown alias forces it to be written.
+            let (registry, include_tarball_url) = match key.suffix.registry_qualified() {
+                Some((registry_name, _)) => match named_registries.get(registry_name) {
+                    Some(named_registry) => (named_registry.as_str(), lockfile_include_tarball_url),
+                    None => (registry, true),
+                },
+                None => (registry, lockfile_include_tarball_url),
+            };
+            build_package_metadata(node, key, registry, include_tarball_url)
         });
     }
 
@@ -739,9 +764,13 @@ fn build_package_metadata(
 
     let (peer_dependencies, peer_dependencies_meta) = build_peer_dep_blocks(node);
 
+    let resolution_version = match metadata_key.suffix.registry_qualified() {
+        Some((_, version)) => version.to_string(),
+        None => metadata_key.suffix.version().to_string(),
+    };
     let resolution = node.resolve_result.resolution.to_lockfile_form(
         &metadata_key.name.to_string(),
-        &metadata_key.suffix.version().to_string(),
+        &resolution_version,
         registry,
         lockfile_include_tarball_url,
     );
@@ -750,7 +779,11 @@ fn build_package_metadata(
     // a `:`), and only when the manifest declares one and the resolution
     // isn't a local directory. Registry packages omit it because their
     // version is already the depPath suffix.
+    // A registry-qualified dep path carries a parseable semver of its own,
+    // so the explicit version field written for other `:`-containing dep
+    // paths would be redundant.
     let version = (node.dep_path.as_str().contains(':')
+        && metadata_key.suffix.registry_qualified().is_none()
         && !matches!(resolution, LockfileResolution::Directory(_)))
     .then(|| {
         manifest.and_then(|m| m.get("version")).and_then(Value::as_str).map(ToString::to_string)

@@ -144,6 +144,9 @@ pub struct WorkspaceResolveOptions {
     /// its tarball URL when building the `currentPkg` payload custom
     /// resolvers receive.
     pub registries: std::collections::HashMap<String, String>,
+    /// Alias → URL map of named registries (built-ins merged with the
+    /// user's setting). See [`WorkspaceResolveOptions::registries`].
+    pub named_registries: std::collections::HashMap<String, String>,
 }
 
 /// Result of [`fn@resolve_workspace`]. The combined
@@ -197,6 +200,7 @@ where
         update_depth,
         auto_install_peers,
         registries,
+        named_registries,
     } = opts;
     let workspace = Arc::new(
         WorkspaceTreeCtx::default()
@@ -212,7 +216,8 @@ where
             .with_allowed_deprecated_versions(allowed_deprecated_versions)
             .with_deprecation_log(deprecation_log)
             .with_auto_install_peers(auto_install_peers)
-            .with_registries(registries),
+            .with_registries(registries)
+            .with_named_registries(named_registries),
     );
 
     // Build every importer's options up front so the `time-based`
@@ -256,34 +261,34 @@ where
     //
     // The initial waves run concurrently, like the TypeScript resolver's
     // importer fan-out: the shared context's children-owner claims are
-    // rank-ordered (not arrival-ordered), so the resolved graph is the
-    // same regardless of interleaving, and a large workspace's walks
-    // overlap their resolver and hook waits instead of paying them
-    // importer by importer.
+    // rank-ordered (not arrival-ordered) and the peer-hoist pickers'
+    // preferred-version candidates are derived from the settled
+    // reachable tree (see `WorkspaceTreeCtx::run_preferred_versions`),
+    // so the resolved graph is the same regardless of interleaving, and
+    // a large workspace's walks overlap their resolver and hook waits
+    // instead of paying them importer by importer.
     let mut input_dirs = Vec::with_capacity(importers.len());
-    let init_futures: Vec<_> = importers
-        .iter()
-        .zip(importer_opts)
-        .enumerate()
-        .map(|(importer_order, (importer, mut importer_opts))| {
-            importer_opts.pick_lowest_direct = pick_lowest_direct;
-            importer_opts.subdep_published_by = subdep_published_by;
-            input_dirs.push((
-                importer_opts.base_opts.project_dir.clone(),
-                importer_opts.modules_dir.clone(),
-            ));
-            ImporterHoistState::init(
-                resolver,
-                &importer.id,
-                importer_order,
-                importer.manifest,
-                dependency_groups.iter().copied(),
-                importer_opts,
-                Arc::clone(&workspace),
-            )
-        })
-        .collect();
-    let mut states = futures_util::future::try_join_all(init_futures).await?;
+    let mut states = Vec::with_capacity(importers.len());
+    for (importer_order, (importer, mut importer_opts)) in
+        importers.iter().zip(importer_opts).enumerate()
+    {
+        importer_opts.pick_lowest_direct = pick_lowest_direct;
+        importer_opts.subdep_published_by = subdep_published_by;
+        input_dirs
+            .push((importer_opts.base_opts.project_dir.clone(), importer_opts.modules_dir.clone()));
+        // Boxed to keep the enclosing install future small: inlining a
+        // wave's frame into it trips the workspace's large-future lint.
+        let wave = Box::pin(ImporterHoistState::init(
+            resolver,
+            &importer.id,
+            importer_order,
+            importer.manifest,
+            dependency_groups.iter().copied(),
+            importer_opts,
+            Arc::clone(&workspace),
+        ));
+        states.push(wave.await?);
+    }
     // Computed after the init barrier and shared unchanged: recomputing it
     // per round would let the root's own hoisted peers become candidates for
     // the importers hoisted after it.
@@ -311,8 +316,8 @@ where
     // The context is quiescent between the prepare barrier above and
     // the completes below, so one snapshot of the owner-scope maps
     // serves every importer.
-    let first_importer_by_pkg = Arc::new(workspace.first_importer_by_pkg());
-    let first_walk_missing_by_pkg = Arc::new(workspace.first_walk_missing_by_pkg());
+    let first_importer_by_pkg = workspace.first_importer_by_pkg();
+    let first_walk_missing_by_pkg = workspace.first_walk_missing_by_pkg();
     for (state, round) in states.iter().zip(&mut initial_required_rounds) {
         if let Some(round) = round {
             state.apply_owner_missing_scope(

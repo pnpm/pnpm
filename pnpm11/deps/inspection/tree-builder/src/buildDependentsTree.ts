@@ -80,6 +80,7 @@ export async function buildDependentsTree (
     include?: { [field in DependenciesField]?: boolean }
     modulesDir?: string
     registries?: Registries
+    namedRegistries?: Record<string, string>
     finders?: Finder[]
     importerInfoMap: Map<string, ImporterInfo>
     lockfile: LockfileObject
@@ -131,6 +132,7 @@ export async function buildDependentsTree (
     virtualStoreDirMaxLength,
     modulesDir,
     registries,
+    namedRegistries: opts.namedRegistries,
     wantedPackages: currentPackages,
     storeDir,
     storeIndex,
@@ -252,6 +254,7 @@ function resolvePackageNodes (
     virtualStoreDirMaxLength: number
     modulesDir: string
     registries: Registries
+    namedRegistries?: Record<string, string>
     wantedPackages: PackageSnapshots
     storeDir?: string
     storeIndex?: StoreIndex

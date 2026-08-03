@@ -216,8 +216,12 @@ export interface ResolutionVerifier {
    * `name@version`. Verifiers that only police registry entries use it to
    * skip deliberate non-registry deps, which can still carry a semver
    * `version` copied from the resolved manifest.
+   *
+   * `ctx.registryName` is set when the entry is keyed by a registry-qualified
+   * dep path (`<name>@<registryName>:<version>`), so registry-policing
+   * verifiers route their metadata lookups to that named registry.
    */
-  verify: (resolution: Resolution, ctx: { name: string, version: string, nonSemverVersion?: string }) => Promise<ResolutionVerification>
+  verify: (resolution: Resolution, ctx: { name: string, version: string, nonSemverVersion?: string, registryName?: string }) => Promise<ResolutionVerification>
   /**
    * Snapshot of the policy fields this verifier enforces. Merged with
    * every other active verifier's `policy` into the cache record. A

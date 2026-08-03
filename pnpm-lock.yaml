@@ -594,6 +594,9 @@ catalogs:
     nm-prune:
       specifier: ^5.0.0
       version: 5.0.0
+    node-gyp:
+      specifier: ^12.3.0
+      version: 12.4.0
     normalize-newline:
       specifier: 5.0.0
       version: 5.0.0
@@ -1042,7 +1045,15 @@ importers:
 
   pnpm/npm/napi: {}
 
-  pnpm/npm/pnpm: {}
+  pnpm/npm/pnpm:
+    dependencies:
+      node-gyp:
+        specifier: 'catalog:'
+        version: 12.4.0
+    devDependencies:
+      nm-prune:
+        specifier: 'catalog:'
+        version: 5.0.0
 
   pnpm/tasks/registry-mock:
     devDependencies:
@@ -1616,6 +1627,9 @@ importers:
       '@pnpm/exec.lifecycle':
         specifier: workspace:*
         version: link:../../exec/lifecycle
+      '@pnpm/fs.symlink-dependency':
+        specifier: workspace:*
+        version: link:../../fs/symlink-dependency
       '@pnpm/installing.context':
         specifier: workspace:*
         version: link:../../installing/context
@@ -2362,6 +2376,9 @@ importers:
 
   pnpm11/config/normalize-registries:
     dependencies:
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../core/constants
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
@@ -2459,9 +2476,15 @@ importers:
       '@jest/globals':
         specifier: 'catalog:'
         version: 30.4.1(supports-color@10.2.2)
+      '@pnpm/config.normalize-registries':
+        specifier: workspace:*
+        version: link:../normalize-registries
       '@pnpm/config.pick-registry-for-package':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../core/constants
 
   pnpm11/config/reader:
     dependencies:
@@ -3048,6 +3071,9 @@ importers:
       '@jest/globals':
         specifier: 'catalog:'
         version: 30.4.1(supports-color@10.2.2)
+      '@pnpm/config.normalize-registries':
+        specifier: workspace:*
+        version: link:../../../config/normalize-registries
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../../core/constants
@@ -3072,9 +3098,18 @@ importers:
       '@cyclonedx/cyclonedx-library':
         specifier: 'catalog:'
         version: 10.1.0(ajv@8.20.0)(spdx-expression-parse@4.0.0)
+      '@pnpm/config.normalize-registries':
+        specifier: workspace:*
+        version: link:../../../config/normalize-registries
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../../core/constants
       '@pnpm/deps.compliance.license-resolver':
         specifier: workspace:*
         version: link:../license-resolver
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../../core/error
       '@pnpm/lockfile.detect-dep-types':
         specifier: workspace:*
         version: link:../../../lockfile/detect-dep-types
@@ -5907,6 +5942,9 @@ importers:
       '@pnpm/catalogs.types':
         specifier: workspace:*
         version: link:../../catalogs/types
+      '@pnpm/config.normalize-registries':
+        specifier: workspace:*
+        version: link:../../config/normalize-registries
       '@pnpm/config.version-policy':
         specifier: workspace:*
         version: link:../../config/version-policy
@@ -7064,6 +7102,12 @@ importers:
 
   pnpm11/lockfile/utils:
     dependencies:
+      '@pnpm/config.normalize-registries':
+        specifier: workspace:*
+        version: link:../../config/normalize-registries
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../core/constants
       '@pnpm/deps.path':
         specifier: workspace:*
         version: link:../../deps/path
@@ -7679,7 +7723,7 @@ importers:
         specifier: 'catalog:'
         version: 0.1.19
       node-gyp:
-        specifier: ^12.3.0
+        specifier: 'catalog:'
         version: 12.4.0
       v8-compile-cache:
         specifier: 2.4.0
@@ -8624,6 +8668,9 @@ importers:
       '@jest/globals':
         specifier: 'catalog:'
         version: 30.4.1(supports-color@10.2.2)
+      '@pnpm/config.normalize-registries':
+        specifier: workspace:*
+        version: link:../../config/normalize-registries
       '@pnpm/fetching.fetcher-base':
         specifier: workspace:*
         version: link:../../fetching/fetcher-base
@@ -8744,6 +8791,9 @@ importers:
 
   pnpm11/resolving/npm-resolver:
     dependencies:
+      '@pnpm/config.normalize-registries':
+        specifier: workspace:*
+        version: link:../../config/normalize-registries
       '@pnpm/config.pick-registry-for-package':
         specifier: workspace:*
         version: link:../../config/pick-registry-for-package
@@ -8759,6 +8809,9 @@ importers:
       '@pnpm/crypto.hash':
         specifier: workspace:*
         version: link:../../crypto/hash
+      '@pnpm/deps.path':
+        specifier: workspace:*
+        version: link:../../deps/path
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error

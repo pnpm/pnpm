@@ -1,3 +1,5 @@
+mod workspace_resolution;
+
 use std::{fs, hint::black_box, path::Path, time::Duration};
 
 use clap::Parser;
@@ -20,8 +22,15 @@ const BATCH_FILES_PER_TARBALL: usize = 64;
 
 #[derive(Debug, Parser)]
 struct CliArgs {
-    #[clap(long)]
+    #[clap(long, conflicts_with = "full_workspace_resolution")]
     save_baseline: Option<String>,
+
+    /// Run each full-size workspace resolution shape once and print its
+    /// timing instead of running the criterion suite. This size models a
+    /// 331-importer workspace and has no statistical harness, so it takes
+    /// no baseline: a regressed run can take minutes and several GiB.
+    #[clap(long)]
+    full_workspace_resolution: bool,
 }
 
 fn bench_tarball(criterion: &mut Criterion, server: &mut ServerGuard, fixtures_folder: &Path) {
@@ -213,8 +222,12 @@ fn bench_lockfile(criterion: &mut Criterion, dir: &Path) {
 }
 
 pub fn main() -> Result<(), String> {
+    let CliArgs { save_baseline, full_workspace_resolution } = CliArgs::parse();
+    if full_workspace_resolution {
+        workspace_resolution::run_full_workspace_resolution();
+        return Ok(());
+    }
     let mut server = mockito::Server::new();
-    let CliArgs { save_baseline } = CliArgs::parse();
     let root = get_project_root().unwrap();
     let fixtures_folder = root.join("pnpm/tasks/micro-benchmark/fixtures");
 
@@ -230,6 +243,7 @@ pub fn main() -> Result<(), String> {
     bench_concurrent_tarballs(&mut criterion, &mut server);
     bench_packument(&mut criterion, &packument);
     bench_lockfile(&mut criterion, &lockfile_dir);
+    workspace_resolution::bench_workspace_resolution(&mut criterion);
 
     Ok(())
 }

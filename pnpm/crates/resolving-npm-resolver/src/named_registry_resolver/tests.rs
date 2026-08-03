@@ -112,7 +112,7 @@ async fn resolves_via_builtin_gh_alias() {
     };
     let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
     assert_eq!(result.resolved_via, "named-registry");
-    assert_eq!(result.id.as_str(), "@acme/private@2.1.0");
+    assert_eq!(result.id.as_str(), "@acme/private@gh:2.1.0");
     assert_eq!(result.latest.as_deref(), Some("2.1.0"));
     assert_eq!(result.alias.as_deref(), Some("@acme/private"));
 }
@@ -141,7 +141,7 @@ async fn preserves_scoped_pkg_name_when_alias_differs() {
     };
     let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
     assert_eq!(result.resolved_via, "named-registry");
-    assert_eq!(result.id.as_str(), "@acme/private@1.0.0");
+    assert_eq!(result.id.as_str(), "@acme/private@gh:1.0.0");
     assert_eq!(
         result.alias.as_deref(),
         Some("@acme/private"),
@@ -174,7 +174,7 @@ async fn user_config_overrides_builtin_gh_alias() {
     };
     let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
     assert_eq!(result.resolved_via, "named-registry");
-    assert_eq!(result.id.as_str(), "@acme/private@2.1.0");
+    assert_eq!(result.id.as_str(), "@acme/private@gh:2.1.0");
 }
 
 #[tokio::test]
@@ -199,7 +199,7 @@ async fn resolves_user_defined_named_registry() {
     };
     let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
     assert_eq!(result.resolved_via, "named-registry");
-    assert_eq!(result.id.as_str(), "@acme/private@2.1.0");
+    assert_eq!(result.id.as_str(), "@acme/private@work:2.1.0");
     assert_eq!(result.alias.as_deref(), Some("@acme/private"));
     assert!(matches!(result.resolution, LockfileResolution::Tarball(_)));
 }
@@ -322,7 +322,7 @@ async fn update_requested_keeps_preferred_versions() {
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(result.id.as_str(), "@acme/private@2.0.0");
+    assert_eq!(result.id.as_str(), "@acme/private@gh:2.0.0");
 }
 
 #[tokio::test]
@@ -388,7 +388,7 @@ async fn update_requested_keeps_non_version_selectors() {
     // The surviving `range` selector steers to 2.0.0; had update_requested
     // dropped it (alongside the version pin), the picker would have returned
     // latest 2.1.0.
-    assert_eq!(result.id.as_str(), "@acme/private@2.0.0");
+    assert_eq!(result.id.as_str(), "@acme/private@gh:2.0.0");
 }
 
 #[tokio::test]
@@ -473,6 +473,40 @@ async fn latest_is_suppressed_when_published_by_holds_back_raw_latest() {
         ..ResolveOptions::default()
     };
     let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
-    assert_eq!(result.id.as_str(), "@acme/private@2.0.0");
+    assert_eq!(result.id.as_str(), "@acme/private@gh:2.0.0");
     assert!(result.latest.is_none(), "immature dist-tags.latest suppresses the hint");
+}
+
+/// The resolution id is registry-qualified so the same name@version
+/// served by different registries stays distinct.
+#[tokio::test]
+async fn resolves_registry_qualified_id() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/@acme%2Fprivate")
+        .with_status(200)
+        .with_body(ACME_PRIVATE_BODY)
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+
+    let mut user = HashMap::new();
+    user.insert("work".to_string(), registry);
+    let (resolver, _tempdir) = build_resolver(user);
+
+    let wanted = WantedDependency {
+        alias: Some("@acme/private".to_string()),
+        bare_specifier: Some("work:^2.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let opts = ResolveOptions::default();
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
+    assert_eq!(result.resolved_via, "named-registry");
+    assert_eq!(result.id.as_str(), "@acme/private@work:2.1.0");
+    // `name_ver` keeps the bare `name@version` shape for display / peer
+    // resolution.
+    assert_eq!(
+        result.name_ver.as_ref().map(ToString::to_string).as_deref(),
+        Some("@acme/private@2.1.0"),
+    );
 }

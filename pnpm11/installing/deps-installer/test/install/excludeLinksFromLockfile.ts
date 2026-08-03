@@ -242,6 +242,57 @@ test('path to external link is not added to the lockfile, when it resolves a pee
   expect(lockfile.snapshots[key].dependencies?.['@pnpm.e2e/peer-a']).toBe('link:node_modules/@pnpm.e2e/peer-a')
 })
 
+test('path to a workspace-internal link is kept, when it resolves a peer dependency', async () => {
+  await addDistTag({ package: '@pnpm.e2e/peer-b', version: '1.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/peer-c', version: '1.0.0', distTag: 'latest' })
+  const pkg1 = {
+    name: 'project-1',
+    version: '1.0.0',
+
+    dependencies: {
+      '@pnpm.e2e/abc': '1.0.0',
+      '@pnpm.e2e/peer-a': 'workspace:*',
+    },
+  }
+  const pkg2 = {
+    name: '@pnpm.e2e/peer-a',
+    version: '1.0.0',
+  }
+  preparePackages([
+    { location: 'project-1', package: pkg1 },
+    { location: 'peer-a', package: pkg2 },
+  ])
+
+  const importers: MutatedProject[] = [
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('peer-a') as ProjectRootDir,
+    },
+  ]
+  const allProjects: ProjectOptions[] = [
+    {
+      buildIndex: 0,
+      manifest: pkg1,
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: pkg2,
+      rootDir: path.resolve('peer-a') as ProjectRootDir,
+    },
+  ]
+  await mutateModules(importers, testDefaults({ allProjects, excludeLinksFromLockfile: true }))
+
+  const lockfile: LockfileFile = readYamlFileSync(WANTED_LOCKFILE)
+  const key = '@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@peer-a)(@pnpm.e2e/peer-b@1.0.0)(@pnpm.e2e/peer-c@1.0.0)'
+  expect(lockfile.snapshots?.[key]).toBeTruthy()
+  expect(lockfile.snapshots?.[key].dependencies?.['@pnpm.e2e/peer-a']).toBe('link:peer-a')
+})
+
 test('links resolved from workspace protocol dependencies are not removed', async () => {
   const pkg1 = {
     name: 'project-1',

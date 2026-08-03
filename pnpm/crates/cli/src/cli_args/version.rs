@@ -485,7 +485,7 @@ fn run_version_lifecycle_hook<Reporter: pacquet_reporter::Reporter>(
         node_gyp_path: None,
         user_agent: Some(&config.user_agent),
         unsafe_perm: config.unsafe_perm,
-        node_gyp_bin: None,
+        node_gyp_bin: pacquet_executor::bundled_node_gyp_bin(),
         scripts_prepend_node_path: super::run::exec_scripts_prepend_node_path(
             config.scripts_prepend_node_path,
         ),

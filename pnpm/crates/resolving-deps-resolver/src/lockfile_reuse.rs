@@ -19,25 +19,35 @@ pub(crate) fn current_pkg_from_lockfile(
     lockfile: &Lockfile,
     key: &PkgNameVerPeer,
     registries: &std::collections::HashMap<String, String>,
+    named_registries: &std::collections::HashMap<String, String>,
 ) -> Option<CurrentPkg> {
     let metadata_key = key.without_peer();
     let metadata = lockfile.packages.as_ref()?.get(&metadata_key)?;
     let name = metadata_key.name.to_string();
+    let registry_qualified = metadata_key.suffix.registry_qualified();
     let version = metadata
         .version
         .clone()
-        .or_else(|| metadata_key.suffix.version_semver().map(ToString::to_string));
+        .or_else(|| metadata_key.suffix.version_semver().map(ToString::to_string))
+        .or_else(|| registry_qualified.map(|(_, version)| version.to_string()));
     let resolution = match &metadata.resolution {
         LockfileResolution::Registry(registry_resolution) => {
-            let registry = pick_registry_for_package(registries, &name, None);
+            // A registry-qualified key reconstructs its tarball from its
+            // named registry; everything else routes by scope. An
+            // unknown alias (or an unthreaded registry map) withholds
+            // `currentPkg` so the dep re-resolves normally.
+            let (registry, tarball_version) = match registry_qualified {
+                Some((registry_name, version)) => {
+                    (named_registries.get(registry_name)?.clone(), version.to_string())
+                }
+                None => (
+                    pick_registry_for_package(registries, &name, None),
+                    metadata_key.suffix.version().to_string(),
+                ),
+            };
             if registry.is_empty() {
-                // No registry map was threaded in (e.g. the
-                // single-importer entry point) — a `Registry` entry
-                // can't be materialized into its tarball URL, and a
-                // URL-less payload would diverge from the expected shape.
                 return None;
             }
-            let tarball_version = metadata_key.suffix.version().to_string();
             LockfileResolution::Tarball(TarballResolution {
                 tarball: npm_tarball_url(&name, &tarball_version, &registry),
                 integrity: Some(registry_resolution.integrity.clone()),
@@ -71,9 +81,43 @@ pub(crate) fn prior_child_key(
         .and_then(|deps| deps.get(&name))
         .or_else(|| snapshot.optional_dependencies.as_ref().and_then(|deps| deps.get(&name)))?;
     let key = dep_ref.resolve(&name)?;
-    let range = bare_specifier.parse::<Range>().ok()?;
-    let satisfied = satisfies_with_prereleases(&range, key.suffix.version_semver()?);
+    let satisfied = if let Some((registry_name, version)) = key.suffix.registry_qualified() {
+        let range = reduce_named_registry_spec(registry_name, &key.name, bare_specifier)?
+            .parse::<Range>()
+            .ok()?;
+        satisfies_with_prereleases(&range, version)
+    } else {
+        let range = bare_specifier.parse::<Range>().ok()?;
+        satisfies_with_prereleases(&range, key.suffix.version_semver()?)
+    };
     satisfied.then_some(key)
+}
+
+/// Reduce a named-registry specifier (`<registryName>:[<name>@]<range>`) to
+/// the range to semver-check against a registry-qualified lockfile key.
+///
+/// `None` whenever the specifier cannot describe `key_name` from
+/// `registry_name`, so the caller falls through to a fresh resolve:
+///
+/// * a different registry — a qualified entry must never satisfy a spec
+///   aimed at another registry;
+/// * a different package — the aliased shape `<registry>:<name>@<range>`
+///   names its package explicitly, and an entry recorded for some other
+///   name is a different dependency even though the manifest alias is
+///   unchanged.
+fn reduce_named_registry_spec<'a>(
+    registry_name: &str,
+    key_name: &PkgName,
+    bare_specifier: &'a str,
+) -> Option<&'a str> {
+    let body = bare_specifier.strip_prefix(registry_name)?.strip_prefix(':')?;
+    // `@scope/name@range` splits at the last `@`; a bare `range` has none
+    // (or only the leading one of a scope, which never delimits a version).
+    let Some(index) = body.rfind('@').filter(|index| *index > 0) else {
+        return Some(body);
+    };
+    let (spec_name, range) = (&body[..index], &body[index + 1..]);
+    (spec_name == key_name.to_string()).then_some(range)
 }
 
 /// The snapshot key (`snapshots:` / `packages:` map key) the prior
@@ -105,9 +149,17 @@ pub(crate) fn reusable_importer_dep(
     {
         return Some(key);
     }
-    let version = spec.version.ver_peer()?.version_semver()?;
-    let range = bare_specifier.parse::<Range>().ok()?;
-    if !satisfies_with_prereleases(&range, version) {
+    let ver_peer = spec.version.ver_peer()?;
+    let satisfied = if let Some((registry_name, version)) = ver_peer.registry_qualified() {
+        let range = reduce_named_registry_spec(registry_name, &key.name, bare_specifier)?
+            .parse::<Range>()
+            .ok()?;
+        satisfies_with_prereleases(&range, version)
+    } else {
+        let range = bare_specifier.parse::<Range>().ok()?;
+        satisfies_with_prereleases(&range, ver_peer.version_semver()?)
+    };
+    if !satisfied {
         return None;
     }
     Some(key)
@@ -199,6 +251,11 @@ pub(crate) fn synthesize_reused_result(
     };
     let (id, name_ver, resolved_via) = if git_resolution {
         (metadata_key.to_string(), None, "git-repository")
+    } else if let Some((_, version)) = metadata_key.suffix.registry_qualified() {
+        // A reused registry-qualified entry keeps its qualified id so the
+        // rebuilt graph re-emits the same lockfile key.
+        let name_ver = PkgNameVer::new(metadata_key.name.clone(), version.clone());
+        (metadata_key.to_string(), Some(name_ver), "named-registry")
     } else {
         let name_ver = PkgNameVer::new(metadata_key.name.clone(), registry_version?);
         (name_ver.to_string(), Some(name_ver), "npm-registry")

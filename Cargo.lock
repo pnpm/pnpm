@@ -4191,6 +4191,7 @@ dependencies = [
 name = "pacquet-deps-path"
 version = "0.0.1"
 dependencies = [
+ "node-semver",
  "pacquet-crypto-hash",
 ]
 
@@ -4547,10 +4548,14 @@ dependencies = [
  "futures-util",
  "mockito",
  "node-semver",
+ "pacquet-catalogs-types",
  "pacquet-lockfile",
  "pacquet-network",
+ "pacquet-package-manifest",
  "pacquet-registry",
  "pacquet-reporter",
+ "pacquet-resolving-deps-resolver",
+ "pacquet-resolving-resolver-base",
  "pacquet-store-dir",
  "pacquet-tarball",
  "pipe-trait",
@@ -4640,6 +4645,7 @@ dependencies = [
  "reqwest",
  "tokio",
  "tracing",
+ "webpki-root-certs",
 ]
 
 [[package]]
@@ -5058,6 +5064,7 @@ dependencies = [
  "mockito",
  "node-semver",
  "pacquet-config",
+ "pacquet-deps-path",
  "pacquet-lockfile",
  "pacquet-network",
  "pacquet-registry",

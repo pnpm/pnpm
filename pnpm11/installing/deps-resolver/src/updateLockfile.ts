@@ -1,3 +1,4 @@
+import { normalizeNamedRegistries } from '@pnpm/config.normalize-registries'
 import * as dp from '@pnpm/deps.path'
 import {
   type LockfileObject,
@@ -15,26 +16,35 @@ import type { DependenciesGraph } from './index.js'
 import type { ResolvedPackage } from './resolveDependencies.js'
 
 export function updateLockfile (
-  { dependenciesGraph, lockfile, prefix, registries, lockfileIncludeTarballUrl }: {
+  { dependenciesGraph, lockfile, prefix, registries, namedRegistries, lockfileIncludeTarballUrl }: {
     dependenciesGraph: DependenciesGraph
     lockfile: LockfileObject
     prefix: string
     registries: Registries
+    namedRegistries?: Record<string, string>
     lockfileIncludeTarballUrl?: boolean
   }
 ): LockfileObject {
   lockfile.packages = lockfile.packages ?? {}
+  const mergedNamedRegistries = normalizeNamedRegistries(namedRegistries)
   for (const [depPath, depNode] of Object.entries(dependenciesGraph)) {
     const [updatedOptionalDeps, updatedDeps] = partition(
       (child) => depNode.optionalDependencies.has(child.alias) || depNode.peerDependencies[child.alias]?.optional === true,
       Object.entries<DepPath>(depNode.children).map(([alias, depPath]) => ({ alias, depPath }))
     )
+    // The registry decides whether the tarball URL is canonical (and can be
+    // dropped from the lockfile entry): a registry-qualified dep path is
+    // checked against its named registry, everything else against the
+    // scope-routed one.
+    const registryName = dp.parse(depPath).registryName
     lockfile.packages[depPath as DepPath] = toLockfileDependency(depNode, {
       depGraph: dependenciesGraph,
       depPath,
       prevSnapshot: lockfile.packages[depPath as DepPath],
       registries,
-      registry: dp.getRegistryByPackageName(registries, depNode.name),
+      registry: (registryName != null ? mergedNamedRegistries[registryName] : undefined) ??
+        dp.getRegistryByPackageName(registries, depNode.name),
+      registryName,
       updatedDeps,
       updatedOptionalDeps,
       lockfileIncludeTarballUrl,
@@ -51,6 +61,7 @@ function toLockfileDependency (
   opts: {
     depPath: string
     registry: string
+    registryName?: string
     registries: Registries
     updatedDeps: Array<{ alias: string, depPath: DepPath }>
     updatedOptionalDeps: Array<{ alias: string, depPath: DepPath }>
@@ -94,7 +105,10 @@ function toLockfileDependency (
   const result = {
     resolution: lockfileResolution,
   } as PackageSnapshot
-  if (opts.depPath.includes(':')) {
+  // A registry-qualified dep path (`<name>@<registryName>:<version>`) already
+  // carries a parseable semver, so the explicit version field written for
+  // other `:`-containing dep paths would be redundant.
+  if (opts.depPath.includes(':') && opts.registryName == null) {
     // There is no guarantee that a non-npmjs.org-hosted package is going to have a version field.
     // Also, for local directory dependencies, the version is not needed.
     if (

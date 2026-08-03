@@ -10,7 +10,13 @@
   ],
   "references": [
     {
+      "path": "../../core/constants"
+    },
+    {
       "path": "../../core/types"
+    },
+    {
+      "path": "../normalize-registries"
     }
   ]
 }

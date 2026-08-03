@@ -32,7 +32,7 @@ use pacquet_lockfile::{LockfileResolution, PkgName, PkgNameVer, TarballResolutio
 use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_and_sanitize};
 use pacquet_registry::{Package, PackageDistribution, PackageVersion, RangeSpecStyle};
 use pacquet_resolving_resolver_base::{
-    LatestInfo, LatestQuery, NoMatchingVersionError, PackageVersionGuardDecision,
+    LatestInfo, LatestQuery, NoMatchingVersionError, PackageVersionGuardDecision, PkgResolutionId,
     RegistryResponseError, RegistryResponseErrorOptions, ResolutionPolicyViolation, ResolveError,
     ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, UpdateBehavior,
     WantedDependency, WorkspacePackages, parse_packument_timestamp,
@@ -283,6 +283,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             alias: wanted_dependency.alias.as_deref(),
             resolved_via: NPM_REGISTRY_RESOLVED_VIA,
             registry: &registry,
+            registry_name: None,
             published_by: opts.published_by,
             published_by_exclude: opts.published_by_exclude.as_ref(),
             picked_manifest_cache: &self.picked_manifest_cache,
@@ -344,6 +345,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             alias: Some(jsr_spec.jsr_pkg_name.as_str()),
             resolved_via: JSR_REGISTRY_RESOLVED_VIA,
             registry,
+            registry_name: None,
             published_by: opts.published_by,
             published_by_exclude: opts.published_by_exclude.as_ref(),
             picked_manifest_cache: &self.picked_manifest_cache,
@@ -775,6 +777,10 @@ pub(crate) struct BuildResolveResult<'a> {
     pub alias: Option<&'a str>,
     pub resolved_via: &'a str,
     pub registry: &'a str,
+    /// `Some(alias)` when the caller resolves from a named registry and
+    /// registry-qualified ids are enabled — the minted id then becomes
+    /// `<name>@<alias>:<version>` (lockfile format 12.0).
+    pub registry_name: Option<&'a str>,
     pub published_by: Option<DateTime<Utc>>,
     pub published_by_exclude: Option<&'a PackageVersionPolicy>,
     pub picked_manifest_cache: &'a crate::PickedManifestCache,
@@ -795,6 +801,7 @@ pub(crate) fn build_resolve_result(
         alias,
         resolved_via,
         registry,
+        registry_name,
         published_by,
         published_by_exclude,
         picked_manifest_cache,
@@ -804,7 +811,12 @@ pub(crate) fn build_resolve_result(
         PkgName::parse(picked.name.as_str()).map_err(|err| Box::new(err) as ResolveError)?;
     let version_str = picked.version.to_string();
     let name_ver = PkgNameVer::new(pkg_name.clone(), picked.version.clone());
-    let id = (&name_ver).into();
+    let id = match registry_name {
+        Some(registry_name) => {
+            PkgResolutionId::from(format!("{}@{registry_name}:{}", picked.name, picked.version))
+        }
+        None => (&name_ver).into(),
+    };
     // The picker always carries a tarball URL on its `dist` payload —
     // every npm registry serves `dist.tarball` on a successful pick
     // and pacquet's deserializer requires it (`dist.tarball: String`,

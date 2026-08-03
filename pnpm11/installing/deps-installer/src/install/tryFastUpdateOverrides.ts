@@ -180,6 +180,9 @@ function collectReplacements (
       if (
         parsed.name !== alias ||
         parsed.version == null ||
+        // The fast path rebuilds the dep path as `<alias>@<version>`, which
+        // would drop the registry qualifier of a named-registry package.
+        parsed.registryName != null ||
         parsed.peerDepGraphHash != null ||
         parsed.patchHash != null ||
         override.oldVersion != null && parsed.version !== override.oldVersion ||

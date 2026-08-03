@@ -84,6 +84,7 @@ export interface LockfileToDepGraphOptions {
   pnpmVersion: string
   patchedDependencies?: PatchGroupRecord
   registries: Registries
+  namedRegistries?: Record<string, string>
   /**
    * The dep paths a non-optional edge reaches, as classified by
    * `filterLockfileByImportersAndEngine`. Installability is evaluated as
@@ -294,7 +295,7 @@ async function buildGraphFromPackages (
       }
 
       if (!fetchResponse) {
-        const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, opts.registries)
+        const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, { registries: opts.registries, namedRegistries: opts.namedRegistries })
         progressLogger.debug({ packageId, requester: opts.lockfileDir, status: 'resolved' })
 
         try {

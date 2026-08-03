@@ -111,7 +111,7 @@ pub struct CliArgs {
 
     /// Set working directory. Accepted anywhere on the command line,
     /// before or after the subcommand, like every other rc-option.
-    #[clap(short = 'C', long, default_value = ".", global = true)]
+    #[clap(short = 'C', long, alias = "prefix", default_value = ".", global = true)]
     pub dir: PathBuf,
 
     /// Directory in which the package store is created. Relative paths
@@ -119,6 +119,7 @@ pub struct CliArgs {
     /// workspace.
     #[clap(
         long = "store-dir",
+        alias = "store",
         value_name = "DIR",
         global = true,
         overrides_with = "store_dir",
