@@ -4138,6 +4138,34 @@ test('an empty legacy proxy setting in .npmrc falls through to the environment',
   }
 })
 
+test('a legacy proxy setting disabled with false is not re-enabled by the environment', async () => {
+  prepareEmpty()
+
+  fs.writeFileSync('.npmrc', 'proxy=false', 'utf8')
+
+  const originalHttpProxy = process.env.HTTP_PROXY
+  process.env.HTTP_PROXY = 'http://env-proxy.example.com:8080'
+  try {
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.httpsProxy).toBe(false)
+    expect(config.httpProxy).toBe(false)
+  } finally {
+    if (originalHttpProxy != null) {
+      process.env.HTTP_PROXY = originalHttpProxy
+    } else {
+      delete process.env.HTTP_PROXY
+    }
+  }
+})
+
 test('lockfile: false in pnpm-workspace.yaml sets useLockfile to false', async () => {
   prepareEmpty()
 
