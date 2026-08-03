@@ -40,6 +40,7 @@ impl ProxyValue {
     /// A value from a scalar-typed source: an `.npmrc` or a yaml file,
     /// where `false` and `null` arrive as non-strings. Only the lowercase
     /// tokens qualify, so a capitalised `False` stays a hostname.
+    #[must_use]
     pub fn from_config(raw: &str) -> Self {
         match raw {
             "" | "false" | "null" => Self::Unset,
@@ -49,6 +50,7 @@ impl ProxyValue {
 
     /// [`Self::from_config`] for the legacy `proxy` key, where `false` is
     /// a value in its own right rather than an absence.
+    #[must_use]
     pub fn legacy_from_config(raw: &str) -> Self {
         match raw {
             "false" => Self::Disabled,
@@ -59,6 +61,7 @@ impl ProxyValue {
 
     /// A value from a command-line flag. A flag has no scalar typing, so
     /// only the empty string reads as unset and `false` is a hostname.
+    #[must_use]
     pub fn from_flag(raw: &str) -> Self {
         if raw.is_empty() { Self::Unset } else { Self::Url(raw.to_string()) }
     }
@@ -102,6 +105,7 @@ pub struct ProxyEnv {
 
 impl ProxyKeys {
     /// Run the cascade over the merged keys.
+    #[must_use]
     pub fn resolve(&self) -> ProxyConfig {
         let https = match self.https_proxy.url() {
             Some(url) => Resolved::Url(url),
