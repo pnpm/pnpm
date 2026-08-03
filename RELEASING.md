@@ -59,16 +59,36 @@ already published — the one that product's publish job publishes last (`pnpm`
 for both CLIs, `@pnpm/pnpr` for pnpr) — and skips the product entirely if it
 is. A release that ran to completion is therefore a no-op on rerun.
 
-Recovering a *partial* release is not a matter of pushing the tag again.
-Pushing a tag already present on the remote is a no-op that fires no `push`
-event, so it starts no run. Instead re-run the failed run from the Actions UI,
-or use the `workflow_dispatch` trigger.
+When a run fails and the fix is a code change, commit the fix, move the tag to
+the new commit and push it again:
 
-Because the gate package is published last, a run that failed partway leaves
-the gate unpublished, so the plan job will pick the product up again. But the
-packages that did publish before the failure are immutable on npm and cannot be
-republished — read the failed run's logs to see how far it got before retrying,
-rather than assuming the rerun starts from a clean slate.
+```bash
+git push origin :refs/tags/v<version>          # drop the remote tag
+git tag -d v<version>
+git tag -s v<version> -m "v<version>"          # re-sign at the fixed commit
+git push origin v<version>
+```
+
+Re-creating the tag this way changes the ref, which fires a `push` event and
+starts a fresh run. Note the tag must be re-signed — `git tag -f` without `-s`
+would quietly replace a signed tag with an unsigned one and reintroduce
+[#13578](https://github.com/pnpm/pnpm/issues/13578).
+
+Pushing a tag that is *already* on the remote unchanged is a different matter:
+it is a no-op, fires no event, and starts no run. To rerun the same commit
+without moving the tag, re-run the failed run from the Actions UI or use the
+`workflow_dispatch` trigger.
+
+Either way, because the gate package is published last, a run that failed
+partway leaves the gate unpublished, so the plan job picks the product up
+again. But the packages that did publish before the failure are immutable on
+npm and cannot be republished at the same version — read the failed run's logs
+to see how far it got. If the fix has to change something already published,
+the release needs a new version rather than a retry.
+
+Moving a tag is only safe while the release is still failing. Once a release
+has completed and been announced, the tag is what downstream packagers verify
+and pin, so it must never be moved.
 
 ## Signing setup
 
