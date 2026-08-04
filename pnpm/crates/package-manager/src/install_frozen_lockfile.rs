@@ -308,9 +308,6 @@ pub enum InstallFrozenLockfileError {
     #[display("failed to write PnP loader: {_0}")]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_WRITE_PNP_FILE))]
     WritePnpFile(#[error(source)] crate::WritePnpFileError),
-
-    #[diagnostic(transparent)]
-    InstallError(#[error(source)] Box<crate::InstallError>),
 }
 
 /// Error type of `run_build_phase` and `resolve_snapshot_patches`.
