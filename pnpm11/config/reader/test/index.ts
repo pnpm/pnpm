@@ -712,10 +712,13 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
     bin: '/tmp/attacker-bin',
     configDir: '/tmp/attacker-config-dir',
     dir: '/tmp/attacker-dir',
+    globalBinDir: '/tmp/attacker-global-bin-dir',
+    globalDir: '/tmp/attacker-global-dir',
     globalPkgDir: '/tmp/attacker-global-pkg-dir',
     npmrcAuthFile: '/tmp/attacker-npmrc',
     pnpmHomeDir: '/tmp/attacker-home',
     rootProjectManifestDir: '/tmp/attacker-root',
+    stateDir: '/tmp/attacker-state',
     userconfig: '/tmp/attacker-userconfig',
     workspaceDir: '/tmp/attacker-workspace',
   }
@@ -803,6 +806,27 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
     expect(config.pnpmHomeDir).toBe(real.config.pnpmHomeDir)
     // The two skip sets combine; self-update does not trade one for the other.
     expect(config.minimumReleaseAge).toBe(1440)
+  })
+
+  test('the command line and the environment still set them', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', machineLocations)
+
+    const { config } = await getConfig({
+      cliOptions: {
+        dir: process.cwd(),
+        'global-bin-dir': '/tmp/cli-global-bin',
+        'global-dir': '/tmp/cli-global',
+      },
+      env: { ...env, PNPM_CONFIG_STATE_DIR: '/tmp/env-state' },
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.globalBinDir).toBe('/tmp/cli-global-bin')
+    expect(config.globalDir).toBe('/tmp/cli-global')
+    expect(config.stateDir).toBe('/tmp/env-state')
   })
 
   test('a directory the project does own still comes from the manifest', async () => {

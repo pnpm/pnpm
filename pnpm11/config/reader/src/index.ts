@@ -1112,9 +1112,12 @@ const PROJECT_MANIFEST_SKIPPED_SETTINGS: ReadonlySet<string> = new Set([
   // Where state that outlives the project lives.
   'bin',
   'configDir',
+  'globalBinDir',
+  'globalDir',
   'globalPkgDir',
   'npmrcAuthFile',
   'pnpmHomeDir',
+  'stateDir',
   'userconfig',
   // Which directories the current command operates on.
   'dir',
