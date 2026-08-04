@@ -407,7 +407,7 @@ fn link_isolated<Reporter: pacquet_reporter::Reporter>(
 /// `node_modules/.package-map.json` and, under `nodeLinker: pnp`, the
 /// `PnP` loader.
 ///
-/// Both run before the build phase, since [`build_extra_env`] points
+/// Both run before the build phase, since [`super::build_extra_env`] points
 /// lifecycle scripts' `NODE_OPTIONS` at the package map. `layout`
 /// already resolves each snapshot to its real on-disk slot (flat or
 /// global-virtual-store). Reached only after materialization, mirroring
