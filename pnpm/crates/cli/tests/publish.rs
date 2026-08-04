@@ -186,6 +186,195 @@ fn tag_flag_registers_the_version_under_that_dist_tag() {
 }
 
 #[test]
+fn workspace_yaml_supplies_the_dist_tag_and_access() {
+    let dir = tempfile::tempdir().expect("workspace");
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    write_project(
+        dir.path(),
+        &registry,
+        &json!({ "name": "@scope/from-yaml", "version": "2.3.4" }),
+    );
+    fs::write(dir.path().join("pnpm-workspace.yaml"), "tag: next\naccess: restricted\n")
+        .expect("write pnpm-workspace.yaml");
+
+    let mock = server
+        .mock("PUT", "/@scope%2ffrom-yaml")
+        .match_body(Matcher::AllOf(vec![
+            Matcher::PartialJsonString(r#"{"dist-tags":{"next":"2.3.4"}}"#.to_owned()),
+            Matcher::PartialJsonString(r#"{"access":"restricted"}"#.to_owned()),
+        ]))
+        .with_status(200)
+        .with_body("{}")
+        .expect(1)
+        .create();
+
+    assert_success(&publish(dir.path(), &[]));
+    mock.assert();
+}
+
+#[test]
+fn the_tag_flag_outranks_the_workspace_yaml_tag() {
+    let dir = tempfile::tempdir().expect("workspace");
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    write_project(
+        dir.path(),
+        &registry,
+        &json!({ "name": "test-publish-tag-flag", "version": "1.2.3" }),
+    );
+    fs::write(dir.path().join("pnpm-workspace.yaml"), "tag: from-yaml\n")
+        .expect("write pnpm-workspace.yaml");
+
+    let mock = server
+        .mock("PUT", "/test-publish-tag-flag")
+        .match_body(Matcher::PartialJsonString(r#"{"dist-tags":{"from-flag":"1.2.3"}}"#.to_owned()))
+        .with_status(200)
+        .with_body("{}")
+        .expect(1)
+        .create();
+
+    assert_success(&publish(dir.path(), &["--tag", "from-flag"]));
+    mock.assert();
+}
+
+#[test]
+fn pnpm_config_tag_env_var_outranks_the_workspace_yaml_tag() {
+    let dir = tempfile::tempdir().expect("workspace");
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    write_project(
+        dir.path(),
+        &registry,
+        &json!({ "name": "test-publish-tag-env", "version": "1.2.3" }),
+    );
+    fs::write(dir.path().join("pnpm-workspace.yaml"), "tag: from-yaml\n")
+        .expect("write pnpm-workspace.yaml");
+
+    let mock = server
+        .mock("PUT", "/test-publish-tag-env")
+        .match_body(Matcher::PartialJsonString(r#"{"dist-tags":{"from-env":"1.2.3"}}"#.to_owned()))
+        .with_status(200)
+        .with_body("{}")
+        .expect(1)
+        .create();
+
+    let output = pacquet(dir.path())
+        .with_arg("publish")
+        .with_arg("--no-git-checks")
+        .with_env("PNPM_CONFIG_TAG", "from-env")
+        .output()
+        .expect("spawn pacquet publish");
+    assert_success(&output);
+    mock.assert();
+}
+
+/// The manifest's `publishConfig.access` is the fallback for an *unset*
+/// access level, so a configured one has to win over it.
+#[test]
+fn the_configured_access_outranks_publish_config_access() {
+    let dir = tempfile::tempdir().expect("workspace");
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    write_project(
+        dir.path(),
+        &registry,
+        &json!({
+            "name": "@scope/access-precedence",
+            "version": "1.0.0",
+            "publishConfig": { "access": "public" },
+        }),
+    );
+    fs::write(dir.path().join("pnpm-workspace.yaml"), "access: restricted\n")
+        .expect("write pnpm-workspace.yaml");
+
+    let mock = server
+        .mock("PUT", "/@scope%2faccess-precedence")
+        .match_body(Matcher::PartialJsonString(r#"{"access":"restricted"}"#.to_owned()))
+        .with_status(200)
+        .with_body("{}")
+        .expect(1)
+        .create();
+
+    assert_success(&publish(dir.path(), &[]));
+    mock.assert();
+}
+
+/// Commit everything in `dir` on `branch` so the publish git checks see a
+/// clean tree on a known branch.
+fn commit_all_on_branch(dir: &Path, branch: &str) {
+    let git = |args: &[&str]| {
+        let output = Command::new("git").args(args).current_dir(dir).output().expect("spawn git");
+        assert!(
+            output.status.success(),
+            "git {args:?} failed: {}",
+            String::from_utf8_lossy(&output.stderr),
+        );
+    };
+    git(&["init", &format!("--initial-branch={branch}")]);
+    git(&["config", "user.email", "x@y.z"]);
+    git(&["config", "user.name", "xyz"]);
+    git(&["add", "."]);
+    git(&["commit", "-m", "base", "--no-gpg-sign"]);
+}
+
+/// With git checks on, the branch gate accepts the branch named by the
+/// `publishBranch` setting — the `--publish-branch` flag is not the only way
+/// to move it off the built-in `master` / `main` pair.
+#[test]
+fn workspace_yaml_supplies_the_publish_branch() {
+    let dir = tempfile::tempdir().expect("workspace");
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    write_project(
+        dir.path(),
+        &registry,
+        &json!({ "name": "test-publish-branch", "version": "1.0.0" }),
+    );
+    fs::write(dir.path().join("pnpm-workspace.yaml"), "publishBranch: release\n")
+        .expect("write pnpm-workspace.yaml");
+    commit_all_on_branch(dir.path(), "release");
+
+    let mock = server
+        .mock("PUT", "/test-publish-branch")
+        .with_status(200)
+        .with_body("{}")
+        .expect(1)
+        .create();
+
+    let output = pacquet(dir.path()).with_arg("publish").output().expect("spawn pacquet publish");
+    assert_success(&output);
+    mock.assert();
+}
+
+/// The control for [`workspace_yaml_supplies_the_publish_branch`]: without the
+/// setting, `release` is not a publish branch, and the confirmation prompt a
+/// non-interactive run cannot answer turns into a hard error.
+#[test]
+fn publishing_off_the_default_branches_without_the_setting_is_rejected() {
+    let dir = tempfile::tempdir().expect("workspace");
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    write_project(
+        dir.path(),
+        &registry,
+        &json!({ "name": "test-publish-branch", "version": "1.0.0" }),
+    );
+    commit_all_on_branch(dir.path(), "release");
+
+    let mock = server.mock("PUT", "/test-publish-branch").expect(0).create();
+
+    let output = pacquet(dir.path()).with_arg("publish").output().expect("spawn pacquet publish");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success(), "publish must fail; stderr: {stderr}");
+    assert!(
+        stderr.contains("ERR_PNPM_GIT_NOT_CORRECT_BRANCH"),
+        "publish must fail the branch check; stderr: {stderr}",
+    );
+    mock.assert();
+}
+
+#[test]
 fn scoped_package_publishes_to_the_slash_escaped_path() {
     let dir = tempfile::tempdir().expect("workspace");
     let mut server = mockito::Server::new();

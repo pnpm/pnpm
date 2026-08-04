@@ -307,6 +307,27 @@ pub struct WorkspaceSettings {
     /// `true`.
     pub git_checks: Option<bool>,
 
+    /// `publishBranch` from `pnpm-workspace.yaml`. See
+    /// [`Config::publish_branch`]. Workspace-only — cleared from the global
+    /// `config.yaml` by [`Self::clear_workspace_only_fields`].
+    pub publish_branch: Option<String>,
+
+    /// `access` from `pnpm-workspace.yaml` / global `config.yaml`. See
+    /// [`Config::access`].
+    pub access: Option<String>,
+
+    /// `tag` from `pnpm-workspace.yaml` / global `config.yaml`. See
+    /// [`Config::tag`].
+    pub tag: Option<String>,
+
+    /// `provenance` from `pnpm-workspace.yaml` / global `config.yaml`. See
+    /// [`Config::provenance`].
+    pub provenance: Option<bool>,
+
+    /// `otp` from `pnpm-workspace.yaml` / global `config.yaml`. See
+    /// [`Config::otp`].
+    pub otp: Option<String>,
+
     /// `engineStrict` from `pnpm-workspace.yaml` / global `config.yaml`.
     /// See [`Config::engine_strict`]. Default `false`.
     pub engine_strict: Option<bool>,
@@ -879,6 +900,7 @@ impl WorkspaceSettings {
         self.allow_unused_patches = None;
         self.save_catalog_name = None;
         self.save_peer = None;
+        self.publish_branch = None;
     }
 
     /// Walk up from `start_dir` looking for a readable `pnpm-workspace.yaml`.
@@ -976,6 +998,10 @@ impl WorkspaceSettings {
 
     fn substitute_env_scalars<Sys: EnvVar>(&mut self) {
         substitute_optional_string::<Sys>(&mut self.scope);
+        substitute_optional_string::<Sys>(&mut self.publish_branch);
+        substitute_optional_string::<Sys>(&mut self.access);
+        substitute_optional_string::<Sys>(&mut self.tag);
+        substitute_optional_string::<Sys>(&mut self.otp);
         substitute_optional_string::<Sys>(&mut self.store_dir);
         substitute_optional_string::<Sys>(&mut self.modules_dir);
         substitute_optional_string::<Sys>(&mut self.virtual_store_dir);
@@ -1122,6 +1148,21 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.scope {
             config.scope = Some(v);
+        }
+        if let Some(v) = self.publish_branch {
+            config.publish_branch = Some(v);
+        }
+        if let Some(v) = self.access {
+            config.access = Some(v);
+        }
+        if let Some(v) = self.tag {
+            config.tag = Some(v);
+        }
+        if let Some(v) = self.provenance {
+            config.provenance = Some(v);
+        }
+        if let Some(v) = self.otp {
+            config.otp = Some(v);
         }
         if let Some(v) = self.pnpr_server {
             config.pnpr_server = Some(v);

@@ -60,8 +60,13 @@ pub struct PublishFlags {
     pub access: Option<String>,
 
     /// Generate a provenance attestation for the published package.
-    #[clap(long)]
+    #[clap(long, overrides_with = "no_provenance")]
     pub provenance: bool,
+
+    /// Publish without a provenance attestation even when the configuration
+    /// asks for one, and without letting the OIDC exchange turn it on.
+    #[clap(long = "no-provenance", overrides_with = "provenance")]
+    pub no_provenance: bool,
 
     /// Don't run publish-related lifecycle scripts.
     #[clap(long = "ignore-scripts")]
@@ -166,7 +171,8 @@ impl PublishArgs {
 
         // Upstream gates on `opts.gitChecks !== false`, which folds together
         // the `git-checks` config setting and the `--no-git-checks` flag.
-        let publish_branch = self.flags.publish_branch.as_deref();
+        let publish_branch =
+            self.flags.publish_branch.as_deref().or(config.publish_branch.as_deref());
         let git_checks = config.git_checks && !self.flags.no_git_checks;
         run_git_checks::<Host>(dir, git_checks, publish_branch)?;
 
@@ -175,7 +181,7 @@ impl PublishArgs {
             return Ok(PublishedPackages::Recursive(published));
         }
 
-        let otp = resolve_otp_from_env::<Host>(self.flags.otp.clone());
+        let otp = resolve_otp_from_env::<Host>(self.resolved_otp(config));
         let opts = self.publish_options(config, otp, stage);
         let http_client = build_registry_client(config)?;
         let network = PublishNetwork { client: &http_client, auth_headers: &config.auth_headers };
@@ -324,7 +330,28 @@ impl PublishArgs {
             .wrap_err(crate::cli_args::pack::PACK_ERROR_CONTEXT)
     }
 
+    /// The one-time password before the `PNPM_CONFIG_OTP` overlay: `--otp`
+    /// wins, then the `otp` config setting.
+    pub(super) fn resolved_otp(&self, config: &Config) -> Option<String> {
+        self.flags.otp.clone().or_else(|| config.otp.clone())
+    }
+
+    /// Whether to attach a provenance attestation: either
+    /// `--provenance` / `--no-provenance` wins, then the `provenance` config
+    /// setting, and `None` leaves the decision to the OIDC exchange.
+    fn resolved_provenance(&self, config: &Config) -> Option<bool> {
+        if self.flags.no_provenance {
+            return Some(false);
+        }
+        self.flags.provenance.then_some(true).or(config.provenance)
+    }
+
     /// Map the CLI flags and resolved [`Config`] onto the publish options.
+    ///
+    /// Every setting `pnpm publish` declares as an rc option resolves as
+    /// `flag ?? config`, so a value in `pnpm-workspace.yaml`, the global
+    /// `config.yaml`, or a `PNPM_CONFIG_*` variable is honored when the flag
+    /// is absent.
     fn publish_options(
         &self,
         config: &Config,
@@ -334,11 +361,26 @@ impl PublishArgs {
         PublishPackedPkgOptions {
             default_registry: config.registry.clone(),
             scoped_registries: config.registries.clone(),
-            access: self.flags.access.as_deref().and_then(Access::parse),
-            tag: self.flags.tag.clone().unwrap_or_else(|| "latest".to_owned()),
+            // Resolved before `publishConfig.access` is consulted, so a
+            // configured access level outranks the manifest's.
+            access: self
+                .flags
+                .access
+                .as_deref()
+                .or(config.access.as_deref())
+                .and_then(Access::parse),
+            // The `latest` default lands after the whole chain, so a
+            // configured tag is not mistaken for an unset one.
+            tag: self
+                .flags
+                .tag
+                .clone()
+                .or_else(|| config.tag.clone())
+                .unwrap_or_else(|| "latest".to_owned()),
             otp,
-            // An absent `--provenance` leaves the decision to the OIDC flow.
-            provenance: self.flags.provenance.then_some(true),
+            // With neither flag and no configured value the decision is left
+            // to the OIDC flow; an explicit `false` suppresses it.
+            provenance: self.resolved_provenance(config),
             dry_run: self.flags.dry_run,
             stage,
             http: OidcHttpOptions {

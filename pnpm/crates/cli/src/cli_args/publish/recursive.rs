@@ -70,7 +70,7 @@ impl PublishArgs {
 
         let http_client = build_registry_client(config)?;
         let network = PublishNetwork { client: &http_client, auth_headers: &config.auth_headers };
-        let otp = resolve_otp_from_env::<Host>(self.flags.otp.clone());
+        let otp = resolve_otp_from_env::<Host>(self.resolved_otp(config));
         let opts = self.publish_options(config, otp, stage);
         let retry_opts = retry_opts_from_config(config);
 

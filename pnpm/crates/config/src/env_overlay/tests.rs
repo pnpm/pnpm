@@ -177,6 +177,43 @@ fn empty_scope_env_var_survives_to_clobber_lower_layers() {
 }
 
 #[test]
+fn publish_settings_parse_from_env() {
+    struct EnvPublish;
+    impl EnvVar for EnvPublish {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "PNPM_CONFIG_ACCESS" => Some("restricted".to_owned()),
+                "PNPM_CONFIG_TAG" => Some("next".to_owned()),
+                "PNPM_CONFIG_PROVENANCE" => Some("true".to_owned()),
+                "PNPM_CONFIG_OTP" => Some("135791".to_owned()),
+                "PNPM_CONFIG_PUBLISH_BRANCH" => Some("release".to_owned()),
+                _ => None,
+            }
+        }
+    }
+    let settings = WorkspaceSettings::from_pnpm_config_env::<EnvPublish>();
+    assert_eq!(settings.access.as_deref(), Some("restricted"));
+    assert_eq!(settings.tag.as_deref(), Some("next"));
+    assert_eq!(settings.provenance, Some(true));
+    assert_eq!(settings.otp.as_deref(), Some("135791"));
+    assert_eq!(settings.publish_branch.as_deref(), Some("release"));
+}
+
+#[test]
+fn provenance_env_var_parses_false() {
+    struct EnvNoProvenance;
+    impl EnvVar for EnvNoProvenance {
+        fn var(name: &str) -> Option<String> {
+            (name == "PNPM_CONFIG_PROVENANCE").then(|| "false".to_owned())
+        }
+    }
+    assert_eq!(
+        WorkspaceSettings::from_pnpm_config_env::<EnvNoProvenance>().provenance,
+        Some(false),
+    );
+}
+
+#[test]
 fn tri_array_env_var_parses_arrays_and_rejects_null() {
     assert_eq!(parse_tri_array(r#"["a","b"]"#), Some(Some(vec!["a".to_owned(), "b".to_owned()])));
     assert_eq!(parse_tri_array("null"), None);

@@ -1391,6 +1391,43 @@ pub struct Config {
     #[default(true)]
     pub git_checks: bool,
 
+    /// `publishBranch` (`--publish-branch`): the single branch
+    /// `pnpm publish`'s git checks accept. Unset means the built-in
+    /// `master` / `main` pair. Overridden by `--publish-branch`.
+    ///
+    /// Workspace-only: pnpm's `excludedPnpmKeys` keeps it out of the global
+    /// `config.yaml`, so it reaches [`Config`] from `pnpm-workspace.yaml` and
+    /// `PNPM_CONFIG_PUBLISH_BRANCH` only.
+    pub publish_branch: Option<String>,
+
+    /// `access` (`--access`): the access level `pnpm publish` records for the
+    /// package, `public` or `restricted`. Unset leaves it to the manifest's
+    /// `publishConfig.access` and then to the registry default.
+    ///
+    /// Kept as the raw string: the closed set lives in
+    /// `pacquet_publish::Access`, and the publish command — not the shared
+    /// config crate — is where the value is parsed and where an
+    /// unrecognized one is dropped, exactly as it is for
+    /// `publishConfig.access`. Overridden by `--access`.
+    pub access: Option<String>,
+
+    /// `tag` (`--tag`): the dist-tag `pnpm publish` registers the published
+    /// version under. `None` means the setting is unset; the publish command
+    /// applies the `latest` default after the flag and this field have both
+    /// had their say. Overridden by `--tag`.
+    pub tag: Option<String>,
+
+    /// `provenance` (`--provenance`): whether `pnpm publish` attaches a
+    /// provenance attestation. `None` leaves the decision to the OIDC
+    /// exchange; an explicit `false` suppresses provenance even when the
+    /// exchange offers it. Overridden by `--provenance` / `--no-provenance`.
+    pub provenance: Option<bool>,
+
+    /// `otp` (`--otp`): the one-time password for a two-factor-authenticated
+    /// registry. An explicit value here outranks the `PNPM_CONFIG_OTP` overlay
+    /// `pacquet_publish::resolve_otp_from_env` applies. Overridden by `--otp`.
+    pub otp: Option<String>,
+
     /// `scriptsPrependNodePath` from `pnpm-workspace.yaml`. Controls
     /// whether `dirname(node_execpath)` is prepended to `PATH` when
     /// running lifecycle scripts. Default `Never` (`scriptsPrependNodePath:

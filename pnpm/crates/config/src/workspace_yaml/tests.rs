@@ -120,6 +120,68 @@ fn apply_scope_overrides_an_earlier_layer() {
 }
 
 #[test]
+fn parses_and_applies_the_publish_settings_from_yaml() {
+    let yaml = "\
+access: restricted
+tag: next
+provenance: true
+otp: '123456'
+publishBranch: release
+";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+
+    assert_eq!(config.access.as_deref(), Some("restricted"));
+    assert_eq!(config.tag.as_deref(), Some("next"));
+    assert_eq!(config.provenance, Some(true));
+    assert_eq!(config.otp.as_deref(), Some("123456"));
+    assert_eq!(config.publish_branch.as_deref(), Some("release"));
+}
+
+/// `provenance: false` has to survive as `Some(false)`: it is what suppresses
+/// the attestation the OIDC exchange would otherwise turn on, so collapsing it
+/// to `None` would silently re-enable provenance.
+#[test]
+fn provenance_false_applies_as_an_explicit_false() {
+    let settings: WorkspaceSettings = serde_saphyr::from_str("provenance: false\n").unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(config.provenance, Some(false));
+}
+
+/// `access`, `tag`, `provenance`, and `otp` are `npmConfigTypes` keys that
+/// pnpm's `isConfigFileKey` accepts, so they must survive the workspace-only
+/// stripping that runs on the global `config.yaml`.
+#[test]
+fn npm_publish_settings_survive_workspace_only_field_clearing() {
+    let yaml = "\
+access: public
+tag: beta
+provenance: true
+otp: '246810'
+";
+    let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    settings.clear_workspace_only_fields();
+
+    assert_eq!(settings.access.as_deref(), Some("public"));
+    assert_eq!(settings.tag.as_deref(), Some("beta"));
+    assert_eq!(settings.provenance, Some(true));
+    assert_eq!(settings.otp.as_deref(), Some("246810"));
+}
+
+/// `publish-branch` is in pnpm's `excludedPnpmKeys`, so the global
+/// `config.yaml` may not set it — only `pnpm-workspace.yaml` and
+/// `PNPM_CONFIG_PUBLISH_BRANCH` may.
+#[test]
+fn publish_branch_is_cleared_for_the_global_config() {
+    let mut settings: WorkspaceSettings =
+        serde_saphyr::from_str("publishBranch: release\n").unwrap();
+    settings.clear_workspace_only_fields();
+    assert_eq!(settings.publish_branch, None);
+}
+
+#[test]
 fn apply_resolves_relative_paths_against_base_dir() {
     let yaml = "storeDir: ../shared-store\n";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();

@@ -167,6 +167,11 @@ impl WorkspaceSettings {
         if let Some(scope) = read_env_allow_empty::<Sys>("SCOPE") {
             settings.scope = Some(scope);
         }
+        string_field!(publish_branch, "PUBLISH_BRANCH");
+        string_field!(access, "ACCESS");
+        string_field!(tag, "TAG");
+        json_field!(provenance, "PROVENANCE");
+        string_field!(otp, "OTP");
         string_field!(pnpr_server, "PNPR_SERVER");
         string_field!(https_proxy, "HTTPS_PROXY");
         string_field!(http_proxy, "HTTP_PROXY");

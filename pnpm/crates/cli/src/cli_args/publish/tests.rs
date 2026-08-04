@@ -23,6 +23,7 @@ fn publish_flags() -> PublishFlags {
         tag: None,
         access: None,
         provenance: false,
+        no_provenance: false,
         ignore_scripts: false,
         skip_manifest_obfuscation: false,
         otp: None,
@@ -73,6 +74,80 @@ fn publish_options_applies_tag_access_provenance_and_dry_run() {
     assert_eq!(options.provenance, Some(true));
     assert!(options.dry_run);
     assert_eq!(options.otp, None);
+}
+
+#[test]
+fn publish_options_fall_back_to_the_configured_settings() {
+    let config = Config {
+        access: Some("restricted".to_owned()),
+        tag: Some("next".to_owned()),
+        provenance: Some(true),
+        ..Default::default()
+    };
+    let options = publish_args().publish_options(&config, None, false);
+    assert_eq!(options.access, Some(Access::Restricted));
+    assert_eq!(options.tag, "next");
+    assert_eq!(options.provenance, Some(true));
+}
+
+#[test]
+fn publish_flags_outrank_the_configured_settings() {
+    let config = Config {
+        access: Some("restricted".to_owned()),
+        tag: Some("next".to_owned()),
+        ..Default::default()
+    };
+    let args = publish_args_with(PublishFlags {
+        tag: Some("from-flag".to_owned()),
+        access: Some("public".to_owned()),
+        ..publish_flags()
+    });
+    let options = args.publish_options(&config, None, false);
+    assert_eq!(options.access, Some(Access::Public));
+    assert_eq!(options.tag, "from-flag");
+}
+
+/// A configured `provenance: false` has to reach the publish options as an
+/// explicit `false` — that is what suppresses the attestation the OIDC
+/// exchange would otherwise turn on.
+#[test]
+fn configured_provenance_false_reaches_the_publish_options() {
+    let config = Config { provenance: Some(false), ..Default::default() };
+    assert_eq!(publish_args().publish_options(&config, None, false).provenance, Some(false));
+}
+
+#[test]
+fn provenance_flag_outranks_a_configured_false() {
+    let config = Config { provenance: Some(false), ..Default::default() };
+    let args = publish_args_with(PublishFlags { provenance: true, ..publish_flags() });
+    assert_eq!(args.publish_options(&config, None, false).provenance, Some(true));
+}
+
+#[test]
+fn no_provenance_flag_outranks_a_configured_true() {
+    let config = Config { provenance: Some(true), ..Default::default() };
+    let args = publish_args_with(PublishFlags { no_provenance: true, ..publish_flags() });
+    assert_eq!(args.publish_options(&config, None, false).provenance, Some(false));
+}
+
+/// An unrecognized configured `access` is dropped, exactly as an unrecognized
+/// `publishConfig.access` is, leaving the level to the registry default.
+#[test]
+fn unrecognized_configured_access_is_ignored() {
+    let config = Config { access: Some("everyone".to_owned()), ..Default::default() };
+    assert_eq!(publish_args().publish_options(&config, None, false).access, None);
+}
+
+#[test]
+fn resolved_otp_prefers_the_flag_over_the_config() {
+    let config = Config { otp: Some("from-config".to_owned()), ..Default::default() };
+    assert_eq!(publish_args().resolved_otp(&config), Some("from-config".to_owned()));
+
+    let args =
+        publish_args_with(PublishFlags { otp: Some("from-flag".to_owned()), ..publish_flags() });
+    assert_eq!(args.resolved_otp(&config), Some("from-flag".to_owned()));
+    assert_eq!(args.resolved_otp(&Config::default()), Some("from-flag".to_owned()));
+    assert_eq!(publish_args().resolved_otp(&Config::default()), None);
 }
 
 #[tokio::test]
