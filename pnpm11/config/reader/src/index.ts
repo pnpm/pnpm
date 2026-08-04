@@ -478,7 +478,7 @@ export async function getConfig (opts: {
       if (workspaceManifest) {
         const ignoredKeys = Object.keys(workspaceManifest).filter((key) => PROJECT_MANIFEST_SKIPPED_SETTINGS.has(key))
         if (ignoredKeys.length > 0) {
-          warnings.push(`The following settings cannot be set in a project's pnpm-workspace.yaml and were ignored: ${ignoredKeys.map(k => `"${k}"`).join(', ')}. They decide where pnpm reads and writes state that outlives the project, so they may only come from the environment, the global config file, or the command line.`)
+          warnings.push(`The following settings cannot be set in a project's pnpm-workspace.yaml and were ignored: ${ignoredKeys.map(k => `"${k}"`).join(', ')}. They decide where pnpm keeps its credentials and its own installation, which directories a command operates on, and how it authenticates, so they may only come from the environment, the global config file, or the command line.`)
         }
         addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
           configFromCliOpts,
