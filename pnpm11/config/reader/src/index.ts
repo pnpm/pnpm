@@ -1103,19 +1103,11 @@ const SELF_UPDATE_SKIPPED_SETTINGS: ReadonlySet<string> = new Set([
 /**
  * Settings a project's `pnpm-workspace.yaml` does not contribute.
  *
- * Each of these decides where pnpm reads or writes something the project does
- * not own, and the reader has already resolved it from a trusted source by the
- * time the manifest is read — from the environment, the global config file, the
- * user-level `.npmrc`, or the command line. A repository that sets one of them
- * only redirects the write: `pnpm login` would grant its token to an
- * `auth.ini` under a `configDir` of the repository's choosing, `pnpm setup`
- * would put a repository-chosen directory on the user's PATH (and delete the
- * shims it finds under the old one), `pnpm install` would link its
- * dependencies' bins into `bin`, and a redirected
- * `packageManagerRegistries` would decide where pnpm downloads its own next
- * version from. The same asymmetry that makes `_auth` and `tokenHelper`
- * global-only applies here: repo-controlled config may say what to install,
- * never where the machine keeps its credentials and its pnpm.
+ * Each names a location or a trusted value the reader resolves for itself
+ * before the manifest is read, so a repository setting one would only redirect
+ * where pnpm writes — `pnpm login`'s `auth.ini`, `pnpm setup`'s PATH entry,
+ * the bins `pnpm install` links. They come from the environment, the global
+ * config file, and the command line only.
  */
 const PROJECT_MANIFEST_SKIPPED_SETTINGS: ReadonlySet<string> = new Set([
   // Where state that outlives the project lives.
