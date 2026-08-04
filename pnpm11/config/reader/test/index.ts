@@ -733,12 +733,15 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
     const { config, context } = await getConfig({ cliOptions, packageManager, workspaceDir })
 
     // `pnpm login` writes the granted token to `<configDir>/auth.ini`, and
-    // `pnpm setup` puts `<pnpmHomeDir>/bin` on the user's PATH.
-    for (const key of ['bin', 'configDir', 'dir', 'globalPkgDir', 'pnpmHomeDir', 'userconfig', 'workspaceDir'] as const) {
-      expect(config[key]).toBe(real.config[key])
+    // `pnpm setup` puts `<pnpmHomeDir>/bin` on the user's PATH. Driving the
+    // assertions off the manifest keeps a setting added to it from going
+    // unchecked.
+    const resolved = { ...config, ...context } as Record<string, unknown>
+    const realResolved = { ...real.config, ...real.context } as Record<string, unknown>
+    for (const [key, attackerValue] of Object.entries(machineLocations)) {
+      expect(resolved[key]).toBe(realResolved[key])
+      expect(resolved[key]).not.toBe(attackerValue)
     }
-    expect(config.npmrcAuthFile).toBeUndefined()
-    expect(context.rootProjectManifestDir).toBe(real.context.rootProjectManifestDir)
   })
 
   test('the ignored settings are reported', async () => {
