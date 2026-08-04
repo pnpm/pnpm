@@ -157,7 +157,7 @@ impl RunArgs {
         };
 
         let mut specified =
-            ScriptSelector::new(script_name)?.select_with_start(manifest.value(), self.sequential);
+            ScriptSelector::new(script_name)?.select_with_start(manifest.value(), sequential);
 
         // Hidden scripts (names starting with `.`) can only be invoked
         // from within another script, detected by an inherited
