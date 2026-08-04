@@ -1,23 +1,28 @@
 //! Config-load warnings reach stderr once per command.
 //!
-//! pnpm reads config once per command and prints its warning list once.
-//! pacquet loads `Config` lazily and sometimes more than once — `install`
-//! consults the up-to-date fast path with its own load before `run` builds a
-//! second one off the same files — so the emit-once rule is a property of the
-//! command, not of a single `Config`. Only spawning the binary exercises that.
+//! See `EMITTED_CONFIG_WARNINGS` in `cli_args::config_warnings` for why a
+//! command can collect the same warning more than once. Only spawning the
+//! binary crosses both of the config loads `install` performs, so the rule
+//! cannot be asserted from a unit test.
 
 use command_extra::CommandExtra;
 use pacquet_testing_utils::bin::CommandTempCwd;
 
-/// `install` is the command that loads config twice: the fast path bails here
-/// (no lockfile, no `node_modules`), leaving `run` to load it again.
+/// The fast path bails here — nothing is installed to be up to date about —
+/// leaving `run` to load config a second time.
 #[test]
 fn install_reports_an_ignored_workspace_scope_exactly_once() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     std::fs::write(workspace.join("package.json"), r#"{"name":"w","version":"1.0.0"}"#)
         .expect("write package.json");
-    std::fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - '.'\nscope: '@acme'\n")
-        .expect("write pnpm-workspace.yaml");
+    // `storeDir` / `cacheDir` are pinned under the temp root so the run cannot
+    // reach into the real pnpm home, as `CommandTempCwd::add_mocked_registry`
+    // does for the tests that need a registry.
+    std::fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - '.'\nscope: '@acme'\nstoreDir: ../store\ncacheDir: ../cache\n",
+    )
+    .expect("write pnpm-workspace.yaml");
 
     let output = pacquet
         .with_env("XDG_CONFIG_HOME", root.path())
@@ -27,6 +32,9 @@ fn install_reports_an_ignored_workspace_scope_exactly_once() {
         .expect("spawn pacquet install");
 
     let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+    // Without this the count can hold at 1 because the command died before the
+    // second config load, which is exactly the coverage this test is for.
+    assert!(output.status.success(), "`pnpm install` must succeed; stderr:\n{stderr}");
     assert_eq!(
         stderr.matches(pacquet_config::IGNORED_SCOPE_WARNING).count(),
         1,

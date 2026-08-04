@@ -1,4 +1,5 @@
-//! The stderr channel for config-load warnings.
+//! The stderr channel for config-load warnings, and the once-per-command rule
+//! it enforces.
 //!
 //! pnpm collects the warnings raised while reading config and prints them
 //! with `console.warn` — to stderr, outside the reporter, on every command
@@ -42,8 +43,9 @@ pub(crate) fn drain_config_warnings(config: &mut pacquet_config::Config) {
 }
 
 /// Take the warnings off `config` and return the ones `emitted` has not seen,
-/// recording them there. Takes the set rather than reaching for the process
-/// global so the emit-once rule can be asserted against a local one.
+/// recording them there.
+// The set is a parameter rather than the process global so the emit-once rule
+// can be asserted against a local one.
 fn take_unemitted(
     emitted: &mut HashSet<String>,
     config: &mut pacquet_config::Config,

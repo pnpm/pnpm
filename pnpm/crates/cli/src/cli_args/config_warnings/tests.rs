@@ -3,10 +3,6 @@ use pacquet_config::Config;
 use pretty_assertions::assert_eq;
 use std::collections::HashSet;
 
-/// One command can load `Config` more than once — `pnpm install`'s fast path
-/// falls through to `run`, and `patch-commit` calls its `state` closure twice —
-/// and each load re-collects the same warnings off the same files. pnpm prints
-/// each one once per command, so the repeats must not reach stderr.
 #[test]
 fn a_repeated_config_load_reports_each_warning_once() {
     let mut emitted = HashSet::new();
