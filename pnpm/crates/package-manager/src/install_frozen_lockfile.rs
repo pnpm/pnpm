@@ -1346,7 +1346,9 @@ where
             )
             .map_err(InstallFrozenLockfileError::WritePackageMap)?;
         }
-        if matches!(node_linker, NodeLinker::Pnp) {
+        // See `install_with_fresh_lockfile::linking` for why
+        // `virtual_store_only` suppresses the loader.
+        if matches!(node_linker, NodeLinker::Pnp) && !config.virtual_store_only {
             let filtered_lockfile =
                 crate::filter_lockfile_for_current(lockfile, included, &skipped);
             crate::write_pnp_file(

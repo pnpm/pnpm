@@ -426,7 +426,12 @@ pub(super) fn write_module_resolution_sidecars(
     lockfile_dir: &Path,
 ) -> Result<(), InstallWithFreshLockfileError> {
     let write_package_map = crate::should_write_package_map(config, node_linker);
-    let write_pnp = matches!(node_linker, pacquet_config::NodeLinker::Pnp);
+    // `.pnp.cjs` is how a PnP project resolves, which makes it a
+    // project-level artifact like the importer links and the package
+    // map. `virtual_store_only` — how `pnpm fetch` warms a store without
+    // touching the project — must not write it.
+    let write_pnp =
+        matches!(node_linker, pacquet_config::NodeLinker::Pnp) && !config.virtual_store_only;
     if !write_package_map && !write_pnp {
         return Ok(());
     }

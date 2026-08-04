@@ -1916,3 +1916,44 @@ fn an_unmigrated_package_json_pnpm_field_is_not_reported() {
 
     drop(root);
 }
+
+/// `virtualStoreOnly` populates the virtual store and creates no
+/// importer links. `.pnp.cjs` is how a `PnP` project resolves, so it is a
+/// project-level artifact of the same kind and must not be written
+/// either — otherwise the project claims to resolve out of a store it
+/// was never linked into.
+///
+/// Covers the fresh-resolution path: `pnpm fetch` pins
+/// `frozenLockfile`, so only a plain install reaches this one.
+#[test]
+fn virtual_store_only_install_under_pnp_does_not_write_the_loader() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+
+    // Append: the harness's own workspace manifest carries `storeDir` /
+    // `cacheDir` / `registry`.
+    let workspace_manifest = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = std::fs::read_to_string(&workspace_manifest).expect("read pnpm-workspace.yaml");
+    yaml.push_str("nodeLinker: pnp\nvirtualStoreOnly: true\n");
+    std::fs::write(&workspace_manifest, yaml).expect("write pnpm-workspace.yaml");
+
+    std::fs::write(
+        workspace.join("package.json"),
+        r#"{"dependencies":{"@pnpm.e2e/foo":"100.0.0"}}"#,
+    )
+    .expect("write package.json");
+
+    pacquet.with_arg("install").assert().success();
+
+    assert!(
+        store_dir.join(STORE_VERSION).exists(),
+        "the install must still populate the store, or the assertion below is vacuous",
+    );
+    assert!(
+        !workspace.join(".pnp.cjs").exists(),
+        "virtualStoreOnly must not write the PnP loader: it links no importers",
+    );
+
+    drop((root, mock_instance, store_dir));
+}
