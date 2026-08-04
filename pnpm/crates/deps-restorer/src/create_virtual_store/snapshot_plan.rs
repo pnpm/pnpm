@@ -87,16 +87,8 @@ pub(super) fn plan_snapshots<'a, Reporter: self::Reporter>(
                 return true;
             };
             let wanted_metadata = packages.get(&snapshot_key.without_peer());
-            // Directory-typed snapshots carry mutable local
-            // source: the user can edit `file:./local-pkg` files
-            // between installs and pacquet must re-walk them on
-            // every install, otherwise the slot drifts. Directory
-            // snapshots are forced through the cold path for this
-            // reason. Without this carve-out
-            // both `current` and `wanted` resolutions report
-            // `integrity() == None`, `integrity_equal` returns
-            // true, the slot directory check passes, and the
-            // directory-fetcher never runs on the second install.
+            // A `file:` dependency's source is mutable, so an
+            // unchanged lockfile is no evidence its slot is current.
             if matches!(
                 wanted_metadata.map(|meta| &meta.resolution),
                 Some(LockfileResolution::Directory(_)),

@@ -500,6 +500,11 @@ impl CreateVirtualStore<'_> {
                         snapshot,
                         cas_paths: cas_paths.as_ref(),
                         warm_cache_key: Some(cache_key),
+                        // A cache key means the file map is CAS-backed,
+                        // and `snapshot_cache_key` yields none for a
+                        // directory resolution, so a warm slot's source
+                        // is immutable by construction.
+                        source_is_mutable: false,
                         needs_build_marker_source: needs_build_marker
                             .then_some(
                                 needs_build_marker_source
@@ -546,16 +551,12 @@ impl CreateVirtualStore<'_> {
         //   future returns; under hoisted no slot was written and the
         //   CAS index is the only output.
         let mut fetch_failed: HashSet<PackageKey> = HashSet::new();
-        let mut cold_cas_paths: Vec<(&PackageKey, &SnapshotEntry, HashMap<String, PathBuf>, bool)> =
-            Vec::new();
+        let mut cold_cas_paths: Vec<ColdCapture<'_>> = Vec::new();
         if !cold.is_empty() {
             let prefetched_ref = Some(&prefetch.cas_paths);
             let verified_files_cache_ref = &verified_files_cache;
             let runtime_platform_selector_ref = &runtime_platform_selector;
-            type ColdOutcome<'a> = (
-                Option<PackageKey>,
-                Option<(&'a PackageKey, &'a SnapshotEntry, HashMap<String, PathBuf>, bool)>,
-            );
+            type ColdOutcome<'a> = (Option<PackageKey>, Option<ColdCapture<'a>>);
             let outcomes: Vec<ColdOutcome<'_>> = cold
                 .iter()
                 .map(|(snapshot_key, snapshot)| async move {
@@ -599,7 +600,19 @@ impl CreateVirtualStore<'_> {
                     match result {
                         Ok(cas_paths) => {
                             let requires_build = requires_build_from_cas_paths(&cas_paths);
-                            Ok((None, Some((*snapshot_key, *snapshot, cas_paths, requires_build))))
+                            Ok((
+                                None,
+                                Some(ColdCapture {
+                                    snapshot_key,
+                                    snapshot,
+                                    requires_build,
+                                    source_is_mutable: matches!(
+                                        metadata.resolution,
+                                        LockfileResolution::Directory(_),
+                                    ),
+                                    cas_paths,
+                                }),
+                            ))
                         }
                         Err(err) if snapshot.optional && is_fetch_side_failure(&err) => {
                             // Silent swallow. `tracing::warn!` gives
@@ -637,7 +650,8 @@ impl CreateVirtualStore<'_> {
                     fetch_failed.insert(key);
                 }
                 if let Some(captured) = captured {
-                    requires_build_by_snapshot.insert((*captured.0).clone(), captured.3);
+                    requires_build_by_snapshot
+                        .insert((*captured.snapshot_key).clone(), captured.requires_build);
                     cold_cas_paths.push(captured);
                 }
             }
@@ -655,20 +669,24 @@ impl CreateVirtualStore<'_> {
         if !is_hoisted && !cold_cas_paths.is_empty() {
             let cold_slots: Vec<SlotLink<'_>> = cold_cas_paths
                 .iter()
-                .map(|(snapshot_key, snapshot, cas_paths, requires_build)| SlotLink {
-                    snapshot_key,
-                    snapshot,
-                    cas_paths,
+                .map(|capture| SlotLink {
+                    snapshot_key: capture.snapshot_key,
+                    snapshot: capture.snapshot,
+                    cas_paths: &capture.cas_paths,
                     warm_cache_key: None,
+                    source_is_mutable: capture.source_is_mutable,
                     needs_build_marker_source: snapshot_needs_build_marker(
-                        snapshot_key,
-                        *requires_build,
+                        capture.snapshot_key,
+                        capture.requires_build,
                     )
                     .then_some(
                         needs_build_marker_source.as_ref().map(tempfile::NamedTempFile::path),
                     )
                     .flatten(),
-                    removed_aliases: removed_aliases_for(&removed_aliases_by_key, snapshot_key),
+                    removed_aliases: removed_aliases_for(
+                        &removed_aliases_by_key,
+                        capture.snapshot_key,
+                    ),
                 })
                 .collect();
             link_slots_parallel::<Reporter>(LinkSlotsParallel {
@@ -713,7 +731,7 @@ impl CreateVirtualStore<'_> {
         // real install.
         if let Some(map) = cas_paths_by_pkg_id.as_mut() {
             map.reserve(cold_cas_paths.len());
-            for (snapshot_key, _snapshot, paths, _requires_build) in cold_cas_paths {
+            for ColdCapture { snapshot_key, cas_paths: paths, .. } in cold_cas_paths {
                 // `get_pkg_id_with_patch_hash` strips the peer-graph
                 // suffix but keeps `(patch_hash=...)` so patched
                 // packages share one CAS-paths entry across their peer
@@ -816,11 +834,22 @@ fn gvs_slot_needs_rebuild(
             .is_file()
 }
 
+/// A cold snapshot whose CAS paths are staged and whose slot link was
+/// deferred to [`link_slots_parallel`].
+struct ColdCapture<'a> {
+    snapshot_key: &'a PackageKey,
+    snapshot: &'a SnapshotEntry,
+    cas_paths: HashMap<String, PathBuf>,
+    requires_build: bool,
+    source_is_mutable: bool,
+}
+
 struct SlotLink<'a> {
     snapshot_key: &'a PackageKey,
     snapshot: &'a SnapshotEntry,
     cas_paths: &'a HashMap<String, PathBuf>,
     warm_cache_key: Option<&'a str>,
+    source_is_mutable: bool,
     needs_build_marker_source: Option<&'a Path>,
     /// Child aliases dropped since the previous install, threaded into
     /// [`crate::CreateVirtualDirBySnapshot::removed_aliases`] so their
@@ -884,6 +913,7 @@ fn link_slots_parallel<Reporter: self::Reporter>(
                 package_id: &package_id,
                 package_key: slot.snapshot_key,
                 snapshot: slot.snapshot,
+                source_is_mutable: slot.source_is_mutable,
                 symlink,
                 skipped,
                 removed_aliases: slot.removed_aliases,

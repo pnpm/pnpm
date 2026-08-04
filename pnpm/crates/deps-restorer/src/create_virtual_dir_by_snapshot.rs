@@ -54,6 +54,15 @@ pub struct CreateVirtualDirBySnapshot<'a> {
     pub package_id: &'a str,
     pub package_key: &'a PackageKey,
     pub snapshot: &'a SnapshotEntry,
+    /// Whether this package's file map points at mutable local source
+    /// (a `file:` / [`pacquet_lockfile::LockfileResolution::Directory`]
+    /// resolution) rather than immutable CAS entries. pnpm's `file:` is
+    /// a copy taken at install time — unlike `link:`, which symlinks —
+    /// so the slot has to be rebuilt on every install: the source can
+    /// change without the lockfile changing, and the completion-marker
+    /// short-circuit in [`fn@crate::import_indexed_dir`] would otherwise
+    /// leave the previous install's copy in place forever.
+    pub source_is_mutable: bool,
     /// Whether dependency links inside the slot should be created.
     /// `symlink: false` still imports the package itself but leaves its
     /// `node_modules` free of graph links for `PnP` resolution.
@@ -122,6 +131,7 @@ impl CreateVirtualDirBySnapshot<'_> {
             package_id: _package_id,
             package_key,
             snapshot,
+            source_is_mutable,
             symlink,
             skipped,
             removed_aliases,
@@ -163,7 +173,7 @@ impl CreateVirtualDirBySnapshot<'_> {
         } else {
             cas_paths
         };
-        let import_opts = if interrupted_build {
+        let import_opts = if interrupted_build || source_is_mutable {
             ImportIndexedDirOpts { force: true, keep_modules_dir: true }
         } else {
             ImportIndexedDirOpts::default()

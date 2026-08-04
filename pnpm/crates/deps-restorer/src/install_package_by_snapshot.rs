@@ -636,6 +636,7 @@ impl InstallPackageBySnapshot<'_> {
                 package_id: &package_id,
                 package_key,
                 snapshot,
+                source_is_mutable: matches!(metadata.resolution, LockfileResolution::Directory(_)),
                 symlink: config.symlink,
                 skipped,
                 // The non-deferred slot link runs only on the fresh
