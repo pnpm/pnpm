@@ -136,12 +136,7 @@ export interface Config extends OptionsFromRootManifest {
   nodeDownloadMirrors?: Record<string, string>
   offline?: boolean
   registry?: string
-  /**
-   * The package scope `pnpm login` / `pnpm adduser` associates the granted
-   * token with, and records a registry route for. Read from `--scope`, the
-   * `PNPM_CONFIG_SCOPE` environment variable, and the global config file
-   * only — never from a project `pnpm-workspace.yaml`.
-   */
+  /** Never read from a project `pnpm-workspace.yaml`, which `pnpm login` would let choose a global scope-to-registry route. */
   scope?: string
   optional?: boolean
   unsafePerm?: boolean
