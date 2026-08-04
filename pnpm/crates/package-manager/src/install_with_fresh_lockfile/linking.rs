@@ -458,26 +458,3 @@ pub(super) fn write_module_resolution_sidecars(
     }
     Ok(())
 }
-
-/// The environment lifecycle scripts run under: `config.extra_env` plus
-/// the `NODE_OPTIONS` that point Node at the package map.
-pub(super) fn build_extra_env(
-    config: &Config,
-    node_linker: pacquet_config::NodeLinker,
-) -> HashMap<String, String> {
-    let mut env = config.extra_env.clone();
-    if let Some(node_options) = &config.node_options {
-        env.insert("NODE_OPTIONS".to_string(), node_options.clone());
-    }
-    if config.node_experimental_package_map
-        && !matches!(node_linker, pacquet_config::NodeLinker::Pnp)
-    {
-        let package_map_path = config.modules_dir.join(crate::package_map::PACKAGE_MAP_FILENAME);
-        let node_options = env.get("NODE_OPTIONS").map(String::as_str);
-        env.insert(
-            "NODE_OPTIONS".to_string(),
-            crate::make_node_package_map_option(&package_map_path, node_options),
-        );
-    }
-    env
-}

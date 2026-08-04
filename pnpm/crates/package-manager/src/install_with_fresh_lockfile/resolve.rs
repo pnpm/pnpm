@@ -1,135 +1,27 @@
-//! Inputs the fresh-install resolve pass consumes: the manifest
-//! transform chain (`packageExtensions` + `pnpm.overrides`), the
-//! preferred-versions tie-break seeds, and the `preResolution` pnpmfile
-//! hook.
+//! The resolve phase: what the workspace resolution is given, the walk
+//! itself, and the diagnostics that read its result.
 //!
-//! Split out of [`super::InstallWithFreshLockfile::run`] so the
-//! orchestrator reads as a sequence of install phases. Everything here
-//! runs between the resolver chain's construction and
-//! `resolve_workspace`.
+//! The read-package transform chain the resolve also consumes lives in
+//! [`super::manifest_transforms`]; the resolver chain it walks is built
+//! by [`super::resolver_setup`].
 
-use super::{
-    ImporterUpdateSeedPolicy, InstallWithFreshLockfileError, UpdateSeedPolicy,
-    compose_manifest_hooks, parse_config_overrides, resolved_overrides_map,
-};
+use super::{ImporterUpdateSeedPolicy, InstallWithFreshLockfileError, UpdateSeedPolicy};
 use crate::VersionsOverrider;
 use indexmap::IndexMap;
 use pacquet_catalogs_types::Catalogs;
 use pacquet_config::Config;
 use pacquet_lockfile::Lockfile;
-use pacquet_package_manifest::PackageManifest;
+use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_reporter::LogLevel;
-use pacquet_resolving_deps_resolver::{DependencyOverrider, ManifestHook};
-use pacquet_resolving_resolver_base::{PreferredVersions, ResolveOptions};
+use pacquet_resolving_deps_resolver::{
+    DependencyOverrider, ManifestHook, ResolveImporterError, ResolveImporterOptions,
+};
+use pacquet_resolving_resolver_base::{PreferredVersions, ResolveOptions, Resolver};
 use std::{
     collections::{BTreeMap, HashMap},
     path::Path,
     sync::Arc,
 };
-
-/// pnpm's built-in read-package hook chain for the manifests fresh
-/// resolution consumes, plus the pieces later phases read off it.
-///
-/// The order matches `createReadPackageHook`: packageExtensions first,
-/// overrides after. The two halves stay separate hooks because the
-/// resolver interleaves the pnpmfile's `readPackage` between them —
-/// packageExtensions → readPackage → overrides — so a hook that replaces
-/// the manifest cannot erase the overrides.
-pub(super) struct ManifestTransforms {
-    pub parsed_overrides: Option<Vec<pacquet_config_parse_overrides::VersionOverride>>,
-    pub resolved_overrides: Option<IndexMap<String, String>>,
-    pub package_extensions_checksum: Option<String>,
-    pub versions_overrider: Option<Arc<VersionsOverrider>>,
-    pub manifest_hook: Option<ManifestHook>,
-    pub overrides_hook: Option<ManifestHook>,
-    pub override_bare_specifier: Option<Arc<DependencyOverrider>>,
-    /// Importer manifests with every transform already applied. Empty
-    /// when nothing transforms them, in which case the caller keeps
-    /// resolving against the originals.
-    pub effective_importer_manifests: BTreeMap<String, PackageManifest>,
-}
-
-pub(super) fn build_manifest_transforms(
-    config: &Config,
-    catalogs: &Catalogs,
-    lockfile_dir: &Path,
-    importer_manifests: &BTreeMap<String, &PackageManifest>,
-) -> Result<ManifestTransforms, InstallWithFreshLockfileError> {
-    let parsed_overrides = parse_config_overrides(config, catalogs)?;
-    let resolved_overrides = parsed_overrides.as_deref().map(resolved_overrides_map);
-
-    let compat_package_extender = if config.ignore_compatibility_db {
-        None
-    } else {
-        Some(crate::compat_package_extensions::compat_package_extender())
-    };
-    let package_extender = match config.package_extensions.as_ref() {
-        Some(extensions) => {
-            let extender = crate::PackageExtender::new(extensions)
-                .map_err(InstallWithFreshLockfileError::InvalidPackageExtensionSelector)?;
-            (!extender.is_empty()).then(|| Arc::new(extender))
-        }
-        None => None,
-    };
-    let package_extensions_checksum = super::compute_package_extensions_checksum(config);
-    let versions_overrider = parsed_overrides
-        .as_ref()
-        .map(|parsed| Arc::new(VersionsOverrider::new(parsed, lockfile_dir)));
-
-    let mut effective_importer_manifests = BTreeMap::new();
-    if compat_package_extender.is_some()
-        || package_extender.is_some()
-        || versions_overrider.as_ref().is_some_and(|overrider| !overrider.is_empty())
-    {
-        for (id, manifest) in importer_manifests {
-            let mut cloned = (*manifest).clone();
-            if let Some(extender) = compat_package_extender {
-                extender.apply(cloned.value_mut());
-            }
-            if let Some(extender) = package_extender.as_ref() {
-                extender.apply(cloned.value_mut());
-            }
-            if let Some(overrider) = versions_overrider.as_ref() {
-                let manifest_dir = cloned.path().parent().map(Path::to_path_buf);
-                overrider.apply(&mut cloned, manifest_dir.as_deref());
-            }
-            effective_importer_manifests.insert(id.clone(), cloned);
-        }
-    }
-
-    let compat_package_extensions_hook: Option<ManifestHook> = compat_package_extender
-        .map(|extender| Arc::new(move |manifest| extender.apply_to_arc(manifest)) as ManifestHook);
-    let package_extensions_hook: Option<ManifestHook> = package_extender.as_ref().map(|extender| {
-        let extender = Arc::clone(extender);
-        Arc::new(move |manifest| extender.apply_to_arc(manifest)) as ManifestHook
-    });
-    let overrides_hook: Option<ManifestHook> =
-        versions_overrider.as_ref().filter(|overrider| !overrider.is_empty()).map(|overrider| {
-            let overrider = Arc::clone(overrider);
-            Arc::new(move |manifest| overrider.apply_to_arc(manifest, None)) as ManifestHook
-        });
-    let override_bare_specifier: Option<Arc<DependencyOverrider>> =
-        versions_overrider.as_ref().filter(|overrider| !overrider.is_empty()).map(|overrider| {
-            let overrider = Arc::clone(overrider);
-            Arc::new(move |name: &str, range: &str, pkg_dir: &Path| {
-                overrider.override_for_undeclared_dependency(name, range, pkg_dir)
-            }) as Arc<DependencyOverrider>
-        });
-
-    Ok(ManifestTransforms {
-        parsed_overrides,
-        resolved_overrides,
-        package_extensions_checksum,
-        versions_overrider,
-        manifest_hook: compose_manifest_hooks(
-            compat_package_extensions_hook,
-            package_extensions_hook,
-        ),
-        overrides_hook,
-        override_bare_specifier,
-        effective_importer_manifests,
-    })
-}
 
 /// Seed `allPreferredVersions` from every importer's manifest + the
 /// wanted lockfile's snapshots (when an existing one is present and is
@@ -442,4 +334,174 @@ pub(super) async fn warn_stale_convergence_overrides<Reporter: pacquet_reporter:
     )
     .await;
     stale::warn_stale_convergence_overrides::<Reporter>(&stale_overrides);
+}
+
+pub(super) struct ResolvePassInputs<'a> {
+    pub config: &'a Config,
+    pub resolver: &'a dyn Resolver,
+    pub importer_manifests: &'a BTreeMap<String, &'a PackageManifest>,
+    pub dependency_groups: &'a [DependencyGroup],
+    pub catalogs: &'a Catalogs,
+    pub lockfile_dir: &'a Path,
+    /// The `ResolveOptions` half every importer shares; the per-importer
+    /// half is its own `project_dir` and preferred-versions seed.
+    pub shared_resolve_options: &'a SharedResolveOptions<'a>,
+    pub preferred_versions_seed: &'a Arc<PreferredVersions>,
+    pub preferred_versions_seeds_by_importer: &'a BTreeMap<String, Arc<PreferredVersions>>,
+    pub override_bare_specifier: Option<Arc<DependencyOverrider>>,
+    pub patched_dependencies: Option<Arc<pacquet_patching::PatchGroupRecord>>,
+    pub manifest_hook: Option<ManifestHook>,
+    pub overrides_hook: Option<ManifestHook>,
+    /// Consumed by the resolver; the caller keeps its own clone for the
+    /// `afterAllResolved` hook.
+    pub pnpmfile_hook: Option<Arc<dyn pacquet_hooks::PnpmfileHooks>>,
+    pub read_package_log: Option<pacquet_hooks::LogFn>,
+    /// See [`crate::resolution_policy::PickPolicy`].
+    pub pick_lowest_direct: bool,
+    pub time_based: bool,
+    pub published_by: Option<chrono::DateTime<chrono::Utc>>,
+    /// The prior lockfile the walk may reuse subtrees from — see
+    /// [`lockfile_reuse_seed`].
+    pub lockfile_reuse_seed: Option<Arc<Lockfile>>,
+    pub update_reuse_scope: pacquet_resolving_deps_resolver::UpdateReuseScope,
+    pub update_reuse_scopes_by_importer:
+        BTreeMap<String, pacquet_resolving_deps_resolver::UpdateReuseScope>,
+    pub update_depth: pacquet_resolving_deps_resolver::UpdateDepth,
+    pub registries: HashMap<String, String>,
+    pub named_registries: HashMap<String, String>,
+}
+
+/// Walk every importer's dependencies through the resolver chain.
+///
+/// Each importer resolves with its own `project_dir` so `workspace:` /
+/// `link:` resolutions compute paths relative to the consuming project,
+/// while the resolver chain's shared packument, fetch-locker, and
+/// picked-manifest caches keep the metadata and version-pick work
+/// amortized across importers. `resolve_workspace` then runs the
+/// cross-importer peer pass and applies `dedupeInjectedDeps`.
+pub(super) async fn run_resolve_pass<Reporter: pacquet_reporter::Reporter>(
+    inputs: ResolvePassInputs<'_>,
+) -> Result<pacquet_resolving_deps_resolver::ResolveWorkspaceResult, InstallWithFreshLockfileError>
+{
+    let ResolvePassInputs {
+        config,
+        resolver,
+        importer_manifests,
+        dependency_groups,
+        catalogs,
+        lockfile_dir,
+        shared_resolve_options,
+        preferred_versions_seed,
+        preferred_versions_seeds_by_importer,
+        override_bare_specifier,
+        patched_dependencies,
+        manifest_hook,
+        overrides_hook,
+        pnpmfile_hook,
+        read_package_log,
+        pick_lowest_direct,
+        time_based,
+        published_by,
+        lockfile_reuse_seed,
+        update_reuse_scope,
+        update_reuse_scopes_by_importer,
+        update_depth,
+        registries,
+        named_registries,
+    } = inputs;
+
+    let workspace_importers: Vec<pacquet_resolving_deps_resolver::WorkspaceImporter<'_>> =
+        importer_manifests
+            .iter()
+            .map(|(id, manifest)| pacquet_resolving_deps_resolver::WorkspaceImporter {
+                id: id.clone(),
+                manifest,
+            })
+            .collect();
+    let peers_suffix_max_length =
+        usize::try_from(config.peers_suffix_max_length).unwrap_or(usize::MAX);
+    let modules_basename = config
+        .modules_dir
+        .file_name()
+        .map_or_else(|| std::ffi::OsString::from("node_modules"), std::ffi::OsStr::to_os_string);
+
+    let workspace_opts = pacquet_resolving_deps_resolver::WorkspaceResolveOptions {
+        dedupe_peers: config.dedupe_peers,
+        dedupe_injected_deps: config.dedupe_injected_deps,
+        dedupe_peer_dependents: config.dedupe_peer_dependents,
+        resolve_peers_from_workspace_root: config.resolve_peers_from_workspace_root,
+        exclude_links_from_lockfile: config.exclude_links_from_lockfile,
+        lockfile_dir: lockfile_dir.to_path_buf(),
+        peers_suffix_max_length,
+        manifest_hook: manifest_hook.clone(),
+        overrides_hook: overrides_hook.clone(),
+        pnpmfile_hook,
+        read_package_log,
+        skipped_optional_log: Some(super::skipped_optional_log_fn::<Reporter>()),
+        pick_lowest_direct,
+        time_based,
+        wanted_lockfile: lockfile_reuse_seed,
+        update_reuse_scope,
+        update_reuse_scopes_by_importer,
+        update_depth,
+        auto_install_peers: config.auto_install_peers,
+        registries,
+        named_registries,
+        allowed_deprecated_versions: config.allowed_deprecated_versions.clone(),
+        deprecation_log: Some(super::deprecation_log_fn::<Reporter>()),
+    };
+
+    pacquet_resolving_deps_resolver::resolve_workspace(
+        resolver,
+        &workspace_importers,
+        dependency_groups,
+        workspace_opts,
+        |importer| {
+            let importer_preferred_versions = preferred_versions_seeds_by_importer
+                .get(&importer.id)
+                .unwrap_or(preferred_versions_seed);
+            let project_dir = importer
+                .manifest
+                .path()
+                .parent()
+                .expect("manifest path always has a parent dir")
+                .to_path_buf();
+            let importer_modules_dir = project_dir.join(&modules_basename);
+            ResolveImporterOptions {
+                auto_install_peers: config.auto_install_peers,
+                auto_install_peers_from_highest_match: config.auto_install_peers_from_highest_match,
+                resolve_peers_from_workspace_root: config.resolve_peers_from_workspace_root,
+                dedupe_peers: config.dedupe_peers,
+                dedupe_peer_dependents: config.dedupe_peer_dependents,
+                all_preferred_versions: Arc::clone(importer_preferred_versions),
+                override_bare_specifier: override_bare_specifier.clone(),
+                patched_dependencies: patched_dependencies.clone(),
+                // `resolve_workspace` computes the workspace-wide
+                // time-based cutoff and overrides both of these per
+                // importer; the values here only satisfy the struct.
+                pick_lowest_direct,
+                subdep_published_by: published_by,
+                base_opts: shared_resolve_options
+                    .build(project_dir, Arc::clone(importer_preferred_versions)),
+                catalogs: catalogs.clone(),
+                exclude_links_from_lockfile: config.exclude_links_from_lockfile,
+                lockfile_dir: Some(lockfile_dir.to_path_buf()),
+                modules_dir: Some(importer_modules_dir),
+                peers_suffix_max_length,
+                catalog_server: false,
+                manifest_hook: manifest_hook.clone(),
+                overrides_hook: overrides_hook.clone(),
+                pnpmfile_hook: None,
+            }
+        },
+    )
+    .await
+    .map_err(|err| match err {
+        ResolveImporterError::Resolve(err) => {
+            InstallWithFreshLockfileError::ResolveDependencyTree(err)
+        }
+        ResolveImporterError::RootDepManifest(err) => {
+            InstallWithFreshLockfileError::RootDepManifest(err)
+        }
+    })
 }
