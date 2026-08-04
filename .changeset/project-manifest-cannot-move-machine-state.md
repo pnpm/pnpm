@@ -1,6 +1,7 @@
 ---
 "@pnpm/config.commands": minor
 "@pnpm/config.reader": minor
+"pacquet": minor
 "pnpm": minor
 ---
 
