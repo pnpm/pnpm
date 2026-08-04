@@ -195,22 +195,30 @@ export class ConfigSetUnsupportedWorkspaceKeyError extends PnpmError {
 }
 
 /**
- * What to suggest after refusing {@link key}.
+ * Where {@link key} can be set, for a key a project manifest refuses.
  *
- * Naming a config file is wrong for the settings pnpm determines itself: the
- * project manifest and the global config file both refuse those, so either
- * suggestion sends the user in a circle.
+ * Some of them are still valid in the global config file; the rest pnpm
+ * determines on its own and no file sets them. Suggesting the project manifest
+ * — the fallback for every other key — would send the user in a circle.
  */
+function whereRefusedKeyBelongs (key: string): string {
+  const kebabKey = kebabCase(key)
+  return isConfigFileKey(kebabKey)
+    ? `Set it for the machine instead: pnpm config set --global ${kebabKey}`
+    : 'pnpm determines this setting itself, so no config file sets it'
+}
+
+/** The suggestion for {@link key}, which falls back when the key is allowed in a project manifest. */
 function hintForRefusedKey (key: string, fallback: string): string {
   if (!isProjectManifestSkippedSetting(camelCase(key))) return fallback
-  return 'pnpm determines this setting itself; it cannot be set in a config file'
+  return whereRefusedKeyBelongs(key)
 }
 
 export class ConfigSetSkippedProjectKeyError extends PnpmError {
   readonly key: string
   constructor (key: string) {
     super('CONFIG_SET_SKIPPED_PROJECT_KEY', `The key ${JSON.stringify(key)} isn't supported by a project's workspace manifest`, {
-      hint: 'pnpm ignores this setting in a project manifest, so a value written there would have no effect.',
+      hint: whereRefusedKeyBelongs(key),
     })
     this.key = key
   }

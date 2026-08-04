@@ -1088,3 +1088,25 @@ test('config set does not suggest the camelCase spelling of a key the project ma
     hint: expect.not.stringContaining('pnpmHomeDir'),
   })
 })
+
+test.each([
+  // Refused in a project manifest, but the global config file takes it.
+  ['state-dir', 'pnpm config set --global state-dir'],
+  ['global_dir', 'pnpm config set --global global-dir'],
+  // Refused everywhere: pnpm resolves it on its own.
+  ['config-dir', 'no config file sets it'],
+])('config set tells the user where %s belongs', async (key, expectedHint) => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  fs.mkdirSync(configDir, { recursive: true })
+
+  await expect(config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    location: 'project',
+    authConfig: {},
+  }), ['set', key, '/tmp/somewhere'])).rejects.toMatchObject({
+    hint: expect.stringContaining(expectedHint),
+  })
+})
