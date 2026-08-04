@@ -1110,3 +1110,22 @@ test.each([
     hint: expect.stringContaining(expectedHint),
   })
 })
+
+test('config delete clears a hand-written kebab-case key', async () => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  fs.mkdirSync(configDir, { recursive: true })
+  fs.writeFileSync(path.join(tmp, 'pnpm-workspace.yaml'), "'config-dir': /tmp/somewhere\nstoreDir: '~/store'\n")
+
+  // The reader reports the spelling the user wrote, so deleting that spelling
+  // has to be the remedy it implies.
+  await config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    location: 'project',
+    authConfig: {},
+  }), ['delete', 'config-dir'])
+
+  expect(readYamlFileSync(path.join(tmp, 'pnpm-workspace.yaml'))).toEqual({ storeDir: '~/store' })
+})

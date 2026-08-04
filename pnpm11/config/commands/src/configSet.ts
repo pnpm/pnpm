@@ -53,19 +53,25 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
       if (configFileName === GLOBAL_CONFIG_YAML_FILENAME) {
         key = validateYamlConfigKey(key)
       }
-      key = validateWorkspaceKey(key)
+      const writtenKey = validateWorkspaceKey(key)
       // `pnpm config delete` arrives here with a null value. Deleting one of
       // these is the fix for a manifest that already has it, so only writing
       // is refused.
-      if (value != null && configFileName === WORKSPACE_MANIFEST_FILENAME && isProjectManifestSkippedSetting(key)) {
-        throw new ConfigSetSkippedProjectKeyError(key)
+      if (value != null && configFileName === WORKSPACE_MANIFEST_FILENAME && isProjectManifestSkippedSetting(writtenKey)) {
+        throw new ConfigSetSkippedProjectKeyError(writtenKey)
       }
-      await updateWorkspaceManifest(configDir, {
-        fileName: configFileName,
-        updatedFields: ({
-          [key]: castField(value, kebabCase(key)),
-        }),
-      })
+      const updatedFields: Record<string, unknown> = {
+        [writtenKey]: castField(value, kebabCase(writtenKey)),
+      }
+      // pnpm always writes the camelCase spelling, but a hand-edited manifest
+      // may carry another one, and that is the spelling the reader names when
+      // it reports the setting as ignored. Delete what the user asked to
+      // delete, not only what pnpm would have written.
+      if (value == null && key !== writtenKey) {
+        updatedFields[key] = null
+      }
+      await updateWorkspaceManifest(configDir, { fileName: configFileName, updatedFields })
+      key = writtenKey
       break
     }
 
