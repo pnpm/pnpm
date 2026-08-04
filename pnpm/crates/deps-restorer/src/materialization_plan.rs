@@ -22,6 +22,23 @@ use std::{
     path::Path,
 };
 
+/// The host Node, reduced to what the phases after the installability
+/// check still need.
+#[derive(Debug, Clone)]
+pub struct HostNode {
+    pub version: String,
+    /// `false` when detection fell back to the synthetic host. A
+    /// synthetic version must not key the store: it would poison both
+    /// the side-effects cache and the global-virtual-store hash.
+    pub detected: bool,
+}
+
+impl From<&InstallabilityHost> for HostNode {
+    fn from(host: &InstallabilityHost) -> Self {
+        HostNode { version: host.node_version.clone(), detected: host.node_detected }
+    }
+}
+
 /// Detect the host an install's `os` / `cpu` / `libc` / `engines`
 /// constraints are checked against.
 ///
@@ -185,14 +202,10 @@ pub fn compute_skip_set<Reporter: pacquet_reporter::Reporter>(
 /// [`JoinHandle`][tokio::task::JoinHandle] so it overlaps the
 /// virtual-store I/O — except under the global virtual store, whose
 /// layout needs the name synchronously.
-///
-/// A synthetic host (`node_detected == false`) yields `None` rather than
-/// a `99999.0.0`-derived key, which would poison both the cache and the
-/// GVS hash.
 pub async fn resolve_engine_name(
     enable_global_virtual_store: bool,
     snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
-    host_node: Option<&(bool, String)>,
+    host_node: Option<&HostNode>,
 ) -> (Option<String>, Option<tokio::task::JoinHandle<Option<String>>>) {
     fn probe() -> Option<String> {
         pacquet_graph_hasher::detect_node_major()
@@ -203,12 +216,12 @@ pub async fn resolve_engine_name(
         return (Some(pacquet_graph_hasher::engine_name(major, None, None)), None);
     }
     match host_node {
-        Some((true, version)) => (
+        Some(HostNode { version, detected: true }) => (
             parse_major_from_version(version)
                 .map(|major| pacquet_graph_hasher::engine_name(major, None, None)),
             None,
         ),
-        Some((false, _)) => (None, None),
+        Some(HostNode { detected: false, .. }) => (None, None),
         None if enable_global_virtual_store => {
             (tokio::task::spawn_blocking(probe).await.ok().flatten(), None)
         }

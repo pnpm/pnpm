@@ -977,3 +977,46 @@ fn hoist_patterns_are_inert_under_the_hoisted_linker() {
 
     drop((root, mock_instance));
 }
+
+/// The hoisted linker imports directly into the flat `node_modules/`
+/// rather than into a virtual-store slot, so it needs its own guard
+/// that a `file:` dependency's copy is retaken when the source moves.
+#[test]
+fn a_directory_dependency_is_recopied_under_the_hoisted_linker() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace_yaml(&workspace, "nodeLinker: hoisted\n");
+
+    let local = workspace.join("local-pkg");
+    fs::create_dir_all(&local).expect("create the local package dir");
+    let write_local = |marker: &str| {
+        fs::write(
+            local.join("package.json"),
+            serde_json::json!({ "name": "local-pkg", "version": "1.0.0" }).to_string(),
+        )
+        .expect("write the local package.json");
+        fs::write(local.join("marker.txt"), marker).expect("write the marker");
+    };
+    write_local("first");
+    write_manifest(&workspace, serde_json::json!({ "local-pkg": "file:./local-pkg" }));
+
+    pacquet.with_arg("install").assert().success();
+    let installed_marker = workspace.join("node_modules/local-pkg/marker.txt");
+    assert_eq!(
+        fs::read_to_string(&installed_marker).expect("read the installed marker"),
+        "first",
+        "the first install should materialize the directory dependency",
+    );
+
+    write_local("second");
+    pacquet_in(&workspace).with_arg("install").assert().success();
+
+    assert_eq!(
+        fs::read_to_string(&installed_marker).expect("read the installed marker"),
+        "second",
+        "the second install should re-copy the directory into node_modules",
+    );
+
+    drop((root, mock_instance));
+}

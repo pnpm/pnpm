@@ -123,7 +123,7 @@ pub struct LinkPhaseInputs<'a> {
     pub is_hoisted: bool,
     pub prune_orphans: bool,
     pub prior_hoisted_dependencies: Option<&'a crate::HoistedDependencies>,
-    pub host_node: Option<&'a (bool, String)>,
+    pub host_node: Option<&'a crate::materialization_plan::HostNode>,
     pub supported_architectures: Option<&'a pacquet_package_is_installable::SupportedArchitectures>,
     pub logged_methods: &'a AtomicU8,
 }
