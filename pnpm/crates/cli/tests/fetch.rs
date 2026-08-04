@@ -1,5 +1,6 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
+use pacquet_store_dir::STORE_VERSION;
 use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use std::{fs, path::Path, process::Command};
 
@@ -84,7 +85,7 @@ fn fetch_populates_every_group_by_default() {
 
     pacquet_at(&workspace).with_arg("fetch").assert().success();
 
-    assert!(store_dir.join("v11").exists(), "fetch must populate the store");
+    assert!(store_dir.join(STORE_VERSION).exists(), "fetch must populate the store");
     assert!(virtual_dep(&workspace, PROD_DEP).exists(), "production dep must be fetched");
     assert!(virtual_dep(&workspace, DEV_DEP).exists(), "dev dep must be fetched");
     assert!(virtual_dep(&workspace, OPTIONAL_DEP).exists(), "optional dep must be fetched");
@@ -165,7 +166,7 @@ fn fetch_populates_the_global_virtual_store_without_importer_links() {
 
     pacquet_at(&workspace).with_arg("fetch").assert().success();
 
-    let gvs_root = store_dir.join(pacquet_store_dir::STORE_VERSION).join("links");
+    let gvs_root = store_dir.join(STORE_VERSION).join("links");
     assert!(gvs_root.is_dir(), "fetch must populate the global virtual store");
     assert!(
         gvs_root.join(PROD_DEP).join("100.0.0").is_dir(),
@@ -174,4 +175,37 @@ fn fetch_populates_the_global_virtual_store_without_importer_links() {
     assert_no_importer_links(&workspace);
 
     drop((root, mock_instance));
+}
+
+/// `.pnp.cjs` is how a `PnP` project resolves, which makes it a
+/// project-level artifact like the importer links `fetch` already skips.
+/// Writing it would leave the project claiming to resolve out of a store
+/// that `fetch` populated but never linked into.
+///
+/// `fetch` takes its linker from configuration rather than a flag, so
+/// the linker is set in `pnpm-workspace.yaml`.
+#[test]
+fn fetch_under_pnp_does_not_write_the_loader() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+
+    // Append rather than overwrite: the harness's own workspace manifest
+    // carries `storeDir` / `cacheDir` / `registry`, and losing those
+    // makes the store assertion below fail for an unrelated reason.
+    let workspace_manifest = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&workspace_manifest).expect("read pnpm-workspace.yaml");
+    yaml.push_str("nodeLinker: pnp\n");
+    fs::write(&workspace_manifest, yaml).expect("write pnpm-workspace.yaml");
+
+    write_manifest_and_lockfile(&workspace);
+    pacquet_at(&workspace).with_arg("fetch").assert().success();
+
+    assert!(store_dir.join(STORE_VERSION).exists(), "fetch must still populate the store");
+    assert!(
+        !workspace.join(".pnp.cjs").exists(),
+        "fetch must not write the PnP loader: it never linked the project",
+    );
+
+    drop((root, mock_instance, store_dir));
 }
