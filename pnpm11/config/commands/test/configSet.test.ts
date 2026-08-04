@@ -1023,9 +1023,9 @@ test.each([
     configDir,
     location: 'project',
     authConfig: {},
-  }), ['set', key, '/tmp/somewhere'])).rejects.toThrow(
-    expect.objectContaining({ code: 'ERR_PNPM_CONFIG_SET_SKIPPED_PROJECT_KEY' }) as PnpmError
-  )
+  }), ['set', key, '/tmp/somewhere'])).rejects.toMatchObject({
+    code: 'ERR_PNPM_CONFIG_SET_SKIPPED_PROJECT_KEY',
+  })
 
   expect(readConfigFiles(configDir, tmp)).toEqual(initConfig)
 })
