@@ -1396,8 +1396,9 @@ pub struct Config {
     /// `master` / `main` pair. Overridden by `--publish-branch`.
     ///
     /// Workspace-only: pnpm's `excludedPnpmKeys` keeps it out of the global
-    /// `config.yaml`, so it reaches [`Config`] from `pnpm-workspace.yaml` and
-    /// `PNPM_CONFIG_PUBLISH_BRANCH` only.
+    /// `config.yaml`, so of the file layers only `pnpm-workspace.yaml` reaches
+    /// [`Config`] — alongside `PNPM_CONFIG_PUBLISH_BRANCH` and
+    /// `--config.publish-branch=`.
     pub publish_branch: Option<String>,
 
     /// `access` (`--access`): the access level `pnpm publish` records for the

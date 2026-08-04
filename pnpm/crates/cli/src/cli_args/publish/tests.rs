@@ -3,7 +3,7 @@ use crate::cli_args::{CliArgs, cli_command::CliCommand};
 use clap::Parser;
 use pacquet_config::Config;
 use pacquet_network::{AuthHeaders, ThrottledClient};
-use pacquet_publish::{Access, PublishNetwork};
+use pacquet_publish::PublishNetwork;
 use pacquet_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
 use serde_json::json;
@@ -79,7 +79,7 @@ fn publish_options_applies_tag_access_provenance_and_dry_run() {
     });
     let options = args.publish_options(&Config::default(), None, false);
     assert_eq!(options.tag, "next");
-    assert_eq!(options.access, Some(Access::Restricted));
+    assert_eq!(options.access.as_deref(), Some("restricted"));
     assert_eq!(options.provenance, Some(true));
     assert!(options.dry_run);
     assert_eq!(options.otp, None);
@@ -94,7 +94,7 @@ fn publish_options_fall_back_to_the_configured_settings() {
         ..Default::default()
     };
     let options = publish_args().publish_options(&config, None, false);
-    assert_eq!(options.access, Some(Access::Restricted));
+    assert_eq!(options.access.as_deref(), Some("restricted"));
     assert_eq!(options.tag, "next");
     assert_eq!(options.provenance, Some(true));
 }
@@ -112,7 +112,7 @@ fn publish_flags_outrank_the_configured_settings() {
         ..publish_flags()
     });
     let options = args.publish_options(&config, None, false);
-    assert_eq!(options.access, Some(Access::Public));
+    assert_eq!(options.access.as_deref(), Some("public"));
     assert_eq!(options.tag, "from-flag");
 }
 
@@ -152,12 +152,17 @@ fn no_provenance_flag_outranks_a_configured_true() {
     assert_eq!(args.publish_options(&config, None, false).provenance, Some(false));
 }
 
-/// An unrecognized configured `access` is dropped, exactly as an unrecognized
-/// `publishConfig.access` is, leaving the level to the registry default.
+/// pnpm validates only `publishConfig.access`, so an unrecognized configured
+/// one reaches the registry as-is and is rejected there. Dropping it here
+/// would fall back to `publishConfig.access` instead, which can be the more
+/// permissive level — a typo'd `restricted` would publish a package public.
 #[test]
-fn unrecognized_configured_access_is_ignored() {
+fn an_unrecognized_configured_access_is_kept_verbatim() {
     let config = Config { access: Some("everyone".to_owned()), ..Default::default() };
-    assert_eq!(publish_args().publish_options(&config, None, false).access, None);
+    assert_eq!(
+        publish_args().publish_options(&config, None, false).access.as_deref(),
+        Some("everyone"),
+    );
 }
 
 #[test]

@@ -106,7 +106,7 @@ fn rejects_restricted_access_for_unscoped_package() {
         &manifest,
         b"x",
         &registry(),
-        Some(super::Access::Restricted),
+        Some("restricted"),
         "latest",
         &hashes(),
     )

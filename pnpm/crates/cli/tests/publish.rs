@@ -300,6 +300,67 @@ fn the_configured_access_outranks_publish_config_access() {
     mock.assert();
 }
 
+/// `--config.<key>=<value>` is applied after the whole config chain, so it has
+/// to beat both `pnpm-workspace.yaml` and `PNPM_CONFIG_*`.
+#[test]
+fn the_config_override_outranks_the_workspace_yaml_and_the_env_var() {
+    let dir = tempfile::tempdir().expect("workspace");
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    write_project(
+        dir.path(),
+        &registry,
+        &json!({ "name": "test-publish-config-override", "version": "1.2.3" }),
+    );
+    fs::write(dir.path().join("pnpm-workspace.yaml"), "tag: from-yaml\n")
+        .expect("write pnpm-workspace.yaml");
+
+    let mock = server
+        .mock("PUT", "/test-publish-config-override")
+        .match_body(Matcher::PartialJsonString(r#"{"dist-tags":{"from-cli":"1.2.3"}}"#.to_owned()))
+        .with_status(200)
+        .with_body("{}")
+        .expect(1)
+        .create();
+
+    let output = pacquet(dir.path())
+        .with_arg("--config.tag=from-cli")
+        .with_arg("publish")
+        .with_arg("--no-git-checks")
+        .with_env("PNPM_CONFIG_TAG", "from-env")
+        .output()
+        .expect("spawn pacquet publish");
+    assert_success(&output);
+    mock.assert();
+}
+
+/// The OTP rides on the first `PUT` rather than waiting for a 2FA challenge,
+/// so a configured one is observable as a header on the ordinary publish path.
+#[test]
+fn workspace_yaml_supplies_the_otp() {
+    let dir = tempfile::tempdir().expect("workspace");
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    write_project(
+        dir.path(),
+        &registry,
+        &json!({ "name": "test-publish-otp", "version": "1.0.0" }),
+    );
+    fs::write(dir.path().join("pnpm-workspace.yaml"), "otp: '135791'\n")
+        .expect("write pnpm-workspace.yaml");
+
+    let mock = server
+        .mock("PUT", "/test-publish-otp")
+        .match_header("npm-otp", "135791")
+        .with_status(200)
+        .with_body("{}")
+        .expect(1)
+        .create();
+
+    assert_success(&publish(dir.path(), &[]));
+    mock.assert();
+}
+
 /// Commit everything in `dir` on `branch` so the publish git checks see a
 /// clean tree on a known branch.
 fn commit_all_on_branch(dir: &Path, branch: &str) {
@@ -371,6 +432,36 @@ fn publishing_off_the_default_branches_without_the_setting_is_rejected() {
         stderr.contains("ERR_PNPM_GIT_NOT_CORRECT_BRANCH"),
         "publish must fail the branch check; stderr: {stderr}",
     );
+    mock.assert();
+}
+
+/// Upstream gates on `opts.publishBranch ? [opts.publishBranch] : …`, so an
+/// empty setting is falsy and leaves the built-in `master` / `main` pair in
+/// place. Treating it as a branch name would pin publishing to a branch that
+/// cannot exist.
+#[test]
+fn an_empty_publish_branch_setting_falls_back_to_the_default_branches() {
+    let dir = tempfile::tempdir().expect("workspace");
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    write_project(
+        dir.path(),
+        &registry,
+        &json!({ "name": "test-empty-publish-branch", "version": "1.0.0" }),
+    );
+    fs::write(dir.path().join("pnpm-workspace.yaml"), "publishBranch: ''\n")
+        .expect("write pnpm-workspace.yaml");
+    commit_all_on_branch(dir.path(), "main");
+
+    let mock = server
+        .mock("PUT", "/test-empty-publish-branch")
+        .with_status(200)
+        .with_body("{}")
+        .expect(1)
+        .create();
+
+    let output = pacquet(dir.path()).with_arg("publish").output().expect("spawn pacquet publish");
+    assert_success(&output);
     mock.assert();
 }
 

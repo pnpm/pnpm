@@ -46,7 +46,7 @@ pub struct PackedPkg<'a> {
 pub struct PublishPackedPkgOptions {
     pub default_registry: String,
     pub scoped_registries: BTreeMap<String, String>,
-    pub access: Option<Access>,
+    pub access: Option<String>,
     pub tag: String,
     pub otp: Option<String>,
     pub provenance: Option<bool>,
@@ -78,7 +78,7 @@ where
     let input = CreatePublishOptionsInput {
         default_registry: &opts.default_registry,
         scoped_registries: &opts.scoped_registries,
-        access: opts.access,
+        access: opts.access.as_deref(),
         tag: &opts.tag,
         otp: opts.otp.as_deref(),
         provenance: opts.provenance,
@@ -116,7 +116,7 @@ where
         pkg.published_manifest,
         pkg.tarball_data,
         &registry,
-        resolved.access,
+        resolved.access.as_deref(),
         &resolved.default_tag,
         &DistHashes { integrity: &summary.integrity, shasum: &summary.shasum },
     )?;
@@ -392,7 +392,7 @@ fn build_publish_document(
     manifest: &Value,
     tarball_data: &[u8],
     registry: &NormalizedRegistryUrl,
-    access: Option<Access>,
+    access: Option<&str>,
     tag: &str,
     dist_hashes: &DistHashes<'_>,
 ) -> Result<Value, PublishPackedPkgError> {
@@ -411,7 +411,7 @@ fn build_publish_document(
     }
     let version = clean_version(&manifest_string(manifest, "version"))?;
 
-    if !name.starts_with('@') && access == Some(Access::Restricted) {
+    if !name.starts_with('@') && access.and_then(Access::parse) == Some(Access::Restricted) {
         return Err(PublishPackedPkgError::UnscopedRestricted { name });
     }
 
@@ -455,7 +455,7 @@ fn build_publish_document(
     root.insert("versions".to_owned(), Value::Object(versions));
     root.insert(
         "access".to_owned(),
-        access.map_or(Value::Null, |access| Value::String(access.to_string())),
+        access.map_or(Value::Null, |access| Value::String(access.to_owned())),
     );
     root.insert("_attachments".to_owned(), Value::Object(attachments));
     Ok(Value::Object(root))

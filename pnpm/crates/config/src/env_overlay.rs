@@ -168,7 +168,15 @@ impl WorkspaceSettings {
             settings.scope = Some(scope);
         }
         string_field!(publish_branch, "PUBLISH_BRANCH");
-        string_field!(access, "ACCESS");
+        // `access` is an npm type union, and pnpm's env pass drops a value
+        // outside it rather than letting it clobber a valid lower layer. The
+        // yaml layers are not filtered — pnpm assigns those unchecked — so
+        // the closed set is enforced here and nowhere else.
+        if let Some(access) = read_env::<Sys>("ACCESS")
+            && matches!(access.as_str(), "public" | "restricted")
+        {
+            settings.access = Some(access);
+        }
         string_field!(tag, "TAG");
         json_field!(provenance, "PROVENANCE");
         string_field!(otp, "OTP");

@@ -308,6 +308,50 @@ fn recursive_publish_pushes_each_eligible_package() {
     drop(root);
 }
 
+/// The recursive path builds its publish options from the same resolver as the
+/// single-package one, so a configured `tag` has to reach every package's
+/// `PUT` — upstream re-derives `opts.tag ?? 'latest'` separately here.
+#[test]
+fn recursive_publish_applies_the_configured_dist_tag() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    write_workspace(
+        &workspace,
+        &[("project-1", public_pkg("project-1")), ("project-2", public_pkg("project-2"))],
+    );
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let existing = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    fs::write(&workspace_yaml, format!("{existing}tag: next\n")).expect("append the tag setting");
+    write_registry_npmrc(&workspace, &format!("{}/", server.url()));
+
+    server.mock("GET", Matcher::Any).with_status(404).create();
+    let put_1 = server
+        .mock("PUT", "/project-1")
+        .match_body(Matcher::PartialJsonString(r#"{"dist-tags":{"next":"1.0.0"}}"#.to_owned()))
+        .with_status(200)
+        .with_body("{}")
+        .expect(1)
+        .create();
+    let put_2 = server
+        .mock("PUT", "/project-2")
+        .match_body(Matcher::PartialJsonString(r#"{"dist-tags":{"next":"1.0.0"}}"#.to_owned()))
+        .with_status(200)
+        .with_body("{}")
+        .expect(1)
+        .create();
+
+    clear_ci(pacquet)
+        .with_arg("-r")
+        .with_arg("publish")
+        .with_arg("--no-git-checks")
+        .assert()
+        .success();
+
+    put_1.assert();
+    put_2.assert();
+    drop(root);
+}
+
 /// A package whose current version is already on the registry is skipped; only
 /// the not-yet-published package is pushed.
 #[test]

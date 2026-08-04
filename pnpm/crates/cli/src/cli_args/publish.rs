@@ -20,8 +20,8 @@ use pacquet_config::Config;
 use pacquet_executor::{RunPostinstallHooks, ScriptsPrependNodePath, run_lifecycle_hook};
 use pacquet_pack::{Host as PackHost, PackOptions, PackResult, api as pack_api};
 use pacquet_publish::{
-    Access, Host, OidcHttpOptions, PackedPkg, PublishNetwork, PublishPackedPkgOptions,
-    PublishSummary, extract_publish_manifest_from_packed, is_tarball_path, publish_packed_pkg,
+    Host, OidcHttpOptions, PackedPkg, PublishNetwork, PublishPackedPkgOptions, PublishSummary,
+    extract_publish_manifest_from_packed, is_tarball_path, publish_packed_pkg,
     resolve_otp_from_env, run_git_checks,
 };
 use pacquet_reporter::Reporter;
@@ -181,10 +181,17 @@ impl PublishArgs {
             ));
         }
 
+        // Upstream gates on `opts.publishBranch ? [opts.publishBranch] : …`, so
+        // an empty value is falsy there and leaves the built-in branch pair in
+        // place rather than pinning publishing to a branch that cannot exist.
+        let publish_branch = self
+            .flags
+            .publish_branch
+            .as_deref()
+            .or(config.publish_branch.as_deref())
+            .filter(|branch| !branch.is_empty());
         // Upstream gates on `opts.gitChecks !== false`, which folds together
         // the `git-checks` config setting and the `--no-git-checks` flag.
-        let publish_branch =
-            self.flags.publish_branch.as_deref().or(config.publish_branch.as_deref());
         let git_checks = config.git_checks && !self.flags.no_git_checks;
         run_git_checks::<Host>(dir, git_checks, publish_branch)?;
 
@@ -365,12 +372,7 @@ impl PublishArgs {
         PublishPackedPkgOptions {
             default_registry: config.registry.clone(),
             scoped_registries: config.registries.clone(),
-            access: self
-                .flags
-                .access
-                .as_deref()
-                .or(config.access.as_deref())
-                .and_then(Access::parse),
+            access: self.flags.access.clone().or_else(|| config.access.clone()),
             tag: self.flags.tag.as_deref().or(config.tag.as_deref()).unwrap_or("latest").to_owned(),
             otp,
             provenance: self.resolved_provenance(config),

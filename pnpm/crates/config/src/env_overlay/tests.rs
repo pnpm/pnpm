@@ -199,6 +199,20 @@ fn publish_settings_parse_from_env() {
     assert_eq!(settings.publish_branch.as_deref(), Some("release"));
 }
 
+/// `access` is an npm type union, so pnpm's env pass ignores a value outside
+/// it. Accepting one here would let a typo'd `PNPM_CONFIG_ACCESS` clobber a
+/// valid `access` from `pnpm-workspace.yaml`.
+#[test]
+fn an_access_env_var_outside_the_closed_set_is_ignored() {
+    struct EnvBadAccess;
+    impl EnvVar for EnvBadAccess {
+        fn var(name: &str) -> Option<String> {
+            (name == "PNPM_CONFIG_ACCESS").then(|| "Public".to_owned())
+        }
+    }
+    assert_eq!(WorkspaceSettings::from_pnpm_config_env::<EnvBadAccess>().access, None);
+}
+
 #[test]
 fn provenance_env_var_parses_false() {
     struct EnvNoProvenance;

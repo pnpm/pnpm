@@ -40,6 +40,18 @@ fn extract_reads_the_login_scope() {
     assert_eq!(config.scope.as_deref(), Some("@my-org"));
 }
 
+/// `--config.provenance=false` is the only way to reach an explicit `false`
+/// without `--no-provenance`, and the `Some(false)` it produces is what keeps
+/// the OIDC exchange from turning provenance on.
+#[test]
+fn extract_reads_a_false_provenance_override() {
+    let (overrides, _) =
+        ConfigOverrides::extract(argv(["pacquet", "--config.provenance=false", "publish"]));
+    let mut config = Config { provenance: Some(true), ..Default::default() };
+    overrides.apply(&mut config);
+    assert_eq!(config.provenance, Some(false));
+}
+
 #[test]
 fn extract_reads_the_publish_settings() {
     let (overrides, remaining) = ConfigOverrides::extract(argv([
