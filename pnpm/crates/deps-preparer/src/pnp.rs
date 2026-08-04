@@ -14,7 +14,7 @@ pub enum WritePnpFileError {
     Write(#[error(source)] pacquet_fs::EnsureFileError),
 }
 
-pub(crate) fn write_pnp_file(
+pub fn write_pnp_file(
     lockfile: &Lockfile,
     lockfile_dir: &Path,
     config: &pacquet_config::Config,

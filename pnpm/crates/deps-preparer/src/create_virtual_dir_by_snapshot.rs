@@ -75,7 +75,7 @@ pub struct CreateVirtualDirBySnapshot<'a> {
     /// atomic completion marker when the package needs a build or patch.
     pub needs_build_marker_source: Option<&'a Path>,
     #[cfg(test)]
-    pub(crate) link_concurrency_probe: Option<&'a tests::LinkConcurrencyProbe>,
+    pub link_concurrency_probe: Option<&'a tests::LinkConcurrencyProbe>,
 }
 
 /// Error type of [`CreateVirtualDirBySnapshot`].
@@ -251,7 +251,8 @@ impl CreateVirtualDirBySnapshot<'_> {
 /// `pnpm:progress imported`'s `method` field carries. pnpm only
 /// distinguishes the three resolved methods.
 /// See the comment at the emit site for why this is best-effort.
-pub(crate) fn optimistic_wire_method(method: PackageImportMethod) -> WireImportMethod {
+#[must_use]
+pub fn optimistic_wire_method(method: PackageImportMethod) -> WireImportMethod {
     match method {
         PackageImportMethod::Auto
         | PackageImportMethod::Clone
@@ -293,4 +294,4 @@ fn remove_obsolete_child(
 }
 
 #[cfg(test)]
-pub(crate) mod tests;
+pub mod tests;

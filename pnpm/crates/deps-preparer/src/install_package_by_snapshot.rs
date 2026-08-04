@@ -59,8 +59,8 @@ pub struct InstallPackageBySnapshot<'a> {
     /// reuses) a download already in flight or completed for the same
     /// URL, rather than racing a second fetch of the same bytes. Both
     /// background prefetchers feed it: the pnpr client's
-    /// [`crate::TarballPrefetcher`] (frozen materialization) and the
-    /// fresh-resolve path's [`crate::PrefetchingResolver`] (cold
+    /// the package manager's `TarballPrefetcher` (frozen materialization) and the
+    /// fresh-resolve path's `PrefetchingResolver` (cold
     /// batch). `None` keeps the standalone `run_without_mem_cache`
     /// path for installs with no prefetcher (e.g. a plain
     /// `--frozen-lockfile` without pnpr).
@@ -132,7 +132,7 @@ pub struct InstallPackageBySnapshot<'a> {
     /// [`NodeLinker::Hoisted`], which never writes virtual-store slots.
     pub defer_link: bool,
     #[cfg(test)]
-    pub(crate) link_concurrency_probe:
+    pub link_concurrency_probe:
         Option<&'a crate::create_virtual_dir_by_snapshot::tests::LinkConcurrencyProbe>,
 }
 
@@ -149,7 +149,7 @@ pub enum InstallPackageBySnapshotError {
     /// Message and code mirror the TypeScript
     /// `assertFetchableResolution` in
     /// `pnpm11/installing/package-requester/src/packageRequester.ts`.
-    /// See `unverified_fetch_is_allowed` for the shapes that are
+    /// See [`unverified_fetch_is_allowed`] for the shapes that are
     /// exempt.
     #[display(
         "Cannot fetch package \"{package_key}\" from the lockfile: it has no \"integrity\" field, so the downloaded tarball cannot be verified. Run a fresh install to repair the lockfile."
@@ -692,7 +692,7 @@ fn local_file_tarball_install_url<'a>(
 /// prefetch mem-cache keys line up.
 ///
 /// The integrity is `None` only for the shapes
-/// `unverified_fetch_is_allowed` exempts — every other resolution whose
+/// [`unverified_fetch_is_allowed`] exempts — every other resolution whose
 /// recorded integrity pins nothing (absent, or the empty SRI string an
 /// edited lockfile can carry) is refused here rather than fetched
 /// unchecked. See
@@ -782,7 +782,8 @@ pub fn tarball_url_and_integrity<'a>(
 /// Every other remote tarball must carry one, so bytes fetched over
 /// the network for a package the lockfile claims to pin stay
 /// verifiable.
-pub(crate) fn unverified_fetch_is_allowed(tarball_url: &str) -> bool {
+#[must_use]
+pub fn unverified_fetch_is_allowed(tarball_url: &str) -> bool {
     tarball_url.starts_with("file:") || is_git_hosted_tarball_url(tarball_url)
 }
 
@@ -795,7 +796,8 @@ pub(crate) fn unverified_fetch_is_allowed(tarball_url: &str) -> bool {
 /// consistently: `None` and `Some("glibc")` both require the
 /// variant to omit `libc`, and `Some("musl")` requires an exact
 /// match.
-pub(crate) fn host_platform_selector() -> PlatformSelector {
+#[must_use]
+pub fn host_platform_selector() -> PlatformSelector {
     let libc = match host_libc() {
         "unknown" => None,
         other => Some(other.to_string()),
@@ -806,7 +808,7 @@ pub(crate) fn host_platform_selector() -> PlatformSelector {
 /// Resolve the runtime archive selector from `supportedArchitectures`, using
 /// the first requested value on each axis and expanding `current` to the host.
 #[must_use]
-pub(crate) fn runtime_platform_selector(
+pub fn runtime_platform_selector(
     supported: Option<&pacquet_package_is_installable::SupportedArchitectures>,
 ) -> PlatformSelector {
     let host = host_platform_selector();

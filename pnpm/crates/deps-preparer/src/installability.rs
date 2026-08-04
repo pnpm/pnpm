@@ -83,8 +83,8 @@ impl SkippedSnapshots {
     /// installability set. Test helper for callers that want to
     /// drive build-sequence / virtual-store filtering against a
     /// known skip set without running the full installability pass.
-    #[cfg(test)]
-    pub(crate) fn from_set(set: HashSet<PackageKey>) -> Self {
+    #[must_use]
+    pub fn from_set(set: HashSet<PackageKey>) -> Self {
         Self { installability: set, ..Self::default() }
     }
 
@@ -170,7 +170,7 @@ impl SkippedSnapshots {
     }
 
     #[must_use]
-    pub(crate) fn contains_optional_excluded(&self, key: &PackageKey) -> bool {
+    pub fn contains_optional_excluded(&self, key: &PackageKey) -> bool {
         self.optional_excluded.contains(key)
     }
 
@@ -187,7 +187,7 @@ impl SkippedSnapshots {
     /// `--no-optional` exclusions are recorded nowhere else, so
     /// leaving those out is what makes the next install redo them.
     #[must_use]
-    pub(crate) fn transient_only(&self) -> Self {
+    pub fn transient_only(&self) -> Self {
         Self {
             installability: HashSet::new(),
             fetch_failed: self.fetch_failed.clone(),
@@ -195,7 +195,7 @@ impl SkippedSnapshots {
         }
     }
 
-    pub(crate) fn retain_installability_for_optional_snapshots(
+    pub fn retain_installability_for_optional_snapshots(
         &mut self,
         snapshots: &HashMap<PackageKey, SnapshotEntry>,
     ) {
@@ -217,19 +217,19 @@ impl SkippedSnapshots {
 
     /// Insert into the installability set — the persisted subset
     /// written to `.modules.yaml.skipped`.
-    pub(crate) fn insert_installability(&mut self, key: PackageKey) {
+    pub fn insert_installability(&mut self, key: PackageKey) {
         self.installability.insert(key);
     }
 
     #[must_use]
-    pub(crate) fn contains_installability(&self, key: &PackageKey) -> bool {
+    pub fn contains_installability(&self, key: &PackageKey) -> bool {
         self.installability.contains(key)
     }
 
     /// Drop a seeded installability skip whose package passes the
     /// current installability check — e.g. after `--os` / `--cpu` /
     /// `supportedArchitectures` changed between installs.
-    pub(crate) fn remove_installability(&mut self, key: &PackageKey) {
+    pub fn remove_installability(&mut self, key: &PackageKey) {
         self.installability.remove(key);
     }
 
@@ -338,7 +338,7 @@ fn normalize_node_version(version: &str) -> String {
     trimmed.strip_prefix('v').unwrap_or(trimmed).to_string()
 }
 
-pub(crate) fn check_installability(
+pub fn check_installability(
     package_id: &str,
     manifest: &PackageInstallabilityManifest,
     options: &InstallabilityOptions<'_>,
@@ -352,7 +352,8 @@ pub(crate) fn check_installability(
         .map_err(|invalid| Box::new(InstallabilityError::InvalidNodeVersion(invalid)))
 }
 
-pub(crate) fn manifest_with_inferred_platform(
+#[must_use]
+pub fn manifest_with_inferred_platform(
     manifest: &PackageInstallabilityManifest,
 ) -> Cow<'_, PackageInstallabilityManifest> {
     let Some(platform) = inferred_platform(
@@ -374,7 +375,8 @@ pub(crate) fn manifest_with_inferred_platform(
     })
 }
 
-pub(crate) fn platform_manifest_from_resolve_result(
+#[must_use]
+pub fn platform_manifest_from_resolve_result(
     result: &ResolveResult,
     fallback_alias: Option<&str>,
 ) -> PackageInstallabilityManifest {

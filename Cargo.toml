@@ -56,6 +56,7 @@ pacquet-directory-fetcher                 = { path = "pnpm/crates/directory-fetc
 pacquet-git-fetcher                       = { path = "pnpm/crates/git-fetcher" }
 pacquet-global                            = { path = "pnpm/crates/global" }
 pacquet-deps-path                         = { path = "pnpm/crates/deps-path" }
+pacquet-deps-preparer                     = { path = "pnpm/crates/deps-preparer" }
 pacquet-detect-libc                       = { path = "pnpm/crates/detect-libc" }
 pacquet-diagnostics                       = { path = "pnpm/crates/diagnostics" }
 pacquet-graph-hasher                      = { path = "pnpm/crates/graph-hasher" }

@@ -3,7 +3,7 @@
 //! for groups the current install excludes, leaving everything else in
 //! the importer's `node_modules` — the user's own files above all — in
 //! place. The non-destructive counterpart of the purge in
-//! [`crate::Install`], mirroring pnpm's `removeDirectDependency` prune.
+//! the package manager's `Install`, mirroring pnpm's `removeDirectDependency` prune.
 
 use crate::{
     SkippedSnapshots,
@@ -87,7 +87,7 @@ pub enum PruneDirectDepsError {
 /// Removal is conservative on three axes:
 ///
 /// - Each importer's modules dir must canonicalize to a path inside the
-///   workspace root (`confined_modules_dir`, the purge's containment
+///   workspace root ([`confined_modules_dir`], the purge's containment
 ///   check), and removals never reach through an intermediate
 ///   `@scope/` or `.bin/` component that isn't a real directory — a
 ///   symlinked or junctioned one could redirect the deletions outside
@@ -164,7 +164,7 @@ pub fn prune_direct_deps_excluded_by_groups(
 /// removals should operate on, or `None` when there is nothing to
 /// prune (the directory doesn't exist) or when the resolution escapes
 /// the workspace — never delete through an escape.
-pub(crate) fn confined_modules_dir(modules_dir: &Path, workspace_root: &Path) -> Option<PathBuf> {
+pub fn confined_modules_dir(modules_dir: &Path, workspace_root: &Path) -> Option<PathBuf> {
     let modules_canon = std::fs::canonicalize(modules_dir).ok()?;
     let root_canon = std::fs::canonicalize(workspace_root).ok()?;
     if modules_canon.starts_with(&root_canon) {
@@ -188,7 +188,8 @@ fn is_real_dir(path: &Path) -> bool {
         && read_symlink_dir(path).is_err()
 }
 
-pub(crate) fn selected_groups(included: IncludedDependencies) -> Vec<DependencyGroup> {
+#[must_use]
+pub fn selected_groups(included: IncludedDependencies) -> Vec<DependencyGroup> {
     let mut groups = Vec::with_capacity(3);
     if included.dependencies {
         groups.push(DependencyGroup::Prod);
@@ -202,10 +203,7 @@ pub(crate) fn selected_groups(included: IncludedDependencies) -> Vec<DependencyG
     groups
 }
 
-pub(crate) fn remove_direct_dep_link(
-    modules_dir: &Path,
-    name: &str,
-) -> Result<(), PruneDirectDepsError> {
+pub fn remove_direct_dep_link(modules_dir: &Path, name: &str) -> Result<(), PruneDirectDepsError> {
     let link =
         safe_join_modules_dir(modules_dir, name).map_err(PruneDirectDepsError::InvalidAlias)?;
     // For a scoped alias the join passes through `@scope/`; refuse to

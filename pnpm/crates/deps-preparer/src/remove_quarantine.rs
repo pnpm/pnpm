@@ -41,7 +41,7 @@ const MAX_ARG_BYTES: usize = 100_000;
 /// just placed under `dir_path`. The relative entry paths come from the indexed
 /// `cas_paths`, so the targets are `dir_path.join(entry)`. A no-op off macOS.
 #[cfg(target_os = "macos")]
-pub(crate) fn remove_quarantine_from_native_binaries(
+pub fn remove_quarantine_from_native_binaries(
     dir_path: &Path,
     cas_paths: &HashMap<String, PathBuf>,
 ) {
@@ -54,7 +54,7 @@ pub(crate) fn remove_quarantine_from_native_binaries(
 }
 
 #[cfg(not(target_os = "macos"))]
-pub(crate) fn remove_quarantine_from_native_binaries(
+pub fn remove_quarantine_from_native_binaries(
     _dir_path: &Path,
     _cas_paths: &HashMap<String, PathBuf>,
 ) {

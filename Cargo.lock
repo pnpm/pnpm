@@ -4196,6 +4196,64 @@ dependencies = [
 ]
 
 [[package]]
+name = "pacquet-deps-preparer"
+version = "0.0.1"
+dependencies = [
+ "async-trait",
+ "derive_more",
+ "dunce",
+ "flate2",
+ "futures-util",
+ "indexmap 2.14.0",
+ "insta",
+ "miette 7.6.0",
+ "mockito",
+ "node-semver",
+ "pacquet-cmd-shim",
+ "pacquet-config",
+ "pacquet-deps-path",
+ "pacquet-directory-fetcher",
+ "pacquet-executor",
+ "pacquet-fs",
+ "pacquet-git-fetcher",
+ "pacquet-graph-hasher",
+ "pacquet-hooks",
+ "pacquet-lockfile",
+ "pacquet-lockfile-verification",
+ "pacquet-modules-yaml",
+ "pacquet-network",
+ "pacquet-package-is-installable",
+ "pacquet-package-manifest",
+ "pacquet-patching",
+ "pacquet-real-hoist",
+ "pacquet-reporter",
+ "pacquet-resolving-deps-resolver",
+ "pacquet-resolving-npm-resolver",
+ "pacquet-resolving-resolver-base",
+ "pacquet-store-dir",
+ "pacquet-tarball",
+ "pacquet-testing-utils",
+ "pacquet-workspace",
+ "pathdiff",
+ "pipe-trait",
+ "pretty_assertions",
+ "rayon",
+ "reflink-copy",
+ "rustc-hash 2.1.2",
+ "serde",
+ "serde-saphyr",
+ "serde_json",
+ "sha2",
+ "ssri",
+ "tar",
+ "tempfile",
+ "text-block-macros",
+ "tokio",
+ "tracing",
+ "walkdir",
+]
+
+[[package]]
 name = "pacquet-detect-libc"
 version = "0.0.1"
 dependencies = [
@@ -4750,6 +4808,7 @@ dependencies = [
  "pacquet-config-parse-overrides",
  "pacquet-crypto-hash",
  "pacquet-deps-path",
+ "pacquet-deps-preparer",
  "pacquet-directory-fetcher",
  "pacquet-engine-runtime-bun-resolver",
  "pacquet-engine-runtime-deno-resolver",

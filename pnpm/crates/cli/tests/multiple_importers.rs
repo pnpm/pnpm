@@ -741,7 +741,7 @@ mod known_failures {
              importer-level `link:` / workspace-linked dependencies of \
              the selected projects and installs the link targets' own \
              dependencies (`materialization_closure` in \
-             `crates/package-manager/src/current_lockfile.rs`). The \
+             `crates/deps-preparer/src/current_lockfile.rs`). The \
              TypeScript CLI keeps those targets shallow — only \
              `--filter <project>...` widens the selection — so the two \
              stacks need a shared decision before this can be pinned.",

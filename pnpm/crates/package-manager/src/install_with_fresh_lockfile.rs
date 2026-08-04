@@ -1370,8 +1370,6 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             // reusing the in-flight download instead.
             tarball_mem_cache: Some(&tarball_mem_cache),
             custom_fetcher_picker: custom_fetcher_picker.as_ref(),
-            #[cfg(test)]
-            link_concurrency_probe: None,
         }
         .run::<Reporter>()
         .await

@@ -128,7 +128,8 @@ fn full_pkg_id_for(pkg_key: &PackageKey, resolution: &LockfileResolution) -> Str
 /// `optionalDependencies`. Both sections are sorted on disk, so sorting
 /// them here restores the order the graph hasher's digests are defined
 /// in (see [`pacquet_graph_hasher::DepsGraphNode::children`]).
-pub(crate) fn build_children(snapshot: &SnapshotEntry) -> IndexMap<String, PackageKey> {
+#[must_use]
+pub fn build_children(snapshot: &SnapshotEntry) -> IndexMap<String, PackageKey> {
     let mut children = IndexMap::new();
     extend_children(&mut children, snapshot.dependencies.as_ref());
     extend_children(&mut children, snapshot.optional_dependencies.as_ref());
@@ -160,7 +161,8 @@ fn extend_children(
 /// [`pacquet_graph_hasher::DepsGraphNode::children`]). Sorting by the
 /// rendered snapshot key reproduces how pnpm writes — and therefore
 /// iterates — the `snapshots:` section.
-pub(crate) fn in_lockfile_order<Value>(
+#[must_use]
+pub fn in_lockfile_order<Value>(
     snapshots: &HashMap<PackageKey, Value>,
 ) -> Vec<(&PackageKey, &Value)> {
     let mut entries: Vec<(String, &PackageKey, &Value)> =
