@@ -4,9 +4,9 @@
 )]
 
 use super::{
-    Install, InstallError, ProjectMutation, UpToDateFastPathCheck, exclude_linked_dependencies,
-    install_already_up_to_date, load_workspace_projects, order_project_lifecycle_groups,
-    project_requires_lifecycle_scripts,
+    Install, InstallError, ProjectMutation, UpToDateFastPathCheck, install_already_up_to_date,
+    load_workspace_projects, lockfile_freshness::exclude_linked_dependencies,
+    order_project_lifecycle_groups, project_requires_lifecycle_scripts,
 };
 use crate::{InstallWithFreshLockfileError, MinimumReleaseAgeError};
 use pacquet_config::{Config, NodePackageMapType};
