@@ -142,9 +142,11 @@ fn a_workspace_yaml_scope_is_ignored_and_reported_on_stderr() {
         .expect("spawn pacquet login");
 
     let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
-    assert!(
-        stderr.contains(pacquet_config::IGNORED_SCOPE_WARNING),
-        "stderr must carry the ignored-scope warning verbatim; got:\n{stderr}",
+    assert!(output.status.success(), "`pacquet login` must still succeed; stderr:\n{stderr}");
+    assert_eq!(
+        stderr.matches(pacquet_config::IGNORED_SCOPE_WARNING).count(),
+        1,
+        "stderr must carry the ignored-scope warning verbatim, exactly once; got:\n{stderr}",
     );
     let auth_ini = std::fs::read_to_string(root.path().join("pnpm").join("auth.ini"))
         .expect("login writes auth.ini");

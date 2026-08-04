@@ -7,14 +7,43 @@
 //! config-load warnings belong here.
 
 use pacquet_default_reporter::colors::Colors;
-use std::io::{IsTerminal, Write};
+use std::{
+    collections::HashSet,
+    io::{IsTerminal, Write},
+    sync::{Mutex, OnceLock, PoisonError},
+};
 
-/// Emit every warning [`pacquet_config::Config`] collected while loading, and
-/// clear them so a second drain cannot repeat them.
+/// Config-load warnings already written this process.
+///
+/// One command can load `Config` several times — the install fast path falls
+/// through to `run`, and a handler may call its `config` / `state` closure more
+/// than once — and every load re-reads the same files and re-collects the same
+/// warnings. pnpm reads config once per command and prints each warning once,
+/// so the second and later copies are suppressed here.
+static EMITTED_CONFIG_WARNINGS: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+
+/// Emit every warning [`pacquet_config::Config`] collected while loading,
+/// skipping any already written this process, and clear them off the config.
 pub(crate) fn drain_config_warnings(config: &mut pacquet_config::Config) {
-    for warning in std::mem::take(&mut config.config_warnings) {
+    for warning in take_unemitted(config) {
         emit_config_warning(&warning);
     }
+}
+
+/// Take the warnings off `config` and return the ones not yet written,
+/// recording them as written. Split from [`drain_config_warnings`] so the
+/// emit-once rule can be asserted without capturing stderr.
+fn take_unemitted(config: &mut pacquet_config::Config) -> Vec<String> {
+    // A poisoned lock means another thread panicked mid-insert; showing a
+    // warning twice beats aborting the command over it.
+    let mut emitted = EMITTED_CONFIG_WARNINGS
+        .get_or_init(Mutex::default)
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner);
+    std::mem::take(&mut config.config_warnings)
+        .into_iter()
+        .filter(|warning| emitted.insert(warning.clone()))
+        .collect()
 }
 
 /// Write a `[WARN]`-labelled config-load warning to stderr. Best-effort:
@@ -30,3 +59,6 @@ pub(crate) fn emit_config_warning(message: &str) {
     };
     let _ = writeln!(std::io::stderr(), "{} {message}", colors.warn_label());
 }
+
+#[cfg(test)]
+mod tests;

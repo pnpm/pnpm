@@ -1836,6 +1836,10 @@ pub struct Config {
     /// to stderr before running the command; pacquet's CLI drains this field at
     /// the same point. A message a user must act on belongs here rather than in
     /// `tracing::warn!`, which is silent unless `TRACE` is set.
+    ///
+    /// One divergence, following from pacquet loading config lazily where pnpm
+    /// loads it for every command: a subcommand that never reads config (`pnpm
+    /// init`) raises nothing to drain, so its warnings go unsaid.
     pub config_warnings: Vec<String>,
 
     /// Raw `.npmrc` / `auth.ini` config keys (those for which

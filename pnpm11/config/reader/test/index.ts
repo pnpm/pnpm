@@ -14,7 +14,7 @@ import { writeYamlFileSync } from 'write-yaml-file'
 
 jest.unstable_mockModule('@pnpm/network.git-utils', () => ({ getCurrentBranch: jest.fn() }))
 
-const { getConfig, parsePackageManager } = await import('@pnpm/config.reader')
+const { getConfig, IGNORED_SCOPE_WARNING, parsePackageManager } = await import('@pnpm/config.reader')
 const { getCurrentBranch } = await import('@pnpm/network.git-utils')
 
 // To override any local settings,
@@ -1131,7 +1131,6 @@ test('pnpm-workspace.yaml request destinations do not expand env variables', asy
 // repo-committed file must not be able to choose it.
 // https://github.com/pnpm/pnpm/issues/13557
 describe('the scope setting is honored from trusted sources only', () => {
-  const scopeWarning = 'The "scope" setting in pnpm-workspace.yaml was ignored. "pnpm login" records it as a scope-to-registry route in the global auth.ini, which then applies to every project on the machine, so it is only read from --scope, the PNPM_CONFIG_SCOPE environment variable, and the global config file.'
 
   test('a pnpm-workspace.yaml scope is ignored and warned about', async () => {
     prepareEmpty()
@@ -1146,7 +1145,7 @@ describe('the scope setting is honored from trusted sources only', () => {
     })
 
     expect(config.scope).toBeUndefined()
-    expect(warnings).toContainEqual(scopeWarning)
+    expect(warnings).toContainEqual(IGNORED_SCOPE_WARNING)
   })
 
   test('a project .npmrc scope reaches no config at all', async () => {
@@ -1220,7 +1219,7 @@ describe('the scope setting is honored from trusted sources only', () => {
     )
 
     expect(config.scope).toBe('@from-global-config')
-    expect(warnings).toContainEqual(scopeWarning)
+    expect(warnings).toContainEqual(IGNORED_SCOPE_WARNING)
   })
 
   test('self-update skips the scope alongside its own settings', async () => {
@@ -1238,7 +1237,7 @@ describe('the scope setting is honored from trusted sources only', () => {
 
     expect(config.scope).toBeUndefined()
     expect(config.minimumReleaseAge).not.toBe(4320)
-    expect(warnings).toContainEqual(scopeWarning)
+    expect(warnings).toContainEqual(IGNORED_SCOPE_WARNING)
   })
 
   test('a pnpm-workspace.yaml without a scope emits no warning', async () => {
@@ -1254,7 +1253,7 @@ describe('the scope setting is honored from trusted sources only', () => {
     })
 
     expect(config.scope).toBe('@from-cli')
-    expect(warnings).not.toContainEqual(scopeWarning)
+    expect(warnings).not.toContainEqual(IGNORED_SCOPE_WARNING)
   })
 })
 
