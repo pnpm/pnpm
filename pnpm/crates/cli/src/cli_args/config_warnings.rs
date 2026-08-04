@@ -25,21 +25,29 @@ static EMITTED_CONFIG_WARNINGS: OnceLock<Mutex<HashSet<String>>> = OnceLock::new
 /// Emit every warning [`pacquet_config::Config`] collected while loading,
 /// skipping any already written this process, and clear them off the config.
 pub(crate) fn drain_config_warnings(config: &mut pacquet_config::Config) {
-    for warning in take_unemitted(config) {
+    let unemitted = {
+        // A poisoned lock means another thread panicked mid-insert; showing a
+        // warning twice beats aborting the command over it. The guard is
+        // dropped before emitting so a slow stderr holds it no longer than the
+        // set update itself.
+        let mut emitted = EMITTED_CONFIG_WARNINGS
+            .get_or_init(Mutex::default)
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        take_unemitted(&mut emitted, config)
+    };
+    for warning in unemitted {
         emit_config_warning(&warning);
     }
 }
 
-/// Take the warnings off `config` and return the ones not yet written,
-/// recording them as written. Split from [`drain_config_warnings`] so the
-/// emit-once rule can be asserted without capturing stderr.
-fn take_unemitted(config: &mut pacquet_config::Config) -> Vec<String> {
-    // A poisoned lock means another thread panicked mid-insert; showing a
-    // warning twice beats aborting the command over it.
-    let mut emitted = EMITTED_CONFIG_WARNINGS
-        .get_or_init(Mutex::default)
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner);
+/// Take the warnings off `config` and return the ones `emitted` has not seen,
+/// recording them there. Takes the set rather than reaching for the process
+/// global so the emit-once rule can be asserted against a local one.
+fn take_unemitted(
+    emitted: &mut HashSet<String>,
+    config: &mut pacquet_config::Config,
+) -> Vec<String> {
     std::mem::take(&mut config.config_warnings)
         .into_iter()
         .filter(|warning| emitted.insert(warning.clone()))
