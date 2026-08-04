@@ -17,12 +17,8 @@ use std::{collections::HashMap, path::Path};
 /// `<global_virtual_store_dir>/<scope>/<name>/<version>/<hash>` (GVS),
 /// so the caller doesn't have to branch on which mode is in effect.
 ///
-/// `virtual_node_modules_dir` does not have to exist —
-/// `symlink_package` calls `fs::create_dir_all` on the symlink path's
-/// parent before each link. Callers that already know the directory
-/// exists (e.g. `CreateVirtualStore::run`, which `mkdir`s it just
-/// before calling this function) just pay redundant stat syscalls,
-/// which is cheap and matches pnpm's own redundant-mkdir shape.
+/// `virtual_node_modules_dir` does not have to exist; missing parent
+/// directories are created as needed.
 pub fn create_symlink_layout(
     dependencies: Option<&HashMap<PkgName, SnapshotDepRef>>,
     optional_dependencies: Option<&HashMap<PkgName, SnapshotDepRef>>,
