@@ -38,7 +38,7 @@ function resolveHomedirViaDscl (sudoUser: string): string {
 }
 
 export function getHomedir (env: NodeJS.ProcessEnv = process.env, platform: string = process.platform): string {
-  if (env.SUDO_USER && env.SUDO_USER !== 'root') {
+  if (env.SUDO_USER && env.SUDO_USER !== 'root' && typeof process.getuid === 'function' && process.getuid() === 0) {
     const cacheKey = `${platform}:${env.SUDO_USER}`
     if (sudoHomedirCache.has(cacheKey)) {
       return sudoHomedirCache.get(cacheKey)!

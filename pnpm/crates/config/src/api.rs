@@ -129,14 +129,18 @@ impl EnvVarOs for Host {
 
 impl GetHomeDir for Host {
     fn home_dir() -> Option<PathBuf> {
-        if let Ok(sudo_user_raw) = std::env::var("SUDO_USER") {
-            let sudo_user = sudo_user_raw.trim();
-            if sudo_user != "root" && !sudo_user.is_empty() {
-                #[cfg(all(unix, not(target_os = "cygwin")))]
-                // A failed lookup returns None instead of falling back to
-                // root's home, so a broken sudo environment fails fast
-                // rather than silently writing into /root.
-                return sudo_user_home_dir(sudo_user);
+        #[cfg(all(unix, not(target_os = "cygwin")))]
+        {
+            if unsafe { libc::geteuid() } == 0 {
+                if let Ok(sudo_user_raw) = std::env::var("SUDO_USER") {
+                    let sudo_user = sudo_user_raw.trim();
+                    if sudo_user != "root" && !sudo_user.is_empty() {
+                        // A failed lookup returns None instead of falling back to
+                        // root's home, so a broken sudo environment fails fast
+                        // rather than silently writing into /root.
+                        return sudo_user_home_dir(sudo_user);
+                    }
+                }
             }
         }
         home::home_dir()

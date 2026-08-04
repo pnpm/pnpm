@@ -1,6 +1,6 @@
 import os from 'node:os'
 
-import { expect, test } from '@jest/globals'
+import { expect, jest, test } from '@jest/globals'
 
 import { getHomedir } from '../lib/homedir.js'
 
@@ -20,11 +20,21 @@ test('getHomedir() ignores SUDO_USER on platforms without a resolver', () => {
 
 // cspell:disable-next-line
 testOnLinux('getHomedir() resolves the SUDO_USER home directory via getent', () => {
-  const user = os.userInfo().username
-  expect(getHomedir({ SUDO_USER: user }, 'linux')).toBe(os.userInfo().homedir)
+  const getuidSpy = jest.spyOn(process, 'getuid').mockReturnValue(0)
+  try {
+    const user = os.userInfo().username
+    expect(getHomedir({ SUDO_USER: user }, 'linux')).toBe(os.userInfo().homedir)
+  } finally {
+    getuidSpy.mockRestore()
+  }
 })
 
 testOnLinux('getHomedir() throws when SUDO_USER cannot be resolved', () => {
-  expect(() => getHomedir({ SUDO_USER: 'pnpm-test-nonexistent-user' }, 'linux'))
-    .toThrow(/Failed to resolve home directory for SUDO_USER/)
+  const getuidSpy = jest.spyOn(process, 'getuid').mockReturnValue(0)
+  try {
+    expect(() => getHomedir({ SUDO_USER: 'pnpm-test-nonexistent-user' }, 'linux'))
+      .toThrow(/Failed to resolve home directory for SUDO_USER/)
+  } finally {
+    getuidSpy.mockRestore()
+  }
 })
