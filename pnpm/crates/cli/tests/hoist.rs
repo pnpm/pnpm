@@ -1423,3 +1423,124 @@ fn should_not_add_extra_node_paths_when_extend_node_path_false() {
 
     drop((root, npmrc_info)); // cleanup
 }
+
+/// A workspace package that is *publicly* hoisted lands in the root
+/// `node_modules`, but it is recorded in the hoist result's
+/// `hoisted_workspace_aliases` rather than
+/// `publicly_hoisted_aliases_with_bins`. The post-build top-level bin
+/// link only sees the latter, so a bin declared by such a package
+/// reaches the root `.bin` solely through the link phase's re-walk of
+/// `node_modules`.
+#[test]
+fn publicly_hoisted_workspace_package_bins_reach_the_root_bin_dir() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "root", "private": true }).to_string(),
+    )
+    .expect("write root package.json");
+    write_workspace_yaml(&workspace, "packages:\n  - 'packages/*'\npublicHoistPattern:\n  - '*'\n");
+
+    // The root deliberately does not depend on this project, so its bin
+    // can only arrive via hoisting.
+    let pkg_dir = workspace.join("packages/foo");
+    fs::create_dir_all(&pkg_dir).expect("mkdir packages/foo");
+    fs::write(
+        pkg_dir.join("package.json"),
+        serde_json::json!({
+            "name": "local-foo",
+            "version": "1.0.0",
+            "private": true,
+            "bin": { "local-foo-cli": "index.js" },
+            "dependencies": { "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write packages/foo/package.json");
+    fs::write(pkg_dir.join("index.js"), "#!/usr/bin/env node\n").expect("write index.js");
+
+    let shim = workspace.join("node_modules/.bin/local-foo-cli");
+
+    pacquet.with_arg("install").assert().success();
+    assert!(shim.exists(), "fresh: the publicly hoisted workspace bin must be shimmed at {shim:?}");
+
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    pacquet_in(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    assert!(
+        shim.exists(),
+        "frozen: the publicly hoisted workspace bin must be shimmed at {shim:?}",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// A direct dependency's bin must win over a publicly hoisted
+/// *workspace* package declaring the same bin name. The post-build
+/// top-level link resolves precedence by [`BinOrigin`] tier, but it
+/// never sees workspace-hoisted aliases, so the link phase's re-walk is
+/// the only thing that shims them — and that scan treats every
+/// candidate as direct. This pins which one ends up in the root `.bin`.
+#[test]
+fn direct_dep_bin_wins_over_a_publicly_hoisted_workspace_package() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    // The direct dependency ships a `hello-world-js-bin` bin.
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "root",
+            "private": true,
+            "dependencies": { "@pnpm.e2e/hello-world-js-bin": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write root package.json");
+    write_workspace_yaml(&workspace, "packages:\n  - 'packages/*'\npublicHoistPattern:\n  - '*'\n");
+
+    // A workspace package claiming the same bin name.
+    let pkg_dir = workspace.join("packages/collide");
+    fs::create_dir_all(&pkg_dir).expect("mkdir packages/collide");
+    fs::write(
+        pkg_dir.join("package.json"),
+        serde_json::json!({
+            "name": "collide",
+            "version": "1.0.0",
+            "private": true,
+            "bin": { "hello-world-js-bin": "index.js" },
+            "dependencies": { "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write packages/collide/package.json");
+    fs::write(pkg_dir.join("index.js"), "#!/usr/bin/env node\n").expect("write index.js");
+
+    let assert_direct_wins = |stage: &str| {
+        let shim = fs::read_to_string(workspace.join("node_modules/.bin/hello-world-js-bin"))
+            .expect("read shim");
+        assert!(
+            !shim.contains("packages/collide") && !shim.contains(r"packages\\collide"),
+            "{stage}: the direct dependency must win over the hoisted workspace package:\n{shim}",
+        );
+    };
+
+    pacquet.with_arg("install").assert().success();
+    // Guard the guard: the hoisted workspace package must actually be
+    // present, or the collision below is not being exercised at all.
+    assert!(
+        workspace.join("node_modules/collide").exists(),
+        "the workspace package must be publicly hoisted for this to test anything",
+    );
+    assert_direct_wins("fresh");
+
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    pacquet_in(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    assert!(workspace.join("node_modules/collide").exists(), "hoisted after frozen replay too");
+    assert_direct_wins("frozen");
+
+    drop((root, mock_instance));
+}

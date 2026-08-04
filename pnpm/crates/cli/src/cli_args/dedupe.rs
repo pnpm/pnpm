@@ -115,11 +115,7 @@ impl DedupeArgs {
                     .unwrap_or_else(|| Path::new("."))
                     .display()
                     .to_string(),
-                store_index: if config.frozen_store {
-                    StoreIndex::shared_immutable_in(&config.store_dir)
-                } else {
-                    StoreIndex::shared_readonly_in(&config.store_dir)
-                },
+                store_index: StoreIndex::shared_for(&config.store_dir, config.frozen_store),
                 reusable_skipped_package_ids,
                 reporter: PhantomData,
             })),

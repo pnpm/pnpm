@@ -32,9 +32,7 @@ use std::{
 };
 use tokio::sync::watch;
 
-mod linking;
 mod manifest_transforms;
-mod materialization_plan;
 mod resolve;
 mod resolver_setup;
 
@@ -353,6 +351,9 @@ pub enum InstallWithFreshLockfileError {
     /// links during the pre-link reconciliation pass.
     #[diagnostic(transparent)]
     PruneStaleModules(#[error(source)] crate::PruneDirectDepsError),
+
+    #[diagnostic(transparent)]
+    LinkPhase(#[error(source)] pacquet_deps_restorer::linking::LinkPhaseError),
 
     /// Surfaces a failure to cross-link a Bit root component's injected
     /// members into one another's virtual-store slot. Only reachable
@@ -1243,25 +1244,33 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         });
         let initial_materialization_lockfile =
             initial_materialization.as_ref().map_or(&built_lockfile, |closure| &closure.lockfile);
-        let installability_host = materialization_plan::detect_installability_host(
-            config,
-            initial_materialization_lockfile,
-            node_version,
-            supported_architectures,
-        )
-        .await;
+        let needs_installability_check = !config.force
+            && initial_materialization_lockfile.packages.as_ref().is_some_and(|packages| {
+                initial_materialization_lockfile.snapshots.as_ref().is_some_and(|snapshots| {
+                    crate::any_installability_constraint(snapshots, packages)
+                })
+            });
+        let installability_host =
+            pacquet_deps_restorer::materialization_plan::detect_installability_host(
+                needs_installability_check,
+                config.engine_strict,
+                node_version,
+                supported_architectures,
+            )
+            .await;
         // Detect the host node once and reuse it for both the engine-name
         // cache key and installability check, mirroring the frozen path.
         let host_node: Option<(bool, String)> = installability_host
             .as_ref()
             .map(|host| (host.node_detected, host.node_version.clone()));
 
-        let (engine_name, deferred_engine_handle) = materialization_plan::resolve_engine_name(
-            config,
-            initial_materialization_lockfile,
-            host_node.as_ref(),
-        )
-        .await;
+        let (engine_name, deferred_engine_handle) =
+            pacquet_deps_restorer::materialization_plan::resolve_engine_name(
+                config.enable_global_virtual_store,
+                initial_materialization_lockfile.snapshots.as_ref(),
+                host_node.as_ref(),
+            )
+            .await;
         let layout_engine_name =
             if config.enable_global_virtual_store { engine_name.as_deref() } else { None };
         let phase_start = std::time::Instant::now();
@@ -1282,19 +1291,34 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             );
         }
 
-        let mut skipped = materialization_plan::compute_skip_set::<Reporter>(
-            &materialization_plan::SkipSetInputs {
-                requester,
-                materialization_lockfile: initial_materialization_lockfile,
-                built_lockfile: &built_lockfile,
-                lockfile_dir,
-                installability_host: installability_host.as_ref(),
-                included,
-                dependency_groups: &dependency_groups,
-                is_full_install,
-                skip_runtimes,
-            },
-        )?;
+        let closure_importer_ids: std::collections::HashSet<String> =
+            built_lockfile.importers.keys().cloned().collect();
+        let mut skipped =
+            pacquet_deps_restorer::materialization_plan::compute_skip_set::<Reporter>(
+                pacquet_deps_restorer::materialization_plan::SkipSetInputs {
+                    requester,
+                    importers: &initial_materialization_lockfile.importers,
+                    snapshots: initial_materialization_lockfile.snapshots.as_ref(),
+                    packages: initial_materialization_lockfile.packages.as_ref(),
+                    installability_host: installability_host.as_ref(),
+                    // The fresh path has just re-resolved the graph, so the
+                    // previous run's verdicts may no longer hold.
+                    seed: SkippedSnapshots::new(),
+                    // Only a full install's `dependency_groups` carries a
+                    // `--no-optional` intent: a partial run either passes
+                    // every direct group (`add`, `remove`, `update`) or
+                    // narrows them for its own reasons (`fetch --dev`,
+                    // `rebuild`) and must keep its transitive optionals.
+                    exclude_optional: is_full_install
+                        && !dependency_groups.contains(&DependencyGroup::Optional),
+                    skip_runtimes,
+                    closure_lockfile: &built_lockfile,
+                    closure_root: lockfile_dir,
+                    closure_importer_ids: &closure_importer_ids,
+                    included,
+                },
+            )
+            .map_err(InstallWithFreshLockfileError::Installability)?;
 
         let final_materialization = initial_materialization_ids.as_ref().map(|importer_ids| {
             crate::materialization_closure(
@@ -1395,36 +1419,64 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // `modules_dir.parent()` rather than `lockfile_dir`.
         let symlink_root: &Path = config.modules_dir.parent().unwrap_or(lockfile_dir);
 
-        let linking::LinkPhaseOutput {
+        let project_manifests_for_link: Vec<(std::path::PathBuf, &PackageManifest)> =
+            importer_manifests
+                .iter()
+                .filter(|(id, _)| project_anchor_importer_ids.contains(id.as_str()))
+                .map(|(id, manifest)| (lockfile_dir.join(id), *manifest))
+                .collect();
+        let package_map_project_manifests: Vec<(std::path::PathBuf, &PackageManifest)> =
+            importer_manifests
+                .iter()
+                .map(|(id, manifest)| (lockfile_dir.join(id), *manifest))
+                .collect();
+        let root_component_importers: std::collections::HashSet<String> = importer_manifests
+            .iter()
+            .filter(|(id, _)| project_anchor_importer_ids.contains(id.as_str()))
+            .filter(|(_, manifest)| {
+                manifest.install_config_hoisting_limits()
+                    == Some(pacquet_deps_restorer::HOISTING_LIMITS_WORKSPACES)
+            })
+            .map(|(id, _)| id.clone())
+            .collect();
+
+        let pacquet_deps_restorer::linking::LinkPhaseOutput {
             hoisted_dependencies,
             hoisted_locations,
             hoisted_pkg_roots_by_key,
             publicly_hoisted_for_post_build,
-        } = linking::run_link_phase::<Reporter>(
-            linking::LinkPhaseInputs {
+        } = pacquet_deps_restorer::linking::run_link_phase::<Reporter>(
+            pacquet_deps_restorer::linking::LinkPhaseInputs {
+                symlink_root,
+                trusted_importer_ids: &project_anchor_importer_ids,
+                root_component_importers: &root_component_importers,
+                sidecar_lockfile: materialization_lockfile,
                 config,
                 layout: &layout,
-                materialization_lockfile,
+                lockfile: materialization_lockfile,
                 current_lockfile,
-                prior_hoisted_dependencies,
-                importer_manifests: &importer_manifests,
+                snapshots: materialization_lockfile.snapshots.as_ref(),
+                packages: materialization_lockfile.packages.as_ref(),
+                importers: &materialization_lockfile.importers,
+                project_manifests: &project_manifests_for_link,
+                package_map_project_manifests: &package_map_project_manifests,
                 dependency_groups: &dependency_groups,
-                project_anchor_importer_ids: &project_anchor_importer_ids,
-                materialization_importer_ids: &materialization_importer_ids,
-                lockfile_dir,
-                symlink_root,
                 package_manifests: &package_manifests,
                 cas_paths_by_pkg_id,
-                host_node: host_node.as_ref(),
-                supported_architectures,
                 extra_node_paths: &extra_node_paths,
-                logged_methods,
+                workspace_root: lockfile_dir,
                 requester,
+                node_linker,
                 is_hoisted,
                 prune_orphans,
+                prior_hoisted_dependencies,
+                host_node: host_node.as_ref(),
+                supported_architectures,
+                logged_methods,
             },
             &mut skipped,
-        )?;
+        )
+        .map_err(InstallWithFreshLockfileError::LinkPhase)?;
 
         // `importing_done` fires once extraction and symlink linking
         // are complete, before the build phase. Reporters use it to
@@ -1444,15 +1496,6 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             None => engine_name,
         };
 
-        linking::write_module_resolution_sidecars(
-            config,
-            node_linker,
-            materialization_lockfile,
-            &layout,
-            &importer_manifests,
-            &project_anchor_importer_ids,
-            lockfile_dir,
-        )?;
         let build_extra_env = build_extra_env(config, node_linker);
 
         // `CreateVirtualStore` keeps skipped snapshots out of this map, so
@@ -1515,7 +1558,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // install is complete and a missed cache write just forces a
         // re-fetch on the next install.
         drop(store_index_writer);
-        resolver_setup::drain_store_index_writer(writer_task, "; some rows may not be persisted")
+        pacquet_store_dir::StoreIndexWriter::drain(writer_task, "; some rows may not be persisted")
             .await;
 
         let injected_deps = crate::collect_injected_deps(
@@ -1780,7 +1823,8 @@ async fn finish_lockfile_only<Reporter: self::Reporter>(
     // Close the writer cleanly even though no rows were written,
     // mirroring the drain at the tail of the materializing path.
     drop(store_index_writer);
-    resolver_setup::drain_store_index_writer(writer_task, " during a lockfile-only install").await;
+    pacquet_store_dir::StoreIndexWriter::drain(writer_task, " during a lockfile-only install")
+        .await;
 
     Reporter::emit(&LogEvent::Stage(StageLog {
         level: LogLevel::Debug,

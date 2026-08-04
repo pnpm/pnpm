@@ -929,3 +929,51 @@ fn lifecycle_scripts_do_not_fail_on_repeat_hoisted_install() {
 
     drop((root, mock_instance));
 }
+
+/// A hoist pattern is inert under `nodeLinker: hoisted`. The isolated
+/// hoist writes symlinks into `<virtual_store>/node_modules`, and the
+/// hoisted linker builds no virtual store to point them at, so the plan
+/// is suppressed rather than producing links to nowhere.
+///
+/// Both paths must agree: the frozen path suppresses the plan by passing
+/// `is_hoisted` into `compute_hoist_plan`, while the fresh path only
+/// reaches that call inside its isolated branch. This pins the shared
+/// outcome so the two cannot drift apart.
+#[test]
+fn hoist_patterns_are_inert_under_the_hoisted_linker() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_manifest(&workspace, serde_json::json!({ "send": "0.17.2" }));
+    write_workspace_yaml(
+        &workspace,
+        "nodeLinker: hoisted\npublicHoistPattern:\n  - '*'\nhoistPattern:\n  - '*'\n",
+    );
+
+    let assert_no_isolated_hoist = |stage: &str| {
+        assert!(
+            is_real_dir(&workspace, "node_modules/send"),
+            "{stage}: the hoisted linker still lands real directories",
+        );
+        assert!(
+            !workspace.join("node_modules/.pnpm/node_modules").exists(),
+            "{stage}: no private-hoist dir, because there is no virtual store to hoist into",
+        );
+        let modules_yaml = fs::read_to_string(workspace.join("node_modules/.modules.yaml"))
+            .expect("read .modules.yaml");
+        assert!(
+            modules_yaml.contains(r#""hoistedDependencies": {}"#),
+            "{stage}: the isolated hoist recorded nothing; got:\n{modules_yaml}",
+        );
+    };
+
+    pacquet.with_args(["install"]).assert().success();
+    assert_no_isolated_hoist("fresh");
+
+    fs_remove_dir_all(&workspace.join("node_modules"));
+    pacquet_at(&workspace).with_arg("install").with_arg("--frozen-lockfile").assert().success();
+    assert_no_isolated_hoist("frozen");
+
+    drop((root, mock_instance));
+}
