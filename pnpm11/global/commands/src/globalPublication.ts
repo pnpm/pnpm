@@ -53,7 +53,7 @@ export async function publishGlobalInstall (
     await symlinkDir(opts.installDir, opts.hashLink, { overwrite: true })
   } catch (publicationError) {
     try {
-      await rollbackGlobalInstall({ ...opts, ...prepared })
+      await restoreGlobalInstall({ ...opts, ...prepared })
     } catch (rollbackError) {
       const rollbackMessage = getErrorMessage(rollbackError)
       throw new PnpmError(
@@ -64,6 +64,7 @@ export async function publishGlobalInstall (
         { cause: publicationError }
       )
     }
+    await cleanupFailedGlobalPublication({ ...opts, ...prepared }, publicationError)
     throw publicationError
   }
   await fs.promises.rm(prepared.backupDir, { recursive: true })
@@ -178,7 +179,8 @@ async function backupBinSlot (slot: SavedBinSlot): Promise<SavedBinSlot | undefi
     throw err
   }
   if (stat.isSymbolicLink()) {
-    await fs.promises.symlink(await fs.promises.readlink(slot.original), slot.backup)
+    const type = await getSymlinkType(slot.original)
+    await fs.promises.symlink(await fs.promises.readlink(slot.original), slot.backup, type)
     return slot
   }
   if (stat.isFile()) {
@@ -192,6 +194,11 @@ async function backupBinSlot (slot: SavedBinSlot): Promise<SavedBinSlot | undefi
   )
 }
 
+async function getSymlinkType (link: string): Promise<fs.symlink.Type | undefined> {
+  if (process.platform !== 'win32') return undefined
+  return (await fs.promises.stat(link)).isDirectory() ? 'dir' : 'file'
+}
+
 async function readHashTarget (hashLink: string): Promise<string | undefined> {
   try {
     return await fs.promises.realpath(hashLink)
@@ -201,7 +208,7 @@ async function readHashTarget (hashLink: string): Promise<string | undefined> {
   }
 }
 
-async function rollbackGlobalInstall (opts: PublishGlobalInstallOptions & PreparedGlobalInstall): Promise<void> {
+async function restoreGlobalInstall (opts: PublishGlobalInstallOptions & PreparedGlobalInstall): Promise<void> {
   for (const name of opts.actualBinNames) {
     // eslint-disable-next-line no-await-in-loop -- Rollback mutation must settle before the next step or return.
     await removeBin(path.join(opts.globalBinDir, name))
@@ -220,8 +227,48 @@ async function rollbackGlobalInstall (opts: PublishGlobalInstallOptions & Prepar
     )
     await symlinkDir(opts.oldHashTarget, canonicalHashLink, { overwrite: true })
   }
-  await fs.promises.rmdir(opts.backupDir)
-  await fs.promises.rm(opts.installDir, { recursive: true, force: true })
+}
+
+async function cleanupFailedGlobalPublication (
+  opts: PublishGlobalInstallOptions & PreparedGlobalInstall,
+  publicationError: unknown
+): Promise<void> {
+  const cleanupResults = await Promise.allSettled([
+    fs.promises.rmdir(opts.backupDir),
+    fs.promises.rm(opts.installDir, { recursive: true, force: true }),
+  ])
+  const cleanupErrors = cleanupResults.flatMap((result) => {
+    return result.status === 'rejected' ? [result.reason] : []
+  })
+  if (cleanupErrors.length === 0) return
+
+  const artifactPaths = [opts.backupDir, opts.installDir]
+  const artifactResults = await Promise.allSettled(artifactPaths.map(pathExists))
+  const remainingPaths = artifactResults.flatMap((result, index) => {
+    if (result.status === 'rejected') {
+      cleanupErrors.push(result.reason)
+      return []
+    }
+    return result.value ? [artifactPaths[index]] : []
+  })
+  const remainingMessage = remainingPaths.length === 0
+    ? ''
+    : ` Remaining artifacts: ${remainingPaths.join(', ')}.`
+  throw new AggregateError(
+    [publicationError, ...cleanupErrors],
+    `Failed to clean up after global bin publication failed.${remainingMessage}`,
+    { cause: publicationError }
+  )
+}
+
+async function pathExists (target: string): Promise<boolean> {
+  try {
+    await fs.promises.lstat(target)
+    return true
+  } catch (err) {
+    if (isErrorWithCode(err, 'ENOENT')) return false
+    throw err
+  }
 }
 
 function isErrorWithCode (err: unknown, code: string): boolean {
