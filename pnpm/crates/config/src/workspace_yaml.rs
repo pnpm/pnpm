@@ -17,7 +17,7 @@ use pipe_trait::Pipe;
 use serde::{Deserialize, Deserializer};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
-    fs,
+    fmt, fs,
     io::{self, ErrorKind},
     path::{Path, PathBuf},
 };
@@ -772,6 +772,59 @@ pub enum LoadWorkspaceYamlError {
     )]
     #[diagnostic(code(ERR_PNPM_CANNOT_RESOLVE_OVERRIDE_VERSION))]
     CannotResolveOverrideVersion { spec: String, dependency_name: String },
+}
+
+/// A workspace manifest's top-level keys, in the order the file lists them,
+/// with the values discarded.
+///
+/// Reading the keys separately from [`WorkspaceSettings`] is what makes
+/// reporting them possible at all: that struct is typed, so by the time it
+/// exists the keys it does not declare are already gone.
+struct TopLevelKeys(Vec<String>);
+
+impl<'de> Deserialize<'de> for TopLevelKeys {
+    fn deserialize<De: Deserializer<'de>>(deserializer: De) -> Result<Self, De::Error> {
+        struct KeyVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for KeyVisitor {
+            type Value = TopLevelKeys;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a workspace manifest mapping")
+            }
+
+            fn visit_map<Map: serde::de::MapAccess<'de>>(
+                self,
+                mut map: Map,
+            ) -> Result<Self::Value, Map::Error> {
+                let mut keys = Vec::new();
+                while let Some(key) = map.next_key::<String>()? {
+                    map.next_value::<serde::de::IgnoredAny>()?;
+                    keys.push(key);
+                }
+                Ok(TopLevelKeys(keys))
+            }
+        }
+
+        deserializer.deserialize_map(KeyVisitor)
+    }
+}
+
+#[must_use]
+pub fn skipped_project_settings(workspace_dir: &Path) -> Vec<String> {
+    let Ok(text) = fs::read_to_string(workspace_dir.join("pnpm-workspace.yaml")) else {
+        return Vec::new();
+    };
+    let Ok(TopLevelKeys(keys)) = serde_saphyr::from_str::<TopLevelKeys>(&text) else {
+        return Vec::new();
+    };
+    keys.into_iter()
+        .filter(|key| {
+            crate::config_types::is_project_manifest_skipped_setting(
+                &crate::naming_cases::to_camel_case(key),
+            )
+        })
+        .collect()
 }
 
 impl WorkspaceSettings {

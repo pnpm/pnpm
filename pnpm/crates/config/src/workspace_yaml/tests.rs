@@ -1809,3 +1809,59 @@ fn parses_save_settings_from_yaml_and_applies() {
     assert_eq!(global.save_peer, None);
     assert_eq!(global.save_catalog_name, None);
 }
+
+mod skipped_project_settings {
+    use crate::workspace_yaml::skipped_project_settings;
+    use tempfile::TempDir;
+
+    fn skipped_in(manifest: &str) -> Vec<String> {
+        let tmp = TempDir::new().unwrap();
+        std::fs::write(tmp.path().join("pnpm-workspace.yaml"), manifest).unwrap();
+        skipped_project_settings(tmp.path())
+    }
+
+    #[test]
+    fn reports_a_skipped_setting() {
+        assert_eq!(skipped_in("configDir: /tmp/attacker\n"), vec!["configDir".to_string()]);
+    }
+
+    #[test]
+    fn reports_a_kebab_case_spelling_too() {
+        assert_eq!(skipped_in("config-dir: /tmp/attacker\n"), vec!["config-dir".to_string()]);
+    }
+
+    /// A warning that fired on a setting the manifest owns would be worse than
+    /// no warning at all.
+    #[test]
+    fn leaves_the_settings_a_project_owns_alone() {
+        let manifest = concat!(
+            "packages:\n  - '.'\n",
+            "catalog:\n  react: ^19\n",
+            "storeDir: ~/store\n",
+            "cacheDir: ~/cache\n",
+            "nodeLinker: hoisted\n",
+            "onlyBuiltDependencies:\n  - esbuild\n",
+            "store-dir: ~/store\n",
+        );
+        assert!(skipped_in(manifest).is_empty(), "{:?}", skipped_in(manifest));
+    }
+
+    #[test]
+    fn reports_every_skipped_setting_it_finds() {
+        let found = skipped_in("configDir: /a\npnpmHomeDir: /b\npackages:\n  - '.'\n");
+        assert_eq!(found, vec!["configDir".to_string(), "pnpmHomeDir".to_string()]);
+    }
+
+    #[test]
+    fn says_nothing_without_a_manifest() {
+        let tmp = TempDir::new().unwrap();
+        assert!(skipped_project_settings(tmp.path()).is_empty());
+    }
+
+    /// The install path reports a broken manifest with far more context, so
+    /// this must not be the thing that speaks up about it.
+    #[test]
+    fn says_nothing_about_an_unparsable_manifest() {
+        assert!(skipped_in("configDir: [unclosed\n").is_empty());
+    }
+}

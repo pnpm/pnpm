@@ -483,8 +483,7 @@ pub fn is_config_file_key(kebab_key: &str) -> bool {
 }
 
 /// Settings a project's `pnpm-workspace.yaml` does not contribute, in
-/// camelCase. Mirrors `PROJECT_MANIFEST_SKIPPED_SETTINGS` in
-/// `@pnpm/config.reader`.
+/// camelCase. Mirrors the set of the same name in `@pnpm/config.reader`.
 ///
 /// Each names a location or a trusted value that is not the project's to
 /// choose. [`WorkspaceSettings`] declares none of them, so pacquet's reader
@@ -492,7 +491,7 @@ pub fn is_config_file_key(kebab_key: &str) -> bool {
 /// to write a setting that would then do nothing, and so the reader can say
 /// which keys it ignored.
 ///
-/// [`WorkspaceSettings`]: crate::workspace_yaml::WorkspaceSettings
+/// [`WorkspaceSettings`]: crate::WorkspaceSettings
 const PROJECT_MANIFEST_SKIPPED_SETTINGS: &[&str] = &[
     // What the machine keeps outside any project.
     "configDir",
@@ -521,9 +520,9 @@ fn project_manifest_skipped_settings() -> &'static HashSet<&'static str> {
     SET.get_or_init(|| PROJECT_MANIFEST_SKIPPED_SETTINGS.iter().copied().collect())
 }
 
-/// Whether a project's `pnpm-workspace.yaml` would ignore `camel_key`. Mirrors
-/// `isProjectManifestSkippedSetting`. See
-/// [`PROJECT_MANIFEST_SKIPPED_SETTINGS`].
+/// Whether a project's `pnpm-workspace.yaml` would ignore `camel_key`, which
+/// is true of every setting naming a location or a trusted value that is not
+/// the project's to choose. Mirrors `isProjectManifestSkippedSetting`.
 #[must_use]
 pub fn is_project_manifest_skipped_setting(camel_key: &str) -> bool {
     project_manifest_skipped_settings().contains(camel_key)

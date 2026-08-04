@@ -698,11 +698,11 @@ fn set_refuses_a_key_the_project_manifest_would_ignore() {
         assert_eq!(
             err.code().unwrap().to_string(),
             "ERR_PNPM_CONFIG_SET_SKIPPED_PROJECT_KEY",
-            "{key}"
+            "{key}",
         );
         assert!(
             !tmp.path().join("pnpm-workspace.yaml").exists(),
-            "{key} must not reach the manifest"
+            "{key} must not reach the manifest",
         );
     }
 }

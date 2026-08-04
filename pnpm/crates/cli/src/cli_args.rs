@@ -43,6 +43,7 @@ pub(crate) mod override_version_references;
 pub mod owner;
 pub mod pack;
 pub mod pack_app;
+pub(crate) mod skipped_project_settings;
 
 pub mod patch;
 pub mod patch_commit;
