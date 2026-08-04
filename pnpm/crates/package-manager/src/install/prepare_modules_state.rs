@@ -146,7 +146,7 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
                 std::fs::canonicalize(workspace_root),
             ) {
                 (Ok(modules_canon), Ok(root_canon)) => {
-                    (modules_canon.starts_with(&root_canon), Some(modules_canon))
+                    (is_safe_modules_purge_target(&modules_canon, &root_canon), Some(modules_canon))
                 }
                 _ => (false, None),
             }
@@ -398,3 +398,10 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
         lockfile_verification_override,
     }))
 }
+
+fn is_safe_modules_purge_target(modules_dir: &Path, workspace_root: &Path) -> bool {
+    modules_dir != workspace_root && modules_dir.starts_with(workspace_root)
+}
+
+#[cfg(test)]
+mod tests;
