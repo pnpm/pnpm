@@ -781,6 +781,27 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
     expect(config.packageManagerNetworkConfig?.strictSsl).toBeUndefined()
   })
 
+  test('the skips still apply when self-update resolves the config', async () => {
+    prepareEmpty()
+
+    const cliOptions = {}
+    const packageManager = { name: 'pnpm', version: '1.0.0' }
+    const workspaceDir = process.cwd()
+    const real = await getConfig({ cliOptions, packageManager, workspaceDir })
+
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      ...machineLocations,
+      minimumReleaseAge: 4320,
+    })
+
+    const { config } = await getConfig({ cliOptions, packageManager, workspaceDir, forSelfUpdate: true })
+
+    expect(config.configDir).toBe(real.config.configDir)
+    expect(config.pnpmHomeDir).toBe(real.config.pnpmHomeDir)
+    // The two skip sets combine; self-update does not trade one for the other.
+    expect(config.minimumReleaseAge).toBe(1440)
+  })
+
   test('a directory the project does own still comes from the manifest', async () => {
     prepareEmpty()
 
