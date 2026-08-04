@@ -251,7 +251,7 @@ where
                 Err(error)
                     if matches!(
                         error.kind(),
-                        io::ErrorKind::NotFound | io::ErrorKind::NotADirectory
+                        io::ErrorKind::NotFound | io::ErrorKind::NotADirectory,
                     ) =>
                 {
                     continue;

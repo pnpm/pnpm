@@ -7,15 +7,15 @@
 //! which needs both the linked tree and the hoisted package roots this
 //! reports.
 
-use crate::install_frozen_lockfile::{
-    HoistPlan, HoistedLinkerError, HoistedLinkerInputs, HoistedLinkerOutput,
-    collect_public_hoist_targets, compute_hoist_plan, run_hoisted_linker,
-    workspace_packages_for_hoist,
-};
 use crate::{
     CasPathsByPkgId, LinkVirtualStoreBins, PackageManifests, SkippedSnapshots,
-    SymlinkDirectDependencies, VirtualStoreLayout, link_direct_dep_bins_resolved,
-    link_root_component_members, symlink_hoisted_dependencies,
+    SymlinkDirectDependencies, VirtualStoreLayout,
+    install_frozen_lockfile::{
+        HoistPlan, HoistedLinkerError, HoistedLinkerInputs, HoistedLinkerOutput,
+        collect_public_hoist_targets, compute_hoist_plan, run_hoisted_linker,
+        workspace_packages_for_hoist,
+    },
+    link_direct_dep_bins_resolved, link_root_component_members, symlink_hoisted_dependencies,
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;

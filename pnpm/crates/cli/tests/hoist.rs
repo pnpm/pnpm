@@ -1470,7 +1470,7 @@ fn publicly_hoisted_workspace_package_bins_reach_the_root_bin_dir() {
     pacquet_in(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
     assert!(
         shim.exists(),
-        "frozen: the publicly hoisted workspace bin must be shimmed at {shim:?}"
+        "frozen: the publicly hoisted workspace bin must be shimmed at {shim:?}",
     );
 
     drop((root, mock_instance));
@@ -1522,7 +1522,7 @@ fn direct_dep_bin_wins_over_a_publicly_hoisted_workspace_package() {
         let shim = fs::read_to_string(workspace.join("node_modules/.bin/hello-world-js-bin"))
             .expect("read shim");
         assert!(
-            !shim.contains("packages/collide") && !shim.contains("packages\\\\collide"),
+            !shim.contains("packages/collide") && !shim.contains(r"packages\\collide"),
             "{stage}: the direct dependency must win over the hoisted workspace package:\n{shim}",
         );
     };
