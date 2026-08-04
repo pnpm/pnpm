@@ -57,20 +57,13 @@ pub struct ResolvedConfig {
     pub store_dir: String,
     pub cache_dir: String,
     pub virtual_store_dir_max_length: u32,
-    /// Whether the cascade turned the global virtual store on.
+    /// Whether the resolved configuration uses the global virtual store.
     pub enable_global_virtual_store: bool,
-    /// The shared virtual-store root (`<storeDir>/links` by default). Where
-    /// dependency directories live when `enableGlobalVirtualStore` is on.
+    /// Shared virtual-store root.
     pub global_virtual_store_dir: String,
-    /// The project-local virtual store (`<modules_dir>/.pnpm`).
+    /// Project-local virtual-store directory.
     pub virtual_store_dir: String,
-    /// The directory that holds the per-snapshot dependency directories for
-    /// this project: the shared root under `enableGlobalVirtualStore`, the
-    /// project-local `virtualStoreDir` otherwise. This is the value pnpm
-    /// records in `.modules.yaml`.
-    ///
-    /// Embedders that walk the virtual store should read this rather than
-    /// assuming the project-local path.
+    /// Virtual-store directory used by this configuration and recorded in `.modules.yaml`.
     pub effective_virtual_store_dir: String,
     pub network_concurrency: u32,
     pub max_sockets: Option<u32>,

@@ -37,20 +37,9 @@ pub struct ImportIndexedDirOpts {
     /// installed by a sibling pass must not be clobbered when the
     /// parent package is re-imported.
     pub keep_modules_dir: bool,
-    /// The target is content-addressed — its path is derived from a
-    /// hash of what goes in it, so a directory that already holds
-    /// every expected file already holds the *right* files.
+    /// Whether an occupied, complete target is equivalent to this import.
     ///
-    /// Set for the global virtual store, whose slots are shared by
-    /// every project on the machine and therefore by concurrent
-    /// pnpm processes. Two of them importing the same slot is normal,
-    /// not a conflict: whoever gets there first wins and the other
-    /// discards its staging copy, rather than tearing the live
-    /// directory down mid-import (which is what surfaces as
-    /// `Directory not empty` on the loser, and as a vanishing
-    /// directory to any process reading the slot).
-    ///
-    /// Mirrors `safeToSkip` in pnpm v11's `importIndexedDir.ts`.
+    /// Callers must ensure that the target path uniquely identifies its contents.
     pub safe_to_skip: bool,
 }
 
@@ -277,12 +266,7 @@ fn marker_file(cas_paths: &HashMap<String, PathBuf>) -> Option<&str> {
     cas_paths.keys().map(String::as_str).filter(|path| *path != crate::NEEDS_BUILD_MARKER).min()
 }
 
-/// Whether a failed `rename` onto a directory means "the destination is
-/// already occupied" rather than a real I/O fault.
-///
-/// Linux reports `ENOTEMPTY`, other unices `EEXIST`, and Windows `EPERM`
-/// (`ErrorKind::PermissionDenied`) for the same situation — the same three
-/// pnpm v11 checks for.
+// Supported platforms report an occupied directory with different error kinds.
 fn is_occupied_target(error: &io::Error) -> bool {
     matches!(
         error.kind(),
@@ -292,35 +276,8 @@ fn is_occupied_target(error: &io::Error) -> bool {
     )
 }
 
-/// Whether an occupied content-addressed slot is a *finished* import of the
-/// same package, so a competing importer can drop its staged copy instead of
-/// overwriting it.
-///
-/// Only the *names* are compared, never the bytes, and that is sufficient for two
-/// separate reasons.
-///
-/// The path is derived from a hash of the contents, so a *finished* directory
-/// at that path is by construction the wanted one. What makes "finished"
-/// decidable from names alone is the completion marker: [`populate_dir`] links
-/// every other file first and places the marker last, atomically, precisely so
-/// an interrupted import leaves a directory the next install recognises as
-/// incomplete. Since [`marker_file`] always names one of `cas_paths`, seeing
-/// every expected name already implies seeing the marker, and seeing the marker
-/// implies every other file was linked in full before it appeared — a
-/// half-written `copy` import cannot reach this state.
-///
-/// The marker is therefore also checked explicitly. That is redundant with the
-/// census today, and deliberately so: it states the invariant the census leans
-/// on, and keeps this correct if [`marker_file`] ever stops being drawn from
-/// `cas_paths`.
-///
-/// [`crate::NEEDS_BUILD_MARKER`] is excluded from the census. It is transient
-/// build state rather than package content: the force path adds it to
-/// `cas_paths` precisely because the slot still needs building, and a
-/// successful build then deletes it. Counting it would classify a *built* slot
-/// as incomplete — so an importer that staged while the marker still existed
-/// would fall through to the destructive swap and wipe the build output another
-/// process had just produced. [`marker_file`] leaves it out for the same reason.
+// The completion marker is placed last. Verify every package file in case a completed import was
+// later damaged. The needs-build marker is transient and does not identify package contents.
 fn is_complete_import(dir_path: &Path, cas_paths: &HashMap<String, PathBuf>) -> bool {
     marker_present(dir_path, cas_paths)
         && cas_paths
@@ -439,26 +396,9 @@ fn stage_and_swap<Reporter: self::Reporter>(
         Some(_) | None => false,
     };
 
-    // 3b. Content-addressed target: try to move the staged tree in
-    //     without removing what is already there. `rename` onto a
-    //     non-empty directory fails rather than clobbering it, which
-    //     is exactly the wanted outcome — the existing directory is
-    //     named after a hash of its contents, so a *finished* import
-    //     sitting there already holds the right files, and the
-    //     concurrent importer that got there first has won, and only the
-    //     staging copy is discarded. An unfinished one (no completion
-    //     marker yet) falls through to the repairing swap below.
-    //
-    //     Skipped when step 3 preserved a `node_modules/`: that copy is
-    //     the project's only one and the winner's slot does not have it,
-    //     so the swap below has to run to put it back.
-    //
-    //     This has to come before the destructive path below: under a
-    //     shared store the `remove_dir_all` there races with whoever
-    //     is still populating the directory (`Directory not empty`),
-    //     and momentarily unlinks a directory other processes are
-    //     reading through. Mirrors the `safeToSkip` branch of pnpm
-    //     v11's `importIndexedDir`.
+    // 3b. Keep a complete content-addressed target instead of removing a directory that another
+    //     importer may be populating or reading. When step 3 moved `node_modules/`, continue with
+    //     the swap so that it can be restored.
     if safe_to_skip && !nm_moved {
         match fs::rename(&stage, dir_path) {
             Ok(()) => return Ok(()),
@@ -466,8 +406,6 @@ fn stage_and_swap<Reporter: self::Reporter>(
                 let _ = fs::remove_dir_all(&stage);
                 return Ok(());
             }
-            // Anything else (including an occupied target whose contents are
-            // incomplete) falls through to the destructive swap, which repairs it.
             Err(_) => {}
         }
     }

@@ -104,7 +104,7 @@ export interface SharedEngineOptions {
   cacheDir?: string
 }
 
-/** One `packageExtensions` entry: dependency groups grafted onto a package. */
+/** Manifest fields to add to a matching package. */
 export interface PackageExtension {
   dependencies?: Record<string, string>
   optionalDependencies?: Record<string, string>
@@ -140,26 +140,13 @@ export interface InstallOptions extends SharedEngineOptions {
   preferOffline?: boolean
   offline?: boolean
   virtualStoreDirMaxLength?: number
-  /**
-   * Materialize packages under the shared `<storeDir>/links` tree instead of
-   * the project-local `node_modules/.pnpm`, so identical dependency subgraphs
-   * are linked rather than re-created per project.
-   */
+  /** Whether to use the shared global virtual store for dependency slots. */
   enableGlobalVirtualStore?: boolean
-  /** Pin the shared virtual-store root instead of deriving it from `storeDir`. */
+  /** Overrides the global virtual store directory. */
   globalVirtualStoreDir?: string
-  /**
-   * Declare dependencies a published package forgot to declare, keyed by
-   * `"<name>"` or `"<name>@<range>"`. Under `enableGlobalVirtualStore` this is
-   * the only way to satisfy such a phantom dependency: the package lives
-   * outside the project, so it can no longer reach whatever the project hoisted
-   * into its own `node_modules/.pnpm/node_modules`.
-   */
+  /** Manifest fields to add to packages selected by name or version range. */
   packageExtensions?: Record<string, PackageExtension>
-  /**
-   * `"<name>[@<range>]" -> <patch file path>`. Relative paths resolve against
-   * `dir`.
-   */
+  /** Patch paths keyed by package selector. Relative paths resolve from `dir`. */
   patchedDependencies?: Record<string, string>
   peersSuffixMaxLength?: number
   dedupePeerDependents?: boolean
@@ -415,21 +402,13 @@ export interface ResolvedConfig {
   storeDir: string
   cacheDir: string
   virtualStoreDirMaxLength: number
-  /** Whether the cascade turned the global virtual store on. */
+  /** Whether the resolved configuration uses the global virtual store. */
   enableGlobalVirtualStore: boolean
-  /** The shared virtual-store root (`<storeDir>/links` by default). */
+  /** Shared virtual-store root. */
   globalVirtualStoreDir: string
-  /** The project-local virtual store (`<modulesDir>/.pnpm`). */
+  /** Project-local virtual-store directory. */
   virtualStoreDir: string
-  /**
-   * The directory that holds the per-snapshot dependency directories for this
-   * project: the shared root under `enableGlobalVirtualStore`, the
-   * project-local `virtualStoreDir` otherwise. This is the value pnpm records
-   * in `.modules.yaml`.
-   *
-   * Embedders that walk the virtual store should read this rather than
-   * assuming the project-local path.
-   */
+  /** Virtual-store directory used by this configuration and recorded in `.modules.yaml`. */
   effectiveVirtualStoreDir: string
   networkConcurrency: number
   maxSockets?: number

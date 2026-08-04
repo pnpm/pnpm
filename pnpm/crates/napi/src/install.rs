@@ -90,19 +90,13 @@ pub struct InstallOptions {
     pub prefer_offline: Option<bool>,
     pub offline: Option<bool>,
     pub virtual_store_dir_max_length: Option<u32>,
-    /// `enableGlobalVirtualStore` — materialize packages under the shared
-    /// `<storeDir>/links` tree instead of the project-local
-    /// `node_modules/.pnpm`, so identical dependency subgraphs are linked
-    /// rather than re-created per project.
+    /// Whether to use the shared global virtual store for dependency slots.
     pub enable_global_virtual_store: Option<bool>,
-    /// `globalVirtualStoreDir` — pin the shared virtual-store root instead of
-    /// deriving it from `storeDir`.
+    /// Overrides the global virtual store directory.
     pub global_virtual_store_dir: Option<String>,
-    /// `packageExtensions` — `"<name>[@<range>]" -> { dependencies, peerDependencies, ... }`,
-    /// declaring dependencies a published package forgot to declare.
+    /// Manifest fields to add to packages selected by name or version range.
     pub package_extensions: Option<IndexMap<String, PackageExtensionInput>>,
-    /// `patchedDependencies` — `"<name>[@<range>]" -> <patch file path>`.
-    /// Relative paths resolve against `dir`.
+    /// Patch paths keyed by package selector. Relative paths resolve from `dir`.
     pub patched_dependencies: Option<IndexMap<String, String>>,
     pub peers_suffix_max_length: Option<u32>,
     pub dedupe_peer_dependents: Option<bool>,
@@ -185,20 +179,16 @@ pub struct NetworkConfigInput {
     pub user_agent: Option<String>,
 }
 
-/// One `packageExtensions` entry: the dependency groups to graft onto a
-/// package that under-declares them. Mirrors `PackageExtension` in
-/// `index.d.ts` and pnpm's `pnpm-workspace.yaml` shape.
+/// Manifest fields to add to a matching package.
 #[napi(object)]
 pub struct PackageExtensionInput {
     pub dependencies: Option<HashMap<String, String>>,
     pub optional_dependencies: Option<HashMap<String, String>>,
     pub peer_dependencies: Option<HashMap<String, String>>,
-    /// `peerDependenciesMeta` — per-peer flags, `optional` today.
     pub peer_dependencies_meta: Option<HashMap<String, PeerDependencyMetaInput>>,
 }
 
-/// One `peerDependenciesMeta` entry. Mirrors `PeerDependencyMeta` in
-/// `index.d.ts`.
+/// Metadata for a peer dependency.
 #[napi(object)]
 pub struct PeerDependencyMetaInput {
     pub optional: Option<bool>,
