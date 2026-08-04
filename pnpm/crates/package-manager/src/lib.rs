@@ -44,7 +44,7 @@ pub use minimum_release_age::MinimumReleaseAgeError;
 pub use optimistic_repeat_install::*;
 pub use overrides::*;
 pub use package_extender::*;
-pub use pacquet_deps_preparer::*;
+pub use pacquet_deps_restorer::*;
 pub use patch::*;
 pub use patch_commit::*;
 pub use prefetching_resolver::*;

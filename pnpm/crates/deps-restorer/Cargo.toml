@@ -1,5 +1,5 @@
 [package]
-name                  = "pacquet-deps-preparer"
+name                  = "pacquet-deps-restorer"
 version               = "0.0.1"
 publish               = false
 authors.workspace     = true

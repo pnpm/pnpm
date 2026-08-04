@@ -4196,7 +4196,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "pacquet-deps-preparer"
+name = "pacquet-deps-restorer"
 version = "0.0.1"
 dependencies = [
  "async-trait",
@@ -4808,7 +4808,7 @@ dependencies = [
  "pacquet-config-parse-overrides",
  "pacquet-crypto-hash",
  "pacquet-deps-path",
- "pacquet-deps-preparer",
+ "pacquet-deps-restorer",
  "pacquet-directory-fetcher",
  "pacquet-engine-runtime-bun-resolver",
  "pacquet-engine-runtime-deno-resolver",
