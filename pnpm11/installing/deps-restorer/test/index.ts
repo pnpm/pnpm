@@ -825,9 +825,11 @@ test('does not write the PnP loader when virtualStoreOnly skips linking', async 
     virtualStoreOnly: true,
   }))
 
-  // The virtual store is still populated; only the project-level
-  // artifacts are withheld, and the loader is one of them.
-  expect(fs.existsSync(path.join(prefix, 'node_modules/.pnpm'))).toBeTruthy()
+  // The virtual store is still populated — assert an extracted file, so
+  // the check cannot pass on a directory that was merely created.
+  expect(fs.existsSync(path.join(prefix, 'node_modules/.pnpm/rimraf@2.7.1/node_modules/rimraf/package.json')))
+    .toBeTruthy()
+  // Only the project-level artifacts are withheld, and the loader is one.
   expect(fs.existsSync(path.join(prefix, '.pnp.cjs'))).toBeFalsy()
 })
 

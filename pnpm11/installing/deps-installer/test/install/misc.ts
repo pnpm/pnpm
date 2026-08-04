@@ -209,6 +209,10 @@ test('does not write or inject the PnP loader when virtualStoreOnly skips linkin
     virtualStoreOnly: true,
   }))
 
+  // The dependency really reached the virtual store, so the assertions
+  // below are about a install that did the work, not one that bailed.
+  expect(fs.readdirSync(path.resolve('node_modules/.pnpm')).some((entry) => entry.startsWith('pkg@')))
+    .toBeTruthy()
   // virtualStoreOnly links no importers, so the loader would describe a
   // resolution the project cannot perform.
   expect(fs.existsSync(path.resolve('.pnp.cjs'))).toBeFalsy()
