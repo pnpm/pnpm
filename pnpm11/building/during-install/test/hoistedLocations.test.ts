@@ -6,7 +6,7 @@ import { expect, jest, test } from '@jest/globals'
 
 import type { DependenciesGraph } from '../lib/buildSequence.js'
 
-const hardLinkDir = jest.fn(async () => {})
+const hardLinkDir = jest.fn<(src: string, destDirs: string[]) => Promise<void>>(async () => {})
 const originalWorker = await import('@pnpm/worker')
 jest.unstable_mockModule('@pnpm/worker', () => ({
   ...originalWorker,
@@ -21,6 +21,14 @@ const { buildModules } = await import('../lib/index.js')
 // intermittent ERR_PNPM_ENOENT/ENOTEMPTY renames of `_tmp_*` under nodeLinker=hoisted.
 test('the hoisted locations passed to hardLinkDir are absolute', async () => {
   const lockfileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-hoisted-'))
+  try {
+    await runInstall(lockfileDir)
+  } finally {
+    fs.rmSync(lockfileDir, { recursive: true, force: true })
+  }
+})
+
+async function runInstall (lockfileDir: string): Promise<void> {
   const pkgDir = path.join(lockfileDir, 'node_modules/foo')
   fs.mkdirSync(pkgDir, { recursive: true })
   fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name: 'foo', version: '1.0.0' }))
@@ -59,9 +67,9 @@ test('the hoisted locations passed to hardLinkDir are absolute', async () => {
   })
 
   expect(hardLinkDir).toHaveBeenCalledTimes(1)
-  const destDirs = hardLinkDir.mock.calls[0][1] as unknown as string[]
+  const destDirs = hardLinkDir.mock.calls[0][1]
   expect(destDirs).toStrictEqual([path.join(lockfileDir, otherHoistedLocation)])
   for (const destDir of destDirs) {
     expect(path.isAbsolute(destDir)).toBe(true)
   }
-})
+}
