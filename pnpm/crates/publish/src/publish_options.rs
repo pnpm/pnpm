@@ -30,7 +30,8 @@ pub enum Access {
 }
 
 impl Access {
-    /// Parse the CLI / `publishConfig.access` value: only `public` /
+    /// Parse an `access` value from any of its sources — the `--access` flag,
+    /// the `access` setting, or `publishConfig.access`: only `public` /
     /// `restricted` are accepted, anything else is `None`.
     #[must_use]
     pub fn parse(value: &str) -> Option<Access> {
@@ -86,7 +87,8 @@ fn scope_of(name: &str) -> Option<&str> {
     (!scope.is_empty() && !slug.is_empty()).then_some(scope)
 }
 
-/// Resolve the access level: an explicit `--access` wins, else a valid
+/// Resolve the access level: the caller's already-resolved `explicit` value
+/// (the `--access` flag, else the `access` setting) wins, else a valid
 /// `publishConfig.access`, else `None`.
 #[must_use]
 pub fn resolve_access(explicit: Option<Access>, manifest: &Value) -> Option<Access> {

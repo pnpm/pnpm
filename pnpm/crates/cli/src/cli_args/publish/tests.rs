@@ -1,4 +1,6 @@
 use super::{PublishArgs, PublishFlags, run_publish_scripts};
+use crate::cli_args::{CliArgs, cli_command::CliCommand};
+use clap::Parser;
 use pacquet_config::Config;
 use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_publish::{Access, PublishNetwork};
@@ -14,6 +16,13 @@ fn publish_args() -> PublishArgs {
 
 fn publish_args_with(flags: PublishFlags) -> PublishArgs {
     PublishArgs { package: None, flags }
+}
+
+fn parsed_publish_flags(argv: &[&str]) -> PublishFlags {
+    match CliArgs::try_parse_from(argv).expect("parses").command {
+        CliCommand::Publish(publish) => publish.flags,
+        other => panic!("expected publish, got {other:?}"),
+    }
 }
 
 fn publish_flags() -> PublishFlags {
@@ -121,6 +130,19 @@ fn provenance_flag_outranks_a_configured_false() {
     let config = Config { provenance: Some(false), ..Default::default() };
     let args = publish_args_with(PublishFlags { provenance: true, ..publish_flags() });
     assert_eq!(args.publish_options(&config, None, false).provenance, Some(true));
+}
+
+#[test]
+fn provenance_pair_resolves_last_one_wins() {
+    assert!(parsed_publish_flags(&["pacquet", "publish", "--provenance"]).provenance);
+    assert!(parsed_publish_flags(&["pacquet", "publish", "--no-provenance"]).no_provenance);
+
+    // Both spellings in one argv must not error (pnpm forwards raw tokens);
+    // mutual `overrides_with` collapses them to the last-specified.
+    let last_off = parsed_publish_flags(&["pacquet", "publish", "--provenance", "--no-provenance"]);
+    assert!(last_off.no_provenance && !last_off.provenance, "--no-provenance wins when last");
+    let last_on = parsed_publish_flags(&["pacquet", "publish", "--no-provenance", "--provenance"]);
+    assert!(last_on.provenance && !last_on.no_provenance, "--provenance wins when last");
 }
 
 #[test]
