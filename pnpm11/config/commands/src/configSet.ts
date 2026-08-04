@@ -237,7 +237,11 @@ export class ConfigSetUnsupportedYamlConfigKeyError extends PnpmError {
   readonly key: string
   constructor (key: string) {
     super('CONFIG_SET_UNSUPPORTED_YAML_CONFIG_KEY', `The key ${JSON.stringify(key)} isn't supported by the global config.yaml file`, {
-      hint: 'Try setting them instead to the local pnpm-workspace.yaml file',
+      // A project manifest refuses the machine-level keys too, so pointing
+      // there would be a dead end for them.
+      hint: isProjectManifestSkippedSetting(camelCase(key))
+        ? 'pnpm takes this setting from the environment or the command line, not from a config file'
+        : 'Try setting them instead to the local pnpm-workspace.yaml file',
     })
     this.key = key
   }

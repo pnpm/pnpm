@@ -1052,3 +1052,22 @@ test('config delete removes a skipped key that a project manifest already has', 
 
   expect(readConfigFiles(configDir, tmp).localYaml).toEqual({ storeDir: '~/store' })
 })
+
+test('config set --global points machine-level keys at the environment, not the project manifest', async () => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  fs.mkdirSync(configDir, { recursive: true })
+
+  // The project manifest refuses these too, so the usual "put it in
+  // pnpm-workspace.yaml" hint would send the user in a circle.
+  await expect(config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    location: 'global',
+    authConfig: {},
+  }), ['set', 'config-dir', '/tmp/somewhere'])).rejects.toMatchObject({
+    code: 'ERR_PNPM_CONFIG_SET_UNSUPPORTED_YAML_CONFIG_KEY',
+    hint: expect.not.stringContaining('pnpm-workspace.yaml'),
+  })
+})
