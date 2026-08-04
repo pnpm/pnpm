@@ -329,14 +329,7 @@ fn run_project(options: RunProjectOptions<'_, '_>) -> miette::Result<ProjectExec
         }
         execution.has_command += 1;
         let start = Instant::now();
-        let ctx = RunContext {
-            manifest,
-            dir: root,
-            init_cwd,
-            config,
-            extra_env,
-            silent,
-        };
+        let ctx = RunContext { manifest, dir: root, init_cwd, config, extra_env, silent };
         let status = run_stages(&ctx, selected, script, args.script_args())?;
         let duration = start.elapsed().as_secs_f64() * 1e3;
 
