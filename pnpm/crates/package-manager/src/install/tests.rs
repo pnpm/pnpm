@@ -7558,7 +7558,7 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
     workspace_state::update_workspace_state(
         &project_root,
         &pacquet_workspace_state::WorkspaceState {
-            last_validated_timestamp: pacquet_testing_utils::fs::validate_existing_files(
+            last_validated_timestamp: pacquet_testing_utils::fs::backdate_existing_files(
                 &project_root,
             ),
             projects,
@@ -7683,7 +7683,7 @@ fn sync_fast_path_matches_optimistic_short_circuit() {
     workspace_state::update_workspace_state(
         &project_root,
         &pacquet_workspace_state::WorkspaceState {
-            last_validated_timestamp: pacquet_testing_utils::fs::validate_existing_files(
+            last_validated_timestamp: pacquet_testing_utils::fs::backdate_existing_files(
                 &project_root,
             ),
             projects,
@@ -7927,7 +7927,7 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
     workspace_state::update_workspace_state(
         &project_root,
         &pacquet_workspace_state::WorkspaceState {
-            last_validated_timestamp: pacquet_testing_utils::fs::validate_existing_files(
+            last_validated_timestamp: pacquet_testing_utils::fs::backdate_existing_files(
                 &project_root,
             ),
             projects,
@@ -8083,7 +8083,7 @@ async fn partial_install_disables_optimistic_short_circuit() {
     workspace_state::update_workspace_state(
         &project_root,
         &pacquet_workspace_state::WorkspaceState {
-            last_validated_timestamp: pacquet_testing_utils::fs::validate_existing_files(
+            last_validated_timestamp: pacquet_testing_utils::fs::backdate_existing_files(
                 &project_root,
             ),
             projects,
@@ -8231,7 +8231,7 @@ async fn optimistic_repeat_install_does_not_short_circuit_when_lockfile_missing(
     workspace_state::update_workspace_state(
         &project_root,
         &pacquet_workspace_state::WorkspaceState {
-            last_validated_timestamp: pacquet_testing_utils::fs::validate_existing_files(
+            last_validated_timestamp: pacquet_testing_utils::fs::backdate_existing_files(
                 &project_root,
             ),
             projects,

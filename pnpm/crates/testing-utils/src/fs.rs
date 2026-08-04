@@ -102,16 +102,20 @@ pub fn set_mtime_ms(path: &Path, ms: i64) {
         .unwrap_or_else(|error| panic!("set the mtime of {path:?}: {error}"));
 }
 
-/// Backdate everything currently under `root` and return the
-/// `lastValidatedTimestamp` a test should record for it. Files that already
-/// exist then read as validated, and anything written afterwards reads as
-/// modified, with no sleeping in between.
+/// Rewrite the mtime of every regular file under `root` to a point in the
+/// past, and return the `lastValidatedTimestamp` that matches it.
+///
+/// The rewrite and the returned timestamp are one contract: the value is only
+/// meaningful for a tree this call just backdated, which is why they are not
+/// separate functions. Record it as the workspace state's timestamp and the
+/// backdated files read as validated, while anything written afterwards reads
+/// as modified, with no sleeping in between.
 ///
 /// Both gaps are [`MTIME_STEP_MS`] wide. The returned value is derived from
 /// the newest mtime in the tree rather than from `SystemTime::now`, so it
 /// shares a clock with every file the freshness check compares it against.
 #[must_use]
-pub fn validate_existing_files(root: &Path) -> i64 {
+pub fn backdate_existing_files(root: &Path) -> i64 {
     // Only regular files: the freshness check stats manifests, lockfiles,
     // patches, and pnpmfiles, and `set_times` cannot open a directory.
     let files: Vec<_> = WalkDir::new(root)
