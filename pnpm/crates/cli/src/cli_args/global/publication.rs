@@ -1,0 +1,571 @@
+use derive_more::{Display, Error};
+use miette::{Context, Diagnostic, IntoDiagnostic};
+use pacquet_cmd_shim::{
+    FsCreateDirAll, FsEnsureExecutableBits, FsReadHead, FsReadToString, FsSetExecutable,
+    FsWalkFiles, FsWrite, Host, PackageBinSource, get_bins_from_package_manifest,
+    link_bins_of_packages_with_excludes, remove_bin,
+};
+use pacquet_fs::{read_symlink_dir, remove_symlink_dir};
+use std::{
+    collections::HashSet,
+    fs, io,
+    path::{Path, PathBuf},
+};
+use tempfile::TempDir;
+
+pub(super) trait FsPublishHashLink {
+    fn publish_hash_link(target: &Path, link: &Path) -> io::Result<()>;
+}
+
+pub(super) trait FsRename {
+    fn rename(source: &Path, target: &Path) -> io::Result<()>;
+}
+
+pub(super) trait FsArtifactProbe {
+    fn artifact_exists(path: &Path) -> io::Result<bool>;
+}
+
+impl FsPublishHashLink for Host {
+    fn publish_hash_link(target: &Path, link: &Path) -> io::Result<()> {
+        pacquet_fs::force_symlink_dir(target, link).map(|_| ())
+    }
+}
+
+impl FsRename for Host {
+    fn rename(source: &Path, target: &Path) -> io::Result<()> {
+        std::fs::rename(source, target)
+    }
+}
+
+impl FsArtifactProbe for Host {
+    fn artifact_exists(path: &Path) -> io::Result<bool> {
+        match fs::symlink_metadata(path) {
+            Ok(_) => Ok(true),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+            Err(error) => Err(error),
+        }
+    }
+}
+
+#[derive(Debug, Display, Error, Diagnostic)]
+enum GlobalPublicationError {
+    #[display(
+        "Cannot replace global bin slot at {}: expected a regular file or symbolic link",
+        path.display()
+    )]
+    #[diagnostic(code(ERR_PNPM_GLOBAL_BIN_UNSUPPORTED_TYPE))]
+    UnsupportedType { path: PathBuf },
+
+    #[display(
+        "Failed to restore global bins after publication failed. Recovery files remain at {}; the fresh install remains at {}. Rollback error: {rollback_error}",
+        backup_dir.display(),
+        install_dir.display()
+    )]
+    #[diagnostic(code(ERR_PNPM_GLOBAL_BIN_ROLLBACK_FAILED))]
+    RollbackFailed {
+        backup_dir: PathBuf,
+        install_dir: PathBuf,
+        rollback_error: String,
+        #[error(source)]
+        #[diagnostic_source]
+        publication_error: Box<dyn Diagnostic + Send + Sync>,
+    },
+
+    #[display("Failed to clean up after global bin publication failed.{remaining_artifacts}")]
+    RollbackCleanupFailed {
+        remaining_artifacts: String,
+        #[error(not(source))]
+        #[related]
+        cleanup_reports: Vec<RollbackArtifactCleanupError>,
+        #[error(source)]
+        #[diagnostic_source]
+        publication_error: Box<dyn Diagnostic + Send + Sync>,
+    },
+}
+
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display("{context}: {source}")]
+struct RollbackArtifactCleanupError {
+    context: String,
+    #[error(source)]
+    source: io::Error,
+}
+
+#[derive(Debug)]
+struct SavedBinSlot {
+    original: PathBuf,
+    backup: PathBuf,
+    kind: BinSlotKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BinSlotKind {
+    RegularFile,
+    FileSymlink,
+    DirectorySymlink,
+}
+
+#[derive(Debug)]
+struct PreparedGlobalInstall {
+    actual_bin_names: HashSet<String>,
+    backup_dir: TempDir,
+    saved_bin_slots: Vec<SavedBinSlot>,
+    old_hash_target: Option<PathBuf>,
+}
+
+pub(super) fn publish_global_install<Sys>(
+    install_dir: &Path,
+    hash_link: &Path,
+    global_bin_dir: &Path,
+    packages: &[PackageBinSource],
+    bins_to_skip: &HashSet<String>,
+) -> miette::Result<HashSet<String>>
+where
+    Sys: FsReadToString
+        + FsReadHead
+        + FsCreateDirAll
+        + FsWalkFiles
+        + FsWrite
+        + FsSetExecutable
+        + FsEnsureExecutableBits
+        + FsPublishHashLink
+        + FsRename
+        + FsArtifactProbe,
+{
+    let prepared = prepare_global_install::<Sys>(
+        install_dir,
+        hash_link,
+        global_bin_dir,
+        packages,
+        bins_to_skip,
+    )?;
+    let publication_result = publish_prepared_global_install::<Sys>(
+        install_dir,
+        hash_link,
+        global_bin_dir,
+        packages,
+        bins_to_skip,
+        &prepared.actual_bin_names,
+        &prepared.saved_bin_slots,
+    );
+    if let Err(publication_error) = publication_result {
+        if let Err(rollback_error) =
+            restore_global_install::<Sys>(hash_link, global_bin_dir, &prepared)
+        {
+            let backup_dir = prepared.backup_dir.path().to_path_buf();
+            let _ = prepared.backup_dir.keep();
+            return Err(GlobalPublicationError::RollbackFailed {
+                backup_dir,
+                install_dir: install_dir.to_path_buf(),
+                rollback_error: format!("{rollback_error:?}"),
+                publication_error: publication_error.into(),
+            }
+            .into());
+        }
+        let mut cleanup_errors = cleanup_rolled_back_global_install(install_dir, &prepared);
+        if !cleanup_errors.is_empty() {
+            let remaining_artifacts =
+                remaining_rollback_artifacts::<Sys>(install_dir, &prepared, &mut cleanup_errors);
+            let _ = prepared.backup_dir.keep();
+            return Err(GlobalPublicationError::RollbackCleanupFailed {
+                remaining_artifacts,
+                cleanup_reports: cleanup_errors,
+                publication_error: publication_error.into(),
+            }
+            .into());
+        }
+        return Err(publication_error);
+    }
+
+    let PreparedGlobalInstall { actual_bin_names, backup_dir, .. } = prepared;
+    let backup_path = backup_dir.path().to_path_buf();
+    backup_dir.close().into_diagnostic().wrap_err_with(|| {
+        format!("remove global bin backup directory at {}", backup_path.display())
+    })?;
+    Ok(actual_bin_names)
+}
+
+fn publish_prepared_global_install<Sys>(
+    install_dir: &Path,
+    hash_link: &Path,
+    global_bin_dir: &Path,
+    packages: &[PackageBinSource],
+    bins_to_skip: &HashSet<String>,
+    actual_bin_names: &HashSet<String>,
+    saved_bin_slots: &[SavedBinSlot],
+) -> miette::Result<()>
+where
+    Sys: FsReadToString
+        + FsReadHead
+        + FsCreateDirAll
+        + FsWalkFiles
+        + FsWrite
+        + FsSetExecutable
+        + FsEnsureExecutableBits
+        + FsPublishHashLink,
+{
+    remove_current_bin_slots(global_bin_dir, actual_bin_names, saved_bin_slots)?;
+    link_bins_of_packages_with_excludes::<Sys>(packages, global_bin_dir, bins_to_skip, &[])
+        .map_err(miette::Report::new)
+        .wrap_err("link global package bins")?;
+    Sys::publish_hash_link(install_dir, hash_link).into_diagnostic().wrap_err_with(|| {
+        format!("link the global package install directory at {}", hash_link.display())
+    })
+}
+
+fn restore_global_install<Sys>(
+    hash_link: &Path,
+    global_bin_dir: &Path,
+    prepared: &PreparedGlobalInstall,
+) -> miette::Result<()>
+where
+    Sys: FsPublishHashLink + FsRename,
+{
+    remove_current_bin_slots(
+        global_bin_dir,
+        &prepared.actual_bin_names,
+        &prepared.saved_bin_slots,
+    )?;
+    for saved_bin_slot in &prepared.saved_bin_slots {
+        Sys::rename(&saved_bin_slot.backup, &saved_bin_slot.original)
+            .into_diagnostic()
+            .wrap_err_with(|| {
+                format!(
+                    "restore global bin slot from {} to {}",
+                    saved_bin_slot.backup.display(),
+                    saved_bin_slot.original.display()
+                )
+            })?;
+    }
+    if let Some(old_hash_target) = &prepared.old_hash_target {
+        Sys::publish_hash_link(old_hash_target, hash_link).into_diagnostic().wrap_err_with(
+            || format!("restore global package hash link at {}", hash_link.display()),
+        )?;
+    } else {
+        match remove_symlink_dir(hash_link) {
+            Ok(()) => {}
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => {
+                return Err(error).into_diagnostic().wrap_err_with(|| {
+                    format!("remove global package hash link at {}", hash_link.display())
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
+fn cleanup_rolled_back_global_install(
+    install_dir: &Path,
+    prepared: &PreparedGlobalInstall,
+) -> Vec<RollbackArtifactCleanupError> {
+    let mut errors = Vec::new();
+    if let Err(error) = fs::remove_dir(prepared.backup_dir.path()) {
+        errors.push(RollbackArtifactCleanupError {
+            context: format!(
+                "remove global bin backup directory at {}",
+                prepared.backup_dir.path().display()
+            ),
+            source: error,
+        });
+    }
+    if let Err(error) = remove_dir_all_if_exists(install_dir) {
+        errors.push(RollbackArtifactCleanupError {
+            context: format!("remove fresh global install directory at {}", install_dir.display()),
+            source: error,
+        });
+    }
+    errors
+}
+
+fn remaining_rollback_artifacts<Sys: FsArtifactProbe>(
+    install_dir: &Path,
+    prepared: &PreparedGlobalInstall,
+    cleanup_reports: &mut Vec<RollbackArtifactCleanupError>,
+) -> String {
+    let mut artifacts = Vec::new();
+    for path in [prepared.backup_dir.path(), install_dir] {
+        match Sys::artifact_exists(path) {
+            Ok(true) => artifacts.push(path.display().to_string()),
+            Ok(false) => {}
+            Err(error) => cleanup_reports.push(RollbackArtifactCleanupError {
+                context: format!("inspect remaining rollback artifact at {}", path.display()),
+                source: error,
+            }),
+        }
+    }
+    if artifacts.is_empty() {
+        String::new()
+    } else {
+        format!(" Remaining artifacts: {}.", artifacts.join(", "))
+    }
+}
+
+fn remove_current_bin_slots(
+    global_bin_dir: &Path,
+    actual_bin_names: &HashSet<String>,
+    saved_bin_slots: &[SavedBinSlot],
+) -> miette::Result<()> {
+    for path in directory_symlink_slots(saved_bin_slots) {
+        let current_kind = match fs::symlink_metadata(path) {
+            Ok(metadata) => bin_slot_kind(&metadata),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => None,
+            Err(error) => {
+                return Err(error).into_diagnostic().wrap_err_with(|| {
+                    format!("read current global bin slot metadata from {}", path.display())
+                });
+            }
+        };
+        if needs_directory_symlink_removal(current_kind) {
+            match remove_symlink_dir(path) {
+                Ok(()) => {}
+                Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+                Err(error) => {
+                    return Err(error).into_diagnostic().wrap_err_with(|| {
+                        format!("remove directory-symlink global bin slot at {}", path.display())
+                    });
+                }
+            }
+        }
+    }
+    for name in actual_bin_names {
+        let bin_path = global_bin_dir.join(name);
+        remove_bin(&bin_path)
+            .into_diagnostic()
+            .wrap_err_with(|| format!("remove global bin at {}", bin_path.display()))?;
+    }
+    Ok(())
+}
+
+fn needs_directory_symlink_removal(current_kind: Option<BinSlotKind>) -> bool {
+    current_kind == Some(BinSlotKind::DirectorySymlink)
+}
+
+fn directory_symlink_slots(saved_bin_slots: &[SavedBinSlot]) -> Vec<&Path> {
+    saved_bin_slots
+        .iter()
+        .filter(|slot| slot.kind == BinSlotKind::DirectorySymlink)
+        .map(|slot| slot.original.as_path())
+        .collect()
+}
+
+fn prepare_global_install<Sys: FsWalkFiles>(
+    install_dir: &Path,
+    hash_link: &Path,
+    global_bin_dir: &Path,
+    packages: &[PackageBinSource],
+    bins_to_skip: &HashSet<String>,
+) -> miette::Result<PreparedGlobalInstall> {
+    let actual_bin_names = get_actual_bin_names::<Sys>(packages, bins_to_skip);
+    let backup_dir =
+        match tempfile::Builder::new().prefix(".pnpm-bin-backup-").tempdir_in(global_bin_dir) {
+            Ok(backup_dir) => backup_dir,
+            Err(error) => {
+                let report = io_error_report(
+                    error,
+                    format!("create global bin backup directory in {}", global_bin_dir.display()),
+                );
+                return cleanup_failed_preparation(install_dir, None, report);
+            }
+        };
+    let saved_bin_slots =
+        match backup_bin_slots(&actual_bin_names, backup_dir.path(), global_bin_dir) {
+            Ok(saved_bin_slots) => saved_bin_slots,
+            Err(error) => return cleanup_failed_preparation(install_dir, Some(backup_dir), error),
+        };
+    let old_hash_target = match read_hash_target(hash_link) {
+        Ok(old_hash_target) => old_hash_target,
+        Err(error) => return cleanup_failed_preparation(install_dir, Some(backup_dir), error),
+    };
+    Ok(PreparedGlobalInstall { actual_bin_names, backup_dir, saved_bin_slots, old_hash_target })
+}
+
+fn cleanup_failed_preparation<T>(
+    install_dir: &Path,
+    backup_dir: Option<TempDir>,
+    preparation_error: miette::Report,
+) -> miette::Result<T> {
+    let mut cleanup_errors = Vec::new();
+    if let Some(backup_dir) = backup_dir {
+        let backup_path = backup_dir.path().to_path_buf();
+        if let Err(error) = backup_dir.close() {
+            cleanup_errors.push(format!(
+                "remove global bin backup directory at {}: {error}",
+                backup_path.display()
+            ));
+        }
+    }
+    if let Err(error) = remove_dir_all_if_exists(install_dir) {
+        cleanup_errors.push(format!(
+            "remove fresh global install directory at {}: {error}",
+            install_dir.display()
+        ));
+    }
+    if cleanup_errors.is_empty() {
+        return Err(preparation_error);
+    }
+    Err(preparation_error.wrap_err(format!(
+        "Failed to clean up after global bin publication preparation failed: {}",
+        cleanup_errors.join("; ")
+    )))
+}
+
+fn io_error_report(error: io::Error, context: String) -> miette::Report {
+    match Err::<(), _>(error).into_diagnostic().wrap_err(context) {
+        Err(report) => report,
+        Ok(()) => unreachable!("an explicitly constructed error cannot become Ok"),
+    }
+}
+
+fn remove_dir_all_if_exists(path: &Path) -> io::Result<()> {
+    match fs::remove_dir_all(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
+    }
+}
+
+fn get_actual_bin_names<Sys: FsWalkFiles>(
+    packages: &[PackageBinSource],
+    bins_to_skip: &HashSet<String>,
+) -> HashSet<String> {
+    packages
+        .iter()
+        .flat_map(|package| {
+            get_bins_from_package_manifest::<Sys>(&package.manifest, &package.location)
+        })
+        .map(|command| command.name)
+        .filter(|name| !bins_to_skip.contains(name))
+        .collect()
+}
+
+fn backup_bin_slots(
+    actual_bin_names: &HashSet<String>,
+    backup_dir: &Path,
+    global_bin_dir: &Path,
+) -> miette::Result<Vec<SavedBinSlot>> {
+    let extensions: &[&str] = if cfg!(windows) { &["", ".cmd", ".ps1", ".exe"] } else { &[""] };
+    let mut saved_bin_slots = Vec::new();
+    for (index, original) in actual_bin_names
+        .iter()
+        .flat_map(|name| {
+            extensions
+                .iter()
+                .map(move |extension| global_bin_dir.join(format!("{name}{extension}")))
+        })
+        .enumerate()
+    {
+        let backup = backup_dir.join(index.to_string());
+        if let Some(saved_bin_slot) = backup_bin_slot(original, backup)? {
+            saved_bin_slots.push(saved_bin_slot);
+        }
+    }
+    Ok(saved_bin_slots)
+}
+
+fn backup_bin_slot(original: PathBuf, backup: PathBuf) -> miette::Result<Option<SavedBinSlot>> {
+    let metadata = match fs::symlink_metadata(&original) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => {
+            return Err(error).into_diagnostic().wrap_err_with(|| {
+                format!("read global bin slot metadata from {}", original.display())
+            });
+        }
+    };
+    let kind = bin_slot_kind(&metadata)
+        .ok_or_else(|| GlobalPublicationError::UnsupportedType { path: original.clone() })?;
+    match kind {
+        BinSlotKind::FileSymlink | BinSlotKind::DirectorySymlink => {
+            backup_symlink(&original, &backup, kind).into_diagnostic().wrap_err_with(|| {
+                format!("back up global bin symlink at {}", original.display())
+            })?;
+        }
+        BinSlotKind::RegularFile => backup_regular_file(&original, &backup, metadata.permissions())
+            .into_diagnostic()
+            .wrap_err_with(|| format!("back up global bin file at {}", original.display()))?,
+    }
+    Ok(Some(SavedBinSlot { original, backup, kind }))
+}
+
+fn backup_regular_file(
+    original: &Path,
+    backup: &Path,
+    permissions: fs::Permissions,
+) -> io::Result<()> {
+    if reflink_copy::reflink(original, backup).is_err() {
+        match fs::remove_file(backup) {
+            Ok(()) => {}
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error),
+        }
+        fs::copy(original, backup)?;
+    }
+    fs::set_permissions(backup, permissions)
+}
+
+#[cfg(unix)]
+fn bin_slot_kind(metadata: &fs::Metadata) -> Option<BinSlotKind> {
+    if metadata.file_type().is_symlink() {
+        Some(BinSlotKind::FileSymlink)
+    } else if metadata.is_file() {
+        Some(BinSlotKind::RegularFile)
+    } else {
+        None
+    }
+}
+
+#[cfg(windows)]
+fn bin_slot_kind(metadata: &fs::Metadata) -> Option<BinSlotKind> {
+    use std::os::windows::fs::FileTypeExt;
+    let file_type = metadata.file_type();
+    if file_type.is_symlink_file() {
+        Some(BinSlotKind::FileSymlink)
+    } else if file_type.is_symlink_dir() {
+        Some(BinSlotKind::DirectorySymlink)
+    } else if metadata.is_file() {
+        Some(BinSlotKind::RegularFile)
+    } else {
+        None
+    }
+}
+
+#[cfg(not(any(unix, windows)))]
+fn bin_slot_kind(metadata: &fs::Metadata) -> Option<BinSlotKind> {
+    metadata.is_file().then_some(BinSlotKind::RegularFile)
+}
+
+#[cfg(unix)]
+fn backup_symlink(original: &Path, backup: &Path, _kind: BinSlotKind) -> io::Result<()> {
+    std::os::unix::fs::symlink(fs::read_link(original)?, backup)
+}
+
+#[cfg(windows)]
+fn backup_symlink(original: &Path, backup: &Path, kind: BinSlotKind) -> io::Result<()> {
+    use std::os::windows::fs::{symlink_dir, symlink_file};
+    let target = fs::read_link(original)?;
+    match kind {
+        BinSlotKind::FileSymlink => symlink_file(target, backup),
+        BinSlotKind::DirectorySymlink => symlink_dir(target, backup),
+        BinSlotKind::RegularFile => Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "regular files cannot be backed up as symlinks",
+        )),
+    }
+}
+
+fn read_hash_target(hash_link: &Path) -> miette::Result<Option<PathBuf>> {
+    match read_symlink_dir(hash_link) {
+        Ok(target) if target.is_absolute() => Ok(Some(target)),
+        Ok(target) => Ok(Some(
+            hash_link.parent().map_or_else(|| target.clone(), |parent| parent.join(&target)),
+        )),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error).into_diagnostic().wrap_err_with(|| {
+            format!("read existing global package hash link at {}", hash_link.display())
+        }),
+    }
+}
+
+#[cfg(test)]
+mod tests;

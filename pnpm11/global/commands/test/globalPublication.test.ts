@@ -16,12 +16,24 @@ let testRoot: string | undefined
 let linkFailure: { afterWrites: number, error: Error } | undefined
 let publicationLinkFailure: Error | undefined
 let restorationLinkFailure: Error | undefined
+let freshCleanupFailure: { path: string, error: Error } | undefined
+let obstructBackupCleanup = false
 let skipMissingBinSources = false
 let symlinkCallCount = 0
 const linkedBinNames: string[] = []
 const publicationBackupFileContents: Buffer[] = []
 const getHashLink = jest.fn((globalDir: string, hash: string) => path.join(globalDir, hash))
 const getInstalledBinNames = jest.fn<(pkg: GlobalPackageInfo) => Promise<string[]>>()
+const realRm = fs.rm.bind(fs)
+
+jest.spyOn(fs, 'rm').mockImplementation(async (target, options) => {
+  const failure = freshCleanupFailure
+  if (failure != null && path.resolve(String(target)) === failure.path) {
+    freshCleanupFailure = undefined
+    throw failure.error
+  }
+  await realRm(target, options)
+})
 
 const linkBinsOfPackages = jest.fn<LinkBinsOfPackages>(async (pkgs, globalBinDir, opts = {}) => {
   const commands = (await Promise.all(pkgs.map(async ({ manifest, location }) => {
@@ -64,6 +76,11 @@ const symlinkDir = jest.fn<SymlinkDir>(async (target, linkPath) => {
     if (testRoot == null) throw new Error('Expected a publication fixture before linking the hash directory')
     const backupDirs = await findBackupDirs(testRoot)
     publicationBackupFileContents.push(...(await Promise.all(backupDirs.map(readRegularFileContents))).flat())
+    if (obstructBackupCleanup) {
+      const [backupDir] = backupDirs
+      if (backupDir == null) throw new Error('Expected a global bin backup directory')
+      await fs.writeFile(path.join(backupDir, 'cleanup-obstruction'), 'keep backup directory non-empty\n')
+    }
   }
   if (symlinkCallCount === 2 && restorationLinkFailure != null) {
     throw restorationLinkFailure
@@ -85,12 +102,14 @@ const { cleanupReplacedGlobalInstalls, publishGlobalInstall } = await import('..
 afterEach(async () => {
   const root = testRoot
   testRoot = undefined
+  freshCleanupFailure = undefined
   try {
     if (root != null) await fs.rm(root, { force: true, recursive: true })
   } finally {
     linkFailure = undefined
     publicationLinkFailure = undefined
     restorationLinkFailure = undefined
+    obstructBackupCleanup = false
     skipMissingBinSources = false
     symlinkCallCount = 0
     linkedBinNames.length = 0
@@ -240,6 +259,200 @@ test('keeps recovery artifacts when rollback fails', async () => {
   expect(existsSync(backupDirs[0])).toBe(true)
   expect(existsSync(fixture.freshInstallDir)).toBe(true)
   expect(symlinkDir).toHaveBeenCalledTimes(2)
+})
+
+test('preserves Windows file and directory symlink kinds with relative targets', async () => {
+  const platform = Object.getOwnPropertyDescriptor(process, 'platform')
+  if (platform == null) throw new Error('Expected process.platform to be an own property')
+  Object.defineProperty(process, 'platform', { ...platform, value: 'win32' })
+  const realSymlink = fs.symlink.bind(fs)
+  const backupSymlinkTypes: Array<string | null | undefined> = []
+  const symlink = jest.spyOn(fs, 'symlink').mockImplementation(async (target, linkPath, type) => {
+    if (String(linkPath).includes(`${path.sep}.pnpm-bin-backup-`)) {
+      backupSymlinkTypes.push(type)
+    }
+    await realSymlink(target, linkPath, type)
+  })
+  try {
+    const manifest: DependencyManifest = {
+      name: 'replacement',
+      version: '2.0.0',
+      bin: {
+        'file-link': 'bin/file-link.js',
+        'dir-link': 'bin/dir-link.js',
+      },
+    }
+    const fixture = await createFixture(manifest)
+    const fileTarget = path.join('..', 'old-install', 'file-target.js')
+    const dirTarget = path.join('..', 'old-install', 'dir-target')
+    await fs.writeFile(path.join(fixture.oldInstallDir, 'file-target.js'), 'old file target\n')
+    await fs.mkdir(path.join(fixture.oldInstallDir, 'dir-target'))
+    const fileLink = path.join(fixture.globalBinDir, 'file-link')
+    const dirLink = path.join(fixture.globalBinDir, 'dir-link')
+    await fs.symlink(fileTarget, fileLink, 'file')
+    await fs.symlink(dirTarget, dirLink, 'dir')
+    const publicationError = new Error('hash-link publication failed')
+    publicationLinkFailure = publicationError
+
+    await expect(publishGlobalInstall({
+      installDir: fixture.freshInstallDir,
+      hashLink: fixture.hashLink,
+      globalBinDir: fixture.globalBinDir,
+      pkgs: [{ manifest, location: fixture.packageDir }],
+      binsToSkip: new Set(),
+    })).rejects.toBe(publicationError)
+
+    expect(backupSymlinkTypes).toHaveLength(2)
+    expect(new Set(backupSymlinkTypes)).toStrictEqual(new Set(['file', 'dir']))
+    expect(await fs.readlink(fileLink)).toBe(fileTarget)
+    expect(await fs.readlink(dirLink)).toBe(dirTarget)
+    expect((await fs.stat(fileLink)).isFile()).toBe(true)
+    expect((await fs.stat(dirLink)).isDirectory()).toBe(true)
+  } finally {
+    symlink.mockRestore()
+    Object.defineProperty(process, 'platform', platform)
+  }
+})
+
+test('reports fresh-install cleanup failure without claiming a core rollback failure', async () => {
+  const manifest: DependencyManifest = {
+    name: 'replacement',
+    version: '2.0.0',
+    bin: {
+      replacement: 'bin/replacement.js',
+    },
+  }
+  const fixture = await createFixture(manifest)
+  const replacementSlot = path.join(fixture.globalBinDir, 'replacement')
+  await fs.writeFile(replacementSlot, 'old replacement\n')
+  const replacementBefore = await readSlotState(replacementSlot)
+  const publicationError = new Error('hash-link publication failed')
+  const cleanupError = new Error('fresh-install cleanup failed')
+  publicationLinkFailure = publicationError
+  freshCleanupFailure = { path: fixture.freshInstallDir, error: cleanupError }
+
+  let thrown: unknown
+  try {
+    await publishGlobalInstall({
+      installDir: fixture.freshInstallDir,
+      hashLink: fixture.hashLink,
+      globalBinDir: fixture.globalBinDir,
+      pkgs: [{ manifest, location: fixture.packageDir }],
+      binsToSkip: new Set(),
+    })
+  } catch (err) {
+    thrown = err
+  }
+
+  expect(util.types.isNativeError(thrown)).toBe(true)
+  if (!util.types.isNativeError(thrown) || !('errors' in thrown) || !Array.isArray(thrown.errors)) {
+    throw new Error('Expected an aggregate cleanup error')
+  }
+  expect(thrown.name).toBe('AggregateError')
+  expect('code' in thrown ? thrown.code : undefined).toBeUndefined()
+  expect(thrown.cause).toBe(publicationError)
+  expect(thrown.errors).toEqual(expect.arrayContaining([publicationError, cleanupError]))
+  expect(thrown.message).toContain(fixture.freshInstallDir)
+  expect(await readSlotState(replacementSlot)).toStrictEqual(replacementBefore)
+  expect(await fs.realpath(fixture.hashLink)).toBe(await fs.realpath(fixture.oldInstallDir))
+  expect(await findBackupDirs(fixture.root)).toStrictEqual([])
+  expect(existsSync(fixture.freshInstallDir)).toBe(true)
+})
+
+test('reports backup cleanup failure after restoring bins and removes the fresh install', async () => {
+  const manifest: DependencyManifest = {
+    name: 'replacement',
+    version: '2.0.0',
+    bin: {
+      replacement: 'bin/replacement.js',
+    },
+  }
+  const fixture = await createFixture(manifest)
+  const replacementSlot = path.join(fixture.globalBinDir, 'replacement')
+  await fs.writeFile(replacementSlot, 'old replacement\n')
+  const replacementBefore = await readSlotState(replacementSlot)
+  const publicationError = new Error('hash-link publication failed')
+  publicationLinkFailure = publicationError
+  obstructBackupCleanup = true
+
+  let thrown: unknown
+  try {
+    await publishGlobalInstall({
+      installDir: fixture.freshInstallDir,
+      hashLink: fixture.hashLink,
+      globalBinDir: fixture.globalBinDir,
+      pkgs: [{ manifest, location: fixture.packageDir }],
+      binsToSkip: new Set(),
+    })
+  } catch (err) {
+    thrown = err
+  }
+
+  expect(util.types.isNativeError(thrown)).toBe(true)
+  if (!util.types.isNativeError(thrown) || !('errors' in thrown) || !Array.isArray(thrown.errors)) {
+    throw new Error('Expected an aggregate cleanup error')
+  }
+  expect(thrown.name).toBe('AggregateError')
+  expect('code' in thrown ? thrown.code : undefined).toBeUndefined()
+  expect(thrown.cause).toBe(publicationError)
+  expect(thrown.errors).toContain(publicationError)
+  const backupDirs = await findBackupDirs(fixture.root)
+  expect(backupDirs).toHaveLength(1)
+  expect(thrown.message).toContain(backupDirs[0])
+  expect(await readSlotState(replacementSlot)).toStrictEqual(replacementBefore)
+  expect(await fs.realpath(fixture.hashLink)).toBe(await fs.realpath(fixture.oldInstallDir))
+  expect(existsSync(backupDirs[0])).toBe(true)
+  expect(existsSync(fixture.freshInstallDir)).toBe(false)
+})
+
+test('preserves both cleanup errors when backup and fresh-install cleanup fail', async () => {
+  const manifest: DependencyManifest = {
+    name: 'replacement',
+    version: '2.0.0',
+    bin: {
+      replacement: 'bin/replacement.js',
+    },
+  }
+  const fixture = await createFixture(manifest)
+  const replacementSlot = path.join(fixture.globalBinDir, 'replacement')
+  await fs.writeFile(replacementSlot, 'old replacement\n')
+  const publicationError = new Error('hash-link publication failed')
+  const freshCleanupError = new Error('fresh-install cleanup failed')
+  publicationLinkFailure = publicationError
+  obstructBackupCleanup = true
+  freshCleanupFailure = { path: fixture.freshInstallDir, error: freshCleanupError }
+
+  let thrown: unknown
+  try {
+    await publishGlobalInstall({
+      installDir: fixture.freshInstallDir,
+      hashLink: fixture.hashLink,
+      globalBinDir: fixture.globalBinDir,
+      pkgs: [{ manifest, location: fixture.packageDir }],
+      binsToSkip: new Set(),
+    })
+  } catch (err) {
+    thrown = err
+  }
+
+  expect(util.types.isNativeError(thrown)).toBe(true)
+  if (!util.types.isNativeError(thrown) || !('errors' in thrown) || !Array.isArray(thrown.errors)) {
+    throw new Error('Expected an aggregate cleanup error')
+  }
+  expect(thrown.name).toBe('AggregateError')
+  expect(thrown.errors).toHaveLength(3)
+  expect(thrown.errors).toEqual(expect.arrayContaining([publicationError, freshCleanupError]))
+  const backupCleanupErrors = thrown.errors.filter((error) => {
+    return error !== publicationError && error !== freshCleanupError
+  })
+  expect(backupCleanupErrors).toHaveLength(1)
+  expect(util.types.isNativeError(backupCleanupErrors[0])).toBe(true)
+  const backupDirs = await findBackupDirs(fixture.root)
+  expect(backupDirs).toHaveLength(1)
+  expect(thrown.message).toContain(backupDirs[0])
+  expect(thrown.message).toContain(fixture.freshInstallDir)
+  expect(existsSync(backupDirs[0])).toBe(true)
+  expect(existsSync(fixture.freshInstallDir)).toBe(true)
 })
 
 test('removes an old bin slot when the linker skips a missing source', async () => {
