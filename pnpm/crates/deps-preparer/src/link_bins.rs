@@ -683,7 +683,7 @@ fn pkg_dir_under(modules_dir: &Path, name: &PkgName) -> PathBuf {
 
 /// Fallback (non-lockfile) path: enumerate slots via `read_dir`,
 /// then walk each slot's `node_modules` to discover children. Used
-/// only by [`crate::InstallWithFreshLockfile`] today; the lockfile
+/// only by the fresh-lockfile installer today; the lockfile
 /// path bypasses every directory enumeration in here.
 fn run_with_readdir<Sys>(
     virtual_store_dir: &Path,
