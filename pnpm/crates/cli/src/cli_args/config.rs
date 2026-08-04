@@ -140,15 +140,16 @@ pub enum ConfigError {
     SetUnsupportedIniConfigKey { key: String, camel: String },
 
     #[display("The key {key:?} isn't supported by the workspace manifest")]
-    #[diagnostic(code(ERR_PNPM_CONFIG_SET_UNSUPPORTED_WORKSPACE_KEY), help("Try {camel:?}"))]
-    SetUnsupportedWorkspaceKey { key: String, camel: String },
+    #[diagnostic(code(ERR_PNPM_CONFIG_SET_UNSUPPORTED_WORKSPACE_KEY), help("{hint}"))]
+    SetUnsupportedWorkspaceKey { key: String, hint: String },
 
     #[display("The key {key:?} isn't supported by the global config.yaml file")]
-    #[diagnostic(
-        code(ERR_PNPM_CONFIG_SET_UNSUPPORTED_YAML_CONFIG_KEY),
-        help("Try setting them instead to the local pnpm-workspace.yaml file")
-    )]
-    SetUnsupportedYamlConfigKey { key: String },
+    #[diagnostic(code(ERR_PNPM_CONFIG_SET_UNSUPPORTED_YAML_CONFIG_KEY), help("{hint}"))]
+    SetUnsupportedYamlConfigKey { key: String, hint: String },
+
+    #[display("The key {key:?} isn't supported by a project's workspace manifest")]
+    #[diagnostic(code(ERR_PNPM_CONFIG_SET_SKIPPED_PROJECT_KEY), help("{hint}"))]
+    SetSkippedProjectKey { key: String, hint: String },
 
     #[display("Invalid property path: {_0}")]
     #[diagnostic(code(ERR_PNPM_CONFIG_INVALID_PROPERTY_PATH))]
@@ -281,9 +282,33 @@ fn config_set(
             if config_file_name == GLOBAL_CONFIG_YAML_FILENAME {
                 key = validate_yaml_config_key(&key)?;
             }
-            key = validate_workspace_key(&key)?;
-            let cast = cast_field(value, &naming_cases::to_kebab_case(&key));
-            update_manifest_field(&config_path, &key, &cast).map_err(miette::Report::new)?;
+            let written_key = validate_workspace_key(&key)?;
+            // `pnpm config delete` arrives here with a null value. Deleting one
+            // of these is the fix for a manifest that already has it, so only
+            // writing is refused.
+            if !value.is_null()
+                && config_file_name == WORKSPACE_MANIFEST_FILENAME
+                && config_types::is_project_manifest_skipped_setting(&written_key)
+            {
+                return Err(ConfigError::SetSkippedProjectKey {
+                    hint: where_refused_key_belongs(&written_key),
+                    key: written_key,
+                }
+                .into());
+            }
+            let deleting = value.is_null();
+            let cast = cast_field(value, &naming_cases::to_kebab_case(&written_key));
+            update_manifest_field(&config_path, &written_key, &cast)
+                .map_err(miette::Report::new)?;
+            // pnpm always writes the normalized spelling, but a hand-edited
+            // file may carry another one — and for a project manifest that is
+            // the spelling the reader names when it reports the setting as
+            // ignored. Remove both, so the remedy the warning implies actually
+            // clears the file.
+            if deleting && key != written_key {
+                update_manifest_field(&config_path, &key, &Value::Null)
+                    .map_err(miette::Report::new)?;
+            }
         }
         _ => {
             // INI file reached via `getConfigFileInfo` (auth/scoped/registry key
@@ -426,12 +451,52 @@ fn validate_workspace_key(key: &str) -> Result<String, ConfigError> {
         return Ok(naming_cases::to_camel_case(key));
     }
     if !naming_cases::is_camel_case(key) {
+        let camel = naming_cases::to_camel_case(key);
         return Err(ConfigError::SetUnsupportedWorkspaceKey {
             key: key.to_string(),
-            camel: naming_cases::to_camel_case(key),
+            hint: hint_for_refused_key(key, format!("Try {camel:?}")),
         });
     }
     Ok(key.to_string())
+}
+
+/// The key to name in a suggestion, for settings whose own name the global
+/// config file accepts but never reads back.
+///
+/// `userconfig` is one: the reader takes the user-level `.npmrc` from
+/// `npmrcAuthFile`, or from the `--userconfig` flag, and never from the config
+/// file's `userconfig`. Suggesting it would send the user to a command that
+/// succeeds and changes nothing.
+fn global_equivalent_key(camel_key: &str) -> Option<&'static str> {
+    match camel_key {
+        "userconfig" => Some("npmrc-auth-file"),
+        _ => None,
+    }
+}
+
+/// Where `key` can be set, for a key a project manifest refuses.
+///
+/// Some of them are still valid in the global config file; the rest pnpm
+/// determines on its own and no file sets them. Suggesting the project
+/// manifest — the fallback for every other key — would send the user in a
+/// circle.
+fn where_refused_key_belongs(key: &str) -> String {
+    let camel = naming_cases::to_camel_case(key);
+    let kebab = global_equivalent_key(&camel)
+        .map_or_else(|| naming_cases::to_kebab_case(key), ToString::to_string);
+    if config_types::is_config_file_key(&kebab) {
+        format!("Set it for the machine instead: pnpm config set --global {kebab}")
+    } else {
+        "pnpm determines this setting itself, so no config file sets it".to_string()
+    }
+}
+
+/// The suggestion for `key`, which falls back when a project manifest allows it.
+fn hint_for_refused_key(key: &str, fallback: String) -> String {
+    if config_types::is_project_manifest_skipped_setting(&naming_cases::to_camel_case(key)) {
+        return where_refused_key_belongs(key);
+    }
+    fallback
 }
 
 /// `validateIniConfigKey`: the kebab-case key must be a known `types` key.
@@ -453,7 +518,13 @@ fn validate_yaml_config_key(key: &str) -> Result<String, ConfigError> {
     if config_types::is_config_file_key(&kebab) {
         return Ok(kebab);
     }
-    Err(ConfigError::SetUnsupportedYamlConfigKey { key: key.to_string() })
+    Err(ConfigError::SetUnsupportedYamlConfigKey {
+        key: key.to_string(),
+        hint: hint_for_refused_key(
+            key,
+            "Try setting them instead to the local pnpm-workspace.yaml file".to_string(),
+        ),
+    })
 }
 
 const STRING_ONLY_INI_KEYS: &[&str] = &["_auth", "_authToken", "_password", "username", "registry"];

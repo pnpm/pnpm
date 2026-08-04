@@ -482,5 +482,52 @@ pub fn is_config_file_key(kebab_key: &str) -> bool {
         || (npm_config_type_keys().contains(kebab_key) && !excluded_pnpm_keys().contains(kebab_key))
 }
 
+/// Settings a project's `pnpm-workspace.yaml` does not contribute, in
+/// camelCase. Mirrors `PROJECT_MANIFEST_SKIPPED_SETTINGS` in
+/// `@pnpm/config.reader`.
+///
+/// Each names a location or a trusted value that is not the project's to
+/// choose. [`WorkspaceSettings`] declares none of them, so pacquet's reader
+/// already ignores every one; the list exists so `pnpm config set` can refuse
+/// to write a setting that would then do nothing, and so the reader can say
+/// which keys it ignored.
+///
+/// [`WorkspaceSettings`]: crate::workspace_yaml::WorkspaceSettings
+const PROJECT_MANIFEST_SKIPPED_SETTINGS: &[&str] = &[
+    // What the machine keeps outside any project.
+    "configDir",
+    "globalBinDir",
+    "globalDir",
+    "globalPkgDir",
+    "npmrcAuthFile",
+    "pnpmHomeDir",
+    "stateDir",
+    "userconfig",
+    // The directories the current command reads and writes in.
+    "bin",
+    "dir",
+    "rootProjectManifestDir",
+    "workspaceDir",
+    // Auth and the bootstrap download routes, which the reader assembles from
+    // the trusted config sources only.
+    "authConfig",
+    "configByUri",
+    "packageManagerNetworkConfig",
+    "packageManagerRegistries",
+];
+
+fn project_manifest_skipped_settings() -> &'static HashSet<&'static str> {
+    static SET: OnceLock<HashSet<&'static str>> = OnceLock::new();
+    SET.get_or_init(|| PROJECT_MANIFEST_SKIPPED_SETTINGS.iter().copied().collect())
+}
+
+/// Whether a project's `pnpm-workspace.yaml` would ignore `camel_key`. Mirrors
+/// `isProjectManifestSkippedSetting`. See
+/// [`PROJECT_MANIFEST_SKIPPED_SETTINGS`].
+#[must_use]
+pub fn is_project_manifest_skipped_setting(camel_key: &str) -> bool {
+    project_manifest_skipped_settings().contains(camel_key)
+}
+
 #[cfg(test)]
 mod tests;
