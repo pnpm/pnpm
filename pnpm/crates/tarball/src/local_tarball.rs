@@ -4,10 +4,13 @@
 //! local archive without going through the store.
 
 use super::{
-    Archive, Component, Cursor, HashMap, Integrity, Path, PathBuf, TarballError,
-    allocate_tarball_buffer, decompress_gzip, io, normalize_bundled_manifest, parse_manifest_bytes,
-    post_download_semaphore, tar_entry_payload, verify_tarball_integrity,
+    Component, Cursor, HashMap, Path, PathBuf, TarballError, allocate_tarball_buffer,
+    decompress_gzip, io, normalize_bundled_manifest, post_download_semaphore, tar_entry_payload,
+    verify_tarball_integrity,
 };
+use pacquet_package_manifest::parse_manifest_bytes;
+use ssri::Integrity;
+use tar::Archive;
 
 pub(crate) async fn open_local_tarball(
     path: &Path,

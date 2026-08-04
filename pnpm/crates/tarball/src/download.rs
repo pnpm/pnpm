@@ -4,15 +4,21 @@
 //! events the reporter renders during a fetch.
 
 use super::{
-    Algorithm, Arc, AuthHeaders, Duration, FetchingProgressLog, FetchingProgressMessage, HashMap,
-    HttpStatusError, IgnoreEntryFilter, Instant, Integrity, IntegrityOpts, LogEvent, LogLevel,
-    NetworkError, PackageFilesIndex, PathBuf, PrefetchedCasPaths, ProgressLog, ProgressMessage,
-    Reporter, RequestRetryError, RequestRetryLog, RetryOpts, SharedReadonlyStoreIndex,
-    SharedReportedProgressKeys, SharedVerifiedFilesCache, StoreDir, StoreIndexWriter, TarballError,
-    ThrottledClient, UNPRIORITIZED, VerifyChecksumError, allocate_tarball_buffer, decompress_gzip,
-    extract_tarball_entries, local_file_tarball_path, open_local_tarball, post_download_semaphore,
-    read_local_tarball_buffer, store_index_key,
+    Arc, Duration, HashMap, HttpStatusError, IgnoreEntryFilter, Instant, NetworkError, PathBuf,
+    PrefetchedCasPaths, SharedReportedProgressKeys, TarballError, VerifyChecksumError,
+    allocate_tarball_buffer, decompress_gzip, extract_tarball_entries, local_file_tarball_path,
+    open_local_tarball, post_download_semaphore, read_local_tarball_buffer,
 };
+use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient, UNPRIORITIZED};
+use pacquet_reporter::{
+    FetchingProgressLog, FetchingProgressMessage, LogEvent, LogLevel, ProgressLog, ProgressMessage,
+    Reporter, RequestRetryError, RequestRetryLog,
+};
+use pacquet_store_dir::{
+    PackageFilesIndex, SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir,
+    StoreIndexWriter, store_index_key,
+};
+use ssri::{Algorithm, Integrity, IntegrityOpts};
 
 /// This subroutine downloads and extracts a tarball to the store directory.
 ///
@@ -37,10 +43,10 @@ pub struct DownloadTarballToStore<'a> {
     /// extraction queues one `(key, PackageFilesIndex)` row; a single
     /// writer task drains the channel and flushes batches of up to 256 in
     /// one transaction each, so the whole install goes through one
-    /// `Connection::open` and a handful of WAL commits instead of the old
-    /// "open + PRAGMA + insert + drop" per tarball (which ballooned
-    /// tokio's blocking pool to 500+ threads on a 1352-snapshot install —
-    /// see [#263]). `None` degrades to "skip index row", matching the read
+    /// `Connection::open` and a handful of WAL commits. Opening a
+    /// connection per tarball instead would saturate tokio's blocking
+    /// pool — 500+ threads on a 1352-snapshot install, see [#263].
+    /// `None` degrades to "skip index row", matching the read
     /// side's stance: install still succeeds, the next install misses on
     /// this cache key and re-downloads.
     ///

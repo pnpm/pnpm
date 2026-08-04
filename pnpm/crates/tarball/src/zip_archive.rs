@@ -5,16 +5,23 @@
 //! same CAS write and progress reporting, different container format.
 
 use super::{
-    Arc, AuthHeaders, CafsFileInfo, Component, Cursor, Duration, FetchingProgressLog,
-    FetchingProgressMessage, HashMap, HttpStatusError, IgnoreEntryFilter, Instant, Integrity,
-    LogEvent, LogLevel, MAX_UNTRUSTED_PREALLOC_BYTES, NetworkError, PackageFilesIndex, PathBuf,
-    PrefetchedCasPaths, ProgressLog, ProgressMessage, Read, Reporter, RequestRetryLog, RetryOpts,
-    SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir, StoreIndexWriter, TarballError,
-    ThrottledClient, UNIX_EPOCH, VerifyChecksumError, allocate_tarball_buffer,
-    apply_append_manifest, apply_placeholder_manifest, emit_progress_found_in_store, file_mode,
-    is_transient_error, load_cached_cas_paths, post_download_semaphore, store_index_key,
-    tarball_error_to_request_retry,
+    Arc, Component, Cursor, Duration, HashMap, HttpStatusError, IgnoreEntryFilter, Instant,
+    MAX_UNTRUSTED_PREALLOC_BYTES, NetworkError, PathBuf, PrefetchedCasPaths, Read, TarballError,
+    UNIX_EPOCH, VerifyChecksumError, allocate_tarball_buffer, apply_append_manifest,
+    apply_placeholder_manifest, emit_progress_found_in_store, is_transient_error,
+    load_cached_cas_paths, post_download_semaphore, tarball_error_to_request_retry,
 };
+use pacquet_fs::file_mode;
+use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
+use pacquet_reporter::{
+    FetchingProgressLog, FetchingProgressMessage, LogEvent, LogLevel, ProgressLog, ProgressMessage,
+    Reporter, RequestRetryLog,
+};
+use pacquet_store_dir::{
+    CafsFileInfo, PackageFilesIndex, SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir,
+    StoreIndexWriter, store_index_key,
+};
+use ssri::Integrity;
 
 /// Walk a zip archive, writing each regular-file entry into the CAFS
 /// and returning the `{relative-path → CAFS path}` map plus the

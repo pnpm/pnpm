@@ -29,27 +29,14 @@ use std::{
 };
 
 use dashmap::{DashMap, DashSet};
-use pacquet_fs::file_mode;
 pub use pacquet_network::RetryOpts;
 use pacquet_network::{AuthHeaders, ThrottledClient, UNPRIORITIZED};
-use pacquet_package_manifest::{
-    files_include_install_scripts, manifest_requires_build, parse_manifest_bytes,
-};
-use pacquet_reporter::{
-    FetchingProgressLog, FetchingProgressMessage, LogEvent, LogLevel, ProgressLog, ProgressMessage,
-    Reporter, RequestRetryError, RequestRetryLog,
-};
-use pacquet_store_dir::{
-    CafsFileInfo, PackageFilesIndex, SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir,
-    StoreIndexWriter, store_index_key,
-};
+use pacquet_reporter::Reporter;
+use pacquet_store_dir::{StoreDir, StoreIndexWriter, store_index_key};
 use pipe_trait::Pipe;
 use rayon::prelude::*;
-use ssri::{Algorithm, Integrity, IntegrityOpts};
-use tar::Archive;
+use ssri::Integrity;
 use tokio::sync::{Notify, RwLock, Semaphore};
-use tracing::instrument;
-use zune_inflate::{DeflateDecoder, DeflateOptions};
 
 /// Ceiling on a single eager buffer reservation sized from untrusted
 /// archive metadata — `dist.unpackedSize` in registry metadata and an

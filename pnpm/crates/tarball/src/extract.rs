@@ -1,11 +1,18 @@
 //! Tarball decompression and entry extraction into the CAS.
 
 use super::{
-    Archive, CafsFileInfo, Component, Cursor, DeflateDecoder, DeflateOptions, HashMap,
-    IgnoreEntryFilter, IntoParallelRefIterator, MAX_UNTRUSTED_PREALLOC_BYTES, PackageFilesIndex,
-    ParallelIterator, PathBuf, StoreDir, TarballError, UNIX_EPOCH, cas_write_pool, file_mode,
-    files_include_install_scripts, instrument, manifest_requires_build, parse_manifest_bytes,
+    Component, Cursor, HashMap, IgnoreEntryFilter, IntoParallelRefIterator,
+    MAX_UNTRUSTED_PREALLOC_BYTES, ParallelIterator, PathBuf, TarballError, UNIX_EPOCH,
+    cas_write_pool,
 };
+use pacquet_fs::file_mode;
+use pacquet_package_manifest::{
+    files_include_install_scripts, manifest_requires_build, parse_manifest_bytes,
+};
+use pacquet_store_dir::{CafsFileInfo, PackageFilesIndex, StoreDir};
+use tar::Archive;
+use tracing::instrument;
+use zune_inflate::{DeflateDecoder, DeflateOptions};
 
 /// Build the buffer that the tarball body streams into, pre-sized
 /// from the response's advertised `Content-Length` when it fits and

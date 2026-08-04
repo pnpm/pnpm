@@ -4,10 +4,10 @@
 //! the install fans out, so the warm batch can skip per-package
 //! store-index lookups entirely.
 
-use super::{
-    Arc, HashMap, IntoParallelIterator, PackageFilesIndex, ParallelIterator, PathBuf,
-    SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir, files_include_install_scripts,
-    manifest_requires_build,
+use super::{Arc, HashMap, IntoParallelIterator, ParallelIterator, PathBuf};
+use pacquet_package_manifest::{files_include_install_scripts, manifest_requires_build};
+use pacquet_store_dir::{
+    PackageFilesIndex, SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir,
 };
 
 /// Try to reconstruct the `{filename → CAFS path}` map for a package from
@@ -146,10 +146,10 @@ pub async fn prefetch_cas_paths(
         // across rayon below.
         //
         // One batched `SELECT ... WHERE key IN (?, ?, ...)` per
-        // `GET_MANY_CHUNK` (see `StoreIndex::get_many_raw`)
-        // collapses what used to be N round-trips into one — see
-        // <https://github.com/pnpm/pacquet/issues/294> for the cold-cache regression the per-key loop
-        // introduced when every key missed.
+        // `GET_MANY_CHUNK` (see `StoreIndex::get_many_raw`) costs one
+        // round-trip per chunk rather than one per key, which is what
+        // keeps a cold cache — where every key misses — affordable:
+        // <https://github.com/pnpm/pacquet/issues/294>.
         let raw: Vec<(String, Vec<u8>)> = {
             let Ok(guard) = index.lock() else {
                 tracing::debug!(
