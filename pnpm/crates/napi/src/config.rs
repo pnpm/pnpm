@@ -35,7 +35,7 @@ use dashmap::DashMap;
 use indexmap::IndexMap;
 use pacquet_config::{
     Config, GetHomeDir, Host, LinkWorkspacePackages, LoadWorkspaceYamlError, NodeLinker,
-    PackageImportMethod, default_registry,
+    PackageExtension, PackageImportMethod, default_registry,
 };
 use pacquet_network::{AuthHeaders, ProxyConfig, TlsConfig, nerf_dart, normalize_auth_key};
 use pacquet_store_dir::StoreDir;
@@ -59,6 +59,26 @@ pub struct ConfigOverlay {
     pub link_workspace_packages: Option<LinkWorkspacePackages>,
     pub package_import_method: Option<PackageImportMethod>,
     pub virtual_store_dir_max_length: Option<u64>,
+    /// `enableGlobalVirtualStore` — materialize packages under the shared
+    /// `<store_dir>/links` tree instead of the project-local
+    /// `node_modules/.pnpm`. When the host sets it, the
+    /// `global_virtual_store_dir` derivation is re-run so the shared root
+    /// tracks whatever `store_dir` the overlay ended up with.
+    pub enable_global_virtual_store: Option<bool>,
+    /// `globalVirtualStoreDir` — pin the shared virtual-store root instead of
+    /// deriving it from `store_dir`. Wins over the derivation, mirroring the
+    /// dedicated yaml key.
+    pub global_virtual_store_dir: Option<PathBuf>,
+    /// `packageExtensions` — `"<name>[@<range>]" -> { dependencies, peerDependencies, ... }`.
+    /// Declares dependencies a published package forgot to declare. Under a shared virtual store
+    /// this is the only way to satisfy such a phantom dependency: the package lives outside the
+    /// project, so it can no longer reach whatever the project hoisted into its own
+    /// `node_modules/.pnpm/node_modules`. Declaring it puts a real copy in the package's own slot.
+    pub package_extensions: Option<IndexMap<String, PackageExtension>>,
+    /// `patchedDependencies` — `"<name>[@<range>]" -> <patch file path>`.
+    /// Relative paths are anchored to the install dir on the way in, so they
+    /// do not depend on a `pnpm-workspace.yaml` the embedder may not have.
+    pub patched_dependencies: Option<IndexMap<String, String>>,
     pub hoist_pattern: Option<Vec<String>>,
     pub public_hoist_pattern: Option<Vec<String>>,
     pub external_dependencies: Option<BTreeSet<String>>,
@@ -280,6 +300,28 @@ fn build_config(dir: &Path, overlay: &ConfigOverlay) -> Result<Config, LoadWorks
     if let Some(max_length) = overlay.virtual_store_dir_max_length {
         config.virtual_store_dir_max_length = max_length;
     }
+    if let Some(value) = overlay.enable_global_virtual_store {
+        config.enable_global_virtual_store = value;
+    }
+    if let Some(package_extensions) = &overlay.package_extensions {
+        config.package_extensions = Some(package_extensions.clone());
+    }
+    if let Some(patched_dependencies) = &overlay.patched_dependencies {
+        // Patch paths are resolved against `workspace_dir`, which for an
+        // embedder is either absent (no `pnpm-workspace.yaml` to anchor them
+        // to) or some enclosing directory that is not the one the host meant.
+        // Anchor them to the install dir here instead, and leave the already
+        // absolute ones alone — `join` keeps those verbatim either way.
+        config.patched_dependencies = Some(
+            patched_dependencies
+                .iter()
+                .map(|(key, path)| (key.clone(), dir.join(path).display().to_string()))
+                .collect(),
+        );
+        if config.workspace_dir.is_none() {
+            config.workspace_dir = Some(dir.to_path_buf());
+        }
+    }
     if let Some(hoist_pattern) = &overlay.hoist_pattern {
         config.hoist_pattern = Some(hoist_pattern.clone());
     }
@@ -402,6 +444,21 @@ fn build_config(dir: &Path, overlay: &ConfigOverlay) -> Result<Config, LoadWorks
             headers,
             &overlay_default_registry(overlay),
         )));
+    }
+    // Re-derive the shared virtual-store root last: `Config::current` already
+    // ran the derivation, but the overlay may have replaced `store_dir` or
+    // flipped `enable_global_virtual_store` since. An explicitly pinned
+    // overlay path wins outright, matching the dedicated yaml key.
+    if let Some(global_virtual_store_dir) = &overlay.global_virtual_store_dir {
+        config.global_virtual_store_dir.clone_from(global_virtual_store_dir);
+    } else if overlay.enable_global_virtual_store.is_some() || overlay.store_dir.is_some() {
+        let virtual_store_dir_explicit = config.explicit_settings.contains_key("virtualStoreDir");
+        let global_virtual_store_dir_explicit =
+            config.explicit_settings.contains_key("globalVirtualStoreDir");
+        config.apply_global_virtual_store_derivation(
+            virtual_store_dir_explicit,
+            global_virtual_store_dir_explicit,
+        );
     }
     Ok(config)
 }

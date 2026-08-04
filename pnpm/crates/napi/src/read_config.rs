@@ -57,6 +57,21 @@ pub struct ResolvedConfig {
     pub store_dir: String,
     pub cache_dir: String,
     pub virtual_store_dir_max_length: u32,
+    /// Whether the cascade turned the global virtual store on.
+    pub enable_global_virtual_store: bool,
+    /// The shared virtual-store root (`<storeDir>/links` by default). Where
+    /// dependency directories live when `enableGlobalVirtualStore` is on.
+    pub global_virtual_store_dir: String,
+    /// The project-local virtual store (`<modules_dir>/.pnpm`).
+    pub virtual_store_dir: String,
+    /// The directory that holds the per-snapshot dependency directories for
+    /// this project: the shared root under `enableGlobalVirtualStore`, the
+    /// project-local `virtualStoreDir` otherwise. This is the value pnpm
+    /// records in `.modules.yaml`.
+    ///
+    /// Embedders that walk the virtual store should read this rather than
+    /// assuming the project-local path.
+    pub effective_virtual_store_dir: String,
     pub network_concurrency: u32,
     pub max_sockets: Option<u32>,
     pub fetch_retries: u32,
@@ -148,6 +163,10 @@ fn project_config(config: &pacquet_config::Config) -> ResolvedConfig {
         cache_dir: config.cache_dir.display().to_string(),
         virtual_store_dir_max_length: u32::try_from(config.virtual_store_dir_max_length)
             .unwrap_or(u32::MAX),
+        enable_global_virtual_store: config.enable_global_virtual_store,
+        global_virtual_store_dir: config.global_virtual_store_dir.display().to_string(),
+        virtual_store_dir: config.virtual_store_dir.display().to_string(),
+        effective_virtual_store_dir: config.effective_virtual_store_dir().display().to_string(),
         network_concurrency: u32::try_from(config.network_concurrency).unwrap_or(u32::MAX),
         max_sockets: config.max_sockets.map(|value| u32::try_from(value).unwrap_or(u32::MAX)),
         fetch_retries: config.fetch_retries,
