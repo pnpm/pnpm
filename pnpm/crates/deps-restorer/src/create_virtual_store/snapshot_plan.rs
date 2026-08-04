@@ -74,7 +74,7 @@ pub(super) fn plan_snapshots<'a, Reporter: self::Reporter>(
     // `snapshot_cache_key`'s `UnsupportedResolution`.
     //
     // The slot probe goes through `layout.slot_dir` because under GVS
-    // the slot is at `<global_virtual_store_dir>/…`, and probing
+    // the slot is at `<global_virtual_store_dir>/...`, and probing
     // `<virtual_store_dir>/<flat-name>` would find nothing and report
     // every warm slot as broken. See pnpm/pacquet#442 for why the
     // current-lockfile skip keeps its store-index rows.
