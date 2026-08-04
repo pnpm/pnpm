@@ -61,48 +61,21 @@ pub(super) fn partition_snapshots<'a>(
         requires_build: prefetched_requires_build,
     } = prefetch;
 
-    // Partition snapshots by whether the prefetch covered them. The
-    // warm batch — every snapshot whose tarball is already in the
-    // CAFS — runs entirely on rayon: no tokio futures, no
-    // `try_join_all` polling overhead, no `spawn_blocking` round-trip
-    // per snapshot. The cold batch (cache miss → download needed)
-    // keeps the existing `try_join_all` + download path.
+    // The warm batch runs on rayon rather than per-snapshot tokio
+    // futures. Profiled at 1352 prefetched / 0 cold on a 10-core Mac:
+    // each future's sync `rayon::join` pinned a tokio worker and
+    // saturated the pool, so `sum-of-link ~= wall` — effectively 1x
+    // parallelism. One `par_iter` over every snapshot lets the pool
+    // work-steal across all of them; wall dropped ~10 s to ~6.5 s.
     //
-    // **Why this beats per-snapshot tokio futures:** profiling at
-    // 1352 prefetched / 0 cold on a 10-core Mac showed `sum-of-link
-    // ≈ wall` (~10 s sum on a 10 s wall, i.e. effectively 1×
-    // parallelism) even though `try_join_all` was meant to fan
-    // futures across tokio's 10 worker threads. Each future's sync
-    // `rayon::join` pinned one tokio worker; with up to 10 such
-    // futures progressing concurrently, each one's inner par_iter
-    // saturated rayon's pool, and the pool ended up processing one
-    // snapshot at a time. Going straight to rayon via a single
-    // `par_iter` lets the pool schedule across all 1352 snapshots
-    // as one work-stealing graph — the shape pnpm's piscina pool
-    // gives implicitly. On the same benchmark, wall dropped from
-    // ~10 s to ~6.5 s.
-    //
-    // The `par_iter` blocks the calling thread for the duration of
-    // the warm batch. The cold-batch fetches run *after* this
-    // returns; that ordering is intentional — warm-cache work has
-    // no network dependency, so we'd be racing a cold download
-    // against a CPU/syscall-bound rayon batch for nothing.
-    // Element types are inferred from the push calls below — no
-    // explicit alias, so the warm tuple's third field stays bound
-    // to whatever value type `pacquet_tarball::PrefetchedCasPaths`
-    // exposes. A future change there propagates here without a
-    // local alias drifting (Copilot review on <https://github.com/pnpm/pacquet/pull/292>).
+    // Cold fetches deliberately run after this returns rather than
+    // alongside: racing a network download against a CPU-bound rayon
+    // batch buys nothing.
     let mut warm = Vec::with_capacity(snapshot_entries.len());
     let mut cold: Vec<(&PackageKey, &SnapshotEntry)> = Vec::new();
-    // Build a `metadata_key -> manifest` lookup from the prefetched
-    // index rows. Snapshot keys differ across peer-resolved
-    // variants of the same package (`react-dom@17.0.2(react@...)`),
-    // but the bundled manifest is identical across variants
-    // because every variant resolves to the same tarball. Keying
-    // by [`PkgNameVerPeer::without_peer`] collapses the variants
-    // to one entry: same shape as
-    // [`pacquet_lockfile::Lockfile::packages`], which is what the
-    // bin linker already looks up by.
+    // Keyed peer-stripped: every peer variant of a package resolves to
+    // the same tarball, so they share one bundled manifest, and this is
+    // the shape the bin linker looks up by.
     let mut package_manifests: PackageManifests =
         HashMap::with_capacity(prefetched_manifests.len());
     let mut side_effects_maps_by_snapshot: SideEffectsMapsBySnapshot =
@@ -110,13 +83,6 @@ pub(super) fn partition_snapshots<'a>(
     let mut requires_build_by_snapshot: RequiresBuildBySnapshot =
         HashMap::with_capacity(prefetched_requires_build.len());
 
-    // First pass: process *skipped* snapshots into the bin-
-    // manifest cache and the side-effects map. They don't enter
-    // the warm/cold partition (no link work to do), but their
-    // store-index rows are needed downstream so
-    // [`crate::BuildModules`]'s `is_built` gate can fire — without
-    // these entries, packages with `allowBuilds: true` would
-    // re-execute their lifecycle scripts on every warm reinstall.
     for (snapshot_key, _snapshot, cache_key) in skipped_entries {
         if let Some(cache_key) = cache_key.as_deref()
             && let Some(manifest) = prefetched_manifests.get(cache_key)

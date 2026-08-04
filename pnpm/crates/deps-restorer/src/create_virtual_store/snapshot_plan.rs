@@ -68,39 +68,16 @@ pub(super) fn plan_snapshots<'a, Reporter: self::Reporter>(
         runtime_platform_selector,
     } = inputs;
 
-    // Per-snapshot skip pass: drop snapshots that don't need
-    // installing.
-    //
-    // Two reasons a snapshot can be dropped from the install graph:
-    //
-    // 1. **Installability skip (this PR)** — `SkippedSnapshots`
-    //    contains it because the host's `engines` / `cpu` / `os`
-    //    / `libc` don't satisfy the package's constraints and the
-    //    snapshot is `optional`. A skipped depPath is dropped from
-    //    the install graph. These snapshots also stay out of the
-    //    `skipped_entries` cache-key pass — they were never
-    //    supposed to be installed, so there are no store-index
-    //    rows to keep alive.
-    //
-    // 2. **Current-lockfile skip (main <https://github.com/pnpm/pacquet/pull/442>)** — the previous
-    //    install also installed this snapshot (`current_snapshots`)
-    //    with the same dependency wiring + integrity, AND its
-    //    virtual-store slot still exists on disk. These DO land in
-    //    `skipped_entries` so `BuildModules`'s `is_built` cache
-    //    lookup can short-circuit re-runs of allowed-build scripts
-    //    on warm reinstalls.
-    //
-    // Run this *before* deriving cache keys so unchanged
-    // directory-backed snapshots aren't tripped by
+    // Ordering constraint, not obvious from the code: this runs
+    // *before* cache-key derivation so an unchanged directory-backed
+    // snapshot is dropped rather than tripping
     // `snapshot_cache_key`'s `UnsupportedResolution`.
     //
-    // Route the slot-existence probe through `layout.slot_dir` so
-    // GVS-on installs check the correct path. Under GVS, slots live
-    // at `<global_virtual_store_dir>/<scope>/<name>/<ver>/<hash>`,
-    // not `<config.virtual_store_dir>/<flat-name>`; probing the
-    // latter would find an empty path, so the skip gate would
-    // incorrectly mark every warm slot as "broken" and emit
-    // `BrokenModules` for the wrong path.
+    // The slot probe goes through `layout.slot_dir` because under GVS
+    // the slot is at `<global_virtual_store_dir>/…`, and probing
+    // `<virtual_store_dir>/<flat-name>` would find nothing and report
+    // every warm slot as broken. See pnpm/pacquet#442 for why the
+    // current-lockfile skip keeps its store-index rows.
     let mut marker_probe_keys = HashSet::new();
     let mut marker_rebuilds = HashSet::new();
     let survivors = snapshots
@@ -159,28 +136,6 @@ pub(super) fn plan_snapshots<'a, Reporter: self::Reporter>(
                 true
             }
         });
-    // Validate every surviving snapshot upfront so a malformed
-    // lockfile (missing metadata, missing tarball integrity,
-    // currently-unsupported directory / git resolution) errors
-    // out *before* we start the warm batch — otherwise the warm
-    // rayon batch runs to completion (~6 s on `alot7`) before the
-    // actual error fires.
-    //
-    // Cache-key derivation runs in two passes:
-    //
-    // - *Survivors* go through the strict path (this `?`). Their
-    //   resolutions have to be valid because the install will
-    //   actually fetch + link them.
-    // - *Skipped* snapshots get a lenient pass below: cache keys
-    //   are derived if possible, and any per-snapshot error is
-    //   swallowed. Reason: skipped snapshots aren't being
-    //   re-installed, but their store-index rows still need to
-    //   land in `side_effects_maps_by_snapshot` so
-    //   [`crate::BuildModules`]'s `is_built` gate can skip
-    //   re-running build scripts on warm reinstalls (review on
-    //   <https://github.com/pnpm/pacquet/pull/442> — without this, allowed-build packages re-execute
-    //   their scripts every install, costing seconds on the
-    //   warm-reinstall path).
     let snapshot_entries: Vec<SnapshotWithCacheKey<'_>> = survivors
         .map(|(snapshot_key, snapshot)| {
             snapshot_cache_key(snapshot_key, packages, ignore_scripts, runtime_platform_selector)
@@ -197,15 +152,9 @@ pub(super) fn plan_snapshots<'a, Reporter: self::Reporter>(
             .map(|(snapshot_key, _, _)| (*snapshot_key).clone()),
     );
 
-    // Cache keys for the *skipped* snapshots (i.e. snapshots
-    // present in `snapshots` but absent from `snapshot_entries`).
-    // Derived leniently so an unsupported / malformed skipped
-    // entry doesn't fail the install — it just contributes no
-    // prefetch row, which is the same outcome as if the skip
-    // filter had not engaged. Built as a parallel `Vec` so the
-    // downstream `package_manifests` /
-    // `side_effects_maps_by_snapshot` loop sees the full snapshot
-    // set, not just survivors.
+    // A parallel `Vec` rather than a filter later: the partition's
+    // manifest and side-effects loop has to see the full snapshot set,
+    // not just survivors.
     let survivor_keys: std::collections::HashSet<&PackageKey> =
         snapshot_entries.iter().map(|(k, _, _)| *k).collect();
     let skipped_entries: Vec<SnapshotWithCacheKey<'_>> = snapshots

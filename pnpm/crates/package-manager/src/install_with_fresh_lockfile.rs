@@ -1258,11 +1258,9 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 supported_architectures,
             )
             .await;
-        // Detect the host node once and reuse it for both the engine-name
-        // cache key and installability check, mirroring the frozen path.
-        let host_node: Option<(bool, String)> = installability_host
+        let host_node = installability_host
             .as_ref()
-            .map(|host| (host.node_detected, host.node_version.clone()));
+            .map(pacquet_deps_restorer::materialization_plan::HostNode::from);
 
         let (engine_name, deferred_engine_handle) =
             pacquet_deps_restorer::materialization_plan::resolve_engine_name(

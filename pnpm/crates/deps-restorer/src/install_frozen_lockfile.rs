@@ -717,11 +717,8 @@ where
             supported_architectures,
         )
         .await;
-        // Keep `node_detected` + the version for the engine-name
-        // derivation below; the rest of the host is dropped here.
-        let host_node = installability_host
-            .as_ref()
-            .map(|host| (host.node_detected, host.node_version.clone()));
+        let host_node =
+            installability_host.as_ref().map(crate::materialization_plan::HostNode::from);
 
         let closure_importer_ids: std::collections::HashSet<String> =
             importers.keys().cloned().collect();
@@ -1202,7 +1199,7 @@ pub struct HoistedLinkerInputs<'a> {
     /// `(node_detected, node_version)` from the installability host
     /// probe. `None` when no installability check ran (the fresh
     /// path, and constraint-free frozen lockfiles).
-    pub host_node: Option<&'a (bool, String)>,
+    pub host_node: Option<&'a crate::materialization_plan::HostNode>,
     pub supported_architectures: Option<&'a pacquet_package_is_installable::SupportedArchitectures>,
     /// Per-package CAS index produced by [`crate::CreateVirtualStore`]
     /// under `node_linker == Hoisted`. The linker imports files from
@@ -1317,7 +1314,7 @@ pub fn run_hoisted_linker<Reporter: self::Reporter>(
         // mismatch on a required package is a hard error under strict,
         // otherwise a skip-optional / warning.
         engine_strict: config.engine_strict,
-        current_node_version: host_node.map(|(_, ver)| ver.clone()).unwrap_or_default(),
+        current_node_version: host_node.map(|host| host.version.clone()).unwrap_or_default(),
         current_os: pacquet_graph_hasher::host_platform().to_string(),
         current_cpu: pacquet_graph_hasher::host_arch().to_string(),
         current_libc: pacquet_graph_hasher::host_libc().to_string(),
