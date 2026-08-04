@@ -52,7 +52,7 @@ pub(super) struct MaterializationInputs<'a, 'install> {
     pub(super) deps_requiring_build_sink: Option<DepsRequiringBuildSink>,
     pub(super) pnpmfile_hook: Option<Arc<dyn pacquet_hooks::PnpmfileHooks>>,
     pub(super) catalogs: &'a Catalogs,
-    pub(super) prefix: &'a String,
+    pub(super) prefix: &'a str,
 }
 
 pub(super) struct MaterializationOutput {
@@ -145,7 +145,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
             Reporter::emit(&LogEvent::Pnpm(PnpmLog {
                 level: LogLevel::Info,
                 message: message.to_string(),
-                prefix: prefix.clone(),
+                prefix: prefix.to_string(),
             }));
         }
         let initial_materialization_ids = requested_importer_ids.map(|selected| {

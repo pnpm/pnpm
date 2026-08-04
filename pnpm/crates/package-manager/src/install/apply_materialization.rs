@@ -1,10 +1,10 @@
 use super::{
     BTreeMap, BTreeSet, Catalogs, Config, HashSet, HoistedDependencies, Host, IncludedDependencies,
-    InstallError, Lockfile, LogEvent, LogLevel, Modules, NodeLinker, PackageManifest, Path,
-    PathBuf, ProjectMutation, ProjectScriptsInputs, RebuildOptions, Reporter, SummaryLog,
-    SystemTime, WorkspaceInstallSelection, build_modules_manifest, build_workspace_state,
-    drain_settled_projects, merge_filtered_modules_metadata, merge_pending_builds,
-    order_project_lifecycle_groups, project_requires_lifecycle_scripts,
+    InstallError, InstallWithFreshLockfileError, Lockfile, LogEvent, LogLevel, Modules, NodeLinker,
+    PackageManifest, Path, PathBuf, ProjectMutation, ProjectScriptsInputs, RebuildOptions,
+    Reporter, SummaryLog, SystemTime, WorkspaceInstallSelection, build_modules_manifest,
+    build_workspace_state, drain_settled_projects, merge_filtered_modules_metadata,
+    merge_pending_builds, order_project_lifecycle_groups, project_requires_lifecycle_scripts,
     projects_running_own_scripts, run_projects_lifecycle_scripts, update_workspace_state,
     write_modules_manifest,
 };
@@ -183,7 +183,8 @@ async fn link_materialized_projects<Reporter: self::Reporter + 'static>(
             None => None,
         };
         let allow_build_policy = crate::AllowBuildPolicy::from_config(config)
-            .expect("allow-build policy was validated by the install path");
+            .map_err(InstallWithFreshLockfileError::AllowBuildsPolicy)
+            .map_err(InstallError::WithFreshLockfile)?;
         let layout = crate::VirtualStoreLayout::new(
             config,
             engine_name.as_deref(),

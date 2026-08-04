@@ -32,7 +32,7 @@ pub(super) struct PrepareModulesStateInputs<'a, 'install> {
     pub(super) lockfile_was_fast_updated: bool,
     pub(super) catalogs: &'a Catalogs,
     pub(super) project_manifests: &'a [(PathBuf, &'a PackageManifest)],
-    pub(super) prefix: &'a String,
+    pub(super) prefix: &'a str,
 }
 
 pub(super) struct PreparedModulesState<'install> {
@@ -43,6 +43,8 @@ pub(super) struct PreparedModulesState<'install> {
         Option<super::LockfileVerificationOverride<'install>>,
 }
 
+/// Returns `Ok(None)` after completing an up-to-date install; the caller must return successfully
+/// without materializing.
 pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + 'static>(
     inputs: PrepareModulesStateInputs<'_, 'install>,
 ) -> Result<Option<PreparedModulesState<'install>>, InstallError> {
@@ -356,11 +358,11 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
         Reporter::emit(&LogEvent::Pnpm(PnpmLog {
             level: LogLevel::Info,
             message: "Lockfile is up to date, resolution step is skipped".to_string(),
-            prefix: prefix.clone(),
+            prefix: prefix.to_string(),
         }));
         Reporter::emit(&LogEvent::Stage(StageLog {
             level: LogLevel::Debug,
-            prefix: prefix.clone(),
+            prefix: prefix.to_string(),
             stage: Stage::ImportingDone,
         }));
         if (lockfile_synthesized_from_current || lockfile_was_fast_updated) && config.lockfile {
@@ -384,7 +386,7 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
         .map_err(InstallError::WriteWorkspaceState)?;
         Reporter::emit(&LogEvent::Summary(SummaryLog {
             level: LogLevel::Debug,
-            prefix: prefix.to_owned(),
+            prefix: prefix.to_string(),
         }));
         return Ok(None);
     }
