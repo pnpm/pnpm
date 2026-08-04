@@ -71,7 +71,6 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
         updatedFields[key] = null
       }
       await updateWorkspaceManifest(configDir, { fileName: configFileName, updatedFields })
-      key = writtenKey
       break
     }
 
