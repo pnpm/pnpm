@@ -547,16 +547,6 @@ pub(crate) async fn fetch_and_extract_once<Reporter: self::Reporter>(
     .await
 }
 
-/// Run [`fetch_and_extract_once`] under pnpm's retry policy. Permanent
-/// errors (HTTP 401 / 403 / 404 — see [`is_transient_error`]) fail on
-/// the first attempt; everything else sleeps with exponential backoff
-/// and tries again until the budget is exhausted, surfacing the most
-/// recent error.
-///
-/// On retry, CAFS writes from a previous attempt that may have made it
-/// part-way through extraction stay on disk. That's safe: the CAFS is
-/// content-addressed, so re-extracting the same bytes produces
-/// identical paths and `write_cas_file` is idempotent.
 /// Emit `pnpm:progress found_in_store` for a (`package_id`, requester)
 /// pair the cache resolved without a download.
 pub(crate) fn emit_progress_found_in_store<Reporter: self::Reporter>(
@@ -623,12 +613,24 @@ pub fn download_priority(unpacked_size: Option<usize>, file_count: Option<usize>
     size.saturating_add(per_file).min(UNPRIORITIZED - 1)
 }
 
-// 9 arguments — over the default clippy threshold but each is
+/// Run [`fetch_and_extract_once`] under pnpm's retry policy. Permanent
+/// errors (HTTP 401 / 403 / 404 — see [`is_transient_error`]) fail on
+/// the first attempt; everything else sleeps with exponential backoff
+/// and tries again until the budget is exhausted, surfacing the most
+/// recent error.
+///
+/// On retry, CAFS writes from a previous attempt that may have made it
+/// part-way through extraction stay on disk. That's safe: the CAFS is
+/// content-addressed, so re-extracting the same bytes produces
+/// identical paths and `write_cas_file` is idempotent.
+// 12 arguments — over the default clippy threshold but each is
 // distinct: client + URL + integrity describe the request, ID +
-// requester are the reporter dimensions, unpacked-size is allocation
-// hinting, store_dir + retry_opts are install-scoped, and
-// ignore_file_pattern is the per-fetch archive filter. Bundling
-// into a struct would just push the same fields into a wrapper.
+// requester are the reporter dimensions, progress_key dedups the
+// package-status emit, unpacked-size is allocation hinting,
+// download_priority is queue ordering, store_dir + retry_opts +
+// auth_headers are install-scoped, and ignore_file_pattern is the
+// per-fetch archive filter. Bundling into a struct would just push
+// the same fields into a wrapper.
 #[expect(
     clippy::too_many_arguments,
     reason = "the parameters are independent install-scoped inputs; bundling them into a struct only moves the same fields into a wrapper"
