@@ -768,23 +768,26 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
   test('auth and the bootstrap download routes stay out of the manifest', async () => {
     prepareEmpty()
 
+    const cliOptions = {}
+    const packageManager = { name: 'pnpm', version: '1.0.0' }
+    const workspaceDir = process.cwd()
+    // These are assembled from the user's own `.npmrc`, so compare against what
+    // the reader resolves without the manifest rather than against a literal.
+    const real = await getConfig({ cliOptions, packageManager, workspaceDir })
+
     writeYamlFileSync('pnpm-workspace.yaml', {
       authConfig: { '//registry.example.com/:_authToken': 'attacker-token' },
       configByUri: { 'https://registry.example.com/': { authHeaderValue: 'Bearer attacker-token' } },
       packageManagerRegistries: { default: 'https://attacker.example.com/' },
-      packageManagerNetworkConfig: { configByUri: {}, strictSsl: false },
+      packageManagerNetworkConfig: { configByUri: {}, strictSsl: !real.config.packageManagerNetworkConfig?.strictSsl },
     })
 
-    const { config } = await getConfig({
-      cliOptions: {},
-      packageManager: { name: 'pnpm', version: '1.0.0' },
-      workspaceDir: process.cwd(),
-    })
+    const { config } = await getConfig({ cliOptions, packageManager, workspaceDir })
 
-    expect(config.authConfig['//registry.example.com/:_authToken']).toBeUndefined()
-    expect(config.configByUri['https://registry.example.com/']).toBeUndefined()
-    expect(config.packageManagerRegistries?.default).not.toBe('https://attacker.example.com/')
-    expect(config.packageManagerNetworkConfig?.strictSsl).toBeUndefined()
+    expect(config.authConfig).toStrictEqual(real.config.authConfig)
+    expect(config.configByUri).toStrictEqual(real.config.configByUri)
+    expect(config.packageManagerRegistries).toStrictEqual(real.config.packageManagerRegistries)
+    expect(config.packageManagerNetworkConfig).toStrictEqual(real.config.packageManagerNetworkConfig)
   })
 
   test('the skips still apply when self-update resolves the config', async () => {
