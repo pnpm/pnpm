@@ -63,10 +63,10 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
       const updatedFields: Record<string, unknown> = {
         [writtenKey]: castField(value, kebabCase(writtenKey)),
       }
-      // pnpm always writes the camelCase spelling, but a hand-edited manifest
-      // may carry another one, and that is the spelling the reader names when
-      // it reports the setting as ignored. Delete what the user asked to
-      // delete, not only what pnpm would have written.
+      // pnpm always writes the normalized spelling, but a hand-edited file may
+      // carry another one — and for a project manifest that is the spelling
+      // the reader names when it reports the setting as ignored. Remove both,
+      // so the remedy the warning implies actually clears the file.
       if (value == null && key !== writtenKey) {
         updatedFields[key] = null
       }
