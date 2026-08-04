@@ -200,7 +200,6 @@ impl RunArgs {
             config,
             extra_env: &extra_env,
             silent,
-            sequential,
         };
 
         if sequential {
@@ -299,8 +298,6 @@ pub(super) struct RunContext<'a> {
     pub(super) config: &'a Config,
     pub(super) extra_env: &'a HashMap<String, String>,
     pub(super) silent: bool,
-    #[allow(dead_code, reason = "unused")]
-    pub(super) sequential: bool,
 }
 
 /// Resolve `name` to a runnable main script body, or `Ok(None)` when
