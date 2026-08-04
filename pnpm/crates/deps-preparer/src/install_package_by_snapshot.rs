@@ -59,7 +59,7 @@ pub struct InstallPackageBySnapshot<'a> {
     /// reuses) a download already in flight or completed for the same
     /// URL, rather than racing a second fetch of the same bytes. Both
     /// background prefetchers feed it: the pnpr client's
-    /// the package manager's `TarballPrefetcher` (frozen materialization) and the
+    /// `TarballPrefetcher` (frozen materialization) and the
     /// fresh-resolve path's `PrefetchingResolver` (cold
     /// batch). `None` keeps the standalone `run_without_mem_cache`
     /// path for installs with no prefetcher (e.g. a plain
