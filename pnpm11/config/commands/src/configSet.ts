@@ -1,7 +1,7 @@
 import path from 'node:path'
 import util from 'node:util'
 
-import { type ConfigFileKey, isConfigFileKey, isIniConfigKey, types } from '@pnpm/config.reader'
+import { type ConfigFileKey, isConfigFileKey, isIniConfigKey, isProjectManifestSkippedSetting, types } from '@pnpm/config.reader'
 import { GLOBAL_CONFIG_YAML_FILENAME, WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { parsePropertyPath } from '@pnpm/object.property-path'
@@ -54,6 +54,9 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
         key = validateYamlConfigKey(key)
       }
       key = validateWorkspaceKey(key)
+      if (configFileName === WORKSPACE_MANIFEST_FILENAME && isProjectManifestSkippedSetting(key)) {
+        throw new ConfigSetSkippedProjectKeyError(key)
+      }
       await updateWorkspaceManifest(configDir, {
         fileName: configFileName,
         updatedFields: ({
@@ -183,6 +186,16 @@ export class ConfigSetUnsupportedWorkspaceKeyError extends PnpmError {
   constructor (key: string) {
     super('CONFIG_SET_UNSUPPORTED_WORKSPACE_KEY', `The key ${JSON.stringify(key)} isn't supported by the workspace manifest`, {
       hint: `Try ${JSON.stringify(camelCase(key))}`,
+    })
+    this.key = key
+  }
+}
+
+export class ConfigSetSkippedProjectKeyError extends PnpmError {
+  key: string
+  constructor (key: string) {
+    super('CONFIG_SET_SKIPPED_PROJECT_KEY', `The key ${JSON.stringify(key)} isn't supported by a project's workspace manifest`, {
+      hint: 'pnpm resolves this setting before it reads the project manifest, so a value written there would be ignored.',
     })
     this.key = key
   }

@@ -998,3 +998,34 @@ test('config set --global no-proxy writes to config.yaml', async () => {
   })
   expect(result.globalRc).toBeUndefined()
 })
+
+test.each([
+  ['config-dir'],
+  ['pnpmHomeDir'],
+  ['state-dir'],
+])('config set refuses %s using the location=project option', async (key) => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  const initConfig = {
+    globalRc: undefined,
+    globalYaml: undefined,
+    localRc: undefined,
+    localYaml: { storeDir: '~/store' },
+  } satisfies ConfigFilesData
+  writeConfigFiles(configDir, tmp, initConfig)
+
+  // The config reader ignores these in a project manifest, so writing one there
+  // would leave the user with a setting that does nothing and a warning on
+  // every command.
+  await expect(config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    location: 'project',
+    authConfig: {},
+  }), ['set', key, '/tmp/somewhere'])).rejects.toThrow(
+    expect.objectContaining({ code: 'ERR_PNPM_CONFIG_SET_SKIPPED_PROJECT_KEY' }) as PnpmError
+  )
+
+  expect(readConfigFiles(configDir, tmp)).toEqual(initConfig)
+})

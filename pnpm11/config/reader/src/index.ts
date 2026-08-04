@@ -1131,6 +1131,14 @@ const PROJECT_MANIFEST_SKIPPED_SETTINGS: ReadonlySet<string> = new Set([
   'packageManagerRegistries',
 ] satisfies Array<keyof (Config & ConfigContext)>)
 
+/**
+ * Whether a project's `pnpm-workspace.yaml` would ignore this camelCase key.
+ * See {@link PROJECT_MANIFEST_SKIPPED_SETTINGS}.
+ */
+export function isProjectManifestSkippedSetting (camelKey: string): boolean {
+  return PROJECT_MANIFEST_SKIPPED_SETTINGS.has(camelKey)
+}
+
 function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigContext, {
   configFromCliOpts,
   expandRequestDestinationEnv,
