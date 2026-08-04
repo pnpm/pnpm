@@ -144,18 +144,28 @@ pub fn backdate_existing_files(root: &Path) -> i64 {
 /// `SystemTime::now`, because the two clocks are independent. A wall-clock
 /// offset can land below a baseline that an earlier bump already pushed into
 /// the future, and the kernel stamps mtimes from a coarse clock that lags the
-/// fine-grained one. Without a recorded state to beat (no install has run
-/// yet), the file's own mtime is the baseline.
+/// fine-grained one.
+///
+/// # Panics
+///
+/// When no install has recorded a `lastValidatedTimestamp` above `path`.
 pub fn bump_mtime(path: &Path) {
-    let baseline = recorded_validation_timestamp(path).unwrap_or(i64::MIN);
+    let baseline = recorded_validation_timestamp(path);
     set_mtime_ms(path, baseline.max(mtime_ms(path)) + MTIME_STEP_MS);
 }
 
 /// `lastValidatedTimestamp` of the workspace state governing `path`, found
-/// by walking up from its directory. `None` when no install has written one.
-fn recorded_validation_timestamp(path: &Path) -> Option<i64> {
+/// by walking up from its directory.
+///
+/// Panics when no install has written one, rather than substituting a
+/// weaker baseline: without a recorded timestamp there is nothing for
+/// [`bump_mtime`] to push past, so the call cannot do what it promises and
+/// the test that made it would go on to assert against a freshness verdict
+/// reached for the wrong reason.
+fn recorded_validation_timestamp(path: &Path) -> i64 {
     path.ancestors()
         .skip(1)
         .find_map(|dir| load_workspace_state(dir).expect("read the workspace state"))
-        .map(|state| state.last_validated_timestamp)
+        .unwrap_or_else(|| panic!("no workspace state above {path:?} to bump the mtime past"))
+        .last_validated_timestamp
 }
