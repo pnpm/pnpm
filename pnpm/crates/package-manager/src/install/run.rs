@@ -76,7 +76,6 @@ where
         } = self;
         let can_prompt = prompt_eligibility_override
             .unwrap_or_else(|| !is_ci::cached() && std::io::stdin().is_terminal());
-        // Read before the sink is moved into the fresh-path inputs.
         let peer_issues_sink_is_none = peer_issues_sink.is_none();
 
         // `--lockfile-only` with `lockfile: false` (pnpm's
@@ -115,9 +114,6 @@ where
             return Err(InstallError::ConfigConflictVirtualStoreOnlyWithNoModulesDir);
         }
 
-        // Resolve the effective `preferFrozenLockfile` for the
-        // dispatch: a per-invocation CLI flag wins over
-        // `config.prefer_frozen_lockfile`.
         let prefer_frozen_lockfile =
             prefer_frozen_lockfile.unwrap_or(config.prefer_frozen_lockfile);
 
@@ -156,9 +152,6 @@ where
             manifest_dir.to_path_buf()
         };
 
-        // Read `pnpm-workspace.yaml` for the catalog sections. Only
-        // consulted when a workspace manifest exists — single-project
-        // installs have no `catalog:` to honor.
         let workspace_manifest = match workspace_dir_opt.as_deref() {
             Some(dir) => pacquet_workspace::read_workspace_manifest(dir)
                 .map_err(InstallError::ReadWorkspaceManifest)?,
@@ -573,9 +566,6 @@ where
                 .map_or_else(|| workspace_root.join(Lockfile::FILE_NAME), Path::to_path_buf)
         });
 
-        // `pnpm:context` carries the directories pnpm's reporter prints
-        // in the install header. `currentLockfileExists` is `true` once
-        // a previous install has written `<virtual_store_dir>/lock.yaml`.
         Reporter::emit(&LogEvent::Context(ContextLog {
             level: LogLevel::Debug,
             current_lockfile_exists: current_lockfile.is_some(),
@@ -659,16 +649,6 @@ where
         // 4. No lockfile → fresh-resolve path with no seed, writes a
         //    brand-new `pnpm-lock.yaml`.
         //
-        // The third tuple element is `hoisted_locations`: the per-depPath
-        // list of lockfile-relative directories the hoisted linker placed
-        // each package at. Empty under the isolated linker (and under the
-        // no-lockfile path); non-empty only when the frozen-lockfile
-        // install runs with `nodeLinker: hoisted`. Threaded into
-        // `build_modules_manifest` so the field is persisted into
-        // `.modules.yaml.hoisted_locations` for the next install and for
-        // the rebuild path (which throws `MISSING_HOISTED_LOCATIONS` when
-        // this field is gone).
-
         if update_checksums && frozen_lockfile {
             return Err(InstallError::FrozenLockfileWithUpdateChecksums);
         }
@@ -768,19 +748,7 @@ where
             false
         };
 
-        // `--lockfile-only`: resolve and (re)write `pnpm-lock.yaml`, then
-        // stop — never materialize `node_modules`, `.modules.yaml`, the
-        // current lockfile, or the workspace-state file. The
-        // `lockfileOnly` short-circuits: the frozen / up-to-date path
-        // writes the wanted lockfile and returns, and the fresh-resolve
-        // path skips `linkPackages`.
         if lockfile_only && take_frozen_path {
-            // Frozen (`--frozen-lockfile`) or auto-frozen
-            // (`preferFrozenLockfile`) + `--lockfile-only`: the freshness
-            // gate folded into `take_frozen_path` already validated the
-            // on-disk lockfile (a stale one surfaced `OutdatedLockfile`).
-            // Re-persist it so a brand-new project still lands a file, then
-            // return without touching `node_modules`.
             let lockfile = lockfile.expect("frozen dispatch verified lockfile is present");
             // This path materializes nothing, so there's no fetch to overlap;
             // verify eagerly to keep the gate before the early return.
@@ -1000,16 +968,8 @@ async fn prepare_modules_state<'install, Reporter: self::Reporter + 'static>(
         project_manifests,
         prefix,
     } = inputs;
-    // No-op short-circuit. When the frozen-lockfile dispatch is
-    // eligible, the on-disk `.modules.yaml` agrees with the current
-    // config, and `<virtual_store_dir>/lock.yaml` is byte-equal to
-    // the wanted lockfile, nothing needs to be materialized — the
-    // last install already produced exactly this `node_modules`.
-    // Emit the up-to-date log, refresh the workspace-state
-    // timestamp so `pnpm run`'s `verifyDepsBeforeRun` doesn't fire
-    // spuriously, then exit.
-    // Parse `.modules.yaml` once and share it across the consistency,
-    // newly-allowed, and unapproved-ignored checks below.
+    // A no-op still refreshes workspace state so `verifyDepsBeforeRun`
+    // does not treat the materialized tree as stale.
     let modules_manifest_res = if !resolve_only || take_frozen_path {
         pacquet_modules_yaml::read_modules_layout::<Host>(&config.modules_dir)
     } else {
@@ -1076,7 +1036,6 @@ async fn prepare_modules_state<'install, Reporter: self::Reporter + 'static>(
         if !installs_only && let Some(modules) = modules_manifest {
             check_modules_settings_diff(modules, config)?;
         }
-        // Settings mismatch forces a rewrite of node_modules.
         let (is_safe, target_dir) = if config.modules_dir.exists() {
             match (
                 std::fs::canonicalize(&config.modules_dir),
@@ -1438,19 +1397,8 @@ async fn materialize<Reporter: self::Reporter + 'static>(
         catalogs,
         prefix,
     } = inputs;
-    // Sorted `name@version` keys whose builds were blocked; assigned
-    // by whichever path runs and consumed by the `strictDepBuilds`
-    // gate at the tail. Kept out of the tuple below (along with the
-    // injected-deps map) to avoid a `clippy::type_complexity`
-    // annotation.
     let ignored_builds: Vec<String>;
-    // Dep paths whose build `--ignore-scripts` deferred; assigned by
-    // whichever path runs and folded into `.modules.yaml`'s
-    // `pendingBuilds` at the tail.
     let deferred_builds: Vec<String>;
-    // Per-source-project virtual-store copies of injected `file:`
-    // deps, for `.modules.yaml`'s `injectedDeps`; assigned by
-    // whichever path runs. See [`crate::collect_injected_deps`].
     let injected_deps: BTreeMap<String, Vec<String>>;
     let effective_node_version =
         config.node_version.clone().or_else(|| node_version_from_engines_runtime(manifest.value()));
@@ -1626,22 +1574,6 @@ async fn materialize<Reporter: self::Reporter + 'static>(
             .await?;
         }
 
-        // The fresh-lockfile path has no installability check
-        // (no `packages:` metadata to evaluate constraints
-        // against), so its skip set is empty by construction.
-        // Walk every workspace project once: the returned `Vec`
-        // feeds both the `workspace:`-spec lookup the npm resolver
-        // consults *and* the per-importer manifest list the
-        // resolver iterates over. `None` workspace projects when
-        // the install isn't inside a `pnpm-workspace.yaml`
-        // workspace (no workspace root was found) — the resolver
-        // then errors out on any `workspace:` spec rather than
-        // silently skipping to a registry lookup.
-        //
-        // Reuses the `workspace_projects` walk done at the top of
-        // `Install::run` for the optimistic-repeat-install check
-        // so we don't pay the workspace scan twice on a
-        // fresh-install fall-through.
         let workspace_packages = build_workspace_packages_map(workspace_projects);
         // Build the per-importer manifest list. The root importer
         // (`"."`) always reuses the in-memory `Install.manifest`
@@ -1824,12 +1756,7 @@ async fn finish_install<Reporter: self::Reporter + 'static>(
     let modules_manifest = modules_manifest.as_ref();
     tracing::info!(target: "pacquet::install", "Complete all");
 
-    // Fresh-resolve `--lockfile-only` already wrote `pnpm-lock.yaml` and
-    // emitted `importing_done` inside `InstallWithFreshLockfile::run`.
-    // Skip `.modules.yaml`, the current lockfile, and the
-    // workspace-state file: there is no `node_modules` to describe, and
-    // writing the workspace-state file would make the next install's
-    // up-to-date check believe materialization happened.
+    // Resolve-only runs must not persist state that claims materialization happened.
     if resolve_only {
         // `--dry-run` resolved a fresh lockfile but wrote nothing. Diff
         // it against the existing on-disk lockfile and print a report,
@@ -1978,20 +1905,6 @@ async fn finish_install<Reporter: self::Reporter + 'static>(
         .map_err(InstallError::LinkManifestLinkDeps)?;
     }
 
-    // `Stage::ImportingDone` is emitted inside the install paths
-    // (`InstallFrozenLockfile` between symlink and build, and
-    // `InstallWithFreshLockfile` after the writer task) so that any
-    // subsequent `pnpm:lifecycle` events render after the import
-    // progress display has closed.
-
-    // Remove surplus virtual-store directories the wanted lockfile
-    // no longer references, throttled by `modulesCacheMaxAge`.
-    // The wanted lockfile is `fresh_lockfile` on the resolve path and
-    // `lockfile` on the frozen path; its `snapshots:` keys name the
-    // virtual-store subdirectories that must survive.
-    // A genuine read/parse failure (not `NotFound`) is treated as
-    // "no prior manifest" — the safe direction (prune + fresh
-    // `prunedAt`) — but logged rather than silently swallowed.
     let prior_modules = modules_manifest;
     let now = SystemTime::now();
     let effective_virtual_store_dir = config.effective_virtual_store_dir();
@@ -2059,12 +1972,6 @@ async fn finish_install<Reporter: self::Reporter + 'static>(
         _ => httpdate::fmt_http_date(now),
     };
 
-    // Write `node_modules/.modules.yaml`. Fires after
-    // `importing_done` and before the closing `pnpm:summary` emit.
-    // The manifest records the resolved directory layout, hoist
-    // patterns, included dependency groups, store dir, and registries
-    // so a later install (or another tool) can detect a layout change
-    // and prune accordingly.
     // The projects whose own install scripts `--ignore-scripts`
     // skipped are owed a build just like the dependencies the build
     // phase deferred, and are recorded by importer id.
@@ -2167,21 +2074,6 @@ async fn finish_install<Reporter: self::Reporter + 'static>(
             .map_err(InstallError::SaveWantedLockfile)?;
     }
 
-    // Run each workspace project's own lifecycle scripts now that
-    // the dependency graph is materialized, bins are linked, and
-    // `.modules.yaml` / the current lockfile are written. The
-    // `pnpm:lifecycle` events these scripts produce render before
-    // the closing `pnpm:summary` below.
-    //
-    // Which projects those are is [`ProjectMutation`]'s call.
-    //
-    // Skipped under `--ignore-scripts`: pnpm suppresses the
-    // project's own lifecycle scripts alongside dependency build
-    // scripts when `ignoreScripts` is set.
-    //
-    // And under `virtualStoreOnly`, which stops before any linking
-    // the project's scripts would expect to find in place.
-    //
     // A `pnpm rebuild --pending` is the exception to the mutation
     // gate: it installs no manifest, but the projects it names are
     // exactly the ones whose scripts an earlier `--ignore-scripts`
