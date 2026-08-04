@@ -1,5 +1,6 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
+import util from 'node:util'
 
 import { confirm } from '@inquirer/prompts'
 import { PnpmError } from '@pnpm/error'
@@ -24,6 +25,10 @@ interface ImporterToPurge {
   modulesDir: string
   rootDir: ProjectRootDir
   rootDirRealPath?: string
+}
+
+interface SafeImporterToPurge extends ImporterToPurge {
+  purgeDir: string
 }
 
 export async function validateModules (
@@ -151,11 +156,8 @@ async function purgeModulesDirsOfImporters (
   },
   importers: ImporterToPurge[]
 ): Promise<void> {
-  const safeImporters = importers.filter((importer) => {
-    const projectRootDir = importer.rootDirRealPath ?? importer.rootDir
-    return !dirsAreEqual(projectRootDir, importer.modulesDir) &&
-      isSubdir(projectRootDir, importer.modulesDir)
-  })
+  const safeImporters = (await Promise.all(importers.map(resolveSafePurgeTarget)))
+    .filter((importer): importer is SafeImporterToPurge => importer != null)
   if (safeImporters.length === 0) return
 
   if (opts.confirmModulesPurge ?? true) {
@@ -191,11 +193,27 @@ async function purgeModulesDirsOfImporters (
       // We don't remove the actual modules directory, just the contents of it.
       // 1. we will need the directory anyway.
       // 2. in some setups, pnpm won't even have permission to remove the modules directory.
-      await removeContentsOfDir(importer.modulesDir, opts.virtualStoreDir)
+      await removeContentsOfDir(importer.purgeDir, opts.virtualStoreDir)
     } catch (err: any) { // eslint-disable-line
       if (err.code !== 'ENOENT') throw err
     }
   }))
+}
+
+async function resolveSafePurgeTarget (
+  importer: ImporterToPurge
+): Promise<SafeImporterToPurge | null> {
+  try {
+    const [projectRootDir, purgeDir] = await Promise.all([
+      fs.realpath(importer.rootDirRealPath ?? importer.rootDir),
+      fs.realpath(importer.modulesDir),
+    ])
+    if (dirsAreEqual(projectRootDir, purgeDir) || !isSubdir(projectRootDir, purgeDir)) return null
+    return { ...importer, purgeDir }
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return null
+    throw err
+  }
 }
 
 async function removeContentsOfDir (dir: string, virtualStoreDir: string): Promise<void> {
