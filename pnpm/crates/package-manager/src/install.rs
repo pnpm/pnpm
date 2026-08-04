@@ -4495,10 +4495,6 @@ pub fn build_workspace_packages_map(
     Some(map)
 }
 
-pub(crate) fn should_write_package_map(config: &Config, node_linker: NodeLinker) -> bool {
-    node_linker == NodeLinker::Isolated && !config.virtual_store_only
-}
-
 /// Build the `projects` map for [`WorkspaceState`] from the
 /// in-memory `(root_dir, manifest)` list the caller already
 /// assembled.

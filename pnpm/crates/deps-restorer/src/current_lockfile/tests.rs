@@ -1,4 +1,4 @@
-//! Unit tests for [`super::filter_lockfile_for_current`].
+//! Unit tests for current-lockfile filtering and merge helpers.
 
 use std::{
     collections::{BTreeMap, HashMap, HashSet},

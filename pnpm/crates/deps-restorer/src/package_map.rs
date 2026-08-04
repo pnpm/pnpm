@@ -10,15 +10,15 @@ use std::{
     path::{Path, PathBuf},
 };
 
-pub(crate) const PACKAGE_MAP_FILENAME: &str = ".package-map.json";
+pub const PACKAGE_MAP_FILENAME: &str = ".package-map.json";
 
 #[derive(Debug, PartialEq, Eq, Serialize)]
-pub(crate) struct PackageMap {
+pub struct PackageMap {
     packages: BTreeMap<String, PackageMapPackage>,
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize)]
-pub(crate) struct PackageMapPackage {
+pub struct PackageMapPackage {
     url: String,
     dependencies: BTreeMap<String, String>,
 }
@@ -33,7 +33,7 @@ pub enum WritePackageMapError {
     Write(#[error(source)] pacquet_fs::EnsureFileError),
 }
 
-pub(crate) struct PackageMapOptions<'a> {
+pub struct PackageMapOptions<'a> {
     pub lockfile_dir: &'a Path,
     pub modules_dir: &'a Path,
     pub package_map_type: NodePackageMapType,
@@ -44,14 +44,14 @@ pub(crate) struct PackageMapOptions<'a> {
     pub project_manifests: &'a [(PathBuf, &'a PackageManifest)],
 }
 
-pub(crate) struct HoistedPackageMapOptions<'a> {
+pub struct HoistedPackageMapOptions<'a> {
     pub lockfile_dir: &'a Path,
     pub modules_dir: &'a Path,
     pub package_map_type: NodePackageMapType,
     pub project_manifests: &'a [(PathBuf, &'a PackageManifest)],
 }
 
-pub(crate) fn write_package_map(
+pub fn write_package_map(
     lockfile: &Lockfile,
     opts: &PackageMapOptions<'_>,
 ) -> Result<(), WritePackageMapError> {
@@ -66,7 +66,7 @@ pub(crate) fn write_package_map(
         .map_err(WritePackageMapError::Write)
 }
 
-pub(crate) fn write_hoisted_package_map(
+pub fn write_hoisted_package_map(
     lockfile: &Lockfile,
     graph: &LockfileToDepGraphResult,
     opts: &HoistedPackageMapOptions<'_>,
@@ -83,10 +83,7 @@ pub(crate) fn write_hoisted_package_map(
         .map_err(WritePackageMapError::Write)
 }
 
-pub(crate) fn lockfile_to_package_map(
-    lockfile: &Lockfile,
-    opts: &PackageMapOptions<'_>,
-) -> PackageMap {
+pub fn lockfile_to_package_map(lockfile: &Lockfile, opts: &PackageMapOptions<'_>) -> PackageMap {
     let is_loose = opts.package_map_type == NodePackageMapType::Loose;
     let mut packages = BTreeMap::new();
     let mut loose_index = is_loose.then(PhysicalPackageIndex::default);
@@ -229,7 +226,7 @@ pub(crate) fn lockfile_to_package_map(
     PackageMap { packages }
 }
 
-pub(crate) fn dependencies_graph_to_package_map(
+pub fn dependencies_graph_to_package_map(
     lockfile: &Lockfile,
     graph: &LockfileToDepGraphResult,
     opts: &HoistedPackageMapOptions<'_>,

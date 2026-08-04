@@ -248,7 +248,7 @@ fn real_name_version(resolution: &ResolveResult) -> Option<(String, String)> {
 
 /// Pull the tarball URL + integrity hash out of the resolver-produced
 /// resolution. Refuses any shape the npm install path can't fetch.
-pub(crate) fn extract_tarball(
+pub fn extract_tarball(
     resolution: &LockfileResolution,
 ) -> Result<(&str, Integrity), InstallPackageFromRegistryError> {
     match resolution {
@@ -276,14 +276,16 @@ pub(crate) fn extract_tarball(
 /// Read `dist.unpackedSize` off the resolver-fetched manifest. Returns
 /// `None` when missing or non-numeric — the tarball extractor treats it
 /// as a hint, not a hard requirement.
-pub(crate) fn manifest_unpacked_size(manifest: Option<&Value>) -> Option<usize> {
+#[must_use]
+pub fn manifest_unpacked_size(manifest: Option<&Value>) -> Option<usize> {
     manifest_dist_field(manifest, "unpackedSize")
 }
 
 /// Read `dist.fileCount` off the resolver-fetched manifest. Feeds the
 /// download priority's per-file pipeline-cost term; `None` when the
 /// registry never published one.
-pub(crate) fn manifest_file_count(manifest: Option<&Value>) -> Option<usize> {
+#[must_use]
+pub fn manifest_file_count(manifest: Option<&Value>) -> Option<usize> {
     manifest_dist_field(manifest, "fileCount")
 }
 

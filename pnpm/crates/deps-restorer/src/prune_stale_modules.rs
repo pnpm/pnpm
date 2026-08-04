@@ -10,7 +10,7 @@
 //!
 //! Orphan *virtual-store directories* are deliberately not removed
 //! here: they are the modules cache, swept by the throttled
-//! [`crate::prune_virtual_store`] pass (`modulesCacheMaxAge`), exactly
+//! package manager's `prune_virtual_store` pass (`modulesCacheMaxAge`), exactly
 //! like upstream's `pruneVirtualStore` gate.
 
 use crate::{
