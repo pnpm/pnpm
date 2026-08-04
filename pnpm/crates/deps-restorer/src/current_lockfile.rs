@@ -439,7 +439,6 @@ where
             }
             let Some(importer) = lockfile.importers.get(&importer_id) else { continue };
             importer_ids.insert(importer_id.clone());
-            let importer_dir = crate::importer_root_dir(workspace_root, &importer_id);
             for map in [
                 included.dependencies.then_some(importer.dependencies.as_ref()).flatten(),
                 included.dev_dependencies.then_some(importer.dev_dependencies.as_ref()).flatten(),
@@ -452,14 +451,7 @@ where
             .flatten()
             {
                 for (name, spec) in map {
-                    if let Some(target) = spec.version.as_link_target() {
-                        enqueue_linked_importer(
-                            &importer_dir,
-                            target,
-                            &known_importers,
-                            &mut importer_queue,
-                        );
-                    } else if let Some(key) = spec.version.resolved_key(name)
+                    if let Some(key) = spec.version.resolved_key(name)
                         && !should_skip(&key)
                         && snapshots.is_some_and(|snapshots| snapshots.contains_key(&key))
                     {
