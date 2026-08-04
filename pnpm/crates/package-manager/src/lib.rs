@@ -18,7 +18,6 @@ mod optimistic_repeat_install;
 mod overrides;
 mod package_extender;
 mod patch;
-mod patch_commit;
 mod prefetching_resolver;
 mod prune_virtual_store;
 mod remove;
@@ -45,8 +44,10 @@ pub use optimistic_repeat_install::*;
 pub use overrides::*;
 pub use package_extender::*;
 pub use pacquet_deps_restorer::*;
+pub use pacquet_patching::{
+    PatchCommitError, PkgFilesForDiff, diff_folders, prepare_pkg_files_for_diff,
+};
 pub use patch::*;
-pub use patch_commit::*;
 pub use prefetching_resolver::*;
 pub use remove::*;
 pub use resolution_observer::*;

@@ -167,6 +167,44 @@ fn install_scaffolds_an_allow_builds_entry_for_the_blocked_build() {
 }
 
 #[test]
+fn install_scaffolds_allow_builds_in_discovered_workspace_with_project_lockfiles() {
+    let harness = CommandTempCwd::init().add_mocked_registry();
+    let workspace = harness.workspace.clone();
+    let project = workspace.join("packages/app");
+    fs::create_dir_all(&project).expect("create workspace project");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\nstrictDepBuilds: false\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    fs::write(
+        project.join("package.json"),
+        serde_json::json!({
+            "dependencies": { "@pnpm.e2e/install-script-example": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write project package.json");
+
+    pacquet(&project).with_arg("install").assert().success();
+
+    let yaml =
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace manifest");
+    assert!(
+        yaml.contains(
+            "allowBuilds:\n  '@pnpm.e2e/install-script-example': set this to true or false",
+        ),
+        "workspace manifest receives the scaffold: {yaml}",
+    );
+    assert!(
+        !project.join("pnpm-workspace.yaml").exists(),
+        "install must not create a nested workspace manifest",
+    );
+
+    drop(harness);
+}
+
+#[test]
 fn approve_builds_with_args_runs_the_build() {
     let (harness, workspace) = install_with_ignored_build();
 
