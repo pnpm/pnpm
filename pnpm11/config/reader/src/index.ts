@@ -483,7 +483,7 @@ export async function getConfig (opts: {
           configFromCliOpts,
           projectManifest: pnpmConfig.rootProjectManifest,
           skipSettings: opts.forSelfUpdate
-            ? new Set([...REPO_MANIFEST_SKIPPED_SETTINGS, ...SELF_UPDATE_SKIPPED_SETTINGS])
+            ? SELF_UPDATE_AND_REPO_MANIFEST_SKIPPED_SETTINGS
             : REPO_MANIFEST_SKIPPED_SETTINGS,
           workspaceDir: pnpmConfig.workspaceDir,
           workspaceManifest,
@@ -1115,7 +1115,11 @@ const REPO_MANIFEST_SKIPPED_SETTINGS: ReadonlySet<string> = new Set([
   'scope',
 ] satisfies Array<keyof Config>)
 
-const IGNORED_SCOPE_WARNING = 'The "scope" setting in pnpm-workspace.yaml was ignored. "pnpm login" records it as a scope-to-registry route in the global auth.ini, which then applies to every project on the machine, so it is only read from --scope, the PNPM_CONFIG_SCOPE environment variable, and the global config file.'
+const SELF_UPDATE_AND_REPO_MANIFEST_SKIPPED_SETTINGS: ReadonlySet<string> =
+  new Set([...REPO_MANIFEST_SKIPPED_SETTINGS, ...SELF_UPDATE_SKIPPED_SETTINGS])
+
+/** Raised by the config reader; worded identically in pacquet. */
+export const IGNORED_SCOPE_WARNING ='The "scope" setting in pnpm-workspace.yaml was ignored. "pnpm login" records it as a scope-to-registry route in the global auth.ini, which then applies to every project on the machine, so it is only read from --scope, the PNPM_CONFIG_SCOPE environment variable, and the global config file.'
 
 function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigContext, {
   configFromCliOpts,

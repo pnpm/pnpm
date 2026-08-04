@@ -714,9 +714,10 @@ pub const WORKSPACE_MANIFEST_FILENAME: &str = "pnpm-workspace.yaml";
 /// Basename of pnpm's global config file inside `<configDir>`.
 pub const GLOBAL_CONFIG_YAML_FILENAME: &str = "config.yaml";
 
-/// Emitted by [`WorkspaceSettings::clear_repo_scope`]; worded identically in
-/// the TypeScript CLI's config reader.
-const IGNORED_SCOPE_WARNING: &str = r#"The "scope" setting in pnpm-workspace.yaml was ignored. "pnpm login" records it as a scope-to-registry route in the global auth.ini, which then applies to every project on the machine, so it is only read from --scope, the PNPM_CONFIG_SCOPE environment variable, and the global config file."#;
+/// Raised by [`WorkspaceSettings::clear_repo_scope`]; worded identically in
+/// the TypeScript CLI's config reader, which raises it from the same place in
+/// its own cascade.
+pub const IGNORED_SCOPE_WARNING: &str = r#"The "scope" setting in pnpm-workspace.yaml was ignored. "pnpm login" records it as a scope-to-registry route in the global auth.ini, which then applies to every project on the machine, so it is only read from --scope, the PNPM_CONFIG_SCOPE environment variable, and the global config file."#;
 
 /// Error when reading `pnpm-workspace.yaml`.
 ///
@@ -830,8 +831,8 @@ impl WorkspaceSettings {
         self.trust_policy_ignore_after = None;
     }
 
-    /// Zero out the `scope` a project `pnpm-workspace.yaml` supplied, warning
-    /// that it was ignored.
+    /// Zero out the `scope` a project `pnpm-workspace.yaml` supplied, pushing
+    /// [`IGNORED_SCOPE_WARNING`] onto `warnings` when there was one.
     ///
     /// `pnpm login` turns `scope` into a `@scope:registry` route that it writes
     /// into the machine-global `auth.ini` — a file no repository can write to,
@@ -841,9 +842,9 @@ impl WorkspaceSettings {
     /// `config.yaml` and `PNPM_CONFIG_SCOPE` only (plus `--scope`, applied by
     /// the caller).
     /// See <https://github.com/pnpm/pnpm/issues/13557>
-    pub fn clear_repo_scope(&mut self) {
+    pub fn clear_repo_scope(&mut self, warnings: &mut Vec<String>) {
         if self.scope.take().is_some() {
-            tracing::warn!(target: "pacquet::config", "{IGNORED_SCOPE_WARNING}");
+            warnings.push(IGNORED_SCOPE_WARNING.to_owned());
         }
     }
 

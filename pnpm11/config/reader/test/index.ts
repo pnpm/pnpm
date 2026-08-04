@@ -1131,7 +1131,7 @@ test('pnpm-workspace.yaml request destinations do not expand env variables', asy
 // repo-committed file must not be able to choose it.
 // https://github.com/pnpm/pnpm/issues/13557
 describe('the scope setting is honored from trusted sources only', () => {
-  const scopeWarning = expect.stringContaining('The "scope" setting in')
+  const scopeWarning = 'The "scope" setting in pnpm-workspace.yaml was ignored. "pnpm login" records it as a scope-to-registry route in the global auth.ini, which then applies to every project on the machine, so it is only read from --scope, the PNPM_CONFIG_SCOPE environment variable, and the global config file.'
 
   test('a pnpm-workspace.yaml scope is ignored and warned about', async () => {
     prepareEmpty()
@@ -1205,6 +1205,40 @@ describe('the scope setting is honored from trusted sources only', () => {
     })
 
     expect(config.scope).toBe('@from-env')
+  })
+
+  // An empty scope is a value like any other — it would clear a scope the
+  // global config file set — so the repo must not be able to supply it either.
+  test('an empty pnpm-workspace.yaml scope is ignored too', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', { scope: '' })
+
+    const { config, warnings } = await getConfigWithGlobalYaml(
+      { scope: '@from-global-config' },
+      { workspaceDir: process.cwd() }
+    )
+
+    expect(config.scope).toBe('@from-global-config')
+    expect(warnings).toContainEqual(scopeWarning)
+  })
+
+  test('self-update skips the scope alongside its own settings', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', { scope: '@acme', minimumReleaseAge: 4320 })
+
+    const { config, warnings } = await getConfig({
+      cliOptions: {},
+      env,
+      forSelfUpdate: true,
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.scope).toBeUndefined()
+    expect(config.minimumReleaseAge).not.toBe(4320)
+    expect(warnings).toContainEqual(scopeWarning)
   })
 
   test('a pnpm-workspace.yaml without a scope emits no warning', async () => {

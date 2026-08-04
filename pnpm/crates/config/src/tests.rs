@@ -1974,6 +1974,7 @@ pub fn pnpm_workspace_yaml_cannot_supply_the_login_scope() {
         .expect("write to pnpm-workspace.yaml");
     let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
     assert_eq!(config.scope, None);
+    assert_eq!(config.config_warnings, vec![crate::IGNORED_SCOPE_WARNING.to_owned()]);
 }
 
 #[test]

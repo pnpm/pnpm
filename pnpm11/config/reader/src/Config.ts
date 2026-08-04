@@ -138,8 +138,9 @@ export interface Config extends OptionsFromRootManifest {
   registry?: string
   /**
    * The package scope `pnpm login` / `pnpm adduser` associates the granted
-   * token with, and records a registry route for. Repo-controlled config
-   * cannot set it — see `REPO_MANIFEST_SKIPPED_SETTINGS`.
+   * token with, and records a registry route for. Read from `--scope`, the
+   * `PNPM_CONFIG_SCOPE` environment variable, and the global config file
+   * only — never from a project `pnpm-workspace.yaml`.
    */
   scope?: string
   optional?: boolean

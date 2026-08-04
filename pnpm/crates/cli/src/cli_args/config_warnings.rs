@@ -9,6 +9,14 @@
 use pacquet_default_reporter::colors::Colors;
 use std::io::{IsTerminal, Write};
 
+/// Emit every warning [`pacquet_config::Config`] collected while loading, and
+/// clear them so a second drain cannot repeat them.
+pub(crate) fn drain_config_warnings(config: &mut pacquet_config::Config) {
+    for warning in std::mem::take(&mut config.config_warnings) {
+        emit_config_warning(&warning);
+    }
+}
+
 /// Write a `[WARN]`-labelled config-load warning to stderr. Best-effort:
 /// a warning must never abort the command, so a failed write (a closed
 /// stderr, a consumer that exited) is discarded, as the reporter sinks
