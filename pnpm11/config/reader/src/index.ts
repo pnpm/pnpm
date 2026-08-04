@@ -1106,8 +1106,7 @@ const SELF_UPDATE_SKIPPED_SETTINGS: ReadonlySet<string> = new Set([
  * Each names a location or a trusted value the reader resolves for itself
  * before the manifest is read, so a repository setting one would only redirect
  * where pnpm writes — `pnpm login`'s `auth.ini`, `pnpm setup`'s PATH entry,
- * the bins `pnpm install` links. They come from the environment, the global
- * config file, and the command line only.
+ * the bins `pnpm install` links.
  */
 const PROJECT_MANIFEST_SKIPPED_SETTINGS: ReadonlySet<string> = new Set([
   // Where state that outlives the project lives.
