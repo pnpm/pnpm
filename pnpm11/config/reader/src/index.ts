@@ -329,7 +329,7 @@ export async function getConfig (opts: {
     }
     if (ignoredKeys.length > 0) {
       const globalYamlConfigPath = getGlobalConfigPath(configDir)
-      warnings.push(`The following settings cannot be set in the global config file ("${globalYamlConfigPath}") and were ignored: ${ignoredKeys.map(k => `"${k}"`).join(', ')}. Move them to a project-level pnpm-workspace.yaml. To share these settings across projects, use config dependencies: https://pnpm.io/11.x/config-dependencies`)
+      warnings.push(`The following settings cannot be set in the global config file ("${globalYamlConfigPath}") and were ignored: ${quoteAndJoin(ignoredKeys)}. Move them to a project-level pnpm-workspace.yaml. To share these settings across projects, use config dependencies: https://pnpm.io/11.x/config-dependencies`)
     }
     addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
       configFromCliOpts,
@@ -459,7 +459,7 @@ export async function getConfig (opts: {
       }
       const ignoredPnpmFieldKeys = getIgnoredPnpmFieldKeys(pnpmConfig.rootProjectManifest)
       if (ignoredPnpmFieldKeys.length > 0) {
-        warnings.push(`The "pnpm" field in package.json is no longer read by pnpm. The following keys were ignored: ${ignoredPnpmFieldKeys.map(k => `"pnpm.${k}"`).join(', ')}. See https://pnpm.io/settings for the new home of each setting.`)
+        warnings.push(`The "pnpm" field in package.json is no longer read by pnpm. The following keys were ignored: ${quoteAndJoin(ignoredPnpmFieldKeys.map(k => `pnpm.${k}`))}. See https://pnpm.io/settings for the new home of each setting.`)
       }
       const wantedPmResult = getWantedPackageManager(pnpmConfig.rootProjectManifest)
       if (wantedPmResult.pm) {
@@ -478,7 +478,7 @@ export async function getConfig (opts: {
       if (workspaceManifest) {
         const ignoredKeys = Object.keys(workspaceManifest).filter((key) => PROJECT_MANIFEST_SKIPPED_SETTINGS.has(key))
         if (ignoredKeys.length > 0) {
-          warnings.push(`The following settings cannot be set in a project's pnpm-workspace.yaml and were ignored: ${ignoredKeys.map(k => `"${k}"`).join(', ')}.`)
+          warnings.push(`The following settings cannot be set in a project's pnpm-workspace.yaml and were ignored: ${quoteAndJoin(ignoredKeys)}.`)
         }
         addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
           configFromCliOpts,
@@ -1166,4 +1166,9 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigCo
     pnpmConfig.verifyDepsBeforeRun = process.env.pnpm_config_verify_deps_before_run as VerifyDepsBeforeRun
   }
   pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
+}
+
+/** Renders keys for a warning that lists the settings it ignored. */
+function quoteAndJoin (keys: string[]): string {
+  return keys.map(key => `"${key}"`).join(', ')
 }
