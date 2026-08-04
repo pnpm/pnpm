@@ -1053,7 +1053,7 @@ test('config delete removes a skipped key that a project manifest already has', 
   expect(readConfigFiles(configDir, tmp).localYaml).toEqual({ storeDir: '~/store' })
 })
 
-test('config set --global points machine-level keys at the environment, not the project manifest', async () => {
+test('config set --global does not send a machine-level key to the project manifest', async () => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
   fs.mkdirSync(configDir, { recursive: true })
@@ -1095,6 +1095,9 @@ test.each([
   ['global_dir', 'pnpm config set --global global-dir'],
   // Refused everywhere: pnpm resolves it on its own.
   ['config-dir', 'no config file sets it'],
+  // `userconfig` is writable globally but never read back; point at the key
+  // that actually supplies the user-level .npmrc.
+  ['userconfig', 'pnpm config set --global npmrc-auth-file'],
 ])('config set tells the user where %s belongs', async (key, expectedHint) => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')

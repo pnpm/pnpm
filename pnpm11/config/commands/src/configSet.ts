@@ -200,6 +200,19 @@ export class ConfigSetUnsupportedWorkspaceKeyError extends PnpmError {
 }
 
 /**
+ * The key to name in a suggestion, for settings whose own name would be
+ * accepted by the global config file but never read back from it.
+ *
+ * `userconfig` is one: the reader takes the user-level `.npmrc` from
+ * `npmrcAuthFile`, or from the `--userconfig` flag, and never from the config
+ * file's `userconfig`. Suggesting it would send the user to a command that
+ * succeeds and changes nothing.
+ */
+const GLOBAL_EQUIVALENT_KEYS: Record<string, string> = {
+  userconfig: 'npmrc-auth-file',
+}
+
+/**
  * Where {@link key} can be set, for a key a project manifest refuses.
  *
  * Some of them are still valid in the global config file; the rest pnpm
@@ -207,7 +220,7 @@ export class ConfigSetUnsupportedWorkspaceKeyError extends PnpmError {
  * — the fallback for every other key — would send the user in a circle.
  */
 function whereRefusedKeyBelongs (key: string): string {
-  const kebabKey = kebabCase(key)
+  const kebabKey = GLOBAL_EQUIVALENT_KEYS[camelCase(key)] ?? kebabCase(key)
   return isConfigFileKey(kebabKey)
     ? `Set it for the machine instead: pnpm config set --global ${kebabKey}`
     : 'pnpm determines this setting itself, so no config file sets it'
