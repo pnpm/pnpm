@@ -815,10 +815,11 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
     prepareEmpty()
 
     writeYamlFileSync('pnpm-workspace.yaml', machineLocations)
+    fs.mkdirSync('nested')
 
     const { config } = await getConfig({
       cliOptions: {
-        dir: process.cwd(),
+        dir: path.resolve('nested'),
         'global-bin-dir': '/tmp/cli-global-bin',
         'global-dir': '/tmp/cli-global',
       },
@@ -827,6 +828,7 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
       workspaceDir: process.cwd(),
     })
 
+    expect(config.dir).toBe(fs.realpathSync(path.resolve('nested')))
     expect(config.globalBinDir).toBe('/tmp/cli-global-bin')
     expect(config.globalDir).toBe('/tmp/cli-global')
     expect(config.stateDir).toBe('/tmp/env-state')
