@@ -89,7 +89,7 @@ test('remove expands dependency glob patterns', async () => {
     dependencies: {
       eslint: '1.0.0',
       'eslint-plugin-import': '1.0.0',
-      unrelated: '1.0.0',
+      'is-positive': '1.0.0',
     },
   })
 
@@ -100,7 +100,7 @@ test('remove expands dependency glob patterns', async () => {
 
   const manifest = JSON.parse(await readFile('package.json', 'utf8'))
   expect(manifest.dependencies).toStrictEqual({
-    unrelated: '1.0.0',
+    'is-positive': '1.0.0',
   })
 })
 
