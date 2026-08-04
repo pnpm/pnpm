@@ -181,9 +181,9 @@ impl PublishArgs {
             ));
         }
 
-        // Upstream gates on `opts.publishBranch ? [opts.publishBranch] : …`, so
-        // an empty value is falsy there and leaves the built-in branch pair in
-        // place rather than pinning publishing to a branch that cannot exist.
+        // Upstream gates on `opts.publishBranch ? [opts.publishBranch] : ...`,
+        // so an empty value is falsy there and leaves the built-in branch pair
+        // in place rather than pinning publishing to a branch that cannot exist.
         let publish_branch = self
             .flags
             .publish_branch
