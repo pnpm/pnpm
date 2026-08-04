@@ -10,23 +10,6 @@ use pacquet_store_dir::{
     PackageFilesIndex, SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir,
 };
 
-/// Try to reconstruct the `{filename → CAFS path}` map for a package from
-/// the `SQLite` store index, without going to the network. Returns `None`
-/// if anything looks off — no index handed in, no row, unreadable row,
-/// failed integrity check — so the caller falls through to a fresh
-/// download.
-///
-/// The `verify_store_integrity` parameter matches pnpm's flag of the
-/// same name. When `true` (pnpm's default) each referenced CAFS file is
-/// stat'ed and compared against the stored `checkedAt`/size, with a
-/// re-hash only when the mtime has advanced. When `false` the lookup
-/// builds the filename→path map straight from the index row without any
-/// filesystem work — missing / corrupt CAFS blobs surface lazily when
-/// the caller tries to import them.
-///
-/// Corruption is caught via the content hash, not by gating on the
-/// dirent type.
-///
 /// Pre-fetched cas-paths map shared across all per-snapshot futures.
 /// Built once at install start by [`prefetch_cas_paths`]; downloads
 /// consult it before falling through to a per-snapshot `SQLite` lookup.
@@ -248,6 +231,23 @@ pub async fn prefetch_cas_paths(
     })
 }
 
+/// Try to reconstruct the `{filename → CAFS path}` map for a package from
+/// the `SQLite` store index, without going to the network. Returns `None`
+/// if anything looks off — no index handed in, no row, unreadable row,
+/// failed integrity check — so the caller falls through to a fresh
+/// download.
+///
+/// The `verify_store_integrity` parameter matches pnpm's flag of the
+/// same name. When `true` (pnpm's default) each referenced CAFS file is
+/// stat'ed and compared against the stored `checkedAt`/size, with a
+/// re-hash only when the mtime has advanced. When `false` the lookup
+/// builds the filename→path map straight from the index row without any
+/// filesystem work — missing / corrupt CAFS blobs surface lazily when
+/// the caller tries to import them.
+///
+/// Corruption is caught via the content hash, not by gating on the
+/// dirent type.
+///
 /// The `index` argument is a shared read-only handle that callers open
 /// once per install and pass in repeatedly, so we don't pay the
 /// `Connection::open` + PRAGMA cost per package.

@@ -1,24 +1,19 @@
+mod download;
+mod error;
+mod extract;
+mod local_tarball;
+mod prefetch;
 mod zip_archive;
 
-pub use zip_archive::*;
-mod prefetch;
-
-pub use prefetch::*;
-mod extract;
-
+pub use download::*;
+pub use error::*;
 pub(crate) use extract::{
     allocate_tarball_buffer, apply_append_manifest, apply_placeholder_manifest, decompress_gzip,
     extract_tarball_entries, normalize_bundled_manifest, tar_entry_payload,
 };
-mod local_tarball;
-
 pub use local_tarball::*;
-mod download;
-
-pub use download::*;
-mod error;
-
-pub use error::*;
+pub use prefetch::*;
+pub use zip_archive::*;
 
 use std::{
     collections::HashMap,
