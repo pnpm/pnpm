@@ -11,7 +11,7 @@ use pacquet_default_reporter::colors::Colors;
 use std::{
     collections::HashSet,
     io::{IsTerminal, Write},
-    sync::{Mutex, OnceLock, PoisonError},
+    sync::{LazyLock, Mutex, PoisonError},
 };
 
 /// Config-load warnings already written this process.
@@ -21,7 +21,8 @@ use std::{
 /// than once — and every load re-reads the same files and re-collects the same
 /// warnings. pnpm reads config once per command and prints each warning once,
 /// so the second and later copies are suppressed here.
-static EMITTED_CONFIG_WARNINGS: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+static EMITTED_CONFIG_WARNINGS: LazyLock<Mutex<HashSet<String>>> =
+    LazyLock::new(|| Mutex::new(HashSet::new()));
 
 /// Emit every warning [`pacquet_config::Config`] collected while loading,
 /// skipping any already written this process, and clear them off the config.
@@ -31,10 +32,7 @@ pub(crate) fn drain_config_warnings(config: &mut pacquet_config::Config) {
         // warning twice beats aborting the command over it. The guard is
         // dropped before emitting so a slow stderr holds it no longer than the
         // set update itself.
-        let mut emitted = EMITTED_CONFIG_WARNINGS
-            .get_or_init(Mutex::default)
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner);
+        let mut emitted = EMITTED_CONFIG_WARNINGS.lock().unwrap_or_else(PoisonError::into_inner);
         take_unemitted(&mut emitted, config)
     };
     for warning in unemitted {
