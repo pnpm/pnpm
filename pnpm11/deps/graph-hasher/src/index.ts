@@ -124,6 +124,24 @@ export function calcDepState<T extends string> (
   return result
 }
 
+/**
+ * Decide whether a package's side-effects-cache key must include the
+ * dependency-graph hash, i.e. whether the package is (or will be) built.
+ *
+ * `deferDependencyBuilds` covers separate-lockfile installs, where each
+ * project install passes `ignoreScripts: true` because the actual build
+ * happens in a later workspace-wide rebuild pass. Those packages are still
+ * built, so their cache key must match the hashed key the rebuild writes —
+ * unlike an explicit `--ignore-scripts` run, where nothing is ever built.
+ */
+export function shouldIncludeDepGraphHash (opts: {
+  ignoreScripts: boolean
+  deferDependencyBuilds: boolean
+  requiresBuild: boolean
+}): boolean {
+  return (!opts.ignoreScripts || opts.deferDependencyBuilds) && opts.requiresBuild
+}
+
 function calcDepGraphHash<T extends string> (
   depsGraph: DepsGraph<T>,
   cache: DepsStateCache,

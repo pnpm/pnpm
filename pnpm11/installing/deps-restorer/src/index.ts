@@ -22,7 +22,7 @@ import {
   lockfileToDepGraph,
   type LockfileToDepGraphOptions,
 } from '@pnpm/deps.graph-builder'
-import { calcDepState, type DepsStateCache, findRuntimeNodeVersion } from '@pnpm/deps.graph-hasher'
+import { calcDepState, type DepsStateCache, findRuntimeNodeVersion, shouldIncludeDepGraphHash } from '@pnpm/deps.graph-hasher'
 import * as dp from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import {
@@ -127,6 +127,7 @@ export interface HeadlessOptions {
   hoistingLimits?: HoistingLimits
   externalDependencies?: Set<string>
   ignoreScripts: boolean
+  deferDependencyBuilds?: boolean
   ignorePackageManifest?: boolean
   /**
    * When true, skip fetching local dependencies (file: protocol pointing to directories).
@@ -426,6 +427,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     if (!skipPostImportLinking) {
       await linkHoistedModules(opts.storeController, graph, prevGraph, hierarchy, {
         allowBuild,
+        deferDependencyBuilds: opts.deferDependencyBuilds === true,
         depsStateCache,
         disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
         force: opts.force,
@@ -465,6 +467,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
           }),
         linkAllPkgs(opts.storeController, depNodes, {
           allowBuild,
+          deferDependencyBuilds: opts.deferDependencyBuilds === true,
           force: opts.force,
           disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
           depGraph: graph,
@@ -960,6 +963,7 @@ async function linkAllPkgs (
     allowBuild?: AllowBuild
     depGraph: DependenciesGraph
     depsStateCache: DepsStateCache
+    deferDependencyBuilds: boolean
     disableRelinkLocalDirDeps?: boolean
     enableGlobalVirtualStore?: boolean
     force: boolean
@@ -1002,7 +1006,11 @@ async function linkAllPkgs (
       if (opts.sideEffectsCacheRead && filesResponse.sideEffectsMaps && !isEmpty(filesResponse.sideEffectsMaps)) {
         if (opts.allowBuild?.(depNode.depPath) === true) {
           sideEffectsCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.dir, {
-            includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild, // true when is built
+            includeDepGraphHash: shouldIncludeDepGraphHash({
+              ignoreScripts: opts.ignoreScripts,
+              deferDependencyBuilds: opts.deferDependencyBuilds,
+              requiresBuild: depNode.requiresBuild,
+            }),
             patchFileHash: depNode.patch?.hash,
             supportedArchitectures: opts.supportedArchitectures,
             nodeVersion,
