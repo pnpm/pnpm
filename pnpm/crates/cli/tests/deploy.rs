@@ -175,6 +175,7 @@ fn shared_lockfile_deploy_honors_no_optional_in_graph_and_virtual_store() {
         .assert()
         .success();
     let without_optional = workspace.join("deploy-without-optional");
+    assert!(without_optional.join("node_modules/lib").exists());
     assert!(!without_optional.join("node_modules/optional-only").exists());
     assert!(!deploy_graph_keys(&without_optional).iter().any(|key| {
         key.contains("optional-only@file:")
@@ -186,10 +187,19 @@ fn shared_lockfile_deploy_honors_no_optional_in_graph_and_virtual_store() {
             || entry.contains("@pnpm.e2e+qar@")
             || entry.contains("@pnpm.e2e+foo@")
     }),);
-    let lockfile = fs::read_to_string(without_optional.join("pnpm-lock.yaml")).unwrap();
+
+    let deploy_lockfile = Lockfile::load_wanted_from_dir(&without_optional).unwrap().unwrap();
+    let retained_optional_edges = deploy_lockfile
+        .snapshots
+        .iter()
+        .flatten()
+        .filter_map(|(key, snapshot)| {
+            snapshot.optional_dependencies.as_ref().map(|deps| (key.to_string(), deps))
+        })
+        .collect::<Vec<_>>();
     assert!(
-        !lockfile.contains("optionalDependencies:\n      '@pnpm.e2e/qar'"),
-        "retained production snapshots must not keep pruned optional edges:\n{lockfile}",
+        retained_optional_edges.is_empty(),
+        "retained production snapshots must not keep pruned optional edges: {retained_optional_edges:?}",
     );
 
     drop((root, mock_instance));
