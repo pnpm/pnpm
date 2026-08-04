@@ -1405,11 +1405,14 @@ pub struct Config {
     /// package, `public` or `restricted`. Unset leaves it to the manifest's
     /// `publishConfig.access` and then to the registry default.
     ///
-    /// Kept as the raw string: the closed set lives in
-    /// `pacquet_publish::Access`, and the publish command — not the shared
-    /// config crate — is where the value is parsed and where an
-    /// unrecognized one is dropped, exactly as it is for
-    /// `publishConfig.access`. Overridden by `--access`.
+    /// Kept as the raw string because pnpm assigns a configured `access`
+    /// unchecked and sends whatever it finds to the registry — see
+    /// `pacquet_publish::resolve_access`, which forwards this value verbatim
+    /// and validates only the manifest's `publishConfig.access` against the
+    /// closed set in `pacquet_publish::Access`.
+    ///
+    /// One layer is an exception: `PNPM_CONFIG_ACCESS` is constrained to that
+    /// set in the env overlay, mirroring pnpm's typed env pass.
     pub access: Option<String>,
 
     /// `tag` (`--tag`): the dist-tag `pnpm publish` registers the published

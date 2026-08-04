@@ -121,9 +121,10 @@ where
         &DistHashes { integrity: &summary.integrity, shasum: &summary.shasum },
     )?;
 
-    // Provenance is requested either explicitly (`--provenance`) or by OIDC
-    // auto-detection for a public repo; `resolved.provenance` carries the merged
-    // result. Sign an SLSA attestation with sigstore and splice it into the
+    // Provenance is requested by `--provenance`, by the `provenance` setting,
+    // or by OIDC auto-detection for a public repo — and `--no-provenance` or a
+    // configured `false` suppresses it; `resolved.provenance` carries the
+    // merged result. Sign an SLSA attestation with sigstore and splice it into the
     // document's `_attachments`.
     if resolved.provenance == Some(true) {
         let attachment =

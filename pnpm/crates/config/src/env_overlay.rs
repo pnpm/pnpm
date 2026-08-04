@@ -178,7 +178,7 @@ impl WorkspaceSettings {
         // The union's `null` member is the one value this cannot reproduce:
         // pnpm records it and lets `publishConfig.access` take over, while
         // here it is simply dropped. That is the env-cannot-express-null
-        // limitation `tri_string_field!` documents below, not an `access` quirk.
+        // limitation `tri_string_field!` documents above, not an `access` quirk.
         if let Some(access) = read_env::<Sys>("ACCESS")
             .filter(|access| matches!(access.as_str(), "public" | "restricted"))
         {
