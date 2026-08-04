@@ -1559,7 +1559,11 @@ fn materialize_side_effects<Reporter: self::Reporter>(
         import_method,
         pkg_dir,
         overlay,
-        ImportIndexedDirOpts { force: true, keep_modules_dir: true },
+        ImportIndexedDirOpts {
+            force: true,
+            keep_modules_dir: true,
+            ..ImportIndexedDirOpts::default()
+        },
     )
     .map_err(BuildModulesError::MaterializeSideEffects)
 }

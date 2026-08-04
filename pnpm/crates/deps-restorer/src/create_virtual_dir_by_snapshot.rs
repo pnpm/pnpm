@@ -173,10 +173,20 @@ impl CreateVirtualDirBySnapshot<'_> {
         } else {
             cas_paths
         };
+        // A global-virtual-store slot is shared with every other project on the machine, so two
+        // processes importing it at once is normal rather than a conflict: tell the importer to
+        // let whoever gets there first win instead of tearing the live directory down underneath
+        // them.
+        //
+        // Not for a mutable source. There the slot's contents are whatever the local directory
+        // held at install time, so "every expected file is present" does not mean "the contents
+        // are current" — that is the same reason `source_is_mutable` forces a re-import below,
+        // and skipping would reintroduce the stale copy it exists to prevent.
+        let safe_to_skip = layout.enable_global_virtual_store() && !source_is_mutable;
         let import_opts = if interrupted_build || source_is_mutable {
-            ImportIndexedDirOpts { force: true, keep_modules_dir: true }
+            ImportIndexedDirOpts { force: true, keep_modules_dir: true, safe_to_skip }
         } else {
-            ImportIndexedDirOpts::default()
+            ImportIndexedDirOpts { safe_to_skip, ..ImportIndexedDirOpts::default() }
         };
 
         let import_package = || {

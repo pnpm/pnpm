@@ -24,9 +24,13 @@ fn cas_map(entries: &[(&str, PathBuf)]) -> HashMap<String, PathBuf> {
 }
 
 const FORCE_KEEP: ImportIndexedDirOpts =
-    ImportIndexedDirOpts { force: true, keep_modules_dir: true };
+    ImportIndexedDirOpts { force: true, keep_modules_dir: true, safe_to_skip: false };
 const FORCE_ONLY: ImportIndexedDirOpts =
-    ImportIndexedDirOpts { force: true, keep_modules_dir: false };
+    ImportIndexedDirOpts { force: true, keep_modules_dir: false, safe_to_skip: false };
+/// The global-virtual-store call shape: a content-addressed target, shared with
+/// concurrent processes, that must not be torn down and re-created underneath them.
+const FORCE_SHARED: ImportIndexedDirOpts =
+    ImportIndexedDirOpts { force: true, keep_modules_dir: false, safe_to_skip: true };
 
 #[test]
 fn fresh_target_links_files() {
@@ -678,4 +682,216 @@ fn marker_only_map_creates_target_and_places_marker() {
             "marker staging temp leaked at {path:?}",
         );
     }
+}
+
+/// A shared content-addressed slot that already holds a finished import is left alone: the
+/// importer that finds it drops its own staged copy instead of swapping over the top.
+#[test]
+fn safe_to_skip_keeps_a_target_a_concurrent_importer_already_completed() {
+    let tmp = tempdir().unwrap();
+    let src_root = tmp.path().join("cas");
+    fs::create_dir_all(&src_root).unwrap();
+    let pkg_json = write_source(&src_root, "package.json", b"{\"version\":\"1.0.0\"}");
+    let index = write_source(&src_root, "index.js", b"module.exports = 1");
+    let cas = cas_map(&[("package.json", pkg_json), ("index.js", index)]);
+
+    // The slot as another process left it: every expected file present. Because the path is
+    // derived from a hash of the contents, that is enough to know it is the right content.
+    let target = tmp.path().join("slot");
+    fs::create_dir_all(&target).unwrap();
+    fs::write(target.join("package.json"), b"{\"version\":\"1.0.0\"}").unwrap();
+    fs::write(target.join("index.js"), b"module.exports = 1").unwrap();
+
+    import_indexed_dir::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::Copy,
+        &target,
+        &cas,
+        FORCE_SHARED,
+    )
+    .expect("a slot another importer already completed is not a conflict");
+
+    assert_eq!(fs::read(target.join("package.json")).unwrap(), b"{\"version\":\"1.0.0\"}");
+    assert_eq!(fs::read(target.join("index.js")).unwrap(), b"module.exports = 1");
+    // No staging directory left behind.
+    let strays: Vec<_> = fs::read_dir(tmp.path())
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .filter(|name| name != "cas" && name != "slot")
+        .collect();
+    assert_eq!(strays, Vec::<String>::new(), "staging dir must be cleaned up");
+}
+
+/// A slot another importer is still filling must not be mistaken for a finished
+/// one, and its half-written files must be replaced rather than kept.
+///
+/// This is the mid-flight shape: the other files are already linked but the
+/// completion marker, which `populate_dir` places last, is not there yet.
+#[test]
+fn safe_to_skip_does_not_accept_a_slot_that_is_still_being_written() {
+    let tmp = tempdir().unwrap();
+    let src_root = tmp.path().join("cas");
+    fs::create_dir_all(&src_root).unwrap();
+    let pkg_json = write_source(&src_root, "package.json", b"{\"version\":\"1.0.0\"}");
+    let index = write_source(&src_root, "index.js", b"module.exports = 1");
+    let cas = cas_map(&[("package.json", pkg_json), ("index.js", index)]);
+
+    // Every expected name exists, but `package.json` (the completion marker)
+    // does not — the state a concurrent importer leaves mid-flight, since the
+    // marker is placed only after every other file is linked.
+    let target = tmp.path().join("slot");
+    fs::create_dir_all(&target).unwrap();
+    fs::write(target.join("index.js"), b"half-written").unwrap();
+
+    import_indexed_dir::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::Copy,
+        &target,
+        &cas,
+        FORCE_SHARED,
+    )
+    .expect("an unfinished slot must be completed, not accepted");
+
+    assert_eq!(fs::read(target.join("package.json")).unwrap(), b"{\"version\":\"1.0.0\"}");
+    assert_eq!(
+        fs::read(target.join("index.js")).unwrap(),
+        b"module.exports = 1",
+        "the half-written file must be replaced, not kept",
+    );
+}
+
+/// The same flag must still repair a *partial* slot - "already exists" is only a win for the
+/// other importer once every expected file is actually there.
+#[test]
+fn safe_to_skip_still_repairs_an_incomplete_target() {
+    let tmp = tempdir().unwrap();
+    let src_root = tmp.path().join("cas");
+    fs::create_dir_all(&src_root).unwrap();
+    let pkg_json = write_source(&src_root, "package.json", b"{\"version\":\"1.0.0\"}");
+    let index = write_source(&src_root, "index.js", b"module.exports = 1");
+    let cas = cas_map(&[("package.json", pkg_json), ("index.js", index)]);
+
+    let target = tmp.path().join("slot");
+    fs::create_dir_all(&target).unwrap();
+    fs::write(target.join("package.json"), b"truncated").unwrap();
+
+    import_indexed_dir::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::Copy,
+        &target,
+        &cas,
+        FORCE_SHARED,
+    )
+    .expect("an incomplete slot must be repaired");
+
+    assert_eq!(fs::read(target.join("package.json")).unwrap(), b"{\"version\":\"1.0.0\"}");
+    assert_eq!(fs::read(target.join("index.js")).unwrap(), b"module.exports = 1");
+}
+
+/// Two importers racing for the same shared slot: both must finish, the winner's
+/// directory must survive intact, and neither may leave a staging directory behind.
+///
+/// The sequential tests above cannot show this — a destructive implementation that
+/// removes the slot and rebuilds it with identical contents passes those. Here the
+/// threads are released together at the import call, which is what made the
+/// original `remove_dir_all`-then-rename lose to `Directory not empty`.
+///
+/// Unix-only, and the Windows gap is real rather than incidental: there a rename or
+/// removal fails while the other importer still holds handles on the files, so the
+/// loser's fall-through to the destructive swap can error instead of resolving. The
+/// non-destructive attempt this test covers still helps on Windows, but making the
+/// contended case reliable there needs its own retry handling — the same reason
+/// `cli/tests/global_virtual_store.rs` is `#![cfg(unix)]`.
+#[cfg(unix)]
+#[test]
+fn concurrent_importers_of_one_shared_slot_both_succeed() {
+    use std::sync::{Arc, Barrier};
+
+    let tmp = tempdir().unwrap();
+    let src_root = tmp.path().join("cas");
+    fs::create_dir_all(&src_root).unwrap();
+    let pkg_json = write_source(&src_root, "package.json", b"{\"version\":\"1.0.0\"}");
+    let index = write_source(&src_root, "index.js", b"module.exports = 1");
+    let cas = Arc::new(cas_map(&[("package.json", pkg_json), ("index.js", index)]));
+
+    let target = Arc::new(tmp.path().join("slot"));
+    let barrier = Arc::new(Barrier::new(2));
+
+    let handles: Vec<_> = (0..2)
+        .map(|_| {
+            let cas = Arc::clone(&cas);
+            let target = Arc::clone(&target);
+            let barrier = Arc::clone(&barrier);
+            std::thread::spawn(move || {
+                barrier.wait();
+                import_indexed_dir::<SilentReporter>(
+                    &AtomicU8::new(0),
+                    PackageImportMethod::Copy,
+                    &target,
+                    &cas,
+                    FORCE_SHARED,
+                )
+            })
+        })
+        .collect();
+
+    for handle in handles {
+        handle.join().expect("importer thread panicked").expect("both importers must succeed");
+    }
+
+    assert_eq!(fs::read(target.join("package.json")).unwrap(), b"{\"version\":\"1.0.0\"}");
+    assert_eq!(fs::read(target.join("index.js")).unwrap(), b"module.exports = 1");
+    let strays: Vec<String> = fs::read_dir(tmp.path())
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .filter(|name| name != "cas" && name != "slot")
+        .collect();
+    assert_eq!(strays, Vec::<String>::new(), "neither importer may leak a staging dir");
+}
+
+/// A slot whose build already succeeded must not be rebuilt from the staging copy.
+///
+/// The force path adds `.pnpm-needs-build` to the indexed map because the slot still
+/// needed building, and a successful build deletes it. If the completeness check
+/// counted it, an importer that staged while the marker still existed would judge the
+/// built slot incomplete and destroy the build output another process just produced.
+#[test]
+fn safe_to_skip_keeps_a_slot_whose_build_removed_the_needs_build_marker() {
+    let tmp = tempdir().unwrap();
+    let src_root = tmp.path().join("cas");
+    fs::create_dir_all(&src_root).unwrap();
+    let pkg_json = write_source(&src_root, "package.json", b"{\"version\":\"1.0.0\"}");
+    let index = write_source(&src_root, "index.js", b"module.exports = 1");
+    let needs_build = write_source(&src_root, "needs-build", b"");
+    let cas = cas_map(&[
+        ("package.json", pkg_json),
+        ("index.js", index),
+        (crate::NEEDS_BUILD_MARKER, needs_build),
+    ]);
+
+    // The slot as a finished build leaves it: every package file present, the
+    // needs-build marker consumed, and an artifact the build produced.
+    let target = tmp.path().join("slot");
+    fs::create_dir_all(&target).unwrap();
+    fs::write(target.join("package.json"), b"{\"version\":\"1.0.0\"}").unwrap();
+    fs::write(target.join("index.js"), b"module.exports = 1").unwrap();
+    fs::write(target.join("built.node"), b"native addon").unwrap();
+
+    import_indexed_dir::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::Copy,
+        &target,
+        &cas,
+        FORCE_SHARED,
+    )
+    .expect("a built slot must be left alone");
+
+    assert!(
+        target.join("built.node").exists(),
+        "the build output must survive; the slot was rebuilt from the staging copy",
+    );
+    assert!(
+        !target.join(crate::NEEDS_BUILD_MARKER).exists(),
+        "the consumed needs-build marker must not be put back",
+    );
 }
