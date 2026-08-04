@@ -336,7 +336,6 @@ fn run_project(options: RunProjectOptions<'_, '_>) -> miette::Result<ProjectExec
             config,
             extra_env,
             silent,
-            sequential: args.sequential,
         };
         let status = run_stages(&ctx, selected, script, args.script_args())?;
         let duration = start.elapsed().as_secs_f64() * 1e3;
