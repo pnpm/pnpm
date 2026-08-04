@@ -1029,3 +1029,26 @@ test.each([
 
   expect(readConfigFiles(configDir, tmp)).toEqual(initConfig)
 })
+
+test('config delete removes a skipped key that a project manifest already has', async () => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  writeConfigFiles(configDir, tmp, {
+    globalRc: undefined,
+    globalYaml: undefined,
+    localRc: undefined,
+    localYaml: { configDir: '/tmp/somewhere', storeDir: '~/store' },
+  } satisfies ConfigFilesData)
+
+  // Deleting is how a user clears a manifest that already carries one of these,
+  // so the write-side rejection must not block it.
+  await config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    location: 'project',
+    authConfig: {},
+  }), ['delete', 'config-dir'])
+
+  expect(readConfigFiles(configDir, tmp).localYaml).toEqual({ storeDir: '~/store' })
+})

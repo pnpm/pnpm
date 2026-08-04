@@ -54,7 +54,10 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
         key = validateYamlConfigKey(key)
       }
       key = validateWorkspaceKey(key)
-      if (configFileName === WORKSPACE_MANIFEST_FILENAME && isProjectManifestSkippedSetting(key)) {
+      // `pnpm config delete` arrives here with a null value. Deleting one of
+      // these is the fix for a manifest that already has it, so only writing
+      // is refused.
+      if (value != null && configFileName === WORKSPACE_MANIFEST_FILENAME && isProjectManifestSkippedSetting(key)) {
         throw new ConfigSetSkippedProjectKeyError(key)
       }
       await updateWorkspaceManifest(configDir, {
@@ -192,7 +195,7 @@ export class ConfigSetUnsupportedWorkspaceKeyError extends PnpmError {
 }
 
 export class ConfigSetSkippedProjectKeyError extends PnpmError {
-  key: string
+  readonly key: string
   constructor (key: string) {
     super('CONFIG_SET_SKIPPED_PROJECT_KEY', `The key ${JSON.stringify(key)} isn't supported by a project's workspace manifest`, {
       hint: 'pnpm resolves this setting before it reads the project manifest, so a value written there would be ignored.',
