@@ -29,11 +29,15 @@ test('the hoisted locations passed to hardLinkDir are absolute', async () => {
 })
 
 async function runInstall (lockfileDir: string): Promise<void> {
-  const pkgDir = path.join(lockfileDir, 'node_modules/foo')
+  // Real hoisted locations come from path.relative(), so they use the platform's
+  // separator. Build the fixture's the same way, otherwise on Windows the install code
+  // cannot match the current location against them and filters nothing out.
+  const currentHoistedLocation = path.join('node_modules', 'foo')
+  const otherHoistedLocation = path.join('node_modules', 'bar', 'node_modules', 'foo')
+  const pkgDir = path.join(lockfileDir, currentHoistedLocation)
   fs.mkdirSync(pkgDir, { recursive: true })
   fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name: 'foo', version: '1.0.0' }))
 
-  const otherHoistedLocation = 'node_modules/bar/node_modules/foo'
   const depGraph = {
     'foo@1.0.0': {
       children: {},
@@ -54,7 +58,7 @@ async function runInstall (lockfileDir: string): Promise<void> {
   await buildModules(depGraph, ['foo@1.0.0'], {
     depsStateCache: {},
     hoistedLocations: {
-      'foo@1.0.0': ['node_modules/foo', otherHoistedLocation],
+      'foo@1.0.0': [currentHoistedLocation, otherHoistedLocation],
     },
     ignoreScripts: true,
     lockfileDir,
