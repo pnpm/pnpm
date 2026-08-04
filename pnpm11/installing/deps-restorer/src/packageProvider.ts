@@ -51,7 +51,7 @@ export interface PackageProviderGraphNode {
  * Sends the whole dependency graph to the configured external package
  * provider, which materializes every depPath as a read-only directory (e.g.
  * a Nix store path) whose node_modules holds the package next to symlinks to
- * its dependencies. Every graph node's dir and modules are then repointed at
+ * its dependencies. Every graph node's dir and modules are then redirected to
  * the returned location, so the regular direct-dependency, hoist, and bin
  * linking steps work unchanged; importing into the virtual store and running
  * lifecycle scripts must be skipped by the caller (the provider already did
