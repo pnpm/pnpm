@@ -2,9 +2,10 @@
 //! installing for, the engine name that keys its store slots, and the
 //! set of snapshots it must skip.
 //!
-//! Split out of [`super::InstallWithFreshLockfile::run`] so the
-//! orchestrator reads as a sequence of install phases. Everything here
-//! runs between the freshly-built lockfile and `CreateVirtualStore`.
+//! Reads the freshly-built lockfile and runs before
+//! `CreateVirtualStore`, which materializes only what the skip set
+//! leaves behind and addresses its slots by the engine name decided
+//! here.
 
 use super::InstallWithFreshLockfileError;
 use crate::SkippedSnapshots;

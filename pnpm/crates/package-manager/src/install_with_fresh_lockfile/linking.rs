@@ -3,9 +3,9 @@
 //! hoisted `node_modules` hierarchy or the isolated symlink layout with
 //! its hoist and bin passes.
 //!
-//! Split out of [`super::InstallWithFreshLockfile::run`] so the
-//! orchestrator reads as a sequence of install phases. Everything here
-//! runs between `CreateVirtualStore` and the build phase.
+//! Runs once the virtual store is populated and before the build
+//! phase, which needs both the linked tree and the hoisted package
+//! roots this reports.
 
 use super::InstallWithFreshLockfileError;
 use crate::{

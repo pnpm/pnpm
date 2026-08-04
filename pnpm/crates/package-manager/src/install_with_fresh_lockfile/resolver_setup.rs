@@ -1,9 +1,10 @@
 //! Construction of the fresh-install resolver chain and the store-side
 //! handles it shares with the install pass.
 //!
-//! Split out of [`super::InstallWithFreshLockfile::run`] so the
-//! orchestrator reads as a sequence of install phases. Everything here
-//! runs before the first `resolve_workspace` call.
+//! Everything here is in place before the first `resolve_workspace`
+//! call: the resolver chain and the later install pass must share one
+//! store index, writer, and verified-files cache, so the handles are
+//! opened here and lent to both.
 
 use super::InstallWithFreshLockfileError;
 use crate::{PrefetchContext, PrefetchingResolver};
