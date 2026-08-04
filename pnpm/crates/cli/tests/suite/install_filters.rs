@@ -664,7 +664,7 @@ fn sequential_filtered_prod_installs_prune_each_selected_project() {
 }
 
 #[test]
-fn filtered_prod_install_prunes_workspace_link_closure_projects() {
+fn filtered_prod_install_preserves_shallow_workspace_link_targets() {
     let fixture = WorkspaceFixture::new();
     fixture.append_workspace_yaml("linkWorkspacePackages: true\n");
     let selected = fixture.project(
@@ -688,7 +688,7 @@ fn filtered_prod_install_prunes_workspace_link_closure_projects() {
     fixture.run(["--filter", "selected", "install", "--prod"]);
 
     assert!(has_link(&selected, "linked"));
-    assert!(!has_link(&linked, NO_DEPS));
+    assert!(has_link(&linked, NO_DEPS));
 }
 
 #[test]
@@ -772,7 +772,7 @@ fn filtered_hoisted_install_materializes_full_shared_graph_but_links_only_select
 }
 
 #[test]
-fn filtered_isolated_install_expands_workspace_link_closure() {
+fn filtered_isolated_install_keeps_workspace_link_targets_shallow() {
     let fixture = WorkspaceFixture::new();
     fixture.append_workspace_yaml("linkWorkspacePackages: deep\n");
     let selected = fixture.project(
@@ -799,11 +799,17 @@ fn filtered_isolated_install_expands_workspace_link_closure() {
     fixture.run(["--filter", "selected", "install"]);
 
     assert!(has_link(&selected, "second"));
-    assert!(has_link(&second, PARENT));
-    assert!(has_link(&third, "selected"));
-    assert!(fixture.slot(PARENT, "100.0.0").exists());
+    assert!(!second.join("node_modules").exists());
+    assert!(!third.join("node_modules").exists());
+    assert!(!fixture.slot(PARENT, "100.0.0").exists());
+    assert!(!fixture.slot(DEP, "100.1.0").exists());
     assert!(!unrelated.join("node_modules").exists());
     assert!(!fixture.slot(NO_DEPS, "1.0.0").exists());
+    assert!(
+        !fixture.modules().pending_builds.iter().any(|entry| {
+            entry.contains(PARENT) || entry.contains(DEP) || entry.contains(NO_DEPS)
+        })
+    );
     assert_full_wanted(
         &fixture.wanted(),
         &["packages/second", "packages/selected", "packages/third", "packages/unrelated"],
