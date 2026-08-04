@@ -54,12 +54,7 @@ pub(super) fn partition_snapshots<'a>(
     marker_rebuilds: &HashSet<PackageKey>,
     node_linker: NodeLinker,
 ) -> Partition<'a> {
-    let PrefetchResult {
-        cas_paths: prefetched,
-        manifests: prefetched_manifests,
-        side_effects_maps: prefetched_side_effects,
-        requires_build: prefetched_requires_build,
-    } = prefetch;
+    let PrefetchResult { cas_paths: prefetched, .. } = prefetch;
 
     // The warm batch runs on rayon rather than per-snapshot tokio
     // futures. Profiled at 1352 prefetched / 0 cold on a 10-core Mac:
@@ -76,60 +71,16 @@ pub(super) fn partition_snapshots<'a>(
     // Keyed peer-stripped: every peer variant of a package resolves to
     // the same tarball, so they share one bundled manifest, and this is
     // the shape the bin linker looks up by.
-    let mut package_manifests: PackageManifests =
-        HashMap::with_capacity(prefetched_manifests.len());
-    let mut side_effects_maps_by_snapshot: SideEffectsMapsBySnapshot =
-        HashMap::with_capacity(prefetched_side_effects.len());
-    let mut requires_build_by_snapshot: RequiresBuildBySnapshot =
-        HashMap::with_capacity(prefetched_requires_build.len());
+    let mut rows = IndexRows::with_capacity_for(prefetch);
 
     for (snapshot_key, _snapshot, cache_key) in skipped_entries {
-        if let Some(cache_key) = cache_key.as_deref()
-            && let Some(manifest) = prefetched_manifests.get(cache_key)
-        {
-            package_manifests
-                .entry(snapshot_key.without_peer())
-                .or_insert_with(|| std::sync::Arc::clone(manifest));
-        }
-        if !marker_rebuilds.contains(*snapshot_key)
-            && let Some(cache_key) = cache_key.as_deref()
-            && let Some(maps) = prefetched_side_effects.get(cache_key)
-        {
-            side_effects_maps_by_snapshot
-                .insert((*snapshot_key).clone(), std::sync::Arc::clone(maps));
-        }
-        if let Some(cache_key) = cache_key.as_deref()
-            && let Some(&requires_build) = prefetched_requires_build.get(cache_key)
-        {
-            requires_build_by_snapshot.insert((*snapshot_key).clone(), requires_build);
-        }
+        rows.absorb(snapshot_key, cache_key.as_deref(), prefetch, marker_rebuilds);
     }
 
-    // Second pass: survivors. Same loop as above plus the
-    // warm/cold partition that decides which snapshots run the
-    // link work.
+    // Second pass: survivors, which additionally take the warm/cold
+    // partition that decides which snapshots run the link work.
     for (snapshot_key, snapshot, cache_key) in snapshot_entries {
-        if let Some(cache_key) = cache_key.as_deref()
-            && let Some(manifest) = prefetched_manifests.get(cache_key)
-        {
-            package_manifests
-                .entry(snapshot_key.without_peer())
-                .or_insert_with(|| std::sync::Arc::clone(manifest));
-        }
-        // Peer-variants of the same package share the same
-        // store-index row → the same `Arc<_>`. Cheap to share.
-        if !marker_rebuilds.contains(*snapshot_key)
-            && let Some(cache_key) = cache_key.as_deref()
-            && let Some(maps) = prefetched_side_effects.get(cache_key)
-        {
-            side_effects_maps_by_snapshot
-                .insert((*snapshot_key).clone(), std::sync::Arc::clone(maps));
-        }
-        if let Some(cache_key) = cache_key.as_deref()
-            && let Some(&requires_build) = prefetched_requires_build.get(cache_key)
-        {
-            requires_build_by_snapshot.insert((*snapshot_key).clone(), requires_build);
-        }
+        rows.absorb(snapshot_key, cache_key.as_deref(), prefetch, marker_rebuilds);
         // Carry the cache key alongside the warm entry so the
         // reporter can skip a duplicate package-status event when
         // a resolve-time prefetch already emitted it.
@@ -141,7 +92,7 @@ pub(super) fn partition_snapshots<'a>(
                 key,
                 snapshot_needs_build_marker(
                     snapshot_key,
-                    requires_build_by_snapshot.get(*snapshot_key).copied().unwrap_or(false),
+                    rows.requires_build_by_snapshot.get(*snapshot_key).copied().unwrap_or(false),
                 ),
             )),
             None => cold.push((*snapshot_key, *snapshot)),
@@ -157,11 +108,61 @@ pub(super) fn partition_snapshots<'a>(
         node_linker = ?node_linker,
         "phase complete",
     );
+    let IndexRows { package_manifests, side_effects_maps_by_snapshot, requires_build_by_snapshot } =
+        rows;
     Partition {
         warm,
         cold,
         package_manifests,
         side_effects_maps_by_snapshot,
         requires_build_by_snapshot,
+    }
+}
+
+/// The store-index rows the build and bin phases read, accumulated
+/// across both partition passes.
+struct IndexRows {
+    package_manifests: PackageManifests,
+    side_effects_maps_by_snapshot: SideEffectsMapsBySnapshot,
+    requires_build_by_snapshot: RequiresBuildBySnapshot,
+}
+
+impl IndexRows {
+    fn with_capacity_for(prefetch: &PrefetchResult) -> Self {
+        IndexRows {
+            package_manifests: HashMap::with_capacity(prefetch.manifests.len()),
+            side_effects_maps_by_snapshot: HashMap::with_capacity(prefetch.side_effects_maps.len()),
+            requires_build_by_snapshot: HashMap::with_capacity(prefetch.requires_build.len()),
+        }
+    }
+
+    /// Fold one snapshot's prefetched rows in.
+    ///
+    /// Both passes share this so a skipped snapshot and a survivor can
+    /// never diverge in what they contribute.
+    fn absorb(
+        &mut self,
+        snapshot_key: &PackageKey,
+        cache_key: Option<&str>,
+        prefetch: &PrefetchResult,
+        marker_rebuilds: &HashSet<PackageKey>,
+    ) {
+        let Some(cache_key) = cache_key else { return };
+        if let Some(manifest) = prefetch.manifests.get(cache_key) {
+            self.package_manifests
+                .entry(snapshot_key.without_peer())
+                .or_insert_with(|| std::sync::Arc::clone(manifest));
+        }
+        // Peer-variants of the same package share the same store-index
+        // row → the same `Arc<_>`. Cheap to share.
+        if !marker_rebuilds.contains(snapshot_key)
+            && let Some(maps) = prefetch.side_effects_maps.get(cache_key)
+        {
+            self.side_effects_maps_by_snapshot
+                .insert(snapshot_key.clone(), std::sync::Arc::clone(maps));
+        }
+        if let Some(&requires_build) = prefetch.requires_build.get(cache_key) {
+            self.requires_build_by_snapshot.insert(snapshot_key.clone(), requires_build);
+        }
     }
 }

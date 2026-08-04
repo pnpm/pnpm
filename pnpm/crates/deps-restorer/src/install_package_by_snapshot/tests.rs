@@ -548,7 +548,7 @@ async fn cold_batch_reuses_in_flight_prefetch_from_mem_cache() {
     .await
     .expect("cold batch must reuse the prefetched download instead of fetching");
 
-    assert_eq!(cas_paths, seeded);
+    assert_eq!(cas_paths.cas_paths, seeded);
 
     drop(store_tmp);
 }
@@ -757,7 +757,7 @@ async fn run_snapshot_install_with_picker(
     picker: &std::sync::Arc<pacquet_hooks::custom_fetcher_adapter::CustomFetcherPicker>,
     tarball_mem_cache: Option<&std::sync::Arc<pacquet_tarball::MemCache>>,
     workspace_root: &std::path::Path,
-) -> Result<std::collections::HashMap<String, std::path::PathBuf>, InstallPackageBySnapshotError> {
+) -> Result<super::InstalledPackage, InstallPackageBySnapshotError> {
     let package_key: PackageKey = "foo@1.0.0".parse().expect("parse key");
     let layout = crate::VirtualStoreLayout::legacy(workspace_root.join("vstore"), 120);
     let allow_build_policy = crate::AllowBuildPolicy::new(
@@ -841,7 +841,7 @@ async fn custom_fetcher_delegate_rewrites_the_resolution() {
     .await
     .expect("the delegated registry resolution must drive the fetch");
 
-    assert_eq!(cas_paths, seeded);
+    assert_eq!(cas_paths.cas_paths, seeded);
 
     drop(store_tmp);
 }
@@ -885,7 +885,7 @@ async fn custom_fetcher_declining_falls_through_to_the_original_resolution() {
     .await
     .expect("a declined package must take the built-in path unchanged");
 
-    assert_eq!(cas_paths, seeded);
+    assert_eq!(cas_paths.cas_paths, seeded);
 
     drop(store_tmp);
 }
@@ -1126,7 +1126,10 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
     .run::<pacquet_reporter::SilentReporter>()
     .await
     .expect("cold runtime install");
-    assert!(cold_cas_paths.contains_key("package.json"), "the cold slot gets the manifest");
+    assert!(
+        cold_cas_paths.cas_paths.contains_key("package.json"),
+        "the cold slot gets the manifest",
+    );
 
     // Flush the store-index writer so the row is durable before read-back.
     drop(writer);
@@ -1186,7 +1189,7 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
     .await
     .expect("warm runtime reinstall reads the store, not the network");
     assert!(
-        warm_cas_paths.contains_key("package.json"),
+        warm_cas_paths.cas_paths.contains_key("package.json"),
         "the warm reinstall re-materializes the manifest from the persisted row",
     );
 
@@ -1242,7 +1245,7 @@ async fn custom_typed_resolution_installs_via_delegating_fetcher() {
     .await
     .expect("a delegating fetcher must install a custom-typed resolution");
 
-    assert_eq!(cas_paths, seeded);
+    assert_eq!(cas_paths.cas_paths, seeded);
 
     drop(store_tmp);
 }
@@ -1274,6 +1277,44 @@ async fn custom_typed_resolution_without_a_claiming_fetcher_fails() {
     assert_eq!(
         err.to_string(),
         r#"Cannot fetch dependency with custom resolution type "custom:cdn". Custom resolutions must be handled by custom fetchers."#,
+    );
+
+    drop(store_tmp);
+}
+
+/// A custom fetcher may delegate to a directory resolution, in which
+/// case the file map points at mutable local source even though the
+/// lockfile entry does not say so. Reporting that from the effective
+/// resolution is what lets the slot be re-copied on the next install.
+#[tokio::test]
+async fn a_delegated_directory_resolution_reports_mutable_source() {
+    let store_tmp = tempfile::tempdir().expect("create the store dir");
+    let source = store_tmp.path().join("local-src");
+    std::fs::create_dir_all(&source).expect("create the source dir");
+    std::fs::write(
+        source.join("package.json"),
+        serde_json::json!({ "name": "foo", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write the source manifest");
+
+    let config = leaked_offline_config("https://registry.test", store_tmp.path());
+    let metadata = registry_metadata();
+
+    let picker = scripted_picker(
+        true,
+        Ok(serde_json::json!({
+            "delegate": { "type": "directory", "directory": "local-src" },
+        })),
+    );
+
+    let installed =
+        run_snapshot_install_with_picker(config, &metadata, &picker, None, store_tmp.path())
+            .await
+            .expect("the delegated directory resolution must drive the fetch");
+
+    assert!(
+        installed.source_is_mutable,
+        "a delegated directory resolution must report mutable source",
     );
 
     drop(store_tmp);

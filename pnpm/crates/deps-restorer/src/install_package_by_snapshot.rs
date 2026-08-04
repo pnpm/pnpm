@@ -262,6 +262,16 @@ pub enum InstallPackageBySnapshotError {
     },
 }
 
+/// What installing one package produced.
+#[derive(Debug)]
+pub struct InstalledPackage {
+    pub cas_paths: HashMap<String, PathBuf>,
+    /// Whether [`Self::cas_paths`] points at mutable local source
+    /// rather than immutable content-addressed entries. See
+    /// [`crate::CreateVirtualDirBySnapshot::source_is_mutable`].
+    pub source_is_mutable: bool,
+}
+
 impl InstallPackageBySnapshot<'_> {
     /// Execute the subroutine. Returns the CAS file index for the
     /// fetched package — the map relative-archive-path →
@@ -279,7 +289,7 @@ impl InstallPackageBySnapshot<'_> {
     /// gets, and it's threaded into [`crate::link_hoisted_modules()`].
     pub async fn run<Reporter: self::Reporter>(
         self,
-    ) -> Result<HashMap<String, PathBuf>, InstallPackageBySnapshotError> {
+    ) -> Result<InstalledPackage, InstallPackageBySnapshotError> {
         let InstallPackageBySnapshot {
             http_client,
             config,
@@ -374,6 +384,11 @@ impl InstallPackageBySnapshot<'_> {
             None
         };
         let resolution = effective_resolution.as_ref().unwrap_or(&metadata.resolution);
+        // Derived from the effective resolution, not the lockfile's: a
+        // custom fetcher's `delegate` can resolve to a directory, and
+        // then the file map points at mutable source even though the
+        // lockfile entry says otherwise.
+        let source_is_mutable = matches!(resolution, LockfileResolution::Directory(_));
 
         let cas_paths: HashMap<String, PathBuf> = match resolution {
             LockfileResolution::Tarball(_) | LockfileResolution::Registry(_) => {
@@ -636,7 +651,7 @@ impl InstallPackageBySnapshot<'_> {
                 package_id: &package_id,
                 package_key,
                 snapshot,
-                source_is_mutable: matches!(metadata.resolution, LockfileResolution::Directory(_)),
+                source_is_mutable,
                 symlink: config.symlink,
                 skipped,
                 // The non-deferred slot link runs only on the fresh
@@ -651,7 +666,7 @@ impl InstallPackageBySnapshot<'_> {
             .map_err(InstallPackageBySnapshotError::CreateVirtualDir)?;
         }
 
-        Ok(cas_paths)
+        Ok(InstalledPackage { cas_paths, source_is_mutable })
     }
 }
 

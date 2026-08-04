@@ -598,19 +598,18 @@ impl CreateVirtualStore<'_> {
                     .run::<Reporter>()
                     .await;
                     match result {
-                        Ok(cas_paths) => {
+                        Ok(installed) => {
+                            let crate::InstalledPackage { cas_paths, source_is_mutable } =
+                                installed;
                             let requires_build = requires_build_from_cas_paths(&cas_paths);
                             Ok((
                                 None,
                                 Some(ColdCapture {
                                     snapshot_key,
                                     snapshot,
-                                    requires_build,
-                                    source_is_mutable: matches!(
-                                        metadata.resolution,
-                                        LockfileResolution::Directory(_),
-                                    ),
                                     cas_paths,
+                                    requires_build,
+                                    source_is_mutable,
                                 }),
                             ))
                         }
