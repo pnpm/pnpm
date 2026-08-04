@@ -1,12 +1,21 @@
 use super::{
-    DownloadTarballToStore, FetchTarballForResolution, HttpStatusError,
-    MAX_UNTRUSTED_PREALLOC_BYTES, MemCache, NetworkError, PrefetchedCasPaths, RetryOpts,
-    SharedReportedProgressKeys, TarballError, VerifyChecksumError, allocate_local_tarball_buffer,
-    allocate_tarball_buffer, apply_append_manifest, apply_placeholder_manifest,
-    bounded_gzip_size_hint, decompress_gzip, download_priority, extract_tarball_entries,
-    extract_zip_entries, fetch_and_extract_with_retry, is_transient_error, local_file_tarball_path,
-    normalize_bundled_manifest, open_local_tarball, prefetch_cas_paths, read_local_tarball_buffer,
-    read_local_tarball_metadata,
+    FetchTarballForResolution, MAX_UNTRUSTED_PREALLOC_BYTES, MemCache, RetryOpts,
+    SharedReportedProgressKeys,
+    download::{
+        DownloadTarballToStore, download_priority, fetch_and_extract_with_retry, is_transient_error,
+    },
+    error::{HttpStatusError, NetworkError, TarballError, VerifyChecksumError},
+    extract::{
+        allocate_tarball_buffer, apply_append_manifest, apply_placeholder_manifest,
+        bounded_gzip_size_hint, decompress_gzip, extract_tarball_entries,
+        normalize_bundled_manifest,
+    },
+    local_tarball::{
+        allocate_local_tarball_buffer, local_file_tarball_path, open_local_tarball,
+        read_local_tarball_buffer, read_local_tarball_metadata,
+    },
+    prefetch::{PrefetchedCasPaths, prefetch_cas_paths},
+    zip_archive::extract_zip_entries,
 };
 use pacquet_network::{AuthHeaders, ThrottledClient, UNPRIORITIZED};
 use pacquet_reporter::SilentReporter;
