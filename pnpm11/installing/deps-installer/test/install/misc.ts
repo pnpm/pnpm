@@ -177,7 +177,7 @@ test('does not inject a package map into lifecycle scripts when virtualStoreOnly
     name: 'pkg',
     version: '1.0.0',
     scripts: {
-      install: makeAssertNoPackageMapNodeOptionsScript(marker),
+      install: makeAssertNoNodeOptionsScript('package-map', '--experimental-package-map', marker),
     },
   }), 'utf8')
 
@@ -199,7 +199,7 @@ test('does not write or inject the PnP loader when virtualStoreOnly skips linkin
     name: 'pkg',
     version: '1.0.0',
     scripts: {
-      install: makeAssertNoPnpNodeOptionsScript(marker),
+      install: makeAssertNoNodeOptionsScript('pnp', '.pnp.cjs', marker),
     },
   }), 'utf8')
 
@@ -228,7 +228,7 @@ test('does not write or inject a package map when modules directory creation is 
     name: 'project',
     version: '1.0.0',
     scripts: {
-      install: makeAssertNoPackageMapNodeOptionsScript(marker),
+      install: makeAssertNoNodeOptionsScript('package-map', '--experimental-package-map', marker),
     },
     dependencies: {
       'is-positive': '1.0.0',
@@ -1584,26 +1584,17 @@ test('install should not hang on circular peer dependencies', async () => {
   await addDependenciesToPackage({}, ['@medusajs/medusa-js@6.1.7'], testDefaults())
 })
 
-function makeAssertNoPnpNodeOptionsScript (marker: string): string {
-  const scriptPath = path.resolve('assert-no-pnp-node-options.cjs')
+/// Build a lifecycle script that fails if `NODE_OPTIONS` carries
+/// `forbidden`, and otherwise writes `marker`. The marker is what proves
+/// the script ran at all, so a clean environment cannot be confused with
+/// a script that never executed.
+function makeAssertNoNodeOptionsScript (name: string, forbidden: string, marker: string): string {
+  const scriptPath = path.resolve(`assert-no-${name}-node-options.cjs`)
   fs.writeFileSync(scriptPath, `
 const fs = require('node:fs')
 
-if ((process.env.NODE_OPTIONS || '').includes('.pnp.cjs')) {
-  throw new Error('unexpected PnP NODE_OPTIONS')
-}
-fs.writeFileSync(process.argv[2], 'ok')
-`, 'utf8')
-  return `node ${JSON.stringify(scriptPath)} ${JSON.stringify(marker)}`
-}
-
-function makeAssertNoPackageMapNodeOptionsScript (marker: string): string {
-  const scriptPath = path.resolve('assert-no-package-map-node-options.cjs')
-  fs.writeFileSync(scriptPath, `
-const fs = require('node:fs')
-
-if ((process.env.NODE_OPTIONS || '').includes('--experimental-package-map')) {
-  throw new Error('unexpected package map NODE_OPTIONS')
+if ((process.env.NODE_OPTIONS || '').includes(${JSON.stringify(forbidden)})) {
+  throw new Error(${JSON.stringify(`unexpected ${name} NODE_OPTIONS`)})
 }
 fs.writeFileSync(process.argv[2], 'ok')
 `, 'utf8')
