@@ -4,9 +4,9 @@
 )]
 
 use super::{
-    Install, InstallError, ProjectMutation, UpToDateFastPathCheck, exclude_linked_dependencies,
-    install_already_up_to_date, load_workspace_projects, order_project_lifecycle_groups,
-    project_requires_lifecycle_scripts, should_write_package_map,
+    Install, InstallError, ProjectMutation, UpToDateFastPathCheck, install_already_up_to_date,
+    load_workspace_projects, lockfile_freshness::exclude_linked_dependencies,
+    order_project_lifecycle_groups, project_requires_lifecycle_scripts,
 };
 use crate::{InstallWithFreshLockfileError, MinimumReleaseAgeError};
 use pacquet_config::{Config, NodePackageMapType};
@@ -242,12 +242,12 @@ fn workspace_without_packages_field_enumerates_root_only() {
 #[test]
 fn package_map_writer_is_gated_to_supported_pacquet_mode() {
     let mut config = Config::new();
-    assert!(should_write_package_map(&config, pacquet_config::NodeLinker::Isolated));
-    assert!(!should_write_package_map(&config, pacquet_config::NodeLinker::Hoisted));
-    assert!(!should_write_package_map(&config, pacquet_config::NodeLinker::Pnp));
+    assert!(crate::should_write_package_map(&config, pacquet_config::NodeLinker::Isolated));
+    assert!(!crate::should_write_package_map(&config, pacquet_config::NodeLinker::Hoisted));
+    assert!(!crate::should_write_package_map(&config, pacquet_config::NodeLinker::Pnp));
 
     config.node_package_map_type = NodePackageMapType::Loose;
-    assert!(should_write_package_map(&config, pacquet_config::NodeLinker::Isolated));
+    assert!(crate::should_write_package_map(&config, pacquet_config::NodeLinker::Isolated));
 }
 
 #[tokio::test]

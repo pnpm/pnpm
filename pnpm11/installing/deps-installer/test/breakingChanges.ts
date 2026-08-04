@@ -6,10 +6,13 @@ import { expect, test } from '@jest/globals'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import type { PnpmError } from '@pnpm/error'
 import { addDependenciesToPackage, install } from '@pnpm/installing.deps-installer'
+import type { Modules } from '@pnpm/installing.modules-yaml'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
+import type { ProjectRootDir } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
 import { isCI } from 'ci-info'
 
+import { validateModules } from '../src/install/validateModules.js'
 import { testDefaults } from './utils/index.js'
 
 test('fail on non-compatible node_modules', async () => {
@@ -33,6 +36,52 @@ test("don't fail on non-compatible node_modules when forced", async () => {
   await saveModulesYaml('0.50.0', opts.storeDir)
 
   await install({}, opts)
+})
+
+test('forced modules repair never purges the project root', async () => {
+  prepareEmpty()
+  const sentinel = path.resolve('keep.txt')
+  fs.writeFileSync(sentinel, 'keep')
+  fs.writeFileSync('.modules.yaml', 'packageManager: pnpm@3\nlayoutVersion: 1\n')
+
+  await expect(install({}, testDefaults({
+    confirmModulesPurge: false,
+    force: true,
+    modulesDir: '.',
+  }))).rejects.toMatchObject({ code: 'ERR_PNPM_UNSAFE_MODULES_DIR' })
+
+  expect(fs.readFileSync(sentinel, 'utf8')).toBe('keep')
+})
+
+test('forced modules repair never follows a modules directory symlink', async () => {
+  prepareEmpty()
+  const projectRoot = process.cwd() as ProjectRootDir
+  const modulesDir = path.join(projectRoot, 'linked-modules')
+  const sentinel = path.join(projectRoot, 'keep.txt')
+  fs.writeFileSync(sentinel, 'keep')
+  fs.symlinkSync(projectRoot, modulesDir, process.platform === 'win32' ? 'junction' : 'dir')
+  const opts = testDefaults()
+
+  try {
+    await expect(validateModules({ virtualStoreDirMaxLength: 1 } as Modules, [{
+      id: '.',
+      modulesDir,
+      rootDir: projectRoot,
+    }], {
+      confirmModulesPurge: false,
+      forceNewModules: true,
+      lockfileDir: projectRoot,
+      modulesDir,
+      registries: opts.registries,
+      storeDir: opts.storeDir,
+      virtualStoreDir: path.join(modulesDir, '.pnpm'),
+      virtualStoreDirMaxLength: 2,
+    })).rejects.toMatchObject({ code: 'ERR_PNPM_UNSAFE_MODULES_DIR' })
+
+    expect(fs.readFileSync(sentinel, 'utf8')).toBe('keep')
+  } finally {
+    fs.unlinkSync(modulesDir)
+  }
 })
 
 test("don't fail on non-compatible node_modules when forced in a workspace", async () => {

@@ -118,7 +118,7 @@ impl Lockfile {
             return Ok(None);
         }
         serde_saphyr::from_str_with_options::<Self>(
-            main,
+            &main,
             serde_saphyr::options! {
                 // Every size-proportional budget is raised to the document's
                 // byte length: none of these dimensions can exceed the size of
