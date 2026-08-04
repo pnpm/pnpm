@@ -476,7 +476,10 @@ export async function getConfig (opts: {
 
       pnpmConfig.workspacePackagePatterns = cliOptions['workspace-packages'] as string[] ?? workspaceManifest?.packages ?? ['.']
       if (workspaceManifest) {
-        const ignoredKeys = Object.keys(workspaceManifest).filter((key) => PROJECT_MANIFEST_SKIPPED_SETTINGS.has(key))
+        // Matched in camelCase so a kebab-case spelling is reported too. The
+        // settings loop drops that spelling either way, but silently.
+        const ignoredKeys = Object.keys(workspaceManifest)
+          .filter((key) => PROJECT_MANIFEST_SKIPPED_SETTINGS.has(camelcase(key, { locale: 'en-US' })))
         if (ignoredKeys.length > 0) {
           warnings.push(`The following settings cannot be set in a project's pnpm-workspace.yaml and were ignored: ${quoteAndJoin(ignoredKeys)}.`)
         }

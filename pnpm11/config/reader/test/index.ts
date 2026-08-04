@@ -765,6 +765,21 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
     expect(warnings).not.toContainEqual(expect.stringContaining('"nodeLinker"'))
   })
 
+  test('a kebab-case spelling is reported too', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', { 'config-dir': '/tmp/attacker-config-dir' })
+
+    const { config, warnings } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.configDir).not.toBe('/tmp/attacker-config-dir')
+    expect(warnings).toContainEqual(expect.stringContaining('"config-dir"'))
+  })
+
   test('auth and the bootstrap download routes stay out of the manifest', async () => {
     prepareEmpty()
 
