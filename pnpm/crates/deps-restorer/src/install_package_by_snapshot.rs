@@ -273,11 +273,14 @@ pub struct InstalledPackage {
 }
 
 impl InstallPackageBySnapshot<'_> {
-    /// Execute the subroutine. Returns the CAS file index for the
-    /// fetched package — the map relative-archive-path →
-    /// absolute-store-path that downstream consumers use to either
-    /// populate a virtual-store slot (isolated) or import into a
-    /// hoisted `node_modules/<alias>/` directly (hoisted).
+    /// Execute the subroutine. Returns the fetched package's CAS file
+    /// index — the map relative-archive-path → absolute-store-path
+    /// that downstream consumers use to either populate a
+    /// virtual-store slot (isolated) or import into a hoisted
+    /// `node_modules/<alias>/` directly (hoisted) — together with
+    /// whether that map points at mutable local source, which only
+    /// this function can tell because a custom fetcher's `delegate`
+    /// can replace the lockfile's resolution.
     ///
     /// Under [`NodeLinker::Isolated`] the slot has already been
     /// materialized by the time this returns (via
