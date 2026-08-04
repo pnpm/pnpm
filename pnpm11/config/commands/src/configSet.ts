@@ -198,7 +198,7 @@ export class ConfigSetSkippedProjectKeyError extends PnpmError {
   readonly key: string
   constructor (key: string) {
     super('CONFIG_SET_SKIPPED_PROJECT_KEY', `The key ${JSON.stringify(key)} isn't supported by a project's workspace manifest`, {
-      hint: 'pnpm resolves this setting before it reads the project manifest, so a value written there would be ignored.',
+      hint: 'pnpm ignores this setting in a project manifest, so a value written there would have no effect.',
     })
     this.key = key
   }

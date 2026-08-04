@@ -1103,10 +1103,11 @@ const SELF_UPDATE_SKIPPED_SETTINGS: ReadonlySet<string> = new Set([
 /**
  * Settings a project's `pnpm-workspace.yaml` does not contribute.
  *
- * Each names a location or a trusted value the reader resolves for itself
- * before the manifest is read, so a repository setting one would only redirect
- * where pnpm writes — `pnpm login`'s `auth.ini`, `pnpm setup`'s PATH entry,
- * the bins `pnpm install` links.
+ * Each names a location or a trusted value that is not the project's to
+ * choose: where the machine keeps its credentials and its own pnpm, and which
+ * directories the running command operates on. A repository setting one would
+ * only redirect where pnpm writes — `pnpm login`'s `auth.ini`, `pnpm setup`'s
+ * PATH entry, the bins `pnpm install` links.
  */
 const PROJECT_MANIFEST_SKIPPED_SETTINGS: ReadonlySet<string> = new Set([
   // Where state that outlives the project lives.
