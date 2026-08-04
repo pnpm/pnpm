@@ -1116,7 +1116,7 @@ const SELF_UPDATE_SKIPPED_SETTINGS: ReadonlySet<string> = new Set([
  * both.
  */
 const PROJECT_MANIFEST_SKIPPED_SETTINGS: ReadonlySet<string> = new Set([
-  // Where the machine keeps its credentials and its own pnpm.
+  // What the machine keeps outside any project.
   'configDir',
   'globalBinDir',
   'globalDir',
@@ -1125,8 +1125,7 @@ const PROJECT_MANIFEST_SKIPPED_SETTINGS: ReadonlySet<string> = new Set([
   'pnpmHomeDir',
   'stateDir',
   'userconfig',
-  // Which directories the current command operates on, and where it links the
-  // bins it installs.
+  // The directories the current command reads and writes in.
   'bin',
   'dir',
   'rootProjectManifestDir',
