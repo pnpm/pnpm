@@ -476,10 +476,16 @@ export async function getConfig (opts: {
 
       pnpmConfig.workspacePackagePatterns = cliOptions['workspace-packages'] as string[] ?? workspaceManifest?.packages ?? ['.']
       if (workspaceManifest) {
+        const ignoredKeys = Object.keys(workspaceManifest).filter((key) => PROJECT_MANIFEST_SKIPPED_SETTINGS.has(key))
+        if (ignoredKeys.length > 0) {
+          warnings.push(`The following settings cannot be set in a project's pnpm-workspace.yaml and were ignored: ${ignoredKeys.map(k => `"${k}"`).join(', ')}. They decide where pnpm reads and writes state that outlives the project, so they may only come from the environment, the global config file, or the command line.`)
+        }
         addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
           configFromCliOpts,
           projectManifest: pnpmConfig.rootProjectManifest,
-          skipSettings: opts.forSelfUpdate ? SELF_UPDATE_SKIPPED_SETTINGS : undefined,
+          skipSettings: opts.forSelfUpdate
+            ? new Set([...PROJECT_MANIFEST_SKIPPED_SETTINGS, ...SELF_UPDATE_SKIPPED_SETTINGS])
+            : PROJECT_MANIFEST_SKIPPED_SETTINGS,
           workspaceDir: pnpmConfig.workspaceDir,
           workspaceManifest,
         })
@@ -1094,6 +1100,43 @@ const SELF_UPDATE_SKIPPED_SETTINGS: ReadonlySet<string> = new Set([
   'trustPolicyIgnoreAfter',
 ] satisfies Array<keyof Config>)
 
+/**
+ * Settings a project's `pnpm-workspace.yaml` does not contribute.
+ *
+ * Each of these decides where pnpm reads or writes something the project does
+ * not own, and the reader has already resolved it from a trusted source by the
+ * time the manifest is read — from the environment, the global config file, the
+ * user-level `.npmrc`, or the command line. A repository that sets one of them
+ * only redirects the write: `pnpm login` would grant its token to an
+ * `auth.ini` under a `configDir` of the repository's choosing, `pnpm setup`
+ * would put a repository-chosen directory on the user's PATH (and delete the
+ * shims it finds under the old one), `pnpm install` would link its
+ * dependencies' bins into `bin`, and a redirected
+ * `packageManagerRegistries` would decide where pnpm downloads its own next
+ * version from. The same asymmetry that makes `_auth` and `tokenHelper`
+ * global-only applies here: repo-controlled config may say what to install,
+ * never where the machine keeps its credentials and its pnpm.
+ */
+const PROJECT_MANIFEST_SKIPPED_SETTINGS: ReadonlySet<string> = new Set([
+  // Where state that outlives the project lives.
+  'bin',
+  'configDir',
+  'globalPkgDir',
+  'npmrcAuthFile',
+  'pnpmHomeDir',
+  'userconfig',
+  // Which directories the current command operates on.
+  'dir',
+  'rootProjectManifestDir',
+  'workspaceDir',
+  // Auth and the bootstrap download routes, which the reader assembles from
+  // the trusted config sources only.
+  'authConfig',
+  'configByUri',
+  'packageManagerNetworkConfig',
+  'packageManagerRegistries',
+] satisfies Array<keyof (Config & ConfigContext)>)
+
 function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigContext, {
   configFromCliOpts,
   expandRequestDestinationEnv,
@@ -1105,7 +1148,11 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigCo
   configFromCliOpts: Record<string, unknown>
   expandRequestDestinationEnv?: boolean
   projectManifest: ProjectManifest | undefined
-  /** Settings this manifest may not contribute. See {@link SELF_UPDATE_SKIPPED_SETTINGS}. */
+  /**
+   * Settings this manifest may not contribute. See
+   * {@link PROJECT_MANIFEST_SKIPPED_SETTINGS} and
+   * {@link SELF_UPDATE_SKIPPED_SETTINGS}.
+   */
   skipSettings?: ReadonlySet<string>
   workspaceDir: string | undefined
   workspaceManifest: WorkspaceManifest

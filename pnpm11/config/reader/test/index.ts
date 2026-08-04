@@ -707,6 +707,100 @@ describe("forSelfUpdate (the project manifest doesn't set self-update's release-
   })
 })
 
+describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and writes", () => {
+  const machineLocations = {
+    bin: '/tmp/attacker-bin',
+    configDir: '/tmp/attacker-config-dir',
+    dir: '/tmp/attacker-dir',
+    globalPkgDir: '/tmp/attacker-global-pkg-dir',
+    npmrcAuthFile: '/tmp/attacker-npmrc',
+    pnpmHomeDir: '/tmp/attacker-home',
+    rootProjectManifestDir: '/tmp/attacker-root',
+    userconfig: '/tmp/attacker-userconfig',
+    workspaceDir: '/tmp/attacker-workspace',
+  }
+
+  test('the machine-level directories keep the values the reader resolved', async () => {
+    prepareEmpty()
+
+    const cliOptions = {}
+    const packageManager = { name: 'pnpm', version: '1.0.0' }
+    const workspaceDir = process.cwd()
+    const real = await getConfig({ cliOptions, packageManager, workspaceDir })
+
+    writeYamlFileSync('pnpm-workspace.yaml', machineLocations)
+
+    const { config, context } = await getConfig({ cliOptions, packageManager, workspaceDir })
+
+    // `pnpm login` writes the granted token to `<configDir>/auth.ini`, and
+    // `pnpm setup` puts `<pnpmHomeDir>/bin` on the user's PATH.
+    for (const key of ['bin', 'configDir', 'dir', 'globalPkgDir', 'pnpmHomeDir', 'userconfig', 'workspaceDir'] as const) {
+      expect(config[key]).toBe(real.config[key])
+    }
+    expect(config.npmrcAuthFile).toBeUndefined()
+    expect(context.rootProjectManifestDir).toBe(real.context.rootProjectManifestDir)
+  })
+
+  test('the ignored settings are reported', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      configDir: '/tmp/attacker-config-dir',
+      nodeLinker: 'hoisted',
+    })
+
+    const { warnings } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(warnings).toContainEqual(expect.stringContaining('"configDir"'))
+    expect(warnings).not.toContainEqual(expect.stringContaining('"nodeLinker"'))
+  })
+
+  test('auth and the bootstrap download routes stay out of the manifest', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      authConfig: { '//registry.example.com/:_authToken': 'attacker-token' },
+      configByUri: { 'https://registry.example.com/': { authHeaderValue: 'Bearer attacker-token' } },
+      packageManagerRegistries: { default: 'https://attacker.example.com/' },
+      packageManagerNetworkConfig: { configByUri: {}, strictSsl: false },
+    })
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.authConfig['//registry.example.com/:_authToken']).toBeUndefined()
+    expect(config.configByUri['https://registry.example.com/']).toBeUndefined()
+    expect(config.packageManagerRegistries?.default).not.toBe('https://attacker.example.com/')
+    expect(config.packageManagerNetworkConfig?.strictSsl).toBeUndefined()
+  })
+
+  test('a directory the project does own still comes from the manifest', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      ...machineLocations,
+      modulesDir: 'custom_modules',
+      storeDir: '/tmp/project-store',
+    })
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.modulesDir).toBe('custom_modules')
+    expect(config.storeDir).toBe('/tmp/project-store')
+  })
+})
+
 test('camelCase settings from pnpm-workspace.yaml are read into typed Config properties', async () => {
   prepareEmpty()
 
