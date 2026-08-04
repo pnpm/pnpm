@@ -105,15 +105,14 @@ pub fn set_mtime_ms(path: &Path, ms: i64) {
 /// Rewrite the mtime of every regular file under `root` to a point in the
 /// past, and return the `lastValidatedTimestamp` that matches it.
 ///
-/// The rewrite and the returned timestamp are one contract: the value is only
-/// meaningful for a tree this call just backdated, which is why they are not
-/// separate functions. Record it as the workspace state's timestamp and the
-/// backdated files read as validated, while anything written afterwards reads
-/// as modified, with no sleeping in between.
+/// The returned value is only meaningful for a tree this call just
+/// backdated. Record it as the workspace state's timestamp and the backdated
+/// files read as validated, while anything written afterwards reads as
+/// modified, with no sleeping in between.
 ///
-/// Both gaps are [`MTIME_STEP_MS`] wide. The returned value is derived from
-/// the newest mtime in the tree rather than from `SystemTime::now`, so it
-/// shares a clock with every file the freshness check compares it against.
+/// Both gaps are [`MTIME_STEP_MS`] wide, and the value comes from the newest
+/// mtime in the tree, so it shares a clock with every file the freshness
+/// check compares it against.
 #[must_use]
 pub fn backdate_existing_files(root: &Path) -> i64 {
     // Only regular files: the freshness check stats manifests, lockfiles,
@@ -140,11 +139,10 @@ pub fn backdate_existing_files(root: &Path) -> i64 {
 /// instead of short-circuiting. Call this after any post-install manifest or
 /// lockfile rewrite.
 ///
-/// The new mtime is derived from the recorded timestamp rather than from
-/// `SystemTime::now`, because the two clocks are independent. A wall-clock
-/// offset can land below a baseline that an earlier bump already pushed into
-/// the future, and the kernel stamps mtimes from a coarse clock that lags the
-/// fine-grained one.
+/// The new mtime is [`MTIME_STEP_MS`] past whichever is later, the recorded
+/// timestamp or `path`'s own mtime. An earlier bump can leave the recorded
+/// timestamp ahead of the present, so it is the reference even when it
+/// post-dates the file.
 ///
 /// # Panics
 ///
@@ -157,11 +155,9 @@ pub fn bump_mtime(path: &Path) {
 /// `lastValidatedTimestamp` of the workspace state governing `path`, found
 /// by walking up from its directory.
 ///
-/// Panics when no install has written one, rather than substituting a
-/// weaker baseline: without a recorded timestamp there is nothing for
-/// [`bump_mtime`] to push past, so the call cannot do what it promises and
-/// the test that made it would go on to assert against a freshness verdict
-/// reached for the wrong reason.
+/// Panics when no install has written one: [`bump_mtime`] then has no
+/// baseline to push past, and a test that carried on would assert against a
+/// freshness verdict reached for the wrong reason.
 fn recorded_validation_timestamp(path: &Path) -> i64 {
     path.ancestors()
         .skip(1)
