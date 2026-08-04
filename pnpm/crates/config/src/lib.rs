@@ -1415,6 +1415,11 @@ pub struct Config {
     /// `tag` (`--tag`): the dist-tag `pnpm publish` registers the published
     /// version under. Unset means the publish command's `latest` default.
     /// Overridden by `--tag`.
+    ///
+    /// pnpm also threads this setting into resolution as the installer's
+    /// `defaultTag`, so `tag: next` makes `pnpm add foo` resolve `foo@next`.
+    /// Pacquet's resolvers still hardcode `latest`; wiring them up is tracked
+    /// separately because it changes which versions an install picks.
     pub tag: Option<String>,
 
     /// `provenance` (`--provenance`): whether `pnpm publish` attaches a

@@ -382,6 +382,33 @@ namedRegistries:
     assert_eq!(config.named_registries.get("work"), None);
 }
 
+/// `otp` is a credential the workspace file gets to choose, and `publish`
+/// puts it on the wire to a registry that same file can point anywhere. A
+/// placeholder is refused so a repository cannot turn a variable in the
+/// publisher's environment into an outbound `npm-otp` header; a literal value
+/// is left alone, and the trusted layers still expand.
+#[test]
+fn a_workspace_otp_placeholder_is_dropped_but_a_literal_is_kept() {
+    struct EnvWithToken;
+    impl EnvVar for EnvWithToken {
+        fn var(name: &str) -> Option<String> {
+            (name == "NPM_TOKEN").then(|| "s3cret".to_owned())
+        }
+    }
+
+    let mut settings: WorkspaceSettings = serde_saphyr::from_str("otp: ${NPM_TOKEN}\n").unwrap();
+    settings.substitute_env_untrusted::<EnvWithToken>();
+    assert_eq!(settings.otp, None);
+
+    let mut literal: WorkspaceSettings = serde_saphyr::from_str("otp: '123456'\n").unwrap();
+    literal.substitute_env_untrusted::<EnvWithToken>();
+    assert_eq!(literal.otp.as_deref(), Some("123456"));
+
+    let mut trusted: WorkspaceSettings = serde_saphyr::from_str("otp: ${NPM_TOKEN}\n").unwrap();
+    trusted.substitute_env_trusted::<EnvWithToken>();
+    assert_eq!(trusted.otp.as_deref(), Some("s3cret"));
+}
+
 #[test]
 fn expands_env_vars_inside_non_registry_workspace_values() {
     struct EnvWithPaths;
