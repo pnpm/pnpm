@@ -117,11 +117,12 @@ test('recursive remove with dependency glob patterns respects the selected depen
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
 
   await remove.handler({
     ...DEFAULT_OPTS,
     allProjects,
+    allProjectsGraph,
     dir: process.cwd(),
     recursive: true,
     saveProd: true,
