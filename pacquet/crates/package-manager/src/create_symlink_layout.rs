@@ -53,6 +53,7 @@ pub fn create_symlink_layout(
         symlink_package(
             &layout.slot_dir(&target).join("node_modules").join(&target_name_str),
             &virtual_node_modules_dir.join(&alias_name_str),
+            false,
         )
         .map(drop)
     })

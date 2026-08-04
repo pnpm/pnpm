@@ -148,7 +148,13 @@ fn packages_are_materialized_through_the_provider_and_symlinked() {
 
     install.with_arg("install").assert().success();
 
-    // The direct dependency resolves into the provider's store.
+    // The direct dependency resolves into the provider's store,
+    // through an absolute symlink (provider directories outlive the
+    // project location).
+    let direct_link =
+        fs::read_link(workspace.join("node_modules").join("@pnpm.e2e").join("pkg-with-1-dep"))
+            .expect("read direct dep symlink");
+    assert!(direct_link.is_absolute(), "direct dep link: {}", direct_link.display());
     let real_dir = realpath(&workspace, "@pnpm.e2e/pkg-with-1-dep");
     assert_in_provider_store(&real_dir, &provider_dir);
 
@@ -158,6 +164,16 @@ fn packages_are_materialized_through_the_provider_and_symlinked() {
         fs::canonicalize(real_dir.join("../..").join("@pnpm.e2e").join("dep-of-pkg-with-1-dep"))
             .expect("canonicalize transitive dep");
     assert_in_provider_store(&transitive, &provider_dir);
+
+    // Hoisted links are absolute as well.
+    let hoisted_link = fs::read_link(
+        workspace
+            .join("node_modules/.pnpm/node_modules")
+            .join("@pnpm.e2e")
+            .join("dep-of-pkg-with-1-dep"),
+    )
+    .expect("read hoisted dep symlink");
+    assert!(hoisted_link.is_absolute(), "hoisted link: {}", hoisted_link.display());
 
     // The provider received a closed graph with resolutions and the gc
     // root location.
@@ -282,6 +298,10 @@ fn a_frozen_install_materializes_through_the_provider() {
 
     pacquet(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
 
+    let direct_link =
+        fs::read_link(workspace.join("node_modules").join("@pnpm.e2e").join("pkg-with-1-dep"))
+            .expect("read direct dep symlink");
+    assert!(direct_link.is_absolute(), "direct dep link: {}", direct_link.display());
     let real_dir = realpath(&workspace, "@pnpm.e2e/pkg-with-1-dep");
     assert_in_provider_store(&real_dir, &provider_dir);
     let transitive =

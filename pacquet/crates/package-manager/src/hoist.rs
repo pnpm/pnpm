@@ -526,7 +526,12 @@ pub fn symlink_hoisted_dependencies(
                 HoistKind::Private => private_hoisted_modules_dir,
             };
             let dest = target_dir_root.join(alias);
-            match pacquet_fs::symlink_dir(dep_dir.as_path(), &dest) {
+            let write_symlink = if layout.uses_provider() {
+                pacquet_fs::symlink_dir_absolute
+            } else {
+                pacquet_fs::symlink_dir
+            };
+            match write_symlink(dep_dir.as_path(), &dest) {
                 Ok(()) => Ok(()),
                 Err(ref error) if error.kind() == ErrorKind::AlreadyExists => {
                     update_stale_hoist_symlink(
@@ -536,6 +541,7 @@ pub fn symlink_hoisted_dependencies(
                         private_hoisted_modules_dir.parent().expect(
                             "private_hoisted_modules_dir (<vs>/node_modules) always has a parent",
                         ),
+                        write_symlink,
                     )
                 }
                 Err(error) => Err(crate::SymlinkPackageError::SymlinkDir {
@@ -575,6 +581,7 @@ fn update_stale_hoist_symlink(
     dest: &std::path::Path,
     package_store_dir: &std::path::Path,
     internal_pnpm_dir: &std::path::Path,
+    write_symlink: fn(&std::path::Path, &std::path::Path) -> std::io::Result<()>,
 ) -> Result<(), crate::SymlinkPackageError> {
     let Ok(existing_raw) = pacquet_fs::read_symlink_dir(dest) else {
         return Ok(());
@@ -599,7 +606,7 @@ fn update_stale_hoist_symlink(
             error,
         }
     })?;
-    pacquet_fs::symlink_dir(dep_dir, dest).map_err(|error| crate::SymlinkPackageError::SymlinkDir {
+    write_symlink(dep_dir, dest).map_err(|error| crate::SymlinkPackageError::SymlinkDir {
         symlink_target: dep_dir.to_path_buf(),
         symlink_path: dest.to_path_buf(),
         error,

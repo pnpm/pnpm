@@ -6428,6 +6428,9 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../../core/core-loggers
+      '@pnpm/fs.symlink-dependency':
+        specifier: workspace:*
+        version: link:../../../fs/symlink-dependency
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../../core/types

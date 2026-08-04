@@ -30,6 +30,19 @@ pub fn symlink_dir(original: &Path, link: &Path) -> io::Result<()> {
     }
 }
 
+/// Like [`symlink_dir`], but the symlink contents are stored as the
+/// absolute `original` path. Used for links into externally
+/// materialized package directories (a package provider's store):
+/// the target never moves, while the project directory may, so a
+/// relative link would break. Mirrors pnpm's `forceAbsoluteSymlink`
+/// link style.
+pub fn symlink_dir_absolute(original: &Path, link: &Path) -> io::Result<()> {
+    #[cfg(unix)]
+    return std::os::unix::fs::symlink(original, link);
+    #[cfg(windows)]
+    return windows::create(original, link);
+}
+
 /// Compute the symlink contents for a true symlink: the path from the
 /// link's parent directory to `original`, equivalent to
 /// `path.relative(path.dirname(dest), src)`.
@@ -156,15 +169,22 @@ pub struct ForceSymlinkOutcome {
 /// the `AlreadyExists` and the rename, the initial `AlreadyExists`
 /// error is surfaced rather than the rename's `NotFound`.
 pub fn force_symlink_dir(target: &Path, link: &Path) -> io::Result<ForceSymlinkOutcome> {
-    force_symlink_inner(target, link, false)
+    force_symlink_inner(target, link, false, false)
+}
+
+/// [`force_symlink_dir`] with the [`symlink_dir_absolute`] link style.
+pub fn force_symlink_dir_absolute(target: &Path, link: &Path) -> io::Result<ForceSymlinkOutcome> {
+    force_symlink_inner(target, link, true, false)
 }
 
 fn force_symlink_inner(
     target: &Path,
     link: &Path,
+    absolute: bool,
     rename_tried: bool,
 ) -> io::Result<ForceSymlinkOutcome> {
-    let initial_err = match symlink_dir(target, link) {
+    let write_symlink = if absolute { symlink_dir_absolute } else { symlink_dir };
+    let initial_err = match write_symlink(target, link) {
         Ok(()) => return Ok(ForceSymlinkOutcome { reused: false, warning: None }),
         Err(error) => error,
     };
@@ -185,7 +205,7 @@ fn force_symlink_inner(
                     )
                 })?;
             }
-            return force_symlink_inner(target, link, rename_tried);
+            return force_symlink_inner(target, link, absolute, rename_tried);
         }
         io::ErrorKind::AlreadyExists | io::ErrorKind::IsADirectory => {}
         _ => return Err(initial_err),
@@ -202,7 +222,7 @@ fn force_symlink_inner(
             Err(error) if error.kind() == io::ErrorKind::NotFound => {}
             Err(error) => return Err(error),
         }
-        force_symlink_inner(target, link, rename_tried)
+        force_symlink_inner(target, link, absolute, rename_tried)
     } else {
         // `link` is occupied by a regular file or directory.
         // Move it out of the way, then retry. On the second
@@ -233,7 +253,7 @@ fn force_symlink_inner(
                 sep = std::path::MAIN_SEPARATOR,
             )
         };
-        let mut outcome = force_symlink_inner(target, link, true)?;
+        let mut outcome = force_symlink_inner(target, link, absolute, true)?;
         outcome.warning = Some(warning);
         Ok(outcome)
     }

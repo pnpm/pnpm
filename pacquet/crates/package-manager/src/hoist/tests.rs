@@ -493,8 +493,14 @@ fn update_stale_hoist_symlink_replaces_virtual_store_resident_symlink() {
     std::fs::create_dir_all(&stale_target).unwrap();
     pacquet_fs::symlink_dir(&stale_target, &dest).unwrap();
 
-    super::update_stale_hoist_symlink(&dep_dir, &dest, &virtual_store_dir, &internal_pnpm_dir)
-        .expect("should replace virtual-store-resident symlink");
+    super::update_stale_hoist_symlink(
+        &dep_dir,
+        &dest,
+        &virtual_store_dir,
+        &internal_pnpm_dir,
+        pacquet_fs::symlink_dir,
+    )
+    .expect("should replace virtual-store-resident symlink");
 
     let new_target_raw = std::fs::read_link(&dest).unwrap();
     let new_target_abs =
@@ -525,8 +531,14 @@ fn update_stale_hoist_symlink_replaces_internal_pnpm_symlink() {
     std::fs::create_dir_all(&stale_target).unwrap();
     pacquet_fs::symlink_dir(&stale_target, &dest).unwrap();
 
-    super::update_stale_hoist_symlink(&dep_dir, &dest, &virtual_store_dir, &internal_pnpm_dir)
-        .expect("should replace internal-pnpm-resident symlink");
+    super::update_stale_hoist_symlink(
+        &dep_dir,
+        &dest,
+        &virtual_store_dir,
+        &internal_pnpm_dir,
+        pacquet_fs::symlink_dir,
+    )
+    .expect("should replace internal-pnpm-resident symlink");
 
     let new_target_raw = std::fs::read_link(&dest).unwrap();
     let new_target_abs =
@@ -557,8 +569,14 @@ fn update_stale_hoist_symlink_preserves_external_symlink() {
     std::fs::create_dir_all(&external_target).unwrap();
     pacquet_fs::symlink_dir(&external_target, &dest).unwrap();
 
-    super::update_stale_hoist_symlink(&dep_dir, &dest, &virtual_store_dir, &internal_pnpm_dir)
-        .expect("should preserve external symlink");
+    super::update_stale_hoist_symlink(
+        &dep_dir,
+        &dest,
+        &virtual_store_dir,
+        &internal_pnpm_dir,
+        pacquet_fs::symlink_dir,
+    )
+    .expect("should preserve external symlink");
 
     let target = std::fs::read_link(&dest).unwrap();
     let target_abs = dest.parent().unwrap().join(&target);
@@ -585,8 +603,14 @@ fn update_stale_hoist_symlink_preserves_regular_directory() {
 
     std::fs::create_dir(&dest).unwrap();
 
-    super::update_stale_hoist_symlink(&dep_dir, &dest, &virtual_store_dir, &internal_pnpm_dir)
-        .expect("should preserve directory");
+    super::update_stale_hoist_symlink(
+        &dep_dir,
+        &dest,
+        &virtual_store_dir,
+        &internal_pnpm_dir,
+        pacquet_fs::symlink_dir,
+    )
+    .expect("should preserve directory");
 
     assert!(dest.is_dir(), "regular directory must be preserved");
 }
@@ -611,8 +635,14 @@ fn update_stale_hoist_symlink_is_noop_when_already_correct() {
 
     let ino_before = std::fs::symlink_metadata(&dest).unwrap().ino();
 
-    super::update_stale_hoist_symlink(&dep_dir, &dest, &virtual_store_dir, &internal_pnpm_dir)
-        .expect("should leave an already-correct symlink untouched");
+    super::update_stale_hoist_symlink(
+        &dep_dir,
+        &dest,
+        &virtual_store_dir,
+        &internal_pnpm_dir,
+        pacquet_fs::symlink_dir,
+    )
+    .expect("should leave an already-correct symlink untouched");
 
     let ino_after = std::fs::symlink_metadata(&dest).unwrap().ino();
     assert_eq!(

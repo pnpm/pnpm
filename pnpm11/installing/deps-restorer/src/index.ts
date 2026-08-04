@@ -465,6 +465,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       linkedToRoot = await symlinkDirectDependencies({
         directDependenciesByImporterId: symlinkedDirectDependenciesByImporterId!,
         dedupe: Boolean(opts.dedupeDirectDeps),
+        absoluteSymlinks: opts.packageProvider != null,
         filteredLockfile,
         lockfileDir,
         projects: selectedProjects,
@@ -524,6 +525,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
           publicHoistPattern: opts.publicHoistPattern ?? [],
           virtualStoreDir,
           virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+          absoluteSymlinks: opts.packageProvider != null,
           hoistedWorkspacePackages: opts.hoistWorkspacePackages
             ? Object.values(opts.allProjects).reduce((hoistedWorkspacePackages, project) => {
               if (project.manifest.name && project.id !== '.') {
@@ -559,6 +561,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     if (!opts.ignorePackageManifest && !skipPostImportLinking) {
       linkedToRoot = await symlinkDirectDependencies({
         dedupe: Boolean(opts.dedupeDirectDeps),
+        absoluteSymlinks: opts.packageProvider != null,
         directDependenciesByImporterId,
         filteredLockfile,
         lockfileDir,
@@ -819,6 +822,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
 type SymlinkDirectDependenciesOpts = Pick<HeadlessOptions, 'registries' | 'symlink' | 'lockfileDir'> & {
   filteredLockfile: LockfileObject
   dedupe: boolean
+  absoluteSymlinks?: boolean
   directDependenciesByImporterId: DirectDependenciesByImporterId
   projects: Project[]
 }
@@ -827,6 +831,7 @@ async function symlinkDirectDependencies (
   {
     filteredLockfile,
     dedupe,
+    absoluteSymlinks,
     directDependenciesByImporterId,
     lockfileDir,
     projects,
@@ -869,7 +874,7 @@ async function symlinkDirectDependencies (
       project.dependencies = project.dependencies.filter((dep: LinkedDirectDep) => dep.dir !== rootDeps[dep.alias])
     }
   }
-  return linkDirectDeps(projectsToLink, { dedupe: Boolean(dedupe) })
+  return linkDirectDeps(projectsToLink, { dedupe: Boolean(dedupe), absoluteSymlinks })
 }
 
 async function linkBinsOfImporter (

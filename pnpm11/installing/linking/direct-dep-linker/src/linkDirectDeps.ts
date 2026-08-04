@@ -29,20 +29,23 @@ export async function linkDirectDeps (
   projects: Record<string, ProjectToLink>,
   opts: {
     dedupe: boolean
+    /** Link with absolute symlinks — for externally materialized targets that outlive the project location. */
+    absoluteSymlinks?: boolean
   }
 ): Promise<number> {
   if (opts.dedupe && projects['.'] && Object.keys(projects).length > 1) {
-    return linkDirectDepsAndDedupe(projects['.'], omit(['.'], projects))
+    return linkDirectDepsAndDedupe(projects['.'], omit(['.'], projects), opts)
   }
-  const numberOfLinkedDeps = await Promise.all(Object.values(projects).map(linkDirectDepsOfProject))
+  const numberOfLinkedDeps = await Promise.all(Object.values(projects).map((project) => linkDirectDepsOfProject(project, opts)))
   return numberOfLinkedDeps.reduce((sum, count) => sum + count, 0)
 }
 
 async function linkDirectDepsAndDedupe (
   rootProject: ProjectToLink,
-  projects: Record<string, ProjectToLink>
+  projects: Record<string, ProjectToLink>,
+  opts: { absoluteSymlinks?: boolean }
 ): Promise<number> {
-  const linkedDeps = await linkDirectDepsOfProject(rootProject)
+  const linkedDeps = await linkDirectDepsOfProject(rootProject, opts)
   const pkgsLinkedToRoot = await readLinkedDeps(rootProject.modulesDir)
   await Promise.all(
     Object.values(projects).map(async (project) => {
@@ -52,7 +55,7 @@ async function linkDirectDepsAndDedupe (
         await linkDirectDepsOfProject({
           ...project,
           dependencies,
-        })
+        }, opts)
         return
       }
       if (deletedAll) {
@@ -109,7 +112,7 @@ async function resolveLinkTargetOrFile (filePath: string): Promise<string> {
   }
 }
 
-async function linkDirectDepsOfProject (project: ProjectToLink): Promise<number> {
+async function linkDirectDepsOfProject (project: ProjectToLink, opts: { absoluteSymlinks?: boolean }): Promise<number> {
   let linkedDeps = 0
   await Promise.all(project.dependencies.map(async (dep) => {
     if (dep.isExternalLink) {
@@ -125,7 +128,7 @@ async function linkDirectDepsOfProject (project: ProjectToLink): Promise<number>
       })
       return
     }
-    if ((await symlinkDependency(dep.dir, project.modulesDir, dep.alias)).reused) {
+    if ((await symlinkDependency(dep.dir, project.modulesDir, dep.alias, { absolute: opts.absoluteSymlinks })).reused) {
       return
     }
     rootLogger.debug({

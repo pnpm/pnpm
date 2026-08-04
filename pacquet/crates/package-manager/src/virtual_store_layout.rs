@@ -278,6 +278,15 @@ impl VirtualStoreLayout {
         self.provider_paths = Some(provider_paths);
     }
 
+    /// Whether this install resolves slots through a package provider.
+    /// Links into provider directories are created absolute (see
+    /// [`pacquet_fs::symlink_dir_absolute`]) — the provider's store
+    /// outlives the project location.
+    #[must_use]
+    pub fn uses_provider(&self) -> bool {
+        self.provider_paths.is_some()
+    }
+
     /// Absolute directory that holds `node_modules/<name>` for one
     /// snapshot. A provider-materialized install resolves through the
     /// provider map (see [`Self::set_provider_paths`]). Falls back to

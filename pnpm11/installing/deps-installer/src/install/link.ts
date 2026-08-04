@@ -252,6 +252,7 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
         publicHoistPattern: opts.publicHoistPattern ?? [],
         virtualStoreDir: opts.virtualStoreDir,
         virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+        absoluteSymlinks: opts.packageProvider != null,
         hoistedWorkspacePackages: opts.hoistWorkspacePackages
           ? projects.reduce((hoistedWorkspacePackages, project) => {
             if (project.manifest.name && project.id !== '.') {
@@ -314,7 +315,7 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
         }]
       }))
     )
-    linkedToRoot = await linkDirectDeps(projectsToLink, { dedupe: opts.dedupeDirectDeps })
+    linkedToRoot = await linkDirectDeps(projectsToLink, { dedupe: opts.dedupeDirectDeps, absoluteSymlinks: opts.packageProvider != null })
   }
 
   return {

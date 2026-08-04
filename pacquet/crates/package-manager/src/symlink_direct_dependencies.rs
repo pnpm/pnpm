@@ -420,13 +420,12 @@ fn link_one_importer<Reporter: self::Reporter>(
     entries.par_iter().try_for_each(|entry| -> Result<(), SymlinkDirectDependenciesError> {
         let ResolvedEntry { name, spec, group, name_str, target } = entry;
 
-        let outcome = symlink_package(target, &modules_dir.join(name_str)).map_err(|source| {
-            SymlinkDirectDependenciesError::SymlinkPackage {
+        let outcome = symlink_package(target, &modules_dir.join(name_str), layout.uses_provider())
+            .map_err(|source| SymlinkDirectDependenciesError::SymlinkPackage {
                 importer_id: importer_id.to_string(),
                 name: name_str.clone(),
                 source,
-            }
-        })?;
+            })?;
 
         if outcome.reused {
             return Ok(());

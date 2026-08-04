@@ -64,14 +64,21 @@ test('packages are materialized through the package provider and symlinked from 
   const project = prepareEmpty()
   const { providerBin, providerDir } = prepareFakeProvider()
 
-  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], testDefaults({ packageProvider: providerBin }))
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], testDefaults({ packageProvider: providerBin, hoistPattern: ['*'] }))
 
   const manifest = project.requireModule('@pnpm.e2e/pkg-with-1-dep/package.json')
   expect(manifest.name).toBe('@pnpm.e2e/pkg-with-1-dep')
 
-  // the direct dependency resolves into the provider's store
+  // the direct dependency resolves into the provider's store, through an
+  // absolute symlink (provider directories outlive the project location)
+  const directLink = fs.readlinkSync(path.join('node_modules', '@pnpm.e2e/pkg-with-1-dep'))
+  expect(path.isAbsolute(directLink)).toBeTruthy()
   const realDir = fs.realpathSync(path.join('node_modules', '@pnpm.e2e/pkg-with-1-dep'))
   expect(realDir.startsWith(path.join(providerDir, 'store'))).toBeTruthy()
+
+  // hoisted links are absolute as well
+  const hoistedLink = fs.readlinkSync(path.join('node_modules', '.pnpm', 'node_modules', '@pnpm.e2e', 'dep-of-pkg-with-1-dep'))
+  expect(path.isAbsolute(hoistedLink)).toBeTruthy()
 
   // the transitive dependency is reachable as a sibling inside the provider's store
   const transitive = fs.realpathSync(path.join(realDir, '../..', '@pnpm.e2e/dep-of-pkg-with-1-dep'))
@@ -139,6 +146,7 @@ test('a frozen install materializes through the provider on the headless path', 
   fs.rmSync('node_modules', { recursive: true, force: true })
   await install(updatedManifest, testDefaults({ packageProvider: providerBin, frozenLockfile: true }))
 
+  expect(path.isAbsolute(fs.readlinkSync(path.join('node_modules', '@pnpm.e2e/pkg-with-1-dep')))).toBeTruthy()
   const realDir = fs.realpathSync(path.join('node_modules', '@pnpm.e2e/pkg-with-1-dep'))
   expect(realDir.startsWith(path.join(providerDir, 'store'))).toBeTruthy()
   const transitive = fs.realpathSync(path.join(realDir, '../..', '@pnpm.e2e/dep-of-pkg-with-1-dep'))

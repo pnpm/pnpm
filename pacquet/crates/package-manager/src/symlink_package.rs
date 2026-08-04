@@ -1,6 +1,6 @@
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_fs::{ForceSymlinkOutcome, force_symlink_dir};
+use pacquet_fs::{ForceSymlinkOutcome, force_symlink_dir, force_symlink_dir_absolute};
 use std::{
     io,
     path::{Path, PathBuf},
@@ -29,7 +29,8 @@ pub enum SymlinkPackageError {
 ///
 /// Wraps [`pacquet_fs::force_symlink_dir`] so the call site mirrors
 /// pnpm's `symlinkDependency` (which calls `symlinkDir(target, link)`
-/// with the library's default `{ overwrite: true }`). That means:
+/// with the library's default `{ overwrite: true }`, or
+/// `forceAbsoluteSymlink` when `absolute` is requested). That means:
 ///
 /// * Missing parent directories are created with `create_dir_all`.
 /// * An existing symlink already pointing at `symlink_target` is
@@ -46,6 +47,7 @@ pub enum SymlinkPackageError {
 pub fn symlink_package(
     symlink_target: &Path,
     symlink_path: &Path,
+    absolute: bool,
 ) -> Result<ForceSymlinkOutcome, SymlinkPackageError> {
     // `force_symlink_dir` handles missing parent dirs via its own
     // `NotFound` retry that calls `create_dir_all` once and reissues
@@ -54,11 +56,10 @@ pub fn symlink_package(
     // alotta-files fixture) for the common case of a parent that
     // already exists from a prior `import_indexed_dir` populate or
     // sibling symlink.
-    force_symlink_dir(symlink_target, symlink_path).map_err(|error| {
-        SymlinkPackageError::SymlinkDir {
-            symlink_target: symlink_target.to_path_buf(),
-            symlink_path: symlink_path.to_path_buf(),
-            error,
-        }
+    let force_symlink = if absolute { force_symlink_dir_absolute } else { force_symlink_dir };
+    force_symlink(symlink_target, symlink_path).map_err(|error| SymlinkPackageError::SymlinkDir {
+        symlink_target: symlink_target.to_path_buf(),
+        symlink_path: symlink_path.to_path_buf(),
+        error,
     })
 }
