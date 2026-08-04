@@ -188,10 +188,22 @@ export class ConfigSetUnsupportedWorkspaceKeyError extends PnpmError {
   readonly key: string
   constructor (key: string) {
     super('CONFIG_SET_UNSUPPORTED_WORKSPACE_KEY', `The key ${JSON.stringify(key)} isn't supported by the workspace manifest`, {
-      hint: `Try ${JSON.stringify(camelCase(key))}`,
+      hint: hintForRefusedKey(key, `Try ${JSON.stringify(camelCase(key))}`),
     })
     this.key = key
   }
+}
+
+/**
+ * What to suggest after refusing {@link key}.
+ *
+ * Naming a config file is wrong for the settings pnpm determines itself: the
+ * project manifest and the global config file both refuse those, so either
+ * suggestion sends the user in a circle.
+ */
+function hintForRefusedKey (key: string, fallback: string): string {
+  if (!isProjectManifestSkippedSetting(camelCase(key))) return fallback
+  return 'pnpm determines this setting itself; it cannot be set in a config file'
 }
 
 export class ConfigSetSkippedProjectKeyError extends PnpmError {
@@ -237,11 +249,7 @@ export class ConfigSetUnsupportedYamlConfigKeyError extends PnpmError {
   readonly key: string
   constructor (key: string) {
     super('CONFIG_SET_UNSUPPORTED_YAML_CONFIG_KEY', `The key ${JSON.stringify(key)} isn't supported by the global config.yaml file`, {
-      // A project manifest refuses the machine-level keys too, so pointing
-      // there would be a dead end for them.
-      hint: isProjectManifestSkippedSetting(camelCase(key))
-        ? 'pnpm takes this setting from the environment or the command line, not from a config file'
-        : 'Try setting them instead to the local pnpm-workspace.yaml file',
+      hint: hintForRefusedKey(key, 'Try setting them instead to the local pnpm-workspace.yaml file'),
     })
     this.key = key
   }

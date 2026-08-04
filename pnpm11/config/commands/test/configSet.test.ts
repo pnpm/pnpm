@@ -1071,3 +1071,20 @@ test('config set --global points machine-level keys at the environment, not the 
     hint: expect.not.stringContaining('pnpm-workspace.yaml'),
   })
 })
+
+test('config set does not suggest the camelCase spelling of a key the project manifest refuses', async () => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  fs.mkdirSync(configDir, { recursive: true })
+
+  // "Try \"pnpmHomeDir\"" would be a dead end: that spelling is refused too.
+  await expect(config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    location: 'project',
+    authConfig: {},
+  }), ['set', 'pnpm-home-dir', '/tmp/somewhere'])).rejects.toMatchObject({
+    hint: expect.not.stringContaining('pnpmHomeDir'),
+  })
+})
