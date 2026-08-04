@@ -1107,14 +1107,16 @@ const SELF_UPDATE_SKIPPED_SETTINGS: ReadonlySet<string> = new Set([
  * Settings a project's `pnpm-workspace.yaml` does not contribute.
  *
  * Each names a location or a trusted value that is not the project's to
- * choose: where the machine keeps its credentials and its own pnpm, and which
- * directories the running command operates on. A repository setting one would
- * only redirect where pnpm writes — `pnpm login`'s `auth.ini`, `pnpm setup`'s
- * PATH entry, the bins `pnpm install` links.
+ * choose. A repository setting one would redirect where pnpm writes — `pnpm
+ * login`'s `auth.ini`, `pnpm setup`'s PATH entry, the bins `pnpm install`
+ * links — or, for the auth group, which credentials it sends and to whom.
+ *
+ * `cacheDir` and `storeDir` are deliberately absent: those name caches a
+ * project may legitimately place, and the Rust `WorkspaceSettings` accepts
+ * both.
  */
 const PROJECT_MANIFEST_SKIPPED_SETTINGS: ReadonlySet<string> = new Set([
-  // Where state that outlives the project lives.
-  'bin',
+  // Where the machine keeps its credentials and its own pnpm.
   'configDir',
   'globalBinDir',
   'globalDir',
@@ -1123,7 +1125,9 @@ const PROJECT_MANIFEST_SKIPPED_SETTINGS: ReadonlySet<string> = new Set([
   'pnpmHomeDir',
   'stateDir',
   'userconfig',
-  // Which directories the current command operates on.
+  // Which directories the current command operates on, and where it links the
+  // bins it installs.
+  'bin',
   'dir',
   'rootProjectManifestDir',
   'workspaceDir',
