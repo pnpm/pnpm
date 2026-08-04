@@ -34,7 +34,6 @@ use tokio::sync::watch;
 
 mod linking;
 mod manifest_transforms;
-mod materialization_plan;
 mod resolve;
 mod resolver_setup;
 
@@ -1243,25 +1242,33 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         });
         let initial_materialization_lockfile =
             initial_materialization.as_ref().map_or(&built_lockfile, |closure| &closure.lockfile);
-        let installability_host = materialization_plan::detect_installability_host(
-            config,
-            initial_materialization_lockfile,
-            node_version,
-            supported_architectures,
-        )
-        .await;
+        let needs_installability_check = !config.force
+            && initial_materialization_lockfile.packages.as_ref().is_some_and(|packages| {
+                initial_materialization_lockfile.snapshots.as_ref().is_some_and(|snapshots| {
+                    crate::any_installability_constraint(snapshots, packages)
+                })
+            });
+        let installability_host =
+            pacquet_deps_restorer::materialization_plan::detect_installability_host(
+                needs_installability_check,
+                config.engine_strict,
+                node_version,
+                supported_architectures,
+            )
+            .await;
         // Detect the host node once and reuse it for both the engine-name
         // cache key and installability check, mirroring the frozen path.
         let host_node: Option<(bool, String)> = installability_host
             .as_ref()
             .map(|host| (host.node_detected, host.node_version.clone()));
 
-        let (engine_name, deferred_engine_handle) = materialization_plan::resolve_engine_name(
-            config,
-            initial_materialization_lockfile,
-            host_node.as_ref(),
-        )
-        .await;
+        let (engine_name, deferred_engine_handle) =
+            pacquet_deps_restorer::materialization_plan::resolve_engine_name(
+                config.enable_global_virtual_store,
+                initial_materialization_lockfile.snapshots.as_ref(),
+                host_node.as_ref(),
+            )
+            .await;
         let layout_engine_name =
             if config.enable_global_virtual_store { engine_name.as_deref() } else { None };
         let phase_start = std::time::Instant::now();
@@ -1282,19 +1289,34 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             );
         }
 
-        let mut skipped = materialization_plan::compute_skip_set::<Reporter>(
-            &materialization_plan::SkipSetInputs {
-                requester,
-                materialization_lockfile: initial_materialization_lockfile,
-                built_lockfile: &built_lockfile,
-                lockfile_dir,
-                installability_host: installability_host.as_ref(),
-                included,
-                dependency_groups: &dependency_groups,
-                is_full_install,
-                skip_runtimes,
-            },
-        )?;
+        let closure_importer_ids: std::collections::HashSet<String> =
+            built_lockfile.importers.keys().cloned().collect();
+        let mut skipped =
+            pacquet_deps_restorer::materialization_plan::compute_skip_set::<Reporter>(
+                pacquet_deps_restorer::materialization_plan::SkipSetInputs {
+                    requester,
+                    importers: &initial_materialization_lockfile.importers,
+                    snapshots: initial_materialization_lockfile.snapshots.as_ref(),
+                    packages: initial_materialization_lockfile.packages.as_ref(),
+                    installability_host: installability_host.as_ref(),
+                    // The fresh path has just re-resolved the graph, so the
+                    // previous run's verdicts may no longer hold.
+                    seed: SkippedSnapshots::new(),
+                    // Only a full install's `dependency_groups` carries a
+                    // `--no-optional` intent: a partial run either passes
+                    // every direct group (`add`, `remove`, `update`) or
+                    // narrows them for its own reasons (`fetch --dev`,
+                    // `rebuild`) and must keep its transitive optionals.
+                    exclude_optional: is_full_install
+                        && !dependency_groups.contains(&DependencyGroup::Optional),
+                    skip_runtimes,
+                    closure_lockfile: &built_lockfile,
+                    closure_root: lockfile_dir,
+                    closure_importer_ids: &closure_importer_ids,
+                    included,
+                },
+            )
+            .map_err(InstallWithFreshLockfileError::Installability)?;
 
         let final_materialization = initial_materialization_ids.as_ref().map(|importer_ids| {
             crate::materialization_closure(

@@ -1,13 +1,13 @@
 use crate::{
     AllowBuildPolicy, BuildModules, BuildModulesError, CreateVirtualStore, CreateVirtualStoreError,
-    CreateVirtualStoreOutput, HoistedDepGraphError, HoistedDependencies, InstallabilityHost,
-    LinkHoistedModulesError, LinkHoistedModulesOpts, LinkRootComponentMembersError,
-    LinkVirtualStoreBins, LinkVirtualStoreBinsError, LockfileToHoistedDepGraphOptions,
-    SkippedSnapshots, SymlinkDirectDependencies, SymlinkDirectDependenciesError,
-    SymlinkPackageError, VersionPolicyError, VirtualStoreLayout, any_installability_constraint,
-    build_direct_deps_by_importer, compute_skipped_snapshots, direct_dep_names_for_importer,
-    get_hoisted_dependencies, link_direct_dep_bins_resolved, link_hoisted_modules,
-    link_root_component_members, link_top_level_bins, lockfile_to_hoisted_dep_graph,
+    CreateVirtualStoreOutput, HoistedDepGraphError, HoistedDependencies, LinkHoistedModulesError,
+    LinkHoistedModulesOpts, LinkRootComponentMembersError, LinkVirtualStoreBins,
+    LinkVirtualStoreBinsError, LockfileToHoistedDepGraphOptions, SkippedSnapshots,
+    SymlinkDirectDependencies, SymlinkDirectDependenciesError, SymlinkPackageError,
+    VersionPolicyError, VirtualStoreLayout, any_installability_constraint,
+    build_direct_deps_by_importer, direct_dep_names_for_importer, get_hoisted_dependencies,
+    link_direct_dep_bins_resolved, link_hoisted_modules, link_root_component_members,
+    link_top_level_bins, lockfile_to_hoisted_dep_graph,
     symlink_direct_dependencies::importer_root_dir, symlink_hoisted_dependencies,
 };
 use derive_more::{Display, Error};
@@ -137,7 +137,7 @@ where
     pub requester: &'a str,
     /// CLI-merged `supportedArchitectures` from
     /// `pnpm-workspace.yaml` plus `--cpu` / `--os` / `--libc`
-    /// overrides. Threaded into [`InstallabilityHost`] so the
+    /// overrides. Threaded into [`crate::InstallabilityHost`] so the
     /// platform-tagged optional-dependency filter respects user-
     /// supplied architecture overrides.
     pub supported_architectures: Option<&'a pacquet_package_is_installable::SupportedArchitectures>,
@@ -666,30 +666,6 @@ where
             StoreIndexWriter::spawn(&config.store_dir)
         };
 
-        // Caller-side fast-path for the installability check. The
-        // common case (no lockfile metadata row declares an
-        // `engines` / `cpu` / `os` / `libc` constraint) lets us skip
-        // both [`InstallabilityHost::detect`] and
-        // [`compute_skipped_snapshots`] entirely. Spawning
-        // `node --version` here would otherwise serialize the
-        // node-binary startup with `CreateVirtualStore::run` (the
-        // dominant cost of a cold install), giving up the overlap.
-        //
-        // When constraints DO exist, the host is needed before
-        // extraction (so `CreateVirtualStore` can suppress slots for
-        // skipped snapshots), and the spawn cost is unavoidable.
-        // `--force` bypasses the check outright: every snapshot in the
-        // lockfile is materialized regardless of platform / engine
-        // constraints, mirroring pnpm's `!opts.force &&
-        // packageIsInstallable(...)` gate.
-        let needs_installability_check = !config.force
-            && match (snapshots, packages) {
-                (Some(snaps), Some(pkgs)) if !snaps.is_empty() => {
-                    any_installability_constraint(snaps, pkgs)
-                }
-                _ => false,
-            };
-
         // Seed the skip set from the previous install's
         // `.modules.yaml.skipped`. Each entry there is a depPath
         // string a previous run wrote out; on this run we treat each
@@ -722,116 +698,61 @@ where
             }
         };
 
-        // Build the per-install [`SkippedSnapshots`] set. For every
-        // lockfile snapshot, run the installability check against
-        // the host triple; optional+incompatible entries land in
-        // the set and fire `pnpm:skipped-optional-dependency`.
-        //
-        // `host` is built only when needed. The detection path runs
-        // `node --version` on the blocking pool so it doesn't stall
-        // the reactor thread.
-        let (mut skipped, host_node) = if needs_installability_check {
-            let engine_strict = config.engine_strict;
-            let mut host = match node_version {
-                // An explicit `nodeVersion` needs no `node --version` probe, so
-                // build the host directly off the reactor thread.
-                node_version @ Some(_) => {
-                    InstallabilityHost::detect_with(engine_strict, node_version)
-                }
-                None => tokio::task::spawn_blocking(move || {
-                    InstallabilityHost::detect_with(engine_strict, None)
-                })
-                .await
-                .unwrap_or_else(|_| InstallabilityHost {
-                    node_version: "99999.0.0".to_string(),
-                    node_detected: false,
-                    os: pacquet_graph_hasher::host_platform(),
-                    cpu: pacquet_graph_hasher::host_arch(),
-                    libc: pacquet_graph_hasher::host_libc(),
-                    supported_architectures: None,
-                    engine_strict,
-                }),
-            };
-            // Plant the CLI-merged `supportedArchitectures` (yaml +
-            // `--cpu`/`--os`/`--libc`) onto the host context so
-            // `check_platform`'s `dedupe_current` substitution picks
-            // up user-supplied OS/CPU/libc accept lists instead of
-            // only the host triple. Clone is cheap (three short
-            // `Option<Vec<String>>`).
-            if let Some(supp) = supported_architectures {
-                host.supported_architectures = Some(supp.clone());
-            }
-            let skipped = compute_skipped_snapshots::<Reporter>(
-                importers,
-                snapshots.expect("guarded by needs_installability_check"),
-                packages.expect("guarded by needs_installability_check"),
-                &host,
-                requester,
-                seed,
-            )
-            .map_err(InstallFrozenLockfileError::Installability)?;
-            // Preserve `node_detected` + `node_version` for the
-            // engine-name derivation below. Dropping the rest of the
-            // host struct frees the allocations early.
-            (skipped, Some((host.node_detected, host.node_version)))
-        } else {
-            // Constraint-free lockfile: keep the seed verbatim so a
-            // snapshot recorded as skipped on the previous install
-            // survives the constraint having been removed from the
-            // lockfile.
-            (seed, None)
-        };
-
-        // `--no-optional` enforcement (umbrella slice 5).
-        // When `include.optionalDependencies` is false, every
-        // snapshot whose `optional` flag is true gets dropped from
-        // the install graph. The lockfile's
-        // [`SnapshotEntry::optional`] is set by the resolver when
-        // the snapshot is reachable **only** through optional
-        // edges; a snapshot reachable through any non-optional
-        // edge carries `optional: false` and survives the filter
-        // (a dependency that is both optional and non-optional is
-        // installed). The exclusions land in the transient
-        // `optional_excluded` subset of [`SkippedSnapshots`] so
-        // they propagate to every downstream filter
-        // (`CreateVirtualStore`, `SymlinkDirectDependencies`,
-        // `BuildModules`, hoist) through the same gate
-        // installability skips use — and stay out of
-        // `.modules.yaml.skipped` so a future install without
-        // `--no-optional` brings them back.
         let include_optional = dependency_groups.contains(&DependencyGroup::Optional);
-        if !include_optional && let Some(snaps) = snapshots {
-            for (key, snap) in snaps {
-                if snap.optional {
-                    skipped.add_optional_excluded(key.clone());
+        // Detecting the host is what costs a `node --version`, so it is
+        // skipped entirely for the common constraint-free lockfile —
+        // otherwise the probe serializes against the extraction that
+        // dominates a cold install.
+        // `any_installability_constraint` short-circuits on `packages`
+        // alone, so the empty-snapshots guard is load-bearing: without
+        // it a lockfile with constrained metadata but no snapshots would
+        // pay for a `node --version` it has nothing to check.
+        let needs_installability_check = !config.force
+            && match (snapshots, packages) {
+                (Some(snaps), Some(pkgs)) if !snaps.is_empty() => {
+                    any_installability_constraint(snaps, pkgs)
                 }
-            }
-        }
+                _ => false,
+            };
+        let installability_host = crate::materialization_plan::detect_installability_host(
+            needs_installability_check,
+            config.engine_strict,
+            node_version,
+            supported_architectures,
+        )
+        .await;
+        // Keep `node_detected` + the version for the engine-name
+        // derivation below; the rest of the host is dropped here.
+        let host_node = installability_host
+            .as_ref()
+            .map(|host| (host.node_detected, host.node_version.clone()));
 
-        if skip_runtimes && let Some(pkgs) = packages {
-            crate::add_direct_runtime_skips(&mut skipped, importers, pkgs);
-        }
-
-        // The recorded skip set must be the reachability closure of the
-        // direct skips (see
-        // [`crate::extend_skipped_with_dependency_closure`]); extend it
-        // before `CreateVirtualStore`, the hoist pass, and the symlink /
-        // bin passes consume it.
-        {
-            let importer_ids: std::collections::HashSet<String> =
-                importers.keys().cloned().collect();
-            crate::extend_skipped_with_dependency_closure(
-                &mut skipped,
-                lockfile,
-                workspace_root,
-                &importer_ids,
-                pacquet_modules_yaml::IncludedDependencies {
+        let closure_importer_ids: std::collections::HashSet<String> =
+            importers.keys().cloned().collect();
+        let mut skipped = crate::materialization_plan::compute_skip_set::<Reporter>(
+            crate::materialization_plan::SkipSetInputs {
+                requester,
+                importers,
+                snapshots,
+                packages,
+                installability_host: installability_host.as_ref(),
+                seed,
+                // The frozen path always installs the groups it was
+                // given, so `--no-optional` needs no further
+                // qualification here.
+                exclude_optional: !include_optional,
+                skip_runtimes,
+                closure_lockfile: lockfile,
+                closure_root: workspace_root,
+                closure_importer_ids: &closure_importer_ids,
+                included: pacquet_modules_yaml::IncludedDependencies {
                     dependencies: dependency_groups.contains(&DependencyGroup::Prod),
                     dev_dependencies: dependency_groups.contains(&DependencyGroup::Dev),
                     optional_dependencies: include_optional,
                 },
-            );
-        }
+            },
+        )
+        .map_err(InstallFrozenLockfileError::Installability)?;
 
         // `engine_name` feeds two sites:
         //
@@ -869,41 +790,13 @@ where
         // `node --version` returns from the shell, splitting the
         // shared store between pinned and non-pinned installs on the
         // same host.
-        let runtime_pinned_major = find_runtime_node_major(snapshots);
-        let (initial_engine_name, deferred_engine_handle): (
-            Option<String>,
-            Option<tokio::task::JoinHandle<Option<String>>>,
-        ) = if let Some(major) = runtime_pinned_major {
-            // Lockfile-driven major wins outright; skip the host
-            // probe / `node --version` spawn entirely.
-            (Some(pacquet_graph_hasher::engine_name(major, None, None)), None)
-        } else {
-            match &host_node {
-                Some((true, ver)) => (
-                    parse_major_from_version(ver)
-                        .map(|major| pacquet_graph_hasher::engine_name(major, None, None)),
-                    None,
-                ),
-                Some((false, _)) => (None, None),
-                None if config.enable_global_virtual_store => (
-                    tokio::task::spawn_blocking(|| {
-                        pacquet_graph_hasher::detect_node_major()
-                            .map(|major| pacquet_graph_hasher::engine_name(major, None, None))
-                    })
-                    .await
-                    .ok()
-                    .flatten(),
-                    None,
-                ),
-                None => (
-                    None,
-                    Some(tokio::task::spawn_blocking(|| {
-                        pacquet_graph_hasher::detect_node_major()
-                            .map(|major| pacquet_graph_hasher::engine_name(major, None, None))
-                    })),
-                ),
-            }
-        };
+        let (initial_engine_name, deferred_engine_handle) =
+            crate::materialization_plan::resolve_engine_name(
+                config.enable_global_virtual_store,
+                snapshots,
+                host_node.as_ref(),
+            )
+            .await;
         let engine_name = initial_engine_name;
 
         // Build the install-scoped slot-directory layout. When
