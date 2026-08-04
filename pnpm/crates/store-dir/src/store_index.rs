@@ -172,6 +172,47 @@ impl StoreIndexWriter {
         (Arc::new(StoreIndexWriter { tx, warn_on_send_failure: AtomicBool::new(true) }), handle)
     }
 
+    /// [`StoreIndexWriter::spawn`], or [`StoreIndexWriter::spawn_disabled`]
+    /// under `frozenStore` where the store is read-only and there is
+    /// nothing to write back.
+    #[must_use]
+    pub fn spawn_for(
+        store_dir: &StoreDir,
+        frozen_store: bool,
+    ) -> (Arc<StoreIndexWriter>, tokio::task::JoinHandle<Result<(), StoreIndexError>>) {
+        if frozen_store {
+            StoreIndexWriter::spawn_disabled()
+        } else {
+            StoreIndexWriter::spawn(store_dir)
+        }
+    }
+
+    /// Wait for the final batch flush after the last handle has been
+    /// dropped.
+    ///
+    /// Errors are warned rather than propagated: by this point the work
+    /// the rows describe is already on disk, so a missed index write
+    /// only costs a re-fetch on the next install. `outcome` is appended
+    /// to the log line to name the path that drained.
+    pub async fn drain(
+        writer_task: tokio::task::JoinHandle<Result<(), StoreIndexError>>,
+        outcome: &str,
+    ) {
+        match writer_task.await {
+            Ok(Ok(())) => {}
+            Ok(Err(error)) => tracing::warn!(
+                target: "pacquet::store_index",
+                ?error,
+                "store-index writer task returned an error{}", outcome,
+            ),
+            Err(error) => tracing::warn!(
+                target: "pacquet::store_index",
+                ?error,
+                "store-index writer task panicked{}", outcome,
+            ),
+        }
+    }
+
     /// Spawn a writer that never opens `index.db` — it drains every
     /// queued message and drops it.
     ///
@@ -507,6 +548,55 @@ impl StoreIndex {
     /// contract.
     pub fn shared_immutable_in(store_dir: &StoreDir) -> Option<SharedReadonlyStoreIndex> {
         StoreIndex::shared_in(store_dir, StoreIndex::open_immutable)
+    }
+
+    /// Open the shared read-only index the way `frozenStore` requires:
+    /// [`StoreIndex::open_immutable`] when frozen, so no WAL or SHM
+    /// sidecar is created under a read-only store root, and
+    /// [`StoreIndex::open_readonly`] otherwise.
+    ///
+    /// `None` means the store has no `index.db` yet — a first install
+    /// against an empty store — and every lookup simply misses.
+    #[must_use]
+    pub fn shared_for(
+        store_dir: &StoreDir,
+        frozen_store: bool,
+    ) -> Option<SharedReadonlyStoreIndex> {
+        if frozen_store {
+            StoreIndex::shared_immutable_in(store_dir)
+        } else {
+            StoreIndex::shared_readonly_in(store_dir)
+        }
+    }
+
+    /// [`StoreIndex::shared_for`] off the reactor thread.
+    ///
+    /// Opening is synchronous `SQLite` I/O (`Connection::open_with_flags`
+    /// plus a `PRAGMA busy_timeout`), so it is parked on the blocking
+    /// pool even for the sub-millisecond it usually takes.
+    ///
+    /// A join failure — a panic in the blocking task, or cancellation
+    /// during runtime shutdown — degrades to `None` rather than failing
+    /// the caller: every lookup then misses, which callers already
+    /// handle for the empty-store case. It is surfaced at `warn!` so a
+    /// silent panic stays diagnosable.
+    pub async fn open_shared(
+        store_dir: &'static StoreDir,
+        frozen_store: bool,
+    ) -> Option<SharedReadonlyStoreIndex> {
+        match tokio::task::spawn_blocking(move || StoreIndex::shared_for(store_dir, frozen_store))
+            .await
+        {
+            Ok(index) => index,
+            Err(error) => {
+                tracing::warn!(
+                    target: "pacquet::store_index",
+                    ?error,
+                    "store-index open task failed; continuing without a shared cache index",
+                );
+                None
+            }
+        }
     }
 
     fn shared_in(
