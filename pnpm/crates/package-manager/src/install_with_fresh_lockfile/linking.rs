@@ -91,31 +91,21 @@ pub(super) struct LinkPhaseOutput {
 /// symlinks or bins are created — and nothing of its own needs
 /// reconciling either.
 pub(super) fn run_link_phase<Reporter: pacquet_reporter::Reporter>(
-    inputs: LinkPhaseInputs<'_>,
+    mut inputs: LinkPhaseInputs<'_>,
     skipped: &mut SkippedSnapshots,
 ) -> Result<LinkPhaseOutput, InstallWithFreshLockfileError> {
-    let LinkPhaseInputs {
+    let &LinkPhaseInputs {
         config,
-        layout,
         materialization_lockfile,
         current_lockfile,
         prior_hoisted_dependencies,
-        importer_manifests,
         dependency_groups,
-        project_anchor_importer_ids,
-        materialization_importer_ids,
-        lockfile_dir,
         symlink_root,
-        package_manifests,
-        cas_paths_by_pkg_id,
-        host_node,
-        supported_architectures,
-        extra_node_paths,
-        logged_methods,
         requester,
         is_hoisted,
         prune_orphans,
-    } = inputs;
+        ..
+    } = &inputs;
 
     // Reconcile before linking: stale direct-dep links and orphaned
     // hoist links must vacate their slots so the relink + rehoist below
@@ -155,60 +145,10 @@ pub(super) fn run_link_phase<Reporter: pacquet_reporter::Reporter>(
     }
 
     if is_hoisted {
-        return link_hoisted::<Reporter>(
-            HoistedArmInputs {
-                config,
-                layout,
-                materialization_lockfile,
-                current_lockfile,
-                importer_manifests,
-                dependency_groups,
-                project_anchor_importer_ids,
-                lockfile_dir,
-                symlink_root,
-                cas_paths_by_pkg_id,
-                host_node,
-                supported_architectures,
-                logged_methods,
-                requester,
-            },
-            skipped,
-        );
+        let cas_paths_by_pkg_id = inputs.cas_paths_by_pkg_id.take();
+        return link_hoisted::<Reporter>(&inputs, cas_paths_by_pkg_id, skipped);
     }
-
-    link_isolated::<Reporter>(
-        &IsolatedArmInputs {
-            config,
-            layout,
-            materialization_lockfile,
-            importer_manifests,
-            dependency_groups,
-            project_anchor_importer_ids,
-            materialization_importer_ids,
-            lockfile_dir,
-            symlink_root,
-            package_manifests,
-            extra_node_paths,
-        },
-        skipped,
-    )
-}
-
-struct HoistedArmInputs<'a> {
-    config: &'static Config,
-    layout: &'a VirtualStoreLayout,
-    materialization_lockfile: &'a Lockfile,
-    current_lockfile: Option<&'a Lockfile>,
-    importer_manifests: &'a BTreeMap<String, &'a PackageManifest>,
-    dependency_groups: &'a [DependencyGroup],
-    project_anchor_importer_ids: &'a HashSet<String>,
-    lockfile_dir: &'a Path,
-    symlink_root: &'a Path,
-    cas_paths_by_pkg_id: Option<crate::CasPathsByPkgId>,
-    host_node: Option<&'a (bool, String)>,
-    supported_architectures: Option<&'a pacquet_package_is_installable::SupportedArchitectures>,
-    logged_methods: &'a std::sync::atomic::AtomicU8,
-    requester: &'a str,
+    link_isolated::<Reporter>(&inputs, skipped)
 }
 
 /// Under `nodeLinker: hoisted` the regular deps live as real directories
@@ -219,7 +159,8 @@ struct HoistedArmInputs<'a> {
 /// hoisted linker writes per-`node_modules` bins while walking the
 /// hierarchy.
 fn link_hoisted<Reporter: pacquet_reporter::Reporter>(
-    inputs: HoistedArmInputs<'_>,
+    inputs: &LinkPhaseInputs<'_>,
+    cas_paths_by_pkg_id: Option<crate::CasPathsByPkgId>,
     skipped: &mut SkippedSnapshots,
 ) -> Result<LinkPhaseOutput, InstallWithFreshLockfileError> {
     let project_manifests = inputs
@@ -252,7 +193,7 @@ fn link_hoisted<Reporter: pacquet_reporter::Reporter>(
             symlink_workspace_root: inputs.symlink_root,
             host_node: inputs.host_node,
             supported_architectures: inputs.supported_architectures,
-            cas_paths_by_pkg_id: inputs.cas_paths_by_pkg_id,
+            cas_paths_by_pkg_id,
             logged_methods: inputs.logged_methods,
             requester: inputs.requester,
         },
@@ -270,27 +211,13 @@ fn link_hoisted<Reporter: pacquet_reporter::Reporter>(
     })
 }
 
-struct IsolatedArmInputs<'a> {
-    config: &'static Config,
-    layout: &'a VirtualStoreLayout,
-    materialization_lockfile: &'a Lockfile,
-    importer_manifests: &'a BTreeMap<String, &'a PackageManifest>,
-    dependency_groups: &'a [DependencyGroup],
-    project_anchor_importer_ids: &'a HashSet<String>,
-    materialization_importer_ids: &'a HashSet<String>,
-    lockfile_dir: &'a Path,
-    symlink_root: &'a Path,
-    package_manifests: &'a crate::PackageManifests,
-    extra_node_paths: &'a [String],
-}
-
 /// The isolated linker: importer symlinks into the virtual store, the
 /// public/private hoist, and the two bin passes.
 fn link_isolated<Reporter: pacquet_reporter::Reporter>(
-    inputs: &IsolatedArmInputs<'_>,
+    inputs: &LinkPhaseInputs<'_>,
     skipped: &SkippedSnapshots,
 ) -> Result<LinkPhaseOutput, InstallWithFreshLockfileError> {
-    let &IsolatedArmInputs {
+    let &LinkPhaseInputs {
         config,
         layout,
         materialization_lockfile,
@@ -302,6 +229,7 @@ fn link_isolated<Reporter: pacquet_reporter::Reporter>(
         symlink_root,
         package_manifests,
         extra_node_paths,
+        ..
     } = inputs;
 
     // Pre-compute the hoist plan so the dedupe pass in

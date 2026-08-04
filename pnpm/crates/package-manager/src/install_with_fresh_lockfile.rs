@@ -722,12 +722,6 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             init_store_dir_best_effort(store_dir).await;
         }
 
-        // Resolve pass: walk the manifest's dependencies through the
-        // npm resolver chain and produce a flat tree keyed by
-        // `name@version`. The meta cache is owned for the duration of
-        // this call so every per-package resolve reuses a single
-        // packument per `(registry, name)` pair, then dropped before
-        // the install pass begins.
         let resolver_setup::Registries { by_scope: registries, named: merged_named_registries } =
             resolver_setup::resolve_registries(config)?;
 
@@ -1152,22 +1146,11 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             .await;
         }
 
-        // Drop the resolver (and its packument cache) before the
-        // install pass. Dropping `resolver` releases the
-        // [`PrefetchingResolver`][crate::PrefetchingResolver]'s wrapped inner chain, which in
-        // turn releases the shared npm resolver's strong reference to
-        // `npm_resolver`; the standalone `npm_resolver` binding
-        // holds a second strong reference because the deno- and
-        // bun-resolvers were handed a clone of the same `Arc` for
-        // their version-selection delegate. Releasing every
-        // reference takes an explicit drop on each binding —
-        // letting the packument cache, fetch locker, and
-        // picked-manifest cache shrink before the install pass
-        // pulls more tarballs into the CAFS. The
-        // `store_index` / `store_index_writer` /
-        // `verified_files_cache` are owned above the resolver
-        // chain so the prefetching wrapper can share them with the
-        // install pass.
+        // Shrink the packument, fetch-locker, and picked-manifest caches
+        // before the install pass pulls more tarballs into the CAFS.
+        // Each binding needs its own drop: the deno- and bun-resolvers
+        // were handed clones of the same `npm_resolver` `Arc`, so
+        // dropping the chain alone leaves a strong reference behind.
         drop(resolver);
         drop(npm_resolver);
         drop(meta_cache);
@@ -1279,38 +1262,12 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             "phase complete",
         );
 
-        // Build the install-scoped virtual-store layout. When
-        // `enable_global_virtual_store` is on, this precomputes each
-        // snapshot's `<scope>/<name>/<version>/<hash>` suffix under
-        // `<store_dir>/links`; otherwise it falls through to the legacy
-        // `<virtual_store_dir>/<flat-name>` shape. Either way every
-        // downstream slot-path lookup routes through
-        // `VirtualStoreLayout::slot_dir`. Matches the frozen-lockfile
-        // path's `enableGlobalVirtualStore: true → allowBuilds ??= {}`
-        // shape.
-        //
-        // The lockfile-shaped `snapshots:` / `packages:` maps the
-        // layout reads are produced via the writable-lockfile adapter
-        // ([`dependencies_graph_to_lockfile`]), but only when GVS is
-        // on — the legacy layout doesn't consult them and the build
-        // is cheap to skip otherwise. `engine_name` only matters when
-        // GVS is on, so the `node --version` probe is gated the same
-        // way.
         let allow_build_policy = AllowBuildPolicy::from_config(config)
             .map_err(InstallWithFreshLockfileError::AllowBuildsPolicy)?;
-        // Build the freshly-resolved lockfile structure
-        // unconditionally: GVS needs `snapshots:` / `packages:` to
-        // compute the layout, and the bin-link pass below uses the
-        // same maps to drive the lockfile-driven
-        // `LinkVirtualStoreBins` path (skipping the per-slot
-        // `read_dir` enumeration and the per-child `package.json`
-        // read when the prefetched manifest is available). The build
-        // is cheap — ~3 ms on the alotta-files fixture — and it is
-        // what we end up saving below anyway.
-        //
-        // Named `built_lockfile` to keep it distinct from
-        // [`Self::wanted_lockfile`], which is the *previous* run's
-        // lockfile threaded in for preferred-versions seeding.
+        // Built unconditionally: the layout and the bin-link pass both
+        // read its `snapshots:` / `packages:` maps, the build costs
+        // ~3 ms on the alotta-files fixture, and it is what gets saved
+        // below anyway.
         let phase_start = std::time::Instant::now();
         let built_lockfile = build_lockfile(FreshLockfileBuildOptions {
             config,
@@ -1505,29 +1462,12 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             skipped.add_fetch_failed(key);
         }
 
-        // The store-index writer is kept open past `CreateVirtualStore`
-        // so the build phase below can persist side-effects-cache rows;
-        // it is dropped and drained after `run_build_phase`.
+        // The store-index writer stays open past `CreateVirtualStore` so
+        // the build phase can persist side-effects-cache rows; it is
+        // dropped and drained after `run_build_phase`.
 
-        // Create `<modules_dir>/<alias>` symlinks for each direct dep.
-        // Mirrors how `install_frozen_lockfile` calls this after
-        // `CreateVirtualStore::run`.
-        //
-        // **Anchor on `config.modules_dir.parent()`, not `lockfile_dir`.**
-        // `SymlinkDirectDependencies` resolves each importer's modules
-        // dir as `<workspace_root>/<importer_id>/<modules_basename>`,
-        // which for the root importer (`.`) collapses to
-        // `<workspace_root>/<modules_basename>`. The fresh-lockfile
-        // path's tests parameterise `config.modules_dir` at a path that
-        // doesn't always live under the manifest's directory, so
-        // anchoring on the lockfile-dir-derived `workspace_root` would
-        // land symlinks at the wrong path on those configurations.
-        // With `config.modules_dir.parent()`: for the common case where
-        // `config.modules_dir == <lockfile_dir>/node_modules` they
-        // coincide; for an explicitly-relocated `modules_dir` the
-        // symlinks land where the rest of pacquet's install code
-        // (`.modules.yaml`, `LinkVirtualStoreBins`, etc.) already
-        // writes.
+        // See `linking::run_link_phase` for why this anchors on
+        // `modules_dir.parent()` rather than `lockfile_dir`.
         let symlink_root: &Path = config.modules_dir.parent().unwrap_or(lockfile_dir);
 
         let linking::LinkPhaseOutput {
@@ -1653,29 +1593,6 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         resolver_setup::drain_store_index_writer(writer_task, "; some rows may not be persisted")
             .await;
 
-        // Write `pnpm-lock.yaml` from the resolved graph:
-        // every non-frozen install lands a wanted lockfile so the next
-        // pnpm / pacquet invocation can either go headless or diff
-        // against it. The save runs after the build phase succeeds so a
-        // partial install can't leave a lockfile pointing at slots that
-        // never landed on disk. `config.lockfile=false` skips the write
-        // (a documented opt-out, though that knob is rarely exercised
-        // today).
-        //
-        // The built lockfile is returned to the caller so it can also
-        // persist `<virtual_store_dir>/lock.yaml` after `.modules.yaml`
-        // succeeds, matching the frozen-lockfile path's ordering. We
-        // don't write the current-lockfile inline here because the
-        // safety property — a manifest-write failure must not leave a
-        // current-lockfile pointing at an incomplete install — needs
-        // `.modules.yaml` to land first.
-        // The injectedDeps payload for `.modules.yaml`: every `file:`
-        // snapshot is a materialized copy of an injected workspace
-        // project; record the copies per source project so post-install
-        // tooling (Bit's build-artifact linker) can reach all of them.
-        // Under the hoisted linker the copies live at the walker's
-        // hoisted locations rather than in a virtual store.
-        // Computed before `built_lockfile` is moved into the result.
         let injected_deps = crate::collect_injected_deps(
             &layout,
             lockfile_dir,
@@ -1685,6 +1602,8 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             is_hoisted.then_some(&hoisted_locations),
         );
 
+        // Saved after the build phase succeeds so a partial install can't
+        // leave a lockfile pointing at slots that never landed on disk.
         let (wanted_lockfile, can_record_lockfile_verification) = if config.lockfile {
             let target = lockfile_dir.join(Lockfile::FILE_NAME);
             let can_record_lockfile_verification = save_wanted_lockfile(
