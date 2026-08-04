@@ -191,6 +191,32 @@ test('does not inject a package map into lifecycle scripts when virtualStoreOnly
   expect(fs.existsSync(marker)).toBeTruthy()
 })
 
+test('does not write or inject the PnP loader when virtualStoreOnly skips linking', async () => {
+  prepareEmpty()
+  fs.mkdirSync('pkg')
+  const marker = path.resolve('pnp-env-ok')
+  fs.writeFileSync('pkg/package.json', JSON.stringify({
+    name: 'pkg',
+    version: '1.0.0',
+    scripts: {
+      install: makeAssertNoPnpNodeOptionsScript(marker),
+    },
+  }), 'utf8')
+
+  await addDependenciesToPackage({}, ['file:./pkg'], testDefaults({
+    allowBuilds: { 'pkg@file:pkg': true },
+    enablePnp: true,
+    virtualStoreOnly: true,
+  }))
+
+  // virtualStoreOnly links no importers, so the loader would describe a
+  // resolution the project cannot perform.
+  expect(fs.existsSync(path.resolve('.pnp.cjs'))).toBeFalsy()
+  // ...and `--require`-ing the absent loader would fail the script
+  // before it could write its marker.
+  expect(fs.existsSync(marker)).toBeTruthy()
+})
+
 test('does not write or inject a package map when modules directory creation is disabled', async () => {
   prepareEmpty()
   const marker = path.resolve('package-map-env-ok')
@@ -1553,6 +1579,19 @@ test('install should not hang on circular peer dependencies', async () => {
   // cspell:disable-next-line
   await addDependenciesToPackage({}, ['@medusajs/medusa-js@6.1.7'], testDefaults())
 })
+
+function makeAssertNoPnpNodeOptionsScript (marker: string): string {
+  const scriptPath = path.resolve('assert-no-pnp-node-options.cjs')
+  fs.writeFileSync(scriptPath, `
+const fs = require('node:fs')
+
+if ((process.env.NODE_OPTIONS || '').includes('.pnp.cjs')) {
+  throw new Error('unexpected PnP NODE_OPTIONS')
+}
+fs.writeFileSync(process.argv[2], 'ok')
+`, 'utf8')
+  return `node ${JSON.stringify(scriptPath)} ${JSON.stringify(marker)}`
+}
 
 function makeAssertNoPackageMapNodeOptionsScript (marker: string): string {
   const scriptPath = path.resolve('assert-no-package-map-node-options.cjs')

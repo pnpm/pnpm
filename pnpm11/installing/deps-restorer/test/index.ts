@@ -816,6 +816,21 @@ test('installing in a workspace', async () => {
   ])
 })
 
+test('does not write the PnP loader when virtualStoreOnly skips linking', async () => {
+  const prefix = f.prepare('simple')
+
+  await headlessInstall(await testDefaults({
+    enablePnp: true,
+    lockfileDir: prefix,
+    virtualStoreOnly: true,
+  }))
+
+  // The virtual store is still populated; only the project-level
+  // artifacts are withheld, and the loader is one of them.
+  expect(fs.existsSync(path.join(prefix, 'node_modules/.pnpm'))).toBeTruthy()
+  expect(fs.existsSync(path.join(prefix, '.pnp.cjs'))).toBeFalsy()
+})
+
 test('installing with no symlinks but with PnP', async () => {
   const prefix = f.prepare('simple')
 

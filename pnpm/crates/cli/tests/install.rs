@@ -1947,6 +1947,10 @@ fn virtual_store_only_install_under_pnp_does_not_write_the_loader() {
     pacquet.with_arg("install").assert().success();
 
     assert!(
+        store_dir.join(STORE_VERSION).exists(),
+        "the install must still populate the store, or the assertion below is vacuous",
+    );
+    assert!(
         !workspace.join(".pnp.cjs").exists(),
         "virtualStoreOnly must not write the PnP loader: it links no importers",
     );

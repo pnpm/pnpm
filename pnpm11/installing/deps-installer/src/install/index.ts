@@ -1915,7 +1915,9 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         const rootNodes = depPaths.filter((depPath) => dependenciesGraph[depPath].depth === 0)
 
         let extraEnv: Record<string, string> | undefined = opts.scriptsOpts.extraEnv
-        if (opts.enablePnp) {
+        // Only point Node at the loader when it was actually written —
+        // `--require` on a missing file fails the script before it runs.
+        if (opts.enablePnp && !opts.virtualStoreOnly) {
           extraEnv = {
             ...extraEnv,
             ...makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.cjs'), extraEnv),

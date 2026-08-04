@@ -618,7 +618,9 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       extraBinPaths.unshift(path.join(hoistedModulesDir, '.bin'))
     }
     let extraEnv: Record<string, string> | undefined = opts.extraEnv
-    if (opts.enablePnp) {
+    // Only point Node at the loader when it was actually written —
+    // `--require` on a missing file fails the script before it runs.
+    if (opts.enablePnp && !skipPostImportLinking) {
       extraEnv = {
         ...extraEnv,
         ...makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.cjs'), extraEnv),
