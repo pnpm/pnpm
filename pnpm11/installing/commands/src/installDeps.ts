@@ -22,8 +22,9 @@ import {
 } from '@pnpm/installing.deps-installer'
 import { writeWantedLockfile } from '@pnpm/lockfile.fs'
 import type { LockfileObject } from '@pnpm/lockfile.types'
-import { globalInfo, logger } from '@pnpm/logger'
+import { globalInfo, globalWarn, logger } from '@pnpm/logger'
 import { applyRuntimeOnFailOverride, filterDependenciesByType } from '@pnpm/pkg-manifest.utils'
+import { getRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
 import type { PreferredVersions, VersionSelectors } from '@pnpm/resolving.resolver-base'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import type {
@@ -41,7 +42,6 @@ import { sequenceGraph } from '@pnpm/workspace.projects-sorter'
 import { updateWorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
 import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writer'
 
-import { getPinnedVersion } from './getPinnedVersion.js'
 import { getSaveType } from './getSaveType.js'
 import { handleIgnoredBuilds } from './handleIgnoredBuilds.js'
 import { setupPolicyHandlers } from './policyHandlers.js'
@@ -50,12 +50,13 @@ import {
   createMatcher,
   makeIgnorePatterns,
   matchDependencies,
+  parseUpdateParam,
   recursive,
   type RecursiveOptions,
   type UpdateDepsMatcher,
 } from './recursive.js'
 import { makeRunPacquet } from './runPacquet.js'
-import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies.js'
+import { toWorkspaceSpecs } from './updateWorkspaceDependencies.js'
 import { verifyPacquetIdentity } from './verifyPacquetIdentity.js'
 
 const OVERWRITE_UPDATE_OPTIONS = {
@@ -165,7 +166,6 @@ export type InstallDepsOptions = Pick<Config,
   dedupe?: boolean
   workspace?: boolean
   includeOnlyPackageFiles?: boolean
-  fetchFullMetadata?: boolean
   pruneLockfileImporters?: boolean
   rebuildHandler?: CommandHandler
   pnpmfile: string[]
@@ -357,6 +357,10 @@ export async function installDeps (
   let updateMatch: UpdateDepsMatcher | null
   let updatePackageManifest = opts.updatePackageManifest
   let updateMatching: UpdateMatchingFunction | undefined
+  // `params` is rewritten below into the dependency names it matched, so
+  // remember whether the user named any package. `--workspace` only insists
+  // that a dependency exists in the workspace when it was asked for by name.
+  const userNamedDeps = params.length > 0
   if (opts.update) {
     if (params.length === 0) {
       const ignoreDeps = opts.updateConfig?.ignoreDependencies
@@ -370,10 +374,10 @@ export async function installDeps (
   }
   if (opts.packageVulnerabilityAudit != null) {
     updateMatch = null
-    const { packageVulnerabilityAudit } = opts
-    updateMatching = (pkgName: string, version?: string) => version != null && packageVulnerabilityAudit.isVulnerable(pkgName, version)
+    updateMatching = createVulnerabilityUpdateMatching(opts.packageVulnerabilityAudit)
   }
   if (updateMatch != null) {
+    const updateSpecs = params
     params = matchDependencies(updateMatch, manifest, includeDirect)
     if (params.length === 0) {
       if (opts.latest) return
@@ -385,6 +389,7 @@ export async function installDeps (
       // Don't update package.json in this case, and limit updates to only matching dependencies
       updatePackageManifest = false
       updateMatching = (pkgName: string) => updateMatch!(pkgName) != null
+      warnAboutIgnoredVersionsOfIndirectUpdateSpecs(updateSpecs)
     }
   }
 
@@ -392,11 +397,12 @@ export async function installDeps (
     params = Object.keys(filterDependenciesByType(manifest, includeDirect))
   }
   if (opts.workspace) {
-    if (!params || (params.length === 0)) {
-      params = updateToWorkspacePackagesFromManifest(manifest, includeDirect, workspacePackages)
-    } else {
-      params = createWorkspaceSpecs(params, workspacePackages)
-    }
+    params = toWorkspaceSpecs(params ?? [], {
+      manifest,
+      include: includeDirect,
+      workspacePackages,
+      userNamedDeps,
+    })
   }
   if (params?.length) {
     const mutatedProject = {
@@ -406,7 +412,7 @@ export async function installDeps (
       manifest,
       mutation: 'installSome' as const,
       peer: opts.savePeer,
-      pinnedVersion: getPinnedVersion(opts),
+      rangeSpecStyle: getRangeSpecStyle(opts),
       rootDir: opts.dir as ProjectRootDir,
       targetDependenciesField: getSaveType(opts),
     }
@@ -584,6 +590,41 @@ function getVulnerabilityPenalty (severity: VulnerabilitySeverity): number {
       // Treat unrecognized severity as the lowest severity
     default: return -1100
   }
+}
+
+/**
+ * `pnpm update <dep>@<version>` where `<dep>` matches only transitive
+ * dependencies has no manifest entry to write the version into, and an
+ * update resolves the target the same way a fresh install would — which a
+ * command-line version cannot influence. Tell the user the version part is
+ * ignored, and that an override is the mechanism that does pin a
+ * transitive dependency. The recommended override is scoped to the
+ * dependents' declared range so it cannot violate any consumer's range;
+ * the range itself is not known at this layer (it lives in the dependents'
+ * manifests), hence the placeholder.
+ */
+function warnAboutIgnoredVersionsOfIndirectUpdateSpecs (updateSpecs: string[]): void {
+  for (const spec of updateSpecs) {
+    const { pattern, versionSpec } = parseUpdateParam(spec)
+    if (versionSpec == null) continue
+    globalWarn(`"${pattern}" is not a direct dependency, so the requested version "${versionSpec}" is ignored — "${pattern}" is updated to what a fresh install would resolve. To force a version of a transitive dependency, add an override scoped to the range its dependents declare to pnpm-workspace.yaml, e.g.: overrides: { "${pattern}@<declared range>": "${versionSpec}" }`)
+  }
+}
+
+/**
+ * The `updateMatching` predicate of `pnpm audit --fix`: a package is an
+ * update target when its resolved version is vulnerable. The resolver calls
+ * it without a version when the edge has no lockfile reference — e.g. after
+ * the vulnerable pin was widened, which forgets the reference — so a
+ * version-less call matches by name against the vulnerable set: such an
+ * edge belongs to a package under vulnerability management and must
+ * re-resolve without its seeded lockfile pins.
+ */
+export function createVulnerabilityUpdateMatching (packageVulnerabilityAudit: PackageVulnerabilityAudit): UpdateMatchingFunction {
+  const vulnerablePackageNames = new Set(packageVulnerabilityAudit.getVulnerabilities().keys())
+  return (pkgName: string, version?: string) => version != null
+    ? packageVulnerabilityAudit.isVulnerable(pkgName, version)
+    : vulnerablePackageNames.has(pkgName)
 }
 
 function preferNonvulnerablePackageVersions (packageVulnerabilityAudit: PackageVulnerabilityAudit): PreferredVersions {

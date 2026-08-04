@@ -16,6 +16,9 @@
       "path": "../../catalogs/types"
     },
     {
+      "path": "../../config/normalize-registries"
+    },
+    {
       "path": "../../config/version-policy"
     },
     {
@@ -44,6 +47,9 @@
     },
     {
       "path": "../../fetching/pick-fetcher"
+    },
+    {
+      "path": "../../fs/symlink-dependency"
     },
     {
       "path": "../../hooks/types"
@@ -80,6 +86,9 @@
     },
     {
       "path": "../../store/controller-types"
+    },
+    {
+      "path": "../../text/ordinal-comparator"
     },
     {
       "path": "../../workspace/spec-parser"

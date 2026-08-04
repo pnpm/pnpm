@@ -8,7 +8,9 @@ import { getAllUniqueSpecs } from './getAllUniqueSpecs.js'
 import { getSpecFromPackageManifest } from './getSpecFromPackageManifest.js'
 
 export * from './convertEnginesRuntimeToDependencies.js'
+export * from './getAllDependenciesFromManifest.js'
 export * from './getDependencyTypeFromManifest.js'
+export * from './rangeSpecStyle.js'
 export * from './updateProjectManifestObject.js'
 
 export { getAllUniqueSpecs, getSpecFromPackageManifest }
@@ -21,17 +23,5 @@ export function filterDependenciesByType (
     ...(include.devDependencies ? manifest.devDependencies : {}),
     ...(include.dependencies ? manifest.dependencies : {}),
     ...(include.optionalDependencies ? manifest.optionalDependencies : {}),
-  }
-}
-
-export function getAllDependenciesFromManifest (
-  manifest: Pick<ProjectManifest, 'devDependencies' | 'dependencies' | 'optionalDependencies' | 'peerDependencies'>,
-  opts?: { autoInstallPeers?: boolean }
-): Dependencies {
-  return {
-    ...manifest.devDependencies,
-    ...manifest.dependencies,
-    ...manifest.optionalDependencies,
-    ...(opts?.autoInstallPeers ? manifest.peerDependencies : {}),
   }
 }

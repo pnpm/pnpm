@@ -19,6 +19,7 @@ import {
   runLifecycleHooksConcurrently,
   runPostinstallHooks,
 } from '@pnpm/exec.lifecycle'
+import { safeJoinModulesDir } from '@pnpm/fs.symlink-dependency'
 import { getContext, type PnpmContext } from '@pnpm/installing.context'
 import { writeModulesManifest } from '@pnpm/installing.modules-yaml'
 import type { TarballResolution } from '@pnpm/lockfile.types'
@@ -378,9 +379,12 @@ async function _rebuild (
     for (const { hash, pkgMeta } of iterateHashedGraphNodes(
       depGraph,
       iteratePkgMeta(ctx.currentLockfile, depGraph),
-      _allowBuild,
-      opts.supportedArchitectures,
-      nodeVersion
+      {
+        allowBuild: _allowBuild,
+        supportedArchitectures: opts.supportedArchitectures,
+        nodeVersion,
+        lockfileDir: opts.lockfileDir,
+      }
     )) {
       const preferredGvsDir = path.join(globalVirtualStoreDir, hash)
       gvsDirByDepPath.set(pkgMeta.depPath, fs.existsSync(preferredGvsDir)
@@ -399,7 +403,9 @@ async function _rebuild (
       const pkgInfo = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
       const pkgRoots = opts.nodeLinker === 'hoisted'
         ? (ctx.modulesFile?.hoistedLocations?.[depPath] ?? []).map((hoistedLocation) => path.join(opts.lockfileDir, hoistedLocation))
-        : [path.join(pkgModulesDir(depPath), pkgInfo.name)]
+        // `pkgInfo.name` comes from the depPath key of the lockfile in
+        // `node_modules` via `dp.parse`, which validates nothing (GHSA-c59q-g84q-2gj5).
+        : [safeJoinModulesDir(pkgModulesDir(depPath), pkgInfo.name)]
       if (pkgRoots.length === 0) {
         if (pkgSnapshot.optional) return
         throw new PnpmError('MISSING_HOISTED_LOCATIONS', `${depPath} is not found in hoistedLocations inside node_modules/.modules.yaml`, {
@@ -542,7 +548,7 @@ async function _rebuild (
           const pkgSnapshot = pkgSnapshots[depPath]
           const pkgInfo = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
           const modules = pkgModulesDir(depPath)
-          const binPath = path.join(modules, pkgInfo.name, 'node_modules', '.bin')
+          const binPath = path.join(safeJoinModulesDir(modules, pkgInfo.name), 'node_modules', '.bin')
           return linkBins(modules, binPath, { warn })
         }))
     )

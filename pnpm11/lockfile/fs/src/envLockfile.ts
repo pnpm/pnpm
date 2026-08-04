@@ -1,6 +1,4 @@
-import { promises as fs } from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import type { EnvLockfile } from '@pnpm/lockfile.types'
@@ -9,7 +7,7 @@ import writeFileAtomic from 'write-file-atomic'
 
 import { sortLockfileKeys } from './sortLockfileKeys.js'
 import { lockfileYamlDump } from './write.js'
-import { extractMainDocument, streamReadFirstYamlDocument } from './yamlDocuments.js'
+import { extractMainDocument, readLockfileToStringNoFollow, streamReadFirstYamlDocument } from './yamlDocuments.js'
 
 export function createEnvLockfile (): EnvLockfile {
   return {
@@ -61,16 +59,8 @@ export async function writeEnvLockfile (rootDir: string, lockfile: EnvLockfile):
   const sorted = sortLockfileKeys(lockfile)
   const envYaml = lockfileYamlDump(sorted)
 
-  // Read existing main lockfile document to preserve it
-  let mainDoc = ''
-  try {
-    const existing = await fs.readFile(lockfilePath, 'utf8')
-    mainDoc = extractMainDocument(existing)
-  } catch (err: unknown) {
-    if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT')) {
-      throw err
-    }
-  }
+  const existing = await readLockfileToStringNoFollow(lockfilePath)
+  const mainDoc = existing == null ? '' : extractMainDocument(existing)
 
   const combined = `---\n${envYaml}\n---\n${mainDoc}`
   return writeFileAtomic(lockfilePath, combined)

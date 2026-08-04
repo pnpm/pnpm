@@ -1,0 +1,57 @@
+{
+  "name": "pacquet",
+  "private": true,
+  "publishConfig": {
+    "name": "pnpm",
+    "executableFiles": [
+      "./dist/node-gyp-bin/node-gyp",
+      "./dist/node-gyp-bin/node-gyp.cmd",
+      "./dist/node_modules/node-gyp/bin/node-gyp.js",
+      "./dist/node_modules/node-gyp/gyp/gyp_main.py",
+      "./dist/node_modules/node-gyp/gyp/gyp"
+    ]
+  },
+  "version": "12.0.0-beta.4",
+  "description": "Fast, disk space efficient package manager",
+  "keywords": [
+    "pnpm",
+    "package manager",
+    "rust"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/pnpm",
+  "bugs": "https://github.com/pnpm/pnpm/issues",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pnpm/pnpm",
+    "directory": "pnpm/npm/pnpm"
+  },
+  "bin": {
+    "pnpm": "pnpm",
+    "pn": "pn",
+    "pnpx": "pnpx",
+    "pnx": "pnx"
+  },
+  "type": "module",
+  "scripts": {
+    "preinstall": "node install.js",
+    "bundle-node-gyp": "node scripts/bundle-node-gyp.mjs"
+  },
+  "engines": {
+    "node": ">=18.*"
+  },
+  "files": [
+    "pnpm",
+    "pn",
+    "pnpx",
+    "pnx",
+    "install.js",
+    "dist/"
+  ],
+  "dependencies": {
+    "node-gyp": "catalog:"
+  },
+  "devDependencies": {
+    "nm-prune": "catalog:"
+  }
+}

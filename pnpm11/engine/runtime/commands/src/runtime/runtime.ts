@@ -2,6 +2,7 @@ import { docsUrl } from '@pnpm/cli.utils'
 import type { Config } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { runPnpmCli } from '@pnpm/exec.pnpm-cli-runner'
+import { isRuntimeAlias, RUNTIME_NAMES } from '@pnpm/types'
 import { renderHelp } from 'render-help'
 
 export type RuntimeCommandOptions = Pick<Config,
@@ -102,8 +103,21 @@ function runtimeSet (opts: RuntimeCommandOptions, params: string[]): void {
   if (!runtimeName) {
     throw new PnpmError('MISSING_RUNTIME_NAME', '"pnpm runtime set <name> <version>" requires a runtime name (e.g. node, deno, bun)')
   }
+  // The runtime name is interpolated into an `add` selector, so reject
+  // anything that isn't a known runtime before it can be misread as a
+  // comma-separated package list or a local path by the install pipeline.
+  if (!isRuntimeAlias(runtimeName)) {
+    throw new PnpmError('INVALID_RUNTIME_NAME', `"${runtimeName}" is not a supported runtime. Supported runtimes are: ${RUNTIME_NAMES.join(', ')}`)
+  }
 
   const versionSpec = params[1]?.trim()
+  // The version is interpolated into the same selector, which the global-add
+  // pipeline splits on commas. Reject a comma so `runtime set node 22,evil -g`
+  // can't smuggle in a second install target. No valid runtime version
+  // (semver, dist-tag, channel) contains one.
+  if (versionSpec?.includes(',')) {
+    throw new PnpmError('INVALID_RUNTIME_VERSION', `Invalid runtime version "${versionSpec}": a version cannot contain a comma`)
+  }
 
   const args = ['add', `${runtimeName}@runtime:${versionSpec ?? ''}`]
   // Default to `devEngines.runtime`; the manifest writer maps a

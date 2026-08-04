@@ -32,6 +32,19 @@ export function getRegistryMockToken (): string {
   return token
 }
 
+/**
+ * A `minimumReleaseAge` (in minutes) under which `@pnpm.e2e/bravo-dep`'s
+ * `latest` tag (1.1.0) is the only immature version.
+ *
+ * The mock registry publishes `@pnpm.e2e/bravo-dep` at 1.0.0 (2022-02-01),
+ * 1.0.1 (2022-02-22), and 1.1.0 (2022-05-01) — see `version_publish_time` in
+ * `pnpr/crates/pnpr-fixtures/src/lib.rs` — so a cutoff anchored at 2022-03-01
+ * lands between the last two.
+ */
+export function bravoDepMatureUpTo101MinimumReleaseAge (): number {
+  return (Date.now() - new Date('2022-03-01T00:00:00.000Z').getTime()) / (60 * 1000)
+}
+
 export interface AddDistTagOptions {
   package: string
   version: string
@@ -86,9 +99,10 @@ type Packument = { versions: Record<string, { dist: { integrity: string } }> }
  * `PNPM_REGISTRY_MOCK_STORAGE` by the with-registry jest globalSetup.
  *
  * Hosted (fixture) packuments live at `<storage>/<pkg>/package.json`; upstream
- * packages are proxied into `<storage>/.pnpr-cache/<pkg>/package.json`, written
- * lazily on first request — so both are tried and the read is retried while the
- * cache write is still in flight.
+ * packages are proxied into a per-upstream namespace of the cache mirror
+ * (`<storage>/.pnpr-cache/~public/<digest>/<pkg>/package.json`), written
+ * lazily on first request — so every namespace is tried and the read is
+ * retried while the cache write is still in flight.
  */
 export function getIntegrity (pkgName: string, pkgVersion: string): string {
   const storage = process.env.PNPM_REGISTRY_MOCK_STORAGE
@@ -98,13 +112,17 @@ export function getIntegrity (pkgName: string, pkgVersion: string): string {
       'Tests that call getIntegrity must run under the with-registry jest preset.'
     )
   }
-  const candidatePaths = [
-    path.join(storage, pkgName, 'package.json'),
-    path.join(storage, PROXY_CACHE_DIR, pkgName, 'package.json'),
-  ]
   const maxRetries = 4
   let delay = 200 // milliseconds
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    // Rebuilt on every attempt: the proxy-cache namespace directory itself is
+    // created lazily along with the first cached packument, so it may not
+    // exist yet on the first attempt.
+    const candidatePaths = [
+      path.join(storage, pkgName, 'package.json'),
+      ...listPublicProxyNamespaces(path.join(storage, PROXY_CACHE_DIR, '~public'))
+        .map((namespace) => path.join(namespace, pkgName, 'package.json')),
+    ]
     const content = readPackument(candidatePaths)
     if (content) {
       return content.versions[pkgVersion].dist.integrity
@@ -114,6 +132,22 @@ export function getIntegrity (pkgName: string, pkgVersion: string): string {
     delay *= 2
   }
   throw new Error(`Failed to read package.json for ${pkgName}@${pkgVersion} after ${maxRetries} attempts`)
+}
+
+// The public proxy cache is namespaced per upstream mount by a digest of its
+// name and URL, which the test side cannot compute — so enumerate whatever
+// namespaces exist (for the registry mock, at most one: npmjs).
+function listPublicProxyNamespaces (publicCacheDir: string): string[] {
+  let entries: fs.Dirent[]
+  try {
+    entries = fs.readdirSync(publicCacheDir, { withFileTypes: true })
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return []
+    throw err
+  }
+  return entries
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => path.join(publicCacheDir, entry.name))
 }
 
 // Returns the first readable packument among the candidates, or `undefined` when

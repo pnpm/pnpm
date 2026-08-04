@@ -1,6 +1,6 @@
 import { DEFAULT_REGISTRIES } from '@pnpm/config.normalize-registries'
 import { parseOverrides } from '@pnpm/config.parse-overrides'
-import { createReadPackageHook } from '@pnpm/hooks.read-package-hook'
+import { createDependencyOverrider, createReadPackageHook } from '@pnpm/hooks.read-package-hook'
 import { getContext, type GetContextOptions, type ProjectOptions } from '@pnpm/installing.context'
 import { getWantedDependencies, resolveDependencies } from '@pnpm/installing.deps-resolver'
 import { getPreferredVersionsFromLockfileAndManifests } from '@pnpm/lockfile.preferred-versions'
@@ -81,6 +81,7 @@ export async function getPeerDependencyIssues (
           ignoredOptionalDependencies: opts.ignoredOptionalDependencies,
         }),
       },
+      overrideBareSpecifier: createDependencyOverrider(overrides, lockfileDir),
       linkWorkspacePackagesDepth: opts.linkWorkspacePackagesDepth ?? (opts.saveWorkspaceProtocol ? 0 : -1),
       lockfileDir,
       nodeVersion: opts.nodeVersion ?? process.version,

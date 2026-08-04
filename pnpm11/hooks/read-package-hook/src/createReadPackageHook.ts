@@ -9,7 +9,7 @@ import { isEmpty, pipeWith } from 'ramda'
 
 import { createOptionalDependenciesRemover } from './createOptionalDependenciesRemover.js'
 import { createPackageExtender } from './createPackageExtender.js'
-import { createVersionsOverrider, type VersionOverrideWithoutRawSelector } from './createVersionsOverrider.js'
+import { createVersionsOverrider, type CreateVersionsOverriderOptions, type VersionOverrideWithoutRawSelector } from './createVersionsOverrider.js'
 
 type PackageExtensionField = 'dependencies' | 'optionalDependencies' | 'peerDependencies' | 'peerDependenciesMeta'
 
@@ -44,6 +44,7 @@ export function createReadPackageHook (
     ignoreCompatibilityDb,
     lockfileDir,
     overrides,
+    convergeDeclaredRanges,
     ignoredOptionalDependencies,
     packageExtensions,
     readPackageHook,
@@ -51,6 +52,7 @@ export function createReadPackageHook (
     ignoreCompatibilityDb?: boolean
     lockfileDir: string
     overrides?: VersionOverrideWithoutRawSelector[]
+    convergeDeclaredRanges?: CreateVersionsOverriderOptions['convergeDeclaredRanges']
     ignoredOptionalDependencies?: string[]
     packageExtensions?: Record<string, PackageExtension>
     readPackageHook?: ReadPackageHook[] | ReadPackageHook
@@ -70,7 +72,7 @@ export function createReadPackageHook (
     hooks.push(readPackageHook)
   }
   if (!isEmpty(overrides ?? {})) {
-    hooks.push(createVersionsOverrider(overrides!, lockfileDir))
+    hooks.push(createVersionsOverrider(overrides!, lockfileDir, { convergeDeclaredRanges }))
   }
   if (ignoredOptionalDependencies && !isEmpty(ignoredOptionalDependencies)) {
     hooks.push(createOptionalDependenciesRemover(ignoredOptionalDependencies))

@@ -12,8 +12,8 @@ const pnpmRootDir = path.resolve(exeDir, '..', '..')
 // non-Apple-Silicon-Mac dev box (Intel Mac, Windows, etc.) — build only the
 // two baseline targets so dev-local runs stay fast. The defaults (entry,
 // outputDir, outputName, targets) live in the "pnpm.app" object of
-// pnpm/artifacts/exe/package.json — CLI --target flags replace that list when
-// we want to narrow it. darwin-x64 is intentionally absent from the matrix on
+// pnpm/package.json — CLI --target flags replace that list when we want to
+// narrow it. darwin-x64 is intentionally absent from the matrix on
 // every host: Node.js SEA injection produces a binary that segfaults on
 // Intel Macs (pnpm/pnpm#11423, nodejs/node#62893).
 const isM1Mac = process.platform === 'darwin' && process.arch === 'arm64'
@@ -39,7 +39,7 @@ if (!buildFullMatrix) {
 // bundle rather than whatever pnpm happens to be on PATH.
 const pnpmBundle = path.join(pnpmRootDir, 'dist', 'pnpm.mjs')
 execa.sync(process.execPath, [pnpmBundle, 'with', 'current', ...packAppArgs], {
-  cwd: exeDir,
+  cwd: pnpmRootDir,
   stdio: 'inherit',
 })
 

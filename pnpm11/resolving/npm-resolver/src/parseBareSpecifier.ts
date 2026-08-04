@@ -2,6 +2,7 @@ import { PnpmError } from '@pnpm/error'
 import { parseJsrSpecifier } from '@pnpm/resolving.jsr-specifier-parser'
 import { parseNpmTarballUrl } from 'parse-npm-tarball-url'
 import semver from 'semver'
+import validateNpmPackageName from 'validate-npm-package-name'
 import getVersionSelectorType from 'version-selector-type'
 
 export interface RegistryPackageSpec {
@@ -84,9 +85,7 @@ export function parseJsrSpecifierToRegistryPackageSpec (
   }
 }
 
-export const BUILTIN_NAMED_REGISTRIES: Readonly<Record<string, string>> = Object.freeze({
-  gh: 'https://npm.pkg.github.com/',
-})
+export { BUILTIN_NAMED_REGISTRIES } from '@pnpm/constants'
 
 export interface NamedRegistryPackageSpec extends RegistryPackageSpec {
   registryName: string
@@ -95,6 +94,9 @@ export interface NamedRegistryPackageSpec extends RegistryPackageSpec {
 // Parses a named-registry specifier of the shape `<alias>:<body>` into a
 // RegistryPackageSpec. Returns `null` when the specifier does not use one of
 // the configured aliases, so the caller can fall through to other resolvers.
+// Throws INVALID_NAMED_REGISTRY_PACKAGE_NAME when the alias matches but the
+// package name is malformed (missing or empty scope/name segments, path
+// separators inside the name).
 // Supported shapes:
 // - `<alias>:[@<owner>/]<name>[@<version_selector>]`
 // - `<alias>:<version_selector>` paired with a package alias
@@ -128,12 +130,6 @@ export function parseNamedRegistrySpecifierToRegistryPackageSpec (
       pkgName = body.substring(0, index)
       versionSelector = body.substring(index + '@'.length)
     }
-    if (pkgName.indexOf('/') === -1 || pkgName.endsWith('/')) {
-      throw new PnpmError(
-        'INVALID_NAMED_REGISTRY_PACKAGE_NAME',
-        `The package name '${pkgName}' in named registry '${registryName}:' is invalid`
-      )
-    }
   } else if (packageAlias?.startsWith('@')) {
     // `<alias>:<tag>` paired with a scoped alias — body is a version
     // selector (tag/dist-tag). Mirrors GitHub Packages, where the package
@@ -150,6 +146,15 @@ export function parseNamedRegistrySpecifierToRegistryPackageSpec (
       versionSelector = body.substring(index + '@'.length)
     }
     if (!pkgName) return null
+  }
+
+  // The name is used in registry URLs and metadata cache file paths, so
+  // anything that is not a valid npm package name must never make it through.
+  if (!validateNpmPackageName(pkgName).validForOldPackages) {
+    throw new PnpmError(
+      'INVALID_NAMED_REGISTRY_PACKAGE_NAME',
+      `The package name '${pkgName}' in named registry '${registryName}:' is invalid`
+    )
   }
 
   const selector = getVersionSelectorType(versionSelector ?? defaultTag)

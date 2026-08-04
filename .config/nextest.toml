@@ -1,0 +1,17 @@
+# Workspace-wide cargo-nextest configuration (pacquet and pnpr).
+
+[profile.default]
+# Terminate a test that stops making progress. Without `terminate-after`,
+# nextest only *marks* a test SLOW every `period` and waits forever — a
+# single hung test binary then wedges the entire run until the CI job is
+# killed from outside, with no output from the offender. With it, the
+# test is SIGTERM'd (then SIGKILL'd after the grace period), reported as
+# TIMEOUT with its captured output, and the rest of the run completes.
+#
+# The threshold must clear the suite's legitimately slow tests: the
+# fetch-timeout retry-ladder tests (install_runtimes bad-integrity,
+# lockfile_verification trust-lockfile, and the package-manager
+# fresh-resolve pair) run a designed 60s timeout + 10s retry, ~70s on
+# Linux/Windows and ~85s on macOS. 5 × 60s = 300s keeps ~3.5× headroom
+# over the slowest of them.
+slow-timeout = { period = "60s", terminate-after = 5 }

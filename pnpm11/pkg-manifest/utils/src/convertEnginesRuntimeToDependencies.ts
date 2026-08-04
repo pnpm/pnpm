@@ -62,7 +62,11 @@ export function applyRuntimeOnFailOverride (
       const deps = manifest[dependenciesFieldName]
       if (deps) {
         for (const runtimeName of RUNTIME_NAMES) {
-          if (typeof deps[runtimeName] === 'string' && deps[runtimeName].startsWith('runtime:')) {
+          if (
+            runtimes.some(runtime => runtime.name === runtimeName) &&
+            typeof deps[runtimeName] === 'string' &&
+            deps[runtimeName].startsWith('runtime:')
+          ) {
             delete deps[runtimeName]
           }
         }

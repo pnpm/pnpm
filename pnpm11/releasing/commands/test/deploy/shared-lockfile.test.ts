@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import url from 'node:url'
+import { createGzip } from 'node:zlib'
 
 import { afterEach, beforeEach, expect, jest, test } from '@jest/globals'
 import { assertProject } from '@pnpm/assert-project'
@@ -9,6 +10,7 @@ import { preparePackages } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import type { ProjectManifest } from '@pnpm/types'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
+import tar from 'tar-stream'
 import { writeYamlFile } from 'write-yaml-file'
 
 import { DEFAULT_OPTS } from './utils/index.js'
@@ -45,6 +47,21 @@ function readPackageJson (manifestDir: string): unknown {
   const manifestPath = path.resolve(manifestDir, 'package.json')
   const manifestText = fs.readFileSync(manifestPath, 'utf-8')
   return JSON.parse(manifestText)
+}
+
+async function writePackageTarball (tarballPath: string, manifest: ProjectManifest): Promise<void> {
+  const pack = tar.pack()
+  pack.entry({ name: 'package/package.json' }, JSON.stringify(manifest, undefined, 2))
+  pack.entry({ name: 'package/index.js' }, '')
+
+  const tarball = fs.createWriteStream(tarballPath)
+  pack.pipe(createGzip()).pipe(tarball)
+  pack.finalize()
+
+  return new Promise((resolve, reject) => {
+    tarball.on('close', resolve)
+    tarball.on('error', reject)
+  })
 }
 
 test('deploy with a shared lockfile after full install', async () => {
@@ -269,6 +286,64 @@ test('deploy with a shared lockfile after full install', async () => {
     )
     expect(globalWarn).not.toHaveBeenCalledWith(expect.stringContaining('Falling back to installing without a lockfile'))
   }
+})
+
+test('deploy with a shared lockfile reuses local tarball package name from the warm store (#12792)', async () => {
+  preparePackages([{
+    location: '.',
+    package: {
+      name: 'app',
+      version: '1.0.0',
+      private: true,
+      dependencies: {
+        'tar-pkg': 'file:vendor/tar-pkg-1.0.0.tgz',
+      },
+    },
+  }])
+  const tarballPath = path.resolve('vendor/tar-pkg-1.0.0.tgz')
+  fs.mkdirSync('vendor')
+  await writePackageTarball(tarballPath, {
+    name: 'tar-pkg',
+    version: '1.0.0',
+  })
+
+  const {
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph,
+  } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'app' }])
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph: allProjectsGraph,
+    dir: process.cwd(),
+    recursive: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  })
+
+  const deployOpts = {
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    rootProjectManifest: allProjects[0].manifest,
+    rootProjectManifestDir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }
+  await deploy.handler(deployOpts, ['out1'])
+  await deploy.handler(deployOpts, ['out2'])
+
+  const project = assertProject(path.resolve('out2'))
+  project.has('tar-pkg')
+
+  const lockfilePackages = Object.keys(project.readLockfile().packages ?? {})
+  expect(lockfilePackages).toStrictEqual([expect.stringMatching(/^tar-pkg@file:/)])
 })
 
 test('the deploy manifest should inherit some fields from the pnpm object from the root manifest and the manifest of the selected project', async () => {

@@ -2,9 +2,9 @@ import type {
   DependencyManifest,
   PackageManifest,
   PackageVersionPolicy,
-  PinnedVersion,
   PkgResolutionId,
   ProjectRootDir,
+  RangeSpecStyle,
   SupportedArchitectures,
   TrustPolicy,
 } from '@pnpm/types'
@@ -216,8 +216,12 @@ export interface ResolutionVerifier {
    * `name@version`. Verifiers that only police registry entries use it to
    * skip deliberate non-registry deps, which can still carry a semver
    * `version` copied from the resolved manifest.
+   *
+   * `ctx.registryName` is set when the entry is keyed by a registry-qualified
+   * dep path (`<name>@<registryName>:<version>`), so registry-policing
+   * verifiers route their metadata lookups to that named registry.
    */
-  verify: (resolution: Resolution, ctx: { name: string, version: string, nonSemverVersion?: string }) => Promise<ResolutionVerification>
+  verify: (resolution: Resolution, ctx: { name: string, version: string, nonSemverVersion?: string, registryName?: string }) => Promise<ResolutionVerification>
   /**
    * Snapshot of the policy fields this verifier enforces. Merged with
    * every other active verifier's `policy` into the cache record. A
@@ -395,10 +399,18 @@ export interface ResolveOptions {
   preferWorkspacePackages?: boolean
   workspacePackages?: WorkspacePackages
   update?: false | 'compatible' | 'latest'
+  /**
+   * True only when this specific package matches the user's update target
+   * (e.g. `pnpm up <name>`). Unlike `update`, this is false for unrelated
+   * packages that get re-resolved as a side effect of an update, so it can
+   * be used to bypass preferred-version propagation without forcing
+   * unrelated transitives to jump to their latest versions.
+   */
+  updateRequested?: boolean
   updateChecksums?: boolean
   injectWorkspacePackages?: boolean
   calcSpecifier?: boolean
-  pinnedVersion?: PinnedVersion
+  rangeSpecStyle?: RangeSpecStyle
   currentPkg?: {
     id: PkgResolutionId
     name?: string

@@ -52,3 +52,46 @@ test('parseOverrides() throws an exception on invalid selector', () => {
   expect(() => parseOverrides({ '%': '2' }, {})).toThrow('Cannot parse the "%" selector')
   expect(() => parseOverrides({ 'foo > bar': '2' }, {})).toThrow('Cannot parse the "foo > bar" selector')
 })
+
+test.each([
+  ['foo@', '1.2.3'],
+  ['@scope/foo@', '2.0.0-beta.1'],
+])('parseOverrides() parses the "%s" convergence override', (selector, version) => {
+  expect(parseOverrides({ [selector]: version }, {})).toEqual([
+    {
+      selector,
+      newBareSpecifier: version,
+      targetPkg: { name: selector.slice(0, -1), bareSpecifier: '' },
+      converge: true,
+    },
+  ])
+})
+
+test('parseOverrides() resolves a catalog value of a convergence override', () => {
+  expect(parseOverrides({ 'foo@': 'catalog:' }, { default: { foo: '1.2.3' } })).toEqual([
+    {
+      selector: 'foo@',
+      newBareSpecifier: '1.2.3',
+      targetPkg: { name: 'foo', bareSpecifier: '' },
+      converge: true,
+    },
+  ])
+})
+
+test.each([
+  ['^1.2.3'],
+  ['latest'],
+  ['-'],
+  ['link:../foo'],
+  ['npm:bar@1.2.3'],
+])('parseOverrides() throws when the value of a convergence override is "%s"', (value) => {
+  expect(() => parseOverrides({ 'foo@': value }, {})).toThrow(
+    `The value of the convergence override "foo@" must be an exact version, but got "${value}"`
+  )
+})
+
+test('parseOverrides() throws when an empty range is used in a parent>child selector', () => {
+  expect(() => parseOverrides({ 'bar>foo@': '1.2.3' }, {})).toThrow(
+    'Cannot use an empty range in the "bar>foo@" selector'
+  )
+})

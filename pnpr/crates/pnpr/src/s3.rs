@@ -13,11 +13,16 @@
 //! resolver `SQLite` stores stay on local disk regardless —
 //! only the hosted store is pluggable.
 
-use crate::{error::Result, package_name::PackageName};
+use crate::{
+    error::Result,
+    package_name::PackageName,
+    storage::{STAGED_DIR, staged_id_of_meta_object},
+};
 use axum::body::Body;
 use futures_util::StreamExt;
 use object_store::{
-    ObjectStore, ObjectStoreExt, PutPayload, aws::AmazonS3Builder, path::Path as ObjectPath,
+    ObjectStore, ObjectStoreExt, PutMode, PutOptions, PutPayload, UpdateVersion,
+    aws::AmazonS3Builder, path::Path as ObjectPath,
 };
 use serde::Deserialize;
 use std::{
@@ -127,6 +132,12 @@ pub struct S3Store {
     staging_dir: PathBuf,
 }
 
+#[derive(Debug)]
+pub(crate) struct S3PackumentForUpdate {
+    pub(crate) bytes: Vec<u8>,
+    pub(crate) version: UpdateVersion,
+}
+
 /// Subdirectory of the proxy-cache root where hosted tarballs are
 /// staged before upload. Its own directory keeps the decode/verify tmp
 /// files away from the cache's `<pkg>/` package directories.
@@ -141,6 +152,28 @@ impl S3Store {
         Self { store, prefix, staging_dir: cache_root.join(STAGING_SUBDIR) }
     }
 
+    /// A view of this store with `segment` appended to the key prefix, giving a
+    /// hosted registry its own object-key namespace under the same bucket.
+    /// Staging scratch is shared (its tmp filenames are already unique).
+    #[must_use]
+    pub fn namespaced(&self, segment: &str) -> S3Store {
+        // An empty segment is the flat root: keep the prefix exactly so it
+        // addresses the same object keys as the un-namespaced store, rather than
+        // gaining a spurious `/` that points at a different key space.
+        if segment.is_empty() {
+            return Self {
+                store: Arc::clone(&self.store),
+                prefix: self.prefix.clone(),
+                staging_dir: self.staging_dir.clone(),
+            };
+        }
+        Self {
+            store: Arc::clone(&self.store),
+            prefix: format!("{}{segment}/", self.prefix),
+            staging_dir: self.staging_dir.clone(),
+        }
+    }
+
     pub async fn read_packument(&self, name: &PackageName) -> Result<Option<Vec<u8>>> {
         match self.store.get(&self.packument_key(name)).await {
             Ok(result) => Ok(Some(result.bytes().await?.to_vec())),
@@ -149,9 +182,50 @@ impl S3Store {
         }
     }
 
-    pub async fn write_packument(&self, name: &PackageName, bytes: &[u8]) -> Result<()> {
-        self.store.put(&self.packument_key(name), PutPayload::from(bytes.to_vec())).await?;
-        Ok(())
+    pub(crate) async fn read_packument_for_update(
+        &self,
+        name: &PackageName,
+    ) -> Result<Option<S3PackumentForUpdate>> {
+        match self.store.get(&self.packument_key(name)).await {
+            Ok(result) => {
+                let version = UpdateVersion {
+                    e_tag: result.meta.e_tag.clone(),
+                    version: result.meta.version.clone(),
+                };
+                Ok(Some(S3PackumentForUpdate { bytes: result.bytes().await?.to_vec(), version }))
+            }
+            Err(object_store::Error::NotFound { .. }) => Ok(None),
+            Err(err) => Err(err.into()),
+        }
+    }
+
+    pub(crate) async fn write_packument_if_current(
+        &self,
+        name: &PackageName,
+        bytes: &[u8],
+        version: Option<&UpdateVersion>,
+    ) -> Result<bool> {
+        let mode = match version {
+            Some(version) => PutMode::Update(version.clone()),
+            None => PutMode::Create,
+        };
+        match self
+            .store
+            .put_opts(
+                &self.packument_key(name),
+                PutPayload::from(bytes.to_vec()),
+                PutOptions { mode, ..PutOptions::default() },
+            )
+            .await
+        {
+            Ok(_) => Ok(true),
+            Err(
+                object_store::Error::AlreadyExists { .. }
+                | object_store::Error::NotFound { .. }
+                | object_store::Error::Precondition { .. },
+            ) => Ok(false),
+            Err(err) => Err(err.into()),
+        }
     }
 
     /// Open a hosted tarball for streaming. `Ok(None)` means the object
@@ -188,10 +262,39 @@ impl S3Store {
         tmp_path: &Path,
         name: &PackageName,
         filename: &str,
-    ) -> Result<()> {
+    ) -> Result<crate::storage::TarballFinalize> {
+        use crate::storage::TarballFinalize;
         let bytes = fs::read(tmp_path).await?;
-        self.store.put(&self.tarball_key(name, filename), PutPayload::from(bytes)).await?;
-        Ok(())
+        let key = self.tarball_key(name, filename);
+        // Create-only. A published version's tarball is immutable, so an object
+        // already at this key belongs to a concurrent publisher of the same
+        // version. Overwriting it would corrupt that artifact against the
+        // integrity its packument records, so tolerate only byte-identical
+        // content and otherwise report a conflict.
+        match self
+            .store
+            .put_opts(
+                &key,
+                PutPayload::from(bytes),
+                PutOptions { mode: PutMode::Create, ..PutOptions::default() },
+            )
+            .await
+        {
+            Ok(_) => Ok(TarballFinalize::Written),
+            Err(
+                object_store::Error::AlreadyExists { .. }
+                | object_store::Error::Precondition { .. },
+            ) => {
+                let ours = fs::read(tmp_path).await?;
+                let existing = self.store.get(&key).await?.bytes().await?;
+                if existing.as_ref() == ours.as_slice() {
+                    Ok(TarballFinalize::AlreadyIdentical)
+                } else {
+                    Ok(TarballFinalize::Conflict)
+                }
+            }
+            Err(err) => Err(err.into()),
+        }
     }
 
     pub async fn remove_tarball(&self, name: &PackageName, filename: &str) -> Result<bool> {
@@ -244,6 +347,50 @@ impl S3Store {
 
     fn tarball_key(&self, name: &PackageName, filename: &str) -> ObjectPath {
         ObjectPath::from(format!("{}{}/{filename}", self.prefix, name.as_str()))
+    }
+
+    // Staged-publish records (see `storage::Storage`'s staged section for
+    // the layout contract shared with the fs backend).
+
+    pub async fn read_staged(&self, object: &str) -> Result<Option<Vec<u8>>> {
+        match self.store.get(&self.staged_key(object)).await {
+            Ok(result) => Ok(Some(result.bytes().await?.to_vec())),
+            Err(object_store::Error::NotFound { .. }) => Ok(None),
+            Err(err) => Err(err.into()),
+        }
+    }
+
+    pub async fn write_staged(&self, object: &str, bytes: &[u8]) -> Result<()> {
+        self.store.put(&self.staged_key(object), PutPayload::from(bytes.to_vec())).await?;
+        Ok(())
+    }
+
+    pub async fn remove_staged(&self, object: &str) -> Result<bool> {
+        match self.store.delete(&self.staged_key(object)).await {
+            Ok(()) => Ok(true),
+            Err(object_store::Error::NotFound { .. }) => Ok(false),
+            Err(err) => Err(err.into()),
+        }
+    }
+
+    pub async fn list_staged_ids(&self) -> Result<Vec<String>> {
+        let scope = ObjectPath::from(format!("{}{STAGED_DIR}", self.prefix));
+        let mut listing = self.store.list(Some(&scope));
+        let mut ids = Vec::new();
+        while let Some(meta) = listing.next().await {
+            let meta = meta?;
+            let Some(object) = meta.location.as_ref().rsplit('/').next() else {
+                continue;
+            };
+            if let Some(id) = staged_id_of_meta_object(object) {
+                ids.push(id.to_string());
+            }
+        }
+        Ok(ids)
+    }
+
+    fn staged_key(&self, object: &str) -> ObjectPath {
+        ObjectPath::from(format!("{}{STAGED_DIR}/{object}", self.prefix))
     }
 }
 

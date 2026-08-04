@@ -10,13 +10,13 @@ on:
   pull_request:
     types: [opened, synchronize]
     paths:
-      - 'pacquet/**/*.rs'
+      - 'pnpm/**/*.rs'
       - 'pnpr/**/*.rs'
   push:
     branches:
       - main
     paths:
-      - 'pacquet/**/*.rs'
+      - 'pnpm/**/*.rs'
       - 'pnpr/**/*.rs'
 
 concurrency:
@@ -26,24 +26,51 @@ concurrency:
 jobs:
   coverage:
     name: Code Coverage
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    # Build the instrumented artifacts with line-tables-only debug info, as
+    # `Rust CI / Test` does. Coverage regions live in the binary's own
+    # `__llvm_covmap`/`__llvm_covfun` sections, so llvm-cov needs no DWARF at
+    # all, while the full `--all-targets` debug build of the whole workspace
+    # (~70 crates plus heavy C deps like aws-lc-sys, ring, libsql-ffi and
+    # tree-sitter) is what pushes target/ over the runner's free disk. Line
+    # tables keep panic backtraces file:line-accurate. Set here in CI rather
+    # than in Cargo.toml so a local `just codecov` keeps full debug info.
+    env:
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_DEBUG: line-tables-only
+    # A coverage run compiles the workspace from cold and then runs every
+    # test; the healthy runtime is ~8 minutes. Without this a wedged job
+    # would sit on the default 360-minute limit.
+    timeout-minutes: 60
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: true # Pull submodules for `cargo coverage`
           persist-credentials: false
+
+      # The instrumented build holds a full set of debug artifacts in
+      # target/llvm-cov-target, on top of a profraw file per test process and
+      # the merged profdata. That no longer fits in the runner's free disk:
+      # the job dies with "No space left on device" — often while the runner
+      # itself is writing its diagnostic log, so the failure lands with no
+      # step output at all. Drop the preinstalled toolchains this job never
+      # uses (~25 GB) before compiling anything.
+      - name: Free up runner disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
 
       - name: Install Rust Toolchain
         uses: ./.github/actions/rustup
 
       - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@b8cecb83565409bcc297b2df6e77f030b2a468d5 # v2.82.0
+        uses: taiki-e/install-action@67729d5c413db75907f0ad1e39bb04b9c868ff60 # v2.85.7
         with:
           tool: cargo-llvm-cov
 
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@b8cecb83565409bcc297b2df6e77f030b2a468d5 # v2.82.0
+        uses: taiki-e/install-action@67729d5c413db75907f0ad1e39bb04b9c868ff60 # v2.85.7
         with:
           tool: cargo-nextest
 
@@ -51,12 +78,12 @@ jobs:
         run: rustup component add llvm-tools-preview
 
       - name: Install pnpm (for compatibility check)
-        uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
+        uses: pnpm/setup@6523ce966bcf7a1061ce6401e5c6e0b60466bd31
         with:
           install: false
 
       - name: Cache pnpm
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           key: codecov-pnpm-v11-${{ runner.os }}
           path: |
@@ -66,7 +93,7 @@ jobs:
         continue-on-error: true
 
       - name: Install just
-        uses: taiki-e/install-action@b8cecb83565409bcc297b2df6e77f030b2a468d5 # v2.82.0
+        uses: taiki-e/install-action@67729d5c413db75907f0ad1e39bb04b9c868ff60 # v2.85.7
         with:
           tool: just
 
@@ -82,6 +109,10 @@ jobs:
 
           cargo codecov --lcov --output-path lcov.info
 
+      - name: Report disk usage
+        if: always()
+        run: df -h /
+
       - name: Upload Artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -91,11 +122,11 @@ jobs:
   # codecov often fails, use another workflow for retry
   upload-codecov:
     name: Upload coverage file
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     needs: coverage
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -105,7 +136,7 @@ jobs:
           name: codecov
 
       - name: Upload to codecov.io
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v6.0.2
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: true

@@ -9,6 +9,7 @@ import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
 import { type CatalogResultMatcher, matchCatalogResolveResult, resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { parseOverrides } from '@pnpm/config.parse-overrides'
+import { createPackageVersionPolicyOrThrow, getPublishedByPolicy } from '@pnpm/config.version-policy'
 import {
   LAYOUT_VERSION,
   LOCKFILE_MAJOR_VERSION,
@@ -30,12 +31,13 @@ import {
   runLifecycleHooksConcurrently,
   type RunLifecycleHooksConcurrentlyOptions,
 } from '@pnpm/exec.lifecycle'
+import { createDependencyOverrider } from '@pnpm/hooks.read-package-hook'
 import { getContext, type PnpmContext } from '@pnpm/installing.context'
 import {
   type DependenciesGraph,
   type DependenciesGraphNode,
   getWantedDependencies,
-  type PinnedVersion,
+  type RangeSpecStyle,
   resolveDependencies,
   type UpdateMatchingFunction,
   type WantedDependency,
@@ -45,6 +47,7 @@ import { readModulesManifest, type StrictModules, writeModulesManifest } from '@
 import {
   type CatalogSnapshots,
   cleanGitBranchLockfiles,
+  getLockfileImporterId,
   getWantedLockfileName,
   isEmptyLockfile,
   type LockfileObject,
@@ -62,6 +65,7 @@ import {
   calcPatchHashes,
   createOverridesMapFromParsed,
   getOutdatedLockfileSetting,
+  resolvePatchedDependencies,
 } from '@pnpm/lockfile.settings-checker'
 import { PACKAGE_MAP_FILENAME, writePackageMap, writePnpFile } from '@pnpm/lockfile.to-pnp'
 import { allProjectsAreUpToDate, satisfiesPackageManifest } from '@pnpm/lockfile.verification'
@@ -73,6 +77,7 @@ import type {
   PreferredVersions,
   ResolutionPolicyViolation,
 } from '@pnpm/resolving.resolver-base'
+import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import type {
   AllowBuild,
   DependenciesField,
@@ -85,7 +90,6 @@ import type {
   ProjectRootDir,
   ReadPackageHook,
 } from '@pnpm/types'
-import { lexCompare } from '@pnpm/util.lex-comparator'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import { isSubdir } from 'is-subdir'
 import pLimit from 'p-limit'
@@ -103,8 +107,13 @@ import {
 } from './extendInstallOptions.js'
 import { linkPackages } from './link.js'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues.js'
+import { tryFastUpdateCatalogs } from './tryFastUpdateCatalogs.js'
+import { hasChangedProjectSpecifiers, tryFastUpdateImporters } from './tryFastUpdateImporters.js'
+import { tryFastUpdateLockfile } from './tryFastUpdateLockfile.js'
+import { tryFastUpdateOverrides } from './tryFastUpdateOverrides.js'
 import { validateModules } from './validateModules.js'
 import { verifyLockfileResolutions } from './verifyLockfileResolutions.js'
+import { warnOnStaleConvergenceOverrides } from './warnOnStaleConvergenceOverrides.js'
 import { writeLockfilesAndRecordVerified } from './writeLockfilesAndRecordVerified.js'
 import { writeWantedLockfileAndRecordVerified } from './writeWantedLockfileAndRecordVerified.js'
 
@@ -142,7 +151,7 @@ export interface InstallSomeDepsMutation extends InstallMutationOptions {
   mutation: 'installSome'
   peer?: boolean
   pruneDirectDependencies?: boolean
-  pinnedVersion?: PinnedVersion
+  rangeSpecStyle?: RangeSpecStyle
   targetDependenciesField?: DependenciesField
 }
 
@@ -345,7 +354,7 @@ export async function mutateModules (
 
   let ctx = await getContext(opts)
 
-  if (!opts.lockfileOnly && ctx.modulesFile != null) {
+  if (!opts.lockfileOnly && !isCheckOnlyInstall(opts) && ctx.modulesFile != null) {
     const { purged } = await validateModules(ctx.modulesFile, Object.values(ctx.projects), {
       forceNewModules: installsOnly,
       include: opts.include,
@@ -638,21 +647,18 @@ export async function mutateModules (
     }
     const packageExtensionsChecksum = hashObjectNullableWithPrefix(opts.packageExtensions)
     const pnpmfileChecksum = await opts.hooks.calculatePnpmfileChecksum?.()
+    const resolvedPatchedDeps = resolvePatchedDependencies(opts.patchedDependencies, opts.lockfileDir)
     const patchedDependencies = opts.ignorePackageManifest
       ? ctx.wantedLockfile.patchedDependencies
-      : (opts.patchedDependencies ? await calcPatchHashes(opts.patchedDependencies) : {})
-    const patchGroupInput = opts.patchedDependencies
+      : (resolvedPatchedDeps ? await calcPatchHashes(resolvedPatchedDeps) : {})
+    const patchGroupInput = resolvedPatchedDeps
       ? Object.fromEntries(
         Object.entries(patchedDependencies ?? {}).map(([key, hash]) => {
-          let patchFilePath = opts.patchedDependencies![key]
-            ? path.resolve(opts.lockfileDir, opts.patchedDependencies![key])
-            : undefined
+          let patchFilePath: string | undefined = resolvedPatchedDeps[key]
           if (!patchFilePath) {
             const lastAt = key.lastIndexOf('@')
             const pkgName = lastAt > 0 ? key.slice(0, lastAt) : key
-            if (opts.patchedDependencies![pkgName]) {
-              patchFilePath = path.resolve(opts.lockfileDir, opts.patchedDependencies![pkgName])
-            }
+            patchFilePath = resolvedPatchedDeps[pkgName]
           }
           return [key, { hash, patchFilePath }]
         })
@@ -661,29 +667,129 @@ export async function mutateModules (
     const patchGroups = patchGroupInput ? groupPatchedDependencies(patchGroupInput) : undefined
     const frozenLockfile = opts.frozenLockfile ||
       opts.frozenLockfileIfExists && ctx.existsNonEmptyWantedLockfile
-    let outdatedLockfileSettings = false
+    let outdatedLockfileSettingName = null as ReturnType<typeof getOutdatedLockfileSetting>
     const overridesMap = createOverridesMapFromParsed(opts.parsedOverrides)
+    const lockfileSettings = {
+      autoInstallPeers: opts.autoInstallPeers,
+      catalogs: opts.catalogs,
+      dedupePeers: opts.dedupePeers || undefined,
+      injectWorkspacePackages: opts.injectWorkspacePackages,
+      excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
+      peersSuffixMaxLength: opts.peersSuffixMaxLength,
+      ignoredOptionalDependencies: opts.ignoredOptionalDependencies?.sort(),
+      packageExtensionsChecksum,
+      patchedDependencies,
+      pnpmfileChecksum,
+    }
     if (!opts.ignorePackageManifest) {
-      const outdatedLockfileSettingName = getOutdatedLockfileSetting(ctx.wantedLockfile, {
-        autoInstallPeers: opts.autoInstallPeers,
-        catalogs: opts.catalogs,
-        dedupePeers: opts.dedupePeers || undefined,
-        injectWorkspacePackages: opts.injectWorkspacePackages,
-        excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
-        peersSuffixMaxLength: opts.peersSuffixMaxLength,
+      outdatedLockfileSettingName = getOutdatedLockfileSetting(ctx.wantedLockfile, {
+        ...lockfileSettings,
         overrides: overridesMap,
-        ignoredOptionalDependencies: opts.ignoredOptionalDependencies?.sort(),
-        packageExtensionsChecksum,
-        patchedDependencies,
-        pnpmfileChecksum,
       })
-      outdatedLockfileSettings = outdatedLockfileSettingName != null
-      if (frozenLockfile && outdatedLockfileSettings) {
+      if (frozenLockfile && outdatedLockfileSettingName != null) {
         throw new LockfileConfigMismatchError(outdatedLockfileSettingName!)
       }
     }
     const _isWantedDepBareSpecifierSame = isWantedDepBareSpecifierSame.bind(null, ctx.wantedLockfile.catalogs, opts.catalogs)
     const upToDateLockfileMajorVersion = ctx.wantedLockfile.lockfileVersion.toString().startsWith(`${LOCKFILE_MAJOR_VERSION}.`)
+    let didFastUpdateOverrides = false
+    const contextProjects = Object.values(ctx.projects)
+    const hasChangedSpecifiers = outdatedLockfileSettingName == null &&
+      hasChangedProjectSpecifiers(ctx.wantedLockfile, contextProjects)
+    const canTryFastUpdateLockfile =
+      (outdatedLockfileSettingName === 'catalogs' ||
+        outdatedLockfileSettingName === 'overrides' ||
+        hasChangedSpecifiers) &&
+      !frozenLockfile &&
+      installsOnly &&
+      !isCheckOnlyInstall(opts) &&
+      opts.preferFrozenLockfile &&
+      opts.useLockfile &&
+      opts.saveLockfile &&
+      opts.runPacquet == null &&
+      !opts.fixLockfile &&
+      !opts.dedupe &&
+      !opts.updateChecksums &&
+      !opts.force &&
+      !opts.forceFullResolution &&
+      !forceResolutionFromHook &&
+      !opts.hooks.readPackage?.length &&
+      !opts.hooks.preResolution?.length &&
+      !opts.hooks.afterAllResolved?.length &&
+      opts.hooks.customResolvers == null &&
+      !ctx.lockfileHadConflicts &&
+      ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION &&
+      !isEmptyLockfile(ctx.wantedLockfile) &&
+      (!opts.pruneLockfileImporters || Object.keys(ctx.wantedLockfile.importers).length === Object.keys(ctx.projects).length) &&
+      ctx.wantedLockfile.time == null
+    if (canTryFastUpdateLockfile) {
+      const changedSetting = outdatedLockfileSettingName
+      await verifyLockfilePromise
+      const overridesUseCatalogs = Object.values(opts.overrides)
+        .some((specifier) => parseCatalogProtocol(specifier) != null)
+      const lockfileCatalogs = ctx.wantedLockfile.catalogs == null
+        ? {}
+        : Object.fromEntries(Object.entries(ctx.wantedLockfile.catalogs).map(([catalogName, catalog]) => [
+          catalogName,
+          Object.fromEntries(Object.entries(catalog).map(([alias, entry]) => [alias, entry.specifier])),
+        ]))
+      const onlyChangedSetting = getOutdatedLockfileSetting(ctx.wantedLockfile, {
+        ...lockfileSettings,
+        catalogs: changedSetting === 'catalogs' ? lockfileCatalogs : opts.catalogs,
+        overrides: changedSetting === 'overrides' ? ctx.wantedLockfile.overrides : overridesMap,
+      }) == null
+      const isLockfileUpToDate = (lockfile: LockfileObject) => allProjectsAreUpToDate(Object.values(ctx.projects), {
+        catalogs: opts.catalogs,
+        autoInstallPeers: opts.autoInstallPeers,
+        excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
+        linkWorkspacePackages: opts.linkWorkspacePackagesDepth >= 0,
+        wantedLockfile: lockfile,
+        workspacePackages: ctx.workspacePackages,
+        lockfileDir: opts.lockfileDir,
+      })
+      if (
+        onlyChangedSetting &&
+        (changedSetting === 'catalogs' || !overridesUseCatalogs) &&
+        await tryFastUpdateLockfile(ctx.wantedLockfile, {
+          update: async (candidate) => {
+            if (changedSetting === 'catalogs') {
+              return tryFastUpdateCatalogs(candidate, {
+                catalogs: opts.catalogs,
+                overrides: opts.overrides,
+              })
+            }
+            if (changedSetting == null) {
+              return tryFastUpdateImporters(candidate, contextProjects)
+            }
+            const { publishedBy, publishedByExclude } = getPublishedByPolicy(opts)
+            return tryFastUpdateOverrides(candidate, {
+              lockfileDir: opts.lockfileDir,
+              lockfileIncludeTarballUrl: opts.lockfileIncludeTarballUrl,
+              overrides: overridesMap,
+              parsedOverrides: opts.parsedOverrides,
+              readPackageHook: opts.readPackageHook,
+              registries: ctx.registries,
+              requestPackage: opts.storeController.requestPackage,
+              publishedBy,
+              publishedByExclude,
+              trustPolicy: opts.trustPolicy,
+              trustPolicyExclude: opts.trustPolicyExclude
+                ? createPackageVersionPolicyOrThrow(opts.trustPolicyExclude, 'trustPolicyExclude')
+                : undefined,
+              trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
+              isLockfileUpToDate,
+            })
+          },
+          isLockfileUpToDate,
+          verifyLockfile: (lockfile) => verifyLockfileResolutions(lockfile, []),
+        })
+      ) {
+        outdatedLockfileSettingName = null
+        ctx.wantedLockfileIsModified = true
+        didFastUpdateOverrides = changedSetting === 'overrides'
+      }
+    }
+    const outdatedLockfileSettings = outdatedLockfileSettingName != null
     let needsFullResolution = outdatedLockfileSettings ||
       opts.fixLockfile ||
       opts.updateChecksums ||
@@ -714,6 +820,7 @@ export async function mutateModules (
     }
 
     const frozenInstallResult = await tryFrozenInstall({
+      didFastUpdateOverrides,
       frozenLockfile,
       needsFullResolution,
       patchGroups,
@@ -984,11 +1091,13 @@ export async function mutateModules (
    * not change recorded dependency resolutions.
    */
   async function tryFrozenInstall ({
+    didFastUpdateOverrides,
     frozenLockfile,
     needsFullResolution,
     patchGroups,
     upToDateLockfileMajorVersion,
   }: {
+    didFastUpdateOverrides: boolean
     frozenLockfile: boolean
     needsFullResolution: boolean
     patchGroups?: PatchGroupRecord
@@ -1139,6 +1248,7 @@ Note that in CI environments, this setting is enabled by default.`,
         allProjects: ctx.projects,
         prunedAt: ctx.modulesFile?.prunedAt,
         pruneVirtualStore,
+        relinkChangedDependenciesOnly: didFastUpdateOverrides,
         wantedLockfile: maybeOpts.ignorePackageManifest ? undefined : ctx.wantedLockfile,
         useLockfile: opts.useLockfile && ctx.wantedLockfileIsModified,
         verifyLockfile,
@@ -1271,11 +1381,6 @@ function forgetResolutionsOfAllPrevWantedDeps (wantedLockfile: LockfileObject): 
       ({ dependencies: _dependencies, optionalDependencies: _optionalDependencies, ...rest }) => rest,
       wantedLockfile.packages)
   }
-
-  // Also clear the resolutions in catalogs so they're re-resolved and deduped.
-  if ((wantedLockfile.catalogs != null) && !isEmpty(wantedLockfile.catalogs)) {
-    wantedLockfile.catalogs = undefined
-  }
 }
 
 /**
@@ -1342,7 +1447,7 @@ export async function addDependenciesToPackage (
     bin?: string
     allowNew?: boolean
     peer?: boolean
-    pinnedVersion?: 'major' | 'minor' | 'patch'
+    rangeSpecStyle?: RangeSpecStyle
     targetDependenciesField?: DependenciesField
   } & InstallMutationOptions
 ): Promise<InstallResult> {
@@ -1354,7 +1459,7 @@ export async function addDependenciesToPackage (
         dependencySelectors,
         mutation: 'installSome',
         peer: opts.peer,
-        pinnedVersion: opts.pinnedVersion,
+        rangeSpecStyle: opts.rangeSpecStyle,
         rootDir,
         targetDependenciesField: opts.targetDependenciesField,
         update: opts.update,
@@ -1496,12 +1601,26 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     stage: 'resolution_started',
   })
 
-  const update = projects.some((project) => (project as InstallMutationOptions).update)
-  const preferredVersions = opts.preferredVersions ?? (
-    !update
-      ? getPreferredVersionsFromLockfileAndManifests(ctx.wantedLockfile.packages, Object.values(ctx.projects).map(({ manifest }) => manifest))
-      : undefined
+  // Always seed preferred versions from the lockfile, even for update
+  // mutations. Gating this on `update` (the previous behavior) nullified
+  // the seed globally during `pnpm up -r <pkg>`, so unrelated packages
+  // with open ranges lost their pins and re-resolved to newest-in-range
+  // (pnpm/pnpm#10662). The targeted package still bumps: `updateRequested`
+  // at the npm picker subtracts the lockfile-derived weight from its pins,
+  // so the target re-resolves exactly as a fresh install would after its
+  // lockfile entries were deleted.
+  // Caller-supplied preferred versions (audit-fix vulnerability penalties)
+  // layer on top of the seed per package name — replacing the seed with
+  // them would unpin every unrelated package.
+  // Null-prototype merge target so a crafted package name (e.g. `__proto__`)
+  // lands as a plain own key instead of invoking the prototype setter.
+  const preferredVersions: PreferredVersions = Object.assign(
+    Object.create(null),
+    getPreferredVersionsFromLockfileAndManifests(ctx.wantedLockfile.packages, Object.values(ctx.projects).map(({ manifest }) => manifest))
   )
+  for (const [pkgName, selectors] of Object.entries(opts.preferredVersions ?? {})) {
+    preferredVersions[pkgName] = { ...preferredVersions[pkgName], ...selectors }
+  }
   const forceFullResolution = ctx.wantedLockfile.lockfileVersion !== LOCKFILE_VERSION ||
     !opts.currentLockfileIsUpToDate ||
     opts.force ||
@@ -1571,6 +1690,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       hooks: {
         readPackage: opts.readPackageHook,
       },
+      overrideBareSpecifier: createDependencyOverrider(opts.parsedOverrides, opts.lockfileDir),
       linkWorkspacePackagesDepth: opts.linkWorkspacePackagesDepth ?? (opts.saveWorkspaceProtocol ? 0 : -1),
       lockfileDir: opts.lockfileDir,
       nodeVersion: opts.nodeVersion,
@@ -1605,6 +1725,20 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       handleResolutionPolicyViolations: opts.handleResolutionPolicyViolations,
     }
   )
+  // Only a full resolution walks every manifest through the versions
+  // overrider, making the collected declared ranges complete enough for the
+  // staleness verdict; partial resolutions must stay silent to avoid false
+  // positives from unseen ranges.
+  if (opts.convergeDeclaredRanges != null && (forceFullResolution || opts.dedupe)) {
+    await warnOnStaleConvergenceOverrides({
+      convergeDeclaredRanges: opts.convergeDeclaredRanges,
+      parsedOverrides: opts.parsedOverrides,
+      requestPackage: opts.storeController.requestPackage,
+      lockfileDir: opts.lockfileDir,
+      minimumReleaseAge: opts.minimumReleaseAge,
+      minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
+    })
+  }
   if (!opts.include.optionalDependencies || !opts.include.devDependencies || !opts.include.dependencies) {
     linkedDependenciesByProjectId = mapValues(
       (linkedDeps) => linkedDeps.filter((linkedDep) =>
@@ -2375,7 +2509,7 @@ interface PnprInstallProject {
   /** Newly added deps from an `installSome` mutation. Empty otherwise. */
   newDeps: PnprNewDep[]
   /** Save-prefix config for `installSome`; applied to deps whose spec defaulted to `'latest'`. */
-  pinnedVersion?: PinnedVersion
+  rangeSpecStyle?: RangeSpecStyle
 }
 
 /**
@@ -2429,7 +2563,7 @@ async function preparePnprProjects (
     let manifest: ProjectManifest = clone(t.manifest)
     const newDeps: PnprNewDep[] = []
     const mutation = t.mutation
-    let pinnedVersion: PinnedVersion | undefined
+    let rangeSpecStyle: RangeSpecStyle | undefined
     if (mutation?.mutation === 'uninstallSome') {
       manifest = await removeDeps(manifest, mutation.dependencyNames, {
         prefix: mutation.rootDir,
@@ -2437,7 +2571,7 @@ async function preparePnprProjects (
       })
     } else if (mutation?.mutation === 'installSome') {
       manifest = mergeInstallSelectors(manifest, mutation)
-      pinnedVersion = mutation.pinnedVersion
+      rangeSpecStyle = mutation.rangeSpecStyle
       for (const sel of mutation.dependencySelectors) {
         const parsed = parseWantedDependency(sel)
         if (parsed.alias) {
@@ -2450,7 +2584,7 @@ async function preparePnprProjects (
       manifest,
       mutation: mutation?.mutation ?? 'install',
       newDeps,
-      pinnedVersion,
+      rangeSpecStyle,
     }
   }))
 }
@@ -2512,7 +2646,7 @@ function applyResolvedSpecsFromLockfile (
   manifest: ProjectManifest,
   importerSnapshot: ProjectSnapshot | undefined,
   newDeps: PnprNewDep[],
-  pinnedVersion?: PinnedVersion
+  rangeSpecStyle?: RangeSpecStyle
 ): ProjectManifest {
   if (!importerSnapshot || newDeps.length === 0) return manifest
   // In-memory ProjectSnapshot stores resolved versions in `dependencies`
@@ -2530,7 +2664,7 @@ function applyResolvedSpecsFromLockfile (
       // writes the user's raw spec (`'latest'`) into the lockfile specifier
       // rather than normalizing to a save-prefix range. Compute the
       // save-prefix spec client-side from the resolved version.
-      const savePrefixSpec = createVersionSpecFromResolvedVersion(resolvedVersion, pinnedVersion)
+      const savePrefixSpec = createVersionSpecFromResolvedVersion(resolvedVersion, rangeSpecStyle)
       manifest[field]![dep.alias] = savePrefixSpec ?? resolvedVersion
     }
   }
@@ -2572,7 +2706,7 @@ async function mutateModulesViaPnpr (
         const relative = path.relative(lockfileDir, p.rootDir).split(path.sep).join('/')
         const importerId = (relative || '.') as ProjectId
         const snapshot = result.lockfile?.importers?.[importerId]
-        p.manifest = applyResolvedSpecsFromLockfile(p.manifest, snapshot, p.newDeps, p.pinnedVersion)
+        p.manifest = applyResolvedSpecsFromLockfile(p.manifest, snapshot, p.newDeps, p.rangeSpecStyle)
       }
       return { rootDir: p.rootDir, manifest: p.manifest }
     })
@@ -2581,7 +2715,8 @@ async function mutateModulesViaPnpr (
     updatedProjects,
     stats: result.stats,
     ignoredBuilds: result.ignoredBuilds,
-  } as MutateModulesResult
+    resolutionPolicyViolations: result.resolutionPolicyViolations,
+  }
 }
 
 /**
@@ -2606,18 +2741,6 @@ async function installViaPnprServer (
       'FROZEN_STORE_INCOMPATIBLE_WITH_PNPR',
       'The pnpr server resolves dependencies and writes new entries into the store, which is opened read-only when frozenStore is enabled.',
       { hint: 'Disable the pnpr server (unset `--pnpr-server` / `pnprServer` in pnpm-workspace.yaml) so the install reads from the existing store, or unset `frozenStore` to allow store writes.' }
-    )
-  }
-  // The pnpr server path skips client-side resolution, so resolver-side policies
-  // can't be enforced locally. `minimumReleaseAge` is forwarded to the
-  // pnpr server and enforced server-side. `trustPolicy` has no server-side
-  // counterpart yet, so refuse to run under it instead of silently
-  // letting through a lockfile the local verifier would reject.
-  if (opts.trustPolicy === 'no-downgrade') {
-    throw new PnpmError(
-      'TRUST_POLICY_INCOMPATIBLE_WITH_PNPR',
-      'The pnpr server does not yet enforce `trustPolicy: no-downgrade`, so running an install through it under this policy would produce a lockfile that the local verifier rejects.',
-      { hint: 'Unset `trustPolicy` for this install, or disable the pnpr server (unset `--pnpr-server` / `pnprServer` in pnpm-workspace.yaml) so resolution runs locally and the trust check applies.' }
     )
   }
   const { resolveViaPnprServer } = await import('@pnpm/pnpr.client')
@@ -2648,6 +2771,8 @@ async function installViaPnprServer (
     const projectsList = allInstallProjects && allInstallProjects.length > 1
       ? allInstallProjects.map(p => ({
         dir: (path.relative(lockfileDir, p.rootDir) || '.').split(path.sep).join('/'),
+        name: p.manifest.name,
+        version: p.manifest.version,
         dependencies: p.manifest.dependencies,
         devDependencies: p.manifest.devDependencies,
         optionalDependencies: p.manifest.optionalDependencies,
@@ -2656,6 +2781,8 @@ async function installViaPnprServer (
 
     const { lockfile, stats: pnprStats } = await resolveViaPnprServer({
       registryUrl: opts.pnprServer!,
+      name: projectsList ? undefined : manifest.name,
+      version: projectsList ? undefined : manifest.version,
       dependencies: projectsList ? undefined : manifest.dependencies,
       devDependencies: projectsList ? undefined : manifest.devDependencies,
       optionalDependencies: projectsList ? undefined : manifest.optionalDependencies,
@@ -2664,7 +2791,22 @@ async function installViaPnprServer (
       namedRegistries: opts.namedRegistries,
       authorization: pnprAuthorization,
       overrides: opts.overrides,
+      // The reconstructed workspace the server builds from this request has no
+      // catalog sections, so forward the catalogs for the server to resolve
+      // `catalog:` specifiers in both dependencies and overrides.
+      catalogs: opts.catalogs,
       minimumReleaseAge: opts.minimumReleaseAge,
+      minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
+      minimumReleaseAgeIgnoreMissingTime: opts.minimumReleaseAgeIgnoreMissingTime,
+      trustPolicy: opts.trustPolicy,
+      trustPolicyExclude: opts.trustPolicyExclude,
+      trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
+      trustLockfile: opts.trustLockfile,
+      // Resolution mode. Without these the server always reuse-and-updates,
+      // so `--frozen-lockfile` would silently resolve and rewrite the very
+      // lockfile it promises to leave alone.
+      frozenLockfile: opts.frozenLockfile === true || (opts.frozenLockfileIfExists === true && existingLockfile != null),
+      preferFrozenLockfile: opts.preferFrozenLockfile,
       lockfile: existingLockfile ?? undefined,
     })
 
@@ -2722,7 +2864,10 @@ async function installViaPnprServer (
           {
             binsDir: path.join(p.rootDir, 'node_modules', '.bin'),
             buildIndex: i,
-            id: (path.relative(lockfileDir, p.rootDir) || '.') as ProjectId,
+            // POSIX-normalize so the importer id matches the lockfile keys the
+            // pnpr server emits — on Windows a nested member's `path.relative`
+            // would otherwise be `packages\foo`, missing `packages/foo`.
+            id: getLockfileImporterId(lockfileDir, p.rootDir),
             manifest: p.manifest,
             modulesDir: path.join(p.rootDir, 'node_modules'),
             rootDir: p.rootDir,
@@ -2750,11 +2895,10 @@ async function installViaPnprServer (
       // `pnpm:stats` log events.
       stats: stats ?? { added: 0, removed: 0, linkedToRoot: 0 },
       lockfile,
-      // Server-side resolution (pnpr server) enforces `minimumReleaseAge`
-      // itself — the pnpr server picks only mature versions and the lockfile
-      // can't contain immature entries to auto-collect. `trustPolicy` is
-      // guarded above (we refuse to enter this path when it's set), so
-      // there's nothing for the install command to react to here.
+      // The pnpr server enforces the whole verification policy itself and
+      // reports any violation as a terminal `violations` frame, which the
+      // client turns into a thrown error — so a resolve that got this far
+      // produced a policy-clean lockfile with nothing left to react to.
       resolutionPolicyViolations: [],
     }
   } finally {

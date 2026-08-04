@@ -58,26 +58,26 @@ test('installing with hoisted node-linker and no lockfile', async () => {
   expect(fs.existsSync('pnpm-lock.yaml')).toBeFalsy()
 })
 
-test('overwriting (is-positive@3.0.0 with is-positive@latest)', async () => {
-  await addDistTag({ package: 'is-positive', version: '3.1.0', distTag: 'latest' })
+test('overwriting (@pnpm.e2e/multi-version-b@3.0.0 with @pnpm.e2e/multi-version-b@latest)', async () => {
+  await addDistTag({ package: '@pnpm.e2e/multi-version-b', version: '3.1.0', distTag: 'latest' })
   const project = prepareEmpty()
   const { updatedManifest: manifest } = await addDependenciesToPackage(
     {},
-    ['is-positive@3.0.0'],
+    ['@pnpm.e2e/multi-version-b@3.0.0'],
     testDefaults({ nodeLinker: 'hoisted', save: true })
   )
 
-  project.storeHas('is-positive', '3.0.0')
+  project.storeHas('@pnpm.e2e/multi-version-b', '3.0.0')
 
   const { updatedManifest } = await addDependenciesToPackage(
     manifest,
-    ['is-positive@latest'],
+    ['@pnpm.e2e/multi-version-b@latest'],
     testDefaults({ nodeLinker: 'hoisted', save: true })
   )
 
-  project.storeHas('is-positive', '3.1.0')
-  expect(updatedManifest.dependencies?.['is-positive']).toBe('3.1.0')
-  expect(loadJsonFileSync<{ version: string }>('node_modules/is-positive/package.json').version).toBe('3.1.0')
+  project.storeHas('@pnpm.e2e/multi-version-b', '3.1.0')
+  expect(updatedManifest.dependencies?.['@pnpm.e2e/multi-version-b']).toBe('3.1.0')
+  expect(loadJsonFileSync<{ version: string }>('node_modules/@pnpm.e2e/multi-version-b/package.json').version).toBe('3.1.0')
 })
 
 test('overwriting existing files in node_modules', async () => {

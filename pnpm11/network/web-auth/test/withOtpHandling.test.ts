@@ -99,6 +99,69 @@ describe('withOtpHandling', () => {
       .rejects.toBeInstanceOf(OtpNonInteractiveError)
   })
 
+  it('preserves webauth URLs on OtpNonInteractiveError', async () => {
+    const context = createOtpMockContext({
+      process: { stdin: { isTTY: false } },
+    })
+    const operation = async () => {
+      throw Object.assign(new Error('otp'), {
+        code: 'EOTP',
+        body: {
+          authUrl: 'https://registry.npmjs.org/auth/abc',
+          doneUrl: 'https://registry.npmjs.org/auth/abc/done',
+        },
+      })
+    }
+    await expect(withOtpHandling({ context, fetchOptions, operation }))
+      .rejects.toMatchObject({
+        authUrl: 'https://registry.npmjs.org/auth/abc',
+        doneUrl: 'https://registry.npmjs.org/auth/abc/done',
+      })
+  })
+
+  it('strips credentials from webauth URLs on OtpNonInteractiveError', async () => {
+    const context = createOtpMockContext({
+      process: { stdin: { isTTY: false } },
+    })
+    const operation = async () => {
+      throw Object.assign(new Error('otp'), {
+        code: 'EOTP',
+        body: {
+          authUrl: 'https://user:secret@registry.npmjs.org/auth/abc',
+          doneUrl: 'https://user:secret@registry.npmjs.org/auth/abc/done?authId=xyz',
+        },
+      })
+    }
+    await expect(withOtpHandling({ context, fetchOptions, operation }))
+      .rejects.toMatchObject({
+        authUrl: 'https://registry.npmjs.org/auth/abc',
+        doneUrl: 'https://registry.npmjs.org/auth/abc/done?authId=xyz',
+      })
+  })
+
+  it('omits non-http webauth URLs on OtpNonInteractiveError', async () => {
+    const context = createOtpMockContext({
+      process: { stdin: { isTTY: false } },
+    })
+    const operation = async () => {
+      throw Object.assign(new Error('otp'), {
+        code: 'EOTP',
+        body: {
+          authUrl: 'javascript:alert(1)',
+          doneUrl: 'file:///tmp/token',
+        },
+      })
+    }
+    try {
+      await withOtpHandling({ context, fetchOptions, operation })
+      throw new Error('Expected withOtpHandling to throw')
+    } catch (error) {
+      expect(error).toBeInstanceOf(OtpNonInteractiveError)
+      expect((error as OtpNonInteractiveError).authUrl).toBeUndefined()
+      expect((error as OtpNonInteractiveError).doneUrl).toBeUndefined()
+    }
+  })
+
   describe('classic OTP flow', () => {
     it('prompts for OTP and retries operation', async () => {
       let callCount = 0
@@ -221,6 +284,45 @@ describe('withOtpHandling', () => {
       expect(globalInfo.mock.calls).toEqual([[expect.stringContaining('https://registry.npmjs.org/auth/abc')]])
     })
 
+    it('warns and falls back to URL-only display when QR generation fails', async () => {
+      // Longer than the 2953-byte maximum QR data capacity, which makes
+      // qrcode-terminal throw.
+      const longAuthUrl = `https://registry.npmjs.org/auth/${'a'.repeat(4000)}`
+      let operationCallCount = 0
+      const globalInfo = jest.fn()
+      const globalWarn = jest.fn()
+      const context = createOtpMockContext({
+        globalInfo,
+        globalWarn,
+        fetch: async (): Promise<WebAuthFetchResponse> => createMockResponse({
+          ok: true,
+          status: 200,
+          json: { token: 'web-token-456' },
+        }),
+      })
+      const result = await withOtpHandling({
+        context,
+        fetchOptions,
+        operation: async otp => {
+          operationCallCount++
+          if (operationCallCount === 1) {
+            throw Object.assign(new Error('otp'), {
+              code: 'EOTP',
+              body: {
+                authUrl: longAuthUrl,
+                doneUrl: 'https://registry.npmjs.org/auth/done',
+              },
+            })
+          }
+          expect(otp).toBe('web-token-456')
+          return 'published'
+        },
+      })
+      expect(result).toBe('published')
+      expect(globalWarn.mock.calls).toEqual([[expect.stringMatching(/^Could not generate a QR code: /)]])
+      expect(globalInfo.mock.calls).toEqual([[`Authenticate your account at:\n${longAuthUrl}`]])
+    })
+
     it('falls back to classic prompt when only authUrl is present (no doneUrl)', async () => {
       let callCount = 0
       const context = createOtpMockContext({
@@ -258,6 +360,32 @@ describe('withOtpHandling', () => {
             throw Object.assign(new Error('otp'), {
               code: 'EOTP',
               body: { doneUrl: 'https://registry.npmjs.org/auth/abc/done' },
+            })
+          }
+          expect(otp).toBe('manual-code')
+          return 'done'
+        },
+      })
+      expect(result).toBe('done')
+    })
+
+    it('falls back to classic prompt when webauth URLs are not http(s)', async () => {
+      let callCount = 0
+      const context = createOtpMockContext({
+        enquirer: { input: async () => 'manual-code' },
+      })
+      const result = await withOtpHandling({
+        context,
+        fetchOptions,
+        operation: async otp => {
+          callCount++
+          if (callCount === 1) {
+            throw Object.assign(new Error('otp'), {
+              code: 'EOTP',
+              body: {
+                authUrl: 'javascript:alert(1)',
+                doneUrl: 'file:///tmp/token',
+              },
             })
           }
           expect(otp).toBe('manual-code')

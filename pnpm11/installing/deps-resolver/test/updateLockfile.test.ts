@@ -12,7 +12,13 @@ const DEP_PATH = `xlsx@${TARBALL_URL}` as DepPath
 const INTEGRITY = 'sha512-AaaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaA=='
 const REGISTRIES: Registries = { default: 'https://registry.npmjs.org/' }
 
-function tarballGraph (resolution: { tarball: string, integrity?: string }): DependenciesGraph {
+function tarballGraph (
+  resolution: { tarball: string, integrity?: string },
+  additionalInfo: {
+    bundledDependencies?: readonly string[] | boolean
+    bundleDependencies?: readonly string[] | boolean
+  } = {}
+): DependenciesGraph {
   return {
     [DEP_PATH]: {
       name: 'xlsx',
@@ -23,7 +29,7 @@ function tarballGraph (resolution: { tarball: string, integrity?: string }): Dep
       optionalDependencies: new Set<string>(),
       peerDependencies: {},
       transitivePeerDependencies: new Set<string>(),
-      additionalInfo: {},
+      additionalInfo,
       hasBin: false,
     },
   } as unknown as DependenciesGraph
@@ -84,4 +90,26 @@ test('a stale integrity is not attached when the tarball URL changed', () => {
     registries: REGISTRIES,
   })
   expect(lockfile.packages![newDepPath].resolution).toStrictEqual({ tarball: newUrl })
+})
+
+test.each([
+  [{ bundledDependencies: [] }, undefined],
+  [{ bundleDependencies: [] }, undefined],
+  [{ bundledDependencies: ['bundled'] }, ['bundled']],
+  [{ bundleDependencies: ['bundle'] }, ['bundle']],
+  [{ bundledDependencies: true }, true],
+  [{ bundleDependencies: true }, true],
+  [{ bundledDependencies: ['bundled'], bundleDependencies: ['bundle'] }, ['bundled']],
+  [{ bundledDependencies: ['bundled'], bundleDependencies: true }, ['bundled']],
+  [{ bundledDependencies: true, bundleDependencies: ['bundle'] }, true],
+  [{ bundledDependencies: [], bundleDependencies: ['bundle'] }, ['bundle']],
+  [{ bundledDependencies: [], bundleDependencies: true }, true],
+] as const)('normalizes bundled dependencies from %p to %p', (additionalInfo, expected) => {
+  const lockfile = updateLockfile({
+    dependenciesGraph: tarballGraph({ tarball: TARBALL_URL }, additionalInfo),
+    lockfile: lockfileWith({ resolution: { tarball: TARBALL_URL } }),
+    prefix: '.',
+    registries: REGISTRIES,
+  })
+  expect(lockfile.packages![DEP_PATH].bundledDependencies).toEqual(expected)
 })

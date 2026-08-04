@@ -1,8 +1,9 @@
 import path from 'node:path'
 
-import { expect, test } from '@jest/globals'
+import { describe, expect, test } from '@jest/globals'
+import { parseOverrides } from '@pnpm/config.parse-overrides'
 
-import { createVersionsOverrider } from '../src/createVersionsOverrider.js'
+import { createDependencyOverrider, createVersionsOverrider } from '../src/createVersionsOverrider.js'
 
 test('createVersionsOverrider() matches sub-ranges', () => {
   const overrider = createVersionsOverrider([
@@ -764,5 +765,179 @@ test('createVersionsOverrider() moves invalid versions from peerDependencies to 
       foo: '^1.0.0 || ^2.0.0',
       qux: '^1.0.0 || ^2.0.0',
     },
+  })
+})
+
+test('createVersionsOverrider() convergence override rewrites only edges its version satisfies', () => {
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: { name: 'form-data', bareSpecifier: '' },
+      newBareSpecifier: '4.0.6',
+      converge: true,
+    },
+  ], process.cwd())
+  expect(overrider({
+    dependencies: {
+      'form-data': '^4.0.5',
+    },
+    optionalDependencies: {
+      'other-form-data': '^3.0.0',
+    },
+  })).toStrictEqual({
+    dependencies: {
+      'form-data': '4.0.6',
+    },
+    optionalDependencies: {
+      'other-form-data': '^3.0.0',
+    },
+  })
+  // Incompatible with 4.0.6, so the edge keeps its own resolution.
+  expect(overrider({
+    dependencies: {
+      'form-data': '^3.0.0',
+    },
+  })).toStrictEqual({
+    dependencies: {
+      'form-data': '^3.0.0',
+    },
+  })
+})
+
+test('createVersionsOverrider() convergence override skips non-range specifiers', () => {
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: { name: 'foo', bareSpecifier: '' },
+      newBareSpecifier: '4.0.6',
+      converge: true,
+    },
+  ], process.cwd())
+  expect(overrider({
+    dependencies: {
+      foo: 'github:org/foo',
+    },
+    devDependencies: {
+      foo: 'workspace:^',
+    },
+    optionalDependencies: {
+      foo: 'latest',
+    },
+  })).toStrictEqual({
+    dependencies: {
+      foo: 'github:org/foo',
+    },
+    devDependencies: {
+      foo: 'workspace:^',
+    },
+    optionalDependencies: {
+      foo: 'latest',
+    },
+  })
+})
+
+test('createVersionsOverrider() convergence override rewrites peer dependencies it satisfies', () => {
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: { name: 'foo', bareSpecifier: '' },
+      newBareSpecifier: '4.0.6',
+      converge: true,
+    },
+  ], process.cwd())
+  expect(overrider({
+    peerDependencies: {
+      foo: '^4.0.0',
+    },
+  })).toStrictEqual({
+    dependencies: {},
+    peerDependencies: {
+      foo: '4.0.6',
+    },
+  })
+})
+
+test('createVersionsOverrider() explicit overrides win over a convergence override', () => {
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: { name: 'foo', bareSpecifier: '^4.0.0' },
+      newBareSpecifier: '4.0.9',
+    },
+    {
+      targetPkg: { name: 'foo', bareSpecifier: '' },
+      newBareSpecifier: '4.0.6',
+      converge: true,
+    },
+  ], process.cwd())
+  expect(overrider({
+    dependencies: {
+      foo: '^4.0.5',
+      bar: '1.0.0',
+    },
+  })).toStrictEqual({
+    dependencies: {
+      foo: '4.0.9',
+      bar: '1.0.0',
+    },
+  })
+})
+
+test('createVersionsOverrider() collects declared ranges of convergence-governed packages', () => {
+  const convergeDeclaredRanges = new Map<string, Set<string>>()
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: { name: 'foo', bareSpecifier: '' },
+      newBareSpecifier: '4.0.6',
+      converge: true,
+    },
+  ], process.cwd(), { convergeDeclaredRanges })
+  overrider({
+    dependencies: {
+      foo: '^4.0.5',
+      bar: '^1.0.0',
+    },
+  })
+  overrider({
+    dependencies: {
+      foo: '^3.0.0',
+    },
+    devDependencies: {
+      foo: 'workspace:^',
+    },
+  })
+  expect(convergeDeclaredRanges).toStrictEqual(new Map([
+    ['foo', new Set(['^4.0.5', '^3.0.0'])],
+  ]))
+})
+
+describe('createDependencyOverrider()', () => {
+  test('resolves a generic override for a dependency that has no manifest', () => {
+    const overrideDependency = createDependencyOverrider(parseOverrides({
+      react: 'npm:react@19.2.0',
+      'zoo@^1': '1.0.0',
+    }), process.cwd())!
+    expect(overrideDependency('react', '^18.0.0')).toBe('npm:react@19.2.0')
+    expect(overrideDependency('zoo', '^1.5.0')).toBe('1.0.0')
+    expect(overrideDependency('zoo', '^2.0.0')).toBeUndefined()
+    expect(overrideDependency('qar', '^1.0.0')).toBeUndefined()
+  })
+
+  test('is not created for a set that cannot claim an undeclared dependency', () => {
+    expect(createDependencyOverrider([], process.cwd())).toBeUndefined()
+    expect(createDependencyOverrider(parseOverrides({
+      'foo>react': '19.2.0',
+    }), process.cwd())).toBeUndefined()
+  })
+
+  test('resolves a local override relative to the directory of the package that gets the dependency', () => {
+    const overrideDependency = createDependencyOverrider(parseOverrides({
+      qar: 'link:../qar',
+    }), process.cwd())!
+    expect(overrideDependency('qar', '^1.0.0', path.resolve('pkg'))).toBe('link:../../qar')
+  })
+
+  test('applies a convergence override only when it satisfies the range', () => {
+    const overrideDependency = createDependencyOverrider(parseOverrides({
+      'react@': '18.3.1',
+    }), process.cwd())!
+    expect(overrideDependency('react', '^18.0.0')).toBe('18.3.1')
+    expect(overrideDependency('react', '^19.0.0')).toBeUndefined()
   })
 })

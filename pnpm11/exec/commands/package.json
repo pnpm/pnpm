@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/exec.commands",
-  "version": "1100.3.1",
+  "version": "1100.4.7",
   "description": "Commands for running scripts",
   "keywords": [
     "pnpm",
@@ -56,8 +56,8 @@
     "@pnpm/resolving.parse-wanted-dependency": "workspace:*",
     "@pnpm/shell.path": "workspace:*",
     "@pnpm/store.path": "workspace:*",
+    "@pnpm/text.ordinal-comparator": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/util.lex-comparator": "catalog:",
     "@pnpm/workspace.injected-deps-syncer": "workspace:*",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "@pnpm/workspace.projects-sorter": "workspace:*",

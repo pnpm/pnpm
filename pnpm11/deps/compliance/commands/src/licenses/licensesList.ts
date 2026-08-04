@@ -22,6 +22,7 @@ export type LicensesCommandOptions = {
 | 'dir'
 | 'lockfileDir'
 | 'registries'
+| 'namedRegistries'
 | 'optional'
 | 'production'
 | 'storeDir'
@@ -75,6 +76,7 @@ export async function licensesList (opts: LicensesCommandOptions): Promise<Licen
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     modulesDir: opts.modulesDir,
     registries: opts.registries,
+    namedRegistries: opts.namedRegistries,
     wantedLockfile: lockfile,
     manifest,
     includedImporterIds,

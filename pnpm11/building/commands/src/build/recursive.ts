@@ -15,7 +15,7 @@ import {
 import { logger } from '@pnpm/logger'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import type { Project, ProjectManifest, ProjectRootDir } from '@pnpm/types'
-import { sortProjects } from '@pnpm/workspace.projects-sorter'
+import { sortFilteredProjects } from '@pnpm/workspace.projects-sorter'
 import pLimit from 'p-limit'
 
 type RecursiveRebuildOpts = CreateStoreControllerOptions & Pick<Config,
@@ -42,7 +42,7 @@ export async function recursiveRebuild (
   params: string[],
   opts: RecursiveRebuildOpts & {
     ignoredPackages?: Set<string>
-  } & Required<Pick<ConfigContext, 'selectedProjectsGraph'>> & Required<Pick<Config, 'workspaceDir'>>
+  } & Required<Pick<ConfigContext, 'selectedProjectsGraph'>> & Pick<ConfigContext, 'allProjectsGraph' | 'prodAllProjectsGraph' | 'prodOnlySelectedProjectDirs'> & Required<Pick<Config, 'workspaceDir'>>
 ): Promise<void> {
   if (allProjects.length === 0) {
     // It might make sense to throw an exception in this case
@@ -62,7 +62,7 @@ export async function recursiveRebuild (
   const throwOnFail = throwOnCommandFail.bind(null, 'pnpm recursive rebuild')
 
   const chunks = opts.sort !== false
-    ? sortProjects(opts.selectedProjectsGraph)
+    ? sortFilteredProjects(opts)
     : [Object.keys(opts.selectedProjectsGraph).sort() as ProjectRootDir[]]
 
   const store = await createStoreController(opts)

@@ -162,7 +162,7 @@ async function multiPublishToRegistry (registry: string, group: PackedPkg[], opt
       operation: async (otp) => npmFetch(BATCH_PUBLISH_ENDPOINT, {
         ...publishOptions,
         access: publishOptions.access ?? undefined,
-        otp,
+        otp: otp ?? publishOptions.otp,
         method: 'PUT',
         body,
         ignoreBody: true,

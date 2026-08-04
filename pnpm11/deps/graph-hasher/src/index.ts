@@ -173,11 +173,9 @@ export interface HashedDepPath<T extends PkgMeta> {
   hash: string
 }
 
-export function * iterateHashedGraphNodes<T extends PkgMeta> (
-  graph: DepsGraph<DepPath>,
-  pkgMetaIterator: PkgMetaIterator<T>,
-  allowBuild?: AllowBuild,
-  supportedArchitectures?: SupportedArchitectures,
+export interface GraphNodeHashOptions {
+  allowBuild?: AllowBuild
+  supportedArchitectures?: SupportedArchitectures
   /**
    * Install-wide fallback `engines.runtime` / `devEngines.runtime`
    * Node version. Used only for snapshots that don't pin their own
@@ -191,12 +189,26 @@ export function * iterateHashedGraphNodes<T extends PkgMeta> (
    * `process.version` as a last resort).
    */
   nodeVersion?: string
+  /**
+   * Directory the lockfile lives in. Scopes the slots of local directory
+   * dependencies to the project that owns them — see
+   * {@link isLocalDirectoryResolution}. Omitting it leaves those packages on a
+   * shared slot, which is only safe for a lockfile known to have no directory
+   * dependencies.
+   */
+  lockfileDir?: string
+}
+
+export function * iterateHashedGraphNodes<T extends PkgMeta> (
+  graph: DepsGraph<DepPath>,
+  pkgMetaIterator: PkgMetaIterator<T>,
+  opts: GraphNodeHashOptions = {}
 ): IterableIterator<HashedDepPath<T>> {
   let builtDepPaths: Set<DepPath> | undefined
   let entries: Iterable<T>
-  if (allowBuild != null) {
+  if (opts.allowBuild != null) {
     const pkgMetaList = Array.from(pkgMetaIterator)
-    builtDepPaths = computeBuiltDepPaths(pkgMetaList, allowBuild)
+    builtDepPaths = computeBuiltDepPaths(pkgMetaList, opts.allowBuild)
     entries = pkgMetaList
   } else {
     entries = pkgMetaIterator
@@ -206,8 +218,9 @@ export function * iterateHashedGraphNodes<T extends PkgMeta> (
     cache: {},
     builtDepPaths,
     buildRequiredCache: builtDepPaths !== undefined ? {} : undefined,
-    supportedArchitectures,
-    nodeVersion,
+    supportedArchitectures: opts.supportedArchitectures,
+    nodeVersion: opts.nodeVersion,
+    lockfileDir: opts.lockfileDir,
   }
   for (const pkgMeta of entries) {
     yield {
@@ -218,14 +231,16 @@ export function * iterateHashedGraphNodes<T extends PkgMeta> (
 }
 
 export function calcGraphNodeHash<T extends PkgMeta> (
-  { graph, cache, builtDepPaths, buildRequiredCache, supportedArchitectures, nodeVersion }: {
+  { graph, cache, builtDepPaths, buildRequiredCache, supportedArchitectures, nodeVersion, lockfileDir }: {
     graph: DepsGraph<DepPath>
     cache: DepsStateCache
     builtDepPaths?: Set<DepPath>
     buildRequiredCache?: Record<string, boolean>
     supportedArchitectures?: SupportedArchitectures
-    /** See [`iterateHashedGraphNodes`]'s `nodeVersion` parameter. */
+    /** See {@link GraphNodeHashOptions.nodeVersion}. */
     nodeVersion?: string
+    /** See {@link GraphNodeHashOptions.lockfileDir}. */
+    lockfileDir?: string
   },
   pkgMeta: T
 ): string {
@@ -245,8 +260,41 @@ export function calcGraphNodeHash<T extends PkgMeta> (
   const ownPin = readSnapshotRuntimePin(graph[depPath]?.children)
   const engine = includeEngine ? engineName(ownPin ?? nodeVersion) : null
   const deps = calcDepGraphHash(graph, cache, new Set(), depPath, supportedArchitectures)
-  const hexDigest = hashObjectWithoutSorting({ engine, deps }, { encoding: 'hex' })
-  return formatGlobalVirtualStorePath(name, version, hexDigest)
+  const isLocalDirectory = isLocalDirectoryResolution(graph[depPath]?.resolution)
+  // Scoping the slot needs the project's identity; the segment only needs to
+  // know that the package is a local directory, so a caller that leaves
+  // `lockfileDir` out still gets a well-formed path.
+  const project = isLocalDirectory ? lockfileDir : undefined
+  const hexDigest = project == null
+    ? hashObjectWithoutSorting({ engine, deps }, { encoding: 'hex' })
+    : hashObjectWithoutSorting({ engine, deps, project }, { encoding: 'hex' })
+  return formatGlobalVirtualStorePath(name, isLocalDirectory ? LOCAL_DIRECTORY_SEGMENT : version, hexDigest)
+}
+
+/**
+ * Slot segment that stands in for the version of a package resolved from a
+ * local directory. pnpm omits the version from a directory snapshot, so the
+ * lockfile has none to offer — and the resolver, which does know it from the
+ * manifest, must agree with the lockfile or a re-install would relocate the
+ * package. The segment is decoration in a store listing; the digest that
+ * follows it is what identifies the slot.
+ */
+const LOCAL_DIRECTORY_SEGMENT = 'directory'
+
+/**
+ * Whether the package came from a local directory — a `file:` directory
+ * dependency or an injected workspace package.
+ *
+ * Such a package needs a slot of its own per project. A directory resolution is
+ * the one resolution with no integrity: it is a path relative to the lockfile,
+ * so `file:dep` hashes identically in every project that happens to depend on a
+ * directory of that name. Sharing the slot would hand one project the files of
+ * whichever project installed first, and because the source directory is
+ * mutable pnpm re-imports it on every install — so the projects would go on
+ * overwriting each other's dependency.
+ */
+function isLocalDirectoryResolution (resolution: LockfileResolution | undefined): boolean {
+  return resolution != null && 'type' in resolution && resolution.type === 'directory'
 }
 
 export function calcLeafGlobalVirtualStorePath (fullPkgId: string, name: string, version: string): string {
@@ -281,8 +329,24 @@ export function calcGlobalVirtualStorePathWithSubdeps (
 // Scoped: @scope/pkg/version/hash
 // Unscoped: @/pkg/version/hash
 function formatGlobalVirtualStorePath (name: string, version: string, hexDigest: string): string {
+  // `version` is lockfile-controlled (`pkgSnapshot.version ?? parsed depPath`)
+  // and is inserted below as a raw path segment. Every global-virtual-store
+  // slot path funnels through here, and callers join the result onto
+  // `globalVirtualStoreDir` before passing it to `importPackage`, so a `..`
+  // segment in the version would let the slot escape the store root — even
+  // when the package name itself is valid (the name's own traversal is caught
+  // downstream by `safeJoinModulesDir`). Reject it at this single choke point.
+  assertNoPathTraversal(version)
   const prefix = name.startsWith('@') ? '' : '@/'
   return `${prefix}${name}/${version}/${hexDigest}`
+}
+
+function assertNoPathTraversal (version: string): void {
+  if (version.split(/[/\\]/).includes('..')) {
+    const error = new Error(`Refusing to build a virtual-store path with the traversal version segment ${JSON.stringify(version)}`) as Error & { code: string }
+    error.code = 'ERR_PNPM_INVALID_DEPENDENCY_NAME'
+    throw error
+  }
 }
 
 export interface PkgMetaAndSnapshot extends PkgMeta {
@@ -323,6 +387,7 @@ export function lockfileToDepGraph (
       })
       graph[depPath as DepPath] = {
         children,
+        resolution: pkgSnapshot.resolution,
         fullPkgId: createFullPkgId(getPkgIdWithPatchHash(depPath as DepPath), pkgSnapshot.resolution, supportedArchitectures),
       }
     }

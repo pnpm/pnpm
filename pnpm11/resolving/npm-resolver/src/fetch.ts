@@ -15,6 +15,17 @@ import type { PackageMeta } from '@pnpm/resolving.registry.types'
 import * as retry from '@zkochan/retry'
 import semver from 'semver'
 
+import { clearMeta } from './clearMeta.js'
+
+/**
+ * Content type of an abbreviated (install-oriented) package metadata document.
+ * A spec-compliant registry echoes this in the response `Content-Type` when it
+ * honors the abbreviated `Accept` header. Its absence signals that the registry
+ * ignored the header and served the full document instead.
+ * https://github.com/npm/registry/blob/main/docs/responses/package-metadata.md
+ */
+const ABBREVIATED_META_CONTENT_TYPE = 'application/vnd.npm.install-v1+json'
+
 interface RegistryResponse {
   status: number
   statusText: string
@@ -27,7 +38,14 @@ interface RegistryResponse {
 
 export interface FetchMetadataResult {
   meta: PackageMeta
-  jsonText: string
+  /**
+   * The raw registry response body, used only to mirror the response to disk
+   * without re-serializing `meta`. A fresh fetch always sets it, and every
+   * caller sharing that in-flight request sees it. Once the request settles
+   * the phase-long memo cache drops the body (see memoizeFetchMetadata.ts),
+   * so later cache hits see `undefined` and the cache never pins the body.
+   */
+  jsonText: string | undefined
   etag?: string
   notModified?: false
 }
@@ -112,6 +130,7 @@ export interface FetchMetadataFromFromRegistryOptions {
 export interface FetchMetadataOptions {
   registry: string
   authHeaderValue?: string
+  cacheBypass?: boolean
   fullMetadata?: boolean
   etag?: string
   modified?: string
@@ -122,6 +141,7 @@ export async function fetchMetadataFromFromRegistry (
   pkgName: string,
   {
     authHeaderValue,
+    cacheBypass = false,
     etag: cachedEtag,
     fullMetadata,
     modified: cachedModified,
@@ -130,20 +150,35 @@ export async function fetchMetadataFromFromRegistry (
 ): Promise<FetchMetadataResult | FetchMetadataNotModifiedResult> {
   const uri = toUri(pkgName, registry)
   const op = retry.operation(fetchOpts.retry)
+  const ifNoneMatch = cacheBypass ? undefined : cachedEtag
+  const ifModifiedSince = cacheBypass || !cachedModified
+    ? undefined
+    : new Date(cachedModified).toUTCString()
+  const hasValidator = Boolean(ifNoneMatch || ifModifiedSince)
   return new Promise((resolve, reject) => {
     op.attempt(async (attempt) => {
       let response: RegistryResponse
       const startTime = Date.now()
       try {
-        response = await fetchOpts.fetch(uri, {
+        const requestOptions = {
           authHeaderValue,
           compress: true,
           fullMetadata,
-          ifNoneMatch: cachedEtag,
-          ifModifiedSince: cachedModified ? new Date(cachedModified).toUTCString() : undefined,
+          ifNoneMatch,
+          ifModifiedSince,
           retry: fetchOpts.retry,
           timeout: fetchOpts.timeout,
-        }) as RegistryResponse
+          headers: cacheBypass ? { 'cache-control': 'no-cache' } : undefined,
+        }
+        response = await fetchOpts.fetch(uri, requestOptions) as RegistryResponse
+        if (response.status === 304 && !hasValidator && !cacheBypass) {
+          response = await fetchOpts.fetch(uri, {
+            ...requestOptions,
+            headers: {
+              'cache-control': 'no-cache',
+            },
+          }) as RegistryResponse
+        }
       } catch (error: any) { // eslint-disable-line
         // Redact credentials embedded in the URL from the cause as well, not
         // just the top-level message: a reporter or debugger that renders
@@ -158,6 +193,10 @@ export async function fetchMetadataFromFromRegistry (
         return
       }
       if (response.status === 304) {
+        if (!hasValidator) {
+          reject(notModifiedWithoutCacheError(pkgName))
+          return
+        }
         resolve({ notModified: true })
         return
       }
@@ -181,8 +220,7 @@ export async function fetchMetadataFromFromRegistry (
           globalWarn(`Request took ${elapsedMs}ms: ${uri}`)
         }
         resolve({
-          meta,
-          jsonText,
+          ...normalizeAbbreviatedResponse({ fullMetadata, meta, jsonText, response }),
           etag: response.headers.get('etag') ?? undefined,
         })
       } catch (error: any) { // eslint-disable-line
@@ -212,6 +250,57 @@ export async function fetchMetadataFromFromRegistry (
       }
     })
   })
+}
+
+/**
+ * A 304 answers a validator with "the body you already have is current". Sent
+ * without one — either because nothing was cached or because `cacheBypass`
+ * dropped the validators to recover a lost cache entry — it refers to a body
+ * nobody holds, so there is nothing to serve and nothing left to retry.
+ */
+export function notModifiedWithoutCacheError (pkgName: string): PnpmError {
+  return new PnpmError(
+    'META_NOT_MODIFIED_WITHOUT_CACHE',
+    `Registry returned 304 for ${pkgName} without an existing cache to refresh.`
+  )
+}
+
+/**
+ * When the resolver asked for abbreviated metadata but the registry ignored the
+ * `Accept` header and returned the full document (detected via the response
+ * `Content-Type`), strip it down to the abbreviated field set so downstream
+ * consumers — the in-memory cache, the on-disk mirror, and the resolver — never
+ * carry the megabytes of install-irrelevant data (scripts, exports, readme,
+ * custom fields) that a full document contains.
+ *
+ * Registries that honor the header (e.g. the npm registry) echo the abbreviated
+ * `Content-Type`, so this is a no-op for them: no re-serialization, no field
+ * stripping — the happy path pays nothing.
+ */
+function normalizeAbbreviatedResponse (
+  { fullMetadata, meta, jsonText, response }: {
+    fullMetadata?: boolean
+    meta: PackageMeta
+    jsonText: string
+    response: RegistryResponse
+  }
+): { meta: PackageMeta, jsonText: string } {
+  if (fullMetadata) return { meta, jsonText }
+  if (parseMediaType(response.headers.get('content-type')) === ABBREVIATED_META_CONTENT_TYPE) return { meta, jsonText }
+  const normalized = clearMeta(meta)
+  return { meta: normalized, jsonText: JSON.stringify(normalized) }
+}
+
+/**
+ * Extracts the media type from a `Content-Type` header value, dropping
+ * parameters such as `; charset=utf-8`. Media types are case-insensitive
+ * (RFC 9110 §8.3.1), so the result is lowercased for comparison.
+ */
+function parseMediaType (contentType: string | null): string | undefined {
+  if (contentType == null) return undefined
+  const semicolonIndex = contentType.indexOf(';')
+  const mediaType = semicolonIndex === -1 ? contentType : contentType.slice(0, semicolonIndex)
+  return mediaType.trim().toLowerCase()
 }
 
 function toUri (pkgName: string, registry: string): string {

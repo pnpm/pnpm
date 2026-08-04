@@ -2,8 +2,8 @@ import path from 'node:path'
 
 import { linkBins } from '@pnpm/bins.linker'
 import {
-  progressLogger,
   removalLogger,
+  reportPackageImported,
   statsLogger,
 } from '@pnpm/core-loggers'
 import type {
@@ -157,10 +157,9 @@ async function linkAllPkgsInOrder (
             sideEffectsCacheKey,
           })
           if (importMethod) {
-            progressLogger.debug({
+            reportPackageImported({
               method: importMethod,
               requester: opts.lockfileDir,
-              status: 'imported',
               to: depNode.dir,
             })
           }

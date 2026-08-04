@@ -139,6 +139,62 @@ test('update transitive dependency when mixed with a direct dependency selector'
   expect(lockfile.packages['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0']).toBeTruthy()
 })
 
+test('update of a transitive dependency ignores the requested version and resolves like a fresh install', async () => {
+  // @pnpm.e2e/pkg-with-good-optional depends on @pnpm.e2e/dep-of-pkg-with-1-dep via "*".
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/pkg-with-good-optional': '1.0.0',
+    },
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
+
+  expect(project.readLockfile().packages['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0']).toBeTruthy()
+
+  // The update requests 100.1.0, but a transitive dependency has no manifest
+  // entry to carry a version, and updates resolve the target the way a fresh
+  // install would — so the requested version is ignored (with a warning
+  // recommending an override) and the "*" range resolves to the new latest.
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '101.0.0', distTag: 'latest' })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  }, ['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+
+  const lockfile = project.readLockfile()
+
+  expect(lockfile.packages['@pnpm.e2e/dep-of-pkg-with-1-dep@101.0.0']).toBeTruthy()
+  expect(lockfile.packages['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0']).toBeFalsy()
+  expect(lockfile.packages['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0']).toBeFalsy()
+})
+
+test('update with a version on a crafted package name does not pollute Object.prototype', async () => {
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/foo': '1.0.0',
+    },
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  }, ['__proto__@1.0.0'])
+
+  expect(({} as Record<string, unknown>)['1.0.0']).toBeUndefined()
+  expect(project.readLockfile().packages['@pnpm.e2e/foo@1.0.0']).toBeTruthy()
+})
+
 test('update: fail when both "latest" and "workspace" are true', async () => {
   preparePackages([
     {
@@ -167,6 +223,77 @@ test('update: fail when both "latest" and "workspace" are true', async () => {
   }
   expect(err.code).toBe('ERR_PNPM_BAD_OPTIONS')
   expect(err.message).toBe('Cannot use --latest with --workspace simultaneously')
+})
+
+test('update --workspace skips ignored dependencies and leaves registry dependencies alone', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        '@pnpm.e2e/foo': '1.0.0',
+        'project-2': '0.0.0',
+        'project-3': '^3.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '2.0.0',
+    },
+    {
+      name: 'project-3',
+      version: '3.0.0',
+    },
+  ])
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    dir: path.resolve('project-1'),
+    saveWorkspaceProtocol: 'rolling',
+    updateConfig: { ignoreDependencies: ['project-3'] },
+    workspace: true,
+    workspaceDir: process.cwd(),
+  })
+
+  const manifest = loadJsonFileSync<ProjectManifest>(path.resolve('project-1/package.json'))
+
+  expect(manifest.dependencies).toStrictEqual({
+    // Only published to the registry: nothing to link it to, and having
+    // any ignored dependency must not turn that into an error.
+    '@pnpm.e2e/foo': '1.0.0',
+    'project-2': 'workspace:*',
+    // A workspace package, but ignored, so it keeps its specifier.
+    'project-3': '^3.0.0',
+  })
+})
+
+test('update --workspace links nothing when the given selectors match no direct dependency', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'project-2': '^2.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '2.0.0',
+    },
+  ])
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    depth: 1,
+    dir: path.resolve('project-1'),
+    lockfileDir: process.cwd(),
+    workspace: true,
+    workspaceDir: process.cwd(),
+  }, ['@pnpm.e2e/not-a-dependency'])
+
+  const manifest = loadJsonFileSync<ProjectManifest>(path.resolve('project-1/package.json'))
+
+  expect(manifest.dependencies).toStrictEqual({ 'project-2': '^2.0.0' })
 })
 
 test('update --latest forbids specs', async () => {
@@ -446,4 +573,34 @@ test('should not update tag version when --latest not set', async () => {
   expect(manifest.dependencies?.['@pnpm.e2e/peer-a']).toBe('latest')
   expect(manifest.dependencies?.['@pnpm.e2e/peer-c']).toBe('canary')
   expect(manifest.dependencies?.['@pnpm.e2e/foo']).toBe('1.0.0')
+})
+
+test('update --latest resolves an npm: alias to the latest version of the aliased package', async () => {
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+
+  // The alias name does not exist on the registry.
+  const project = prepare({
+    dependencies: {
+      'foo-alias': 'npm:@pnpm.e2e/foo@~1.0.0',
+    },
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    latest: true,
+  })
+
+  const manifest = loadJsonFileSync<ProjectManifest>('package.json')
+  expect(manifest.dependencies).toStrictEqual({
+    'foo-alias': 'npm:@pnpm.e2e/foo@~100.1.0',
+  })
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.packages['@pnpm.e2e/foo@100.1.0']).toBeTruthy()
 })

@@ -17,16 +17,16 @@ test('search: missing query throws error', async () => {
 })
 
 test('search: returns formatted output with package name and npmx.dev URL', async () => {
-  const result = await search.handler(SEARCH_OPTS, ['is-positive'])
+  const result = await search.handler(SEARCH_OPTS, ['create-touch-file-one-bin'])
   expect(typeof result).toBe('string')
-  expect(result).toContain('is-positive')
+  expect(result).toContain('create-touch-file-one-bin')
   expect(result).toContain('Version ')
-  expect(result).toContain('https://npmx.dev/package/is-positive')
+  expect(result).toContain('https://npmx.dev/package/create-touch-file-one-bin')
   expect(result).not.toContain('npm.im')
 })
 
 test('search: --json returns parsed package array', async () => {
-  const result = await search.handler({ ...SEARCH_OPTS, json: true }, ['is-positive'])
+  const result = await search.handler({ ...SEARCH_OPTS, json: true }, ['create-touch-file-one-bin'])
   const parsed = JSON.parse(result)
   expect(Array.isArray(parsed)).toBe(true)
   expect(parsed.length).toBeGreaterThan(0)
@@ -44,7 +44,7 @@ test('search: non-OK registry response throws SEARCH_FAILED', async () => {
     search.handler({
       ...SEARCH_OPTS,
       registries: { default: `${REGISTRY_URL}/nonexistent-registry-path/` },
-    }, ['is-positive'])
+    }, ['create-touch-file-one-bin'])
   ).rejects.toMatchObject({ code: 'ERR_PNPM_SEARCH_FAILED' })
 })
 

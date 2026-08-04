@@ -5,7 +5,7 @@ import { promisify } from 'node:util'
 import { expect, test } from '@jest/globals'
 import type { PnpmError } from '@pnpm/error'
 import type { ProjectRootDir } from '@pnpm/types'
-import { filterWorkspaceProjects, type ProjectGraph } from '@pnpm/workspace.projects-filter'
+import { filterProjectsBySelectorObjects, filterWorkspaceProjects, type ProjectGraph } from '@pnpm/workspace.projects-filter'
 import type { BaseProject } from '@pnpm/workspace.projects-graph'
 import { isCI } from 'ci-info'
 import { safeExeca as execa } from 'execa'
@@ -18,6 +18,47 @@ import './parseProjectSelector.js'
 
 const touch = promisify(touchCB)
 const mkdir = promisify(fs.mkdir)
+
+test('returns prod graph metadata for mixed regular and prod-only filters', async () => {
+  const projectADir = '/workspace/project-a' as ProjectRootDir
+  const projectBDir = '/workspace/project-b' as ProjectRootDir
+  const projectCDir = '/workspace/project-c' as ProjectRootDir
+  const projects: BaseProject[] = [
+    {
+      rootDir: projectADir,
+      manifest: {
+        name: 'project-a',
+        version: '1.0.0',
+        dependencies: { 'project-b': 'workspace:*' },
+        devDependencies: { 'project-c': 'workspace:*' },
+      },
+    },
+    {
+      rootDir: projectBDir,
+      manifest: {
+        name: 'project-b',
+        version: '1.0.0',
+      },
+    },
+    {
+      rootDir: projectCDir,
+      manifest: {
+        name: 'project-c',
+        version: '1.0.0',
+      },
+    },
+  ]
+
+  const result = await filterProjectsBySelectorObjects(projects, [
+    { namePattern: 'project-a', followProdDepsOnly: true },
+    { namePattern: 'project-c' },
+  ], { workspaceDir: process.cwd() })
+
+  expect(Object.keys(result.selectedProjectsGraph)).toStrictEqual([projectADir, projectCDir])
+  expect(result.selectedProjectsGraph[projectADir].dependencies).toStrictEqual([projectBDir])
+  expect(result.prodAllProjectsGraph?.[projectADir].dependencies).toStrictEqual([projectBDir])
+  expect(result.prodOnlySelectedProjectDirs).toStrictEqual([projectADir])
+})
 
 const PROJECTS_GRAPH: ProjectGraph<BaseProject> = {
   ['/packages/project-0' as ProjectRootDir]: {
@@ -548,6 +589,108 @@ test('select changed packages when operating under a git worktree', async () => 
   }], { workspaceDir: worktreeDir })
 
   expect(Object.keys(selectedProjectsGraph)).toStrictEqual([worktreePkgADir])
+})
+
+test('select changed packages when operating under a git worktree nested inside the main repository', async () => {
+  if (isCI && isWindows()) {
+    return
+  }
+
+  const mainRepoDir = temporaryDirectory()
+  await execa('git', ['init', '--initial-branch=main'], { cwd: mainRepoDir })
+  await execa('git', ['config', 'user.email', 'x@y.z'], { cwd: mainRepoDir })
+  await execa('git', ['config', 'user.name', 'xyz'], { cwd: mainRepoDir })
+
+  const mainPkgADir = path.join(mainRepoDir, 'package-a')
+  const mainPkgBDir = path.join(mainRepoDir, 'package-b')
+  await mkdir(mainPkgADir)
+  await mkdir(mainPkgBDir)
+  await touch(path.join(mainPkgADir, 'file.js'))
+  await touch(path.join(mainPkgBDir, 'file.js'))
+  await execa('git', ['add', '.'], { cwd: mainRepoDir })
+  await execa('git', ['commit', '--allow-empty-message', '-m', '', '--no-gpg-sign'], { cwd: mainRepoDir })
+
+  // The worktree lives inside the main repository's tree, so an
+  // ancestor of the worktree has a `.git` directory while the worktree
+  // itself has a `.git` file. The nearest entry must win: git anchors
+  // its diff paths at the worktree root.
+  const worktreeDir = path.join(mainRepoDir, 'worktrees', 'feature')
+  await execa('git', ['worktree', 'add', '-b', 'feature', worktreeDir, 'main'], { cwd: mainRepoDir })
+
+  const worktreePkgADir = path.join(worktreeDir, 'package-a') as ProjectRootDir
+  const worktreePkgBDir = path.join(worktreeDir, 'package-b') as ProjectRootDir
+
+  await touch(path.join(worktreePkgADir, 'new-file.js'))
+  await execa('git', ['add', '.'], { cwd: worktreeDir })
+  await execa('git', ['commit', '--allow-empty-message', '-m', '', '--no-gpg-sign'], { cwd: worktreeDir })
+
+  const projectsGraph: ProjectGraph<BaseProject> = {
+    [worktreeDir as ProjectRootDir]: {
+      dependencies: [],
+      package: {
+        rootDir: worktreeDir as ProjectRootDir,
+        manifest: { name: 'root', version: '0.0.0' },
+      },
+    },
+    [worktreePkgADir]: {
+      dependencies: [],
+      package: {
+        rootDir: worktreePkgADir,
+        manifest: { name: 'package-a', version: '0.0.0' },
+      },
+    },
+    [worktreePkgBDir]: {
+      dependencies: [],
+      package: {
+        rootDir: worktreePkgBDir,
+        manifest: { name: 'package-b', version: '0.0.0' },
+      },
+    },
+  }
+
+  const { selectedProjectsGraph } = await filterWorkspaceProjects(projectsGraph, [{
+    diff: 'HEAD~1',
+  }], { workspaceDir: worktreeDir })
+
+  expect(Object.keys(selectedProjectsGraph)).toStrictEqual([worktreePkgADir])
+})
+
+test('an option-like diff ref is rejected as a bad revision instead of being parsed as a git option', async () => {
+  if (isCI && isWindows()) {
+    return
+  }
+
+  const workspaceDir = temporaryDirectory() as ProjectRootDir
+  await execa('git', ['init', '--initial-branch=main'], { cwd: workspaceDir })
+  await execa('git', ['config', 'user.email', 'x@y.z'], { cwd: workspaceDir })
+  await execa('git', ['config', 'user.name', 'xyz'], { cwd: workspaceDir })
+  const pkgADir = path.join(workspaceDir, 'package-a') as ProjectRootDir
+  await mkdir(pkgADir)
+  await touch(path.join(pkgADir, 'file.js'))
+  await execa('git', ['add', '.'], { cwd: workspaceDir })
+  await execa('git', ['commit', '--allow-empty-message', '-m', '', '--no-gpg-sign'], { cwd: workspaceDir })
+
+  const projectsGraph: ProjectGraph<BaseProject> = {
+    [pkgADir]: {
+      dependencies: [],
+      package: {
+        rootDir: pkgADir,
+        manifest: { name: 'package-a', version: '0.0.0' },
+      },
+    },
+  }
+
+  const evilOutputFile = path.join(workspaceDir, 'evil.txt')
+  let err!: PnpmError
+  try {
+    await filterWorkspaceProjects(projectsGraph, [{ diff: `--output=${evilOutputFile}` }], { workspaceDir })
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
+  expect(err).toBeDefined()
+  expect(err.code).toBe('ERR_PNPM_FILTER_CHANGED')
+  expect(err.message).toContain('bad revision')
+  expect(fs.existsSync(evilOutputFile)).toBe(false)
 })
 
 test('selection should fail when diffing to a branch that does not exist', async () => {

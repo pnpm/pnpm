@@ -5,12 +5,12 @@ on:
   pull_request:
     types: [opened, synchronize]
     paths:
-      - 'pacquet/**/*.rs'
-      - 'pacquet/**/Cargo.toml'
+      - 'pnpm/**/*.rs'
+      - 'pnpm/**/Cargo.toml'
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'rust-toolchain.toml'
-      - 'pacquet/tasks/micro-benchmark/fixtures/**'
+      - 'pnpm/tasks/micro-benchmark/fixtures/**'
       - '.github/actions/rustup/**'
       - '.github/actions/binstall/**'
       - '.github/workflows/pacquet-micro-benchmark.yml'
@@ -26,12 +26,12 @@ jobs:
   benchmark:
     strategy:
       matrix:
-        os: [ubuntu-latest] # `macos-latest` is too unstable to be useful for benchmark, the variance is always huge.
+        os: [blacksmith-8vcpu-ubuntu-2404] # macOS is too unstable to be useful for benchmark, the variance is always huge.
     name: Run benchmark on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout Main Branch
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: main # Checkout main first because the cache is warm
           persist-credentials: false
@@ -52,7 +52,7 @@ jobs:
         run: cargo run --bin=micro-benchmark --release -- --save-baseline main
 
       - name: Checkout PR Branch
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           clean: false
           ref: ${{ github.event.pull_request.head.sha }}
@@ -71,11 +71,11 @@ jobs:
       - name: Upload benchmark results
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: benchmark-results-${{ matrix.os }}
+          name: benchmark-results-ubuntu-latest
           path: ./target/criterion
 
   benchmark-compare:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     name: Compare Benchmarks
     needs:
       - benchmark
@@ -86,7 +86,7 @@ jobs:
 
     steps:
       - name: Install critcmp
-        uses: taiki-e/install-action@b8cecb83565409bcc297b2df6e77f030b2a468d5 # v2.82.0
+        uses: taiki-e/install-action@67729d5c413db75907f0ad1e39bb04b9c868ff60 # v2.85.7
         with:
           tool: critcmp
 

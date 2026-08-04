@@ -20,7 +20,7 @@ Fast, disk space efficient package manager:
 * **Works as a Node.js version manager.** See [pnpm runtime](https://pnpm.io/11.x/cli/runtime).
 * **Works everywhere.** Supports Windows, Linux, and macOS.
 * **Battle-tested.** Used in production by teams of [all sizes](https://pnpm.io/workspaces#usage-examples) since 2016.
-* **Experimental Rust port.** Includes [pacquet](./pacquet), an experimental port of the CLI written in Rust.
+* **Experimental Rust port.** Includes [pacquet](./pnpm), an experimental port of the CLI written in Rust.
 * [See the full feature comparison with npm and Yarn](https://pnpm.io/feature-comparison).
 
 To quote the [Rush](https://rushjs.io/) team:

@@ -42,16 +42,105 @@ async fn upload(store: &S3Store, name: &PackageName, filename: &str, bytes: &[u8
     store.upload_tarball(&tmp, name, filename).await.expect("upload");
 }
 
+async fn write_packument(store: &S3Store, name: &PackageName, bytes: &[u8]) {
+    assert!(store.write_packument_if_current(name, bytes, None).await.unwrap());
+}
+
 #[tokio::test]
 async fn packument_roundtrips_and_missing_is_none() {
     let (store, _staging) = store_with_prefix("");
     let name = pkg("is-positive");
     assert_eq!(store.read_packument(&name).await.unwrap(), None);
-    store.write_packument(&name, br#"{"name":"is-positive"}"#).await.unwrap();
+    write_packument(&store, &name, br#"{"name":"is-positive"}"#).await;
     assert_eq!(
         store.read_packument(&name).await.unwrap().as_deref(),
         Some(&br#"{"name":"is-positive"}"#[..]),
     );
+}
+
+#[tokio::test]
+async fn stale_packument_update_is_rejected() {
+    let (store, _staging) = store_with_prefix("");
+    let name = pkg("racer");
+    store.write_packument_if_current(&name, br#"{"name":"racer"}"#, None).await.unwrap();
+
+    let first_read = store.read_packument_for_update(&name).await.unwrap().unwrap();
+    let second_read = store.read_packument_for_update(&name).await.unwrap().unwrap();
+
+    let first_written = store
+        .write_packument_if_current(
+            &name,
+            br#"{"name":"racer","versions":{"1.0.0":{"version":"1.0.0"}}}"#,
+            Some(&first_read.version),
+        )
+        .await
+        .unwrap();
+    assert!(first_written);
+
+    let second_written = store
+        .write_packument_if_current(
+            &name,
+            br#"{"name":"racer","versions":{"2.0.0":{"version":"2.0.0"}}}"#,
+            Some(&second_read.version),
+        )
+        .await
+        .unwrap();
+    assert!(!second_written);
+    assert_eq!(
+        store.read_packument(&name).await.unwrap().as_deref(),
+        Some(&br#"{"name":"racer","versions":{"1.0.0":{"version":"1.0.0"}}}"#[..]),
+    );
+}
+
+#[tokio::test]
+async fn deleted_packument_update_is_rejected() {
+    let (store, _staging) = store_with_prefix("");
+    let name = pkg("removed-racer");
+    write_packument(&store, &name, br#"{"name":"removed-racer"}"#).await;
+
+    let read = store.read_packument_for_update(&name).await.unwrap().unwrap();
+    store.remove_package(&name).await.unwrap();
+
+    let written = store
+        .write_packument_if_current(
+            &name,
+            br#"{"name":"removed-racer","versions":{"1.0.0":{"version":"1.0.0"}}}"#,
+            Some(&read.version),
+        )
+        .await
+        .unwrap();
+    assert!(!written);
+    assert!(store.read_packument(&name).await.unwrap().is_none());
+}
+
+#[tokio::test]
+async fn concurrent_tarball_finalize_does_not_overwrite() {
+    use crate::storage::TarballFinalize;
+    let (store, _staging) = store_with_prefix("");
+    let name = pkg("racer");
+    let file = "racer-1.0.0.tgz";
+
+    let tmp = store.staging_tmp_path(&name, file).await.unwrap();
+    tokio::fs::write(&tmp, b"tarball A").await.unwrap();
+    assert_eq!(store.upload_tarball(&tmp, &name, file).await.unwrap(), TarballFinalize::Written);
+
+    // Re-promoting byte-identical content is a tolerated no-op, so idempotent
+    // journal roll-forward and concurrent identical publishes don't conflict.
+    let tmp = store.staging_tmp_path(&name, file).await.unwrap();
+    tokio::fs::write(&tmp, b"tarball A").await.unwrap();
+    assert_eq!(
+        store.upload_tarball(&tmp, &name, file).await.unwrap(),
+        TarballFinalize::AlreadyIdentical,
+    );
+
+    // Different bytes for the same version's key are rejected without
+    // overwriting the first writer's tarball.
+    let tmp = store.staging_tmp_path(&name, file).await.unwrap();
+    tokio::fs::write(&tmp, b"tarball B").await.unwrap();
+    assert_eq!(store.upload_tarball(&tmp, &name, file).await.unwrap(), TarballFinalize::Conflict);
+
+    let (body, _len) = store.open_tarball(&name, file).await.unwrap().unwrap();
+    assert_eq!(collect(body).await, b"tarball A");
 }
 
 #[tokio::test]
@@ -72,7 +161,7 @@ async fn tarball_uploads_streams_and_reports_length() {
 async fn scoped_keys_and_prefix_are_honored() {
     let (store, _staging) = store_with_prefix("packages");
     let name = pkg("@scope/thing");
-    store.write_packument(&name, br#"{"name":"@scope/thing"}"#).await.unwrap();
+    write_packument(&store, &name, br#"{"name":"@scope/thing"}"#).await;
     upload(&store, &name, "thing-1.0.0.tgz", b"scoped tarball").await;
 
     let (body, _len) = store.open_tarball(&name, "thing-1.0.0.tgz").await.unwrap().unwrap();
@@ -84,7 +173,7 @@ async fn scoped_keys_and_prefix_are_honored() {
 async fn remove_tarball_then_package() {
     let (store, _staging) = store_with_prefix("");
     let name = pkg("is-positive");
-    store.write_packument(&name, b"{}").await.unwrap();
+    write_packument(&store, &name, b"{}").await;
     upload(&store, &name, "is-positive-1.0.0.tgz", b"payload").await;
 
     assert!(store.remove_tarball(&name, "is-positive-1.0.0.tgz").await.unwrap());
@@ -101,8 +190,8 @@ async fn remove_tarball_then_package() {
 async fn lists_hosted_package_names() {
     for prefix in ["", "packages"] {
         let (store, _staging) = store_with_prefix(prefix);
-        store.write_packument(&pkg("is-positive"), b"{}").await.unwrap();
-        store.write_packument(&pkg("@scope/thing"), b"{}").await.unwrap();
+        write_packument(&store, &pkg("is-positive"), b"{}").await;
+        write_packument(&store, &pkg("@scope/thing"), b"{}").await;
         // A stray tarball-only key must not be mistaken for a package.
         upload(&store, &pkg("is-positive"), "is-positive-1.0.0.tgz", b"x").await;
 

@@ -14,6 +14,7 @@ import type {
   PackageManifestLog,
   PeerDependencyIssuesLog,
   ProgressLog,
+  PromptLog,
   RegistryLog,
   RequestRetryLog,
   RootLog,
@@ -43,6 +44,7 @@ export type Log =
   | PackageImportMethodLog
   | PeerDependencyIssuesLog
   | ProgressLog
+  | PromptLog
   | RegistryLog
   | RequestRetryLog
   | RootLog

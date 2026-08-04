@@ -431,3 +431,22 @@ test('installing Node.js runtime, when it is set via the engines field of a depe
   )
   expect(fs.readFileSync('node_modules/@pnpm.e2e/cli-with-node-engine/node-version', 'utf8')).toBe('v22.19.0')
 })
+
+test('update --latest keeps a Node.js runtime dependency on the runtime resolver', async () => {
+  prepareEmpty()
+  const manifest = {
+    dependencies: {
+      node: 'runtime:22.0.0',
+    },
+  }
+  await install(manifest, testDefaults({ fastUnpack: false }))
+
+  const { updatedManifest } = await install(manifest, testDefaults({
+    update: true,
+    updateToLatest: true,
+    updatePackageManifest: true,
+    fastUnpack: false,
+  }))
+
+  expect(updatedManifest.dependencies).toStrictEqual({ node: 'runtime:22.0.0' })
+})

@@ -99,6 +99,35 @@ test('respects peerDependencyRules.ignoreMissing', async () => {
   expect(Object.keys(projectIssues.missing)).toHaveLength(0)
 })
 
+test('detects conflicting missing peer dependencies', async () => {
+  const fixture = f.find('with-conflicting-peers')
+  const issues = await checkPeerDependencies([fixture], {
+    lockfileDir: fixture,
+    checkWantedLockfileOnly: true,
+  })
+
+  const projectIssues = issues['.']
+  expect(projectIssues.missing).toHaveProperty('react')
+  expect(projectIssues.missing.react).toHaveLength(2)
+  expect(projectIssues.conflicts).toStrictEqual(['react'])
+  expect(projectIssues.intersections).not.toHaveProperty('react')
+})
+
+test('peerDependencyRules.ignoreMissing also removes the conflicts of ignored peers', async () => {
+  const fixture = f.find('with-conflicting-peers')
+  const issues = await checkPeerDependencies([fixture], {
+    lockfileDir: fixture,
+    checkWantedLockfileOnly: true,
+    peerDependencyRules: {
+      ignoreMissing: ['react'],
+    },
+  })
+
+  const projectIssues = issues['.']
+  expect(Object.keys(projectIssues.missing)).toHaveLength(0)
+  expect(projectIssues.conflicts).toStrictEqual([])
+})
+
 test('returns no issues when there are no peer dependency problems', async () => {
   const fixture = f.find('empty')
   const issues = await checkPeerDependencies([fixture], {

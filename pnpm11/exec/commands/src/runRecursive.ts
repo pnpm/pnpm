@@ -12,7 +12,7 @@ import {
 } from '@pnpm/exec.lifecycle'
 import { groupStart } from '@pnpm/log.group'
 import type { PackageScripts, ProjectRootDir } from '@pnpm/types'
-import { sortProjects } from '@pnpm/workspace.projects-sorter'
+import { sortFilteredProjects } from '@pnpm/workspace.projects-sorter'
 import pLimit from 'p-limit'
 import { realpathMissing } from 'realpath-missing'
 
@@ -37,18 +37,22 @@ export type RecursiveRunOpts = Pick<Config,
 | 'workspaceDir'
 | 'nodeExperimentalPackageMap'
 | 'modulesDir'
-> & Pick<ConfigContext, 'rootProjectManifest'> & Required<Pick<ConfigContext, 'allProjects' | 'selectedProjectsGraph'> & Pick<Config, 'workspaceDir' | 'dir'>> &
+> & Pick<ConfigContext, 'rootProjectManifest' | 'allProjectsGraph' | 'prodAllProjectsGraph' | 'prodOnlySelectedProjectDirs'> & Required<Pick<ConfigContext, 'allProjects' | 'selectedProjectsGraph'> & Pick<Config, 'workspaceDir' | 'dir'>> &
 Partial<Pick<Config, 'extraBinPaths' | 'extraEnv' | 'bail' | 'reporter' | 'reverse' | 'sort' | 'workspaceConcurrency'>> &
 {
   ifPresent?: boolean
   resumeFrom?: string
   reportSummary?: boolean
+  sequential?: boolean
 }
 
 export async function runRecursive (
   params: string[],
   opts: RecursiveRunOpts
 ): Promise<void> {
+  if (opts.sequential) {
+    opts.workspaceConcurrency = 1
+  }
   const [scriptName, ...passedThruArgs] = params
   if (!scriptName) {
     throw new PnpmError('SCRIPT_NAME_IS_REQUIRED', 'You must specify the script you want to run')
@@ -56,7 +60,7 @@ export async function runRecursive (
   let hasCommand = 0
 
   const sortedPackageChunks = opts.sort
-    ? sortProjects(opts.selectedProjectsGraph)
+    ? sortFilteredProjects(opts)
     : [(Object.keys(opts.selectedProjectsGraph) as ProjectRootDir[]).sort()]
   let packageChunks: ProjectRootDir[][] = opts.reverse ? sortedPackageChunks.reverse() : sortedPackageChunks
 
@@ -93,6 +97,14 @@ export async function runRecursive (
   }
 
   const result = createEmptyRecursiveSummary(packageChunks)
+  // A RegExp selector can match several scripts in one project, but the
+  // summary carries a single status per project and countFailures derives
+  // the exit code from it. Once one of a project's scripts has failed,
+  // nothing a later one does may overwrite that — under --no-bail the run
+  // would otherwise report itself green. Tracked separately because the
+  // scripts settle concurrently, so reading back the recorded status
+  // would race (and TypeScript narrows it to 'running' regardless).
+  const failedPrefixes = new Set<string>()
 
   for (const chunk of packageChunks) {
     const selectedScripts = chunk.map(prefix => {
@@ -118,7 +130,12 @@ export async function runRecursive (
         if (!process.env.npm_lifecycle_event) {
           throwOrFilterHiddenScripts([scriptName], scriptName)
         }
-        result[prefix].status = 'running'
+        // 'running' is no more a failure than 'passed' is as far as
+        // countFailures is concerned, so a sibling script starting after
+        // this project failed must not reset it either.
+        if (!failedPrefixes.has(prefix)) {
+          result[prefix].status = 'running'
+        }
         const startTime = process.hrtime()
         hasCommand++
         try {
@@ -167,10 +184,13 @@ export async function runRecursive (
             }))
           await _runScript(scriptName)
           groupEnd?.()
-          result[prefix].status = 'passed'
-          result[prefix].duration = getExecutionDuration(startTime)
+          if (!failedPrefixes.has(prefix)) {
+            result[prefix].status = 'passed'
+            result[prefix].duration = getExecutionDuration(startTime)
+          }
         } catch (err: unknown) {
           assert(util.types.isNativeError(err))
+          failedPrefixes.add(prefix)
           result[prefix] = {
             status: 'failure',
             duration: getExecutionDuration(startTime),
@@ -241,8 +261,7 @@ export function getSpecifiedScripts (scripts: PackageScripts, scriptName: string
 
   // if scriptName which a user passes is RegExp (like /build:.*/), multiple scripts to execute will be selected with RegExp
   if (scriptSelector) {
-    const scriptKeys = Object.keys(scripts)
-    return scriptKeys.filter(script => script.match(scriptSelector))
+    return Object.keys(scripts).filter(script => script.match(scriptSelector))
   }
 
   return []

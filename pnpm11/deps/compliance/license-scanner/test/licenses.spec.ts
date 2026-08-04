@@ -3,6 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { afterAll, describe, expect, jest, test } from '@jest/globals'
+import { normalizeNamedRegistries } from '@pnpm/config.normalize-registries'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import type { DepPath, ProjectId, ProjectManifest, Registries } from '@pnpm/types'
@@ -311,5 +312,103 @@ describe('licences', () => {
         path: '/path/to/package/foo@1.0.0/node_modules',
       },
     ] as LicensePackage[])
+  })
+
+  test('findDependencyLicenses lists versions installed under different aliases', async () => {
+    const lockfile: LockfileObject = {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: {
+            prettier: '3.6.2',
+            prettier2: 'prettier@2.8.8',
+          },
+          specifiers: {
+            prettier: '3.6.2',
+            prettier2: 'npm:prettier@2.8.8',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['prettier@2.8.8' as DepPath]: {
+          resolution: {
+            integrity: 'prettier2-integrity',
+          },
+        },
+        ['prettier@3.6.2' as DepPath]: {
+          resolution: {
+            integrity: 'prettier3-integrity',
+          },
+        },
+      },
+    }
+
+    const licensePackages = await findDependencyLicenses({
+      lockfileDir: '/opt/pnpm',
+      manifest: {} as ProjectManifest,
+      virtualStoreDir: '/.pnpm',
+      registries: {} as Registries,
+      wantedLockfile: lockfile,
+      storeDir: tmpStoreDir,
+      virtualStoreDirMaxLength: 120,
+    })
+
+    expect(licensePackages.map(({ name, version }) => ({ name, version }))).toEqual([
+      {
+        name: 'prettier',
+        version: '2.8.8',
+      },
+      {
+        name: 'prettier',
+        version: '3.6.2',
+      },
+    ])
+  })
+
+  test('findDependencyLicenses keeps the same version from two registries apart', async () => {
+    const lockfile: LockfileObject = {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: {
+            foo: '1.0.0',
+            'foo-from-work': 'foo@work:1.0.0',
+          },
+          specifiers: {
+            foo: '^1.0.0',
+            'foo-from-work': 'work:foo@^1.0.0',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['foo@1.0.0' as DepPath]: {
+          resolution: {
+            integrity: 'foo-from-npmjs-integrity',
+          },
+        },
+        ['foo@work:1.0.0' as DepPath]: {
+          resolution: {
+            integrity: 'foo-from-work-integrity',
+          },
+        },
+      },
+    }
+
+    const licensePackages = await findDependencyLicenses({
+      lockfileDir: '/opt/pnpm',
+      manifest: {} as ProjectManifest,
+      virtualStoreDir: '/.pnpm',
+      registries: {} as Registries,
+      namedRegistries: normalizeNamedRegistries({ work: 'https://npm.enterprise.example.com/' }),
+      wantedLockfile: lockfile,
+      storeDir: tmpStoreDir,
+      virtualStoreDirMaxLength: 120,
+    })
+
+    // Two distinct artifacts with their own licenses. Keying the dedupe map
+    // on a bare `name@version` collapsed them and dropped one entirely.
+    expect(licensePackages).toHaveLength(2)
+    expect(new Set(licensePackages.map((pkg) => pkg.registryName))).toStrictEqual(new Set([undefined, 'work']))
+    expect(new Set(licensePackages.map((pkg) => pkg.name))).toStrictEqual(new Set(['foo']))
   })
 })

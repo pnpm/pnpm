@@ -164,7 +164,7 @@ function makeRun (opts: MakeRunPacquetOpts): (callOpts?: RunPacquetCallOpts) => 
     logger.info({ message: banner, prefix: opts.lockfileDir })
     const child = spawn(pacquetBin, args, {
       cwd: opts.lockfileDir,
-      env: makePacquetEnv(opts),
+      env: makePacquetEnv(opts, callOpts),
       stdio: ['ignore', 'inherit', 'pipe'],
     })
     const filterResolved = callOpts?.filterResolvedProgress === true
@@ -202,14 +202,39 @@ function makeRun (opts: MakeRunPacquetOpts): (callOpts?: RunPacquetCallOpts) => 
   }
 }
 
-function makePacquetEnv (opts: MakeRunPacquetOpts): NodeJS.ProcessEnv {
+/**
+ * Tells pacquet that pnpm already ran the root project's
+ * `pnpm:devPreinstall`, so it must not run it a second time.
+ *
+ * Only resolve mode needs it. A frozen materialization is given
+ * `--ignore-manifest-check`, which pacquet's own gate for this hook
+ * already reads as "the caller ran it" — so it is suppressed there
+ * without a marker. Pacquet invoked directly by a user has no earlier
+ * run to deduplicate against.
+ *
+ * Deliberately outside the `PNPM_CONFIG_*` namespace: this is a private
+ * handshake between the two stacks for the lifetime of one delegated
+ * install, not a setting a user may set.
+ */
+export const DEV_PREINSTALL_ALREADY_RAN_ENV = 'PNPM_INTERNAL_DEV_PREINSTALL_ALREADY_RAN'
+
+export function makePacquetEnv (opts: MakeRunPacquetOpts, callOpts?: RunPacquetCallOpts): NodeJS.ProcessEnv {
   const env = { ...process.env }
   for (const key of Object.keys(env)) {
     if (key.toLowerCase() === 'pnpm_config_virtual_store_dir_max_length') {
       delete env[key]
     }
+    // Case-insensitively, like the key above: Windows treats env names
+    // that way, so a differently-cased inherited copy would otherwise
+    // survive into the child and read as a delegation marker there.
+    if (key.toLowerCase() === DEV_PREINSTALL_ALREADY_RAN_ENV.toLowerCase()) {
+      delete env[key]
+    }
   }
   env.PNPM_CONFIG_VIRTUAL_STORE_DIR_MAX_LENGTH = String(opts.virtualStoreDirMaxLength)
+  if (callOpts?.resolve === true) {
+    env[DEV_PREINSTALL_ALREADY_RAN_ENV] = 'true'
+  }
   return env
 }
 
@@ -288,16 +313,19 @@ function pacquetSupportsResolution (version: string | undefined): boolean {
  * surface pnpm itself accepts on `install`, so the flags don't need
  * reshaping.
  *
- * Flags we always inject ourselves (`--frozen-lockfile`,
+ * Flags we manage ourselves (`--frozen-lockfile`,
  * `--ignore-manifest-check`) are dropped in every form the user can
  * type them — positive (`--frozen-lockfile`), negated
- * (`--no-frozen-lockfile`), and any `=value` form. Pacquet's clap
- * defines these as plain `#[clap(long)] bool` flags, so a duplicate
- * `--frozen-lockfile` or a conflicting `--no-frozen-lockfile`
- * crashes the parser with "used multiple times" / "unexpected
- * argument". The user's `--no-frozen-lockfile` intent is already
- * honored upstream (pnpm did a fresh resolve before delegating);
- * pacquet's role here is just lockfile-driven materialization.
+ * (`--no-frozen-lockfile`), and any `=value` form. pnpm resolves the
+ * frozen-lockfile setting itself and encodes the decision in the mode
+ * it hands pacquet: a resolving install (pacquet resolves and writes
+ * the lockfile, no `--frozen-lockfile` injected) or a frozen
+ * materialization (pacquet is pinned to the lockfile via an injected
+ * `--frozen-lockfile`) — see `frozenArgs` in `makeRun`. Forwarding the
+ * user's own token would contradict that choice: pacquet accepts a
+ * `--no-<flag>` negation for every boolean flag with last-one-wins
+ * override semantics, so a user `--no-frozen-lockfile` sitting next to
+ * our injected `--frozen-lockfile` would flip the pinning back off.
  *
  * `--reporter` is stripped in any form (`--reporter=foo`,
  * `--reporter foo`): pacquet's `reporter` is a clap value option

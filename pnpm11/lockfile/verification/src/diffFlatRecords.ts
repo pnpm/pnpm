@@ -18,7 +18,11 @@ export interface Diff<Key, Value> {
   modified: Array<Modified<Key, Value>>
 }
 
-export function diffFlatRecords<Key extends string | number | symbol, Value> (left: Record<Key, Value>, right: Record<Key, Value>): Diff<Key, Value> {
+export function diffFlatRecords<Key extends string | number | symbol, Value> (
+  left: Record<Key, Value>,
+  right: Record<Key, Value>,
+  areValuesEqual: (left: Value, right: Value) => boolean = (a, b) => a === b
+): Diff<Key, Value> {
   const result: Diff<Key, Value> = {
     added: [],
     removed: [],
@@ -28,7 +32,7 @@ export function diffFlatRecords<Key extends string | number | symbol, Value> (le
   for (const [key, value] of Object.entries(left) as Array<[Key, Value]>) {
     if (!Object.hasOwn(right, key)) {
       result.removed.push({ key, value })
-    } else if (value !== right[key]) {
+    } else if (!areValuesEqual(value, right[key])) {
       result.modified.push({ key, left: value, right: right[key] })
     }
   }

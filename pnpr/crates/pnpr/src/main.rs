@@ -1,12 +1,12 @@
 use clap::Parser;
 use pnpr::{Config, ConfigSource, LogConfig, LogFormat, RegistryError, default_cache_dir, serve};
-use std::{net::SocketAddr, path::PathBuf, time::Duration};
+use std::{io::IsTerminal, net::SocketAddr, path::PathBuf, time::Duration};
 use tracing_subscriber::EnvFilter;
 
 #[derive(Debug, Parser)]
 #[command(name = "pnpr", version, about = "pnpm-compatible npm registry server")]
 struct Args {
-    /// Path to a verdaccio-shaped YAML config (storage, uplinks,
+    /// Path to a verdaccio-shaped YAML config (storage, upstreams,
     /// packages, log). When omitted, the global `config.yaml` in
     /// pnpr's config dir (pnpm's config-dir rules, under `pnpr`) is
     /// used if it exists, otherwise the bundled default config.
@@ -44,7 +44,7 @@ struct Args {
     packument_ttl_secs: Option<u64>,
 
     /// Enable local OSV npm vulnerability checks. Requires a local OSV
-    /// npm database zip at --osv-db or <cache>/osv/npm/all.zip.
+    /// npm database zip at `--osv-db` or `<cache>/osv/npm/all.zip`.
     #[arg(long)]
     osv: bool,
 
@@ -53,8 +53,9 @@ struct Args {
     osv_db: Option<PathBuf>,
 
     /// Disable the npm-registry surface (packument/tarball reads, publish,
-    /// unpublish, dist-tag, search, and the user/login endpoints).
-    /// Overrides `registry.enabled` from the loaded config.
+    /// unpublish, dist-tag, search) on this tier. Without the flag the
+    /// surface is served whenever the loaded config declares at least one
+    /// registry under `registries:`.
     #[arg(long)]
     disable_registry: bool,
 
@@ -70,7 +71,7 @@ async fn main() -> miette::Result<()> {
     let args = Args::parse();
     let auto_path = Config::auto_config_path();
     // Pass the surface-disable flags into parsing so a CLI-disabled surface
-    // skips its parse-time work too (e.g. strict uplink token resolution),
+    // skips its parse-time work too (e.g. strict upstream token resolution),
     // not just its routes — applying them after `resolve` would be too late.
     let overrides = pnpr::FeatureOverrides {
         disable_registry: args.disable_registry,
@@ -135,7 +136,15 @@ fn redacted_report(err: &RegistryError) -> miette::Report {
 fn init_logging(logs: &LogConfig) {
     let filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new(logs.level.as_filter_directive()));
-    let builder = tracing_subscriber::fmt().with_env_filter(filter);
+    // Emit ANSI colors only to an interactive terminal — never when stdout is
+    // redirected to a file or pipe (e.g. the benchmark's mock logs), where the
+    // escape codes are just noise that breaks downstream log parsing. The
+    // writer is pinned to stdout explicitly so the `is_terminal` probe always
+    // inspects the stream the subscriber actually writes to.
+    let builder = tracing_subscriber::fmt()
+        .with_env_filter(filter)
+        .with_writer(std::io::stdout)
+        .with_ansi(std::io::stdout().is_terminal());
     match logs.format {
         // `with_current_span(true)` keeps the per-request span's
         // `method`/`uri` fields attached to the single access event;

@@ -1,4 +1,4 @@
-use super::PackageName;
+use super::{PackageName, is_safe_path_segment};
 
 #[test]
 fn accepts_unscoped() {
@@ -34,4 +34,18 @@ fn rejects_tarball_for_other_package() {
     assert!(name.parse_tarball_name("bar-1.0.0.tgz").is_err());
     assert!(name.parse_tarball_name("../foo-1.0.0.tgz").is_err());
     assert!(name.parse_tarball_name("foo-1.0.0").is_err());
+}
+
+/// `C:foo` is a drive-relative prefix on Windows — `PathBuf::join` replaces
+/// the base path with it instead of descending — so a `:` anywhere in a name,
+/// version, or preserved non-canonical tarball basename must be rejected
+/// before it can become a storage or cache path segment.
+#[test]
+fn rejects_windows_drive_prefixes() {
+    assert!(!is_safe_path_segment("C:evil.tgz"));
+    assert!(!is_safe_path_segment("c:"));
+    assert!(PackageName::parse("C:foo").is_err());
+    assert!(PackageName::parse("@scope/C:foo").is_err());
+    let name = PackageName::parse("foo").unwrap();
+    assert!(name.parse_tarball_name("foo-1.0.0:x.tgz").is_err());
 }

@@ -141,7 +141,7 @@ async function _read (
     hadConflicts = false
   } catch (err: unknown) {
     if (!opts.autofixMergeConflicts || !isDiff(lockfileRawContent)) {
-      throw new PnpmError('BROKEN_LOCKFILE', `The lockfile at "${lockfilePath}" is broken: ${(err as Error).message}`)
+      throw new PnpmError('BROKEN_LOCKFILE', `The lockfile at "${lockfilePath}" is broken: ${formatLockfileError(err)}`)
     }
     hadConflicts = true
     lockfile = autofixMergeConflicts(lockfileRawContent)
@@ -180,6 +180,34 @@ async function _read (
     return { lockfile: null, lockfileFile: null, hadConflicts: false }
   }
   throw new LockfileBreakingChangeError(lockfilePath)
+}
+
+function formatLockfileError (err: unknown): string {
+  if (isYamlException(err)) {
+    const reason = typeof err.reason === 'string' ? err.reason : 'Unable to parse YAML'
+    const line = err.mark?.line
+    const column = err.mark?.column
+    const position = typeof line === 'number' && Number.isFinite(line) &&
+      typeof column === 'number' && Number.isFinite(column)
+      ? ` (${line + 1}:${column + 1})`
+      : ''
+    return `${reason}${position}`
+  }
+  return util.types.isNativeError(err) ? err.message : String(err)
+}
+
+function isYamlException (err: unknown): err is YamlExceptionLike {
+  return typeof err === 'object' && err !== null &&
+    'name' in err && err.name === 'YAMLException'
+}
+
+interface YamlExceptionLike {
+  name: 'YAMLException'
+  reason?: unknown
+  mark?: {
+    line?: unknown
+    column?: unknown
+  } | null
 }
 
 export function createLockfileObject (

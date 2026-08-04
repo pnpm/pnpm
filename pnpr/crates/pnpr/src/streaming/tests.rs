@@ -130,13 +130,14 @@ async fn cancelling_in_flight_response_body_removes_tmp_file() {
     let cache = tmp.path().join("cache");
     let storage = Storage::new(&HostedStoreConfig::Fs, tmp.path().join("hosted"), cache.clone());
     let name = PackageName::parse("foo").unwrap();
-    let write = storage.open_cached_tarball_tmp(&name, "foo-1.0.0.tgz").await.unwrap();
+    let write =
+        storage.open_upstream_tarball_tmp("~public/test", &name, "foo-1.0.0.tgz").await.unwrap();
 
     let body = stream_verified_to_cache(response, write, &integrity, u64::MAX).unwrap();
     let mut chunks = body.into_data_stream();
     // Pull the first chunk so the tee writes the body's start to the tmp file.
     chunks.next().await.expect("first chunk").expect("first chunk is ok");
-    let package_dir = cache.join("foo");
+    let package_dir = cache.join("~public/test").join("foo");
     let in_flight = await_nonempty_tarball_tmp(&package_dir).await;
     assert_eq!(in_flight.len(), 1, "expected one in-flight tarball writer");
 
@@ -160,7 +161,8 @@ async fn oversized_response_is_rejected_and_tmp_is_removed() {
     let cache = tmp.path().join("cache");
     let storage = Storage::new(&HostedStoreConfig::Fs, tmp.path().join("hosted"), cache.clone());
     let name = PackageName::parse("foo").unwrap();
-    let write = storage.open_cached_tarball_tmp(&name, "foo-1.0.0.tgz").await.unwrap();
+    let write =
+        storage.open_upstream_tarball_tmp("~public/test", &name, "foo-1.0.0.tgz").await.unwrap();
 
     // An upstream that declares an oversize body is rejected up front, before
     // any bytes stream, so the caller turns it into an error response.
@@ -168,7 +170,7 @@ async fn oversized_response_is_rejected_and_tmp_is_removed() {
     assert!(matches!(err, TarballStreamError::TooLarge { limit: 3, received } if received > 3));
 
     // The temp file the rejected writer held is removed (its `Drop`).
-    let package_dir = cache.join("foo");
+    let package_dir = cache.join("~public/test").join("foo");
     assert!(tarball_tmp_entries(&package_dir).is_empty());
     assert!(!package_dir.join("foo-1.0.0.tgz").exists());
 }

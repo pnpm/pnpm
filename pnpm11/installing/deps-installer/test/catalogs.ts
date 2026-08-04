@@ -88,6 +88,55 @@ test('installing with "catalog:" should work', async () => {
   })
 })
 
+// Mirrors the pacquet regression where `catalog:` deps were treated as changed
+// direct deps on every install, re-resolving their dependents'
+// still-satisfied subdeps (https://github.com/pnpm/pnpm/pull/13193).
+test('removing an unrelated dependency does not re-resolve a catalog dependency or its subdeps', async () => {
+  await Promise.all([
+    addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.0.0', distTag: 'latest' }),
+    addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' }),
+  ])
+  const { options, projects, readLockfile } = preparePackagesAndReturnObjects([
+    {
+      name: 'project1',
+      dependencies: {
+        '@pnpm.e2e/pkg-with-1-dep': 'catalog:',
+        'is-positive': '1.0.0',
+      },
+    },
+  ])
+
+  const catalogs = {
+    default: { '@pnpm.e2e/pkg-with-1-dep': '^100.0.0' },
+  }
+  await mutateModules(installProjects(projects), {
+    ...options,
+    lockfileOnly: true,
+    catalogs,
+  })
+
+  await Promise.all([
+    addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.1.0', distTag: 'latest' }),
+    addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' }),
+  ])
+  delete projects['project1' as ProjectId].dependencies!['is-positive']
+
+  await mutateModules(installProjects(projects), {
+    ...options,
+    lockfileOnly: true,
+    catalogs,
+  })
+
+  const lockfile = readLockfile()
+  expect(lockfile.importers['project1' as ProjectId].dependencies?.['@pnpm.e2e/pkg-with-1-dep']).toEqual({
+    specifier: 'catalog:',
+    version: '100.0.0',
+  })
+  expect(lockfile.snapshots['@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies).toStrictEqual({
+    '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
+  })
+})
+
 test('importer to importer dependency with "catalog:" should work', async () => {
   const { options, projects, readLockfile } = preparePackagesAndReturnObjects([
     {
@@ -1063,7 +1112,7 @@ test('catalogs work when inject-workspace-packages=true', async () => {
 })
 
 describe('dedupe', () => {
-  test('catalogs are deduped when running pnpm dedupe', async () => {
+  test('valid catalog resolutions are preserved when running pnpm dedupe', async () => {
     const { options, projects, readLockfile } = preparePackagesAndReturnObjects([
       {
         name: 'project1',
@@ -1117,7 +1166,6 @@ describe('dedupe', () => {
     expect(Object.keys(lockfile.packages)).toEqual(['@pnpm.e2e/foo@100.0.0', '@pnpm.e2e/foo@100.1.0'])
     expect(lockfile.catalogs.default['@pnpm.e2e/foo'].version).toBe('100.0.0')
 
-    // Perform a dedupe and expect the catalog version to update.
     await mutateModules(installProjects(projects), {
       ...options,
       dedupe: true,
@@ -1125,8 +1173,8 @@ describe('dedupe', () => {
       catalogs,
     })
     const dedupedLockfile = readLockfile()
-    expect(Object.keys(dedupedLockfile.packages)).toEqual(['@pnpm.e2e/foo@100.1.0'])
-    expect(dedupedLockfile.catalogs.default['@pnpm.e2e/foo'].version).toBe('100.1.0')
+    expect(Object.keys(dedupedLockfile.packages)).toEqual(['@pnpm.e2e/foo@100.0.0', '@pnpm.e2e/foo@100.1.0'])
+    expect(dedupedLockfile.catalogs.default['@pnpm.e2e/foo'].version).toBe('100.0.0')
   })
 })
 
@@ -1903,6 +1951,59 @@ describe('update', () => {
       foo: { '@pnpm.e2e/foo': { specifier: '100.1.0', version: '100.1.0' } },
     })
     expect(Object.keys(lockfile.snapshots)).toEqual(['@pnpm.e2e/foo@100.1.0'])
+  })
+
+  test('update --latest resolves an npm: alias catalog entry to the aliased package', async () => {
+    await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+
+    // The alias name does not exist on the registry.
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {
+        'foo-alias': 'catalog:',
+      },
+    }])
+
+    const catalogs = {
+      default: { 'foo-alias': 'npm:@pnpm.e2e/foo@~1.0.0' },
+    }
+
+    const mutateOpts = {
+      ...options,
+      lockfileOnly: true,
+      catalogs,
+    }
+
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    expect(readLockfile().catalogs.default).toEqual({
+      'foo-alias': { specifier: 'npm:@pnpm.e2e/foo@~1.0.0', version: '1.0.0' },
+    })
+
+    const { updatedCatalogs, updatedManifest } = await addDependenciesToPackage(
+      projects['project1' as ProjectId],
+      ['foo-alias'],
+      {
+        ...mutateOpts,
+        dir: path.join(process.cwd(), 'project1'),
+        allowNew: false,
+        update: true,
+        updateToLatest: true,
+      })
+
+    expect(updatedManifest).toEqual({
+      name: 'project1',
+      dependencies: {
+        'foo-alias': 'catalog:',
+      },
+    })
+    expect(updatedCatalogs).toEqual({
+      default: {
+        'foo-alias': 'npm:@pnpm.e2e/foo@~100.1.0',
+      },
+    })
+
+    expect(Object.keys(readLockfile().snapshots)).toEqual(['@pnpm.e2e/foo@100.1.0'])
   })
 
   test('update --latest works on named catalog dependency with catalogMode=prefer', async () => {

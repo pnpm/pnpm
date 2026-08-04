@@ -970,7 +970,6 @@ test('partial installation in a monorepo does not remove dependencies of other w
 })
 
 test('adding a new dependency with the workspace: protocol', async () => {
-  await addDistTag({ package: 'foo', version: '1.0.0', distTag: 'latest' })
   prepareEmpty()
 
   const { updatedProjects } = await mutateModules([
@@ -1004,7 +1003,6 @@ test('adding a new dependency with the workspace: protocol', async () => {
 })
 
 test('adding a new dependency with the workspace: protocol and save-workspace-protocol is "rolling"', async () => {
-  await addDistTag({ package: 'foo', version: '1.0.0', distTag: 'latest' })
   prepareEmpty()
 
   const { updatedProjects } = await mutateModules([

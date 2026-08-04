@@ -43,7 +43,7 @@ if (failures.length > 0) {
 
 async function listSelectedPackages (scriptName) {
   const filterArgs = scriptName === 'ci:test-branch' ? ['--filter=...[origin/main]'] : []
-  const stdout = await capturePnpm([...filterArgs, '-r', 'list', '--depth', '-1', '--json'])
+  const stdout = await capturePnpm([...filterArgs, '-r', 'list', '--depth=-1', '--json'])
   return JSON.parse(stdout)
     .map((pkg) => ({
       path: pkg.path,

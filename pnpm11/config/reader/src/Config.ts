@@ -5,10 +5,12 @@ import type {
   Finder,
   Project,
   ProjectManifest,
+  ProjectRootDir,
   ProjectsGraph,
   Registries,
   RegistryConfig,
   TrustPolicy,
+  VersioningSettings,
 } from '@pnpm/types'
 
 import type { OptionsFromRootManifest } from './getOptionsFromRootManifest.js'
@@ -44,6 +46,14 @@ export interface ConfigContext {
   allProjects?: Project[]
   selectedProjectsGraph?: ProjectsGraph
   allProjectsGraph?: ProjectsGraph
+  /**
+   * The prod-pruned full graph, set when prod-only filters (`--filter-prod`) are
+   * used. Recursive commands sort prod-only selected projects through it so
+   * transitive prod dependencies order correctly without reintroducing the dev
+   * edges the filter dropped.
+   */
+  prodAllProjectsGraph?: ProjectsGraph
+  prodOnlySelectedProjectDirs?: ProjectRootDir[]
   rootProjectManifest?: ProjectManifest
   rootProjectManifestDir: string
 
@@ -243,6 +253,12 @@ export interface Config extends OptionsFromRootManifest {
   registries: Registries
   packageManagerRegistries?: Registries
   packageManagerNetworkConfig?: PackageManagerNetworkConfig
+  /**
+   * As the user wrote it. Built-ins are filled in by
+   * `normalizeNamedRegistries` where a lookup happens, not here — this value
+   * is also forwarded to a pnpr server, which must only be asked about
+   * registries the project actually declares.
+   */
   namedRegistries?: Record<string, string>
   configByUri: Record<string, RegistryConfig>
   ignoreWorkspaceRootCheck: boolean
@@ -250,6 +266,7 @@ export interface Config extends OptionsFromRootManifest {
 
   testPattern?: string[]
   changedFilesIgnorePattern?: string[]
+  versioning?: VersioningSettings
   userConfig: Record<string, string>
 
   hoist: boolean

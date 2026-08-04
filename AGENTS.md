@@ -4,23 +4,23 @@ This document provides context and instructions for AI agents working on the pnp
 
 The repository contains three products:
 
-- The **TypeScript pnpm CLI** — the main TypeScript workspaces outside `pacquet/` and `pnpr/`.
-- The **Rust pacquet port** — `pacquet/`. See [`pacquet/AGENTS.md`](./pacquet/AGENTS.md) for pacquet-specific rules; it adds to (and never contradicts) the conventions below.
+- The **TypeScript pnpm CLI** — the main TypeScript workspaces outside `pnpm/` and `pnpr/`.
+- The **Rust pacquet port** — `pnpm/`. See [`pnpm/AGENTS.md`](./pnpm/AGENTS.md) for pacquet-specific rules; it adds to (and never contradicts) the conventions below.
 - The **Rust pnpr registry server** — `pnpr/`. See [`pnpr/AGENTS.md`](./pnpr/AGENTS.md) for pnpr-specific rules; it adds to (and never contradicts) the conventions below.
 
-Sections below marked "(TypeScript only)" apply to TypeScript code only; they do not apply to Rust code in `pacquet/` or `pnpr/`. Everything else applies repo-wide unless a nested `AGENTS.md` specializes it.
+Sections below marked "(TypeScript only)" apply to TypeScript code only; they do not apply to Rust code in `pnpm/` or `pnpr/`. Everything else applies repo-wide unless a nested `AGENTS.md` specializes it.
 
 ## Keep pnpm and pacquet in sync
 
-The two stacks are parallel implementations of the same CLI — pacquet is a Rust port of pnpm whose behavior, flags, defaults, error codes, file formats, and lockfile shape are meant to match pnpm exactly. **Any user-visible change has to land in both.**
+The two stacks are parallel implementations of the same CLI, kept behaviorally identical — the same flags, defaults, error codes, file formats, and lockfile shape. They are now at near-complete feature parity and are developed together, so **any user-visible change has to land in both at the same time.** Neither stack is downstream of the other: pacquet is a source of truth in its own right, not a port that trails the TypeScript CLI.
 
 When you change one side, do the equivalent change on the other in the same PR if you can. If you can't (different expertise, scope too large, or pacquet hasn't ported the surrounding feature yet), open the PR with just your side — call out in the description what still needs porting, and someone else will push the matching commits to the same PR before it lands.
 
 "User-visible" means anything that affects the CLI surface or the on-disk contract: command-line flags and defaults, environment-variable handling, lockfile/manifest/state-file format, error codes and messages, log emissions parsed by `@pnpm/cli.default-reporter`, store layout, hook semantics. Pure internal refactors, perf wins, and TS-only test cleanups don't need mirroring.
 
-**Any user-visible change to the TypeScript pnpm CLI must be replicated in pacquet.**
+**Any user-visible change to either stack must be replicated in the other.**
 
-The pacquet-side obligation — pnpm is the source of truth, pacquet ports from it, never the other way around — is spelled out at [`pacquet/AGENTS.md`](./pacquet/AGENTS.md#the-cardinal-rule).
+The pacquet-side conventions for keeping the two stacks aligned are in [`pnpm/AGENTS.md`](./pnpm/AGENTS.md#the-cardinal-rule).
 
 ## Repository Structure
 
@@ -62,7 +62,7 @@ The pnpm codebase is a monorepo managed by pnpm itself. The root contains functi
 
 ### Rust Projects
 
--   `pacquet/`: The pnpm CLI ported to Rust. Self-contained sub-project with its own crates, tests, and tooling — see [`pacquet/AGENTS.md`](./pacquet/AGENTS.md).
+-   `pnpm/`: The pnpm CLI ported to Rust. Self-contained sub-project with its own crates, tests, and tooling — see [`pnpm/AGENTS.md`](./pnpm/AGENTS.md).
 -   `pnpr/`: The pnpm-compatible npm registry server. Self-contained sub-project with its own crates, tests, and tooling — see [`pnpr/AGENTS.md`](./pnpr/AGENTS.md).
 
 ## Setup & Build (TypeScript only)
@@ -190,9 +190,9 @@ GitHub turns any `@name` into a mention of that user/org/team, which is wrong ei
 
 **Fix:** wrap the reference in backticks so GitHub renders it as code and sends no notification — e.g. `` `@pnpm/core` `` or `` `@foo` `` — or remove it if it is not needed. Never bypass the check with `git commit --no-verify`, by editing or deleting the hook, or with any suppression file.
 
-## Changesets (TypeScript only)
+## Changesets
 
-If your changes affect published packages, you MUST create a changeset file in the `.changeset` directory. The changeset file should describe the change and specify the packages that are affected with the pending version bump types: patch, minor, or major. Write the description for pnpm users and keep it concise — it becomes a release note. Implementation rationale belongs in the commit message, not the changeset.
+If your changes affect published packages, you MUST create a changeset file in the `.changeset` directory (`pnpm change` records one interactively; `pnpm change status` shows the pending release plan). The file describes the change and specifies the affected packages with their pending version bump types: patch, minor, or major. Write the description for pnpm users and keep it concise — it becomes a release note. Implementation rationale belongs in the commit message, not the changeset. The bare `pnpm version -r` consumes the pending changesets at release time; there is no separate `@changesets/cli` dependency.
 
 **IMPORTANT: Always explicitly include `"pnpm"` in the changeset** with the appropriate version bump (patch, minor, or major). The pnpm CLI will only receive automatic patch bumps from its dependencies, so if your change warrants a minor or major version bump for the CLI, you must specify it explicitly. The changeset description will appear on the release notes page.
 
@@ -211,6 +211,20 @@ Added a new setting `blockExoticSubdeps` that prevents the resolution of exotic 
 - **patch**: Bug fixes, internal refactors, and changes that don't require documentation updates
 - **minor**: New features, settings, or commands that should be documented (anything users should know about)
 - **major**: Breaking changes
+
+### Changesets for the Rust products
+
+The Rust products are released through the same native flow. Their npm wrapper packages are workspace packages with committed versions, so a user-visible change to a Rust product needs a changeset too, targeting:
+
+- `pacquet` — the Rust pnpm CLI (published to npm as `pnpm` and `@pnpm/exe` under its `next-<major>` dist-tag; named `pacquet` in-repo so its name can't collide with the TypeScript CLI). `@pnpm/napi` is a `versioning.fixed` group with it and bumps with it automatically.
+- `@pnpm/napi` — the Node.js addon bindings for the Rust engine.
+- `@pnpm/pnpr` — the pnpr registry server (published as `@pnpm/pnpr` and its platform packages, plus the `ghcr.io/pnpm/pnpr` Docker image).
+
+The Rust products release on `alpha` lanes (`versioning.lanes` in `pnpm-workspace.yaml`): each run of `pnpm version -r` that consumes an intent for one of them cuts an `X.Y.Z-alpha.N` prerelease, while the TypeScript CLI keeps releasing stable versions on the main lane. `pnpm lane main --filter …` graduates a product to a stable version.
+
+Do not add `"pnpm"` to a Rust-only changeset: in changesets, `pnpm` always means the TypeScript CLI package. A changeset whose implementation is Rust-only and targets `pacquet` must omit `"pnpm"`. A parity change that lands in both stacks carries one changeset naming both the affected TypeScript packages (plus `"pnpm"`) and the Rust wrapper(s).
+
+Use `pacquet` as the changeset package name, but use `pnpm` in its release-note prose and command examples (`pnpm add`, not `pacquet add`). The published Rust CLI's executable is `pnpm`; `pacquet` is only its in-repo package identifier.
 
 ## Comments
 

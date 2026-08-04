@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
+import { isSubdir } from 'is-subdir'
 import npmPacklist from 'npm-packlist'
 
 interface Edge {
@@ -21,10 +22,25 @@ interface TreeNode {
 
 export async function packlist (pkgDir: string, opts?: {
   manifest?: Record<string, unknown>
+  workspaceDir?: string
 }): Promise<string[]> {
-  const pkg = opts?.manifest ?? readPackageJson(pkgDir)
-  const tree = buildRootTree(pkgDir, pkg)
-  const files = await npmPacklist(tree)
+  const resolvedPkgDir = path.resolve(pkgDir)
+  const workspaceDir = opts?.workspaceDir == null ? undefined : path.resolve(opts.workspaceDir)
+  const pkg = opts?.manifest ?? readPackageJson(resolvedPkgDir)
+  const tree = buildRootTree(resolvedPkgDir, pkg)
+  const hasWorkspaceContext = workspaceDir != null && workspaceDir !== resolvedPkgDir && isSubdir(workspaceDir, resolvedPkgDir)
+  let hasNpmIgnore = false
+  if (hasWorkspaceContext) {
+    try {
+      hasNpmIgnore = (await fs.promises.stat(path.join(resolvedPkgDir, '.npmignore'))).isFile()
+    } catch (err: unknown) {
+      if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') throw err
+    }
+  }
+  const packlistOpts = hasWorkspaceContext && !hasNpmIgnore
+    ? { prefix: workspaceDir, workspaces: [resolvedPkgDir] }
+    : undefined
+  const files = await npmPacklist(tree, packlistOpts)
   return files.map((file) => file.replace(/^\.[/\\]/, ''))
 }
 

@@ -1,0 +1,15 @@
+diff --git a/index.js b/index.js
+index e03373cdeaff3d2d09f7dcf48beab0c5b7e221ac..7ce6d0616bf40aea1d8b9e4ec387bcff6e91281a 100644
+--- a/index.js
++++ b/index.js
+@@ -8,9 +8,6 @@ module.exports = function (registry) {
+     // Remove default ports (80 for HTTP, 443 for HTTPS) to ensure consistency
+     registry = new URL(registry).toString()
+   } catch {}
+-  if (
+-    registry.endsWith('/') ||
+-    registry.indexOf('/', registry.indexOf('//') + 2) != -1
+-  ) return registry
++  if (registry.endsWith('/')) return registry
+   return `${registry}/`
+ }

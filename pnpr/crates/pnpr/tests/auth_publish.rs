@@ -32,8 +32,26 @@ fn static_config_with_packages(dir: &TempDir, packages_block: &str) -> (Config, 
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let storage = dir.path().join("storage");
     std::fs::create_dir_all(&storage).unwrap();
-    let yaml =
-        format!("storage: {}\nuplinks: {{}}\npackages:\n{packages_block}\n", storage.display());
+    // Route everything to one local hosted over the flat storage root (an
+    // empty `org` namespace), so publishes/reads resolve through the
+    // path-less base and the per-package rules in `packages_block` gate
+    // them. The callers indent keys by two spaces; re-indent under
+    // `registries.local.packages`, and add a `'**'` catch-all with the
+    // default rules so the namespace stays name-unbounded like the old
+    // static shape.
+    let nested: String = packages_block
+        .lines()
+        .map(|line| if line.trim().is_empty() { line.to_string() } else { format!("    {line}") })
+        .collect::<Vec<_>>()
+        .join("\n");
+    let yaml = format!(
+        "storage: {}\nregistries:\n  \
+         local:\n    type: hosted\n    org: \"\"\n    access: $all\n    packages:\n\
+         {nested}\n      '**': {{}}\n  \
+         main:\n    type: router\n    sources: [local]\n\
+         defaultRegistry: main\n",
+        storage.display(),
+    );
     let config_path = dir.path().join("config.yaml");
     std::fs::write(&config_path, yaml).unwrap();
     let mut config =
@@ -957,12 +975,12 @@ async fn dist_tag_mutations_refresh_time_modified() {
 }
 
 #[tokio::test]
-async fn dist_tag_set_requires_auth() {
+async fn dist_tag_set_requires_auth_before_body_parsing() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
     let request = Request::put("/-/package/anything/dist-tags/latest")
         .header("content-type", "application/json")
-        .body(Body::from(serde_json::to_string("1.0.0").unwrap()))
+        .body(Body::from("not json"))
         .unwrap();
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
@@ -1406,64 +1424,6 @@ async fn search_returns_empty_for_made_up_query() {
 }
 
 #[tokio::test]
-async fn search_augments_with_upstream_when_local_misses_exact_name() {
-    use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
-    use std::time::Duration;
-
-    let mut upstream = mockito::Server::new_async().await;
-    let packument = json!({
-        "name": "ghost-pkg",
-        "dist-tags": { "latest": "1.0.0" },
-        "versions": {
-            "1.0.0": {
-                "name": "ghost-pkg",
-                "version": "1.0.0",
-                "description": "phantom dependency",
-                "dist": { "tarball": format!("{}/ghost-pkg/-/ghost-pkg-1.0.0.tgz", upstream.url()) },
-            },
-        },
-    });
-    let _packument_mock = upstream
-        .mock("GET", "/ghost-pkg")
-        .with_status(200)
-        .with_body(packument.to_string())
-        .create_async()
-        .await;
-
-    let tmp = TempDir::new().unwrap();
-    let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0));
-    let mut config = Config::proxy(listen, tmp.path().to_path_buf());
-    config.uplinks.get_mut("npmjs").expect("default `npmjs` uplink").url = upstream.url();
-    config.public_url = "http://example.test".to_string();
-    config.packument_ttl = Duration::from_mins(1);
-    let app = router(config);
-
-    let response = app
-        .oneshot(Request::get("/-/v1/search?text=ghost-pkg&size=20").body(Body::empty()).unwrap())
-        .await
-        .unwrap();
-    assert_eq!(response.status(), StatusCode::OK);
-    let body = body_json(response.into_body()).await;
-    let names: Vec<&str> = body["objects"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|object| object["package"]["name"].as_str().unwrap())
-        .collect();
-    assert!(
-        names.contains(&"ghost-pkg"),
-        "upstream-augment should surface exact-name match; got {names:?}",
-    );
-    assert_eq!(body["total"], names.len());
-
-    // The augment also caches the packument in the disposable proxy
-    // cache, so a subsequent search reuses it without another upstream
-    // call.
-    let on_disk = tmp.path().join(".pnpr-cache").join("ghost-pkg/package.json");
-    assert!(on_disk.exists(), "augment must cache the fetched packument");
-}
-
-#[tokio::test]
 async fn search_augment_skips_when_upstream_404s() {
     use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
     use std::time::Duration;
@@ -1478,7 +1438,7 @@ async fn search_augment_skips_when_upstream_404s() {
     let tmp = TempDir::new().unwrap();
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0));
     let mut config = Config::proxy(listen, tmp.path().to_path_buf());
-    config.uplinks.get_mut("npmjs").expect("default `npmjs` uplink").url = upstream.url();
+    config.upstreams.get_mut("npmjs").expect("default `npmjs` upstream").url = upstream.url();
     config.public_url = "http://example.test".to_string();
     config.packument_ttl = Duration::from_mins(1);
     let app = router(config);

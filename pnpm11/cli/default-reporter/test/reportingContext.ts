@@ -2,7 +2,7 @@ import { setTimeout } from 'node:timers/promises'
 
 import { expect, test } from '@jest/globals'
 import { toOutput$ } from '@pnpm/cli.default-reporter'
-import { contextLogger, packageImportMethodLogger } from '@pnpm/core-loggers'
+import { contextLogger, packageImportMethodLogger, reportPackageImported } from '@pnpm/core-loggers'
 import {
   createStreamParser,
 } from '@pnpm/logger'
@@ -84,4 +84,36 @@ test('do not print info if dlx is the executed command', async () => {
   ])
 
   expect(output).toEqual(NO_OUTPUT)
+})
+
+// The import itself runs in a worker thread whose loggers never reach the
+// reporter, so the store block only appears if the main process re-emits
+// the method the worker reported back. This drives the reporter through
+// `reportPackageImported`, the call the linking code actually makes.
+test('print context and import method info reported from the linker', async () => {
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+    },
+    streamParser: createStreamParser(),
+  })
+
+  contextLogger.debug({
+    currentLockfileExists: false,
+    storeDir: '~/.pnpm-store/v3',
+    virtualStoreDir: 'node_modules/.pnpm',
+  })
+  reportPackageImported({
+    method: 'clone',
+    requester: '/repo',
+    to: '/repo/node_modules/.pnpm/foo@1.0.0/node_modules/foo',
+  })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$)
+  expect(output).toBe(`\
+Packages are cloned from the content-addressable store to the virtual store.
+  Content-addressable store is at: ~/.pnpm-store/v3
+  Virtual store is at:             node_modules/.pnpm`)
 })

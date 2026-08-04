@@ -20,6 +20,9 @@ sha2        = { workspace = true }
 tar         = { workspace = true }
 walkdir     = { workspace = true }
 
+[dev-dependencies]
+tempfile = { workspace = true }
+
 [[bin]]
 name = "pnpr-prepare"
 path = "src/bin/pnpr-prepare.rs"

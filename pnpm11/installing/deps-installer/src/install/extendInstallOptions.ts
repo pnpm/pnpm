@@ -186,6 +186,7 @@ export interface StrictInstallOptions {
   ci?: boolean
   minimumReleaseAge?: number
   minimumReleaseAgeExclude?: string[]
+  minimumReleaseAgeIgnoreMissingTime?: boolean
   /**
    * Resolver-agnostic post-tree gate, invoked between
    * `resolveDependencyTree` and `resolvePeers` inside
@@ -394,6 +395,12 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
 export interface ProcessedInstallOptions extends StrictInstallOptions {
   readPackageHook?: ReadPackageHook
   parsedOverrides: VersionOverride[]
+  /**
+   * Present when the overrides contain convergence entries (`"pkg@"`). The
+   * versions overrider fills it with every declared semver range it sees for
+   * those packages; the staleness check reads it after a full resolution.
+   */
+  convergeDeclaredRanges?: Map<string, Set<string>>
 }
 
 export function extendOptions (
@@ -414,10 +421,14 @@ export function extendOptions (
     storeDir: defaultOpts.storeDir,
     parsedOverrides: parseOverrides(opts.overrides ?? {}, opts.catalogs ?? {}),
   }
+  if (extendedOpts.parsedOverrides.some(({ converge }) => converge)) {
+    extendedOpts.convergeDeclaredRanges = new Map()
+  }
   extendedOpts.readPackageHook = createReadPackageHook({
     ignoreCompatibilityDb: extendedOpts.ignoreCompatibilityDb,
     readPackageHook: extendedOpts.hooks?.readPackage,
     overrides: extendedOpts.parsedOverrides,
+    convergeDeclaredRanges: extendedOpts.convergeDeclaredRanges,
     lockfileDir: extendedOpts.lockfileDir,
     packageExtensions: extendedOpts.packageExtensions,
     ignoredOptionalDependencies: extendedOpts.ignoredOptionalDependencies,

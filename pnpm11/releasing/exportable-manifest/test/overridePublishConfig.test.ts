@@ -31,3 +31,15 @@ test('publish config to be overridden', async () => {
     expect(publishManifest[publishConfigKey as keyof PackageManifest]).toEqual(publishConfig[publishConfigKey])
   }
 })
+
+test('publishConfig.name renames the published package', async () => {
+  const publishManifest: PackageManifest = {
+    name: 'pacquet',
+    version: '1.0.0',
+    publishConfig: { name: 'pnpm' },
+  }
+  overridePublishConfig(publishManifest)
+
+  expect(publishManifest.name).toBe('pnpm')
+  expect(publishManifest.publishConfig).toBeUndefined()
+})

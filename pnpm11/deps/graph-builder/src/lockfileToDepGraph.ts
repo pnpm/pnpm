@@ -7,6 +7,7 @@ import {
   progressLogger,
 } from '@pnpm/core-loggers'
 import * as dp from '@pnpm/deps.path'
+import { safeJoinModulesDir } from '@pnpm/fs.symlink-dependency'
 import type { IncludedDependencies } from '@pnpm/installing.modules-yaml'
 import type { LockfileObject, LockfileResolution } from '@pnpm/lockfile.fs'
 import {
@@ -83,6 +84,13 @@ export interface LockfileToDepGraphOptions {
   pnpmVersion: string
   patchedDependencies?: PatchGroupRecord
   registries: Registries
+  namedRegistries?: Record<string, string>
+  /**
+   * The dep paths a non-optional edge reaches, as classified by
+   * `filterLockfileByImportersAndEngine`. Installability is evaluated as
+   * optional for everything outside this set.
+   */
+  requiredDepPaths: Set<DepPath>
   sideEffectsCacheRead: boolean
   skipped: Set<DepPath>
   storeController: StoreController
@@ -204,10 +212,13 @@ async function buildGraphFromPackages (
 
       const packageId = packageIdFromSnapshot(depPath, pkgSnapshot)
       if (!opts.force && packageIsInstallable(packageId, pkg, {
-        engineStrict: opts.engineStrict,
+        // An incompatibility inside an `optionalDependencies` subtree is
+        // reported, not fatal — see `filterLockfileByImportersAndEngine`,
+        // which classifies these dep paths.
+        engineStrict: opts.engineStrict && pkgSnapshot.optional !== true,
         lockfileDir: opts.lockfileDir,
         nodeVersion: opts.nodeVersion,
-        optional: pkgSnapshot.optional === true,
+        optional: !opts.requiredDepPaths.has(depPath),
         supportedArchitectures: opts.supportedArchitectures,
       }) === false) {
         opts.skipped.add(depPath)
@@ -230,7 +241,11 @@ async function buildGraphFromPackages (
       const depIntegrityIsUnchanged = isIntegrityEqual(pkgSnapshot.resolution, currentPackages[depPath]?.resolution)
 
       const modules = path.join(dirInVirtualStore, 'node_modules')
-      const dir = path.join(modules, pkgName)
+      // `pkgName` is reconstructed from the (attacker-controllable) lockfile
+      // depPath key via `dp.parse`, which does no validation. Contain it here so
+      // a traversal name (e.g. `../../../tmp/x`) can't make the package import
+      // escape the virtual store. Mirrors the guard on the hoisted linker.
+      const dir = safeJoinModulesDir(modules, pkgName)
       locationByDepPath[depPath] = dir
       // Track directory deps for injected workspace packages
       if (isDirectoryDep) {
@@ -280,7 +295,7 @@ async function buildGraphFromPackages (
       }
 
       if (!fetchResponse) {
-        const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, opts.registries)
+        const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, { registries: opts.registries, namedRegistries: opts.namedRegistries })
         progressLogger.debug({ packageId, requester: opts.lockfileDir, status: 'resolved' })
 
         try {

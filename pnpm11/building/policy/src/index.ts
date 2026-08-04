@@ -18,17 +18,21 @@ export function createAllowBuildFunction (
     const disallowedPackageBuilds = new Set<string>()
     const allowedDepPathBuilds = new Set<string>()
     const disallowedDepPathBuilds = new Set<string>()
+    const allowedGitRepoBuilds = new Set<string>()
+    const disallowedGitRepoBuilds = new Set<string>()
     for (const [pkg, value] of Object.entries(opts.allowBuilds)) {
       switch (value) {
         case true:
           addAllowBuildRule(pkg, {
             depPaths: allowedDepPathBuilds,
+            gitRepos: allowedGitRepoBuilds,
             packageSpecs: allowedPackageBuilds,
           })
           break
         case false:
           addAllowBuildRule(pkg, {
             depPaths: disallowedDepPathBuilds,
+            gitRepos: disallowedGitRepoBuilds,
             packageSpecs: disallowedPackageBuilds,
           })
           break
@@ -41,6 +45,10 @@ export function createAllowBuildFunction (
       if (disallowedDepPathBuilds.has(pkgIdWithPatchHash)) {
         return false
       }
+      const gitRepoKey = getGitRepoAllowBuildKeyFromDepPath(pkgIdWithPatchHash)
+      if (gitRepoKey != null && disallowedGitRepoBuilds.has(gitRepoKey)) {
+        return false
+      }
       const { name, version, nonSemverVersion } = dp.parse(depPath)
       const nameAtVersion = name != null && version != null ? `${name}@${version}` : undefined
       if (
@@ -50,6 +58,9 @@ export function createAllowBuildFunction (
         return false
       }
       if (allowedDepPathBuilds.has(pkgIdWithPatchHash)) {
+        return true
+      }
+      if (gitRepoKey != null && allowedGitRepoBuilds.has(gitRepoKey)) {
         return true
       }
       // Package-name rules require a trusted package identity. A
@@ -91,14 +102,78 @@ function addAllowBuildRule (
   pkg: string,
   target: {
     depPaths: Set<string>
+    gitRepos: Set<string>
     packageSpecs: Set<string>
   }
 ): void {
+  if (isGitRepoAllowBuildKey(pkg)) {
+    target.gitRepos.add(pkg)
+    return
+  }
   if (isDepPathAllowBuildKey(pkg)) {
     target.depPaths.add(dp.removePeersSuffix(pkg))
   } else {
     target.packageSpecs.add(pkg)
   }
+}
+
+function isGitRepoAllowBuildKey (pkg: string): boolean {
+  return !pkg.includes('#') && isGitRepoDepPath(pkg)
+}
+
+function getGitRepoAllowBuildKeyFromDepPath (depPath: string): string | undefined {
+  if (isGitRepoDepPath(depPath)) {
+    const refStart = depPath.indexOf('#')
+    return refStart === -1 ? depPath : depPath.slice(0, refStart)
+  }
+  // Packages installed from a git host as a downloaded tarball (e.g. the
+  // `github:` shortcut, which pnpm fetches from codeload.github.com rather
+  // than cloning) have a depPath built from the tarball URL, not a `git+`
+  // clone URL, so the check above misses them. Normalize the tarball URL back
+  // to the same `git+https://<host>/<repo>.git` repo key that a clone of the
+  // same repository would produce, so a single hashless `allowBuilds` entry
+  // approves the package however pnpm happened to fetch it.
+  return gitHostedTarballRepoKey(depPath)
+}
+
+function isGitRepoDepPath (depPath: string): boolean {
+  return depPath.startsWith('git+') || depPath.includes('@git+')
+}
+
+function gitHostedTarballRepoKey (pkgIdWithPatchHash: string): string | undefined {
+  const { name, nonSemverVersion } = dp.parse(pkgIdWithPatchHash)
+  if (name == null || nonSemverVersion == null) return undefined
+  const repoUrl = gitHostedTarballRepoUrl(nonSemverVersion)
+  return repoUrl == null ? undefined : `${name}@${repoUrl}`
+}
+
+// Reconstructs the committish-free repository URL from the download URL of a
+// git host that pnpm fetches as a tarball instead of cloning. The patterns
+// mirror the tarball templates in @pnpm/git-resolver (which come from
+// hosted-git-info, except GitLab's, which that package overrides). The host of
+// each known template is anchored so a look-alike download host (e.g.
+// `codeload.github.com.example.com`) cannot be rewritten into an unrelated
+// repo key, and each known download host claims its URLs exclusively: a URL on
+// codeload.github.com or bitbucket.org that does not match that host's tarball
+// pattern is rejected rather than falling through to the generic GitLab
+// pattern, so a malformed URL on a known host cannot be rewritten into that
+// host's trusted repo key either.
+function gitHostedTarballRepoUrl (tarballUrl: string): string | undefined {
+  // GitHub: https://codeload.github.com/<owner>/<repo>/tar.gz/<committish>
+  if (tarballUrl.startsWith('https://codeload.github.com/')) {
+    const match = /^https:\/\/codeload\.github\.com\/([^/]+)\/([^/]+)\/tar\.gz\//.exec(tarballUrl)
+    return match == null ? undefined : `git+https://github.com/${match[1]}/${match[2]}.git`
+  }
+  // Bitbucket: https://bitbucket.org/<owner>/<repo>/get/<committish>.tar.gz
+  if (tarballUrl.startsWith('https://bitbucket.org/')) {
+    const match = /^https:\/\/bitbucket\.org\/([^/]+)\/([^/]+)\/get\//.exec(tarballUrl)
+    return match == null ? undefined : `git+https://bitbucket.org/${match[1]}/${match[2]}.git`
+  }
+  // GitLab (incl. self-hosted): https://<host>/<group…>/<repo>/-/archive/<ref>/…
+  // The project path may contain nested groups, so match up to the
+  // `/-/archive/<ref>/` marker rather than a fixed number of path segments.
+  const match = /^https:\/\/([^/]+)\/(.+?)\/-\/archive\/[^/]+\//.exec(tarballUrl)
+  return match == null ? undefined : `git+https://${match[1]}/${match[2]}.git`
 }
 
 function isDepPathAllowBuildKey (pkg: string): boolean {

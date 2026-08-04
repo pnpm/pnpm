@@ -1,5 +1,5 @@
 import { expect, test } from '@jest/globals'
-import { FetchError, PnpmError, redactUrlCredentials } from '@pnpm/error'
+import { FetchError, PnpmError, redactAndSanitize, redactUrlCredentials } from '@pnpm/error'
 
 test('PnpmError exposes cause when provided', () => {
   const cause = new Error('original failure')
@@ -79,4 +79,15 @@ test('redactUrlCredentials', () => {
   // Multiple credentialed URLs in one message are all redacted.
   expect(redactUrlCredentials('a https://u:p@h1/x and b https://t@h2/y'))
     .toBe('a https://h1/x and b https://h2/y')
+})
+
+test('redactAndSanitize', () => {
+  // Credentials are redacted and every control character (C0, DEL, C1) is
+  // stripped, so raw stderr can't leak secrets or inject terminal escapes.
+  expect(redactAndSanitize('fatal: \u001b[31mhttps://user:pass@host/repo.git\u001b[0m\r\nnot found\u0000'))
+    .toBe('fatal: [31mhttps://host/repo.git[0mnot found')
+  expect(redactAndSanitize('plain text')).toBe('plain text')
+  // A control character inside the userinfo must not break the redaction:
+  // controls are stripped first, then credentials are redacted.
+  expect(redactAndSanitize('https://user:pass\r@host/x')).toBe('https://host/x')
 })

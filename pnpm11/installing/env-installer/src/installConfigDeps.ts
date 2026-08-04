@@ -7,6 +7,7 @@ import { installingConfigDepsLogger, skippedOptionalDependencyLogger } from '@pn
 import { calcGlobalVirtualStorePathWithSubdeps, calcLeafGlobalVirtualStorePath } from '@pnpm/deps.graph-hasher'
 import { PnpmError } from '@pnpm/error'
 import { readModulesDir } from '@pnpm/fs.read-modules-dir'
+import { safeJoinModulesDir } from '@pnpm/fs.symlink-dependency'
 import { type EnvLockfile, readEnvLockfile } from '@pnpm/lockfile.fs'
 import { getNpmTarballUrl } from '@pnpm/resolving.tarball-url'
 import type { StoreController } from '@pnpm/store.controller'
@@ -292,7 +293,7 @@ async function installOptionalSubdeps (opts: InstallOptionalSubdepsOpts): Promis
   await Promise.all(compatibleSubdeps.map(async (subdep) => {
     const subdepFullPkgId = `${subdep.name}@${subdep.version}:${subdep.resolution.integrity}`
     const subdepRelPath = calcLeafGlobalVirtualStorePath(subdepFullPkgId, subdep.name, subdep.version)
-    const subdepDirInGlobalVirtualStore = path.join(opts.globalVirtualStoreDir, subdepRelPath, 'node_modules', subdep.name)
+    const subdepDirInGlobalVirtualStore = safeJoinModulesDir(path.join(opts.globalVirtualStoreDir, subdepRelPath, 'node_modules'), subdep.name)
     if (!fs.existsSync(path.join(subdepDirInGlobalVirtualStore, 'package.json'))) {
       opts.reportStarted()
       const { fetching } = await opts.store.fetchPackage({
@@ -310,7 +311,7 @@ async function installOptionalSubdeps (opts: InstallOptionalSubdepsOpts): Promis
         filesResponse,
       })
     }
-    const linkPath = path.join(opts.parentNodeModulesDir, subdep.name)
+    const linkPath = safeJoinModulesDir(opts.parentNodeModulesDir, subdep.name)
     if (await symlinkPointsTo(linkPath, subdepDirInGlobalVirtualStore)) {
       return
     }

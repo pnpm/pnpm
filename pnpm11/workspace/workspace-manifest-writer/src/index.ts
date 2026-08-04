@@ -7,10 +7,10 @@ import { parsePkgAndParentSelector } from '@pnpm/config.parse-overrides'
 import { mergePackageVersionSpecs } from '@pnpm/config.version-policy'
 import { type GLOBAL_CONFIG_YAML_FILENAME, WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import type { ResolvedCatalogEntry } from '@pnpm/lockfile.types'
+import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import type {
   Project,
 } from '@pnpm/types'
-import { lexCompare } from '@pnpm/util.lex-comparator'
 import { validateWorkspaceManifest, type WorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { patchDocument } from '@pnpm/yaml.document-sync'
 import { equals } from 'ramda'

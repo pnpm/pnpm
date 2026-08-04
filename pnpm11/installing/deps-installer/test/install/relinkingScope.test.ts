@@ -82,6 +82,36 @@ test('relinks only changed child edges for existing packages after dependency up
   expect(pkgCalls.every(({ children }) => !children.includes('is-positive'))).toBe(true)
 })
 
+test('restores an unchanged child edge when its on-disk link is missing', async () => {
+  const manifest: ProjectManifest = {
+    dependencies: {
+      '@pnpm.e2e/pkg-with-good-optional': '1.0.0',
+    },
+  }
+  prepare(manifest)
+  const options = testDefaults()
+
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, options)
+
+  const childLink = path.resolve('node_modules/.pnpm/@pnpm.e2e+pkg-with-good-optional@1.0.0/node_modules/is-positive')
+  fs.rmSync(childLink, { recursive: true })
+  expect(fs.existsSync(childLink)).toBe(false)
+  symlinkAllModulesCalls.length = 0
+
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, options)
+
+  expect(fs.realpathSync(childLink)).toContain('is-positive@1.0.0')
+  expect(symlinkAllModulesCalls.flat().some(({ children }) => children.includes('is-positive'))).toBe(true)
+})
+
 test('removes obsolete child links for existing packages after dependency updates', async () => {
   const manifest: ProjectManifest = {
     dependencies: {

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/scripts",
-  "version": "1100.0.16",
+  "version": "1100.0.21",
   "private": true,
   "type": "module",
   "scripts": {

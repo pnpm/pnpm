@@ -378,9 +378,15 @@ test('pnpm outdated: print only compatible versions', async () => {
 })
 
 test('ignore packages in package.json > pnpm.updateConfig.ignoreDependencies in outdated command', async () => {
+  tempDir()
+  fs.copyFileSync(path.join(withPnpmUpdateIgnore, 'package.json'), path.resolve('package.json'))
+  fs.copyFileSync(path.join(withPnpmUpdateIgnore, WANTED_LOCKFILE), path.resolve(WANTED_LOCKFILE))
+  fs.mkdirSync(path.resolve('node_modules/.pnpm'), { recursive: true })
+  fs.copyFileSync(path.join(withPnpmUpdateIgnore, WANTED_LOCKFILE), path.resolve('node_modules/.pnpm/lock.yaml'))
+
   const { output, exitCode } = await outdated.handler({
     ...OUTDATED_OPTIONS,
-    dir: withPnpmUpdateIgnore,
+    dir: process.cwd(),
     updateConfig: {
       ignoreDependencies: [
         'is-positive',

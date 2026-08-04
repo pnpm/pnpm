@@ -1,5 +1,6 @@
 import { tryReadProjectManifest } from '@pnpm/cli.utils'
 import { mutateModulesInSingleProject } from '@pnpm/installing.deps-installer'
+import { getRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import type { IgnoredBuilds, IncludedDependencies, ProjectRootDir } from '@pnpm/types'
 
@@ -24,7 +25,6 @@ export interface InstallGlobalPackagesOptions extends CreateStoreControllerOptio
   allowBuilds?: Record<string, string | boolean>
   include: IncludedDependencies
   includeDirect?: IncludedDependencies
-  fetchFullMetadata?: boolean
   omitSummaryLog?: boolean
   rootProjectManifest?: unknown
   rootProjectManifestDir?: string
@@ -54,7 +54,7 @@ export async function installGlobalPackages (
     storeController: store.ctrl,
     storeDir: store.dir,
   }
-  const pinnedVersion = opts.saveExact ? 'patch' : (opts.savePrefix === '~' ? 'minor' : 'major')
+  const rangeSpecStyle = getRangeSpecStyle(opts)
   const { updatedProject, ignoredBuilds, resolutionPolicyViolations } = await mutateModulesInSingleProject(
     {
       allowNew: true,
@@ -63,7 +63,7 @@ export async function installGlobalPackages (
       manifest,
       mutation: 'installSome' as const,
       peer: false,
-      pinnedVersion,
+      rangeSpecStyle,
       rootDir: opts.dir as ProjectRootDir,
       targetDependenciesField: 'dependencies' as const,
     },

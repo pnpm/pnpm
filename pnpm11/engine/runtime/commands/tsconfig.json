@@ -22,6 +22,9 @@
       "path": "../../../core/logger"
     },
     {
+      "path": "../../../core/types"
+    },
+    {
       "path": "../../../exec/pnpm-cli-runner"
     },
     {

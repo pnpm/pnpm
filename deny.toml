@@ -52,6 +52,15 @@ ignore = [
   # ships only in `hickory-proto` 0.26.1+. Revisit when reqwest moves to
   # hickory 0.26.
   { id = "RUSTSEC-2026-0119", reason = "Temporary risk acceptance: reqwest 0.13.x (latest 0.13.3) is locked to hickory-resolver 0.25 and no release consumes hickory-proto 0.26.1+ yet; revisit on reqwest upgrade." },
+  # quick-xml DoS advisories (quadratic duplicate-attribute check, unbounded
+  # namespace-declaration allocation). quick-xml is reached only through
+  # object_store's S3 XML response parsing in pnpr, so the XML comes from the
+  # operator-configured S3-compatible storage backend, not from untrusted
+  # clients. Both fixes ship only in quick-xml 0.41.0, which no object_store
+  # release can resolve yet: object_store 0.13 requires ^0.39 and 0.14
+  # requires ^0.40.1. Revisit when object_store consumes quick-xml 0.41+.
+  { id = "RUSTSEC-2026-0194", reason = "Temporary risk acceptance: XML parsed by quick-xml comes only from the operator-configured S3 backend via object_store; no object_store release consumes the patched quick-xml 0.41 yet." },
+  { id = "RUSTSEC-2026-0195", reason = "Temporary risk acceptance: XML parsed by quick-xml comes only from the operator-configured S3 backend via object_store; no object_store release consumes the patched quick-xml 0.41 yet." },
 ]
 
 # --- Licenses ------------------------------------------------------------

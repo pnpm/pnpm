@@ -132,7 +132,12 @@ export async function parseCliArgs (
 
   function getEscapeArgsWithSpecialCases (): string[] | undefined {
     if (!SPECIALLY_ESCAPED_CMDS.has(cmd!)) {
-      return opts.escapeArgs
+      // An escape word only escapes when it is the command itself: nopt
+      // stops parsing options at the first occurrence of an escape word
+      // anywhere in argv, so escaping under another command would silently
+      // turn that command's trailing options into parameters (e.g. the
+      // --registry in `pnpm team create @org:x --registry <url>`).
+      return opts.escapeArgs?.includes(commandName) ? opts.escapeArgs : undefined
     }
 
     // We'd like everything after the run script's name to be passed to the

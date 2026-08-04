@@ -16,13 +16,16 @@ export function cliOptionsTypes (): Record<string, unknown> {
   return rcOptionsTypes()
 }
 
-export const commandNames = ['bugs']
+export const commandNames = ['bugs', 'issues']
 
 export function help (): string {
   return renderHelp({
     description: "Opens the URL of the package's bug tracker in a browser.",
     url: docsUrl('bugs'),
-    usages: ['pnpm bugs [<pkgname> [<pkgname> ...]]'],
+    usages: [
+      'pnpm bugs [<pkgname> [<pkgname> ...]]',
+      'pnpm issues [<pkgname> [<pkgname> ...]]',
+    ],
   })
 }
 

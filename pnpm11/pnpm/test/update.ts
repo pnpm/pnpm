@@ -3,12 +3,14 @@ import path from 'node:path'
 import { expect, test } from '@jest/globals'
 import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { prepare, preparePackages } from '@pnpm/prepare'
+import { bravoDepMatureUpTo101MinimumReleaseAge } from '@pnpm/testing.registry-mock'
 import { readYamlFileSync } from 'read-yaml-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import {
   addDistTag,
   execPnpm,
+  execPnpmSync,
 } from './utils/index.js'
 
 test('update <dep>', async () => {
@@ -855,4 +857,54 @@ test('update to latest recursive workspace (prerelease, outdated)', async functi
   expect(lockfile2).not.toHaveProperty(['packages', '@pnpm.e2e/has-prerelease@1.0.0'])
   expect(lockfile2).toHaveProperty(['packages', '@pnpm.e2e/has-prerelease@2.0.0'])
   expect(lockfile2).toHaveProperty(['packages', '@pnpm.e2e/has-prerelease@3.0.0-rc.0'])
+})
+
+// Covers https://github.com/pnpm/pnpm/issues/11165: update must resolve to
+// the newest version that satisfies minimumReleaseAge instead of failing
+// when the newest release is too recent. minimumReleaseAgeStrict is left
+// unset so the config reader's auto-strict default applies, as it does for
+// a user who only set minimumReleaseAge.
+
+test('update respects minimumReleaseAge, picking the newest mature version in range', async () => {
+  const project = prepare()
+
+  await execPnpm(['add', '@pnpm.e2e/bravo-dep@1.0.0'])
+
+  project.writePackageJson({
+    dependencies: {
+      '@pnpm.e2e/bravo-dep': '^1.0.0',
+    },
+  })
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    minimumReleaseAge: bravoDepMatureUpTo101MinimumReleaseAge(),
+  })
+
+  execPnpmSync(['update'], {
+    omitEnvDefaults: ['pnpm_config_minimum_release_age'],
+    expectSuccess: true,
+  })
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/bravo-dep'].version).toBe('1.0.1')
+})
+
+test('update --latest respects minimumReleaseAge, picking the newest mature version', async () => {
+  const project = prepare()
+
+  await execPnpm(['add', '@pnpm.e2e/bravo-dep@1.0.0'])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    minimumReleaseAge: bravoDepMatureUpTo101MinimumReleaseAge(),
+  })
+
+  execPnpmSync(['update', '--latest'], {
+    omitEnvDefaults: ['pnpm_config_minimum_release_age'],
+    expectSuccess: true,
+  })
+
+  const pkg = await readPackageJsonFromDir(process.cwd())
+  expect(pkg.dependencies?.['@pnpm.e2e/bravo-dep']).toBe('1.0.1')
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/bravo-dep'].version).toBe('1.0.1')
 })

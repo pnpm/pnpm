@@ -6,11 +6,12 @@ import { createResolver } from '@pnpm/installing.client'
 import { logger } from '@pnpm/logger'
 import type { ResolveFunction } from '@pnpm/resolving.resolver-base'
 import type { ProjectRootDir, Registries } from '@pnpm/types'
-import { sortProjects } from '@pnpm/workspace.projects-sorter'
+import { sortFilteredProjects } from '@pnpm/workspace.projects-sorter'
 import pFilter from 'p-filter'
 import { pick } from 'ramda'
 import { writeJsonFile } from 'write-json-file'
 
+import { publishedName } from '../publishedNames.js'
 import { batchPublishPackages } from './batchPublish.js'
 import { publish } from './publish.js'
 import type { PublishPackedPkgOptions, PublishSummary } from './publishPackedPkg.js'
@@ -53,9 +54,13 @@ Partial<Pick<Config,
 | 'unsafePerm'
 | 'userAgent'
 | 'verifyStoreIntegrity'
+| 'versioning'
 >> &
 Partial<Pick<ConfigContext,
 | 'selectedProjectsGraph'
+| 'allProjectsGraph'
+| 'prodAllProjectsGraph'
+| 'prodOnlySelectedProjectDirs'
 >> & {
   access?: 'public' | 'restricted'
   argv: {
@@ -90,7 +95,7 @@ export async function recursivePublish (
       lockfileDir: opts.lockfileDir ?? pkg.rootDir,
       registries: opts.registries,
       resolve,
-    }, pkg.manifest.name, pkg.manifest.version))
+    }, publishedName(pkg.manifest)!, pkg.manifest.version))
   })
   const publishedPkgDirs = new Set<ProjectRootDir>(pkgsToPublish.map(({ rootDir }) => rootDir))
   const publishedPackages: RecursivePublishedPackage[] = []
@@ -113,7 +118,7 @@ export async function recursivePublish (
     if (opts.cliOptions['otp']) {
       appendedArgs.push(`--otp=${opts.cliOptions['otp'] as string}`)
     }
-    const chunks = sortProjects(opts.selectedProjectsGraph)
+    const chunks = sortFilteredProjects(opts)
     const tag = opts.tag ?? 'latest'
     if (opts.batch) {
       const sortedPkgs = chunks
@@ -131,7 +136,9 @@ export async function recursivePublish (
         for (const pkgDir of chunk) {
           if (!publishedPkgDirs.has(pkgDir)) continue
           const pkg = opts.selectedProjectsGraph[pkgDir].package
-          const registry = pkg.manifest.publishConfig?.registry ?? pickRegistryForPackage(opts.registries, pkg.manifest.name!)
+          // The registry is picked by scope, so a `publishConfig.name` that
+          // moves the package to another scope has to route by the new one.
+          const registry = pkg.manifest.publishConfig?.registry ?? pickRegistryForPackage(opts.registries, publishedName(pkg.manifest)!)
           // eslint-disable-next-line no-await-in-loop
           const publishResult = await publish({
             ...opts,

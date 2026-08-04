@@ -3,9 +3,12 @@
 ## Table of contents
 
 - [Setting Up the Environment](#setting-up-the-environment)
+  - [JavaScript and TypeScript CLI](#javascript-and-typescript-cli)
+  - [Rust toolchain and git hooks](#rust-toolchain-and-git-hooks)
 - [Working with Git Worktrees](#working-with-git-worktrees)
 - [Running Tests](#running-tests)
 - [Submitting a Pull Request (PR)](#submitting-a-pull-request-pr)
+  - [AI-assisted contributions](#ai-assisted-contributions)
   - [After your pull request is merged](#after-your-pull-request-is-merged)
 - [Coding Style Guidelines](#coding-style-guidelines)
 - [Commit Message Guidelines](#commit-message-guidelines)
@@ -19,6 +22,10 @@
 
 ## Setting Up the Environment
 
+The repository holds two implementations of the same package manager: the TypeScript pnpm CLI and the Rust `pacquet` port (plus the Rust `pnpr` registry server). Most contributions touch Rust, but the two stacks share one workspace, so set up both.
+
+### JavaScript and TypeScript CLI
+
 1. Run `pnpm install` in the root of the repository to install all dependencies.
 1. Run `pnpm add ./pnpm/dev -g` to make pnpm from the repository available in the command line via the `pd` command.
 1. Run `pnpm run compile` to create an initial build of pnpm from the source in the repository.
@@ -31,6 +38,32 @@ Some of the e2e tests run node-gyp, so you might need to install some build-esse
 ```shell
 sudo dnf install make automake gcc gcc-c++ kernel-devel
 ```
+
+### Rust toolchain and git hooks
+
+Rust is now the primary language in this repository, so most contributions need a working Rust toolchain and the Rust developer tools. The Rust workspace (`Cargo.toml`, `rust-toolchain.toml`, `justfile`) lives at the repository root; run `cargo` and `just` from there.
+
+1. Install [`rustup`](https://rustup.rs). You do not need to select a toolchain by hand. `rust-toolchain.toml` pins the version the project builds with, and `rustup` installs it, together with `rustfmt` and `clippy` from the pinned `default` profile, the first time you run `cargo` inside the repository.
+
+2. Install [`just`](https://just.systems) (the task runner) and [`cargo-binstall`](https://github.com/cargo-bins/cargo-binstall), then install the task tools from the repository root:
+
+   ```shell
+   just init
+   ```
+
+   `just init` installs `cargo-nextest`, `cargo-watch`, `cargo-insta`, `typos-cli`, `taplo-cli`, `wasm-pack`, and `cargo-llvm-cov`.
+
+3. Install the dylint tools, which `just init` does not cover, **from source**:
+
+   ```shell
+   cargo install cargo-dylint dylint-link
+   ```
+
+   Install these from source rather than with `cargo binstall`. The prebuilt `cargo-dylint` binaries reference the `dylint_driver` crate at the path where they were built, so building the per-toolchain driver fails locally with an error that points at a nonexistent `.../dylint/driver` directory. A `cargo install` build resolves the driver against your local cargo registry and works.
+
+Make sure `~/.cargo/bin` is on your `PATH`, ahead of any system-wide Rust in `/usr/bin`. `rustup`'s installer adds this entry through `~/.cargo/env`; ensure your shell sources it. This matters for the git hooks. The `pnpm install` step above wires up husky, and its `pre-push` hook runs the Rust checks in `pnpm/scripts/pre-push-rust.sh` (format, doc, dylint, typos) alongside the TypeScript compile and lint. That script locates `cargo`, `rustup`, `taplo`, `typos`, and `cargo-dylint` through `PATH`, and it **skips** a check when the tool is not found rather than failing. A push that appears to pass locally with the tools off `PATH` has silently skipped the format, doc, and dylint checks, so those problems surface only in CI.
+
+For the full Rust development workflow (checks, tests, benchmarks, and the code style guide), see [`pnpm/CONTRIBUTING.md`](./pnpm/CONTRIBUTING.md).
 
 ## Working with Git Worktrees
 
@@ -184,8 +217,12 @@ pnpm --filter core run test test/lockfile.ts -t "lockfile has dev deps even when
 
 Before you submit your Pull Request (PR) consider the following guidelines:
 
-- Search [GitHub](https://github.com/pnpm/pnpm/pulls) for an open or closed PR
-  that relates to your submission. You don't want to duplicate effort.
+- Check whether the issue you are fixing already has a PR. GitHub automatically
+  cross-links every PR that references an issue on the issue's timeline, so open
+  the issue and look at its linked pull requests. If a PR already solves the
+  issue, contribute by reviewing or improving that PR instead of opening a
+  competing one — duplicate PRs are closed in favor of the first viable one, and
+  the effort spent on them (yours and the reviewers') is wasted.
 - Make your changes in a new git branch:
 
   ```shell
@@ -212,6 +249,9 @@ Before you submit your Pull Request (PR) consider the following guidelines:
   ```
 
 - In GitHub, send a pull request to `pnpm:main`.
+- Wait for the automated reviewers. A human reviewer will only start the review
+  process once CodeRabbit has approved the PR and CI is green, so address its
+  findings first.
 - If we suggest changes then:
 
   - Make the required updates.
@@ -224,6 +264,28 @@ Before you submit your Pull Request (PR) consider the following guidelines:
     ```
 
 That's it! Thank you for your contribution!
+
+### AI-assisted contributions
+
+We use AI coding agents ourselves and welcome contributions made with them. But
+you, the contributor, are responsible for what you submit — an agent's output is
+a draft, not a finished PR. Maintainer review time is the scarcest resource this
+project has, and a stream of unvetted agent-generated PRs consumes it faster
+than any other kind of contribution. Before submitting, make sure that:
+
+- You checked the issue's linked PRs and are not duplicating an existing fix.
+  Agents will happily produce a patch for an issue that is already solved.
+- You understand the change and can answer review questions about it yourself.
+- You ran the relevant tests locally and they pass.
+- The PR does only what it says: no drive-by reformatting, unrelated fixes, or
+  invented refactors padding the diff.
+- Agent-written PRs, issues, and comments disclose it with a footer naming the
+  agent and the model, e.g.
+  `Written by an agent (Claude Code, claude-opus-4-7).`
+
+PRs that appear to be unreviewed agent output — duplicating an existing PR,
+failing to compile, or not addressing the referenced issue — may be closed
+without detailed review.
 
 ### After your pull request is merged
 

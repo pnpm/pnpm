@@ -36,42 +36,17 @@ test('forbids aliases', () => {
   })).toThrow('The peerDependencies field named \'foo\' of package \'my-pkg\' has an invalid value: \'bar@1.2.3\'')
 })
 
-test('forbids `file:` scheme', () => {
-  expect(validatePeerDependencies.bind(null, {
+test('accepts dependency specifiers that carry a scheme', () => {
+  validatePeerDependencies({
     rootDir: '/repo/packages/pkg',
     manifest: {
       peerDependencies: {
-        foo: 'file:../foo',
+        'named-registry': 'work:5.x.x',
+        'npm-alias': 'npm:bar@^5',
+        'file-scheme': 'file:../foo',
+        'link-scheme': 'link:../foo',
+        'git-scheme': 'git+https://example.com/foo.git',
       },
     },
-  })).toThrow('The peerDependencies field named \'foo\' of package \'/repo/packages/pkg\' has an invalid value: \'file:../foo\'')
-  expect(validatePeerDependencies.bind(null, {
-    rootDir: '/repo/packages/pkg',
-    manifest: {
-      name: 'my-pkg',
-      peerDependencies: {
-        foo: 'file:../foo',
-      },
-    },
-  })).toThrow('The peerDependencies field named \'foo\' of package \'my-pkg\' has an invalid value: \'file:../foo\'')
-})
-
-test('forbids `link:` scheme', () => {
-  expect(validatePeerDependencies.bind(null, {
-    rootDir: '/repo/packages/pkg',
-    manifest: {
-      peerDependencies: {
-        foo: 'link:../foo',
-      },
-    },
-  })).toThrow('The peerDependencies field named \'foo\' of package \'/repo/packages/pkg\' has an invalid value: \'link:../foo\'')
-  expect(validatePeerDependencies.bind(null, {
-    rootDir: '/repo/packages/pkg',
-    manifest: {
-      name: 'my-pkg',
-      peerDependencies: {
-        foo: 'link:../foo',
-      },
-    },
-  })).toThrow('The peerDependencies field named \'foo\' of package \'my-pkg\' has an invalid value: \'link:../foo\'')
+  })
 })

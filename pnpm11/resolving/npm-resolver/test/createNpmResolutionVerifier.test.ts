@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, expect, test } from '@jest/globals'
+import { normalizeNamedRegistries } from '@pnpm/config.normalize-registries'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import { createNpmResolutionVerifier } from '@pnpm/resolving.npm-resolver'
 import type { Resolution } from '@pnpm/resolving.resolver-base'
@@ -544,6 +545,7 @@ test('createNpmResolutionVerifier() canTrustPastCheck rejects when the trust-exc
   }))
   // Same policy → trust.
   expect(verifier.canTrustPastCheck({
+    ...verifier.policy,
     tarballUrlBinding: true,
     integrityRequired: true,
     minimumReleaseAge: 0,
@@ -554,6 +556,7 @@ test('createNpmResolutionVerifier() canTrustPastCheck rejects when the trust-exc
   })).toBe(true)
   // Cached run had a wider exclude list (today's is stricter) → invalidate.
   expect(verifier.canTrustPastCheck({
+    ...verifier.policy,
     tarballUrlBinding: true,
     integrityRequired: true,
     minimumReleaseAge: 0,
@@ -562,6 +565,18 @@ test('createNpmResolutionVerifier() canTrustPastCheck rejects when the trust-exc
     trustPolicyExclude: ['foo', 'bar'],
     trustPolicyIgnoreAfter: null,
   })).toBe(false)
+})
+
+test('createNpmResolutionVerifier() canTrustPastCheck rejects a changed named-registry mapping', () => {
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts({
+    namedRegistries: normalizeNamedRegistries({ work: 'https://registry.example.test' }),
+  }))
+  const changedVerifier = createNpmResolutionVerifier(makeVerifierOpts({
+    namedRegistries: normalizeNamedRegistries({ work: 'https://other.example.test' }),
+  }))
+
+  expect(verifier.canTrustPastCheck(verifier.policy)).toBe(true)
+  expect(changedVerifier.canTrustPastCheck(verifier.policy)).toBe(false)
 })
 
 test('createNpmResolutionVerifier() propagates the registry fetch error instead of reporting a tampering-style mismatch', async () => {

@@ -1,0 +1,23 @@
+[package]
+name                 = "pacquet-network-web-auth-testing"
+description          = "Shared test fakes for the OTP / web-auth flow (pacquet-network-web-auth)"
+version              = "0.0.1"
+publish              = false
+authors.workspace    = true
+edition.workspace    = true
+homepage.workspace   = true
+keywords.workspace   = true
+license.workspace    = true
+repository.workspace = true
+
+[dependencies]
+pacquet-diagnostics      = { workspace = true }
+pacquet-network-web-auth = { workspace = true }
+pacquet-reporter         = { workspace = true }
+
+derive_more = { workspace = true }
+serde_json  = { workspace = true }
+tokio       = { workspace = true, features = ["sync"] }
+
+[lints]
+workspace = true

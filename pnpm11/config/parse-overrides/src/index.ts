@@ -2,6 +2,7 @@ import { matchCatalogResolveResult, resolveFromCatalog } from '@pnpm/catalogs.re
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { PnpmError } from '@pnpm/error'
 import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
+import semver from 'semver'
 
 const DELIMITER_REGEX = /[^ |@]>/
 
@@ -10,6 +11,13 @@ export interface VersionOverride {
   parentPkg?: PackageSelector
   targetPkg: PackageSelector
   newBareSpecifier: string
+  /**
+   * True for empty-range selectors (`"pkg@"`): a convergence override. It
+   * applies to a dependency edge only when `newBareSpecifier` (always an
+   * exact version) satisfies the edge's declared range, so applying it can
+   * never violate a consumer's range.
+   */
+  converge?: boolean
 }
 
 export interface PackageSelector {
@@ -35,12 +43,27 @@ export function parseOverrides (
           throw new PnpmError('CATALOG_IN_OVERRIDES', `Could not resolve a catalog in the overrides: ${error.message}`)
         },
       })
-      return {
+      const override = {
         selector,
         newBareSpecifier: resolvedCatalog ?? newBareSpecifier,
         ...result,
       }
+      return markConvergeOverride(override)
     })
+}
+
+function markConvergeOverride (override: VersionOverride): VersionOverride {
+  const emptyRangeInParentChildSelector = override.parentPkg != null &&
+    (override.parentPkg.bareSpecifier === '' || override.targetPkg.bareSpecifier === '')
+  if (emptyRangeInParentChildSelector) {
+    throw new PnpmError('INVALID_CONVERGENCE_OVERRIDE', `Cannot use an empty range in the "${override.selector}" selector: convergence overrides ("pkg@") cannot be combined with parent>child selectors`)
+  }
+  if (override.targetPkg.bareSpecifier !== '') return override
+  if (semver.valid(override.newBareSpecifier) == null) {
+    throw new PnpmError('INVALID_CONVERGENCE_OVERRIDE', `The value of the convergence override "${override.selector}" must be an exact version, but got "${override.newBareSpecifier}"`)
+  }
+  override.converge = true
+  return override
 }
 
 export function parsePkgAndParentSelector (selector: string): Pick<VersionOverride, 'parentPkg' | 'targetPkg'> {

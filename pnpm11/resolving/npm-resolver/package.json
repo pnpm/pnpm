@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolving.npm-resolver",
-  "version": "1102.1.0",
+  "version": "1103.1.0",
   "description": "Resolver for npm-hosted packages",
   "keywords": [
     "pnpm",
@@ -33,14 +33,17 @@
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
+    "@pnpm/config.normalize-registries": "workspace:*",
     "@pnpm/config.pick-registry-for-package": "workspace:*",
     "@pnpm/config.version-policy": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/crypto.hash": "workspace:*",
+    "@pnpm/deps.path": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fetching.types": "workspace:*",
     "@pnpm/fs.graceful-fs": "workspace:*",
+    "@pnpm/pkg-manifest.utils": "workspace:*",
     "@pnpm/resolving.jsr-specifier-parser": "workspace:*",
     "@pnpm/resolving.registry.pkg-metadata-filter": "workspace:*",
     "@pnpm/resolving.registry.types": "workspace:*",
@@ -55,7 +58,6 @@
     "lru-cache": "catalog:",
     "normalize-path": "catalog:",
     "p-limit": "catalog:",
-    "p-memoize": "catalog:",
     "parse-npm-tarball-url": "catalog:",
     "path-temp": "catalog:",
     "ramda": "catalog:",
@@ -63,6 +65,7 @@
     "semver": "catalog:",
     "semver-utils": "catalog:",
     "ssri": "catalog:",
+    "validate-npm-package-name": "catalog:",
     "version-selector-type": "catalog:"
   },
   "peerDependencies": {
@@ -80,6 +83,7 @@
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:",
     "@types/ssri": "catalog:",
+    "@types/validate-npm-package-name": "catalog:",
     "load-json-file": "catalog:",
     "tempy": "catalog:"
   },

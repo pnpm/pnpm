@@ -20,14 +20,14 @@ import { add } from '@pnpm/installing.commands'
 import { logger } from '@pnpm/logger'
 import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
+import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import type { PackageManifest, PnpmSettings, SupportedArchitectures } from '@pnpm/types'
-import { lexCompare } from '@pnpm/util.lex-comparator'
-import { safeExeca as execa } from 'execa'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 import { symlinkDir } from 'symlink-dir'
 
 import { makeEnv } from './makeEnv.js'
+import { trackedExeca } from './trackedExeca.js'
 
 export const skipPackageManagerCheck = true
 
@@ -246,12 +246,13 @@ export async function handler (
     ? command
     : await getBinName(cachedDir, opts)
   try {
-    await execa(binName, args, {
+    const child = trackedExeca(binName, args, {
       cwd: process.cwd(),
       env,
       stdio: 'inherit',
       shell: opts.shellMode ?? false,
     })
+    await child
   } catch (err: unknown) {
     if (util.types.isNativeError(err) && 'exitCode' in err && err.exitCode != null) {
       return {

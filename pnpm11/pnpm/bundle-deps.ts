@@ -110,3 +110,15 @@ function createDistNodeModules () {
 }
 
 createDistNodeModules()
+
+// The bundled dist/node_modules created above already contains every runtime
+// dependency, so the published manifest must not declare dependencies or
+// devDependencies — otherwise pnpm would install them a second time (and the
+// internal-only devDependencies, e.g. @pnpm/test-ipc-server, aren't even
+// published, so the install would fail). The workspace .pnpmfile.cjs
+// beforePacking hook drops these fields when packing (the release-pinned
+// pnpm honors it since pnpm/pnpm#12955 was fixed, and the release workflow
+// asserts the packed manifest carries no dependency fields before the first
+// publish). The manifest on disk must stay untouched: stripping it here made
+// every later `pnpm install` — including the verifyDepsBeforeRun gate's
+// spawned one — remove the pnpm package's own node_modules mid-release.

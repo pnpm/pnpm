@@ -32,7 +32,7 @@ export async function complete (
 
   // Autocompleting option values
   if (input.currentTypedWordType !== 'option') {
-    if (input.lastOption === '--filter') {
+    if (input.lastOption === '--filter' || input.lastOption === '-F') {
       const workspaceDir = await findWorkspaceDir(process.cwd()) ?? process.cwd()
       const workspaceManifest = await readWorkspaceManifest(workspaceDir)
       const allProjects = await findWorkspaceProjects(workspaceDir, {

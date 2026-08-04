@@ -1,0 +1,9 @@
+{
+  "name": "@test/app-a",
+  "version": "1.0.0",
+  "description": "First workspace app",
+  "dependencies": {
+    "is-positive": "3.1.0",
+    "shared-lib": "workspace:*"
+  }
+}

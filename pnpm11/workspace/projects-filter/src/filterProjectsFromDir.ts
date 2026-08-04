@@ -24,7 +24,7 @@ export async function filterProjectsBySelectorObjectsFromDir (
       libc: ['current'],
     },
   })
-  const { allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjects(
+  const { allProjectsGraph, selectedProjectsGraph, prodAllProjectsGraph, prodOnlySelectedProjectDirs } = await filterProjectsBySelectorObjects(
     allProjects,
     projectSelectors,
     {
@@ -33,5 +33,5 @@ export async function filterProjectsBySelectorObjectsFromDir (
       changedFilesIgnorePattern: opts?.changedFilesIgnorePattern,
     }
   )
-  return { allProjects, allProjectsGraph, selectedProjectsGraph }
+  return { allProjects, allProjectsGraph, selectedProjectsGraph, prodAllProjectsGraph, prodOnlySelectedProjectDirs }
 }

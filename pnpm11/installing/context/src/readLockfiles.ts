@@ -1,9 +1,6 @@
 import path from 'node:path'
 
-import {
-  LOCKFILE_VERSION,
-  WANTED_LOCKFILE,
-} from '@pnpm/constants'
+import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import {
   createLockfileObject,

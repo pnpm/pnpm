@@ -1,0 +1,7 @@
+{
+  "name": "@pnpm.e2e/has-build-metadata-dep",
+  "version": "0.5.0-alpha.51",
+  "dependencies": {
+    "@pnpm.e2e/has-build-metadata": "^0.5.0-alpha.51+f10fea0"
+  }
+}

@@ -1,4 +1,5 @@
 import type { Registries } from './misc.js'
+import type { VersioningSettings } from './versioning.js'
 
 export type Dependencies = Record<string, string>
 
@@ -74,6 +75,13 @@ export type DevEngines = Partial<Record<DevEngineKey, EngineDependency | EngineD
 export interface PublishConfig extends Record<string, unknown> {
   access?: 'public' | 'restricted'
   directory?: string
+  /**
+   * Publishes the package under a different name than the one its manifest
+   * carries in the workspace — for a project whose name is already taken by a
+   * sibling. Only the published artifact is renamed; dependents, the lockfile,
+   * and release tooling keep addressing the project by its manifest name.
+   */
+  name?: string
   linkDirectory?: boolean
   executableFiles?: string[]
   registry?: string
@@ -173,8 +181,52 @@ export type ConfigDependencies = Record<string, VersionWithIntegrity | {
  */
 export type ConfigDependencySpecifiers = Record<string, string>
 
+export type AuditLevel = 'info' | 'low' | 'moderate' | 'high' | 'critical'
+
+/**
+ * @deprecated Use {@link AuditSettings} instead. Kept for backward
+ * compatibility until the next major version.
+ */
 export interface AuditConfig {
   ignoreGhsas?: string[]
+}
+
+export interface AuditSettings {
+  /**
+   * The minimum vulnerability severity `pnpm audit` reports on. Supersedes the
+   * top-level `auditLevel` setting.
+   */
+  level?: AuditLevel
+  /**
+   * GHSA IDs that `pnpm audit` should ignore. Supersedes
+   * `auditConfig.ignoreGhsas`.
+   */
+  ignore?: string[]
+}
+
+export interface UpdateSettings {
+  /**
+   * Dependency name patterns that `pnpm update` and `pnpm outdated` should skip.
+   */
+  ignoreDeps?: string[]
+  /**
+   * Generate a changeset for the updated production dependencies by default,
+   * as if `pnpm update` were run with `--changeset`.
+   */
+  changeset?: boolean
+  /**
+   * Whether `pnpm outdated` and `pnpm update` should also look at the GitHub
+   * Actions referenced by the workflow files. Opt-in: neither command reads
+   * them unless this is set to `true` or `--include-github-actions` is passed.
+   */
+  githubActions?: boolean
+  /**
+   * The base URL of the GitHub server that hosts the repositories of the
+   * GitHub Actions referenced by the workflow files (for example, a GitHub
+   * Enterprise Server). When not set, the `GITHUB_SERVER_URL` environment
+   * variable is used, falling back to https://github.com.
+   */
+  githubActionsServer?: string
 }
 
 export interface PnpmSettings {
@@ -190,9 +242,22 @@ export interface PnpmSettings {
   allowedDeprecatedVersions?: AllowedDeprecatedVersions
   allowUnusedPatches?: boolean
   patchedDependencies?: Record<string, string>
+  update?: UpdateSettings
+  /**
+   * @deprecated Use {@link PnpmSettings.update} instead. Kept for backward
+   * compatibility until the next major version.
+   */
   updateConfig?: {
+    changeset?: boolean
     ignoreDependencies?: string[]
+    githubActions?: boolean
+    githubActionsServer?: string
   }
+  audit?: AuditSettings
+  /**
+   * @deprecated Use {@link PnpmSettings.audit} instead. Kept for backward
+   * compatibility until the next major version.
+   */
   auditConfig?: AuditConfig
   requiredScripts?: string[]
   supportedArchitectures?: SupportedArchitectures
@@ -201,6 +266,7 @@ export interface PnpmSettings {
   httpsProxy?: string
   noProxy?: string | boolean
   pnprServer?: string
+  versioning?: VersioningSettings
 }
 
 export interface ProjectManifest extends BaseManifest {

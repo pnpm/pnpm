@@ -1,11 +1,11 @@
 import os from 'node:os'
 
-import type { Config } from '@pnpm/config.reader'
 import type { Log, RegistryLog } from '@pnpm/core-loggers'
 import type { LogLevel } from '@pnpm/logger'
 import * as Rx from 'rxjs'
 import { filter, map } from 'rxjs/operators'
 
+import type { ReporterPnpmConfig } from '../ReporterPnpmConfig.js'
 import { reportError } from '../reportError.js'
 import { formatWarn } from './utils/formatWarn.js'
 import { autozoom } from './utils/zooming.js'
@@ -30,7 +30,7 @@ export function reportMisc (
     appendOnly: boolean
     cwd: string
     logLevel?: LogLevel
-    config?: Config
+    config?: ReporterPnpmConfig
     zoomOutCurrent: boolean
   }
 ): Rx.Observable<Rx.Observable<{ msg: string }>> {

@@ -19,6 +19,18 @@ export interface Registries {
   [scope: string]: string
 }
 
+/**
+ * The required keys are the enforcement: a raw `namedRegistries` from user
+ * config does not satisfy this type, so it cannot reach a consumer without
+ * passing through `normalizeNamedRegistries`. Widening it is how adding a
+ * built-in gets acknowledged.
+ */
+export interface NamedRegistries {
+  gh: string
+  npmjs: string
+  [name: string]: string
+}
+
 /** Parsed value of `_auth` of each registry in the rc file. */
 export interface BasicAuth {
   username: string
@@ -68,11 +80,29 @@ export type DepPath = string & { __brand: 'DepPath' }
 
 export type ProjectId = string & { __brand: 'ProjectId' }
 
-export type PinnedVersion =
+/**
+ * The width of the semver range a specifier is saved with: `major` writes
+ * `^`, `minor` writes `~`, and `patch` writes the bare version. `none` is
+ * inferred from a `*` specifier and serializes like `major`, except in the
+ * rolling workspace form, which keeps `*`.
+ */
+export type RangeSpecGranularity =
   | 'none'
   | 'patch'
   | 'minor'
   | 'major'
+
+/**
+ * How a resolved version is written back to the manifest. Beyond the
+ * granularity values, `exact` selects the same single-version range as `patch`
+ * but spells it with an explicit `=` operator, preserving a deliberate
+ * `=x.y.z` pin. Collapse the spelling away with `@pnpm/pkg-manifest.utils`'s
+ * `rangeSpecGranularity` when only the range width matters.
+ */
+export type RangeSpecStyle = RangeSpecGranularity | 'exact'
+
+/** @deprecated Renamed to {@link RangeSpecStyle}. */
+export type PinnedVersion = RangeSpecStyle
 
 export type IgnoredBuilds = Set<DepPath>
 

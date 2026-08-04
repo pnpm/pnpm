@@ -11,9 +11,6 @@
   ],
   "references": [
     {
-      "path": "../../config/reader"
-    },
-    {
       "path": "../../core/core-loggers"
     },
     {
@@ -33,6 +30,9 @@
     },
     {
       "path": "../../installing/dedupe/types"
+    },
+    {
+      "path": "../../text/ordinal-comparator"
     },
     {
       "path": "../meta"

@@ -13,6 +13,9 @@
       "path": "../../__utils__/test-fixtures"
     },
     {
+      "path": "../../config/normalize-registries"
+    },
+    {
       "path": "../../config/pick-registry-for-package"
     },
     {
@@ -37,6 +40,9 @@
       "path": "../../crypto/hash"
     },
     {
+      "path": "../../deps/path"
+    },
+    {
       "path": "../../fetching/types"
     },
     {
@@ -44,6 +50,9 @@
     },
     {
       "path": "../../network/fetch"
+    },
+    {
+      "path": "../../pkg-manifest/utils"
     },
     {
       "path": "../../store/cafs"

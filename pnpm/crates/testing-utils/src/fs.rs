@@ -1,0 +1,77 @@
+use std::{fs, io, path::Path};
+use walkdir::WalkDir;
+
+#[must_use]
+pub fn get_filenames_in_folder(path: &Path) -> Vec<String> {
+    let mut files = fs::read_dir(path)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().to_string())
+        .collect::<Vec<_>>();
+
+    files.sort();
+    files
+}
+
+fn normalized_suffix(path: &Path, prefix: &Path) -> String {
+    path.strip_prefix(prefix)
+        .expect("strip prefix from path")
+        .to_str()
+        .expect("convert suffix to UTF-8")
+        .replace('\\', "/")
+}
+
+#[must_use]
+pub fn get_all_folders(root: &Path) -> Vec<String> {
+    WalkDir::new(root)
+        .sort_by_file_name()
+        .into_iter()
+        .map(|entry| entry.expect("access entry"))
+        .filter(|entry| entry.file_type().is_dir() || entry.file_type().is_symlink())
+        .map(|entry| normalized_suffix(entry.path(), root))
+        .filter(|suffix| !suffix.is_empty())
+        .collect()
+}
+
+#[must_use]
+pub fn get_all_files(root: &Path) -> Vec<String> {
+    WalkDir::new(root)
+        .sort_by_file_name()
+        .into_iter()
+        .map(|entry| entry.expect("access entry"))
+        .filter(|entry| !entry.file_type().is_dir())
+        .map(|entry| normalized_suffix(entry.path(), root))
+        .filter(|suffix| !suffix.is_empty())
+        .collect()
+}
+
+pub fn is_symlink_or_junction(path: &Path) -> io::Result<bool> {
+    pacquet_fs::is_symlink_or_junction(path)
+}
+
+/// Check if a file is executable.
+#[cfg(unix)]
+#[must_use]
+pub fn is_path_executable(path: &Path) -> bool {
+    use std::{fs::File, os::unix::prelude::*};
+    let mode = File::open(path)
+        .expect("open the file")
+        .metadata()
+        .expect("get metadata of the file")
+        .mode();
+    mode & 0b001_001_001 != 0
+}
+
+/// Push `path`'s mtime 2 seconds into the future so the optimistic-repeat
+/// install fast path sees a manifest rewrite. The kernel stamps mtimes from
+/// a coarse clock that can lag the fine-grained clock the workspace state's
+/// `lastValidatedTimestamp` is taken from by a few milliseconds — a manifest
+/// rewritten immediately after an install can sort as "unmodified" and the
+/// next install no-ops. Call this after any post-install manifest rewrite.
+pub fn bump_mtime(path: &Path) {
+    let future = std::time::SystemTime::now() + std::time::Duration::from_secs(2);
+    fs::OpenOptions::new()
+        .write(true)
+        .open(path)
+        .and_then(|file| file.set_times(fs::FileTimes::new().set_modified(future)))
+        .expect("bump mtime past lastValidatedTimestamp");
+}

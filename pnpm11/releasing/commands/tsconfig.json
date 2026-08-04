@@ -73,6 +73,9 @@
       "path": "../../fetching/directory-fetcher"
     },
     {
+      "path": "../../fetching/types"
+    },
+    {
       "path": "../../fs/indexed-pkg-importer"
     },
     {
@@ -109,6 +112,12 @@
       "path": "../../network/web-auth"
     },
     {
+      "path": "../../resolving/npm-resolver"
+    },
+    {
+      "path": "../../resolving/registry/types"
+    },
+    {
       "path": "../../resolving/resolver-base"
     },
     {
@@ -124,7 +133,13 @@
       "path": "../../workspace/projects-sorter"
     },
     {
+      "path": "../../workspace/workspace-manifest-writer"
+    },
+    {
       "path": "../exportable-manifest"
+    },
+    {
+      "path": "../versioning"
     }
   ]
 }

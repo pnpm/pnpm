@@ -4,6 +4,7 @@ import {
   DIRECT_DEP_SELECTOR_WEIGHT,
   EXISTING_VERSION_SELECTOR_WEIGHT,
   type PreferredVersions,
+  type VersionSelectors,
   type VersionSelectorType,
   type VersionSelectorWithWeight,
 } from '@pnpm/resolving.resolver-base'
@@ -14,13 +15,17 @@ export function getPreferredVersionsFromLockfileAndManifests (
   snapshots: PackageSnapshots | undefined,
   manifests: Array<DependencyManifest | ProjectManifest>
 ): PreferredVersions {
-  const preferredVersions: PreferredVersions = {}
+  // All maps in here are keyed by package names and specifiers coming from
+  // manifests and the lockfile — attacker-controlled inputs. Null-prototype
+  // objects make a crafted key (e.g. `__proto__`) a plain own key instead of
+  // a write through Object.prototype.
+  const preferredVersions: PreferredVersions = Object.create(null)
   for (const manifest of manifests) {
     const specs = getAllDependenciesFromManifest(manifest)
     for (const [name, spec] of Object.entries(specs)) {
       const selector = getVersionSelectorType(spec)
       if (!selector) continue
-      preferredVersions[name] = preferredVersions[name] ?? {}
+      preferredVersions[name] = preferredVersions[name] ?? (Object.create(null) as VersionSelectors)
       preferredVersions[name][spec] = {
         selectorType: selector.type,
         weight: DIRECT_DEP_SELECTOR_WEIGHT,
@@ -38,7 +43,7 @@ function addPreferredVersionsFromLockfile (snapshots: PackageSnapshots, preferre
   // with the same version in the lockfile due to peer dependency resolution. To
   // avoid inflating the weight of package versions that appear multiple times,
   // generate a map with only the unique set to iterate over.
-  const uniqueNameVersions: Record<string, Set<string>> = {}
+  const uniqueNameVersions: Record<string, Set<string>> = Object.create(null)
   for (const [depPath, snapshot] of Object.entries(snapshots)) {
     const { name, version } = nameVerFromPkgSnapshot(depPath, snapshot)
     uniqueNameVersions[name] ??= new Set()
@@ -47,7 +52,7 @@ function addPreferredVersionsFromLockfile (snapshots: PackageSnapshots, preferre
 
   for (const [name, versions] of Object.entries(uniqueNameVersions)) {
     for (const version of versions) {
-      preferredVersions[name] ??= {}
+      preferredVersions[name] ??= Object.create(null) as VersionSelectors
 
       const existingSelector = preferredVersions[name][version]
       if (existingSelector == null) {

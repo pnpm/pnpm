@@ -81,6 +81,13 @@ export async function outdated (
 
   const allDeps = getAllDependenciesFromManifest(await getOverriddenManifest())
   const importerId = getLockfileImporterId(opts.lockfileDir, opts.prefix)
+  // A workspace project is not required to declare a name, and an empty
+  // label leaves several unnamed projects indistinguishable in the
+  // interactive update list, so fall back to the path that identifies
+  // the project in the lockfile.
+  // Trimmed, and `||` rather than `??`: a name that is missing, empty, or
+  // only whitespace all give an equally blank label.
+  const workspace = opts.manifest.name?.trim() || importerId
   const currentLockfile: LockfileObject = opts.currentLockfile ?? { lockfileVersion: LOCKFILE_VERSION, importers: { [importerId]: { specifiers: {} } } }
 
   const outdated: OutdatedPackage[] = []
@@ -114,6 +121,7 @@ export async function outdated (
         pkgs.map(async (alias) => {
           if (!allDeps[alias]) return
           const wantedRef = opts.wantedLockfile!.importers[importerId][depType]![alias]
+          if (isLocalRef(wantedRef)) return
           if (ignoreDependenciesMatcher?.(alias)) return
 
           const currentRef = (currentLockfile.importers[importerId] as ProjectSnapshot)?.[depType]?.[alias]
@@ -151,7 +159,7 @@ export async function outdated (
                 latestManifest: undefined,
                 packageName,
                 wanted,
-                workspace: opts.manifest.name,
+                workspace,
               })
             }
             return
@@ -163,7 +171,7 @@ export async function outdated (
               latestManifest,
               packageName,
               wanted,
-              workspace: opts.manifest.name,
+              workspace,
             })
             return
           }
@@ -175,7 +183,7 @@ export async function outdated (
               latestManifest,
               packageName,
               wanted,
-              workspace: opts.manifest.name,
+              workspace,
             })
           }
         })
@@ -194,6 +202,15 @@ function packageHasNoDeps (manifest: ProjectManifest): boolean {
 
 function isEmpty (obj: object): boolean {
   return Object.keys(obj).length === 0
+}
+
+// A dependency whose wanted ref is local resolves to a directory on disk
+// even when its manifest specifier is a plain semver range (e.g. a
+// workspace package matched by `link-workspace-packages`). Such a package
+// may not be published at all, so there is no registry "latest" to compare
+// against.
+function isLocalRef (ref: string): boolean {
+  return ref.startsWith('link:') || ref.startsWith('file:') || ref.startsWith('workspace:')
 }
 
 // Pick a clean display string for a lockfile ref.

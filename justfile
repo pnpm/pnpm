@@ -16,7 +16,7 @@ init:
 
 # When ready, run the same CI commands
 ready:
-  typos
+  typos pnpm pnpr
   cargo fmt
   just check
   just test
@@ -29,7 +29,7 @@ update:
   git submodule update --init
 
 # Install necessary dependencies.
-# `pacquet/tasks/registry-mock` is a member of the root pnpm workspace,
+# `pnpm/tasks/registry-mock` is a member of the root pnpm workspace,
 # so the root install populates its node_modules.
 install:
   pnpm install --frozen-lockfile --prefer-offline
@@ -53,6 +53,18 @@ check:
 test:
   cargo nextest run
 
+# A test process that is killed cannot run `TempDir`'s cleanup, so a
+# fail-fast or interrupted run abandons whole fixture trees — each holding a
+# per-test store for the mocked-registry tests, which is what actually adds
+# up. Only `pacquet-test-*` is swept: that prefix comes from
+# `CommandTempCwd`, so a match is known to be ours. `-mindepth 1` keeps the
+# root itself out of the match, and the age floor leaves a concurrent run
+# alone.
+
+# Remove fixture trees that earlier test runs abandoned.
+sweep-test-temp:
+  find "${TMPDIR:-/tmp}" -mindepth 1 -maxdepth 1 -name 'pacquet-test-*' -mmin +60 -exec rm -rf {} + 2>/dev/null || true
+
 # Run pacquet package tests only.
 test-pacquet:
   cargo nextest run --workspace --exclude pnpr --exclude pnpr-fixtures
@@ -74,8 +86,9 @@ lint:
   cargo clippy --locked --workspace --all-targets -- --deny warnings
 
 # Run perfectionist dylint rules. Requires `cargo-dylint` and `dylint-link`
-# (install with `cargo binstall cargo-dylint dylint-link`). The lint library
-# is pinned in `dylint.toml`.
+# (install from source with `cargo install cargo-dylint dylint-link`; the
+# prebuilt binstall binaries fail to build the driver locally). The lint
+# library is pinned in `dylint.toml`.
 dylint:
   env RUSTFLAGS="-D warnings" cargo dylint --all -- --all-targets --workspace
 
@@ -110,4 +123,4 @@ integrated-benchmark +args:
   cargo run --bin=integrated-benchmark -- {{args}}
 
 cli +args:
-  cargo run --bin pacquet -- {{args}}
+  cargo run --bin pnpm -- {{args}}

@@ -19,16 +19,16 @@ pub enum RegistryError {
         body: String,
     },
 
-    /// The uplink's circuit breaker is open: it reached `max_fails`
+    /// The upstream's circuit breaker is open: it reached `max_fails`
     /// consecutive failures and is still inside its `fail_timeout`
     /// cooldown, so pnpr short-circuits the request instead of hammering
     /// a known-down upstream. The packument path turns this into a
     /// stale-cache fallback; with nothing cached it surfaces as 503.
-    #[display("Upstream {uplink} is temporarily unavailable (circuit open)")]
+    #[display("Upstream {upstream} is temporarily unavailable (circuit open)")]
     #[from(skip)]
     UpstreamUnavailable {
         #[error(not(source))]
-        uplink: String,
+        upstream: String,
     },
 
     #[display("EINTEGRITY: tarball {filename:?} for package {package:?}: {reason}")]
@@ -51,14 +51,6 @@ pub enum RegistryError {
         #[error(not(source))]
         package: String,
         filename: String,
-    },
-
-    #[display("Package policy pattern {pattern:?} is invalid: {reason}")]
-    #[from(skip)]
-    InvalidPolicyPattern {
-        #[error(not(source))]
-        pattern: String,
-        reason: String,
     },
 
     /// The YAML config could not be parsed. Startup-only — this never
@@ -91,6 +83,16 @@ pub enum RegistryError {
         resource: String,
     },
 
+    /// A team mutation (create/destroy/add/rm) hit the npm team API, but
+    /// pnpr teams are declared in the registry configuration and cannot be
+    /// changed over HTTP. Maps to 403.
+    #[display(
+        "Teams on this registry are declared in the pnpr configuration; to {action}, ask the \
+         registry operator to update the config"
+    )]
+    #[from(skip)]
+    TeamsConfigManaged { action: &'static str },
+
     /// Tarball payload from a publish couldn't be decoded — bad
     /// base64, length mismatch, or integrity mismatch.
     #[display("Invalid attachment {filename:?}: {reason}")]
@@ -120,6 +122,13 @@ pub enum RegistryError {
         package: String,
         #[error(not(source))]
         version: String,
+    },
+
+    #[display("Hosted packument for package {package:?} changed while writing")]
+    #[from(skip)]
+    PackumentWriteConflict {
+        #[error(not(source))]
+        package: String,
     },
 
     #[display(
@@ -214,20 +223,18 @@ pub enum RegistryError {
 }
 
 impl RegistryError {
-    /// Whether a failed upstream fetch may fall through to the next uplink
-    /// in a package's `proxy:` fallback chain. Only *availability* failures
-    /// are retryable this way: a transport error, an open circuit breaker,
-    /// or an upstream `5xx`. Any `4xx` is an authoritative response about
-    /// *this* request — `401`/`403` (auth), `429` (throttle), `400`/`410`,
-    /// etc. — and is **not** eligible: a later uplink must never mask it,
-    /// which would let a public mirror answer for a package the primary
-    /// scoped to an authenticated private uplink, or silently bypass a
-    /// rate-limit. Such an error surfaces immediately.
+    /// Whether a failed upstream fetch is a transient *availability* failure —
+    /// a transport error, an open circuit breaker, or an upstream `5xx`. A `4xx`
+    /// is an authoritative response about *this* request — `401`/`403` (auth),
+    /// `429` (throttle), `400`/`410`, etc. — and is **not** transient: it must
+    /// surface immediately rather than be masked (e.g. by serving a stale cache
+    /// entry), which would let a revoked credential or a `410 Gone` keep being
+    /// answered from old bytes.
     ///
     /// A `404` never reaches here — it is modeled as a distinct not-found
-    /// outcome, not an error, and the chain walks past it on its own.
+    /// outcome, not an error.
     #[must_use]
-    pub fn allows_uplink_fallthrough(&self) -> bool {
+    pub fn is_transient_upstream_error(&self) -> bool {
         match self {
             RegistryError::Upstream { .. } | RegistryError::UpstreamUnavailable { .. } => true,
             RegistryError::UpstreamStatus { status, .. } => *status >= 500,
@@ -244,13 +251,14 @@ impl RegistryError {
             RegistryError::TarballIntegrity { .. } => "tarball_integrity",
             RegistryError::InvalidPackageName { .. } => "invalid_package_name",
             RegistryError::InvalidTarballName { .. } => "invalid_tarball_name",
-            RegistryError::InvalidPolicyPattern { .. } => "invalid_policy_pattern",
             RegistryError::InvalidConfig { .. } => "invalid_config",
             RegistryError::Unauthenticated { .. } => "unauthenticated",
             RegistryError::Forbidden { .. } => "forbidden",
+            RegistryError::TeamsConfigManaged { .. } => "teams_config_managed",
             RegistryError::InvalidAttachment { .. } => "invalid_attachment",
             RegistryError::BadRequest { .. } => "bad_request",
             RegistryError::VersionAlreadyPublished { .. } => "version_already_published",
+            RegistryError::PackumentWriteConflict { .. } => "packument_write_conflict",
             RegistryError::OsvVulnerability { .. } => "osv_vulnerability",
             RegistryError::RegistrationDisabled => "registration_disabled",
             RegistryError::TooManyUsers { .. } => "too_many_users",
@@ -321,13 +329,14 @@ impl RegistryError {
             RegistryError::UpstreamUnavailable { .. } => StatusCode::SERVICE_UNAVAILABLE,
             RegistryError::InvalidPackageName { .. }
             | RegistryError::InvalidTarballName { .. }
-            | RegistryError::InvalidPolicyPattern { .. }
             | RegistryError::InvalidConfig { .. }
             | RegistryError::InvalidAttachment { .. }
             | RegistryError::BadRequest { .. } => StatusCode::BAD_REQUEST,
-            RegistryError::VersionAlreadyPublished { .. } => StatusCode::CONFLICT,
+            RegistryError::VersionAlreadyPublished { .. }
+            | RegistryError::PackumentWriteConflict { .. } => StatusCode::CONFLICT,
             RegistryError::Unauthenticated { .. } => StatusCode::UNAUTHORIZED,
             RegistryError::Forbidden { .. } => StatusCode::FORBIDDEN,
+            RegistryError::TeamsConfigManaged { .. } => StatusCode::FORBIDDEN,
             RegistryError::OsvVulnerability { .. } => StatusCode::FORBIDDEN,
             RegistryError::RegistrationDisabled | RegistryError::TooManyUsers { .. } => {
                 StatusCode::FORBIDDEN

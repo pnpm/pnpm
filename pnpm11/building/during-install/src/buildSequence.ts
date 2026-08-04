@@ -11,6 +11,8 @@ export interface DependenciesGraphNode<T extends string> {
   name: string
   version: string
   dir: string
+  /** The `node_modules` directory `dir` sits in. */
+  modules: string
   fetching?: () => Promise<PkgRequestFetchResult>
   filesIndexFile?: string
   hasBin: boolean

@@ -101,6 +101,23 @@ test('update does not install the package if it is not present in package.json',
   project.hasNot('is-positive')
 })
 
+test('update of an absent package preserves transitive dependencies when peer deduplication is disabled', async () => {
+  const project = prepareEmpty()
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, [
+    '@pnpm.e2e/pkg-with-1-dep@100.0.0',
+  ], testDefaults({ dedupePeerDependents: false }))
+  const lockfileBeforeUpdate = project.readLockfile()
+
+  await addDependenciesToPackage(manifest, ['is-negative'], testDefaults({
+    allowNew: false,
+    dedupePeerDependents: false,
+    update: true,
+  }))
+
+  expect(project.readLockfile()).toStrictEqual(lockfileBeforeUpdate)
+})
+
 test('update dependency when external lockfile directory is used', async () => {
   prepareEmpty()
 
@@ -148,6 +165,36 @@ test('preserve subdeps when installing on a package that has one dependency spec
 
   expect(lockfile.snapshots).toHaveProperty(['@pnpm.e2e/abc-parent-with-ab@1.0.0(@pnpm.e2e/peer-c@1.0.0)']) // preserve version of package that has resolved peer deps
   expect(lockfile.snapshots).toHaveProperty(['@pnpm.e2e/foobarqar@1.0.1'])
+  expect(lockfile.snapshots['@pnpm.e2e/foobarqar@1.0.1'].dependencies).toStrictEqual({
+    '@pnpm.e2e/bar': '100.0.0',
+    '@pnpm.e2e/foo': '100.0.0',
+    '@pnpm.e2e/qar': '100.0.0',
+  })
+})
+
+// Covers the lockfile churn seen in https://github.com/pnpm/pnpm/pull/13193
+test('removing an unrelated dependency does not re-resolve still-satisfied subdeps', async () => {
+  const project = prepareEmpty()
+
+  await Promise.all([
+    addDistTag({ package: '@pnpm.e2e/bar', version: '100.0.0', distTag: 'latest' }),
+    addDistTag({ package: '@pnpm.e2e/foo', version: '100.0.0', distTag: 'latest' }),
+    addDistTag({ package: '@pnpm.e2e/foobarqar', version: '1.0.1', distTag: 'latest' }),
+  ])
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/foobarqar', 'is-positive@1.0.0'], testDefaults())
+
+  await Promise.all([
+    addDistTag({ package: '@pnpm.e2e/bar', version: '100.1.0', distTag: 'latest' }),
+    addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' }),
+  ])
+
+  delete manifest.dependencies!['is-positive']
+
+  await install(manifest, testDefaults())
+
+  const lockfile = project.readLockfile()
+
   expect(lockfile.snapshots['@pnpm.e2e/foobarqar@1.0.1'].dependencies).toStrictEqual({
     '@pnpm.e2e/bar': '100.0.0',
     '@pnpm.e2e/foo': '100.0.0',
@@ -295,4 +342,51 @@ test('peer dependencies are updated with pnpm upgrade --latest when autoInstallP
   lockfile = project.readLockfile()
 
   expect(lockfile.importers?.['.']?.dependencies?.['@pnpm.e2e/foo'].version).toBe('1.3.0')
+})
+
+// A targeted `pnpm up <pkg>` must produce the same result a fresh install of
+// the same manifests would: with the importer exact-pinning foo@100.0.0, a
+// fresh install dedupes foobarqar's caret consumer onto the manifest pin, so
+// the update must too — one copy of foo, not a 100.0.0 + 100.1.0 duplicate
+// (the picker warns that the newer version needs an override).
+test('updateMatching keeps manifest-pin dedup for the targeted package, matching a fresh install', async () => {
+  const project = prepareEmpty()
+
+  await Promise.all([
+    addDistTag({ package: '@pnpm.e2e/foo', version: '100.0.0', distTag: 'latest' }),
+    addDistTag({ package: '@pnpm.e2e/foobarqar', version: '1.0.0', distTag: 'latest' }),
+  ])
+
+  // Direct exact pin on foo at 100.0.0 + a parent package whose package.json
+  // depends on foo via a range that also admits newer versions.
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, [
+    '@pnpm.e2e/foo@100.0.0',
+    '@pnpm.e2e/foobarqar',
+  ], testDefaults())
+
+  // Bump foo's latest. The exact-pinned direct edge stays at 100.0.0 (the
+  // user's range forbids 100.1.0), and the transitive consumer inside
+  // foobarqar dedupes onto the manifest pin exactly as a fresh install
+  // with `latest = 100.1.0` does.
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+
+  await install(manifest, testDefaults({
+    depth: Infinity,
+    update: true,
+    updateMatching: (pkgName: string) => pkgName === '@pnpm.e2e/foo',
+    // Force a fresh metadata fetch so the new `latest` dist-tag is visible
+    // to the transitive resolution. Without this, the in-memory metadata
+    // cache from the first install short-circuits the picker with the
+    // pre-bump `latest=100.0.0` and the test can't observe the behavior.
+    updateChecksums: true,
+  }))
+
+  const lockfile = project.readLockfile()
+
+  // Direct exact pin survives the update (range forbids the bump).
+  expect(lockfile.snapshots).toHaveProperty(['@pnpm.e2e/foo@100.0.0'])
+  // The transitive consumer dedupes onto the manifest pin — installing
+  // 100.1.0 alongside would be a duplicate no fresh install reproduces.
+  expect(lockfile.snapshots).not.toHaveProperty(['@pnpm.e2e/foo@100.1.0'])
+  expect(lockfile.snapshots['@pnpm.e2e/foobarqar@1.0.0'].dependencies?.['@pnpm.e2e/foo']).toBe('100.0.0')
 })

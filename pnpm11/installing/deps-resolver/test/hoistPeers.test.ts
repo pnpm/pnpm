@@ -49,9 +49,7 @@ test('hoistPeers falls back to range when no preferred version satisfies it', ()
   })
 })
 
-test('hoistPeers picks highest preferred version for deduplication when range is not exact', () => {
-  // For non-exact ranges (like ^2.0.0), hoistPeers picks the highest preferred
-  // version overall (for deduplication), not just the highest satisfying the range.
+test('hoistPeers picks the highest preferred version that satisfies a range for deduplication', () => {
   expect(hoistPeers({
     autoInstallPeers: true,
     allPreferredVersions: {
@@ -63,14 +61,11 @@ test('hoistPeers picks highest preferred version for deduplication when range is
     },
     workspaceRootDeps: [],
   }, [['foo', { range: '^2.0.0' }]])).toStrictEqual({
-    foo: '3.0.0',
+    foo: '2.1.0',
   })
 })
 
-test('hoistPeers reuses higher preferred version when range is not exact', () => {
-  // When the peer dep range is a semver range (not an exact version),
-  // prefer reusing a higher existing version for deduplication even if
-  // it doesn't satisfy the range.
+test('hoistPeers does not reuse a preferred version that the peer range rejects', () => {
   expect(hoistPeers({
     autoInstallPeers: true,
     allPreferredVersions: {
@@ -80,8 +75,127 @@ test('hoistPeers reuses higher preferred version when range is not exact', () =>
     },
     workspaceRootDeps: [],
   }, [['foo', { range: '1' }]])).toStrictEqual({
-    foo: '2.0.0',
+    foo: '1',
   })
+})
+
+test('hoistPeers prefers the preferred version that satisfies a non-exact range', () => {
+  // In a multi-importer workspace, allPreferredVersions aggregates versions
+  // from every importer. A peer declared as ^1.0.0 must not be handed a
+  // foreign 2.x contributed by another importer when a satisfying 1.x exists.
+  expect(hoistPeers({
+    autoInstallPeers: true,
+    allPreferredVersions: {
+      foo: {
+        '1.0.0': 'version',
+        '2.0.0': 'version',
+      },
+    },
+    workspaceRootDeps: [],
+  }, [['foo', { range: '^1.0.0' }]])).toStrictEqual({
+    foo: '1.0.0',
+  })
+})
+
+test('hoistPeers does not treat a prerelease of the next major as satisfying a caret range', () => {
+  expect(hoistPeers({
+    autoInstallPeers: true,
+    allPreferredVersions: {
+      foo: {
+        '1.0.0': 'version',
+        '2.0.0-beta.1': 'version',
+      },
+    },
+    workspaceRootDeps: [],
+  }, [['foo', { range: '^1.0.0' }]])).toStrictEqual({
+    foo: '1.0.0',
+  })
+})
+
+// `includePrerelease` keeps a prerelease eligible for the comparators it
+// falls between; it does not lower a bound the range spells out. `^18.0.0`
+// therefore still starts at 18.0.0, and hoisting the range lets a stable
+// 18.x be resolved from the registry.
+test('hoistPeers rejects a prerelease below a spelled-out lower bound', () => {
+  expect(hoistPeers({
+    autoInstallPeers: true,
+    allPreferredVersions: {
+      react: {
+        '18.0.0-rc.1': 'version',
+      },
+    },
+    workspaceRootDeps: [],
+  }, [['react', { range: '^18.0.0' }]])).toStrictEqual({
+    react: '^18.0.0',
+  })
+})
+
+test('hoistPeers accepts a prerelease below a lower bound synthesized from an omitted component', () => {
+  expect(hoistPeers({
+    autoInstallPeers: true,
+    allPreferredVersions: {
+      react: {
+        '18.0.0-rc.1': 'version',
+      },
+    },
+    workspaceRootDeps: [],
+  }, [['react', { range: '^18.x' }]])).toStrictEqual({
+    react: '18.0.0-rc.1',
+  })
+})
+
+test('hoistPeers accepts a prerelease inside the span of a union', () => {
+  expect(hoistPeers({
+    autoInstallPeers: true,
+    allPreferredVersions: {
+      react: {
+        '19.3.0-canary-28cd4bb0-20260723': 'version',
+      },
+    },
+    workspaceRootDeps: [],
+  }, [['react', { range: '^18.x || ^19.x' }]])).toStrictEqual({
+    react: '19.3.0-canary-28cd4bb0-20260723',
+  })
+})
+
+test('hoistPeers rejects a prerelease at the lower bound of a union', () => {
+  expect(hoistPeers({
+    autoInstallPeers: true,
+    allPreferredVersions: {
+      'jest-util': {
+        '30.0.0-alpha.6': 'version',
+      },
+    },
+    workspaceRootDeps: [],
+  }, [['jest-util', { range: '^29.0.0 || ^30.0.0' }]])).toStrictEqual({
+    'jest-util': '^29.0.0 || ^30.0.0',
+  })
+})
+
+test('hoistPeers falls back to the range when no preferred version satisfies a non-exact range', () => {
+  expect(hoistPeers({
+    autoInstallPeers: true,
+    allPreferredVersions: {
+      foo: {
+        '2.0.0': 'version',
+      },
+    },
+    workspaceRootDeps: [],
+  }, [['foo', { range: '^1.0.0' }]])).toStrictEqual({
+    foo: '^1.0.0',
+  })
+})
+
+test('hoistPeers hoists nothing when no preferred version satisfies the range and peers are not auto-installed', () => {
+  expect(hoistPeers({
+    autoInstallPeers: false,
+    allPreferredVersions: {
+      foo: {
+        '2.0.0': 'version',
+      },
+    },
+    workspaceRootDeps: [],
+  }, [['foo', { range: '^1.0.0' }]])).toStrictEqual({})
 })
 
 // Regression test for https://github.com/pnpm/pnpm/pull/11049
@@ -110,6 +224,53 @@ test('hoistPeers handles workspace: protocol range without throwing', () => {
     workspaceRootDeps: [],
   }, [['foo', { range: 'workspace:*' }]])).toStrictEqual({
     foo: '1.0.0',
+  })
+})
+
+test('hoistPeers dedupes a named-registry peer onto a preferred version that satisfies its extracted range', () => {
+  expect(hoistPeers({
+    autoInstallPeers: true,
+    allPreferredVersions: {
+      foo: {
+        '1.0.0': 'version',
+        '2.0.0': 'version',
+      },
+    },
+    workspaceRootDeps: [],
+  }, [['foo', { range: 'work:^1.0.0' }]])).toStrictEqual({
+    foo: '1.0.0',
+  })
+})
+
+test('hoistPeers falls back to the raw scheme specifier when no preferred version satisfies its extracted range', () => {
+  expect(hoistPeers({
+    autoInstallPeers: true,
+    allPreferredVersions: {
+      foo: {
+        '2.0.0': 'version',
+      },
+    },
+    workspaceRootDeps: [],
+  }, [['foo', { range: 'work:^1.0.0' }]])).toStrictEqual({
+    foo: 'work:^1.0.0',
+  })
+})
+
+test('hoistPeers respects a merged || union of scheme specifiers instead of picking the highest version', () => {
+  // `4.0.0` is the highest but satisfies neither `^2.0.0` nor `^3.0.0`, so a
+  // blind highest-version pick would be wrong; `3.0.0` is the highest match.
+  expect(hoistPeers({
+    autoInstallPeers: true,
+    allPreferredVersions: {
+      foo: {
+        '2.1.0': 'version',
+        '3.0.0': 'version',
+        '4.0.0': 'version',
+      },
+    },
+    workspaceRootDeps: [],
+  }, [['foo', { range: 'work:^2.0.0 || work:^3.0.0' }]])).toStrictEqual({
+    foo: '3.0.0',
   })
 })
 
@@ -166,5 +327,138 @@ test('getHoistableOptionalPeers handles version selector with weight', () => {
     },
   })).toStrictEqual({
     jsdom: '27.4.0',
+  })
+})
+
+test('hoistPeers installs an auto-installed peer at the overridden specifier', () => {
+  expect(hoistPeers({
+    autoInstallPeers: true,
+    allPreferredVersions: {
+      react: {
+        '18.3.1': 'version',
+      },
+    },
+    workspaceRootDeps: [{ alias: 'react', pkgName: 'react', normalizedBareSpecifier: '18.3.1' }],
+    overrideBareSpecifier: (name) => name === 'react' ? 'npm:react@19.2.0' : undefined,
+  }, [['react', { range: '^16.5.1 || ^17.0.0 || ^18.0.0' }]])).toStrictEqual({
+    react: 'npm:react@19.2.0',
+  })
+})
+
+test('hoistPeers does not let an override install a peer that nothing provides when peers are not auto-installed', () => {
+  expect(hoistPeers({
+    autoInstallPeers: false,
+    allPreferredVersions: {},
+    workspaceRootDeps: [],
+    overrideBareSpecifier: () => 'npm:react@19.2.0',
+  }, [['react', { range: '^18.0.0' }]])).toStrictEqual({})
+})
+
+test('hoistPeers leaves a deduplicating hoist to the graph when peers are not auto-installed', () => {
+  expect(hoistPeers({
+    autoInstallPeers: false,
+    allPreferredVersions: {
+      react: {
+        '18.3.1': 'version',
+      },
+    },
+    workspaceRootDeps: [],
+    overrideBareSpecifier: () => 'npm:react@19.2.0',
+  }, [['react', { range: '^18.0.0' }]])).toStrictEqual({
+    react: '18.3.1',
+  })
+})
+
+test('hoistPeers redirects the workspace root\'s hoist through an override when peers are not auto-installed', () => {
+  expect(hoistPeers({
+    autoInstallPeers: false,
+    allPreferredVersions: {},
+    workspaceRootDeps: [{ alias: 'react', pkgName: 'react', normalizedBareSpecifier: '18.3.1' }],
+    overrideBareSpecifier: () => 'npm:react@19.2.0',
+  }, [['react', { range: '^18.0.0' }]])).toStrictEqual({
+    react: 'npm:react@19.2.0',
+  })
+})
+
+test('hoistPeers leaves a peer removed by an override uninstalled', () => {
+  expect(hoistPeers({
+    autoInstallPeers: true,
+    allPreferredVersions: {
+      react: {
+        '18.3.1': 'version',
+      },
+    },
+    workspaceRootDeps: [],
+    overrideBareSpecifier: () => '-',
+  }, [['react', { range: '^18.0.0' }]])).toStrictEqual({})
+})
+
+test('getHoistableOptionalPeers stays within the workspace root\'s range', () => {
+  const allMissingOptionalPeers = { postcss: ['*'] }
+  const allPreferredVersions = {
+    postcss: {
+      '8.5.10': 'version' as const,
+      '8.5.22': 'version' as const,
+    },
+  }
+  expect(getHoistableOptionalPeers(allMissingOptionalPeers, allPreferredVersions, [
+    { alias: 'postcss', pkgName: 'postcss', normalizedBareSpecifier: '8.5.10' },
+  ])).toStrictEqual({
+    postcss: '8.5.10',
+  })
+  expect(getHoistableOptionalPeers(allMissingOptionalPeers, allPreferredVersions)).toStrictEqual({
+    postcss: '8.5.22',
+  })
+})
+
+test('hoistPeers skips a workspace root dependency that has no specifier in favor of one that has', () => {
+  const workspaceRootDeps = [
+    { alias: 'postcss', pkgName: 'postcss' },
+    { alias: 'zz-postcss', pkgName: 'postcss', normalizedBareSpecifier: '8.5.10' },
+  ]
+  expect(hoistPeers({
+    autoInstallPeers: true,
+    allPreferredVersions: {},
+    workspaceRootDeps,
+  }, [['postcss', { range: '^8.0.0' }]])).toStrictEqual({
+    postcss: '8.5.10',
+  })
+  expect(getHoistableOptionalPeers({ postcss: ['*'] }, {
+    postcss: {
+      '8.5.10': 'version',
+      '9.0.0': 'version',
+    },
+  }, workspaceRootDeps)).toStrictEqual({
+    postcss: '8.5.10',
+  })
+})
+
+test('getHoistableOptionalPeers stays within the version range of a scheme-prefixed workspace root specifier', () => {
+  const allMissingOptionalPeers = { postcss: ['*'] }
+  const allPreferredVersions = {
+    postcss: {
+      '8.5.10': 'version' as const,
+      '9.0.0': 'version' as const,
+    },
+  }
+  for (const normalizedBareSpecifier of ['workspace:^8.5.10', 'npm:postcss@^8.5.10', 'work:^8.5.10']) {
+    expect(getHoistableOptionalPeers(allMissingOptionalPeers, allPreferredVersions, [
+      { alias: 'postcss', pkgName: 'postcss', normalizedBareSpecifier },
+    ])).toStrictEqual({
+      postcss: '8.5.10',
+    })
+  }
+})
+
+test('getHoistableOptionalPeers keeps candidates unbounded when the workspace root specifier has no version', () => {
+  expect(getHoistableOptionalPeers({ postcss: ['*'] }, {
+    postcss: {
+      '8.5.10': 'version',
+      '9.0.0': 'version',
+    },
+  }, [
+    { alias: 'postcss', pkgName: 'postcss', normalizedBareSpecifier: 'file:../postcss' },
+  ])).toStrictEqual({
+    postcss: '9.0.0',
   })
 })
