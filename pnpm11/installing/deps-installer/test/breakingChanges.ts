@@ -44,11 +44,11 @@ test('forced modules repair never purges the project root', async () => {
   fs.writeFileSync(sentinel, 'keep')
   fs.writeFileSync('.modules.yaml', 'packageManager: pnpm@3\nlayoutVersion: 1\n')
 
-  await install({}, testDefaults({
+  await expect(install({}, testDefaults({
     confirmModulesPurge: false,
     force: true,
     modulesDir: '.',
-  }))
+  }))).rejects.toMatchObject({ code: 'ERR_PNPM_UNSAFE_MODULES_DIR' })
 
   expect(fs.readFileSync(sentinel, 'utf8')).toBe('keep')
 })
@@ -63,7 +63,7 @@ test('forced modules repair never follows a modules directory symlink', async ()
   const opts = testDefaults()
 
   try {
-    await validateModules({ virtualStoreDirMaxLength: 1 } as Modules, [{
+    await expect(validateModules({ virtualStoreDirMaxLength: 1 } as Modules, [{
       id: '.',
       modulesDir,
       rootDir: projectRoot,
@@ -76,7 +76,7 @@ test('forced modules repair never follows a modules directory symlink', async ()
       storeDir: opts.storeDir,
       virtualStoreDir: path.join(modulesDir, '.pnpm'),
       virtualStoreDirMaxLength: 2,
-    })
+    })).rejects.toMatchObject({ code: 'ERR_PNPM_UNSAFE_MODULES_DIR' })
 
     expect(fs.readFileSync(sentinel, 'utf8')).toBe('keep')
   } finally {

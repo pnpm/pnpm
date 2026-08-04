@@ -60,8 +60,7 @@ export async function validateModules (
   const rootProject = projects.find(({ id }) => id === '.')
   if (opts.virtualStoreDirMaxLength !== modules.virtualStoreDirMaxLength) {
     if (opts.forceNewModules && (rootProject != null)) {
-      await purgeModulesDirsOfImporter(opts, rootProject)
-      return { purged: true }
+      return { purged: await purgeModulesDirsOfImporter(opts, rootProject) }
     }
     throw new PnpmError(
       'VIRTUAL_STORE_DIR_MAX_LENGTH_DIFF',
@@ -76,8 +75,7 @@ export async function validateModules (
     !equals(modules.publicHoistPattern ?? [], opts.publicHoistPattern ?? [])
   ) {
     if (opts.forceNewModules && (rootProject != null)) {
-      await purgeModulesDirsOfImporter(opts, rootProject)
-      return { purged: true }
+      return { purged: await purgeModulesDirsOfImporter(opts, rootProject) }
     }
     throw new PnpmError(
       'PUBLIC_HOIST_PATTERN_DIFF',
@@ -131,10 +129,8 @@ export async function validateModules (
     })
   }
 
-  const purged = importersToPurge.length > 0
-  if (purged) {
+  const purged = importersToPurge.length > 0 &&
     await purgeModulesDirsOfImporters(opts, importersToPurge)
-  }
 
   return { purged }
 }
@@ -145,7 +141,7 @@ async function purgeModulesDirsOfImporter (
     virtualStoreDir: string
   },
   importer: ImporterToPurge
-): Promise<void> {
+): Promise<boolean> {
   return purgeModulesDirsOfImporters(opts, [importer])
 }
 
@@ -155,10 +151,10 @@ async function purgeModulesDirsOfImporters (
     virtualStoreDir: string
   },
   importers: ImporterToPurge[]
-): Promise<void> {
+): Promise<boolean> {
   const safeImporters = (await Promise.all(importers.map(resolveSafePurgeTarget)))
     .filter((importer): importer is SafeImporterToPurge => importer != null)
-  if (safeImporters.length === 0) return
+  if (safeImporters.length === 0) return true
 
   if (opts.confirmModulesPurge ?? true) {
     if (!process.stdin.isTTY) {
@@ -198,22 +194,27 @@ async function purgeModulesDirsOfImporters (
       if (err.code !== 'ENOENT') throw err
     }
   }))
+  return true
 }
 
 async function resolveSafePurgeTarget (
   importer: ImporterToPurge
 ): Promise<SafeImporterToPurge | null> {
+  const projectRootDir = await fs.realpath(importer.rootDirRealPath ?? importer.rootDir)
+  let purgeDir: string
   try {
-    const [projectRootDir, purgeDir] = await Promise.all([
-      fs.realpath(importer.rootDirRealPath ?? importer.rootDir),
-      fs.realpath(importer.modulesDir),
-    ])
-    if (dirsAreEqual(projectRootDir, purgeDir) || !isSubdir(projectRootDir, purgeDir)) return null
-    return { ...importer, purgeDir }
+    purgeDir = await fs.realpath(importer.modulesDir)
   } catch (err: unknown) {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return null
     throw err
   }
+  if (dirsAreEqual(projectRootDir, purgeDir) || !isSubdir(projectRootDir, purgeDir)) {
+    throw new PnpmError(
+      'UNSAFE_MODULES_DIR',
+      `Refusing to remove the modules directory at "${importer.modulesDir}" because its resolved target is not a strict subdirectory of the project root at "${importer.rootDir}".`
+    )
+  }
+  return { ...importer, purgeDir }
 }
 
 async function removeContentsOfDir (dir: string, virtualStoreDir: string): Promise<void> {
