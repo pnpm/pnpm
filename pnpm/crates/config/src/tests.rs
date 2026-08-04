@@ -2005,6 +2005,22 @@ publishBranch: release
     assert_eq!(config.publish_branch.as_deref(), Some("release"));
 }
 
+/// The end of the chain for the untrusted-layer `otp` filter: a project's own
+/// `pnpm-workspace.yaml` goes through `substitute_env_untrusted`, so a
+/// placeholder there must not reach `Config` no matter what the variable holds.
+#[test]
+pub fn a_workspace_yaml_otp_placeholder_never_reaches_the_config() {
+    fake_env!(load_with_fake_env);
+    let tmp = tempdir().unwrap();
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "otp: ${NPM_TOKEN}\n")
+        .expect("write to pnpm-workspace.yaml");
+
+    set_fake_env(&[("NPM_TOKEN", "s3cret")]);
+    let config = load_with_fake_env(tmp.path());
+
+    assert_eq!(config.otp, None);
+}
+
 /// pnpm's `readAndFilterNpmrc` keeps only auth and network keys, so none of
 /// the publish settings may come from an `.npmrc`.
 #[test]
@@ -2071,6 +2087,7 @@ pub fn pnpm_config_env_publish_settings_override_the_workspace_yaml() {
         "\
 access: public
 tag: beta
+provenance: false
 otp: '111111'
 publishBranch: from-yaml
 ",
@@ -2080,6 +2097,7 @@ publishBranch: from-yaml
     set_fake_env(&[
         ("PNPM_CONFIG_ACCESS", "restricted"),
         ("PNPM_CONFIG_TAG", "next"),
+        ("PNPM_CONFIG_PROVENANCE", "true"),
         ("PNPM_CONFIG_OTP", "222222"),
         ("PNPM_CONFIG_PUBLISH_BRANCH", "from-env"),
     ]);
@@ -2087,6 +2105,7 @@ publishBranch: from-yaml
 
     assert_eq!(config.access.as_deref(), Some("restricted"));
     assert_eq!(config.tag.as_deref(), Some("next"));
+    assert_eq!(config.provenance, Some(true));
     assert_eq!(config.otp.as_deref(), Some("222222"));
     assert_eq!(config.publish_branch.as_deref(), Some("from-env"));
 }

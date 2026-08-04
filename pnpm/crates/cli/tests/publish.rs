@@ -24,6 +24,16 @@ fn pacquet(workspace: &Path) -> Command {
         .without_env("NPM_ID_TOKEN")
         .without_env("ACTIONS_ID_TOKEN_REQUEST_TOKEN")
         .without_env("ACTIONS_ID_TOKEN_REQUEST_URL")
+        // These tests turn on publish settings a developer may also have set
+        // globally, so pin the layers below `pnpm-workspace.yaml` to nothing:
+        // `XDG_CONFIG_HOME` points at the workspace (which has no `pnpm/`
+        // subdirectory), and the `PNPM_CONFIG_*` overlay is cleared.
+        .with_env("XDG_CONFIG_HOME", workspace)
+        .without_env("PNPM_CONFIG_ACCESS")
+        .without_env("PNPM_CONFIG_TAG")
+        .without_env("PNPM_CONFIG_PROVENANCE")
+        .without_env("PNPM_CONFIG_OTP")
+        .without_env("PNPM_CONFIG_PUBLISH_BRANCH")
 }
 
 /// Run `pacquet publish --no-git-checks` in `workspace` with `args` appended.

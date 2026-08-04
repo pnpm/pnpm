@@ -409,6 +409,37 @@ fn a_workspace_otp_placeholder_is_dropped_but_a_literal_is_kept() {
     assert_eq!(trusted.otp.as_deref(), Some("s3cret"));
 }
 
+/// `otp` is the only publish setting the untrusted layer refuses to expand.
+/// `access` and `tag` also reach the registry — they are fields of the publish
+/// document — but a `${VAR}` in them has legitimate uses in release automation
+/// (`tag: ${RELEASE_CHANNEL}`), and pnpm expands every string outside its
+/// request-destination set. `otp` is singled out because it is a credential
+/// slot with no such use: a one-time password does not belong in a committed
+/// file, so a placeholder there is far more likely to be an exfiltration
+/// attempt than a workflow.
+#[test]
+fn the_other_publish_settings_still_expand_from_the_untrusted_layer() {
+    struct EnvWithChannel;
+    impl EnvVar for EnvWithChannel {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "CHANNEL" => Some("beta".to_owned()),
+                "LEVEL" => Some("restricted".to_owned()),
+                "BRANCH" => Some("release".to_owned()),
+                _ => None,
+            }
+        }
+    }
+
+    let yaml = "tag: ${CHANNEL}\naccess: ${LEVEL}\npublishBranch: ${BRANCH}\n";
+    let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    settings.substitute_env_untrusted::<EnvWithChannel>();
+
+    assert_eq!(settings.tag.as_deref(), Some("beta"));
+    assert_eq!(settings.access.as_deref(), Some("restricted"));
+    assert_eq!(settings.publish_branch.as_deref(), Some("release"));
+}
+
 #[test]
 fn expands_env_vars_inside_non_registry_workspace_values() {
     struct EnvWithPaths;

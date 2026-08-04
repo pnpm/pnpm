@@ -1432,9 +1432,12 @@ pub struct Config {
     /// registry. Overridden by `--otp`.
     ///
     /// `PNPM_CONFIG_OTP` reaches this field through the ordinary env overlay,
-    /// so `pacquet_publish::resolve_otp_from_env` — kept because pnpm applies
-    /// the same second read in `optionsWithOtpEnv` — can no longer observe a
-    /// value this field does not already carry.
+    /// so it is normally already resolved by the time
+    /// `pacquet_publish::resolve_otp_from_env` runs. That second read is kept
+    /// because pnpm applies the same one in `optionsWithOtpEnv`, and it is not
+    /// dead: both treat an empty value as unset, so an env var holding only an
+    /// unset `${VAR}` collapses to `""` here and the raw, unexpanded variable
+    /// is what reaches the registry — in both stacks.
     pub otp: Option<String>,
 
     /// `scriptsPrependNodePath` from `pnpm-workspace.yaml`. Controls

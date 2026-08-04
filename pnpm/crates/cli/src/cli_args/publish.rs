@@ -367,8 +367,10 @@ impl PublishArgs {
 
     /// Map the CLI flags and resolved [`Config`] onto the publish options.
     ///
-    /// Every setting here resolves as `flag ?? config`; `tag` then adds
-    /// `pnpm publish`'s `latest` default at the end of that chain.
+    /// The settings `pnpm publish` declares as rc options — `access`, `tag`,
+    /// `provenance` — resolve as `flag ?? config`, and `tag` then adds
+    /// `pnpm publish`'s `latest` default at the end of that chain. `otp`
+    /// arrives already resolved; the rest are read straight off [`Config`].
     fn publish_options(
         &self,
         config: &Config,

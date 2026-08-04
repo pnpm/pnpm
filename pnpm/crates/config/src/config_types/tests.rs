@@ -51,8 +51,11 @@ fn config_file_keys() {
     // structured YAML settings without scalar CLI types
     assert!(is_config_file_key("registries"));
     assert!(is_config_file_key("named-registries"));
-    // the publish settings: npm-compatible ones are allowed globally,
-    // `publish-branch` is a workspace-only pnpm key
+    // The publish settings, as `pnpm config set` sees them: the four
+    // npm-compatible ones may be written to the global `config.yaml`, while
+    // `publish-branch` is workspace-only and is refused there. (Keeping it out
+    // of a global file that already has it is `clear_workspace_only_fields`'
+    // job, not this predicate's.)
     assert!(is_config_file_key("access"));
     assert!(is_config_file_key("tag"));
     assert!(is_config_file_key("provenance"));
