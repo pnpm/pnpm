@@ -1881,7 +1881,11 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         virtualStoreDirMaxLength: ctx.virtualStoreDirMaxLength,
       })
     }
-    if (opts.enablePnp) {
+    // `.pnp.cjs` is how a PnP project resolves, which makes it a
+    // project-level artifact like the importer symlinks and the package
+    // map. `virtualStoreOnly` — how `pnpm fetch` warms a store without
+    // touching the project — must not write it.
+    if (opts.enablePnp && !opts.virtualStoreOnly) {
       const importerNames = Object.fromEntries(
         projects.map(({ manifest, id }) => [id, manifest.name ?? id])
       )

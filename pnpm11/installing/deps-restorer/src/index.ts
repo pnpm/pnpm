@@ -392,7 +392,9 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         lockfileToDepGraphOpts
       )
   )
-  if (opts.enablePnp) {
+  // `.pnp.cjs` is a project-level resolution artifact, so it follows the
+  // same rule as the importer links and the package map above.
+  if (opts.enablePnp && !skipPostImportLinking) {
     const importerNames = Object.fromEntries(
       selectedProjects.map(({ manifest, id }) => [id, manifest.name ?? id])
     )

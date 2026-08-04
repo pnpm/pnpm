@@ -175,3 +175,36 @@ fn fetch_populates_the_global_virtual_store_without_importer_links() {
 
     drop((root, mock_instance));
 }
+
+/// `.pnp.cjs` is how a `PnP` project resolves, which makes it a
+/// project-level artifact like the importer links `fetch` already skips.
+/// Writing it would leave the project claiming to resolve out of a store
+/// that `fetch` populated but never linked into.
+///
+/// `fetch` takes its linker from configuration rather than a flag, so
+/// the linker is set in `pnpm-workspace.yaml`.
+#[test]
+fn fetch_under_pnp_does_not_write_the_loader() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+
+    // Append rather than overwrite: the harness's own workspace manifest
+    // carries `storeDir` / `cacheDir` / `registry`, and losing those
+    // makes the store assertion below fail for an unrelated reason.
+    let workspace_manifest = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&workspace_manifest).expect("read pnpm-workspace.yaml");
+    yaml.push_str("nodeLinker: pnp\n");
+    fs::write(&workspace_manifest, yaml).expect("write pnpm-workspace.yaml");
+
+    write_manifest_and_lockfile(&workspace);
+    pacquet_at(&workspace).with_arg("fetch").assert().success();
+
+    assert!(store_dir.join("v11").exists(), "fetch must still populate the store");
+    assert!(
+        !workspace.join(".pnp.cjs").exists(),
+        "fetch must not write the PnP loader: it never linked the project",
+    );
+
+    drop((root, mock_instance, store_dir));
+}
