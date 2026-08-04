@@ -1451,10 +1451,6 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 trusted_importer_ids: &project_anchor_importer_ids,
                 root_component_importers: &root_component_importers,
                 sidecar_lockfile: materialization_lockfile,
-                // Public-hoist aliases land after
-                // `SymlinkDirectDependencies` has run, so this path
-                // re-walks each importer's `node_modules` to shim them.
-                relink_importer_bins: true,
                 config,
                 layout: &layout,
                 lockfile: materialization_lockfile,

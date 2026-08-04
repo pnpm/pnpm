@@ -106,11 +106,6 @@ pub struct LinkPhaseInputs<'a> {
     /// path filters to the current install first; the fresh path already
     /// holds a materialization closure.
     pub sidecar_lockfile: &'a Lockfile,
-    /// Re-walk each importer's `node_modules` for a final bin pass after
-    /// hoisting. `SymlinkDirectDependencies` already links direct-dep
-    /// bins, so this only adds publicly-hoisted aliases; the frozen path
-    /// leaves those to the post-build top-level link instead.
-    pub relink_importer_bins: bool,
     pub requester: &'a str,
     pub node_linker: NodeLinker,
     pub is_hoisted: bool,
@@ -139,7 +134,6 @@ pub fn run_link_phase<Reporter: self::Reporter>(
         trusted_importer_ids,
         root_component_importers,
         sidecar_lockfile,
-        relink_importer_bins,
         config,
         layout,
         lockfile,
@@ -441,10 +435,12 @@ pub fn run_link_phase<Reporter: self::Reporter>(
         crate::write_pnp_file(sidecar_lockfile, workspace_root, config, layout, project_manifests)
             .map_err(LinkPhaseError::WritePnpFile)?;
     }
-    if relink_importer_bins {
-        // `SymlinkDirectDependencies` already linked direct-dep bins;
-        // re-walking picks up the publicly-hoisted aliases that landed
-        // in the same `node_modules` after it ran.
+    // `SymlinkDirectDependencies` already linked direct-dep bins, but
+    // hoisting runs after it. Re-walking each importer's `node_modules`
+    // is what shims a publicly-hoisted *workspace package*'s bin: those
+    // are recorded in the hoist result's `hoisted_workspace_aliases`,
+    // which the post-build top-level link never sees.
+    {
         let modules_basename = config.modules_dir.file_name().map_or_else(
             || std::ffi::OsString::from("node_modules"),
             std::ffi::OsStr::to_os_string,

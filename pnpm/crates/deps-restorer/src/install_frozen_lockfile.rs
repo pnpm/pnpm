@@ -973,9 +973,6 @@ where
                 trusted_importer_ids: &trusted_importer_ids,
                 root_component_importers: &root_component_importers,
                 sidecar_lockfile: &sidecar_lockfile,
-                // The frozen path leaves publicly-hoisted bins to the
-                // post-build top-level link.
-                relink_importer_bins: false,
                 config,
                 layout: &layout,
                 lockfile,
