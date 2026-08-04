@@ -163,13 +163,12 @@ fn unrecognized_configured_access_is_ignored() {
 #[test]
 fn resolved_otp_prefers_the_flag_over_the_config() {
     let config = Config { otp: Some("from-config".to_owned()), ..Default::default() };
-    assert_eq!(publish_args().resolved_otp(&config), Some("from-config".to_owned()));
+    assert_eq!(publish_flags().resolved_otp(&config), Some("from-config".to_owned()));
 
-    let args =
-        publish_args_with(PublishFlags { otp: Some("from-flag".to_owned()), ..publish_flags() });
-    assert_eq!(args.resolved_otp(&config), Some("from-flag".to_owned()));
-    assert_eq!(args.resolved_otp(&Config::default()), Some("from-flag".to_owned()));
-    assert_eq!(publish_args().resolved_otp(&Config::default()), None);
+    let flags = PublishFlags { otp: Some("from-flag".to_owned()), ..publish_flags() };
+    assert_eq!(flags.resolved_otp(&config), Some("from-flag".to_owned()));
+    assert_eq!(flags.resolved_otp(&Config::default()), Some("from-flag".to_owned()));
+    assert_eq!(publish_flags().resolved_otp(&Config::default()), None);
 }
 
 #[tokio::test]

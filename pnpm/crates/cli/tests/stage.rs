@@ -213,6 +213,31 @@ fn approve_and_reject_send_the_configured_otp_and_stage_headers() {
     );
 }
 
+/// `otp` is one of the `publish` rc options `stage` inherits, so the
+/// subcommands that talk to the `-/stage` API have to honor a configured one
+/// the same way `--otp` is honored — upstream reads `opts.otp` before falling
+/// back to `opts.cliOptions.otp`.
+#[test]
+fn approve_sends_an_otp_configured_in_the_workspace_yaml() {
+    let dir = tempfile::tempdir().expect("workspace");
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    write_registry_config(dir.path(), &registry);
+    fs::write(dir.path().join("pnpm-workspace.yaml"), "otp: '654321'\n")
+        .expect("write pnpm-workspace.yaml");
+    let approve_mock = server
+        .mock("POST", format!("/-/stage/{STAGE_ID}/approve").as_str())
+        .match_header("npm-otp", "654321")
+        .with_status(201)
+        .with_body(r#"{"ok":true}"#)
+        .expect(1)
+        .create();
+
+    let approve = stage(dir.path(), &["approve", STAGE_ID]);
+    approve_mock.assert();
+    assert_success(&approve);
+}
+
 #[test]
 fn approve_maps_a_web_auth_challenge_to_the_non_interactive_error() {
     let dir = tempfile::tempdir().expect("workspace");

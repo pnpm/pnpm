@@ -103,6 +103,18 @@ pub struct PublishFlags {
     pub report_summary: bool,
 }
 
+impl PublishFlags {
+    /// The one-time password before the `PNPM_CONFIG_OTP` overlay: `--otp`
+    /// wins, then the `otp` config setting.
+    ///
+    /// Lives on the flags rather than on [`PublishArgs`] because `pnpm stage`
+    /// flattens the same flags and has to resolve the OTP the same way for
+    /// its non-publish subcommands.
+    pub(super) fn resolved_otp(&self, config: &Config) -> Option<String> {
+        self.otp.clone().or_else(|| config.otp.clone())
+    }
+}
+
 /// What one `publish` / `stage publish` invocation published: the single
 /// package summary, or the recursive path's per-package summaries (possibly
 /// empty). The two arms serialize differently under `--json` — an object vs.
@@ -181,7 +193,7 @@ impl PublishArgs {
             return Ok(PublishedPackages::Recursive(published));
         }
 
-        let otp = resolve_otp_from_env::<Host>(self.resolved_otp(config));
+        let otp = resolve_otp_from_env::<Host>(self.flags.resolved_otp(config));
         let opts = self.publish_options(config, otp, stage);
         let http_client = build_registry_client(config)?;
         let network = PublishNetwork { client: &http_client, auth_headers: &config.auth_headers };
@@ -330,12 +342,6 @@ impl PublishArgs {
             .wrap_err(crate::cli_args::pack::PACK_ERROR_CONTEXT)
     }
 
-    /// The one-time password before the `PNPM_CONFIG_OTP` overlay: `--otp`
-    /// wins, then the `otp` config setting.
-    pub(super) fn resolved_otp(&self, config: &Config) -> Option<String> {
-        self.flags.otp.clone().or_else(|| config.otp.clone())
-    }
-
     /// Whether to attach a provenance attestation: either
     /// `--provenance` / `--no-provenance` wins, then the `provenance` config
     /// setting, and `None` leaves the decision to the OIDC exchange.
@@ -348,10 +354,8 @@ impl PublishArgs {
 
     /// Map the CLI flags and resolved [`Config`] onto the publish options.
     ///
-    /// Every setting `pnpm publish` declares as an rc option resolves as
-    /// `flag ?? config`, so a value in `pnpm-workspace.yaml`, the global
-    /// `config.yaml`, or a `PNPM_CONFIG_*` variable is honored when the flag
-    /// is absent.
+    /// Each setting `pnpm publish` declares as an rc option resolves as
+    /// `flag ?? config`.
     fn publish_options(
         &self,
         config: &Config,
@@ -361,25 +365,14 @@ impl PublishArgs {
         PublishPackedPkgOptions {
             default_registry: config.registry.clone(),
             scoped_registries: config.registries.clone(),
-            // Resolved before `publishConfig.access` is consulted, so a
-            // configured access level outranks the manifest's.
             access: self
                 .flags
                 .access
                 .as_deref()
                 .or(config.access.as_deref())
                 .and_then(Access::parse),
-            // The `latest` default lands after the whole chain, so a
-            // configured tag is not mistaken for an unset one.
-            tag: self
-                .flags
-                .tag
-                .clone()
-                .or_else(|| config.tag.clone())
-                .unwrap_or_else(|| "latest".to_owned()),
+            tag: self.flags.tag.as_deref().or(config.tag.as_deref()).unwrap_or("latest").to_owned(),
             otp,
-            // With neither flag and no configured value the decision is left
-            // to the OIDC flow; an explicit `false` suppresses it.
             provenance: self.resolved_provenance(config),
             dry_run: self.flags.dry_run,
             stage,

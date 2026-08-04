@@ -128,8 +128,9 @@ pub enum FetchTokenAndProvenanceError {
 /// applicable or fails in a skippable way — the caller then falls back to
 /// static credentials.
 ///
-/// `provenance_override` is the explicit `--provenance` value: when set, it is
-/// used verbatim and the visibility probe is skipped.
+/// `provenance_override` is the caller's already-resolved provenance decision
+/// (`--provenance` / `--no-provenance`, else the `provenance` setting): when
+/// set, it is used verbatim and the visibility probe is skipped.
 pub async fn fetch_token_and_provenance_by_oidc<Sys, Reporter>(
     package_name: &str,
     registry: &str,

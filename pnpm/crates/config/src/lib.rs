@@ -1412,9 +1412,8 @@ pub struct Config {
     pub access: Option<String>,
 
     /// `tag` (`--tag`): the dist-tag `pnpm publish` registers the published
-    /// version under. `None` means the setting is unset; the publish command
-    /// applies the `latest` default after the flag and this field have both
-    /// had their say. Overridden by `--tag`.
+    /// version under. Unset means the publish command's `latest` default.
+    /// Overridden by `--tag`.
     pub tag: Option<String>,
 
     /// `provenance` (`--provenance`): whether `pnpm publish` attaches a
