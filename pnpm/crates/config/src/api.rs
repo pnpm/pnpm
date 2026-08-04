@@ -131,15 +131,15 @@ impl GetHomeDir for Host {
     fn home_dir() -> Option<PathBuf> {
         #[cfg(all(unix, not(target_os = "cygwin")))]
         {
-            if unsafe { libc::geteuid() } == 0 {
-                if let Ok(sudo_user_raw) = std::env::var("SUDO_USER") {
-                    let sudo_user = sudo_user_raw.trim();
-                    if sudo_user != "root" && !sudo_user.is_empty() {
-                        // A failed lookup returns None instead of falling back to
-                        // root's home, so a broken sudo environment fails fast
-                        // rather than silently writing into /root.
-                        return sudo_user_home_dir(sudo_user);
-                    }
+            // SAFETY: `geteuid` is safe to call.
+            let is_root = unsafe { libc::geteuid() } == 0;
+            if let Some(sudo_user_raw) = std::env::var("SUDO_USER").ok().filter(|_| is_root) {
+                let sudo_user = sudo_user_raw.trim();
+                if sudo_user != "root" && !sudo_user.is_empty() {
+                    // A failed lookup returns None instead of falling back to
+                    // root's home, so a broken sudo environment fails fast
+                    // rather than silently writing into /root.
+                    return sudo_user_home_dir(sudo_user);
                 }
             }
         }
