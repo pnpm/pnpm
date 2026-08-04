@@ -92,6 +92,9 @@ where
         // `--dry-run` resolves but never materializes, so it borrows the
         // lockfile-only plumbing (skip node_modules / `.modules.yaml` /
         // workspace-state) while additionally skipping the lockfile write.
+        // Both lockfile-only paths must stop after writing the wanted lockfile:
+        // neither may write `.modules.yaml`, the current lockfile, or workspace state.
+        // The frozen path returns below; the fresh path returns in `complete_resolve_only`.
         let resolve_only = lockfile_only || dry_run;
 
         if config.frozen_store && config.force {
@@ -557,6 +560,8 @@ where
                 .map_or_else(|| workspace_root.join(Lockfile::FILE_NAME), Path::to_path_buf)
         });
 
+        // `@pnpm/cli.default-reporter` renders these fields in the install header;
+        // `currentLockfileExists` flips after the virtual-store lockfile is written.
         Reporter::emit(&LogEvent::Context(ContextLog {
             level: LogLevel::Debug,
             current_lockfile_exists: current_lockfile.is_some(),

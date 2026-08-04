@@ -382,6 +382,8 @@ fn commit_modules_state(inputs: CommitModulesStateInputs<'_>) -> Result<(), Inst
         rebuild_build_policy.as_ref(),
     );
 
+    // Rebuild reads hoisted locations from `.modules.yaml` and reports
+    // `MISSING_HOISTED_LOCATIONS` if an install fails to persist them here.
     let mut next_modules = build_modules_manifest(
         config,
         node_linker,
