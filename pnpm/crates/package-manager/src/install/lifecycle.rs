@@ -12,7 +12,7 @@ use rayon::prelude::*;
 /// the top-level `Install.manifest` as its only importer and pass
 /// `None` for the `workspace:`-spec lookup.
 ///
-/// One walk feeds both [`build_workspace_packages_map`] (the npm
+/// One walk feeds both [`super::build_workspace_packages_map`] (the npm
 /// resolver's `workspace:` lookup) and the per-importer manifest list
 /// the fresh-resolve path iterates over, so the manifests are read
 /// from disk exactly once.

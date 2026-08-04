@@ -520,7 +520,8 @@ pub(super) fn build_projects_map(
         .collect()
 }
 
-/// Assemble the [`WorkspaceState`] payload for [`update_workspace_state`].
+/// Assemble the [`WorkspaceState`] payload for
+/// [`pacquet_workspace_state::update_workspace_state`].
 ///
 /// Records the projects pacquet just materialized plus the resolved
 /// settings the install used.
