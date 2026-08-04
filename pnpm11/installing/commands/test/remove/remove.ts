@@ -87,19 +87,20 @@ test('remove should fail if the project has no dependencies at all', async () =>
 test('remove expands dependency glob patterns', async () => {
   prepare({
     dependencies: {
-      'is-negative': '1.0.0',
-      'is-positive': '1.0.0',
+      eslint: '1.0.0',
+      'eslint-plugin-import': '1.0.0',
+      unrelated: '1.0.0',
     },
   })
 
   await remove.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
-  }, ['is-neg*'])
+  }, ['eslint', 'eslint-*'])
 
   const manifest = JSON.parse(await readFile('package.json', 'utf8'))
   expect(manifest.dependencies).toStrictEqual({
-    'is-positive': '1.0.0',
+    unrelated: '1.0.0',
   })
 })
 
@@ -132,6 +133,41 @@ test('recursive remove with dependency glob patterns respects the selected depen
 
   const manifest = JSON.parse(await readFile('project-1/package.json', 'utf8'))
   expect(manifest.dependencies).toBeUndefined()
+  expect(manifest.devDependencies).toStrictEqual({
+    'is-positive': '1.0.0',
+  })
+})
+
+test('recursive remove with unmatched dependency glob patterns is a no-op', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+      devDependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+  ])
+
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+
+  await remove.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    allProjectsGraph,
+    dir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  }, ['does-not-match-*'])
+
+  const manifest = JSON.parse(await readFile('project-1/package.json', 'utf8'))
+  expect(manifest.dependencies).toStrictEqual({
+    'is-negative': '1.0.0',
+  })
   expect(manifest.devDependencies).toStrictEqual({
     'is-positive': '1.0.0',
   })
