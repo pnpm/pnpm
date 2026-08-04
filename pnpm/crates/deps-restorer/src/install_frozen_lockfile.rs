@@ -1,14 +1,12 @@
 use crate::{
     AllowBuildPolicy, BuildModules, BuildModulesError, CreateVirtualStore, CreateVirtualStoreError,
     CreateVirtualStoreOutput, HoistedDepGraphError, HoistedDependencies, LinkHoistedModulesError,
-    LinkHoistedModulesOpts, LinkRootComponentMembersError, LinkVirtualStoreBins,
-    LinkVirtualStoreBinsError, LockfileToHoistedDepGraphOptions, SkippedSnapshots,
-    SymlinkDirectDependencies, SymlinkDirectDependenciesError, SymlinkPackageError,
-    VersionPolicyError, VirtualStoreLayout, any_installability_constraint,
-    build_direct_deps_by_importer, direct_dep_names_for_importer, get_hoisted_dependencies,
-    link_direct_dep_bins_resolved, link_hoisted_modules, link_root_component_members,
-    link_top_level_bins, lockfile_to_hoisted_dep_graph,
-    symlink_direct_dependencies::importer_root_dir, symlink_hoisted_dependencies,
+    LinkHoistedModulesOpts, LinkRootComponentMembersError, LinkVirtualStoreBinsError,
+    LockfileToHoistedDepGraphOptions, SkippedSnapshots, SymlinkDirectDependencies,
+    SymlinkDirectDependenciesError, SymlinkPackageError, VersionPolicyError, VirtualStoreLayout,
+    any_installability_constraint, build_direct_deps_by_importer, direct_dep_names_for_importer,
+    get_hoisted_dependencies, link_hoisted_modules, link_top_level_bins,
+    lockfile_to_hoisted_dep_graph, symlink_direct_dependencies::importer_root_dir,
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -27,9 +25,7 @@ use pacquet_package_manifest::DependencyGroup;
 use pacquet_patching::{
     ExtendedPatchInfo, PatchKeyConflictError, ResolvePatchedDependenciesError, get_patch_info,
 };
-use pacquet_reporter::{
-    IgnoredScriptsLog, LogEvent, LogLevel, Reporter, Stage, StageLog, StatsLog, StatsMessage,
-};
+use pacquet_reporter::{IgnoredScriptsLog, LogEvent, LogLevel, Reporter, Stage, StageLog};
 use pacquet_resolving_resolver_base::ResolutionVerifier;
 use pacquet_store_dir::StoreIndexWriter;
 use pacquet_tarball::{MemCache, SharedReportedProgressKeys};
@@ -936,323 +932,38 @@ where
             skipped.add_fetch_failed(key);
         }
 
-        // Pre-compute the hoist plan so the dedupe pass inside
-        // `SymlinkDirectDependencies` can fold publicly-hoisted aliases
-        // into root's target map — pacquet runs hoist *after*
-        // `SymlinkDirectDependencies`, so without this the dedupe map
-        // only sees root's direct deps and a non-root importer's
-        // direct dep that would land at root via public-hoist stays
-        // un-deduped. The full `HoistResult` is also threaded to the
-        // on-disk hoist pass below so the traversal isn't run twice.
-        // `hoist-workspace-packages`: named non-root projects become
-        // hoist candidates whose links point at the project dirs.
-        let hoisted_workspace_packages = config
-            .hoist_workspace_packages
-            .then(|| workspace_packages_for_hoist(workspace_root, project_manifests));
-        let pre_hoist = compute_hoist_plan(
-            config,
-            snapshots,
-            packages,
-            importers,
-            &dependency_groups,
-            &skipped,
-            is_hoisted,
-            hoisted_workspace_packages.as_ref(),
-        );
-        let public_hoist_targets: Option<BTreeMap<String, PathBuf>> =
-            pre_hoist.as_ref().map(|plan| {
-                collect_public_hoist_targets(&plan.result, &plan.graph, &layout, &plan.skipped)
-            });
-
-        // Reconcile before linking: stale direct-dep links and
-        // orphaned hoist links must vacate their slots so the relink +
-        // rehoist below can claim them. The hoisted linker is excluded
-        // — its previous-graph diff removes orphans and emits the
-        // `pnpm:stats` `removed` event itself (see
-        // [`crate::link_hoisted_modules()`]); on the isolated linker
-        // the event fires here, so every install carries exactly one,
-        // pairing the `added` emitted in `CreateVirtualStore`.
-        //
-        // `virtual_store_only` skips reconciliation for the same reason
-        // it skips linking below: it never creates importer or hoist
-        // links, so there is nothing of its own to reconcile.
-        if !is_hoisted && !config.virtual_store_only {
-            let removed_count = match current_lockfile {
-                Some(current) => crate::PruneStaleModules {
-                    config,
-                    workspace_root,
-                    wanted_lockfile: lockfile,
-                    current_lockfile: current,
-                    prior_hoisted_dependencies,
-                    included_groups: &dependency_groups,
-                    prune_orphans,
-                }
-                .run::<Reporter>()
-                .map_err(InstallFrozenLockfileError::PruneStaleModules)?,
-                None => 0,
-            };
-            Reporter::emit(&LogEvent::Stats(StatsLog {
-                level: LogLevel::Debug,
-                message: StatsMessage::Removed {
-                    prefix: requester.to_owned(),
-                    removed: removed_count,
-                },
-            }));
-        }
-
-        // `virtual_store_only` stops here: the virtual store is
-        // populated, but nothing downstream of it — importer symlinks,
-        // per-slot bins, root components — gets linked.
-        if !is_hoisted && !config.virtual_store_only {
-            // Importer ids backed by the install's own declared
-            // projects. These may legitimately live outside the
-            // lockfile dir (Bit's capsule installs pass such
-            // projects), so they bypass the malformed-lockfile
-            // importer-key rejection.
-            let trusted_importer_ids: std::collections::HashSet<String> = project_manifests
-                .iter()
-                .map(|(project_dir, _)| {
-                    pacquet_workspace::importer_id_from_root_dir(workspace_root, project_dir)
-                })
-                .collect();
-            SymlinkDirectDependencies {
+        let linking::LinkPhaseOutput {
+            hoisted_dependencies,
+            hoisted_locations,
+            hoisted_pkg_roots_by_key,
+            publicly_hoisted_for_post_build,
+        } = linking::run_link_phase::<Reporter>(
+            linking::LinkPhaseInputs {
                 config,
                 layout: &layout,
-                importers,
-                packages,
-                dependency_groups: dependency_groups.iter().copied(),
-                workspace_root,
-                skipped: &skipped,
-                link_only: false,
-                public_hoist_targets: public_hoist_targets.as_ref(),
-                trusted_importer_ids: Some(&trusted_importer_ids),
-                extra_node_paths: &extra_node_paths,
-            }
-            .run::<Reporter>()
-            .map_err(InstallFrozenLockfileError::SymlinkDirectDependencies)?;
-
-            // Bit "root components": make each root's injected members
-            // mutually reachable. Gated on
-            // `installConfig.hoistingLimits: "workspaces"`, so it is a
-            // no-op for every non-Bit install. See
-            // [`link_root_component_members`]. `project_manifests` keys
-            // are project directories; map each back to its lockfile
-            // importer id so the set lines up with `importers`.
-            let root_component_importers: std::collections::HashSet<String> = project_manifests
-                .iter()
-                .filter(|(_, manifest)| {
-                    manifest.install_config_hoisting_limits()
-                        == Some(crate::HOISTING_LIMITS_WORKSPACES)
-                })
-                .map(|(project_dir, _)| {
-                    pacquet_workspace::importer_id_from_root_dir(workspace_root, project_dir)
-                })
-                .collect();
-            link_root_component_members(
-                &layout,
-                importers,
-                &root_component_importers,
-                &dependency_groups,
-                &skipped,
-            )
-            .map_err(InstallFrozenLockfileError::LinkRootComponentMembers)?;
-
-            // Link the bins of each virtual-store slot's children into the
-            // slot's own `node_modules/.bin`.
-            // Done before `importing_done` so reporters see the import phase
-            // close only after every link (including per-slot bins) is in
-            // place. The manifest map threaded from `CreateVirtualStore`
-            // lets the linker hit `pkgFilesIndex.manifest` directly instead
-            // of re-reading every child's `package.json` from disk.
-            //
-            // Both passes are gated by `!is_hoisted`: under
-            // `nodeLinker: hoisted` there is no virtual store
-            // (`CreateVirtualStore` skipped slot writes), and the
-            // bin links go into `<parent>/node_modules/.bin` for
-            // every hoist location instead. The hoisted linker
-            // ([`crate::link_hoisted_modules()`], called below) does
-            // its own per-`node_modules` bin pass while walking the
-            // hierarchy, routing both link phases through the hoisted
-            // linker.
-            LinkVirtualStoreBins {
-                layout: &layout,
+                lockfile,
+                current_lockfile,
                 snapshots,
                 packages,
-                package_manifests: &package_manifests,
-                skipped: &skipped,
-                extra_node_paths: &extra_node_paths,
-            }
-            .run()
-            .map_err(InstallFrozenLockfileError::LinkVirtualStoreBins)?;
-        }
-
-        // Hoisted-linker materialization. Replaces the isolated
-        // [`crate::SymlinkDirectDependencies`] +
-        // [`crate::LinkVirtualStoreBins`] pair when
-        // `nodeLinker: hoisted` is in effect: the dep-graph walker
-        // computes per-package directories (with conflict-aware
-        // nesting), and the linker imports CAS files into those
-        // directories from
-        // [`CreateVirtualStoreOutput::cas_paths_by_pkg_id`] which
-        // was populated above with `node_linker = Hoisted`.
-        //
-        // `hoisted_locations` is the per-depPath list of
-        // lockfile-relative directories the walker emits. Threaded
-        // through [`InstallFrozenLockfileOutput`] so
-        // [`crate::Install::run`] can persist it into
-        // `.modules.yaml.hoisted_locations` (rebuild reads it back
-        // and surfaces `MISSING_HOISTED_LOCATIONS` if it's gone).
-        //
-        // `pkg_roots_by_key` is a per-snapshot override for
-        // `BuildModules`'s `pkgRoot` lookup. Populated from the
-        // walker's [`crate::DependenciesGraphNode::dir`] values so
-        // the build phase can `cd` into the on-disk hoisted
-        // directory instead of computing a virtual-store slot path
-        // that doesn't exist under hoisted. `None` (and an empty
-        // `hoisted_locations`) for the isolated linker. See
-        // [`crate::BuildModules::pkg_roots_by_key`] for why a snapshot
-        // can map to more than one directory and which writes have to
-        // reach all of them.
-        let HoistedLinkerOutput { hoisted_locations, hoisted_pkg_roots_by_key } =
-            if is_hoisted && !config.virtual_store_only {
-                run_hoisted_linker::<Reporter>(
-                    HoistedLinkerInputs {
-                        config,
-                        lockfile,
-                        current_lockfile,
-                        layout: &layout,
-                        importers,
-                        dependency_groups: &dependency_groups,
-                        project_manifests,
-                        package_map_project_manifests,
-                        walker_lockfile_dir: workspace_root,
-                        symlink_workspace_root: workspace_root,
-                        host_node: host_node.as_ref(),
-                        supported_architectures,
-                        cas_paths_by_pkg_id,
-                        logged_methods,
-                        requester,
-                    },
-                    &mut skipped,
-                )
-                .map_err(InstallFrozenLockfileError::from)?
-            } else {
-                HoistedLinkerOutput::default()
-            };
-
-        // Hoist transitive deps into `<virtual_store>/node_modules`
-        // (private hoist) and/or `<root>/node_modules` (public hoist).
-        //
-        // The guard is `hoistPattern != null || publicHoistPattern != null`
-        // — `Some(empty)` is a valid disabled state for one side but
-        // not the other, so the guard checks `is_some()` on the field
-        // (not `Vec` length). With pacquet's defaults both sides are
-        // `Some(non-empty)`, so the pass runs by default.
-        // Stashed across the hoist pass for the post-`BuildModules`
-        // top-level bin link. Isolated-linker public-hoist promotes
-        // a transitive dep alias to `<root>/node_modules/<alias>`
-        // where it competes for the same `<root>/node_modules/.bin`
-        // slot as the root importer's direct deps. Per
-        // pnpm/pacquet#342 the direct dep's bin must win. The post-build pass below
-        // takes both direct + hoisted candidate lists so
-        // `pacquet_cmd_shim::pick_winner` (private)'s [`BinOrigin`] tier
-        // resolves the conflict in one call. Empty means there's
-        // no public-hoist (no patterns set, hoisted linker, or
-        // `Some(empty)`-vs-`None` short-circuit).
-        let mut publicly_hoisted_for_post_build: Vec<String> = Vec::new();
-        // Isolated-linker hoist pass: shamefully-hoist + private
-        // hoist into the virtual store. Skipped under hoisted —
-        // the hoisted linker materialized the project tree above
-        // and there's no virtual store to point hoist symlinks at,
-        // so no new isolated-hoist results are produced when no
-        // `hoistPattern` / `publicHoistPattern` is configured.
-        //
-        // The traversal itself ran upthread (`pre_hoist`) so the dedupe
-        // pass in `SymlinkDirectDependencies` could see public-hoist
-        // targets; here we consume the same plan to write the
-        // symlinks on disk and emit the per-side bin shims.
-        let hoisted_dependencies = if let Some(plan) = pre_hoist {
-            let HoistPlan { graph, result, skipped: hoist_skipped, .. } = plan;
-            // Public-hoist target is the project's root
-            // `node_modules` (= `config.modules_dir`).
-            // Private-hoist target is the project-local
-            // `<root>/node_modules/.pnpm/node_modules` —
-            // pacquet's `config.virtual_store_dir` always
-            // resolves there even with GVS enabled: pacquet keeps
-            // `virtual_store_dir` project-local and
-            // routes the GVS-shared root through
-            // `global_virtual_store_dir` instead — see
-            // [`Config::apply_global_virtual_store_derivation`].
-            // The symlink *target* (under the slot dir)
-            // does need to be GVS-aware, which the
-            // `VirtualStoreLayout` handle below provides.
-            let private_dir = config.virtual_store_dir.join("node_modules");
-            let public_dir = config.modules_dir.clone();
-            symlink_hoisted_dependencies(
-                &result.hoisted_dependencies_by_node_id,
-                &result.hoisted_workspace_aliases,
-                &graph,
-                &layout,
-                &private_dir,
-                &public_dir,
-                &hoist_skipped,
-            )
-            .map_err(InstallFrozenLockfileError::HoistSymlink)?;
-            // Private-side bins → `<vs>/node_modules/.bin`.
-            // Reuses the rayon-parallel `link_direct_dep_bins`
-            // shape (read each location's `package.json`, fan out
-            // to `link_bins_of_packages`).
-            link_direct_dep_bins_resolved(
-                &private_dir,
-                &crate::resolve_hoisted_bin_deps(&layout, &result.hoisted_aliases_with_bins),
-                &extra_node_paths,
-            )
-            .map_err(InstallFrozenLockfileError::HoistLinkBins)?;
-            // Stash the public-hoist alias list for the
-            // post-`BuildModules` top-level bin link, which re-links
-            // with the [`BinOrigin`] tier so a direct dep's bin wins
-            // outright over a publicly-hoisted bin with a lexically
-            // smaller name. The re-link runs after `buildModules`.
-            publicly_hoisted_for_post_build = result.publicly_hoisted_aliases_with_bins;
-            result.hoisted_dependencies
-        } else {
-            crate::HoistedDependencies::new()
-        };
-
-        let included = IncludedDependencies {
-            dependencies: dependency_groups.contains(&DependencyGroup::Prod),
-            dev_dependencies: dependency_groups.contains(&DependencyGroup::Dev),
-            optional_dependencies: dependency_groups.contains(&DependencyGroup::Optional),
-        };
-        if crate::should_write_package_map(config, node_linker) {
-            let filtered_lockfile =
-                crate::filter_lockfile_for_current(lockfile, included, &skipped);
-            crate::package_map::write_package_map(
-                &filtered_lockfile,
-                &crate::package_map::PackageMapOptions {
-                    lockfile_dir: workspace_root,
-                    modules_dir: &config.modules_dir,
-                    package_map_type: config.node_package_map_type,
-                    layout: &layout,
-                    project_manifests,
-                },
-            )
-            .map_err(InstallFrozenLockfileError::WritePackageMap)?;
-        }
-        // See `install_with_fresh_lockfile::linking` for why
-        // `virtual_store_only` suppresses the loader.
-        if matches!(node_linker, NodeLinker::Pnp) && !config.virtual_store_only {
-            let filtered_lockfile =
-                crate::filter_lockfile_for_current(lockfile, included, &skipped);
-            crate::write_pnp_file(
-                &filtered_lockfile,
-                workspace_root,
-                config,
-                &layout,
+                importers,
                 project_manifests,
-            )
-            .map_err(InstallFrozenLockfileError::WritePnpFile)?;
-        }
+                package_map_project_manifests,
+                dependency_groups: &dependency_groups,
+                package_manifests: &package_manifests,
+                cas_paths_by_pkg_id,
+                extra_node_paths: &extra_node_paths,
+                workspace_root,
+                requester,
+                node_linker,
+                is_hoisted,
+                prune_orphans,
+                prior_hoisted_dependencies,
+                host_node: host_node.as_ref(),
+                supported_architectures,
+                logged_methods,
+            },
+            &mut skipped,
+        )?;
 
         // `importing_done` fires once extraction and symlink linking
         // are complete, before any build phase. Reporters use it to
@@ -2097,6 +1808,8 @@ async fn load_custom_fetcher_picker(
     }
     Ok(Some(Arc::new(pacquet_hooks::custom_fetcher_adapter::CustomFetcherPicker::new(fetchers))))
 }
+
+mod linking;
 
 #[cfg(test)]
 mod tests;
