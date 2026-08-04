@@ -10,8 +10,12 @@
 //! `embedReadme` / `extraEnv` config keys are not surfaced by `Config`
 //! yet, so they take their `false` / empty defaults.
 
-use crate::cli_args::recursive::{
-    AutoExcludeRoot, discover_workspace_projects, select_recursive_projects, sort_filtered_projects,
+use crate::cli_args::{
+    install::resolve_bool_override,
+    recursive::{
+        AutoExcludeRoot, discover_workspace_projects, select_recursive_projects,
+        sort_filtered_projects,
+    },
 };
 use clap::Args;
 use miette::{Context, IntoDiagnostic};
@@ -66,6 +70,16 @@ pub struct PackArgs {
     /// working directory.
     #[clap(long = "pack-destination")]
     pub pack_destination: Option<String>,
+
+    /// Don't run the `prepack`, `prepare` and `postpack` lifecycle
+    /// scripts. Combined with `--dry-run --json`, this prints the manifest
+    /// that would be published without building the package.
+    #[clap(long = "ignore-scripts", overrides_with = "no_ignore_scripts")]
+    pub ignore_scripts: bool,
+
+    /// Force-enable lifecycle scripts for this invocation.
+    #[clap(long = "no-ignore-scripts", overrides_with = "ignore_scripts")]
+    pub no_ignore_scripts: bool,
 
     /// Print the packed tarball and its contents in JSON.
     #[clap(long)]
@@ -235,7 +249,11 @@ impl PackArgs {
         PackOptions {
             dir,
             catalogs,
-            ignore_scripts: config.ignore_scripts,
+            ignore_scripts: resolve_bool_override(
+                self.ignore_scripts,
+                self.no_ignore_scripts,
+                config.ignore_scripts,
+            ),
             unsafe_perm: config.unsafe_perm,
             embed_readme: false,
             pack_gzip_level: self.pack_gzip_level,
