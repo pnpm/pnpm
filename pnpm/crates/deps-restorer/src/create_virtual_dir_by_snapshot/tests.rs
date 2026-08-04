@@ -16,7 +16,7 @@ use std::{
 };
 use tempfile::tempdir;
 
-pub(crate) struct LinkConcurrencyProbe {
+pub struct LinkConcurrencyProbe {
     current: AtomicUsize,
     max: AtomicUsize,
     wait_for_overlap: bool,

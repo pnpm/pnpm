@@ -261,7 +261,8 @@ impl AllowBuildPolicy {
 /// to the `metadata_key.to_string()` form used at the runtime call sites.
 ///
 /// [`PkgVerPeer::without_peer`]: pacquet_lockfile::PkgVerPeer::without_peer
-pub(crate) fn normalize_build_dep_path(dep_path: &str) -> String {
+#[must_use]
+pub fn normalize_build_dep_path(dep_path: &str) -> String {
     remove_suffix(dep_path).to_string()
 }
 
@@ -1599,7 +1600,8 @@ fn bin_dirs_in_all_parent_dirs(pkg_root: &Path, lockfile_dir: &Path) -> Vec<Path
 
 /// Parse `name` and `version` from a lockfile snapshot key like
 /// `/@pnpm.e2e/install-script-example@1.0.0`.
-pub(crate) fn parse_name_version_from_key(key: &str) -> (String, String) {
+#[must_use]
+pub fn parse_name_version_from_key(key: &str) -> (String, String) {
     let stripped = key.strip_prefix('/').unwrap_or(key);
     match stripped.rfind('@') {
         Some(idx) if idx > 0 => (stripped[..idx].to_string(), stripped[idx + 1..].to_string()),

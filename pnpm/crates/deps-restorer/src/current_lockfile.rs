@@ -183,7 +183,8 @@ pub fn merge_filtered_wanted_lockfile(
     .lockfile)
 }
 
-pub(crate) fn merge_filtered_current_lockfile(
+#[must_use]
+pub fn merge_filtered_current_lockfile(
     previous_current: Option<&Lockfile>,
     wanted: &Lockfile,
     requested_importer_ids: &HashSet<String>,
@@ -270,7 +271,7 @@ pub(crate) fn merge_filtered_current_lockfile(
 /// subtrees skipped after the transient condition is gone; their
 /// subtrees are already cut from materialization by the reachability
 /// walks that consume the full skip-set union.
-pub(crate) fn extend_skipped_with_dependency_closure(
+pub fn extend_skipped_with_dependency_closure(
     skipped: &mut SkippedSnapshots,
     lockfile: &Lockfile,
     workspace_root: &Path,

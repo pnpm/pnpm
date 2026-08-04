@@ -63,7 +63,7 @@ pub fn build_hoist_graph(
 }
 
 #[must_use]
-pub(crate) fn build_hoist_graph_with_max_length(
+pub fn build_hoist_graph_with_max_length(
     snapshots: &HashMap<PackageKey, SnapshotEntry>,
     packages: &HashMap<PackageKey, PackageMetadata>,
     virtual_store_dir_max_length: usize,

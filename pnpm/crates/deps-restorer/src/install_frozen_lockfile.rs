@@ -155,7 +155,7 @@ where
     pub node_version: Option<String>,
 
     /// `nodeLinker` value to honor for *this* invocation. Threaded
-    /// from the [`crate::Install`] caller (which has already
+    /// from the package manager's `Install` caller (which has already
     /// applied any `--node-linker` CLI override on top of
     /// [`pacquet_config::Config::node_linker`]).
     ///
@@ -177,14 +177,14 @@ where
     /// Install-scoped shared in-flight tarball cache, threaded down to
     /// [`crate::CreateVirtualStore`]'s cold-batch downloads. `Some` on
     /// the pnpr client path so the materialization reuses the
-    /// [`crate::TarballPrefetcher`]'s background downloads instead of
+    /// the package manager's `TarballPrefetcher` background downloads instead of
     /// re-fetching every tarball; `None` for installs without a shared
     /// prefetch in flight.
     pub tarball_mem_cache: Option<&'a Arc<MemCache>>,
     pub seed_skipped: Option<Vec<String>>,
     /// Forced-rebuild selection threaded from `pacquet rebuild` /
     /// `approve-builds`; `None` for a normal install. Forwarded to
-    /// `run_build_phase`'s `BuildPhaseInputs`. See
+    /// [`run_build_phase`]'s [`BuildPhaseInputs`]. See
     /// [`crate::RebuildOptions`].
     pub rebuild: Option<&'a crate::RebuildOptions>,
     /// `hoistedDependencies` recorded by the previous install's
@@ -237,7 +237,7 @@ pub enum InstallFrozenLockfileError {
     /// Surfaces any failure from the shared lifecycle-script build
     /// phase: `patchedDependencies` resolution, the [`BuildModules`]
     /// run itself, or the post-build top-level bin link. Shared with
-    /// the fresh-lockfile path via `run_build_phase`, so both install
+    /// the fresh-lockfile path via [`run_build_phase`], so both install
     /// modes report the same `ERR_PNPM_*` codes for a failed build.
     #[diagnostic(transparent)]
     BuildPhase(#[error(source)] BuildPhaseError),
@@ -308,12 +308,9 @@ pub enum InstallFrozenLockfileError {
     #[display("failed to write PnP loader: {_0}")]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_WRITE_PNP_FILE))]
     WritePnpFile(#[error(source)] crate::WritePnpFileError),
-
-    #[diagnostic(transparent)]
-    InstallError(#[error(source)] Box<crate::InstallError>),
 }
 
-/// Error type of `run_build_phase` and `resolve_snapshot_patches`.
+/// Error type of [`run_build_phase`] and [`resolve_snapshot_patches`].
 ///
 /// Each variant is `#[diagnostic(transparent)]` so the surfaced
 /// `ERR_PNPM_*` code comes from the wrapped error — the two install
@@ -357,7 +354,7 @@ pub enum BuildPhaseError {
 /// but match nothing in the current install. Computed from pacquet's
 /// lockfile-driven flow: the patch hashes are resolved after the
 /// lockfile is built/loaded rather than during resolution.
-pub(crate) fn resolve_snapshot_patches(
+pub fn resolve_snapshot_patches(
     config: &Config,
     pre_resolved: Option<&pacquet_patching::PatchGroupRecord>,
     snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
@@ -400,48 +397,48 @@ pub(crate) fn resolve_snapshot_patches(
 /// ([`InstallFrozenLockfile::run`] and the fresh-lockfile path) can
 /// drive the shared lifecycle-script + post-build top-level bin link
 /// without a long positional argument list.
-pub(crate) struct BuildPhaseInputs<'a> {
-    pub(crate) config: &'static Config,
+pub struct BuildPhaseInputs<'a> {
+    pub config: &'static Config,
     /// `lockfileDir` — the project root. Threaded to
     /// `BuildModules` as `lockfile_dir`, where it sets each script's
     /// `INIT_CWD` and the lifecycle log prefix.
-    pub(crate) workspace_root: &'a Path,
+    pub workspace_root: &'a Path,
     /// Directory each importer's `node_modules/.bin` is anchored under
     /// in the post-build top-level bin pass. Equals `workspace_root`
     /// in production (and on the frozen path); the fresh path passes
     /// its `symlink_root` (`config.modules_dir.parent()`), which can
     /// differ when a test relocates `modules_dir`.
-    pub(crate) top_level_bin_root: &'a Path,
-    pub(crate) layout: &'a VirtualStoreLayout,
-    pub(crate) snapshots: Option<&'a HashMap<PackageKey, SnapshotEntry>>,
-    pub(crate) packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
-    pub(crate) importers: &'a HashMap<String, ProjectSnapshot>,
-    pub(crate) dependency_groups: &'a [DependencyGroup],
+    pub top_level_bin_root: &'a Path,
+    pub layout: &'a VirtualStoreLayout,
+    pub snapshots: Option<&'a HashMap<PackageKey, SnapshotEntry>>,
+    pub packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
+    pub importers: &'a HashMap<String, ProjectSnapshot>,
+    pub dependency_groups: &'a [DependencyGroup],
     /// `patchedDependencies` already resolved + grouped by the caller, so
     /// the build phase doesn't re-hash the patch files. `None` on the
     /// frozen path, which resolves it inside [`resolve_snapshot_patches`].
-    pub(crate) patch_groups: Option<&'a pacquet_patching::PatchGroupRecord>,
-    pub(crate) allow_build_policy: &'a AllowBuildPolicy,
-    pub(crate) side_effects_maps_by_snapshot: &'a crate::SideEffectsMapsBySnapshot,
-    pub(crate) requires_build_by_snapshot: &'a crate::RequiresBuildBySnapshot,
-    pub(crate) engine_name: Option<&'a str>,
-    pub(crate) extra_env: &'a HashMap<String, String>,
-    pub(crate) store_index_writer: &'a Arc<StoreIndexWriter>,
-    pub(crate) skipped: &'a SkippedSnapshots,
-    pub(crate) hoisted_pkg_roots_by_key: Option<&'a HashMap<PackageKey, Vec<PathBuf>>>,
-    pub(crate) is_hoisted: bool,
+    pub patch_groups: Option<&'a pacquet_patching::PatchGroupRecord>,
+    pub allow_build_policy: &'a AllowBuildPolicy,
+    pub side_effects_maps_by_snapshot: &'a crate::SideEffectsMapsBySnapshot,
+    pub requires_build_by_snapshot: &'a crate::RequiresBuildBySnapshot,
+    pub engine_name: Option<&'a str>,
+    pub extra_env: &'a HashMap<String, String>,
+    pub store_index_writer: &'a Arc<StoreIndexWriter>,
+    pub skipped: &'a SkippedSnapshots,
+    pub hoisted_pkg_roots_by_key: Option<&'a HashMap<PackageKey, Vec<PathBuf>>>,
+    pub is_hoisted: bool,
     /// Publicly-hoisted aliases (with bins) competing for the root
     /// importer's `node_modules/.bin`. Empty under the hoisted linker
     /// and when no public-hoist pattern is set.
-    pub(crate) publicly_hoisted_for_post_build: &'a [String],
-    pub(crate) logged_methods: &'a AtomicU8,
+    pub publicly_hoisted_for_post_build: &'a [String],
+    pub logged_methods: &'a AtomicU8,
     /// Forced-rebuild selection threaded from `pacquet rebuild` /
     /// `approve-builds`; `None` for a normal install. See
     /// [`crate::RebuildOptions`].
-    pub(crate) rebuild: Option<&'a crate::RebuildOptions>,
+    pub rebuild: Option<&'a crate::RebuildOptions>,
     /// [`crate::shim_extra_node_paths`] output, for the post-build
     /// top-level bin pass.
-    pub(crate) extra_node_paths: &'a [String],
+    pub extra_node_paths: &'a [String],
 }
 
 /// Run dependency lifecycle scripts, report ignored builds, and
@@ -452,7 +449,7 @@ pub(crate) struct BuildPhaseInputs<'a> {
 /// `linkBinsOfImporter` sequence. Always emits the `IgnoredScripts`
 /// event (with an empty list when nothing was ignored) so the reporter
 /// renders a consistent state.
-pub(crate) fn run_build_phase<Reporter: self::Reporter>(
+pub fn run_build_phase<Reporter: self::Reporter>(
     inputs: &BuildPhaseInputs,
 ) -> Result<crate::BuildModulesOutput, BuildPhaseError> {
     // Every field is a `Copy` reference / scalar, so destructuring
@@ -1349,7 +1346,9 @@ where
             )
             .map_err(InstallFrozenLockfileError::WritePackageMap)?;
         }
-        if matches!(node_linker, NodeLinker::Pnp) {
+        // See `install_with_fresh_lockfile::linking` for why
+        // `virtual_store_only` suppresses the loader.
+        if matches!(node_linker, NodeLinker::Pnp) && !config.virtual_store_only {
             let filtered_lockfile =
                 crate::filter_lockfile_for_current(lockfile, included, &skipped);
             crate::write_pnp_file(
@@ -1527,18 +1526,18 @@ pub struct InstallFrozenLockfileOutput {
 /// `clippy::type_complexity`. Always [`Default`]-empty for the
 /// isolated linker.
 #[derive(Debug, Default)]
-pub(crate) struct HoistedLinkerOutput {
+pub struct HoistedLinkerOutput {
     /// `LockfileToDepGraphResult::hoisted_locations` from the slice
     /// 4 walker. Persisted into `.modules.yaml.hoisted_locations`
     /// when non-empty.
-    pub(crate) hoisted_locations: BTreeMap<String, Vec<String>>,
+    pub hoisted_locations: BTreeMap<String, Vec<String>>,
     /// Per-snapshot `pkgRoot` override for the build phase — snapshot
     /// key → every directory the hoisted graph placed it in, in walker
     /// order. `None` for the isolated linker (the layout-based lookup in
     /// `BuildModules` is used instead). See
     /// [`crate::BuildModules::pkg_roots_by_key`] for how the list is
     /// consumed.
-    pub(crate) hoisted_pkg_roots_by_key: Option<HashMap<PackageKey, Vec<std::path::PathBuf>>>,
+    pub hoisted_pkg_roots_by_key: Option<HashMap<PackageKey, Vec<std::path::PathBuf>>>,
 }
 
 /// Inputs to [`run_hoisted_linker`]. Bundled so the two install
@@ -1547,54 +1546,53 @@ pub(crate) struct HoistedLinkerOutput {
 /// long positional argument list. The frozen path passes the
 /// loaded `pnpm-lock.yaml`; the fresh path passes the freshly-built
 /// lockfile and `current_lockfile: None`.
-pub(crate) struct HoistedLinkerInputs<'a> {
-    pub(crate) config: &'static Config,
+pub struct HoistedLinkerInputs<'a> {
+    pub config: &'static Config,
     /// Lockfile the walker reads `snapshots:` / `packages:` /
     /// `importers:` from. `&built_lockfile` on the fresh path,
     /// the loaded wanted lockfile on the frozen path.
-    pub(crate) lockfile: &'a Lockfile,
+    pub lockfile: &'a Lockfile,
     /// Previous install's `<virtual_store_dir>/lock.yaml`, used by the
     /// walker to diff orphans. `None` on the fresh path (no analogue
     /// yet).
-    pub(crate) current_lockfile: Option<&'a Lockfile>,
-    pub(crate) layout: &'a VirtualStoreLayout,
-    pub(crate) importers: &'a HashMap<String, ProjectSnapshot>,
-    pub(crate) dependency_groups: &'a [DependencyGroup],
+    pub current_lockfile: Option<&'a Lockfile>,
+    pub layout: &'a VirtualStoreLayout,
+    pub importers: &'a HashMap<String, ProjectSnapshot>,
+    pub dependency_groups: &'a [DependencyGroup],
     /// Selected project anchors whose direct dependencies and workspace
     /// links are written by this filtered run.
-    pub(crate) project_manifests: &'a [(PathBuf, &'a pacquet_package_manifest::PackageManifest)],
+    pub project_manifests: &'a [(PathBuf, &'a pacquet_package_manifest::PackageManifest)],
     /// Every real importer manifest represented in the full hoisted graph.
     /// The shared package map needs all project names for self-reference
     /// entries even though direct links are limited to selected anchors.
-    pub(crate) package_map_project_manifests:
+    pub package_map_project_manifests:
         &'a [(PathBuf, &'a pacquet_package_manifest::PackageManifest)],
     /// Lockfile root the walker resolves hoisted directories against.
-    pub(crate) walker_lockfile_dir: &'a Path,
+    pub walker_lockfile_dir: &'a Path,
     /// Anchor for [`crate::SymlinkDirectDependencies`]'s per-importer
     /// `node_modules` lookup. Equals `walker_lockfile_dir` on the
     /// frozen path; the fresh path passes `config.modules_dir.parent()`
     /// so relocated `modules_dir` test configs land symlinks where the
     /// rest of the install writes.
-    pub(crate) symlink_workspace_root: &'a Path,
+    pub symlink_workspace_root: &'a Path,
     /// `(node_detected, node_version)` from the installability host
     /// probe. `None` when no installability check ran (the fresh
     /// path, and constraint-free frozen lockfiles).
-    pub(crate) host_node: Option<&'a (bool, String)>,
-    pub(crate) supported_architectures:
-        Option<&'a pacquet_package_is_installable::SupportedArchitectures>,
+    pub host_node: Option<&'a (bool, String)>,
+    pub supported_architectures: Option<&'a pacquet_package_is_installable::SupportedArchitectures>,
     /// Per-package CAS index produced by [`crate::CreateVirtualStore`]
     /// under `node_linker == Hoisted`. The linker imports files from
     /// these paths into the on-disk hoisted tree.
-    pub(crate) cas_paths_by_pkg_id: Option<crate::CasPathsByPkgId>,
-    pub(crate) logged_methods: &'a AtomicU8,
-    pub(crate) requester: &'a str,
+    pub cas_paths_by_pkg_id: Option<crate::CasPathsByPkgId>,
+    pub logged_methods: &'a AtomicU8,
+    pub requester: &'a str,
 }
 
 /// Error type of [`run_hoisted_linker`]. Each install path maps these
 /// back onto its own error enum's matching variant so the user-facing
 /// error code is identical regardless of which path drove the hoist.
 #[derive(Debug, Display, Error, Diagnostic)]
-pub(crate) enum HoistedLinkerError {
+pub enum HoistedLinkerError {
     #[diagnostic(transparent)]
     HoistedDepGraph(#[error(source)] HoistedDepGraphError),
     #[diagnostic(transparent)]
@@ -1637,7 +1635,7 @@ impl From<HoistedLinkerError> for InstallFrozenLockfileError {
 ///
 /// Shared by both install paths so the hoisted layout, skip-set
 /// accounting, and `pkg_roots_by_key` derivation stay identical.
-pub(crate) fn run_hoisted_linker<Reporter: self::Reporter>(
+pub fn run_hoisted_linker<Reporter: self::Reporter>(
     inputs: HoistedLinkerInputs<'_>,
     skipped: &mut SkippedSnapshots,
 ) -> Result<HoistedLinkerOutput, HoistedLinkerError> {
@@ -1951,10 +1949,10 @@ fn exclude_importer_groups(lockfile: &Lockfile, included: IncludedDependencies) 
 /// fold publicly-hoisted aliases into root's target map. The on-disk
 /// hoist phase later consumes the same [`crate::HoistResult`] instead of
 /// re-running the traversal.
-pub(crate) struct HoistPlan {
-    pub(crate) graph: HashMap<PackageKey, crate::HoistGraphNode>,
-    pub(crate) result: crate::HoistResult,
-    pub(crate) skipped: HashSet<PackageKey>,
+pub struct HoistPlan {
+    pub graph: HashMap<PackageKey, crate::HoistGraphNode>,
+    pub result: crate::HoistResult,
+    pub skipped: HashSet<PackageKey>,
 }
 
 /// Compute the in-memory hoist plan. Returns `None` when nothing
@@ -1967,7 +1965,8 @@ pub(crate) struct HoistPlan {
 /// `allProjects` for its `hoistedWorkspacePackages` map. The root
 /// project itself is excluded — its dir *is* where the hoisted
 /// modules live.
-pub(crate) fn workspace_packages_for_hoist(
+#[must_use]
+pub fn workspace_packages_for_hoist(
     workspace_root: &Path,
     project_manifests: &[(PathBuf, &pacquet_package_manifest::PackageManifest)],
 ) -> indexmap::IndexMap<String, PathBuf> {
@@ -1985,7 +1984,7 @@ pub(crate) fn workspace_packages_for_hoist(
     clippy::too_many_arguments,
     reason = "bundles every lockfile/config axis one hoist plan needs; both call sites pass the same shapes"
 )]
-pub(crate) fn compute_hoist_plan(
+pub fn compute_hoist_plan(
     config: &Config,
     snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
     packages: Option<&HashMap<PackageKey, PackageMetadata>>,
@@ -2059,7 +2058,8 @@ pub(crate) fn compute_hoist_plan(
 /// `<slot>/node_modules/<name>` shape that the on-disk hoist symlink
 /// will point at, so [`PathBuf`] equality with
 /// [`SymlinkDirectDependencies`]'s computed targets is exact.
-pub(crate) fn collect_public_hoist_targets(
+#[must_use]
+pub fn collect_public_hoist_targets(
     result: &crate::HoistResult,
     graph: &HashMap<PackageKey, crate::HoistGraphNode>,
     layout: &crate::VirtualStoreLayout,
@@ -2099,7 +2099,8 @@ pub(crate) fn collect_public_hoist_targets(
 /// as `u32`. Used to derive the engine-name string the
 /// side-effects cache lookup expects without re-spawning
 /// `node --version`.
-pub(crate) fn parse_major_from_version(version: &str) -> Option<u32> {
+#[must_use]
+pub fn parse_major_from_version(version: &str) -> Option<u32> {
     let after_v = version.strip_prefix('v').unwrap_or(version);
     after_v.split('.').next()?.parse().ok()
 }
@@ -2117,7 +2118,8 @@ pub(crate) fn parse_major_from_version(version: &str) -> Option<u32> {
 /// Returns `None` when no importer pinned a runtime — callers should
 /// then fall through to the host probe (`node --version` or the
 /// cached `host_node`).
-pub(crate) fn find_runtime_node_major(
+#[must_use]
+pub fn find_runtime_node_major(
     snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
 ) -> Option<u32> {
     let snapshots = snapshots?;
@@ -2154,7 +2156,8 @@ pub(crate) fn find_runtime_node_major(
 /// package's own downloaded Node. Anchoring the snapshot's GVS engine
 /// hash to an install-wide value would produce the wrong
 /// side-effects-cache key for cross-pinning installs.
-pub(crate) fn find_own_runtime_node_major(snapshot: &SnapshotEntry) -> Option<u32> {
+#[must_use]
+pub fn find_own_runtime_node_major(snapshot: &SnapshotEntry) -> Option<u32> {
     let deps = snapshot.dependencies.as_ref()?;
     for (alias, dep_ref) in deps {
         if alias.scope.is_some() || alias.bare != "node" {

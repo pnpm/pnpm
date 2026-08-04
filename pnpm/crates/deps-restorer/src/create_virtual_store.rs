@@ -173,15 +173,15 @@ pub struct CreateVirtualStore<'a> {
     /// per-snapshot [`InstallPackageBySnapshot`] so the cold-batch
     /// download reuses a background prefetcher's in-flight download
     /// instead of re-fetching. `Some` whenever a prefetcher is active —
-    /// the pnpr client's [`crate::TarballPrefetcher`] (frozen path) or
-    /// the fresh-resolve path's [`crate::PrefetchingResolver`] (closing
+    /// the pnpr client's `TarballPrefetcher` (frozen path) or
+    /// the fresh-resolve path's `PrefetchingResolver` (closing
     /// <https://github.com/pnpm/pnpm/issues/12241>); `None` otherwise.
     pub tarball_mem_cache: Option<&'a std::sync::Arc<MemCache>>,
     /// Custom fetchers from the pnpmfile. Consulted per snapshot
     /// before the built-in resolution-type dispatch.
     pub custom_fetcher_picker: Option<&'a Arc<CustomFetcherPicker>>,
     #[cfg(test)]
-    pub(crate) link_concurrency_probe:
+    pub link_concurrency_probe:
         Option<&'a crate::create_virtual_dir_by_snapshot::tests::LinkConcurrencyProbe>,
 }
 
