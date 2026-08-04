@@ -1131,7 +1131,6 @@ test('pnpm-workspace.yaml request destinations do not expand env variables', asy
 // repo-committed file must not be able to choose it.
 // https://github.com/pnpm/pnpm/issues/13557
 describe('the scope setting is honored from trusted sources only', () => {
-
   test('a pnpm-workspace.yaml scope is ignored and warned about', async () => {
     prepareEmpty()
 
