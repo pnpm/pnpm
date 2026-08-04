@@ -659,11 +659,8 @@ where
         // Under `frozenStore` the store is opened read-only, so the
         // writer is replaced with a drain-and-drop stub that never opens
         // `index.db` (no WAL / SHM sidecar under the read-only root).
-        let (store_index_writer, writer_task) = if config.frozen_store {
-            StoreIndexWriter::spawn_disabled()
-        } else {
-            StoreIndexWriter::spawn(&config.store_dir)
-        };
+        let (store_index_writer, writer_task) =
+            StoreIndexWriter::spawn_for(&config.store_dir, config.frozen_store);
 
         // Seed the skip set from the previous install's
         // `.modules.yaml.skipped`. Each entry there is a depPath
@@ -1077,19 +1074,7 @@ where
         // complete and a missed cache write just forces a re-fetch
         // on the next install.
         drop(store_index_writer);
-        match writer_task.await {
-            Ok(Ok(())) => {}
-            Ok(Err(error)) => tracing::warn!(
-                target: "pacquet::install",
-                ?error,
-                "store-index writer task returned an error; some rows may not be persisted",
-            ),
-            Err(error) => tracing::warn!(
-                target: "pacquet::install",
-                ?error,
-                "store-index writer task panicked; some rows may not be persisted",
-            ),
-        }
+        StoreIndexWriter::drain(writer_task, "; some rows may not be persisted").await;
 
         // The injectedDeps payload for `.modules.yaml`: every `file:`
         // snapshot is a materialized copy of an injected workspace

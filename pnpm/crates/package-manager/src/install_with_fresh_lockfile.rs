@@ -1558,7 +1558,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // install is complete and a missed cache write just forces a
         // re-fetch on the next install.
         drop(store_index_writer);
-        resolver_setup::drain_store_index_writer(writer_task, "; some rows may not be persisted")
+        pacquet_store_dir::StoreIndexWriter::drain(writer_task, "; some rows may not be persisted")
             .await;
 
         let injected_deps = crate::collect_injected_deps(
@@ -1823,7 +1823,8 @@ async fn finish_lockfile_only<Reporter: self::Reporter>(
     // Close the writer cleanly even though no rows were written,
     // mirroring the drain at the tail of the materializing path.
     drop(store_index_writer);
-    resolver_setup::drain_store_index_writer(writer_task, " during a lockfile-only install").await;
+    pacquet_store_dir::StoreIndexWriter::drain(writer_task, " during a lockfile-only install")
+        .await;
 
     Reporter::emit(&LogEvent::Stage(StageLog {
         level: LogLevel::Debug,

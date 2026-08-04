@@ -306,23 +306,7 @@ impl CreateVirtualStore<'_> {
                 None
             };
 
-        let open_store_index = if config.frozen_store {
-            StoreIndex::shared_immutable_in
-        } else {
-            StoreIndex::shared_readonly_in
-        };
-        let store_index =
-            match tokio::task::spawn_blocking(move || open_store_index(store_dir)).await {
-                Ok(store_index) => store_index,
-                Err(error) => {
-                    tracing::warn!(
-                        target: "pacquet::install",
-                        ?error,
-                        "store-index open task failed; continuing without a shared cache index",
-                    );
-                    None
-                }
-            };
+        let store_index = StoreIndex::open_shared(store_dir, config.frozen_store).await;
         let store_index_ref = store_index.as_ref();
 
         // The batched store-index writer is owned by the caller
