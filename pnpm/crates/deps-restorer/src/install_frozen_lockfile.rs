@@ -220,6 +220,9 @@ pub enum InstallFrozenLockfileError {
     #[diagnostic(transparent)]
     PruneStaleModules(#[error(source)] crate::PruneDirectDepsError),
 
+    #[diagnostic(transparent)]
+    LinkPhase(#[error(source)] crate::linking::LinkPhaseError),
+
     /// Surfaces a failure to cross-link a Bit root component's injected
     /// members into one another's virtual-store slot. Only reachable
     /// when a project manifest declares
@@ -932,13 +935,47 @@ where
             skipped.add_fetch_failed(key);
         }
 
-        let linking::LinkPhaseOutput {
+        // Importer ids backed by the install's own declared projects.
+        // These may legitimately live outside the lockfile dir (Bit's
+        // capsule installs), so they bypass the malformed-lockfile
+        // importer-key rejection.
+        let trusted_importer_ids: std::collections::HashSet<String> = project_manifests
+            .iter()
+            .map(|(project_dir, _)| {
+                pacquet_workspace::importer_id_from_root_dir(workspace_root, project_dir)
+            })
+            .collect();
+        let root_component_importers: std::collections::HashSet<String> = project_manifests
+            .iter()
+            .filter(|(_, manifest)| {
+                manifest.install_config_hoisting_limits() == Some(crate::HOISTING_LIMITS_WORKSPACES)
+            })
+            .map(|(project_dir, _)| {
+                pacquet_workspace::importer_id_from_root_dir(workspace_root, project_dir)
+            })
+            .collect();
+        let sidecar_included = IncludedDependencies {
+            dependencies: dependency_groups.contains(&DependencyGroup::Prod),
+            dev_dependencies: dependency_groups.contains(&DependencyGroup::Dev),
+            optional_dependencies: dependency_groups.contains(&DependencyGroup::Optional),
+        };
+        let sidecar_lockfile =
+            crate::filter_lockfile_for_current(lockfile, sidecar_included, &skipped);
+
+        let crate::linking::LinkPhaseOutput {
             hoisted_dependencies,
             hoisted_locations,
             hoisted_pkg_roots_by_key,
             publicly_hoisted_for_post_build,
-        } = linking::run_link_phase::<Reporter>(
-            linking::LinkPhaseInputs {
+        } = crate::linking::run_link_phase::<Reporter>(
+            crate::linking::LinkPhaseInputs {
+                symlink_root: workspace_root,
+                trusted_importer_ids: &trusted_importer_ids,
+                root_component_importers: &root_component_importers,
+                sidecar_lockfile: &sidecar_lockfile,
+                // The frozen path leaves publicly-hoisted bins to the
+                // post-build top-level link.
+                relink_importer_bins: false,
                 config,
                 layout: &layout,
                 lockfile,
@@ -963,7 +1000,8 @@ where
                 logged_methods,
             },
             &mut skipped,
-        )?;
+        )
+        .map_err(InstallFrozenLockfileError::LinkPhase)?;
 
         // `importing_done` fires once extraction and symlink linking
         // are complete, before any build phase. Reporters use it to
@@ -1808,8 +1846,6 @@ async fn load_custom_fetcher_picker(
     }
     Ok(Some(Arc::new(pacquet_hooks::custom_fetcher_adapter::CustomFetcherPicker::new(fetchers))))
 }
-
-mod linking;
 
 #[cfg(test)]
 mod tests;

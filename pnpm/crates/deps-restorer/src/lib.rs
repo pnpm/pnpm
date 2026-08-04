@@ -18,6 +18,7 @@ pub mod link_bins;
 pub mod link_file;
 pub mod link_hoisted_modules;
 pub mod link_root_component_members;
+pub mod linking;
 pub mod materialization_plan;
 pub mod package_map;
 pub mod pnp;

@@ -32,7 +32,6 @@ use std::{
 };
 use tokio::sync::watch;
 
-mod linking;
 mod manifest_transforms;
 mod resolve;
 mod resolver_setup;
@@ -352,6 +351,9 @@ pub enum InstallWithFreshLockfileError {
     /// links during the pre-link reconciliation pass.
     #[diagnostic(transparent)]
     PruneStaleModules(#[error(source)] crate::PruneDirectDepsError),
+
+    #[diagnostic(transparent)]
+    LinkPhase(#[error(source)] pacquet_deps_restorer::linking::LinkPhaseError),
 
     /// Surfaces a failure to cross-link a Bit root component's injected
     /// members into one another's virtual-store slot. Only reachable
@@ -1417,36 +1419,68 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // `modules_dir.parent()` rather than `lockfile_dir`.
         let symlink_root: &Path = config.modules_dir.parent().unwrap_or(lockfile_dir);
 
-        let linking::LinkPhaseOutput {
+        let project_manifests_for_link: Vec<(std::path::PathBuf, &PackageManifest)> =
+            importer_manifests
+                .iter()
+                .filter(|(id, _)| project_anchor_importer_ids.contains(id.as_str()))
+                .map(|(id, manifest)| (lockfile_dir.join(id), *manifest))
+                .collect();
+        let package_map_project_manifests: Vec<(std::path::PathBuf, &PackageManifest)> =
+            importer_manifests
+                .iter()
+                .map(|(id, manifest)| (lockfile_dir.join(id), *manifest))
+                .collect();
+        let root_component_importers: std::collections::HashSet<String> = importer_manifests
+            .iter()
+            .filter(|(id, _)| project_anchor_importer_ids.contains(id.as_str()))
+            .filter(|(_, manifest)| {
+                manifest.install_config_hoisting_limits()
+                    == Some(pacquet_deps_restorer::HOISTING_LIMITS_WORKSPACES)
+            })
+            .map(|(id, _)| id.clone())
+            .collect();
+
+        let pacquet_deps_restorer::linking::LinkPhaseOutput {
             hoisted_dependencies,
             hoisted_locations,
             hoisted_pkg_roots_by_key,
             publicly_hoisted_for_post_build,
-        } = linking::run_link_phase::<Reporter>(
-            linking::LinkPhaseInputs {
+        } = pacquet_deps_restorer::linking::run_link_phase::<Reporter>(
+            pacquet_deps_restorer::linking::LinkPhaseInputs {
+                symlink_root,
+                trusted_importer_ids: &project_anchor_importer_ids,
+                root_component_importers: &root_component_importers,
+                sidecar_lockfile: materialization_lockfile,
+                // Public-hoist aliases land after
+                // `SymlinkDirectDependencies` has run, so this path
+                // re-walks each importer's `node_modules` to shim them.
+                relink_importer_bins: true,
                 config,
                 layout: &layout,
-                materialization_lockfile,
+                lockfile: materialization_lockfile,
                 current_lockfile,
-                prior_hoisted_dependencies,
-                importer_manifests: &importer_manifests,
+                snapshots: materialization_lockfile.snapshots.as_ref(),
+                packages: materialization_lockfile.packages.as_ref(),
+                importers: &materialization_lockfile.importers,
+                project_manifests: &project_manifests_for_link,
+                package_map_project_manifests: &package_map_project_manifests,
                 dependency_groups: &dependency_groups,
-                project_anchor_importer_ids: &project_anchor_importer_ids,
-                materialization_importer_ids: &materialization_importer_ids,
-                lockfile_dir,
-                symlink_root,
                 package_manifests: &package_manifests,
                 cas_paths_by_pkg_id,
-                host_node: host_node.as_ref(),
-                supported_architectures,
                 extra_node_paths: &extra_node_paths,
-                logged_methods,
+                workspace_root: lockfile_dir,
                 requester,
+                node_linker,
                 is_hoisted,
                 prune_orphans,
+                prior_hoisted_dependencies,
+                host_node: host_node.as_ref(),
+                supported_architectures,
+                logged_methods,
             },
             &mut skipped,
-        )?;
+        )
+        .map_err(InstallWithFreshLockfileError::LinkPhase)?;
 
         // `importing_done` fires once extraction and symlink linking
         // are complete, before the build phase. Reporters use it to
@@ -1466,15 +1500,6 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             None => engine_name,
         };
 
-        linking::write_module_resolution_sidecars(
-            config,
-            node_linker,
-            materialization_lockfile,
-            &layout,
-            &importer_manifests,
-            &project_anchor_importer_ids,
-            lockfile_dir,
-        )?;
         let build_extra_env = build_extra_env(config, node_linker);
 
         // `CreateVirtualStore` keeps skipped snapshots out of this map, so

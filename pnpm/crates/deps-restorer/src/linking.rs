@@ -1,4 +1,4 @@
-//! The frozen install's link phase: reconcile what the previous install
+//! The install link phase, shared by both paths: reconcile what the previous install
 //! left behind, materialize the importer-visible tree — either the
 //! hoisted `node_modules` hierarchy or the isolated symlink layout with
 //! its hoist and bin passes — and write the module-resolution sidecars.
@@ -7,8 +7,8 @@
 //! which needs both the linked tree and the hoisted package roots this
 //! reports.
 
-use super::{
-    HoistPlan, HoistedLinkerInputs, HoistedLinkerOutput, InstallFrozenLockfileError,
+use crate::install_frozen_lockfile::{
+    HoistPlan, HoistedLinkerError, HoistedLinkerInputs, HoistedLinkerOutput,
     collect_public_hoist_targets, compute_hoist_plan, run_hoisted_linker,
     workspace_packages_for_hoist,
 };
@@ -17,9 +17,10 @@ use crate::{
     SymlinkDirectDependencies, VirtualStoreLayout, link_direct_dep_bins_resolved,
     link_root_component_members, symlink_hoisted_dependencies,
 };
+use derive_more::{Display, Error};
+use miette::Diagnostic;
 use pacquet_config::{Config, NodeLinker};
 use pacquet_lockfile::{Lockfile, PackageKey, PackageMetadata, ProjectSnapshot, SnapshotEntry};
-use pacquet_modules_yaml::IncludedDependencies;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_reporter::{LogEvent, LogLevel, Reporter, StatsLog, StatsMessage};
 use std::{
@@ -28,7 +29,54 @@ use std::{
     sync::atomic::AtomicU8,
 };
 
-pub(super) struct LinkPhaseInputs<'a> {
+/// Error type of [`run_link_phase`]. Every variant is
+/// `#[diagnostic(transparent)]`, so the surfaced `ERR_PNPM_*` code comes
+/// from the wrapped error and a link failure reports identically
+/// whichever install path ran it.
+#[derive(Debug, Display, Error, Diagnostic)]
+pub enum LinkPhaseError {
+    #[diagnostic(transparent)]
+    PruneStaleModules(#[error(source)] crate::PruneDirectDepsError),
+    #[diagnostic(transparent)]
+    SymlinkDirectDependencies(#[error(source)] crate::SymlinkDirectDependenciesError),
+    #[diagnostic(transparent)]
+    LinkRootComponentMembers(#[error(source)] crate::LinkRootComponentMembersError),
+    #[diagnostic(transparent)]
+    LinkVirtualStoreBins(#[error(source)] crate::LinkVirtualStoreBinsError),
+    #[diagnostic(transparent)]
+    HoistSymlink(#[error(source)] crate::SymlinkPackageError),
+    #[diagnostic(transparent)]
+    HoistLinkBins(#[error(source)] pacquet_cmd_shim::LinkBinsError),
+    #[diagnostic(transparent)]
+    LinkBins(#[error(source)] pacquet_cmd_shim::LinkBinsError),
+    #[diagnostic(transparent)]
+    HoistedDepGraph(#[error(source)] crate::HoistedDepGraphError),
+    #[diagnostic(transparent)]
+    LinkHoistedModules(#[error(source)] crate::LinkHoistedModulesError),
+    #[display("failed to write package map: {_0}")]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_WRITE_PACKAGE_MAP))]
+    WritePackageMap(#[error(source)] crate::WritePackageMapError),
+    #[display("failed to write PnP loader: {_0}")]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_WRITE_PNP_FILE))]
+    WritePnpFile(#[error(source)] crate::WritePnpFileError),
+}
+
+impl From<HoistedLinkerError> for LinkPhaseError {
+    fn from(error: HoistedLinkerError) -> Self {
+        match error {
+            HoistedLinkerError::HoistedDepGraph(error) => LinkPhaseError::HoistedDepGraph(error),
+            HoistedLinkerError::LinkHoistedModules(error) => {
+                LinkPhaseError::LinkHoistedModules(error)
+            }
+            HoistedLinkerError::SymlinkDirectDependencies(error) => {
+                LinkPhaseError::SymlinkDirectDependencies(error)
+            }
+            HoistedLinkerError::WritePackageMap(error) => LinkPhaseError::WritePackageMap(error),
+        }
+    }
+}
+
+pub struct LinkPhaseInputs<'a> {
     pub config: &'static Config,
     pub layout: &'a VirtualStoreLayout,
     pub lockfile: &'a Lockfile,
@@ -42,7 +90,27 @@ pub(super) struct LinkPhaseInputs<'a> {
     pub package_manifests: &'a PackageManifests,
     pub cas_paths_by_pkg_id: Option<CasPathsByPkgId>,
     pub extra_node_paths: &'a [String],
+    /// Anchor for each importer's `node_modules`. The frozen path uses
+    /// `workspace_root`; the fresh path uses `modules_dir.parent()`,
+    /// because its tests relocate `modules_dir` away from the manifest.
+    pub symlink_root: &'a Path,
+    /// Lockfile dir, for the sidecars and the hoisted walker.
     pub workspace_root: &'a Path,
+    /// Importer ids allowed to live outside the lockfile dir (Bit's
+    /// capsule installs). Derived differently per path, so it is an
+    /// input rather than something this module recomputes.
+    pub trusted_importer_ids: &'a std::collections::HashSet<String>,
+    /// Importers declaring `installConfig.hoistingLimits: "workspaces"`.
+    pub root_component_importers: &'a std::collections::HashSet<String>,
+    /// The lockfile the module-resolution sidecars describe. The frozen
+    /// path filters to the current install first; the fresh path already
+    /// holds a materialization closure.
+    pub sidecar_lockfile: &'a Lockfile,
+    /// Re-walk each importer's `node_modules` for a final bin pass after
+    /// hoisting. `SymlinkDirectDependencies` already links direct-dep
+    /// bins, so this only adds publicly-hoisted aliases; the frozen path
+    /// leaves those to the post-build top-level link instead.
+    pub relink_importer_bins: bool,
     pub requester: &'a str,
     pub node_linker: NodeLinker,
     pub is_hoisted: bool,
@@ -55,18 +123,23 @@ pub(super) struct LinkPhaseInputs<'a> {
 
 /// What the link phase hands to the build phase and the caller's
 /// `.modules.yaml` writer.
-pub(super) struct LinkPhaseOutput {
+pub struct LinkPhaseOutput {
     pub hoisted_dependencies: crate::HoistedDependencies,
     pub hoisted_locations: BTreeMap<String, Vec<String>>,
     pub hoisted_pkg_roots_by_key: Option<HashMap<PackageKey, Vec<PathBuf>>>,
     pub publicly_hoisted_for_post_build: Vec<String>,
 }
 
-pub(super) fn run_link_phase<Reporter: self::Reporter>(
+pub fn run_link_phase<Reporter: self::Reporter>(
     inputs: LinkPhaseInputs<'_>,
     skipped: &mut SkippedSnapshots,
-) -> Result<LinkPhaseOutput, InstallFrozenLockfileError> {
+) -> Result<LinkPhaseOutput, LinkPhaseError> {
     let LinkPhaseInputs {
+        symlink_root,
+        trusted_importer_ids,
+        root_component_importers,
+        sidecar_lockfile,
+        relink_importer_bins,
         config,
         layout,
         lockfile,
@@ -134,7 +207,7 @@ pub(super) fn run_link_phase<Reporter: self::Reporter>(
         let removed_count = match current_lockfile {
             Some(current) => crate::PruneStaleModules {
                 config,
-                workspace_root,
+                workspace_root: symlink_root,
                 wanted_lockfile: lockfile,
                 current_lockfile: current,
                 prior_hoisted_dependencies,
@@ -142,7 +215,7 @@ pub(super) fn run_link_phase<Reporter: self::Reporter>(
                 prune_orphans,
             }
             .run::<Reporter>()
-            .map_err(InstallFrozenLockfileError::PruneStaleModules)?,
+            .map_err(LinkPhaseError::PruneStaleModules)?,
             None => 0,
         };
         Reporter::emit(&LogEvent::Stats(StatsLog {
@@ -155,32 +228,21 @@ pub(super) fn run_link_phase<Reporter: self::Reporter>(
     // populated, but nothing downstream of it — importer symlinks,
     // per-slot bins, root components — gets linked.
     if !is_hoisted && !config.virtual_store_only {
-        // Importer ids backed by the install's own declared
-        // projects. These may legitimately live outside the
-        // lockfile dir (Bit's capsule installs pass such
-        // projects), so they bypass the malformed-lockfile
-        // importer-key rejection.
-        let trusted_importer_ids: std::collections::HashSet<String> = project_manifests
-            .iter()
-            .map(|(project_dir, _)| {
-                pacquet_workspace::importer_id_from_root_dir(workspace_root, project_dir)
-            })
-            .collect();
         SymlinkDirectDependencies {
             config,
             layout,
             importers,
             packages,
             dependency_groups: dependency_groups.iter().copied(),
-            workspace_root,
+            workspace_root: symlink_root,
             skipped,
             link_only: false,
             public_hoist_targets: public_hoist_targets.as_ref(),
-            trusted_importer_ids: Some(&trusted_importer_ids),
+            trusted_importer_ids: Some(trusted_importer_ids),
             extra_node_paths,
         }
         .run::<Reporter>()
-        .map_err(InstallFrozenLockfileError::SymlinkDirectDependencies)?;
+        .map_err(LinkPhaseError::SymlinkDirectDependencies)?;
 
         // Bit "root components": make each root's injected members
         // mutually reachable. Gated on
@@ -189,23 +251,14 @@ pub(super) fn run_link_phase<Reporter: self::Reporter>(
         // [`link_root_component_members`]. `project_manifests` keys
         // are project directories; map each back to its lockfile
         // importer id so the set lines up with `importers`.
-        let root_component_importers: std::collections::HashSet<String> = project_manifests
-            .iter()
-            .filter(|(_, manifest)| {
-                manifest.install_config_hoisting_limits() == Some(crate::HOISTING_LIMITS_WORKSPACES)
-            })
-            .map(|(project_dir, _)| {
-                pacquet_workspace::importer_id_from_root_dir(workspace_root, project_dir)
-            })
-            .collect();
         link_root_component_members(
             layout,
             importers,
-            &root_component_importers,
+            root_component_importers,
             dependency_groups,
             skipped,
         )
-        .map_err(InstallFrozenLockfileError::LinkRootComponentMembers)?;
+        .map_err(LinkPhaseError::LinkRootComponentMembers)?;
 
         // Link the bins of each virtual-store slot's children into the
         // slot's own `node_modules/.bin`.
@@ -233,7 +286,7 @@ pub(super) fn run_link_phase<Reporter: self::Reporter>(
             extra_node_paths,
         }
         .run()
-        .map_err(InstallFrozenLockfileError::LinkVirtualStoreBins)?;
+        .map_err(LinkPhaseError::LinkVirtualStoreBins)?;
     }
 
     // Hoisted-linker materialization. Replaces the isolated
@@ -276,7 +329,7 @@ pub(super) fn run_link_phase<Reporter: self::Reporter>(
                     project_manifests,
                     package_map_project_manifests,
                     walker_lockfile_dir: workspace_root,
-                    symlink_workspace_root: workspace_root,
+                    symlink_workspace_root: symlink_root,
                     host_node,
                     supported_architectures,
                     cas_paths_by_pkg_id,
@@ -285,7 +338,7 @@ pub(super) fn run_link_phase<Reporter: self::Reporter>(
                 },
                 skipped,
             )
-            .map_err(InstallFrozenLockfileError::from)?
+            .map_err(LinkPhaseError::from)?
         } else {
             HoistedLinkerOutput::default()
         };
@@ -347,7 +400,7 @@ pub(super) fn run_link_phase<Reporter: self::Reporter>(
             &public_dir,
             &hoist_skipped,
         )
-        .map_err(InstallFrozenLockfileError::HoistSymlink)?;
+        .map_err(LinkPhaseError::HoistSymlink)?;
         // Private-side bins → `<vs>/node_modules/.bin`.
         // Reuses the rayon-parallel `link_direct_dep_bins`
         // shape (read each location's `package.json`, fan out
@@ -357,7 +410,7 @@ pub(super) fn run_link_phase<Reporter: self::Reporter>(
             &crate::resolve_hoisted_bin_deps(layout, &result.hoisted_aliases_with_bins),
             extra_node_paths,
         )
-        .map_err(InstallFrozenLockfileError::HoistLinkBins)?;
+        .map_err(LinkPhaseError::HoistLinkBins)?;
         // Stash the public-hoist alias list for the
         // post-`BuildModules` top-level bin link, which re-links
         // with the [`BinOrigin`] tier so a direct dep's bin wins
@@ -369,15 +422,9 @@ pub(super) fn run_link_phase<Reporter: self::Reporter>(
         crate::HoistedDependencies::new()
     };
 
-    let included = IncludedDependencies {
-        dependencies: dependency_groups.contains(&DependencyGroup::Prod),
-        dev_dependencies: dependency_groups.contains(&DependencyGroup::Dev),
-        optional_dependencies: dependency_groups.contains(&DependencyGroup::Optional),
-    };
     if crate::should_write_package_map(config, node_linker) {
-        let filtered_lockfile = crate::filter_lockfile_for_current(lockfile, included, skipped);
         crate::package_map::write_package_map(
-            &filtered_lockfile,
+            sidecar_lockfile,
             &crate::package_map::PackageMapOptions {
                 lockfile_dir: workspace_root,
                 modules_dir: &config.modules_dir,
@@ -386,21 +433,36 @@ pub(super) fn run_link_phase<Reporter: self::Reporter>(
                 project_manifests,
             },
         )
-        .map_err(InstallFrozenLockfileError::WritePackageMap)?;
+        .map_err(LinkPhaseError::WritePackageMap)?;
     }
     // See `install_with_fresh_lockfile::linking` for why
     // `virtual_store_only` suppresses the loader.
     if matches!(node_linker, NodeLinker::Pnp) && !config.virtual_store_only {
-        let filtered_lockfile = crate::filter_lockfile_for_current(lockfile, included, skipped);
-        crate::write_pnp_file(
-            &filtered_lockfile,
-            workspace_root,
-            config,
-            layout,
-            project_manifests,
-        )
-        .map_err(InstallFrozenLockfileError::WritePnpFile)?;
+        crate::write_pnp_file(sidecar_lockfile, workspace_root, config, layout, project_manifests)
+            .map_err(LinkPhaseError::WritePnpFile)?;
     }
+    if relink_importer_bins {
+        // `SymlinkDirectDependencies` already linked direct-dep bins;
+        // re-walking picks up the publicly-hoisted aliases that landed
+        // in the same `node_modules` after it ran.
+        let modules_basename = config.modules_dir.file_name().map_or_else(
+            || std::ffi::OsString::from("node_modules"),
+            std::ffi::OsStr::to_os_string,
+        );
+        for importer_id in trusted_importer_ids {
+            let modules_dir =
+                crate::symlink_direct_dependencies::importer_root_dir(symlink_root, importer_id)
+                    .join(&modules_basename);
+            let bins_dir = modules_dir.join(".bin");
+            pacquet_cmd_shim::link_bins::<pacquet_cmd_shim::Host>(
+                &modules_dir,
+                &bins_dir,
+                extra_node_paths,
+            )
+            .map_err(LinkPhaseError::LinkBins)?;
+        }
+    }
+
     Ok(LinkPhaseOutput {
         hoisted_dependencies,
         hoisted_locations,
