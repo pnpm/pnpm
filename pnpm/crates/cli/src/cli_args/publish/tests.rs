@@ -86,7 +86,7 @@ fn publish_options_applies_tag_access_provenance_and_dry_run() {
 }
 
 #[test]
-fn publish_options_fall_back_to_the_configured_settings() {
+fn publish_options_falls_back_to_the_configured_settings() {
     let config = Config {
         access: Some("restricted".to_owned()),
         tag: Some("next".to_owned()),
@@ -152,10 +152,8 @@ fn no_provenance_flag_outranks_a_configured_true() {
     assert_eq!(args.publish_options(&config, None, false).provenance, Some(false));
 }
 
-/// pnpm validates only `publishConfig.access`, so an unrecognized configured
-/// one reaches the registry as-is and is rejected there. Dropping it here
-/// would fall back to `publishConfig.access` instead, which can be the more
-/// permissive level — a typo'd `restricted` would publish a package public.
+/// See [`pacquet_publish::resolve_access`] for why an unrecognized value is
+/// not dropped.
 #[test]
 fn an_unrecognized_configured_access_is_kept_verbatim() {
     let config = Config { access: Some("everyone".to_owned()), ..Default::default() };
@@ -165,8 +163,26 @@ fn an_unrecognized_configured_access_is_kept_verbatim() {
     );
 }
 
+/// `""` resolves to `None`, but whitespace does not: upstream's
+/// `opts.publishBranch ? … : ['master','main']` is a truthiness test, and
+/// `"  "` is truthy there, so the git checks reject every real branch.
 #[test]
-fn resolved_otp_prefers_the_flag_over_the_config() {
+fn resolved_publish_branch_treats_only_an_empty_value_as_unset() {
+    let configured = Config { publish_branch: Some("release".to_owned()), ..Default::default() };
+    assert_eq!(publish_flags().resolved_publish_branch(&configured), Some("release"));
+    assert_eq!(publish_flags().resolved_publish_branch(&Config::default()), None);
+
+    let flagged = PublishFlags { publish_branch: Some("from-flag".to_owned()), ..publish_flags() };
+    assert_eq!(flagged.resolved_publish_branch(&configured), Some("from-flag"));
+
+    let empty = Config { publish_branch: Some(String::new()), ..Default::default() };
+    assert_eq!(publish_flags().resolved_publish_branch(&empty), None);
+    let blank = Config { publish_branch: Some("  ".to_owned()), ..Default::default() };
+    assert_eq!(publish_flags().resolved_publish_branch(&blank), Some("  "));
+}
+
+#[test]
+fn resolved_otp_prefers_the_flag_then_the_config() {
     let config = Config { otp: Some("from-config".to_owned()), ..Default::default() };
     assert_eq!(publish_flags().resolved_otp(&config), Some("from-config".to_owned()));
 

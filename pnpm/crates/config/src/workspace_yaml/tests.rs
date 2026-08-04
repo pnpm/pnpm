@@ -174,7 +174,7 @@ otp: '246810'
 /// `config.yaml` may not set it — only `pnpm-workspace.yaml` and
 /// `PNPM_CONFIG_PUBLISH_BRANCH` may.
 #[test]
-fn publish_branch_is_cleared_for_the_global_config() {
+fn publish_branch_cleared_as_workspace_only_field() {
     let mut settings: WorkspaceSettings =
         serde_saphyr::from_str("publishBranch: release\n").unwrap();
     settings.clear_workspace_only_fields();

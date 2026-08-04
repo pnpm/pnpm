@@ -107,8 +107,8 @@ pub fn resolve_access(explicit: Option<&str>, manifest: &Value) -> Option<String
             .get("publishConfig")
             .and_then(|config| config.get("access"))
             .and_then(Value::as_str)
-            .and_then(Access::parse)
-            .map(|access| access.to_string())
+            .filter(|access| Access::parse(access).is_some())
+            .map(str::to_owned)
     })
 }
 

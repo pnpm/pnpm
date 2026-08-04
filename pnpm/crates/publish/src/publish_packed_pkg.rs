@@ -23,7 +23,7 @@ use crate::{
     oidc::{OidcHttpOptions, escaped_package_name},
     provenance_gen::{ProvenanceGenError, SignProvenance, generate_provenance},
     publish_options::{
-        Access, CreatePublishOptionsError, CreatePublishOptionsInput, create_publish_options,
+        CreatePublishOptionsError, CreatePublishOptionsInput, create_publish_options,
     },
     publish_summary::{PackedPkgInfo, PublishSummary, create_publish_summary},
     registry_config_keys::NormalizedRegistryUrl,
@@ -411,7 +411,7 @@ fn build_publish_document(
     }
     let version = clean_version(&manifest_string(manifest, "version"))?;
 
-    if !name.starts_with('@') && access.and_then(Access::parse) == Some(Access::Restricted) {
+    if !name.starts_with('@') && access == Some("restricted") {
         return Err(PublishPackedPkgError::UnscopedRestricted { name });
     }
 

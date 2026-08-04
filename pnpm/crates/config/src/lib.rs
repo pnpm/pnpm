@@ -1424,8 +1424,12 @@ pub struct Config {
     pub provenance: Option<bool>,
 
     /// `otp` (`--otp`): the one-time password for a two-factor-authenticated
-    /// registry. An explicit value here outranks the `PNPM_CONFIG_OTP` overlay
-    /// `pacquet_publish::resolve_otp_from_env` applies. Overridden by `--otp`.
+    /// registry. Overridden by `--otp`.
+    ///
+    /// `PNPM_CONFIG_OTP` reaches this field through the ordinary env overlay,
+    /// so `pacquet_publish::resolve_otp_from_env` — kept because pnpm applies
+    /// the same second read in `optionsWithOtpEnv` — can no longer observe a
+    /// value this field does not already carry.
     pub otp: Option<String>,
 
     /// `scriptsPrependNodePath` from `pnpm-workspace.yaml`. Controls

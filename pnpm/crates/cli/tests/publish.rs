@@ -435,36 +435,6 @@ fn publishing_off_the_default_branches_without_the_setting_is_rejected() {
     mock.assert();
 }
 
-/// Upstream gates on `opts.publishBranch ? [opts.publishBranch] : …`, so an
-/// empty setting is falsy and leaves the built-in `master` / `main` pair in
-/// place. Treating it as a branch name would pin publishing to a branch that
-/// cannot exist.
-#[test]
-fn an_empty_publish_branch_setting_falls_back_to_the_default_branches() {
-    let dir = tempfile::tempdir().expect("workspace");
-    let mut server = mockito::Server::new();
-    let registry = format!("{}/", server.url());
-    write_project(
-        dir.path(),
-        &registry,
-        &json!({ "name": "test-empty-publish-branch", "version": "1.0.0" }),
-    );
-    fs::write(dir.path().join("pnpm-workspace.yaml"), "publishBranch: ''\n")
-        .expect("write pnpm-workspace.yaml");
-    commit_all_on_branch(dir.path(), "main");
-
-    let mock = server
-        .mock("PUT", "/test-empty-publish-branch")
-        .with_status(200)
-        .with_body("{}")
-        .expect(1)
-        .create();
-
-    let output = pacquet(dir.path()).with_arg("publish").output().expect("spawn pacquet publish");
-    assert_success(&output);
-    mock.assert();
-}
-
 #[test]
 fn scoped_package_publishes_to_the_slash_escaped_path() {
     let dir = tempfile::tempdir().expect("workspace");

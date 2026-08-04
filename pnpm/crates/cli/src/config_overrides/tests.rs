@@ -40,9 +40,6 @@ fn extract_reads_the_login_scope() {
     assert_eq!(config.scope.as_deref(), Some("@my-org"));
 }
 
-/// `--config.provenance=false` is the only way to reach an explicit `false`
-/// without `--no-provenance`, and the `Some(false)` it produces is what keeps
-/// the OIDC exchange from turning provenance on.
 #[test]
 fn extract_reads_a_false_provenance_override() {
     let (overrides, _) =

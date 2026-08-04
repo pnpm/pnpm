@@ -199,9 +199,6 @@ fn publish_settings_parse_from_env() {
     assert_eq!(settings.publish_branch.as_deref(), Some("release"));
 }
 
-/// `access` is an npm type union, so pnpm's env pass ignores a value outside
-/// it. Accepting one here would let a typo'd `PNPM_CONFIG_ACCESS` clobber a
-/// valid `access` from `pnpm-workspace.yaml`.
 #[test]
 fn an_access_env_var_outside_the_closed_set_is_ignored() {
     struct EnvBadAccess;
@@ -211,6 +208,19 @@ fn an_access_env_var_outside_the_closed_set_is_ignored() {
         }
     }
     assert_eq!(WorkspaceSettings::from_pnpm_config_env::<EnvBadAccess>().access, None);
+}
+
+/// `""` is a dist-tag in its own right, so it has to survive the env read that
+/// treats an empty value as unset for nearly every other setting.
+#[test]
+fn an_empty_tag_env_var_clobbers_the_lower_layers() {
+    struct EnvEmptyTag;
+    impl EnvVar for EnvEmptyTag {
+        fn var(name: &str) -> Option<String> {
+            (name == "PNPM_CONFIG_TAG").then(String::new)
+        }
+    }
+    assert_eq!(WorkspaceSettings::from_pnpm_config_env::<EnvEmptyTag>().tag.as_deref(), Some(""));
 }
 
 #[test]
