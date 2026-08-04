@@ -51,12 +51,16 @@ use std::{
     time::SystemTime,
 };
 
+mod apply_materialization;
 mod lifecycle;
 mod lockfile_freshness;
+mod materialize;
 mod modules_state;
+mod prepare_modules_state;
 mod run;
 mod workspace_state;
 
+use apply_materialization::{ApplyMaterializationInputs, apply_materialization_result};
 use lifecycle::{
     dev_preinstall_already_ran, load_workspace_projects, order_project_lifecycle_groups,
     run_dev_preinstall, run_projects_lifecycle_scripts,
@@ -68,6 +72,7 @@ pub(crate) use lockfile_freshness::{
 use lockfile_freshness::{
     FastUpdateImporterLockfileOptions, check_lockfile_freshness, try_fast_update_importer_lockfile,
 };
+use materialize::{MaterializationInputs, MaterializationOutput, materialize};
 use modules_state::{
     build_modules_manifest, check_modules_settings_diff, drain_settled_projects,
     frozen_tree_intact, gvs_build_marker_present, gvs_build_markers_may_require_recovery,
@@ -75,6 +80,9 @@ use modules_state::{
     merge_filtered_modules_metadata, merge_pending_builds, modules_consistent_with,
     modules_layout_consistent_with, project_requires_lifecycle_scripts,
     unapproved_recorded_ignored_builds,
+};
+use prepare_modules_state::{
+    PrepareModulesStateInputs, PreparedModulesState, prepare_modules_state,
 };
 pub(crate) use workspace_state::build_workspace_state;
 use workspace_state::{
