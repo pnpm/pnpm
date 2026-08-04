@@ -14,6 +14,7 @@ import {
   type Registries,
 } from '@pnpm/types'
 import { rimraf } from '@zkochan/rimraf'
+import { isSubdir } from 'is-subdir'
 import { pathAbsolute } from 'path-absolute'
 import { equals } from 'ramda'
 
@@ -22,6 +23,7 @@ import { checkCompatibility } from './checkCompatibility/index.js'
 interface ImporterToPurge {
   modulesDir: string
   rootDir: ProjectRootDir
+  rootDirRealPath?: string
 }
 
 export async function validateModules (
@@ -149,6 +151,13 @@ async function purgeModulesDirsOfImporters (
   },
   importers: ImporterToPurge[]
 ): Promise<void> {
+  const safeImporters = importers.filter((importer) => {
+    const projectRootDir = importer.rootDirRealPath ?? importer.rootDir
+    return !dirsAreEqual(projectRootDir, importer.modulesDir) &&
+      isSubdir(projectRootDir, importer.modulesDir)
+  })
+  if (safeImporters.length === 0) return
+
   if (opts.confirmModulesPurge ?? true) {
     if (!process.stdin.isTTY) {
       throw new PnpmError('ABORTED_REMOVE_MODULES_DIR_NO_TTY', 'Aborted removal of modules directory due to no TTY', {
@@ -158,8 +167,8 @@ async function purgeModulesDirsOfImporters (
     let confirmed: boolean
     try {
       confirmed = await confirm({
-        message: importers.length === 1
-          ? `The modules directory at "${importers[0].modulesDir}" will be removed and reinstalled from scratch. Proceed?`
+        message: safeImporters.length === 1
+          ? `The modules directory at "${safeImporters[0].modulesDir}" will be removed and reinstalled from scratch. Proceed?`
           : 'The modules directories will be removed and reinstalled from scratch. Proceed?',
         default: true,
       })
@@ -173,7 +182,7 @@ async function purgeModulesDirsOfImporters (
       throw new PnpmError('ABORTED_REMOVE_MODULES_DIR', 'Aborted removal of modules directory')
     }
   }
-  await Promise.all(importers.map(async (importer) => {
+  await Promise.all(safeImporters.map(async (importer) => {
     logger.info({
       message: `Recreating ${importer.modulesDir}`,
       prefix: importer.rootDir,

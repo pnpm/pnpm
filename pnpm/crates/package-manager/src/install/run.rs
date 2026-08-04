@@ -133,6 +133,8 @@ where
         let manifest_dir = manifest.path().parent().expect("manifest path always has a parent dir");
         let workspace_dir_opt = configured_or_discovered_workspace_dir(config, manifest_dir)
             .map_err(InstallError::FindWorkspaceDir)?;
+        let workspace_manifest_dir =
+            workspace_dir_opt.clone().unwrap_or_else(|| manifest_dir.to_path_buf());
         // Dedicated per-project lockfiles (`sharedWorkspaceLockfile:
         // false`) anchor everything `workspace_root` names — the wanted
         // lockfile, importer ids, reporter prefixes, the workspace-state
@@ -141,7 +143,7 @@ where
         // and workspace packages still come from the real workspace dir
         // (`workspace_dir_opt`).
         let workspace_root = if config.shared_workspace_lockfile {
-            workspace_dir_opt.clone().unwrap_or_else(|| manifest_dir.to_path_buf())
+            workspace_manifest_dir.clone()
         } else {
             manifest_dir.to_path_buf()
         };
@@ -875,6 +877,7 @@ where
             lockfile,
             requested_importer_ids,
             workspace_root,
+            workspace_manifest_dir,
             included,
             install_skipped,
             node_linker,

@@ -15,7 +15,7 @@ struct ResolveOnlyCompletionInputs<'a> {
     peer_issues_sink_is_none: bool,
     existing_wanted_lockfile: Option<&'a Lockfile>,
     fresh_lockfile: Option<&'a Lockfile>,
-    prefix: &'a String,
+    prefix: &'a str,
 }
 
 fn complete_resolve_only<Reporter: self::Reporter>(
@@ -40,7 +40,7 @@ fn complete_resolve_only<Reporter: self::Reporter>(
     }
     Reporter::emit(&LogEvent::Summary(SummaryLog {
         level: LogLevel::Debug,
-        prefix: inputs.prefix.clone(),
+        prefix: inputs.prefix.to_string(),
     }));
     Ok(true)
 }
@@ -209,11 +209,9 @@ async fn link_materialized_projects<Reporter: self::Reporter + 'static>(
     // Materialize `link:` direct deps straight from the in-memory
     // project manifests. `excludeLinksFromLockfile` keeps them out
     // of the lockfile importers, so the lockfile-driven symlink
-    // passes inside the frozen/fresh paths never see them; pnpm
-    // v11's `linkDirectDeps` linked them from the projects
-    // regardless. Aliases the wanted lockfile *does* track are
-    // skipped — those belong to the lockfile passes (and their
-    // dedupe decisions). See [`crate::link_manifest_link_deps`].
+    // passes cannot see them. Aliases the wanted lockfile *does*
+    // track are skipped — those belong to the lockfile passes (and
+    // their dedupe decisions). See [`crate::link_manifest_link_deps`].
     // These are importer symlinks like any other, so
     // `virtualStoreOnly` skips them too.
     if !config.virtual_store_only {
@@ -541,6 +539,7 @@ fn run_materialized_project_scripts<Reporter: self::Reporter>(
 struct ReportInstallCompletionInputs<'a> {
     config: &'static Config,
     workspace_root: &'a Path,
+    workspace_manifest_dir: &'a Path,
     prefix: String,
     ignored_builds: Vec<String>,
 }
@@ -548,7 +547,13 @@ struct ReportInstallCompletionInputs<'a> {
 fn report_install_completion<Reporter: self::Reporter>(
     inputs: ReportInstallCompletionInputs<'_>,
 ) -> Result<(), InstallError> {
-    let ReportInstallCompletionInputs { config, workspace_root, prefix, ignored_builds } = inputs;
+    let ReportInstallCompletionInputs {
+        config,
+        workspace_root,
+        workspace_manifest_dir,
+        prefix,
+        ignored_builds,
+    } = inputs;
     // `pnpm:summary` closes the install and lets the reporter render
     // the accumulated `pnpm:root` events as a "+N -M" block. Must
     // come after `importing_done`.
@@ -572,7 +577,7 @@ fn report_install_completion<Reporter: self::Reporter>(
             .map(|dep_path| crate::allow_build_key_from_ignored_build(dep_path))
             .collect();
         pacquet_workspace_manifest_writer::scaffold_allow_builds(
-            config.workspace_dir.as_deref().unwrap_or(workspace_root),
+            workspace_manifest_dir,
             allow_build_keys.iter().map(String::as_str),
         )
         .map_err(InstallError::ScaffoldAllowBuilds)?;
@@ -600,6 +605,7 @@ pub(super) struct ApplyMaterializationInputs<'a, 'selection> {
     pub(super) lockfile: Option<&'a Lockfile>,
     pub(super) requested_importer_ids: Option<HashSet<String>>,
     pub(super) workspace_root: PathBuf,
+    pub(super) workspace_manifest_dir: PathBuf,
     pub(super) included: IncludedDependencies,
     pub(super) install_skipped: crate::SkippedSnapshots,
     pub(super) node_linker: NodeLinker,
@@ -641,6 +647,7 @@ pub(super) async fn apply_materialization_result<Reporter: self::Reporter + 'sta
         lockfile,
         requested_importer_ids,
         workspace_root,
+        workspace_manifest_dir,
         included,
         install_skipped,
         node_linker,
@@ -774,6 +781,7 @@ pub(super) async fn apply_materialization_result<Reporter: self::Reporter + 'sta
     report_install_completion::<Reporter>(ReportInstallCompletionInputs {
         config,
         workspace_root: &workspace_root,
+        workspace_manifest_dir: &workspace_manifest_dir,
         prefix,
         ignored_builds,
     })

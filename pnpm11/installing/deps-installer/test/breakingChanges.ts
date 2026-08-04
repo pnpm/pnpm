@@ -35,6 +35,21 @@ test("don't fail on non-compatible node_modules when forced", async () => {
   await install({}, opts)
 })
 
+test('forced modules repair never purges the project root', async () => {
+  prepareEmpty()
+  const sentinel = path.resolve('keep.txt')
+  fs.writeFileSync(sentinel, 'keep')
+  fs.writeFileSync('.modules.yaml', 'packageManager: pnpm@3\nlayoutVersion: 1\n')
+
+  await install({}, testDefaults({
+    confirmModulesPurge: false,
+    force: true,
+    modulesDir: '.',
+  }))
+
+  expect(fs.readFileSync(sentinel, 'utf8')).toBe('keep')
+})
+
 test("don't fail on non-compatible node_modules when forced in a workspace", async () => {
   preparePackages([
     {
