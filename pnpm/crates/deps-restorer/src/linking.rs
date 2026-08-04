@@ -29,10 +29,15 @@ use std::{
     sync::atomic::AtomicU8,
 };
 
-/// Error type of [`run_link_phase`]. Every variant is
-/// `#[diagnostic(transparent)]`, so the surfaced `ERR_PNPM_*` code comes
-/// from the wrapped error and a link failure reports identically
-/// whichever install path ran it.
+/// Error type of [`run_link_phase`].
+///
+/// The wrapping variants are `#[diagnostic(transparent)]`, so the
+/// surfaced `ERR_PNPM_*` code is the inner error's and a link failure
+/// reports identically whichever install path ran it. The two sidecar
+/// writes are the exception: they own
+/// `ERR_PNPM_PACKAGE_MANAGER_WRITE_PACKAGE_MAP` and
+/// `ERR_PNPM_PACKAGE_MANAGER_WRITE_PNP_FILE` because the underlying I/O
+/// error carries no pnpm code of its own.
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum LinkPhaseError {
     #[diagnostic(transparent)]
@@ -76,6 +81,13 @@ impl From<HoistedLinkerError> for LinkPhaseError {
     }
 }
 
+/// Everything the link phase reads.
+///
+/// Both install paths supply this, and the fields that differ between
+/// them are inputs rather than branches: [`Self::symlink_root`],
+/// [`Self::trusted_importer_ids`], [`Self::root_component_importers`]
+/// and [`Self::sidecar_lockfile`] each carry a per-path value whose
+/// reason is documented on the field.
 pub struct LinkPhaseInputs<'a> {
     pub config: &'static Config,
     pub layout: &'a VirtualStoreLayout,
@@ -125,6 +137,21 @@ pub struct LinkPhaseOutput {
     pub publicly_hoisted_for_post_build: Vec<String>,
 }
 
+/// Reconcile what the previous install left behind, then materialize
+/// the importer-visible tree and the module-resolution sidecars.
+///
+/// **Precondition:** the virtual store is already populated. This
+/// creates links into it and never fetches, so a snapshot missing from
+/// the store yields a dangling link rather than an error.
+///
+/// `skipped` is taken by `&mut` because the hoisted linker adds to it:
+/// a package the walker cannot place is recorded so the build phase and
+/// `.modules.yaml` observe the same skip set this phase acted on.
+///
+/// Returns what the build phase and the caller's `.modules.yaml` writer
+/// need — see [`LinkPhaseOutput`]. Under `virtual_store_only` nothing
+/// below the reconciliation runs and every output is empty: that mode
+/// populates the store without touching the project.
 pub fn run_link_phase<Reporter: self::Reporter>(
     inputs: LinkPhaseInputs<'_>,
     skipped: &mut SkippedSnapshots,
@@ -193,11 +220,23 @@ pub fn run_link_phase<Reporter: self::Reporter>(
     // [`crate::link_hoisted_modules()`]); on the isolated linker
     // the event fires here, so every install carries exactly one,
     // pairing the `added` emitted in `CreateVirtualStore`.
+    // Nothing below this point runs under `virtual_store_only`: it
+    // creates no importer or hoist links, so it has neither anything to
+    // reconcile nor anything to link. Returning here rather than gating
+    // each pass keeps that a single decision — and keeps the hoist pass,
+    // which writes into `config.modules_dir`, from touching a project
+    // this mode is meant to leave alone.
+    if config.virtual_store_only {
+        return Ok(LinkPhaseOutput {
+            hoisted_dependencies: crate::HoistedDependencies::new(),
+            hoisted_locations: BTreeMap::new(),
+            hoisted_pkg_roots_by_key: None,
+            publicly_hoisted_for_post_build: Vec::new(),
+        });
+    }
+
     //
-    // `virtual_store_only` skips reconciliation for the same reason
-    // it skips linking below: it never creates importer or hoist
-    // links, so there is nothing of its own to reconcile.
-    if !is_hoisted && !config.virtual_store_only {
+    if !is_hoisted {
         let removed_count = match current_lockfile {
             Some(current) => crate::PruneStaleModules {
                 config,
@@ -218,10 +257,7 @@ pub fn run_link_phase<Reporter: self::Reporter>(
         }));
     }
 
-    // `virtual_store_only` stops here: the virtual store is
-    // populated, but nothing downstream of it — importer symlinks,
-    // per-slot bins, root components — gets linked.
-    if !is_hoisted && !config.virtual_store_only {
+    if !is_hoisted {
         SymlinkDirectDependencies {
             config,
             layout,
@@ -310,32 +346,31 @@ pub fn run_link_phase<Reporter: self::Reporter>(
     // [`crate::BuildModules::pkg_roots_by_key`] for why a snapshot
     // can map to more than one directory and which writes have to
     // reach all of them.
-    let HoistedLinkerOutput { hoisted_locations, hoisted_pkg_roots_by_key } =
-        if is_hoisted && !config.virtual_store_only {
-            run_hoisted_linker::<Reporter>(
-                HoistedLinkerInputs {
-                    config,
-                    lockfile,
-                    current_lockfile,
-                    layout,
-                    importers,
-                    dependency_groups,
-                    project_manifests,
-                    package_map_project_manifests,
-                    walker_lockfile_dir: workspace_root,
-                    symlink_workspace_root: symlink_root,
-                    host_node,
-                    supported_architectures,
-                    cas_paths_by_pkg_id,
-                    logged_methods,
-                    requester,
-                },
-                skipped,
-            )
-            .map_err(LinkPhaseError::from)?
-        } else {
-            HoistedLinkerOutput::default()
-        };
+    let HoistedLinkerOutput { hoisted_locations, hoisted_pkg_roots_by_key } = if is_hoisted {
+        run_hoisted_linker::<Reporter>(
+            HoistedLinkerInputs {
+                config,
+                lockfile,
+                current_lockfile,
+                layout,
+                importers,
+                dependency_groups,
+                project_manifests,
+                package_map_project_manifests,
+                walker_lockfile_dir: workspace_root,
+                symlink_workspace_root: symlink_root,
+                host_node,
+                supported_architectures,
+                cas_paths_by_pkg_id,
+                logged_methods,
+                requester,
+            },
+            skipped,
+        )
+        .map_err(LinkPhaseError::from)?
+    } else {
+        HoistedLinkerOutput::default()
+    };
 
     // Hoist transitive deps into `<virtual_store>/node_modules`
     // (private hoist) and/or `<root>/node_modules` (public hoist).
@@ -429,9 +464,7 @@ pub fn run_link_phase<Reporter: self::Reporter>(
         )
         .map_err(LinkPhaseError::WritePackageMap)?;
     }
-    // See `install_with_fresh_lockfile::linking` for why
-    // `virtual_store_only` suppresses the loader.
-    if matches!(node_linker, NodeLinker::Pnp) && !config.virtual_store_only {
+    if matches!(node_linker, NodeLinker::Pnp) {
         crate::write_pnp_file(sidecar_lockfile, workspace_root, config, layout, project_manifests)
             .map_err(LinkPhaseError::WritePnpFile)?;
     }
