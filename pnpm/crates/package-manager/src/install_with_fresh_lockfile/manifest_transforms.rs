@@ -93,13 +93,15 @@ pub(super) fn build_manifest_transforms(
         let extender = Arc::clone(extender);
         Arc::new(move |manifest| extender.apply_to_arc(manifest)) as ManifestHook
     });
-    let overrides_hook: Option<ManifestHook> =
-        versions_overrider.as_ref().filter(|overrider| !overrider.is_empty()).map(|overrider| {
-            let overrider = Arc::clone(overrider);
-            Arc::new(move |manifest| overrider.apply_to_arc(manifest, None)) as ManifestHook
-        });
+    // An empty overrider would install a hook that rewrites nothing, so
+    // both sinks share the same non-empty precondition.
+    let active_overrider = versions_overrider.as_ref().filter(|overrider| !overrider.is_empty());
+    let overrides_hook: Option<ManifestHook> = active_overrider.map(|overrider| {
+        let overrider = Arc::clone(overrider);
+        Arc::new(move |manifest| overrider.apply_to_arc(manifest, None)) as ManifestHook
+    });
     let override_bare_specifier: Option<Arc<DependencyOverrider>> =
-        versions_overrider.as_ref().filter(|overrider| !overrider.is_empty()).map(|overrider| {
+        active_overrider.map(|overrider| {
             let overrider = Arc::clone(overrider);
             Arc::new(move |name: &str, range: &str, pkg_dir: &Path| {
                 overrider.override_for_undeclared_dependency(name, range, pkg_dir)

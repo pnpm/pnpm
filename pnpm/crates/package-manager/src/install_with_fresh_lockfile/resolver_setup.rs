@@ -151,8 +151,8 @@ pub(super) fn prior_tarball_entries(
             packages
                 .iter()
                 .filter_map(|(key, metadata)| match &metadata.resolution {
-                    LockfileResolution::Tarball(t) if t.git_hosted != Some(true) => {
-                        let integrity = t.integrity.clone()?;
+                    LockfileResolution::Tarball(tarball) if tarball.git_hosted != Some(true) => {
+                        let integrity = tarball.integrity.clone()?;
                         let pkg_id = key.pkg_id();
                         let store_index_key = store_index_key(&integrity.to_string(), &pkg_id);
                         Some((
@@ -160,7 +160,7 @@ pub(super) fn prior_tarball_entries(
                             PriorTarballEntry {
                                 integrity,
                                 store_index_key,
-                                tarball_url: t.tarball.clone(),
+                                tarball_url: tarball.tarball.clone(),
                             },
                         ))
                     }

@@ -284,10 +284,9 @@ pub(super) async fn lockfile_reuse_seed(inputs: ReuseSeedInputs<'_>) -> Option<A
         return Some(Arc::new(seed));
     }
 
-    if override_settings_match
-        && reusable_settings_lockfile.is_some()
-        && let Some(seed) = fast_catalog_seed
-    {
+    // `override_settings_match` is computed with `is_some_and`, so it
+    // already implies `reusable_settings_lockfile` is `Some`.
+    if override_settings_match && let Some(seed) = fast_catalog_seed {
         return Some(Arc::new(seed));
     }
 

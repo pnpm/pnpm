@@ -107,14 +107,27 @@ pub(super) fn run_link_phase<Reporter: pacquet_reporter::Reporter>(
         ..
     } = &inputs;
 
+    // Nothing below this point runs under `virtual_store_only`: it
+    // creates no importer or hoist links, so it has neither anything to
+    // reconcile nor anything to link. Returning here rather than gating
+    // each pass keeps that a single decision.
+    if config.virtual_store_only {
+        return Ok(LinkPhaseOutput {
+            hoisted_dependencies: HoistedDependencies::new(),
+            hoisted_locations: BTreeMap::new(),
+            hoisted_pkg_roots_by_key: None,
+            publicly_hoisted_for_post_build: Vec::new(),
+        });
+    }
+
     // Reconcile before linking: stale direct-dep links and orphaned
     // hoist links must vacate their slots so the relink + rehoist below
     // can claim them. The hoisted linker is excluded — its previous-graph
     // diff removes orphans and emits the `pnpm:stats` `removed` event
     // itself (see [`crate::link_hoisted_modules()`]); on the isolated
-    // linker the event fires here, so every install carries exactly one,
-    // pairing the `added` emitted in `CreateVirtualStore`.
-    if !is_hoisted && !config.virtual_store_only {
+    // linker the event fires here, so every linking install carries
+    // exactly one, pairing the `added` emitted in `CreateVirtualStore`.
+    if !is_hoisted {
         let removed_count = match current_lockfile {
             Some(current) => crate::PruneStaleModules {
                 config,
@@ -133,15 +146,6 @@ pub(super) fn run_link_phase<Reporter: pacquet_reporter::Reporter>(
             level: LogLevel::Debug,
             message: StatsMessage::Removed { prefix: requester.to_owned(), removed: removed_count },
         }));
-    }
-
-    if config.virtual_store_only {
-        return Ok(LinkPhaseOutput {
-            hoisted_dependencies: HoistedDependencies::new(),
-            hoisted_locations: BTreeMap::new(),
-            hoisted_pkg_roots_by_key: None,
-            publicly_hoisted_for_post_build: Vec::new(),
-        });
     }
 
     if is_hoisted {
@@ -277,7 +281,6 @@ fn link_isolated<Reporter: pacquet_reporter::Reporter>(
     // legitimately live outside the lockfile dir (Bit's capsule installs
     // pass such projects), so they bypass the malformed-lockfile
     // importer-key rejection.
-    let trusted_importer_ids: HashSet<String> = project_anchor_importer_ids.clone();
     SymlinkDirectDependencies {
         config,
         layout,
@@ -288,7 +291,7 @@ fn link_isolated<Reporter: pacquet_reporter::Reporter>(
         skipped,
         link_only: false,
         public_hoist_targets: public_hoist_targets.as_ref(),
-        trusted_importer_ids: Some(&trusted_importer_ids),
+        trusted_importer_ids: Some(project_anchor_importer_ids),
         extra_node_paths,
     }
     .run::<Reporter>()
