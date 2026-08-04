@@ -1963,10 +1963,8 @@ pub fn pnpm_workspace_yaml_registry_overrides_npmrc_registry() {
     assert_eq!(config.registry, "https://from-yaml.test/");
 }
 
-// `pnpm login` turns `scope` into a `@scope:registry` route in the global
-// `auth.ini`, which outranks the user's `~/.npmrc` in every project on the
-// machine — so a repo-committed file must not be able to choose it.
-// See <https://github.com/pnpm/pnpm/issues/13557>.
+/// See [`crate::WorkspaceSettings::clear_repo_scope`] for why a
+/// repository-committed file must not be able to choose the login scope.
 #[test]
 pub fn pnpm_workspace_yaml_cannot_supply_the_login_scope() {
     let tmp = tempdir().unwrap();

@@ -147,9 +147,6 @@ fn clear_repo_scope_treats_an_empty_scope_as_a_value_and_a_missing_one_as_absent
 
 #[test]
 fn apply_scope_overrides_an_earlier_layer() {
-    // Every layer applied after the global `config.yaml` — today only the
-    // `PNPM_CONFIG_*` overlay, since the workspace yaml's scope is cleared
-    // first — reaches `apply_to` through this same type, and wins.
     let settings: WorkspaceSettings = serde_saphyr::from_str("scope: '@from-env'\n").unwrap();
     let mut config = Config::new();
     config.scope = Some("@from-global-config".to_owned());
