@@ -246,7 +246,16 @@ where
             // uses.
             let scope_entries = match Sys::read_dir(&path) {
                 Ok(entries) => entries,
-                Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
+                // Same reasoning as `read_package`: a `@`-prefixed file
+                // is not a scope directory, so it holds no packages.
+                Err(error)
+                    if matches!(
+                        error.kind(),
+                        io::ErrorKind::NotFound | io::ErrorKind::NotADirectory,
+                    ) =>
+                {
+                    continue;
+                }
                 Err(error) => {
                     return Err(LinkBinsError::ReadModulesDir { dir: path.clone(), error });
                 }
@@ -273,7 +282,15 @@ fn read_package<Sys: FsReadFile>(
     let manifest_path = location.join("package.json");
     let bytes = match Sys::read_file(&manifest_path) {
         Ok(bytes) => bytes,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        // A missing manifest and a non-directory entry both mean the
+        // same thing: this is not a package. Users do drop stray files
+        // into `node_modules`, and one of them must not fail the
+        // install.
+        Err(error)
+            if matches!(error.kind(), io::ErrorKind::NotFound | io::ErrorKind::NotADirectory) =>
+        {
+            return Ok(None);
+        }
         Err(error) => return Err(LinkBinsError::ReadManifest { path: manifest_path, error }),
     };
     let manifest: Value = parse_manifest_bytes(&bytes)

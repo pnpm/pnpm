@@ -1,8 +1,10 @@
 use super::{
     ImporterUpdateSeedPolicy, UpdateSeedPolicy, compute_package_extensions_checksum,
-    full_resolution_required, is_partial_workspace_selection, update_reuse_scopes,
+    full_resolution_required, include_transitive_optional_dependencies,
+    is_partial_workspace_selection, update_reuse_scopes,
 };
 use pacquet_config::{Config, PackageExtension};
+use pacquet_package_manifest::DependencyGroup;
 use pretty_assertions::assert_eq;
 
 fn config_with_extensions(entries: &[(&str, &[(&str, &str)])]) -> Box<Config> {
@@ -31,6 +33,16 @@ fn full_workspace_selection_keeps_resolution_prefetch_enabled() {
     assert!(!is_partial_workspace_selection(Some(&real), Some(&all_selected)));
     assert!(is_partial_workspace_selection(Some(&real), Some(&partial)));
     assert!(!is_partial_workspace_selection(None, None));
+}
+
+#[test]
+fn partial_installs_keep_transitive_optional_dependencies() {
+    let prod_only = [DependencyGroup::Prod];
+    let with_optional = [DependencyGroup::Prod, DependencyGroup::Optional];
+
+    assert!(include_transitive_optional_dependencies(false, &prod_only));
+    assert!(!include_transitive_optional_dependencies(true, &prod_only));
+    assert!(include_transitive_optional_dependencies(true, &with_optional));
 }
 
 /// Ports `installing/.../packageExtensions.ts:103-153`

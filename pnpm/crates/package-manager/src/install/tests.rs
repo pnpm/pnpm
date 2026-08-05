@@ -4,11 +4,13 @@
 )]
 
 use super::{
-    Install, InstallError, ProjectMutation, UpToDateFastPathCheck, exclude_linked_dependencies,
-    install_already_up_to_date, load_workspace_projects, order_project_lifecycle_groups,
-    project_requires_lifecycle_scripts, should_write_package_map,
+    Install, InstallError, ProjectMutation, UpToDateFastPathCheck, install_already_up_to_date,
+    load_workspace_projects, lockfile_freshness::exclude_linked_dependencies,
+    order_project_lifecycle_groups, project_requires_lifecycle_scripts,
 };
-use crate::{InstallWithFreshLockfileError, MinimumReleaseAgeError};
+use crate::{
+    AllowBuildPolicy, InstallWithFreshLockfileError, MinimumReleaseAgeError, VirtualStoreLayout,
+};
 use pacquet_config::{Config, NodePackageMapType};
 use pacquet_lockfile::{ComVer, Lockfile, LockfileVersion, MaybeLazyLockfile};
 use pacquet_modules_yaml::{
@@ -242,12 +244,12 @@ fn workspace_without_packages_field_enumerates_root_only() {
 #[test]
 fn package_map_writer_is_gated_to_supported_pacquet_mode() {
     let mut config = Config::new();
-    assert!(should_write_package_map(&config, pacquet_config::NodeLinker::Isolated));
-    assert!(!should_write_package_map(&config, pacquet_config::NodeLinker::Hoisted));
-    assert!(!should_write_package_map(&config, pacquet_config::NodeLinker::Pnp));
+    assert!(crate::should_write_package_map(&config, pacquet_config::NodeLinker::Isolated));
+    assert!(!crate::should_write_package_map(&config, pacquet_config::NodeLinker::Hoisted));
+    assert!(!crate::should_write_package_map(&config, pacquet_config::NodeLinker::Pnp));
 
     config.node_package_map_type = NodePackageMapType::Loose;
-    assert!(should_write_package_map(&config, pacquet_config::NodeLinker::Isolated));
+    assert!(crate::should_write_package_map(&config, pacquet_config::NodeLinker::Isolated));
 }
 
 #[tokio::test]
@@ -3487,6 +3489,149 @@ async fn frozen_lockfile_under_gvs_registers_project_and_runs_clean() {
     );
 
     drop(dir);
+}
+
+#[tokio::test]
+async fn fresh_partial_install_preserves_optional_link_in_warm_gvs_slot() {
+    let registry = TestRegistry::start();
+    let dir = tempdir().unwrap();
+    let store_dir = dir.path().join("pacquet-store");
+    let project_root = dir.path().join("project");
+    let peer_root = dir.path().join("peer-c");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+
+    std::fs::create_dir_all(&project_root).expect("create project root");
+    std::fs::create_dir_all(&peer_root).expect("create peer root");
+    std::fs::write(
+        peer_root.join("package.json"),
+        serde_json::json!({ "name": "@pnpm.e2e/peer-c", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write peer manifest");
+    let manifest_path = project_root.join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+    manifest
+        .add_dependency("@pnpm.e2e/abc-optional-peers", "1.0.0", DependencyGroup::Prod)
+        .unwrap();
+    manifest.add_dependency("@pnpm.e2e/peer-c", "link:../peer-c", DependencyGroup::Prod).unwrap();
+    manifest.save().unwrap();
+
+    let mut config = Config::new();
+    config.enable_global_virtual_store = true;
+    config.store_dir = store_dir.into();
+    config.modules_dir = modules_dir;
+    config.virtual_store_dir = virtual_store_dir;
+    config.global_virtual_store_dir = config.store_dir.links();
+    config.registry = registry.url();
+    let config = config.leak();
+    let http_client = std::sync::Arc::new(pacquet_network::ThrottledClient::default());
+
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &http_client,
+        http_client_arc: std::sync::Arc::clone(&http_client),
+        config,
+        manifest: &manifest,
+        emit_initial_manifest: true,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod, DependencyGroup::Optional],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: Some(false),
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        mutation: ProjectMutation::InstallWorkspace,
+        installs_only: true,
+        resolved_packages: &Default::default(),
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        lockfile_only: false,
+        dry_run: false,
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        auth_override: None,
+        resolution_observer: None,
+        peer_issues_sink: None,
+        deps_requiring_build_sink: None,
+        catalogs_override: None,
+        disable_optimistic_repeat_install: true,
+        pnpmfile_hook_override: None,
+        workspace_projects_override: None,
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("full install should materialize the optional peer link");
+
+    let lockfile = Lockfile::load_wanted_from_dir(&project_root)
+        .expect("load wanted lockfile")
+        .expect("wanted lockfile exists");
+    let snapshot_key = lockfile
+        .snapshots
+        .as_ref()
+        .expect("snapshots exist")
+        .keys()
+        .find(|key| key.name.to_string() == "@pnpm.e2e/abc-optional-peers")
+        .expect("optional-peers snapshot")
+        .clone();
+    let allow_build_policy = AllowBuildPolicy::default();
+    let layout = VirtualStoreLayout::new(
+        config,
+        None,
+        lockfile.snapshots.as_ref(),
+        lockfile.packages.as_ref(),
+        Some(&allow_build_policy),
+        Some(&project_root),
+    );
+    let linked_peer = layout.slot_dir(&snapshot_key).join("node_modules").join("@pnpm.e2e/peer-c");
+    assert!(
+        is_symlink_or_junction(&linked_peer).unwrap(),
+        "full install must create the optional peer link at {linked_peer:?}",
+    );
+
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &http_client,
+        http_client_arc: std::sync::Arc::clone(&http_client),
+        config,
+        manifest: &manifest,
+        emit_initial_manifest: true,
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: Some(false),
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        mutation: ProjectMutation::InstallSome,
+        installs_only: true,
+        resolved_packages: &Default::default(),
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        lockfile_only: false,
+        dry_run: false,
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        auth_override: None,
+        resolution_observer: None,
+        peer_issues_sink: None,
+        deps_requiring_build_sink: None,
+        catalogs_override: None,
+        disable_optimistic_repeat_install: true,
+        pnpmfile_hook_override: None,
+        workspace_projects_override: None,
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("partial fresh install should succeed");
+
+    assert!(
+        is_symlink_or_junction(&linked_peer).unwrap(),
+        "partial install without the optional direct group must preserve {linked_peer:?}",
+    );
+
+    drop((dir, registry));
 }
 
 /// Under GVS, the `virtualStoreDir` value pacquet persists in
@@ -7511,7 +7656,7 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
             version: Some("1.0.0".to_string()),
         },
     );
-    let settings = crate::optimistic_repeat_install::current_settings(
+    let settings = crate::optimistic_repeat_install::settings::current_settings(
         config,
         pacquet_config::NodeLinker::Isolated,
         included,
@@ -7634,7 +7779,7 @@ fn sync_fast_path_matches_optimistic_short_circuit() {
             version: Some("1.0.0".to_string()),
         },
     );
-    let settings = crate::optimistic_repeat_install::current_settings(
+    let settings = crate::optimistic_repeat_install::settings::current_settings(
         config,
         pacquet_config::NodeLinker::Isolated,
         included,
@@ -7753,7 +7898,7 @@ fn sync_fast_path_reads_the_workspace_root_wanted_lockfile_from_a_member() {
             pnpmfiles: Vec::new(),
             filtered_install: false,
             config_dependencies: None,
-            settings: crate::optimistic_repeat_install::current_settings(
+            settings: crate::optimistic_repeat_install::settings::current_settings(
                 config,
                 pacquet_config::NodeLinker::Isolated,
                 included,
@@ -7883,7 +8028,7 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
             version: Some("1.0.0".to_string()),
         },
     );
-    let settings = crate::optimistic_repeat_install::current_settings(
+    let settings = crate::optimistic_repeat_install::settings::current_settings(
         config,
         pacquet_config::NodeLinker::Isolated,
         included,
@@ -8037,7 +8182,7 @@ async fn partial_install_disables_optimistic_short_circuit() {
             version: Some("1.0.0".to_string()),
         },
     );
-    let settings = crate::optimistic_repeat_install::current_settings(
+    let settings = crate::optimistic_repeat_install::settings::current_settings(
         config,
         pacquet_config::NodeLinker::Isolated,
         included,
@@ -8183,7 +8328,7 @@ async fn optimistic_repeat_install_does_not_short_circuit_when_lockfile_missing(
             version: Some("1.0.0".to_string()),
         },
     );
-    let settings = crate::optimistic_repeat_install::current_settings(
+    let settings = crate::optimistic_repeat_install::settings::current_settings(
         config,
         pacquet_config::NodeLinker::Isolated,
         included,
@@ -9853,9 +9998,10 @@ async fn pre_resolution_hook_log_is_forwarded_to_pnpm_hook_channel() {
 #[tokio::test]
 async fn test_install_purges_node_modules_on_layout_mismatch() {
     let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
     let project_root = dir.path().join("project");
     let modules_dir = project_root.join("node_modules");
+    // Where the default store lands — see [`pacquet_config::store_path`].
+    let store_dir = modules_dir.join(".pnpm-store");
     let virtual_store_dir = modules_dir.join(".pacquet");
 
     let manifest_path = project_root.join("package.json");
@@ -9931,6 +10077,10 @@ async fn test_install_purges_node_modules_on_layout_mismatch() {
     std::fs::write(&canary_path, "canary").unwrap();
     assert!(canary_path.exists());
 
+    let store_marker = store_dir.join("marker");
+    std::fs::create_dir_all(&store_dir).unwrap();
+    std::fs::write(&store_marker, "keep").unwrap();
+
     // 2nd install: Hoisted node linker
     Install {
         tarball_mem_cache: Default::default(),
@@ -9970,6 +10120,11 @@ async fn test_install_purges_node_modules_on_layout_mismatch() {
     .expect("2nd install success");
 
     assert!(!canary_path.exists(), "node_modules should be purged due to mismatch");
+    assert_eq!(
+        std::fs::read_to_string(&store_marker).ok().as_deref(),
+        Some("keep"),
+        "a store inside node_modules should survive the purge",
+    );
 }
 
 #[tokio::test]

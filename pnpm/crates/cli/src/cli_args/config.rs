@@ -207,7 +207,7 @@ impl ConfigArgs {
 /// Resolve the effective `global` boolean from the `--location` / `--global`
 /// flags. Mirrors pnpm's handler: `--location` wins, otherwise config
 /// operations default to global.
-fn resolve_global(flags: ConfigFlags) -> bool {
+pub(super) fn resolve_global(flags: ConfigFlags) -> bool {
     match flags.location {
         Some(ConfigLocation::Global) => true,
         Some(ConfigLocation::Project) => false,

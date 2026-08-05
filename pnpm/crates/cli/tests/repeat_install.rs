@@ -306,3 +306,57 @@ fn available_packages_are_relinked_during_forced_install() {
 
     drop((root, mock_instance));
 }
+
+/// pnpm's `file:` is a copy taken at install time, not a symlink, so
+/// each install must re-copy: the source can change with no lockfile
+/// change to signal it.
+#[test]
+fn a_directory_dependency_is_recopied_when_its_source_changes() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let local = workspace.join("local-pkg");
+    fs::create_dir_all(&local).expect("create the local package dir");
+    let write_local = |marker: &str| {
+        fs::write(
+            local.join("package.json"),
+            serde_json::json!({ "name": "local-pkg", "version": "1.0.0" }).to_string(),
+        )
+        .expect("write the local package.json");
+        fs::write(local.join("marker.txt"), marker).expect("write the marker");
+    };
+    write_local("first");
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "root",
+            "private": true,
+            "dependencies": { "local-pkg": "file:./local-pkg" },
+        })
+        .to_string(),
+    )
+    .expect("write the root package.json");
+
+    pacquet.with_arg("install").assert().success();
+    let linked_marker = workspace.join("node_modules/local-pkg/marker.txt");
+    assert_eq!(
+        fs::read_to_string(&linked_marker).expect("read the linked marker"),
+        "first",
+        "the first install should materialize the directory dependency",
+    );
+
+    // The version is left alone so nothing in the lockfile changes and
+    // only a re-copy of the source can surface the edit.
+    write_local("second");
+    pacquet_in(&workspace).with_arg("install").assert().success();
+
+    assert_eq!(
+        fs::read_to_string(&linked_marker).expect("read the linked marker"),
+        "second",
+        "the second install should re-copy the directory into its slot",
+    );
+
+    drop((root, mock_instance));
+}

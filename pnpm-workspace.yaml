@@ -73,13 +73,13 @@ versioning:
   # shared version.
   fixed:
     - ['pacquet', '@pnpm/napi']
-  # The Rust CLI and its NAPI addon release as `X.Y.Z-beta.N` prereleases, while
+  # The Rust CLI and its NAPI addon release as `X.Y.Z-rc.N` prereleases, while
   # pnpr remains on `X.Y.Z-alpha.N`. Both are published under the `next` dist-tag
   # while the TypeScript CLI keeps releasing stable versions on the main lane.
   # `pnpm lane main --filter …` graduates a product to stable.
   lanes:
-    pacquet: beta
-    '@pnpm/napi': beta
+    pacquet: rc
+    '@pnpm/napi': rc
     '@pnpm/pnpr': alpha
 
 allowBuilds:
@@ -172,7 +172,7 @@ catalog:
   '@types/write-file-atomic': ^4.0.3
   '@types/yarnpkg__lockfile': ^1.1.9
   '@types/zkochan__table': npm:@types/table@6.3.2
-  '@typescript-eslint/utils': ^8.65.0
+  '@typescript-eslint/utils': ^8.66.0
   '@typescript/native-preview': 7.0.0-dev.20260707.2
   '@yarnpkg/core': 4.9.1
   '@yarnpkg/extensions': 2.0.7
@@ -364,7 +364,7 @@ catalog:
   # yet (https://github.com/typescript-eslint/typescript-eslint/issues/10940); the
   # 7.x compiler ships separately as @typescript/native-preview (tsgo).
   typescript: 6.0.3
-  typescript-eslint: ^8.65.0
+  typescript-eslint: ^8.66.0
   # undici 8.x requires Node.js >=22.19.0, above pnpm's supported floor of
   # Node.js >=22.13.
   undici: ^7.27.2
