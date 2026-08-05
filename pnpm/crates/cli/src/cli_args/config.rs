@@ -25,7 +25,10 @@ use pacquet_config::{
 };
 use pacquet_workspace_manifest_writer::update_manifest_field;
 use serde_json::{Map, Value};
-use std::path::{Path, PathBuf};
+use std::{
+    borrow::Cow,
+    path::{Path, PathBuf},
+};
 
 /// Manage the pnpm configuration files.
 #[derive(Debug, Args)]
@@ -141,15 +144,15 @@ pub enum ConfigError {
 
     #[display("The key {key:?} isn't supported by the workspace manifest")]
     #[diagnostic(code(ERR_PNPM_CONFIG_SET_UNSUPPORTED_WORKSPACE_KEY), help("{hint}"))]
-    SetUnsupportedWorkspaceKey { key: String, hint: String },
+    SetUnsupportedWorkspaceKey { key: String, hint: RefusedKeyHint },
 
     #[display("The key {key:?} isn't supported by the global config.yaml file")]
     #[diagnostic(code(ERR_PNPM_CONFIG_SET_UNSUPPORTED_YAML_CONFIG_KEY), help("{hint}"))]
-    SetUnsupportedYamlConfigKey { key: String, hint: String },
+    SetUnsupportedYamlConfigKey { key: String, hint: RefusedKeyHint },
 
     #[display("The key {key:?} isn't supported by a project's workspace manifest")]
     #[diagnostic(code(ERR_PNPM_CONFIG_SET_SKIPPED_PROJECT_KEY), help("{hint}"))]
-    SetSkippedProjectKey { key: String, hint: String },
+    SetSkippedProjectKey { key: String, hint: RefusedKeyHint },
 
     #[display("Invalid property path: {_0}")]
     #[diagnostic(code(ERR_PNPM_CONFIG_INVALID_PROPERTY_PATH))]
@@ -454,10 +457,29 @@ fn validate_workspace_key(key: &str) -> Result<String, ConfigError> {
         let camel = naming_cases::to_camel_case(key);
         return Err(ConfigError::SetUnsupportedWorkspaceKey {
             key: key.to_string(),
-            hint: hint_for_refused_key(key, format!("Try {camel:?}")),
+            hint: hint_for_refused_key(key, RefusedKeyHint::TryCamelCase { camel }),
         });
     }
     Ok(key.to_string())
+}
+
+/// The `help` a refused `pnpm config set` key carries: the closed set of
+/// destinations pnpm can point the user at.
+#[derive(Debug, Display)]
+pub enum RefusedKeyHint {
+    /// The global config file takes the key, so name the command that sets
+    /// it there.
+    #[display("Set it for the machine instead: pnpm config set --global {kebab}")]
+    SetGlobally { kebab: Cow<'static, str> },
+    /// No config file sets the key at all, so there is no command to name.
+    #[display("pnpm determines this setting itself, so no config file sets it")]
+    DeterminedByPnpm,
+    /// The workspace manifest takes the key under its camelCase spelling.
+    #[display("Try {camel:?}")]
+    TryCamelCase { camel: String },
+    /// The key belongs to the project rather than the machine.
+    #[display("Try setting them instead to the local pnpm-workspace.yaml file")]
+    TryProjectManifest,
 }
 
 /// The key to name in a suggestion, for settings whose own name the global
@@ -480,19 +502,19 @@ fn global_equivalent_key(camel_key: &str) -> Option<&'static str> {
 /// determines on its own and no file sets them. Suggesting the project
 /// manifest — the fallback for every other key — would send the user in a
 /// circle.
-fn where_refused_key_belongs(key: &str) -> String {
+fn where_refused_key_belongs(key: &str) -> RefusedKeyHint {
     let camel = naming_cases::to_camel_case(key);
     let kebab = global_equivalent_key(&camel)
-        .map_or_else(|| naming_cases::to_kebab_case(key), ToString::to_string);
+        .map_or_else(|| Cow::Owned(naming_cases::to_kebab_case(key)), Cow::Borrowed);
     if config_types::is_config_file_key(&kebab) {
-        format!("Set it for the machine instead: pnpm config set --global {kebab}")
+        RefusedKeyHint::SetGlobally { kebab }
     } else {
-        "pnpm determines this setting itself, so no config file sets it".to_string()
+        RefusedKeyHint::DeterminedByPnpm
     }
 }
 
 /// The suggestion for `key`, which falls back when a project manifest allows it.
-fn hint_for_refused_key(key: &str, fallback: String) -> String {
+fn hint_for_refused_key(key: &str, fallback: RefusedKeyHint) -> RefusedKeyHint {
     if config_types::is_project_manifest_skipped_setting(&naming_cases::to_camel_case(key)) {
         return where_refused_key_belongs(key);
     }
@@ -520,10 +542,7 @@ fn validate_yaml_config_key(key: &str) -> Result<String, ConfigError> {
     }
     Err(ConfigError::SetUnsupportedYamlConfigKey {
         key: key.to_string(),
-        hint: hint_for_refused_key(
-            key,
-            "Try setting them instead to the local pnpm-workspace.yaml file".to_string(),
-        ),
+        hint: hint_for_refused_key(key, RefusedKeyHint::TryProjectManifest),
     })
 }
 
