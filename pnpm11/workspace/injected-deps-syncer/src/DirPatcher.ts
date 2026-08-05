@@ -2,7 +2,6 @@ import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
-import { PnpmError } from '@pnpm/error'
 import { fetchFromDir, type FetchFromDirOptions } from '@pnpm/fetching.directory-fetcher'
 
 export const DIR: unique symbol = Symbol('Path is a directory')
@@ -156,9 +155,11 @@ export async function extendFilesMap ({ filesMap, filesStats }: ExtendFilesMapOp
       addInodeAndAncestors(relativePath, stats.ino)
     } else if (stats.isDirectory()) {
       addInodeAndAncestors(relativePath, DIR)
-    } else {
-      throw new PnpmError('UNSUPPORTED_INODE_TYPE', `Filesystem inode at ${realPath} is neither a file, a directory, or a symbolic link`)
     }
+    // Anything else — a FIFO, a socket, a device — cannot be hardlinked into
+    // the injected copy. Leaving it out of the map also keeps it out of the
+    // diff, so such an inode is neither copied into the target nor removed
+    // from it.
   }))
 
   return result
