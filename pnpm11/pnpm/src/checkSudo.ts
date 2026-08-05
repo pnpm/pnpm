@@ -1,3 +1,4 @@
+import { formatWarn } from '@pnpm/cli.default-reporter'
 import { globalWarn } from '@pnpm/logger'
 
 export interface CheckSudoOptions {
@@ -7,21 +8,23 @@ export interface CheckSudoOptions {
   location?: string
   env?: NodeJS.ProcessEnv
   geteuid?: () => number
+  /**
+   * `false` when no reporter is subscribed to the log stream (`--json`,
+   * `--parseable`), in which case the warning goes straight to stderr rather
+   * than into a stream nobody reads. stdout stays machine-parseable either way.
+   */
+  printLogs?: boolean
 }
 
-/**
- * Warns about commands that write to home-directory locations (global
- * installs, global config writes, `pnpm setup`, `pnpm self-update`) when pnpm
- * is executed through `sudo`. Those commands target root's home directory,
- * which is never what a user coming from `sudo npm install -g` wants.
- *
- * pnpm v12 refuses to run them; v11 only warns, so setups that rely on the
- * current behavior keep working until the next major.
- */
 export function checkSudo (opts: CheckSudoOptions): void {
   const operation = sudoBlockedOperation(opts)
   if (operation == null) return
-  globalWarn(`Running "${operation}" with sudo is not supported and will fail in pnpm v12. pnpm installs global packages and writes global configuration inside your home directory, so they do not require root permissions, and running this command as root targets the root user's home directory instead of yours. Rerun the command without sudo. If you really intend to manage the root user's own global packages, run pnpm from a session where the SUDO_USER environment variable is not set (for example: sudo env -u SUDO_USER pnpm ...).`)
+  const message = `Running "${operation}" with sudo is not supported and will fail in pnpm v12. pnpm installs global packages and writes global configuration inside your home directory, so they do not require root permissions, and running this command as root targets the root user's home directory instead of yours. Rerun the command without sudo. If you really intend to manage the root user's own global packages, run pnpm from a session where the SUDO_USER environment variable is not set (for example: sudo env -u SUDO_USER pnpm ...).`
+  if (opts.printLogs === false) {
+    console.warn(formatWarn(message))
+  } else {
+    globalWarn(message)
+  }
 }
 
 const READ_ONLY_GLOBAL_COMMANDS = new Set([

@@ -215,7 +215,7 @@ export async function main (inputArgv: string[]): Promise<void> {
     global[REPORTER_INITIALIZED] = reporterType
   }
 
-  checkSudo({ cmd, cliParams, global: cliOptions.global, location: cliOptions.location })
+  checkSudo({ cmd, cliParams, global: cliOptions.global, location: cliOptions.location, printLogs })
 
   // Commands with scriptOverride: if the current project's package.json has a
   // script with the same name, run the script instead of the built-in command.
