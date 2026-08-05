@@ -173,10 +173,12 @@ impl CreateVirtualDirBySnapshot<'_> {
         } else {
             cas_paths
         };
+        // Mutable sources can reuse a slot for different contents, so a complete import may be stale.
+        let safe_to_skip = layout.enable_global_virtual_store() && !source_is_mutable;
         let import_opts = if interrupted_build || source_is_mutable {
-            ImportIndexedDirOpts { force: true, keep_modules_dir: true }
+            ImportIndexedDirOpts { force: true, keep_modules_dir: true, safe_to_skip }
         } else {
-            ImportIndexedDirOpts::default()
+            ImportIndexedDirOpts { safe_to_skip, ..ImportIndexedDirOpts::default() }
         };
 
         let import_package = || {

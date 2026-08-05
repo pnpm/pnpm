@@ -37,6 +37,10 @@ pub struct ImportIndexedDirOpts {
     /// installed by a sibling pass must not be clobbered when the
     /// parent package is re-imported.
     pub keep_modules_dir: bool,
+    /// Whether an occupied, complete target is equivalent to this import.
+    ///
+    /// Callers must ensure that the target path uniquely identifies its contents.
+    pub safe_to_skip: bool,
 }
 
 /// Error type for [`import_indexed_dir`].
@@ -170,6 +174,7 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
             dir_path,
             cas_paths,
             opts.keep_modules_dir,
+            opts.safe_to_skip,
         )
         .inspect(|()| unquarantine()),
     }
@@ -261,6 +266,26 @@ fn marker_file(cas_paths: &HashMap<String, PathBuf>) -> Option<&str> {
     cas_paths.keys().map(String::as_str).filter(|path| *path != crate::NEEDS_BUILD_MARKER).min()
 }
 
+// Supported platforms report an occupied directory with different error kinds.
+fn is_occupied_target(error: &io::Error) -> bool {
+    matches!(
+        error.kind(),
+        io::ErrorKind::DirectoryNotEmpty
+            | io::ErrorKind::AlreadyExists
+            | io::ErrorKind::PermissionDenied,
+    )
+}
+
+// The completion marker is placed last. Verify every package file in case a completed import was
+// later damaged. The needs-build marker is transient and does not identify package contents.
+fn is_complete_import(dir_path: &Path, cas_paths: &HashMap<String, PathBuf>) -> bool {
+    marker_present(dir_path, cas_paths)
+        && cas_paths
+            .keys()
+            .filter(|entry| entry.as_str() != crate::NEEDS_BUILD_MARKER)
+            .all(|entry| dir_path.join(entry).exists())
+}
+
 /// Whether `dir_path` holds the completion marker. An empty map has no
 /// marker, so it counts as present — there is nothing to import.
 #[must_use]
@@ -310,6 +335,7 @@ fn stage_and_swap<Reporter: self::Reporter>(
     dir_path: &Path,
     cas_paths: &HashMap<String, PathBuf>,
     keep_modules_dir: bool,
+    safe_to_skip: bool,
 ) -> Result<(), ImportIndexedDirError> {
     let stage = pick_stage_path(dir_path);
     let target_modules = dir_path.join("node_modules");
@@ -369,6 +395,20 @@ fn stage_and_swap<Reporter: self::Reporter>(
         }
         Some(_) | None => false,
     };
+
+    // 3b. Keep a complete content-addressed target instead of removing a directory that another
+    //     importer may be populating or reading. When step 3 moved `node_modules/`, continue with
+    //     the swap so that it can be restored.
+    if safe_to_skip && !nm_moved {
+        match fs::rename(&stage, dir_path) {
+            Ok(()) => return Ok(()),
+            Err(error) if is_occupied_target(&error) && is_complete_import(dir_path, cas_paths) => {
+                let _ = fs::remove_dir_all(&stage);
+                return Ok(());
+            }
+            Err(_) => {}
+        }
+    }
 
     // 4. Remove the old contents. If this fails after step 3, the
     //    staged copy of `node_modules/` is the user's only copy —

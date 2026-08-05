@@ -57,6 +57,14 @@ pub struct ResolvedConfig {
     pub store_dir: String,
     pub cache_dir: String,
     pub virtual_store_dir_max_length: u32,
+    /// Whether the resolved configuration uses the global virtual store.
+    pub enable_global_virtual_store: bool,
+    /// Shared virtual-store root.
+    pub global_virtual_store_dir: String,
+    /// Project-local virtual-store directory.
+    pub virtual_store_dir: String,
+    /// Virtual-store directory used by this configuration and recorded in `.modules.yaml`.
+    pub effective_virtual_store_dir: String,
     pub network_concurrency: u32,
     pub max_sockets: Option<u32>,
     pub fetch_retries: u32,
@@ -148,6 +156,10 @@ fn project_config(config: &pacquet_config::Config) -> ResolvedConfig {
         cache_dir: config.cache_dir.display().to_string(),
         virtual_store_dir_max_length: u32::try_from(config.virtual_store_dir_max_length)
             .unwrap_or(u32::MAX),
+        enable_global_virtual_store: config.enable_global_virtual_store,
+        global_virtual_store_dir: config.global_virtual_store_dir.display().to_string(),
+        virtual_store_dir: config.virtual_store_dir.display().to_string(),
+        effective_virtual_store_dir: config.effective_virtual_store_dir().display().to_string(),
         network_concurrency: u32::try_from(config.network_concurrency).unwrap_or(u32::MAX),
         max_sockets: config.max_sockets.map(|value| u32::try_from(value).unwrap_or(u32::MAX)),
         fetch_retries: config.fetch_retries,

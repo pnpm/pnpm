@@ -24,9 +24,11 @@ fn cas_map(entries: &[(&str, PathBuf)]) -> HashMap<String, PathBuf> {
 }
 
 const FORCE_KEEP: ImportIndexedDirOpts =
-    ImportIndexedDirOpts { force: true, keep_modules_dir: true };
+    ImportIndexedDirOpts { force: true, keep_modules_dir: true, safe_to_skip: false };
 const FORCE_ONLY: ImportIndexedDirOpts =
-    ImportIndexedDirOpts { force: true, keep_modules_dir: false };
+    ImportIndexedDirOpts { force: true, keep_modules_dir: false, safe_to_skip: false };
+const FORCE_SHARED: ImportIndexedDirOpts =
+    ImportIndexedDirOpts { force: true, keep_modules_dir: false, safe_to_skip: true };
 
 #[test]
 fn fresh_target_links_files() {
@@ -678,4 +680,180 @@ fn marker_only_map_creates_target_and_places_marker() {
             "marker staging temp leaked at {path:?}",
         );
     }
+}
+
+#[test]
+fn safe_to_skip_keeps_a_target_a_concurrent_importer_already_completed() {
+    let tmp = tempdir().unwrap();
+    let src_root = tmp.path().join("cas");
+    fs::create_dir_all(&src_root).unwrap();
+    let pkg_json = write_source(&src_root, "package.json", b"{\"version\":\"1.0.0\"}");
+    let index = write_source(&src_root, "index.js", b"module.exports = 1");
+    let cas = cas_map(&[("package.json", pkg_json), ("index.js", index)]);
+
+    let target = tmp.path().join("slot");
+    fs::create_dir_all(&target).unwrap();
+    fs::write(target.join("package.json"), b"{\"version\":\"1.0.0\"}").unwrap();
+    fs::write(target.join("index.js"), b"module.exports = 1").unwrap();
+
+    import_indexed_dir::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::Copy,
+        &target,
+        &cas,
+        FORCE_SHARED,
+    )
+    .expect("a slot another importer already completed is not a conflict");
+
+    assert_eq!(fs::read(target.join("package.json")).unwrap(), b"{\"version\":\"1.0.0\"}");
+    assert_eq!(fs::read(target.join("index.js")).unwrap(), b"module.exports = 1");
+    let strays: Vec<_> = fs::read_dir(tmp.path())
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .filter(|name| name != "cas" && name != "slot")
+        .collect();
+    assert_eq!(strays, Vec::<String>::new(), "staging dir must be cleaned up");
+}
+
+#[test]
+fn safe_to_skip_does_not_accept_a_slot_that_is_still_being_written() {
+    let tmp = tempdir().unwrap();
+    let src_root = tmp.path().join("cas");
+    fs::create_dir_all(&src_root).unwrap();
+    let pkg_json = write_source(&src_root, "package.json", b"{\"version\":\"1.0.0\"}");
+    let index = write_source(&src_root, "index.js", b"module.exports = 1");
+    let cas = cas_map(&[("package.json", pkg_json), ("index.js", index)]);
+
+    let target = tmp.path().join("slot");
+    fs::create_dir_all(&target).unwrap();
+    fs::write(target.join("index.js"), b"half-written").unwrap();
+
+    import_indexed_dir::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::Copy,
+        &target,
+        &cas,
+        FORCE_SHARED,
+    )
+    .expect("an unfinished slot must be completed, not accepted");
+
+    assert_eq!(fs::read(target.join("package.json")).unwrap(), b"{\"version\":\"1.0.0\"}");
+    assert_eq!(
+        fs::read(target.join("index.js")).unwrap(),
+        b"module.exports = 1",
+        "the half-written file must be replaced, not kept",
+    );
+}
+
+#[test]
+fn safe_to_skip_still_repairs_an_incomplete_target() {
+    let tmp = tempdir().unwrap();
+    let src_root = tmp.path().join("cas");
+    fs::create_dir_all(&src_root).unwrap();
+    let pkg_json = write_source(&src_root, "package.json", b"{\"version\":\"1.0.0\"}");
+    let index = write_source(&src_root, "index.js", b"module.exports = 1");
+    let cas = cas_map(&[("package.json", pkg_json), ("index.js", index)]);
+
+    let target = tmp.path().join("slot");
+    fs::create_dir_all(&target).unwrap();
+    fs::write(target.join("package.json"), b"truncated").unwrap();
+
+    import_indexed_dir::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::Copy,
+        &target,
+        &cas,
+        FORCE_SHARED,
+    )
+    .expect("an incomplete slot must be repaired");
+
+    assert_eq!(fs::read(target.join("package.json")).unwrap(), b"{\"version\":\"1.0.0\"}");
+    assert_eq!(fs::read(target.join("index.js")).unwrap(), b"module.exports = 1");
+}
+
+// Windows needs retry handling while a competing importer holds file handles.
+#[cfg(unix)]
+#[test]
+fn concurrent_importers_of_one_shared_slot_both_succeed() {
+    use std::sync::{Arc, Barrier};
+
+    let tmp = tempdir().unwrap();
+    let src_root = tmp.path().join("cas");
+    fs::create_dir_all(&src_root).unwrap();
+    let pkg_json = write_source(&src_root, "package.json", b"{\"version\":\"1.0.0\"}");
+    let index = write_source(&src_root, "index.js", b"module.exports = 1");
+    let cas = Arc::new(cas_map(&[("package.json", pkg_json), ("index.js", index)]));
+
+    let target = Arc::new(tmp.path().join("slot"));
+    let barrier = Arc::new(Barrier::new(2));
+
+    let handles: Vec<_> = (0..2)
+        .map(|_| {
+            let cas = Arc::clone(&cas);
+            let target = Arc::clone(&target);
+            let barrier = Arc::clone(&barrier);
+            std::thread::spawn(move || {
+                barrier.wait();
+                import_indexed_dir::<SilentReporter>(
+                    &AtomicU8::new(0),
+                    PackageImportMethod::Copy,
+                    &target,
+                    &cas,
+                    FORCE_SHARED,
+                )
+            })
+        })
+        .collect();
+
+    for handle in handles {
+        handle.join().expect("importer thread panicked").expect("both importers must succeed");
+    }
+
+    assert_eq!(fs::read(target.join("package.json")).unwrap(), b"{\"version\":\"1.0.0\"}");
+    assert_eq!(fs::read(target.join("index.js")).unwrap(), b"module.exports = 1");
+    let strays: Vec<String> = fs::read_dir(tmp.path())
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .filter(|name| name != "cas" && name != "slot")
+        .collect();
+    assert_eq!(strays, Vec::<String>::new(), "neither importer may leak a staging dir");
+}
+
+#[test]
+fn safe_to_skip_keeps_a_slot_whose_build_removed_the_needs_build_marker() {
+    let tmp = tempdir().unwrap();
+    let src_root = tmp.path().join("cas");
+    fs::create_dir_all(&src_root).unwrap();
+    let pkg_json = write_source(&src_root, "package.json", b"{\"version\":\"1.0.0\"}");
+    let index = write_source(&src_root, "index.js", b"module.exports = 1");
+    let needs_build = write_source(&src_root, "needs-build", b"");
+    let cas = cas_map(&[
+        ("package.json", pkg_json),
+        ("index.js", index),
+        (crate::NEEDS_BUILD_MARKER, needs_build),
+    ]);
+
+    let target = tmp.path().join("slot");
+    fs::create_dir_all(&target).unwrap();
+    fs::write(target.join("package.json"), b"{\"version\":\"1.0.0\"}").unwrap();
+    fs::write(target.join("index.js"), b"module.exports = 1").unwrap();
+    fs::write(target.join("built.node"), b"native addon").unwrap();
+
+    import_indexed_dir::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::Copy,
+        &target,
+        &cas,
+        FORCE_SHARED,
+    )
+    .expect("a built slot must be left alone");
+
+    assert!(
+        target.join("built.node").exists(),
+        "the build output must survive; the slot was rebuilt from the staging copy",
+    );
+    assert!(
+        !target.join(crate::NEEDS_BUILD_MARKER).exists(),
+        "the consumed needs-build marker must not be put back",
+    );
 }
