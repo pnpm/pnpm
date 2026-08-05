@@ -9998,9 +9998,10 @@ async fn pre_resolution_hook_log_is_forwarded_to_pnpm_hook_channel() {
 #[tokio::test]
 async fn test_install_purges_node_modules_on_layout_mismatch() {
     let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
     let project_root = dir.path().join("project");
     let modules_dir = project_root.join("node_modules");
+    // Where the default store lands — see [`pacquet_config::store_path`].
+    let store_dir = modules_dir.join(".pnpm-store");
     let virtual_store_dir = modules_dir.join(".pacquet");
 
     let manifest_path = project_root.join("package.json");
@@ -10076,6 +10077,10 @@ async fn test_install_purges_node_modules_on_layout_mismatch() {
     std::fs::write(&canary_path, "canary").unwrap();
     assert!(canary_path.exists());
 
+    let store_marker = store_dir.join("marker");
+    std::fs::create_dir_all(&store_dir).unwrap();
+    std::fs::write(&store_marker, "keep").unwrap();
+
     // 2nd install: Hoisted node linker
     Install {
         tarball_mem_cache: Default::default(),
@@ -10115,6 +10120,11 @@ async fn test_install_purges_node_modules_on_layout_mismatch() {
     .expect("2nd install success");
 
     assert!(!canary_path.exists(), "node_modules should be purged due to mismatch");
+    assert_eq!(
+        std::fs::read_to_string(&store_marker).ok().as_deref(),
+        Some("keep"),
+        "a store inside node_modules should survive the purge",
+    );
 }
 
 #[tokio::test]
