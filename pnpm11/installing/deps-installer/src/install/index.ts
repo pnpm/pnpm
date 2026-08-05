@@ -989,7 +989,7 @@ export async function mutateModules (
         saveCatalogName: opts.saveCatalogName,
         overrides: opts.overrides,
         defaultCatalog: opts.catalogs?.default,
-        keepManifestSpecifiers: project.update && !project.updatePackageManifest,
+        readonlyManifest: project.update && !project.updatePackageManifest,
       })
 
       for (const { alias, requested, kept } of outsideKeptRange) {

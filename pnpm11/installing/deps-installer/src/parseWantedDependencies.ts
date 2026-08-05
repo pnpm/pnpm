@@ -14,7 +14,7 @@ export interface ParsedWantedDependencies {
   wantedDependencies: WantedDependency[]
   /**
    * The selectors that were dropped because the version they request reaches outside the range
-   * the manifest keeps. Only ever non-empty under `keepManifestSpecifiers`.
+   * the manifest keeps. Only ever non-empty under `readonlyManifest`.
    */
   outsideKeptRange: SelectorOutsideKeptRange[]
 }
@@ -35,10 +35,10 @@ export function parseWantedDependencies (
     saveCatalogName?: string
     defaultCatalog?: Catalog
     /**
-     * The manifest won't be rewritten, so its specifiers stay authoritative and a requested
-     * specifier may only narrow the one already declared.
+     * The manifest keeps its specifiers, so a requested specifier is applied only when it
+     * narrows the declared one — the lockfile importer entry has to keep satisfying it.
      */
-    keepManifestSpecifiers?: boolean
+    readonlyManifest?: boolean
   }
 ): ParsedWantedDependencies {
   const wantedDeps = rawWantedDependencies
@@ -92,7 +92,7 @@ export function parseWantedDependencies (
     })
     .filter((wd) => wd !== null) as WantedDependency[]
 
-  if (!opts.keepManifestSpecifiers) {
+  if (!opts.readonlyManifest) {
     return { wantedDependencies: wantedDeps, outsideKeptRange: [] }
   }
   const wantedDependencies: WantedDependency[] = []
