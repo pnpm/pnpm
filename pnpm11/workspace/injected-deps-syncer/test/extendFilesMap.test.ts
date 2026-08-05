@@ -7,7 +7,7 @@ import { afterEach, expect, jest, test } from '@jest/globals'
 import { prepareEmpty } from '@pnpm/prepare'
 import isWindows from 'is-windows'
 
-import { DIR, extendFilesMap, type ExtendFilesMapStats, type InodeMap } from '../src/DirPatcher.js'
+import { DIR, DirPatcher, extendFilesMap, type ExtendFilesMapStats, type InodeMap } from '../src/DirPatcher.js'
 
 // `mkfifo` has no Windows equivalent; the stats-driven test above it covers
 // the same branch on every platform.
@@ -157,4 +157,26 @@ testOnPosix('skips a real FIFO', async () => {
     distribution: DIR,
     'distribution/index.js': fs.statSync('distribution/index.js').ino,
   } as InodeMap)
+})
+
+testOnPosix('a skipped inode in the source removes what the target holds at that path, but a skipped inode in the target is left alone', async () => {
+  prepareEmpty()
+
+  fs.mkdirSync('source', { recursive: true })
+  fs.mkdirSync('target', { recursive: true })
+  fs.writeFileSync('source/keep.txt', '')
+  fs.writeFileSync('target/keep.txt', '')
+  // The source turned this path into a FIFO while the target still holds the
+  // file that used to be there.
+  execFileSync('mkfifo', [path.resolve('source/replaced.env')])
+  fs.writeFileSync('target/replaced.env', 'stale')
+  // A FIFO the target holds on its own.
+  execFileSync('mkfifo', [path.resolve('target/own.env')])
+
+  const patchers = await DirPatcher.fromMultipleTargets('source', ['target'])
+  await Promise.all(patchers.map(async patcher => patcher.apply()))
+
+  expect(fs.existsSync('target/replaced.env')).toBe(false)
+  expect(fs.lstatSync('target/own.env').isFIFO()).toBe(true)
+  expect(fs.existsSync('target/keep.txt')).toBe(true)
 })
