@@ -4129,6 +4129,7 @@ dependencies = [
  "serde_json",
  "smart-default",
  "tempfile",
+ "text-block-macros",
  "tracing",
  "tracing-subscriber",
  "url",

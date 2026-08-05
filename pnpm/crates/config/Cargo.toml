@@ -44,6 +44,7 @@ pacquet-testing-utils = { workspace = true }
 
 pretty_assertions  = { workspace = true }
 tempfile           = { workspace = true }
+text-block-macros  = { workspace = true }
 tracing-subscriber = { workspace = true }
 
 [lints]
