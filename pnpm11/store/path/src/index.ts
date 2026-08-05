@@ -59,7 +59,7 @@ async function storePathRelativeToHome (pkgRoot: string, relStore: string, homed
     // So we create an empty directory and try to link there.
     // The store will be a directory anyway.
     const mountpointParent = path.join(mountpoint, '..')
-    if (mountpointParent !== mountpoint && await canLinkToSubdir(tempFile, mountpointParent)) {
+    if (!dirsAreEqual(mountpointParent, mountpoint) && await canLinkToSubdir(tempFile, mountpointParent)) {
       mountpoint = mountpointParent
     }
     return path.join(mountpoint, '.pnpm-store', STORE_VERSION)
@@ -95,6 +95,10 @@ async function safeRmdir (dir: string): Promise<void> {
   } catch {
     // ignore
   }
+}
+
+function dirsAreEqual (dir1: string, dir2: string): boolean {
+  return path.relative(dir1, dir2) === ''
 }
 
 function getHomedir (): string {
