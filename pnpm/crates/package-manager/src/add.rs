@@ -2,7 +2,8 @@ use crate::{
     CatalogDecision, CatalogModeDep, CatalogVersionMismatchError, DIRECT_GROUPS, Install,
     InstallError, ProjectMutation, ResolvedPackages, UpdateSeedPolicy, WorkspaceInstallSelection,
     catalog_cleanup::{
-        WriteWorkspaceCatalogsError, write_workspace_catalogs, write_workspace_catalogs_selected,
+        WriteWorkspaceCatalogsError, cleanup_outdated_minimum_release_age_excludes,
+        write_workspace_catalogs, write_workspace_catalogs_selected,
     },
     decide_catalog_outcome, emit_initial_package_manifest, package_manifest_prefix,
     resolution_policy::{PickPolicy, pick_package_context},
@@ -281,6 +282,13 @@ where
 
         persist_manifest::<Reporter>(manifest)?;
 
+        cleanup_outdated_minimum_release_age_excludes(
+            config,
+            Some(&catalog_ctx.workspace_dir),
+            manifest,
+        )
+        .map_err(AddError::WriteWorkspaceManifest)?;
+
         Ok(())
     }
 
@@ -384,6 +392,13 @@ where
         .map_err(AddError::Install)?;
 
         persist_selected_manifests::<Reporter>(projects, &selected_indices)?;
+
+        cleanup_outdated_minimum_release_age_excludes(
+            config,
+            Some(&prepared.workspace_dir),
+            manifest,
+        )
+        .map_err(AddError::WriteWorkspaceManifest)?;
         Ok(())
     }
 }

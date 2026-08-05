@@ -56,6 +56,7 @@ fn run_cleanup(
             updated_catalogs: updated,
             cleanup_unused_catalogs: true,
             all_projects: projects,
+            ..Default::default()
         },
     )
 }
@@ -1307,6 +1308,139 @@ mod remove_unused_catalogs {
                  catalogs:\n  bar:\n    def: 2.0.0\n\
                  overrides:\n  foo: 'catalog:'\n  def: 'catalog:bar'\n",
             ),
+        );
+    }
+}
+
+/// The `cleanupOutdatedMinimumReleaseAgeExcludes` pass: entries of
+/// `minimumReleaseAgeExclude` are pruned against the versions the
+/// freshly resolved lockfile records.
+mod cleanup_outdated_minimum_release_age_excludes {
+    use crate::ResolvedPackageVersions;
+
+    use super::{UpdateWorkspaceManifestOptions, run_with};
+
+    fn resolved(entries: &[(&str, &[&str])]) -> ResolvedPackageVersions {
+        entries
+            .iter()
+            .map(|(name, versions)| {
+                (name.to_string(), versions.iter().map(ToString::to_string).collect())
+            })
+            .collect()
+    }
+
+    fn run_age_cleanup(
+        original: Option<&str>,
+        resolved: Option<&ResolvedPackageVersions>,
+    ) -> Option<String> {
+        run_with(
+            original,
+            &UpdateWorkspaceManifestOptions {
+                cleanup_outdated_minimum_release_age_excludes: true,
+                resolved_package_versions: resolved,
+                ..Default::default()
+            },
+        )
+    }
+
+    #[test]
+    fn drops_a_versioned_entry_whose_version_is_no_longer_resolved() {
+        let original = "packages:\n  - '*'\nminimumReleaseAgeExclude:\n  - foo@1.0.0\n";
+        let out = run_age_cleanup(Some(original), Some(&resolved(&[("foo", &["2.0.0"])])));
+        assert_eq!(out.as_deref(), Some("packages:\n  - '*'\n"));
+    }
+
+    #[test]
+    fn keeps_a_versioned_entry_whose_version_is_resolved() {
+        let original = "minimumReleaseAgeExclude:\n  - foo@1.0.0\n";
+        let out = run_age_cleanup(Some(original), Some(&resolved(&[("foo", &["1.0.0"])])));
+        assert_eq!(out.as_deref(), Some(original));
+    }
+
+    #[test]
+    fn rewrites_a_narrowed_version_union_canonically() {
+        let original = "minimumReleaseAgeExclude:\n  - foo@1.0.0 || 2.0.0\n";
+        let out = run_age_cleanup(Some(original), Some(&resolved(&[("foo", &["2.0.0"])])));
+        assert_eq!(out.as_deref(), Some("minimumReleaseAgeExclude:\n  - foo@2.0.0\n"));
+    }
+
+    #[test]
+    fn keeps_a_union_entry_verbatim_when_every_version_is_resolved() {
+        let original = "minimumReleaseAgeExclude:\n  - foo@2.0.0 || 1.0.0\n";
+        let out = run_age_cleanup(Some(original), Some(&resolved(&[("foo", &["1.0.0", "2.0.0"])])));
+        assert_eq!(out.as_deref(), Some(original), "no version was dropped, so no rewrite");
+    }
+
+    #[test]
+    fn keeps_a_bare_name_when_the_package_is_resolved() {
+        let original = "minimumReleaseAgeExclude:\n  - foo\n";
+        let out = run_age_cleanup(Some(original), Some(&resolved(&[("foo", &["2.0.0"])])));
+        assert_eq!(out.as_deref(), Some(original));
+    }
+
+    /// A package resolved only via a non-semver source (git, tarball,
+    /// `file:`) registers with an empty version set: its bare-name entry
+    /// survives (the package is still a dependency) but its versioned
+    /// entries are pruned (no exact version can be confirmed).
+    #[test]
+    fn keeps_the_bare_name_but_prunes_versions_of_a_non_semver_only_package() {
+        let original = "minimumReleaseAgeExclude:\n  - foo\n  - foo@1.0.0\n";
+        let out = run_age_cleanup(Some(original), Some(&resolved(&[("foo", &[])])));
+        assert_eq!(out.as_deref(), Some("minimumReleaseAgeExclude:\n  - foo\n"));
+    }
+
+    #[test]
+    fn drops_a_bare_name_when_the_package_is_absent() {
+        let original = "minimumReleaseAgeExclude:\n  - foo\n  - bar@1.0.0\n";
+        let out = run_age_cleanup(Some(original), Some(&resolved(&[("bar", &["1.0.0"])])));
+        assert_eq!(out.as_deref(), Some("minimumReleaseAgeExclude:\n  - bar@1.0.0\n"));
+    }
+
+    #[test]
+    fn keeps_a_glob_entry_with_no_match() {
+        let original = "minimumReleaseAgeExclude:\n  - '@babel/*'\n";
+        let out = run_age_cleanup(Some(original), Some(&resolved(&[])));
+        assert_eq!(out.as_deref(), Some(original));
+    }
+
+    #[test]
+    fn removes_the_file_when_the_emptied_block_was_the_only_key() {
+        let original = "minimumReleaseAgeExclude:\n  - foo@1.0.0\n";
+        let out = run_age_cleanup(Some(original), Some(&resolved(&[])));
+        assert_eq!(out, None, "an emptied manifest file must be deleted");
+    }
+
+    #[test]
+    fn skips_cleanup_without_resolved_versions() {
+        let original = "minimumReleaseAgeExclude:\n  - foo@1.0.0\n";
+        let out = run_age_cleanup(Some(original), None);
+        assert_eq!(out.as_deref(), Some(original));
+    }
+
+    #[test]
+    fn keeps_an_unparsable_entry_verbatim() {
+        let original = "minimumReleaseAgeExclude:\n  - foo@>=1.0.0\n";
+        let out = run_age_cleanup(Some(original), Some(&resolved(&[])));
+        assert_eq!(out.as_deref(), Some(original));
+    }
+
+    #[test]
+    fn does_not_clean_entries_added_in_the_same_write() {
+        let original = "minimumReleaseAgeExclude:\n  - foo@1.0.0\n  - stale@1.0.0\n";
+        let resolved = resolved(&[("foo", &["1.0.0"])]);
+        let added = vec!["bar@9.9.9".to_string()];
+        let out = run_with(
+            Some(original),
+            &UpdateWorkspaceManifestOptions {
+                cleanup_outdated_minimum_release_age_excludes: true,
+                resolved_package_versions: Some(&resolved),
+                added_minimum_release_age_excludes: Some(&added),
+                ..Default::default()
+            },
+        );
+        assert_eq!(
+            out.as_deref(),
+            Some("minimumReleaseAgeExclude:\n  - foo@1.0.0\n  - bar@9.9.9\n"),
         );
     }
 }

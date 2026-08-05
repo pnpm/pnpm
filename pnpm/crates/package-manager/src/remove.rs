@@ -2,7 +2,8 @@ use crate::{
     DIRECT_GROUPS, Install, InstallError, ProjectMutation, ResolvedPackages, UpdateSeedPolicy,
     WorkspaceInstallSelection,
     catalog_cleanup::{
-        WriteWorkspaceCatalogsError, write_workspace_catalogs, write_workspace_catalogs_selected,
+        WriteWorkspaceCatalogsError, cleanup_outdated_minimum_release_age_excludes,
+        write_workspace_catalogs, write_workspace_catalogs_selected,
     },
     emit_initial_package_manifest, package_manifest_prefix, selected_project_indices,
 };
@@ -157,6 +158,9 @@ impl Remove<'_> {
         write_workspace_catalogs(config, None, &Catalogs::new(), manifest)
             .map_err(RemoveError::WriteWorkspaceManifest)?;
 
+        cleanup_outdated_minimum_release_age_excludes(config, None, manifest)
+            .map_err(RemoveError::WriteWorkspaceManifest)?;
+
         Ok(())
     }
 
@@ -244,6 +248,9 @@ impl Remove<'_> {
         persist_selected_manifests::<Reporter>(projects, &selected_indices)?;
 
         write_workspace_catalogs_selected(config, &workspace_root, &Catalogs::new(), projects)
+            .map_err(RemoveError::WriteWorkspaceManifest)?;
+
+        cleanup_outdated_minimum_release_age_excludes(config, Some(&workspace_root), manifest)
             .map_err(RemoveError::WriteWorkspaceManifest)?;
         Ok(())
     }

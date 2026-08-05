@@ -3,7 +3,8 @@ use crate::{
     ImporterUpdateSeedPolicy, Install, InstallError, ProjectMutation, ResolvedPackages,
     UpdateSeedPolicy, WorkspaceInstallSelection,
     catalog_cleanup::{
-        WriteWorkspaceCatalogsError, write_workspace_catalogs, write_workspace_catalogs_selected,
+        WriteWorkspaceCatalogsError, cleanup_outdated_minimum_release_age_excludes,
+        write_workspace_catalogs, write_workspace_catalogs_selected,
     },
     decide_catalog, emit_initial_package_manifest, package_manifest_prefix,
     resolution_policy::PickPolicy,
@@ -315,6 +316,7 @@ impl Update<'_> {
             seed_policy,
             persist_manifest: should_persist_manifest,
             catalogs_override,
+            workspace_dir_for_catalogs,
             ..
         } = prepared;
         Install {
@@ -361,6 +363,15 @@ impl Update<'_> {
 
         if should_persist_manifest {
             persist_manifest::<Reporter>(manifest)?;
+        }
+
+        if save {
+            cleanup_outdated_minimum_release_age_excludes(
+                config,
+                workspace_dir_for_catalogs.as_deref(),
+                manifest,
+            )
+            .map_err(UpdateError::WriteWorkspaceManifest)?;
         }
 
         Ok(())
@@ -485,6 +496,13 @@ impl Update<'_> {
         .map_err(UpdateError::Install)?;
 
         persist_selected_manifests::<Reporter>(projects, &prepared.persist_indices)?;
+
+        if save {
+            let workspace_dir =
+                prepared.workspace_dir_for_catalogs.as_deref().unwrap_or(workspace_root);
+            cleanup_outdated_minimum_release_age_excludes(config, Some(workspace_dir), manifest)
+                .map_err(UpdateError::WriteWorkspaceManifest)?;
+        }
         Ok(())
     }
 }
