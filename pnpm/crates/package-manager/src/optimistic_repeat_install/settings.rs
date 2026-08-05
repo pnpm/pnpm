@@ -6,28 +6,6 @@ use super::{
     load_workspace_state,
 };
 
-/// Compare today's settings against what the previous install
-/// recorded.
-///
-/// Only the fields pacquet populates via [`current_settings`]
-/// participate in the comparison; the rest are listed at the end of
-/// this function with the reason each is safe to skip.
-///
-/// pnpm iterates the full `WORKSPACE_STATE_SETTING_KEYS` list, reading a
-/// key absent from the recorded state as `undefined`. So the reverse
-/// scenario (pacquet wrote the state, pnpm reads it next) stays on the
-/// fast path only for keys whose pnpm-resolved value is also
-/// `undefined`. Every key pnpm resolves to a concrete default —
-/// `excludeLinksFromLockfile` (`false`), `minimumReleaseAge` (`1440`),
-/// `minimumReleaseAgeIgnoreMissingTime` (`true`) — must therefore be
-/// written by [`current_settings`] and compared here, or pnpm would
-/// report drift and re-run a (no-op) install on every command after a
-/// pacquet install. `enableGlobalVirtualStore` is `undefined` by
-/// default (concrete only under `--global`/CI), so pacquet's omit-when-
-/// off encoding already matches. The `allowBuilds` coercion treats an
-/// absent value as an empty map on the read side, matching pnpm's
-/// tolerance of an absent `allowBuilds` key in the recorded state on
-/// the write side.
 /// Whether the `supportedArchitectures` recorded by the last install
 /// matches `live` (today's CLI-merged value). Read from the workspace
 /// state for the frozen path's lockfile-up-to-date early return, whose
@@ -66,6 +44,28 @@ pub(crate) fn settings_match(
     .is_none()
 }
 
+/// Compare today's settings against what the previous install
+/// recorded.
+///
+/// Only the fields pacquet populates via [`current_settings`]
+/// participate in the comparison; the rest are listed at the end of
+/// this function with the reason each is safe to skip.
+///
+/// pnpm iterates the full `WORKSPACE_STATE_SETTING_KEYS` list, reading a
+/// key absent from the recorded state as `undefined`. So the reverse
+/// scenario (pacquet wrote the state, pnpm reads it next) stays on the
+/// fast path only for keys whose pnpm-resolved value is also
+/// `undefined`. Every key pnpm resolves to a concrete default —
+/// `excludeLinksFromLockfile` (`false`), `minimumReleaseAge` (`1440`),
+/// `minimumReleaseAgeIgnoreMissingTime` (`true`) — must therefore be
+/// written by [`current_settings`] and compared here, or pnpm would
+/// report drift and re-run a (no-op) install on every command after a
+/// pacquet install. `enableGlobalVirtualStore` is `undefined` by
+/// default (concrete only under `--global`/CI), so pacquet's omit-when-
+/// off encoding already matches. The `allowBuilds` coercion treats an
+/// absent value as an empty map on the read side, matching pnpm's
+/// tolerance of an absent `allowBuilds` key in the recorded state on
+/// the write side.
 /// The camelCase name (pnpm's workspace-state setting key) of the first
 /// recorded setting that differs from today's config, or `None` when
 /// they all match. `ignored_workspace_state_settings` lets callers skip
