@@ -76,22 +76,15 @@ pub struct DownloadTarballToStore<'a> {
     /// handle to every [`DownloadTarballToStore`].
     pub verified_files_cache: SharedVerifiedFilesCache,
     /// Expected hash of the tarball bytes. `None` for a lockfile entry
-    /// that records no `integrity` — the shape pnpm wrote for
-    /// git-host archives before it started pinning their hash. pnpm
-    /// downloads those without verifying (`getExpectedIntegrity`
-    /// returns `undefined` and the fetch proceeds), so pacquet does
-    /// too.
+    /// recording no `integrity`, the shape pnpm wrote for git-host
+    /// archives before it pinned their hash; pnpm fetches those
+    /// unverified, so pacquet does too.
     ///
-    /// An unverified fetch also neither reads nor writes an `index.db`
-    /// row, because the key pnpm addresses such a package by
-    /// (`pickStoreIndexKey`'s `pkg_id\tbuilt` fallback) is the one
-    /// `GitHostedTarballFetcher` writes the *prepared* file set to
-    /// after it runs `prepare` + packlist over this download. Claiming
-    /// that key here would leave the raw archive in the row whenever
-    /// the prepare pass failed. The git-hosted post-pass writes it
-    /// instead, so re-installs of the shape this arises from stay
-    /// warm; a plain remote tarball with no integrity re-downloads
-    /// each install.
+    /// An unverified fetch neither reads nor writes an `index.db` row.
+    /// The key such a package is addressed by belongs to the *prepared*
+    /// file set that `GitHostedTarballFetcher` writes after running
+    /// `prepare` + packlist over this download; claiming it here would
+    /// leave the raw archive in the row whenever that pass failed.
     pub package_integrity: Option<&'a Integrity>,
     pub package_unpacked_size: Option<usize>,
     /// `dist.fileCount` when the registry published one. Combined with
@@ -323,23 +316,20 @@ pub(crate) fn verify_tarball_integrity(
     Ok(opts.result())
 }
 
-/// Run one full tarball-fetch attempt: hit the network, drain the body
-/// into RAM, verify the integrity hash, then decompress and extract
-/// every entry into the CAFS. Returns the cas-paths map and the
-/// per-tarball [`PackageFilesIndex`] row that the caller queues into
-/// the shared store-index writer once the retry loop succeeds.
+/// Run one full tarball-fetch attempt: network, body, integrity hash,
+/// decompress, extract into the CAFS. Returns the cas-paths map and the
+/// [`PackageFilesIndex`] row the caller queues once the retry loop
+/// succeeds.
 ///
-/// The whole pipeline lives in one attempt so that any failure in the
-/// post-download step (integrity mismatch, gzip decode, malformed tar)
-/// propagates back to the retry boundary, letting a re-fetch recover
-/// from a flaky transfer that happens to checksum or decode wrong.
+/// One attempt spans the whole pipeline so that a post-download failure
+/// — integrity mismatch, gzip decode, malformed tar — reaches the retry
+/// boundary, where a re-fetch can recover from a transfer that happened
+/// to checksum or decode wrong.
 ///
-/// Permits are acquired *inside* this function so a backoff sleep
-/// between attempts doesn't keep one parked. The network permit is
-/// held from `connect + send` through body streaming (matching pnpm's
-/// pQueue and [#281]'s EMFILE fix), then dropped before the
-/// [`post_download_semaphore`] permit gates the CPU-bound checksum +
-/// decode + extract step.
+/// Permits are acquired inside the attempt so a backoff sleep never
+/// parks one. The network permit spans connect through body streaming
+/// (pnpm's pQueue, and [#281]'s EMFILE fix) and is dropped before
+/// [`post_download_semaphore`] gates the CPU-bound tail.
 ///
 /// [#281]: https://github.com/pnpm/pacquet/pull/281
 #[expect(clippy::too_many_arguments, reason = "arg count is fixed by the fetcher signature")]

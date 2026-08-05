@@ -181,29 +181,20 @@ pub async fn prefetch_cas_paths(
     })
 }
 
-/// Try to reconstruct the `{filename → CAFS path}` map for a package from
-/// the `SQLite` store index, without going to the network. Returns `None`
-/// if anything looks off — no index handed in, no row, unreadable row,
-/// failed integrity check — so the caller falls through to a fresh
-/// download.
+/// Reconstruct a package's `{filename → CAFS path}` map from the
+/// `SQLite` store index instead of the network. `None` on any doubt —
+/// no index, no row, unreadable row, failed integrity check — leaving
+/// the caller to download.
 ///
-/// The `verify_store_integrity` parameter matches pnpm's flag of the
-/// same name. When `true` (pnpm's default) each referenced CAFS file is
-/// stat'ed and compared against the stored `checkedAt`/size, with a
-/// re-hash only when the mtime has advanced. When `false` the lookup
-/// builds the filename→path map straight from the index row without any
-/// filesystem work — missing / corrupt CAFS blobs surface lazily when
-/// the caller tries to import them.
+/// `verify_store_integrity` matches pnpm's flag of the same name, and
+/// what it buys is narrower than the name suggests: a file whose mtime
+/// has not advanced past the recorded `checkedAt` is accepted on the
+/// stat alone, so it catches decay rather than tampering that preserves
+/// the timestamp. With it off, a missing or corrupt blob surfaces later,
+/// when the caller tries to import it.
 ///
-/// A dirent that is not a regular file is not rejected on that basis
-/// alone. Note that `true` does not mean every byte is re-read: a file
-/// whose mtime has not advanced past the recorded `checkedAt` is
-/// accepted on the stat alone, so this detects decay rather than
-/// deliberate tampering that preserves the timestamp.
-///
-/// The `index` argument is a shared read-only handle that callers open
-/// once per install and pass in repeatedly, so we don't pay the
-/// `Connection::open` + PRAGMA cost per package.
+/// `index` is opened once per install and passed in repeatedly, so the
+/// `Connection::open` + PRAGMA cost is not paid per package.
 pub(crate) async fn load_cached_cas_paths(
     index: Option<SharedReadonlyStoreIndex>,
     store_dir: &'static StoreDir,

@@ -26,31 +26,18 @@ use ssri::Integrity;
 /// Walk a zip archive, writing each regular-file entry into the CAFS
 /// and returning the `{relative-path → CAFS path}` map plus the
 /// per-package [`PackageFilesIndex`] row to hand off to the shared
-/// store-index writer. Matches the contract of [`crate::extract::extract_tarball_entries`]
-/// — same outputs, same per-file CAS write — but for binary
-/// `BinaryResolution { archive: zip, prefix: ... }` artifacts (the
-/// shape Node.js / Bun / Deno ships their Windows builds in).
+/// store-index writer. Same contract as
+/// [`crate::extract::extract_tarball_entries`], for the
+/// `BinaryResolution { archive: zip, .. }` artifacts Node.js / Bun /
+/// Deno ship their Windows builds in.
 ///
-/// 1. Directory entries are skipped; iterating only over file
-///    entries keeps the per-file ignore filter authoritative (a
-///    directory entry would otherwise expand to every descendant
-///    and bypass the filter).
-/// 2. Each entry's path is validated against absolute / `..`
-///    components via [`zip::read::ZipFile::enclosed_name`]. Any
-///    rejection is surfaced as [`TarballError::PathTraversal`] —
-///    carrying the `PATH_TRAVERSAL` error code.
-/// 3. If `archive_prefix` is set and the entry path starts with
-///    `{prefix}/`, the prefix is stripped before the ignore-filter
-///    check and before the entry is recorded in `cas_paths`, so the
-///    filter sees paths relative to the archive's top-level directory.
-/// 4. The cleaned path then runs through `ignore_file_pattern`;
-///    matching entries are dropped before any CAS write.
-/// 5. The remaining entry's bytes are read and committed via
-///    [`StoreDir::write_cas_file`], writing directly to the CAS.
+/// Directory entries are skipped rather than walked: expanding one
+/// would pull in every descendant without consulting
+/// `ignore_file_pattern`, leaving the per-file filter no longer
+/// authoritative.
 ///
-/// Unix mode is read off the central-directory record via
-/// [`zip::read::ZipFile::unix_mode`]; archives written by Windows
-/// tooling don't populate it and we fall back to `0o644`.
+/// Unix mode comes from the central-directory record, which Windows
+/// tooling leaves unpopulated; those entries fall back to `0o644`.
 pub(crate) fn extract_zip_entries(
     archive: &mut zip::ZipArchive<Cursor<Vec<u8>>>,
     package_url: &str,

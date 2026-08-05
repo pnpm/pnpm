@@ -14,26 +14,14 @@ use tar::Archive;
 use tracing::instrument;
 use zune_inflate::{DeflateDecoder, DeflateOptions};
 
-/// Build the buffer that the tarball body streams into, pre-sized
-/// from the response's advertised `Content-Length` when it fits and
-/// can actually be reserved without allocation failure.
+/// Build the buffer the tarball body streams into, pre-sized from the
+/// response's `Content-Length` where possible.
 ///
-/// `Content-Length` is untrusted input — a malicious or broken
-/// registry could advertise `u64::MAX`, which would crash the
-/// process if we passed it directly to `Vec::with_capacity`. Two
-/// guards:
-///
-/// 1. `usize::try_from(size)` — on 32-bit targets a `u64` header
-///    value may exceed `usize::MAX`; on 64-bit the two are the
-///    same width but the conversion is cheap anyway.
-/// 2. `Vec::try_reserve_exact(cap)` — if the allocator refuses
-///    (legitimate OOM, or because `cap` is absurdly large relative
-///    to available RAM), we surface `TarballTooLarge` instead of
-///    aborting via the infallible `with_capacity` path.
-///
-/// When `content_length` is absent the response uses chunked
-/// transfer encoding and we can't pre-size; return an empty
-/// growable `Vec` and let the stream loop extend it.
+/// That header is untrusted: a broken or hostile registry can advertise
+/// `u64::MAX`, so the size reaches the allocator only through
+/// `try_reserve_exact`, and a refusal becomes `TarballTooLarge` rather
+/// than the abort an infallible `with_capacity` would take. A chunked
+/// response carries no length and starts from an empty growable `Vec`.
 pub(crate) fn allocate_tarball_buffer(
     content_length: Option<u64>,
     url: &str,
@@ -74,27 +62,17 @@ pub(crate) fn decompress_gzip(
         .map_err(TarballError::DecodeGzip)
 }
 
-/// Pick the subset of `package.json` fields that downstream code
-/// (bin linking, dependency resolution, build-script detection)
-/// actually reads, and discard the rest. Two reasons for the
-/// subset: (1) `index.db` row size on disk — a full manifest can be
-/// tens of KB; (2) msgpackr-records slot pressure on the encoder
-/// (record slots top out at `0x7f`, see [`pacquet_store_dir::EncodeError::OutOfRecordSlots`]).
+/// Pick the `package.json` fields downstream code actually reads — bin
+/// linking, dependency resolution, build-script detection — and discard
+/// the rest, keeping only the three lifecycle hooks pnpm executes out
+/// of `scripts`.
 ///
-/// `scripts` is further narrowed to just the three lifecycle hooks
-/// pnpm actually executes — `preinstall`, `install`, `postinstall`.
-/// Other script keys (test, build, lint, etc.) are dev ergonomics
-/// that the installer never invokes.
+/// The subset exists to bound what lands in `index.db`: a full manifest
+/// runs to tens of KB, and msgpackr-records tops out at `0x7f` record
+/// slots (see [`pacquet_store_dir::EncodeError::OutOfRecordSlots`]).
 ///
-/// Returns `None` when nothing survives the pick. In practice this
-/// only happens for inputs that aren't a JSON object at all (the
-/// type guard at the top of the function), or for objects whose
-/// every field is either absent or `null`. A real `package.json`
-/// from an npm tarball always carries at least `name` and `version`
-/// (both kept by the pick), so the typical npm-published manifest
-/// surfaces as `Some(...)`. Empty inputs degrade to `None` rather
-/// than a `Some(Object({}))` that would round-trip as a zero-field
-/// record def.
+/// `None` rather than an empty object when nothing survives, which
+/// would otherwise round-trip as a zero-field record def.
 pub(crate) fn normalize_bundled_manifest(value: &serde_json::Value) -> Option<serde_json::Value> {
     /// Fields kept verbatim from the source manifest.
     ///
@@ -308,12 +286,10 @@ pub(crate) fn write_synthesized_package_json(
 /// fresh `Vec<u8>` and `read_to_end`-ing every entry.
 ///
 /// Every tar-side failure comes back as
-/// [`TarballError::ReadTarballEntries`] instead of panicking.
-/// Non-UTF-8 entry paths are coerced via
-/// [`std::path::Path::to_string_lossy`], matching pnpm's string-based
-/// handling so a mixed install against the shared `index.db` stays
-/// consistent; real-world npm tarballs are UTF-8 so the coercion is
-/// almost never hit in practice.
+/// [`TarballError::ReadTarballEntries`] instead of panicking, and a
+/// non-UTF-8 entry path is coerced via
+/// [`std::path::Path::to_string_lossy`] to match pnpm's string-based
+/// handling, so a mixed install against the shared `index.db` agrees.
 pub(crate) fn extract_tarball_entries(
     tar_data: &[u8],
     store_dir: &StoreDir,

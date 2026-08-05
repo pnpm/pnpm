@@ -219,20 +219,17 @@ pub async fn read_local_tarball_metadata(
 /// narrowed by [`normalize_bundled_manifest`] so it matches the
 /// manifest an extraction stashes on [`pacquet_store_dir::PackageFilesIndex`].
 ///
-/// Shares the entry conventions of the manifest capture in
-/// [`crate::extract::extract_tarball_entries`] — top-level component dropped, duplicates
-/// last-entry-wins — but not its error handling: there an unparsable
-/// `package.json` degrades to `None`, because install-side consumers can
-/// re-read it from disk. Here it is the only thing that names the
-/// package, and a package with no name resolves to a dep path no
-/// lockfile key parses, so this raises
-/// [`TarballError::ParseBundledManifest`] instead.
+/// Shares the entry conventions of
+/// [`crate::extract::extract_tarball_entries`] but deliberately not its
+/// error handling: there an unparsable `package.json` degrades to
+/// `None`, since install-side consumers re-read it from disk. Here it
+/// is the only thing naming the package, and an unnamed package
+/// resolves to a dep path no lockfile key parses, so it raises
+/// [`TarballError::ParseBundledManifest`].
 ///
-/// The returned flag reports whether a root `package.json` was present
-/// at all, which a `None` manifest alone can't say — the narrowing also
-/// yields `None` for a manifest that isn't a JSON object, or one whose
-/// every field was dropped. See [`LocalTarballMetadata`] for why the
-/// caller has to tell those apart.
+/// The returned flag reports whether a root `package.json` existed,
+/// which `None` alone cannot: narrowing also yields `None` for a
+/// non-object manifest, or one whose every field was dropped.
 pub(crate) fn read_bundled_manifest(
     tar_data: &[u8],
     tarball_path: &str,

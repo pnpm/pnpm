@@ -67,19 +67,13 @@ fn post_download_semaphore() -> &'static Semaphore {
 /// Dedicated rayon pool for the per-file CAS-write phase of extraction
 /// ([`extract_tarball_entries`]).
 ///
-/// Kept separate from rayon's global pool on purpose. The install
-/// pipeline overlaps tarball extraction with linking each package into
-/// `node_modules`, and the linker runs its per-package work through
-/// `rayon::join` / `par_iter` on the *global* pool. If extraction also
-/// used the global pool, a burst of extraction work (hundreds of
-/// tarballs finishing downloads at once) would queue ahead of the
-/// linker's jobs and stall linking for seconds. Routing the CAS writes
-/// through their own pool lets the two phases run concurrently without
-/// one starving the other.
+/// Separate from the global pool because the install overlaps
+/// extraction with linking, and the linker runs on the global pool:
+/// sharing it would let hundreds of tarballs finishing at once queue
+/// ahead of the linker and stall it for seconds.
 ///
-/// Sized to the core count: the work is CPU-bound (SHA-512 + CAFS
-/// write), so more threads than cores only adds scheduling contention.
-/// Returns `None` if the pool can't be built, in which case the caller
+/// Sized to the core count, the work being CPU-bound (SHA-512 plus the
+/// CAFS write). `None` if the pool cannot be built, and the caller
 /// falls back to the global pool.
 fn cas_write_pool() -> Option<&'static rayon::ThreadPool> {
     static POOL: LazyLock<Option<rayon::ThreadPool>> = LazyLock::new(|| {
@@ -160,20 +154,13 @@ impl<'a> DownloadTarballToStore<'a> {
     ///
     /// # Caller invariant: stable filter per URL
     ///
-    /// The mem cache is keyed solely by `package_url` (the same
-    /// shape as pnpm's `tarballCache` / `archiveCache`), so two
-    /// callers fetching the same URL with *different*
-    /// [`ignore_file_pattern`] values would receive the same
-    /// `cas_paths` map — the one the first caller's filter
-    /// produced. Callers must ensure that every fetch of a given
-    /// URL uses the same filter.
-    ///
-    /// In practice this holds because tarball URLs encode
-    /// `(name, version, integrity)` and the filter is keyed by
-    /// package name, so the (URL, filter) relation is functional. The
-    /// dispatcher in Slice D constructs filters from the same
-    /// per-package table; nothing else calls this method with a
-    /// non-`None` filter.
+    /// The cache is keyed on `package_url` alone, as pnpm's
+    /// `tarballCache` is, so a second caller fetching the same URL with
+    /// a different [`ignore_file_pattern`] silently receives the map the
+    /// first caller's filter produced. Every fetch of a URL must use the
+    /// same filter. Nothing enforces this; today it holds because URLs
+    /// encode `(name, version, integrity)` and filters are keyed by
+    /// package name.
     ///
     /// [`ignore_file_pattern`]: DownloadTarballToStore::ignore_file_pattern
     pub async fn run_with_mem_cache<Reporter: self::Reporter>(
