@@ -27,6 +27,8 @@ pub(super) struct SnapshotPlanInputs<'a> {
     pub allow_build_policy: &'a crate::AllowBuildPolicy,
     /// Snapshots the installability pass ruled out on this host.
     pub skipped: &'a SkippedSnapshots,
+    pub link_dependencies: bool,
+    pub include_optional_dependencies: bool,
     pub ignore_scripts: bool,
     pub runtime_platform_selector: &'a PlatformSelector,
 }
@@ -64,6 +66,8 @@ pub(super) fn plan_snapshots<'a, Reporter: self::Reporter>(
         layout,
         allow_build_policy,
         skipped,
+        link_dependencies,
+        include_optional_dependencies,
         ignore_scripts,
         runtime_platform_selector,
     } = inputs;
@@ -96,6 +100,16 @@ pub(super) fn plan_snapshots<'a, Reporter: self::Reporter>(
                 return true;
             }
             if !snapshot_deps_equal(current_snapshot, snapshot) {
+                return true;
+            }
+            if !optional_children_match(
+                snapshot_key,
+                snapshot,
+                layout,
+                skipped,
+                link_dependencies,
+                include_optional_dependencies,
+            ) {
                 return true;
             }
             let current_metadata =
@@ -167,4 +181,41 @@ pub(super) fn plan_snapshots<'a, Reporter: self::Reporter>(
         })
         .collect();
     Ok(SnapshotPlan { survivors: snapshot_entries, skipped_entries, marker_rebuilds })
+}
+
+fn optional_children_match(
+    snapshot_key: &PackageKey,
+    snapshot: &SnapshotEntry,
+    layout: &VirtualStoreLayout,
+    skipped: &SkippedSnapshots,
+    link_dependencies: bool,
+    include_optional_dependencies: bool,
+) -> bool {
+    let Some(optional_dependencies) = snapshot.optional_dependencies.as_ref() else {
+        return true;
+    };
+    let modules_dir = layout.slot_dir(snapshot_key).join("node_modules");
+    optional_dependencies.iter().all(|(alias, dep_ref)| {
+        if alias == &snapshot_key.name {
+            return true;
+        }
+        let Ok(child_path) =
+            crate::safe_join_modules_dir::safe_join_modules_dir(&modules_dir, &alias.to_string())
+        else {
+            return false;
+        };
+        let exists = match std::fs::symlink_metadata(child_path) {
+            Ok(_) => true,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
+            Err(_) => return false,
+        };
+        let should_exist = link_dependencies
+            && include_optional_dependencies
+            && if let Some(target) = dep_ref.resolve(alias) {
+                !skipped.contains(&target)
+            } else {
+                dep_ref.as_link_target().is_some() && layout.lockfile_dir().is_some()
+            };
+        exists == should_exist
+    })
 }

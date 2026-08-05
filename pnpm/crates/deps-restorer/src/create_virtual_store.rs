@@ -149,6 +149,9 @@ pub struct CreateVirtualStore<'a> {
     /// are likewise omitted: only non-skipped snapshots are
     /// materialized into the graph passed to the build phase.
     pub skipped: &'a SkippedSnapshots,
+    /// Whether snapshot `optionalDependencies` are included in this
+    /// materialization.
+    pub include_optional_dependencies: bool,
     pub supported_architectures: Option<&'a pacquet_package_is_installable::SupportedArchitectures>,
     /// Lockfile / workspace root (`lockfileDir`). Threaded into the
     /// per-snapshot
@@ -237,6 +240,7 @@ impl CreateVirtualStore<'_> {
             store_index_writer,
             allow_build_policy,
             skipped,
+            include_optional_dependencies,
             supported_architectures,
             workspace_root,
             node_linker,
@@ -376,6 +380,8 @@ impl CreateVirtualStore<'_> {
             layout,
             allow_build_policy,
             skipped,
+            link_dependencies: !is_hoisted && config.symlink,
+            include_optional_dependencies,
             ignore_scripts: config.ignore_scripts,
             runtime_platform_selector: &runtime_platform_selector,
         })?;
@@ -525,6 +531,7 @@ impl CreateVirtualStore<'_> {
                 logged_methods,
                 requester,
                 skipped,
+                include_optional_dependencies,
                 progress_reported,
                 #[cfg(test)]
                 link_concurrency_probe,
@@ -584,6 +591,7 @@ impl CreateVirtualStore<'_> {
                         snapshot,
                         allow_build_policy,
                         skipped,
+                        include_optional_dependencies,
                         runtime_platform_selector: runtime_platform_selector_ref,
                         workspace_root,
                         node_linker,
@@ -697,6 +705,7 @@ impl CreateVirtualStore<'_> {
                 logged_methods,
                 requester,
                 skipped,
+                include_optional_dependencies,
                 progress_reported,
                 #[cfg(test)]
                 link_concurrency_probe,
@@ -866,6 +875,7 @@ struct LinkSlotsParallel<'a> {
     logged_methods: &'a AtomicU8,
     requester: &'a str,
     skipped: &'a SkippedSnapshots,
+    include_optional_dependencies: bool,
     progress_reported: &'a SharedReportedProgressKeys,
     #[cfg(test)]
     link_concurrency_probe:
@@ -886,6 +896,7 @@ fn link_slots_parallel<Reporter: self::Reporter>(
         logged_methods,
         requester,
         skipped,
+        include_optional_dependencies,
         progress_reported,
         #[cfg(test)]
         link_concurrency_probe,
@@ -913,6 +924,7 @@ fn link_slots_parallel<Reporter: self::Reporter>(
                 package_key: slot.snapshot_key,
                 snapshot: slot.snapshot,
                 source_is_mutable: slot.source_is_mutable,
+                include_optional_dependencies,
                 symlink,
                 skipped,
                 removed_aliases: slot.removed_aliases,

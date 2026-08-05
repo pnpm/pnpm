@@ -1,5 +1,7 @@
+import path from 'node:path'
+
 import { describe, expect, test } from '@jest/globals'
-import { lockfileToDepGraph } from '@pnpm/deps.graph-hasher'
+import { calcGraphNodeHash, lockfileToDepGraph, type PkgMeta } from '@pnpm/deps.graph-hasher'
 import type { BinaryResolution } from '@pnpm/resolving.resolver-base'
 import type { DepPath } from '@pnpm/types'
 
@@ -54,6 +56,121 @@ test('lockfileToDepGraph', () => {
       resolution: { integrity: '2' },
       fullPkgId: 'qar@1.0.0:2',
     },
+  })
+})
+
+test('lockfileToDepGraph includes resolved link targets when a lockfile directory is supplied', () => {
+  const lockfileDir = path.resolve('project')
+  const linkTarget = `link:${path.resolve(lockfileDir, '../shared')}` as DepPath
+  expect(lockfileToDepGraph({
+    lockfileVersion: '9.0',
+    importers: {},
+    packages: {
+      ['parent@1.0.0' as DepPath]: {
+        dependencies: {
+          child: '1.0.0',
+        },
+        resolution: { integrity: '0' },
+      },
+      ['child@1.0.0' as DepPath]: {
+        dependencies: {
+          linked: 'link:../shared',
+        },
+        resolution: { integrity: '1' },
+      },
+    },
+  }, undefined, lockfileDir)).toStrictEqual({
+    'parent@1.0.0': {
+      children: { child: 'child@1.0.0' },
+      resolution: { integrity: '0' },
+      fullPkgId: 'parent@1.0.0:0',
+    },
+    'child@1.0.0': {
+      children: { linked: linkTarget },
+      resolution: { integrity: '1' },
+      fullPkgId: 'child@1.0.0:1',
+    },
+    [linkTarget]: {
+      children: {},
+      fullPkgId: linkTarget,
+    },
+  })
+})
+
+describe('lockfileToDepGraph link target hashing', () => {
+  const parentDepPath = 'parent@1.0.0' as DepPath
+  const childDepPath = 'child@1.0.0' as DepPath
+  const parentPkgMeta: PkgMeta = {
+    depPath: parentDepPath,
+    name: 'parent',
+    version: '1.0.0',
+  }
+
+  function graphWithLink (opts: { alias?: string, lockfileDir: string, target: string }) {
+    return lockfileToDepGraph({
+      lockfileVersion: '9.0',
+      importers: {},
+      packages: {
+        [parentDepPath]: {
+          dependencies: { child: '1.0.0' },
+          resolution: { integrity: 'parent-integrity' },
+        },
+        [childDepPath]: {
+          dependencies: { [opts.alias ?? 'linked']: `link:${opts.target}` },
+          resolution: { integrity: 'child-integrity' },
+        },
+      },
+    }, undefined, opts.lockfileDir)
+  }
+
+  function parentSlot (graph: ReturnType<typeof graphWithLink>): string {
+    return calcGraphNodeHash({
+      graph,
+      cache: {},
+      builtDepPaths: new Set(),
+      buildRequiredCache: {},
+    }, parentPkgMeta)
+  }
+
+  test('propagates a changed link target through transitive ancestors', () => {
+    const fromA = parentSlot(graphWithLink({
+      lockfileDir: path.resolve('project'),
+      target: '../linked-a',
+    }))
+    const fromB = parentSlot(graphWithLink({
+      lockfileDir: path.resolve('project'),
+      target: '../linked-b',
+    }))
+
+    expect(fromA).not.toBe(fromB)
+  })
+
+  test('shares a slot when different lockfile directories resolve to the same target', () => {
+    const fromA = parentSlot(graphWithLink({
+      lockfileDir: path.resolve('workspace/a'),
+      target: '../shared',
+    }))
+    const fromB = parentSlot(graphWithLink({
+      lockfileDir: path.resolve('workspace/b'),
+      target: '../shared',
+    }))
+
+    expect(fromA).toBe(fromB)
+  })
+
+  test('includes the dependency alias in the hash', () => {
+    const linked = graphWithLink({
+      alias: 'linked',
+      lockfileDir: path.resolve('project'),
+      target: '../shared',
+    })
+    const renamed = graphWithLink({
+      alias: 'renamed',
+      lockfileDir: path.resolve('project'),
+      target: '../shared',
+    })
+
+    expect(parentSlot(linked)).not.toBe(parentSlot(renamed))
   })
 })
 

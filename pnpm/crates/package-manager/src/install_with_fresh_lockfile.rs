@@ -1377,6 +1377,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             store_index_writer: &store_index_writer,
             allow_build_policy: &allow_build_policy,
             skipped: &skipped,
+            include_optional_dependencies: dependency_groups.contains(&DependencyGroup::Optional),
             supported_architectures,
             workspace_root: lockfile_dir,
             node_linker,

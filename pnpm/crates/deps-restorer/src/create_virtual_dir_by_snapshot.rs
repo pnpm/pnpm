@@ -63,6 +63,9 @@ pub struct CreateVirtualDirBySnapshot<'a> {
     /// short-circuit in [`fn@crate::import_indexed_dir`] would otherwise
     /// leave the previous install's copy in place forever.
     pub source_is_mutable: bool,
+    /// Whether links from the snapshot's `optionalDependencies` map
+    /// participate in the slot layout.
+    pub include_optional_dependencies: bool,
     /// Whether dependency links inside the slot should be created.
     /// `symlink: false` still imports the package itself but leaves its
     /// `node_modules` free of graph links for `PnP` resolution.
@@ -132,6 +135,7 @@ impl CreateVirtualDirBySnapshot<'_> {
             package_key,
             snapshot,
             source_is_mutable,
+            include_optional_dependencies,
             symlink,
             skipped,
             removed_aliases,
@@ -200,6 +204,7 @@ impl CreateVirtualDirBySnapshot<'_> {
                 create_symlink_layout(
                     snapshot.dependencies.as_ref(),
                     snapshot.optional_dependencies.as_ref(),
+                    include_optional_dependencies,
                     &package_key.name,
                     skipped,
                     layout,
@@ -209,6 +214,14 @@ impl CreateVirtualDirBySnapshot<'_> {
             });
             cas_result?;
             symlink_result?;
+            if !include_optional_dependencies {
+                for alias in snapshot.optional_dependencies.iter().flatten().map(|(alias, _)| alias)
+                {
+                    if *alias != package_key.name {
+                        remove_obsolete_child(&virtual_node_modules_dir, alias)?;
+                    }
+                }
+            }
         } else {
             import_package()?;
             for alias in

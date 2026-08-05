@@ -182,6 +182,7 @@ async fn cold_batch_links_slots_in_parallel() {
         store_index_writer: &store_index_writer,
         allow_build_policy: &allow_build_policy,
         skipped: &skipped,
+        include_optional_dependencies: true,
         supported_architectures: None,
         workspace_root: &workspace_root,
         node_linker: NodeLinker::Isolated,

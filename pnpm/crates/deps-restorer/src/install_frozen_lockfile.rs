@@ -869,6 +869,7 @@ where
                 store_index_writer: &store_index_writer,
                 allow_build_policy: &allow_build_policy,
                 skipped: &skipped,
+                include_optional_dependencies: include_optional,
                 supported_architectures,
                 workspace_root,
                 node_linker,

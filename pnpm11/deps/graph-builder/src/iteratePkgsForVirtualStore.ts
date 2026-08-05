@@ -71,7 +71,7 @@ export function * iteratePkgsForVirtualStore (lockfile: LockfileObject, opts: {
       if (dp.isRuntimeDepPath(depPath as DepPath)) {
         graphNodeHashOpts ??= {
           cache: {},
-          graph: lockfileToDepGraph(lockfile, opts.supportedArchitectures),
+          graph: lockfileToDepGraph(lockfile, opts.supportedArchitectures, opts.lockfileDir),
           supportedArchitectures: opts.supportedArchitectures,
           nodeVersion,
           lockfileDir: opts.lockfileDir,
@@ -93,6 +93,6 @@ function hashDependencyPaths (
   lockfile: LockfileObject,
   opts: GraphNodeHashOptions
 ): IterableIterator<HashedDepPath<PkgMetaAndSnapshot>> {
-  const graph = lockfileToDepGraph(lockfile, opts.supportedArchitectures)
+  const graph = lockfileToDepGraph(lockfile, opts.supportedArchitectures, opts.lockfileDir)
   return iterateHashedGraphNodes(graph, iteratePkgMeta(lockfile, graph), opts)
 }

@@ -26,6 +26,7 @@ use crate::{
         find_own_runtime_node_major, find_runtime_node_major, parse_major_from_version,
     },
 };
+use indexmap::IndexMap;
 use pacquet_config::Config;
 use pacquet_deps_path::get_pkg_id_with_patch_hash;
 use pacquet_graph_hasher::{
@@ -224,7 +225,7 @@ impl VirtualStoreLayout {
                 lockfile_dir: lockfile_dir.map(Path::to_path_buf),
             };
         };
-        let graph = lockfile_to_dep_graph(snapshots, packages);
+        let graph = lockfile_to_dep_graph(snapshots, packages, lockfile_dir);
         // One conversion for the whole lockfile: the same string scopes every
         // local directory snapshot in it.
         //
@@ -236,19 +237,19 @@ impl VirtualStoreLayout {
         // Build the engine-agnostic gating set once per install.
         // `None` here disables gating so every snapshot still hashes
         // with its engine string.
-        let built_dep_paths: Option<HashSet<PackageKey>> = allow_build_policy.map(|policy| {
+        let built_dep_paths: Option<HashSet<String>> = allow_build_policy.map(|policy| {
             snapshots
                 .keys()
                 .filter(|key| policy.check(&key.without_peer().to_string()) == Some(true))
-                .cloned()
+                .map(ToString::to_string)
                 .collect()
         });
-        let mut cache: DepsStateCache<PackageKey> = HashMap::new();
+        let mut cache: DepsStateCache<String> = HashMap::new();
         // Install-scoped memoization for the `transitivelyRequiresBuild`
         // walk; shared across every snapshot's hash computation so
         // diamond-shaped subgraphs only get visited once. Untouched
         // when `built_dep_paths` is `None`.
-        let mut build_required_cache: HashMap<PackageKey, bool> = HashMap::new();
+        let mut build_required_cache: HashMap<String, bool> = HashMap::new();
         let mut gvs_suffixes: HashMap<PackageKey, String> = HashMap::with_capacity(snapshots.len());
         // Lockfile key order, not `HashMap` order: `calc_graph_node_hash`
         // memoizes into `cache` / `build_required_cache`, and for a
@@ -269,21 +270,13 @@ impl VirtualStoreLayout {
             let snapshot_engine = own_engine.as_deref().or(engine);
             let metadata_key = snapshot_key.without_peer();
             let metadata = packages.and_then(|map| map.get(&metadata_key));
-            let directory_scope =
+            let project =
                 local_directory_scope(metadata, &metadata_key.suffix, project_scope.as_deref());
-            // A snapshot already scoped as a local directory needs no
-            // second scope — it is per-project either way — so compute
-            // the link scope only when the directory one didn't apply,
-            // which also keeps every existing slot's hash unchanged.
-            let link_scope = match directory_scope {
-                Some(_) => None,
-                None => link_target_scope(snapshot, lockfile_dir),
-            };
-            let project = directory_scope.or(link_scope.as_deref());
+            let graph_key = snapshot_key.to_string();
             let hex_digest = calc_graph_node_hash(
                 &graph,
                 &mut cache,
-                snapshot_key,
+                &graph_key,
                 snapshot_engine,
                 built_dep_paths.as_ref(),
                 &mut build_required_cache,
@@ -532,64 +525,17 @@ fn local_directory_scope<'a>(
     is_local_directory(metadata, suffix).then_some(lockfile_dir).flatten()
 }
 
-/// Extra hash input that keeps a snapshot holding a `link:` dependency
-/// off a slot shared with projects that resolve that dependency to a
-/// different directory.
-///
-/// A `link:` dependency is the one child materialized as a symlink
-/// *out* of the virtual store (see [`crate::create_symlink_layout()`]),
-/// so unlike every other child it makes the slot's contents depend on
-/// where the lockfile's relative target lands. The peer suffix that
-/// carries the link into the dep path — `(react@fake-react)` — is
-/// deliberately excluded from the GVS hash, which is what otherwise
-/// collapses two projects linking *different* directories onto one
-/// slot and hands both whichever symlink was written first.
-///
-/// Scoping by the resolved targets rather than by the project keeps the
-/// slot shared between projects that link the *same* directory, which
-/// is the case that matters for a toolchain linked into many
-/// workspaces.
-fn link_target_scope(snapshot: &SnapshotEntry, lockfile_dir: Option<&Path>) -> Option<String> {
-    let lockfile_dir = lockfile_dir?;
-    let mut targets: Vec<String> = snapshot
-        .dependencies
-        .iter()
-        .chain(snapshot.optional_dependencies.iter())
-        .flatten()
-        .filter_map(|(alias, dep_ref)| {
-            let target = dep_ref.as_link_target()?;
-            let resolved = pacquet_fs::lexical_normalize(&lockfile_dir.join(target));
-            // The alias is the symlink's *name* inside the slot, so two
-            // snapshots pointing one directory at different aliases lay
-            // out differently and must not share a slot either.
-            //
-            // Lossy for the same reason `project_scope` above is: the
-            // TypeScript CLI hashes this from a JS string, and Node
-            // decodes a path as UTF-8 with replacement, so this is the
-            // identical input. Hashing the raw bytes would give the two
-            // stacks different slots for one project — a certain
-            // divergence traded against the collision between two
-            // targets whose non-UTF-8 bytes both replace to the same
-            // string, which needs paths that are invalid UTF-8 to begin
-            // with.
-            Some(format!("{alias}\u{0}{}", resolved.to_string_lossy()))
-        })
-        .collect();
-    if targets.is_empty() {
-        return None;
-    }
-    // Lockfile dependency maps are `HashMap`s, so sort for a stable
-    // digest across runs.
-    targets.sort_unstable();
-    Some(targets.join("\u{0}"))
-}
-
 /// Build the dependency graph from the lockfile's `snapshots` /
 /// `packages` sections. Every entry in `snapshots` becomes a node whose
 /// `full_pkg_id` is `<pkg_id_with_patch_hash>:<integrity>` (for tarball
 /// / registry resolutions) and whose `children` are the
 /// alias→snapshot-key edges pulled from the snapshot's combined
 /// `dependencies` + `optionalDependencies`.
+///
+/// Resolved `link:` targets become leaf nodes whose identity is the
+/// absolute target path. Modeling them as children makes the target
+/// participate in every ancestor's recursive hash while keeping slots
+/// shared between projects that resolve the link to the same directory.
 ///
 /// Packages whose metadata is missing or whose resolution has no
 /// `integrity` (directory / git) are emitted with the bare
@@ -601,23 +547,38 @@ fn link_target_scope(snapshot: &SnapshotEntry, lockfile_dir: Option<&Path>) -> O
 fn lockfile_to_dep_graph(
     snapshots: &HashMap<PackageKey, SnapshotEntry>,
     packages: Option<&HashMap<PackageKey, PackageMetadata>>,
-) -> HashMap<PackageKey, DepsGraphNode<PackageKey>> {
-    snapshots
-        .iter()
-        .map(|(snapshot_key, snapshot)| {
-            let children = crate::deps_graph::build_children(snapshot);
-            let metadata_key = snapshot_key.without_peer();
-            // The metadata-map key (peer- and patch-hash-stripped) is
-            // derived via `without_peer` for the `packages:` lookup.
-            let pkg_id_with_patch_hash = PkgIdWithPatchHash::from(
-                get_pkg_id_with_patch_hash(&snapshot_key.to_string()).to_string(),
-            );
-            let resolution =
-                packages.and_then(|map| map.get(&metadata_key)).map(|meta| &meta.resolution);
-            let full_pkg_id = create_full_pkg_id(&pkg_id_with_patch_hash, resolution);
-            (snapshot_key.clone(), DepsGraphNode { full_pkg_id, children })
-        })
-        .collect()
+    lockfile_dir: Option<&Path>,
+) -> HashMap<String, DepsGraphNode<String>> {
+    let mut graph = HashMap::with_capacity(snapshots.len());
+    let mut link_target_nodes = HashSet::new();
+    for (snapshot_key, snapshot) in snapshots {
+        let children = crate::deps_graph::build_children_with(snapshot, |alias, dep_ref| {
+            if let Some(snapshot_key) = dep_ref.resolve(alias) {
+                return Some(snapshot_key.to_string());
+            }
+            let link_target = dep_ref.as_link_target()?;
+            let lockfile_dir = lockfile_dir?;
+            let resolved = pacquet_fs::lexical_normalize(&lockfile_dir.join(link_target));
+            Some(format!("link:{}", resolved.to_string_lossy()))
+        });
+        link_target_nodes
+            .extend(children.values().filter(|child_key| child_key.starts_with("link:")).cloned());
+        let metadata_key = snapshot_key.without_peer();
+        let pkg_id_with_patch_hash = PkgIdWithPatchHash::from(
+            get_pkg_id_with_patch_hash(&snapshot_key.to_string()).to_string(),
+        );
+        let resolution =
+            packages.and_then(|map| map.get(&metadata_key)).map(|meta| &meta.resolution);
+        let full_pkg_id = create_full_pkg_id(&pkg_id_with_patch_hash, resolution);
+        graph.insert(snapshot_key.to_string(), DepsGraphNode { full_pkg_id, children });
+    }
+    for link_target_node in link_target_nodes {
+        graph.insert(
+            link_target_node.clone(),
+            DepsGraphNode { full_pkg_id: link_target_node, children: IndexMap::default() },
+        );
+    }
+    graph
 }
 
 /// `variations` (cross-platform variant) resolutions don't exist in

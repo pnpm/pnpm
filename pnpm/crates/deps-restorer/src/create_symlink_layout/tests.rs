@@ -65,6 +65,7 @@ fn links_matching_optional_sibling_alongside_regular_deps() {
     create_symlink_layout(
         Some(&deps),
         Some(&optional),
+        true,
         &pkg_name("self"),
         &skipped,
         &layout,
@@ -83,6 +84,44 @@ fn links_matching_optional_sibling_alongside_regular_deps() {
         "matching-optional",
         &layout,
         &"matching-optional@2.0.0".parse().unwrap(),
+    );
+}
+
+#[test]
+fn excludes_optional_link_deps_when_optional_dependencies_are_disabled() {
+    let tmp = tempdir().expect("tempdir");
+    let lockfile_dir = tmp.path().join("project");
+    fs::create_dir_all(&lockfile_dir).unwrap();
+    let layout = VirtualStoreLayout::legacy(
+        tmp.path().join("store"),
+        pacquet_config::default_virtual_store_dir_max_length() as usize,
+    )
+    .with_lockfile_dir(&lockfile_dir);
+
+    let deps = HashMap::from([(pkg_name("plain-dep"), dep_ref("1.0.0"))]);
+    let optional = HashMap::from([(pkg_name("optional-link"), dep_ref("link:../optional-link"))]);
+    let virtual_node_modules_dir = tmp.path().join("self/node_modules");
+
+    create_symlink_layout(
+        Some(&deps),
+        Some(&optional),
+        false,
+        &pkg_name("self"),
+        &SkippedSnapshots::default(),
+        &layout,
+        &virtual_node_modules_dir,
+    )
+    .expect("regular dependencies should still be linked");
+
+    assert_symlink_shape(
+        &virtual_node_modules_dir,
+        "plain-dep",
+        &layout,
+        &"plain-dep@1.0.0".parse().unwrap(),
+    );
+    assert!(
+        fs::symlink_metadata(virtual_node_modules_dir.join("optional-link")).is_err(),
+        "an optional link must not be materialized under --no-optional",
     );
 }
 
@@ -109,6 +148,7 @@ fn skips_optional_siblings_that_are_in_skipped() {
     create_symlink_layout(
         None,
         Some(&optional),
+        true,
         &pkg_name("self"),
         &skipped,
         &layout,
@@ -158,6 +198,7 @@ fn skips_dep_entries_whose_alias_matches_self_name() {
     create_symlink_layout(
         Some(&deps),
         Some(&optional),
+        true,
         &pkg_name("self"),
         &skipped,
         &layout,
@@ -187,6 +228,7 @@ fn both_dep_maps_absent_is_a_noop() {
     create_symlink_layout(
         None,
         None,
+        true,
         &pkg_name("self"),
         &skipped,
         &layout,
@@ -217,6 +259,7 @@ fn alias_dep_links_under_alias_but_resolves_via_target() {
     create_symlink_layout(
         Some(&deps),
         None,
+        true,
         &pkg_name("self"),
         &skipped,
         &layout,
@@ -262,6 +305,7 @@ fn rejects_traversal_dependency_alias() {
     let error = create_symlink_layout(
         Some(&deps),
         None,
+        true,
         &pkg_name("self"),
         &skipped,
         &layout,
@@ -308,6 +352,7 @@ fn links_a_link_dep_to_its_target_outside_the_store() {
     create_symlink_layout(
         Some(&deps),
         None,
+        true,
         &pkg_name("self"),
         &SkippedSnapshots::default(),
         &layout,
@@ -342,6 +387,7 @@ fn skips_a_link_dep_when_no_lockfile_dir_is_known() {
     create_symlink_layout(
         Some(&deps),
         None,
+        true,
         &pkg_name("self"),
         &SkippedSnapshots::default(),
         &layout,

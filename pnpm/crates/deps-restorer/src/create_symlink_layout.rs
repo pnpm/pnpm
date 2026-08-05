@@ -22,6 +22,7 @@ use std::{collections::HashMap, path::Path};
 pub fn create_symlink_layout(
     dependencies: Option<&HashMap<PkgName, SnapshotDepRef>>,
     optional_dependencies: Option<&HashMap<PkgName, SnapshotDepRef>>,
+    include_optional_dependencies: bool,
     self_name: &PkgName,
     skipped: &SkippedSnapshots,
     layout: &VirtualStoreLayout,
@@ -33,7 +34,8 @@ pub fn create_symlink_layout(
     // it against. This stage runs single-threaded on a `spawn_blocking`
     // worker (see `CreateVirtualStore::run`).
     let deps = dependencies.into_iter().flatten();
-    let opt_deps = optional_dependencies.into_iter().flatten();
+    let opt_deps =
+        optional_dependencies.filter(|_| include_optional_dependencies).into_iter().flatten();
     deps.chain(opt_deps).try_for_each(|(alias_name, dep_ref)| {
         if alias_name == self_name {
             return Ok(());

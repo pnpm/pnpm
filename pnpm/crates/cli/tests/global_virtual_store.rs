@@ -1333,3 +1333,81 @@ fn link_dep_in_a_slot_is_symlinked_to_its_target() {
 
     drop((root, mock_instance));
 }
+
+#[test]
+fn no_optional_excludes_an_optional_link_dep_from_a_slot() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+
+    set_gvs_workspace_yaml(&workspace, "packages:\n  - 'packages/*'\n");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "ws-root", "version": "0.0.0", "private": true }).to_string(),
+    )
+    .expect("write root package.json");
+
+    let app_dir = workspace.join("packages/app");
+    let peer_dir = workspace.join("packages/peer-c");
+    fs::create_dir_all(&app_dir).expect("create app directory");
+    fs::create_dir_all(&peer_dir).expect("create peer directory");
+    fs::write(
+        app_dir.join("package.json"),
+        serde_json::json!({
+            "name": "app",
+            "version": "1.0.0",
+            "dependencies": {
+                "@pnpm.e2e/abc-optional-peers": "1.0.0",
+                "@pnpm.e2e/peer-c": "workspace:*",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write app manifest");
+    fs::write(
+        peer_dir.join("package.json"),
+        serde_json::json!({ "name": "@pnpm.e2e/peer-c", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write peer manifest");
+
+    pacquet(&workspace).with_arg("install").assert().success();
+
+    let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    let snapshots = snapshot_entries(&lockfile, "@pnpm.e2e/abc-optional-peers");
+    let (_, snapshot) = snapshots.as_slice().first().expect("abc optional-peers snapshot");
+    let peer_name = "@pnpm.e2e/peer-c".parse().expect("parse peer name");
+    assert!(
+        snapshot
+            .optional_dependencies
+            .as_ref()
+            .and_then(|dependencies| dependencies.get(&peer_name))
+            .is_some_and(|dep_ref| dep_ref.as_link_target().is_some()),
+        "the fixture must exercise an optional link edge: {snapshot:?}",
+    );
+
+    let hash_dir =
+        sole_hash_dir(&pkg_version_dir(&store_dir, "@pnpm.e2e/abc-optional-peers", "1.0.0"));
+    let linked_peer = pkg_in_slot(&hash_dir, "@pnpm.e2e/peer-c");
+    assert!(
+        is_symlink_or_junction(&linked_peer).unwrap_or(false),
+        "the first install must materialize the optional link at {linked_peer:?}",
+    );
+
+    pacquet(&workspace).with_args(["install", "--no-optional"]).assert().success();
+
+    assert!(
+        matches!(
+            fs::symlink_metadata(&linked_peer),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound
+        ),
+        "--no-optional must leave the optional link out of the slot at {linked_peer:?}",
+    );
+
+    pacquet(&workspace).with_arg("install").assert().success();
+    assert!(
+        is_symlink_or_junction(&linked_peer).unwrap_or(false),
+        "re-enabling optional dependencies must restore the link at {linked_peer:?}",
+    );
+
+    drop((root, mock_instance));
+}

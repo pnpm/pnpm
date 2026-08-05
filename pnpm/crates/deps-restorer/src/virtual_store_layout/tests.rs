@@ -441,8 +441,8 @@ fn full_pkg_id_keeps_patch_hash_when_present() {
     let mut snapshots = HashMap::new();
     snapshots.insert(patched_key.clone(), SnapshotEntry::default());
 
-    let graph = super::lockfile_to_dep_graph(&snapshots, Some(&packages));
-    let node = graph.get(&patched_key).expect("patched snapshot node");
+    let graph = super::lockfile_to_dep_graph(&snapshots, Some(&packages), None);
+    let node = graph.get(&patched_key.to_string()).expect("patched snapshot node");
     assert!(
         node.full_pkg_id.starts_with("foo@1.0.0(patch_hash=abc):"),
         "full_pkg_id must keep the patch-hash segment; got {:?}",
@@ -613,6 +613,76 @@ fn snapshots_with_link_deps_get_a_slot_per_link_target() {
     };
 
     assert_ne!(slot_for("../react-a"), slot_for("../react-b"));
+}
+
+/// A linked target affects every package whose dependency graph reaches
+/// it, not just the snapshot that declares the `link:` edge. Otherwise
+/// an ancestor slot can be reused with a child slot from another project.
+#[test]
+fn link_targets_propagate_through_transitive_ancestor_slots() {
+    let parent_key: PackageKey = "wrapper@1.0.0".parse().unwrap();
+    let child_key: PackageKey = "react-dom@18.3.1(react@fake-react)".parse().unwrap();
+    let packages = HashMap::from([
+        (parent_key.without_peer(), registry_metadata("PARENT")),
+        (child_key.without_peer(), registry_metadata("CHILD")),
+    ]);
+    let config = make_config(
+        true,
+        PathBuf::from("/tmp/proj/node_modules/.pnpm"),
+        PathBuf::from("/tmp/store/links"),
+    );
+    let slots_for = |target: &str| {
+        let parent = SnapshotEntry {
+            dependencies: Some(HashMap::from([(
+                alias("react-dom"),
+                SnapshotDepRef::Alias(child_key.clone()),
+            )])),
+            ..SnapshotEntry::default()
+        };
+        let snapshots = HashMap::from([
+            (parent_key.clone(), parent),
+            (child_key.clone(), snapshot_with_link("react", target)),
+        ]);
+        let layout = VirtualStoreLayout::new(
+            &config,
+            None,
+            Some(&snapshots),
+            Some(&packages),
+            None,
+            Some(Path::new("/home/user/proj")),
+        );
+        (layout.slot_dir(&parent_key), layout.slot_dir(&child_key))
+    };
+
+    let (parent_a, child_a) = slots_for("../react-a");
+    let (parent_b, child_b) = slots_for("../react-b");
+    assert_ne!(child_a, child_b);
+    assert_ne!(parent_a, parent_b);
+}
+
+#[test]
+fn link_dependency_alias_participates_in_the_slot_hash() {
+    let key: PackageKey = "consumer@1.0.0".parse().unwrap();
+    let packages = HashMap::from([(key.without_peer(), registry_metadata("CONSUMER"))]);
+    let config = make_config(
+        true,
+        PathBuf::from("/tmp/proj/node_modules/.pnpm"),
+        PathBuf::from("/tmp/store/links"),
+    );
+    let slot_for = |alias: &str| {
+        let snapshots = HashMap::from([(key.clone(), snapshot_with_link(alias, "../shared"))]);
+        VirtualStoreLayout::new(
+            &config,
+            None,
+            Some(&snapshots),
+            Some(&packages),
+            None,
+            Some(Path::new("/home/user/proj")),
+        )
+        .slot_dir(&key)
+    };
+
+    assert_ne!(slot_for("linked"), slot_for("renamed"));
 }
 
 /// The scope is the *resolved target*, not the project, so workspaces
