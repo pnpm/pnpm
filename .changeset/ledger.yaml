@@ -890,6 +890,11 @@
   intents:
     - napi-explicit-settings
     - tidy-moons-repeat
+"@pnpm/napi@12.0.0-rc.0":
+  dir: pnpm/npm/napi
+  intents:
+    - napi-global-virtual-store
+    - napi-resolve-full-metadata
 "@pnpm/network.auth-header@1101.1.4":
   dir: pnpm11/network/auth-header
   intents:
@@ -1686,6 +1691,21 @@ pacquet@12.0.0-beta.4:
     - peer-cycle-graph-name-once
     - prefix-alias-of-dir
     - ship-node-gyp-with-the-rust-cli
+pacquet@12.0.0-rc.0:
+  dir: pnpm/npm/pnpm
+  intents:
+    - backslash-entry-paths
+    - directory-dep-recopy
+    - fix-pacquet-allow-builds-workspace
+    - gvs-concurrent-slot-import
+    - gvs-link-deps-in-slots
+    - headless-hoisted-workspace-bins
+    - pnp-loader-virtual-store-only
+    - protect-workspace-root-modules-purge
+    - read-crlf-multi-document-lockfile
+    - refuse-sudo-global
+    - sandbox-store-path
+    - stray-node-modules-entry-no-longer-fails-install
 pnpm@11.13.0:
   dir: pnpm11/pnpm
   intents:
