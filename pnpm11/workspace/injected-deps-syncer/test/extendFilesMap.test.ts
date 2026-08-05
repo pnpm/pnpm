@@ -180,3 +180,29 @@ testOnPosix('a skipped inode in the source removes what the target holds at that
   expect(fs.lstatSync('target/own.env').isFIFO()).toBe(true)
   expect(fs.existsSync('target/keep.txt')).toBe(true)
 })
+
+testOnPosix.each([
+  ['a file', (sourcePath: string) => {
+    fs.writeFileSync(sourcePath, 'real')
+  }],
+  ['a directory', (sourcePath: string) => {
+    fs.mkdirSync(sourcePath, { recursive: true })
+    fs.writeFileSync(path.join(sourcePath, 'inner.txt'), '')
+  }],
+])('replaces a skipped inode in the target when the source has %s there', async (_label, createSource) => {
+  prepareEmpty()
+
+  fs.mkdirSync('source', { recursive: true })
+  fs.mkdirSync('target', { recursive: true })
+  createSource(path.resolve('source/config.env'))
+  fs.writeFileSync('source/other.txt', '')
+  // The target holds an inode the map skips, so the diff cannot schedule it
+  // for removal and adding over it would fail with EEXIST.
+  execFileSync('mkfifo', [path.resolve('target/config.env')])
+
+  const patchers = await DirPatcher.fromMultipleTargets('source', ['target'])
+  await Promise.all(patchers.map(async patcher => patcher.apply()))
+
+  expect(fs.lstatSync('target/config.env').isFIFO()).toBe(false)
+  expect(fs.existsSync('target/other.txt')).toBe(true)
+})
