@@ -31,6 +31,8 @@ fn create_config(
     cache_dir: &Path,
 ) -> Config {
     Config {
+        save_exact: false,
+        save_prefix: None,
         versioning: Default::default(),
         hoist: false,
         hoist_pattern: None,
@@ -157,8 +159,6 @@ fn create_config(
         cleanup_unused_catalogs: false,
         catalogs: None,
         save_catalog_name: None,
-        save_prefix: None,
-        save_exact: false,
         save_peer: false,
         registry_supports_time_field: false,
         allowed_deprecated_versions: Default::default(),

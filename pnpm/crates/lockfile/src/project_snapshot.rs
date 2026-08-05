@@ -3,6 +3,18 @@ use pacquet_package_manifest::DependencyGroup;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+/// Per-dependency metadata from `dependenciesMeta` in `package.json`.
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DependencyMeta {
+    /// When `true`, the dependency is injected into `node_modules` instead of symlinked.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub injected: Option<bool>,
+    /// Path to a patch file to apply.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub patch: Option<String>,
+}
+
 /// Snapshot of a single project.
 #[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -33,8 +45,12 @@ pub struct ProjectSnapshot {
         serialize_with = "crate::serialize_yaml::sorted_map_opt"
     )]
     pub optional_dependencies: Option<ResolvedDependencyMap>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub dependencies_meta: Option<serde_json::Value>, // TODO: DependenciesMeta
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "crate::serialize_yaml::sorted_map_opt"
+    )]
+    pub dependencies_meta: Option<HashMap<String, DependencyMeta>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub publish_directory: Option<String>,
 }

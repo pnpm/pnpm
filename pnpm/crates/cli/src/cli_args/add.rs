@@ -145,10 +145,9 @@ pub struct AddArgs {
     /// Dependencies are not downloaded. Only `pnpm-lock.yaml` is updated.
     #[clap(long = "lockfile-only")]
     pub lockfile_only: bool,
-    /// The directory with links to the store (default is `node_modules/.pnpm`).
-    /// All direct and indirect dependencies of the project are linked into this directory
-    #[clap(long = "virtual-store-dir", default_value = "node_modules/.pnpm")]
-    pub virtual_store_dir: Option<PathBuf>, // TODO: make use of this
+    /// Directory with store links (default `node_modules/.pnpm`).
+    #[clap(long = "virtual-store-dir")]
+    pub virtual_store_dir: Option<PathBuf>,
 
     /// Install the package globally, linking its bins into the global bin directory.
     #[clap(short = 'g', long)]
@@ -175,6 +174,9 @@ impl AddArgs {
             config.ignore_scripts,
         );
         config.force = self.force || config.force;
+        if let Some(vsd) = &self.virtual_store_dir {
+            config.virtual_store_dir.clone_from(vsd);
+        }
     }
 
     /// The `--config` selectors parsed into the `name → specifier` pairs to
@@ -285,6 +287,7 @@ impl AddArgs {
             .clone()
             .with_save_peer_setting(state.config.save_peer)
             .save_target();
+
         let InstallFamilySelection {
             workspace_root: _,
             mut projects,

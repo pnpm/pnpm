@@ -315,19 +315,11 @@ test(`doing named installation when ${WANTED_LOCKFILE} exists already`, async ()
 test(`respects ${WANTED_LOCKFILE} for top dependencies`, async () => {
   const project = prepareEmpty()
   const reporter = jest.fn()
-  // const fooProgress = {
-  //   name: 'pnpm:progress',
-  //   status: 'resolving',
-  //   manifest: {
-  //     name: 'foo',
-  //   },
-  // }
 
   const pkgs = ['@pnpm.e2e/foo', '@pnpm.e2e/bar', '@pnpm.e2e/qar']
   await Promise.all(pkgs.map(async (pkgName) => addDistTag({ package: pkgName, version: '100.0.0', distTag: 'latest' })))
 
   let { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/foo'], testDefaults({ save: true, reporter }))
-  // t.equal(reporter.withArgs(fooProgress).callCount, 1, 'reported foo once')
   manifest = (await addDependenciesToPackage(manifest, ['@pnpm.e2e/bar'], testDefaults({ targetDependenciesField: 'optionalDependencies' }))).updatedManifest
   manifest = (await addDependenciesToPackage(manifest, ['@pnpm.e2e/qar'], testDefaults({ addDependenciesToPackage: 'devDependencies' }))).updatedManifest
   manifest = (await addDependenciesToPackage(manifest, ['@pnpm.e2e/foobar'], testDefaults({ save: true }))).updatedManifest
@@ -354,8 +346,6 @@ test(`respects ${WANTED_LOCKFILE} for top dependencies`, async () => {
     registry: 'https://registry.npmjs.org',
     reporter,
   }))
-
-  // t.equal(reporter.withArgs(fooProgress).callCount, 0, 'not reported foo')
 
   project.storeHasNot('@pnpm.e2e/foo', '100.1.0')
   expect((await readPackageJsonFromDir(path.resolve('node_modules', '@pnpm.e2e/foo'))).version).toBe('100.0.0')
@@ -1205,45 +1195,6 @@ test('tarball installed through non-standard URL endpoint from the registry doma
     },
   })
   await teardownMockAgent()
-})
-
-// TODO: fix merge conflicts with the new lockfile format (TODOv8)
-test.skip('a lockfile with merge conflicts is autofixed', async () => {
-  const project = prepareEmpty()
-
-  fs.writeFileSync(WANTED_LOCKFILE, `\
-importers:
-  .:
-    dependencies:
-      '@pnpm.e2e/dep-of-pkg-with-1-dep':
-        specifier: '>100.0.0'
-<<<<<<< HEAD
-        version: 100.0.0
-=======
-        version: 100.1.0
->>>>>>> next
-lockfileVersion: ${LOCKFILE_VERSION}
-packages:
-<<<<<<< HEAD
-  '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0':
-    dev: false
-    resolution:
-      integrity: ${getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')}
-=======
-  '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0':
-    dev: false
-    resolution:
-      integrity: ${getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0')}
->>>>>>> next`, 'utf8')
-
-  await install({
-    dependencies: {
-      '@pnpm.e2e/dep-of-pkg-with-1-dep': '>100.0.0',
-    },
-  }, testDefaults())
-
-  const lockfile = project.readLockfile()
-  expect(lockfile.importers?.['.'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('100.1.0')
 })
 
 test('a lockfile v6 with merge conflicts is autofixed', async () => {

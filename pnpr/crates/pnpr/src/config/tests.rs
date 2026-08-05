@@ -1310,8 +1310,6 @@ fn log_level_filter_directives_are_valid() {
     }
 }
 
-// ----- config_file_in (existence gating) --------------------------------
-
 #[test]
 fn config_file_in_returns_none_for_none_dir() {
     assert!(config_file_in(None).is_none());
@@ -1376,8 +1374,6 @@ log:
     assert_eq!(config.logs.level, LogLevel::Info);
 }
 
-// ----- LogFormat / LogLevel serde behavior ------------------------------
-
 /// Helper: deserialize a YAML scalar into the requested enum.
 /// Lets us assert the variant mapping concisely.
 fn parse_log_yaml<Target: serde::de::DeserializeOwned>(yaml: &str) -> Result<Target, String> {
@@ -1432,8 +1428,6 @@ fn log_level_rejects_unknown_variant() {
     assert!(parse_log_yaml::<LogLevel>("silly").is_err());
     assert!(parse_log_yaml::<LogLevel>("verbose").is_err());
 }
-
-// ----- Config::resolve precedence ---------------------------------------
 
 /// Helper: write a config file under a tempdir and hand back the
 /// path. Tests use this to populate both the explicit `-c` arg
@@ -1536,8 +1530,6 @@ fn resolve_bundled_branch_honors_public_url_override() {
     assert_eq!(config.public_url, "http://from-cli.test");
 }
 
-// ----- serde defaults ---------------------------------------------------
-
 #[test]
 fn yaml_with_no_storage_uses_default_storage_string() {
     // `storage:` is absent entirely — `default_storage_string`
@@ -1569,8 +1561,6 @@ log:
     assert_eq!(config.logs.sink, "stdout");
     assert!(config.logs.sink_is_supported());
 }
-
-// ----- per-registry `packages:` rules from YAML -------------------------
 
 /// A one-hosted-registry config whose `packages:` map is the given YAML
 /// fragment (indented under `packages:`).

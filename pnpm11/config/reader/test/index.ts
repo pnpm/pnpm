@@ -820,7 +820,6 @@ test('when using --global, linkWorkspacePackages, sharedWorkspaceLockfile and lo
     })
     expect(config.linkWorkspacePackages).toBeFalsy()
     expect(config.sharedWorkspaceLockfile).toBeFalsy()
-    // FIXME: it supposed to return null but is undefined
     expect(config.lockfileDir).toBeUndefined()
   }
 })
@@ -2790,30 +2789,6 @@ test('normalize the value of the color flag', async () => {
 
     expect(config.color).toBe('never')
   }
-})
-
-// NOTE: This test currently fails as pnpm currently lack a way to verify pnpm-workspace.yaml
-test.skip('read only supported settings from config', async () => {
-  prepare()
-
-  writeYamlFileSync('pnpm-workspace.yaml', {
-    storeDir: '__store__',
-    foo: 'bar',
-  })
-
-  const { config } = await getConfig({
-    cliOptions: {},
-    packageManager: {
-      name: 'pnpm',
-      version: '1.0.0',
-    },
-    workspaceDir: process.cwd(),
-  })
-
-  expect(config.storeDir).toBe('__store__')
-  // @ts-expect-error
-  expect(config['foo']).toBeUndefined() // NOTE: This line current fails as there are yet a way to verify fields in pnpm-workspace.yaml
-  expect(config.authConfig['foo']).toBe('bar')
 })
 
 test('all CLI options are added to the config', async () => {

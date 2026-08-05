@@ -605,7 +605,7 @@ where
                     pacquet_fs::lexical_normalize(project_dir) == normalized_root
                 })
                 .is_none_or(|(_, manifest)| {
-                    matches!(manifest.script(DEV_PREINSTALL_STAGE, true), Ok(Some(_)))
+                    matches!(manifest.script_if_present(DEV_PREINSTALL_STAGE), Ok(Some(_)))
                 });
             if root_defines_hook {
                 run_dev_preinstall::<Reporter>(config, &workspace_root)?;

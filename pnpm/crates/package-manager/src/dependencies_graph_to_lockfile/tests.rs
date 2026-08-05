@@ -390,8 +390,34 @@ fn fresh_install_records_importer_manifest_metadata() {
     ));
     let importer = lockfile.root_project().expect("root importer exists");
 
-    assert_eq!(importer.dependencies_meta, Some(json!({ "pkg-a": { "injected": true } })));
+    assert_eq!(
+        serde_json::to_value(importer.dependencies_meta.as_ref()).expect("serialize meta"),
+        json!({"pkg-a": {"injected": true}}),
+    );
     assert_eq!(importer.publish_directory.as_deref(), Some("dist"));
+}
+
+#[test]
+fn dependencies_meta_omitted_when_no_injected_or_patch_entries() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependenciesMeta": { "pkg-a": {}, "pkg-b": {} },
+    }));
+    let graph = DependenciesGraph::default();
+
+    let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest,
+        &graph,
+        BTreeMap::new(),
+        false,
+        false,
+        None,
+        None,
+    ));
+    let importer = lockfile.root_project().expect("root importer exists");
+
+    assert_eq!(importer.dependencies_meta, None);
 }
 
 #[test]

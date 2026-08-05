@@ -457,8 +457,6 @@ impl ReporterState {
         }
     }
 
-    // --- scope ------------------------------------------------------------
-
     /// pnpm's `reportScope`: how many workspace projects the command
     /// selected. Silent for a command that doesn't report scope, and for a
     /// single selected project — where the answer is the directory the
@@ -477,8 +475,6 @@ impl ReporterState {
         self.frame.emit(&mut slot, format!("Scope: {count} {unit}"), false);
         self.scope_slot = slot;
     }
-
-    // --- context ----------------------------------------------------------
 
     fn on_context(&mut self, log: &ContextLog) {
         self.context = Some(log.clone());
@@ -512,8 +508,6 @@ impl ReporterState {
         self.frame.emit(&mut slot, msg, false);
         self.context_slot = slot;
     }
-
-    // --- progress ---------------------------------------------------------
 
     fn on_progress(&mut self, message: &ProgressMessage) {
         let requester = match message {
@@ -575,8 +569,6 @@ impl ReporterState {
         }
     }
 
-    // --- big tarballs -----------------------------------------------------
-
     fn on_fetching(&mut self, message: &FetchingProgressMessage) {
         const BIG_TARBALL_SIZE: u64 = 1024 * 1024 * 5;
         match message {
@@ -611,8 +603,6 @@ impl ReporterState {
             self.colors.cyan_bright(&pretty_bytes(size)),
         )
     }
-
-    // --- stats ------------------------------------------------------------
 
     fn on_stats(&mut self, message: &StatsMessage) {
         let prefix = match message {
@@ -688,8 +678,6 @@ impl ReporterState {
         }
         out
     }
-
-    // --- summary ----------------------------------------------------------
 
     fn on_root(&mut self, message: &pacquet_reporter::RootMessage) {
         use pacquet_reporter::RootMessage;
@@ -876,8 +864,6 @@ impl ReporterState {
         result
     }
 
-    // --- lifecycle --------------------------------------------------------
-
     fn on_lifecycle(&mut self, message: &LifecycleMessage) {
         if self.append_only {
             let msg = self.stream_lifecycle(message);
@@ -1046,8 +1032,6 @@ impl ReporterState {
         };
         format!("{} {line}", self.colors.magenta_bright("│"))
     }
-
-    // --- misc one-liners --------------------------------------------------
 
     fn on_ignored_scripts(&mut self, log: &IgnoredScriptsLog) {
         if log.package_names.is_empty() {

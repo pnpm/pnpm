@@ -108,10 +108,6 @@ fn parse_staged_list_query(query: &str) -> StagedListQuery {
     parsed
 }
 
-// ---------------------------------------------------------------------
-// Route handlers — the path-less form and its `/~<name>/`-prefixed twin.
-// ---------------------------------------------------------------------
-
 pub(super) async fn post_staged_publish(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
@@ -245,10 +241,6 @@ pub(super) async fn get_staged_tarball_prefixed(
 fn tilde_registry(prefix: &str) -> Option<&str> {
     is_tilde_prefix(prefix).then(|| &prefix[1..])
 }
-
-// ---------------------------------------------------------------------
-// The handlers proper.
-// ---------------------------------------------------------------------
 
 /// `POST /-/stage/package/:pkg` — validate and authorize the publish
 /// document exactly like a direct publish, then hold it back under a fresh
@@ -512,10 +504,6 @@ async fn serve_staged_tarball(
         .body(Body::from(bytes))
         .expect("static-shape response always builds")
 }
-
-// ---------------------------------------------------------------------
-// Shared plumbing.
-// ---------------------------------------------------------------------
 
 /// Load a staged record and check the caller may act on it: the record must
 /// exist, be addressed through the same registry prefix it was staged with,

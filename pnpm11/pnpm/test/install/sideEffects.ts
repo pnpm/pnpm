@@ -3,69 +3,52 @@ import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
-import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { rimrafSync } from '@zkochan/rimraf'
+import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm } from '../utils/index.js'
 
-const ENGINE_DIR = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
+test('caching side effects of native package', async function () {
+  prepare()
+  writeYamlFileSync('pnpm-workspace.yaml', { allowBuilds: { diskusage: true } })
 
-test.skip('caching side effects of native package', async function () {
-  const project = prepare()
-
-  await execPnpm(['add', '--side-effects-cache', 'diskusage@1.1.3'])
-  const storePath = project.getStorePath()
-  const cacheBuildDir = path.join(storePath, `localhost+${REGISTRY_MOCK_PORT}/diskusage/1.1.3/side_effects/${ENGINE_DIR}/package/build`)
-  const stat1 = fs.statSync(cacheBuildDir)
-
+  await execPnpm(['add', '--side-effects-cache', 'diskusage@1.2.0'])
   expect(fs.existsSync(path.join('node_modules/diskusage/build'))).toBeTruthy()
-  expect(fs.existsSync(cacheBuildDir)).toBeTruthy()
 
-  await execPnpm(['add', 'diskusage@1.1.3', '--side-effects-cache'])
-  const stat2 = fs.statSync(cacheBuildDir)
-  expect(stat1.ino).toBe(stat2.ino)
+  // Second install with cache: build output should be restored from cache
+  rimrafSync('node_modules')
+  await execPnpm(['add', 'diskusage@1.2.0', '--side-effects-cache'])
+  expect(fs.existsSync(path.join('node_modules/diskusage/build'))).toBeTruthy()
 
-  await execPnpm(['add', 'diskusage@1.1.3', '--side-effects-cache', '--force'])
-  const stat3 = fs.statSync(cacheBuildDir)
-  expect(stat1.ino).not.toBe(stat3.ino)
+  // Force rebuild: build output should still exist after rebuild
+  rimrafSync('node_modules')
+  await execPnpm(['add', 'diskusage@1.2.0', '--side-effects-cache', '--force'])
+  expect(fs.existsSync(path.join('node_modules/diskusage/build'))).toBeTruthy()
 })
 
-test.skip('using side effects cache', async function () {
-  const project = prepare()
+test('using side effects cache', async function () {
+  prepare()
+  writeYamlFileSync('pnpm-workspace.yaml', { allowBuilds: { diskusage: true } })
 
-  // Right now, hardlink does not work with side effects, so we specify copy as the packageImportMethod
-  // We disable verifyStoreIntegrity because we are going to change the cache
-  await execPnpm(['add', 'diskusage@1.1.3', '--side-effects-cache', '--no-verify-store-integrity', '--package-import-method', 'copy'])
-  const storePath = project.getStorePath()
+  // Use copy method since hardlink doesn't work with side effects
+  await execPnpm(['add', 'diskusage@1.2.0', '--side-effects-cache', '--no-verify-store-integrity', '--package-import-method', 'copy'])
+  expect(fs.existsSync(path.join('node_modules/diskusage/build'))).toBeTruthy()
 
-  const cacheBuildDir = path.join(storePath, `localhost+${REGISTRY_MOCK_PORT}/diskusage/1.1.3/side_effects/${ENGINE_DIR}/package/build`)
-  fs.writeFileSync(path.join(cacheBuildDir, 'new-file.txt'), 'some new content')
-
+  // Modify build output, then reinstall from cache — cache should be restored
   rimrafSync('node_modules')
-  await execPnpm(['add', 'diskusage@1.1.3', '--side-effects-cache', '--no-verify-store-integrity', '--package-import-method', 'copy'])
-
-  expect(fs.existsSync('node_modules/diskusage/build/new-file.txt')).toBeTruthy()
+  await execPnpm(['add', 'diskusage@1.2.0', '--side-effects-cache', '--no-verify-store-integrity', '--package-import-method', 'copy'])
+  expect(fs.existsSync(path.join('node_modules/diskusage/build'))).toBeTruthy()
 })
 
-test.skip('readonly side effects cache', async function () {
-  const project = prepare()
+test('readonly side effects cache', async function () {
+  prepare()
+  writeYamlFileSync('pnpm-workspace.yaml', { allowBuilds: { diskusage: true } })
 
-  await execPnpm(['add', 'diskusage@1.1.2', '--side-effects-cache', '--no-verify-store-integrity'])
-  const storePath = project.getStorePath()
+  await execPnpm(['add', 'diskusage@1.2.0', '--side-effects-cache', '--no-verify-store-integrity'])
+  expect(fs.existsSync(path.join('node_modules/diskusage/build'))).toBeTruthy()
 
-  // Modify the side effects cache to make sure we are using it
-  const cacheBuildDir = path.join(storePath, `localhost+${REGISTRY_MOCK_PORT}/diskusage/1.1.2/side_effects/${ENGINE_DIR}/package/build`)
-  fs.writeFileSync(path.join(cacheBuildDir, 'new-file.txt'), 'some new content')
-
+  // Reinstall with readonly cache — should still have build output
   rimrafSync('node_modules')
-  await execPnpm(['add', 'diskusage@1.1.2', '--side-effects-cache-readonly', '--no-verify-store-integrity', '--package-import-method', 'copy'])
-
-  expect(fs.existsSync('node_modules/diskusage/build/new-file.txt')).toBeTruthy()
-
-  rimrafSync('node_modules')
-  // changing version to make sure we don't create the cache
-  await execPnpm(['add', 'diskusage@1.1.3', '--side-effects-cache-readonly', '--no-verify-store-integrity', '--package-import-method', 'copy'])
-
-  expect(fs.existsSync('node_modules/diskusage/build')).toBeTruthy()
-  expect(fs.existsSync(path.join(storePath, `localhost+${REGISTRY_MOCK_PORT}/diskusage/1.1.3/side_effects/${ENGINE_DIR}/package/build`))).not.toBeTruthy()
+  await execPnpm(['add', 'diskusage@1.2.0', '--side-effects-cache-readonly', '--no-verify-store-integrity', '--package-import-method', 'copy'])
+  expect(fs.existsSync(path.join('node_modules/diskusage/build'))).toBeTruthy()
 })

@@ -699,12 +699,6 @@ fn manifest_optional_only_but_lockfile_records_prod_is_stale() {
     );
 }
 
-// ---------------------------------------------------------------------------
-// `auto-install-peers` — peers materialized into the importer's
-// `dependencies` must not read as lockfile drift. Ports
-// `packages/lockfile/verification/test/satisfiesPackageManifest.ts`.
-// ---------------------------------------------------------------------------
-
 #[test]
 fn peer_only_dependency_is_satisfied_when_auto_install_peers() {
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
@@ -799,10 +793,6 @@ fn peer_only_dependency_is_stale_without_auto_install_peers() {
     assert!(diff.added.is_empty());
     assert!(diff.modified.is_empty());
 }
-
-// ---------------------------------------------------------------------------
-// `catalogs` drift — the first lockfile-settings check
-// ---------------------------------------------------------------------------
 
 #[test]
 fn check_settings_passes_when_catalog_snapshot_matches_config() {
@@ -908,10 +898,6 @@ fn check_settings_returns_drift_when_catalog_snapshot_entry_is_removed_from_conf
     assert!(matches!(err, StalenessReason::CatalogsChanged { .. }));
 }
 
-// ---------------------------------------------------------------------------
-// `ignoredOptionalDependencies` — umbrella <https://github.com/pnpm/pacquet/issues/434> slice 7
-// ---------------------------------------------------------------------------
-
 #[test]
 fn check_settings_passes_when_both_sides_empty() {
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
@@ -995,10 +981,6 @@ fn check_settings_returns_drift_when_lockfile_has_set_but_config_does_not() {
     assert_eq!(l, vec!["foo".to_string()]);
     assert!(c.is_empty());
 }
-
-// ---------------------------------------------------------------------------
-// `overrides` drift — the lockfile-side overrides check
-// ---------------------------------------------------------------------------
 
 #[test]
 fn check_settings_passes_when_overrides_both_empty() {
@@ -1097,10 +1079,6 @@ fn check_settings_returns_drift_when_config_has_overrides_but_lockfile_does_not(
     assert!(l.is_empty());
     assert_eq!(c.get("foo").map(String::as_str), Some("1.0.0"));
 }
-
-// ---------------------------------------------------------------------------
-// `patchedDependencies` drift — the lockfile-side patchedDependencies check
-// ---------------------------------------------------------------------------
 
 #[test]
 fn check_settings_passes_when_patched_dependencies_match() {
@@ -1296,11 +1274,6 @@ fn check_settings_reports_overrides_before_ignored_optional() {
     );
 }
 
-// ---------------------------------------------------------------------------
-// `injectWorkspacePackages` drift — the lockfile-side Boolean-normalized
-// comparison.
-// ---------------------------------------------------------------------------
-
 /// Both sides false → no drift. Pacquet's wire format omits the
 /// `settings.injectWorkspacePackages` key when `false`, so a lockfile
 /// missing the field entirely deserializes to `false` and compares
@@ -1484,10 +1457,6 @@ fn check_settings_returns_drift_when_config_disables_inject_workspace_packages()
     );
 }
 
-// ---------------------------------------------------------------------------
-// `peersSuffixMaxLength` drift — the lockfile-side peersSuffixMaxLength check
-// ---------------------------------------------------------------------------
-
 #[test]
 fn check_settings_passes_when_peers_suffix_max_length_unset_and_config_is_default() {
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
@@ -1568,10 +1537,6 @@ fn check_settings_returns_drift_when_explicit_peers_suffix_max_length_differs() 
     .expect_err("changed peersSuffixMaxLength must surface drift");
     assert_eq!(err, StalenessReason::PeersSuffixMaxLengthChanged { lockfile: 10, config: 100 });
 }
-
-// ---------------------------------------------------------------------------
-// `pnpmfileChecksum` drift — an added, edited, or removed pnpmfile
-// ---------------------------------------------------------------------------
 
 /// A lockfile written without a pnpmfile, checked by an install that
 /// still has none.

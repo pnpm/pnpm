@@ -4,11 +4,9 @@ import path from 'node:path'
 import { expect, test } from '@jest/globals'
 import { GLOBAL_LAYOUT_VERSION } from '@pnpm/constants'
 import { prepare } from '@pnpm/prepare'
-import type { ProjectManifest } from '@pnpm/types'
 import isWindows from 'is-windows'
 import PATH_NAME from 'path-name'
 import { readYamlFileSync } from 'read-yaml-file'
-import { writeYamlFileSync } from 'write-yaml-file'
 
 import {
   addDistTag,
@@ -204,122 +202,6 @@ test('approve-builds during global add does not produce a doubled modules path',
   // The build artifacts are only present if the post-approval install
   // ran the package's install scripts.
   expect(fs.existsSync(path.join(pkgPath!, 'generated-by-install.js'))).toBe(true)
-})
-
-// CONTEXT: dangerously-allow-all-builds has been removed from rc files, as a result, this test no longer applies
-// TODO: Maybe we should create a yaml config file specifically for `--global`? After all, this test is to serve such use-cases
-test.skip('dangerously-allow-all-builds=true in global config', async () => {
-  // the directory structure below applies only to Linux
-  if (process.platform !== 'linux') return
-
-  const manifest: ProjectManifest = {
-    name: 'local',
-    version: '0.0.0',
-    private: true,
-  }
-
-  const workspaceManifest: Record<string, unknown> = {
-    allowBuilds: {}, // don't allow any dependencies to be built
-  }
-
-  const project = prepare(manifest)
-  writeYamlFileSync('pnpm-workspace.yaml', workspaceManifest)
-
-  const home = path.resolve('..', 'home/username')
-  const cfgHome = path.resolve(home, '.config')
-  const pnpmCfgDir = path.resolve(cfgHome, 'pnpm')
-  const pnpmRcFile = path.join(pnpmCfgDir, 'rc')
-  const global = path.resolve('..', 'global')
-  const pnpmHome = path.join(global, 'pnpm')
-  const globalDir = globalPkgDir(pnpmHome)
-  fs.mkdirSync(pnpmCfgDir, { recursive: true })
-  fs.writeFileSync(pnpmRcFile, [
-    'reporter=append-only',
-    'dangerously-allow-all-builds=true',
-  ].join('\n'))
-
-  const env = {
-    [PATH_NAME]: `${path.join(pnpmHome, 'bin')}${path.delimiter}${process.env[PATH_NAME]!}`,
-    HOME: home,
-    XDG_CONFIG_HOME: cfgHome,
-    PNPM_HOME: pnpmHome,
-    XDG_DATA_HOME: global,
-  }
-
-  // global install should run scripts
-  await execPnpm(['add', '-g', '@pnpm.e2e/postinstall-calls-pnpm@1.0.0'], { env })
-  expect(fs.readdirSync(path.join(globalDir, 'node_modules/@pnpm.e2e/postinstall-calls-pnpm'))).toContain('created-by-postinstall')
-
-  // local config should override global config
-  await execPnpm(['add', '@pnpm.e2e/postinstall-calls-pnpm@1.0.0'], { env })
-  expect(fs.readdirSync(path.resolve('node_modules/@pnpm.e2e/postinstall-calls-pnpm'))).not.toContain('created-by-postinstall')
-
-  // global config should be used if local config did not specify
-  delete workspaceManifest.allowBuilds
-  writeYamlFileSync('pnpm-workspace.yaml', workspaceManifest)
-  project.writePackageJson(manifest)
-  fs.rmSync('node_modules', { recursive: true })
-  fs.rmSync('pnpm-lock.yaml')
-  await execPnpm(['add', '@pnpm.e2e/postinstall-calls-pnpm@1.0.0'], { env })
-  expect(fs.readdirSync(path.resolve('node_modules/@pnpm.e2e/postinstall-calls-pnpm'))).toContain('created-by-postinstall')
-})
-
-// CONTEXT: dangerously-allow-all-builds has been removed from rc files, as a result, this test no longer applies
-// TODO: Maybe we should create a yaml config file specifically for `--global`? After all, this test is to serve such use-cases
-test.skip('dangerously-allow-all-builds=false in global config', async () => {
-  // the directory structure below applies only to Linux
-  if (process.platform !== 'linux') return
-
-  const manifest: ProjectManifest = {
-    name: 'local',
-    version: '0.0.0',
-    private: true,
-  }
-
-  const workspaceManifest: Record<string, unknown> = {
-    allowBuilds: { '@pnpm.e2e/postinstall-calls-pnpm': true },
-  }
-
-  const project = prepare(manifest)
-  writeYamlFileSync('pnpm-workspace.yaml', workspaceManifest)
-
-  const home = path.resolve('..', 'home/username')
-  const cfgHome = path.resolve(home, '.config')
-  const pnpmCfgDir = path.resolve(cfgHome, 'pnpm')
-  const pnpmRcFile = path.join(pnpmCfgDir, 'rc')
-  const global = path.resolve('..', 'global')
-  const pnpmHome = path.join(global, 'pnpm')
-  const globalDir = globalPkgDir(pnpmHome)
-  fs.mkdirSync(pnpmCfgDir, { recursive: true })
-  fs.writeFileSync(pnpmRcFile, [
-    'reporter=append-only',
-    'dangerously-allow-all-builds=false',
-  ].join('\n'))
-
-  const env = {
-    [PATH_NAME]: `${path.join(pnpmHome, 'bin')}${path.delimiter}${process.env[PATH_NAME]!}`,
-    HOME: home,
-    XDG_CONFIG_HOME: cfgHome,
-    PNPM_HOME: pnpmHome,
-    XDG_DATA_HOME: global,
-  }
-
-  // global install should run scripts
-  await execPnpm(['add', '-g', '@pnpm.e2e/postinstall-calls-pnpm@1.0.0'], { env })
-  expect(fs.readdirSync(path.join(globalDir, 'node_modules/@pnpm.e2e/postinstall-calls-pnpm'))).not.toContain('created-by-postinstall')
-
-  // local config should override global config
-  await execPnpm(['add', '@pnpm.e2e/postinstall-calls-pnpm@1.0.0'], { env })
-  expect(fs.readdirSync(path.resolve('node_modules/@pnpm.e2e/postinstall-calls-pnpm'))).toContain('created-by-postinstall')
-
-  // global config should be used if local config did not specify
-  delete workspaceManifest.allowBuilds
-  writeYamlFileSync('pnpm-workspace.yaml', workspaceManifest)
-  project.writePackageJson(manifest)
-  fs.rmSync('node_modules', { recursive: true })
-  fs.rmSync('pnpm-lock.yaml')
-  await execPnpm(['add', '@pnpm.e2e/postinstall-calls-pnpm@1.0.0'], { env })
-  expect(fs.readdirSync(path.resolve('node_modules/@pnpm.e2e/postinstall-calls-pnpm'))).not.toContain('created-by-postinstall')
 })
 
 test('global update to latest', async () => {

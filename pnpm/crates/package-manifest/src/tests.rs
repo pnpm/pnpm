@@ -106,7 +106,7 @@ fn should_throw_on_missing_command() {
     let dir = tempdir().unwrap();
     let tmp = dir.path().join("package.json");
     let manifest = PackageManifest::create_if_needed(tmp).unwrap();
-    manifest.script("dev", false).expect_err("dev command should not exist");
+    manifest.script("dev").expect_err("dev command should not exist");
 }
 
 #[test]
@@ -121,9 +121,9 @@ fn should_execute_a_command() {
     let tmp = NamedTempFile::new().unwrap();
     write!(tmp.as_file(), "{data}").unwrap();
     let manifest = PackageManifest::create_if_needed(tmp.path().to_path_buf()).unwrap();
-    assert_eq!(manifest.script("test", false).unwrap(), Some("echo"));
-    manifest.script("invalid", false).expect_err("invalid command should not exist");
-    assert_eq!(manifest.script("invalid", true).unwrap(), None);
+    assert_eq!(manifest.script("test").unwrap(), "echo");
+    manifest.script("invalid").expect_err("invalid command should not exist");
+    assert_eq!(manifest.script_if_present("invalid").unwrap(), None);
 }
 
 #[test]
@@ -811,10 +811,8 @@ fn add_dependency_errors_when_field_is_not_an_object() {
     });
     std::fs::write(&path, serde_json::to_string_pretty(&raw).unwrap()).unwrap();
 
-    let mut manifest = PackageManifest::from_path(path).unwrap();
-    let err = manifest
-        .add_dependency("foo", "1.0.0", DependencyGroup::Prod)
-        .expect_err("non-object `dependencies` should reject insert");
+    let err = PackageManifest::from_path(path)
+        .expect_err("non-object `dependencies` should reject at read time");
     match err {
         PackageManifestError::InvalidAttribute(msg) => {
             assert!(msg.contains("dependencies"), "got: {msg:?}");

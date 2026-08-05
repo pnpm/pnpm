@@ -571,10 +571,6 @@ fn serialize_variations_resolution() {
     assert_eq!(received, expected);
 }
 
-// -----------------------------------------------------------------------------
-// `select_platform_variant` / `libc_matches` — Slice B
-// -----------------------------------------------------------------------------
-
 fn binary_resolution(url: &str) -> LockfileResolution {
     LockfileResolution::Binary(BinaryResolution {
         url: url.to_string(),
@@ -774,8 +770,6 @@ fn to_lockfile_form_keeps_tarball_with_trailing_scheme_separator() {
         }),
     );
 }
-
-// --- Custom resolutions ---
 
 fn custom_cdn_resolution() -> LockfileResolution {
     let mut extra = serde_json::Map::new();
