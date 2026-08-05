@@ -7511,7 +7511,7 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
             version: Some("1.0.0".to_string()),
         },
     );
-    let settings = crate::optimistic_repeat_install::current_settings(
+    let settings = crate::optimistic_repeat_install::settings::current_settings(
         config,
         pacquet_config::NodeLinker::Isolated,
         included,
@@ -7634,7 +7634,7 @@ fn sync_fast_path_matches_optimistic_short_circuit() {
             version: Some("1.0.0".to_string()),
         },
     );
-    let settings = crate::optimistic_repeat_install::current_settings(
+    let settings = crate::optimistic_repeat_install::settings::current_settings(
         config,
         pacquet_config::NodeLinker::Isolated,
         included,
@@ -7753,7 +7753,7 @@ fn sync_fast_path_reads_the_workspace_root_wanted_lockfile_from_a_member() {
             pnpmfiles: Vec::new(),
             filtered_install: false,
             config_dependencies: None,
-            settings: crate::optimistic_repeat_install::current_settings(
+            settings: crate::optimistic_repeat_install::settings::current_settings(
                 config,
                 pacquet_config::NodeLinker::Isolated,
                 included,
@@ -7883,7 +7883,7 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
             version: Some("1.0.0".to_string()),
         },
     );
-    let settings = crate::optimistic_repeat_install::current_settings(
+    let settings = crate::optimistic_repeat_install::settings::current_settings(
         config,
         pacquet_config::NodeLinker::Isolated,
         included,
@@ -8037,7 +8037,7 @@ async fn partial_install_disables_optimistic_short_circuit() {
             version: Some("1.0.0".to_string()),
         },
     );
-    let settings = crate::optimistic_repeat_install::current_settings(
+    let settings = crate::optimistic_repeat_install::settings::current_settings(
         config,
         pacquet_config::NodeLinker::Isolated,
         included,
@@ -8183,7 +8183,7 @@ async fn optimistic_repeat_install_does_not_short_circuit_when_lockfile_missing(
             version: Some("1.0.0".to_string()),
         },
     );
-    let settings = crate::optimistic_repeat_install::current_settings(
+    let settings = crate::optimistic_repeat_install::settings::current_settings(
         config,
         pacquet_config::NodeLinker::Isolated,
         included,
