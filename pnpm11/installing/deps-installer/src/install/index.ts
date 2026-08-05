@@ -1214,7 +1214,7 @@ Note that in CI environments, this setting is enabled by default.`,
     } else {
       logger.info({ message: 'Lockfile is up to date, resolution step is skipped', prefix: opts.lockfileDir })
     }
-    if (opts.runPacquet != null && opts.useLockfile && !opts.useGitBranchLockfile && !opts.mergeGitBranchLockfiles && !isCheckOnlyInstall(opts) && opts.enableModulesDir) {
+    if (opts.runPacquet != null && opts.packageProvider == null && opts.useLockfile && !opts.useGitBranchLockfile && !opts.mergeGitBranchLockfiles && !isCheckOnlyInstall(opts) && opts.enableModulesDir) {
       try {
         await opts.runPacquet.run()
       } catch (err) {
@@ -2242,6 +2242,7 @@ function pacquetResolveResult (projects: ImporterToUpdate[], ctx: PnpmContext): 
 async function materializeOrDelegate (
   opts: {
     mergeGitBranchLockfiles?: boolean
+    packageProvider?: string
     runPacquet?: { run: (opts?: { filterResolvedProgress?: boolean }) => Promise<void> }
     saveLockfile?: boolean
     useGitBranchLockfile?: boolean
@@ -2251,6 +2252,7 @@ async function materializeOrDelegate (
 ): Promise<{ stats?: InstallationResultStats, ignoredBuilds?: IgnoredBuilds }> {
   if (
     opts.runPacquet != null &&
+    opts.packageProvider == null &&
     opts.useLockfile !== false &&
     opts.saveLockfile !== false &&
     opts.useGitBranchLockfile !== true &&

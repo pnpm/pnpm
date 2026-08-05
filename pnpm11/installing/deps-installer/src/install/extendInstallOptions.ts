@@ -473,6 +473,10 @@ export function extendOptions (
       throw new PnpmError('CONFIG_CONFLICT_PACKAGE_PROVIDER_GLOBAL_VIRTUAL_STORE',
         'packageProvider cannot be used together with enableGlobalVirtualStore: both take over where packages are materialized')
     }
+    if (extendedOpts.pnprServer) {
+      throw new PnpmError('CONFIG_CONFLICT_PACKAGE_PROVIDER_PNPR_SERVER',
+        'packageProvider cannot be used together with pnprServer: the pnpr server performs the installation and would ignore the provider')
+    }
   }
   if (extendedOpts.userAgent.startsWith('npm/')) {
     extendedOpts.userAgent = `${extendedOpts.packageManager.name}/${extendedOpts.packageManager.version} ${extendedOpts.userAgent}`

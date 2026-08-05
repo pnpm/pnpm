@@ -185,6 +185,14 @@ pub enum PackageProviderError {
         dep_path: String,
     },
 
+    #[display("The package provider returned a relative path for {dep_path}: {dir}")]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_PROVIDER_RESULT_INVALID))]
+    RelativePath {
+        #[error(not(source))]
+        dep_path: String,
+        dir: String,
+    },
+
     #[display("Failed to read the patch file of {dep_path} at {}: {source}", path.display())]
     #[diagnostic(code(pacquet_package_manager::package_provider_read_patch_file))]
     ReadPatchFile {
@@ -537,6 +545,14 @@ fn validate_provider_response(
         let Some(dir) = paths.get(dep_path) else {
             return Err(PackageProviderError::MissingPath { dep_path: dep_path.clone() });
         };
+        // A relative or empty path would resolve against the pnpm
+        // process directory; reject it like the TypeScript client does.
+        if dir.is_empty() || !Path::new(dir).is_absolute() {
+            return Err(PackageProviderError::RelativePath {
+                dep_path: dep_path.clone(),
+                dir: dir.clone(),
+            });
+        }
         out_paths.insert(key.clone(), PathBuf::from(dir));
     }
     Ok(PackageProviderOutput { paths: out_paths, skipped: skipped_keys })

@@ -66,6 +66,7 @@ export type CheckDepsStatusOptions = Pick<Config,
 | 'configDependencies'
 | 'overrides'
 | 'packageExtensions'
+| 'packageProvider'
 | 'ignoredOptionalDependencies'
 > & Pick<ConfigContext,
 | 'allProjects'

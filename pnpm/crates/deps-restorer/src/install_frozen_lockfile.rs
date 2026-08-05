@@ -1499,7 +1499,16 @@ where
                     &skipped,
                     false,
                 );
-                link_top_level_bins(&modules_dir, &direct_names, &[], &extra_node_paths)
+                // Public-hoist promotes transitives into the workspace
+                // root's `node_modules/<alias>`, so only the root
+                // importer's `.bin` sees hoisted candidates — same rule
+                // as `run_build_phase`.
+                let hoisted_names: &[String] = if *importer_id == Lockfile::ROOT_IMPORTER_KEY {
+                    &publicly_hoisted_for_post_build
+                } else {
+                    &[]
+                };
+                link_top_level_bins(&modules_dir, &direct_names, hoisted_names, &extra_node_paths)
                     .map_err(BuildPhaseError::TopLevelBinLink)
                     .map_err(InstallFrozenLockfileError::BuildPhase)?;
             }

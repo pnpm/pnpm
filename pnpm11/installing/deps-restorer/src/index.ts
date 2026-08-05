@@ -415,6 +415,12 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     const providerSkipped = await materializeThroughPackageProvider(opts.packageProvider, graph, { lockfileDir })
     for (const depPath of providerSkipped) {
       skipped.add(depPath)
+      // The current lockfile was filtered before materialization; drop the
+      // provider-skipped optionals from it the same way engine-skipped
+      // optionals are dropped, so lock.yaml doesn't record them as installed.
+      if (filteredLockfile.packages != null) {
+        delete filteredLockfile.packages[depPath] // eslint-disable-line @typescript-eslint/no-dynamic-delete
+      }
     }
     // The precomputed alias→dir maps still point into the (empty) virtual
     // store; remap them to the provider directories. Entries that are not

@@ -139,8 +139,11 @@ export async function materializeThroughPackageProvider (
       }
     }
     const providedDir = paths[node.depPath]
-    if (typeof providedDir !== 'string') {
+    if (typeof providedDir !== 'string' || providedDir === '') {
       throw new PnpmError('PACKAGE_PROVIDER_RESULT_INVALID', `The package provider returned no path for ${node.depPath}`)
+    }
+    if (!path.isAbsolute(providedDir)) {
+      throw new PnpmError('PACKAGE_PROVIDER_RESULT_INVALID', `The package provider returned a relative path for ${node.depPath}: ${providedDir}`)
     }
     node.modules = path.join(providedDir, 'node_modules')
     node.dir = path.join(node.modules, node.name)
@@ -166,6 +169,10 @@ async function invokeProvider (packageProvider: string, request: unknown): Promi
         reject(new PnpmError('PACKAGE_PROVIDER_FAILED', `The package provider at "${packageProvider}" exited with code ${code ?? 'unknown'}`))
       }
     })
+    // A provider that exits before reading its whole stdin makes the
+    // write fail with EPIPE; the exit code from `close` is the real
+    // diagnostic, so writing errors are swallowed here.
+    child.stdin.on('error', () => {})
     child.stdin.end(JSON.stringify(request))
   })
   let response: { protocol?: number, paths?: Record<string, string>, skipped?: string[] }
@@ -174,8 +181,12 @@ async function invokeProvider (packageProvider: string, request: unknown): Promi
   } catch {
     throw new PnpmError('PACKAGE_PROVIDER_RESULT_INVALID', `The package provider at "${packageProvider}" did not return valid JSON`)
   }
-  if (response.protocol !== PROTOCOL_VERSION || response.paths == null) {
+  if (response.protocol !== PROTOCOL_VERSION || response.paths == null || typeof response.paths !== 'object' || Array.isArray(response.paths)) {
     throw new PnpmError('PACKAGE_PROVIDER_RESULT_INVALID', `The package provider at "${packageProvider}" returned an unsupported response (protocol ${String(response.protocol ?? 'missing')})`)
   }
-  return { paths: response.paths, skipped: response.skipped ?? [] }
+  const skipped = response.skipped ?? []
+  if (!Array.isArray(skipped) || skipped.some((depPath) => typeof depPath !== 'string')) {
+    throw new PnpmError('PACKAGE_PROVIDER_RESULT_INVALID', `The package provider at "${packageProvider}" returned a non-string "skipped" list`)
+  }
+  return { paths: response.paths, skipped }
 }

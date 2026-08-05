@@ -509,6 +509,9 @@ impl InstallArgs {
             if dry_run {
                 return Err(DryRunIncompatibleWithPnpr.into());
             }
+            if config.package_provider.is_some() {
+                return Err(PackageProviderIncompatibleWithPnpr.into());
+            }
             return Box::pin(install_via_pnpr_inner::<Reporter>(
                 &state,
                 pnpr_server,
@@ -659,6 +662,14 @@ struct FrozenStoreIncompatibleWithPnpr;
     )
 )]
 struct DryRunIncompatibleWithPnpr;
+
+/// `ERR_PNPM_CONFIG_CONFLICT_PACKAGE_PROVIDER_PNPR_SERVER`.
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display(
+    "packageProvider cannot be used together with pnprServer: the pnpr server performs the installation and would ignore the provider"
+)]
+#[diagnostic(code(ERR_PNPM_CONFIG_CONFLICT_PACKAGE_PROVIDER_PNPR_SERVER))]
+struct PackageProviderIncompatibleWithPnpr;
 
 fn resolve_project(
     dir: String,

@@ -1299,6 +1299,7 @@ fn first_setting_drift(
         live.package_extensions.as_ref(),
     );
     return_drift_if!("packageExtensions", package_extensions_drift);
+    return_drift_if!("packageProvider", recorded.package_provider != live.package_provider);
     return_drift_if!(
         "patchedDependencies",
         recorded.patched_dependencies != live.patched_dependencies,
@@ -1444,6 +1445,7 @@ pub(crate) fn current_settings(
             .package_extensions
             .as_ref()
             .and_then(|map| serde_json::to_value(map).ok()),
+        package_provider: config.package_provider.clone(),
         patched_dependencies: config.patched_dependencies.clone(),
         peers_suffix_max_length: Some(
             u32::try_from(config.peers_suffix_max_length).unwrap_or(u32::MAX),

@@ -142,6 +142,13 @@ pub struct WorkspaceStateSettings {
     pub overrides: Option<BTreeMap<String, String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub package_extensions: Option<serde_json::Value>,
+    /// The `packageProvider` executable the install materialized
+    /// through, when one was configured. Enabling, disabling, or
+    /// switching the provider changes what `node_modules` links point
+    /// at without touching the lockfile, so a change must invalidate
+    /// the repeat-install fast path.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub package_provider: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub patched_dependencies: Option<IndexMap<String, String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

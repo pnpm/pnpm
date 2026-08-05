@@ -24,6 +24,21 @@ process.stdin.on('end', () => {
   const request = JSON.parse(input)
   fs.writeFileSync(path.join(__dirname, 'request.json'), JSON.stringify(request))
   const subdir = (depPath) => depPath.replace(/[^A-Za-z0-9._@-]/g, '+')
+  const setTreeMode = (root, mode) => {
+    // Walk without following symlinks: chmod on a symlink would affect
+    // the (possibly shared) target tree.
+    const stack = [root]
+    while (stack.length > 0) {
+      const dir = stack.pop()
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const entryPath = path.join(dir, entry.name)
+        if (entry.isSymbolicLink()) continue
+        if (entry.isDirectory()) stack.push(entryPath)
+        fs.chmodSync(entryPath, entry.isDirectory() ? mode | 0o111 : mode)
+      }
+    }
+    fs.chmodSync(root, mode | 0o111)
+  }
   const paths = {}
   const skipped = []
   for (const [depPath, node] of Object.entries(request.nodes)) {
@@ -33,6 +48,8 @@ process.stdin.on('end', () => {
       continue
     }
     const dir = path.join(__dirname, 'store', subdir(depPath))
+    // a repeat request may reuse a tree this provider froze earlier
+    if (fs.existsSync(dir)) setTreeMode(dir, 0o644)
     fs.mkdirSync(path.join(dir, 'node_modules', node.name), { recursive: true })
     fs.writeFileSync(path.join(dir, 'node_modules', node.name, 'package.json'), JSON.stringify({ name: node.name, version: node.version }))
     paths[depPath] = dir
@@ -50,6 +67,9 @@ process.stdin.on('end', () => {
       }
     }
   }
+  // Freeze the returned trees: a real provider (the Nix store) hands
+  // out read-only directories, so installer writes must fail here too.
+  for (const dir of Object.values(paths)) setTreeMode(dir, 0o444)
   process.stdout.write(JSON.stringify({ protocol: 1, paths, skipped }))
 })
 ";
