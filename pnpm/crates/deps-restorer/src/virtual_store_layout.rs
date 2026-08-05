@@ -91,7 +91,7 @@ pub struct VirtualStoreLayout {
     virtual_store_dir_max_length: usize,
 
     /// Directory the lockfile's relative paths resolve against.
-    /// [`crate::create_symlink_layout`] needs it to point a `link:`
+    /// [`crate::create_symlink_layout()`] needs it to point a `link:`
     /// dependency's symlink at the directory the lockfile names, which
     /// it records relative to this root. `None` when the caller has no
     /// lockfile context, in which case `link:` dependencies inside a
@@ -537,7 +537,7 @@ fn local_directory_scope<'a>(
 /// different directory.
 ///
 /// A `link:` dependency is the one child materialized as a symlink
-/// *out* of the virtual store (see [`crate::create_symlink_layout`]),
+/// *out* of the virtual store (see [`crate::create_symlink_layout()`]),
 /// so unlike every other child it makes the slot's contents depend on
 /// where the lockfile's relative target lands. The peer suffix that
 /// carries the link into the dep path — `(react@fake-react)` — is
@@ -562,6 +562,16 @@ fn link_target_scope(snapshot: &SnapshotEntry, lockfile_dir: Option<&Path>) -> O
             // The alias is the symlink's *name* inside the slot, so two
             // snapshots pointing one directory at different aliases lay
             // out differently and must not share a slot either.
+            //
+            // Lossy for the same reason `project_scope` above is: the
+            // TypeScript CLI hashes this from a JS string, and Node
+            // decodes a path as UTF-8 with replacement, so this is the
+            // identical input. Hashing the raw bytes would give the two
+            // stacks different slots for one project — a certain
+            // divergence traded against the collision between two
+            // targets whose non-UTF-8 bytes both replace to the same
+            // string, which needs paths that are invalid UTF-8 to begin
+            // with.
             Some(format!("{alias}\u{0}{}", resolved.to_string_lossy()))
         })
         .collect();
