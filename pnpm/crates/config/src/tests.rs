@@ -3324,3 +3324,29 @@ pub fn extra_bin_paths_lists_workspace_root_bin_only_inside_a_workspace() {
     let config = load_with_fake_env(project.path());
     assert_eq!(config.extra_bin_paths, vec![project.path().join("node_modules").join(".bin")]);
 }
+
+// The reader notices what a project's manifest may not set while it reads
+// that manifest, so there is nothing to report without one — and a run from a
+// subdirectory reports the manifest the walk up actually found.
+#[test]
+pub fn skipped_project_settings_come_from_the_manifest_the_reader_found() {
+    fake_env!(load_with_fake_env);
+    let project = tempdir().expect("project tempdir");
+    set_fake_env(&[]);
+
+    let config = load_with_fake_env(project.path());
+    assert_eq!(config.skipped_project_settings, Vec::<String>::new());
+
+    fs::write(
+        project.path().join("pnpm-workspace.yaml"),
+        "packages:\n  - .\nconfigDir: /tmp/attacker\nstoreDir: ~/store\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    let config = load_with_fake_env(project.path());
+    assert_eq!(config.skipped_project_settings, vec!["configDir".to_string()]);
+
+    let nested = project.path().join("packages").join("leaf");
+    fs::create_dir_all(&nested).expect("create the nested package");
+    let config = load_with_fake_env(&nested);
+    assert_eq!(config.skipped_project_settings, vec!["configDir".to_string()]);
+}

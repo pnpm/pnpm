@@ -422,9 +422,10 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
     }
 
     let (base_dir, settings) = match WorkspaceSettings::find_and_load(root_dir).into_diagnostic()? {
-        Some((path, settings)) => {
-            (path.parent().map_or_else(|| root_dir.to_path_buf(), Path::to_path_buf), settings)
-        }
+        Some(found) => (
+            found.path.parent().map_or_else(|| root_dir.to_path_buf(), Path::to_path_buf),
+            found.settings,
+        ),
         None => (root_dir.to_path_buf(), WorkspaceSettings::default()),
     };
     let mut input = serde_json::to_value(&settings)

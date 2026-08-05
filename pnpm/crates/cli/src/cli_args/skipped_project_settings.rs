@@ -6,14 +6,13 @@
 
 use super::config_warnings::emit_config_warning;
 use itertools::Itertools;
-use pacquet_config::skipped_project_settings;
-use std::path::Path;
+use pacquet_config::Config;
 
 /// Warn about every skipped setting the project's `pnpm-workspace.yaml`
-/// declares. This is a config-load warning, so it goes to stderr through
-/// [`emit_config_warning`] rather than the reporter.
-pub(crate) fn warn_skipped_project_settings(workspace_dir: &Path) {
-    let ignored = skipped_project_settings(workspace_dir);
+/// declared, as its own load noticed them. This is a config-load warning, so
+/// it goes to stderr through [`emit_config_warning`] rather than the reporter.
+pub(crate) fn warn_skipped_project_settings(config: &Config) {
+    let ignored = &config.skipped_project_settings;
     if ignored.is_empty() {
         return;
     }

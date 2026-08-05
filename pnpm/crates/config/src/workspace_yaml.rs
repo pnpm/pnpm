@@ -774,20 +774,23 @@ pub enum LoadWorkspaceYamlError {
     CannotResolveOverrideVersion { spec: String, dependency_name: String },
 }
 
-/// A workspace manifest's top-level keys, in the order the file lists them,
-/// with the values discarded.
+/// The settings a manifest declares that a project's `pnpm-workspace.yaml`
+/// does not contribute, in the order the file lists them and the spelling it
+/// used.
 ///
-/// Reading the keys separately from [`WorkspaceSettings`] is what makes
-/// reporting them possible at all: that struct is typed, so by the time it
-/// exists the keys it does not declare are already gone.
-struct TopLevelKeys(Vec<String>);
+/// Reading them separately from [`WorkspaceSettings`] is what makes reporting
+/// them possible at all: that struct is typed, so by the time it exists the
+/// keys it does not declare are already gone. Every other key the manifest
+/// carries is dropped as the map is walked, so only the reportable ones are
+/// ever held.
+struct SkippedProjectSettings(Vec<String>);
 
-impl<'de> Deserialize<'de> for TopLevelKeys {
+impl<'de> Deserialize<'de> for SkippedProjectSettings {
     fn deserialize<De: Deserializer<'de>>(deserializer: De) -> Result<Self, De::Error> {
         struct KeyVisitor;
 
         impl<'de> serde::de::Visitor<'de> for KeyVisitor {
-            type Value = TopLevelKeys;
+            type Value = SkippedProjectSettings;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
                 formatter.write_str("a workspace manifest mapping")
@@ -797,12 +800,16 @@ impl<'de> Deserialize<'de> for TopLevelKeys {
                 self,
                 mut map: Map,
             ) -> Result<Self::Value, Map::Error> {
-                let mut keys = Vec::new();
+                let mut skipped = Vec::new();
                 while let Some(key) = map.next_key::<String>()? {
                     map.next_value::<serde::de::IgnoredAny>()?;
-                    keys.push(key);
+                    if crate::config_types::is_project_manifest_skipped_setting(
+                        &crate::naming_cases::to_camel_case(&key),
+                    ) {
+                        skipped.push(key);
+                    }
                 }
-                Ok(TopLevelKeys(keys))
+                Ok(SkippedProjectSettings(skipped))
             }
         }
 
@@ -810,21 +817,30 @@ impl<'de> Deserialize<'de> for TopLevelKeys {
     }
 }
 
+/// A `pnpm-workspace.yaml` found by walking up from a starting directory,
+/// with everything its single read yields.
+#[derive(Debug)]
+pub struct FoundWorkspaceManifest {
+    /// The manifest's own path, so callers can anchor relative settings on
+    /// its directory.
+    pub path: PathBuf,
+    pub settings: WorkspaceSettings,
+    /// What [`skipped_project_settings`] found in the same text. Meaningful
+    /// only for a project's manifest — the global package directory's is
+    /// machine-level, and nothing reports on it.
+    pub skipped_settings: Vec<String>,
+}
+
+/// The settings in `manifest_text` that a project's `pnpm-workspace.yaml` does
+/// not contribute.
+///
+/// Takes the text rather than a directory so it can run on the read the
+/// config loader already did. A manifest that does not parse yields nothing:
+/// the load path reports that with far more context than this could.
 #[must_use]
-pub fn skipped_project_settings(workspace_dir: &Path) -> Vec<String> {
-    let Ok(text) = fs::read_to_string(workspace_dir.join("pnpm-workspace.yaml")) else {
-        return Vec::new();
-    };
-    let Ok(TopLevelKeys(keys)) = serde_saphyr::from_str::<TopLevelKeys>(&text) else {
-        return Vec::new();
-    };
-    keys.into_iter()
-        .filter(|key| {
-            crate::config_types::is_project_manifest_skipped_setting(
-                &crate::naming_cases::to_camel_case(key),
-            )
-        })
-        .collect()
+pub fn skipped_project_settings(manifest_text: &str) -> Vec<String> {
+    serde_saphyr::from_str::<SkippedProjectSettings>(manifest_text)
+        .map_or_else(|_| Vec::new(), |SkippedProjectSettings(skipped)| skipped)
 }
 
 impl WorkspaceSettings {
@@ -939,7 +955,7 @@ impl WorkspaceSettings {
     /// other than `ENOENT` propagate, matching pnpm.
     pub fn find_and_load(
         start_dir: &Path,
-    ) -> Result<Option<(PathBuf, Self)>, LoadWorkspaceYamlError> {
+    ) -> Result<Option<FoundWorkspaceManifest>, LoadWorkspaceYamlError> {
         for dir in start_dir.ancestors() {
             let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
             let read_result = fs::read_to_string(&path);
@@ -955,16 +971,20 @@ impl WorkspaceSettings {
                 continue;
             }
 
-            let settings: WorkspaceSettings = read_result
-                .map_err(|source| LoadWorkspaceYamlError::ReadFile { path: path.clone(), source })?
-                .pipe_as_ref(serde_saphyr::from_str)
-                .map_err(Box::new)
-                .map_err(|source| LoadWorkspaceYamlError::ParseYaml {
-                    path: path.clone(),
-                    source,
+            let text = read_result.map_err(|source| LoadWorkspaceYamlError::ReadFile {
+                path: path.clone(),
+                source,
+            })?;
+            let settings: WorkspaceSettings =
+                text.pipe_as_ref(serde_saphyr::from_str).map_err(Box::new).map_err(|source| {
+                    LoadWorkspaceYamlError::ParseYaml { path: path.clone(), source }
                 })?;
 
-            return Ok(Some((path, settings)));
+            return Ok(Some(FoundWorkspaceManifest {
+                skipped_settings: skipped_project_settings(&text),
+                path,
+                settings,
+            }));
         }
 
         Ok(None)

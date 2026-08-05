@@ -360,10 +360,11 @@ async fn run_group_install<Reporter: self::Reporter + 'static>(
     // decisions) instead.
     cfg.dangerously_allow_all_builds = false;
     cfg.allow_builds.clear();
-    if let Some((_, settings)) = WorkspaceSettings::find_and_load(global_pkg_dir)
+    if let Some(found) = WorkspaceSettings::find_and_load(global_pkg_dir)
         .map_err(miette::Report::new)
         .wrap_err("load global allowBuilds")?
     {
+        let settings = found.settings;
         if let Some(allow_builds) = settings.allow_builds {
             cfg.allow_builds = decided_allow_builds(allow_builds);
         }

@@ -958,9 +958,9 @@ fn find_walks_up_to_parent_dir() {
     fs::create_dir_all(&nested).unwrap();
     fs::write(tmp.path().join("pnpm-workspace.yaml"), "storeDir: /s\n").unwrap();
 
-    let (found, settings) = WorkspaceSettings::find_and_load(&nested).unwrap().unwrap();
-    assert_eq!(found, tmp.path().join("pnpm-workspace.yaml"));
-    assert_eq!(settings.store_dir.as_deref(), Some("/s"));
+    let found = WorkspaceSettings::find_and_load(&nested).unwrap().unwrap();
+    assert_eq!(found.path, tmp.path().join("pnpm-workspace.yaml"));
+    assert_eq!(found.settings.store_dir.as_deref(), Some("/s"));
 }
 
 /// Pnpm's `readManifestRaw` only treats `ENOENT` as "no manifest" and
@@ -1811,15 +1811,8 @@ fn parses_save_settings_from_yaml_and_applies() {
 }
 
 mod skipped_project_settings {
-    use crate::workspace_yaml::skipped_project_settings;
-    use tempfile::TempDir;
+    use crate::workspace_yaml::skipped_project_settings as skipped_in;
     use text_block_macros::text_block_fnl;
-
-    fn skipped_in(manifest: &str) -> Vec<String> {
-        let tmp = TempDir::new().unwrap();
-        std::fs::write(tmp.path().join("pnpm-workspace.yaml"), manifest).unwrap();
-        skipped_project_settings(tmp.path())
-    }
 
     #[test]
     fn reports_a_skipped_setting() {
@@ -1859,12 +1852,6 @@ mod skipped_project_settings {
             "  - '.'"
         });
         assert_eq!(found, vec!["configDir".to_string(), "pnpmHomeDir".to_string()]);
-    }
-
-    #[test]
-    fn says_nothing_without_a_manifest() {
-        let tmp = TempDir::new().unwrap();
-        assert!(skipped_project_settings(tmp.path()).is_empty());
     }
 
     /// The install path reports a broken manifest with far more context, so

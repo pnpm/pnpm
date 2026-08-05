@@ -162,10 +162,10 @@ fn add_config_accepts_multiple_package_selectors_in_one_operation() {
         .assert()
         .success();
 
-    let (_, settings) = WorkspaceSettings::find_and_load(&workspace)
+    let found = WorkspaceSettings::find_and_load(&workspace)
         .expect("read pnpm-workspace.yaml")
         .expect("workspace manifest exists");
-    let config_dependencies = settings.config_dependencies.expect("configDependencies map");
+    let config_dependencies = found.settings.config_dependencies.expect("configDependencies map");
     assert_eq!(config_dependencies.len(), 2);
     for package_name in ["@pnpm.e2e/foo", "@pnpm.e2e/bar"] {
         assert_eq!(
