@@ -322,7 +322,7 @@ export async function getContextForSingleImporter (
   if (opts.hoistPattern?.length) {
     extraBinPaths.unshift(path.join(hoistedModulesDir, '.bin'))
   }
-  const hookedManifest = await opts.readPackageHook?.(manifest) ?? manifest
+  const hookedManifest = await opts.readPackageHook?.(manifest, opts.dir) ?? manifest
   const ctx: PnpmSingleContext = {
     extraBinPaths,
     extraNodePaths: getExtraNodePaths({
