@@ -28,7 +28,9 @@ use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
 use pacquet_registry::RangeSpecStyle;
-use pacquet_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
+use pacquet_reporter::{
+    LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, PnpmLog, Reporter,
+};
 use pacquet_resolving_default_resolver::DefaultResolver;
 use pacquet_resolving_deps_resolver::UpdateDepth;
 use pacquet_resolving_npm_resolver::{
@@ -717,13 +719,13 @@ async fn prepare_manifest<Reporter: self::Reporter>(
                         && let Some(requested) = requested.as_deref()
                         && !stays_within_kept_range(requested, previous)
                     {
-                        tracing::warn!(
-                            target: "pacquet_package_manager::update",
-                            name,
-                            requested,
-                            kept = previous,
-                            r#"Skipping "{name}@{requested}": it doesn't satisfy "{previous}", which the manifest keeps when updating without saving."#,
-                        );
+                        Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+                            level: LogLevel::Warn,
+                            message: format!(
+                                r#"Skipping "{name}@{requested}": it doesn't satisfy "{previous}", which the manifest keeps when updating without saving."#,
+                            ),
+                            prefix: package_manifest_prefix(rewrite_ctx.manifest),
+                        }));
                         continue;
                     }
                     requested

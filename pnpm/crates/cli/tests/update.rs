@@ -1309,7 +1309,15 @@ fn update_no_save_skips_version_outside_kept_range() {
     pacquet(&workspace, ["install"]).assert().success();
     assert!(virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"));
 
-    pacquet(&workspace, ["update", "--no-save", &format!("{DEP}@101.0.0")]).assert().success();
+    let output = pacquet(&workspace, ["update", "--no-save", &format!("{DEP}@101.0.0")])
+        .output()
+        .expect("run update --no-save");
+    assert!(output.status.success(), "update --no-save failed: {output:?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains(&format!(r#"Skipping "{DEP}@101.0.0""#)),
+        "the skipped dependency must be reported to the user: {stdout}",
+    );
 
     // package.json keeps its range, and the dependency stays untouched.
     assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("^100.0.0"));
