@@ -208,12 +208,23 @@ fn optional_children_match(
         skipped,
         link_dependencies,
         include_optional_dependencies,
-        |path| match std::fs::symlink_metadata(path) {
-            Ok(_) => Ok(true),
+        optional_child_matches,
+    )
+}
+
+fn optional_child_matches(child_path: &Path, should_exist: bool) -> std::io::Result<bool> {
+    if should_exist {
+        return match std::fs::metadata(child_path) {
+            Ok(metadata) => Ok(metadata.is_dir()),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
             Err(error) => Err(error),
-        },
-    )
+        };
+    }
+    match std::fs::symlink_metadata(child_path) {
+        Ok(_) => Ok(false),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(true),
+        Err(error) => Err(error),
+    }
 }
 
 fn optional_children_match_with(
@@ -223,7 +234,7 @@ fn optional_children_match_with(
     skipped: &SkippedSnapshots,
     link_dependencies: bool,
     include_optional_dependencies: bool,
-    mut child_exists: impl FnMut(&Path) -> std::io::Result<bool>,
+    mut child_matches: impl FnMut(&Path, bool) -> std::io::Result<bool>,
 ) -> Result<bool, CreateVirtualStoreError> {
     let Some(optional_dependencies) = snapshot.optional_dependencies.as_ref() else {
         return Ok(true);
@@ -238,9 +249,6 @@ fn optional_children_match_with(
         else {
             return Ok(false);
         };
-        let exists = child_exists(&child_path).map_err(|error| {
-            CreateVirtualStoreError::InspectOptionalDependency { path: child_path.clone(), error }
-        })?;
         let should_exist = link_dependencies
             && include_optional_dependencies
             && if let Some(target) = dep_ref.resolve(alias) {
@@ -248,7 +256,10 @@ fn optional_children_match_with(
             } else {
                 dep_ref.as_link_target().is_some() && layout.lockfile_dir().is_some()
             };
-        if exists != should_exist {
+        let matches = child_matches(&child_path, should_exist).map_err(|error| {
+            CreateVirtualStoreError::InspectOptionalDependency { path: child_path.clone(), error }
+        })?;
+        if !matches {
             return Ok(false);
         }
     }
