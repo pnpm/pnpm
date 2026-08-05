@@ -44,10 +44,11 @@ pub(crate) fn virtual_store_dir_for_key(
 ///
 /// The overlay is the resolved post-build file set, so a slot still
 /// carrying only the pristine tarball is missing whatever the build
-/// added and fails the check. A build that *only deleted* files is
-/// indistinguishable from an unbuilt slot here and reads as seeded;
-/// pnpm's `.pnpm-needs-build` marker is what closes that gap, and
-/// pacquet has not ported it yet.
+/// added and fails the check. The file set alone cannot see a build
+/// that *only deleted* files, which is why [`NEEDS_BUILD_MARKER`] is
+/// checked first: a pristine re-import of a package that needs building
+/// carries the marker, so it reports unseeded no matter what the overlay
+/// looks like.
 ///
 /// Only reached for packages that both pass the build-allow policy and
 /// have a cache entry — a handful per install, not the whole tree.
