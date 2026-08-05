@@ -1,9 +1,12 @@
 use super::{
-    Decision, FileMtime, LinkedPackagesContext, MAX_LOCKFILE_CONFLICT_SCAN_BYTES,
-    OptimisticRepeatInstallCheck, RunDepsStatus, check_deps_status_before_run,
-    check_optimistic_repeat_install, check_optimistic_repeat_install_ignoring, current_pnpmfiles,
-    current_settings, current_settings_with_catalogs, linked_packages_are_up_to_date,
-    lockfile_modified_since, modified_at_or_after,
+    Decision, OptimisticRepeatInstallCheck, check_optimistic_repeat_install,
+    check_optimistic_repeat_install_ignoring,
+    conflict_markers::MAX_LOCKFILE_CONFLICT_SCAN_BYTES,
+    current_pnpmfiles,
+    deps_status::{RunDepsStatus, check_deps_status_before_run},
+    manifest_agreement::{LinkedPackagesContext, linked_packages_are_up_to_date},
+    settings::{current_settings, current_settings_with_catalogs},
+    timestamps::{FileMtime, lockfile_modified_since, modified_at_or_after},
 };
 use indexmap::IndexMap;
 use pacquet_catalogs_types::Catalogs;
