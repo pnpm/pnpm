@@ -460,25 +460,12 @@ pub(crate) async fn fetch_and_extract_once<Reporter: self::Reporter>(
         let mut buf = allocate_tarball_buffer(expected_size, package_url)?;
         let mut stream = response_head.bytes_stream();
 
-        // `in_progress` is gated and throttled to match pnpm exactly:
-        //
-        // 1. Only emit when the tarball size is *known* (i.e. the
-        //    response carried a `Content-Length`). Chunked / unknown-
-        //    length responses skip the channel entirely; pnpm's
-        //    default reporter needs `size` to render a percent gauge,
-        //    and emitting `downloaded` without a denominator is
-        //    noise.
-        // 2. Only emit when the tarball is "big" — at least 5 MB.
-        //    Most npm packages are well under this; the pnpm authors
-        //    found per-byte progress for tiny tarballs floods the
-        //    JS side with values that would render as 100% before any
-        //    UI tick can show them.
-        // 3. Throttle emits to 500ms with leading + trailing edges,
-        //    matching `lodash.throttle(opts.onProgress, 500)`. Leading
-        //    is the first chunk we see; trailing is a final emit
-        //    after the body finishes so the consumer sees the actual
-        //    end-of-download byte count, not whatever value happened
-        //    to be cached at the last 500ms tick.
+        // Mirrors `lodash.throttle(opts.onProgress, 500)` on pnpm's
+        // side, down to the leading and trailing edges. The size gate
+        // exists because the default reporter renders a percent gauge:
+        // without a `Content-Length` there is no denominator, and for
+        // a typical sub-megabyte package the gauge would reach 100%
+        // before any UI tick could show it.
         const BIG_TARBALL_SIZE: u64 = 5 * 1024 * 1024;
         const IN_PROGRESS_THROTTLE: Duration = Duration::from_millis(500);
         let emit_progress = expected_size.is_some_and(|size| size >= BIG_TARBALL_SIZE);

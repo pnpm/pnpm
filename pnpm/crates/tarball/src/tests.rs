@@ -3715,3 +3715,142 @@ fn extract_joins_nested_entry_paths_with_forward_slashes() {
 
     drop(tempdir);
 }
+
+/// Build a gzipped tar whose *compressed* body is at least `min_bytes`,
+/// so the response carries a `Content-Length` over the in-progress
+/// threshold. The payload is LCG noise because gzip would otherwise
+/// collapse a compressible body well under the threshold.
+fn incompressible_tarball(min_bytes: usize) -> Vec<u8> {
+    let mut payload = vec![0_u8; min_bytes + (1 << 16)];
+    let mut state: u32 = 0x1234_5678;
+    for byte in &mut payload {
+        state = state.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+        *byte = (state >> 24) as u8;
+    }
+
+    let mut tar_bytes = Vec::new();
+    {
+        let mut builder = tar::Builder::new(&mut tar_bytes);
+        let mut header = tar::Header::new_gnu();
+        header.set_size(payload.len() as u64);
+        header.set_mode(0o644);
+        header.set_entry_type(tar::EntryType::Regular);
+        header.set_path("package/noise.bin").expect("set entry path");
+        header.set_cksum();
+        builder.append(&header, payload.as_slice()).expect("append entry");
+        builder.finish().expect("finalize tar");
+    }
+
+    let mut gz = Vec::new();
+    {
+        use std::io::Write as _;
+        let mut encoder = flate2::write::GzEncoder::new(&mut gz, flate2::Compression::fast());
+        encoder.write_all(&tar_bytes).expect("gzip the tar");
+        encoder.finish().expect("finish gzip");
+    }
+    gz
+}
+
+/// `in_progress` fires only for tarballs at or above `BIG_TARBALL_SIZE`.
+/// pnpm's reporter renders a percent gauge from these, and per-byte
+/// events for the typical sub-megabyte package flood the consumer with
+/// values that reach 100% before any UI tick can show them.
+#[tokio::test]
+async fn in_progress_events_fire_only_for_big_tarballs() {
+    use std::sync::Mutex;
+
+    use pacquet_reporter::{FetchingProgressMessage, LogEvent};
+
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+
+    struct RecordingReporter;
+    impl pacquet_reporter::Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().unwrap().push(event.clone());
+        }
+    }
+
+    fn in_progress_count() -> usize {
+        EVENTS
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|event| {
+                matches!(
+                    event,
+                    LogEvent::FetchingProgress(log)
+                        if matches!(log.message, FetchingProgressMessage::InProgress { .. }),
+                )
+            })
+            .count()
+    }
+
+    fn last_in_progress_bytes() -> Option<u64> {
+        EVENTS.lock().unwrap().iter().rev().find_map(|event| match event {
+            LogEvent::FetchingProgress(log) => match log.message {
+                FetchingProgressMessage::InProgress { downloaded, .. } => Some(downloaded),
+                FetchingProgressMessage::Started { .. } => None,
+            },
+            _ => None,
+        })
+    }
+
+    async fn download_body<Reporter: pacquet_reporter::Reporter>(
+        body: Vec<u8>,
+        store_path: &'static pacquet_store_dir::StoreDir,
+    ) {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("GET", "/pkg.tgz")
+            .with_status(200)
+            .with_body(body)
+            .expect(1)
+            .create_async()
+            .await;
+        let url = format!("{}/pkg.tgz", server.url());
+
+        fetch_and_extract_with_retry::<Reporter>(
+            &ThrottledClient::default(),
+            &url,
+            None,
+            None,
+            0,
+            "noise@1.0.0",
+            "",
+            store_path,
+            fast_retry_opts(),
+            &AuthHeaders::default(),
+            None,
+            None,
+        )
+        .await
+        .expect("the download should succeed");
+
+        mock.assert_async().await;
+    }
+
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+
+    let big = incompressible_tarball(6 * 1024 * 1024);
+    let big_len = big.len() as u64;
+    EVENTS.lock().unwrap().clear();
+    download_body::<RecordingReporter>(big, store_path).await;
+    assert!(in_progress_count() > 0, "a tarball over the threshold must report download progress");
+    // Trailing edge: the last event carries the true total rather than
+    // whatever the final throttle window happened to observe.
+    assert_eq!(
+        last_in_progress_bytes(),
+        Some(big_len),
+        "the final progress event must report the whole body",
+    );
+
+    EVENTS.lock().unwrap().clear();
+    download_body::<RecordingReporter>(incompressible_tarball(16 * 1024), store_path).await;
+    assert_eq!(
+        in_progress_count(),
+        0,
+        "a tarball under the threshold must not report per-chunk progress",
+    );
+
+    drop(store_dir_keep);
+}

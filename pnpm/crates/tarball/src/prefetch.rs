@@ -245,8 +245,11 @@ pub async fn prefetch_cas_paths(
 /// filesystem work — missing / corrupt CAFS blobs surface lazily when
 /// the caller tries to import them.
 ///
-/// Corruption is caught via the content hash, not by gating on the
-/// dirent type.
+/// A dirent that is not a regular file is not rejected on that basis
+/// alone. Note that `true` does not mean every byte is re-read: a file
+/// whose mtime has not advanced past the recorded `checkedAt` is
+/// accepted on the stat alone, so this detects decay rather than
+/// deliberate tampering that preserves the timestamp.
 ///
 /// The `index` argument is a shared read-only handle that callers open
 /// once per install and pass in repeatedly, so we don't pay the
