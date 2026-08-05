@@ -15,7 +15,7 @@ import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/
 import type { DependenciesField, Project, ProjectRootDir } from '@pnpm/types'
 import { findWorkspaceProjects } from '@pnpm/workspace.projects-reader'
 import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writer'
-import { pick, without } from 'ramda'
+import { pick, uniq, without } from 'ramda'
 import { renderHelp } from 'render-help'
 
 import { getSaveType } from './getSaveType.js'
@@ -276,5 +276,10 @@ function expandRemovePatterns (
   }
 ): string[] {
   if (!params.some(param => param.includes('*') || param.startsWith('!'))) return params
-  return matchDependencies(createMatcher(params), manifest, include)
+  if (params.every(param => param.startsWith('!'))) return []
+  const explicitDependencies = params.filter(param => !param.includes('*') && !param.startsWith('!'))
+  return uniq([
+    ...explicitDependencies,
+    ...matchDependencies(createMatcher(params), manifest, include),
+  ])
 }

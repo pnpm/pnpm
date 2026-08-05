@@ -332,12 +332,25 @@ fn expand_remove_patterns(
     if !has_remove_patterns(package_names) {
         return package_names.to_vec();
     }
+    if package_names.iter().all(|name| name.starts_with('!')) {
+        return Vec::new();
+    }
     let matcher = pacquet_config::matcher::create_matcher(package_names);
-    manifest
+    let mut expanded = package_names
+        .iter()
+        .filter(|name| !name.contains('*') && !name.starts_with('!'))
+        .cloned()
+        .collect::<Vec<_>>();
+    for name in manifest
         .available_dependency_names(save_type)
         .into_iter()
         .filter(|name| matcher.matches(name))
-        .collect()
+    {
+        if !expanded.contains(&name) {
+            expanded.push(name);
+        }
+    }
+    expanded
 }
 
 fn has_remove_patterns(package_names: &[String]) -> bool {

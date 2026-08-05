@@ -173,6 +173,53 @@ test('recursive remove with unmatched dependency glob patterns is a no-op', asyn
   })
 })
 
+test('remove with mixed missing exact dependency and glob pattern fails', async () => {
+  prepare({
+    dependencies: {
+      eslint: '1.0.0',
+      'eslint-plugin-import': '1.0.0',
+    },
+  })
+
+  let err!: PnpmError
+  try {
+    await remove.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+    }, ['left-pad', 'eslint-*'])
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
+
+  expect(err.code).toBe('ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
+  expect(err.message).toBe("Cannot remove 'left-pad': no such dependency found")
+  const manifest = JSON.parse(await readFile('package.json', 'utf8'))
+  expect(manifest.dependencies).toStrictEqual({
+    eslint: '1.0.0',
+    'eslint-plugin-import': '1.0.0',
+  })
+})
+
+test('remove with only negated dependency patterns is a no-op', async () => {
+  prepare({
+    dependencies: {
+      eslint: '1.0.0',
+      'is-positive': '1.0.0',
+    },
+  })
+
+  await remove.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  }, ['!does-not-exist'])
+
+  const manifest = JSON.parse(await readFile('package.json', 'utf8'))
+  expect(manifest.dependencies).toStrictEqual({
+    eslint: '1.0.0',
+    'is-positive': '1.0.0',
+  })
+})
+
 test('remove should fail if the project does not have one of the removed dependencies', async () => {
   prepare({
     dependencies: {

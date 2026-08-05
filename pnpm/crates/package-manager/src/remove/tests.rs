@@ -131,6 +131,40 @@ fn remove_expands_dependency_glob_patterns() {
 }
 
 #[test]
+fn remove_preserves_missing_exact_dependencies_when_expanding_patterns() {
+    let (manifest, _dir) = manifest(json!({
+        "dependencies": {
+            "eslint": "1.0.0",
+            "eslint-plugin-import": "1.0.0"
+        },
+    }));
+
+    let package_names =
+        expand_remove_patterns(&manifest, &strings(&["left-pad", "eslint-*"]), None);
+
+    assert_eq!(package_names, strings(&["left-pad", "eslint-plugin-import"]));
+    assert!(matches!(
+        validate_removable(&manifest, &package_names, None),
+        Err(RemoveValidationError::CannotRemoveMissingDeps { .. })
+    ));
+}
+
+#[test]
+fn remove_with_only_negated_dependency_patterns_is_a_no_op() {
+    let (manifest, _dir) = manifest(json!({
+        "dependencies": {
+            "eslint": "1.0.0",
+            "is-positive": "1.0.0"
+        },
+    }));
+
+    assert_eq!(
+        expand_remove_patterns(&manifest, &strings(&["!does-not-exist"]), None),
+        Vec::<String>::new()
+    );
+}
+
+#[test]
 fn validate_removable_accepts_present_dependencies() {
     let (manifest, _dir) = manifest(json!({
         "dependencies": { "foo": "1.0.0" },
