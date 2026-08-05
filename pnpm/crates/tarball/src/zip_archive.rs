@@ -93,26 +93,16 @@ pub(crate) fn extract_zip_entries(
             continue;
         }
 
-        // Rebuild the path into a forward-slash string from the
-        // sanitized `enclosed_name()` components. Three reasons over
-        // using the raw `entry.name()`:
+        // Rebuild the path as a forward-slash string from the sanitized
+        // components, so `.` segments collapse to one canonical key and
+        // the ignore filter matches against exactly that key.
         //
-        // 1. `.` segments are already collapsed by `enclosed_name`,
-        //    so `pkg/./foo.txt` and `pkg/foo.txt` produce the same
-        //    `cas_paths` key — no accidental duplicates from
-        //    publisher tooling quirks.
-        // 2. The ignore filter sees the same canonical strings the
-        //    map is keyed by, so the regex / hand-coded matchers
-        //    can't be tripped up by `.` segments either.
-        // 3. Zip entries are spec'd to use `/` separators; this also
-        //    rejects any `\` an in-the-wild Windows-built archive
-        //    might have smuggled in (those would be `Normal`
-        //    components on Unix but interpreted as separators on
-        //    Windows).
-        //
-        // `enclosed_name` only yields `Normal` components, so the
-        // path-component walk below covers every case.
-        let normalized: String = enclosed
+        // `enclosed_name` yields only `Normal` components, but a `\`
+        // inside one is an ordinary filename character on Unix, so the
+        // segments are re-checked by
+        // [`crate::extract::archive_entry_segments`], which treats it as
+        // a separator the way pnpm does.
+        let joined: String = enclosed
             .components()
             .map(|component| match component {
                 Component::Normal(name) => name.to_string_lossy().into_owned(),
@@ -120,6 +110,14 @@ pub(crate) fn extract_zip_entries(
             })
             .collect::<Vec<_>>()
             .join("/");
+        let Some(segments) = crate::extract::archive_entry_segments(&joined) else {
+            return Err(TarballError::PathTraversal {
+                url: package_url.to_string(),
+                entry_path: raw_name,
+                reason: "zip entry path is absolute or escapes the archive root",
+            });
+        };
+        let normalized = segments.join("/");
 
         // Strip the archive's top-level basename (`prefix` on
         // `pacquet_lockfile::BinaryResolution`) so the ignore filter
