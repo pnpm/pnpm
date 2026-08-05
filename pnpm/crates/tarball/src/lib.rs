@@ -191,23 +191,11 @@ impl<'a> DownloadTarballToStore<'a> {
         let cache_key = store_index_cache_key(package_integrity, package_id);
         let progress_key = self.progress_reported.as_ref().zip(cache_key.as_deref());
 
-        // Warm-cache fast path: when [`prefetch_cas_paths`] already
-        // batched the `(integrity, pkg_id)` row in at install start,
-        // return the `Arc<HashMap>` straight through instead of
-        // calling [`Self::run_without_mem_cache`] (which clones the
-        // inner per-file map by value before wrapping it in a fresh
-        // `Arc`). On warm installs every snapshot lands here; the
-        // deep clone the previous path was paying — entire
-        // `HashMap<String, PathBuf>` per snapshot, where each entry
-        // is a `String` + `PathBuf` allocation — adds up to dominant
-        // memory traffic by 1k+ snapshots.
-        //
-        // Also stash the `Arc` into `mem_cache` keyed by URL so a
-        // second fetch of the same tarball (e.g. peer-resolved
-        // variants of the same package) hits the in-memory cache
-        // without re-checking the prefetched map. Matches what the
-        // normal path does with the result of
-        // [`Self::run_without_mem_cache`].
+        // Hands the `Arc` on without deep-cloning the per-file map:
+        // on a warm install every snapshot takes this path, and by 1k+
+        // snapshots that clone dominates the memory traffic. The `Arc`
+        // is also stashed in `mem_cache` by URL so peer-resolved
+        // variants of one package share it.
         if let Some(prefetched) = prefetched_cas_paths
             && let Some(cache_key) = cache_key.as_deref()
             && let Some(cas_paths) = prefetched.get(cache_key)
@@ -391,25 +379,12 @@ impl<'a> DownloadTarballToStore<'a> {
         // from disk all fall through to the download path below.
         let cache_key = store_index_cache_key(package_integrity, package_id);
         let progress_key = self.progress_reported.as_ref().zip(cache_key.as_deref());
-        // Hot path on warm installs: the install-scoped `prefetch_cas_paths`
-        // task already ran one batched SELECT + integrity-check pass for
-        // every (integrity, pkg_id) the lockfile mentions. If our key is
-        // there, the per-snapshot future skips both the SQLite round-trip
-        // and the per-file stat work.
-        //
-        // We still deep-clone the inner per-file `HashMap` here because
-        // `run_without_mem_cache` returns an owned `HashMap<..., ...>`;
-        // `(**cas_paths).clone()` walks every entry and clones each
-        // `String`/`PathBuf`, not the `Arc`. The Arc wrapping in
-        // `PrefetchedCasPaths` is what saves the deep clone on the *new*
-        // warm-batch path in `create_virtual_store::run` (which uses
-        // `cas_paths.as_ref()` to borrow the inner map directly); this
-        // fallback path is the per-snapshot tokio-future flow which
-        // only fires for cache-miss snapshots, where the deep clone
-        // cost is dwarfed by the cold download that would otherwise
-        // run. Propagating the `Arc` through this signature would
-        // require a wider refactor of `DownloadTarballToStore`'s
-        // return type.
+        // Deep-clones the inner map, unlike the `Arc`-preserving path
+        // in `run_with_mem_cache`: this signature returns an owned
+        // `HashMap`, and widening it would reach into
+        // `DownloadTarballToStore`'s return type. Affordable because
+        // only cache-miss snapshots reach here, where the clone is
+        // dwarfed by the download it avoids.
         if let Some(prefetched) = prefetched_cas_paths
             && let Some(cache_key) = cache_key.as_deref()
             && let Some(cas_paths) = prefetched.get(cache_key)

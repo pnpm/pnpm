@@ -358,26 +358,14 @@ pub(crate) fn extract_tarball_entries(
         let entry_data = tar_entry_payload(tar_data, &entry)?;
 
         let entry_path = entry.path().map_err(TarballError::ReadTarballEntries)?;
-        // `components().skip(1)` drops the top-level package
-        // directory (`package/`). Every remaining component must be
-        // `Component::Normal`: a hostile tarball can carry `..`,
-        // absolute-root, or Windows-prefix components that — joined
-        // onto the CAFS extraction root later in `create_cas_files`
-        // — would land files outside the store (directory traversal).
-        // Reject loudly rather than silently normalize so tampering
-        // is visible.
+        // Rejected rather than normalized so a tampered tarball is
+        // visible instead of silently landing outside the store.
         //
-        // Collect components into a `Vec<String>` and join with `/`
-        // rather than going through [`PathBuf::push`] + `to_string_lossy`.
-        // `PathBuf` uses the platform's native separator, so on
-        // Windows the joined form would be `bin\tool` — which
-        // diverges from pnpm's string-based path layer (always `/`)
-        // and breaks any [`ignore_file_pattern`] regex / hand-coded
-        // matcher that expects forward slashes. The shared `index.db`
-        // also has to stay byte-identical to what pnpm writes, so a
-        // pacquet install on Windows must emit the same keys.
-        // `to_string_lossy()` coerces non-UTF-8 bytes to U+FFFD
-        // per-component.
+        // Joined by hand rather than with `PathBuf`, whose native
+        // separator would desynchronize these keys from pnpm's
+        // always-forward-slashed path layer and the `index.db` both
+        // implementations share. `to_string_lossy` coerces non-UTF-8
+        // bytes to U+FFFD per component.
         let mut parts: Vec<String> = Vec::new();
         for component in entry_path.components().skip(1) {
             let Component::Normal(part) = component else {

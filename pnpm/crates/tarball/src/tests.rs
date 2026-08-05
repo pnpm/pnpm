@@ -3677,3 +3677,41 @@ fn apply_placeholder_manifest_is_a_noop_when_a_package_json_is_already_recorded(
     assert!(cas_paths.is_empty(), "the real package.json is not overwritten in cas_paths");
     assert_eq!(idx.files["package.json"].digest, "kept", "the row's real file entry is kept");
 }
+
+/// Entry keys are joined with `/` on every platform. The store's
+/// `index.db` is shared with pnpm, whose path layer is string-based and
+/// always forward-slashed, so a `PathBuf`-joined key would write
+/// `bin\tool` on Windows and desynchronize the two implementations.
+#[test]
+fn extract_joins_nested_entry_paths_with_forward_slashes() {
+    let (tempdir, store_path) = tempdir_with_leaked_path();
+
+    let mut tar_bytes = Vec::new();
+    {
+        let mut builder = tar::Builder::new(&mut tar_bytes);
+        let mut header = tar::Header::new_gnu();
+        header.set_size(3);
+        header.set_mode(0o644);
+        header.set_entry_type(tar::EntryType::Regular);
+        header.set_path("package/bin/nested/tool.js").expect("set entry path");
+        header.set_cksum();
+        builder.append(&header, &b"hi\n"[..]).expect("append entry");
+        builder.finish().expect("finalize tar");
+    }
+
+    let (cas_paths, _) =
+        extract_tarball_entries(&tar_bytes, store_path, None).expect("extract the tarball");
+
+    assert!(
+        cas_paths.contains_key("bin/nested/tool.js"),
+        "nested entries must be keyed with `/`, got {:?}",
+        cas_paths.keys().collect::<Vec<_>>(),
+    );
+    assert!(
+        !cas_paths.keys().any(|key| key.contains('\\')),
+        "no key may carry a platform separator, got {:?}",
+        cas_paths.keys().collect::<Vec<_>>(),
+    );
+
+    drop(tempdir);
+}
