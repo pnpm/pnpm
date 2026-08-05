@@ -33,7 +33,13 @@ export async function finishWorkers (): Promise<void> {
   // @ts-expect-error
   global.finishWorkers = undefined
   await finish?.()
-  workerPool = undefined
+  // Deliberately keep the `workerPool` reference. The finished pool still
+  // services straggler tasks (e.g. a tarball fetch delayed by a network retry
+  // that completes after the CLI's final drain): each such task spawns a
+  // worker that is torn down again at check-in because the pool is finishing.
+  // Clearing the reference would make stragglers lazily create a fresh pool
+  // that nothing ever finishes, leaving an idle worker thread that keeps the
+  // process alive forever (#12297).
 }
 
 function createTarballWorkerPool (): WorkerPool {
