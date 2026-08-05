@@ -523,6 +523,12 @@ pub struct WorkspaceSettings {
     /// [`Config::cleanup_unused_catalogs`]. Default `false`.
     pub cleanup_unused_catalogs: Option<bool>,
 
+    /// `cleanupOutdatedMinimumReleaseAgeExcludes` from
+    /// `pnpm-workspace.yaml`. See
+    /// [`Config::cleanup_outdated_minimum_release_age_excludes`].
+    /// Default `false`.
+    pub cleanup_outdated_minimum_release_age_excludes: Option<bool>,
+
     /// `saveCatalogName` from `pnpm-workspace.yaml`. See
     /// [`Config::save_catalog_name`].
     ///
@@ -1046,7 +1052,8 @@ impl WorkspaceSettings {
             virtual_store_only, enable_modules_dir,
             git_shallow_hosts,
             test_pattern, changed_files_ignore_pattern,
-            resolution_mode, catalog_mode, cleanup_unused_catalogs, save_peer, save_exact,
+            resolution_mode, catalog_mode, cleanup_unused_catalogs,
+            cleanup_outdated_minimum_release_age_excludes, save_peer, save_exact,
             registry_supports_time_field,
             allowed_deprecated_versions, update_config, peer_dependency_rules,
             enable_pre_post_scripts, dlx_cache_max_age,

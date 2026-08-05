@@ -156,6 +156,7 @@ fn create_config(
         resolution_mode: Default::default(),
         catalog_mode: Default::default(),
         cleanup_unused_catalogs: false,
+        cleanup_outdated_minimum_release_age_excludes: false,
         catalogs: None,
         save_catalog_name: None,
         save_prefix: None,

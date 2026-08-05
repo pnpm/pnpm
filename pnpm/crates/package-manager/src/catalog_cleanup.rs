@@ -4,11 +4,17 @@
 //! workspace project references anymore. One write covers both, the
 //! same single read-modify-write upstream's `updateWorkspaceManifest`
 //! performs.
+//!
+//! A second, post-install write runs the
+//! `cleanupOutdatedMinimumReleaseAgeExcludes` pass: it needs the lockfile
+//! the install just wrote (the catalog write happens before the install
+//! so the resolver reads the new entries back), so it cannot ride along.
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_catalogs_types::Catalogs;
 use pacquet_config::Config;
+use pacquet_lockfile::{LoadLockfileError, Lockfile};
 use pacquet_package_manifest::PackageManifest;
 use pacquet_workspace::{
     FindWorkspaceDirError, FindWorkspaceProjectsError, FindWorkspaceProjectsOpts, Project,
@@ -16,7 +22,8 @@ use pacquet_workspace::{
     read_workspace_manifest, workspace_package_patterns,
 };
 use pacquet_workspace_manifest_writer::{
-    UpdateWorkspaceManifestError, UpdateWorkspaceManifestOptions, update_workspace_manifest,
+    ResolvedPackageVersions, UpdateWorkspaceManifestError, UpdateWorkspaceManifestOptions,
+    update_workspace_manifest,
 };
 use std::path::{Path, PathBuf};
 
@@ -32,6 +39,9 @@ pub enum WriteWorkspaceCatalogsError {
 
     #[diagnostic(transparent)]
     FindWorkspaceProjects(#[error(source)] FindWorkspaceProjectsError),
+
+    #[diagnostic(transparent)]
+    LoadLockfile(#[error(source)] LoadLockfileError),
 
     #[diagnostic(transparent)]
     Write(#[error(source)] UpdateWorkspaceManifestError),
@@ -66,6 +76,7 @@ pub(crate) fn write_workspace_catalogs(
             updated_catalogs: Some(updated_catalogs),
             cleanup_unused_catalogs: config.cleanup_unused_catalogs,
             all_projects: &all_projects,
+            ..Default::default()
         },
     )
     .map_err(WriteWorkspaceCatalogsError::Write)
@@ -90,6 +101,7 @@ pub(crate) fn write_workspace_catalogs_selected(
             updated_catalogs: Some(updated_catalogs),
             cleanup_unused_catalogs: config.cleanup_unused_catalogs,
             all_projects: &all_projects,
+            ..Default::default()
         },
     )
     .map_err(WriteWorkspaceCatalogsError::Write)
@@ -107,6 +119,58 @@ fn derive_workspace_dir(
         .map_err(WriteWorkspaceCatalogsError::FindWorkspaceDir)?
         .unwrap_or(manifest_dir);
     Ok(workspace_dir)
+}
+
+/// Post-install pass under `cleanupOutdatedMinimumReleaseAgeExcludes`:
+/// prune `minimumReleaseAgeExclude` entries whose versions the lockfile
+/// written by the just-finished install no longer records. No-ops when
+/// the setting is off, when lockfile persistence is disabled
+/// (`lockfile: false` — the on-disk lockfile would be stale), or when
+/// no lockfile exists, mirroring the `all_projects` guard of the catalog
+/// cleanup.
+pub(crate) fn cleanup_outdated_minimum_release_age_excludes(
+    config: &Config,
+    workspace_dir: Option<&Path>,
+    current_manifest: &PackageManifest,
+) -> Result<(), WriteWorkspaceCatalogsError> {
+    if !config.cleanup_outdated_minimum_release_age_excludes || !config.lockfile {
+        return Ok(());
+    }
+    let workspace_dir = match workspace_dir {
+        Some(dir) => dir.to_path_buf(),
+        None => derive_workspace_dir(current_manifest)?,
+    };
+    let Some(lockfile) = Lockfile::load_wanted_from_dir(&workspace_dir)
+        .map_err(WriteWorkspaceCatalogsError::LoadLockfile)?
+    else {
+        return Ok(());
+    };
+    let resolved = resolved_package_versions(&lockfile);
+    update_workspace_manifest(
+        &workspace_dir,
+        &UpdateWorkspaceManifestOptions {
+            cleanup_outdated_minimum_release_age_excludes: true,
+            resolved_package_versions: Some(&resolved),
+            ..Default::default()
+        },
+    )
+    .map_err(WriteWorkspaceCatalogsError::Write)
+}
+
+/// Maps every package in the lockfile to its resolved versions.
+/// Packages resolved from a non-semver source (git, tarball, `file:`)
+/// register only their name: their presence can still be confirmed (a
+/// bare-name exclude entry survives), but no exact version can (a
+/// versioned entry is pruned).
+fn resolved_package_versions(lockfile: &Lockfile) -> ResolvedPackageVersions {
+    let mut resolved = ResolvedPackageVersions::new();
+    for key in lockfile.snapshots.iter().flat_map(|snapshots| snapshots.keys()) {
+        let versions = resolved.entry(key.name.to_string()).or_default();
+        if let Some(version) = key.suffix.version_semver() {
+            versions.insert(version.to_string());
+        }
+    }
+    resolved
 }
 
 /// Every project manifest under `workspace_dir`, read from disk. An
@@ -148,3 +212,6 @@ fn manifest_refs_with_current<'a>(
     }
     refs
 }
+
+#[cfg(test)]
+mod tests;

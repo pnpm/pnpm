@@ -20,6 +20,7 @@ import { renderHelp } from 'render-help'
 
 import { getSaveType } from './getSaveType.js'
 import { recursive } from './recursive.js'
+import { resolvedPackageVersionsIfCleanup } from './resolvedPackageVersionsIfCleanup.js'
 
 class RemoveMissingDepsError extends PnpmError {
   constructor (
@@ -147,6 +148,7 @@ export async function handler (
   | 'workspacePackagePatterns'
   | 'sharedWorkspaceLockfile'
   | 'cleanupUnusedCatalogs'
+  | 'cleanupOutdatedMinimumReleaseAgeExcludes'
   | 'trustLockfile'
   > & Pick<ConfigContext,
   | 'allProjects'
@@ -252,6 +254,8 @@ export async function handler (
   }
   await updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
     cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
+    cleanupOutdatedMinimumReleaseAgeExcludes: opts.cleanupOutdatedMinimumReleaseAgeExcludes,
+    resolvedPackageVersions: resolvedPackageVersionsIfCleanup(opts, mutationResult.newLockfile),
     allProjects: updatedProjects,
   })
 }

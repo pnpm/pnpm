@@ -1854,6 +1854,14 @@ pub struct Config {
     /// setting; default `false`, matching pnpm.
     pub cleanup_unused_catalogs: bool,
 
+    /// When `true`, `add` / `remove` / `update` prune
+    /// `minimumReleaseAgeExclude` entries in `pnpm-workspace.yaml`
+    /// whose versions the freshly resolved lockfile no longer records,
+    /// once the install has written that lockfile. The
+    /// `cleanupOutdatedMinimumReleaseAgeExcludes` setting; default
+    /// `false`, matching pnpm.
+    pub cleanup_outdated_minimum_release_age_excludes: bool,
+
     /// Catalogs injected by an `updateConfig` pnpmfile hook, seeded from
     /// `pnpm-workspace.yaml`'s `catalog:`/`catalogs:` and returned
     /// (possibly modified) by the hook. `None` when no hook changed
