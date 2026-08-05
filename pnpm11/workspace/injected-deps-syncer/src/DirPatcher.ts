@@ -84,8 +84,7 @@ export async function applyPatch (optimizedDirPatch: DirDiff, sourceDir: string,
     if (value === DIR) {
       await retryOverBlockingInode(targetPath, async () => fs.promises.mkdir(targetPath, { recursive: true }))
     } else if (typeof value === 'number') {
-      const parentPath = path.dirname(targetPath)
-      await retryOverBlockingInode(parentPath, async () => fs.promises.mkdir(parentPath, { recursive: true }))
+      fs.mkdirSync(path.dirname(targetPath), { recursive: true })
       await retryOverBlockingInode(targetPath, async () => fs.promises.link(sourcePath, targetPath))
     } else {
       const _: never = value // static type guard
@@ -120,11 +119,20 @@ export async function applyPatch (optimizedDirPatch: DirDiff, sourceDir: string,
     }
   }
 
-  const adding = Promise.all(optimizedDirPatch.added.map(async item => {
-    const sourcePath = path.join(sourceDir, item.path)
-    const targetPath = path.join(targetDir, item.path)
-    await addRecursive(sourcePath, targetPath, item.newValue)
-  }))
+  // Directories are created before the files they hold, shallowest first, so
+  // that clearing a blocking inode can only ever hit an empty directory: were
+  // a directory cleared concurrently with its files, a removal that lands late
+  // would take out files a sibling had already linked.
+  const adding = (async () => {
+    for (const item of optimizedDirPatch.added) {
+      if (item.newValue !== DIR) continue
+      await addRecursive(path.join(sourceDir, item.path), path.join(targetDir, item.path), item.newValue) // eslint-disable-line no-await-in-loop
+    }
+    await Promise.all(optimizedDirPatch.added.map(async item => {
+      if (item.newValue === DIR) return
+      await addRecursive(path.join(sourceDir, item.path), path.join(targetDir, item.path), item.newValue)
+    }))
+  })()
 
   const removing = Promise.all(optimizedDirPatch.removed.map(async item => {
     const targetPath = path.join(targetDir, item.path)
