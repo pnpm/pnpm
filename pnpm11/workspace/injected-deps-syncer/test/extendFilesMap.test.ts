@@ -2,6 +2,7 @@
 import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
+import { setTimeout as delay } from 'node:timers/promises'
 
 import { afterEach, expect, jest, test } from '@jest/globals'
 import { prepareEmpty } from '@pnpm/prepare'
@@ -203,6 +204,46 @@ testOnPosix.each([
   const patchers = await DirPatcher.fromMultipleTargets('source', ['target'])
   await Promise.all(patchers.map(async patcher => patcher.apply()))
 
-  expect(fs.lstatSync('target/config.env').isFIFO()).toBe(false)
+  const sourceStats = fs.lstatSync('source/config.env')
+  const targetStats = fs.lstatSync('target/config.env')
+  expect(targetStats.isFile()).toBe(sourceStats.isFile())
+  expect(targetStats.isDirectory()).toBe(sourceStats.isDirectory())
+  if (sourceStats.isDirectory()) {
+    expect(fs.readdirSync('target/config.env')).toStrictEqual(fs.readdirSync('source/config.env'))
+  }
   expect(fs.existsSync('target/other.txt')).toBe(true)
+})
+
+testOnPosix('keeps the files linked into a directory that replaced a blocking inode', async () => {
+  prepareEmpty()
+
+  fs.mkdirSync('source/blocked', { recursive: true })
+  for (let index = 0; index < 20; index++) {
+    fs.writeFileSync(`source/blocked/file${index}.txt`, '')
+  }
+  fs.mkdirSync('target', { recursive: true })
+  execFileSync('mkfifo', [path.resolve('target/blocked')])
+
+  // Widen the window between clearing the blocking inode and linking into the
+  // directory that replaces it. Creating the directory concurrently with its
+  // files lets a removal land after a sibling has linked, taking those files
+  // with it.
+  const originalRm = fs.promises.rm
+  let delayNextRemoval = true
+  fs.promises.rm = (async (target: fs.PathLike, options?: fs.RmOptions) => {
+    if (delayNextRemoval) {
+      delayNextRemoval = false
+      await delay(30)
+    }
+    return originalRm(target, options)
+  }) as typeof fs.promises.rm
+
+  try {
+    const patchers = await DirPatcher.fromMultipleTargets('source', ['target'])
+    await Promise.all(patchers.map(async patcher => patcher.apply()))
+  } finally {
+    fs.promises.rm = originalRm
+  }
+
+  expect(fs.readdirSync('target/blocked').sort()).toStrictEqual(fs.readdirSync('source/blocked').sort())
 })
