@@ -9471,18 +9471,12 @@ importers:
       '@pnpm/store.path':
         specifier: workspace:*
         version: 'link:'
-      '@types/is-windows':
-        specifier: 'catalog:'
-        version: 1.0.2
       '@types/node':
         specifier: 'catalog:'
         version: 22.20.1
       '@types/touch':
         specifier: 'catalog:'
         version: 3.1.5
-      is-windows:
-        specifier: 'catalog:'
-        version: 1.0.2
       rimraf:
         specifier: 'catalog:'
         version: 6.1.3

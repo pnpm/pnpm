@@ -10076,6 +10076,12 @@ async fn test_install_purges_node_modules_on_layout_mismatch() {
     std::fs::write(&canary_path, "canary").unwrap();
     assert!(canary_path.exists());
 
+    // The default store lands here when nothing above the project
+    // accepts a hard link — see [`pacquet_config::store_path`] — so a
+    // purge that wiped it would throw away every fetched package.
+    let store_in_modules = modules_dir.join(".pnpm-store");
+    std::fs::create_dir_all(&store_in_modules).unwrap();
+
     // 2nd install: Hoisted node linker
     Install {
         tarball_mem_cache: Default::default(),
@@ -10115,6 +10121,7 @@ async fn test_install_purges_node_modules_on_layout_mismatch() {
     .expect("2nd install success");
 
     assert!(!canary_path.exists(), "node_modules should be purged due to mismatch");
+    assert!(store_in_modules.exists(), "a store inside node_modules should survive the purge");
 }
 
 #[tokio::test]

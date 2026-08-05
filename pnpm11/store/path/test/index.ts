@@ -103,18 +103,18 @@ test('a link can be created to the root of the drive', async () => {
   )
 })
 
-test('a link can be created to the a subdir in the root of the drive', async () => {
+test('a link can be created to a subdir in the root of the drive', async () => {
   expect(await getStorePath({
     pkgRoot: MOUNT_PROJECT,
     pnpmHomeDir: PNPM_HOME_DIR,
   })).toBe(path.join(MOUNT_ROOT, '.pnpm-store', STORE_VERSION))
 })
 
-test('the home store is used when only the project directory is linkable', async () => {
+test('the store is created in the project when only the project directory is linkable', async () => {
   expect(await getStorePath({
     pkgRoot: SANDBOX_PROJECT,
     pnpmHomeDir: PNPM_HOME_DIR,
-  })).toBe(path.join(PNPM_HOME_DIR, 'store', STORE_VERSION))
+  })).toBe(path.join(SANDBOX_PROJECT, '.pnpm-store', STORE_VERSION))
   expect(canLinkMock).toHaveBeenCalledWith(
     path.join(SANDBOX_PROJECT, 'tmp'),
     path.join(SANDBOX_ROOT, 'tmp', 'tmp')

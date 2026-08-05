@@ -59,14 +59,12 @@ async function storePathRelativeToHome (pkgRoot: string, relStore: string, homed
     // So we create an empty directory and try to link there.
     // The store will be a directory anyway.
     const mountpointParent = path.join(mountpoint, '..')
-    if (!dirsAreEqual(mountpointParent, mountpoint) && await canLinkToSubdir(tempFile, mountpointParent)) {
+    if (mountpointParent !== mountpoint && await canLinkToSubdir(tempFile, mountpointParent)) {
       mountpoint = mountpointParent
     }
-    // If linking works only in the project folder
-    // then prefer to place the store inside the homedir
-    if (dirsAreEqual(pkgRoot, mountpoint)) {
-      return storeInHomeDir
-    }
+    // The mountpoint may be the project directory itself, when nothing above it
+    // accepts a hard link. A store there still links into node_modules, which
+    // beats a store in the home directory that would have to be copied from.
     return path.join(mountpoint, '.pnpm-store', STORE_VERSION)
   } catch {
     // this is an unlikely situation but if there is no way to find
@@ -100,10 +98,6 @@ async function safeRmdir (dir: string): Promise<void> {
   } catch {
     // ignore
   }
-}
-
-function dirsAreEqual (dir1: string, dir2: string): boolean {
-  return path.relative(dir1, dir2) === ''
 }
 
 function getHomedir (): string {
