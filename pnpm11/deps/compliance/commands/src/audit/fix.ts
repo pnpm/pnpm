@@ -2,6 +2,8 @@ import { mergePackageVersionSpecs } from '@pnpm/config.version-policy'
 import { writeSettings } from '@pnpm/config.writer'
 import { type AuditAdvisory, type AuditReport, normalizeGhsaId } from '@pnpm/deps.compliance.audit'
 import { sortDirectKeys } from '@pnpm/object.key-sorting'
+import { getRangeSpecStyle, versionWithRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
+import type { RangeSpecStyle } from '@pnpm/types'
 import semver from 'semver'
 
 import type { AuditOptions } from './audit.js'
@@ -13,7 +15,7 @@ export interface FixResult {
 
 export async function fix (auditReport: AuditReport, opts: AuditOptions): Promise<FixResult> {
   const fixableAdvisories = getFixableAdvisories(Object.values(auditReport.advisories), opts.auditConfig?.ignoreGhsas)
-  const vulnOverrides = createOverrides(fixableAdvisories)
+  const vulnOverrides = createOverrides(fixableAdvisories, getRangeSpecStyle(opts))
   if (Object.values(vulnOverrides).length === 0) return { vulnOverrides, addedAgeExcludes: [] }
   const addedAgeExcludes = opts.minimumReleaseAge ? createMinimumReleaseAgeExcludes(fixableAdvisories) : []
   await writeSettings({
@@ -38,22 +40,22 @@ function getFixableAdvisories (advisories: AuditAdvisory[], ignoreGhsas?: string
   return advisories.filter(({ patched_versions: patchedVersions }) => patchedVersions != null)
 }
 
-function createOverrides (advisories: AuditAdvisory[]): Record<string, string> {
+function createOverrides (advisories: AuditAdvisory[], rangeSpecStyle: RangeSpecStyle): Record<string, string> {
   const entries: Array<[string, string]> = []
   for (const advisory of advisories) {
     if (!advisory.patched_versions) continue
-    entries.push([`${advisory.module_name}@${advisory.vulnerable_versions}`, caretRangeForPatched(advisory.patched_versions)])
+    entries.push([`${advisory.module_name}@${advisory.vulnerable_versions}`, versionRangeForPatched(advisory.patched_versions, rangeSpecStyle)])
   }
   return sortDirectKeys(Object.fromEntries(entries))
 }
 
-// Use the minimum patched version with a caret so pnpm stays within the
-// same major as the fix. `>=X.Y.Z` alone can silently promote a dep to a
-// later breaking major; `^X.Y.Z` still satisfies the patch while
-// preserving the major the user originally pinned to.
-export function caretRangeForPatched (patchedRange: string): string {
+// Save the minimum patched version with the user's range spec style rather
+// than the advisory's own range: `>=X.Y.Z` alone can silently promote a dep
+// to a later breaking major, while `^X.Y.Z` (the default style) still
+// satisfies the patch and preserves the major the user originally pinned to.
+export function versionRangeForPatched (patchedRange: string, rangeSpecStyle: RangeSpecStyle): string {
   const min = semver.minVersion(patchedRange)
-  return min ? `^${min.version}` : patchedRange
+  return min ? versionWithRangeSpecStyle(min.version, rangeSpecStyle) : patchedRange
 }
 
 export function createMinimumReleaseAgeExcludes (advisories: AuditAdvisory[]): string[] {

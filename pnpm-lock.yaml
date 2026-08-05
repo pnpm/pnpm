@@ -2909,6 +2909,9 @@ importers:
       '@pnpm/object.key-sorting':
         specifier: workspace:*
         version: link:../../../object/key-sorting
+      '@pnpm/pkg-manifest.utils':
+        specifier: workspace:*
+        version: link:../../../pkg-manifest/utils
       '@pnpm/store.path':
         specifier: workspace:*
         version: link:../../../store/path

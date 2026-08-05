@@ -6,6 +6,7 @@ import { PnpmError } from '@pnpm/error'
 import { type InstallCommandOptions, update } from '@pnpm/installing.commands'
 import { globalInfo } from '@pnpm/logger'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
+import { getRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
 import type { Registries } from '@pnpm/types'
 import { table } from '@zkochan/table'
 import chalk, { type ChalkInstance } from 'chalk'
@@ -263,7 +264,7 @@ export async function handler (opts: AuditOptions, params: string[] = []): Promi
       advisories: filterAdvisoriesForFix(auditReport.advisories, opts),
     }
     if (opts.interactive) {
-      filteredAuditReport = await interactiveAuditFix(filteredAuditReport)
+      filteredAuditReport = await interactiveAuditFix(filteredAuditReport, opts)
     }
     if (fixMethod === 'update') {
       const result = await fixWithUpdate(filteredAuditReport, { ...opts, include })
@@ -462,8 +463,8 @@ function filterAdvisoriesForFix (
   )
 }
 
-async function interactiveAuditFix (auditReport: AuditReport): Promise<AuditReport> {
-  const choiceGroups = getAuditFixChoices(Object.values(auditReport.advisories))
+async function interactiveAuditFix (auditReport: AuditReport, opts: Pick<AuditOptions, 'saveExact' | 'savePrefix'>): Promise<AuditReport> {
+  const choiceGroups = getAuditFixChoices(Object.values(auditReport.advisories), getRangeSpecStyle(opts))
   if (choiceGroups.length === 0) {
     return auditReport
   }

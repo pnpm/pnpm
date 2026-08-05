@@ -13,6 +13,7 @@ use pacquet_lockfile::{
 use pacquet_network::{RetryOpts, send_with_retry};
 use pacquet_package_manager::{ResolutionObserver, ResolvedPackageHint, Update};
 use pacquet_package_manifest::DependencyGroup;
+use pacquet_registry::RangeSpecStyle;
 use pacquet_reporter::Reporter;
 use pacquet_resolving_resolver_base::{
     PackageVersionGuard, PackageVersionGuardDecision, PackageVersionGuardFuture,
@@ -219,7 +220,7 @@ impl AuditArgs {
             // override path's fixable filter would.
             let filtered = filter_advisories_for_fix(&report, audit_level, state.config);
             let filtered = if self.interactive {
-                match interactive_select(filtered)? {
+                match interactive_select(filtered, range_spec_style_from_config(state.config))? {
                     Some(selected) => selected,
                     // Cancelled or nothing selected — nothing to fix.
                     None => return Ok(AuditOutcome::Clean),
@@ -1566,27 +1567,41 @@ fn filter_advisories_for_fix(
         .collect()
 }
 
-/// The minimum patched version with a caret, mirroring pnpm's
-/// `caretRangeForPatched`: `^X.Y.Z` keeps the resolver within the same major
-/// the user pinned to, where a bare `>=X.Y.Z` could silently promote a dep to
-/// a later breaking major. `patched` is always pacquet's inferred `>=V` form,
-/// so its minimum is the version after `>=`.
-fn caret_range_for_patched(patched: &str) -> String {
+/// The range spec style for written overrides, from the `saveExact` /
+/// `savePrefix` settings. `audit` has no `--save-exact` / `--save-prefix`
+/// flags (matching pnpm), so only the config values apply.
+fn range_spec_style_from_config(config: &Config) -> RangeSpecStyle {
+    RangeSpecStyle::from_save_options(config.save_exact, config.save_prefix.as_deref())
+}
+
+/// The minimum patched version written with the user's range spec style,
+/// mirroring pnpm's `versionRangeForPatched`: the default `^X.Y.Z` keeps the
+/// resolver within the same major the user pinned to, where a bare `>=X.Y.Z`
+/// could silently promote a dep to a later breaking major. `patched` is
+/// always pacquet's inferred `>=V` form, so its minimum is the version after
+/// `>=`.
+fn version_range_for_patched(patched: &str, range_spec_style: RangeSpecStyle) -> String {
     patched
         .strip_prefix(">=")
         .and_then(|version| version.trim().parse::<Version>().ok())
-        .map_or_else(|| patched.to_string(), |version| format!("^{version}"))
+        .map_or_else(
+            || patched.to_string(),
+            |version| format!("{}{version}", range_spec_style.range_prefix()),
+        )
 }
 
-/// Build the `name@vulnerable_versions → ^patched` override map from the
+/// Build the `name@vulnerable_versions → patched range` override map from the
 /// fixable advisories (those with an inferred patched range). Keyed by a
 /// `BTreeMap` so the output is sorted, mirroring pnpm's `sortDirectKeys`.
-fn create_overrides(advisories: &BTreeMap<String, AuditAdvisory>) -> BTreeMap<String, String> {
+fn create_overrides(
+    advisories: &BTreeMap<String, AuditAdvisory>,
+    range_spec_style: RangeSpecStyle,
+) -> BTreeMap<String, String> {
     let mut overrides = BTreeMap::new();
     for advisory in advisories.values() {
         let Some(patched) = advisory.patched_versions.as_deref() else { continue };
         let key = format!("{}@{}", advisory.module_name, advisory.vulnerable_versions);
-        overrides.insert(key, caret_range_for_patched(patched));
+        overrides.insert(key, version_range_for_patched(patched, range_spec_style));
     }
     overrides
 }
@@ -1598,7 +1613,7 @@ fn fix_override(
     settings_dir: &std::path::Path,
     config: &Config,
 ) -> miette::Result<String> {
-    let overrides = create_overrides(advisories);
+    let overrides = create_overrides(advisories, range_spec_style_from_config(config));
     if overrides.is_empty() {
         return Ok("No fixes were made".to_string());
     }
@@ -1740,6 +1755,7 @@ fn ignore_vulnerabilities(
 /// severity-grouped table.
 fn interactive_select(
     advisories: BTreeMap<String, AuditAdvisory>,
+    range_spec_style: RangeSpecStyle,
 ) -> miette::Result<Option<BTreeMap<String, AuditAdvisory>>> {
     let mut fixable: Vec<&AuditAdvisory> =
         advisories.values().filter(|advisory| advisory.patched_versions.is_some()).collect();
@@ -1753,8 +1769,11 @@ fn interactive_select(
         if !seen.insert(key.clone()) {
             continue;
         }
-        let patched =
-            advisory.patched_versions.as_deref().map(caret_range_for_patched).unwrap_or_default();
+        let patched = advisory
+            .patched_versions
+            .as_deref()
+            .map(|versions| version_range_for_patched(versions, range_spec_style))
+            .unwrap_or_default();
         labels.push(format!(
             "[{}] {} {} ❯ {} {}",
             severity_name(advisory.severity),
