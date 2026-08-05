@@ -958,9 +958,9 @@ fn find_walks_up_to_parent_dir() {
     fs::create_dir_all(&nested).unwrap();
     fs::write(tmp.path().join("pnpm-workspace.yaml"), "storeDir: /s\n").unwrap();
 
-    let found = WorkspaceSettings::find_and_load(&nested).unwrap().unwrap();
-    assert_eq!(found.path, tmp.path().join("pnpm-workspace.yaml"));
-    assert_eq!(found.settings.store_dir.as_deref(), Some("/s"));
+    let (found, settings) = WorkspaceSettings::find_and_load(&nested).unwrap().unwrap();
+    assert_eq!(found, tmp.path().join("pnpm-workspace.yaml"));
+    assert_eq!(settings.store_dir.as_deref(), Some("/s"));
 }
 
 /// Pnpm's `readManifestRaw` only treats `ENOENT` as "no manifest" and
@@ -1808,56 +1808,4 @@ fn parses_save_settings_from_yaml_and_applies() {
     assert_eq!(global.save_prefix.as_deref(), Some("~"));
     assert_eq!(global.save_peer, None);
     assert_eq!(global.save_catalog_name, None);
-}
-
-mod skipped_project_settings {
-    use crate::workspace_yaml::skipped_project_settings as skipped_in;
-    use text_block_macros::text_block_fnl;
-
-    #[test]
-    fn reports_a_skipped_setting() {
-        assert_eq!(skipped_in("configDir: /tmp/attacker\n"), vec!["configDir".to_string()]);
-    }
-
-    #[test]
-    fn reports_a_kebab_case_spelling_too() {
-        assert_eq!(skipped_in("config-dir: /tmp/attacker\n"), vec!["config-dir".to_string()]);
-    }
-
-    /// A warning that fired on a setting the manifest owns would be worse than
-    /// no warning at all.
-    #[test]
-    fn leaves_the_settings_a_project_owns_alone() {
-        let manifest = text_block_fnl! {
-            "packages:"
-            "  - '.'"
-            "catalog:"
-            "  react: ^19"
-            "storeDir: ~/store"
-            "cacheDir: ~/cache"
-            "nodeLinker: hoisted"
-            "onlyBuiltDependencies:"
-            "  - esbuild"
-            "store-dir: ~/store"
-        };
-        assert!(skipped_in(manifest).is_empty(), "{:?}", skipped_in(manifest));
-    }
-
-    #[test]
-    fn reports_every_skipped_setting_it_finds() {
-        let found = skipped_in(text_block_fnl! {
-            "configDir: /a"
-            "pnpmHomeDir: /b"
-            "packages:"
-            "  - '.'"
-        });
-        assert_eq!(found, vec!["configDir".to_string(), "pnpmHomeDir".to_string()]);
-    }
-
-    /// The install path reports a broken manifest with far more context, so
-    /// this must not be the thing that speaks up about it.
-    #[test]
-    fn says_nothing_about_an_unparsable_manifest() {
-        assert!(skipped_in("configDir: [unclosed\n").is_empty());
-    }
 }

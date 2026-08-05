@@ -50,10 +50,9 @@ use crate::defaults::{
     default_store_dir, default_user_agent, default_virtual_store_dir,
 };
 pub use workspace_yaml::{
-    AllowBuild, AuditSettings, FoundWorkspaceManifest, GLOBAL_CONFIG_YAML_FILENAME,
-    LoadWorkspaceYamlError, PackageExtension, PeerDependencyMeta, PeerDependencyRules,
-    UpdateConfig, UpdateSettings, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings,
-    decided_allow_builds, skipped_project_settings, workspace_root_or,
+    AllowBuild, AuditSettings, GLOBAL_CONFIG_YAML_FILENAME, LoadWorkspaceYamlError,
+    PackageExtension, PeerDependencyMeta, PeerDependencyRules, UpdateConfig, UpdateSettings,
+    WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, decided_allow_builds, workspace_root_or,
 };
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -1318,13 +1317,6 @@ pub struct Config {
     /// allowBuilds settings to resolve either.
     pub workspace_dir: Option<PathBuf>,
 
-    /// The settings the project's `pnpm-workspace.yaml` declared that a
-    /// project manifest does not contribute, in the spelling the file used.
-    ///
-    /// Not a setting: it is what the manifest's own read noticed, kept so the
-    /// CLI can report it without opening the file again.
-    pub skipped_project_settings: Vec<String>,
-
     /// Raw `patchedDependencies` from `pnpm-workspace.yaml`: keys are
     /// `name[@version]`, values are patch file paths (relative to
     /// `workspace_dir` or absolute). Consumed by
@@ -2306,7 +2298,6 @@ impl Config {
                         serde_saphyr::from_str(&text).map_err(Box::new).map_err(|source| {
                             LoadWorkspaceYamlError::ParseYaml { path: yaml_path, source }
                         })?;
-                    self.skipped_project_settings = skipped_project_settings(&text);
                     Some((env_dir, Some(settings)))
                 }
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => Some((env_dir, None)),
@@ -2315,10 +2306,9 @@ impl Config {
                 }
             }
         } else {
-            WorkspaceSettings::find_and_load(start_dir)?.map(|found| {
-                let base_dir = found.path.parent().unwrap_or(start_dir).to_path_buf();
-                self.skipped_project_settings = found.skipped_settings;
-                (base_dir, Some(found.settings))
+            WorkspaceSettings::find_and_load(start_dir)?.map(|(path, settings)| {
+                let base_dir = path.parent().unwrap_or(start_dir).to_path_buf();
+                (base_dir, Some(settings))
             })
         };
 

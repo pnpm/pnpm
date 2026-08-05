@@ -4,7 +4,6 @@ use crate::{
         legacy_pnpm_field::warn_ignored_pnpm_manifest_fields_in,
         override_version_references::warn_deprecated_override_version_references,
         pipelines::InstallFamilySelection, recursive::discover_workspace_projects,
-        skipped_project_settings::warn_skipped_project_settings,
         supported_architectures::SupportedArchitecturesArgs,
     },
 };
@@ -359,7 +358,6 @@ impl InstallArgs {
         // to the full install path, which warns from
         // `derive_config_root_and_package_manager_to_sync`.
         warn_ignored_pnpm_manifest_fields_in(&config_root);
-        warn_skipped_project_settings(config);
         warn_deprecated_override_version_references(config, emit);
         // The scope covers the same projects the full install path would
         // report; an up-to-date run says so too rather than going quiet

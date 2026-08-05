@@ -17,7 +17,7 @@ use pipe_trait::Pipe;
 use serde::{Deserialize, Deserializer};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
-    fmt, fs,
+    fs,
     io::{self, ErrorKind},
     path::{Path, PathBuf},
 };
@@ -774,75 +774,6 @@ pub enum LoadWorkspaceYamlError {
     CannotResolveOverrideVersion { spec: String, dependency_name: String },
 }
 
-/// The settings a manifest declares that a project's `pnpm-workspace.yaml`
-/// does not contribute, in the order the file lists them and the spelling it
-/// used.
-///
-/// Reading them separately from [`WorkspaceSettings`] is what makes reporting
-/// them possible at all: that struct is typed, so by the time it exists the
-/// keys it does not declare are already gone. Every other key the manifest
-/// carries is dropped as the map is walked, so only the reportable ones are
-/// ever held.
-struct SkippedProjectSettings(Vec<String>);
-
-impl<'de> Deserialize<'de> for SkippedProjectSettings {
-    fn deserialize<De: Deserializer<'de>>(deserializer: De) -> Result<Self, De::Error> {
-        struct KeyVisitor;
-
-        impl<'de> serde::de::Visitor<'de> for KeyVisitor {
-            type Value = SkippedProjectSettings;
-
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str("a workspace manifest mapping")
-            }
-
-            fn visit_map<Map: serde::de::MapAccess<'de>>(
-                self,
-                mut map: Map,
-            ) -> Result<Self::Value, Map::Error> {
-                let mut skipped = Vec::new();
-                while let Some(key) = map.next_key::<String>()? {
-                    map.next_value::<serde::de::IgnoredAny>()?;
-                    if crate::config_types::is_project_manifest_skipped_setting(
-                        &crate::naming_cases::to_camel_case(&key),
-                    ) {
-                        skipped.push(key);
-                    }
-                }
-                Ok(SkippedProjectSettings(skipped))
-            }
-        }
-
-        deserializer.deserialize_map(KeyVisitor)
-    }
-}
-
-/// A `pnpm-workspace.yaml` found by walking up from a starting directory,
-/// with everything its single read yields.
-#[derive(Debug)]
-pub struct FoundWorkspaceManifest {
-    /// The manifest's own path, so callers can anchor relative settings on
-    /// its directory.
-    pub path: PathBuf,
-    pub settings: WorkspaceSettings,
-    /// What [`skipped_project_settings`] found in the same text. Meaningful
-    /// only for a project's manifest — the global package directory's is
-    /// machine-level, and nothing reports on it.
-    pub skipped_settings: Vec<String>,
-}
-
-/// The settings in `manifest_text` that a project's `pnpm-workspace.yaml` does
-/// not contribute.
-///
-/// Takes the text rather than a directory so it can run on the read the
-/// config loader already did. A manifest that does not parse yields nothing:
-/// the load path reports that with far more context than this could.
-#[must_use]
-pub fn skipped_project_settings(manifest_text: &str) -> Vec<String> {
-    serde_saphyr::from_str::<SkippedProjectSettings>(manifest_text)
-        .map_or_else(|_| Vec::new(), |SkippedProjectSettings(skipped)| skipped)
-}
-
 impl WorkspaceSettings {
     /// Read the global config.yaml at `<config_dir>/config.yaml`, if
     /// present.
@@ -955,7 +886,7 @@ impl WorkspaceSettings {
     /// other than `ENOENT` propagate, matching pnpm.
     pub fn find_and_load(
         start_dir: &Path,
-    ) -> Result<Option<FoundWorkspaceManifest>, LoadWorkspaceYamlError> {
+    ) -> Result<Option<(PathBuf, Self)>, LoadWorkspaceYamlError> {
         for dir in start_dir.ancestors() {
             let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
             let read_result = fs::read_to_string(&path);
@@ -971,20 +902,16 @@ impl WorkspaceSettings {
                 continue;
             }
 
-            let text = read_result.map_err(|source| LoadWorkspaceYamlError::ReadFile {
-                path: path.clone(),
-                source,
-            })?;
-            let settings: WorkspaceSettings =
-                text.pipe_as_ref(serde_saphyr::from_str).map_err(Box::new).map_err(|source| {
-                    LoadWorkspaceYamlError::ParseYaml { path: path.clone(), source }
+            let settings: WorkspaceSettings = read_result
+                .map_err(|source| LoadWorkspaceYamlError::ReadFile { path: path.clone(), source })?
+                .pipe_as_ref(serde_saphyr::from_str)
+                .map_err(Box::new)
+                .map_err(|source| LoadWorkspaceYamlError::ParseYaml {
+                    path: path.clone(),
+                    source,
                 })?;
 
-            return Ok(Some(FoundWorkspaceManifest {
-                skipped_settings: skipped_project_settings(&text),
-                path,
-                settings,
-            }));
+            return Ok(Some((path, settings)));
         }
 
         Ok(None)

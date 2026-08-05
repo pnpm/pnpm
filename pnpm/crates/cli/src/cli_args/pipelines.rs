@@ -19,7 +19,6 @@ use crate::{
         legacy_pnpm_field::warn_ignored_pnpm_manifest_fields,
         override_version_references::warn_deprecated_override_version_references,
         reporter::{ReporterType, reporter_emit},
-        skipped_project_settings::warn_skipped_project_settings,
     },
     config_deps,
 };
@@ -655,7 +654,6 @@ pub(crate) fn derive_config_root_and_package_manager_to_sync(
     // install output. This is the install family's earliest point that
     // knows the root manifest's directory.
     warn_ignored_pnpm_manifest_fields(root_manifest.as_ref());
-    warn_skipped_project_settings(cfg);
     warn_deprecated_override_version_references(cfg, reporter_emit(reporter));
     let package_manager_to_sync = root_manifest
         .as_ref()

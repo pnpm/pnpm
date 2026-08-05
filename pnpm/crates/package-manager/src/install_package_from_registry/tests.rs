@@ -109,7 +109,6 @@ fn create_config(
         user_agent: "pnpm".to_string(),
         npmrc_auth_file: None,
         workspace_dir: None,
-        skipped_project_settings: Vec::new(),
         patched_dependencies: None,
         patches_dir: None,
         allow_unused_patches: false,
