@@ -10076,9 +10076,7 @@ async fn test_install_purges_node_modules_on_layout_mismatch() {
     std::fs::write(&canary_path, "canary").unwrap();
     assert!(canary_path.exists());
 
-    // The default store lands here when nothing above the project
-    // accepts a hard link — see [`pacquet_config::store_path`] — so a
-    // purge that wiped it would throw away every fetched package.
+    // Where the default store lands — see [`pacquet_config::store_path`].
     let store_in_modules = modules_dir.join(".pnpm-store");
     std::fs::create_dir_all(&store_in_modules).unwrap();
 

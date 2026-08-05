@@ -62,9 +62,6 @@ async function storePathRelativeToHome (pkgRoot: string, relStore: string, homed
     if (mountpointParent !== mountpoint && await canLinkToSubdir(tempFile, mountpointParent)) {
       mountpoint = mountpointParent
     }
-    // The mountpoint may be the project directory itself, when nothing above it
-    // accepts a hard link. A store there still links into node_modules, which
-    // beats a store in the home directory that would have to be copied from.
     return path.join(mountpoint, '.pnpm-store', STORE_VERSION)
   } catch {
     // this is an unlikely situation but if there is no way to find

@@ -13,21 +13,11 @@
 //!    linkable, and return `<mount_point>/.pnpm-store`.
 //!
 //! The mount point can be the project directory itself, when nothing
-//! above it accepts a hard link — a sandbox that only grants write
-//! access to the project, or a container with just the project
-//! bind-mounted writable. The store still belongs there rather than in
-//! the home directory: it is the only location on the project's volume,
-//! so it can be hardlinked from, whereas the home store would either be
-//! unwritable too or force a full copy of every package.
-//!
-//! That case is the one place where pacquet deliberately parts from
-//! pnpm 11, which places the store at `<pkg_root>/.pnpm-store` and so
-//! leaves an untracked directory in the working tree. pacquet nests it
-//! under `node_modules` instead. Installing the same project with both
-//! CLIs therefore reports `ERR_PNPM_UNEXPECTED_STORE` once and
-//! reinstalls against the new location — acceptable, since reaching
-//! this branch at all requires an environment where every ancestor of
-//! the project rejects hard links.
+//! above it accepts a hard link. The store then goes to
+//! `<pkg_root>/node_modules/.pnpm-store`, where the project's VCS
+//! ignores it — deliberately not the `<pkg_root>/.pnpm-store` pnpm 11
+//! uses, so a project installed with both CLIs reports
+//! `ERR_PNPM_UNEXPECTED_STORE` once and reinstalls.
 //!
 //! Without this detection a developer with a separate
 //! case-sensitive workspace volume (for example
@@ -97,8 +87,6 @@ pub fn resolve_store_dir<Sys: LinkProbe>(
         _ => mountpoint,
     };
 
-    // A store under `node_modules` is invisible to the project's VCS
-    // status, which a `<pkg_root>/.pnpm-store` would not be.
     if mountpoint == pkg_root {
         return pkg_root.join("node_modules").join(".pnpm-store");
     }
