@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../pnpm11/catalogs/types"
+    },
+    {
       "path": "../../pnpm11/core/types"
     },
     {

@@ -19,6 +19,9 @@
       "path": "../../deps/path"
     },
     {
+      "path": "../../fs/symlink-dependency"
+    },
+    {
       "path": "../fs"
     },
     {

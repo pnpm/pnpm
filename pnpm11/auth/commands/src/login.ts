@@ -8,7 +8,8 @@ import { PnpmError } from '@pnpm/error'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { fetch } from '@pnpm/network.fetch'
 import {
-  generateQrCode,
+  formatAuthUrlMessage,
+  formatAuthUrlOnlyMessage,
   pollForWebAuthToken,
   promptBrowserOpen,
   type PromptBrowserOpenReadlineInterface,
@@ -156,16 +157,11 @@ export interface LoginParams {
 
 export async function login ({ context = DEFAULT_CONTEXT, opts }: LoginParams): Promise<string> {
   const {
-    process,
     readIniFile,
     writeIniFile,
   } = context
 
   const registry = normalizeRegistryUrl(opts.registry ?? 'https://registry.npmjs.org/')
-
-  if (!process.stdin.isTTY || !process.stdout.isTTY) {
-    throw new LoginNonInteractiveError()
-  }
 
   const fetchOptions: WebAuthFetchOptions = {
     method: 'GET',
@@ -204,6 +200,31 @@ export async function login ({ context = DEFAULT_CONTEXT, opts }: LoginParams): 
   return `Logged in on ${registry}`
 }
 
+/**
+ * The non-empty string at `field` of a web-login response body, or
+ * `undefined` when the body is not an object or the field is missing, empty,
+ * or not a string — the same narrowing pacquet applies via `Value::as_str`.
+ */
+function readUrlField (body: unknown, field: 'loginUrl' | 'doneUrl'): string | undefined {
+  if (typeof body !== 'object' || body == null) return undefined
+  const value = (body as Record<string, unknown>)[field]
+  return typeof value === 'string' && value !== '' ? value : undefined
+}
+
+/**
+ * Whether `url` contains a Unicode control character (the C0 controls, DEL,
+ * or the C1 controls) — the same set pacquet rejects via `char::is_control`.
+ */
+function containsControlCharacters (url: string): boolean {
+  for (const char of url) {
+    const codePoint = char.codePointAt(0) ?? 0
+    if (codePoint <= 0x1F || (codePoint >= 0x7F && codePoint <= 0x9F)) {
+      return true
+    }
+  }
+  return false
+}
+
 function normalizeScope (scope: string | undefined): string | undefined {
   if (scope == null) return undefined
   const trimmed = scope.trim()
@@ -225,6 +246,8 @@ async function webLogin ({
   const {
     fetch,
     globalInfo,
+    globalWarn,
+    process,
   } = context
 
   const loginUrl = new URL('-/v1/login', registry).href
@@ -244,19 +267,35 @@ async function webLogin ({
     throw new WebLoginError(response.status, text)
   }
 
-  const body = await response.json() as { loginUrl?: string, doneUrl?: string }
+  // The response body is attacker-controlled, so narrow it at runtime: a
+  // missing, empty, or non-string field rejects the response.
+  const body = await response.json() as unknown
+  const authUrl = readUrlField(body, 'loginUrl')
+  const doneUrl = readUrlField(body, 'doneUrl')
 
-  if (!body.loginUrl || !body.doneUrl) {
+  if (!authUrl || !doneUrl) {
     throw new LoginInvalidResponseError()
   }
 
-  const qrCode = generateQrCode(body.loginUrl)
-  globalInfo(`Authenticate your account at:\n${body.loginUrl}\n\n${qrCode}`)
+  // A legitimate login / done URL is a plain URL; a control character (a
+  // terminal escape, CR, or LF) is never valid in one and signals a malicious
+  // or compromised registry trying to spoof the terminal. Reject the login so
+  // the user learns the registry misbehaved, rather than sanitizing the URL
+  // and authenticating against it anyway.
+  if (containsControlCharacters(authUrl) || containsControlCharacters(doneUrl)) {
+    throw new UnsafeLoginUrlError()
+  }
 
-  const pollPromise = pollForWebAuthToken({ context, doneUrl: body.doneUrl, fetchOptions })
+  // A non-TTY stdout (a CI log, a pipe) cannot render the QR code block, so
+  // print the URL on its own.
+  globalInfo(process.stdout.isTTY
+    ? formatAuthUrlMessage(authUrl, globalWarn)
+    : formatAuthUrlOnlyMessage(authUrl))
+
+  const pollPromise = pollForWebAuthToken({ context, doneUrl, fetchOptions })
 
   return promptBrowserOpen({
-    authUrl: body.loginUrl,
+    authUrl,
     context,
     pollPromise,
   })
@@ -273,7 +312,13 @@ async function classicLogin ({
   fetchOptions,
   registry,
 }: ClassicLoginParams): Promise<string> {
-  const { enquirer, fetch, globalInfo, globalWarn } = context
+  const { enquirer, fetch, globalInfo, globalWarn, process } = context
+
+  // Unlike the web-based flow — which only prints a URL and polls, so it runs
+  // without a terminal — the credential prompts need one.
+  if (!process.stdin.isTTY || !process.stdout.isTTY) {
+    throw new LoginNonInteractiveError()
+  }
 
   let username: string
   let password: string
@@ -336,6 +381,12 @@ class LoginNonInteractiveError extends PnpmError {
 class LoginInvalidResponseError extends PnpmError {
   constructor () {
     super('LOGIN_INVALID_RESPONSE', 'The registry returned an invalid response for web-based login')
+  }
+}
+
+class UnsafeLoginUrlError extends PnpmError {
+  constructor () {
+    super('AUTH_COMMANDS_LOGIN_UNSAFE_URL', 'The registry returned an authentication URL containing control characters and was rejected as a possible terminal-spoofing attempt')
   }
 }
 

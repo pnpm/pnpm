@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/global.packages",
-  "version": "1100.0.10",
+  "version": "1100.0.16",
   "description": "Utilities for managing isolated global packages",
   "keywords": [
     "pnpm",
@@ -34,8 +34,8 @@
     "@pnpm/bins.resolver": "workspace:*",
     "@pnpm/crypto.hash": "workspace:*",
     "@pnpm/pkg-manifest.reader": "workspace:*",
-    "@pnpm/types": "workspace:*",
-    "@pnpm/util.lex-comparator": "catalog:"
+    "@pnpm/text.ordinal-comparator": "workspace:*",
+    "@pnpm/types": "workspace:*"
   },
   "devDependencies": {
     "@pnpm/global.packages": "workspace:*"

@@ -11,7 +11,8 @@ import { PnpmError } from '@pnpm/error'
 import { packlist } from '@pnpm/fs.packlist'
 import type { Hooks } from '@pnpm/hooks.pnpmfile'
 import { logger } from '@pnpm/logger'
-import { createExportableManifest, type ExportedManifest } from '@pnpm/releasing.exportable-manifest'
+import { createExportableManifest, type ExportedManifest, readReadmeFile } from '@pnpm/releasing.exportable-manifest'
+import { changelogStorage, readPendingChangelog, renderChangelog } from '@pnpm/releasing.versioning'
 import type { DependencyManifest, Project, ProjectManifest, ProjectRootDir, ProjectsGraph } from '@pnpm/types'
 import { sortFilteredProjects } from '@pnpm/workspace.projects-sorter'
 import chalk from 'chalk'
@@ -23,6 +24,8 @@ import tar from 'tar-stream'
 import { glob } from 'tinyglobby'
 import validateNpmPackageName from 'validate-npm-package-name'
 
+import { normalizePackageName } from '../tarball/safeTarballFilename.js'
+import { fetchPreviousChangelog, type PreviousChangelogOptions } from './previousChangelog.js'
 import { runScriptsIfPresent } from './publish.js'
 
 const LICENSE_GLOB = 'LICEN{S,C}E{,.*}' // cspell:disable-line
@@ -111,6 +114,25 @@ export type PackOptions = Pick<UniversalOptions, 'dir'> & Pick<Config, 'catalogs
 | 'recursive'
 | 'workspaceConcurrency'
 | 'workspaceDir'
+// Registry-storage changelog composition (see `injectChangelog`): the
+// registry to read the previous version's tarball from, plus the network
+// config `createFetchFromRegistry` needs.
+| 'versioning'
+| 'registries'
+| 'configByUri'
+| 'fetchRetries'
+| 'fetchRetryFactor'
+| 'fetchRetryMaxtimeout'
+| 'fetchRetryMintimeout'
+| 'fetchTimeout'
+| 'ca'
+| 'cert'
+| 'key'
+| 'strictSsl'
+| 'httpProxy'
+| 'httpsProxy'
+| 'noProxy'
+| 'localAddress'
 >> & Partial<Pick<ConfigContext,
 | 'hooks'
 | 'selectedProjectsGraph'
@@ -256,7 +278,17 @@ export async function api (opts: PackOptions): Promise<PackResult> {
   publishManifest.version = stripBuildMetadata(publishManifest.version!)
   let tarballName: string
   let packDestination: string | undefined
-  const normalizedName = manifest.name.replace('@', '').replace('/', '-')
+  // Read back off the publish manifest so a `publishConfig.name` rename reaches
+  // the filename too — the tarball name, the packed manifest, and the registry
+  // metadata all name one artifact. The rename never went through the check on
+  // `manifest.name` above, so it is validated here: it lands in the tarball
+  // filename, where a separator would smuggle path components into the join and
+  // write outside the pack destination.
+  const publishedName = publishManifest.name || manifest.name
+  if (!validateNpmPackageName(publishedName).validForOldPackages) {
+    throw new PnpmError('INVALID_PACKAGE_NAME', `Invalid package name "${publishedName}".`)
+  }
+  const normalizedName = normalizePackageName(publishedName)
   if (opts.out) {
     if (opts.packDestination) {
       throw new PnpmError('INVALID_OPTION', 'Cannot use --pack-destination and --out together')
@@ -271,6 +303,7 @@ export async function api (opts: PackOptions): Promise<PackResult> {
   }
   const files = await packlist(dir, {
     manifest: publishManifest as Record<string, unknown>,
+    workspaceDir: opts.workspaceDir,
   })
   const filesMap = Object.fromEntries(files.map((file) => [`package/${file}`, path.join(dir, file)]))
   // cspell:disable-next-line
@@ -287,6 +320,16 @@ export async function api (opts: PackOptions): Promise<PackResult> {
         filesMap[`package/${license}`] = licensePath
       }
     }))
+  }
+  // In `registry` changelog storage the package carries no committed
+  // CHANGELOG.md; its section was parked at `pnpm version -r` time and is
+  // composed here on top of the previously published version's changelog and
+  // packed in. A composed entry supersedes any stale committed CHANGELOG.md.
+  const injectedEntries: Record<string, string> = {}
+  const composedChangelog = await composeRegistryChangelog(opts, manifest.name, publishedName, manifest.version)
+  if (composedChangelog != null) {
+    delete filesMap['package/CHANGELOG.md']
+    injectedEntries['package/CHANGELOG.md'] = composedChangelog
   }
   const destDir = packDestination
     ? (path.isAbsolute(packDestination) ? packDestination : path.join(dir, packDestination ?? '.'))
@@ -308,18 +351,21 @@ export async function api (opts: PackOptions): Promise<PackResult> {
     const stat = await fs.promises.stat(source)
     return stat.size
   }))
-  const unpackedSize = sizes.reduce((acc, size) => acc + size, 0)
-  const packedContents = Array.from(new Set(
-    Object.keys(filesMap).map((name) =>
+  const injectedSize = Object.values(injectedEntries).reduce((acc, content) => acc + Buffer.byteLength(content), 0)
+  const unpackedSize = sizes.reduce((acc, size) => acc + size, 0) + injectedSize
+  const packedContents = Array.from(new Set([
+    ...Object.keys(filesMap).map((name) =>
       isManifestEntry(name)
         ? 'package.json'
         : name.replace(/^package\//, '')
-    )
-  )).sort((a, b) => a.localeCompare(b, 'en'))
+    ),
+    ...Object.keys(injectedEntries).map((name) => name.replace(/^package\//, '')),
+  ])).sort((a, b) => a.localeCompare(b, 'en'))
   if (!opts.dryRun) {
     await packPkg({
       destFile: path.join(destDir, tarballName),
       filesMap,
+      injectedEntries,
       modulesDir: path.join(opts.dir, 'node_modules'),
       packGzipLevel: opts.packGzipLevel,
       manifest: publishManifest,
@@ -340,11 +386,25 @@ export async function api (opts: PackOptions): Promise<PackResult> {
     packedTarballPath = path.relative(opts.dir, path.join(dir, tarballName))
   }
   return {
-    publishedManifest: publishManifest,
+    publishedManifest: await withRegistryReadme(publishManifest, dir),
     contents: packedContents,
     tarballPath: packedTarballPath,
     unpackedSize,
   }
+}
+
+/**
+ * The readme is always sent to the registry as package metadata, matching the npm CLI, so that
+ * registries can render it on the package page. The `embed-readme` setting only controls whether
+ * the readme is additionally written into the `package.json` inside the tarball (via
+ * `createExportableManifest`), which is why it is added to the returned manifest here rather than
+ * to the packed one.
+ */
+async function withRegistryReadme (manifest: ExportedManifest, projectDir: string): Promise<ExportedManifest> {
+  if (manifest.readme != null) return manifest
+  const readme = await readReadmeFile(projectDir)
+  if (readme == null) return manifest
+  return { ...manifest, readme }
 }
 
 export interface PackResult {
@@ -360,6 +420,29 @@ export interface PackResult {
 // `package.json` in the contents listing regardless of the source file name.
 function isManifestEntry (name: string): boolean {
   return name === 'package/package.json' || name === 'package/package.json5' || name === 'package/package.yaml'
+}
+
+/**
+ * The CHANGELOG.md to pack for a `registry`-storage release: its parked
+ * section (written at `pnpm version -r` time) rendered on top of the
+ * previously published version's changelog. `undefined` when storage is
+ * `repository`, there is no workspace, or the release has no parked section
+ * (an ordinary `pnpm pack` of a package that is not mid-release).
+ */
+/**
+ * `pkgName` keys the parked section — the workspace, the ledger, and every
+ * intent address the project by its manifest name. `publishedName` is the only
+ * name the registry knows, so it selects the previous changelog to build on and
+ * titles the composed one.
+ */
+async function composeRegistryChangelog (opts: PackOptions, pkgName: string, publishedName: string, version: string): Promise<string | undefined> {
+  if (changelogStorage(opts.versioning) !== 'registry' || opts.workspaceDir == null) return undefined
+  const section = await readPendingChangelog(opts.workspaceDir, pkgName, version)
+  if (section == null) return undefined
+  const previous = opts.registries != null
+    ? await fetchPreviousChangelog(opts as PreviousChangelogOptions, publishedName, version)
+    : undefined
+  return renderChangelog(previous ?? null, publishedName, section)
 }
 
 function stripBuildMetadata (version: string): string {
@@ -382,6 +465,8 @@ function preventBundledDependenciesWithoutHoistedNodeLinker (nodeLinker: Config[
 async function packPkg (opts: {
   destFile: string
   filesMap: Record<string, string>
+  /** In-memory tar entries (name → contents) with no file on disk, e.g. the composed CHANGELOG.md. */
+  injectedEntries?: Record<string, string>
   modulesDir: string
   packGzipLevel?: number
   bins: string[]
@@ -390,6 +475,7 @@ async function packPkg (opts: {
   const {
     destFile,
     filesMap,
+    injectedEntries,
     bins,
     manifest,
   } = opts
@@ -404,6 +490,9 @@ async function packPkg (opts: {
     }
     pack.entry({ mode, mtime, name }, fs.readFileSync(source))
   }))
+  for (const [name, content] of Object.entries(injectedEntries ?? {})) {
+    pack.entry({ mode: 0o644, mtime, name }, content)
+  }
   const tarball = fs.createWriteStream(destFile)
   pack.pipe(createGzip({ level: opts.packGzipLevel })).pipe(tarball)
   pack.finalize()

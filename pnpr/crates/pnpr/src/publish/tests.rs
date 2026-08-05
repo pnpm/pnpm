@@ -266,6 +266,62 @@ fn merge_takes_incoming_for_an_upstream_only_version() {
 }
 
 #[test]
+fn merge_hoists_readme_from_the_latest_version_to_the_top_level() {
+    // Publish clients send the readme only inside the version manifest; the
+    // packument's top-level `readme` is what full-packument consumers render.
+    let incoming = json!({
+        "name": "foo",
+        "versions": {
+            "1.0.0": { "version": "1.0.0", "readme": "# Foo", "readmeFilename": "README.md" }
+        },
+        "dist-tags": { "latest": "1.0.0" }
+    });
+    let merged = merge_manifest(None, &incoming, None, "now");
+    assert_eq!(merged["readme"], "# Foo");
+    assert_eq!(merged["readmeFilename"], "README.md");
+}
+
+#[test]
+fn merge_keeps_the_top_level_readme_when_the_latest_version_has_none() {
+    // A metadata-only re-publish of a version without a readme must not blank
+    // the packument's existing top-level readme.
+    let existing = json!({
+        "name": "foo",
+        "readme": "# Foo",
+        "versions": { "1.0.0": { "version": "1.0.0" } },
+        "dist-tags": { "latest": "1.0.0" }
+    });
+    let incoming = json!({
+        "name": "foo",
+        "versions": { "1.0.0": { "version": "1.0.0" } },
+        "dist-tags": { "latest": "1.0.0" }
+    });
+    let merged = merge_manifest(Some(&existing), &incoming, Some(&existing), "now");
+    assert_eq!(merged["readme"], "# Foo");
+}
+
+#[test]
+fn merge_does_not_hoist_a_null_readme_over_an_existing_top_level_one() {
+    // Attacker-controlled metadata could set `"readme": null` on the version;
+    // hoisting it would blank the packument's existing top-level readme.
+    let existing = json!({
+        "name": "foo",
+        "readme": "# Foo",
+        "readmeFilename": "README.md",
+        "versions": { "1.0.0": { "version": "1.0.0" } },
+        "dist-tags": { "latest": "1.0.0" }
+    });
+    let incoming = json!({
+        "name": "foo",
+        "versions": { "1.1.0": { "version": "1.1.0", "readme": null, "readmeFilename": null } },
+        "dist-tags": { "latest": "1.1.0" }
+    });
+    let merged = merge_manifest(Some(&existing), &incoming, Some(&existing), "now");
+    assert_eq!(merged["readme"], "# Foo");
+    assert_eq!(merged["readmeFilename"], "README.md");
+}
+
+#[test]
 fn now_iso_has_expected_shape() {
     let now = now_iso();
     let bytes = now.as_bytes();

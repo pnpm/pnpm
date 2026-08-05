@@ -1,0 +1,281 @@
+//! `pacquet pack` — create a tarball from a package.
+//!
+//! The single-project work lives in [`pacquet_pack::api`]; this module
+//! maps the resolved [`Config`] and CLI flags onto
+//! [`pacquet_pack::PackOptions`], and drives the recursive (`-r`) sweep
+//! over the workspace the same way the other recursive commands do.
+//!
+//! `--workspace-concurrency` is accepted but the recursive sweep runs
+//! sequentially (matching pacquet's other recursive commands), and the
+//! `embedReadme` / `extraEnv` config keys are not surfaced by `Config`
+//! yet, so they take their `false` / empty defaults.
+
+use crate::cli_args::recursive::{
+    AutoExcludeRoot, discover_workspace_projects, select_recursive_projects, sort_filtered_projects,
+};
+use clap::Args;
+use miette::{Context, IntoDiagnostic};
+use pacquet_catalogs_config::get_catalogs_from_workspace_manifest;
+use pacquet_catalogs_types::Catalogs;
+use pacquet_config::Config;
+use pacquet_hooks::PnpmfileHooks;
+use pacquet_pack::{
+    Host, PackError, PackOptions, PackResultJson, api, format_pack_output, to_pack_result_json,
+};
+use pacquet_reporter::Reporter;
+use pacquet_workspace::read_workspace_manifest;
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
+
+/// The `wrap_err` framing `pack` and `publish` attach to a failed pack.
+/// [`super::dispatch`]'s `--json` error path matches on it to surface the
+/// underlying pack diagnostic instead of this wrapper, so the two sites must
+/// share one definition.
+pub(crate) const PACK_ERROR_CONTEXT: &str = "pack the package";
+
+/// The catalogs `catalog:` specifiers resolve against when packing a
+/// package for `pack` / `publish`: the hook-injected set when an
+/// `updateConfig` pnpmfile provided one ([`Config::catalogs`] is `Some`),
+/// otherwise the `catalog:` / `catalogs:` tables of the workspace
+/// manifest — the same fallback the install performs.
+pub(crate) fn pack_catalogs(config: &Config) -> miette::Result<Catalogs> {
+    if let Some(catalogs) = &config.catalogs {
+        return Ok(catalogs.clone());
+    }
+    let Some(workspace_dir) = config.workspace_dir.as_deref() else {
+        return Ok(Catalogs::default());
+    };
+    let workspace_manifest = read_workspace_manifest(workspace_dir)
+        .into_diagnostic()
+        .wrap_err("read the workspace manifest for catalogs")?;
+    get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())
+        .into_diagnostic()
+        .wrap_err("read the workspace catalogs")
+}
+
+/// Create a tarball from a package.
+#[derive(Debug, Args)]
+pub struct PackArgs {
+    /// Do everything `pack` would do except writing the tarball to disk.
+    #[clap(long)]
+    pub dry_run: bool,
+
+    /// Directory in which to save the tarball. Defaults to the current
+    /// working directory.
+    #[clap(long = "pack-destination")]
+    pub pack_destination: Option<String>,
+
+    /// Print the packed tarball and its contents in JSON.
+    #[clap(long)]
+    pub json: bool,
+
+    /// Customize the output path. `%s` expands to the package name and
+    /// `%v` to the version, e.g. `%s.tgz` or `some-dir/%s-%v.tgz`.
+    #[clap(long)]
+    pub out: Option<String>,
+
+    /// gzip compression level (`0`–`9`) for the tarball.
+    #[clap(long = "pack-gzip-level", value_parser = clap::value_parser!(u32).range(0..=9))]
+    pub pack_gzip_level: Option<u32>,
+
+    /// Keep the original `packageManager` field and publish-lifecycle
+    /// scripts in the packed manifest instead of stripping them.
+    #[clap(long = "skip-manifest-obfuscation")]
+    pub skip_manifest_obfuscation: bool,
+
+    /// Maximum number of projects to pack at once in recursive mode.
+    /// Currently has no effect; packing runs one project at a time.
+    #[clap(long = "workspace-concurrency")]
+    pub workspace_concurrency: Option<u32>,
+}
+
+impl PackArgs {
+    /// Pack the project at `dir` (or the `--filter`-selected workspace
+    /// projects when `recursive`), returning the text/JSON the CLI prints.
+    pub async fn run<Reporter: self::Reporter>(
+        &self,
+        dir: &Path,
+        config: &Config,
+        recursive: bool,
+    ) -> miette::Result<String> {
+        if recursive {
+            self.run_recursive::<Reporter>(dir, config).await
+        } else {
+            let pnpmfile_root = config.workspace_dir.as_deref().unwrap_or(dir);
+            let mut options = self.pack_options(
+                dir.to_path_buf(),
+                config,
+                pack_catalogs(config)?,
+                self.out.clone(),
+                self.pack_destination.clone(),
+                crate::config_deps::load_before_packing_hooks(config, pnpmfile_root),
+            );
+            set_injected_changelog(&mut options, config, dir).await?;
+            let result = api::<Reporter, Host>(&options)
+                .await
+                .map_err(miette::Report::new)
+                .wrap_err(PACK_ERROR_CONTEXT)?;
+            Ok(format_pack_output(&[to_pack_result_json(&result)], self.json, false))
+        }
+    }
+
+    /// Pack each `--filter`-selected workspace project that declares both
+    /// a name and a version, in topological order.
+    async fn run_recursive<Reporter: self::Reporter>(
+        &self,
+        dir: &Path,
+        config: &Config,
+    ) -> miette::Result<String> {
+        // `--out` and `--pack-destination` are mutually exclusive. The
+        // single-project path enforces this inside `api`; the recursive
+        // path resolves a shared destination before `api` ever sees both,
+        // so check here too rather than silently dropping one.
+        if self.out.is_some() && self.pack_destination.is_some() {
+            return Err(miette::Report::new(PackError::OutAndPackDestination));
+        }
+        let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
+        // `pack` is not in pnpm's root-auto-exclusion command set, so the
+        // workspace root stays in the selection (its own name/version
+        // eligibility check still applies below).
+        let (projects, _patterns) = discover_workspace_projects(workspace_root)?;
+        let selection =
+            select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
+        let graph = &selection.selected;
+        let chunks = sort_filtered_projects(
+            graph,
+            selection.full_graph(),
+            selection.prod_all.as_ref(),
+            &selection.prod_only_selected,
+        );
+
+        // In recursive mode `--out` / `--pack-destination` resolves to an
+        // absolute path against the CLI dir (and defaults the destination
+        // to the CLI dir), so every tarball lands in one place regardless
+        // of each project's own root.
+        let (out, pack_destination) = self.resolve_recursive_destination(dir);
+        let catalogs = pack_catalogs(config)?;
+        // Load the pnpmfiles once for the whole workspace (they live at the
+        // workspace root); cloning the Arcs into each project shares one
+        // worker per pnpmfile instead of re-spawning it per packed project.
+        let before_packing_hooks =
+            crate::config_deps::load_before_packing_hooks(config, workspace_root);
+
+        let mut packed: Vec<PackResultJson> = Vec::new();
+        for chunk in &chunks {
+            for root in chunk {
+                let project = graph[root].package.project;
+                let manifest = project.manifest.value();
+                let has_name = manifest
+                    .get("name")
+                    .and_then(|name| name.as_str())
+                    .is_some_and(|name| !name.is_empty());
+                let has_version = manifest
+                    .get("version")
+                    .and_then(|version| version.as_str())
+                    .is_some_and(|version| !version.is_empty());
+                if !has_name || !has_version {
+                    continue;
+                }
+                let mut options = self.pack_options(
+                    project.root_dir.clone(),
+                    config,
+                    catalogs.clone(),
+                    out.clone(),
+                    pack_destination.clone(),
+                    before_packing_hooks.clone(),
+                );
+                set_injected_changelog(&mut options, config, &project.root_dir).await?;
+                let result = api::<Reporter, Host>(&options)
+                    .await
+                    .map_err(miette::Report::new)
+                    .wrap_err_with(|| format!("pack {}", project.root_dir.display()))?;
+                packed.push(to_pack_result_json(&result));
+            }
+        }
+
+        if packed.is_empty() {
+            tracing::info!(
+                target: "pacquet::pack",
+                prefix = %dir.display(),
+                "There are no packages that should be packed",
+            );
+            return Ok(String::new());
+        }
+        Ok(format_pack_output(&packed, self.json, false))
+    }
+
+    /// Resolve the recursive-mode `(out, pack_destination)` pair to
+    /// absolute paths against the CLI `dir`.
+    fn resolve_recursive_destination(&self, dir: &Path) -> (Option<String>, Option<String>) {
+        if let Some(out) = &self.out {
+            (Some(absolute_against(dir, out)), None)
+        } else if let Some(destination) = &self.pack_destination {
+            (None, Some(absolute_against(dir, destination)))
+        } else {
+            (None, Some(dir.to_string_lossy().into_owned()))
+        }
+    }
+
+    /// Map `self` plus the resolved `config` onto a [`PackOptions`].
+    ///
+    /// `before_packing_hooks` is loaded once by the caller and cloned in
+    /// (like `catalogs`) so a recursive pack shares one worker per
+    /// pnpmfile across every project.
+    fn pack_options(
+        &self,
+        dir: PathBuf,
+        config: &Config,
+        catalogs: Catalogs,
+        out: Option<String>,
+        pack_destination: Option<String>,
+        before_packing_hooks: Vec<Arc<dyn PnpmfileHooks>>,
+    ) -> PackOptions {
+        PackOptions {
+            dir,
+            catalogs,
+            ignore_scripts: config.ignore_scripts,
+            unsafe_perm: config.unsafe_perm,
+            embed_readme: false,
+            pack_gzip_level: self.pack_gzip_level,
+            node_linker: config.node_linker,
+            skip_manifest_obfuscation: self.skip_manifest_obfuscation,
+            user_agent: config.user_agent.clone(),
+            extra_bin_paths: config.extra_bin_paths.clone(),
+            extra_env: config.extra_env.clone(),
+            workspace_dir: config.workspace_dir.clone(),
+            dry_run: self.dry_run,
+            out,
+            pack_destination,
+            before_packing_hooks,
+            injected_files: Vec::new(),
+        }
+    }
+}
+
+/// Composes and injects the `registry`-storage CHANGELOG.md for the project at
+/// `project_dir`, replacing any composed entry already set. A no-op in
+/// `repository` storage or when the project has no parked section.
+pub(crate) async fn set_injected_changelog(
+    options: &mut PackOptions,
+    config: &Config,
+    project_dir: &Path,
+) -> miette::Result<()> {
+    if let Some(changelog) =
+        crate::cli_args::changelog::compose_registry_changelog(config, project_dir).await?
+    {
+        options.injected_files = vec![("package/CHANGELOG.md".to_string(), changelog)];
+    }
+    Ok(())
+}
+
+/// Resolve `path` against `base` when it is relative, mirroring node's
+/// `path.resolve(base, path)`.
+fn absolute_against(base: &Path, path: &str) -> String {
+    if Path::new(path).is_absolute() {
+        path.to_string()
+    } else {
+        base.join(path).to_string_lossy().into_owned()
+    }
+}

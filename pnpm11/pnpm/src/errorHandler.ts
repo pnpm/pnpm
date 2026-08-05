@@ -1,5 +1,6 @@
 import { promisify } from 'node:util'
 
+import { killTrackedProcessTrees } from '@pnpm/exec.lifecycle'
 import { logger } from '@pnpm/logger'
 import { canonicalHttpUrl } from '@pnpm/network.web-auth'
 import pidTree from 'pidtree'
@@ -49,35 +50,41 @@ export async function errorHandler (error: Error & { code?: string }): Promise<v
   )
 }
 
-// Enumerating descendant processes shells out to the OS process list. Where
-// that's cheap (one `ps` on POSIX, tens of milliseconds) it returns well
-// within this budget. On Windows it means `wmic` — and, where wmic has been
-// removed, a PowerShell `Get-CimInstance Win32_Process` fallback — which can
-// take tens of seconds, long enough to dominate the exit time of every failed
-// command. Bound the lookup so a pathologically slow enumeration can't stall
+// Enumerating descendant processes shells out to the OS process list (one
+// `ps` call, tens of milliseconds), which normally returns well within this
+// budget. Bound the lookup so a pathologically slow enumeration can't stall
 // the exit; `exit()` calls `process.exit`, which abandons the still-running
-// query (a harmless read-only process listing). The timeout only bites the
-// slow path, so it's kept short; the trade-off is that on a machine where the
-// lookup can't finish in time, orphaned children aren't killed.
+// query (a harmless read-only process listing). The trade-off is that on a
+// machine where the lookup can't finish in time, orphaned children aren't
+// killed.
 const DESCENDANT_LOOKUP_TIMEOUT = 500
 
 async function killProcesses (status: number): Promise<void> {
-  try {
-    const descendentProcesses = await Promise.race([
-      getDescendentProcesses(process.pid).catch(() => [] as number[]),
-      new Promise<number[]>((resolve) => {
-        setTimeout(() => resolve([]), DESCENDANT_LOOKUP_TIMEOUT).unref()
-      }),
-    ])
-    for (const pid of descendentProcesses) {
-      try {
-        process.kill(pid)
-      } catch {
-        // ignore error here
+  if (process.platform === 'win32') {
+    // Enumerating descendant processes on Windows shells out to `wmic` — or,
+    // where wmic has been removed, a PowerShell `Get-CimInstance` fallback —
+    // which can take tens of seconds. Instead of enumerating, kill the
+    // process trees of the still-running child processes whose PIDs were
+    // recorded at their spawn sites.
+    await killTrackedProcessTrees()
+  } else {
+    try {
+      const descendentProcesses = await Promise.race([
+        getDescendentProcesses(process.pid).catch(() => [] as number[]),
+        new Promise<number[]>((resolve) => {
+          setTimeout(() => resolve([]), DESCENDANT_LOOKUP_TIMEOUT).unref()
+        }),
+      ])
+      for (const pid of descendentProcesses) {
+        try {
+          process.kill(pid)
+        } catch {
+          // ignore error here
+        }
       }
+    } catch {
+      // ignore error here
     }
-  } catch {
-    // ignore error here
   }
   await exit(status)
 }

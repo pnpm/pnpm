@@ -3,14 +3,18 @@ import https from 'node:https'
 import { URL } from 'node:url'
 import { gunzip } from 'node:zlib'
 
+import type { Catalogs } from '@pnpm/catalogs.types'
 import { convertToLockfileObject } from '@pnpm/lockfile.fs'
 import type { LockfileFile, LockfileObject } from '@pnpm/lockfile.types'
+import type { TrustPolicy } from '@pnpm/types'
 
 import type { ResponseMetadata } from './protocol.js'
 
 export interface PnprProject {
   /** Relative dir within the workspace (e.g. "." or "packages/foo") */
   dir: string
+  name?: string
+  version?: string
   dependencies?: Record<string, string>
   devDependencies?: Record<string, string>
   optionalDependencies?: Record<string, string>
@@ -19,6 +23,10 @@ export interface PnprProject {
 export interface ResolveViaPnprServerOptions {
   /** URL of the pnpr server */
   registryUrl: string
+  /** Project name to resolve (single project) */
+  name?: string
+  /** Project version to resolve (single project) */
+  version?: string
   /** Dependencies to resolve (single project) */
   dependencies?: Record<string, string>
   /** Dev dependencies to resolve (single project) */
@@ -43,10 +51,44 @@ export interface ResolveViaPnprServerOptions {
   authorization?: string
   /** Overrides */
   overrides?: Record<string, string>
+  /**
+   * Workspace catalogs (`catalog:` / `catalogs:` from `pnpm-workspace.yaml`),
+   * keyed by catalog name with the default catalog under `default`. The
+   * server resolves `catalog:` specifiers in dependencies and overrides
+   * against these — it never reads the workspace manifest itself.
+   */
+  catalogs?: Catalogs
   /** Node.js version for resolution */
   nodeVersion?: string
-  /** Minimum release age in minutes */
+  /**
+   * The client's verification policy. The server is the only place these
+   * run on the pnpr path — the client skips its own
+   * `verifyLockfileResolutions` whenever a pnpr server is configured — so
+   * every field has to travel with the request. Anything omitted is not
+   * merely defaulted server-side: the server clears the field from its
+   * config, which enforces a *stricter* policy than the user configured
+   * (an omitted `minimumReleaseAgeExclude` re-applies the age gate to
+   * packages the user opted out of).
+   */
   minimumReleaseAge?: number
+  minimumReleaseAgeExclude?: string[]
+  minimumReleaseAgeIgnoreMissingTime?: boolean
+  trustPolicy?: TrustPolicy
+  trustPolicyExclude?: string[]
+  trustPolicyIgnoreAfter?: number
+  /**
+   * The client's `trustLockfile` opt-out. When true the server skips the
+   * input-lockfile verification gate but still reuses the lockfile for
+   * resolution.
+   */
+  trustLockfile?: boolean
+  /**
+   * Resolution behavior — whether the server uses the lockfile as-is or
+   * reuses its pins and resolves what changed. Distinct from the policy
+   * fields above: neither affects whether the input lockfile is verified.
+   */
+  frozenLockfile?: boolean
+  preferFrozenLockfile?: boolean
   /**
    * Existing lockfile for incremental resolution, in the on-disk format
    * the wire protocol carries. The caller reads it with
@@ -89,6 +131,8 @@ export async function resolveViaPnprServer (
 ): Promise<ResolveViaPnprServerResult> {
   const projects = opts.projects ?? [{
     dir: '.',
+    name: opts.name,
+    version: opts.version,
     dependencies: opts.dependencies,
     devDependencies: opts.devDependencies,
     optionalDependencies: opts.optionalDependencies,
@@ -99,10 +143,19 @@ export async function resolveViaPnprServer (
     registry: opts.registry,
     namedRegistries: opts.namedRegistries,
     overrides: opts.overrides,
+    catalogs: opts.catalogs,
     nodeVersion: opts.nodeVersion ?? process.version.slice(1),
     os: process.platform,
     arch: process.arch,
     minimumReleaseAge: opts.minimumReleaseAge,
+    minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
+    minimumReleaseAgeIgnoreMissingTime: opts.minimumReleaseAgeIgnoreMissingTime,
+    trustPolicy: opts.trustPolicy,
+    trustPolicyExclude: opts.trustPolicyExclude,
+    trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
+    trustLockfile: opts.trustLockfile,
+    frozenLockfile: opts.frozenLockfile,
+    preferFrozenLockfile: opts.preferFrozenLockfile,
     // Sent as-is: `opts.lockfile` is already the on-disk format the wire
     // protocol carries (split `packages`/`snapshots`, `{ specifier, version }`
     // importer deps).

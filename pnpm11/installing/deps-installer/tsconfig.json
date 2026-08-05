@@ -64,6 +64,9 @@
       "path": "../../config/parse-overrides"
     },
     {
+      "path": "../../config/version-policy"
+    },
+    {
       "path": "../../core/constants"
     },
     {
@@ -185,6 +188,9 @@
     },
     {
       "path": "../../testing/temp-store"
+    },
+    {
+      "path": "../../text/ordinal-comparator"
     },
     {
       "path": "../../worker"

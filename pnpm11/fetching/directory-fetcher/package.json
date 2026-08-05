@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fetching.directory-fetcher",
-  "version": "1100.0.19",
+  "version": "1100.0.28",
   "description": "A fetcher for local directory packages",
   "keywords": [
     "pnpm",
@@ -48,7 +48,7 @@
     "@pnpm/fetching.directory-fetcher": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
-    "@pnpm/util.lex-comparator": "catalog:",
+    "@pnpm/text.ordinal-comparator": "workspace:*",
     "@zkochan/rimraf": "catalog:"
   },
   "engines": {

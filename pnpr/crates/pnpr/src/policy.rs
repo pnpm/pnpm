@@ -7,15 +7,14 @@
 //! makes that selection total: for any one name, at most one key per
 //! specificity tier can match, so every name has exactly one winning entry.
 //!
-//! Each permission is a list of tokens (verdaccio's space-separated
-//! groups); a request is allowed when the caller's identity satisfies
-//! any token in the list. Tokens are the built-in pseudo-groups
-//! (`$all`, `$authenticated`, `$anonymous`, plus their `@`/bare
-//! aliases) or a *name*. A name token matches either the authenticated
-//! username or any group attached to that identity. pnpr's static
-//! `groups:` config adds group membership on top of htpasswd users,
-//! matching verdaccio's model where access lists do not distinguish
-//! usernames from group names.
+//! Each permission is a list of tokens; a request is allowed when the
+//! caller's identity satisfies any token in the list. Tokens are the
+//! built-in pseudo-groups (`$all`, `$authenticated`, `$anonymous`), a
+//! bare *username*, or a `team:<name>` reference to a team the owning
+//! registry declares. Teams are registry-scoped — the registry is the
+//! tenant, so it owns its principal sets — and a `team:` token is
+//! resolved to the declared member set when the config is loaded, so
+//! evaluation needs only the caller's identity.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -24,44 +23,59 @@ use crate::registry::PackagePattern;
 /// A single token in an access list.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AccessToken {
-    /// `$all` / `@all` / `all` — anyone, authenticated or not.
+    /// `$all` — anyone, authenticated or not.
     All,
-    /// `$authenticated` / `@authenticated` / `authenticated` — any
-    /// caller carrying valid Bearer or Basic credentials.
+    /// `$authenticated` — any caller carrying valid Bearer or Basic
+    /// credentials.
     Authenticated,
-    /// `$anonymous` / `@anonymous` / `anonymous` — only callers
-    /// *without* valid credentials.
+    /// `$anonymous` — only callers *without* valid credentials.
     Anonymous,
-    /// A username or group name. Matches an authenticated caller whose
-    /// username or group membership equals it.
-    Named(String),
+    /// A bare token: a username. Matches an authenticated caller whose
+    /// username equals it — never a team name; teams are referenced with
+    /// the explicit `team:` form.
+    User(String),
+    /// A `team:<name>` reference, resolved to the owning registry's
+    /// declared member set at config load (an undeclared team is a config
+    /// error there). Matches an authenticated caller whose username is a
+    /// member. `name` is kept for diagnostics only.
+    Team { name: String, members: BTreeSet<String> },
 }
 
+/// Only the `$`-sigiled spellings are built-ins; any other token is a
+/// username, which can only *narrow* access, so this stays infallible.
+/// Near-miss spellings (verdaccio's `@all`/bare aliases, an unknown
+/// `$...`) and `team:` references are handled at YAML load (`AccessSpec`
+/// in the config module): the former are rejected, the latter resolved
+/// against the registry's declared teams. A programmatic caller passing
+/// one of those spellings just gets a username that matches nobody.
 impl From<&str> for AccessToken {
     fn from(token: &str) -> Self {
         match token {
-            "$all" | "@all" | "all" => AccessToken::All,
-            "$authenticated" | "@authenticated" | "authenticated" => AccessToken::Authenticated,
-            "$anonymous" | "@anonymous" | "anonymous" => AccessToken::Anonymous,
-            name => AccessToken::Named(name.to_string()),
+            "$all" => AccessToken::All,
+            "$authenticated" => AccessToken::Authenticated,
+            "$anonymous" => AccessToken::Anonymous,
+            name => AccessToken::User(name.to_string()),
         }
     }
 }
 
 /// One `access` / `publish` permission: the set of tokens that satisfy
-/// it. An empty list admits no one (verdaccio's empty `unpublish:`).
+/// it. An empty list admits no one (an explicit `unpublish: []`).
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct AccessList(Vec<AccessToken>);
 
 impl AccessList {
-    /// Build from a verdaccio space-separated permission string
-    /// (e.g. `"$authenticated admin"`).
-    #[must_use]
-    pub fn parse(spec: &str) -> Self {
-        Self::from_tokens(spec.split_whitespace())
+    /// Build from already-resolved tokens (the config loader's path,
+    /// where `team:` references have been resolved to member sets).
+    pub(crate) fn new(tokens: Vec<AccessToken>) -> Self {
+        Self(tokens)
     }
 
-    /// Build from already-separated tokens (e.g. a YAML sequence).
+    /// Build from individual built-in or username tokens (e.g. the
+    /// elements of a YAML sequence). Each string is one token, taken
+    /// verbatim; `team:` references cannot be built this way — they need
+    /// the owning registry's team declarations (the config loader
+    /// resolves them and builds the list with `Self::new`).
     pub fn from_tokens<Tokens, Token>(tokens: Tokens) -> Self
     where
         Tokens: IntoIterator<Item = Token>,
@@ -82,52 +96,22 @@ impl AccessList {
     }
 }
 
-/// Static group memberships layered onto authenticated pnpr users.
-/// Values are keyed by username so resolving a caller identity stays a
-/// single lookup after the bearer token has been validated.
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
-pub struct AccessGroups {
-    by_user: BTreeMap<String, BTreeSet<String>>,
-}
-
-impl AccessGroups {
-    pub(crate) fn add_user_to_group(&mut self, username: &str, group: &str) {
-        self.by_user.entry(username.to_string()).or_default().insert(group.to_string());
-    }
-
-    #[must_use]
-    pub fn identity_for(&self, username: String) -> Identity {
-        let groups = self.by_user.get(&username).cloned().unwrap_or_default();
-        Identity::User { username, groups }
-    }
-}
-
 /// The resolved caller identity an [`AccessList`] is evaluated against.
+/// Just the authenticated username (or its absence): team membership
+/// lives in the [`AccessToken::Team`] tokens, resolved at config load,
+/// so identity carries no memberships.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Identity {
     /// No valid credentials were presented.
     Anonymous,
-    /// Authenticated as `username`, with any configured static groups.
-    User { username: String, groups: BTreeSet<String> },
+    /// Authenticated as `username`.
+    User { username: String },
 }
 
 impl Identity {
     #[must_use]
     pub fn user(username: impl Into<String>) -> Self {
-        Self::User { username: username.into(), groups: BTreeSet::new() }
-    }
-
-    #[must_use]
-    pub fn user_with_groups<User, Groups, Group>(username: User, groups: Groups) -> Self
-    where
-        User: Into<String>,
-        Groups: IntoIterator<Item = Group>,
-        Group: Into<String>,
-    {
-        Self::User {
-            username: username.into(),
-            groups: groups.into_iter().map(Into::into).collect(),
-        }
+        Self::User { username: username.into() }
     }
 
     #[must_use]
@@ -140,8 +124,9 @@ impl Identity {
             (AccessToken::All, _) => true,
             (AccessToken::Authenticated, Identity::User { .. }) => true,
             (AccessToken::Anonymous, Identity::Anonymous) => true,
-            (AccessToken::Named(name), Identity::User { username, groups }) => {
-                name == username || groups.contains(name)
+            (AccessToken::User(name), Identity::User { username }) => name == username,
+            (AccessToken::Team { members, .. }, Identity::User { username }) => {
+                members.contains(username)
             }
             _ => false,
         }
@@ -268,8 +253,8 @@ impl PackageRules {
         Self {
             index: RuleIndex::build(&rules),
             rules,
-            default_access: default_access.unwrap_or_else(|| AccessList::parse("$all")),
-            default_publish: AccessList::parse("$authenticated"),
+            default_access: default_access.unwrap_or_else(|| AccessList::from_tokens(["$all"])),
+            default_publish: AccessList::from_tokens(["$authenticated"]),
             default_unpublish: AccessList::default(),
         }
     }

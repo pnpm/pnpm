@@ -1,3 +1,4 @@
+export { formatAuthUrlMessage, formatAuthUrlOnlyMessage } from './formatAuthUrlMessage.js'
 export { generateQrCode } from './generateQrCode.js'
 export {
   pollForWebAuthToken,
@@ -5,6 +6,8 @@ export {
   type WebAuthContext,
   type WebAuthFetchOptions,
   type WebAuthFetchResponse,
+  type WebAuthFetchResponseBody,
+  type WebAuthFetchResponseBodyReader,
   type WebAuthFetchResponseHeaders,
 } from './pollForWebAuthToken.js'
 export {

@@ -74,12 +74,22 @@ function credsToHeader (creds?: Creds): string | undefined {
   return undefined
 }
 
-function executeTokenHelper (tokenHelper: TokenHelper): string {
+// A token helper only prints a token, so this is a generous bound that turns a
+// hung helper (deadlock, stuck I/O) into a clear error instead of a command
+// that hangs forever. Matches pacquet's `TOKEN_HELPER_TIMEOUT`.
+const TOKEN_HELPER_TIMEOUT = 60_000
+
+export function executeTokenHelper (tokenHelper: TokenHelper, timeoutMs: number = TOKEN_HELPER_TIMEOUT): string {
   const [cmd, ...args] = tokenHelper
   // On Windows, .bat/.cmd files require a shell to execute.
   const shell = process.platform === 'win32' && /\.(?:bat|cmd)$/i.test(cmd)
-  const spawnResult = spawnSync(cmd, args, { stdio: 'pipe', shell })
+  const spawnResult = spawnSync(cmd, args, { stdio: 'pipe', shell, timeout: timeoutMs })
 
+  // A helper that outlives the timeout is killed; spawnSync then reports the
+  // kill signal rather than a clean exit, so surface it as a distinct error.
+  if (spawnResult.error != null && (spawnResult.error as NodeJS.ErrnoException).code === 'ETIMEDOUT') {
+    throw new PnpmError('TOKEN_HELPER_TIMEOUT', `Token helper "${cmd}" timed out after ${timeoutMs} ms`)
+  }
   if (spawnResult.status !== 0) {
     throw new PnpmError('TOKEN_HELPER_ERROR_STATUS', `Error running "${cmd}" as a token helper. Exit code ${spawnResult.status?.toString() ?? ''}`)
   }

@@ -37,7 +37,13 @@
       "path": "../../deps/graph-hasher"
     },
     {
+      "path": "../../deps/path"
+    },
+    {
       "path": "../../fs/read-modules-dir"
+    },
+    {
+      "path": "../../fs/symlink-dependency"
     },
     {
       "path": "../../lockfile/fs"

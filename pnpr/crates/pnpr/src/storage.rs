@@ -6,6 +6,7 @@ use crate::{
     streaming,
 };
 use axum::body::Body;
+use object_store::UpdateVersion;
 use std::{
     io::{ErrorKind, SeekFrom},
     path::{Path, PathBuf},
@@ -28,6 +29,21 @@ const PACKUMENT_FILE: &str = "package.json";
 /// on POSIX as long as src and dest sit in the same directory (they do).
 static TMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 const MAX_TEMP_CREATE_ATTEMPTS: usize = 16;
+pub(crate) const PACKUMENT_WRITE_RETRIES: usize = 8;
+pub(crate) const RECOVERY_PACKUMENT_WRITE_RETRIES: usize = 32;
+const PACKUMENT_WRITE_CONFLICT_DELAY_MS: u64 = 5;
+const MAX_PACKUMENT_WRITE_CONFLICT_DELAY_MS: u64 = 250;
+
+pub(crate) fn packument_write_conflict_delay(attempt: usize) -> Duration {
+    let delay = PACKUMENT_WRITE_CONFLICT_DELAY_MS
+        .saturating_mul(1_u64 << attempt.min(6))
+        .min(MAX_PACKUMENT_WRITE_CONFLICT_DELAY_MS);
+    Duration::from_millis(delay)
+}
+
+pub(crate) async fn wait_after_packument_write_conflict(attempt: usize) {
+    tokio::time::sleep(packument_write_conflict_delay(attempt)).await;
+}
 
 /// Handle returned from [`Storage::open_upstream_tarball_tmp`]. The caller
 /// writes through [`Self::write_all`] (and on success calls [`Self::finalize`] to
@@ -192,6 +208,49 @@ enum HostedStore {
     S3(S3Store),
 }
 
+#[derive(Debug)]
+pub(crate) struct HostedPackumentForUpdate {
+    pub(crate) bytes: Vec<u8>,
+    pub(crate) version: HostedPackumentVersion,
+}
+
+#[derive(Debug)]
+pub(crate) enum HostedPackumentVersion {
+    Fs,
+    S3(UpdateVersion),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum PackumentWrite {
+    Written,
+    Conflict,
+}
+
+/// Outcome of [`Storage::update_hosted_packument_with_retry`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum PackumentUpdate {
+    Written,
+    /// The `build` closure reported that the packument does not exist
+    /// (returned `Ok(None)`), so there was nothing to update.
+    NotFound,
+}
+
+/// Outcome of promoting a staged tarball into the hosted store.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TarballFinalize {
+    /// The tarball was promoted: created on S3, or renamed into place on the
+    /// single-node FS backend, which owns its store exclusively.
+    Written,
+    /// An object with byte-identical content already occupied the key, so
+    /// promotion was a no-op. Safe — the published artifact is exactly ours.
+    AlreadyIdentical,
+    /// A *different* object already occupies the key: a concurrent publisher
+    /// won this version's tarball. A published version's tarball is immutable,
+    /// so the caller must not overwrite it and should surface a write conflict
+    /// rather than advertise an integrity that no longer matches the bytes.
+    Conflict,
+}
+
 impl HostedStore {
     async fn read_packument(&self, name: &PackageName) -> Result<Option<Vec<u8>>> {
         match self {
@@ -200,10 +259,49 @@ impl HostedStore {
         }
     }
 
-    async fn write_packument(&self, name: &PackageName, bytes: &[u8]) -> Result<()> {
+    async fn read_packument_for_update(
+        &self,
+        name: &PackageName,
+    ) -> Result<Option<HostedPackumentForUpdate>> {
         match self {
-            HostedStore::Fs(store) => store.write_packument(name, bytes).await,
-            HostedStore::S3(store) => store.write_packument(name, bytes).await,
+            HostedStore::Fs(store) => Ok(store.read_packument_any_age(name).await?.map(|bytes| {
+                HostedPackumentForUpdate { bytes, version: HostedPackumentVersion::Fs }
+            })),
+            HostedStore::S3(store) => {
+                Ok(store.read_packument_for_update(name).await?.map(|packument| {
+                    HostedPackumentForUpdate {
+                        bytes: packument.bytes,
+                        version: HostedPackumentVersion::S3(packument.version),
+                    }
+                }))
+            }
+        }
+    }
+
+    /// FS has no hosted packument CAS and always returns `Written`.
+    /// `Conflict` is only returned by the S3 object-version path.
+    async fn write_packument_if_current(
+        &self,
+        name: &PackageName,
+        bytes: &[u8],
+        version: Option<&HostedPackumentVersion>,
+    ) -> Result<PackumentWrite> {
+        match self {
+            HostedStore::Fs(store) => {
+                store.write_packument(name, bytes).await?;
+                Ok(PackumentWrite::Written)
+            }
+            HostedStore::S3(store) => {
+                let version = match version {
+                    Some(HostedPackumentVersion::S3(version)) => Some(version),
+                    Some(HostedPackumentVersion::Fs) | None => None,
+                };
+                if store.write_packument_if_current(name, bytes, version).await? {
+                    Ok(PackumentWrite::Written)
+                } else {
+                    Ok(PackumentWrite::Conflict)
+                }
+            }
         }
     }
 
@@ -234,13 +332,21 @@ impl HostedStore {
         tmp_path: &Path,
         name: &PackageName,
         filename: &str,
-    ) -> Result<()> {
+    ) -> Result<TarballFinalize> {
         match self {
-            HostedStore::Fs(store) => store.finalize_tarball(tmp_path, name, filename).await,
+            HostedStore::Fs(store) => {
+                store.finalize_tarball(tmp_path, name, filename).await?;
+                Ok(TarballFinalize::Written)
+            }
             HostedStore::S3(store) => {
-                store.upload_tarball(tmp_path, name, filename).await?;
-                let _ = fs::remove_file(tmp_path).await;
-                Ok(())
+                let outcome = store.upload_tarball(tmp_path, name, filename).await?;
+                // Keep the staged tmp on a Conflict so journal roll-forward can
+                // re-detect it and exclude the version whose bytes we don't own;
+                // once the object is ours there is nothing left to promote.
+                if outcome != TarballFinalize::Conflict {
+                    let _ = fs::remove_file(tmp_path).await;
+                }
+                Ok(outcome)
             }
         }
     }
@@ -273,6 +379,34 @@ impl HostedStore {
         match self {
             HostedStore::Fs(store) => HostedStore::Fs(store.namespaced(segment)),
             HostedStore::S3(store) => HostedStore::S3(store.namespaced(segment)),
+        }
+    }
+
+    async fn read_staged(&self, object: &str) -> Result<Option<Vec<u8>>> {
+        match self {
+            HostedStore::Fs(store) => store.read_staged(object).await,
+            HostedStore::S3(store) => store.read_staged(object).await,
+        }
+    }
+
+    async fn write_staged(&self, object: &str, bytes: &[u8]) -> Result<()> {
+        match self {
+            HostedStore::Fs(store) => store.write_staged(object, bytes).await,
+            HostedStore::S3(store) => store.write_staged(object, bytes).await,
+        }
+    }
+
+    async fn remove_staged(&self, object: &str) -> Result<bool> {
+        match self {
+            HostedStore::Fs(store) => store.remove_staged(object).await,
+            HostedStore::S3(store) => store.remove_staged(object).await,
+        }
+    }
+
+    async fn list_staged_ids(&self) -> Result<Vec<String>> {
+        match self {
+            HostedStore::Fs(store) => store.list_staged_ids().await,
+            HostedStore::S3(store) => store.list_staged_ids().await,
         }
     }
 }
@@ -319,8 +453,61 @@ impl Storage {
         self.hosted.read_packument(name).await
     }
 
-    pub async fn write_hosted_packument(&self, name: &PackageName, bytes: &[u8]) -> Result<()> {
-        self.hosted.write_packument(name, bytes).await
+    pub(crate) async fn read_hosted_packument_for_update(
+        &self,
+        name: &PackageName,
+    ) -> Result<Option<HostedPackumentForUpdate>> {
+        self.hosted.read_packument_for_update(name).await
+    }
+
+    pub(crate) async fn write_hosted_packument_if_current(
+        &self,
+        name: &PackageName,
+        bytes: &[u8],
+        version: Option<&HostedPackumentVersion>,
+    ) -> Result<PackumentWrite> {
+        self.hosted.write_packument_if_current(name, bytes, version).await
+    }
+
+    /// Read the hosted packument, transform it, and conditionally write it
+    /// back under compare-and-swap, retrying on conflict with capped backoff.
+    ///
+    /// `build` receives the current hosted bytes (`None` when the packument is
+    /// absent) and returns the bytes to write, or `Ok(None)` to abort as
+    /// [`PackumentUpdate::NotFound`]; a `build` error aborts without retrying.
+    /// After `retries` conflicts the write is surfaced as
+    /// [`RegistryError::PackumentWriteConflict`]. Both the dist-tag request
+    /// path and journal roll-forward go through here so their conflict handling
+    /// stays in one place.
+    pub(crate) async fn update_hosted_packument_with_retry<Build>(
+        &self,
+        name: &PackageName,
+        retries: usize,
+        mut build: Build,
+    ) -> Result<PackumentUpdate>
+    where
+        Build: FnMut(Option<&[u8]>) -> Result<Option<Vec<u8>>>,
+    {
+        for attempt in 0..retries {
+            let existing = self.read_hosted_packument_for_update(name).await?;
+            let (existing_bytes, version) = match existing {
+                Some(packument) => (Some(packument.bytes), Some(packument.version)),
+                None => (None, None),
+            };
+            let Some(new_bytes) = build(existing_bytes.as_deref())? else {
+                return Ok(PackumentUpdate::NotFound);
+            };
+            match self.write_hosted_packument_if_current(name, &new_bytes, version.as_ref()).await?
+            {
+                PackumentWrite::Written => return Ok(PackumentUpdate::Written),
+                PackumentWrite::Conflict => {
+                    if attempt + 1 < retries {
+                        wait_after_packument_write_conflict(attempt).await;
+                    }
+                }
+            }
+        }
+        Err(RegistryError::PackumentWriteConflict { package: name.as_str().to_string() })
     }
 
     /// Open a tarball from the authoritative hosted store. Hosted
@@ -450,7 +637,7 @@ impl Storage {
 
     /// Promote a tmp tarball written by the publish flow to its final
     /// home: a rename on the fs backend, an upload on the S3 backend.
-    pub async fn finalize_tarball_slot(&self, slot: TarballSlot) -> Result<()> {
+    pub async fn finalize_tarball_slot(&self, slot: TarballSlot) -> Result<TarballFinalize> {
         self.hosted.finalize_tarball(&slot.tmp_path, &slot.name, &slot.filename).await
     }
 
@@ -464,6 +651,82 @@ impl Storage {
             HostedStore::S3(_) => &self.cached.root,
         };
         crate::journal::PublishJournal::new(root.join(crate::journal::JOURNAL_DIR))
+    }
+
+    // --- Staged publishes (`-/stage`) -------------------------------------
+    //
+    // A staged publish is a publish document held back until it is approved
+    // (`POST /-/stage/:id/approve`) or rejected (`DELETE /-/stage/:id`). Each
+    // record is two objects in the hosted backend, keyed by the stage id:
+    // a small metadata JSON (listed and served as-is) and the full original
+    // publish body (replayed through the regular publish flow on approval).
+    // Records live under the reserved `.staged/` namespace of the *root*
+    // hosted store — never a per-org view — because the stage id is the only
+    // thing a later `view`/`approve`/`reject` request carries; the record's
+    // metadata remembers which registry the stage was addressed through.
+
+    pub async fn read_staged_meta(&self, stage_id: &str) -> Result<Option<Vec<u8>>> {
+        self.hosted.read_staged(&staged_meta_object(stage_id)?).await
+    }
+
+    pub async fn write_staged_meta(&self, stage_id: &str, bytes: &[u8]) -> Result<()> {
+        self.hosted.write_staged(&staged_meta_object(stage_id)?, bytes).await
+    }
+
+    pub async fn read_staged_body(&self, stage_id: &str) -> Result<Option<Vec<u8>>> {
+        self.hosted.read_staged(&staged_body_object(stage_id)?).await
+    }
+
+    pub async fn write_staged_body(&self, stage_id: &str, bytes: &[u8]) -> Result<()> {
+        self.hosted.write_staged(&staged_body_object(stage_id)?, bytes).await
+    }
+
+    /// Remove a staged record — the metadata first, so a concurrent list
+    /// never surfaces a record whose body is already gone. `Ok(false)` when
+    /// no metadata existed. A body-removal failure is logged rather than
+    /// propagated: once the metadata is gone the record is deleted for every
+    /// reader, and an error here would misreport that while leaving nothing
+    /// for a retry to find (bodies are only discovered through metadata).
+    pub async fn remove_staged(&self, stage_id: &str) -> Result<bool> {
+        let removed = self.hosted.remove_staged(&staged_meta_object(stage_id)?).await?;
+        if let Err(err) = self.hosted.remove_staged(&staged_body_object(stage_id)?).await {
+            tracing::warn!(error = %err, stage_id, "staged body cleanup failed after removing its metadata");
+        }
+        Ok(removed)
+    }
+
+    /// Every staged record's id, in unspecified order (the listing endpoint
+    /// sorts by staging time).
+    pub async fn list_staged_ids(&self) -> Result<Vec<String>> {
+        self.hosted.list_staged_ids().await
+    }
+}
+
+/// Reserved directory (fs) / key segment (S3) holding staged publishes.
+/// The leading dot keeps it out of the package namespace: a package name
+/// can never start with `.`.
+pub(crate) const STAGED_DIR: &str = ".staged";
+const STAGED_META_SUFFIX: &str = ".json";
+const STAGED_BODY_SUFFIX: &str = ".body.json";
+
+fn staged_meta_object(stage_id: &str) -> Result<String> {
+    Ok(format!("{}{STAGED_META_SUFFIX}", validated_stage_id(stage_id)?))
+}
+
+fn staged_body_object(stage_id: &str) -> Result<String> {
+    Ok(format!("{}{STAGED_BODY_SUFFIX}", validated_stage_id(stage_id)?))
+}
+
+/// Reject any stage id that could smuggle a path segment before it reaches a
+/// filesystem path or object key. Handlers validate the UUID shape already;
+/// this is the storage layer's own guard.
+fn validated_stage_id(stage_id: &str) -> Result<&str> {
+    let valid = !stage_id.is_empty()
+        && stage_id.chars().all(|char| char.is_ascii_hexdigit() || char == '-');
+    if valid {
+        Ok(stage_id)
+    } else {
+        Err(RegistryError::BadRequest { reason: format!("invalid stage id {stage_id:?}") })
     }
 }
 
@@ -667,6 +930,51 @@ impl Store {
     fn tarball_path(&self, name: &PackageName, filename: &str) -> PathBuf {
         self.package_dir(name).join(filename)
     }
+
+    async fn read_staged(&self, object: &str) -> Result<Option<Vec<u8>>> {
+        match fs::read(self.root.join(STAGED_DIR).join(object)).await {
+            Ok(bytes) => Ok(Some(bytes)),
+            Err(err) if err.kind() == ErrorKind::NotFound => Ok(None),
+            Err(err) => Err(err.into()),
+        }
+    }
+
+    async fn write_staged(&self, object: &str, bytes: &[u8]) -> Result<()> {
+        write_atomic(&self.root.join(STAGED_DIR).join(object), bytes).await
+    }
+
+    async fn remove_staged(&self, object: &str) -> Result<bool> {
+        match fs::remove_file(self.root.join(STAGED_DIR).join(object)).await {
+            Ok(()) => Ok(true),
+            Err(err) if err.kind() == ErrorKind::NotFound => Ok(false),
+            Err(err) => Err(err.into()),
+        }
+    }
+
+    async fn list_staged_ids(&self) -> Result<Vec<String>> {
+        let mut entries = match fs::read_dir(self.root.join(STAGED_DIR)).await {
+            Ok(entries) => entries,
+            Err(err) if err.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
+            Err(err) => return Err(err.into()),
+        };
+        let mut ids = Vec::new();
+        while let Some(entry) = entries.next_entry().await? {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            if let Some(id) = staged_id_of_meta_object(&name) {
+                ids.push(id.to_string());
+            }
+        }
+        Ok(ids)
+    }
+}
+
+/// The stage id of a metadata object name, or `None` for anything else in
+/// the staged namespace (bodies, tmp files from interrupted writes).
+pub(crate) fn staged_id_of_meta_object(object: &str) -> Option<&str> {
+    if object.ends_with(STAGED_BODY_SUFFIX) {
+        return None;
+    }
+    object.strip_suffix(STAGED_META_SUFFIX)
 }
 
 async fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {

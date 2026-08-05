@@ -10,7 +10,7 @@ commit messages, code-reuse philosophy, and "never ignore test failures."
 
 `pnpr/` is a pnpm-compatible npm registry server written in Rust —
 roughly the role [verdaccio](https://verdaccio.org/) plays in the JS
-ecosystem. It is a **sibling** of `pacquet/`, not part of it.
+ecosystem. It is a **sibling** of `pnpm/`, not part of it.
 
 The two Rust projects share the same Cargo workspace at the repo root so
 that the registry can depend directly on `pacquet-*` crates (tarball
@@ -19,19 +19,19 @@ the `Cargo.lock` stays unified.
 
 ## Relationship to pacquet
 
-- **`pacquet/`** is a *port* of the pnpm CLI. Its cardinal rule is
-  "match pnpm exactly" — see [`../pacquet/AGENTS.md`](../pacquet/AGENTS.md).
+- **`pnpm/`** is a *port* of the pnpm CLI. Its cardinal rule is
+  "match pnpm exactly" — see [`../pnpm/AGENTS.md`](../pnpm/AGENTS.md).
 - **`pnpr/`** has no pnpm-CLI counterpart to mirror. It is a new
   server. Behavior here is designed, not ported.
 
-That means the "match upstream pnpm" discipline that governs `pacquet/`
+That means the "match upstream pnpm" discipline that governs `pnpm/`
 does **not** apply here. The registry can pick its own architecture,
 flags, and config format. It must still be compatible with the npm
 registry protocol that pnpm (and npm, yarn, etc.) clients speak.
 
 ## Layout
 
-Mirrors `pacquet/`:
+Mirrors `pnpm/`:
 
 ```text
 pnpr/
@@ -62,7 +62,7 @@ way pacquet crates do: declare it in the root `[workspace.dependencies]`
 (already done for the pacquet crates) and use `{ workspace = true }`
 in this crate's `Cargo.toml`.
 
-If a piece of code currently inside `pacquet/` turns out to be genuinely
+If a piece of code currently inside `pnpm/` turns out to be genuinely
 shared between the two stacks and the `pacquet-` prefix becomes
 misleading, propose renaming/relocating it in a dedicated PR — not as a
 drive-by during feature work.
@@ -70,7 +70,7 @@ drive-by during feature work.
 ### New registry-only crates
 
 When the registry needs its own crate (logic that isn't shared with the
-pnpm port and doesn't fit in `pacquet/`), put it under
+pnpm port and doesn't fit in `pnpm/`), put it under
 `pnpr/crates/<short-name>/` and name the package
 `pnpr-<short-name>` in its `Cargo.toml`. The
 `pnpr/crates/*` glob in the root workspace `members` picks it up
@@ -86,20 +86,20 @@ Don't reach for `pacquet-` to name something new on the registry side.
 Same rule as pacquet: a dependency that is already declared in
 `[workspace.dependencies]` may be used by any crate that needs it.
 Adding a new third-party crate to the workspace requires an explicit
-human request (see [`../pacquet/AGENTS.md`](../pacquet/AGENTS.md#things-not-to-do)).
+human request (see [`../pnpm/AGENTS.md`](../pnpm/AGENTS.md#things-not-to-do)).
 
 ## Style, tests, commits
 
 Follow the pacquet code-style guide
-([`../pacquet/CODE_STYLE_GUIDE.md`](../pacquet/CODE_STYLE_GUIDE.md)) and the
-pacquet contributing guide ([`../pacquet/CONTRIBUTING.md`](../pacquet/CONTRIBUTING.md))
+([`../pnpm/CODE_STYLE_GUIDE.md`](../pnpm/CODE_STYLE_GUIDE.md)) and the
+pacquet contributing guide ([`../pnpm/CONTRIBUTING.md`](../pnpm/CONTRIBUTING.md))
 for Rust-level conventions — imports, naming, ownership, error handling,
 test layout. They are written for pacquet but apply to any Rust code in
 this workspace.
 
 ### Comments
 
-Follow the repo-wide comment baseline in [`../AGENTS.md`](../AGENTS.md#comments) and the Rust-specific additions in [`../pacquet/AGENTS.md`](../pacquet/AGENTS.md#comments).
+Follow the repo-wide comment baseline in [`../AGENTS.md`](../AGENTS.md#comments) and the Rust-specific additions in [`../pnpm/AGENTS.md`](../pnpm/AGENTS.md#comments).
 
 Commit messages use Conventional Commits with `pnpr` as the scope
 (`feat(pnpr): ...`, `fix(pnpr): ...`).

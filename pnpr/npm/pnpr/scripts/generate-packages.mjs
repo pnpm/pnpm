@@ -1,4 +1,4 @@
-// Adapted from pacquet/npm/pnpm/scripts/generate-packages.mjs, which was
+// Adapted from pnpm/npm/pnpm/scripts/generate-packages.mjs, which was
 // itself copied from Rome (https://github.com/rome/tools/blob/392d188a49/npm/rome/scripts/generate-packages.mjs).
 
 import { resolve } from "node:path";
@@ -79,6 +79,8 @@ function writeManifest() {
 
   manifestData["version"] = rootManifest.version;
   manifestData["optionalDependencies"] = Object.fromEntries(nativePackages);
+  // The committed wrapper is a private workspace package; the published one is not.
+  delete manifestData["private"];
 
   console.log(`Update manifest ${manifestPath}`);
   const content = JSON.stringify(manifestData);

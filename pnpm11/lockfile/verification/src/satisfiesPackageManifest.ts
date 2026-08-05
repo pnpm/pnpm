@@ -8,6 +8,7 @@ import { equals, omit, pickBy } from 'ramda'
 import semver from 'semver'
 
 import { type Diff, diffFlatRecords, isEqual } from './diffFlatRecords.js'
+import { dependencySpecifiersAreEqual } from './gitSpecifiersAreEquivalent.js'
 
 export function satisfiesPackageManifest (
   opts: {
@@ -38,7 +39,7 @@ export function satisfiesPackageManifest (
     existingDeps = pickNonLinkedDeps(existingDeps)
     specs = pickNonLinkedDeps(specs)
   }
-  const specsDiff = diffFlatRecords(specs, existingDeps)
+  const specsDiff = diffFlatRecords(specs, existingDeps, dependencySpecifiersAreEqual)
   if (!isEqual(specsDiff)) {
     return {
       satisfies: false,
@@ -90,7 +91,7 @@ export function satisfiesPackageManifest (
       }
     }
     for (const depName of pkgDepNames) {
-      if (!importerDeps[depName] || importer.specifiers?.[depName] !== pkgDeps[depName]) {
+      if (!importerDeps[depName] || !dependencySpecifiersAreEqual(importer.specifiers?.[depName], pkgDeps[depName])) {
         return {
           satisfies: false,
           detailedReason: `importer ${depField}.${depName} specifier ${importer.specifiers[depName]} don't match package manifest specifier (${pkgDeps[depName]})`,

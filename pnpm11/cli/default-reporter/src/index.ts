@@ -1,4 +1,3 @@
-import type { Config, ConfigContext } from '@pnpm/config.reader'
 import type * as logs from '@pnpm/core-loggers'
 import type { LogLevel, StreamParser } from '@pnpm/logger'
 import createDiffer from 'ansi-diff'
@@ -10,6 +9,7 @@ import { mergeOutputs } from './mergeOutputs.js'
 import { reporterForClient } from './reporterForClient/index.js'
 import type { FilterPkgsDiff } from './reporterForClient/reportSummary.js'
 import { formatWarn } from './reporterForClient/utils/formatWarn.js'
+import type { ReporterPnpmConfig } from './ReporterPnpmConfig.js'
 
 export { formatWarn }
 
@@ -38,7 +38,7 @@ export function initDefaultReporter (
     }
     context: {
       argv: string[]
-      config?: Config & ConfigContext
+      config?: ReporterPnpmConfig
       env?: NodeJS.ProcessEnv
       process?: NodeJS.Process
     }
@@ -72,10 +72,24 @@ export function initDefaultReporter (
   }
   const stream = opts.useStderr ? proc.stderr : proc.stdout
   const write = stream.write.bind(stream)
-  const diff = createDiffer({
+  const newDiffer = (): ReturnType<typeof createDiffer> => createDiffer({
     height: stream.rows,
     width: stream.columns ?? outputMaxWidth,
   })
+  let diff = newDiffer()
+  // Hold redraws while an interactive prompt owns the terminal (see PromptMessage).
+  let promptActive = false
+  const onLog = (log: logs.Log): void => {
+    if (log.name !== 'pnpm:prompt') return
+    if ((log as logs.PromptLog).action === 'start') {
+      promptActive = true
+    } else {
+      promptActive = false
+      // Drop the differ's now-stale frame: the terminal below it changed while paused.
+      diff = newDiffer()
+    }
+  }
+  opts.streamParser.on('data', onLog)
   const subscription = output$
     .subscribe({
       complete () {}, // eslint-disable-line:no-empty
@@ -85,6 +99,7 @@ export function initDefaultReporter (
       next: logUpdate,
     })
   function logUpdate (view: string) {
+    if (promptActive) return
     // A new line should always be appended in case a prompt needs to appear.
     // Without a new line the prompt will be joined with the previous output.
     // An example of such prompt may be seen by running: pnpm update --interactive
@@ -101,6 +116,7 @@ export function initDefaultReporter (
   }
   return () => {
     subscription.unsubscribe()
+    opts.streamParser.removeListener('data', onLog)
   }
 }
 
@@ -123,7 +139,7 @@ export function toOutput$ (
     }
     context: {
       argv: string[]
-      config?: Config & ConfigContext
+      config?: ReporterPnpmConfig
       env?: NodeJS.ProcessEnv
       process?: NodeJS.Process
     }

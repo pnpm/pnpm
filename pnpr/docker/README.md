@@ -71,8 +71,8 @@ docker run --rm pnpr-test --version
 
 ## Release
 
-Images are built and pushed by the `docker` job in
-[`.github/workflows/pnpr-release-to-npm.yml`](../../.github/workflows/pnpr-release-to-npm.yml),
+Images are built and pushed by the `docker-pnpr` job in
+[`.github/workflows/release.yml`](../../.github/workflows/release.yml),
 which runs after the npm packages are published. The build verifies each
 staged binary against the SHA256 checksum pinned by the release job and fails
 if `pnpr --version` in the image doesn't match the `PNPR_VERSION` build-arg.

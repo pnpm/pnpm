@@ -1,7 +1,9 @@
+import { writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
 import { expect, jest, test } from '@jest/globals'
 import type { DepPath, ProjectId } from '@pnpm/types'
+import yaml from 'js-yaml'
 import { temporaryDirectory } from 'tempy'
 
 jest.unstable_mockModule('@pnpm/network.git-utils', () => ({ getCurrentBranch: jest.fn() }))
@@ -46,6 +48,39 @@ test('readWantedLockfile()', async () => {
       wantedVersions: ['3'],
     })
   ).rejects.toMatchObject({ code: 'ERR_PNPM_LOCKFILE_BREAKING_CHANGE' })
+})
+
+test('readWantedLockfile() does not include lockfile content in parse errors', async () => {
+  const projectPath = temporaryDirectory()
+  const secret = 'aws_secret_access_key = marker-secret'
+  await writeFile(path.join(projectPath, 'pnpm-lock.yaml'), `[default]\n${secret}\n`)
+
+  const error = await readWantedLockfile(projectPath, { ignoreIncompatible: false }).catch((err: unknown) => err)
+
+  expect(error).toMatchObject({
+    code: 'ERR_PNPM_BROKEN_LOCKFILE',
+    message: expect.stringContaining(`The lockfile at "${path.join(projectPath, 'pnpm-lock.yaml')}" is broken:`),
+  })
+  expect(error).toMatchObject({ message: expect.stringContaining('(2:1)') })
+  expect(error).toMatchObject({ message: expect.not.stringContaining(secret) })
+})
+
+test('readWantedLockfile() does not use a YAML exception message when its reason is missing', async () => {
+  const projectPath = temporaryDirectory()
+  const secret = 'aws_secret_access_key = marker-secret'
+  await writeFile(path.join(projectPath, 'pnpm-lock.yaml'), 'broken')
+  jest.spyOn(yaml, 'load').mockImplementationOnce(() => {
+    throw {
+      name: 'YAMLException',
+      message: `Unable to parse YAML\n${secret}`,
+      mark: { line: 1, column: 2 },
+    }
+  })
+
+  await expect(readWantedLockfile(projectPath, { ignoreIncompatible: false })).rejects.toMatchObject({
+    code: 'ERR_PNPM_BROKEN_LOCKFILE',
+    message: `The lockfile at "${path.join(projectPath, 'pnpm-lock.yaml')}" is broken: Unable to parse YAML (2:3)`,
+  })
 })
 
 test('readWantedLockfile() when lockfileVersion is a string', async () => {

@@ -1,5 +1,10 @@
 import { expect, test } from '@jest/globals'
-import { guessDependencyType, updateProjectManifestObject } from '@pnpm/pkg-manifest.utils'
+import { createVersionSpecFromResolvedVersion, guessDependencyType, updateProjectManifestObject } from '@pnpm/pkg-manifest.utils'
+
+test('createVersionSpecFromResolvedVersion() keeps the explicit equals operator of an exact pin', () => {
+  expect(createVersionSpecFromResolvedVersion('3.5.2', 'exact')).toBe('=3.5.2')
+  expect(createVersionSpecFromResolvedVersion('3.5.2', 'patch')).toBe('3.5.2')
+})
 
 test('guessDependencyType()', () => {
   expect(
@@ -86,7 +91,7 @@ test('peer dependencies honor pinned version when resolved version is available 
       alias: 'foo',
       bareSpecifier: 'https://github.com/hegemonic/taffydb/tarball/master',
       resolvedVersion: '1.4.0',
-      pinnedVersion: 'minor',
+      rangeSpecStyle: 'minor',
       peer: true,
       saveType: 'devDependencies',
     },
@@ -125,7 +130,7 @@ test('peer dependencies keep prerelease resolved version without prefix', async 
       alias: 'foo',
       bareSpecifier: 'https://github.com/kevva/is-negative',
       resolvedVersion: '2.1.0-rc.1',
-      pinnedVersion: 'minor',
+      rangeSpecStyle: 'minor',
       peer: true,
       saveType: 'devDependencies',
     },
@@ -168,17 +173,17 @@ test('writes prototype-conflicting aliases as own data properties without pollut
 
 test('peer dependencies respect pinned version "patch" and "none"', async () => {
   const cases = [
-    { pinnedVersion: 'patch' as const, expected: '3.2.1' },
-    { pinnedVersion: 'none' as const, expected: '^3.2.1' },
+    { rangeSpecStyle: 'patch' as const, expected: '3.2.1' },
+    { rangeSpecStyle: 'none' as const, expected: '^3.2.1' },
   ]
 
-  await Promise.all(cases.map(async ({ pinnedVersion, expected }) => {
+  await Promise.all(cases.map(async ({ rangeSpecStyle, expected }) => {
     const manifest = await updateProjectManifestObject('/project', {}, [
       {
         alias: 'foo',
         bareSpecifier: 'https://github.com/kevva/is-negative',
         resolvedVersion: '3.2.1',
-        pinnedVersion,
+        rangeSpecStyle,
         peer: true,
         saveType: 'devDependencies',
       },

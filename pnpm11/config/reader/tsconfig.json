@@ -50,6 +50,9 @@
     },
     {
       "path": "../matcher"
+    },
+    {
+      "path": "../registry-auth-key"
     }
   ]
 }

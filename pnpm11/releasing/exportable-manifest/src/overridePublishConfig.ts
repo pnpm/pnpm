@@ -3,6 +3,11 @@ import { isEmpty } from 'ramda'
 
 // property keys that are copied from publishConfig into the manifest
 const PUBLISH_CONFIG_WHITELIST = new Set([
+  // Lets a package be published under a name it cannot carry in the workspace
+  // — typically because a sibling project already owns that name. Nothing else
+  // in the workspace observes the rename: dependents, pnpm-lock.yaml, and the
+  // changeset ledger all keep addressing the project by its manifest name.
+  'name',
   // manifest fields that may make sense to overwrite
   'bin',
   'engines',

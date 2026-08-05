@@ -4,6 +4,7 @@ import {
   type WebAuthContext,
   type WebAuthFetchOptions,
   type WebAuthFetchResponse,
+  type WebAuthFetchResponseBody,
   WebAuthTimeoutError,
 } from '@pnpm/network.web-auth'
 
@@ -26,6 +27,53 @@ function createMockResponse (init: {
       get: name => {
         throw new Error(`Unexpected call to headers.get: ${name}`)
       },
+    },
+  }
+}
+
+interface MockBody extends WebAuthFetchResponseBody {
+  cancelled: boolean
+}
+
+function createMockBody (text: string, chunkSize = 1024): MockBody {
+  const bytes = new TextEncoder().encode(text)
+  let offset = 0
+  const body: MockBody = {
+    cancelled: false,
+    cancel: async () => {
+      body.cancelled = true
+    },
+    getReader: () => ({
+      read: async () => {
+        if (body.cancelled || offset >= bytes.length) return { done: true }
+        const value = bytes.subarray(offset, offset + chunkSize)
+        offset += chunkSize
+        return { done: false, value }
+      },
+      cancel: async () => {
+        body.cancelled = true
+      },
+    }),
+  }
+  return body
+}
+
+function createMockStreamResponse (init: {
+  ok: boolean
+  status: number
+  body: MockBody | null
+  contentLength?: number
+}): WebAuthFetchResponse {
+  return {
+    ok: init.ok,
+    status: init.status,
+    body: init.body,
+    json: async () => {
+      throw new Error('Unexpected call to json() on a response exposing a body stream')
+    },
+    headers: {
+      get: name =>
+        name === 'content-length' && init.contentLength != null ? String(init.contentLength) : null,
     },
   }
 }
@@ -497,5 +545,139 @@ describe('pollForWebAuthToken', () => {
     })
     await expect(pollForWebAuthToken({ context, doneUrl: 'https://registry.npmjs.org/auth/done', fetchOptions, timeoutMs }))
       .rejects.toMatchObject({ timeout: timeoutMs })
+  })
+
+  it('reads the token through the body stream when the response exposes one', async () => {
+    const body = createMockBody(JSON.stringify({ token: 'streamed-token' }))
+    const context = createMockContext({
+      fetch: async (): Promise<WebAuthFetchResponse> => createMockStreamResponse({
+        ok: true,
+        status: 200,
+        body,
+      }),
+    })
+    const token = await pollForWebAuthToken({ context, doneUrl: 'https://registry.npmjs.org/auth/done', fetchOptions })
+    expect(token).toBe('streamed-token')
+  })
+
+  it('continues polling when the streamed body exceeds the size cap', async () => {
+    // Valid JSON overall, but longer than the 64 KiB cap: the read must stop
+    // at the cap and discard the body rather than buffer it whole.
+    const oversized = createMockBody(JSON.stringify({ token: 'x'.repeat(65 * 1024) }))
+    let fetchCallCount = 0
+    const context = createMockContext({
+      fetch: async (): Promise<WebAuthFetchResponse> => {
+        fetchCallCount++
+        if (fetchCallCount === 1) {
+          return createMockStreamResponse({ ok: true, status: 200, body: oversized })
+        }
+        return createMockStreamResponse({
+          ok: true,
+          status: 200,
+          body: createMockBody(JSON.stringify({ token: 'tok' })),
+        })
+      },
+    })
+    const token = await pollForWebAuthToken({ context, doneUrl: 'https://registry.npmjs.org/auth/done', fetchOptions })
+    expect(token).toBe('tok')
+    expect(fetchCallCount).toBe(2)
+    expect(oversized.cancelled).toBe(true)
+  })
+
+  it('skips reading the body when content-length exceeds the size cap', async () => {
+    const oversized = createMockBody(JSON.stringify({ token: 'tok' }))
+    let fetchCallCount = 0
+    const context = createMockContext({
+      fetch: async (): Promise<WebAuthFetchResponse> => {
+        fetchCallCount++
+        if (fetchCallCount === 1) {
+          return createMockStreamResponse({
+            ok: true,
+            status: 200,
+            body: oversized,
+            contentLength: 65 * 1024,
+          })
+        }
+        return createMockStreamResponse({
+          ok: true,
+          status: 200,
+          body: createMockBody(JSON.stringify({ token: 'tok' })),
+        })
+      },
+    })
+    const token = await pollForWebAuthToken({ context, doneUrl: 'https://registry.npmjs.org/auth/done', fetchOptions })
+    expect(token).toBe('tok')
+    expect(fetchCallCount).toBe(2)
+    expect(oversized.cancelled).toBe(true)
+  })
+
+  it('continues polling when a streamed body is not valid JSON', async () => {
+    let fetchCallCount = 0
+    const context = createMockContext({
+      fetch: async (): Promise<WebAuthFetchResponse> => {
+        fetchCallCount++
+        if (fetchCallCount === 1) {
+          return createMockStreamResponse({
+            ok: true,
+            status: 200,
+            body: createMockBody('not json'),
+          })
+        }
+        return createMockStreamResponse({
+          ok: true,
+          status: 200,
+          body: createMockBody(JSON.stringify({ token: 'tok' })),
+        })
+      },
+    })
+    const token = await pollForWebAuthToken({ context, doneUrl: 'https://registry.npmjs.org/auth/done', fetchOptions })
+    expect(token).toBe('tok')
+    expect(fetchCallCount).toBe(2)
+  })
+
+  it('continues polling when the response body is null', async () => {
+    let fetchCallCount = 0
+    const context = createMockContext({
+      fetch: async (): Promise<WebAuthFetchResponse> => {
+        fetchCallCount++
+        if (fetchCallCount === 1) {
+          return createMockStreamResponse({ ok: true, status: 200, body: null })
+        }
+        return createMockStreamResponse({
+          ok: true,
+          status: 200,
+          body: createMockBody(JSON.stringify({ token: 'tok' })),
+        })
+      },
+    })
+    const token = await pollForWebAuthToken({ context, doneUrl: 'https://registry.npmjs.org/auth/done', fetchOptions })
+    expect(token).toBe('tok')
+    expect(fetchCallCount).toBe(2)
+  })
+
+  it('cancels the body of non-ok and 202 responses', async () => {
+    const notOkBody = createMockBody('an error page')
+    const stillWaitingBody = createMockBody('{}')
+    let fetchCallCount = 0
+    const context = createMockContext({
+      fetch: async (): Promise<WebAuthFetchResponse> => {
+        fetchCallCount++
+        if (fetchCallCount === 1) {
+          return createMockStreamResponse({ ok: false, status: 404, body: notOkBody })
+        }
+        if (fetchCallCount === 2) {
+          return createMockStreamResponse({ ok: true, status: 202, body: stillWaitingBody })
+        }
+        return createMockStreamResponse({
+          ok: true,
+          status: 200,
+          body: createMockBody(JSON.stringify({ token: 'tok' })),
+        })
+      },
+    })
+    const token = await pollForWebAuthToken({ context, doneUrl: 'https://registry.npmjs.org/auth/done', fetchOptions })
+    expect(token).toBe('tok')
+    expect(notOkBody.cancelled).toBe(true)
+    expect(stillWaitingBody.cancelled).toBe(true)
   })
 })

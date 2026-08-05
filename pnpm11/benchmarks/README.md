@@ -5,7 +5,7 @@ Compares `pnpm install` performance between the current branch (`HEAD`) and
 
 This wrapper builds both pnpm revisions and runs hyperfine through the
 shared Rust orchestrator at
-[`pacquet/tasks/integrated-benchmark`](../pacquet/tasks/integrated-benchmark/),
+[`pnpm/tasks/integrated-benchmark`](../pnpm/tasks/integrated-benchmark/),
 so scenario / fixture / workspace / install-script / report generation
 stay consistent with the pacquet benchmark.
 

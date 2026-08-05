@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.inspection.tree-builder",
-  "version": "1100.0.18",
+  "version": "1100.1.0",
   "description": "Creates a dependencies hierarchy for a symlinked `node_modules`",
   "keywords": [
     "pnpm",
@@ -46,10 +46,11 @@
     "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/store.index": "workspace:*",
+    "@pnpm/text.ordinal-comparator": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/util.lex-comparator": "catalog:",
     "load-json-file": "catalog:",
     "normalize-path": "catalog:",
+    "p-limit": "catalog:",
     "path-absolute": "catalog:",
     "realpath-missing": "catalog:",
     "resolve-link-target": "catalog:",

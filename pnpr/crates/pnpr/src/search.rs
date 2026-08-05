@@ -156,7 +156,10 @@ fn build_search_package(name: &str, packument: &Value) -> Option<Value> {
     Some(Value::Object(pkg))
 }
 
-fn percent_decode(input: &str) -> String {
+/// Decode a percent-encoded query value. ASCII-oriented: multi-byte UTF-8
+/// sequences decode byte-by-byte, which is lossless for the ASCII values
+/// (package names, numbers) the query parsers here feed it.
+pub(crate) fn percent_decode(input: &str) -> String {
     let mut out = String::with_capacity(input.len());
     let mut bytes = input.bytes();
     while let Some(byte) = bytes.next() {

@@ -3,6 +3,7 @@ import path from 'node:path'
 import type { DepPath, PkgResolutionId } from '@pnpm/types'
 import normalize from 'normalize-path'
 
+import { isCompatibleAndHasMoreDeps } from './depPathCompatibility.js'
 import type { NodeId } from './nextNodeId.js'
 import type { LinkedDependency } from './resolveDependencies.js'
 import type { ResolvedDirectDependency, ResolvedImporters } from './resolveDependencyTree.js'
@@ -80,7 +81,21 @@ function getDedupeMap<T extends PartialResolvedPackage> (
       // The injected project in the workspace may have dev deps
       const children = Object.entries(node.children)
       const isSubset = children
-        .every(([alias, depPath]) => targetProjectDeps.get(alias) === depPath)
+        .every(([alias, depPath]) => {
+          const targetDepPath = targetProjectDeps.get(alias)
+          if (targetDepPath === depPath) return true
+          if (targetDepPath == null) return false
+          // A shared dep can resolve peer-suffixed on one side and peer-free on
+          // the other (e.g. an existing lockfile pinned debug's optional
+          // supports-color for the target project but not the injected
+          // occurrence). Accept the target's variant when it's the same package
+          // identity and a compatible superset. See pnpm/pnpm#10433.
+          const targetNode = opts.depGraph[targetDepPath]
+          const injectedChildNode = opts.depGraph[depPath]
+          if (targetNode == null || injectedChildNode == null) return false
+          if (targetNode.pkgIdWithPatchHash !== injectedChildNode.pkgIdWithPatchHash) return false
+          return isCompatibleAndHasMoreDeps(opts.depGraph, targetDepPath, depPath)
+        })
       if (isSubset) {
         dedupedInjectedDeps.set(alias, dep.id)
       }

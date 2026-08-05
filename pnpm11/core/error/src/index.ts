@@ -101,6 +101,27 @@ export function redactUrlCredentials (text: string): string {
   return result
 }
 
+/**
+ * Make untrusted, URL-bearing text safe to print or log: redact inline
+ * `user:pass@` credentials ({@link redactUrlCredentials}) and strip every
+ * control character. Both can appear in error messages that echo an
+ * untrusted URL or subprocess stderr back, which must not leak credentials
+ * or inject terminal output via raw escapes / `\r` / `\n`.
+ */
+export function redactAndSanitize (text: string): string {
+  // Controls are stripped BEFORE redacting: a control character inside the
+  // userinfo (`user:pass\r@host`) would otherwise split the authority across
+  // the redaction scan, and removing it afterwards would rejoin the
+  // credentials into the output.
+  let sanitized = ''
+  for (const char of text) {
+    const code = char.codePointAt(0)!
+    if (code <= 0x1f || (code >= 0x7f && code <= 0x9f)) continue
+    sanitized += char
+  }
+  return redactUrlCredentials(sanitized)
+}
+
 function isSchemeTailChar (code: number): boolean {
   return (code >= 0x30 && code <= 0x39) || (code >= 0x41 && code <= 0x5a) || (code >= 0x61 && code <= 0x7a)
 }

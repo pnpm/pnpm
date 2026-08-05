@@ -57,6 +57,11 @@ export { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concu
 export { getGlobalConfigPath } from './dirs.js'
 export { getDefaultCreds, getNetworkConfigs, type NetworkConfigs } from './getNetworkConfigs.js'
 export { getOptionsFromPnpmSettings, type OptionsFromRootManifest } from './getOptionsFromRootManifest.js'
+export {
+  getPackageManagerBootstrapConfig,
+  getPackageManagerRegistries,
+  type PackageManagerBootstrapConfig,
+} from './packageManagerRegistries.js'
 export type { Creds } from './parseCreds.js'
 export {
   createProjectConfigRecord,
@@ -76,7 +81,7 @@ export { type ConfigFileKey, isConfigFileKey } from './configFileKey.js'
 export { isIniConfigKey, isNpmrcReadableKey } from './localConfig.js'
 
 type CamelToKebabCase<S extends string> = S extends `${infer T}${infer U}`
-  ? `${T extends Capitalize<T> ? '-' : ''}${Lowercase<T>}${CamelToKebabCase<U>}`
+  ? `${T extends Lowercase<T> ? '' : '-'}${Lowercase<T>}${CamelToKebabCase<U>}`
   : S
 
 type KebabCaseConfig = {
@@ -96,6 +101,12 @@ export async function getConfig (opts: {
   env?: Record<string, string | undefined>
   onlyInheritDlxSettingsFromLocal?: boolean
   ignoreLocalSettings?: boolean
+  /**
+   * Set by `self-update`: skip the project `pnpm-workspace.yaml`'s settings
+   * that govern whether the pnpm binary may be replaced. See
+   * {@link SELF_UPDATE_SKIPPED_SETTINGS}.
+   */
+  forSelfUpdate?: boolean
 }): Promise<{ config: Config, context: ConfigContext, warnings: string[] }> {
   if (opts.onlyInheritDlxSettingsFromLocal) {
     const { onlyInheritDlxSettingsFromLocal: _, ...localOpts } = opts
@@ -303,6 +314,7 @@ export async function getConfig (opts: {
     ?? `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
   pnpmConfig.authConfig = pickIniConfig(npmrcResult.rawConfig)
 
+  let globalYamlRegistries: Record<string, string> | undefined
   // Reuse the global config.yaml already read for npmrcAuthFile
   const globalYamlConfig = globalYamlConfigForNpmrcAuthFile
   if (globalYamlConfig) {
@@ -326,6 +338,7 @@ export async function getConfig (opts: {
       workspaceDir: undefined,
       workspaceManifest: globalYamlConfig,
     })
+    globalYamlRegistries = pnpmConfig.registries as Record<string, string> | undefined
   }
   const networkConfigs = getNetworkConfigs(pnpmConfig.authConfig)
   const registriesFromNpmrc = {
@@ -362,12 +375,14 @@ export async function getConfig (opts: {
   )
   pnpmConfig.configByUri = { ...networkConfigs.configByUri }
 
-  // tokenHelper must only come from user-level config (~/.npmrc or global auth.ini),
-  // not project-level, to prevent project .npmrc from executing arbitrary commands.
-  const userConfig = npmrcResult.userConfig as Record<string, string>
+  // tokenHelper names an executable pnpm runs, so it must only come from trusted,
+  // non-repo config sources (~/.npmrc and the global auth.ini) — never from a
+  // workspace or project .npmrc, which could otherwise execute arbitrary commands.
+  // trustedConfig merges exactly those trusted sources and excludes the repo ones.
+  const trustedConfig = npmrcResult.trustedConfig as Record<string, string>
   for (const [key, value] of Object.entries(pnpmConfig.authConfig)) {
     if (!key.endsWith('tokenHelper') && key !== 'tokenHelper') continue
-    if (!(key in userConfig) || userConfig[key] !== value) {
+    if (!(key in trustedConfig) || trustedConfig[key] !== value) {
       throw new PnpmError('TOKEN_HELPER_IN_PROJECT_CONFIG',
         'tokenHelper must not be configured in project-level .npmrc',
         { hint: `The key "${key}" was found in project config. Move it to ~/.npmrc or the global pnpm auth.ini.` })
@@ -435,6 +450,7 @@ export async function getConfig (opts: {
   pnpmConfig.packageManager = packageManager
 
   pnpmConfig.rootProjectManifestDir = pnpmConfig.lockfileDir ?? pnpmConfig.workspaceDir ?? pnpmConfig.dir
+  let workspaceManifestRegistries: Record<string, string> | undefined
   if (!opts.ignoreLocalSettings) {
     pnpmConfig.rootProjectManifest = await safeReadProjectManifestOnly(pnpmConfig.rootProjectManifestDir) ?? undefined
     if (pnpmConfig.rootProjectManifest != null) {
@@ -463,9 +479,13 @@ export async function getConfig (opts: {
         addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
           configFromCliOpts,
           projectManifest: pnpmConfig.rootProjectManifest,
+          skipSettings: opts.forSelfUpdate ? SELF_UPDATE_SKIPPED_SETTINGS : undefined,
           workspaceDir: pnpmConfig.workspaceDir,
           workspaceManifest,
         })
+        if (workspaceManifest.registries != null) {
+          workspaceManifestRegistries = pnpmConfig.registries as Record<string, string> | undefined
+        }
       }
     } else if (cliOptions['global']) {
       // For global installs, read settings from pnpm-workspace.yaml in the global package directory
@@ -477,6 +497,9 @@ export async function getConfig (opts: {
           workspaceDir: pnpmConfig.globalPkgDir,
           workspaceManifest,
         })
+        if (workspaceManifest.registries != null) {
+          workspaceManifestRegistries = pnpmConfig.registries as Record<string, string> | undefined
+        }
       }
     }
   }
@@ -486,10 +509,10 @@ export async function getConfig (opts: {
   // via `authConfig`, so they're re-applied last here to avoid being buried
   // by yaml. `cliScopedRegistries` iterates raw `cliOptions` because
   // `explicitlySetKeys` is camelCased, which mangles `@org-a:registry`.
-  const workspaceRegistries = pnpmConfig.registries as Record<string, string> | undefined
   pnpmConfig.registries = {
     ...registriesFromNpmrc,
-    ...workspaceRegistries,
+    ...globalYamlRegistries,
+    ...workspaceManifestRegistries,
     // `_auth` routes win over repo-controlled yaml on conflicting scopes.
     ...npmrcResult.jsonAuth.registries,
     // CLI per-scope registries last, so `--@scope:registry=...` wins over
@@ -659,7 +682,10 @@ export async function getConfig (opts: {
     }
   }
   if (!pnpmConfig.httpsProxy) {
-    pnpmConfig.httpsProxy = pnpmConfig.proxy ?? getProcessEnv('https_proxy')
+    // An empty `proxy=` is unset, so it must not suppress the environment
+    // fallback. `false` and `null` keep their meaning: proxying is off.
+    const legacyProxy = pnpmConfig.proxy === '' ? undefined : pnpmConfig.proxy
+    pnpmConfig.httpsProxy = legacyProxy ?? getProcessEnv('https_proxy')
   }
   if (!pnpmConfig.httpProxy) {
     pnpmConfig.httpProxy = pnpmConfig.httpsProxy ?? getProcessEnv('http_proxy') ?? getProcessEnv('proxy')
@@ -854,14 +880,17 @@ function getWantedPackageManager (manifest: ProjectManifest): { pm?: WantedPacka
   return { warnings }
 }
 
-// Settings that used to be read from the `pnpm` field of `package.json` in v10
-// but moved to `pnpm-workspace.yaml` in v11. Keys not in this set (e.g. `app`,
-// or anything set by third-party tooling that piggybacks on the `pnpm` namespace)
-// are left alone to avoid false-positive warnings.
+// Settings that pnpm reads from `pnpm-workspace.yaml` and never from the `pnpm`
+// field of `package.json` — either because they moved there in v11, or because
+// (like `update`) they were introduced later and only ever lived there. When one
+// of these appears in the `pnpm` field, pnpm warns that it is ignored. Keys not
+// in this set (e.g. `app`, or anything set by third-party tooling that piggybacks
+// on the `pnpm` namespace) are left alone to avoid false-positive warnings.
 const MIGRATED_PNPM_FIELD_KEYS = new Set<string>([
   'allowBuilds',
   'allowedDeprecatedVersions',
   'allowUnusedPatches',
+  'audit',
   'auditConfig',
   'configDependencies',
   'executionEnv',
@@ -875,6 +904,7 @@ const MIGRATED_PNPM_FIELD_KEYS = new Set<string>([
   'peerDependencyRules',
   'requiredScripts',
   'supportedArchitectures',
+  'update',
   'updateConfig',
 ])
 
@@ -1037,22 +1067,53 @@ function getNodeVersionFromEnginesRuntime (manifest: ProjectManifest): string | 
   return undefined
 }
 
+/**
+ * Settings the project `pnpm-workspace.yaml` does not contribute to
+ * `self-update`'s config.
+ *
+ * `self-update` replaces the pnpm binary every later install runs through, so
+ * a repository must not get a say in whether it may be replaced. Each of these
+ * is dangerous in both directions: a release-age cooldown lowered waives the
+ * protection the user configured, raised it pins the machine to the installed
+ * pnpm — including past a release that fixes a vulnerability in it; a
+ * `trustPolicy` turned off accepts a pnpm release whose trust evidence the
+ * user meant to reject, turned on blocks the update the same way; and `ci`
+ * decides whether an immature pick may be confirmed at the keyboard at all.
+ * Unlike a blocked dependency upgrade, those decisions follow the user out of
+ * the repository. The policy therefore comes from the built-in defaults, the
+ * global config yaml, the environment, and CLI flags only.
+ */
+const SELF_UPDATE_SKIPPED_SETTINGS: ReadonlySet<string> = new Set([
+  'ci',
+  'minimumReleaseAge',
+  'minimumReleaseAgeExclude',
+  'minimumReleaseAgeIgnoreMissingTime',
+  'minimumReleaseAgeStrict',
+  'trustPolicy',
+  'trustPolicyExclude',
+  'trustPolicyIgnoreAfter',
+] satisfies Array<keyof Config>)
+
 function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigContext, {
   configFromCliOpts,
   expandRequestDestinationEnv,
   projectManifest,
+  skipSettings,
   workspaceManifest,
   workspaceDir,
 }: {
   configFromCliOpts: Record<string, unknown>
   expandRequestDestinationEnv?: boolean
   projectManifest: ProjectManifest | undefined
+  /** Settings this manifest may not contribute. See {@link SELF_UPDATE_SKIPPED_SETTINGS}. */
+  skipSettings?: ReadonlySet<string>
   workspaceDir: string | undefined
   workspaceManifest: WorkspaceManifest
 }): void {
   const newSettings = Object.assign(getOptionsFromPnpmSettings(workspaceDir, workspaceManifest, { manifest: projectManifest, expandRequestDestinationEnv }), configFromCliOpts)
   for (const [key, value] of Object.entries(newSettings)) {
     if (!isCamelCase(key)) continue
+    if (skipSettings?.has(key)) continue
 
     // @ts-expect-error
     pnpmConfig[key] = value

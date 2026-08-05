@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/config.pick-registry-for-package",
-  "version": "1100.0.9",
+  "version": "1100.1.0",
   "description": "Picks the right registry for the package from a registries config",
   "keywords": [
     "pnpm",
@@ -35,7 +35,9 @@
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
-    "@pnpm/config.pick-registry-for-package": "workspace:*"
+    "@pnpm/config.normalize-registries": "workspace:*",
+    "@pnpm/config.pick-registry-for-package": "workspace:*",
+    "@pnpm/constants": "workspace:*"
   },
   "engines": {
     "node": ">=22.13"

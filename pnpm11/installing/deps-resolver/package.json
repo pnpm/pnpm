@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.deps-resolver",
-  "version": "1100.2.6",
+  "version": "1101.1.0",
   "description": "Resolves dependency graph of a package",
   "keywords": [
     "pnpm",
@@ -34,6 +34,7 @@
   "dependencies": {
     "@pnpm/catalogs.resolver": "workspace:*",
     "@pnpm/catalogs.types": "workspace:*",
+    "@pnpm/config.normalize-registries": "workspace:*",
     "@pnpm/config.version-policy": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
@@ -42,6 +43,7 @@
     "@pnpm/deps.peer-range": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fetching.pick-fetcher": "workspace:*",
+    "@pnpm/fs.symlink-dependency": "workspace:*",
     "@pnpm/hooks.types": "workspace:*",
     "@pnpm/lockfile.preferred-versions": "workspace:*",
     "@pnpm/lockfile.pruner": "workspace:*",
@@ -54,8 +56,8 @@
     "@pnpm/resolving.npm-resolver": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/store.controller-types": "workspace:*",
+    "@pnpm/text.ordinal-comparator": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/util.lex-comparator": "catalog:",
     "@pnpm/workspace.spec-parser": "workspace:*",
     "@yarnpkg/core": "catalog:",
     "graph-cycles": "catalog:",

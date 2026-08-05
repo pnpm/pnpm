@@ -83,16 +83,72 @@ const createMockContext = (overrides?: MockContextOverrides): LoginContext => ({
 })
 
 describe('login', () => {
-  it('should throw in non-interactive terminal', async () => {
+  it('should throw in non-interactive terminal when the registry does not support web login', async () => {
     const context = createMockContext({
       process: {
         stdin: { isTTY: false },
       },
+      fetch: async url => {
+        if (url === 'https://example.org/-/v1/login') {
+          return createMockResponse({
+            ok: false,
+            status: 404,
+            text: 'Not Found',
+          })
+        }
+        throw new Error(`Unexpected call to fetch: ${url}`)
+      },
     })
-    const opts = { configDir: '/mock/config', dir: '/mock', authConfig: {} }
+    const opts = { configDir: '/mock/config', dir: '/mock', authConfig: {}, registry: 'https://example.org' }
     const promise = login({ context, opts })
     await expect(promise).rejects.toHaveProperty(['code'], 'ERR_PNPM_LOGIN_NON_INTERACTIVE')
     await expect(promise).rejects.toHaveProperty(['message'], 'The login command requires an interactive terminal')
+  })
+
+  it('should complete web login without an interactive terminal', async () => {
+    const globalInfo = jest.fn()
+    let savedSettings: Record<string, unknown> = {}
+    const context = createMockContext({
+      globalInfo,
+      process: {
+        stdin: { isTTY: false },
+        stdout: { isTTY: false },
+      },
+      readIniFile: async () => ({}),
+      writeIniFile: async (_configPath, settings) => {
+        savedSettings = settings
+      },
+      fetch: async url => {
+        if (url === 'https://example.com/npm/-/v1/login') {
+          return createMockResponse({
+            ok: true,
+            status: 200,
+            json: {
+              loginUrl: 'https://example.com/auth/login',
+              doneUrl: 'https://example.com/auth/done',
+            },
+          })
+        }
+        if (url === 'https://example.com/auth/done') {
+          return createMockResponse({
+            ok: true,
+            status: 200,
+            json: { token: 'headless-token' },
+          })
+        }
+        throw new Error(`Unexpected call to fetch: ${url}`)
+      },
+    })
+    const opts = { configDir: '/mock/config', dir: '/mock', authConfig: {}, registry: 'https://example.com/npm/' }
+    const result = await login({ context, opts })
+    expect(result).toBe('Logged in on https://example.com/npm/')
+    expect(savedSettings).toMatchObject({
+      '//example.com/npm/:_authToken': 'headless-token',
+    })
+    // No QR code (stdout is not a terminal) and no "Press ENTER" prompt.
+    expect(globalInfo.mock.calls).toEqual([
+      ['Authenticate your account at:\nhttps://example.com/auth/login'],
+    ])
   })
 
   it('should use web login when registry supports it', async () => {
@@ -141,6 +197,139 @@ describe('login', () => {
       [expect.stringContaining('https://example.com/auth/login')],
       ['Press ENTER to open the URL in your browser.'],
     ])
+  })
+
+  it('should warn and fall back to URL-only display when the login URL exceeds QR capacity', async () => {
+    // Longer than the 2953-byte maximum QR data capacity, which makes
+    // qrcode-terminal throw.
+    const longLoginUrl = `https://example.com/auth/${'a'.repeat(4000)}`
+    const globalInfo = jest.fn()
+    const globalWarn = jest.fn()
+    const context = createMockContext({
+      globalInfo,
+      globalWarn,
+      readIniFile: async () => ({}),
+      writeIniFile: async () => {},
+      fetch: async url => {
+        if (url === 'https://example.com/npm/-/v1/login') {
+          return createMockResponse({
+            ok: true,
+            status: 200,
+            json: {
+              loginUrl: longLoginUrl,
+              doneUrl: 'https://example.com/auth/done',
+            },
+          })
+        }
+        if (url === 'https://example.com/auth/done') {
+          return createMockResponse({
+            ok: true,
+            status: 200,
+            json: { token: 'web-auth-token-123' },
+          })
+        }
+        throw new Error(`Unexpected call to fetch: ${url}`)
+      },
+    })
+    const opts = { configDir: '/mock/config', dir: '/mock', authConfig: {}, registry: 'https://example.com/npm/' }
+    const result = await login({ context, opts })
+    expect(result).toBe('Logged in on https://example.com/npm/')
+    expect(globalWarn.mock.calls).toStrictEqual([[expect.stringContaining('Could not generate a QR code:')]])
+    expect(globalInfo.mock.calls).toStrictEqual([
+      [`Authenticate your account at:\n${longLoginUrl}`],
+      ['Press ENTER to open the URL in your browser.'],
+    ])
+  })
+
+  it('should log in to a registry under a subpath when the URL has no trailing slash', async () => {
+    const fetchedUrls: string[] = []
+    let savedSettings: Record<string, unknown> = {}
+    const context = createMockContext({
+      globalInfo: jest.fn(),
+      readIniFile: async () => ({}),
+      writeIniFile: async (_configPath, settings) => {
+        savedSettings = settings
+      },
+      fetch: async url => {
+        fetchedUrls.push(url)
+        if (url === 'https://example.com/npm/registry/-/v1/login') {
+          return createMockResponse({
+            ok: true,
+            status: 200,
+            json: {
+              loginUrl: 'https://example.com/auth/login',
+              doneUrl: 'https://example.com/auth/done',
+            },
+          })
+        }
+        if (url === 'https://example.com/auth/done') {
+          return createMockResponse({
+            ok: true,
+            status: 200,
+            json: { token: 'subpath-token' },
+          })
+        }
+        throw new Error(`Unexpected call to fetch: ${url}`)
+      },
+    })
+    const opts = { configDir: '/mock/config', dir: '/mock', authConfig: {}, registry: 'https://example.com/npm/registry' }
+    const result = await login({ context, opts })
+    expect(result).toBe('Logged in on https://example.com/npm/registry/')
+    expect(fetchedUrls[0]).toBe('https://example.com/npm/registry/-/v1/login')
+    expect(savedSettings).toMatchObject({
+      '//example.com/npm/registry/:_authToken': 'subpath-token',
+    })
+  })
+
+  it('should fall back to classic login on a registry under a subpath when the URL has no trailing slash', async () => {
+    const fetchedUrls: string[] = []
+    let savedSettings: Record<string, unknown> = {}
+    const context = createMockContext({
+      globalInfo: jest.fn(),
+      readIniFile: async () => ({}),
+      writeIniFile: async (_configPath, settings) => {
+        savedSettings = settings
+      },
+      fetch: async url => {
+        fetchedUrls.push(url)
+        if (url === 'https://example.com/npm/registry/-/v1/login') {
+          return createMockResponse({
+            ok: false,
+            status: 404,
+            text: 'Not Found',
+          })
+        }
+        if (url === 'https://example.com/npm/registry/-/user/org.couchdb.user:john') {
+          return createMockResponse({
+            ok: true,
+            status: 201,
+            json: { ok: true, token: 'subpath-classic-token' },
+          })
+        }
+        throw new Error(`Unexpected call to fetch: ${url}`)
+      },
+      enquirer: {
+        input: async (opts: { message: string }): Promise<string> => {
+          if (opts.message === 'Username:') return 'john'
+          if (opts.message === 'Email (this IS public):') return 'john@example.com'
+          throw new Error(`Unexpected call to enquirer.input: ${opts.message}`)
+        },
+        password: async (opts: { message: string }): Promise<string> => {
+          if (opts.message === 'Password:') return 'secret'
+          throw new Error(`Unexpected call to enquirer.password: ${opts.message}`)
+        },
+      },
+    })
+    const opts = { configDir: '/mock/config', dir: '/mock', authConfig: {}, registry: 'https://example.com/npm/registry' }
+    const result = await login({ context, opts })
+    expect(result).toBe('Logged in on https://example.com/npm/registry/')
+    expect(fetchedUrls).toEqual([
+      'https://example.com/npm/registry/-/v1/login',
+      'https://example.com/npm/registry/-/user/org.couchdb.user:john',
+    ])
+    expect(savedSettings).toMatchObject({
+      '//example.com/npm/registry/:_authToken': 'subpath-classic-token',
+    })
   })
 
   it('should persist a scoped auth token and scope registry mapping when --scope is provided', async () => {
@@ -326,8 +515,10 @@ describe('login', () => {
     const opts = { configDir: '/other/config', dir: '/mock', authConfig: {}, registry: 'https://example.org' }
     const result = await login({ context, opts })
     expect(result).toBe('Logged in on https://example.org/')
-    expect(fetchedUrls[0]).toBe('https://example.org/-/v1/login')
-    expect(fetchedUrls[1]).toBe('https://example.org/-/user/org.couchdb.user:john')
+    expect(fetchedUrls).toStrictEqual([
+      'https://example.org/-/v1/login',
+      'https://example.org/-/user/org.couchdb.user:john',
+    ])
     expect(savedPath).toBe(path.join('/other/config', 'auth.ini'))
     expect(savedSettings).toMatchObject({
       '//example.org/:_authToken': 'classic-token-456',
@@ -583,6 +774,72 @@ describe('login', () => {
     const promise = login({ context, opts })
     await expect(promise).rejects.toHaveProperty(['code'], 'ERR_PNPM_LOGIN_INVALID_RESPONSE')
     await expect(promise).rejects.toHaveProperty(['message'], 'The registry returned an invalid response for web-based login')
+  })
+
+  it('should treat a non-string loginUrl as an invalid response', async () => {
+    const context = createMockContext({
+      fetch: async url => {
+        if (url === 'https://example.org/-/v1/login') {
+          return createMockResponse({
+            ok: true,
+            status: 200,
+            json: {
+              loginUrl: 12345,
+              doneUrl: 'https://example.org/auth/done',
+            },
+          })
+        }
+        throw new Error(`Unexpected call to fetch: ${url}`)
+      },
+    })
+    const opts = { configDir: '/mock/config', dir: '/mock', authConfig: {}, registry: 'https://example.org' }
+    const promise = login({ context, opts })
+    await expect(promise).rejects.toHaveProperty(['code'], 'ERR_PNPM_LOGIN_INVALID_RESPONSE')
+  })
+
+  it('should reject a login URL containing control characters', async () => {
+    // The default TEST_CONTEXT globalInfo throws, so this also asserts the
+    // URL is rejected before anything is printed.
+    const context = createMockContext({
+      fetch: async url => {
+        if (url === 'https://example.org/-/v1/login') {
+          return createMockResponse({
+            ok: true,
+            status: 200,
+            json: {
+              loginUrl: 'https://example.org/auth/\u001b[31mlogin',
+              doneUrl: 'https://example.org/auth/done',
+            },
+          })
+        }
+        throw new Error(`Unexpected call to fetch: ${url}`)
+      },
+    })
+    const opts = { configDir: '/mock/config', dir: '/mock', authConfig: {}, registry: 'https://example.org' }
+    const promise = login({ context, opts })
+    await expect(promise).rejects.toHaveProperty(['code'], 'ERR_PNPM_AUTH_COMMANDS_LOGIN_UNSAFE_URL')
+    await expect(promise).rejects.toHaveProperty(['message'], 'The registry returned an authentication URL containing control characters and was rejected as a possible terminal-spoofing attempt')
+  })
+
+  it('should reject a done URL containing control characters', async () => {
+    const context = createMockContext({
+      fetch: async url => {
+        if (url === 'https://example.org/-/v1/login') {
+          return createMockResponse({
+            ok: true,
+            status: 200,
+            json: {
+              loginUrl: 'https://example.org/auth/login',
+              doneUrl: 'https://example.org/auth/done\r\nspoofed line',
+            },
+          })
+        }
+        throw new Error(`Unexpected call to fetch: ${url}`)
+      },
+    })
+    const opts = { configDir: '/mock/config', dir: '/mock', authConfig: {}, registry: 'https://example.org' }
+    const promise = login({ context, opts })
+    await expect(promise).rejects.toHaveProperty(['code'], 'ERR_PNPM_AUTH_COMMANDS_LOGIN_UNSAFE_URL')
   })
 
   it('should fall back to classic login when web login returns 405', async () => {

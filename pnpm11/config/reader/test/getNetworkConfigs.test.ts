@@ -14,7 +14,7 @@ test('without files', () => {
     '@foo:registry': 'https://example.com/foo',
   })).toStrictEqual({
     registries: {
-      '@foo': 'https://example.com/foo',
+      '@foo': 'https://example.com/foo/',
     },
   } as NetworkConfigs)
 
@@ -46,7 +46,7 @@ test('without files', () => {
     '//example.com/foo:cert': 'some-cert',
   })).toStrictEqual({
     registries: {
-      '@foo': 'https://example.com/foo',
+      '@foo': 'https://example.com/foo/',
     },
     configByUri: {
       '//example.com/foo': {
@@ -68,7 +68,7 @@ test('with files', () => {
     '//example.com/foo:certfile': 'certfile',
   })).toStrictEqual({
     registries: {
-      '@foo': 'https://example.com/foo',
+      '@foo': 'https://example.com/foo/',
     },
     configByUri: {
       '//example.com/foo': {
@@ -84,7 +84,7 @@ test('auth and tls combined', () => {
     '//example.com/foo:_authToken': 'example auth token',
   })).toStrictEqual({
     registries: {
-      '@foo': 'https://example.com/foo',
+      '@foo': 'https://example.com/foo/',
     },
     configByUri: {
       '//example.com/foo': {
@@ -98,7 +98,7 @@ test('auth and tls combined', () => {
     '//example.com/foo:_auth': btoa('foo:bar'),
   })).toStrictEqual({
     registries: {
-      '@foo': 'https://example.com/foo',
+      '@foo': 'https://example.com/foo/',
     },
     configByUri: {
       '//example.com/foo': {
@@ -118,7 +118,7 @@ test('auth and tls combined', () => {
     '//example.com/foo:_password': btoa('bar'),
   })).toStrictEqual({
     registries: {
-      '@foo': 'https://example.com/foo',
+      '@foo': 'https://example.com/foo/',
     },
     configByUri: {
       '//example.com/foo': {
@@ -137,7 +137,7 @@ test('auth and tls combined', () => {
     '//example.com/foo:tokenHelper': 'node ./my-token-helper.cjs',
   })).toStrictEqual({
     registries: {
-      '@foo': 'https://example.com/foo',
+      '@foo': 'https://example.com/foo/',
     },
     configByUri: {
       '//example.com/foo': {
@@ -211,7 +211,7 @@ test('unsupported key', () => {
     '//example.com/foo:someUnsupportedKey': 'hello world',
   })).toStrictEqual({
     registries: {
-      '@foo': 'https://example.com/foo',
+      '@foo': 'https://example.com/foo/',
     },
   } as NetworkConfigs)
 })

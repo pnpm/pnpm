@@ -1,6 +1,6 @@
 import { PnpmError } from '@pnpm/error'
 
-import { generateQrCode } from './generateQrCode.js'
+import { formatAuthUrlMessage } from './formatAuthUrlMessage.js'
 import type { WebAuthFetchOptions, WebAuthFetchResponse } from './pollForWebAuthToken.js'
 import { pollForWebAuthToken } from './pollForWebAuthToken.js'
 import type { PromptBrowserOpenReadlineInterface } from './promptBrowserOpen.js'
@@ -76,6 +76,7 @@ export async function withOtpHandling<T> ({
   const {
     enquirer,
     globalInfo,
+    globalWarn,
     process,
   } = context
 
@@ -92,8 +93,7 @@ export async function withOtpHandling<T> ({
     const authUrl = canonicalHttpUrl(error.body?.authUrl)
     const doneUrl = canonicalHttpUrl(error.body?.doneUrl)
     if (authUrl != null && doneUrl != null) {
-      const qrCode = generateQrCode(authUrl)
-      globalInfo(`Authenticate your account at:\n${authUrl}\n\n${qrCode}`)
+      globalInfo(formatAuthUrlMessage(authUrl, globalWarn))
       const pollPromise = pollForWebAuthToken({
         context,
         doneUrl,

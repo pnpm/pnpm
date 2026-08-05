@@ -3,6 +3,7 @@
 
 use std::collections::BTreeMap;
 
+use pacquet_catalogs_types::Catalogs;
 use pacquet_network::AuthHeadersByScope;
 use serde::Deserialize;
 
@@ -15,6 +16,10 @@ pub struct ResolveRequestProject {
     /// form (`.` for the root, `packages/foo` for a workspace member).
     #[serde(default = "root_dir")]
     pub dir: String,
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub version: Option<String>,
     #[serde(default)]
     pub dependencies: DepMap,
     #[serde(default)]
@@ -64,6 +69,14 @@ pub struct ResolveRequest {
     /// server-side.
     #[serde(default)]
     pub overrides: Option<serde_json::Value>,
+    /// The client's workspace catalogs (`catalog:` / `catalogs:` from
+    /// `pnpm-workspace.yaml`), keyed by catalog name with the default
+    /// catalog at `"default"`. The reconstructed workspace has no catalog
+    /// sections, so these are forwarded and used as the resolution's
+    /// catalog set to resolve `catalog:` specifiers in both dependencies
+    /// and overrides.
+    #[serde(default)]
+    pub catalogs: Option<Catalogs>,
     /// The client's existing on-disk lockfile, when present. Sent both
     /// as the verification target (the server verifies it under the
     /// client's policy before resolving) and as the resolution-reuse
@@ -119,6 +132,8 @@ pub struct ResolveRequest {
 /// across the legacy single-project body and the `projects` array.
 pub struct ProjectDeps {
     pub dir: String,
+    pub name: Option<String>,
+    pub version: Option<String>,
     pub dependencies: DepMap,
     pub dev_dependencies: DepMap,
     pub optional_dependencies: DepMap,
@@ -135,6 +150,8 @@ impl ResolveRequest {
                 .iter()
                 .map(|project| ProjectDeps {
                     dir: project.dir.clone(),
+                    name: project.name.clone(),
+                    version: project.version.clone(),
                     dependencies: project.dependencies.clone(),
                     dev_dependencies: project.dev_dependencies.clone(),
                     optional_dependencies: project.optional_dependencies.clone(),
@@ -143,6 +160,8 @@ impl ResolveRequest {
         }
         vec![ProjectDeps {
             dir: root_dir(),
+            name: None,
+            version: None,
             dependencies: self.dependencies.clone().unwrap_or_default(),
             dev_dependencies: self.dev_dependencies.clone().unwrap_or_default(),
             optional_dependencies: self.optional_dependencies.clone().unwrap_or_default(),

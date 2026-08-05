@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fetching.git-fetcher",
-  "version": "1102.0.3",
+  "version": "1102.0.12",
   "description": "A fetcher for git-hosted packages",
   "keywords": [
     "pnpm",
@@ -51,8 +51,8 @@
     "@pnpm/logger": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/store.create-cafs-store": "workspace:*",
+    "@pnpm/text.ordinal-comparator": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/util.lex-comparator": "catalog:",
     "tempy": "catalog:"
   },
   "engines": {

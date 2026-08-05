@@ -1,0 +1,44 @@
+[package]
+name                  = "pacquet-micro-benchmark"
+version               = "0.0.0"
+publish               = false
+authors.workspace     = true
+description.workspace = true
+edition.workspace     = true
+homepage.workspace    = true
+keywords.workspace    = true
+license.workspace     = true
+repository.workspace  = true
+
+[[bin]]
+name = "micro-benchmark"
+path = "src/main.rs"
+
+[dependencies]
+pacquet-catalogs-types          = { workspace = true }
+pacquet-package-manifest        = { workspace = true }
+pacquet-registry                = { workspace = true }
+pacquet-resolving-deps-resolver = { workspace = true }
+pacquet-resolving-resolver-base = { workspace = true }
+pacquet-network                 = { workspace = true }
+pacquet-reporter                = { workspace = true }
+pacquet-store-dir               = { workspace = true }
+pacquet-tarball                 = { workspace = true }
+pacquet-lockfile                = { workspace = true }
+
+clap         = { workspace = true }
+criterion    = { workspace = true }
+flate2       = { workspace = true }
+futures-util = { workspace = true }
+mockito      = { workspace = true }
+tokio        = { workspace = true }
+tempfile     = { workspace = true }
+pipe-trait   = { workspace = true }
+project-root = { workspace = true }
+ssri         = { workspace = true }
+tar          = { workspace = true }
+node-semver  = { workspace = true }
+serde_json   = { workspace = true }
+
+[lints]
+workspace = true

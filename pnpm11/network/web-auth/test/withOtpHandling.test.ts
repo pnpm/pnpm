@@ -284,6 +284,45 @@ describe('withOtpHandling', () => {
       expect(globalInfo.mock.calls).toEqual([[expect.stringContaining('https://registry.npmjs.org/auth/abc')]])
     })
 
+    it('warns and falls back to URL-only display when QR generation fails', async () => {
+      // Longer than the 2953-byte maximum QR data capacity, which makes
+      // qrcode-terminal throw.
+      const longAuthUrl = `https://registry.npmjs.org/auth/${'a'.repeat(4000)}`
+      let operationCallCount = 0
+      const globalInfo = jest.fn()
+      const globalWarn = jest.fn()
+      const context = createOtpMockContext({
+        globalInfo,
+        globalWarn,
+        fetch: async (): Promise<WebAuthFetchResponse> => createMockResponse({
+          ok: true,
+          status: 200,
+          json: { token: 'web-token-456' },
+        }),
+      })
+      const result = await withOtpHandling({
+        context,
+        fetchOptions,
+        operation: async otp => {
+          operationCallCount++
+          if (operationCallCount === 1) {
+            throw Object.assign(new Error('otp'), {
+              code: 'EOTP',
+              body: {
+                authUrl: longAuthUrl,
+                doneUrl: 'https://registry.npmjs.org/auth/done',
+              },
+            })
+          }
+          expect(otp).toBe('web-token-456')
+          return 'published'
+        },
+      })
+      expect(result).toBe('published')
+      expect(globalWarn.mock.calls).toEqual([[expect.stringMatching(/^Could not generate a QR code: /)]])
+      expect(globalInfo.mock.calls).toEqual([[`Authenticate your account at:\n${longAuthUrl}`]])
+    })
+
     it('falls back to classic prompt when only authUrl is present (no doneUrl)', async () => {
       let callCount = 0
       const context = createOtpMockContext({

@@ -318,6 +318,49 @@ test('pnpm add inside a workspace project uses pnpr server', async () => {
   expect(projectBManifest.dependencies?.['is-negative']).toBe('1.0.0')
 })
 
+test('pnpm install with pnpr server resolves catalog references in dependencies and overrides', async () => {
+  prepareWorkspace([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '0.0.0',
+        private: true,
+      },
+    },
+    {
+      location: 'packages/a',
+      package: {
+        name: 'a',
+        version: '1.0.0',
+        dependencies: {
+          'is-positive': 'catalog:',
+        },
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    catalog: {
+      'is-positive': '1.0.0',
+    },
+    overrides: {
+      'is-positive': 'catalog:',
+    },
+  })
+
+  requestCount = 0
+
+  await execPnpm(
+    ['install', `--config.pnprServer=http://localhost:${serverPort}`]
+  )
+
+  expect(requestCount).toBeGreaterThanOrEqual(1)
+  expect(fs.existsSync(WANTED_LOCKFILE)).toBe(true)
+  expect(fs.existsSync('packages/a/node_modules/is-positive')).toBe(true)
+})
+
 test('pnpm install with pnpr server works in a workspace with multiple projects', async () => {
   prepareWorkspace([
     {

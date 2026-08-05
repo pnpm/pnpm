@@ -26,7 +26,7 @@ import type {
   BundledManifest,
   PackageManifest,
   PackageVersionPolicy,
-  PinnedVersion,
+  RangeSpecStyle,
   SupportedArchitectures,
   TrustPolicy,
 } from '@pnpm/types'
@@ -155,7 +155,7 @@ export interface RequestPackageOptions {
   onFetchError?: OnFetchError
   injectWorkspacePackages?: boolean
   calcSpecifier?: boolean
-  pinnedVersion?: PinnedVersion
+  rangeSpecStyle?: RangeSpecStyle
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: PackageVersionPolicy
   trustPolicyIgnoreAfter?: number

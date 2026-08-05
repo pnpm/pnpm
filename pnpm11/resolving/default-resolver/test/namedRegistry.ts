@@ -1,8 +1,8 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import fs from 'node:fs'
 import path from 'node:path'
 
 import { afterEach, beforeEach, expect, test } from '@jest/globals'
+import { normalizeNamedRegistries } from '@pnpm/config.normalize-registries'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import { createResolver } from '@pnpm/resolving.default-resolver'
 import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
@@ -54,7 +54,7 @@ test('createResolver() routes <alias>:@scope/pkg through the named-registry reso
   )
 
   expect(result.resolvedVia).toBe('named-registry')
-  expect(result.id).toBe('@acme/private@2.1.0')
+  expect(result.id).toBe('@acme/private@gh:2.1.0')
 })
 
 test('createResolver() routes a user-configured named registry alias through the named-registry resolver', async () => {
@@ -64,9 +64,9 @@ test('createResolver() routes a user-configured named registry alias through the
     cacheDir: temporaryDirectory(),
     storeDir: temporaryDirectory(),
     registries,
-    namedRegistries: {
+    namedRegistries: normalizeNamedRegistries({
       work: ENTERPRISE_REGISTRY,
-    },
+    }),
   })
 
   const result = await resolve(
@@ -75,34 +75,53 @@ test('createResolver() routes a user-configured named registry alias through the
   )
 
   expect(result.resolvedVia).toBe('named-registry')
-  expect(result.id).toBe('@acme/private@2.1.0')
+  expect(result.id).toBe('@acme/private@work:2.1.0')
 })
 
 test.each([
-  ['link:./pkg', 'link'],
-  ['workspace:./pkg', 'workspace'],
-  ['file:./pkg', 'file'],
-])('createResolver() lets the explicit local protocol %s win over a colliding named-registry alias', async (bareSpecifier, alias) => {
-  const projectDir = temporaryDirectory()
-  fs.mkdirSync(path.join(projectDir, 'pkg'))
-  fs.writeFileSync(
-    path.join(projectDir, 'pkg', 'package.json'),
-    JSON.stringify({ name: 'pkg', version: '1.0.0' })
-  )
+  ['link'],
+  ['workspace'],
+  ['file'],
+  ['runtime'],
+])('createResolver() rejects the reserved named-registry alias %s', (alias) => {
+  expect(() => createResolver(fetch, () => undefined, {
+    cacheDir: temporaryDirectory(),
+    storeDir: temporaryDirectory(),
+    registries,
+    namedRegistries: normalizeNamedRegistries({
+      [alias]: ENTERPRISE_REGISTRY,
+    }),
+  })).toThrow(expect.objectContaining({ code: 'ERR_PNPM_RESERVED_NAMED_REGISTRY_NAME' }))
+})
+
+test('createResolver() rejects a malformed named-registry alias', () => {
+  expect(() => createResolver(fetch, () => undefined, {
+    cacheDir: temporaryDirectory(),
+    storeDir: temporaryDirectory(),
+    registries,
+    namedRegistries: normalizeNamedRegistries({
+      'no colons:allowed': ENTERPRISE_REGISTRY,
+    }),
+  })).toThrow(expect.objectContaining({ code: 'ERR_PNPM_RESERVED_NAMED_REGISTRY_NAME' }))
+})
+
+test('createResolver() qualifies a named-registry id with the registry alias', async () => {
+  interceptAcmePrivate(ENTERPRISE_REGISTRY)
 
   const { resolve } = createResolver(fetch, () => undefined, {
     cacheDir: temporaryDirectory(),
     storeDir: temporaryDirectory(),
     registries,
-    namedRegistries: {
-      [alias]: ENTERPRISE_REGISTRY,
-    },
+    namedRegistries: normalizeNamedRegistries({
+      work: ENTERPRISE_REGISTRY,
+    }),
   })
 
   const result = await resolve(
-    { bareSpecifier },
-    { lockfileDir: projectDir, projectDir, preferredVersions: {} }
+    { bareSpecifier: 'work:@acme/private' },
+    { lockfileDir: '/test', projectDir: '/test', preferredVersions: {} }
   )
 
-  expect(result.resolvedVia).toBe('local-filesystem')
+  expect(result.resolvedVia).toBe('named-registry')
+  expect(result.id).toBe('@acme/private@work:2.1.0')
 })

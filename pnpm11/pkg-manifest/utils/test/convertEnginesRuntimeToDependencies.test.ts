@@ -54,3 +54,22 @@ test('applyRuntimeOnFailOverride(download) skips runtime entries without a versi
   expect(manifest.devEngines?.runtime).toMatchObject({ name: 'node', onFail: 'download' })
   expect(manifest.devDependencies).toBeUndefined()
 })
+
+test('applyRuntimeOnFailOverride(ignore) preserves explicit runtime dependencies', () => {
+  const manifest: ProjectManifest = {
+    devEngines: {
+      runtime: {
+        name: 'bun',
+        version: '1.2.0',
+        onFail: 'download',
+      },
+    },
+    devDependencies: {
+      node: 'runtime:22.20.0',
+    },
+  }
+
+  applyRuntimeOnFailOverride(manifest, 'ignore')
+
+  expect(manifest.devDependencies?.node).toBe('runtime:22.20.0')
+})

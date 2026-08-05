@@ -1,5 +1,5 @@
 import { constants } from 'node:fs'
-import { type FileHandle, lstat, open } from 'node:fs/promises'
+import { type FileHandle, lstat, open, readFile } from 'node:fs/promises'
 import { StringDecoder } from 'node:string_decoder'
 import util from 'node:util'
 
@@ -23,7 +23,7 @@ export async function streamReadFirstYamlDocument (filePath: string, readBufferS
   let buffer = ''
   let firstChunk = true
   try {
-    fileHandle = await openLockfileNoFollow(filePath)
+    fileHandle = await open(filePath, constants.O_RDONLY)
     const decoder = new StringDecoder('utf8')
     const readBuffer = Buffer.allocUnsafe(normalizeReadBufferSize(readBufferSize))
     let position = 0
@@ -65,6 +65,17 @@ export async function streamReadFirstYamlDocument (filePath: string, readBufferS
   }
 }
 
+export async function readLockfileToString (filePath: string): Promise<string | null> {
+  try {
+    return stripBom(await readFile(filePath, 'utf8')).replace(/\r\n/g, '\n')
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+      return null
+    }
+    throw err
+  }
+}
+
 export async function readLockfileToStringNoFollow (filePath: string): Promise<string | null> {
   let fileHandle: FileHandle | undefined
   try {
@@ -92,7 +103,13 @@ async function openLockfileNoFollow (filePath: string): Promise<FileHandle> {
   }
 }
 
-async function ensureLockfileIsNotSymlink (filePath: string): Promise<void> {
+/**
+ * Refuses a symlinked lockfile before a write, which would land on the link's
+ * target — any file the user can write. Reads may follow it: sandboxes stage
+ * `pnpm-lock.yaml` as a symlink, and lockfile content is untrusted either way
+ * (https://github.com/pnpm/pnpm/issues/13073).
+ */
+export async function ensureLockfileIsNotSymlink (filePath: string): Promise<void> {
   let stat
   try {
     stat = await lstat(filePath)
@@ -108,7 +125,7 @@ async function ensureLockfileIsNotSymlink (filePath: string): Promise<void> {
 }
 
 function symlinkedLockfileError (filePath: string): PnpmError {
-  return new PnpmError('LOCKFILE_IS_SYMLINK', `Refusing to read or write symlinked lockfile at ${filePath}`)
+  return new PnpmError('LOCKFILE_IS_SYMLINK', `Refusing to write symlinked lockfile at ${filePath}`)
 }
 
 function canRejectDocumentStart (buffer: string): boolean {
@@ -120,6 +137,15 @@ function canRejectDocumentStart (buffer: string): boolean {
 function normalizeReadBufferSize (readBufferSize: number): number {
   const size = Number.isFinite(readBufferSize) ? Math.floor(readBufferSize) : READ_BUFFER_SIZE
   return size > 0 ? size : READ_BUFFER_SIZE
+}
+
+/** The in-memory counterpart of {@link streamReadFirstYamlDocument}. */
+export function extractEnvDocument (content: string): string | null {
+  content = content.replace(/\r\n/g, '\n')
+  if (!content.startsWith(YAML_DOCUMENT_START)) return null
+  const sep = content.indexOf(YAML_DOCUMENT_SEPARATOR, YAML_DOCUMENT_START.length)
+  if (sep === -1) return null
+  return content.slice(YAML_DOCUMENT_START.length, sep)
 }
 
 /**

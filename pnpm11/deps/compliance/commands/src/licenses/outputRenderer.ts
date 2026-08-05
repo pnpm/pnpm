@@ -17,7 +17,10 @@ function sortLicensesPackages (licensePackages: readonly LicensePackage[]): Lice
   )
 }
 
-function renderPackageName ({ belongsTo, name: packageName }: LicensePackage): string {
+function renderPackageName ({ belongsTo, name, registryName }: LicensePackage): string {
+  // The alias disambiguates two otherwise identical rows for the same
+  // package served by different registries.
+  const packageName = registryName == null ? name : `${name} ${chalk.dim(`(${registryName})`)}`
   switch (belongsTo) {
     case 'devDependencies':
       return `${packageName} ${chalk.dim('(dev)')}`
@@ -60,13 +63,18 @@ export function renderLicences (
 
 function renderLicensesJson (licensePackages: readonly LicensePackage[]): string {
   const data = licensePackages
-    .map((item) => pick(['name', 'version', 'path', 'license', 'author', 'homepage', 'description'], item))
+    .map((item) => pick(['name', 'version', 'path', 'license', 'author', 'homepage', 'description', 'registryName'], item))
 
   const output: Record<string, LicensePackageJson[]> = {}
   const groupedByLicense = groupBy((item) => item.license, data)
   for (const license in groupedByLicense) {
     const outputList: LicensePackageJson[] = []
-    const groupedByName = groupBy((item) => item.name, groupedByLicense[license] ?? [])
+    // Group by the registry too: the same name from two registries is two
+    // packages, and collapsing them would drop one from the report.
+    const groupedByName = groupBy(
+      (item) => item.registryName == null ? item.name : `${item.name}\u0000${item.registryName}`,
+      groupedByLicense[license] ?? []
+    )
     for (const inputList of Object.values(groupedByName)) {
       if (inputList == null) continue
       inputList.sort((a, b) => semver.compare(a.version, b.version))
@@ -90,6 +98,8 @@ function renderLicensesJson (licensePackages: readonly LicensePackage[]): string
 export interface LicensePackageJson {
   name: string
   versions: string[]
+  /** Named-registry alias the package came from, when it is not the default registry. */
+  registryName?: string
   license: string
   author?: string
   homepage?: string
@@ -164,7 +174,8 @@ function renderLicensesTable (
 
 function deduplicateLicensesPackages (licensePackages: LicensePackage[]): LicensePackage[] {
   const result: LicensePackage[] = []
-  const rowEqual = (a: LicensePackage, b: LicensePackage) => a.name === b.name && a.license === b.license
+  const rowEqual = (a: LicensePackage, b: LicensePackage) =>
+    a.name === b.name && a.license === b.license && a.registryName === b.registryName
   const hasRow = (row: LicensePackage) => result.some((x) => rowEqual(row, x))
   for (const row of licensePackages.reverse()) { // reverse + unshift to prioritize latest package description
     if (!hasRow(row)) result.unshift(row)

@@ -1,6 +1,6 @@
 use crate::{
     auth::{AuthState, TokenRecord, UpsertOutcome, identify},
-    config::Config,
+    config::{Config, HostedConfig},
     error::RegistryError,
     journal::JournaledPublish,
     package_name::PackageName,
@@ -10,7 +10,10 @@ use crate::{
         stream_decode_verify_and_write,
     },
     registry::{ConcreteKind, Registry, Resolved},
-    storage::Storage,
+    storage::{
+        HostedPackumentVersion, PACKUMENT_WRITE_RETRIES, PackumentUpdate, PackumentWrite, Storage,
+        TarballFinalize,
+    },
     streaming,
     upstream::{
         CacheValidators, FetchOutcome, PackumentFetch, Upstream, abbreviate_packument,
@@ -363,6 +366,24 @@ fn router_with_auth_and_osv(
             // documents. Not part of the standard npm registry API —
             // `pnpm publish --batch` opts into it explicitly.
             .route("/-/pnpm/v1/publish", put(serve_batch_publish))
+            // Staged (two-phase) publishing — the `pnpm stage` surface.
+            // Static `-`/`stage` segments take priority over the generic
+            // segment-count routes below, so these never shadow package
+            // reads. Each route has a `/~<name>/`-prefixed twin so a client
+            // whose registry URL is a registry endpoint can stage through it.
+            .route("/-/stage", get(staged::list_staged))
+            .route("/-/stage/package/{name}", post(staged::post_staged_publish))
+            .route("/-/stage/{id}", get(staged::get_staged).delete(staged::reject_staged))
+            .route("/-/stage/{id}/approve", post(staged::approve_staged))
+            .route("/-/stage/{id}/tarball", get(staged::get_staged_tarball))
+            .route("/{prefix}/-/stage", get(staged::list_staged_prefixed))
+            .route("/{prefix}/-/stage/package/{name}", post(staged::post_staged_publish_prefixed))
+            .route(
+                "/{prefix}/-/stage/{id}",
+                get(staged::get_staged_prefixed).delete(staged::reject_staged_prefixed),
+            )
+            .route("/{prefix}/-/stage/{id}/approve", post(staged::approve_staged_prefixed))
+            .route("/{prefix}/-/stage/{id}/tarball", get(staged::get_staged_tarball_prefixed))
             .route("/{name}", get(get_packument_unscoped).put(put_one_segment))
             .route("/{first}/{second}", get(get_two_segments).put(put_two_segments))
             .route(
@@ -380,7 +401,10 @@ fn router_with_auth_and_osv(
             )
             // Scoped tarball delete: `DELETE /@scope/name/-/<basename-version>.tgz/-rev/<rev>`,
             // plus the registry-addressed dist-tag write and unscoped tarball delete.
-            .route("/{a}/{b}/{c}/{d}/{e}/{f}", put(put_six_segments).delete(delete_six_segments))
+            .route(
+                "/{a}/{b}/{c}/{d}/{e}/{f}",
+                get(get_six_segments).put(put_six_segments).delete(delete_six_segments),
+            )
             // Registry-addressed scoped tarball delete:
             // `DELETE /~<name>/@scope/name/-/<file>/-rev/<rev>`
             .route("/{a}/{b}/{c}/{d}/{e}/{f}/{g}", delete(delete_seven_segments));
@@ -711,6 +735,7 @@ async fn get_tarball_scoped(
 
 /// 4-segment GET:
 /// * `/-/package/{pkg}/dist-tags` — packument's `dist-tags` object.
+/// * `/-/org/{scope}/team` — the teams of the registry claiming `@scope`.
 /// * `/~<name>/-/v1/search` — search through a registry endpoint.
 /// * `/~<name>/@scope/{pkg}/{version}` — scoped version manifest through a
 ///   registry endpoint.
@@ -723,6 +748,9 @@ async fn get_four_segments(
     if a == "-" && b == "package" && d == "dist-tags" {
         let response = get_dist_tags(&state, &identity, None, &c).await;
         return private_if_caller_gated(&state, &c, response);
+    }
+    if a == "-" && b == "org" && d == "team" {
+        return private_no_cache(get_org_teams(&state, &identity, None, &c));
     }
     if let Some(registry) = a.strip_prefix('~').filter(|registry| !registry.is_empty()) {
         if b == "-" && c == "v1" && d == "search" {
@@ -742,10 +770,12 @@ async fn get_four_segments(
 }
 
 /// 5-segment GET:
+/// * `/-/team/{scope}/{team}/user` — a team's members.
 /// * `/~<name>/@scope/<pkg>/-/<file>` — scoped tarball through a registry
 ///   endpoint.
 /// * `/~<name>/-/package/<pkg>/dist-tags` — dist-tags through a registry
 ///   endpoint.
+/// * `/~<name>/-/org/{scope}/team` — org teams through a registry endpoint.
 ///
 /// Every other 5-segment GET is a not-found catchall (the route exists so
 /// DELETE/PUT can sit on the same path).
@@ -754,6 +784,9 @@ async fn get_five_segments(
     AuthedCaller(identity): AuthedCaller,
     Path((a, b, c, d, e)): Path<(String, String, String, String, String)>,
 ) -> Response {
+    if a == "-" && b == "team" && e == "user" {
+        return private_no_cache(get_team_members(&state, &identity, None, &c, &d));
+    }
     if let Some(registry) = a.strip_prefix('~').filter(|registry| !registry.is_empty()) {
         if b.starts_with('@') && d == "-" {
             let full = format!("{b}/{c}");
@@ -764,6 +797,27 @@ async fn get_five_segments(
         if b == "-" && c == "package" && e == "dist-tags" {
             return private_no_cache(get_dist_tags(&state, &identity, Some(registry), &d).await);
         }
+        if b == "-" && c == "org" && e == "team" {
+            return private_no_cache(get_org_teams(&state, &identity, Some(registry), &d));
+        }
+    }
+    not_found()
+}
+
+/// 6-segment GET:
+/// * `/~<name>/-/team/{scope}/{team}/user` — a team's members through a
+///   registry endpoint.
+async fn get_six_segments(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    Path((a, b, c, d, e, f)): Path<(String, String, String, String, String, String)>,
+) -> Response {
+    if let Some(registry) = a.strip_prefix('~').filter(|registry| !registry.is_empty())
+        && b == "-"
+        && c == "team"
+        && f == "user"
+    {
+        return private_no_cache(get_team_members(&state, &identity, Some(registry), &d, &e));
     }
     not_found()
 }
@@ -837,6 +891,10 @@ async fn put_four_segments(
     Path((a, b, c, d)): Path<(String, String, String, String)>,
     body: axum::body::Bytes,
 ) -> Response {
+    // `PUT /-/org/{scope}/team` — team create; config-managed, rejected.
+    if a == "-" && b == "org" && d == "team" {
+        return reject_team_mutation(&state, &identity, None, &c, "create a team");
+    }
     if let Some(registry) = a.strip_prefix('~').filter(|registry| !registry.is_empty())
         && c == "-rev"
     {
@@ -862,7 +920,12 @@ async fn delete_three_segments(
     not_found()
 }
 
-/// `PUT /-/package/{pkg}/dist-tags/{tag}` — add/update a dist-tag.
+/// 5-segment PUT:
+/// * `/-/package/{pkg}/dist-tags/{tag}` — add/update a dist-tag.
+/// * `/-/team/{scope}/{team}/user` — team member add; config-managed,
+///   rejected.
+/// * `/~<name>/-/org/{scope}/team` — team create through a registry
+///   endpoint; config-managed, rejected.
 async fn put_five_segments(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
@@ -872,11 +935,24 @@ async fn put_five_segments(
     if a == "-" && b == "package" && d == "dist-tags" {
         return set_dist_tag(&state, &identity, None, &c, &e, &body).await;
     }
+    if a == "-" && b == "team" && e == "user" {
+        return reject_team_mutation(&state, &identity, None, &c, "add a team member");
+    }
+    if let Some(registry) = a.strip_prefix('~').filter(|registry| !registry.is_empty())
+        && b == "-"
+        && c == "org"
+        && e == "team"
+    {
+        return reject_team_mutation(&state, &identity, Some(registry), &d, "create a team");
+    }
     not_found()
 }
 
-/// `PUT /~<name>/-/package/{pkg}/dist-tags/{tag}` — add/update a dist-tag
-/// through a registry endpoint.
+/// 6-segment PUT:
+/// * `/~<name>/-/package/{pkg}/dist-tags/{tag}` — add/update a dist-tag
+///   through a registry endpoint.
+/// * `/~<name>/-/team/{scope}/{team}/user` — team member add through a
+///   registry endpoint; config-managed, rejected.
 async fn put_six_segments(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
@@ -885,15 +961,25 @@ async fn put_six_segments(
 ) -> Response {
     if let Some(registry) = a.strip_prefix('~').filter(|registry| !registry.is_empty())
         && b == "-"
-        && c == "package"
-        && e == "dist-tags"
     {
-        return set_dist_tag(&state, &identity, Some(registry), &d, &f, &body).await;
+        if c == "package" && e == "dist-tags" {
+            return set_dist_tag(&state, &identity, Some(registry), &d, &f, &body).await;
+        }
+        if c == "team" && f == "user" {
+            return reject_team_mutation(
+                &state,
+                &identity,
+                Some(registry),
+                &d,
+                "add a team member",
+            );
+        }
     }
     not_found()
 }
 
 /// 4-segment DELETE:
+/// * `/-/team/{scope}/{team}` — team destroy; config-managed, rejected.
 /// * `/~<name>/{pkg}/-rev/{rev}` — remove the entire package through a
 ///   registry endpoint (scoped packages arrive percent-encoded as one
 ///   `@scope%2Fname` segment).
@@ -902,6 +988,10 @@ async fn delete_four_segments(
     AuthedCaller(identity): AuthedCaller,
     Path((a, b, c, d)): Path<(String, String, String, String)>,
 ) -> Response {
+    if a == "-" && b == "team" {
+        let _ = d; // team name — the mutation is rejected regardless
+        return reject_team_mutation(&state, &identity, None, &c, "destroy a team");
+    }
     if let Some(registry) = a.strip_prefix('~').filter(|registry| !registry.is_empty())
         && c == "-rev"
     {
@@ -913,6 +1003,10 @@ async fn delete_four_segments(
 
 /// 5-segment DELETE:
 /// * `/-/package/{pkg}/dist-tags/{tag}` — remove a dist-tag.
+/// * `/-/team/{scope}/{team}/user` — team member remove; config-managed,
+///   rejected.
+/// * `/~<name>/-/team/{scope}/{team}` — team destroy through a registry
+///   endpoint; config-managed, rejected.
 /// * `/{pkg}/-/{filename}/-rev/{rev}` — remove an unscoped tarball
 ///   (one step of `pnpm unpublish <pkg>@<version>`).
 async fn delete_five_segments(
@@ -922,6 +1016,16 @@ async fn delete_five_segments(
 ) -> Response {
     if a == "-" && b == "package" && d == "dist-tags" {
         return remove_dist_tag(&state, &identity, None, &c, &e).await;
+    }
+    if a == "-" && b == "team" && e == "user" {
+        return reject_team_mutation(&state, &identity, None, &c, "remove a team member");
+    }
+    if let Some(registry) = a.strip_prefix('~').filter(|registry| !registry.is_empty())
+        && b == "-"
+        && c == "team"
+    {
+        let _ = e; // team name — the mutation is rejected regardless
+        return reject_team_mutation(&state, &identity, Some(registry), &d, "destroy a team");
     }
     if b == "-" && d == "-rev" {
         let _ = e; // revision token is unused
@@ -939,6 +1043,8 @@ async fn delete_five_segments(
 ///   `@scope%2Fname` URL.
 /// * `/~<name>/-/package/{pkg}/dist-tags/{tag}` — remove a dist-tag
 ///   through a registry endpoint.
+/// * `/~<name>/-/team/{scope}/{team}/user` — team member remove through a
+///   registry endpoint; config-managed, rejected.
 /// * `/~<name>/{pkg}/-/{filename}/-rev/{rev}` — remove an unscoped
 ///   tarball through a registry endpoint.
 async fn delete_six_segments(
@@ -954,6 +1060,15 @@ async fn delete_six_segments(
     if let Some(registry) = a.strip_prefix('~').filter(|registry| !registry.is_empty()) {
         if b == "-" && c == "package" && e == "dist-tags" {
             return remove_dist_tag(&state, &identity, Some(registry), &d, &f).await;
+        }
+        if b == "-" && c == "team" && f == "user" {
+            return reject_team_mutation(
+                &state,
+                &identity,
+                Some(registry),
+                &d,
+                "remove a team member",
+            );
         }
         if c == "-" && e == "-rev" {
             let _ = f; // revision token is unused
@@ -2340,6 +2455,8 @@ fn token_timestamp_millis(seconds: u64) -> i64 {
     (seconds.min(max_seconds) * MILLIS_PER_SECOND) as i64
 }
 
+mod staged;
+
 #[cfg(test)]
 mod tests;
 
@@ -2780,6 +2897,7 @@ fn validate_publish_attachments(
 struct StagedPublish {
     name: PackageName,
     merged_bytes: Vec<u8>,
+    base_version: Option<HostedPackumentVersion>,
     slots: Vec<crate::storage::TarballSlot>,
     /// Hosted-org storage namespace this publish targets, or `None` for the
     /// flat (path-less) hosted store. Threaded into the commit and journal so
@@ -2801,7 +2919,11 @@ async fn stage_publish(
     let ValidatedPublish { name, incoming, prepared } = doc;
     let storage = hosted_storage(state, org);
 
-    let hosted_bytes = storage.read_hosted_packument(&name).await?;
+    let hosted_packument = storage.read_hosted_packument_for_update(&name).await?;
+    let (hosted_bytes, base_version) = match hosted_packument {
+        Some(packument) => (Some(packument.bytes), Some(packument.version)),
+        None => (None, None),
+    };
     let hosted: Option<Value> = match hosted_bytes.as_deref().map(serde_json::from_slice) {
         Some(Ok(value)) => Some(value),
         Some(Err(err)) => return Err(RegistryError::Json(err)),
@@ -2900,7 +3022,13 @@ async fn stage_publish(
             }
         }
     }
-    Ok(StagedPublish { name, merged_bytes, slots: written_slots, org: org.map(str::to_string) })
+    Ok(StagedPublish {
+        name,
+        merged_bytes,
+        base_version,
+        slots: written_slots,
+        org: org.map(str::to_string),
+    })
 }
 
 /// Make every staged publish visible. The full intent — merged
@@ -2951,9 +3079,43 @@ async fn commit_publishes(
             // so an inline failure and a startup roll-forward land identically.
             let store = hosted_storage(state, stage.org.as_deref());
             for slot in stage.slots {
-                store.finalize_tarball_slot(slot).await?;
+                match store.finalize_tarball_slot(slot).await? {
+                    TarballFinalize::Written | TarballFinalize::AlreadyIdentical => {}
+                    // A concurrent replica already promoted a different tarball
+                    // for this version. Its bytes are immutable, so abort the
+                    // apply rather than advertise our integrity against them.
+                    // The seal's roll-forward re-runs from the journal, where it
+                    // drops the version we lost and re-merges the rest.
+                    TarballFinalize::Conflict => {
+                        return Err(RegistryError::PackumentWriteConflict {
+                            package: stage.name.as_str().to_string(),
+                        });
+                    }
+                }
             }
-            store.write_hosted_packument(&stage.name, &stage.merged_bytes).await?;
+            match store
+                .write_hosted_packument_if_current(
+                    &stage.name,
+                    &stage.merged_bytes,
+                    stage.base_version.as_ref(),
+                )
+                .await?
+            {
+                PackumentWrite::Written => {}
+                // Tarballs are already promoted at this point. A conflict means
+                // another replica advanced the packument since staging, so the
+                // base version is stale. Surfacing it drops into the seal's
+                // roll-forward path (the caller), which re-reads the current
+                // packument and re-merges this transaction's journaled manifest —
+                // re-referencing the promoted tarballs — rather than leaving them
+                // orphaned. Only if roll-forward and startup recovery both never
+                // converge would a promoted tarball stay unreferenced.
+                PackumentWrite::Conflict => {
+                    return Err(RegistryError::PackumentWriteConflict {
+                        package: stage.name.as_str().to_string(),
+                    });
+                }
+            }
         }
         Ok::<(), RegistryError>(())
     }
@@ -3157,16 +3319,40 @@ async fn update_packument(
     // packument writers (publish / dist-tag), so the client-supplied
     // rewrite can't interleave with a concurrent merge.
     let _packument_guard = state.inner.package_locks.lock(name.as_str()).await;
-    if let Some(err) = enforce_published_version_immutability(&storage, &name, &mut packument).await
-    {
+    let hosted_packument = match storage.read_hosted_packument_for_update(&name).await {
+        Ok(Some(packument)) => packument,
+        Ok(None) => {
+            return error_response(&RegistryError::BadRequest {
+                reason: format!(
+                    "cannot update {:?}: it has no published packument to unpublish from",
+                    name.as_str(),
+                ),
+            });
+        }
+        Err(err) => return error_response(&err),
+    };
+    let hosted: Value = match serde_json::from_slice(&hosted_packument.bytes) {
+        Ok(value) => value,
+        Err(err) => return error_response(&RegistryError::Json(err)),
+    };
+    if let Some(err) = enforce_published_version_immutability(&hosted, &name, &mut packument) {
         return error_response(&err);
     }
     let bytes = match serde_json::to_vec_pretty(&packument) {
         Ok(b) => b,
         Err(err) => return error_response(&RegistryError::Json(err)),
     };
-    if let Err(err) = storage.write_hosted_packument(&name, &bytes).await {
-        return error_response(&err);
+    match storage
+        .write_hosted_packument_if_current(&name, &bytes, Some(&hosted_packument.version))
+        .await
+    {
+        Ok(PackumentWrite::Written) => {}
+        Ok(PackumentWrite::Conflict) => {
+            return error_response(&RegistryError::PackumentWriteConflict {
+                package: name.as_str().to_string(),
+            });
+        }
+        Err(err) => return error_response(&err),
     }
     let body = json!({ "ok": true });
     let bytes = serde_json::to_vec(&body).expect("static-shape JSON serializes");
@@ -3195,27 +3381,11 @@ async fn update_packument(
 ///
 /// Returns the rejection, or `None` when the body is acceptable (after any
 /// restores). Must hold the package lock so a concurrent publish can't race it.
-async fn enforce_published_version_immutability(
-    storage: &Storage,
+fn enforce_published_version_immutability(
+    hosted: &Value,
     name: &PackageName,
     incoming: &mut Value,
 ) -> Option<RegistryError> {
-    let hosted: Value = match storage.read_hosted_packument(name).await {
-        // Fail closed: a corrupt packument must not silently disable the gate.
-        Ok(Some(bytes)) => match serde_json::from_slice(&bytes) {
-            Ok(value) => value,
-            Err(err) => return Some(RegistryError::Json(err)),
-        },
-        Ok(None) => {
-            return Some(RegistryError::BadRequest {
-                reason: format!(
-                    "cannot update {:?}: it has no published packument to unpublish from",
-                    name.as_str(),
-                ),
-            });
-        }
-        Err(err) => return Some(err),
-    };
     // None (no versions to enforce) means "accept", not "error" here.
     let incoming_versions = incoming.get("versions").and_then(Value::as_object)?;
     let hosted_versions = hosted.get("versions").and_then(Value::as_object);
@@ -3462,10 +3632,14 @@ async fn set_dist_tag(
     tag: &str,
     body: &[u8],
 ) -> Response {
-    update_dist_tag(state, identity, registry, raw_name, tag, |tags| {
-        let version: String = match serde_json::from_slice(body) {
-            Ok(s) => s,
-            Err(err) => return Err(RegistryError::Json(err)),
+    let mut parsed_version: Option<String> = None;
+    update_dist_tag(state, identity, registry, raw_name, tag, move |tags| {
+        let version = if let Some(version) = parsed_version.as_ref() {
+            version.clone()
+        } else {
+            let version: String = serde_json::from_slice(body).map_err(RegistryError::Json)?;
+            parsed_version = Some(version.clone());
+            version
         };
         tags.insert(tag.to_string(), Value::String(version));
         Ok(())
@@ -3497,10 +3671,10 @@ async fn update_dist_tag<Mutate>(
     registry: Option<&str>,
     raw_name: &str,
     tag: &str,
-    mutate: Mutate,
+    mut mutate: Mutate,
 ) -> Response
 where
-    Mutate: FnOnce(&mut serde_json::Map<String, Value>) -> Result<(), RegistryError>,
+    Mutate: FnMut(&mut serde_json::Map<String, Value>) -> Result<(), RegistryError>,
 {
     let name = match PackageName::parse(raw_name) {
         Ok(n) => n,
@@ -3529,53 +3703,47 @@ where
     // on this instance (held until this function returns).
     let _packument_guard = state.inner.package_locks.lock(name.as_str()).await;
 
-    // A hosted org has no upstream, so a dist-tag change starts from the org's
-    // own packument; a package it does not host can't be tagged.
-    let mut packument: Value = match storage.read_hosted_packument(&name).await {
-        Ok(Some(bytes)) => match serde_json::from_slice(&bytes) {
-            Ok(v) => v,
-            Err(err) => return error_response(&RegistryError::Json(err)),
-        },
-        Ok(None) => return not_found(),
+    let _ = tag; // the tag name is captured by the `mutate` closure.
+    let outcome = storage
+        .update_hosted_packument_with_retry(&name, PACKUMENT_WRITE_RETRIES, |existing_bytes| {
+            // A hosted org has no upstream, so a dist-tag change starts from the
+            // org's own packument; a package it does not host can't be tagged.
+            let Some(bytes) = existing_bytes else {
+                return Ok(None);
+            };
+            let mut packument: Value = serde_json::from_slice(bytes)?;
+            let Some(packument_obj) = packument.as_object_mut() else {
+                return Err(RegistryError::BadRequest {
+                    reason: "stored packument is not an object".to_string(),
+                });
+            };
+            let tags_entry = packument_obj
+                .entry("dist-tags".to_string())
+                .or_insert_with(|| Value::Object(serde_json::Map::new()));
+            let Some(tags) = tags_entry.as_object_mut() else {
+                return Err(RegistryError::BadRequest {
+                    reason: "stored dist-tags is not an object".to_string(),
+                });
+            };
+            mutate(tags)?;
+            // Refresh `time.modified` so clients do not lag behind a
+            // dist-tag change when deciding packument freshness.
+            let time_entry = packument_obj
+                .entry("time".to_string())
+                .or_insert_with(|| Value::Object(serde_json::Map::new()));
+            let Some(time_obj) = time_entry.as_object_mut() else {
+                return Err(RegistryError::BadRequest {
+                    reason: "stored time is not an object".to_string(),
+                });
+            };
+            time_obj.insert("modified".to_string(), Value::String(now_iso()));
+            Ok(Some(serde_json::to_vec_pretty(&packument)?))
+        })
+        .await;
+    match outcome {
+        Ok(PackumentUpdate::Written) => {}
+        Ok(PackumentUpdate::NotFound) => return not_found(),
         Err(err) => return error_response(&err),
-    };
-
-    let Some(packument_obj) = packument.as_object_mut() else {
-        return error_response(&RegistryError::BadRequest {
-            reason: "stored packument is not an object".to_string(),
-        });
-    };
-    let tags_entry = packument_obj
-        .entry("dist-tags".to_string())
-        .or_insert_with(|| Value::Object(serde_json::Map::new()));
-    let Some(tags) = tags_entry.as_object_mut() else {
-        return error_response(&RegistryError::BadRequest {
-            reason: "stored dist-tags is not an object".to_string(),
-        });
-    };
-    if let Err(err) = mutate(tags) {
-        return error_response(&err);
-    }
-    let _ = tag; // tag name is used by the mutate closure
-    // Refresh `time.modified` so clients that rely on it for
-    // freshness (pacquet's pick_package, npm's abbreviated-packument
-    // staleness check) don't see the post-mutation packument as
-    // older than its dist-tag change.
-    let time_entry = packument_obj
-        .entry("time".to_string())
-        .or_insert_with(|| Value::Object(serde_json::Map::new()));
-    let Some(time_obj) = time_entry.as_object_mut() else {
-        return error_response(&RegistryError::BadRequest {
-            reason: "stored time is not an object".to_string(),
-        });
-    };
-    time_obj.insert("modified".to_string(), Value::String(now_iso()));
-    let new_bytes = match serde_json::to_vec_pretty(&packument) {
-        Ok(b) => b,
-        Err(err) => return error_response(&RegistryError::Json(err)),
-    };
-    if let Err(err) = storage.write_hosted_packument(&name, &new_bytes).await {
-        return error_response(&err);
     }
     let body = json!({ "ok": true });
     let bytes = serde_json::to_vec(&body).expect("static-shape JSON serializes");
@@ -3584,6 +3752,106 @@ where
         .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from(bytes))
         .expect("static-shape response always builds")
+}
+
+// --------------------------------------------------------------------
+// npm team API — read-only views over the config-declared `teams:` maps.
+// Team membership is part of the registry configuration (it feeds the
+// compiled access lists), so the API serves listings and rejects
+// mutations with an explicit "config-managed" error.
+// --------------------------------------------------------------------
+
+/// The hosted registry whose teams `@{scope}` addresses: the scope routes
+/// through the addressed registry (an explicit `/~<name>/`, or the
+/// path-less default) exactly as a package read in that scope would, then
+/// the registry-level default `access` gates the caller. A denial is
+/// masked as not-found — team and member names must not become an
+/// existence probe for a private registry.
+fn team_registry<'a>(
+    state: &'a AppState,
+    identity: &Identity,
+    registry: Option<&str>,
+    scope: &str,
+) -> Result<&'a HostedConfig, Box<Response>> {
+    let scope = scope.strip_prefix('@').unwrap_or(scope);
+    if scope.is_empty() {
+        return Err(Box::new(not_found()));
+    }
+    let target = match registry {
+        Some(registry) => registry.to_string(),
+        None => match default_registry_target(state) {
+            Some(target) => target,
+            None => return Err(Box::new(not_found())),
+        },
+    };
+    let probe = format!("@{scope}/-");
+    let RegistrySource::Hosted(source) = resolve_registry_source(state, &target, &probe) else {
+        return Err(Box::new(not_found()));
+    };
+    let Some(hosted) = state.inner.config.hosted.get(&source) else {
+        return Err(Box::new(not_found()));
+    };
+    if !hosted.rules.default_access().allows(identity) {
+        return Err(Box::new(not_found()));
+    }
+    Ok(hosted)
+}
+
+/// `GET /-/org/{scope}/team` (path-less) or `GET /~<name>/-/org/{scope}/team`
+/// — list the teams of the hosted registry that claims `@{scope}`, in the
+/// shape the pnpm team command consumes: an array of `{"name": ...}`.
+fn get_org_teams(
+    state: &AppState,
+    identity: &Identity,
+    registry: Option<&str>,
+    scope: &str,
+) -> Response {
+    let hosted = match team_registry(state, identity, registry, scope) {
+        Ok(hosted) => hosted,
+        Err(response) => return *response,
+    };
+    let teams: Vec<Value> = hosted.teams.keys().map(|name| json!({ "name": name })).collect();
+    (StatusCode::OK, axum::Json(Value::Array(teams))).into_response()
+}
+
+/// `GET /-/team/{scope}/{team}/user` (path-less) or
+/// `GET /~<name>/-/team/{scope}/{team}/user` — list a team's members, in
+/// the shape the pnpm team command consumes: an array of `{"name": ...}`.
+fn get_team_members(
+    state: &AppState,
+    identity: &Identity,
+    registry: Option<&str>,
+    scope: &str,
+    team: &str,
+) -> Response {
+    let hosted = match team_registry(state, identity, registry, scope) {
+        Ok(hosted) => hosted,
+        Err(response) => return *response,
+    };
+    let Some(members) = hosted.teams.get(team) else {
+        return not_found();
+    };
+    let members: Vec<Value> = members.iter().map(|name| json!({ "name": name })).collect();
+    (StatusCode::OK, axum::Json(Value::Array(members))).into_response()
+}
+
+/// Every team mutation — create (`PUT /-/org/{scope}/team`), destroy
+/// (`DELETE /-/team/{scope}/{team}`), member add/remove
+/// (`PUT`/`DELETE /-/team/{scope}/{team}/user`) — answers 403: pnpr teams
+/// are declared in the registry config. The same gate as the reads runs
+/// first, so a caller who may not see the registry keeps the not-found
+/// mask.
+fn reject_team_mutation(
+    state: &AppState,
+    identity: &Identity,
+    registry: Option<&str>,
+    scope: &str,
+    action: &'static str,
+) -> Response {
+    if let Err(response) = team_registry(state, identity, registry, scope) {
+        return *response;
+    }
+    error_response(&RegistryError::TeamsConfigManaged { action })
 }
 
 // --------------------------------------------------------------------
@@ -3714,7 +3982,7 @@ async fn resolve_caller(
             return Ok(Identity::Anonymous);
         };
         check_token_restrictions(&record, method, peer)?;
-        return Ok(state.inner.config.identity_for_user(record.username));
+        return Ok(Identity::user(record.username));
     }
     // Anything that is not a bearer token — Basic, another scheme, or no
     // credentials — carries no request identity. Going through `identify`

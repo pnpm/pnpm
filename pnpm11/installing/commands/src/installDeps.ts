@@ -24,6 +24,7 @@ import { writeWantedLockfile } from '@pnpm/lockfile.fs'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { globalInfo, globalWarn, logger } from '@pnpm/logger'
 import { applyRuntimeOnFailOverride, filterDependenciesByType } from '@pnpm/pkg-manifest.utils'
+import { getRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
 import type { PreferredVersions, VersionSelectors } from '@pnpm/resolving.resolver-base'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import type {
@@ -41,7 +42,6 @@ import { sequenceGraph } from '@pnpm/workspace.projects-sorter'
 import { updateWorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
 import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writer'
 
-import { getPinnedVersion } from './getPinnedVersion.js'
 import { getSaveType } from './getSaveType.js'
 import { handleIgnoredBuilds } from './handleIgnoredBuilds.js'
 import { setupPolicyHandlers } from './policyHandlers.js'
@@ -56,7 +56,7 @@ import {
   type UpdateDepsMatcher,
 } from './recursive.js'
 import { makeRunPacquet } from './runPacquet.js'
-import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies.js'
+import { toWorkspaceSpecs } from './updateWorkspaceDependencies.js'
 import { verifyPacquetIdentity } from './verifyPacquetIdentity.js'
 
 const OVERWRITE_UPDATE_OPTIONS = {
@@ -166,7 +166,6 @@ export type InstallDepsOptions = Pick<Config,
   dedupe?: boolean
   workspace?: boolean
   includeOnlyPackageFiles?: boolean
-  fetchFullMetadata?: boolean
   pruneLockfileImporters?: boolean
   rebuildHandler?: CommandHandler
   pnpmfile: string[]
@@ -358,6 +357,10 @@ export async function installDeps (
   let updateMatch: UpdateDepsMatcher | null
   let updatePackageManifest = opts.updatePackageManifest
   let updateMatching: UpdateMatchingFunction | undefined
+  // `params` is rewritten below into the dependency names it matched, so
+  // remember whether the user named any package. `--workspace` only insists
+  // that a dependency exists in the workspace when it was asked for by name.
+  const userNamedDeps = params.length > 0
   if (opts.update) {
     if (params.length === 0) {
       const ignoreDeps = opts.updateConfig?.ignoreDependencies
@@ -394,11 +397,12 @@ export async function installDeps (
     params = Object.keys(filterDependenciesByType(manifest, includeDirect))
   }
   if (opts.workspace) {
-    if (!params || (params.length === 0)) {
-      params = updateToWorkspacePackagesFromManifest(manifest, includeDirect, workspacePackages)
-    } else {
-      params = createWorkspaceSpecs(params, workspacePackages)
-    }
+    params = toWorkspaceSpecs(params ?? [], {
+      manifest,
+      include: includeDirect,
+      workspacePackages,
+      userNamedDeps,
+    })
   }
   if (params?.length) {
     const mutatedProject = {
@@ -408,7 +412,7 @@ export async function installDeps (
       manifest,
       mutation: 'installSome' as const,
       peer: opts.savePeer,
-      pinnedVersion: getPinnedVersion(opts),
+      rangeSpecStyle: getRangeSpecStyle(opts),
       rootDir: opts.dir as ProjectRootDir,
       targetDependenciesField: getSaveType(opts),
     }

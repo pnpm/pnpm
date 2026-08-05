@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.compliance.license-scanner",
-  "version": "1100.0.22",
+  "version": "1100.1.0",
   "description": "Check for licenses packages",
   "keywords": [
     "pnpm",
@@ -47,7 +47,6 @@
     "@pnpm/types": "workspace:*",
     "p-limit": "catalog:",
     "path-absolute": "catalog:",
-    "ramda": "catalog:",
     "semver": "catalog:"
   },
   "peerDependencies": {
@@ -55,6 +54,7 @@
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
+    "@pnpm/config.normalize-registries": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/deps.compliance.license-scanner": "workspace:*",
     "@pnpm/logger": "workspace:*",

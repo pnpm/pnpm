@@ -1,0 +1,10 @@
+{
+  "name": "@pnpm.e2e/optional-graph-skipped-root",
+  "version": "1.0.0",
+  "os": [
+    "this-os-does-not-exist"
+  ],
+  "dependencies": {
+    "@pnpm.e2e/optional-graph-shared-middle": "1.0.0"
+  }
+}

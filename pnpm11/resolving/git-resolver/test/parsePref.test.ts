@@ -1,6 +1,12 @@
-import { expect, test } from '@jest/globals'
+import { expect, jest, test } from '@jest/globals'
 
-import { parseBareSpecifier } from '../lib/parseBareSpecifier.js'
+jest.unstable_mockModule('@pnpm/network.fetch', () => ({
+  fetchWithDispatcher: jest.fn(async () => ({ ok: true })),
+}))
+jest.unstable_mockModule('graceful-git', () => ({
+  gracefulGit: jest.fn(async () => ({ stdout: '' })),
+}))
+const { parseBareSpecifier } = await import('../lib/parseBareSpecifier.js')
 
 test.each([
   ['ssh://username:password@example.com:repo.git', 'ssh://username:password@example.com/repo.git'],

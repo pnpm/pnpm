@@ -1,13 +1,18 @@
 {
   "name": "@pnpm/get-release-text",
-  "version": "1100.0.0",
+  "version": "1100.0.4",
   "private": true,
   "type": "module",
   "scripts": {
     "write-release-text": "node src/main.ts",
-    "lint": "eslint src/**/*.ts"
+    "compile": "tsgo --build",
+    "lint": "eslint src/**/*.ts test/**/*.ts",
+    "test": "pn compile && pn .test",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
+    "@pnpm/error": "workspace:*",
+    "@pnpm/releasing.versioning": "workspace:*",
     "mdast-util-to-string": "catalog:",
     "remark-parse": "catalog:",
     "remark-stringify": "catalog:",
@@ -15,7 +20,13 @@
     "vfile": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/get-release-text": "workspace:*"
+    "@jest/globals": "catalog:",
+    "@pnpm/get-release-text": "workspace:*",
+    "@pnpm/jest-config": "workspace:*",
+    "cross-env": "catalog:"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   },
   "keywords": [
     "pnpm",

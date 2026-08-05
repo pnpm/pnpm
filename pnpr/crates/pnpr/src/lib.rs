@@ -32,7 +32,7 @@ pub use config::{
     AccessSpec, AuthConfig, BackendConfig, Config, ConfigSource, DEFAULT_CONFIG_YAML,
     FeatureOverrides, HostedConfig, HostedStoreConfig, HtpasswdConfig, LibsqlSettings, LogConfig,
     LogFormat, LogLevel, MaxUsers, OsvConfig, PackageAccess, PublicRoute, RegistryFeature,
-    ResolverFeature, RoutePolicy, SqlBackendSettings, TokensConfig, UpstreamConfig,
+    ResolverFeature, RoutePolicy, SqlBackendSettings, Teams, TokensConfig, UpstreamConfig,
     default_cache_dir,
 };
 pub use error::{RegistryError, Result};

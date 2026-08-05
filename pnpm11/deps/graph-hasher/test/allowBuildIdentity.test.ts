@@ -34,7 +34,7 @@ it('gates built dep paths through the allowBuild policy by depPath', () => {
         version: '1.0.0',
       },
     ].values(),
-    allowBuild
+    { allowBuild }
   ))
 
   expect(checkedDepPaths).toStrictEqual([registryDepPath, directTarballDepPath])

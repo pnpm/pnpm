@@ -10,11 +10,11 @@ import type { StoreController } from '@pnpm/store.controller-types'
 import type {
   AllowBuild,
   AllowedDeprecatedVersions,
-  PinnedVersion,
   PkgResolutionId,
   ProjectId,
   ProjectManifest,
   ProjectRootDir,
+  RangeSpecStyle,
   ReadPackageHook,
   Registries,
   SupportedArchitectures,
@@ -47,6 +47,7 @@ export interface ResolvedImporters {
   [id: string]: {
     directDependencies: ResolvedDirectDependency[]
     directNodeIdsByAlias: Map<string, NodeId>
+    hoistedPeerProviderNodeIds: Set<NodeId>
     linkedDependencies: LinkedDependency[]
   }
 }
@@ -104,7 +105,7 @@ export interface ImporterToResolveGeneric<WantedDepExtraProps> extends Importer<
   hasRemovedDependencies?: boolean
   preferredVersions?: PreferredVersions
   wantedDependencies: Array<WantedDepExtraProps & WantedDependency & { updateDepth: number }>
-  pinnedVersion?: PinnedVersion
+  rangeSpecStyle?: RangeSpecStyle
 }
 
 export interface ResolveDependenciesOptions {
@@ -127,6 +128,7 @@ export interface ResolveDependenciesOptions {
   hooks: {
     readPackage?: ReadPackageHook
   }
+  overrideBareSpecifier?: (name: string, bareSpecifier: string, dir?: string) => string | undefined
   nodeVersion?: string
   registries: Registries
   namedRegistries?: Record<string, string>
@@ -211,7 +213,9 @@ export async function resolveDependencyTree<T> (
     pnpmVersion: opts.pnpmVersion,
     preferWorkspacePackages: opts.preferWorkspacePackages,
     readPackageHook: opts.hooks.readPackage,
+    overrideBareSpecifier: opts.overrideBareSpecifier,
     registries: opts.registries,
+    namedRegistries: opts.namedRegistries,
     namedRegistryPrefixes: Array.from(
       new Set([
         ...Object.keys(BUILTIN_NAMED_REGISTRIES),
@@ -285,7 +289,7 @@ export async function resolveDependencyTree<T> (
       preferredVersions: importer.preferredVersions ?? {},
       wantedDependencies: importer.wantedDependencies,
       options: resolveOpts,
-      pinnedVersion: importer.pinnedVersion,
+      rangeSpecStyle: importer.rangeSpecStyle,
     }
   })
   const { pkgAddressesByImporters, time } = await resolveRootDependencies(ctx, resolveArgs)
@@ -360,6 +364,7 @@ export async function resolveDependencyTree<T> (
           }
         }),
       directNodeIdsByAlias: new Map(directNonLinkedDeps.map(({ alias, nodeId }) => [alias, nodeId])),
+      hoistedPeerProviderNodeIds: new Set(directNonLinkedDeps.filter((dep) => dep.hoistedPeerProvider).map(({ nodeId }) => nodeId)),
       linkedDependencies,
     }
   }

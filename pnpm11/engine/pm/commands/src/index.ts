@@ -1,5 +1,6 @@
 export { selfUpdate } from './self-updater/index.js'
-export { exePlatformPkgDirName, exePlatformPkgDirNameNext, installPnpm, installPnpmToStore, linkExePlatformBinary, pnpmPackageNameToInstall } from './self-updater/installPnpm.js'
+export { assertPnpmRuns, assertReleaseIsInstallable, exePlatformPkgDirName, exePlatformPkgDirNameNext, installPnpm, installPnpmToStore, linkExePlatformBinary, pnpmPackageNameToInstall } from './self-updater/installPnpm.js'
 export { verifyPnpmEngineIdentity, type VerifyPnpmEngineIdentityOptions } from './self-updater/verifyPnpmEngineIdentity.js'
 export { setup } from './setup/index.js'
+export { LEGACY_HOME_DIR_SHIM_NAMES } from './setup/setup.js'
 export { withCmd } from './with/index.js'

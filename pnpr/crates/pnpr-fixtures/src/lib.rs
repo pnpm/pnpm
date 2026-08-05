@@ -44,11 +44,23 @@ pub fn packages_dir() -> PathBuf {
 /// binary so the JS test harness can serve the moved fixtures; pacquet's own
 /// tests use [`ensure_storage`] (process-global, cached) instead.
 pub fn build_storage_at(packages: &Path, out: &Path) {
+    build_storage_at_with_substitutions(packages, out, &[]);
+}
+
+/// Build fixture storage after replacing exact strings in every top-level
+/// fixture manifest. Tests use this to point committed registry fixtures at a
+/// per-run `git+file://` repository without making the default fixture set
+/// depend on a local path.
+pub fn build_storage_at_with_substitutions(
+    packages: &Path,
+    out: &Path,
+    substitutions: &[(&str, &str)],
+) {
     if out.exists() {
         fs::remove_dir_all(out).expect("clear existing registry fixture storage");
     }
     fs::create_dir_all(out).expect("create registry fixture storage dir");
-    build_storage(packages, out);
+    build_storage(packages, out, substitutions);
 }
 
 fn workspace_root() -> PathBuf {
@@ -77,7 +89,7 @@ fn ensure_storage_for_fingerprint(packages: &Path, generated: &Path, storage: &P
     if temp.exists() {
         fs::remove_dir_all(&temp).expect("remove stale temp registry fixture storage");
     }
-    build_storage(packages, &temp);
+    build_storage(packages, &temp, &[]);
     fs::write(temp.join(COMPLETE_FILE), "").expect("write registry fixture completion marker");
     match fs::rename(&temp, storage) {
         Ok(()) => {}
@@ -101,10 +113,10 @@ fn fixture_fingerprint(root: &Path) -> String {
     format!("{:x}", hasher.finalize())
 }
 
-fn build_storage(fixtures_root: &Path, storage_root: &Path) {
+fn build_storage(fixtures_root: &Path, storage_root: &Path, substitutions: &[(&str, &str)]) {
     let mut packages: HashMap<String, Package> = HashMap::new();
     for manifest_path in fixture_manifests(fixtures_root) {
-        let version = PackageVersion::load(fixtures_root, &manifest_path);
+        let version = PackageVersion::load(fixtures_root, &manifest_path, substitutions);
         packages
             .entry(version.name.clone())
             .or_insert_with(|| Package::new(version.name.clone()))
@@ -196,9 +208,12 @@ struct PackageVersion {
 }
 
 impl PackageVersion {
-    fn load(root: &Path, manifest_path: &Path) -> Self {
+    fn load(root: &Path, manifest_path: &Path, substitutions: &[(&str, &str)]) -> Self {
         let package_dir = manifest_path.parent().expect("manifest has parent");
-        let manifest_text = fs::read_to_string(manifest_path).expect("read fixture package.json");
+        let manifest_text = substitutions.iter().fold(
+            fs::read_to_string(manifest_path).expect("read fixture package.json"),
+            |manifest, (from, to)| manifest.replace(from, to),
+        );
         let manifest: Value =
             serde_json::from_str(&manifest_text).expect("parse fixture package.json");
         let name = manifest
@@ -211,7 +226,7 @@ impl PackageVersion {
             .and_then(Value::as_str)
             .expect("fixture package.json has string version")
             .to_string();
-        let tarball = build_tarball(root, package_dir, &manifest);
+        let tarball = build_tarball(root, package_dir, &manifest, &manifest_text);
         let integrity =
             format!("sha512-{}", general_purpose::STANDARD.encode(Sha512::digest(&tarball)));
         let tarball_name = format!("{}-{version}.tgz", tarball_basename(&name));
@@ -252,14 +267,23 @@ fn is_version_dir(dir: Option<&Path>) -> bool {
         .is_some_and(|name| Version::parse(name).is_ok())
 }
 
-fn build_tarball(root: &Path, package_dir: &Path, manifest: &Value) -> Vec<u8> {
+fn build_tarball(
+    root: &Path,
+    package_dir: &Path,
+    manifest: &Value,
+    manifest_text: &str,
+) -> Vec<u8> {
     let name = manifest.get("name").and_then(Value::as_str).unwrap_or_default();
     let gzip = GzEncoder::new(Vec::new(), Compression::default());
     let mut tar = tar::Builder::new(gzip);
     for entry in fixture_files(package_dir) {
         let relative = entry.path().strip_prefix(package_dir).expect("fixture entry under package");
         let path_in_archive = Path::new("package").join(relative);
-        let content = fs::read(entry.path()).expect("read fixture file");
+        let content = if relative == Path::new("package.json") {
+            manifest_text.as_bytes().to_vec()
+        } else {
+            fs::read(entry.path()).expect("read fixture file")
+        };
         let mode = file_mode(root, entry.path(), &content).expect("read fixture file mode");
         append_file(&mut tar, &path_in_archive, &content, mode);
     }

@@ -43,6 +43,7 @@ export type SbomCommandOptions = {
   | 'dir'
   | 'lockfileDir'
   | 'registries'
+  | 'namedRegistries'
   | 'optional'
   | 'production'
   | 'storeDir'
@@ -490,6 +491,7 @@ async function generateSbomForProject (
     sbomType: serialOpts.sbomType,
     include,
     registries: opts.registries,
+    namedRegistries: opts.namedRegistries,
     lockfileDir,
     includedImporterIds,
     lockfileOnly: opts.lockfileOnly,

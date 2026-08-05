@@ -399,9 +399,9 @@ test(`subdeps are updated on repeat install if outer ${WANTED_LOCKFILE} does not
 test("recreates lockfile if it doesn't match the dependencies in package.json", async () => {
   const project = prepareEmpty()
 
-  let { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-negative@1.0.0'], testDefaults({ pinnedVersion: 'patch', targetDependenciesField: 'dependencies' }))
-  manifest = (await addDependenciesToPackage(manifest, ['is-positive@1.0.0'], testDefaults({ pinnedVersion: 'patch', targetDependenciesField: 'devDependencies' }))).updatedManifest
-  manifest = (await addDependenciesToPackage(manifest, ['map-obj@1.0.0'], testDefaults({ pinnedVersion: 'patch', targetDependenciesField: 'optionalDependencies' }))).updatedManifest
+  let { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-negative@1.0.0'], testDefaults({ rangeSpecStyle: 'patch', targetDependenciesField: 'dependencies' }))
+  manifest = (await addDependenciesToPackage(manifest, ['is-positive@1.0.0'], testDefaults({ rangeSpecStyle: 'patch', targetDependenciesField: 'devDependencies' }))).updatedManifest
+  manifest = (await addDependenciesToPackage(manifest, ['map-obj@1.0.0'], testDefaults({ rangeSpecStyle: 'patch', targetDependenciesField: 'optionalDependencies' }))).updatedManifest
 
   const lockfile1 = project.readLockfile()
   expect(lockfile1.importers['.'].dependencies?.['is-negative'].version).toBe('1.0.0')
@@ -1642,4 +1642,55 @@ test('setting a custom peersSuffixMaxLength', async () => {
   const lockfile = project.readLockfile()
   expect(lockfile.settings.peersSuffixMaxLength).toBe(10)
   expect(lockfile.importers['.']?.dependencies?.['@pnpm.e2e/abc']?.version?.length).toBe(39)
+})
+
+// Covers https://github.com/pnpm/pnpm/issues/13073: build sandboxes such as
+// Bazel and Nix stage pnpm-lock.yaml as a symlink into the working tree. A
+// frozen install neither resolves nor changes the lockfile, so it must not
+// refuse the symlink — nor rewrite the file at all.
+const testOnNonWindows = process.platform === 'win32' ? test.skip : test
+
+// Stages an up-to-date lockfile outside the project and symlinks it in.
+async function prepareSymlinkedLockfile (manifest: ProjectManifest): Promise<string> {
+  await install(manifest, testDefaults({ lockfileOnly: true }))
+  const stagedLockfile = path.resolve('..', 'staged-lockfile.yaml')
+  fs.renameSync(WANTED_LOCKFILE, stagedLockfile)
+  fs.symlinkSync(stagedLockfile, WANTED_LOCKFILE, 'file')
+  return stagedLockfile
+}
+
+testOnNonWindows(`frozen lockfile-only install succeeds when ${WANTED_LOCKFILE} is a symlink`, async () => {
+  prepareEmpty()
+  const manifest = { dependencies: { '@pnpm.e2e/pkg-with-1-dep': '100.0.0' } }
+  const stagedLockfile = await prepareSymlinkedLockfile(manifest)
+  const targetBefore = fs.readFileSync(stagedLockfile, 'utf8')
+
+  await install(manifest, testDefaults({ frozenLockfile: true, lockfileOnly: true }))
+
+  expect(fs.lstatSync(WANTED_LOCKFILE).isSymbolicLink()).toBe(true)
+  expect(fs.readFileSync(stagedLockfile, 'utf8')).toBe(targetBefore)
+})
+
+testOnNonWindows(`frozen install succeeds when ${WANTED_LOCKFILE} is a symlink`, async () => {
+  prepareEmpty()
+  const manifest = { dependencies: { '@pnpm.e2e/pkg-with-1-dep': '100.0.0' } }
+  const stagedLockfile = await prepareSymlinkedLockfile(manifest)
+  const targetBefore = fs.readFileSync(stagedLockfile, 'utf8')
+
+  await install(manifest, testDefaults({ frozenLockfile: true }))
+
+  expect(fs.lstatSync(WANTED_LOCKFILE).isSymbolicLink()).toBe(true)
+  expect(fs.readFileSync(stagedLockfile, 'utf8')).toBe(targetBefore)
+})
+
+testOnNonWindows(`install refuses to write a changed lockfile through a symlinked ${WANTED_LOCKFILE}`, async () => {
+  prepareEmpty()
+  const stagedLockfile = await prepareSymlinkedLockfile({ dependencies: { '@pnpm.e2e/pkg-with-1-dep': '100.0.0' } })
+  const targetBefore = fs.readFileSync(stagedLockfile, 'utf8')
+
+  await expect(
+    install({ dependencies: { '@pnpm.e2e/foo': '100.0.0' } }, testDefaults({ lockfileOnly: true }))
+  ).rejects.toThrow(/symlinked lockfile/)
+
+  expect(fs.readFileSync(stagedLockfile, 'utf8')).toBe(targetBefore)
 })

@@ -38,7 +38,14 @@ interface RegistryResponse {
 
 export interface FetchMetadataResult {
   meta: PackageMeta
-  jsonText: string
+  /**
+   * The raw registry response body, used only to mirror the response to disk
+   * without re-serializing `meta`. A fresh fetch always sets it, and every
+   * caller sharing that in-flight request sees it. Once the request settles
+   * the phase-long memo cache drops the body (see memoizeFetchMetadata.ts),
+   * so later cache hits see `undefined` and the cache never pins the body.
+   */
+  jsonText: string | undefined
   etag?: string
   notModified?: false
 }
@@ -123,6 +130,7 @@ export interface FetchMetadataFromFromRegistryOptions {
 export interface FetchMetadataOptions {
   registry: string
   authHeaderValue?: string
+  cacheBypass?: boolean
   fullMetadata?: boolean
   etag?: string
   modified?: string
@@ -133,6 +141,7 @@ export async function fetchMetadataFromFromRegistry (
   pkgName: string,
   {
     authHeaderValue,
+    cacheBypass = false,
     etag: cachedEtag,
     fullMetadata,
     modified: cachedModified,
@@ -141,20 +150,35 @@ export async function fetchMetadataFromFromRegistry (
 ): Promise<FetchMetadataResult | FetchMetadataNotModifiedResult> {
   const uri = toUri(pkgName, registry)
   const op = retry.operation(fetchOpts.retry)
+  const ifNoneMatch = cacheBypass ? undefined : cachedEtag
+  const ifModifiedSince = cacheBypass || !cachedModified
+    ? undefined
+    : new Date(cachedModified).toUTCString()
+  const hasValidator = Boolean(ifNoneMatch || ifModifiedSince)
   return new Promise((resolve, reject) => {
     op.attempt(async (attempt) => {
       let response: RegistryResponse
       const startTime = Date.now()
       try {
-        response = await fetchOpts.fetch(uri, {
+        const requestOptions = {
           authHeaderValue,
           compress: true,
           fullMetadata,
-          ifNoneMatch: cachedEtag,
-          ifModifiedSince: cachedModified ? new Date(cachedModified).toUTCString() : undefined,
+          ifNoneMatch,
+          ifModifiedSince,
           retry: fetchOpts.retry,
           timeout: fetchOpts.timeout,
-        }) as RegistryResponse
+          headers: cacheBypass ? { 'cache-control': 'no-cache' } : undefined,
+        }
+        response = await fetchOpts.fetch(uri, requestOptions) as RegistryResponse
+        if (response.status === 304 && !hasValidator && !cacheBypass) {
+          response = await fetchOpts.fetch(uri, {
+            ...requestOptions,
+            headers: {
+              'cache-control': 'no-cache',
+            },
+          }) as RegistryResponse
+        }
       } catch (error: any) { // eslint-disable-line
         // Redact credentials embedded in the URL from the cause as well, not
         // just the top-level message: a reporter or debugger that renders
@@ -169,6 +193,10 @@ export async function fetchMetadataFromFromRegistry (
         return
       }
       if (response.status === 304) {
+        if (!hasValidator) {
+          reject(notModifiedWithoutCacheError(pkgName))
+          return
+        }
         resolve({ notModified: true })
         return
       }
@@ -222,6 +250,19 @@ export async function fetchMetadataFromFromRegistry (
       }
     })
   })
+}
+
+/**
+ * A 304 answers a validator with "the body you already have is current". Sent
+ * without one — either because nothing was cached or because `cacheBypass`
+ * dropped the validators to recover a lost cache entry — it refers to a body
+ * nobody holds, so there is nothing to serve and nothing left to retry.
+ */
+export function notModifiedWithoutCacheError (pkgName: string): PnpmError {
+  return new PnpmError(
+    'META_NOT_MODIFIED_WITHOUT_CACHE',
+    `Registry returned 304 for ${pkgName} without an existing cache to refresh.`
+  )
 }
 
 /**

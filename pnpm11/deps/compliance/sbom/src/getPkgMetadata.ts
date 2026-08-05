@@ -1,9 +1,9 @@
 import { isSpdxLicenseExpression, resolveLicense } from '@pnpm/deps.compliance.license-resolver'
-import { packageIdFromSnapshot, type PackageSnapshot, pkgSnapshotToResolution } from '@pnpm/lockfile.utils'
+import { packageIdFromSnapshot, type PackageSnapshot, pkgSnapshotToResolution, type PkgSnapshotToResolutionOptions } from '@pnpm/lockfile.utils'
 import { readPackageJson } from '@pnpm/pkg-manifest.reader'
 import type { StoreIndex } from '@pnpm/store.index'
 import { readPackageFileMap } from '@pnpm/store.pkg-finder'
-import type { DepPath, PackageManifest, Registries } from '@pnpm/types'
+import type { DepPath, PackageManifest } from '@pnpm/types'
 import pLimit from 'p-limit'
 
 const limitMetadataReads = pLimit(4)
@@ -27,20 +27,20 @@ export interface GetPkgMetadataOptions {
 export async function getPkgMetadata (
   depPath: DepPath,
   snapshot: PackageSnapshot,
-  registries: Registries,
+  registryOpts: PkgSnapshotToResolutionOptions,
   opts: GetPkgMetadataOptions
 ): Promise<PkgMetadata> {
-  return limitMetadataReads(() => getPkgMetadataUnclamped(depPath, snapshot, registries, opts))
+  return limitMetadataReads(() => getPkgMetadataUnclamped(depPath, snapshot, registryOpts, opts))
 }
 
 async function getPkgMetadataUnclamped (
   depPath: DepPath,
   snapshot: PackageSnapshot,
-  registries: Registries,
+  registryOpts: PkgSnapshotToResolutionOptions,
   opts: GetPkgMetadataOptions
 ): Promise<PkgMetadata> {
   const id = packageIdFromSnapshot(depPath, snapshot)
-  const resolution = pkgSnapshotToResolution(depPath, snapshot, registries)
+  const resolution = pkgSnapshotToResolution(depPath, snapshot, registryOpts)
 
   let files: Map<string, string>
   try {

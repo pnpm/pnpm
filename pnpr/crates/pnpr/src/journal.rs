@@ -30,11 +30,15 @@ use crate::{
     error::Result,
     package_name::PackageName,
     publish::{merge_manifest, now_iso},
-    storage::{Storage, TarballSlot, unique_tmp_path},
+    storage::{
+        RECOVERY_PACKUMENT_WRITE_RETRIES, Storage, TarballFinalize, TarballSlot, unique_tmp_path,
+    },
+    upstream::tarball_basename,
 };
 use serde::{Deserialize, Serialize};
 use std::{
-    io::ErrorKind,
+    collections::HashSet,
+    io::{self, ErrorKind},
     path::{Path, PathBuf},
     sync::atomic::{AtomicU64, Ordering},
     time::{SystemTime, UNIX_EPOCH},
@@ -137,7 +141,7 @@ impl PublishJournal {
             });
         }
         write_synced(&dir.join(MANIFEST_FILE), &serde_json::to_vec_pretty(&manifest)?).await?;
-        sync_dir(&dir).await;
+        let _ = sync_dir(&dir).await;
         // The seal itself: a single same-directory rename, atomic on
         // POSIX. Recovery treats a directory without this marker as an
         // aborted transaction and rolls it back.
@@ -145,7 +149,7 @@ impl PublishJournal {
         let marker_tmp = unique_tmp_path(&marker);
         write_synced(&marker_tmp, b"").await?;
         fs::rename(&marker_tmp, &marker).await?;
-        sync_dir(&dir).await;
+        let _ = sync_dir(&dir).await;
         Ok(SealedTxn { dir })
     }
 
@@ -219,6 +223,7 @@ pub async fn recover_publish_journal(config: &Config) -> Result<()> {
 /// instead of overwriting it.
 async fn roll_forward(storage: &Storage, dir: &Path) -> Result<()> {
     let manifest: Manifest = serde_json::from_slice(&fs::read(dir.join(MANIFEST_FILE)).await?)?;
+    let mut conflicted_tmp_paths = Vec::new();
     for package in &manifest.packages {
         let name = PackageName::parse(&package.name)?;
         // Roll forward into the package's hosted namespace (or the flat
@@ -228,6 +233,7 @@ async fn roll_forward(storage: &Storage, dir: &Path) -> Result<()> {
             Some(org) => storage.for_hosted(org),
             None => storage.clone(),
         };
+        let mut conflicted: HashSet<&str> = HashSet::new();
         for tarball in &package.tarballs {
             // A missing tmp file was already promoted before the crash, so
             // skip it. But never read an I/O error as "missing": that would
@@ -241,22 +247,103 @@ async fn roll_forward(storage: &Storage, dir: &Path) -> Result<()> {
                     name.clone(),
                     tarball.filename.clone(),
                 );
-                store.finalize_tarball_slot(slot).await?;
+                match store.finalize_tarball_slot(slot).await? {
+                    TarballFinalize::Written | TarballFinalize::AlreadyIdentical => {}
+                    // 다른 replica가 같은 버전의 다른 tarball을 먼저 확정했다.
+                    // winner의 bytes는 immutable이므로 덮어쓰거나 우리 integrity를
+                    // 노출하면 안 된다. 재시도에서도 충돌을 다시 감지하도록 임시
+                    // 파일은 유지하고, 아래 merge에서 제외할 filename을 기록한다.
+                    TarballFinalize::Conflict => {
+                        conflicted_tmp_paths.push(tarball.tmp_path.as_path());
+                        conflicted.insert(tarball.filename.as_str());
+                    }
+                }
             }
         }
-        let journaled: serde_json::Value =
+        let mut journaled: serde_json::Value =
             serde_json::from_slice(&fs::read(dir.join(&package.packument_file)).await?)?;
-        let existing: Option<serde_json::Value> = match store.read_hosted_packument(&name).await? {
-            Some(bytes) => Some(serde_json::from_slice(&bytes)?),
-            None => None,
-        };
-        // `existing` is the hosted packument here, so it is also the
-        // immutability reference.
-        let merged = merge_manifest(existing.as_ref(), &journaled, existing.as_ref(), &now_iso());
-        store.write_hosted_packument(&name, &serde_json::to_vec_pretty(&merged)?).await?;
+        if !conflicted.is_empty() {
+            drop_conflicted_versions(&mut journaled, &conflicted);
+        }
+        write_merged_packument(&store, &name, &journaled).await?;
     }
+    // journal을 먼저 제거해야 중간 실패가 충돌 상태 없는 재시도를 만들지 않는다.
     fs::remove_dir_all(dir).await?;
+    // 부모 디렉터리까지 동기화되어 journal 삭제가 내구성을 얻은 뒤에만 충돌 tmp를 지운다.
+    // 동기화 실패 시 tmp를 남겨 crash 후 journal이 다시 보이더라도 충돌을 재현할 수 있게 한다.
+    let journal_removal_is_durable = match dir.parent() {
+        Some(parent) => sync_dir(parent).await.is_ok(),
+        None => false,
+    };
+    cleanup_conflicted_tmp_paths(&conflicted_tmp_paths, journal_removal_is_durable).await;
     Ok(())
+}
+
+async fn cleanup_conflicted_tmp_paths(tmp_paths: &[&Path], journal_removal_is_durable: bool) {
+    if !journal_removal_is_durable {
+        return;
+    }
+    for tmp_path in tmp_paths {
+        let _ = fs::remove_file(tmp_path).await;
+    }
+}
+
+async fn write_merged_packument(
+    store: &Storage,
+    name: &PackageName,
+    journaled: &serde_json::Value,
+) -> Result<()> {
+    store
+        .update_hosted_packument_with_retry(
+            name,
+            RECOVERY_PACKUMENT_WRITE_RETRIES,
+            |existing_bytes| {
+                let existing: Option<serde_json::Value> = match existing_bytes {
+                    Some(bytes) => Some(serde_json::from_slice(bytes)?),
+                    None => None,
+                };
+                let merged =
+                    merge_manifest(existing.as_ref(), journaled, existing.as_ref(), &now_iso());
+                Ok(Some(serde_json::to_vec_pretty(&merged)?))
+            },
+        )
+        .await?;
+    Ok(())
+}
+
+/// Drop from a journaled manifest every version whose staged tarball lost a
+/// compare-and-swap to another replica. The bytes at that (immutable) version
+/// key belong to the winner, so re-merging our `dist`/integrity for the version
+/// would advertise metadata that no longer matches the hosted tarball. Versions
+/// are matched to `conflicted` staged filenames by their `dist.tarball`
+/// basename; a version we cannot match is left in place.
+fn drop_conflicted_versions(journaled: &mut serde_json::Value, conflicted: &HashSet<&str>) {
+    let Some(versions) = journaled.get_mut("versions").and_then(serde_json::Value::as_object_mut)
+    else {
+        return;
+    };
+    let mut removed_versions = HashSet::new();
+    versions.retain(|version, manifest| {
+        let filename = manifest
+            .get("dist")
+            .and_then(|dist| dist.get("tarball"))
+            .and_then(serde_json::Value::as_str)
+            .and_then(tarball_basename);
+        let keep = filename.is_none_or(|filename| !conflicted.contains(filename));
+        if !keep {
+            removed_versions.insert(version.clone());
+        }
+        keep
+    });
+
+    if let Some(tags) = journaled.get_mut("dist-tags").and_then(serde_json::Value::as_object_mut) {
+        tags.retain(|_, version| {
+            version.as_str().is_none_or(|version| !removed_versions.contains(version))
+        });
+    }
+    if let Some(time) = journaled.get_mut("time").and_then(serde_json::Value::as_object_mut) {
+        time.retain(|version, _| !removed_versions.contains(version));
+    }
 }
 
 /// Discard an unsealed transaction: nothing of it ever became visible,
@@ -292,14 +379,16 @@ async fn write_synced(path: &Path, bytes: &[u8]) -> Result<()> {
     Ok(())
 }
 
-/// Flush directory entries (file creations and renames) to disk.
-/// Best-effort: directory fsync isn't available everywhere (Windows
-/// can't open directories as files), and a lost dir entry only widens
-/// the crash window back to what it was without the journal.
-async fn sync_dir(dir: &Path) {
-    if cfg!(unix)
-        && let Ok(file) = fs::File::open(dir).await
-    {
-        let _ = file.sync_all().await;
-    }
+#[cfg(unix)]
+async fn sync_dir(dir: &Path) -> io::Result<()> {
+    fs::File::open(dir).await?.sync_all().await
 }
+
+#[cfg(not(unix))]
+async fn sync_dir(_dir: &Path) -> io::Result<()> {
+    // 표준 API로 디렉터리 엔트리의 내구성을 확인할 수 없는 플랫폼은 안전하게 미지원 처리한다.
+    Err(io::Error::new(ErrorKind::Unsupported, "directory sync is not supported"))
+}
+
+#[cfg(test)]
+mod tests;

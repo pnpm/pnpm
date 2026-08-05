@@ -20,9 +20,11 @@ export async function getChangedProjects (
   opts: { workspaceDir: string, testPattern?: string[], changedFilesIgnorePattern?: string[] }
 ): Promise<[ProjectRootDir[], ProjectRootDir[]]> {
 
-  // .git is a directory in regular repos, but a file in worktrees
-  const gitPath = find.dir('.git', { cwd: opts.workspaceDir }) ??
-                  find.file('.git', { cwd: opts.workspaceDir })
+  // .git is a directory in regular repos, but a file in worktrees. The
+  // nearest entry of either kind wins, so a worktree checked out inside
+  // another repository's tree resolves to the worktree root, matching
+  // where git anchors its diff paths.
+  const gitPath = find.up('.git', { cwd: opts.workspaceDir })
 
   const repoRoot = path.resolve(gitPath ?? opts.workspaceDir, '..')
 
@@ -65,6 +67,9 @@ async function getChangedDirsSinceCommit (commit: string, workingDir: string, te
       await execa('git', [
         'diff',
         '--name-only',
+        // Keeps an option-like `<since>` (`--output=...`) from being
+        // parsed as a git option — git rejects it as a bad revision.
+        '--end-of-options',
         commit,
         '--',
         workingDir,

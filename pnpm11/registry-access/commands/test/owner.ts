@@ -83,6 +83,38 @@ describe('owner command', () => {
     }).rejects.toThrow('not found')
   })
 
+  it('owner ls: should throw on 401 (unauthorized)', async () => {
+    getMockAgent().get('https://registry.npmjs.org').intercept({
+      method: 'GET',
+      path: /^\/-\/package\/@pnpm%2[Ff]test\/owners$/,
+    }).reply(401, { error: 'Unauthorized' })
+
+    await expect(async () => {
+      await owner.handler({
+        cliOptions: {},
+        registries: {
+          default: REGISTRY_URL,
+        },
+      }, ['ls', '@pnpm/test'])
+    }).rejects.toThrow('logged in')
+  })
+
+  it('owner ls: should throw on 403 (forbidden)', async () => {
+    getMockAgent().get('https://registry.npmjs.org').intercept({
+      method: 'GET',
+      path: /^\/-\/package\/@pnpm%2[Ff]test\/owners$/,
+    }).reply(403, { error: 'Forbidden' })
+
+    await expect(async () => {
+      await owner.handler({
+        cliOptions: {},
+        registries: {
+          default: REGISTRY_URL,
+        },
+      }, ['ls', '@pnpm/test'])
+    }).rejects.toThrow('permission')
+  })
+
   it('owner add: should add an owner to a package', async () => {
     getMockAgent().get('https://registry.npmjs.org').intercept({
       method: 'PUT',

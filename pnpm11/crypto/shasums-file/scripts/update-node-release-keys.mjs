@@ -19,7 +19,7 @@ const RAW = 'https://raw.githubusercontent.com/nodejs/release-keys/main'
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
 const REPO_ROOT = path.join(ROOT, '..')
 const TS_KEYS_FILE = path.join(ROOT, 'crypto', 'shasums-file', 'src', 'nodeReleaseKeys.ts')
-const RUST_KEYS_FILE = path.join(REPO_ROOT, 'pacquet', 'crates', 'crypto-shasums-file', 'src', 'node_release_keys.rs')
+const RUST_KEYS_FILE = path.join(REPO_ROOT, 'pnpm', 'crates', 'crypto-shasums-file', 'src', 'node_release_keys.rs')
 
 async function main () {
   const update = process.argv.includes('--update')

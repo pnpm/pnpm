@@ -55,10 +55,19 @@ const readEnvLockfile = jest.fn<(rootDir: string) => Promise<EnvLockfile | null>
 const resolvePackageManagerIntegrities = jest.fn<(version: string, opts: object) => Promise<EnvLockfile>>(async () => envLockfile)
 const spawnSync = jest.fn(() => ({ status: 0 }))
 
+// Mutable so a test can pretend the running pnpm is itself a broken release.
+const mockPackageManager = { name: 'pnpm', version: '11.0.0' }
+const actualCliMeta = await import('@pnpm/cli.meta')
 jest.unstable_mockModule('@pnpm/cli.meta', () => ({
-  packageManager: { name: 'pnpm', version: '11.0.0' },
+  ...actualCliMeta,
+  packageManager: mockPackageManager,
 }))
+// Only the installer is faked. assertReleaseIsInstallable is the real one, so
+// the list of broken releases stays in a single place and these tests exercise
+// it rather than a copy.
+const actualEnginePmCommands = await import('@pnpm/engine.pm.commands')
 jest.unstable_mockModule('@pnpm/engine.pm.commands', () => ({
+  ...actualEnginePmCommands,
   installPnpmToStore,
 }))
 jest.unstable_mockModule('@pnpm/installing.env-installer', () => ({
@@ -81,6 +90,7 @@ jest.unstable_mockModule('cross-spawn', () => ({
 const { switchCliVersion } = await import('./switchCliVersion.js')
 
 beforeEach(() => {
+  mockPackageManager.version = '11.0.0'
   closeStore.mockClear()
   createStoreController.mockClear()
   installPnpmToStore.mockClear()
@@ -370,3 +380,63 @@ test('switchCliVersion rejects package-manager lockfile dependencies with non-re
   expect(installPnpmToStore).not.toHaveBeenCalled()
   expect(spawnSync).not.toHaveBeenCalled()
 })
+
+test('refuses to switch to a broken release instead of failing inside the installer', async () => {
+  const config = { rawConfig: {} } as unknown as Config
+  const context = {
+    rootProjectManifestDir: '/project',
+    wantedPackageManager: { name: 'pnpm', version: '11.12.0', fromDevEngines: true, onFail: 'download' },
+  } as unknown as ConfigContext
+  readEnvLockfile.mockResolvedValue(envLockfileFor('11.12.0'))
+
+  // Spied so that a regression, which would run the switch to completion and
+  // reach exit(), fails the test instead of ending the worker.
+  const exit = jest.spyOn(process, 'exit').mockImplementation((() => undefined) as never)
+  try {
+    await expect(switchCliVersion(config, context)).rejects.toThrow(/11\.12\.0 is a broken release/)
+  } finally {
+    exit.mockRestore()
+  }
+
+  expect(installPnpmToStore).not.toHaveBeenCalled()
+})
+
+// The refusal must not strand anyone: a developer whose pnpm *is* a broken
+// release still needs it to run, or they have nothing to move off it with.
+test('does not refuse a broken release that is already the running version', async () => {
+  mockPackageManager.version = '11.12.0'
+  const config = { rawConfig: {} } as unknown as Config
+  const context = {
+    rootProjectManifestDir: '/project',
+    wantedPackageManager: { name: 'pnpm', version: '11.12.0', fromDevEngines: true, onFail: 'download' },
+  } as unknown as ConfigContext
+  readEnvLockfile.mockResolvedValue(envLockfileFor('11.12.0'))
+
+  await expect(switchCliVersion(config, context)).resolves.toBeUndefined()
+
+  expect(installPnpmToStore).not.toHaveBeenCalled()
+})
+
+test('still switches to a release that is not broken', async () => {
+  const config = { rawConfig: {} } as unknown as Config
+  const context = {
+    rootProjectManifestDir: '/project',
+    wantedPackageManager: { name: 'pnpm', version: '11.13.1', fromDevEngines: true, onFail: 'download' },
+  } as unknown as ConfigContext
+  readEnvLockfile.mockResolvedValue(envLockfileFor('11.13.1'))
+
+  const exit = jest.spyOn(process, 'exit').mockImplementation((() => undefined) as never)
+  try {
+    await switchCliVersion(config, context)
+  } finally {
+    exit.mockRestore()
+  }
+
+  expect(installPnpmToStore).toHaveBeenCalledWith('11.13.1', expect.anything())
+})
+
+/** The fixture above, re-pointed at `version` — same shape, so it still passes the
+ * registry-resolution assertion the switcher makes before installing. */
+function envLockfileFor (version: string): EnvLockfile {
+  return JSON.parse(JSON.stringify(envLockfile).replaceAll('9.3.0', version)) as EnvLockfile
+}

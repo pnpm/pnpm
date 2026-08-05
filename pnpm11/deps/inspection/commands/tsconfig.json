@@ -88,6 +88,9 @@
       "path": "../../../workspace/projects-filter"
     },
     {
+      "path": "../../github-actions"
+    },
+    {
       "path": "../list"
     },
     {

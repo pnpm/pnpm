@@ -49,6 +49,10 @@ export const WORKSPACE_STATE_SETTING_KEYS = [
   'preferWorkspacePackages',
   'production',
   'publicHoistPattern',
+  // A `supportedArchitectures` change alters which platform-specific
+  // optional dependencies are installed without touching the lockfile,
+  // so it must invalidate the up-to-date fast path.
+  'supportedArchitectures',
   'trustPolicy',
   'trustPolicyExclude',
   'trustPolicyIgnoreAfter',

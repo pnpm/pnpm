@@ -54,7 +54,14 @@ export interface LockfileToHoistedDepGraphOptions {
   nodeVersion: string
   pnpmVersion: string
   registries: Registries
+  namedRegistries?: Record<string, string>
   patchedDependencies?: PatchGroupRecord
+  /**
+   * The dep paths a non-optional edge reaches, as classified by
+   * `filterLockfileByImportersAndEngine`. Installability is evaluated as
+   * optional for everything outside this set.
+   */
+  requiredDepPaths: Set<DepPath>
   sideEffectsCacheRead: boolean
   skipped: Set<string>
   storeController: StoreController
@@ -199,10 +206,13 @@ async function fetchDeps (
     }
     if (!opts.force &&
       packageIsInstallable(packageId, pkg, {
-        engineStrict: opts.engineStrict,
+        // An incompatibility inside an `optionalDependencies` subtree is
+        // reported, not fatal — see `filterLockfileByImportersAndEngine`,
+        // which classifies these dep paths.
+        engineStrict: opts.engineStrict && pkgSnapshot.optional !== true,
         lockfileDir: opts.lockfileDir,
         nodeVersion: opts.nodeVersion,
-        optional: pkgSnapshot.optional === true,
+        optional: !opts.requiredDepPaths.has(depPath),
         supportedArchitectures: opts.supportedArchitectures,
       }) === false
     ) {
@@ -221,7 +231,7 @@ async function fetchDeps (
 
     const dir = safeJoinModulesDir(modules, dep.name)
     const depLocation = path.relative(opts.lockfileDir, dir)
-    const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, opts.registries)
+    const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, { registries: opts.registries, namedRegistries: opts.namedRegistries })
     let fetchResponse!: ReturnType<FetchPackageToStoreFunction>
     // We check for the existence of the package inside node_modules.
     // It will only be missing if the user manually removed it.

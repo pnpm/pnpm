@@ -45,12 +45,12 @@ concurrency:
 jobs:
   benchmark:
     name: Run Benchmarks
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     timeout-minutes: 180
 
     steps:
     - name: Checkout
-      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         fetch-depth: 0
         persist-credentials: false
@@ -67,9 +67,9 @@ jobs:
         echo "Checked out PR #$PR_NUMBER at $(git rev-parse --short HEAD)"
 
     - name: Install pnpm and Node
-      uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
+      uses: pnpm/setup@6523ce966bcf7a1061ce6401e5c6e0b60466bd31
       with:
-        runtime: node@26.4.0
+        runtime: node@26.6.0
 
     - name: Install Rust Toolchain
       uses: ./.github/actions/rustup
@@ -94,7 +94,7 @@ jobs:
 
     - name: Install Bencher CLI
       if: steps.bench.outputs.bench_dir != ''
-      uses: bencherdev/bencher@ec56bb69a7f34096002ca3384d10e2f6676b063e # v0.6.7
+      uses: bencherdev/bencher@4c83b25441d145ee273adaf74be30f2382e6ba85 # v0.6.11
 
     - name: Upload results to Bencher
       if: steps.bench.outputs.bench_dir != ''

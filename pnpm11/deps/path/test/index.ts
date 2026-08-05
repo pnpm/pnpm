@@ -6,6 +6,7 @@ import {
   isAbsolute,
   isRuntimeDepPath,
   parse,
+  parseRegistryQualifiedVersion,
   refToRelative,
   removeSuffix,
   tryGetPackageId,
@@ -150,4 +151,52 @@ test('isRuntimeDepPath', () => {
 
 test('removeSuffix', () => {
   expect(removeSuffix('foo@1.0.0(patch_hash=0000)(@types/babel__core@7.1.14)')).toBe('foo@1.0.0')
+})
+
+test('parse() registry-qualified dep paths', () => {
+  expect(parse('foo@work:1.0.0')).toStrictEqual({
+    name: 'foo',
+    peerDepGraphHash: undefined,
+    version: '1.0.0',
+    patchHash: undefined,
+    registryName: 'work',
+  })
+  expect(parse('@acme/private@gh:2.1.0(react@18.0.0)')).toStrictEqual({
+    name: '@acme/private',
+    peerDepGraphHash: '(react@18.0.0)',
+    version: '2.1.0',
+    patchHash: undefined,
+    registryName: 'gh',
+  })
+  // Reserved prefixes keep their existing non-semver meaning.
+  expect(parse('foo@file:1.0.0').registryName).toBeUndefined()
+  expect(parse('foo@file:1.0.0').nonSemverVersion).toBe('file:1.0.0')
+  expect(parse('node@runtime:24.11.1').registryName).toBeUndefined()
+  // A non-semver remainder is not registry-qualified.
+  expect(parse('foo@work:not-semver').nonSemverVersion).toBe('work:not-semver')
+})
+
+test('parseRegistryQualifiedVersion()', () => {
+  expect(parseRegistryQualifiedVersion('work:1.0.0')).toStrictEqual({ registryName: 'work', version: '1.0.0' })
+  expect(parseRegistryQualifiedVersion('gh:2.1.0-beta.1')).toStrictEqual({ registryName: 'gh', version: '2.1.0-beta.1' })
+  expect(parseRegistryQualifiedVersion('file:1.0.0')).toBeUndefined()
+  expect(parseRegistryQualifiedVersion('runtime:24.0.0')).toBeUndefined()
+  expect(parseRegistryQualifiedVersion('1.0.0')).toBeUndefined()
+  expect(parseRegistryQualifiedVersion('work:^1.0.0')).toBeUndefined()
+  expect(parseRegistryQualifiedVersion('9work:1.0.0')).toBeUndefined()
+})
+
+test('tryGetPackageId keeps registry-qualified ids whole', () => {
+  expect(tryGetPackageId('foo@work:1.0.0(@types/babel__core@7.1.14)' as DepPath)).toBe('foo@work:1.0.0')
+  expect(tryGetPackageId('@acme/private@gh:2.1.0' as DepPath)).toBe('@acme/private@gh:2.1.0')
+})
+
+test('refToRelative() reconstructs registry-qualified dep paths', () => {
+  expect(refToRelative('work:1.0.0', 'foo')).toBe('foo@work:1.0.0')
+  expect(refToRelative('work:1.0.0(react@18.0.0)', 'foo')).toBe('foo@work:1.0.0(react@18.0.0)')
+  expect(refToRelative('@acme/private@gh:2.1.0', 'aliased')).toBe('@acme/private@gh:2.1.0')
+})
+
+test('depPathToFilename() escapes registry-qualified dep paths', () => {
+  expect(depPathToFilename('foo@work:1.0.0', 120)).toBe('foo@work+1.0.0')
 })

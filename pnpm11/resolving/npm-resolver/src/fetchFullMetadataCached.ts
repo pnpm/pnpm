@@ -1,8 +1,11 @@
 import { ABBREVIATED_META_DIR, FULL_META_DIR } from '@pnpm/constants'
-import { PnpmError } from '@pnpm/error'
 import type { PackageMeta } from '@pnpm/resolving.registry.types'
 
-import { fetchMetadataFromFromRegistry, type FetchMetadataFromFromRegistryOptions } from './fetch.js'
+import {
+  fetchMetadataFromFromRegistry,
+  type FetchMetadataFromFromRegistryOptions,
+  type FetchMetadataResult,
+} from './fetch.js'
 import { getPkgMirrorPath, loadMeta, loadMetaHeaders, prepareJsonForDisk, saveMeta } from './pickPackage.js'
 
 export interface FetchMetadataCachedOptions {
@@ -60,40 +63,47 @@ async function fetchMetadataCached (
   const pkgMirror = opts.cacheDir != null
     ? getPkgMirrorPath(opts.cacheDir, opts.metaDir, opts.registry, pkgName)
     : null
+
   const cacheHeaders = pkgMirror != null ? await loadMetaHeaders(pkgMirror) : null
-  const result = await fetchMetadataFromFromRegistry(fetchOpts, pkgName, {
+  const conditional = await fetchMetadataFromFromRegistry(fetchOpts, pkgName, {
     registry: opts.registry,
     authHeaderValue: opts.authHeaderValue,
     fullMetadata: opts.fullMetadata,
     etag: cacheHeaders?.etag,
     modified: cacheHeaders?.modified,
   })
-  if ('notModified' in result && result.notModified) {
-    if (pkgMirror == null) {
-      // We didn't send conditional headers (no cacheDir), but the registry
-      // returned 304 anyway. There's no body to fall back on.
-      throw new PnpmError(
-        'META_NOT_MODIFIED_WITHOUT_CACHE',
-        `Registry returned 304 for ${pkgName} without an existing cache to refresh.`
-      )
+  if (!conditional.notModified) return persistAndReturn(conditional)
+
+  // A 304 only resolves as `notModified` when a validator was sent, which
+  // requires cache headers loaded from a mirror — so a null mirror here is an
+  // unreachable invariant breach.
+  if (pkgMirror == null) throw new Error(`Unexpected 304 for ${pkgName} without a metadata cache`)
+  const cached = await loadMeta(pkgMirror)
+  if (cached != null) return cached
+
+  // The mirror vanished between the headers read and this read (concurrent
+  // store cleanup, antivirus, ...), so the 304 now validates nothing. Ask again
+  // as a cold cache would, which the registry can only answer with a body or an
+  // error — never another 304.
+  const refetched = await fetchMetadataFromFromRegistry(fetchOpts, pkgName, {
+    registry: opts.registry,
+    authHeaderValue: opts.authHeaderValue,
+    cacheBypass: true,
+    fullMetadata: opts.fullMetadata,
+  })
+  // Unreachable narrowing guard: the cache-bypassing request sends no validator,
+  // so fetchMetadataFromFromRegistry rejects a repeated 304 before returning.
+  if (refetched.notModified) throw new Error(`Unexpected 304 for ${pkgName} on a cache-bypassing refetch`)
+  return persistAndReturn(refetched)
+
+  // Persist a freshly downloaded body so the next install can do a headers-only
+  // conditional GET, then hand its meta back. Fire-and-forget — a cache-write
+  // failure isn't a reason to fail the caller; the next install just won't get
+  // the speedup.
+  function persistAndReturn (fetched: FetchMetadataResult): PackageMeta {
+    if (pkgMirror != null) {
+      saveMeta(pkgMirror, prepareJsonForDisk(fetched.meta, fetched.etag, fetched.jsonText)).catch(() => {})
     }
-    const meta = await loadMeta(pkgMirror)
-    if (meta == null) {
-      // Cache file vanished between header-load and meta-load (concurrent
-      // store cleanup, antivirus, etc.).
-      throw new PnpmError(
-        'META_CACHE_MISSING_AFTER_304',
-        `Metadata cache for ${pkgName} disappeared between headers read and full read.`
-      )
-    }
-    return meta
+    return fetched.meta
   }
-  if (pkgMirror != null) {
-    // Persist so the next install can do a headers-only conditional GET.
-    // Fire-and-forget — a cache-write failure isn't a reason to fail the
-    // caller; the next install just won't get the speedup.
-    const json = prepareJsonForDisk(result.meta, result.etag, result.jsonText)
-    saveMeta(pkgMirror, json).catch(() => {})
-  }
-  return result.meta
 }

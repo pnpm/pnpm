@@ -457,7 +457,7 @@ const TIME_PRECISION_HORIZON_DAYS: i64 = 7;
 
 /// Per-version fields preserved in the abbreviated form — a subset of
 /// the npm spec's abbreviated version object
-/// (<https://github.com/npm/registry/blob/master/docs/responses/package-metadata.md#abbreviated-version-object>).
+/// (<https://github.com/npm/registry/blob/ae49abf1ba/docs/responses/package-metadata.md#abbreviated-version-object>).
 /// Fields neither the pnpm nor the pacquet resolver reads are dropped
 /// to shrink the document: `funding`, `acceptDependencies`,
 /// `_hasShrinkwrap`, and `devDependencies` (a dependency's dev

@@ -44,7 +44,7 @@ struct Args {
     packument_ttl_secs: Option<u64>,
 
     /// Enable local OSV npm vulnerability checks. Requires a local OSV
-    /// npm database zip at --osv-db or <cache>/osv/npm/all.zip.
+    /// npm database zip at `--osv-db` or `<cache>/osv/npm/all.zip`.
     #[arg(long)]
     osv: bool,
 

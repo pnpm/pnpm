@@ -475,6 +475,82 @@ describe('calcGraphNodeHash', () => {
     expect(hash20.startsWith('@/pins-20/1.0.0/')).toBe(true)
   })
 
+  describe('local directory dependencies', () => {
+    const graph: DepsGraph<DepPath> = {
+      ['dep@file:dep' as DepPath]: {
+        children: {},
+        resolution: { directory: 'dep', type: 'directory' },
+        fullPkgId: 'dep@file:dep:hash',
+      },
+    }
+
+    // The lockfile omits the version of a directory snapshot, so
+    // `nameVerFromPkgSnapshot` hands the hasher `undefined`.
+    // See https://github.com/pnpm/pnpm/issues/13335.
+    const pkgMeta = {
+      depPath: 'dep@file:dep' as DepPath,
+      name: 'dep',
+      version: undefined as unknown as string,
+    }
+
+    it('stands in a fixed segment for the version the lockfile does not record', () => {
+      const result = calcGraphNodeHash({ graph, cache: {}, lockfileDir: '/home/user/project' }, pkgMeta)
+
+      expect(result).toMatch(/^@\/dep\/directory\/[a-f0-9]+$/)
+    })
+
+    it('uses the same segment when the resolver knows the version', () => {
+      // The resolver reads the version off the manifest, so it would
+      // otherwise place the package on a different slot than the
+      // headless install that follows it.
+      const fromResolver = calcGraphNodeHash(
+        { graph, cache: {}, lockfileDir: '/home/user/project' },
+        { ...pkgMeta, version: '1.0.0' }
+      )
+
+      expect(fromResolver).toBe(calcGraphNodeHash({ graph, cache: {}, lockfileDir: '/home/user/project' }, pkgMeta))
+    })
+
+    it('gives each project its own slot', () => {
+      // Two unrelated projects that both depend on a `./dep` directory
+      // resolve to the same dep path, name, and (absent) version — only
+      // the lockfile directory tells them apart.
+      const inProjectA = calcGraphNodeHash({ graph, cache: {}, lockfileDir: '/home/user/a' }, pkgMeta)
+      const inProjectB = calcGraphNodeHash({ graph, cache: {}, lockfileDir: '/home/user/b' }, pkgMeta)
+
+      expect(inProjectA).not.toBe(inProjectB)
+    })
+
+    it('keeps the segment when the caller supplies no lockfile directory', () => {
+      // A caller that hashes a lockfile it knows has no directory deps may
+      // leave `lockfileDir` out; one that slips through must still produce a
+      // path rather than dereference the missing version.
+      const result = calcGraphNodeHash({ graph, cache: {} }, pkgMeta)
+
+      expect(result).toMatch(/^@\/dep\/directory\/[a-f0-9]+$/)
+    })
+
+    it('leaves packages resolved from the registry unscoped', () => {
+      const registryGraph: DepsGraph<DepPath> = {
+        ['foo@1.0.0' as DepPath]: {
+          children: {},
+          resolution: { integrity: 'sha512-abc' },
+          fullPkgId: 'foo@1.0.0:sha512-abc',
+        },
+      }
+      const registryPkgMeta: PkgMeta = {
+        depPath: 'foo@1.0.0' as DepPath,
+        name: 'foo',
+        version: '1.0.0',
+      }
+
+      const inProjectA = calcGraphNodeHash({ graph: registryGraph, cache: {}, lockfileDir: '/home/user/a' }, registryPkgMeta)
+      const inProjectB = calcGraphNodeHash({ graph: registryGraph, cache: {}, lockfileDir: '/home/user/b' }, registryPkgMeta)
+
+      expect(inProjectA).toBe(inProjectB)
+    })
+  })
+
   it('should handle prerelease versions', () => {
     const graph: DepsGraph<DepPath> = {
       ['pkg@1.0.0-beta.1' as DepPath]: {

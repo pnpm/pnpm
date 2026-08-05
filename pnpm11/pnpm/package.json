@@ -1,6 +1,6 @@
 {
   "name": "pnpm",
-  "version": "11.10.0",
+  "version": "11.20.0",
   "description": "Fast, disk space efficient package manager",
   "keywords": [
     "pnpm",
@@ -66,13 +66,14 @@
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "pretest:e2e": "rimraf node_modules/.bin/pnpm",
     "test": "pn compile && pn .test",
-    "prepublishOnly": "pn compile && node bundle-deps.ts",
-    "compile": "tsgo --build && pn lint --fix && rimraf dist bin/nodes && pn bundle && shx cp -r node-gyp-bin dist/node-gyp-bin && shx cp -r node_modules/@pnpm/tabtab/lib/templates dist/templates && shx cp -r node_modules/ps-list/vendor dist/vendor && shx cp pnpmrc dist/pnpmrc",
+    "prepublishOnly": "pn build && node bundle-deps.ts",
+    "compile": "pn lint --fix && pn build",
+    "build": "tsgo --build && rimraf dist bin/nodes && pn bundle && shx cp -r node-gyp-bin dist/node-gyp-bin && shx cp -r node_modules/@pnpm/tabtab/lib/templates dist/templates && shx cp -r node_modules/ps-list/vendor dist/vendor && shx cp pnpmrc dist/pnpmrc",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
     "@reflink/reflink": "catalog:",
-    "node-gyp": "^12.3.0",
+    "node-gyp": "catalog:",
     "v8-compile-cache": "2.4.0"
   },
   "devDependencies": {
@@ -103,6 +104,7 @@
     "@pnpm/engine.runtime.system-version": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/exec.commands": "workspace:*",
+    "@pnpm/exec.lifecycle": "workspace:*",
     "@pnpm/hooks.pnpmfile": "workspace:*",
     "@pnpm/installing.client": "workspace:*",
     "@pnpm/installing.commands": "workspace:*",
@@ -129,8 +131,8 @@
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/test-ipc-server": "workspace:*",
     "@pnpm/testing.registry-mock": "workspace:*",
+    "@pnpm/text.ordinal-comparator": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/util.lex-comparator": "catalog:",
     "@pnpm/worker": "workspace:*",
     "@pnpm/workspace.commands": "workspace:*",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",

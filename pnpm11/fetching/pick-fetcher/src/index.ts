@@ -8,7 +8,7 @@ import type {
   FetchResult,
   GitFetcher,
 } from '@pnpm/fetching.fetcher-base'
-import type { CustomFetcher } from '@pnpm/hooks.types'
+import type { CustomFetcher, CustomFetcherDelegation } from '@pnpm/hooks.types'
 import { type AtomicResolution, classifyResolution } from '@pnpm/resolving.resolver-base'
 import type { Cafs } from '@pnpm/store.cafs-types'
 
@@ -37,8 +37,21 @@ export async function pickFetcher (
             ? customFetcher.resolutionNeedsFetch.bind(customFetcher)
             : undefined
           return Object.assign(
-            async (cafs: Cafs, resolution: AtomicResolution, fetchOpts: FetchOptions): Promise<FetchResult> =>
-              customFetcher.fetch!(cafs, resolution, fetchOpts, fetcherByHostingType),
+            async (cafs: Cafs, resolution: AtomicResolution, fetchOpts: FetchOptions): Promise<FetchResult> => {
+              const result = await customFetcher.fetch!(cafs, resolution, fetchOpts, fetcherByHostingType)
+              if (isCustomFetcherDelegation(result)) {
+                // The `{ delegate }` envelope is the portable delegation form
+                // (it also works over pacquet's pnpmfile IPC, where `cafs` and
+                // `fetchers` cannot be passed): rewrite the resolution and run
+                // the built-in fetcher on the rewritten shape. A custom-typed
+                // `delegate` is rejected by `pickBuiltinFetcher`, keeping
+                // delegation single-step.
+                const delegate = result.delegate as AtomicResolution
+                const fetch = pickBuiltinFetcher(fetcherByHostingType, delegate) as FetchFunction
+                return fetch(cafs, delegate, fetchOpts)
+              }
+              return result
+            },
             { resolutionNeedsFetch }
           ) as FetchFunction
         }
@@ -46,6 +59,14 @@ export async function pickFetcher (
     }
   }
 
+  return pickBuiltinFetcher(fetcherByHostingType, resolution)
+}
+
+function isCustomFetcherDelegation (result: FetchResult | CustomFetcherDelegation): result is CustomFetcherDelegation {
+  return result != null && typeof result === 'object' && 'delegate' in result && !('filesMap' in result)
+}
+
+function pickBuiltinFetcher (fetcherByHostingType: Fetchers, resolution: AtomicResolution): PickedFetcher {
   const fetcherType = classifyResolution(resolution)
   if (fetcherType === 'custom') {
     throw new PnpmError(
