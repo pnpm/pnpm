@@ -130,23 +130,28 @@ fn full_pkg_id_for(pkg_key: &PackageKey, resolution: &LockfileResolution) -> Str
 /// in (see [`pacquet_graph_hasher::DepsGraphNode::children`]).
 #[must_use]
 pub fn build_children(snapshot: &SnapshotEntry) -> IndexMap<String, PackageKey> {
+    build_children_with(snapshot, |alias, dep_ref| dep_ref.resolve(alias))
+}
+
+pub(crate) fn build_children_with<Child>(
+    snapshot: &SnapshotEntry,
+    mut resolve: impl FnMut(&PkgName, &SnapshotDepRef) -> Option<Child>,
+) -> IndexMap<String, Child> {
     let mut children = IndexMap::new();
-    extend_children(&mut children, snapshot.dependencies.as_ref());
-    extend_children(&mut children, snapshot.optional_dependencies.as_ref());
+    extend_children(&mut children, snapshot.dependencies.as_ref(), &mut resolve);
+    extend_children(&mut children, snapshot.optional_dependencies.as_ref(), &mut resolve);
     children
 }
 
-fn extend_children(
-    children: &mut IndexMap<String, PackageKey>,
+fn extend_children<Child>(
+    children: &mut IndexMap<String, Child>,
     deps: Option<&HashMap<PkgName, SnapshotDepRef>>,
+    resolve: &mut impl FnMut(&PkgName, &SnapshotDepRef) -> Option<Child>,
 ) {
     let Some(deps) = deps else { return };
-    let mut section: Vec<(String, PackageKey)> = deps
+    let mut section: Vec<(String, Child)> = deps
         .iter()
-        // `SnapshotDepRef::resolve` returns the `PkgNameVerPeer`
-        // (= `PackageKey`) the alias points at in the `snapshots:`
-        // map. `link:` deps don't have a snapshot key — skip them.
-        .filter_map(|(alias, dep_ref)| Some((alias.to_string(), dep_ref.resolve(alias)?)))
+        .filter_map(|(alias, dep_ref)| Some((alias.to_string(), resolve(alias, dep_ref)?)))
         .collect();
     section.sort_unstable_by(|(left, _), (right, _)| left.cmp(right));
     children.extend(section);

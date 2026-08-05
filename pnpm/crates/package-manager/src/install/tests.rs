@@ -8,7 +8,9 @@ use super::{
     load_workspace_projects, lockfile_freshness::exclude_linked_dependencies,
     order_project_lifecycle_groups, project_requires_lifecycle_scripts,
 };
-use crate::{InstallWithFreshLockfileError, MinimumReleaseAgeError};
+use crate::{
+    AllowBuildPolicy, InstallWithFreshLockfileError, MinimumReleaseAgeError, VirtualStoreLayout,
+};
 use pacquet_config::{Config, NodePackageMapType};
 use pacquet_lockfile::{ComVer, Lockfile, LockfileVersion, MaybeLazyLockfile};
 use pacquet_modules_yaml::{
@@ -3487,6 +3489,149 @@ async fn frozen_lockfile_under_gvs_registers_project_and_runs_clean() {
     );
 
     drop(dir);
+}
+
+#[tokio::test]
+async fn fresh_partial_install_preserves_optional_link_in_warm_gvs_slot() {
+    let registry = TestRegistry::start();
+    let dir = tempdir().unwrap();
+    let store_dir = dir.path().join("pacquet-store");
+    let project_root = dir.path().join("project");
+    let peer_root = dir.path().join("peer-c");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+
+    std::fs::create_dir_all(&project_root).expect("create project root");
+    std::fs::create_dir_all(&peer_root).expect("create peer root");
+    std::fs::write(
+        peer_root.join("package.json"),
+        serde_json::json!({ "name": "@pnpm.e2e/peer-c", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write peer manifest");
+    let manifest_path = project_root.join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+    manifest
+        .add_dependency("@pnpm.e2e/abc-optional-peers", "1.0.0", DependencyGroup::Prod)
+        .unwrap();
+    manifest.add_dependency("@pnpm.e2e/peer-c", "link:../peer-c", DependencyGroup::Prod).unwrap();
+    manifest.save().unwrap();
+
+    let mut config = Config::new();
+    config.enable_global_virtual_store = true;
+    config.store_dir = store_dir.into();
+    config.modules_dir = modules_dir;
+    config.virtual_store_dir = virtual_store_dir;
+    config.global_virtual_store_dir = config.store_dir.links();
+    config.registry = registry.url();
+    let config = config.leak();
+    let http_client = std::sync::Arc::new(pacquet_network::ThrottledClient::default());
+
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &http_client,
+        http_client_arc: std::sync::Arc::clone(&http_client),
+        config,
+        manifest: &manifest,
+        emit_initial_manifest: true,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod, DependencyGroup::Optional],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: Some(false),
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        mutation: ProjectMutation::InstallWorkspace,
+        installs_only: true,
+        resolved_packages: &Default::default(),
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        lockfile_only: false,
+        dry_run: false,
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        auth_override: None,
+        resolution_observer: None,
+        peer_issues_sink: None,
+        deps_requiring_build_sink: None,
+        catalogs_override: None,
+        disable_optimistic_repeat_install: true,
+        pnpmfile_hook_override: None,
+        workspace_projects_override: None,
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("full install should materialize the optional peer link");
+
+    let lockfile = Lockfile::load_wanted_from_dir(&project_root)
+        .expect("load wanted lockfile")
+        .expect("wanted lockfile exists");
+    let snapshot_key = lockfile
+        .snapshots
+        .as_ref()
+        .expect("snapshots exist")
+        .keys()
+        .find(|key| key.name.to_string() == "@pnpm.e2e/abc-optional-peers")
+        .expect("optional-peers snapshot")
+        .clone();
+    let allow_build_policy = AllowBuildPolicy::default();
+    let layout = VirtualStoreLayout::new(
+        config,
+        None,
+        lockfile.snapshots.as_ref(),
+        lockfile.packages.as_ref(),
+        Some(&allow_build_policy),
+        Some(&project_root),
+    );
+    let linked_peer = layout.slot_dir(&snapshot_key).join("node_modules").join("@pnpm.e2e/peer-c");
+    assert!(
+        is_symlink_or_junction(&linked_peer).unwrap(),
+        "full install must create the optional peer link at {linked_peer:?}",
+    );
+
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &http_client,
+        http_client_arc: std::sync::Arc::clone(&http_client),
+        config,
+        manifest: &manifest,
+        emit_initial_manifest: true,
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: Some(false),
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        mutation: ProjectMutation::InstallSome,
+        installs_only: true,
+        resolved_packages: &Default::default(),
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        lockfile_only: false,
+        dry_run: false,
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        auth_override: None,
+        resolution_observer: None,
+        peer_issues_sink: None,
+        deps_requiring_build_sink: None,
+        catalogs_override: None,
+        disable_optimistic_repeat_install: true,
+        pnpmfile_hook_override: None,
+        workspace_projects_override: None,
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("partial fresh install should succeed");
+
+    assert!(
+        is_symlink_or_junction(&linked_peer).unwrap(),
+        "partial install without the optional direct group must preserve {linked_peer:?}",
+    );
+
+    drop((dir, registry));
 }
 
 /// Under GVS, the `virtualStoreDir` value pacquet persists in
