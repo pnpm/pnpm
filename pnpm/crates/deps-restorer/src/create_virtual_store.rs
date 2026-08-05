@@ -873,6 +873,88 @@ struct SlotLink<'a> {
     removed_aliases: &'a [PkgName],
 }
 
+/// One unique slot directory and every [`SlotLink`] that resolved to it.
+///
+/// Under the global virtual store, peer variants of one package whose
+/// recursive dependency hashes are equal share a slot path — that
+/// sharing is the point of hashing. Materializing each variant
+/// separately would run concurrent [`fn@crate::import_indexed_dir`]
+/// calls against a single directory, and its `stage_and_swap` assumes
+/// an exclusive owner (see the step-5 comment there): for a mutable
+/// `file:` source (`force: true`, never `safe_to_skip`) the racing
+/// removes and renames fail with `Directory not empty` / `NotFound`
+/// depending on interleaving. pnpm v11 never faces this because
+/// `lockfileToDepGraph` keys its graph by directory, so only one node
+/// per location survives graph construction; grouping here restores
+/// that invariant. Without GVS, `slot_dir` embeds the full
+/// peer-suffixed key, every group is a singleton, and the link pass
+/// behaves exactly as before.
+struct SlotDirGroup<'a> {
+    /// First slot in `slots` order that resolved to the directory; its
+    /// snapshot drives the import and the symlink layout. Hash-equal
+    /// variants have identical file maps and hash-equal children —
+    /// whose own slot paths are therefore equal too — so any member
+    /// is a valid representative for both.
+    representative: &'a SlotLink<'a>,
+    /// The remaining variants, kept only so each warm one still emits
+    /// its own `pnpm:progress` line — package counts stay in step
+    /// with the lockfile even though the directory is written once.
+    duplicates: Vec<&'a SlotLink<'a>>,
+    /// Union of the group's `removed_aliases`, allocated only when a
+    /// duplicate contributes an alias the representative lacks.
+    /// Obsolete-child cleanup targets the shared directory, so a
+    /// stale link recorded against any variant must be removed no
+    /// matter which variant runs.
+    merged_removed_aliases: Option<Vec<PkgName>>,
+}
+
+impl SlotDirGroup<'_> {
+    /// The group's obsolete child aliases: the merged union when
+    /// duplicates contributed, the representative's own slice
+    /// otherwise.
+    fn removed_aliases(&self) -> &[PkgName] {
+        self.merged_removed_aliases.as_deref().unwrap_or(self.representative.removed_aliases)
+    }
+}
+
+/// Group `slots` by [`crate::VirtualStoreLayout::slot_dir`], preserving
+/// first-occurrence order. See [`SlotDirGroup`] for why the link pass
+/// must run per unique directory rather than per snapshot key.
+fn group_slots_by_dir<'a>(
+    slots: &'a [SlotLink<'a>],
+    layout: &crate::VirtualStoreLayout,
+) -> Vec<SlotDirGroup<'a>> {
+    let mut index_by_dir: HashMap<PathBuf, usize> = HashMap::with_capacity(slots.len());
+    let mut groups: Vec<SlotDirGroup<'a>> = Vec::with_capacity(slots.len());
+    for slot in slots {
+        match index_by_dir.entry(layout.slot_dir(slot.snapshot_key)) {
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                entry.insert(groups.len());
+                groups.push(SlotDirGroup {
+                    representative: slot,
+                    duplicates: Vec::new(),
+                    merged_removed_aliases: None,
+                });
+            }
+            std::collections::hash_map::Entry::Occupied(entry) => {
+                let group = &mut groups[*entry.get()];
+                group.duplicates.push(slot);
+                if !slot.removed_aliases.is_empty() {
+                    let merged = group
+                        .merged_removed_aliases
+                        .get_or_insert_with(|| group.representative.removed_aliases.to_vec());
+                    for alias in slot.removed_aliases {
+                        if !merged.contains(alias) {
+                            merged.push(alias.clone());
+                        }
+                    }
+                }
+            }
+        }
+    }
+    groups
+}
+
 #[derive(Clone, Copy)]
 struct LinkSlotsParallel<'a> {
     batch: &'static str,
@@ -911,15 +993,22 @@ fn link_slots_parallel<Reporter: self::Reporter>(
     } = opts;
 
     let phase_start = std::time::Instant::now();
+    // One task per unique slot directory, not per snapshot key — see
+    // `SlotDirGroup` for why colliding peer variants must not
+    // materialize the same directory concurrently.
+    let groups = group_slots_by_dir(slots, layout);
     let link_work = || {
-        slots.par_iter().try_for_each(|slot| {
+        groups.par_iter().try_for_each(|group| {
+            let slot = group.representative;
             let package_id = slot.snapshot_key.pkg_id();
-            if let Some(cache_key) = slot.warm_cache_key {
-                emit_warm_snapshot_progress::<Reporter>(
-                    &package_id,
-                    requester,
-                    progress_reported.contains(cache_key),
-                );
+            for reported in std::iter::once(slot).chain(group.duplicates.iter().copied()) {
+                if let Some(cache_key) = reported.warm_cache_key {
+                    emit_warm_snapshot_progress::<Reporter>(
+                        &reported.snapshot_key.pkg_id(),
+                        requester,
+                        progress_reported.contains(cache_key),
+                    );
+                }
             }
 
             crate::CreateVirtualDirBySnapshot {
@@ -935,7 +1024,7 @@ fn link_slots_parallel<Reporter: self::Reporter>(
                 include_optional_dependencies,
                 symlink,
                 skipped,
-                removed_aliases: slot.removed_aliases,
+                removed_aliases: group.removed_aliases(),
                 needs_build_marker_source: slot.needs_build_marker_source,
                 #[cfg(test)]
                 link_concurrency_probe,
@@ -966,6 +1055,7 @@ fn link_slots_parallel<Reporter: self::Reporter>(
         phase = "link_slots",
         batch,
         slots = slots.len(),
+        unique_dirs = groups.len(),
         elapsed_ms = phase_start.elapsed().as_millis() as u64,
         "phase complete",
     );

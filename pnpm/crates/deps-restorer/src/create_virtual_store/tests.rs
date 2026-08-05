@@ -491,3 +491,178 @@ fn tarball_metadata_without_integrity() -> PackageMetadata {
         peer_dependencies_meta: None,
     }
 }
+
+/// Helpers for the `group_slots_by_dir` tests: a GVS layout over the
+/// given snapshots/metadata, scoped to a lockfile dir so directory
+/// resolutions hash the way a real project's do.
+fn gvs_layout(
+    snapshots: &HashMap<PackageKey, SnapshotEntry>,
+    packages: &HashMap<PackageKey, PackageMetadata>,
+    lockfile_dir: &std::path::Path,
+) -> crate::VirtualStoreLayout {
+    let mut config = pacquet_config::Config::new();
+    config.enable_global_virtual_store = true;
+    config.virtual_store_dir = std::path::PathBuf::from("/tmp/proj/node_modules/.pnpm");
+    config.global_virtual_store_dir = std::path::PathBuf::from("/tmp/store/links");
+    let config = config.leak();
+    crate::VirtualStoreLayout::new(
+        config,
+        Some("linux-x64-node22"),
+        Some(snapshots),
+        Some(packages),
+        None,
+        Some(lockfile_dir),
+    )
+}
+
+fn directory_metadata(directory: &str) -> PackageMetadata {
+    PackageMetadata {
+        resolution: LockfileResolution::Directory(pacquet_lockfile::DirectoryResolution {
+            directory: directory.to_string(),
+        }),
+        version: Some("1.0.0".to_string()),
+        engines: None,
+        cpu: None,
+        os: None,
+        libc: None,
+        deprecated: None,
+        has_bin: None,
+        prepare: None,
+        bundled_dependencies: None,
+        peer_dependencies: None,
+        peer_dependencies_meta: None,
+    }
+}
+
+fn slot_link<'a>(
+    snapshot_key: &'a PackageKey,
+    snapshot: &'a SnapshotEntry,
+    cas_paths: &'a HashMap<String, std::path::PathBuf>,
+    removed_aliases: &'a [PkgName],
+) -> super::SlotLink<'a> {
+    super::SlotLink {
+        snapshot_key,
+        snapshot,
+        cas_paths,
+        warm_cache_key: None,
+        source_is_mutable: true,
+        needs_build_marker_source: None,
+        removed_aliases,
+    }
+}
+
+/// Two peer variants of one directory dependency whose subtrees hash
+/// identically share a slot path under the global virtual store. The
+/// link pass must collapse them into one group — otherwise two
+/// force-mode imports race `stage_and_swap` on the same directory —
+/// and the group's obsolete-alias cleanup must cover both variants'
+/// recorded removals.
+#[test]
+fn group_slots_by_dir_collapses_hash_equal_peer_variants() {
+    let plain: PackageKey = "comp@file:packages/comp".parse().expect("parse plain key");
+    let peered: PackageKey =
+        "comp@file:packages/comp(peer@1.0.0)".parse().expect("parse peered key");
+
+    let mut snapshots = HashMap::new();
+    snapshots.insert(plain.clone(), SnapshotEntry::default());
+    snapshots.insert(peered.clone(), SnapshotEntry::default());
+    let mut packages = HashMap::new();
+    packages.insert(plain.clone(), directory_metadata("packages/comp"));
+
+    let layout = gvs_layout(&snapshots, &packages, std::path::Path::new("/home/user/project"));
+    assert_eq!(
+        layout.slot_dir(&plain),
+        layout.slot_dir(&peered),
+        "precondition: hash-equal variants must resolve to one slot",
+    );
+
+    let snapshot = SnapshotEntry::default();
+    let cas_paths = HashMap::new();
+    let removed_plain = [name("dropped-a")];
+    let removed_peered = [name("dropped-a"), name("dropped-b")];
+    let slots = [
+        slot_link(&plain, &snapshot, &cas_paths, &removed_plain),
+        slot_link(&peered, &snapshot, &cas_paths, &removed_peered),
+    ];
+
+    let groups = super::group_slots_by_dir(&slots, &layout);
+
+    assert_eq!(groups.len(), 1, "hash-equal variants must share one link task");
+    assert_eq!(groups[0].duplicates.len(), 1);
+    let mut merged: Vec<String> =
+        groups[0].removed_aliases().iter().map(PkgName::to_string).collect();
+    merged.sort();
+    assert_eq!(
+        merged,
+        vec!["dropped-a".to_string(), "dropped-b".to_string()],
+        "cleanup must cover aliases recorded against either variant",
+    );
+}
+
+/// Peer variants whose subtrees differ hash to different slots and must
+/// keep their own link tasks.
+#[test]
+fn group_slots_by_dir_keeps_diverging_peer_variants_apart() {
+    let plain: PackageKey = "comp@file:packages/comp".parse().expect("parse plain key");
+    let peered: PackageKey =
+        "comp@file:packages/comp(peer@1.0.0)".parse().expect("parse peered key");
+    let child: PackageKey = key("leaf", "1.0.0");
+
+    let mut snapshots = HashMap::new();
+    snapshots.insert(plain.clone(), SnapshotEntry::default());
+    // The peered variant resolves an extra child, so its recursive
+    // hash — and therefore its slot — must diverge from the plain one.
+    snapshots.insert(peered.clone(), snapshot_with_dep("leaf", "1.0.0"));
+    snapshots.insert(child.clone(), SnapshotEntry::default());
+    let mut packages = HashMap::new();
+    packages.insert(plain.clone(), directory_metadata("packages/comp"));
+    packages.insert(child, metadata_with_integrity(DUMMY_SHA512));
+
+    let layout = gvs_layout(&snapshots, &packages, std::path::Path::new("/home/user/project"));
+    assert_ne!(
+        layout.slot_dir(&plain),
+        layout.slot_dir(&peered),
+        "precondition: diverging subtrees must resolve to distinct slots",
+    );
+
+    let snapshot = SnapshotEntry::default();
+    let cas_paths = HashMap::new();
+    let slots = [
+        slot_link(&plain, &snapshot, &cas_paths, &[]),
+        slot_link(&peered, &snapshot, &cas_paths, &[]),
+    ];
+
+    let groups = super::group_slots_by_dir(&slots, &layout);
+
+    assert_eq!(groups.len(), 2, "distinct slots must keep distinct link tasks");
+    assert!(groups.iter().all(|group| group.duplicates.is_empty()));
+    assert!(groups.iter().all(|group| group.merged_removed_aliases.is_none()));
+}
+
+/// Without the global virtual store, `slot_dir` embeds the full
+/// peer-suffixed key, so grouping never merges anything and the link
+/// pass matches the ungrouped behavior exactly.
+#[test]
+fn group_slots_by_dir_is_identity_without_gvs() {
+    let plain: PackageKey = "comp@file:packages/comp".parse().expect("parse plain key");
+    let peered: PackageKey =
+        "comp@file:packages/comp(peer@1.0.0)".parse().expect("parse peered key");
+
+    let mut config = pacquet_config::Config::new();
+    config.enable_global_virtual_store = false;
+    config.virtual_store_dir = std::path::PathBuf::from("/tmp/proj/node_modules/.pnpm");
+    let config = config.leak();
+    let layout = crate::VirtualStoreLayout::new(config, None, None, None, None, None);
+
+    let snapshot = SnapshotEntry::default();
+    let cas_paths = HashMap::new();
+    let slots = [
+        slot_link(&plain, &snapshot, &cas_paths, &[]),
+        slot_link(&peered, &snapshot, &cas_paths, &[]),
+    ];
+
+    let groups = super::group_slots_by_dir(&slots, &layout);
+
+    assert_eq!(groups.len(), 2, "non-GVS slots are unique per key; nothing may merge");
+    assert!(groups.iter().all(|group| group.duplicates.is_empty()));
+}
