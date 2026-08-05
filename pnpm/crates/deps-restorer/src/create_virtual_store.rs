@@ -217,6 +217,14 @@ pub enum CreateVirtualStoreError {
         #[error(source)]
         error: std::io::Error,
     },
+
+    #[display("Failed to inspect optional dependency at {path:?}: {error}")]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_INSPECT_OPTIONAL_DEPENDENCY))]
+    InspectOptionalDependency {
+        path: PathBuf,
+        #[error(source)]
+        error: std::io::Error,
+    },
 }
 
 impl CreateVirtualStore<'_> {

@@ -1,9 +1,35 @@
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { describe, expect, test } from '@jest/globals'
 import { calcGraphNodeHash, lockfileToDepGraph, type PkgMeta } from '@pnpm/deps.graph-hasher'
 import type { BinaryResolution } from '@pnpm/resolving.resolver-base'
 import type { DepPath } from '@pnpm/types'
+
+interface LinkHashFixture {
+  package: {
+    key: DepPath
+    name: string
+    version: string
+    alias: string
+    integrity: string
+  }
+  posix: LinkHashCase[]
+  win32: LinkHashCase[]
+}
+
+interface LinkHashCase {
+  name: string
+  lockfileDir: string
+  target: string
+  expectedLinkNode: DepPath
+  expectedSlot: string
+}
+
+const linkHashFixture = JSON.parse(fs.readFileSync(
+  path.resolve(import.meta.dirname, '../../../../fixtures/gvs-link-hash-parity.json'),
+  'utf8'
+)) as LinkHashFixture
 
 test('lockfileToDepGraph', () => {
   expect(lockfileToDepGraph({
@@ -171,6 +197,36 @@ describe('lockfileToDepGraph link target hashing', () => {
     })
 
     expect(parentSlot(linked)).not.toBe(parentSlot(renamed))
+  })
+})
+
+describe('lockfileToDepGraph link hash parity with pacquet', () => {
+  const fixturePackage = linkHashFixture.package
+  const cases = process.platform === 'win32' ? linkHashFixture.win32 : linkHashFixture.posix
+
+  test.each(cases)('$name', ({ lockfileDir, target, expectedLinkNode, expectedSlot }) => {
+    const graph = lockfileToDepGraph({
+      lockfileVersion: '9.0',
+      importers: {},
+      packages: {
+        [fixturePackage.key]: {
+          dependencies: { [fixturePackage.alias]: `link:${target}` },
+          resolution: { integrity: fixturePackage.integrity },
+        },
+      },
+    }, undefined, lockfileDir)
+
+    expect(graph[fixturePackage.key]?.children[fixturePackage.alias]).toBe(expectedLinkNode)
+    expect(calcGraphNodeHash({
+      graph,
+      cache: {},
+      builtDepPaths: new Set(),
+      buildRequiredCache: {},
+    }, {
+      depPath: fixturePackage.key,
+      name: fixturePackage.name,
+      version: fixturePackage.version,
+    })).toBe(expectedSlot)
   })
 })
 

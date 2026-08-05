@@ -5,6 +5,7 @@ use pacquet_lockfile::{
     RegistryResolution, SnapshotDepRef, SnapshotEntry, TarballResolution,
 };
 use pretty_assertions::{assert_eq, assert_ne};
+use serde::Deserialize;
 use std::{
     collections::{HashMap, HashSet},
     ffi::OsStr,
@@ -568,6 +569,96 @@ fn snapshot_with_link(alias: &str, target: &str) -> SnapshotEntry {
         format!("link:{target}").parse::<SnapshotDepRef>().unwrap(),
     );
     SnapshotEntry { dependencies: Some(dependencies), ..SnapshotEntry::default() }
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct LinkHashParityFixture {
+    package: LinkHashFixturePackage,
+    posix: Vec<LinkHashFixtureCase>,
+    win32: Vec<LinkHashFixtureCase>,
+}
+
+#[derive(Deserialize)]
+struct LinkHashFixturePackage {
+    key: String,
+    name: String,
+    version: String,
+    alias: String,
+    integrity: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct LinkHashFixtureCase {
+    name: String,
+    lockfile_dir: String,
+    target: String,
+    expected_link_node: String,
+    expected_slot: String,
+}
+
+#[test]
+fn link_hash_matches_the_shared_typescript_fixture() {
+    let fixture: LinkHashParityFixture = serde_json::from_str(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../fixtures/gvs-link-hash-parity.json"
+    )))
+    .expect("parse shared GVS link hash fixture");
+    let cases = if cfg!(windows) { &fixture.win32 } else { &fixture.posix };
+    let package_key: PackageKey = fixture.package.key.parse().expect("parse fixture package key");
+    let packages = HashMap::from([(
+        package_key.without_peer(),
+        package_metadata(
+            LockfileResolution::Registry(RegistryResolution {
+                integrity: fixture.package.integrity.parse().expect("parse fixture integrity"),
+            }),
+            Some(&fixture.package.version),
+        ),
+    )]);
+    let config = make_config(
+        true,
+        PathBuf::from("project/node_modules/.pnpm"),
+        PathBuf::from("store/links"),
+    );
+
+    for case in cases {
+        let snapshots = HashMap::from([(
+            package_key.clone(),
+            snapshot_with_link(&fixture.package.alias, &case.target),
+        )]);
+        let graph = super::lockfile_to_dep_graph(
+            &snapshots,
+            Some(&packages),
+            Some(Path::new(&case.lockfile_dir)),
+        );
+        let link_node = graph
+            .get(&fixture.package.key)
+            .and_then(|node| node.children.get(&fixture.package.alias))
+            .unwrap_or_else(|| panic!("{}: fixture link node", case.name));
+        assert_eq!(link_node, &case.expected_link_node, "{}: normalized link node", case.name);
+
+        let slot = VirtualStoreLayout::new(
+            &config,
+            None,
+            Some(&snapshots),
+            Some(&packages),
+            Some(&crate::AllowBuildPolicy::default()),
+            Some(Path::new(&case.lockfile_dir)),
+        )
+        .slot_dir(&package_key);
+        let relative_slot = slot
+            .strip_prefix(Path::new("store/links"))
+            .unwrap_or_else(|_| panic!("{}: strip GVS root from {slot:?}", case.name))
+            .to_string_lossy()
+            .replace(std::path::MAIN_SEPARATOR, "/");
+        assert_eq!(relative_slot, case.expected_slot, "{}: GVS slot hash", case.name);
+        assert_eq!(
+            package_key.name.to_string(),
+            fixture.package.name,
+            "fixture package name must match its key",
+        );
+    }
 }
 
 /// A `link:` dependency is materialized as a symlink out of the store,

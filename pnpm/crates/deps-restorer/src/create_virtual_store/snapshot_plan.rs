@@ -13,7 +13,10 @@ use pacquet_lockfile::{
     LockfileResolution, PackageKey, PackageMetadata, PlatformSelector, SnapshotEntry,
 };
 use pacquet_reporter::{BrokenModulesLog, LogEvent, LogLevel, Reporter};
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    path::Path,
+};
 
 pub(super) struct SnapshotPlanInputs<'a> {
     pub snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
@@ -79,70 +82,77 @@ pub(super) fn plan_snapshots<'a, Reporter: self::Reporter>(
     // current-lockfile skip keeps its store-index rows.
     let mut marker_probe_keys = HashSet::new();
     let mut marker_rebuilds = HashSet::new();
-    let survivors = snapshots
+    let snapshot_entries = snapshots
         .iter()
         // Reason 1: installability skip. Drop entirely.
         .filter(|(snapshot_key, _)| !skipped.contains(snapshot_key))
-        // Reason 2: current-lockfile skip. Drop survivors that
-        // already match the previous install.
-        .filter(|(snapshot_key, snapshot)| {
-            let Some(current_snapshots) = current_snapshots else { return true };
-            let Some(current_snapshot) = current_snapshots.get(*snapshot_key) else {
-                return true;
-            };
-            let wanted_metadata = packages.get(&snapshot_key.without_peer());
-            // A `file:` dependency's source is mutable, so an
-            // unchanged lockfile is no evidence its slot is current.
-            if matches!(
-                wanted_metadata.map(|meta| &meta.resolution),
-                Some(LockfileResolution::Directory(_)),
-            ) {
-                return true;
-            }
-            if !snapshot_deps_equal(current_snapshot, snapshot) {
-                return true;
-            }
-            if !optional_children_match(
-                snapshot_key,
-                snapshot,
-                layout,
-                skipped,
-                link_dependencies,
-                include_optional_dependencies,
-            ) {
-                return true;
-            }
-            let current_metadata =
-                current_packages.and_then(|p| p.get(&snapshot_key.without_peer()));
-            if !integrity_equal(current_metadata, wanted_metadata) {
-                return true;
-            }
-            let dir = layout
-                .slot_dir(snapshot_key)
-                .join("node_modules")
-                .join(snapshot_key.name.to_string());
-            if dir.is_dir() {
+        // Reason 2: current-lockfile skip. Drop survivors that already
+        // match the previous install. This is a fallible fold because a
+        // warm-slot lstat error must abort the install rather than quietly
+        // converting the slot into a rebuild on every run.
+        .try_fold(Vec::new(), |mut entries, (snapshot_key, snapshot)| {
+            let current_slot_matches = (|| -> Result<bool, CreateVirtualStoreError> {
+                let Some(current_snapshots) = current_snapshots else { return Ok(false) };
+                let Some(current_snapshot) = current_snapshots.get(snapshot_key) else {
+                    return Ok(false);
+                };
+                let wanted_metadata = packages.get(&snapshot_key.without_peer());
+                // A `file:` dependency's source is mutable, so an
+                // unchanged lockfile is no evidence its slot is current.
+                if matches!(
+                    wanted_metadata.map(|meta| &meta.resolution),
+                    Some(LockfileResolution::Directory(_)),
+                ) {
+                    return Ok(false);
+                }
+                if !snapshot_deps_equal(current_snapshot, snapshot) {
+                    return Ok(false);
+                }
+                let current_metadata =
+                    current_packages.and_then(|p| p.get(&snapshot_key.without_peer()));
+                if !integrity_equal(current_metadata, wanted_metadata) {
+                    return Ok(false);
+                }
+                let dir = layout
+                    .slot_dir(snapshot_key)
+                    .join("node_modules")
+                    .join(snapshot_key.name.to_string());
+                if !dir.is_dir() {
+                    Reporter::emit(&LogEvent::BrokenModules(BrokenModulesLog {
+                        level: LogLevel::Debug,
+                        missing: dir.to_string_lossy().into_owned(),
+                    }));
+                    return Ok(false);
+                }
+                if !optional_children_match(
+                    snapshot_key,
+                    snapshot,
+                    layout,
+                    skipped,
+                    link_dependencies,
+                    include_optional_dependencies,
+                )? {
+                    return Ok(false);
+                }
                 let needs_rebuild =
                     gvs_slot_needs_rebuild(layout, allow_build_policy, snapshot_key);
-                marker_probe_keys.insert((*snapshot_key).clone());
+                marker_probe_keys.insert(snapshot_key.clone());
                 if needs_rebuild {
-                    marker_rebuilds.insert((*snapshot_key).clone());
+                    marker_rebuilds.insert(snapshot_key.clone());
                 }
-                needs_rebuild
-            } else {
-                Reporter::emit(&LogEvent::BrokenModules(BrokenModulesLog {
-                    level: LogLevel::Debug,
-                    missing: dir.to_string_lossy().into_owned(),
-                }));
-                true
+                Ok(!needs_rebuild)
+            })()?;
+            if !current_slot_matches {
+                let cache_key = snapshot_cache_key(
+                    snapshot_key,
+                    packages,
+                    ignore_scripts,
+                    runtime_platform_selector,
+                )?;
+                entries.push((snapshot_key, snapshot, cache_key));
             }
-        });
-    let snapshot_entries: Vec<SnapshotWithCacheKey<'_>> = survivors
-        .map(|(snapshot_key, snapshot)| {
-            snapshot_cache_key(snapshot_key, packages, ignore_scripts, runtime_platform_selector)
-                .map(|key| (snapshot_key, snapshot, key))
-        })
-        .collect::<Result<_, _>>()?;
+            Ok::<_, CreateVirtualStoreError>(entries)
+        })?;
     marker_rebuilds.extend(
         snapshot_entries
             .iter()
@@ -190,25 +200,47 @@ fn optional_children_match(
     skipped: &SkippedSnapshots,
     link_dependencies: bool,
     include_optional_dependencies: bool,
-) -> bool {
+) -> Result<bool, CreateVirtualStoreError> {
+    optional_children_match_with(
+        snapshot_key,
+        snapshot,
+        layout,
+        skipped,
+        link_dependencies,
+        include_optional_dependencies,
+        |path| match std::fs::symlink_metadata(path) {
+            Ok(_) => Ok(true),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+            Err(error) => Err(error),
+        },
+    )
+}
+
+fn optional_children_match_with(
+    snapshot_key: &PackageKey,
+    snapshot: &SnapshotEntry,
+    layout: &VirtualStoreLayout,
+    skipped: &SkippedSnapshots,
+    link_dependencies: bool,
+    include_optional_dependencies: bool,
+    mut child_exists: impl FnMut(&Path) -> std::io::Result<bool>,
+) -> Result<bool, CreateVirtualStoreError> {
     let Some(optional_dependencies) = snapshot.optional_dependencies.as_ref() else {
-        return true;
+        return Ok(true);
     };
     let modules_dir = layout.slot_dir(snapshot_key).join("node_modules");
-    optional_dependencies.iter().all(|(alias, dep_ref)| {
+    for (alias, dep_ref) in optional_dependencies {
         if alias == &snapshot_key.name {
-            return true;
+            continue;
         }
         let Ok(child_path) =
             crate::safe_join_modules_dir::safe_join_modules_dir(&modules_dir, &alias.to_string())
         else {
-            return false;
+            return Ok(false);
         };
-        let exists = match std::fs::symlink_metadata(child_path) {
-            Ok(_) => true,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
-            Err(_) => return false,
-        };
+        let exists = child_exists(&child_path).map_err(|error| {
+            CreateVirtualStoreError::InspectOptionalDependency { path: child_path.clone(), error }
+        })?;
         let should_exist = link_dependencies
             && include_optional_dependencies
             && if let Some(target) = dep_ref.resolve(alias) {
@@ -216,6 +248,12 @@ fn optional_children_match(
             } else {
                 dep_ref.as_link_target().is_some() && layout.lockfile_dir().is_some()
             };
-        exists == should_exist
-    })
+        if exists != should_exist {
+            return Ok(false);
+        }
+    }
+    Ok(true)
 }
+
+#[cfg(test)]
+mod tests;

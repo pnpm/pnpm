@@ -3585,7 +3585,7 @@ async fn fresh_partial_install_preserves_optional_link_in_warm_gvs_slot() {
     );
     let linked_peer = layout.slot_dir(&snapshot_key).join("node_modules").join("@pnpm.e2e/peer-c");
     assert!(
-        is_symlink_or_junction(&linked_peer).unwrap_or(false),
+        is_symlink_or_junction(&linked_peer).unwrap(),
         "full install must create the optional peer link at {linked_peer:?}",
     );
 
@@ -3627,7 +3627,7 @@ async fn fresh_partial_install_preserves_optional_link_in_warm_gvs_slot() {
     .expect("partial fresh install should succeed");
 
     assert!(
-        is_symlink_or_junction(&linked_peer).unwrap_or(false),
+        is_symlink_or_junction(&linked_peer).unwrap(),
         "partial install without the optional direct group must preserve {linked_peer:?}",
     );
 
