@@ -6,6 +6,7 @@
 use super::{ConfigFlags, ConfigLocation, config_get, config_list, config_set, ini};
 use indexmap::IndexMap;
 use pacquet_config::Config;
+use pipe_trait::Pipe;
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
@@ -44,7 +45,7 @@ fn set_registry_global_writes_auth_ini() {
     )
     .unwrap();
 
-    let ini = read_ini(&config_dir.join("auth.ini"));
+    let ini = config_dir.join("auth.ini").pipe_as_ref(read_ini);
     assert_eq!(ini.get("registry").map(String::as_str), Some("https://npm-registry.example.com/"));
 }
 
@@ -58,7 +59,7 @@ fn set_cafile_global_writes_auth_ini() {
         .unwrap();
 
     assert_eq!(
-        read_ini(&config_dir.join("auth.ini")).get("cafile").map(String::as_str),
+        config_dir.join("auth.ini").pipe_as_ref(read_ini).get("cafile").map(String::as_str),
         Some("some-cafile"),
     );
 }
@@ -66,7 +67,7 @@ fn set_cafile_global_writes_auth_ini() {
 #[test]
 fn set_scoped_registry_project_creates_npmrc() {
     let tmp = TempDir::new().unwrap();
-    let config = config_with_dir(&tmp.path().join("global-config"));
+    let config = tmp.path().join("global-config").pipe_as_ref(config_with_dir);
 
     config_set(
         &config,
@@ -78,7 +79,7 @@ fn set_scoped_registry_project_creates_npmrc() {
     .unwrap();
 
     assert_eq!(
-        read_ini(&tmp.path().join(".npmrc")).get("@myorg:registry").map(String::as_str),
+        tmp.path().join(".npmrc").pipe_as_ref(read_ini).get("@myorg:registry").map(String::as_str),
         Some("https://test-registry.example.com/"),
     );
     assert!(!tmp.path().join("pnpm-workspace.yaml").exists());
@@ -87,7 +88,7 @@ fn set_scoped_registry_project_creates_npmrc() {
 #[test]
 fn set_per_registry_auth_project_creates_npmrc() {
     let tmp = TempDir::new().unwrap();
-    let config = config_with_dir(&tmp.path().join("global-config"));
+    let config = tmp.path().join("global-config").pipe_as_ref(config_with_dir);
 
     config_set(
         &config,
@@ -99,7 +100,9 @@ fn set_per_registry_auth_project_creates_npmrc() {
     .unwrap();
 
     assert_eq!(
-        read_ini(&tmp.path().join(".npmrc"))
+        tmp.path()
+            .join(".npmrc")
+            .pipe_as_ref(read_ini)
             .get("//registry.example.com/:_auth")
             .map(String::as_str),
         Some("test-auth-value"),
@@ -118,7 +121,10 @@ fn set_pnpm_key_global_writes_config_yaml_as_number() {
     config_set(&config, tmp.path(), flags(true, None, false), "fetch-retries", Some("1".into()))
         .unwrap();
 
-    assert_eq!(read_yaml(&config_dir.join("config.yaml")).unwrap(), json!({ "fetchRetries": 1 }));
+    assert_eq!(
+        config_dir.join("config.yaml").pipe_as_ref(read_yaml).unwrap(),
+        json!({ "fetchRetries": 1 })
+    );
 }
 
 #[test]
@@ -152,7 +158,7 @@ fn set_registries_and_named_registries_global_writes_config_yaml() {
     .unwrap();
 
     assert_eq!(
-        read_yaml(&config_dir.join("config.yaml")).unwrap(),
+        config_dir.join("config.yaml").pipe_as_ref(read_yaml).unwrap(),
         json!({ "registries": registries, "namedRegistries": named_registries }),
     );
 }
@@ -173,13 +179,16 @@ fn set_camel_key_location_global() {
     )
     .unwrap();
 
-    assert_eq!(read_yaml(&config_dir.join("config.yaml")).unwrap(), json!({ "fetchRetries": 1 }));
+    assert_eq!(
+        config_dir.join("config.yaml").pipe_as_ref(read_yaml).unwrap(),
+        json!({ "fetchRetries": 1 })
+    );
 }
 
 #[test]
 fn set_pnpm_key_project_writes_workspace_yaml() {
     let tmp = TempDir::new().unwrap();
-    let config = config_with_dir(&tmp.path().join("global-config"));
+    let config = tmp.path().join("global-config").pipe_as_ref(config_with_dir);
 
     config_set(
         &config,
@@ -191,7 +200,7 @@ fn set_pnpm_key_project_writes_workspace_yaml() {
     .unwrap();
 
     assert_eq!(
-        read_yaml(&tmp.path().join("pnpm-workspace.yaml")).unwrap(),
+        tmp.path().join("pnpm-workspace.yaml").pipe_as_ref(read_yaml).unwrap(),
         json!({ "virtualStoreDir": ".pnpm" }),
     );
 }
@@ -212,7 +221,7 @@ fn set_global_https_proxy_writes_config_yaml_not_auth_ini() {
     .unwrap();
 
     assert_eq!(
-        read_yaml(&config_dir.join("config.yaml")).unwrap(),
+        config_dir.join("config.yaml").pipe_as_ref(read_yaml).unwrap(),
         json!({ "httpsProxy": "http://proxy.example.com:8443" }),
     );
     assert!(!config_dir.join("auth.ini").exists());
@@ -234,7 +243,7 @@ fn set_global_http_proxy_writes_config_yaml() {
     .unwrap();
 
     assert_eq!(
-        read_yaml(&config_dir.join("config.yaml")).unwrap(),
+        config_dir.join("config.yaml").pipe_as_ref(read_yaml).unwrap(),
         json!({ "httpProxy": "http://proxy.example.com:8080" }),
     );
 }
@@ -255,7 +264,7 @@ fn set_global_no_proxy_writes_config_yaml() {
     .unwrap();
 
     assert_eq!(
-        read_yaml(&config_dir.join("config.yaml")).unwrap(),
+        config_dir.join("config.yaml").pipe_as_ref(read_yaml).unwrap(),
         json!({ "noProxy": "localhost,127.0.0.1" }),
     );
 }
@@ -263,7 +272,7 @@ fn set_global_no_proxy_writes_config_yaml() {
 #[test]
 fn set_key_equals_value_form() {
     let tmp = TempDir::new().unwrap();
-    let config = config_with_dir(&tmp.path().join("global-config"));
+    let config = tmp.path().join("global-config").pipe_as_ref(config_with_dir);
 
     // value with an embedded `=` keeps everything after the first `=`.
     super::split_set_params(Some("lockfile-dir=foo=bar".into()), None, "set")
@@ -280,7 +289,7 @@ fn set_key_equals_value_form() {
         .unwrap();
 
     assert_eq!(
-        read_yaml(&tmp.path().join("pnpm-workspace.yaml")).unwrap(),
+        tmp.path().join("pnpm-workspace.yaml").pipe_as_ref(read_yaml).unwrap(),
         json!({ "lockfileDir": "foo=bar" }),
     );
 }
@@ -296,7 +305,7 @@ fn set_dot_leading_and_subscripted_keys() {
         config_set(&config, tmp.path(), flags(true, None, false), key, Some("1".into())).unwrap();
 
         assert_eq!(
-            read_yaml(&config_dir.join("config.yaml")).unwrap(),
+            config_dir.join("config.yaml").pipe_as_ref(read_yaml).unwrap(),
             json!({ "fetchRetries": 1 }),
             "key {key}",
         );
@@ -306,7 +315,7 @@ fn set_dot_leading_and_subscripted_keys() {
 #[test]
 fn set_object_value_with_json_writes_workspace_yaml() {
     let tmp = TempDir::new().unwrap();
-    let config = config_with_dir(&tmp.path().join("global-config"));
+    let config = tmp.path().join("global-config").pipe_as_ref(config_with_dir);
 
     let extensions = json!({
         "@babel/parser": { "peerDependencies": { "@babel/types": "*" } },
@@ -322,7 +331,7 @@ fn set_object_value_with_json_writes_workspace_yaml() {
     .unwrap();
 
     assert_eq!(
-        read_yaml(&tmp.path().join("pnpm-workspace.yaml")).unwrap(),
+        tmp.path().join("pnpm-workspace.yaml").pipe_as_ref(read_yaml).unwrap(),
         json!({ "packageExtensions": extensions }),
     );
 }
@@ -332,7 +341,7 @@ fn set_object_value_with_json_writes_workspace_yaml() {
 #[test]
 fn set_rejects_deep_property_path() {
     let tmp = TempDir::new().unwrap();
-    let config = config_with_dir(&tmp.path().join("global-config"));
+    let config = tmp.path().join("global-config").pipe_as_ref(config_with_dir);
     let err = config_set(
         &config,
         tmp.path(),
@@ -363,7 +372,7 @@ fn set_refuses_workspace_key_in_global_config() {
 #[test]
 fn set_refuses_kebab_workspace_key() {
     let tmp = TempDir::new().unwrap();
-    let config = config_with_dir(&tmp.path().join("global-config"));
+    let config = tmp.path().join("global-config").pipe_as_ref(config_with_dir);
     let err = config_set(
         &config,
         tmp.path(),
@@ -380,7 +389,7 @@ fn set_refuses_kebab_workspace_key() {
 #[test]
 fn delete_last_yaml_key_removes_file() {
     let tmp = TempDir::new().unwrap();
-    let config = config_with_dir(&tmp.path().join("global-config"));
+    let config = tmp.path().join("global-config").pipe_as_ref(config_with_dir);
 
     config_set(
         &config,
@@ -418,7 +427,11 @@ fn delete_auth_key_set_and_unset() {
     .unwrap();
     config_set(&config, tmp.path(), flags(true, None, false), "registry", None).unwrap();
     assert_eq!(
-        read_ini(&config_dir.join("auth.ini")).get("@my-company:registry").map(String::as_str),
+        config_dir
+            .join("auth.ini")
+            .pipe_as_ref(read_ini)
+            .get("@my-company:registry")
+            .map(String::as_str),
         Some("https://registry.my-company.example.com/"),
     );
 
@@ -429,7 +442,7 @@ fn delete_auth_key_set_and_unset() {
     )
     .unwrap();
     config_set(&config, tmp.path(), flags(true, None, false), "registry", None).unwrap();
-    assert!(read_ini(&config_dir.join("auth.ini")).is_empty());
+    assert!(config_dir.join("auth.ini").pipe_as_ref(read_ini).is_empty());
 }
 
 #[test]
@@ -603,7 +616,7 @@ fn list_includes_settings_and_censors_protected() {
 #[test]
 fn set_ini_value_with_control_char_is_rejected() {
     let tmp = TempDir::new().unwrap();
-    let config = config_with_dir(&tmp.path().join("global-config"));
+    let config = tmp.path().join("global-config").pipe_as_ref(config_with_dir);
 
     let err = config_set(
         &config,
@@ -632,7 +645,7 @@ fn set_preserves_existing_npmrc_mode() {
     std::fs::write(&npmrc, "@local:registry=https://localhost/\n").unwrap();
     std::fs::set_permissions(&npmrc, std::fs::Permissions::from_mode(0o644)).unwrap();
 
-    let config = config_with_dir(&tmp.path().join("global-config"));
+    let config = tmp.path().join("global-config").pipe_as_ref(config_with_dir);
     config_set(
         &config,
         tmp.path(),
@@ -659,7 +672,7 @@ fn set_does_not_follow_symlinked_npmrc_mode() {
     let npmrc = tmp.path().join(".npmrc");
     std::os::unix::fs::symlink(&target, &npmrc).unwrap();
 
-    let config = config_with_dir(&tmp.path().join("global-config"));
+    let config = tmp.path().join("global-config").pipe_as_ref(config_with_dir);
     config_set(
         &config,
         tmp.path(),
@@ -686,7 +699,7 @@ fn set_does_not_follow_symlinked_npmrc_mode() {
 fn set_refuses_a_key_the_project_manifest_would_ignore() {
     for key in ["config-dir", "pnpmHomeDir", "state-dir"] {
         let tmp = TempDir::new().unwrap();
-        let config = config_with_dir(&tmp.path().join("global-config"));
+        let config = tmp.path().join("global-config").pipe_as_ref(config_with_dir);
         let err = config_set(
             &config,
             tmp.path(),
@@ -721,7 +734,7 @@ fn set_tells_the_user_where_a_refused_key_belongs() {
         ("config-dir", "no config file sets it"),
     ] {
         let tmp = TempDir::new().unwrap();
-        let config = config_with_dir(&tmp.path().join("global-config"));
+        let config = tmp.path().join("global-config").pipe_as_ref(config_with_dir);
         let err = config_set(
             &config,
             tmp.path(),
@@ -738,7 +751,7 @@ fn set_tells_the_user_where_a_refused_key_belongs() {
 #[test]
 fn set_does_not_suggest_a_camel_spelling_the_project_manifest_refuses() {
     let tmp = TempDir::new().unwrap();
-    let config = config_with_dir(&tmp.path().join("global-config"));
+    let config = tmp.path().join("global-config").pipe_as_ref(config_with_dir);
     let err = config_set(
         &config,
         tmp.path(),
@@ -754,7 +767,7 @@ fn set_does_not_suggest_a_camel_spelling_the_project_manifest_refuses() {
 #[test]
 fn delete_clears_a_skipped_key_the_manifest_already_has() {
     let tmp = TempDir::new().unwrap();
-    let config = config_with_dir(&tmp.path().join("global-config"));
+    let config = tmp.path().join("global-config").pipe_as_ref(config_with_dir);
     let manifest = tmp.path().join("pnpm-workspace.yaml");
     std::fs::write(&manifest, "configDir: /tmp/somewhere\nstoreDir: ~/store\n").unwrap();
 
@@ -775,7 +788,7 @@ fn delete_clears_a_skipped_key_the_manifest_already_has() {
 #[test]
 fn delete_clears_a_hand_written_kebab_case_key() {
     let tmp = TempDir::new().unwrap();
-    let config = config_with_dir(&tmp.path().join("global-config"));
+    let config = tmp.path().join("global-config").pipe_as_ref(config_with_dir);
     let manifest = tmp.path().join("pnpm-workspace.yaml");
     std::fs::write(&manifest, "config-dir: /tmp/somewhere\nstoreDir: ~/store\n").unwrap();
 
