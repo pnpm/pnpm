@@ -175,3 +175,19 @@ test('entries added in the same write survive the cleanup', async () => {
     minimumReleaseAgeExclude: ['foo@2.0.0'],
   })
 })
+
+test('entries added in the same write are never pruned, even when absent from the resolved versions', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+  writeYamlFileSync(filePath, {
+    minimumReleaseAgeExclude: ['foo@1.0.0'],
+  })
+  await updateWorkspaceManifest(dir, {
+    addedMinimumReleaseAgeExcludes: ['bar@9.9.9'],
+    cleanupOutdatedMinimumReleaseAgeExcludes: true,
+    resolvedPackageVersions: resolvedPackageVersions({ foo: ['1.0.0'] }),
+  })
+  expect(readYamlFileSync(filePath)).toStrictEqual({
+    minimumReleaseAgeExclude: ['foo@1.0.0', 'bar@9.9.9'],
+  })
+})

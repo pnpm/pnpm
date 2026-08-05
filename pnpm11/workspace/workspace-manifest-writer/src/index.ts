@@ -94,6 +94,11 @@ export async function updateWorkspaceManifest (dir: string, opts: {
       }
     }
   }
+  if (opts.cleanupOutdatedMinimumReleaseAgeExcludes) {
+    shouldBeUpdated = removeOutdatedMinimumReleaseAgeExcludes(manifest, opts.resolvedPackageVersions) || shouldBeUpdated
+  }
+  // Merged after the cleanup pass so entries approved during this install
+  // are never pruned by it in the same write.
   if (opts.addedMinimumReleaseAgeExcludes?.length) {
     const existing = manifest.minimumReleaseAgeExclude ?? []
     const merged = mergePackageVersionSpecs([...existing, ...opts.addedMinimumReleaseAgeExcludes])
@@ -101,9 +106,6 @@ export async function updateWorkspaceManifest (dir: string, opts: {
       shouldBeUpdated = true
       manifest.minimumReleaseAgeExclude = merged
     }
-  }
-  if (opts.cleanupOutdatedMinimumReleaseAgeExcludes) {
-    shouldBeUpdated = removeOutdatedMinimumReleaseAgeExcludes(manifest, opts.resolvedPackageVersions) || shouldBeUpdated
   }
   if (!shouldBeUpdated) {
     return
