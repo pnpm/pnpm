@@ -212,6 +212,132 @@ async fn cold_batch_links_slots_in_parallel() {
 
 const DUMMY_SHA512: &str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
 
+/// End-to-end wiring for the slot grouping: under the global virtual
+/// store, two peer variants of one package with identical (empty)
+/// dependency sets hash to a single slot directory, and the whole
+/// [`CreateVirtualStore::run`] pass must execute exactly one link task
+/// for it — not one per variant. The probe's lifetime counter is what
+/// distinguishes a real dedup from duplicates that merely happened to
+/// serialize; a unit test of `group_slots_by_dir` alone could pass
+/// while the link pass kept iterating per snapshot key.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn gvs_link_pass_materializes_shared_slot_once() {
+    use crate::{AllowBuildPolicy, SkippedSnapshots, VirtualStoreLayout};
+    use pacquet_config::{Config, NodeLinker, PackageImportMethod};
+    use pacquet_store_dir::StoreIndexWriter;
+    use pacquet_tarball::{CacheValue, MemCache, SharedReportedProgressKeys};
+
+    let root = tempfile::tempdir().expect("create temp dir");
+    let workspace_root = root.path().join("workspace");
+    fs::create_dir_all(&workspace_root).expect("create workspace root");
+    let modules_dir = workspace_root.join("node_modules");
+    let store_dir = root.path().join("store");
+
+    let mut config = Config::new();
+    config.registry = "https://registry.test".to_string();
+    config.store_dir = store_dir.into();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = modules_dir.join(".pacquet");
+    config.enable_global_virtual_store = true;
+    config.global_virtual_store_dir = root.path().join("links");
+    config.package_import_method = PackageImportMethod::Copy;
+    config.offline = true;
+    let config = config.leak();
+
+    let mut snapshots = HashMap::new();
+    let mut packages = HashMap::new();
+    let mem_cache = Arc::new(MemCache::default());
+    for package_name in ["shared", "solo"] {
+        let source_dir = workspace_root.join("prefetched").join(package_name);
+        fs::create_dir_all(&source_dir).expect("create prefetched package dir");
+        let manifest_path = source_dir.join("package.json");
+        fs::write(&manifest_path, format!(r#"{{"name":"{package_name}","version":"1.0.0"}}"#))
+            .expect("write package manifest");
+        let cas_paths = HashMap::from([("package.json".to_string(), manifest_path)]);
+        mem_cache.insert(
+            format!("https://registry.test/{package_name}/-/{package_name}-1.0.0.tgz"),
+            Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(cas_paths)))),
+        );
+        packages.insert(
+            key(package_name, "1.0.0").without_peer(),
+            metadata_with_integrity(DUMMY_SHA512),
+        );
+    }
+    // Two variants of `shared`, one bare and one peer-suffixed, with
+    // identical dependency sets — the collision the fix is about.
+    snapshots.insert(key("shared", "1.0.0"), SnapshotEntry::default());
+    snapshots.insert(key("shared", "1.0.0(peer@1.0.0)"), SnapshotEntry::default());
+    snapshots.insert(key("solo", "1.0.0"), SnapshotEntry::default());
+
+    let allow_build_policy = AllowBuildPolicy::default();
+    let layout = VirtualStoreLayout::new(
+        config,
+        Some("linux-x64-node22"),
+        Some(&snapshots),
+        Some(&packages),
+        Some(&allow_build_policy),
+        None,
+    );
+    assert_eq!(
+        layout.slot_dir(&key("shared", "1.0.0")),
+        layout.slot_dir(&key("shared", "1.0.0(peer@1.0.0)")),
+        "precondition: the variants must share one slot",
+    );
+    assert_ne!(
+        layout.slot_dir(&key("shared", "1.0.0")),
+        layout.slot_dir(&key("solo", "1.0.0")),
+        "precondition: distinct packages must not share a slot",
+    );
+
+    let skipped = SkippedSnapshots::new();
+    let logged_methods = AtomicU8::new(0);
+    let progress_reported = SharedReportedProgressKeys::default();
+    let (store_index_writer, writer_task) = StoreIndexWriter::spawn(&config.store_dir);
+    let requester = workspace_root.to_string_lossy().into_owned();
+    let probe = crate::create_virtual_dir_by_snapshot::tests::LinkConcurrencyProbe::default();
+
+    CreateVirtualStore {
+        http_client: &pacquet_network::ThrottledClient::default(),
+        config,
+        packages: Some(&packages),
+        snapshots: Some(&snapshots),
+        current_snapshots: None,
+        current_packages: None,
+        layout: &layout,
+        logged_methods: &logged_methods,
+        requester: &requester,
+        store_index_writer: &store_index_writer,
+        allow_build_policy: &allow_build_policy,
+        skipped: &skipped,
+        include_optional_dependencies: true,
+        supported_architectures: None,
+        workspace_root: &workspace_root,
+        node_linker: NodeLinker::Isolated,
+        progress_reported: &progress_reported,
+        tarball_mem_cache: Some(&mem_cache),
+        custom_fetcher_picker: None,
+        link_concurrency_probe: Some(&probe),
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("global-virtual-store creation should succeed from the mem cache");
+
+    drop(store_index_writer);
+    writer_task.await.expect("join store-index writer").expect("flush store-index writer");
+
+    assert_eq!(
+        probe.total_entered(),
+        2,
+        "three snapshots over two unique slot directories must run exactly two link tasks",
+    );
+    let shared_manifest = layout
+        .slot_dir(&key("shared", "1.0.0"))
+        .join("node_modules")
+        .join("shared")
+        .join("package.json");
+    assert!(shared_manifest.is_file(), "the shared slot must be materialized: {shared_manifest:?}");
+}
+
 /// `emit_warm_snapshot_progress` fires `resolved` then
 /// `found_in_store` when no earlier fetch path already emitted the
 /// package status. Both events carry the same identifiers — pnpm's

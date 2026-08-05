@@ -924,6 +924,20 @@ fn group_slots_by_dir<'a>(
     slots: &'a [SlotLink<'a>],
     layout: &crate::VirtualStoreLayout,
 ) -> Vec<SlotDirGroup<'a>> {
+    if !layout.enable_global_virtual_store() {
+        // Project-local slot names embed the full peer-suffixed key, so
+        // every group would come out a singleton anyway - skip the
+        // per-slot path construction and map bookkeeping on the hot
+        // path of the common layout.
+        return slots
+            .iter()
+            .map(|slot| SlotDirGroup {
+                representative: slot,
+                duplicates: Vec::new(),
+                merged_removed_aliases: None,
+            })
+            .collect();
+    }
     let mut index_by_dir: HashMap<PathBuf, usize> = HashMap::with_capacity(slots.len());
     let mut groups: Vec<SlotDirGroup<'a>> = Vec::with_capacity(slots.len());
     for slot in slots {
