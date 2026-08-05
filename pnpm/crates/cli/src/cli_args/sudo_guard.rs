@@ -3,9 +3,10 @@
 //! through `sudo`. Those commands would target root's home directory,
 //! which is never what a user coming from `sudo npm install -g` wants.
 //!
-//! Mirrors `checkSudo` in pnpm's `pnpm/src/checkSudo.ts` — the
-//! condition, the command set, the error code, the message, and the
-//! hint are identical.
+//! `checkSudo` in pnpm v11's `pnpm11/pnpm/src/checkSudo.ts` detects the
+//! same commands under the same condition, but only warns there:
+//! refusing them is a breaking change, so it lands in v12 while v11
+//! gives users a release to migrate.
 
 use super::cli_command::CliCommand;
 

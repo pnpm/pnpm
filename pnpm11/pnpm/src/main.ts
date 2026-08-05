@@ -107,7 +107,6 @@ export async function main (inputArgv: string[]): Promise<void> {
     if (cmd === 'link' && cliParams.length === 0) {
       cliOptions.global = true
     }
-    checkSudo({ cmd, cliParams, global: cliOptions.global, location: cliOptions.location })
     ;({ config, context } = await getConfig(cliOptions, {
       excludeReporter: false,
       globalDirShouldAllowWrite,
@@ -215,6 +214,8 @@ export async function main (inputArgv: string[]): Promise<void> {
     })
     global[REPORTER_INITIALIZED] = reporterType
   }
+
+  checkSudo({ cmd, cliParams, global: cliOptions.global, location: cliOptions.location })
 
   // Commands with scriptOverride: if the current project's package.json has a
   // script with the same name, run the script instead of the built-in command.
