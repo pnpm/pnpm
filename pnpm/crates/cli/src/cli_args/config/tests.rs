@@ -783,8 +783,8 @@ fn delete_clears_a_skipped_key_the_manifest_already_has() {
     assert_eq!(read_yaml(&manifest), Some(json!({ "storeDir": "~/store" })));
 }
 
-/// The reader names the spelling the file used, so deleting that spelling has
-/// to be the remedy it implies.
+/// A hand-edited manifest keeps whatever spelling its author wrote, so a
+/// delete has to clear that one rather than only the normalized form.
 #[test]
 fn delete_clears_a_hand_written_kebab_case_key() {
     let tmp = TempDir::new().unwrap();

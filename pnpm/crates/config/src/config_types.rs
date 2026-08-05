@@ -474,10 +474,9 @@ pub fn is_config_file_key(kebab_key: &str) -> bool {
 /// camelCase. Mirrors the set of the same name in `@pnpm/config.reader`.
 ///
 /// Each names a location or a trusted value that is not the project's to
-/// choose. [`WorkspaceSettings`] declares none of them, so pacquet's reader
-/// already ignores every one; the list exists so `pnpm config set` can refuse
-/// to write a setting that would then do nothing, and so the reader can say
-/// which keys it ignored.
+/// choose. [`WorkspaceSettings`] declares none of them, so the reader drops
+/// every one at parse time; the list exists so `pnpm config set` can refuse to
+/// write a setting that would then do nothing.
 ///
 /// [`WorkspaceSettings`]: crate::WorkspaceSettings
 const PROJECT_MANIFEST_SKIPPED_SETTINGS: &[&str] = &[

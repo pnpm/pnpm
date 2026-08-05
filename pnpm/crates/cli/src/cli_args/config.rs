@@ -304,10 +304,8 @@ fn config_set(
             update_manifest_field(&config_path, &written_key, &cast)
                 .map_err(miette::Report::new)?;
             // pnpm always writes the normalized spelling, but a hand-edited
-            // file may carry another one — and for a project manifest that is
-            // the spelling the reader names when it reports the setting as
-            // ignored. Remove both, so the remedy the warning implies actually
-            // clears the file.
+            // file may carry another one. Remove both, so a delete clears the
+            // setting whichever spelling the file happens to use.
             if deleting && key != written_key {
                 update_manifest_field(&config_path, &key, &Value::Null)
                     .map_err(miette::Report::new)?;
