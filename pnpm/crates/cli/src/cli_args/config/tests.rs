@@ -123,7 +123,7 @@ fn set_pnpm_key_global_writes_config_yaml_as_number() {
 
     assert_eq!(
         config_dir.join("config.yaml").pipe_as_ref(read_yaml).unwrap(),
-        json!({ "fetchRetries": 1 })
+        json!({ "fetchRetries": 1 }),
     );
 }
 
@@ -181,7 +181,7 @@ fn set_camel_key_location_global() {
 
     assert_eq!(
         config_dir.join("config.yaml").pipe_as_ref(read_yaml).unwrap(),
-        json!({ "fetchRetries": 1 })
+        json!({ "fetchRetries": 1 }),
     );
 }
 
