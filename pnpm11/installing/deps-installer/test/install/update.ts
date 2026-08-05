@@ -429,11 +429,7 @@ test('update without saving skips a requested version that the kept range exclud
   await install(manifest, testDefaults({ frozenLockfile: true }))
 })
 
-// Known gap, pinned so it is noticed when it closes: only a requested version can be judged
-// against the kept range, and a dist tag has no version until resolution settles. The reliable
-// fix is to check the version resolution picks, at which point this expectation becomes
-// `100.1.0` — the highest inside `^100.0.0` — and the frozen install below stops failing.
-test('update without saving cannot judge a dist-tag, so it may still leave the kept range', async () => {
+test('update without saving resolves a dist-tag within the kept range', async () => {
   const project = prepareEmpty()
 
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
@@ -459,15 +455,81 @@ test('update without saving cannot judge a dist-tag, so it may still leave the k
 
   const lockfile = project.readLockfile()
 
+  // A tag names no version until resolution runs, so the kept range decides: 100.1.0 is the
+  // highest it admits. Recording 101.0.0 under `^100.0.0` is what pnpm/pnpm#12764 reported.
   expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toStrictEqual({
     specifier: '^100.0.0',
-    version: '101.0.0',
+    version: '100.1.0',
   })
 
-  // The lockfile contradicts its own specifier, which is what pnpm/pnpm#12764 reported.
-  await expect(
-    install(manifest, testDefaults({ frozenLockfile: true }))
-  ).rejects.toThrow(expect.objectContaining({ code: 'ERR_PNPM_OUTDATED_LOCKFILE' }))
+  await install(manifest, testDefaults({ frozenLockfile: true }))
+})
+
+test('update without saving resolves a requested range within the kept range', async () => {
+  const project = prepareEmpty()
+
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
+    {},
+    ['@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0'],
+    testDefaults()
+  )
+
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '101.0.0', distTag: 'latest' })
+
+  await mutateModulesInSingleProject({
+    dependencySelectors: ['@pnpm.e2e/dep-of-pkg-with-1-dep@>=101.0.0'],
+    allowNew: false,
+    manifest,
+    mutation: 'installSome',
+    update: true,
+    updatePackageManifest: false,
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults({ updateChecksums: true }))
+
+  const lockfile = project.readLockfile()
+
+  expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toStrictEqual({
+    specifier: '^100.0.0',
+    version: '100.1.0',
+  })
+
+  await install(manifest, testDefaults({ frozenLockfile: true }))
+})
+
+test('update without saving keeps --latest inside the kept range', async () => {
+  const project = prepareEmpty()
+
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
+    {},
+    ['@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0'],
+    testDefaults()
+  )
+
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '101.0.0', distTag: 'latest' })
+
+  // `--latest` carries no selector version at all, so it reaches resolution on its own.
+  await mutateModulesInSingleProject({
+    dependencySelectors: ['@pnpm.e2e/dep-of-pkg-with-1-dep'],
+    allowNew: false,
+    manifest,
+    mutation: 'installSome',
+    update: true,
+    updatePackageManifest: false,
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults({ updateChecksums: true, updateToLatest: true }))
+
+  const lockfile = project.readLockfile()
+
+  expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toStrictEqual({
+    specifier: '^100.0.0',
+    version: '100.1.0',
+  })
+
+  await install(manifest, testDefaults({ frozenLockfile: true }))
 })
 
 test('update without saving applies a requested version that stays inside the kept range', async () => {

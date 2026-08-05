@@ -4,7 +4,7 @@ import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
 import type { Dependencies } from '@pnpm/types'
 import semver from 'semver'
 
-export interface SelectorOutsideKeptRange {
+export interface KeptRangeConflict {
   alias: string
   requested: string
   kept: string
@@ -13,10 +13,16 @@ export interface SelectorOutsideKeptRange {
 export interface ParsedWantedDependencies {
   wantedDependencies: WantedDependency[]
   /**
-   * The selectors that were dropped because the version they request doesn't satisfy the range
-   * the manifest keeps. Only ever non-empty under `readonlyManifest`.
+   * The selectors dropped because the version they request doesn't satisfy the range the manifest
+   * keeps. Those dependencies are left untouched. Only ever non-empty under `readonlyManifest`.
    */
-  outsideKeptRange: SelectorOutsideKeptRange[]
+  outsideKeptRange: KeptRangeConflict[]
+  /**
+   * The selectors resolution can't be trusted to honor — a range or a dist tag, which only names a
+   * version once resolution has run — so the specifier the manifest keeps was used instead. Only
+   * ever non-empty under `readonlyManifest`.
+   */
+  supersededByKeptRange: KeptRangeConflict[]
 }
 
 export function parseWantedDependencies (
@@ -93,31 +99,30 @@ export function parseWantedDependencies (
     .filter((wd) => wd !== null) as WantedDependency[]
 
   if (!opts.readonlyManifest) {
-    return { wantedDependencies: wantedDeps, outsideKeptRange: [] }
+    return { wantedDependencies: wantedDeps, outsideKeptRange: [], supersededByKeptRange: [] }
   }
   const wantedDependencies: WantedDependency[] = []
-  const outsideKeptRange: SelectorOutsideKeptRange[] = []
+  const outsideKeptRange: KeptRangeConflict[] = []
+  const supersededByKeptRange: KeptRangeConflict[] = []
   for (const wantedDep of wantedDeps) {
     const { alias, bareSpecifier, prevSpecifier } = wantedDep
-    if (!prevSpecifier || requestedVersionFitsKeptRange(bareSpecifier, prevSpecifier)) {
+    if (!prevSpecifier || bareSpecifier === prevSpecifier) {
       wantedDependencies.push(wantedDep)
+    } else if (semver.valid(bareSpecifier) != null && semver.validRange(prevSpecifier) != null) {
+      // Both sides are concrete enough to judge now: matching a version against a range is exact.
+      if (semver.satisfies(bareSpecifier, prevSpecifier)) {
+        wantedDependencies.push(wantedDep)
+      } else {
+        outsideKeptRange.push({ alias, requested: bareSpecifier, kept: prevSpecifier })
+      }
     } else {
-      outsideKeptRange.push({ alias, requested: bareSpecifier, kept: prevSpecifier })
+      // A range, a dist tag, or a kept specifier that isn't a semver range. Nothing here names a
+      // version yet, and asking whether one range contains another is not answered consistently
+      // across semver implementations — so resolve what the manifest declares, which is the
+      // specifier the importer entry will record.
+      supersededByKeptRange.push({ alias, requested: bareSpecifier, kept: prevSpecifier })
+      wantedDependencies.push({ ...wantedDep, bareSpecifier: prevSpecifier })
     }
   }
-  return { wantedDependencies, outsideKeptRange }
-}
-
-/**
- * Whether the requested version satisfies the range the manifest keeps.
- *
- * Only a concrete version can be judged here. Matching a version against a range is exact;
- * deciding whether one *range* is contained by another is not — implementations disagree around
- * prerelease boundaries. So a requested range (`>=6`) or dist tag (`latest`) is left alone: it
- * has no version yet, and the reliable place to judge it is against the version resolution
- * settles on.
- */
-function requestedVersionFitsKeptRange (requested: string, kept: string): boolean {
-  if (semver.valid(requested) == null || semver.validRange(kept) == null) return true
-  return semver.satisfies(requested, kept)
+  return { wantedDependencies, outsideKeptRange, supersededByKeptRange }
 }

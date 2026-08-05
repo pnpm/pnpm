@@ -22,17 +22,18 @@ test('a requested version that the kept range excludes is reported instead of ap
   expect(outsideKeptRange).toStrictEqual([{ alias: 'semver', requested: '7.8.5', kept: '^6.0.0' }])
 })
 
-test('a requested range is not judged against the kept range', () => {
+test('a requested range is superseded by the kept range', () => {
   // Range-against-range containment is not decided consistently across semver implementations,
-  // so a requested range is left to resolution rather than guessed at here.
-  const { wantedDependencies, outsideKeptRange } = parseWantedDependencies(['semver@>=6'], {
+  // so the specifier the importer entry will record is what resolution gets.
+  const { wantedDependencies, outsideKeptRange, supersededByKeptRange } = parseWantedDependencies(['semver@>=6'], {
     ...defaults,
     currentBareSpecifiers: { semver: '^6.0.0' },
     readonlyManifest: true,
   })
 
-  expect(wantedDependencies.map(({ bareSpecifier }) => bareSpecifier)).toStrictEqual(['>=6'])
+  expect(wantedDependencies.map(({ bareSpecifier }) => bareSpecifier)).toStrictEqual(['^6.0.0'])
   expect(outsideKeptRange).toStrictEqual([])
+  expect(supersededByKeptRange).toStrictEqual([{ alias: 'semver', requested: '>=6', kept: '^6.0.0' }])
 })
 
 test('a requested prerelease is judged by the range that admits it', () => {
@@ -58,15 +59,31 @@ test('a requested version inside the kept range is applied', () => {
   expect(outsideKeptRange).toStrictEqual([])
 })
 
-test('specifiers that are not semver ranges are left to resolution', () => {
-  const { wantedDependencies, outsideKeptRange } = parseWantedDependencies(['semver@beta', 'foo@1.0.0'], {
+test('a dist tag, and a kept specifier that is no semver range, are superseded too', () => {
+  const { wantedDependencies, outsideKeptRange, supersededByKeptRange } = parseWantedDependencies(['semver@beta', 'foo@1.0.0'], {
     ...defaults,
     currentBareSpecifiers: { semver: '^6.0.0', foo: 'workspace:*' },
     readonlyManifest: true,
   })
 
-  expect(wantedDependencies.map(({ bareSpecifier }) => bareSpecifier)).toStrictEqual(['beta', '1.0.0'])
+  expect(wantedDependencies.map(({ bareSpecifier }) => bareSpecifier)).toStrictEqual(['^6.0.0', 'workspace:*'])
   expect(outsideKeptRange).toStrictEqual([])
+  expect(supersededByKeptRange).toStrictEqual([
+    { alias: 'semver', requested: 'beta', kept: '^6.0.0' },
+    { alias: 'foo', requested: '1.0.0', kept: 'workspace:*' },
+  ])
+})
+
+test('a selector without a version is honored as-is', () => {
+  const { wantedDependencies, outsideKeptRange, supersededByKeptRange } = parseWantedDependencies(['semver'], {
+    ...defaults,
+    currentBareSpecifiers: { semver: '^6.0.0' },
+    readonlyManifest: true,
+  })
+
+  expect(wantedDependencies.map(({ bareSpecifier }) => bareSpecifier)).toStrictEqual(['^6.0.0'])
+  expect(outsideKeptRange).toStrictEqual([])
+  expect(supersededByKeptRange).toStrictEqual([])
 })
 
 test('a new dependency has no kept range to stay inside of', () => {

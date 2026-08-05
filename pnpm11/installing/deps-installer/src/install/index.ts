@@ -959,9 +959,14 @@ export async function mutateModules (
     | 'dependencySelectors'
     | 'targetDependenciesField'
     | 'update'
+    | 'updateToLatest'
     >
 
     async function installSome (project: InstallSomeProject) {
+      // The manifest keeps its specifiers, so they stay authoritative: whatever resolution settles
+      // on has to satisfy them, or the lockfile importer entry contradicts itself and the next
+      // frozen install rejects it.
+      const readonlyManifest = project.update === true && !project.updatePackageManifest
       const currentBareSpecifiers = opts.ignoreCurrentSpecifiers
         ? {}
         : getAllDependenciesFromManifest(project.manifest, { autoInstallPeers: opts.autoInstallPeers })
@@ -976,7 +981,7 @@ export async function mutateModules (
         }
         preferredSpecs = getAllUniqueSpecs(manifests)
       }
-      const { wantedDependencies: wantedDeps, outsideKeptRange } = parseWantedDependencies(project.dependencySelectors, {
+      const { wantedDependencies: wantedDeps, outsideKeptRange, supersededByKeptRange } = parseWantedDependencies(project.dependencySelectors, {
         allowNew: project.allowNew !== false,
         currentBareSpecifiers,
         defaultTag: opts.tag,
@@ -989,12 +994,28 @@ export async function mutateModules (
         saveCatalogName: opts.saveCatalogName,
         overrides: opts.overrides,
         defaultCatalog: opts.catalogs?.default,
-        readonlyManifest: project.update && !project.updatePackageManifest,
+        readonlyManifest,
       })
 
       for (const { alias, requested, kept } of outsideKeptRange) {
         logger.warn({
           message: `Skipping "${alias}@${requested}": it doesn't satisfy "${kept}", which the manifest keeps when updating without saving.`,
+          prefix: project.rootDir,
+        })
+      }
+      for (const { alias, requested, kept } of supersededByKeptRange) {
+        logger.warn({
+          message: `Ignoring "${alias}@${requested}": the manifest keeps "${kept}" when updating without saving, so "${alias}" was updated within that range instead.`,
+          prefix: project.rootDir,
+        })
+      }
+      // `--latest` reaches past the declared range by design, which a manifest that keeps its
+      // specifiers can't record. Degrade to an in-range update rather than write an entry the
+      // next frozen install would reject.
+      const updateToLatest = project.updateToLatest === true && !readonlyManifest
+      if (project.updateToLatest === true && readonlyManifest) {
+        logger.warn({
+          message: 'Ignoring "--latest": the manifest keeps its version ranges when updating without saving, so dependencies were updated within them instead.',
           prefix: project.rootDir,
         })
       }
@@ -1039,6 +1060,7 @@ export async function mutateModules (
       projectsToInstall.push({
         pruneDirectDependencies: false,
         ...project,
+        updateToLatest,
         wantedDependencies: wantedDeps.map(wantedDep => ({ ...wantedDep, isNew: !currentBareSpecifiers[wantedDep.alias], updateSpec: true })),
       } as ImporterToUpdate)
     }
