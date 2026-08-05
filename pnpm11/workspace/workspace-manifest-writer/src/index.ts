@@ -300,7 +300,7 @@ function removeOutdatedMinimumReleaseAgeExcludes (
     if (survivingVersions.length === exactVersions.length) {
       survivingSpecs.push(entry)
     } else if (survivingVersions.length > 0) {
-      survivingSpecs.push(`${packageName}@${survivingVersions.join(' || ')}`)
+      survivingSpecs.push(...mergePackageVersionSpecs([`${packageName}@${survivingVersions.join(' || ')}`]))
       changed = true
     } else {
       changed = true

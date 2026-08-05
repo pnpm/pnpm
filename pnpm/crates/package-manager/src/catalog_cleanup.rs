@@ -158,15 +158,23 @@ pub(crate) fn cleanup_outdated_minimum_release_age_excludes(
 }
 
 /// Maps every package in the lockfile to its resolved versions.
-/// Packages resolved from a non-semver source (git, tarball, `file:`)
-/// register only their name: their presence can still be confirmed (a
-/// bare-name exclude entry survives), but no exact version can (a
-/// versioned entry is pruned).
+/// A registry-qualified slot (`<name>@<registryName>:<version>`)
+/// registers the version after the prefix — `PkgVerPeer::version_semver`
+/// treats it as opaque for reuse/preference paths, but here the version
+/// within the named registry is exactly what a versioned exclude entry
+/// names. Packages resolved from a non-semver source (git, tarball,
+/// `file:`) register only their name: their presence can still be
+/// confirmed (a bare-name exclude entry survives), but no exact version
+/// can (a versioned entry is pruned).
 fn resolved_package_versions(lockfile: &Lockfile) -> ResolvedPackageVersions {
     let mut resolved = ResolvedPackageVersions::new();
     for key in lockfile.snapshots.iter().flat_map(|snapshots| snapshots.keys()) {
         let versions = resolved.entry(key.name.to_string()).or_default();
-        if let Some(version) = key.suffix.version_semver() {
+        let version = key
+            .suffix
+            .version_semver()
+            .or_else(|| key.suffix.registry_qualified().map(|(_, version)| version));
+        if let Some(version) = version {
             versions.insert(version.to_string());
         }
     }
