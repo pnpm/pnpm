@@ -712,12 +712,12 @@ async fn prepare_manifest<Reporter: self::Reporter>(
                     // An update that doesn't save keeps the manifest's
                     // specifier, and the lockfile importer entry has to keep
                     // satisfying it — a frozen install rejects the lockfile
-                    // otherwise. Only apply the requested specifier when
-                    // every version it allows stays inside the kept range;
-                    // skip the dependency in this project otherwise.
+                    // otherwise. Only apply a requested version that the kept
+                    // range admits; skip the dependency in this project
+                    // otherwise.
                     if !save
                         && let Some(requested) = requested.as_deref()
-                        && !stays_within_kept_range(requested, previous)
+                        && !requested_version_fits_kept_range(requested, previous)
                     {
                         Reporter::emit(&LogEvent::Pnpm(PnpmLog {
                             level: LogLevel::Warn,
@@ -1062,16 +1062,21 @@ fn pick_workspace_version(versions: &WorkspacePackagesByVersion, range: &str) ->
     resolve_workspace_range(range, &versions.keys().cloned().collect::<Vec<_>>())
 }
 
-/// Whether every version the requested specifier allows stays inside the
-/// range the manifest keeps. Specifiers that aren't semver ranges (dist-tags,
-/// `workspace:`, `catalog:`) can't be judged statically and pass through.
-fn stays_within_kept_range(requested: &str, kept: &str) -> bool {
+/// Whether the requested version satisfies the range the manifest keeps.
+///
+/// Only a concrete version can be judged here. Matching a version against a
+/// range is exact; deciding whether one *range* is contained by another is
+/// not — implementations disagree around prerelease boundaries. So a
+/// requested range (`>=6`) or dist tag (`latest`) is left alone: it has no
+/// version yet, and the reliable place to judge it is against the version
+/// resolution settles on.
+fn requested_version_fits_kept_range(requested: &str, kept: &str) -> bool {
     let (Ok(requested), Ok(kept)) =
-        (node_semver::Range::parse(requested), node_semver::Range::parse(kept))
+        (node_semver::Version::parse(requested), node_semver::Range::parse(kept))
     else {
         return true;
     };
-    kept.allows_all(&requested)
+    requested.satisfies(&kept)
 }
 
 /// Compile a single pattern into a matcher. Used to map a matched direct

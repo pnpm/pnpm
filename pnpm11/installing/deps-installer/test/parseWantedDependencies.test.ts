@@ -22,16 +22,28 @@ test('a requested version that the kept range excludes is reported instead of ap
   expect(outsideKeptRange).toStrictEqual([{ alias: 'semver', requested: '7.8.5', kept: '^6.0.0' }])
 })
 
-test('a requested range that merely overlaps the kept range is reported instead of applied', () => {
-  // Resolution would pick a version above `^6.0.0`, which the lockfile importer entry may not record.
+test('a requested range is not judged against the kept range', () => {
+  // Range-against-range containment is not decided consistently across semver implementations,
+  // so a requested range is left to resolution rather than guessed at here.
   const { wantedDependencies, outsideKeptRange } = parseWantedDependencies(['semver@>=6'], {
     ...defaults,
     currentBareSpecifiers: { semver: '^6.0.0' },
     readonlyManifest: true,
   })
 
-  expect(wantedDependencies).toStrictEqual([])
-  expect(outsideKeptRange).toStrictEqual([{ alias: 'semver', requested: '>=6', kept: '^6.0.0' }])
+  expect(wantedDependencies.map(({ bareSpecifier }) => bareSpecifier)).toStrictEqual(['>=6'])
+  expect(outsideKeptRange).toStrictEqual([])
+})
+
+test('a requested prerelease is judged by the range that admits it', () => {
+  const { wantedDependencies, outsideKeptRange } = parseWantedDependencies(['semver@2.0.0-beta.1'], {
+    ...defaults,
+    currentBareSpecifiers: { semver: '^2.0.0-0' },
+    readonlyManifest: true,
+  })
+
+  expect(wantedDependencies.map(({ bareSpecifier }) => bareSpecifier)).toStrictEqual(['2.0.0-beta.1'])
+  expect(outsideKeptRange).toStrictEqual([])
 })
 
 test('a requested version inside the kept range is applied', () => {

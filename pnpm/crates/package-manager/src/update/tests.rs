@@ -1,6 +1,6 @@
 use super::{
     is_workspace_local_path_specifier, parse_update_param, persist_selected_manifests,
-    prepare_selected_manifests, selected_project_indices, stays_within_kept_range,
+    prepare_selected_manifests, requested_version_fits_kept_range, selected_project_indices,
 };
 use pacquet_config::{CatalogMode, Config};
 use pacquet_network::ThrottledClient;
@@ -426,21 +426,23 @@ fn saved_dependency_specifier(manifest: &PackageManifest) -> String {
 
 #[test]
 fn requested_version_outside_the_kept_range_is_rejected() {
-    assert!(!stays_within_kept_range("7.8.5", "^6.0.0"));
-    assert!(!stays_within_kept_range("^7.0.0", "^6.0.0"));
-    // Overlapping is not enough: ">=6" also allows versions above the
-    // kept range, and resolution would pick one of them.
-    assert!(!stays_within_kept_range(">=6", "^6.0.0"));
+    assert!(!requested_version_fits_kept_range("7.8.5", "^6.0.0"));
+    assert!(!requested_version_fits_kept_range("2.0.0-beta.1", "^2.0.0"));
 }
 
 #[test]
 fn requested_version_inside_the_kept_range_is_applied() {
-    assert!(stays_within_kept_range("6.3.0", "^6.0.0"));
-    assert!(stays_within_kept_range("~6.3.0", "^6.0.0"));
+    assert!(requested_version_fits_kept_range("6.3.0", "^6.0.0"));
+    // A range that admits prereleases admits this one.
+    assert!(requested_version_fits_kept_range("2.0.0-beta.1", "^2.0.0-0"));
 }
 
 #[test]
-fn non_semver_specifiers_pass_through_the_kept_range_gate() {
-    assert!(stays_within_kept_range("beta", "^6.0.0"));
-    assert!(stays_within_kept_range("6.3.0", "workspace:*"));
+fn only_a_requested_version_is_judged_against_the_kept_range() {
+    // Range-against-range containment is not decided consistently across
+    // semver implementations, so a requested range is left to resolution.
+    assert!(requested_version_fits_kept_range(">=6", "^6.0.0"));
+    assert!(requested_version_fits_kept_range("^7.0.0", "^6.0.0"));
+    assert!(requested_version_fits_kept_range("beta", "^6.0.0"));
+    assert!(requested_version_fits_kept_range("6.3.0", "workspace:*"));
 }

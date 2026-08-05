@@ -13,7 +13,7 @@ export interface SelectorOutsideKeptRange {
 export interface ParsedWantedDependencies {
   wantedDependencies: WantedDependency[]
   /**
-   * The selectors that were dropped because the version they request reaches outside the range
+   * The selectors that were dropped because the version they request doesn't satisfy the range
    * the manifest keeps. Only ever non-empty under `readonlyManifest`.
    */
   outsideKeptRange: SelectorOutsideKeptRange[]
@@ -35,8 +35,8 @@ export function parseWantedDependencies (
     saveCatalogName?: string
     defaultCatalog?: Catalog
     /**
-     * The manifest keeps its specifiers, so a requested specifier is applied only when it
-     * narrows the declared one — the lockfile importer entry has to keep satisfying it.
+     * The manifest keeps its specifiers, so a requested version is applied only when it satisfies
+     * the declared one — the lockfile importer entry has to keep satisfying its own specifier.
      */
     readonlyManifest?: boolean
   }
@@ -99,7 +99,7 @@ export function parseWantedDependencies (
   const outsideKeptRange: SelectorOutsideKeptRange[] = []
   for (const wantedDep of wantedDeps) {
     const { alias, bareSpecifier, prevSpecifier } = wantedDep
-    if (!prevSpecifier || staysWithinKeptRange(bareSpecifier, prevSpecifier)) {
+    if (!prevSpecifier || requestedVersionFitsKeptRange(bareSpecifier, prevSpecifier)) {
       wantedDependencies.push(wantedDep)
     } else {
       outsideKeptRange.push({ alias, requested: bareSpecifier, kept: prevSpecifier })
@@ -109,13 +109,15 @@ export function parseWantedDependencies (
 }
 
 /**
- * Whether every version the requested specifier allows stays inside the range the manifest keeps.
+ * Whether the requested version satisfies the range the manifest keeps.
  *
- * Overlapping is not enough: a requested `>=6` also allows versions above a kept `^6.0.0`, and
- * resolution would pick one of them. Specifiers that aren't semver ranges (dist tags,
- * `workspace:`, `catalog:`) can't be judged statically and are left to resolution.
+ * Only a concrete version can be judged here. Matching a version against a range is exact;
+ * deciding whether one *range* is contained by another is not — implementations disagree around
+ * prerelease boundaries. So a requested range (`>=6`) or dist tag (`latest`) is left alone: it
+ * has no version yet, and the reliable place to judge it is against the version resolution
+ * settles on.
  */
-function staysWithinKeptRange (requested: string, kept: string): boolean {
-  if (semver.validRange(requested) == null || semver.validRange(kept) == null) return true
-  return semver.subset(requested, kept)
+function requestedVersionFitsKeptRange (requested: string, kept: string): boolean {
+  if (semver.valid(requested) == null || semver.validRange(kept) == null) return true
+  return semver.satisfies(requested, kept)
 }
