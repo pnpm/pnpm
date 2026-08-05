@@ -160,7 +160,7 @@ fn remove_with_only_negated_dependency_patterns_is_a_no_op() {
 
     assert_eq!(
         expand_remove_patterns(&manifest, &strings(&["!does-not-exist"]), None),
-        Vec::<String>::new()
+        Vec::<String>::new(),
     );
 }
 
