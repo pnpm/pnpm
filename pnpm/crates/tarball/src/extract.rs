@@ -1,9 +1,8 @@
 //! Tarball decompression and entry extraction into the CAS.
 
 use super::{
-    Component, Cursor, HashMap, IgnoreEntryFilter, IntoParallelRefIterator,
-    MAX_UNTRUSTED_PREALLOC_BYTES, ParallelIterator, PathBuf, TarballError, UNIX_EPOCH,
-    cas_write_pool,
+    Cursor, HashMap, IgnoreEntryFilter, IntoParallelRefIterator, MAX_UNTRUSTED_PREALLOC_BYTES,
+    ParallelIterator, PathBuf, TarballError, UNIX_EPOCH, cas_write_pool,
 };
 use pacquet_fs::file_mode;
 use pacquet_package_manifest::{
@@ -336,18 +335,16 @@ pub(crate) fn extract_tarball_entries(
         // always-forward-slashed path layer and the `index.db` both
         // implementations share. `to_string_lossy` coerces non-UTF-8
         // bytes to U+FFFD per component.
-        let mut parts: Vec<String> = Vec::new();
-        for component in entry_path.components().skip(1) {
-            let Component::Normal(part) = component else {
-                return Err(TarballError::ReadTarballEntries(std::io::Error::new(
-                    std::io::ErrorKind::InvalidData,
-                    format!(
-                        "tar entry path rejected (non-normal component, possible directory traversal): {entry_path:?}",
-                    ),
-                )));
-            };
-            parts.push(part.to_string_lossy().into_owned());
-        }
+        let Some(mut parts) = archive_entry_segments(&entry_path.to_string_lossy()) else {
+            return Err(TarballError::ReadTarballEntries(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!(
+                    "tar entry path rejected (non-normal component, possible directory traversal): {entry_path:?}",
+                ),
+            )));
+        };
+        // Drop the top-level package directory (`package/`).
+        parts.remove(0);
         if parts.is_empty() {
             return Err(TarballError::ReadTarballEntries(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
@@ -496,4 +493,31 @@ pub(crate) fn tar_entry_payload<'a, Reader: std::io::Read>(
             "tar entry payload extends beyond archive",
         ))
     })
+}
+
+/// Split a published archive entry's path into its segments, rejecting
+/// anything that escapes the archive root.
+///
+/// `\` is treated as a separator, as pnpm does before it validates
+/// (`parseTarball.ts`). Without that, a Windows-built entry keeps its
+/// backslashes verbatim on Unix — where they are ordinary filename
+/// characters — and the resulting key travels through the `index.db`
+/// both implementations share to a reader that *does* treat them as
+/// separators.
+///
+/// `None` for an absolute path or one climbing past the root.
+pub(crate) fn archive_entry_segments(raw: &str) -> Option<Vec<String>> {
+    let normalized = raw.replace('\\', "/");
+    if normalized.starts_with('/') {
+        return None;
+    }
+    let mut segments = Vec::new();
+    for segment in normalized.split('/') {
+        match segment {
+            "" | "." => {}
+            ".." => return None,
+            other => segments.push(other.to_string()),
+        }
+    }
+    (!segments.is_empty()).then_some(segments)
 }

@@ -3904,3 +3904,67 @@ fn extract_keeps_only_regular_file_entries() {
 
     drop(tempdir);
 }
+
+/// Build a tar carrying one entry whose raw header name is `name`,
+/// bypassing `set_path`'s own validation so hostile names can be tested.
+fn tar_with_raw_entry_name(name: &[u8]) -> Vec<u8> {
+    let mut tar_bytes = Vec::new();
+    let mut builder = tar::Builder::new(&mut tar_bytes);
+    let mut header = tar::Header::new_gnu();
+    header.set_size(5);
+    header.set_mode(0o644);
+    header.set_entry_type(tar::EntryType::Regular);
+    let raw = header.as_mut_bytes();
+    raw[..name.len()].copy_from_slice(name);
+    for byte in &mut raw[name.len()..100] {
+        *byte = 0;
+    }
+    header.set_cksum();
+    builder.append(&header, &b"bytes"[..]).expect("append entry");
+    builder.finish().expect("finalize tar");
+    drop(builder);
+    tar_bytes
+}
+
+/// A backslash is an ordinary filename character on Unix but a
+/// separator on Windows, and these keys travel between the two through
+/// the shared `index.db`. pnpm folds `\` to `/` before validating
+/// (`parseTarball.ts`), so a traversal spelled with backslashes has to
+/// be caught here too rather than stored verbatim.
+#[test]
+fn extract_rejects_backslash_traversal_in_entry_path() {
+    let (tempdir, store_path) = tempdir_with_leaked_path();
+
+    let tar_bytes = tar_with_raw_entry_name(br"package/..\..\evil.txt");
+    let err = extract_tarball_entries(&tar_bytes, store_path, None)
+        .expect_err("a backslash-spelled traversal must be rejected");
+
+    match err {
+        TarballError::ReadTarballEntries(io_err) => {
+            assert_eq!(io_err.kind(), std::io::ErrorKind::InvalidData);
+        }
+        other => panic!("expected a rejected tar entry, got {other:?}"),
+    }
+
+    drop(tempdir);
+}
+
+/// Folding `\` to `/` must not reject the benign case: an archive built
+/// by Windows tooling that spells a nested path with backslashes
+/// installs under pnpm, so it installs here, under the same key.
+#[test]
+fn extract_reads_a_windows_separator_entry_as_a_nested_path() {
+    let (tempdir, store_path) = tempdir_with_leaked_path();
+
+    let tar_bytes = tar_with_raw_entry_name(br"package/bin\tool.js");
+    let (cas_paths, _) =
+        extract_tarball_entries(&tar_bytes, store_path, None).expect("extract the tarball");
+
+    assert!(
+        cas_paths.contains_key("bin/tool.js"),
+        "a backslash separator must resolve to the same key as `/`, got {:?}",
+        cas_paths.keys().collect::<Vec<_>>(),
+    );
+
+    drop(tempdir);
+}
