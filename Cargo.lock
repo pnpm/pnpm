@@ -3998,6 +3998,7 @@ dependencies = [
  "indexmap 2.14.0",
  "insta",
  "is_ci",
+ "itertools 0.15.0",
  "libc",
  "miette 7.6.0",
  "mockito",

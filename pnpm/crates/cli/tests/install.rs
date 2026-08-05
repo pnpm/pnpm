@@ -1916,3 +1916,36 @@ fn an_unmigrated_package_json_pnpm_field_is_not_reported() {
 
     drop(root);
 }
+
+/// The reader names every skipped setting the manifest carries, in the
+/// spelling the file used — that spelling is what `pnpm config delete`
+/// has to be given to clear it.
+#[test]
+fn settings_a_project_manifest_cannot_set_are_named() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "configDir: /tmp/attacker\npnpm-home-dir: /tmp/attacker\nstoreDir: ~/store\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "root", "version": "1.0.0", "private": true }).to_string(),
+    )
+    .expect("write package.json");
+
+    let assert = pacquet.with_args(["install", "--lockfile-only"]).assert().success();
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr).into_owned();
+
+    eprintln!("STDERR:\n{stderr}");
+    assert!(
+        stderr.contains(r#"were ignored: "configDir", "pnpm-home-dir"."#),
+        "both spellings must be named, in the file's order; got:\n{stderr}",
+    );
+    assert!(
+        !stderr.contains("storeDir"),
+        "a setting the project owns must not be named; got:\n{stderr}",
+    );
+
+    drop(root);
+}

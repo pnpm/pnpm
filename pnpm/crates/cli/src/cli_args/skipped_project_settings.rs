@@ -5,6 +5,7 @@
 //! silently ignored.
 
 use super::config_warnings::emit_config_warning;
+use itertools::Itertools;
 use pacquet_config::skipped_project_settings;
 use std::path::Path;
 
@@ -16,7 +17,7 @@ pub(crate) fn warn_skipped_project_settings(workspace_dir: &Path) {
     if ignored.is_empty() {
         return;
     }
-    let keys = ignored.iter().map(|key| format!("{key:?}")).collect::<Vec<_>>().join(", ");
+    let keys = ignored.iter().format_with(", ", |key, fmt| fmt(&format_args!("{key:?}")));
     emit_config_warning(&format!(
         "The following settings cannot be set in a project's pnpm-workspace.yaml \
          and were ignored: {keys}.",
