@@ -707,6 +707,8 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // `Vec<DependencyGroup>` is at most a few enum variants so the
         // clone cost is negligible.
         let dependency_groups: Vec<DependencyGroup> = dependency_groups.into_iter().collect();
+        let include_transitive_optional_dependencies =
+            include_transitive_optional_dependencies(is_full_install, &dependency_groups);
 
         let store_dir: &'static _ = &config.store_dir;
 
@@ -1307,8 +1309,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                     // every direct group (`add`, `remove`, `update`) or
                     // narrows them for its own reasons (`fetch --dev`,
                     // `rebuild`) and must keep its transitive optionals.
-                    exclude_optional: is_full_install
-                        && !dependency_groups.contains(&DependencyGroup::Optional),
+                    exclude_optional: !include_transitive_optional_dependencies,
                     skip_runtimes,
                     closure_lockfile: &built_lockfile,
                     closure_root: lockfile_dir,
@@ -1377,7 +1378,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             store_index_writer: &store_index_writer,
             allow_build_policy: &allow_build_policy,
             skipped: &skipped,
-            include_optional_dependencies: dependency_groups.contains(&DependencyGroup::Optional),
+            include_optional_dependencies: include_transitive_optional_dependencies,
             supported_architectures,
             workspace_root: lockfile_dir,
             node_linker,
@@ -1606,6 +1607,13 @@ fn is_partial_workspace_selection(
         (real_importer_ids, selected_importer_ids),
         (Some(real), Some(selected)) if real != selected,
     )
+}
+
+fn include_transitive_optional_dependencies(
+    is_full_install: bool,
+    dependency_groups: &[DependencyGroup],
+) -> bool {
+    !is_full_install || dependency_groups.contains(&DependencyGroup::Optional)
 }
 
 /// Walk the merged resolver graph and emit the `{integrity}\t{pkg_id}`
