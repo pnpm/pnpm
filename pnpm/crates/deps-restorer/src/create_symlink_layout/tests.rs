@@ -275,3 +275,79 @@ fn rejects_traversal_dependency_alias() {
     let linked = fs::read_dir(&virtual_node_modules_dir).unwrap().count();
     assert_eq!(linked, 0);
 }
+
+/// A `link:` dependency has no slot of its own, so the link inside the
+/// consumer's slot has to point at the directory the lockfile names,
+/// resolved against the lockfile dir.
+///
+/// Without this the dependency is absent from the slot entirely. That
+/// stays invisible while the slot sits under the importer's
+/// `node_modules` — Node's upward walk reaches the importer's own copy
+/// of the link — and breaks the moment the global virtual store moves
+/// the slot into the shared store, where no such walk exists.
+#[test]
+fn links_a_link_dep_to_its_target_outside_the_store() {
+    let tmp = tempdir().expect("tempdir");
+    let lockfile_dir = tmp.path().join("proj");
+    let link_target = tmp.path().join("sibling");
+    fs::create_dir_all(&lockfile_dir).unwrap();
+    fs::create_dir_all(&link_target).unwrap();
+
+    let layout = VirtualStoreLayout::legacy(
+        tmp.path().to_path_buf(),
+        pacquet_config::default_virtual_store_dir_max_length() as usize,
+    )
+    .with_lockfile_dir(&lockfile_dir);
+
+    let mut deps: HashMap<PkgName, SnapshotDepRef> = HashMap::new();
+    deps.insert(pkg_name("linked"), dep_ref("link:../sibling"));
+
+    let virtual_node_modules_dir = tmp.path().join("self/node_modules");
+    fs::create_dir_all(&virtual_node_modules_dir).unwrap();
+
+    create_symlink_layout(
+        Some(&deps),
+        None,
+        &pkg_name("self"),
+        &SkippedSnapshots::default(),
+        &layout,
+        &virtual_node_modules_dir,
+    )
+    .expect("link dep must be materialized");
+
+    let symlink_path = virtual_node_modules_dir.join("linked");
+    let resolved = fs::canonicalize(&symlink_path)
+        .unwrap_or_else(|err| panic!("canonicalize {symlink_path:?}: {err}"));
+    assert_eq!(resolved, fs::canonicalize(&link_target).unwrap());
+}
+
+/// Without a lockfile directory there is nothing to resolve the
+/// lockfile-relative target against, so the link is left alone rather
+/// than guessed at — the pre-existing behaviour for every caller that
+/// builds a layout with no lockfile context.
+#[test]
+fn skips_a_link_dep_when_no_lockfile_dir_is_known() {
+    let tmp = tempdir().expect("tempdir");
+    let layout = VirtualStoreLayout::legacy(
+        tmp.path().to_path_buf(),
+        pacquet_config::default_virtual_store_dir_max_length() as usize,
+    );
+
+    let mut deps: HashMap<PkgName, SnapshotDepRef> = HashMap::new();
+    deps.insert(pkg_name("linked"), dep_ref("link:../sibling"));
+
+    let virtual_node_modules_dir = tmp.path().join("self/node_modules");
+    fs::create_dir_all(&virtual_node_modules_dir).unwrap();
+
+    create_symlink_layout(
+        Some(&deps),
+        None,
+        &pkg_name("self"),
+        &SkippedSnapshots::default(),
+        &layout,
+        &virtual_node_modules_dir,
+    )
+    .expect("no lockfile dir is not an error");
+
+    assert_eq!(fs::read_dir(&virtual_node_modules_dir).unwrap().count(), 0);
+}

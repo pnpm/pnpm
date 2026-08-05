@@ -89,6 +89,14 @@ pub struct VirtualStoreLayout {
     ///
     /// [`PkgNameVerPeer::to_virtual_store_name`]: pacquet_lockfile::PkgNameVerPeer::to_virtual_store_name
     virtual_store_dir_max_length: usize,
+
+    /// Directory the lockfile's relative paths resolve against.
+    /// [`crate::create_symlink_layout`] needs it to point a `link:`
+    /// dependency's symlink at the directory the lockfile names, which
+    /// it records relative to this root. `None` when the caller has no
+    /// lockfile context, in which case `link:` dependencies inside a
+    /// slot are left unlinked exactly as before.
+    lockfile_dir: Option<PathBuf>,
 }
 
 impl VirtualStoreLayout {
@@ -105,7 +113,23 @@ impl VirtualStoreLayout {
             package_store_dir: root.into(),
             gvs_suffixes: None,
             virtual_store_dir_max_length,
+            lockfile_dir: None,
         }
+    }
+
+    /// Directory the lockfile's relative paths resolve against, when
+    /// the caller supplied one to [`Self::new`].
+    #[must_use]
+    pub fn lockfile_dir(&self) -> Option<&Path> {
+        self.lockfile_dir.as_deref()
+    }
+
+    /// Attach a lockfile directory to a layout built by
+    /// [`Self::legacy`], which has no lockfile context of its own.
+    #[cfg(test)]
+    pub(crate) fn with_lockfile_dir(mut self, lockfile_dir: impl Into<PathBuf>) -> Self {
+        self.lockfile_dir = Some(lockfile_dir.into());
+        self
     }
 
     /// Build the layout for one install. Reads
@@ -189,6 +213,7 @@ impl VirtualStoreLayout {
                 package_store_dir,
                 gvs_suffixes: None,
                 virtual_store_dir_max_length,
+                lockfile_dir: lockfile_dir.map(Path::to_path_buf),
             };
         }
         let Some(snapshots) = snapshots else {
@@ -196,6 +221,7 @@ impl VirtualStoreLayout {
                 package_store_dir,
                 gvs_suffixes: Some(HashMap::new()),
                 virtual_store_dir_max_length,
+                lockfile_dir: lockfile_dir.map(Path::to_path_buf),
             };
         };
         let graph = lockfile_to_dep_graph(snapshots, packages);
@@ -243,8 +269,17 @@ impl VirtualStoreLayout {
             let snapshot_engine = own_engine.as_deref().or(engine);
             let metadata_key = snapshot_key.without_peer();
             let metadata = packages.and_then(|map| map.get(&metadata_key));
-            let project =
+            let directory_scope =
                 local_directory_scope(metadata, &metadata_key.suffix, project_scope.as_deref());
+            // A snapshot already scoped as a local directory needs no
+            // second scope — it is per-project either way — so compute
+            // the link scope only when the directory one didn't apply,
+            // which also keeps every existing slot's hash unchanged.
+            let link_scope = match directory_scope {
+                Some(_) => None,
+                None => link_target_scope(snapshot, lockfile_dir),
+            };
+            let project = directory_scope.or(link_scope.as_deref());
             let hex_digest = calc_graph_node_hash(
                 &graph,
                 &mut cache,
@@ -263,6 +298,7 @@ impl VirtualStoreLayout {
             package_store_dir,
             gvs_suffixes: Some(gvs_suffixes),
             virtual_store_dir_max_length,
+            lockfile_dir: lockfile_dir.map(Path::to_path_buf),
         }
     }
 
@@ -494,6 +530,48 @@ fn local_directory_scope<'a>(
     lockfile_dir: Option<&'a str>,
 ) -> Option<&'a str> {
     is_local_directory(metadata, suffix).then_some(lockfile_dir).flatten()
+}
+
+/// Extra hash input that keeps a snapshot holding a `link:` dependency
+/// off a slot shared with projects that resolve that dependency to a
+/// different directory.
+///
+/// A `link:` dependency is the one child materialized as a symlink
+/// *out* of the virtual store (see [`crate::create_symlink_layout`]),
+/// so unlike every other child it makes the slot's contents depend on
+/// where the lockfile's relative target lands. The peer suffix that
+/// carries the link into the dep path — `(react@fake-react)` — is
+/// deliberately excluded from the GVS hash, which is what otherwise
+/// collapses two projects linking *different* directories onto one
+/// slot and hands both whichever symlink was written first.
+///
+/// Scoping by the resolved targets rather than by the project keeps the
+/// slot shared between projects that link the *same* directory, which
+/// is the case that matters for a toolchain linked into many
+/// workspaces.
+fn link_target_scope(snapshot: &SnapshotEntry, lockfile_dir: Option<&Path>) -> Option<String> {
+    let lockfile_dir = lockfile_dir?;
+    let mut targets: Vec<String> = snapshot
+        .dependencies
+        .iter()
+        .chain(snapshot.optional_dependencies.iter())
+        .flatten()
+        .filter_map(|(alias, dep_ref)| {
+            let target = dep_ref.as_link_target()?;
+            let resolved = pacquet_fs::lexical_normalize(&lockfile_dir.join(target));
+            // The alias is the symlink's *name* inside the slot, so two
+            // snapshots pointing one directory at different aliases lay
+            // out differently and must not share a slot either.
+            Some(format!("{alias}\u{0}{}", resolved.to_string_lossy()))
+        })
+        .collect();
+    if targets.is_empty() {
+        return None;
+    }
+    // Lockfile dependency maps are `HashMap`s, so sort for a stable
+    // digest across runs.
+    targets.sort_unstable();
+    Some(targets.join("\u{0}"))
 }
 
 /// Build the dependency graph from the lockfile's `snapshots` /

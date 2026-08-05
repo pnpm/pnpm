@@ -1267,3 +1267,69 @@ fn repeat_installs_reuse_the_slots_of_circular_dependencies() {
 
     drop((root, mock_instance));
 }
+
+/// A `link:` dependency inside a slot has to be materialized as a
+/// symlink to the directory the lockfile names.
+///
+/// The dependency is a peer resolved by a workspace sibling, so the
+/// lockfile records `@pnpm.e2e/peer-a: link:packages/peer-a` on the
+/// `@pnpm.e2e/abc` snapshot (see the `exclude_links_from_lockfile`
+/// suite for the resolution half). Nothing used to create that link:
+/// project-locally the omission is invisible, because the slot sits
+/// under the importer's `node_modules` and Node's upward walk finds the
+/// importer's own copy of the peer. A GVS slot lives in the shared
+/// store where no such walk exists, so without the link the peer is
+/// simply missing from the package that declared it.
+#[test]
+fn link_dep_in_a_slot_is_symlinked_to_its_target() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+
+    set_gvs_workspace_yaml(&workspace, "packages:\n  - 'packages/*'\n");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "ws-root", "version": "0.0.0", "private": true }).to_string(),
+    )
+    .expect("write root package.json");
+
+    let write_project = |relative_dir: &str, manifest: &serde_json::Value| {
+        let project_dir = workspace.join(relative_dir);
+        fs::create_dir_all(&project_dir).expect("create project directory");
+        fs::write(project_dir.join("package.json"), manifest.to_string())
+            .expect("write project manifest");
+    };
+    write_project(
+        "packages/app",
+        &serde_json::json!({
+            "name": "app",
+            "version": "1.0.0",
+            "dependencies": {
+                "@pnpm.e2e/abc": "1.0.0",
+                "@pnpm.e2e/peer-a": "workspace:*",
+                "@pnpm.e2e/peer-b": "1.0.0",
+                "@pnpm.e2e/peer-c": "1.0.0",
+            },
+        }),
+    );
+    write_project(
+        "packages/peer-a",
+        &serde_json::json!({ "name": "@pnpm.e2e/peer-a", "version": "1.0.0" }),
+    );
+
+    pacquet(&workspace).with_arg("install").assert().success();
+
+    let hash_dir = sole_hash_dir(&pkg_version_dir(&store_dir, "@pnpm.e2e/abc", "1.0.0"));
+    let linked_peer = pkg_in_slot(&hash_dir, "@pnpm.e2e/peer-a");
+    assert!(
+        is_symlink_or_junction(&linked_peer).unwrap_or(false),
+        "the linked peer must be materialized inside the slot at {linked_peer:?}",
+    );
+    assert_eq!(
+        fs::canonicalize(&linked_peer).expect("resolve the linked peer"),
+        fs::canonicalize(workspace.join("packages/peer-a")).expect("resolve the link target"),
+        "the slot's link must point at the workspace package the lockfile names",
+    );
+
+    drop((root, mock_instance));
+}
