@@ -382,7 +382,11 @@ export async function recursive (
   const allIgnoredBuilds = new Set<DepPath>()
   // Each per-project install resolves its own lockfile; the cleanup pass
   // treats a name/version as live when any project's lockfile resolved it.
+  // When no install returned a lockfile (e.g. every install was frozen),
+  // `undefined` — not an empty map — must reach the writer, or the cleanup
+  // pass would read "no packages resolved" and prune every exclusion.
   const allResolvedPackageVersions = new Map<string, Set<string>>()
+  let hasNewLockfile = false
   // Each per-project install returns its own slice of lockfile-resolution
   // violations; accumulate them here so the post-loop persist step can
   // dedup and write a single batch to the workspace manifest.
@@ -509,6 +513,7 @@ export async function recursive (
           }
         }
         if (opts.cleanupOutdatedMinimumReleaseAgeExcludes && newLockfile != null) {
+          hasNewLockfile = true
           mergeResolvedPackageVersions(allResolvedPackageVersions, newLockfile)
         }
         if (resolutionPolicyViolations?.length) {
@@ -545,7 +550,7 @@ export async function recursive (
       updatedCatalogs,
       cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
       cleanupOutdatedMinimumReleaseAgeExcludes: opts.cleanupOutdatedMinimumReleaseAgeExcludes,
-      resolvedPackageVersions: opts.cleanupOutdatedMinimumReleaseAgeExcludes ? allResolvedPackageVersions : undefined,
+      resolvedPackageVersions: hasNewLockfile ? allResolvedPackageVersions : undefined,
       allProjects,
       ...policyHandlers?.pickManifestUpdates(allResolutionPolicyViolations),
     })

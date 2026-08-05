@@ -57,6 +57,21 @@ test('rewrite a multi-version entry keeping only the resolved versions', async (
   })
 })
 
+test('rewrite a narrowed union in canonical semver order', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+  writeYamlFileSync(filePath, {
+    minimumReleaseAgeExclude: ['foo@3.0.0 || 1.0.0 || 2.0.0'],
+  })
+  await updateWorkspaceManifest(dir, {
+    cleanupOutdatedMinimumReleaseAgeExcludes: true,
+    resolvedPackageVersions: resolvedPackageVersions({ foo: ['3.0.0', '1.0.0'] }),
+  })
+  expect(readYamlFileSync(filePath)).toStrictEqual({
+    minimumReleaseAgeExclude: ['foo@1.0.0 || 3.0.0'],
+  })
+})
+
 test('remove a bare-name entry whose package is absent, keep one whose package is present', async () => {
   const dir = tempDir(false)
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
