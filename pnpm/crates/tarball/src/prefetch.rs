@@ -75,35 +75,16 @@ pub struct PrefetchResult {
     pub requires_build: PrefetchedRequiresBuild,
 }
 
-/// Batch the entire warm-cache lookup phase into one `spawn_blocking`
-/// task at install start: collect every row the lockfile is going to
-/// ask about under a single `index.lock()` round-trip, drop the lock,
-/// then run the per-package integrity checks unlocked. Returns a
-/// `cache_key → Arc<cas_paths>` map the per-snapshot futures can hit
-/// synchronously.
+/// Resolve the whole install's warm-cache lookups up front, returning a
+/// `cache_key → Arc<cas_paths>` map the per-snapshot futures hit
+/// synchronously. Keys with no row, an undecodable row, or a failed
+/// integrity check are absent, and fall through to their per-snapshot
+/// lookup.
 ///
-/// **Locking shape (see [#292]):** the `SQLite` mutex
-/// is held only for the SELECT loop. Integrity checks (`fs::metadata`
-/// per file, optional re-hash) happen after the guard drops, so a
-/// concurrent reader on the same `SharedReadonlyStoreIndex` doesn't
-/// have to wait through the whole batch's filesystem work.
-///
-/// **Why one batched task instead of 1352 `spawn_blockings`:** the
-/// per-snapshot path fans out one `tokio::task::spawn_blocking` per
-/// snapshot. With 1352 snapshots all firing into the default
-/// 512-thread blocking pool, threads compete for CPU and get
-/// preempted between fs ops — sample-profiling showed cache-lookup
-/// bodies averaging 20-60 ms each (sum 26-82 s) almost entirely
-/// blocked, even though the actual SELECT (≈40 µs) and per-file
-/// integrity stats (≈ms each) shouldn't take that long. Doing the
-/// whole batch on one thread avoids the OS-scheduler / kernel-journal
-/// thrash and makes each query fast in CPU-time. Pnpm's piscina pool
-/// achieves the same shape implicitly with 4 dedicated workers.
-///
-/// Cache misses (no row, malformed row, integrity-check failure)
-/// just don't appear in the result. The caller then falls through
-/// to [`crate::download::DownloadTarballToStore::run_without_mem_cache`] for those
-/// keys, which still has its own cache check as a backstop.
+/// Runs as one `spawn_blocking` rather than one per snapshot: at ~1.3k
+/// snapshots the default 512-thread blocking pool spends its time
+/// descheduling rather than working, and profiling put lookup bodies at
+/// 20-60 ms apiece against a ≈40 µs query. See [#292].
 ///
 /// [#292]: https://github.com/pnpm/pacquet/pull/292
 pub async fn prefetch_cas_paths(
@@ -118,40 +99,8 @@ pub async fn prefetch_cas_paths(
         return PrefetchResult::default();
     }
     let result = tokio::task::spawn_blocking(move || -> PrefetchResult {
-        // Phase 1: read every row's *raw bytes* under the mutex.
-        // Splitting raw-read from decode means the
-        // `SharedReadonlyStoreIndex` lock is held only for the
-        // SELECT loop, not for the per-row msgpackr decode — which
-        // is the dominant CPU cost once rows carry a `manifest`
-        // field (transcode + `rmp_serde::from_slice` of a nested
-        // JSON tree per row, times ~1k rows on a real lockfile).
-        // Doing the decode after the guard drops lets it fan out
-        // across rayon below.
-        //
-        // One batched `SELECT ... WHERE key IN (?, ?, ...)` per
-        // `GET_MANY_CHUNK` (see `StoreIndex::get_many_raw`) costs one
-        // round-trip per chunk rather than one per key, which is what
-        // keeps a cold cache — where every key misses — affordable:
-        // <https://github.com/pnpm/pacquet/issues/294>.
-        let raw: Vec<(String, Vec<u8>)> = {
-            let Ok(guard) = index.lock() else {
-                tracing::debug!(
-                    target: "pacquet::download",
-                    "store-index mutex poisoned at prefetch start; falling back to per-snapshot lookups",
-                );
-                return PrefetchResult::default();
-            };
-            match guard.get_many_raw(&cache_keys) {
-                Ok(rows) => rows,
-                Err(error) => {
-                    tracing::debug!(
-                        target: "pacquet::download",
-                        ?error,
-                        "store-index batched read failed at prefetch start; falling back to per-snapshot lookups",
-                    );
-                    return PrefetchResult::default();
-                }
-            }
+        let Some(raw) = read_raw_rows_under_lock(&index, &cache_keys) else {
+            return PrefetchResult::default();
         };
         // Phase 2: decode each row's msgpackr-records bytes into a
         // `PackageFilesIndex`, then run the integrity check. Both
@@ -169,18 +118,19 @@ pub async fn prefetch_cas_paths(
         let decoded: Vec<DecodedPrefetchRow> = raw
             .into_par_iter()
             .filter_map(|(cache_key, bytes)| {
-                let mut entry: PackageFilesIndex = match pacquet_store_dir::decode_package_files_index(&bytes) {
-                    Ok(entry) => entry,
-                    Err(error) => {
-                        tracing::debug!(
-                            target: "pacquet::download",
-                            ?cache_key,
-                            ?error,
-                            "skipping undecodable package_index row at prefetch",
-                        );
-                        return None;
-                    }
-                };
+                let mut entry: PackageFilesIndex =
+                    match pacquet_store_dir::decode_package_files_index(&bytes) {
+                        Ok(entry) => entry,
+                        Err(error) => {
+                            tracing::debug!(
+                                target: "pacquet::download",
+                                ?cache_key,
+                                ?error,
+                                "skipping undecodable package_index row at prefetch",
+                            );
+                            return None;
+                        }
+                    };
                 let stored_requires_build = entry.requires_build;
                 let manifest = entry.manifest.take().map(Arc::new);
                 let verify_result = if verify_store_integrity {
@@ -324,4 +274,39 @@ pub(crate) async fn load_cached_cas_paths(
             None
         }
     }
+}
+
+/// Read every requested row's undecoded bytes, holding the store-index
+/// mutex for the `SELECT` loop alone.
+///
+/// Decoding is the dominant cost once rows carry a `manifest` — a
+/// nested JSON tree per row, across ~1k rows on a real lockfile — so it
+/// stays outside the guard, leaving concurrent readers to wait only on
+/// the queries. `get_many_raw` batches those into one round-trip per
+/// `GET_MANY_CHUNK` rather than one per key, which is what makes a
+/// cold cache affordable: <https://github.com/pnpm/pacquet/issues/294>.
+///
+/// `None` means the prefetch cannot proceed and every key should fall
+/// through to its per-snapshot lookup.
+fn read_raw_rows_under_lock(
+    index: &SharedReadonlyStoreIndex,
+    cache_keys: &[String],
+) -> Option<Vec<(String, Vec<u8>)>> {
+    let Ok(guard) = index.lock() else {
+        tracing::debug!(
+            target: "pacquet::download",
+            "store-index mutex poisoned at prefetch start; falling back to per-snapshot lookups",
+        );
+        return None;
+    };
+    guard
+        .get_many_raw(cache_keys)
+        .inspect_err(|error| {
+            tracing::debug!(
+                target: "pacquet::download",
+                ?error,
+                "store-index batched read failed at prefetch start; falling back to per-snapshot lookups",
+            );
+        })
+        .ok()
 }

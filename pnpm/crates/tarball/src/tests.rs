@@ -3854,3 +3854,53 @@ async fn in_progress_events_fire_only_for_big_tarballs() {
 
     drop(store_dir_keep);
 }
+
+/// Only regular files reach the CAFS. A symlink's zero-byte body would
+/// otherwise be stored as though it were the file it points at.
+#[test]
+fn extract_keeps_only_regular_file_entries() {
+    let (tempdir, store_path) = tempdir_with_leaked_path();
+
+    let mut tar_bytes = Vec::new();
+    {
+        let mut builder = tar::Builder::new(&mut tar_bytes);
+
+        let mut file = tar::Header::new_gnu();
+        file.set_size(3);
+        file.set_mode(0o644);
+        file.set_entry_type(tar::EntryType::Regular);
+        file.set_path("package/real.txt").expect("set file path");
+        file.set_cksum();
+        builder.append(&file, &b"hi\n"[..]).expect("append file");
+
+        let mut dir = tar::Header::new_gnu();
+        dir.set_size(0);
+        dir.set_mode(0o755);
+        dir.set_entry_type(tar::EntryType::Directory);
+        dir.set_path("package/sub/").expect("set dir path");
+        dir.set_cksum();
+        builder.append(&dir, std::io::empty()).expect("append dir");
+
+        let mut link = tar::Header::new_gnu();
+        link.set_size(0);
+        link.set_mode(0o777);
+        link.set_entry_type(tar::EntryType::Symlink);
+        link.set_path("package/link.txt").expect("set link path");
+        link.set_link_name("real.txt").expect("set link target");
+        link.set_cksum();
+        builder.append(&link, std::io::empty()).expect("append symlink");
+
+        builder.finish().expect("finalize tar");
+    }
+
+    let (cas_paths, _) =
+        extract_tarball_entries(&tar_bytes, store_path, None).expect("extract the tarball");
+
+    assert_eq!(
+        cas_paths.keys().collect::<Vec<_>>(),
+        vec!["real.txt"],
+        "only the regular file may be stored",
+    );
+
+    drop(tempdir);
+}

@@ -299,12 +299,8 @@ pub(crate) fn write_synthesized_package_json(
 /// the per-tarball [`PackageFilesIndex`] row to hand off to the shared
 /// store-index writer.
 ///
-/// Non-regular-file entries (symlinks, hardlinks, character / block
-/// devices, fifos, GNU / PAX extension headers, directories) are
-/// filtered out. Real npm-publish tarballs only carry regular files;
-/// anything else would need custom handling that pacquet doesn't yet
-/// do, and silently reading a symlink's 0-byte body into the CAFS as
-/// if it were a file would just corrupt the store.
+/// Only regular files are stored; a published npm tarball carries
+/// nothing else that pacquet can represent.
 ///
 /// The archive is already fully buffered in memory by the download
 /// pipeline. Use `entries_with_seek` + `raw_file_position` to borrow
@@ -327,10 +323,8 @@ pub(crate) fn extract_tarball_entries(
     let entries = archive
         .entries_with_seek()
         .map_err(TarballError::ReadTarballEntries)?
-        // Keep only regular-file `Ok` entries; anything else in the
-        // `Ok` arm (directories, symlinks, hardlinks, pax/gnu
-        // extension headers, ...) is dropped. `Err` entries fall
-        // through so the `?` inside the loop below propagates them.
+        // `Err` entries pass the filter so the `?` below propagates
+        // them rather than silently dropping a malformed archive.
         .filter(|entry| match entry {
             Ok(entry) => entry.header().entry_type().is_file(),
             Err(_) => true,
