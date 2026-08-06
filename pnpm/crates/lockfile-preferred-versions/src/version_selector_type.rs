@@ -11,10 +11,6 @@ use pacquet_resolving_resolver_base::{VersionSelectorType, is_any_version_range}
 /// then a dist-tag.
 #[must_use]
 pub fn get_version_selector_type(spec: &str) -> Option<VersionSelectorType> {
-    // Must precede both parses: neither reads an empty comparator set
-    // the way `version-selector-type` does, and `is_uri_component_safe`
-    // rejects the blank spellings, so a dependency published without a
-    // range would otherwise drop out of the tie-break table entirely.
     if is_any_version_range(spec) {
         return Some(VersionSelectorType::Range);
     }

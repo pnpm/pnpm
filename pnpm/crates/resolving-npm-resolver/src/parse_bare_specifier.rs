@@ -274,14 +274,10 @@ pub fn parse_named_registry_specifier_to_registry_package_spec(
 
 /// Discriminate between an exact version, a semver range, and a
 /// dist-tag, returning the normalized form alongside the discriminator:
-/// version first, range second, dist-tag last. Returns `None` only when
-/// the selector contains characters that `encodeURIComponent` would
-/// escape (i.e. not a valid npm tag).
+/// version first, range second, tag last. Returns `None` only when the
+/// selector contains characters that `encodeURIComponent` would escape
+/// (i.e. not a valid npm tag).
 pub(crate) fn get_version_selector_type(selector: &str) -> Option<VersionSelectorMatch> {
-    // Must precede both parses: `Range::parse` reads `"^1.0.0 || "` as
-    // the narrower `^1.0.0`, and a blank selector would otherwise reach
-    // the dist-tag branch. No exact version is blank or contains `||`,
-    // so the `Version` branch loses nothing by going second.
     if is_any_version_range(selector) {
         return Some(VersionSelectorMatch {
             spec_type: RegistryPackageSpecType::Range,
@@ -314,9 +310,6 @@ pub(crate) fn get_version_selector_type(selector: &str) -> Option<VersionSelecto
 /// set is `A-Z a-z 0-9 - _ . ! ~ * ' ( )` — anything else (including
 /// `/`, `:`, spaces) bumps the candidate out of the tag bucket so
 /// protocol-prefixed specifiers fall through to the next resolver.
-///
-/// An empty selector satisfies the character check vacuously, so callers
-/// must classify any-version ranges before reaching this.
 fn is_valid_dist_tag(selector: &str) -> bool {
     selector.bytes().all(|byte| {
         matches!(byte,

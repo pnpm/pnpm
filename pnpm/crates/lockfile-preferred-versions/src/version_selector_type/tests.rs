@@ -25,9 +25,6 @@ fn classifies_url_safe_string_as_tag() {
 
 #[test]
 fn classifies_any_version_range_as_range() {
-    // `version-selector-type` reads an empty comparator set as `*`, so a
-    // dependency published without a range still carries tie-break
-    // weight.
     for spec in ["", " ", "||", "^1.0.0 || ", "latest || "] {
         assert_eq!(
             get_version_selector_type(spec),

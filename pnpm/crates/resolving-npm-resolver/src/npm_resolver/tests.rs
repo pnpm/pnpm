@@ -210,8 +210,7 @@ async fn range_specifier_picks_max_in_range() {
 
 #[tokio::test]
 async fn empty_specifier_resolves_to_the_max_published_version() {
-    // Regression test for pnpm/pnpm#13673: an omitted range means "any
-    // version", and registries carry manifests that rely on it.
+    // Regression test for pnpm/pnpm#13673.
     let mut server = mockito::Server::new_async().await;
     let _mock =
         server.mock("GET", "/acme").with_status(200).with_body(PACKAGE_BODY).create_async().await;

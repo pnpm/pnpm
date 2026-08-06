@@ -45,8 +45,7 @@ fn no_alias_no_npm_prefix_declines() {
 
 #[test]
 fn empty_selector_classified_as_any_version_range() {
-    // `js-xlsx@0.8.22` really does declare `"adler-32": ""`
-    // (pnpm/pnpm#13673).
+    // pnpm/pnpm#13673: `js-xlsx@0.8.22` declares `"adler-32": ""`.
     let spec = parse_bare_specifier("", Some("adler-32"), DEFAULT_TAG, REGISTRY).unwrap();
     assert_eq!(spec.name, "adler-32");
     assert_eq!(spec.fetch_spec, "*");
@@ -62,8 +61,6 @@ fn blank_selector_classified_as_any_version_range() {
 
 #[test]
 fn union_with_empty_member_classified_as_any_version_range() {
-    // `Range::parse` would otherwise drop the empty half and resolve as
-    // if only `^1.0.0` had been declared.
     let spec = parse_bare_specifier("^1.0.0 || ", Some("foo"), DEFAULT_TAG, REGISTRY).unwrap();
     assert_eq!(spec.fetch_spec, "*");
     assert_eq!(spec.spec_type, RegistryPackageSpecType::Range);
@@ -71,8 +68,6 @@ fn union_with_empty_member_classified_as_any_version_range() {
 
 #[test]
 fn union_with_unparsable_member_still_classifies_as_any_version_range() {
-    // `version-selector-type` runs `validRange` loose, which drops the
-    // sets it cannot parse and leaves the empty one matching everything.
     for selector in ["latest || ", "|| latest", "garbage ||"] {
         let spec = parse_bare_specifier(selector, Some("foo"), DEFAULT_TAG, REGISTRY)
             .unwrap_or_else(|| panic!("expected a spec for {selector:?}"));
@@ -83,9 +78,6 @@ fn union_with_unparsable_member_still_classifies_as_any_version_range() {
 
 #[test]
 fn npm_alias_keeps_its_inner_name_when_the_union_does_not_parse_strictly() {
-    // The `npm:` disambiguation runs `validRange` strict, so
-    // `bar@^5 || ` is a name-plus-selector, not a bare range — reading
-    // it loosely would drop the `bar` alias and keep the outer `foo`.
     let spec = parse_bare_specifier("npm:bar@^5 || ", Some("foo"), DEFAULT_TAG, REGISTRY).unwrap();
     assert_eq!(spec.name, "bar");
     assert_eq!(spec.fetch_spec, "*");
@@ -373,9 +365,6 @@ fn named_registry_with_any_version_body_uses_the_alias_as_name() {
 
 #[test]
 fn named_registry_reads_a_strictly_invalid_union_as_a_package_name() {
-    // The body disambiguation runs `validRange` strict, so `latest || `
-    // is not a version selector — with an unscoped alias the body is
-    // read as the package name, which is then rejected as malformed.
     let gh = gh_aliases();
     for input in ["gh:latest || ", "gh:garbage ||"] {
         let err = parse_named_registry_specifier_to_registry_package_spec(
