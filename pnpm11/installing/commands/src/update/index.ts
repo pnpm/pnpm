@@ -1,3 +1,5 @@
+import util from 'node:util'
+
 import { checkbox, Separator } from '@inquirer/prompts'
 import type { CommandHandler, CommandHandlerMap, CompletionFunc } from '@pnpm/cli.command'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
@@ -225,12 +227,18 @@ async function selectGlobalPackageGroups (
 ): Promise<Set<string> | string> {
   const globalPackages = scanGlobalPackages(opts.globalPkgDir!)
   if (globalPackages.length === 0) return 'No global packages found'
-  const outdatedPerGroup = await Promise.all(globalPackages.map(async (pkg) => {
+  // A global group is always updated as a whole, so the params select groups
+  // rather than dependencies, the same way `handleGlobalUpdate()` reads them.
+  const matchedPackages = input.length === 0
+    ? globalPackages
+    : globalPackages.filter((pkg) => input.some((param) => param in pkg.dependencies))
+  if (matchedPackages.length === 0) return 'No matching global packages found'
+  const outdatedPerGroup = await Promise.all(matchedPackages.map(async (pkg) => {
     const project = {
       rootDir: pkg.installDir as ProjectRootDir,
       manifest: await readProjectManifestOnly(pkg.installDir, opts),
     }
-    const [outdated] = await outdatedDepsOfProjects([project], input, {
+    const [outdated] = await outdatedDepsOfProjects([project], [], {
       ...opts,
       compatible: opts.latest !== true,
       ignoreDependencies: opts.updateConfig?.ignoreDependencies,
@@ -266,11 +274,11 @@ async function selectGlobalPackageGroups (
       ? 'All of your dependencies are already up to date'
       : 'All of your dependencies are already up to date inside the specified ranges. Use the --latest option to update the ranges in package.json'
   }
-  return new Set(await checkbox({
+  return new Set(await runUpdatePrompt(() => checkbox({
     choices,
     message: 'Choose which global package groups to update (space to select, enter to confirm)',
     pageSize: Math.min(choices.length, interactivePromptPageSize()),
-  }))
+  })))
 }
 
 async function interactiveUpdate (
@@ -357,36 +365,43 @@ async function interactiveUpdate (
     `(Press ${chalk.cyan('<space>')} to select, ` +
     `${chalk.cyan('<a>')} to toggle all, ` +
     `${chalk.cyan('<i>')} to invert selection)\n\nEnter to start updating. Ctrl-c to cancel.`
-  let updatePkgNames: string[]
+  const updatePkgNames = await runUpdatePrompt(() => checkbox({
+    choices: flatChoices,
+    pageSize: interactivePromptPageSize(),
+    message,
+    required: true,
+    validate: (values) => {
+      if (values.length === 0) {
+        return 'You must choose at least one dependency.'
+      }
+      return true
+    },
+    theme: {
+      icon: { checked: '●', unchecked: '○', cursor: '❯' },
+      style: {
+        highlight: (text: string) => text,
+      },
+      keybindings: ['vim'],
+    },
+  }))
+
+  return update(updatePkgNames, opts, rebuildHandler) as Promise<undefined>
+}
+
+/**
+ * Cancelling a prompt with Ctrl-c is how the user declines to update, not an
+ * error: report it and leave with a success status.
+ */
+async function runUpdatePrompt<T> (prompt: () => Promise<T>): Promise<T> {
   try {
-    updatePkgNames = await checkbox({
-      choices: flatChoices,
-      pageSize: interactivePromptPageSize(),
-      message,
-      required: true,
-      validate: (values) => {
-        if (values.length === 0) {
-          return 'You must choose at least one dependency.'
-        }
-        return true
-      },
-      theme: {
-        icon: { checked: '●', unchecked: '○', cursor: '❯' },
-        style: {
-          highlight: (text: string) => text,
-        },
-        keybindings: ['vim'],
-      },
-    })
-  } catch (err) {
-    if (err instanceof Error && err.name === 'ExitPromptError') {
+    return await prompt()
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && err.name === 'ExitPromptError') {
       globalInfo('Update canceled')
       process.exit(0)
     }
     throw err
   }
-
-  return update(updatePkgNames, opts, rebuildHandler) as Promise<undefined>
 }
 
 async function update (

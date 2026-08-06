@@ -542,6 +542,43 @@ fn global_interactive_update_empty() {
     drop(root);
 }
 
+/// The params of `update -g -i` select whole groups, exactly as they do
+/// without `-i`, so a name no group holds stops before the prompt.
+#[cfg(unix)]
+#[test]
+fn global_interactive_update_without_a_matching_group() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let pnpm_home = root.path().join("pnpm-home");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+
+    global_command(&workspace, &pnpm_home)
+        .with_args(["add", "-g", "@foo/touch-file-one-bin"])
+        .assert()
+        .success();
+
+    let output = global_command(&workspace, &pnpm_home)
+        .with_args(["update", "-g", "-i", "@pnpm.e2e/multi-version-a"])
+        .output()
+        .expect("run interactive global update");
+
+    assert!(
+        output.status.success(),
+        "interactive global update should succeed: {}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("No matching global packages found"),
+        "expected the no-match message, got: {stdout}",
+    );
+
+    drop(npmrc_info);
+    drop(root);
+}
+
 /// `pacquet add -g pnpm` is rejected — pnpm is managed via `self-update`.
 #[test]
 fn global_add_pnpm_is_rejected() {

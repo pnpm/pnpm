@@ -56,11 +56,10 @@ pub(crate) async fn select_global_package_groups(
     config.workspace_dir = None;
     config.shared_workspace_lockfile = false;
     let config = Config::leak(config);
-    let matcher = (!packages.is_empty()).then(|| pacquet_config::matcher::create_matcher(packages));
     let query = OutdatedQuery {
         target_version: if latest { TargetVersion::Latest } else { TargetVersion::WithinRange },
         include_direct: &[DependencyGroup::Prod],
-        match_names: matcher.as_ref(),
+        match_names: None,
         include_deprecated: false,
     };
     let mut labels = Vec::new();
@@ -71,7 +70,22 @@ pub(crate) async fn select_global_package_groups(
         println!("No global packages found");
         return Ok(None);
     }
-    for pkg in global_packages {
+    // A global group is always updated as a whole, so the params select groups
+    // rather than dependencies, the same way `handle_global_update` reads them.
+    let matched_packages = if packages.is_empty() {
+        global_packages
+    } else {
+        let matched = global_packages
+            .into_iter()
+            .filter(|pkg| packages.iter().any(|param| pkg.has_alias(param)))
+            .collect::<Vec<_>>();
+        if matched.is_empty() {
+            println!("No matching global packages found");
+            return Ok(None);
+        }
+        matched
+    };
+    for pkg in matched_packages {
         let state = crate::State::init(pkg.install_dir.join("package.json"), config, false)
             .map_err(|err| miette::Report::new(err).wrap_err("initialize global state"))?;
         let lockfile = state
