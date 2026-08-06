@@ -33,11 +33,13 @@ impl GitProbe for RealGitProbe {
         Box::pin(async move {
             let mut delay = Duration::from_millis(500);
             for attempt in 0..3 {
-                let guard = self.http_client.acquire().await;
-                let response = guard.head(url).send().await;
-                drop(guard);
-                if let Ok(resp) = response {
-                    let status = resp.status();
+                // Scoped so the throttle permit is released before any
+                // backoff sleep.
+                let status = {
+                    let guard = self.http_client.acquire_for_url(url).await;
+                    guard.head(url).send().await.map(|response| response.status()).ok()
+                };
+                if let Some(status) = status {
                     if status.is_success() {
                         return true;
                     }

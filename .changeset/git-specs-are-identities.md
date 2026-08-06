@@ -6,7 +6,7 @@
 
 To reach a private hosted repository over SSH, configure the machine (not the project) with git's own URL rewriting, for example:
 
-```
+```sh
 git config --global url."git@github.com:".insteadOf https://github.com/
 ```
 

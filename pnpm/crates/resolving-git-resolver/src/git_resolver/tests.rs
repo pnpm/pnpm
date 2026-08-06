@@ -49,10 +49,9 @@ fn runner(stdout: &str) -> FakeRunner {
     FakeRunner { stdout: stdout.to_string(), calls: Mutex::new(Vec::new()) }
 }
 
-/// Resolve `bare_specifier`, returning the result alongside the fakes
-/// so a test can assert which remote `ls-remote` was pointed at and
-/// which archive URL was probed — for this resolver those choices
-/// *are* the behavior under test.
+/// The fakes ride back with the result because which remote
+/// `ls-remote` hits and which archive URL gets probed *are* the
+/// behavior under test.
 async fn resolve_with(
     archive_ok: bool,
     stdout: &str,
