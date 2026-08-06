@@ -60,7 +60,6 @@ pub struct MirrorFile {
     file: File,
 }
 
-/// Descriptors currently held by live [`MirrorFile`]s.
 static HELD_MIRROR_FILES: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
 impl MirrorFile {
