@@ -104,6 +104,7 @@ pub struct InstallPackageBySnapshot<'a> {
     /// exclusion, or swallowed optional fetch failure). See
     /// [`crate::SkippedSnapshots`] for how it is built.
     pub skipped: &'a crate::SkippedSnapshots,
+    pub include_optional_dependencies: bool,
     /// Platform triple used to select a runtime archive. This is the host
     /// triple unless `supportedArchitectures` targets another platform.
     pub runtime_platform_selector: &'a PlatformSelector,
@@ -310,6 +311,7 @@ impl InstallPackageBySnapshot<'_> {
             snapshot,
             allow_build_policy,
             skipped,
+            include_optional_dependencies,
             runtime_platform_selector,
             workspace_root,
             node_linker,
@@ -655,6 +657,7 @@ impl InstallPackageBySnapshot<'_> {
                 package_key,
                 snapshot,
                 source_is_mutable,
+                include_optional_dependencies,
                 symlink: config.symlink,
                 skipped,
                 // The non-deferred slot link runs only on the fresh

@@ -69,7 +69,7 @@ jobs:
     - name: Install pnpm and Node
       uses: pnpm/setup@6523ce966bcf7a1061ce6401e5c6e0b60466bd31
       with:
-        runtime: node@26.6.0
+        runtime: node@26.7.0
 
     - name: Install Rust Toolchain
       uses: ./.github/actions/rustup
