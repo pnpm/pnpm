@@ -18,6 +18,9 @@ use miette::Diagnostic;
 use node_semver::{Range, Version};
 use pacquet_resolving_jsr_specifier_parser::{ParseJsrSpecifierError, parse_jsr_specifier};
 use pacquet_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
+use pacquet_resolving_resolver_base::{
+    ANY_VERSION_RANGE, is_any_version_range, is_valid_semver_range,
+};
 use reqwest::Url;
 
 use crate::pick_package_from_meta::{RegistryPackageSpec, RegistryPackageSpecType};
@@ -49,7 +52,7 @@ pub fn parse_bare_specifier(
         let alias_str = alias;
         if let Some(a) = alias_str
             && !a.is_empty()
-            && Range::parse(&bare).is_ok()
+            && is_valid_semver_range(&bare)
         {
             name = Some(a.to_string());
         } else {
@@ -207,7 +210,7 @@ pub fn parse_named_registry_specifier_to_registry_package_spec(
     let pkg_name: String;
     let version_selector: Option<String>;
 
-    if Range::parse(body).is_ok() {
+    if is_valid_semver_range(body) {
         let Some(alias) = package_alias.filter(|alias| !alias.is_empty()) else {
             return Ok(None);
         };
@@ -271,10 +274,23 @@ pub fn parse_named_registry_specifier_to_registry_package_spec(
 
 /// Discriminate between an exact version, a semver range, and a
 /// dist-tag, returning the normalized form alongside the discriminator:
-/// version first, range second, tag last. Returns `None` only when the
-/// selector contains characters that `encodeURIComponent` would escape
-/// (i.e. not a valid npm tag).
+/// version first, range second, dist-tag last. Returns `None` only when
+/// the selector contains characters that `encodeURIComponent` would
+/// escape (i.e. not a valid npm tag).
 pub(crate) fn get_version_selector_type(selector: &str) -> Option<VersionSelectorMatch> {
+    // Ahead of both parses because `node-semver` (Rust) rejects every
+    // any-version spelling JS accepts. Without this, an omitted range
+    // (`"adler-32": ""`, as published by `js-xlsx` and friends) falls
+    // through to the dist-tag branch — which matches the empty string
+    // vacuously — and the picker then asks the registry for a tag that
+    // cannot exist. No exact version is blank or contains `||`, so
+    // running first costs the `Version` branch nothing.
+    if is_any_version_range(selector) {
+        return Some(VersionSelectorMatch {
+            spec_type: RegistryPackageSpecType::Range,
+            normalized: ANY_VERSION_RANGE.to_string(),
+        });
+    }
     if let Ok(version) = Version::parse(selector) {
         return Some(VersionSelectorMatch {
             spec_type: RegistryPackageSpecType::Version,
@@ -301,6 +317,9 @@ pub(crate) fn get_version_selector_type(selector: &str) -> Option<VersionSelecto
 /// set is `A-Z a-z 0-9 - _ . ! ~ * ' ( )` — anything else (including
 /// `/`, `:`, spaces) bumps the candidate out of the tag bucket so
 /// protocol-prefixed specifiers fall through to the next resolver.
+///
+/// An empty selector satisfies the character check vacuously, so callers
+/// must classify any-version ranges before reaching this.
 fn is_valid_dist_tag(selector: &str) -> bool {
     selector.bytes().all(|byte| {
         matches!(byte,

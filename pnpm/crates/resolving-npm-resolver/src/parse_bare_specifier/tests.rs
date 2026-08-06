@@ -44,6 +44,43 @@ fn no_alias_no_npm_prefix_declines() {
 }
 
 #[test]
+fn empty_selector_classified_as_any_version_range() {
+    // Registries carry manifests published against JS semver, where an
+    // omitted range means "any version" — `js-xlsx@0.8.22` declares
+    // `"adler-32": ""`. Classifying it as a dist-tag instead sends the
+    // picker looking for a tag that cannot exist.
+    let spec = parse_bare_specifier("", Some("adler-32"), DEFAULT_TAG, REGISTRY).unwrap();
+    assert_eq!(spec.name, "adler-32");
+    assert_eq!(spec.fetch_spec, "*");
+    assert_eq!(spec.spec_type, RegistryPackageSpecType::Range);
+}
+
+#[test]
+fn blank_selector_classified_as_any_version_range() {
+    let spec = parse_bare_specifier("   ", Some("foo"), DEFAULT_TAG, REGISTRY).unwrap();
+    assert_eq!(spec.fetch_spec, "*");
+    assert_eq!(spec.spec_type, RegistryPackageSpecType::Range);
+}
+
+#[test]
+fn union_with_empty_member_classified_as_any_version_range() {
+    // An empty comparator set imposes no bound, so it widens the whole
+    // union — `Range::parse` would otherwise silently drop it and
+    // resolve as if only `^1.0.0` had been declared.
+    let spec = parse_bare_specifier("^1.0.0 || ", Some("foo"), DEFAULT_TAG, REGISTRY).unwrap();
+    assert_eq!(spec.fetch_spec, "*");
+    assert_eq!(spec.spec_type, RegistryPackageSpecType::Range);
+}
+
+#[test]
+fn npm_alias_with_empty_selector_uses_outer_alias_as_name() {
+    let spec = parse_bare_specifier("npm:", Some("is-positive"), DEFAULT_TAG, REGISTRY).unwrap();
+    assert_eq!(spec.name, "is-positive");
+    assert_eq!(spec.fetch_spec, "*");
+    assert_eq!(spec.spec_type, RegistryPackageSpecType::Range);
+}
+
+#[test]
 fn npm_alias_with_range_uses_outer_alias_as_name() {
     let spec =
         parse_bare_specifier("npm:^1.0.0", Some("is-positive"), DEFAULT_TAG, REGISTRY).unwrap();

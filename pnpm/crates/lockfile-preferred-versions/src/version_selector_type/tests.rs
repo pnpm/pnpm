@@ -24,10 +24,20 @@ fn classifies_url_safe_string_as_tag() {
 }
 
 #[test]
+fn classifies_any_version_range_as_range() {
+    // JS `semver.validRange` normalizes every empty comparator set to
+    // `*`, so a dependency published without a range still carries
+    // tie-break weight.
+    assert_eq!(get_version_selector_type(""), Some(VersionSelectorType::Range));
+    assert_eq!(get_version_selector_type(" "), Some(VersionSelectorType::Range));
+    assert_eq!(get_version_selector_type("||"), Some(VersionSelectorType::Range));
+    assert_eq!(get_version_selector_type("^1.0.0 || "), Some(VersionSelectorType::Range));
+}
+
+#[test]
 fn rejects_unknown_specs() {
     assert_eq!(get_version_selector_type("git+ssh://example.com/repo.git"), None);
     assert_eq!(get_version_selector_type("file:./local-path"), None);
     assert_eq!(get_version_selector_type("workspace:*"), None);
     assert_eq!(get_version_selector_type("npm:other@^1"), None);
-    assert_eq!(get_version_selector_type(""), None);
 }
