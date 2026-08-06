@@ -19,6 +19,10 @@ use tempfile::tempdir;
 pub struct LinkConcurrencyProbe {
     current: AtomicUsize,
     max: AtomicUsize,
+    /// Total `enter()` calls over the probe's lifetime — one per
+    /// [`CreateVirtualDirBySnapshot::run`] — for asserting how many
+    /// link tasks executed, which `max_concurrent` cannot.
+    total: AtomicUsize,
     wait_for_overlap: bool,
     wait_started: AtomicBool,
     mutex: Mutex<()>,
@@ -40,7 +44,12 @@ impl LinkConcurrencyProbe {
         self.max.load(Ordering::SeqCst)
     }
 
+    pub(crate) fn total_entered(&self) -> usize {
+        self.total.load(Ordering::SeqCst)
+    }
+
     pub(super) fn enter(&self) -> LinkConcurrencyGuard<'_> {
+        self.total.fetch_add(1, Ordering::SeqCst);
         let current = self.current.fetch_add(1, Ordering::SeqCst) + 1;
         let mut max = self.max.load(Ordering::SeqCst);
         while current > max {
@@ -73,6 +82,7 @@ impl Default for LinkConcurrencyProbe {
         Self {
             current: AtomicUsize::new(0),
             max: AtomicUsize::new(0),
+            total: AtomicUsize::new(0),
             wait_for_overlap: false,
             wait_started: AtomicBool::new(false),
             mutex: Mutex::new(()),
