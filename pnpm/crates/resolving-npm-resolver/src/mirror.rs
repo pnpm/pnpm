@@ -605,12 +605,21 @@ fn load_meta_with_hold_cap(pkg_mirror: &Path, hold_cap: usize) -> Option<Package
             // The prefix probe may have read past `fragment_base`; the
             // buffer must start there, with the rest read from the
             // file's current position (`fs::read` would re-open by
-            // path and lose the already-consumed prefix).
+            // path and lose the already-consumed prefix). The read
+            // stops at the highest validated span end — bytes past it
+            // (a sparse or garbage tail) belong to no fragment.
+            let fragment_end = spans
+                .iter()
+                .map(|(_, absolute, len)| absolute + u64::from(*len))
+                .max()
+                .unwrap_or(fragment_base as u64);
             let mut fragments = Vec::new();
             if fragment_base < filled {
                 fragments.extend_from_slice(&prefix[fragment_base..filled]);
             }
-            io::BufReader::new(file).read_to_end(&mut fragments).ok()?;
+            let remaining =
+                (fragment_end - fragment_base as u64).saturating_sub(fragments.len() as u64);
+            io::BufReader::new(file).take(remaining).read_to_end(&mut fragments).ok()?;
             let raw_fragments = spans.into_iter().filter_map(|(version, absolute, len)| {
                 let start = usize::try_from(absolute.checked_sub(fragment_base as u64)?).ok()?;
                 let end = start.checked_add(len as usize)?;

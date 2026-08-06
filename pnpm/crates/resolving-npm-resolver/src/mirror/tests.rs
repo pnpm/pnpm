@@ -205,6 +205,20 @@ fn load_meta_rejects_oversized_declared_record_lengths() {
 }
 
 #[test]
+fn load_meta_past_the_hold_cap_ignores_a_sparse_tail() {
+    let dir = TempDir::new().expect("tmp dir");
+    let mirror = dir.path().join("acme.jsonl");
+    let pkg = fixture_package();
+    save_meta_indexed(&mirror, &pkg, None).expect("save");
+    let file = std::fs::OpenOptions::new().append(true).open(&mirror).expect("open");
+    let size = file.metadata().expect("metadata").len();
+    file.set_len(size + 64 * 1024 * 1024).expect("extend sparsely");
+    let loaded = load_meta_with_hold_cap(&mirror, 0).expect("read full back without a handle");
+    let manifest = loaded.versions.get("1.0.0").expect("hydrate from buffered fragment");
+    assert_eq!(manifest.dist.tarball, "https://registry/acme-1.0.0.tgz");
+}
+
+#[test]
 fn load_meta_rejects_an_oversized_fragment_span() {
     let dir = TempDir::new().expect("tmp dir");
     let mirror = dir.path().join("acme.jsonl");
