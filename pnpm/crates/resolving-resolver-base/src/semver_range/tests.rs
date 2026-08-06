@@ -17,6 +17,15 @@ fn a_union_with_an_empty_member_is_any_version() {
 }
 
 #[test]
+fn an_empty_member_widens_a_union_whose_siblings_do_not_parse() {
+    // Loose mode drops the unparsable sets, leaving the empty one to
+    // match everything: `semver.validRange("latest || ", true)` is `"*"`.
+    assert!(is_any_version_range("latest || "));
+    assert!(is_any_version_range("|| latest"));
+    assert!(is_any_version_range("garbage ||"));
+}
+
+#[test]
 fn bounded_ranges_are_not_any_version() {
     assert!(!is_any_version_range("^1.0.0"));
     assert!(!is_any_version_range("1.0.0"));
@@ -39,6 +48,17 @@ fn ordinary_ranges_stay_valid_and_tags_stay_invalid() {
     assert!(is_valid_semver_range("^1.0.0"));
     assert!(is_valid_semver_range("1.x"));
     assert!(is_valid_semver_range(">=1.0.0 <2.0.0"));
+    assert!(is_valid_semver_range("^1.0.0 || ^2.0.0"));
     assert!(!is_valid_semver_range("latest"));
     assert!(!is_valid_semver_range("npm:bar@^5"));
+}
+
+#[test]
+fn a_union_with_an_unparsable_member_is_not_a_valid_range() {
+    // Strict mode builds every comparator set, so an empty member does
+    // not excuse an unparsable sibling — these are `null` in JS.
+    assert!(!is_valid_semver_range("latest || "));
+    assert!(!is_valid_semver_range("|| latest"));
+    assert!(!is_valid_semver_range("garbage ||"));
+    assert!(!is_valid_semver_range("npm:bar@^5 || "));
 }

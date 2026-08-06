@@ -278,13 +278,10 @@ pub fn parse_named_registry_specifier_to_registry_package_spec(
 /// the selector contains characters that `encodeURIComponent` would
 /// escape (i.e. not a valid npm tag).
 pub(crate) fn get_version_selector_type(selector: &str) -> Option<VersionSelectorMatch> {
-    // Ahead of both parses because `node-semver` (Rust) rejects every
-    // any-version spelling JS accepts. Without this, an omitted range
-    // (`"adler-32": ""`, as published by `js-xlsx` and friends) falls
-    // through to the dist-tag branch — which matches the empty string
-    // vacuously — and the picker then asks the registry for a tag that
-    // cannot exist. No exact version is blank or contains `||`, so
-    // running first costs the `Version` branch nothing.
+    // Must precede both parses: `Range::parse` reads `"^1.0.0 || "` as
+    // the narrower `^1.0.0`, and a blank selector would otherwise reach
+    // the dist-tag branch. No exact version is blank or contains `||`,
+    // so the `Version` branch loses nothing by going second.
     if is_any_version_range(selector) {
         return Some(VersionSelectorMatch {
             spec_type: RegistryPackageSpecType::Range,

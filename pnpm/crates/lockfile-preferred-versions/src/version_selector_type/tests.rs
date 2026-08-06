@@ -25,13 +25,16 @@ fn classifies_url_safe_string_as_tag() {
 
 #[test]
 fn classifies_any_version_range_as_range() {
-    // JS `semver.validRange` normalizes every empty comparator set to
-    // `*`, so a dependency published without a range still carries
-    // tie-break weight.
-    assert_eq!(get_version_selector_type(""), Some(VersionSelectorType::Range));
-    assert_eq!(get_version_selector_type(" "), Some(VersionSelectorType::Range));
-    assert_eq!(get_version_selector_type("||"), Some(VersionSelectorType::Range));
-    assert_eq!(get_version_selector_type("^1.0.0 || "), Some(VersionSelectorType::Range));
+    // `version-selector-type` reads an empty comparator set as `*`, so a
+    // dependency published without a range still carries tie-break
+    // weight.
+    for spec in ["", " ", "||", "^1.0.0 || ", "latest || "] {
+        assert_eq!(
+            get_version_selector_type(spec),
+            Some(VersionSelectorType::Range),
+            "for {spec:?}",
+        );
+    }
 }
 
 #[test]

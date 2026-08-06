@@ -11,11 +11,10 @@ use pacquet_resolving_resolver_base::{VersionSelectorType, is_any_version_range}
 /// then a dist-tag.
 #[must_use]
 pub fn get_version_selector_type(spec: &str) -> Option<VersionSelectorType> {
-    // `node-semver` (Rust) cannot parse the any-version spellings JS
-    // accepts (`""`, whitespace, `"^1 || "`), so they are classified up
-    // front. Otherwise a dependency published without a range drops out
-    // of the preferred-versions table entirely and silently loses its
-    // tie-break weight.
+    // Must precede both parses: neither reads an empty comparator set
+    // the way `version-selector-type` does, and `is_uri_component_safe`
+    // rejects the blank spellings, so a dependency published without a
+    // range would otherwise drop out of the tie-break table entirely.
     if is_any_version_range(spec) {
         return Some(VersionSelectorType::Range);
     }
