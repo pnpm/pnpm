@@ -594,15 +594,16 @@ fn load_meta_with_hold_cap(pkg_mirror: &Path, hold_cap: usize) -> Option<Package
         // cap): buffer this mirror's fragments and close the file, so
         // a full cache can never make `File::open` fail elsewhere and
         // turn present mirrors into cache misses.
-        Err(mut file) => {
+        Err(file) => {
             // The prefix probe may have read past `fragment_base`; the
             // buffer must start there, with the rest read from the
-            // file's current position.
+            // file's current position (`fs::read` would re-open by
+            // path and lose the already-consumed prefix).
             let mut fragments = Vec::new();
             if fragment_base < filled {
                 fragments.extend_from_slice(&prefix[fragment_base..filled]);
             }
-            file.read_to_end(&mut fragments).ok()?;
+            io::BufReader::new(file).read_to_end(&mut fragments).ok()?;
             let raw_fragments = spans.into_iter().filter_map(|(version, absolute, len)| {
                 let start = usize::try_from(absolute.checked_sub(fragment_base as u64)?).ok()?;
                 let end = start.checked_add(len as usize)?;
