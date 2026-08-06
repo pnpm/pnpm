@@ -123,11 +123,16 @@ fn derive_workspace_dir(
 
 /// Post-install pass under `cleanupOutdatedMinimumReleaseAgeExcludes`:
 /// prune `minimumReleaseAgeExclude` entries whose versions the lockfile
-/// written by the just-finished install no longer records. No-ops when
-/// the setting is off, when lockfile persistence is disabled
-/// (`lockfile: false` — the on-disk lockfile would be stale), or when
-/// no lockfile exists, mirroring the `all_projects` guard of the catalog
-/// cleanup.
+/// written by the just-finished install no longer records. The lockfile
+/// is read from the directory the install anchored it at — the workspace
+/// dir, or the active project's dir under dedicated per-project
+/// lockfiles (`sharedWorkspaceLockfile: false`, pnpm's `lockfileDir =
+/// sharedWorkspaceLockfile ? workspaceDir : projectDir`) — while the
+/// manifest write always targets `pnpm-workspace.yaml` at the workspace
+/// dir. No-ops when the setting is off, when lockfile persistence is
+/// disabled (`lockfile: false` — the on-disk lockfile would be stale),
+/// or when no lockfile exists, mirroring the `all_projects` guard of the
+/// catalog cleanup.
 pub(crate) fn cleanup_outdated_minimum_release_age_excludes(
     config: &Config,
     workspace_dir: Option<&Path>,
@@ -140,7 +145,16 @@ pub(crate) fn cleanup_outdated_minimum_release_age_excludes(
         Some(dir) => dir.to_path_buf(),
         None => derive_workspace_dir(current_manifest)?,
     };
-    let Some(lockfile) = Lockfile::load_wanted_from_dir(&workspace_dir)
+    let lockfile_dir = if config.shared_workspace_lockfile {
+        workspace_dir.clone()
+    } else {
+        current_manifest
+            .path()
+            .parent()
+            .expect("manifest path always has a parent dir")
+            .to_path_buf()
+    };
+    let Some(lockfile) = Lockfile::load_wanted_from_dir(&lockfile_dir)
         .map_err(WriteWorkspaceCatalogsError::LoadLockfile)?
     else {
         return Ok(());
