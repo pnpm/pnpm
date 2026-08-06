@@ -1,4 +1,5 @@
 use crate::State;
+use chrono::{DateTime, Utc};
 use clap::{Args, ValueEnum};
 use derive_more::{Display, Error};
 use dialoguer::MultiSelect;
@@ -10,12 +11,13 @@ use pacquet_lockfile::{
     EnvLockfile, ImporterDepVersion, Lockfile, PackageKey, PkgName, ResolvedDependencyMap,
     SnapshotDepRef, SnapshotEntry, SpecifierAndResolution, pick_registry_for_package,
 };
-use pacquet_network::{RetryOpts, send_with_retry};
+use pacquet_network::{RetryOpts, encode_package_name, send_with_retry};
 use pacquet_package_manager::{ResolutionObserver, ResolvedPackageHint, Update};
 use pacquet_package_manifest::DependencyGroup;
 use pacquet_reporter::Reporter;
 use pacquet_resolving_resolver_base::{
     PackageVersionGuard, PackageVersionGuardDecision, PackageVersionGuardFuture,
+    parse_packument_timestamp,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -258,7 +260,13 @@ impl AuditArgs {
             };
             return match fix_method {
                 FixMethod::Override => {
-                    let output = fix_override(&filtered, &settings_dir, state.config)?;
+                    let output = fix_override(
+                        &filtered,
+                        &settings_dir,
+                        state.config,
+                        state.http_client.as_ref(),
+                    )
+                    .await?;
                     print!("{output}");
                     let _ = std::io::stdout().flush();
                     Ok(AuditOutcome::Clean)
