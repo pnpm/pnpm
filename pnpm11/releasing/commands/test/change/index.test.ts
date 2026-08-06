@@ -223,6 +223,11 @@ describe('change command and intent-consuming version -r', () => {
     const status = await change.handler(opts as any, ['status']) // eslint-disable-line @typescript-eslint/no-explicit-any
     expect(status).toContain('lib: 1100.0.0 → 1100.0.0')
 
+    // The dry run previews the same debut: a preview that skipped the probe
+    // would announce a bump to 1100.1.0 the real run never applies.
+    const dryRun = await version.handler({ ...opts, dryRun: true } as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(dryRun).toContain('lib: 1100.0.0 → 1100.0.0')
+
     const applied = await version.handler(opts as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any
     expect(applied).toContain('lib: 1100.0.0 → 1100.0.0')
     expect(JSON.parse(fs.readFileSync(path.join(lib.rootDir, 'package.json'), 'utf8')).version).toBe('1100.0.0')

@@ -3,6 +3,7 @@ use pacquet_lockfile::EnvLockfile;
 use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use pretty_assertions::assert_eq;
 use std::{
+    collections::BTreeMap,
     fs,
     path::{Path, PathBuf},
     process::Command,
@@ -845,4 +846,80 @@ fn version_recursive_json_prints_applied_releases_when_pending_changes() {
     assert_eq!(entry.get("newVersion").and_then(serde_json::Value::as_str), Some("1.1.0"));
 
     drop(root);
+}
+
+/// Every spelling of the recursive dry run reported in
+/// <https://github.com/pnpm/pnpm/issues/13271> reaches the release-plan
+/// preview, and the preview is what the run without `--dry-run` applies.
+#[test]
+fn recursive_dry_run_previews_the_plan_without_applying_it() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let (pkg_a, pkg_b) = write_two_package_workspace(&workspace);
+    fs::create_dir_all(workspace.join(".changeset")).expect("create .changeset");
+    for (file, intent) in [
+        ("calm-cats-smile.md", "---\n\"pkg-a\": minor\n---\n\nA feature.\n"),
+        ("brave-bats-clap.md", "---\n\"pkg-b\": patch\n---\n\nA fix.\n"),
+    ] {
+        fs::write(workspace.join(".changeset").join(file), intent).expect("write change intent");
+    }
+    let before = release_inputs(&workspace);
+
+    for args in [
+        ["version", "-r", "--dry-run"].as_slice(),
+        ["version", "-r", "--no-git-checks", "--dry-run"].as_slice(),
+        ["-r", "version", "--dry-run"].as_slice(),
+        ["version", "-r", "--dry-run", "--filter", "pkg-a"].as_slice(),
+    ] {
+        let output = pacquet_version_assuming_published(&workspace, args);
+        assert!(output.status.success(), "pnpm {args:?}:\n{}", stderr_of(&output));
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(stdout.contains("Release plan:"), "pnpm {args:?}: {stdout}");
+        assert!(stdout.contains("pkg-a: 1.0.0 → 1.1.0"), "pnpm {args:?}: {stdout}");
+        assert_eq!(
+            stdout.contains("pkg-b: 2.3.0 → 2.3.1"),
+            !args.contains(&"--filter"),
+            "only the filtered plan leaves pkg-b out — pnpm {args:?}: {stdout}",
+        );
+        assert_eq!(release_inputs(&workspace), before, "pnpm {args:?} wrote to the workspace");
+    }
+
+    let applied =
+        pacquet_version_assuming_published(&workspace, &["version", "-r", "--no-git-checks"]);
+    assert!(applied.status.success(), "{}", stderr_of(&applied));
+    let stdout = String::from_utf8_lossy(&applied.stdout);
+    assert!(stdout.contains("pkg-a: 1.0.0 → 1.1.0"), "{stdout}");
+    assert!(stdout.contains("pkg-b: 2.3.0 → 2.3.1"), "{stdout}");
+    assert_eq!(manifest_version(&pkg_a), "1.1.0");
+    assert_eq!(manifest_version(&pkg_b), "2.3.1");
+    drop(root);
+}
+
+/// Everything `pnpm version -r` reads and rewrites — the workspace manifests
+/// and the change intents — so a dry run can be held to leaving all of it
+/// byte-identical.
+fn release_inputs(workspace: &Path) -> BTreeMap<PathBuf, String> {
+    let manifests = ["pkg-a", "pkg-b"]
+        .map(|pkg| workspace.join("packages").join(pkg).join("package.json"))
+        .into_iter();
+    let intents = fs::read_dir(workspace.join(".changeset"))
+        .expect("read .changeset")
+        .map(|entry| entry.expect("read a .changeset entry").path());
+    manifests
+        .chain(intents)
+        .map(|path| {
+            let contents = fs::read_to_string(&path).expect("read a release input");
+            (path, contents)
+        })
+        .collect()
+}
+
+/// `pnpm version -r` with the first-release probe stubbed out, so the release
+/// plan is assembled without a registry round trip. The probe's own effect on
+/// the plan is covered against the mock registry by the `first_release_probe_*`
+/// tests in `change.rs`.
+fn pacquet_version_assuming_published(workspace: &Path, args: &[&str]) -> std::process::Output {
+    use assert_cmd::cargo::CommandCargoExt as _;
+    let mut command = Command::cargo_bin("pnpm").expect("find the pnpm binary");
+    command.current_dir(workspace).env("PACQUET_ASSUME_VERSIONS_PUBLISHED", "1").args(args);
+    command.output().expect("run pacquet version")
 }

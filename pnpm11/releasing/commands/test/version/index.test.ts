@@ -41,6 +41,7 @@ describe('version command', () => {
     expect(types['git-tag-version']).toBe(Boolean)
     expect(types['sign-git-tag']).toBe(Boolean)
     expect(types.recursive).toBe(Boolean)
+    expect(types['dry-run']).toBe(Boolean)
   })
 
   it('should throw error with invalid bump type', async () => {
