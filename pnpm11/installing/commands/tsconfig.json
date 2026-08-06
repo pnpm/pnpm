@@ -100,6 +100,9 @@
       "path": "../../global/commands"
     },
     {
+      "path": "../../global/packages"
+    },
+    {
       "path": "../../hooks/pnpmfile"
     },
     {

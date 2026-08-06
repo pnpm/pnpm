@@ -1,4 +1,4 @@
-import { expect, jest, test } from '@jest/globals'
+import { beforeEach, expect, jest, test } from '@jest/globals'
 
 const linkBinsOfPackages = jest.fn<() => Promise<void>>().mockResolvedValue(undefined)
 const removeBin = jest.fn<() => Promise<void>>().mockResolvedValue(undefined)
@@ -33,6 +33,10 @@ jest.unstable_mockModule('../src/promptApproveGlobalBuilds.js', () => ({ promptA
 jest.unstable_mockModule('../src/readInstalledPackages.js', () => ({ readInstalledPackages }))
 
 const { handleGlobalUpdate } = await import('../src/globalUpdate.js')
+
+beforeEach(() => {
+  jest.clearAllMocks()
+})
 
 test('global update emits a single summary after updating all isolated groups', async () => {
   createInstallDir
@@ -80,4 +84,33 @@ test('global update emits a single summary after updating all isolated groups', 
   )
   expect(summaryDebug).toHaveBeenCalledTimes(1)
   expect(summaryDebug).toHaveBeenCalledWith({ prefix: '/global/v11' })
+})
+
+test('global update only updates interactively selected groups', async () => {
+  createInstallDir.mockReturnValue('/global/v11/install-1')
+  getHashLink.mockReturnValue('/global/v11/hash-foo')
+  scanGlobalPackages.mockReturnValue([
+    {
+      dependencies: { foo: '^1.0.0' },
+      hash: 'hash-foo',
+      installDir: '/global/v11/old-foo',
+    },
+    {
+      dependencies: { bar: '^2.0.0' },
+      hash: 'hash-bar',
+      installDir: '/global/v11/old-bar',
+    },
+  ])
+
+  await handleGlobalUpdate({
+    bin: '/global/bin',
+    globalPkgDir: '/global/v11',
+    selectedPackageHashes: new Set(['hash-foo']),
+  } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+  expect(installGlobalPackages).toHaveBeenCalledTimes(1)
+  expect(installGlobalPackages).toHaveBeenCalledWith(
+    expect.objectContaining({ dir: '/global/v11/install-1' }),
+    ['foo@^1.0.0']
+  )
 })

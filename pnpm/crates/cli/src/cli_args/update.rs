@@ -15,7 +15,7 @@ use pacquet_package_manager::{Update, build_workspace_packages_map};
 use pacquet_package_manifest::DependencyGroup;
 use pacquet_registry::RangeSpecStyle;
 use pacquet_reporter::Reporter;
-use std::path::Path;
+use std::{collections::HashSet, path::Path};
 
 /// The `--prod`, `--dev`, and `--no-optional` flags that select which
 /// dependency groups to update.
@@ -381,11 +381,20 @@ impl UpdateArgs {
         config: &'static Config,
     ) -> miette::Result<()> {
         self.check_workspace_option(None)?;
-        if self.interactive {
-            return Err(miette::miette!(
-                "`pnpm update --global --interactive` is not supported yet."
-            ));
-        }
+        let selected_hashes: Option<HashSet<String>> = if self.interactive {
+            match crate::cli_args::update_interactive::select_global_package_groups(
+                config,
+                &self.packages,
+                self.latest,
+            )
+            .await?
+            {
+                Some(selected) => Some(selected),
+                None => return Ok(()),
+            }
+        } else {
+            None
+        };
         let supported_architectures =
             self.supported_architectures.apply_to(config.supported_architectures.clone());
         let range_spec_style = RangeSpecStyle::from_save_options(
@@ -395,6 +404,7 @@ impl UpdateArgs {
         Box::pin(crate::cli_args::global::handle_global_update::<Reporter>(
             config,
             &self.packages,
+            selected_hashes.as_ref(),
             self.latest,
             range_spec_style,
             supported_architectures,
