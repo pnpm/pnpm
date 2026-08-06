@@ -1,6 +1,8 @@
 use pacquet_config::Config;
 use pacquet_lockfile::Lockfile;
-use pacquet_patching::{PatchGroupRecord, all_patch_keys, get_patch_info};
+use pacquet_patching::{
+    PatchGroupRecord, PatchInput, all_patch_keys, get_patch_info, group_patched_dependencies,
+};
 use std::collections::{BTreeMap, BTreeSet};
 
 /// Record a changed `patchedDependencies` without resolving the
@@ -33,26 +35,25 @@ pub(crate) fn try_fast_update_patched_dependencies(
         return None;
     }
 
-    // Grouping re-reads the patch files, so it waits until the cheap
-    // map comparison above has proven there is drift to absorb.
-    let patch_groups = config.resolved_patched_dependencies().ok()?;
-    let applied = applied_patch_keys(lockfile, patch_groups.as_ref())?;
-    let mut affected = recorded
-        .iter()
-        .filter(|(key, hash)| current.get(*key) != Some(hash))
-        .chain(current.iter().filter(|(key, hash)| recorded.get(*key) != Some(hash)))
-        .map(|(key, _)| key.as_str());
-    if affected.any(|key| applied.contains(key)) {
+    // Every key whose presence or hash differs, taken from the recorded
+    // map as well as the current one. A key the previous install applied
+    // still owns a `(patch_hash=...)` segment in the recorded graph, so
+    // dropping it rekeys that package just as adding it did.
+    let affected = recorded
+        .keys()
+        .chain(current.keys())
+        .filter(|key| recorded.get(*key) != current.get(*key))
+        .cloned();
+    if !applied_patch_keys(lockfile, &groups_from_keys(affected)?)?.is_empty() {
         return None;
     }
-    if !config.allow_unused_patches
-        && patch_groups
-            .as_ref()
-            .into_iter()
-            .flat_map(all_patch_keys)
-            .any(|key| !applied.contains(key))
-    {
-        return None;
+
+    if !config.allow_unused_patches {
+        let current_groups = groups_from_keys(current.keys().cloned())?;
+        let applied = applied_patch_keys(lockfile, &current_groups)?;
+        if all_patch_keys(&current_groups).any(|key| !applied.contains(key)) {
+            return None;
+        }
     }
 
     let mut candidate = lockfile.clone();
@@ -60,17 +61,33 @@ pub(crate) fn try_fast_update_patched_dependencies(
     Some(candidate)
 }
 
-/// The configured patch keys that match a package the lockfile records,
-/// matched the way the resolver matches them.
+/// Bucket `keys` the way the resolver buckets configured patches.
+///
+/// Only the key decides what a patch matches, so this deliberately
+/// leaves the payload empty rather than re-reading the patch files that
+/// [`Config::patched_dependency_hashes`] has already hashed.
+///
+/// `None` for a key whose version segment is neither a version nor a
+/// range, leaving `ERR_PNPM_PATCH_NON_SEMVER_RANGE` to the resolver.
+fn groups_from_keys(keys: impl IntoIterator<Item = String>) -> Option<PatchGroupRecord> {
+    group_patched_dependencies(
+        keys.into_iter()
+            .map(|key| (key, PatchInput { hash: String::new(), patch_file_path: None })),
+    )
+    .ok()
+}
+
+/// The patch keys in `patch_groups` that match a package the lockfile
+/// records, matched the way the resolver matches them.
 ///
 /// `None` when a locked package matches more than one configured range,
 /// so the caller falls back and lets the resolver raise
 /// `ERR_PNPM_PATCH_KEY_CONFLICT` instead of quietly picking a winner.
 fn applied_patch_keys<'a>(
     lockfile: &Lockfile,
-    patch_groups: Option<&'a PatchGroupRecord>,
+    patch_groups: &'a PatchGroupRecord,
 ) -> Option<BTreeSet<&'a str>> {
-    let (Some(groups), Some(snapshots)) = (patch_groups, lockfile.snapshots.as_ref()) else {
+    let Some(snapshots) = lockfile.snapshots.as_ref() else {
         return Some(BTreeSet::new());
     };
     let mut applied = BTreeSet::new();
@@ -82,7 +99,7 @@ fn applied_patch_keys<'a>(
         // `name@version` the patch keys match on.
         let metadata_key = key.without_peer().to_string();
         let (name, version) = pacquet_deps_restorer::parse_name_version_from_key(&metadata_key);
-        if let Some(info) = get_patch_info(Some(groups), &name, &version).ok()? {
+        if let Some(info) = get_patch_info(Some(patch_groups), &name, &version).ok()? {
             applied.insert(info.key.as_str());
         }
     }

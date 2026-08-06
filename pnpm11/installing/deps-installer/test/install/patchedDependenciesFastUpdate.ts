@@ -1,6 +1,5 @@
 import { expect, test } from '@jest/globals'
 import type { LockfileObject } from '@pnpm/lockfile.types'
-import { groupPatchedDependencies } from '@pnpm/patching.config'
 import type { DepPath, ProjectId } from '@pnpm/types'
 
 import {
@@ -40,6 +39,16 @@ test('a range patch key that matches a locked package falls back to resolution',
   expect(tryFastUpdatePatchedDependencies(lockfile, updateOptions({
     patchedDependencies: { 'foo@^1.0.0': 'foo-hash' },
   }))).toBe(false)
+})
+
+test('removing a patch that was applied to a locked package falls back to resolution', () => {
+  const lockfile = lockfileWithPatchedDependency()
+  lockfile.patchedDependencies = { 'foo@1.1.0': 'foo-hash' }
+
+  expect(tryFastUpdatePatchedDependencies(lockfile, updateOptions({
+    patchedDependencies: {},
+  }))).toBe(false)
+  expect(lockfile.patchedDependencies).toStrictEqual({ 'foo@1.1.0': 'foo-hash' })
 })
 
 test('an editing of a patch for a locked package falls back to resolution', () => {
@@ -86,16 +95,20 @@ function updateOptions (
     patchedDependencies: Record<string, string>
   }
 ): FastPatchedDependenciesUpdateOptions {
-  return {
-    allowUnusedPatches: true,
-    patchGroups: groupPatchedDependencies(
-      Object.fromEntries(Object.entries(opts.patchedDependencies).map(([key, hash]) => [
-        key,
-        { hash, patchFilePath: `/patches/${key}.patch` },
-      ]))
-    ),
-    ...opts,
+  return { allowUnusedPatches: true, ...opts }
+}
+
+/** The same graph after a patch for `foo` was applied. */
+function lockfileWithPatchedDependency (): LockfileObject {
+  const lockfile = lockfileWithRegistryDependency()
+  lockfile.importers['.' as ProjectId].dependencies!.foo = '1.1.0(patch_hash=foo-hash)'
+  lockfile.packages = {
+    ['foo@1.1.0(patch_hash=foo-hash)' as DepPath]: {
+      patched: true,
+      resolution: { integrity: 'sha512-deadbeef' },
+    },
   }
+  return lockfile
 }
 
 function lockfileWithRegistryDependency (): LockfileObject {

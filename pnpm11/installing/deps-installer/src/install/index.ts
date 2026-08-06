@@ -777,7 +777,6 @@ export async function mutateModules (
             }
             if (changedSetting === 'patchedDependencies') {
               return tryFastUpdatePatchedDependencies(candidate, {
-                patchGroups,
                 patchedDependencies,
                 allowUnusedPatches: opts.allowUnusedPatches,
               })

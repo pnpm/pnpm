@@ -21,6 +21,24 @@ snapshots:
   foo@1.1.0: {}
 ";
 
+/// The same graph after a patch for `foo` was applied: the snapshot key
+/// carries the `(patch_hash=...)` segment the patch contributed.
+const PATCHED_LOCKFILE: &str = r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      foo:
+        specifier: ^1.0.0
+        version: 1.1.0(patch_hash=deadbeef)
+packages:
+  foo@1.1.0:
+    resolution:
+      integrity: sha512-deadbeef
+snapshots:
+  foo@1.1.0(patch_hash=deadbeef): {}
+";
+
 fn lockfile(source: &str) -> Lockfile {
     serde_saphyr::from_str(source).expect("parse lockfile")
 }
@@ -128,6 +146,19 @@ fn removes_an_unused_patch_without_allowing_unused_patches() {
         .expect("dropping a key that matched nothing leaves no unused patch behind");
 
     assert!(updated.patched_dependencies.is_none());
+}
+
+#[test]
+fn rejects_removing_a_patch_that_was_applied_to_a_locked_package() {
+    let dir = workspace(&[]);
+    let mut lockfile = lockfile(PATCHED_LOCKFILE);
+    lockfile.patched_dependencies =
+        Some(BTreeMap::from([("foo@1.1.0".to_string(), "deadbeef".to_string())]));
+
+    assert!(
+        try_fast_update_patched_dependencies(&lockfile, &config(dir.path(), &[], true)).is_none(),
+        "the locked snapshot still carries the patch hash, so dropping the patch rekeys it",
+    );
 }
 
 #[test]

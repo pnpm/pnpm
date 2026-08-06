@@ -1,9 +1,13 @@
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
-import { allPatchKeys, getPatchInfo, type PatchGroupRecord } from '@pnpm/patching.config'
+import {
+  allPatchKeys,
+  getPatchInfo,
+  groupPatchedDependencies,
+  type PatchGroupRecord,
+} from '@pnpm/patching.config'
 
 export interface FastPatchedDependenciesUpdateOptions {
-  patchGroups: PatchGroupRecord | undefined
   patchedDependencies: Record<string, string> | undefined
   allowUnusedPatches: boolean
 }
@@ -29,14 +33,24 @@ export function tryFastUpdatePatchedDependencies (
 ): boolean {
   const recorded = lockfile.patchedDependencies ?? {}
   const current = opts.patchedDependencies ?? {}
+  // Every key whose presence or hash differs, taken from the recorded map as
+  // well as the current one. A key the previous install applied still owns a
+  // `(patch_hash=...)` segment in the recorded graph, so dropping it rekeys
+  // that package just as adding it did.
   const affected = changedKeys(recorded, current)
   if (affected.length === 0) return false
 
-  const applied = appliedPatchKeys(lockfile, opts.patchGroups)
-  if (applied == null) return false
-  if (affected.some((key) => applied.has(key))) return false
-  if (!opts.allowUnusedPatches && opts.patchGroups != null) {
-    for (const key of allPatchKeys(opts.patchGroups)) {
+  const affectedGroups = groupsFromKeys(affected)
+  if (affectedGroups == null) return false
+  const affectedApplied = appliedPatchKeys(lockfile, affectedGroups)
+  if (affectedApplied == null || affectedApplied.size > 0) return false
+
+  if (!opts.allowUnusedPatches) {
+    const currentGroups = groupsFromKeys(Object.keys(current))
+    if (currentGroups == null) return false
+    const applied = appliedPatchKeys(lockfile, currentGroups)
+    if (applied == null) return false
+    for (const key of allPatchKeys(currentGroups)) {
       if (!applied.has(key)) return false
     }
   }
@@ -58,7 +72,26 @@ function changedKeys (
 }
 
 /**
- * The configured patch keys that match a package the lockfile records, matched
+ * Bucket `keys` the way the resolver buckets configured patches.
+ *
+ * Only the key decides what a patch matches, so this deliberately leaves the
+ * payload empty rather than carrying hashes and paths it would never read.
+ *
+ * `undefined` for a key whose version segment is neither a version nor a
+ * range, leaving `ERR_PNPM_PATCH_NON_SEMVER_RANGE` to the resolver.
+ */
+function groupsFromKeys (keys: string[]): PatchGroupRecord | undefined {
+  try {
+    return groupPatchedDependencies(
+      Object.fromEntries(keys.map((key) => [key, { hash: '' }]))
+    )
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * The patch keys in `patchGroups` that match a package the lockfile records, matched
  * the way the resolver matches them.
  *
  * `undefined` when a locked package matches more than one configured range, so
@@ -67,10 +100,9 @@ function changedKeys (
  */
 function appliedPatchKeys (
   lockfile: LockfileObject,
-  patchGroups: PatchGroupRecord | undefined
+  patchGroups: PatchGroupRecord
 ): Set<string> | undefined {
   const applied = new Set<string>()
-  if (patchGroups == null) return applied
   for (const [depPath, snapshot] of Object.entries(lockfile.packages ?? {})) {
     const { name, version } = nameVerFromPkgSnapshot(depPath, snapshot)
     if (version == null) continue
