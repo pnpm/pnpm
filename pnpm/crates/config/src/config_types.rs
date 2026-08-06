@@ -7,7 +7,10 @@
 //!   type list includes `Number` (used by `castField` to coerce a value).
 //! - [`is_ini_config_key`] / [`is_config_file_key`].
 
-use std::{collections::HashSet, sync::LazyLock};
+use std::{
+    collections::HashSet,
+    sync::{LazyLock, OnceLock},
+};
 
 /// `(kebab-key, type-includes-Number)` for pnpm's own settings (`pnpmTypes`).
 const PNPM_TYPES: &[(&str, bool)] = &[
@@ -414,42 +417,55 @@ const NPM_AUTH_SETTINGS: &[&str] = &[
     "username",
 ];
 
-static NUMERIC_TYPE_KEY_SET: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
-    PNPM_TYPES
-        .iter()
-        .chain(NPM_CONFIG_TYPES)
-        .filter(|(_, is_number)| *is_number)
-        .map(|(key, _)| *key)
-        .collect()
-});
+fn numeric_type_keys() -> &'static HashSet<&'static str> {
+    static SET: OnceLock<HashSet<&'static str>> = OnceLock::new();
+    SET.get_or_init(|| {
+        PNPM_TYPES
+            .iter()
+            .chain(NPM_CONFIG_TYPES)
+            .filter(|(_, is_number)| *is_number)
+            .map(|(key, _)| *key)
+            .collect()
+    })
+}
 
-static ALL_TYPE_KEY_SET: LazyLock<HashSet<&'static str>> =
-    LazyLock::new(|| PNPM_TYPES.iter().chain(NPM_CONFIG_TYPES).map(|(key, _)| *key).collect());
+fn all_type_keys() -> &'static HashSet<&'static str> {
+    static SET: OnceLock<HashSet<&'static str>> = OnceLock::new();
+    SET.get_or_init(|| PNPM_TYPES.iter().chain(NPM_CONFIG_TYPES).map(|(key, _)| *key).collect())
+}
 
-static NPM_CONFIG_TYPE_KEY_SET: LazyLock<HashSet<&'static str>> =
-    LazyLock::new(|| NPM_CONFIG_TYPES.iter().map(|(key, _)| *key).collect());
+fn npm_config_type_keys() -> &'static HashSet<&'static str> {
+    static SET: OnceLock<HashSet<&'static str>> = OnceLock::new();
+    SET.get_or_init(|| NPM_CONFIG_TYPES.iter().map(|(key, _)| *key).collect())
+}
 
-static PNPM_CONFIG_FILE_KEY_SET: LazyLock<HashSet<&'static str>> =
-    LazyLock::new(|| PNPM_CONFIG_FILE_KEYS.iter().copied().collect());
+fn pnpm_config_file_keys() -> &'static HashSet<&'static str> {
+    static SET: OnceLock<HashSet<&'static str>> = OnceLock::new();
+    SET.get_or_init(|| PNPM_CONFIG_FILE_KEYS.iter().copied().collect())
+}
 
-static STRUCTURED_CONFIG_FILE_KEY_SET: LazyLock<HashSet<&'static str>> =
-    LazyLock::new(|| STRUCTURED_CONFIG_FILE_KEYS.iter().copied().collect());
+fn structured_config_file_keys() -> &'static HashSet<&'static str> {
+    static SET: OnceLock<HashSet<&'static str>> = OnceLock::new();
+    SET.get_or_init(|| STRUCTURED_CONFIG_FILE_KEYS.iter().copied().collect())
+}
 
-static EXCLUDED_PNPM_KEY_SET: LazyLock<HashSet<&'static str>> =
-    LazyLock::new(|| EXCLUDED_PNPM_KEYS.iter().copied().collect());
+fn excluded_pnpm_keys() -> &'static HashSet<&'static str> {
+    static SET: OnceLock<HashSet<&'static str>> = OnceLock::new();
+    SET.get_or_init(|| EXCLUDED_PNPM_KEYS.iter().copied().collect())
+}
 
 /// Whether `kebab_key` is a known config key (an own key of pnpm's merged
 /// `types` table). Mirrors `Object.hasOwn(types, kebabKey)`.
 #[must_use]
 pub fn is_type_key(kebab_key: &str) -> bool {
-    ALL_TYPE_KEY_SET.contains(kebab_key)
+    all_type_keys().contains(kebab_key)
 }
 
 /// Whether the type of `kebab_key` includes `Number`, i.e. a string value
 /// should be coerced to a number. Mirrors `castField`'s `typeList.includes(Number)`.
 #[must_use]
 pub fn type_includes_number(kebab_key: &str) -> bool {
-    NUMERIC_TYPE_KEY_SET.contains(kebab_key)
+    numeric_type_keys().contains(kebab_key)
 }
 
 /// Whether `key` would be read from an INI config file (auth / scoped /
@@ -464,10 +480,9 @@ pub fn is_ini_config_key(key: &str) -> bool {
 /// is not in the excluded list.
 #[must_use]
 pub fn is_config_file_key(kebab_key: &str) -> bool {
-    PNPM_CONFIG_FILE_KEY_SET.contains(kebab_key)
-        || STRUCTURED_CONFIG_FILE_KEY_SET.contains(kebab_key)
-        || (NPM_CONFIG_TYPE_KEY_SET.contains(kebab_key)
-            && !EXCLUDED_PNPM_KEY_SET.contains(kebab_key))
+    pnpm_config_file_keys().contains(kebab_key)
+        || structured_config_file_keys().contains(kebab_key)
+        || (npm_config_type_keys().contains(kebab_key) && !excluded_pnpm_keys().contains(kebab_key))
 }
 
 /// Settings a project's `pnpm-workspace.yaml` does not contribute, in
