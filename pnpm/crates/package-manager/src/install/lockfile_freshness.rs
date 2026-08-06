@@ -4,7 +4,7 @@ use super::{
     StalenessReason, satisfies_package_manifest,
 };
 
-pub(super) struct FastUpdateImporterLockfileOptions<'a, 'manifest> {
+pub(super) struct FastUpdateLockfileOptions<'a, 'manifest> {
     pub(super) lockfile: Option<&'a Lockfile>,
     pub(super) manifests: &'a [(String, &'manifest PackageManifest)],
     pub(super) config: &'a Config,
@@ -13,12 +13,22 @@ pub(super) struct FastUpdateImporterLockfileOptions<'a, 'manifest> {
     pub(super) ignore_manifest_check: bool,
 }
 
-pub(super) async fn try_fast_update_importer_lockfile(
-    opts: FastUpdateImporterLockfileOptions<'_, '_>,
+pub(super) async fn try_fast_update_lockfile(
+    opts: FastUpdateLockfileOptions<'_, '_>,
 ) -> Option<Lockfile> {
     let lockfile = opts.lockfile?;
-    let candidate =
-        crate::fast_update_importers::try_fast_update_importers(lockfile, opts.manifests)?;
+    let importer_candidate =
+        crate::fast_update_importers::try_fast_update_importers(lockfile, opts.manifests);
+    let ignored_optional_candidate =
+        crate::fast_update_ignored_optional_dependencies::try_fast_update_ignored_optional_dependencies(
+            lockfile,
+            opts.config.ignored_optional_dependencies.as_deref().unwrap_or_default(),
+        );
+    let ((Some(candidate), None) | (None, Some(candidate))) =
+        (importer_candidate, ignored_optional_candidate)
+    else {
+        return None;
+    };
     check_lockfile_freshness(
         &candidate,
         opts.manifests,

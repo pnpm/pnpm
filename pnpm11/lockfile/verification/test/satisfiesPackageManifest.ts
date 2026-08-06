@@ -430,3 +430,30 @@ test('satisfiesPackageManifest()', () => {
 `,
   })
 })
+
+test('satisfiesPackageManifest() ignores configured optional dependencies', () => {
+  expect(satisfiesPackageManifest(
+    {
+      ignoredOptionalDependencies: ['@ignored/*', 'foo'],
+    },
+    {
+      dependencies: {
+        required: '1.0.0',
+      },
+      specifiers: {
+        required: '1.0.0',
+      },
+    },
+    {
+      ...DEFAULT_PKG_FIELDS,
+      dependencies: {
+        foo: '1.0.0',
+        required: '1.0.0',
+      },
+      optionalDependencies: {
+        '@ignored/pkg': '1.0.0',
+        foo: '1.0.0',
+      },
+    }
+  )).toStrictEqual({ satisfies: true })
+})

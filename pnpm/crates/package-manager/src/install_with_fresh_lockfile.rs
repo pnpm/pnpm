@@ -26,7 +26,7 @@ use pacquet_resolving_npm_resolver::{InMemoryPackageMetaCache, MergeNamedRegistr
 use pacquet_store_dir::SharedVerifiedFilesCache;
 use pacquet_tarball::{MemCache, SharedReportedProgressKeys};
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, HashSet},
     path::Path,
     sync::{Arc, atomic::AtomicU8},
 };
@@ -1922,6 +1922,12 @@ fn overrides_match(
         }
         _ => false,
     }
+}
+
+fn ignored_optional_dependencies_match(left: Option<&[String]>, right: Option<&[String]>) -> bool {
+    let left: HashSet<_> = left.unwrap_or_default().iter().collect();
+    let right: HashSet<_> = right.unwrap_or_default().iter().collect();
+    left == right
 }
 
 fn compose_manifest_hooks(

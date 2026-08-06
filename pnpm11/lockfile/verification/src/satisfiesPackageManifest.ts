@@ -1,3 +1,4 @@
+import { createMatcher } from '@pnpm/config.matcher'
 import * as dp from '@pnpm/deps.path'
 import type { ProjectSnapshot } from '@pnpm/lockfile.types'
 import {
@@ -14,12 +15,22 @@ export function satisfiesPackageManifest (
   opts: {
     autoInstallPeers?: boolean
     excludeLinksFromLockfile?: boolean
+    ignoredOptionalDependencies?: string[]
   },
   importer: ProjectSnapshot | undefined,
   pkg: ProjectManifest
 ): { satisfies: boolean, detailedReason?: string } {
   if (!importer) return { satisfies: false, detailedReason: 'no importer' }
-  let existingDeps: Record<string, string> = { ...pkg.devDependencies, ...pkg.dependencies, ...pkg.optionalDependencies }
+  const ignoredOptionalDependencies = new Set(
+    opts.ignoredOptionalDependencies?.length
+      ? Object.keys(pkg.optionalDependencies ?? {})
+        .filter(createMatcher(opts.ignoredOptionalDependencies))
+      : []
+  )
+  let existingDeps = omitIgnoredDependencies(
+    { ...pkg.devDependencies, ...pkg.dependencies, ...pkg.optionalDependencies },
+    ignoredOptionalDependencies
+  )
   if (opts?.autoInstallPeers) {
     pkg = {
       ...pkg,
@@ -60,7 +71,9 @@ export function satisfiesPackageManifest (
   }
   for (const depField of DEPENDENCIES_FIELDS) {
     const importerDeps = importer[depField] ?? {}
-    let pkgDeps: Record<string, string> = pkg[depField] ?? {}
+    let pkgDeps = depField === 'devDependencies'
+      ? pkg[depField] ?? {}
+      : omitIgnoredDependencies(pkg[depField], ignoredOptionalDependencies)
     if (opts?.excludeLinksFromLockfile) {
       pkgDeps = pickNonLinkedDeps(pkgDeps)
     }
@@ -108,6 +121,17 @@ export function satisfiesPackageManifest (
     }
   }
   return { satisfies: true }
+}
+
+function omitIgnoredDependencies (
+  dependencies: Record<string, string> | undefined,
+  ignoredDependencies: Set<string>
+): Record<string, string> {
+  const filteredDependencies = { ...dependencies }
+  for (const dependency of ignoredDependencies) {
+    delete filteredDependencies[dependency]
+  }
+  return filteredDependencies
 }
 
 function countOfNonLinkedDeps (lockfileDeps: { [depName: string]: string }): number {
