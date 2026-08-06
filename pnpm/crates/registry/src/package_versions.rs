@@ -258,9 +258,9 @@ impl PackageVersions {
     /// the held-open `file` (the indexed mirror). Nothing parses until
     /// a version hydrates, and no fragment bytes stay resident.
     ///
-    /// The handle pins the inode: mirror rewrites go through temp-file
-    /// + `rename`, so the bytes behind this open handle can never
-    /// shift under the recorded spans.
+    /// The handle pins the inode: mirror rewrites go through a temp
+    /// file followed by `rename`, so the bytes behind this open handle
+    /// can never shift under the recorded spans.
     #[must_use]
     pub fn from_file_spans(
         file: &Arc<File>,
