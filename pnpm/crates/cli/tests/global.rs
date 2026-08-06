@@ -593,10 +593,15 @@ fn global_commands_read_group_lockfiles_when_the_lockfile_setting_is_off() {
         .output()
         .expect("run interactive global update");
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    // Reaching the prompt is the proof that the group's versions were read.
+    // The test has no TTY, so `dialoguer` cannot render it and the command
+    // fails with that specific error; an unread group would instead exit 0
+    // after printing that everything is up to date.
+    let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        !stdout.contains("already up to date"),
-        "the outdated group must reach the prompt, got: {stdout}",
+        stderr.contains("interactive update selection failed"),
+        "the outdated group must reach the prompt; stdout: {}; stderr: {stderr}",
+        String::from_utf8_lossy(&output.stdout),
     );
 
     drop((root, npmrc_info));
