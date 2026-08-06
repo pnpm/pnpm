@@ -406,27 +406,29 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
     Ok(())
 }
 
-/// With `--latest`, registry packages become bare aliases so their latest
-/// version is resolved. Local packages (`link:`/`file:`) always keep their
-/// spec, as they don't resolve from a registry and have no latest version
-/// to query.
+/// With `--latest`, a dependency is reduced to its bare alias so the newest
+/// registry version is resolved.
 fn update_selectors(dependencies: &[(String, String)], latest: bool) -> Vec<String> {
     dependencies
         .iter()
-        .map(
-            |(alias, spec)| {
-                if latest && !is_local_spec(spec) {
-                    alias.clone()
-                } else {
-                    format!("{alias}@{spec}")
-                }
-            },
-        )
+        .map(|(alias, spec)| {
+            if latest && is_plain_version_spec(spec) {
+                alias.clone()
+            } else {
+                format!("{alias}@{spec}")
+            }
+        })
         .collect()
 }
 
-fn is_local_spec(spec: &str) -> bool {
-    spec.starts_with("link:") || spec.starts_with("file:")
+/// Only a plain version range may be dropped in favor of the bare alias.
+/// Every other spec form (`link:`, `file:`, a git or tarball URL, an `npm:`
+/// alias, a named registry) also says where the package comes from, so the
+/// alias alone would be resolved from the default registry: a different
+/// package gets installed, or the lookup 404s and aborts the groups that
+/// have not been updated yet.
+fn is_plain_version_spec(spec: &str) -> bool {
+    !spec.contains(':')
 }
 
 /// `pnpm remove -g`. Removes the bins, hash symlinks, and install dirs of
