@@ -98,6 +98,11 @@ pub struct InstallOptions {
     pub package_extensions: Option<IndexMap<String, PackageExtensionInput>>,
     /// Patch paths keyed by package selector. Relative paths resolve from `dir`.
     pub patched_dependencies: Option<IndexMap<String, String>>,
+    /// Warn instead of failing with `ERR_PNPM_UNUSED_PATCH` when a
+    /// `patchedDependencies` entry matches no installed package. Lets an
+    /// embedder ship a patch keyed to a version range that only some
+    /// workspaces resolve.
+    pub allow_unused_patches: Option<bool>,
     pub peers_suffix_max_length: Option<u32>,
     pub dedupe_peer_dependents: Option<bool>,
     pub dedupe_peers: Option<bool>,
@@ -607,6 +612,7 @@ fn build_overlay(options: &InstallOptions) -> napi::Result<ConfigOverlay> {
                 .collect()
         }),
         patched_dependencies: options.patched_dependencies.clone(),
+        allow_unused_patches: options.allow_unused_patches,
         hoist_pattern: options.hoist_pattern.clone(),
         public_hoist_pattern: options.public_hoist_pattern.clone(),
         external_dependencies: options
