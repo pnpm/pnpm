@@ -57,13 +57,11 @@ enum FragmentSource {
     /// of a packument body captures these).
     Raw(Arc<RawValue>),
     /// Byte span inside an indexed on-disk metadata mirror, read on
-    /// demand from the *held-open* file. Holding the handle (instead
-    /// of re-opening by path) pins the inode: mirror rewrites go
-    /// through temp-file + `rename`, so the bytes behind an open
-    /// handle can never shift under the recorded spans. Reading per
-    /// hydration instead of retaining the mirror body is what keeps a
-    /// workspace-scale packument cache out of resident memory — the
-    /// bytes stay in the (reclaimable) page cache.
+    /// demand from the *held-open* file — reading per hydration
+    /// instead of retaining the mirror body keeps a workspace-scale
+    /// packument cache out of resident memory. See
+    /// [`PackageVersions::from_file_spans`] for the inode-pinning
+    /// contract the held handle provides.
     FileSpan { file: Arc<File>, offset: u64, len: u32 },
     /// No fragment — the slot was constructed from an already-typed
     /// manifest (tests, the publish-date filter's slot moves).
@@ -258,8 +256,11 @@ impl PackageVersions {
 impl PackageVersions {
     /// Build a map whose fragments are byte spans read on demand from
     /// the held-open `file` (the indexed mirror). Nothing parses until
-    /// a version hydrates, and no fragment bytes stay resident. See
-    /// [`FragmentSource::FileSpan`] for the inode-pinning contract.
+    /// a version hydrates, and no fragment bytes stay resident.
+    ///
+    /// The handle pins the inode: mirror rewrites go through temp-file
+    /// + `rename`, so the bytes behind this open handle can never
+    /// shift under the recorded spans.
     #[must_use]
     pub fn from_file_spans(
         file: &Arc<File>,
