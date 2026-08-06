@@ -849,7 +849,7 @@ fn an_unused_patch_is_recorded_without_resolution_and_a_used_one_is_not() {
     fs::write(
         &workspace_yaml_path,
         format!(
-            "{workspace_yaml}patchedDependencies:\n  absent-package@1.0.0: patches/absent.patch\n"
+            "{workspace_yaml}patchedDependencies:\n  absent-package@1.0.0: patches/absent.patch\n",
         ),
     )
     .expect("patch a package the lockfile does not record");
