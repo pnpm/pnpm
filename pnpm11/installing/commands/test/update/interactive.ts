@@ -151,6 +151,32 @@ test('global interactive update reports when no group has the requested package'
   expect(mockCheckbox).not.toHaveBeenCalled()
 })
 
+// pacquet reads only the wanted lockfile, which its global install writes
+// whatever `lockfile` is set to; here the current lockfile carries the
+// versions instead. Both stacks must keep reporting them.
+test('global interactive update reads current versions when the lockfile setting is off', async () => {
+  prepare()
+  const options = { ...globalOptions(), useLockfile: false }
+
+  await add.handler(options as any, ['@pnpm.e2e/multi-version-a@1.0.0']) // eslint-disable-line @typescript-eslint/no-explicit-any
+  await addDistTag({ package: '@pnpm.e2e/multi-version-a', version: '2.1.0', distTag: 'latest' })
+  mockCheckbox.mockClear()
+  mockCheckbox.mockResolvedValue([])
+
+  await update.handler({
+    ...options,
+    interactive: true,
+    latest: true,
+  } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+  expect(mockCheckbox).toHaveBeenCalledWith(expect.objectContaining({
+    choices: [{
+      name: '@pnpm.e2e/multi-version-a 1.0.0 → 2.1.0',
+      value: expect.any(String),
+    }],
+  }))
+})
+
 test('global interactive update does not match a group on an inherited Object key', async () => {
   prepare()
   const options = globalOptions()

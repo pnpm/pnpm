@@ -55,6 +55,10 @@ pub(crate) async fn select_global_package_groups(
     let mut config = base_config.clone();
     config.workspace_dir = None;
     config.shared_workspace_lockfile = false;
+    // A group's lockfile is written unconditionally (`run_group_install`
+    // forces it) because it is where the installed versions are recorded, so
+    // reading it back must not depend on the caller's `lockfile` setting.
+    config.lockfile = true;
     let config = Config::leak(config);
     let query = OutdatedQuery {
         target_version: if latest { TargetVersion::Latest } else { TargetVersion::WithinRange },
