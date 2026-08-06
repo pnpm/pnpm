@@ -959,3 +959,92 @@ fn patched_dependency_keys(workspace: &Path) -> Vec<String> {
         .map(|map| map.keys().cloned().collect())
         .unwrap_or_default()
 }
+
+#[test]
+fn patching_a_package_with_an_install_script_rebuilds_it() {
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, npmrc_path, .. } = npmrc_info;
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/install-script-example": "1.0.0"
+            }
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    fs::create_dir_all(workspace.join("patches")).expect("create patches dir");
+    let workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    fs::write(
+        &workspace_yaml_path,
+        format!(
+            "{workspace_yaml}trustLockfile: true\nstrictDepBuilds: false\nallowBuilds:\n  '@pnpm.e2e/install-script-example': true\n",
+        ),
+    )
+    .expect("allow the install script");
+    pacquet_at(&workspace).with_arg("install").assert().success();
+    assert_eq!(generated_by_install(&workspace), "module.exports = function () {}\n");
+
+    fs::write(
+        workspace.join("patches").join("install-script-example.patch"),
+        concat!(
+            "diff --git a/create.js b/create.js\n",
+            "--- a/create.js\n",
+            "+++ b/create.js\n",
+            "@@ -1,4 +1,4 @@\n",
+            " 'use strict'\n",
+            " const fs = require('fs')\n",
+            " \n",
+            "-fs.writeFileSync(process.argv[2] + '.js', 'module.exports = function () {}\\n', 'utf8')\n",
+            "+fs.writeFileSync(process.argv[2] + '.js', 'patched\\n', 'utf8')\n",
+        ),
+    )
+    .expect("write the patch");
+    let dead_registry = dead_registry_url();
+    let live_npmrc = fs::read_to_string(&npmrc_path).expect("read .npmrc");
+    let dead_npmrc = live_npmrc
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("registry="))
+        .collect::<Vec<_>>()
+        .join("\n");
+    fs::write(&npmrc_path, format!("registry={dead_registry}\n{dead_npmrc}\n"))
+        .expect("rewrite .npmrc with a dead registry");
+    let workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    fs::write(
+        &workspace_yaml_path,
+        format!(
+            "{workspace_yaml}patchedDependencies:\n  '@pnpm.e2e/install-script-example@1.0.0': patches/install-script-example.patch\n",
+        ),
+    )
+    .expect("patch the package");
+
+    let assert = pacquet_at(&workspace).with_arg("install").assert().success();
+    assert!(
+        String::from_utf8_lossy(&assert.get_output().stdout)
+            .contains("Lockfile is up to date, resolution step is skipped"),
+        "the rekey needs no resolution",
+    );
+    assert_eq!(
+        generated_by_install(&workspace),
+        "patched\n",
+        "the install script reran against the patched sources",
+    );
+
+    drop((root, mock_instance));
+}
+
+fn generated_by_install(workspace: &Path) -> String {
+    fs::read_to_string(
+        workspace
+            .join("node_modules")
+            .join("@pnpm.e2e")
+            .join("install-script-example")
+            .join("generated-by-install.js"),
+    )
+    .expect("read the file the install script generates")
+}
