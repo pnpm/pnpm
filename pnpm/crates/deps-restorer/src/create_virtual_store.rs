@@ -873,62 +873,36 @@ struct SlotLink<'a> {
     removed_aliases: &'a [PkgName],
 }
 
-/// One unique slot directory and every [`SlotLink`] that resolved to it.
-///
-/// Under the global virtual store, peer variants of one package whose
-/// recursive dependency hashes are equal share a slot path — that
-/// sharing is the point of hashing. Materializing each variant
-/// separately would run concurrent [`fn@crate::import_indexed_dir`]
-/// calls against a single directory, and its `stage_and_swap` assumes
-/// an exclusive owner (see the step-5 comment there): for a mutable
-/// `file:` source (`force: true`, never `safe_to_skip`) the racing
-/// removes and renames fail with `Directory not empty` / `NotFound`
-/// depending on interleaving. pnpm v11 never faces this because
-/// `lockfileToDepGraph` keys its graph by directory, so only one node
-/// per location survives graph construction; grouping here restores
-/// that invariant. Without GVS, `slot_dir` embeds the full
-/// peer-suffixed key, every group is a singleton, and the link pass
-/// behaves exactly as before.
+/// One unique slot directory and every [`SlotLink`] that resolved to
+/// it. Under the global virtual store, hash-equal peer variants share
+/// a slot path, and `stage_and_swap` in
+/// [`fn@crate::import_indexed_dir`] assumes an exclusive owner per
+/// directory — so the link pass runs one task per group, with the
+/// `removed_aliases` of every member unioned for cleanup.
 struct SlotDirGroup<'a> {
-    /// First slot in `slots` order that resolved to the directory; its
-    /// snapshot drives the import and the symlink layout. Hash-equal
-    /// variants have identical file maps and hash-equal children —
-    /// whose own slot paths are therefore equal too — so any member
-    /// is a valid representative for both.
     representative: &'a SlotLink<'a>,
-    /// The remaining variants, kept only so each warm one still emits
-    /// its own `pnpm:progress` line — package counts stay in step
-    /// with the lockfile even though the directory is written once.
+    /// Kept so each warm variant still emits its own progress line.
     duplicates: Vec<&'a SlotLink<'a>>,
-    /// Union of the group's `removed_aliases`, allocated only when a
-    /// duplicate contributes an alias the representative lacks.
-    /// Obsolete-child cleanup targets the shared directory, so a
-    /// stale link recorded against any variant must be removed no
-    /// matter which variant runs.
+    /// `None` until a duplicate contributes an alias the
+    /// representative lacks.
     merged_removed_aliases: Option<Vec<PkgName>>,
 }
 
 impl SlotDirGroup<'_> {
-    /// The group's obsolete child aliases: the merged union when
-    /// duplicates contributed, the representative's own slice
-    /// otherwise.
     fn removed_aliases(&self) -> &[PkgName] {
         self.merged_removed_aliases.as_deref().unwrap_or(self.representative.removed_aliases)
     }
 }
 
 /// Group `slots` by [`crate::VirtualStoreLayout::slot_dir`], preserving
-/// first-occurrence order. See [`SlotDirGroup`] for why the link pass
-/// must run per unique directory rather than per snapshot key.
+/// first-occurrence order.
 fn group_slots_by_dir<'a>(
     slots: &'a [SlotLink<'a>],
     layout: &crate::VirtualStoreLayout,
 ) -> Vec<SlotDirGroup<'a>> {
     if !layout.enable_global_virtual_store() {
-        // Project-local slot names embed the full peer-suffixed key, so
-        // every group would come out a singleton anyway - skip the
-        // per-slot path construction and map bookkeeping on the hot
-        // path of the common layout.
+        // Project-local slot names embed the peer-suffixed key: every
+        // group is a singleton, so skip the path construction.
         return slots
             .iter()
             .map(|slot| SlotDirGroup {
@@ -1007,9 +981,6 @@ fn link_slots_parallel<Reporter: self::Reporter>(
     } = opts;
 
     let phase_start = std::time::Instant::now();
-    // One task per unique slot directory, not per snapshot key — see
-    // `SlotDirGroup` for why colliding peer variants must not
-    // materialize the same directory concurrently.
     let groups = group_slots_by_dir(slots, layout);
     let link_work = || {
         groups.par_iter().try_for_each(|group| {

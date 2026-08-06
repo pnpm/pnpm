@@ -212,14 +212,11 @@ async fn cold_batch_links_slots_in_parallel() {
 
 const DUMMY_SHA512: &str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
 
-/// End-to-end wiring for the slot grouping: under the global virtual
-/// store, two peer variants of one package with identical (empty)
-/// dependency sets hash to a single slot directory, and the whole
-/// [`CreateVirtualStore::run`] pass must execute exactly one link task
-/// for it — not one per variant. The probe's lifetime counter is what
-/// distinguishes a real dedup from duplicates that merely happened to
-/// serialize; a unit test of `group_slots_by_dir` alone could pass
-/// while the link pass kept iterating per snapshot key.
+/// Under the global virtual store, peer variants hashing to one slot
+/// directory must produce one link task through the whole
+/// [`CreateVirtualStore::run`] pass — the probe's lifetime counter
+/// distinguishes a real dedup from duplicates that happened to
+/// serialize.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn gvs_link_pass_materializes_shared_slot_once() {
     use crate::{AllowBuildPolicy, SkippedSnapshots, VirtualStoreLayout};
@@ -677,11 +674,8 @@ fn slot_link<'a>(
     }
 }
 
-/// Two peer variants of one directory dependency whose subtrees hash
-/// identically share a slot path under the global virtual store. The
-/// link pass must collapse them into one group — otherwise two
-/// force-mode imports race `stage_and_swap` on the same directory —
-/// and the group's obsolete-alias cleanup must cover both variants'
+/// Hash-equal peer variants of a directory dependency collapse into
+/// one group, with the obsolete-alias cleanup covering both variants'
 /// recorded removals.
 #[test]
 fn group_slots_by_dir_collapses_hash_equal_peer_variants() {

@@ -20,11 +20,8 @@ pub struct LinkConcurrencyProbe {
     current: AtomicUsize,
     max: AtomicUsize,
     /// Total `enter()` calls over the probe's lifetime — one per
-    /// [`CreateVirtualDirBySnapshot::run`]. Lets tests assert how many
-    /// link tasks actually executed (e.g. that hash-equal peer
-    /// variants sharing a slot directory materialize it once), which
-    /// `max_concurrent` alone cannot distinguish from serialized
-    /// duplicates.
+    /// [`CreateVirtualDirBySnapshot::run`] — for asserting how many
+    /// link tasks executed, which `max_concurrent` cannot.
     total: AtomicUsize,
     wait_for_overlap: bool,
     wait_started: AtomicBool,
