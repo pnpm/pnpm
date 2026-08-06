@@ -219,6 +219,30 @@ fn load_meta_past_the_hold_cap_ignores_a_sparse_tail() {
 }
 
 #[test]
+fn load_meta_past_the_hold_cap_skips_a_sparse_gap_between_spans() {
+    let dir = TempDir::new().expect("tmp dir");
+    let mirror = dir.path().join("acme.jsonl");
+    let headers = "{}";
+    let fragment = r#"{"name":"acme","version":"1.0.0","dist":{"integrity":"sha512-A","shasum":"0","tarball":"https://registry/acme-1.0.0.tgz"}}"#;
+    let far_offset: u64 = 512 * 1024 * 1024;
+    let index = format!(
+        r#"{{"name":"acme","distTags":{{}},"versions":[["1.0.0",0,{}],["2.0.0",{far_offset},16]]}}"#,
+        fragment.len(),
+    );
+    let contents =
+        format!("pacquet-meta-v1 {} {}\n{headers}{index}{fragment}", headers.len(), index.len());
+    std::fs::write(&mirror, &contents).expect("write");
+    let file = std::fs::OpenOptions::new().append(true).open(&mirror).expect("open");
+    file.set_len(contents.len() as u64 + far_offset + 16).expect("extend sparsely");
+    let loaded = load_meta_with_hold_cap(&mirror, 0).expect("read full back without a handle");
+    let manifest = loaded.versions.get("1.0.0").expect("hydrate the near fragment");
+    assert_eq!(manifest.dist.tarball, "https://registry/acme-1.0.0.tgz");
+    // The far span reads zeroes out of the sparse hole — not JSON, so
+    // the version is absent; the gap itself must never be buffered.
+    assert!(loaded.versions.get("2.0.0").is_none());
+}
+
+#[test]
 fn load_meta_treats_an_oversized_fragment_span_as_absent() {
     let dir = TempDir::new().expect("tmp dir");
     let mirror = dir.path().join("acme.jsonl");

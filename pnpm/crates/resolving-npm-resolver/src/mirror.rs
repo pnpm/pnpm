@@ -611,31 +611,28 @@ fn load_meta_with_hold_cap(pkg_mirror: &Path, hold_cap: usize) -> Option<Package
         // a full cache can never make `File::open` fail elsewhere and
         // turn present mirrors into cache misses.
         Err(file) => {
-            // The prefix probe may have read past `fragment_base`; the
-            // buffer must start there, with the rest read from the
-            // file's current position (`fs::read` would re-open by
-            // path and lose the already-consumed prefix). The read
-            // stops at the highest validated span end — bytes past it
-            // (a sparse or garbage tail) belong to no fragment.
-            let fragment_end = spans
-                .iter()
-                .map(|(_, absolute, len)| absolute + u64::from(*len))
-                .max()
-                .unwrap_or(fragment_base as u64);
-            let mut fragments = Vec::new();
-            if fragment_base < filled {
-                fragments.extend_from_slice(&prefix[fragment_base..filled]);
+            // Each validated span is read with its own positioned read
+            // and the file closed afterwards: reading the contiguous
+            // fragment region would let a corrupt index's sparse gaps
+            // inflate the buffer far past the real fragment bytes. The
+            // budget bounds the total even against an index whose spans
+            // overlap or repeat.
+            const MAX_EAGER_FRAGMENT_TOTAL: u64 = 1 << 30;
+            let mut budget = MAX_EAGER_FRAGMENT_TOTAL;
+            let mut raw_fragments = Vec::with_capacity(spans.len());
+            for (version, absolute, len) in spans {
+                budget = budget.checked_sub(u64::from(len))?;
+                let mut bytes = vec![0u8; len as usize];
+                if pacquet_registry::read_exact_at(&file, &mut bytes, absolute).is_err() {
+                    continue;
+                }
+                let Ok(json) = String::from_utf8(bytes) else { continue };
+                let Ok(raw) = serde_json::from_str::<Box<serde_json::value::RawValue>>(&json)
+                else {
+                    continue;
+                };
+                raw_fragments.push((version, raw));
             }
-            let remaining =
-                (fragment_end - fragment_base as u64).saturating_sub(fragments.len() as u64);
-            io::BufReader::new(file).take(remaining).read_to_end(&mut fragments).ok()?;
-            let raw_fragments = spans.into_iter().filter_map(|(version, absolute, len)| {
-                let start = usize::try_from(absolute.checked_sub(fragment_base as u64)?).ok()?;
-                let end = start.checked_add(len as usize)?;
-                let json = std::str::from_utf8(fragments.get(start..end)?).ok()?;
-                let raw = serde_json::from_str::<Box<serde_json::value::RawValue>>(json).ok()?;
-                Some((version, raw))
-            });
             PackageVersions::from_raw_fragments(raw_fragments)
         }
     };
