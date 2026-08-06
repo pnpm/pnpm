@@ -63,6 +63,10 @@ pub struct ConfigOverlay {
     pub global_virtual_store_dir: Option<PathBuf>,
     pub package_extensions: Option<IndexMap<String, PackageExtension>>,
     pub patched_dependencies: Option<IndexMap<String, String>>,
+    /// `allowUnusedPatches` — when `true`, a configured patch that matches no
+    /// installed package warns instead of failing with
+    /// `ERR_PNPM_UNUSED_PATCH`.
+    pub allow_unused_patches: Option<bool>,
     pub hoist_pattern: Option<Vec<String>>,
     pub public_hoist_pattern: Option<Vec<String>>,
     pub external_dependencies: Option<BTreeSet<String>>,
@@ -301,6 +305,9 @@ fn build_config(dir: &Path, overlay: &ConfigOverlay) -> Result<Config, LoadWorks
         if config.workspace_dir.is_none() {
             config.workspace_dir = Some(dir.to_path_buf());
         }
+    }
+    if let Some(value) = overlay.allow_unused_patches {
+        config.allow_unused_patches = value;
     }
     if let Some(hoist_pattern) = &overlay.hoist_pattern {
         config.hoist_pattern = Some(hoist_pattern.clone());
