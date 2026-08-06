@@ -114,10 +114,6 @@ async fn github_shortcut_full_commit_returns_tarball() {
     );
 }
 
-/// The archive probe failing (private repo, or throttling past the
-/// retries) downgrades the resolution to `type: git` over the same
-/// canonical HTTPS URL — never to SSH, and never to an archive URL
-/// that just proved unfetchable.
 #[tokio::test]
 async fn archive_probe_failure_records_git_over_https() {
     const COMMIT: &str = "0000000000000000000000000000000000000000";
@@ -144,10 +140,6 @@ async fn archive_probe_failure_records_git_over_https() {
     );
 }
 
-/// An SSH representation of a known host is the same identity as the
-/// shortcut: resolution goes through the canonical HTTPS URL, and the
-/// machine-level git configuration (`url.<base>.insteadOf`) — not the
-/// spec — decides how each machine reaches the host.
 #[tokio::test]
 async fn hosted_ssh_input_resolves_through_the_https_identity() {
     const COMMIT: &str = "1234567890123456789012345678901234567890";
@@ -169,8 +161,6 @@ async fn hosted_ssh_input_resolves_through_the_https_identity() {
     );
 }
 
-/// A URL of an unknown host is kept verbatim — for it, the URL *is*
-/// the identity, transport included — and no archive probe runs.
 #[tokio::test]
 async fn unknown_host_ssh_url_stays_a_git_resolution() {
     let stdout = "abcdef1234567890123456789012345678901234\tHEAD\n";
@@ -258,10 +248,6 @@ async fn sub_folder_and_branch_resolve_to_a_tarball_carrying_the_path() {
     );
 }
 
-/// The credentials in the URL are what make the repo reachable, and a
-/// host's archive endpoint does not carry them — so this must stay a
-/// `type: git` resolution against the authenticated remote, without
-/// even probing the archive.
 #[tokio::test]
 async fn credentialed_https_url_keeps_the_authenticated_url() {
     const COMMIT: &str = "0000000000000000000000000000000000000000";

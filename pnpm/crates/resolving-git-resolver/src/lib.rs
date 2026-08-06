@@ -5,13 +5,8 @@
 //! plain `https://host/repo.git[#ref]` shape some hosts (Gitea, ...)
 //! serve.
 //!
-//! Specs of known hosts are identities, not transport choices: they
-//! finalise to the host's canonical HTTPS URL no matter which
-//! representation the user wrote, and each machine's own git
-//! configuration (credential helpers, `url.<base>.insteadOf`
-//! rewrites) decides how that machine reaches the host. Nothing
-//! transport-shaped is ever probed for or recorded — see
-//! `parse_bare_specifier`'s module doc.
+//! Specs of known hosts are identities, not transport choices —
+//! `parse_bare_specifier`'s module doc states the rule.
 //!
 //! Three pieces:
 //!

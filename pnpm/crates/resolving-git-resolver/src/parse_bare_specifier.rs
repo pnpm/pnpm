@@ -203,10 +203,8 @@ fn from_hosted_git(hosted: HostedGit) -> HostedPackageSpec {
     let params = parse_git_params(hosted.committish.as_deref());
     let https_url = hosted.https(HostedGit::no_committish_no_git_plus());
     // URL-embedded credentials are explicit user content, not
-    // transport: keep the exact URL, echo it back to the manifest,
-    // and withhold `hosted` so the resolution can never become a
-    // host-archive URL (the archive endpoint would not carry the
-    // credentials).
+    // transport — and the host's archive endpoint would not carry
+    // them, so the spec stays archive-ineligible.
     if hosted.auth.is_some()
         && let Some(https_url) = &https_url
     {
