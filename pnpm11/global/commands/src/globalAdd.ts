@@ -184,8 +184,8 @@ export function shouldReplaceExistingGlobalInstall (
   aliases: string[],
   replacementAliases: string[]
 ): boolean {
-  if (aliases.some((alias) => alias in pkg.dependencies)) return true
-  return isPnpmCliOnlyGroup(pkg) && replacementAliases.some((alias) => alias in pkg.dependencies)
+  if (aliases.some((alias) => Object.hasOwn(pkg.dependencies, alias))) return true
+  return isPnpmCliOnlyGroup(pkg) && replacementAliases.some((alias) => Object.hasOwn(pkg.dependencies, alias))
 }
 
 function isPnpmCliOnlyGroup (pkg: GlobalPackageInfo): boolean {

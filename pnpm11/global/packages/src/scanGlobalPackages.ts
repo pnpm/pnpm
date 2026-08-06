@@ -95,7 +95,7 @@ export function scanGlobalPackages (globalDir: string): GlobalPackageInfo[] {
 
 export function findGlobalPackage (globalDir: string, alias: string): GlobalPackageInfo | null {
   const packages = scanGlobalPackages(globalDir)
-  return packages.find((pkg) => alias in pkg.dependencies) ?? null
+  return packages.find((pkg) => Object.hasOwn(pkg.dependencies, alias)) ?? null
 }
 
 export async function getGlobalPackageDetails (info: GlobalPackageInfo): Promise<InstalledGlobalPackage[]> {

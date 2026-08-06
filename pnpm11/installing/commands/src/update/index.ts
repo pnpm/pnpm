@@ -231,7 +231,7 @@ async function selectGlobalPackageGroups (
   // rather than dependencies, the same way `handleGlobalUpdate()` reads them.
   const matchedPackages = input.length === 0
     ? globalPackages
-    : globalPackages.filter((pkg) => input.some((param) => param in pkg.dependencies))
+    : globalPackages.filter((pkg) => input.some((param) => Object.hasOwn(pkg.dependencies, param)))
   if (matchedPackages.length === 0) return 'No matching global packages found'
   const outdatedPerGroup = await Promise.all(matchedPackages.map(async (pkg) => {
     const project = {

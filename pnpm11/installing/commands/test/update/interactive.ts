@@ -151,6 +151,21 @@ test('global interactive update reports when no group has the requested package'
   expect(mockCheckbox).not.toHaveBeenCalled()
 })
 
+test('global interactive update does not match a group on an inherited Object key', async () => {
+  prepare()
+  const options = globalOptions()
+
+  await add.handler(options as any, ['@pnpm.e2e/multi-version-a@1.0.0']) // eslint-disable-line @typescript-eslint/no-explicit-any
+  mockCheckbox.mockClear()
+
+  await expect(update.handler({
+    ...options,
+    interactive: true,
+    latest: true,
+  } as any, ['constructor'])).resolves.toBe('No matching global packages found') // eslint-disable-line @typescript-eslint/no-explicit-any
+  expect(mockCheckbox).not.toHaveBeenCalled()
+})
+
 test('global interactive update leaves without an error when the prompt is canceled', async () => {
   prepare()
   const options = globalOptions()

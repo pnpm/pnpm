@@ -54,7 +54,7 @@ export async function handleGlobalUpdate (
   let packagesToUpdate: GlobalPackageInfo[]
   if (params.length > 0) {
     packagesToUpdate = allPackages.filter((pkg) =>
-      params.some((p) => p in pkg.dependencies)
+      params.some((p) => Object.hasOwn(pkg.dependencies, p))
     )
     if (packagesToUpdate.length === 0) {
       return 'No matching global packages found'
