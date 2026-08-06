@@ -106,3 +106,55 @@ fn login_completes_the_web_flow_without_a_terminal() {
     done.assert();
     drop(root);
 }
+
+/// A project `pnpm-workspace.yaml` cannot choose the scope `pnpm login`
+/// persists as a `@scope:registry` route in the global `auth.ini`, and the
+/// user is told the setting was dropped rather than left to wonder why their
+/// token came back unscoped. Spawns the real binary because the warning's
+/// whole point is that it reaches stderr.
+/// See <https://github.com/pnpm/pnpm/issues/13557>.
+#[test]
+fn a_workspace_yaml_scope_is_ignored_and_reported_on_stderr() {
+    let mut server = mockito::Server::new();
+    let registry = server.url();
+    let done = server
+        .mock("GET", "/-/v1/done")
+        .with_status(200)
+        .with_body(r#"{"token":"cli-headless-token"}"#)
+        .create();
+    let login = server
+        .mock("POST", "/-/v1/login")
+        .with_status(200)
+        .with_body(format!(
+            r#"{{"loginUrl":"{registry}/auth/login","doneUrl":"{registry}/-/v1/done"}}"#,
+        ))
+        .create();
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    std::fs::write(workspace.join("pnpm-workspace.yaml"), "scope: '@acme'\n")
+        .expect("write pnpm-workspace.yaml");
+
+    let output = pacquet
+        .with_env("XDG_CONFIG_HOME", root.path())
+        .with_arg("login")
+        .with_arg("--registry")
+        .with_arg(format!("{registry}/"))
+        .output()
+        .expect("spawn pacquet login");
+
+    let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+    assert!(output.status.success(), "`pacquet login` must still succeed; stderr:\n{stderr}");
+    assert_eq!(
+        stderr.matches(pacquet_config::IGNORED_SCOPE_WARNING).count(),
+        1,
+        "stderr must carry the ignored-scope warning verbatim, exactly once; got:\n{stderr}",
+    );
+    let auth_ini = std::fs::read_to_string(root.path().join("pnpm").join("auth.ini"))
+        .expect("login writes auth.ini");
+    assert!(
+        !auth_ini.contains("@acme"),
+        "the repo scope must not reach auth.ini; got:\n{auth_ini}",
+    );
+    login.assert();
+    done.assert();
+    drop(root);
+}

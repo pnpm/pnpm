@@ -476,10 +476,15 @@ export async function getConfig (opts: {
 
       pnpmConfig.workspacePackagePatterns = cliOptions['workspace-packages'] as string[] ?? workspaceManifest?.packages ?? ['.']
       if (workspaceManifest) {
+        if ((workspaceManifest as unknown as Record<string, unknown>).scope != null) {
+          warnings.push(IGNORED_SCOPE_WARNING)
+        }
         addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
           configFromCliOpts,
           projectManifest: pnpmConfig.rootProjectManifest,
-          skipSettings: opts.forSelfUpdate ? SELF_UPDATE_SKIPPED_SETTINGS : undefined,
+          skipSettings: opts.forSelfUpdate
+            ? SELF_UPDATE_AND_REPO_MANIFEST_SKIPPED_SETTINGS
+            : REPO_MANIFEST_SKIPPED_SETTINGS,
           workspaceDir: pnpmConfig.workspaceDir,
           workspaceManifest,
         })
@@ -1093,6 +1098,28 @@ const SELF_UPDATE_SKIPPED_SETTINGS: ReadonlySet<string> = new Set([
   'trustPolicyExclude',
   'trustPolicyIgnoreAfter',
 ] satisfies Array<keyof Config>)
+
+/**
+ * Settings a project `pnpm-workspace.yaml` never contributes, in any command.
+ *
+ * `pnpm login` turns `scope` into a `@scope:registry` route that it writes into
+ * the machine-global `auth.ini` — a file no repository can write to, that
+ * outranks the user's own `~/.npmrc`, and that keeps redirecting that scope in
+ * every unrelated project from then on. A repo-committed file must not be able
+ * to plant one, so `scope` is honored from the trusted layers only: `--scope`,
+ * `PNPM_CONFIG_SCOPE`, and the global config yaml. An `.npmrc` never carries
+ * it either way: `scope` is not one of the keys `isNpmrcReadableKey` admits.
+ * See https://github.com/pnpm/pnpm/issues/13557
+ */
+const REPO_MANIFEST_SKIPPED_SETTINGS: ReadonlySet<string> = new Set([
+  'scope',
+] satisfies Array<keyof Config>)
+
+const SELF_UPDATE_AND_REPO_MANIFEST_SKIPPED_SETTINGS: ReadonlySet<string> =
+  new Set([...REPO_MANIFEST_SKIPPED_SETTINGS, ...SELF_UPDATE_SKIPPED_SETTINGS])
+
+/** Raised by the config reader; worded identically in pacquet. */
+export const IGNORED_SCOPE_WARNING = 'The "scope" setting in pnpm-workspace.yaml was ignored. "pnpm login" records it as a scope-to-registry route in the global auth.ini, which then applies to every project on the machine, so it is only read from --scope, the PNPM_CONFIG_SCOPE environment variable, and the global config file.'
 
 function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigContext, {
   configFromCliOpts,

@@ -35,10 +35,10 @@ fn read_env<Sys: EnvVar>(suffix: &str) -> Option<String> {
 /// where `""` is observably different from unset:
 ///
 /// - `savePrefix`: `""` is the value that selects an exact version pin.
-/// - `scope`: `""` must override a scope from `pnpm-workspace.yaml` or the
-///   global `config.yaml` so that `PNPM_CONFIG_SCOPE=` yields an unscoped
-///   `pnpm login`. Dropping it would let the lower layer's scope leak
-///   through, diverging from the TypeScript CLI.
+/// - `scope`: `""` must override a scope from the global `config.yaml` so
+///   that `PNPM_CONFIG_SCOPE=` yields an unscoped `pnpm login`. Dropping it
+///   would let the lower layer's scope leak through, diverging from the
+///   TypeScript CLI.
 fn read_env_allow_empty<Sys: EnvVar>(suffix: &str) -> Option<String> {
     let upper = format!("PNPM_CONFIG_{suffix}");
     let lower = format!("pnpm_config_{}", suffix.to_lowercase());

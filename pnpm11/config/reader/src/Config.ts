@@ -136,6 +136,8 @@ export interface Config extends OptionsFromRootManifest {
   nodeDownloadMirrors?: Record<string, string>
   offline?: boolean
   registry?: string
+  /** Never read from a project `pnpm-workspace.yaml`, which `pnpm login` would let choose a global scope-to-registry route. */
+  scope?: string
   optional?: boolean
   unsafePerm?: boolean
   loglevel?: 'silent' | 'error' | 'warn' | 'info' | 'debug'

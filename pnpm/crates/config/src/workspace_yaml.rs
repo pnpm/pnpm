@@ -148,6 +148,7 @@ pub struct WorkspaceSettings {
     pub prefer_offline: Option<bool>,
     pub lockfile_include_tarball_url: Option<bool>,
     pub registry: Option<String>,
+    /// Cleared for a project `pnpm-workspace.yaml` by [`Self::clear_repo_scope`].
     pub scope: Option<String>,
     pub registries: Option<BTreeMap<String, String>>,
     pub pnpr_server: Option<String>,
@@ -710,6 +711,10 @@ pub const WORKSPACE_MANIFEST_FILENAME: &str = "pnpm-workspace.yaml";
 /// Basename of pnpm's global config file inside `<configDir>`.
 pub const GLOBAL_CONFIG_YAML_FILENAME: &str = "config.yaml";
 
+/// Worded identically to the TypeScript CLI's config reader; the two stacks
+/// must keep emitting the same text.
+pub const IGNORED_SCOPE_WARNING: &str = r#"The "scope" setting in pnpm-workspace.yaml was ignored. "pnpm login" records it as a scope-to-registry route in the global auth.ini, which then applies to every project on the machine, so it is only read from --scope, the PNPM_CONFIG_SCOPE environment variable, and the global config file."#;
+
 /// Error when reading `pnpm-workspace.yaml`.
 ///
 /// `ENOENT` is treated as "no manifest" and every other failure
@@ -820,6 +825,20 @@ impl WorkspaceSettings {
         self.trust_policy = None;
         self.trust_policy_exclude = None;
         self.trust_policy_ignore_after = None;
+    }
+
+    /// Zero out the `scope` a project `pnpm-workspace.yaml` supplied, pushing
+    /// [`IGNORED_SCOPE_WARNING`] onto `warnings` when there was one.
+    ///
+    /// `pnpm login` turns `scope` into a `@scope:registry` route in the
+    /// machine-global `auth.ini`, which outranks `~/.npmrc` in every project on
+    /// the machine — so it comes from the global `config.yaml` and
+    /// `PNPM_CONFIG_SCOPE` only, plus `--scope` applied by the caller.
+    /// See <https://github.com/pnpm/pnpm/issues/13557>
+    pub fn clear_repo_scope(&mut self, warnings: &mut Vec<String>) {
+        if self.scope.take().is_some() {
+            warnings.push(IGNORED_SCOPE_WARNING.to_owned());
+        }
     }
 
     /// Zero out fields not permitted in the global `config.yaml`.

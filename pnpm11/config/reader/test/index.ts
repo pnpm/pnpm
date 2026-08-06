@@ -14,7 +14,7 @@ import { writeYamlFileSync } from 'write-yaml-file'
 
 jest.unstable_mockModule('@pnpm/network.git-utils', () => ({ getCurrentBranch: jest.fn() }))
 
-const { getConfig, parsePackageManager } = await import('@pnpm/config.reader')
+const { getConfig, IGNORED_SCOPE_WARNING, parsePackageManager } = await import('@pnpm/config.reader')
 const { getCurrentBranch } = await import('@pnpm/network.git-utils')
 
 // To override any local settings,
@@ -1124,6 +1124,136 @@ test('pnpm-workspace.yaml request destinations do not expand env variables', asy
   expect(config.httpProxy).toBeUndefined()
   expect(config.noProxy).toBeUndefined()
   expect(JSON.stringify(config)).not.toContain('secret')
+})
+
+// `pnpm login` turns `scope` into a `@scope:registry` route in the global
+// auth.ini, which outranks ~/.npmrc in every project on the machine — so a
+// repo-committed file must not be able to choose it.
+// https://github.com/pnpm/pnpm/issues/13557
+describe('the scope setting is honored from trusted sources only', () => {
+  test('a pnpm-workspace.yaml scope is ignored and warned about', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', { scope: '@acme' })
+
+    const { config, warnings } = await getConfig({
+      cliOptions: {},
+      env,
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.scope).toBeUndefined()
+    expect(warnings).toContainEqual(IGNORED_SCOPE_WARNING)
+  })
+
+  test('a project .npmrc scope reaches no config at all', async () => {
+    prepareEmpty()
+
+    fs.writeFileSync('.npmrc', 'scope=@acme\n', 'utf8')
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      env,
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.scope).toBeUndefined()
+  })
+
+  test('--scope overrides a pnpm-workspace.yaml scope', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', { scope: '@acme' })
+
+    const { config } = await getConfig({
+      cliOptions: { scope: '@from-cli' },
+      env,
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.scope).toBe('@from-cli')
+  })
+
+  test('a global config.yaml scope survives a pnpm-workspace.yaml scope', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', { scope: '@acme' })
+
+    const { config } = await getConfigWithGlobalYaml(
+      { scope: '@from-global-config' },
+      { workspaceDir: process.cwd() }
+    )
+
+    expect(config.scope).toBe('@from-global-config')
+  })
+
+  test('PNPM_CONFIG_SCOPE overrides a pnpm-workspace.yaml scope', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', { scope: '@acme' })
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      env: { ...env, PNPM_CONFIG_SCOPE: '@from-env' },
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.scope).toBe('@from-env')
+  })
+
+  // An empty scope is a value like any other — it would clear a scope the
+  // global config file set — so the repo must not be able to supply it either.
+  test('an empty pnpm-workspace.yaml scope is ignored too', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', { scope: '' })
+
+    const { config, warnings } = await getConfigWithGlobalYaml(
+      { scope: '@from-global-config' },
+      { workspaceDir: process.cwd() }
+    )
+
+    expect(config.scope).toBe('@from-global-config')
+    expect(warnings).toContainEqual(IGNORED_SCOPE_WARNING)
+  })
+
+  test('self-update skips the scope alongside its own settings', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', { scope: '@acme', minimumReleaseAge: 4320 })
+
+    const { config, warnings } = await getConfig({
+      cliOptions: {},
+      env,
+      forSelfUpdate: true,
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.scope).toBeUndefined()
+    expect(config.minimumReleaseAge).not.toBe(4320)
+    expect(warnings).toContainEqual(IGNORED_SCOPE_WARNING)
+  })
+
+  test('a pnpm-workspace.yaml without a scope emits no warning', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', { packages: ['.'] })
+
+    const { config, warnings } = await getConfig({
+      cliOptions: { scope: '@from-cli' },
+      env,
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.scope).toBe('@from-cli')
+    expect(warnings).not.toContainEqual(IGNORED_SCOPE_WARNING)
+  })
 })
 
 test('package manager bootstrap registries ignore project workspace registries', async () => {
