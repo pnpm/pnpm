@@ -1,0 +1,85 @@
+import { expect, test } from '@jest/globals'
+import type { LockfileObject } from '@pnpm/lockfile.types'
+import type { DepPath, ProjectId } from '@pnpm/types'
+
+import { tryFastUpdateCatalogVersions } from '../../src/install/tryFastUpdateCatalogVersions.js'
+
+/** `target` is a direct dependency of the importer, reached only through the default catalog. */
+function lockfile (): LockfileObject {
+  return {
+    lockfileVersion: '9.0',
+    catalogs: {
+      default: { target: { specifier: '1.0.0', version: '1.0.0' } },
+    },
+    importers: {
+      ['.' as ProjectId]: {
+        specifiers: { target: 'catalog:' },
+        dependencies: { target: '1.0.0' },
+      },
+    },
+    packages: {
+      ['target@1.0.0' as DepPath]: {
+        resolution: { integrity: 'sha512-target-1' },
+        dependencies: { child: '1.1.0' },
+      },
+      ['child@1.1.0' as DepPath]: { resolution: { integrity: 'sha512-child' } },
+    },
+  }
+}
+
+function updateOptions (childRange: string, catalogSpecifier = '2.0.0') {
+  return {
+    catalogs: { default: { target: catalogSpecifier } },
+    lockfileDir: '/project',
+    registries: { default: 'https://registry.npmjs.org/' },
+    requestPackage: async () => ({
+      body: {
+        id: 'target@2.0.0',
+        resolvedVia: 'npm-registry',
+        resolution: {
+          integrity: 'sha512-target-2',
+          tarball: 'https://registry.npmjs.org/target/-/target-2.0.0.tgz',
+        },
+        manifest: { name: 'target', version: '2.0.0', dependencies: { child: childRange } },
+      },
+    }),
+    isLockfileUpToDate: async () => true,
+  } as unknown as Parameters<typeof tryFastUpdateCatalogVersions>[1]
+}
+
+test('a catalog entry moved to a new exact version replaces the package', async () => {
+  const subject = lockfile()
+
+  expect(await tryFastUpdateCatalogVersions(subject, updateOptions('^1.0.0'))).toBe(true)
+  expect(Object.keys(subject.packages!).sort()).toStrictEqual(['child@1.1.0', 'target@2.0.0'])
+  expect(subject.catalogs!.default.target).toStrictEqual({ specifier: '2.0.0', version: '2.0.0' })
+  expect(subject.importers['.' as ProjectId].dependencies).toStrictEqual({ target: '2.0.0' })
+})
+
+test('a locked child the new version no longer admits falls back', async () => {
+  expect(await tryFastUpdateCatalogVersions(lockfile(), updateOptions('^2.0.0'))).toBe(false)
+})
+
+test('an importer depending on the package directly falls back', async () => {
+  const subject = lockfile()
+  subject.importers['pkg-a' as ProjectId] = {
+    specifiers: { target: '1.0.0' },
+    dependencies: { target: '1.0.0' },
+  }
+
+  expect(await tryFastUpdateCatalogVersions(subject, updateOptions('^1.0.0'))).toBe(false)
+})
+
+test('a package depending on the catalog package falls back', async () => {
+  const subject = lockfile()
+  subject.packages!['parent@1.0.0' as DepPath] = {
+    resolution: { integrity: 'sha512-parent' },
+    dependencies: { target: '1.0.0' },
+  }
+
+  expect(await tryFastUpdateCatalogVersions(subject, updateOptions('^1.0.0'))).toBe(false)
+})
+
+test('a range the locked version still satisfies is declined', async () => {
+  expect(await tryFastUpdateCatalogVersions(lockfile(), updateOptions('^1.0.0', '^1.0.0'))).toBe(false)
+})

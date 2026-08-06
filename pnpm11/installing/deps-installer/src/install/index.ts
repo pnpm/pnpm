@@ -110,6 +110,7 @@ import {
 import { linkPackages } from './link.js'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues.js'
 import { tryFastUpdateCatalogs } from './tryFastUpdateCatalogs.js'
+import { tryFastUpdateCatalogVersions } from './tryFastUpdateCatalogVersions.js'
 import { tryFastUpdateIgnoredOptionalDependencies } from './tryFastUpdateIgnoredOptionalDependencies.js'
 import { hasChangedProjectSpecifiers, tryFastUpdateImporters } from './tryFastUpdateImporters.js'
 import { tryFastUpdateLockfile } from './tryFastUpdateLockfile.js'
@@ -767,9 +768,29 @@ export async function mutateModules (
               })
             }
             if (changedSetting === 'catalogs') {
-              return tryFastUpdateCatalogs(candidate, {
+              if (tryFastUpdateCatalogs(candidate, {
                 catalogs: opts.catalogs,
                 overrides: opts.overrides,
+              })) return true
+              // The range-only rewrite declined, so the entry names a version
+              // the locked one cannot satisfy and the package itself moves.
+              if (overridesUseCatalogs) return false
+              const catalogPolicy = getPublishedByPolicy(opts)
+              return tryFastUpdateCatalogVersions(candidate, {
+                catalogs: opts.catalogs,
+                lockfileDir: opts.lockfileDir,
+                lockfileIncludeTarballUrl: opts.lockfileIncludeTarballUrl,
+                readPackageHook: opts.readPackageHook,
+                registries: ctx.registries,
+                requestPackage: opts.storeController.requestPackage,
+                publishedBy: catalogPolicy.publishedBy,
+                publishedByExclude: catalogPolicy.publishedByExclude,
+                trustPolicy: opts.trustPolicy,
+                trustPolicyExclude: opts.trustPolicyExclude
+                  ? createPackageVersionPolicyOrThrow(opts.trustPolicyExclude, 'trustPolicyExclude')
+                  : undefined,
+                trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
+                isLockfileUpToDate,
               })
             }
             if (changedSetting === 'ignoredOptionalDependencies') {

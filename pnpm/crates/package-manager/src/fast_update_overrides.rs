@@ -61,7 +61,7 @@ pub(crate) async fn try_fast_update_overrides(opts: FastOverrideOptions<'_>) -> 
 
 /// Move every package named by `plan` to its new version, rebuilding the
 /// affected `packages:` and `snapshots:` entries from the new version's
-/// manifest and repointing everything that referenced the old key.
+/// manifest and redirecting everything that referenced the old key.
 ///
 /// `None` whenever the move cannot be proven safe from the lockfile plus
 /// the resolved manifests — a locked child that the new version's
