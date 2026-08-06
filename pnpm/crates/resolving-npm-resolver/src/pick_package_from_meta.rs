@@ -381,10 +381,10 @@ pub fn pick_lowest_version_by_version_range(
 /// every caller of one cutoff and trusted-version list gets the same
 /// document, whose version manifests are the ones `meta` holds.
 ///
-/// Panics if `meta.time` is `None` — the caller (the publishedBy
-/// branch in [`pick_package_from_meta`]) only invokes this with full
-/// metadata. The abbreviated-metadata path takes the `meta.modified`
-/// shortcut above and never reaches this function.
+/// Panics if `meta.time` is `None`: callers must check it first.
+/// Abbreviated metadata carries no per-version timestamps, so the
+/// publishedBy branch in [`pick_package_from_meta`] takes the
+/// `meta.modified` shortcut above instead of filtering.
 #[must_use]
 pub fn filter_pkg_metadata_by_publish_date(
     meta: &Package,
