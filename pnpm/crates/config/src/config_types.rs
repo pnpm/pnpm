@@ -7,10 +7,7 @@
 //!   type list includes `Number` (used by `castField` to coerce a value).
 //! - [`is_ini_config_key`] / [`is_config_file_key`].
 
-use std::{
-    collections::HashSet,
-    sync::{LazyLock, OnceLock},
-};
+use std::{collections::HashSet, sync::OnceLock};
 
 /// `(kebab-key, type-includes-Number)` for pnpm's own settings (`pnpmTypes`).
 const PNPM_TYPES: &[(&str, bool)] = &[
@@ -483,49 +480,6 @@ pub fn is_config_file_key(kebab_key: &str) -> bool {
     pnpm_config_file_keys().contains(kebab_key)
         || structured_config_file_keys().contains(kebab_key)
         || (npm_config_type_keys().contains(kebab_key) && !excluded_pnpm_keys().contains(kebab_key))
-}
-
-/// Settings a project's `pnpm-workspace.yaml` does not contribute, in
-/// camelCase. Mirrors the set of the same name in `@pnpm/config.reader`.
-///
-/// Each names a location or a trusted value that is not the project's to
-/// choose. [`WorkspaceSettings`] declares none of them, so the reader drops
-/// every one at parse time; the list exists so `pnpm config set` can refuse to
-/// write a setting that would then do nothing.
-///
-/// [`WorkspaceSettings`]: crate::WorkspaceSettings
-const PROJECT_MANIFEST_SKIPPED_SETTINGS: &[&str] = &[
-    // What the machine keeps outside any project.
-    "configDir",
-    "globalBinDir",
-    "globalDir",
-    "globalPkgDir",
-    "npmrcAuthFile",
-    "pnpmHomeDir",
-    "stateDir",
-    "userconfig",
-    // The directories the current command reads and writes in.
-    "bin",
-    "dir",
-    "rootProjectManifestDir",
-    "workspaceDir",
-    // Auth and the bootstrap download routes, which the reader assembles from
-    // the trusted config sources only.
-    "authConfig",
-    "configByUri",
-    "packageManagerNetworkConfig",
-    "packageManagerRegistries",
-];
-
-static PROJECT_MANIFEST_SKIPPED_SETTING_SET: LazyLock<HashSet<&'static str>> =
-    LazyLock::new(|| PROJECT_MANIFEST_SKIPPED_SETTINGS.iter().copied().collect());
-
-/// Whether a project's `pnpm-workspace.yaml` would ignore `camel_key`, which
-/// is true of every setting naming a location or a trusted value that is not
-/// the project's to choose. Mirrors `isProjectManifestSkippedSetting`.
-#[must_use]
-pub fn is_project_manifest_skipped_setting(camel_key: &str) -> bool {
-    PROJECT_MANIFEST_SKIPPED_SETTING_SET.contains(camel_key)
 }
 
 #[cfg(test)]
