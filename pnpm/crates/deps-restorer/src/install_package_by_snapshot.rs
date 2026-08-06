@@ -104,6 +104,7 @@ pub struct InstallPackageBySnapshot<'a> {
     /// exclusion, or swallowed optional fetch failure). See
     /// [`crate::SkippedSnapshots`] for how it is built.
     pub skipped: &'a crate::SkippedSnapshots,
+    pub include_optional_dependencies: bool,
     /// Platform triple used to select a runtime archive. This is the host
     /// triple unless `supportedArchitectures` targets another platform.
     pub runtime_platform_selector: &'a PlatformSelector,
@@ -262,12 +263,25 @@ pub enum InstallPackageBySnapshotError {
     },
 }
 
+/// What installing one package produced.
+#[derive(Debug)]
+pub struct InstalledPackage {
+    pub cas_paths: HashMap<String, PathBuf>,
+    /// Whether [`Self::cas_paths`] points at mutable local source
+    /// rather than immutable content-addressed entries. See
+    /// [`crate::CreateVirtualDirBySnapshot::source_is_mutable`].
+    pub source_is_mutable: bool,
+}
+
 impl InstallPackageBySnapshot<'_> {
-    /// Execute the subroutine. Returns the CAS file index for the
-    /// fetched package — the map relative-archive-path →
-    /// absolute-store-path that downstream consumers use to either
-    /// populate a virtual-store slot (isolated) or import into a
-    /// hoisted `node_modules/<alias>/` directly (hoisted).
+    /// Execute the subroutine. Returns the fetched package's CAS file
+    /// index — the map relative-archive-path → absolute-store-path
+    /// that downstream consumers use to either populate a
+    /// virtual-store slot (isolated) or import into a hoisted
+    /// `node_modules/<alias>/` directly (hoisted) — together with
+    /// whether that map points at mutable local source, which only
+    /// this function can tell because a custom fetcher's `delegate`
+    /// can replace the lockfile's resolution.
     ///
     /// Under [`NodeLinker::Isolated`] the slot has already been
     /// materialized by the time this returns (via
@@ -279,7 +293,7 @@ impl InstallPackageBySnapshot<'_> {
     /// gets, and it's threaded into [`crate::link_hoisted_modules()`].
     pub async fn run<Reporter: self::Reporter>(
         self,
-    ) -> Result<HashMap<String, PathBuf>, InstallPackageBySnapshotError> {
+    ) -> Result<InstalledPackage, InstallPackageBySnapshotError> {
         let InstallPackageBySnapshot {
             http_client,
             config,
@@ -297,6 +311,7 @@ impl InstallPackageBySnapshot<'_> {
             snapshot,
             allow_build_policy,
             skipped,
+            include_optional_dependencies,
             runtime_platform_selector,
             workspace_root,
             node_linker,
@@ -374,6 +389,11 @@ impl InstallPackageBySnapshot<'_> {
             None
         };
         let resolution = effective_resolution.as_ref().unwrap_or(&metadata.resolution);
+        // Derived from the effective resolution, not the lockfile's: a
+        // custom fetcher's `delegate` can resolve to a directory, and
+        // then the file map points at mutable source even though the
+        // lockfile entry says otherwise.
+        let source_is_mutable = matches!(resolution, LockfileResolution::Directory(_));
 
         let cas_paths: HashMap<String, PathBuf> = match resolution {
             LockfileResolution::Tarball(_) | LockfileResolution::Registry(_) => {
@@ -636,6 +656,8 @@ impl InstallPackageBySnapshot<'_> {
                 package_id: &package_id,
                 package_key,
                 snapshot,
+                source_is_mutable,
+                include_optional_dependencies,
                 symlink: config.symlink,
                 skipped,
                 // The non-deferred slot link runs only on the fresh
@@ -650,7 +672,7 @@ impl InstallPackageBySnapshot<'_> {
             .map_err(InstallPackageBySnapshotError::CreateVirtualDir)?;
         }
 
-        Ok(cas_paths)
+        Ok(InstalledPackage { cas_paths, source_is_mutable })
     }
 }
 

@@ -292,6 +292,15 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
             && let Some(wanted_lockfile) = lockfile
             && let Some(current) = current_lockfile
             && wanted_lockfile == current
+            // A `file:` dependency resolves to a directory whose
+            // contents can change with nothing in the lockfile or
+            // `.modules.yaml` moving, so an equal-lockfile tree is not
+            // evidence that its slot is current. pnpm's `file:` is a
+            // copy taken at install time, not a symlink, so the copy
+            // has to be retaken; the TypeScript CLI has no gate at this
+            // level at all and instead forces every directory dep
+            // through materialization in `lockfileToDepGraph`.
+            && !has_directory_snapshot(wanted_lockfile)
             && let Some(modules) = modules_manifest.as_ref()
             && modules_consistent_with(modules, config, node_linker, included)
             // A `supportedArchitectures` change alters the skip set
@@ -397,6 +406,17 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
         is_inconsistent,
         lockfile_verification_override,
     }))
+}
+
+/// Whether any package in the lockfile resolves to a local directory.
+///
+/// Such a package's source is mutable between installs, so its
+/// materialized copy can go stale while every install-state artifact
+/// still says the tree is current.
+fn has_directory_snapshot(lockfile: &Lockfile) -> bool {
+    lockfile.packages.iter().flat_map(|packages| packages.values()).any(|metadata| {
+        matches!(metadata.resolution, pacquet_lockfile::LockfileResolution::Directory(_))
+    })
 }
 
 fn is_safe_modules_purge_target(modules_dir: &Path, workspace_root: &Path) -> bool {

@@ -282,7 +282,7 @@ impl WritePackageForPatch<'_> {
                 PackageImportMethod::CloneOrCopy,
                 dest,
                 &cas_paths,
-                ImportIndexedDirOpts { force: true, keep_modules_dir: false },
+                ImportIndexedDirOpts { force: true, ..ImportIndexedDirOpts::default() },
             )
             .map_err(WritePackageForPatchError::ImportIndexedDir)
         }

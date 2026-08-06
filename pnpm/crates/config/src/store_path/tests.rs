@@ -143,7 +143,7 @@ fn resolve_store_dir_prefers_parent_when_parent_is_also_linkable() {
 
 #[test]
 #[cfg(unix)]
-fn resolve_store_dir_falls_back_when_only_pkg_root_is_linkable() {
+fn resolve_store_dir_uses_node_modules_when_only_pkg_root_is_linkable() {
     prefix_probe!();
     let tmp = tempdir().expect("create tempdir");
     let pkg_root = tmp.path().join("project");
@@ -153,9 +153,8 @@ fn resolve_store_dir_falls_back_when_only_pkg_root_is_linkable() {
     let pnpm_home = PathBuf::from("/home/test-user/Library/pnpm");
 
     set_allow(&[&pkg_root_canon]);
-    let resolved =
-        resolve_store_dir::<PrefixProbe>(home_default.clone(), &pnpm_home, &pkg_root_canon);
-    assert_eq!(resolved, home_default);
+    let resolved = resolve_store_dir::<PrefixProbe>(home_default, &pnpm_home, &pkg_root_canon);
+    assert_eq!(resolved, pkg_root_canon.join("node_modules").join(".pnpm-store"));
 }
 
 #[test]

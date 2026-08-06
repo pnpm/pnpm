@@ -104,6 +104,14 @@ export interface SharedEngineOptions {
   cacheDir?: string
 }
 
+/** Manifest fields to add to a matching package. */
+export interface PackageExtension {
+  dependencies?: Record<string, string>
+  optionalDependencies?: Record<string, string>
+  peerDependencies?: Record<string, string>
+  peerDependenciesMeta?: Record<string, { optional?: boolean }>
+}
+
 export interface InstallOptions extends SharedEngineOptions {
   /** Lockfile / workspace root directory. */
   dir: string
@@ -132,6 +140,14 @@ export interface InstallOptions extends SharedEngineOptions {
   preferOffline?: boolean
   offline?: boolean
   virtualStoreDirMaxLength?: number
+  /** Whether to use the shared global virtual store for dependency slots. */
+  enableGlobalVirtualStore?: boolean
+  /** Overrides the global virtual store directory. */
+  globalVirtualStoreDir?: string
+  /** Manifest fields to add to packages selected by name or version range. */
+  packageExtensions?: Record<string, PackageExtension>
+  /** Patch paths keyed by package selector. Relative paths resolve from `dir`. */
+  patchedDependencies?: Record<string, string>
   peersSuffixMaxLength?: number
   dedupePeerDependents?: boolean
   /**
@@ -386,6 +402,14 @@ export interface ResolvedConfig {
   storeDir: string
   cacheDir: string
   virtualStoreDirMaxLength: number
+  /** Whether the resolved configuration uses the global virtual store. */
+  enableGlobalVirtualStore: boolean
+  /** Shared virtual-store root. */
+  globalVirtualStoreDir: string
+  /** Project-local virtual-store directory. */
+  virtualStoreDir: string
+  /** Virtual-store directory used by this configuration and recorded in `.modules.yaml`. */
+  effectiveVirtualStoreDir: string
   networkConcurrency: number
   maxSockets?: number
   fetchRetries: number

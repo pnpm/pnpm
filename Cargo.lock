@@ -4654,6 +4654,7 @@ dependencies = [
  "dashmap",
  "indexmap 2.14.0",
  "miette 7.6.0",
+ "mockito",
  "napi",
  "napi-build",
  "napi-derive",

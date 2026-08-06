@@ -10,8 +10,14 @@
 //! 2. Otherwise walk from the filesystem root toward the project,
 //!    find the first directory that *does* accept the hardlink (the
 //!    mount point), prefer that mount point's parent if it is also
-//!    linkable, and return `<mount_point>/.pnpm-store`. If only the
-//!    project folder itself is linkable, fall back to the home store.
+//!    linkable, and return `<mount_point>/.pnpm-store`.
+//!
+//! The mount point can be the project directory itself, when nothing
+//! above it accepts a hard link. The store then goes to
+//! `<pkg_root>/node_modules/.pnpm-store`, where the project's VCS
+//! ignores it — deliberately not the `<pkg_root>/.pnpm-store` pnpm 11
+//! uses, so a project installed with both CLIs reports
+//! `ERR_PNPM_UNEXPECTED_STORE` once and reinstalls.
 //!
 //! Without this detection a developer with a separate
 //! case-sensitive workspace volume (for example
@@ -81,11 +87,8 @@ pub fn resolve_store_dir<Sys: LinkProbe>(
         _ => mountpoint,
     };
 
-    // When linkability is confined to the project folder itself, the
-    // mount-point fallback would put the store *inside* the project
-    // — instead, defer to the home store.
     if mountpoint == pkg_root {
-        return home_default;
+        return pkg_root.join("node_modules").join(".pnpm-store");
     }
 
     mountpoint.join(".pnpm-store")

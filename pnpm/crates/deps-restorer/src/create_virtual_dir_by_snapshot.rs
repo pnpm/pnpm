@@ -54,6 +54,18 @@ pub struct CreateVirtualDirBySnapshot<'a> {
     pub package_id: &'a str,
     pub package_key: &'a PackageKey,
     pub snapshot: &'a SnapshotEntry,
+    /// Whether this package's file map points at mutable local source
+    /// (a `file:` / [`pacquet_lockfile::LockfileResolution::Directory`]
+    /// resolution) rather than immutable CAS entries. pnpm's `file:` is
+    /// a copy taken at install time — unlike `link:`, which symlinks —
+    /// so the slot has to be rebuilt on every install: the source can
+    /// change without the lockfile changing, and the completion-marker
+    /// short-circuit in [`fn@crate::import_indexed_dir`] would otherwise
+    /// leave the previous install's copy in place forever.
+    pub source_is_mutable: bool,
+    /// Whether links from the snapshot's `optionalDependencies` map
+    /// participate in the slot layout.
+    pub include_optional_dependencies: bool,
     /// Whether dependency links inside the slot should be created.
     /// `symlink: false` still imports the package itself but leaves its
     /// `node_modules` free of graph links for `PnP` resolution.
@@ -122,6 +134,8 @@ impl CreateVirtualDirBySnapshot<'_> {
             package_id: _package_id,
             package_key,
             snapshot,
+            source_is_mutable,
+            include_optional_dependencies,
             symlink,
             skipped,
             removed_aliases,
@@ -163,10 +177,12 @@ impl CreateVirtualDirBySnapshot<'_> {
         } else {
             cas_paths
         };
-        let import_opts = if interrupted_build {
-            ImportIndexedDirOpts { force: true, keep_modules_dir: true }
+        // Mutable sources can reuse a slot for different contents, so a complete import may be stale.
+        let safe_to_skip = layout.enable_global_virtual_store() && !source_is_mutable;
+        let import_opts = if interrupted_build || source_is_mutable {
+            ImportIndexedDirOpts { force: true, keep_modules_dir: true, safe_to_skip }
         } else {
-            ImportIndexedDirOpts::default()
+            ImportIndexedDirOpts { safe_to_skip, ..ImportIndexedDirOpts::default() }
         };
 
         let import_package = || {
@@ -188,6 +204,7 @@ impl CreateVirtualDirBySnapshot<'_> {
                 create_symlink_layout(
                     snapshot.dependencies.as_ref(),
                     snapshot.optional_dependencies.as_ref(),
+                    include_optional_dependencies,
                     &package_key.name,
                     skipped,
                     layout,
@@ -197,6 +214,14 @@ impl CreateVirtualDirBySnapshot<'_> {
             });
             cas_result?;
             symlink_result?;
+            if !include_optional_dependencies {
+                for alias in snapshot.optional_dependencies.iter().flatten().map(|(alias, _)| alias)
+                {
+                    if *alias != package_key.name {
+                        remove_obsolete_child(&virtual_node_modules_dir, alias)?;
+                    }
+                }
+            }
         } else {
             import_package()?;
             for alias in

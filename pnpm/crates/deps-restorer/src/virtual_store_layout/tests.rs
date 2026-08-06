@@ -5,6 +5,7 @@ use pacquet_lockfile::{
     RegistryResolution, SnapshotDepRef, SnapshotEntry, TarballResolution,
 };
 use pretty_assertions::{assert_eq, assert_ne};
+use serde::Deserialize;
 use std::{
     collections::{HashMap, HashSet},
     ffi::OsStr,
@@ -441,8 +442,8 @@ fn full_pkg_id_keeps_patch_hash_when_present() {
     let mut snapshots = HashMap::new();
     snapshots.insert(patched_key.clone(), SnapshotEntry::default());
 
-    let graph = super::lockfile_to_dep_graph(&snapshots, Some(&packages));
-    let node = graph.get(&patched_key).expect("patched snapshot node");
+    let graph = super::lockfile_to_dep_graph(&snapshots, Some(&packages), None);
+    let node = graph.get(&patched_key.to_string()).expect("patched snapshot node");
     assert!(
         node.full_pkg_id.starts_with("foo@1.0.0(patch_hash=abc):"),
         "full_pkg_id must keep the patch-hash segment; got {:?}",
@@ -558,6 +559,307 @@ fn directory_deps_get_a_slot_per_project() {
         Some(OsStr::new("directory")),
         "directory deps take the anchored version segment; got {in_project_a:?}",
     );
+}
+
+/// Build a registry snapshot carrying one `link:` dependency.
+fn snapshot_with_link(alias: &str, target: &str) -> SnapshotEntry {
+    let mut dependencies = HashMap::new();
+    dependencies.insert(
+        alias.parse::<PkgName>().unwrap(),
+        format!("link:{target}").parse::<SnapshotDepRef>().unwrap(),
+    );
+    SnapshotEntry { dependencies: Some(dependencies), ..SnapshotEntry::default() }
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct LinkHashParityFixture {
+    package: LinkHashFixturePackage,
+    posix: Vec<LinkHashFixtureCase>,
+    win32: Vec<LinkHashFixtureCase>,
+}
+
+#[derive(Deserialize)]
+struct LinkHashFixturePackage {
+    key: String,
+    name: String,
+    version: String,
+    alias: String,
+    integrity: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct LinkHashFixtureCase {
+    name: String,
+    lockfile_dir: String,
+    target: String,
+    expected_link_node: String,
+    expected_slot: String,
+}
+
+#[test]
+fn link_hash_matches_the_shared_typescript_fixture() {
+    let fixture: LinkHashParityFixture = serde_json::from_str(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../fixtures/gvs-link-hash-parity.json"
+    )))
+    .expect("parse shared GVS link hash fixture");
+    let cases = if cfg!(windows) { &fixture.win32 } else { &fixture.posix };
+    let package_key: PackageKey = fixture.package.key.parse().expect("parse fixture package key");
+    let packages = HashMap::from([(
+        package_key.without_peer(),
+        package_metadata(
+            LockfileResolution::Registry(RegistryResolution {
+                integrity: fixture.package.integrity.parse().expect("parse fixture integrity"),
+            }),
+            Some(&fixture.package.version),
+        ),
+    )]);
+    let config = make_config(
+        true,
+        PathBuf::from("project/node_modules/.pnpm"),
+        PathBuf::from("store/links"),
+    );
+
+    for case in cases {
+        let snapshots = HashMap::from([(
+            package_key.clone(),
+            snapshot_with_link(&fixture.package.alias, &case.target),
+        )]);
+        let graph = super::lockfile_to_dep_graph(
+            &snapshots,
+            Some(&packages),
+            Some(Path::new(&case.lockfile_dir)),
+        );
+        let link_node = graph
+            .get(&fixture.package.key)
+            .and_then(|node| node.children.get(&fixture.package.alias))
+            .unwrap_or_else(|| panic!("{}: fixture link node", case.name));
+        assert_eq!(link_node, &case.expected_link_node, "{}: normalized link node", case.name);
+
+        let slot = VirtualStoreLayout::new(
+            &config,
+            None,
+            Some(&snapshots),
+            Some(&packages),
+            Some(&crate::AllowBuildPolicy::default()),
+            Some(Path::new(&case.lockfile_dir)),
+        )
+        .slot_dir(&package_key);
+        let relative_slot = slot
+            .strip_prefix(Path::new("store/links"))
+            .unwrap_or_else(|_| panic!("{}: strip GVS root from {slot:?}", case.name))
+            .to_string_lossy()
+            .replace(std::path::MAIN_SEPARATOR, "/");
+        assert_eq!(relative_slot, case.expected_slot, "{}: GVS slot hash", case.name);
+        assert_eq!(
+            package_key.name.to_string(),
+            fixture.package.name,
+            "fixture package name must match its key",
+        );
+    }
+}
+
+/// A `link:` dependency is materialized as a symlink out of the store,
+/// so the slot holding it belongs to whichever directory the lockfile's
+/// relative target resolves to. Two projects linking *different*
+/// directories must not land on one slot — the peer suffix that tells
+/// their dep paths apart is deliberately absent from the GVS hash, so
+/// without the link scope they would collide and share whichever
+/// symlink was written first.
+#[test]
+fn snapshots_with_link_deps_get_a_slot_per_link_target() {
+    let key: PackageKey = "react-dom@18.3.1(react@fake-react)".parse().unwrap();
+    let mut packages = HashMap::new();
+    packages.insert(
+        key.without_peer(),
+        package_metadata(
+            LockfileResolution::Tarball(TarballResolution {
+                tarball: "https://registry.npmjs.org/react-dom/-/react-dom-18.3.1.tgz".to_string(),
+                integrity: None,
+                git_hosted: None,
+                path: None,
+            }),
+            Some("18.3.1"),
+        ),
+    );
+    let config = make_config(
+        true,
+        PathBuf::from("/tmp/proj/node_modules/.pnpm"),
+        PathBuf::from("/tmp/store/links"),
+    );
+    let slot_for = |target: &str| {
+        let mut snapshots = HashMap::new();
+        snapshots.insert(key.clone(), snapshot_with_link("react", target));
+        VirtualStoreLayout::new(
+            &config,
+            None,
+            Some(&snapshots),
+            Some(&packages),
+            None,
+            Some(Path::new("/home/user/proj")),
+        )
+        .slot_dir(&key)
+    };
+
+    assert_ne!(slot_for("../react-a"), slot_for("../react-b"));
+}
+
+/// A linked target affects every package whose dependency graph reaches
+/// it, not just the snapshot that declares the `link:` edge. Otherwise
+/// an ancestor slot can be reused with a child slot from another project.
+#[test]
+fn link_targets_propagate_through_transitive_ancestor_slots() {
+    let parent_key: PackageKey = "wrapper@1.0.0".parse().unwrap();
+    let child_key: PackageKey = "react-dom@18.3.1(react@fake-react)".parse().unwrap();
+    let packages = HashMap::from([
+        (parent_key.without_peer(), registry_metadata("PARENT")),
+        (child_key.without_peer(), registry_metadata("CHILD")),
+    ]);
+    let config = make_config(
+        true,
+        PathBuf::from("/tmp/proj/node_modules/.pnpm"),
+        PathBuf::from("/tmp/store/links"),
+    );
+    let slots_for = |target: &str| {
+        let parent = SnapshotEntry {
+            dependencies: Some(HashMap::from([(
+                alias("react-dom"),
+                SnapshotDepRef::Alias(child_key.clone()),
+            )])),
+            ..SnapshotEntry::default()
+        };
+        let snapshots = HashMap::from([
+            (parent_key.clone(), parent),
+            (child_key.clone(), snapshot_with_link("react", target)),
+        ]);
+        let layout = VirtualStoreLayout::new(
+            &config,
+            None,
+            Some(&snapshots),
+            Some(&packages),
+            None,
+            Some(Path::new("/home/user/proj")),
+        );
+        (layout.slot_dir(&parent_key), layout.slot_dir(&child_key))
+    };
+
+    let (parent_a, child_a) = slots_for("../react-a");
+    let (parent_b, child_b) = slots_for("../react-b");
+    assert_ne!(child_a, child_b);
+    assert_ne!(parent_a, parent_b);
+}
+
+#[test]
+fn link_dependency_alias_participates_in_the_slot_hash() {
+    let key: PackageKey = "consumer@1.0.0".parse().unwrap();
+    let packages = HashMap::from([(key.without_peer(), registry_metadata("CONSUMER"))]);
+    let config = make_config(
+        true,
+        PathBuf::from("/tmp/proj/node_modules/.pnpm"),
+        PathBuf::from("/tmp/store/links"),
+    );
+    let slot_for = |alias: &str| {
+        let snapshots = HashMap::from([(key.clone(), snapshot_with_link(alias, "../shared"))]);
+        VirtualStoreLayout::new(
+            &config,
+            None,
+            Some(&snapshots),
+            Some(&packages),
+            None,
+            Some(Path::new("/home/user/proj")),
+        )
+        .slot_dir(&key)
+    };
+
+    assert_ne!(slot_for("linked"), slot_for("renamed"));
+}
+
+/// The scope is the *resolved target*, not the project, so workspaces
+/// that link the same directory keep sharing one slot — the case that
+/// matters for a toolchain linked into many workspaces. Contrast
+/// [`directory_deps_get_a_slot_per_project`], where the project itself
+/// is the only thing that can tell two slots apart.
+#[test]
+fn link_deps_resolving_to_one_directory_share_a_slot_across_projects() {
+    let key: PackageKey = "react-dom@18.3.1(react@shared)".parse().unwrap();
+    let mut snapshots = HashMap::new();
+    // Both projects sit one level under `/home/user`, so `../shared`
+    // resolves to `/home/user/shared` from either.
+    snapshots.insert(key.clone(), snapshot_with_link("react", "../shared"));
+    let mut packages = HashMap::new();
+    packages.insert(
+        key.without_peer(),
+        package_metadata(
+            LockfileResolution::Tarball(TarballResolution {
+                tarball: "https://registry.npmjs.org/react-dom/-/react-dom-18.3.1.tgz".to_string(),
+                integrity: None,
+                git_hosted: None,
+                path: None,
+            }),
+            Some("18.3.1"),
+        ),
+    );
+    let config = make_config(
+        true,
+        PathBuf::from("/tmp/proj/node_modules/.pnpm"),
+        PathBuf::from("/tmp/store/links"),
+    );
+    let slot_in = |lockfile_dir: &str| {
+        VirtualStoreLayout::new(
+            &config,
+            None,
+            Some(&snapshots),
+            Some(&packages),
+            None,
+            Some(Path::new(lockfile_dir)),
+        )
+        .slot_dir(&key)
+    };
+
+    assert_eq!(slot_in("/home/user/a"), slot_in("/home/user/b"));
+}
+
+/// The link scope applies only to snapshots that actually carry a
+/// `link:` dependency: every other slot has to keep hashing exactly as
+/// it did before, or an upgrade would re-materialize the whole store.
+#[test]
+fn snapshots_without_link_deps_keep_their_slot() {
+    let key: PackageKey = "react-dom@18.3.1".parse().unwrap();
+    let mut snapshots = HashMap::new();
+    snapshots.insert(key.clone(), SnapshotEntry::default());
+    let mut packages = HashMap::new();
+    packages.insert(
+        key.without_peer(),
+        package_metadata(
+            LockfileResolution::Tarball(TarballResolution {
+                tarball: "https://registry.npmjs.org/react-dom/-/react-dom-18.3.1.tgz".to_string(),
+                integrity: None,
+                git_hosted: None,
+                path: None,
+            }),
+            Some("18.3.1"),
+        ),
+    );
+    let config = make_config(
+        true,
+        PathBuf::from("/tmp/proj/node_modules/.pnpm"),
+        PathBuf::from("/tmp/store/links"),
+    );
+    let slot_in = |lockfile_dir: &str| {
+        VirtualStoreLayout::new(
+            &config,
+            None,
+            Some(&snapshots),
+            Some(&packages),
+            None,
+            Some(Path::new(lockfile_dir)),
+        )
+        .slot_dir(&key)
+    };
+
+    assert_eq!(slot_in("/home/user/a"), slot_in("/home/user/b"));
 }
 
 /// `collect_injected_deps` maps each `file:` snapshot's source path to

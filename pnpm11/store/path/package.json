@@ -43,10 +43,8 @@
   "devDependencies": {
     "@jest/globals": "catalog:",
     "@pnpm/store.path": "workspace:*",
-    "@types/is-windows": "catalog:",
     "@types/node": "catalog:",
     "@types/touch": "catalog:",
-    "is-windows": "catalog:",
     "rimraf": "catalog:"
   },
   "engines": {

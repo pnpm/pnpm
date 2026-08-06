@@ -74,6 +74,7 @@ pub mod stage;
 pub mod star;
 pub mod stars;
 pub mod store;
+pub mod sudo_guard;
 pub mod supported_architectures;
 pub mod team;
 pub mod undeprecate;
