@@ -145,16 +145,16 @@ impl FragmentSource {
     }
 }
 
-/// Fill `buf` from `file` at the absolute `offset`, without using or
-/// disturbing the handle's read cursor (safe for concurrent readers of
-/// one shared handle).
+/// Fill `buf` from `file` at the absolute `offset`. The handle's read
+/// cursor is never consulted, and callers must not rely on where it
+/// ends up: the unix implementation leaves it untouched, while the
+/// Windows one moves it as a `seek_read` side effect.
 #[cfg(unix)]
 pub fn read_exact_at(file: &File, buf: &mut [u8], offset: u64) -> std::io::Result<()> {
     std::os::unix::fs::FileExt::read_exact_at(file, buf, offset)
 }
 
-/// See the unix sibling; Windows' `seek_read` moves the cursor, but no
-/// caller relies on it.
+/// See the unix sibling for the shared contract.
 #[cfg(windows)]
 pub fn read_exact_at(file: &File, mut buf: &mut [u8], mut offset: u64) -> std::io::Result<()> {
     while !buf.is_empty() {
