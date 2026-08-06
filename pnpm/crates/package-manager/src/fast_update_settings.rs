@@ -7,7 +7,7 @@ use std::{
 };
 
 /// The `settings` block an install under `config` records, matching
-/// what [`crate::dependencies_graph_to_lockfile`] writes after a full
+/// what [`fn@crate::dependencies_graph_to_lockfile`] writes after a full
 /// resolution.
 pub(crate) fn lockfile_settings_from_config(config: &Config) -> LockfileSettings {
     LockfileSettings {
