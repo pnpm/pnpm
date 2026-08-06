@@ -83,7 +83,11 @@ function * outdatedLockfileSettings (
   if (lockfile.packageExtensionsChecksum !== packageExtensionsChecksum) {
     yield 'packageExtensionsChecksum'
   }
-  if (!equals(lockfile.ignoredOptionalDependencies?.sort() ?? [], ignoredOptionalDependencies?.sort() ?? [])) {
+  // Compare copies: the recorded and configured arrays belong to the caller,
+  // and `ignoredOptionalDependencies` is order-sensitive downstream — sorting
+  // it in place can move an `!` exclusion ahead of the pattern it excludes
+  // from and flip which dependencies `createMatcher` ignores.
+  if (!equals([...lockfile.ignoredOptionalDependencies ?? []].sort(), [...ignoredOptionalDependencies ?? []].sort())) {
     yield 'ignoredOptionalDependencies'
   }
   if (!equals(lockfile.patchedDependencies ?? {}, patchedDependencies ?? {})) {

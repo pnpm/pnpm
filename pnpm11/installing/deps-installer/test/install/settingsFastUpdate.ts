@@ -92,6 +92,26 @@ test('excludeLinksFromLockfile falls back when a project depends on a directory'
   }))).toBe(false)
 })
 
+test('excludeLinksFromLockfile falls back when a link is shadowed by the same alias in another group', () => {
+  const lockfile = lockfileWithRegistryDependency()
+
+  expect(tryFastUpdateSettings(lockfile, updateOptions({
+    changedSettings: ['settings.excludeLinksFromLockfile'],
+    projects: [{
+      id: '.' as ProjectId,
+      manifest: {
+        dependencies: {
+          bar: '^1.0.0',
+          foo: '^1.0.0',
+        },
+        devDependencies: {
+          bar: 'link:../bar',
+        },
+      },
+    }],
+  }))).toBe(false)
+})
+
 test('excludeLinksFromLockfile falls back when the lockfile records a link', () => {
   const lockfile = lockfileWithRegistryDependency()
   lockfile.importers['.' as ProjectId].dependencies!.bar = 'link:../bar'

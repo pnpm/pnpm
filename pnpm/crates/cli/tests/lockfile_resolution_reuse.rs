@@ -778,7 +778,7 @@ fn peer_setting_change_on_a_peerless_lockfile_skips_resolution() {
 fn peer_setting_change_falls_back_when_the_lockfile_records_peers() {
     let CommandTempCwd { workspace, root, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
-    let AddMockedRegistry { mock_instance, npmrc_path, .. } = npmrc_info;
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     fs::write(
         workspace.join("package.json"),
         serde_json::json!({
@@ -802,16 +802,10 @@ fn peer_setting_change_falls_back_when_the_lockfile_records_peers() {
     let workspace_yaml = fs::read_to_string(&workspace_yaml_path).expect("read workspace yaml");
     fs::write(&workspace_yaml_path, format!("{workspace_yaml}dedupePeers: true\n"))
         .expect("turn dedupePeers on");
-    let dead_registry = dead_registry_url();
-    let npmrc = fs::read_to_string(&npmrc_path).expect("read .npmrc");
-    let npmrc = npmrc
-        .lines()
-        .filter(|line| !line.trim_start().starts_with("registry="))
-        .collect::<Vec<_>>()
-        .join("\n");
-    fs::write(&npmrc_path, format!("registry={dead_registry}\n{npmrc}\n"))
-        .expect("rewrite .npmrc with a dead registry");
 
+    // Unlike the peerless sibling above, this install has to resolve, so it
+    // keeps the mocked registry reachable: pointing it at a dead one would
+    // only assert that the resolve happened to be satisfiable offline.
     let assert = pacquet_at(&workspace).with_arg("install").assert().success();
     assert!(
         !String::from_utf8_lossy(&assert.get_output().stdout)

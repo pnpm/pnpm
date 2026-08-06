@@ -130,11 +130,11 @@ function hasDirectoryReference (importer: ProjectSnapshot): boolean {
 }
 
 function manifestDependencies (manifest: ProjectManifest): Array<[string, string]> {
-  return Object.entries({
-    ...manifest.devDependencies,
-    ...manifest.dependencies,
-    ...manifest.optionalDependencies,
-  })
+  return [
+    ...Object.entries(manifest.devDependencies ?? {}),
+    ...Object.entries(manifest.dependencies ?? {}),
+    ...Object.entries(manifest.optionalDependencies ?? {}),
+  ]
 }
 
 function isEmpty (record: Record<string, unknown> | undefined): boolean {
