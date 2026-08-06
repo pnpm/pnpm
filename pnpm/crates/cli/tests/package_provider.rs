@@ -34,7 +34,9 @@ process.stdin.on('end', () => {
         const entryPath = path.join(dir, entry.name)
         if (entry.isSymbolicLink()) continue
         if (entry.isDirectory()) stack.push(entryPath)
-        fs.chmodSync(entryPath, entry.isDirectory() ? mode | 0o111 : mode)
+        // preserve executable bits so frozen bin scripts stay runnable
+        const executableBits = fs.lstatSync(entryPath).mode & 0o111
+        fs.chmodSync(entryPath, entry.isDirectory() ? mode | 0o111 : mode | executableBits)
       }
     }
     fs.chmodSync(root, mode | 0o111)
