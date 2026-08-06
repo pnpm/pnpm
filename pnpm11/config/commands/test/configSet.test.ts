@@ -1024,7 +1024,7 @@ test.each([
     location: 'project',
     authConfig: {},
   }), ['set', key, '/tmp/somewhere'])).rejects.toMatchObject({
-    code: 'ERR_PNPM_CONFIG_SET_SKIPPED_PROJECT_KEY',
+    code: 'ERR_PNPM_CONFIG_SET_NOT_A_PROJECT_SETTING',
   })
 
   expect(readConfigFiles(configDir, tmp)).toEqual(initConfig)
@@ -1093,8 +1093,11 @@ test.each([
   // Refused in a project manifest, but the global config file takes it.
   ['state-dir', 'pnpm config set --global state-dir'],
   ['global_dir', 'pnpm config set --global global-dir'],
-  // Refused everywhere: pnpm resolves it on its own.
-  ['config-dir', 'no config file sets it'],
+  // No config file takes these, so the hint has to name the route that does.
+  ['config-dir', 'XDG_CONFIG_HOME'],
+  ['dir', 'Pass --dir on the command line'],
+  // Nothing outside pnpm sets this one, so there is no route to name.
+  ['root-project-manifest-dir', 'pnpm resolves this setting per run'],
   // `userconfig` is writable globally but never read back; point at the key
   // that actually supplies the user-level .npmrc.
   ['userconfig', 'pnpm config set --global npmrc-auth-file'],

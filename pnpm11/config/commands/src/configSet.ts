@@ -58,7 +58,7 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
       // these is the fix for a manifest that already has it, so only writing
       // is refused.
       if (value != null && configFileName === WORKSPACE_MANIFEST_FILENAME && isProjectManifestSkippedSetting(writtenKey)) {
-        throw new ConfigSetSkippedProjectKeyError(writtenKey)
+        throw new ConfigSetNotAProjectSettingError(writtenKey)
       }
       const updatedFields: Record<string, unknown> = {
         [writtenKey]: castField(value, kebabCase(writtenKey)),
@@ -213,17 +213,33 @@ const GLOBAL_EQUIVALENT_KEYS: Record<string, string> = {
 }
 
 /**
+ * How to set a refused key that no config file accepts, for the ones that are
+ * still settable by another route.
+ *
+ * Without these the fallback below would tell a user that pnpm works `dir` out
+ * for itself, when `--dir` sets it, and that pnpm works `configDir` out for
+ * itself, when `XDG_CONFIG_HOME` moves it.
+ */
+const NON_CONFIG_FILE_SOURCES: Record<string, string> = {
+  dir: 'Pass --dir on the command line instead',
+  configDir: 'pnpm takes it from XDG_CONFIG_HOME, or the platform default',
+}
+
+/**
  * Where {@link key} can be set, for a key a project manifest refuses.
  *
- * Some of them are still valid in the global config file; the rest pnpm
- * determines on its own and no file sets them. Suggesting the project manifest
- * — the fallback for every other key — would send the user in a circle.
+ * Some are still valid in the global config file, some are set another way
+ * entirely, and the rest pnpm resolves per run. Suggesting the project
+ * manifest — the fallback for every other key — would send the user in a
+ * circle.
  */
 function whereRefusedKeyBelongs (key: string): string {
-  const kebabKey = GLOBAL_EQUIVALENT_KEYS[camelCase(key)] ?? kebabCase(key)
-  return isConfigFileKey(kebabKey)
-    ? `Set it for the machine instead: pnpm config set --global ${kebabKey}`
-    : 'pnpm determines this setting itself, so no config file sets it'
+  const camelKey = camelCase(key)
+  const kebabKey = GLOBAL_EQUIVALENT_KEYS[camelKey] ?? kebabCase(key)
+  if (isConfigFileKey(kebabKey)) {
+    return `Set it for the machine instead: pnpm config set --global ${kebabKey}`
+  }
+  return NON_CONFIG_FILE_SOURCES[camelKey] ?? 'pnpm resolves this setting per run, so no config file sets it'
 }
 
 /** The suggestion for {@link key}, which falls back when the key is allowed in a project manifest. */
@@ -232,10 +248,10 @@ function hintForRefusedKey (key: string, fallback: string): string {
   return whereRefusedKeyBelongs(key)
 }
 
-export class ConfigSetSkippedProjectKeyError extends PnpmError {
+export class ConfigSetNotAProjectSettingError extends PnpmError {
   readonly key: string
   constructor (key: string) {
-    super('CONFIG_SET_SKIPPED_PROJECT_KEY', `The key ${JSON.stringify(key)} isn't supported by a project's workspace manifest`, {
+    super('CONFIG_SET_NOT_A_PROJECT_SETTING', `The key ${JSON.stringify(key)} cannot be set in a project's pnpm-workspace.yaml`, {
       hint: whereRefusedKeyBelongs(key),
     })
     this.key = key
