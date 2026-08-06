@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use chrono::{DateTime, Utc};
 use node_semver::Version;
 use pacquet_config::version_policy::create_package_version_policy;
-use pacquet_registry::{Package, PackageDistribution, PackageVersion};
+use pacquet_registry::{DerivedPackuments, Package, PackageDistribution, PackageVersion};
 use pacquet_resolving_resolver_base::{
     ResolveOptions, VersionSelectorEntry, VersionSelectorType, VersionSelectorWithWeight,
     VersionSelectors,
@@ -57,6 +57,8 @@ fn make_package() -> Package {
         etag: None,
         homepage: None,
         mutex: std::sync::Arc::default(),
+        release_age_upgrade_checked: false,
+        derived: DerivedPackuments::default(),
     }
 }
 
@@ -113,6 +115,24 @@ fn warns_when_a_manifest_pin_is_the_reason_for_the_held_back_pick() {
         &make_package(),
         "2.1.3",
     );
+    assert_eq!(preferred, Some("2.1.4".to_string()));
+}
+
+#[test]
+fn warns_when_the_newer_version_is_mature_under_the_cutoff() {
+    let selectors = VersionSelectors::from([(
+        "2.1.3".to_string(),
+        VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+            selector_type: VersionSelectorType::Version,
+            weight: 1000,
+        }),
+    )]);
+    let opts = ResolveOptions {
+        published_by: Some(parse_iso("2026-08-01T00:00:00.000Z")),
+        ..update_opts()
+    };
+    let preferred =
+        held_back_preferred(&opts, &range_spec(), Some(&selectors), &make_package(), "2.1.3");
     assert_eq!(preferred, Some("2.1.4".to_string()));
 }
 
