@@ -70,53 +70,47 @@ function urlToFetchSpec (url: URL): string {
 
 async function fromHostedGit (hosted: any, dispatcherOptions: DispatcherOptions): Promise<HostedPackageSpec> { // eslint-disable-line
   let fetchSpec: string | null = null
-  // try git/https url before fallback to ssh url
-  const gitHttpsUrl = hosted.https({ noCommittish: true, noGitPlus: true })
-  if (gitHttpsUrl && await isRepoPublic(gitHttpsUrl, dispatcherOptions) && await accessRepository(gitHttpsUrl)) {
-    fetchSpec = gitHttpsUrl
-  } else {
-    const gitSshUrl = hosted.ssh({ noCommittish: true })
-    if (gitSshUrl && await accessRepository(gitSshUrl)) {
-      fetchSpec = gitSshUrl
-    }
+  const httpsUrl: string | null = hosted.https({ noCommittish: true, noGitPlus: true })
+  const sshUrl: string | null = hosted.ssh({ noCommittish: true })
+  // SSH is probed before the HTTPS fallbacks (and used as the last-resort guess)
+  // only when the user explicitly wrote an SSH URL. For every other representation
+  // (`shortcut`, `https`, ...) an SSH remote was never asked for, and recording one
+  // in the lockfile breaks installs in environments without SSH keys, so every
+  // HTTPS transport is exhausted first.
+  const preferSsh = hosted.default === 'sshurl'
+  const repoIsPublic = httpsUrl != null && await isRepoPublic(httpsUrl, dispatcherOptions)
+  if (httpsUrl && repoIsPublic && await accessRepository(httpsUrl)) {
+    fetchSpec = httpsUrl
   }
-
-  if (!fetchSpec) {
-    const httpsUrl: string | null = hosted.https({ noGitPlus: true, noCommittish: true })
-    if (httpsUrl) {
-      if ((hosted.auth || !await isRepoPublic(httpsUrl, dispatcherOptions)) && await accessRepository(httpsUrl)) {
-        return {
-          fetchSpec: httpsUrl,
-          hosted: {
-            ...hosted,
-            _fill: hosted._fill,
-            tarball: undefined,
-          },
-          normalizedBareSpecifier: `git+${httpsUrl}`,
-          ...parseGitParams(hosted.committish),
-        }
-      } else {
-        try {
-          // when git ls-remote private repo, it asks for login credentials.
-          // use HTTP HEAD request to test whether this is a private repo, to avoid login prompt.
-          // this is very similar to yarn classic's behavior.
-          // npm instead tries git ls-remote directly which prompts user for login credentials.
-
-          // HTTP HEAD on https://domain/user/repo, strip out ".git"
-          const response = await fetchWithDispatcher(httpsUrl.replace(/\.git$/, ''), { method: 'HEAD', redirect: 'manual', retry: { retries: 0 }, dispatcherOptions })
-          if (response.ok) {
-            fetchSpec = httpsUrl
-          }
-        } catch {
-          // ignore
-        }
+  if (!fetchSpec && preferSsh && sshUrl && await accessRepository(sshUrl)) {
+    fetchSpec = sshUrl
+  }
+  if (!fetchSpec && httpsUrl) {
+    if ((hosted.auth || !repoIsPublic) && await accessRepository(httpsUrl)) {
+      // Reachable over HTTPS without being provably public, so resolve as
+      // `type: git` against this exact URL: the host's archive endpoint would
+      // carry neither the URL's credentials nor ambient ones (helpers, tokens).
+      return {
+        fetchSpec: httpsUrl,
+        hosted: {
+          ...hosted,
+          _fill: hosted._fill,
+          tarball: undefined,
+        },
+        normalizedBareSpecifier: `git+${httpsUrl}`,
+        ...parseGitParams(hosted.committish),
       }
     }
+    if (repoIsPublic) {
+      fetchSpec = httpsUrl
+    }
+  }
+  if (!fetchSpec && !preferSsh && sshUrl && await accessRepository(sshUrl)) {
+    fetchSpec = sshUrl
   }
 
   if (!fetchSpec) {
-    // use ssh url for likely private repo
-    fetchSpec = hosted.sshurl({ noCommittish: true })
+    fetchSpec = preferSsh ? hosted.sshurl({ noCommittish: true }) : httpsUrl
   }
 
   return {
@@ -125,7 +119,10 @@ async function fromHostedGit (hosted: any, dispatcherOptions: DispatcherOptions)
       ...hosted,
       tarballtemplate: hosted.type === 'gitlab' ? gitlabTarballTemplate : hosted.tarballtemplate,
       _fill: hosted._fill,
-      tarball: hosted.tarball,
+      // Same rationale as the early return above: without proof that the repo
+      // is public, the host's anonymous archive endpoint cannot be assumed to
+      // work, so the resolution must stay `type: git`.
+      tarball: repoIsPublic ? hosted.tarball : undefined,
     },
     normalizedBareSpecifier: hosted.shortcut(),
     ...parseGitParams(hosted.committish),
@@ -140,9 +137,20 @@ function gitlabTarballTemplate ({ domain, user, project, committish }: { domain:
   return `https://${domain}/${user}/${project}/-/archive/${ref}/${project}-${ref}.tar.gz`
 }
 
+// An HTTP HEAD on the project page (without ".git") instead of `git ls-remote`:
+// probing a private repo with ls-remote would trigger a credential prompt. This is
+// very similar to yarn classic's behavior; npm instead tries git ls-remote directly,
+// which prompts for login credentials. Transient failures (429/5xx/network errors)
+// are retried by the fetch layer so registry throttling of CI runners is not
+// mistaken for a private repository.
 async function isRepoPublic (httpsUrl: string, dispatcherOptions: DispatcherOptions): Promise<boolean> {
   try {
-    const response = await fetchWithDispatcher(httpsUrl.replace(/\.git$/, ''), { method: 'HEAD', redirect: 'manual', retry: { retries: 0 }, dispatcherOptions })
+    const response = await fetchWithDispatcher(httpsUrl.replace(/\.git$/, ''), {
+      method: 'HEAD',
+      redirect: 'manual',
+      retry: { retries: 2, factor: 2, minTimeout: 500, maxTimeout: 2_000 },
+      dispatcherOptions,
+    })
     return response.ok
   } catch {
     return false

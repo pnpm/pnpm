@@ -515,11 +515,11 @@ test('resolveFromGit() private repo with commit hash', async () => {
   mockFetchAsPrivate()
   const resolveResult = await resolveFromGit({ bareSpecifier: 'fake/private-repo#2fa0531ab04e300a24ef4fd7fb3a280eccb7ccc5' })
   expect(resolveResult).toStrictEqual({
-    id: 'git+ssh://git@github.com/fake/private-repo.git#2fa0531ab04e300a24ef4fd7fb3a280eccb7ccc5',
+    id: 'git+https://github.com/fake/private-repo.git#2fa0531ab04e300a24ef4fd7fb3a280eccb7ccc5',
     normalizedBareSpecifier: 'github:fake/private-repo#2fa0531ab04e300a24ef4fd7fb3a280eccb7ccc5',
     resolution: {
       commit: '2fa0531ab04e300a24ef4fd7fb3a280eccb7ccc5',
-      repo: 'git+ssh://git@github.com/fake/private-repo.git',
+      repo: 'https://github.com/fake/private-repo.git',
       type: 'git',
     },
     resolvedVia: 'git-repository',
@@ -528,7 +528,11 @@ test('resolveFromGit() private repo with commit hash', async () => {
 
 test('resolve a private repository using the HTTPS protocol without auth token', async () => {
   jest.mocked(git).mockImplementation(async (args: string[]) => {
-    expect(args).toContain('git+ssh://git@github.com/foo/bar.git')
+    // Probes use --exit-code, resolution calls use --. Fail probes, succeed resolution.
+    if (args.includes('--exit-code')) {
+      throw new Error('access denied')
+    }
+    expect(args).toContain('https://github.com/foo/bar.git')
     return {
       stdout: '0'.repeat(40) + '\tHEAD',
     }
@@ -536,11 +540,55 @@ test('resolve a private repository using the HTTPS protocol without auth token',
   mockFetchAsPrivate()
   const resolveResult = await resolveFromGit({ bareSpecifier: 'git+https://github.com/foo/bar.git' })
   expect(resolveResult).toStrictEqual({
-    id: 'git+ssh://git@github.com/foo/bar.git#0000000000000000000000000000000000000000',
+    id: 'git+https://github.com/foo/bar.git#0000000000000000000000000000000000000000',
     normalizedBareSpecifier: 'github:foo/bar',
     resolution: {
       commit: '0000000000000000000000000000000000000000',
-      repo: 'git+ssh://git@github.com/foo/bar.git',
+      repo: 'https://github.com/foo/bar.git',
+      type: 'git',
+    },
+    resolvedVia: 'git-repository',
+  })
+})
+
+test('resolve over HTTPS when the visibility probe fails but anonymous HTTPS git access works', async () => {
+  // A public repo whose HEAD probe is throttled (e.g. GitHub rate-limiting a CI
+  // runner) must still resolve over HTTPS: recording SSH would poison the
+  // lockfile for every environment without SSH keys.
+  mockFetchAsPrivate()
+  const gitCalls: string[][] = []
+  jest.mocked(git).mockImplementation(async (args: string[]) => {
+    gitCalls.push(args)
+    if (args.some((arg) => arg.includes('git@'))) throw new Error('Permission denied (publickey)')
+    return { stdout: '0'.repeat(40) + '\tHEAD' }
+  })
+  const resolveResult = await resolveFromGit({ bareSpecifier: 'foo/bar' })
+  expect(resolveResult).toStrictEqual({
+    id: `git+https://github.com/foo/bar.git#${'0'.repeat(40)}`,
+    normalizedBareSpecifier: 'git+https://github.com/foo/bar.git',
+    resolution: {
+      commit: '0'.repeat(40),
+      repo: 'https://github.com/foo/bar.git',
+      type: 'git',
+    },
+    resolvedVia: 'git-repository',
+  })
+  expect(gitCalls.flat().some((arg) => arg.includes('git@'))).toBe(false)
+})
+
+test('resolve an explicit SSH specifier over SSH when only SSH access works', async () => {
+  mockFetchAsPrivate()
+  jest.mocked(git).mockImplementation(async (args: string[]) => {
+    if (!args.includes('git@github.com:foo/bar.git')) throw new Error('access denied')
+    return { stdout: '0'.repeat(40) + '\tHEAD' }
+  })
+  const resolveResult = await resolveFromGit({ bareSpecifier: 'git+ssh://git@github.com/foo/bar.git' })
+  expect(resolveResult).toStrictEqual({
+    id: `git+ssh://git@github.com/foo/bar.git#${'0'.repeat(40)}`,
+    normalizedBareSpecifier: 'github:foo/bar',
+    resolution: {
+      commit: '0'.repeat(40),
+      repo: 'git@github.com:foo/bar.git',
       type: 'git',
     },
     resolvedVia: 'git-repository',
