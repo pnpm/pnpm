@@ -139,6 +139,45 @@ test('getPublishedByPolicy() rewraps invalid exclude patterns as ERR_PNPM_INVALI
   })).toThrow(expect.objectContaining({ code: 'ERR_PNPM_INVALID_MINIMUM_RELEASE_AGE_EXCLUDE' }))
 })
 
+test('getPublishedByPolicy() throws INVALID_MINIMUM_RELEASE_AGE for NaN', () => {
+  expect(() => getPublishedByPolicy({ minimumReleaseAge: NaN }))
+    .toThrow(expect.objectContaining({ code: 'ERR_PNPM_INVALID_MINIMUM_RELEASE_AGE' }))
+})
+
+test('getPublishedByPolicy() throws INVALID_MINIMUM_RELEASE_AGE for Infinity', () => {
+  expect(() => getPublishedByPolicy({ minimumReleaseAge: Infinity }))
+    .toThrow(expect.objectContaining({ code: 'ERR_PNPM_INVALID_MINIMUM_RELEASE_AGE' }))
+})
+
+test('getPublishedByPolicy() throws INVALID_MINIMUM_RELEASE_AGE for a negative value', () => {
+  expect(() => getPublishedByPolicy({ minimumReleaseAge: -1 }))
+    .toThrow(expect.objectContaining({ code: 'ERR_PNPM_INVALID_MINIMUM_RELEASE_AGE' }))
+})
+
+test('getPublishedByPolicy() accepts zero as a no-op (publishedBy undefined)', () => {
+  const { publishedBy, publishedByExclude } = getPublishedByPolicy({ minimumReleaseAge: 0 })
+  expect(publishedBy).toBeUndefined()
+  expect(publishedByExclude).toBeUndefined()
+})
+
+test('getPublishedByPolicy() coerces a single-string minimumReleaseAgeExclude to an array', () => {
+  const { publishedByExclude } = getPublishedByPolicy({
+    minimumReleaseAge: 24 * 60,
+    minimumReleaseAgeExclude: 'is-odd',
+  })
+  expect(publishedByExclude!('is-odd')).toBe(true)
+  expect(publishedByExclude!('axios')).toBe(false)
+})
+
+test('getPublishedByPolicy() coerces a single-string exclude with a version to an array', () => {
+  const { publishedByExclude } = getPublishedByPolicy({
+    minimumReleaseAge: 24 * 60,
+    minimumReleaseAgeExclude: 'pnpm@9.1.0',
+  })
+  expect(publishedByExclude!('pnpm')).toStrictEqual(['9.1.0'])
+  expect(publishedByExclude!('axios')).toBe(false)
+})
+
 test('mergePackageVersionSpecs() combines versions of the same package into one sorted entry', () => {
   expect(mergePackageVersionSpecs([
     'axios@0.21.2',

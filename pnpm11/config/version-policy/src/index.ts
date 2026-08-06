@@ -31,12 +31,39 @@ export function createPackageVersionPolicyOrThrow (patterns: string[], key: stri
 
 export interface PublishedByPolicyOptions {
   minimumReleaseAge?: number
-  minimumReleaseAgeExclude?: string[]
+  minimumReleaseAgeExclude?: string[] | string
 }
 
 export interface PublishedByPolicy {
   publishedBy?: Date
   publishedByExclude?: PackageVersionPolicy
+}
+
+/**
+ * Reject `NaN`, `Infinity`, and negative `minimumReleaseAge` values. All three
+ * silently break the supply-chain maturity gate: `NaN` falsies out and disables
+ * the check, `Infinity` produces an invalid `Date` whose `toISOString()` throws,
+ * and a negative pushes the cutoff into the future so every version looks mature.
+ * Shared by the resolver-time and lockfile-verifier paths so neither can bypass it.
+ */
+export function validateMinimumReleaseAge (value: number): void {
+  if (!Number.isFinite(value) || value < 0) {
+    throw new PnpmError(
+      'INVALID_MINIMUM_RELEASE_AGE',
+      `minimumReleaseAge must be a finite, non-negative number of minutes, got ${value}`
+    )
+  }
+}
+
+/**
+ * Normalize a `minimumReleaseAgeExclude` value to `string[]`. The CLI passes a
+ * bare `string` when the flag is given once (`[String, Array]` coercion), while
+ * config and repeated flags yield `string[]`; without normalization the policy
+ * matcher would iterate the string character-by-character. Shared by both the
+ * resolver-time and lockfile-verifier paths.
+ */
+export function coerceExcludeToArray (value: string[] | string): string[] {
+  return Array.isArray(value) ? value : [value]
 }
 
 /**
@@ -46,12 +73,15 @@ export interface PublishedByPolicy {
  * instant and surfaces invalid exclude patterns under the same error code.
  */
 export function getPublishedByPolicy (opts: PublishedByPolicyOptions): PublishedByPolicy {
+  if (opts.minimumReleaseAge != null) {
+    validateMinimumReleaseAge(opts.minimumReleaseAge)
+  }
   return {
     publishedBy: opts.minimumReleaseAge
       ? new Date(Date.now() - opts.minimumReleaseAge * 60 * 1000)
       : undefined,
-    publishedByExclude: opts.minimumReleaseAgeExclude
-      ? createPackageVersionPolicyOrThrow(opts.minimumReleaseAgeExclude, 'minimumReleaseAgeExclude')
+    publishedByExclude: opts.minimumReleaseAgeExclude != null && opts.minimumReleaseAgeExclude !== ''
+      ? createPackageVersionPolicyOrThrow(coerceExcludeToArray(opts.minimumReleaseAgeExclude), 'minimumReleaseAgeExclude')
       : undefined,
   }
 }
