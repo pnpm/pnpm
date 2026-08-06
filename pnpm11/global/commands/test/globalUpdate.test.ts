@@ -115,7 +115,7 @@ test('global update only updates interactively selected groups', async () => {
   )
 })
 
-test('global update --latest keeps the spec of local packages instead of querying the registry', async () => {
+test('global update --latest drops the spec only of plain version dependencies', async () => {
   createInstallDir.mockReturnValueOnce('/global/v11/install-3')
   getHashLink.mockReturnValueOnce('/global/v11/hash-local')
   scanGlobalPackages.mockReturnValue([
@@ -123,7 +123,12 @@ test('global update --latest keeps the spec of local packages instead of queryin
       dependencies: {
         'private-linked-pkg': 'link:/home/user/projects/private-linked-pkg',
         'local-tarball-pkg': 'file:/home/user/tarballs/local-tarball-pkg.tgz',
+        'git-pkg': 'github:user/git-pkg',
+        'remote-tarball-pkg': 'https://example.com/pkg.tgz',
+        'aliased-pkg': 'npm:other-pkg@^2.0.0',
+        'named-registry-pkg': 'gh:^3.0.0',
         foo: '^1.0.0',
+        bar: 'next',
       },
       hash: 'hash-local',
       installDir: '/global/v11/old-local',
@@ -146,7 +151,12 @@ test('global update --latest keeps the spec of local packages instead of queryin
     [
       'private-linked-pkg@link:/home/user/projects/private-linked-pkg',
       'local-tarball-pkg@file:/home/user/tarballs/local-tarball-pkg.tgz',
+      'git-pkg@github:user/git-pkg',
+      'remote-tarball-pkg@https://example.com/pkg.tgz',
+      'aliased-pkg@npm:other-pkg@^2.0.0',
+      'named-registry-pkg@gh:^3.0.0',
       'foo',
+      'bar',
     ]
   )
 })

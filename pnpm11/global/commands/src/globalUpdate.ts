@@ -76,10 +76,6 @@ export async function handleGlobalUpdate (
   return undefined
 }
 
-function isLocalSpec (spec: string): boolean {
-  return spec.startsWith('link:') || spec.startsWith('file:')
-}
-
 async function updateGlobalPackageGroup (
   opts: GlobalUpdateOptions,
   globalDir: string,
@@ -91,10 +87,8 @@ async function updateGlobalPackageGroup (
 
   // When --latest, just pass alias names to get the latest version.
   // Otherwise, pass alias@spec to update within the existing range.
-  // Local packages (link:/file:) always keep their spec, as they don't
-  // resolve from a registry and have no latest version to query.
   const depSpecs = Object.entries(pkg.dependencies).map(
-    ([alias, spec]) => opts.latest && !isLocalSpec(spec) ? alias : `${alias}@${spec}`
+    ([alias, spec]) => opts.latest && isPlainVersionSpec(spec) ? alias : `${alias}@${spec}`
   )
 
   const include = {
@@ -169,4 +163,14 @@ async function updateGlobalPackageGroup (
   // Link bins from new installation
   await linkBinsOfPackages(pkgs, globalBinDir, { excludeBins: binsToSkip })
   await opts.updateResolutionPolicyManifest?.(resolutionPolicyViolations, globalDir)
+}
+
+// Only a plain version range may be dropped in favor of the bare alias.
+// Every other spec form (`link:`, `file:`, a git or tarball URL, an `npm:`
+// alias, a named registry) also says where the package comes from, so the
+// alias alone would be resolved from the default registry: a different
+// package gets installed, or the lookup 404s and aborts the groups that
+// have not been updated yet.
+function isPlainVersionSpec (spec: string): boolean {
+  return !spec.includes(':')
 }
