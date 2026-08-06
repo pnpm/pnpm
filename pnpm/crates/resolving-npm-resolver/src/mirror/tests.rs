@@ -8,8 +8,8 @@ use pacquet_network::MetadataCacheScope;
 
 use super::{
     ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, encode_pkg_name,
-    get_pkg_mirror_path, get_registry_name, load_meta, load_meta_headers, save_meta_indexed,
-    scoped_meta_dir,
+    get_pkg_mirror_path, get_registry_name, load_meta, load_meta_headers, load_meta_with_hold_cap,
+    save_meta_indexed, scoped_meta_dir,
 };
 
 #[test]
@@ -144,10 +144,6 @@ fn load_meta_round_trip_hydrates_versions_from_spans() {
     assert_eq!(manifest.dist.tarball, "https://registry/acme-1.0.0.tgz");
 }
 
-/// A loaded mirror pins its inode: fragments hydrate from the
-/// held-open handle, so a rewrite of the same path (another install
-/// racing, a release-age upgrade persist) can never shift the bytes
-/// under the recorded spans.
 #[test]
 fn load_meta_survives_mirror_rewrite() {
     let dir = TempDir::new().expect("tmp dir");
@@ -155,9 +151,8 @@ fn load_meta_survives_mirror_rewrite() {
     let pkg = fixture_package();
     save_meta_indexed(&mirror, &pkg, None).expect("save");
     let loaded = load_meta(&mirror).expect("read full back");
-    // The rewritten packument's `1.0.0` fragment sits at a different
-    // offset (a fatter `0.9.0` fragment precedes it), so a loader that
-    // re-read the path instead of the pinned inode would parse garbage.
+    // The fatter `0.9.0` fragment shifts `1.0.0`'s offset, so a loader
+    // that re-read the path instead of the pinned inode parses garbage.
     let newer: Package = serde_json::from_value(serde_json::json!({
         "name": "acme",
         "dist-tags": { "latest": "1.0.0" },
@@ -187,6 +182,26 @@ fn load_meta_survives_mirror_rewrite() {
     save_meta_indexed(&mirror, &newer, None).expect("overwrite");
     let manifest = loaded.versions.get("1.0.0").expect("hydrate after rewrite");
     assert_eq!(manifest.dist.tarball, "https://registry/acme-1.0.0.tgz");
+}
+
+#[test]
+fn load_meta_past_the_hold_cap_buffers_fragments_instead_of_missing() {
+    let dir = TempDir::new().expect("tmp dir");
+    let mirror = dir.path().join("acme.jsonl");
+    let pkg = fixture_package();
+    save_meta_indexed(&mirror, &pkg, Some(r#"W/"abc""#)).expect("save");
+    let loaded = load_meta_with_hold_cap(&mirror, 0).expect("read full back without a handle");
+    let manifest = loaded.versions.get("1.0.0").expect("hydrate from buffered fragment");
+    assert_eq!(manifest.dist.tarball, "https://registry/acme-1.0.0.tgz");
+    assert_eq!(loaded.etag.as_deref(), Some(r#"W/"abc""#));
+}
+
+#[test]
+fn load_meta_rejects_oversized_declared_record_lengths() {
+    let dir = TempDir::new().expect("tmp dir");
+    let mirror = dir.path().join("acme.jsonl");
+    std::fs::write(&mirror, "pacquet-meta-v1 128 999999999999\n{}{}").expect("write");
+    assert!(load_meta(&mirror).is_none());
 }
 
 #[test]

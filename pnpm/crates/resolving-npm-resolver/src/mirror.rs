@@ -58,7 +58,7 @@ use std::{
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_network::MetadataCacheScope;
-use pacquet_registry::{DerivedPackuments, Package, PackageVersions};
+use pacquet_registry::{DerivedPackuments, MirrorFile, Package, PackageVersions};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
@@ -118,6 +118,15 @@ pub enum SaveMetaError {
         error: io::Error,
     },
 }
+
+/// The declared record lengths in a mirror's magic line come from the
+/// file itself, so a corrupted or hostile mirror must never drive an
+/// arbitrarily large allocation. The headers record is ~100 bytes of
+/// etag + timestamp; the index scales with the version count (~100
+/// bytes per version), so its bound leaves six-figure version counts
+/// of headroom.
+const MAX_HEADERS_LEN: usize = 64 * 1024;
+const MAX_INDEX_LEN: usize = 64 * 1024 * 1024;
 
 /// Mirror root for descriptor-scoped private metadata. A
 /// [`MetadataCacheScope::Private`] route stores its packuments under
@@ -464,10 +473,6 @@ fn read_mirror_headers(file: &mut File) -> Option<MetaHeaders> {
     let Some((headers_len, _)) = parse_mirror_magic(line) else {
         return serde_json::from_str(line).ok();
     };
-    // The headers record is ~100 bytes of etag + timestamp. Bound the
-    // declared length before allocating from it so a corrupted or
-    // hostile mirror can't trigger an arbitrarily large allocation.
-    const MAX_HEADERS_LEN: usize = 64 * 1024;
     if headers_len > MAX_HEADERS_LEN {
         return None;
     }
@@ -506,13 +511,19 @@ pub fn load_meta_headers(pkg_mirror: &Path) -> Option<MetaHeaders> {
 /// into memory; version fragments stay on disk behind the held-open
 /// file handle ([`PackageVersions::from_file_spans`]), so a cache full
 /// of multi-megabyte packuments costs their index size in resident
-/// memory, not their body size. The legacy NDJSON format still parses
-/// the whole body.
+/// memory, not their body size. Past the held-handle budget (sized
+/// from the descriptor limit) a load buffers its fragments instead of
+/// keeping the file open. The legacy NDJSON format still parses the
+/// whole body.
 ///
 /// Returns `None` on missing file / malformed contents: the caller's
 /// response to "couldn't read" is the same as "no cache".
 #[must_use]
 pub fn load_meta(pkg_mirror: &Path) -> Option<Package> {
+    load_meta_with_hold_cap(pkg_mirror, held_mirror_file_cap())
+}
+
+fn load_meta_with_hold_cap(pkg_mirror: &Path, hold_cap: usize) -> Option<Package> {
     raise_open_file_limit_once();
     let mut file = File::open(pkg_mirror).ok()?;
     // The magic line plus the two length fields fit well inside this.
@@ -538,11 +549,22 @@ pub fn load_meta(pkg_mirror: &Path) -> Option<Package> {
         meta.modified = meta.modified.or(headers.modified);
         return Some(meta);
     };
+    // Bound each declared length, then require the whole header +
+    // index region to fit inside the actual file before allocating a
+    // buffer for it.
+    if headers_len > MAX_HEADERS_LEN || index_len > MAX_INDEX_LEN {
+        return None;
+    }
     let headers_start = newline + 1;
     let index_start = headers_start.checked_add(headers_len)?;
     let fragment_base = index_start.checked_add(index_len)?;
+    let file_size = file.metadata().ok()?.len();
+    if u64::try_from(fragment_base).ok()? > file_size {
+        return None;
+    }
     // Read the rest of the headers + index records; the file's
-    // fragment section is never buffered.
+    // fragment section is only buffered on the held-handle fallback
+    // below.
     let mut records = vec![0u8; fragment_base.checked_sub(filled.min(fragment_base))?];
     file.read_exact(&mut records).ok()?;
     let mut prefixed = Vec::with_capacity(fragment_base);
@@ -556,8 +578,6 @@ pub fn load_meta(pkg_mirror: &Path) -> Option<Package> {
     // Rebase the relative spans and reject any that fall outside the
     // file — a truncated or hand-edited mirror reads as a miss rather
     // than handing out garbage fragments later.
-    let file_size = file.metadata().ok()?.len();
-    let file = Arc::new(file);
     let mut spans = Vec::with_capacity(index.versions.len());
     for (version, offset, len) in index.versions {
         let absolute = (fragment_base as u64).checked_add(offset)?;
@@ -567,10 +587,37 @@ pub fn load_meta(pkg_mirror: &Path) -> Option<Package> {
         spans.push((version, absolute, len));
     }
 
+    let versions = match MirrorFile::try_hold(file, hold_cap) {
+        Ok(held) => PackageVersions::from_file_spans(&held, spans),
+        // Held-handle budget exhausted (an unusually low descriptor
+        // limit, or an install consulting more packuments than the
+        // cap): buffer this mirror's fragments and close the file, so
+        // a full cache can never make `File::open` fail elsewhere and
+        // turn present mirrors into cache misses.
+        Err(mut file) => {
+            // The prefix probe may have read past `fragment_base`; the
+            // buffer must start there, with the rest read from the
+            // file's current position.
+            let mut fragments = Vec::new();
+            if fragment_base < filled {
+                fragments.extend_from_slice(&prefix[fragment_base..filled]);
+            }
+            file.read_to_end(&mut fragments).ok()?;
+            let raw_fragments = spans.into_iter().filter_map(|(version, absolute, len)| {
+                let start = usize::try_from(absolute.checked_sub(fragment_base as u64)?).ok()?;
+                let end = start.checked_add(len as usize)?;
+                let json = std::str::from_utf8(fragments.get(start..end)?).ok()?;
+                let raw = serde_json::from_str::<Box<serde_json::value::RawValue>>(json).ok()?;
+                Some((version, raw))
+            });
+            PackageVersions::from_raw_fragments(raw_fragments)
+        }
+    };
+
     Some(Package {
         name: index.name,
         dist_tags: index.dist_tags,
-        versions: PackageVersions::from_file_spans(&file, spans),
+        versions,
         time: index.time,
         modified: headers.modified,
         etag: headers.etag,
@@ -579,6 +626,37 @@ pub fn load_meta(pkg_mirror: &Path) -> Option<Package> {
         release_age_upgrade_checked: false,
         derived: DerivedPackuments::default(),
     })
+}
+
+/// How many mirror files [`load_meta`] may keep open at once. Sized
+/// from the post-raise soft descriptor limit with headroom for the
+/// rest of the install (sockets, tarball extraction, store writes);
+/// loads beyond the cap buffer their fragments instead of holding a
+/// handle.
+fn held_mirror_file_cap() -> usize {
+    static CAP: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
+    *CAP.get_or_init(|| {
+        raise_open_file_limit_once();
+        soft_open_file_limit().map_or(1 << 19, |soft| (soft / 2).clamp(128, 1 << 19))
+    })
+}
+
+#[cfg(unix)]
+fn soft_open_file_limit() -> Option<usize> {
+    let mut limit = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
+    // SAFETY: plain libc call; `limit` is a properly initialised
+    // out-parameter and the pointer does not outlive the call.
+    if unsafe { libc::getrlimit(libc::RLIMIT_NOFILE, &raw mut limit) } != 0 {
+        return None;
+    }
+    usize::try_from(limit.rlim_cur).ok()
+}
+
+/// Windows has no `RLIMIT_NOFILE`; the per-process handle capacity is
+/// far above the cap's upper clamp.
+#[cfg(not(unix))]
+fn soft_open_file_limit() -> Option<usize> {
+    None
 }
 
 /// Async sibling of [`load_meta`]. The body is a blocking

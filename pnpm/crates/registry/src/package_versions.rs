@@ -50,6 +50,48 @@ struct VersionSlot {
     parsed: OnceLock<Option<Arc<PackageVersion>>>,
 }
 
+/// A mirror file held open for on-demand fragment reads, counted
+/// against a caller-supplied cap so a fleet of held handles can never
+/// exhaust the process's descriptor budget — a load that would exceed
+/// the cap falls back to buffering its fragments instead (see
+/// [`MirrorFile::try_hold`]).
+#[derive(Debug)]
+pub struct MirrorFile {
+    file: File,
+}
+
+/// Descriptors currently held by live [`MirrorFile`]s.
+static HELD_MIRROR_FILES: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+impl MirrorFile {
+    /// Wrap `file` for span reads when fewer than `cap` mirror files
+    /// are currently held; hand the file back otherwise so the caller
+    /// can buffer its contents and close it.
+    pub fn try_hold(file: File, cap: usize) -> Result<Arc<MirrorFile>, File> {
+        let mut held = HELD_MIRROR_FILES.load(std::sync::atomic::Ordering::Relaxed);
+        loop {
+            if held >= cap {
+                return Err(file);
+            }
+            match HELD_MIRROR_FILES.compare_exchange_weak(
+                held,
+                held + 1,
+                std::sync::atomic::Ordering::Relaxed,
+                std::sync::atomic::Ordering::Relaxed,
+            ) {
+                Ok(_) => return Ok(Arc::new(MirrorFile { file })),
+                Err(current) => held = current,
+            }
+        }
+    }
+}
+
+impl Drop for MirrorFile {
+    fn drop(&mut self) {
+        HELD_MIRROR_FILES.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
 /// Where a version's JSON fragment lives until it is hydrated.
 #[derive(Debug, Clone)]
 enum FragmentSource {
@@ -62,7 +104,7 @@ enum FragmentSource {
     /// packument cache out of resident memory. See
     /// [`PackageVersions::from_file_spans`] for the inode-pinning
     /// contract the held handle provides.
-    FileSpan { file: Arc<File>, offset: u64, len: u32 },
+    FileSpan { file: Arc<MirrorFile>, offset: u64, len: u32 },
     /// No fragment — the slot was constructed from an already-typed
     /// manifest (tests, the publish-date filter's slot moves).
     None,
@@ -77,7 +119,7 @@ impl FragmentSource {
             FragmentSource::Raw(raw) => Some(Cow::Borrowed(raw.get())),
             FragmentSource::FileSpan { file, offset, len } => {
                 let mut bytes = vec![0u8; *len as usize];
-                if let Err(error) = read_exact_at(file, &mut bytes, *offset) {
+                if let Err(error) = read_exact_at(&file.file, &mut bytes, *offset) {
                     tracing::warn!(
                         target: "pacquet_registry",
                         %error,
@@ -263,7 +305,7 @@ impl PackageVersions {
     /// can never shift under the recorded spans.
     #[must_use]
     pub fn from_file_spans(
-        file: &Arc<File>,
+        file: &Arc<MirrorFile>,
         spans: impl IntoIterator<Item = (String, u64, u32)>,
     ) -> Self {
         PackageVersions {
@@ -278,6 +320,31 @@ impl PackageVersions {
                                 offset,
                                 len,
                             },
+                            parsed: OnceLock::new(),
+                        },
+                    )
+                })
+                .collect(),
+        }
+    }
+
+    /// Build a map from already-extracted raw JSON fragments. The
+    /// fallback for a mirror the loader could not keep open (the
+    /// held-handle cap in [`MirrorFile::try_hold`] was reached): the
+    /// fragments stay buffered in memory like a freshly-fetched
+    /// packument's, trading residency for a descriptor.
+    #[must_use]
+    pub fn from_raw_fragments(
+        fragments: impl IntoIterator<Item = (String, Box<RawValue>)>,
+    ) -> Self {
+        PackageVersions {
+            slots: fragments
+                .into_iter()
+                .map(|(version, raw)| {
+                    (
+                        version,
+                        VersionSlot {
+                            source: FragmentSource::Raw(Arc::from(raw)),
                             parsed: OnceLock::new(),
                         },
                     )
