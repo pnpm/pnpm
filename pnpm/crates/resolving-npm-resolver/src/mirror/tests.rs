@@ -231,7 +231,7 @@ fn load_meta_treats_an_oversized_fragment_span_as_absent() {
         32 * 1024 * 1024,
     );
     let contents =
-        format!("pacquet-meta-v1 {} {}\n{headers}{index}{fragment}", headers.len(), index.len(),);
+        format!("pacquet-meta-v1 {} {}\n{headers}{index}{fragment}", headers.len(), index.len());
     std::fs::write(&mirror, &contents).expect("write");
     // A sparse tail makes the file size cover the declared span
     // without paying for the bytes, like a corrupt mirror would.
