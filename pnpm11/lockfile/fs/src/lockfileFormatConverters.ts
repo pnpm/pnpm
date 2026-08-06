@@ -56,7 +56,7 @@ export function convertToLockfileFile (lockfile: LockfileObject): LockfileFile {
     newLockfile.settings = omit(['peersSuffixMaxLength'], newLockfile.settings)
   }
   if (newLockfile.settings?.injectWorkspacePackages === false) {
-    delete newLockfile.settings.injectWorkspacePackages
+    newLockfile.settings = omit(['injectWorkspacePackages'], newLockfile.settings)
   }
   return normalizeLockfile(newLockfile)
 }

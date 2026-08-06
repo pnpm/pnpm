@@ -440,7 +440,7 @@ pub fn check_lockfile_settings(
     // setting it was written under, so there is nothing to compare —
     // pnpm's `lockfile.settings?.autoInstallPeers != null` guard.
     if let Some(settings) = lockfile.settings.as_ref()
-        && settings.auto_install_peers != auto_install_peers
+        && auto_install_peers_changed(Some(settings), auto_install_peers)
     {
         return Err(StalenessReason::AutoInstallPeersChanged {
             lockfile: settings.auto_install_peers,
@@ -448,8 +448,7 @@ pub fn check_lockfile_settings(
         });
     }
 
-    let lockfile_dedupe_peers =
-        lockfile.settings.as_ref().and_then(|settings| settings.dedupe_peers).unwrap_or(false);
+    let lockfile_dedupe_peers = recorded_dedupe_peers(lockfile.settings.as_ref());
     if lockfile_dedupe_peers != dedupe_peers {
         return Err(StalenessReason::DedupePeersChanged {
             lockfile: lockfile_dedupe_peers,
@@ -458,7 +457,7 @@ pub fn check_lockfile_settings(
     }
 
     if let Some(settings) = lockfile.settings.as_ref()
-        && settings.exclude_links_from_lockfile != exclude_links_from_lockfile
+        && exclude_links_from_lockfile_changed(Some(settings), exclude_links_from_lockfile)
     {
         return Err(StalenessReason::ExcludeLinksFromLockfileChanged {
             lockfile: settings.exclude_links_from_lockfile,
@@ -466,11 +465,8 @@ pub fn check_lockfile_settings(
         });
     }
 
-    let lockfile_peers_suffix_max_length = lockfile
-        .settings
-        .as_ref()
-        .and_then(|s| s.peers_suffix_max_length)
-        .unwrap_or(crate::DEFAULT_PEERS_SUFFIX_MAX_LENGTH);
+    let lockfile_peers_suffix_max_length =
+        recorded_peers_suffix_max_length(lockfile.settings.as_ref());
     if lockfile_peers_suffix_max_length != peers_suffix_max_length {
         return Err(StalenessReason::PeersSuffixMaxLengthChanged {
             lockfile: lockfile_peers_suffix_max_length,
@@ -487,8 +483,7 @@ pub fn check_lockfile_settings(
         });
     }
 
-    let lockfile_inject =
-        lockfile.settings.as_ref().is_some_and(|settings| settings.inject_workspace_packages);
+    let lockfile_inject = recorded_inject_workspace_packages(lockfile.settings.as_ref());
     if lockfile_inject != inject_workspace_packages {
         return Err(StalenessReason::InjectWorkspacePackagesChanged {
             lockfile: lockfile_inject,
@@ -497,6 +492,51 @@ pub fn check_lockfile_settings(
     }
 
     Ok(())
+}
+
+/// Whether `settings.autoInstallPeers` drifted from what the lockfile
+/// records. A lockfile with no `settings` block records nothing about
+/// the setting it was written under, so there is nothing to compare.
+///
+/// This and its four peers below are the single definition of "this
+/// lockfile setting changed", shared with the fast path that records a
+/// provably inert setting change without re-resolving.
+#[must_use]
+pub fn auto_install_peers_changed(
+    recorded: Option<&crate::LockfileSettings>,
+    auto_install_peers: bool,
+) -> bool {
+    recorded.is_some_and(|settings| settings.auto_install_peers != auto_install_peers)
+}
+
+/// See [`auto_install_peers_changed`].
+#[must_use]
+pub fn exclude_links_from_lockfile_changed(
+    recorded: Option<&crate::LockfileSettings>,
+    exclude_links_from_lockfile: bool,
+) -> bool {
+    recorded
+        .is_some_and(|settings| settings.exclude_links_from_lockfile != exclude_links_from_lockfile)
+}
+
+/// See [`auto_install_peers_changed`].
+#[must_use]
+pub fn recorded_dedupe_peers(recorded: Option<&crate::LockfileSettings>) -> bool {
+    recorded.and_then(|settings| settings.dedupe_peers).unwrap_or(false)
+}
+
+/// See [`auto_install_peers_changed`].
+#[must_use]
+pub fn recorded_peers_suffix_max_length(recorded: Option<&crate::LockfileSettings>) -> u64 {
+    recorded
+        .and_then(|settings| settings.peers_suffix_max_length)
+        .unwrap_or(crate::DEFAULT_PEERS_SUFFIX_MAX_LENGTH)
+}
+
+/// See [`auto_install_peers_changed`].
+#[must_use]
+pub fn recorded_inject_workspace_packages(recorded: Option<&crate::LockfileSettings>) -> bool {
+    recorded.is_some_and(|settings| settings.inject_workspace_packages)
 }
 
 fn all_catalogs_are_up_to_date(

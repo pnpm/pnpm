@@ -11,6 +11,7 @@ mod fast_update_ignored_optional_dependencies;
 mod fast_update_importers;
 mod fast_update_lockfile;
 mod fast_update_overrides;
+mod fast_update_settings;
 mod install;
 mod install_with_fresh_lockfile;
 mod link_manifest_link_deps;
