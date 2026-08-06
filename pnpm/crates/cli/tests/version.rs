@@ -847,39 +847,52 @@ fn version_recursive_json_prints_applied_releases_when_pending_changes() {
     drop(root);
 }
 
-// Regression: <https://github.com/pnpm/pnpm/issues/13271>
-// `pnpm version -r --dry-run` was rejected with "Unknown option: 'dry-run'" because
-// --dry-run was not registered in the version command's arg schema.
+/// Every spelling of the recursive dry run reported in
+/// <https://github.com/pnpm/pnpm/issues/13271> reaches the release-plan
+/// preview, and the preview is what the run without `--dry-run` applies.
 #[test]
-fn recursive_dry_run_is_accepted_as_a_known_flag() {
+fn recursive_dry_run_previews_the_plan_without_applying_it() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
-    write_two_package_workspace(&workspace);
+    let (pkg_a, pkg_b) = write_two_package_workspace(&workspace);
     fs::create_dir_all(workspace.join(".changeset")).expect("create .changeset");
-    fs::write(
-        workspace.join(".changeset").join("bump-pkg-a.md"),
-        "---\n\"pkg-a\": minor\n---\n\nA change.\n",
-    )
-    .expect("write change intent");
+    let intent = workspace.join(".changeset").join("calm-cats-smile.md");
+    fs::write(&intent, "---\n\"pkg-a\": minor\n---\n\nA pending change intent.\n")
+        .expect("write change intent");
 
-    // All three argument orderings that were broken must succeed.
     for args in [
-        vec!["version", "-r", "--dry-run"],
-        vec!["version", "-r", "--no-git-checks", "--dry-run"],
-        vec!["-r", "version", "--dry-run"],
+        ["version", "-r", "--dry-run"].as_slice(),
+        ["version", "-r", "--no-git-checks", "--dry-run"].as_slice(),
+        ["-r", "version", "--dry-run"].as_slice(),
+        ["version", "-r", "--dry-run", "--filter", "pkg-a"].as_slice(),
     ] {
-        let output = pacquet_recursive_version(&workspace, &args);
-        // --dry-run only prints the release plan without mutating files, so
-        // the command must succeed regardless of git state.
-        assert!(
-            output.status.success(),
-            "pnpm {args:?} must not fail with 'Unknown option':\n{}",
-            stderr_of(&output),
-        );
+        let output = pacquet_version_assuming_published(&workspace, args);
+        assert!(output.status.success(), "pnpm {args:?}:\n{}", stderr_of(&output));
         let stdout = String::from_utf8_lossy(&output.stdout);
-        assert!(
-            stdout.contains("Release plan:"),
-            "pnpm {args:?}: expected release plan in stdout:\n{stdout}",
-        );
+        assert!(stdout.contains("Release plan:"), "pnpm {args:?}: {stdout}");
+        assert!(stdout.contains("pkg-a: 1.0.0 → 1.1.0"), "pnpm {args:?}: {stdout}");
+        assert_eq!(manifest_version(&pkg_a), "1.0.0", "pnpm {args:?} bumped a manifest");
+        assert_eq!(manifest_version(&pkg_b), "2.3.0", "pnpm {args:?} bumped a manifest");
+        assert!(intent.exists(), "pnpm {args:?} consumed the change intent");
     }
+
+    let applied =
+        pacquet_version_assuming_published(&workspace, &["version", "-r", "--no-git-checks"]);
+    assert!(applied.status.success(), "{}", stderr_of(&applied));
+    assert!(
+        String::from_utf8_lossy(&applied.stdout).contains("pkg-a: 1.0.0 → 1.1.0"),
+        "the applied release must be the one the dry run previewed",
+    );
+    assert_eq!(manifest_version(&pkg_a), "1.1.0");
     drop(root);
+}
+
+/// `pnpm version -r` with the first-release probe stubbed out, so the release
+/// plan is assembled without a registry round trip. The probe's own effect on
+/// the plan is covered against the mock registry by the `first_release_probe_*`
+/// tests in `change.rs`.
+fn pacquet_version_assuming_published(workspace: &Path, args: &[&str]) -> std::process::Output {
+    use assert_cmd::cargo::CommandCargoExt as _;
+    let mut command = Command::cargo_bin("pnpm").expect("find the pnpm binary");
+    command.current_dir(workspace).env("PACQUET_ASSUME_VERSIONS_PUBLISHED", "1").args(args);
+    command.output().expect("run pacquet version")
 }
