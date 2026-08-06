@@ -39,6 +39,30 @@ snapshots:
   foo@1.1.0(patch_hash=deadbeef): {}
 ";
 
+/// `bar` depends on `foo` as a plain transitive dependency, so patching
+/// `foo` has to move the reference inside `bar`'s snapshot too.
+const TRANSITIVE_LOCKFILE: &str = r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      bar:
+        specifier: ^2.0.0
+        version: 2.0.0
+packages:
+  bar@2.0.0:
+    resolution:
+      integrity: sha512-deadbeef
+  foo@1.1.0:
+    resolution:
+      integrity: sha512-deadbeef
+snapshots:
+  bar@2.0.0:
+    dependencies:
+      foo: 1.1.0
+  foo@1.1.0: {}
+";
+
 /// `bar` reaches `foo` as a peer, so `foo`'s depPath is embedded in
 /// `bar`'s own key.
 const PEER_LOCKFILE: &str = r"
@@ -103,6 +127,14 @@ fn package_keys(lockfile: &Lockfile) -> Vec<String> {
         lockfile.packages.as_ref().expect("packages").keys().map(ToString::to_string).collect();
     keys.sort();
     keys
+}
+
+fn snapshot_dependency(lockfile: &Lockfile, key: &str, alias: &str) -> String {
+    lockfile.snapshots.as_ref().expect("snapshots")[&key.parse().expect("parse snapshot key")]
+        .dependencies
+        .as_ref()
+        .expect("snapshot dependencies")[&alias.parse().expect("parse alias")]
+        .to_string()
 }
 
 fn importer_version(lockfile: &Lockfile, alias: &str) -> String {
@@ -214,6 +246,27 @@ fn unpatches_a_locked_package_when_its_patch_is_removed() {
     assert_eq!(snapshot_keys(&updated), vec!["foo@1.1.0".to_string()]);
     assert_eq!(importer_version(&updated, "foo"), "1.1.0");
     assert!(updated.patched_dependencies.is_none());
+}
+
+#[test]
+fn moves_a_dependents_reference_to_the_rekeyed_package() {
+    let dir = workspace(&["foo@1.1.0"]);
+    let config = config(dir.path(), &["foo@1.1.0"], true);
+    let hash = config
+        .patched_dependency_hashes()
+        .expect("hash the patch files")
+        .expect("a configured patch")["foo@1.1.0"]
+        .clone();
+
+    let updated = try_fast_update_patched_dependencies(&lockfile(TRANSITIVE_LOCKFILE), &config)
+        .expect("patching a transitive dependency only renames it");
+
+    assert_eq!(
+        snapshot_dependency(&updated, "bar@2.0.0", "foo"),
+        format!("1.1.0(patch_hash={hash})"),
+        "the dependent points at the renamed snapshot",
+    );
+    assert_eq!(importer_version(&updated, "bar"), "2.0.0", "the dependent itself does not move");
 }
 
 #[test]
