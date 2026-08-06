@@ -153,3 +153,21 @@ fn excluded_package_keeps_the_unfiltered_baseline() {
     );
     assert_eq!(preferred, Some("2.1.4".to_string()));
 }
+
+#[test]
+fn version_trusted_by_exact_version_stays_in_the_baseline() {
+    let policy = create_package_version_policy(["foo@2.1.4"]).expect("policy");
+    let opts = ResolveOptions {
+        published_by: Some(parse_iso("2026-07-01T00:00:00.000Z")),
+        published_by_exclude: Some(policy),
+        ..update_opts()
+    };
+    let preferred = held_back_preferred(
+        &opts,
+        &range_spec(),
+        Some(&range_selectors()),
+        &make_package(),
+        "2.1.3",
+    );
+    assert_eq!(preferred, Some("2.1.4".to_string()));
+}

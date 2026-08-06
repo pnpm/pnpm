@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, expect, test } from '@jest/globals'
+import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
 import { type LogBase, streamParser } from '@pnpm/logger'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import { createNpmResolver } from '@pnpm/resolving.npm-resolver'
@@ -10,6 +11,7 @@ import { getMockAgent, setupMockAgent, teardownMockAgent } from './utils/index.j
 const registries: Registries = {
   default: 'https://registry.npmjs.org/',
 }
+const registryOrigin = registries.default.slice(0, -1)
 
 const fetch = createFetchFromRegistry({})
 const getAuthHeader = () => undefined
@@ -44,12 +46,6 @@ const fooMeta = {
 
 const collectedWarnings: string[] = []
 
-function collectWarnings (msg: LogBase & { message?: string }): void {
-  if (msg.level === 'warn' && typeof msg.message === 'string') {
-    collectedWarnings.push(msg.message)
-  }
-}
-
 beforeEach(async () => {
   collectedWarnings.length = 0
   streamParser.on('data', collectWarnings as (msg: LogBase) => void)
@@ -61,9 +57,15 @@ afterEach(async () => {
   await teardownMockAgent()
 })
 
+function collectWarnings (msg: LogBase & { message?: string }): void {
+  if (msg.level === 'warn' && typeof msg.message === 'string') {
+    collectedWarnings.push(msg.message)
+  }
+}
+
 // https://github.com/pnpm/pnpm/issues/13071
 test('does not warn about a held-back update when minimumReleaseAge is the reason the newer version was not picked', async () => {
-  getMockAgent().get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registryOrigin)
     .intercept({ path: '/foo', method: 'GET' })
     .reply(200, fooMeta)
 
@@ -89,7 +91,7 @@ test('does not warn about a held-back update when minimumReleaseAge is the reaso
 })
 
 test('still warns about a held-back update when a manifest pin is the reason the newer version was not picked', async () => {
-  getMockAgent().get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registryOrigin)
     .intercept({ path: '/foo', method: 'GET' })
     .reply(200, fooMeta)
 
@@ -113,7 +115,7 @@ test('still warns about a held-back update when a manifest pin is the reason the
 })
 
 test('still warns about a held-back update when the newer version is mature under the publishedBy cutoff', async () => {
-  getMockAgent().get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registryOrigin)
     .intercept({ path: '/foo', method: 'GET' })
     .reply(200, fooMeta)
 
@@ -138,7 +140,7 @@ test('still warns about a held-back update when the newer version is mature unde
 })
 
 test('keeps the unfiltered baseline for a package excluded from the age gate via publishedByExclude', async () => {
-  getMockAgent().get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registryOrigin)
     .intercept({ path: '/foo', method: 'GET' })
     .reply(200, fooMeta)
 
@@ -159,6 +161,32 @@ test('keeps the unfiltered baseline for a package excluded from the age gate via
 
   // The pin holds the pick at 2.1.3, and the exclusion keeps 2.1.4 in the
   // baseline despite the publishedBy cutoff, so the warning is printed.
+  expect(resolveResult!.id).toBe('foo@2.1.3')
+  const heldBackWarnings = collectedWarnings.filter(warning => warning.includes('was updated to'))
+  expect(heldBackWarnings).toHaveLength(1)
+  expect(heldBackWarnings[0]).toContain('was updated to 2.1.3, not 2.1.4')
+})
+
+test('keeps a version the age gate trusts by exact version in the baseline', async () => {
+  getMockAgent().get(registryOrigin)
+    .intercept({ path: '/foo', method: 'GET' })
+    .reply(200, fooMeta)
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    fullMetadata: true,
+    registries,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'foo', bareSpecifier: '^2.1.3' }, {
+    updateRequested: true,
+    publishedBy: new Date('2026-07-01T00:00:00.000Z'),
+    publishedByExclude: createPackageVersionPolicy(['foo@2.1.4']),
+    preferredVersions: {
+      foo: { '2.1.3': { selectorType: 'version', weight: 1000 } },
+    },
+  })
+
   expect(resolveResult!.id).toBe('foo@2.1.3')
   const heldBackWarnings = collectedWarnings.filter(warning => warning.includes('was updated to'))
   expect(heldBackWarnings).toHaveLength(1)
