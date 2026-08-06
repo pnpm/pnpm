@@ -39,8 +39,77 @@ snapshots:
   foo@1.1.0(patch_hash=deadbeef): {}
 ";
 
+/// `bar` reaches `foo` as a peer, so `foo`'s depPath is embedded in
+/// `bar`'s own key.
+const PEER_LOCKFILE: &str = r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      bar:
+        specifier: ^2.0.0
+        version: 2.0.0(foo@1.1.0)
+packages:
+  bar@2.0.0:
+    resolution:
+      integrity: sha512-deadbeef
+  foo@1.1.0:
+    resolution:
+      integrity: sha512-deadbeef
+snapshots:
+  bar@2.0.0(foo@1.1.0):
+    dependencies:
+      foo: 1.1.0
+  foo@1.1.0: {}
+";
+
+/// The same shape once the joined peer segments exceeded
+/// `peersSuffixMaxLength` and pnpm replaced them with a short hash.
+const HASHED_PEER_LOCKFILE: &str = r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      bar:
+        specifier: ^2.0.0
+        version: 2.0.0(sha256-abcdef)
+packages:
+  bar@2.0.0:
+    resolution:
+      integrity: sha512-deadbeef
+  foo@1.1.0:
+    resolution:
+      integrity: sha512-deadbeef
+snapshots:
+  bar@2.0.0(sha256-abcdef):
+    dependencies:
+      foo: 1.1.0
+  foo@1.1.0: {}
+";
+
 fn lockfile(source: &str) -> Lockfile {
     serde_saphyr::from_str(source).expect("parse lockfile")
+}
+
+fn snapshot_keys(lockfile: &Lockfile) -> Vec<String> {
+    let mut keys: Vec<_> =
+        lockfile.snapshots.as_ref().expect("snapshots").keys().map(ToString::to_string).collect();
+    keys.sort();
+    keys
+}
+
+fn package_keys(lockfile: &Lockfile) -> Vec<String> {
+    let mut keys: Vec<_> =
+        lockfile.packages.as_ref().expect("packages").keys().map(ToString::to_string).collect();
+    keys.sort();
+    keys
+}
+
+fn importer_version(lockfile: &Lockfile, alias: &str) -> String {
+    lockfile.importers["."].dependencies.as_ref().expect("importer dependencies")
+        [&alias.parse().expect("parse alias")]
+        .version
+        .to_string()
 }
 
 /// A workspace whose patch files exist on disk, since both the hash map
@@ -94,30 +163,84 @@ fn records_a_patch_that_matches_no_locked_package() {
 }
 
 #[test]
-fn rejects_a_patch_that_matches_a_locked_package() {
+fn rekeys_a_locked_package_the_patch_matches() {
     let dir = workspace(&["foo@1.1.0"]);
+    let config = config(dir.path(), &["foo@1.1.0"], true);
+    let hash = config
+        .patched_dependency_hashes()
+        .expect("hash the patch files")
+        .expect("a configured patch")["foo@1.1.0"]
+        .clone();
 
-    assert!(
-        try_fast_update_patched_dependencies(
-            &lockfile(LOCKFILE),
-            &config(dir.path(), &["foo@1.1.0"], true),
-        )
-        .is_none(),
-        "patching a locked package rekeys its snapshot, so it needs the resolver",
+    let updated = try_fast_update_patched_dependencies(&lockfile(LOCKFILE), &config)
+        .expect("the patch only renames the snapshot, it does not change the graph");
+
+    assert_eq!(snapshot_keys(&updated), vec![format!("foo@1.1.0(patch_hash={hash})")]);
+    assert_eq!(
+        importer_version(&updated, "foo"),
+        format!("1.1.0(patch_hash={hash})"),
+        "the importer points at the renamed snapshot",
+    );
+    assert_eq!(
+        package_keys(&updated),
+        vec!["foo@1.1.0".to_string()],
+        "`packages:` is keyed without the patch hash, so it does not move",
     );
 }
 
 #[test]
-fn rejects_a_bare_name_patch_that_matches_a_locked_package() {
+fn rekeys_a_locked_package_a_bare_name_patch_matches() {
     let dir = workspace(&["foo"]);
+
+    let updated = try_fast_update_patched_dependencies(
+        &lockfile(LOCKFILE),
+        &config(dir.path(), &["foo"], true),
+    )
+    .expect("a bare-name key matches every version of the package");
+
+    assert!(snapshot_keys(&updated)[0].contains("(patch_hash="));
+}
+
+#[test]
+fn unpatches_a_locked_package_when_its_patch_is_removed() {
+    let dir = workspace(&[]);
+    let mut lockfile = lockfile(PATCHED_LOCKFILE);
+    lockfile.patched_dependencies =
+        Some(BTreeMap::from([("foo@1.1.0".to_string(), "deadbeef".to_string())]));
+
+    let updated = try_fast_update_patched_dependencies(&lockfile, &config(dir.path(), &[], true))
+        .expect("dropping the patch renames the snapshot back");
+
+    assert_eq!(snapshot_keys(&updated), vec!["foo@1.1.0".to_string()]);
+    assert_eq!(importer_version(&updated, "foo"), "1.1.0");
+    assert!(updated.patched_dependencies.is_none());
+}
+
+#[test]
+fn rejects_rekeying_a_package_another_snapshot_reaches_as_a_peer() {
+    let dir = workspace(&["foo@1.1.0"]);
 
     assert!(
         try_fast_update_patched_dependencies(
-            &lockfile(LOCKFILE),
-            &config(dir.path(), &["foo"], true),
+            &lockfile(PEER_LOCKFILE),
+            &config(dir.path(), &["foo@1.1.0"], true),
         )
         .is_none(),
-        "a bare-name key matches every version of the package",
+        "the dependent's peer suffix embeds foo's depPath, so it would rekey too",
+    );
+}
+
+#[test]
+fn rejects_rekeying_when_a_peer_suffix_is_hashed() {
+    let dir = workspace(&["foo@1.1.0"]);
+
+    assert!(
+        try_fast_update_patched_dependencies(
+            &lockfile(HASHED_PEER_LOCKFILE),
+            &config(dir.path(), &["foo@1.1.0"], true),
+        )
+        .is_none(),
+        "a shortened peer suffix cannot be checked for the patched package",
     );
 }
 
@@ -149,30 +272,18 @@ fn removes_an_unused_patch_without_allowing_unused_patches() {
 }
 
 #[test]
-fn rejects_removing_a_patch_that_was_applied_to_a_locked_package() {
-    let dir = workspace(&[]);
+fn rekeys_a_locked_package_whose_patch_file_was_edited() {
+    let dir = workspace(&["foo@1.1.0"]);
     let mut lockfile = lockfile(PATCHED_LOCKFILE);
     lockfile.patched_dependencies =
         Some(BTreeMap::from([("foo@1.1.0".to_string(), "deadbeef".to_string())]));
 
-    assert!(
-        try_fast_update_patched_dependencies(&lockfile, &config(dir.path(), &[], true)).is_none(),
-        "the locked snapshot still carries the patch hash, so dropping the patch rekeys it",
-    );
-}
+    let updated =
+        try_fast_update_patched_dependencies(&lockfile, &config(dir.path(), &["foo@1.1.0"], true))
+            .expect("a new hash renames the snapshot");
 
-#[test]
-fn rejects_an_edited_patch_file_for_a_locked_package() {
-    let dir = workspace(&["foo@1.1.0"]);
-    let mut lockfile = lockfile(LOCKFILE);
-    lockfile.patched_dependencies =
-        Some(BTreeMap::from([("foo@1.1.0".to_string(), "stale-hash".to_string())]));
-
-    assert!(
-        try_fast_update_patched_dependencies(&lockfile, &config(dir.path(), &["foo@1.1.0"], true),)
-            .is_none(),
-        "a new hash changes the (patch_hash=...) suffix of a locked package",
-    );
+    assert!(!snapshot_keys(&updated).contains(&"foo@1.1.0(patch_hash=deadbeef)".to_string()));
+    assert!(snapshot_keys(&updated)[0].contains("(patch_hash="));
 }
 
 #[test]

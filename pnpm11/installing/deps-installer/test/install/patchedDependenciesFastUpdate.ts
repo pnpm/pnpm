@@ -16,49 +16,69 @@ test('a patch that matches no locked package is recorded without resolution', ()
   expect(lockfile.patchedDependencies).toStrictEqual({ 'bar@2.0.0': 'bar-hash' })
 })
 
-test('a patch that matches a locked package falls back to resolution', () => {
+test('a patch that matches a locked package is rekeyed without resolution', () => {
   const lockfile = lockfileWithRegistryDependency()
 
   expect(tryFastUpdatePatchedDependencies(lockfile, updateOptions({
     patchedDependencies: { 'foo@1.1.0': 'foo-hash' },
-  }))).toBe(false)
-  expect(lockfile.patchedDependencies).toBeUndefined()
+  }))).toBe(true)
+  expect(Object.keys(lockfile.packages!)).toStrictEqual(['foo@1.1.0(patch_hash=foo-hash)'])
+  expect(lockfile.importers['.' as ProjectId].dependencies)
+    .toStrictEqual({ foo: '1.1.0(patch_hash=foo-hash)' })
 })
 
-test('a bare-name patch key that matches a locked package falls back to resolution', () => {
+test('a bare-name patch key rekeys every version it matches', () => {
   const lockfile = lockfileWithRegistryDependency()
 
   expect(tryFastUpdatePatchedDependencies(lockfile, updateOptions({
     patchedDependencies: { foo: 'foo-hash' },
-  }))).toBe(false)
+  }))).toBe(true)
+  expect(Object.keys(lockfile.packages!)).toStrictEqual(['foo@1.1.0(patch_hash=foo-hash)'])
 })
 
-test('a range patch key that matches a locked package falls back to resolution', () => {
-  const lockfile = lockfileWithRegistryDependency()
-
-  expect(tryFastUpdatePatchedDependencies(lockfile, updateOptions({
-    patchedDependencies: { 'foo@^1.0.0': 'foo-hash' },
-  }))).toBe(false)
-})
-
-test('removing a patch that was applied to a locked package falls back to resolution', () => {
+test('removing a patch that was applied renames the package back', () => {
   const lockfile = lockfileWithPatchedDependency()
   lockfile.patchedDependencies = { 'foo@1.1.0': 'foo-hash' }
 
   expect(tryFastUpdatePatchedDependencies(lockfile, updateOptions({
     patchedDependencies: {},
-  }))).toBe(false)
-  expect(lockfile.patchedDependencies).toStrictEqual({ 'foo@1.1.0': 'foo-hash' })
+  }))).toBe(true)
+  expect(Object.keys(lockfile.packages!)).toStrictEqual(['foo@1.1.0'])
+  expect(lockfile.importers['.' as ProjectId].dependencies).toStrictEqual({ foo: '1.1.0' })
+  expect(lockfile.patchedDependencies).toBeUndefined()
 })
 
-test('an editing of a patch for a locked package falls back to resolution', () => {
-  const lockfile = lockfileWithRegistryDependency()
-  lockfile.patchedDependencies = { 'foo@1.1.0': 'stale-hash' }
+test('editing a patch for a locked package rekeys it to the new hash', () => {
+  const lockfile = lockfileWithPatchedDependency()
+  lockfile.patchedDependencies = { 'foo@1.1.0': 'foo-hash' }
+
+  expect(tryFastUpdatePatchedDependencies(lockfile, updateOptions({
+    patchedDependencies: { 'foo@1.1.0': 'edited-hash' },
+  }))).toBe(true)
+  expect(Object.keys(lockfile.packages!)).toStrictEqual(['foo@1.1.0(patch_hash=edited-hash)'])
+})
+
+test('a package another snapshot reaches as a peer falls back to resolution', () => {
+  const lockfile = lockfileWithPeerDependency()
 
   expect(tryFastUpdatePatchedDependencies(lockfile, updateOptions({
     patchedDependencies: { 'foo@1.1.0': 'foo-hash' },
   }))).toBe(false)
-  expect(lockfile.patchedDependencies).toStrictEqual({ 'foo@1.1.0': 'stale-hash' })
+})
+
+test('a hashed peer suffix falls back to resolution', () => {
+  const lockfile = lockfileWithPeerDependency()
+  lockfile.packages = {
+    ['bar@2.0.0(sha256-abcdef)' as DepPath]: {
+      resolution: { integrity: 'sha512-deadbeef' },
+      dependencies: { foo: '1.1.0' },
+    },
+    ['foo@1.1.0' as DepPath]: { resolution: { integrity: 'sha512-deadbeef' } },
+  }
+
+  expect(tryFastUpdatePatchedDependencies(lockfile, updateOptions({
+    patchedDependencies: { 'foo@1.1.0': 'foo-hash' },
+  }))).toBe(false)
 })
 
 test('an unused patch falls back to resolution when unused patches are not allowed', () => {
@@ -96,6 +116,26 @@ function updateOptions (
   }
 ): FastPatchedDependenciesUpdateOptions {
   return { allowUnusedPatches: true, ...opts }
+}
+
+/** `bar` reaches `foo` as a peer, so `foo`'s depPath is embedded in `bar`'s key. */
+function lockfileWithPeerDependency (): LockfileObject {
+  return {
+    lockfileVersion: '9.0',
+    importers: {
+      ['.' as ProjectId]: {
+        specifiers: { bar: '^2.0.0' },
+        dependencies: { bar: '2.0.0(foo@1.1.0)' },
+      },
+    },
+    packages: {
+      ['bar@2.0.0(foo@1.1.0)' as DepPath]: {
+        resolution: { integrity: 'sha512-deadbeef' },
+        dependencies: { foo: '1.1.0' },
+      },
+      ['foo@1.1.0' as DepPath]: { resolution: { integrity: 'sha512-deadbeef' } },
+    },
+  }
 }
 
 /** The same graph after a patch for `foo` was applied. */

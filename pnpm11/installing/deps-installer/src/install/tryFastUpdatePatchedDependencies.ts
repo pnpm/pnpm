@@ -1,4 +1,5 @@
-import type { LockfileObject } from '@pnpm/lockfile.types'
+import * as dp from '@pnpm/deps.path'
+import type { LockfileObject, PackageSnapshot, ResolvedDependencies } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import {
   allPatchKeys,
@@ -6,23 +7,27 @@ import {
   groupPatchedDependencies,
   type PatchGroupRecord,
 } from '@pnpm/patching.config'
+import type { DepPath } from '@pnpm/types'
 
 export interface FastPatchedDependenciesUpdateOptions {
   patchedDependencies: Record<string, string> | undefined
   allowUnusedPatches: boolean
 }
 
+/** Where a package's key moves to when its patch changes. */
+type Rekeys = Map<DepPath, DepPath>
+
 /**
- * Record a changed `patchedDependencies` without resolving the dependency
- * graph, for the changes that touch no package the lockfile records.
+ * Absorb a changed `patchedDependencies` without resolving the dependency
+ * graph.
  *
- * A patch that matches a locked package contributes a `(patch_hash=...)`
- * segment to that package's key, so adding, removing, or editing such a patch
- * rekeys the graph and has to go through the resolver. A patch key that
- * matches nothing contributes nothing, which makes the recorded map the only
- * thing that changes.
+ * Resolution never reads a patch: it appends the patch file's hash to an
+ * already-resolved package id, so the set of packages and versions is the same
+ * either way. Only the affected packages' keys and the references pointing at
+ * them move, which is a rewrite of the loaded lockfile rather than a
+ * re-resolve.
  *
- * Returns `false` — nothing changed, a changed key matches a locked package,
+ * Returns `false` — nothing changed, a patched package is reachable as a peer,
  * or the new configuration leaves a patch unused while `allowUnusedPatches` is
  * off — which keeps the full-resolution path, where `ERR_PNPM_UNUSED_PATCH` is
  * raised.
@@ -33,27 +38,21 @@ export function tryFastUpdatePatchedDependencies (
 ): boolean {
   const recorded = lockfile.patchedDependencies ?? {}
   const current = opts.patchedDependencies ?? {}
-  // Every key whose presence or hash differs, taken from the recorded map as
-  // well as the current one. A key the previous install applied still owns a
-  // `(patch_hash=...)` segment in the recorded graph, so dropping it rekeys
-  // that package just as adding it did.
-  const affected = changedKeys(recorded, current)
-  if (affected.length === 0) return false
+  if (changedKeys(recorded, current).length === 0) return false
 
-  const affectedGroups = groupsFromKeys(affected)
-  if (affectedGroups == null) return false
-  const affectedApplied = appliedPatchKeys(lockfile, affectedGroups)
-  if (affectedApplied == null || affectedApplied.size > 0) return false
-
+  const groups = groupsFromHashes(current)
+  if (groups == null) return false
   if (!opts.allowUnusedPatches) {
-    const currentGroups = groupsFromKeys(Object.keys(current))
-    if (currentGroups == null) return false
-    const applied = appliedPatchKeys(lockfile, currentGroups)
+    const applied = appliedPatchKeys(lockfile, groups)
     if (applied == null) return false
-    for (const key of allPatchKeys(currentGroups)) {
+    for (const key of allPatchKeys(groups)) {
       if (!applied.has(key)) return false
     }
   }
+
+  const rekeys = planRekeys(lockfile, groups)
+  if (rekeys == null) return false
+  applyRekeys(lockfile, rekeys)
 
   if (Object.keys(current).length === 0) {
     delete lockfile.patchedDependencies
@@ -61,6 +60,92 @@ export function tryFastUpdatePatchedDependencies (
     lockfile.patchedDependencies = current
   }
   return true
+}
+
+/**
+ * Where every package key moves to once `groups` is the configured set of
+ * patches: the same `name@version` and peer suffix, carrying the
+ * `(patch_hash=...)` segment the new configuration gives it.
+ *
+ * `undefined` when the move cannot be made from lockfile data alone: a rekeyed
+ * package that some snapshot reaches as a peer would rekey its dependents too
+ * (their peer suffix embeds its depPath), and a peer suffix that pnpm
+ * shortened into a hash cannot be inspected for that at all.
+ */
+function planRekeys (lockfile: LockfileObject, groups: PatchGroupRecord): Rekeys | undefined {
+  const rekeys: Rekeys = new Map()
+  for (const [depPath, snapshot] of Object.entries(lockfile.packages ?? {}) as Array<[DepPath, PackageSnapshot]>) {
+    const { name, version } = nameVerFromPkgSnapshot(depPath, snapshot)
+    if (version == null) continue
+    let patch
+    try {
+      patch = getPatchInfo(groups, name, version)
+    } catch {
+      return undefined
+    }
+    const base = dp.removeSuffix(depPath)
+    const { peersIndex } = dp.indexOfDepPathSuffix(depPath)
+    const peers = peersIndex === -1 ? '' : depPath.substring(peersIndex)
+    const segment = patch ? `(patch_hash=${patch.hash})` : ''
+    const moved = `${base}${segment}${peers}` as DepPath
+    if (moved !== depPath) rekeys.set(depPath, moved)
+  }
+  if (rekeys.size === 0) return rekeys
+
+  const movedBases = [...rekeys.keys()].map((depPath) => dp.removeSuffix(depPath))
+  for (const depPath of Object.keys(lockfile.packages ?? {})) {
+    const { peersIndex } = dp.indexOfDepPathSuffix(depPath)
+    if (peersIndex === -1) continue
+    const peers = depPath.substring(peersIndex)
+    if (peerSuffixIsOpaque(peers) || movedBases.some((base) => peers.includes(base))) {
+      return undefined
+    }
+  }
+  return rekeys
+}
+
+/**
+ * Whether `peers` is the short hash pnpm substitutes once the joined peer
+ * segments exceed `peersSuffixMaxLength`, which hides the peers this rewrite
+ * has to check for.
+ */
+function peerSuffixIsOpaque (peers: string): boolean {
+  return peers
+    .replace(/^\(/, '')
+    .replace(/\)$/, '')
+    .split(')(')
+    .some((segment) => !segment.includes('@'))
+}
+
+function applyRekeys (lockfile: LockfileObject, rekeys: Rekeys): void {
+  if (rekeys.size === 0) return
+  const packages = lockfile.packages ?? {}
+  for (const snapshot of Object.values(packages)) {
+    rewriteReferences(snapshot.dependencies, rekeys)
+    rewriteReferences(snapshot.optionalDependencies, rekeys)
+  }
+  lockfile.packages = Object.fromEntries(
+    Object.entries(packages).map(([depPath, snapshot]) =>
+      [rekeys.get(depPath as DepPath) ?? depPath, snapshot]
+    )
+  ) as typeof lockfile.packages
+  for (const importer of Object.values(lockfile.importers)) {
+    rewriteReferences(importer.dependencies, rekeys)
+    rewriteReferences(importer.devDependencies, rekeys)
+    rewriteReferences(importer.optionalDependencies, rekeys)
+  }
+}
+
+function rewriteReferences (references: ResolvedDependencies | undefined, rekeys: Rekeys): void {
+  if (references == null) return
+  for (const [alias, reference] of Object.entries(references)) {
+    const depPath = dp.refToRelative(reference, alias)
+    const moved = depPath == null ? undefined : rekeys.get(depPath)
+    if (moved == null) continue
+    // A reference that already spelled out the whole depPath keeps doing so;
+    // the bare-version shape keeps dropping the `<alias>@` prefix.
+    references[alias] = depPath === reference ? moved : moved.substring(`${alias}@`.length)
+  }
 }
 
 function changedKeys (
@@ -72,18 +157,19 @@ function changedKeys (
 }
 
 /**
- * Bucket `keys` the way the resolver buckets configured patches.
+ * Bucket `hashes` the way the resolver buckets configured patches.
  *
- * Only the key decides what a patch matches, so this deliberately leaves the
- * payload empty rather than carrying hashes and paths it would never read.
+ * The patch file path is left out: nothing here applies a patch, and the
+ * hashes `calcPatchHashes` already computed are the only payload the rewrite
+ * needs.
  *
  * `undefined` for a key whose version segment is neither a version nor a
  * range, leaving `ERR_PNPM_PATCH_NON_SEMVER_RANGE` to the resolver.
  */
-function groupsFromKeys (keys: string[]): PatchGroupRecord | undefined {
+function groupsFromHashes (hashes: Record<string, string>): PatchGroupRecord | undefined {
   try {
     return groupPatchedDependencies(
-      Object.fromEntries(keys.map((key) => [key, { hash: '' }]))
+      Object.fromEntries(Object.entries(hashes).map(([key, hash]) => [key, { hash }]))
     )
   } catch {
     return undefined

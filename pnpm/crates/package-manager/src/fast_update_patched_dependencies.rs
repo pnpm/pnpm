@@ -1,22 +1,29 @@
 use pacquet_config::Config;
-use pacquet_lockfile::Lockfile;
+use pacquet_deps_path::{index_of_dep_path_suffix, remove_suffix};
+use pacquet_lockfile::{
+    ImporterDepVersion, Lockfile, PackageKey, ProjectSnapshot, ResolvedDependencyMap,
+    SnapshotDepRef,
+};
 use pacquet_patching::{
     PatchGroupRecord, PatchInput, all_patch_keys, get_patch_info, group_patched_dependencies,
 };
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-/// Record a changed `patchedDependencies` without resolving the
-/// dependency graph, for the changes that touch no package the lockfile
-/// records.
+/// Where a package's snapshot key moves to when its patch changes.
+type Rekeys = HashMap<PackageKey, PackageKey>;
+
+/// Absorb a changed `patchedDependencies` without resolving the
+/// dependency graph.
 ///
-/// A patch that matches a locked package contributes a
-/// `(patch_hash=...)` segment to that package's key, so adding,
-/// removing, or editing such a patch rekeys the graph and has to go
-/// through the resolver. A patch key that matches nothing contributes
-/// nothing, which makes the recorded map the only thing that changes.
+/// Resolution never reads a patch: it appends the patch file's hash to
+/// an already-resolved package id, so the set of packages and versions
+/// is the same either way. Only the affected packages' `snapshots:`
+/// keys and the references pointing at them move, which is a rewrite of
+/// the loaded lockfile rather than a re-resolve. `packages:` is keyed
+/// without the patch hash, so it stays as it is.
 ///
-/// `None` — nothing changed, a changed key matches a locked package, or
-/// the new configuration leaves a patch unused while
+/// `None` — nothing changed, a patched package is reachable as a peer,
+/// or the new configuration leaves a patch unused while
 /// `allowUnusedPatches` is off — leaves the caller on the
 /// full-resolution path, which is where `ERR_PNPM_UNUSED_PATCH` is
 /// raised.
@@ -35,44 +42,173 @@ pub(crate) fn try_fast_update_patched_dependencies(
         return None;
     }
 
-    // Every key whose presence or hash differs, taken from the recorded
-    // map as well as the current one. A key the previous install applied
-    // still owns a `(patch_hash=...)` segment in the recorded graph, so
-    // dropping it rekeys that package just as adding it did.
-    let affected = recorded
-        .keys()
-        .chain(current.keys())
-        .filter(|key| recorded.get(*key) != current.get(*key))
-        .cloned();
-    if !applied_patch_keys(lockfile, &groups_from_keys(affected)?)?.is_empty() {
-        return None;
-    }
-
+    let groups = groups_from_hashes(current)?;
     if !config.allow_unused_patches {
-        let current_groups = groups_from_keys(current.keys().cloned())?;
-        let applied = applied_patch_keys(lockfile, &current_groups)?;
-        if all_patch_keys(&current_groups).any(|key| !applied.contains(key)) {
+        let applied = applied_patch_keys(lockfile, &groups)?;
+        if all_patch_keys(&groups).any(|key| !applied.contains(key)) {
             return None;
         }
     }
 
+    let rekeys = plan_rekeys(lockfile, &groups)?;
     let mut candidate = lockfile.clone();
+    apply_rekeys(&mut candidate, &rekeys);
     candidate.patched_dependencies = (!current.is_empty()).then(|| current.clone());
     Some(candidate)
 }
 
-/// Bucket `keys` the way the resolver buckets configured patches.
+/// Where every snapshot key moves to once `groups` is the configured
+/// set of patches: the same `name@version` and peer suffix, carrying the
+/// `(patch_hash=...)` segment the new configuration gives it.
 ///
-/// Only the key decides what a patch matches, so this deliberately
-/// leaves the payload empty rather than re-reading the patch files that
-/// [`Config::patched_dependency_hashes`] has already hashed.
+/// `None` when the move cannot be made from lockfile data alone: a
+/// rekeyed package that some snapshot reaches as a peer would rekey its
+/// dependents too (their peer suffix embeds its depPath), and a peer
+/// suffix that pnpm shortened into a hash cannot be inspected for that
+/// at all.
+fn plan_rekeys(lockfile: &Lockfile, groups: &PatchGroupRecord) -> Option<Rekeys> {
+    let Some(snapshots) = lockfile.snapshots.as_ref() else {
+        return Some(Rekeys::new());
+    };
+    let mut rekeys = Rekeys::new();
+    for key in snapshots.keys() {
+        let rendered = key.to_string();
+        let base = remove_suffix(&rendered);
+        let peers =
+            index_of_dep_path_suffix(&rendered).peers_index.map_or("", |index| &rendered[index..]);
+        let (name, version) = pacquet_deps_restorer::parse_name_version_from_key(base);
+        let segment = match get_patch_info(Some(groups), &name, &version).ok()? {
+            Some(patch) => format!("(patch_hash={})", patch.hash),
+            None => String::new(),
+        };
+        let moved = format!("{base}{segment}{peers}");
+        if moved != rendered {
+            rekeys.insert(key.clone(), moved.parse().ok()?);
+        }
+    }
+    if rekeys.is_empty() {
+        return Some(rekeys);
+    }
+
+    let moved_bases: Vec<String> =
+        rekeys.keys().map(|key| remove_suffix(&key.to_string()).to_string()).collect();
+    for key in snapshots.keys() {
+        let rendered = key.to_string();
+        let Some(index) = index_of_dep_path_suffix(&rendered).peers_index else {
+            continue;
+        };
+        let peers = &rendered[index..];
+        if peer_suffix_is_opaque(peers)
+            || moved_bases.iter().any(|base| peers.contains(base.as_str()))
+        {
+            return None;
+        }
+    }
+    Some(rekeys)
+}
+
+/// Whether `peers` is the short hash pnpm substitutes once the joined
+/// peer segments exceed `peersSuffixMaxLength`, which hides the peers
+/// this rewrite has to check for.
+fn peer_suffix_is_opaque(peers: &str) -> bool {
+    peers
+        .trim_start_matches('(')
+        .trim_end_matches(')')
+        .split(")(")
+        .any(|segment| !segment.contains('@'))
+}
+
+fn apply_rekeys(lockfile: &mut Lockfile, rekeys: &Rekeys) {
+    if rekeys.is_empty() {
+        return;
+    }
+    if let Some(snapshots) = lockfile.snapshots.take() {
+        lockfile.snapshots = Some(
+            snapshots
+                .into_iter()
+                .map(|(key, mut snapshot)| {
+                    rewrite_snapshot_dependencies(&mut snapshot.dependencies, rekeys);
+                    rewrite_snapshot_dependencies(&mut snapshot.optional_dependencies, rekeys);
+                    (rekeys.get(&key).cloned().unwrap_or(key), snapshot)
+                })
+                .collect(),
+        );
+    }
+    for importer in lockfile.importers.values_mut() {
+        rewrite_importer_dependencies(importer, rekeys);
+    }
+}
+
+fn rewrite_snapshot_dependencies(
+    dependencies: &mut Option<HashMap<pacquet_lockfile::PkgName, SnapshotDepRef>>,
+    rekeys: &Rekeys,
+) {
+    let Some(dependencies) = dependencies.as_mut() else {
+        return;
+    };
+    for (alias, reference) in dependencies.iter_mut() {
+        let Some(moved) = reference.resolve(alias).and_then(|target| rekeys.get(&target)).cloned()
+        else {
+            continue;
+        };
+        match reference {
+            SnapshotDepRef::Plain(ver_peer) => *ver_peer = moved.suffix,
+            SnapshotDepRef::Alias(key) => *key = moved,
+            // `resolve` yields no key for a link, so it never matches a
+            // rekeyed package.
+            SnapshotDepRef::Link(_) => {}
+        }
+    }
+}
+
+fn rewrite_importer_dependencies(importer: &mut ProjectSnapshot, rekeys: &Rekeys) {
+    for group in [
+        importer.dependencies.as_mut(),
+        importer.dev_dependencies.as_mut(),
+        importer.optional_dependencies.as_mut(),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        rewrite_importer_group(group, rekeys);
+    }
+}
+
+fn rewrite_importer_group(group: &mut ResolvedDependencyMap, rekeys: &Rekeys) {
+    for (alias, spec) in group.iter_mut() {
+        let target = match &spec.version {
+            ImporterDepVersion::Regular(ver_peer) => {
+                PackageKey::new(alias.clone(), ver_peer.clone())
+            }
+            ImporterDepVersion::Alias(key) => key.clone(),
+            // The remaining shapes point outside `snapshots:`, so they
+            // never name a rekeyed package.
+            _ => continue,
+        };
+        let Some(moved) = rekeys.get(&target).cloned() else {
+            continue;
+        };
+        match &mut spec.version {
+            ImporterDepVersion::Regular(ver_peer) => *ver_peer = moved.suffix,
+            ImporterDepVersion::Alias(key) => *key = moved,
+            _ => {}
+        }
+    }
+}
+
+/// Bucket `hashes` the way the resolver buckets configured patches.
+///
+/// The patch file path is left out: nothing here applies a patch, and
+/// the hashes [`Config::patched_dependency_hashes`] already computed are
+/// the only payload the rewrite needs, so no patch file is read twice.
 ///
 /// `None` for a key whose version segment is neither a version nor a
 /// range, leaving `ERR_PNPM_PATCH_NON_SEMVER_RANGE` to the resolver.
-fn groups_from_keys(keys: impl IntoIterator<Item = String>) -> Option<PatchGroupRecord> {
+fn groups_from_hashes(hashes: &BTreeMap<String, String>) -> Option<PatchGroupRecord> {
     group_patched_dependencies(
-        keys.into_iter()
-            .map(|key| (key, PatchInput { hash: String::new(), patch_file_path: None })),
+        hashes.iter().map(|(key, hash)| {
+            (key.clone(), PatchInput { hash: hash.clone(), patch_file_path: None })
+        }),
     )
     .ok()
 }
