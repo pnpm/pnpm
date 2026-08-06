@@ -21,7 +21,7 @@ use pacquet_network::redact_and_sanitize;
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum FetchMetadataError {
-    #[display("Failed to resolve {pkg_name} in package mirror {pkg_mirror:?}")]
+    #[display("Failed to resolve {pkg_name} in package mirror {}", pkg_mirror.display())]
     #[diagnostic(code(ERR_PNPM_NO_OFFLINE_META))]
     NoOfflineMeta {
         #[error(not(source))]

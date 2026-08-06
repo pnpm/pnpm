@@ -61,6 +61,6 @@ async fn offline_config_threads_to_resolution_verifier() {
     let ResolutionVerification::FetchFailed { message } = result else {
         panic!("expected offline metadata failure, got {result:?}");
     };
-    assert!(message.contains("ERR_PNPM_NO_OFFLINE_META") || message.contains("Failed to resolve"));
+    assert!(message.contains("ERR_PNPM_NO_OFFLINE_META"));
     no_network.assert_async().await;
 }

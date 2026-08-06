@@ -26,6 +26,7 @@ use std::{
 
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
+use miette::Diagnostic as _;
 use pacquet_config::{TrustPolicy, version_policy::PackageVersionPolicy};
 use pacquet_lockfile::{LockfileResolution, PkgName, is_git_hosted_tarball_url};
 use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_url_credentials};
@@ -755,7 +756,7 @@ impl NpmResolutionVerifier {
                 // it reports a 403 as a tampering-style mismatch.
                 match fetch_full_metadata_cached(&name.to_string(), &opts).await {
                     Ok(meta) => Ok(project_abbreviated_meta(&meta)),
-                    Err(error) => Err(redact_url_credentials(&error.to_string())),
+                    Err(error) => Err(render_fetch_metadata_error(&error)),
                 }
             })
             .await;
@@ -932,7 +933,16 @@ impl NpmResolutionVerifier {
         };
         fetch_full_metadata_cached(&name.to_string(), &opts)
             .await
-            .map_err(|err| redact_url_credentials(&err.to_string()))
+            .map_err(|error| render_fetch_metadata_error(&error))
+    }
+}
+
+fn render_fetch_metadata_error(error: &crate::FetchMetadataError) -> String {
+    let code = error.code().map(|code| code.to_string());
+    let message = redact_url_credentials(&error.to_string());
+    match code {
+        Some(code) => format!("{code}: {message}"),
+        None => message,
     }
 }
 
