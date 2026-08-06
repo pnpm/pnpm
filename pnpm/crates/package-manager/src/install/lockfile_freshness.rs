@@ -17,8 +17,9 @@ pub(super) struct FastUpdateLockfileOptions<'a, 'manifest> {
 /// Rewrite the loaded lockfile in place of a full resolution for the
 /// drift the lockfile itself proves is safe to absorb: a compatible
 /// direct-dependency range change, an addition to
-/// `ignoredOptionalDependencies`, or a setting change that cannot
-/// affect the recorded graph. The candidate only replaces the loaded
+/// `ignoredOptionalDependencies`, a `patchedDependencies` change that
+/// matches no locked package, or a setting change that cannot affect
+/// the recorded graph. The candidate only replaces the loaded
 /// lockfile once it passes every freshness gate, so a handler that
 /// rewrites too much falls back to the resolver instead of committing.
 ///
@@ -39,6 +40,10 @@ pub(super) async fn try_fast_update_lockfile(
             lockfile,
             &crate::fast_update_settings::lockfile_settings_from_config(opts.config),
             opts.project_manifests,
+        ),
+        crate::fast_update_patched_dependencies::try_fast_update_patched_dependencies(
+            lockfile,
+            opts.config,
         ),
     ]
     .into_iter()

@@ -114,6 +114,7 @@ import { tryFastUpdateIgnoredOptionalDependencies } from './tryFastUpdateIgnored
 import { hasChangedProjectSpecifiers, tryFastUpdateImporters } from './tryFastUpdateImporters.js'
 import { tryFastUpdateLockfile } from './tryFastUpdateLockfile.js'
 import { tryFastUpdateOverrides } from './tryFastUpdateOverrides.js'
+import { tryFastUpdatePatchedDependencies } from './tryFastUpdatePatchedDependencies.js'
 import { tryFastUpdateSettings } from './tryFastUpdateSettings.js'
 import { validateModules } from './validateModules.js'
 import { verifyLockfileResolutions } from './verifyLockfileResolutions.js'
@@ -711,6 +712,7 @@ export async function mutateModules (
       (outdatedLockfileSettingName === 'catalogs' ||
         outdatedLockfileSettingName === 'ignoredOptionalDependencies' ||
         outdatedLockfileSettingName === 'overrides' ||
+        outdatedLockfileSettingName === 'patchedDependencies' ||
         onlyLockfileSettingsChanged ||
         hasChangedSpecifiers) &&
       !frozenLockfile &&
@@ -772,6 +774,12 @@ export async function mutateModules (
             }
             if (changedSetting === 'ignoredOptionalDependencies') {
               return tryFastUpdateIgnoredOptionalDependencies(candidate, opts.ignoredOptionalDependencies)
+            }
+            if (changedSetting === 'patchedDependencies') {
+              return tryFastUpdatePatchedDependencies(candidate, {
+                patchedDependencies,
+                allowUnusedPatches: opts.allowUnusedPatches,
+              })
             }
             if (changedSetting == null) {
               return tryFastUpdateImporters(candidate, contextProjects)
