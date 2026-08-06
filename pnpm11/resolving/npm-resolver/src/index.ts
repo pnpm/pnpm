@@ -10,7 +10,6 @@ import type {
 } from '@pnpm/fetching.types'
 import { globalWarn } from '@pnpm/logger'
 import { rangeSpecGranularity, versionWithRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
-import { filterPkgMetadataByPublishDate } from '@pnpm/resolving.registry.pkg-metadata-filter'
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
 import type {
   DirectoryResolution,
@@ -68,7 +67,7 @@ import {
   pickPackage,
   type PickPackageOptions,
 } from './pickPackage.js'
-import { assertMetaHasTime, pickPackageFromMeta, pickVersionByVersionRange } from './pickPackageFromMeta.js'
+import { applyPublishedByPolicy, pickPackageFromMeta, pickVersionByVersionRange } from './pickPackageFromMeta.js'
 import { failIfTrustDowngraded } from './trustChecks.js'
 import { MINIMUM_RELEASE_AGE_VIOLATION_CODE } from './violationCodes.js'
 import { workspacePrefToNpm } from './workspacePrefToNpm.js'
@@ -390,18 +389,12 @@ function warnOnceOnHeldBackUpdate (
     nonPinSelectors ??= Object.create(null) as VersionSelectors
     nonPinSelectors[selector] = value
   }
-  let baselineMeta = meta
-  if (opts.publishedBy != null) {
-    const excludeResult = opts.publishedByExclude?.(meta.name) ?? false
-    // When the metadata is abbreviated (no `time` field), the pick only
-    // succeeded because every version predates the cutoff (see
-    // `pickPackageFromMeta`), so there is nothing to filter out.
-    if (excludeResult !== true && meta.time != null) {
-      assertMetaHasTime(meta)
-      const trustedVersions = Array.isArray(excludeResult) ? excludeResult : undefined
-      baselineMeta = filterPkgMetadataByPublishDate(meta, opts.publishedBy, trustedVersions)
-    }
-  }
+  // `needsFullMetadata` is not this caller's problem: the pick already
+  // succeeded on this metadata, which for an abbreviated packument means
+  // every version cleared the cutoff, so `meta` is the filtered view.
+  const baselineMeta = opts.publishedBy != null
+    ? applyPublishedByPolicy(meta, opts.publishedBy, opts.publishedByExclude).meta
+    : meta
   const preferred = pickVersionByVersionRange({
     meta: baselineMeta,
     versionRange: spec.fetchSpec,

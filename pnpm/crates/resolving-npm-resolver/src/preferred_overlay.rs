@@ -1,8 +1,7 @@
 use crate::pick_package_from_meta::{
     PickVersionByVersionRangeOptions, RegistryPackageSpec, RegistryPackageSpecType,
-    filter_pkg_metadata_by_publish_date, pick_version_by_version_range,
+    apply_published_by_policy, pick_version_by_version_range,
 };
-use pacquet_config::version_policy::PolicyMatch;
 use pacquet_registry::Package;
 use pacquet_resolving_resolver_base::{
     ResolveOptions, VersionSelectorEntry, VersionSelectorType, VersionSelectors,
@@ -110,27 +109,15 @@ fn held_back_preferred(
         .filter(|(_, entry)| entry.selector_type() != VersionSelectorType::Version)
         .map(|(selector, entry)| (selector.clone(), entry.clone()))
         .collect();
-    let filtered;
+    let view;
+    // `needs_full_metadata` is not this caller's problem: the pick
+    // already succeeded on this metadata, which for an abbreviated
+    // packument means every version cleared the cutoff, so `meta` is
+    // the filtered view.
     let baseline_meta: &Package = match opts.published_by {
         Some(cutoff) => {
-            let exclude_result = opts
-                .published_by_exclude
-                .as_ref()
-                .map_or(PolicyMatch::No, |policy| policy.matches(&meta.name));
-            // Abbreviated metadata (no `time`) only passes the pick's
-            // maturity gate when every version predates the cutoff
-            // (see `pick_package_from_meta`), so there is nothing to
-            // filter out of the baseline.
-            if matches!(exclude_result, PolicyMatch::AnyVersion) || meta.time.is_none() {
-                meta
-            } else {
-                let trusted = match &exclude_result {
-                    PolicyMatch::ExactVersions(versions) => Some(versions.as_slice()),
-                    _ => None,
-                };
-                filtered = filter_pkg_metadata_by_publish_date(meta, cutoff, trusted);
-                &filtered
-            }
+            view = apply_published_by_policy(meta, cutoff, opts.published_by_exclude.as_ref());
+            view.filtered.as_deref().unwrap_or(meta)
         }
         None => meta,
     };
