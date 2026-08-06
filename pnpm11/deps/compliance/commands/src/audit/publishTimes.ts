@@ -39,11 +39,13 @@ export function createPublishTimesFetcher (opts: AuditOptions): (pkgName: string
   }
 
   async function fetchTimes (pkgName: string): Promise<Record<string, string> | undefined> {
-    const registry = pickRegistryForPackage(opts.registries, pkgName)
-    const packageUrl = new URL(npa(pkgName).escapedName, registry.endsWith('/') ? registry : `${registry}/`).href
     try {
+      const registry = pickRegistryForPackage(opts.registries, pkgName)
+      const packageUrl = new URL(npa(pkgName).escapedName, registry.endsWith('/') ? registry : `${registry}/`).href
+      // Full metadata: the abbreviated packument has no `time` field.
       const res = await fetchFromRegistry(packageUrl, {
-        authHeaderValue: getAuthHeader(registry),
+        authHeaderValue: getAuthHeader(registry, { pkgName }),
+        fullMetadata: true,
         retry: networkOptions.retry,
         timeout: networkOptions.fetchTimeout,
       })

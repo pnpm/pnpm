@@ -325,6 +325,36 @@ describe('createMinimumReleaseAgeExcludes', () => {
     })
     expect(excludes).toEqual(['lodash@4.17.21'])
   })
+
+  test('omits entries for patched versions published exactly at the cutoff', async () => {
+    const advisories = [
+      advisory('axios', '<=0.18.0', '>=0.18.1'),
+    ]
+    const excludes = await createMinimumReleaseAgeExcludes(advisories, {
+      getPublishTimes: async () => ({ '0.18.1': '2026-01-07T23:00:00.000Z' }),
+      minimumReleaseAge: 60,
+      now: new Date('2026-01-08T00:00:00.000Z').getTime(),
+    })
+    expect(excludes).toEqual([])
+  })
+
+  test('keeps entries whose publish time is not a valid date string', async () => {
+    const advisories = [
+      advisory('axios', '<=0.18.0', '>=0.18.1'),
+      advisory('lodash', '<4.17.21', '>=4.17.21'),
+    ]
+    const publishTimes: Record<string, Record<string, string>> = {
+      axios: { '0.18.1': 'not-a-date' },
+      // A non-string value smuggled past the registry response type.
+      lodash: { '4.17.21': 0 as unknown as string },
+    }
+    const excludes = await createMinimumReleaseAgeExcludes(advisories, {
+      getPublishTimes: async (pkgName) => publishTimes[pkgName],
+      minimumReleaseAge: 60,
+      now: new Date('2026-01-08T00:00:00.000Z').getTime(),
+    })
+    expect(excludes).toEqual(['axios@0.18.1', 'lodash@4.17.21'])
+  })
 })
 
 describe('caretRangeForPatched', () => {

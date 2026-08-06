@@ -6,8 +6,8 @@ use super::{
     PackageVersionGuard, Range, Reporter, ResolutionObserver, State, Update, Utc, Version, blue,
     caret_range_for_patched, color_severity, encode_package_name, green, normalize_ghsa_id,
     normalize_registry, parse_packument_timestamp, pick_registry_for_package, red,
-    retry_opts_from_config, satisfies_including_prerelease, send_with_retry, severity_name,
-    severity_number,
+    redact_url_userinfo, retry_opts_from_config, satisfies_including_prerelease, send_with_retry,
+    severity_name, severity_number,
 };
 
 /// Filter `report`'s advisories down to the set both fix methods and the
@@ -115,13 +115,15 @@ async fn fetch_publish_times(
 
     let registry = normalize_registry(registry);
     let url = format!("{registry}{}", encode_package_name(name));
-    let authorization = config.auth_headers.for_url(&registry);
+    // The URL is user-configured and may embed credentials; keep only the
+    // redacted form, like the audit request does, so retry diagnostics never
+    // print them (auth travels in the header instead).
+    let url = redact_url_userinfo(&url);
+    let authorization = config.auth_headers.for_url_with_package(&registry, Some(name));
     let retry_opts = retry_opts_from_config(config);
-    let (_, response) = send_with_retry(http_client, &url, retry_opts, |client| {
-        let mut request = client.get(&url).header(
-            "accept",
-            "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
-        );
+    let (_guard, response) = send_with_retry(http_client, &url, retry_opts, |client| {
+        // Full metadata: the abbreviated packument has no `time` field.
+        let mut request = client.get(&url).header("accept", "application/json; q=1.0, */*");
         if let Some(value) = &authorization {
             request = request.header("authorization", value);
         }
@@ -154,11 +156,13 @@ async fn resolve_minimum_release_age_excludes(
     else {
         return Ok(Vec::new());
     };
-    // One fetch per package name, however many advisories it carries.
+    // One fetch per package name, however many advisories it carries. The
+    // name comes from the registry's advisory feed, so normalize it like
+    // `classify_for_update` does before using it in requests and config.
     let names: HashSet<&str> = advisories
         .values()
         .filter(|advisory| advisory.patched_versions.is_some())
-        .map(|advisory| advisory.module_name.as_str())
+        .map(|advisory| advisory.module_name.trim())
         .collect();
     let registries: HashMap<String, String> = config.resolved_registries().into_iter().collect();
     let mut publish_times = HashMap::new();
@@ -188,14 +192,15 @@ pub(crate) fn minimum_release_age_excludes(
             let min = patched
                 .strip_prefix(">=")
                 .and_then(|version| version.trim().parse::<Version>().ok())?;
+            let name = advisory.module_name.trim();
             let published_at = publish_times
-                .get(&advisory.module_name)
+                .get(name)
                 .and_then(Option::as_ref)
                 .and_then(|times| times.get(min.to_string().as_str()))
                 .and_then(|raw| parse_packument_timestamp(raw));
             match published_at {
                 Some(published_at) if published_at <= cutoff => None,
-                _ => Some(format!("{}@{min}", advisory.module_name)),
+                _ => Some(format!("{name}@{min}")),
             }
         })
         .collect();

@@ -93,8 +93,10 @@ export async function createMinimumReleaseAgeExcludes (
     const minVersion = semver.minVersion(patchedVersions)
     if (!minVersion) return undefined
     const spec = `${advisory.module_name}@${minVersion.version}`
-    const publishTime = (await opts.getPublishTimes(advisory.module_name))?.[minVersion.version]
-    if (publishTime == null) return spec
+    const publishTime: unknown = (await opts.getPublishTimes(advisory.module_name))?.[minVersion.version]
+    // The time map comes from an untrusted registry response: only a string
+    // can carry a real timestamp; anything else is treated as unknown.
+    if (typeof publishTime !== 'string') return spec
     const publishedAt = new Date(publishTime).getTime()
     return Number.isNaN(publishedAt) || publishedAt > cutoff ? spec : undefined
   }))
