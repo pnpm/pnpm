@@ -433,23 +433,35 @@ fn update_latest_with_negation_selector() {
 
 /// `--no-save` bumps the lockfile but leaves `package.json` untouched —
 /// ports pnpm's "update --no-save should not update package.json" test.
+/// The bump stays inside the kept range: `--latest` would reach 101.0.0,
+/// which the retained `^100.0.0` cannot record.
 #[test]
 fn update_latest_no_save_keeps_manifest() {
     let (root, workspace, anchor) = setup();
 
-    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0" }}"#));
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "100.0.0" }}"#));
     pacquet(&workspace, ["install"]).assert().success();
     eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
-    assert!(virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"));
+    assert!(virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.0.0"));
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0" }}"#));
 
-    pacquet(&workspace, ["update", "--latest", "--no-save"]).assert().success();
+    let output = pacquet(&workspace, ["update", "--latest", "--no-save"])
+        .output()
+        .expect("run update --latest --no-save");
+    assert!(output.status.success(), "update --latest --no-save failed: {output:?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains(r#"Ignoring "--latest""#),
+        "the ignored --latest must be reported to the user: {stdout}",
+    );
 
     // package.json range is unchanged...
     assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("^100.0.0"));
-    // ...but the lockfile/store was re-resolved (101.0.0 is latest; the
-    // in-memory `^101.0.0` drove resolution even though it wasn't saved).
+    // ...and the lockfile/store re-resolved to the highest version it admits.
     eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
-    assert!(virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@101.0.0"));
+    assert!(virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"));
+    assert!(!virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@101.0.0"));
+    pacquet(&workspace, ["install", "--frozen-lockfile"]).assert().success();
 
     drop((root, anchor));
 }
@@ -941,29 +953,35 @@ fn update_latest_catalog_preserves_reference_and_operator() {
 }
 
 /// `--latest --no-save` on a `catalog:` dependency leaves `package.json`
-/// and `pnpm-workspace.yaml` untouched, but still re-resolves the lockfile
-/// to the bumped version. The bumped catalog drives resolution in memory
-/// (via the install's catalogs override) without being persisted to disk —
-/// matching how a non-catalog `--no-save` update bumps the lockfile.
+/// and `pnpm-workspace.yaml` untouched, but still re-resolves the lockfile.
+/// The catalog entry is what the dependency keeps, so it bounds the bump the
+/// same way a range in `package.json` does.
 #[test]
 fn update_latest_no_save_catalog_bumps_lockfile_only() {
     let (root, workspace, anchor) = setup();
 
-    set_named_catalog(&workspace, "grp1", &[(DEP, "~100.0.0")]);
+    set_named_catalog(&workspace, "grp1", &[(DEP, "100.0.0")]);
     write_manifest(&workspace, &format!(r#"{{ "{DEP}": "catalog:grp1" }}"#));
     pacquet(&workspace, ["install"]).assert().success();
     assert!(virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.0.0"));
+
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let widened = read_workspace_yaml(&workspace).replace(r#""100.0.0""#, r#""^100.0.0""#);
+    fs::write(&yaml_path, widened).expect("widen the catalog entry");
 
     pacquet(&workspace, ["update", "--latest", "--no-save"]).assert().success();
 
     // package.json and the workspace catalog are untouched...
     assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("catalog:grp1"));
     let yaml = read_workspace_yaml(&workspace);
-    assert!(yaml.contains("~100.0.0"), "catalog entry must be untouched under --no-save: {yaml}");
+    assert!(yaml.contains("^100.0.0"), "catalog entry must be untouched under --no-save: {yaml}");
 
-    // ...but the lockfile/store re-resolved to the bumped version.
+    // ...and the lockfile/store re-resolved to the highest version the catalog
+    // entry admits, not to the 101.0.0 `--latest` would otherwise reach.
     eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
-    assert!(virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@101.0.0"));
+    assert!(virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"));
+    assert!(!virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@101.0.0"));
+    pacquet(&workspace, ["install", "--frozen-lockfile"]).assert().success();
 
     drop((root, anchor));
 }
@@ -1293,6 +1311,76 @@ fn update_latest_preserves_local_protocol_dependencies() {
             "the spec for {dep} should be preserved verbatim as {spec}: {a_manifest}",
         );
     }
+
+    drop((root, anchor));
+}
+
+/// A versioned selector under `--no-save` is skipped when the requested
+/// version falls outside the range the manifest keeps: recording it would
+/// produce a lockfile the next frozen install rejects. Regression test for
+/// <https://github.com/pnpm/pnpm/issues/12764>.
+#[test]
+fn update_no_save_skips_version_outside_kept_range() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+    assert!(virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"));
+
+    let output = pacquet(&workspace, ["update", "--no-save", &format!("{DEP}@101.0.0")])
+        .output()
+        .expect("run update --no-save");
+    assert!(output.status.success(), "update --no-save failed: {output:?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains(&format!(r#"Skipping "{DEP}@101.0.0""#)),
+        "the skipped dependency must be reported to the user: {stdout}",
+    );
+
+    // package.json keeps its range, and the dependency stays untouched.
+    assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("^100.0.0"));
+    let lock = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    assert!(
+        lock.contains("specifier: ^100.0.0"),
+        "the lockfile importer entry must keep the manifest's specifier",
+    );
+    assert!(
+        !lock.contains("dep-of-pkg-with-1-dep@101.0.0"),
+        "the out-of-range requested version must not be recorded",
+    );
+    // The lockfile still satisfies the manifest.
+    pacquet(&workspace, ["install", "--frozen-lockfile"]).assert().success();
+
+    drop((root, anchor));
+}
+
+/// A requested range names no version until resolution runs, so the specifier
+/// the manifest keeps decides — `>=101.0.0` cannot pull the lockfile past
+/// `^100.0.0`. Regression test for
+/// <https://github.com/pnpm/pnpm/issues/12764>.
+#[test]
+fn update_no_save_resolves_a_requested_range_within_the_kept_range() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "100.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0" }}"#));
+
+    let output = pacquet(&workspace, ["update", "--no-save", &format!("{DEP}@>=101.0.0")])
+        .output()
+        .expect("run update --no-save");
+    assert!(output.status.success(), "update --no-save failed: {output:?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains(&format!(r#"Ignoring "{DEP}@>=101.0.0""#)),
+        "the superseded selector must be reported to the user: {stdout}",
+    );
+
+    assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("^100.0.0"));
+    eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
+    assert!(virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"));
+    assert!(!virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@101.0.0"));
+    pacquet(&workspace, ["install", "--frozen-lockfile"]).assert().success();
 
     drop((root, anchor));
 }
