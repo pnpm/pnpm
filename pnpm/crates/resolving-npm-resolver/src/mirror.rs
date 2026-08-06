@@ -388,6 +388,54 @@ fn meta_modified(meta: &Package) -> Option<String> {
     })
 }
 
+/// One-time, best-effort raise of the process's soft `RLIMIT_NOFILE`
+/// toward the hard limit. Loaded mirrors keep their file handle open
+/// so version fragments can be read on demand without buffering the
+/// body (see [`load_meta`]), which holds one descriptor per packument
+/// — beyond the conservative soft defaults some platforms ship (256
+/// on macOS, 1024 on several Linux distros) once a workspace consults
+/// thousands of packuments. Raising the soft limit to the hard limit
+/// needs no privileges; it is the same startup adjustment the Go
+/// runtime performs.
+#[cfg(unix)]
+fn raise_open_file_limit_once() {
+    static RAISE: std::sync::Once = std::sync::Once::new();
+    RAISE.call_once(|| {
+        // SAFETY: plain libc calls; `limit` is a properly initialised
+        // out-parameter and no pointer outlives its call.
+        unsafe {
+            let mut limit = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
+            if libc::getrlimit(libc::RLIMIT_NOFILE, &raw mut limit) != 0 {
+                return;
+            }
+            let ceiling: libc::rlim_t = 1 << 20;
+            let target = limit.rlim_max.min(ceiling);
+            if target <= limit.rlim_cur {
+                return;
+            }
+            let request = libc::rlimit { rlim_cur: target, rlim_max: limit.rlim_max };
+            if libc::setrlimit(libc::RLIMIT_NOFILE, &raw const request) != 0 {
+                // macOS rejects soft limits above `kern.maxfilesperproc`
+                // even when the hard limit reads unlimited; 10240 is
+                // the historically safe `OPEN_MAX` ceiling there.
+                #[cfg(target_os = "macos")]
+                {
+                    let fallback = limit.rlim_max.min(10240);
+                    if fallback > limit.rlim_cur {
+                        let request = libc::rlimit { rlim_cur: fallback, rlim_max: limit.rlim_max };
+                        let _ = libc::setrlimit(libc::RLIMIT_NOFILE, &raw const request);
+                    }
+                }
+            }
+        }
+    });
+}
+
+/// Windows has no `RLIMIT_NOFILE`; per-process handle capacity is far
+/// above any realistic packument count.
+#[cfg(not(unix))]
+fn raise_open_file_limit_once() {}
+
 /// Parse the `pacquet-meta-v1 <headers_len> <index_len>` line.
 /// `None` for anything else, including pnpm's NDJSON format.
 fn parse_mirror_magic(line: &str) -> Option<(usize, usize)> {
@@ -451,17 +499,39 @@ pub fn load_meta_headers(pkg_mirror: &Path) -> Option<MetaHeaders> {
     read_mirror_headers(&mut file)
 }
 
-/// Read the full mirror file and reconstruct a [`Package`] with its
-/// etag back-filled from the headers line.
+/// Read a mirror file's headers + index and reconstruct a [`Package`]
+/// with its etag back-filled from the headers line.
+///
+/// For the indexed format only the header and index records are read
+/// into memory; version fragments stay on disk behind the held-open
+/// file handle ([`PackageVersions::from_file_spans`]), so a cache full
+/// of multi-megabyte packuments costs their index size in resident
+/// memory, not their body size. The legacy NDJSON format still parses
+/// the whole body.
 ///
 /// Returns `None` on missing file / malformed contents: the caller's
 /// response to "couldn't read" is the same as "no cache".
 #[must_use]
 pub fn load_meta(pkg_mirror: &Path) -> Option<Package> {
-    let contents = fs::read(pkg_mirror).ok()?;
-    let newline = contents.iter().position(|&byte| byte == b'\n')?;
-    let line = std::str::from_utf8(&contents[..newline]).ok()?;
+    raise_open_file_limit_once();
+    let mut file = File::open(pkg_mirror).ok()?;
+    // The magic line plus the two length fields fit well inside this.
+    let mut prefix = [0u8; 256];
+    let mut filled = 0usize;
+    while filled < prefix.len() {
+        let read = file.read(&mut prefix[filled..]).ok()?;
+        if read == 0 {
+            break;
+        }
+        filled += read;
+    }
+    let prefix = &prefix[..filled];
+    let newline = prefix.iter().position(|&byte| byte == b'\n')?;
+    let line = std::str::from_utf8(&prefix[..newline]).ok()?;
     let Some((headers_len, index_len)) = parse_mirror_magic(line) else {
+        // Legacy NDJSON mirror — the whole body is the packument.
+        let contents = fs::read(pkg_mirror).ok()?;
+        let newline = contents.iter().position(|&byte| byte == b'\n')?;
         let headers: MetaHeaders = serde_json::from_slice(&contents[..newline]).ok()?;
         let mut meta: Package = serde_json::from_slice(&contents[newline + 1..]).ok()?;
         meta.etag = headers.etag;
@@ -471,18 +541,23 @@ pub fn load_meta(pkg_mirror: &Path) -> Option<Package> {
     let headers_start = newline + 1;
     let index_start = headers_start.checked_add(headers_len)?;
     let fragment_base = index_start.checked_add(index_len)?;
-    if fragment_base > contents.len() {
-        return None;
-    }
+    // Read the rest of the headers + index records; the file's
+    // fragment section is never buffered.
+    let mut records = vec![0u8; fragment_base.checked_sub(filled.min(fragment_base))?];
+    file.read_exact(&mut records).ok()?;
+    let mut prefixed = Vec::with_capacity(fragment_base);
+    prefixed.extend_from_slice(&prefix[..filled.min(fragment_base)]);
+    prefixed.extend_from_slice(&records);
     let headers: MetaHeaders =
-        serde_json::from_slice(&contents[headers_start..index_start]).ok()?;
-    let index: MirrorIndex = serde_json::from_slice(&contents[index_start..fragment_base]).ok()?;
+        serde_json::from_slice(prefixed.get(headers_start..index_start)?).ok()?;
+    let index: MirrorIndex =
+        serde_json::from_slice(prefixed.get(index_start..fragment_base)?).ok()?;
 
     // Rebase the relative spans and reject any that fall outside the
     // file — a truncated or hand-edited mirror reads as a miss rather
     // than handing out garbage fragments later.
-    let file_size = contents.len() as u64;
-    let buffer = Arc::new(contents);
+    let file_size = file.metadata().ok()?.len();
+    let file = Arc::new(file);
     let mut spans = Vec::with_capacity(index.versions.len());
     for (version, offset, len) in index.versions {
         let absolute = (fragment_base as u64).checked_add(offset)?;
@@ -495,7 +570,7 @@ pub fn load_meta(pkg_mirror: &Path) -> Option<Package> {
     Some(Package {
         name: index.name,
         dist_tags: index.dist_tags,
-        versions: PackageVersions::from_buffer_spans(&buffer, spans),
+        versions: PackageVersions::from_file_spans(&file, spans),
         time: index.time,
         modified: headers.modified,
         etag: headers.etag,

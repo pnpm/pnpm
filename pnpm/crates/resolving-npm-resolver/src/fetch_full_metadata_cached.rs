@@ -34,8 +34,8 @@ use crate::{
     },
     mirror::{
         ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, clear_meta,
-        get_pkg_mirror_path, load_meta_async, load_meta_headers_async, save_meta_indexed,
-        save_meta_ndjson, scoped_meta_dir,
+        get_pkg_mirror_path, load_meta, load_meta_async, load_meta_headers_async,
+        save_meta_indexed, save_meta_ndjson, scoped_meta_dir,
     },
     registry_url::to_registry_url,
 };
@@ -187,18 +187,36 @@ pub async fn fetch_full_metadata_cached(
                 // A filtered full response is written in pnpm's NDJSON
                 // shape. Other responses keep pacquet's indexed mirror
                 // layout for lazy version hydration.
-                let save_result = if should_filter_metadata {
-                    save_meta_ndjson(path, &meta, etag.as_deref())
+                if should_filter_metadata {
+                    if let Err(error) = save_meta_ndjson(path, &meta, etag.as_deref()) {
+                        tracing::debug!(
+                            target: "pacquet_resolving_npm_resolver::cache",
+                            ?error,
+                            path = %path.display(),
+                            "could not persist mirror; bypassing cache write",
+                        );
+                    }
                 } else {
-                    save_meta_indexed(path, &meta, etag.as_deref())
-                };
-                if let Err(error) = save_result {
-                    tracing::debug!(
-                        target: "pacquet_resolving_npm_resolver::cache",
-                        ?error,
-                        path = %path.display(),
-                        "could not persist mirror; bypassing cache write",
-                    );
+                    match save_meta_indexed(path, &meta, etag.as_deref()) {
+                        // Serve the just-persisted mirror instead of the
+                        // response body: its version fragments read from
+                        // the file on demand, so the multi-megabyte body
+                        // drops here instead of living in the packument
+                        // cache for the rest of the install.
+                        Ok(()) => {
+                            if let Some(saved) = load_meta(path) {
+                                return Ok(saved);
+                            }
+                        }
+                        Err(error) => {
+                            tracing::debug!(
+                                target: "pacquet_resolving_npm_resolver::cache",
+                                ?error,
+                                path = %path.display(),
+                                "could not persist mirror; bypassing cache write",
+                            );
+                        }
+                    }
                 }
             }
             Ok(meta)

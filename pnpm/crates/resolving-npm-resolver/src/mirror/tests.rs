@@ -144,6 +144,51 @@ fn load_meta_round_trip_hydrates_versions_from_spans() {
     assert_eq!(manifest.dist.tarball, "https://registry/acme-1.0.0.tgz");
 }
 
+/// A loaded mirror pins its inode: fragments hydrate from the
+/// held-open handle, so a rewrite of the same path (another install
+/// racing, a release-age upgrade persist) can never shift the bytes
+/// under the recorded spans.
+#[test]
+fn load_meta_survives_mirror_rewrite() {
+    let dir = TempDir::new().expect("tmp dir");
+    let mirror = dir.path().join("acme.jsonl");
+    let pkg = fixture_package();
+    save_meta_indexed(&mirror, &pkg, None).expect("save");
+    let loaded = load_meta(&mirror).expect("read full back");
+    // The rewritten packument's `1.0.0` fragment sits at a different
+    // offset (a fatter `0.9.0` fragment precedes it), so a loader that
+    // re-read the path instead of the pinned inode would parse garbage.
+    let newer: Package = serde_json::from_value(serde_json::json!({
+        "name": "acme",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "0.9.0": {
+                "name": "acme",
+                "version": "0.9.0",
+                "deprecated": "superseded by 1.0.0; padding padding padding padding",
+                "dist": {
+                    "integrity": "sha512-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB==",
+                    "shasum": "1111111111111111111111111111111111111111",
+                    "tarball": "https://registry/acme-0.9.0.tgz"
+                }
+            },
+            "1.0.0": {
+                "name": "acme",
+                "version": "1.0.0",
+                "dist": {
+                    "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+                    "shasum": "0000000000000000000000000000000000000000",
+                    "tarball": "https://registry/acme-1.0.0-rebuilt.tgz"
+                }
+            }
+        }
+    }))
+    .expect("deserialize rewritten Package");
+    save_meta_indexed(&mirror, &newer, None).expect("overwrite");
+    let manifest = loaded.versions.get("1.0.0").expect("hydrate after rewrite");
+    assert_eq!(manifest.dist.tarball, "https://registry/acme-1.0.0.tgz");
+}
+
 #[test]
 fn load_meta_rejects_truncated_fragments() {
     let dir = TempDir::new().expect("tmp dir");

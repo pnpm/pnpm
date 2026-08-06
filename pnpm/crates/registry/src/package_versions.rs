@@ -5,10 +5,11 @@
 //! and `serde_json::Value` trees behind each version are built, hashed,
 //! and dropped even though a pick consults only the version *strings*
 //! plus the handful of manifests it actually considers. Each version
-//! therefore stays as the raw JSON fragment serde captured — an
-//! [`Arc<RawValue>`], shared rather than copied — until someone asks
-//! for the typed form, and the hydrated manifest is cached per slot so
-//! repeated lookups parse once.
+//! therefore stays as an unhydrated fragment — the raw JSON serde
+//! captured ([`Arc<RawValue>`], shared rather than copied) or a byte
+//! span read on demand from the held-open mirror file — until someone
+//! asks for the typed form, and the hydrated manifest is cached per
+//! slot so repeated lookups parse once.
 //!
 //! A fragment that fails to decode behaves as if the version were
 //! absent from the packument (with a `tracing::warn`), mirroring the
@@ -18,6 +19,7 @@
 use std::{
     borrow::Cow,
     collections::HashMap,
+    fs::File,
     sync::{Arc, OnceLock},
 };
 
@@ -54,12 +56,15 @@ enum FragmentSource {
     /// Raw JSON fragment as served by the registry (the serde parse
     /// of a packument body captures these).
     Raw(Arc<RawValue>),
-    /// Byte span inside an indexed on-disk metadata mirror, whose
-    /// contents the loader read into one shared buffer. Hydration
-    /// parses the span in place — no per-fragment file I/O (the pick
-    /// paths can probe many candidate fragments per package, so
-    /// open-per-hydration measured slower than one sequential read).
-    BufferSpan { buffer: Arc<Vec<u8>>, offset: u64, len: u32 },
+    /// Byte span inside an indexed on-disk metadata mirror, read on
+    /// demand from the *held-open* file. Holding the handle (instead
+    /// of re-opening by path) pins the inode: mirror rewrites go
+    /// through temp-file + `rename`, so the bytes behind an open
+    /// handle can never shift under the recorded spans. Reading per
+    /// hydration instead of retaining the mirror body is what keeps a
+    /// workspace-scale packument cache out of resident memory — the
+    /// bytes stay in the (reclaimable) page cache.
+    FileSpan { file: Arc<File>, offset: u64, len: u32 },
     /// No fragment — the slot was constructed from an already-typed
     /// manifest (tests, the publish-date filter's slot moves).
     None,
@@ -67,17 +72,24 @@ enum FragmentSource {
 
 impl FragmentSource {
     /// The fragment's JSON text: borrowed for [`FragmentSource::Raw`],
-    /// read from the shared buffer for [`FragmentSource::BufferSpan`],
-    /// absent for [`FragmentSource::None`] or invalid spans.
+    /// read from the mirror file for [`FragmentSource::FileSpan`],
+    /// absent for [`FragmentSource::None`] or unreadable spans.
     fn json(&self) -> Option<Cow<'_, str>> {
         match self {
             FragmentSource::Raw(raw) => Some(Cow::Borrowed(raw.get())),
-            FragmentSource::BufferSpan { buffer, offset, len } => {
-                let start = usize::try_from(*offset).ok()?;
-                let end = start.checked_add(*len as usize)?;
-                let bytes = buffer.get(start..end)?;
-                match std::str::from_utf8(bytes) {
-                    Ok(json) => Some(Cow::Borrowed(json)),
+            FragmentSource::FileSpan { file, offset, len } => {
+                let mut bytes = vec![0u8; *len as usize];
+                if let Err(error) = read_exact_at(file, &mut bytes, *offset) {
+                    tracing::warn!(
+                        target: "pacquet_registry",
+                        %error,
+                        offset,
+                        "could not read a metadata mirror fragment",
+                    );
+                    return None;
+                }
+                match String::from_utf8(bytes) {
+                    Ok(json) => Some(Cow::Owned(json)),
                     Err(error) => {
                         tracing::warn!(
                             target: "pacquet_registry",
@@ -92,6 +104,32 @@ impl FragmentSource {
             FragmentSource::None => None,
         }
     }
+}
+
+#[cfg(unix)]
+fn read_exact_at(file: &File, buf: &mut [u8], offset: u64) -> std::io::Result<()> {
+    std::os::unix::fs::FileExt::read_exact_at(file, buf, offset)
+}
+
+#[cfg(windows)]
+fn read_exact_at(file: &File, mut buf: &mut [u8], mut offset: u64) -> std::io::Result<()> {
+    while !buf.is_empty() {
+        match std::os::windows::fs::FileExt::seek_read(file, buf, offset) {
+            Ok(0) => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::UnexpectedEof,
+                    "mirror fragment span reaches past the end of the file",
+                ));
+            }
+            Ok(read) => {
+                buf = &mut buf[read..];
+                offset += read as u64;
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::Interrupted => {}
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(())
 }
 
 impl Clone for VersionSlot {
@@ -218,12 +256,13 @@ impl PackageVersions {
 /// (see `pacquet-resolving-npm-resolver`'s `mirror` module, which owns
 /// the file layout).
 impl PackageVersions {
-    /// Build a map whose fragments are byte spans inside `buffer`
-    /// (the indexed mirror file's contents). Nothing parses until a
-    /// version hydrates.
+    /// Build a map whose fragments are byte spans read on demand from
+    /// the held-open `file` (the indexed mirror). Nothing parses until
+    /// a version hydrates, and no fragment bytes stay resident. See
+    /// [`FragmentSource::FileSpan`] for the inode-pinning contract.
     #[must_use]
-    pub fn from_buffer_spans(
-        buffer: &Arc<Vec<u8>>,
+    pub fn from_file_spans(
+        file: &Arc<File>,
         spans: impl IntoIterator<Item = (String, u64, u32)>,
     ) -> Self {
         PackageVersions {
@@ -233,8 +272,8 @@ impl PackageVersions {
                     (
                         version,
                         VersionSlot {
-                            source: FragmentSource::BufferSpan {
-                                buffer: Arc::clone(buffer),
+                            source: FragmentSource::FileSpan {
+                                file: Arc::clone(file),
                                 offset,
                                 len,
                             },
