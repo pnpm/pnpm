@@ -1133,7 +1133,15 @@ impl WorkspaceSettings {
             config.pnpr_server = Some(v);
         }
         if let Some(v) = self.package_provider {
-            config.package_provider = Some(v);
+            // A bare command name stays a PATH lookup; anything with a
+            // path separator is anchored at this file's directory like
+            // the other path-valued settings.
+            config.package_provider =
+                Some(if v.contains('/') || v.contains(std::path::MAIN_SEPARATOR) {
+                    resolve(base_dir, &v).to_string_lossy().into_owned()
+                } else {
+                    v
+                });
         }
         if let Some(v) = self.named_registries {
             config.named_registries = v;

@@ -1100,10 +1100,30 @@ where
                 })
                 .await
                 .map_err(InstallFrozenLockfileError::PackageProvider)?;
+            let provider_skipped_any = !provided.skipped.is_empty();
             for key in provided.skipped {
                 skipped.insert_installability(key);
             }
             layout.set_provider_paths(provided.paths);
+            // Re-run the closure expansion: a provider-skipped optional's
+            // optional-only descendants must drop out of hoisting, the
+            // package map, and the lockfile write, exactly like the
+            // pre-provider installability skips expanded above.
+            if provider_skipped_any {
+                let importer_ids: std::collections::HashSet<String> =
+                    importers.keys().cloned().collect();
+                crate::extend_skipped_with_dependency_closure(
+                    &mut skipped,
+                    lockfile,
+                    workspace_root,
+                    &importer_ids,
+                    pacquet_modules_yaml::IncludedDependencies {
+                        dependencies: dependency_groups.contains(&DependencyGroup::Prod),
+                        dev_dependencies: dependency_groups.contains(&DependencyGroup::Dev),
+                        optional_dependencies: include_optional,
+                    },
+                );
+            }
         }
 
         // Pre-compute the hoist plan so the dedupe pass inside

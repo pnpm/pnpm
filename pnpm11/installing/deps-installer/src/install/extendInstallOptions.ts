@@ -465,6 +465,12 @@ export function extendOptions (
     extendedOpts.sideEffectsCacheWrite = false
   }
   if (extendedOpts.packageProvider) {
+    // A bare command name stays a PATH lookup; anything with a path
+    // separator is anchored at the workspace root, like the other
+    // path-valued settings from pnpm-workspace.yaml.
+    if (extendedOpts.packageProvider.includes('/') || extendedOpts.packageProvider.includes(path.sep)) {
+      extendedOpts.packageProvider = path.resolve(extendedOpts.lockfileDir, extendedOpts.packageProvider)
+    }
     if (extendedOpts.nodeLinker !== 'isolated') {
       throw new PnpmError('CONFIG_CONFLICT_PACKAGE_PROVIDER_NODE_LINKER',
         'packageProvider requires node-linker=isolated')
