@@ -67,6 +67,7 @@ fn default_opts(registry_url: &str) -> CreateNpmResolutionVerifierOptions {
         auth_headers: Arc::new(AuthHeaders::default()),
         cache_dir: None,
         meta_cache: None,
+        offline: false,
         // No retries: tests that point an endpoint at an unmocked /
         // erroring upstream would otherwise wait out the full pnpm
         // backoff (10 s + 60 s) on every run.

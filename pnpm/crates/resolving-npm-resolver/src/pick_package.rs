@@ -671,6 +671,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
         cache_dir: ctx.cache_dir,
         full_metadata,
         filter_metadata: use_filtered_full_metadata,
+        offline: ctx.offline,
         retry_opts: ctx.retry_opts,
     };
 
