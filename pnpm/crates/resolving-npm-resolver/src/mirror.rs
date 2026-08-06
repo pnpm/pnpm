@@ -128,6 +128,13 @@ pub enum SaveMetaError {
 const MAX_HEADERS_LEN: usize = 64 * 1024;
 const MAX_INDEX_LEN: usize = 64 * 1024 * 1024;
 
+/// Ceiling for a single version fragment's declared span. The span
+/// end is validated against the file size, but a sparse file makes
+/// the file size itself untrustworthy — without a per-fragment bound
+/// a corrupt mirror could declare a multi-gigabyte span and drive an
+/// equally large hydration allocation.
+const MAX_FRAGMENT_LEN: u32 = 16 * 1024 * 1024;
+
 /// Mirror root for descriptor-scoped private metadata. A
 /// [`MetadataCacheScope::Private`] route stores its packuments under
 /// `<cache_dir>/v11/metadata-private/<descriptor-id>/<meta-suffix>/...`
@@ -581,7 +588,7 @@ fn load_meta_with_hold_cap(pkg_mirror: &Path, hold_cap: usize) -> Option<Package
     let mut spans = Vec::with_capacity(index.versions.len());
     for (version, offset, len) in index.versions {
         let absolute = (fragment_base as u64).checked_add(offset)?;
-        if absolute.checked_add(u64::from(len))? > file_size {
+        if len > MAX_FRAGMENT_LEN || absolute.checked_add(u64::from(len))? > file_size {
             return None;
         }
         spans.push((version, absolute, len));
@@ -638,7 +645,7 @@ fn held_mirror_file_cap() -> usize {
     static CAP: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
     *CAP.get_or_init(|| {
         raise_open_file_limit_once();
-        soft_open_file_limit().map_or(1 << 19, |soft| (soft / 2).clamp(128, 1 << 19))
+        soft_open_file_limit().map_or(1 << 19, |soft| (soft / 2).min(1 << 19))
     })
 }
 

@@ -205,6 +205,24 @@ fn load_meta_rejects_oversized_declared_record_lengths() {
 }
 
 #[test]
+fn load_meta_rejects_an_oversized_fragment_span() {
+    let dir = TempDir::new().expect("tmp dir");
+    let mirror = dir.path().join("acme.jsonl");
+    let headers = "{}";
+    let index = format!(
+        r#"{{"name":"acme","distTags":{{}},"versions":[["1.0.0",0,{}]]}}"#,
+        32 * 1024 * 1024,
+    );
+    let contents = format!("pacquet-meta-v1 {} {}\n{headers}{index}", headers.len(), index.len());
+    std::fs::write(&mirror, &contents).expect("write");
+    // A sparse tail makes the file size cover the declared span
+    // without paying for the bytes, like a corrupt mirror would.
+    let file = std::fs::OpenOptions::new().append(true).open(&mirror).expect("open");
+    file.set_len(contents.len() as u64 + 64 * 1024 * 1024).expect("extend sparsely");
+    assert!(load_meta(&mirror).is_none());
+}
+
+#[test]
 fn load_meta_rejects_truncated_fragments() {
     let dir = TempDir::new().expect("tmp dir");
     let mirror = dir.path().join("acme.jsonl");
