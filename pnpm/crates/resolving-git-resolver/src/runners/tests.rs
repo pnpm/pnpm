@@ -56,6 +56,29 @@ async fn head_probe_does_not_retry_definitive_statuses() {
 }
 
 #[tokio::test]
+async fn head_probe_bounds_attempts_on_an_unresponsive_endpoint() {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let hold_connections_open = tokio::spawn(async move {
+        let mut held = Vec::new();
+        while let Ok((socket, _)) = listener.accept().await {
+            held.push(socket);
+        }
+    });
+    let probe = RealGitProbe {
+        http_client: Arc::new(ThrottledClient::default()),
+        head_timeout: std::time::Duration::from_millis(100),
+    };
+    let started = std::time::Instant::now();
+    assert!(!probe.anonymous_head_ok(&format!("http://{addr}/foo/tar.gz/abc")).await);
+    // 3 timed-out attempts plus 1.5s of backoff; generous slack for CI
+    // load. Without the per-attempt deadline this hangs for the
+    // client-wide timeout per attempt instead.
+    assert!(started.elapsed() < std::time::Duration::from_secs(15), "{:?}", started.elapsed());
+    hold_connections_open.abort();
+}
+
+#[tokio::test]
 async fn head_probe_retries_transient_statuses_to_exhaustion() {
     let mut server = mockito::Server::new_async().await;
     let mock =

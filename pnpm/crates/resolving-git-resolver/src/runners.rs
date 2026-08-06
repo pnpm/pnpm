@@ -19,12 +19,19 @@ use crate::{
 /// per-registry config all apply).
 pub struct RealGitProbe {
     pub http_client: Arc<ThrottledClient>,
+    /// Per-attempt deadline, overriding the client's much larger
+    /// `fetchTimeout`. The probe only gates an optimization — failure
+    /// falls back to a `type: git` resolution that always works — so
+    /// an archive endpoint a firewall blackholes (reachable
+    /// `github.com`, blocked `codeload.github.com`) must cost seconds,
+    /// not attempts × `fetchTimeout`.
+    pub head_timeout: Duration,
 }
 
 impl RealGitProbe {
     #[must_use]
     pub fn new(http_client: Arc<ThrottledClient>) -> Self {
-        Self { http_client }
+        Self { http_client, head_timeout: Duration::from_secs(10) }
     }
 }
 
@@ -37,7 +44,13 @@ impl GitProbe for RealGitProbe {
                 // backoff sleep.
                 let status = {
                     let guard = self.http_client.acquire_for_url(url).await;
-                    guard.head(url).send().await.map(|response| response.status()).ok()
+                    guard
+                        .head(url)
+                        .timeout(self.head_timeout)
+                        .send()
+                        .await
+                        .map(|response| response.status())
+                        .ok()
                 };
                 if let Some(status) = status {
                     if status.is_success() {
