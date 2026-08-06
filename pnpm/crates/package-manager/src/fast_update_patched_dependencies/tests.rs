@@ -39,6 +39,48 @@ snapshots:
   foo@1.1.0(patch_hash=deadbeef): {}
 ";
 
+/// `foo` comes from a named registry, so the key's version slot holds
+/// `work:1.1.0` rather than a plain semver the patch keys can match.
+const REGISTRY_QUALIFIED_LOCKFILE: &str = r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      foo:
+        specifier: ^1.0.0
+        version: work:1.1.0
+packages:
+  foo@work:1.1.0:
+    resolution:
+      integrity: sha512-deadbeef
+snapshots:
+  foo@work:1.1.0: {}
+";
+
+/// A tarball resolution, whose key carries a URL where a version would be.
+const TARBALL_LOCKFILE: &str = r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      bar:
+        specifier: ^2.0.0
+        version: 2.0.0
+      foo:
+        specifier: https://example.test/foo.tgz
+        version: https://example.test/foo.tgz
+packages:
+  bar@2.0.0:
+    resolution:
+      integrity: sha512-deadbeef
+  foo@https://example.test/foo.tgz:
+    resolution:
+      integrity: sha512-deadbeef
+snapshots:
+  bar@2.0.0: {}
+  foo@https://example.test/foo.tgz: {}
+";
+
 /// `bar` depends on `foo` as a plain transitive dependency, so patching
 /// `foo` has to move the reference inside `bar`'s snapshot too.
 const TRANSITIVE_LOCKFILE: &str = r"
@@ -267,6 +309,48 @@ fn moves_a_dependents_reference_to_the_rekeyed_package() {
         "the dependent points at the renamed snapshot",
     );
     assert_eq!(importer_version(&updated, "bar"), "2.0.0", "the dependent itself does not move");
+}
+
+#[test]
+fn rejects_a_patch_for_a_registry_qualified_package() {
+    let dir = workspace(&["foo@1.1.0"]);
+
+    assert!(
+        try_fast_update_patched_dependencies(
+            &lockfile(REGISTRY_QUALIFIED_LOCKFILE),
+            &config(dir.path(), &["foo@1.1.0"], true),
+        )
+        .is_none(),
+        "the resolver matches this patch on plain semver, so it decides this one",
+    );
+}
+
+#[test]
+fn rejects_a_bare_name_patch_that_would_reach_a_tarball_resolution() {
+    let dir = workspace(&["foo"]);
+
+    assert!(
+        try_fast_update_patched_dependencies(
+            &lockfile(TARBALL_LOCKFILE),
+            &config(dir.path(), &["foo"], true),
+        )
+        .is_none(),
+        "a URL in the version slot is not a version the resolver would match on",
+    );
+}
+
+#[test]
+fn rekeys_around_a_tarball_resolution_no_patch_reaches() {
+    let dir = workspace(&["bar@2.0.0"]);
+
+    let updated = try_fast_update_patched_dependencies(
+        &lockfile(TARBALL_LOCKFILE),
+        &config(dir.path(), &["bar@2.0.0"], true),
+    )
+    .expect("an untouched tarball resolution does not block the rest");
+
+    assert!(snapshot_keys(&updated).iter().any(|key| key.starts_with("bar@2.0.0(patch_hash=")));
+    assert!(snapshot_keys(&updated).contains(&"foo@https://example.test/foo.tgz".to_string()));
 }
 
 #[test]

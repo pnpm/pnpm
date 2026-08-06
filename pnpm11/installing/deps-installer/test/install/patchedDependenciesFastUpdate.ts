@@ -91,6 +91,32 @@ test('a dependent reference to a rekeyed package is moved too', () => {
     .toStrictEqual({ bar: '2.0.0' })
 })
 
+test('a patch for a registry-qualified package falls back to resolution', () => {
+  const lockfile = lockfileWithRegistryDependency()
+  lockfile.importers['.' as ProjectId].dependencies = { foo: 'work:1.1.0' }
+  lockfile.packages = {
+    ['foo@work:1.1.0' as DepPath]: { resolution: { integrity: 'sha512-deadbeef' } },
+  }
+
+  expect(tryFastUpdatePatchedDependencies(lockfile, updateOptions({
+    patchedDependencies: { 'foo@1.1.0': 'foo-hash' },
+  }))).toBe(false)
+})
+
+test('a bare-name patch that would reach a tarball resolution falls back', () => {
+  const lockfile = lockfileWithRegistryDependency()
+  lockfile.importers['.' as ProjectId].dependencies = { foo: 'https://example.test/foo.tgz' }
+  lockfile.packages = {
+    ['foo@https://example.test/foo.tgz' as DepPath]: {
+      resolution: { tarball: 'https://example.test/foo.tgz' },
+    },
+  }
+
+  expect(tryFastUpdatePatchedDependencies(lockfile, updateOptions({
+    patchedDependencies: { foo: 'foo-hash' },
+  }))).toBe(false)
+})
+
 test('a package another snapshot reaches as a peer falls back to resolution', () => {
   const lockfile = lockfileWithPeerDependency()
 
@@ -168,11 +194,11 @@ test('adding a patch for a locked package rekeys it without resolution', async (
     rootDir: process.cwd() as ProjectRootDir,
   }, patchedOptions)
 
-  // Necessary but not sufficient on its own: a full resolution over an
-  // unchanged graph also requests nothing. What this pins is the end state —
-  // that the rewrite lands the same lockfile and node_modules a resolve would.
-  // `an_unused_patch_is_recorded_without_resolution_and_a_used_one_is_not` in
-  // pacquet's `lockfile_resolution_reuse` is what proves resolution is skipped.
+  // No registry work, matching the check the catalog and importer fast paths
+  // use. It is necessary rather than sufficient — a resolution pass seeded
+  // from this unchanged graph would request nothing either — so the proof
+  // that resolution is skipped lives in pacquet's `lockfile_resolution_reuse`,
+  // where the reporter says so outright.
   expect(requestedPackages).toStrictEqual([])
   const lockfile = project.readLockfile()
   expect(lockfile.patchedDependencies).toStrictEqual({ 'is-positive@1.0.0': patchFileHash })

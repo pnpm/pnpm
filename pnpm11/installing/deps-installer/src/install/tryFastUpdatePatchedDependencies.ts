@@ -75,8 +75,18 @@ export function tryFastUpdatePatchedDependencies (
 function planRekeys (lockfile: LockfileObject, groups: PatchGroupRecord): Rekeys | undefined {
   const rekeys: Rekeys = new Map()
   for (const [depPath, snapshot] of Object.entries(lockfile.packages ?? {}) as Array<[DepPath, PackageSnapshot]>) {
-    const { name, version } = nameVerFromPkgSnapshot(depPath, snapshot)
-    if (version == null) continue
+    const { name, version, nonSemverVersion, registryName } = nameVerFromPkgSnapshot(depPath, snapshot)
+    const { patchHashIndex } = dp.indexOfDepPathSuffix(depPath)
+    // The resolver matches patches against a package's plain semver version.
+    // A named registry or a git / tarball reference occupies the same slot
+    // here, and matching those cannot be reproduced from the key, so the
+    // question is only whether it could matter: any configured patch naming
+    // this package, or a patch hash already on the key, hands the decision
+    // back to the resolver.
+    if (version == null || nonSemverVersion != null || registryName != null) {
+      if (groups[name] != null || patchHashIndex !== -1) return undefined
+      continue
+    }
     let patch
     try {
       patch = getPatchInfo(groups, name, version)

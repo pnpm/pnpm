@@ -73,11 +73,28 @@ fn plan_rekeys(lockfile: &Lockfile, groups: &PatchGroupRecord) -> Option<Rekeys>
     let mut rekeys = Rekeys::new();
     for key in snapshots.keys() {
         let rendered = key.to_string();
+        let suffix = index_of_dep_path_suffix(&rendered);
         let base = remove_suffix(&rendered);
-        let peers =
-            index_of_dep_path_suffix(&rendered).peers_index.map_or("", |index| &rendered[index..]);
+        let peers = suffix.peers_index.map_or("", |index| &rendered[index..]);
         let (name, version) = pacquet_deps_restorer::parse_name_version_from_key(base);
-        let segment = match get_patch_info(Some(groups), &name, &version).ok()? {
+        let patch = get_patch_info(Some(groups), &name, &version).ok()?;
+        // The resolver matches patches against a package's plain semver
+        // version, while this reads the version out of the key, where a
+        // named registry (`name@registry:version`) or a git / tarball
+        // reference occupies the same slot. The two only agree on plain
+        // semver, so anything else is left to the resolver rather than
+        // guessed at — as long as it needs no rekey at all.
+        if key.suffix.version_semver().is_none() {
+            // Matching cannot be reproduced here, so the question is only
+            // whether it could matter: any configured patch naming this
+            // package, or a patch hash already on the key, hands the
+            // decision back to the resolver.
+            if groups.contains_key(name.as_str()) || suffix.patch_hash_index.is_some() {
+                return None;
+            }
+            continue;
+        }
+        let segment = match patch {
             Some(patch) => format!("(patch_hash={})", patch.hash),
             None => String::new(),
         };
