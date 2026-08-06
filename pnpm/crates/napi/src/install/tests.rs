@@ -17,9 +17,7 @@ use crate::{
     reporter_bridge::{begin_stats, take_stats},
 };
 
-/// Adds a marker file, so a patch's content is valid without depending on
-/// any particular package's sources.
-const MARKER_PATCH: &str = concat!(
+const WELL_FORMED_PATCH: &str = concat!(
     "diff --git a/patched-marker.txt b/patched-marker.txt\n",
     "new file mode 100644\n",
     "index 0000000..3f2e1d4\n",
@@ -514,10 +512,6 @@ fn lockfile_records_overrides_in_declaration_order() {
     assert!(zzz < aaa, "overrides must keep declaration order (zzz before aaa), got:\n{lockfile}");
 }
 
-/// A patch whose key matches no installed package fails the install, and
-/// `allowUnusedPatches` is the only way an embedder can downgrade that to a
-/// warning — needed to ship a patch keyed to a version range that only some
-/// of the embedder's workspaces resolve.
 #[test]
 fn allow_unused_patches_downgrades_an_unmatched_patch_to_a_warning() {
     let registry = TestRegistry::start();
@@ -526,7 +520,7 @@ fn allow_unused_patches_downgrades_an_unmatched_patch_to_a_warning() {
     std::fs::create_dir(&project_dir).expect("create project dir");
     std::fs::write(project_dir.join("package.json"), "{}\n").expect("write package.json");
     std::fs::create_dir(project_dir.join("patches")).expect("create patches dir");
-    std::fs::write(project_dir.join("patches/unmatched.patch"), MARKER_PATCH)
+    std::fs::write(project_dir.join("patches/unmatched.patch"), WELL_FORMED_PATCH)
         .expect("write patch file");
 
     let project_dir_string = project_dir.to_string_lossy().into_owned();
