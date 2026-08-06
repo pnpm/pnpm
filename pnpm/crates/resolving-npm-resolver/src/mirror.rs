@@ -283,9 +283,10 @@ pub fn save_meta_indexed(
     for (version, json) in meta.versions.fragments() {
         let offset = fragment_bytes.len() as u64;
         let len = u32::try_from(json.len()).unwrap_or(u32::MAX);
-        if len as usize != json.len() {
-            // A single >4 GiB version manifest is not a thing the npm
-            // registry produces; skip it rather than corrupt the index.
+        if len as usize != json.len() || len > MAX_FRAGMENT_LEN {
+            // A version manifest past the loader's fragment bound
+            // would be persisted only to be skipped on every read;
+            // omit it so the saved and served views agree.
             continue;
         }
         fragment_bytes.extend_from_slice(json.as_bytes());
@@ -587,8 +588,16 @@ fn load_meta_with_hold_cap(pkg_mirror: &Path, hold_cap: usize) -> Option<Package
     // than handing out garbage fragments later.
     let mut spans = Vec::with_capacity(index.versions.len());
     for (version, offset, len) in index.versions {
+        // A span past the fragment bound reads as an absent version
+        // (the same contract as an undecodable fragment) rather than
+        // rejecting the whole document: the bound exists to stop a
+        // corrupt index from driving huge hydration allocations, and
+        // the writer never persists such fragments.
+        if len > MAX_FRAGMENT_LEN {
+            continue;
+        }
         let absolute = (fragment_base as u64).checked_add(offset)?;
-        if len > MAX_FRAGMENT_LEN || absolute.checked_add(u64::from(len))? > file_size {
+        if absolute.checked_add(u64::from(len))? > file_size {
             return None;
         }
         spans.push((version, absolute, len));

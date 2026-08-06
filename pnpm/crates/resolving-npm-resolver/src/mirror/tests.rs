@@ -219,21 +219,28 @@ fn load_meta_past_the_hold_cap_ignores_a_sparse_tail() {
 }
 
 #[test]
-fn load_meta_rejects_an_oversized_fragment_span() {
+fn load_meta_treats_an_oversized_fragment_span_as_absent() {
     let dir = TempDir::new().expect("tmp dir");
     let mirror = dir.path().join("acme.jsonl");
     let headers = "{}";
+    let fragment = r#"{"name":"acme","version":"1.0.0","dist":{"integrity":"sha512-A","shasum":"0","tarball":"https://registry/acme-1.0.0.tgz"}}"#;
     let index = format!(
-        r#"{{"name":"acme","distTags":{{}},"versions":[["1.0.0",0,{}]]}}"#,
+        r#"{{"name":"acme","distTags":{{}},"versions":[["1.0.0",0,{}],["9.9.9",{},{}]]}}"#,
+        fragment.len(),
+        fragment.len(),
         32 * 1024 * 1024,
     );
-    let contents = format!("pacquet-meta-v1 {} {}\n{headers}{index}", headers.len(), index.len());
+    let contents =
+        format!("pacquet-meta-v1 {} {}\n{headers}{index}{fragment}", headers.len(), index.len(),);
     std::fs::write(&mirror, &contents).expect("write");
     // A sparse tail makes the file size cover the declared span
     // without paying for the bytes, like a corrupt mirror would.
     let file = std::fs::OpenOptions::new().append(true).open(&mirror).expect("open");
     file.set_len(contents.len() as u64 + 64 * 1024 * 1024).expect("extend sparsely");
-    assert!(load_meta(&mirror).is_none());
+    let loaded = load_meta(&mirror).expect("read full back");
+    assert!(loaded.versions.get("9.9.9").is_none(), "oversized span must read as absent");
+    let manifest = loaded.versions.get("1.0.0").expect("hydrate the in-bounds fragment");
+    assert_eq!(manifest.dist.tarball, "https://registry/acme-1.0.0.tgz");
 }
 
 #[test]
