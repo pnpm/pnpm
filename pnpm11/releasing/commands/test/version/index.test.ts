@@ -576,5 +576,68 @@ fs.appendFileSync(process.argv[2], process.argv[3] + ':' + manifest.version + '\
       const pkgManifest = JSON.parse(fs.readFileSync(path.join(pkgDir, 'package.json'), 'utf-8'))
       expect(pkgManifest.version).toBe('1.0.0')
     })
+
+    it('should return [] in json mode when no pending changes exist', async () => {
+      const pkgADir = path.join(tempDir, 'packages', 'pkg-a')
+      fs.mkdirSync(pkgADir, { recursive: true })
+
+      fs.writeFileSync(path.join(tempDir, 'package.json'), JSON.stringify({ name: 'my-workspace', version: '1.0.0' }))
+      fs.writeFileSync(path.join(tempDir, 'pnpm-workspace.yaml'), 'packages:\n  - "packages/*"\n')
+      fs.writeFileSync(path.join(pkgADir, 'package.json'), JSON.stringify({ name: 'pkg-a', version: '1.0.0' }))
+
+      const result = await handler({
+        dir: tempDir,
+        workspaceDir: tempDir,
+        gitChecks: false,
+        gitTagVersion: false,
+        recursive: true,
+        json: true,
+        selectedProjectsGraph: {
+          [pkgADir]: { dependencies: [], package: {} },
+        },
+      } as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+      expect(result).toBe('[]')
+    })
+
+    it('should return JSON array with release details when json mode and pending changes exist', async () => {
+      const pkgADir = path.join(tempDir, 'packages', 'pkg-a')
+      fs.mkdirSync(pkgADir, { recursive: true })
+
+      const rootManifest = { name: 'my-workspace', version: '1.0.0' }
+      const pkgAManifest = { name: 'pkg-a', version: '1.0.0' }
+      fs.writeFileSync(path.join(tempDir, 'package.json'), JSON.stringify(rootManifest))
+      fs.writeFileSync(path.join(tempDir, 'pnpm-workspace.yaml'), 'packages:\n  - "packages/*"\n')
+      fs.writeFileSync(path.join(pkgADir, 'package.json'), JSON.stringify(pkgAManifest))
+
+      const changesetDir = path.join(tempDir, '.changeset')
+      fs.mkdirSync(changesetDir, { recursive: true })
+      fs.writeFileSync(
+        path.join(changesetDir, 'test-change.md'),
+        '---\n"pkg-a": minor\n---\n\nA pending change.\n'
+      )
+
+      const result = await handler({
+        dir: tempDir,
+        workspaceDir: tempDir,
+        gitChecks: false,
+        gitTagVersion: false,
+        recursive: true,
+        json: true,
+        allProjects: [
+          { rootDir: pkgADir, manifest: { name: 'pkg-a', version: '1.0.0' } },
+        ],
+        // Stub out the registry probe to avoid network calls in tests.
+        checkVersionPublished: async () => true,
+      } as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+      const parsed = JSON.parse(result as string)
+      expect(Array.isArray(parsed)).toBe(true)
+      expect(parsed).toHaveLength(1)
+      const entry = parsed[0]
+      expect(entry.name).toBe('pkg-a')
+      expect(entry.currentVersion).toBe('1.0.0')
+      expect(entry.newVersion).toBe('1.1.0')
+    })
   })
 })
