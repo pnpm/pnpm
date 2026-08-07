@@ -240,7 +240,6 @@ catalog:
   get-port: ^7.2.0
   ghooks: 2.0.4
   graceful-fs: ^4.2.11
-  graceful-git: ^5.0.0
   graph-cycles: 3.0.0
   hosted-git-info: npm:@pnpm/hosted-git-info@1.0.0
   https-proxy-server-express: 0.1.2
@@ -418,7 +417,6 @@ minimumReleaseAgeExclude:
   - '@esbuild/*'
   - express@4.22.1
   - glob@11.1.0
-  - graceful-git
   - handlebars@4.7.9
   - is-inner-link
   - is-subdir

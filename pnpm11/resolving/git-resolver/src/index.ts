@@ -127,7 +127,6 @@ export async function getRepoRefs (repo: string, ref: string | null): Promise<Re
     // This is needed because annotated tags have their own SHA, and we need the commit SHA they point to
     gitArgs.push(`${ref}^{}`)
   }
-  // graceful-git by default retries 10 times, reduce to single retry
   const result = await lsRemote(gitArgs, { retries: 1 })
   const refs: Record<string, string> = {}
   for (const line of result.stdout.split('\n')) {
