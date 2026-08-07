@@ -499,12 +499,8 @@ async fn fresh_install_reports_strict_minimum_release_age_violations_before_writ
     assert!(!modules_dir.exists());
 }
 
-/// The loose-mode counterpart of the strict test above, reproducing
-/// [pnpm/pnpm#13687](https://github.com/pnpm/pnpm/issues/13687): a fresh
-/// resolve that picks immature versions must append them to
-/// `minimumReleaseAgeExclude` in `pnpm-workspace.yaml`, so a later
-/// verification of the committed lockfile (e.g. a frozen install in CI)
-/// accepts the same picks.
+/// Loose-mode counterpart of the strict test above —
+/// [pnpm/pnpm#13687](https://github.com/pnpm/pnpm/issues/13687).
 #[tokio::test]
 async fn fresh_install_persists_loose_minimum_release_age_picks_to_workspace_manifest() {
     let mock_instance = TestRegistry::start();

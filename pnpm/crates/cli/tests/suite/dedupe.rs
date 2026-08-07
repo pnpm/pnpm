@@ -304,3 +304,43 @@ fn dedupe_check_reports_the_lockfile_diff() {
 
     drop((root, mock_instance));
 }
+
+/// `--check` must not write loose-mode `minimumReleaseAge` picks to
+/// `minimumReleaseAgeExclude` — the check contract is "mutate nothing"
+/// (see the lockfile guard in `DedupeArgs::run`).
+#[test]
+fn dedupe_check_does_not_persist_minimum_release_age_excludes() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/pkg-with-1-dep": "100.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    // 100 years: every version the mocked registry serves is immature, so
+    // the fresh resolve behind `dedupe --check` records loose-mode picks.
+    let workspace_manifest_path = workspace.join("pnpm-workspace.yaml");
+    fs::write(&workspace_manifest_path, "minimumReleaseAge: 52560000\n")
+        .expect("write pnpm-workspace.yaml");
+    let manifest_before =
+        fs::read_to_string(&workspace_manifest_path).expect("read pnpm-workspace.yaml");
+
+    let output = pacquet.with_args(["dedupe", "--check"]).output().expect("run dedupe check");
+    assert!(!output.status.success(), "no lockfile exists, so the check must report a diff");
+
+    let manifest_after =
+        fs::read_to_string(&workspace_manifest_path).expect("read pnpm-workspace.yaml");
+    assert_eq!(
+        manifest_before, manifest_after,
+        "dedupe --check must not modify pnpm-workspace.yaml",
+    );
+
+    drop((root, mock_instance));
+}
