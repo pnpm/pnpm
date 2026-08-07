@@ -6,6 +6,8 @@ import type {
   ResolvedDependencies,
 } from '@pnpm/lockfile.types'
 
+import { pruneUnreferencedCatalogEntries } from './tryFastUpdateCatalogs.js'
+
 export function tryFastUpdateIgnoredOptionalDependencies (
   lockfile: LockfileObject,
   ignoredOptionalDependencies: string[]
@@ -38,6 +40,7 @@ export function tryFastUpdateIgnoredOptionalDependencies (
   } else {
     lockfile.packages = pruned.packages
   }
+  pruneUnreferencedCatalogEntries(lockfile)
   return true
 }
 
