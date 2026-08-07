@@ -144,6 +144,9 @@ test("pnpr forwards the client's whole verification policy, not just the age cut
   const workspaceRoot = prepareEmpty().dir()
   const rootDir = workspaceRoot as ProjectRootDir
   const manifest: ProjectManifest = { name: 'app', version: '1.2.3' }
+  const resolverSettings = {
+    autoInstallPeers: false, dedupePeers: true, excludeLinksFromLockfile: true,
+  } satisfies Partial<MutateModulesOptions>
   const options = createOptions(workspaceRoot, rootDir, {
     minimumReleaseAge: 1440,
     minimumReleaseAgeExclude: ['@acme/*'],
@@ -152,6 +155,7 @@ test("pnpr forwards the client's whole verification policy, not just the age cut
     trustPolicyExclude: ['legacy-pkg'],
     trustPolicyIgnoreAfter: 43200,
     trustLockfile: true,
+    ...resolverSettings,
   })
 
   await install(manifest, options)
@@ -164,6 +168,7 @@ test("pnpr forwards the client's whole verification policy, not just the age cut
     trustPolicyExclude: ['legacy-pkg'],
     trustPolicyIgnoreAfter: 43200,
     trustLockfile: true,
+    ...resolverSettings,
   }))
 })
 

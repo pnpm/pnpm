@@ -211,6 +211,9 @@ fn options(
         authorization: Some(authorization.to_string()),
         overrides: None,
         catalogs: None,
+        auto_install_peers: None,
+        dedupe_peers: None,
+        exclude_links_from_lockfile: None,
         lockfile: None,
         frozen_lockfile: false,
         prefer_frozen_lockfile: None,
@@ -251,6 +254,9 @@ async fn sends_the_identity_header_but_no_upstream_credentials() {
         !request.contains("authHeaders"),
         "the request body must not carry upstream credentials, got:\n{request}",
     );
+    for field in ["autoInstallPeers", "dedupePeers", "excludeLinksFromLockfile"] {
+        assert!(!request.contains(field), "{field} should be absent");
+    }
 }
 
 #[tokio::test]

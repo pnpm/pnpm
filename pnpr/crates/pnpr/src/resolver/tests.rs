@@ -5,7 +5,7 @@ use pnpm_resolving_resolver_base::{
     PackageVersionGuard, PackageVersionGuardDecision, PackageVersionGuardFuture,
 };
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, HashSet},
     net::SocketAddr,
     path::PathBuf,
     sync::{Arc, Mutex},
@@ -1148,14 +1148,8 @@ fn tarball_url_version_extracts_conventional_names_only() {
     assert_eq!(tarball_url_version("https://r/foo/-/foo.tgz", "foo"), None);
 }
 
-/// The resolve protocol carries no `autoInstallPeers` / `dedupePeers` /
-/// `excludeLinksFromLockfile`, so a request's config would otherwise
-/// resolve — and compare its frozen lockfile — under the server's
-/// defaults. The input lockfile records what its owner used, and the
-/// freshness gate rejects a lockfile whose settings disagree, so those
-/// values have to reach the config.
 #[test]
-fn intern_config_adopts_the_input_lockfile_settings() {
+fn intern_config_uses_lockfile_settings_for_a_legacy_frozen_request() {
     use super::intern_config;
     use pnpm_store_dir::StoreDir;
     use std::{collections::HashMap, path::PathBuf, sync::Mutex};
@@ -1185,21 +1179,106 @@ fn intern_config_adopts_the_input_lockfile_settings() {
     assert!(adopted.dedupe_peers);
     assert!(adopted.exclude_links_from_lockfile);
 
-    // A lockfile with no `settings` block says nothing, so the server's
-    // own defaults stand — and the two must not share an interned config.
     let defaults = intern(&request(None));
     assert!(defaults.auto_install_peers);
     assert!(!defaults.dedupe_peers);
     assert!(!defaults.exclude_links_from_lockfile);
 }
 
-/// A request that may update resolutions resolves under the server's
-/// settings, not the lockfile's: the lockfile records what the last
-/// install used, which is stale precisely when the client has just
-/// changed one. Nothing in the request carries the client's current
-/// value, so the frozen contract is the only place adoption is sound.
 #[test]
-fn intern_config_adopts_lockfile_settings_only_for_a_frozen_request() {
+fn intern_config_prefers_request_settings_and_keys_effective_values() {
+    use super::intern_config;
+    use pnpm_store_dir::StoreDir;
+
+    type Settings = (bool, bool, bool);
+    type OptionalSettings = (Option<bool>, Option<bool>, Option<bool>);
+
+    let configs = Mutex::new(HashMap::new());
+    let store_dir = StoreDir::new(PathBuf::from("/tmp/pnpr-request-settings-store"));
+    let cache_dir = PathBuf::from("/tmp/pnpr-request-settings-cache");
+    let requested = |(auto, dedupe, exclude): Settings| (Some(auto), Some(dedupe), Some(exclude));
+    let request =
+        |(auto_install_peers, dedupe_peers, exclude_links_from_lockfile): OptionalSettings,
+         lockfile_settings: Option<Settings>,
+         frozen_lockfile| {
+            let lockfile = lockfile_settings.map(
+                |(auto_install_peers, dedupe_peers, exclude_links_from_lockfile)| {
+                    serde_json::json!({
+                        "lockfileVersion": "9.0",
+                        "settings": {
+                            "autoInstallPeers": auto_install_peers,
+                            "dedupePeers": dedupe_peers,
+                            "excludeLinksFromLockfile": exclude_links_from_lockfile,
+                        }
+                    })
+                },
+            );
+            serde_json::from_value(serde_json::json!({
+                "autoInstallPeers": auto_install_peers,
+                "dedupePeers": dedupe_peers,
+                "excludeLinksFromLockfile": exclude_links_from_lockfile,
+                "lockfile": lockfile,
+                "frozenLockfile": frozen_lockfile,
+            }))
+            .expect("resolve request parses")
+        };
+    let intern = |configs: &Mutex<HashMap<String, &'static PacquetConfig>>,
+                  request: &ResolveRequest| {
+        intern_config(configs, &store_dir, &cache_dir, request, 10, usize::MAX)
+            .expect("intern config")
+    };
+    let effective = |config: &PacquetConfig| {
+        (config.auto_install_peers, config.dedupe_peers, config.exclude_links_from_lockfile)
+    };
+    let legacy = serde_json::from_value::<ResolveRequest>(serde_json::json!({}))
+        .expect("legacy resolve request parses");
+    assert_eq!(
+        (legacy.auto_install_peers, legacy.dedupe_peers, legacy.exclude_links_from_lockfile),
+        (None, None, None),
+    );
+
+    let first = (false, true, false);
+    let second = (true, false, true);
+    let frozen = intern(&configs, &request(requested(first), Some(second), true));
+    let update = intern(&configs, &request(requested(second), Some(first), false));
+    assert_eq!(effective(frozen), first);
+    assert_eq!(effective(update), second);
+    let update_reusing_frozen = intern(&configs, &request(requested(first), Some(second), false));
+    assert!(std::ptr::eq(frozen, update_reusing_frozen));
+
+    for (request_settings, lockfile_settings) in [
+        ((Some(false), None, None), (true, true, false)),
+        ((None, Some(true), None), (false, false, false)),
+        ((None, None, Some(false)), (false, true, true)),
+    ] {
+        let partial = intern(&configs, &request(request_settings, Some(lockfile_settings), true));
+        assert!(std::ptr::eq(frozen, partial));
+    }
+    let partial_update =
+        intern(&configs, &request((None, Some(true), None), Some((false, false, true)), false));
+    assert_eq!(effective(partial_update), (true, true, false));
+
+    let intern_key = |settings| intern(&configs, &request(requested(settings), None, false));
+    let cache_request = ResolveRequest::default();
+    let mut cache_keys = HashSet::new();
+    for auto_install_peers in [false, true] {
+        for dedupe_peers in [false, true] {
+            for exclude_links_from_lockfile in [false, true] {
+                let settings = (auto_install_peers, dedupe_peers, exclude_links_from_lockfile);
+                let config = intern_key(settings);
+                assert_eq!(effective(config), settings);
+                let cache_key =
+                    resolution_cache_key(config, &cache_request).expect("resolution cache key");
+                assert!(cache_keys.insert(cache_key));
+            }
+        }
+    }
+    assert_eq!(configs.lock().expect("config cache poisoned").len(), 8);
+    assert_eq!(cache_keys.len(), 8);
+}
+
+#[test]
+fn intern_config_uses_server_defaults_for_a_legacy_update_request() {
     use super::intern_config;
     use pnpm_store_dir::StoreDir;
     use std::{collections::HashMap, path::PathBuf, sync::Mutex};
@@ -1212,6 +1291,7 @@ fn intern_config_adopts_lockfile_settings_only_for_a_frozen_request() {
         lockfile: Some(Lockfile {
             settings: Some(pnpm_lockfile::LockfileSettings {
                 auto_install_peers: false,
+                dedupe_peers: Some(true),
                 exclude_links_from_lockfile: true,
                 ..pnpm_lockfile::LockfileSettings::default()
             }),
@@ -1223,17 +1303,19 @@ fn intern_config_adopts_lockfile_settings_only_for_a_frozen_request() {
 
     let config = intern_config(&configs, &store_dir, &cache_dir, &request, 10, usize::MAX)
         .expect("intern config");
-    assert!(config.auto_install_peers);
-    assert!(!config.exclude_links_from_lockfile);
+    let defaults = PacquetConfig::new();
+    assert_eq!(config.auto_install_peers, defaults.auto_install_peers);
+    assert_eq!(config.dedupe_peers, defaults.dedupe_peers);
+    assert_eq!(config.exclude_links_from_lockfile, defaults.exclude_links_from_lockfile);
 }
 
-/// Only the three adopted fields may reach the interning key. The rest of
+/// Only the three effective fields may reach the interning key. The rest of
 /// the `settings` block doesn't change the config, and keying on it would
 /// let a caller mint a distinct leaked config per value —
 /// `peersSuffixMaxLength` is a `u64` — until `MAX_INTERNED_CONFIGS` is
 /// spent and every caller is refused.
 #[test]
-fn intern_config_ignores_lockfile_settings_it_does_not_adopt() {
+fn intern_config_ignores_unrelated_lockfile_settings() {
     use super::intern_config;
     use pnpm_store_dir::StoreDir;
     use std::{collections::HashMap, path::PathBuf, sync::Mutex};
@@ -1253,7 +1335,6 @@ fn intern_config_ignores_lockfile_settings_it_does_not_adopt() {
         }),
         ..ResolveRequest::default()
     };
-    // A cap of one: a second distinct key would be refused outright.
     let intern = |request: &ResolveRequest| {
         intern_config(&configs, &store_dir, &cache_dir, request, 1, usize::MAX)
     };

@@ -64,6 +64,10 @@ export interface ResolveViaPnprServerOptions {
   catalogs?: Catalogs
   /** Node.js version for resolution */
   nodeVersion?: string
+  /** Current settings; omission uses server fallback, while `false` is preserved. */
+  autoInstallPeers?: boolean
+  dedupePeers?: boolean
+  excludeLinksFromLockfile?: boolean
   /**
    * The client's verification policy. The server is the only place these
    * run on the pnpr path — the client skips its own
@@ -149,6 +153,9 @@ export async function resolveViaPnprServer (
     overrides: opts.overrides,
     catalogs: opts.catalogs,
     nodeVersion: opts.nodeVersion ?? process.version.slice(1),
+    autoInstallPeers: opts.autoInstallPeers,
+    dedupePeers: opts.dedupePeers,
+    excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
     os: process.platform,
     arch: process.arch,
     minimumReleaseAge: opts.minimumReleaseAge,

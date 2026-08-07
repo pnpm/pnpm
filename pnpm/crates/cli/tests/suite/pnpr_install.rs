@@ -484,6 +484,7 @@ const WORKSPACE_DEP: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";
 const WORKSPACE_HELLO: &str = "@pnpm.e2e/hello-world-js-bin";
 const WORKSPACE_HELLO_PARENT: &str = "@pnpm.e2e/hello-world-js-bin-parent";
 const WORKSPACE_PARENT: &str = "@pnpm.e2e/pkg-with-1-dep";
+const MISSING_PEERS_PARENT: &str = "@pnpm.e2e/abc-parent-with-missing-peers";
 
 fn configure_workspace(workspace: &Path) {
     let path = workspace.join("pnpm-workspace.yaml");
@@ -645,29 +646,67 @@ fn standard_workspace_install_via_pnpr_from_member_resolves_every_real_importer(
 }
 
 #[test]
-fn frozen_lockfile_only_workspace_install_via_pnpr_from_member_uses_every_real_importer() {
+fn workspace_pnpr_install_uses_current_resolver_settings_and_frozen_replays_them_from_member() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
     configure_workspace(&workspace);
     write_workspace_project(&workspace, "app", "app", (WORKSPACE_HELLO, "1.0.0"));
     write_workspace_project(&workspace, "lib", "lib", (WORKSPACE_PARENT, "100.0.0"));
+    let resolver_settings = |lockfile: &Lockfile| {
+        let settings = lockfile.settings.as_ref().expect("lockfile settings");
+        (settings.auto_install_peers, settings.dedupe_peers, settings.exclude_links_from_lockfile)
+    };
     pacquet_at(&workspace)
         .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_env("PNPM_CONFIG_AUTO_INSTALL_PEERS", "true")
+        .with_env("PNPM_CONFIG_DEDUPE_PEERS", "false")
+        .with_env("PNPM_CONFIG_EXCLUDE_LINKS_FROM_LOCKFILE", "true")
         .with_args(["install", "--lockfile-only"])
         .assert()
         .success();
-    let before = read_workspace_lockfile(&workspace);
+    let stale = read_workspace_lockfile(&workspace);
+    assert_eq!(resolver_settings(&stale), (true, None, true));
+    replace_workspace_dependency(&workspace, "app", (MISSING_PEERS_PARENT, "1.0.0"));
     let (pnpr_url, token) = start_pnpr(&mock_instance.url());
     configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
 
+    pacquet_at(&workspace)
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_env("PNPM_CONFIG_AUTO_INSTALL_PEERS", "false")
+        .with_env("PNPM_CONFIG_DEDUPE_PEERS", "true")
+        .with_env("PNPM_CONFIG_EXCLUDE_LINKS_FROM_LOCKFILE", "false")
+        .with_args([
+            "install",
+            "--no-prefer-frozen-lockfile",
+            "--lockfile-only",
+            "--pnpr-server",
+            &pnpr_url,
+        ])
+        .assert()
+        .success();
+    let updated = read_workspace_lockfile(&workspace);
+    assert_eq!(resolver_settings(&updated), (false, Some(true), false));
+    for peer in ["@pnpm.e2e/peer-a", "@pnpm.e2e/peer-b", "@pnpm.e2e/peer-c"] {
+        let snapshots = workspace_snapshot_entries(&updated, peer);
+        assert!(snapshots.is_empty(), "autoInstallPeers=false must omit {peer}, got {snapshots:?}");
+    }
+    assert_eq!(workspace_importer_version(&updated, "packages/app", MISSING_PEERS_PARENT), "1.0.0");
+    let before_frozen = fs::read(workspace.join("pnpm-lock.yaml")).expect("read updated lockfile");
+
     pacquet_at(&workspace.join("packages/app"))
         .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_env("PNPM_CONFIG_AUTO_INSTALL_PEERS", "false")
+        .with_env("PNPM_CONFIG_DEDUPE_PEERS", "true")
+        .with_env("PNPM_CONFIG_EXCLUDE_LINKS_FROM_LOCKFILE", "false")
         .with_args(["install", "--frozen-lockfile", "--lockfile-only", "--pnpr-server", &pnpr_url])
         .assert()
         .success();
 
-    assert_eq!(read_workspace_lockfile(&workspace), before);
+    assert_eq!(
+        fs::read(workspace.join("pnpm-lock.yaml")).expect("read frozen lockfile"),
+        before_frozen,
+    );
     assert!(!workspace.join("node_modules").exists());
     assert!(!workspace.join("packages/app/node_modules").exists());
     assert!(!workspace.join("packages/lib/node_modules").exists());
