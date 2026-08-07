@@ -513,6 +513,157 @@ describe('checkDepsStatus - pnpmfile modification', () => {
   })
 })
 
+describe('checkDepsStatus - fingerprint', () => {
+  beforeEach(() => {
+    jest.resetModules()
+    jest.clearAllMocks()
+  })
+
+  const makeWorkspaceState = (fingerprint?: string): WorkspaceState => ({
+    lastValidatedTimestamp: Date.now() - 10_000,
+    pnpmfiles: [],
+    settings: {
+      excludeLinksFromLockfile: false,
+      linkWorkspacePackages: true,
+      preferWorkspacePackages: true,
+    },
+    projects: {},
+    filteredInstall: false,
+    fingerprint,
+  })
+
+  it('returns upToDate: false when the fingerprint has changed', async () => {
+    const mockWorkspaceState = makeWorkspaceState('fingerprint-before')
+    jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+
+    const opts: CheckDepsStatusOptions = {
+      rootProjectManifest: {},
+      rootProjectManifestDir: '/project',
+      pnpmfile: [],
+      hooks: {
+        calculateFingerprint: async () => 'fingerprint-after',
+      },
+      ...mockWorkspaceState.settings,
+    }
+    const result = await checkDepsStatus(opts)
+
+    expect(result.upToDate).toBe(false)
+    expect(result.issue).toBe('The fingerprint returned by a pnpmfile has changed')
+  })
+
+  it('returns upToDate: false when a fingerprint appears for the first time', async () => {
+    const mockWorkspaceState = makeWorkspaceState(undefined)
+    jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+
+    const opts: CheckDepsStatusOptions = {
+      rootProjectManifest: {},
+      rootProjectManifestDir: '/project',
+      pnpmfile: [],
+      hooks: {
+        calculateFingerprint: async () => 'fingerprint-new',
+      },
+      ...mockWorkspaceState.settings,
+    }
+    const result = await checkDepsStatus(opts)
+
+    expect(result.upToDate).toBe(false)
+    expect(result.issue).toBe('The fingerprint returned by a pnpmfile has changed')
+  })
+
+  it('returns upToDate: false when a previously recorded fingerprint is gone', async () => {
+    const mockWorkspaceState = makeWorkspaceState('fingerprint-before')
+    jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+
+    const opts: CheckDepsStatusOptions = {
+      rootProjectManifest: {},
+      rootProjectManifestDir: '/project',
+      pnpmfile: [],
+      ...mockWorkspaceState.settings,
+    }
+    const result = await checkDepsStatus(opts)
+
+    expect(result.upToDate).toBe(false)
+    expect(result.issue).toBe('The fingerprint returned by a pnpmfile has changed')
+  })
+
+  it('continues past the fingerprint check when the fingerprint is unchanged', async () => {
+    const lastValidatedTimestamp = Date.now() - 10_000
+    const beforeLastValidation = lastValidatedTimestamp - 10_000
+    const afterLastValidation = lastValidatedTimestamp + 1_000
+    const projectRootDir = '/project' as ProjectRootDir
+    const projectRootDirRealPath = '/project' as ProjectRootDirRealPath
+    const mockWorkspaceState: WorkspaceState = {
+      ...makeWorkspaceState('fingerprint-same'),
+      lastValidatedTimestamp,
+      settings: {
+        excludeLinksFromLockfile: false,
+        linkWorkspacePackages: true,
+        preferWorkspacePackages: true,
+        patchedDependencies: {
+          foo: '/project/patches/foo.patch',
+        },
+      },
+      projects: {
+        [projectRootDir]: {
+          name: 'root',
+          version: '1.0.0',
+        },
+      },
+    }
+
+    jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+
+    jest.mocked(fsUtils.safeStat).mockImplementation(async (filePath: string) => {
+      if (filePath === '/project/patches/foo.patch') {
+        return {
+          mtime: new Date(afterLastValidation),
+          mtimeMs: afterLastValidation,
+        } as Stats
+      }
+      return {
+        mtime: new Date(beforeLastValidation),
+        mtimeMs: beforeLastValidation,
+      } as Stats
+    })
+    jest.mocked(statManifestFileUtils.statManifestFile).mockImplementation(async () => ({
+      mtime: new Date(beforeLastValidation),
+      mtimeMs: beforeLastValidation,
+    } as Stats))
+
+    const opts: CheckDepsStatusOptions = {
+      allProjects: [{
+        rootDir: projectRootDir,
+        rootDirRealPath: projectRootDirRealPath,
+        manifest: {
+          name: 'root',
+          version: '1.0.0',
+          dependencies: {
+            foo: '1.0.0',
+          },
+        },
+        writeProjectManifest: async () => {},
+      }],
+      workspaceDir: '/project',
+      rootProjectManifest: {},
+      rootProjectManifestDir: '/project',
+      pnpmfile: [],
+      patchedDependencies: {
+        foo: '/project/patches/foo.patch',
+      },
+      hooks: {
+        calculateFingerprint: async () => 'fingerprint-same',
+      },
+      ...mockWorkspaceState.settings,
+    }
+    const result = await checkDepsStatus(opts)
+
+    // The matching fingerprint must not trip the check; the modified patch
+    // (a later check) is what makes the state outdated.
+    expect(result.upToDate).toBe(false)
+    expect(result.issue).toBe('Patches were modified')
+  })
+})
+
 describe('checkDepsStatus - lockfile conflicts', () => {
   beforeEach(() => {
     jest.resetModules()

@@ -439,6 +439,7 @@ export async function installDeps (
         settings: withUpdatedCatalogs(opts, updatedCatalogs),
         workspaceDir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
         pnpmfiles: opts.pnpmfile,
+        fingerprint: await opts.hooks?.calculateFingerprint?.(),
         filteredInstall: allProjects.length !== Object.keys(opts.selectedProjectsGraph ?? {}).length,
         configDependencies: opts.configDependencies,
       })
@@ -521,6 +522,7 @@ export async function installDeps (
         settings: withUpdatedCatalogs(opts, updatedCatalogs),
         workspaceDir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
         pnpmfiles: opts.pnpmfile,
+        fingerprint: await opts.hooks?.calculateFingerprint?.(),
         filteredInstall: allProjects.length !== Object.keys(opts.selectedProjectsGraph ?? {}).length,
         configDependencies: opts.configDependencies,
       })
@@ -549,6 +551,7 @@ async function recursiveInstallThenUpdateWorkspaceState (
       settings: withUpdatedCatalogs(opts, updatedCatalogs, recursiveResult.updatedCatalogs),
       workspaceDir: opts.workspaceDir,
       pnpmfiles: opts.pnpmfile,
+      fingerprint: await opts.hooks?.calculateFingerprint?.(),
       filteredInstall: allProjects.length !== Object.keys(opts.selectedProjectsGraph ?? {}).length,
       configDependencies: opts.configDependencies,
     })

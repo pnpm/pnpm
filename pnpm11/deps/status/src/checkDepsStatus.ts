@@ -254,6 +254,18 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     }
   }
 
+  let fingerprint: string | undefined
+  if (opts.hooks?.calculateFingerprint != null || workspaceState.fingerprint != null) {
+    fingerprint = await opts.hooks?.calculateFingerprint?.()
+    if (fingerprint !== workspaceState.fingerprint) {
+      return {
+        upToDate: false,
+        issue: 'The fingerprint returned by a pnpmfile has changed',
+        workspaceState,
+      }
+    }
+  }
+
   const lockfileDirs = getWantedLockfileDirs({
     allProjects,
     lockfileDir,
@@ -491,6 +503,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
       allProjects,
       workspaceDir,
       pnpmfiles: workspaceState.pnpmfiles,
+      fingerprint,
       settings: opts,
       filteredInstall: workspaceState.filteredInstall,
     })

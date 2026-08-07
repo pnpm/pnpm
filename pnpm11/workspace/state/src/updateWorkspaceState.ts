@@ -14,6 +14,7 @@ export interface UpdateWorkspaceStateOptions {
   settings: WorkspaceStateSettings
   workspaceDir: string
   pnpmfiles: string[]
+  fingerprint?: string
   filteredInstall: boolean
   configDependencies?: ConfigDependencies
 }
