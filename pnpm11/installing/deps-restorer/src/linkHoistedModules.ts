@@ -1,3 +1,4 @@
+import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
 import { linkBins } from '@pnpm/bins.linker'
@@ -41,10 +42,19 @@ export async function linkHoistedModules (
   }
 ): Promise<void> {
   // TODO: remove nested node modules first
-  const dirsToRemove = difference(
-    Object.keys(prevGraph),
-    Object.keys(graph)
+  const physicalDirsList = await Promise.all(
+    Object.keys(hierarchy).map((parentDir) => findPhysicalDirs(path.join(parentDir, 'node_modules')))
   )
+  const physicalDirs = physicalDirsList.flat()
+  const orphanPhysicalDirs = physicalDirs.filter((dir) => !graph[dir])
+
+  const dirsToRemove = Array.from(new Set([
+    ...difference(
+      Object.keys(prevGraph),
+      Object.keys(graph)
+    ),
+    ...orphanPhysicalDirs,
+  ]))
   statsLogger.debug({
     prefix: opts.lockfileDir,
     removed: dirsToRemove.length,
@@ -176,4 +186,56 @@ async function linkAllPkgsInOrder (
     preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
     warn: opts.warn,
   })
+}
+
+async function findPhysicalDirs (modulesDir: string): Promise<string[]> {
+  const dirs: string[] = []
+  let files: string[] = []
+  try {
+    files = await fs.readdir(modulesDir)
+  } catch (err: any) { // eslint-disable-line
+    if (err.code === 'ENOENT') return []
+    throw err
+  }
+  await Promise.all(
+    files.map(async (file) => {
+      if (file === '.bin' || file === '.ignored' || file === '.pnpm') return
+      const filePath = path.join(modulesDir, file)
+      let stat
+      try {
+        stat = await fs.lstat(filePath)
+      } catch {
+        return
+      }
+      if (stat.isSymbolicLink()) return
+      if (!stat.isDirectory()) return
+
+      if (file.startsWith('@')) {
+        let subFiles: string[] = []
+        try {
+          subFiles = await fs.readdir(filePath)
+        } catch {
+          return
+        }
+        await Promise.all(
+          subFiles.map(async (subFile) => {
+            const subFilePath = path.join(filePath, subFile)
+            let subStat
+            try {
+              subStat = await fs.lstat(subFilePath)
+            } catch {
+              return
+            }
+            if (subStat.isSymbolicLink()) return
+            if (subStat.isDirectory()) {
+              dirs.push(subFilePath)
+            }
+          })
+        )
+      } else {
+        dirs.push(filePath)
+      }
+    })
+  )
+  return dirs
 }
