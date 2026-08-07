@@ -702,14 +702,9 @@ fn walk_snapshot(
             .and_then(|meta| meta.version.clone())
             .unwrap_or_else(|| key.suffix.version().to_string());
 
-        // When metadata is read from the store, only describe packages pnpm
-        // would actually install on the current platform. Optional
-        // platform-specific dependencies for other platforms are in the
-        // lockfile but never fetched, so their metadata cannot be resolved and
-        // they would otherwise be emitted as components without a license (and
-        // without description, author, etc.). `pnpm licenses` filters these
-        // the same way.
-        // https://github.com/pnpm/pnpm/issues/13683
+        // Skip optional packages pnpm would not install on this platform; their
+        // metadata is not in the virtual store. --lockfile-only keeps the full
+        // platform-independent lockfile graph.
         if ctx.virtual_store_dir.is_some()
             && platform_incompatible_optional(
                 &name,

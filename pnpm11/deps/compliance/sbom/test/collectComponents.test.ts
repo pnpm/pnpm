@@ -71,21 +71,14 @@ describe('collectSbomComponents with named registries', () => {
   })
 })
 
-describe('collectSbomComponents with platform-incompatible optional packages', () => {
+describe('collectSbomComponents with platform-incompatible packages', () => {
   let storeDir: string
   let storeIndex: StoreIndex
 
   beforeAll(() => {
     storeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-sbom-installable-test-'))
     storeIndex = new StoreIndex(storeDir)
-  })
 
-  afterAll(() => {
-    storeIndex.close()
-    fs.rmSync(storeDir, { recursive: true, force: true })
-  })
-
-  it('skips optional packages that cannot be installed on the current platform, instead of emitting them without license metadata', async () => {
     // The installable package is present in the store with a declared license.
     const digest = 'abcd1234ef567890'
     const manifestPath = path.join(storeDir, 'files', digest.slice(0, 2), digest.slice(2))
@@ -105,35 +98,52 @@ describe('collectSbomComponents with platform-incompatible optional packages', (
     }
     // The store index key readPackageFileMap computes for a registry tarball.
     storeIndex.set(storeIndexKey(integrity, 'installable@1.0.0'), filesIndex)
+  })
 
-    const lockfile = {
+  afterAll(() => {
+    storeIndex.close()
+    fs.rmSync(storeDir, { recursive: true, force: true })
+  })
+
+  // Both platform-incompatible packages are constrained to Solaris, which no
+  // test matrix platform matches, so they are never installable anywhere.
+  function lockfileWithIncompatiblePackages (): LockfileObject {
+    return {
       lockfileVersion: '9.0',
       importers: {
         ['.' as ProjectId]: {
-          dependencies: { installable: '1.0.0' },
+          dependencies: {
+            installable: '1.0.0',
+            'never-installable-required': '1.0.0',
+          },
           optionalDependencies: { 'never-installable': '1.0.0' },
           specifiers: {
             installable: '^1.0.0',
             'never-installable': '^1.0.0',
+            'never-installable-required': '^1.0.0',
           },
         },
       },
       packages: {
         ['installable@1.0.0' as DepPath]: {
-          resolution: { integrity },
+          resolution: { integrity: 'sha512-installable/1.0.0' },
         },
         ['never-installable@1.0.0' as DepPath]: {
           resolution: { integrity: 'sha512-never/1.0.0' },
           optional: true,
-          // No platform in the test matrix matches Solaris, so the package is
-          // never installable regardless of the machine running the tests.
+          os: ['solaris'],
+        },
+        ['never-installable-required@1.0.0' as DepPath]: {
+          resolution: { integrity: 'sha512-never-required/1.0.0' },
           os: ['solaris'],
         },
       },
     } as unknown as LockfileObject
+  }
 
-    const { components } = await collectSbomComponents({
-      lockfile,
+  it('excludes platform-incompatible optional packages from the default SBOM', async () => {
+    const { components, relationships } = await collectSbomComponents({
+      lockfile: lockfileWithIncompatiblePackages(),
       rootName: 'root',
       rootVersion: '1.0.0',
       registries,
@@ -146,9 +156,33 @@ describe('collectSbomComponents with platform-incompatible optional packages', (
     expect(installable).toBeDefined()
     expect(installable?.license).toBe('MIT')
 
-    // Before the fix this component was emitted without a license because the
-    // package is not in the store; now it is excluded from the SBOM, matching
-    // what `pnpm licenses` reports.
+    // Optional packages for other platforms are not installed, so they have no
+    // store metadata and are omitted from the SBOM.
     expect(components.find((c) => c.name === 'never-installable')).toBeUndefined()
+
+    // Non-optional packages are not filtered by this optional-platform logic:
+    // the component and its relationship stay in the SBOM.
+    const required = components.find((c) => c.name === 'never-installable-required')
+    expect(required).toBeDefined()
+    expect(
+      relationships.some((r) => r.to === 'pkg:npm/never-installable-required@1.0.0')
+    ).toBe(true)
+  })
+
+  it('keeps platform-incompatible optional packages in the --lockfile-only SBOM', async () => {
+    const { components } = await collectSbomComponents({
+      lockfile: lockfileWithIncompatiblePackages(),
+      rootName: 'root',
+      rootVersion: '1.0.0',
+      registries,
+      lockfileDir: '/tmp/project',
+      storeDir,
+      lockfileOnly: true,
+    })
+
+    expect(components.find((c) => c.name === 'installable')).toBeDefined()
+    // --lockfile-only describes the full lockfile graph, so an optional
+    // package for another platform remains a component.
+    expect(components.find((c) => c.name === 'never-installable')).toBeDefined()
   })
 })

@@ -1022,9 +1022,7 @@ test('pnpm sbom excludes platform-incompatible optional packages instead of emit
   // `@pnpm.e2e/support-different-architectures` declares eight platform
   // bindings as optionalDependencies. Only the one for the current platform is
   // installed (and thus present in the store); the others are in the lockfile
-  // but were never fetched. They must not be emitted as components without
-  // license metadata — before the fix all eight appeared, seven of them
-  // license-less.
+  // but were never fetched, so they are omitted from the SBOM.
   // Component names drop the scope, so match on the purl, which keeps the full
   // package name.
   const onlyBindings = parsed.components.filter(
