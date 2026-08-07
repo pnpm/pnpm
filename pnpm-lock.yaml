@@ -3085,6 +3085,9 @@ importers:
       '@pnpm/config.normalize-registries':
         specifier: workspace:*
         version: link:../../../config/normalize-registries
+      '@pnpm/config.package-is-installable':
+        specifier: workspace:*
+        version: link:../../../config/package-is-installable
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../../core/constants

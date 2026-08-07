@@ -1,7 +1,13 @@
-import { describe, expect, it } from '@jest/globals'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
+import { afterAll, beforeAll, describe, expect, it } from '@jest/globals'
 import { normalizeNamedRegistries } from '@pnpm/config.normalize-registries'
 import { collectSbomComponents } from '@pnpm/deps.compliance.sbom'
 import type { LockfileObject } from '@pnpm/lockfile.types'
+import type { PackageFilesIndex } from '@pnpm/store.cafs'
+import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import type { DepPath, ProjectId, Registries } from '@pnpm/types'
 
 const registries: Registries = { default: 'https://registry.npmjs.org/' }
@@ -188,5 +194,87 @@ describe('verifiedIntegrity robustness', () => {
     const component = components.find((candidate) => candidate.name === 'foo')
     expect(component).toBeDefined()
     expect(component!.integrity).toBeUndefined()
+  })
+})
+
+describe('collectSbomComponents with platform-incompatible optional packages', () => {
+  let storeDir: string
+  let storeIndex: StoreIndex
+
+  beforeAll(() => {
+    storeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-sbom-installable-test-'))
+    storeIndex = new StoreIndex(storeDir)
+  })
+
+  afterAll(() => {
+    storeIndex.close()
+    fs.rmSync(storeDir, { recursive: true, force: true })
+  })
+
+  it('skips optional packages that cannot be installed on the current platform, instead of emitting them without license metadata', async () => {
+    // The installable package is present in the store with a declared license.
+    const digest = 'abcd1234ef567890'
+    const manifestPath = path.join(storeDir, 'files', digest.slice(0, 2), digest.slice(2))
+    fs.mkdirSync(path.dirname(manifestPath), { recursive: true })
+    fs.writeFileSync(manifestPath, JSON.stringify({
+      name: 'installable',
+      version: '1.0.0',
+      license: 'MIT',
+    }))
+
+    const integrity = 'sha512-installable/1.0.0'
+    const filesIndex: PackageFilesIndex = {
+      algo: 'sha256',
+      files: new Map([
+        ['package.json', { digest, mode: 0o644, size: 0 }],
+      ]),
+    }
+    // The store index key readPackageFileMap computes for a registry tarball.
+    storeIndex.set(storeIndexKey(integrity, 'installable@1.0.0'), filesIndex)
+
+    const lockfile = {
+      lockfileVersion: '9.0',
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { installable: '1.0.0' },
+          optionalDependencies: { 'never-installable': '1.0.0' },
+          specifiers: {
+            installable: '^1.0.0',
+            'never-installable': '^1.0.0',
+          },
+        },
+      },
+      packages: {
+        ['installable@1.0.0' as DepPath]: {
+          resolution: { integrity },
+        },
+        ['never-installable@1.0.0' as DepPath]: {
+          resolution: { integrity: 'sha512-never/1.0.0' },
+          optional: true,
+          // No platform in the test matrix matches Solaris, so the package is
+          // never installable regardless of the machine running the tests.
+          os: ['solaris'],
+        },
+      },
+    } as unknown as LockfileObject
+
+    const { components } = await collectSbomComponents({
+      lockfile,
+      rootName: 'root',
+      rootVersion: '1.0.0',
+      registries,
+      lockfileDir: '/tmp/project',
+      storeDir,
+      lockfileOnly: false,
+    })
+
+    const installable = components.find((c) => c.name === 'installable')
+    expect(installable).toBeDefined()
+    expect(installable?.license).toBe('MIT')
+
+    // Before the fix this component was emitted without a license because the
+    // package is not in the store; now it is excluded from the SBOM, matching
+    // what `pnpm licenses` reports.
+    expect(components.find((c) => c.name === 'never-installable')).toBeUndefined()
   })
 })
