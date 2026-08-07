@@ -102,7 +102,11 @@ pub(crate) fn catalog_references_have_snapshots(lockfile: &Lockfile, catalogs: &
     })
 }
 
-fn catalog_entry_is_referenced(lockfile: &Lockfile, catalog_name: &str, alias: &str) -> bool {
+pub(crate) fn catalog_entry_is_referenced(
+    lockfile: &Lockfile,
+    catalog_name: &str,
+    alias: &str,
+) -> bool {
     let Ok(alias) = PkgName::parse(alias) else { return true };
     let protocol = if catalog_name == "default" {
         "catalog:".to_string()

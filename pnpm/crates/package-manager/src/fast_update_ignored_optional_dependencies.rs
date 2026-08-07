@@ -50,6 +50,7 @@ pub(crate) fn try_fast_update_ignored_optional_dependencies(
     }
     candidate.ignored_optional_dependencies = Some(current.into_iter().collect());
     crate::fast_update_lockfile::prune_unreachable_packages(&mut candidate);
+    crate::fast_update_lockfile::prune_unreferenced_catalog_entries(&mut candidate);
     Some(candidate)
 }
 

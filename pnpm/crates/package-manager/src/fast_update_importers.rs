@@ -34,10 +34,14 @@ pub(crate) fn try_fast_update_importers(
         dropped.extend(removed);
     }
     if !dropped.is_empty() {
+        // Prune first: a peer-dependent snapshot that the removal itself
+        // makes unreachable needs no rekeying, so only the survivors are
+        // checked.
+        crate::fast_update_lockfile::prune_unreachable_packages(&mut candidate);
         if !peer_suffixes_are_independent_of(&candidate, &dropped) {
             return None;
         }
-        crate::fast_update_lockfile::prune_unreachable_packages(&mut candidate);
+        crate::fast_update_lockfile::prune_unreferenced_catalog_entries(&mut candidate);
     }
     changed.then_some(candidate)
 }

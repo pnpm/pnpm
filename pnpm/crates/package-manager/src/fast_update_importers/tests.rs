@@ -168,3 +168,165 @@ fn rejects_dropping_a_dependency_another_package_resolves_as_a_peer() {
         "baz's key embeds foo, so dropping foo rekeys baz rather than only pruning",
     );
 }
+
+/// `foo` is referenced through the default catalog by the sole importer;
+/// `bar` is a plain dependency.
+const WITH_CATALOG_DEP: &str = r"
+lockfileVersion: '9.0'
+catalogs:
+  default:
+    foo:
+      specifier: ^1.0.0
+      version: 1.1.0
+importers:
+  .:
+    specifiers:
+      foo: 'catalog:'
+      bar: ^2.0.0
+    dependencies:
+      foo:
+        specifier: 'catalog:'
+        version: 1.1.0
+      bar:
+        specifier: ^2.0.0
+        version: 2.0.0
+packages:
+  foo@1.1.0:
+    resolution:
+      integrity: sha512-foo
+  bar@2.0.0:
+    resolution:
+      integrity: sha512-bar
+snapshots:
+  foo@1.1.0: {}
+  bar@2.0.0: {}
+";
+
+/// `baz` resolves `foo` as a peer, and nothing else depends on `baz`,
+/// so dropping both from the manifest leaves no snapshot that embeds
+/// `foo`.
+const WITH_REMOVABLE_PEER_PAIR: &str = r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    specifiers:
+      foo: ^1.0.0
+      baz: ^4.0.0
+      bar: ^2.0.0
+    dependencies:
+      foo:
+        specifier: ^1.0.0
+        version: 1.1.0
+      baz:
+        specifier: ^4.0.0
+        version: 4.0.0(foo@1.1.0)
+      bar:
+        specifier: ^2.0.0
+        version: 2.0.0
+packages:
+  foo@1.1.0:
+    resolution:
+      integrity: sha512-foo
+  baz@4.0.0:
+    resolution:
+      integrity: sha512-baz
+  bar@2.0.0:
+    resolution:
+      integrity: sha512-bar
+snapshots:
+  foo@1.1.0: {}
+  baz@4.0.0(foo@1.1.0):
+    dependencies:
+      foo: 1.1.0
+  bar@2.0.0: {}
+";
+
+/// A surviving snapshot whose peer suffix pnpm shortened into a hash.
+const WITH_HASHED_PEER_SUFFIX: &str = r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    specifiers:
+      foo: ^1.0.0
+      baz: ^4.0.0
+    dependencies:
+      foo:
+        specifier: ^1.0.0
+        version: 1.1.0
+      baz:
+        specifier: ^4.0.0
+        version: 4.0.0(sha256-abcdef)
+packages:
+  foo@1.1.0:
+    resolution:
+      integrity: sha512-foo
+  baz@4.0.0:
+    resolution:
+      integrity: sha512-baz
+snapshots:
+  foo@1.1.0: {}
+  baz@4.0.0(sha256-abcdef): {}
+";
+
+#[test]
+fn prunes_a_catalog_entry_its_last_referent_dropped() {
+    let manifest = manifest_from(json!({ "dependencies": { "bar": "^2.0.0" } }));
+
+    let updated = try_fast_update_importers(
+        &parsed_lockfile(WITH_CATALOG_DEP),
+        &[(".".to_string(), &manifest)],
+    )
+    .expect("dropping the catalog referent needs no resolution");
+
+    assert!(updated.catalogs.is_none(), "the orphaned catalog entry goes with its referent");
+}
+
+#[test]
+fn keeps_a_catalog_entry_another_importer_references() {
+    let mut lockfile = parsed_lockfile(WITH_CATALOG_DEP);
+    let importer = lockfile.importers["."].clone();
+    lockfile.importers.insert("pkg-a".to_string(), importer);
+    let manifest = manifest_from(json!({ "dependencies": { "bar": "^2.0.0" } }));
+    let other = manifest_from(json!({ "dependencies": { "foo": "catalog:", "bar": "^2.0.0" } }));
+
+    let updated = try_fast_update_importers(
+        &lockfile,
+        &[(".".to_string(), &manifest), ("pkg-a".to_string(), &other)],
+    )
+    .expect("the other importer still references the catalog entry");
+
+    assert!(
+        updated.catalogs.as_ref().is_some_and(|catalogs| catalogs["default"].contains_key("foo")),
+        "the still-referenced catalog entry stays",
+    );
+}
+
+#[test]
+fn drops_a_peer_pair_removed_together() {
+    let manifest = manifest_from(json!({ "dependencies": { "bar": "^2.0.0" } }));
+
+    let updated = try_fast_update_importers(
+        &parsed_lockfile(WITH_REMOVABLE_PEER_PAIR),
+        &[(".".to_string(), &manifest)],
+    )
+    .expect("the peer-dependent snapshot is unreachable after the removal, so nothing rekeys");
+
+    let mut packages: Vec<_> =
+        updated.packages.as_ref().expect("packages").keys().map(ToString::to_string).collect();
+    packages.sort();
+    assert_eq!(packages, vec!["bar@2.0.0".to_string()]);
+}
+
+#[test]
+fn rejects_dropping_a_dependency_when_a_surviving_suffix_is_hashed() {
+    let manifest = manifest_from(json!({ "dependencies": { "baz": "^4.0.0" } }));
+
+    assert!(
+        try_fast_update_importers(
+            &parsed_lockfile(WITH_HASHED_PEER_SUFFIX),
+            &[(".".to_string(), &manifest)],
+        )
+        .is_none(),
+        "a shortened suffix cannot be checked for the dropped package",
+    );
+}

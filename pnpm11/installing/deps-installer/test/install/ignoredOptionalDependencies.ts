@@ -164,6 +164,33 @@ test('fast update prunes only optional packages that become unreachable', () => 
   expect(lockfile.packages).not.toHaveProperty(['unique@1.0.0'])
 })
 
+test('fast update prunes a catalog entry its last referent was ignored', () => {
+  const lockfile = {
+    catalogs: {
+      default: {
+        'is-positive': { specifier: '^1.0.0', version: '1.0.0' },
+      },
+    },
+    importers: {
+      '.': {
+        optionalDependencies: {
+          'is-positive': '1.0.0',
+        },
+        specifiers: {
+          'is-positive': 'catalog:',
+        },
+      },
+    },
+    lockfileVersion: '9.0',
+    packages: {
+      'is-positive@1.0.0': { resolution: { integrity: 'sha512-pos' } },
+    },
+  } as unknown as LockfileObject
+
+  expect(tryFastUpdateIgnoredOptionalDependencies(lockfile, ['is-positive'])).toBe(true)
+  expect(lockfile.catalogs).toBeUndefined()
+})
+
 test('fast update rejects a new exclusion pattern', () => {
   const lockfile = {
     ignoredOptionalDependencies: ['*'],
