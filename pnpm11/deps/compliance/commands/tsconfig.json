@@ -53,6 +53,9 @@
       "path": "../../../core/types"
     },
     {
+      "path": "../../../fetching/types"
+    },
+    {
       "path": "../../../installing/commands"
     },
     {
@@ -69,6 +72,9 @@
     },
     {
       "path": "../../../network/auth-header"
+    },
+    {
+      "path": "../../../network/fetch"
     },
     {
       "path": "../../../object/key-sorting"
