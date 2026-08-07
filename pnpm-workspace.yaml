@@ -456,8 +456,6 @@ minimumReleaseAgeExclude:
 
 nodeVersion: 22.13.0
 
-optimisticRepeatInstall: true
-
 overrides:
   '@cypress/request@3.0.9>qs': ^6.14.1
   '@yarnpkg/fslib@2': '3'
@@ -539,8 +537,6 @@ resolutionMode: lowest-direct
 
 savePrefix: ''
 
-sharedWorkspaceLockfile: true
-
 trustPolicy: no-downgrade
 
 trustPolicyExclude:
@@ -579,5 +575,3 @@ update:
     - undici
     - validate-npm-package-name
     - write-file-atomic
-
-verifyDepsBeforeRun: install
