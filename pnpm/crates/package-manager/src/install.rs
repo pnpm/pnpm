@@ -189,9 +189,12 @@ pub enum ProjectMutation {
     /// rewrite named dependencies rather than installing the project's
     /// whole manifest.
     InstallSome,
-    /// A run that installs no project's manifest: pnpm's
-    /// `mutation: 'uninstallSome'` (`pacquet remove`) and the commands
-    /// that only materialize what the lockfile already records
+    /// pnpm's `mutation: 'uninstallSome'`: `pacquet remove`, which
+    /// deletes named dependencies from the manifest before the install
+    /// runs.
+    UninstallSome,
+    /// A run that installs no project's manifest: the commands that
+    /// only materialize what the lockfile already records
     /// (`link`, `import`, `fetch`, `rebuild`).
     NoInstall,
 }
@@ -202,6 +205,16 @@ impl ProjectMutation {
     #[must_use]
     pub fn is_full_install(self) -> bool {
         matches!(self, ProjectMutation::InstallWorkspace | ProjectMutation::InstallSelected)
+    }
+
+    /// Whether the run may absorb manifest drift by rewriting the
+    /// loaded lockfile instead of resolving: full installs, and
+    /// `pacquet remove`, whose only drift is the importer edges it
+    /// deleted — exactly what the removal handler of
+    /// `try_fast_update_lockfile` expresses.
+    #[must_use]
+    pub fn may_fast_update_lockfile(self) -> bool {
+        self.is_full_install() || matches!(self, ProjectMutation::UninstallSome)
     }
 }
 

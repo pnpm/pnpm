@@ -497,8 +497,10 @@ where
         // would hide the change of a real install creating `pnpm-lock.yaml`.
         let existing_wanted_lockfile = lockfile;
         let lockfile = lockfile.or(synthesized_lockfile.as_ref());
-        let can_fast_update_lockfile =
-            !frozen_lockfile && !dry_run && prefer_frozen_lockfile && mutation.is_full_install();
+        let can_fast_update_lockfile = !frozen_lockfile
+            && !dry_run
+            && prefer_frozen_lockfile
+            && mutation.may_fast_update_lockfile();
         let fast_updated_lockfile = if can_fast_update_lockfile {
             try_fast_update_lockfile(FastUpdateLockfileOptions {
                 lockfile,
