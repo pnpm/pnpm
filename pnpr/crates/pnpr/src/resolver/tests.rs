@@ -215,7 +215,7 @@ fn resolution_cache_key_normalizes_catalog_json_order() {
 
     assert_eq!(
         resolution_cache_key(&config(), &first),
-        resolution_cache_key(&config(), &reordered)
+        resolution_cache_key(&config(), &reordered),
     );
 }
 
@@ -785,12 +785,19 @@ fn reject_inline_url_auth_scans_catalogs() {
         "catalogs": { "default": { "foo": "https://registry.example.test/foo.tgz" } }
     }))
     .expect("clean catalog request parses");
+    let ssh_catalog = serde_json::from_value::<ResolveRequest>(serde_json::json!({
+        "catalogs": { "default": { "foo": "git+ssh://git@github.com/org/repo.git" } }
+    }))
+    .expect("ssh catalog request parses");
 
     let response =
         reject_inline_url_auth(&dirty_catalog).expect("inline catalog credentials are rejected");
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 
     assert!(reject_inline_url_auth(&clean_catalog).is_none());
+    // A bare ssh login username is not an inline credential (the off-allowlist
+    // gate still decides whether the host may be fetched at all).
+    assert!(reject_inline_url_auth(&ssh_catalog).is_none());
 }
 
 #[test]

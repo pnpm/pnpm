@@ -797,18 +797,24 @@ impl RouteHook {
 /// `user:pass@host` (or `user@host`) credentials. Such URLs must be
 /// rejected before any fetch: pnpr must not turn a client-embedded
 /// credential into upstream Basic auth, treat it as a cache identity, or
-/// store it in a shared cache. Specs without a `scheme://` (a semver
+/// store it in a shared cache. An ssh remote's bare username
+/// (`git+ssh://git@host/...`) is transport addressing with no secret — the
+/// same login the scp form `git@host:path` spells — so on ssh schemes only
+/// a `user:pass@` userinfo counts. Specs without a `scheme://` (a semver
 /// range, a scoped name, `npm:`/`workspace:` aliases) never match.
 #[must_use]
 pub fn url_has_inline_credentials(spec: &str) -> bool {
-    let Some((_, after_scheme)) = spec.split_once("://") else {
+    let Some((scheme, after_scheme)) = spec.split_once("://") else {
         return false;
     };
     let authority = after_scheme.split(['/', '?', '#']).next().unwrap_or(after_scheme);
-    match authority.rsplit_once('@') {
-        Some((userinfo, _)) => !userinfo.is_empty(),
-        None => false,
+    let Some((userinfo, _)) = authority.rsplit_once('@') else {
+        return false;
+    };
+    if matches!(scheme, "ssh" | "git+ssh") {
+        return userinfo.contains(':');
     }
+    !userinfo.is_empty()
 }
 
 /// Strip an inline `user:pass@`/`user@` userinfo from a `scheme://` URL,
