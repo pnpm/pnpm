@@ -75,8 +75,12 @@ test('identifier and tail', () => {
   } as Identifier, '.def'])
   expect(parseIdentifier('helloWorld123-456')).toStrictEqual([{
     type: 'identifier',
-    content: 'helloWorld123',
-  } as Identifier, '-456'])
+    content: 'helloWorld123-456',
+  } as Identifier, ''])
+  expect(parseIdentifier('some-package-name.more')).toStrictEqual([{
+    type: 'identifier',
+    content: 'some-package-name',
+  } as Identifier, '.more'])
   expect(parseIdentifier('HelloWorld123 456')).toStrictEqual([{
     type: 'identifier',
     content: 'HelloWorld123',
