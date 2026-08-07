@@ -1179,6 +1179,20 @@ fn remove_command_drops_the_dependency_without_resolving() {
         !workspace.join("node_modules").join("is-positive").exists(),
         "and unlinked from node_modules",
     );
+    assert!(
+        manifest["dependencies"].get("@pnpm.e2e/pkg-with-1-dep").is_some(),
+        "the surviving dependency keeps its manifest entry",
+    );
+    assert!(
+        wanted.importers["."].dependencies.as_ref().is_some_and(|dependencies| {
+            dependencies.contains_key(&"@pnpm.e2e/pkg-with-1-dep".parse().expect("alias"))
+        }),
+        "and its importer entry",
+    );
+    assert!(
+        workspace.join("node_modules").join("@pnpm.e2e").join("pkg-with-1-dep").exists(),
+        "and its node_modules link",
+    );
 
     drop((root, mock_instance));
 }
