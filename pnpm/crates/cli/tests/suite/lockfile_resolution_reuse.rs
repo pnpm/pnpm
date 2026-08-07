@@ -1130,6 +1130,9 @@ fn remove_command_drops_the_dependency_without_resolving() {
             "dependencies": {
                 "@pnpm.e2e/pkg-with-1-dep": "100.0.0",
                 "is-positive": "1.0.0"
+            },
+            "scripts": {
+                "postinstall": "node -e \"require('fs').writeFileSync('postinstall-ran','')\""
             }
         })
         .to_string(),
@@ -1141,6 +1144,8 @@ fn remove_command_drops_the_dependency_without_resolving() {
     fs::write(&workspace_yaml_path, format!("{workspace_yaml}trustLockfile: true\n"))
         .expect("enable trusted lockfile");
     pacquet_at(&workspace).with_arg("install").assert().success();
+    fs::remove_file(workspace.join("postinstall-ran"))
+        .expect("the full install ran the project postinstall");
 
     let dead_registry = dead_registry_url();
     let live_npmrc = fs::read_to_string(&npmrc_path).expect("read .npmrc");
@@ -1192,6 +1197,10 @@ fn remove_command_drops_the_dependency_without_resolving() {
     assert!(
         workspace.join("node_modules").join("@pnpm.e2e").join("pkg-with-1-dep").exists(),
         "and its node_modules link",
+    );
+    assert!(
+        !workspace.join("postinstall-ran").exists(),
+        "a remove runs no project lifecycle script",
     );
 
     drop((root, mock_instance));
