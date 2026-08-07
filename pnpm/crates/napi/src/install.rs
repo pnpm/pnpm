@@ -491,6 +491,7 @@ fn run_install_inner(
                 // A peer-issue query resolves without writing anything;
                 // the sink presence suppresses the CLI dry-run report.
                 dry_run: matches!(mode, EngineMode::PeerIssues(_)),
+                persist_policy_excludes: false,
                 update_seed_policy,
                 auth_override: None,
                 resolution_observer: None,
