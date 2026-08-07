@@ -32,6 +32,16 @@ fn pacquet(workspace: &Path) -> Command {
         .without_env("NPM_CONFIG_OTP")
         .without_env("ACTIONS_ID_TOKEN_REQUEST_TOKEN")
         .without_env("ACTIONS_ID_TOKEN_REQUEST_URL")
+        // These tests turn on publish settings a developer may also have set
+        // globally, so pin the layers below `pnpm-workspace.yaml` to nothing:
+        // `XDG_CONFIG_HOME` points at the workspace (which has no `pnpm/`
+        // subdirectory), and the `PNPM_CONFIG_*` overlay is cleared.
+        .with_env("XDG_CONFIG_HOME", workspace)
+        .without_env("PNPM_CONFIG_ACCESS")
+        .without_env("PNPM_CONFIG_TAG")
+        .without_env("PNPM_CONFIG_PROVENANCE")
+        .without_env("PNPM_CONFIG_OTP")
+        .without_env("PNPM_CONFIG_PUBLISH_BRANCH")
 }
 
 fn stage(workspace: &Path, args: &[&str]) -> std::process::Output {
@@ -211,6 +221,31 @@ fn approve_and_reject_send_the_configured_otp_and_stage_headers() {
         stdout.contains(&format!("Staged package {STAGE_ID} has been rejected.")),
         "stdout: {stdout}",
     );
+}
+
+/// `otp` is one of the `publish` rc options `stage` inherits, so the
+/// subcommands that talk to the `-/stage` API have to honor a configured one
+/// the same way `--otp` is honored — upstream reads `opts.otp` before falling
+/// back to `opts.cliOptions.otp`.
+#[test]
+fn approve_sends_an_otp_configured_in_the_workspace_yaml() {
+    let dir = tempfile::tempdir().expect("workspace");
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    write_registry_config(dir.path(), &registry);
+    fs::write(dir.path().join("pnpm-workspace.yaml"), "otp: '654321'\n")
+        .expect("write pnpm-workspace.yaml");
+    let approve_mock = server
+        .mock("POST", format!("/-/stage/{STAGE_ID}/approve").as_str())
+        .match_header("npm-otp", "654321")
+        .with_status(201)
+        .with_body(r#"{"ok":true}"#)
+        .expect(1)
+        .create();
+
+    let approve = stage(dir.path(), &["approve", STAGE_ID]);
+    approve_mock.assert();
+    assert_success(&approve);
 }
 
 #[test]

@@ -307,6 +307,27 @@ pub struct WorkspaceSettings {
     /// `true`.
     pub git_checks: Option<bool>,
 
+    /// `publishBranch` from `pnpm-workspace.yaml`. See
+    /// [`Config::publish_branch`]. Workspace-only — cleared from the global
+    /// `config.yaml` by [`Self::clear_workspace_only_fields`].
+    pub publish_branch: Option<String>,
+
+    /// `access` from `pnpm-workspace.yaml` / global `config.yaml`. See
+    /// [`Config::access`].
+    pub access: Option<String>,
+
+    /// `tag` from `pnpm-workspace.yaml` / global `config.yaml`. See
+    /// [`Config::tag`].
+    pub tag: Option<String>,
+
+    /// `provenance` from `pnpm-workspace.yaml` / global `config.yaml`. See
+    /// [`Config::provenance`].
+    pub provenance: Option<bool>,
+
+    /// `otp` from `pnpm-workspace.yaml` / global `config.yaml`. See
+    /// [`Config::otp`].
+    pub otp: Option<String>,
+
     /// `engineStrict` from `pnpm-workspace.yaml` / global `config.yaml`.
     /// See [`Config::engine_strict`]. Default `false`.
     pub engine_strict: Option<bool>,
@@ -879,6 +900,7 @@ impl WorkspaceSettings {
         self.allow_unused_patches = None;
         self.save_catalog_name = None;
         self.save_peer = None;
+        self.publish_branch = None;
     }
 
     /// Walk up from `start_dir` looking for a readable `pnpm-workspace.yaml`.
@@ -923,6 +945,7 @@ impl WorkspaceSettings {
     /// [`Config`].
     pub fn substitute_env_trusted<Sys: EnvVar>(&mut self) {
         self.substitute_env_scalars::<Sys>();
+        substitute_optional_string::<Sys>(&mut self.otp);
         substitute_optional_string::<Sys>(&mut self.pnpr_server);
         substitute_optional_string::<Sys>(&mut self.registry);
         substitute_optional_string::<Sys>(&mut self.https_proxy);
@@ -941,6 +964,13 @@ impl WorkspaceSettings {
     /// are filtered instead of expanding environment variables into
     /// request URLs.
     ///
+    /// `otp` is filtered for the same reason from the other side: it is a
+    /// credential this file gets to choose, and `publish` puts it on the wire
+    /// as an `npm-otp` header to a registry this same file can point anywhere.
+    /// Expanding a placeholder here would let a repository turn any variable
+    /// in the publisher's environment into an outbound header. A literal `otp`
+    /// still works — only a `${VAR}` in it is refused.
+    ///
     /// Call this before [`Self::apply_to`] so expanded values land in
     /// [`Config`] and filtered values do not.
     pub fn substitute_env_untrusted<Sys: EnvVar>(&mut self) {
@@ -957,6 +987,9 @@ impl WorkspaceSettings {
         }
         if self.pnpr_server.as_deref().is_some_and(has_env_placeholder) {
             self.pnpr_server = None;
+        }
+        if self.otp.as_deref().is_some_and(has_env_placeholder) {
+            self.otp = None;
         }
         for proxy in [&mut self.https_proxy, &mut self.http_proxy, &mut self.proxy] {
             if proxy.as_deref().is_some_and(has_env_placeholder) {
@@ -976,6 +1009,9 @@ impl WorkspaceSettings {
 
     fn substitute_env_scalars<Sys: EnvVar>(&mut self) {
         substitute_optional_string::<Sys>(&mut self.scope);
+        substitute_optional_string::<Sys>(&mut self.publish_branch);
+        substitute_optional_string::<Sys>(&mut self.access);
+        substitute_optional_string::<Sys>(&mut self.tag);
         substitute_optional_string::<Sys>(&mut self.store_dir);
         substitute_optional_string::<Sys>(&mut self.modules_dir);
         substitute_optional_string::<Sys>(&mut self.virtual_store_dir);
@@ -1122,6 +1158,21 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.scope {
             config.scope = Some(v);
+        }
+        if let Some(v) = self.publish_branch {
+            config.publish_branch = Some(v);
+        }
+        if let Some(v) = self.access {
+            config.access = Some(v);
+        }
+        if let Some(v) = self.tag {
+            config.tag = Some(v);
+        }
+        if let Some(v) = self.provenance {
+            config.provenance = Some(v);
+        }
+        if let Some(v) = self.otp {
+            config.otp = Some(v);
         }
         if let Some(v) = self.pnpr_server {
             config.pnpr_server = Some(v);
