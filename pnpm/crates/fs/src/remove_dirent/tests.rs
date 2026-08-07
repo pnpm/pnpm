@@ -2,8 +2,19 @@
 
 use super::remove_dirent;
 use crate::symlink_dir;
-use std::fs;
+use std::{fs, io, path::Path};
 use tempfile::tempdir;
+
+/// Assert `path` no longer exists, distinguishing "gone" (`NotFound`)
+/// from an inspection failure that would leave the entry in place.
+#[track_caller]
+fn assert_gone(path: &Path, what: &str) {
+    let metadata = fs::symlink_metadata(path);
+    assert!(
+        matches!(&metadata, Err(error) if error.kind() == io::ErrorKind::NotFound),
+        "{what} must be gone, got {metadata:?}",
+    );
+}
 
 #[test]
 fn removes_a_regular_file() {
@@ -39,7 +50,7 @@ fn removes_a_directory_link_without_touching_its_target() {
 
     remove_dirent(&link).expect("remove the link");
 
-    assert!(fs::symlink_metadata(&link).is_err(), "the link itself must be gone");
+    assert_gone(&link, "the link itself");
     assert!(target.join("file.txt").exists(), "the target must be untouched");
 }
 
@@ -58,7 +69,7 @@ fn removes_a_dangling_directory_link() {
 
     remove_dirent(&link).expect("remove the dangling link");
 
-    assert!(fs::symlink_metadata(&link).is_err(), "the dangling link must be gone");
+    assert_gone(&link, "the dangling link");
 }
 
 #[cfg(unix)]
@@ -72,7 +83,7 @@ fn removes_a_file_symlink() {
 
     remove_dirent(&link).expect("remove the file symlink");
 
-    assert!(fs::symlink_metadata(&link).is_err(), "the link must be gone");
+    assert_gone(&link, "the link");
     assert!(target.exists(), "the target must be untouched");
 }
 
@@ -88,7 +99,7 @@ fn windows_removes_a_junction_without_touching_its_target() {
 
     remove_dirent(&link).expect("remove the junction");
 
-    assert!(fs::symlink_metadata(&link).is_err(), "the junction itself must be gone");
+    assert_gone(&link, "the junction itself");
     assert!(target.join("file.txt").exists(), "the target must be untouched");
 }
 
@@ -104,5 +115,5 @@ fn windows_removes_a_dangling_junction() {
 
     remove_dirent(&link).expect("remove the dangling junction");
 
-    assert!(fs::symlink_metadata(&link).is_err(), "the dangling junction must be gone");
+    assert_gone(&link, "the dangling junction");
 }

@@ -61,9 +61,10 @@ fn clean_removes_package_links_into_the_virtual_store() {
     assert!(output.status.success(), "pacquet clean should succeed: {stderr}");
 
     assert!(!node_modules.join(".pnpm").exists(), ".pnpm should be removed");
+    let link_metadata = fs::symlink_metadata(node_modules.join("greenly"));
     assert!(
-        fs::symlink_metadata(node_modules.join("greenly")).is_err(),
-        "the package link should be removed",
+        matches!(&link_metadata, Err(error) if error.kind() == std::io::ErrorKind::NotFound),
+        "the package link should be removed, got {link_metadata:?}",
     );
 
     drop(root);
