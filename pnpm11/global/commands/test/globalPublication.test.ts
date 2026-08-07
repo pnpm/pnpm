@@ -53,9 +53,9 @@ const linkBinsOfPackages = jest.fn<LinkBinsOfPackages>(async (pkgs, globalBinDir
     .filter(({ command }) => !opts.excludeBins?.has(command.name))
 
   await fs.mkdir(globalBinDir, { recursive: true })
-  let writes = 0
+  const writtenPkgNames: string[] = []
   /* eslint-disable no-await-in-loop -- sequential writes make the injected partial failure deterministic */
-  for (const { command } of commands) {
+  for (const { command, pkgName } of commands) {
     if (skipMissingBinSources && !existsSync(command.path)) continue
     const slot = path.join(globalBinDir, command.name)
     await fs.rm(slot, { force: true, recursive: true })
@@ -63,13 +63,13 @@ const linkBinsOfPackages = jest.fn<LinkBinsOfPackages>(async (pkgs, globalBinDir
     const sourceStat = await fs.stat(command.path)
     await fs.chmod(slot, sourceStat.mode & 0o777)
     linkedBinNames.push(command.name)
-    writes++
-    if (linkFailure != null && writes === linkFailure.afterWrites) {
+    writtenPkgNames.push(pkgName)
+    if (linkFailure != null && writtenPkgNames.length === linkFailure.afterWrites) {
       throw linkFailure.error
     }
   }
   /* eslint-enable no-await-in-loop */
-  return commands.map(({ pkgName }) => pkgName)
+  return writtenPkgNames
 })
 
 const removeBin = jest.fn<RemoveBin>(async (cmd) => {
@@ -301,8 +301,8 @@ test('preserves Windows file and directory symlink kinds with relative targets',
     await fs.mkdir(path.join(fixture.oldInstallDir, 'dir-target'))
     const fileLink = path.join(fixture.globalBinDir, 'file-link')
     const dirLink = path.join(fixture.globalBinDir, 'dir-link')
-    await fs.symlink(fileTarget, fileLink, 'file')
-    await fs.symlink(dirTarget, dirLink, 'dir')
+    if (!await seedSymlinkOrSkip(fileTarget, fileLink, 'file')) return
+    if (!await seedSymlinkOrSkip(dirTarget, dirLink, 'dir')) return
     const publicationError = new Error('hash-link publication failed')
     publicationLinkFailure = publicationError
 
@@ -367,7 +367,7 @@ test('publishes when a Windows bin slot is a dangling symlink', async () => {
     }
     const fixture = await createFixture(manifest)
     const toolSlot = path.join(fixture.globalBinDir, 'tool')
-    await fs.symlink(path.join(fixture.oldInstallDir, 'missing-target.js'), toolSlot, 'file')
+    if (!await seedSymlinkOrSkip(path.join(fixture.oldInstallDir, 'missing-target.js'), toolSlot, 'file')) return
 
     const publishedBins = await publishGlobalInstall({
       installDir: fixture.freshInstallDir,
@@ -746,6 +746,19 @@ async function createCleanupFixture (): Promise<CleanupFixture> {
     fs.mkdir(oldInstallDir, { recursive: true }),
   ])
   return { root, globalDir, globalBinDir, oldInstallDir }
+}
+
+// A Windows host without Developer Mode or elevation cannot create
+// symlinks; the tests that need one bail out instead of failing.
+async function seedSymlinkOrSkip (target: string, linkPath: string, type: 'file' | 'dir'): Promise<boolean> {
+  try {
+    await fs.symlink(target, linkPath, type)
+    return true
+  } catch (err) {
+    const code = util.types.isNativeError(err) && 'code' in err ? String(err.code) : undefined
+    if (!['EACCES', 'ENOSYS', 'ENOTSUP', 'EPERM'].includes(code ?? '')) throw err
+    return false
+  }
 }
 
 async function seedSymlinkOrRegularFile (
