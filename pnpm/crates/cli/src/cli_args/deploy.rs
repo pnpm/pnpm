@@ -8,7 +8,7 @@ use indexmap::IndexMap;
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pacquet_config::{Config, LinkWorkspacePackages, NodeLinker, PackageImportMethod};
 use pacquet_directory_fetcher::DirectoryFetcher;
-use pacquet_fs::{lexical_normalize, remove_symlink_dir};
+use pacquet_fs::{lexical_normalize, remove_dirent};
 use pacquet_lockfile::{
     DirectoryResolution, ImporterDepVersion, LazyLockfile, Lockfile, LockfileResolution,
     MaybeLazyLockfile, PackageKey, PackageMetadata, PkgName, PkgNameVerPeer, ProjectSnapshot,
@@ -693,20 +693,13 @@ fn is_empty_dir_or_absent(path: &Path) -> miette::Result<bool> {
 }
 
 fn remove_path_if_exists(path: &Path) -> miette::Result<()> {
-    let metadata = match fs::symlink_metadata(path) {
-        Ok(metadata) => metadata,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
-        Err(error) => return Err(error).into_diagnostic(),
-    };
-    let unsafe_link = is_unsafe_deploy_link(&metadata);
-    if metadata.is_dir() && !unsafe_link {
-        fs::remove_dir_all(path).into_diagnostic()
-    } else if metadata.is_dir() {
-        remove_symlink_dir(path).into_diagnostic()
-    } else {
-        fs::remove_file(path).into_diagnostic()
+    match remove_dirent(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error)
+            .into_diagnostic()
+            .wrap_err_with(|| format!("remove deploy path {}", path.display())),
     }
-    .wrap_err_with(|| format!("remove deploy path {}", path.display()))
 }
 
 fn is_unsafe_deploy_link(metadata: &fs::Metadata) -> bool {

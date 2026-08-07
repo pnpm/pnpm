@@ -41,6 +41,34 @@ fn clean_removes_packages_and_pnpm_entries_but_preserves_non_pnpm_dotfiles() {
     drop(root);
 }
 
+/// The real isolated-linker layout: `node_modules/<name>` is a link
+/// (symlink or junction) into `.pnpm`. `.pnpm` sorts before the package
+/// names, so by the time `clean` reaches the link it dangles — removal
+/// must unlink it rather than follow it
+/// ([pnpm/pnpm#13694](https://github.com/pnpm/pnpm/issues/13694)).
+#[test]
+fn clean_removes_package_links_into_the_virtual_store() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+
+    let node_modules = workspace.join("node_modules");
+    let store_pkg_dir = node_modules.join(".pnpm").join("greenly@1.0.0").join("node_modules");
+    seed_package(&store_pkg_dir, "greenly");
+    pacquet_fs::symlink_dir(&store_pkg_dir.join("greenly"), &node_modules.join("greenly"))
+        .expect("link the package into node_modules");
+
+    let output = pacquet.with_args(["clean"]).output().expect("run pacquet clean");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "pacquet clean should succeed: {stderr}");
+
+    assert!(!node_modules.join(".pnpm").exists(), ".pnpm should be removed");
+    assert!(
+        fs::symlink_metadata(node_modules.join("greenly")).is_err(),
+        "the package link should be removed",
+    );
+
+    drop(root);
+}
+
 #[test]
 fn clean_handles_missing_node_modules_gracefully() {
     let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
