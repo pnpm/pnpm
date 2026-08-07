@@ -50,6 +50,9 @@ fn url_has_inline_credentials_allows_bare_ssh_usernames() {
     // An ssh login username is transport addressing, not a credential.
     assert!(!url_has_inline_credentials("git+ssh://git@github.com/org/repo.git"));
     assert!(!url_has_inline_credentials("ssh://git@github.com/org/repo.git"));
+    // Schemes match case-insensitively, and a password still counts.
+    assert!(!url_has_inline_credentials("GIT+SSH://git@github.com/org/repo.git"));
+    assert!(url_has_inline_credentials("SSH://user:pass@github.com/org/repo.git"));
     // A password is a credential on every scheme, ssh included.
     assert!(url_has_inline_credentials("git+ssh://user:pass@github.com/org/repo.git"));
     assert!(url_has_inline_credentials("ssh://user:pass@github.com/org/repo.git"));

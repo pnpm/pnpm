@@ -811,7 +811,7 @@ pub fn url_has_inline_credentials(spec: &str) -> bool {
     let Some((userinfo, _)) = authority.rsplit_once('@') else {
         return false;
     };
-    if matches!(scheme, "ssh" | "git+ssh") {
+    if scheme.eq_ignore_ascii_case("ssh") || scheme.eq_ignore_ascii_case("git+ssh") {
         return userinfo.contains(':');
     }
     !userinfo.is_empty()
