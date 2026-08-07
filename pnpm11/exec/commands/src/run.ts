@@ -240,7 +240,7 @@ export async function handler (
     return printProjectCommands(manifest, rootManifest ?? undefined)
   }
 
-  let specifiedScripts = getSpecifiedScripts(manifest.scripts ?? {}, scriptName)
+  let specifiedScripts = getSpecifiedScripts(manifest.scripts ?? {}, scriptName, !opts.sequential)
 
   if (!process.env.npm_lifecycle_event) {
     specifiedScripts = throwOrFilterHiddenScripts(specifiedScripts, scriptName)
@@ -464,8 +464,8 @@ function renderCommands (commands: string[][]): string {
   return commands.map(([scriptName, script]) => `  ${scriptName}\n    ${script}`).join('\n')
 }
 
-function getSpecifiedScripts (scripts: PackageScripts, scriptName: string): string[] {
-  const specifiedSelector = getSpecifiedScriptWithoutStartCommand(scripts, scriptName)
+function getSpecifiedScripts (scripts: PackageScripts, scriptName: string, sort?: boolean): string[] {
+  const specifiedSelector = getSpecifiedScriptWithoutStartCommand(scripts, scriptName, sort)
 
   if (specifiedSelector.length > 0) {
     return specifiedSelector

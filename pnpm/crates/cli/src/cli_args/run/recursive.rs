@@ -299,7 +299,7 @@ fn run_project(options: RunProjectOptions<'_, '_>) -> miette::Result<ProjectExec
         silent,
     } = options;
     let manifest = &graph[root].package.project.manifest;
-    let specified = selector.select(manifest.value());
+    let specified = selector.select(manifest.value(), args.sequential);
     if specified.is_empty() {
         let mut status = ExecutionStatus::queued();
         status.status = Status::Skipped;
@@ -329,15 +329,7 @@ fn run_project(options: RunProjectOptions<'_, '_>) -> miette::Result<ProjectExec
         }
         execution.has_command += 1;
         let start = Instant::now();
-        let ctx = RunContext {
-            manifest,
-            dir: root,
-            init_cwd,
-            config,
-            extra_env,
-            silent,
-            sequential: args.sequential,
-        };
+        let ctx = RunContext { manifest, dir: root, init_cwd, config, extra_env, silent };
         let status = run_stages(&ctx, selected, script, args.script_args())?;
         let duration = start.elapsed().as_secs_f64() * 1e3;
 

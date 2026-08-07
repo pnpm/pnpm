@@ -106,36 +106,21 @@ pub enum RunError {
 }
 
 impl RunArgs {
-    /// Build the positional from a script name and its arguments, for the
-    /// paths that synthesize a `run` rather than parsing one.
-    pub(super) fn script<Args>(name: &str, args: Args) -> Vec<String>
-    where
-        Args: IntoIterator<Item = String>,
-    {
-        std::iter::once(name.to_string()).chain(args).collect()
+    pub fn script(name: &str, args: impl IntoIterator<Item = String>) -> Vec<String> {
+        let mut script = vec![name.to_string()];
+        script.extend(args);
+        script
     }
 
-    /// The script to run, or `None` when `run` was given no positional and
-    /// should list the available scripts instead.
-    pub(super) fn script_name(&self) -> Option<&str> {
+    pub fn script_name(&self) -> Option<&str> {
         self.script.first().map(String::as_str)
     }
 
-    /// The arguments to forward to the script, verbatim.
-    pub(super) fn script_args(&self) -> &[String] {
-        self.script.get(1..).unwrap_or_default()
+    pub fn script_args(&self) -> &[String] {
+        if self.script.is_empty() { &[] } else { &self.script[1..] }
     }
 
-    /// Execute the subcommand in `dir`. `silent` suppresses the
-    /// `$ <script>` echo (set when the reporter is `silent`).
-    ///
-    /// On a non-zero script exit code this terminates the process with
-    /// the same code, matching pnpm where a failing script sets the
-    /// process exit code.
-    ///
-    /// The `resume_from` / `report_summary` / `no_bail` fields are only
-    /// meaningful for the recursive path (see [`Self::run_recursive`])
-    /// and are ignored here.
+    /// Execute the subcommand in `dir`; `silent` suppresses the `$ <script>` echo.
     pub fn run(self, dir: &Path, config: &Config, silent: bool) -> miette::Result<()> {
         self.run_inner(dir, config, silent, false)
     }
@@ -171,7 +156,8 @@ impl RunArgs {
             Err(err) => return Err(RunError::Manifest(err).into()),
         };
 
-        let mut specified = ScriptSelector::new(script_name)?.select_with_start(manifest.value());
+        let mut specified =
+            ScriptSelector::new(script_name)?.select_with_start(manifest.value(), sequential);
 
         // Hidden scripts (names starting with `.`) can only be invoked
         // from within another script, detected by an inherited
@@ -214,23 +200,55 @@ impl RunArgs {
             config,
             extra_env: &extra_env,
             silent,
-            sequential,
         };
-        for name in &specified {
-            // Resolve the main body (with `start` → `node server.js`
-            // fallback) and apply the args-aware `npx only-allow pnpm`
-            // no-op skip. After both pass, [`run_stages`] is
-            // guaranteed to actually run the main stage, so its return
-            // is a plain `ExitStatus`.
-            let Some(main) = resolve_main_script(&ctx, name)? else { continue };
-            if args.is_empty() && main == "npx only-allow pnpm" {
-                continue;
+
+        if sequential {
+            for name in &specified {
+                let Some(main) = resolve_main_script(&ctx, name)? else { continue };
+                if args.is_empty() && main == "npx only-allow pnpm" {
+                    continue;
+                }
+                let status = run_stages(&ctx, name, &main, args)?;
+                if !status.success() {
+                    std::process::exit(status.code().unwrap_or(1));
+                }
             }
-            let status = run_stages(&ctx, name, &main, args)?;
-            if !status.success() {
-                // A failing script sets the process exit code.
-                // `run_stage` already emitted the `[ELIFECYCLE]` line.
-                std::process::exit(status.code().unwrap_or(1));
+        } else {
+            let results: Vec<_> = std::thread::scope(|scope| {
+                let mut handles: Vec<Result<_, miette::Report>> =
+                    Vec::with_capacity(specified.len());
+                for name in &specified {
+                    let main = match resolve_main_script(&ctx, name) {
+                        Ok(Some(m)) => m,
+                        Ok(None) => continue,
+                        Err(e) => {
+                            handles.push(Err(e.into()));
+                            continue;
+                        }
+                    };
+                    if args.is_empty() && main == "npx only-allow pnpm" {
+                        continue;
+                    }
+                    let name = name.clone();
+                    let ctx = &ctx;
+                    let args = &args;
+                    handles.push(Ok(scope.spawn(move || run_stages(ctx, &name, &main, args))));
+                }
+                handles
+                    .into_iter()
+                    .map(|handle_result| match handle_result {
+                        Ok(handle) => handle
+                            .join()
+                            .unwrap_or_else(|_| Err(miette::miette!("script thread panicked"))),
+                        Err(e) => Err(e),
+                    })
+                    .collect()
+            });
+            for result in results {
+                let status = result?;
+                if !status.success() {
+                    std::process::exit(status.code().unwrap_or(1));
+                }
             }
         }
         Ok(())
@@ -258,7 +276,7 @@ fn exec_fallback(
     config: &Config,
 ) -> miette::Result<()> {
     ExecArgs {
-        command: RunArgs::script(script_name, args.iter().cloned()),
+        command: std::iter::once(script_name.to_string()).chain(args.iter().cloned()).collect(),
         shell_mode: false,
         resume_from: None,
         report_summary: false,
@@ -280,7 +298,6 @@ pub(super) struct RunContext<'a> {
     pub(super) config: &'a Config,
     pub(super) extra_env: &'a HashMap<String, String>,
     pub(super) silent: bool,
-    pub(super) sequential: bool,
 }
 
 /// Resolve `name` to a runnable main script body, or `Ok(None)` when
@@ -342,7 +359,6 @@ pub(super) fn run_stages(
     main_body: &str,
     args: &[String],
 ) -> miette::Result<std::process::ExitStatus> {
-    let _ = ctx.sequential;
     let get_script = |key: &str| -> Option<String> {
         ctx.manifest
             .value()
@@ -390,13 +406,7 @@ pub(super) fn run_stages(
     Ok(main_status)
 }
 
-/// Run one lifecycle stage. Returns `Ok(None)` when pnpm's per-stage
-/// no-op guards apply (empty body, or `npx only-allow pnpm` with no
-/// args), so the caller can record "didn't actually run" without
-/// inventing a synthetic `ExitStatus`. A non-success `ExitStatus` is
-/// returned to the caller — single-project `RunArgs::run` exits with
-/// the code; recursive `run_recursive` records `Failure` and decides
-/// whether to bail.
+/// Run one lifecycle stage. Returns `Ok(None)` for no-op guards (empty body or `npx only-allow pnpm` with no args).
 pub(super) fn run_stage(
     ctx: &RunContext<'_>,
     stage: &str,
@@ -486,7 +496,7 @@ impl<'a> ScriptSelector<'a> {
 
     /// The script names this selector picks out of `manifest`: an exact
     /// match wins, otherwise every script the pattern matches.
-    pub(super) fn select(&self, manifest: &Value) -> Vec<String> {
+    pub(super) fn select(&self, manifest: &Value, sequential: bool) -> Vec<String> {
         let scripts = manifest.get("scripts").and_then(Value::as_object);
         let has_script = scripts
             .and_then(|scripts| scripts.get(self.name))
@@ -499,15 +509,20 @@ impl<'a> ScriptSelector<'a> {
         let (Some(pattern), Some(scripts)) = (self.pattern.as_ref(), scripts) else {
             return Vec::new();
         };
-        scripts.keys().filter(|script| pattern.is_match(script)).cloned().collect()
+        let mut keys: Vec<String> =
+            scripts.keys().filter(|script| pattern.is_match(script)).cloned().collect();
+        if !sequential {
+            keys.sort();
+        }
+        keys
     }
 
     /// [`Self::select`] plus single-project `run`'s `start` fallback:
     /// `pnpm start` resolves to `node server.js` even when the manifest
     /// declares no `start` script. The recursive runner has no such
     /// fallback.
-    fn select_with_start(&self, manifest: &Value) -> Vec<String> {
-        let specified = self.select(manifest);
+    fn select_with_start(&self, manifest: &Value, sequential: bool) -> Vec<String> {
+        let specified = self.select(manifest, sequential);
         if !specified.is_empty() {
             return specified;
         }
