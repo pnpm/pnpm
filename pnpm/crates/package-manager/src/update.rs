@@ -349,6 +349,7 @@ impl Update<'_> {
             node_linker: config.node_linker,
             lockfile_only,
             dry_run: false,
+            persist_policy_excludes: save,
             update_seed_policy: seed_policy,
             auth_override: None,
             resolution_observer,
@@ -465,6 +466,7 @@ impl Update<'_> {
             node_linker: config.node_linker,
             lockfile_only,
             dry_run: false,
+            persist_policy_excludes: save,
             update_seed_policy: UpdateSeedPolicy::ByImporter {
                 policies: prepared.seed_policies,
                 max_depth: UpdateDepth::new(depth),

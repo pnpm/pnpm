@@ -107,6 +107,7 @@ impl DedupeArgs {
             node_linker: config.node_linker,
             lockfile_only: true,
             dry_run: false,
+            persist_policy_excludes: true,
             update_seed_policy: pacquet_package_manager::UpdateSeedPolicy::KeepAllResolveAll,
             auth_override: None,
             resolution_observer: Some(Arc::new(DedupeResolutionReporter::<Reporter> {

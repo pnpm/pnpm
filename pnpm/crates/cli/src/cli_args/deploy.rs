@@ -393,6 +393,7 @@ impl DeployArgs {
             node_linker,
             lockfile_only: false,
             dry_run: false,
+            persist_policy_excludes: false,
             update_seed_policy: UpdateSeedPolicy::KeepAll,
             auth_override: None,
             resolution_observer: None,

@@ -365,6 +365,14 @@ where
     /// lockfile, the workspace-state file — and exits 0 regardless of
     /// whether changes were found.
     pub dry_run: bool,
+    /// Whether loose-mode resolution-policy bypasses may be persisted to
+    /// `pnpm-workspace.yaml` — see
+    /// [`InstallWithFreshLockfile::persist_policy_excludes`]. `true` for
+    /// the user-facing resolving commands (`install`, `add`, `update` with
+    /// `--save`, `dedupe`); `false` for embedder-driven installs and every
+    /// command that must not touch the workspace manifest. Ignored on the
+    /// frozen path, which resolves nothing.
+    pub persist_policy_excludes: bool,
     /// Which lockfile pins to withhold from the preferred-versions seed.
     /// [`UpdateSeedPolicy::KeepAll`] for `install` / `add`; the `DropAll`
     /// / `DropOnly` variants drive `pacquet update`'s compatible bump by
