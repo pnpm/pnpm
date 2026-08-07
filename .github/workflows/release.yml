@@ -399,7 +399,6 @@ jobs:
       attestations: write  # for actions/attest-build-provenance
     runs-on: macos-latest
     environment: release
-    timeout-minutes: 360
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -428,11 +427,10 @@ jobs:
         with:
           runtime: node@26.7.0
       # Internal workspace packages still publish with the static token. `@pnpm/exe`
-      # and `pnpm` use stage-only OIDC and wait for an interactive 2FA approval, in
-      # that order, so the `pnpm` gate cannot become public while the executable
-      # wrapper is pending. Keeping each stage operation in a token-free step also
-      # prevents an accidental fallback to token authentication. Each wait has a
-      # 90-minute deadline, leaving room for both layers within the job deadline.
+      # and `pnpm` use stage-only OIDC. CI stages both packages but cannot approve
+      # or publish them; a maintainer does that later with interactive 2FA. Keeping
+      # each stage operation in a token-free step also prevents an accidental
+      # fallback to token authentication.
       - name: Build TypeScript executable artifacts
         run: pn --filter=@pnpm/exe run build-artifacts
       - name: Publish internal workspace packages (static token)
@@ -455,20 +453,10 @@ jobs:
           .github/scripts/npm-staged-publication.sh stage
           'TypeScript @pnpm/exe wrapper' next-11
           pnpm11/pnpm/artifacts/exe
-      - name: Wait for @pnpm/exe approval
-        run: >-
-          .github/scripts/npm-staged-publication.sh wait
-          'TypeScript @pnpm/exe wrapper'
-          pnpm11/pnpm/artifacts/exe
       - name: Stage pnpm CLI (OIDC)
         run: >-
           .github/scripts/npm-staged-publication.sh stage
           'TypeScript pnpm CLI' next-11
-          pnpm11/pnpm
-      - name: Wait for pnpm CLI approval
-        run: >-
-          .github/scripts/npm-staged-publication.sh wait
-          'TypeScript pnpm CLI'
           pnpm11/pnpm
       - name: Copy Artifacts
         run: pn copy-artifacts
@@ -900,7 +888,6 @@ jobs:
     name: Publish pnpm (Rust) and @pnpm/napi to npm
     runs-on: ubuntu-latest
     environment: release
-    timeout-minutes: 360
     permissions:
       # Required by pnpm/setup to resolve the pnpm 11 GitHub release asset.
       contents: read
@@ -954,24 +941,18 @@ jobs:
           node pnpm/npm/pnpm/scripts/generate-packages.mjs
           node pnpm/npm/napi/scripts/generate-packages.mjs
 
-      # Every generated package uses stage-only OIDC. Each dependency layer
-      # must be approved with interactive 2FA before its wrappers are staged:
-      # native packages first, `@pnpm/napi` / `@pnpm/exe` second, and `pnpm`
-      # last. This keeps exact-version optionalDependencies installable and
-      # preserves `pnpm` as the plan job's "release completed" gate. The build
-      # dirs `pacquet-*` are published as `@pnpm/exe.<target>`. Each wait has a
-      # 90-minute deadline, leaving room for all three layers within the job deadline.
+      # Every generated package uses stage-only OIDC. CI stages the native
+      # packages, `@pnpm/napi` / `@pnpm/exe` wrappers, and `pnpm`, then finishes
+      # without publishing any of them. A maintainer approves those layers later
+      # with interactive 2FA in the same dependency order. The `pnpm` wrapper is
+      # approved last because the plan job uses it as the "release completed"
+      # gate. The build dirs `pacquet-*` publish as `@pnpm/exe.<target>`.
       - name: Stage Rust native packages (OIDC)
         env:
           TAG: ${{ needs.plan.outputs.rust_tag }}
         run: >-
           .github/scripts/npm-staged-publication.sh stage
           'Rust native packages' "$TAG"
-          pnpm/npm/pacquet-* pnpm/npm/napi.*
-      - name: Wait for Rust native package approvals
-        run: >-
-          .github/scripts/npm-staged-publication.sh wait
-          'Rust native packages'
           pnpm/npm/pacquet-* pnpm/npm/napi.*
       - name: Stage Rust wrapper packages (OIDC)
         env:
@@ -980,22 +961,12 @@ jobs:
           .github/scripts/npm-staged-publication.sh stage
           'Rust wrapper packages' "$TAG"
           pnpm/npm/napi pnpm/npm/pnpm-exe
-      - name: Wait for Rust wrapper package approvals
-        run: >-
-          .github/scripts/npm-staged-publication.sh wait
-          'Rust wrapper packages'
-          pnpm/npm/napi pnpm/npm/pnpm-exe
       - name: Stage Rust pnpm package (OIDC)
         env:
           TAG: ${{ needs.plan.outputs.rust_tag }}
         run: >-
           .github/scripts/npm-staged-publication.sh stage
           'Rust pnpm package' "$TAG"
-          pnpm/npm/pnpm
-      - name: Wait for Rust pnpm package approval
-        run: >-
-          .github/scripts/npm-staged-publication.sh wait
-          'Rust pnpm package'
           pnpm/npm/pnpm
 
   github-release-rust:

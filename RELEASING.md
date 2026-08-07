@@ -66,13 +66,12 @@ See [#13578](https://github.com/pnpm/pnpm/issues/13578).
    git push origin "${tags[@]}"
    ```
 
-6. Approve the staged npm packages. The TypeScript pnpm release stages
-   `@pnpm/exe` and then `pnpm`. The Rust pnpm release stages its native
-   packages, then its `@pnpm/napi` and `@pnpm/exe` wrappers, and finally
-   `pnpm`. Each stage pauses the workflow until every package in that dependency
-   layer has been approved and is public. Copy the stage IDs from the job
-   summary and approve each one from a maintainer's machine within the layer's
-   90-minute approval window:
+6. After the workflow finishes, approve the staged npm packages. The TypeScript
+   pnpm release stages `@pnpm/exe` and then `pnpm`. The Rust pnpm release
+   stages its native packages, then its `@pnpm/napi` and `@pnpm/exe` wrappers, and finally
+   `pnpm`. Copy the stage IDs from the completed job's summary and approve each
+   one from a maintainer's machine. Approve all packages in each dependency
+   layer before moving to the next layer, leaving `pnpm` until last:
 
    ```bash
    pnpm stage approve <stage-id>

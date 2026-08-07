@@ -84,84 +84,9 @@ stage_packages() {
     {
       printf '\nApprove every staged package above with interactive 2FA using '
       printf '`pnpm stage approve <stage-id>`. '
-      printf 'The workflow will continue after this entire dependency layer is public.\n'
+      printf 'Wait until the workflow finishes, then approve the dependency layers in release order.\n'
     } >> "$GITHUB_STEP_SUMMARY"
   fi
-}
-
-wait_for_packages() {
-  local layer=$1
-  shift
-
-  local poll_seconds=${NPM_PUBLICATION_POLL_SECONDS:-30}
-  local timeout_seconds=${NPM_PUBLICATION_TIMEOUT_SECONDS:-5400}
-  if [[ ! $poll_seconds =~ ^[1-9][0-9]*$ ]]; then
-    echo "::error::NPM_PUBLICATION_POLL_SECONDS must be a positive integer" >&2
-    return 1
-  fi
-  if [[ ! $timeout_seconds =~ ^[0-9]+$ ]]; then
-    echo "::error::NPM_PUBLICATION_TIMEOUT_SECONDS must be a non-negative integer" >&2
-    return 1
-  fi
-
-  local package_dir name version package_spec state lookup_output
-  local -a package_specs=()
-  for package_dir in "$@"; do
-    IFS=$'\t' read -r name version < <(read_package_identity "$package_dir")
-    package_specs+=("$name@$version")
-  done
-
-  local deadline=$((SECONDS + timeout_seconds))
-  local consecutive_lookup_failures=0
-  local max_consecutive_lookup_failures=3
-  local -a pending=()
-  while true; do
-    pending=()
-    local lookup_failed=false
-    for package_spec in "${package_specs[@]}"; do
-      if ! lookup_output=$(publication_state "$package_spec" 2>&1); then
-        pending+=("$package_spec")
-        lookup_failed=true
-        while IFS= read -r line; do
-          printf 'publication state lookup: %s\n' "$line" >&2
-        done <<< "$lookup_output"
-        continue
-      fi
-      state=$lookup_output
-      case "$state" in
-        published) ;;
-        missing) pending+=("$package_spec") ;;
-        *)
-          echo "::error::Unexpected npm publication state for $package_spec" >&2
-          return 1
-          ;;
-      esac
-    done
-
-    if [ "$lookup_failed" = true ]; then
-      consecutive_lookup_failures=$((consecutive_lookup_failures + 1))
-      if [ "$consecutive_lookup_failures" -ge "$max_consecutive_lookup_failures" ]; then
-        echo "::error::npm publication state lookup failed $consecutive_lookup_failures consecutive times" >&2
-        return 1
-      fi
-    else
-      consecutive_lookup_failures=0
-    fi
-
-    if [ "${#pending[@]}" -eq 0 ]; then
-      echo "Every package in $layer is published."
-      return
-    fi
-    if [ "$SECONDS" -ge "$deadline" ]; then
-      echo "::error::Timed out waiting for npm approval of the $layer packages:" >&2
-      printf '  %s\n' "${pending[@]}" >&2
-      return 1
-    fi
-
-    echo "Waiting for npm approval of the $layer packages:"
-    printf '  %s\n' "${pending[@]}"
-    sleep "$poll_seconds"
-  done
 }
 
 case "${1:-}" in
@@ -173,16 +98,8 @@ case "${1:-}" in
     shift
     stage_packages "$@"
     ;;
-  wait)
-    if [ "$#" -lt 3 ]; then
-      echo "Usage: $0 wait <layer> <package-dir>..." >&2
-      exit 1
-    fi
-    shift
-    wait_for_packages "$@"
-    ;;
   *)
-    echo "Usage: $0 <stage|wait> ..." >&2
+    echo "Usage: $0 stage <layer> <tag> <package-dir>..." >&2
     exit 1
     ;;
 esac
