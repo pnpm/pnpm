@@ -210,7 +210,9 @@ fn load_meta_past_the_hold_cap_ignores_a_sparse_tail() {
     let mirror = dir.path().join("acme.jsonl");
     let pkg = fixture_package();
     save_meta_indexed(&mirror, &pkg, None).expect("save");
-    let file = std::fs::OpenOptions::new().append(true).open(&mirror).expect("open");
+    // `write(true)`, not `append(true)`: Windows denies `set_len` on an
+    // append-only handle (`FILE_APPEND_DATA` without `FILE_WRITE_DATA`).
+    let file = std::fs::OpenOptions::new().write(true).open(&mirror).expect("open");
     let size = file.metadata().expect("metadata").len();
     file.set_len(size + 64 * 1024 * 1024).expect("extend sparsely");
     let loaded = load_meta_with_hold_cap(&mirror, 0).expect("read full back without a handle");
@@ -232,7 +234,7 @@ fn load_meta_past_the_hold_cap_skips_a_sparse_gap_between_spans() {
     let contents =
         format!("pacquet-meta-v1 {} {}\n{headers}{index}{fragment}", headers.len(), index.len());
     std::fs::write(&mirror, &contents).expect("write");
-    let file = std::fs::OpenOptions::new().append(true).open(&mirror).expect("open");
+    let file = std::fs::OpenOptions::new().write(true).open(&mirror).expect("open");
     file.set_len(contents.len() as u64 + far_offset + 16).expect("extend sparsely");
     let loaded = load_meta_with_hold_cap(&mirror, 0).expect("read full back without a handle");
     let manifest = loaded.versions.get("1.0.0").expect("hydrate the near fragment");
@@ -259,7 +261,7 @@ fn load_meta_treats_an_oversized_fragment_span_as_absent() {
     std::fs::write(&mirror, &contents).expect("write");
     // A sparse tail makes the file size cover the declared span
     // without paying for the bytes, like a corrupt mirror would.
-    let file = std::fs::OpenOptions::new().append(true).open(&mirror).expect("open");
+    let file = std::fs::OpenOptions::new().write(true).open(&mirror).expect("open");
     file.set_len(contents.len() as u64 + 64 * 1024 * 1024).expect("extend sparsely");
     let loaded = load_meta(&mirror).expect("read full back");
     assert!(loaded.versions.get("9.9.9").is_none(), "oversized span must read as absent");
