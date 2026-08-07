@@ -1132,7 +1132,7 @@ fn remove_command_drops_the_dependency_without_resolving() {
                 "is-positive": "1.0.0"
             },
             "scripts": {
-                "postinstall": "node -e \"require('fs').writeFileSync('postinstall-ran','')\""
+                "postinstall": r#"node -e "require('fs').writeFileSync('postinstall-ran','')""#
             }
         })
         .to_string(),
