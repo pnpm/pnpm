@@ -15,7 +15,7 @@
 use crate::{
     LoadLockfileError, Lockfile, PackageKey, PackageMetadata, SaveLockfileError, SnapshotEntry,
     extract_env_document, extract_main_document,
-    save_lockfile::{ensure_lockfile_is_not_symlink, symlinked_lockfile_error},
+    save_lockfile::ensure_lockfile_is_not_symlink,
     serialize_yaml,
     yaml_documents::{YAML_DOCUMENT_SEPARATOR, YAML_DOCUMENT_START},
 };
@@ -28,6 +28,8 @@ use std::{
     path::Path,
 };
 
+#[cfg(unix)]
+use crate::save_lockfile::symlinked_lockfile_error;
 #[cfg(unix)]
 use std::os::unix::fs::OpenOptionsExt as _;
 
