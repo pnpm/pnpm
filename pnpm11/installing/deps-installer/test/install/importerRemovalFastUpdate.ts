@@ -3,7 +3,7 @@ import { mutateModulesInSingleProject } from '@pnpm/installing.deps-installer'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { prepareEmpty } from '@pnpm/prepare'
 import type { StoreController } from '@pnpm/store.controller-types'
-import type { DepPath, ProjectId, ProjectManifest } from '@pnpm/types'
+import type { DepPath, ProjectId, ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { clone } from 'ramda'
 
 import {
