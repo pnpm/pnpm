@@ -765,7 +765,7 @@ pub(super) async fn apply_materialization_result<Reporter: self::Reporter + 'sta
     // install.
     update_workspace_state(
         &workspace_root,
-        &build_workspace_state(
+        &build_workspace_state::<Host>(
             &workspace_root,
             config,
             node_linker,

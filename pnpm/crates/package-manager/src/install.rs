@@ -41,7 +41,7 @@ use pacquet_resolving_npm_resolver::InMemoryPackageMetaCache;
 use pacquet_resolving_resolver_base::ResolutionVerifier;
 use pacquet_tarball::MemCache;
 use pacquet_workspace_state::{
-    ProjectEntry, UpdateWorkspaceStateError, WorkspaceState, now_millis, update_workspace_state,
+    ProjectEntry, UpdateWorkspaceStateError, WorkspaceState, update_workspace_state,
 };
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},

@@ -1,7 +1,7 @@
 //! The pre-run dependency-status check behind `verifyDepsBeforeRun`.
 
 use super::{
-    Config, Lockfile, LockfileConflictCheckFailure, ManifestStat, NodeLinker,
+    Config, Host, Lockfile, LockfileConflictCheckFailure, ManifestStat, NodeLinker,
     OptimisticRepeatInstallCheck, WorkspaceState, catalogs_cache_matches,
     current_lockfile_file_has_content, current_lockfile_unusable_with_non_empty_wanted,
     first_lockfile_requiring_conflict_safe_install, first_project_missing_modules_dir,
@@ -160,7 +160,7 @@ pub fn check_deps_status_before_run(
                 return outdated(reason);
             }
             if is_workspace_install {
-                let mut new_state = crate::install::build_workspace_state(
+                let mut new_state = crate::install::build_workspace_state::<Host>(
                     workspace_root,
                     config,
                     node_linker,

@@ -5259,6 +5259,7 @@ dependencies = [
  "dunce",
  "flate2",
  "pacquet-fs",
+ "pacquet-workspace-state",
  "pnpr",
  "pnpr-fixtures",
  "serde_json",

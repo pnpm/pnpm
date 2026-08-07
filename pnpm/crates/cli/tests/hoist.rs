@@ -30,7 +30,7 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pacquet_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
-    fs::is_symlink_or_junction,
+    fs::{bump_mtime, is_symlink_or_junction},
 };
 use std::{fs, path::Path, process::Command};
 
@@ -786,6 +786,7 @@ fn should_hoist_dependencies_repeat_install_preserves_map() {
     let manifest_path = workspace.join("package.json");
     let manifest_bytes = fs::read(&manifest_path).expect("read package.json");
     fs::write(&manifest_path, manifest_bytes).expect("rewrite package.json");
+    bump_mtime(&manifest_path);
     pacquet_in(&workspace).with_arg("install").assert().success();
     assert!(workspace.join("node_modules/.pnpm/node_modules/@pnpm.e2e/foo").exists());
     assert_eq!(hoisted_dependencies(&workspace), baseline);

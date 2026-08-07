@@ -27,5 +27,7 @@ text-block-macros = { workspace = true }
 pnpr-fixtures     = { workspace = true }
 pacquet-fs        = { workspace = true }
 
+pacquet-workspace-state = { workspace = true }
+
 [lints]
 workspace = true

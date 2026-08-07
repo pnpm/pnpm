@@ -1780,11 +1780,27 @@ async fn install_writes_workspace_state() {
 mod build_workspace_state_tests {
     use super::super::build_workspace_state;
     use pacquet_config::Config;
-    use pacquet_modules_yaml::IncludedDependencies;
+    use pacquet_modules_yaml::{Clock, IncludedDependencies};
     use pacquet_package_manifest::PackageManifest;
     use pacquet_workspace_state::ConfigDependency;
-    use std::{collections::BTreeMap, path::PathBuf};
+    use std::{
+        collections::BTreeMap,
+        path::PathBuf,
+        time::{Duration, SystemTime},
+    };
     use tempfile::tempdir;
+
+    /// Stands in for the wall clock so the fallback branch records a value
+    /// the assertions can name. Far enough in the past that a real mtime
+    /// never collides with it.
+    const FAKE_NOW_MS: i64 = 1_700_000_000_000;
+
+    struct FrozenClock;
+    impl Clock for FrozenClock {
+        fn now() -> SystemTime {
+            SystemTime::UNIX_EPOCH + Duration::from_millis(FAKE_NOW_MS as u64)
+        }
+    }
 
     fn write_manifest(dir: &std::path::Path, name: &str, version: &str) -> PackageManifest {
         let manifest_path = dir.join("package.json");
@@ -1793,13 +1809,14 @@ mod build_workspace_state_tests {
         PackageManifest::from_path(manifest_path).unwrap()
     }
 
-    /// A zero-project input produces an empty `projects` map but still
-    /// populates the timestamp.
+    /// A zero-project input produces an empty `projects` map, and with
+    /// nothing on disk to take an mtime from the timestamp falls back to
+    /// the clock.
     #[test]
     fn empty_project_list_produces_empty_projects_map() {
         let dir = tempdir().unwrap();
         let config = Config::new();
-        let state = build_workspace_state(
+        let state = build_workspace_state::<FrozenClock>(
             dir.path(),
             &config,
             pacquet_config::NodeLinker::default(),
@@ -1810,7 +1827,31 @@ mod build_workspace_state_tests {
             false,
         );
         assert!(state.projects.is_empty());
-        assert!(state.last_validated_timestamp > 0);
+        assert_eq!(state.last_validated_timestamp, FAKE_NOW_MS);
+    }
+
+    /// The mtime baseline wins over the clock whenever anything the
+    /// install validated can be stat'd, so the recorded timestamp shares a
+    /// clock with the files the freshness check compares it against.
+    #[test]
+    fn prefers_the_manifest_mtime_over_the_clock() {
+        let dir = tempdir().unwrap();
+        let manifest = write_manifest(dir.path(), "root", "1.0.0");
+        let config = Config::new();
+        let state = build_workspace_state::<FrozenClock>(
+            dir.path(),
+            &config,
+            pacquet_config::NodeLinker::default(),
+            IncludedDependencies::default(),
+            None,
+            &BTreeMap::default(),
+            &[(dir.path().to_path_buf(), &manifest)],
+            false,
+        );
+        assert_eq!(
+            state.last_validated_timestamp,
+            pacquet_testing_utils::fs::mtime_ms(manifest.path()),
+        );
     }
 
     /// Every project in the list lands in `state.projects` keyed by its
@@ -1834,7 +1875,7 @@ mod build_workspace_state_tests {
             manifests.iter().map(|(p, m)| (p.clone(), m)).collect();
 
         let config = Config::new();
-        let state = build_workspace_state(
+        let state = build_workspace_state::<FrozenClock>(
             dir.path(),
             &config,
             pacquet_config::NodeLinker::default(),
@@ -1871,7 +1912,7 @@ mod build_workspace_state_tests {
             ConfigDependency::VersionWithIntegrity("0.2.2-14".to_string()),
         )]));
         let dir = tempdir().unwrap();
-        let state = build_workspace_state(
+        let state = build_workspace_state::<FrozenClock>(
             dir.path(),
             &config,
             pacquet_config::NodeLinker::default(),
@@ -7631,10 +7672,7 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
     };
 
     // Seed `.modules.yaml` and the workspace state so the optimistic
-    // check sees a previous install. The `last_validated_timestamp`
-    // gets set to a slightly-future value to defeat any
-    // mtime-clock-skew between the manifest write above and the
-    // workspace-state write below.
+    // check sees a previous install.
     let seed_modules = Modules {
         layout_version: Some(LayoutVersion),
         node_linker: Some(NodeLinker::Isolated),
@@ -7665,7 +7703,9 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
     workspace_state::update_workspace_state(
         &project_root,
         &pacquet_workspace_state::WorkspaceState {
-            last_validated_timestamp: pacquet_workspace_state::now_millis() + 60_000,
+            last_validated_timestamp: pacquet_testing_utils::fs::backdate_existing_files(
+                &project_root,
+            ),
             projects,
             pnpmfiles: Vec::new(),
             filtered_install: false,
@@ -7788,7 +7828,9 @@ fn sync_fast_path_matches_optimistic_short_circuit() {
     workspace_state::update_workspace_state(
         &project_root,
         &pacquet_workspace_state::WorkspaceState {
-            last_validated_timestamp: pacquet_workspace_state::now_millis() + 60_000,
+            last_validated_timestamp: pacquet_testing_utils::fs::backdate_existing_files(
+                &project_root,
+            ),
             projects,
             pnpmfiles: Vec::new(),
             filtered_install: false,
@@ -7814,15 +7856,8 @@ fn sync_fast_path_matches_optimistic_short_circuit() {
 
     // Outdate the manifest relative to the recorded timestamp: the
     // fast path must decline and leave the decision to the full
-    // install. The far-future mtime defeats filesystem mtime
-    // resolution without sleeping.
-    let future = std::time::SystemTime::now() + std::time::Duration::from_mins(2);
-    let file = std::fs::OpenOptions::new()
-        .append(true)
-        .open(&manifest_path)
-        .expect("open manifest for mtime bump");
-    file.set_modified(future).expect("bump manifest mtime");
-    drop(file);
+    // install.
+    pacquet_testing_utils::fs::bump_mtime(&manifest_path);
     // The manifest content still matches no lockfile (config.lockfile
     // is off and no current lockfile exists), so the content re-check
     // cannot vouch for it either.
@@ -8037,7 +8072,9 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
     workspace_state::update_workspace_state(
         &project_root,
         &pacquet_workspace_state::WorkspaceState {
-            last_validated_timestamp: pacquet_workspace_state::now_millis() + 60_000,
+            last_validated_timestamp: pacquet_testing_utils::fs::backdate_existing_files(
+                &project_root,
+            ),
             projects,
             pnpmfiles: Vec::new(),
             filtered_install: false,
@@ -8191,7 +8228,9 @@ async fn partial_install_disables_optimistic_short_circuit() {
     workspace_state::update_workspace_state(
         &project_root,
         &pacquet_workspace_state::WorkspaceState {
-            last_validated_timestamp: pacquet_workspace_state::now_millis() + 60_000,
+            last_validated_timestamp: pacquet_testing_utils::fs::backdate_existing_files(
+                &project_root,
+            ),
             projects,
             pnpmfiles: Vec::new(),
             filtered_install: false,
@@ -8337,7 +8376,9 @@ async fn optimistic_repeat_install_does_not_short_circuit_when_lockfile_missing(
     workspace_state::update_workspace_state(
         &project_root,
         &pacquet_workspace_state::WorkspaceState {
-            last_validated_timestamp: pacquet_workspace_state::now_millis() + 60_000,
+            last_validated_timestamp: pacquet_testing_utils::fs::backdate_existing_files(
+                &project_root,
+            ),
             projects,
             pnpmfiles: Vec::new(),
             filtered_install: false,
@@ -8651,13 +8692,7 @@ async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
 
     let manifest_text = std::fs::read_to_string(&manifest_path).expect("read package.json");
     std::fs::write(&manifest_path, manifest_text).expect("refresh package.json mtime");
-    let forced_mtime = std::time::SystemTime::now() + std::time::Duration::from_secs(2);
-    std::fs::OpenOptions::new()
-        .write(true)
-        .open(&manifest_path)
-        .expect("open package.json")
-        .set_times(std::fs::FileTimes::new().set_modified(forced_mtime))
-        .expect("force package.json mtime");
+    pacquet_testing_utils::fs::bump_mtime(&manifest_path);
     let touched_manifest = PackageManifest::from_path(manifest_path).expect("reload manifest");
 
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
@@ -8836,13 +8871,7 @@ fn touch_manifest(manifest: &PackageManifest) -> PackageManifest {
     let manifest_path = manifest.path().to_path_buf();
     let manifest_text = std::fs::read_to_string(&manifest_path).expect("read package.json");
     std::fs::write(&manifest_path, manifest_text).expect("refresh package.json mtime");
-    let forced_mtime = std::time::SystemTime::now() + std::time::Duration::from_secs(2);
-    std::fs::OpenOptions::new()
-        .write(true)
-        .open(&manifest_path)
-        .expect("open package.json")
-        .set_times(std::fs::FileTimes::new().set_modified(forced_mtime))
-        .expect("force package.json mtime");
+    pacquet_testing_utils::fs::bump_mtime(&manifest_path);
     PackageManifest::from_path(manifest_path).expect("reload manifest")
 }
 
