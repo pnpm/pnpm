@@ -50,14 +50,14 @@ function updateOptions (childRange: string, catalogSpecifier = '2.0.0') {
 test('a catalog entry moved to a new exact version replaces the package', async () => {
   const subject = lockfile()
 
-  expect(await tryFastUpdateCatalogVersions(subject, updateOptions('^1.0.0'))).toBe(true)
+  expect(await tryFastUpdateCatalogVersions(subject, updateOptions('^1.0.0'))).toBe('applied')
   expect(Object.keys(subject.packages!).sort()).toStrictEqual(['child@1.1.0', 'target@2.0.0'])
   expect(subject.catalogs!.default.target).toStrictEqual({ specifier: '2.0.0', version: '2.0.0' })
   expect(subject.importers['.' as ProjectId].dependencies).toStrictEqual({ target: '2.0.0' })
 })
 
 test('a locked child the new version no longer admits falls back', async () => {
-  expect(await tryFastUpdateCatalogVersions(lockfile(), updateOptions('^2.0.0'))).toBe(false)
+  expect(await tryFastUpdateCatalogVersions(lockfile(), updateOptions('^2.0.0'))).toBe('unsupported')
 })
 
 test('an importer depending on the package directly falls back', async () => {
@@ -67,7 +67,7 @@ test('an importer depending on the package directly falls back', async () => {
     dependencies: { target: '1.0.0' },
   }
 
-  expect(await tryFastUpdateCatalogVersions(subject, updateOptions('^1.0.0'))).toBe(false)
+  expect(await tryFastUpdateCatalogVersions(subject, updateOptions('^1.0.0'))).toBe('unsupported')
 })
 
 test('a package depending on the catalog package falls back', async () => {
@@ -77,7 +77,7 @@ test('a package depending on the catalog package falls back', async () => {
     dependencies: { target: '1.0.0' },
   }
 
-  expect(await tryFastUpdateCatalogVersions(subject, updateOptions('^1.0.0'))).toBe(false)
+  expect(await tryFastUpdateCatalogVersions(subject, updateOptions('^1.0.0'))).toBe('unsupported')
 })
 
 test('a catalog reference with no recorded entry falls back', async () => {
@@ -87,7 +87,7 @@ test('a catalog reference with no recorded entry falls back', async () => {
     dependencies: { other: '1.0.0' },
   }
 
-  expect(await tryFastUpdateCatalogVersions(subject, updateOptions('^1.0.0'))).toBe(false)
+  expect(await tryFastUpdateCatalogVersions(subject, updateOptions('^1.0.0'))).toBe('unsupported')
 })
 
 test('a manifest hook that renames the package falls back', async () => {
@@ -97,9 +97,15 @@ test('a manifest hook that renames the package falls back', async () => {
   expect(await tryFastUpdateCatalogVersions(
     lockfile(),
     opts as unknown as Parameters<typeof tryFastUpdateCatalogVersions>[1]
-  )).toBe(false)
+  )).toBe('unsupported')
 })
 
-test('a range the locked version still satisfies is declined', async () => {
-  expect(await tryFastUpdateCatalogVersions(lockfile(), updateOptions('^1.0.0', '^1.0.0'))).toBe(false)
+test('a range the locked version still satisfies moves nothing', async () => {
+  expect(await tryFastUpdateCatalogVersions(lockfile(), updateOptions('^1.0.0', '^1.0.0')))
+    .toBe('unsupported')
+})
+
+test('an unchanged catalog reports that nothing moved', async () => {
+  expect(await tryFastUpdateCatalogVersions(lockfile(), updateOptions('^1.0.0', '1.0.0')))
+    .toBe('nothing-to-move')
 })

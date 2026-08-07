@@ -776,7 +776,7 @@ export async function mutateModules (
               })
               if (overridesUseCatalogs) return rewroteRanges
               const catalogPolicy = getPublishedByPolicy(opts)
-              return await tryFastUpdateCatalogVersions(candidate, {
+              const rewrite = await tryFastUpdateCatalogVersions(candidate, {
                 catalogs: opts.catalogs,
                 lockfileDir: opts.lockfileDir,
                 lockfileIncludeTarballUrl: opts.lockfileIncludeTarballUrl,
@@ -791,7 +791,12 @@ export async function mutateModules (
                   : undefined,
                 trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
                 isLockfileUpToDate,
-              }) || rewroteRanges
+              })
+              // Only the "nothing moved" outcome may fall back on the
+              // range-only result. A move this cannot express has to reach the
+              // resolver, even though the range-only rewrite succeeded.
+              if (rewrite === 'applied') return true
+              return rewrite === 'nothing-to-move' && rewroteRanges
             }
             if (changedSetting === 'ignoredOptionalDependencies') {
               return tryFastUpdateIgnoredOptionalDependencies(candidate, opts.ignoredOptionalDependencies)

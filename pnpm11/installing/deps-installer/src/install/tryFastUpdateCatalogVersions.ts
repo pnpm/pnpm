@@ -24,22 +24,30 @@ import {
  * would have to keep the old version while those importers move — a graph
  * holding both, which this cannot express.
  */
+export type CatalogVersionRewrite =
+  /** Every entry that moved was rewritten. */
+  | 'applied'
+  /** No entry moved to a version the locked one cannot satisfy. */
+  | 'nothing-to-move'
+  /** An entry moved but the rewrite cannot express it; the resolver must run. */
+  | 'unsupported'
+
 export async function tryFastUpdateCatalogVersions (
   lockfile: LockfileObject,
   opts: FastRewriteOptions & { catalogs: Catalogs }
-): Promise<boolean> {
+): Promise<CatalogVersionRewrite> {
   // The same gate the range-only path opens with: an importer pointing at a
   // catalog entry with nothing recorded for it needs the resolver, and this
   // path would otherwise never look at that entry.
-  if (!catalogReferencesHaveSnapshots(lockfile, opts.catalogs)) return false
-  if (lockfile.catalogs == null) return false
+  if (!catalogReferencesHaveSnapshots(lockfile, opts.catalogs)) return 'unsupported'
+  if (lockfile.catalogs == null) return 'nothing-to-move'
   const fastOverrides: FastOverride[] = []
   const catalogs: LockfileObject['catalogs'] = {}
   for (const [catalogName, catalog] of Object.entries(lockfile.catalogs)) {
     catalogs[catalogName] = {}
     for (const [alias, entry] of Object.entries(catalog)) {
       const specifier = opts.catalogs[catalogName]?.[alias]
-      if (specifier == null) return false
+      if (specifier == null) return 'unsupported'
       if (specifier === entry.specifier) {
         catalogs[catalogName][alias] = entry
         continue
@@ -48,16 +56,18 @@ export async function tryFastUpdateCatalogVersions (
       // range-only path, which rewrites nothing.
       const wanted = semver.valid(specifier)
       if (wanted == null || semver.valid(entry.version) == null || wanted === entry.version) {
-        return false
+        return 'unsupported'
       }
-      if (!catalogEntryIsSoleReference(lockfile, catalogName, alias)) return false
+      if (!catalogEntryIsSoleReference(lockfile, catalogName, alias)) return 'unsupported'
       fastOverrides.push({ name: alias, newVersion: wanted, oldVersion: entry.version })
       catalogs[catalogName][alias] = { specifier, version: wanted }
     }
   }
-  if (fastOverrides.length === 0) return false
+  if (fastOverrides.length === 0) return 'nothing-to-move'
 
-  return applyFastRewrite(lockfile, fastOverrides, opts, { catalogs })
+  return await applyFastRewrite(lockfile, fastOverrides, opts, { catalogs })
+    ? 'applied'
+    : 'unsupported'
 }
 
 /** Whether the catalog entry is the only thing in the lockfile that reaches `alias`. */
