@@ -895,6 +895,10 @@
   intents:
     - napi-global-virtual-store
     - napi-resolve-full-metadata
+"@pnpm/napi@12.0.0-rc.1":
+  dir: pnpm/npm/napi
+  intents:
+    - napi-allow-unused-patches
 "@pnpm/network.auth-header@1101.1.4":
   dir: pnpm11/network/auth-header
   intents:
@@ -1706,6 +1710,30 @@ pacquet@12.0.0-rc.0:
     - refuse-sudo-global
     - sandbox-store-path
     - stray-node-modules-entry-no-longer-fails-install
+pacquet@12.0.0-rc.1:
+  dir: pnpm/npm/pnpm
+  intents:
+    - chilly-foxes-brush
+    - drop-removed-dependencies-without-resolving
+    - empty-version-range-resolves
+    - exact-catalog-version-rewrite
+    - friendly-global-groups
+    - git-specs-are-identities
+    - gvs-dedup-slot-materialization
+    - held-back-warning-release-age
+    - inert-lockfile-setting-updates
+    - inert-patched-dependencies-updates
+    - loose-minimum-release-age-persist
+    - mirror-file-span-metadata
+    - offline-lockfile-verification-cache
+    - pacquet-binstub-symlink-resolution
+    - quick-oranges-ignore-optionals
+    - root-bin-stderr-clean-path
+    - self-update-ignores-ambient-workspace
+    - tidy-hoops-shine
+    - update-no-save-respects-kept-range
+    - version-json-empty-output
+    - windows-symlink-privilege-fallback
 pnpm@11.13.0:
   dir: pnpm11/pnpm
   intents:
