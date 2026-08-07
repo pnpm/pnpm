@@ -334,6 +334,12 @@ fn dedupe_check_does_not_persist_minimum_release_age_excludes() {
 
     let output = pacquet.with_args(["dedupe", "--check"]).output().expect("run dedupe check");
     assert!(!output.status.success(), "no lockfile exists, so the check must report a diff");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("Dedupe --check found changes to the lockfile"),
+        "the failure must be the check diff itself, not an earlier error; stdout:\n{stdout}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stderr),
+    );
 
     let manifest_after =
         fs::read_to_string(&workspace_manifest_path).expect("read pnpm-workspace.yaml");
