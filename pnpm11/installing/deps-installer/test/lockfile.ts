@@ -645,9 +645,9 @@ test('pendingBuilds gets updated if a headless install removes packages', async 
   }, testDefaults({ fastUnpack: false, ignoreScripts: true }))
   const modules1 = project.readModulesManifest()
 
-  // The removal is resolved into the lockfile without touching node_modules,
-  // as pulling a teammate's lockfile would; the install after it takes the
-  // headless path.
+  // The lockfile-only resolve stands in for pulling a teammate's lockfile;
+  // the install after it takes the headless path. It runs without
+  // ignoreScripts to pin that the reconciliation is not tied to that flag.
   await install({
     dependencies: {
       '@pnpm.e2e/pre-and-postinstall-scripts-example': '*',
@@ -657,12 +657,16 @@ test('pendingBuilds gets updated if a headless install removes packages', async 
     dependencies: {
       '@pnpm.e2e/pre-and-postinstall-scripts-example': '*',
     },
-  }, testDefaults({ fastUnpack: false, ignoreScripts: true }))
+  }, testDefaults({ fastUnpack: false }))
   const modules2 = project.readModulesManifest()
+  const lockfile = project.readLockfile()
 
   expect(modules1).toBeTruthy()
   expect(modules2).toBeTruthy()
   expect(modules1!.pendingBuilds.length > modules2!.pendingBuilds.length).toBeTruthy()
+  for (const entry of modules2!.pendingBuilds) {
+    expect(lockfile.packages[entry] ?? lockfile.importers[entry]).toBeTruthy()
+  }
 })
 
 test('optional properties are correctly updated on named install', async () => {

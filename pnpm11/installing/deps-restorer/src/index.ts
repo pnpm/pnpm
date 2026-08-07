@@ -526,7 +526,14 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
           : undefined,
         skipped: opts.skipped,
       }) ?? {}
-      newHoistedDependencies = lockfileToDepGraphOpts.includeUnchangedDeps
+      // The recomputed map only replaces the recorded one when the graph is
+      // the whole workspace: a filtered install hoists from the filtered
+      // lockfile, so replacing there would forget the unselected importers'
+      // entries. Everywhere else the recorded map fills in what the graph
+      // does not know.
+      const hoistMapIsComplete = lockfileToDepGraphOpts.includeUnchangedDeps &&
+        equals([...importerIds].sort(), Object.keys(wantedLockfile.importers).sort())
+      newHoistedDependencies = hoistMapIsComplete
         ? hoisted
         : { ...opts.hoistedDependencies, ...hoisted }
     } else {
@@ -594,9 +601,14 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     }
   }
 
+  // Reconcile in every mode, not only when scripts are ignored: an entry
+  // whose package the wanted lockfile no longer records would otherwise
+  // stay pending forever.
+  opts.pendingBuilds = opts.pendingBuilds
+    .filter((id) => wantedLockfile.packages?.[id as DepPath] != null || wantedLockfile.importers[id as ProjectId] != null)
   if (opts.ignoreScripts) {
     for (const { id, manifest } of selectedProjects) {
-      if (opts.ignoreScripts && ((manifest?.scripts) != null) &&
+      if (((manifest?.scripts) != null) &&
         (manifest.scripts.preinstall ?? manifest.scripts.prepublish ??
           manifest.scripts.install ??
           manifest.scripts.postinstall ??
@@ -605,16 +617,12 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         opts.pendingBuilds.push(id)
       }
     }
-    // Reconcile rather than append: an entry whose package the wanted
-    // lockfile no longer records would otherwise stay pending forever.
     opts.pendingBuilds = Array.from(new Set(
-      opts.pendingBuilds
-        .filter((id) => wantedLockfile.packages?.[id as DepPath] != null || wantedLockfile.importers[id as ProjectId] != null)
-        .concat(
-          depNodes
-            .filter(({ requiresBuild }) => requiresBuild)
-            .map(({ depPath }) => depPath)
-        )
+      opts.pendingBuilds.concat(
+        depNodes
+          .filter(({ requiresBuild }) => requiresBuild)
+          .map(({ depPath }) => depPath)
+      )
     ))
   }
   let ignoredBuilds: IgnoredBuilds | undefined

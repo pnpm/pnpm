@@ -1544,10 +1544,8 @@ fn direct_dep_bin_wins_over_a_publicly_hoisted_workspace_package() {
     drop((root, mock_instance));
 }
 
-/// A lockfile-only resolve records the removal of the direct
-/// `@pnpm.e2e/dep-of-pkg-with-1-dep`, as pulling a teammate's lockfile
-/// would; the headless install after it has to notice that the removal
-/// made `@pnpm.e2e/pkg-with-1-dep`'s own copy hoistable.
+/// The lockfile-only resolve stands in for pulling a teammate's
+/// lockfile; the install after it takes the headless path.
 #[test]
 fn rehoists_when_an_up_to_date_lockfile_removes_a_direct_dependency() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
