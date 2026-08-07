@@ -1,7 +1,7 @@
-use super::super::cleanup_replaced_global_installs;
 use super::{
-    BinSlotKind, FsArtifactProbe, FsPublishHashLink, FsRename, SavedBinSlot,
-    directory_symlink_slots, needs_directory_symlink_removal, publish_global_install,
+    super::cleanup_replaced_global_installs, BinSlotKind, FsArtifactProbe, FsPublishHashLink,
+    FsRename, SavedBinSlot, directory_symlink_slots, needs_directory_symlink_removal,
+    publish_global_install,
 };
 use pacquet_cmd_shim::{
     FsCreateDirAll, FsEnsureExecutableBits, FsReadHead, FsReadToString, FsSetExecutable,
@@ -318,7 +318,7 @@ fn hash_publication_failure_restores_bins_and_hash_target() {
     let fixture = PublicationFixture::new(&["tool"]);
     let tool = fixture.seed_file_slot("tool", b"old tool\n", 0o750);
     assert!(
-        !read_symlink_dir(&fixture.hash_link).expect("read relative hash target").is_absolute()
+        !read_symlink_dir(&fixture.hash_link).expect("read relative hash target").is_absolute(),
     );
 
     let error = publish_global_install::<HashPublicationFailure>(
@@ -357,7 +357,7 @@ fn hash_failure_removes_hash_link_that_was_originally_absent() {
     assert!(format!("{error:?}").contains("injected hash publication failure"));
     assert_eq!(
         fs::symlink_metadata(&fixture.hash_link).expect_err("hash link remains absent").kind(),
-        io::ErrorKind::NotFound
+        io::ErrorKind::NotFound,
     );
     assert!(!fixture.fresh_install_dir.exists());
     assert!(backup_dirs(&fixture.global_bin_dir).is_empty());
@@ -382,7 +382,7 @@ fn unsupported_bin_slot_fails_before_publication_and_cleans_preparation_artifact
     let diagnostic: &(dyn miette::Diagnostic + Send + Sync) = error.as_ref();
     assert_eq!(
         miette::Diagnostic::code(diagnostic).map(|code| code.to_string()),
-        Some("ERR_PNPM_GLOBAL_BIN_UNSUPPORTED_TYPE".to_string())
+        Some("ERR_PNPM_GLOBAL_BIN_UNSUPPORTED_TYPE".to_string()),
     );
     assert!(error.to_string().contains(&unsupported_path.display().to_string()));
     assert_eq!(PUBLICATION_CALLS.load(Ordering::SeqCst), 0);
@@ -467,20 +467,21 @@ fn cleanup_after_publication_preserves_current_state_and_external_install() {
     assert!(!global_bin_dir.join("obsolete").exists());
     assert_eq!(
         fs::canonicalize(&active_hash_link).expect("resolve active hash link"),
-        fs::canonicalize(&active_install_dir).expect("resolve active install directory")
+        fs::canonicalize(&active_install_dir).expect("resolve active install directory"),
     );
     assert!(!old_install_dir.exists());
     assert!(external_install_dir.exists());
 }
 
 #[test]
-fn cleanup_error_includes_the_offending_bin_path() {
+fn cleanup_error_includes_the_offending_bin_path_and_cleanup_continues() {
     let root = tempfile::tempdir().expect("create cleanup error fixture");
     let global_pkg_dir = root.path().join("global");
     let global_bin_dir = root.path().join("bin");
     let install_dir = global_pkg_dir.join("old-install");
     fs::create_dir_all(global_bin_dir.join("blocked")).expect("create blocked bin directory");
-    let group = global_package_with_bins(&install_dir, "active-hash", &["blocked"]);
+    let group = global_package_with_bins(&install_dir, "active-hash", &["blocked", "stale"]);
+    fs::write(global_bin_dir.join("stale"), b"stale\n").expect("seed stale bin");
 
     let error = cleanup_replaced_global_installs(
         &global_pkg_dir,
@@ -495,7 +496,8 @@ fn cleanup_error_includes_the_offending_bin_path() {
     let blocked_bin = global_bin_dir.join("blocked");
     assert!(error.to_string().contains("remove replaced global bin"));
     assert!(error.to_string().contains(&blocked_bin.display().to_string()));
-    assert!(install_dir.exists());
+    assert!(!global_bin_dir.join("stale").exists());
+    assert!(!install_dir.exists());
 }
 
 #[cfg(windows)]
@@ -558,7 +560,7 @@ fn rollback_failure_keeps_recovery_artifacts() {
     let diagnostic: &(dyn miette::Diagnostic + Send + Sync) = error.as_ref();
     assert_eq!(
         miette::Diagnostic::code(diagnostic).map(|code| code.to_string()),
-        Some("ERR_PNPM_GLOBAL_BIN_ROLLBACK_FAILED".to_string())
+        Some("ERR_PNPM_GLOBAL_BIN_ROLLBACK_FAILED".to_string()),
     );
     assert!(message.contains(&backup_dirs[0].display().to_string()));
     assert!(message.contains(&fixture.fresh_install_dir.display().to_string()));
@@ -570,7 +572,7 @@ fn rollback_failure_keeps_recovery_artifacts() {
     assert!(
         diagnostic_source_messages(diagnostic)
             .iter()
-            .any(|message| message.contains("injected hash publication failure"))
+            .any(|message| message.contains("injected hash publication failure")),
     );
     assert!(fixture.fresh_install_dir.exists());
     assert!(backup_dirs[0].exists());
@@ -617,13 +619,13 @@ fn fresh_cleanup_failure_reports_only_remaining_fresh_install() {
         message,
         format!(
             "Failed to clean up after global bin publication failed. Remaining artifacts: {}.",
-            fresh_install_path.display()
-        )
+            fresh_install_path.display(),
+        ),
     );
     assert!(
         diagnostic_source_messages(diagnostic)
             .iter()
-            .any(|message| message.contains("injected hash publication failure"))
+            .any(|message| message.contains("injected hash publication failure")),
     );
 }
 
@@ -653,13 +655,13 @@ fn backup_cleanup_failure_reports_only_remaining_backup_without_code() {
         message,
         format!(
             "Failed to clean up after global bin publication failed. Remaining artifacts: {}.",
-            backup_dirs[0].display()
-        )
+            backup_dirs[0].display(),
+        ),
     );
     assert!(
         diagnostic_source_messages(diagnostic)
             .iter()
-            .any(|message| message.contains("injected hash publication failure"))
+            .any(|message| message.contains("injected hash publication failure")),
     );
 }
 
@@ -740,8 +742,8 @@ fn both_cleanup_failures_report_both_errors_and_remaining_artifacts() {
         format!(
             "Failed to clean up after global bin publication failed. Remaining artifacts: {}, {}.",
             backup_dirs[0].display(),
-            fresh_install_path.display()
-        )
+            fresh_install_path.display(),
+        ),
     );
     let related = miette::Diagnostic::related(diagnostic)
         .expect("cleanup failures must be related diagnostics")
@@ -758,7 +760,7 @@ fn both_cleanup_failures_report_both_errors_and_remaining_artifacts() {
     assert!(
         diagnostic_source_messages(diagnostic)
             .iter()
-            .any(|source| source.contains("injected hash publication failure"))
+            .any(|source| source.contains("injected hash publication failure")),
     );
 }
 

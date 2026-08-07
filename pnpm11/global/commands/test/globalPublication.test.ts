@@ -17,6 +17,8 @@ let linkFailure: { afterWrites: number, error: Error } | undefined
 let publicationLinkFailure: Error | undefined
 let restorationLinkFailure: Error | undefined
 let freshCleanupFailure: { path: string, error: Error } | undefined
+let removeBinFailure: { name: string, error: Error } | undefined
+let backupRemovalFailure: Error | undefined
 let obstructBackupCleanup = false
 let skipMissingBinSources = false
 let symlinkCallCount = 0
@@ -31,6 +33,11 @@ jest.spyOn(fs, 'rm').mockImplementation(async (target, options) => {
   if (failure != null && path.resolve(String(target)) === failure.path) {
     freshCleanupFailure = undefined
     throw failure.error
+  }
+  if (backupRemovalFailure != null && path.basename(String(target)).startsWith('.pnpm-bin-backup-')) {
+    const err = backupRemovalFailure
+    backupRemovalFailure = undefined
+    throw err
   }
   await realRm(target, options)
 })
@@ -66,6 +73,9 @@ const linkBinsOfPackages = jest.fn<LinkBinsOfPackages>(async (pkgs, globalBinDir
 })
 
 const removeBin = jest.fn<RemoveBin>(async (cmd) => {
+  if (removeBinFailure != null && path.basename(cmd) === removeBinFailure.name) {
+    throw removeBinFailure.error
+  }
   const extensions = process.platform === 'win32' ? ['', '.cmd', '.ps1', '.exe'] : ['']
   await Promise.all(extensions.map(async (extension) => fs.rm(`${cmd}${extension}`, { force: true, recursive: true })))
 })
@@ -109,7 +119,9 @@ afterEach(async () => {
     linkFailure = undefined
     publicationLinkFailure = undefined
     restorationLinkFailure = undefined
+    backupRemovalFailure = undefined
     obstructBackupCleanup = false
+    removeBinFailure = undefined
     skipMissingBinSources = false
     symlinkCallCount = 0
     linkedBinNames.length = 0
@@ -314,6 +326,94 @@ test('preserves Windows file and directory symlink kinds with relative targets',
   }
 })
 
+test('succeeds when removing the backup directory fails after publication', async () => {
+  const manifest: DependencyManifest = {
+    name: 'replacement',
+    version: '2.0.0',
+    bin: {
+      tool: 'bin/tool.js',
+    },
+  }
+  const fixture = await createFixture(manifest)
+  const toolSlot = path.join(fixture.globalBinDir, 'tool')
+  await fs.writeFile(toolSlot, 'old tool\n')
+  backupRemovalFailure = new Error('backup directory removal failed')
+
+  const publishedBins = await publishGlobalInstall({
+    installDir: fixture.freshInstallDir,
+    hashLink: fixture.hashLink,
+    globalBinDir: fixture.globalBinDir,
+    pkgs: [{ manifest, location: fixture.packageDir }],
+    binsToSkip: new Set(),
+  })
+
+  expect(publishedBins).toStrictEqual(new Set(['tool']))
+  expect(await fs.readFile(toolSlot, 'utf8')).toBe('fresh tool\n')
+  expect(await fs.realpath(fixture.hashLink)).toBe(await fs.realpath(fixture.freshInstallDir))
+  expect(await findBackupDirs(fixture.root)).toHaveLength(1)
+})
+
+test('publishes when a Windows bin slot is a dangling symlink', async () => {
+  const platform = Object.getOwnPropertyDescriptor(process, 'platform')
+  if (platform == null) throw new Error('Expected process.platform to be an own property')
+  Object.defineProperty(process, 'platform', { ...platform, value: 'win32' })
+  try {
+    const manifest: DependencyManifest = {
+      name: 'replacement',
+      version: '2.0.0',
+      bin: {
+        tool: 'bin/tool.js',
+      },
+    }
+    const fixture = await createFixture(manifest)
+    const toolSlot = path.join(fixture.globalBinDir, 'tool')
+    await fs.symlink(path.join(fixture.oldInstallDir, 'missing-target.js'), toolSlot, 'file')
+
+    const publishedBins = await publishGlobalInstall({
+      installDir: fixture.freshInstallDir,
+      hashLink: fixture.hashLink,
+      globalBinDir: fixture.globalBinDir,
+      pkgs: [{ manifest, location: fixture.packageDir }],
+      binsToSkip: new Set(),
+    })
+
+    expect(publishedBins).toStrictEqual(new Set(['tool']))
+    expect(await fs.realpath(fixture.hashLink)).toBe(await fs.realpath(fixture.freshInstallDir))
+    expect(await findBackupDirs(fixture.root)).toStrictEqual([])
+  } finally {
+    Object.defineProperty(process, 'platform', platform)
+  }
+})
+
+test('rejects an unsupported bin slot type and cleans up preparation artifacts', async () => {
+  const manifest: DependencyManifest = {
+    name: 'replacement',
+    version: '2.0.0',
+    bin: {
+      tool: 'bin/tool.js',
+    },
+  }
+  const fixture = await createFixture(manifest)
+  const toolSlot = path.join(fixture.globalBinDir, 'tool')
+  await fs.mkdir(toolSlot)
+
+  await expect(publishGlobalInstall({
+    installDir: fixture.freshInstallDir,
+    hashLink: fixture.hashLink,
+    globalBinDir: fixture.globalBinDir,
+    pkgs: [{ manifest, location: fixture.packageDir }],
+    binsToSkip: new Set(),
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_GLOBAL_BIN_UNSUPPORTED_TYPE',
+    message: expect.stringContaining(toolSlot),
+  })
+
+  expect((await fs.lstat(toolSlot)).isDirectory()).toBe(true)
+  expect(await fs.realpath(fixture.hashLink)).toBe(await fs.realpath(fixture.oldInstallDir))
+  expect(existsSync(fixture.freshInstallDir)).toBe(false)
+  expect(await findBackupDirs(fixture.root)).toStrictEqual([])
+})
+
 test('reports fresh-install cleanup failure without claiming a core rollback failure', async () => {
   const manifest: DependencyManifest = {
     name: 'replacement',
@@ -497,15 +597,7 @@ test('removes an old bin slot when the linker skips a missing source', async () 
 })
 
 test('preserves bin slots owned by the published and surviving groups', async () => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-global-cleanup-'))
-  testRoot = root
-  const globalDir = path.join(root, 'global')
-  const globalBinDir = path.join(root, 'bin')
-  const oldInstallDir = path.join(globalDir, 'old-install')
-  await Promise.all([
-    fs.mkdir(globalBinDir, { recursive: true }),
-    fs.mkdir(oldInstallDir, { recursive: true }),
-  ])
+  const { globalDir, globalBinDir, oldInstallDir } = await createCleanupFixture()
   const publishedSlot = path.join(globalBinDir, 'published')
   const protectedSlot = path.join(globalBinDir, 'protected')
   await Promise.all([
@@ -528,18 +620,10 @@ test('preserves bin slots owned by the published and surviving groups', async ()
 })
 
 test('removes stale bins and the old install without removing the active hash link', async () => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-global-cleanup-'))
-  testRoot = root
-  const globalDir = path.join(root, 'global')
-  const globalBinDir = path.join(root, 'bin')
-  const oldInstallDir = path.join(globalDir, 'old-install')
+  const { globalDir, globalBinDir, oldInstallDir } = await createCleanupFixture()
   const activeInstallDir = path.join(globalDir, 'active-install')
   const hashLink = path.join(globalDir, 'active-hash')
-  await Promise.all([
-    fs.mkdir(globalBinDir, { recursive: true }),
-    fs.mkdir(oldInstallDir, { recursive: true }),
-    fs.mkdir(activeInstallDir, { recursive: true }),
-  ])
+  await fs.mkdir(activeInstallDir, { recursive: true })
   const staleSlot = path.join(globalBinDir, 'stale')
   await fs.writeFile(staleSlot, 'stale\n')
   await replaceDirectorySymlink(activeInstallDir, hashLink)
@@ -560,16 +644,9 @@ test('removes stale bins and the old install without removing the active hash li
 })
 
 test('does not delete an install directory outside the global directory', async () => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-global-cleanup-'))
-  testRoot = root
-  const globalDir = path.join(root, 'global')
-  const globalBinDir = path.join(root, 'bin')
+  const { root, globalDir, globalBinDir } = await createCleanupFixture()
   const outsideInstallDir = path.join(root, 'outside-install')
-  await Promise.all([
-    fs.mkdir(globalDir, { recursive: true }),
-    fs.mkdir(globalBinDir, { recursive: true }),
-    fs.mkdir(outsideInstallDir, { recursive: true }),
-  ])
+  await fs.mkdir(outsideInstallDir, { recursive: true })
   const marker = path.join(outsideInstallDir, 'marker')
   await fs.writeFile(marker, 'outside\n')
   getInstalledBinNames.mockResolvedValue([])
@@ -584,6 +661,31 @@ test('does not delete an install directory outside the global directory', async 
   })
 
   expect(await fs.readFile(marker, 'utf8')).toBe('outside\n')
+})
+
+test('cleanup continues past a failed bin removal and reports the error', async () => {
+  const { globalDir, globalBinDir, oldInstallDir } = await createCleanupFixture()
+  const blockedSlot = path.join(globalBinDir, 'blocked')
+  const staleSlot = path.join(globalBinDir, 'stale')
+  await Promise.all([
+    fs.writeFile(blockedSlot, 'blocked\n'),
+    fs.writeFile(staleSlot, 'stale\n'),
+  ])
+  getInstalledBinNames.mockResolvedValue(['blocked', 'stale'])
+  const removalError = new Error('bin removal failed')
+  removeBinFailure = { name: 'blocked', error: removalError }
+
+  await expect(cleanupReplacedGlobalInstalls({
+    groups: [{ dependencies: { old: '1.0.0' }, hash: 'old-hash', installDir: oldInstallDir }],
+    globalDir,
+    globalBinDir,
+    activeHash: 'active-hash',
+    publishedBins: new Set(),
+    protectedBins: new Set(),
+  })).rejects.toBe(removalError)
+
+  await expect(fs.lstat(staleSlot)).rejects.toMatchObject({ code: 'ENOENT' })
+  expect(existsSync(oldInstallDir)).toBe(false)
 })
 
 interface PublicationFixture {
@@ -624,6 +726,26 @@ async function createFixture (manifest: DependencyManifest): Promise<Publication
   }))
   await replaceDirectorySymlink(oldInstallDir, hashLink)
   return { root, globalBinDir, oldInstallDir, freshInstallDir, hashLink, packageDir }
+}
+
+interface CleanupFixture {
+  root: string
+  globalDir: string
+  globalBinDir: string
+  oldInstallDir: string
+}
+
+async function createCleanupFixture (): Promise<CleanupFixture> {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-global-cleanup-'))
+  testRoot = root
+  const globalDir = path.join(root, 'global')
+  const globalBinDir = path.join(root, 'bin')
+  const oldInstallDir = path.join(globalDir, 'old-install')
+  await Promise.all([
+    fs.mkdir(globalBinDir, { recursive: true }),
+    fs.mkdir(oldInstallDir, { recursive: true }),
+  ])
+  return { root, globalDir, globalBinDir, oldInstallDir }
 }
 
 async function seedSymlinkOrRegularFile (

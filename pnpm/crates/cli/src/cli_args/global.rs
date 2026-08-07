@@ -8,7 +8,7 @@
 
 mod publication;
 
-use self::publication::publish_global_install;
+use self::publication::{ArtifactCleanupError, publish_global_install};
 use crate::{
     State,
     cli_args::{
@@ -255,7 +255,7 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
             &pkgs,
             &bins_to_skip,
         )
-        .wrap_err("swap the global package install directory")?;
+        .wrap_err("publish global install")?;
         cleanup_replaced_global_installs(
             &global_pkg_dir,
             &global_bin_dir,
@@ -264,7 +264,7 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
             &published_bins,
             &protected,
         )
-        .wrap_err("clean up replaced global installs")?;
+        .wrap_err("remove existing global installs")?;
     }
     Ok(())
 }
@@ -481,6 +481,17 @@ fn collect_existing_global_installs(
     Ok(ExistingGlobalInstalls { groups_to_replace, protected_bins })
 }
 
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display("Failed to clean up replaced global installs")]
+struct ReplacedGlobalInstallCleanupError {
+    #[error(not(source))]
+    #[related]
+    cleanup_reports: Vec<ArtifactCleanupError>,
+}
+
+// Publication already succeeded when this runs, so every removal is
+// attempted even after one fails; the failures are aggregated instead of
+// aborting the remaining cleanup.
 fn cleanup_replaced_global_installs(
     global_pkg_dir: &Path,
     global_bin_dir: &Path,
@@ -489,15 +500,19 @@ fn cleanup_replaced_global_installs(
     published_bins: &HashSet<String>,
     protected_bins: &HashSet<String>,
 ) -> miette::Result<()> {
+    let mut cleanup_reports = Vec::new();
     for group in groups {
         for bin_name in get_installed_bin_names(group) {
             if published_bins.contains(&bin_name) || protected_bins.contains(&bin_name) {
                 continue;
             }
             let bin_path = global_bin_dir.join(&bin_name);
-            remove_bin(&bin_path).into_diagnostic().wrap_err_with(|| {
-                format!("remove replaced global bin at {}", bin_path.display())
-            })?;
+            if let Err(error) = remove_bin(&bin_path) {
+                cleanup_reports.push(ArtifactCleanupError {
+                    context: format!("remove replaced global bin at {}", bin_path.display()),
+                    source: error,
+                });
+            }
         }
         if group.hash != active_hash {
             let hash_link = get_hash_link(global_pkg_dir, &group.hash);
@@ -505,8 +520,12 @@ fn cleanup_replaced_global_installs(
                 Ok(()) => {}
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
                 Err(error) => {
-                    return Err(error).into_diagnostic().wrap_err_with(|| {
-                        format!("remove replaced global hash link at {}", hash_link.display())
+                    cleanup_reports.push(ArtifactCleanupError {
+                        context: format!(
+                            "remove replaced global hash link at {}",
+                            hash_link.display(),
+                        ),
+                        source: error,
                     });
                 }
             }
@@ -516,17 +535,25 @@ fn cleanup_replaced_global_installs(
                 Ok(()) => {}
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
                 Err(error) => {
-                    return Err(error).into_diagnostic().wrap_err_with(|| {
-                        format!(
+                    cleanup_reports.push(ArtifactCleanupError {
+                        context: format!(
                             "remove replaced global install directory at {}",
-                            group.install_dir.display()
-                        )
+                            group.install_dir.display(),
+                        ),
+                        source: error,
                     });
                 }
             }
         }
     }
-    Ok(())
+    if cleanup_reports.is_empty() {
+        return Ok(());
+    }
+    if cleanup_reports.len() == 1 {
+        let report = cleanup_reports.remove(0);
+        return Err(miette::Report::new(report));
+    }
+    Err(ReplacedGlobalInstallCleanupError { cleanup_reports }.into())
 }
 
 fn replacement_aliases(aliases: &[String]) -> Vec<String> {

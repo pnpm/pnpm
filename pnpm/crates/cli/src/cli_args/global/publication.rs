@@ -76,7 +76,7 @@ enum GlobalPublicationError {
         remaining_artifacts: String,
         #[error(not(source))]
         #[related]
-        cleanup_reports: Vec<RollbackArtifactCleanupError>,
+        cleanup_reports: Vec<ArtifactCleanupError>,
         #[error(source)]
         #[diagnostic_source]
         publication_error: Box<dyn Diagnostic + Send + Sync>,
@@ -85,10 +85,10 @@ enum GlobalPublicationError {
 
 #[derive(Debug, Display, Error, Diagnostic)]
 #[display("{context}: {source}")]
-struct RollbackArtifactCleanupError {
-    context: String,
+pub(super) struct ArtifactCleanupError {
+    pub(super) context: String,
     #[error(source)]
-    source: io::Error,
+    pub(super) source: io::Error,
 }
 
 #[derive(Debug)]
@@ -178,10 +178,9 @@ where
     }
 
     let PreparedGlobalInstall { actual_bin_names, backup_dir, .. } = prepared;
-    let backup_path = backup_dir.path().to_path_buf();
-    backup_dir.close().into_diagnostic().wrap_err_with(|| {
-        format!("remove global bin backup directory at {}", backup_path.display())
-    })?;
+    // Publication is already committed, so a leftover backup directory must
+    // not fail the command.
+    let _ = backup_dir.close();
     Ok(actual_bin_names)
 }
 
@@ -233,7 +232,7 @@ where
                 format!(
                     "restore global bin slot from {} to {}",
                     saved_bin_slot.backup.display(),
-                    saved_bin_slot.original.display()
+                    saved_bin_slot.original.display(),
                 )
             })?;
     }
@@ -258,19 +257,19 @@ where
 fn cleanup_rolled_back_global_install(
     install_dir: &Path,
     prepared: &PreparedGlobalInstall,
-) -> Vec<RollbackArtifactCleanupError> {
+) -> Vec<ArtifactCleanupError> {
     let mut errors = Vec::new();
     if let Err(error) = fs::remove_dir(prepared.backup_dir.path()) {
-        errors.push(RollbackArtifactCleanupError {
+        errors.push(ArtifactCleanupError {
             context: format!(
                 "remove global bin backup directory at {}",
-                prepared.backup_dir.path().display()
+                prepared.backup_dir.path().display(),
             ),
             source: error,
         });
     }
     if let Err(error) = remove_dir_all_if_exists(install_dir) {
-        errors.push(RollbackArtifactCleanupError {
+        errors.push(ArtifactCleanupError {
             context: format!("remove fresh global install directory at {}", install_dir.display()),
             source: error,
         });
@@ -281,14 +280,14 @@ fn cleanup_rolled_back_global_install(
 fn remaining_rollback_artifacts<Sys: FsArtifactProbe>(
     install_dir: &Path,
     prepared: &PreparedGlobalInstall,
-    cleanup_reports: &mut Vec<RollbackArtifactCleanupError>,
+    cleanup_reports: &mut Vec<ArtifactCleanupError>,
 ) -> String {
     let mut artifacts = Vec::new();
     for path in [prepared.backup_dir.path(), install_dir] {
         match Sys::artifact_exists(path) {
             Ok(true) => artifacts.push(path.display().to_string()),
             Ok(false) => {}
-            Err(error) => cleanup_reports.push(RollbackArtifactCleanupError {
+            Err(error) => cleanup_reports.push(ArtifactCleanupError {
                 context: format!("inspect remaining rollback artifact at {}", path.display()),
                 source: error,
             }),
@@ -380,25 +379,25 @@ fn prepare_global_install<Sys: FsWalkFiles>(
     Ok(PreparedGlobalInstall { actual_bin_names, backup_dir, saved_bin_slots, old_hash_target })
 }
 
-fn cleanup_failed_preparation<T>(
+fn cleanup_failed_preparation<Value>(
     install_dir: &Path,
     backup_dir: Option<TempDir>,
     preparation_error: miette::Report,
-) -> miette::Result<T> {
+) -> miette::Result<Value> {
     let mut cleanup_errors = Vec::new();
     if let Some(backup_dir) = backup_dir {
         let backup_path = backup_dir.path().to_path_buf();
         if let Err(error) = backup_dir.close() {
             cleanup_errors.push(format!(
                 "remove global bin backup directory at {}: {error}",
-                backup_path.display()
+                backup_path.display(),
             ));
         }
     }
     if let Err(error) = remove_dir_all_if_exists(install_dir) {
         cleanup_errors.push(format!(
             "remove fresh global install directory at {}: {error}",
-            install_dir.display()
+            install_dir.display(),
         ));
     }
     if cleanup_errors.is_empty() {
@@ -406,15 +405,12 @@ fn cleanup_failed_preparation<T>(
     }
     Err(preparation_error.wrap_err(format!(
         "Failed to clean up after global bin publication preparation failed: {}",
-        cleanup_errors.join("; ")
+        cleanup_errors.join("; "),
     )))
 }
 
 fn io_error_report(error: io::Error, context: String) -> miette::Report {
-    match Err::<(), _>(error).into_diagnostic().wrap_err(context) {
-        Err(report) => report,
-        Ok(()) => unreachable!("an explicitly constructed error cannot become Ok"),
-    }
+    Err::<(), _>(error).into_diagnostic().wrap_err(context).unwrap_err()
 }
 
 fn remove_dir_all_if_exists(path: &Path) -> io::Result<()> {

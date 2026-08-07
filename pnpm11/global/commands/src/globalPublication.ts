@@ -67,33 +67,65 @@ export async function publishGlobalInstall (
     await cleanupFailedGlobalPublication({ ...opts, ...prepared }, publicationError)
     throw publicationError
   }
-  await fs.promises.rm(prepared.backupDir, { recursive: true })
+  // Publication is already committed, so a leftover backup directory must
+  // not fail the command.
+  try {
+    await fs.promises.rm(prepared.backupDir, { recursive: true, force: true })
+  } catch {}
   return prepared.actualBinNames
 }
 
 export async function cleanupReplacedGlobalInstalls (
   opts: CleanupReplacedGlobalInstallsOptions
 ): Promise<void> {
+  const errors: unknown[] = []
   for (const group of opts.groups) {
-    await cleanupReplacedGlobalInstall(opts, group) // eslint-disable-line no-await-in-loop -- Cleanup mutations must settle before the next group starts.
+    // eslint-disable-next-line no-await-in-loop -- Cleanup mutations must settle before the next group starts.
+    errors.push(...await cleanupReplacedGlobalInstall(opts, group))
+  }
+  if (errors.length === 1) throw errors[0]
+  if (errors.length > 1) {
+    throw new AggregateError(errors, 'Failed to clean up replaced global installs')
   }
 }
 
+// Publication already succeeded when this runs, so every removal is
+// attempted even after one fails; the failures are aggregated instead of
+// aborting the remaining cleanup.
 async function cleanupReplacedGlobalInstall (
   opts: CleanupReplacedGlobalInstallsOptions,
   group: GlobalPackageInfo
-): Promise<void> {
-  const binNames = await getInstalledBinNames(group)
+): Promise<unknown[]> {
+  const errors: unknown[] = []
+  let binNames: string[] = []
+  try {
+    binNames = await getInstalledBinNames(group)
+  } catch (err) {
+    errors.push(err)
+  }
   for (const binName of binNames) {
     if (opts.publishedBins.has(binName) || opts.protectedBins.has(binName)) continue
-    await removeBin(path.join(opts.globalBinDir, binName)) // eslint-disable-line no-await-in-loop -- Each removal must settle before cleanup continues.
+    try {
+      await removeBin(path.join(opts.globalBinDir, binName)) // eslint-disable-line no-await-in-loop -- Each removal must settle before cleanup continues.
+    } catch (err) {
+      errors.push(err)
+    }
   }
   if (group.hash !== opts.activeHash) {
-    await fs.promises.rm(getHashLink(opts.globalDir, group.hash), { force: true })
+    try {
+      await fs.promises.rm(getHashLink(opts.globalDir, group.hash), { force: true })
+    } catch (err) {
+      errors.push(err)
+    }
   }
   if (isSubdir(opts.globalDir, group.installDir)) {
-    await fs.promises.rm(group.installDir, { recursive: true, force: true })
+    try {
+      await fs.promises.rm(group.installDir, { recursive: true, force: true })
+    } catch (err) {
+      errors.push(err)
+    }
   }
+  return errors
 }
 
 async function prepareGlobalInstall (
@@ -196,7 +228,13 @@ async function backupBinSlot (slot: SavedBinSlot): Promise<SavedBinSlot | undefi
 
 async function getSymlinkType (link: string): Promise<fs.symlink.Type | undefined> {
   if (process.platform !== 'win32') return undefined
-  return (await fs.promises.stat(link)).isDirectory() ? 'dir' : 'file'
+  try {
+    return (await fs.promises.stat(link)).isDirectory() ? 'dir' : 'file'
+  } catch (err) {
+    // A dangling bin link has no resolvable target; back it up as a file link.
+    if (isErrorWithCode(err, 'ENOENT')) return 'file'
+    throw err
+  }
 }
 
 async function readHashTarget (hashLink: string): Promise<string | undefined> {
