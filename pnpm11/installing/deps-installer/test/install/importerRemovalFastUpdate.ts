@@ -1,5 +1,8 @@
 import { expect, test } from '@jest/globals'
+import { mutateModulesInSingleProject } from '@pnpm/installing.deps-installer'
 import type { LockfileObject } from '@pnpm/lockfile.types'
+import { prepareEmpty } from '@pnpm/prepare'
+import type { StoreController } from '@pnpm/store.controller-types'
 import type { DepPath, ProjectId, ProjectManifest } from '@pnpm/types'
 import { clone } from 'ramda'
 
@@ -7,6 +10,7 @@ import {
   hasChangedProjectSpecifiers,
   tryFastUpdateImporters,
 } from '../../src/install/tryFastUpdateImporters.js'
+import { testDefaults } from '../utils/index.js'
 
 test('a dependency the manifest dropped is noticed as a change', () => {
   expect(hasChangedProjectSpecifiers(lockfile(), [project({ bar: '^2.0.0' })])).toBe(true)
@@ -110,6 +114,52 @@ test('a catalog entry another importer references is kept', () => {
   ])).toBe(true)
   expect(subject.catalogs).toStrictEqual({ default: { foo: { specifier: '^1.0.0', version: '1.1.0' } } })
 })
+
+test('pnpm remove drops the dependency without requesting packages', async () => {
+  const project = prepareEmpty()
+  const manifest: ProjectManifest = {
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+      'is-positive': '1.0.0',
+    },
+  }
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults())
+
+  const options = testDefaults()
+  const requestedPackages = trackRequestedPackages(options.storeController)
+  const { updatedProject } = await mutateModulesInSingleProject({
+    dependencyNames: ['is-positive'],
+    manifest,
+    mutation: 'uninstallSome',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, options)
+
+  expect(requestedPackages).toStrictEqual([])
+  expect(updatedProject.manifest.dependencies).toStrictEqual({
+    '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+  })
+  const lockfile = project.readLockfile()
+  expect(Object.keys(lockfile.packages).some((depPath) => depPath.startsWith('is-positive@'))).toBe(false)
+  expect(lockfile.importers['.']).toStrictEqual({
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': { specifier: '100.0.0', version: '100.0.0' },
+    },
+  })
+})
+
+function trackRequestedPackages (storeController: StoreController): string[] {
+  const requestedPackages: string[] = []
+  const requestPackage = storeController.requestPackage
+  storeController.requestPackage = async (wantedDependency, requestOptions) => {
+    requestedPackages.push(wantedDependency.alias!)
+    return requestPackage(wantedDependency, requestOptions)
+  }
+  return requestedPackages
+}
 
 function project (dependencies: Record<string, string>) {
   return {
