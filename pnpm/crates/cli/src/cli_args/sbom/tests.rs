@@ -1,8 +1,86 @@
+use pacquet_lockfile::{LockfileResolution, PackageMetadata, RegistryResolution, StringOrList};
+
 use super::{
     base64_to_hex, build_purl, classify_license, confined_importer_dir, encode_purl_name,
     extract_author, extract_repository, is_simple_spdx_id, normalize_link_path,
-    peer_names_from_manifest, sanitize_spdx_id, split_scoped_name, strip_url_credentials,
+    peer_names_from_manifest, platform_incompatible_optional, sanitize_spdx_id, split_scoped_name,
+    strip_url_credentials,
 };
+
+fn registry_package(
+    os: Option<Vec<String>>,
+    cpu: Option<Vec<String>>,
+    libc: Option<StringOrList>,
+) -> PackageMetadata {
+    PackageMetadata {
+        resolution: LockfileResolution::Registry(RegistryResolution {
+            integrity: "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+                .parse()
+                .expect("parse integrity"),
+        }),
+        version: None,
+        engines: None,
+        cpu,
+        os,
+        libc,
+        deprecated: None,
+        has_bin: None,
+        prepare: None,
+        bundled_dependencies: None,
+        peer_dependencies: None,
+        peer_dependencies_meta: None,
+    }
+}
+
+#[test]
+fn platform_incompatible_optional_skips_optional_package_for_another_platform() {
+    let pkg = registry_package(
+        Some(vec!["linux".to_string()]),
+        Some(vec!["x64".to_string()]),
+        Some(StringOrList::String("glibc".to_string())),
+    );
+    assert!(platform_incompatible_optional(
+        "@scope/binding",
+        true,
+        Some(&pkg),
+        None,
+        "darwin",
+        "arm64",
+        "",
+    ));
+}
+
+#[test]
+fn platform_incompatible_optional_keeps_optional_package_for_current_platform() {
+    let pkg =
+        registry_package(Some(vec!["darwin".to_string()]), Some(vec!["x64".to_string()]), None);
+    assert!(!platform_incompatible_optional(
+        "@scope/binding",
+        true,
+        Some(&pkg),
+        None,
+        "darwin",
+        "x64",
+        "",
+    ));
+}
+
+#[test]
+fn platform_incompatible_optional_ignores_non_optional_packages() {
+    let pkg =
+        registry_package(Some(vec!["linux".to_string()]), Some(vec!["x64".to_string()]), None);
+    // Non-optional packages are never filtered by platform here, matching the
+    // `pnpm licenses` behavior.
+    assert!(!platform_incompatible_optional(
+        "plain-dep",
+        false,
+        Some(&pkg),
+        None,
+        "darwin",
+        "x64",
+        "",
+    ));
+}
 
 #[test]
 fn confined_importer_dir_accepts_dirs_inside_the_lockfile_root() {

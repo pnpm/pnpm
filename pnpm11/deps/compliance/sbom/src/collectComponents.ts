@@ -1,6 +1,7 @@
 import path from 'node:path'
 
 import { normalizeNamedRegistries } from '@pnpm/config.normalize-registries'
+import { packageIsInstallable } from '@pnpm/config.package-is-installable'
 import { PnpmError } from '@pnpm/error'
 import { DepType, type DepTypes, detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import type { LockfileObject, TarballResolution } from '@pnpm/lockfile.types'
@@ -11,7 +12,7 @@ import {
 } from '@pnpm/lockfile.walker'
 import type { Resolution } from '@pnpm/resolving.resolver-base'
 import { StoreIndex } from '@pnpm/store.index'
-import type { DependenciesField, ProjectId, Registries } from '@pnpm/types'
+import type { DependenciesField, ProjectId, Registries, SupportedArchitectures } from '@pnpm/types'
 import pLimit from 'p-limit'
 
 import { getPkgMetadata, type GetPkgMetadataOptions } from './getPkgMetadata.js'
@@ -42,6 +43,7 @@ export interface CollectSbomComponentsOptions {
   namedRegistries?: Record<string, string>
   lockfileDir: string
   includedImporterIds?: ProjectId[]
+  supportedArchitectures?: SupportedArchitectures
   lockfileOnly?: boolean
   storeDir?: string
   virtualStoreDirMaxLength?: number
@@ -206,6 +208,28 @@ async function walkStep (
       const { name, version, nonSemverVersion, registryName } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
 
       if (!name || !version) return
+
+      // When reading metadata from the store, only describe packages pnpm
+      // would actually install on the current platform. Optional
+      // platform-specific dependencies for other platforms (e.g. native
+      // bindings) are in the lockfile but never fetched, so their metadata
+      // cannot be resolved from the store and they would otherwise be emitted
+      // as components without a license (and without description, author,
+      // etc.). `pnpm licenses` filters these the same way.
+      // https://github.com/pnpm/pnpm/issues/13683
+      if (!opts.lockfileOnly && !packageIsInstallable(pkgSnapshot.id ?? depPath, {
+        name,
+        version,
+        cpu: pkgSnapshot.cpu,
+        os: pkgSnapshot.os,
+        libc: pkgSnapshot.libc,
+      }, {
+        optional: pkgSnapshot.optional ?? false,
+        lockfileDir: opts.lockfileDir,
+        supportedArchitectures: opts.supportedArchitectures,
+      })) {
+        return
+      }
 
       // Resolve the alias before the purl is built. An unknown alias would
       // otherwise yield an unqualified purl that collides with the same
