@@ -75,7 +75,7 @@ pub(crate) fn try_fast_update_catalogs(
     FastCatalogUpdate::Updated(Box::new(candidate))
 }
 
-fn catalog_references_have_snapshots(lockfile: &Lockfile, catalogs: &Catalogs) -> bool {
+pub(crate) fn catalog_references_have_snapshots(lockfile: &Lockfile, catalogs: &Catalogs) -> bool {
     lockfile.importers.values().all(|importer| {
         [
             importer.dependencies.as_ref(),
