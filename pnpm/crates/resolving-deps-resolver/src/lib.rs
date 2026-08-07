@@ -81,8 +81,8 @@ mod resolved_tree;
 mod validate_dependency_alias;
 
 pub use dependencies_graph::{
-    DependenciesGraph, DependenciesGraphNode, MissingPeer, ParentPackageRef, PeerDependencyIssue,
-    PeerDependencyIssues,
+    DependenciesGraph, DependenciesGraphNode, MissingPeer, ParentChain, ParentPackageRef,
+    PeerDependencyIssue, PeerDependencyIssues,
 };
 pub use hoist_peers::{
     DependencyOverrider, HoistPeersOptions, MissingPeerInfo, WorkspaceRootDep,

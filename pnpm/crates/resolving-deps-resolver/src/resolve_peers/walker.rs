@@ -5,7 +5,7 @@
 
 use crate::{
     dependencies_graph::{
-        DependenciesGraph, MissingPeer, ParentPackageRef, PeerDependencyIssue, PeerDependencyIssues,
+        DependenciesGraph, MissingPeer, ParentChain, PeerDependencyIssue, PeerDependencyIssues,
     },
     node_id::NodeId,
     resolve_peers::{
@@ -17,8 +17,8 @@ use crate::{
         context::{
             CurrentProviderSource, ParentPkgInfo, ParentRef, ParentRefs, SharedChain,
             importer_relative_link_dep_path, insert_parent_ref, link_node_id_as_dep_path,
-            parents_from_chain, peer_id_pair, pkg_name_version, remap_link_node_id,
-            satisfies_with_prereleases, scoped_hoisted_optional_parent_refs,
+            peer_id_pair, pkg_name_version, remap_link_node_id, satisfies_with_prereleases,
+            scoped_hoisted_optional_parent_refs,
         },
         discovery::PeerDiscoveryCaches,
         finalize::{NodeRecord, PendingPeerEdge, WalkedNode},
@@ -994,7 +994,6 @@ impl Walker<'_> {
         let mut own_missing: HashMap<String, MissingPeerInfo> = HashMap::default();
         for (peer_name, peer_dep) in &pkg.peer_dependencies {
             self.resolve_one_peer(
-                pkg_name,
                 peer_name,
                 peer_dep,
                 parent_refs,
@@ -1198,12 +1197,8 @@ impl Walker<'_> {
         }
     }
 
-    pub(super) fn issue_parents(
-        &self,
-        chain: &SharedChain<String>,
-        pkg_name: &str,
-    ) -> Vec<ParentPackageRef> {
-        if self.discovery { Vec::new() } else { parents_from_chain(chain, pkg_name) }
+    pub(super) fn issue_parents(&self, chain: &SharedChain<String>) -> ParentChain {
+        if self.discovery { ParentChain::default() } else { ParentChain(chain.clone()) }
     }
 
     #[expect(
@@ -1212,7 +1207,6 @@ impl Walker<'_> {
     )]
     fn resolve_one_peer(
         &mut self,
-        pkg_name: &str,
         peer_name: &str,
         peer_dep: &PeerDep,
         parent_refs: &ParentRefs,
@@ -1244,7 +1238,7 @@ impl Walker<'_> {
                             wanted_range: range_for_satisfies,
                             raw_range: range_for_match.to_string(),
                             optional,
-                            parents: self.issue_parents(chain, pkg_name),
+                            parents: self.issue_parents(chain),
                         },
                         ancestor_pkg_ids,
                     );
@@ -1252,14 +1246,14 @@ impl Walker<'_> {
             }
             Some(parent) => {
                 if !satisfies_with_prereleases(&parent.version, &range_for_satisfies) {
-                    let parents = self.issue_parents(chain, pkg_name);
+                    let parents = self.issue_parents(chain);
                     self.issues.bad.entry(peer_name.to_string()).or_default().push(
                         PeerDependencyIssue {
                             wanted_range: range_for_satisfies,
                             found_version: parent.version.clone(),
                             optional,
                             parents,
-                            resolved_from: Vec::new(),
+                            resolved_from: ParentChain::default(),
                         },
                     );
                 }

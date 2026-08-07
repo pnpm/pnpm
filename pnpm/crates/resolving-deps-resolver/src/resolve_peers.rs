@@ -43,9 +43,8 @@ use crate::{
     node_id::NodeId,
     resolved_tree::{DirectDep, ResolvedTree},
 };
-use context::{
-    ChainSuffixMemo, CurrentProviderSource, SharedChain, importer_relative_link_dep_path,
-};
+pub(crate) use context::SharedChain;
+use context::{ChainSuffixMemo, CurrentProviderSource, importer_relative_link_dep_path};
 use discovery::PeerDiscoveryCaches;
 pub(crate) use discovery::{PeerDiscoveryResult, PeerHoistDiscovery, apply_hoist_missing_scope};
 use pacquet_deps_path::DepPath;
