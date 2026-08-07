@@ -1372,7 +1372,7 @@ jobs:
                 pnpm publish "$package/" --tag "$TAG" --access public --provenance --no-git-checks
                 ;;
               *)
-                echo "::error::Unexpected npm publication state"
+                echo "::error::Unexpected npm publication state for $name@$version"
                 exit 1
                 ;;
             esac
