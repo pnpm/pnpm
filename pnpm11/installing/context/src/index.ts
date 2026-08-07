@@ -328,7 +328,7 @@ export async function getContextForSingleImporter (
     importerId,
     include: opts.include ?? include,
     lockfileDir: opts.lockfileDir,
-    manifest: await opts.readPackageHook?.(manifest) ?? manifest,
+    manifest: await opts.readPackageHook?.(manifest, opts.dir) ?? manifest,
     modulesDir,
     modulesFile: modules,
     pendingBuilds,

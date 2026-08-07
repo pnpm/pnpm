@@ -71,6 +71,23 @@ test('update', async () => {
   expect(pkg.dependencies?.['@pnpm.e2e/foo']).toBe('^100.1.0')
 })
 
+test('update does not add compatibility peers to a dependency-free project', async () => {
+  const project = prepare({
+    name: 'vue-loader',
+    version: '0.0.0',
+  })
+
+  await execPnpm(['update'])
+
+  const pkg = await readPackageJsonFromDir(process.cwd())
+  expect(pkg).toMatchObject({
+    name: 'vue-loader',
+    version: '0.0.0',
+  })
+  expect(pkg.dependencies).toBeUndefined()
+  expect(project.readLockfile().importers['.']).toStrictEqual({})
+})
+
 test('recursive update --no-save', async () => {
   await addDistTag('@pnpm.e2e/foo', '100.1.0', 'latest')
   preparePackages([

@@ -1,10 +1,12 @@
 use super::{
     ImporterUpdateSeedPolicy, UpdateSeedPolicy, compute_package_extensions_checksum,
     full_resolution_required, include_transitive_optional_dependencies,
-    is_partial_workspace_selection, update_reuse_scopes,
+    is_partial_workspace_selection, manifest_transforms::build_manifest_transforms,
+    update_reuse_scopes,
 };
+use pacquet_catalogs_types::Catalogs;
 use pacquet_config::{Config, PackageExtension};
-use pacquet_package_manifest::DependencyGroup;
+use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pretty_assertions::assert_eq;
 
 fn config_with_extensions(entries: &[(&str, &[(&str, &str)])]) -> Box<Config> {
@@ -43,6 +45,30 @@ fn partial_installs_keep_transitive_optional_dependencies() {
     assert!(include_transitive_optional_dependencies(false, &prod_only));
     assert!(!include_transitive_optional_dependencies(true, &prod_only));
     assert!(include_transitive_optional_dependencies(true, &with_optional));
+}
+
+#[test]
+fn builtin_compatibility_extensions_do_not_apply_to_importer_manifests() {
+    let dir = tempfile::tempdir().unwrap();
+    let manifest = PackageManifest::from_value(
+        dir.path().join("package.json"),
+        serde_json::json!({
+            "name": "vue-loader",
+            "version": "0.0.0",
+        }),
+    );
+    let importer_manifests = std::collections::BTreeMap::from([(".".to_string(), &manifest)]);
+
+    let transforms = build_manifest_transforms(
+        &Config::new(),
+        &Catalogs::default(),
+        dir.path(),
+        &importer_manifests,
+    )
+    .unwrap();
+    let effective_manifest = transforms.effective_importer_manifests.get(".").unwrap_or(&manifest);
+
+    assert_eq!(effective_manifest.value().get("peerDependencies"), None);
 }
 
 /// Ports `installing/.../packageExtensions.ts:103-153`

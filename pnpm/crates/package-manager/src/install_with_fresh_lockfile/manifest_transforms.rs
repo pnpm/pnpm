@@ -67,15 +67,11 @@ pub(super) fn build_manifest_transforms(
         .map(|parsed| Arc::new(VersionsOverrider::new(parsed, lockfile_dir)));
 
     let mut effective_importer_manifests = BTreeMap::new();
-    if compat_package_extender.is_some()
-        || package_extender.is_some()
+    if package_extender.is_some()
         || versions_overrider.as_ref().is_some_and(|overrider| !overrider.is_empty())
     {
         for (id, manifest) in importer_manifests {
             let mut cloned = (*manifest).clone();
-            if let Some(extender) = compat_package_extender {
-                extender.apply(cloned.value_mut());
-            }
             if let Some(extender) = package_extender.as_ref() {
                 extender.apply(cloned.value_mut());
             }
