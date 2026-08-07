@@ -103,12 +103,9 @@ pub struct PeerDependencyIssue {
     pub resolved_from: ParentChain,
 }
 
-/// Ancestor chain attached to a peer issue. Holds a handle to the
-/// walker's shared parent chain — an O(1) clone of an `Arc` linked
-/// list — instead of a materialized vector: issues are recorded per
-/// occurrence (tens of thousands on large auto-install-peers graphs)
-/// and most are never rendered, so the names are cloned out only when
-/// a consumer calls [`Self::to_refs`].
+/// Ancestor chain attached to a peer issue. Cheap to clone and to
+/// record per occurrence; the names are cloned out only when a
+/// consumer materializes the chain via [`Self::to_refs`].
 #[derive(Default, Clone)]
 pub struct ParentChain(pub(crate) SharedChain<String>);
 

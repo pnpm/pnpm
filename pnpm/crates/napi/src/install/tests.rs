@@ -681,7 +681,9 @@ fn safe_intersect_matches_merge_peers_semantics() {
 /// missing ranges, and disjoint ranges surfacing under `conflicts`.
 #[test]
 fn peer_issues_to_json_derives_conflicts_and_intersections() {
-    use pacquet_resolving_deps_resolver::{MissingPeer, ParentChain, PeerDependencyIssues};
+    use pacquet_resolving_deps_resolver::{
+        MissingPeer, ParentChain, PeerDependencyIssue, PeerDependencyIssues,
+    };
 
     let missing_entry = |range: &str, optional: bool| MissingPeer {
         wanted_range: range.to_string(),
@@ -696,6 +698,20 @@ fn peer_issues_to_json_derives_conflicts_and_intersections() {
         vec![missing_entry("^1.0.0", false), missing_entry("^2.0.0", false)],
     );
     issues.missing.insert("optional-only".to_string(), vec![missing_entry("*", true)]);
+    issues.bad.insert(
+        "styled".to_string(),
+        vec![PeerDependencyIssue {
+            wanted_range: "^5.0.0".to_string(),
+            found_version: "4.1.0".to_string(),
+            optional: false,
+            parents: ParentChain::from_names([
+                "root".to_string(),
+                "mid".to_string(),
+                "leaf".to_string(),
+            ]),
+            resolved_from: ParentChain::from_names(["provider".to_string()]),
+        }],
+    );
 
     let json = super::peer_issues_to_json(&issues);
     assert_eq!(json["intersections"]["react"], "^16.8.0");
@@ -703,5 +719,17 @@ fn peer_issues_to_json_derives_conflicts_and_intersections() {
     assert!(json["intersections"].get("optional-only").is_none());
     assert_eq!(json["missing"]["react"][0]["wantedRange"], "^16.8.0");
     assert_eq!(json["missing"]["react"][0]["parents"][0]["name"], "comp1");
-    assert_eq!(json["bad"], serde_json::json!({}));
+    assert_eq!(
+        json["bad"]["styled"][0]["parents"],
+        serde_json::json!([
+            { "name": "root", "version": "" },
+            { "name": "mid", "version": "" },
+            { "name": "leaf", "version": "" },
+        ]),
+    );
+    assert_eq!(
+        json["bad"]["styled"][0]["resolvedFrom"],
+        serde_json::json!([{ "name": "provider", "version": "" }]),
+    );
+    assert_eq!(json["bad"]["styled"][0]["foundVersion"], "4.1.0");
 }

@@ -991,7 +991,7 @@ fn peer_issues_to_json(
     let parents_json = |parents: &pacquet_resolving_deps_resolver::ParentChain| {
         parents
             .to_refs()
-            .iter()
+            .into_iter()
             .map(|parent| serde_json::json!({ "name": parent.name, "version": parent.version }))
             .collect::<Vec<_>>()
     };
