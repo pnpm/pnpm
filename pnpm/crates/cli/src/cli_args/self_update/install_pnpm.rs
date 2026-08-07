@@ -253,7 +253,11 @@ pub(crate) async fn run_install<Reporter: self::Reporter + 'static>(
     cfg.virtual_store_dir = install_dir.join("node_modules").join(".pnpm");
     cfg.enable_global_virtual_store = enable_global_virtual_store;
     cfg.lockfile = true;
-    cfg.workspace_dir = None;
+    // Anchored (never `None`, which walks up and can adopt the global
+    // packages dir's own settings `pnpm-workspace.yaml` as the workspace
+    // root, pnpm/pnpm#13697) — the same guard as `run_group_install` in
+    // `cli_args::global`, where the full rationale lives.
+    cfg.workspace_dir = Some(install_dir.to_path_buf());
     cfg.supported_architectures = supported_architectures;
     // The engine is installed with scripts disabled — the wrapper's
     // preinstall (which links the platform binary) is replicated by

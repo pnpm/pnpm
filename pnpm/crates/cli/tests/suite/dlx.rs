@@ -101,3 +101,48 @@ fn dlx_resolves_caller_catalog_references_in_overrides() {
 
     drop(root);
 }
+
+/// The dlx cache install must stay anchored to its prepare dir even when a
+/// directory above the cache carries a `pnpm-workspace.yaml`. Left
+/// unanchored, the install pipeline walks up from the cache dir, adopts
+/// that file as the workspace root, and the dlx package never lands in the
+/// prepare dir — the same walk-up that broke self-update in
+/// pnpm/pnpm#13697.
+#[cfg(unix)]
+#[test]
+fn dlx_ignores_an_ambient_workspace_manifest_above_the_cache_dir() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+
+    // `root` is the parent of both the caller's workspace and the
+    // `pacquet-cache` dir the dlx prepare dir is created under.
+    std::fs::write(root.path().join("pnpm-workspace.yaml"), "allowBuilds:\n  esbuild: true\n")
+        .expect("write ambient workspace manifest above the cache dir");
+
+    pacquet.with_arg("dlx").with_arg("@foo/touch-file-one-bin").assert().success();
+
+    assert!(
+        workspace.join("touch.txt").exists(),
+        "the package's bin should run in the process cwd and write `touch.txt`",
+    );
+    let cached_manifests: Vec<_> = std::fs::read_dir(npmrc_info.cache_dir.join("dlx"))
+        .expect("read the dlx cache dir")
+        .filter_map(Result::ok)
+        .map(|entry| {
+            entry
+                .path()
+                .join("pkg")
+                .join("node_modules")
+                .join("@foo")
+                .join("touch-file-one-bin")
+                .join("package.json")
+        })
+        .filter(|manifest| manifest.exists())
+        .collect();
+    assert!(
+        !cached_manifests.is_empty(),
+        "the package must land in the dlx cache prepare dir, not in an ambient workspace root",
+    );
+
+    drop(root);
+}
