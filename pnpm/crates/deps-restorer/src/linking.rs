@@ -20,7 +20,7 @@ use crate::{
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_cmd_shim::LinkBinsOptions;
-use pnpm_config::{Config, NodeLinker};
+use pnpm_config::{Config, NodeLinker, matcher::create_matcher};
 use pnpm_lockfile::{Lockfile, PackageKey, PackageMetadata, ProjectSnapshot, SnapshotEntry};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::{LogEvent, LogLevel, Reporter, StatsLog, StatsMessage};
@@ -384,7 +384,7 @@ pub fn run_link_phase<Reporter: self::Reporter>(
 
     let phase_start = std::time::Instant::now();
     let HoistLinks { hoisted_dependencies, publicly_hoisted_with_bins } = match pre_hoist {
-        Some(plan) => write_hoist_links(plan, config, layout, link_options)?,
+        Some(plan) => write_hoist_links(plan, config, layout, link_options, snapshots)?,
         None => HoistLinks::none(),
     };
     tracing::info!(target: "pacquet::install::phase", phase = "link.write_hoist_links", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
@@ -438,6 +438,7 @@ fn write_hoist_links(
     config: &Config,
     layout: &VirtualStoreLayout,
     link_options: &LinkBinsOptions,
+    snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
 ) -> Result<HoistLinks, LinkPhaseError> {
     let HoistPlan { graph, result, skipped, .. } = plan;
     let private_hoist_dir = config.virtual_store_dir.join("node_modules");
@@ -452,6 +453,25 @@ fn write_hoist_links(
         &skipped,
     )
     .map_err(LinkPhaseError::HoistSymlink)?;
+    // GVS: expose each slot's hoisted transitive deps inside the
+    // slot's own `node_modules` so code executing from the links
+    // store resolves them at runtime. Mirrors the TS CLI's
+    // `getGvsHoistedChildrenPaths`; no-op when GVS is off or
+    // when the install path didn't materialize snapshots.
+    if let Some(snaps) = snapshots {
+        let private_pattern = create_matcher(config.hoist_pattern.as_deref().unwrap_or(&[]));
+        let public_pattern =
+            create_matcher(config.public_hoist_pattern.as_deref().unwrap_or(&[]));
+        crate::create_gvs_hoisted_children_symlinks(
+            &graph,
+            &private_pattern,
+            &public_pattern,
+            layout,
+            snaps,
+            &skipped,
+        )
+        .map_err(LinkPhaseError::HoistSymlink)?;
+    }
     link_direct_dep_bins_resolved(
         &private_hoist_dir,
         &crate::resolve_hoisted_bin_deps(layout, &result.hoisted_aliases_with_bins),
