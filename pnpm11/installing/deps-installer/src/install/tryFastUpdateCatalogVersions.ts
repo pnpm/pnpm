@@ -3,6 +3,7 @@ import type { Catalogs } from '@pnpm/catalogs.types'
 import type { LockfileObject, ProjectSnapshot, ResolvedDependencies } from '@pnpm/lockfile.types'
 import semver from 'semver'
 
+import { catalogReferencesHaveSnapshots } from './tryFastUpdateCatalogs.js'
 import {
   applyFastRewrite,
   type FastOverride,
@@ -13,22 +14,24 @@ import {
  * Move a catalog entry to a version the lockfile does not have, without
  * resolving the whole graph.
  *
- * `tryFastUpdateCatalogs` handles the range-only case, where the recorded
- * version still satisfies the new specifier and nothing but the specifier
- * moves. This handles the other half: the entry now names a version the
- * locked one cannot satisfy, so the package itself has to be replaced. That
- * is the same rewrite an exact `pnpm.overrides` entry performs, so it reuses
- * that machinery — including the check that every locked child still
- * satisfies the new version's manifest.
+ * Replacing the package is the rewrite an exact `pnpm.overrides` entry
+ * performs, so this drives that machinery rather than repeating it;
+ * `tryFastUpdateCatalogs` keeps the range-only case, where the specifier moves
+ * and the package does not.
  *
- * Unlike an override, a catalog entry only governs the importers that
- * reference it. Returns `false` when anything else reaches the package, since
- * the graph would then have to hold both versions.
+ * An override moves a package everywhere it appears. A catalog entry governs
+ * only the importers that reference it, so anything else reaching the package
+ * would have to keep the old version while those importers move — a graph
+ * holding both, which this cannot express.
  */
 export async function tryFastUpdateCatalogVersions (
   lockfile: LockfileObject,
   opts: FastRewriteOptions & { catalogs: Catalogs }
 ): Promise<boolean> {
+  // The same gate the range-only path opens with: an importer pointing at a
+  // catalog entry with nothing recorded for it needs the resolver, and this
+  // path would otherwise never look at that entry.
+  if (!catalogReferencesHaveSnapshots(lockfile, opts.catalogs)) return false
   if (lockfile.catalogs == null) return false
   const fastOverrides: FastOverride[] = []
   const catalogs: LockfileObject['catalogs'] = {}
@@ -57,16 +60,7 @@ export async function tryFastUpdateCatalogVersions (
   return applyFastRewrite(lockfile, fastOverrides, opts, { catalogs })
 }
 
-/**
- * Whether the catalog entry is the only thing in the lockfile that reaches
- * `alias`: every importer that depends on it does so through this catalog,
- * and no package depends on it at all.
- *
- * An override moves a package everywhere it appears. A catalog entry cannot,
- * so anything else pointing at the package would have to keep the old version
- * while the catalog's importers move to the new one, leaving the graph holding
- * both.
- */
+/** Whether the catalog entry is the only thing in the lockfile that reaches `alias`. */
 function catalogEntryIsSoleReference (
   lockfile: LockfileObject,
   catalogName: string,

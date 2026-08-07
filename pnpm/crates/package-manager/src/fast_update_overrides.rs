@@ -148,9 +148,6 @@ fn build_rewrite_plan(
             return None;
         }
         let name = PkgName::parse(&parsed.target_pkg.name).ok()?;
-        if overrides.iter().any(|entry: &FastOverride| entry.name == name) {
-            return None;
-        }
         let new_version =
             if removes_dependency { None } else { Some(Version::parse(new_value).ok()?) };
         overrides.push(FastOverride {
@@ -180,6 +177,18 @@ pub(crate) fn build_replacement_plan(
     lockfile: &Lockfile,
     overrides: Vec<FastOverride>,
 ) -> Option<RewritePlan> {
+    // Two entries naming one package would each claim its key, and only
+    // one of them could win.
+    // Two entries naming one package would each claim its key, and only one
+    // of them could win. Both callers reject that earlier for their own
+    // reasons; this keeps the plan itself from expressing it.
+    if overrides
+        .iter()
+        .enumerate()
+        .any(|(index, entry)| overrides[..index].iter().any(|other| other.name == entry.name))
+    {
+        return None;
+    }
     let peer_names = get_peer_names(lockfile);
     if overrides
         .iter()

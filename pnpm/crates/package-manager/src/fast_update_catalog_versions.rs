@@ -1,7 +1,7 @@
 use crate::fast_update_overrides::{
     FastOverride, RewriteContext, apply_rewrite_plan, build_replacement_plan,
 };
-use node_semver::Version;
+use node_semver::{Range, Version};
 use pacquet_catalogs_types::Catalogs;
 use pacquet_lockfile::{Lockfile, PkgName, ResolvedCatalogEntry};
 use std::collections::BTreeMap;
@@ -9,21 +9,28 @@ use std::collections::BTreeMap;
 /// Move a catalog entry to a version the lockfile does not have, without
 /// resolving the whole graph.
 ///
-/// [`crate::fast_update_catalogs`] handles the range-only case, where the
-/// recorded version still satisfies the new specifier and nothing but the
-/// specifier moves. This handles the other half: the entry now names a
-/// version the locked one cannot satisfy, so the package itself has to be
-/// replaced. That is the same rewrite an exact `pnpm.overrides` entry
-/// performs, so it reuses that machinery — including the check that every
-/// locked child still satisfies the new version's manifest.
+/// Replacing the package is the rewrite an exact `pnpm.overrides` entry
+/// performs, so this drives that machinery rather than repeating it;
+/// [`crate::fast_update_catalogs`] keeps the range-only case, where the
+/// specifier moves and the package does not.
 ///
-/// Unlike an override, a catalog entry only governs the importers that
-/// reference it. `None` when anything else reaches the package, since the
-/// graph would then have to hold both versions.
+/// An override moves a package everywhere it appears. A catalog entry
+/// governs only the importers that reference it, so anything else
+/// reaching the package would have to keep the old version while those
+/// importers move — a graph holding both, which this cannot express.
 pub(crate) async fn try_fast_update_catalog_versions(
     context: &RewriteContext<'_>,
     catalogs: &Catalogs,
 ) -> Option<Lockfile> {
+    // The same gate the range-only path opens with: an importer pointing at
+    // a catalog entry with nothing recorded for it needs the resolver, and
+    // this path would otherwise never look at that entry.
+    // The same gate the range-only path opens with: an importer pointing at
+    // a catalog entry with nothing recorded for it needs the resolver, and
+    // this path would otherwise never look at that entry.
+    if !crate::fast_update_catalogs::catalog_references_have_snapshots(context.lockfile, catalogs) {
+        return None;
+    }
     let recorded = context.lockfile.catalogs.as_ref()?;
     let mut entries = Vec::new();
     let mut updated_catalogs = BTreeMap::new();
@@ -36,12 +43,19 @@ pub(crate) async fn try_fast_update_catalog_versions(
                 updated_entries.insert(alias.clone(), entry.clone());
                 continue;
             }
-            // A specifier the locked version still satisfies belongs to
-            // the range-only path, which rewrites nothing.
-            let wanted = Version::parse(specifier).ok()?;
-            if wanted == locked {
-                return None;
+            // A specifier the locked version still satisfies moves nothing
+            // but the specifier, exactly as the range-only path would.
+            if Range::parse(specifier).is_ok_and(|range| locked.satisfies(&range)) {
+                updated_entries.insert(
+                    alias.clone(),
+                    ResolvedCatalogEntry {
+                        specifier: specifier.clone(),
+                        version: entry.version.clone(),
+                    },
+                );
+                continue;
             }
+            let wanted = Version::parse(specifier).ok()?;
             let name = PkgName::parse(alias).ok()?;
             if !catalog_entry_is_sole_reference(context.lockfile, catalog_name, &name) {
                 return None;
@@ -70,13 +84,7 @@ pub(crate) async fn try_fast_update_catalog_versions(
 }
 
 /// Whether the catalog entry is the only thing in the lockfile that
-/// reaches `name`: every importer that depends on it does so through this
-/// catalog, and no package depends on it at all.
-///
-/// An override moves a package everywhere it appears. A catalog entry
-/// cannot, so anything else pointing at the package would have to keep the
-/// old version while the catalog's importers move to the new one, leaving
-/// the graph holding both.
+/// reaches `name`.
 fn catalog_entry_is_sole_reference(
     lockfile: &Lockfile,
     catalog_name: &str,

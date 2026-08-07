@@ -188,6 +188,75 @@ async fn falls_back_when_a_package_depends_on_the_catalog_package() {
 }
 
 #[tokio::test]
+async fn falls_back_when_a_catalog_reference_has_no_recorded_entry() {
+    let mut subject = lockfile();
+    subject.importers.insert(
+        "pkg-a".to_string(),
+        serde_json::from_value(json!({
+            "specifiers": { "other": "catalog:" },
+            "dependencies": { "other": { "specifier": "catalog:", "version": "1.0.0" } }
+        }))
+        .expect("importer"),
+    );
+
+    assert!(
+        try_update(&subject, &catalogs("2.0.0"), manifest_requiring_child("^1.0.0"))
+            .await
+            .is_none(),
+        "that importer's catalog entry was never recorded, so the graph is incomplete",
+    );
+}
+
+#[tokio::test]
+async fn falls_back_when_two_catalogs_move_the_same_alias() {
+    let mut subject = lockfile();
+    subject.catalogs.as_mut().expect("catalogs").insert(
+        "other".to_string(),
+        serde_json::from_value(json!({
+            "target": { "specifier": "1.0.0", "version": "1.0.0" }
+        }))
+        .expect("catalog"),
+    );
+    let catalogs = Catalogs::from([
+        ("default".to_string(), BTreeMap::from([("target".to_string(), "2.0.0".to_string())])),
+        ("other".to_string(), BTreeMap::from([("target".to_string(), "3.0.0".to_string())])),
+    ]);
+
+    assert!(
+        try_update(&subject, &catalogs, manifest_requiring_child("^1.0.0")).await.is_none(),
+        "no single catalog is the sole reference once both name it",
+    );
+}
+
+#[tokio::test]
+async fn absorbs_a_range_only_entry_alongside_an_exact_move() {
+    let mut subject = lockfile();
+    subject.catalogs.as_mut().expect("catalogs").get_mut("default").expect("default").insert(
+        "child".to_string(),
+        serde_json::from_value(json!({ "specifier": "1.1.0", "version": "1.1.0" }))
+            .expect("catalog entry"),
+    );
+    let catalogs = Catalogs::from([(
+        "default".to_string(),
+        BTreeMap::from([
+            ("target".to_string(), "2.0.0".to_string()),
+            ("child".to_string(), "^1.1.0".to_string()),
+        ]),
+    )]);
+
+    let updated = try_update(&subject, &catalogs, manifest_requiring_child("^1.0.0"))
+        .await
+        .expect("the range-only entry rides along with the exact move");
+
+    let recorded = &updated.catalogs.as_ref().expect("catalogs")["default"];
+    assert_eq!(
+        (recorded["child"].specifier.as_str(), recorded["child"].version.as_str()),
+        ("^1.1.0", "1.1.0"),
+    );
+    assert_eq!(recorded["target"].version.as_str(), "2.0.0");
+}
+
+#[tokio::test]
 async fn declines_a_range_the_locked_version_still_satisfies() {
     assert!(
         try_update(&lockfile(), &catalogs("^1.0.0"), manifest_requiring_child("^1.0.0"))

@@ -13,17 +13,7 @@ export function tryFastUpdateCatalogs (
   if (Object.values(opts.overrides).some((specifier) => parseCatalogProtocol(specifier) != null)) {
     return false
   }
-  if (Object.values(lockfile.importers).some((importer) =>
-    Object.entries(importer.specifiers).some(([alias, specifier]) => {
-      const catalogName = parseCatalogProtocol(specifier)
-      return catalogName != null && (
-        opts.catalogs[catalogName]?.[alias] == null ||
-        lockfile.catalogs?.[catalogName]?.[alias] == null
-      )
-    })
-  )) {
-    return false
-  }
+  if (!catalogReferencesHaveSnapshots(lockfile, opts.catalogs)) return false
 
   let changed = false
   const catalogs = Object.fromEntries(
@@ -62,4 +52,24 @@ function catalogEntryIsReferenced (
 ): boolean {
   const protocol = catalogName === 'default' ? 'catalog:' : `catalog:${catalogName}`
   return Object.values(importers).some((importer) => importer.specifiers[alias] === protocol)
+}
+
+/**
+ * Whether every catalog an importer references has an entry in both the
+ * configuration and the lockfile. Without one there is nothing to rewrite the
+ * reference from, so the resolver has to run.
+ */
+export function catalogReferencesHaveSnapshots (
+  lockfile: LockfileObject,
+  catalogs: Catalogs
+): boolean {
+  return Object.values(lockfile.importers).every((importer) =>
+    Object.entries(importer.specifiers).every(([alias, specifier]) => {
+      const catalogName = parseCatalogProtocol(specifier)
+      return catalogName == null || (
+        catalogs[catalogName]?.[alias] != null &&
+        lockfile.catalogs?.[catalogName]?.[alias] != null
+      )
+    })
+  )
 }

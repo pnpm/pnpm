@@ -768,15 +768,15 @@ export async function mutateModules (
               })
             }
             if (changedSetting === 'catalogs') {
-              if (tryFastUpdateCatalogs(candidate, {
+              // The range-only rewrite keeps the entries it cannot handle, so a
+              // mixed update still leaves an exact move for the rewrite below.
+              const rewroteRanges = tryFastUpdateCatalogs(candidate, {
                 catalogs: opts.catalogs,
                 overrides: opts.overrides,
-              })) return true
-              // The range-only rewrite declined, so the entry names a version
-              // the locked one cannot satisfy and the package itself moves.
-              if (overridesUseCatalogs) return false
+              })
+              if (overridesUseCatalogs) return rewroteRanges
               const catalogPolicy = getPublishedByPolicy(opts)
-              return tryFastUpdateCatalogVersions(candidate, {
+              return await tryFastUpdateCatalogVersions(candidate, {
                 catalogs: opts.catalogs,
                 lockfileDir: opts.lockfileDir,
                 lockfileIncludeTarballUrl: opts.lockfileIncludeTarballUrl,
@@ -791,7 +791,7 @@ export async function mutateModules (
                   : undefined,
                 trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
                 isLockfileUpToDate,
-              })
+              }) || rewroteRanges
             }
             if (changedSetting === 'ignoredOptionalDependencies') {
               return tryFastUpdateIgnoredOptionalDependencies(candidate, opts.ignoredOptionalDependencies)

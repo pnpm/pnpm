@@ -80,6 +80,26 @@ test('a package depending on the catalog package falls back', async () => {
   expect(await tryFastUpdateCatalogVersions(subject, updateOptions('^1.0.0'))).toBe(false)
 })
 
+test('a catalog reference with no recorded entry falls back', async () => {
+  const subject = lockfile()
+  subject.importers['pkg-a' as ProjectId] = {
+    specifiers: { other: 'catalog:' },
+    dependencies: { other: '1.0.0' },
+  }
+
+  expect(await tryFastUpdateCatalogVersions(subject, updateOptions('^1.0.0'))).toBe(false)
+})
+
+test('a manifest hook that renames the package falls back', async () => {
+  const opts = updateOptions('^1.0.0') as unknown as Record<string, unknown>
+  opts.readPackageHook = (manifest: { name: string }) => ({ ...manifest, name: 'renamed' })
+
+  expect(await tryFastUpdateCatalogVersions(
+    lockfile(),
+    opts as unknown as Parameters<typeof tryFastUpdateCatalogVersions>[1]
+  )).toBe(false)
+})
+
 test('a range the locked version still satisfies is declined', async () => {
   expect(await tryFastUpdateCatalogVersions(lockfile(), updateOptions('^1.0.0', '^1.0.0'))).toBe(false)
 })

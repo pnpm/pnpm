@@ -320,7 +320,18 @@ async function resolveNewManifests (
     const manifest = opts.readPackageHook == null
       ? rawManifest
       : await opts.readPackageHook(clone(rawManifest))
-    if (hasPeerDependencies(manifest)) return undefined
+    // pacquet validates after its manifest hook, so a hook that introduces
+    // any of these must send both stacks down the same fallback.
+    if (
+      manifest.name !== name ||
+      manifest.version !== newVersion ||
+      manifest.deprecated != null ||
+      hasInvalidManifestMaps(manifest) ||
+      hasPeerDependencies(manifest) ||
+      manifest.engines?.runtime != null ||
+      manifest.bundledDependencies != null ||
+      manifest.bundleDependencies != null
+    ) return undefined
     return {
       name,
       manifest,
