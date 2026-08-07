@@ -253,7 +253,16 @@ pub(crate) async fn run_install<Reporter: self::Reporter + 'static>(
     cfg.virtual_store_dir = install_dir.join("node_modules").join(".pnpm");
     cfg.enable_global_virtual_store = enable_global_virtual_store;
     cfg.lockfile = true;
-    cfg.workspace_dir = None;
+    // Anchor the engine project to its own install dir, exactly like the
+    // global-add group install (see `run_group_install` in
+    // `cli_args::global`). The self-update install dir sits under the
+    // global packages dir, which carries a `pnpm-workspace.yaml` of global
+    // settings once a global `allowBuilds` decision has been persisted;
+    // left unanchored, the install pipeline walks up, adopts that file as
+    // the workspace root, and lays the engine out as a workspace
+    // sub-importer — leaving `node_modules/` in the install dir without
+    // the wrapper package (pnpm/pnpm#13697).
+    cfg.workspace_dir = Some(install_dir.to_path_buf());
     cfg.supported_architectures = supported_architectures;
     // The engine is installed with scripts disabled — the wrapper's
     // preinstall (which links the platform binary) is replicated by
