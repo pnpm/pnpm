@@ -717,6 +717,9 @@ export async function mutateModules (
         onlyLockfileSettingsChanged ||
         hasChangedSpecifiers) &&
       !frozenLockfile &&
+      // `pnpm fetch` installs from the lockfile alone; with its empty
+      // manifests every recorded dependency would read as removed.
+      !opts.ignorePackageManifest &&
       installsOnly &&
       !isCheckOnlyInstall(opts) &&
       opts.preferFrozenLockfile &&
