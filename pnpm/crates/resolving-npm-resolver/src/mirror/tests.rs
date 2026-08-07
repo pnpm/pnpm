@@ -210,8 +210,6 @@ fn load_meta_past_the_hold_cap_ignores_a_sparse_tail() {
     let mirror = dir.path().join("acme.jsonl");
     let pkg = fixture_package();
     save_meta_indexed(&mirror, &pkg, None).expect("save");
-    // `write(true)`, not `append(true)`: Windows denies `set_len` on an
-    // append-only handle (`FILE_APPEND_DATA` without `FILE_WRITE_DATA`).
     let file = std::fs::OpenOptions::new().write(true).open(&mirror).expect("open");
     let size = file.metadata().expect("metadata").len();
     file.set_len(size + 64 * 1024 * 1024).expect("extend sparsely");
