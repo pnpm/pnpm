@@ -51,17 +51,89 @@ fn root_ignores_a_custom_modules_dir() {
     drop(root);
 }
 
-/// `--global` / `-g` is rejected until global package management is ported.
+/// `pacquet root -g` prints the global packages directory
+/// (`<pnpm-home>/global/<layout-version>`). Like pnpm's config reader it
+/// creates and validates the global bin dir first, but without the
+/// writability requirement (`globalDirShouldAllowWrite` is false for
+/// `root`; pnpm issue 2700). Unix-gated like `bin.rs`: the `PATH`
+/// validation is platform-specific.
+#[cfg(unix)]
 #[test]
-fn root_global_is_not_supported_yet() {
+fn root_global_prints_the_global_packages_dir() {
     let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+    let pnpm_home = root.path().join("pnpm-home");
+    let global_bin = pnpm_home.join("bin");
+    let existing_path = std::env::var("PATH").unwrap_or_default();
+    let path = format!("{}:{existing_path}", global_bin.display());
 
-    let output = pacquet.with_args(["root", "-g"]).output().expect("run pacquet root -g");
+    let output = pacquet
+        .with_env("PNPM_HOME", &pnpm_home)
+        .with_env("HOME", root.path())
+        .with_env("XDG_CONFIG_HOME", root.path().join("xdg-config"))
+        .with_env("PNPM_CONFIG_GLOBAL_DIR", "")
+        .with_env("pnpm_config_global_dir", "")
+        .with_env("PNPM_CONFIG_GLOBAL_BIN_DIR", "")
+        .with_env("pnpm_config_global_bin_dir", "")
+        .with_env("PATH", path)
+        .with_args(["root", "-g"])
+        .output()
+        .expect("run pacquet root -g");
     dbg!(&output);
-    assert!(!output.status.success(), "pacquet root -g should fail until global support lands");
+    assert!(output.status.success(), "pacquet root -g should succeed");
 
+    let expected = format!(
+        "{}\n",
+        pnpm_home.join("global").join(pacquet_config::GLOBAL_LAYOUT_VERSION).display()
+    );
+    assert_eq!(String::from_utf8_lossy(&output.stdout), expected);
+    assert!(global_bin.is_dir(), "pacquet root -g should create the global bin dir");
+
+    drop(root);
+}
+
+/// The pm-check warning (`Using --global skips the package manager check for
+/// this project`) goes to stderr so `root -g` keeps stdout a clean,
+/// machine-readable path. Ports `pnpm root -g writes warnings to stderr so
+/// stdout stays a clean path` from `pnpm11/pnpm/test/root.ts`: the impossible
+/// pin `pnpm@0.0.0` plus `COREPACK_ROOT` triggers the warning without any
+/// version resolution.
+#[cfg(unix)]
+#[test]
+fn root_global_writes_warnings_to_stderr_so_stdout_stays_a_clean_path() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), r#"{ "packageManager": "pnpm@0.0.0" }"#)
+        .expect("write package.json");
+    let pnpm_home = root.path().join("pnpm-home");
+    let global_bin = pnpm_home.join("bin");
+    let existing_path = std::env::var("PATH").unwrap_or_default();
+    let path = format!("{}:{existing_path}", global_bin.display());
+
+    let output = pacquet
+        .with_env("PNPM_HOME", &pnpm_home)
+        .with_env("HOME", root.path())
+        .with_env("XDG_CONFIG_HOME", root.path().join("xdg-config"))
+        .with_env("PNPM_CONFIG_GLOBAL_DIR", "")
+        .with_env("pnpm_config_global_dir", "")
+        .with_env("PNPM_CONFIG_GLOBAL_BIN_DIR", "")
+        .with_env("pnpm_config_global_bin_dir", "")
+        .with_env("PATH", path)
+        .with_env("COREPACK_ROOT", "/fake/corepack")
+        .with_args(["root", "-g"])
+        .output()
+        .expect("run pacquet root -g");
+    dbg!(&output);
+    assert!(output.status.success(), "pacquet root -g should succeed");
+
+    let expected = format!(
+        "{}\n",
+        pnpm_home.join("global").join(pacquet_config::GLOBAL_LAYOUT_VERSION).display()
+    );
+    assert_eq!(String::from_utf8_lossy(&output.stdout), expected);
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("not supported yet"), "stderr should explain the gap: {stderr}");
+    assert!(
+        stderr.contains("Using --global skips the package manager check for this project"),
+        "stderr should carry the pm-check warning: {stderr}",
+    );
 
     drop(root);
 }

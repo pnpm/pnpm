@@ -1,7 +1,10 @@
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use pacquet_config::{Config, check_global_bin_dir};
 use std::path::{Path, PathBuf};
+
+use super::global::GlobalError;
 
 /// Print the current package prefix — the nearest directory containing a
 /// `package.json`, `node_modules`, or `pnpm-workspace.yaml`.
@@ -16,12 +19,11 @@ pub struct PrefixArgs {
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum PrefixError {
-    /// `--global` is rejected because the global-dir machinery (pnpm's
-    /// `@pnpm/global.commands`) is not ported to pacquet yet; refuse rather
-    /// than print a wrong path.
-    #[display("`pnpm prefix --global` is not supported yet.")]
-    #[diagnostic(code(ERR_PNPM_CLI_PREFIX_GLOBAL_UNSUPPORTED))]
-    GlobalUnsupported,
+    /// The global packages directory could not be resolved (no `PNPM_HOME`
+    /// and no determinable data dir), matching pnpm's `prefix` handler.
+    #[display("The global package directory could not be resolved.")]
+    #[diagnostic(code(ERR_PNPM_MISSING_GLOBAL_PACKAGE_DIR))]
+    MissingGlobalPackageDir,
 
     /// IO error while looking up the prefix.
     #[display("failed to access {}: {source}", path.display())]
@@ -75,9 +77,26 @@ fn find_prefix_up(name: &Path, original: &Path) -> miette::Result<PathBuf> {
 }
 
 impl PrefixArgs {
-    pub fn run(self, dir: &Path) -> miette::Result<()> {
+    pub fn run(self, dir: &Path, config: &Config) -> miette::Result<()> {
         if self.global {
-            return Err(PrefixError::GlobalUnsupported.into());
+            // Mirror pnpm's config reader: create then validate the global bin
+            // dir for every `--global` command, without the writability check
+            // (`globalDirShouldAllowWrite` is false for `root` and `prefix`;
+            // see pnpm issue 2700).
+            let bin = config.global_bin.clone().ok_or(GlobalError::NoGlobalBinDir)?;
+            std::fs::create_dir_all(&bin).map_err(|error| {
+                let bin_dir = bin.display();
+                miette::miette!("failed to create the global bin directory {bin_dir}: {error}")
+            })?;
+            check_global_bin_dir(&bin, std::env::var("PATH").ok().as_deref(), false)
+                .map_err(miette::Report::new)?;
+            // pnpm's `prefix` handler prints the parent of the global packages
+            // dir — the global dir root, without the layout-version leaf.
+            let pkg_dir =
+                config.global_pkg_dir.clone().ok_or(PrefixError::MissingGlobalPackageDir)?;
+            let prefix_dir = pkg_dir.parent().ok_or(PrefixError::MissingGlobalPackageDir)?;
+            println!("{}", prefix_dir.display());
+            return Ok(());
         }
         let prefix_dir = find_local_prefix(dir)?;
         println!("{}", prefix_dir.display());
