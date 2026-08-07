@@ -1544,18 +1544,14 @@ test('use version from the registry if it is newer than the local one', async ()
 })
 
 test('preferWorkspacePackages: use version from the workspace even if there is newer version in the registry', async () => {
-  getMockAgent().get(registries.default.replace(/\/$/, ''))
-    .intercept({ path: '/is-positive', method: 'GET' })
-    .reply(200, {
-      ...isPositiveMeta,
-      'dist-tags': { latest: '3.1.0' },
-    })
-
   const { resolveFromNpm } = createResolveFromNpm({
     storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     registries,
   })
+  // No registry interceptor is registered on purpose: with preferWorkspacePackages the
+  // workspace copy wins regardless of what the registry says, so the resolver must not
+  // make the request at all. Any request would fail the test via the mock agent.
   const resolveResult = await resolveFromNpm({
     alias: 'is-positive',
     bareSpecifier: '^3.0.0',
@@ -1579,9 +1575,178 @@ test('preferWorkspacePackages: use version from the workspace even if there is n
     expect.objectContaining({
       resolvedVia: 'workspace',
       id: 'link:is-positive',
+    })
+  )
+  // `latest` comes from the registry metadata, so the fast path cannot report it. It is only
+  // consumed for registry packages: local packages return from resolveDependency before
+  // outdatedDependencies is populated.
+  expect(resolveResult!.latest).toBeUndefined()
+})
+
+test('preferWorkspacePackages: still consults the registry when several workspace copies share a name', async () => {
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, {
+      ...isPositiveMeta,
+      'dist-tags': { latest: '3.1.0' },
+    })
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registries,
+  })
+  const resolveResult = await resolveFromNpm({
+    alias: 'is-positive',
+    bareSpecifier: '^3.0.0',
+  }, {
+    preferWorkspacePackages: true,
+    projectDir: '/home/istvan/src',
+    workspacePackages: new Map([
+      ['is-positive', new Map([
+        ['3.0.0', {
+          rootDir: '/home/istvan/src/is-positive-3' as ProjectRootDir,
+          manifest: { name: 'is-positive', version: '3.0.0' },
+        }],
+        ['3.1.0', {
+          rootDir: '/home/istvan/src/is-positive-3.1' as ProjectRootDir,
+          manifest: { name: 'is-positive', version: '3.1.0' },
+        }],
+      ])],
+    ]),
+  })
+
+  // With more than one local copy the registry's picked version decides which one is used,
+  // so the fast path must not engage and `latest` is still reported.
+  expect(resolveResult).toStrictEqual(
+    expect.objectContaining({
+      resolvedVia: 'workspace',
+      id: 'link:is-positive-3.1',
       latest: '3.1.0',
     })
   )
+})
+
+test('preferWorkspacePackages: still consults the registry under trustPolicy=no-downgrade', async () => {
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, {
+      ...isPositiveMeta,
+      'dist-tags': { latest: '3.1.0' },
+      // trustPolicy=no-downgrade validates publish times, so the fast path engaging here
+      // would skip that check entirely. Reaching it at all is the point of this test.
+      time: {
+        '1.0.0': '2016-01-01T00:00:00.000Z',
+        '3.0.0': '2017-01-01T00:00:00.000Z',
+        '3.1.0': '2018-01-01T00:00:00.000Z',
+      },
+    })
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registries,
+  })
+  const resolveResult = await resolveFromNpm({
+    alias: 'is-positive',
+    bareSpecifier: '^3.0.0',
+  }, {
+    preferWorkspacePackages: true,
+    trustPolicy: 'no-downgrade',
+    projectDir: '/home/istvan/src',
+    workspacePackages: new Map([
+      ['is-positive', new Map([
+        ['3.0.0', {
+          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
+          manifest: { name: 'is-positive', version: '3.0.0' },
+        }],
+      ])],
+    ]),
+  })
+
+  expect(resolveResult).toStrictEqual(
+    expect.objectContaining({
+      resolvedVia: 'workspace',
+      id: 'link:is-positive',
+      latest: '3.1.0',
+    })
+  )
+})
+
+test('preferWorkspacePackages: does not engage for injected workspace packages', async () => {
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, {
+      ...isPositiveMeta,
+      'dist-tags': { latest: '3.1.0' },
+    })
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registries,
+  })
+  const resolveResult = await resolveFromNpm({
+    alias: 'is-positive',
+    bareSpecifier: '^3.0.0',
+    injected: true,
+  }, {
+    preferWorkspacePackages: true,
+    projectDir: '/home/istvan/src',
+    lockfileDir: '/home/istvan/src',
+    workspacePackages: new Map([
+      ['is-positive', new Map([
+        ['3.0.0', {
+          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
+          manifest: { name: 'is-positive', version: '3.0.0' },
+        }],
+      ])],
+    ]),
+  })
+
+  // Injected packages resolve to a `file:` id, which packageRequester does not mark `isLocal`,
+  // so they still flow through the registry bookkeeping that reads `latest`. The fast path must
+  // stay out of the way and let the registry supply it.
+  expect(resolveResult).toStrictEqual(
+    expect.objectContaining({
+      resolvedVia: 'workspace',
+      latest: '3.1.0',
+    })
+  )
+})
+
+test('preferWorkspacePackages: does not engage when no local version satisfies the range', async () => {
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, {
+      ...isPositiveMeta,
+      'dist-tags': { latest: '3.1.0' },
+    })
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registries,
+  })
+  const resolveResult = await resolveFromNpm({
+    alias: 'is-positive',
+    bareSpecifier: '^3.0.0',
+  }, {
+    preferWorkspacePackages: true,
+    projectDir: '/home/istvan/src',
+    workspacePackages: new Map([
+      ['is-positive', new Map([
+        ['1.0.0', {
+          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
+          manifest: { name: 'is-positive', version: '1.0.0' },
+        }],
+      ])],
+    ]),
+  })
+
+  // The only local copy is outside the wanted range, so the registry decides.
+  expect(resolveResult!.resolvedVia).toBe('npm-registry')
+  expect(resolveResult!.id).toBe('is-positive@3.1.0')
 })
 
 test('use local version if it is newer than the latest in the registry', async () => {
