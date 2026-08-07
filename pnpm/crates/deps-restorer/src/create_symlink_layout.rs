@@ -1,9 +1,15 @@
 use crate::{
-    SkippedSnapshots, SymlinkPackageError, VirtualStoreLayout,
-    safe_join_modules_dir::safe_join_modules_dir, symlink_package,
+    DirectDepsByImporter, HoistGraphNode, SkippedSnapshots, SymlinkPackageError,
+    VirtualStoreLayout, safe_join_modules_dir::safe_join_modules_dir, symlink_package,
 };
-use pnpm_lockfile::{PkgName, SnapshotDepRef};
-use std::{collections::HashMap, path::Path};
+use indexmap::IndexMap;
+use pnpm_config::matcher::Matcher;
+use pnpm_lockfile::{PackageKey, PkgName, SnapshotDepRef, SnapshotEntry};
+use std::{
+    collections::{HashMap, HashSet},
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 /// Create symlink layout of dependencies for a package in a virtual dir.
 ///
@@ -84,6 +90,165 @@ pub fn create_symlink_layout(
                     .map_err(SymlinkPackageError::InvalidAlias)?;
             symlink_package(&symlink_target, &symlink_path).map(drop)
         })
+}
+
+type SymlinkWork = (Arc<PathBuf>, Arc<PathBuf>);
+
+fn snapshot_direct_deps(snapshot: &SnapshotEntry) -> IndexMap<String, PackageKey> {
+    let mut direct_deps = IndexMap::new();
+    for (alias, dep_ref) in snapshot.dependencies
+        .iter()
+        .flatten()
+        .chain(snapshot.optional_dependencies.iter().flatten())
+    {
+        if let Some(key) = dep_ref.resolve(alias) {
+            direct_deps.entry(alias.to_string()).or_insert(key);
+        }
+    }
+    direct_deps
+}
+
+fn push_alias_symlinks(
+    pkg_name: &str,
+    direct_deps: &IndexMap<String, PackageKey>,
+    virtual_node_modules_dir: &Path,
+    target: &Arc<PathBuf>,
+    aliases: &IndexMap<String, pnpm_modules_yaml::HoistKind>,
+    work: &mut Vec<SymlinkWork>,
+) {
+    for alias in aliases.keys() {
+        if alias == pkg_name || direct_deps.contains_key(alias) {
+            continue;
+        }
+        if let Ok(dest) = safe_join_modules_dir(virtual_node_modules_dir, alias) {
+            work.push((Arc::clone(target), Arc::new(dest)));
+        }
+    }
+}
+
+fn collect_dep_hoist_symlinks(
+    pkg_key: &PackageKey,
+    direct_deps: &IndexMap<String, PackageKey>,
+    virtual_node_modules_dir: &Path,
+    layout: &VirtualStoreLayout,
+    hoist_graph: &HashMap<PackageKey, HoistGraphNode>,
+    hoisted_dependencies: &crate::HoistedDependencies,
+) -> Vec<SymlinkWork> {
+    let mut work = Vec::new();
+    let pkg_name = pkg_key.name.to_string();
+    for (dep_path_str, aliases) in hoisted_dependencies {
+        let Ok(dep_key) = dep_path_str.parse::<PackageKey>() else {
+            continue;
+        };
+        let Some(pkg) = hoist_graph.get(&dep_key) else {
+            continue;
+        };
+        let target_slot = layout.slot_dir(&dep_key);
+        let Ok(target) =
+            safe_join_modules_dir(&target_slot.join("node_modules"), &pkg.name.to_string())
+        else {
+            continue;
+        };
+        let target_arc = Arc::new(target);
+        push_alias_symlinks(
+            &pkg_name,
+            direct_deps,
+            virtual_node_modules_dir,
+            &target_arc,
+            aliases,
+            &mut work,
+        );
+    }
+    work
+}
+
+fn slot_hoisted_symlinks(
+    pkg_key: &PackageKey,
+    snapshot: &SnapshotEntry,
+    layout: &VirtualStoreLayout,
+    hoist_graph: &HashMap<PackageKey, HoistGraphNode>,
+    patterns: (&Matcher, &Matcher),
+    hoist_skipped: &HashSet<PackageKey>,
+) -> Vec<SymlinkWork> {
+    let direct_deps = snapshot_direct_deps(snapshot);
+    if direct_deps.is_empty() {
+        return Vec::new();
+    }
+    let mut direct_deps_by_importer = DirectDepsByImporter::new();
+    direct_deps_by_importer.insert(".".to_string(), direct_deps.clone());
+
+    let (private_pattern, public_pattern) = patterns;
+    let Some(result) = crate::hoist::get_hoisted_dependencies(&crate::hoist::HoistInputs {
+        graph: hoist_graph,
+        direct_deps_by_importer: &direct_deps_by_importer,
+        skipped: hoist_skipped,
+        private_pattern: private_pattern.clone(),
+        public_pattern: public_pattern.clone(),
+        hoisted_workspace_packages: None,
+    }) else {
+        return Vec::new();
+    };
+
+    let slot_dir = layout.slot_dir(pkg_key);
+    collect_dep_hoist_symlinks(
+        pkg_key,
+        &direct_deps,
+        &slot_dir.join("node_modules"),
+        layout,
+        hoist_graph,
+        &result.hoisted_dependencies,
+    )
+}
+
+fn ensure_parent_directories(pairs: &[SymlinkWork]) {
+    let mut dir_set = HashSet::new();
+    for (target, dest) in pairs {
+        if let Some(parent) = target.parent() {
+            dir_set.insert(parent);
+        }
+        if let Some(parent) = dest.parent() {
+            dir_set.insert(parent);
+        }
+    }
+    for dir in dir_set {
+        let _ = std::fs::create_dir_all(dir);
+    }
+}
+
+/// Symlinks hoisted transitive dependencies inside each GVS slot's `node_modules`.
+pub fn create_gvs_hoisted_children_symlinks(
+    hoist_graph: &HashMap<PackageKey, HoistGraphNode>,
+    private_pattern: &Matcher,
+    public_pattern: &Matcher,
+    layout: &VirtualStoreLayout,
+    snapshots: &HashMap<PackageKey, SnapshotEntry>,
+    hoist_skipped: &HashSet<PackageKey>,
+) -> Result<(), SymlinkPackageError> {
+    use rayon::prelude::*;
+
+    if !layout.enable_global_virtual_store() {
+        return Ok(());
+    }
+
+    let pairs: Vec<SymlinkWork> = snapshots
+        .par_iter()
+        .flat_map(|(pkg_key, snapshot)| {
+            slot_hoisted_symlinks(
+                pkg_key,
+                snapshot,
+                layout,
+                hoist_graph,
+                (private_pattern, public_pattern),
+                hoist_skipped,
+            )
+        })
+        .collect();
+
+    ensure_parent_directories(&pairs);
+
+    pairs
+        .par_iter()
+        .try_for_each(|(target, dest)| symlink_package(target.as_ref(), dest.as_ref()).map(drop))
 }
 
 #[cfg(test)]
