@@ -100,6 +100,32 @@ test('linkBins() skips bins that already reference the correct target', async ()
   expect(fs.readFileSync(binLocation, 'utf8')).toBe(sentinel)
 })
 
+testOnPosix('linkBins() repairs a non-executable source when the existing bin references it', async () => {
+  const binTarget = temporaryDirectory()
+  const warn = jest.fn()
+  const simpleFixture = f.prepare('simple-fixture')
+  const binSource = path.join(simpleFixture, 'node_modules', 'simple', 'index.js')
+
+  await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn })
+  fs.chmodSync(binSource, 0o644)
+
+  await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn })
+
+  expect(fs.statSync(binSource).mode & 0o777).toBe(0o755)
+})
+
+testOnPosix('linkBins() keeps a correctly linked bin whose source file is missing', async () => {
+  const binTarget = temporaryDirectory()
+  const warn = jest.fn()
+  const simpleFixture = f.prepare('simple-fixture')
+  const binSource = path.join(simpleFixture, 'node_modules', 'simple', 'index.js')
+
+  await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn })
+  fs.rmSync(binSource)
+
+  await expect(linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn })).resolves.not.toThrow()
+})
+
 test('linkBins() rewrites bins that lack a target marker', async () => {
   const binTarget = temporaryDirectory()
   const warn = jest.fn()
