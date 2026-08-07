@@ -236,6 +236,35 @@ async fn loose_mode_persists_excludes_without_prompting() {
 }
 
 #[tokio::test]
+async fn strict_approval_without_persistence_proceeds_but_leaves_the_workspace_manifest_unchanged()
+{
+    recording_reporter!(reset_events, prompt_actions);
+    reset_events();
+    let dir = tempdir().expect("temp dir");
+    let path = dir.path().join("pnpm-workspace.yaml");
+    fs::write(&path, "packages:\n  - packages/*\n").expect("write workspace manifest");
+    let original = fs::read_to_string(&path).expect("read original");
+    let mut config = Config::new();
+    config.minimum_release_age_strict = Some(true);
+    let mut prompt = FakePrompt { answer: true, messages: Vec::new() };
+
+    handle_minimum_release_age_violations_with::<RecordingReporter, _>(
+        &config,
+        dir.path(),
+        &[violation("foo", "1.0.0", "MINIMUM_RELEASE_AGE_VIOLATION")],
+        true,
+        false,
+        &mut prompt,
+    )
+    .await
+    .expect("approval should continue");
+
+    assert_eq!(prompt.messages.len(), 1);
+    assert_eq!(fs::read_to_string(path).expect("read unchanged manifest"), original);
+    assert_eq!(prompt_actions(), [PromptAction::Start, PromptAction::End]);
+}
+
+#[tokio::test]
 async fn loose_mode_without_persistence_leaves_the_workspace_manifest_unchanged() {
     recording_reporter!(reset_events);
     reset_events();

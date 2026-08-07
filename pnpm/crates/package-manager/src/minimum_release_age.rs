@@ -116,21 +116,22 @@ where
     ReporterImpl: Reporter,
     Prompt: ApprovalPrompt,
 {
+    let strict = config.resolved_minimum_release_age_strict();
+    if !strict && !persist_excludes {
+        return Ok(());
+    }
     let immature = sorted_immature_violations(violations);
     if immature.is_empty() {
         return Ok(());
     }
 
-    if !config.resolved_minimum_release_age_strict() {
-        if persist_excludes {
-            persist_and_report_excludes::<ReporterImpl>(
-                config,
-                workspace_dir,
-                &immature,
-                "(set minimumReleaseAgeStrict to true to gate these updates with a prompt)",
-            )?;
-        }
-        return Ok(());
+    if !strict {
+        return persist_and_report_excludes::<ReporterImpl>(
+            config,
+            workspace_dir,
+            &immature,
+            "(set minimumReleaseAgeStrict to true to gate these updates with a prompt)",
+        );
     }
 
     if !can_prompt {
@@ -148,6 +149,14 @@ where
         return Err(MinimumReleaseAgeError::Denied);
     }
 
+    // A non-persisting caller (`dedupe --check`) still prompts in strict
+    // mode, but an approval only lets the run proceed — nothing may be
+    // written. `update --no-save` never reaches this point: strict mode
+    // without persistence is rejected up-front by
+    // [`ensure_strict_minimum_release_age_can_save`].
+    if !persist_excludes {
+        return Ok(());
+    }
     persist_and_report_excludes::<ReporterImpl>(
         config,
         workspace_dir,
