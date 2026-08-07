@@ -58,6 +58,7 @@ stage_packages() {
           --access public \
           --provenance \
           --no-git-checks \
+          --reporter=silent \
           --json)
         if ! stage_id=$(jq -er --arg name "$name" \
           '.[$name].stageId | strings | select(length > 0)' <<< "$stage_output"); then

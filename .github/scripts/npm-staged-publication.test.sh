@@ -78,7 +78,7 @@ NPM_STAGE_TEST_PNPM_LOG="$pnpm_log" \
   "$script_dir/npm-staged-publication.sh" stage 'test layer' next-12 \
     "$test_tmp/staged" "$test_tmp/already"
 
-grep -q 'stage publish.*/staged/ --registry https://registry.npmjs.org/ --npmrc-auth-file /dev/null --tag next-12 --access public --provenance --no-git-checks --json' "$pnpm_log"
+grep -q 'stage publish.*/staged/ --registry https://registry.npmjs.org/ --npmrc-auth-file /dev/null --tag next-12 --access public --provenance --no-git-checks --reporter=silent --json' "$pnpm_log"
 test "$(wc -l < "$pnpm_log")" -eq 1
 grep -q '| `@pnpm/staged@1.0.0` | `11111111-2222-4333-8444-555555555555` |' "$summary"
 grep -q '| `@pnpm/already@1.0.0` | already published |' "$summary"
