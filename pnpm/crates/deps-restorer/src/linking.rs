@@ -19,7 +19,7 @@ use crate::{
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_config::{Config, NodeLinker};
+use pacquet_config::{Config, NodeLinker, matcher::create_matcher};
 use pacquet_lockfile::{Lockfile, PackageKey, PackageMetadata, ProjectSnapshot, SnapshotEntry};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_reporter::{LogEvent, LogLevel, Reporter, StatsLog, StatsMessage};
@@ -430,6 +430,24 @@ pub fn run_link_phase<Reporter: self::Reporter>(
             &hoist_skipped,
         )
         .map_err(LinkPhaseError::HoistSymlink)?;
+        // GVS: expose each slot's hoisted transitive deps inside the
+        // slot's own `node_modules` so code executing from the links
+        // store resolves them at runtime. Mirrors the TS CLI's
+        // `getGvsHoistedChildrenPaths`; no-op when GVS is off.
+        if let Some(snaps) = snapshots {
+            let private_pattern = create_matcher(config.hoist_pattern.as_deref().unwrap_or(&[]));
+            let public_pattern =
+                create_matcher(config.public_hoist_pattern.as_deref().unwrap_or(&[]));
+            crate::create_gvs_hoisted_children_symlinks(
+                &graph,
+                &private_pattern,
+                &public_pattern,
+                layout,
+                snaps,
+                &hoist_skipped,
+            )
+            .map_err(LinkPhaseError::HoistSymlink)?;
+        }
         // Private-side bins → `<vs>/node_modules/.bin`.
         // Reuses the rayon-parallel `link_direct_dep_bins`
         // shape (read each location's `package.json`, fan out
