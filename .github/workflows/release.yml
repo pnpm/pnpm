@@ -1359,8 +1359,23 @@ jobs:
         env:
           TAG: ${{ needs.plan.outputs.pnpr_tag }}
         run: |
+          set -euo pipefail
           for package in pnpr/npm/pnpr-* pnpr/npm/pnpr; do
-            pnpm publish "$package/" --tag "$TAG" --access public --provenance --no-git-checks
+            name=$(jq -r '.publishConfig.name // .name' "$package/package.json")
+            version=$(jq -r '.version' "$package/package.json")
+            state=$(.github/scripts/npm-package-publication-state.sh "$name@$version")
+            case "$state" in
+              published)
+                echo "$name@$version is already published; skipping"
+                ;;
+              missing)
+                pnpm publish "$package/" --tag "$TAG" --access public --provenance --no-git-checks
+                ;;
+              *)
+                echo "::error::Unexpected npm publication state for $name@$version"
+                exit 1
+                ;;
+            esac
           done
 
   docker-pnpr:
