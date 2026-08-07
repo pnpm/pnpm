@@ -468,11 +468,6 @@ test('installation on a workspace with many complex circular dependencies does n
     ignoreScripts: true,
     lockfileOnly: true,
     strictPeerDependencies: false,
-    registries: {
-      // A temporary workaround due to stylus removal from the npm registry.
-      // Related issue: https://github.com/stylus/stylus/issues/2938
-      default: 'https://registry.npmmirror.com',
-    },
     allProjects: [
       {
         buildIndex: 0,
@@ -597,7 +592,6 @@ test('installation on a workspace with many complex circular dependencies does n
           },
           dependencies: {
             preact: '10.11.0',
-            'preact-particles': '2.3.3',
             'preact-render-to-string': '5.2.4',
             'preact-router': '4.1.0',
             tsparticles: '2.3.4',
