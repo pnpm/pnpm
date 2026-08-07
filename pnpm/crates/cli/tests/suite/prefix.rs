@@ -74,16 +74,40 @@ fn prefix_walks_up_from_node_modules() {
     drop(root);
 }
 
+/// `pacquet prefix -g` prints the global dir root (the parent of the
+/// global packages dir, without the layout-version leaf), matching pnpm's
+/// `prefix` handler. Like pnpm's config reader it creates and validates
+/// the global bin dir first, without the writability requirement
+/// (`globalDirShouldAllowWrite` is false for `root` and `prefix`; pnpm
+/// issue 2700). Unix-gated like `bin.rs`: the `PATH` validation is
+/// platform-specific.
+#[cfg(unix)]
 #[test]
-fn prefix_global_is_not_supported_yet() {
+fn prefix_global_prints_the_global_dir_root() {
     let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+    let pnpm_home = root.path().join("pnpm-home");
+    let global_bin = pnpm_home.join("bin");
+    let existing_path = std::env::var("PATH").unwrap_or_default();
+    let path = format!("{}:{existing_path}", global_bin.display());
 
-    let output = pacquet.with_args(["prefix", "-g"]).output().expect("run pacquet prefix -g");
+    let output = pacquet
+        .with_env("PNPM_HOME", &pnpm_home)
+        .with_env("HOME", root.path())
+        .with_env("XDG_CONFIG_HOME", root.path().join("xdg-config"))
+        .with_env("PNPM_CONFIG_GLOBAL_DIR", "")
+        .with_env("pnpm_config_global_dir", "")
+        .with_env("PNPM_CONFIG_GLOBAL_BIN_DIR", "")
+        .with_env("pnpm_config_global_bin_dir", "")
+        .with_env("PATH", path)
+        .with_args(["prefix", "-g"])
+        .output()
+        .expect("run pacquet prefix -g");
     dbg!(&output);
-    assert!(!output.status.success(), "pacquet prefix -g should fail until global support lands");
+    assert!(output.status.success(), "pacquet prefix -g should succeed");
 
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("not supported yet"), "stderr should explain the gap: {stderr}");
+    let expected = format!("{}\n", pnpm_home.join("global").display());
+    assert_eq!(String::from_utf8_lossy(&output.stdout), expected);
+    assert!(global_bin.is_dir(), "pacquet prefix -g should create the global bin dir");
 
     drop(root);
 }

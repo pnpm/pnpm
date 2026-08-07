@@ -55,6 +55,12 @@ pub enum GlobalError {
     )]
     NoGlobalBinDir,
 
+    /// The global packages directory could not be resolved (no `PNPM_HOME`
+    /// and no determinable data dir), matching pnpm's `prefix` handler.
+    #[display("The global package directory could not be resolved.")]
+    #[diagnostic(code(ERR_PNPM_MISSING_GLOBAL_PACKAGE_DIR))]
+    MissingGlobalPackageDir,
+
     #[display(r#"Use the "pnpm self-update" command to install or update pnpm"#)]
     #[diagnostic(code(ERR_PNPM_GLOBAL_PNPM_INSTALL))]
     GlobalPnpmInstall,
