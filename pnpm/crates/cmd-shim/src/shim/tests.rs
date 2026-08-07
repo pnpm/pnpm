@@ -574,3 +574,56 @@ fn generate_pwsh_shim_emits_direct_exec_when_no_runtime() {
     );
     assert!(body.ends_with("exit $LASTEXITCODE\n"));
 }
+
+/// The shell sets `$0` to the invoked symlink, not the shim it points at,
+/// so a shim reached through external symlinks must follow the chain
+/// before deriving `basedir` (<https://github.com/pnpm/pnpm/issues/13405>).
+#[cfg(unix)]
+#[test]
+fn shim_execution_resolves_symlink_chain() {
+    use std::{
+        fs,
+        os::unix::fs::{PermissionsExt, symlink},
+        process::Command,
+    };
+    use tempfile::tempdir;
+
+    let tmp = tempdir().unwrap();
+    let tmp_path = tmp.path();
+
+    let bin_dir = tmp_path.join("node_modules").join(".bin");
+    let target_dir = tmp_path.join("node_modules").join("typescript").join("bin");
+    fs::create_dir_all(&bin_dir).unwrap();
+    fs::create_dir_all(&target_dir).unwrap();
+
+    let target_path = target_dir.join("tsc");
+    fs::write(&target_path, "#!/bin/sh\necho \"tsc-output\"\n").unwrap();
+    let mut perms = fs::metadata(&target_path).unwrap().permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(&target_path, perms).unwrap();
+
+    let shim_path = bin_dir.join("tsc");
+    let shim_body = generate_sh_shim(&target_path, &shim_path, None, &[]);
+    fs::write(&shim_path, &shim_body).unwrap();
+    let mut perms = fs::metadata(&shim_path).unwrap().permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(&shim_path, perms).unwrap();
+
+    // hop2's relative target exercises the shim's dirname-composition
+    // branch; hop1's absolute target exercises the other.
+    let hop1 = tmp_path.join("symlink_hop_1");
+    symlink(&shim_path, &hop1).unwrap();
+    let hop2_dir = tmp_path.join("local").join("bin");
+    fs::create_dir_all(&hop2_dir).unwrap();
+    let hop2 = hop2_dir.join("tsc");
+    symlink("../../symlink_hop_1", &hop2).unwrap();
+
+    let output = Command::new(&hop2).output().expect("execute shim through symlink chain");
+    assert!(
+        output.status.success(),
+        "Shim execution failed: {:?}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("tsc-output"), "Unexpected stdout: {stdout}");
+}

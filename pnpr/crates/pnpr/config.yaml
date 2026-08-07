@@ -112,6 +112,9 @@ registries:
         unpublish: $authenticated
       '@scoped/*': *default-rules
       'create-touch-file-one-bin': *default-rules
+      # Fully unpublished from npmjs.org, so the fixture copy is the only
+      # source; the rest of its (real) dependency tree still proxies to npm.
+      'preact-particles': *default-rules
       # The fixture packages in the real `@pnpm` and `@zkochan` scopes, each
       # claimed by exact name.
       '@pnpm/plugin-pnpmfile': *default-rules
