@@ -93,7 +93,6 @@ export async function fixWithUpdate (auditReport: AuditReport, opts: FixWithUpda
 
   // Add minimum patched versions to minimumReleaseAgeExclude so the resolver
   // can install them even when minimumReleaseAge would otherwise block them.
-  // Versions already older than the cutoff don't need the bypass.
   const addedAgeExcludes = opts.minimumReleaseAge
     ? await createMinimumReleaseAgeExcludes(Object.values(auditReport.advisories), {
       getPublishTimes: createPublishTimesFetcher(opts),

@@ -751,6 +751,10 @@ fn audit_fix_override_skips_age_exclude_when_patched_version_is_old() {
         fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace manifest");
     assert!(manifest.contains("overrides:"), "manifest should hold the override:\n{manifest}");
     assert!(
+        manifest.contains("vulnerable@<2.0.0: ^2.0.0"),
+        "manifest should hold the patched override:\n{manifest}",
+    );
+    assert!(
         !manifest.contains("minimumReleaseAgeExclude:"),
         "manifest should hold no exclusion:\n{manifest}",
     );
@@ -813,6 +817,10 @@ fn audit_fix_override_writes_age_exclude_when_patched_version_is_within_the_wind
     assert!(
         manifest.contains("minimumReleaseAgeExclude:"),
         "manifest should hold the exclusions:\n{manifest}",
+    );
+    assert!(
+        manifest.contains("vulnerable@1.5.0 || 2.0.0"),
+        "manifest should hold both patched-version exclusions:\n{manifest}",
     );
     mock.assert();
     packument_mock.assert();

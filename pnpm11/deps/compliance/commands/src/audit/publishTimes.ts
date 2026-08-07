@@ -51,7 +51,7 @@ export function createPublishTimesFetcher (opts: AuditOptions): (pkgName: string
       })
       if (!res.ok) return undefined
       const body = await res.json() as { time?: Record<string, string> }
-      return body.time != null && typeof body.time === 'object' ? body.time : undefined
+      return body.time != null && typeof body.time === 'object' && !Array.isArray(body.time) ? body.time as Record<string, string> : undefined
     } catch {
       // A failed lookup must not break the fix flow: the caller keeps its
       // current behavior (the exclude entry) when the age is unknown.
