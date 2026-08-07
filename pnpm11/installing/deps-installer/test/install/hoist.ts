@@ -253,7 +253,7 @@ test('a filtered install after a removal keeps the other importers hoisted entri
     { mutation: 'install', rootDir: process.cwd() as ProjectRootDir },
     { mutation: 'install', rootDir: path.resolve('package') as ProjectRootDir },
   ]
-  const allProjects = (rootManifest: typeof rootManifestBefore) => [
+  const allProjects = (rootManifest: { name: string, dependencies: Record<string, string> }) => [
     { buildIndex: 0, manifest: rootManifest, rootDir: process.cwd() as ProjectRootDir },
     { buildIndex: 0, manifest: packageManifest, rootDir: path.resolve('package') as ProjectRootDir },
   ]
