@@ -207,11 +207,9 @@ impl ProjectMutation {
         matches!(self, ProjectMutation::InstallWorkspace | ProjectMutation::InstallSelected)
     }
 
-    /// Whether the run may absorb manifest drift by rewriting the
-    /// loaded lockfile instead of resolving: full installs, and
-    /// `pacquet remove`, whose only drift is the importer edges it
-    /// deleted — exactly what the removal handler of
-    /// `try_fast_update_lockfile` expresses.
+    /// Whether the run may absorb its manifest drift by rewriting the
+    /// loaded lockfile instead of resolving. `pacquet remove` qualifies
+    /// because its only drift is the importer edges it deleted.
     #[must_use]
     pub fn may_fast_update_lockfile(self) -> bool {
         self.is_full_install() || matches!(self, ProjectMutation::UninstallSome)

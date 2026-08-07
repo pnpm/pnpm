@@ -149,6 +149,8 @@ test('pnpm remove drops the dependency without requesting packages', async () =>
       '@pnpm.e2e/pkg-with-1-dep': { specifier: '100.0.0', version: '100.0.0' },
     },
   })
+  project.hasNot('is-positive')
+  project.has('@pnpm.e2e/pkg-with-1-dep')
 })
 
 function trackRequestedPackages (storeController: StoreController): string[] {
