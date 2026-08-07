@@ -1,7 +1,22 @@
-use super::calculate_diff;
-use crate::CafsFileInfo;
+use super::{HASH_ALGORITHM, calculate_diff, upload};
+use crate::{
+    CafsFileInfo, PackageFilesIndex, StoreDir, StoreIndex, StoreIndexWriter, add_files_from_dir,
+};
 use pretty_assertions::assert_eq;
-use std::collections::HashMap;
+#[cfg(unix)]
+use std::os::unix::fs as unix_fs;
+use std::{collections::HashMap, fs, path::Path};
+use tempfile::tempdir;
+
+#[cfg(unix)]
+fn symlink_dir(target: &Path, link: &Path) {
+    unix_fs::symlink(target, link).expect("create directory symlink");
+}
+
+#[cfg(windows)]
+fn symlink_dir(target: &Path, link: &Path) {
+    junction::create(target, link).expect("create directory junction");
+}
 
 fn info(digest: &str, mode: u32, size: u64) -> CafsFileInfo {
     CafsFileInfo { digest: digest.to_string(), mode, size, checked_at: None }
@@ -90,4 +105,46 @@ fn mixed_changes() {
     added_keys.sort();
     assert_eq!(added_keys, vec!["changed".to_string(), "fresh".to_string()]);
     assert_eq!(diff.deleted, Some(vec!["gone".to_string()]));
+}
+
+#[tokio::test]
+async fn symlinked_output_is_not_cached() {
+    let store_root = tempdir().expect("create store root");
+    let store_dir = StoreDir::from(store_root.path().to_path_buf());
+    store_dir.init().expect("init store dir");
+    let pkg_dir = tempdir().expect("create package dir");
+    fs::write(pkg_dir.path().join("package.json"), r#"{"name":"symlink-output"}"#)
+        .expect("write package manifest");
+    let target_dir = pkg_dir.path().join("generated");
+    fs::create_dir(&target_dir).expect("create generated directory");
+    fs::write(target_dir.join("index.js"), "module.exports = true").expect("write target");
+
+    let base_files = add_files_from_dir(&store_dir, pkg_dir.path()).expect("hash base package");
+    let files_index_file = "symlink-side-effects-pkg";
+    let index = StoreIndex::open(store_dir.root()).expect("open store index");
+    index
+        .set(
+            files_index_file,
+            &PackageFilesIndex {
+                manifest: None,
+                requires_build: Some(true),
+                algo: HASH_ALGORITHM.to_string(),
+                files: base_files.files,
+                side_effects: None,
+            },
+        )
+        .expect("write base package index");
+    drop(index);
+
+    symlink_dir(&target_dir, &pkg_dir.path().join("generated-link"));
+    let (writer, writer_task) = StoreIndexWriter::spawn(&store_dir);
+    upload(&store_dir, pkg_dir.path(), files_index_file, "test-engine", writer.as_ref())
+        .expect("upload side effects");
+    drop(writer);
+    writer_task.await.expect("join store writer").expect("flush store writer");
+
+    let index = StoreIndex::open(store_dir.root()).expect("reopen store index");
+    let files_index =
+        index.get(files_index_file).expect("read package index").expect("package index exists");
+    assert_eq!(files_index.side_effects, None);
 }
