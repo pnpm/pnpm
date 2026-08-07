@@ -845,10 +845,14 @@ testOnPosix('generated POSIX shim resolves symlink chains and executes its targe
   const shimPath = path.join(binDir, 'tsc')
   await cmdShim(targetPath, shimPath)
 
+  // hop2's relative target exercises the shim's dirname-composition
+  // branch; hop1's absolute target exercises the other.
   const hop1 = path.join(projectDir, 'symlink_hop_1')
-  const hop2 = path.join(projectDir, 'symlink_hop_2')
   fs.symlinkSync(shimPath, hop1)
-  fs.symlinkSync(hop1, hop2)
+  const hop2Dir = path.join(projectDir, 'local', 'bin')
+  fs.mkdirSync(hop2Dir, { recursive: true })
+  const hop2 = path.join(hop2Dir, 'tsc')
+  fs.symlinkSync(path.join('..', '..', 'symlink_hop_1'), hop2)
 
   const { status, stdout, stderr } = spawnSync(hop2, { encoding: 'utf8' })
   expect(stderr).toBe('')

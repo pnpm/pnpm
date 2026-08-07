@@ -448,8 +448,11 @@ fn relative_target_windows(target_path: &Path, shim_path: &Path) -> String {
 
 const SH_SHIM_HEADER: &str = r#"#!/bin/sh
 # Resolve $0 through symlinks so basedir is the shim's real directory.
+# Cap hops at the kernel's ELOOP limit so a cycle cannot hang the shim.
 link="$0"
-while [ -L "$link" ]; do
+hops=0
+while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
+  hops=$((hops+1))
   target=$(readlink "$link")
   case "$target" in
     /*) link="$target" ;;

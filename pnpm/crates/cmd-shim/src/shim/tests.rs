@@ -609,10 +609,14 @@ fn shim_execution_resolves_symlink_chain() {
     perms.set_mode(0o755);
     fs::set_permissions(&shim_path, perms).unwrap();
 
+    // hop2's relative target exercises the shim's dirname-composition
+    // branch; hop1's absolute target exercises the other.
     let hop1 = tmp_path.join("symlink_hop_1");
-    let hop2 = tmp_path.join("symlink_hop_2");
     symlink(&shim_path, &hop1).unwrap();
-    symlink(&hop1, &hop2).unwrap();
+    let hop2_dir = tmp_path.join("local").join("bin");
+    fs::create_dir_all(&hop2_dir).unwrap();
+    let hop2 = hop2_dir.join("tsc");
+    symlink("../../symlink_hop_1", &hop2).unwrap();
 
     let output = Command::new(&hop2).output().expect("execute shim through symlink chain");
     assert!(
