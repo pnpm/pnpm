@@ -665,6 +665,25 @@ impl CliCommand {
         reports_scope && (recursive || matches!(self, CliCommand::Install(_)))
     }
 
+    /// Whether reporter output (warnings, progress) goes to stderr so this
+    /// command's stdout stays a clean, machine-readable value — pnpm's
+    /// `COMMANDS_WITH_STDERR_REPORTER`. pnpm's set also lists the top-level
+    /// `set` / `get` commands, which pacquet does not have.
+    pub(crate) fn uses_stderr_reporter(&self) -> bool {
+        matches!(
+            self,
+            CliCommand::Dlx(_)
+                | CliCommand::Create(_)
+                | CliCommand::Config(_)
+                | CliCommand::Sbom(_)
+                | CliCommand::With(_)
+                | CliCommand::Store(_)
+                | CliCommand::Prefix(_)
+                | CliCommand::Root(_)
+                | CliCommand::Bin(_),
+        )
+    }
+
     pub(crate) fn default_reporter_summary_scope(&self) -> SummaryScope {
         match self {
             CliCommand::Access(_) => SummaryScope::CurrentPrefix,

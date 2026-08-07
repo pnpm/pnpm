@@ -48,9 +48,12 @@ fn create_converts_name_and_runs_via_dlx() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(output.status.success(), "create failed\nstdout:\n{stdout}\nstderr:\n{stderr}");
+    // The reporter writes to stderr for create (pnpm's
+    // `COMMANDS_WITH_STDERR_REPORTER`), keeping stdout for the executed
+    // command.
     assert!(
-        stdout.contains("dependencies:\n+ create-touch-file-one-bin"),
-        "create should print the installed package summary\nstdout:\n{stdout}",
+        stderr.contains("dependencies:\n+ create-touch-file-one-bin"),
+        "create should print the installed package summary on stderr\nstderr:\n{stderr}",
     );
 
     let touch_txt = workspace.join("touch.txt");

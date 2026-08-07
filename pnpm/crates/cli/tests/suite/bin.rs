@@ -112,6 +112,48 @@ fn bin_global_errors_when_not_in_path() {
     drop(root);
 }
 
+/// The pm-check warning (`Using --global skips the package manager check for
+/// this project`) goes to stderr so `bin -g` keeps stdout a clean,
+/// machine-readable path. Ports `pnpm bin -g writes warnings to stderr so
+/// stdout stays a clean path` from `pnpm11/pnpm/test/bin.ts`: the impossible
+/// pin `pnpm@0.0.0` plus `--pm-on-fail=warn` triggers the warning without any
+/// version resolution. Unix-gated for the same `PATH`-format reason as the
+/// other `-g` cases.
+#[cfg(unix)]
+#[test]
+fn bin_global_writes_warnings_to_stderr_so_stdout_stays_a_clean_path() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), r#"{ "packageManager": "pnpm@0.0.0" }"#)
+        .expect("write package.json");
+    let pnpm_home = root.path().join("pnpm-home");
+    let global_bin = pnpm_home.join("bin");
+    let existing_path = std::env::var("PATH").unwrap_or_default();
+    let path = format!("{}:{existing_path}", global_bin.display());
+
+    let output = pacquet
+        .with_env("PNPM_HOME", &pnpm_home)
+        .with_env("HOME", root.path())
+        .with_env("XDG_CONFIG_HOME", root.path().join("xdg-config"))
+        .with_env("PNPM_CONFIG_GLOBAL_BIN_DIR", "")
+        .with_env("pnpm_config_global_bin_dir", "")
+        .with_env("PATH", path)
+        .with_args(["--pm-on-fail=warn", "bin", "-g"])
+        .output()
+        .expect("run pacquet bin -g");
+    dbg!(&output);
+    assert!(output.status.success(), "pacquet bin -g should succeed");
+
+    let expected = format!("{}\n", global_bin.display());
+    assert_eq!(String::from_utf8_lossy(&output.stdout), expected);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Using --global skips the package manager check for this project"),
+        "stderr should carry the pm-check warning: {stderr}",
+    );
+
+    drop(root);
+}
+
 /// Differential parity: from a workspace subdirectory pnpm's `bin` prints the
 /// cwd's `node_modules/.bin` (its `config.dir` is the cwd, not the workspace
 /// root). pacquet must match byte-for-byte. Windows-skipped because it spawns

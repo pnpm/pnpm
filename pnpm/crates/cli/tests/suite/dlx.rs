@@ -57,9 +57,12 @@ fn dlx_installs_and_runs_packages_bin() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(output.status.success(), "dlx failed\nstdout:\n{stdout}\nstderr:\n{stderr}");
+    // The reporter writes to stderr for dlx (pnpm's
+    // `COMMANDS_WITH_STDERR_REPORTER`), keeping stdout for the executed
+    // command.
     assert!(
-        stdout.contains("dependencies:\n+ @foo/touch-file-one-bin"),
-        "dlx should print the installed package summary\nstdout:\n{stdout}",
+        stderr.contains("dependencies:\n+ @foo/touch-file-one-bin"),
+        "dlx should print the installed package summary on stderr\nstderr:\n{stderr}",
     );
 
     assert!(
