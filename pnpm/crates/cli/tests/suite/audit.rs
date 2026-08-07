@@ -1,6 +1,4 @@
-pub mod _utils;
-
-use _utils::set_minimum_release_age;
+use crate::_utils::set_minimum_release_age;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use mockito::Matcher;
