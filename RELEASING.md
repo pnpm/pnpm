@@ -71,7 +71,8 @@ See [#13578](https://github.com/pnpm/pnpm/issues/13578).
    packages, then its `@pnpm/napi` and `@pnpm/exe` wrappers, and finally
    `pnpm`. Each stage pauses the workflow until every package in that dependency
    layer has been approved and is public. Copy the stage IDs from the job
-   summary and approve each one from a maintainer's machine:
+   summary and approve each one from a maintainer's machine within the layer's
+   90-minute approval window:
 
    ```bash
    pnpm stage approve <stage-id>

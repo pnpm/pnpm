@@ -3,6 +3,7 @@
 set -euo pipefail
 
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+registry=https://registry.npmjs.org/
 
 read_package_identity() {
   local package_dir=$1
@@ -35,7 +36,7 @@ stage_packages() {
     } >> "$GITHUB_STEP_SUMMARY"
   fi
 
-  local package_dir name version package_spec state stage_output stage_id
+  local package_dir package_path name version package_spec state stage_output stage_id
   local staged_count=0
   for package_dir in "$@"; do
     IFS=$'\t' read -r name version < <(read_package_identity "$package_dir")
@@ -49,7 +50,10 @@ stage_packages() {
         fi
         ;;
       missing)
-        stage_output=$(pnpm stage publish "${package_dir%/}/" \
+        package_path=$(cd "$package_dir" && pwd -P)
+        stage_output=$(pnpm stage publish "$package_path/" \
+          --registry "$registry" \
+          --npmrc-auth-file /dev/null \
           --tag "$tag" \
           --access public \
           --provenance \
@@ -90,9 +94,9 @@ wait_for_packages() {
   shift
 
   local poll_seconds=${NPM_PUBLICATION_POLL_SECONDS:-30}
-  local timeout_seconds=${NPM_PUBLICATION_TIMEOUT_SECONDS:-19800}
-  if [[ ! $poll_seconds =~ ^[0-9]+$ ]]; then
-    echo "::error::NPM_PUBLICATION_POLL_SECONDS must be a non-negative integer" >&2
+  local timeout_seconds=${NPM_PUBLICATION_TIMEOUT_SECONDS:-5400}
+  if [[ ! $poll_seconds =~ ^[1-9][0-9]*$ ]]; then
+    echo "::error::NPM_PUBLICATION_POLL_SECONDS must be a positive integer" >&2
     return 1
   fi
   if [[ ! $timeout_seconds =~ ^[0-9]+$ ]]; then
@@ -100,7 +104,7 @@ wait_for_packages() {
     return 1
   fi
 
-  local package_dir name version package_spec state
+  local package_dir name version package_spec state lookup_output
   local -a package_specs=()
   for package_dir in "$@"; do
     IFS=$'\t' read -r name version < <(read_package_identity "$package_dir")
@@ -108,11 +112,22 @@ wait_for_packages() {
   done
 
   local deadline=$((SECONDS + timeout_seconds))
+  local consecutive_lookup_failures=0
+  local max_consecutive_lookup_failures=3
   local -a pending=()
   while true; do
     pending=()
+    local lookup_failed=false
     for package_spec in "${package_specs[@]}"; do
-      state=$(publication_state "$package_spec")
+      if ! lookup_output=$(publication_state "$package_spec" 2>&1); then
+        pending+=("$package_spec")
+        lookup_failed=true
+        while IFS= read -r line; do
+          printf 'publication state lookup: %s\n' "$line" >&2
+        done <<< "$lookup_output"
+        continue
+      fi
+      state=$lookup_output
       case "$state" in
         published) ;;
         missing) pending+=("$package_spec") ;;
@@ -122,6 +137,16 @@ wait_for_packages() {
           ;;
       esac
     done
+
+    if [ "$lookup_failed" = true ]; then
+      consecutive_lookup_failures=$((consecutive_lookup_failures + 1))
+      if [ "$consecutive_lookup_failures" -ge "$max_consecutive_lookup_failures" ]; then
+        echo "::error::npm publication state lookup failed $consecutive_lookup_failures consecutive times" >&2
+        return 1
+      fi
+    else
+      consecutive_lookup_failures=0
+    fi
 
     if [ "${#pending[@]}" -eq 0 ]; then
       echo "Every package in $layer is published."

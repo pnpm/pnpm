@@ -431,7 +431,8 @@ jobs:
       # and `pnpm` use stage-only OIDC and wait for an interactive 2FA approval, in
       # that order, so the `pnpm` gate cannot become public while the executable
       # wrapper is pending. Keeping each stage operation in a token-free step also
-      # prevents an accidental fallback to token authentication.
+      # prevents an accidental fallback to token authentication. Each wait has a
+      # 90-minute deadline, leaving room for both layers within the job deadline.
       - name: Build TypeScript executable artifacts
         run: pn --filter=@pnpm/exe run build-artifacts
       - name: Publish internal workspace packages (static token)
@@ -958,7 +959,8 @@ jobs:
       # native packages first, `@pnpm/napi` / `@pnpm/exe` second, and `pnpm`
       # last. This keeps exact-version optionalDependencies installable and
       # preserves `pnpm` as the plan job's "release completed" gate. The build
-      # dirs `pacquet-*` are published as `@pnpm/exe.<target>`.
+      # dirs `pacquet-*` are published as `@pnpm/exe.<target>`. Each wait has a
+      # 90-minute deadline, leaving room for all three layers within the job deadline.
       - name: Stage Rust native packages (OIDC)
         env:
           TAG: ${{ needs.plan.outputs.rust_tag }}
