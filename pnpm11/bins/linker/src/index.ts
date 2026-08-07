@@ -460,8 +460,12 @@ async function ensureExecutable (file: string, mode: number): Promise<void> {
   }
 }
 
+// A missing or unreadable source is skipped rather than failing the install:
+// the existing bin was accepted as correctly linked, and before this repair
+// step the skip path returned without touching the source at all.
 async function ensureExecutableIfNeeded (file: string, mode: number): Promise<void> {
-  const stat = await fs.stat(file)
+  const stat = await fs.stat(file).catch(() => undefined)
+  if (stat == null) return
   if ((stat.mode & 0o111) === 0 || await hasWindowsShebang(file)) {
     await ensureExecutable(file, mode)
   }
