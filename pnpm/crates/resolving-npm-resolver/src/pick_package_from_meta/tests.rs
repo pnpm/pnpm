@@ -518,6 +518,29 @@ fn filter_latest_fallback_does_not_exceed_original_tag_target() {
 }
 
 #[test]
+fn filter_custom_dist_tag_fallback_does_not_exceed_original_target() {
+    let mut pkg = make_package(
+        "nightly-fallback",
+        &[
+            ("0.0.29-nightly.20260724.896", None),
+            ("0.0.29-nightly.20260725.899", None),
+            ("0.1.0-alpha.1", None),
+        ],
+        &[("nightly", "0.0.29-nightly.20260725.899")],
+    );
+    pkg.time = Some(make_time_map(&[
+        ("0.0.29-nightly.20260724.896", "2026-07-24T20:37:59.752Z"),
+        ("0.0.29-nightly.20260725.899", "2026-07-25T04:18:17.590Z"),
+        ("0.1.0-alpha.1", "2026-02-28T23:12:56.014Z"),
+    ]));
+    let cutoff = parse_iso("2026-07-25T00:00:00.000Z");
+
+    let filtered = filter_pkg_metadata_by_publish_date(&pkg, cutoff, None);
+
+    assert_eq!(filtered.dist_tag("nightly"), Some("0.0.29-nightly.20260724.896"));
+}
+
+#[test]
 fn filter_is_memoized_per_packument_and_stays_bounded() {
     let mut pkg = make_package("acme", &[("1.0.0", None)], &[("latest", "1.0.0")]);
     pkg.time = Some(make_time_map(&[("1.0.0", "2020-01-01T00:00:00.000Z")]));
