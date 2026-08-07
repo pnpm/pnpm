@@ -1167,9 +1167,10 @@ export async function mutateModules (
           if (
             !catalogDepSpecifier ||
             wantedDep.bareSpecifier === catalogBareSpecifier ||
-            semver.valid(wantedDep.bareSpecifier) &&
-            semver.valid(catalogDepSpecifier) &&
-            semver.eq(wantedDep.bareSpecifier, catalogDepSpecifier)
+            semver.valid(wantedDep.bareSpecifier) && (
+              semver.valid(catalogDepSpecifier) && semver.eq(wantedDep.bareSpecifier, catalogDepSpecifier) ||
+              semver.validRange(catalogDepSpecifier) && semver.satisfies(wantedDep.bareSpecifier, catalogDepSpecifier)
+            )
           ) {
             wantedDep.saveCatalogName = perDepCatalogName
             continue
