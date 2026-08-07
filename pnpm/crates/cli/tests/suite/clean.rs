@@ -60,7 +60,14 @@ fn clean_removes_package_links_into_the_virtual_store() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(output.status.success(), "pacquet clean should succeed: {stderr}");
 
-    assert!(!node_modules.join(".pnpm").exists(), ".pnpm should be removed");
+    let virtual_store_metadata = fs::symlink_metadata(node_modules.join(".pnpm"));
+    assert!(
+        matches!(
+            &virtual_store_metadata,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound
+        ),
+        ".pnpm should be removed, got {virtual_store_metadata:?}",
+    );
     let link_metadata = fs::symlink_metadata(node_modules.join("greenly"));
     assert!(
         matches!(&link_metadata, Err(error) if error.kind() == std::io::ErrorKind::NotFound),
