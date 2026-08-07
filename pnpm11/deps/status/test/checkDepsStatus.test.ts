@@ -586,6 +586,27 @@ describe('checkDepsStatus - fingerprint', () => {
     expect(result.issue).toBe('The fingerprint returned by a pnpmfile has changed')
   })
 
+  it('returns upToDate: false when the fingerprint hook throws', async () => {
+    const mockWorkspaceState = makeWorkspaceState('fingerprint-before')
+    jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+
+    const opts: CheckDepsStatusOptions = {
+      rootProjectManifest: {},
+      rootProjectManifestDir: '/project',
+      pnpmfile: [],
+      hooks: {
+        calculateFingerprint: async () => {
+          throw new Error('fingerprint source unavailable')
+        },
+      },
+      ...mockWorkspaceState.settings,
+    }
+    const result = await checkDepsStatus(opts)
+
+    expect(result.upToDate).toBe(false)
+    expect(result.issue).toBe('The pnpmfile calculateFingerprint hook failed: fingerprint source unavailable')
+  })
+
   it('continues past the fingerprint check when the fingerprint is unchanged', async () => {
     const lastValidatedTimestamp = Date.now() - 10_000
     const beforeLastValidation = lastValidatedTimestamp - 10_000
