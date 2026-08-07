@@ -988,8 +988,9 @@ fn run_peer_issues_blocking(options: &serde_json::Value) -> napi::Result<serde_j
 fn peer_issues_to_json(
     issues: &pacquet_resolving_deps_resolver::PeerDependencyIssues,
 ) -> serde_json::Value {
-    let parents_json = |parents: &[pacquet_resolving_deps_resolver::ParentPackageRef]| {
+    let parents_json = |parents: &pacquet_resolving_deps_resolver::ParentChain| {
         parents
+            .to_refs()
             .iter()
             .map(|parent| serde_json::json!({ "name": parent.name, "version": parent.version }))
             .collect::<Vec<_>>()
