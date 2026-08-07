@@ -109,7 +109,7 @@ pub struct PeerDependencyIssue {
 /// occurrence (tens of thousands on large auto-install-peers graphs)
 /// and most are never rendered, so the names are cloned out only when
 /// a consumer calls [`Self::to_refs`].
-#[derive(Clone, Default)]
+#[derive(Default, Clone)]
 pub struct ParentChain(pub(crate) SharedChain<String>);
 
 impl ParentChain {
