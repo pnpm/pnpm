@@ -79,6 +79,22 @@ test('a catalog entry whose last referent is dropped is pruned', () => {
   expect(subject.catalogs).toBeUndefined()
 })
 
+test('a catalog entry referenced with the catalog:default spelling is kept', () => {
+  const subject = lockfile()
+  subject.catalogs = { default: { foo: { specifier: '^1.0.0', version: '1.1.0' } } }
+  subject.importers['.' as ProjectId].specifiers.foo = 'catalog:default'
+  subject.importers['pkg-a' as ProjectId] = {
+    specifiers: { foo: 'catalog:default', bar: '^2.0.0' },
+    dependencies: { foo: '1.1.0', bar: '2.0.0' },
+  }
+
+  expect(tryFastUpdateImporters(subject, [
+    project({ bar: '^2.0.0' }),
+    { id: 'pkg-a' as ProjectId, manifest: { dependencies: { foo: 'catalog:default', bar: '^2.0.0' } } as ProjectManifest },
+  ])).toBe(true)
+  expect(subject.catalogs).toStrictEqual({ default: { foo: { specifier: '^1.0.0', version: '1.1.0' } } })
+})
+
 test('a catalog entry another importer references is kept', () => {
   const subject = lockfile()
   subject.catalogs = { default: { foo: { specifier: '^1.0.0', version: '1.1.0' } } }

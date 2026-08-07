@@ -108,11 +108,8 @@ pub(crate) fn catalog_entry_is_referenced(
     alias: &str,
 ) -> bool {
     let Ok(alias) = PkgName::parse(alias) else { return true };
-    let protocol = if catalog_name == "default" {
-        "catalog:".to_string()
-    } else {
-        format!("catalog:{catalog_name}")
-    };
+    // Parsed rather than compared to a rebuilt protocol string, so the
+    // `catalog:default` spelling of the default catalog counts too.
     lockfile.importers.values().any(|importer| {
         [
             importer.dependencies.as_ref(),
@@ -122,7 +119,10 @@ pub(crate) fn catalog_entry_is_referenced(
         .into_iter()
         .flatten()
         .any(|dependencies| {
-            dependencies.get(&alias).is_some_and(|dependency| dependency.specifier == protocol)
+            dependencies.get(&alias).is_some_and(|dependency| {
+                pacquet_catalogs_protocol_parser::parse_catalog_protocol(&dependency.specifier)
+                    == Some(catalog_name)
+            })
         })
     })
 }

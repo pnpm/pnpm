@@ -90,11 +90,6 @@ fn catalog_entry_is_sole_reference(
     catalog_name: &str,
     name: &PkgName,
 ) -> bool {
-    let protocol = if catalog_name == "default" {
-        "catalog:".to_string()
-    } else {
-        format!("catalog:{catalog_name}")
-    };
     let importers_agree = lockfile.importers.values().all(|importer| {
         [
             importer.dependencies.as_ref(),
@@ -104,7 +99,10 @@ fn catalog_entry_is_sole_reference(
         .into_iter()
         .flatten()
         .all(|dependencies| {
-            dependencies.get(name).is_none_or(|dependency| dependency.specifier == protocol)
+            dependencies.get(name).is_none_or(|dependency| {
+                pacquet_catalogs_protocol_parser::parse_catalog_protocol(&dependency.specifier)
+                    == Some(catalog_name)
+            })
         })
     });
     let no_package_depends_on_it = lockfile.snapshots.as_ref().is_none_or(|snapshots| {

@@ -50,8 +50,11 @@ function catalogEntryIsReferenced (
   catalogName: string,
   alias: string
 ): boolean {
-  const protocol = catalogName === 'default' ? 'catalog:' : `catalog:${catalogName}`
-  return Object.values(importers).some((importer) => importer.specifiers[alias] === protocol)
+  // Parsed rather than compared to a rebuilt protocol string, so the
+  // `catalog:default` spelling of the default catalog counts too.
+  return Object.values(importers).some(
+    (importer) => parseCatalogProtocol(importer.specifiers[alias] ?? '') === catalogName
+  )
 }
 
 /**
