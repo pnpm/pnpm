@@ -100,9 +100,28 @@ test('a manifest hook that renames the package falls back', async () => {
   )).toBe('unsupported')
 })
 
-test('a range the locked version still satisfies moves nothing', async () => {
-  expect(await tryFastUpdateCatalogVersions(lockfile(), updateOptions('^1.0.0', '^1.0.0')))
-    .toBe('unsupported')
+test('a satisfied range rides along with an exact move in one pass', async () => {
+  const subject = lockfile()
+  subject.catalogs!.default.child = { specifier: '1.1.0', version: '1.1.0' }
+  const opts = updateOptions('^1.0.0') as unknown as Record<string, unknown>
+  opts.catalogs = { default: { target: '2.0.0', child: '^1.1.0' } }
+
+  expect(await tryFastUpdateCatalogVersions(
+    subject,
+    opts as unknown as Parameters<typeof tryFastUpdateCatalogVersions>[1]
+  )).toBe('applied')
+  expect(subject.catalogs!.default.child).toStrictEqual({ specifier: '^1.1.0', version: '1.1.0' })
+  expect(subject.catalogs!.default.target).toStrictEqual({ specifier: '2.0.0', version: '2.0.0' })
+})
+
+test('a range the locked version still satisfies moves no package', async () => {
+  const subject = lockfile()
+
+  expect(await tryFastUpdateCatalogVersions(subject, updateOptions('^1.0.0', '^1.0.0')))
+    .toBe('nothing-to-move')
+  // Nothing was written: with no package to move, the range-only rewrite owns
+  // the specifier and this leaves the lockfile for it.
+  expect(subject.catalogs!.default.target).toStrictEqual({ specifier: '1.0.0', version: '1.0.0' })
 })
 
 test('an unchanged catalog reports that nothing moved', async () => {

@@ -52,12 +52,17 @@ export async function tryFastUpdateCatalogVersions (
         catalogs[catalogName][alias] = entry
         continue
       }
-      // A specifier the locked version still satisfies belongs to the
-      // range-only path, which rewrites nothing.
-      const wanted = semver.valid(specifier)
-      if (wanted == null || semver.valid(entry.version) == null || wanted === entry.version) {
-        return 'unsupported'
+      if (semver.valid(entry.version) == null) return 'unsupported'
+      // A specifier the locked version still satisfies moves nothing but the
+      // specifier, exactly as the range-only path would.
+      // A specifier the locked version still satisfies moves nothing but the
+      // specifier, exactly as the range-only path would.
+      if (semver.validRange(specifier) != null && semver.satisfies(entry.version, specifier)) {
+        catalogs[catalogName][alias] = { specifier, version: entry.version }
+        continue
       }
+      const wanted = semver.valid(specifier)
+      if (wanted == null) return 'unsupported'
       if (!catalogEntryIsSoleReference(lockfile, catalogName, alias)) return 'unsupported'
       fastOverrides.push({ name: alias, newVersion: wanted, oldVersion: entry.version })
       catalogs[catalogName][alias] = { specifier, version: wanted }
