@@ -19,12 +19,6 @@ pub struct PrefixArgs {
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum PrefixError {
-    /// The global packages directory could not be resolved (no `PNPM_HOME`
-    /// and no determinable data dir), matching pnpm's `prefix` handler.
-    #[display("The global package directory could not be resolved.")]
-    #[diagnostic(code(ERR_PNPM_MISSING_GLOBAL_PACKAGE_DIR))]
-    MissingGlobalPackageDir,
-
     /// IO error while looking up the prefix.
     #[display("failed to access {}: {source}", path.display())]
     #[diagnostic(code(ERR_PNPM_CLI_PREFIX_IO_ERROR))]
@@ -93,8 +87,8 @@ impl PrefixArgs {
             // pnpm's `prefix` handler prints the parent of the global packages
             // dir — the global dir root, without the layout-version leaf.
             let pkg_dir =
-                config.global_pkg_dir.clone().ok_or(PrefixError::MissingGlobalPackageDir)?;
-            let prefix_dir = pkg_dir.parent().ok_or(PrefixError::MissingGlobalPackageDir)?;
+                config.global_pkg_dir.clone().ok_or(GlobalError::MissingGlobalPackageDir)?;
+            let prefix_dir = pkg_dir.parent().ok_or(GlobalError::MissingGlobalPackageDir)?;
             println!("{}", prefix_dir.display());
             return Ok(());
         }
